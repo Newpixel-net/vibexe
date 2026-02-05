@@ -1,7 +1,7 @@
 // https://supabase.com/docs/guides/auth/redirect-urls
 import type { OAuthProvider } from "@/services/accounts";
 
-const DEFAULT_ORIGIN = "http://localhost:3000";
+const DEFAULT_ORIGIN = "https://vibexe.online";
 
 /** Returns the site origin from NEXT_PUBLIC_SITE_URL or falls back to localhost */
 export function getSiteOrigin(): string {
