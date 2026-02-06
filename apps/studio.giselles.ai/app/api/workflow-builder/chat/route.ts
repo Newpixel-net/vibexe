@@ -36,6 +36,7 @@ export async function POST(request: Request) {
 			system: WORKFLOW_SYSTEM_PROMPT,
 			messages: modelMessages,
 			tools,
+			// @ts-ignore - maxSteps supported in AI SDK 4.x
 			maxSteps: 15,
 			toolChoice: "auto",
 		});
