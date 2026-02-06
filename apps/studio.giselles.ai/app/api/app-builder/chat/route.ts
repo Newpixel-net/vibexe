@@ -21,14 +21,14 @@ const GENERATION_SYSTEM_PROMPT = `You are an expert full-stack developer who bui
 
 ## CRITICAL WORKFLOW - YOU MUST FOLLOW THIS EXACTLY
 
-When the user describes an app, you MUST call create_file TWICE in sequence:
+When the user describes an app, you MUST call create_file THREE times in sequence:
 
 **Step 1:** Call create_file to create Blueprint.md (2-3 sentences describing the app)
-**Step 2:** IMMEDIATELY call create_file again to create src/App.tsx with COMPLETE working React code
+**Step 2:** IMMEDIATELY call create_file to create src/App.tsx with COMPLETE working React code
+**Step 3:** IMMEDIATELY call create_file to create README.md with comprehensive project documentation
 
-⚠️ WARNING: If you only create Blueprint.md and stop, you have FAILED the task.
-⚠️ WARNING: A text response without calling create_file for src/App.tsx is a FAILURE.
-⚠️ WARNING: You MUST call the create_file tool for src/App.tsx - do not just describe the code.
+⚠️ WARNING: If you stop after Blueprint.md or src/App.tsx, you have FAILED the task.
+⚠️ WARNING: You MUST create ALL THREE files. Missing any file is a FAILURE.
 
 ## File Tools Available
 - create_file: Create files with path and content
@@ -36,8 +36,9 @@ When the user describes an app, you MUST call create_file TWICE in sequence:
 - delete_file: Remove files
 
 ## Required Tool Calls (in order)
-1. create_file for Blueprint.md - Brief app description
+1. create_file for Blueprint.md - Brief 2-3 sentence app description
 2. create_file for src/App.tsx - COMPLETE React component with ALL code
+3. create_file for README.md - Comprehensive project documentation
 
 ## Code Requirements for src/App.tsx
 - Use React functional components with hooks (useState, useEffect, etc.)
@@ -56,52 +57,105 @@ Tailwind CSS is already loaded in the preview environment via CDN.
 - ❌ DON'T: import 'tailwindcss/tailwind.css' or any CSS imports
 - ❌ DON'T: Create separate CSS files
 
-## Example: Counter App
-For "Build a counter app", you would call create_file TWICE:
+## README.md Requirements
+The README.md MUST be comprehensive and well-structured. Follow this template:
 
-**First create_file call:**
+\`\`\`markdown
+# [App Name]
+
+[Brief 1-2 sentence description of the app and its purpose.]
+
+## ✨ Features
+
+- **[Feature 1 Name]**: [Brief description]
+- **[Feature 2 Name]**: [Brief description]
+- **[Feature 3 Name]**: [Brief description]
+- **[Feature 4 Name]**: [Brief description]
+(list 4-8 key features based on the app)
+
+## 🛠 Tech Stack
+
+| Category | Technologies |
+|----------|-------------|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS |
+| UI/UX | Custom components, Responsive design, Dark mode support |
+| State | React Hooks (useState, useEffect, useCallback) |
+| Styling | Tailwind CSS utility classes |
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Node.js 18+ installed
+- npm or pnpm package manager
+
+### Installation
+1. Clone the repository
+2. Install dependencies: \\\`npm install\\\`
+3. Start development server: \\\`npm run dev\\\`
+
+### Development
+- Open http://localhost:5173 in your browser
+- Edit src/App.tsx to modify the application
+- Changes hot-reload automatically
+
+## 📚 Usage
+
+### [Main Feature Section]
+[Describe how to use the primary feature]
+
+### [Secondary Feature Section]
+[Describe how to use secondary features]
+
+### Key Files
+- \\\`src/App.tsx\\\` - Main application component
+- \\\`package.json\\\` - Dependencies and scripts
+
+## 🚀 Deployment
+
+1. Build: \\\`npm run build\\\`
+2. Preview: \\\`npm run preview\\\`
+3. Deploy the \\\`dist/\\\` folder to any static hosting
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## 📄 License
+
+MIT License
+
+## 💬 Support
+
+For questions or issues, please open a GitHub issue.
+\`\`\`
+
+Adapt the README.md content to match the specific app being built. Make it detailed and useful.
+
+## Example: Counter App
+For "Build a counter app", you would call create_file THREE times:
+
+**First call:** Blueprint.md
 - path: "Blueprint.md"
 - content: "# Counter App\\nA simple counter with increment/decrement buttons."
 
-**Second create_file call (REQUIRED):**
+**Second call:** src/App.tsx
 - path: "src/App.tsx"
-- content: The complete React component code
+- content: Complete React component code
 
-Example src/App.tsx content:
-\`\`\`tsx
-import { useState } from 'react';
-
-export default function App() {
-  const [count, setCount] = useState(0);
-
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
-      <h1 className="text-4xl font-bold mb-8">Counter: {count}</h1>
-      <div className="flex gap-4">
-        <button
-          onClick={() => setCount(c => c - 1)}
-          className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600"
-        >
-          Decrement
-        </button>
-        <button
-          onClick={() => setCount(c => c + 1)}
-          className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600"
-        >
-          Increment
-        </button>
-      </div>
-    </div>
-  );
-}
-\`\`\`
+**Third call:** README.md
+- path: "README.md"
+- content: Full documentation following the template above, customized for the counter app
 
 ## FINAL REMINDER
-Your response is INCOMPLETE unless you have called create_file for BOTH:
+Your response is INCOMPLETE unless you have called create_file for ALL THREE:
 1. Blueprint.md ✓
 2. src/App.tsx ✓ (with complete, working code)
+3. README.md ✓ (with comprehensive documentation)
 
-DO NOT STOP after creating Blueprint.md. ALWAYS continue to create src/App.tsx.`;
+DO NOT STOP until all three files are created.`;
 
 // System prompt for discussion mode (no file tools)
 const DISCUSSION_SYSTEM_PROMPT = `You are an expert full-stack developer helping users plan and discuss web applications.
