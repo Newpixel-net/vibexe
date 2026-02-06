@@ -34,11 +34,13 @@ export function createWorkflowTools() {
 						teamDbId: team.dbId,
 						creatorDbId: user.dbId,
 						workspaceId: workspace.id,
+						name,
 					});
 					await db.insert(workspaces).values({
 						id: workspace.id,
 						creatorDbId: user.dbId,
 						teamDbId: team.dbId,
+						name,
 					});
 
 					// Set workspace name and ensure correct Workspace type
@@ -346,11 +348,13 @@ export function createWorkflowTools() {
 						outputNode: {
 							id: sourceNode.id,
 							type: sourceNode.type,
+							content: { type: sourceNode.content.type },
 						},
 						outputId: sourceOutputId,
 						inputNode: {
 							id: targetNode.id,
 							type: targetNode.type,
+							content: { type: targetNode.content.type },
 						},
 						inputId: actualInputId,
 					} as Workspace["connections"][number];
