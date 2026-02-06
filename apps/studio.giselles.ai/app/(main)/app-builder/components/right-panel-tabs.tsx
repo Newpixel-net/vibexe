@@ -9,7 +9,7 @@
  * Deploy to: /opt/giselle/apps/studio.giselles.ai/app/(main)/app-builder/components/right-panel-tabs.tsx
  */
 
-import { Code2, Eye, FileText } from "lucide-react";
+import { Code2, Eye, FileText, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -17,8 +17,9 @@ import { cn } from "@/lib/utils";
  * - preview: Shows the live preview of the app
  * - code: Shows the DashboardPanel with sidebar and code editor
  * - readme: Shows documentation viewer with TOC
+ * - workflows: Shows linked Giselle workflows for automation
  */
-export type RightPanelView = "preview" | "code" | "readme";
+export type RightPanelView = "preview" | "code" | "readme" | "workflows";
 
 interface RightPanelTabsProps {
 	/** Currently active view */
@@ -76,6 +77,19 @@ export function RightPanelTabs({ view, onViewChange }: RightPanelTabsProps) {
 			>
 				<FileText className="h-4 w-4 shrink-0" />
 				<span>Documents</span>
+			</button>
+			<button
+				type="button"
+				onClick={() => onViewChange("workflows")}
+				className={cn(
+					"flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
+					view === "workflows"
+						? "bg-muted text-foreground"
+						: "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+				)}
+			>
+				<Workflow className="h-4 w-4 shrink-0" />
+				<span>Workflows</span>
 			</button>
 		</div>
 	);

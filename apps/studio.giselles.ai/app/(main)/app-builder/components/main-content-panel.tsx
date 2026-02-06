@@ -15,6 +15,7 @@ import { DashboardPanel } from "./dashboard-panel";
 import { ReadmePanel } from "./readme-panel";
 import { RightPanelTabs, type RightPanelView } from "./right-panel-tabs";
 import { SandpackPreview } from "./sandpack-preview";
+import { WorkflowsPanel } from "./workflows-panel";
 
 // Re-export RightPanelView as ViewType for backward compatibility
 export type { RightPanelView as ViewType };
@@ -82,6 +83,7 @@ export function MainContentPanel({
 							/>
 						)}
 						{view === "readme" && <ReadmePanel files={files} />}
+						{view === "workflows" && <WorkflowsPanel appId={appId} />}
 					</motion.div>
 				</AnimatePresence>
 			</div>

@@ -337,7 +337,7 @@ export const workspaces = pgTable("workspaces", {
 		.notNull(),
 });
 
-export const workspaceRelations = relations(workspaces, ({ one }) => ({
+export const workspaceRelations = relations(workspaces, ({ one, many }) => ({
 	creator: one(users, {
 		fields: [workspaces.creatorDbId],
 		references: [users.dbId],
@@ -350,6 +350,7 @@ export const workspaceRelations = relations(workspaces, ({ one }) => ({
 		fields: [workspaces.dbId],
 		references: [apps.workspaceDbId],
 	}),
+	builderAppLinks: many(builderAppWorkflows),
 }));
 
 export const oauthCredentials = pgTable(
@@ -1167,6 +1168,7 @@ export type BuilderAppId = `bldr_${string}`;
 export type BuilderFileId = `bldf_${string}`;
 export type BuilderChatId = `bldc_${string}`;
 export type BuilderVersionId = `bldv_${string}`;
+export type BuilderAppWorkflowId = `bawf_${string}`;
 
 /**
  * Builder Projects - organizational containers for builder apps
@@ -1262,6 +1264,7 @@ export const builderAppRelations = relations(builderApps, ({ one, many }) => ({
 	files: many(builderFiles),
 	chats: many(builderChats),
 	versions: many(builderVersions),
+	workflows: many(builderAppWorkflows),
 }));
 
 export type BuilderApp = typeof builderApps.$inferSelect;
@@ -1365,3 +1368,43 @@ export const builderVersionRelations = relations(
 
 export type BuilderVersion = typeof builderVersions.$inferSelect;
 export type NewBuilderVersion = typeof builderVersions.$inferInsert;
+
+/**
+ * Builder App Workflows - links builder apps to Giselle workflows (workspaces)
+ * Allows attaching one or more workflows to a builder app for automation.
+ */
+export const builderAppWorkflows = pgTable(
+	"builder_app_workflows",
+	{
+		id: text("id").$type<BuilderAppWorkflowId>().notNull().unique(),
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		workspaceId: text("workspace_id").$type<WorkspaceId>().notNull(),
+		purpose: text("purpose"), // e.g., "testing", "content-pipeline", "ci-cd", "scheduled-refresh"
+		label: text("label"), // user-friendly name for this link
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("builder_app_workflows_app_db_id_idx").on(table.appDbId),
+		index("builder_app_workflows_workspace_id_idx").on(table.workspaceId),
+	],
+);
+
+export const builderAppWorkflowRelations = relations(
+	builderAppWorkflows,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppWorkflows.appDbId],
+			references: [builderApps.dbId],
+		}),
+		workspace: one(workspaces, {
+			fields: [builderAppWorkflows.workspaceId],
+			references: [workspaces.id],
+		}),
+	}),
+);
+
+export type BuilderAppWorkflow = typeof builderAppWorkflows.$inferSelect;
+export type NewBuilderAppWorkflow = typeof builderAppWorkflows.$inferInsert;
