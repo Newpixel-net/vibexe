@@ -67,6 +67,12 @@ function createStagePart(isStageV2Enabled: boolean): SidebarPart {
 			href: "/playground",
 			activeMatchPattern: "/playground",
 		},
+		{
+			id: "app-builder",
+			label: "App Builder",
+			href: "/app-builder",
+			activeMatchPattern: "/app-builder*",
+		},
 		...(isStageV2Enabled
 			? [
 					{
