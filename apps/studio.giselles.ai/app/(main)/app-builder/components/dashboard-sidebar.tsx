@@ -11,19 +11,19 @@
 
 import type { LucideIcon } from "lucide-react";
 import {
-  Home,
-  Users,
-  Database,
-  BarChart3,
-  Globe,
-  Puzzle,
-  Shield,
-  Code2,
-  Bot,
-  Zap,
-  FileText,
-  Key,
-  Settings,
+	BarChart3,
+	Bot,
+	Code2,
+	Database,
+	FileText,
+	Globe,
+	Home,
+	Key,
+	Puzzle,
+	Settings,
+	Shield,
+	Users,
+	Zap,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -33,24 +33,24 @@ import { cn } from "@/lib/utils";
  * Each section corresponds to a menu item in the navigation.
  */
 export type DashboardSection =
-  | "overview"
-  | "users"
-  | "data"
-  | "analytics"
-  | "domains"
-  | "integrations"
-  | "security"
-  | "code"
-  | "agents"
-  | "automations"
-  | "logs"
-  | "api"
-  | "settings";
+	| "overview"
+	| "users"
+	| "data"
+	| "analytics"
+	| "domains"
+	| "integrations"
+	| "security"
+	| "code"
+	| "agents"
+	| "automations"
+	| "logs"
+	| "api"
+	| "settings";
 
 interface NavItem {
-  id: DashboardSection;
-  label: string;
-  icon: LucideIcon;
+	id: DashboardSection;
+	label: string;
+	icon: LucideIcon;
 }
 
 /**
@@ -61,26 +61,26 @@ interface NavItem {
  * 11. Logs, 12. API, 13. Settings
  */
 const navItems: NavItem[] = [
-  { id: "overview", label: "Overview", icon: Home },
-  { id: "users", label: "Users", icon: Users },
-  { id: "data", label: "Data", icon: Database },
-  { id: "analytics", label: "Analytics", icon: BarChart3 },
-  { id: "domains", label: "Domains", icon: Globe },
-  { id: "integrations", label: "Integrations", icon: Puzzle },
-  { id: "security", label: "Security", icon: Shield },
-  { id: "code", label: "Code", icon: Code2 },
-  { id: "agents", label: "Agents", icon: Bot },
-  { id: "automations", label: "Automations", icon: Zap },
-  { id: "logs", label: "Logs", icon: FileText },
-  { id: "api", label: "API", icon: Key },
-  { id: "settings", label: "Settings", icon: Settings },
+	{ id: "overview", label: "Overview", icon: Home },
+	{ id: "users", label: "Users", icon: Users },
+	{ id: "data", label: "Data", icon: Database },
+	{ id: "analytics", label: "Analytics", icon: BarChart3 },
+	{ id: "domains", label: "Domains", icon: Globe },
+	{ id: "integrations", label: "Integrations", icon: Puzzle },
+	{ id: "security", label: "Security", icon: Shield },
+	{ id: "code", label: "Code", icon: Code2 },
+	{ id: "agents", label: "Agents", icon: Bot },
+	{ id: "automations", label: "Automations", icon: Zap },
+	{ id: "logs", label: "Logs", icon: FileText },
+	{ id: "api", label: "API", icon: Key },
+	{ id: "settings", label: "Settings", icon: Settings },
 ];
 
 interface DashboardSidebarProps {
-  /** Currently active section */
-  activeSection: DashboardSection;
-  /** Callback when section changes */
-  onSectionChange: (section: DashboardSection) => void;
+	/** Currently active section */
+	activeSection: DashboardSection;
+	/** Callback when section changes */
+	onSectionChange: (section: DashboardSection) => void;
 }
 
 /**
@@ -93,35 +93,36 @@ interface DashboardSidebarProps {
  * - Hover states for interactive feedback
  */
 export function DashboardSidebar({
-  activeSection,
-  onSectionChange,
+	activeSection,
+	onSectionChange,
 }: DashboardSidebarProps) {
-  return (
-    <div className="w-[200px] border-r border-border bg-background">
-      <ScrollArea className="h-full">
-        <nav className="p-2 space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeSection === item.id;
+	return (
+		<div className="w-[200px] border-r border-border bg-background">
+			<ScrollArea className="h-full">
+				<nav className="p-2 space-y-1">
+					{navItems.map((item) => {
+						const Icon = item.icon;
+						const isActive = activeSection === item.id;
 
-            return (
-              <button
-                key={item.id}
-                onClick={() => onSectionChange(item.id)}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-muted text-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="truncate">{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-      </ScrollArea>
-    </div>
-  );
+						return (
+							<button
+								type="button"
+								key={item.id}
+								onClick={() => onSectionChange(item.id)}
+								className={cn(
+									"w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+									isActive
+										? "bg-muted text-foreground"
+										: "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+								)}
+							>
+								<Icon className="h-4 w-4 shrink-0" />
+								<span className="truncate">{item.label}</span>
+							</button>
+						);
+					})}
+				</nav>
+			</ScrollArea>
+		</div>
+	);
 }

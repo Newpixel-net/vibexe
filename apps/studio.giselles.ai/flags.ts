@@ -1,5 +1,6 @@
 // Mock edge-config for self-hosting
-const get = async (key: string): Promise<any> => undefined;
+const get = async (_key: string): Promise<any> => undefined;
+
 import { flag } from "flags/next";
 
 function takeLocalEnv(localEnvironmentKey: string) {

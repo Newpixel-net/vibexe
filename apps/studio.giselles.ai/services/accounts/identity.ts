@@ -8,7 +8,11 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 /**
  * Build direct OAuth URL for GitHub/Google
  */
-function buildDirectOAuthUrl(provider: OAuthProvider, callbackUrl: string, next: string): string {
+function buildDirectOAuthUrl(
+	provider: OAuthProvider,
+	callbackUrl: string,
+	next: string,
+): string {
 	if (provider === "github") {
 		const params = new URLSearchParams({
 			client_id: GITHUB_CLIENT_ID,

@@ -9,13 +9,13 @@ import { BuilderLayout } from "@/app/(main)/app-builder/components/builder-layou
 import type { AppFile } from "@/app/(main)/app-builder/types/vibesdk";
 
 interface PageClientProps {
-  app: {
-    id: string;
-    name: string;
-  };
-  files: AppFile[];
+	app: {
+		id: string;
+		name: string;
+	};
+	files: AppFile[];
 }
 
 export function PageClient({ app, files }: PageClientProps) {
-  return <BuilderLayout app={app} files={files} />;
+	return <BuilderLayout app={app} files={files} />;
 }

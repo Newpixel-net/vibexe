@@ -8,20 +8,20 @@
 // Deploy to: /opt/giselle/apps/studio.giselles.ai/app/api/app-builder/apps/[appId]/files/route.ts
 
 import { NextResponse } from "next/server";
-import { getUser } from "@/lib/supabase/get-user";
 import {
-  getAppById,
-  getFilesForApp,
-  saveFile,
-  deleteFile,
+	deleteFile,
+	getAppById,
+	getFilesForApp,
+	saveFile,
 } from "@/app/(main)/app-builder/lib/queries";
+import { getUser } from "@/lib/supabase/get-user";
 
 /**
  * Route context with dynamic params
  * Next.js 15+ uses async params
  */
 interface RouteContext {
-  params: Promise<{ appId: string }>;
+	params: Promise<{ appId: string }>;
 }
 
 /**
@@ -38,41 +38,41 @@ interface RouteContext {
  *   ]
  * }
  */
-export async function GET(request: Request, context: RouteContext) {
-  try {
-    // Auth check
-    const user = await getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+export async function GET(_request: Request, context: RouteContext) {
+	try {
+		// Auth check
+		const user = await getUser();
+		if (!user) {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
 
-    const { appId } = await context.params;
+		const { appId } = await context.params;
 
-    // Verify app exists and user has access
-    const app = await getAppById(appId, user.id);
-    if (!app) {
-      return NextResponse.json({ error: "App not found" }, { status: 404 });
-    }
+		// Verify app exists and user has access
+		const app = await getAppById(appId, user.id);
+		if (!app) {
+			return NextResponse.json({ error: "App not found" }, { status: 404 });
+		}
 
-    // Get all files for the app
-    const files = await getFilesForApp(appId);
+		// Get all files for the app
+		const files = await getFilesForApp(appId);
 
-    // Format response for frontend
-    const formattedFiles = files.map((f) => ({
-      id: f.id,
-      path: f.path,
-      content: f.content || "",
-      language: f.language || "plaintext",
-    }));
+		// Format response for frontend
+		const formattedFiles = files.map((f) => ({
+			id: f.id,
+			path: f.path,
+			content: f.content || "",
+			language: f.language || "plaintext",
+		}));
 
-    return NextResponse.json({ files: formattedFiles });
-  } catch (error) {
-    console.error("[Files API] GET error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
+		return NextResponse.json({ files: formattedFiles });
+	} catch (error) {
+		console.error("[Files API] GET error:", error);
+		return NextResponse.json(
+			{ error: "Internal server error" },
+			{ status: 500 },
+		);
+	}
 }
 
 /**
@@ -97,54 +97,54 @@ export async function GET(request: Request, context: RouteContext) {
  * }
  */
 export async function PUT(request: Request, context: RouteContext) {
-  try {
-    // Auth check
-    const user = await getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+	try {
+		// Auth check
+		const user = await getUser();
+		if (!user) {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
 
-    const { appId } = await context.params;
+		const { appId } = await context.params;
 
-    // Verify app exists and user has access
-    const app = await getAppById(appId, user.id);
-    if (!app) {
-      return NextResponse.json({ error: "App not found" }, { status: 404 });
-    }
+		// Verify app exists and user has access
+		const app = await getAppById(appId, user.id);
+		if (!app) {
+			return NextResponse.json({ error: "App not found" }, { status: 404 });
+		}
 
-    // Parse request body
-    const body = await request.json();
-    const { path, content, language } = body as {
-      path: string;
-      content: string;
-      language?: string;
-    };
+		// Parse request body
+		const body = await request.json();
+		const { path, content, language } = body as {
+			path: string;
+			content: string;
+			language?: string;
+		};
 
-    // Validate required fields
-    if (!path) {
-      return NextResponse.json({ error: "Missing path" }, { status: 400 });
-    }
+		// Validate required fields
+		if (!path) {
+			return NextResponse.json({ error: "Missing path" }, { status: 400 });
+		}
 
-    if (content === undefined || content === null) {
-      return NextResponse.json({ error: "Missing content" }, { status: 400 });
-    }
+		if (content === undefined || content === null) {
+			return NextResponse.json({ error: "Missing content" }, { status: 400 });
+		}
 
-    // Save the file (creates or updates)
-    const file = await saveFile(appId, path, content, language);
+		// Save the file (creates or updates)
+		const file = await saveFile(appId, path, content, language);
 
-    return NextResponse.json({
-      id: file.id,
-      path: file.path,
-      content: file.content || "",
-      language: file.language || "plaintext",
-    });
-  } catch (error) {
-    console.error("[Files API] PUT error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
+		return NextResponse.json({
+			id: file.id,
+			path: file.path,
+			content: file.content || "",
+			language: file.language || "plaintext",
+		});
+	} catch (error) {
+		console.error("[Files API] PUT error:", error);
+		return NextResponse.json(
+			{ error: "Internal server error" },
+			{ status: 500 },
+		);
+	}
 }
 
 /**
@@ -161,44 +161,44 @@ export async function PUT(request: Request, context: RouteContext) {
  * { success: true, path: "src/oldFile.tsx" }
  */
 export async function DELETE(request: Request, context: RouteContext) {
-  try {
-    // Auth check
-    const user = await getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+	try {
+		// Auth check
+		const user = await getUser();
+		if (!user) {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
 
-    const { appId } = await context.params;
+		const { appId } = await context.params;
 
-    // Verify app exists and user has access
-    const app = await getAppById(appId, user.id);
-    if (!app) {
-      return NextResponse.json({ error: "App not found" }, { status: 404 });
-    }
+		// Verify app exists and user has access
+		const app = await getAppById(appId, user.id);
+		if (!app) {
+			return NextResponse.json({ error: "App not found" }, { status: 404 });
+		}
 
-    // Parse request body
-    const body = await request.json();
-    const { path } = body as { path: string };
+		// Parse request body
+		const body = await request.json();
+		const { path } = body as { path: string };
 
-    if (!path) {
-      return NextResponse.json({ error: "Missing path" }, { status: 400 });
-    }
+		if (!path) {
+			return NextResponse.json({ error: "Missing path" }, { status: 400 });
+		}
 
-    // Delete the file
-    await deleteFile(appId, path);
+		// Delete the file
+		await deleteFile(appId, path);
 
-    return NextResponse.json({ success: true, path });
-  } catch (error) {
-    console.error("[Files API] DELETE error:", error);
+		return NextResponse.json({ success: true, path });
+	} catch (error) {
+		console.error("[Files API] DELETE error:", error);
 
-    // Check if it's a "not found" error
-    if (error instanceof Error && error.message.includes("not found")) {
-      return NextResponse.json({ error: error.message }, { status: 404 });
-    }
+		// Check if it's a "not found" error
+		if (error instanceof Error && error.message.includes("not found")) {
+			return NextResponse.json({ error: error.message }, { status: 404 });
+		}
 
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
+		return NextResponse.json(
+			{ error: "Internal server error" },
+			{ status: 500 },
+		);
+	}
 }

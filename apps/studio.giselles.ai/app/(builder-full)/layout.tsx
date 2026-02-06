@@ -6,7 +6,11 @@ import { InternalGiselleClientProvider } from "../(main)/internal-giselle-client
  * Full-screen layout for App Builder [appId] view.
  * No sidebar, no header - just the content.
  */
-export default function BuilderFullLayout({ children }: { children: React.ReactNode }) {
+export default function BuilderFullLayout({
+	children,
+}: {
+	children: React.ReactNode;
+}) {
 	return (
 		<SentryUserWrapper>
 			<ToastProvider>

@@ -9,29 +9,29 @@
  * Deploy to: /opt/giselle/apps/studio.giselles.ai/app/(main)/app-builder/components/code-panel.tsx
  */
 
-import { useMemo, useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
+	ResizableHandle,
+	ResizablePanel,
+	ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { FileExplorer } from "./file-explorer";
-import { EditorPanel } from "./editor-panel";
-import { toFileTypes } from "../adapters/file-adapter";
 import type { AppFile } from "../adapters/file-adapter";
+import { toFileTypes } from "../adapters/file-adapter";
 import type { FileType } from "../types/vibesdk";
+import { EditorPanel } from "./editor-panel";
+import { FileExplorer } from "./file-explorer";
 
 export interface CodePanelProps {
-  /** App ID for API calls */
-  appId: string;
-  /** All files for the app */
-  files: AppFile[];
-  /** Currently selected file ID (null if none) */
-  selectedFileId: string | null;
-  /** Callback when file selection changes */
-  onFileSelect: (fileId: string | null) => void;
-  /** Callback when file content is updated */
-  onFileUpdate: (fileId: string, content: string) => void;
+	/** App ID for API calls */
+	appId: string;
+	/** All files for the app */
+	files: AppFile[];
+	/** Currently selected file ID (null if none) */
+	selectedFileId: string | null;
+	/** Callback when file selection changes */
+	onFileSelect: (fileId: string | null) => void;
+	/** Callback when file content is updated */
+	onFileUpdate: (fileId: string, content: string) => void;
 }
 
 /**
@@ -43,49 +43,49 @@ export interface CodePanelProps {
  * - Resizable handle allows adjusting the split (15%-40% range for left panel)
  */
 export function CodePanel({
-  appId,
-  files,
-  selectedFileId,
-  onFileSelect,
-  onFileUpdate,
+	appId,
+	files,
+	selectedFileId,
+	onFileSelect,
+	onFileUpdate,
 }: CodePanelProps) {
-  // Convert AppFile[] to FileType[] for FileExplorer
-  const vibeFiles = useMemo(() => toFileTypes(files), [files]);
+	// Convert AppFile[] to FileType[] for FileExplorer
+	const vibeFiles = useMemo(() => toFileTypes(files), [files]);
 
-  // Find the current file for FileExplorer highlighting
-  const currentFile = useMemo(() => {
-    if (!selectedFileId) return undefined;
-    return vibeFiles.find((f) => f.id === selectedFileId);
-  }, [vibeFiles, selectedFileId]);
+	// Find the current file for FileExplorer highlighting
+	const currentFile = useMemo(() => {
+		if (!selectedFileId) return undefined;
+		return vibeFiles.find((f) => f.id === selectedFileId);
+	}, [vibeFiles, selectedFileId]);
 
-  // Handle file click from FileExplorer
-  const handleFileClick = useCallback(
-    (file: FileType) => {
-      onFileSelect(file.id);
-    },
-    [onFileSelect]
-  );
+	// Handle file click from FileExplorer
+	const handleFileClick = useCallback(
+		(file: FileType) => {
+			onFileSelect(file.id);
+		},
+		[onFileSelect],
+	);
 
-  return (
-    <div className="flex flex-col h-full min-h-0">
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
-        <ResizablePanel defaultSize={25} minSize={15} maxSize={40}>
-          <FileExplorer
-            files={vibeFiles}
-            currentFile={currentFile}
-            onFileClick={handleFileClick}
-          />
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={75}>
-          <EditorPanel
-            appId={appId}
-            files={files}
-            selectedFileId={selectedFileId}
-            onFileUpdate={onFileUpdate}
-          />
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
-  );
+	return (
+		<div className="flex flex-col h-full min-h-0">
+			<ResizablePanelGroup direction="horizontal" className="flex-1">
+				<ResizablePanel defaultSize={25} minSize={15} maxSize={40}>
+					<FileExplorer
+						files={vibeFiles}
+						currentFile={currentFile}
+						onFileClick={handleFileClick}
+					/>
+				</ResizablePanel>
+				<ResizableHandle withHandle />
+				<ResizablePanel defaultSize={75}>
+					<EditorPanel
+						appId={appId}
+						files={files}
+						selectedFileId={selectedFileId}
+						onFileUpdate={onFileUpdate}
+					/>
+				</ResizablePanel>
+			</ResizablePanelGroup>
+		</div>
+	);
 }

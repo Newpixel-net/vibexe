@@ -1298,12 +1298,15 @@ export const builderVersions = pgTable(
 	(table) => [index("builder_versions_app_db_id_idx").on(table.appDbId)],
 );
 
-export const builderVersionRelations = relations(builderVersions, ({ one }) => ({
-	app: one(builderApps, {
-		fields: [builderVersions.appDbId],
-		references: [builderApps.dbId],
+export const builderVersionRelations = relations(
+	builderVersions,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderVersions.appDbId],
+			references: [builderApps.dbId],
+		}),
 	}),
-}));
+);
 
 export type BuilderVersion = typeof builderVersions.$inferSelect;
 export type NewBuilderVersion = typeof builderVersions.$inferInsert;

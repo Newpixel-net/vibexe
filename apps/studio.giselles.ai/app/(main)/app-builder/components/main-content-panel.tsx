@@ -10,30 +10,30 @@
  */
 
 import { AnimatePresence, motion } from "framer-motion";
-import { RightPanelTabs, type RightPanelView } from "./right-panel-tabs";
+import type { AppFile } from "../adapters/file-adapter";
 import { DashboardPanel } from "./dashboard-panel";
 import { ReadmePanel } from "./readme-panel";
+import { RightPanelTabs, type RightPanelView } from "./right-panel-tabs";
 import { SandpackPreview } from "./sandpack-preview";
-import type { AppFile } from "../adapters/file-adapter";
 
 // Re-export RightPanelView as ViewType for backward compatibility
 export type { RightPanelView as ViewType };
 
 export interface MainContentPanelProps {
-  /** App ID for API calls */
-  appId: string;
-  /** All files for the app */
-  files: AppFile[];
-  /** Currently selected file ID (null if none) */
-  selectedFileId: string | null;
-  /** Callback when file selection changes */
-  onFileSelect: (fileId: string | null) => void;
-  /** Callback when file content is updated */
-  onFileUpdate: (fileId: string, content: string) => void;
-  /** Current active view tab */
-  view: RightPanelView;
-  /** Callback when view tab changes */
-  onViewChange: (view: RightPanelView) => void;
+	/** App ID for API calls */
+	appId: string;
+	/** All files for the app */
+	files: AppFile[];
+	/** Currently selected file ID (null if none) */
+	selectedFileId: string | null;
+	/** Callback when file selection changes */
+	onFileSelect: (fileId: string | null) => void;
+	/** Callback when file content is updated */
+	onFileUpdate: (fileId: string, content: string) => void;
+	/** Current active view tab */
+	view: RightPanelView;
+	/** Callback when view tab changes */
+	onViewChange: (view: RightPanelView) => void;
 }
 
 /**
@@ -47,44 +47,44 @@ export interface MainContentPanelProps {
  * - Documents tab shows ReadmePanel with doc browser and TOC
  */
 export function MainContentPanel({
-  appId,
-  files,
-  selectedFileId,
-  onFileSelect,
-  onFileUpdate,
-  view,
-  onViewChange,
+	appId,
+	files,
+	selectedFileId,
+	onFileSelect,
+	onFileUpdate,
+	view,
+	onViewChange,
 }: MainContentPanelProps) {
-  return (
-    <div className="flex-1 flex flex-col min-h-0">
-      <RightPanelTabs view={view} onViewChange={onViewChange} />
+	return (
+		<div className="flex-1 flex flex-col min-h-0">
+			<RightPanelTabs view={view} onViewChange={onViewChange} />
 
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={view}
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -10 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
-            className="flex-1 flex flex-col min-h-0"
-          >
-            {view === "preview" && (
-              <SandpackPreview appId={appId} files={files} />
-            )}
-            {view === "code" && (
-              <DashboardPanel
-                appId={appId}
-                files={files}
-                selectedFileId={selectedFileId}
-                onFileSelect={onFileSelect}
-                onFileUpdate={onFileUpdate}
-              />
-            )}
-            {view === "readme" && <ReadmePanel files={files} />}
-          </motion.div>
-        </AnimatePresence>
-      </div>
-    </div>
-  );
+			<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+				<AnimatePresence mode="wait">
+					<motion.div
+						key={view}
+						initial={{ opacity: 0, x: 10 }}
+						animate={{ opacity: 1, x: 0 }}
+						exit={{ opacity: 0, x: -10 }}
+						transition={{ duration: 0.15, ease: "easeOut" }}
+						className="flex-1 flex flex-col min-h-0"
+					>
+						{view === "preview" && (
+							<SandpackPreview appId={appId} files={files} />
+						)}
+						{view === "code" && (
+							<DashboardPanel
+								appId={appId}
+								files={files}
+								selectedFileId={selectedFileId}
+								onFileSelect={onFileSelect}
+								onFileUpdate={onFileUpdate}
+							/>
+						)}
+						{view === "readme" && <ReadmePanel files={files} />}
+					</motion.div>
+				</AnimatePresence>
+			</div>
+		</div>
+	);
 }

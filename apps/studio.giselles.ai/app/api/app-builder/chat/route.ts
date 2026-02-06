@@ -6,12 +6,15 @@
 //
 // Deploy to: /opt/giselle/apps/studio.giselles.ai/app/api/app-builder/chat/route.ts
 
-import { streamText, convertToModelMessages } from "ai";
-import type { UIMessage } from "ai";
 import { openai } from "@ai-sdk/openai";
-import { getUser } from "@/lib/supabase/get-user";
+import type { UIMessage } from "ai";
+import { convertToModelMessages, streamText } from "ai";
 import { createFileTools } from "@/app/(main)/app-builder/lib/file-tools";
-import { getFilesForApp, getAppById } from "@/app/(main)/app-builder/lib/queries";
+import {
+	getAppById,
+	getFilesForApp,
+} from "@/app/(main)/app-builder/lib/queries";
+import { getUser } from "@/lib/supabase/get-user";
 
 // System prompt for app generation mode
 const GENERATION_SYSTEM_PROMPT = `You are an expert full-stack developer who builds complete, working React applications.
@@ -114,118 +117,115 @@ You are in discussion mode - you cannot create or modify files directly.
 When the user is ready to generate code, they should switch to generation mode.`;
 
 export async function POST(request: Request) {
-  try {
-    // Auth check using Giselle's session system
-    const user = await getUser();
-    if (!user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+	try {
+		// Auth check using Giselle's session system
+		const user = await getUser();
+		if (!user) {
+			return new Response(JSON.stringify({ error: "Unauthorized" }), {
+				status: 401,
+				headers: { "Content-Type": "application/json" },
+			});
+		}
 
-    // Parse request body
-    const body = await request.json();
-    const {
-      messages,
-      appId,
-      chatId,
-      mode = "generate",
-    } = body as {
-      messages: UIMessage[];
-      appId: string;
-      chatId?: string;
-      mode?: "generate" | "discussion";
-    };
+		// Parse request body
+		const body = await request.json();
+		const {
+			messages,
+			appId,
+			chatId,
+			mode = "generate",
+		} = body as {
+			messages: UIMessage[];
+			appId: string;
+			chatId?: string;
+			mode?: "generate" | "discussion";
+		};
 
-    // Validate required fields
-    if (!appId) {
-      return new Response(JSON.stringify({ error: "Missing appId" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+		// Validate required fields
+		if (!appId) {
+			return new Response(JSON.stringify({ error: "Missing appId" }), {
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			});
+		}
 
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return new Response(JSON.stringify({ error: "Messages are required" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+		if (!messages || !Array.isArray(messages) || messages.length === 0) {
+			return new Response(JSON.stringify({ error: "Messages are required" }), {
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			});
+		}
 
-    // Verify app exists (ownership check via team membership)
-    const app = await getAppById(appId, user.id);
-    if (!app) {
-      return new Response(JSON.stringify({ error: "App not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+		// Verify app exists (ownership check via team membership)
+		const app = await getAppById(appId, user.id);
+		if (!app) {
+			return new Response(JSON.stringify({ error: "App not found" }), {
+				status: 404,
+				headers: { "Content-Type": "application/json" },
+			});
+		}
 
-    // Get existing files for context
-    const existingFiles = await getFilesForApp(appId);
-    const fileContext =
-      existingFiles.length > 0
-        ? `\n\nExisting files in the project:\n${existingFiles.map((f) => `- ${f.path}`).join("\n")}`
-        : "";
+		// Get existing files for context
+		const existingFiles = await getFilesForApp(appId);
+		const fileContext =
+			existingFiles.length > 0
+				? `\n\nExisting files in the project:\n${existingFiles.map((f) => `- ${f.path}`).join("\n")}`
+				: "";
 
-    // Select system prompt and tools based on mode
-    const systemPrompt =
-      mode === "discussion"
-        ? DISCUSSION_SYSTEM_PROMPT
-        : GENERATION_SYSTEM_PROMPT + fileContext;
+		// Select system prompt and tools based on mode
+		const systemPrompt =
+			mode === "discussion"
+				? DISCUSSION_SYSTEM_PROMPT
+				: GENERATION_SYSTEM_PROMPT + fileContext;
 
-    const tools = mode === "generate" ? createFileTools(appId) : {};
+		const tools = mode === "generate" ? createFileTools(appId) : {};
 
-    // Log in development
-    if (process.env.NODE_ENV === "development") {
-      console.log(
-        `[Chat API] App: ${appId}, Mode: ${mode}, Messages: ${messages.length}, Files: ${existingFiles.length}`
-      );
-    }
+		// Log in development
+		if (process.env.NODE_ENV === "development") {
+			console.log(
+				`[Chat API] App: ${appId}, Mode: ${mode}, Messages: ${messages.length}, Files: ${existingFiles.length}`,
+			);
+		}
 
-    // Convert UI messages to model messages (AI SDK v6 requirement)
-    const modelMessages = await convertToModelMessages(messages);
+		// Convert UI messages to model messages (AI SDK v6 requirement)
+		const modelMessages = await convertToModelMessages(messages);
 
-    // Debug: Log converted messages
-    if (process.env.NODE_ENV === "development") {
-      console.log(
-        `[Chat API] Converted ${messages.length} messages to ${modelMessages.length} model messages`
-      );
-    }
+		// Debug: Log converted messages
+		if (process.env.NODE_ENV === "development") {
+			console.log(
+				`[Chat API] Converted ${messages.length} messages to ${modelMessages.length} model messages`,
+			);
+		}
 
-    // Stream response using AI SDK v6
-    const result = streamText({
-      model: openai("gpt-4o"),
-      system: systemPrompt,
-      messages: modelMessages,
-      tools,
-      // Force the model to use tools in generate mode (ensures it creates files)
-      // @ts-ignore - maxSteps supported in AI SDK 4.x
-      maxSteps: 25,
-      toolChoice: mode === "generate" ? "required" : "auto",
-    });
+		// Stream response using AI SDK v6
+		const result = streamText({
+			model: openai("gpt-4o"),
+			system: systemPrompt,
+			messages: modelMessages,
+			tools,
+			// Force the model to use tools in generate mode (ensures it creates files)
+			// @ts-ignore - maxSteps supported in AI SDK 4.x
+			maxSteps: 25,
+			toolChoice: mode === "generate" ? "required" : "auto",
+		});
 
-    // Return streaming response (toUIMessageStreamResponse for useChat compatibility in AI SDK v6)
-    // CRITICAL: originalMessages must be passed for proper message continuity
-    return result.toUIMessageStreamResponse({
-      originalMessages: messages,
-      onFinish: async ({ messages: finalMessages, responseMessage }) => {
-        if (process.env.NODE_ENV === "development") {
-          console.log(
-            `[Chat API] Stream finished - Chat ID: ${chatId || "new"}, Messages: ${finalMessages.length}`
-          );
-        }
-      },
-    });
-  } catch (error) {
-    console.error("[Chat API] Error:", error);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-  }
+		// Return streaming response (toUIMessageStreamResponse for useChat compatibility in AI SDK v6)
+		// CRITICAL: originalMessages must be passed for proper message continuity
+		return result.toUIMessageStreamResponse({
+			originalMessages: messages,
+			onFinish: async ({ messages: finalMessages, responseMessage }) => {
+				if (process.env.NODE_ENV === "development") {
+					console.log(
+						`[Chat API] Stream finished - Chat ID: ${chatId || "new"}, Messages: ${finalMessages.length}`,
+					);
+				}
+			},
+		});
+	} catch (error) {
+		console.error("[Chat API] Error:", error);
+		return new Response(JSON.stringify({ error: "Internal server error" }), {
+			status: 500,
+			headers: { "Content-Type": "application/json" },
+		});
+	}
 }

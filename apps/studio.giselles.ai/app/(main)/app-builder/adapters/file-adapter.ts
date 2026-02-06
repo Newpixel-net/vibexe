@@ -12,76 +12,76 @@ import type { FileType } from "../types/vibesdk";
  * Matches the builder_files table structure.
  */
 export interface AppFile {
-  id: string;
-  path: string;
-  content: string | null;
-  language?: string | null;
+	id: string;
+	path: string;
+	content: string | null;
+	language?: string | null;
 }
 
 /**
  * Map file extension to Monaco language identifier
  */
 function getLanguageFromPath(filePath: string): string {
-  const ext = filePath.split(".").pop()?.toLowerCase();
+	const ext = filePath.split(".").pop()?.toLowerCase();
 
-  const languageMap: Record<string, string> = {
-    // JavaScript/TypeScript
-    js: "javascript",
-    jsx: "javascript",
-    ts: "typescript",
-    tsx: "typescript",
-    mjs: "javascript",
-    cjs: "javascript",
+	const languageMap: Record<string, string> = {
+		// JavaScript/TypeScript
+		js: "javascript",
+		jsx: "javascript",
+		ts: "typescript",
+		tsx: "typescript",
+		mjs: "javascript",
+		cjs: "javascript",
 
-    // Web
-    html: "html",
-    htm: "html",
-    css: "css",
-    scss: "scss",
-    sass: "scss",
-    less: "less",
+		// Web
+		html: "html",
+		htm: "html",
+		css: "css",
+		scss: "scss",
+		sass: "scss",
+		less: "less",
 
-    // Data
-    json: "json",
-    jsonc: "json",
-    yaml: "yaml",
-    yml: "yaml",
-    xml: "xml",
-    toml: "toml",
+		// Data
+		json: "json",
+		jsonc: "json",
+		yaml: "yaml",
+		yml: "yaml",
+		xml: "xml",
+		toml: "toml",
 
-    // Markup
-    md: "markdown",
-    mdx: "markdown",
+		// Markup
+		md: "markdown",
+		mdx: "markdown",
 
-    // Config
-    env: "plaintext",
-    gitignore: "plaintext",
-    dockerignore: "plaintext",
+		// Config
+		env: "plaintext",
+		gitignore: "plaintext",
+		dockerignore: "plaintext",
 
-    // Other
-    sql: "sql",
-    graphql: "graphql",
-    gql: "graphql",
-    prisma: "prisma",
-    sh: "shell",
-    bash: "shell",
-    zsh: "shell",
-    ps1: "powershell",
-    py: "python",
-    rb: "ruby",
-    go: "go",
-    rs: "rust",
-    java: "java",
-    kt: "kotlin",
-    swift: "swift",
-    c: "c",
-    cpp: "cpp",
-    h: "cpp",
-    cs: "csharp",
-    php: "php",
-  };
+		// Other
+		sql: "sql",
+		graphql: "graphql",
+		gql: "graphql",
+		prisma: "prisma",
+		sh: "shell",
+		bash: "shell",
+		zsh: "shell",
+		ps1: "powershell",
+		py: "python",
+		rb: "ruby",
+		go: "go",
+		rs: "rust",
+		java: "java",
+		kt: "kotlin",
+		swift: "swift",
+		c: "c",
+		cpp: "cpp",
+		h: "cpp",
+		cs: "csharp",
+		php: "php",
+	};
 
-  return languageMap[ext ?? ""] ?? "plaintext";
+	return languageMap[ext ?? ""] ?? "plaintext";
 }
 
 /**
@@ -92,22 +92,22 @@ function getLanguageFromPath(filePath: string): string {
  * @returns FileType compatible with VibeSDK components
  */
 export function toFileType(
-  file: AppFile,
-  options?: {
-    isGenerating?: boolean;
-    needsFixing?: boolean;
-    hasErrors?: boolean;
-  }
+	file: AppFile,
+	options?: {
+		isGenerating?: boolean;
+		needsFixing?: boolean;
+		hasErrors?: boolean;
+	},
 ): FileType {
-  return {
-    id: file.id,
-    filePath: file.path,
-    fileContents: file.content ?? "",
-    language: getLanguageFromPath(file.path),
-    isGenerating: options?.isGenerating,
-    needsFixing: options?.needsFixing,
-    hasErrors: options?.hasErrors,
-  };
+	return {
+		id: file.id,
+		filePath: file.path,
+		fileContents: file.content ?? "",
+		language: getLanguageFromPath(file.path),
+		isGenerating: options?.isGenerating,
+		needsFixing: options?.needsFixing,
+		hasErrors: options?.hasErrors,
+	};
 }
 
 /**
@@ -118,14 +118,14 @@ export function toFileType(
  * @returns Array of FileTypes compatible with VibeSDK components
  */
 export function toFileTypes(
-  files: AppFile[],
-  generatingPaths?: Set<string>
+	files: AppFile[],
+	generatingPaths?: Set<string>,
 ): FileType[] {
-  return files.map((file) =>
-    toFileType(file, {
-      isGenerating: generatingPaths?.has(file.path),
-    })
-  );
+	return files.map((file) =>
+		toFileType(file, {
+			isGenerating: generatingPaths?.has(file.path),
+		}),
+	);
 }
 
 /**
@@ -138,11 +138,11 @@ export function toFileTypes(
  * @returns AppFile compatible with database model
  */
 export function fromFileType(file: FileType): AppFile {
-  return {
-    id: file.id,
-    path: file.filePath,
-    content: file.fileContents,
-  };
+	return {
+		id: file.id,
+		path: file.filePath,
+		content: file.fileContents,
+	};
 }
 
 /**
@@ -152,5 +152,5 @@ export function fromFileType(file: FileType): AppFile {
  * @returns Array of AppFiles compatible with database
  */
 export function fromFileTypes(files: FileType[]): AppFile[] {
-  return files.map(fromFileType);
+	return files.map(fromFileType);
 }
