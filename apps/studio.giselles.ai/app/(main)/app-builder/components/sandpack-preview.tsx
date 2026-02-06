@@ -4,7 +4,7 @@
  * SandpackPreview Component
  *
  * Live preview of generated React code using Sandpack.
- * Passes files directly to SandpackProvider which handles diffs internally.
+ * Uses SandpackFileSync for incremental updates so the preview stays alive during streaming.
  *
  * Deploy to: /opt/giselle/apps/studio.giselles.ai/app/(main)/app-builder/components/sandpack-preview.tsx
  */
@@ -23,7 +23,7 @@ import {
 	Smartphone,
 	Tablet,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import {
 	type SandpackFiles,
@@ -63,6 +63,66 @@ function RefreshButton() {
 }
 
 /**
+ * Inner component that syncs file changes to Sandpack via imperative API.
+ * Lives inside SandpackProvider to access useSandpack() hook.
+ * Debounces rapid updates to avoid race conditions during streaming.
+ */
+function SandpackFileSync({ files }: { files: SandpackFiles }) {
+	const { sandpack } = useSandpack();
+	const prevFilesRef = useRef<SandpackFiles>(files);
+	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	useEffect(() => {
+		const prev = prevFilesRef.current;
+		const updates: Array<[string, string]> = [];
+		const deletes: string[] = [];
+
+		for (const [path, file] of Object.entries(files)) {
+			const code = typeof file === "string" ? file : file.code;
+			const prevFile = prev[path];
+			const prevCode = prevFile
+				? typeof prevFile === "string"
+					? prevFile
+					: prevFile.code
+				: undefined;
+
+			if (prevCode !== code) {
+				updates.push([path, code]);
+			}
+		}
+
+		for (const path of Object.keys(prev)) {
+			if (!(path in files)) {
+				deletes.push(path);
+			}
+		}
+
+		prevFilesRef.current = { ...files };
+
+		if (updates.length === 0 && deletes.length === 0) return;
+
+		// Debounce: clear pending flush and schedule new one
+		if (timerRef.current) clearTimeout(timerRef.current);
+		timerRef.current = setTimeout(() => {
+			for (const [path, code] of updates) {
+				sandpack.updateFile(path, code);
+			}
+			for (const path of deletes) {
+				sandpack.deleteFile(path);
+			}
+		}, 300);
+	}, [files, sandpack]);
+
+	useEffect(() => {
+		return () => {
+			if (timerRef.current) clearTimeout(timerRef.current);
+		};
+	}, []);
+
+	return null;
+}
+
+/**
  * CSS to make Sandpack fill its container
  * Sandpack uses .sp-wrapper as its main container class
  */
@@ -92,8 +152,8 @@ const sandpackFullHeightStyles = `
 
 /**
  * Main preview component with responsive toggles and console.
- * Uses a key based on file paths so Sandpack remounts only when files
- * are added/removed (not on every content change during streaming).
+ * No key on SandpackProvider - SandpackFileSync handles incremental
+ * updates so the preview iframe stays alive during streaming.
  */
 export function SandpackPreview({
 	appId: _appId,
@@ -105,21 +165,6 @@ export function SandpackPreview({
 	// Convert files to Sandpack format
 	const sandpackFiles = useMemo(() => convertToSandpackFiles(files), [files]);
 	const dependencies = useMemo(() => extractDependencies(files), [files]);
-
-	// Key based on sorted file paths - only changes when files are added/removed
-	const filesKey = useMemo(() => {
-		return Object.keys(sandpackFiles).sort().join(",");
-	}, [sandpackFiles]);
-
-	// Debug: log file changes
-	useEffect(() => {
-		console.log("[SandpackPreview] Files updated:", files.length, "files");
-		console.log(
-			"[SandpackPreview] Sandpack files:",
-			Object.keys(sandpackFiles),
-		);
-		console.log("[SandpackPreview] Key:", filesKey);
-	}, [files, sandpackFiles, filesKey]);
 
 	// Calculate preview width based on device
 	const previewWidth = DEVICE_SIZES[device].width;
@@ -194,7 +239,6 @@ export function SandpackPreview({
 					}}
 				>
 					<SandpackProvider
-						key={filesKey}
 						template="react-ts"
 						files={sandpackFiles}
 						customSetup={{
@@ -209,6 +253,7 @@ export function SandpackPreview({
 						}}
 						theme="auto"
 					>
+						<SandpackFileSync files={sandpackFiles} />
 						<div className="relative w-full h-full flex flex-col">
 							{/* Preview pane - takes all space minus console */}
 							<div className={`flex-1 min-h-0 ${showConsole ? "" : "h-full"}`}>
