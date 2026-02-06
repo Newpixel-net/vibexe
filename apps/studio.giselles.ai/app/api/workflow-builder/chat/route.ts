@@ -1,6 +1,6 @@
 import { openai } from "@ai-sdk/openai";
 import type { UIMessage } from "ai";
-import { convertToModelMessages, streamText } from "ai";
+import { convertToModelMessages, stepCountIs, streamText } from "ai";
 import { createWorkflowTools } from "@/app/(main)/playground/lib/workflow-tools";
 import { getUser } from "@/lib/supabase/get-user";
 import { WORKFLOW_SYSTEM_PROMPT } from "../system-prompt";
@@ -36,8 +36,7 @@ export async function POST(request: Request) {
 			system: WORKFLOW_SYSTEM_PROMPT,
 			messages: modelMessages,
 			tools,
-			// @ts-ignore - maxSteps supported in AI SDK 4.x
-			maxSteps: 15,
+			stopWhen: stepCountIs(15),
 			toolChoice: "auto",
 		});
 
