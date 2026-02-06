@@ -42,11 +42,8 @@ export function createWorkflowTools() {
 					});
 
 					// Set workspace name
-					const updatedWorkspace = {
-						...workspace,
-						name,
-					};
-					await giselle.updateWorkspace(updatedWorkspace);
+					(workspace as { name?: string }).name = name;
+					await giselle.updateWorkspace(workspace);
 
 					return {
 						success: true,
