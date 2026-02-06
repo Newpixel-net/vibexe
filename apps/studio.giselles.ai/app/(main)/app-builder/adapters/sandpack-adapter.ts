@@ -91,7 +91,7 @@ const DEFAULT_APP = `export default function App() {
  * Convert AppFile[] to Sandpack files format
  *
  * Sandpack React template expects:
- * - /App.js as the main component
+ * - /App.tsx as the main component (react-ts template)
  * - /index.js as the entry point
  *
  * This adapter:
@@ -123,8 +123,8 @@ export function convertToSandpackFiles(files: AppFile[]): SandpackFiles {
 	);
 
 	if (codeFiles.length === 0) {
-		// No code files yet, use defaults
-		sandpackFiles["/App.js"] = { code: DEFAULT_APP };
+		// No code files yet, use defaults (tsx to match react-ts template)
+		sandpackFiles["/App.tsx"] = { code: DEFAULT_APP };
 		sandpackFiles["/index.js"] = { code: DEFAULT_INDEX, hidden: true };
 		return sandpackFiles;
 	}
@@ -178,9 +178,9 @@ root.render(<App />);
 				hidden: true,
 			};
 		} else {
-			// Use defaults
+			// Use defaults (tsx to match react-ts template)
 			sandpackFiles["/index.js"] = { code: DEFAULT_INDEX, hidden: true };
-			sandpackFiles["/App.js"] = { code: DEFAULT_APP };
+			sandpackFiles["/App.tsx"] = { code: DEFAULT_APP };
 		}
 	}
 
