@@ -74,7 +74,7 @@ export function MarkdownViewer({
 	useEffect(() => {
 		// Reset extraction flag when content changes
 		extractedRef.current = false;
-	}, []);
+	}, [content]);
 
 	useEffect(() => {
 		if (!extractedRef.current && content) {
