@@ -3,7 +3,7 @@ import { nodeFactories } from "@giselles-ai/node-registry";
 import {
 	ConnectionId,
 	InputId,
-	type Workspace,
+	Workspace,
 	type WorkspaceId,
 } from "@giselles-ai/protocol";
 import { tool } from "ai";
@@ -41,9 +41,12 @@ export function createWorkflowTools() {
 						teamDbId: team.dbId,
 					});
 
-					// Set workspace name
-					(workspace as { name?: string }).name = name;
-					await giselle.updateWorkspace(workspace);
+					// Set workspace name and ensure correct Workspace type
+					const parsedWorkspace = Workspace.parse({
+						...workspace,
+						name,
+					});
+					await giselle.updateWorkspace(parsedWorkspace);
 
 					return {
 						success: true,

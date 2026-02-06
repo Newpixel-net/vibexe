@@ -1,6 +1,7 @@
 "use client";
 
 import type { UIMessage } from "ai";
+import { isToolUIPart } from "ai";
 import clsx from "clsx";
 import {
 	CheckCircle2,
@@ -20,6 +21,18 @@ interface WorkflowStep {
 	result?: Record<string, unknown>;
 }
 
+/** AI SDK v5 tool part shape */
+interface ToolPart {
+	type: string;
+	toolCallId: string;
+	toolName?: string;
+	input?: unknown;
+	output?: unknown;
+	state: string;
+}
+
+const WORKFLOW_TOOLS = ["create_workflow", "add_node", "add_connection", "finalize_workflow"];
+
 function extractWorkflowSteps(messages: UIMessage[]): WorkflowStep[] {
 	const steps: WorkflowStep[] = [];
 
@@ -27,23 +40,20 @@ function extractWorkflowSteps(messages: UIMessage[]): WorkflowStep[] {
 		if (message.role !== "assistant") continue;
 
 		for (const part of message.parts) {
-			if (part.type !== "tool-invocation") continue;
+			if (!isToolUIPart(part)) continue;
 
-			const toolName = part.toolInvocation.toolName;
-			if (
-				!["create_workflow", "add_node", "add_connection", "finalize_workflow"].includes(
-					toolName,
-				)
-			) {
-				continue;
-			}
+			const toolPart = part as unknown as ToolPart;
+			const toolName = toolPart.toolName || toolPart.type.replace(/^tool-/, "");
 
-			const args = part.toolInvocation.args as Record<string, unknown>;
-			const state = part.toolInvocation.state;
-			const result =
-				state === "result"
-					? (part.toolInvocation.result as Record<string, unknown>)
-					: undefined;
+			if (!WORKFLOW_TOOLS.includes(toolName)) continue;
+
+			const args = (toolPart.input as Record<string, unknown>) ?? {};
+			const state = toolPart.state;
+			const isOutputAvailable = state === "output-available";
+			const isOutputError = state === "output-error";
+			const result = isOutputAvailable || isOutputError
+				? (toolPart.output as Record<string, unknown>)
+				: undefined;
 
 			let label: string;
 			switch (toolName) {
@@ -64,14 +74,15 @@ function extractWorkflowSteps(messages: UIMessage[]): WorkflowStep[] {
 			}
 
 			steps.push({
-				id: part.toolInvocation.toolCallId,
+				id: toolPart.toolCallId,
 				type: toolName as WorkflowStep["type"],
 				label,
-				status:
-					state === "result"
-						? result?.success
-							? "completed"
-							: "error"
+				status: isOutputAvailable
+					? result?.success
+						? "completed"
+						: "error"
+					: isOutputError
+						? "error"
 						: "running",
 				result,
 			});
