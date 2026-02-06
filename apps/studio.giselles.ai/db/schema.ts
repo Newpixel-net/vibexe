@@ -1162,10 +1162,56 @@ export const taskRelations = relations(tasks, ({ one }) => ({
 /**
  * Type definitions for App Builder IDs
  */
+export type BuilderProjectId = `bprj_${string}`;
 export type BuilderAppId = `bldr_${string}`;
 export type BuilderFileId = `bldf_${string}`;
 export type BuilderChatId = `bldc_${string}`;
 export type BuilderVersionId = `bldv_${string}`;
+
+/**
+ * Builder Projects - organizational containers for builder apps
+ */
+export const builderProjects = pgTable(
+	"builder_projects",
+	{
+		id: text("id").$type<BuilderProjectId>().notNull().unique(),
+		dbId: serial("db_id").primaryKey(),
+		teamDbId: integer("team_db_id")
+			.notNull()
+			.references(() => teams.dbId, { onDelete: "cascade" }),
+		createdByUserDbId: integer("created_by_user_db_id").references(
+			() => users.dbId,
+		),
+		name: text("name").notNull().default("Untitled Project"),
+		description: text("description"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		index("builder_projects_team_db_id_idx").on(table.teamDbId),
+	],
+);
+
+export const builderProjectRelations = relations(
+	builderProjects,
+	({ one, many }) => ({
+		team: one(teams, {
+			fields: [builderProjects.teamDbId],
+			references: [teams.dbId],
+		}),
+		creator: one(users, {
+			fields: [builderProjects.createdByUserDbId],
+			references: [users.dbId],
+		}),
+		apps: many(builderApps),
+	}),
+);
+
+export type BuilderProject = typeof builderProjects.$inferSelect;
+export type NewBuilderProject = typeof builderProjects.$inferInsert;
 
 /**
  * Builder Apps - the main app entity for chat-built applications
@@ -1181,6 +1227,10 @@ export const builderApps = pgTable(
 		createdByUserDbId: integer("created_by_user_db_id").references(
 			() => users.dbId,
 		),
+		projectDbId: integer("project_db_id").references(
+			() => builderProjects.dbId,
+			{ onDelete: "set null" },
+		),
 		name: text("name").notNull(),
 		description: text("description"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1192,6 +1242,7 @@ export const builderApps = pgTable(
 	(table) => [
 		index("builder_apps_team_db_id_idx").on(table.teamDbId),
 		index("builder_apps_created_by_user_db_id_idx").on(table.createdByUserDbId),
+		index("builder_apps_project_db_id_idx").on(table.projectDbId),
 	],
 );
 
@@ -1203,6 +1254,10 @@ export const builderAppRelations = relations(builderApps, ({ one, many }) => ({
 	creator: one(users, {
 		fields: [builderApps.createdByUserDbId],
 		references: [users.dbId],
+	}),
+	project: one(builderProjects, {
+		fields: [builderApps.projectDbId],
+		references: [builderProjects.dbId],
 	}),
 	files: many(builderFiles),
 	chats: many(builderChats),
