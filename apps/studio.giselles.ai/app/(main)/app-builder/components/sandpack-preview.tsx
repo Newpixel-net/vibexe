@@ -74,6 +74,8 @@ function SandpackFileUpdater({ files }: { files: SandpackFiles }) {
 	const { sandpack } = useSandpack();
 	const prevFilesRef = useRef<SandpackFiles | null>(null);
 	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	// Store latest updates in a ref so the timer callback always has fresh data
+	const latestUpdatesRef = useRef<Array<[string, string]>>([]);
 
 	useEffect(() => {
 		// Skip the very first render - SandpackProvider already has initial files
@@ -83,7 +85,6 @@ function SandpackFileUpdater({ files }: { files: SandpackFiles }) {
 		}
 
 		const prev = prevFilesRef.current;
-		const updates: Array<[string, string]> = [];
 
 		// Find new or changed files
 		for (const [path, file] of Object.entries(files)) {
@@ -96,46 +97,61 @@ function SandpackFileUpdater({ files }: { files: SandpackFiles }) {
 				: undefined;
 
 			if (prevCode !== code) {
-				updates.push([path, code]);
+				// Merge into latest updates (overwrite if same path)
+				const existing = latestUpdatesRef.current.findIndex(
+					([p]) => p === path,
+				);
+				if (existing >= 0) {
+					latestUpdatesRef.current[existing] = [path, code];
+				} else {
+					latestUpdatesRef.current.push([path, code]);
+				}
 			}
 		}
-
-		if (updates.length === 0) {
-			prevFilesRef.current = files;
-			return;
-		}
-
-		// Debounce: batch rapid file changes into a single update
-		if (debounceRef.current) {
-			clearTimeout(debounceRef.current);
-		}
-
-		debounceRef.current = setTimeout(() => {
-			debounceRef.current = null;
-			console.log(
-				"[SandpackFileUpdater] Applying",
-				updates.length,
-				"file updates:",
-				updates.map(([p]) => p),
-			);
-
-			// Apply all updates
-			for (const [path, code] of updates) {
-				sandpack.updateFile(path, code);
-			}
-
-			// Force Sandpack to recompile with the new files
-			sandpack.runSandpack();
-		}, 500);
 
 		prevFilesRef.current = files;
 
+		if (latestUpdatesRef.current.length === 0) {
+			return;
+		}
+
+		// Only set a timer if one isn't already pending
+		// This lets the first trigger start the timer, subsequent changes
+		// just update the ref data (which the timer callback will read)
+		if (!debounceRef.current) {
+			debounceRef.current = setTimeout(() => {
+				debounceRef.current = null;
+				const updates = latestUpdatesRef.current;
+				latestUpdatesRef.current = [];
+
+				if (updates.length === 0) return;
+
+				console.log(
+					"[SandpackFileUpdater] Applying",
+					updates.length,
+					"file updates:",
+					updates.map(([p]) => p),
+				);
+
+				// Apply all updates
+				for (const [path, code] of updates) {
+					sandpack.updateFile(path, code);
+				}
+
+				// Force Sandpack to recompile with the new files
+				sandpack.runSandpack();
+			}, 500);
+		}
+	}, [files, sandpack]);
+
+	// Cleanup on unmount only
+	useEffect(() => {
 		return () => {
 			if (debounceRef.current) {
 				clearTimeout(debounceRef.current);
 			}
 		};
-	}, [files, sandpack]);
+	}, []);
 
 	return null; // Render nothing - just manages file sync
 }
