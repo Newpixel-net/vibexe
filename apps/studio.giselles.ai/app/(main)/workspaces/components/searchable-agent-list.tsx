@@ -67,7 +67,7 @@ export function SearchableAgentList({
 			<SearchHeader
 				searchQuery={searchQuery}
 				onSearchChange={setSearchQuery}
-				searchPlaceholder="Search Workspaces..."
+				searchPlaceholder="Search Workflows..."
 				sortOption={sortOption}
 				onSortChange={(value) => setSortOption(value as SortOption)}
 				showViewToggle
@@ -79,7 +79,7 @@ export function SearchableAgentList({
 				<div className="flex justify-center items-center h-full mt-12">
 					<div className="grid gap-[8px] justify-center text-center">
 						<h3 className="text-[18px] font-geist font-bold text-text/60">
-							No workspaces found.
+							No workflows found.
 						</h3>
 						<p className="text-[12px] font-geist text-text/60">
 							Try searching with a different keyword.
