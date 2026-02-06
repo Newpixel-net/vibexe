@@ -213,7 +213,7 @@ export async function POST(request: Request) {
 		// CRITICAL: originalMessages must be passed for proper message continuity
 		return result.toUIMessageStreamResponse({
 			originalMessages: messages,
-			onFinish: async ({ messages: finalMessages, responseMessage }) => {
+			onFinish: ({ messages: finalMessages }) => {
 				if (process.env.NODE_ENV === "development") {
 					console.log(
 						`[Chat API] Stream finished - Chat ID: ${chatId || "new"}, Messages: ${finalMessages.length}`,

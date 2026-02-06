@@ -1,5 +1,5 @@
 // Mock edge-config for self-hosting
-const get = async (_key: string): Promise<any> => undefined;
+const get = async (_key: string): Promise<unknown> => undefined;
 
 import { flag } from "flags/next";
 

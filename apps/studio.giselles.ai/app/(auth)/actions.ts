@@ -8,7 +8,7 @@ import type { OAuthProvider } from "@/services/accounts";
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || "";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 
-async function authorizeOAuth(provider: OAuthProvider, formData?: FormData) {
+function authorizeOAuth(provider: OAuthProvider, formData?: FormData): never {
 	const returnUrlEntry = formData?.get("returnUrl");
 	// Validate returnUrl to prevent open redirect attacks
 	const validReturnUrl = isValidReturnUrl(returnUrlEntry)

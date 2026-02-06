@@ -95,7 +95,10 @@ async function fetchUserInfo(
 			});
 			const emails = await emailsRes.json();
 			if (Array.isArray(emails)) {
-				const primary = emails.find((e: any) => e.primary && e.verified);
+				const primary = emails.find(
+					(e: { primary?: boolean; verified?: boolean; email?: string }) =>
+						e.primary && e.verified,
+				);
 				email = primary?.email || emails[0]?.email || "";
 			}
 		}

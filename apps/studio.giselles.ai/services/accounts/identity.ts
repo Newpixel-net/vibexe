@@ -36,13 +36,16 @@ function buildDirectOAuthUrl(
 	throw new Error(`Unsupported OAuth provider: ${provider}`);
 }
 
-export async function connectIdentity(provider: OAuthProvider, next: string) {
+export function connectIdentity(provider: OAuthProvider, next: string): never {
 	const redirectTo = getAuthCallbackUrl({ next, provider });
 	const oauthUrl = buildDirectOAuthUrl(provider, redirectTo, next);
 	redirect(oauthUrl);
 }
 
-export async function reconnectIdentity(provider: OAuthProvider, next: string) {
+export function reconnectIdentity(
+	provider: OAuthProvider,
+	next: string,
+): never {
 	const redirectTo = getAuthCallbackUrl({ next, provider });
 	const oauthUrl = buildDirectOAuthUrl(provider, redirectTo, next);
 	redirect(oauthUrl);
