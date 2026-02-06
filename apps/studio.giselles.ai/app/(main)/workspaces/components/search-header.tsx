@@ -42,7 +42,7 @@ interface SearchHeaderProps {
 export function SearchHeader({
 	searchQuery,
 	onSearchChange,
-	searchPlaceholder = "Search Workspaces...",
+	searchPlaceholder = "Search Workflows...",
 	sortOption,
 	onSortChange,
 	showViewToggle = true,

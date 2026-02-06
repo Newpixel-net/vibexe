@@ -8,14 +8,14 @@ export default function Layout({ children }: { children: ReactNode }) {
 		<div className="h-full bg-bg">
 			<div className="px-[40px] py-[24px] flex-1 max-w-[1200px] mx-auto w-full">
 				<div className="flex justify-between items-center mb-8">
-					<PageHeading glow>Workspaces</PageHeading>
+					<PageHeading glow>Workflows</PageHeading>
 					<div className="flex items-center gap-4">
 						<DocsLink
 							href="https://docs.giselles.ai/en/guides/workspaces"
 							target="_blank"
 							rel="noopener noreferrer"
 						/>
-						<CreateWorkspaceButton />
+						<CreateWorkspaceButton label="New Workflow" />
 					</div>
 				</div>
 				{children}

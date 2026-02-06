@@ -59,14 +59,8 @@ function SidebarItem({ part }: { part: SidebarPart }) {
 	}
 }
 
-function createStagePart(isStageV2Enabled: boolean): SidebarPart {
+function createBuildPart(isStageV2Enabled: boolean): SidebarPart {
 	const links: SidebarLink[] = [
-		{
-			id: "playground",
-			label: "Playground",
-			href: "/playground",
-			activeMatchPattern: "/playground",
-		},
 		{
 			id: "app-builder",
 			label: "App Builder",
@@ -84,17 +78,17 @@ function createStagePart(isStageV2Enabled: boolean): SidebarPart {
 				]
 			: []),
 		{
-			id: "tasks",
-			label: "Task History",
-			href: "/tasks",
-			activeMatchPattern: "/tasks*",
+			id: "playground",
+			label: "Playground",
+			href: "/playground",
+			activeMatchPattern: "/playground",
 		},
 	];
 
 	return {
 		type: "linkGroup",
-		id: "stage",
-		label: "Stage - Run Apps",
+		id: "build",
+		label: "Build",
 		icon: "sparkle",
 		links,
 	};
@@ -107,13 +101,13 @@ function createBaseSidebarParts(
 	return [
 		{
 			type: "linkGroup",
-			id: "studio",
-			label: "Studio - Build Apps",
+			id: "automate",
+			label: "Automate",
 			icon: "blocks",
 			links: [
 				{
-					id: "workspaces",
-					label: "Workspaces",
+					id: "workflows",
+					label: "Workflows",
 					href: "/workspaces",
 					activeMatchPattern: "/workspaces*",
 				},
@@ -139,6 +133,12 @@ function createBaseSidebarParts(
 							},
 						]
 					: []),
+				{
+					id: "tasks",
+					label: "Task History",
+					href: "/tasks",
+					activeMatchPattern: "/tasks*",
+				},
 			],
 		},
 		{ type: "divider", id: "divider1" },
@@ -200,7 +200,7 @@ export async function Sidebar() {
 		isApiPublishingEnabled,
 		isDataStoreEnabled,
 	);
-	const sidebarParts = [createStagePart(isStageV2Enabled), ...baseSidebarParts];
+	const sidebarParts = [createBuildPart(isStageV2Enabled), ...baseSidebarParts];
 
 	return (
 		<div className="w-[240px]">

@@ -34,7 +34,7 @@ export function CreateWorkspaceButton({
 				return {};
 			} catch (error) {
 				console.error(error);
-				return { error: "Failed to create workspace. Please try again." };
+				return { error: "Failed to create workflow. Please try again." };
 			}
 		},
 		[router],
@@ -55,7 +55,7 @@ export function CreateWorkspaceButton({
 }
 
 function CreateWorkspaceSubmitButton({
-	label = "New Workspace",
+	label = "New Workflow",
 }: {
 	label?: string;
 }) {
@@ -64,7 +64,7 @@ function CreateWorkspaceSubmitButton({
 	return (
 		<GlassButton
 			type="submit"
-			aria-label="Create a workspace"
+			aria-label="Create a workflow"
 			className="whitespace-nowrap"
 			disabled={pending}
 		>
