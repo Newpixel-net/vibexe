@@ -17,11 +17,13 @@ const config: KnipConfig = {
 			],
 		},
 		"apps/studio.giselles.ai": {
-			entry: ["tests/e2e/global-setup.ts", "emails/**/*.tsx"],
+			entry: ["emails/**/*.tsx"],
 			ignore: [
 				"scripts/**",
 				"trigger.config.ts",
 				"trigger/investigate-private-key-job.ts",
+				// App builder is a new feature under development - ignore unused exports for now
+				"app/(main)/app-builder/**",
 			],
 			// Ignore deps that are resolved dynamically in next.config or used only at build/runtime
 			ignoreDependencies: [
@@ -33,6 +35,8 @@ const config: KnipConfig = {
 				"pino-pretty",
 				"prettier",
 				"shiki",
+				// Disabled for self-hosted mode
+				"@vercel/edge-config",
 			],
 		},
 		"apps/ui.giselles.ai": {
