@@ -84,7 +84,14 @@ function DeployBanner() {
 						Your app is ready for deployment.
 					</p>
 				</div>
-				<Button variant="default" disabled>
+				<Button
+					variant="default"
+					onClick={() => {
+						window.alert(
+							"Deployment coming soon! Your app will be available at a public URL.",
+						);
+					}}
+				>
 					Deploy
 				</Button>
 			</div>
@@ -294,6 +301,43 @@ export function ChatColumn({
 	// Convert AI SDK messages to VibeSDK ChatMessage format
 	const chatMessages = useMemo(() => toChatMessages(messages), [messages]);
 
+	// Track which tool completions we've already triggered file fetches for
+	const fetchedToolIds = useRef<Set<string>>(new Set());
+
+	// Stream file updates: trigger onFilesChange per completed file tool during streaming
+	useEffect(() => {
+		if (chatMessages.length === 0) return;
+
+		const latestMessage = chatMessages[chatMessages.length - 1];
+		if (latestMessage?.role !== "assistant" || !latestMessage.toolEvents)
+			return;
+
+		const fileToolNames = new Set([
+			"createFile",
+			"updateFile",
+			"deleteFile",
+			"create_file",
+			"update_file",
+			"delete_file",
+		]);
+
+		let hasNewCompletion = false;
+		for (const event of latestMessage.toolEvents) {
+			if (
+				event.status === "completed" &&
+				fileToolNames.has(event.toolName) &&
+				!fetchedToolIds.current.has(event.id)
+			) {
+				fetchedToolIds.current.add(event.id);
+				hasNewCompletion = true;
+			}
+		}
+
+		if (hasNewCompletion) {
+			onFilesChange();
+		}
+	}, [chatMessages, onFilesChange]);
+
 	// Auto-scroll to bottom when messages change
 	useEffect(() => {
 		if (scrollRef.current) {
@@ -389,38 +433,43 @@ export function ChatColumn({
 						</div>
 					) : (
 						// Messages list using VibeSDK components
-						<div className="flex flex-col gap-5">
-							{chatMessages.map((message, index) => {
-								const isLastMessage = index === chatMessages.length - 1;
-								if (message.role === "user") {
-									return <UserMessage key={message.id} message={message} />;
-								}
-								return (
-									<AIMessage
-										key={message.id}
-										message={message}
-										isLoading={isLoading && isLastMessage}
-									/>
-								);
-							})}
-						</div>
-					)}
+						<div className="rounded-2xl border border-border/50 bg-card/50 p-4">
+							<div className="flex flex-col gap-5">
+								{chatMessages.map((message, index) => {
+									const isLastMessage =
+										index === chatMessages.length - 1;
+									if (message.role === "user") {
+										return (
+											<UserMessage key={message.id} message={message} />
+										);
+									}
+									return (
+										<AIMessage
+											key={message.id}
+											message={message}
+											isLoading={isLoading && isLastMessage}
+										/>
+									);
+								})}
+							</div>
 
-					{/* PhaseTimeline INLINE after messages */}
-					{phaseTimeline.length > 0 && (
-						<div className="mt-4">
-							<PhaseTimeline
-								projectStages={projectStages}
-								phaseTimeline={phaseTimeline}
-								files={vibeFiles}
-								view="preview"
-								onFileClick={onFileClick}
-								isThinkingNext={isThinking}
-								progress={progress}
-								total={phaseTimeline.length}
-								parentScrollRef={scrollRef}
-								isThinking={isThinking}
-							/>
+							{/* PhaseTimeline INLINE after messages */}
+							{phaseTimeline.length > 0 && (
+								<div className="mt-4">
+									<PhaseTimeline
+										projectStages={projectStages}
+										phaseTimeline={phaseTimeline}
+										files={vibeFiles}
+										view="preview"
+										onFileClick={onFileClick}
+										isThinkingNext={isThinking}
+										progress={progress}
+										total={phaseTimeline.length}
+										parentScrollRef={scrollRef}
+										isThinking={isThinking}
+									/>
+								</div>
+							)}
 						</div>
 					)}
 

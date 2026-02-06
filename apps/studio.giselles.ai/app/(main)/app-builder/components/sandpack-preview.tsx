@@ -4,7 +4,8 @@
  * SandpackPreview Component
  *
  * Live preview of generated React code using Sandpack.
- * Includes responsive toggles and console output.
+ * Uses incremental file updates (no remount) so the preview stays alive
+ * while files are being generated.
  *
  * Deploy to: /opt/giselle/apps/studio.giselles.ai/app/(main)/app-builder/components/sandpack-preview.tsx
  */
@@ -23,24 +24,13 @@ import {
 	Smartphone,
 	Tablet,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import {
+	type SandpackFiles,
 	convertToSandpackFiles,
 	extractDependencies,
 } from "../adapters/sandpack-adapter";
-
-/**
- * Generate a stable key based on file contents for forcing SandpackProvider remount
- */
-function generateFilesKey(files: AppFile[]): string {
-	// Create a key from file paths and content lengths
-	const key = files
-		.map((f) => `${f.path}:${f.content?.length || 0}`)
-		.sort()
-		.join("|");
-	return key || "empty";
-}
 
 type DeviceSize = "desktop" | "tablet" | "mobile";
 
@@ -74,6 +64,118 @@ function RefreshButton() {
 }
 
 /**
+ * Inner component that incrementally updates Sandpack files without remounting.
+ * Lives inside SandpackProvider to access useSandpack() hook.
+ *
+ * Handles:
+ * - Diffing previous vs current files to only update what changed
+ * - Debouncing rapid updates (300ms)
+ * - Queuing updates during active Sandpack recompilation
+ * - Flushing queued updates once compilation finishes
+ */
+function SandpackFileUpdater({ files }: { files: SandpackFiles }) {
+	const { sandpack, listen } = useSandpack();
+	const prevFilesRef = useRef<SandpackFiles>({});
+	const pendingUpdates = useRef<Map<string, string>>(new Map());
+	const isBusy = useRef(false);
+	const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const isFirstRender = useRef(true);
+
+	// Flush pending updates to Sandpack
+	const flushUpdates = useCallback(() => {
+		if (pendingUpdates.current.size === 0) return;
+
+		for (const [path, code] of pendingUpdates.current) {
+			sandpack.updateFile(path, code);
+		}
+		pendingUpdates.current.clear();
+	}, [sandpack]);
+
+	// Debounced flush - batches rapid changes into single update cycle
+	const scheduleFlush = useCallback(() => {
+		if (flushTimer.current) {
+			clearTimeout(flushTimer.current);
+		}
+		flushTimer.current = setTimeout(() => {
+			flushTimer.current = null;
+			flushUpdates();
+		}, 300);
+	}, [flushUpdates]);
+
+	// Listen for Sandpack compilation status
+	useEffect(() => {
+		const unsub = listen((msg) => {
+			if (msg.type === "done") {
+				isBusy.current = false;
+				// Flush any pending updates that were queued during compilation
+				if (pendingUpdates.current.size > 0) {
+					scheduleFlush();
+				}
+			} else if (msg.type === "start") {
+				isBusy.current = true;
+			}
+		});
+		return () => {
+			unsub();
+		};
+	}, [listen, scheduleFlush]);
+
+	// Diff and queue file updates when files prop changes
+	useEffect(() => {
+		// Skip the first render - SandpackProvider already has initial files
+		if (isFirstRender.current) {
+			isFirstRender.current = false;
+			prevFilesRef.current = files;
+			return;
+		}
+
+		const prev = prevFilesRef.current;
+		let hasChanges = false;
+
+		for (const [path, file] of Object.entries(files)) {
+			const code = typeof file === "string" ? file : file.code;
+			const prevFile = prev[path];
+			const prevCode = prevFile
+				? typeof prevFile === "string"
+					? prevFile
+					: prevFile.code
+				: undefined;
+
+			if (prevCode !== code) {
+				pendingUpdates.current.set(path, code);
+				hasChanges = true;
+			}
+		}
+
+		if (hasChanges) {
+			if (isBusy.current) {
+				// Sandpack is recompiling - updates will flush when compilation finishes
+				console.log(
+					"[SandpackFileUpdater] Queued",
+					pendingUpdates.current.size,
+					"updates (Sandpack busy)",
+				);
+			} else {
+				scheduleFlush();
+			}
+		}
+
+		prevFilesRef.current = files;
+	}, [files, scheduleFlush]);
+
+	// Cleanup timer on unmount
+	useEffect(() => {
+		return () => {
+			if (flushTimer.current) {
+				clearTimeout(flushTimer.current);
+			}
+		};
+	}, []);
+
+	return null; // Render nothing - just manages file sync
+}
+
+/**
  * CSS to make Sandpack fill its container
  * Sandpack uses .sp-wrapper as its main container class
  */
@@ -102,7 +204,9 @@ const sandpackFullHeightStyles = `
 `;
 
 /**
- * Main preview component with responsive toggles and console
+ * Main preview component with responsive toggles and console.
+ * SandpackProvider is mounted ONCE with initial files.
+ * Subsequent file changes are applied incrementally via SandpackFileUpdater.
  */
 export function SandpackPreview({
 	appId: _appId,
@@ -115,18 +219,18 @@ export function SandpackPreview({
 	const sandpackFiles = useMemo(() => convertToSandpackFiles(files), [files]);
 	const dependencies = useMemo(() => extractDependencies(files), [files]);
 
-	// Generate a stable key to force SandpackProvider remount when files change
-	const filesKey = useMemo(() => generateFilesKey(files), [files]);
+	// Capture initial files for SandpackProvider (only set once)
+	const initialFilesRef = useRef(sandpackFiles);
+	const initialDepsRef = useRef(dependencies);
 
 	// Debug: log file changes
 	useEffect(() => {
 		console.log("[SandpackPreview] Files updated:", files.length, "files");
-		console.log("[SandpackPreview] Files key:", filesKey);
 		console.log(
 			"[SandpackPreview] Sandpack files:",
 			Object.keys(sandpackFiles),
 		);
-	}, [files, filesKey, sandpackFiles]);
+	}, [files, sandpackFiles]);
 
 	// Calculate preview width based on device
 	const previewWidth = DEVICE_SIZES[device].width;
@@ -201,11 +305,10 @@ export function SandpackPreview({
 					}}
 				>
 					<SandpackProvider
-						key={filesKey}
 						template="react-ts"
-						files={sandpackFiles}
+						files={initialFilesRef.current}
 						customSetup={{
-							dependencies,
+							dependencies: initialDepsRef.current,
 						}}
 						options={{
 							autorun: true,
@@ -216,6 +319,9 @@ export function SandpackPreview({
 						}}
 						theme="auto"
 					>
+						{/* Incremental file updater - syncs file changes without remount */}
+						<SandpackFileUpdater files={sandpackFiles} />
+
 						<div className="relative w-full h-full flex flex-col">
 							{/* Preview pane - takes all space minus console */}
 							<div className={`flex-1 min-h-0 ${showConsole ? "" : "h-full"}`}>
