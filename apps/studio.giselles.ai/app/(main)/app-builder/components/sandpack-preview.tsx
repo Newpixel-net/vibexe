@@ -77,14 +77,23 @@ function SandpackFileUpdater({ files }: { files: SandpackFiles }) {
 	const { sandpack, listen } = useSandpack();
 	const prevFilesRef = useRef<SandpackFiles>({});
 	const pendingUpdates = useRef<Map<string, string>>(new Map());
+	const pendingDeletes = useRef<Set<string>>(new Set());
 	const isBusy = useRef(false);
 	const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const isFirstRender = useRef(true);
 
-	// Flush pending updates to Sandpack
+	// Flush pending updates and deletes to Sandpack
 	const flushUpdates = useCallback(() => {
-		if (pendingUpdates.current.size === 0) return;
+		if (pendingUpdates.current.size === 0 && pendingDeletes.current.size === 0)
+			return;
 
+		// Delete stale files first
+		for (const path of pendingDeletes.current) {
+			sandpack.deleteFile(path);
+		}
+		pendingDeletes.current.clear();
+
+		// Then update/add files
 		for (const [path, code] of pendingUpdates.current) {
 			sandpack.updateFile(path, code);
 		}
@@ -143,6 +152,15 @@ function SandpackFileUpdater({ files }: { files: SandpackFiles }) {
 
 			if (prevCode !== code) {
 				pendingUpdates.current.set(path, code);
+				hasChanges = true;
+			}
+		}
+
+		// Detect stale files (in prev but not in current) and queue for deletion
+		// Skip hidden/system files like /public/index.html and /index.js
+		for (const prevPath of Object.keys(prev)) {
+			if (!(prevPath in files) && !prevPath.startsWith("/public/") && prevPath !== "/index.js") {
+				pendingDeletes.current.add(prevPath);
 				hasChanges = true;
 			}
 		}
