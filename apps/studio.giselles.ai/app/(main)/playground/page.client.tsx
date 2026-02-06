@@ -9,7 +9,7 @@ import type {
 	TaskId,
 } from "@giselles-ai/protocol";
 import clsx from "clsx";
-import { PlayIcon, Search, Sparkles } from "lucide-react";
+import { PlayIcon, Search, Sparkles, Workflow } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import {
@@ -26,6 +26,7 @@ import { LLMProviderIcon } from "@/app/(main)/workspaces/components/llm-provider
 import { PlaygroundStageInput } from "../components/stage-input/playground-stage-input";
 import type { LoaderData } from "./data-loader";
 import type { StageApp } from "./types";
+import { WorkflowBuilderChat } from "./workflow-builder-chat";
 
 type AppListCardBadgeType =
 	| "sample"
@@ -201,6 +202,7 @@ export function Page({
 	const data = use(dataLoader);
 
 	const router = useRouter();
+	const [playgroundMode, setPlaygroundMode] = useState<"run" | "create">("run");
 	const [runningAppId, setRunningAppId] = useState<AppId | undefined>();
 	const [isRunning, startTransition] = useTransition();
 	const [appSearchQuery, setAppSearchQuery] = useState("");
@@ -264,7 +266,42 @@ export function Page({
 
 	return (
 		<div className="w-full flex flex-col">
-			<div className="flex items-stretch gap-4 min-w-0">
+			{/* Tab switcher */}
+			<div className="flex justify-center pt-4 pb-0 px-4">
+				<div className="flex gap-1 rounded-lg bg-[rgba(131,157,195,0.08)] p-1">
+					<button
+						type="button"
+						onClick={() => setPlaygroundMode("run")}
+						className={clsx(
+							"flex items-center gap-2 rounded-md px-4 py-2 text-[13px] font-medium transition-all",
+							playgroundMode === "run"
+								? "bg-[rgba(131,157,195,0.14)] text-text/90 shadow-sm"
+								: "text-text-muted/60 hover:text-text-muted/80",
+						)}
+					>
+						<PlayIcon className="h-3.5 w-3.5" />
+						Run Apps
+					</button>
+					<button
+						type="button"
+						onClick={() => setPlaygroundMode("create")}
+						className={clsx(
+							"flex items-center gap-2 rounded-md px-4 py-2 text-[13px] font-medium transition-all",
+							playgroundMode === "create"
+								? "bg-[rgba(131,157,195,0.14)] text-text/90 shadow-sm"
+								: "text-text-muted/60 hover:text-text-muted/80",
+						)}
+					>
+						<Workflow className="h-3.5 w-3.5" />
+						Create Workflow
+					</button>
+				</div>
+			</div>
+
+			{playgroundMode === "create" ? (
+				<WorkflowBuilderChat />
+			) : (
+				<div className="flex items-stretch gap-4 min-w-0">
 				{/* Main content: apps area */}
 				<div className="flex-1 min-w-0 flex flex-col px-4 sm:px-[24px] pt-[24px]">
 					{/* Top section: app info + chat input */}
@@ -462,7 +499,8 @@ export function Page({
 						</div>
 					</div>
 				</div>
-			</div>
+				</div>
+			)}
 		</div>
 	);
 }

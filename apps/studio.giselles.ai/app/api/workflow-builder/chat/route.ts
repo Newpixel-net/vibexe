@@ -1,0 +1,53 @@
+import { openai } from "@ai-sdk/openai";
+import type { UIMessage } from "ai";
+import { convertToModelMessages, streamText } from "ai";
+import { createWorkflowTools } from "@/app/(main)/playground/lib/workflow-tools";
+import { getUser } from "@/lib/supabase/get-user";
+import { WORKFLOW_SYSTEM_PROMPT } from "../system-prompt";
+
+export async function POST(request: Request) {
+	try {
+		const user = await getUser();
+		if (!user) {
+			return new Response(JSON.stringify({ error: "Unauthorized" }), {
+				status: 401,
+				headers: { "Content-Type": "application/json" },
+			});
+		}
+
+		const body = await request.json();
+		const { messages } = body as {
+			messages: UIMessage[];
+		};
+
+		if (!messages || !Array.isArray(messages) || messages.length === 0) {
+			return new Response(JSON.stringify({ error: "Messages are required" }), {
+				status: 400,
+				headers: { "Content-Type": "application/json" },
+			});
+		}
+
+		const modelMessages = await convertToModelMessages(messages);
+
+		const tools = createWorkflowTools();
+
+		const result = streamText({
+			model: openai("gpt-4o"),
+			system: WORKFLOW_SYSTEM_PROMPT,
+			messages: modelMessages,
+			tools,
+			maxSteps: 15,
+			toolChoice: "auto",
+		});
+
+		return result.toUIMessageStreamResponse({
+			originalMessages: messages,
+		});
+	} catch (error) {
+		console.error("[Workflow Builder Chat API] Error:", error);
+		return new Response(JSON.stringify({ error: "Internal server error" }), {
+			status: 500,
+			headers: { "Content-Type": "application/json" },
+		});
+	}
+}
