@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseMiddleware } from "./lib/supabase";
 
+// biome-ignore lint/suspicious/useAwait: async required for TypeScript signature compatibility
 export const proxy = supabaseMiddleware(async (user, request) => {
 	// Edge Config disabled for self-hosted mode - maintenance mode always false
 	const maintenance = false;
