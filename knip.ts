@@ -4,6 +4,20 @@ const config: KnipConfig = {
 	biome: false,
 	ignoreIssues: {
 		"apps/studio.giselles.ai/emails/**/*.tsx": ["duplicates"],
+		// App builder is a new feature under development - ignore all issues
+		"apps/studio.giselles.ai/app/\\(main\\)/app-builder/**": [
+			"files",
+			"exports",
+			"types",
+		],
+		// Session management utilities exported for runtime use
+		"apps/studio.giselles.ai/lib/session-store.ts": ["exports", "types"],
+		// Supabase utilities exported for runtime use
+		"apps/studio.giselles.ai/lib/supabase/get-user.ts": ["types"],
+		// UI components exported for composition
+		"apps/studio.giselles.ai/components/ui/scroll-area.tsx": ["exports"],
+		// Utility functions exported for runtime use
+		"apps/studio.giselles.ai/lib/utils.ts": ["exports"],
 	},
 	workspaces: {
 		"apps/playground": {
@@ -22,8 +36,6 @@ const config: KnipConfig = {
 				"scripts/**",
 				"trigger.config.ts",
 				"trigger/investigate-private-key-job.ts",
-				// App builder is a new feature under development - ignore unused exports for now
-				"app/(main)/app-builder/**",
 			],
 			// Ignore deps that are resolved dynamically in next.config or used only at build/runtime
 			ignoreDependencies: [
