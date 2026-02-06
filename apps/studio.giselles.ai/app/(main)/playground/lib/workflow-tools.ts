@@ -53,11 +53,15 @@ export function createWorkflowTools() {
 						workspaceId: workspace.id,
 						name,
 						description,
+						error: "",
 					};
 				} catch (error) {
 					console.error("create_workflow error:", error);
 					return {
 						success: false,
+						workspaceId: "",
+						name: "",
+						description: "",
 						error: `Failed to create workflow: ${String(error)}`,
 					};
 				}
@@ -135,6 +139,14 @@ export function createWorkflowTools() {
 				vectorStoreProvider,
 				position,
 			}) => {
+				const errResult = (msg: string) => ({
+					success: false as const,
+					nodeId: "",
+					outputs: [] as { outputId: string; accessor: string; label: string }[],
+					inputs: [] as { inputId: string; accessor: string; label: string }[],
+					error: msg,
+				});
+
 				try {
 					const workspace = await giselle.getWorkspace(
 						workspaceId as WorkspaceId,
@@ -145,11 +157,7 @@ export function createWorkflowTools() {
 					switch (type) {
 						case "textGeneration": {
 							if (!llmProvider || !llmModelId) {
-								return {
-									success: false,
-									error:
-										"llmProvider and llmModelId are required for textGeneration nodes",
-								};
+								return errResult("llmProvider and llmModelId are required for textGeneration nodes");
 							}
 							const defaultConfigs: Record<
 								string,
@@ -186,11 +194,7 @@ export function createWorkflowTools() {
 						}
 						case "imageGeneration": {
 							if (!llmProvider || !llmModelId) {
-								return {
-									success: false,
-									error:
-										"llmProvider and llmModelId are required for imageGeneration nodes",
-								};
+								return errResult("llmProvider and llmModelId are required for imageGeneration nodes");
 							}
 							node = nodeFactories.create("imageGeneration", {
 								provider: llmProvider,
@@ -230,10 +234,7 @@ export function createWorkflowTools() {
 							node = nodeFactories.create(type);
 							break;
 						default:
-							return {
-								success: false,
-								error: `Unknown node type: ${type}`,
-							};
+							return errResult(`Unknown node type: ${type}`);
 					}
 
 					// Set custom name
@@ -251,7 +252,7 @@ export function createWorkflowTools() {
 					await giselle.updateWorkspace(workspace);
 
 					return {
-						success: true,
+						success: true as const,
 						nodeId: node.id,
 						outputs: node.outputs.map((o) => ({
 							outputId: o.id,
@@ -263,13 +264,11 @@ export function createWorkflowTools() {
 							accessor: i.accessor,
 							label: i.label,
 						})),
+						error: "",
 					};
 				} catch (error) {
 					console.error("add_node error:", error);
-					return {
-						success: false,
-						error: `Failed to add node: ${String(error)}`,
-					};
+					return errResult(`Failed to add node: ${String(error)}`);
 				}
 			},
 		}),
@@ -298,6 +297,13 @@ export function createWorkflowTools() {
 				targetNodeId,
 				targetInputId,
 			}) => {
+				const errResult = (msg: string) => ({
+					success: false as const,
+					connectionId: "",
+					inputId: "",
+					error: msg,
+				});
+
 				try {
 					const workspace = await giselle.getWorkspace(
 						workspaceId as WorkspaceId,
@@ -311,20 +317,14 @@ export function createWorkflowTools() {
 					);
 
 					if (!sourceNode || !targetNode) {
-						return {
-							success: false,
-							error: `Node not found: ${!sourceNode ? sourceNodeId : targetNodeId}`,
-						};
+						return errResult(`Node not found: ${!sourceNode ? sourceNodeId : targetNodeId}`);
 					}
 
 					const sourceOutput = sourceNode.outputs.find(
 						(o) => o.id === sourceOutputId,
 					);
 					if (!sourceOutput) {
-						return {
-							success: false,
-							error: `Output ${sourceOutputId} not found on node ${sourceNodeId}`,
-						};
+						return errResult(`Output ${sourceOutputId} not found on node ${sourceNodeId}`);
 					}
 
 					// Find or create input on target node
@@ -359,16 +359,14 @@ export function createWorkflowTools() {
 					await giselle.updateWorkspace(workspace);
 
 					return {
-						success: true,
+						success: true as const,
 						connectionId: connection.id,
 						inputId: actualInputId,
+						error: "",
 					};
 				} catch (error) {
 					console.error("add_connection error:", error);
-					return {
-						success: false,
-						error: `Failed to add connection: ${String(error)}`,
-					};
+					return errResult(`Failed to add connection: ${String(error)}`);
 				}
 			},
 		}),
