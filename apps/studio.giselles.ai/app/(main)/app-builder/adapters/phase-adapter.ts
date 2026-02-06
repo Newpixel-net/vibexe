@@ -336,7 +336,6 @@ export function createDefaultProjectStages(): ProjectStage[] {
 		{ id: "bootstrap", title: "Bootstrapping project", status: "pending" },
 		{ id: "blueprint", title: "Generating Blueprint", status: "pending" },
 		{ id: "code", title: "Generating code", status: "pending" },
-		{ id: "done", title: "Done", status: "pending" },
 	];
 }
 
@@ -345,12 +344,40 @@ export function createDefaultProjectStages(): ProjectStage[] {
  */
 export function updateProjectStage(
 	stages: ProjectStage[],
-	stageId: "bootstrap" | "blueprint" | "code" | "done",
+	stageId: "bootstrap" | "blueprint" | "code",
 	status: ProjectStage["status"],
 ): ProjectStage[] {
 	return stages.map((stage) =>
 		stage.id === stageId ? { ...stage, status } : stage,
 	);
+}
+
+/**
+ * Mark all generating phases and their files as completed.
+ * Called when the AI response finishes to finalize all spinners.
+ */
+export function markAllPhasesComplete(
+	phases: PhaseTimelineItem[],
+): PhaseTimelineItem[] {
+	return phases.map((phase) => {
+		if (phase.status === "completed" || phase.status === "error") return phase;
+
+		const updatedFiles = phase.files.map((file) => ({
+			...file,
+			status:
+				file.status === "generating"
+					? ("completed" as const)
+					: file.status,
+		}));
+
+		const hasError = updatedFiles.some((f) => f.status === "error");
+
+		return {
+			...phase,
+			files: updatedFiles,
+			status: hasError ? "error" : "completed",
+		};
+	});
 }
 
 /**

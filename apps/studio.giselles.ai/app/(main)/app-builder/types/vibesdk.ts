@@ -71,7 +71,7 @@ export interface PhaseFile {
  */
 export interface ProjectStage {
 	/** Stage identifier */
-	id: "bootstrap" | "blueprint" | "code" | "done";
+	id: "bootstrap" | "blueprint" | "code";
 	/** Display title */
 	title: string;
 	/** Current status */

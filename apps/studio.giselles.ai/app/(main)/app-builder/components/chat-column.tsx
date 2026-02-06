@@ -10,7 +10,7 @@
  */
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, isToolUIPart } from "ai";
+import { DefaultChatTransport } from "ai";
 import {
 	Lightbulb,
 	MessageSquare,
@@ -33,8 +33,7 @@ import { toChatMessages } from "../adapters/message-adapter";
 import {
 	createDefaultProjectStages,
 	createPhaseFromToolEvent,
-	markFileCompleted,
-	markFileError,
+	markAllPhasesComplete,
 	type ToolStreamEvent,
 	updatePhaseWithFile,
 	updateProjectStage,
@@ -205,11 +204,15 @@ export function ChatColumn({
 				// Create new phase
 				const newPhase = createPhaseFromToolEvent(event, prev);
 				if (newPhase) {
-					// Mark "Build" stage as active when first file operation starts
+					// Mark stages when first file operation starts
 					if (prev.length === 0) {
 						setProjectStages((stages) =>
 							updateProjectStage(
-								updateProjectStage(stages, "bootstrap", "completed"),
+								updateProjectStage(
+									updateProjectStage(stages, "bootstrap", "completed"),
+									"blueprint",
+									"completed",
+								),
 								"code",
 								"active",
 							),
@@ -220,33 +223,9 @@ export function ChatColumn({
 				return prev;
 			});
 		},
-		onFinish: ({ message }) => {
-			// Check if any tool invocations modified files
-			const hasFileChanges = message.parts?.some((part) => {
-				if (!isToolUIPart(part)) return false;
-				// Check if tool produced output
-				const p = part as unknown as {
-					output?: { success?: boolean; action?: string; path?: string };
-				};
-				// Update phase timeline with completion status
-				if (p.output?.path) {
-					const filePath = p.output.path;
-					if (p.output.success) {
-						setPhaseTimeline((prev) => markFileCompleted(prev, filePath));
-					} else {
-						setPhaseTimeline((prev) => markFileError(prev, filePath));
-					}
-				}
-				return (
-					p.output?.success &&
-					["created", "updated", "deleted"].includes(p.output?.action || "")
-				);
-			});
-			if (hasFileChanges) {
-				onFilesChange();
-			}
-
-			// Mark thinking as done
+		onFinish: () => {
+			// Fetch latest files in case any were created/updated
+			onFilesChange();
 			setIsThinking(false);
 		},
 		onError: (error) => {
@@ -297,6 +276,31 @@ export function ChatColumn({
 	useEffect(() => {
 		setIsThinking(isLoading && mode === "generate");
 	}, [isLoading, mode]);
+
+	// Finalize all phases and project stages when streaming finishes
+	const wasLoadingRef = useRef(false);
+	useEffect(() => {
+		if (wasLoadingRef.current && !isLoading) {
+			// Streaming just ended - mark all generating phases/files as completed
+			setPhaseTimeline((prev) => {
+				if (prev.length === 0) return prev;
+				return markAllPhasesComplete(prev);
+			});
+			// Mark all project stages as completed
+			setProjectStages((stages) =>
+				updateProjectStage(
+					updateProjectStage(
+						updateProjectStage(stages, "bootstrap", "completed"),
+						"blueprint",
+						"completed",
+					),
+					"code",
+					"completed",
+				),
+			);
+		}
+		wasLoadingRef.current = isLoading;
+	}, [isLoading]);
 
 	// Convert AI SDK messages to VibeSDK ChatMessage format
 	const chatMessages = useMemo(() => toChatMessages(messages), [messages]);
