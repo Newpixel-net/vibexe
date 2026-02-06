@@ -17,7 +17,7 @@ export function createWorkflowTools() {
 	return {
 		create_workflow: tool({
 			description: "Create a new empty workflow workspace",
-			parameters: z.object({
+			inputSchema: z.object({
 				name: z.string().describe("Workflow name"),
 				description: z.string().describe("Brief description of the workflow"),
 			}),
@@ -71,7 +71,7 @@ export function createWorkflowTools() {
 		add_node: tool({
 			description:
 				"Add a node to the workflow. Returns the node ID and its output IDs for use in connections.",
-			parameters: z.object({
+			inputSchema: z.object({
 				workspaceId: z.string().describe("The workspace ID from create_workflow"),
 				type: z
 					.enum([
@@ -276,7 +276,7 @@ export function createWorkflowTools() {
 		add_connection: tool({
 			description:
 				"Connect two nodes by linking a source output to a target input. If the target node has no matching input, one will be created automatically.",
-			parameters: z.object({
+			inputSchema: z.object({
 				workspaceId: z.string().describe("The workspace ID"),
 				sourceNodeId: z.string().describe("The source node ID"),
 				sourceOutputId: z
@@ -374,7 +374,7 @@ export function createWorkflowTools() {
 		finalize_workflow: tool({
 			description:
 				"Mark the workflow as complete and return the link to open it in the editor",
-			parameters: z.object({
+			inputSchema: z.object({
 				workspaceId: z.string().describe("The workspace ID"),
 				summary: z
 					.string()
