@@ -1,46 +1,73 @@
-import { isAuthRetryableFetchError } from "@supabase/supabase-js";
-import { cache } from "react";
-import { withRetry } from "../utils";
-import { createClient } from "./server";
+import { loadEnvConfig } from "@next/env";
+loadEnvConfig(process.cwd());
 
-/**
- * Retrieves the currently authenticated user.
- *
- * @throws {Error} If the user is not authenticated or if there's an error during the authentication check.
- *
- * @remarks
- * IMPORTANT: This function will throw an error if executed while the user is not authenticated.
- * Make sure the user is logged in before calling this function.
- */
-const getUser = async () => {
-	const supabase = await createClient();
+  import { cookies } from "next/headers";
+  import { getSessionByToken } from "../session-store";
+  import { db, users } from "@/db";
+  import { eq } from "drizzle-orm";
 
-	const getUserFunc = async () => {
-		const { data, error } = await supabase.auth.getUser();
+  const SESSION_COOKIE_NAME = "giselle-session";
 
-		if (error != null) {
-			throw error;
-		}
-		if (data.user == null) {
-			throw new Error("No user returned");
-		}
-		return data.user;
-	};
+  export interface UserIdentity {
+    provider: string;
+    id: string;
+    identity_id: string;
+    user_id: string;
+    identity_data?: Record<string, unknown>;
+    created_at?: string;
+    last_sign_in_at?: string;
+  }
 
-	const user = await withRetry(getUserFunc, {
-		useExponentialBackoff: true,
-		onRetry: (retryCount, error) => {
-			console.error(`getUser failed, retrying (${retryCount})`, error);
-		},
-		shouldAbort: (error) => {
-			// retry if the error is a retryable fetch error
-			return !isAuthRetryableFetchError(error);
-		},
-	});
+  export interface GiselleUser {
+    id: string;
+    dbId: number;
+    email?: string;
+    displayName?: string;
+    avatarUrl?: string;
+    identities?: UserIdentity[];
+    app_metadata: Record<string, unknown>;
+    user_metadata: Record<string, unknown>;
+    aud: string;
+    created_at: string;
+  }
 
-	return user;
-};
+  const getUser = async (): Promise<GiselleUser> => {
+    const cookieStore = await cookies();
+    const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
-const cachedGetUser = cache(getUser);
+    if (!sessionToken) {
+      throw new Error("No session token");
+    }
 
-export { cachedGetUser as getUser };
+    const session = await getSessionByToken(sessionToken);
+    if (!session) {
+      throw new Error("Invalid or expired session");
+    }
+
+    const userId = session.userId as `usr_${string}`;
+
+    const userResult = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (userResult.length === 0) {
+      throw new Error("User not found");
+    }
+
+    return {
+      id: userResult[0].id,
+      dbId: userResult[0].dbId,
+      email: userResult[0].email ?? undefined,
+      displayName: userResult[0].displayName ?? undefined,
+      avatarUrl: userResult[0].avatarUrl ?? undefined,
+      identities: [],
+      app_metadata: {},
+      user_metadata: {},
+      aud: "authenticated",
+      created_at: new Date().toISOString(),
+    };
+  };
+
+  export { getUser };

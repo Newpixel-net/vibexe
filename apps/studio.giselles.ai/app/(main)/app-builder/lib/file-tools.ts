@@ -1,0 +1,162 @@
+// giselle-integration/lib/file-tools.ts
+// AI SDK tool definitions for file operations in App Builder
+//
+// This file provides createFileTools() which returns tool definitions
+// for the AI to create, update, and delete files during code generation.
+//
+// Deploy to: /opt/giselle/apps/studio.giselles.ai/app/(main)/app-builder/lib/file-tools.ts
+
+import { tool } from "ai";
+import { z } from "zod";
+import { saveFile, deleteFile } from "./queries";
+
+/**
+ * Create file operation tools for AI SDK.
+ * These tools allow the AI to create, update, and delete files
+ * during the app generation process.
+ *
+ * @param appId - The builder app ID (bldr_xxx) to scope operations to
+ * @returns Object containing createFile, updateFile, deleteFile tools
+ */
+export function createFileTools(appId: string) {
+  return {
+    create_file: tool({
+      description:
+        "Create a new file in the project. Use this when generating new code files like components, pages, utilities, or configuration files.",
+      inputSchema: z.object({
+        path: z
+          .string()
+          .describe(
+            'File path relative to project root, e.g., "src/App.tsx" or "src/components/Button.tsx"'
+          )
+          .regex(
+            /^[a-zA-Z0-9_\-./]+$/,
+            "Path must contain only alphanumeric characters, underscores, hyphens, dots, and slashes"
+          ),
+        content: z
+          .string()
+          .describe("The complete file content including all imports and exports"),
+        language: z
+          .string()
+          .optional()
+          .describe("Programming language for syntax highlighting (auto-detected if not provided)"),
+      }),
+      execute: async ({ path, content, language }) => {
+        try {
+          const lang = language || inferLanguage(path);
+          const file = await saveFile(appId, path, content, lang);
+          return { success: true, action: "created", path, fileId: file.id };
+        } catch (error) {
+          console.error("create_file error:", error);
+          return {
+            success: false,
+            action: "created",
+            path,
+            error: `Failed to create file: ${String(error)}`,
+          };
+        }
+      },
+    }),
+
+    update_file: tool({
+      description:
+        "Update an existing file in the project. Use this when modifying existing code, fixing bugs, or adding features to existing files.",
+      inputSchema: z.object({
+        path: z.string().describe("File path to update"),
+        content: z
+          .string()
+          .describe("The new complete file content (replaces entire file contents)"),
+      }),
+      execute: async ({ path, content }) => {
+        try {
+          const lang = inferLanguage(path);
+          const file = await saveFile(appId, path, content, lang);
+          return { success: true, action: "updated", path, fileId: file.id };
+        } catch (error) {
+          console.error("update_file error:", error);
+          return {
+            success: false,
+            action: "updated",
+            path,
+            error: `Failed to update file: ${String(error)}`,
+          };
+        }
+      },
+    }),
+
+    delete_file: tool({
+      description:
+        "Delete a file from the project. Use this when removing unnecessary files or when a file is being replaced by another.",
+      inputSchema: z.object({
+        path: z.string().describe("File path to delete"),
+      }),
+      execute: async ({ path }) => {
+        try {
+          await deleteFile(appId, path);
+          return { success: true, action: "deleted", path };
+        } catch (error) {
+          console.error("delete_file error:", error);
+          return {
+            success: false,
+            action: "deleted",
+            path,
+            error: `Failed to delete file: ${String(error)}`,
+          };
+        }
+      },
+    }),
+  };
+}
+
+/**
+ * Infer programming language from file extension
+ * Used for syntax highlighting in the code editor
+ */
+function inferLanguage(path: string): string {
+  const ext = path.split(".").pop()?.toLowerCase();
+  const langMap: Record<string, string> = {
+    // JavaScript/TypeScript
+    ts: "typescript",
+    tsx: "typescript",
+    js: "javascript",
+    jsx: "javascript",
+    mjs: "javascript",
+    cjs: "javascript",
+    // Styles
+    css: "css",
+    scss: "scss",
+    sass: "sass",
+    less: "less",
+    // Markup
+    html: "html",
+    htm: "html",
+    xml: "xml",
+    svg: "xml",
+    // Data
+    json: "json",
+    yaml: "yaml",
+    yml: "yaml",
+    toml: "toml",
+    // Documentation
+    md: "markdown",
+    mdx: "markdown",
+    // Other languages
+    py: "python",
+    rb: "ruby",
+    go: "go",
+    rs: "rust",
+    java: "java",
+    kt: "kotlin",
+    swift: "swift",
+    php: "php",
+    sql: "sql",
+    sh: "shell",
+    bash: "shell",
+    zsh: "shell",
+    // Config
+    env: "plaintext",
+    gitignore: "plaintext",
+    dockerignore: "plaintext",
+  };
+  return langMap[ext || ""] || "plaintext";
+}

@@ -1152,3 +1152,158 @@ export const taskRelations = relations(tasks, ({ one }) => ({
 		references: [apps.dbId],
 	}),
 }));
+
+// ====================================================================
+// APP BUILDER TABLES
+// ====================================================================
+// These tables support the Vibexe App Builder feature integration.
+// Allows users to create apps via chat interface with AI assistance.
+
+/**
+ * Type definitions for App Builder IDs
+ */
+export type BuilderAppId = `bldr_${string}`;
+export type BuilderFileId = `bldf_${string}`;
+export type BuilderChatId = `bldc_${string}`;
+export type BuilderVersionId = `bldv_${string}`;
+
+/**
+ * Builder Apps - the main app entity for chat-built applications
+ */
+export const builderApps = pgTable(
+	"builder_apps",
+	{
+		id: text("id").$type<BuilderAppId>().notNull().unique(),
+		dbId: serial("db_id").primaryKey(),
+		teamDbId: integer("team_db_id")
+			.notNull()
+			.references(() => teams.dbId, { onDelete: "cascade" }),
+		createdByUserDbId: integer("created_by_user_db_id").references(
+			() => users.dbId,
+		),
+		name: text("name").notNull(),
+		description: text("description"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		index("builder_apps_team_db_id_idx").on(table.teamDbId),
+		index("builder_apps_created_by_user_db_id_idx").on(table.createdByUserDbId),
+	],
+);
+
+export const builderAppRelations = relations(builderApps, ({ one, many }) => ({
+	team: one(teams, {
+		fields: [builderApps.teamDbId],
+		references: [teams.dbId],
+	}),
+	creator: one(users, {
+		fields: [builderApps.createdByUserDbId],
+		references: [users.dbId],
+	}),
+	files: many(builderFiles),
+	chats: many(builderChats),
+	versions: many(builderVersions),
+}));
+
+export type BuilderApp = typeof builderApps.$inferSelect;
+export type NewBuilderApp = typeof builderApps.$inferInsert;
+
+/**
+ * Builder Files - files within an app (source code, assets)
+ */
+export const builderFiles = pgTable(
+	"builder_files",
+	{
+		id: text("id").$type<BuilderFileId>().notNull().unique(),
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		path: text("path").notNull(), // e.g., "src/App.tsx"
+		content: text("content"),
+		language: text("language"), // e.g., "typescript", "css"
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		index("builder_files_app_db_id_idx").on(table.appDbId),
+		index("builder_files_app_path_idx").on(table.appDbId, table.path),
+	],
+);
+
+export const builderFileRelations = relations(builderFiles, ({ one }) => ({
+	app: one(builderApps, {
+		fields: [builderFiles.appDbId],
+		references: [builderApps.dbId],
+	}),
+}));
+
+export type BuilderFile = typeof builderFiles.$inferSelect;
+export type NewBuilderFile = typeof builderFiles.$inferInsert;
+
+/**
+ * Builder Chats - chat history per app for AI conversation
+ */
+export const builderChats = pgTable(
+	"builder_chats",
+	{
+		id: text("id").$type<BuilderChatId>().notNull().unique(),
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		messages: jsonb("messages").default([]).notNull(), // Array of ChatMessage objects
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [index("builder_chats_app_db_id_idx").on(table.appDbId)],
+);
+
+export const builderChatRelations = relations(builderChats, ({ one }) => ({
+	app: one(builderApps, {
+		fields: [builderChats.appDbId],
+		references: [builderApps.dbId],
+	}),
+}));
+
+export type BuilderChat = typeof builderChats.$inferSelect;
+export type NewBuilderChat = typeof builderChats.$inferInsert;
+
+/**
+ * Builder Versions - snapshots for version history
+ */
+export const builderVersions = pgTable(
+	"builder_versions",
+	{
+		id: text("id").$type<BuilderVersionId>().notNull().unique(),
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		versionNumber: text("version_number").notNull(), // e.g., "1.0.0"
+		files: jsonb("files").notNull(), // Snapshot of all file contents
+		message: text("message"), // Version commit message
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [index("builder_versions_app_db_id_idx").on(table.appDbId)],
+);
+
+export const builderVersionRelations = relations(builderVersions, ({ one }) => ({
+	app: one(builderApps, {
+		fields: [builderVersions.appDbId],
+		references: [builderApps.dbId],
+	}),
+}));
+
+export type BuilderVersion = typeof builderVersions.$inferSelect;
+export type NewBuilderVersion = typeof builderVersions.$inferInsert;

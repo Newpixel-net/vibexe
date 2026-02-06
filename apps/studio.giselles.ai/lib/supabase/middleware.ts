@@ -1,75 +1,56 @@
-import type { User } from "@supabase/auth-js";
-import { type NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "./create-server-client";
+  import { type NextRequest, NextResponse } from "next/server";
+  import { getSessionByToken, extendSession } from "../session-store";
 
-export const supabaseMiddleware = (
-	guardCallback?: (
-		user: User | null,
-		request: NextRequest,
-	) => Promise<NextResponse | undefined>,
-) => {
-	return async (request: NextRequest) => {
-		// Dev safeguard: If Supabase env vars are not set locally, skip auth wiring
-		if (
-			!process.env.NEXT_PUBLIC_SUPABASE_URL ||
-			!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-		) {
-			// Throw error in production if Supabase environment variables are missing
-			if (process.env.NODE_ENV === "production") {
-				throw new Error(
-					"Supabase environment variables are required in production",
-				);
-			}
-			return NextResponse.next({ request });
-		}
+  const SESSION_COOKIE_NAME = "giselle-session";
+  const PUBLIC_PATHS = [
+    "/",
+    "/login",
+    "/signup",
+    "/auth/callback",
+    "/api/health",
+  ];
 
-		let supabaseResponse = NextResponse.next({
-			request,
-		});
-		const supabase = createServerClient({
-			cookies: {
-				getAll() {
-					return request.cookies.getAll();
-				},
-				setAll(cookiesToSet) {
-					for (const { name, value } of cookiesToSet) {
-						request.cookies.set(name, value);
-					}
-					supabaseResponse = NextResponse.next({
-						request,
-					});
-					for (const { name, value, options } of cookiesToSet) {
-						supabaseResponse.cookies.set(name, value, options);
-					}
-				},
-			},
-		});
+  export const supabaseMiddleware = (
+    guardCallback?: (
+      user: { id: string } | null,
+      request: NextRequest,
+    ) => Promise<NextResponse | undefined>,
+  ) => {
+    return async (request: NextRequest) => {
+      let response = NextResponse.next({ request });
 
-		// IMPORTANT: Avoid writing any logic between createServerClient and
-		// supabase.auth.getUser(). A simple mistake could make it very hard to debug
-		// issues with users being randomly logged out.
+      const isPublicPath = PUBLIC_PATHS.some(
+        (path) =>
+          request.nextUrl.pathname === path ||
+          request.nextUrl.pathname.startsWith("/auth/")
+      );
 
-		const {
-			data: { user },
-		} = await supabase.auth.getUser();
-		const response = guardCallback?.(user, request);
-		if (response != null) {
-			return response;
-		}
+      const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
 
-		// IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
-		// creating a new response object with NextResponse.next() make sure to:
-		// 1. Pass the request in it, like so:
-		//    const myNewResponse = NextResponse.next({ request })
-		// 2. Copy over the cookies, like so:
-		//    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-		// 3. Change the myNewResponse object to fit your needs, but avoid changing
-		//    the cookies!
-		// 4. Finally:
-		//    return myNewResponse
-		// If this is not done, you may be causing the browser and server to go out
-		// of sync and terminate the user's session prematurely!
+      if (!sessionToken) {
+        const guardResponse = await guardCallback?.(null, request);
+        if (guardResponse) return guardResponse;
+        return response;
+      }
 
-		return supabaseResponse;
-	};
-};
+      const session = await getSessionByToken(sessionToken);
+
+      if (!session) {
+        response.cookies.delete(SESSION_COOKIE_NAME);
+        const guardResponse = await guardCallback?.(null, request);
+        if (guardResponse) return guardResponse;
+        return response;
+      }
+
+      // Extend session if close to expiry (within 1 day)
+      const oneDayFromNow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      if (session.expiresAt < oneDayFromNow) {
+        await extendSession(sessionToken, 7);
+      }
+
+      const guardResponse = await guardCallback?.({ id: session.userId }, request);
+      if (guardResponse) return guardResponse;
+
+      return response;
+    };
+  };

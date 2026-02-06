@@ -1,0 +1,10 @@
+--- a/node_modules/@vercel/edge-config/dist/index.js
++++ b/node_modules/@vercel/edge-config/dist/index.js
+@@ -1,5 +1,10 @@
++// Patched for self-hosted - return null instead of throwing
++module.exports.get = async () => null;
++module.exports.getAll = async () => ({});
++module.exports.has = async () => false;
++module.exports.digest = async () => null;
++/* Original code disabled:
+ "use strict";

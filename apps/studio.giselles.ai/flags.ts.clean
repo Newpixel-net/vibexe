@@ -1,0 +1,18 @@
+// Self-hosted flags.ts
+import { flag } from "flags/next";
+
+function getEnvBool(key: string): boolean { return process.env[key] === "true" || process.env[key] === "1"; }
+export const developerFlag = flag({ key: "developerFlag", decide: () => getEnvBool("DEVELOPER_FLAG"), defaultValue: false });
+export const webSearchActionFlag = flag({ key: "webSearchActionFlag", decide: () => getEnvBool("DEVELOPER_FLAG"), defaultValue: false });
+export const layoutV3Flag = flag({ key: "layoutV3Flag", decide: () => getEnvBool("DEVELOPER_FLAG"), defaultValue: false });
+export const experimentalStorageFlag = flag({ key: "experimentalStorageFlag", decide: () => getEnvBool("DEVELOPER_FLAG"), defaultValue: false });
+export const stageV2Flag = flag({ key: "stageV2Flag", decide: () => getEnvBool("DEVELOPER_FLAG"), defaultValue: false });
+export const aiGatewayFlag = flag({ key: "aiGatewayFlag", decide: () => getEnvBool("DEVELOPER_FLAG"), defaultValue: false });
+export const aiGatewayWithAnthropicModelsFlag = flag({ key: "aiGatewayWithAnthropicModelsFlag", decide: () => getEnvBool("DEVELOPER_FLAG"), defaultValue: false });
+export const aiGatewayWithAnthropicModelsFlag2 = flag({ key: "aiGatewayWithAnthropicModelsFlag2", decide: () => getEnvBool("DEVELOPER_FLAG"), defaultValue: false });
+export const googleUrlContextFlag = flag({ key: "googleUrlContextFlag", decide: () => getEnvBool("DEVELOPER_FLAG"), defaultValue: false });
+export const newEditorFlag = flag({ key: "newEditorFlag", decide: () => getEnvBool("DEVELOPER_FLAG"), defaultValue: false });
+export const generateContentNodeFlag = flag({ key: "generateContentNodeFlag", decide: () => getEnvBool("DEVELOPER_FLAG"), defaultValue: false });
+export const privatePreviewToolsFlag = flag({ key: "privatePreviewToolsFlag", decide: () => getEnvBool("DEVELOPER_FLAG"), defaultValue: false });
+export const dataStoreFlag = flag({ key: "dataStoreFlag", decide: () => getEnvBool("DEVELOPER_FLAG"), defaultValue: false });
+export const aiGatewayUnsupportedModelsFlag = flag({ key: "aiGatewayUnsupportedModels", decide: () => getEnvBool("DEVELOPER_FLAG"), defaultValue: false });

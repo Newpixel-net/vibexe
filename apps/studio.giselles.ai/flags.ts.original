@@ -1,5 +1,4 @@
-// Mock edge-config for self-hosting
-const get = async (key: string): Promise<any> => undefined;
+import { get } from "@vercel/edge-config";
 import { flag } from "flags/next";
 
 function takeLocalEnv(localEnvironmentKey: string) {
@@ -208,26 +207,6 @@ export const privatePreviewToolsFlag = flag<boolean>({
 		return edgeConfig === true || edgeConfig === "true";
 	},
 	description: "Enable private preview tools (PostgreSQL, etc.)",
-	options: [
-		{ value: false, label: "disable" },
-		{ value: true, label: "Enable" },
-	],
-	defaultValue: false,
-});
-
-export const dataStoreFlag = flag<boolean>({
-	key: "data-store",
-	async decide() {
-		if (process.env.NODE_ENV === "development") {
-			return takeLocalEnv("DATA_STORE_FLAG");
-		}
-		const edgeConfig = await get(`flag__${this.key}`);
-		if (edgeConfig === undefined) {
-			return false;
-		}
-		return edgeConfig === true || edgeConfig === "true";
-	},
-	description: "Enable Data Store and Data Query nodes",
 	options: [
 		{ value: false, label: "disable" },
 		{ value: true, label: "Enable" },
