@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseMiddleware } from "./lib/supabase";
 
-export const proxy = supabaseMiddleware((user, request) => {
+export const proxy = supabaseMiddleware(async (user, request) => {
 	// Edge Config disabled for self-hosted mode - maintenance mode always false
 	const maintenance = false;
 	if (maintenance) {
