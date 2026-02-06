@@ -133,13 +133,12 @@ function SandpackFileUpdater({ files }: { files: SandpackFiles }) {
 					updates.map(([p]) => p),
 				);
 
-				// Apply all updates
+				// Apply all updates - updateFile with shouldUpdatePreview=true (default)
+				// triggers Sandpack's internal recompile via autoReload + recompileMode
+				// Do NOT call runSandpack() as it races with state commit
 				for (const [path, code] of updates) {
 					sandpack.updateFile(path, code);
 				}
-
-				// Force Sandpack to recompile with the new files
-				sandpack.runSandpack();
 			}, 500);
 		}
 	}, [files, sandpack]);
