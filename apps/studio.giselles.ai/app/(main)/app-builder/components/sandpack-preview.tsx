@@ -24,7 +24,7 @@ import {
 	Smartphone,
 	Tablet,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import {
 	type SandpackFiles,
@@ -67,80 +67,25 @@ function RefreshButton() {
  * Inner component that incrementally updates Sandpack files without remounting.
  * Lives inside SandpackProvider to access useSandpack() hook.
  *
- * Handles:
- * - Diffing previous vs current files to only update what changed
- * - Debouncing rapid updates (300ms)
- * - Queuing updates during active Sandpack recompilation
- * - Flushing queued updates once compilation finishes
+ * Simple approach: diff previous vs current files, call updateFile for each
+ * change, then trigger recompilation. Debounced with 500ms to batch rapid changes.
  */
 function SandpackFileUpdater({ files }: { files: SandpackFiles }) {
-	const { sandpack, listen } = useSandpack();
-	const prevFilesRef = useRef<SandpackFiles>({});
-	const pendingUpdates = useRef<Map<string, string>>(new Map());
-	const pendingDeletes = useRef<Set<string>>(new Set());
-	const isBusy = useRef(false);
-	const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const isFirstRender = useRef(true);
+	const { sandpack } = useSandpack();
+	const prevFilesRef = useRef<SandpackFiles | null>(null);
+	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-	// Flush pending updates and deletes to Sandpack
-	const flushUpdates = useCallback(() => {
-		if (pendingUpdates.current.size === 0 && pendingDeletes.current.size === 0)
-			return;
-
-		// Delete stale files first
-		for (const path of pendingDeletes.current) {
-			sandpack.deleteFile(path);
-		}
-		pendingDeletes.current.clear();
-
-		// Then update/add files
-		for (const [path, code] of pendingUpdates.current) {
-			sandpack.updateFile(path, code);
-		}
-		pendingUpdates.current.clear();
-	}, [sandpack]);
-
-	// Debounced flush - batches rapid changes into single update cycle
-	const scheduleFlush = useCallback(() => {
-		if (flushTimer.current) {
-			clearTimeout(flushTimer.current);
-		}
-		flushTimer.current = setTimeout(() => {
-			flushTimer.current = null;
-			flushUpdates();
-		}, 300);
-	}, [flushUpdates]);
-
-	// Listen for Sandpack compilation status
 	useEffect(() => {
-		const unsub = listen((msg) => {
-			if (msg.type === "done") {
-				isBusy.current = false;
-				// Flush any pending updates that were queued during compilation
-				if (pendingUpdates.current.size > 0) {
-					scheduleFlush();
-				}
-			} else if (msg.type === "start") {
-				isBusy.current = true;
-			}
-		});
-		return () => {
-			unsub();
-		};
-	}, [listen, scheduleFlush]);
-
-	// Diff and queue file updates when files prop changes
-	useEffect(() => {
-		// Skip the first render - SandpackProvider already has initial files
-		if (isFirstRender.current) {
-			isFirstRender.current = false;
+		// Skip the very first render - SandpackProvider already has initial files
+		if (prevFilesRef.current === null) {
 			prevFilesRef.current = files;
 			return;
 		}
 
 		const prev = prevFilesRef.current;
-		let hasChanges = false;
+		const updates: Array<[string, string]> = [];
 
+		// Find new or changed files
 		for (const [path, file] of Object.entries(files)) {
 			const code = typeof file === "string" ? file : file.code;
 			const prevFile = prev[path];
@@ -151,44 +96,46 @@ function SandpackFileUpdater({ files }: { files: SandpackFiles }) {
 				: undefined;
 
 			if (prevCode !== code) {
-				pendingUpdates.current.set(path, code);
-				hasChanges = true;
+				updates.push([path, code]);
 			}
 		}
 
-		// Detect stale files (in prev but not in current) and queue for deletion
-		// Skip hidden/system files like /public/index.html and /index.js
-		for (const prevPath of Object.keys(prev)) {
-			if (!(prevPath in files) && !prevPath.startsWith("/public/") && prevPath !== "/index.js") {
-				pendingDeletes.current.add(prevPath);
-				hasChanges = true;
-			}
+		if (updates.length === 0) {
+			prevFilesRef.current = files;
+			return;
 		}
 
-		if (hasChanges) {
-			if (isBusy.current) {
-				// Sandpack is recompiling - updates will flush when compilation finishes
-				console.log(
-					"[SandpackFileUpdater] Queued",
-					pendingUpdates.current.size,
-					"updates (Sandpack busy)",
-				);
-			} else {
-				scheduleFlush();
-			}
+		// Debounce: batch rapid file changes into a single update
+		if (debounceRef.current) {
+			clearTimeout(debounceRef.current);
 		}
+
+		debounceRef.current = setTimeout(() => {
+			debounceRef.current = null;
+			console.log(
+				"[SandpackFileUpdater] Applying",
+				updates.length,
+				"file updates:",
+				updates.map(([p]) => p),
+			);
+
+			// Apply all updates
+			for (const [path, code] of updates) {
+				sandpack.updateFile(path, code);
+			}
+
+			// Force Sandpack to recompile with the new files
+			sandpack.runSandpack();
+		}, 500);
 
 		prevFilesRef.current = files;
-	}, [files, scheduleFlush]);
 
-	// Cleanup timer on unmount
-	useEffect(() => {
 		return () => {
-			if (flushTimer.current) {
-				clearTimeout(flushTimer.current);
+			if (debounceRef.current) {
+				clearTimeout(debounceRef.current);
 			}
 		};
-	}, []);
+	}, [files, sandpack]);
 
 	return null; // Render nothing - just manages file sync
 }
