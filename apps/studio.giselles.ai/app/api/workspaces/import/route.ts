@@ -30,9 +30,7 @@ export async function POST(request: Request) {
 		const converted = convertN8NToGiselle(body.n8nWorkflow as Parameters<typeof convertN8NToGiselle>[0]);
 
 		// Merge converted nodes and connections into the workspace
-		const savedWorkspace = await giselle.getWorkspace({
-			workspaceId: workspace.id,
-		});
+		const savedWorkspace = await giselle.getWorkspace(workspace.id);
 
 		// Add converted nodes
 		for (const node of converted.nodes) {
@@ -51,7 +49,7 @@ export async function POST(request: Request) {
 			}
 		}
 
-		await giselle.saveWorkspace({ workspace: savedWorkspace });
+		await giselle.updateWorkspace(savedWorkspace);
 
 		// Insert workspace records
 		const agentId = `agnt_${createId()}` as const;
