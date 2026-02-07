@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 		const { convertN8NToGiselle } = await import(
 			"@giselles-ai/activepieces-adapter"
 		);
-		const converted = convertN8NToGiselle(body.n8nWorkflow);
+		const converted = convertN8NToGiselle(body.n8nWorkflow as Parameters<typeof convertN8NToGiselle>[0]);
 
 		// Merge converted nodes and connections into the workspace
 		const savedWorkspace = await giselle.getWorkspace({
