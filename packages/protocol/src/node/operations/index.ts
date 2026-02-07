@@ -4,6 +4,7 @@ export * from "./content-generation";
 export * from "./data-query";
 export * from "./end";
 export * from "./image-generation";
+export * from "./integration";
 export * from "./operation-node";
 export * from "./query";
 export * from "./text-generation";

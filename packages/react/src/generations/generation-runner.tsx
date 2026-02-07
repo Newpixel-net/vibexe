@@ -49,6 +49,8 @@ export function GenerationRunner({ generation }: { generation: Generation }) {
 		}
 		case "end":
 			return null;
+		case "integration":
+			return <ActionRunner generation={generation} />;
 		default: {
 			const _exhaustiveCheck: never = generationContext.operationNode.content;
 			return _exhaustiveCheck;

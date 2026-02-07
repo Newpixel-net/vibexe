@@ -20,6 +20,7 @@ function getNodeIconColor(node: NodeLike): string {
 			case "contentGeneration":
 			case "imageGeneration":
 			case "action":
+			case "integration":
 				return "text-inverse";
 			case "dataQuery":
 			case "trigger":
@@ -83,6 +84,8 @@ function getNodeIconBackground(node: NodeLike): string {
 				return STAGE_NODE_BG_CLASS_SOLID;
 			case "dataQuery":
 				return "bg-data-query-node-1";
+			case "integration":
+				return "bg-action-node-1";
 			default: {
 				const _exhaustiveCheck: never = node.content.type;
 				throw new Error(`Unhandled node type: ${_exhaustiveCheck}`);

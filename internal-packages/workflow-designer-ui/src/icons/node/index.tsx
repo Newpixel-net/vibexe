@@ -9,7 +9,7 @@ import {
 	isVectorStoreNode,
 	type NodeLike,
 } from "@giselles-ai/protocol";
-import { DatabaseZapIcon, FlagIcon, PlayIcon, ZapIcon } from "lucide-react";
+import { CableIcon, DatabaseZapIcon, FlagIcon, PlayIcon, ZapIcon } from "lucide-react";
 import type { SVGProps } from "react";
 import { AnthropicIcon } from "../anthropic";
 import { Flux1Icon } from "../flux1";
@@ -203,6 +203,8 @@ export function NodeIcon({
 					return <PlayIcon {...props} data-content-type-icon />;
 				case "end":
 					return <FlagIcon {...props} data-content-type-icon />;
+				case "integration":
+					return <CableIcon {...props} data-content-type-icon />;
 				default: {
 					const _exhaustiveCheck: never = node.content.type;
 					throw new Error(`Unhandled node type: ${_exhaustiveCheck}`);

@@ -27,6 +27,8 @@ import {
 	type ImageGenerationNode,
 	type Input,
 	InputId,
+	type IntegrationContent,
+	type IntegrationNode,
 	isActionNode,
 	isAppEntryNode,
 	isContentGenerationNode,
@@ -36,6 +38,7 @@ import {
 	isFileNode,
 	isGitHubNode,
 	isImageGenerationNode,
+	isIntegrationNode,
 	isQueryNode,
 	isTextGenerationNode,
 	isTextNode,
@@ -457,6 +460,58 @@ const endFactoryImpl = {
 		return { newNode, inputIdMap, outputIdMap };
 	},
 } satisfies NodeFactory<EndNode>;
+
+interface IntegrationCreateInput {
+	pieceName: string;
+	actionName: string;
+	pieceVersion: string;
+}
+
+const integrationFactoryImpl = {
+	create: (input: IntegrationCreateInput): IntegrationNode =>
+		({
+			id: NodeId.generate(),
+			type: "operation",
+			name: `${input.pieceName}: ${input.actionName}`,
+			content: {
+				type: "integration",
+				pieceName: input.pieceName,
+				actionName: input.actionName,
+				pieceVersion: input.pieceVersion,
+				configuration: {},
+			},
+			inputs: [
+				{
+					id: InputId.generate(),
+					label: "Input",
+					accessor: "input",
+				},
+			],
+			outputs: [
+				{
+					id: OutputId.generate(),
+					label: "Result",
+					accessor: "action-result",
+				},
+			],
+		}) satisfies IntegrationNode,
+	clone: (orig: IntegrationNode): NodeFactoryCloneResult<IntegrationNode> => {
+		const { newIo: newInputs, idMap: inputIdMap } =
+			cloneAndRenewInputIdsWithMap(orig.inputs);
+		const { newIo: newOutputs, idMap: outputIdMap } =
+			cloneAndRenewOutputIdsWithMap(orig.outputs);
+
+		const newNode = {
+			id: NodeId.generate(),
+			type: "operation",
+			name: `Copy of ${orig.name ?? defaultName(orig)}`,
+			content: structuredClone(orig.content),
+			inputs: newInputs,
+			outputs: newOutputs,
+		} satisfies IntegrationNode;
+		return { newNode, inputIdMap, outputIdMap };
+	},
+} satisfies NodeFactory<IntegrationNode, IntegrationCreateInput>;
 
 const textVariableFactoryImpl = {
 	create: (): TextNode =>
@@ -922,6 +977,7 @@ const factoryImplementations = {
 	query: queryFactoryImpl,
 	dataQuery: dataQueryFactoryImpl,
 	end: endFactoryImpl,
+	integration: integrationFactoryImpl,
 	text: textVariableFactoryImpl,
 	file: fileVariableFactoryImpl,
 	github: githubVariableFactoryImpl,
@@ -940,6 +996,7 @@ type CreateArgMap = {
 	query: undefined; // queryFactoryImpl.create is no argument
 	dataQuery: undefined; // dataQueryFactoryImpl.create is no argument
 	end: undefined;
+	integration: IntegrationCreateInput;
 	text: undefined; // textVariableFactoryImpl.create is no argument
 	file: Parameters<typeof fileVariableFactoryImpl.create>[0];
 	github: Parameters<typeof githubVariableFactoryImpl.create>[0];
@@ -992,6 +1049,12 @@ export function createQueryNode(): QueryNode {
 
 export function createEndNode(): EndNode {
 	return endFactoryImpl.create();
+}
+
+export function createIntegrationNode(
+	input: IntegrationCreateInput,
+): IntegrationNode {
+	return integrationFactoryImpl.create(input);
 }
 
 export function createTextNode(): TextNode {
@@ -1084,6 +1147,13 @@ export function cloneNode<N extends Node>(
 		case "end":
 			if (isEndNode(sourceNode)) {
 				return endFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			}
+			break;
+		case "integration":
+			if (isIntegrationNode(sourceNode)) {
+				return integrationFactoryImpl.clone(
+					sourceNode,
+				) as NodeFactoryCloneResult<N>;
 			}
 			break;
 		case "text":
@@ -1180,6 +1250,10 @@ export const nodeFactories = {
 				return factoryImplementations.dataQuery.create();
 			case "end":
 				return factoryImplementations.end.create();
+			case "integration":
+				return factoryImplementations.integration.create(
+					arg as CreateArgMap["integration"],
+				);
 			case "text":
 				return factoryImplementations.text.create();
 			case "file":
@@ -1244,6 +1318,11 @@ export const nodeFactories = {
 			case "end":
 				if (isEndNode(sourceNode)) {
 					return factoryImplementations.end.clone(sourceNode);
+				}
+				break;
+			case "integration":
+				if (isIntegrationNode(sourceNode)) {
+					return factoryImplementations.integration.clone(sourceNode);
 				}
 				break;
 			case "text":

@@ -17,7 +17,11 @@ import {
 	type OnGenerationError,
 } from "../generations";
 import { startContentGeneration } from "../generations/start-content-generation";
-import { executeAction, executeDataQuery } from "../operations";
+import {
+	executeAction,
+	executeDataQuery,
+	executeIntegration,
+} from "../operations";
 import { executeQuery } from "../operations/execute-query";
 import { resolveTrigger } from "../triggers";
 import type { GiselleContext } from "../types";
@@ -110,6 +114,9 @@ async function executeStep(args: {
 				break;
 			case "dataQuery":
 				await executeDataQuery(args);
+				break;
+			case "integration":
+				await executeIntegration(args);
 				break;
 			case "appEntry":
 				break;

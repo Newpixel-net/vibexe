@@ -2,6 +2,7 @@ import { DocsLink } from "@giselle-internal/ui/docs-link";
 import { PageHeading } from "@giselle-internal/ui/page-heading";
 import type { ReactNode } from "react";
 import { CreateWorkspaceButton } from "./create-workspace-button";
+import { ImportWorkflowButton } from "./import-workflow-button";
 
 export default function Layout({ children }: { children: ReactNode }) {
 	return (
@@ -17,6 +18,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 						>
 							About Workflows
 						</DocsLink>
+						<ImportWorkflowButton />
 						<CreateWorkspaceButton label="New Workflow" />
 					</div>
 				</div>

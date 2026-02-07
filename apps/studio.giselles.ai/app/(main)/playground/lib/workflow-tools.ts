@@ -114,6 +114,7 @@ export function createWorkflowTools() {
 						"vectorStore",
 						"dataStore",
 						"appEntry",
+						"integration",
 					])
 					.describe("The node type to add"),
 				name: z.string().describe("Display name for the node"),
@@ -153,6 +154,18 @@ export function createWorkflowTools() {
 					.describe(
 						"Enable Google web search grounding (only for Google textGeneration nodes)",
 					),
+				pieceName: z
+					.string()
+					.optional()
+					.describe("Activepieces piece name (required for integration nodes, e.g. 'slack', 'google-sheets')"),
+				actionName: z
+					.string()
+					.optional()
+					.describe("Activepieces action name (required for integration nodes, e.g. 'send-message')"),
+				pieceVersion: z
+					.string()
+					.optional()
+					.describe("Activepieces piece version (optional for integration nodes, defaults to '0.0.0')"),
 				position: z.object({
 					x: z.number(),
 					y: z.number(),
@@ -169,6 +182,9 @@ export function createWorkflowTools() {
 				fileCategory,
 				vectorStoreProvider,
 				searchGrounding,
+				pieceName,
+				actionName,
+				pieceVersion,
 				position,
 			}) => {
 				const errResult = (msg: string) => ({
@@ -255,6 +271,17 @@ export function createWorkflowTools() {
 						case "vectorStore": {
 							const provider = vectorStoreProvider ?? "document";
 							node = nodeFactories.create("vectorStore", provider as Parameters<typeof nodeFactories.create<"vectorStore">>[1]);
+							break;
+						}
+						case "integration": {
+							if (\!pieceName || \!actionName) {
+								return errResult("pieceName and actionName are required for integration nodes");
+							}
+							node = nodeFactories.create("integration", {
+								pieceName,
+								actionName,
+								pieceVersion: pieceVersion ?? "0.0.0",
+							});
 							break;
 						}
 						case "query":

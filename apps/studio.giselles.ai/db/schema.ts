@@ -1424,3 +1424,19 @@ export const aiProviderKeys = pgTable("ai_provider_keys", {
 		.notNull()
 		.$onUpdate(() => new Date()),
 });
+
+export const integrationCredentials = pgTable("integration_credentials", {
+	dbId: serial("db_id").primaryKey(),
+	teamDbId: integer("team_db_id")
+		.notNull()
+		.references(() => teams.dbId),
+	pieceName: text("piece_name").notNull(), // e.g. "slack", "google-sheets"
+	displayName: text("display_name").notNull(), // User-facing label
+	authType: text("auth_type").notNull(), // "oauth2" | "secret_text" | "basic" | "custom"
+	encryptedConfig: text("encrypted_config").notNull(), // Encrypted JSON blob with tokens/keys
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at")
+		.defaultNow()
+		.notNull()
+		.$onUpdate(() => new Date()),
+});

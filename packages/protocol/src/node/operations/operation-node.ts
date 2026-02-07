@@ -18,6 +18,10 @@ import {
 	ImageGenerationContent,
 	ImageGenerationContentReference,
 } from "./image-generation";
+import {
+	IntegrationContent,
+	IntegrationContentReference,
+} from "./integration";
 import { QueryContent, QueryContentReference } from "./query";
 import {
 	TextGenerationContent,
@@ -34,6 +38,7 @@ const OperationNodeContent = z.discriminatedUnion("type", [
 	DataQueryContent,
 	AppEntryContent,
 	ContentGenerationContent,
+	IntegrationContent,
 	EndContent,
 ]);
 
@@ -59,6 +64,7 @@ export const OperationNodeLike = NodeBase.extend({
 			QueryContent.shape.type,
 			DataQueryContent.shape.type,
 			ContentGenerationContent.shape.type,
+			IntegrationContent.shape.type,
 			EndContent.shape.type,
 		]),
 	}),
@@ -169,6 +175,15 @@ export function isContentGenerationNode(
 	return result.success;
 }
 
+export const IntegrationNode = OperationNode.extend({
+	content: IntegrationContent,
+});
+export type IntegrationNode = z.infer<typeof IntegrationNode>;
+export function isIntegrationNode(args?: unknown): args is IntegrationNode {
+	const result = IntegrationNode.safeParse(args);
+	return result.success;
+}
+
 export const EndNode = OperationNode.extend({
 	content: EndContent,
 });
@@ -187,6 +202,7 @@ const OperationNodeContentReference = z.discriminatedUnion("type", [
 	QueryContentReference,
 	DataQueryContentReference,
 	ContentGenerationContentReference,
+	IntegrationContentReference,
 	EndContentReference,
 ]);
 export const OperationNodeReference = NodeReferenceBase.extend({

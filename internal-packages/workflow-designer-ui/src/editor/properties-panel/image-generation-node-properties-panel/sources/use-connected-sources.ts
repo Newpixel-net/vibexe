@@ -129,6 +129,13 @@ export function useConnectedSources(node: ImageGenerationNode) {
 								connection,
 							});
 							break;
+						case "integration":
+							connectedActionSources.push({
+								output,
+								node: outputNode as ActionNode,
+								connection,
+							});
+							break;
 						default: {
 							const _exhaustiveCheck: never = outputNode.content.type;
 							throw new Error(`Unhandled node type: ${_exhaustiveCheck}`);

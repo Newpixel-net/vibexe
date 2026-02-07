@@ -278,10 +278,6 @@ function MultipleRunsDropdown({
 							run: starterRun,
 						});
 						break;
-					default: {
-						const _exhaustiveCheck: never = starterRun.node.content;
-						throw new Error(`Unhandled type: ${_exhaustiveCheck}`);
-					}
 				}
 			}
 			if (appEntryRunItems.length > 0) {
@@ -459,10 +455,6 @@ export function RunButton() {
 						connectionIds: group.nodeGroup.connectionIds,
 					});
 					break;
-				default: {
-					const _exhaustiveCheck: never = group.node.content;
-					throw new Error(`Unhandled node type: ${_exhaustiveCheck}`);
-				}
 			}
 		}
 

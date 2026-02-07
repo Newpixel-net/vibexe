@@ -11,6 +11,7 @@ import {
 	isTextGenerationNode,
 	isTextNode,
 	isTriggerNode,
+	isIntegrationNode,
 	isVectorStoreNode,
 	isWebPageNode,
 } from "@giselles-ai/protocol";
@@ -27,6 +28,7 @@ import { DataStoreNodePropertiesPanel } from "./data-store-properties-panel";
 import { EndNodePropertiesPanel } from "./end-node-properties-panel";
 import { FileNodePropertiesPanel } from "./file-node-properties-panel";
 import { ImageGenerationNodePropertiesPanel } from "./image-generation-node-properties-panel";
+import { IntegrationNodePropertiesPanel } from "./integration-node-properties-panel";
 import { QueryNodePropertiesPanel } from "./query-node-properties-panel";
 import { TextGenerationNodePropertiesPanel } from "./text-generation-node-properties-panel";
 import { TextGenerationNodePropertiesPanelV2 } from "./text-generation-node-properties-panel-v2";
@@ -92,6 +94,12 @@ export function PropertiesPanel() {
 			)}
 			{isActionNode(selectedNodes[0]) && (
 				<ActionNodePropertiesPanel
+					node={selectedNodes[0]}
+					key={selectedNodes[0].id}
+				/>
+			)}
+			{isIntegrationNode(selectedNodes[0]) && (
+				<IntegrationNodePropertiesPanel
 					node={selectedNodes[0]}
 					key={selectedNodes[0].id}
 				/>

@@ -1,4 +1,5 @@
 import { DocsLink } from "@giselle-internal/ui/docs-link";
+import { CredentialsSection } from "./credentials-section";
 import { GitHubIntegration } from "./github-integration";
 
 export default function TeamIntegrationsPage() {
@@ -23,6 +24,7 @@ export default function TeamIntegrationsPage() {
 			</div>
 			<div className="flex flex-col gap-y-4">
 				<GitHubIntegration />
+				<CredentialsSection />
 			</div>
 		</div>
 	);

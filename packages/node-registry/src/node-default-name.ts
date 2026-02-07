@@ -6,6 +6,7 @@ import {
 	isDataStoreNode,
 	isEndNode,
 	isImageGenerationNode,
+	isIntegrationNode,
 	isQueryNode,
 	isTextGenerationNode,
 	isTriggerNode,
@@ -90,6 +91,14 @@ export function defaultName(node: NodeLike) {
 						throw new Error(`Expected data query node, got ${node.type}`);
 					}
 					return node.name ?? "Data Query";
+				case "integration":
+					if (!isIntegrationNode(node)) {
+						throw new Error(`Expected integration node, got ${node.type}`);
+					}
+					return (
+						node.name ??
+						`${node.content.pieceName}: ${node.content.actionName}`
+					);
 				case "end":
 					if (!isEndNode(node)) {
 						throw new Error(`Expected end node, got ${node.type}`);

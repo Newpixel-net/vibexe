@@ -102,6 +102,7 @@ export function useConnectedSources(node: QueryNode) {
 						case "imageGeneration":
 						case "query":
 						case "dataQuery":
+						case "integration":
 							break;
 						case "end":
 							// End Node has no Output so do nothing

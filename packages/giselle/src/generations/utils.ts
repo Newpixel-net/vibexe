@@ -98,7 +98,8 @@ export async function buildMessageObject({
 		case "action":
 		case "trigger":
 		case "query":
-		case "appEntry": {
+		case "appEntry":
+		case "integration": {
 			return [];
 		}
 		default: {
@@ -307,7 +308,8 @@ async function buildGenerationMessageForTextGeneration({
 			case "query":
 			case "dataQuery":
 			case "trigger":
-			case "action": {
+			case "action":
+			case "integration": {
 				const result = await generationContentResolver(
 					contextNode.id,
 					sourceKeyword.outputId,
@@ -617,7 +619,8 @@ async function buildGenerationMessageForImageGeneration(
 			case "action":
 			case "trigger":
 			case "query":
-			case "dataQuery": {
+			case "dataQuery":
+			case "integration": {
 				const result = await textGenerationResolver(
 					contextNode.id,
 					sourceKeyword.outputId,
@@ -1136,7 +1139,8 @@ async function buildGenerationMessageForContentGeneration({
 			case "query":
 			case "trigger":
 			case "action":
-			case "dataQuery": {
+			case "dataQuery":
+			case "integration": {
 				const result = await generationContentResolver(
 					contextNode.id,
 					sourceKeyword.outputId,
