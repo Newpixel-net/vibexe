@@ -17,9 +17,26 @@ import { fetchCurrentUser } from "@/services/accounts";
 import { fetchCurrentTeam } from "@/services/teams";
 
 type WorkspaceType = z.infer<typeof Workspace>;
-type NodeType = WorkspaceType["nodes"][number];
 
 export function createWorkflowTools() {
+	// In-memory workspace cache to avoid S3 eventual consistency issues.
+	// All tools read/write through this cache so add_connection always
+	// sees nodes that were just added by add_node.
+	const wsCache = new Map<string, WorkspaceType>();
+
+	async function getWorkspaceCached(id: string): Promise<WorkspaceType> {
+		const cached = wsCache.get(id);
+		if (cached) return cached;
+		const ws = await giselle.getWorkspace(id as WorkspaceId);
+		wsCache.set(id, ws);
+		return ws;
+	}
+
+	async function saveWorkspaceCached(ws: WorkspaceType): Promise<void> {
+		wsCache.set(ws.id, ws);
+		await giselle.updateWorkspace(ws);
+	}
+
 	return {
 		create_workflow: tool({
 			description: "Create a new empty workflow workspace",
@@ -54,7 +71,7 @@ export function createWorkflowTools() {
 						...workspace,
 						name,
 					});
-					await giselle.updateWorkspace(parsedWorkspace);
+					await saveWorkspaceCached(parsedWorkspace);
 
 					return {
 						success: true,
@@ -156,9 +173,7 @@ export function createWorkflowTools() {
 				});
 
 				try {
-					const workspace = await giselle.getWorkspace(
-						workspaceId as WorkspaceId,
-					);
+					const workspace = await getWorkspaceCached(workspaceId);
 
 					let node;
 
@@ -257,7 +272,7 @@ export function createWorkflowTools() {
 						selected: false,
 					};
 
-					await giselle.updateWorkspace(workspace);
+					await saveWorkspaceCached(workspace);
 
 					// Auto-configure appEntry nodes so the Run dialog works
 					if (type === "appEntry" && node.content.type === "appEntry" && node.content.status === "unconfigured") {
@@ -280,13 +295,12 @@ export function createWorkflowTools() {
 								(node.content as Record<string, unknown>).status = "configured";
 								(node.content as Record<string, unknown>).appId = appId;
 								delete (node.content as Record<string, unknown>).draftApp;
-								await giselle.updateWorkspace(workspace);
+								await saveWorkspaceCached(workspace);
 							} else {
 								console.error("[add_node] App.safeParse failed:", JSON.stringify(parseResult.error));
 							}
 						} catch (configError) {
 							console.error("Auto-configure appEntry warning:", configError);
-							// Non-fatal: workflow still works, just Run dialog won't show inputs
 						}
 					}
 
@@ -344,41 +358,19 @@ export function createWorkflowTools() {
 				});
 
 				try {
-					console.log(`[add_connection] START: ${sourceNodeId}(${sourceOutputId}) -> ${targetNodeId}`);
+					// Read from cache (instant, no S3 consistency issues)
+					const workspace = await getWorkspaceCached(workspaceId);
 
-					// Retry loop to handle S3 eventual consistency - nodes may not be visible immediately
-					let workspace: WorkspaceType | undefined;
-					let sourceNode: NodeType | undefined;
-					let targetNode: NodeType | undefined;
-					const maxRetries = 5;
-					for (let attempt = 0; attempt < maxRetries; attempt++) {
-						// Increasing delay: 500ms, 1000ms, 1500ms, 2000ms, 2500ms
-						await new Promise((r) => setTimeout(r, 500 + attempt * 500));
+					const sourceNode = workspace.nodes.find(
+						(n) => n.id === sourceNodeId,
+					);
+					const targetNode = workspace.nodes.find(
+						(n) => n.id === targetNodeId,
+					);
 
-						const ws = await giselle.getWorkspace(
-							workspaceId as WorkspaceId,
-						);
-						workspace = ws;
-
-						console.log(`[add_connection] Attempt ${attempt + 1}: ${ws.nodes.length} nodes, ${ws.connections.length} connections`);
-
-						sourceNode = ws.nodes.find(
-							(n) => n.id === sourceNodeId,
-						);
-						targetNode = ws.nodes.find(
-							(n) => n.id === targetNodeId,
-						);
-
-						if (sourceNode && targetNode) break;
-
-						if (attempt < maxRetries - 1) {
-							console.log(`[add_connection] Nodes not yet visible, retrying...`);
-						}
-					}
-
-					if (!workspace || !sourceNode || !targetNode) {
-						const nodeIds = workspace?.nodes.map((n: NodeType) => n.id).join(", ") ?? "none";
-						console.error(`[add_connection] Node not found after ${maxRetries} retries. source=${sourceNodeId}, target=${targetNodeId}. Available: ${nodeIds}`);
+					if (!sourceNode || !targetNode) {
+						const nodeIds = workspace.nodes.map((n) => n.id).join(", ");
+						console.error(`[add_connection] Node not found. source=${sourceNodeId}, target=${targetNodeId}. Available: ${nodeIds}`);
 						return errResult(`Node not found: ${!sourceNode ? sourceNodeId : targetNodeId}. Available nodes: ${nodeIds}`);
 					}
 
@@ -387,14 +379,12 @@ export function createWorkflowTools() {
 					);
 					if (!sourceOutput) {
 						const outputIds = sourceNode.outputs.map((o) => `${o.id}(${o.accessor})`).join(", ");
-						console.error(`[add_connection] Output not found: ${sourceOutputId} on ${sourceNodeId}. Available: ${outputIds}`);
 						return errResult(`Output ${sourceOutputId} not found on node ${sourceNodeId}. Available: ${outputIds}`);
 					}
 
 					// Find or create input on target node
 					let actualInputId = targetInputId;
 					if (!actualInputId) {
-						// Create a new input on the target node
 						const newInputId = InputId.generate();
 						const newInput = {
 							id: newInputId,
@@ -426,14 +416,11 @@ export function createWorkflowTools() {
 					if (!parseResult.success) {
 						const issues = JSON.stringify(parseResult.error);
 						console.error(`[add_connection] Validation failed: ${issues}`);
-						console.error(`[add_connection] Data: ${JSON.stringify(connectionData)}`);
 						return errResult(`Connection validation failed: ${issues}`);
 					}
 
 					workspace.connections.push(parseResult.data);
-					await giselle.updateWorkspace(workspace);
-
-					console.log(`[add_connection] SUCCESS: ${parseResult.data.id}`);
+					await saveWorkspaceCached(workspace);
 
 					return {
 						success: true as const,
@@ -467,23 +454,13 @@ export function createWorkflowTools() {
 			}),
 			execute: async ({ workspaceId, nodeId, prompt }) => {
 				try {
-					// Retry loop to handle S3 eventual consistency
-					let workspace: WorkspaceType | undefined;
-					let node: NodeType | undefined;
-					for (let attempt = 0; attempt < 3; attempt++) {
-						await new Promise((r) => setTimeout(r, 500 + attempt * 500));
-						const ws = await giselle.getWorkspace(
-							workspaceId as WorkspaceId,
-						);
-						workspace = ws;
-						node = ws.nodes.find((n) => n.id === nodeId);
-						if (node) break;
-					}
+					const workspace = await getWorkspaceCached(workspaceId);
+					const node = workspace.nodes.find((n) => n.id === nodeId);
 
-					if (!workspace || !node) {
+					if (!node) {
 						return {
 							success: false,
-							error: `Node ${nodeId} not found after retries`,
+							error: `Node ${nodeId} not found`,
 						};
 					}
 
@@ -493,9 +470,6 @@ export function createWorkflowTools() {
 							error: `Node ${nodeId} is not a textGeneration node (type: ${node.content.type})`,
 						};
 					}
-
-					// Capture workspace in const for TypeScript narrowing
-					const ws = workspace;
 
 					// Convert plain text prompt with {{nodeId:outputId}} references
 					// into TipTap JSON document format
@@ -518,7 +492,7 @@ export function createWorkflowTools() {
 							// Look up the referenced node to get its type and content type
 							const refNodeId = match[1];
 							const refOutputId = match[2];
-							const refNode = ws.nodes.find(
+							const refNode = workspace.nodes.find(
 								(n) => n.id === refNodeId,
 							);
 
@@ -568,7 +542,7 @@ export function createWorkflowTools() {
 
 					(node.content as { type: "textGeneration"; prompt?: string }).prompt = tiptapDoc;
 
-					await giselle.updateWorkspace(ws);
+					await saveWorkspaceCached(workspace);
 
 					return {
 						success: true,
@@ -596,6 +570,8 @@ export function createWorkflowTools() {
 					.describe("A brief summary of what the workflow does"),
 			}),
 			execute: async ({ workspaceId, summary }) => {
+				// Clear cache for this workspace since building is done
+				wsCache.delete(workspaceId);
 				return {
 					success: true,
 					url: `/workflows/${workspaceId}`,
