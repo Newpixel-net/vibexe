@@ -81,6 +81,7 @@ export function Connector({
 	const outputContentType = connection.outputNode.content.type;
 	const inputContentType = connection.inputNode.content.type;
 	const gradientId = `gradient-${id}`;
+	const filterId = `glow-${id}`;
 	const { startColor, endColor } = getGradientColors(
 		outputContentType,
 		inputContentType,
@@ -105,6 +106,16 @@ export function Connector({
 			data-input-node-content-type={inputContentType}
 		>
 			<defs>
+				<filter
+					id={filterId}
+					x="-50%"
+					y="-50%"
+					width="200%"
+					height="200%"
+				>
+					<feGaussianBlur stdDeviation="3.5" result="blur" />
+					<feComposite in="SourceGraphic" in2="blur" operator="over" />
+				</filter>
 				<linearGradient
 					id={gradientId}
 					gradientUnits="userSpaceOnUse"
@@ -165,7 +176,7 @@ export function Connector({
 				path={edgePath}
 				className={clsx("!stroke-[1.5px] bg-bg")}
 				style={{ stroke: `url(#${gradientId})` }}
-				filter="url(#white-glow-filter)"
+				filter={`url(#${filterId})`}
 			/>
 			<ConnectedNodeRunning inputNodeId={connection.inputNode.id}>
 				<path
@@ -174,28 +185,14 @@ export function Connector({
 					strokeWidth="2"
 					fill="none"
 					strokeLinecap="round"
-					filter="url(#white-glow-filter)"
+					filter={`url(#${filterId})`}
 				/>
 			</ConnectedNodeRunning>
 		</g>
 	);
 }
 
+/** @deprecated Filter is now defined inline in each Connector's defs */
 export function GradientDef() {
-	return (
-		<svg role="graphics-symbol">
-			<defs>
-				<filter
-					id="white-glow-filter"
-					x="-50%"
-					y="-50%"
-					width="200%"
-					height="200%"
-				>
-					<feGaussianBlur stdDeviation="3.5" result="blur" />
-					<feComposite in="SourceGraphic" in2="blur" operator="over" />
-				</filter>
-			</defs>
-		</svg>
-	);
+	return null;
 }
