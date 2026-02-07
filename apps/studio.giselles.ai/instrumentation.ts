@@ -9,17 +9,30 @@ export async function register() {
 
 		// Override the default AI SDK global provider to prevent Vercel AI Gateway usage.
 		// AI SDK v5 defaults to the Vercel AI Gateway when resolving string model IDs,
-		// which fails without AI_GATEWAY_API_KEY. This registers direct providers instead.
-		const { createProviderRegistry } = await import("ai");
-		const { openai } = await import("@ai-sdk/openai");
-		const { anthropic } = await import("@ai-sdk/anthropic");
-		const { google } = await import("@ai-sdk/google");
-		(globalThis as any).AI_SDK_DEFAULT_PROVIDER = createProviderRegistry({
-			openai,
-			anthropic,
-			google,
-		});
-		console.log("[instrumentation] Registered direct AI providers as global default (bypassing Vercel AI Gateway)");
+		// which fails without AI_GATEWAY_API_KEY. Replace with a provider that gives
+		// a clear error instead of a confusing GatewayAuthenticationError.
+		const noGatewayProvider = {
+			languageModel(modelId: string) {
+				throw new Error(
+					`Cannot resolve string model "${modelId}" via AI Gateway (not configured). ` +
+					`Use direct provider imports (e.g. openai("gpt-4o")) instead of string model IDs.`
+				);
+			},
+			textEmbeddingModel(modelId: string) {
+				throw new Error(
+					`Cannot resolve string embedding model "${modelId}" via AI Gateway (not configured). ` +
+					`Use direct provider imports instead of string model IDs.`
+				);
+			},
+			imageModel(modelId: string) {
+				throw new Error(
+					`Cannot resolve string image model "${modelId}" via AI Gateway (not configured). ` +
+					`Use direct provider imports instead of string model IDs.`
+				);
+			},
+		};
+		(globalThis as any).AI_SDK_DEFAULT_PROVIDER = noGatewayProvider;
+		console.log("[instrumentation] Disabled Vercel AI Gateway (replaced with direct-provider-only fallback)");
 	}
 
 	if (process.env.NEXT_RUNTIME === "edge") {
