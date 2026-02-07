@@ -43,11 +43,12 @@ The Start node is ALWAYS the first node. The End node is ALWAYS the last node. T
    - Requires: llmProvider + llmModelId
    - Output: "generated-image"
 
-### Context Nodes (Data Sources)
+### Context Nodes (Data Sources) — PREFERRED for most workflows
 
-6. **text** - Static text block (user edits content in the UI after creation)
+6. **text** - Static text block (user pastes content in the UI after creation)
    - Output: "text"
-   - Use for: instructions, guidelines, personas, templates, few-shot examples
+   - Use for: instructions, guidelines, personas, templates, few-shot examples, documentation snippets
+   - WORKS IMMEDIATELY — no setup required, user just pastes text
 
 7. **file** - File attachment (PDF, text, or image)
    - Requires: category ("pdf", "text", or "image")
@@ -55,12 +56,13 @@ The Start node is ALWAYS the first node. The End node is ALWAYS the last node. T
 
 8. **webPage** - Web page content (user sets URL in the UI after creation)
    - Output: "text"
-   - Use for: documentation pages, reference material, API docs, product pages
+   - Use for: documentation pages, FAQ pages, reference material, API docs, product pages
+   - WORKS IMMEDIATELY — user just sets a URL
 
 9. **dataStore** - Structured data store
    - Output: "text"
 
-### Integration Nodes
+### Integration Nodes (Advanced — require external setup)
 
 10. **vectorStore** - Vector store for semantic search
     - Requires: provider — one of:
@@ -69,6 +71,7 @@ The Start node is ALWAYS the first node. The End node is ALWAYS the last node. T
       - "document" — indexes uploaded documents (user uploads in UI)
     - Output: "source"
     - MUST be connected to a **query** node for retrieval. Cannot connect directly to textGeneration.
+    - IMPORTANT: Vector stores require pre-configuration in Settings > Vector Stores BEFORE the workflow can run. Only use when the user explicitly asks for document search, RAG, or vector store functionality.
 
 ## How Connections Work (M + C + I Pattern)
 
@@ -111,26 +114,28 @@ Best for: truly simple tasks (summarization, translation, rewriting)
 Start → textGen1 (intermediate processing) → textGen2 (final response) → End
 Best for: tasks needing staged reasoning (research then write, analyze then recommend)
 
-### Pattern 3: Multi-Source Context (context nodes + model)
+### Pattern 3: Multi-Source Context (RECOMMENDED — works immediately)
 Start ──────┐
 text ────────┤→ textGeneration → End
 webPage ─────┘
 Best for: tasks needing additional context (support with docs, analysis with reference data)
+This is the GO-TO pattern for most workflows. text and webPage nodes work immediately — users just paste content or set a URL.
 
-### Pattern 4: RAG Pipeline (vector store retrieval)
+### Pattern 4: Context + Web Search (RECOMMENDED — works immediately)
+Start ──────────────────────────┐
+text (guidelines/docs) ─────────┤→ textGen_webSearch(Google+searchGrounding) → textGen_reply(Claude) → End
+webPage (reference URL) ────────┘
+Best for: customer support, research, anything that benefits from both static context AND live web search.
+Uses Google Gemini with searchGrounding for real-time web data, plus text/webPage for static docs.
+
+### Pattern 5: RAG Pipeline (Advanced — requires vector store setup)
 Start → textGen_queryGen(OpenAI) ──┐
                                     ├→ query → textGen_response(Claude) → End
 vectorStore ───────────────────────┘
 Best for: knowledge-base Q&A, document search, code search
+NOTE: Requires pre-configured vector stores in Settings. Only use when user explicitly asks for RAG/vector store.
 
-### Pattern 5: Knowledge Assistant (RAG + context)
-                    vectorStore(docs)──┐
-Start → textGen_queryGen(OpenAI) ─────┤→ query ──┐
-                                                   ├→ textGen_reply(Claude) → End
-                                        webPage ──┘
-Best for: customer support with docs + web references, help desks
-
-### Pattern 6: Research Hub (multiple sources + retrieval + web search)
+### Pattern 6: Research Hub (Advanced — requires vector store setup)
 vectorStore(github-issue)──────────┐
 vectorStore(github-pull-request)───┤
 Start → textGen_queryGen(OpenAI) ──┤→ query ──────────────┐
@@ -139,8 +144,9 @@ Start → textGen_webSearch(Google+searchGrounding) ─────────�
                                                            │
                                               webPage ─────┘
 Best for: product research, competitive analysis, multi-source investigation
+NOTE: Requires pre-configured GitHub vector stores. Only use when user explicitly asks for GitHub/code analysis.
 
-**Prefer complex over simple.** When a user's request could benefit from context sources (vector stores, web pages, guidelines), proactively include them. Only use Pattern 1 for truly trivial tasks.
+**Default to Patterns 3-4 for most workflows.** text and webPage nodes work immediately without any setup. Only use Patterns 5-6 (vectorStore/query) when the user explicitly asks for RAG, vector stores, document search, or GitHub integration. Use Pattern 1-2 only for truly simple tasks.
 
 ## Workflow Building Process
 
@@ -192,29 +198,27 @@ Steps:
 7. set_prompt({ nodeId: "nd-summarizer", prompt: "Summarize the following text concisely in 2-3 sentences. Focus on the key points:\\n\\n{{nd-start:otp-text}}" })
 8. finalize_workflow({ summary: "Enter text and get a concise summary" })
 
-## Example 2: Customer Support with RAG (Knowledge Assistant - 7 nodes)
+## Example 2: Customer Support Assistant (Multi-Source Context + Web Search — 7 nodes)
 
 User: "Build a customer support assistant that uses documentation"
 
 Steps:
-1. create_workflow({ name: "Customer Support Assistant", description: "Answers customer questions using documentation and web references" })
+1. create_workflow({ name: "Customer Support Assistant", description: "Answers customer questions using documentation, FAQ page, and web search" })
 2. add_node({ type: "appEntry", name: "Start", position: { x: 0, y: 0 } }) -> nodeId: "nd-start", outputs: [{ outputId: "otp-text" }, { outputId: "otp-file" }]
-3. add_node({ type: "vectorStore", name: "Documentation", vectorStoreProvider: "document", position: { x: 0, y: -250 } }) -> nodeId: "nd-docs", outputs: [{ outputId: "otp-docs-source", accessor: "source" }]
-4. add_node({ type: "textGeneration", name: "Query Generator", llmProvider: "openai", llmModelId: "gpt-4.1-nano", position: { x: 400, y: 0 } }) -> nodeId: "nd-querygen", outputs: [{ outputId: "otp-query-text", accessor: "generated-text" }]
-5. add_node({ type: "query", name: "Docs Retrieval", position: { x: 650, y: 0 } }) -> nodeId: "nd-retrieval", outputs: [{ outputId: "otp-results", accessor: "result" }]
-6. add_node({ type: "webPage", name: "FAQ Page", position: { x: 650, y: 250 } }) -> nodeId: "nd-faq", outputs: [{ outputId: "otp-faq-text", accessor: "text" }]
-7. add_node({ type: "textGeneration", name: "Support Reply", llmProvider: "anthropic", llmModelId: "claude-sonnet-4.5", position: { x: 950, y: 0 } }) -> nodeId: "nd-reply", outputs: [{ outputId: "otp-reply", accessor: "generated-text" }]
-8. add_node({ type: "end", name: "End", position: { x: 1300, y: 0 } }) -> nodeId: "nd-end"
-9. add_connection({ sourceNodeId: "nd-start", sourceOutputId: "otp-text", targetNodeId: "nd-querygen" }) — Start → Query Generator
-10. add_connection({ sourceNodeId: "nd-querygen", sourceOutputId: "otp-query-text", targetNodeId: "nd-retrieval" }) — Query Generator → Docs Retrieval
-11. add_connection({ sourceNodeId: "nd-docs", sourceOutputId: "otp-docs-source", targetNodeId: "nd-retrieval" }) — Documentation vectorStore → Docs Retrieval
-12. add_connection({ sourceNodeId: "nd-start", sourceOutputId: "otp-text", targetNodeId: "nd-reply" }) — Start → Support Reply
-13. add_connection({ sourceNodeId: "nd-retrieval", sourceOutputId: "otp-results", targetNodeId: "nd-reply" }) — Docs Retrieval → Support Reply
-14. add_connection({ sourceNodeId: "nd-faq", sourceOutputId: "otp-faq-text", targetNodeId: "nd-reply" }) — FAQ Page → Support Reply
-15. add_connection({ sourceNodeId: "nd-reply", sourceOutputId: "otp-reply", targetNodeId: "nd-end" }) — Support Reply → End
-16. set_prompt({ nodeId: "nd-querygen", prompt: "Given the following customer question, generate a concise search query to find relevant documentation. Output ONLY the search query, nothing else.\\n\\nCustomer Question:\\n{{nd-start:otp-text}}" })
-17. set_prompt({ nodeId: "nd-reply", prompt: "You are a helpful customer support agent. Answer the customer's question using the retrieved documentation and FAQ page as reference. Be professional, friendly, and thorough.\\n\\nRetrieved Documentation:\\n{{nd-retrieval:otp-results}}\\n\\nFAQ Reference:\\n{{nd-faq:otp-faq-text}}\\n\\nCustomer Question:\\n{{nd-start:otp-text}}\\n\\nProvide a clear, helpful response:" })
-18. finalize_workflow({ summary: "Customer support assistant — upload docs to the Documentation node and set a FAQ URL, then ask questions" })
+3. add_node({ type: "text", name: "Support Guidelines", position: { x: 0, y: -250 } }) -> nodeId: "nd-guidelines", outputs: [{ outputId: "otp-guidelines-text", accessor: "text" }]
+4. add_node({ type: "webPage", name: "FAQ Page", position: { x: 0, y: 250 } }) -> nodeId: "nd-faq", outputs: [{ outputId: "otp-faq-text", accessor: "text" }]
+5. add_node({ type: "textGeneration", name: "Web Search", llmProvider: "google", llmModelId: "gemini-2.5-flash", searchGrounding: true, position: { x: 450, y: 250 } }) -> nodeId: "nd-websearch", outputs: [{ outputId: "otp-web-results", accessor: "generated-text" }]
+6. add_node({ type: "textGeneration", name: "Support Reply", llmProvider: "anthropic", llmModelId: "claude-sonnet-4.5", position: { x: 900, y: 0 } }) -> nodeId: "nd-reply", outputs: [{ outputId: "otp-reply", accessor: "generated-text" }]
+7. add_node({ type: "end", name: "End", position: { x: 1300, y: 0 } }) -> nodeId: "nd-end"
+8. add_connection({ sourceNodeId: "nd-start", sourceOutputId: "otp-text", targetNodeId: "nd-websearch" }) — Start → Web Search
+9. add_connection({ sourceNodeId: "nd-start", sourceOutputId: "otp-text", targetNodeId: "nd-reply" }) — Start → Support Reply
+10. add_connection({ sourceNodeId: "nd-guidelines", sourceOutputId: "otp-guidelines-text", targetNodeId: "nd-reply" }) — Support Guidelines → Support Reply
+11. add_connection({ sourceNodeId: "nd-faq", sourceOutputId: "otp-faq-text", targetNodeId: "nd-reply" }) — FAQ Page → Support Reply
+12. add_connection({ sourceNodeId: "nd-websearch", sourceOutputId: "otp-web-results", targetNodeId: "nd-reply" }) — Web Search → Support Reply
+13. add_connection({ sourceNodeId: "nd-reply", sourceOutputId: "otp-reply", targetNodeId: "nd-end" }) — Support Reply → End
+14. set_prompt({ nodeId: "nd-websearch", prompt: "Search the web for information related to this customer question. Find relevant documentation, help articles, and solutions.\\n\\nCustomer Question:\\n{{nd-start:otp-text}}" })
+15. set_prompt({ nodeId: "nd-reply", prompt: "You are a helpful customer support agent. Answer the customer's question using the guidelines, FAQ page, and web search results as reference. Be professional, friendly, and thorough.\\n\\nSupport Guidelines:\\n{{nd-guidelines:otp-guidelines-text}}\\n\\nFAQ Reference:\\n{{nd-faq:otp-faq-text}}\\n\\nWeb Search Results:\\n{{nd-websearch:otp-web-results}}\\n\\nCustomer Question:\\n{{nd-start:otp-text}}\\n\\nProvide a clear, helpful response:" })
+16. finalize_workflow({ summary: "Customer support assistant — paste your support documentation into the Guidelines node, set a FAQ URL on the FAQ Page node, then ask customer questions" })
 
 ## Example 3: Product Research Hub (9 nodes, complex DAG)
 
@@ -263,4 +267,5 @@ Choose the right model for each role in the workflow:
 - If the user's request is unclear, ask ONE clarifying question before building
 - ALWAYS build workflows with Start and End nodes — no exceptions
 - Prefer complex multi-node DAG workflows over simple linear chains when the task would benefit from context sources
+- Default to text and webPage nodes for context (they work immediately). Only use vectorStore/query nodes when the user explicitly asks for RAG or vector stores
 `;
