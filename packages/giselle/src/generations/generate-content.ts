@@ -290,6 +290,15 @@ export function generateContent({
 			const providerOptions = getProviderOptions(operationNode.content.llm);
 
 			const model = generationModel(operationNode.content.llm);
+			logger.info({
+				modelType: typeof model,
+				modelProvider: (model as any)?.provider,
+				modelId: (model as any)?.modelId,
+				specVersion: (model as any)?.specificationVersion,
+				constructorName: model?.constructor?.name,
+				llmProvider: operationNode.content.llm.provider,
+				llmId: operationNode.content.llm.id,
+			}, "V1 streamText model debug");
 			let generationError: unknown | undefined;
 			const textGenerationStartTime = Date.now();
 
@@ -634,10 +643,20 @@ function generateContentV2({
 			let generationError: unknown | undefined;
 			const textGenerationStartTime = Date.now();
 
+			const v2Model = resolveModel(operationNode.content.languageModel.id);
+			logger.info({
+				modelType: typeof v2Model,
+				modelProvider: (v2Model as any)?.provider,
+				modelId: (v2Model as any)?.modelId,
+				specVersion: (v2Model as any)?.specificationVersion,
+				constructorName: v2Model?.constructor?.name,
+				languageModelId: operationNode.content.languageModel.id,
+			}, "V2 streamText model debug");
+
 			const streamTextResult = streamText({
 				...callOptions,
 				abortSignal: abortController.signal,
-				model: resolveModel(operationNode.content.languageModel.id),
+				model: v2Model,
 				messages,
 				tools: toolSet,
 				stopWhen: ({ steps }) => {
