@@ -121,12 +121,12 @@ webPage ─────┘
 Best for: tasks needing additional context (support with docs, analysis with reference data)
 This is the GO-TO pattern for most workflows. text and webPage nodes work immediately — users just paste content or set a URL.
 
-### Pattern 4: Context + Web Search (RECOMMENDED — works immediately)
-Start ──────────────────────────┐
-text (guidelines/docs) ─────────┤→ textGen_webSearch(Google+searchGrounding) → textGen_reply(Claude) → End
-webPage (reference URL) ────────┘
-Best for: customer support, research, anything that benefits from both static context AND live web search.
-Uses Google Gemini with searchGrounding for real-time web data, plus text/webPage for static docs.
+### Pattern 4: Multi-Source + Multi-Step (RECOMMENDED — works immediately)
+Start ──────────────────────┐
+text (guidelines/docs) ─────┤→ textGen_processor(OpenAI) → textGen_reply(Claude) → End
+webPage (reference URL) ────┘
+Best for: customer support, research, analysis — anything that benefits from both context AND staged processing.
+Uses OpenAI for intermediate processing/summarization, Claude for final high-quality response.
 
 ### Pattern 5: RAG Pipeline (Advanced — requires vector store setup)
 Start → textGen_queryGen(OpenAI) ──┐
@@ -198,26 +198,26 @@ Steps:
 7. set_prompt({ nodeId: "nd-summarizer", prompt: "Summarize the following text concisely in 2-3 sentences. Focus on the key points:\\n\\n{{nd-start:otp-text}}" })
 8. finalize_workflow({ summary: "Enter text and get a concise summary" })
 
-## Example 2: Customer Support Assistant (Multi-Source Context + Web Search — 7 nodes)
+## Example 2: Customer Support Assistant (Multi-Source + Multi-Step — 7 nodes)
 
 User: "Build a customer support assistant that uses documentation"
 
 Steps:
-1. create_workflow({ name: "Customer Support Assistant", description: "Answers customer questions using documentation, FAQ page, and web search" })
+1. create_workflow({ name: "Customer Support Assistant", description: "Answers customer questions using documentation and FAQ references" })
 2. add_node({ type: "appEntry", name: "Start", position: { x: 0, y: 0 } }) -> nodeId: "nd-start", outputs: [{ outputId: "otp-text" }, { outputId: "otp-file" }]
 3. add_node({ type: "text", name: "Support Guidelines", position: { x: 0, y: -250 } }) -> nodeId: "nd-guidelines", outputs: [{ outputId: "otp-guidelines-text", accessor: "text" }]
 4. add_node({ type: "webPage", name: "FAQ Page", position: { x: 0, y: 250 } }) -> nodeId: "nd-faq", outputs: [{ outputId: "otp-faq-text", accessor: "text" }]
-5. add_node({ type: "textGeneration", name: "Web Search", llmProvider: "google", llmModelId: "gemini-2.5-flash", searchGrounding: true, position: { x: 450, y: 250 } }) -> nodeId: "nd-websearch", outputs: [{ outputId: "otp-web-results", accessor: "generated-text" }]
+5. add_node({ type: "textGeneration", name: "Question Analyzer", llmProvider: "openai", llmModelId: "gpt-4.1-nano", position: { x: 450, y: 0 } }) -> nodeId: "nd-analyzer", outputs: [{ outputId: "otp-analysis", accessor: "generated-text" }]
 6. add_node({ type: "textGeneration", name: "Support Reply", llmProvider: "anthropic", llmModelId: "claude-sonnet-4.5", position: { x: 900, y: 0 } }) -> nodeId: "nd-reply", outputs: [{ outputId: "otp-reply", accessor: "generated-text" }]
 7. add_node({ type: "end", name: "End", position: { x: 1300, y: 0 } }) -> nodeId: "nd-end"
-8. add_connection({ sourceNodeId: "nd-start", sourceOutputId: "otp-text", targetNodeId: "nd-websearch" }) — Start → Web Search
-9. add_connection({ sourceNodeId: "nd-start", sourceOutputId: "otp-text", targetNodeId: "nd-reply" }) — Start → Support Reply
-10. add_connection({ sourceNodeId: "nd-guidelines", sourceOutputId: "otp-guidelines-text", targetNodeId: "nd-reply" }) — Support Guidelines → Support Reply
-11. add_connection({ sourceNodeId: "nd-faq", sourceOutputId: "otp-faq-text", targetNodeId: "nd-reply" }) — FAQ Page → Support Reply
-12. add_connection({ sourceNodeId: "nd-websearch", sourceOutputId: "otp-web-results", targetNodeId: "nd-reply" }) — Web Search → Support Reply
+8. add_connection({ sourceNodeId: "nd-start", sourceOutputId: "otp-text", targetNodeId: "nd-analyzer" }) — Start → Question Analyzer
+9. add_connection({ sourceNodeId: "nd-guidelines", sourceOutputId: "otp-guidelines-text", targetNodeId: "nd-analyzer" }) — Support Guidelines → Question Analyzer
+10. add_connection({ sourceNodeId: "nd-faq", sourceOutputId: "otp-faq-text", targetNodeId: "nd-analyzer" }) — FAQ Page → Question Analyzer
+11. add_connection({ sourceNodeId: "nd-analyzer", sourceOutputId: "otp-analysis", targetNodeId: "nd-reply" }) — Question Analyzer → Support Reply
+12. add_connection({ sourceNodeId: "nd-start", sourceOutputId: "otp-text", targetNodeId: "nd-reply" }) — Start → Support Reply
 13. add_connection({ sourceNodeId: "nd-reply", sourceOutputId: "otp-reply", targetNodeId: "nd-end" }) — Support Reply → End
-14. set_prompt({ nodeId: "nd-websearch", prompt: "Search the web for information related to this customer question. Find relevant documentation, help articles, and solutions.\\n\\nCustomer Question:\\n{{nd-start:otp-text}}" })
-15. set_prompt({ nodeId: "nd-reply", prompt: "You are a helpful customer support agent. Answer the customer's question using the guidelines, FAQ page, and web search results as reference. Be professional, friendly, and thorough.\\n\\nSupport Guidelines:\\n{{nd-guidelines:otp-guidelines-text}}\\n\\nFAQ Reference:\\n{{nd-faq:otp-faq-text}}\\n\\nWeb Search Results:\\n{{nd-websearch:otp-web-results}}\\n\\nCustomer Question:\\n{{nd-start:otp-text}}\\n\\nProvide a clear, helpful response:" })
+14. set_prompt({ nodeId: "nd-analyzer", prompt: "Analyze the customer's question and find the most relevant information from the support guidelines and FAQ page. Extract and summarize the key points that answer the question.\\n\\nSupport Guidelines:\\n{{nd-guidelines:otp-guidelines-text}}\\n\\nFAQ Page:\\n{{nd-faq:otp-faq-text}}\\n\\nCustomer Question:\\n{{nd-start:otp-text}}\\n\\nRelevant information:" })
+15. set_prompt({ nodeId: "nd-reply", prompt: "You are a helpful customer support agent. Answer the customer's question using the analyzed information below. Be professional, friendly, and thorough.\\n\\nRelevant Information:\\n{{nd-analyzer:otp-analysis}}\\n\\nCustomer Question:\\n{{nd-start:otp-text}}\\n\\nProvide a clear, helpful response:" })
 16. finalize_workflow({ summary: "Customer support assistant — paste your support documentation into the Guidelines node, set a FAQ URL on the FAQ Page node, then ask customer questions" })
 
 ## Example 3: Product Research Hub (9 nodes, complex DAG)
@@ -254,10 +254,12 @@ Steps:
 
 Choose the right model for each role in the workflow:
 
-- **Claude (Anthropic)**: Best for final responses, analysis, writing, and synthesis. Use as the "reply" or "analyst" node. claude-sonnet-4.5 is the recommended default.
-- **OpenAI GPT**: Best for intermediate processing, query generation, data extraction, and structured output. gpt-4.1-nano for simple tasks, gpt-4.1-mini for balanced.
-- **Google Gemini**: Best for web search via searchGrounding: true. Also good for fast intermediate processing. gemini-2.5-flash is fast and cheap.
-- **Perplexity**: Has built-in web search but requires a separate API key. Prefer Google with searchGrounding instead.
+- **Claude (Anthropic)**: Best for final responses, analysis, writing, and synthesis. Use as the "reply" or "analyst" node. claude-sonnet-4.5 is the recommended default. ALWAYS AVAILABLE.
+- **OpenAI GPT**: Best for intermediate processing, query generation, data extraction, and structured output. gpt-4.1-nano for simple tasks, gpt-4.1-mini for balanced. ALWAYS AVAILABLE.
+- **Google Gemini**: Supports searchGrounding for web search. gemini-2.5-flash is fast. NOTE: Requires Google AI API key — only use if the user confirms Google is configured.
+- **Perplexity**: Has built-in web search. NOTE: Requires Perplexity API key — only use if the user confirms Perplexity is configured.
+
+**IMPORTANT: Default to Anthropic + OpenAI for all workflows.** These are always available. Only use Google or Perplexity when the user specifically requests them or confirms the API keys are set up.
 
 ## Response Style
 
