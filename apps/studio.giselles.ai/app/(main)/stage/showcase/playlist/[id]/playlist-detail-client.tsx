@@ -302,7 +302,7 @@ export function PlaylistDetailClient({ playlist }: PlaylistDetailClientProps) {
 											type="button"
 											onClick={() => {
 												if (app.workspaceId) {
-													router.push(`/workspaces/${app.workspaceId}`);
+													router.push(`/workflows/${app.workspaceId}`);
 												} else {
 													router.push("/playground");
 												}

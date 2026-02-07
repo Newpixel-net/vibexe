@@ -219,7 +219,7 @@ export function WorkflowsPanel({ appId }: WorkflowsPanelProps) {
 							</div>
 							<div className="flex items-center gap-2">
 								<Link
-									href={`/workspaces/${lw.workspaceId}`}
+									href={`/workflows/${lw.workspaceId}`}
 									className="p-2 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
 									title="Open in Workflow Editor"
 								>
@@ -344,7 +344,7 @@ export function WorkflowsPanel({ appId }: WorkflowsPanelProps) {
 											No available workflows.
 										</p>
 										<Link
-											href="/workspaces"
+											href="/workflows"
 											className="text-sm text-primary hover:underline"
 										>
 											Create a new workflow

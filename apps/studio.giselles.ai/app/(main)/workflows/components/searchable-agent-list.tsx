@@ -117,7 +117,7 @@ export function SearchableAgentList({
 						return (
 							<AppListItem
 								key={agent.id}
-								href={`/workspaces/${agent.workspaceId}`}
+								href={`/workflows/${agent.workspaceId}`}
 								title={agent.name || "Untitled"}
 								subtitle={`Edited ${agent.updatedAt.toLocaleDateString()}`}
 								creator={

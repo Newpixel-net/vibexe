@@ -66,8 +66,8 @@ const nextConfig: NextConfig = {
 				permanent: false,
 			},
 			{
-				source: "/workflows",
-				destination: "/workspaces",
+				source: "/workspaces",
+				destination: "/workflows",
 				permanent: false,
 			},
 		];

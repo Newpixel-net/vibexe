@@ -4,7 +4,7 @@ test.describe("Account settings navigation", () => {
 	const baseUrl = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
 
 	test("Navigate through account settings flow", async ({ page }) => {
-		await page.goto(`${baseUrl}/workspaces`);
+		await page.goto(`${baseUrl}/workflows`);
 
 		await page.getByRole("button", { name: "Profile menu" }).click();
 		await page

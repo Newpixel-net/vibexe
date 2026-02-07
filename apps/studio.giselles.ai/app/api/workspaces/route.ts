@@ -25,6 +25,6 @@ export async function POST(_request: Request) {
 		teamDbId: team.dbId,
 	});
 
-	const redirectPath = `/workspaces/${workspace.id}`;
+	const redirectPath = `/workflows/${workspace.id}`;
 	return NextResponse.json({ redirectPath }, { status: 201 });
 }

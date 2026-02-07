@@ -43,7 +43,7 @@ export function DuplicateAgentButton({
 			const res = await copyAgent(agentId);
 			if (res.result === "success") {
 				setOpen(false);
-				redirect(`/workspaces/${res.workspaceId}`);
+				redirect(`/workflows/${res.workspaceId}`);
 			} else {
 				toast(res.message || "Failed to duplicate workflow.", {
 					type: "error",

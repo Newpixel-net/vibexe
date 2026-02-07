@@ -22,7 +22,7 @@ import {
 } from "react";
 import { useShallow } from "zustand/shallow";
 import { useTaskOverlayStore } from "@/app/(main)/stores/task-overlay-store";
-import { LLMProviderIcon } from "@/app/(main)/workspaces/components/llm-provider-icon";
+import { LLMProviderIcon } from "@/app/(main)/workflows/components/llm-provider-icon";
 import { PlaygroundStageInput } from "../components/stage-input/playground-stage-input";
 import type { LoaderData } from "./data-loader";
 import type { StageApp } from "./types";
@@ -467,7 +467,7 @@ export function Page({
 											<button
 												type="button"
 												onClick={() => {
-													router.push("/workspaces");
+													router.push("/workflows");
 												}}
 												className="inline-flex items-center justify-center rounded-lg border border-[rgba(131,157,195,0.3)] px-4 py-2 text-[13px] text-[rgba(131,157,195,0.7)] transition-colors hover:border-[rgba(131,157,195,0.4)] hover:bg-[rgba(131,157,195,0.1)]"
 											>

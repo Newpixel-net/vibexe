@@ -108,8 +108,8 @@ function createBaseSidebarParts(
 				{
 					id: "workflows",
 					label: "Workflows",
-					href: "/workspaces",
-					activeMatchPattern: "/workspaces*",
+					href: "/workflows",
+					activeMatchPattern: "/workflows*",
 				},
 				{
 					id: "integration",

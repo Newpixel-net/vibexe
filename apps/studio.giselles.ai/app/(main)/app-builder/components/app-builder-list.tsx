@@ -35,7 +35,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { BuilderApp, BuilderProject } from "@/db/schema";
-import { SearchHeader } from "../../workspaces/components/search-header";
+import { SearchHeader } from "../../workflows/components/search-header";
 import { Button } from "../../settings/components/button";
 
 type ProjectWithApps = BuilderProject & {

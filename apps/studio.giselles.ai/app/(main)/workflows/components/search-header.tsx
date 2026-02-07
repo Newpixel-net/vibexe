@@ -35,7 +35,7 @@ interface SearchHeaderProps {
 
 /**
  * SearchHeader
- * Shared header identical to /workspaces top controls:
+ * Shared header identical to /workflows top controls:
  * - Left: search input with trailing icon
  * - Right: sort dropdown (+ optional grid/list toggle)
  */

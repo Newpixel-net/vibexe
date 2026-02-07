@@ -387,7 +387,7 @@ export function createWorkflowTools() {
 			execute: async ({ workspaceId, summary }) => {
 				return {
 					success: true,
-					url: `/workspaces/${workspaceId}`,
+					url: `/workflows/${workspaceId}`,
 					summary,
 					workspaceId,
 				};

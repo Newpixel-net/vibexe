@@ -78,8 +78,8 @@ test.describe("Login redirect functionality", () => {
 					`${baseUrl}/login?returnUrl=${encodeURIComponent(maliciousUrl)}`,
 				);
 
-				// Login with test credentials and wait for redirect (should go to /workspaces instead of malicious URL)
-				await performLogin(page, `${baseUrl}/workspaces`);
+				// Login with test credentials and wait for redirect (should go to /workflows instead of malicious URL)
+				await performLogin(page, `${baseUrl}/workflows`);
 			});
 		}
 	});

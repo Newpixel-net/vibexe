@@ -76,7 +76,7 @@ export function AppListItem({
 			const res = await copyAgent(agentId as AgentId);
 			if (res.result === "success") {
 				setDuplicateDialogOpen(false);
-				router.push(`/workspaces/${res.workspaceId}`);
+				router.push(`/workflows/${res.workspaceId}`);
 			} else {
 				toast(res.message || "Failed to duplicate workflow.", {
 					type: "error",

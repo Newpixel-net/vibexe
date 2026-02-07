@@ -57,7 +57,7 @@ export function AgentCard({ agent }: AgentCardProps) {
 					/>
 				</div>
 				<Link
-					href={`/workspaces/${agent.workspaceId}`}
+					href={`/workflows/${agent.workspaceId}`}
 					className="flex h-full flex-col pt-2 px-2"
 					prefetch={false}
 				>

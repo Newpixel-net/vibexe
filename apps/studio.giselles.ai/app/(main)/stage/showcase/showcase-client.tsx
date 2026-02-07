@@ -20,7 +20,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { GlassButton } from "@/components/ui/glass-button";
 import { Card } from "../../settings/components/card";
-import { SearchHeader } from "../../workspaces/components/search-header";
+import { SearchHeader } from "../../workflows/components/search-header";
 
 type SortOption = "name-asc" | "name-desc" | "date-desc" | "date-asc";
 
@@ -289,7 +289,7 @@ export function ShowcaseClient({
 												<Link
 													href={
 														app.workspaceId
-															? `/workspaces/${app.workspaceId}`
+															? `/workflows/${app.workspaceId}`
 															: "/playground"
 													}
 													className="rounded-lg px-3 py-1.5 text-text transition-all duration-200 active:scale-[0.98] text-sm"
@@ -307,7 +307,7 @@ export function ShowcaseClient({
 															name: app.name,
 															workspaceId: app.workspaceId,
 															targetUrl: app.workspaceId
-																? `/workspaces/${app.workspaceId}`
+																? `/workflows/${app.workspaceId}`
 																: "/playground",
 														});
 													}}

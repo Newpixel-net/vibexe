@@ -15,7 +15,7 @@ export default function CompleteResetPasswordPage() {
 						</p>
 					</div>
 					<AuthButton asChild>
-						<Link href="/workspaces">Continue</Link>
+						<Link href="/workflows">Continue</Link>
 					</AuthButton>
 				</div>
 			</div>

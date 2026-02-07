@@ -9,7 +9,7 @@ async function globalSetup() {
 		const page = await browser.newPage();
 
 		await navigateToLoginPage(page, baseUrl);
-		await performLogin(page, `${baseUrl}/workspaces`);
+		await performLogin(page, `${baseUrl}/workflows`);
 
 		// Save storage state
 		const storagePath = "./tests/e2e/.auth/storageState.json";

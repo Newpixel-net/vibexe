@@ -180,7 +180,7 @@ export function AppDetailClient({ appDetails }: AppDetailClientProps) {
 								<Link
 									href={
 										appDetails.id
-											? `/workspaces/${appDetails.id}`
+											? `/workflows/${appDetails.id}`
 											: "/playground"
 									}
 									className="rounded-lg px-3 py-2 text-text transition-all duration-200 active:scale-[0.98] text-sm flex-1 sm:flex-none text-center"

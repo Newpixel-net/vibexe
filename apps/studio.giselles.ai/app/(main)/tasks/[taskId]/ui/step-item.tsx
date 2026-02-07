@@ -99,7 +99,7 @@ function StepItemOutput({ item }: { item: UIStepItem }) {
 						</p>
 						<div className="flex items-center gap-2 mt-3">
 							<Link
-								href={`/workspaces/${item.workspaceId}`}
+								href={`/workflows/${item.workspaceId}`}
 								target="_blank"
 								rel="noreferrer"
 								className="text-[13px] text-[hsl(192,73%,84%)] hover:text-[hsl(192,73%,70%)] transition-colors font-medium"

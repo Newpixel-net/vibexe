@@ -195,7 +195,7 @@ export function DashboardClient({
 						Recent Workflows
 					</h2>
 					<Link
-						href="/workspaces"
+						href="/workflows"
 						className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
 					>
 						View all <ArrowRight className="h-3.5 w-3.5" />
@@ -223,7 +223,7 @@ export function DashboardClient({
 						{recentWorkflows.map((w) => (
 							<Link
 								key={w.id}
-								href={`/workspaces/${w.id}`}
+								href={`/workflows/${w.id}`}
 								className="block p-4 border border-border/50 rounded-lg hover:border-blue-500/50 transition-colors bg-card/50"
 							>
 								<div className="flex items-center gap-2 mb-2">

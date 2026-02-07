@@ -6,8 +6,8 @@ test.describe("Protected paths authentication", () => {
 
 	// List of protected paths that require authentication
 	const protectedPaths = [
-		{ path: "/workspaces", description: "Workspaces page" },
-		{ path: "/workspaces/123", description: "Specific workspace page" },
+		{ path: "/workflows", description: "Workflows page" },
+		{ path: "/workflows/123", description: "Specific workflow page" },
 		{ path: "/settings", description: "Settings page" },
 		{ path: "/settings/account", description: "Account settings page" },
 		{ path: "/settings/team", description: "Team settings page" },
