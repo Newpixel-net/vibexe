@@ -3,6 +3,7 @@ import { nodeFactories } from "@giselles-ai/node-registry";
 import {
 	App,
 	AppId,
+	Connection,
 	ConnectionId,
 	InputId,
 	Workspace,
@@ -277,6 +278,8 @@ export function createWorkflowTools() {
 								(node.content as Record<string, unknown>).appId = appId;
 								delete (node.content as Record<string, unknown>).draftApp;
 								await giselle.updateWorkspace(workspace);
+							} else {
+								console.error("[add_node] App.safeParse failed:", JSON.stringify(parseResult.error));
 							}
 						} catch (configError) {
 							console.error("Auto-configure appEntry warning:", configError);
@@ -308,7 +311,7 @@ export function createWorkflowTools() {
 
 		add_connection: tool({
 			description:
-				"Connect two nodes by linking a source output to a target input. If the target node has no matching input, one will be created automatically.",
+				"Connect two nodes by linking a source output to a target input. If the target node has no matching input, one will be created automatically. IMPORTANT: Call this tool ONE AT A TIME, waiting for each connection to complete before adding the next.",
 			inputSchema: z.object({
 				workspaceId: z.string().describe("The workspace ID"),
 				sourceNodeId: z.string().describe("The source node ID"),
@@ -338,9 +341,16 @@ export function createWorkflowTools() {
 				});
 
 				try {
+					// Small delay to allow S3 eventual consistency after prior writes
+					await new Promise((r) => setTimeout(r, 300));
+
+					console.log(`[add_connection] START: ${sourceNodeId}(${sourceOutputId}) -> ${targetNodeId}`);
+
 					const workspace = await giselle.getWorkspace(
 						workspaceId as WorkspaceId,
 					);
+
+					console.log(`[add_connection] Workspace loaded: ${workspace.nodes.length} nodes, ${workspace.connections.length} existing connections`);
 
 					const sourceNode = workspace.nodes.find(
 						(n) => n.id === sourceNodeId,
@@ -350,14 +360,18 @@ export function createWorkflowTools() {
 					);
 
 					if (!sourceNode || !targetNode) {
-						return errResult(`Node not found: ${!sourceNode ? sourceNodeId : targetNodeId}`);
+						const nodeIds = workspace.nodes.map((n) => n.id).join(", ");
+						console.error(`[add_connection] Node not found. source=${sourceNodeId}, target=${targetNodeId}. Available: ${nodeIds}`);
+						return errResult(`Node not found: ${!sourceNode ? sourceNodeId : targetNodeId}. Available nodes: ${nodeIds}`);
 					}
 
 					const sourceOutput = sourceNode.outputs.find(
 						(o) => o.id === sourceOutputId,
 					);
 					if (!sourceOutput) {
-						return errResult(`Output ${sourceOutputId} not found on node ${sourceNodeId}`);
+						const outputIds = sourceNode.outputs.map((o) => `${o.id}(${o.accessor})`).join(", ");
+						console.error(`[add_connection] Output not found: ${sourceOutputId} on ${sourceNodeId}. Available: ${outputIds}`);
+						return errResult(`Output ${sourceOutputId} not found on node ${sourceNodeId}. Available: ${outputIds}`);
 					}
 
 					// Find or create input on target node
@@ -374,7 +388,7 @@ export function createWorkflowTools() {
 						actualInputId = newInputId;
 					}
 
-					const connection = {
+					const connectionData = {
 						id: ConnectionId.generate(),
 						outputNode: {
 							id: sourceNode.id,
@@ -388,20 +402,32 @@ export function createWorkflowTools() {
 							content: { type: targetNode.content.type },
 						},
 						inputId: actualInputId,
-					} as Workspace["connections"][number];
+					};
 
-					workspace.connections.push(connection);
+					// Validate connection against schema before saving
+					const parseResult = Connection.safeParse(connectionData);
+					if (!parseResult.success) {
+						const issues = JSON.stringify(parseResult.error);
+						console.error(`[add_connection] Validation failed: ${issues}`);
+						console.error(`[add_connection] Data: ${JSON.stringify(connectionData)}`);
+						return errResult(`Connection validation failed: ${issues}`);
+					}
+
+					workspace.connections.push(parseResult.data);
 					await giselle.updateWorkspace(workspace);
+
+					console.log(`[add_connection] SUCCESS: ${parseResult.data.id}`);
 
 					return {
 						success: true as const,
-						connectionId: connection.id,
+						connectionId: parseResult.data.id,
 						inputId: actualInputId,
 						error: "",
 					};
 				} catch (error) {
-					console.error("add_connection error:", error);
-					return errResult(`Failed to add connection: ${String(error)}`);
+					const errMsg = error instanceof Error ? `${error.message}\n${error.stack}` : String(error);
+					console.error(`[add_connection] CAUGHT ERROR: ${errMsg}`);
+					return errResult(`Failed to add connection: ${errMsg}`);
 				}
 			},
 		}),
@@ -424,6 +450,9 @@ export function createWorkflowTools() {
 			}),
 			execute: async ({ workspaceId, nodeId, prompt }) => {
 				try {
+					// Small delay to allow S3 eventual consistency
+					await new Promise((r) => setTimeout(r, 300));
+
 					const workspace = await giselle.getWorkspace(
 						workspaceId as WorkspaceId,
 					);

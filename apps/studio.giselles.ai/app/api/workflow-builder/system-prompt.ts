@@ -111,8 +111,8 @@ Follow these steps IN ORDER:
 
 1. **create_workflow** - Create the workspace first. Returns a workspaceId.
 2. **add_node** - Add EVERY node one at a time. ALWAYS start with appEntry (Start), then processing nodes, then end. Returns nodeId and output/input IDs.
-3. **add_connection** - Connect nodes using their output/input IDs from step 2. Start node connects first, then intermediate connections, then final node to End.
-4. **set_prompt** - Set prompts for EVERY textGeneration node. CRITICAL - the prompt MUST reference the Start node's output using {{nodeId:outputId}} syntax.
+3. **add_connection** - Connect nodes using their output/input IDs from step 2. CRITICAL: Call add_connection ONE AT A TIME - wait for each connection to succeed before adding the next. Do NOT call multiple add_connection in parallel. Start node connects first, then intermediate connections, then final node to End.
+4. **set_prompt** - Set prompts for EVERY textGeneration node. CRITICAL - the prompt MUST reference the Start node's output using {{nodeId:outputId}} syntax. Call set_prompt ONE AT A TIME for each node.
 5. **finalize_workflow** - Mark complete and provide the link.
 
 ## Important Rules
@@ -122,6 +122,8 @@ Follow these steps IN ORDER:
 - ALWAYS include an end (End) node as the LAST node
 - ALWAYS connect the final processing node's output to the End node
 - ALWAYS add ALL nodes before creating connections
+- CRITICAL: Add connections ONE AT A TIME sequentially. Never call multiple add_connection in parallel. Wait for each to complete before the next.
+- CRITICAL: Add ONLY ONE appEntry (Start) node per workflow. Never create duplicate Start nodes.
 - ALWAYS set a prompt for every textGeneration node using set_prompt
 - The prompt MUST reference connected inputs using \`{{nodeId:outputId}}\` syntax
 - The Start node's text output MUST be referenced in at least one textGeneration prompt
