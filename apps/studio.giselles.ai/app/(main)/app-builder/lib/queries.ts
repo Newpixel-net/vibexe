@@ -93,6 +93,89 @@ export async function createApp(
 	return app;
 }
 
+/**
+ * Delete a builder app and all its related data (files, chats, versions)
+ */
+export async function deleteApp(appId: string) {
+	const app = await db.query.builderApps.findFirst({
+		where: eq(builderApps.id, appId as BuilderAppId),
+		columns: { dbId: true },
+	});
+
+	if (!app) {
+		throw new Error(`App not found: ${appId}`);
+	}
+
+	// Delete related data first (files, chats, versions)
+	await db.delete(builderFiles).where(eq(builderFiles.appDbId, app.dbId));
+	await db.delete(builderChats).where(eq(builderChats.appDbId, app.dbId));
+	await db.delete(builderVersions).where(eq(builderVersions.appDbId, app.dbId));
+
+	// Delete the app itself
+	const [deleted] = await db
+		.delete(builderApps)
+		.where(eq(builderApps.id, appId as BuilderAppId))
+		.returning();
+
+	return deleted;
+}
+
+/**
+ * Duplicate a builder app with all its files
+ */
+export async function duplicateApp(
+	appId: string,
+	teamDbId: number,
+	userDbId: number,
+) {
+	const original = await db.query.builderApps.findFirst({
+		where: eq(builderApps.id, appId as BuilderAppId),
+	});
+
+	if (!original) {
+		throw new Error(`App not found: ${appId}`);
+	}
+
+	// Create the new app
+	const newId = `bldr_${nanoid()}` as BuilderAppId;
+	const [newApp] = await db
+		.insert(builderApps)
+		.values({
+			id: newId,
+			teamDbId,
+			createdByUserDbId: userDbId,
+			name: `${original.name} (Copy)`,
+			description: original.description,
+			projectDbId: original.projectDbId,
+		})
+		.returning();
+
+	// Copy files
+	const originalApp = await db.query.builderApps.findFirst({
+		where: eq(builderApps.id, appId as BuilderAppId),
+		columns: { dbId: true },
+	});
+
+	if (originalApp) {
+		const files = await db.query.builderFiles.findMany({
+			where: eq(builderFiles.appDbId, originalApp.dbId),
+		});
+
+		for (const file of files) {
+			const fileId = `bldf_${nanoid()}` as BuilderFileId;
+			await db.insert(builderFiles).values({
+				id: fileId,
+				appDbId: newApp.dbId,
+				path: file.path,
+				content: file.content,
+				language: file.language,
+			});
+		}
+	}
+
+	return newApp;
+}
+
 // ============================================================================
 // File Queries
 // ============================================================================

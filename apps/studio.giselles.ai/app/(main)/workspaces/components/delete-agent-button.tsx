@@ -50,7 +50,7 @@ export function DeleteAgentButton({
 				toast(res.message, { type: "error", preserve: false });
 			} catch (error) {
 				const message =
-					error instanceof Error ? error.message : "Failed to delete workspace";
+					error instanceof Error ? error.message : "Failed to delete workflow";
 				toast(message, { type: "error", preserve: false });
 			} finally {
 				setOpen(false);
@@ -68,7 +68,7 @@ export function DeleteAgentButton({
 						<DialogTrigger asChild>
 							<button
 								type="button"
-								aria-label="Delete a workspace"
+								aria-label="Delete a workflow"
 								className="grid size-6 place-items-center rounded-full text-text/60 transition-colors hover:text-red-500"
 								disabled={isPending}
 							>
@@ -80,14 +80,14 @@ export function DeleteAgentButton({
 							</button>
 						</DialogTrigger>
 					</TooltipTrigger>
-					<TooltipContent>Delete Workspace</TooltipContent>
+					<TooltipContent>Delete Workflow</TooltipContent>
 				</Tooltip>
 			</TooltipProvider>
 			<DialogContent variant="destructive">
 				<DialogHeader>
 					<div className="flex items-center justify-between">
 						<DialogTitle className="font-sans text-[20px] font-medium tracking-tight text-error-900">
-							Delete Workspace
+							Delete Workflow
 						</DialogTitle>
 						<DialogClose className="rounded-sm text-inverse opacity-70 hover:opacity-100 focus:outline-none">
 							<X className="h-5 w-5" />
@@ -95,7 +95,7 @@ export function DeleteAgentButton({
 						</DialogClose>
 					</div>
 					<DialogDescription className="font-geist mt-2 text-[14px] text-error-900/50">
-						{`This action cannot be undone. This will permanently delete the workspace "${
+						{`This action cannot be undone. This will permanently delete the workflow "${
 							agentName || "Untitled"
 						}".`}
 					</DialogDescription>

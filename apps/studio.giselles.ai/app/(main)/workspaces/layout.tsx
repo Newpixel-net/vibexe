@@ -14,7 +14,9 @@ export default function Layout({ children }: { children: ReactNode }) {
 							href="https://docs.giselles.ai/en/guides/workspaces"
 							target="_blank"
 							rel="noopener noreferrer"
-						/>
+						>
+							About Workflows
+						</DocsLink>
 						<CreateWorkspaceButton label="New Workflow" />
 					</div>
 				</div>

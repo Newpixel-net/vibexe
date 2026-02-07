@@ -45,7 +45,7 @@ export function DuplicateAgentButton({
 				setOpen(false);
 				redirect(`/workspaces/${res.workspaceId}`);
 			} else {
-				toast(res.message || "Failed to duplicate workspace.", {
+				toast(res.message || "Failed to duplicate workflow.", {
 					type: "error",
 					preserve: false,
 				});
@@ -63,7 +63,7 @@ export function DuplicateAgentButton({
 						<DialogTrigger asChild>
 							<button
 								type="button"
-								aria-label="Duplicate a workspace"
+								aria-label="Duplicate a workflow"
 								className="grid size-6 place-items-center rounded-full text-text/60 transition-colors hover:text-inverse"
 								disabled={isPending}
 							>
@@ -75,7 +75,7 @@ export function DuplicateAgentButton({
 							</button>
 						</DialogTrigger>
 					</TooltipTrigger>
-					<TooltipContent>Duplicate Workspace</TooltipContent>
+					<TooltipContent>Duplicate Workflow</TooltipContent>
 				</Tooltip>
 			</TooltipProvider>
 			<DialogContent variant="glass">
@@ -90,7 +90,7 @@ export function DuplicateAgentButton({
 						</DialogClose>
 					</div>
 					<DialogDescription className="font-geist mt-2 text-[14px] text-text-muted">
-						This will create a new workspace with the same settings as the
+						This will create a new workflow with the same settings as the
 						original.
 					</DialogDescription>
 				</DialogHeader>

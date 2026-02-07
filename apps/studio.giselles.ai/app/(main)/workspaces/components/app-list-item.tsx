@@ -78,7 +78,7 @@ export function AppListItem({
 				setDuplicateDialogOpen(false);
 				router.push(`/workspaces/${res.workspaceId}`);
 			} else {
-				toast(res.message || "Failed to duplicate workspace.", {
+				toast(res.message || "Failed to duplicate workflow.", {
 					type: "error",
 					preserve: false,
 				});
@@ -99,7 +99,7 @@ export function AppListItem({
 				toast(res.message, { type: "error", preserve: false });
 			} catch (error) {
 				const message =
-					error instanceof Error ? error.message : "Failed to delete workspace";
+					error instanceof Error ? error.message : "Failed to delete workflow";
 				toast(message, { type: "error", preserve: false });
 			} finally {
 				setDeleteDialogOpen(false);
@@ -285,7 +285,7 @@ export function AppListItem({
 										</DialogClose>
 									</div>
 									<DialogDescription className="font-geist mt-2 text-[14px] text-text-muted">
-										This will create a new workspace with the same settings as
+										This will create a new workflow with the same settings as
 										the original.
 									</DialogDescription>
 								</DialogHeader>
@@ -316,7 +316,7 @@ export function AppListItem({
 								<DialogHeader>
 									<div className="flex items-center justify-between">
 										<DialogTitle className="font-sans text-[20px] font-medium tracking-tight text-error-900">
-											Delete Workspace
+											Delete Workflow
 										</DialogTitle>
 										<DialogClose className="rounded-sm text-inverse opacity-70 hover:opacity-100 focus:outline-none">
 											<X className="h-5 w-5" />
@@ -324,7 +324,7 @@ export function AppListItem({
 										</DialogClose>
 									</div>
 									<DialogDescription className="font-geist mt-2 text-[14px] text-error-900/50">
-										{`This action cannot be undone. This will permanently delete the workspace "${
+										{`This action cannot be undone. This will permanently delete the workflow "${
 											agentName || "Untitled"
 										}".`}
 									</DialogDescription>
