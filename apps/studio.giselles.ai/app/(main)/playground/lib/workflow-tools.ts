@@ -16,6 +16,9 @@ import { giselle } from "@/app/giselle";
 import { fetchCurrentUser } from "@/services/accounts";
 import { fetchCurrentTeam } from "@/services/teams";
 
+type WorkspaceType = z.infer<typeof Workspace>;
+type NodeType = WorkspaceType["nodes"][number];
+
 export function createWorkflowTools() {
 	return {
 		create_workflow: tool({
@@ -344,24 +347,25 @@ export function createWorkflowTools() {
 					console.log(`[add_connection] START: ${sourceNodeId}(${sourceOutputId}) -> ${targetNodeId}`);
 
 					// Retry loop to handle S3 eventual consistency - nodes may not be visible immediately
-					let workspace;
-					let sourceNode;
-					let targetNode;
+					let workspace: WorkspaceType | undefined;
+					let sourceNode: NodeType | undefined;
+					let targetNode: NodeType | undefined;
 					const maxRetries = 5;
 					for (let attempt = 0; attempt < maxRetries; attempt++) {
 						// Increasing delay: 500ms, 1000ms, 1500ms, 2000ms, 2500ms
 						await new Promise((r) => setTimeout(r, 500 + attempt * 500));
 
-						workspace = await giselle.getWorkspace(
+						const ws = await giselle.getWorkspace(
 							workspaceId as WorkspaceId,
 						);
+						workspace = ws;
 
-						console.log(`[add_connection] Attempt ${attempt + 1}: ${workspace.nodes.length} nodes, ${workspace.connections.length} connections`);
+						console.log(`[add_connection] Attempt ${attempt + 1}: ${ws.nodes.length} nodes, ${ws.connections.length} connections`);
 
-						sourceNode = workspace.nodes.find(
+						sourceNode = ws.nodes.find(
 							(n) => n.id === sourceNodeId,
 						);
-						targetNode = workspace.nodes.find(
+						targetNode = ws.nodes.find(
 							(n) => n.id === targetNodeId,
 						);
 
@@ -373,7 +377,7 @@ export function createWorkflowTools() {
 					}
 
 					if (!workspace || !sourceNode || !targetNode) {
-						const nodeIds = workspace?.nodes.map((n) => n.id).join(", ") ?? "none";
+						const nodeIds = workspace?.nodes.map((n: NodeType) => n.id).join(", ") ?? "none";
 						console.error(`[add_connection] Node not found after ${maxRetries} retries. source=${sourceNodeId}, target=${targetNodeId}. Available: ${nodeIds}`);
 						return errResult(`Node not found: ${!sourceNode ? sourceNodeId : targetNodeId}. Available nodes: ${nodeIds}`);
 					}
@@ -464,14 +468,15 @@ export function createWorkflowTools() {
 			execute: async ({ workspaceId, nodeId, prompt }) => {
 				try {
 					// Retry loop to handle S3 eventual consistency
-					let workspace;
-					let node;
+					let workspace: WorkspaceType | undefined;
+					let node: NodeType | undefined;
 					for (let attempt = 0; attempt < 3; attempt++) {
 						await new Promise((r) => setTimeout(r, 500 + attempt * 500));
-						workspace = await giselle.getWorkspace(
+						const ws = await giselle.getWorkspace(
 							workspaceId as WorkspaceId,
 						);
-						node = workspace.nodes.find((n) => n.id === nodeId);
+						workspace = ws;
+						node = ws.nodes.find((n) => n.id === nodeId);
 						if (node) break;
 					}
 
@@ -488,6 +493,9 @@ export function createWorkflowTools() {
 							error: `Node ${nodeId} is not a textGeneration node (type: ${node.content.type})`,
 						};
 					}
+
+					// Capture workspace in const for TypeScript narrowing
+					const ws = workspace;
 
 					// Convert plain text prompt with {{nodeId:outputId}} references
 					// into TipTap JSON document format
@@ -510,7 +518,7 @@ export function createWorkflowTools() {
 							// Look up the referenced node to get its type and content type
 							const refNodeId = match[1];
 							const refOutputId = match[2];
-							const refNode = workspace.nodes.find(
+							const refNode = ws.nodes.find(
 								(n) => n.id === refNodeId,
 							);
 
@@ -560,7 +568,7 @@ export function createWorkflowTools() {
 
 					(node.content as { type: "textGeneration"; prompt?: string }).prompt = tiptapDoc;
 
-					await giselle.updateWorkspace(workspace);
+					await giselle.updateWorkspace(ws);
 
 					return {
 						success: true,
