@@ -2,10 +2,12 @@ import {
 	BlocksIcon,
 	ChevronDownIcon,
 	SettingsIcon,
+	ShieldIcon,
 	SparklesIcon,
 } from "lucide-react";
 import type { IconName } from "lucide-react/dynamic";
 import { Accordion } from "radix-ui";
+import { isAdmin } from "@/lib/admin-guard";
 import { fetchCurrentTeam } from "@/services/teams";
 import { isInternalPlan } from "@/services/teams/utils";
 import { dataStoreFlag, stageV2Flag } from "../../../../flags";
@@ -38,6 +40,7 @@ function SidebarItem({ part }: { part: SidebarPart }) {
 						{part.icon === "sparkle" && <SparklesIcon className="size-4" />}
 						{part.icon === "blocks" && <BlocksIcon className="size-4" />}
 						{part.icon === "settings" && <SettingsIcon className="size-4" />}
+						{part.icon === "shield" && <ShieldIcon className="size-4" />}
 
 						<span className="flex-1 text-left">{part.label}</span>
 						<ChevronDownIcon className="size-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -190,17 +193,42 @@ function createBaseSidebarParts(
 }
 
 export async function Sidebar() {
-	const [isStageV2Enabled, isDataStoreEnabled, team] = await Promise.all([
-		stageV2Flag(),
-		dataStoreFlag(),
-		fetchCurrentTeam(),
-	]);
+	const [isStageV2Enabled, isDataStoreEnabled, team, userIsAdmin] =
+		await Promise.all([
+			stageV2Flag(),
+			dataStoreFlag(),
+			fetchCurrentTeam(),
+			isAdmin(),
+		]);
 	const isApiPublishingEnabled = isInternalPlan(team);
 	const baseSidebarParts = createBaseSidebarParts(
 		isApiPublishingEnabled,
 		isDataStoreEnabled,
 	);
-	const sidebarParts = [createBuildPart(isStageV2Enabled), ...baseSidebarParts];
+	const adminParts: SidebarPart[] = userIsAdmin
+		? [
+				{ type: "divider", id: "divider-admin" },
+				{
+					type: "linkGroup",
+					id: "admin",
+					label: "Admin",
+					icon: "shield",
+					links: [
+						{
+							id: "ai-providers",
+							label: "AI Providers",
+							href: "/admin/settings/ai-providers",
+							activeMatchPattern: "/admin/settings/*",
+						},
+					],
+				},
+			]
+		: [];
+	const sidebarParts = [
+		createBuildPart(isStageV2Enabled),
+		...baseSidebarParts,
+		...adminParts,
+	];
 
 	return (
 		<div className="w-[240px]">

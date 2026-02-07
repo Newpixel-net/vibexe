@@ -1408,3 +1408,19 @@ export const builderAppWorkflowRelations = relations(
 
 export type BuilderAppWorkflow = typeof builderAppWorkflows.$inferSelect;
 export type NewBuilderAppWorkflow = typeof builderAppWorkflows.$inferInsert;
+
+// ====================================================================
+// AI PROVIDER KEY MANAGEMENT
+// ====================================================================
+
+export const aiProviderKeys = pgTable("ai_provider_keys", {
+	dbId: serial("db_id").primaryKey(),
+	provider: text("provider").notNull().unique(), // "openai" | "anthropic" | "google" | "perplexity"
+	encryptedApiKey: text("encrypted_api_key").notNull(),
+	isActive: boolean("is_active").default(true).notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at")
+		.defaultNow()
+		.notNull()
+		.$onUpdate(() => new Date()),
+});
