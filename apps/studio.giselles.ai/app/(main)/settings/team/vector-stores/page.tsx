@@ -49,7 +49,18 @@ export default async function TeamVectorStorePage() {
 	}
 
 	const userClient = githubIdentityState.gitHubUserClient;
-	const installationData = await userClient.getInstallations();
+	let installationData;
+	try {
+		installationData = await userClient.getInstallations();
+	} catch {
+		// 403 when user hasn't installed the GitHub App yet
+		return (
+			<div className="flex flex-col gap-[24px]">
+				<GitHubAppInstallRequiredCard />
+				<OfficialRepositorySection repositories={officialRepositoryIndexes} />
+			</div>
+		);
+	}
 	if (installationData.total_count === 0) {
 		return (
 			<div className="flex flex-col gap-[24px]">
