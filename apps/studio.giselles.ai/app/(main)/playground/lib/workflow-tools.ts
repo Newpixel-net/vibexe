@@ -204,8 +204,10 @@ export function createWorkflowTools() {
 									searchGrounding: false,
 								},
 								perplexity: {
-									temperature: 0.7,
-									topP: 1.0,
+									temperature: 0.2,
+									topP: 0.9,
+									presencePenalty: 0.0,
+									frequencyPenalty: 1.0,
 								},
 							};
 							node = nodeFactories.create("textGeneration", {
