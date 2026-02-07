@@ -1,7 +1,10 @@
 import { type AnthropicProviderOptions, anthropic } from "@ai-sdk/anthropic";
-import { createGateway } from "@ai-sdk/gateway";
 import { google } from "@ai-sdk/google";
-import { type OpenAIResponsesProviderOptions, openai } from "@ai-sdk/openai";
+import {
+	type OpenAIResponsesProviderOptions,
+	createOpenAI,
+	openai,
+} from "@ai-sdk/openai";
 import type { SharedV2ProviderMetadata } from "@ai-sdk/provider";
 import { githubTools, octokit } from "@giselles-ai/github-tool";
 import {
@@ -35,7 +38,7 @@ import {
 } from "ai";
 import { generationUiMessageChunksPath } from "../path";
 import { decryptSecret } from "../secrets";
-import type { AiGatewayHeaders, GiselleContext } from "../types";
+import type { GiselleContext } from "../types";
 import { batchWriter } from "../utils";
 import {
 	type OnGenerationComplete,
@@ -47,6 +50,11 @@ import type { GenerationMetadata, PreparedToolSet } from "./types";
 import { buildMessageObject, getGeneration } from "./utils";
 import { transformGiselleLanguageModelToAiSdkLanguageModelCallOptions } from "./v2/language-model";
 import { buildToolSet } from "./v2/tools";
+
+const perplexity = createOpenAI({
+	apiKey: process.env.PERPLEXITY_API_KEY ?? "",
+	baseURL: "https://api.perplexity.ai/",
+});
 
 type StreamItem<T> = T extends AsyncIterableStream<infer Inner> ? Inner : never;
 
@@ -281,17 +289,7 @@ export function generateContent({
 
 			const providerOptions = getProviderOptions(operationNode.content.llm);
 
-			const aiGatewayHeaders = await context.callbacks?.buildAiGatewayHeaders?.(
-				{
-					generation: runningGeneration,
-					metadata,
-				},
-			);
-
-			const model = generationModel(
-				operationNode.content.llm,
-				aiGatewayHeaders,
-			);
+			const model = generationModel(operationNode.content.llm);
 			let generationError: unknown | undefined;
 			const textGenerationStartTime = Date.now();
 
@@ -539,31 +537,38 @@ function getProviderOptions(languageModelData: TextGenerationLanguageModelData):
 	return undefined;
 }
 
-function generationModel(
-	languageModel: TextGenerationLanguageModelData,
-	gatewayHeaders?: AiGatewayHeaders,
-) {
+function generationModel(languageModel: TextGenerationLanguageModelData) {
 	const llmProvider = languageModel.provider;
-	const gateway = createGateway(
-		gatewayHeaders === undefined
-			? undefined
-			: {
-					headers: gatewayHeaders,
-				},
-	);
-	// Use AI Gateway model specifier: "<provider>/<modelId>"
-	// e.g. "openai/gpt-4o" or "anthropic/claude-3-5-sonnet-20240620"
 	switch (llmProvider) {
-		case "anthropic":
 		case "openai":
+			return openai(languageModel.id);
+		case "anthropic":
+			return anthropic(languageModel.id);
 		case "google":
-		case "perplexity": {
-			return gateway(`${llmProvider}/${languageModel.id}`);
-		}
+			return google(languageModel.id);
+		case "perplexity":
+			return perplexity(languageModel.id);
 		default: {
 			const _exhaustiveCheck: never = llmProvider;
 			throw new Error(`Unknown LLM provider: ${_exhaustiveCheck}`);
 		}
+	}
+}
+
+function resolveModel(modelId: string) {
+	const [provider, ...rest] = modelId.split("/");
+	const model = rest.join("/");
+	switch (provider) {
+		case "openai":
+			return openai(model);
+		case "anthropic":
+			return anthropic(model);
+		case "google":
+			return google(model);
+		case "perplexity":
+			return perplexity(model);
+		default:
+			throw new Error(`Unknown provider: ${provider}`);
 	}
 }
 
@@ -603,20 +608,6 @@ function generateContentV2({
 				throw new Error("Invalid generation type");
 			}
 
-			const aiGatewayHeaders = await context.callbacks?.buildAiGatewayHeaders?.(
-				{
-					generation: runningGeneration,
-					metadata,
-				},
-			);
-			const gateway = createGateway(
-				aiGatewayHeaders === undefined
-					? undefined
-					: {
-							headers: aiGatewayHeaders,
-						},
-			);
-
 			const messages = await buildMessageObject({
 				node: operationNode,
 				contextNodes: generationContext.sourceNodes,
@@ -646,7 +637,7 @@ function generateContentV2({
 			const streamTextResult = streamText({
 				...callOptions,
 				abortSignal: abortController.signal,
-				model: gateway(operationNode.content.languageModel.id),
+				model: resolveModel(operationNode.content.languageModel.id),
 				messages,
 				tools: toolSet,
 				stopWhen: ({ steps }) => {
