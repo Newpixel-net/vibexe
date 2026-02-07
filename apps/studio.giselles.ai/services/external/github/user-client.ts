@@ -5,14 +5,10 @@ import { refreshOauthCredential } from "@/app/(auth)/lib";
 // MARK: Factory method
 
 export function buildGitHubUserClient(token: GitHubUserCredential) {
-	const clientId = process.env.GITHUB_APP_CLIENT_ID;
-	if (!clientId) {
-		throw new Error("GITHUB_APP_CLIENT_ID is empty");
-	}
-	const clientSecret = process.env.GITHUB_APP_CLIENT_SECRET;
-	if (!clientSecret) {
-		throw new Error("GITHUB_APP_CLIENT_SECRET is empty");
-	}
+	// GitHub App client ID/secret are only required for token refresh.
+	// Regular OAuth tokens don't expire and don't need refresh.
+	const clientId = process.env.GITHUB_APP_CLIENT_ID || null;
+	const clientSecret = process.env.GITHUB_APP_CLIENT_SECRET || null;
 
 	const loggerWithSentry = {
 		error: (error: Error) => {
@@ -96,15 +92,15 @@ type RefreshCredentialsFunc = (
 // MARK: Client
 
 class GitHubUserClient {
-	private clientId: string;
-	private clientSecret: string;
+	private clientId: string | null;
+	private clientSecret: string | null;
 	private refreshCredentialsFunc: RefreshCredentialsFunc;
 	private logger: Logger;
 
 	constructor(
 		private token: GitHubUserCredential,
-		clientId: string,
-		clientSecret: string,
+		clientId: string | null,
+		clientSecret: string | null,
 		refreshCredentialsFunc: RefreshCredentialsFunc,
 		logger: Logger,
 	) {
@@ -174,13 +170,22 @@ class GitHubUserClient {
 	}
 
 	private needsRefreshAccessToken() {
-		// Supabase auth doesn't fetch `expiresAt` on login
+		// Regular GitHub OAuth tokens don't expire and have no refresh token.
+		// Only attempt refresh when we actually have a refresh token AND an expiration time.
+		if (this.token.refreshToken == null) {
+			return false;
+		}
 		return this.token.expiresAt == null || this.token.expiresAt < new Date();
 	}
 
 	private async refreshAccessToken() {
 		if (this.token.refreshToken == null) {
 			throw new GitHubTokenRefreshError("Refresh token is not available");
+		}
+		if (!this.clientId || !this.clientSecret) {
+			throw new GitHubTokenRefreshError(
+				"GITHUB_APP_CLIENT_ID and GITHUB_APP_CLIENT_SECRET are required for token refresh",
+			);
 		}
 		const formData = {
 			client_id: this.clientId,

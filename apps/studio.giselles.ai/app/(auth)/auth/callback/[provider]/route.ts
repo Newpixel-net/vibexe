@@ -23,6 +23,7 @@ interface OAuthTokenResponse {
 	token_type: string;
 	scope?: string;
 	refresh_token?: string;
+	expires_in?: number;
 }
 
 interface GitHubUser {
@@ -193,6 +194,10 @@ export async function GET(
 			? encryptToken(tokenData.refresh_token)
 			: null;
 
+		const expiresAt = tokenData.expires_in
+			? new Date(Date.now() + tokenData.expires_in * 1000)
+			: null;
+
 		await db
 			.insert(oauthCredentials)
 			.values({
@@ -201,6 +206,9 @@ export async function GET(
 				providerAccountId: userInfo.id,
 				accessToken: encryptedAccessToken,
 				refreshToken: encryptedRefreshToken,
+				expiresAt,
+				scope: tokenData.scope || null,
+				tokenType: tokenData.token_type || "bearer",
 			})
 			.onConflictDoUpdate({
 				target: [
@@ -211,6 +219,9 @@ export async function GET(
 				set: {
 					accessToken: encryptedAccessToken,
 					refreshToken: encryptedRefreshToken,
+					expiresAt,
+					scope: tokenData.scope || null,
+					tokenType: tokenData.token_type || "bearer",
 					updatedAt: new Date(),
 				},
 			});
