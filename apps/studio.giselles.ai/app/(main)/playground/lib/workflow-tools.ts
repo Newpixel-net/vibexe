@@ -341,27 +341,40 @@ export function createWorkflowTools() {
 				});
 
 				try {
-					// Small delay to allow S3 eventual consistency after prior writes
-					await new Promise((r) => setTimeout(r, 300));
-
 					console.log(`[add_connection] START: ${sourceNodeId}(${sourceOutputId}) -> ${targetNodeId}`);
 
-					const workspace = await giselle.getWorkspace(
-						workspaceId as WorkspaceId,
-					);
+					// Retry loop to handle S3 eventual consistency - nodes may not be visible immediately
+					let workspace;
+					let sourceNode;
+					let targetNode;
+					const maxRetries = 5;
+					for (let attempt = 0; attempt < maxRetries; attempt++) {
+						// Increasing delay: 500ms, 1000ms, 1500ms, 2000ms, 2500ms
+						await new Promise((r) => setTimeout(r, 500 + attempt * 500));
 
-					console.log(`[add_connection] Workspace loaded: ${workspace.nodes.length} nodes, ${workspace.connections.length} existing connections`);
+						workspace = await giselle.getWorkspace(
+							workspaceId as WorkspaceId,
+						);
 
-					const sourceNode = workspace.nodes.find(
-						(n) => n.id === sourceNodeId,
-					);
-					const targetNode = workspace.nodes.find(
-						(n) => n.id === targetNodeId,
-					);
+						console.log(`[add_connection] Attempt ${attempt + 1}: ${workspace.nodes.length} nodes, ${workspace.connections.length} connections`);
 
-					if (!sourceNode || !targetNode) {
-						const nodeIds = workspace.nodes.map((n) => n.id).join(", ");
-						console.error(`[add_connection] Node not found. source=${sourceNodeId}, target=${targetNodeId}. Available: ${nodeIds}`);
+						sourceNode = workspace.nodes.find(
+							(n) => n.id === sourceNodeId,
+						);
+						targetNode = workspace.nodes.find(
+							(n) => n.id === targetNodeId,
+						);
+
+						if (sourceNode && targetNode) break;
+
+						if (attempt < maxRetries - 1) {
+							console.log(`[add_connection] Nodes not yet visible, retrying...`);
+						}
+					}
+
+					if (!workspace || !sourceNode || !targetNode) {
+						const nodeIds = workspace?.nodes.map((n) => n.id).join(", ") ?? "none";
+						console.error(`[add_connection] Node not found after ${maxRetries} retries. source=${sourceNodeId}, target=${targetNodeId}. Available: ${nodeIds}`);
 						return errResult(`Node not found: ${!sourceNode ? sourceNodeId : targetNodeId}. Available nodes: ${nodeIds}`);
 					}
 
@@ -450,18 +463,22 @@ export function createWorkflowTools() {
 			}),
 			execute: async ({ workspaceId, nodeId, prompt }) => {
 				try {
-					// Small delay to allow S3 eventual consistency
-					await new Promise((r) => setTimeout(r, 300));
+					// Retry loop to handle S3 eventual consistency
+					let workspace;
+					let node;
+					for (let attempt = 0; attempt < 3; attempt++) {
+						await new Promise((r) => setTimeout(r, 500 + attempt * 500));
+						workspace = await giselle.getWorkspace(
+							workspaceId as WorkspaceId,
+						);
+						node = workspace.nodes.find((n) => n.id === nodeId);
+						if (node) break;
+					}
 
-					const workspace = await giselle.getWorkspace(
-						workspaceId as WorkspaceId,
-					);
-
-					const node = workspace.nodes.find((n) => n.id === nodeId);
-					if (!node) {
+					if (!workspace || !node) {
 						return {
 							success: false,
-							error: `Node ${nodeId} not found`,
+							error: `Node ${nodeId} not found after retries`,
 						};
 					}
 
