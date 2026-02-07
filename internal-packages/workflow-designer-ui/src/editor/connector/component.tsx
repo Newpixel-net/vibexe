@@ -108,10 +108,11 @@ export function Connector({
 			<defs>
 				<filter
 					id={filterId}
-					x="-50%"
-					y="-50%"
-					width="200%"
-					height="200%"
+					filterUnits="userSpaceOnUse"
+					x={Math.min(sourceX, targetX) - 10}
+					y={Math.min(sourceY, targetY) - 10}
+					width={Math.abs(targetX - sourceX) + 20}
+					height={Math.abs(targetY - sourceY) + 20}
 				>
 					<feGaussianBlur stdDeviation="3.5" result="blur" />
 					<feComposite in="SourceGraphic" in2="blur" operator="over" />
