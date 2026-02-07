@@ -546,13 +546,22 @@ function getProviderOptions(languageModelData: TextGenerationLanguageModelData):
 	return undefined;
 }
 
+/**
+ * Convert platform dot-notation model IDs to Anthropic API dash-notation.
+ * The platform stores "claude-haiku-4.5" but the Anthropic API expects "claude-haiku-4-5".
+ * On Vercel, the AI Gateway handles this mapping; for self-hosted we do it here.
+ */
+function toAnthropicApiModelId(platformModelId: string): string {
+	return platformModelId.replace(/(\d+)\.(\d+)/, "$1-$2");
+}
+
 function generationModel(languageModel: TextGenerationLanguageModelData) {
 	const llmProvider = languageModel.provider;
 	switch (llmProvider) {
 		case "openai":
 			return openai(languageModel.id);
 		case "anthropic":
-			return anthropic(languageModel.id);
+			return anthropic(toAnthropicApiModelId(languageModel.id));
 		case "google":
 			return google(languageModel.id);
 		case "perplexity":
@@ -571,7 +580,7 @@ function resolveModel(modelId: string) {
 		case "openai":
 			return openai(model);
 		case "anthropic":
-			return anthropic(model);
+			return anthropic(toAnthropicApiModelId(model));
 		case "google":
 			return google(model);
 		case "perplexity":
