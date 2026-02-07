@@ -412,7 +412,76 @@ export function createWorkflowTools() {
 						};
 					}
 
-					(node.content as { type: "textGeneration"; prompt?: string }).prompt = prompt;
+					// Convert plain text prompt with {{nodeId:outputId}} references
+					// into TipTap JSON document format
+					const paragraphs = prompt.split("\n").map((line) => {
+						const inlineContent: unknown[] = [];
+						const refPattern = /\{\{([^:}]+):([^}]+)\}\}/g;
+						let lastIndex = 0;
+						let match: RegExpExecArray | null;
+
+						match = refPattern.exec(line);
+						while (match !== null) {
+							// Add text before the reference
+							if (match.index > lastIndex) {
+								inlineContent.push({
+									type: "text",
+									text: line.slice(lastIndex, match.index),
+								});
+							}
+
+							// Look up the referenced node to get its type and content type
+							const refNodeId = match[1];
+							const refOutputId = match[2];
+							const refNode = workspace.nodes.find(
+								(n) => n.id === refNodeId,
+							);
+
+							if (refNode) {
+								inlineContent.push({
+									type: "Source",
+									attrs: {
+										node: {
+											id: refNode.id,
+											type: refNode.type,
+											content: { type: refNode.content.type },
+										},
+										outputId: refOutputId,
+									},
+								});
+							} else {
+								// Node not found, keep as plain text
+								inlineContent.push({
+									type: "text",
+									text: match[0],
+								});
+							}
+
+							lastIndex = match.index + match[0].length;
+							match = refPattern.exec(line);
+						}
+
+						// Add remaining text after last reference
+						if (lastIndex < line.length) {
+							inlineContent.push({
+								type: "text",
+								text: line.slice(lastIndex),
+							});
+						}
+
+						// Return paragraph node (empty paragraph if line was empty)
+						if (inlineContent.length === 0) {
+							return { type: "paragraph" };
+						}
+						return { type: "paragraph", content: inlineContent };
+					});
+
+					const tiptapDoc = JSON.stringify({
+						type: "doc",
+						content: paragraphs,
+					});
+
+					(node.content as { type: "textGeneration"; prompt?: string }).prompt = tiptapDoc;
 
 					await giselle.updateWorkspace(workspace);
 
