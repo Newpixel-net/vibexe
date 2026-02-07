@@ -33,8 +33,17 @@ interface ToolPart {
 
 const WORKFLOW_TOOLS = ["create_workflow", "add_node", "add_connection", "set_prompt", "finalize_workflow"];
 
+function getNodeLabel(args: Record<string, unknown>): string {
+	if (args.type === "appEntry") return "Adding Start node";
+	if (args.type === "end") return "Adding End node";
+	const name = args.name || args.type;
+	if (name) return `Adding node: ${name}`;
+	return "Adding node...";
+}
+
 function extractWorkflowSteps(messages: UIMessage[]): WorkflowStep[] {
-	const steps: WorkflowStep[] = [];
+	// Use a map to deduplicate by toolCallId (keep latest state)
+	const stepMap = new Map<string, WorkflowStep>();
 
 	for (const message of messages) {
 		if (message.role !== "assistant") continue;
@@ -61,13 +70,7 @@ function extractWorkflowSteps(messages: UIMessage[]): WorkflowStep[] {
 					label = `Creating workflow: ${args.name ?? "Untitled"}`;
 					break;
 				case "add_node":
-					if (args.type === "appEntry") {
-						label = "Adding Start node";
-					} else if (args.type === "end") {
-						label = "Adding End node";
-					} else {
-						label = `Adding node: ${args.name ?? args.type}`;
-					}
+					label = getNodeLabel(args);
 					break;
 				case "add_connection":
 					label = "Connecting nodes";
@@ -82,23 +85,29 @@ function extractWorkflowSteps(messages: UIMessage[]): WorkflowStep[] {
 					label = toolName;
 			}
 
-			steps.push({
-				id: toolPart.toolCallId,
-				type: toolName as WorkflowStep["type"],
-				label,
-				status: isOutputAvailable
-					? result?.success
-						? "completed"
-						: "error"
-					: isOutputError
-						? "error"
-						: "running",
-				result,
-			});
+			const status = isOutputAvailable
+				? result?.success
+					? "completed"
+					: "error"
+				: isOutputError
+					? "error"
+					: "running";
+
+			// Update existing entry or add new one (dedup by toolCallId)
+			const existing = stepMap.get(toolPart.toolCallId);
+			if (!existing || status !== "running" || !existing.label.includes("...")) {
+				stepMap.set(toolPart.toolCallId, {
+					id: toolPart.toolCallId,
+					type: toolName as WorkflowStep["type"],
+					label: (existing && label.includes("...") && !existing.label.includes("...")) ? existing.label : label,
+					status,
+					result,
+				});
+			}
 		}
 	}
 
-	return steps;
+	return Array.from(stepMap.values());
 }
 
 export function WorkflowTimeline({
