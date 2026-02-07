@@ -147,6 +147,12 @@ export function createWorkflowTools() {
 					.describe(
 						"Vector store provider (required for vectorStore nodes)",
 					),
+				searchGrounding: z
+					.boolean()
+					.optional()
+					.describe(
+						"Enable Google web search grounding (only for Google textGeneration nodes)",
+					),
 				position: z.object({
 					x: z.number(),
 					y: z.number(),
@@ -162,6 +168,7 @@ export function createWorkflowTools() {
 				actionProvider,
 				fileCategory,
 				vectorStoreProvider,
+				searchGrounding,
 				position,
 			}) => {
 				const errResult = (msg: string) => ({
@@ -195,12 +202,10 @@ export function createWorkflowTools() {
 								anthropic: {
 									temperature: 0.7,
 									topP: 1.0,
-									topK: 50,
 								},
 								google: {
 									temperature: 0.7,
 									topP: 1.0,
-									topK: 50,
 									searchGrounding: false,
 								},
 								perplexity: {
@@ -210,10 +215,14 @@ export function createWorkflowTools() {
 									frequencyPenalty: 1.0,
 								},
 							};
+							const configurations = { ...(defaultConfigs[llmProvider] ?? {}) };
+							if (llmProvider === "google" && searchGrounding) {
+								configurations.searchGrounding = true;
+							}
 							node = nodeFactories.create("textGeneration", {
 								provider: llmProvider,
 								id: llmModelId,
-								configurations: defaultConfigs[llmProvider] ?? {},
+								configurations,
 							} as Parameters<typeof nodeFactories.create<"textGeneration">>[1]);
 							break;
 						}
