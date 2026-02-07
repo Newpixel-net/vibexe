@@ -15,7 +15,7 @@ import { useMemo } from "react";
 
 interface WorkflowStep {
 	id: string;
-	type: "create_workflow" | "add_node" | "add_connection" | "finalize_workflow";
+	type: "create_workflow" | "add_node" | "add_connection" | "set_prompt" | "finalize_workflow";
 	label: string;
 	status: "pending" | "running" | "completed" | "error";
 	result?: Record<string, unknown>;
@@ -31,7 +31,7 @@ interface ToolPart {
 	state: string;
 }
 
-const WORKFLOW_TOOLS = ["create_workflow", "add_node", "add_connection", "finalize_workflow"];
+const WORKFLOW_TOOLS = ["create_workflow", "add_node", "add_connection", "set_prompt", "finalize_workflow"];
 
 function extractWorkflowSteps(messages: UIMessage[]): WorkflowStep[] {
 	const steps: WorkflowStep[] = [];
@@ -65,6 +65,9 @@ function extractWorkflowSteps(messages: UIMessage[]): WorkflowStep[] {
 					break;
 				case "add_connection":
 					label = "Connecting nodes";
+					break;
+				case "set_prompt":
+					label = `Setting prompt: ${args.nodeId ?? "node"}`;
 					break;
 				case "finalize_workflow":
 					label = "Finalizing workflow";

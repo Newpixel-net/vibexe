@@ -59,11 +59,30 @@ function AIMessage({
 	);
 }
 
+const ALL_SUGGESTIONS = [
+	"Create a text summarizer using Claude",
+	"Build a multi-language translator with GPT-5",
+	"Make a content review pipeline with GPT-5",
+	"Create a blog post generator from a topic outline",
+	"Build a code review assistant using Claude",
+	"Create an email drafter that takes notes and writes professional emails",
+	"Build a Q&A bot that answers questions from a document",
+	"Create a social media post generator for multiple platforms",
+	"Build a meeting notes summarizer and action item extractor",
+	"Create a product description writer from feature lists",
+];
+
+function pickRandomSuggestions(count: number): string[] {
+	const shuffled = [...ALL_SUGGESTIONS].sort(() => Math.random() - 0.5);
+	return shuffled.slice(0, count);
+}
+
 export function WorkflowBuilderChat() {
 	const [chatId, setChatId] = useState<string>(generateId);
 	const [input, setInput] = useState("");
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const [suggestions] = useState(() => pickRandomSuggestions(5));
 
 	const transport = useMemo(
 		() =>
@@ -247,11 +266,7 @@ export function WorkflowBuilderChat() {
 					{/* Suggestions for empty state */}
 					{chatMessages.length === 0 && (
 						<div className="mt-4 flex flex-wrap gap-2 justify-center">
-							{[
-								"Create a text summarizer using Claude",
-								"Build a workflow that translates text to multiple languages",
-								"Make a content review pipeline with GPT-5",
-							].map((suggestion) => (
+							{suggestions.map((suggestion) => (
 								<button
 									key={suggestion}
 									type="button"

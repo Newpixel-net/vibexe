@@ -375,6 +375,63 @@ export function createWorkflowTools() {
 			},
 		}),
 
+		set_prompt: tool({
+			description:
+				"Set the prompt for a textGeneration node. Use {{nodeId:outputId}} to reference connected node outputs.",
+			inputSchema: z.object({
+				workspaceId: z
+					.string()
+					.describe("The workspace ID"),
+				nodeId: z
+					.string()
+					.describe("The textGeneration node ID"),
+				prompt: z
+					.string()
+					.describe(
+						"The prompt text. Use {{sourceNodeId:sourceOutputId}} to inject data from connected nodes.",
+					),
+			}),
+			execute: async ({ workspaceId, nodeId, prompt }) => {
+				try {
+					const workspace = await giselle.getWorkspace(
+						workspaceId as WorkspaceId,
+					);
+
+					const node = workspace.nodes.find((n) => n.id === nodeId);
+					if (!node) {
+						return {
+							success: false,
+							error: `Node ${nodeId} not found`,
+						};
+					}
+
+					if (node.content.type !== "textGeneration") {
+						return {
+							success: false,
+							error: `Node ${nodeId} is not a textGeneration node (type: ${node.content.type})`,
+						};
+					}
+
+					(node.content as { type: "textGeneration"; prompt?: string }).prompt = prompt;
+
+					await giselle.updateWorkspace(workspace);
+
+					return {
+						success: true,
+						nodeId,
+						prompt,
+						error: "",
+					};
+				} catch (error) {
+					console.error("set_prompt error:", error);
+					return {
+						success: false,
+						error: `Failed to set prompt: ${String(error)}`,
+					};
+				}
+			},
+		}),
+
 		finalize_workflow: tool({
 			description:
 				"Mark the workflow as complete and return the link to open it in the editor",
