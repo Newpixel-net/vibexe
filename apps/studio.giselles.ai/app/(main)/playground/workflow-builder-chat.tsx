@@ -60,16 +60,18 @@ function AIMessage({
 }
 
 const ALL_SUGGESTIONS = [
-	"Create a text summarizer using Claude",
-	"Build a multi-language translator with GPT-5",
-	"Make a content review pipeline with GPT-5",
-	"Create a blog post generator from a topic outline",
-	"Build a code review assistant using Claude",
-	"Create an email drafter that takes notes and writes professional emails",
-	"Build a Q&A bot that answers questions from a document",
-	"Create a social media post generator for multiple platforms",
-	"Build a meeting notes summarizer and action item extractor",
-	"Create a product description writer from feature lists",
+	"Build a customer support assistant that answers questions helpfully",
+	"Create a research pipeline that analyzes a topic and writes a report",
+	"Build a content reviewer that checks text and suggests improvements",
+	"Create an email drafter that writes professional emails from notes",
+	"Build a multi-language translator with quality review",
+	"Create a meeting notes summarizer that extracts action items",
+	"Build a product description writer from feature lists",
+	"Create a code explainer that breaks down complex code clearly",
+	"Build a blog post generator that outlines then writes full articles",
+	"Create a social media content creator for multiple platforms",
+	"Build a resume analyzer that gives interview prep tips",
+	"Create a legal document summarizer for contracts and agreements",
 ];
 
 function pickRandomSuggestions(count: number): string[] {

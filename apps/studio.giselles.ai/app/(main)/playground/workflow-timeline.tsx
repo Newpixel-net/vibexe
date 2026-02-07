@@ -61,13 +61,19 @@ function extractWorkflowSteps(messages: UIMessage[]): WorkflowStep[] {
 					label = `Creating workflow: ${args.name ?? "Untitled"}`;
 					break;
 				case "add_node":
-					label = `Adding node: ${args.name ?? args.type}`;
+					if (args.type === "appEntry") {
+						label = "Adding Start node";
+					} else if (args.type === "end") {
+						label = "Adding End node";
+					} else {
+						label = `Adding node: ${args.name ?? args.type}`;
+					}
 					break;
 				case "add_connection":
 					label = "Connecting nodes";
 					break;
 				case "set_prompt":
-					label = `Setting prompt: ${args.nodeId ?? "node"}`;
+					label = "Setting prompt";
 					break;
 				case "finalize_workflow":
 					label = "Finalizing workflow";
