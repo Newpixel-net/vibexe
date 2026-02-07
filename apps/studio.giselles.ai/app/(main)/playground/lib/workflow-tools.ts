@@ -1,6 +1,8 @@
 import { createId } from "@paralleldrive/cuid2";
 import { nodeFactories } from "@giselles-ai/node-registry";
 import {
+	App,
+	AppId,
 	ConnectionId,
 	InputId,
 	Workspace,
@@ -252,6 +254,35 @@ export function createWorkflowTools() {
 					};
 
 					await giselle.updateWorkspace(workspace);
+
+					// Auto-configure appEntry nodes so the Run dialog works
+					if (type === "appEntry" && node.content.type === "appEntry" && node.content.status === "unconfigured") {
+						try {
+							const draftApp = node.content.draftApp;
+							const appId = AppId.generate();
+							const appLike = {
+								id: appId,
+								version: "v1" as const,
+								state: "disconnected" as const,
+								description: draftApp.description ?? "",
+								parameters: draftApp.parameters,
+								entryNodeId: node.id,
+								workspaceId: workspaceId as WorkspaceId,
+							};
+							const parseResult = App.safeParse(appLike);
+							if (parseResult.success) {
+								await giselle.saveApp({ app: parseResult.data });
+								// Update node content to configured
+								(node.content as Record<string, unknown>).status = "configured";
+								(node.content as Record<string, unknown>).appId = appId;
+								delete (node.content as Record<string, unknown>).draftApp;
+								await giselle.updateWorkspace(workspace);
+							}
+						} catch (configError) {
+							console.error("Auto-configure appEntry warning:", configError);
+							// Non-fatal: workflow still works, just Run dialog won't show inputs
+						}
+					}
 
 					return {
 						success: true as const,
