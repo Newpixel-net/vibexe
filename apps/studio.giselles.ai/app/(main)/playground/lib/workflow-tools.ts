@@ -274,7 +274,7 @@ export function createWorkflowTools() {
 							break;
 						}
 						case "integration": {
-							if (\!pieceName || \!actionName) {
+							if (!pieceName || !actionName) {
 								return errResult("pieceName and actionName are required for integration nodes");
 							}
 							node = nodeFactories.create("integration", {
