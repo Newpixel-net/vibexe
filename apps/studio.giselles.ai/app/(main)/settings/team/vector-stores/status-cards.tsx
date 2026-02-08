@@ -1,5 +1,6 @@
 import { AlertCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { GitHubAppInstallButton } from "@/packages/components/github-app-install-button";
 import { Button } from "../../components/button";
 
 export function GitHubAuthRequiredCard() {
@@ -45,7 +46,11 @@ export function GitHubAuthErrorCard({
 	);
 }
 
-export function GitHubAppInstallRequiredCard() {
+export function GitHubAppInstallRequiredCard({
+	installationUrl,
+}: {
+	installationUrl?: string;
+}) {
 	return (
 		<Card className="rounded-[8px] bg-transparent p-6 border-0">
 			<div className="flex flex-col items-center justify-center py-8">
@@ -53,12 +58,21 @@ export function GitHubAppInstallRequiredCard() {
 					Please install Giselle's GitHub App.
 				</h4>
 				<p className="text-link-muted text-[14px] leading-[20.4px] font-geist text-center mb-4">
-					To use Vector Stores, you need to install Giselle's GitHub App. Please
-					install from your integrations settings page.
+					To use Vector Stores, you need to install Giselle's GitHub App on
+					your GitHub account to grant repository access.
 				</p>
-				<Button asChild variant="primary">
-					<a href="/settings/team/integrations">Open Integrations Settings</a>
-				</Button>
+				{installationUrl ? (
+					<GitHubAppInstallButton
+						installationUrl={installationUrl}
+						installed={false}
+					/>
+				) : (
+					<Button asChild variant="primary">
+						<a href="/settings/account/authentication">
+							Open Authentication Settings
+						</a>
+					</Button>
+				)}
 			</div>
 		</Card>
 	);

@@ -1,4 +1,5 @@
 import { getGitHubIdentityState } from "@/services/accounts";
+import { gitHubAppInstallURL } from "@/services/external/github";
 import { fetchCurrentTeam } from "@/services/teams";
 import { getGitHubVectorStoreQuota } from "@/services/teams/plan-features/github-vector-store";
 import {
@@ -12,6 +13,7 @@ import {
 	getInstallationsWithRepos,
 	getOfficialGitHubRepositoryIndexes,
 } from "./data";
+import { GitHubConnectionHeader } from "./github-connection-header";
 import { OfficialRepositorySection } from "./official-repository-section";
 import { RepositoryList } from "./repository-list";
 import { RepositoryRegistrationDialog } from "./repository-registration-dialog";
@@ -22,10 +24,12 @@ import {
 } from "./status-cards";
 
 export default async function TeamVectorStorePage() {
-	const [githubIdentityState, officialRepositoryIndexes] = await Promise.all([
-		getGitHubIdentityState(),
-		getOfficialGitHubRepositoryIndexes(),
-	]);
+	const [githubIdentityState, officialRepositoryIndexes, installUrl] =
+		await Promise.all([
+			getGitHubIdentityState(),
+			getOfficialGitHubRepositoryIndexes(),
+			gitHubAppInstallURL(),
+		]);
 
 	if (
 		githubIdentityState.status === "unauthorized" ||
@@ -49,6 +53,7 @@ export default async function TeamVectorStorePage() {
 	}
 
 	const userClient = githubIdentityState.gitHubUserClient;
+	const gitHubUser = githubIdentityState.gitHubUser;
 	let installationData;
 	try {
 		installationData = await userClient.getInstallations();
@@ -56,7 +61,14 @@ export default async function TeamVectorStorePage() {
 		// 403 when user hasn't installed the GitHub App yet
 		return (
 			<div className="flex flex-col gap-[24px]">
-				<GitHubAppInstallRequiredCard />
+				<GitHubConnectionHeader
+					account={gitHubUser.login}
+					installationUrl={installUrl ?? undefined}
+					installed={false}
+				/>
+				<GitHubAppInstallRequiredCard
+					installationUrl={installUrl ?? undefined}
+				/>
 				<OfficialRepositorySection repositories={officialRepositoryIndexes} />
 			</div>
 		);
@@ -64,7 +76,14 @@ export default async function TeamVectorStorePage() {
 	if (installationData.total_count === 0) {
 		return (
 			<div className="flex flex-col gap-[24px]">
-				<GitHubAppInstallRequiredCard />
+				<GitHubConnectionHeader
+					account={gitHubUser.login}
+					installationUrl={installUrl ?? undefined}
+					installed={false}
+				/>
+				<GitHubAppInstallRequiredCard
+					installationUrl={installUrl ?? undefined}
+				/>
 				<OfficialRepositorySection repositories={officialRepositoryIndexes} />
 			</div>
 		);
@@ -89,6 +108,11 @@ export default async function TeamVectorStorePage() {
 
 	return (
 		<div className="flex flex-col gap-[24px]">
+			<GitHubConnectionHeader
+				account={gitHubUser.login}
+				installationUrl={installUrl ?? undefined}
+				installed={true}
+			/>
 			<div className="flex justify-end">
 				<RepositoryRegistrationDialog
 					installationsWithRepos={installationsWithRepos}

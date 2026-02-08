@@ -1,6 +1,11 @@
 /**
- * Enrichment data for popular integrations: descriptions, icons, and types.
- * This keeps the main catalog clean while adding rich metadata for the UI.
+ * Enrichment data for integrations: descriptions, icons, and types.
+ *
+ * Icon strategy (tiered fallback):
+ *   1. Simple Icons CDN (cdn.simpleicons.org) — colored SVGs for ~80% of brands
+ *   2. Google Favicon API — colored PNGs for brands removed from Simple Icons
+ *   3. Domain-based Google Favicon — auto-generated for all remaining pieces
+ *   4. Letter avatar — final fallback rendered in the UI component
  */
 
 export type PieceType = "regular" | "trigger" | "core";
@@ -11,20 +16,382 @@ export interface PieceEnrichment {
 	pieceType?: PieceType;
 }
 
-/** Simple Icons via jsDelivr CDN — returns SVGs for well-known brands */
-const SI = (slug: string) =>
-	`https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${slug}.svg`;
+/** Simple Icons CDN — returns SVGs with official brand colors */
+const SI = (slug: string) => `https://cdn.simpleicons.org/${slug}`;
+
+/** Google Favicon API — returns colored PNGs for any domain */
+const GF = (domain: string) =>
+	`https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+
+/**
+ * Domain map for pieces where the website domain differs from "{pieceName}.com".
+ * Used to generate Google Favicon fallback URLs automatically.
+ */
+const DOMAIN_MAP: Record<string, string> = {
+	// AI & ML
+	openai: "openai.com",
+	claude: "anthropic.com",
+	"google-gemini": "gemini.google.com",
+	"azure-openai": "azure.microsoft.com",
+	deepseek: "deepseek.com",
+	groq: "groq.com",
+	"grok-xai": "x.ai",
+	"mistral-ai": "mistral.ai",
+	"hugging-face": "huggingface.co",
+	"hume-ai": "hume.ai",
+	"perplexity-ai": "perplexity.ai",
+	"open-router": "openrouter.ai",
+	"stability-ai": "stability.ai",
+	"stable-diffusion-webui": "github.com/AUTOMATIC1111",
+	elevenlabs: "elevenlabs.io",
+	deepgram: "deepgram.com",
+	assemblyai: "assemblyai.com",
+	"eden-ai": "edenai.co",
+	flowise: "flowiseai.com",
+	"copy-ai": "copy.ai",
+	"textcortex-ai": "textcortex.com",
+	"gptzero-detect-ai": "gptzero.me",
+	"mind-studio": "mindstudio.ai",
+	devin: "devin.ai",
+	cursor: "cursor.sh",
+	localai: "localai.io",
+	runway: "runwayml.com",
+	comfyicu: "comfy.icu",
+	synthesia: "synthesia.io",
+	heygen: "heygen.com",
+	"jogg-ai": "jogg.ai",
+	"camb-ai": "camb.ai",
+	"murf-api": "murf.ai",
+	"air-ops": "airops.com",
+	"easy-peasy-ai": "easypeasyai.com",
+	exa: "exa.ai",
+	"extracta-ai": "extracta.ai",
+	firecrawl: "firecrawl.dev",
+	"fireflies-ai": "fireflies.ai",
+	"insighto-ai": "insighto.ai",
+	"jina-ai": "jina.ai",
+	"leap-ai": "tryleap.ai",
+	"meetgeek-ai": "meetgeek.ai",
+	"moveo-ai": "moveo.ai",
+	phantombuster: "phantombuster.com",
+	photoroom: "photoroom.com",
+	"predis-ai": "predis.ai",
+	"raia-ai": "raia.ai",
+	"rapidtext-ai": "rapidtext.ai",
+	"recall-ai": "recall.ai",
+	"retell-ai": "retell.ai",
+	"returning-ai": "returning.ai",
+	"roe-ai": "roe.ai",
+	"scrapegrapghai": "scrapegraphai.com",
+	sitespeakai: "sitespeak.ai",
+	tavily: "tavily.com",
+	"vlm-run": "vlm.run",
+	"webscraping-ai": "webscraping.ai",
+	"writesonic-bulk": "writesonic.com",
+	deepl: "deepl.com",
+	"denser-ai": "denser.ai",
+	customgpt: "customgpt.ai",
+	replicate: "replicate.com",
+	aianswer: "aianswer.com",
+	"alt-text-ai": "alttext.ai",
+	"detecting-ai": "detecting-ai.com",
+	"contextual-ai": "contextual.ai",
+	griptape: "griptape.ai",
+	letta: "letta.com",
+	mcp: "modelcontextprotocol.io",
+	vidnoz: "vidnoz.com",
+	bolna: "bolna.dev",
+	agentx: "agentx.so",
+	airparser: "airparser.com",
+	airtop: "airtop.ai",
+	alai: "alai.studio",
+	echowin: "echo.win",
+	"kallabot-ai": "kallabot.ai",
+	llmrails: "llmrails.com",
+	"magical-api": "getmagical.com",
+	magicslides: "magicslides.app",
+	mindee: "mindee.com",
+	"openmic-ai": "openmic.ai",
+	"personal-ai": "personal.ai",
+	prompthub: "prompthub.us",
+	promptmate: "promptmate.io",
+	retune: "retune.so",
+	runware: "runware.ai",
+	scenario: "scenario.com",
+	skyvern: "skyvern.com",
+	slidespeak: "slidespeak.co",
+	docsbot: "docsbot.ai",
+
+	// Communication
+	slack: "slack.com",
+	discord: "discord.com",
+	"telegram-bot": "telegram.org",
+	"microsoft-teams": "teams.microsoft.com",
+	mattermost: "mattermost.com",
+	whatsapp: "whatsapp.com",
+	line: "line.me",
+	googlechat: "chat.google.com",
+	intercom: "intercom.com",
+	"respond-io": "respond.io",
+	freshdesk: "freshdesk.com",
+	zendesk: "zendesk.com",
+	"help-scout": "helpscout.com",
+	"heymarket-sms": "heymarket.com",
+	clicksend: "clicksend.com",
+	messagebird: "messagebird.com",
+	twilio: "twilio.com",
+	"octopush-sms": "octopush.com",
+	"open-phone": "openphone.com",
+	"krisp-call": "krispcall.com",
+	"call-rounded": "callrounded.com",
+	"matrix-chat": "matrix.org",
+	matrix: "matrix.org",
+	discourse: "discourse.org",
+	ntfy: "ntfy.sh",
+	gotify: "gotify.net",
+
+	// CRM & Sales
+	hubspot: "hubspot.com",
+	salesforce: "salesforce.com",
+	pipedrive: "pipedrive.com",
+	"zoho-crm": "zoho.com/crm",
+	freshsales: "freshworks.com/crm",
+	activecampaign: "activecampaign.com",
+	"bigin-by-zoho": "bigin.com",
+	"capsule-crm": "capsulecrm.com",
+	"lead-connector": "leadconnector.com",
+	"moxie-crm": "moxie.com",
+	"microsoft-dynamics-crm": "dynamics.microsoft.com",
+	"predict-leads": "predictleads.com",
+
+	// Project Management
+	asana: "asana.com",
+	clickup: "clickup.com",
+	trello: "trello.com",
+	monday: "monday.com",
+	linear: "linear.app",
+	notion: "notion.so",
+	"jira-cloud": "atlassian.com/software/jira",
+	todoist: "todoist.com",
+	baserow: "baserow.io",
+	airtable: "airtable.com",
+	smartsuite: "smartsuite.com",
+	coda: "coda.io",
+	nocodb: "nocodb.com",
+	apitable: "apitable.com",
+	grist: "getgrist.com",
+	quickbase: "quickbase.com",
+	teamleader: "teamleader.eu",
+
+	// Email & Marketing
+	gmail: "gmail.com",
+	mailchimp: "mailchimp.com",
+	sendinblue: "brevo.com",
+	sendgrid: "sendgrid.com",
+	"mailer-lite": "mailerlite.com",
+	convertkit: "convertkit.com",
+	"constant-contact": "constantcontact.com",
+	"campaign-monitor": "campaignmonitor.com",
+	"customer-io": "customer.io",
+	"instantly-ai": "instantly.ai",
+	"amazon-ses": "aws.amazon.com/ses",
+	smtp: "smtp.com",
+	"zoho-campaigns": "zoho.com/campaigns",
+	"zoho-mail": "zoho.com/mail",
+	resend: "resend.com",
+
+	// Google Workspace
+	"google-sheets": "sheets.google.com",
+	"google-drive": "drive.google.com",
+	"google-calendar": "calendar.google.com",
+	"google-contacts": "contacts.google.com",
+	"google-docs": "docs.google.com",
+	"google-forms": "docs.google.com/forms",
+	"google-slides": "docs.google.com/presentation",
+	"google-tasks": "tasks.google.com",
+	"google-my-business": "business.google.com",
+	"google-search": "google.com",
+	"google-search-console": "search.google.com",
+	"google-cloud-storage": "cloud.google.com/storage",
+
+	// Microsoft 365
+	"microsoft-excel-365": "microsoft.com/excel",
+	"microsoft-onedrive": "onedrive.com",
+	"microsoft-onenote": "onenote.com",
+	"microsoft-outlook": "outlook.com",
+	"microsoft-outlook-calendar": "outlook.com",
+	"microsoft-power-bi": "powerbi.microsoft.com",
+	"microsoft-sharepoint": "sharepoint.com",
+	"microsoft-todo": "todo.microsoft.com",
+	"microsoft-365-people": "microsoft.com",
+	"microsoft-365-planner": "microsoft.com",
+	"microsoft-dynamics-365-business-central": "dynamics.microsoft.com",
+
+	// Social Media
+	twitter: "x.com",
+	linkedin: "linkedin.com",
+	"facebook-pages": "facebook.com",
+	"facebook-leads": "facebook.com",
+	"instagram-business": "instagram.com",
+	bluesky: "bsky.app",
+	reddit: "reddit.com",
+	mastodon: "joinmastodon.org",
+	pinterest: "pinterest.com",
+	youtube: "youtube.com",
+	twitch: "twitch.tv",
+	spotify: "spotify.com",
+	vimeo: "vimeo.com",
+	hackernews: "news.ycombinator.com",
+	rss: "rss.com",
+
+	// E-Commerce
+	shopify: "shopify.com",
+	woocommerce: "woocommerce.com",
+	stripe: "stripe.com",
+	square: "squareup.com",
+	bigcommerce: "bigcommerce.com",
+	"lemon-squeezy": "lemonsqueezy.com",
+	"cashfree-payments": "cashfree.com",
+	razorpay: "razorpay.com",
+	"pinch-payments": "pinchpayments.com",
+
+	// Developer Tools
+	github: "github.com",
+	gitlab: "gitlab.com",
+	http: "developer.mozilla.org",
+	"http-oauth2": "oauth.net",
+	webhook: "webhook.site",
+	graphql: "graphql.org",
+	soap: "soapui.org",
+	mysql: "mysql.com",
+	postgres: "postgresql.org",
+	mongodb: "mongodb.com",
+	couchbase: "couchbase.com",
+	snowflake: "snowflake.com",
+	duckdb: "duckdb.org",
+	"oracle-database": "oracle.com",
+	surrealdb: "surrealdb.com",
+	supabase: "supabase.com",
+	rabbitmq: "rabbitmq.com",
+	"gcloud-pubsub": "cloud.google.com/pubsub",
+	"amazon-s3": "aws.amazon.com/s3",
+	"amazon-sqs": "aws.amazon.com/sqs",
+	"amazon-sns": "aws.amazon.com/sns",
+	"azure-blob-storage": "azure.microsoft.com",
+	"azure-communication-services": "azure.microsoft.com",
+	"digital-ocean": "digitalocean.com",
+	netlify: "netlify.com",
+	browserless: "browserless.io",
+	apify: "apify.com",
+	sftp: "ssh.com",
+	datadog: "datadoghq.com",
+	segment: "segment.com",
+	posthog: "posthog.com",
+	mixpanel: "mixpanel.com",
+	logrocket: "logrocket.com",
+	pinecone: "pinecone.io",
+	qdrant: "qdrant.tech",
+	confluence: "atlassian.com/software/confluence",
+	figma: "figma.com",
+	zeplin: "zeplin.io",
+	"hashi-corp-vault": "hashicorp.com",
+	metabase: "metabase.com",
+	tableau: "tableau.com",
+
+	// Finance & Accounting
+	quickbooks: "quickbooks.intuit.com",
+	xero: "xero.com",
+	"zoho-books": "zoho.com/books",
+	"zoho-invoice": "zoho.com/invoice",
+	invoiceninja: "invoiceninja.com",
+	"just-invoice": "justinvoice.me",
+	bexio: "bexio.com",
+	zuora: "zuora.com",
+	netsuite: "netsuite.com",
+	splitwise: "splitwise.com",
+	"sap-ariba": "ariba.com",
+
+	// Cloud Storage
+	dropbox: "dropbox.com",
+	box: "box.com",
+	cloudinary: "cloudinary.com",
+	cloudconvert: "cloudconvert.com",
+
+	// HR & Recruitment
+	bamboohr: "bamboohr.com",
+	harvest: "getharvest.com",
+	clockify: "clockify.me",
+	"toggl-track": "toggl.com",
+
+	// Forms & Surveys
+	typeform: "typeform.com",
+	jotform: "jotform.com",
+	tally: "tally.so",
+	"fillout-forms": "fillout.com",
+	"cognito-forms": "cognitoforms.com",
+	surveymonkey: "surveymonkey.com",
+	"kizeo-forms": "kizeo-forms.com",
+	videoask: "videoask.com",
+
+	// CMS & Website
+	wordpress: "wordpress.org",
+	webflow: "webflow.com",
+	contentful: "contentful.com",
+	ghostcms: "ghost.org",
+	drupal: "drupal.org",
+	bubble: "bubble.io",
+	datocms: "datocms.com",
+
+	// Documents & Signatures
+	docusign: "docusign.com",
+	pandadoc: "pandadoc.com",
+	"pdf-co": "pdf.co",
+
+	// Automation & Utilities
+	activepieces: "activepieces.com",
+	"short-io": "short.io",
+	bitly: "bitly.com",
+	"cal-com": "cal.com",
+	calendly: "calendly.com",
+	"acuity-scheduling": "acuityscheduling.com",
+	"simplybookme": "simplybook.me",
+	"youcanbookme": "youcanbook.me",
+	zoom: "zoom.us",
+	"sessions-us": "sessions.us",
+	okta: "okta.com",
+	"service-now": "servicenow.com",
+	odoo: "odoo.com",
+	"systeme-io": "systeme.io",
+	clickfunnels: "clickfunnels.com",
+	"browse-ai": "browse.ai",
+	"captain-data": "captaindata.co",
+	"zoho-bookings": "zoho.com/bookings",
+	"zoho-desk": "zoho.com/desk",
+	"zendesk-sell": "zendesk.com",
+	"tl-dv": "tldv.io",
+	"vouchery-io": "vouchery.io",
+	"free-agent": "freeagent.com",
+	matomo: "matomo.org",
+	"timelines-ai": "timelines.ai",
+	"tiny-talk-ai": "tinytalk.ai",
+	"housecall-pro": "housecallpro.com",
+	"ibm-cognose": "ibm.com",
+	"mempool-space": "mempool.space",
+	"week-done": "weekdone.com",
+	"what-converts": "whatconverts.com",
+	"serp-api": "serpapi.com",
+};
 
 /**
  * Enrichment data keyed by piece name.
- * Only popular/recognizable pieces need explicit entries here.
- * Unlisted pieces get auto-generated descriptions and letter avatars.
+ * Popular pieces get explicit descriptions and icon URLs.
+ * All other pieces get auto-generated descriptions and domain-based favicon icons.
  */
 export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 	// ─── AI & ML ───────────────────────────────────────────
 	openai: {
 		description: "Generate text, images, and embeddings with GPT models",
-		logoUrl: SI("openai"),
+		logoUrl: GF("openai.com"),
 	},
 	claude: {
 		description: "AI assistant by Anthropic for text generation and analysis",
@@ -36,16 +403,19 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 	},
 	"azure-openai": {
 		description: "Azure-hosted OpenAI models with enterprise compliance",
-		logoUrl: SI("microsoftazure"),
+		logoUrl: GF("azure.microsoft.com"),
 	},
 	deepseek: {
 		description: "Open-source AI models for code and reasoning tasks",
+		logoUrl: GF("deepseek.com"),
 	},
 	groq: {
 		description: "Ultra-fast LLM inference with custom hardware",
+		logoUrl: GF("groq.com"),
 	},
 	"mistral-ai": {
 		description: "European AI models for text generation and embeddings",
+		logoUrl: GF("mistral.ai"),
 	},
 	"hugging-face": {
 		description: "Access thousands of ML models and datasets",
@@ -57,6 +427,7 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 	},
 	"stability-ai": {
 		description: "Generate images with Stable Diffusion models",
+		logoUrl: GF("stability.ai"),
 	},
 	elevenlabs: {
 		description: "AI voice synthesis and text-to-speech generation",
@@ -64,27 +435,33 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 	},
 	deepgram: {
 		description: "Speech-to-text and audio intelligence APIs",
+		logoUrl: GF("deepgram.com"),
 	},
 	runway: {
 		description: "AI video generation and creative editing tools",
+		logoUrl: GF("runwayml.com"),
 	},
 	heygen: {
 		description: "Create AI-powered avatar videos at scale",
+		logoUrl: GF("heygen.com"),
 	},
 	synthesia: {
 		description: "Generate professional videos with AI avatars",
+		logoUrl: GF("synthesia.io"),
 	},
 	replicate: {
 		description: "Run open-source ML models via simple API calls",
+		logoUrl: GF("replicate.com"),
 	},
 	"open-router": {
 		description: "Unified API for 100+ LLM providers and models",
+		logoUrl: GF("openrouter.ai"),
 	},
 
 	// ─── Communication ─────────────────────────────────────
 	slack: {
 		description: "Send messages, manage channels, and automate Slack workflows",
-		logoUrl: SI("slack"),
+		logoUrl: GF("slack.com"),
 	},
 	discord: {
 		description: "Send messages and manage servers via Discord bots",
@@ -96,7 +473,7 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 	},
 	twilio: {
 		description: "SMS, voice calls, and messaging APIs",
-		logoUrl: SI("twilio"),
+		logoUrl: GF("twilio.com"),
 	},
 	intercom: {
 		description: "Customer messaging platform for support and engagement",
@@ -104,7 +481,7 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 	},
 	"microsoft-teams": {
 		description: "Send messages and manage teams in Microsoft Teams",
-		logoUrl: SI("microsoftteams"),
+		logoUrl: GF("teams.microsoft.com"),
 	},
 	whatsapp: {
 		description: "Send and receive WhatsApp messages via Business API",
@@ -114,13 +491,17 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 		description: "Create and manage Zoom meetings and webinars",
 		logoUrl: SI("zoom"),
 	},
-	"matrix-chat": {
-		description: "Decentralized messaging via the Matrix protocol",
-		logoUrl: SI("matrix"),
-	},
 	sendgrid: {
 		description: "Transactional and marketing email delivery",
-		logoUrl: SI("sendgrid"),
+		logoUrl: GF("sendgrid.com"),
+	},
+	zendesk: {
+		description: "Customer service and support ticketing platform",
+		logoUrl: SI("zendesk"),
+	},
+	freshdesk: {
+		description: "Customer support software with ticketing and automations",
+		logoUrl: GF("freshdesk.com"),
 	},
 
 	// ─── CRM & Sales ───────────────────────────────────────
@@ -130,17 +511,19 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 	},
 	salesforce: {
 		description: "Enterprise CRM for sales, service, and marketing",
-		logoUrl: SI("salesforce"),
+		logoUrl: GF("salesforce.com"),
 	},
 	pipedrive: {
 		description: "Sales CRM and pipeline management for small teams",
-		logoUrl: SI("pipedrive"),
+		logoUrl: GF("pipedrive.com"),
 	},
 	"zoho-crm": {
 		description: "Cloud CRM for sales automation and customer management",
+		logoUrl: GF("zoho.com"),
 	},
 	freshsales: {
 		description: "AI-powered CRM for high-velocity sales teams",
+		logoUrl: GF("freshworks.com"),
 	},
 
 	// ─── Project Management ────────────────────────────────
@@ -152,11 +535,11 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 		description: "Work management platform for teams and projects",
 		logoUrl: SI("asana"),
 	},
-	jira: {
+	"jira-cloud": {
 		description: "Issue tracking and agile project management",
 		logoUrl: SI("jira"),
 	},
-	"linear-app": {
+	linear: {
 		description: "Streamlined issue tracking for software teams",
 		logoUrl: SI("linear"),
 	},
@@ -168,30 +551,37 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 		description: "Project management with tasks, docs, and goals",
 		logoUrl: SI("clickup"),
 	},
-	"monday-com": {
+	monday: {
 		description: "Work OS for managing projects and workflows",
-	},
-	basecamp: {
-		description: "Project management and team communication hub",
-		logoUrl: SI("basecamp"),
+		logoUrl: GF("monday.com"),
 	},
 	todoist: {
 		description: "Task management and to-do list application",
 		logoUrl: SI("todoist"),
 	},
+	airtable: {
+		description: "Spreadsheet-database hybrid for organizing anything",
+		logoUrl: SI("airtable"),
+	},
+	coda: {
+		description: "All-in-one doc with tables, buttons, and automations",
+		logoUrl: SI("coda"),
+	},
 
 	// ─── Email & Marketing ─────────────────────────────────
+	gmail: {
+		description: "Send, read, and manage emails in Gmail",
+		logoUrl: SI("gmail"),
+	},
 	mailchimp: {
 		description: "Email marketing campaigns and audience management",
 		logoUrl: SI("mailchimp"),
 	},
-	"active-campaign": {
-		description: "Email marketing, automation, and CRM platform",
-	},
 	convertkit: {
 		description: "Email marketing for creators and small businesses",
+		logoUrl: GF("convertkit.com"),
 	},
-	brevo: {
+	sendinblue: {
 		description: "Email, SMS, and marketing automation platform",
 		logoUrl: SI("brevo"),
 	},
@@ -199,12 +589,12 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 		description: "Email sending, receiving, and tracking APIs",
 		logoUrl: SI("mailgun"),
 	},
+	resend: {
+		description: "Modern email API for developers",
+		logoUrl: GF("resend.com"),
+	},
 
 	// ─── Google Workspace ──────────────────────────────────
-	gmail: {
-		description: "Send, read, and manage emails in Gmail",
-		logoUrl: SI("gmail"),
-	},
 	"google-sheets": {
 		description: "Read, write, and manage Google Sheets spreadsheets",
 		logoUrl: SI("googlesheets"),
@@ -217,13 +607,13 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 		description: "Create and manage events in Google Calendar",
 		logoUrl: SI("googlecalendar"),
 	},
+	"google-contacts": {
+		description: "Manage contacts in Google Contacts",
+		logoUrl: GF("contacts.google.com"),
+	},
 	"google-docs": {
 		description: "Create and edit documents in Google Docs",
 		logoUrl: SI("googledocs"),
-	},
-	"google-contacts": {
-		description: "Manage contacts in Google Contacts",
-		logoUrl: SI("googlecontacts"),
 	},
 	"google-forms": {
 		description: "Create and manage Google Forms surveys",
@@ -231,30 +621,33 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 	},
 	"google-my-business": {
 		description: "Manage your Google Business Profile listings",
-		logoUrl: SI("googlemybusiness"),
+		logoUrl: GF("business.google.com"),
 	},
 	"google-tasks": {
 		description: "Create and manage tasks in Google Tasks",
+		logoUrl: GF("tasks.google.com"),
 	},
 
 	// ─── Microsoft 365 ─────────────────────────────────────
 	"microsoft-outlook-calendar": {
 		description: "Manage calendar events in Microsoft Outlook",
-		logoUrl: SI("microsoftoutlook"),
+		logoUrl: GF("outlook.com"),
 	},
 	"microsoft-onedrive": {
 		description: "File storage and sharing with Microsoft OneDrive",
-		logoUrl: SI("microsoftonedrive"),
+		logoUrl: GF("onedrive.com"),
 	},
-	"microsoft-excel": {
+	"microsoft-excel-365": {
 		description: "Read and write Excel spreadsheets in the cloud",
-		logoUrl: SI("microsoftexcel"),
+		logoUrl: GF("microsoft.com"),
 	},
-	"microsoft-dynamics-365-business-central": {
-		description: "ERP and business management for enterprises",
+	"microsoft-outlook": {
+		description: "Email management with Microsoft Outlook",
+		logoUrl: GF("outlook.com"),
 	},
-	"microsoft-dynamics-crm": {
-		description: "Customer relationship management by Microsoft",
+	"microsoft-sharepoint": {
+		description: "Document management and team collaboration",
+		logoUrl: GF("sharepoint.com"),
 	},
 
 	// ─── Social Media ──────────────────────────────────────
@@ -266,13 +659,17 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 		description: "Manage posts and interact with Instagram Business API",
 		logoUrl: SI("instagram"),
 	},
-	facebook: {
+	"instagram-business": {
+		description: "Manage posts and interact with Instagram Business API",
+		logoUrl: SI("instagram"),
+	},
+	"facebook-pages": {
 		description: "Manage pages, posts, and ads on Facebook",
 		logoUrl: SI("facebook"),
 	},
 	linkedin: {
 		description: "Share posts and manage your LinkedIn presence",
-		logoUrl: SI("linkedin"),
+		logoUrl: GF("linkedin.com"),
 	},
 	youtube: {
 		description: "Upload videos and manage your YouTube channel",
@@ -298,6 +695,14 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 		description: "Post and interact on the Bluesky social network",
 		logoUrl: SI("bluesky"),
 	},
+	twitch: {
+		description: "Manage streams and chat on Twitch",
+		logoUrl: SI("twitch"),
+	},
+	spotify: {
+		description: "Manage playlists and track music on Spotify",
+		logoUrl: SI("spotify"),
+	},
 
 	// ─── E-Commerce ────────────────────────────────────────
 	shopify: {
@@ -316,17 +721,13 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 		description: "Process payments and manage PayPal transactions",
 		logoUrl: SI("paypal"),
 	},
-	"square-pos": {
+	square: {
 		description: "Point-of-sale and payment processing",
 		logoUrl: SI("square"),
 	},
-	"amazon-seller": {
-		description: "Manage Amazon marketplace listings and orders",
-		logoUrl: SI("amazon"),
-	},
-	lemonsqueezy: {
-		description: "Digital product sales and subscription management",
-		logoUrl: SI("lemonsqueezy"),
+	razorpay: {
+		description: "Payment gateway for Indian businesses",
+		logoUrl: SI("razorpay"),
 	},
 
 	// ─── Developer Tools ───────────────────────────────────
@@ -350,29 +751,9 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 		description: "Infrastructure monitoring and APM platform",
 		logoUrl: SI("datadog"),
 	},
-	"pager-duty": {
-		description: "Incident management and on-call scheduling",
-		logoUrl: SI("pagerduty"),
-	},
-	postman: {
-		description: "API development, testing, and collaboration",
-		logoUrl: SI("postman"),
-	},
 	figma: {
 		description: "Collaborative design and prototyping platform",
 		logoUrl: SI("figma"),
-	},
-	"docker-hub": {
-		description: "Container image registry and management",
-		logoUrl: SI("docker"),
-	},
-	vercel: {
-		description: "Frontend deployment and serverless functions",
-		logoUrl: SI("vercel"),
-	},
-	cloudflare: {
-		description: "CDN, DNS, security, and edge computing",
-		logoUrl: SI("cloudflare"),
 	},
 	supabase: {
 		description: "Open-source Firebase alternative with PostgreSQL",
@@ -382,26 +763,59 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 		description: "Google's app development platform with real-time database",
 		logoUrl: SI("firebase"),
 	},
+	vercel: {
+		description: "Frontend deployment and serverless functions",
+		logoUrl: SI("vercel"),
+	},
+	cloudflare: {
+		description: "CDN, DNS, security, and edge computing",
+		logoUrl: SI("cloudflare"),
+	},
+	mysql: {
+		description: "Relational database management system",
+		logoUrl: SI("mysql"),
+	},
+	postgres: {
+		description: "Advanced open-source relational database",
+		logoUrl: SI("postgresql"),
+	},
+	mongodb: {
+		description: "NoSQL document database for modern apps",
+		logoUrl: SI("mongodb"),
+	},
+	snowflake: {
+		description: "Cloud data warehouse and analytics platform",
+		logoUrl: SI("snowflake"),
+	},
+	netlify: {
+		description: "Web deployment and serverless functions",
+		logoUrl: SI("netlify"),
+	},
+	"digital-ocean": {
+		description: "Cloud infrastructure for developers",
+		logoUrl: SI("digitalocean"),
+	},
+	posthog: {
+		description: "Open-source product analytics platform",
+		logoUrl: SI("posthog"),
+	},
+	confluence: {
+		description: "Team wiki and knowledge base by Atlassian",
+		logoUrl: SI("confluence"),
+	},
+	rabbitmq: {
+		description: "Open-source message broker",
+		logoUrl: SI("rabbitmq"),
+	},
 
 	// ─── Productivity ──────────────────────────────────────
-	airtable: {
-		description: "Spreadsheet-database hybrid for organizing anything",
-		logoUrl: SI("airtable"),
-	},
-	coda: {
-		description: "All-in-one doc with tables, buttons, and automations",
-		logoUrl: SI("coda"),
-	},
-	evernote: {
-		description: "Note-taking and knowledge management tool",
-		logoUrl: SI("evernote"),
-	},
 	calendly: {
 		description: "Scheduling and appointment booking automation",
 		logoUrl: SI("calendly"),
 	},
 	"cal-com": {
 		description: "Open-source scheduling infrastructure",
+		logoUrl: GF("cal.com"),
 	},
 
 	// ─── Cloud Storage ─────────────────────────────────────
@@ -413,13 +827,6 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 		description: "Enterprise cloud content management and sharing",
 		logoUrl: SI("box"),
 	},
-	s3: {
-		description: "Amazon S3 object storage operations",
-		logoUrl: SI("amazons3"),
-	},
-	ftp: {
-		description: "File transfer via FTP/SFTP protocols",
-	},
 
 	// ─── Finance & Accounting ──────────────────────────────
 	quickbooks: {
@@ -430,33 +837,15 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 		description: "Cloud accounting for small businesses",
 		logoUrl: SI("xero"),
 	},
-	"fresh-books": {
-		description: "Invoicing and expense tracking for freelancers",
-	},
-	"wise-community": {
-		description: "International money transfers and multi-currency accounts",
-		logoUrl: SI("wise"),
-	},
-
-	// ─── HR & Recruitment ──────────────────────────────────
-	"bamboo-hr": {
-		description: "HR software for people management and hiring",
-	},
 
 	// ─── Forms & Surveys ───────────────────────────────────
 	typeform: {
 		description: "Beautiful forms and surveys with conversational UI",
 		logoUrl: SI("typeform"),
 	},
-	"jot-form": {
-		description: "Online form builder with 10,000+ templates",
-	},
-	"survey-monkey": {
+	surveymonkey: {
 		description: "Survey creation, distribution, and analysis",
 		logoUrl: SI("surveymonkey"),
-	},
-	tally: {
-		description: "Free form builder with unlimited submissions",
 	},
 
 	// ─── CMS & Website ─────────────────────────────────────
@@ -472,22 +861,26 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 		description: "Headless CMS for structured content management",
 		logoUrl: SI("contentful"),
 	},
-	strapi: {
-		description: "Open-source headless CMS with customizable API",
-		logoUrl: SI("strapi"),
-	},
-	ghost: {
+	ghostcms: {
 		description: "Publishing platform for blogs and newsletters",
 		logoUrl: SI("ghost"),
+	},
+	drupal: {
+		description: "Open-source CMS for ambitious digital experiences",
+		logoUrl: SI("drupal"),
 	},
 
 	// ─── Documents & Signatures ────────────────────────────
 	docusign: {
 		description: "Electronic signature and document management",
-		logoUrl: SI("docusign"),
+		logoUrl: GF("docusign.com"),
+	},
+	pandadoc: {
+		description: "Document automation and electronic signatures",
+		logoUrl: GF("pandadoc.com"),
 	},
 
-	// ─── Automation & Utilities ────────────────────────────
+	// ─── Automation & Utilities (core/trigger types) ───────
 	http: {
 		description: "Make HTTP requests to any API or webhook endpoint",
 		pieceType: "core",
@@ -544,19 +937,15 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 		description: "Manage and route data between workflow branches",
 		pieceType: "core",
 	},
-	"generate-banners": {
-		description: "Create banner images from templates",
-		pieceType: "core",
-	},
 	"image-helper": {
 		description: "Resize, crop, and convert image files",
 		pieceType: "core",
 	},
-	"pdf-helper": {
+	pdf: {
 		description: "Generate, merge, and manipulate PDF documents",
 		pieceType: "core",
 	},
-	"qr-code": {
+	qrcode: {
 		description: "Generate QR codes from text or URLs",
 		pieceType: "core",
 	},
@@ -568,25 +957,119 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 		description: "Monitor inboxes for new emails via IMAP protocol",
 		pieceType: "trigger",
 	},
-	"approval-ui": {
+	approval: {
 		description: "Human-in-the-loop approval steps for workflows",
 		pieceType: "core",
+	},
+	forms: {
+		description: "Create forms to collect data in workflows",
+		pieceType: "core",
+	},
+	"manual-trigger": {
+		description: "Start workflows manually with a button click",
+		pieceType: "trigger",
+	},
+	subflows: {
+		description: "Nest workflows inside other workflows",
+		pieceType: "core",
+	},
+	tables: {
+		description: "Internal data tables for workflow storage",
+		pieceType: "core",
+	},
+	tags: {
+		description: "Tag and categorize workflow runs",
+		pieceType: "core",
+	},
+	"data-summarizer": {
+		description: "Aggregate and summarize data from multiple sources",
+		pieceType: "core",
+	},
+	"flow-helper": {
+		description: "Utility functions for workflow logic",
+		pieceType: "core",
+	},
+	"flow-parser": {
+		description: "Parse and process workflow data formats",
+		pieceType: "core",
+	},
+	crypto: {
+		description: "Encryption, hashing, and cryptographic operations",
+		pieceType: "core",
+	},
+	queue: {
+		description: "Queue tasks for async processing",
+		pieceType: "core",
+	},
+	todos: {
+		description: "Track to-do items within workflows",
+		pieceType: "core",
+	},
+	"time-ops": {
+		description: "Time-based operations and scheduling",
+		pieceType: "core",
+	},
+
+	// ─── Other popular integrations ────────────────────────
+	bitly: {
+		description: "URL shortening and link management",
+		logoUrl: SI("bitly"),
+	},
+	okta: {
+		description: "Identity and access management platform",
+		logoUrl: SI("okta"),
+	},
+	"service-now": {
+		description: "IT service management and digital workflows",
+		logoUrl: GF("servicenow.com"),
+	},
+	odoo: {
+		description: "Open-source ERP and business management suite",
+		logoUrl: GF("odoo.com"),
+	},
+	matomo: {
+		description: "Open-source web analytics platform",
+		logoUrl: SI("matomo"),
 	},
 };
 
 /**
+ * Get the website domain for a piece (for favicon fallback).
+ * Checks DOMAIN_MAP first, then derives from piece name.
+ */
+function getDomain(pieceName: string): string {
+	if (DOMAIN_MAP[pieceName]) return DOMAIN_MAP[pieceName];
+
+	// Auto-derive: strip hyphens, add .com
+	const cleaned = pieceName
+		.replace(/-/g, "")
+		.replace(/\s/g, "");
+	return `${cleaned}.com`;
+}
+
+/**
  * Get enrichment data for a piece, with auto-generated fallback.
+ * Every piece gets an icon — either from explicit logoUrl, or auto-generated favicon.
  */
 export function getEnrichment(
 	pieceName: string,
 	category: string,
 ): PieceEnrichment {
 	const enrichment = PIECE_ENRICHMENTS[pieceName];
-	if (enrichment) return enrichment;
+	if (enrichment) {
+		// If enrichment exists but has no logo, add a favicon fallback
+		return {
+			...enrichment,
+			description: enrichment.description ?? `${category} integration`,
+			pieceType: enrichment.pieceType ?? "regular",
+			logoUrl: enrichment.logoUrl ?? GF(getDomain(pieceName)),
+		};
+	}
 
-	// Auto-generate a basic description from the piece name and category
+	// Auto-generate everything from the piece name and category
 	return {
 		description: `${category} integration`,
 		pieceType: "regular",
+		logoUrl: GF(getDomain(pieceName)),
 	};
 }
