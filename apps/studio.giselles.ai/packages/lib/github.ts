@@ -38,7 +38,7 @@ export async function getGitHubIntegrationState(
 	let installations: Awaited<
 		ReturnType<typeof gitHubUserClient.getInstallations>
 	>["installations"];
-	let installationUrl: string | null;
+	let installationUrl: Awaited<ReturnType<typeof gitHubAppInstallURL>>;
 	try {
 		[{ installations }, installationUrl] = await Promise.all([
 			gitHubUserClient.getInstallations(),
