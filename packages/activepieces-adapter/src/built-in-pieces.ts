@@ -86,7 +86,8 @@ async function youtubeFetchVideoInfo(
 	properties: Record<string, unknown>,
 	auth: unknown,
 ): Promise<unknown> {
-	const videoUrl = (properties.videoUrl as string) || (properties.input as string) || "";
+	// Prefer `input` (from connected nodes / Start node) over `videoUrl` (static config)
+	const videoUrl = (properties.input as string) || (properties.videoUrl as string) || "";
 	const apiKey =
 		(properties.apiKey as string) ||
 		(auth && typeof auth === "object" && "apiKey" in auth
