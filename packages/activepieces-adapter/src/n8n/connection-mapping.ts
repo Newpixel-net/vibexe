@@ -16,9 +16,9 @@ export interface N8NConnections {
 
 export interface GiselleConnection {
 	id: string;
-	outputNode: { id: string; type: string };
+	outputNode: { id: string; type: string; content: { type: string } };
 	outputId: string;
-	inputNode: { id: string; type: string };
+	inputNode: { id: string; type: string; content: { type: string } };
 	inputId: string;
 }
 
@@ -26,6 +26,7 @@ interface NodeIdMapping {
 	[n8nNodeName: string]: {
 		nodeId: string;
 		nodeType: "operation" | "variable";
+		contentType: string;
 		outputIds: string[];
 		inputIds: string[];
 	};
@@ -78,11 +79,13 @@ export function convertConnections(
 					outputNode: {
 						id: sourceMapping.nodeId,
 						type: sourceMapping.nodeType,
+						content: { type: sourceMapping.contentType },
 					},
 					outputId,
 					inputNode: {
 						id: targetMapping.nodeId,
 						type: targetMapping.nodeType,
+						content: { type: targetMapping.contentType },
 					},
 					inputId,
 				});

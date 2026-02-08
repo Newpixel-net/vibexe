@@ -55,9 +55,9 @@ export interface GiselleNodeData {
 
 export interface GiselleConnectionData {
 	id: string;
-	outputNode: { id: string; type: string };
+	outputNode: { id: string; type: string; content: { type: string } };
 	outputId: string;
-	inputNode: { id: string; type: string };
+	inputNode: { id: string; type: string; content: { type: string } };
 	inputId: string;
 }
 
@@ -81,6 +81,7 @@ export function convertN8NToGiselle(
 		{
 			nodeId: string;
 			nodeType: "operation" | "variable";
+			contentType: string;
 			outputIds: string[];
 			inputIds: string[];
 		}
@@ -109,6 +110,7 @@ export function convertN8NToGiselle(
 			nodeIdMapping[n8nNode.name] = {
 				nodeId: giselleNode.id,
 				nodeType: giselleNode.type,
+				contentType: (giselleNode.content as { type: string }).type,
 				outputIds: giselleNode.outputs.map((o) => o.id),
 				inputIds: giselleNode.inputs.map((i) => i.id),
 			};
