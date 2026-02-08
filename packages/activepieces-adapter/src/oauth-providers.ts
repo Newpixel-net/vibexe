@@ -94,7 +94,6 @@ const PIECE_TO_PROVIDER: Record<string, string> = {
 	twilio: "twilio",
 	webflow: "webflow",
 	contentful: "contentful",
-	docusign: "docusign",
 	reddit: "reddit",
 	confluence: "atlassian",
 	"digital-ocean": "digitalocean",

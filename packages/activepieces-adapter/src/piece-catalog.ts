@@ -842,7 +842,6 @@ export const INSTALLED_PIECES = new Set([
 	"square",
 	"bigcommerce",
 	"box",
-	"docusign",
 	"pandadoc",
 	"calendly",
 	"webflow",

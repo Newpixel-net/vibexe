@@ -126,7 +126,6 @@
 		"@activepieces/piece-square": "^0.4.2",
 		"@activepieces/piece-bigcommerce": "^0.1.3",
 		"@activepieces/piece-box": "^0.1.3",
-		"@activepieces/piece-docusign": "^0.1.3",
 		"@activepieces/piece-pandadoc": "^0.1.3",
 		"@activepieces/piece-calendly": "^0.4.3",
 		"@activepieces/piece-webflow": "^0.2.2",
