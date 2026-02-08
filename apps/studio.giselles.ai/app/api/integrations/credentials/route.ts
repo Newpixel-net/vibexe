@@ -5,13 +5,20 @@ import {
 	getCredentialsForTeam,
 } from "@/services/integrations/credential-store";
 
-export async function GET() {
+export async function GET(request: Request) {
 	try {
 		const team = await fetchCurrentTeam();
 		const credentials = await getCredentialsForTeam(team.dbId);
 
+		// Optional filter by pieceName
+		const url = new URL(request.url);
+		const pieceNameFilter = url.searchParams.get("pieceName");
+		const filtered = pieceNameFilter
+			? credentials.filter((c) => c.pieceName === pieceNameFilter)
+			: credentials;
+
 		return NextResponse.json({
-			credentials: credentials.map((c) => ({
+			credentials: filtered.map((c) => ({
 				dbId: c.dbId,
 				pieceName: c.pieceName,
 				displayName: c.displayName,

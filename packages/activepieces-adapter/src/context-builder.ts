@@ -11,6 +11,8 @@ export interface StoreAdapter {
 	delete(key: string): Promise<void>;
 }
 
+export type ConnectionResolver = (key: string) => Promise<unknown>;
+
 interface ActionContextArgs {
 	auth: unknown;
 	propsValue: Record<string, unknown>;
@@ -21,6 +23,8 @@ interface ActionContextArgs {
 			data: Buffer;
 		}) => Promise<string>;
 	};
+	connectionResolver?: ConnectionResolver;
+	serverUrl?: string;
 }
 
 /**
@@ -40,6 +44,11 @@ export function buildActionContext(args: ActionContextArgs) {
 		},
 	};
 
+	const serverUrl =
+		args.serverUrl ||
+		process.env.NEXT_PUBLIC_APP_URL ||
+		"http://localhost:3000";
+
 	return {
 		auth: args.auth,
 		propsValue: args.propsValue,
@@ -53,25 +62,24 @@ export function buildActionContext(args: ActionContextArgs) {
 				return `file://${_args.fileName}`;
 			},
 		},
-		// Stub fields that pieces may reference but we don't use
 		server: {
-			apiUrl: "http://localhost",
-			publicUrl: "http://localhost",
+			apiUrl: serverUrl,
+			publicUrl: serverUrl,
 			token: "",
 		},
 		run: {
-			id: "giselle-run",
+			id: `giselle-run-${Date.now()}`,
 			stop: () => {},
 			pause: () => {},
 		},
 		connections: {
-			get: async (_key: string) => null,
+			get: args.connectionResolver ?? (async (_key: string) => null),
 		},
 		tags: {
 			add: async (_params: { name: string }) => {},
 		},
 		generateResumeUrl: (_params: { queryParams: Record<string, string> }) => {
-			return "http://localhost/resume";
+			return `${serverUrl}/api/integrations/resume`;
 		},
 	};
 }

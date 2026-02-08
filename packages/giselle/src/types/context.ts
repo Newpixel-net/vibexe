@@ -71,4 +71,8 @@ export interface GiselleContext {
 	generateContentProcess: GenerateContentProcess;
 	runTaskProcess: RunTaskProcess;
 	experimental_contentGenerationNode: boolean;
+	resolveIntegrationCredential?: (credentialId: string) => Promise<{
+		authType: string;
+		config: Record<string, unknown>;
+	} | null>;
 }

@@ -7,7 +7,11 @@
  */
 
 import { tryBuiltInExecution } from "./built-in-pieces";
-import { buildActionContext, type StoreAdapter } from "./context-builder";
+import {
+	buildActionContext,
+	type ConnectionResolver,
+	type StoreAdapter,
+} from "./context-builder";
 import { loadPiece } from "./piece-registry";
 
 export interface ExecutePieceActionArgs {
@@ -17,6 +21,8 @@ export interface ExecutePieceActionArgs {
 	properties: Record<string, unknown>;
 	auth: unknown;
 	store?: StoreAdapter;
+	connectionResolver?: ConnectionResolver;
+	serverUrl?: string;
 }
 
 /**
@@ -67,6 +73,8 @@ export async function executePieceAction(
 		auth: args.auth,
 		propsValue: args.properties,
 		store: args.store,
+		connectionResolver: args.connectionResolver,
+		serverUrl: args.serverUrl,
 	});
 
 	const result = await runFn(context);

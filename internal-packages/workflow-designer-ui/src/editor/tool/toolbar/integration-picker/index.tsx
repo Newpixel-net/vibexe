@@ -16,14 +16,16 @@ import {
 import {
 	ArrowLeftIcon,
 	ChevronRightIcon,
+	LoaderIcon,
 	SearchIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { GitHubIcon } from "../components";
 import { addNodeTool, useToolbar } from "../state";
 import { PieceIcon } from "./piece-icon";
+import { usePieceActions, type PieceActionInfo } from "./use-piece-actions";
 
-// ─── Navigation state ─────────────────────────────────
+// Navigation state
 type PickerView =
 	| { level: "categories" }
 	| { level: "pieces"; category: PieceCategory }
@@ -36,7 +38,6 @@ export function IntegrationPicker() {
 
 	const categories = useMemo(() => getAllCategories(), []);
 
-	// Count pieces per category
 	const categoryCounts = useMemo(() => {
 		const counts: Partial<Record<PieceCategory, number>> = {};
 		for (const cat of categories) {
@@ -45,21 +46,49 @@ export function IntegrationPicker() {
 		return counts;
 	}, [categories]);
 
-	// Search results
 	const searchResults = useMemo(() => {
 		if (!searchQuery.trim()) return null;
 		return searchPieces(searchQuery);
 	}, [searchQuery]);
 
+	// Fetch actions when viewing a specific piece
+	const activePieceName =
+		view.level === "actions" ? view.piece.name : null;
+	const {
+		actions: pieceActions,
+		version: pieceVersion,
+		loading: actionsLoading,
+	} = usePieceActions(activePieceName);
+
 	const handleSelectPiece = (piece: PieceCatalogEntry) => {
-		// For now, create integration node directly with a generic action
-		// since we don't have per-piece action definitions in the catalog yet
+		// Navigate to actions view to show available actions
+		setView({ level: "actions", piece });
+	};
+
+	const handleSelectAction = (
+		piece: PieceCatalogEntry,
+		action: PieceActionInfo,
+		version: string,
+	) => {
+		setSelectedTool(
+			addNodeTool(
+				createIntegrationNode({
+					pieceName: piece.name,
+					actionName: action.name,
+					pieceVersion: version,
+				}),
+			),
+		);
+	};
+
+	const handleSelectPieceDefault = (piece: PieceCatalogEntry) => {
+		// Fallback: create with "default" action if actions can't be loaded
 		setSelectedTool(
 			addNodeTool(
 				createIntegrationNode({
 					pieceName: piece.name,
 					actionName: "default",
-					pieceVersion: "0.0.1",
+					pieceVersion: pieceVersion ?? "0.0.1",
 				}),
 			),
 		);
@@ -75,7 +104,7 @@ export function IntegrationPicker() {
 		}
 	};
 
-	// ─── Render header ────────────────────────────────────
+	// Render header
 	const renderHeader = () => {
 		const showBack = view.level !== "categories";
 		const title =
@@ -102,21 +131,23 @@ export function IntegrationPicker() {
 						{PIECE_CATALOG.length}+ integrations
 					</span>
 				</div>
-				<div className="flex h-[28px] p-[8px] items-center gap-[8px] self-stretch rounded-[8px] bg-[rgba(222,233,242,0.20)]">
-					<SearchIcon className="size-[14px] text-[#505D7B] shrink-0" />
-					<input
-						type="text"
-						placeholder="Search integrations..."
-						className="w-full bg-transparent border-none text-inverse text-[12px] placeholder:text-link-muted focus:outline-none"
-						value={searchQuery}
-						onChange={(e) => setSearchQuery(e.target.value)}
-					/>
-				</div>
+				{view.level !== "actions" && (
+					<div className="flex h-[28px] p-[8px] items-center gap-[8px] self-stretch rounded-[8px] bg-[rgba(222,233,242,0.20)]">
+						<SearchIcon className="size-[14px] text-[#505D7B] shrink-0" />
+						<input
+							type="text"
+							placeholder="Search integrations..."
+							className="w-full bg-transparent border-none text-inverse text-[12px] placeholder:text-link-muted focus:outline-none"
+							value={searchQuery}
+							onChange={(e) => setSearchQuery(e.target.value)}
+						/>
+					</div>
+				)}
 			</div>
 		);
 	};
 
-	// ─── Render search results ────────────────────────────
+	// Render search results
 	const renderSearchResults = () => {
 		if (!searchResults) return null;
 		if (searchResults.length === 0) {
@@ -145,7 +176,7 @@ export function IntegrationPicker() {
 		);
 	};
 
-	// ─── Render categories (level 0) ──────────────────────
+	// Render categories (level 0)
 	const renderCategories = () => (
 		<div className="flex flex-col gap-[2px]">
 			{/* Built-in: GitHub Trigger & Action */}
@@ -215,7 +246,7 @@ export function IntegrationPicker() {
 		</div>
 	);
 
-	// ─── Render pieces in category (level 1) ──────────────
+	// Render pieces in category (level 1)
 	const renderPieces = () => {
 		if (view.level !== "pieces") return null;
 		const pieces = getPiecesByCategory(view.category);
@@ -232,6 +263,88 @@ export function IntegrationPicker() {
 		);
 	};
 
+	// Render actions for selected piece (level 2)
+	const renderActions = () => {
+		if (view.level !== "actions") return null;
+		const piece = view.piece;
+
+		if (actionsLoading) {
+			return (
+				<div className="flex items-center justify-center py-[16px] gap-[8px]">
+					<LoaderIcon className="size-[14px] text-[#505D7B] animate-spin" />
+					<span className="text-[12px] text-[#505D7B]">
+						Loading actions...
+					</span>
+				</div>
+			);
+		}
+
+		if (pieceActions.length === 0) {
+			return (
+				<div className="flex flex-col gap-[8px] py-[8px] px-[8px]">
+					<p className="text-[12px] text-[#505D7B]">
+						No actions found. Use default action.
+					</p>
+					<button
+						type="button"
+						className="flex items-center gap-[8px] rounded-[6px] px-[8px] py-[6px] hover:bg-[rgba(222,233,242,0.10)] w-full text-left"
+						onClick={() => handleSelectPieceDefault(piece)}
+					>
+						<PieceIcon
+							logoUrl={piece.logoUrl}
+							displayName={piece.displayName}
+							className="size-[20px] shrink-0"
+						/>
+						<div className="flex-1 min-w-0">
+							<p className="text-[13px] text-inverse">Default Action</p>
+							<p className="text-[11px] text-[#505D7B] truncate">
+								Run the default action for {piece.displayName}
+							</p>
+						</div>
+					</button>
+				</div>
+			);
+		}
+
+		return (
+			<div className="flex flex-col gap-[2px]">
+				<p className="text-[#505D7B] text-[11px] font-medium leading-[170%] px-[8px] mt-[4px]">
+					Actions ({pieceActions.length})
+				</p>
+				{pieceActions.map((action) => (
+					<button
+						key={action.name}
+						type="button"
+						className="flex items-center gap-[8px] rounded-[6px] px-[8px] py-[6px] hover:bg-[rgba(222,233,242,0.10)] w-full text-left"
+						onClick={() =>
+							handleSelectAction(
+								piece,
+								action,
+								pieceVersion ?? "0.0.1",
+							)
+						}
+					>
+						<PieceIcon
+							logoUrl={piece.logoUrl}
+							displayName={piece.displayName}
+							className="size-[16px] shrink-0 opacity-60"
+						/>
+						<div className="flex-1 min-w-0">
+							<p className="text-[13px] text-inverse truncate">
+								{action.displayName}
+							</p>
+							{action.description && (
+								<p className="text-[11px] text-[#505D7B] truncate">
+									{action.description}
+								</p>
+							)}
+						</div>
+					</button>
+				))}
+			</div>
+		);
+	};
+
 	return (
 		<div className="flex flex-col gap-[4px] w-[280px]">
 			{renderHeader()}
@@ -242,13 +355,13 @@ export function IntegrationPicker() {
 						? renderCategories()
 						: view.level === "pieces"
 							? renderPieces()
-							: null}
+							: renderActions()}
 			</div>
 		</div>
 	);
 }
 
-// ─── PieceRow component ───────────────────────────────
+// PieceRow component
 function PieceRow({
 	piece,
 	showCategory,
@@ -277,13 +390,13 @@ function PieceRow({
 					{showCategory ? piece.category : piece.description}
 				</p>
 			</div>
+			<ChevronRightIcon className="size-[14px] text-[#505D7B] opacity-0 group-hover:opacity-100" />
 		</button>
 	);
 }
 
-// ─── Category icon (simple letter-based) ──────────────
+// Category icon (simple letter-based)
 function CategoryIcon({ category }: { category: PieceCategory }) {
-	// Use first letter of category as a simple icon
 	const letter = category.charAt(0).toUpperCase();
 	return (
 		<span className="text-[10px] font-bold">{letter}</span>

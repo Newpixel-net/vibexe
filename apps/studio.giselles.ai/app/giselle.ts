@@ -490,8 +490,25 @@ export const giselle = NextGiselle({
 	logger,
 	async onRequest({ updateContext }) {
 		const useGenerateContentNode = await generateContentNodeFlag();
+		const currentTeamForCreds = await fetchCurrentTeam().catch(() => null);
 		updateContext({
 			experimental_contentGenerationNode: useGenerateContentNode,
+			resolveIntegrationCredential: currentTeamForCreds
+				? async (credentialId: string) => {
+						const { getCredential } = await import(
+							"@/services/integrations/credential-store"
+						);
+						const credential = await getCredential(
+							currentTeamForCreds.dbId,
+							Number.parseInt(credentialId, 10),
+						);
+						if (!credential) return null;
+						return {
+							authType: credential.authType,
+							config: credential.config,
+						};
+					}
+				: undefined,
 		});
 	},
 });

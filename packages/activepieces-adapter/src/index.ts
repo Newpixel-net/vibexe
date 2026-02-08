@@ -38,4 +38,15 @@ export type {
 	PieceType,
 } from "./piece-catalog";
 
+export { inspectPiece, getActionProps } from "./piece-inspector";
+export type {
+	PieceInfo,
+	PieceActionInfo,
+	PieceAuthInfo,
+	PropertyInfo,
+} from "./piece-inspector";
+
+export { ensureFreshToken } from "./token-refresh";
+export type { ConnectionResolver } from "./context-builder";
+
 export * from "./n8n";

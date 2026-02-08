@@ -151,15 +151,38 @@ export function executeIntegration(args: {
 			let result: unknown;
 			try {
 				// Dynamic import of activepieces adapter
-				const { executePieceAction } = await import(
+				const { executePieceAction, resolveAuth } = await import(
 					"@giselles-ai/activepieces-adapter"
 				);
+
+				// Resolve credentials if available
+				let auth: unknown = null;
+				const credentialId = operationNode.content.credentialId;
+				if (credentialId && args.context.resolveIntegrationCredential) {
+					const credential =
+						await args.context.resolveIntegrationCredential(credentialId);
+					if (credential) {
+						auth = resolveAuth(credential);
+					}
+				}
+
+				// Build a connection resolver for pieces that reference other services
+				const connectionResolver = args.context.resolveIntegrationCredential
+					? async (key: string) => {
+							const cred =
+								await args.context.resolveIntegrationCredential!(key);
+							if (cred) return resolveAuth(cred);
+							return null;
+						}
+					: undefined;
+
 				result = await executePieceAction({
 					pieceName,
 					actionName,
 					pieceVersion,
 					properties: mergedConfig,
-					auth: null,
+					auth,
+					connectionResolver,
 				});
 			} catch (error) {
 				console.error("Integration execution failed:", error);

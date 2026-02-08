@@ -52,9 +52,29 @@ export async function loadPiece(pieceName: string): Promise<unknown> {
 
 	try {
 		const pieceModule = await import(packageName);
-		// Activepieces pieces typically export the piece as default or as a named export
-		const piece =
-			pieceModule.default ?? pieceModule[Object.keys(pieceModule)[0]];
+		// Activepieces pieces export in various ways:
+		// 1. Default export (pieceModule.default)
+		// 2. Named export matching piece name (e.g. pieceModule.slack)
+		// 3. First export that looks like a piece (has .actions property)
+		let piece = pieceModule.default;
+		if (!piece || typeof piece !== "object" || !("actions" in piece)) {
+			// Try to find a named export that looks like a piece
+			for (const key of Object.keys(pieceModule)) {
+				const candidate = pieceModule[key];
+				if (
+					candidate &&
+					typeof candidate === "object" &&
+					"actions" in candidate
+				) {
+					piece = candidate;
+					break;
+				}
+			}
+		}
+		if (!piece) {
+			// Last resort: take first non-default export
+			piece = pieceModule[Object.keys(pieceModule).find((k) => k !== "default") ?? Object.keys(pieceModule)[0]];
+		}
 		if (!piece) {
 			throw new Error(
 				`Piece module ${packageName} does not export a valid piece`,

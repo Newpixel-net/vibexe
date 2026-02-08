@@ -29,81 +29,9 @@ import {
 	PropertiesPanelRoot,
 } from "../ui";
 import { NodePanelHeader } from "../ui/node-panel-header";
-
-// Known field definitions per piece/action for a better UX
-interface FieldDef {
-	key: string;
-	label: string;
-	placeholder: string;
-	type: "text" | "password" | "textarea";
-	required?: boolean;
-}
-
-const KNOWN_FIELDS: Record<string, Record<string, FieldDef[]>> = {
-	youtube: {
-		"fetch-video-info": [
-			{
-				key: "videoUrl",
-				label: "Video URL",
-				placeholder: "https://youtube.com/watch?v=...",
-				type: "text",
-				required: true,
-			},
-			{
-				key: "apiKey",
-				label: "YouTube API Key",
-				placeholder: "AIzaSy...",
-				type: "password",
-				required: true,
-			},
-		],
-	},
-	http: {
-		"send-request": [
-			{
-				key: "url",
-				label: "URL",
-				placeholder: "https://api.example.com/endpoint",
-				type: "text",
-				required: true,
-			},
-			{
-				key: "method",
-				label: "Method",
-				placeholder: "GET",
-				type: "text",
-			},
-			{
-				key: "body",
-				label: "Body",
-				placeholder: '{"key": "value"}',
-				type: "textarea",
-			},
-		],
-	},
-	slack: {
-		"send-message": [
-			{
-				key: "channel",
-				label: "Channel",
-				placeholder: "#general or channel ID",
-				type: "text",
-				required: true,
-			},
-			{
-				key: "text",
-				label: "Message",
-				placeholder: "Hello from Vibexe!",
-				type: "textarea",
-				required: true,
-			},
-		],
-	},
-};
-
-function getFieldDefs(pieceName: string, actionName: string): FieldDef[] {
-	return KNOWN_FIELDS[pieceName]?.[actionName] ?? [];
-}
+import { CredentialSelector } from "./credential-selector";
+import { DynamicPropertyField } from "./dynamic-property-field";
+import { usePieceActionProps } from "./use-piece-action-props";
 
 export function IntegrationNodePropertiesPanel({
 	node,
@@ -128,6 +56,14 @@ export function IntegrationNodePropertiesPanel({
 	const [newKey, setNewKey] = useState("");
 	const [newValue, setNewValue] = useState("");
 	const [copied, setCopied] = useState(false);
+
+	// Fetch dynamic props from the piece inspector API
+	const {
+		props: dynamicProps,
+		auth: authInfo,
+		loading: propsLoading,
+		error: propsError,
+	} = usePieceActionProps(node.content.pieceName, node.content.actionName);
 
 	const resultText = useMemo(() => {
 		if (!currentGeneration) return null;
@@ -199,8 +135,6 @@ export function IntegrationNodePropertiesPanel({
 		const incomingConnections = connections.filter(
 			(c) => c.inputNode.id === node.id,
 		);
-		// Look up full node objects from the store instead of using minimal
-		// connection references (which lack inputs/outputs and fail Zod validation)
 		const sourceNodes = incomingConnections
 			.map((c) => nodes.find((n) => n.id === c.outputNode.id))
 			.filter((n): n is Node => Node.safeParse(n).success);
@@ -226,13 +160,12 @@ export function IntegrationNodePropertiesPanel({
 		workspaceId,
 	]);
 
-	const knownFields = getFieldDefs(
-		node.content.pieceName,
-		node.content.actionName,
-	);
-	const knownKeys = new Set(knownFields.map((f) => f.key));
+	const hasDynamicProps = dynamicProps && Object.keys(dynamicProps).length > 0;
+	const dynamicPropKeys = hasDynamicProps
+		? new Set(Object.keys(dynamicProps))
+		: new Set<string>();
 	const customEntries = Object.entries(configuration).filter(
-		([k]) => !knownKeys.has(k),
+		([k]) => !dynamicPropKeys.has(k),
 	);
 
 	return (
@@ -264,46 +197,41 @@ export function IntegrationNodePropertiesPanel({
 							</div>
 						</div>
 
-						{/* Known fields for this piece/action */}
-						{knownFields.length > 0 && (
+						{/* Credential selector - shown when piece requires auth */}
+						{authInfo && (
+							<CredentialSelector
+								node={node}
+								pieceName={node.content.pieceName}
+								authInfo={authInfo}
+							/>
+						)}
+
+						{/* Dynamic properties from piece inspector API */}
+						{propsLoading && (
+							<div className="flex items-center gap-2 text-xs text-text-muted py-2">
+								<LoaderIcon className="size-3 animate-spin" />
+								Loading properties...
+							</div>
+						)}
+
+						{propsError && !hasDynamicProps && (
+							<div className="text-xs text-text-muted/60 py-1">
+								{/* Fallback: show generic editor when piece is not installed */}
+							</div>
+						)}
+
+						{hasDynamicProps && (
 							<div className="flex flex-col gap-3 mt-2">
 								<div className="text-xs font-medium text-text-muted uppercase tracking-wider">
 									Configuration
 								</div>
-								{knownFields.map((field) => (
-									<div key={field.key} className="flex flex-col gap-1">
-										<label
-											htmlFor={`field-${field.key}`}
-											className="text-xs text-text-muted"
-										>
-											{field.label}
-											{field.required && (
-												<span className="text-red-400 ml-0.5">*</span>
-											)}
-										</label>
-										{field.type === "textarea" ? (
-											<textarea
-												id={`field-${field.key}`}
-												className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-action-node-1 resize-y min-h-[60px]"
-												placeholder={field.placeholder}
-												value={(configuration[field.key] as string) ?? ""}
-												onChange={(e) =>
-													updateConfig(field.key, e.target.value)
-												}
-											/>
-										) : (
-											<input
-												id={`field-${field.key}`}
-												type={field.type}
-												className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-action-node-1"
-												placeholder={field.placeholder}
-												value={(configuration[field.key] as string) ?? ""}
-												onChange={(e) =>
-													updateConfig(field.key, e.target.value)
-												}
-											/>
-										)}
-									</div>
+								{Object.entries(dynamicProps).map(([key, prop]) => (
+									<DynamicPropertyField
+										key={key}
+										prop={prop}
+										value={configuration[key]}
+										onChange={(val) => updateConfig(key, val)}
+									/>
 								))}
 							</div>
 						)}
@@ -311,7 +239,7 @@ export function IntegrationNodePropertiesPanel({
 						{/* Custom/extra configuration entries */}
 						{customEntries.length > 0 && (
 							<div className="flex flex-col gap-3 mt-2">
-								{knownFields.length === 0 && (
+								{!hasDynamicProps && (
 									<div className="text-xs font-medium text-text-muted uppercase tracking-wider">
 										Configuration
 									</div>
@@ -374,15 +302,6 @@ export function IntegrationNodePropertiesPanel({
 								</button>
 							</div>
 						</div>
-
-						{node.content.credentialId && (
-							<div className="flex flex-col gap-2">
-								<div className="text-xs text-text-muted">Credential</div>
-								<div className="text-sm text-inverse font-medium">
-									Configured
-								</div>
-							</div>
-						)}
 
 						<button
 							type="button"
