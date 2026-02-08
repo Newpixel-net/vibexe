@@ -156,15 +156,22 @@ export function IntegrationNodePropertiesPanel({
 			.map((c) => nodes.find((n) => n.id === c.outputNode.id))
 			.filter((n): n is Node => Node.safeParse(n).success);
 
-		createAndStartGenerationRunner({
+		const ctx = {
 			origin: {
-				type: "studio",
+				type: "studio" as const,
 				workspaceId,
 			},
 			operationNode: node,
 			sourceNodes,
 			connections: incomingConnections,
-		});
+		};
+		console.log("[DEBUG-CLICK] handleClick fired, sourceNodes:", sourceNodes.length, "connections:", incomingConnections.length, "node.inputs:", node.inputs?.length, "node.outputs:", node.outputs?.length);
+		try {
+			createAndStartGenerationRunner(ctx);
+			console.log("[DEBUG-CLICK] createAndStartGenerationRunner returned");
+		} catch (e) {
+			console.error("[DEBUG-CLICK] createAndStartGenerationRunner threw:", e);
+		}
 	}, [
 		isGenerating,
 		stopGenerationRunner,
