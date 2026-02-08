@@ -102,6 +102,18 @@ const PIECE_TO_PROVIDER: Record<string, string> = {
 	okta: "okta",
 	netlify: "netlify",
 	square: "square",
+	sendinblue: "brevo",
+	brevo: "brevo",
+	convertkit: "convertkit",
+	mailgun: "mailgun",
+	"freshsales-crm": "freshsales",
+	greenhouse: "greenhouse",
+	lever: "lever",
+	drift: "drift",
+	front: "front",
+	copper: "copper",
+	loom: "loom",
+	"line-bot": "line",
 
 	// Zoho family
 	"zoho-crm": "zoho",
