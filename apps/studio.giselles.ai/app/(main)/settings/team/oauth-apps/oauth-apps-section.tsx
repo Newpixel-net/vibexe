@@ -347,7 +347,7 @@ function AddOAuthAppForm({
 							id="provider"
 							value={provider}
 							onChange={(e) => setProvider(e.target.value)}
-							className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white outline-none focus:border-white/25"
+							className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white outline-none focus:border-white/25 [&>option]:bg-[#141120] [&>option]:text-white"
 							required
 						>
 							<option value="">Select a provider...</option>

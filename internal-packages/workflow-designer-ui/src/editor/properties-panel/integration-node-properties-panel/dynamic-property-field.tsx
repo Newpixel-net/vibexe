@@ -90,7 +90,7 @@ function renderField(
 				return (
 					<select
 						id={id}
-						className={`${baseInputClass} cursor-pointer`}
+						className={`${baseInputClass} cursor-pointer [&>option]:bg-[#141120] [&>option]:text-white`}
 						value={stringValue}
 						onChange={(e) => onChange(e.target.value)}
 					>

@@ -320,7 +320,7 @@ export function WorkflowsPanel({ appId }: WorkflowsPanelProps) {
 									<select
 										value={attachPurpose}
 										onChange={(e) => setAttachPurpose(e.target.value)}
-										className="w-full px-3 py-1.5 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+										className="w-full px-3 py-1.5 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary [&>option]:bg-[#141120] [&>option]:text-white"
 									>
 										<option value="">General</option>
 										<option value="testing">Testing</option>

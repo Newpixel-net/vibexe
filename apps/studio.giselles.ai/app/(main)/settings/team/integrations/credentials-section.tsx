@@ -628,7 +628,7 @@ function AddCredentialModal({
 							id="cred-auth"
 							value={authType}
 							onChange={(e) => setAuthType(e.target.value)}
-							className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white outline-none focus:border-white/25"
+							className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white outline-none focus:border-white/25 [&>option]:bg-[#141120] [&>option]:text-white"
 						>
 							<option value="secret_text">API Key / Token</option>
 							<option value="oauth2">OAuth2 Access Token</option>

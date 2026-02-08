@@ -146,7 +146,7 @@ export function CredentialSelector({
 			) : (
 				<div className="flex flex-col gap-2">
 					<select
-						className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-inverse focus:outline-none focus:ring-1 focus:ring-integration-node-1 cursor-pointer"
+						className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-inverse focus:outline-none focus:ring-1 focus:ring-integration-node-1 cursor-pointer [&>option]:bg-[#141120] [&>option]:text-white"
 						value={node.content.credentialId ?? ""}
 						onChange={(e) => handleSelect(e.target.value)}
 					>
