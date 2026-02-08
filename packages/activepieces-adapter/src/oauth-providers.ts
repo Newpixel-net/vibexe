@@ -135,6 +135,13 @@ const PIECE_TO_PROVIDER: Record<string, string> = {
 	"http-oauth2": "http-oauth2",
 	zeplin: "zeplin",
 
+	// Phase 5 additions
+	bexio: "bexio",
+	zuora: "zuora",
+	netsuite: "netsuite",
+	splitwise: "splitwise",
+	"sap-ariba": "sap-ariba",
+
 	// Zoho family
 	"zoho-crm": "zoho",
 	"zoho-books": "zoho",
