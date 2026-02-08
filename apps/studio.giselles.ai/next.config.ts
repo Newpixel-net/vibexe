@@ -70,6 +70,19 @@ export const serverExternalPackages = [
 	"@activepieces/piece-data-mapper",
 	"@activepieces/piece-store",
 	"@activepieces/piece-connections",
+	// Transitive dependencies of @activepieces packages that Turbopack can't resolve
+	"pg-format",
+	"pg",
+	"pg-pool",
+	"pg-types",
+	"pg-connection-string",
+	"pgpass",
+	"mysql2",
+	"googleapis",
+	"google-auth-library",
+	"gaxios",
+	"gcp-metadata",
+	"node-fetch",
 ];
 const pdfiumWasmInclude = relative(projectDir, pdfiumWasmPath).replace(
 	/\\/g,
