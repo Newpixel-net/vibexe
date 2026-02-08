@@ -149,6 +149,9 @@ const PIECE_TO_PROVIDER: Record<string, string> = {
 	// Phase 9 additions
 	truelayer: "truelayer",
 
+	// Phase 10 additions
+	"free-agent": "free-agent",
+
 	// Zoho family
 	"zoho-crm": "zoho",
 	"zoho-books": "zoho",
