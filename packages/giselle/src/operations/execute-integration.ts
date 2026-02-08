@@ -1,6 +1,7 @@
 import {
 	type GenerationContext,
 	type GenerationOutput,
+	isAppEntryNode,
 	isIntegrationNode,
 	isTextNode,
 	type NodeId,
@@ -42,6 +43,22 @@ async function resolveIntegrationInputs(args: {
 
 		switch (sourceNode.type) {
 			case "operation": {
+				if (isAppEntryNode(sourceNode)) {
+					const parts = await args.appEntryResolver(
+						connection.outputNode.id,
+						connection.outputId,
+					);
+					if (parts.length > 0) {
+						const textParts = parts.filter((p) => p.type === "text");
+						if (textParts.length > 0) {
+							inputs[input.accessor] = textParts
+								.map((p) => p.text)
+								.join(" ");
+						}
+					}
+					break;
+				}
+
 				const content = await args.generationContentResolver(
 					connection.outputNode.id,
 					connection.outputId,
