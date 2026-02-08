@@ -67,9 +67,6 @@ export function IntegrationNodePropertiesPanel({
 				node={node}
 				onChangeName={(name) => updateNodeData(node, { name })}
 				onDelete={() => deleteNode(node.id)}
-				icon={
-					<CableIcon className="size-[16px] text-inverse" />
-				}
 			/>
 			<PropertiesPanelContent>
 				<div className="overflow-y-auto flex-1 pr-2 custom-scrollbar h-full relative">
