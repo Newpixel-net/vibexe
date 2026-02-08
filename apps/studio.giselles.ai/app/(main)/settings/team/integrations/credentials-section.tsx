@@ -1,11 +1,14 @@
 "use client";
 
 import {
+	CheckCircle2Icon,
 	ChevronDownIcon,
 	ChevronUpIcon,
 	ExternalLinkIcon,
 	KeyRoundIcon,
 	LinkIcon,
+	LogOutIcon,
+	RefreshCwIcon,
 	SearchIcon,
 	Trash2Icon,
 	XIcon,
@@ -223,6 +226,13 @@ export function CredentialsSection() {
 		return map;
 	}, [pieces]);
 
+	// Set of piece names that have stored credentials
+	const connectedPieces = useMemo(() => {
+		const set = new Set<string>();
+		for (const c of credentials) set.add(c.pieceName);
+		return set;
+	}, [credentials]);
+
 	return (
 		<div className="flex flex-col gap-6">
 			{/* ─── Integration Catalog ────────────────────────── */}
@@ -322,18 +332,30 @@ export function CredentialsSection() {
 
 				{/* Card Grid */}
 				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-					{visiblePieces.map((piece) => (
+					{visiblePieces.map((piece) => {
+						const isConnected = connectedPieces.has(piece.name);
+						return (
 						<button
 							key={piece.name}
 							type="button"
 							onClick={() => setAddingPiece(piece)}
-							className="flex items-start gap-3 p-4 rounded-xl bg-[rgb(27,23,40)] border border-white/[0.08] hover:border-white/20 transition-all text-left group"
+							className={`relative flex items-start gap-3 p-4 rounded-xl bg-[rgb(27,23,40)] border transition-all text-left group ${
+								isConnected
+									? "border-emerald-500/30 hover:border-emerald-500/50"
+									: "border-white/[0.08] hover:border-white/20"
+							}`}
 						>
+							{isConnected && (
+								<div className="absolute top-2.5 right-2.5 flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/15">
+									<CheckCircle2Icon className="size-3 text-emerald-400" />
+									<span className="text-[10px] font-medium text-emerald-400">Connected</span>
+								</div>
+							)}
 							<div className="shrink-0 mt-0.5">
 								<PieceIcon piece={piece} size={40} />
 							</div>
 							<div className="min-w-0 flex-1">
-								<div className="text-sm font-medium text-white group-hover:text-white/90 truncate">
+								<div className="text-sm font-medium text-white group-hover:text-white/90 truncate pr-16">
 									{piece.displayName}
 								</div>
 								<div className="text-xs text-white/40 mt-0.5 line-clamp-2 leading-relaxed">
@@ -352,7 +374,8 @@ export function CredentialsSection() {
 								)}
 							</div>
 						</button>
-					))}
+						);
+					})}
 				</div>
 
 				{/* Load More */}
@@ -387,6 +410,7 @@ export function CredentialsSection() {
 			{addingPiece && (
 				<AddCredentialModal
 					piece={addingPiece}
+					existingCredential={credentials.find(c => c.pieceName === addingPiece.name) ?? null}
 					onClose={() => {
 						setAddingPiece(null);
 						setError(null);
@@ -395,6 +419,9 @@ export function CredentialsSection() {
 						setAddingPiece(null);
 						setError(null);
 						fetchCredentials();
+					}}
+					onDisconnect={async (credId: number) => {
+						await handleDelete(credId);
 					}}
 					error={error}
 					setError={setError}
@@ -479,18 +506,23 @@ export function CredentialsSection() {
 
 function AddCredentialModal({
 	piece,
+	existingCredential,
 	onClose,
 	onSuccess,
+	onDisconnect,
 	error,
 	setError,
 }: {
 	piece: PieceCatalogEntry;
+	existingCredential: CredentialDisplay | null;
 	onClose: () => void;
 	onSuccess: () => void;
+	onDisconnect: (credId: number) => Promise<void>;
 	error: string | null;
 	setError: (error: string | null) => void;
 }) {
 	const isOAuth2Piece = piece.authType === "oauth2";
+	const isConnected = existingCredential !== null;
 
 	const [displayName, setDisplayName] = useState("");
 	const [authType, setAuthType] = useState(() => {
@@ -506,7 +538,10 @@ function AddCredentialModal({
 	});
 	const [apiKey, setApiKey] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [showManualEntry, setShowManualEntry] = useState(!isOAuth2Piece);
+	const [showManualEntry, setShowManualEntry] = useState(!isOAuth2Piece && !isConnected);
+	const [showReconnect, setShowReconnect] = useState(false);
+	const [isDisconnecting, setIsDisconnecting] = useState(false);
+	const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 	const modalRef = useRef<HTMLDivElement>(null);
 
 	// OAuth2 status
@@ -535,12 +570,12 @@ function AddCredentialModal({
 						reason?: string;
 					};
 					setOauthStatus(data);
-					if (!data.available) setShowManualEntry(true);
+					if (!data.available && !isConnected) setShowManualEntry(true);
 				}
 			} catch {
 				if (!cancelled) {
 					setOauthStatus({ available: false, reason: "Failed to check OAuth status" });
-					setShowManualEntry(true);
+					if (!isConnected) setShowManualEntry(true);
 				}
 			} finally {
 				if (!cancelled) setOauthChecking(false);
@@ -548,7 +583,7 @@ function AddCredentialModal({
 		})();
 
 		return () => { cancelled = true; };
-	}, [isOAuth2Piece, piece.name]);
+	}, [isOAuth2Piece, piece.name, isConnected]);
 
 	// Close on outside click
 	useEffect(() => {
@@ -595,6 +630,21 @@ function AddCredentialModal({
 				onSuccess();
 			}
 		}, 500);
+	};
+
+	const handleDisconnect = async () => {
+		if (!existingCredential) return;
+		setIsDisconnecting(true);
+		setError(null);
+		try {
+			await onDisconnect(existingCredential.dbId);
+			onSuccess();
+		} catch {
+			setError("Failed to disconnect. Please try again.");
+		} finally {
+			setIsDisconnecting(false);
+			setConfirmDisconnect(false);
+		}
 	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
@@ -644,6 +694,20 @@ function AddCredentialModal({
 		}
 	};
 
+	// Format relative time
+	const connectedAgo = existingCredential?.createdAt
+		? (() => {
+				const diff = Date.now() - new Date(existingCredential.createdAt).getTime();
+				const mins = Math.floor(diff / 60000);
+				if (mins < 1) return "just now";
+				if (mins < 60) return `${mins}m ago`;
+				const hours = Math.floor(mins / 60);
+				if (hours < 24) return `${hours}h ago`;
+				const days = Math.floor(hours / 24);
+				return `${days}d ago`;
+			})()
+		: null;
+
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
 			<div
@@ -671,143 +735,78 @@ function AddCredentialModal({
 				</div>
 
 				<div className="p-5 flex flex-col gap-4">
-					{/* ─── OAuth2 Connect Section ─────────────────── */}
-					{isOAuth2Piece && (
-						<>
-							{oauthChecking ? (
-								<div className="flex items-center justify-center gap-2 py-6 text-white/40">
-									<div className="size-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
-									<span className="text-sm">Checking OAuth availability...</span>
-								</div>
-							) : oauthStatus?.available ? (
-								<div className="flex flex-col gap-3">
-									<button
-										type="button"
-										onClick={handleOAuthConnect}
-										disabled={oauthConnecting}
-										className="flex items-center justify-center gap-2.5 w-full px-4 py-3 text-sm font-medium rounded-lg bg-primary-900 text-white hover:bg-primary-800 transition-colors disabled:opacity-60"
-									>
-										{oauthConnecting ? (
-											<>
-												<div className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-												Connecting...
-											</>
-										) : (
-											<>
-												<LinkIcon className="size-4" />
-												Connect with {piece.displayName}
-											</>
-										)}
-									</button>
-
-									{oauthConnecting && (
-										<p className="text-xs text-white/40 text-center">
-											Complete the sign-in in the popup window...
+					{/* ─── Connected State ────────────────────────── */}
+					{isConnected && !showReconnect && (
+						<div className="flex flex-col gap-4">
+							{/* Connected badge */}
+							<div className="flex flex-col gap-3 p-4 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/20">
+								<div className="flex items-center gap-2.5">
+									<CheckCircle2Icon className="size-5 text-emerald-400 shrink-0" />
+									<div className="flex-1 min-w-0">
+										<p className="text-sm font-medium text-emerald-300">
+											Connected
 										</p>
-									)}
-
-									{/* Separator */}
-									<div className="flex items-center gap-3 py-1">
-										<div className="flex-1 h-px bg-white/[0.08]" />
-										<span className="text-[11px] text-white/30 uppercase tracking-wider">or paste token manually</span>
-										<div className="flex-1 h-px bg-white/[0.08]" />
+										<p className="text-xs text-white/40 mt-0.5">
+											{existingCredential.displayName}
+											{connectedAgo && (
+												<span className="text-white/25"> &middot; {connectedAgo}</span>
+											)}
+										</p>
 									</div>
-
-									<button
-										type="button"
-										onClick={() => setShowManualEntry(!showManualEntry)}
-										className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/60 transition-colors"
-									>
-										<KeyRoundIcon className="size-3" />
-										{showManualEntry ? "Hide" : "Show"} manual token entry
-										{showManualEntry ? (
-											<ChevronUpIcon className="size-3" />
-										) : (
-											<ChevronDownIcon className="size-3" />
-										)}
-									</button>
+									<span className="px-2 py-0.5 text-[10px] rounded-full bg-white/5 text-white/40 border border-white/[0.06]">
+										{existingCredential.authType}
+									</span>
 								</div>
-							) : (
-								<div className="flex flex-col gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-									<div className="flex items-start gap-2">
-										<ExternalLinkIcon className="size-4 text-amber-400 shrink-0 mt-0.5" />
-										<div>
-											<p className="text-sm text-amber-300">
-												OAuth not configured
-											</p>
-											<p className="text-xs text-white/40 mt-1">
-												{oauthStatus?.reason ||
-													`An admin needs to configure an OAuth app for "${oauthStatus?.provider || piece.name}" in Settings > OAuth Apps.`}
-											</p>
-										</div>
-									</div>
-									<p className="text-xs text-white/30 mt-1">
-										You can still add a token manually below.
-									</p>
-								</div>
-							)}
-						</>
-					)}
-
-					{/* ─── Manual Token Form ─────────────────────── */}
-					{showManualEntry && (
-						<form onSubmit={handleSubmit} className="flex flex-col gap-4">
-							<div className="flex flex-col gap-1.5">
-								<label
-									htmlFor="cred-name"
-									className="text-xs text-white/50"
-								>
-									Credential Name
-								</label>
-								<input
-									id="cred-name"
-									type="text"
-									value={displayName}
-									onChange={(e) => setDisplayName(e.target.value)}
-									placeholder={`My ${piece.displayName} Token`}
-									className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-white/25"
-								/>
 							</div>
 
-							{!isOAuth2Piece && (
-								<div className="flex flex-col gap-1.5">
-									<label
-										htmlFor="cred-auth"
-										className="text-xs text-white/50"
+							{/* Actions */}
+							<div className="flex flex-col gap-2">
+								{/* Reconnect option */}
+								{isOAuth2Piece && (
+									<button
+										type="button"
+										onClick={() => setShowReconnect(true)}
+										className="flex items-center gap-2 w-full px-3 py-2.5 text-sm rounded-lg bg-white/5 border border-white/[0.08] text-white/60 hover:text-white hover:border-white/15 transition-colors"
 									>
-										Auth Type
-									</label>
-									<select
-										id="cred-auth"
-										value={authType}
-										onChange={(e) => setAuthType(e.target.value)}
-										className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white outline-none focus:border-white/25 [&>option]:bg-[#141120] [&>option]:text-white"
-									>
-										<option value="secret_text">API Key / Token</option>
-										<option value="oauth2">OAuth2 Access Token</option>
-										<option value="basic">Basic Auth</option>
-										<option value="custom">Custom</option>
-									</select>
-								</div>
-							)}
+										<RefreshCwIcon className="size-3.5" />
+										Reconnect with different account
+									</button>
+								)}
 
-							<div className="flex flex-col gap-1.5">
-								<label
-									htmlFor="cred-key"
-									className="text-xs text-white/50"
-								>
-									{authType === "basic" ? "Password" : "API Key / Token"}
-								</label>
-								<input
-									id="cred-key"
-									type="password"
-									value={apiKey}
-									onChange={(e) => setApiKey(e.target.value)}
-									placeholder="Enter your API key or token"
-									className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-white/25"
-									required
-									autoFocus={!isOAuth2Piece}
-								/>
+								{/* Disconnect */}
+								{confirmDisconnect ? (
+									<div className="flex flex-col gap-2 p-3 rounded-lg bg-red-500/[0.08] border border-red-500/20">
+										<p className="text-xs text-red-300">
+											This will remove your {piece.displayName} credentials. Workflows using this integration will stop working.
+										</p>
+										<div className="flex gap-2 justify-end">
+											<button
+												type="button"
+												onClick={() => setConfirmDisconnect(false)}
+												className="px-3 py-1.5 text-xs rounded-lg text-white/50 hover:text-white transition-colors"
+											>
+												Cancel
+											</button>
+											<button
+												type="button"
+												onClick={handleDisconnect}
+												disabled={isDisconnecting}
+												className="px-3 py-1.5 text-xs rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+											>
+												{isDisconnecting ? "Disconnecting..." : "Yes, disconnect"}
+											</button>
+										</div>
+									</div>
+								) : (
+									<button
+										type="button"
+										onClick={() => setConfirmDisconnect(true)}
+										className="flex items-center gap-2 w-full px-3 py-2.5 text-sm rounded-lg text-red-400/70 hover:text-red-400 hover:bg-red-500/[0.06] transition-colors"
+									>
+										<LogOutIcon className="size-3.5" />
+										Disconnect
+									</button>
+								)}
 							</div>
 
 							{error && (
@@ -816,43 +815,234 @@ function AddCredentialModal({
 								</p>
 							)}
 
-							<div className="flex gap-2 justify-end pt-1">
+							<div className="flex justify-end pt-1">
 								<button
 									type="button"
 									onClick={onClose}
 									className="px-4 py-2 text-sm rounded-lg text-white/50 hover:text-white transition-colors"
 								>
-									Cancel
-								</button>
-								<button
-									type="submit"
-									disabled={isSubmitting || !apiKey}
-									className="px-4 py-2 text-sm rounded-lg bg-primary-900 text-white hover:bg-primary-800 transition-colors disabled:opacity-40"
-								>
-									{isSubmitting ? "Saving..." : "Save Credential"}
+									Done
 								</button>
 							</div>
-						</form>
-					)}
-
-					{/* Error shown outside form (for OAuth errors) */}
-					{!showManualEntry && error && (
-						<p className="text-sm text-red-400" role="alert">
-							{error}
-						</p>
-					)}
-
-					{/* Cancel for non-manual view */}
-					{!showManualEntry && (
-						<div className="flex justify-end pt-1">
-							<button
-								type="button"
-								onClick={onClose}
-								className="px-4 py-2 text-sm rounded-lg text-white/50 hover:text-white transition-colors"
-							>
-								Cancel
-							</button>
 						</div>
+					)}
+
+					{/* ─── Not Connected / Reconnect Flow ────────── */}
+					{(!isConnected || showReconnect) && (
+						<>
+							{/* Back button when reconnecting */}
+							{showReconnect && (
+								<button
+									type="button"
+									onClick={() => setShowReconnect(false)}
+									className="flex items-center gap-1 text-xs text-white/40 hover:text-white/60 transition-colors -mt-1 mb-1"
+								>
+									<ChevronDownIcon className="size-3 rotate-90" />
+									Back to connection status
+								</button>
+							)}
+
+							{/* ─── OAuth2 Connect Section ─────────────── */}
+							{isOAuth2Piece && (
+								<>
+									{oauthChecking ? (
+										<div className="flex items-center justify-center gap-2 py-6 text-white/40">
+											<div className="size-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+											<span className="text-sm">Checking OAuth availability...</span>
+										</div>
+									) : oauthStatus?.available ? (
+										<div className="flex flex-col gap-3">
+											<button
+												type="button"
+												onClick={handleOAuthConnect}
+												disabled={oauthConnecting}
+												className="flex items-center justify-center gap-2.5 w-full px-4 py-3 text-sm font-medium rounded-lg bg-primary-900 text-white hover:bg-primary-800 transition-colors disabled:opacity-60"
+											>
+												{oauthConnecting ? (
+													<>
+														<div className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+														Connecting...
+													</>
+												) : (
+													<>
+														<LinkIcon className="size-4" />
+														{showReconnect ? "Reconnect" : "Connect"} with {piece.displayName}
+													</>
+												)}
+											</button>
+
+											{oauthConnecting && (
+												<p className="text-xs text-white/40 text-center">
+													Complete the sign-in in the popup window...
+												</p>
+											)}
+
+											{!showReconnect && (
+												<>
+													{/* Separator */}
+													<div className="flex items-center gap-3 py-1">
+														<div className="flex-1 h-px bg-white/[0.08]" />
+														<span className="text-[11px] text-white/30 uppercase tracking-wider">or paste token manually</span>
+														<div className="flex-1 h-px bg-white/[0.08]" />
+													</div>
+
+													<button
+														type="button"
+														onClick={() => setShowManualEntry(!showManualEntry)}
+														className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/60 transition-colors"
+													>
+														<KeyRoundIcon className="size-3" />
+														{showManualEntry ? "Hide" : "Show"} manual token entry
+														{showManualEntry ? (
+															<ChevronUpIcon className="size-3" />
+														) : (
+															<ChevronDownIcon className="size-3" />
+														)}
+													</button>
+												</>
+											)}
+										</div>
+									) : (
+										<div className="flex flex-col gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+											<div className="flex items-start gap-2">
+												<ExternalLinkIcon className="size-4 text-amber-400 shrink-0 mt-0.5" />
+												<div>
+													<p className="text-sm text-amber-300">
+														OAuth not configured
+													</p>
+													<p className="text-xs text-white/40 mt-1">
+														{oauthStatus?.reason ||
+															`An admin needs to configure an OAuth app for "${oauthStatus?.provider || piece.name}" in Settings > OAuth Apps.`}
+													</p>
+												</div>
+											</div>
+											<p className="text-xs text-white/30 mt-1">
+												You can still add a token manually below.
+											</p>
+										</div>
+									)}
+								</>
+							)}
+
+							{/* ─── Manual Token Form ─────────────────── */}
+							{showManualEntry && (
+								<form onSubmit={handleSubmit} className="flex flex-col gap-4">
+									<div className="flex flex-col gap-1.5">
+										<label
+											htmlFor="cred-name"
+											className="text-xs text-white/50"
+										>
+											Credential Name
+										</label>
+										<input
+											id="cred-name"
+											type="text"
+											value={displayName}
+											onChange={(e) => setDisplayName(e.target.value)}
+											placeholder={`My ${piece.displayName} Token`}
+											className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-white/25"
+										/>
+									</div>
+
+									{!isOAuth2Piece && (
+										<div className="flex flex-col gap-1.5">
+											<label
+												htmlFor="cred-auth"
+												className="text-xs text-white/50"
+											>
+												Auth Type
+											</label>
+											<select
+												id="cred-auth"
+												value={authType}
+												onChange={(e) => setAuthType(e.target.value)}
+												className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white outline-none focus:border-white/25 [&>option]:bg-[#141120] [&>option]:text-white"
+											>
+												<option value="secret_text">API Key / Token</option>
+												<option value="oauth2">OAuth2 Access Token</option>
+												<option value="basic">Basic Auth</option>
+												<option value="custom">Custom</option>
+											</select>
+										</div>
+									)}
+
+									<div className="flex flex-col gap-1.5">
+										<label
+											htmlFor="cred-key"
+											className="text-xs text-white/50"
+										>
+											{authType === "basic" ? "Password" : "API Key / Token"}
+										</label>
+										<input
+											id="cred-key"
+											type="password"
+											value={apiKey}
+											onChange={(e) => setApiKey(e.target.value)}
+											placeholder="Enter your API key or token"
+											className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-white/25"
+											required
+											autoFocus={!isOAuth2Piece}
+										/>
+									</div>
+
+									{error && (
+										<p className="text-sm text-red-400" role="alert">
+											{error}
+										</p>
+									)}
+
+									<div className="flex gap-2 justify-end pt-1">
+										<button
+											type="button"
+											onClick={onClose}
+											className="px-4 py-2 text-sm rounded-lg text-white/50 hover:text-white transition-colors"
+										>
+											Cancel
+										</button>
+										<button
+											type="submit"
+											disabled={isSubmitting || !apiKey}
+											className="px-4 py-2 text-sm rounded-lg bg-primary-900 text-white hover:bg-primary-800 transition-colors disabled:opacity-40"
+										>
+											{isSubmitting ? "Saving..." : "Save Credential"}
+										</button>
+									</div>
+								</form>
+							)}
+
+							{/* Error shown outside form (for OAuth errors) */}
+							{!showManualEntry && error && (
+								<p className="text-sm text-red-400" role="alert">
+									{error}
+								</p>
+							)}
+
+							{/* Cancel for non-manual view */}
+							{!showManualEntry && !showReconnect && (
+								<div className="flex justify-end pt-1">
+									<button
+										type="button"
+										onClick={onClose}
+										className="px-4 py-2 text-sm rounded-lg text-white/50 hover:text-white transition-colors"
+									>
+										Cancel
+									</button>
+								</div>
+							)}
+
+							{/* Cancel for reconnect oauth-only view */}
+							{showReconnect && !oauthConnecting && (
+								<div className="flex justify-end pt-1">
+									<button
+										type="button"
+										onClick={() => setShowReconnect(false)}
+										className="px-4 py-2 text-sm rounded-lg text-white/50 hover:text-white transition-colors"
+									>
+										Cancel
+									</button>
+								</div>
+							)}
+						</>
 					)}
 				</div>
 			</div>
