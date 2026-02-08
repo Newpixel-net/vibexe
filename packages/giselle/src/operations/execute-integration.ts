@@ -27,51 +27,38 @@ async function resolveIntegrationInputs(args: {
 	const inputs: Record<string, string> = {};
 	const generationContext = args.generationContext;
 
-	console.log("[integration-debug] resolveIntegrationInputs called");
-	console.log("[integration-debug] operationNode inputs:", generationContext.operationNode.inputs.map(i => ({ id: i.id, accessor: i.accessor })));
-	console.log("[integration-debug] connections:", generationContext.connections.map(c => ({ inputId: c.inputId, outputNodeId: c.outputNode.id, outputId: c.outputId })));
-	console.log("[integration-debug] sourceNodes:", generationContext.sourceNodes.map(s => ({ id: s.id, type: s.type, contentType: s.content?.type })));
-	console.log("[integration-debug] generationContext.inputs:", JSON.stringify(generationContext.inputs));
-
 	for (const input of generationContext.operationNode.inputs) {
 		const connection = generationContext.connections.find(
 			(connection) => connection.inputId === input.id,
 		);
 		if (connection === undefined) {
-			console.log(`[integration-debug] No connection for input ${input.accessor} (${input.id})`);
 			continue;
 		}
 		const sourceNode = generationContext.sourceNodes.find(
 			(sourceNode) => sourceNode.id === connection.outputNode.id,
 		);
 		if (sourceNode === undefined) {
-			console.log(`[integration-debug] No source node for connection outputNode ${connection.outputNode.id}`);
 			continue;
 		}
-
-		console.log(`[integration-debug] Processing source node: type=${sourceNode.type}, contentType=${sourceNode.content?.type}, isAppEntry=${isAppEntryNode(sourceNode)}`);
 
 		switch (sourceNode.type) {
 			case "operation": {
 				if (isAppEntryNode(sourceNode)) {
-					console.log(`[integration-debug] Calling appEntryResolver for nodeId=${connection.outputNode.id}, outputId=${connection.outputId}`);
 					try {
 						const parts = await args.appEntryResolver(
 							connection.outputNode.id,
 							connection.outputId,
 						);
-						console.log(`[integration-debug] appEntryResolver returned ${parts.length} parts:`, JSON.stringify(parts));
 						if (parts.length > 0) {
 							const textParts = parts.filter((p) => p.type === "text");
 							if (textParts.length > 0) {
 								inputs[input.accessor] = textParts
 									.map((p) => p.text)
 									.join(" ");
-								console.log(`[integration-debug] Set input "${input.accessor}" = "${inputs[input.accessor]?.substring(0, 100)}..."`);
 							}
 						}
 					} catch (err) {
-						console.error(`[integration-debug] appEntryResolver ERROR:`, err);
+						console.error("appEntryResolver failed for integration node:", err);
 					}
 					break;
 				}
@@ -80,7 +67,6 @@ async function resolveIntegrationInputs(args: {
 					connection.outputNode.id,
 					connection.outputId,
 				);
-				console.log(`[integration-debug] generationContentResolver returned: ${content !== undefined ? content.substring(0, 100) : "undefined"}`);
 				if (content !== undefined) {
 					inputs[input.accessor] = content;
 				}
@@ -156,15 +142,11 @@ export function executeIntegration(args: {
 				appEntryResolver,
 			});
 
-			console.log("[integration-debug] resolvedInputs:", JSON.stringify(resolvedInputs));
-			console.log("[integration-debug] configuration:", JSON.stringify(configuration));
-
-			// Merge configuration with resolved inputs
+			// Merge configuration with resolved inputs (inputs override config)
 			const mergedConfig = {
 				...configuration,
 				...resolvedInputs,
 			};
-			console.log("[integration-debug] mergedConfig keys:", Object.keys(mergedConfig));
 
 			let result: unknown;
 			try {

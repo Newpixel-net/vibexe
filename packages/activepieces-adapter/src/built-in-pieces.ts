@@ -86,12 +86,18 @@ async function youtubeFetchVideoInfo(
 	properties: Record<string, unknown>,
 	auth: unknown,
 ): Promise<unknown> {
-	console.log("[youtube-debug] youtubeFetchVideoInfo called with properties:", JSON.stringify(Object.keys(properties)));
-	console.log("[youtube-debug] properties.input =", JSON.stringify(properties.input));
-	console.log("[youtube-debug] properties.videoUrl =", JSON.stringify(properties.videoUrl));
-	// Prefer `input` (from connected nodes / Start node) over `videoUrl` (static config)
-	const videoUrl = (properties.input as string) || (properties.videoUrl as string) || "";
-	console.log("[youtube-debug] resolved videoUrl =", videoUrl);
+	// Find the connected input value - could arrive under any accessor name
+	// (e.g. "input", "start", "url", etc. depending on how the workflow builder named the port)
+	const knownConfigKeys = new Set(["apiKey", "videoUrl"]);
+	const connectedInput = Object.entries(properties).find(
+		([key, val]) =>
+			!knownConfigKeys.has(key) &&
+			typeof val === "string" &&
+			val.trim().length > 0,
+	)?.[1] as string | undefined;
+
+	// Prefer connected input over static videoUrl config
+	const videoUrl = connectedInput || (properties.videoUrl as string) || "";
 	const apiKey =
 		(properties.apiKey as string) ||
 		(auth && typeof auth === "object" && "apiKey" in auth
