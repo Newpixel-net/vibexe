@@ -23,7 +23,6 @@ const PIECE_TO_PROVIDER: Record<string, string> = {
 	"google-my-business": "google",
 	"google-search-console": "google",
 	"google-cloud-storage": "google",
-	"gcloud-pubsub": "google",
 	googlechat: "google",
 
 	// Microsoft 365

@@ -26,6 +26,19 @@ export async function GET(request: Request) {
 			});
 		}
 
+		// Verify the piece actually has OAuth2 auth metadata (authUrl, tokenUrl, etc.)
+		// Some pieces claim oauth2 in the catalog but don't define the metadata
+		const { getPieceOAuth2Metadata } = await import(
+			"@giselles-ai/activepieces-adapter/server"
+		);
+		const authMeta = await getPieceOAuth2Metadata(pieceName);
+		if (!authMeta) {
+			return NextResponse.json({
+				available: false,
+				reason: `Piece "${pieceName}" does not have OAuth2 authentication metadata. Use a manual API key or token instead.`,
+			});
+		}
+
 		// Check if OAuth app is configured for this piece's provider
 		const provider = getOAuthProvider(pieceName);
 		const configured = await isOAuthConfigured(provider);
