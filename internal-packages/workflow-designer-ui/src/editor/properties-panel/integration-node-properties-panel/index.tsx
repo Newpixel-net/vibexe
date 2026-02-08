@@ -165,13 +165,7 @@ export function IntegrationNodePropertiesPanel({
 			sourceNodes,
 			connections: incomingConnections,
 		};
-		console.log("[DEBUG-CLICK] handleClick fired, sourceNodes:", sourceNodes.length, "connections:", incomingConnections.length, "node.inputs:", node.inputs?.length, "node.outputs:", node.outputs?.length);
-		try {
-			createAndStartGenerationRunner(ctx);
-			console.log("[DEBUG-CLICK] createAndStartGenerationRunner returned");
-		} catch (e) {
-			console.error("[DEBUG-CLICK] createAndStartGenerationRunner threw:", e);
-		}
+		createAndStartGenerationRunner(ctx);
 	}, [
 		isGenerating,
 		stopGenerationRunner,

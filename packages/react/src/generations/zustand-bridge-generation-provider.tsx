@@ -160,9 +160,7 @@ export function ZustandBridgeGenerationProvider({
 	const startGenerationRunner: StartGenerationRunner = useCallback(
 		async (id, options = {}) => {
 			const generation = generationListener.current[id];
-			const parseResult = CreatedGeneration.safeParse(generation);
-			console.log("[DEBUG-START] id:", id, "status:", generation?.status, "isCreated:", parseResult.success, "error:", parseResult.success ? "none" : JSON.stringify(parseResult.error?.issues?.slice(0, 3)));
-			if (!parseResult.success) {
+			if (!CreatedGeneration.safeParse(generation).success) {
 				return;
 			}
 			const queuedGeneration: QueuedGeneration = {

@@ -83,14 +83,13 @@ export function useNodeGenerations({
 		return filteredGenerations[0];
 	}, [generations, nodeId, origin]);
 
-	const isGenerating = useMemo(() => {
-		const result =
+	const isGenerating = useMemo(
+		() =>
 			currentGeneration?.status === "running" ||
 			currentGeneration?.status === "created" ||
-			currentGeneration?.status === "queued";
-		console.log("[DEBUG-HOOK] nodeId:", nodeId, "generations:", generations.length, "currentGen:", currentGeneration?.id, "status:", currentGeneration?.status, "isGenerating:", result);
-		return result;
-	}, [currentGeneration, nodeId, generations.length]);
+			currentGeneration?.status === "queued",
+		[currentGeneration],
+	);
 
 	const stopGenerationRunner = useCallback(() => {
 		if (currentGeneration === undefined) {

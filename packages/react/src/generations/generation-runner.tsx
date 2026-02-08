@@ -30,10 +30,8 @@ export function GenerationRunner({ generation }: { generation: Generation }) {
 	try {
 		generationContext = GenerationContext.parse(generation.context);
 	} catch (error) {
-		console.error("[DEBUG-RUNNER] GenerationContext.parse FAILED for", generation.id, "status:", generation.status, "opNode:", generation.context?.operationNode?.content?.type, "error:", error instanceof Error ? error.message : String(error));
 		return null;
 	}
-	console.log("[DEBUG-RUNNER] GenerationContext.parse OK for", generation.id, "status:", generation.status, "type:", generationContext.operationNode.content.type);
 	switch (generationContext.operationNode.content.type) {
 		case "textGeneration":
 		case "contentGeneration":
