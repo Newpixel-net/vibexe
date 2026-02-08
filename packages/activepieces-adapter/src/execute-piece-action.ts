@@ -1,10 +1,12 @@
 /**
  * Core execution function: Executes an Activepieces piece action.
  *
- * This is the main bridge between Giselle and Activepieces.
- * It loads a piece, finds the action, builds the context, and runs it.
+ * Execution order:
+ *   1. Try built-in implementation (direct API calls, no npm packages needed)
+ *   2. Fall back to loading the @activepieces/piece-* npm package
  */
 
+import { tryBuiltInExecution } from "./built-in-pieces";
 import { buildActionContext, type StoreAdapter } from "./context-builder";
 import { loadPiece } from "./piece-registry";
 
@@ -25,13 +27,23 @@ export interface ExecutePieceActionArgs {
 export async function executePieceAction(
 	args: ExecutePieceActionArgs,
 ): Promise<unknown> {
-	// Load the piece
+	// 1. Try built-in implementation first (YouTube, HTTP, etc.)
+	const builtIn = await tryBuiltInExecution({
+		pieceName: args.pieceName,
+		actionName: args.actionName,
+		properties: args.properties,
+		auth: args.auth,
+	});
+	if (builtIn !== undefined) {
+		return builtIn.result;
+	}
+
+	// 2. Fall back to loading the Activepieces npm package
 	const piece = await loadPiece(args.pieceName);
 	if (!piece || typeof piece !== "object") {
 		throw new Error(`Failed to load piece: ${args.pieceName}`);
 	}
 
-	// Find the action
 	const actions = (piece as Record<string, unknown>).actions;
 	if (!actions || typeof actions !== "object") {
 		throw new Error(`Piece "${args.pieceName}" has no actions`);
@@ -51,14 +63,12 @@ export async function executePieceAction(
 		);
 	}
 
-	// Build context
 	const context = buildActionContext({
 		auth: args.auth,
 		propsValue: args.properties,
 		store: args.store,
 	});
 
-	// Execute the action
 	const result = await runFn(context);
 	return result;
 }
