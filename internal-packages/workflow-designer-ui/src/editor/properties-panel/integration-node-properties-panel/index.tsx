@@ -1,3 +1,4 @@
+import { getPieceCategoryColor } from "@giselles-ai/activepieces-adapter";
 import {
 	type CompletedGeneration,
 	type FailedGeneration,
@@ -16,7 +17,7 @@ import {
 	TrashIcon,
 	XCircleIcon,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { type CSSProperties, useCallback, useMemo, useState } from "react";
 import {
 	useAppDesignerStore,
 	useDeleteNode,
@@ -168,7 +169,16 @@ export function IntegrationNodePropertiesPanel({
 		([k]) => !dynamicPropKeys.has(k),
 	);
 
+	const integrationColorStyle = useMemo(() => {
+		const color = getPieceCategoryColor(node.content.pieceName);
+		if (!color) return undefined;
+		return {
+			"--color-integration-node-1": color,
+		} as CSSProperties;
+	}, [node.content.pieceName]);
+
 	return (
+		<div style={integrationColorStyle} className="h-full w-full flex flex-col">
 		<PropertiesPanelRoot>
 			<NodePanelHeader
 				node={node}
@@ -367,5 +377,6 @@ export function IntegrationNodePropertiesPanel({
 				</div>
 			</PropertiesPanelContent>
 		</PropertiesPanelRoot>
+		</div>
 	);
 }

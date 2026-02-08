@@ -85,7 +85,7 @@ function getNodeIconBackground(node: NodeLike): string {
 			case "dataQuery":
 				return "bg-data-query-node-1";
 			case "integration":
-				return "bg-action-node-1";
+				return "bg-integration-node-1";
 			default: {
 				const _exhaustiveCheck: never = node.content.type;
 				throw new Error(`Unhandled node type: ${_exhaustiveCheck}`);

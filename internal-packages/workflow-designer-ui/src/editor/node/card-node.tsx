@@ -1,3 +1,4 @@
+import { getPieceCategoryColor } from "@giselles-ai/activepieces-adapter";
 import { defaultName } from "@giselles-ai/node-registry";
 import type {
 	InputId,
@@ -14,7 +15,7 @@ import {
 import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import clsx from "clsx/lite";
-import { useCallback, useMemo } from "react";
+import { type CSSProperties, useCallback, useMemo } from "react";
 import { useAppDesignerStore, useUpdateNodeData } from "../../app-designer";
 import { NodeIcon } from "../../icons/node";
 import { EditableText } from "../../ui/editable-text";
@@ -167,6 +168,21 @@ export function NodeComponent({
 
 	const v = useVariant(node);
 
+	// Per-piece category color override for integration nodes
+	const integrationColorStyle = useMemo(() => {
+		if (node.type !== "operation" || node.content.type !== "integration")
+			return undefined;
+		const pieceName = node.content.pieceName as string;
+		const color = getPieceCategoryColor(pieceName);
+		if (!color) return undefined;
+		return {
+			"--color-integration-node-1": color,
+			"--shadow-integration-node-1": `0px 4px 12px ${color
+				.replace("hsl(", "hsla(")
+				.replace(")", ", 0.3)")}`,
+		} as CSSProperties;
+	}, [node]);
+
 	const requiresSetup = nodeRequiresSetup(node);
 
 	type VariantType = {
@@ -254,6 +270,7 @@ export function NodeComponent({
 			data-vector-store-source-provider={
 				isVectorStoreNode(node) ? node.content.source.provider : undefined
 			}
+			style={integrationColorStyle}
 			className={clsx(
 				"group relative rounded-[16px]",
 				nodeLayoutClass,

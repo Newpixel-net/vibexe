@@ -16,6 +16,7 @@ export {
 	TOTAL_PIECES,
 	INSTALLED_PIECES,
 	isInstalledPiece,
+	getPieceCategoryColor,
 } from "./piece-catalog";
 export type {
 	PieceCatalogEntry,

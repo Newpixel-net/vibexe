@@ -813,3 +813,33 @@ export const INSTALLED_PIECES = new Set([
 export function isInstalledPiece(pieceName: string): boolean {
 	return INSTALLED_PIECES.has(pieceName);
 }
+
+// ─── Per-category colors for integration nodes ─────────
+
+const CATEGORY_COLORS: Record<PieceCategory, string> = {
+	"AI & ML": "hsl(270, 70%, 60%)",
+	"Automation & Utilities": "hsl(38, 85%, 52%)",
+	"CMS & Website": "hsl(185, 75%, 48%)",
+	"CRM & Sales": "hsl(340, 72%, 55%)",
+	"Cloud Storage": "hsl(200, 82%, 55%)",
+	Communication: "hsl(230, 68%, 60%)",
+	"Developer Tools": "hsl(150, 65%, 45%)",
+	"Documents & Signatures": "hsl(45, 70%, 55%)",
+	"E-Commerce": "hsl(22, 88%, 55%)",
+	"Email & Marketing": "hsl(10, 78%, 56%)",
+	"Finance & Accounting": "hsl(85, 65%, 48%)",
+	"Forms & Surveys": "hsl(165, 65%, 45%)",
+	"Google Workspace": "hsl(217, 82%, 58%)",
+	"HR & Recruitment": "hsl(320, 68%, 55%)",
+	"Microsoft 365": "hsl(207, 72%, 52%)",
+	Productivity: "hsl(255, 62%, 60%)",
+	"Project Management": "hsl(290, 62%, 55%)",
+	"Social Media": "hsl(350, 72%, 55%)",
+};
+
+/** Get the category-based color for an integration piece */
+export function getPieceCategoryColor(pieceName: string): string | null {
+	const entry = getCatalogEntry(pieceName);
+	if (!entry) return null;
+	return CATEGORY_COLORS[entry.category] ?? null;
+}
