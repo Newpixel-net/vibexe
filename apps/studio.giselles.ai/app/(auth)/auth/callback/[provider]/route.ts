@@ -8,8 +8,14 @@ import { createSession } from "@/lib/session-store";
 import { encryptToken } from "@/lib/token-encryption";
 import type { OAuthProvider } from "@/services/accounts";
 
-const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || "";
-const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || "";
+// Prefer GitHub App client ID/secret for OAuth - tokens from GitHub App OAuth
+// have permission to call GET /user/installations (needed for vector stores)
+const GITHUB_CLIENT_ID =
+	process.env.GITHUB_APP_CLIENT_ID || process.env.GITHUB_CLIENT_ID || "";
+const GITHUB_CLIENT_SECRET =
+	process.env.GITHUB_APP_CLIENT_SECRET ||
+	process.env.GITHUB_CLIENT_SECRET ||
+	"";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
 const SESSION_COOKIE_NAME = "giselle-session";

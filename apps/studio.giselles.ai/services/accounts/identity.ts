@@ -2,7 +2,10 @@ import { redirect } from "next/navigation";
 import { deleteOauthCredential, getAuthCallbackUrl } from "@/app/(auth)/lib";
 import type { OAuthProvider } from "./oauth-credentials";
 
-const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || "";
+// Prefer GitHub App client ID for OAuth - tokens from GitHub App OAuth
+// have permission to call GET /user/installations (needed for vector stores)
+const GITHUB_CLIENT_ID =
+	process.env.GITHUB_APP_CLIENT_ID || process.env.GITHUB_CLIENT_ID || "";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 
 /**
