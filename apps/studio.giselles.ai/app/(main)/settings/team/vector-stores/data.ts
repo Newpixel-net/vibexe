@@ -102,7 +102,12 @@ export async function getInstallationsWithRepos(): Promise<
 	}
 
 	const userClient = githubIdentityState.gitHubUserClient;
-	const installationData = await userClient.getInstallations();
+	let installationData: Awaited<ReturnType<typeof userClient.getInstallations>>;
+	try {
+		installationData = await userClient.getInstallations();
+	} catch {
+		return [];
+	}
 	const installations = installationData.installations;
 
 	const installationsWithRepos = await Promise.all(

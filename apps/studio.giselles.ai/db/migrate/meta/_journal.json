@@ -547,6 +547,13 @@
       "when": 1768273634864,
       "tag": "0077_curvy_rawhide_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1768440000000,
+      "tag": "0078_add-integration-credentials",
+      "breakpoints": true
     }
   ]
 }

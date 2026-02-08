@@ -35,10 +35,24 @@ export async function getGitHubIntegrationState(
 	}
 
 	const gitHubUserClient = identityState.gitHubUserClient;
-	const [{ installations }, installationUrl] = await Promise.all([
-		gitHubUserClient.getInstallations(),
-		gitHubAppInstallURL(),
-	]);
+	let installations: Awaited<
+		ReturnType<typeof gitHubUserClient.getInstallations>
+	>["installations"];
+	let installationUrl: string | null;
+	try {
+		[{ installations }, installationUrl] = await Promise.all([
+			gitHubUserClient.getInstallations(),
+			gitHubAppInstallURL(),
+		]);
+	} catch (error) {
+		return {
+			status: "error",
+			errorMessage:
+				error instanceof Error
+					? error.message
+					: "Failed to fetch GitHub installations.",
+		};
+	}
 	if (installationUrl == null) {
 		return {
 			status: "error",
