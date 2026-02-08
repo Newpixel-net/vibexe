@@ -79,6 +79,18 @@ const PIECE_TO_PROVIDER: Record<string, string> = {
 	surveymonkey: "surveymonkey",
 	pinterest: "pinterest",
 	miro: "miro",
+	"google-ads": "google",
+	instagram: "facebook",
+	facebook: "facebook",
+	tiktok: "tiktok",
+	youtube: "google",
+	"telegram-bot": "telegram",
+	whatsapp: "facebook",
+	sendgrid: "sendgrid",
+	twilio: "twilio",
+	webflow: "webflow",
+	contentful: "contentful",
+	docusign: "docusign",
 
 	// Zoho family
 	"zoho-crm": "zoho",

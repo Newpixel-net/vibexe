@@ -2,15 +2,17 @@
 
 import {
 	CheckCircleIcon,
+	ChevronDownIcon,
 	EyeIcon,
 	EyeOffIcon,
 	KeyRoundIcon,
 	Loader2Icon,
 	PlusIcon,
+	SearchIcon,
 	Trash2Icon,
 	XIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface OAuthAppConfigDisplay {
 	dbId: number;
@@ -234,6 +236,81 @@ const PROVIDER_INFO: Record<string, { label: string; description: string; docsUr
 		description: "Collaborative whiteboard and diagramming",
 		docsUrl: "https://developers.miro.com/page/get-started",
 	},
+	"google-ads": {
+		label: "Google Ads",
+		description: "Ad campaigns, keywords, and analytics",
+		docsUrl: "https://console.cloud.google.com/apis/credentials",
+	},
+	instagram: {
+		label: "Instagram",
+		description: "Posts, stories, and social media management",
+		docsUrl: "https://developers.facebook.com/apps/",
+	},
+	facebook: {
+		label: "Facebook",
+		description: "Pages, groups, and Meta Business Suite",
+		docsUrl: "https://developers.facebook.com/apps/",
+	},
+	tiktok: {
+		label: "TikTok",
+		description: "Videos, analytics, and creator tools",
+		docsUrl: "https://developers.tiktok.com/apps/",
+	},
+	youtube: {
+		label: "YouTube",
+		description: "Videos, channels, and analytics",
+		docsUrl: "https://console.cloud.google.com/apis/credentials",
+	},
+	telegram: {
+		label: "Telegram",
+		description: "Bot messaging and channels",
+		docsUrl: "https://core.telegram.org/bots#botfather",
+	},
+	whatsapp: {
+		label: "WhatsApp",
+		description: "Business messaging via Meta Cloud API",
+		docsUrl: "https://developers.facebook.com/apps/",
+	},
+	sendgrid: {
+		label: "SendGrid",
+		description: "Transactional and marketing email delivery",
+		docsUrl: "https://app.sendgrid.com/settings/api_keys",
+	},
+	twilio: {
+		label: "Twilio",
+		description: "SMS, voice, and communication APIs",
+		docsUrl: "https://www.twilio.com/console",
+	},
+	aws: {
+		label: "Amazon Web Services",
+		description: "S3, Lambda, and cloud infrastructure",
+		docsUrl: "https://console.aws.amazon.com/iam/home#/security_credentials",
+	},
+	openai: {
+		label: "OpenAI",
+		description: "GPT models, DALL-E, and AI APIs",
+		docsUrl: "https://platform.openai.com/api-keys",
+	},
+	"google-analytics": {
+		label: "Google Analytics",
+		description: "Website traffic and user behavior data",
+		docsUrl: "https://console.cloud.google.com/apis/credentials",
+	},
+	webflow: {
+		label: "Webflow",
+		description: "Website building and CMS management",
+		docsUrl: "https://webflow.com/dashboard/account/integrations",
+	},
+	contentful: {
+		label: "Contentful",
+		description: "Headless CMS and content management",
+		docsUrl: "https://app.contentful.com/account/profile/developers/applications",
+	},
+	docusign: {
+		label: "DocuSign",
+		description: "Electronic signatures and document workflows",
+		docsUrl: "https://admindemo.docusign.com/apps-and-keys",
+	},
 };
 
 const PROVIDER_OPTIONS = Object.entries(PROVIDER_INFO).map(([key, val]) => ({
@@ -401,7 +478,11 @@ function AddOAuthAppForm({
 	const [showSecret, setShowSecret] = useState(false);
 	const [scopes, setScopes] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [searchQuery, setSearchQuery] = useState("");
+	const [dropdownOpen, setDropdownOpen] = useState(false);
 	const modalRef = useRef<HTMLDivElement>(null);
+	const dropdownRef = useRef<HTMLDivElement>(null);
+	const searchInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
 		function handleClick(e: MouseEvent) {
@@ -420,6 +501,31 @@ function AddOAuthAppForm({
 		document.addEventListener("keydown", handleKey);
 		return () => document.removeEventListener("keydown", handleKey);
 	}, [onClose]);
+
+	// Close dropdown on outside click
+	useEffect(() => {
+		function handleClick(e: MouseEvent) {
+			if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+				setDropdownOpen(false);
+			}
+		}
+		document.addEventListener("mousedown", handleClick);
+		return () => document.removeEventListener("mousedown", handleClick);
+	}, []);
+
+	const filteredOptions = useMemo(() => {
+		const available = PROVIDER_OPTIONS.filter(
+			(o) => !existingProviders.has(o.value),
+		);
+		if (!searchQuery.trim()) return available;
+		const q = searchQuery.toLowerCase();
+		return available.filter(
+			(o) =>
+				o.label.toLowerCase().includes(q) ||
+				o.description.toLowerCase().includes(q) ||
+				o.value.toLowerCase().includes(q),
+		);
+	}, [searchQuery, existingProviders]);
 
 	const effectiveProvider = provider === "__custom" ? customProvider.trim() : provider;
 
@@ -490,26 +596,86 @@ function AddOAuthAppForm({
 				<form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4">
 					{/* Provider select */}
 					<div className="flex flex-col gap-1.5">
-						<label htmlFor="provider" className="text-xs text-white/50">
-							Provider
-						</label>
-						<select
-							id="provider"
-							value={provider}
-							onChange={(e) => setProvider(e.target.value)}
-							className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white outline-none focus:border-white/25 [&>option]:bg-[#141120] [&>option]:text-white"
-							required
-						>
-							<option value="">Select a provider...</option>
-							{PROVIDER_OPTIONS.filter(
-								(o) => !existingProviders.has(o.value),
-							).map((opt) => (
-								<option key={opt.value} value={opt.value}>
-									{opt.label} - {opt.description}
-								</option>
-							))}
-							<option value="__custom">Custom provider...</option>
-						</select>
+						<label className="text-xs text-white/50">Provider</label>
+						<div ref={dropdownRef} className="relative">
+							<button
+								type="button"
+								onClick={() => {
+									setDropdownOpen(!dropdownOpen);
+									if (!dropdownOpen) {
+										setTimeout(() => searchInputRef.current?.focus(), 50);
+									}
+								}}
+								className="flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white outline-none focus:border-white/25 text-left"
+							>
+								<span className={provider ? "text-white" : "text-white/30"}>
+									{provider === "__custom"
+										? "Custom provider..."
+										: provider
+											? (PROVIDER_INFO[provider]?.label ?? provider)
+											: "Select a provider..."}
+								</span>
+								<ChevronDownIcon className={`size-4 text-white/40 transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
+							</button>
+
+							{dropdownOpen && (
+								<div className="absolute z-50 mt-1 w-full rounded-lg bg-[#1b1728] border border-white/10 shadow-2xl overflow-hidden">
+									<div className="p-2 border-b border-white/[0.06]">
+										<div className="relative">
+											<SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-white/30" />
+											<input
+												ref={searchInputRef}
+												type="text"
+												value={searchQuery}
+												onChange={(e) => setSearchQuery(e.target.value)}
+												placeholder="Search providers..."
+												className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md bg-white/5 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-white/25"
+												onKeyDown={(e) => {
+													if (e.key === "Escape") setDropdownOpen(false);
+												}}
+											/>
+										</div>
+									</div>
+									<div className="max-h-56 overflow-auto py-1">
+										{filteredOptions.length === 0 ? (
+											<div className="px-3 py-4 text-xs text-white/30 text-center">
+												No providers match your search
+											</div>
+										) : (
+											filteredOptions.map((opt) => (
+												<button
+													key={opt.value}
+													type="button"
+													onClick={() => {
+														setProvider(opt.value);
+														setSearchQuery("");
+														setDropdownOpen(false);
+													}}
+													className="flex flex-col w-full px-3 py-2 text-left hover:bg-white/[0.06] transition-colors"
+												>
+													<span className="text-sm text-white">{opt.label}</span>
+													<span className="text-[11px] text-white/35 leading-tight">{opt.description}</span>
+												</button>
+											))
+										)}
+										<div className="border-t border-white/[0.06] mt-1 pt-1">
+											<button
+												type="button"
+												onClick={() => {
+													setProvider("__custom");
+													setSearchQuery("");
+													setDropdownOpen(false);
+												}}
+												className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-white/[0.06] transition-colors"
+											>
+												<PlusIcon className="size-3.5 text-white/40" />
+												<span className="text-sm text-white/60">Custom provider...</span>
+											</button>
+										</div>
+									</div>
+								</div>
+							)}
+						</div>
 					</div>
 
 					{/* Custom provider input */}
