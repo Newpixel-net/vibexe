@@ -160,7 +160,9 @@ export function ZustandBridgeGenerationProvider({
 	const startGenerationRunner: StartGenerationRunner = useCallback(
 		async (id, options = {}) => {
 			const generation = generationListener.current[id];
+			console.log("[DEBUG-START] startGenerationRunner called, id:", id, "generation:", generation?.status, "isCreated:", isCreatedGeneration(generation));
 			if (!isCreatedGeneration(generation)) {
+				console.log("[DEBUG-START] NOT created, returning early. Generation:", JSON.stringify(generation));
 				return;
 			}
 			const queuedGeneration: QueuedGeneration = {
@@ -169,8 +171,10 @@ export function ZustandBridgeGenerationProvider({
 				queuedAt: Date.now(),
 			};
 			options.onGenerationQueued?.(queuedGeneration);
+			console.log("[DEBUG-START] Calling updateGeneration with queued status");
 			updateGeneration(queuedGeneration);
 			generationListener.current[id] = queuedGeneration;
+			console.log("[DEBUG-START] Starting waitForGeneration loop");
 			await waitForGeneration(generation.id, {
 				onStart: options.onGenerationStarted,
 				onComplete: options.onGenerationCompleted,
