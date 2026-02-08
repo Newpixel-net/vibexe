@@ -842,9 +842,42 @@ importers:
       '@activepieces/piece-acumbamail':
         specifier: ^0.2.2
         version: 0.2.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-afforai':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-agentx':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-ai':
+        specifier: ^0.1.5
+        version: 0.1.5(bufferutil@4.0.9)(hono@4.11.8)(utf-8-validate@6.0.5)
+      '@activepieces/piece-aianswer':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-aidbase':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-air-ops':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-airparser':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-airtable':
         specifier: ^0.6.4
         version: 0.6.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-airtop':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-alai':
+        specifier: ^0.1.1
+        version: 0.1.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-alt-text-ai':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-alttextify':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-amazon-s3':
         specifier: ^0.5.3
         version: 0.5.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -935,6 +968,9 @@ importers:
       '@activepieces/piece-bokio':
         specifier: ^0.0.4
         version: 0.0.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-bolna':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-bonjoro':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -953,6 +989,9 @@ importers:
       '@activepieces/piece-calendly':
         specifier: ^0.4.3
         version: 0.4.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-camb-ai':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-campaign-monitor':
         specifier: ^0.1.2
         version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -986,6 +1025,9 @@ importers:
       '@activepieces/piece-chatsistant':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-clarifai':
+        specifier: ^0.3.3
+        version: 0.3.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-claude':
         specifier: ^0.4.3
         version: 0.4.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1019,6 +1061,9 @@ importers:
       '@activepieces/piece-cognito-forms':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-comfyicu':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-confluence':
         specifier: ^0.2.3
         version: 0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1031,12 +1076,18 @@ importers:
       '@activepieces/piece-contentful':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-contextual-ai':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-convertkit':
         specifier: ^0.3.2
         version: 0.3.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-copper':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-copy-ai':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-couchbase':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.12)
@@ -1049,6 +1100,9 @@ importers:
       '@activepieces/piece-csv':
         specifier: ^0.4.12
         version: 0.4.12(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.12)
+      '@activepieces/piece-cursor':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-customer-io':
         specifier: ^0.3.3
         version: 0.3.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1079,6 +1133,12 @@ importers:
       '@activepieces/piece-delay':
         specifier: ^0.3.25
         version: 0.3.25(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-detecting-ai':
+        specifier: ^0.0.4
+        version: 0.0.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-devin':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-digital-ocean':
         specifier: ^0.0.4
         version: 0.0.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1103,6 +1163,15 @@ importers:
       '@activepieces/piece-drupal':
         specifier: ^1.1.3
         version: 1.1.3(@activepieces/pieces-common@0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5))(@activepieces/pieces-framework@0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.12))(@activepieces/shared@0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5))(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-easy-peasy-ai':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-echowin':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-eden-ai':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-elevenlabs':
         specifier: ^0.2.3
         version: 0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1115,6 +1184,9 @@ importers:
       '@activepieces/piece-exa':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-extracta-ai':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-facebook-leads':
         specifier: ^0.3.2
         version: 0.3.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1139,10 +1211,16 @@ importers:
       '@activepieces/piece-firecrawl':
         specifier: ^0.3.4
         version: 0.3.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-fireflies-ai':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-flow-helper':
         specifier: ^0.1.2
         version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.12)
       '@activepieces/piece-flow-parser':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-flowise':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-flowlu':
@@ -1193,6 +1271,9 @@ importers:
       '@activepieces/piece-gitlab':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-gladia':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-gmail':
         specifier: ^0.11.3
         version: 0.11.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1216,7 +1297,7 @@ importers:
         version: 0.4.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-google-gemini':
         specifier: ^0.1.3
-        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+        version: 0.1.3(@modelcontextprotocol/sdk@1.25.2(hono@4.11.8)(zod@4.1.12))(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-google-my-business':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1241,9 +1322,15 @@ importers:
       '@activepieces/piece-gotify':
         specifier: ^0.4.2
         version: 0.4.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-gptzero-detect-ai':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-graphql':
         specifier: ^0.0.9
         version: 0.0.9(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-griptape':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-grist':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1295,6 +1382,9 @@ importers:
       '@activepieces/piece-insightly':
         specifier: ^0.1.2
         version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-insighto-ai':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-instagram-business':
         specifier: ^0.2.2
         version: 0.2.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1316,6 +1406,9 @@ importers:
       '@activepieces/piece-jira-cloud':
         specifier: ^0.2.4
         version: 0.2.4(bufferutil@4.0.9)(react@19.2.1)(utf-8-validate@6.0.5)
+      '@activepieces/piece-jogg-ai':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-jotform':
         specifier: ^0.2.3
         version: 0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1325,6 +1418,9 @@ importers:
       '@activepieces/piece-just-invoice':
         specifier: ^0.0.4
         version: 0.0.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-kallabot-ai':
+        specifier: ^0.4.2
+        version: 0.4.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-kimai':
         specifier: ^0.2.3
         version: 0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1337,10 +1433,16 @@ importers:
       '@activepieces/piece-lead-connector':
         specifier: ^0.2.3
         version: 0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-leap-ai':
+        specifier: ^0.0.4
+        version: 0.0.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-lemlist':
         specifier: ^0.1.2
         version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-lemon-squeezy':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-letta':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-lever':
@@ -1355,6 +1457,12 @@ importers:
       '@activepieces/piece-linkedin':
         specifier: ^0.2.3
         version: 0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-llmrails':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-localai':
+        specifier: ^0.1.4
+        version: 0.1.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-lofty':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1364,6 +1472,12 @@ importers:
       '@activepieces/piece-lusha':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-magical-api':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-magicslides':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-mailchain':
         specifier: ^0.1.2
         version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.12)
@@ -1400,6 +1514,12 @@ importers:
       '@activepieces/piece-mattermost':
         specifier: ^0.4.3
         version: 0.4.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-mcp':
+        specifier: ^0.0.15
+        version: 0.0.15(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.12)
+      '@activepieces/piece-meetgeek-ai':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-meistertask':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1448,6 +1568,12 @@ importers:
       '@activepieces/piece-microsoft-todo':
         specifier: ^0.2.3
         version: 0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-mind-studio':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-mindee':
+        specifier: ^0.2.3
+        version: 0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-missive':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1472,7 +1598,13 @@ importers:
       '@activepieces/piece-mooninvoice':
         specifier: ^0.0.4
         version: 0.0.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-moveo-ai':
+        specifier: ^0.0.4
+        version: 0.0.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-moxie-crm':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-murf-api':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-mysql':
@@ -1514,6 +1646,9 @@ importers:
       '@activepieces/piece-openai':
         specifier: ^0.7.4
         version: 0.7.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-openmic-ai':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-opnform':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1547,6 +1682,9 @@ importers:
       '@activepieces/piece-perplexity-ai':
         specifier: ^0.3.2
         version: 0.3.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-personal-ai':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-pinch-payments':
         specifier: ^0.0.6
         version: 0.0.6(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1727,9 +1865,15 @@ importers:
       '@activepieces/piece-stability-ai':
         specifier: ^0.2.3
         version: 0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-stable-diffusion-webui':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-store':
         specifier: ^0.6.13
         version: 0.6.13(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-straico':
+        specifier: ^0.2.3
+        version: 0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-stripe':
         specifier: ^0.6.4
         version: 0.6.4(@types/node@25.0.3)(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1781,6 +1925,9 @@ importers:
       '@activepieces/piece-text-helper':
         specifier: ^0.4.12
         version: 0.4.12(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-textcortex-ai':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-ticktick':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1820,6 +1967,9 @@ importers:
       '@activepieces/piece-videoask':
         specifier: ^0.1.2
         version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-vidnoz':
+        specifier: ^0.0.4
+        version: 0.0.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-vimeo':
         specifier: ^0.1.2
         version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -2748,8 +2898,41 @@ packages:
   '@activepieces/piece-acumbamail@0.2.2':
     resolution: {integrity: sha512-aDRk2WqQQsoQMtSqe6fuzpEXYK1jIuHyn+4Zy7QvWwzRJJgfmijLN/OuXC70iMVC6mESV2RgLNjgMy7ENLmdGA==}
 
+  '@activepieces/piece-afforai@0.1.2':
+    resolution: {integrity: sha512-a8QTitbvGZeDZGQGWZ1MwohrJeCGgWMFDc1KQzpELjqy9J4eiLzMxnbhQVwfJIbZRFlVmRe3yOjuP3pz82Nkdw==}
+
+  '@activepieces/piece-agentx@0.1.2':
+    resolution: {integrity: sha512-kAGqjjcz7FCo6Xbwe3eZ1JhdlxifCKbdePXRH23VhifETG0Hle6yiMQ5yqPdT/GCyVheC2kkpzqiqLdec7WgZw==}
+
+  '@activepieces/piece-ai@0.1.5':
+    resolution: {integrity: sha512-5e5CLu9eQobPgYuahnBm9jkxMyLZDrij+sbixePm3DsdNWB9sAA12MXLxQ7VdwzpH5rqLls64MdxV8+rh1kTrQ==}
+
+  '@activepieces/piece-aianswer@0.1.3':
+    resolution: {integrity: sha512-bIXtxiQFPT0ZiRRnitCC3mISWvoRzHjuumwbxrNBVnOqtItoVs1JknwlmJr2grfM6F1BQBwhg0ngBO6qK/L+OQ==}
+
+  '@activepieces/piece-aidbase@0.1.3':
+    resolution: {integrity: sha512-sdW93L84F6KqFv7u/JWJ9MrklAcHcUATCX5HehtgTzv2j/K/q7DfPnM2KA6PUcVhPDDpPOV+e5QdxbUubyVRjw==}
+
+  '@activepieces/piece-air-ops@0.1.3':
+    resolution: {integrity: sha512-68JWeYZIGEXQThtGjDpR7fi3ja4h+jLacRBJL6xYlce4zesw4rtuuIqDgKKMZgBftkMkuunoxkP4lZNFA4tGcg==}
+
+  '@activepieces/piece-airparser@0.1.2':
+    resolution: {integrity: sha512-Pw4gULZCF0VYjnc2lXWWuuMgyXUxKPFdlIEgXps7EvvqKWZu2wumflCUp1e0oI+w8G0FGK9eeMTVQibouepYbg==}
+
   '@activepieces/piece-airtable@0.6.4':
     resolution: {integrity: sha512-Tt43uTOkiLIEw/VsaUJbtJqOOE2cTC/UkxjtJh70eTbushgQVSglHZnQ8G5zM3gwL3wSzlsiDNAsYtVASdmZjA==}
+
+  '@activepieces/piece-airtop@0.1.3':
+    resolution: {integrity: sha512-MPiMa0aJ/BwxhyvUZ2y5oQlUdkmI3douqDCykaupHdsb7oajGy55ceCcU0iB2yCYJG6ozGI8fbTFWbqrZCjKDw==}
+
+  '@activepieces/piece-alai@0.1.1':
+    resolution: {integrity: sha512-0mE/wzimnkhOmzzyZAlqglgt5ldg/6g2RpCml/EASueN4vkJCzNP3jaKAf0Se4YEPJc7rjGNY6fr/CIXt7EHOg==}
+
+  '@activepieces/piece-alt-text-ai@0.1.3':
+    resolution: {integrity: sha512-LV7XIseDDhU5qgDjQa7XkmCZtxAJbuNcaB+rNX0yT4apSmVA8vfeLQpPdCaanmN3ac8H9t3Yl6JchV3XoN8vCg==}
+
+  '@activepieces/piece-alttextify@0.1.3':
+    resolution: {integrity: sha512-ZJBKmuvuR8Qhoih9v/iqp/tIl/nogQRKJGP8AORqGwuKh0Isj3pF2j0z5Sqx4CPWm/XG3UI+Z3/b079+xxTRAg==}
 
   '@activepieces/piece-amazon-s3@0.5.3':
     resolution: {integrity: sha512-qFbsuC+1y+dE0Zm/XxXUEqj3dHCVTbAmWak5xm1sPj79lK1HThSPcNplPZvScm2ndkuvbTn7ynGpVjjxy0CNgA==}
@@ -2841,6 +3024,9 @@ packages:
   '@activepieces/piece-bokio@0.0.4':
     resolution: {integrity: sha512-EvW9CvLMKUokHvru0nNIwQ/9gXvOOgmBacWy0NAjl58853Fe1iB5cm64ZelH3aEYzzqnhEj1GqF+iY01etmNxg==}
 
+  '@activepieces/piece-bolna@0.1.3':
+    resolution: {integrity: sha512-3nOruQprH94Bs2vF4wl3V2wXBvnHe3g9kZfGC1jrmDkDO0pKwzlWuRNNX3o9U3WBFn0VnMUeSQbK3+sxdo2mZw==}
+
   '@activepieces/piece-bonjoro@0.1.3':
     resolution: {integrity: sha512-0LVFP/Qhve0veYUI17umDedZ+j7fwqMEhqngnSJQ4YCRihl+tkcy+7Oke9ikY2/c7fnFBxl7a7v9RvS3yva59w==}
 
@@ -2858,6 +3044,9 @@ packages:
 
   '@activepieces/piece-calendly@0.4.3':
     resolution: {integrity: sha512-fLuhrCUfNuIZH6vwo+zwc5BNDwmsKrhtqPCmZzWYQ2Vp1H/zoAWpo9io0Xwrl6jApMrsr84JnBAzwqzNewdKfQ==}
+
+  '@activepieces/piece-camb-ai@0.1.3':
+    resolution: {integrity: sha512-0dZQ4sUP0GvJewGxJYDRjbg+SQHiL2zJEtbYNvx7JOKYRze5c4URVSoVexfRZ/D+IWj07O12HUIsIFIUk/YMjA==}
 
   '@activepieces/piece-campaign-monitor@0.1.2':
     resolution: {integrity: sha512-t8d1NQUHmtTwE1bqLZ/uPxIs2Tv5UzRwyCDbVr53E3BK9LBWXa/yXEgGJw6LV240XHOvSeEkinNcv+nnXH+4dA==}
@@ -2892,6 +3081,9 @@ packages:
   '@activepieces/piece-chatsistant@0.1.3':
     resolution: {integrity: sha512-gvCR9F5xyuB9QEMMi/zopysO/n5V115elySgpM/sVbDQtuQxl0vjCw/5FTvmAUWm4jBkMG9JgizPuDjS7HvjgA==}
 
+  '@activepieces/piece-clarifai@0.3.3':
+    resolution: {integrity: sha512-8BSiN1aCebST1xvWJTOvNwm45k3x8FLrdKeaBZJgM6M+hjUA6uWWKd4WoXcIxPWb3OvtUJW5+U0K/CXPeQM5wg==}
+
   '@activepieces/piece-claude@0.4.3':
     resolution: {integrity: sha512-8rpXhFbSoXSTQoQkMgEjZSK4qsVrDHS1/3xbpgYnGlLHeLlVnPu5fxqqq/1CPgefoEsIJALyfgcmwxCMk8khFA==}
 
@@ -2925,6 +3117,9 @@ packages:
   '@activepieces/piece-cognito-forms@0.1.3':
     resolution: {integrity: sha512-4fsyyp8wZzHXF3VIhajGwE/twSCwlmp5fdElSi1nJlJ5UQ/qJkZCAbM+6J3AIU8n/j3i6V6nHTQeTW4B83uGdQ==}
 
+  '@activepieces/piece-comfyicu@0.1.2':
+    resolution: {integrity: sha512-qLGqIRYWvyvCLu9k2U2V17t7IXUNjIL/t0kkxcOQKzmhcQaJa/LLa4oN2rdzv/6oTvtzwSf8M1sS3DTwz5z9kQ==}
+
   '@activepieces/piece-confluence@0.2.3':
     resolution: {integrity: sha512-Shm0SB5cLTE+RdUuzb/iM1B+PErW39LVbsTRD/6o8QdaXbMvYkDS9GON3L/Zpgg5HbQAMwPmdGTwIJ2NKIoQ9w==}
 
@@ -2937,11 +3132,17 @@ packages:
   '@activepieces/piece-contentful@0.1.3':
     resolution: {integrity: sha512-mploXRLfP1+6cZcnOWB6ziPPzvSiHTx1FEj5wj/02Xws5wVTtv5qLuil+t1/0c1qA1v/wGRV2KBwxWYPzNGf/Q==}
 
+  '@activepieces/piece-contextual-ai@0.1.3':
+    resolution: {integrity: sha512-Ys7DiXB5t0yWDOXZ1lnQjShiZRPWYzMw4E5qMgo2Qdg8yqm4/hko/NAoTDQVoajtEkSIsCk6502PgJmG97VULQ==}
+
   '@activepieces/piece-convertkit@0.3.2':
     resolution: {integrity: sha512-3edlkBr1Q5engRNX5mp0E9xq6afybsPHUkYm1ARswzUrLWFif+vgyajYIUxLyYccMXsYxlSKCL1VTW3DvBVrWw==}
 
   '@activepieces/piece-copper@0.1.3':
     resolution: {integrity: sha512-IlFRFmqbBOfjENyEf4En4c6hIv085M2Pug2XpiOo7EGVC7qzURBEoNwa4//M3VIiprEGc1GlcYhl4HaCwxnZZw==}
+
+  '@activepieces/piece-copy-ai@0.1.2':
+    resolution: {integrity: sha512-eeEHEHvbdC+PhLLL0/H6LDlmrcrMYWMpHI8HAqNjQv/NdJonrrfiBufKlAet2uz5a1oayP/3IZGnWkokrzh6Hg==}
 
   '@activepieces/piece-couchbase@0.1.3':
     resolution: {integrity: sha512-7B4JypmPJXy3p1MedOCIrHmABocL9DzgLFTezA18T3pWzLQJukpgcz81sbVeJ86eVA3fcpLeZatD5t6dxsmpqQ==}
@@ -2954,6 +3155,9 @@ packages:
 
   '@activepieces/piece-csv@0.4.12':
     resolution: {integrity: sha512-9e/MDGPal6DX9lDqweqdy7bk7N3l+jxcFPGVq1haDDiO59kSyhXnuhZB57hM3UaJq1GQyK09c0wQQxvFprx9xw==}
+
+  '@activepieces/piece-cursor@0.1.3':
+    resolution: {integrity: sha512-CXZODlqdxcqaTiVbHpb1eM4SJl+M6ThIJVi6BdCG5PdBxVpRpV6elaedJ8JL0WXP99YIQwjinBq0UtTLMkoIFg==}
 
   '@activepieces/piece-customer-io@0.3.3':
     resolution: {integrity: sha512-Snr6vkx2GdhxfLX8EjV9W/qokV7kc1tL9MpXqAjsgttow3e+civWwOs+BsNk8cIHww+Lwrscf4qxfbhHAeH0lQ==}
@@ -2985,6 +3189,12 @@ packages:
   '@activepieces/piece-delay@0.3.25':
     resolution: {integrity: sha512-tyD1uNNc+Wbyt2jOwLoZUHlk8GBeuVPVSHK4D5FJBY3DOXWLs33TBENbtVMwthL0VcYEnP9C455PcFMa3ciaLw==}
 
+  '@activepieces/piece-detecting-ai@0.0.4':
+    resolution: {integrity: sha512-RIv8Oh75wRTDfe7dw7p/Tv/bCcBB64BKRFdfYZTuDU3mB51FYyQ32ElMyKB3e3IYH4QCZSqhodxogNtPj5uQPg==}
+
+  '@activepieces/piece-devin@0.1.2':
+    resolution: {integrity: sha512-lTCPqbA5InRWua2UqXvX4OrEyFC/0QLgFz8eQHTUAeixN3vn00URK3Y83HjOpudewCSzDhQlig30jBIhIfsvHw==}
+
   '@activepieces/piece-digital-ocean@0.0.4':
     resolution: {integrity: sha512-RT1jpclWWw6IpE3S1Jsq1Jn5bOGUhN8xhZkznAvCXmncQJne4PNZHG31eP98NkjzXUNv/MEv+oVQMK8FQONq1Q==}
 
@@ -3013,6 +3223,15 @@ packages:
       '@activepieces/pieces-framework': '*'
       '@activepieces/shared': '*'
 
+  '@activepieces/piece-easy-peasy-ai@0.1.3':
+    resolution: {integrity: sha512-/zZyQUKRJYlU/i5MBEKAEB7UEQXh8ejWkLwhTbs6Yjlr/cMgwyn9w7O0YWs5qnC/Zpm89wZ+o+1tQfIZKv6Xbw==}
+
+  '@activepieces/piece-echowin@0.1.3':
+    resolution: {integrity: sha512-ZNFX6O19qpiny6Z1BInWzslyTTheap8LJdS+lSUbR1YMuK8qte3ILELkSxDj0D6K//Sjovule/3n1IRq6TRiiA==}
+
+  '@activepieces/piece-eden-ai@0.1.2':
+    resolution: {integrity: sha512-egp11IxkTiE0IuIBjI6utOxN38Y0n2kBSHlGKi8YDqcpN1IdVqZeDmDANo2TRrBgjLBlDBBygGRkVnqhdGdzbA==}
+
   '@activepieces/piece-elevenlabs@0.2.3':
     resolution: {integrity: sha512-K8JB3eO6TPw2uWrfQ4uXze8LWjqwp22fQ3/RvqJvKP8YWcm/amT56xIU8FpCRY5QUs+/fT+w3AOuUGQmcbxeZA==}
 
@@ -3024,6 +3243,9 @@ packages:
 
   '@activepieces/piece-exa@0.1.3':
     resolution: {integrity: sha512-L79SEr9rmkzqlsVk0hGyybXCgLjoVQJF0WMo6B7/xNhJRGge4l7p0SpUtHoorZ2CDbdAb5PpaGRRTGK11UY3/A==}
+
+  '@activepieces/piece-extracta-ai@0.1.2':
+    resolution: {integrity: sha512-BgKj/f7vgksGNYmlxDmhFrtkEaHKsxUrKU47oCmlStpWnXiSUgfxhLGqSTwAlDuuHXXyMBc4OUoKv4wDuZxYlA==}
 
   '@activepieces/piece-facebook-leads@0.3.2':
     resolution: {integrity: sha512-j+Oej4imNW9QTVxdUO+86sOpKFygp3hR/zaeck/LUZoNBOIOLUDWDYJ7Ki9hooybCEL5UBQ8fd5KQp8XkLFVJg==}
@@ -3049,11 +3271,17 @@ packages:
   '@activepieces/piece-firecrawl@0.3.4':
     resolution: {integrity: sha512-Y1dazB5sPqJOMFXeeLQ/o+gQJJex9k8kcZvUBTC3dSLsM732mR9lUDm8S09bnJDZQgMpUL0DU1EIBbbgGPSTCA==}
 
+  '@activepieces/piece-fireflies-ai@0.1.2':
+    resolution: {integrity: sha512-QW2EmEX5momssXTQrZBWSaz+cCRIeuBSOZT0na/lCOXvh5bGw10DnCL5rOw9RQTe6cqi4oITlj7wEQAyM1tl8g==}
+
   '@activepieces/piece-flow-helper@0.1.2':
     resolution: {integrity: sha512-00inqcnhwSVevR2mZ6qJLTCYoqFV+dd026f6u2V+TnLLobbowVESUti3zDd3zEXjzIWIHBFKgq68D0CREFaTMw==}
 
   '@activepieces/piece-flow-parser@0.1.3':
     resolution: {integrity: sha512-STz/zzx7fiFcLG36gv0oNhdYQUbao1rn9qR1f0M1E+k8TRK2zqFfmNo6KwbywH5/5HsX7X3fSYyae8Prcuv4vA==}
+
+  '@activepieces/piece-flowise@0.1.3':
+    resolution: {integrity: sha512-XPSYCMLkcFS5uiPm7CCGomSZInQp1Uv/bH8cGRajb7A33BKQDZF0iHDHjeaz5pnIvwAYkMWD2WsX7uZevI1b+g==}
 
   '@activepieces/piece-flowlu@0.1.2':
     resolution: {integrity: sha512-i58Rvc/2Pfh4HOr2XQjC6jW3qhAQiiIHW6SLlHY9fZWF2rIsE2ZfMRjGsTvqppcxlXDvPEtODctNLwCdn/Xm3g==}
@@ -3103,6 +3331,9 @@ packages:
   '@activepieces/piece-gitlab@0.1.3':
     resolution: {integrity: sha512-VbDSIxasEXHj0Uwpahfcg84Zr2sHm6slXr2ryZTB0d/w6T3rnoPel1wQSa7JrzWrXcIbwgvJukSLnoSfN03UZA==}
 
+  '@activepieces/piece-gladia@0.1.3':
+    resolution: {integrity: sha512-TrI4Jhi0xlBshMtf6GaZa+yTypg3Vi9HOo8Xc+AeL6QlmQOMOkviLk/jO3NCH6vnpFdsT8meO9UurEQMUsbRUw==}
+
   '@activepieces/piece-gmail@0.11.3':
     resolution: {integrity: sha512-s+Moaq3UNn36Wek0gb5K5At35PoqESLPfrv+NZFmw0Qklyi1zedL/g+r6UI8twoENZagUBep9ZLs+t66RSoOfw==}
 
@@ -3151,8 +3382,14 @@ packages:
   '@activepieces/piece-gotify@0.4.2':
     resolution: {integrity: sha512-RLIHFMI0bwKAAnp20YU0QZd6cdut/MQPgxV5fyvjN3CfKYUDjFDF5XT1rDuz7tr7Wy16eKGgByBMBWqt0DAEPw==}
 
+  '@activepieces/piece-gptzero-detect-ai@0.1.3':
+    resolution: {integrity: sha512-4L7gRr7xhrdvSoufJJofUsuE6DNpX+KQ1YJVBjqjVOgesptQx3P1WvrG0AoFS5Gx736q1ttjvxU/rAiO8YItOQ==}
+
   '@activepieces/piece-graphql@0.0.9':
     resolution: {integrity: sha512-9a9d31Yof+eUA2AnPOzu3WtdDVCWEfTeu0StzDYwdzJZ+Amt3ejDs38uMZL9B91umBQE3mtJitDxW+eiIC2YOQ==}
+
+  '@activepieces/piece-griptape@0.1.3':
+    resolution: {integrity: sha512-baDDFxPiK4dg3ZoeB9knp9iXBcwKMr4M+4K3a9h9v2ysNDwOwmWPhI4soLrW3UrPPg3eBQBDgVVOBhmxJYUU8g==}
 
   '@activepieces/piece-grist@0.1.3':
     resolution: {integrity: sha512-JhFzVOUi07OTRKnTJ5UvyHA3USWWfr1XKmVIb8f/ur2bZNfwY/2XdlJlJWy3xwbz/u0GVnAniHy1DlwWieMdgg==}
@@ -3205,6 +3442,9 @@ packages:
   '@activepieces/piece-insightly@0.1.2':
     resolution: {integrity: sha512-BhO0zNDh2D+mOBe7eJ92gak6mpP7A80dH/IWE0vWdbglFa2JR4piI/7reP5M0ss9CMVqWzbjwdD7w9seA3dX8g==}
 
+  '@activepieces/piece-insighto-ai@0.1.2':
+    resolution: {integrity: sha512-Isvu6s9B6UbNASyKPsmrx9d20i8MQMinclbN3Eu0tb4wrfbGDPNGw/lZ4ZUIAJz8v7OnEqOX5B2Ke1COWw3uBQ==}
+
   '@activepieces/piece-instagram-business@0.2.2':
     resolution: {integrity: sha512-HZ2xGKE5ic5CTvoooErvNb0jwy4wyfDqOagzN5P2+/XrsCwQTYhVQ6NXHiUNvS3FLGwk1QKcvc5v8v736V+j9Q==}
 
@@ -3226,6 +3466,9 @@ packages:
   '@activepieces/piece-jira-cloud@0.2.4':
     resolution: {integrity: sha512-uMk5tEiFR9kny/T5KorZiPvYjcQGRx8lZA81BVrFPenzeBu358rWFnhA7qbNsKH6vj9W2EaypntVd5QCmpNAXQ==}
 
+  '@activepieces/piece-jogg-ai@0.1.2':
+    resolution: {integrity: sha512-2zRG6MwOkijqtFeOpmqjVFcIFSmoK2PZ2e9zEq80w1/txJ3cVjnF74DrtInbu+bqU/XiCAI/9ziMwYx1IQl6xA==}
+
   '@activepieces/piece-jotform@0.2.3':
     resolution: {integrity: sha512-Upotc8W3MVVfd5s9pTasL95/p4JhBUl25kYODGjxY/NyLWoMxGT/tN7XRbATen9fhpLHVkKsX1yD7fg7GXkLtQ==}
 
@@ -3234,6 +3477,9 @@ packages:
 
   '@activepieces/piece-just-invoice@0.0.4':
     resolution: {integrity: sha512-sO9JDKFY1ehA9jtqym86rP2++haUECLrND17lHAX/rwvZiI/yKa/mP5tbC2uBdyGgmfBPlzTo4bsQGpXTC+V8g==}
+
+  '@activepieces/piece-kallabot-ai@0.4.2':
+    resolution: {integrity: sha512-fIFKTOqtfujK44MeQkSP6SF6hCU8E1P3LuCi5DvPErN+3jB9S8QPahYrsfe/uRf1ETjB8jjXr6FOhovdf8mX3A==}
 
   '@activepieces/piece-kimai@0.2.3':
     resolution: {integrity: sha512-Huu08mcFqw24T66rBxtkZ+ZgMeyRbOgoan7ufQI0hM3EBe/X4wXM5CPwWtzffHc4YpFc7Jrfr9boQyTDhwU7sQ==}
@@ -3247,11 +3493,17 @@ packages:
   '@activepieces/piece-lead-connector@0.2.3':
     resolution: {integrity: sha512-Cr0xux6i2uDLiWBg/ufmlUoZpb0/e9gVjk8LOkvfwrcjlc0L+ov3fjG+QeeU5+JMkJWHpsoUE3/GOrnpIy55mQ==}
 
+  '@activepieces/piece-leap-ai@0.0.4':
+    resolution: {integrity: sha512-x8MAKOtmoEkMPSnqMeHc/6hdj1YnbhnOFtkMOKHSHT3hX4kKHbwE/sTwa8NZ6hZYeGFTK8IJYTbBpGpQeX9QBA==}
+
   '@activepieces/piece-lemlist@0.1.2':
     resolution: {integrity: sha512-zBLAhvKmSZgXYtzvHdFa7jfid7QVxr6rhqv6dee6YkJReKwt5yPHn8HcwvFYjS6iYJFxC4fLNemzDUFBU7dlZQ==}
 
   '@activepieces/piece-lemon-squeezy@0.1.3':
     resolution: {integrity: sha512-5XrgC8dPcmZDjvALw0lHCWR6oNnWhwB7PH1tzqHh69a599FNcEzxfA0KkUXVYtGfYlVryR20NsCRccJp6SEGEw==}
+
+  '@activepieces/piece-letta@0.1.3':
+    resolution: {integrity: sha512-tOM6rn2h1o34HtM+oJUf/x2xhkrHWoHFOXwVKn6NsXS6p1w2AO6+dkV78axFG4nC3aNhJsbL6fImkB88oKXBrw==}
 
   '@activepieces/piece-lever@0.1.3':
     resolution: {integrity: sha512-MOjEcr0V1No/9sWynfpSqLArCEZ8Ou93H7Vbwf1qFPFlllX/Yt3RYMhe0df1l2tZolDd6fXQPYo+7KLEmcmLsQ==}
@@ -3265,6 +3517,12 @@ packages:
   '@activepieces/piece-linkedin@0.2.3':
     resolution: {integrity: sha512-VFp4WRIkyq1pIbrBNU5Ke8UlAz6cRn06mflceqxbQQN9z6JM1YIt0d2Qi5GEqx/OyJyplmSq7l3tyeFD0VopGw==}
 
+  '@activepieces/piece-llmrails@0.1.3':
+    resolution: {integrity: sha512-79Azuqx+z6cOKjcNchXKKhY4wZRAyiQ4tUGX5p/WTtr2UAqu0sx+08oEgYM6oB7S2K3Mf+YCXvTe3CWKDOwU1Q==}
+
+  '@activepieces/piece-localai@0.1.4':
+    resolution: {integrity: sha512-IZCoaVPTW1qmchVd2O5pDoEKzPODj4ckW3hGtJnCsphNLu2prFnsiwt+o/be3HzH8Kh8AcI540LgSyOaVxC6aA==}
+
   '@activepieces/piece-lofty@0.1.3':
     resolution: {integrity: sha512-m+ZH2h5WtyCrRcYIvc7J0qgxpVx2RfS9NND8wZargybrCHt8YzItPcwzCNXQIhQxLmrZJdKYvbGD9UxFYsCG9Q==}
 
@@ -3273,6 +3531,12 @@ packages:
 
   '@activepieces/piece-lusha@0.1.3':
     resolution: {integrity: sha512-XXEQH3jPupO/8lpkWfVZrDunZkYeT0IwE/FH2NTO24hs73QhaCrWx7UL5DnZNVJTY1vUJHVqaIUFS2vqfUhdaw==}
+
+  '@activepieces/piece-magical-api@0.1.3':
+    resolution: {integrity: sha512-Id+iM1/Iq9jUpAD55bBaJhHCz4KYJAmNWCfJJXx3sjcfM7w40yfLQji+l+0MkTqtm/26uBc2Yurqb22BPayENA==}
+
+  '@activepieces/piece-magicslides@0.1.2':
+    resolution: {integrity: sha512-LV13xFw5+NI6aR9p2uax37NhuLcccYgJZ8tpmdqgsU5rac63tPVcw2/cFsPhCizDJUi6AV8koo4tVhxXiOFXjA==}
 
   '@activepieces/piece-mailchain@0.1.2':
     resolution: {integrity: sha512-xcuuGhSq12/xM06R8Pvikte+L2MxAQqgg6KW6/EJnA2wl0GzRyYJNa1IFeWY2ExMIVm3r/0hprVey8iLXKTQDQ==}
@@ -3309,6 +3573,12 @@ packages:
 
   '@activepieces/piece-mattermost@0.4.3':
     resolution: {integrity: sha512-RZrdsYGP8Q1zFQcqhrylCBLlWmoo1oeHzyX4TQHiuf5NUlAjutqXNrKKOFkU8U1Rgr0USDHJnoVQtQkO45Dmkw==}
+
+  '@activepieces/piece-mcp@0.0.15':
+    resolution: {integrity: sha512-aKGDDZWp76cNzqGZzjJLxGFDGZ2vNjl2t1SQI3G9gXxyf2rWmoTeY/V4NKqL6No38mENV1UouQyx2tt7sX7c/g==}
+
+  '@activepieces/piece-meetgeek-ai@0.1.3':
+    resolution: {integrity: sha512-GAhfZkmaWlQ5hRaC8UGWwbMTiF7Lm45WDASfzv7rJaWtZZXRy2iTr8J22gTdqEN+kFiXb5n9UWxBBos9gXUdOA==}
 
   '@activepieces/piece-meistertask@0.1.3':
     resolution: {integrity: sha512-REMT41NXO5msoyAoVQvEo+FAqHEbWpUt4W4C4oxdUlCHo75a/iTE53JS5Pzhd9eJsjRDuGgrIHk1AU3JSa6muQ==}
@@ -3358,6 +3628,12 @@ packages:
   '@activepieces/piece-microsoft-todo@0.2.3':
     resolution: {integrity: sha512-4rh4wl4ObZ1EdCEi/nCFu9eN6ihVm+4zJcOBZxO+TTLwF6p1/sbGoJz1la0Z58JIB5M7ByJbo0haGxG+86ewlg==}
 
+  '@activepieces/piece-mind-studio@0.1.3':
+    resolution: {integrity: sha512-pzMP2YIwDW4L+trXJx7k7gxD3iQeu5EfFESyPjv9hWPmOBV249vlUc1YVh00KBpBqI1W2sFUSv8ySEZeO+arAA==}
+
+  '@activepieces/piece-mindee@0.2.3':
+    resolution: {integrity: sha512-2N0iitgKhaQHITgrGEp2vW5zRZiUY0FVxaVvR9FluS43oEo/omq5AD1bc2X+TMMT9Aui+SxMG0lENmBloEAUKw==}
+
   '@activepieces/piece-missive@0.1.3':
     resolution: {integrity: sha512-ZSp3I/bNJLZgNf9nNbFyInzQzKpxpOmldtZjjfau5HTm/wWzV/Xv3wqfVH94TyvnlH+WNP8DfXKnOpkd06v2cA==}
 
@@ -3382,8 +3658,14 @@ packages:
   '@activepieces/piece-mooninvoice@0.0.4':
     resolution: {integrity: sha512-HcAkuH8vYvz9dyZdhIGB8GbhzfO3Auo4vrGY1zCw2t2lZxfsil8aHw9c3W9kj4EL5t9hzIT5MWLocC5UjURJmA==}
 
+  '@activepieces/piece-moveo-ai@0.0.4':
+    resolution: {integrity: sha512-Nw5E8iJ8aDncTN4b6qy1OddIGGUH7AtQw/NkYWJ2leZKhA+/25sHRmC+mj71DAsS1WpKKGqJ2XbGR7S/QfImHQ==}
+
   '@activepieces/piece-moxie-crm@0.1.3':
     resolution: {integrity: sha512-otkmtAsEau1UGNENovcu8AWJruieSc0ms344wQaqCcEv9rp8aktblnCK8xR4VDhD9VUoqioZUTGPk9WJvM5+4w==}
+
+  '@activepieces/piece-murf-api@0.1.3':
+    resolution: {integrity: sha512-rlRjtb1L3iNQ7528wi8klDGVBZ7q0TGckTktVmM22W5OHHStpg0IpTWgep38LIRz/7/fbAap3pJxtkdZOClpmQ==}
 
   '@activepieces/piece-mysql@0.2.2':
     resolution: {integrity: sha512-vRt1k3MstKgrexFrzuo6tqJ5BBF4XOmYjbCqujRXb/nJme3NHLLPEv5d2+3Cxy+rCKc7hSGY248benQZHVeeyg==}
@@ -3424,6 +3706,9 @@ packages:
   '@activepieces/piece-openai@0.7.4':
     resolution: {integrity: sha512-nCNp0s0mTNQsqt4Nqzuasu7QYaDTfgHJRgXJ2ZPKtvWU52r+ew26TXXuxWNJ7oUkNnbpIRrAiP9RxLmgk4MSJQ==}
 
+  '@activepieces/piece-openmic-ai@0.1.3':
+    resolution: {integrity: sha512-Cw7rxVStlwrfQ6hqxYbaPlvWECkoOnMifJlAx/M7VBU8chKKj+NKqBEZhPnI93UTPKRKgbkI2Fad/zhyKUCZHA==}
+
   '@activepieces/piece-opnform@0.1.3':
     resolution: {integrity: sha512-KdRdPfXARqGV+RruQYASedEzhbYBWwFYjhaPD+zoszO7VrW7LZ9F8HXKXM9ZmOaClNF0GemrjHlZCtV1u1rhfQ==}
 
@@ -3456,6 +3741,9 @@ packages:
 
   '@activepieces/piece-perplexity-ai@0.3.2':
     resolution: {integrity: sha512-2PqYZtwi9rmPoK4PdGzowlKn62DD6Gv8Ux4nxVCZCrxxEgbfdfDjZ29dX+HSM2UwJl4wdnK3SKJEe945BxYX8w==}
+
+  '@activepieces/piece-personal-ai@0.1.2':
+    resolution: {integrity: sha512-mysLOUkGA/RcXhqwvImFcwFwZ7TEe7CEvu7SuWZdtAJr2RJt5u6EYhDz8HZ9EPVCvMfOCDxsvDBQy59tUS2DXQ==}
 
   '@activepieces/piece-pinch-payments@0.0.6':
     resolution: {integrity: sha512-reAKkuFFlqNrsoAVSiIhoaw8kxpc5e7XUFa2gpjmcW9vo64DrvOnAgXKh9eudPwaHwCtVtA0qRxNBQEiqxytJQ==}
@@ -3637,8 +3925,14 @@ packages:
   '@activepieces/piece-stability-ai@0.2.3':
     resolution: {integrity: sha512-jzE3hMRRHjVZ5ysQAuWA5MRM30BXqiUGBkPIWjEaePDqbPUK4HW8zGrX4kyKesF4cHbDIsvW3q0NwEUpbndF8A==}
 
+  '@activepieces/piece-stable-diffusion-webui@0.1.2':
+    resolution: {integrity: sha512-VRK1lDYLLiwslCH1Di5xXkZKmeYl/BCwKkEkhidXEK5sJ5KDdEJqx2hZHESNp1iTqRMJ5eWX8cYAviXKzM7/mw==}
+
   '@activepieces/piece-store@0.6.13':
     resolution: {integrity: sha512-VACm0wWDFCXV+6AHCBcddOUNu/HnaCi4awfvmrBwsFEs8VXkW3aEdJFxCicxOnNq6xkEICFwp9g8MF+WMtBGWg==}
+
+  '@activepieces/piece-straico@0.2.3':
+    resolution: {integrity: sha512-FEY3AlFoETnXqPY28LGr+wNbY5K++ryceZL+Hod1SZqSXRod7gLO14VIju6UKZfkxYW9v51jctI6+MlZP0PUXA==}
 
   '@activepieces/piece-stripe@0.6.4':
     resolution: {integrity: sha512-/T4kugeJWY9XvB1BVAE6RPMTvmvNfDx+DARUfrxdgfQ2Hov5xI8SK5RG19ohueNQ3Kodl/AEjNZP53MqqpGyeQ==}
@@ -3691,6 +3985,9 @@ packages:
   '@activepieces/piece-text-helper@0.4.12':
     resolution: {integrity: sha512-aKuTI1XfU3+jfRLZJ7Jj5TIFPsXY6TX+/Oqaakt+0ADiCppwvQU5xbaDilhARN0fziNiqR7DR2dGoFsshx1Fkw==}
 
+  '@activepieces/piece-textcortex-ai@0.1.3':
+    resolution: {integrity: sha512-Xzu1ILMvjHX6B1W83L4XMJMW0/kmXFlcLtVFXpHAZeTPJCasPa7Px5vdZ92y7FgGsyaco3f+nTZIQZ6P4/a0gQ==}
+
   '@activepieces/piece-ticktick@0.1.3':
     resolution: {integrity: sha512-lOL997Fwm/NM8fy7g9/z0HH2wX88ihCIeb3q5MHaUCofd53dkmfMnu/cxbafFuz5Mb0UGX0onoN/uoqQIdPMIA==}
 
@@ -3729,6 +4026,9 @@ packages:
 
   '@activepieces/piece-videoask@0.1.2':
     resolution: {integrity: sha512-JzSiQIowPoun+PFAyaCmfNRqaYBDJZir9Rt+xToVp8rcEzMGSKc7HV3X7/psgVpRvDbNSi5imDI8wzfLlipXkA==}
+
+  '@activepieces/piece-vidnoz@0.0.4':
+    resolution: {integrity: sha512-bPjgPqx5G3lbBFUukpJv5OjbfBC6JJpypwahU0l3AxPXN0kf9h6dGeEBTkeHNMsXg0FJPVwTP7CmxMSxBYiSEQ==}
 
   '@activepieces/piece-vimeo@0.1.2':
     resolution: {integrity: sha512-FwAh2j2v5Bl4DtSMB5PYQyoNbMWhSGv2fnjbYh382iNM/Ei+zgpcifpQz8SjBkGrIvFIGNv5fqzxJqUy6s/0qg==}
@@ -3829,6 +4129,18 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
+  '@ai-sdk/anthropic@3.0.38':
+    resolution: {integrity: sha512-9MchyPRPni0WzrFeIGNevZpQVfWxaS+MQFupIXYQo9VgHnuO1Vyrp9SBmjkkuoAdBs7GomsWqLZCcNMJAVbdFA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/azure@3.0.27':
+    resolution: {integrity: sha512-UEaWnOlMRYErQoZsFNxuF0shQ/XhsFcVFm6LbA1RMOBsfWkBtKCTaz+dDsbB8dzGRCa2knZR2thtdYwwSKRyQA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
   '@ai-sdk/fal@1.0.23':
     resolution: {integrity: sha512-7W6xP0N0MEWGiQiZ7HbcO/0zGQKj7vzD1dBxL/nU+PdaEsCrTgIuVwKqh0JR20BQXtF+LJ2423O3kf9ReNWCVA==}
     engines: {node: '>=18'}
@@ -3865,8 +4177,32 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
+  '@ai-sdk/google@3.0.22':
+    resolution: {integrity: sha512-g1N5P/jfTiH4qwdv4WT3hkKzzAbITFz457NomtBfjP8Q3SCzdbU9oPK5ACBMG8RN5mc2QPL6DLtM3Hf5T8KPmw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/mcp@1.0.11':
+    resolution: {integrity: sha512-TD+7qL7l43hx/XRlRSIzxyRQtxUZxgknJ4FJtytK9Tv/Lw/eVRQnsq4u2TumzYJNOYFsm6NAYTcto248qqMCTg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/openai-compatible@2.0.16':
+    resolution: {integrity: sha512-Vn+zlFSeo3DiBvYZv575+9WxqYqFyu0xNx3eAWwFDHkQpMwh9MC5eVTfdpT/YRW9lK0jWvJ//aG7QnX+FE16/w==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
   '@ai-sdk/openai@2.0.72':
     resolution: {integrity: sha512-9j8Gdt9gFiUGFdQIjjynbC7+w8YQxkXje6dwAq1v2Pj17wmB3U0Td3lnEe/a+EnEysY3mdkc8dHPYc5BNev9NQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/openai@3.0.26':
+    resolution: {integrity: sha512-W/hiwxIfG29IO0Fob1HwWpFssMsNrxWoX8A7DwNGOtKArDBmJNuGzQeU/k0Fnh8WyvZEnfxkjO4oXkSXfVBayg==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -3895,8 +4231,18 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
+  '@ai-sdk/provider-utils@4.0.8':
+    resolution: {integrity: sha512-ns9gN7MmpI8vTRandzgz+KK/zNMLzhrriiKECMt4euLtQFSBgNfydtagPOX4j4pS1/3KvHF6RivhT3gNQgBZsg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
   '@ai-sdk/provider@2.0.0':
     resolution: {integrity: sha512-6o7Y2SeO9vFKB8lArHXehNuusnpddKPk7xqL7T2/b+OvXMRIXUO1rR4wcv1hAFUAT9avGZshty3Wlua/XA7TvA==}
+    engines: {node: '>=18'}
+
+  '@ai-sdk/provider@3.0.4':
+    resolution: {integrity: sha512-5KXyBOSEX+l67elrEa+wqo/LSsSTtrPj9Uoh3zMbe/ceQX4ucHI3b9nUEfNkGF3Ry1svv90widAt+aiKdIJasQ==}
     engines: {node: '>=18'}
 
   '@ai-sdk/provider@3.0.8':
@@ -5951,6 +6297,25 @@ packages:
     peerDependencies:
       graphql: ^0.8.0 || ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
 
+  '@grpc/grpc-js@1.14.3':
+    resolution: {integrity: sha512-Iq8QQQ/7X3Sac15oB6p0FmUg/klxQvXLeileoqrTRGJYLV+/9tubbr9ipz0GKHjmXVsgFPo/+W+2cA8eNcR+XA==}
+    engines: {node: '>=12.10.0'}
+
+  '@grpc/proto-loader@0.5.6':
+    resolution: {integrity: sha512-DT14xgw3PSzPxwS13auTEwxhMMOoz33DPUKNtmYK/QYbBSpLXJy78FGGs5yVoxVobEqPm4iW9MOIoz0A3bLTRQ==}
+    engines: {node: '>=6'}
+
+  '@grpc/proto-loader@0.8.0':
+    resolution: {integrity: sha512-rc1hOQtjIWGxcxpb9aHAfLpIctjEnsDehj0DAiVfBlmT84uvR0uUtN2hEi/ecvWVjXUGf5qPF4qEgiLOx1YIMQ==}
+    engines: {node: '>=6'}
+    hasBin: true
+
+  '@hono/node-server@1.19.9':
+    resolution: {integrity: sha512-vHL6w3ecZsky+8P5MD+eFfaGTyCeOHUIFYMGpQGbrBTSmNNoxv0if69rEZ5giu36weC5saFuznL411gRX7bJDw==}
+    engines: {node: '>=18.14.1'}
+    peerDependencies:
+      hono: ^4
+
   '@hubspot/api-client@12.0.1':
     resolution: {integrity: sha512-lMxDEuhaP1KDxo0Z/t+3xAT/wzVaQCZ9ThSewj9qCMkhBMYA2ABWLOY/I+huQCERuMqkqwmMBx/NOCspBlGQGg==}
 
@@ -6310,8 +6675,14 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
+  '@js-sdsl/ordered-map@4.4.2':
+    resolution: {integrity: sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw==}
+
   '@jsonhero/path@1.0.21':
     resolution: {integrity: sha512-gVUDj/92acpVoJwsVJ/RuWOaHyG4oFzn898WNGQItLCTQ+hOaVlEaImhwE1WqOTf+l3dGOUkbSiVKlb3q1hd1Q==}
+
+  '@letta-ai/letta-client@1.7.8':
+    resolution: {integrity: sha512-l7BGsAZOI8b+H1RO2IMzMv3P0VXj6Of2wXLCg5LZejOk0dHLLBi2me4WspLg+6zWPGIRJwMRsxmfp4kV9Zzh6g==}
 
   '@lezer/common@1.5.1':
     resolution: {integrity: sha512-6YRVG9vBkaY7p1IVxL4s44n5nUnaNnGM2/AckNgYOnxTG2kWh1vR8BMxPseWPjRNpb5VtXnMpeYAEAADoRV1Iw==}
@@ -6415,6 +6786,16 @@ packages:
 
   '@mixmark-io/domino@2.2.0':
     resolution: {integrity: sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw==}
+
+  '@modelcontextprotocol/sdk@1.25.2':
+    resolution: {integrity: sha512-LZFeo4F9M5qOhC/Uc1aQSrBHxMrvxett+9KLHt7OhcExtoiRN9DKgbZffMP/nxjutWDQpfMDfP3nkHI4X9ijww==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@cfworker/json-schema': ^4.1.1
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      '@cfworker/json-schema':
+        optional: true
 
   '@monaco-editor/loader@1.7.0':
     resolution: {integrity: sha512-gIwR1HrJrrx+vfyOhYmCZ0/JcWqG5kbfG7+d3f/C1LXk2EvzAbHSg3MQ5lO2sMlo9izoAZ04shohfKLVT6crVA==}
@@ -6606,6 +6987,13 @@ packages:
 
   '@open-draft/deferred-promise@2.2.0':
     resolution: {integrity: sha512-CecwLWx3rhxVQF6V4bAgPS5t+So2sTbPgAzafKkVizyi7tlwpcFpdFqq+wqF2OwNBmqFuu6tOyouTuxgpMfzmA==}
+
+  '@openrouter/ai-sdk-provider@2.1.1':
+    resolution: {integrity: sha512-UypPbVnSExxmG/4Zg0usRiit3auvQVrjUXSyEhm0sZ9GQnW/d8p/bKgCk2neh1W5YyRSo7PNQvCrAEBHZnqQkQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      ai: ^6.0.0
+      zod: ^3.25.0 || ^4.0.0
 
   '@opentelemetry/api-logs@0.203.0':
     resolution: {integrity: sha512-9B9RU0H7Ya1Dx/Rkyc4stuBZSGVQF27WigitInx2QQoj6KUpEFYPKoWjdFTunJYxmXmh17HeBvbMa1EhGyPmqQ==}
@@ -9251,6 +9639,9 @@ packages:
   '@types/linkify-it@5.0.0':
     resolution: {integrity: sha512-sVDA58zAw4eWAffKOaQH5/5j3XeayukzDk+ewSsnv3p4yJEZHCCzMDiZM8e0OUrRvmpGZ85jf4yDHkHsgBNr9Q==}
 
+  '@types/long@4.0.2':
+    resolution: {integrity: sha512-MqTGEo5bj5t157U6fA/BiDynNkn0YknVdh48CMPkTSpFTVmvao5UQmm7uEF6xBEo7qIMAlY/JSleYaE6VOdpaA==}
+
   '@types/markdown-it@14.1.2':
     resolution: {integrity: sha512-promo4eFwuiW+TfGxhi+0x3czqTYJkG8qB17ZUJiVF10Xm7NLVRSLUsfRTU/6h1e24VvRnXCx+hG7li58lkzog==}
 
@@ -9561,6 +9952,10 @@ packages:
 
   accepts@1.3.8:
     resolution: {integrity: sha512-PYAthTa2m2VKxuvSD3DPC/Gy+U+sOA1LAuT8mkmRuvw+NACSaeXEQ+NHcVF7rONl6qcaxV3Uuemwawk+7+SJLw==}
+    engines: {node: '>= 0.6'}
+
+  accepts@2.0.0:
+    resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
     engines: {node: '>= 0.6'}
 
   acorn-import-attributes@1.9.5:
@@ -9918,6 +10313,10 @@ packages:
   bn.js@5.2.2:
     resolution: {integrity: sha512-v2YAxEmKaBLahNwE1mjp4WON6huMNeuDvagFZW+ASCuA/ku0bXR9hSMw0XpiqMoA3+rmnyck/tPRSFQkoC9Cuw==}
 
+  body-parser@2.2.2:
+    resolution: {integrity: sha512-oP5VkATKlNwcgvxi0vM0p/D3n2C3EReYVX+DNYs5TjZFn/oQt2j+4sVJtSMr18pdRr8wjTcBl6LoV+FUwzPmNA==}
+    engines: {node: '>=18'}
+
   boolbase@1.0.0:
     resolution: {integrity: sha512-JZOSA7Mo9sNGB8+UjSgzdLtokWAky1zbztM3WRLCbZ70/3cTANmQmOdR7y2g+J0e2WXywy1yS468tY+IruqEww==}
 
@@ -10013,6 +10412,10 @@ packages:
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
     peerDependencies:
       esbuild: '>=0.18'
+
+  bytes@3.1.2:
+    resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
+    engines: {node: '>= 0.8'}
 
   cac@6.7.14:
     resolution: {integrity: sha512-b6Ilus+c3RrdDk+JhLKUAQfzzgLEPy6wcXqS7f/xe1EETvsDP6GORG7SFuOs6cID5YkqchW/LXZbX5bc8j7ZcQ==}
@@ -10138,6 +10541,9 @@ packages:
 
   cjs-module-lexer@1.4.3:
     resolution: {integrity: sha512-9z8TZaGM1pfswYeXrUpzPrkx8UnWYdhJclsiYMm6x/w5+nN+8Tf/LnAgfLGQCm59qAOxU8WwHEq2vNwF6i4j+Q==}
+
+  clarifai-nodejs-grpc@11.3.3:
+    resolution: {integrity: sha512-CfL5zFTfpTZoUfNfVUNG+DxZP8TscJ6dncBTora4zkNlRm/E1K2e54xchxNLo8XQ4os8yINJ4f03ke1OekSIIA==}
 
   class-variance-authority@0.7.1:
     resolution: {integrity: sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg==}
@@ -10266,6 +10672,14 @@ packages:
   console-control-strings@1.1.0:
     resolution: {integrity: sha512-ty/fTekppD2fIwRvnZAVdeOiGd1c7YXEixbgJTNzqcxJWKQnjJ/V1bNEEE6hygpM3WjwHFUVK6HTjWSzV4a8sQ==}
 
+  content-disposition@1.0.1:
+    resolution: {integrity: sha512-oIXISMynqSqm241k6kcQ5UwttDILMK4BiurCfGEREw6+X9jkkpEe5T9FZaApyLGGOnFuyMWZpdolTXMtvEJ08Q==}
+    engines: {node: '>=18'}
+
+  content-type@1.0.5:
+    resolution: {integrity: sha512-nTjqfcBFEipKdXCv4YDQWCfmcLZKm81ldF0pAopTvyrFGVbcR6P/VAAd5G7N+0tTr8QqiU0tFadD6FK4NtJwOA==}
+    engines: {node: '>= 0.6'}
+
   contentful-management@11.48.1:
     resolution: {integrity: sha512-LxN5Vcdc7UNbQVOVIb49iIwtNBumdL2vKi820Az/XTejkRAvk9dOO5QDUIMmLT6clK2LPGGa1F3xnVtemr8IhQ==}
     engines: {node: '>=18'}
@@ -10274,8 +10688,15 @@ packages:
     resolution: {integrity: sha512-G/8cEs3ggeMrUtT8ywXlzoSCKNpmUo2ZXq/pBCnxcM6JP7isfk8nYDHL0xRR9qTwlNs3XCmCf20iApOQeR6Qsg==}
     engines: {node: '>=18'}
 
+  contextual-client@0.10.0:
+    resolution: {integrity: sha512-9hjPD0WdLKvOGh4ajtOG75Jh8IS3edrG4jjilDsnAU1vN6SrBEIxe3ehKf3MqxnMRa+2DNkltLCi6zB2zV+1kg==}
+
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
+
+  cookie-signature@1.2.2:
+    resolution: {integrity: sha512-D76uU73ulSXrD1UXF4KE2TMxVVwhsnCgfAyTg9k8P6KGZjlXKrOLe4dJQKI3Bxi5wjesZoFXJWElNWBjPZMbhg==}
+    engines: {node: '>=6.6.0'}
 
   cookie@1.0.2:
     resolution: {integrity: sha512-9Kr/j4O16ISv8zBBhJoi4bXOYNTkFLOqSL3UDB0njXxCXNezjeyVrJyGOWtgfs/q2km1gwBcfH8q1yEGoMYunA==}
@@ -10541,6 +10962,10 @@ packages:
   delegates@1.0.0:
     resolution: {integrity: sha512-bd2L678uiWATM6m5Z1VzNCErI3jiGzt6HGY8OVICs40JQq/HALfbyNJmp0UDakEY4pMMaN0Ly5om/B1VI/+xfQ==}
 
+  depd@2.0.0:
+    resolution: {integrity: sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw==}
+    engines: {node: '>= 0.8'}
+
   dequal@2.0.3:
     resolution: {integrity: sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA==}
     engines: {node: '>=6'}
@@ -10762,6 +11187,9 @@ packages:
   ed2curve@0.3.0:
     resolution: {integrity: sha512-8w2fmmq3hv9rCrcI7g9hms2pMunQr1JINfcjwR9tAyZqhtyaMN991lF/ZfHfr5tzZQ8c7y7aBgZbjfbd0fjFwQ==}
 
+  ee-first@1.1.1:
+    resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
+
   electron-to-chromium@1.5.244:
     resolution: {integrity: sha512-OszpBN7xZX4vWMPJwB9illkN/znA8M36GQqQxi6MNy9axWxhOfJyZZJtSLQCpEFLHP2xK33BiWx9aIuIEXVCcw==}
 
@@ -10804,6 +11232,10 @@ packages:
 
   enabled@2.0.0:
     resolution: {integrity: sha512-AKrN98kuwOzMIdAizXGI86UFBoo26CL21UM763y1h/GMSJ4/OHU9k2YlsmBpyScFo/wbLzWQJBMCW4+IO3/+OQ==}
+
+  encodeurl@2.0.0:
+    resolution: {integrity: sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg==}
+    engines: {node: '>= 0.8'}
 
   encoding-japanese@2.2.0:
     resolution: {integrity: sha512-EuJWwlHPZ1LbADuKTClvHtwbaFn4rOD+dRAbWysqEOXRc2Uui0hJInNJrsdH0c+OhJA4nrCBdSkW4DD5YxAo6A==}
@@ -10938,6 +11370,9 @@ packages:
   escape-carriage@1.3.1:
     resolution: {integrity: sha512-GwBr6yViW3ttx1kb7/Oh+gKQ1/TrhYwxKqVmg5gS+BK+Qe2KrOa/Vh7w3HPBvgGf0LfcDGoY9I6NHKoA5Hozhw==}
 
+  escape-html@1.0.3:
+    resolution: {integrity: sha512-NiSupZ4OeuGwr68lGIeym/ksIZMJodUGOSCZ/FSnTxcrekbvqrgdUxlJOMpijaKZVjAJrWrGs/6Jy8OMuyj9ow==}
+
   escape-string-regexp@4.0.0:
     resolution: {integrity: sha512-TtpcNJ3XAzx3Gq8sWRzJaVajRs0uVxA2YAkdb1jm2YkPz4G6egUFAyA3n5vtEIZefPk5Wa4UXbKuS5fKkJWdgA==}
     engines: {node: '>=10'}
@@ -10988,6 +11423,10 @@ packages:
   esutils@2.0.3:
     resolution: {integrity: sha512-kVscqXk4OCp68SZ0dkgEKVi6/8ij300KBWTJq32P/dYeWTSwK41WyTxalN1eRmA5Z9UU/LX9D7FWSmV9SAYx6g==}
     engines: {node: '>=0.10.0'}
+
+  etag@1.8.1:
+    resolution: {integrity: sha512-aIL5Fx7mawVa300al2BnEE4iNvo1qETxLrPI/o05L7z6go7fCw1J6EQmbK4FmJ2AS7kgVF/KEZWufBfdClMcPg==}
+    engines: {node: '>= 0.6'}
 
   event-emitter@0.3.5:
     resolution: {integrity: sha512-D9rRn9y7kLPnJ+hMq7S/nhvoKwwvVJahBi2BPmx3bvbsEdK3W9ii8cBSGjP+72/LnM4n6fo3+dkCX5FeTQruXA==}
@@ -11040,6 +11479,16 @@ packages:
   expect-type@1.2.1:
     resolution: {integrity: sha512-/kP8CAwxzLVEeFrMm4kMmy4CCDlpipyA7MYLVrdJIkV0fYF0UaigQHRsxHiuY/GEea+bh4KSv3TIlgr+2UL6bw==}
     engines: {node: '>=12.0.0'}
+
+  express-rate-limit@7.5.1:
+    resolution: {integrity: sha512-7iN8iPMDzOMHPUYllBEsQdWVB6fPDMPqwjBaFrgr4Jgr/+okjvzAy+UHlYYL/Vs0OsOrMkwS6PJDkFlJwoxUnw==}
+    engines: {node: '>= 16'}
+    peerDependencies:
+      express: '>= 4.11'
+
+  express@5.2.1:
+    resolution: {integrity: sha512-hIS4idWWai69NezIdRt2xFVofaF4j+6INOpJlVOLDO8zXGpUVEVzIYk12UUi2JzjEzWL3IOAxcTubgz9Po0yXw==}
+    engines: {node: '>= 18'}
 
   exsolve@1.0.7:
     resolution: {integrity: sha512-VO5fQUzZtI6C+vx4w/4BWJpg3s/5l+6pRQEHzFRM8WFi4XffSP1Z+4qi7GbjWbvRQEbdIco5mIMq+zX4rPuLrw==}
@@ -11149,6 +11598,10 @@ packages:
     resolution: {integrity: sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg==}
     engines: {node: '>=8'}
 
+  finalhandler@2.1.1:
+    resolution: {integrity: sha512-S8KoZgRZN+a5rNwqTxlZZePjT/4cnm0ROV70LedRHZ0p8u9fRID0hJUZQpkKLzro8LfmC8sx23bY6tVNxv8pQA==}
+    engines: {node: '>= 18.0.0'}
+
   find-up@4.1.0:
     resolution: {integrity: sha512-PpOwAdQ/YlXQ2vj8a3h8IipDuYRi3wceVQQGYWxNINccq40Anw7BlsEXCMbt1Zt+OLA6Fq9suIpIWD0OsnISlw==}
     engines: {node: '>=8'}
@@ -11240,6 +11693,10 @@ packages:
   forwarded-parse@2.1.2:
     resolution: {integrity: sha512-alTFZZQDKMporBH77856pXgzhEzaUVmLCDk+egLgIgHst3Tpndzz8MnKe+GzRJRfvVdn69HhpW7cmXzvtLvJAw==}
 
+  forwarded@0.2.0:
+    resolution: {integrity: sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==}
+    engines: {node: '>= 0.6'}
+
   framer-motion@12.31.0:
     resolution: {integrity: sha512-Tnd0FU05zGRFI3JJmBegXonF1rfuzYeuXd1QSdQ99Ysnppk0yWBWSW2wUsqzRpS5nv0zPNx+y0wtDj4kf0q5RQ==}
     peerDependencies:
@@ -11253,6 +11710,10 @@ packages:
         optional: true
       react-dom:
         optional: true
+
+  fresh@2.0.0:
+    resolution: {integrity: sha512-Rx/WycZ60HOaqLKAi6cHRKKI7zxWbJ31MhntmtwMoaTeF7XFH9hhBp8vITaMidfljRQ6eYWCKkaTK+ykVJHP2A==}
+    engines: {node: '>= 0.8'}
 
   fs-extra@11.3.3:
     resolution: {integrity: sha512-VWSRii4t0AFm6ixFFmLLx1t7wS1gh+ckoa84aOeapGum0h+EZd1EhEumSB+ZdDLnEPuucsVB9oB7cxJHap6Afg==}
@@ -11434,6 +11895,9 @@ packages:
     deprecated: Package is no longer maintained
     hasBin: true
 
+  google-protobuf@3.21.4:
+    resolution: {integrity: sha512-MnG7N936zcKTco4Jd2PX2U96Kf9PxygAPKBug+74LHzmHXmceN16MmRcdgZv+DGef/S9YvQAfRsNCn4cjf9yyQ==}
+
   googleapis-common@7.2.0:
     resolution: {integrity: sha512-/fhDZEJZvOV3X5jmD+fKxMqma5q2Q9nZNSF3kn1F18tpxmA86BcTxAGBQdM0N89Z3bEaIs+HVznSmFJEAmMTjA==}
     engines: {node: '>=14.0.0'}
@@ -11579,6 +12043,10 @@ packages:
     resolution: {integrity: sha512-eSmmWE5bZTK2Nou4g0AI3zZ9rswp7GRKoKXS1BLUkvPviOqs4YTN1djQIqrXy9k5gEtdLPy86JjRwsNM9tnDcA==}
     engines: {node: '>=0.10.0'}
 
+  hono@4.11.8:
+    resolution: {integrity: sha512-eVkB/CYCCei7K2WElZW9yYQFWssG0DhaDhVvr7wy5jJ22K+ck8fWW0EsLpB0sITUTvPnc97+rrbQqIr5iqiy9Q==}
+    engines: {node: '>=16.9.0'}
+
   hookable@5.5.3:
     resolution: {integrity: sha512-Yc+BQe8SvoXH1643Qez1zqLRmbA5rCL+sSmk6TVos0LWVfNIB7PGncdlId77WzLGSIB5KaWgTaNTs2lNVEI6VQ==}
 
@@ -11601,6 +12069,10 @@ packages:
 
   htmlparser2@8.0.2:
     resolution: {integrity: sha512-GYdjWKDkbRLkZ5geuHs5NY1puJ+PXwP7+fHPRz06Eirsb9ugf6d8kkXav6ADhcODhFFPMIXyxkxSuMf3D6NCFA==}
+
+  http-errors@2.0.1:
+    resolution: {integrity: sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ==}
+    engines: {node: '>= 0.8'}
 
   http-proxy-agent@5.0.0:
     resolution: {integrity: sha512-n2hY8YdoRE1i7r6M0w9DIw5GgZN0G25P8zLCRQ8rjXtTU3vsNFBI/vWK/UIeE6g5MUUz6avwAPXmL6Fy9D/90w==}
@@ -11702,6 +12174,10 @@ packages:
   ip-address@10.1.0:
     resolution: {integrity: sha512-XXADHxXmvT9+CRxhXg56LJovE+bmWnEWB78LB83VZTprKTmaC5QfruXocxzTZ2Kl0DNwKuBdlIhjL8LeY8Sf8Q==}
     engines: {node: '>= 12'}
+
+  ipaddr.js@1.9.1:
+    resolution: {integrity: sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==}
+    engines: {node: '>= 0.10'}
 
   is-absolute-url@4.0.1:
     resolution: {integrity: sha512-/51/TKE88Lmm7Gc4/8btclNXWS+g50wXhYJq8HWIBAGUBnoAdRu1aXeh364t/O7wXDAcTJDP8PNuNKWUDWie+A==}
@@ -11834,6 +12310,9 @@ packages:
   is-potential-custom-element-name@1.0.1:
     resolution: {integrity: sha512-bCYeRA2rVibKZd+s2625gGnGF/t7DSqDs4dP7CrLA1m7jKWz6pps0LpYLJN8Q64HtmPKJ1hrN3nzPNKFEKOUiQ==}
 
+  is-promise@4.0.0:
+    resolution: {integrity: sha512-hvpoI6korhJMnej285dSg6nu1+e6uxs7zG3BYAm5byqDsgJNWwxzM6z6iZiAgQR4TJ30JmBTOwqZUw3WlyH3AQ==}
+
   is-reference@1.2.1:
     resolution: {integrity: sha512-U82MsXXiFIrjCK4otLT+o2NA2Cd2g5MLoOVXUZjIOhLurrRxpEXzI8O0KZHr3IjLvlAH1kTPYSuqer5T9ZVBKQ==}
 
@@ -11955,6 +12434,9 @@ packages:
 
   jose@5.9.6:
     resolution: {integrity: sha512-AMlnetc9+CV9asI19zHmrgS/WYsWUwCn2R7RzlbJWD7F9eWYUTGyBmU9o6PxngtLGOiDGPRu+Uc4fhKzbpteZQ==}
+
+  jose@6.1.3:
+    resolution: {integrity: sha512-0TpaTfihd4QMNwrz/ob2Bp7X04yuxJkjRGi4aKmOqwhov54i6u79oCv7T+C7lo70MKH6BesI3vscD1yb/yzKXQ==}
 
   joycon@3.1.1:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
@@ -12205,6 +12687,9 @@ packages:
   lodash.assign@4.2.0:
     resolution: {integrity: sha512-hFuH8TY+Yji7Eja3mGiuAxBqLagejScbG8GbG0j6o9vzn0YL14My+ktnqtZgFTosKymC9/44wP6s7xyuLfnClw==}
 
+  lodash.camelcase@4.3.0:
+    resolution: {integrity: sha512-TwuEnCnxbc3rAvhf/LbG7tJUDzhqXyFnv3dtzLOPgCG/hODL7WFnsbwktkD7yUV0RrreP/l1PALq/YSg6VvjlA==}
+
   lodash.get@4.4.2:
     resolution: {integrity: sha512-z+Uw/vLuy6gQe8cfaFWD7p0wVv8fJl3mbzXh33RS+0oW2wvUqiRXiQ69gLWSLpgB5/6sU+r6BlQR0MBILadqTQ==}
     deprecated: This package is deprecated. Use the optional chaining (?.) operator instead.
@@ -12437,6 +12922,10 @@ packages:
   mdurl@2.0.0:
     resolution: {integrity: sha512-Lf+9+2r+Tdp5wXDXC4PcIBjTDtq4UKjCPMQhKIuzpJNW0b96kVqSwW0bT7FhRSfmAiFYgP+SCRvdrDozfh0U5w==}
 
+  media-typer@1.1.0:
+    resolution: {integrity: sha512-aisnrDP4GNe06UcKFnV5bfMNPBUw4jsLGaWwWfnH3v02GnBuXX2MCVn5RbrWo0j3pczUilYblq7fQ7Nw2t5XKw==}
+    engines: {node: '>= 0.8'}
+
   memoize-one@6.0.0:
     resolution: {integrity: sha512-rkpe71W0N0c0Xz6QD0eJETuWAJGnJ9afsl1srmwPrI+yBCkge5EycXXbYRyvL29zZVUWQCY7InPRCv3GDXuZNw==}
 
@@ -12445,6 +12934,10 @@ packages:
 
   memory-stream@1.0.0:
     resolution: {integrity: sha512-Wm13VcsPIMdG96dzILfij09PvuS3APtcKNh7M28FsCA/w6+1mjR7hhPmfFNoilX9xU7wTdhsH5lJAm6XNzdtww==}
+
+  merge-descriptors@2.0.0:
+    resolution: {integrity: sha512-Snk314V5ayFLhp3fkUREub6WtjBfPdCPY1Ln8/8munuLuiYhsABgBVWsozAG+MWMbVEvcdcpbi9R7ww22l9Q3g==}
+    engines: {node: '>=18'}
 
   merge-stream@2.0.0:
     resolution: {integrity: sha512-abv/qOcuPfk3URPfDzmZU1LKmuw8kT+0nIHvKrKgFrwifol/doWcdA4ZqsWQ8ENrFKkd67Mfpo/LovbIUsbt3w==}
@@ -12616,6 +13109,10 @@ packages:
   mime-types@3.0.1:
     resolution: {integrity: sha512-xRc4oEhT6eaBpU1XF7AjpOFD+xQmXNB5OVKwp4tqCuBpHLS/ZbBDrc07mYTDqVMg6PfxUjjNp85O6Cd2Z/5HWA==}
     engines: {node: '>= 0.6'}
+
+  mime-types@3.0.2:
+    resolution: {integrity: sha512-Lbgzdk0h4juoQ9fCKXW4by0UJqj+nOOrI9MJ1sSj4nI8aI2eo1qmvQEie4VD1glsS250n15LsWsYtCugiStS5A==}
+    engines: {node: '>=18'}
 
   mime@1.6.0:
     resolution: {integrity: sha512-x0Vn8spI+wuJ1O6S7gnbaQg8Pxh4NNHb7KSINmEWKiPE4RKOplvijn+NkmYmmRgP68mc70j2EbeTFRsrswaQeg==}
@@ -12816,6 +13313,10 @@ packages:
     resolution: {integrity: sha512-+EUsqGPLsM+j/zdChZjsnX51g4XrHFOIXwfnCVPGlQk/k5giakcKsuxCObBRu6DSm9opw/O6slWbJdghQM4bBg==}
     engines: {node: '>= 0.6'}
 
+  negotiator@1.0.0:
+    resolution: {integrity: sha512-8Ofs/AUQh8MaEcrlq5xOX0CQ9ypTF5dl78mjlMNfOK08fzpgTHQRQPBxcPlEtIw0yRpws+Zo/3r+5WRby7u3Gg==}
+    engines: {node: '>= 0.6'}
+
   neo-async@2.6.2:
     resolution: {integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==}
 
@@ -12985,6 +13486,10 @@ packages:
   on-exit-leak-free@2.1.2:
     resolution: {integrity: sha512-0eJJY6hXLGf1udHwfNftBqH+g73EU4B504nZeKpz1sYRKafAghwxEJunB2O7rDZkL4PGfsMVnTXZ2EjibbqcsA==}
     engines: {node: '>=14.0.0'}
+
+  on-finished@2.4.1:
+    resolution: {integrity: sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg==}
+    engines: {node: '>= 0.8'}
 
   once@1.4.0:
     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
@@ -13165,6 +13670,10 @@ packages:
   parseley@0.12.1:
     resolution: {integrity: sha512-e6qHKe3a9HWr0oMRVDTRhKce+bRO8VGQR3NyVwcjwrbhMmFCX9KszEV35+rn4AdilFAq9VPxP/Fe1wC9Qjd2lw==}
 
+  parseurl@1.3.3:
+    resolution: {integrity: sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ==}
+    engines: {node: '>= 0.8'}
+
   path-exists@4.0.0:
     resolution: {integrity: sha512-ak9Qy5Q7jYb2Wwcey5Fpvg2KoAc/ZIhLSLOSBmRmygPsGwkVVt0fZa0qrtMz+m6tJTAHfZQ8FnmB4MG4LWy7/w==}
     engines: {node: '>=8'}
@@ -13187,6 +13696,9 @@ packages:
   path-scurry@2.0.1:
     resolution: {integrity: sha512-oWyT4gICAu+kaA7QWk/jvCHWarMKNs6pXOGWKDTr7cw4IGcUbW+PeTfbaQiLGheFRpjo6O9J0PmyMfQPjH71oA==}
     engines: {node: 20 || >=22}
+
+  path-to-regexp@8.3.0:
+    resolution: {integrity: sha512-7jdwVIRtsP8MYpdXSwOS0YdD0Du+qOoF/AEPIt88PcCFrZCzx41oxku1jD88hZBwbNUIEfpqvuhjFaMAqMTWnA==}
 
   path-type@4.0.0:
     resolution: {integrity: sha512-gDKb8aZMDeD/tZWs9P6+q0J9Mwkdl6xMV8TjnGP3qJVJ06bdMgkbBlLU8IdfOsIsFz2BW1rNVT3XuNEl8zPAvw==}
@@ -13320,6 +13832,10 @@ packages:
   pixelmatch@4.0.2:
     resolution: {integrity: sha512-J8B6xqiO37sU/gkcMglv6h5Jbd9xNER7aHzpfRdNmV4IbQBzBpe4l9XmbG+xPF/znacgu2jfEw+wHffaq/YkXA==}
     hasBin: true
+
+  pkce-challenge@5.0.1:
+    resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
+    engines: {node: '>=16.20.0'}
 
   pkg-types@2.3.0:
     resolution: {integrity: sha512-SIqCzDRg0s9npO5XQ3tNZioRY1uK06lA41ynBC1YmFTmnY6FjUjVt6s4LoADmwoig1qqD0oK8h1p/8mlMx8Oig==}
@@ -13578,9 +14094,21 @@ packages:
   prosemirror-view@1.41.5:
     resolution: {integrity: sha512-UDQbIPnDrjE8tqUBbPmCOZgtd75htE6W3r0JCmY9bL6W1iemDM37MZEKC49d+tdQ0v/CKx4gjxLoLsfkD2NiZA==}
 
+  protobufjs@6.11.4:
+    resolution: {integrity: sha512-5kQWPaJHi1WoCpjTGszzQ32PG2F4+wRY6BmAT4Vfw56Q2FZ4YZzK20xUYQH4YkfehY1e6QSICrJquM6xXZNcrw==}
+    hasBin: true
+
   protobufjs@7.4.0:
     resolution: {integrity: sha512-mRUWCc3KUU4w1jU8sGxICXH/gNS94DvI1gxqDvBzhj1JpcsimQkYiOJfwsPUykUI5ZaspFbSgmBLER8IrQ3tqw==}
     engines: {node: '>=12.0.0'}
+
+  protobufjs@7.5.4:
+    resolution: {integrity: sha512-CvexbZtbov6jW2eXAvLukXjXUW1TzFaivC46BpWc/3BpcCysb5Vffu+B3XHMm8lVEuy2Mm4XGex8hBSg1yapPg==}
+    engines: {node: '>=12.0.0'}
+
+  proxy-addr@2.0.7:
+    resolution: {integrity: sha512-llQsMLSUDUPT44jdrU/O37qlnifitDP+ZwrmmZcoSKyLKvtZxpyV0n2/bD/N4tBAAZ/gJEdZU7KMraoK1+XYAg==}
+    engines: {node: '>= 0.10'}
 
   proxy-agent@6.5.0:
     resolution: {integrity: sha512-TmatMXdr2KlRiA2CyDu8GqR8EjahTG3aY3nXjdzFyoZbmB8hrBsTyMezhULIXKnC0jpfjlmiZ3+EaCzoInSu/A==}
@@ -13656,6 +14184,14 @@ packages:
 
   randombytes@2.1.0:
     resolution: {integrity: sha512-vYl3iOX+4CKUWuxGi9Ukhie6fsqXqS9FE2Zaic4tNFD2N2QQaXOMFbuKK4QmDHC0JO6B1Zp41J0LpT0oR68amQ==}
+
+  range-parser@1.2.1:
+    resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
+    engines: {node: '>= 0.6'}
+
+  raw-body@3.0.2:
+    resolution: {integrity: sha512-K5zQjDllxWkf7Z5xJdV0/B0WTNqx6vxG70zJE4N0kBs4LovmEYWJzQGxC9bS9RAKu3bgM40lrd5zoLJ12MQ5BA==}
+    engines: {node: '>= 0.10'}
 
   rc@1.2.8:
     resolution: {integrity: sha512-y3bGgqKj3QBdxLbLkomlohkvsA8gdAiUQlSBJnBhfn+BPxg4bc62d8TcBW15wavDfgexCgccckhcZvywyQYPOw==}
@@ -13950,6 +14486,10 @@ packages:
   rope-sequence@1.3.4:
     resolution: {integrity: sha512-UT5EDe2cu2E/6O4igUr5PSFs23nvvukicWHx6GnOPlHAiiYbzNuCRQCuiUdHJQcqKalLKlrYJnjY0ySGsXNQXQ==}
 
+  router@2.2.0:
+    resolution: {integrity: sha512-nLTrUKm2UyiL7rlhapu/Zl45FwNgkZGaCpZbIHajDYgwlJCOzLSk+cIPAnsEqV955GjILJnKbdQC1nVPz+gAYQ==}
+    engines: {node: '>= 18'}
+
   rrweb-cssom@0.8.0:
     resolution: {integrity: sha512-guoltQEx+9aMf2gDZ0s62EcV8lsXR+0w8915TC3ITdn2YueuNjdAYh/levpU9nFaoChh9RUS5ZdQMrKfVEN9tw==}
 
@@ -14039,8 +14579,16 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
+  send@1.2.1:
+    resolution: {integrity: sha512-1gnZf7DFcoIcajTjTwjwuDjzuz4PPcY2StKPlsGAQ1+YH20IRVrBaXSWmdjowTJ6u8Rc01PoYOGHXfP1mYcZNQ==}
+    engines: {node: '>= 18'}
+
   serialize-javascript@6.0.2:
     resolution: {integrity: sha512-Saa1xPByTTq2gdeFZYLLo+RFE35NHZkAbqZeWNd3BpzppeVisAqpDjcp8dyf6uIvEqJRd46jemmyA4iFIeVk8g==}
+
+  serve-static@2.2.1:
+    resolution: {integrity: sha512-xRXBn0pPqQTVQiC8wyQrKs2MOlX24zQ0POGaj0kultvoOCstBQM5yvOhAVSUwOMjQtTvsPWoNCHfPGwaaQJhTw==}
+    engines: {node: '>= 18'}
 
   set-blocking@2.0.0:
     resolution: {integrity: sha512-KiKBS8AnWGEyLzofFfmvKwpdPzqiy16LvQfK3yv/fVH7Bj13/wl3JSR1J+rfgRE9q7xUJK4qvgS8raSOeLUehw==}
@@ -14052,6 +14600,9 @@ packages:
   set-function-name@2.0.2:
     resolution: {integrity: sha512-7PGFlmtwsEADb0WYyvCMa1t+yke6daIG4Wirafur5kcf+MhUnPms1UeR0CKQdTZD81yESwMHbtn+TR+dMviakQ==}
     engines: {node: '>= 0.4'}
+
+  setprototypeof@1.2.0:
+    resolution: {integrity: sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==}
 
   sharp@0.34.4:
     resolution: {integrity: sha512-FUH39xp3SBPnxWvd5iib1X8XY7J0K0X7d93sie9CJg2PO8/7gmg89Nve6OjItK53/MlAushNNxteBYfM6DEuoA==}
@@ -14247,6 +14798,10 @@ packages:
 
   static-browser-server@1.0.3:
     resolution: {integrity: sha512-ZUyfgGDdFRbZGGJQ1YhiM930Yczz5VlbJObrQLlk24+qNHVQx4OlLcYswEUo3bIyNAbQUIUR9Yr5/Hqjzqb4zA==}
+
+  statuses@2.0.2:
+    resolution: {integrity: sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw==}
+    engines: {node: '>= 0.8'}
 
   std-env@3.9.0:
     resolution: {integrity: sha512-UGvjygr6F6tpH7o2qyqR6QYpwraIjKSdtzyBdyytFOHmPZY917kwdwLG0RbOjWOnKmnm3PeHjaoLLMie7kPLQw==}
@@ -14592,6 +15147,10 @@ packages:
     resolution: {integrity: sha512-/m8M+2BJUpoJdgAHoG+baCwBT+tf2VraSfkBgl0Y00qIWt41DJ8R5B8nsEw0I58YwF5IZH6z24/2TobDKnqSWw==}
     engines: {node: '>=12'}
 
+  toidentifier@1.0.1:
+    resolution: {integrity: sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==}
+    engines: {node: '>=0.6'}
+
   token-types@4.2.1:
     resolution: {integrity: sha512-6udB24Q737UD/SDsKAHI9FCRP7Bqc9D/MQUV02ORQg5iskjtLJlZJNdN4kKtcdtwCeWIwIHDGaUsTsCCAa8sFQ==}
     engines: {node: '>=10'}
@@ -14757,6 +15316,10 @@ packages:
     resolution: {integrity: sha512-d9CwU93nN0IA1QL+GSNDdwLAu1Ew5ZjTwupvedwg3WdfoH6pIDvYQ2hV0Uc2nKBLPq7NB5apCx57MLS5qlmO5g==}
     engines: {node: '>=20'}
 
+  type-is@2.0.1:
+    resolution: {integrity: sha512-OZs6gsjF4vMp32qrCbiVSkrFmXtG/AZhY3t0iAMrMBiAZyV9oALtXO8hsrHbMXF9x6L3grlFuwW2oAz7cav+Gw==}
+    engines: {node: '>= 0.6'}
+
   type@2.7.3:
     resolution: {integrity: sha512-8j+1QmAbPvLZow5Qpi6NCaN8FB60p/6x8/vfNqOk/hC+HuvFZhL4+WfekuhQLiqFZXOgQdrs3B+XxEmCc6b3FQ==}
 
@@ -14871,6 +15434,10 @@ packages:
   universalify@2.0.1:
     resolution: {integrity: sha512-gptHNQghINnc/vTGIk0SOFGFNXw7JVrlRUtConJRlvaw6DuX0wO5Jeko9sWrMBhh+PsYAZ7oXAiOnf/UKogyiw==}
     engines: {node: '>= 10.0.0'}
+
+  unpipe@1.0.0:
+    resolution: {integrity: sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ==}
+    engines: {node: '>= 0.8'}
 
   unplugin@1.0.1:
     resolution: {integrity: sha512-aqrHaVBWW1JVKBHmGo33T5TxeL0qWzfvjWokObHA9bYmN7eNDkwOxmLjhioHl9878qDFMAaT51XNroRyuz7WxA==}
@@ -15521,6 +16088,186 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-afforai@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-agentx@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      dayjs: 1.11.9
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-ai@0.1.5(bufferutil@4.0.9)(hono@4.11.8)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@ai-sdk/anthropic': 3.0.38(zod@4.1.13)
+      '@ai-sdk/azure': 3.0.27(zod@4.1.13)
+      '@ai-sdk/google': 3.0.22(zod@4.1.13)
+      '@ai-sdk/mcp': 1.0.11(zod@4.1.13)
+      '@ai-sdk/openai': 3.0.26(zod@4.1.13)
+      '@ai-sdk/openai-compatible': 2.0.16(zod@4.1.13)
+      '@modelcontextprotocol/sdk': 1.25.2(hono@4.11.8)(zod@4.1.13)
+      '@openrouter/ai-sdk-provider': 2.1.1(ai@6.0.77(zod@4.1.13))(zod@4.1.13)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      ajv: 8.17.1
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - bufferutil
+      - debug
+      - hono
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-aianswer@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-aidbase@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-air-ops@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-airparser@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-airtable@0.6.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -15545,6 +16292,102 @@ snapshots:
       - bufferutil
       - debug
       - encoding
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-airtop@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-alai@0.1.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-alt-text-ai@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-alttextify@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
       - supports-color
       - utf-8-validate
 
@@ -16259,6 +17102,30 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-bolna@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-bonjoro@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -16396,6 +17263,30 @@ snapshots:
       semver: 7.6.0
       socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-camb-ai@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
       zod: 4.1.13
     transitivePeerDependencies:
       - bufferutil
@@ -16661,6 +17552,31 @@ snapshots:
       semver: 7.6.0
       socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-clarifai@0.3.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      clarifai-nodejs-grpc: 11.3.3
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
       zod: 4.1.13
     transitivePeerDependencies:
       - bufferutil
@@ -16939,6 +17855,31 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-comfyicu@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      dayjs: 1.11.9
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-confluence@0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -17031,6 +17972,32 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-contextual-ai@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      contextual-client: 0.10.0
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - encoding
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-convertkit@0.3.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -17072,6 +18039,30 @@ snapshots:
       semver: 7.6.0
       socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-copy-ai@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
       zod: 4.1.13
     transitivePeerDependencies:
       - bufferutil
@@ -17169,6 +18160,30 @@ snapshots:
       - supports-color
       - utf-8-validate
       - zod
+
+  '@activepieces/piece-cursor@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
 
   '@activepieces/piece-customer-io@0.3.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
@@ -17405,6 +18420,54 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-detecting-ai@0.0.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-devin@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-digital-ocean@0.0.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -17598,6 +18661,79 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-easy-peasy-ai@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-echowin@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      dayjs: 1.11.9
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-eden-ai@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-elevenlabs@0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -17689,6 +18825,30 @@ snapshots:
       semver: 7.6.0
       socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-extracta-ai@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
       zod: 4.1.13
     transitivePeerDependencies:
       - bufferutil
@@ -17886,6 +19046,30 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-fireflies-ai@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-flow-helper@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.12)':
     dependencies:
       '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.12)
@@ -17922,6 +19106,30 @@ snapshots:
       semver: 7.6.0
       socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-flowise@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
       zod: 4.1.13
     transitivePeerDependencies:
       - bufferutil
@@ -18296,6 +19504,30 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-gladia@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-gmail@0.11.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -18482,12 +19714,12 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@activepieces/piece-google-gemini@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+  '@activepieces/piece-google-gemini@0.1.3(@modelcontextprotocol/sdk@1.25.2(hono@4.11.8)(zod@4.1.12))(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
       '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
-      '@google/genai': 1.29.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@google/genai': 1.29.0(@modelcontextprotocol/sdk@1.25.2(hono@4.11.8)(zod@4.1.12))(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@google/generative-ai': 0.21.0
       '@sinclair/typebox': 0.34.11
       ai: 6.0.77(zod@4.1.13)
@@ -18713,6 +19945,30 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-gptzero-detect-ai@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-graphql@0.0.9(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -18731,6 +19987,31 @@ snapshots:
       semver: 7.6.0
       socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-griptape@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      dayjs: 1.11.9
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
       zod: 4.1.13
     transitivePeerDependencies:
       - bufferutil
@@ -19156,6 +20437,30 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-insighto-ai@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-instagram-business@0.2.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -19334,6 +20639,30 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-jogg-ai@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-jotform@0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -19393,6 +20722,30 @@ snapshots:
       semver: 7.6.0
       socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-kallabot-ai@0.4.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
       zod: 4.1.13
     transitivePeerDependencies:
       - bufferutil
@@ -19497,6 +20850,30 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-leap-ai@0.0.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-lemlist@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -19526,6 +20903,31 @@ snapshots:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
       '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-letta@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@letta-ai/letta-client': 1.7.8
       '@sinclair/typebox': 0.34.11
       ai: 6.0.77(zod@4.1.13)
       axios: 1.13.1(debug@4.4.1)
@@ -19639,6 +21041,56 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-llmrails@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-localai@0.1.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      openai: 4.67.1(zod@4.1.13)
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - encoding
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-lofty@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -19704,6 +21156,54 @@ snapshots:
       semver: 7.6.0
       socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-magical-api@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-magicslides@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
       zod: 4.1.13
     transitivePeerDependencies:
       - bufferutil
@@ -19986,6 +21486,49 @@ snapshots:
       semver: 7.6.0
       socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-mcp@0.0.15(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.12)':
+    dependencies:
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.12)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.12)
+      deepmerge-ts: 7.1.0
+      http-status-codes: 2.2.0
+      i18next: 23.13.0
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+      - zod
+
+  '@activepieces/piece-meetgeek-ai@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
       zod: 4.1.13
     transitivePeerDependencies:
       - bufferutil
@@ -20445,6 +21988,54 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-mind-studio@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-mindee@0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-missive@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -20649,6 +22240,30 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-moveo-ai@0.0.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-moxie-crm@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -20666,6 +22281,30 @@ snapshots:
       semver: 7.6.0
       socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-murf-api@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
       zod: 4.1.13
     transitivePeerDependencies:
       - bufferutil
@@ -20990,6 +22629,30 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-openmic-ai@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-opnform@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -21234,6 +22897,30 @@ snapshots:
       - utf-8-validate
 
   '@activepieces/piece-perplexity-ai@0.3.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-personal-ai@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
@@ -22689,6 +24376,30 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-stable-diffusion-webui@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-store@0.6.13(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -22699,6 +24410,30 @@ snapshots:
       axios: 1.13.1(debug@4.4.1)
       axios-retry: 4.4.1(axios@1.13.1)
       deep-equal: 2.2.2
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-straico@0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
       deepmerge-ts: 7.1.0
       form-data: 4.0.4
       i18next: 23.13.0
@@ -23120,6 +24855,30 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-textcortex-ai@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-ticktick@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -23414,6 +25173,30 @@ snapshots:
       - utf-8-validate
 
   '@activepieces/piece-videoask@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1(debug@4.4.1)
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-vidnoz@0.0.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
@@ -24191,6 +25974,19 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.17(zod@4.1.12)
       zod: 4.1.12
 
+  '@ai-sdk/anthropic@3.0.38(zod@4.1.13)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.14(zod@4.1.13)
+      zod: 4.1.13
+
+  '@ai-sdk/azure@3.0.27(zod@4.1.13)':
+    dependencies:
+      '@ai-sdk/openai': 3.0.26(zod@4.1.13)
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.14(zod@4.1.13)
+      zod: 4.1.13
+
   '@ai-sdk/fal@1.0.23(zod@4.1.12)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
@@ -24244,11 +26040,36 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.19(zod@4.1.12)
       zod: 4.1.12
 
+  '@ai-sdk/google@3.0.22(zod@4.1.13)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.14(zod@4.1.13)
+      zod: 4.1.13
+
+  '@ai-sdk/mcp@1.0.11(zod@4.1.13)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@ai-sdk/provider-utils': 4.0.8(zod@4.1.13)
+      pkce-challenge: 5.0.1
+      zod: 4.1.13
+
+  '@ai-sdk/openai-compatible@2.0.16(zod@4.1.13)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@ai-sdk/provider-utils': 4.0.8(zod@4.1.13)
+      zod: 4.1.13
+
   '@ai-sdk/openai@2.0.72(zod@4.1.12)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
       '@ai-sdk/provider-utils': 3.0.17(zod@4.1.12)
       zod: 4.1.12
+
+  '@ai-sdk/openai@3.0.26(zod@4.1.13)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.14(zod@4.1.13)
+      zod: 4.1.13
 
   '@ai-sdk/provider-utils@3.0.17(zod@4.1.12)':
     dependencies:
@@ -24292,7 +26113,18 @@ snapshots:
       eventsource-parser: 3.0.6
       zod: 4.1.13
 
+  '@ai-sdk/provider-utils@4.0.8(zod@4.1.13)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@standard-schema/spec': 1.1.0
+      eventsource-parser: 3.0.6
+      zod: 4.1.13
+
   '@ai-sdk/provider@2.0.0':
+    dependencies:
+      json-schema: 0.4.0
+
+  '@ai-sdk/provider@3.0.4':
     dependencies:
       json-schema: 0.4.0
 
@@ -24334,7 +26166,7 @@ snapshots:
   '@apm-js-collab/tracing-hooks@0.3.1':
     dependencies:
       '@apm-js-collab/code-transformer': 0.8.2
-      debug: 4.4.1
+      debug: 4.4.3
       module-details-from-path: 1.0.4
     transitivePeerDependencies:
       - supports-color
@@ -27862,10 +29694,12 @@ snapshots:
       - encoding
       - supports-color
 
-  '@google/genai@1.29.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+  '@google/genai@1.29.0(@modelcontextprotocol/sdk@1.25.2(hono@4.11.8)(zod@4.1.12))(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       google-auth-library: 10.5.0
       ws: 8.18.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+    optionalDependencies:
+      '@modelcontextprotocol/sdk': 1.25.2(hono@4.11.8)(zod@4.1.12)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -27889,6 +29723,27 @@ snapshots:
   '@graphql-typed-document-node/core@3.2.0(graphql@15.10.1)':
     dependencies:
       graphql: 15.10.1
+
+  '@grpc/grpc-js@1.14.3':
+    dependencies:
+      '@grpc/proto-loader': 0.8.0
+      '@js-sdsl/ordered-map': 4.4.2
+
+  '@grpc/proto-loader@0.5.6':
+    dependencies:
+      lodash.camelcase: 4.3.0
+      protobufjs: 6.11.4
+
+  '@grpc/proto-loader@0.8.0':
+    dependencies:
+      lodash.camelcase: 4.3.0
+      long: 5.2.4
+      protobufjs: 7.5.4
+      yargs: 17.7.2
+
+  '@hono/node-server@1.19.9(hono@4.11.8)':
+    dependencies:
+      hono: 4.11.8
 
   '@hubspot/api-client@12.0.1':
     dependencies:
@@ -28264,7 +30119,11 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
+  '@js-sdsl/ordered-map@4.4.2': {}
+
   '@jsonhero/path@1.0.21': {}
+
+  '@letta-ai/letta-client@1.7.8': {}
 
   '@lezer/common@1.5.1': {}
 
@@ -28440,6 +30299,51 @@ snapshots:
   '@microsoft/microsoft-graph-types@2.40.0': {}
 
   '@mixmark-io/domino@2.2.0': {}
+
+  '@modelcontextprotocol/sdk@1.25.2(hono@4.11.8)(zod@4.1.12)':
+    dependencies:
+      '@hono/node-server': 1.19.9(hono@4.11.8)
+      ajv: 8.17.1
+      ajv-formats: 3.0.1(ajv@8.17.1)
+      content-type: 1.0.5
+      cors: 2.8.5
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.0.6
+      express: 5.2.1
+      express-rate-limit: 7.5.1(express@5.2.1)
+      jose: 6.1.3
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.1
+      raw-body: 3.0.2
+      zod: 4.1.12
+      zod-to-json-schema: 3.25.1(zod@4.1.12)
+    transitivePeerDependencies:
+      - hono
+      - supports-color
+    optional: true
+
+  '@modelcontextprotocol/sdk@1.25.2(hono@4.11.8)(zod@4.1.13)':
+    dependencies:
+      '@hono/node-server': 1.19.9(hono@4.11.8)
+      ajv: 8.17.1
+      ajv-formats: 3.0.1(ajv@8.17.1)
+      content-type: 1.0.5
+      cors: 2.8.5
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.0.6
+      express: 5.2.1
+      express-rate-limit: 7.5.1(express@5.2.1)
+      jose: 6.1.3
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.1
+      raw-body: 3.0.2
+      zod: 4.1.13
+      zod-to-json-schema: 3.25.1(zod@4.1.13)
+    transitivePeerDependencies:
+      - hono
+      - supports-color
 
   '@monaco-editor/loader@1.7.0':
     dependencies:
@@ -28646,6 +30550,11 @@ snapshots:
       '@octokit/webhooks-methods': 6.0.0
 
   '@open-draft/deferred-promise@2.2.0': {}
+
+  '@openrouter/ai-sdk-provider@2.1.1(ai@6.0.77(zod@4.1.13))(zod@4.1.13)':
+    dependencies:
+      ai: 6.0.77(zod@4.1.13)
+      zod: 4.1.13
 
   '@opentelemetry/api-logs@0.203.0':
     dependencies:
@@ -31839,6 +33748,8 @@ snapshots:
 
   '@types/linkify-it@5.0.0': {}
 
+  '@types/long@4.0.2': {}
+
   '@types/markdown-it@14.1.2':
     dependencies:
       '@types/linkify-it': 5.0.0
@@ -32208,6 +34119,11 @@ snapshots:
       mime-types: 2.1.35
       negotiator: 0.6.3
 
+  accepts@2.0.0:
+    dependencies:
+      mime-types: 3.0.1
+      negotiator: 1.0.0
+
   acorn-import-attributes@1.9.5(acorn@8.15.0):
     dependencies:
       acorn: 8.15.0
@@ -32568,6 +34484,20 @@ snapshots:
 
   bn.js@5.2.2: {}
 
+  body-parser@2.2.2:
+    dependencies:
+      bytes: 3.1.2
+      content-type: 1.0.5
+      debug: 4.4.3
+      http-errors: 2.0.1
+      iconv-lite: 0.7.0
+      on-finished: 2.4.1
+      qs: 6.14.1
+      raw-body: 3.0.2
+      type-is: 2.0.1
+    transitivePeerDependencies:
+      - supports-color
+
   boolbase@1.0.0: {}
 
   boring-avatars@1.11.1: {}
@@ -32654,6 +34584,8 @@ snapshots:
     dependencies:
       esbuild: 0.24.2
       load-tsconfig: 0.2.5
+
+  bytes@3.1.2: {}
 
   cac@6.7.14: {}
 
@@ -32785,6 +34717,16 @@ snapshots:
 
   cjs-module-lexer@1.4.3: {}
 
+  clarifai-nodejs-grpc@11.3.3:
+    dependencies:
+      '@grpc/grpc-js': 1.14.3
+      '@grpc/proto-loader': 0.5.6
+      axios: 1.13.1(debug@4.4.1)
+      google-protobuf: 3.21.4
+      protobufjs: 6.11.4
+    transitivePeerDependencies:
+      - debug
+
   class-variance-authority@0.7.1:
     dependencies:
       clsx: 2.1.1
@@ -32910,6 +34852,10 @@ snapshots:
 
   console-control-strings@1.1.0: {}
 
+  content-disposition@1.0.1: {}
+
+  content-type@1.0.5: {}
+
   contentful-management@11.48.1:
     dependencies:
       '@contentful/rich-text-types': 16.8.5
@@ -32929,7 +34875,21 @@ snapshots:
     optionalDependencies:
       '@rollup/rollup-linux-x64-gnu': 4.49.0
 
+  contextual-client@0.10.0:
+    dependencies:
+      '@types/node': 18.19.130
+      '@types/node-fetch': 2.6.13
+      abort-controller: 3.0.0
+      agentkeepalive: 4.6.0
+      form-data-encoder: 1.7.2
+      formdata-node: 4.4.1
+      node-fetch: 2.7.0
+    transitivePeerDependencies:
+      - encoding
+
   convert-source-map@2.0.0: {}
+
+  cookie-signature@1.2.2: {}
 
   cookie@1.0.2: {}
 
@@ -33178,6 +35138,8 @@ snapshots:
 
   delegates@1.0.0: {}
 
+  depd@2.0.0: {}
+
   dequal@2.0.3: {}
 
   des.js@1.1.0:
@@ -33319,6 +35281,8 @@ snapshots:
     dependencies:
       tweetnacl: 1.0.3
 
+  ee-first@1.1.1: {}
+
   electron-to-chromium@1.5.244: {}
 
   electron-to-chromium@1.5.267: {}
@@ -33370,6 +35334,8 @@ snapshots:
   empathic@1.1.0: {}
 
   enabled@2.0.0: {}
+
+  encodeurl@2.0.0: {}
 
   encoding-japanese@2.2.0: {}
 
@@ -33665,6 +35631,8 @@ snapshots:
 
   escape-carriage@1.3.1: {}
 
+  escape-html@1.0.3: {}
+
   escape-string-regexp@4.0.0: {}
 
   escape-string-regexp@5.0.0: {}
@@ -33708,6 +35676,8 @@ snapshots:
       '@types/estree': 1.0.8
 
   esutils@2.0.3: {}
+
+  etag@1.8.1: {}
 
   event-emitter@0.3.5:
     dependencies:
@@ -33765,6 +35735,43 @@ snapshots:
       homedir-polyfill: 1.0.3
 
   expect-type@1.2.1: {}
+
+  express-rate-limit@7.5.1(express@5.2.1):
+    dependencies:
+      express: 5.2.1
+
+  express@5.2.1:
+    dependencies:
+      accepts: 2.0.0
+      body-parser: 2.2.2
+      content-disposition: 1.0.1
+      content-type: 1.0.5
+      cookie: 1.0.2
+      cookie-signature: 1.2.2
+      debug: 4.4.3
+      depd: 2.0.0
+      encodeurl: 2.0.0
+      escape-html: 1.0.3
+      etag: 1.8.1
+      finalhandler: 2.1.1
+      fresh: 2.0.0
+      http-errors: 2.0.1
+      merge-descriptors: 2.0.0
+      mime-types: 3.0.1
+      on-finished: 2.4.1
+      once: 1.4.0
+      parseurl: 1.3.3
+      proxy-addr: 2.0.7
+      qs: 6.14.1
+      range-parser: 1.2.1
+      router: 2.2.0
+      send: 1.2.1
+      serve-static: 2.2.1
+      statuses: 2.0.2
+      type-is: 2.0.1
+      vary: 1.1.2
+    transitivePeerDependencies:
+      - supports-color
 
   exsolve@1.0.7: {}
 
@@ -33879,6 +35886,17 @@ snapshots:
     dependencies:
       to-regex-range: 5.0.1
 
+  finalhandler@2.1.1:
+    dependencies:
+      debug: 4.4.3
+      encodeurl: 2.0.0
+      escape-html: 1.0.3
+      on-finished: 2.4.1
+      parseurl: 1.3.3
+      statuses: 2.0.2
+    transitivePeerDependencies:
+      - supports-color
+
   find-up@4.1.0:
     dependencies:
       locate-path: 5.0.0
@@ -33964,6 +35982,8 @@ snapshots:
 
   forwarded-parse@2.1.2: {}
 
+  forwarded@0.2.0: {}
+
   framer-motion@12.31.0(react-dom@19.2.1(react@19.2.1))(react@19.2.1):
     dependencies:
       motion-dom: 12.30.1
@@ -33972,6 +35992,8 @@ snapshots:
     optionalDependencies:
       react: 19.2.1
       react-dom: 19.2.1(react@19.2.1)
+
+  fresh@2.0.0: {}
 
   fs-extra@11.3.3:
     dependencies:
@@ -34236,6 +36258,8 @@ snapshots:
     dependencies:
       node-forge: 1.3.3
 
+  google-protobuf@3.21.4: {}
+
   googleapis-common@7.2.0:
     dependencies:
       extend: 3.0.2
@@ -34489,6 +36513,8 @@ snapshots:
     dependencies:
       parse-passwd: 1.0.0
 
+  hono@4.11.8: {}
+
   hookable@5.5.3: {}
 
   html-encoding-sniffer@4.0.0:
@@ -34516,11 +36542,19 @@ snapshots:
       domutils: 3.2.2
       entities: 4.5.0
 
+  http-errors@2.0.1:
+    dependencies:
+      depd: 2.0.0
+      inherits: 2.0.4
+      setprototypeof: 1.2.0
+      statuses: 2.0.2
+      toidentifier: 1.0.1
+
   http-proxy-agent@5.0.0:
     dependencies:
       '@tootallnate/once': 2.0.0
       agent-base: 6.0.2
-      debug: 4.4.1
+      debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
 
@@ -34647,6 +36681,8 @@ snapshots:
 
   ip-address@10.1.0: {}
 
+  ipaddr.js@1.9.1: {}
+
   is-absolute-url@4.0.1: {}
 
   is-alphabetical@1.0.4: {}
@@ -34748,6 +36784,8 @@ snapshots:
   is-plain-object@5.0.0: {}
 
   is-potential-custom-element-name@1.0.1: {}
+
+  is-promise@4.0.0: {}
 
   is-reference@1.2.1:
     dependencies:
@@ -34869,6 +36907,8 @@ snapshots:
   jiti@2.6.1: {}
 
   jose@5.9.6: {}
+
+  jose@6.1.3: {}
 
   joycon@3.1.1: {}
 
@@ -35115,6 +37155,8 @@ snapshots:
       p-locate: 5.0.0
 
   lodash.assign@4.2.0: {}
+
+  lodash.camelcase@4.3.0: {}
 
   lodash.get@4.4.2: {}
 
@@ -35495,6 +37537,8 @@ snapshots:
 
   mdurl@2.0.0: {}
 
+  media-typer@1.1.0: {}
+
   memoize-one@6.0.0: {}
 
   memory-pager@1.5.0: {}
@@ -35502,6 +37546,8 @@ snapshots:
   memory-stream@1.0.0:
     dependencies:
       readable-stream: 3.6.2
+
+  merge-descriptors@2.0.0: {}
 
   merge-stream@2.0.0: {}
 
@@ -35766,7 +37812,7 @@ snapshots:
 
   micromark@2.11.4:
     dependencies:
-      debug: 4.4.1
+      debug: 4.4.3
       parse-entities: 2.0.0
     transitivePeerDependencies:
       - supports-color
@@ -35774,7 +37820,7 @@ snapshots:
   micromark@4.0.1:
     dependencies:
       '@types/debug': 4.1.12
-      debug: 4.4.1
+      debug: 4.4.3
       decode-named-character-reference: 1.0.2
       devlop: 1.1.0
       micromark-core-commonmark: 2.0.2
@@ -35807,6 +37853,10 @@ snapshots:
       mime-db: 1.52.0
 
   mime-types@3.0.1:
+    dependencies:
+      mime-db: 1.54.0
+
+  mime-types@3.0.2:
     dependencies:
       mime-db: 1.54.0
 
@@ -35957,6 +38007,8 @@ snapshots:
 
   negotiator@0.6.3: {}
 
+  negotiator@1.0.0: {}
+
   neo-async@2.6.2: {}
 
   netmask@2.0.2: {}
@@ -36092,6 +38144,10 @@ snapshots:
   omggif@1.0.10: {}
 
   on-exit-leak-free@2.1.2: {}
+
+  on-finished@2.4.1:
+    dependencies:
+      ee-first: 1.1.1
 
   once@1.4.0:
     dependencies:
@@ -36310,6 +38366,8 @@ snapshots:
       leac: 0.6.0
       peberminta: 0.9.0
 
+  parseurl@1.3.3: {}
+
   path-exists@4.0.0: {}
 
   path-key@3.1.1: {}
@@ -36327,6 +38385,8 @@ snapshots:
     dependencies:
       lru-cache: 11.2.2
       minipass: 7.1.2
+
+  path-to-regexp@8.3.0: {}
 
   path-type@4.0.0: {}
 
@@ -36490,6 +38550,8 @@ snapshots:
   pixelmatch@4.0.2:
     dependencies:
       pngjs: 3.4.0
+
+  pkce-challenge@5.0.1: {}
 
   pkg-types@2.3.0:
     dependencies:
@@ -36790,6 +38852,22 @@ snapshots:
       prosemirror-state: 1.4.4
       prosemirror-transform: 1.10.5
 
+  protobufjs@6.11.4:
+    dependencies:
+      '@protobufjs/aspromise': 1.1.2
+      '@protobufjs/base64': 1.1.2
+      '@protobufjs/codegen': 2.0.4
+      '@protobufjs/eventemitter': 1.1.0
+      '@protobufjs/fetch': 1.1.0
+      '@protobufjs/float': 1.0.2
+      '@protobufjs/inquire': 1.1.0
+      '@protobufjs/path': 1.1.2
+      '@protobufjs/pool': 1.1.0
+      '@protobufjs/utf8': 1.1.0
+      '@types/long': 4.0.2
+      '@types/node': 25.0.3
+      long: 4.0.0
+
   protobufjs@7.4.0:
     dependencies:
       '@protobufjs/aspromise': 1.1.2
@@ -36804,6 +38882,26 @@ snapshots:
       '@protobufjs/utf8': 1.1.0
       '@types/node': 25.0.3
       long: 5.2.4
+
+  protobufjs@7.5.4:
+    dependencies:
+      '@protobufjs/aspromise': 1.1.2
+      '@protobufjs/base64': 1.1.2
+      '@protobufjs/codegen': 2.0.4
+      '@protobufjs/eventemitter': 1.1.0
+      '@protobufjs/fetch': 1.1.0
+      '@protobufjs/float': 1.0.2
+      '@protobufjs/inquire': 1.1.0
+      '@protobufjs/path': 1.1.2
+      '@protobufjs/pool': 1.1.0
+      '@protobufjs/utf8': 1.1.0
+      '@types/node': 25.0.3
+      long: 5.2.4
+
+  proxy-addr@2.0.7:
+    dependencies:
+      forwarded: 0.2.0
+      ipaddr.js: 1.9.1
 
   proxy-agent@6.5.0:
     dependencies:
@@ -36945,6 +39043,15 @@ snapshots:
   randombytes@2.1.0:
     dependencies:
       safe-buffer: 5.2.1
+
+  range-parser@1.2.1: {}
+
+  raw-body@3.0.2:
+    dependencies:
+      bytes: 3.1.2
+      http-errors: 2.0.1
+      iconv-lite: 0.7.0
+      unpipe: 1.0.0
 
   rc@1.2.8:
     dependencies:
@@ -37256,7 +39363,7 @@ snapshots:
 
   require-in-the-middle@7.5.2:
     dependencies:
-      debug: 4.4.1
+      debug: 4.4.3
       module-details-from-path: 1.0.4
       resolve: 1.22.10
     transitivePeerDependencies:
@@ -37377,6 +39484,16 @@ snapshots:
 
   rope-sequence@1.3.4: {}
 
+  router@2.2.0:
+    dependencies:
+      debug: 4.4.3
+      depd: 2.0.0
+      is-promise: 4.0.0
+      parseurl: 1.3.3
+      path-to-regexp: 8.3.0
+    transitivePeerDependencies:
+      - supports-color
+
   rrweb-cssom@0.8.0: {}
 
   run-applescript@7.1.0: {}
@@ -37454,9 +39571,34 @@ snapshots:
 
   semver@7.7.4: {}
 
+  send@1.2.1:
+    dependencies:
+      debug: 4.4.3
+      encodeurl: 2.0.0
+      escape-html: 1.0.3
+      etag: 1.8.1
+      fresh: 2.0.0
+      http-errors: 2.0.1
+      mime-types: 3.0.2
+      ms: 2.1.3
+      on-finished: 2.4.1
+      range-parser: 1.2.1
+      statuses: 2.0.2
+    transitivePeerDependencies:
+      - supports-color
+
   serialize-javascript@6.0.2:
     dependencies:
       randombytes: 2.1.0
+
+  serve-static@2.2.1:
+    dependencies:
+      encodeurl: 2.0.0
+      escape-html: 1.0.3
+      parseurl: 1.3.3
+      send: 1.2.1
+    transitivePeerDependencies:
+      - supports-color
 
   set-blocking@2.0.0: {}
 
@@ -37475,6 +39617,8 @@ snapshots:
       es-errors: 1.3.0
       functions-have-names: 1.2.3
       has-property-descriptors: 1.0.2
+
+  setprototypeof@1.2.0: {}
 
   sharp@0.34.4:
     dependencies:
@@ -37801,6 +39945,8 @@ snapshots:
       dotenv: 16.4.7
       mime-db: 1.54.0
       outvariant: 1.4.0
+
+  statuses@2.0.2: {}
 
   std-env@3.9.0: {}
 
@@ -38173,6 +40319,8 @@ snapshots:
 
   toad-cache@3.7.0: {}
 
+  toidentifier@1.0.1: {}
+
   token-types@4.2.1:
     dependencies:
       '@tokenizer/token': 0.3.0
@@ -38325,6 +40473,12 @@ snapshots:
     dependencies:
       tagged-tag: 1.0.0
 
+  type-is@2.0.1:
+    dependencies:
+      content-type: 1.0.5
+      media-typer: 1.1.0
+      mime-types: 3.0.1
+
   type@2.7.3: {}
 
   typed-query-selector@2.12.0: {}
@@ -38455,6 +40609,8 @@ snapshots:
   universalify@0.1.2: {}
 
   universalify@2.0.1: {}
+
+  unpipe@1.0.0: {}
 
   unplugin@1.0.1:
     dependencies:
@@ -39091,6 +41247,15 @@ snapshots:
   zod-to-json-schema@3.25.1(zod@3.25.76):
     dependencies:
       zod: 3.25.76
+
+  zod-to-json-schema@3.25.1(zod@4.1.12):
+    dependencies:
+      zod: 4.1.12
+    optional: true
+
+  zod-to-json-schema@3.25.1(zod@4.1.13):
+    dependencies:
+      zod: 4.1.13
 
   zod-validation-error@1.5.0(zod@3.25.76):
     dependencies:
