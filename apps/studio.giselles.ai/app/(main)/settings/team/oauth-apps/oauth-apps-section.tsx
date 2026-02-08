@@ -159,6 +159,81 @@ const PROVIDER_INFO: Record<string, { label: string; description: string; docsUr
 		description: "Forms, surveys, and quizzes",
 		docsUrl: "https://admin.typeform.com/account#/section/tokens",
 	},
+	pipedrive: {
+		label: "Pipedrive",
+		description: "Sales CRM and pipeline management",
+		docsUrl: "https://developers.pipedrive.com/docs/api/v1",
+	},
+	zoho: {
+		label: "Zoho",
+		description: "Zoho CRM, Books, Invoice, Mail, Desk, Campaigns",
+		docsUrl: "https://api-console.zoho.com/",
+	},
+	wordpress: {
+		label: "WordPress",
+		description: "WordPress.com sites, posts, and pages",
+		docsUrl: "https://developer.wordpress.com/apps/",
+	},
+	spotify: {
+		label: "Spotify",
+		description: "Music, playlists, and podcast data",
+		docsUrl: "https://developer.spotify.com/dashboard",
+	},
+	stripe: {
+		label: "Stripe",
+		description: "Payments, subscriptions, and invoicing",
+		docsUrl: "https://dashboard.stripe.com/apikeys",
+	},
+	calendly: {
+		label: "Calendly",
+		description: "Scheduling and appointment booking",
+		docsUrl: "https://developer.calendly.com/",
+	},
+	quickbooks: {
+		label: "QuickBooks",
+		description: "Accounting, invoicing, and bookkeeping",
+		docsUrl: "https://developer.intuit.com/app/developer/dashboard",
+	},
+	xero: {
+		label: "Xero",
+		description: "Cloud accounting and financial management",
+		docsUrl: "https://developer.xero.com/app/manage",
+	},
+	gitlab: {
+		label: "GitLab",
+		description: "GitLab repositories and CI/CD pipelines",
+		docsUrl: "https://gitlab.com/-/user_settings/applications",
+	},
+	bitbucket: {
+		label: "Bitbucket",
+		description: "Bitbucket repositories and pull requests",
+		docsUrl: "https://bitbucket.org/account/settings/app-authorizations/",
+	},
+	twitch: {
+		label: "Twitch",
+		description: "Live streaming and chat",
+		docsUrl: "https://dev.twitch.tv/console/apps",
+	},
+	box: {
+		label: "Box",
+		description: "Cloud content management and file sharing",
+		docsUrl: "https://app.box.com/developers/console",
+	},
+	surveymonkey: {
+		label: "SurveyMonkey",
+		description: "Surveys, forms, and research",
+		docsUrl: "https://developer.surveymonkey.com/apps/",
+	},
+	pinterest: {
+		label: "Pinterest",
+		description: "Pins, boards, and visual discovery",
+		docsUrl: "https://developers.pinterest.com/apps/",
+	},
+	miro: {
+		label: "Miro",
+		description: "Collaborative whiteboard and diagramming",
+		docsUrl: "https://developers.miro.com/page/get-started",
+	},
 };
 
 const PROVIDER_OPTIONS = Object.entries(PROVIDER_INFO).map(([key, val]) => ({
