@@ -5,6 +5,11 @@
 	"main": "./dist/index.js",
 	"module": "./dist/index.mjs",
 	"types": "./dist/index.d.ts",
+	"typesVersions": {
+		"*": {
+			"server": ["./dist/server.d.ts"]
+		}
+	},
 	"scripts": {
 		"build": "tsup",
 		"check-types": "tsc --noEmit",
@@ -19,6 +24,12 @@
 			"import": "./dist/index.mjs",
 			"require": "./dist/index.js",
 			"default": "./dist/index.js"
+		},
+		"./server": {
+			"types": "./dist/server.d.ts",
+			"import": "./dist/server.mjs",
+			"require": "./dist/server.js",
+			"default": "./dist/server.js"
 		}
 	},
 	"devDependencies": {

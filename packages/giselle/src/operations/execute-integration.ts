@@ -152,7 +152,7 @@ export function executeIntegration(args: {
 			try {
 				// Dynamic import of activepieces adapter
 				const { executePieceAction, resolveAuth } = await import(
-					"@giselles-ai/activepieces-adapter"
+					"@giselles-ai/activepieces-adapter/server"
 				);
 
 				// Resolve credentials if available

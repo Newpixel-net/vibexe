@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 		// Convert N8N workflow to Giselle nodes
 		// Dynamic import to avoid bundling the adapter in all routes
 		const { convertN8NToGiselle } = await import(
-			"@giselles-ai/activepieces-adapter"
+			"@giselles-ai/activepieces-adapter/server"
 		);
 		const converted = convertN8NToGiselle(
 			body.n8nWorkflow as Parameters<typeof convertN8NToGiselle>[0],

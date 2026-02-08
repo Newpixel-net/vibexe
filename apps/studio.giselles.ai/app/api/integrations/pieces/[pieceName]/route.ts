@@ -15,7 +15,7 @@ export async function GET(
 
 	try {
 		const { inspectPiece } = await import(
-			"@giselles-ai/activepieces-adapter"
+			"@giselles-ai/activepieces-adapter/server"
 		);
 		const info = await inspectPiece(pieceName);
 		return NextResponse.json(info);
