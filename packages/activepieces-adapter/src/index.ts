@@ -22,4 +22,19 @@ export type {
 	PieceTriggerMetadata,
 } from "./piece-registry";
 
+export {
+	PIECE_CATALOG,
+	getCatalogEntry,
+	getAllPieceNames,
+	getAllCategories,
+	getPiecesByCategory,
+	searchPieces,
+	TOTAL_PIECES,
+} from "./piece-catalog";
+export type {
+	PieceCatalogEntry,
+	PieceCategory,
+	PieceAuthType,
+} from "./piece-catalog";
+
 export * from "./n8n";

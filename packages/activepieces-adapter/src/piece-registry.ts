@@ -3,7 +3,16 @@
  *
  * Activepieces pieces are npm packages that export a `Piece` object.
  * We dynamically import them at runtime based on piece name.
+ *
+ * The full catalog of 600+ pieces lives in piece-catalog.ts.
+ * Any piece in the catalog can be loaded on demand — npm package name
+ * follows the convention `@activepieces/piece-${pieceName}`.
  */
+
+import {
+	getCatalogEntry,
+	getAllPieceNames as catalogGetAllNames,
+} from "./piece-catalog";
 
 export interface PieceMetadata {
 	name: string;
@@ -26,35 +35,6 @@ export interface PieceTriggerMetadata {
 	description: string;
 }
 
-// Map of piece name -> npm package name
-const PIECE_PACKAGE_MAP: Record<string, string> = {
-	http: "@activepieces/piece-http",
-	slack: "@activepieces/piece-slack",
-	"google-sheets": "@activepieces/piece-google-sheets",
-	gmail: "@activepieces/piece-gmail",
-	discord: "@activepieces/piece-discord",
-	"telegram-bot": "@activepieces/piece-telegram-bot",
-	openai: "@activepieces/piece-openai",
-	"google-drive": "@activepieces/piece-google-drive",
-	notion: "@activepieces/piece-notion",
-	airtable: "@activepieces/piece-airtable",
-	stripe: "@activepieces/piece-stripe",
-	hubspot: "@activepieces/piece-hubspot",
-	mailchimp: "@activepieces/piece-mailchimp",
-	twitter: "@activepieces/piece-twitter",
-	linkedin: "@activepieces/piece-linkedin",
-	"google-calendar": "@activepieces/piece-google-calendar",
-	dropbox: "@activepieces/piece-dropbox",
-	webhook: "@activepieces/piece-webhook",
-	store: "@activepieces/piece-store",
-	json: "@activepieces/piece-json",
-	"text-helper": "@activepieces/piece-text-helper",
-	"date-helper": "@activepieces/piece-date-helper",
-	"math-helper": "@activepieces/piece-math-helper",
-	"google-contacts": "@activepieces/piece-google-contacts",
-	zoom: "@activepieces/piece-zoom",
-};
-
 // Cache for loaded pieces
 const pieceCache = new Map<string, unknown>();
 
@@ -68,8 +48,7 @@ export async function loadPiece(pieceName: string): Promise<unknown> {
 		return cached;
 	}
 
-	const packageName =
-		PIECE_PACKAGE_MAP[pieceName] ?? `@activepieces/piece-${pieceName}`;
+	const packageName = `@activepieces/piece-${pieceName}`;
 
 	try {
 		const pieceModule = await import(packageName);
@@ -152,18 +131,15 @@ function extractTriggerMetadata(
 }
 
 /**
- * List all available piece names.
+ * List all available piece names (600+ from the full catalog).
  */
 export function getAvailablePieceNames(): string[] {
-	return Object.keys(PIECE_PACKAGE_MAP);
+	return catalogGetAllNames();
 }
 
 /**
- * Check if a piece is available (registered).
+ * Check if a piece is available (in catalog or already loaded).
  */
 export function isPieceAvailable(pieceName: string): boolean {
-	return (
-		pieceName in PIECE_PACKAGE_MAP ||
-		pieceCache.has(pieceName)
-	);
+	return getCatalogEntry(pieceName) !== undefined || pieceCache.has(pieceName);
 }
