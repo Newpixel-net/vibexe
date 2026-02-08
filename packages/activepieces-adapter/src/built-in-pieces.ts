@@ -86,8 +86,12 @@ async function youtubeFetchVideoInfo(
 	properties: Record<string, unknown>,
 	auth: unknown,
 ): Promise<unknown> {
+	console.log("[youtube-debug] youtubeFetchVideoInfo called with properties:", JSON.stringify(Object.keys(properties)));
+	console.log("[youtube-debug] properties.input =", JSON.stringify(properties.input));
+	console.log("[youtube-debug] properties.videoUrl =", JSON.stringify(properties.videoUrl));
 	// Prefer `input` (from connected nodes / Start node) over `videoUrl` (static config)
 	const videoUrl = (properties.input as string) || (properties.videoUrl as string) || "";
+	console.log("[youtube-debug] resolved videoUrl =", videoUrl);
 	const apiKey =
 		(properties.apiKey as string) ||
 		(auth && typeof auth === "object" && "apiKey" in auth
