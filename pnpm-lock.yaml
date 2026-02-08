@@ -1010,9 +1010,6 @@ importers:
       '@activepieces/piece-dropbox':
         specifier: ^0.6.3
         version: 0.6.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
-      '@activepieces/piece-duckdb':
-        specifier: ^0.0.4
-        version: 0.0.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.12)
       '@activepieces/piece-elevenlabs':
         specifier: ^0.2.3
         version: 0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -2618,9 +2615,6 @@ packages:
 
   '@activepieces/piece-dropbox@0.6.3':
     resolution: {integrity: sha512-EumEuxkmr7Ggxo1pFI/jLcajfEJlVEYd1QU37gDBjU9J032U1/y4uTsi2aa1dP/3kR23qKz38odborOeAuuKdA==}
-
-  '@activepieces/piece-duckdb@0.0.4':
-    resolution: {integrity: sha512-8N7MdrEFKf6ONv2ygBJkDBJkj2qW07LDSsA0yOfK8HF0FEfKzyeLNDmqnQ0ch8WBT0gqGMzo9GpCi2yKPYy7lQ==}
 
   '@activepieces/piece-elevenlabs@0.2.3':
     resolution: {integrity: sha512-K8JB3eO6TPw2uWrfQ4uXze8LWjqwp22fQ3/RvqJvKP8YWcm/amT56xIU8FpCRY5QUs+/fT+w3AOuUGQmcbxeZA==}
@@ -4441,37 +4435,6 @@ packages:
 
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
-
-  '@duckdb/node-api@1.4.3-r.2':
-    resolution: {integrity: sha512-2by72HWrmuZFLanVClXme8n2QwMN82bi+b2jVTH2xGhAVMUGSdbsp/kTf2zxhfmsLtcX9gYwSzqMApIdz5GI2A==}
-
-  '@duckdb/node-bindings-darwin-arm64@1.4.3-r.2':
-    resolution: {integrity: sha512-/hqVgl+jA8GX60ysO556e/vhUxDCD+PNcJFiqTT96Yvry8sqRwL5GOpB94wrUS+2fLZxQ5qTjH0WzqTGMeBHYw==}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@duckdb/node-bindings-darwin-x64@1.4.3-r.2':
-    resolution: {integrity: sha512-84Ix+4XU+JWyXP5Q/151fwS9piFI++rHLj9Jya2TMsdpBxSqxG7pUKfCRSLpsoxn7ej1AOVtZdcaO4TGTdl4Aw==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@duckdb/node-bindings-linux-arm64@1.4.3-r.2':
-    resolution: {integrity: sha512-e/RfvosNxj97vsnKPm5ealyTeMXKFbJt7rgOHsF3nAqqzWL8WsVqJ3ZsW2fg6NWmJYkp7Mz3md/AR8mQNAuS4Q==}
-    cpu: [arm64]
-    os: [linux]
-
-  '@duckdb/node-bindings-linux-x64@1.4.3-r.2':
-    resolution: {integrity: sha512-YUnt2vJOXmn3y7dvgV2uw9hoKMy1IQIFV1uCX3ZeoIsmrshNwlhbBDyquGgt9HHn/2vz+omCGz0oGwTuifaKHA==}
-    cpu: [x64]
-    os: [linux]
-
-  '@duckdb/node-bindings-win32-x64@1.4.3-r.2':
-    resolution: {integrity: sha512-TJoM4nUGuxPVv5G8S6wlgz2ojtOZKTSdud+brGSTKcxVlJF/UZ4tiXIa4gOhTEMmWMYes7Xc95I4YY7qF8DhUg==}
-    cpu: [x64]
-    os: [win32]
-
-  '@duckdb/node-bindings@1.4.3-r.2':
-    resolution: {integrity: sha512-yUnOblF+xL41TtPadt1JYAZEIQiYcFr5CKnQCqM+h/KRd1ft/PsX2kex5hQBFGzS/yBKn27c305hjGMgBvIfGQ==}
 
   '@edge-runtime/cookies@5.0.2':
     resolution: {integrity: sha512-Sd8LcWpZk/SWEeKGE8LT6gMm5MGfX/wm+GPnh1eBEtCpya3vYqn37wYknwAHw92ONoyyREl1hJwxV/Qx2DWNOg==}
@@ -16254,25 +16217,6 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@activepieces/piece-duckdb@0.0.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.12)':
-    dependencies:
-      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.12)
-      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
-      '@duckdb/node-api': 1.4.3-r.2
-      '@sinclair/typebox': 0.34.11
-      ai: 6.0.77(zod@4.1.12)
-      deepmerge-ts: 7.1.0
-      i18next: 23.13.0
-      nanoid: 3.3.8
-      semver: 7.6.0
-      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
-      tslib: 2.8.1
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-      - zod
-
   '@activepieces/piece-elevenlabs@0.2.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -24294,33 +24238,6 @@ snapshots:
   '@discoveryjs/json-ext@0.5.7': {}
 
   '@drizzle-team/brocli@0.10.2': {}
-
-  '@duckdb/node-api@1.4.3-r.2':
-    dependencies:
-      '@duckdb/node-bindings': 1.4.3-r.2
-
-  '@duckdb/node-bindings-darwin-arm64@1.4.3-r.2':
-    optional: true
-
-  '@duckdb/node-bindings-darwin-x64@1.4.3-r.2':
-    optional: true
-
-  '@duckdb/node-bindings-linux-arm64@1.4.3-r.2':
-    optional: true
-
-  '@duckdb/node-bindings-linux-x64@1.4.3-r.2':
-    optional: true
-
-  '@duckdb/node-bindings-win32-x64@1.4.3-r.2':
-    optional: true
-
-  '@duckdb/node-bindings@1.4.3-r.2':
-    optionalDependencies:
-      '@duckdb/node-bindings-darwin-arm64': 1.4.3-r.2
-      '@duckdb/node-bindings-darwin-x64': 1.4.3-r.2
-      '@duckdb/node-bindings-linux-arm64': 1.4.3-r.2
-      '@duckdb/node-bindings-linux-x64': 1.4.3-r.2
-      '@duckdb/node-bindings-win32-x64': 1.4.3-r.2
 
   '@edge-runtime/cookies@5.0.2': {}
 

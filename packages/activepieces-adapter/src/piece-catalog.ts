@@ -924,7 +924,6 @@ export const INSTALLED_PIECES = new Set([
 	"oracle-database",
 	"surrealdb",
 	"couchbase",
-	"duckdb",
 	"rabbitmq",
 	"sftp",
 	"gcloud-pubsub",

@@ -204,7 +204,6 @@
 		"@activepieces/piece-oracle-database": "^0.1.2",
 		"@activepieces/piece-surrealdb": "^0.1.2",
 		"@activepieces/piece-couchbase": "^0.1.3",
-		"@activepieces/piece-duckdb": "^0.0.4",
 		"@activepieces/piece-rabbitmq": "^0.1.2",
 		"@activepieces/piece-sftp": "^0.4.9",
 		"@activepieces/piece-gcloud-pubsub": "^0.1.2",
