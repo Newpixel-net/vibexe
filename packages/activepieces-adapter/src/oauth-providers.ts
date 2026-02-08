@@ -91,6 +91,17 @@ const PIECE_TO_PROVIDER: Record<string, string> = {
 	webflow: "webflow",
 	contentful: "contentful",
 	docusign: "docusign",
+	reddit: "reddit",
+	confluence: "atlassian",
+	"digital-ocean": "digitalocean",
+	wrike: "wrike",
+	"constant-contact": "constantcontact",
+	pandadoc: "pandadoc",
+	vimeo: "vimeo",
+	harvest: "harvest",
+	okta: "okta",
+	netlify: "netlify",
+	square: "square",
 
 	// Zoho family
 	"zoho-crm": "zoho",
