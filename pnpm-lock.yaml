@@ -705,6 +705,9 @@ importers:
       '@giselles-ai/action-registry':
         specifier: workspace:*
         version: link:../../packages/action-registry
+      '@giselles-ai/activepieces-adapter':
+        specifier: workspace:*
+        version: link:../../packages/activepieces-adapter
       '@giselles-ai/giselle':
         specifier: workspace:*
         version: link:../../packages/giselle

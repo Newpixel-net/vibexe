@@ -62,9 +62,22 @@ The Start node is ALWAYS the first node. The End node is ALWAYS the last node. T
 9. **dataStore** - Structured data store
    - Output: "text"
 
-### Integration Nodes (Advanced — require external setup)
+### Integration Nodes (Activepieces — third-party service actions)
 
-10. **vectorStore** - Vector store for semantic search
+10. **integration** - Execute third-party service actions via Activepieces
+    - Requires: pieceName, actionName, pieceVersion
+    - Input: "input" accessor
+    - Output: "action-result" accessor
+    - Available built-in pieces:
+      - "youtube" / "fetch-video-info" — Fetch video details, stats, and transcript
+      - "http" / "send-request" — Make HTTP requests to any API
+      - "slack" / "send-message" — Send messages to Slack channels
+    - 600+ additional pieces available (user configures auth in UI after creation)
+    - Use when the user asks for specific third-party service integration
+
+### Vector Store Nodes (Advanced — require external setup)
+
+11. **vectorStore** - Vector store for semantic search
     - Requires: provider — one of:
       - "github-issue" — indexes GitHub issues (user configures repo in UI)
       - "github-pull-request" — indexes GitHub PRs (user configures repo in UI)
@@ -79,7 +92,7 @@ Nodes have **outputs** (data they produce) and **inputs** (data they receive, au
 
 - **Models (M)**: textGeneration nodes — the processors that generate responses
 - **Context (C)**: text, webPage, file nodes — static context feeding into models
-- **Integrations (I)**: vectorStore + query nodes, Google searchGrounding — dynamic retrieval
+- **Integrations (I)**: integration nodes (Activepieces), vectorStore + query nodes, Google searchGrounding — dynamic retrieval and third-party actions
 
 Multiple sources can feed into a single textGeneration node. This is how you build rich workflows:
 - Start node provides user input
