@@ -1,7 +1,22 @@
-import { type IntegrationNode, Node } from "@giselles-ai/protocol";
+import {
+	type CompletedGeneration,
+	type FailedGeneration,
+	type IntegrationNode,
+	Node,
+	isCompletedGeneration,
+	isFailedGeneration,
+} from "@giselles-ai/protocol";
 import { useNodeGenerations } from "@giselles-ai/react";
-import { CableIcon, PlusIcon, TrashIcon } from "lucide-react";
-import { useCallback, useState } from "react";
+import {
+	CableIcon,
+	CheckCircle,
+	CopyIcon,
+	LoaderIcon,
+	PlusIcon,
+	TrashIcon,
+	XCircleIcon,
+} from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import {
 	useAppDesignerStore,
 	useDeleteNode,
@@ -100,14 +115,48 @@ export function IntegrationNodePropertiesPanel({
 	const updateNodeDataContent = useUpdateNodeDataContent();
 	const deleteNode = useDeleteNode();
 	const setUiNodeState = useWorkspaceActions((a) => a.setUiNodeState);
-	const { createAndStartGenerationRunner, isGenerating, stopGenerationRunner } =
-		useNodeGenerations({
-			nodeId: node.id,
-			origin: { type: "studio", workspaceId },
-		});
+	const {
+		createAndStartGenerationRunner,
+		isGenerating,
+		stopGenerationRunner,
+		currentGeneration,
+	} = useNodeGenerations({
+		nodeId: node.id,
+		origin: { type: "studio", workspaceId },
+	});
 
 	const [newKey, setNewKey] = useState("");
 	const [newValue, setNewValue] = useState("");
+	const [copied, setCopied] = useState(false);
+
+	const resultText = useMemo(() => {
+		if (!currentGeneration) return null;
+		if (isCompletedGeneration(currentGeneration)) {
+			const gen = currentGeneration as CompletedGeneration;
+			const textOutputs = gen.outputs
+				?.filter((output) => output.type === "generated-text")
+				.map((output) =>
+					output.type === "generated-text" ? output.content : "",
+				)
+				.join("\n\n");
+			return textOutputs || null;
+		}
+		if (isFailedGeneration(currentGeneration)) {
+			const gen = currentGeneration as FailedGeneration;
+			return gen.error
+				? `${gen.error.name}: ${gen.error.message}`
+				: "Integration failed";
+		}
+		return null;
+	}, [currentGeneration]);
+
+	const handleCopy = useCallback(() => {
+		if (resultText) {
+			navigator.clipboard.writeText(resultText);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		}
+	}, [resultText]);
 
 	const configuration = (node.content.configuration ?? {}) as Record<
 		string,
@@ -337,12 +386,64 @@ export function IntegrationNodePropertiesPanel({
 
 						<button
 							type="button"
-							className="mt-4 w-full py-2 px-4 rounded-lg bg-action-node-1 text-inverse text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+							className="mt-4 w-full py-2 px-4 rounded-lg bg-action-node-1 text-inverse text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
 							onClick={handleClick}
 							disabled={isGenerating}
 						>
+							{isGenerating && (
+								<LoaderIcon className="size-4 animate-spin" />
+							)}
 							{isGenerating ? "Running..." : "Run Integration"}
 						</button>
+
+						{/* Result display */}
+						{currentGeneration &&
+							!isGenerating &&
+							isCompletedGeneration(currentGeneration) && (
+								<div className="mt-3 rounded-lg border border-green-500/20 bg-green-500/5 p-3">
+									<div className="flex items-center justify-between mb-2">
+										<div className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
+											<CheckCircle className="size-3.5" />
+											Completed
+										</div>
+										<button
+											type="button"
+											className="text-text-muted hover:text-inverse transition-colors"
+											onClick={handleCopy}
+											title="Copy result"
+										>
+											{copied ? (
+												<CheckCircle className="size-3.5 text-green-400" />
+											) : (
+												<CopyIcon className="size-3.5" />
+											)}
+										</button>
+									</div>
+									{resultText && (
+										<pre className="text-xs text-text-muted whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto custom-scrollbar font-mono">
+											{resultText.length > 500
+												? `${resultText.slice(0, 500)}...`
+												: resultText}
+										</pre>
+									)}
+								</div>
+							)}
+
+						{currentGeneration &&
+							!isGenerating &&
+							isFailedGeneration(currentGeneration) && (
+								<div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+									<div className="flex items-center gap-1.5 text-xs text-red-400 font-medium">
+										<XCircleIcon className="size-3.5" />
+										Failed
+									</div>
+									{resultText && (
+										<p className="text-xs text-red-300/70 mt-1.5">
+											{resultText}
+										</p>
+									)}
+								</div>
+							)}
 					</div>
 				</div>
 			</PropertiesPanelContent>
