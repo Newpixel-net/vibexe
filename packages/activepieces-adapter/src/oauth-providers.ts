@@ -130,6 +130,11 @@ const PIECE_TO_PROVIDER: Record<string, string> = {
 	teamleader: "teamleader",
 	activecampaign: "activecampaign",
 
+	// Phase 3 additions
+	"gcloud-pubsub": "google",
+	"http-oauth2": "http-oauth2",
+	zeplin: "zeplin",
+
 	// Zoho family
 	"zoho-crm": "zoho",
 	"zoho-books": "zoho",
