@@ -36,6 +36,12 @@ export async function executeAction(input: { generation: QueuedGeneration }) {
 	await giselle.executeAction(input);
 }
 
+export async function executeIntegration(input: {
+	generation: QueuedGeneration;
+}) {
+	await giselle.executeIntegration(input);
+}
+
 export async function executeQuery(input: { generation: QueuedGeneration }) {
 	await giselle.executeQuery(input.generation);
 }

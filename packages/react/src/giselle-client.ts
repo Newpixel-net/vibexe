@@ -95,6 +95,9 @@ export interface GiselleClient {
 		triggerId: Awaited<ReturnType<Giselle["reconfigureGitHubTrigger"]>>;
 	}>;
 	executeAction(input: Parameters<Giselle["executeAction"]>[0]): Promise<void>;
+	executeIntegration(input: {
+		generation: QueuedGeneration;
+	}): Promise<void>;
 	executeQuery(input: { generation: QueuedGeneration }): Promise<void>;
 	executeDataQuery(input: { generation: QueuedGeneration }): Promise<void>;
 	getGitHubRepositoryFullname(

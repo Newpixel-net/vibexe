@@ -50,7 +50,11 @@ import {
 	getGitHubRepositoryFullname,
 	handleGitHubWebhookV2,
 } from "./github";
-import { executeAction, executeDataQuery } from "./operations";
+import {
+	executeAction,
+	executeDataQuery,
+	executeIntegration,
+} from "./operations";
 import { executeQuery } from "./operations/execute-query";
 import { addSecret, deleteSecret, getWorkspaceSecrets } from "./secrets";
 import { addWebPage } from "./sources";
@@ -264,6 +268,8 @@ export function Giselle(config: GiselleConfig) {
 			deleteTrigger({ ...args, context }),
 		executeAction: async (args: { generation: QueuedGeneration }) =>
 			executeAction({ ...args, context }),
+		executeIntegration: async (args: { generation: QueuedGeneration }) =>
+			executeIntegration({ ...args, context }),
 		createAndStartTask: async (
 			args: CreateAndStartTaskInputs & {
 				onGenerationComplete?: OnGenerationComplete;

@@ -50,7 +50,7 @@ export function GenerationRunner({ generation }: { generation: Generation }) {
 		case "end":
 			return null;
 		case "integration":
-			return <ActionRunner generation={generation} />;
+			return <IntegrationRunner generation={generation} />;
 		default: {
 			const _exhaustiveCheck: never = generationContext.operationNode.content;
 			return _exhaustiveCheck;
@@ -243,6 +243,46 @@ function QueryRunner({ generation }: { generation: Generation }) {
 					})
 					.catch((error) => {
 						console.error("Query execution failed:", error);
+						updateGenerationStatusToFailure(generation.id);
+					});
+			})
+			.catch((error) => {
+				console.error("Failed to set generation:", error);
+				updateGenerationStatusToFailure(generation.id);
+			});
+	});
+	return null;
+}
+
+function IntegrationRunner({ generation }: { generation: Generation }) {
+	const {
+		updateGenerationStatusToComplete,
+		updateGenerationStatusToRunning,
+		updateGenerationStatusToFailure,
+		addStopHandler,
+	} = useGenerationRunnerSystem();
+	const client = useGiselle();
+	const stop = () => {};
+	useOnce(() => {
+		if (!isQueuedGeneration(generation)) {
+			return;
+		}
+		addStopHandler(generation.id, stop);
+		client
+			.setGeneration({
+				generation,
+			})
+			.then(() => {
+				updateGenerationStatusToRunning(generation.id);
+				client
+					.executeIntegration({
+						generation,
+					})
+					.then(() => {
+						updateGenerationStatusToComplete(generation.id);
+					})
+					.catch((error) => {
+						console.error("Integration execution failed:", error);
 						updateGenerationStatusToFailure(generation.id);
 					});
 			})
