@@ -1,5 +1,6 @@
 import { createId } from "@paralleldrive/cuid2";
 import { NextResponse } from "next/server";
+import type { Connection, NodeLike, NodeUIState } from "@giselles-ai/protocol";
 import { agents, db, workspaces } from "@/db";
 import { fetchCurrentUser } from "@/services/accounts";
 import { fetchCurrentTeam } from "@/services/teams";
@@ -27,25 +28,31 @@ export async function POST(request: Request) {
 		const { convertN8NToGiselle } = await import(
 			"@giselles-ai/activepieces-adapter"
 		);
-		const converted = convertN8NToGiselle(body.n8nWorkflow as Parameters<typeof convertN8NToGiselle>[0]);
+		const converted = convertN8NToGiselle(
+			body.n8nWorkflow as Parameters<typeof convertN8NToGiselle>[0],
+		);
 
 		// Merge converted nodes and connections into the workspace
 		const savedWorkspace = await giselle.getWorkspace(workspace.id);
 
-		// Add converted nodes
+		// Add converted nodes (IDs are generated via protocol generators, safe to cast)
 		for (const node of converted.nodes) {
-			savedWorkspace.nodes.push(node);
+			savedWorkspace.nodes.push(node as unknown as NodeLike);
 		}
 
 		// Add converted connections
 		for (const connection of converted.connections) {
-			savedWorkspace.connections.push(connection);
+			savedWorkspace.connections.push(connection as unknown as Connection);
 		}
 
 		// Add UI state for node positions
-		if (converted.ui?.nodeState) {
-			for (const [nodeId, state] of Object.entries(converted.ui.nodeState)) {
-				savedWorkspace.ui.nodeState[nodeId] = state;
+		if (converted.uiState?.nodePositions) {
+			for (const [nodeId, pos] of Object.entries(
+				converted.uiState.nodePositions,
+			)) {
+				savedWorkspace.ui.nodeState[
+					nodeId as keyof typeof savedWorkspace.ui.nodeState
+				] = { position: pos } as NodeUIState;
 			}
 		}
 

@@ -3,6 +3,12 @@
  */
 
 import {
+	ConnectionId,
+	InputId,
+	NodeId,
+	OutputId,
+} from "@giselles-ai/protocol";
+import {
 	type N8NConnections,
 	convertConnections,
 } from "./connection-mapping";
@@ -49,9 +55,9 @@ export interface GiselleNodeData {
 
 export interface GiselleConnectionData {
 	id: string;
-	outputNode: { id: string };
+	outputNode: { id: string; type: string };
 	outputId: string;
-	inputNode: { id: string };
+	inputNode: { id: string; type: string };
 	inputId: string;
 }
 
@@ -61,25 +67,12 @@ export interface ConversionWarning {
 	message: string;
 }
 
-let idCounter = 0;
-function generateId(prefix: string): string {
-	idCounter++;
-	const hex = idCounter.toString(16).padStart(12, "0");
-	return `${prefix}_${hex}`;
-}
-
-function resetIdCounter(): void {
-	idCounter = 0;
-}
-
 /**
  * Convert an N8N workflow JSON to Giselle workspace data.
  */
 export function convertN8NToGiselle(
 	n8nWorkflow: N8NWorkflow,
 ): GiselleWorkspaceData {
-	resetIdCounter();
-
 	const warnings: ConversionWarning[] = [];
 	const giselleNodes: GiselleNodeData[] = [];
 	const nodePositions: Record<string, { x: number; y: number }> = {};
@@ -87,6 +80,7 @@ export function convertN8NToGiselle(
 		string,
 		{
 			nodeId: string;
+			nodeType: "operation" | "variable";
 			outputIds: string[];
 			inputIds: string[];
 		}
@@ -114,6 +108,7 @@ export function convertN8NToGiselle(
 			};
 			nodeIdMapping[n8nNode.name] = {
 				nodeId: giselleNode.id,
+				nodeType: giselleNode.type,
 				outputIds: giselleNode.outputs.map((o) => o.id),
 				inputIds: giselleNode.inputs.map((i) => i.id),
 			};
@@ -124,7 +119,7 @@ export function convertN8NToGiselle(
 	const connections = convertConnections(
 		n8nWorkflow.connections,
 		nodeIdMapping,
-		() => generateId("conn"),
+		() => ConnectionId.generate(),
 	);
 
 	return {
@@ -145,7 +140,7 @@ function createGiselleNode(
 	switch (mapping.type) {
 		case "trigger":
 			return {
-				id: generateId("nd"),
+				id: NodeId.generate(),
 				type: "operation",
 				name: n8nNode.name,
 				content: {
@@ -156,7 +151,7 @@ function createGiselleNode(
 				inputs: [],
 				outputs: [
 					{
-						id: generateId("otp"),
+						id: OutputId.generate(),
 						label: "Output",
 						accessor: "trigger-output",
 					},
@@ -165,7 +160,7 @@ function createGiselleNode(
 
 		case "textGeneration":
 			return {
-				id: generateId("nd"),
+				id: NodeId.generate(),
 				type: "operation",
 				name: n8nNode.name,
 				content: {
@@ -178,14 +173,14 @@ function createGiselleNode(
 				},
 				inputs: [
 					{
-						id: generateId("inp"),
+						id: InputId.generate(),
 						label: "Input",
 						accessor: "input",
 					},
 				],
 				outputs: [
 					{
-						id: generateId("otp"),
+						id: OutputId.generate(),
 						label: "Output",
 						accessor: "generated-text",
 					},
@@ -194,7 +189,7 @@ function createGiselleNode(
 
 		case "integration":
 			return {
-				id: generateId("nd"),
+				id: NodeId.generate(),
 				type: "operation",
 				name: n8nNode.name,
 				content: {
@@ -210,14 +205,14 @@ function createGiselleNode(
 				},
 				inputs: [
 					{
-						id: generateId("inp"),
+						id: InputId.generate(),
 						label: "Input",
 						accessor: "input",
 					},
 				],
 				outputs: [
 					{
-						id: generateId("otp"),
+						id: OutputId.generate(),
 						label: "Result",
 						accessor: "action-result",
 					},
@@ -226,7 +221,7 @@ function createGiselleNode(
 
 		case "text":
 			return {
-				id: generateId("nd"),
+				id: NodeId.generate(),
 				type: "variable",
 				name: n8nNode.name,
 				content: {
@@ -236,7 +231,7 @@ function createGiselleNode(
 				inputs: [],
 				outputs: [
 					{
-						id: generateId("otp"),
+						id: OutputId.generate(),
 						label: "Output",
 						accessor: "text",
 					},
@@ -245,13 +240,13 @@ function createGiselleNode(
 
 		case "end":
 			return {
-				id: generateId("nd"),
+				id: NodeId.generate(),
 				type: "operation",
 				name: n8nNode.name || "End",
 				content: { type: "end" },
 				inputs: [
 					{
-						id: generateId("inp"),
+						id: InputId.generate(),
 						label: "Input",
 						accessor: "input",
 					},
