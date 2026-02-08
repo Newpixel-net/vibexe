@@ -64,7 +64,8 @@ const PIECE_TO_PROVIDER: Record<string, string> = {
 	pipedrive: "pipedrive",
 	monday: "monday",
 	zoom: "zoom",
-	"freshdesk": "freshdesk",
+	freshdesk: "freshdesk",
+	mailchimp: "mailchimp",
 
 	// Zoho family
 	"zoho-crm": "zoho",

@@ -84,6 +84,81 @@ const PROVIDER_INFO: Record<string, { label: string; description: string; docsUr
 		description: "Zoom meetings",
 		docsUrl: "https://marketplace.zoom.us/develop/create",
 	},
+	twitter: {
+		label: "Twitter / X",
+		description: "Tweets, timeline, and social engagement",
+		docsUrl: "https://developer.x.com/en/portal/dashboard",
+	},
+	linkedin: {
+		label: "LinkedIn",
+		description: "Posts, profiles, and professional networking",
+		docsUrl: "https://www.linkedin.com/developers/apps",
+	},
+	mailchimp: {
+		label: "Mailchimp",
+		description: "Email campaigns, audiences, and automation",
+		docsUrl: "https://admin.mailchimp.com/account/oauth2/",
+	},
+	trello: {
+		label: "Trello",
+		description: "Boards, lists, and cards",
+		docsUrl: "https://trello.com/power-ups/admin",
+	},
+	asana: {
+		label: "Asana",
+		description: "Tasks, projects, and team collaboration",
+		docsUrl: "https://app.asana.com/0/developer-console",
+	},
+	"jira-cloud": {
+		label: "Jira Cloud",
+		description: "Issues, projects, and agile boards",
+		docsUrl: "https://developer.atlassian.com/console/myapps/",
+	},
+	clickup: {
+		label: "ClickUp",
+		description: "Tasks, docs, and project management",
+		docsUrl: "https://app.clickup.com/settings/integrations",
+	},
+	monday: {
+		label: "Monday.com",
+		description: "Work management boards and automations",
+		docsUrl: "https://monday.com/developers/apps",
+	},
+	todoist: {
+		label: "Todoist",
+		description: "Tasks, projects, and personal productivity",
+		docsUrl: "https://developer.todoist.com/appconsole.html",
+	},
+	linear: {
+		label: "Linear",
+		description: "Issues, cycles, and product development",
+		docsUrl: "https://linear.app/settings/api",
+	},
+	intercom: {
+		label: "Intercom",
+		description: "Customer messaging and support",
+		docsUrl: "https://app.intercom.com/a/developer-signup",
+	},
+	zendesk: {
+		label: "Zendesk",
+		description: "Support tickets and customer service",
+		docsUrl: "https://developer.zendesk.com/documentation/",
+	},
+	freshdesk: {
+		label: "Freshdesk",
+		description: "Help desk and customer support",
+		docsUrl: "https://developers.freshdesk.com/",
+	},
+	figma: {
+		label: "Figma",
+		description: "Design files, components, and collaboration",
+		docsUrl: "https://www.figma.com/developers/apps",
+	},
+	typeform: {
+		label: "Typeform",
+		description: "Forms, surveys, and quizzes",
+		docsUrl: "https://admin.typeform.com/account#/section/tokens",
+	},
 };
 
 const PROVIDER_OPTIONS = Object.entries(PROVIDER_INFO).map(([key, val]) => ({
