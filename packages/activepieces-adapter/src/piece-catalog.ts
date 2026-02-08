@@ -5,11 +5,18 @@
  * Source: https://github.com/activepieces/activepieces/tree/main/packages/pieces/community
  */
 
+import { type PieceType, getEnrichment } from "./piece-enrichment";
+
+export type { PieceType } from "./piece-enrichment";
+
 export interface PieceCatalogEntry {
 	name: string;
 	displayName: string;
 	category: PieceCategory;
 	authType: PieceAuthType;
+	description: string;
+	pieceType: PieceType;
+	logoUrl?: string;
 }
 
 export type PieceCategory =
@@ -46,7 +53,16 @@ function p(
 	category: PieceCategory,
 	authType: PieceAuthType = "api_key",
 ): PieceCatalogEntry {
-	return { name, displayName, category, authType };
+	const enrichment = getEnrichment(name, category);
+	return {
+		name,
+		displayName,
+		category,
+		authType,
+		description: enrichment.description ?? `${category} integration`,
+		pieceType: enrichment.pieceType ?? "regular",
+		logoUrl: enrichment.logoUrl,
+	};
 }
 
 /**

@@ -35,6 +35,7 @@ export type {
 	PieceCatalogEntry,
 	PieceCategory,
 	PieceAuthType,
+	PieceType,
 } from "./piece-catalog";
 
 export * from "./n8n";
