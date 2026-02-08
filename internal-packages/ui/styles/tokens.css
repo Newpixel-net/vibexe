@@ -92,6 +92,8 @@
 	--color-node-trigger-secondary: hsl(220, 15%, 50%);
 	--color-node-action-primary: hsl(275, 96%, 44%);
 	--color-node-action-secondary: hsl(275, 91%, 26%);
+	--color-node-integration-primary: hsl(160, 84%, 39%);
+	--color-node-integration-secondary: hsl(160, 84%, 24%);
 	--color-node-github-primary: hsl(76, 100%, 47%);
 	--color-node-github-secondary: hsl(76, 100%, 35%);
 	--color-node-web-search-primary: hsl(241, 100%, 61%);

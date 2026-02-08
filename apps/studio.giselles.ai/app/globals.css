@@ -94,6 +94,9 @@
 	--color-action-node-1: var(--color-node-action-primary);
 	--color-action-node-2: var(--color-node-action-secondary);
 
+	--color-integration-node-1: var(--color-node-integration-primary);
+	--color-integration-node-2: var(--color-node-integration-secondary);
+
 	--color-github-node-1: var(--color-node-github-primary);
 	--color-github-node-2: var(--color-node-github-secondary);
 

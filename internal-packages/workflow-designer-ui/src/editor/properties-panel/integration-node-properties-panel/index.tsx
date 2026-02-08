@@ -260,7 +260,7 @@ export function IntegrationNodePropertiesPanel({
 										</div>
 										<input
 											type="text"
-											className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-action-node-1"
+											className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-integration-node-1"
 											value={String(value ?? "")}
 											onChange={(e) => updateConfig(key, e.target.value)}
 										/>
@@ -275,7 +275,7 @@ export function IntegrationNodePropertiesPanel({
 							<div className="flex gap-2">
 								<input
 									type="text"
-									className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-action-node-1"
+									className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-integration-node-1"
 									placeholder="Key"
 									value={newKey}
 									onChange={(e) => setNewKey(e.target.value)}
@@ -285,7 +285,7 @@ export function IntegrationNodePropertiesPanel({
 								/>
 								<input
 									type="text"
-									className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-action-node-1"
+									className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-integration-node-1"
 									placeholder="Value"
 									value={newValue}
 									onChange={(e) => setNewValue(e.target.value)}
@@ -305,7 +305,7 @@ export function IntegrationNodePropertiesPanel({
 
 						<button
 							type="button"
-							className="mt-4 w-full py-2 px-4 rounded-lg bg-action-node-1 text-inverse text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+							className="mt-4 w-full py-2 px-4 rounded-lg bg-integration-node-1 text-inverse text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
 							onClick={handleClick}
 							disabled={isGenerating}
 						>

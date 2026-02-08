@@ -38,7 +38,7 @@ function renderField(
 	onChange: (value: unknown) => void,
 ) {
 	const baseInputClass =
-		"w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-action-node-1";
+		"w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-integration-node-1";
 
 	switch (prop.type) {
 		case "LONG_TEXT":
@@ -77,7 +77,7 @@ function renderField(
 					<input
 						id={id}
 						type="checkbox"
-						className="rounded border-white/10 bg-white/5 text-action-node-1 focus:ring-action-node-1"
+						className="rounded border-white/10 bg-white/5 text-integration-node-1 focus:ring-integration-node-1"
 						checked={Boolean(value)}
 						onChange={(e) => onChange(e.target.checked)}
 					/>

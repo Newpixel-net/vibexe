@@ -1,3 +1,4 @@
+import { getCatalogEntry } from "@giselles-ai/activepieces-adapter";
 import { getImageGenerationModelProvider } from "@giselles-ai/language-model";
 import {
 	isActionNode,
@@ -28,6 +29,31 @@ import { WebPageFileIcon } from "../web-page-file";
 import { DataQueryIcon } from "./data-query-icon";
 import { DataStoreIcon } from "./data-store-icon";
 import { DocumentVectorStoreIcon } from "./document-vector-store-icon";
+
+/**
+ * Renders a piece-specific logo for integration nodes.
+ * Looks up the logo URL from the piece catalog, falls back to CableIcon.
+ */
+function IntegrationPieceIcon({
+	pieceName,
+	...props
+}: { pieceName: string } & SVGProps<SVGSVGElement>) {
+	const entry = getCatalogEntry(pieceName);
+	const logoUrl = entry?.logoUrl;
+
+	if (logoUrl) {
+		return (
+			<img
+				src={logoUrl}
+				alt={entry?.displayName ?? pieceName}
+				className={`${props.className ?? ""} rounded-[2px] object-contain`}
+				style={{ width: "16px", height: "16px" }}
+			/>
+		);
+	}
+
+	return <CableIcon {...props} data-content-type-icon />;
+}
 
 // Node-specific GitHub icon with dark fill for visibility on light backgrounds
 function NodeGitHubIcon({ className, ...props }: SVGProps<SVGSVGElement>) {
@@ -204,7 +230,12 @@ export function NodeIcon({
 				case "end":
 					return <FlagIcon {...props} data-content-type-icon />;
 				case "integration":
-					return <CableIcon {...props} data-content-type-icon />;
+					return (
+						<IntegrationPieceIcon
+							pieceName={(node.content as { pieceName: string }).pieceName}
+							{...props}
+						/>
+					);
 				default: {
 					const _exhaustiveCheck: never = node.content.type;
 					throw new Error(`Unhandled node type: ${_exhaustiveCheck}`);

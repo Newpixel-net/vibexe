@@ -116,7 +116,7 @@ export function CredentialForm({
 				<input
 					id="cred-name"
 					type="text"
-					className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-action-node-1"
+					className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-integration-node-1"
 					value={displayName}
 					onChange={(e) => setDisplayName(e.target.value)}
 				/>
@@ -131,7 +131,7 @@ export function CredentialForm({
 			<div className="flex gap-2 mt-1">
 				<button
 					type="button"
-					className="flex-1 py-1.5 px-3 rounded-md bg-action-node-1 text-inverse text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-1.5"
+					className="flex-1 py-1.5 px-3 rounded-md bg-integration-node-1 text-inverse text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-1.5"
 					onClick={handleSave}
 					disabled={saving}
 				>
@@ -160,7 +160,7 @@ function renderAuthFields(
 	updateField: (key: string, value: string) => void,
 ) {
 	const inputClass =
-		"w-full rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-action-node-1";
+		"w-full rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-integration-node-1";
 
 	switch (authInfo.type) {
 		case "SECRET_TEXT":
