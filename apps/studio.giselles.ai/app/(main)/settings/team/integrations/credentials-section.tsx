@@ -39,6 +39,71 @@ type PieceTypeFilter = "all" | "regular" | "trigger" | "core";
 
 const ITEMS_PER_PAGE = 48;
 
+// ─── API Key Setup Links ────────────────────────────────
+// Direct links to where users can create API keys/credentials
+// for pieces that don't use OAuth2. Extensible - add more as needed.
+
+const API_KEY_LINKS: Record<string, { url: string; label: string; description: string }> = {
+	// Google
+	"google-gemini": {
+		url: "https://aistudio.google.com/apikey",
+		label: "Get API key from Google AI Studio",
+		description: "Create a free Gemini API key in Google AI Studio",
+	},
+	"google-search": {
+		url: "https://developers.google.com/custom-search/v1/overview",
+		label: "Get Custom Search API key",
+		description: "Create a Custom Search JSON API key + Search Engine ID",
+	},
+	"gcloud-pubsub": {
+		url: "https://console.cloud.google.com/apis/credentials",
+		label: "Get credentials from Google Cloud",
+		description: "Create a service account key or API key in Google Cloud Console",
+	},
+	// OpenAI
+	openai: {
+		url: "https://platform.openai.com/api-keys",
+		label: "Get API key from OpenAI",
+		description: "Create an API key in your OpenAI dashboard",
+	},
+	// Anthropic
+	anthropic: {
+		url: "https://console.anthropic.com/settings/keys",
+		label: "Get API key from Anthropic",
+		description: "Create an API key in the Anthropic Console",
+	},
+	// Discord
+	discord: {
+		url: "https://discord.com/developers/applications",
+		label: "Get Bot Token from Discord",
+		description: "Create a bot and copy the token from Developer Portal",
+	},
+	// Telegram
+	"telegram-bot": {
+		url: "https://t.me/BotFather",
+		label: "Get Bot Token from BotFather",
+		description: "Message @BotFather on Telegram to create a bot token",
+	},
+	// Twilio
+	twilio: {
+		url: "https://console.twilio.com/",
+		label: "Get credentials from Twilio",
+		description: "Find your Account SID and Auth Token in the Twilio Console",
+	},
+	// SendGrid
+	sendgrid: {
+		url: "https://app.sendgrid.com/settings/api_keys",
+		label: "Get API key from SendGrid",
+		description: "Create an API key in SendGrid Settings",
+	},
+	// Stripe
+	stripe: {
+		url: "https://dashboard.stripe.com/apikeys",
+		label: "Get API key from Stripe",
+		description: "Copy your secret key from the Stripe Dashboard",
+	},
+};
+
 // ─── Piece Icon Component ──────────────────────────────
 
 function PieceIcon({
@@ -927,6 +992,29 @@ function AddCredentialModal({
 							{/* ─── Manual Token Form ─────────────────── */}
 							{showManualEntry && (
 								<form onSubmit={handleSubmit} className="flex flex-col gap-4">
+									{/* API Key creation link */}
+									{API_KEY_LINKS[piece.name] && (
+										<a
+											href={API_KEY_LINKS[piece.name].url}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/[0.08] border border-blue-500/20 hover:border-blue-500/35 transition-colors group"
+										>
+											<div className="shrink-0 p-1.5 rounded-md bg-blue-500/15">
+												<ExternalLinkIcon className="size-4 text-blue-400" />
+											</div>
+											<div className="flex-1 min-w-0">
+												<p className="text-sm font-medium text-blue-300 group-hover:text-blue-200 transition-colors">
+													{API_KEY_LINKS[piece.name].label}
+												</p>
+												<p className="text-xs text-white/40 mt-0.5">
+													{API_KEY_LINKS[piece.name].description}
+												</p>
+											</div>
+											<ExternalLinkIcon className="size-3.5 text-white/20 group-hover:text-white/40 shrink-0 transition-colors" />
+										</a>
+									)}
+
 									<div className="flex flex-col gap-1.5">
 										<label
 											htmlFor="cred-name"
