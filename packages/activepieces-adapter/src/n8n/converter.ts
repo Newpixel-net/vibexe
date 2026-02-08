@@ -170,6 +170,7 @@ function createGiselleNode(
 					llm: {
 						provider: mapping.provider,
 						id: mapping.modelId,
+						configurations: getDefaultLlmConfigurations(mapping.provider),
 					},
 					prompt: extractPromptFromN8NParams(n8nNode.parameters),
 				},
@@ -307,6 +308,44 @@ function resolveActionName(
 		return `${params.resource}_${params.operation}`;
 	}
 	return defaultAction;
+}
+
+function getDefaultLlmConfigurations(
+	provider: string,
+): Record<string, unknown> {
+	switch (provider) {
+		case "openai":
+			return {
+				temperature: 0.7,
+				topP: 1.0,
+				presencePenalty: 0.0,
+				frequencyPenalty: 0.0,
+			};
+		case "anthropic":
+			return {
+				temperature: 0.7,
+				topP: 1.0,
+				reasoningText: false,
+			};
+		case "google":
+			return {
+				temperature: 0.7,
+				topP: 1.0,
+				searchGrounding: false,
+			};
+		case "perplexity":
+			return {
+				temperature: 0.7,
+				topP: 1.0,
+				presencePenalty: 0.0,
+				frequencyPenalty: 0.0,
+			};
+		default:
+			return {
+				temperature: 0.7,
+				topP: 1.0,
+			};
+	}
 }
 
 function convertN8NParameters(
