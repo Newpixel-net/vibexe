@@ -1,6 +1,8 @@
 import { DocsLink } from "@giselle-internal/ui/docs-link";
+import { Suspense } from "react";
 import { CredentialsSection } from "./credentials-section";
 import { GitHubIntegration } from "./github-integration";
+import { GitHubIntegrationErrorBoundary } from "./github-integration-error-boundary";
 
 export default function TeamIntegrationsPage() {
 	return (
@@ -23,7 +25,17 @@ export default function TeamIntegrationsPage() {
 				</DocsLink>
 			</div>
 			<div className="flex flex-col gap-y-4">
-				<GitHubIntegration />
+				<GitHubIntegrationErrorBoundary>
+					<Suspense
+						fallback={
+							<div className="text-sm text-text-muted">
+								Loading GitHub integration...
+							</div>
+						}
+					>
+						<GitHubIntegration />
+					</Suspense>
+				</GitHubIntegrationErrorBoundary>
 				<CredentialsSection />
 			</div>
 		</div>
