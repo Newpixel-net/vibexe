@@ -268,10 +268,8 @@ export function Giselle(config: GiselleConfig) {
 			deleteTrigger({ ...args, context }),
 		executeAction: async (args: { generation: QueuedGeneration }) =>
 			executeAction({ ...args, context }),
-		executeIntegration: async (args: { generation: QueuedGeneration }) => {
-			console.log("[DEBUG-INT] giselle.executeIntegration called, generationId:", args.generation.id);
-			return executeIntegration({ ...args, context });
-		},
+		executeIntegration: async (args: { generation: QueuedGeneration }) =>
+			executeIntegration({ ...args, context }),
 		createAndStartTask: async (
 			args: CreateAndStartTaskInputs & {
 				onGenerationComplete?: OnGenerationComplete;

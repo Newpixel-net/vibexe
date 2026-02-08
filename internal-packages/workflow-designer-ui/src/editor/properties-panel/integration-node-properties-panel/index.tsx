@@ -1,4 +1,4 @@
-import type { IntegrationNode, Node } from "@giselles-ai/protocol";
+import { type IntegrationNode, Node } from "@giselles-ai/protocol";
 import { useNodeGenerations } from "@giselles-ai/react";
 import { CableIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -95,6 +95,7 @@ export function IntegrationNodePropertiesPanel({
 }: { node: IntegrationNode }) {
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
 	const connections = useAppDesignerStore((s) => s.connections);
+	const nodes = useAppDesignerStore((s) => s.nodes);
 	const updateNodeData = useUpdateNodeData();
 	const updateNodeDataContent = useUpdateNodeDataContent();
 	const deleteNode = useDeleteNode();
@@ -146,25 +147,30 @@ export function IntegrationNodePropertiesPanel({
 		setUiNodeState(node.id, {
 			showError: false,
 		});
+		const incomingConnections = connections.filter(
+			(c) => c.inputNode.id === node.id,
+		);
+		// Look up full node objects from the store instead of using minimal
+		// connection references (which lack inputs/outputs and fail Zod validation)
+		const sourceNodes = incomingConnections
+			.map((c) => nodes.find((n) => n.id === c.outputNode.id))
+			.filter((n): n is Node => Node.safeParse(n).success);
+
 		createAndStartGenerationRunner({
 			origin: {
 				type: "studio",
 				workspaceId,
 			},
 			operationNode: node,
-			sourceNodes: connections
-				.filter((c) => c.inputNode.id === node.id)
-				.map((c) => c.outputNode as unknown as Node)
-				.filter(Boolean),
-			connections: connections.filter(
-				(connection) => connection.inputNode.id === node.id,
-			),
+			sourceNodes,
+			connections: incomingConnections,
 		});
 	}, [
 		isGenerating,
 		stopGenerationRunner,
 		setUiNodeState,
 		node,
+		nodes,
 		connections,
 		createAndStartGenerationRunner,
 		workspaceId,

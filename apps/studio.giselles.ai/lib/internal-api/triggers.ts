@@ -39,14 +39,7 @@ export async function executeAction(input: { generation: QueuedGeneration }) {
 export async function executeIntegration(input: {
 	generation: QueuedGeneration;
 }) {
-	console.log("[DEBUG-INT] Server action executeIntegration called, generationId:", input.generation.id);
-	try {
-		await giselle.executeIntegration(input);
-		console.log("[DEBUG-INT] Server action executeIntegration completed successfully");
-	} catch (error) {
-		console.error("[DEBUG-INT] Server action executeIntegration threw:", error);
-		throw error;
-	}
+	await giselle.executeIntegration(input);
 }
 
 export async function executeQuery(input: { generation: QueuedGeneration }) {

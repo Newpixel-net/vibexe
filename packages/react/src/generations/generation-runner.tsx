@@ -23,7 +23,6 @@ function useOnce(fn: () => void) {
 	}, [fn]);
 }
 export function GenerationRunner({ generation }: { generation: Generation }) {
-	console.log("[DEBUG-GEN-RUNNER] GenerationRunner render, id:", generation.id, "status:", generation.status, "type:", generation.context?.operationNode?.content?.type);
 	if (generation.status === "created") {
 		return null;
 	}
@@ -31,7 +30,6 @@ export function GenerationRunner({ generation }: { generation: Generation }) {
 	try {
 		generationContext = GenerationContext.parse(generation.context);
 	} catch (error) {
-		console.error("[DEBUG-GEN-RUNNER] GenerationContext.parse FAILED:", error);
 		return null;
 	}
 	switch (generationContext.operationNode.content.type) {
@@ -270,36 +268,31 @@ function IntegrationRunner({ generation }: { generation: Generation }) {
 	} = useGenerationRunnerSystem();
 	const client = useGiselle();
 	const stop = () => {};
-	console.log("[DEBUG-INT-CLIENT] IntegrationRunner mounted, generation status:", generation.status, "id:", generation.id);
 	useOnce(() => {
 		if (!isQueuedGeneration(generation)) {
-			console.log("[DEBUG-INT-CLIENT] Generation not queued, skipping. Status:", generation.status);
 			return;
 		}
-		console.log("[DEBUG-INT-CLIENT] Starting integration execution flow");
 		addStopHandler(generation.id, stop);
 		client
 			.setGeneration({
 				generation,
 			})
 			.then(() => {
-				console.log("[DEBUG-INT-CLIENT] setGeneration succeeded, updating to running");
 				updateGenerationStatusToRunning(generation.id);
 				client
 					.executeIntegration({
 						generation,
 					})
 					.then(() => {
-						console.log("[DEBUG-INT-CLIENT] executeIntegration succeeded!");
 						updateGenerationStatusToComplete(generation.id);
 					})
 					.catch((error) => {
-						console.error("[DEBUG-INT-CLIENT] executeIntegration failed:", error);
+						console.error("Integration execution failed:", error);
 						updateGenerationStatusToFailure(generation.id);
 					});
 			})
 			.catch((error) => {
-				console.error("[DEBUG-INT-CLIENT] setGeneration failed:", error);
+				console.error("Failed to set generation:", error);
 				updateGenerationStatusToFailure(generation.id);
 			});
 	});
