@@ -142,6 +142,10 @@ const PIECE_TO_PROVIDER: Record<string, string> = {
 	splitwise: "splitwise",
 	"sap-ariba": "sap-ariba",
 
+	// Phase 8 additions
+	"acuity-scheduling": "acuity-scheduling",
+	"service-now": "service-now",
+
 	// Zoho family
 	"zoho-crm": "zoho",
 	"zoho-books": "zoho",
