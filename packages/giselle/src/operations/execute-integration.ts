@@ -98,6 +98,7 @@ export function executeIntegration(args: {
 	context: GiselleContext;
 	generation: QueuedGeneration;
 }) {
+	console.log("[DEBUG-INT] executeIntegration (operations) called, generationId:", args.generation.id);
 	return useGenerationExecutor({
 		context: args.context,
 		generation: args.generation,
@@ -107,6 +108,7 @@ export function executeIntegration(args: {
 			appEntryResolver,
 			finishGeneration,
 		}) => {
+			console.log("[DEBUG-INT] execute callback entered");
 			const operationNode = generationContext.operationNode;
 			if (!isIntegrationNode(operationNode)) {
 				throw new Error("Invalid generation type: expected integration node");
@@ -114,6 +116,7 @@ export function executeIntegration(args: {
 
 			const { pieceName, actionName, pieceVersion, configuration } =
 				operationNode.content;
+			console.log("[DEBUG-INT] piece:", pieceName, "action:", actionName, "config:", JSON.stringify(configuration));
 
 			const resolvedInputs = await resolveIntegrationInputs({
 				generationContext,
@@ -129,10 +132,12 @@ export function executeIntegration(args: {
 
 			let result: unknown;
 			try {
+				console.log("[DEBUG-INT] About to import activepieces-adapter");
 				// Dynamic import of activepieces adapter
 				const { executePieceAction } = await import(
 					"@giselles-ai/activepieces-adapter"
 				);
+				console.log("[DEBUG-INT] Adapter imported, calling executePieceAction");
 				result = await executePieceAction({
 					pieceName,
 					actionName,
@@ -140,7 +145,9 @@ export function executeIntegration(args: {
 					properties: mergedConfig,
 					auth: null,
 				});
+				console.log("[DEBUG-INT] executePieceAction returned:", typeof result);
 			} catch (error) {
+				console.error("[DEBUG-INT] executePieceAction error:", error);
 				const errorMessage =
 					error instanceof Error ? error.message : String(error);
 				result = {
@@ -155,10 +162,12 @@ export function executeIntegration(args: {
 				result,
 				generationContext,
 			);
+			console.log("[DEBUG-INT] Calling finishGeneration with outputs:", generationOutputs.length);
 			await finishGeneration({
 				inputMessages: [],
 				outputs: generationOutputs,
 			});
+			console.log("[DEBUG-INT] finishGeneration completed");
 		},
 	});
 }

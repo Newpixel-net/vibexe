@@ -263,31 +263,36 @@ function IntegrationRunner({ generation }: { generation: Generation }) {
 	} = useGenerationRunnerSystem();
 	const client = useGiselle();
 	const stop = () => {};
+	console.log("[DEBUG-INT-CLIENT] IntegrationRunner mounted, generation status:", generation.status, "id:", generation.id);
 	useOnce(() => {
 		if (!isQueuedGeneration(generation)) {
+			console.log("[DEBUG-INT-CLIENT] Generation not queued, skipping. Status:", generation.status);
 			return;
 		}
+		console.log("[DEBUG-INT-CLIENT] Starting integration execution flow");
 		addStopHandler(generation.id, stop);
 		client
 			.setGeneration({
 				generation,
 			})
 			.then(() => {
+				console.log("[DEBUG-INT-CLIENT] setGeneration succeeded, updating to running");
 				updateGenerationStatusToRunning(generation.id);
 				client
 					.executeIntegration({
 						generation,
 					})
 					.then(() => {
+						console.log("[DEBUG-INT-CLIENT] executeIntegration succeeded!");
 						updateGenerationStatusToComplete(generation.id);
 					})
 					.catch((error) => {
-						console.error("Integration execution failed:", error);
+						console.error("[DEBUG-INT-CLIENT] executeIntegration failed:", error);
 						updateGenerationStatusToFailure(generation.id);
 					});
 			})
 			.catch((error) => {
-				console.error("Failed to set generation:", error);
+				console.error("[DEBUG-INT-CLIENT] setGeneration failed:", error);
 				updateGenerationStatusToFailure(generation.id);
 			});
 	});
