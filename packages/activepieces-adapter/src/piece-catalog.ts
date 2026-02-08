@@ -750,3 +750,66 @@ export function searchPieces(query: string): PieceCatalogEntry[] {
 
 /** Total number of pieces in catalog */
 export const TOTAL_PIECES = PIECE_CATALOG.length;
+
+/**
+ * Set of piece names that have NPM packages installed.
+ * These pieces can be loaded at runtime and their actions can be inspected.
+ * Pieces NOT in this set are catalog-only (metadata available but can't execute).
+ */
+export const INSTALLED_PIECES = new Set([
+	"slack",
+	"google-sheets",
+	"gmail",
+	"discord",
+	"telegram-bot",
+	"notion",
+	"airtable",
+	"openai",
+	"google-drive",
+	"http",
+	"github",
+	"stripe",
+	"hubspot",
+	"mailchimp",
+	"google-calendar",
+	"dropbox",
+	"trello",
+	"asana",
+	"jira-cloud",
+	"sendgrid",
+	"zoom",
+	"twitter",
+	"linkedin",
+	"microsoft-teams",
+	"microsoft-outlook",
+	"salesforce",
+	"shopify",
+	"wordpress",
+	"todoist",
+	"clickup",
+	"monday",
+	"linear",
+	"intercom",
+	"freshdesk",
+	"zendesk",
+	"google-contacts",
+	"google-forms",
+	"typeform",
+	"twilio",
+	"figma",
+	"supabase",
+	"postgres",
+	"mysql",
+	"csv",
+	"rss",
+	"schedule",
+	"webhook",
+	"data-mapper",
+	"store",
+	"connections",
+]);
+
+/** Check if a piece has an NPM package installed */
+export function isInstalledPiece(pieceName: string): boolean {
+	return INSTALLED_PIECES.has(pieceName);
+}

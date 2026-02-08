@@ -7,6 +7,7 @@ import {
 	getAllCategories,
 	getPiecesByCategory,
 	searchPieces,
+	isInstalledPiece,
 } from "@giselles-ai/activepieces-adapter";
 import {
 	createActionNode,
@@ -23,7 +24,10 @@ import { useMemo, useState } from "react";
 import { GitHubIcon } from "../components";
 import { addNodeTool, useToolbar } from "../state";
 import { PieceIcon } from "./piece-icon";
-import { usePieceActions, type PieceActionInfo } from "./use-piece-actions";
+import {
+	usePieceActions,
+	type PieceActionInfo,
+} from "./use-piece-actions";
 
 // Navigation state
 type PickerView =
@@ -48,7 +52,13 @@ export function IntegrationPicker() {
 
 	const searchResults = useMemo(() => {
 		if (!searchQuery.trim()) return null;
-		return searchPieces(searchQuery);
+		const results = searchPieces(searchQuery);
+		// Sort installed pieces to top
+		return [...results].sort((a, b) => {
+			const aInstalled = isInstalledPiece(a.name) ? 0 : 1;
+			const bInstalled = isInstalledPiece(b.name) ? 0 : 1;
+			return aInstalled - bInstalled;
+		});
 	}, [searchQuery]);
 
 	// Fetch actions when viewing a specific piece
@@ -58,6 +68,7 @@ export function IntegrationPicker() {
 		actions: pieceActions,
 		version: pieceVersion,
 		loading: actionsLoading,
+		error: actionsError,
 	} = usePieceActions(activePieceName);
 
 	const handleSelectPiece = (piece: PieceCatalogEntry) => {
@@ -82,12 +93,12 @@ export function IntegrationPicker() {
 	};
 
 	const handleSelectPieceDefault = (piece: PieceCatalogEntry) => {
-		// Fallback: create with "default" action if actions can't be loaded
+		// Fallback: create with first action name or piece name as action
 		setSelectedTool(
 			addNodeTool(
 				createIntegrationNode({
 					pieceName: piece.name,
-					actionName: "default",
+					actionName: piece.name,
 					pieceVersion: pieceVersion ?? "0.0.1",
 				}),
 			),
@@ -250,9 +261,15 @@ export function IntegrationPicker() {
 	const renderPieces = () => {
 		if (view.level !== "pieces") return null;
 		const pieces = getPiecesByCategory(view.category);
+		// Sort installed pieces to top
+		const sorted = [...pieces].sort((a, b) => {
+			const aInstalled = isInstalledPiece(a.name) ? 0 : 1;
+			const bInstalled = isInstalledPiece(b.name) ? 0 : 1;
+			return aInstalled - bInstalled;
+		});
 		return (
 			<div className="flex flex-col gap-[2px]">
-				{pieces.map((piece) => (
+				{sorted.map((piece) => (
 					<PieceRow
 						key={piece.name}
 						piece={piece}
@@ -282,9 +299,20 @@ export function IntegrationPicker() {
 		if (pieceActions.length === 0) {
 			return (
 				<div className="flex flex-col gap-[8px] py-[8px] px-[8px]">
-					<p className="text-[12px] text-[#505D7B]">
-						No actions found. Use default action.
-					</p>
+					{actionsError ? (
+						<>
+							<p className="text-[12px] text-[#E5534B]">
+								This piece is not available on this server.
+							</p>
+							<p className="text-[11px] text-[#505D7B]">
+								{actionsError}
+							</p>
+						</>
+					) : (
+						<p className="text-[12px] text-[#505D7B]">
+							No actions found for this piece.
+						</p>
+					)}
 					<button
 						type="button"
 						className="flex items-center gap-[8px] rounded-[6px] px-[8px] py-[6px] hover:bg-[rgba(222,233,242,0.10)] w-full text-left"
@@ -296,9 +324,11 @@ export function IntegrationPicker() {
 							className="size-[20px] shrink-0"
 						/>
 						<div className="flex-1 min-w-0">
-							<p className="text-[13px] text-inverse">Default Action</p>
+							<p className="text-[13px] text-inverse">
+								Add {piece.displayName} Node
+							</p>
 							<p className="text-[11px] text-[#505D7B] truncate">
-								Run the default action for {piece.displayName}
+								Add as generic integration node
 							</p>
 						</div>
 					</button>
@@ -371,10 +401,13 @@ function PieceRow({
 	showCategory?: boolean;
 	onClick: () => void;
 }) {
+	const installed = isInstalledPiece(piece.name);
 	return (
 		<button
 			type="button"
-			className="flex items-center gap-[8px] rounded-[6px] px-[8px] py-[6px] hover:bg-[rgba(222,233,242,0.10)] w-full text-left"
+			className={`flex items-center gap-[8px] rounded-[6px] px-[8px] py-[6px] hover:bg-[rgba(222,233,242,0.10)] w-full text-left ${
+				!installed ? "opacity-60" : ""
+			}`}
 			onClick={onClick}
 		>
 			<PieceIcon
@@ -383,9 +416,16 @@ function PieceRow({
 				className="size-[20px] shrink-0"
 			/>
 			<div className="flex-1 min-w-0">
-				<p className="text-[13px] text-inverse truncate">
-					{piece.displayName}
-				</p>
+				<div className="flex items-center gap-[4px]">
+					<p className="text-[13px] text-inverse truncate">
+						{piece.displayName}
+					</p>
+					{installed && (
+						<span className="text-[9px] px-[4px] py-[1px] rounded-[3px] bg-[rgba(16,185,129,0.15)] text-[#10B981] font-medium shrink-0">
+							Active
+						</span>
+					)}
+				</div>
 				<p className="text-[11px] text-[#505D7B] truncate">
 					{showCategory ? piece.category : piece.description}
 				</p>

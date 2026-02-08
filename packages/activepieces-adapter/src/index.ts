@@ -14,6 +14,8 @@ export {
 	getPiecesByCategory,
 	searchPieces,
 	TOTAL_PIECES,
+	INSTALLED_PIECES,
+	isInstalledPiece,
 } from "./piece-catalog";
 export type {
 	PieceCatalogEntry,
