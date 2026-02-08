@@ -60,41 +60,6 @@ const API_KEY_LINKS: Record<string, { url: string; label: string; description: s
 		label: "Get credentials from Google Cloud",
 		description: "Create a service account key or API key in Google Cloud Console",
 	},
-	"google-my-business": {
-		url: "https://console.cloud.google.com/apis/library/mybusinessbusinessinformation.googleapis.com",
-		label: "Set up Google Business Profile API",
-		description: "Enable the API and create OAuth credentials in Google Cloud Console",
-	},
-	"google-docs": {
-		url: "https://console.cloud.google.com/apis/library/docs.googleapis.com",
-		label: "Set up Google Docs API",
-		description: "Enable the API and create OAuth credentials in Google Cloud Console",
-	},
-	"google-slides": {
-		url: "https://console.cloud.google.com/apis/library/slides.googleapis.com",
-		label: "Set up Google Slides API",
-		description: "Enable the API and create OAuth credentials in Google Cloud Console",
-	},
-	"google-tasks": {
-		url: "https://console.cloud.google.com/apis/library/tasks.googleapis.com",
-		label: "Set up Google Tasks API",
-		description: "Enable the API and create OAuth credentials in Google Cloud Console",
-	},
-	googlechat: {
-		url: "https://console.cloud.google.com/apis/library/chat.googleapis.com",
-		label: "Set up Google Chat API",
-		description: "Enable the API and create OAuth credentials in Google Cloud Console",
-	},
-	"google-cloud-storage": {
-		url: "https://console.cloud.google.com/apis/library/storage.googleapis.com",
-		label: "Set up Google Cloud Storage API",
-		description: "Enable the API and create OAuth credentials in Google Cloud Console",
-	},
-	"google-search-console": {
-		url: "https://console.cloud.google.com/apis/library/searchconsole.googleapis.com",
-		label: "Set up Google Search Console API",
-		description: "Enable the API and create OAuth credentials in Google Cloud Console",
-	},
 	// OpenAI
 	openai: {
 		url: "https://platform.openai.com/api-keys",

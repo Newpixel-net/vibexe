@@ -875,18 +875,39 @@ importers:
       '@activepieces/piece-google-calendar':
         specifier: ^0.8.3
         version: 0.8.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-google-cloud-storage':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-google-contacts':
         specifier: ^0.4.3
         version: 0.4.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-google-docs':
+        specifier: ^0.3.3
+        version: 0.3.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-google-drive':
         specifier: ^0.6.3
         version: 0.6.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-google-forms':
         specifier: ^0.4.3
         version: 0.4.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-google-my-business':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-google-search-console':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-google-sheets':
         specifier: ^0.14.4
         version: 0.14.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-google-slides':
+        specifier: ^0.1.3
+        version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-google-tasks':
+        specifier: ^0.4.3
+        version: 0.4.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/piece-googlechat':
+        specifier: ^0.1.2
+        version: 0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-http':
         specifier: ^0.11.6
         version: 0.11.6(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -1863,8 +1884,14 @@ packages:
   '@activepieces/piece-google-calendar@0.8.3':
     resolution: {integrity: sha512-aFUSKYiW7TwW/yze6cTT6H2eyUiDPu71NX8ovjeKJC3WLp8Y6wsvPQr0QHrhX9qAOSAC/gJ0+hsBjlaOfm1NDQ==}
 
+  '@activepieces/piece-google-cloud-storage@0.1.2':
+    resolution: {integrity: sha512-/563SCjpksrsLnhTzobJIGIpNvgEiTc3PDAjomrrwVHMHoVu3gv5lPp07c5R8keoUWsxjsUtm9RHxKz5Dc+O1A==}
+
   '@activepieces/piece-google-contacts@0.4.3':
     resolution: {integrity: sha512-D0DBoyCIWRjAXNFTpYHfQJjkTlvWVqN2f+E1sphaAiKx3GZut7GlrpQCCSUpWrChYbR+aEqEKbIi18Fe9MuSqg==}
+
+  '@activepieces/piece-google-docs@0.3.3':
+    resolution: {integrity: sha512-iWPK4v9w50Gsogcl4j3KyL6lvCOHyCN+YqEdVg3oEXnpsyIEnwP230B/W3GynE6K61Ebf346BwM81f0MALo+2Q==}
 
   '@activepieces/piece-google-drive@0.6.3':
     resolution: {integrity: sha512-GGX83ZC77678LzgnpEmKH8Ry97yIv1pdElCrcetUkG8I+9tGZXv+dK/Tg89ljQhGQ9AWUAdbF7AZhuG2vrC/vA==}
@@ -1872,8 +1899,23 @@ packages:
   '@activepieces/piece-google-forms@0.4.3':
     resolution: {integrity: sha512-7qlVpc1pKsjmfvg865Y5bQQJ08E78t9fautHHzHmdZ8M+GtdJuj5ck+Y/XQeFxka4asBS7Mr74rnWA6+k45u5g==}
 
+  '@activepieces/piece-google-my-business@0.1.3':
+    resolution: {integrity: sha512-atVpBd2edp/Baqou+w2HnHcTUo+FGz+lCuOKDg1kXP3W68nTSHinc0OqIbtnTyazzC0RNPJADjRh82cELwzYDA==}
+
+  '@activepieces/piece-google-search-console@0.1.3':
+    resolution: {integrity: sha512-RE1647KQdPiI43trsbDQdmwWs5NV7k4hzH4jhV4szF+eolotBoUltHfoOgVmpgWtFKkKwFP3BQ5sAupqzyB89w==}
+
   '@activepieces/piece-google-sheets@0.14.4':
     resolution: {integrity: sha512-7E9tzWa6LGz3Iffcuw4j8bWy0RJ4LUOngOHQHnBc7tqYQmCaYki4D/HmhQXgeV9NOLJzhhJiO5HzlX2Ga/u7cQ==}
+
+  '@activepieces/piece-google-slides@0.1.3':
+    resolution: {integrity: sha512-5Yc9pVFyCeRZAgEnC6yyy+d0TUk7czEX2uEwW2q0e38zMj7BAqdXL0uxYyssiSuykl25T6GIcwbNPPIDFtsyNw==}
+
+  '@activepieces/piece-google-tasks@0.4.3':
+    resolution: {integrity: sha512-ZsUzVbRmc6VBQrSGszxFRhEXzxEZJ+IG/K3uVmk/WIBFGH4KRDYgef2Dvf6q8TpT9R4ZvxBckZZsYqgp3xsEBw==}
+
+  '@activepieces/piece-googlechat@0.1.2':
+    resolution: {integrity: sha512-YPSzUfdkPYAZC/yaz6XY3ocQTuDRo/bNUPc6wwOflkfKLW95kT9KRbk8nhE142MQmcuy25vEUAO2sVOmDEp3qA==}
 
   '@activepieces/piece-http@0.11.6':
     resolution: {integrity: sha512-kiAX0LjMm81MAfccfhp8qg65fphuxExOCmAO6ZIsdHErVnY48ZKSbhY5QffEiAtx3Fy0clbj0S7N12NQNiTPrA==}
@@ -6188,7 +6230,7 @@ packages:
   '@vercel/postgres@0.9.0':
     resolution: {integrity: sha512-WiI2g3+ce2g1u1gP41MoDj2DsMuQQ+us7vHobysRixKECGaLHpfTI7DuVZmHU087ozRAGr3GocSyqmWLLo+fig==}
     engines: {node: '>=14.6'}
-    deprecated: '@vercel/postgres is deprecated. You can either choose an alternate storage solution from the Vercel Marketplace if you want to set up a new database. Or you can follow this guide to migrate your existing Vercel Postgres db: https://neon.com/docs/guides/vercel-postgres-transition-guide'
+    deprecated: '@vercel/postgres is deprecated. If you are setting up a new database, you can choose an alternate storage solution from the Vercel Marketplace. If you had an existing Vercel Postgres database, it should have been migrated to Neon as a native Vercel integration. You can find more details and the guide to migrate to Neon''s SDKs here: https://neon.com/docs/guides/vercel-postgres-transition-guide'
 
   '@vercel/speed-insights@1.0.12':
     resolution: {integrity: sha512-ZGQ+a7bcfWJD2VYEp2R1LHvRAMyyaFBYytZXsfnbOMkeOvzGNVxUL7aVUvisIrTZjXTSsxG45DKX7yiw6nq2Jw==}
@@ -11152,7 +11194,58 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-google-cloud-storage@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-google-contacts@0.4.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1
+      axios-retry: 4.4.1(axios@1.13.1)
+      dayjs: 1.11.9
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      googleapis: 129.0.0
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - encoding
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-google-docs@0.3.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
@@ -11231,6 +11324,58 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@activepieces/piece-google-my-business@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1
+      axios-retry: 4.4.1(axios@1.13.1)
+      dayjs: 1.11.9
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-google-search-console@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1
+      axios-retry: 4.4.1(axios@1.13.1)
+      dayjs: 1.11.9
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      googleapis: 129.0.0
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - encoding
+      - supports-color
+      - utf-8-validate
+
   '@activepieces/piece-google-sheets@0.14.4(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -11257,6 +11402,80 @@ snapshots:
       - bufferutil
       - debug
       - encoding
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-google-slides@0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      googleapis: 129.0.0
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - encoding
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-google-tasks@0.4.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.6.2
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - supports-color
+      - utf-8-validate
+
+  '@activepieces/piece-googlechat@0.1.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+    dependencies:
+      '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
+      '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@sinclair/typebox': 0.34.11
+      ai: 6.0.77(zod@4.1.13)
+      axios: 1.13.1
+      axios-retry: 4.4.1(axios@1.13.1)
+      deepmerge-ts: 7.1.0
+      form-data: 4.0.4
+      i18next: 23.13.0
+      mime-types: 2.1.35
+      nanoid: 3.3.8
+      semver: 7.6.0
+      socket.io-client: 4.8.1(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      tslib: 2.8.1
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
       - supports-color
       - utf-8-validate
 
