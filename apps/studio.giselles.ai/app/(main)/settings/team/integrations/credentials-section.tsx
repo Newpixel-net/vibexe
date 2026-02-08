@@ -54,7 +54,7 @@ function PieceIcon({
 				alt={piece.displayName}
 				width={size}
 				height={size}
-				className="object-contain"
+				className="object-contain brightness-0 invert opacity-80"
 				onError={() => setImgError(true)}
 			/>
 		);

@@ -11,9 +11,9 @@ export interface PieceEnrichment {
 	pieceType?: PieceType;
 }
 
-/** Simple Icons CDN base — returns SVGs for well-known brands */
+/** Simple Icons via jsDelivr CDN — returns SVGs for well-known brands */
 const SI = (slug: string) =>
-	`https://cdn.simpleicons.org/${slug}/white`;
+	`https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/${slug}.svg`;
 
 /**
  * Enrichment data keyed by piece name.
@@ -40,15 +40,12 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 	},
 	deepseek: {
 		description: "Open-source AI models for code and reasoning tasks",
-		logoUrl: SI("deepseek"),
 	},
 	groq: {
 		description: "Ultra-fast LLM inference with custom hardware",
-		logoUrl: SI("groq"),
 	},
 	"mistral-ai": {
 		description: "European AI models for text generation and embeddings",
-		logoUrl: SI("mistral"),
 	},
 	"hugging-face": {
 		description: "Access thousands of ML models and datasets",
@@ -60,7 +57,6 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 	},
 	"stability-ai": {
 		description: "Generate images with Stable Diffusion models",
-		logoUrl: SI("stability"),
 	},
 	elevenlabs: {
 		description: "AI voice synthesis and text-to-speech generation",
@@ -194,7 +190,6 @@ export const PIECE_ENRICHMENTS: Record<string, PieceEnrichment> = {
 	},
 	convertkit: {
 		description: "Email marketing for creators and small businesses",
-		logoUrl: SI("convertkit"),
 	},
 	brevo: {
 		description: "Email, SMS, and marketing automation platform",
