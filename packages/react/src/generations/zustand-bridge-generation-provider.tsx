@@ -338,6 +338,7 @@ export function ZustandBridgeGenerationProvider({
 		],
 	);
 
+	console.log("[DEBUG-PROVIDER] Rendering ZustandBridgeGenerationProvider, generations count:", generations.length, "statuses:", generations.map(g => `${g.id.substring(0,8)}:${g.status}`).join(", "));
 	return (
 		<GenerationRunnerSystemContext.Provider value={contextValue}>
 			{children}

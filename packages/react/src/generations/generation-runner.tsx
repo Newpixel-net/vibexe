@@ -23,10 +23,17 @@ function useOnce(fn: () => void) {
 	}, [fn]);
 }
 export function GenerationRunner({ generation }: { generation: Generation }) {
+	console.log("[DEBUG-GEN-RUNNER] GenerationRunner render, id:", generation.id, "status:", generation.status, "type:", generation.context?.operationNode?.content?.type);
 	if (generation.status === "created") {
 		return null;
 	}
-	const generationContext = GenerationContext.parse(generation.context);
+	let generationContext: ReturnType<typeof GenerationContext.parse>;
+	try {
+		generationContext = GenerationContext.parse(generation.context);
+	} catch (error) {
+		console.error("[DEBUG-GEN-RUNNER] GenerationContext.parse FAILED:", error);
+		return null;
+	}
 	switch (generationContext.operationNode.content.type) {
 		case "textGeneration":
 		case "contentGeneration":
