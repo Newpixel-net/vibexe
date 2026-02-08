@@ -119,6 +119,18 @@ const PIECE_TO_PROVIDER: Record<string, string> = {
 	loom: "loom",
 	"line-bot": "line",
 
+	// Phase 1 additions
+	bigcommerce: "bigcommerce",
+	formstack: "formstack",
+	bitly: "bitly",
+	"campaign-monitor": "campaign-monitor",
+	"help-scout": "help-scout",
+	meistertask: "meistertask",
+	ticktick: "ticktick",
+	podio: "podio",
+	teamleader: "teamleader",
+	activecampaign: "activecampaign",
+
 	// Zoho family
 	"zoho-crm": "zoho",
 	"zoho-books": "zoho",
