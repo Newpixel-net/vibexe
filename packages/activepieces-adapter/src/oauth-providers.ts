@@ -146,6 +146,9 @@ const PIECE_TO_PROVIDER: Record<string, string> = {
 	"acuity-scheduling": "acuity-scheduling",
 	"service-now": "service-now",
 
+	// Phase 9 additions
+	truelayer: "truelayer",
+
 	// Zoho family
 	"zoho-crm": "zoho",
 	"zoho-books": "zoho",
