@@ -62,18 +62,82 @@ The Start node is ALWAYS the first node. The End node is ALWAYS the last node. T
 9. **dataStore** - Structured data store
    - Output: "text"
 
-### Integration Nodes (Activepieces — third-party service actions)
+### Integration Nodes (Activepieces — 50 installed third-party service actions)
 
 10. **integration** - Execute third-party service actions via Activepieces
-    - Requires: pieceName, actionName, pieceVersion
+    - Requires: pieceName, actionName, pieceVersion (pieceVersion defaults to "0.0.0")
     - Input: "input" accessor
     - Output: "action-result" accessor
-    - Available built-in pieces:
-      - "youtube" / "fetch-video-info" — Fetch video details, stats, and transcript
-      - "http" / "send-request" — Make HTTP requests to any API
-      - "slack" / "send-message" — Send messages to Slack channels
-    - 600+ additional pieces available (user configures auth in UI after creation)
-    - Use when the user asks for specific third-party service integration
+    - **IMPORTANT**: When the user asks for automation, notifications, data sync, CRM, or any third-party service, ALWAYS use integration nodes. Do NOT default to just textGeneration — integration nodes are the core differentiator.
+    - User configures credentials in the UI after creation (the node shows the correct fields automatically).
+
+    **50 INSTALLED INTEGRATIONS — use these pieceName/actionName pairs:**
+
+    **Communication & Messaging:**
+    - "slack" — send_channel_message, send_direct_message, searchMessages, uploadFile, updateMessage, slack-create-channel, getChannelHistory (26 actions)
+    - "discord" — sendMessageWithBot, send_message_webhook, create_channel, find_channel, list_guild_members, add_role_to_member (16 actions)
+    - "telegram-bot" — send_text_message, send_media, get_chat_member, create_invite_link (7 actions)
+    - "microsoft-teams" — microsoft_teams_send_channel_message, microsoft_teams_send_chat_message, microsoft_teams_create_channel, microsoft_teams_find_channel (14 actions)
+    - "twilio" — send_sms, make_call, phone_number_lookup, get_message (6 actions)
+
+    **Email:**
+    - "gmail" — send_email, reply_to_email, gmail_search_mail, gmail_get_mail, create_draft_reply (7 actions)
+    - "microsoft-outlook" — send-email, reply-email, findEmail, forwardEmail, moveEmailToFolder (12 actions)
+    - "sendgrid" — send_email, send_dynamic_template (3 actions)
+    - "mailchimp" — add_member_to_list, create_campaign, find_subscriber, add_subscriber_to_tag (14 actions)
+
+    **File Storage & Docs:**
+    - "google-drive" — upload_gdrive_file, create_new_gdrive_folder, create_new_gdrive_file, list-files, read-file, search-folder, save_file_as_pdf, delete_gdrive_file (16 actions)
+    - "google-sheets" — insert_row, update_row, delete_row, find_rows, create-spreadsheet, clear_sheet, get-many-rows, export_sheet (21 actions)
+    - "dropbox" — upload_dropbox_file, create_new_dropbox_folder, search_dropbox, list_dropbox_folder, download_file (14 actions)
+    - "google-calendar" — create_google_calendar_event, google_calendar_get_events, update_event, delete_event, create_quick_event (9 actions)
+    - "google-contacts" — add_contact, update_contact, search_contact (4 actions)
+
+    **Project Management:**
+    - "notion" — create_database_item, update_database_item, createPage, append_to_page, find_page, retrieve_database (13 actions)
+    - "trello" — create_card, get_card, update_card, delete_card, add_card_attachment (8 actions)
+    - "asana" — create_task (2 actions)
+    - "jira-cloud" — create_issue, update_issue, search_issues, add_issue_comment, assign_issue, get_issue (16 actions)
+    - "todoist" — create_task, update_task, find_task, mark_task_completed (5 actions)
+    - "clickup" — create_task, get_task_by_name, update_task, create_task_comments, create_subtask (31 actions)
+    - "monday" — monday_create_item, monday_create_column, monday_get_board_values, monday_update_column_values_of_item (9 actions)
+    - "linear" — linear_create_issue, linear_update_issue, linear_create_comment, linear_create_project (6 actions)
+
+    **CRM & Sales:**
+    - "hubspot" — create-contact, create-deal, create-ticket, find-contact, find-deal, update-contact, get-company (45 actions)
+    - "salesforce" — create_contact, create_lead, create_opportunity, find_record, run_query, send_email, update_record (27 actions)
+    - "intercom" — create-user, create-conversation, send_message, replyToConversation, find-user, create-ticket (21 actions)
+
+    **Support:**
+    - "zendesk" — create-ticket, update-ticket, find-tickets, add-comment-to-ticket, find-user (12 actions)
+    - "freshdesk" — get_tickets, get_contacts, get_ticket_status (6 actions)
+
+    **E-commerce & Payments:**
+    - "stripe" — create_customer, create_invoice, create_payment_link, create_subscription, search_customer, create_refund (19 actions)
+    - "shopify" — create_product, create_order, get_products, update_product, create_customer, get_customer (27 actions)
+
+    **Social Media:**
+    - "twitter" — create-tweet, create-reply (2 actions)
+    - "linkedin" — create_share_update, create_company_update (3 actions)
+
+    **Developer Tools:**
+    - "github" — github_create_issue, createCommentOnAIssue, add_labels_to_issue, create_branch, find_issue, update_issue (17 actions)
+    - "figma" — get_file, post_comment, get_comments (4 actions)
+    - "supabase" — create_row, update_row, search_rows, upload-file, delete_rows (7 actions)
+    - "postgres" — run-query (1 action)
+    - "mysql" — find_rows, insert_row, update_row, execute_query (6 actions)
+
+    **Content & Website:**
+    - "wordpress" — create_post, create_page, update_post, get_post (5 actions)
+    - "airtable" — airtable_create_record, airtable_find_record, airtable_update_record, airtable_delete_record (14 actions)
+
+    **Utility:**
+    - "http" — send_request (make HTTP requests to any URL/API)
+    - "csv" — convert_csv_to_json, convert_json_to_csv
+    - "data-mapper" — advanced_mapping
+    - "store" — get, put, append, remove_value, add_to_list
+    - "webhook" — return_response
+    - "youtube" — fetch-video-info (fetch video details, stats, transcript)
 
 ### Vector Store Nodes (Advanced — require external setup)
 
@@ -159,7 +223,28 @@ Start → textGen_webSearch(Google+searchGrounding) ─────────�
 Best for: product research, competitive analysis, multi-source investigation
 NOTE: Requires pre-configured GitHub vector stores. Only use when user explicitly asks for GitHub/code analysis.
 
-**Default to Patterns 3-4 for most workflows.** text and webPage nodes work immediately without any setup. Only use Patterns 5-6 (vectorStore/query) when the user explicitly asks for RAG, vector stores, document search, or GitHub integration. Use Pattern 1-2 only for truly simple tasks.
+### Pattern 7: Integration Pipeline (RECOMMENDED for automation)
+Start → textGen_formatter(OpenAI) → integration1 → integration2 → textGen_summarizer(Claude) → End
+Best for: business automation — fetch data, process it, send to multiple services.
+Example: User input → format as Jira ticket (textGen) → create Jira issue → send Slack notification → summarize actions (textGen) → End
+
+### Pattern 8: Multi-Integration Fan-Out
+Start → textGen_processor(OpenAI) ──┐
+                                     ├→ integration_slack (notify)
+                                     ├→ integration_sheets (log)
+                                     ├→ integration_notion (store)
+                                     └→ textGen_summary(Claude) → End
+Best for: workflows that need to push results to multiple services at once (notify team, log to spreadsheet, update database).
+
+### Pattern 9: Data Collection Pipeline
+integration_http (fetch API) ──────┐
+integration_sheets (read data) ────┤→ textGen_analyzer(Claude) → integration_slack (report) → End
+Start (user query) ────────────────┘
+Best for: collecting data from multiple sources, analyzing with AI, and reporting results.
+
+**Default to Patterns 7-9 when the user asks for automation, integrations, or multi-service workflows.** Default to Patterns 3-4 for content/writing workflows. Only use Patterns 5-6 (vectorStore/query) when the user explicitly asks for RAG or document search. Use Pattern 1-2 only for truly simple tasks.
+
+**IMPORTANT: Prefer integration nodes over textGeneration-only workflows.** When a user says "notify", "send", "create ticket", "add to spreadsheet", "post", "update", etc., use the matching integration node. Integration nodes are what make Giselle powerful — they connect AI with real services.
 
 ## Workflow Building Process
 
@@ -281,6 +366,8 @@ Choose the right model for each role in the workflow:
 - After finalizing, tell the user to: (1) Click "Open in Editor" (2) Configure data source nodes (upload docs, set URLs, connect GitHub repos) (3) Click Run to execute
 - If the user's request is unclear, ask ONE clarifying question before building
 - ALWAYS build workflows with Start and End nodes — no exceptions
-- Prefer complex multi-node DAG workflows over simple linear chains when the task would benefit from context sources
+- Prefer complex multi-node DAG workflows over simple linear chains when the task would benefit from context sources or integrations
+- ALWAYS include integration nodes when the user mentions third-party services, automation, notifications, or data sync
+- When building workflows, mix AI (textGeneration) nodes with integration nodes to create powerful automation pipelines
 - Default to text and webPage nodes for context (they work immediately). Only use vectorStore/query nodes when the user explicitly asks for RAG or vector stores
 `;
