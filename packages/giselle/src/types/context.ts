@@ -75,4 +75,8 @@ export interface GiselleContext {
 		authType: string;
 		config: Record<string, unknown>;
 	} | null>;
+	updateIntegrationCredential?: (
+		credentialId: string,
+		config: Record<string, unknown>,
+	) => Promise<void>;
 }

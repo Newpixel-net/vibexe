@@ -1440,3 +1440,21 @@ export const integrationCredentials = pgTable("integration_credentials", {
 		.notNull()
 		.$onUpdate(() => new Date()),
 });
+
+// OAuth App Configs - stores client_id + client_secret per provider group
+// One Google config covers google-sheets, google-drive, gmail, etc.
+// One Microsoft config covers microsoft-teams, microsoft-outlook, etc.
+export const oauthAppConfigs = pgTable("oauth_app_configs", {
+	dbId: serial("db_id").primaryKey(),
+	provider: text("provider").notNull().unique(), // "google", "slack", "discord", "microsoft", etc.
+	clientId: text("client_id").notNull(),
+	encryptedClientSecret: text("encrypted_client_secret").notNull(),
+	scopes: text("scopes"), // optional comma-separated scope override
+	extraParams: text("extra_params").default("{}"), // JSON: e.g. {"access_type":"offline","prompt":"consent"}
+	enabled: boolean("enabled").default(true).notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at")
+		.defaultNow()
+		.notNull()
+		.$onUpdate(() => new Date()),
+});

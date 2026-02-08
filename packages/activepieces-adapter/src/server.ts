@@ -41,4 +41,7 @@ export type {
 
 export { ensureFreshToken } from "./token-refresh";
 
+export { getPieceOAuth2Metadata } from "./piece-auth-metadata";
+export type { PieceOAuth2Metadata } from "./piece-auth-metadata";
+
 export * from "./n8n";

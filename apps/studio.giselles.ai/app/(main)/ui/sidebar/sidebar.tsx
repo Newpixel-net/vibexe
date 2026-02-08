@@ -121,6 +121,12 @@ function createBaseSidebarParts(
 					activeMatchPattern: "/settings/team/integrations*",
 				},
 				{
+					id: "oauth-apps",
+					label: "OAuth Apps",
+					href: "/settings/team/oauth-apps",
+					activeMatchPattern: "/settings/team/oauth-apps*",
+				},
+				{
 					id: "vector-stores",
 					label: "Vector Stores",
 					href: "/settings/team/vector-stores",
@@ -181,6 +187,7 @@ function createBaseSidebarParts(
 						"/settings/team*",
 						"!/settings/team/members*",
 						"!/settings/team/integrations*",
+						"!/settings/team/oauth-apps*",
 						"!/settings/team/vector-stores*",
 						...(isDataStoreEnabled ? ["!/settings/team/data-stores*"] : []),
 						"!/settings/team/usage*",

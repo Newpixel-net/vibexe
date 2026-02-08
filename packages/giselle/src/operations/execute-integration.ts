@@ -151,18 +151,26 @@ export function executeIntegration(args: {
 			let result: unknown;
 			try {
 				// Dynamic import of activepieces adapter
-				const { executePieceAction, resolveAuth } = await import(
-					"@giselles-ai/activepieces-adapter/server"
-				);
+				const { executePieceAction, resolveAuth, ensureFreshToken } =
+					await import("@giselles-ai/activepieces-adapter/server");
 
-				// Resolve credentials if available
+				// Resolve credentials if available, with automatic token refresh
 				let auth: unknown = null;
 				const credentialId = operationNode.content.credentialId;
 				if (credentialId && args.context.resolveIntegrationCredential) {
 					const credential =
 						await args.context.resolveIntegrationCredential(credentialId);
 					if (credential) {
-						auth = resolveAuth(credential);
+						// Refresh expired OAuth2 tokens before execution
+						const { credential: freshCred, refreshed } =
+							await ensureFreshToken(credential);
+						if (refreshed && args.context.updateIntegrationCredential) {
+							await args.context.updateIntegrationCredential(
+								credentialId,
+								freshCred.config,
+							);
+						}
+						auth = resolveAuth(freshCred);
 					}
 				}
 

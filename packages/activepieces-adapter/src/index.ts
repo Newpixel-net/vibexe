@@ -25,6 +25,8 @@ export type {
 	PieceType,
 } from "./piece-catalog";
 
+export { getOAuthProvider, getPiecesForProvider } from "./oauth-providers";
+
 // Re-export types only (no runtime imports) for convenience
 export type { ExecutePieceActionArgs } from "./execute-piece-action";
 export type { StoreAdapter, ConnectionResolver } from "./context-builder";

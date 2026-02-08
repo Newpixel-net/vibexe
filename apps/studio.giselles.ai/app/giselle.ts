@@ -509,6 +509,18 @@ export const giselle = NextGiselle({
 						};
 					}
 				: undefined,
+			updateIntegrationCredential: currentTeamForCreds
+				? async (credentialId: string, config: Record<string, unknown>) => {
+						const { updateCredential } = await import(
+							"@/services/integrations/credential-store"
+						);
+						await updateCredential({
+							teamDbId: currentTeamForCreds.dbId,
+							credentialId: Number.parseInt(credentialId, 10),
+							config,
+						});
+					}
+				: undefined,
 		});
 	},
 });
