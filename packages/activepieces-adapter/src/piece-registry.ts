@@ -98,13 +98,23 @@ export function getPieceMetadata(piece: unknown): PieceMetadata | null {
 	if (!piece || typeof piece !== "object") return null;
 
 	const p = piece as Record<string, unknown>;
+	// Activepieces Piece class exposes actions/triggers as methods, not properties
+	const actionsObj =
+		typeof p.actions === "function"
+			? (p.actions as () => unknown)()
+			: p.actions;
+	const triggersObj =
+		typeof p.triggers === "function"
+			? (p.triggers as () => unknown)()
+			: p.triggers;
+
 	return {
 		name: (p.name as string) ?? "unknown",
 		displayName: (p.displayName as string) ?? (p.name as string) ?? "Unknown",
 		description: (p.description as string) ?? "",
 		version: (p.version as string) ?? "0.0.0",
-		actions: extractActionMetadata(p.actions),
-		triggers: extractTriggerMetadata(p.triggers),
+		actions: extractActionMetadata(actionsObj),
+		triggers: extractTriggerMetadata(triggersObj),
 	};
 }
 

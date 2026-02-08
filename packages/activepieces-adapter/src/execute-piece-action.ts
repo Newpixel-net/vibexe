@@ -50,12 +50,17 @@ export async function executePieceAction(
 		throw new Error(`Failed to load piece: ${args.pieceName}`);
 	}
 
-	const actions = (piece as Record<string, unknown>).actions;
+	// Activepieces Piece class exposes actions as a method: piece.actions() → Record<string, Action>
+	const p = piece as Record<string, unknown>;
+	const actions =
+		typeof p.actions === "function"
+			? (p.actions as () => Record<string, unknown>)()
+			: (p.actions as Record<string, unknown> | undefined);
 	if (!actions || typeof actions !== "object") {
 		throw new Error(`Piece "${args.pieceName}" has no actions`);
 	}
 
-	const action = (actions as Record<string, unknown>)[args.actionName];
+	const action = actions[args.actionName];
 	if (!action || typeof action !== "object") {
 		throw new Error(
 			`Action "${args.actionName}" not found in piece "${args.pieceName}"`,

@@ -132,9 +132,14 @@ export async function inspectPiece(pieceName: string): Promise<PieceInfo> {
 	const p = piece as Record<string, unknown>;
 
 	const actions: PieceActionInfo[] = [];
-	if (p.actions && typeof p.actions === "object") {
+	// Activepieces Piece class exposes actions as a method: piece.actions() → Record<string, Action>
+	const actionsObj =
+		typeof p.actions === "function"
+			? (p.actions as () => Record<string, unknown>)()
+			: p.actions;
+	if (actionsObj && typeof actionsObj === "object") {
 		for (const [key, value] of Object.entries(
-			p.actions as Record<string, unknown>,
+			actionsObj as Record<string, unknown>,
 		)) {
 			if (value && typeof value === "object") {
 				const action = value as Record<string, unknown>;
@@ -179,12 +184,16 @@ export async function getActionProps(
 	}
 
 	const p = piece as Record<string, unknown>;
-	const actions = p.actions as Record<string, unknown> | undefined;
-	if (!actions) {
+	// Activepieces Piece class exposes actions as a method: piece.actions() → Record<string, Action>
+	const actionsObj =
+		typeof p.actions === "function"
+			? (p.actions as () => Record<string, unknown>)()
+			: (p.actions as Record<string, unknown> | undefined);
+	if (!actionsObj) {
 		throw new Error(`Piece "${pieceName}" has no actions`);
 	}
 
-	const action = actions[actionName] as Record<string, unknown> | undefined;
+	const action = actionsObj[actionName] as Record<string, unknown> | undefined;
 	if (!action) {
 		throw new Error(
 			`Action "${actionName}" not found in piece "${pieceName}"`,
