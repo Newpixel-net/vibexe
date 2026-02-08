@@ -1,6 +1,5 @@
 import { createId } from "@paralleldrive/cuid2";
 import { NextResponse } from "next/server";
-import type { Connection, NodeLike, NodeUIState } from "@giselles-ai/protocol";
 import { agents, db, workspaces } from "@/db";
 import { fetchCurrentUser } from "@/services/accounts";
 import { fetchCurrentTeam } from "@/services/teams";
@@ -33,26 +32,33 @@ export async function POST(request: Request) {
 		);
 
 		// Merge converted nodes and connections into the workspace
+		// The converter generates IDs via protocol generators (nd-xxx, inp-xxx, etc.)
+		// so the runtime data matches protocol schemas. We use any[] to bridge the
+		// simplified converter types with the strict protocol Zod-inferred types.
 		const savedWorkspace = await giselle.getWorkspace(workspace.id);
 
-		// Add converted nodes (IDs are generated via protocol generators, safe to cast)
+		// Add converted nodes
+		// biome-ignore lint/suspicious/noExplicitAny: converter types are structurally compatible at runtime
+		const nodes = savedWorkspace.nodes as any[];
 		for (const node of converted.nodes) {
-			savedWorkspace.nodes.push(node as unknown as NodeLike);
+			nodes.push(node);
 		}
 
 		// Add converted connections
+		// biome-ignore lint/suspicious/noExplicitAny: converter types are structurally compatible at runtime
+		const connections = savedWorkspace.connections as any[];
 		for (const connection of converted.connections) {
-			savedWorkspace.connections.push(connection as unknown as Connection);
+			connections.push(connection);
 		}
 
 		// Add UI state for node positions
+		// biome-ignore lint/suspicious/noExplicitAny: bridging converter UI state to protocol NodeUIState
+		const nodeState = savedWorkspace.ui.nodeState as any;
 		if (converted.uiState?.nodePositions) {
 			for (const [nodeId, pos] of Object.entries(
 				converted.uiState.nodePositions,
 			)) {
-				savedWorkspace.ui.nodeState[
-					nodeId as keyof typeof savedWorkspace.ui.nodeState
-				] = { position: pos } as NodeUIState;
+				nodeState[nodeId] = { position: pos };
 			}
 		}
 
