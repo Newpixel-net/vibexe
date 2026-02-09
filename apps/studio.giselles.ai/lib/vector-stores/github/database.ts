@@ -2,16 +2,10 @@ import type { DatabaseConfig } from "@giselles-ai/rag";
 
 /**
  * Create database configuration for PostgreSQL connection.
- * Uses a lazy getter to avoid throwing at module evaluation time (which breaks Next.js builds).
+ * Returns empty connectionString when POSTGRES_URL is not set to avoid
+ * breaking Next.js builds. Vector store features will fail at runtime
+ * if the env var is missing.
  */
 export function createDatabaseConfig(): DatabaseConfig {
-	return {
-		get connectionString() {
-			const postgresUrl = process.env.POSTGRES_URL;
-			if (!postgresUrl) {
-				throw new Error("POSTGRES_URL environment variable is required");
-			}
-			return postgresUrl;
-		},
-	};
+	return { connectionString: process.env.POSTGRES_URL ?? "" };
 }
