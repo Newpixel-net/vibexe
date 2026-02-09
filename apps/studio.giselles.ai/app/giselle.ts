@@ -8,6 +8,7 @@ import { traceEmbedding } from "@giselles-ai/langfuse";
 import { getRequestId, NextGiselle } from "@giselles-ai/nextjs/internal";
 import { type RunningGeneration, WorkspaceId } from "@giselles-ai/protocol";
 import type { EmbeddingMetrics } from "@giselles-ai/rag";
+import { fsStorageDriver } from "@giselles-ai/storage";
 import {
 	supabaseStorageDriver as experimental_supabaseStorageDriver,
 	supabaseVaultDriver,
@@ -33,13 +34,24 @@ import {
 } from "../lib/vector-stores/github";
 import type { generateContentJob } from "../trigger/generate-content-job";
 
-export const storage = experimental_supabaseStorageDriver({
-	endpoint: process.env.SUPABASE_STORAGE_URL ?? "",
-	region: process.env.SUPABASE_STORAGE_REGION ?? "",
-	accessKeyId: process.env.SUPABASE_STORAGE_ACCESS_KEY_ID ?? "",
-	secretAccessKey: process.env.SUPABASE_STORAGE_SECRET_ACCESS_KEY ?? "",
-	bucket: "app",
-});
+const hasSupabaseStorage = !!(
+	process.env.SUPABASE_STORAGE_URL &&
+	process.env.SUPABASE_STORAGE_REGION &&
+	process.env.SUPABASE_STORAGE_ACCESS_KEY_ID &&
+	process.env.SUPABASE_STORAGE_SECRET_ACCESS_KEY
+);
+
+export const storage = hasSupabaseStorage
+	? experimental_supabaseStorageDriver({
+			endpoint: process.env.SUPABASE_STORAGE_URL ?? "",
+			region: process.env.SUPABASE_STORAGE_REGION ?? "",
+			accessKeyId: process.env.SUPABASE_STORAGE_ACCESS_KEY_ID ?? "",
+			secretAccessKey: process.env.SUPABASE_STORAGE_SECRET_ACCESS_KEY ?? "",
+			bucket: "app",
+		})
+	: fsStorageDriver({
+			root: process.env.GISELLE_STORAGE_ROOT || ".storage",
+		});
 
 const vault = supabaseVaultDriver({
 	url: process.env.SUPABASE_URL ?? "",
