@@ -262,6 +262,28 @@ function createGiselleNode(
 	}
 }
 
+/**
+ * Wrap plain text into a TipTap JSON document string.
+ * Giselle's TextEditor component expects content in TipTap JSON format,
+ * so we must convert plain text from N8N into this structure.
+ */
+function plainTextToTipTapJson(text: string): string {
+	if (!text) {
+		return JSON.stringify({ type: "doc", content: [] });
+	}
+	const lines = text.split("\n");
+	const paragraphs = lines.map((line) => {
+		if (line === "") {
+			return { type: "paragraph" as const };
+		}
+		return {
+			type: "paragraph" as const,
+			content: [{ type: "text" as const, text: line }],
+		};
+	});
+	return JSON.stringify({ type: "doc", content: paragraphs });
+}
+
 function extractPromptFromN8NParams(params: Record<string, unknown>): string {
 	// N8N LLM nodes store prompt in various locations
 	const prompt =
@@ -270,9 +292,11 @@ function extractPromptFromN8NParams(params: Record<string, unknown>): string {
 		params.messages ??
 		params.content ??
 		"";
-	if (typeof prompt === "string") return prompt;
-	if (Array.isArray(prompt)) {
-		return prompt
+	let plainText: string;
+	if (typeof prompt === "string") {
+		plainText = prompt;
+	} else if (Array.isArray(prompt)) {
+		plainText = prompt
 			.map((m) => {
 				if (typeof m === "string") return m;
 				if (typeof m === "object" && m !== null) {
@@ -281,15 +305,17 @@ function extractPromptFromN8NParams(params: Record<string, unknown>): string {
 				return "";
 			})
 			.join("\n");
+	} else {
+		plainText = JSON.stringify(prompt);
 	}
-	return JSON.stringify(prompt);
+	return plainTextToTipTapJson(plainText);
 }
 
 function extractTextFromN8NParams(params: Record<string, unknown>): string {
 	// Sticky notes store content in 'content' parameter
-	return (
-		(params.content as string) ?? (params.text as string) ?? ""
-	);
+	const plainText =
+		(params.content as string) ?? (params.text as string) ?? "";
+	return plainTextToTipTapJson(plainText);
 }
 
 function resolveActionName(
