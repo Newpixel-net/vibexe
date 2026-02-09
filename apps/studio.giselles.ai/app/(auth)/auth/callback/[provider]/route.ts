@@ -2,11 +2,20 @@ import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { getSiteOrigin, isValidReturnUrl } from "@/app/(auth)/lib";
-import { db, oauthCredentials, type UserId, users } from "@/db";
+import {
+	db,
+	oauthCredentials,
+	supabaseUserMappings,
+	teamMemberships,
+	teams,
+	type UserId,
+	users,
+} from "@/db";
 import { logger } from "@/lib/logger";
 import { createSession } from "@/lib/session-store";
 import { encryptToken } from "@/lib/token-encryption";
 import type { OAuthProvider } from "@/services/accounts";
+import { createTeamId } from "@/services/teams/utils";
 
 // Prefer GitHub App client ID/secret for OAuth - tokens from GitHub App OAuth
 // have permission to call GET /user/installations (needed for vector stores)
@@ -18,7 +27,7 @@ const GITHUB_CLIENT_SECRET =
 	"";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
-const SESSION_COOKIE_NAME = "giselle-session";
+const SESSION_COOKIE_NAME = "giselle-auth";
 
 function isValidOAuthProvider(provider: string): provider is OAuthProvider {
 	return provider === "github" || provider === "google";
@@ -190,9 +199,37 @@ export async function GET(
 				})
 				.returning();
 			dbUser = newUser;
-			//       await initializeAccount({ userId: dbUser.id });
 			logger.debug({ userId: dbUser.id }, "Created new user");
+
+			// Create team and membership for new user
+			const [team] = await db
+				.insert(teams)
+				.values({
+					id: createTeamId(),
+					name: "My Project",
+					plan: "free",
+				})
+				.returning({ dbId: teams.dbId });
+
+			await db.insert(teamMemberships).values({
+				userDbId: dbUser.dbId,
+				teamDbId: team.dbId,
+				role: "admin",
+			});
+			logger.debug(
+				{ userId: dbUser.id, teamDbId: team.dbId },
+				"Created team and membership for new user",
+			);
 		}
+
+		// Ensure supabaseUserMappings entry exists (required by all team/account queries)
+		await db
+			.insert(supabaseUserMappings)
+			.values({
+				userDbId: dbUser.dbId,
+				supabaseUserId: dbUser.id,
+			})
+			.onConflictDoNothing();
 
 		// Store OAuth credentials
 		const encryptedAccessToken = encryptToken(tokenData.access_token);

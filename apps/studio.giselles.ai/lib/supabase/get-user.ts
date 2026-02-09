@@ -7,7 +7,7 @@ import { cookies } from "next/headers";
 import { db, users } from "@/db";
 import { getSessionByToken } from "../session-store";
 
-const SESSION_COOKIE_NAME = "giselle-session";
+const SESSION_COOKIE_NAME = "giselle-auth";
 
 export interface UserIdentity {
 	provider: string;

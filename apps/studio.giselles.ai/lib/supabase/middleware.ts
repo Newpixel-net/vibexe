@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { extendSession, getSessionByToken } from "../session-store";
 
-const SESSION_COOKIE_NAME = "giselle-session";
+const SESSION_COOKIE_NAME = "giselle-auth";
 const PUBLIC_PATHS = [
 	"/",
 	"/login",
