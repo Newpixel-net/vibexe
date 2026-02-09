@@ -587,23 +587,25 @@ function AddCredentialModal({
 	setError: (error: string | null) => void;
 }) {
 	const isOAuth2Piece = piece.authType === "oauth2";
+	const isNoneAuth = piece.authType === "none";
 	const isConnected = existingCredential !== null;
 
 	const [displayName, setDisplayName] = useState("");
-	const [authType, setAuthType] = useState(() => {
+	const authType = (() => {
 		const typeMap: Record<string, string> = {
 			api_key: "secret_text",
 			secret_text: "secret_text",
 			oauth2: "oauth2",
 			basic: "basic",
 			custom: "custom",
-			none: "secret_text",
+			none: "none",
 		};
 		return typeMap[piece.authType] || "secret_text";
-	});
+	})();
 	const [apiKey, setApiKey] = useState("");
+	const [username, setUsername] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [showManualEntry, setShowManualEntry] = useState(!isOAuth2Piece && !isConnected);
+	const [showManualEntry, setShowManualEntry] = useState(!isOAuth2Piece && !isNoneAuth && !isConnected);
 	const [showReconnect, setShowReconnect] = useState(false);
 	const [isDisconnecting, setIsDisconnecting] = useState(false);
 	const [confirmDisconnect, setConfirmDisconnect] = useState(false);
@@ -727,6 +729,7 @@ function AddCredentialModal({
 					config.accessToken = apiKey;
 					break;
 				case "basic":
+					config.username = username;
 					config.password = apiKey;
 					break;
 				default:
@@ -907,6 +910,34 @@ function AddCredentialModal({
 								</button>
 							)}
 
+							{/* ─── No Auth Needed ──────────────────────── */}
+							{isNoneAuth && (
+								<div className="flex flex-col gap-4">
+									<div className="flex flex-col gap-2 p-4 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/20">
+										<div className="flex items-start gap-2.5">
+											<CheckCircle2Icon className="size-5 text-emerald-400 shrink-0 mt-0.5" />
+											<div>
+												<p className="text-sm font-medium text-emerald-300">
+													No credentials required
+												</p>
+												<p className="text-xs text-white/40 mt-1">
+													{piece.displayName} works without any API keys or authentication. You can use it directly in your workflows.
+												</p>
+											</div>
+										</div>
+									</div>
+									<div className="flex justify-end">
+										<button
+											type="button"
+											onClick={onClose}
+											className="px-4 py-2 text-sm rounded-lg text-white/50 hover:text-white transition-colors"
+										>
+											Close
+										</button>
+									</div>
+								</div>
+							)}
+
 							{/* ─── OAuth2 Connect Section ─────────────── */}
 							{isOAuth2Piece && (
 								<>
@@ -1032,25 +1063,34 @@ function AddCredentialModal({
 										/>
 									</div>
 
+									{/* Auth type badge (read-only) */}
 									{!isOAuth2Piece && (
+										<div className="flex items-center gap-2">
+											<span className="text-xs text-white/40">Auth type:</span>
+											<span className="px-2 py-0.5 text-[11px] rounded-full bg-white/5 text-white/50 border border-white/[0.06]">
+												{authType === "basic" ? "Basic Auth (Username + Password)" : authType === "custom" ? "Custom" : "API Key / Token"}
+											</span>
+										</div>
+									)}
+
+									{/* Username field for basic auth */}
+									{authType === "basic" && (
 										<div className="flex flex-col gap-1.5">
 											<label
-												htmlFor="cred-auth"
+												htmlFor="cred-username"
 												className="text-xs text-white/50"
 											>
-												Auth Type
+												Username
 											</label>
-											<select
-												id="cred-auth"
-												value={authType}
-												onChange={(e) => setAuthType(e.target.value)}
-												className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white outline-none focus:border-white/25 [&>option]:bg-[#141120] [&>option]:text-white"
-											>
-												<option value="secret_text">API Key / Token</option>
-												<option value="oauth2">OAuth2 Access Token</option>
-												<option value="basic">Basic Auth</option>
-												<option value="custom">Custom</option>
-											</select>
+											<input
+												id="cred-username"
+												type="text"
+												value={username}
+												onChange={(e) => setUsername(e.target.value)}
+												placeholder="Enter your username"
+												className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-white/25"
+												autoFocus={!isOAuth2Piece}
+											/>
 										</div>
 									)}
 
@@ -1066,10 +1106,10 @@ function AddCredentialModal({
 											type="password"
 											value={apiKey}
 											onChange={(e) => setApiKey(e.target.value)}
-											placeholder="Enter your API key or token"
+											placeholder={authType === "basic" ? "Enter your password" : "Enter your API key or token"}
 											className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-white/25"
 											required
-											autoFocus={!isOAuth2Piece}
+											autoFocus={!isOAuth2Piece && authType !== "basic"}
 										/>
 									</div>
 
