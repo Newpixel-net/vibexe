@@ -37,6 +37,12 @@ export async function POST(request: Request) {
 		// simplified converter types with the strict protocol Zod-inferred types.
 		const savedWorkspace = await giselle.getWorkspace(workspace.id);
 
+		// Apply workflow name
+		if (converted.name) {
+			// biome-ignore lint/suspicious/noExplicitAny: workspace schema supports optional name field
+			(savedWorkspace as any).name = converted.name;
+		}
+
 		// Add converted nodes
 		// biome-ignore lint/suspicious/noExplicitAny: converter types are structurally compatible at runtime
 		const nodes = savedWorkspace.nodes as any[];

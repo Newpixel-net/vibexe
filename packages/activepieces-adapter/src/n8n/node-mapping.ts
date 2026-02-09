@@ -14,6 +14,12 @@ export type GiselleNodeMapping =
 			modelId: string;
 	  }
 	| { type: "integration"; pieceName: string; actionName: string }
+	| { type: "delay" }
+	| { type: "conditional"; subtype: "if" | "switch" }
+	| {
+			type: "dataTransform";
+			subtype: "set" | "code" | "merge" | "splitInBatches";
+	  }
 	| { type: "text"; description: string }
 	| { type: "skip"; reason: string }
 	| { type: "end" };
@@ -54,11 +60,11 @@ function extractPieceNameFromN8NType(n8nType: string): string | null {
 	// n8n-nodes-base.slack -> slack
 	const baseMatch = n8nType.match(/^n8n-nodes-base\.(.+)$/);
 	if (baseMatch) {
-		const name = baseMatch[1];
-		if (name in N8N_TO_PIECE_NAME) {
-			return N8N_TO_PIECE_NAME[name];
+		const nameLower = baseMatch[1].toLowerCase();
+		if (nameLower in N8N_TO_PIECE_NAME) {
+			return N8N_TO_PIECE_NAME[nameLower];
 		}
-		return name;
+		return nameLower;
 	}
 
 	// @n8n/n8n-nodes-langchain.lmOpenAi -> openai
@@ -66,9 +72,9 @@ function extractPieceNameFromN8NType(n8nType: string): string | null {
 		/^@n8n\/n8n-nodes-langchain\.(.+)$/,
 	);
 	if (langchainMatch) {
-		const name = langchainMatch[1];
-		if (name in LANGCHAIN_TO_PIECE_NAME) {
-			return LANGCHAIN_TO_PIECE_NAME[name];
+		const nameLower = langchainMatch[1].toLowerCase();
+		if (nameLower in LANGCHAIN_TO_PIECE_NAME) {
+			return LANGCHAIN_TO_PIECE_NAME[nameLower];
 		}
 	}
 
@@ -84,9 +90,17 @@ const EXACT_MAPPINGS: Record<string, GiselleNodeMapping> = {
 	"n8n-nodes-base.start": { type: "trigger", subtype: "manual" },
 	"n8n-nodes-base.noop": { type: "skip", reason: "No-op node" },
 	"n8n-nodes-base.noopnode": { type: "skip", reason: "No-op node" },
-	"n8n-nodes-base.wait": {
-		type: "skip",
-		reason: "Wait nodes are not supported",
+	"n8n-nodes-base.wait": { type: "delay" },
+	"n8n-nodes-base.if": { type: "conditional", subtype: "if" },
+	"n8n-nodes-base.switch": { type: "conditional", subtype: "switch" },
+	"n8n-nodes-base.set": { type: "dataTransform", subtype: "set" },
+	"n8n-nodes-base.code": { type: "dataTransform", subtype: "code" },
+	"n8n-nodes-base.function": { type: "dataTransform", subtype: "code" },
+	"n8n-nodes-base.functionitem": { type: "dataTransform", subtype: "code" },
+	"n8n-nodes-base.merge": { type: "dataTransform", subtype: "merge" },
+	"n8n-nodes-base.splitinbatches": {
+		type: "dataTransform",
+		subtype: "splitInBatches",
 	},
 	"n8n-nodes-base.stickynote": {
 		type: "text",
@@ -170,14 +184,6 @@ const N8N_TO_PIECE_NAME: Record<string, string> = {
 	googlecontacts: "google-contacts",
 	httprequest: "http",
 	emailsend: "gmail",
-	if: "text-helper",
-	switch: "text-helper",
-	set: "json",
-	code: "json",
-	function: "json",
-	functionitem: "json",
-	merge: "json",
-	splitinbatches: "json",
 };
 
 // Langchain node name -> provider
