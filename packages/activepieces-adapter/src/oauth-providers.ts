@@ -144,7 +144,7 @@ const PIECE_TO_PROVIDER: Record<string, string> = {
 
 	// Phase 8 additions
 	"acuity-scheduling": "acuity-scheduling",
-	"service-now": "service-now",
+	"service-now": "servicenow",
 
 	// Phase 9 additions
 	truelayer: "truelayer",
