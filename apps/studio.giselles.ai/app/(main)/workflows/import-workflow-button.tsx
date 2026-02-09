@@ -59,7 +59,7 @@ export function ImportWorkflowButton() {
 			<input
 				ref={fileInputRef}
 				type="file"
-				accept=".json"
+				accept=".json,.txt"
 				className="hidden"
 				onChange={(e) => {
 					const file = e.target.files?.[0];
