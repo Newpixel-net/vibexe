@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchCurrentTeam } from "@/services/teams";
+import { requireAdmin } from "@/lib/admin-guard";
 import {
 	getAllOAuthAppConfigs,
 	upsertOAuthAppConfig,
@@ -8,8 +8,7 @@ import {
 
 export async function GET() {
 	try {
-		// Verify user is authenticated (team access check)
-		await fetchCurrentTeam();
+		await requireAdmin();
 		const configs = await getAllOAuthAppConfigs();
 
 		return NextResponse.json({ configs });
@@ -24,7 +23,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
 	try {
-		await fetchCurrentTeam();
+		await requireAdmin();
 
 		const body = (await request.json()) as {
 			provider?: string;
@@ -74,7 +73,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
 	try {
-		await fetchCurrentTeam();
+		await requireAdmin();
 
 		const url = new URL(request.url);
 		const provider = url.searchParams.get("provider");

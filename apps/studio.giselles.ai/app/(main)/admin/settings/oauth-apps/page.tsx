@@ -1,6 +1,14 @@
+import { redirect } from "next/navigation";
+import { requireAdmin } from "@/lib/admin-guard";
 import { OAuthAppsSection } from "./oauth-apps-section";
 
-export default function OAuthAppsPage() {
+export default async function AdminOAuthAppsPage() {
+	try {
+		await requireAdmin();
+	} catch {
+		redirect("/");
+	}
+
 	return (
 		<div className="flex flex-col gap-[24px]">
 			<div className="flex justify-between items-center">
