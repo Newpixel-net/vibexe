@@ -6,6 +6,7 @@ import {
 } from "@/lib/vector-stores/github";
 import { fetchIngestTargets } from "./fetch-ingest-targets";
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 800;
 
 const bearerPrefix = "Bearer ";
