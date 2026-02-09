@@ -268,7 +268,7 @@ export function useStageInput({
 	const handleFilesAdded = useCallback(
 		async (incomingFiles: File[]) => {
 			if (!selectedApp) {
-				toast("Select an app: Choose an app before attaching files.", {
+				toast("Select an agent: Choose an agent before attaching files.", {
 					type: "warning",
 					preserve: false,
 				});

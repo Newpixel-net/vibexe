@@ -280,7 +280,7 @@ export function Page({
 						)}
 					>
 						<PlayIcon className="h-3.5 w-3.5" />
-						Run Apps
+						Run Agents
 					</button>
 					<button
 						type="button"
@@ -339,7 +339,7 @@ export function Page({
 							<div className="flex flex-col">
 								<div className="flex items-center justify-between max-w-[960px] mx-auto w-full px-2">
 									<h2 className="mt-1 text-[16px] text-text-muted/80">
-										Sample Apps from Giselle
+										Sample Agents from Giselle
 									</h2>
 								</div>
 								<div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 pb-4 max-w-[960px] mx-auto w-full px-4">
@@ -413,7 +413,7 @@ export function Page({
 						<div className="flex flex-col">
 							<div className="flex items-center justify-between max-w-[960px] mx-auto w-full px-2">
 								<h2 className="mt-1 text-[16px] text-text-muted/80">
-									Your Apps
+									Your Agents
 								</h2>
 								<div className="relative">
 									{isSearchActive ? (
@@ -430,7 +430,7 @@ export function Page({
 														setIsSearchActive(false);
 													}
 												}}
-												placeholder="Search Apps"
+												placeholder="Search Agents"
 												className="w-[160px] bg-transparent text-[13px] text-text placeholder:text-link-muted outline-none border-none"
 											/>
 											<Search className="h-4 w-4 text-text-muted" />
@@ -447,7 +447,7 @@ export function Page({
 											className="group flex items-center gap-2 rounded-[8px] px-3 h-10 text-[13px] text-text-muted transition-colors hover:bg-white/5"
 										>
 											<Search className="h-4 w-4 text-text-muted group-hover:text-text" />
-											<span>Search Apps</span>
+											<span>Search Agents</span>
 										</button>
 									)}
 								</div>
@@ -457,11 +457,11 @@ export function Page({
 									<div className="w-full rounded-lg bg-[rgba(255,255,255,0.03)] shadow-[0_4px_16px_rgba(0,0,0,0.06)] px-6 py-6 text-center">
 										<h3 className="flex items-center justify-center gap-2 text-[16px] font-medium text-blue-muted/80">
 											<Sparkles className="h-4 w-4 text-blue-muted/80" />
-											<span>No apps yet</span>
+											<span>No agents yet</span>
 										</h3>
 										<p className="mt-2 text-[13px] text-blue-muted/60 leading-relaxed">
-											Build your first app in the Studio. Apps you create will
-											appear here, ready to run in the playground.
+											Build your first agent in the Studio. Agents you create
+											will appear here, ready to run in the playground.
 										</p>
 										<div className="mt-6 flex justify-center">
 											<button
@@ -471,14 +471,14 @@ export function Page({
 												}}
 												className="inline-flex items-center justify-center rounded-lg border border-[rgba(131,157,195,0.3)] px-4 py-2 text-[13px] text-[rgba(131,157,195,0.7)] transition-colors hover:border-[rgba(131,157,195,0.4)] hover:bg-[rgba(131,157,195,0.1)]"
 											>
-												Create Your First App
+												Create Your First Agent
 											</button>
 										</div>
 									</div>
 								</div>
 							) : apps.length === 0 ? (
 								<p className="text-sm text-muted-foreground max-w-[960px] mx-auto w-full">
-									No apps match your search.
+									No agents match your search.
 								</p>
 							) : (
 								<div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 pb-4 max-w-[960px] mx-auto w-full px-4">

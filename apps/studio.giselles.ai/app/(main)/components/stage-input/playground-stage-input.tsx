@@ -112,7 +112,7 @@ export function PlaygroundStageInput({
 							<div className="flex-1">
 								<Select
 									options={appOptions}
-									placeholder="Select an app..."
+									placeholder="Select an agent..."
 									value={selectedAppId}
 									onValueChange={(appId) => {
 										setSelectedAppId(appId as StageApp["id"]);
