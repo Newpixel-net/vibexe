@@ -26,14 +26,19 @@ import {
 import { extractTextFromDocument } from "./extract-text";
 import { generateEmbeddings } from "./generate-embeddings";
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
-
-if (!supabaseUrl || !supabaseServiceKey) {
-	throw new Error("Missing Supabase credentials");
+// Lazy Supabase client - only created when actually used (avoids build-time throw)
+let _supabaseClient: ReturnType<typeof createClient> | null = null;
+function getSupabaseClient() {
+	if (!_supabaseClient) {
+		const url = process.env.SUPABASE_URL;
+		const key = process.env.SUPABASE_SERVICE_KEY;
+		if (!url || !key) {
+			throw new Error("Missing Supabase credentials (SUPABASE_URL / SUPABASE_SERVICE_KEY)");
+		}
+		_supabaseClient = createClient(url, key);
+	}
+	return _supabaseClient;
 }
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 interface IngestDocumentOptions {
 	embeddingProfileIds: EmbeddingProfileId[];
@@ -199,7 +204,7 @@ export async function ingestDocument(
 		signal?.throwIfAborted();
 
 		// Download file from storage
-		const { data: fileData, error: downloadError } = await supabase.storage
+		const { data: fileData, error: downloadError } = await getSupabaseClient().storage
 			.from(source.storageBucket)
 			.download(source.storageKey);
 

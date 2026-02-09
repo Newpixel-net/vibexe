@@ -45,13 +45,17 @@ import type {
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-	throw new Error(
-		"Missing Supabase configuration. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY.",
-	);
+// Lazy Supabase client - only created when actually used (avoids build-time throw)
+let _supabaseClient: ReturnType<typeof createClient> | null = null;
+function getSupabaseClient() {
+	if (!_supabaseClient) {
+		if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+			throw new Error("Missing Supabase configuration. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY.");
+		}
+		_supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+	}
+	return _supabaseClient;
 }
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 const DOCUMENT_VECTOR_STORE_STORAGE_PREFIX = "vector-stores";
 
 type IngestabilityCheck = {
@@ -872,7 +876,7 @@ export async function deleteDocumentVectorStore(
 						continue;
 					}
 					try {
-						const { error: storageError } = await supabase.storage
+						const { error: storageError } = await getSupabaseClient().storage
 							.from(bucket)
 							.remove(Array.from(targets));
 						if (storageError) {

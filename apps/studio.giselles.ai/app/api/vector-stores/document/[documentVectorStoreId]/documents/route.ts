@@ -40,13 +40,17 @@ const STORAGE_BUCKET =
 	process.env.DOCUMENT_VECTOR_STORE_STORAGE_BUCKET ?? "app";
 const STORAGE_PREFIX = "vector-stores";
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-	throw new Error(
-		"Missing Supabase configuration. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY.",
-	);
+// Lazy Supabase client - only created when actually used (avoids build-time throw)
+let _supabaseClient: ReturnType<typeof createClient> | null = null;
+function getSupabaseClient() {
+	if (!_supabaseClient) {
+		if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+			throw new Error("Missing Supabase configuration. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY.");
+		}
+		_supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+	}
+	return _supabaseClient;
 }
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 async function fetchTeam() {
 	try {
@@ -112,7 +116,7 @@ async function rollbackUploads(
 ) {
 	if (uploadedKeys.length > 0) {
 		try {
-			const { error: storageError } = await supabase.storage
+			const { error: storageError } = await getSupabaseClient().storage
 				.from(STORAGE_BUCKET)
 				.remove(uploadedKeys);
 
@@ -267,7 +271,7 @@ export async function POST(
 		}
 
 		const checksum = createHash("sha256").update(buffer).digest("hex");
-		const { error: uploadError } = await supabase.storage
+		const { error: uploadError } = await getSupabaseClient().storage
 			.from(STORAGE_BUCKET)
 			.upload(storageKey, buffer, {
 				contentType: resolvedFile.contentType,
@@ -437,7 +441,7 @@ export async function DELETE(
 			return NextResponse.json({ error: "Source not found" }, { status: 404 });
 		}
 
-		const { error: storageError } = await supabase.storage
+		const { error: storageError } = await getSupabaseClient().storage
 			.from(source.storageBucket)
 			.remove([source.storageKey]);
 		if (storageError) {
