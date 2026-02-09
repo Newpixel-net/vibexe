@@ -63,21 +63,11 @@ if (process.env.SAMPLE_APP_WORKSPACE_IDS) {
 	}
 }
 
-const githubAppId = process.env.GITHUB_APP_ID;
-const githubAppPrivateKey = process.env.GITHUB_APP_PRIVATE_KEY;
-const githubAppClientId = process.env.GITHUB_APP_CLIENT_ID;
-const githubAppClientSecret = process.env.GITHUB_APP_CLIENT_SECRET;
-const githubAppWebhookSecret = process.env.GITHUB_APP_WEBHOOK_SECRET;
-
-if (
-	githubAppId === undefined ||
-	githubAppPrivateKey === undefined ||
-	githubAppClientId === undefined ||
-	githubAppClientSecret === undefined ||
-	githubAppWebhookSecret === undefined
-) {
-	throw new Error("missing github credentials");
-}
+const githubAppId = process.env.GITHUB_APP_ID ?? "";
+const githubAppPrivateKey = process.env.GITHUB_APP_PRIVATE_KEY ?? "";
+const githubAppClientId = process.env.GITHUB_APP_CLIENT_ID ?? "";
+const githubAppClientSecret = process.env.GITHUB_APP_CLIENT_SECRET ?? "";
+const githubAppWebhookSecret = process.env.GITHUB_APP_WEBHOOK_SECRET ?? "";
 
 type TeamForPlan = Pick<
 	CurrentTeam,

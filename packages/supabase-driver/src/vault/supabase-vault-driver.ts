@@ -15,13 +15,20 @@ export function supabaseVaultDriver(
 ): VaultDriver {
 	const { url, serviceKey } = config;
 
-	// Initialize Supabase client
-	const supabase = createClient(url, serviceKey);
+	// Lazy Supabase client - only created when first method is called
+	// (avoids build-time throw when SUPABASE_URL is not set)
+	let _supabase: ReturnType<typeof createClient> | null = null;
+	function getSupabase() {
+		if (!_supabase) {
+			_supabase = createClient(url, serviceKey);
+		}
+		return _supabase;
+	}
 
 	return {
 		async encrypt(plaintext, _options): Promise<string> {
 			// Create a secret in the Supabase Vault
-			const { data, error } = await supabase.rpc("create_secret", {
+			const { data, error } = await getSupabase().rpc("create_secret", {
 				plaintext,
 			});
 
@@ -35,7 +42,7 @@ export function supabaseVaultDriver(
 
 		async decrypt(secretId: string): Promise<string> {
 			// Query the decrypted_secrets view to get the plaintext
-			const { data, error } = await supabase.rpc("decrypt_secret", {
+			const { data, error } = await getSupabase().rpc("decrypt_secret", {
 				secret_id: secretId,
 			});
 			if (error) {

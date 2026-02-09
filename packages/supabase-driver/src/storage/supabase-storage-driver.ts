@@ -41,21 +41,29 @@ async function streamToUint8Array(stream: Readable): Promise<Uint8Array> {
 export function supabaseStorageDriver(
 	config: SupabaseStorageDriverConfig,
 ): GiselleStorage {
-	const client = new S3Client({
-		endpoint: config.endpoint,
-		region: config.region,
-		credentials: {
-			accessKeyId: config.accessKeyId,
-			secretAccessKey: config.secretAccessKey,
-		},
-		forcePathStyle: true,
-	});
+	// Lazy S3Client - only created when first method is called (avoids build-time throw
+	// when SUPABASE_STORAGE_REGION is not set)
+	let _client: S3Client | null = null;
+	function getClient(): S3Client {
+		if (!_client) {
+			_client = new S3Client({
+				endpoint: config.endpoint,
+				region: config.region,
+				credentials: {
+					accessKeyId: config.accessKeyId,
+					secretAccessKey: config.secretAccessKey,
+				},
+				forcePathStyle: true,
+			});
+		}
+		return _client;
+	}
 
 	return {
 		async getJson<T extends z.ZodType>(
 			params: GetJsonParams<T>,
 		): Promise<z.infer<T>> {
-			const res = await client.send(
+			const res = await getClient().send(
 				new GetObjectCommand({ Bucket: config.bucket, Key: params.path }),
 			);
 			if (!res.Body || !isReadable(res.Body as Readable)) {
@@ -73,7 +81,7 @@ export function supabaseStorageDriver(
 				? params.schema.parse(params.data)
 				: params.data;
 			const body = JSON.stringify(data);
-			await client.send(
+			await getClient().send(
 				new PutObjectCommand({
 					Bucket: config.bucket,
 					Key: params.path,
@@ -95,7 +103,7 @@ export function supabaseStorageDriver(
 				}),
 			});
 
-			const res = await client.send(command);
+			const res = await getClient().send(command);
 			if (!res.Body || !isReadable(res.Body as Readable)) {
 				throw new Error("Invalid body returned from storage");
 			}
@@ -104,7 +112,7 @@ export function supabaseStorageDriver(
 
 		async setBlob(path: string, data: BlobLike): Promise<void> {
 			const uint8Array = new Uint8Array(data);
-			await client.send(
+			await getClient().send(
 				new PutObjectCommand({
 					Bucket: config.bucket,
 					Key: path,
@@ -114,7 +122,7 @@ export function supabaseStorageDriver(
 		},
 
 		async copy(source: string, destination: string): Promise<void> {
-			await client.send(
+			await getClient().send(
 				new CopyObjectCommand({
 					Bucket: config.bucket,
 					Key: destination,
@@ -124,14 +132,14 @@ export function supabaseStorageDriver(
 		},
 
 		async remove(path: string): Promise<void> {
-			await client.send(
+			await getClient().send(
 				new DeleteObjectCommand({ Bucket: config.bucket, Key: path }),
 			);
 		},
 
 		async exists(path: string): Promise<boolean> {
 			try {
-				await client.send(
+				await getClient().send(
 					new HeadObjectCommand({ Bucket: config.bucket, Key: path }),
 				);
 				return true;
@@ -153,7 +161,7 @@ export function supabaseStorageDriver(
 		},
 
 		async contentLength(path: string): Promise<number> {
-			const response = await client.send(
+			const response = await getClient().send(
 				new HeadObjectCommand({ Bucket: config.bucket, Key: path }),
 			);
 			return response.ContentLength ?? 0;
@@ -181,7 +189,7 @@ export function supabaseStorageDriver(
 				MaxKeys: maxKeys,
 			});
 
-			const response = await client.send(command);
+			const response = await getClient().send(command);
 
 			const blobs =
 				response.Contents?.flatMap((item) => {
