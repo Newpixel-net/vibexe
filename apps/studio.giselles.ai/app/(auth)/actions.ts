@@ -1,11 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { getAuthCallbackUrl, isValidReturnUrl } from "@/app/(auth)/lib";
+import { getSiteOrigin, isValidReturnUrl } from "@/app/(auth)/lib";
 import { logger } from "@/lib/logger";
 import type { OAuthProvider } from "@/services/accounts";
 
-const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || "";
+// Use same env var priority as callback route to avoid client_id mismatch
+const GITHUB_CLIENT_ID =
+	process.env.GITHUB_APP_CLIENT_ID || process.env.GITHUB_CLIENT_ID || "";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 
 function authorizeOAuth(provider: OAuthProvider, formData?: FormData): never {
@@ -15,17 +17,17 @@ function authorizeOAuth(provider: OAuthProvider, formData?: FormData): never {
 		? returnUrlEntry
 		: "/";
 
-	const callbackUrl = getAuthCallbackUrl({
-		provider,
-		next: validReturnUrl as string,
-	});
+	// Use bare callback URL without query params so it matches the redirect_uri
+	// used in the token exchange (callback/[provider]/route.ts).
+	// The return URL is carried via the OAuth state parameter instead.
+	const redirectUri = `${getSiteOrigin()}/auth/callback/${provider}`;
 
 	let oauthUrl: string;
 
 	if (provider === "github") {
 		const params = new URLSearchParams({
 			client_id: GITHUB_CLIENT_ID,
-			redirect_uri: callbackUrl,
+			redirect_uri: redirectUri,
 			scope: "read:user user:email repo",
 			state: validReturnUrl as string,
 		});
@@ -33,7 +35,7 @@ function authorizeOAuth(provider: OAuthProvider, formData?: FormData): never {
 	} else if (provider === "google") {
 		const params = new URLSearchParams({
 			client_id: GOOGLE_CLIENT_ID,
-			redirect_uri: callbackUrl,
+			redirect_uri: redirectUri,
 			response_type: "code",
 			scope: "openid email profile",
 			state: validReturnUrl as string,
