@@ -489,41 +489,45 @@ export const giselle = NextGiselle({
 	logger,
 	async onRequest({ updateContext }) {
 		const useGenerateContentNode = await generateContentNodeFlag();
-		const currentTeamForCreds = await fetchCurrentTeam().catch((err) => {
-			console.error("[onRequest] fetchCurrentTeam failed:", err?.message || err);
-			return null;
-		});
-		console.log("[onRequest] currentTeamForCreds:", currentTeamForCreds ? `dbId=${currentTeamForCreds.dbId}` : "null");
 		updateContext({
 			experimental_contentGenerationNode: useGenerateContentNode,
-			resolveIntegrationCredential: currentTeamForCreds
-				? async (credentialId: string) => {
-						const { getCredential } = await import(
-							"@/services/integrations/credential-store"
-						);
-						const credential = await getCredential(
-							currentTeamForCreds.dbId,
-							Number.parseInt(credentialId, 10),
-						);
-						if (!credential) return null;
-						return {
-							authType: credential.authType,
-							config: credential.config,
-						};
-					}
-				: undefined,
-			updateIntegrationCredential: currentTeamForCreds
-				? async (credentialId: string, config: Record<string, unknown>) => {
-						const { updateCredential } = await import(
-							"@/services/integrations/credential-store"
-						);
-						await updateCredential({
-							teamDbId: currentTeamForCreds.dbId,
-							credentialId: Number.parseInt(credentialId, 10),
-							config,
-						});
-					}
-				: undefined,
+		});
+	},
+});
+
+// Set up credential resolution as lazy resolvers on the context.
+// These are called during Server Action execution (not HTTP routes),
+// so they resolve the current team on each invocation via cookies().
+giselle.updateContext({
+	resolveIntegrationCredential: async (credentialId: string) => {
+		const currentTeam = await fetchCurrentTeam().catch(() => null);
+		if (!currentTeam) return null;
+		const { getCredential } = await import(
+			"@/services/integrations/credential-store"
+		);
+		const credential = await getCredential(
+			currentTeam.dbId,
+			Number.parseInt(credentialId, 10),
+		);
+		if (!credential) return null;
+		return {
+			authType: credential.authType,
+			config: credential.config,
+		};
+	},
+	updateIntegrationCredential: async (
+		credentialId: string,
+		config: Record<string, unknown>,
+	) => {
+		const currentTeam = await fetchCurrentTeam().catch(() => null);
+		if (!currentTeam) return;
+		const { updateCredential } = await import(
+			"@/services/integrations/credential-store"
+		);
+		await updateCredential({
+			teamDbId: currentTeam.dbId,
+			credentialId: Number.parseInt(credentialId, 10),
+			config,
 		});
 	},
 });
