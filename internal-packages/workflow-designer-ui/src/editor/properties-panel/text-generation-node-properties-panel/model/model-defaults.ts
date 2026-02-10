@@ -62,7 +62,7 @@ export function createDefaultModelData(
 		case "xai":
 			return XaiLanguageModelData.parse({
 				provider: "xai",
-				id: "grok-3-mini",
+				id: "grok-4-1-fast-reasoning",
 				configurations: {
 					temperature: 0.7,
 					topP: 1.0,

@@ -1,9 +1,16 @@
-import { openai } from "@ai-sdk/openai";
+import { createOpenAI } from "@ai-sdk/openai";
 import type { UIMessage } from "ai";
 import { convertToModelMessages, stepCountIs, streamText } from "ai";
 import { createWorkflowTools } from "@/app/(main)/playground/lib/workflow-tools";
 import { getUser } from "@/lib/auth/get-user";
 import { WORKFLOW_SYSTEM_PROMPT } from "../system-prompt";
+
+function getXaiProvider() {
+	return createOpenAI({
+		apiKey: process.env.XAI_API_KEY ?? "",
+		baseURL: "https://api.x.ai/v1",
+	});
+}
 
 export async function POST(request: Request) {
 	try {
@@ -31,8 +38,9 @@ export async function POST(request: Request) {
 
 		const tools = createWorkflowTools();
 
+		const xai = getXaiProvider();
 		const result = streamText({
-			model: openai("gpt-4o"),
+			model: xai("grok-4-1-fast-reasoning"),
 			system: WORKFLOW_SYSTEM_PROMPT,
 			messages: modelMessages,
 			tools,
