@@ -156,7 +156,9 @@ export function ModelPicker({
 														? "Anthropic"
 														: p === "google"
 															? "Google"
-															: p;
+															: p === "xai"
+																? "xAI"
+																: p;
 										return (
 											<button
 												key={p}

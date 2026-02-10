@@ -51,15 +51,20 @@ import { buildMessageObject, getGeneration } from "./utils";
 import { transformGiselleLanguageModelToAiSdkLanguageModelCallOptions } from "./v2/language-model";
 import { buildToolSet } from "./v2/tools";
 
-const perplexity = createOpenAI({
-	apiKey: process.env.PERPLEXITY_API_KEY ?? "",
-	baseURL: "https://api.perplexity.ai/",
-});
+/** Create providers lazily so they pick up API keys set after module load (e.g. via admin panel). */
+function getPerplexityProvider() {
+	return createOpenAI({
+		apiKey: process.env.PERPLEXITY_API_KEY ?? "",
+		baseURL: "https://api.perplexity.ai/",
+	});
+}
 
-const xai = createOpenAI({
-	apiKey: process.env.XAI_API_KEY ?? "",
-	baseURL: "https://api.x.ai/v1",
-});
+function getXaiProvider() {
+	return createOpenAI({
+		apiKey: process.env.XAI_API_KEY ?? "",
+		baseURL: "https://api.x.ai/v1",
+	});
+}
 
 type StreamItem<T> = T extends AsyncIterableStream<infer Inner> ? Inner : never;
 
@@ -570,9 +575,9 @@ function generationModel(languageModel: TextGenerationLanguageModelData) {
 		case "google":
 			return google(languageModel.id);
 		case "perplexity":
-			return perplexity(languageModel.id);
+			return getPerplexityProvider()(languageModel.id);
 		case "xai":
-			return xai(languageModel.id);
+			return getXaiProvider()(languageModel.id);
 		default: {
 			const _exhaustiveCheck: never = llmProvider;
 			throw new Error(`Unknown LLM provider: ${_exhaustiveCheck}`);
@@ -591,9 +596,9 @@ function resolveModel(modelId: string) {
 		case "google":
 			return google(model);
 		case "perplexity":
-			return perplexity(model);
+			return getPerplexityProvider()(model);
 		case "xai":
-			return xai(model);
+			return getXaiProvider()(model);
 		default:
 			throw new Error(`Unknown provider: ${provider}`);
 	}
