@@ -26,11 +26,14 @@ export function Page({
 	workspaceNameUpdateAction,
 	workspaceSaveAction,
 }: Props) {
+	console.log("[page.client] use(dataLoader) about to resolve");
 	const data = use(dataLoader);
+	console.log("[page.client] data loaded, workspace nodes:", data.data?.nodes?.length ?? "unknown");
 	const client = useMemo(() => {
 		return createInternalGiselleClient();
 	}, []);
 
+	console.log("[page.client] About to render Editor");
 	return (
 		<GiselleClientProvider value={client}>
 			<AppDesignerProvider

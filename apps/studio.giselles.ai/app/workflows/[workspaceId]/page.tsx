@@ -26,6 +26,7 @@ export default async function ({
 		workspaceId: string;
 	}>;
 }) {
+	console.log("[page.tsx] Server component START");
 	const { data: workspaceId, success } = WorkspaceId.safeParse(
 		(await params).workspaceId,
 	);
@@ -33,12 +34,15 @@ export default async function ({
 		logger.debug(params);
 		return notFound();
 	}
+	console.log("[page.tsx] WorkspaceId parsed:", workspaceId);
 
 	const useNewLanguageModel = await generateContentNodeFlag();
+	console.log("[page.tsx] generateContentNodeFlag:", useNewLanguageModel);
 	if (useNewLanguageModel) {
 		giselle.updateContext({ experimental_contentGenerationNode: true });
 	}
 
+	console.log("[page.tsx] About to return JSX with Suspense");
 	return (
 		<Suspense fallback={<Loader />}>
 			<Page
