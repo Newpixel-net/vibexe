@@ -22,12 +22,18 @@ function Loader() {
 async function WorkflowContent({
 	workspaceId,
 }: { workspaceId: WorkspaceId }) {
+	console.log(`[page.tsx] WorkflowContent START for ${workspaceId}`);
+	const t0 = Date.now();
+
 	const data = await dataLoader(workspaceId);
+	console.log(`[page.tsx] dataLoader complete: ${Date.now() - t0}ms`);
 
 	// Force plain-object serialization to prevent RSC streaming hangs
 	// on non-serializable properties (Drizzle ORM records, Date objects, etc.)
 	const safeData = JSON.parse(JSON.stringify(data));
+	console.log(`[page.tsx] JSON serialization complete: ${Date.now() - t0}ms`);
 
+	console.log(`[page.tsx] Returning <Page> component: ${Date.now() - t0}ms`);
 	return (
 		<Page
 			data={safeData}
@@ -100,6 +106,7 @@ export default async function ({
 		workspaceId: string;
 	}>;
 }) {
+	console.log("[page.tsx] Default export START");
 	const { data: workspaceId, success } = WorkspaceId.safeParse(
 		(await params).workspaceId,
 	);
@@ -108,11 +115,16 @@ export default async function ({
 		return notFound();
 	}
 
+	console.log(`[page.tsx] workspaceId parsed: ${workspaceId}`);
 	const useNewLanguageModel = await generateContentNodeFlag();
+	console.log(
+		`[page.tsx] generateContentNodeFlag: ${useNewLanguageModel}`,
+	);
 	if (useNewLanguageModel) {
 		giselle.updateContext({ experimental_contentGenerationNode: true });
 	}
 
+	console.log("[page.tsx] Returning Suspense wrapper");
 	return (
 		<Suspense fallback={<Loader />}>
 			<WorkflowContent workspaceId={workspaceId} />

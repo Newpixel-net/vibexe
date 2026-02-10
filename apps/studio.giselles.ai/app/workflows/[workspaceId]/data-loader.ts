@@ -28,49 +28,102 @@ import { fetchCurrentUser } from "@/services/accounts";
 import { fetchWorkspaceTeam, isMemberOfTeam } from "@/services/teams";
 import { isInternalPlan } from "@/services/teams/utils";
 
+/** Wrap a promise with a timeout. Returns fallback if the promise doesn't resolve in time. */
+function withTimeout<T>(
+	promise: Promise<T>,
+	ms: number,
+	fallback: T,
+): Promise<T> {
+	return Promise.race([
+		promise,
+		new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+	]);
+}
+
 export async function dataLoader(workspaceId: WorkspaceId) {
-	logger.debug("Loading workspace");
+	const t0 = Date.now();
+	const mark = (label: string) =>
+		console.log(`[dataLoader] ${label}: ${Date.now() - t0}ms`);
+
+	mark("START");
+
+	// Step 1: Agent lookup (required for everything else)
 	const agent = await db.query.agents.findFirst({
 		where: (agents, { eq }) => eq(agents.workspaceId, workspaceId),
 	});
+	mark("agent query done");
 	if (agent === undefined) {
 		return notFound();
 	}
-	const currentUser = await fetchCurrentUser();
 
-	// Check if user is a member of the workspace's team before other operations
+	// Step 2: Auth check (required before proceeding)
+	const currentUser = await fetchCurrentUser();
+	mark("fetchCurrentUser done");
+
 	const isUserMemberOfWorkspaceTeam = await isMemberOfTeam(
 		currentUser.dbId,
 		agent.teamDbId,
 	);
+	mark("isMemberOfTeam done");
 	if (!isUserMemberOfWorkspaceTeam) {
 		return notFound();
 	}
 
-	const gitHubIntegrationState = await getGitHubIntegrationState(agent.dbId);
+	// Step 3: Parallel batch - independent operations that all need agent.teamDbId
+	const [gitHubIntegrationState, workspaceTeam] = await Promise.all([
+		// Guard GitHub API calls with 5-second timeout
+		withTimeout(
+			getGitHubIntegrationState(agent.dbId),
+			5000,
+			{ status: "unauthorized" as const, authUrl: "/auth/connect/github" },
+		),
+		fetchWorkspaceTeam(agent.teamDbId),
+	]);
+	mark("github + workspaceTeam done");
 
-	const workspaceTeam = await fetchWorkspaceTeam(agent.teamDbId);
 	if (!workspaceTeam) {
 		return notFound();
 	}
 
 	const sdkAvailability = isInternalPlan(workspaceTeam);
-	const usageLimits = await getUsageLimitsForTeam(workspaceTeam);
-	const webSearchAction = await webSearchActionFlag();
-	const layoutV3 = await layoutV3Flag();
+
+	// Step 4: Big parallel batch - workspace data, usage limits, flags, vector stores
+	const [
+		usageLimits,
+		data,
+		webSearchAction,
+		layoutV3,
+		aiGateway,
+		aiGatewayUnsupportedModels,
+		googleUrlContext,
+		generateContentNode,
+		privatePreviewTools,
+		dataStore,
+		teamGitHubRepositoryIndexes,
+		officialGitHubRepositoryIndexes,
+		teamDocumentStores,
+		officialDocumentStores,
+		teamDataStores,
+	] = await Promise.all([
+		getUsageLimitsForTeam(workspaceTeam),
+		giselle.getWorkspace(workspaceId),
+		webSearchActionFlag(),
+		layoutV3Flag(),
+		aiGatewayFlag(),
+		aiGatewayUnsupportedModelsFlag(),
+		googleUrlContextFlag(),
+		generateContentNodeFlag(),
+		privatePreviewToolsFlag(),
+		dataStoreFlag(),
+		getGitHubRepositoryIndexes(workspaceTeam.dbId),
+		getOfficialGitHubRepositoryIndexes(),
+		getDocumentVectorStores(workspaceTeam.dbId),
+		getOfficialDocumentVectorStores(),
+		getTeamDataStores(workspaceTeam.dbId),
+	]);
+	mark("parallel batch done (workspace + flags + stores)");
+
 	const stage = true;
-	const aiGateway = await aiGatewayFlag();
-	const aiGatewayUnsupportedModels = await aiGatewayUnsupportedModelsFlag();
-	const googleUrlContext = await googleUrlContextFlag();
-	const data = await giselle.getWorkspace(workspaceId);
-	const generateContentNode = await generateContentNodeFlag();
-	const privatePreviewTools = await privatePreviewToolsFlag();
-	const dataStore = await dataStoreFlag();
-	const [teamGitHubRepositoryIndexes, officialGitHubRepositoryIndexes] =
-		await Promise.all([
-			getGitHubRepositoryIndexes(workspaceTeam.dbId),
-			getOfficialGitHubRepositoryIndexes(),
-		]);
 
 	const officialGitHubIds = new Set(
 		officialGitHubRepositoryIndexes.map((r) => r.id),
@@ -86,13 +139,6 @@ export async function dataLoader(workspaceId: WorkspaceId) {
 			.map((repo) => ({ ...repo, isOfficial: true })),
 	];
 
-	const [teamDocumentStores, officialDocumentStores, teamDataStores] =
-		await Promise.all([
-			getDocumentVectorStores(workspaceTeam.dbId),
-			getOfficialDocumentVectorStores(),
-			getTeamDataStores(workspaceTeam.dbId),
-		]);
-
 	// Merge stores with isOfficial flag, deduplicating official stores already in team stores
 	const officialStoreIds = new Set(officialDocumentStores.map((s) => s.id));
 	const teamStoreIds = new Set(teamDocumentStores.map((s) => s.id));
@@ -107,6 +153,8 @@ export async function dataLoader(workspaceId: WorkspaceId) {
 	];
 
 	const llmProviders = giselle.getLanguageModelProviders();
+
+	mark("DONE");
 
 	return {
 		currentUser,
