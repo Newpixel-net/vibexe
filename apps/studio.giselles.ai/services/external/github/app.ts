@@ -11,10 +11,10 @@ import { Octokit } from "@octokit/core";
  * @throws {Error} If the request to get app information fails.
  */
 export async function gitHubAppInstallURL(): Promise<string | undefined> {
-	const auth = appAuth();
-	const app = await auth({ type: "app" });
-	const octokit = new Octokit({ auth: app.token });
 	try {
+		const auth = appAuth();
+		const app = await auth({ type: "app" });
+		const octokit = new Octokit({ auth: app.token });
 		const res = await octokit.request("GET /app");
 		if (res.status !== 200 || !res.data) {
 			throw new Error("Failed to get app information");
