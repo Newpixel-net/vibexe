@@ -157,9 +157,12 @@ export function executeIntegration(args: {
 				// Resolve credentials if available, with automatic token refresh
 				let auth: unknown = null;
 				const credentialId = operationNode.content.credentialId;
+				console.log("[execute-integration] credentialId:", credentialId, "type:", typeof credentialId);
+				console.log("[execute-integration] resolveIntegrationCredential exists:", !!args.context.resolveIntegrationCredential);
 				if (credentialId && args.context.resolveIntegrationCredential) {
 					const credential =
 						await args.context.resolveIntegrationCredential(credentialId);
+					console.log("[execute-integration] resolved credential:", credential ? `${credential.authType} found` : "null");
 					if (credential) {
 						// Refresh expired OAuth2 tokens before execution
 						const { credential: freshCred, refreshed } =
