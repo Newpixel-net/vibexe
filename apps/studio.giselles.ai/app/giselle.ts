@@ -441,7 +441,7 @@ export const githubWebhookCallbacks = {
 export const giselle = NextGiselle({
 	basePath: "/api/giselle",
 	storage,
-	llmProviders: ["openai", "anthropic", "google"],
+	llmProviders: ["openai", "anthropic", "google", "xai"],
 	apiSecretScrypt: {
 		params: {
 			n: parseEnvNumber(process.env.GISELLE_API_SECRET_SCRYPT_N, 16384),
