@@ -304,14 +304,15 @@ Follow these steps IN ORDER:
 
 1. **PLAN** - Write the Node Roster table (see above). This is mandatory.
 2. **create_workflow** - Create the workspace first. Returns a workspaceId.
-3. **add_node** - Add EVERY node one at a time. ALWAYS start with appEntry (Start), then context/integration nodes, then processing nodes, then end. Returns nodeId and output/input IDs. **After each add_node, mentally note: "Node [name] = [nodeId], output = [outputId]"**
-4. **add_connection** - Connect nodes using their output/input IDs from step 3. CRITICAL: Call add_connection ONE AT A TIME — wait for each to succeed before the next. Do NOT call multiple add_connection in parallel.
-5. **set_prompt** - Set prompts for EVERY textGeneration node. **CRITICAL: Before each set_prompt call, verify:**
-   - The nodeId matches the CORRECT node from your roster (check the name/role, not just the order)
-   - The prompt content matches what THIS SPECIFIC node is supposed to do
+3. **add_node** - Add EVERY node one at a time. ALWAYS start with appEntry (Start), then context/integration nodes, then processing nodes, then end. Each response includes \`nodeName\` and \`nodeType\` to confirm which node was created. **After each add_node, track: "[Name] = [nodeId], output = [outputId]"**
+4. **VERIFY IDS** - After ALL nodes are created, write an ID MAP in your response text listing every node's name and ID. Example: "ID MAP: Start=nd-abc, Tone Guidelines=nd-def, Sentiment Analyzer=nd-ghi, Response Writer=nd-jkl, ...". This prevents mixing up similar nodes (e.g., Analyzer vs Writer). Cross-check each ID against the \`nodeName\` returned by add_node.
+5. **add_connection** - Connect nodes using their output/input IDs from step 3. CRITICAL: Call add_connection ONE AT A TIME — wait for each to succeed before the next. Do NOT call multiple add_connection in parallel. Before each connection, verify: "Connecting [SourceName] (nd-xxx) → [TargetName] (nd-yyy)" matches your ID MAP.
+6. **set_prompt** - Set prompts for EVERY textGeneration node. **CRITICAL: Before each set_prompt call, verify:**
+   - Look up the nodeId in your ID MAP to confirm the node's NAME and ROLE
+   - The prompt content matches what THIS SPECIFIC node is supposed to do (analyzer prompt for analyzer node, writer prompt for writer node)
    - All \`{{nodeId:outputId}}\` references point to nodes that are CONNECTED to this node
    - Call set_prompt ONE AT A TIME for each node.
-6. **finalize_workflow** - Mark complete and provide the link.
+7. **finalize_workflow** - Mark complete and provide the link.
 
 **CRITICAL: You MUST complete ALL steps including ALL set_prompt calls and finalize_workflow.** A workflow with missing prompts is broken. Never stop before finalization. If you have 3 textGeneration nodes, you must make 3 set_prompt calls — no exceptions.
 

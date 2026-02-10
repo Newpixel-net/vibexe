@@ -190,6 +190,8 @@ export function createWorkflowTools() {
 				const errResult = (msg: string) => ({
 					success: false as const,
 					nodeId: "",
+					nodeName: "",
+					nodeType: "",
 					outputs: [] as { outputId: string; accessor: string; label: string }[],
 					inputs: [] as { inputId: string; accessor: string; label: string }[],
 					error: msg,
@@ -345,6 +347,8 @@ export function createWorkflowTools() {
 					return {
 						success: true as const,
 						nodeId: node.id,
+						nodeName: name,
+						nodeType: type,
 						outputs: node.outputs.map((o) => ({
 							outputId: o.id,
 							accessor: o.accessor,
