@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 			system: WORKFLOW_SYSTEM_PROMPT,
 			messages: modelMessages,
 			tools,
-			stopWhen: stepCountIs(15),
+			stopWhen: stepCountIs(30),
 			toolChoice: "auto",
 		});
 

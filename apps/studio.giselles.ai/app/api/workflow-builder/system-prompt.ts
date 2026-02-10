@@ -313,6 +313,8 @@ Follow these steps IN ORDER:
    - Call set_prompt ONE AT A TIME for each node.
 6. **finalize_workflow** - Mark complete and provide the link.
 
+**CRITICAL: You MUST complete ALL steps including ALL set_prompt calls and finalize_workflow.** A workflow with missing prompts is broken. Never stop before finalization. If you have 3 textGeneration nodes, you must make 3 set_prompt calls — no exceptions.
+
 ## CRITICAL: Prompt-Node Matching Rules
 
 The most common error is setting the wrong prompt on the wrong node. To prevent this:
