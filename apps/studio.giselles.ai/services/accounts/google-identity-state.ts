@@ -1,4 +1,3 @@
-import { getUser } from "@/lib/auth/get-user";
 import {
 	buildGoogleUserClient,
 	type GoogleUserClient,
@@ -36,9 +35,7 @@ export async function getGoogleIdentityState(): Promise<GoogleIdentityState> {
 	const googleUserClient = buildGoogleUserClient(credential);
 	try {
 		const googleUser = await googleUserClient.getUser();
-		const supabaseUser = await getUser();
-		const unlinkable =
-			(supabaseUser.identities && supabaseUser.identities.length > 1) ?? false;
+		const unlinkable = false;
 
 		return { status: "authorized", googleUser, googleUserClient, unlinkable };
 	} catch (error) {

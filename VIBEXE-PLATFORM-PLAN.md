@@ -47,7 +47,7 @@ vibexe.online (Next.js app)
 - **Interface**: Chat-based with live Sandpack preview, file explorer, code editor
 - **How it works**: User describes app in chat -> AI generates React/TypeScript code -> live preview updates
 - **Route**: `/app-builder` (list), `/app-builder/{bapp-id}` (builder)
-- **Auth**: Uses `getUser()` from `@/lib/supabase/get-user`
+- **Auth**: Uses `getUser()` from `@/lib/auth/get-user`
 - **Current state**: Fully working, main feature
 
 #### 2. Giselle Workspaces (Original - `/workspaces`)

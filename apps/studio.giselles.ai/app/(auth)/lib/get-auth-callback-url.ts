@@ -1,4 +1,3 @@
-// https://supabase.com/docs/guides/auth/redirect-urls
 import type { OAuthProvider } from "@/services/accounts";
 
 const DEFAULT_ORIGIN = "https://vibexe.online";

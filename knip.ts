@@ -12,8 +12,8 @@ const config: KnipConfig = {
 		],
 		// Session management utilities exported for runtime use
 		"apps/studio.giselles.ai/lib/session-store.ts": ["exports", "types"],
-		// Supabase utilities exported for runtime use
-		"apps/studio.giselles.ai/lib/supabase/get-user.ts": ["types"],
+		// Auth utilities exported for runtime use
+		"apps/studio.giselles.ai/lib/auth/get-user.ts": ["types"],
 		// UI components exported for composition
 		"apps/studio.giselles.ai/components/ui/scroll-area.tsx": ["exports"],
 		// Utility functions exported for runtime use
@@ -23,8 +23,6 @@ const config: KnipConfig = {
 		"apps/playground": {
 			ignoreDependencies: [
 				"@aws-sdk/client-s3",
-				"@supabase/realtime-js",
-				"@supabase/supabase-js",
 				"happy-dom",
 				"jsdom",
 				"pg",

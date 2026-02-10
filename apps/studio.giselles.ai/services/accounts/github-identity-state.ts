@@ -1,5 +1,4 @@
 import type { components } from "@octokit/openapi-types";
-import { getUser } from "@/lib/auth/get-user";
 import {
 	buildGitHubUserClient,
 	type GitHubUserClient,
@@ -41,9 +40,7 @@ export async function getGitHubIdentityState(): Promise<GitHubIdentityState> {
 	const gitHubUserClient = buildGitHubUserClient(credential);
 	try {
 		const gitHubUser = await gitHubUserClient.getUser();
-		const supabaseUser = await getUser();
-		const unlinkable =
-			(supabaseUser.identities && supabaseUser.identities.length > 1) ?? false;
+		const unlinkable = false;
 
 		return { status: "authorized", gitHubUser, gitHubUserClient, unlinkable };
 	} catch (error: unknown) {

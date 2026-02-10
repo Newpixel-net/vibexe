@@ -70,14 +70,14 @@ function DropdownMenuSubTrigger({
 }
 
 export async function getCurrentUser() {
-	const [supabaseUser, currentUser, currentTeam] = await Promise.all([
+	const [authUser, currentUser, currentTeam] = await Promise.all([
 		getUser(),
 		getCurrentUserApi(),
 		fetchCurrentTeam(),
 	]);
 
 	if (currentUser.email === null) {
-		logger.warn(`email not set for:  ${supabaseUser.id}`);
+		logger.warn(`email not set for:  ${authUser.id}`);
 	}
 
 	return {
