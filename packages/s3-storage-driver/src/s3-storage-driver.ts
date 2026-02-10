@@ -16,7 +16,7 @@ import type {
 } from "@giselles-ai/storage";
 import type { z } from "zod/v4";
 
-export interface SupabaseStorageDriverConfig {
+export interface S3StorageDriverConfig {
 	endpoint: string;
 	region: string;
 	accessKeyId: string;
@@ -38,11 +38,9 @@ async function streamToUint8Array(stream: Readable): Promise<Uint8Array> {
 	return new Uint8Array(Buffer.concat(chunks));
 }
 
-export function supabaseStorageDriver(
-	config: SupabaseStorageDriverConfig,
+export function s3StorageDriver(
+	config: S3StorageDriverConfig,
 ): GiselleStorage {
-	// Lazy S3Client - only created when first method is called (avoids build-time throw
-	// when SUPABASE_STORAGE_REGION is not set)
 	let _client: S3Client | null = null;
 	function getClient(): S3Client {
 		if (!_client) {
@@ -144,8 +142,6 @@ export function supabaseStorageDriver(
 				);
 				return true;
 			} catch (err) {
-				// AWS SDK v3 typically throws errors with $metadata.httpStatusCode
-				// Both 404 (not found) and 403 (forbidden when object doesn't exist) indicate non-existence
 				if (err && typeof err === "object" && "$metadata" in err) {
 					const metadata = err.$metadata as { httpStatusCode?: number };
 					if (
@@ -155,7 +151,6 @@ export function supabaseStorageDriver(
 						return false;
 					}
 				}
-				// Re-throw other errors
 				throw err;
 			}
 		},

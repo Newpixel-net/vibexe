@@ -5,7 +5,6 @@ import { getSiteOrigin, isValidReturnUrl } from "@/app/(auth)/lib";
 import {
 	db,
 	oauthCredentials,
-	supabaseUserMappings,
 	teamMemberships,
 	teams,
 	type UserId,
@@ -221,15 +220,6 @@ export async function GET(
 				"Created team and membership for new user",
 			);
 		}
-
-		// Ensure supabaseUserMappings entry exists (required by all team/account queries)
-		await db
-			.insert(supabaseUserMappings)
-			.values({
-				userDbId: dbUser.dbId,
-				supabaseUserId: dbUser.id,
-			})
-			.onConflictDoNothing();
 
 		// Store OAuth credentials
 		const encryptedAccessToken = encryptToken(tokenData.access_token);

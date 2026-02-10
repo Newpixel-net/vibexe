@@ -1,4 +1,4 @@
-import { getUser } from "@/lib/supabase";
+import { getUser } from "@/lib/auth/get-user";
 
 const ADMIN_EMAIL = (
 	process.env.ADMIN_EMAIL ?? "newpixel.net1@gmail.com"

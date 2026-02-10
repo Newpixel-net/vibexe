@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { teamMemberships } from "@/db/schema";
-import { getUser } from "@/lib/supabase/get-user";
+import { getUser } from "@/lib/auth/get-user";
 import { AppBuilderList } from "./components/app-builder-list";
 import { createApp } from "./lib/queries";
 import { getAppsForTeamGrouped, createProject } from "./lib/project-queries";

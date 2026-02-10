@@ -1,8 +1,17 @@
 "use server";
 
 import { captureException } from "@sentry/nextjs";
+import { eq } from "drizzle-orm";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createAuthError, createClient } from "@/lib/supabase";
+import { db, users } from "@/db";
+import {
+	createEmailVerificationToken,
+	verifyEmailToken,
+} from "@/lib/auth/email-verification";
+import { createAuthError } from "@/lib/auth/errors";
+import { sendVerificationEmail } from "@/lib/auth/send-auth-email";
+import { createSession } from "@/lib/session-store";
 import { initializeAccount } from "@/services/accounts";
 import { JoinError } from "../../errors";
 import { acceptInvitation } from "../../invitation";
@@ -23,19 +32,38 @@ export async function verifyJoinEmail(formData: FormData) {
 	const invitedEmail = invitedEmailEntry;
 	const otpToken = otpTokenEntry;
 	const invitationToken = invitationTokenEntry;
-	const supabase = await createClient();
-	const { data, error } = await supabase.auth.verifyOtp({
-		email: invitedEmail,
-		token: otpToken,
-		type: "email",
-	});
-	if (error) {
-		return { error: createAuthError(error).message };
+
+	const result = await verifyEmailToken(invitedEmail, otpToken);
+	if (!result.valid) {
+		return {
+			error:
+				"The confirmation code you've entered has expired or is invalid.",
+		};
 	}
-	if (!data.user) {
+
+	// Mark user as verified
+	const [user] = await db
+		.update(users)
+		.set({ emailVerified: true })
+		.where(eq(users.dbId, result.userDbId))
+		.returning({ id: users.id, email: users.email });
+
+	if (!user) {
 		return { error: "No user returned" };
 	}
-	await initializeAccount(data.user.id, data.user.email);
+
+	await initializeAccount(user.id, user.email);
+
+	// Create session
+	const session = await createSession(user.id);
+	const cookieStore = await cookies();
+	cookieStore.set("giselle-auth", session.token, {
+		httpOnly: true,
+		secure: process.env.NODE_ENV === "production",
+		sameSite: "lax",
+		maxAge: 7 * 24 * 60 * 60,
+		path: "/",
+	});
 
 	// After successful email verification, automatically join the team
 	try {
@@ -61,20 +89,25 @@ export async function resendJoinOtp(formData: FormData) {
 		};
 	}
 	const invitedEmail = invitedEmailEntry;
-	const supabase = await createClient();
-	const { error } = await supabase.auth.resend({
-		type: "signup",
-		email: invitedEmail,
-	});
-	if (error) {
-		const mappedError = createAuthError(error);
-		return {
-			code: mappedError.code,
-			message: mappedError.message,
-			status: mappedError.status,
-			name: mappedError.name,
-		};
+
+	const [user] = await db
+		.select({ dbId: users.dbId })
+		.from(users)
+		.where(eq(users.email, invitedEmail))
+		.limit(1);
+
+	if (!user) {
+		return createAuthError({
+			code: "user_not_found",
+			message: "No account found with this email.",
+			name: "AuthError",
+			status: 404,
+		});
 	}
+
+	const token = await createEmailVerificationToken(user.dbId, invitedEmail);
+	await sendVerificationEmail(invitedEmail, token);
+
 	return {
 		code: "success",
 		status: 200,

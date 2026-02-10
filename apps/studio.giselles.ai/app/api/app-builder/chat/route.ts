@@ -14,7 +14,7 @@ import {
 	getAppById,
 	getFilesForApp,
 } from "@/app/(main)/app-builder/lib/queries";
-import { getUser } from "@/lib/supabase/get-user";
+import { getUser } from "@/lib/auth/get-user";
 
 // System prompt for app generation mode
 const GENERATION_SYSTEM_PROMPT = `You are an expert full-stack developer who builds complete, working React applications.

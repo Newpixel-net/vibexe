@@ -5,14 +5,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
 	db,
-	supabaseUserMappings,
 	type TeamRole,
 	type UserId,
 	users,
 } from "@/db";
 import { updateGiselleSession } from "@/lib/giselle-session";
 import { logger } from "@/lib/logger";
-import { getUser } from "@/lib/supabase";
+import { getUser } from "@/lib/auth/get-user";
 import {
 	connectIdentity,
 	disconnectIdentity,
@@ -85,22 +84,13 @@ export async function disconnectGitHubIdentity() {
 
 export async function getAccountInfo() {
 	try {
-		const supabaseUser = await getUser();
+		const user = await getUser();
 
-		const [user] = await db
-			.select({
-				displayName: users.displayName,
-				email: users.email,
-				avatarUrl: users.avatarUrl,
-			})
-			.from(users)
-			.innerJoin(
-				supabaseUserMappings,
-				eq(users.dbId, supabaseUserMappings.userDbId),
-			)
-			.where(eq(supabaseUserMappings.supabaseUserId, supabaseUser.id));
-
-		return user;
+		return {
+			displayName: user.displayName ?? null,
+			email: user.email ?? null,
+			avatarUrl: user.avatarUrl ?? null,
+		};
 	} catch (error) {
 		logger.error(error, "Failed to get account info:");
 		throw error;
@@ -109,23 +99,18 @@ export async function getAccountInfo() {
 
 export async function updateDisplayName(formData: FormData) {
 	try {
-		const supabaseUser = await getUser();
+		const user = await getUser();
 
-		if (!supabaseUser) {
+		if (!user) {
 			throw new Error("User not found");
 		}
 
 		const displayName = formData.get("displayName") as string;
 
-		const userDbIdSubquery = db
-			.select({ userDbId: supabaseUserMappings.userDbId })
-			.from(supabaseUserMappings)
-			.where(eq(supabaseUserMappings.supabaseUserId, supabaseUser.id));
-
 		await db
 			.update(users)
 			.set({ displayName })
-			.where(eq(users.dbId, userDbIdSubquery));
+			.where(eq(users.dbId, user.dbId));
 
 		revalidatePath("/settings/account");
 		revalidatePath("/", "layout");
@@ -186,7 +171,7 @@ export async function leaveTeam(
 
 export async function updateAvatar(formData: FormData) {
 	try {
-		const supabaseUser = await getUser();
+		const user = await getUser();
 
 		const file = formData.get("avatar") as File | null;
 		if (!file) {
@@ -199,36 +184,25 @@ export async function updateAvatar(formData: FormData) {
 			throw new Error(validation.error);
 		}
 
-		const [currentUser] = await db
-			.select({ avatarUrl: users.avatarUrl })
-			.from(users)
-			.innerJoin(
-				supabaseUserMappings,
-				eq(users.dbId, supabaseUserMappings.userDbId),
-			)
-			.where(eq(supabaseUserMappings.supabaseUserId, supabaseUser.id));
+		const oldAvatarUrl = user.avatarUrl;
 
 		const avatarUrl = await uploadAvatar(
 			file,
 			"avatars",
-			supabaseUser.id,
+			user.id,
 			validation.mimeType,
 			validation.ext,
 		);
-		const userDbIdSubquery = db
-			.select({ userDbId: supabaseUserMappings.userDbId })
-			.from(supabaseUserMappings)
-			.where(eq(supabaseUserMappings.supabaseUserId, supabaseUser.id));
 
 		await db
 			.update(users)
 			.set({ avatarUrl })
-			.where(eq(users.dbId, userDbIdSubquery));
+			.where(eq(users.dbId, user.dbId));
 
 		// Delete old avatar after successful DB update (failure is acceptable)
-		if (currentUser?.avatarUrl) {
+		if (oldAvatarUrl) {
 			try {
-				await deleteAvatar(currentUser.avatarUrl);
+				await deleteAvatar(oldAvatarUrl);
 			} catch (error) {
 				// Log error but don't fail the request
 				logger.error(error, "Failed to delete old avatar:");

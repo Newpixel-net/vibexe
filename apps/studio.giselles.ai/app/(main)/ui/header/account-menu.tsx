@@ -7,7 +7,7 @@ import { use } from "react";
 import type { TeamPlan } from "@/db";
 import { getCurrentUser as getCurrentUserApi } from "@/lib/get-current-user";
 import { logger } from "@/lib/logger";
-import { getUser } from "@/lib/supabase";
+import { getUser } from "@/lib/auth/get-user";
 import { AvatarImage } from "@/services/accounts/components/user-button/avatar-image";
 import { SignOutButton } from "@/services/accounts/components/user-button/sign-out-button";
 import { fetchCurrentTeam } from "@/services/teams";

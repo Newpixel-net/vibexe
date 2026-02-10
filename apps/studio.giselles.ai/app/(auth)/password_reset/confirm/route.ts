@@ -1,32 +1,38 @@
-// The client you created from the Server-Side Auth instructions
-
-import type { EmailOtpType } from "@supabase/supabase-js";
+import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase";
-import { isValidReturnUrl } from "../../lib";
+import { db, users } from "@/db";
+import { verifyPasswordResetToken } from "@/lib/auth/password-reset";
+import { createSession } from "@/lib/session-store";
 
 export async function GET(request: NextRequest) {
 	const { searchParams } = new URL(request.url);
-	const token_hash = searchParams.get("token_hash");
-	const type = searchParams.get("type") as EmailOtpType | null;
-	const nextParam = searchParams.get("next");
-	const next = isValidReturnUrl(nextParam) ? nextParam : "/";
+	const tokenHash = searchParams.get("token_hash");
 	const redirectTo = request.nextUrl.clone();
-	redirectTo.pathname = next;
 
-	if (token_hash && type) {
-		const supabase = await createClient();
+	if (tokenHash) {
+		const result = await verifyPasswordResetToken(tokenHash);
+		if (result.valid) {
+			// Find user and create session so they can update their password
+			const [user] = await db
+				.select({ id: users.id })
+				.from(users)
+				.where(eq(users.dbId, result.userDbId))
+				.limit(1);
 
-		const { data, error } = await supabase.auth.verifyOtp({
-			type,
-			token_hash,
-		});
-		if (data.session === null || error !== null) {
-			redirectTo.pathname = "/password_reset";
-			return NextResponse.redirect(redirectTo);
+			if (user) {
+				const session = await createSession(user.id);
+				redirectTo.pathname = "/password_reset/new_password";
+				const response = NextResponse.redirect(redirectTo);
+				response.cookies.set("giselle-auth", session.token, {
+					httpOnly: true,
+					secure: process.env.NODE_ENV === "production",
+					sameSite: "lax",
+					maxAge: 7 * 24 * 60 * 60,
+					path: "/",
+				});
+				return response;
+			}
 		}
-		await supabase.auth.setSession(data.session);
-		return NextResponse.redirect(redirectTo);
 	}
 
 	redirectTo.pathname = "/password_reset";

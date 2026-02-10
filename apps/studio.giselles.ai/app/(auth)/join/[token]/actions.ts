@@ -1,16 +1,21 @@
 "use server";
 
 import { captureException } from "@sentry/nextjs";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revokeInvitation } from "@/app/(main)/settings/team/invitation";
-import { createClient } from "@/lib/supabase/server";
+import { deleteSession } from "@/lib/session-store";
 import { JoinError } from "./errors";
 import { acceptInvitation } from "./invitation";
 
 export async function signoutUser(formData: FormData) {
 	const token = formData.get("token") as string;
-	const supabase = await createClient();
-	await supabase.auth.signOut();
+	const cookieStore = await cookies();
+	const sessionToken = cookieStore.get("giselle-auth")?.value;
+	if (sessionToken) {
+		await deleteSession(sessionToken);
+	}
+	cookieStore.delete("giselle-auth");
 	redirect(`/join/${encodeURIComponent(token)}/login`);
 }
 

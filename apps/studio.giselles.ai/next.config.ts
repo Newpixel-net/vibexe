@@ -15,8 +15,6 @@ export const serverExternalPackages = [
 	"pino",
 	"pino-pretty",
 	"happy-dom",
-	"@supabase/supabase-js",
-	"@supabase/realtime-js",
 	"@activepieces/pieces-framework",
 	"@activepieces/pieces-common",
 	"@activepieces/shared",
@@ -113,11 +111,11 @@ const nextConfig: NextConfig = {
 				protocol: "https",
 				hostname: "lh3.googleusercontent.com",
 			},
-			...(process.env.NEXT_PUBLIC_SUPABASE_URL
+			...(process.env.S3_STORAGE_URL
 				? [
 						{
 							protocol: "https" as const,
-							hostname: new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname,
+							hostname: new URL(process.env.S3_STORAGE_URL).hostname,
 						},
 					]
 				: []),

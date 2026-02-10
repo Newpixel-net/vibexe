@@ -1,8 +1,8 @@
 import { and, asc, eq } from "drizzle-orm";
 import { cache } from "react";
-import { db, supabaseUserMappings, teamMemberships, teams } from "@/db";
+import { db, teamMemberships, teams } from "@/db";
 import { getGiselleSession } from "@/lib/giselle-session";
-import { getUser } from "@/lib/supabase";
+import { getUser } from "@/lib/auth/get-user";
 import type { CurrentTeam, TeamId } from "./types";
 
 /**
@@ -11,18 +11,18 @@ import type { CurrentTeam, TeamId } from "./types";
  * If the user does not have a team, the first team is returned.
  */
 async function fetchCurrentTeam(): Promise<CurrentTeam> {
-	const supabaseUser = await getUser();
+	const user = await getUser();
 	const session = await getGiselleSession();
 	const teamId = session?.teamId;
 
 	if (teamId == null) {
-		return fetchFirstTeam(supabaseUser.id);
+		return fetchFirstTeam(user.dbId);
 	}
 
-	const team = await fetchTeam(teamId, supabaseUser.id);
+	const team = await fetchTeam(teamId, user.dbId);
 	if (team == null) {
 		// fallback to first team
-		return fetchFirstTeam(supabaseUser.id);
+		return fetchFirstTeam(user.dbId);
 	}
 	return team;
 }
@@ -30,7 +30,7 @@ async function fetchCurrentTeam(): Promise<CurrentTeam> {
 const cachedFetchCurrentTeam = cache(fetchCurrentTeam);
 export { cachedFetchCurrentTeam as fetchCurrentTeam };
 
-async function fetchTeam(teamId: TeamId, supabaseUserId: string) {
+async function fetchTeam(teamId: TeamId, userDbId: number) {
 	const result = await db
 		.select({
 			id: teams.id,
@@ -42,15 +42,10 @@ async function fetchTeam(teamId: TeamId, supabaseUserId: string) {
 			activeCustomerId: teams.activeCustomerId,
 		})
 		.from(teams)
-		// join teamMemberships and supabaseUserMappings to check user's membership
 		.innerJoin(teamMemberships, eq(teams.dbId, teamMemberships.teamDbId))
-		.innerJoin(
-			supabaseUserMappings,
-			eq(teamMemberships.userDbId, supabaseUserMappings.userDbId),
-		)
 		.where(
 			and(
-				eq(supabaseUserMappings.supabaseUserId, supabaseUserId),
+				eq(teamMemberships.userDbId, userDbId),
 				eq(teams.id, teamId),
 			),
 		);
@@ -60,7 +55,7 @@ async function fetchTeam(teamId: TeamId, supabaseUserId: string) {
 	return result[0];
 }
 
-async function fetchFirstTeam(supabaseUserId: string) {
+async function fetchFirstTeam(userDbId: number) {
 	const team = await db
 		.select({
 			id: teams.id,
@@ -73,11 +68,7 @@ async function fetchFirstTeam(supabaseUserId: string) {
 		})
 		.from(teams)
 		.innerJoin(teamMemberships, eq(teams.dbId, teamMemberships.teamDbId))
-		.innerJoin(
-			supabaseUserMappings,
-			eq(teamMemberships.userDbId, supabaseUserMappings.userDbId),
-		)
-		.where(eq(supabaseUserMappings.supabaseUserId, supabaseUserId))
+		.where(eq(teamMemberships.userDbId, userDbId))
 		.orderBy(asc(teams.dbId))
 		.limit(1);
 

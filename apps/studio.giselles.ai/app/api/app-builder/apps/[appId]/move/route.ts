@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { moveAppToProject } from "@/app/(main)/app-builder/lib/project-queries";
 import { db, builderProjects } from "@/db";
 import type { BuilderProjectId } from "@/db/schema";
-import { getUser } from "@/lib/supabase/get-user";
+import { getUser } from "@/lib/auth/get-user";
 
 export async function PATCH(
 	request: Request,

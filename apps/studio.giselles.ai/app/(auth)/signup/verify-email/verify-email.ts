@@ -1,7 +1,16 @@
 "use server";
 
+import { eq } from "drizzle-orm";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { type AuthError, createAuthError, createClient } from "@/lib/supabase";
+import { db, users } from "@/db";
+import {
+	createEmailVerificationToken,
+	verifyEmailToken,
+} from "@/lib/auth/email-verification";
+import { type AuthError, createAuthError } from "@/lib/auth/errors";
+import { sendVerificationEmail } from "@/lib/auth/send-auth-email";
+import { createSession } from "@/lib/session-store";
 import { initializeAccount } from "@/services/accounts";
 
 export const verifyEmail = async (
@@ -23,16 +32,26 @@ export const verifyEmail = async (
 	}
 	const verificationEmail = verificationEmailEntry;
 	const token = tokenEntry;
-	const supabase = await createClient();
-	const { data: supabaseData, error } = await supabase.auth.verifyOtp({
-		email: verificationEmail,
-		token,
-		type: "email",
-	});
-	if (error != null) {
-		return createAuthError(error);
+
+	const result = await verifyEmailToken(verificationEmail, token);
+	if (!result.valid) {
+		return createAuthError({
+			code: "invalid_token",
+			message:
+				"The confirmation code you've entered has expired or is invalid.",
+			name: "AuthError",
+			status: 400,
+		});
 	}
-	if (supabaseData.user == null) {
+
+	// Mark user as verified
+	const [user] = await db
+		.update(users)
+		.set({ emailVerified: true })
+		.where(eq(users.dbId, result.userDbId))
+		.returning({ id: users.id, email: users.email });
+
+	if (!user) {
 		return createAuthError({
 			code: "missing_user",
 			message: "No user returned",
@@ -41,10 +60,19 @@ export const verifyEmail = async (
 		});
 	}
 
-	const _user = await initializeAccount(
-		supabaseData.user.id,
-		supabaseData.user.email,
-	);
+	// Initialize account (creates team, sample workspaces, etc.)
+	await initializeAccount(user.id, user.email);
+
+	// Create session
+	const session = await createSession(user.id);
+	const cookieStore = await cookies();
+	cookieStore.set("giselle-auth", session.token, {
+		httpOnly: true,
+		secure: process.env.NODE_ENV === "production",
+		sameSite: "lax",
+		maxAge: 7 * 24 * 60 * 60,
+		path: "/",
+	});
 
 	redirect("/");
 };
@@ -63,14 +91,28 @@ export const resendOtp = async (
 		});
 	}
 	const verificationEmail = verificationEmailEntry;
-	const supabase = await createClient();
-	const { error } = await supabase.auth.resend({
-		type: "signup",
-		email: verificationEmail,
-	});
-	if (error != null) {
-		return createAuthError(error);
+
+	const [user] = await db
+		.select({ dbId: users.dbId })
+		.from(users)
+		.where(eq(users.email, verificationEmail))
+		.limit(1);
+
+	if (!user) {
+		return createAuthError({
+			code: "user_not_found",
+			message: "No account found with this email address.",
+			name: "AuthError",
+			status: 404,
+		});
 	}
+
+	const token = await createEmailVerificationToken(
+		user.dbId,
+		verificationEmail,
+	);
+	await sendVerificationEmail(verificationEmail, token);
+
 	return {
 		code: "success",
 		status: 200,

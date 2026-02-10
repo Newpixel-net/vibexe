@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { builderApps, teamMemberships, workspaces } from "@/db/schema";
-import { getUser } from "@/lib/supabase/get-user";
+import { getUser } from "@/lib/auth/get-user";
 import { DashboardClient } from "./dashboard-client";
 
 export default async function DashboardPage() {

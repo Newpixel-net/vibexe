@@ -10,7 +10,7 @@ const PUBLIC_PATHS = [
 	"/api/health",
 ];
 
-export const supabaseMiddleware = (
+export const sessionMiddleware = (
 	guardCallback?: (
 		user: { id: string } | null,
 		request: NextRequest,

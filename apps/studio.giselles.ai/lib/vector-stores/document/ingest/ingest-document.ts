@@ -6,9 +6,9 @@ import type {
 	DocumentVectorStoreId,
 	DocumentVectorStoreSourceId,
 } from "@giselles-ai/types";
-import { createClient } from "@supabase/supabase-js";
 import { and, eq, lt, or } from "drizzle-orm";
 import { db, documentVectorStoreSources } from "@/db";
+import { downloadFile } from "@/lib/s3-file-storage";
 import type { TeamWithSubscription } from "@/services/teams";
 import { fetchTeamByDbId } from "@/services/teams/fetch-team";
 import { buildAiGatewayHeaders } from "../../shared/ai-gateway-headers";
@@ -25,20 +25,6 @@ import {
 } from "./embedding-tracking";
 import { extractTextFromDocument } from "./extract-text";
 import { generateEmbeddings } from "./generate-embeddings";
-
-// Lazy Supabase client - only created when actually used (avoids build-time throw)
-let _supabaseClient: ReturnType<typeof createClient> | null = null;
-function getSupabaseClient() {
-	if (!_supabaseClient) {
-		const url = process.env.SUPABASE_URL;
-		const key = process.env.SUPABASE_SERVICE_KEY;
-		if (!url || !key) {
-			throw new Error("Missing Supabase credentials (SUPABASE_URL / SUPABASE_SERVICE_KEY)");
-		}
-		_supabaseClient = createClient(url, key);
-	}
-	return _supabaseClient;
-}
 
 interface IngestDocumentOptions {
 	embeddingProfileIds: EmbeddingProfileId[];
@@ -204,22 +190,15 @@ export async function ingestDocument(
 		signal?.throwIfAborted();
 
 		// Download file from storage
-		const { data: fileData, error: downloadError } = await getSupabaseClient().storage
-			.from(source.storageBucket)
-			.download(source.storageKey);
-
-		if (downloadError || !fileData) {
+		let buffer: Buffer;
+		try {
+			buffer = await downloadFile(source.storageBucket, source.storageKey);
+		} catch (downloadError) {
 			throw Object.assign(
-				new Error(`Failed to download file: ${downloadError?.message}`),
+				new Error(`Failed to download file: ${downloadError instanceof Error ? downloadError.message : String(downloadError)}`),
 				{ code: "file-not-found" as IngestErrorCode },
 			);
 		}
-
-		signal?.throwIfAborted();
-
-		// Convert blob to buffer
-		const arrayBuffer = await fileData.arrayBuffer();
-		const buffer = Buffer.from(arrayBuffer);
 
 		// Extract text content
 		let text: string;

@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 
 import type { EmbeddingProfileId } from "@giselles-ai/protocol";
 import { createId } from "@paralleldrive/cuid2";
-import { createClient } from "@supabase/supabase-js";
 import { and, eq, inArray } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { after, NextResponse } from "next/server";
@@ -34,23 +33,11 @@ import { fetchCurrentTeam } from "@/services/teams";
 export const runtime = "nodejs";
 export const maxDuration = 800;
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+import { removeFiles, uploadFile } from "@/lib/s3-file-storage";
+
 const STORAGE_BUCKET =
 	process.env.DOCUMENT_VECTOR_STORE_STORAGE_BUCKET ?? "app";
 const STORAGE_PREFIX = "vector-stores";
-
-// Lazy Supabase client - only created when actually used (avoids build-time throw)
-let _supabaseClient: ReturnType<typeof createClient> | null = null;
-function getSupabaseClient() {
-	if (!_supabaseClient) {
-		if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-			throw new Error("Missing Supabase configuration. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY.");
-		}
-		_supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-	}
-	return _supabaseClient;
-}
 
 async function fetchTeam() {
 	try {
@@ -116,17 +103,7 @@ async function rollbackUploads(
 ) {
 	if (uploadedKeys.length > 0) {
 		try {
-			const { error: storageError } = await getSupabaseClient().storage
-				.from(STORAGE_BUCKET)
-				.remove(uploadedKeys);
-
-			if (storageError) {
-				console.error(
-					"Failed to roll back uploaded document files from storage. Aborting rollback.",
-					storageError,
-				);
-				throw new Error("Storage cleanup failed during rollback.");
-			}
+			await removeFiles(STORAGE_BUCKET, uploadedKeys);
 		} catch (cleanupError) {
 			console.error(
 				"Failed to roll back uploaded document files from storage. Aborting rollback.",
@@ -271,14 +248,12 @@ export async function POST(
 		}
 
 		const checksum = createHash("sha256").update(buffer).digest("hex");
-		const { error: uploadError } = await getSupabaseClient().storage
-			.from(STORAGE_BUCKET)
-			.upload(storageKey, buffer, {
+		try {
+			await uploadFile(STORAGE_BUCKET, storageKey, buffer, {
 				contentType: resolvedFile.contentType,
 				upsert: true,
 			});
-
-		if (uploadError) {
+		} catch (uploadError) {
 			console.error("Failed to upload document file to storage:", uploadError);
 			failures.push({
 				fileName: originalFileName,
@@ -441,10 +416,9 @@ export async function DELETE(
 			return NextResponse.json({ error: "Source not found" }, { status: 404 });
 		}
 
-		const { error: storageError } = await getSupabaseClient().storage
-			.from(source.storageBucket)
-			.remove([source.storageKey]);
-		if (storageError) {
+		try {
+			await removeFiles(source.storageBucket, [source.storageKey]);
+		} catch (storageError) {
 			console.error(
 				`Failed to delete document file ${source.storageKey} from storage:`,
 				storageError,

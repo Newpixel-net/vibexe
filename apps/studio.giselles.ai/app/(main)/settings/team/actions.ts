@@ -9,7 +9,6 @@ import {
 	agents,
 	db,
 	invitations,
-	supabaseUserMappings,
 	type TeamRole,
 	teamMemberships,
 	teams,
@@ -17,7 +16,7 @@ import {
 	users,
 } from "@/db";
 import { updateGiselleSession } from "@/lib/giselle-session";
-import { getUser } from "@/lib/supabase";
+import { getUser } from "@/lib/auth/get-user";
 
 import { fetchCurrentUser } from "@/services/accounts";
 import { fetchCurrentTeam, isProPlan } from "@/services/teams";
@@ -61,13 +60,9 @@ export async function updateTeamName(teamId: TeamId, formData: FormData) {
 				.from(teams)
 				.for("update")
 				.innerJoin(teamMemberships, eq(teams.dbId, teamMemberships.teamDbId))
-				.innerJoin(
-					supabaseUserMappings,
-					eq(teamMemberships.userDbId, supabaseUserMappings.userDbId),
-				)
 				.where(
 					and(
-						eq(supabaseUserMappings.supabaseUserId, user.id),
+						eq(teamMemberships.userDbId, user.dbId),
 						eq(teams.id, teamId),
 					),
 				);
@@ -119,13 +114,9 @@ export async function updateTeamAvatar(teamId: TeamId, formData: FormData) {
 			.select({ avatarUrl: teams.avatarUrl })
 			.from(teams)
 			.innerJoin(teamMemberships, eq(teams.dbId, teamMemberships.teamDbId))
-			.innerJoin(
-				supabaseUserMappings,
-				eq(teamMemberships.userDbId, supabaseUserMappings.userDbId),
-			)
 			.where(
 				and(
-					eq(supabaseUserMappings.supabaseUserId, user.id),
+					eq(teamMemberships.userDbId, user.dbId),
 					eq(teams.id, teamId),
 				),
 			);
@@ -235,18 +226,8 @@ export async function updateTeamMemberRole(formData: FormData) {
 			throw new Error("Only admin users can update member roles");
 		}
 
-		const supabaseUser = await getUser();
-		const currentUser = await db
-			.select({ id: users.id })
-			.from(users)
-			.innerJoin(
-				supabaseUserMappings,
-				eq(users.dbId, supabaseUserMappings.userDbId),
-			)
-			.where(eq(supabaseUserMappings.supabaseUserId, supabaseUser.id))
-			.limit(1);
-
-		const isUpdatingSelf = currentUser[0].id === userId;
+		const currentUserData = await getUser();
+		const isUpdatingSelf = currentUserData.id === userId;
 
 		// 2. Get current team
 		const currentTeam = await fetchCurrentTeam();
@@ -325,16 +306,7 @@ export async function deleteTeamMember(formData: FormData) {
 		// 1. Get current team and current user info
 		const currentTeam = await fetchCurrentTeam();
 		const currentUserRoleResult = await getCurrentUserRole();
-		const supabaseUser = await getUser();
-		const [currentUser] = await db
-			.select({ id: users.id, dbId: users.dbId })
-			.from(users)
-			.innerJoin(
-				supabaseUserMappings,
-				eq(users.dbId, supabaseUserMappings.userDbId),
-			)
-			.where(eq(supabaseUserMappings.supabaseUserId, supabaseUser.id))
-			.limit(1);
+		const currentUser = await getUser();
 
 		const isDeletingSelf = currentUser.id === userId;
 
@@ -430,7 +402,7 @@ export async function deleteTeamMember(formData: FormData) {
 
 export async function getCurrentUserRole() {
 	try {
-		const supabaseUser = await getUser();
+		const user = await getUser();
 		const currentTeam = await fetchCurrentTeam();
 
 		const result = await db
@@ -438,13 +410,9 @@ export async function getCurrentUserRole() {
 				role: teamMemberships.role,
 			})
 			.from(teamMemberships)
-			.innerJoin(
-				supabaseUserMappings,
-				eq(teamMemberships.userDbId, supabaseUserMappings.userDbId),
-			)
 			.where(
 				and(
-					eq(supabaseUserMappings.supabaseUserId, supabaseUser.id),
+					eq(teamMemberships.userDbId, user.dbId),
 					eq(teamMemberships.teamDbId, currentTeam.dbId),
 				),
 			)
@@ -548,20 +516,16 @@ export async function deleteTeam(
 		}
 
 		// Get current user's other teams count
-		const supabaseUser = await getUser();
+		const user = await getUser();
 		const otherTeams = await db
 			.select({
 				teamId: teams.id,
 			})
 			.from(teams)
 			.innerJoin(teamMemberships, eq(teams.dbId, teamMemberships.teamDbId))
-			.innerJoin(
-				supabaseUserMappings,
-				eq(teamMemberships.userDbId, supabaseUserMappings.userDbId),
-			)
 			.where(
 				and(
-					eq(supabaseUserMappings.supabaseUserId, supabaseUser.id),
+					eq(teamMemberships.userDbId, user.dbId),
 					ne(teams.dbId, currentTeam.dbId),
 				),
 			)

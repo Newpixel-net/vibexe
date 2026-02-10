@@ -14,7 +14,7 @@ import {
 	getFilesForApp,
 	saveFile,
 } from "@/app/(main)/app-builder/lib/queries";
-import { getUser } from "@/lib/supabase/get-user";
+import { getUser } from "@/lib/auth/get-user";
 
 /**
  * Route context with dynamic params

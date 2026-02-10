@@ -1,7 +1,11 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { type AuthError, createAuthError, createClient } from "@/lib/supabase";
+import { db, users } from "@/db";
+import { type AuthError, createAuthError } from "@/lib/auth/errors";
+import { createPasswordResetToken } from "@/lib/auth/password-reset";
+import { sendPasswordResetEmail as sendResetEmail } from "@/lib/auth/send-auth-email";
 
 export const sendPasswordResetEmail = async (
 	_prevState: AuthError | null,
@@ -16,13 +20,22 @@ export const sendPasswordResetEmail = async (
 			status: 422,
 		});
 	}
-	const supabase = await createClient();
-	const { error } = await supabase.auth.resetPasswordForEmail(email, {
-		redirectTo: "/password_reset/new_password",
-	});
-	if (error) {
-		return createAuthError(error);
+
+	const [user] = await db
+		.select({ dbId: users.dbId })
+		.from(users)
+		.where(eq(users.email, email))
+		.limit(1);
+
+	// Always redirect to "sent" page even if user not found (prevent enumeration)
+	if (user) {
+		const token = await createPasswordResetToken(user.dbId);
+		const origin =
+			process.env.NEXT_PUBLIC_URL || process.env.VERCEL_URL || "http://localhost:3000";
+		const resetUrl = `${origin}/password_reset/confirm?token_hash=${token}&type=recovery`;
+		await sendResetEmail(email, resetUrl);
 	}
+
 	redirect("/password_reset/sent");
 	return null;
 };

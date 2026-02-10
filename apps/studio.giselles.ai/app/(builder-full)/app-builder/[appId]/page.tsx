@@ -8,7 +8,7 @@ import {
 	getAppById,
 	getFilesForApp,
 } from "@/app/(main)/app-builder/lib/queries";
-import { getUser } from "@/lib/supabase/get-user";
+import { getUser } from "@/lib/auth/get-user";
 import { PageClient } from "./page.client";
 
 interface Props {

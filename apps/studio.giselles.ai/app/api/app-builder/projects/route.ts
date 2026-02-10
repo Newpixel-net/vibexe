@@ -5,7 +5,7 @@ import {
 	getProjectsForTeam,
 } from "@/app/(main)/app-builder/lib/project-queries";
 import { db, teamMemberships } from "@/db";
-import { getUser } from "@/lib/supabase/get-user";
+import { getUser } from "@/lib/auth/get-user";
 
 export async function GET() {
 	const user = await getUser();

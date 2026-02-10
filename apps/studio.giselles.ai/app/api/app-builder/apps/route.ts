@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { createApp } from "@/app/(main)/app-builder/lib/queries";
 import { db, teamMemberships } from "@/db";
-import { getUser } from "@/lib/supabase/get-user";
+import { getUser } from "@/lib/auth/get-user";
 
 export async function POST() {
 	const user = await getUser();

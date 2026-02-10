@@ -1,12 +1,10 @@
 "use server";
 
-import type { User } from "@supabase/supabase-js";
-import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import invariant from "tiny-invariant";
-import { db, supabaseUserMappings, teamMemberships, teams, users } from "@/db";
+import { db, teamMemberships, teams } from "@/db";
 import { updateGiselleSession } from "@/lib/giselle-session";
-import { getUser } from "@/lib/supabase";
+import { getUser } from "@/lib/auth/get-user";
 import { isEmailFromRoute06 } from "@/lib/utils";
 import {
 	DRAFT_TEAM_NAME_METADATA_KEY,
@@ -22,15 +20,15 @@ export async function createTeam(formData: FormData) {
 	const teamName = formData.get("teamName") as string;
 	const selectedPlan = formData.get("selectedPlan") as string;
 
-	const supabaseUser = await getUser();
-	if (!supabaseUser) {
+	const user = await getUser();
+	if (!user) {
 		throw new Error("User not found");
 	}
 
 	const isInternalUser =
-		supabaseUser.email != null && isEmailFromRoute06(supabaseUser.email);
+		user.email != null && isEmailFromRoute06(user.email);
 	if (isInternalUser) {
-		const teamId = await createInternalTeam(supabaseUser, teamName);
+		const teamId = await createInternalTeam(user.dbId, teamName);
 		await setCurrentTeam(teamId);
 		redirect("/settings/team");
 	}
@@ -38,18 +36,18 @@ export async function createTeam(formData: FormData) {
 	if (selectedPlan === "free") {
 		const userTeams = await fetchUserTeams();
 		const isEligible = canCreateFreeTeam(
-			supabaseUser.email,
+			user.email,
 			userTeams.map((t) => t.plan),
 		);
 		if (!isEligible) {
 			throw new Error("You are not eligible to create a free team");
 		}
-		const teamId = await createFreeTeam(supabaseUser, teamName);
+		const teamId = await createFreeTeam(user.dbId, teamName);
 		await setCurrentTeam(teamId);
 		redirect("/settings/team");
 	}
 
-	const checkoutSession = await prepareProTeamCreation(supabaseUser, teamName);
+	const checkoutSession = await prepareProTeamCreation(user.dbId, teamName);
 	redirect(checkoutSession.url);
 }
 
@@ -57,8 +55,7 @@ export async function createTeam(formData: FormData) {
  * 1. Create a new draft team
  * 2. Set the draft team informations in metadata (https://support.stripe.com/questions/using-metadata-with-checkout-sessions)
  */
-async function prepareProTeamCreation(supabaseUser: User, teamName: string) {
-	const userDbId = await getUserDbId(supabaseUser);
+async function prepareProTeamCreation(userDbId: number, teamName: string) {
 	return createCheckout(userDbId, teamName);
 }
 
@@ -85,16 +82,16 @@ async function createCheckout(userDbId: number, teamName: string) {
 	return checkoutSession;
 }
 
-async function createInternalTeam(supabaseUser: User, teamName: string) {
-	return await createTeamInDatabase(supabaseUser, teamName, true);
+async function createInternalTeam(userDbId: number, teamName: string) {
+	return await createTeamInDatabase(userDbId, teamName, true);
 }
 
-async function createFreeTeam(supabaseUser: User, teamName: string) {
-	return await createTeamInDatabase(supabaseUser, teamName, false);
+async function createFreeTeam(userDbId: number, teamName: string) {
+	return await createTeamInDatabase(userDbId, teamName, false);
 }
 
 async function createTeamInDatabase(
-	supabaseUser: User,
+	userDbId: number,
 	teamName: string,
 	isInternal: boolean,
 ) {
@@ -109,7 +106,6 @@ async function createTeamInDatabase(
 
 	const teamId = result.id;
 	const teamDbId = result.dbId;
-	const userDbId = await getUserDbId(supabaseUser);
 
 	// add membership
 	await db.insert(teamMemberships).values({
@@ -118,16 +114,4 @@ async function createTeamInDatabase(
 		role: "admin",
 	});
 	return teamId;
-}
-
-async function getUserDbId(supabaseUser: User) {
-	const [result] = await db
-		.select()
-		.from(users)
-		.innerJoin(
-			supabaseUserMappings,
-			eq(users.dbId, supabaseUserMappings.userDbId),
-		)
-		.where(eq(supabaseUserMappings.supabaseUserId, supabaseUser.id));
-	return result.users.dbId;
 }

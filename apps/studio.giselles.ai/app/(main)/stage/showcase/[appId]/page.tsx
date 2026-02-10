@@ -7,12 +7,11 @@ import {
 	agentActivities,
 	agents,
 	db,
-	supabaseUserMappings,
 	teams,
 	users,
 } from "@/db";
 import { stageV2Flag } from "@/flags";
-import { getUser } from "@/lib/supabase";
+import { getUser } from "@/lib/auth/get-user";
 
 import { AppDetailClient } from "./app-detail-client";
 
@@ -83,15 +82,7 @@ async function getAppDetails(unsafeAppId: string) {
 			return null;
 		}
 		// Get current user
-		const supabaseUser = await getUser();
-		const [currentUserMapping] = await db
-			.select({ userDbId: supabaseUserMappings.userDbId })
-			.from(supabaseUserMappings)
-			.where(eq(supabaseUserMappings.supabaseUserId, supabaseUser.id));
-
-		if (!currentUserMapping) {
-			throw new Error("User mapping not found");
-		}
+		const currentUser = await getUser();
 
 		// Get agent with team information
 		const agentWithTeam = await db
@@ -180,7 +171,7 @@ async function getAppDetails(unsafeAppId: string) {
 					.where(
 						and(
 							eq(acts.sdkWorkspaceId, agentData.workspaceId),
-							eq(acts.directorDbId, currentUserMapping.userDbId),
+							eq(acts.directorDbId, currentUser.dbId),
 						),
 					)
 					.orderBy(desc(acts.createdAt))

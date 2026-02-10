@@ -2,13 +2,13 @@
 
 import { App, AppId, NodeId } from "@giselles-ai/protocol";
 import { createId } from "@paralleldrive/cuid2";
-import type { User } from "@supabase/auth-js";
+import { eq } from "drizzle-orm";
 import { giselle } from "@/app/giselle";
+import type { UserId } from "@/db";
 import {
 	agents,
 	apps,
 	db,
-	supabaseUserMappings,
 	teamMemberships,
 	teams,
 	users,
@@ -18,27 +18,23 @@ import { isEmailFromRoute06 } from "@/lib/utils";
 import { createTeamId } from "@/services/teams/utils";
 
 export const initializeAccount = async (
-	supabaseUserId: User["id"],
-	supabaseUserEmail: User["email"],
-	supabaseUserAvatarUrl?: User["user_metadata"]["avatar_url"],
+	userId: UserId,
+	email: string | null | undefined,
+	avatarUrl?: string | null,
 ) => {
 	const result = await db.transaction(async (tx) => {
-		const userId = `usr_${createId()}` as const;
+		// Look up the existing user
 		const [user] = await tx
-			.insert(users)
-			.values({
-				id: userId,
-				email: supabaseUserEmail,
-				avatarUrl: supabaseUserAvatarUrl ?? null,
-			})
-			.returning({
-				dbId: users.dbId,
-			});
-		await tx.insert(supabaseUserMappings).values({
-			userDbId: user.dbId,
-			supabaseUserId,
-		});
-		const internalAccount = isEmailFromRoute06(supabaseUserEmail ?? "");
+			.select({ dbId: users.dbId, id: users.id })
+			.from(users)
+			.where(eq(users.id, userId))
+			.limit(1);
+
+		if (!user) {
+			throw new Error(`User not found: ${userId}`);
+		}
+
+		const internalAccount = isEmailFromRoute06(email ?? "");
 		const [team] = await tx
 			.insert(teams)
 			.values({
@@ -170,7 +166,7 @@ export const initializeAccount = async (
 			}
 		}
 
-		return { id: userId };
+		return { id: user.id };
 	});
 	return result;
 };

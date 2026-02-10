@@ -1,6 +1,5 @@
-import type { User } from "@supabase/auth-js";
 import { notFound, redirect } from "next/navigation";
-import { getUser } from "@/lib/supabase";
+import { type GiselleUser, getUser } from "@/lib/auth/get-user";
 import { AuthContainer } from "../../components";
 import { AuthButton } from "../../components/auth-button";
 import { LegalConsent } from "../../components/legal-consent";
@@ -23,7 +22,7 @@ export default async function Page({
 		return <ExpiredError />;
 	}
 
-	let user: User | null = null;
+	let user: GiselleUser | null = null;
 	try {
 		user = await getUser();
 	} catch (_e) {

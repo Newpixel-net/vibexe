@@ -6,7 +6,7 @@ import {
 	getAppById,
 } from "@/app/(main)/app-builder/lib/queries";
 import { db, teamMemberships } from "@/db";
-import { getUser } from "@/lib/supabase/get-user";
+import { getUser } from "@/lib/auth/get-user";
 
 export async function DELETE(
 	_request: Request,

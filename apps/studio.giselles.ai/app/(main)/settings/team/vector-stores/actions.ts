@@ -6,7 +6,6 @@ import {
 	isEmbeddingProfileId,
 } from "@giselles-ai/protocol";
 import { createId } from "@paralleldrive/cuid2";
-import { createClient } from "@supabase/supabase-js";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
@@ -42,20 +41,8 @@ import type {
 	DocumentVectorStoreUpdateInput,
 } from "./types";
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+import { removeFiles } from "@/lib/s3-file-storage";
 
-// Lazy Supabase client - only created when actually used (avoids build-time throw)
-let _supabaseClient: ReturnType<typeof createClient> | null = null;
-function getSupabaseClient() {
-	if (!_supabaseClient) {
-		if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-			throw new Error("Missing Supabase configuration. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY.");
-		}
-		_supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-	}
-	return _supabaseClient;
-}
 const DOCUMENT_VECTOR_STORE_STORAGE_PREFIX = "vector-stores";
 
 type IngestabilityCheck = {
@@ -876,15 +863,7 @@ export async function deleteDocumentVectorStore(
 						continue;
 					}
 					try {
-						const { error: storageError } = await getSupabaseClient().storage
-							.from(bucket)
-							.remove(Array.from(targets));
-						if (storageError) {
-							console.error(
-								`Failed to delete document files from storage bucket ${bucket}:`,
-								storageError,
-							);
-						}
+						await removeFiles(bucket, Array.from(targets));
 					} catch (storageError) {
 						console.error(
 							`Failed to delete document files from storage bucket ${bucket}:`,

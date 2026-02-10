@@ -12,7 +12,7 @@
 				"SIGNOZ_*",
 				"STRIPE_*",
 				"SMTP_*",
-				"SUPABASE_*",
+				"S3_STORAGE_*",
 				"GTM_ID",
 				"SENTRY_*",
 				"INVITE_OAUTH_STATE_SALT",

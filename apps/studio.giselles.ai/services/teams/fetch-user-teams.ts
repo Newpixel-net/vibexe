@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
-import { db, supabaseUserMappings, teamMemberships, teams } from "@/db";
-import { getUser } from "@/lib/supabase";
+import { db, teamMemberships, teams } from "@/db";
+import { getUser } from "@/lib/auth/get-user";
 
 /**
  * fetch teams for the current user
@@ -21,11 +21,7 @@ export async function fetchUserTeams() {
 		})
 		.from(teams)
 		.innerJoin(teamMemberships, eq(teams.dbId, teamMemberships.teamDbId))
-		.innerJoin(
-			supabaseUserMappings,
-			eq(teamMemberships.userDbId, supabaseUserMappings.userDbId),
-		)
-		.where(eq(supabaseUserMappings.supabaseUserId, user.id))
+		.where(eq(teamMemberships.userDbId, user.dbId))
 		.orderBy(asc(teams.dbId));
 	if (records.length === 0) {
 		throw new Error("User does not have a team");

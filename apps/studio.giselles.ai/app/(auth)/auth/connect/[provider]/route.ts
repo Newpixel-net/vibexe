@@ -1,4 +1,4 @@
-import { getUser } from "@/lib/supabase";
+import { getUser } from "@/lib/auth/get-user";
 import {
 	connectIdentity,
 	type OAuthProvider,

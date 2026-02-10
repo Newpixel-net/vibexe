@@ -2,7 +2,7 @@
 
 import { type FC, useActionState, useState } from "react";
 import { safeParse } from "valibot";
-import type { AuthError } from "@/lib/supabase";
+import type { AuthError } from "@/lib/auth/errors";
 import { Form } from "../../components";
 import { useSignupContext } from "../context";
 import { signup } from "./signup";

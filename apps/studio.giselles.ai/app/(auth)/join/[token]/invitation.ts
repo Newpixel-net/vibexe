@@ -1,4 +1,3 @@
-import type { User } from "@supabase/supabase-js";
 import { and, type ExtractTablesWithRelations, eq, isNull } from "drizzle-orm";
 import type { PgTransaction } from "drizzle-orm/pg-core";
 import type { VercelPgQueryResultHKT } from "drizzle-orm/vercel-postgres";
@@ -6,13 +5,12 @@ import {
 	db,
 	db as dbInstance,
 	invitations,
-	supabaseUserMappings,
 	type TeamRole,
 	teamMemberships,
 	teams,
-	users,
 } from "@/db";
-import { getUser } from "@/lib/supabase/get-user";
+import type { GiselleUser } from "@/lib/auth/get-user";
+import { getUser } from "@/lib/auth/get-user";
 import type { CurrentTeam, TeamId } from "@/services/teams";
 import { handleMemberChange } from "@/services/teams/member-change";
 import type * as schema from "../../../../db/schema";
@@ -110,7 +108,7 @@ export async function acceptInvitation(token: string) {
 		throw new JoinError("expired");
 	}
 
-	let user: User;
+	let user: GiselleUser;
 	try {
 		user = await getUser();
 	} catch {
@@ -126,23 +124,10 @@ export async function acceptInvitation(token: string) {
 			throw new JoinError("wrong_email");
 		}
 
-		const userDb = await tx
-			.select({ dbId: users.dbId })
-			.from(users)
-			.innerJoin(
-				supabaseUserMappings,
-				eq(users.dbId, supabaseUserMappings.userDbId),
-			)
-			.where(eq(supabaseUserMappings.supabaseUserId, user.id));
-		const userDbId = userDb[0]?.dbId;
-		if (!userDbId) {
-			throw new JoinError("wrong_email");
-		}
-
 		await tx
 			.insert(teamMemberships)
 			.values({
-				userDbId,
+				userDbId: user.dbId,
 				teamDbId: invitation.teamDbId,
 				role: invitation.role,
 			})

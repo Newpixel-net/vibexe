@@ -112,7 +112,7 @@ async function generateAvatarPath(
 }
 
 /**
- * Upload avatar to Supabase Storage
+ * Upload avatar to S3 storage
  */
 export async function uploadAvatar(
 	file: File,
@@ -133,7 +133,7 @@ export async function uploadAvatar(
 
 	if (uploadResult.error) {
 		logger.error(uploadResult.error);
-		throw new Error("Failed to get avatar URL");
+		throw new Error("Failed to upload avatar");
 	}
 
 	return appStorage().getPublicUrl(uploadResult.data.path).data.publicUrl;
@@ -144,8 +144,9 @@ export async function uploadAvatar(
  */
 export async function deleteAvatar(avatarUrl: string): Promise<void> {
 	// Extract file path from URL
-	// From: https://xxx.supabase.co/storage/v1/object/public/public-assets/avatars/user-id.jpg
-	// To: avatars/user-id.jpg
+	// Supports both legacy Supabase URLs and new S3 URLs:
+	//   https://xxx.supabase.co/storage/v1/object/public/public-assets/avatars/user-id.jpg
+	//   https://s3-endpoint/public-assets/avatars/user-id.jpg
 	const parts = avatarUrl.split("/public-assets/");
 
 	if (parts.length !== 2 || !parts[1]) {

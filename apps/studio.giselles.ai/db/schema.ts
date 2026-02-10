@@ -220,28 +220,43 @@ export const teamRelations = relations(teams, ({ many }) => ({
 export type UserId = `usr_${string}`;
 export const users = pgTable("users", {
 	id: text("id").$type<UserId>().notNull().unique(),
-	email: text("email").unique(), // TODO: Allow null values initially when adding schema, then change to not null after data update
+	email: text("email").unique(),
 	displayName: text("display_name"),
 	avatarUrl: text("avatar_url"),
+	passwordHash: text("password_hash"),
+	emailVerified: boolean("email_verified").default(false).notNull(),
 	dbId: serial("db_id").primaryKey(),
 });
 
-export const supabaseUserMappings = pgTable("supabase_user_mappings", {
-	userDbId: integer("user_db_id")
-		.unique()
-		.notNull()
-		.references(() => users.dbId),
-	supabaseUserId: text("supabase_user_id").notNull().unique(),
-});
+export const emailVerificationTokens = pgTable(
+	"email_verification_tokens",
+	{
+		id: serial("id").primaryKey(),
+		userDbId: integer("user_db_id")
+			.notNull()
+			.references(() => users.dbId, { onDelete: "cascade" }),
+		email: text("email").notNull(),
+		token: text("token").notNull().unique(),
+		expiresAt: timestamp("expires_at").notNull(),
+		usedAt: timestamp("used_at"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [index("email_verification_tokens_token_idx").on(table.token)],
+);
 
-export const supabaseUserRelations = relations(
-	supabaseUserMappings,
-	({ one }) => ({
-		user: one(users, {
-			fields: [supabaseUserMappings.userDbId],
-			references: [users.dbId],
-		}),
-	}),
+export const passwordResetTokens = pgTable(
+	"password_reset_tokens",
+	{
+		id: serial("id").primaryKey(),
+		userDbId: integer("user_db_id")
+			.notNull()
+			.references(() => users.dbId, { onDelete: "cascade" }),
+		token: text("token").notNull().unique(),
+		expiresAt: timestamp("expires_at").notNull(),
+		usedAt: timestamp("used_at"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [index("password_reset_tokens_token_idx").on(table.token)],
 );
 
 export type TeamRole = "admin" | "member";

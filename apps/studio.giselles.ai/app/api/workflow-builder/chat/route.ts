@@ -2,7 +2,7 @@ import { openai } from "@ai-sdk/openai";
 import type { UIMessage } from "ai";
 import { convertToModelMessages, stepCountIs, streamText } from "ai";
 import { createWorkflowTools } from "@/app/(main)/playground/lib/workflow-tools";
-import { getUser } from "@/lib/supabase/get-user";
+import { getUser } from "@/lib/auth/get-user";
 import { WORKFLOW_SYSTEM_PROMPT } from "../system-prompt";
 
 export async function POST(request: Request) {

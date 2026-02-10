@@ -7,7 +7,7 @@ import {
 } from "@/app/(main)/app-builder/lib/workflow-queries";
 import { db } from "@/db";
 import { teamMemberships } from "@/db/schema";
-import { getUser } from "@/lib/supabase/get-user";
+import { getUser } from "@/lib/auth/get-user";
 
 export async function GET(
 	_request: Request,
