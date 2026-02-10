@@ -36,6 +36,13 @@ export const AI_PROVIDERS = [
 		placeholder: "pplx-...",
 		description: "AI-powered search and research",
 	},
+	{
+		id: "xai",
+		name: "xAI (Grok)",
+		envVar: "XAI_API_KEY",
+		placeholder: "xai-...",
+		description: "Powers Grok models for advanced reasoning and generation",
+	},
 ] as const;
 
 export type ProviderId = (typeof AI_PROVIDERS)[number]["id"];
@@ -45,6 +52,7 @@ const ENV_VAR_MAP: Record<ProviderId, string> = {
 	openai: "OPENAI_API_KEY",
 	google: "GOOGLE_GENERATIVE_AI_API_KEY",
 	perplexity: "PERPLEXITY_API_KEY",
+	xai: "XAI_API_KEY",
 };
 
 export function redactKey(key: string): string {

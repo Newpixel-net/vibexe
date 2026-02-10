@@ -4,6 +4,7 @@ import {
 	hasTierAccess,
 	type LanguageModel,
 	openaiLanguageModels,
+	xaiLanguageModels,
 	Tier,
 } from "@giselles-ai/language-model";
 import {
@@ -58,6 +59,11 @@ function useModelGroups(userTier: Tier) {
 				provider: "google",
 				label: "Google",
 				models: toModelPickerModels(googleLanguageModels),
+			},
+			{
+				provider: "xai",
+				label: "xAI",
+				models: toModelPickerModels(xaiLanguageModels),
 			},
 		];
 	}, [userTier]);
@@ -212,7 +218,7 @@ export function ModelSettings({
 	const handleSelect = useCallback(
 		(provider: string, id: string) => {
 			const next = createDefaultModelData(
-				provider as "openai" | "anthropic" | "google",
+				provider as "openai" | "anthropic" | "google" | "xai",
 			);
 			const updated = updateModelId(next, id);
 			onTextGenerationContentChange({ llm: updated });

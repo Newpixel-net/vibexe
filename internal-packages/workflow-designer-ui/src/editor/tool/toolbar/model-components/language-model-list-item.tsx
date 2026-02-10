@@ -7,6 +7,7 @@ import {
 	ImageGenerationNodeIcon,
 	OpenaiIcon,
 	PerplexityIcon,
+	XaiIcon,
 	ProTag,
 } from "../components";
 
@@ -38,6 +39,9 @@ function _LanguageModelListItem({
 				)}
 				{languageModel.provider === "perplexity" && (
 					<PerplexityIcon className="w-[18px] h-[18px]" data-icon />
+				)}
+				{languageModel.provider === "xai" && (
+					<XaiIcon className="w-[18px] h-[18px]" data-icon />
 				)}
 				{languageModel.provider === "fal" && (
 					<ImageGenerationNodeIcon

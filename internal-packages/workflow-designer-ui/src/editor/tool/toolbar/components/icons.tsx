@@ -15,5 +15,6 @@ export {
 	TextFileIcon,
 	VideoIcon,
 	WebPageFileIcon,
+	XaiIcon,
 } from "../../../../icons";
 export { ImageGenerationNodeIcon } from "../../../../icons/node";

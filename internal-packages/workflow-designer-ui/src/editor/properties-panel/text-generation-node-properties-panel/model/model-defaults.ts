@@ -2,10 +2,11 @@ import {
 	AnthropicLanguageModelData,
 	GoogleLanguageModelData,
 	OpenAILanguageModelData,
+	XaiLanguageModelData,
 	type TextGenerationLanguageModelData,
 } from "@giselles-ai/protocol";
 
-type Provider = "openai" | "anthropic" | "google";
+type Provider = "openai" | "anthropic" | "google" | "xai";
 
 /**
  * Returns the default reasoningEffort for the given OpenAI model.
@@ -58,6 +59,17 @@ export function createDefaultModelData(
 					searchGrounding: false,
 				},
 			});
+		case "xai":
+			return XaiLanguageModelData.parse({
+				provider: "xai",
+				id: "grok-3-mini",
+				configurations: {
+					temperature: 0.7,
+					topP: 1.0,
+					frequencyPenalty: 0.0,
+					presencePenalty: 0.0,
+				},
+			});
 		default: {
 			const _exhaustiveCheck: never = provider;
 			throw new Error(`Unhandled provider: ${_exhaustiveCheck}`);
@@ -88,6 +100,11 @@ export function updateModelId(
 			});
 		case "google":
 			return GoogleLanguageModelData.parse({
+				...currentModel,
+				id: newModelId,
+			});
+		case "xai":
+			return XaiLanguageModelData.parse({
 				...currentModel,
 				id: newModelId,
 			});

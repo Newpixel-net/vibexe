@@ -5,6 +5,7 @@ import {
 	ImageGenerationNodeIcon,
 	OpenaiIcon,
 	PerplexityIcon,
+	XaiIcon,
 	ProTag,
 } from "../components";
 
@@ -25,6 +26,8 @@ function _ModelProviderGroup({
 				return "Claude";
 			case "google":
 				return "Google";
+			case "xai":
+				return "xAI";
 			default:
 				return prov.charAt(0).toUpperCase() + prov.slice(1);
 		}
@@ -55,7 +58,10 @@ function _ModelProviderGroup({
 							{provider === "perplexity" && (
 								<PerplexityIcon className="w-[18px] h-[18px]" data-icon />
 							)}
-							{provider === "fal" && (
+							{provider === "xai" && (
+							<XaiIcon className="w-[18px] h-[18px]" data-icon />
+						)}
+						{provider === "fal" && (
 								<ImageGenerationNodeIcon
 									modelId={model.id}
 									className="w-[18px] h-[18px]"

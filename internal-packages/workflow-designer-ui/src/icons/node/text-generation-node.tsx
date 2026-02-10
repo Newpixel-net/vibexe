@@ -4,6 +4,7 @@ import { AnthropicIcon } from "../anthropic";
 import { GoogleWhiteIcon } from "../google";
 import { OpenaiIcon } from "../openai";
 import { PerplexityIcon } from "../perplexity";
+import { XaiIcon } from "../xai";
 
 function _TextGenerationNodeIcon({
 	llmProvider,
@@ -20,6 +21,8 @@ function _TextGenerationNodeIcon({
 			return <GoogleWhiteIcon {...props} />;
 		case "perplexity":
 			return <PerplexityIcon {...props} />;
+		case "xai":
+			return <XaiIcon {...props} />;
 		default: {
 			const _exhaustiveCheck: never = llmProvider;
 			throw new Error(`Unhandled LLMProvider: ${_exhaustiveCheck}`);

@@ -20,6 +20,7 @@ import { IdegramIcon } from "../ideogram";
 import { OpenaiIcon } from "../openai";
 import { PdfFileIcon } from "../pdf-file";
 import { PerplexityIcon } from "../perplexity";
+import { XaiIcon } from "../xai";
 import { PictureIcon } from "../picture";
 import { PromptIcon } from "../prompt";
 import { RecraftIcon } from "../recraft";
@@ -134,6 +135,8 @@ export function NodeIcon({
 							return <GoogleIcon {...props} data-content-type-icon />;
 						case "perplexity":
 							return <PerplexityIcon {...props} data-content-type-icon />;
+						case "xai":
+							return <XaiIcon {...props} data-content-type-icon />;
 						default: {
 							const _exhaustiveCheck: never = node.content.llm;
 							throw new Error(`Unhandled LLMProvider: ${_exhaustiveCheck}`);

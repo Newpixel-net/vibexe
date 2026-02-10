@@ -56,6 +56,11 @@ const perplexity = createOpenAI({
 	baseURL: "https://api.perplexity.ai/",
 });
 
+const xai = createOpenAI({
+	apiKey: process.env.XAI_API_KEY ?? "",
+	baseURL: "https://api.x.ai/v1",
+});
+
 type StreamItem<T> = T extends AsyncIterableStream<infer Inner> ? Inner : never;
 
 type GenerateContentResult =
@@ -566,6 +571,8 @@ function generationModel(languageModel: TextGenerationLanguageModelData) {
 			return google(languageModel.id);
 		case "perplexity":
 			return perplexity(languageModel.id);
+		case "xai":
+			return xai(languageModel.id);
 		default: {
 			const _exhaustiveCheck: never = llmProvider;
 			throw new Error(`Unknown LLM provider: ${_exhaustiveCheck}`);
@@ -585,6 +592,8 @@ function resolveModel(modelId: string) {
 			return google(model);
 		case "perplexity":
 			return perplexity(model);
+		case "xai":
+			return xai(model);
 		default:
 			throw new Error(`Unknown provider: ${provider}`);
 	}

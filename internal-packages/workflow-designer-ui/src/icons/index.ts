@@ -45,4 +45,5 @@ export { VideoIcon } from "./video";
 export * from "./view";
 export * from "./web-page-file";
 export * from "./willi";
+export * from "./xai";
 export * from "./xlsx-file";

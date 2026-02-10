@@ -102,6 +102,16 @@ export function transformGiselleLanguageModelToAiSdkLanguageModelCallOptions(
 				},
 			} satisfies Partial<LanguageModelV2CallOptions>;
 		}
+		case "xai/grok-3":
+		case "xai/grok-3-mini": {
+			const config = parseConfiguration(
+				languageModel,
+				content.languageModel.configuration,
+			);
+			return {
+				temperature: config.temperature,
+			} satisfies Partial<LanguageModelV2CallOptions>;
+		}
 		default: {
 			const _exhaustiveCheck: never = languageModel;
 			throw new Error(`Unsupported language model: ${_exhaustiveCheck}`);

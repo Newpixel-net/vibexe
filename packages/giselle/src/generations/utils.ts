@@ -266,6 +266,7 @@ async function buildGenerationMessageForTextGeneration({
 					case "anthropic":
 					case "openai":
 					case "perplexity":
+					case "xai":
 						userMessage = userMessage.replace(
 							replaceKeyword,
 							fileContents
@@ -578,6 +579,7 @@ async function buildGenerationMessageForImageGeneration(
 				switch (llmProvider) {
 					case "fal":
 					case "openai":
+					case "xai":
 						userMessage = userMessage.replace(
 							replaceKeyword,
 							fileContents
@@ -1077,6 +1079,7 @@ async function buildGenerationMessageForContentGeneration({
 				switch (llmProvider) {
 					case "anthropic":
 					case "openai":
+					case "xai":
 						userMessage = userMessage.replace(
 							replaceKeyword,
 							fileContents

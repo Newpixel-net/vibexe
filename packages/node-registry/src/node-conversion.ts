@@ -2,6 +2,7 @@ import {
 	AnthropicLanguageModelId,
 	GoogleLanguageModelId,
 	OpenAILanguageModelId,
+	XaiLanguageModelId,
 } from "@giselles-ai/language-model";
 import {
 	getEntry,
@@ -63,6 +64,10 @@ function convertTextGenerationLanguageModelIdToContentGenerationLanguageModelId(
 			return "openai/gpt-5.1-codex";
 		case "gpt-5-nano":
 			return "openai/gpt-5-nano";
+		case "grok-3":
+			return "xai/grok-3";
+		case "grok-3-mini":
+			return "xai/grok-3-mini";
 		case "sonar":
 		case "sonar-pro":
 			// fallback to gpt-5-nano
@@ -113,6 +118,10 @@ function convertContentGenerationLanguageModelIdToTextGenerationLanguageModelId(
 			// When converting back, use gpt-5-nano (not sonar/sonar-pro)
 			// as we cannot determine the original source
 			return "gpt-5-nano";
+		case "xai/grok-3":
+			return "grok-3";
+		case "xai/grok-3-mini":
+			return "grok-3-mini";
 		default: {
 			const _exhaustiveCheck: never = from;
 			throw new Error(`Unknown language model id: ${_exhaustiveCheck}`);
@@ -254,6 +263,18 @@ export function convertContentGenerationToTextGeneration(
 					frequencyPenalty: 0.0,
 					textVerbosity: "medium",
 					reasoningEffort: "medium",
+				},
+			};
+			break;
+		case "xai":
+			llm = {
+				provider: "xai",
+				id: XaiLanguageModelId.parse(languageModelId),
+				configurations: {
+					temperature: 0.7,
+					topP: 1.0,
+					presencePenalty: 0.0,
+					frequencyPenalty: 0.0,
 				},
 			};
 			break;

@@ -2,7 +2,7 @@ import {
 	getEntry,
 	type LanguageModelId,
 } from "@giselles-ai/language-model-registry";
-import { AnthropicIcon, GoogleWhiteIcon, OpenaiIcon } from "../components";
+import { AnthropicIcon, GoogleWhiteIcon, OpenaiIcon, XaiIcon } from "../components";
 
 interface ProviderIconProps {
 	modelId: LanguageModelId;
@@ -21,6 +21,8 @@ export function ProviderIcon({
 			return <OpenaiIcon className={className} data-icon />;
 		case "google":
 			return <GoogleWhiteIcon className={className} data-icon />;
+		case "xai":
+			return <XaiIcon className={className} data-icon />;
 		default: {
 			const _exhaustiveCheck: never = languageModel;
 			throw new Error(`Unknown provider: ${_exhaustiveCheck}`);
