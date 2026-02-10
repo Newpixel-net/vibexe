@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
 		const xai = getXaiProvider();
 		const result = streamText({
-			model: xai("grok-4-1-fast-reasoning"),
+			model: xai.chat("grok-4-1-fast-reasoning"),
 			system: WORKFLOW_SYSTEM_PROMPT,
 			messages: modelMessages,
 			tools,
