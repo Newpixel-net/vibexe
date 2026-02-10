@@ -259,6 +259,24 @@ export const passwordResetTokens = pgTable(
 	(table) => [index("password_reset_tokens_token_idx").on(table.token)],
 );
 
+export const sessions = pgTable(
+	"sessions",
+	{
+		id: serial("id").primaryKey(),
+		userId: text("user_id").notNull(),
+		token: text("token").notNull().unique(),
+		expiresAt: timestamp("expires_at").notNull(),
+		ipAddress: text("ip_address"),
+		userAgent: text("user_agent"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("sessions_token_idx").on(table.token),
+		index("sessions_user_id_idx").on(table.userId),
+	],
+);
+
 export type TeamRole = "admin" | "member";
 export const teamMemberships = pgTable(
 	"team_memberships",
