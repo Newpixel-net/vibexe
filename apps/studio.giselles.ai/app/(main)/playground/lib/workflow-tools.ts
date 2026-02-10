@@ -509,6 +509,27 @@ export function createWorkflowTools() {
 						};
 					}
 
+					// Validate that all {{nodeId:outputId}} references point to connected nodes
+					const connectedNodeIds = new Set(
+						workspace.connections
+							.filter((c) => c.inputNode.id === nodeId)
+							.map((c) => c.outputNode.id),
+					);
+					const promptWarnings: string[] = [];
+					const validateRefPattern = /\{\{([^:}]+):([^}]+)\}\}/g;
+					let validateMatch: RegExpExecArray | null;
+					validateMatch = validateRefPattern.exec(prompt);
+					while (validateMatch !== null) {
+						const refNodeId = validateMatch[1];
+						if (!connectedNodeIds.has(refNodeId)) {
+							const refNode = workspace.nodes.find((n) => n.id === refNodeId);
+							const refName = refNode?.name ?? refNodeId;
+							const targetName = node.name ?? nodeId;
+							promptWarnings.push(`Reference {{${refNodeId}:${validateMatch[2]}}} in prompt for "${targetName}" points to node "${refName}" which is NOT connected to "${targetName}". Add a connection first, or this reference will be empty at runtime.`);
+						}
+						validateMatch = validateRefPattern.exec(prompt);
+					}
+
 					// Convert plain text prompt with {{nodeId:outputId}} references
 					// into TipTap JSON document format
 					const paragraphs = prompt.split("\n").map((line) => {
@@ -586,7 +607,10 @@ export function createWorkflowTools() {
 						success: true,
 						nodeId,
 						prompt,
-						error: "",
+						warnings: promptWarnings,
+						error: promptWarnings.length > 0
+							? `Prompt was set, but ${promptWarnings.length} warning(s) found: ${promptWarnings.join(" | ")}`
+							: "",
 					};
 				} catch (error) {
 					console.error("set_prompt error:", error);
@@ -600,7 +624,7 @@ export function createWorkflowTools() {
 
 		finalize_workflow: tool({
 			description:
-				"Mark the workflow as complete and return the link to open it in the editor",
+				"Mark the workflow as complete and return the link to open it in the editor. Validates that all textGeneration nodes have prompts, the End node has incoming connections, and no nodes are orphaned. Returns warnings if issues are found — fix them before finalizing.",
 			inputSchema: z.object({
 				workspaceId: z.string().describe("The workspace ID"),
 				summary: z
@@ -608,14 +632,85 @@ export function createWorkflowTools() {
 					.describe("A brief summary of what the workflow does"),
 			}),
 			execute: async ({ workspaceId, summary }) => {
-				// Clear cache for this workspace since building is done
-				wsCache.delete(workspaceId);
-				return {
-					success: true,
-					url: `/workflows/${workspaceId}`,
-					summary,
-					workspaceId,
-				};
+				try {
+					const workspace = await getWorkspaceCached(workspaceId);
+					const warnings: string[] = [];
+
+					// Check every textGeneration node has a non-empty prompt
+					for (const node of workspace.nodes) {
+						if (node.content.type === "textGeneration") {
+							const content = node.content as { type: "textGeneration"; prompt?: string };
+							if (!content.prompt || content.prompt === "" || content.prompt === '{"type":"doc","content":[{"type":"paragraph"}]}') {
+								warnings.push(`EMPTY PROMPT: Node "${node.name ?? node.id}" (textGeneration) has no prompt set. Use set_prompt to fix this.`);
+							}
+						}
+					}
+
+					// Check End node has incoming connections
+					const endNode = workspace.nodes.find((n) => n.content.type === "end");
+					if (endNode) {
+						const endConnections = workspace.connections.filter(
+							(c) => c.inputNode.id === endNode.id,
+						);
+						if (endConnections.length === 0) {
+							warnings.push(`DISCONNECTED END: The End node has no incoming connections. Connect the final processing node's output to End.`);
+						}
+					} else {
+						warnings.push(`MISSING END NODE: No End node found. Add one with add_node({ type: "end" }).`);
+					}
+
+					// Check for orphan nodes (no connections at all, except Start which only has outgoing)
+					for (const node of workspace.nodes) {
+						if (node.content.type === "appEntry" || node.content.type === "end") continue;
+						const hasOutgoing = workspace.connections.some((c) => c.outputNode.id === node.id);
+						const hasIncoming = workspace.connections.some((c) => c.inputNode.id === node.id);
+						if (!hasOutgoing && !hasIncoming) {
+							warnings.push(`ORPHAN NODE: Node "${node.name ?? node.id}" has no connections at all. It will be ignored at runtime.`);
+						}
+					}
+
+					// Check integration nodes have incoming connections
+					for (const node of workspace.nodes) {
+						if (node.content.type === "integration") {
+							const hasIncoming = workspace.connections.some((c) => c.inputNode.id === node.id);
+							if (!hasIncoming) {
+								warnings.push(`DISCONNECTED INTEGRATION: Node "${node.name ?? node.id}" (integration) has no incoming connections. Connect a processing node's output to it.`);
+							}
+						}
+					}
+
+					if (warnings.length > 0) {
+						return {
+							success: false,
+							url: "",
+							summary: "",
+							workspaceId,
+							warnings,
+							error: `Found ${warnings.length} issue(s). Fix them and call finalize_workflow again.`,
+						};
+					}
+
+					// Clear cache for this workspace since building is done
+					wsCache.delete(workspaceId);
+					return {
+						success: true,
+						url: `/workflows/${workspaceId}`,
+						summary,
+						workspaceId,
+						warnings: [] as string[],
+						error: "",
+					};
+				} catch (error) {
+					console.error("finalize_workflow error:", error);
+					return {
+						success: false,
+						url: "",
+						summary: "",
+						workspaceId,
+						warnings: [] as string[],
+						error: `Failed to finalize workflow: ${String(error)}`,
+					};
+				}
 			},
 		}),
 	};
