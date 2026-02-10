@@ -64,10 +64,24 @@ function convertTextGenerationLanguageModelIdToContentGenerationLanguageModelId(
 			return "openai/gpt-5.1-codex";
 		case "gpt-5-nano":
 			return "openai/gpt-5-nano";
+		case "grok-4-0709":
+			return "xai/grok-4-0709";
+		case "grok-4-1-fast-reasoning":
+			return "xai/grok-4-1-fast-reasoning";
+		case "grok-4-1-fast-non-reasoning":
+			return "xai/grok-4-1-fast-non-reasoning";
+		case "grok-4-fast-reasoning":
+			return "xai/grok-4-fast-reasoning";
+		case "grok-4-fast-non-reasoning":
+			return "xai/grok-4-fast-non-reasoning";
+		case "grok-code-fast-1":
+			return "xai/grok-code-fast-1";
 		case "grok-3":
 			return "xai/grok-3";
 		case "grok-3-mini":
 			return "xai/grok-3-mini";
+		case "grok-2-vision-1212":
+			return "xai/grok-2-vision-1212";
 		case "sonar":
 		case "sonar-pro":
 			// fallback to gpt-5-nano
@@ -118,10 +132,24 @@ function convertContentGenerationLanguageModelIdToTextGenerationLanguageModelId(
 			// When converting back, use gpt-5-nano (not sonar/sonar-pro)
 			// as we cannot determine the original source
 			return "gpt-5-nano";
+		case "xai/grok-4-0709":
+			return "grok-4-0709";
+		case "xai/grok-4-1-fast-reasoning":
+			return "grok-4-1-fast-reasoning";
+		case "xai/grok-4-1-fast-non-reasoning":
+			return "grok-4-1-fast-non-reasoning";
+		case "xai/grok-4-fast-reasoning":
+			return "grok-4-fast-reasoning";
+		case "xai/grok-4-fast-non-reasoning":
+			return "grok-4-fast-non-reasoning";
+		case "xai/grok-code-fast-1":
+			return "grok-code-fast-1";
 		case "xai/grok-3":
 			return "grok-3";
 		case "xai/grok-3-mini":
 			return "grok-3-mini";
+		case "xai/grok-2-vision-1212":
+			return "grok-2-vision-1212";
 		default: {
 			const _exhaustiveCheck: never = from;
 			throw new Error(`Unknown language model id: ${_exhaustiveCheck}`);

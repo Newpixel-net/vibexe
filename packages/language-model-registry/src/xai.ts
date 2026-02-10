@@ -16,6 +16,162 @@ const xaiProvider = {
 } as const satisfies LanguageModelProviderDefinition<"xai">;
 
 export const xai = {
+	"xai/grok-4-0709": defineLanguageModel({
+		provider: xaiProvider,
+		id: "xai/grok-4-0709",
+		name: "Grok 4",
+		description:
+			"xAI's most capable flagship model with superior reasoning, coding, and math performance.",
+		contextWindow: 256_000,
+		maxOutputTokens: 32_768,
+		knowledgeCutoff: new Date(2025, 6, 1).getTime(),
+		pricing: {
+			input: definePricing(3.0),
+			output: definePricing(15.0),
+		},
+		requiredTier: "pro",
+		configurationOptions: {
+			temperature: {
+				description: "Controls the randomness of the output.",
+				schema: z.number().min(0).max(2),
+				ui: { min: 0.0, max: 2.0, step: 0.1 },
+			},
+		},
+		defaultConfiguration: {
+			temperature: 0.7,
+		},
+		url: "https://docs.x.ai/developers/models",
+	}),
+	"xai/grok-4-1-fast-reasoning": defineLanguageModel({
+		provider: xaiProvider,
+		id: "xai/grok-4-1-fast-reasoning",
+		name: "Grok 4.1 Fast (Reasoning)",
+		description:
+			"Fast Grok 4.1 model with reasoning capabilities. 2M context window at extremely low cost.",
+		contextWindow: 2_000_000,
+		maxOutputTokens: 32_768,
+		knowledgeCutoff: new Date(2025, 6, 1).getTime(),
+		pricing: {
+			input: definePricing(0.2),
+			output: definePricing(0.5),
+		},
+		requiredTier: "free",
+		configurationOptions: {
+			temperature: {
+				description: "Controls the randomness of the output.",
+				schema: z.number().min(0).max(2),
+				ui: { min: 0.0, max: 2.0, step: 0.1 },
+			},
+		},
+		defaultConfiguration: {
+			temperature: 0.7,
+		},
+		url: "https://docs.x.ai/developers/models",
+	}),
+	"xai/grok-4-1-fast-non-reasoning": defineLanguageModel({
+		provider: xaiProvider,
+		id: "xai/grok-4-1-fast-non-reasoning",
+		name: "Grok 4.1 Fast",
+		description:
+			"Fast Grok 4.1 model without reasoning overhead. 2M context window at extremely low cost.",
+		contextWindow: 2_000_000,
+		maxOutputTokens: 32_768,
+		knowledgeCutoff: new Date(2025, 6, 1).getTime(),
+		pricing: {
+			input: definePricing(0.2),
+			output: definePricing(0.5),
+		},
+		requiredTier: "free",
+		configurationOptions: {
+			temperature: {
+				description: "Controls the randomness of the output.",
+				schema: z.number().min(0).max(2),
+				ui: { min: 0.0, max: 2.0, step: 0.1 },
+			},
+		},
+		defaultConfiguration: {
+			temperature: 0.7,
+		},
+		url: "https://docs.x.ai/developers/models",
+	}),
+	"xai/grok-4-fast-reasoning": defineLanguageModel({
+		provider: xaiProvider,
+		id: "xai/grok-4-fast-reasoning",
+		name: "Grok 4 Fast (Reasoning)",
+		description:
+			"Fast Grok 4 model with reasoning capabilities. 2M context window.",
+		contextWindow: 2_000_000,
+		maxOutputTokens: 32_768,
+		knowledgeCutoff: new Date(2025, 6, 1).getTime(),
+		pricing: {
+			input: definePricing(0.2),
+			output: definePricing(0.5),
+		},
+		requiredTier: "free",
+		configurationOptions: {
+			temperature: {
+				description: "Controls the randomness of the output.",
+				schema: z.number().min(0).max(2),
+				ui: { min: 0.0, max: 2.0, step: 0.1 },
+			},
+		},
+		defaultConfiguration: {
+			temperature: 0.7,
+		},
+		url: "https://docs.x.ai/developers/models",
+	}),
+	"xai/grok-4-fast-non-reasoning": defineLanguageModel({
+		provider: xaiProvider,
+		id: "xai/grok-4-fast-non-reasoning",
+		name: "Grok 4 Fast",
+		description:
+			"Fast Grok 4 model without reasoning overhead. 2M context window.",
+		contextWindow: 2_000_000,
+		maxOutputTokens: 32_768,
+		knowledgeCutoff: new Date(2025, 6, 1).getTime(),
+		pricing: {
+			input: definePricing(0.2),
+			output: definePricing(0.5),
+		},
+		requiredTier: "free",
+		configurationOptions: {
+			temperature: {
+				description: "Controls the randomness of the output.",
+				schema: z.number().min(0).max(2),
+				ui: { min: 0.0, max: 2.0, step: 0.1 },
+			},
+		},
+		defaultConfiguration: {
+			temperature: 0.7,
+		},
+		url: "https://docs.x.ai/developers/models",
+	}),
+	"xai/grok-code-fast-1": defineLanguageModel({
+		provider: xaiProvider,
+		id: "xai/grok-code-fast-1",
+		name: "Grok Code Fast",
+		description:
+			"Specialized Grok model optimized for code generation and programming tasks.",
+		contextWindow: 256_000,
+		maxOutputTokens: 32_768,
+		knowledgeCutoff: new Date(2025, 6, 1).getTime(),
+		pricing: {
+			input: definePricing(0.2),
+			output: definePricing(1.5),
+		},
+		requiredTier: "free",
+		configurationOptions: {
+			temperature: {
+				description: "Controls the randomness of the output.",
+				schema: z.number().min(0).max(2),
+				ui: { min: 0.0, max: 2.0, step: 0.1 },
+			},
+		},
+		defaultConfiguration: {
+			temperature: 0.7,
+		},
+		url: "https://docs.x.ai/developers/models",
+	}),
 	"xai/grok-3": defineLanguageModel({
 		provider: xaiProvider,
 		id: "xai/grok-3",
@@ -56,6 +212,32 @@ export const xai = {
 			output: definePricing(0.5),
 		},
 		requiredTier: "free",
+		configurationOptions: {
+			temperature: {
+				description: "Controls the randomness of the output.",
+				schema: z.number().min(0).max(2),
+				ui: { min: 0.0, max: 2.0, step: 0.1 },
+			},
+		},
+		defaultConfiguration: {
+			temperature: 0.7,
+		},
+		url: "https://docs.x.ai/developers/models",
+	}),
+	"xai/grok-2-vision-1212": defineLanguageModel({
+		provider: xaiProvider,
+		id: "xai/grok-2-vision-1212",
+		name: "Grok 2 Vision",
+		description:
+			"Grok 2 model with vision capabilities for understanding images and visual content.",
+		contextWindow: 32_768,
+		maxOutputTokens: 8_192,
+		knowledgeCutoff: new Date(2024, 6, 1).getTime(),
+		pricing: {
+			input: definePricing(2.0),
+			output: definePricing(10.0),
+		},
+		requiredTier: "pro",
 		configurationOptions: {
 			temperature: {
 				description: "Controls the randomness of the output.",
