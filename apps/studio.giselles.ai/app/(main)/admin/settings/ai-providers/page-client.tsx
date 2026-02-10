@@ -11,6 +11,7 @@ import {
 import { Input } from "@giselle-internal/ui/input";
 import { PageHeading } from "@giselle-internal/ui/page-heading";
 import {
+	AlertTriangle,
 	BrainCircuit,
 	Globe,
 	Search,
@@ -33,6 +34,7 @@ type ProviderData = {
 	isActive: boolean;
 	maskedKey: string | null;
 	updatedAt: string | null;
+	errorReason: "key_mismatch" | "decrypt_failed" | null;
 };
 
 type AiProvidersPageClientProps = {
@@ -53,8 +55,16 @@ function ProviderCard({
 	provider: ProviderData;
 	onConfigure: (provider: ProviderData) => void;
 }) {
+	const hasError = provider.errorReason != null;
+
 	return (
-		<div className="relative rounded-[12px] overflow-hidden px-[24px] py-[20px] w-full bg-white/[0.02] backdrop-blur-[8px] border-[0.5px] border-white/8 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_-1px_1px_rgba(255,255,255,0.2)] before:content-[''] before:absolute before:inset-0 before:bg-white before:opacity-[0.02] before:rounded-[inherit] before:pointer-events-none">
+		<div
+			className={`relative rounded-[12px] overflow-hidden px-[24px] py-[20px] w-full bg-white/[0.02] backdrop-blur-[8px] border-[0.5px] shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_-1px_1px_rgba(255,255,255,0.2)] before:content-[''] before:absolute before:inset-0 before:bg-white before:opacity-[0.02] before:rounded-[inherit] before:pointer-events-none ${
+				hasError
+					? "border-red-500/50 ring-1 ring-red-500/20"
+					: "border-white/8"
+			}`}
+		>
 			<div className="relative z-10 flex items-start justify-between gap-4">
 				<div className="flex items-start gap-4">
 					<div className="flex items-center justify-center w-12 h-12 rounded-xl bg-white/[0.05] border border-white/[0.08] text-white-800">
@@ -68,21 +78,28 @@ function ProviderCard({
 							{provider.description}
 						</p>
 						<div className="flex items-center gap-3 mt-1">
-							<span
-								className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full ${
-									provider.isActive
-										? "bg-green-500/20 text-green-400"
-										: "bg-white/[0.05] text-text-muted"
-								}`}
-							>
+							{hasError ? (
+								<span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full bg-red-500/20 text-red-400">
+									<AlertTriangle className="size-3" />
+									Key needs re-entry
+								</span>
+							) : (
 								<span
-									className={`w-1.5 h-1.5 rounded-full ${
-										provider.isActive ? "bg-green-400" : "bg-text-muted"
+									className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full ${
+										provider.isActive
+											? "bg-green-500/20 text-green-400"
+											: "bg-white/[0.05] text-text-muted"
 									}`}
-								/>
-								{provider.isActive ? "Active" : "Not configured"}
-							</span>
-							{provider.maskedKey && (
+								>
+									<span
+										className={`w-1.5 h-1.5 rounded-full ${
+											provider.isActive ? "bg-green-400" : "bg-text-muted"
+										}`}
+									/>
+									{provider.isActive ? "Active" : "Not configured"}
+								</span>
+							)}
+							{provider.maskedKey && !hasError && (
 								<span className="text-xs text-text-muted font-mono">
 									{provider.maskedKey}
 								</span>
@@ -167,7 +184,18 @@ function ConfigureDialog({
 				<form onSubmit={handleSave} className="mt-4 space-y-5">
 					<p className="text-sm text-text-muted">{provider.description}</p>
 
-					{provider.isActive && provider.maskedKey && (
+					{provider.errorReason && (
+						<div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-300">
+							<AlertTriangle className="size-4 mt-0.5 shrink-0" />
+							<span>
+								{provider.errorReason === "key_mismatch"
+									? "This key was encrypted with a different encryption key and cannot be read. Please enter a new API key."
+									: "This key could not be decrypted. Please enter a new API key."}
+							</span>
+						</div>
+					)}
+
+					{!provider.errorReason && provider.isActive && provider.maskedKey && (
 						<div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-sm text-green-400">
 							<span className="w-2 h-2 rounded-full bg-green-400" />
 							Current key: {provider.maskedKey}
@@ -249,6 +277,8 @@ export function AiProvidersPageClient({
 }: AiProvidersPageClientProps) {
 	const [configuring, setConfiguring] = useState<ProviderData | null>(null);
 
+	const hasDecryptErrors = providers.some((p) => p.errorReason != null);
+
 	return (
 		<div className="h-full bg-bg">
 			<div className="px-[40px] py-[24px] flex-1 max-w-[1200px] mx-auto w-full">
@@ -260,6 +290,22 @@ export function AiProvidersPageClient({
 						server restart.
 					</p>
 				</div>
+
+				{hasDecryptErrors && (
+					<div className="flex items-start gap-3 mb-6 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30">
+						<AlertTriangle className="size-5 text-red-400 mt-0.5 shrink-0" />
+						<div className="text-sm text-red-300">
+							<p className="font-medium">
+								One or more API keys cannot be decrypted.
+							</p>
+							<p className="mt-1 text-red-300/80">
+								This usually means the server&apos;s encryption key
+								(TOKEN_ENCRYPTION_KEY) has changed. Please re-enter the
+								affected keys below.
+							</p>
+						</div>
+					</div>
+				)}
 
 				<div className="grid gap-4">
 					{providers.map((provider) => (

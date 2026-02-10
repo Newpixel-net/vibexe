@@ -1,6 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { beforeEach, describe, expect, test } from "vitest";
-import { decryptToken, encryptToken } from "./token-encryption";
+import {
+	EncryptionKeyMismatchError,
+	decryptToken,
+	encryptToken,
+	getKeyFingerprint,
+} from "./token-encryption";
 
 describe("token-encryption", () => {
 	const testKey = randomBytes(32).toString("base64");
@@ -17,10 +22,14 @@ describe("token-encryption", () => {
 		expect(decrypted).toBe(plaintext);
 	});
 
-	test("encrypted token starts with 'enc:' prefix", () => {
+	test("encrypted token uses v2 format with fingerprint", () => {
 		const encrypted = encryptToken("test-token");
 
-		expect(encrypted.startsWith("enc:")).toBe(true);
+		expect(encrypted.startsWith("enc:v2:")).toBe(true);
+		// Format: enc:v2:<8-char-fingerprint>:<base64>
+		const parts = encrypted.split(":");
+		expect(parts.length).toBe(4);
+		expect(parts[2]).toHaveLength(8);
 	});
 
 	test("same plaintext produces different ciphertext each time", () => {
@@ -38,6 +47,35 @@ describe("token-encryption", () => {
 		const result = decryptToken(plaintext);
 
 		expect(result).toBe(plaintext);
+	});
+
+	test("decrypts legacy v1 format tokens", () => {
+		// Manually create a v1-style encrypted token (enc:<base64>)
+		// by encrypting with v2 then stripping the v2 prefix parts
+		const { createCipheriv } = require("node:crypto");
+		const key = Buffer.from(testKey, "base64");
+		const iv = randomBytes(12);
+		const cipher = createCipheriv("aes-256-gcm", key, iv, {
+			authTagLength: 16,
+		});
+		const encrypted = Buffer.concat([
+			cipher.update("legacy-token", "utf8"),
+			cipher.final(),
+		]);
+		const authTag = cipher.getAuthTag();
+		const combined = Buffer.concat([iv, authTag, encrypted]);
+		const v1Token = `enc:${combined.toString("base64")}`;
+
+		expect(decryptToken(v1Token)).toBe("legacy-token");
+	});
+
+	test("throws EncryptionKeyMismatchError when key changes (v2 format)", () => {
+		const encrypted = encryptToken("test-token");
+
+		// Switch to a different key
+		process.env.TOKEN_ENCRYPTION_KEY = randomBytes(32).toString("base64");
+
+		expect(() => decryptToken(encrypted)).toThrow(EncryptionKeyMismatchError);
 	});
 
 	test("throws error when decrypting tampered data", () => {
@@ -70,6 +108,25 @@ describe("token-encryption", () => {
 		expect(decrypted).toBe(plaintext);
 	});
 
+	describe("getKeyFingerprint", () => {
+		test("returns 8-character hex string", () => {
+			const fp = getKeyFingerprint();
+			expect(fp).toHaveLength(8);
+			expect(fp).toMatch(/^[0-9a-f]{8}$/);
+		});
+
+		test("returns same fingerprint for same key", () => {
+			expect(getKeyFingerprint()).toBe(getKeyFingerprint());
+		});
+
+		test("returns different fingerprint for different key", () => {
+			const fp1 = getKeyFingerprint();
+			process.env.TOKEN_ENCRYPTION_KEY = randomBytes(32).toString("base64");
+			const fp2 = getKeyFingerprint();
+			expect(fp1).not.toBe(fp2);
+		});
+	});
+
 	describe("when encryption key is invalid", () => {
 		test("throws error when encryption key is not set", () => {
 			process.env.TOKEN_ENCRYPTION_KEY = "";
@@ -87,7 +144,7 @@ describe("token-encryption", () => {
 			);
 		});
 
-		describe("when dencryption key is invalid", () => {
+		describe("when decryption key is invalid", () => {
 			test("throws error when decrypting without key", () => {
 				const encrypted = encryptToken("test-token");
 				process.env.TOKEN_ENCRYPTION_KEY = "";

@@ -24,6 +24,7 @@ export default async function AiProvidersPage() {
 			isActive: saved?.isActive ?? false,
 			maskedKey: saved?.maskedKey ?? null,
 			updatedAt: saved?.updatedAt?.toISOString() ?? null,
+			errorReason: saved?.errorReason ?? null,
 		};
 	});
 

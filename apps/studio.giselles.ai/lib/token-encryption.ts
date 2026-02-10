@@ -2,6 +2,7 @@ import {
 	type CipherGCMTypes,
 	createCipheriv,
 	createDecipheriv,
+	createHash,
 	randomBytes,
 } from "node:crypto";
 import invariant from "tiny-invariant";
@@ -9,7 +10,18 @@ import invariant from "tiny-invariant";
 const ALGORITHM: CipherGCMTypes = "aes-256-gcm";
 const IV_LENGTH = 12; // GCM recommended IV length
 const AUTH_TAG_LENGTH = 16;
-const ENCRYPTED_PREFIX = "enc:"; // Prefix to identify encrypted tokens
+const V1_PREFIX = "enc:"; // Legacy v1 format: enc:<base64>
+const V2_PREFIX = "enc:v2:"; // v2 format: enc:v2:<fingerprint>:<base64>
+
+export class EncryptionKeyMismatchError extends Error {
+	constructor(expected: string, actual: string) {
+		super(
+			`Encryption key mismatch: token was encrypted with key [${expected}] but current key is [${actual}]. ` +
+				`The TOKEN_ENCRYPTION_KEY may have been changed or rotated. Re-enter the value to re-encrypt with the current key.`,
+		);
+		this.name = "EncryptionKeyMismatchError";
+	}
+}
 
 function getEncryptionKey(): Buffer {
 	const key = process.env.TOKEN_ENCRYPTION_KEY;
@@ -19,12 +31,19 @@ function getEncryptionKey(): Buffer {
 	return buffer;
 }
 
+/** Returns first 8 hex chars of SHA-256(TOKEN_ENCRYPTION_KEY) as a fingerprint */
+export function getKeyFingerprint(): string {
+	const key = getEncryptionKey();
+	return createHash("sha256").update(key).digest("hex").slice(0, 8);
+}
+
 function isEncrypted(value: string): boolean {
-	return value.startsWith(ENCRYPTED_PREFIX);
+	return value.startsWith(V1_PREFIX);
 }
 
 export function encryptToken(plaintext: string): string {
 	const key = getEncryptionKey();
+	const fingerprint = getKeyFingerprint();
 	const iv = randomBytes(IV_LENGTH);
 	const cipher = createCipheriv(ALGORITHM, key, iv, {
 		authTagLength: AUTH_TAG_LENGTH,
@@ -36,9 +55,9 @@ export function encryptToken(plaintext: string): string {
 	]);
 	const authTag = cipher.getAuthTag();
 
-	// Format: enc:<base64(iv + authTag + encrypted)>
+	// v2 format: enc:v2:<fingerprint>:<base64(iv + authTag + encrypted)>
 	const combined = Buffer.concat([iv, authTag, encrypted]);
-	return `${ENCRYPTED_PREFIX}${combined.toString("base64")}`;
+	return `${V2_PREFIX}${fingerprint}:${combined.toString("base64")}`;
 }
 
 export function decryptToken(value: string): string {
@@ -48,8 +67,32 @@ export function decryptToken(value: string): string {
 	}
 
 	const key = getEncryptionKey();
-	const data = Buffer.from(value.slice(ENCRYPTED_PREFIX.length), "base64");
 
+	// Detect v2 format: enc:v2:<fingerprint>:<base64>
+	if (value.startsWith(V2_PREFIX)) {
+		const rest = value.slice(V2_PREFIX.length); // "<fingerprint>:<base64>"
+		const colonIdx = rest.indexOf(":");
+		if (colonIdx === -1) {
+			throw new Error("Encrypted token is malformed: invalid v2 format");
+		}
+		const storedFingerprint = rest.slice(0, colonIdx);
+		const currentFingerprint = getKeyFingerprint();
+		if (storedFingerprint !== currentFingerprint) {
+			throw new EncryptionKeyMismatchError(
+				storedFingerprint,
+				currentFingerprint,
+			);
+		}
+		const data = Buffer.from(rest.slice(colonIdx + 1), "base64");
+		return decryptData(key, data);
+	}
+
+	// Legacy v1 format: enc:<base64>
+	const data = Buffer.from(value.slice(V1_PREFIX.length), "base64");
+	return decryptData(key, data);
+}
+
+function decryptData(key: Buffer, data: Buffer): string {
 	if (data.length < IV_LENGTH + AUTH_TAG_LENGTH) {
 		throw new Error(
 			"Encrypted token is malformed: insufficient data for IV and auth tag",

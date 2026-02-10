@@ -5,7 +5,16 @@ export async function register() {
 		await import("./sentry.server.config");
 		// Load AI provider API keys from database into process.env
 		const { loadProviderKeysIntoEnv } = await import("@/lib/ai-provider-keys");
-		await loadProviderKeysIntoEnv();
+		const { loaded, failed } = await loadProviderKeysIntoEnv();
+		if (failed > 0) {
+			console.error(
+				`[ai-provider-keys] CRITICAL: ${failed} key(s) failed to decrypt — re-enter at /admin/settings/ai-providers`,
+			);
+		} else {
+			console.log(
+				`[ai-provider-keys] Loaded ${loaded} provider key(s) successfully`,
+			);
+		}
 
 		// Override the default AI SDK global provider to prevent Vercel AI Gateway usage.
 		// AI SDK v5 defaults to the Vercel AI Gateway when resolving string model IDs,

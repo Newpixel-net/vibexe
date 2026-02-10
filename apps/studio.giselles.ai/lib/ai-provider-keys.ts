@@ -1,7 +1,11 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { aiProviderKeys } from "@/db/schema";
-import { decryptToken, encryptToken } from "@/lib/token-encryption";
+import {
+	EncryptionKeyMismatchError,
+	decryptToken,
+	encryptToken,
+} from "@/lib/token-encryption";
 
 export const AI_PROVIDERS = [
 	{
@@ -53,6 +57,7 @@ export type ProviderKeyInfo = {
 	isActive: boolean;
 	maskedKey: string;
 	updatedAt: Date;
+	errorReason: "key_mismatch" | "decrypt_failed" | null;
 };
 
 export async function getProviderKeys(): Promise<ProviderKeyInfo[]> {
@@ -66,16 +71,19 @@ export async function getProviderKeys(): Promise<ProviderKeyInfo[]> {
 				isActive: row.isActive,
 				maskedKey: redactKey(decrypted),
 				updatedAt: row.updatedAt,
+				errorReason: null,
 			});
-		} catch {
+		} catch (err) {
+			const isKeyMismatch = err instanceof EncryptionKeyMismatchError;
 			console.warn(
-				`[ai-provider-keys] Skipping ${row.provider}: decrypt failed`,
+				`[ai-provider-keys] Skipping ${row.provider}: ${isKeyMismatch ? "encryption key mismatch" : "decrypt failed"}`,
 			);
 			keys.push({
 				provider: row.provider as ProviderId,
 				isActive: row.isActive,
-				maskedKey: "(decrypt error)",
+				maskedKey: isKeyMismatch ? "Key needs re-entry" : "(decrypt error)",
 				updatedAt: row.updatedAt,
+				errorReason: isKeyMismatch ? "key_mismatch" : "decrypt_failed",
 			});
 		}
 	}
@@ -121,12 +129,19 @@ export async function deleteProviderKey(provider: string): Promise<void> {
 	delete process.env[envVar];
 }
 
-export async function loadProviderKeysIntoEnv(): Promise<void> {
+export async function loadProviderKeysIntoEnv(): Promise<{
+	loaded: number;
+	failed: number;
+}> {
 	try {
 		const rows = await db
 			.select()
 			.from(aiProviderKeys)
 			.where(eq(aiProviderKeys.isActive, true));
+
+		let loaded = 0;
+		let failed = 0;
+		const failedProviders: string[] = [];
 
 		for (const row of rows) {
 			const envVar = ENV_VAR_MAP[row.provider as ProviderId];
@@ -137,17 +152,41 @@ export async function loadProviderKeysIntoEnv(): Promise<void> {
 				try {
 					const decrypted = decryptToken(row.encryptedApiKey);
 					process.env[envVar] = decrypted;
-				} catch {
+					loaded++;
+				} catch (err) {
+					failed++;
+					const reason =
+						err instanceof EncryptionKeyMismatchError
+							? "key mismatch"
+							: "decrypt failed";
+					failedProviders.push(`${row.provider} (${reason})`);
 					console.warn(
-						`[ai-provider-keys] Skipping ${row.provider}: decrypt failed`,
+						`[ai-provider-keys] Skipping ${row.provider}: ${reason}`,
 					);
 				}
+			} else {
+				loaded++;
 			}
 		}
-		console.log(
-			`[ai-provider-keys] Loaded ${rows.length} provider key(s) from database`,
-		);
+
+		if (failed > 0) {
+			console.error(
+				[
+					"",
+					"=============================================",
+					`CRITICAL: ${failed} AI provider key(s) failed to decrypt!`,
+					`Affected: ${failedProviders.join(", ")}`,
+					"The TOKEN_ENCRYPTION_KEY may have changed.",
+					"Re-enter keys at: /admin/settings/ai-providers",
+					"=============================================",
+					"",
+				].join("\n"),
+			);
+		}
+
+		return { loaded, failed };
 	} catch (error) {
 		console.error("[ai-provider-keys] Failed to load provider keys:", error);
+		return { loaded: 0, failed: 0 };
 	}
 }
