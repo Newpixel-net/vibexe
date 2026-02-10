@@ -36,19 +36,8 @@ export async function generateImage(input: { generation: QueuedGeneration }) {
 export async function startContentGeneration(input: {
 	generation: Generation;
 }) {
-	console.error(
-		`[DEBUG-SA] startContentGeneration Server Action called: id=${input.generation.id} status=${input.generation.status}`,
-	);
-	try {
-		const generation = await giselle.startContentGeneration(input);
-		console.error(
-			`[DEBUG-SA] startContentGeneration Server Action succeeded: id=${generation.id}`,
-		);
-		return { generation };
-	} catch (err) {
-		console.error("[DEBUG-SA] startContentGeneration Server Action FAILED:", err);
-		throw err;
-	}
+	const generation = await giselle.startContentGeneration(input);
+	return { generation };
 }
 
 export async function getGenerationMessageChunks(input: {
