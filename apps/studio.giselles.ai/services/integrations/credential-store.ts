@@ -23,16 +23,26 @@ export async function getCredentialsForTeam(
 		.from(integrationCredentials)
 		.where(eq(integrationCredentials.teamDbId, teamDbId));
 
-	return results.map((row) => ({
-		dbId: row.dbId,
-		teamDbId: row.teamDbId,
-		pieceName: row.pieceName,
-		displayName: row.displayName,
-		authType: row.authType,
-		config: JSON.parse(decryptToken(row.encryptedConfig)),
-		createdAt: row.createdAt,
-		updatedAt: row.updatedAt,
-	}));
+	const credentials: IntegrationCredential[] = [];
+	for (const row of results) {
+		try {
+			credentials.push({
+				dbId: row.dbId,
+				teamDbId: row.teamDbId,
+				pieceName: row.pieceName,
+				displayName: row.displayName,
+				authType: row.authType,
+				config: JSON.parse(decryptToken(row.encryptedConfig)),
+				createdAt: row.createdAt,
+				updatedAt: row.updatedAt,
+			});
+		} catch {
+			console.warn(
+				`[credential-store] Skipping credential ${row.dbId} (${row.pieceName}): decrypt failed`,
+			);
+		}
+	}
+	return credentials;
 }
 
 export async function getCredential(
@@ -51,16 +61,23 @@ export async function getCredential(
 
 	if (!result) return null;
 
-	return {
-		dbId: result.dbId,
-		teamDbId: result.teamDbId,
-		pieceName: result.pieceName,
-		displayName: result.displayName,
-		authType: result.authType,
-		config: JSON.parse(decryptToken(result.encryptedConfig)),
-		createdAt: result.createdAt,
-		updatedAt: result.updatedAt,
-	};
+	try {
+		return {
+			dbId: result.dbId,
+			teamDbId: result.teamDbId,
+			pieceName: result.pieceName,
+			displayName: result.displayName,
+			authType: result.authType,
+			config: JSON.parse(decryptToken(result.encryptedConfig)),
+			createdAt: result.createdAt,
+			updatedAt: result.updatedAt,
+		};
+	} catch {
+		console.warn(
+			`[credential-store] Credential ${result.dbId} (${result.pieceName}): decrypt failed`,
+		);
+		return null;
+	}
 }
 
 export async function getCredentialForPiece(
@@ -79,16 +96,23 @@ export async function getCredentialForPiece(
 
 	if (!result) return null;
 
-	return {
-		dbId: result.dbId,
-		teamDbId: result.teamDbId,
-		pieceName: result.pieceName,
-		displayName: result.displayName,
-		authType: result.authType,
-		config: JSON.parse(decryptToken(result.encryptedConfig)),
-		createdAt: result.createdAt,
-		updatedAt: result.updatedAt,
-	};
+	try {
+		return {
+			dbId: result.dbId,
+			teamDbId: result.teamDbId,
+			pieceName: result.pieceName,
+			displayName: result.displayName,
+			authType: result.authType,
+			config: JSON.parse(decryptToken(result.encryptedConfig)),
+			createdAt: result.createdAt,
+			updatedAt: result.updatedAt,
+		};
+	} catch {
+		console.warn(
+			`[credential-store] Credential ${result.dbId} (${result.pieceName}): decrypt failed`,
+		);
+		return null;
+	}
 }
 
 export async function createCredential(args: {
@@ -158,7 +182,10 @@ export async function updateCredential(args: {
 		pieceName: result.pieceName,
 		displayName: result.displayName,
 		authType: result.authType,
-		config: args.config ?? JSON.parse(decryptToken(result.encryptedConfig)),
+		config: args.config ?? (() => {
+			try { return JSON.parse(decryptToken(result.encryptedConfig)); }
+			catch { return {}; }
+		})(),
 		createdAt: result.createdAt,
 		updatedAt: result.updatedAt,
 	};

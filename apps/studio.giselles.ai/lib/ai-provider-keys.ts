@@ -57,15 +57,29 @@ export type ProviderKeyInfo = {
 
 export async function getProviderKeys(): Promise<ProviderKeyInfo[]> {
 	const rows = await db.select().from(aiProviderKeys);
-	return rows.map((row) => {
-		const decrypted = decryptToken(row.encryptedApiKey);
-		return {
-			provider: row.provider as ProviderId,
-			isActive: row.isActive,
-			maskedKey: redactKey(decrypted),
-			updatedAt: row.updatedAt,
-		};
-	});
+	const keys: ProviderKeyInfo[] = [];
+	for (const row of rows) {
+		try {
+			const decrypted = decryptToken(row.encryptedApiKey);
+			keys.push({
+				provider: row.provider as ProviderId,
+				isActive: row.isActive,
+				maskedKey: redactKey(decrypted),
+				updatedAt: row.updatedAt,
+			});
+		} catch {
+			console.warn(
+				`[ai-provider-keys] Skipping ${row.provider}: decrypt failed`,
+			);
+			keys.push({
+				provider: row.provider as ProviderId,
+				isActive: row.isActive,
+				maskedKey: "(decrypt error)",
+				updatedAt: row.updatedAt,
+			});
+		}
+	}
+	return keys;
 }
 
 export async function upsertProviderKey(
@@ -120,8 +134,14 @@ export async function loadProviderKeysIntoEnv(): Promise<void> {
 
 			// Only load from DB if not already set via .env file
 			if (!process.env[envVar]) {
-				const decrypted = decryptToken(row.encryptedApiKey);
-				process.env[envVar] = decrypted;
+				try {
+					const decrypted = decryptToken(row.encryptedApiKey);
+					process.env[envVar] = decrypted;
+				} catch {
+					console.warn(
+						`[ai-provider-keys] Skipping ${row.provider}: decrypt failed`,
+					);
+				}
 			}
 		}
 		console.log(
