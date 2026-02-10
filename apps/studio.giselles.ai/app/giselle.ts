@@ -489,7 +489,11 @@ export const giselle = NextGiselle({
 	logger,
 	async onRequest({ updateContext }) {
 		const useGenerateContentNode = await generateContentNodeFlag();
-		const currentTeamForCreds = await fetchCurrentTeam().catch(() => null);
+		const currentTeamForCreds = await fetchCurrentTeam().catch((err) => {
+			console.error("[onRequest] fetchCurrentTeam failed:", err?.message || err);
+			return null;
+		});
+		console.log("[onRequest] currentTeamForCreds:", currentTeamForCreds ? `dbId=${currentTeamForCreds.dbId}` : "null");
 		updateContext({
 			experimental_contentGenerationNode: useGenerateContentNode,
 			resolveIntegrationCredential: currentTeamForCreds
