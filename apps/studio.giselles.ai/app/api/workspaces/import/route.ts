@@ -70,18 +70,21 @@ export async function POST(request: Request) {
 
 		await giselle.updateWorkspace(savedWorkspace);
 
-		// Insert workspace records
+		// Insert workspace records with workflow name
+		const workflowName = converted.name || "Imported Workflow";
 		const agentId = `agnt_${createId()}` as const;
 		await db.insert(agents).values({
 			id: agentId,
 			teamDbId: team.dbId,
 			creatorDbId: user.dbId,
 			workspaceId: workspace.id,
+			name: workflowName,
 		});
 		await db.insert(workspaces).values({
 			id: workspace.id,
 			creatorDbId: user.dbId,
 			teamDbId: team.dbId,
+			name: workflowName,
 		});
 
 		const redirectPath = `/workflows/${workspace.id}`;
