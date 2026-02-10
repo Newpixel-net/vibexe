@@ -100,6 +100,7 @@ async function youtubeFetchVideoInfo(
 	const videoUrl = connectedInput || (properties.videoUrl as string) || "";
 	const apiKey =
 		(properties.apiKey as string) ||
+		(typeof auth === "string" && auth ? auth : "") ||
 		(auth && typeof auth === "object" && "apiKey" in auth
 			? (auth as { apiKey: string }).apiKey
 			: "");

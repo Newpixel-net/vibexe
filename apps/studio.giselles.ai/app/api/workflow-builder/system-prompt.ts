@@ -28,7 +28,8 @@ The Start node is ALWAYS the first node. The End node is ALWAYS the last node. T
    - Requires: llmProvider + llmModelId
    - Output: "generated-text"
    - LLM options:
-     - **OpenAI**: "gpt-4.1-nano" (fast/cheap), "gpt-4.1-mini" (balanced), "gpt-4.1" (powerful), "o4-mini" (reasoning)
+     - **xAI Grok**: "grok-4-1-fast-reasoning" (fast/cheap, 2M ctx, $0.2/$0.5 — RECOMMENDED DEFAULT), "grok-4-1-fast-non-reasoning" (fast, no reasoning overhead), "grok-4-0709" (most capable flagship)
+     - **OpenAI**: "gpt-5-nano" (fast/cheap), "gpt-5-mini" (balanced), "gpt-5" (powerful), "gpt-5.1-thinking" (reasoning)
      - **Anthropic**: "claude-haiku-4.5" (fast/cheap), "claude-sonnet-4.5" (best all-around), "claude-opus-4.5" (most capable)
      - **Google**: "gemini-2.5-flash" (fast/cheap), "gemini-2.5-pro" (powerful)
        - Google nodes support \`searchGrounding: true\` for built-in web search capability
@@ -200,13 +201,13 @@ This is the GO-TO pattern for most workflows. text and webPage nodes work immedi
 
 ### Pattern 4: Multi-Source + Multi-Step (RECOMMENDED — works immediately)
 Start ──────────────────────┐
-text (guidelines/docs) ─────┤→ textGen_processor(OpenAI) → textGen_reply(Claude) → End
+text (guidelines/docs) ─────┤→ textGen_processor(xAI Grok) → textGen_reply(Claude) → End
 webPage (reference URL) ────┘
 Best for: customer support, research, analysis — anything that benefits from both context AND staged processing.
-Uses OpenAI for intermediate processing/summarization, Claude for final high-quality response.
+Uses xAI Grok for intermediate processing/summarization, Claude for final high-quality response.
 
 ### Pattern 5: RAG Pipeline (Advanced — requires vector store setup)
-Start → textGen_queryGen(OpenAI) ──┐
+Start → textGen_queryGen(xAI Grok) ──┐
                                     ├→ query → textGen_response(Claude) → End
 vectorStore ───────────────────────┘
 Best for: knowledge-base Q&A, document search, code search
@@ -215,7 +216,7 @@ NOTE: Requires pre-configured vector stores in Settings. Only use when user expl
 ### Pattern 6: Research Hub (Advanced — requires vector store setup)
 vectorStore(github-issue)──────────┐
 vectorStore(github-pull-request)───┤
-Start → textGen_queryGen(OpenAI) ──┤→ query ──────────────┐
+Start → textGen_queryGen(xAI Grok) ──┤→ query ──────────────┐
                                                            │
 Start → textGen_webSearch(Google+searchGrounding) ─────────┤→ textGen_analyst(Claude) → End
                                                            │
@@ -224,12 +225,12 @@ Best for: product research, competitive analysis, multi-source investigation
 NOTE: Requires pre-configured GitHub vector stores. Only use when user explicitly asks for GitHub/code analysis.
 
 ### Pattern 7: Integration Pipeline (RECOMMENDED for automation)
-Start → textGen_formatter(OpenAI) → integration1 → integration2 → textGen_summarizer(Claude) → End
+Start → textGen_formatter(xAI Grok) → integration1 → integration2 → textGen_summarizer(Claude) → End
 Best for: business automation — fetch data, process it, send to multiple services.
 Example: User input → format as Jira ticket (textGen) → create Jira issue → send Slack notification → summarize actions (textGen) → End
 
 ### Pattern 8: Multi-Integration Fan-Out (RECOMMENDED for analyze + act workflows)
-Start → textGen_processor(OpenAI) ──┐
+Start → textGen_processor(xAI Grok) ──┐
                                      ├→ integration_slack (notify)
                                      ├→ integration_sheets (log)
                                      ├→ integration_notion (store)
@@ -246,11 +247,11 @@ Best for: collecting data from multiple sources, analyzing with AI, and reportin
 
 ### Pattern 10: Analyze + Respond + Multi-Integration (RECOMMENDED for complex pipelines)
 Start ──────────────────────────────────┐
-text (guidelines) ──────────────────────┤→ textGen_ANALYZER(OpenAI) ──┐→ integration_jira (ticket)
-webPage (reference) ────────────────────┘                             ├→ integration_slack (notify)
-                                                                      ├→ integration_sheets (log)
-Start ──────────────────────────────────┐                             │
-text (guidelines) ──────────────────────┤→ textGen_RESPONDER(Claude) ─┘
+text (guidelines) ──────────────────────┤→ textGen_ANALYZER(xAI Grok) ──┐→ integration_jira (ticket)
+webPage (reference) ────────────────────┘                                ├→ integration_slack (notify)
+                                                                         ├→ integration_sheets (log)
+Start ──────────────────────────────────┐                                │
+text (guidelines) ──────────────────────┤→ textGen_RESPONDER(Claude) ────┘
 textGen_ANALYZER ───────────────────────┘         │
                                                   └→ textGen_SUMMARY(Claude) → End
 
@@ -280,7 +281,7 @@ Write a table like this (in your response text, before tool calls):
 | 1 | Entry | appEntry | Start | (user input) | Analyzer, Responder | — |
 | 2 | Context | text | Guidelines | — | Analyzer, Responder | — |
 | 3 | Context | webPage | FAQ Page | — | Analyzer | — |
-| 4 | Processor | textGeneration(OpenAI) | Sentiment Analyzer | Start, Guidelines, FAQ | Jira, Slack, Sheets, Responder | "Analyze sentiment..." |
+| 4 | Processor | textGeneration(xAI Grok) | Sentiment Analyzer | Start, Guidelines, FAQ | Jira, Slack, Sheets, Responder | "Analyze sentiment..." |
 | 5 | Responder | textGeneration(Claude) | Response Writer | Analyzer, Start, Guidelines | Summary | "Write a response..." |
 | 6 | Action | integration(jira-cloud) | Create Jira Ticket | Analyzer | Summary | — |
 | 7 | Action | integration(slack) | Slack Notification | Analyzer | Summary | — |
@@ -387,7 +388,7 @@ Node Roster:
 | 1 | Entry | appEntry | Start | (user) | Analyzer, Reply |
 | 2 | Context | text | Support Guidelines | — | Analyzer |
 | 3 | Context | webPage | FAQ Page | — | Analyzer |
-| 4 | Processor | textGeneration(OpenAI) | Question Analyzer | Start, Guidelines, FAQ | Reply |
+| 4 | Processor | textGeneration(xAI Grok) | Question Analyzer | Start, Guidelines, FAQ | Reply |
 | 5 | Responder | textGeneration(Claude) | Support Reply | Analyzer, Start | End |
 | 6 | Terminal | end | End | Reply | — |
 
@@ -396,7 +397,7 @@ Steps:
 2. add_node({ type: "appEntry", name: "Start", position: { x: 0, y: 0 } }) -> nodeId: "nd-start", outputs: [{ outputId: "otp-text" }, { outputId: "otp-file" }]
 3. add_node({ type: "text", name: "Support Guidelines", position: { x: 0, y: -250 } }) -> nodeId: "nd-guidelines", outputs: [{ outputId: "otp-guidelines-text", accessor: "text" }]
 4. add_node({ type: "webPage", name: "FAQ Page", position: { x: 0, y: 250 } }) -> nodeId: "nd-faq", outputs: [{ outputId: "otp-faq-text", accessor: "text" }]
-5. add_node({ type: "textGeneration", name: "Question Analyzer", llmProvider: "openai", llmModelId: "gpt-4.1-nano", position: { x: 450, y: 0 } }) -> nodeId: "nd-analyzer", outputs: [{ outputId: "otp-analysis", accessor: "generated-text" }]
+5. add_node({ type: "textGeneration", name: "Question Analyzer", llmProvider: "xai", llmModelId: "grok-4-1-fast-reasoning", position: { x: 450, y: 0 } }) -> nodeId: "nd-analyzer", outputs: [{ outputId: "otp-analysis", accessor: "generated-text" }]
 6. add_node({ type: "textGeneration", name: "Support Reply", llmProvider: "anthropic", llmModelId: "claude-sonnet-4.5", position: { x: 900, y: 0 } }) -> nodeId: "nd-reply", outputs: [{ outputId: "otp-reply", accessor: "generated-text" }]
 7. add_node({ type: "end", name: "End", position: { x: 1300, y: 0 } }) -> nodeId: "nd-end"
 8. add_connection({ sourceNodeId: "nd-start", sourceOutputId: "otp-text", targetNodeId: "nd-analyzer" }) — Start → Question Analyzer
@@ -419,7 +420,7 @@ Node Roster:
 | 1 | Entry | appEntry | Start | (user) | QueryGen, WebSearch, Analyst |
 | 2 | Source | vectorStore(github-issue) | GitHub Issues | — | Retrieval |
 | 3 | Source | vectorStore(github-pr) | GitHub PRs | — | Retrieval |
-| 4 | Processor | textGeneration(OpenAI) | Query Generator | Start | Retrieval |
+| 4 | Processor | textGeneration(xAI Grok) | Query Generator | Start | Retrieval |
 | 5 | Retrieval | query | Code Retrieval | QueryGen, Issues, PRs | Analyst |
 | 6 | Processor | textGeneration(Google) | Web Research | Start | Analyst |
 | 7 | Context | webPage | Reference Page | — | Analyst |
@@ -431,7 +432,7 @@ Steps:
 2. add_node({ type: "appEntry", name: "Start", position: { x: 0, y: 0 } }) -> nodeId: "nd-start", outputs: [{ outputId: "otp-text" }, { outputId: "otp-file" }]
 3. add_node({ type: "vectorStore", name: "GitHub Issues", vectorStoreProvider: "github-issue", position: { x: 0, y: -300 } }) -> nodeId: "nd-issues", outputs: [{ outputId: "otp-issues-source", accessor: "source" }]
 4. add_node({ type: "vectorStore", name: "GitHub PRs", vectorStoreProvider: "github-pull-request", position: { x: 0, y: -550 } }) -> nodeId: "nd-prs", outputs: [{ outputId: "otp-prs-source", accessor: "source" }]
-5. add_node({ type: "textGeneration", name: "Query Generator", llmProvider: "openai", llmModelId: "gpt-4.1-mini", position: { x: 400, y: -150 } }) -> nodeId: "nd-querygen", outputs: [{ outputId: "otp-query-text", accessor: "generated-text" }]
+5. add_node({ type: "textGeneration", name: "Query Generator", llmProvider: "xai", llmModelId: "grok-4-1-fast-reasoning", position: { x: 400, y: -150 } }) -> nodeId: "nd-querygen", outputs: [{ outputId: "otp-query-text", accessor: "generated-text" }]
 6. add_node({ type: "query", name: "Code Retrieval", position: { x: 650, y: -300 } }) -> nodeId: "nd-retrieval", outputs: [{ outputId: "otp-code-results", accessor: "result" }]
 7. add_node({ type: "textGeneration", name: "Web Research", llmProvider: "google", llmModelId: "gemini-2.5-flash", searchGrounding: true, position: { x: 500, y: 250 } }) -> nodeId: "nd-websearch", outputs: [{ outputId: "otp-web-results", accessor: "generated-text" }]
 8. add_node({ type: "webPage", name: "Reference Page", position: { x: 650, y: 500 } }) -> nodeId: "nd-refpage", outputs: [{ outputId: "otp-ref-text", accessor: "text" }]
@@ -462,7 +463,7 @@ Node Roster:
 | 1 | Entry | appEntry | Start | (user) | Analyzer, Responder | — |
 | 2 | Context | text | Tone Guidelines | — | Analyzer, Responder | — |
 | 3 | Context | webPage | Product FAQ | — | Analyzer | — |
-| 4 | Analyzer | textGeneration(OpenAI) | Sentiment Analyzer | Start, Guidelines, FAQ | Jira, Slack, Sheets, Responder | "Analyze sentiment, extract issues, output structured analysis" |
+| 4 | Analyzer | textGeneration(xAI Grok) | Sentiment Analyzer | Start, Guidelines, FAQ | Jira, Slack, Sheets, Responder | "Analyze sentiment, extract issues, output structured analysis" |
 | 5 | Responder | textGeneration(Claude) | Response Writer | Analyzer, Start, Guidelines | Summary | "Draft professional response using analysis + guidelines" |
 | 6 | Action | integration(jira-cloud/create_issue) | Create Jira Ticket | Analyzer | Summary | — |
 | 7 | Action | integration(slack/send_channel_message) | Slack Notification | Analyzer | Summary | — |
@@ -475,7 +476,7 @@ Steps:
 2. add_node({ type: "appEntry", name: "Start", position: { x: 0, y: 0 } }) -> nd-start [otp-text, otp-file]
 3. add_node({ type: "text", name: "Tone Guidelines", position: { x: 0, y: -300 } }) -> nd-tone [otp-tone-text]
 4. add_node({ type: "webPage", name: "Product FAQ", position: { x: 0, y: 300 } }) -> nd-faq [otp-faq-text]
-5. add_node({ type: "textGeneration", name: "Sentiment Analyzer", llmProvider: "openai", llmModelId: "gpt-4.1-mini", position: { x: 450, y: 0 } }) -> nd-analyzer [otp-analysis]
+5. add_node({ type: "textGeneration", name: "Sentiment Analyzer", llmProvider: "xai", llmModelId: "grok-4-1-fast-reasoning", position: { x: 450, y: 0 } }) -> nd-analyzer [otp-analysis]
 6. add_node({ type: "textGeneration", name: "Response Writer", llmProvider: "anthropic", llmModelId: "claude-sonnet-4.5", position: { x: 850, y: 0 } }) -> nd-responder [otp-response]
 7. add_node({ type: "integration", name: "Create Jira Ticket", pieceName: "jira-cloud", actionName: "create_issue", position: { x: 850, y: -400 } }) -> nd-jira [otp-jira-result]
 8. add_node({ type: "integration", name: "Slack Notification", pieceName: "slack", actionName: "send_channel_message", position: { x: 850, y: -200 } }) -> nd-slack [otp-slack-result]
@@ -510,12 +511,13 @@ Steps:
 
 Choose the right model for each role in the workflow:
 
-- **Claude (Anthropic)**: Best for final responses, analysis, writing, and synthesis. Use as the "reply" or "analyst" node. claude-sonnet-4.5 is the recommended default. ALWAYS AVAILABLE.
-- **OpenAI GPT**: Best for intermediate processing, query generation, data extraction, and structured output. gpt-4.1-nano for simple tasks, gpt-4.1-mini for balanced. ALWAYS AVAILABLE.
+- **xAI Grok**: Best for fast intermediate processing and general tasks. grok-4-1-fast-reasoning is the recommended default — 2M context, extremely low cost ($0.2/$0.5). ALWAYS AVAILABLE.
+- **Claude (Anthropic)**: Best for final responses, analysis, writing, and synthesis. Use as the "reply" or "analyst" node. claude-sonnet-4.5 for quality. ALWAYS AVAILABLE.
+- **OpenAI GPT**: Good for structured output and data extraction. gpt-5-nano for simple tasks, gpt-5-mini for balanced. ALWAYS AVAILABLE.
 - **Google Gemini**: Supports searchGrounding for web search. gemini-2.5-flash is fast. NOTE: Requires Google AI API key — only use if the user confirms Google is configured.
 - **Perplexity**: Has built-in web search. NOTE: Requires Perplexity API key — only use if the user confirms Perplexity is configured.
 
-**IMPORTANT: Default to Anthropic + OpenAI for all workflows.** These are always available. Only use Google or Perplexity when the user specifically requests them or confirms the API keys are set up.
+**IMPORTANT: Default to xAI Grok + Anthropic Claude for all workflows.** Use grok-4-1-fast-reasoning for processing/intermediate nodes and claude-sonnet-4.5 for final response nodes. Only use Google or Perplexity when the user specifically requests them or confirms the API keys are set up.
 
 ## Response Style
 

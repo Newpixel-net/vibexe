@@ -43,6 +43,19 @@ export interface PieceInfo {
 	actions: PieceActionInfo[];
 }
 
+// ─── Auth overrides ────────────────────────────────────
+// Some pieces declare OAuth2 in their npm package but work better with API keys
+// in our UI. This map overrides the auth type returned by inspectPiece().
+
+const PIECE_AUTH_OVERRIDES: Record<string, PieceAuthInfo> = {
+	youtube: {
+		type: "SECRET_TEXT",
+		displayName: "YouTube API Key",
+		description:
+			"Get a YouTube Data API key from Google Cloud Console",
+	},
+};
+
 // ─── Cache ──────────────────────────────────────────────
 
 const pieceInfoCache = new Map<string, PieceInfo>();
@@ -159,7 +172,7 @@ export async function inspectPiece(pieceName: string): Promise<PieceInfo> {
 		displayName: String(p.displayName ?? pieceName),
 		description: String(p.description ?? ""),
 		version: String(p.version ?? "0.0.0"),
-		auth: extractAuthInfo(p.auth),
+		auth: PIECE_AUTH_OVERRIDES[pieceName] ?? extractAuthInfo(p.auth),
 		actions,
 	};
 
