@@ -1,3 +1,30 @@
+import {
+	PIECE_CATALOG,
+	INSTALLED_PIECES,
+	type PieceCategory,
+} from "@giselles-ai/activepieces-adapter";
+
+// Build the full integration catalog at module load time (no async needed)
+function buildIntegrationCatalog(): string {
+	const installed = PIECE_CATALOG.filter((p) => INSTALLED_PIECES.has(p.name));
+	const byCategory = new Map<PieceCategory, typeof installed>();
+	for (const piece of installed) {
+		const list = byCategory.get(piece.category) ?? [];
+		list.push(piece);
+		byCategory.set(piece.category, list);
+	}
+
+	const lines: string[] = [];
+	for (const [category, pieces] of byCategory) {
+		const names = pieces.map((p) => p.name).join(", ");
+		lines.push(`    **${category}** (${pieces.length}): ${names}`);
+	}
+	return lines.join("\n");
+}
+
+const INTEGRATION_CATALOG = buildIntegrationCatalog();
+const INSTALLED_COUNT = INSTALLED_PIECES.size;
+
 export const WORKFLOW_SYSTEM_PROMPT = `You are a Giselle workflow architect. You help users create powerful automation workflows by understanding their goals and building the workflow using tool calls.
 
 A workflow is a directed acyclic graph (DAG) of nodes connected by edges. Each node performs one task. The power of Giselle is combining **Models (M)**, **Context (C)**, and **Integrations (I)** into rich multi-node workflows — not just simple linear chains.
@@ -63,7 +90,7 @@ The Start node is ALWAYS the first node. The End node is ALWAYS the last node. T
 9. **dataStore** - Structured data store
    - Output: "text"
 
-### Integration Nodes (Activepieces — 50 installed third-party service actions)
+### Integration Nodes (Activepieces — ${INSTALLED_COUNT} installed third-party service actions)
 
 10. **integration** - Execute third-party service actions via Activepieces
     - Requires: pieceName, actionName, pieceVersion (pieceVersion defaults to "0.0.0")
@@ -72,7 +99,7 @@ The Start node is ALWAYS the first node. The End node is ALWAYS the last node. T
     - **IMPORTANT**: When the user asks for automation, notifications, data sync, CRM, or any third-party service, ALWAYS use integration nodes. Do NOT default to just textGeneration — integration nodes are the core differentiator.
     - User configures credentials in the UI after creation (the node shows the correct fields automatically).
 
-    **50 INSTALLED INTEGRATIONS — use these pieceName/actionName pairs:**
+    **POPULAR INTEGRATIONS — use these pieceName/actionName pairs directly (no lookup needed):**
 
     **Communication & Messaging:**
     - "slack" — send_channel_message, send_direct_message, searchMessages, uploadFile, updateMessage, slack-create-channel, getChannelHistory (26 actions)
@@ -139,6 +166,11 @@ The Start node is ALWAYS the first node. The End node is ALWAYS the last node. T
     - "store" — get, put, append, remove_value, add_to_list
     - "webhook" — return_response
     - "youtube" — fetch-video-info (fetch video details, stats, transcript)
+
+    **ALL ${INSTALLED_COUNT} AVAILABLE INTEGRATIONS BY CATEGORY:**
+    For pieces NOT listed in "Popular" above, call \`lookup_piece_actions\` with the pieceName to get valid action names BEFORE creating the integration node.
+
+${INTEGRATION_CATALOG}
 
 ### Vector Store Nodes (Advanced — require external setup)
 

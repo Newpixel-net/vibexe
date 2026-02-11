@@ -119,7 +119,7 @@ export function createWorkflowTools() {
 					.describe("The node type to add"),
 				name: z.string().describe("Display name for the node"),
 				llmProvider: z
-					.enum(["openai", "anthropic", "google", "perplexity"])
+					.enum(["openai", "anthropic", "google", "perplexity", "xai"])
 					.optional()
 					.describe(
 						"LLM provider (required for textGeneration and imageGeneration)",
@@ -231,6 +231,10 @@ export function createWorkflowTools() {
 									topP: 0.9,
 									presencePenalty: 0.0,
 									frequencyPenalty: 1.0,
+								},
+								xai: {
+									temperature: 0.7,
+									topP: 1.0,
 								},
 							};
 							const configurations = { ...(defaultConfigs[llmProvider] ?? {}) };
@@ -621,6 +625,47 @@ export function createWorkflowTools() {
 					return {
 						success: false,
 						error: `Failed to set prompt: ${String(error)}`,
+					};
+				}
+			},
+		}),
+
+		lookup_piece_actions: tool({
+			description:
+				"Look up available action names for an Activepieces integration piece. Call this BEFORE creating an integration node for any piece NOT listed in the Popular Integrations section of your instructions. Returns the valid actionName values you can use with add_node.",
+			inputSchema: z.object({
+				pieceName: z
+					.string()
+					.describe(
+						"The piece name to look up (e.g. 'mongodb', 'elevenlabs', 'bamboohr')",
+					),
+			}),
+			execute: async ({ pieceName }) => {
+				try {
+					const { inspectPiece } = await import(
+						"@giselles-ai/activepieces-adapter/server"
+					);
+					const info = await inspectPiece(pieceName);
+					return {
+						success: true,
+						pieceName: info.name,
+						displayName: info.displayName,
+						actions: info.actions.map((a) => ({
+							name: a.name,
+							displayName: a.displayName,
+							description: a.description,
+						})),
+						authType: info.auth?.type ?? "none",
+						error: "",
+					};
+				} catch (error) {
+					return {
+						success: false,
+						pieceName,
+						displayName: "",
+						actions: [],
+						authType: "",
+						error: `Failed to look up piece "${pieceName}": ${String(error)}`,
 					};
 				}
 			},
