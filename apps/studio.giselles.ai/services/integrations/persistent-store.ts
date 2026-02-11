@@ -1,5 +1,3 @@
-"use server";
-
 import { and, eq } from "drizzle-orm";
 import { db, integrationStore } from "@/db";
 import type { StoreAdapter } from "@giselles-ai/activepieces-adapter/server";
