@@ -1,7 +1,5 @@
-import invariant from "tiny-invariant";
 import { getUser } from "@/lib/auth/get-user";
 import { isEmailFromRoute06 } from "@/lib/utils";
-import { formatStripePrice, getCachedPrice } from "@/services/external/stripe";
 import { fetchUserTeams } from "../fetch-user-teams";
 import { TeamCreationForm } from "./team-creation-form";
 
@@ -17,15 +15,26 @@ export default async function TeamCreation({
 	const isInternalUser = user.email != null && isEmailFromRoute06(user.email);
 	const teams = await fetchUserTeams();
 	const hasExistingFreeTeam = teams.some((team) => team.plan === "free");
+
 	const proPlanPriceId = process.env.STRIPE_PRO_PLAN_PRICE_ID;
-	invariant(proPlanPriceId, "STRIPE_PRO_PLAN_PRICE_ID is not set");
-	const proPlan = await getCachedPrice(proPlanPriceId);
-	const proPlanPrice = formatStripePrice(proPlan);
+	let proPlanPrice = "";
+	if (proPlanPriceId) {
+		try {
+			const { formatStripePrice, getCachedPrice } = await import(
+				"@/services/external/stripe"
+			);
+			const proPlan = await getCachedPrice(proPlanPriceId);
+			proPlanPrice = formatStripePrice(proPlan);
+		} catch {
+			// Stripe not configured — Pro plan unavailable
+		}
+	}
 
 	return (
 		<TeamCreationForm
 			canCreateFreeTeam={!isInternalUser && !hasExistingFreeTeam}
 			proPlanPrice={proPlanPrice}
+			stripeConfigured={!!proPlanPriceId && !!proPlanPrice}
 		>
 			{children}
 		</TeamCreationForm>

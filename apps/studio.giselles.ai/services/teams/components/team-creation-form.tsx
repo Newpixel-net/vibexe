@@ -64,18 +64,21 @@ function Submit({
 interface TeamCreationFormProps {
 	canCreateFreeTeam: boolean;
 	proPlanPrice: string;
+	stripeConfigured?: boolean;
 	children?: React.ReactNode;
 }
 
 export function TeamCreationForm({
 	canCreateFreeTeam,
 	proPlanPrice,
+	stripeConfigured = true,
 	children,
 }: TeamCreationFormProps) {
 	const [teamName, setTeamName] = useState("");
-	// If free plan is not available, set "pro" as initial value, otherwise empty string
+	// If Stripe is not configured, default to free plan
+	// If free plan is not available and Stripe is configured, set "pro" as initial value
 	const [selectedPlan, setSelectedPlan] = useState(
-		canCreateFreeTeam ? "" : "pro",
+		!stripeConfigured ? "free" : canCreateFreeTeam ? "" : "pro",
 	);
 	const [isOpen, setIsOpen] = useState(false);
 
@@ -132,6 +135,9 @@ export function TeamCreationForm({
 						</div>
 						<div className="space-y-4">
 							<div className="flex flex-col gap-y-2">
+								{!stripeConfigured ? (
+									<input type="hidden" name="selectedPlan" value="free" />
+								) : (<>
 								<Label className="text-inverse font-medium text-[12px] leading-[20.4px] font-geist">
 									{canCreateFreeTeam ? "Select Plan" : "Pro Plan"}
 								</Label>
@@ -222,6 +228,7 @@ export function TeamCreationForm({
 										</Alert>
 									</div>
 								)}
+								</>)}
 							</div>
 						</div>
 						<div className="flex justify-end items-center mt-6">
