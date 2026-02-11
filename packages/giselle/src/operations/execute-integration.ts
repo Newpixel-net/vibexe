@@ -149,6 +149,7 @@ export function executeIntegration(args: {
 			};
 
 			let result: unknown;
+			const warnings: string[] = [];
 			try {
 				// Dynamic import of activepieces adapter
 				const { executePieceAction, resolveAuth, ensureFreshToken } =
@@ -158,31 +159,53 @@ export function executeIntegration(args: {
 				let auth: unknown = null;
 				const credentialId = operationNode.content.credentialId;
 				if (credentialId && args.context.resolveIntegrationCredential) {
-					const credential =
+					const rawCred =
 						await args.context.resolveIntegrationCredential(credentialId);
-					if (credential) {
+					if (rawCred) {
+						// Cast authType from string to the expected union type
+						const credential = rawCred as {
+							authType: "oauth2" | "secret_text" | "basic" | "custom";
+							config: Record<string, unknown>;
+						};
 						// Refresh expired OAuth2 tokens before execution
-						const { credential: freshCred, refreshed } =
-							await ensureFreshToken(credential);
-						if (refreshed && args.context.updateIntegrationCredential) {
-							await args.context.updateIntegrationCredential(
-								credentialId,
-								freshCred.config,
+						try {
+							const { credential: freshCred, refreshed } =
+								await ensureFreshToken(credential);
+							if (refreshed && args.context.updateIntegrationCredential) {
+								await args.context.updateIntegrationCredential(
+									credentialId,
+									freshCred.config,
+								);
+							}
+							auth = resolveAuth(freshCred);
+						} catch (refreshError) {
+							console.error("Token refresh failed:", refreshError);
+							warnings.push(
+								`OAuth2 token refresh failed for ${pieceName}. You may need to re-authorize the credential.`,
 							);
+							// Use original credential despite refresh failure
+							auth = resolveAuth(credential);
 						}
-						auth = resolveAuth(freshCred);
 					}
 				}
 
-				// Build a connection resolver for pieces that reference other services
-				const connectionResolver = args.context.resolveIntegrationCredential
+				// Build a connection resolver that looks up credentials by piece name
+				const connectionResolver = args.context.resolveCredentialByPieceName
 					? async (key: string) => {
-							const cred =
-								await args.context.resolveIntegrationCredential!(key);
-							if (cred) return resolveAuth(cred);
+							const rawCred =
+								await args.context.resolveCredentialByPieceName!(key);
+							if (rawCred) {
+								return resolveAuth(rawCred as {
+									authType: "oauth2" | "secret_text" | "basic" | "custom";
+									config: Record<string, unknown>;
+								});
+							}
 							return null;
 						}
 					: undefined;
+
+				// Create persistent store if available
+				const store = args.context.createIntegrationStore?.();
 
 				result = await executePieceAction({
 					pieceName,
@@ -191,6 +214,7 @@ export function executeIntegration(args: {
 					properties: mergedConfig,
 					auth,
 					connectionResolver,
+					store,
 				});
 			} catch (error) {
 				console.error("Integration execution failed:", error);
@@ -202,6 +226,18 @@ export function executeIntegration(args: {
 					pieceName,
 					actionName,
 				};
+			}
+
+			// Append warnings to result if any
+			if (warnings.length > 0) {
+				if (typeof result === "object" && result !== null) {
+					(result as Record<string, unknown>)._warnings = warnings;
+				} else {
+					result = {
+						data: result,
+						_warnings: warnings,
+					};
+				}
 			}
 
 			const generationOutputs = createIntegrationOutput(

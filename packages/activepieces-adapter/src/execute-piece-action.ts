@@ -13,6 +13,9 @@ import {
 	type StoreAdapter,
 } from "./context-builder";
 import { loadPiece } from "./piece-registry";
+import { resolveProperties, type PropertyType } from "./property-resolver";
+
+const DEFAULT_TIMEOUT_MS = 60_000;
 
 export interface ExecutePieceActionArgs {
 	pieceName: string;
@@ -23,6 +26,7 @@ export interface ExecutePieceActionArgs {
 	store?: StoreAdapter;
 	connectionResolver?: ConnectionResolver;
 	serverUrl?: string;
+	timeoutMs?: number;
 }
 
 /**
@@ -67,21 +71,53 @@ export async function executePieceAction(
 		);
 	}
 
-	const runFn = (action as Record<string, unknown>).run;
+	const actionObj = action as Record<string, unknown>;
+	const runFn = actionObj.run;
 	if (typeof runFn !== "function") {
 		throw new Error(
 			`Action "${args.actionName}" in piece "${args.pieceName}" has no run function`,
 		);
 	}
 
+	// Resolve property types (NUMBER→number, CHECKBOX→boolean, JSON→parsed, etc.)
+	let resolvedProps = args.properties;
+	if (actionObj.props && typeof actionObj.props === "object") {
+		const propDefs: Record<string, { type: PropertyType }> = {};
+		for (const [key, prop] of Object.entries(
+			actionObj.props as Record<string, unknown>,
+		)) {
+			if (prop && typeof prop === "object" && "type" in prop) {
+				propDefs[key] = { type: (prop as { type: PropertyType }).type };
+			}
+		}
+		if (Object.keys(propDefs).length > 0) {
+			resolvedProps = resolveProperties(propDefs, args.properties);
+		}
+	}
+
 	const context = buildActionContext({
 		auth: args.auth,
-		propsValue: args.properties,
+		propsValue: resolvedProps,
 		store: args.store,
 		connectionResolver: args.connectionResolver,
 		serverUrl: args.serverUrl,
 	});
 
-	const result = await runFn(context);
+	// Execute with timeout to prevent hung integrations
+	const timeoutMs = args.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+	const result = await Promise.race([
+		runFn(context),
+		new Promise<never>((_, reject) =>
+			setTimeout(
+				() =>
+					reject(
+						new Error(
+							`Integration "${args.pieceName}/${args.actionName}" timed out after ${timeoutMs / 1000}s`,
+						),
+					),
+				timeoutMs,
+			),
+		),
+	]);
 	return result;
 }

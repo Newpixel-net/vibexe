@@ -1491,3 +1491,19 @@ export const oauthAppConfigs = pgTable("oauth_app_configs", {
 		.notNull()
 		.$onUpdate(() => new Date()),
 });
+
+// Integration Store - persistent key-value store for Activepieces piece executions
+// Scoped per team so pieces can persist state across runs
+export const integrationStore = pgTable("integration_store", {
+	dbId: serial("db_id").primaryKey(),
+	teamDbId: integer("team_db_id")
+		.notNull()
+		.references(() => teams.dbId),
+	storeKey: text("store_key").notNull(),
+	value: text("value"), // JSON-serialized value
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at")
+		.defaultNow()
+		.notNull()
+		.$onUpdate(() => new Date()),
+});

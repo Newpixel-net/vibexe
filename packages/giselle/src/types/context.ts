@@ -79,4 +79,13 @@ export interface GiselleContext {
 		credentialId: string,
 		config: Record<string, unknown>,
 	) => Promise<void>;
+	resolveCredentialByPieceName?: (pieceName: string) => Promise<{
+		authType: string;
+		config: Record<string, unknown>;
+	} | null>;
+	createIntegrationStore?: () => {
+		get(key: string): Promise<unknown>;
+		put(key: string, value: unknown): Promise<void>;
+		delete(key: string): Promise<void>;
+	};
 }

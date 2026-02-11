@@ -530,6 +530,61 @@ giselle.updateContext({
 			config,
 		});
 	},
+	resolveCredentialByPieceName: async (pieceName: string) => {
+		const currentTeam = await fetchCurrentTeam().catch(() => null);
+		if (!currentTeam) return null;
+		const { getCredentialForPiece } = await import(
+			"@/services/integrations/credential-store"
+		);
+		const credential = await getCredentialForPiece(
+			currentTeam.dbId,
+			pieceName,
+		);
+		if (!credential) return null;
+		return {
+			authType: credential.authType,
+			config: credential.config,
+		};
+	},
+	createIntegrationStore: () => {
+		// Lazy resolve team for persistent store - returns sync adapter
+		// that fetches team on first use
+		let teamDbIdPromise: Promise<number | null> | null = null;
+		const getTeamDbId = () => {
+			if (!teamDbIdPromise) {
+				teamDbIdPromise = fetchCurrentTeam()
+					.then((t) => t.dbId)
+					.catch(() => null);
+			}
+			return teamDbIdPromise;
+		};
+		return {
+			get: async (key: string) => {
+				const teamDbId = await getTeamDbId();
+				if (!teamDbId) return null;
+				const { createPersistentStore } = await import(
+					"@/services/integrations/persistent-store"
+				);
+				return createPersistentStore(teamDbId).get(key);
+			},
+			put: async (key: string, value: unknown) => {
+				const teamDbId = await getTeamDbId();
+				if (!teamDbId) return;
+				const { createPersistentStore } = await import(
+					"@/services/integrations/persistent-store"
+				);
+				return createPersistentStore(teamDbId).put(key, value);
+			},
+			delete: async (key: string) => {
+				const teamDbId = await getTeamDbId();
+				if (!teamDbId) return;
+				const { createPersistentStore } = await import(
+					"@/services/integrations/persistent-store"
+				);
+				return createPersistentStore(teamDbId).delete(key);
+			},
+		};
+	},
 });
 
 // Content generation processor: Trigger.dev implementation
