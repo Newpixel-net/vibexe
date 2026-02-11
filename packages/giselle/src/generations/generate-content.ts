@@ -21,6 +21,7 @@ import type {
 	RunningGeneration,
 } from "@giselles-ai/protocol";
 import {
+	isAiAgentNode,
 	isContentGenerationNode,
 	isTextGenerationNode,
 	type Output,
@@ -109,7 +110,10 @@ export function generateContent({
 	logger.info(`generate content: ${generation.id}`);
 	logger.info(`generation metadata: ${JSON.stringify(metadata)}`);
 
-	if (isContentGenerationNode(generation.context.operationNode)) {
+	if (
+		isContentGenerationNode(generation.context.operationNode) ||
+		isAiAgentNode(generation.context.operationNode)
+	) {
 		return generateContentV2({
 			context,
 			generation,
@@ -647,7 +651,10 @@ function generateContentV2({
 			dataStoreSchemaResolver,
 		}) => {
 			const operationNode = generationContext.operationNode;
-			if (!isContentGenerationNode(operationNode)) {
+			if (
+				!isContentGenerationNode(operationNode) &&
+				!isAiAgentNode(operationNode)
+			) {
 				throw new Error("Invalid generation type");
 			}
 
@@ -687,11 +694,23 @@ function generateContentV2({
 				languageModelId: operationNode.content.languageModel.id,
 			}, "V2 streamText model debug");
 
+			// AI Agent: extract system prompt and maxSteps
+			const agentSystemPrompt =
+				isAiAgentNode(operationNode) && operationNode.content.systemPrompt
+					? operationNode.content.systemPrompt
+					: undefined;
+			const agentMaxSteps =
+				isAiAgentNode(operationNode)
+					? operationNode.content.maxSteps ?? 30
+					: undefined;
+
 			const streamTextResult = streamText({
 				...callOptions,
 				abortSignal: abortController.signal,
 				model: v2Model,
 				messages,
+				...(agentSystemPrompt ? { system: agentSystemPrompt } : {}),
+				...(agentMaxSteps ? { maxSteps: agentMaxSteps } : {}),
 				tools: toolSet,
 				stopWhen: ({ steps }) => {
 					logger.debug(steps, "stopWhen");

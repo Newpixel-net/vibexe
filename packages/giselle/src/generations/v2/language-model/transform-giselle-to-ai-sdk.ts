@@ -6,10 +6,13 @@ import {
 	getEntry,
 	parseConfiguration,
 } from "@giselles-ai/language-model-registry";
-import type { ContentGenerationContent } from "@giselles-ai/protocol";
+import type {
+	AiAgentContent,
+	ContentGenerationContent,
+} from "@giselles-ai/protocol";
 
 export function transformGiselleLanguageModelToAiSdkLanguageModelCallOptions(
-	content: ContentGenerationContent,
+	content: ContentGenerationContent | AiAgentContent,
 ): Pick<LanguageModelV2CallOptions, "temperature" | "providerOptions"> {
 	const languageModel = getEntry(content.languageModel.id);
 	switch (languageModel.id) {

@@ -7,6 +7,7 @@ import {
 import { getEntry } from "@giselles-ai/language-model-registry";
 import {
 	type ActionNode,
+	type AiAgentNode,
 	type AppEntryNode,
 	AppParameterId,
 	type ContentGenerationNode,
@@ -30,6 +31,7 @@ import {
 	type IntegrationContent,
 	type IntegrationNode,
 	isActionNode,
+	isAiAgentNode,
 	isAppEntryNode,
 	isContentGenerationNode,
 	isDataQueryNode,
@@ -968,6 +970,113 @@ const contentGenerationFactoryImpl = {
 	CreateContentGenerationNodeInput
 >;
 
+type CreateAiAgentNodeInput = Pick<
+	AiAgentNode["content"]["languageModel"],
+	"id"
+> &
+	Partial<AiAgentNode["content"]["languageModel"]>;
+
+const aiAgentFactoryImpl = {
+	create: (input: CreateAiAgentNodeInput): AiAgentNode => {
+		const languageModel = getEntry(input.id);
+		return {
+			id: NodeId.generate(),
+			type: "operation",
+			content: {
+				type: "aiAgent",
+				version: "v1",
+				systemPrompt: "",
+				prompt: "",
+				maxSteps: 30,
+				languageModel: {
+					provider: languageModel.providerId,
+					id: languageModel.id,
+					configuration: languageModel.defaultConfiguration,
+				},
+				tools: [],
+			},
+			inputs: [],
+			outputs: [
+				{
+					id: OutputId.generate(),
+					label: "Output",
+					accessor: "generated-text",
+				},
+			],
+		} satisfies AiAgentNode;
+	},
+	clone: (orig: AiAgentNode): NodeFactoryCloneResult<AiAgentNode> => {
+		const clonedContent = structuredClone(orig.content);
+		const { newIo: newInputs, idMap: inputIdMap } =
+			cloneAndRenewInputIdsWithMap(orig.inputs);
+		const { newIo: newOutputs, idMap: outputIdMap } =
+			cloneAndRenewOutputIdsWithMap(orig.outputs);
+
+		if (clonedContent.prompt && isJsonContent(clonedContent.prompt)) {
+			try {
+				const promptJsonContent: JSONContent =
+					typeof clonedContent.prompt === "string"
+						? JSON.parse(clonedContent.prompt)
+						: clonedContent.prompt;
+
+				function keepSourceRefs(
+					content: JSONContent[] | undefined,
+				): JSONContent[] | undefined {
+					if (!content) return undefined;
+
+					return content
+						.map((item) => {
+							if (item.content) {
+								const newSubContent = keepSourceRefs(item.content);
+								if (
+									newSubContent &&
+									newSubContent.length === 0 &&
+									item.type !== "paragraph"
+								) {
+									return { ...item, content: newSubContent };
+								}
+
+								if (!newSubContent && item.content) {
+									return null;
+								}
+							}
+							return item;
+						})
+						.filter(
+							(item): item is JSONContent =>
+								item !== null &&
+								!(item.type === "text" && !item.text?.trim() && !item.marks),
+						);
+				}
+
+				const processedPromptContent = keepSourceRefs(
+					promptJsonContent.content,
+				);
+
+				if (processedPromptContent && processedPromptContent.length > 0) {
+					promptJsonContent.content = processedPromptContent;
+					clonedContent.prompt = JSON.stringify(promptJsonContent);
+				} else {
+					clonedContent.prompt = "";
+				}
+			} catch (e) {
+				console.error("Error processing prompt for AiAgent clone:", e);
+				clonedContent.prompt = "";
+			}
+		}
+
+		const newNode = {
+			id: NodeId.generate(),
+			type: "operation",
+			name: `Copy of ${orig.name ?? defaultName(orig)}`,
+			content: clonedContent,
+			inputs: newInputs,
+			outputs: newOutputs,
+		} satisfies AiAgentNode;
+		return { newNode, inputIdMap, outputIdMap };
+	},
+} satisfies NodeFactory<AiAgentNode, CreateAiAgentNodeInput>;
+
 // --- Factories Manager ---
 const factoryImplementations = {
 	textGeneration: textGenerationFactoryImpl,
@@ -986,6 +1095,7 @@ const factoryImplementations = {
 	webPage: webPageFactoryImpl,
 	appEntry: appEntryFactoryImpl,
 	contentGeneration: contentGenerationFactoryImpl,
+	aiAgent: aiAgentFactoryImpl,
 } as const;
 
 type CreateArgMap = {
@@ -1005,6 +1115,7 @@ type CreateArgMap = {
 	webPage: undefined;
 	appEntry: undefined;
 	contentGeneration: CreateContentGenerationNodeInput;
+	aiAgent: CreateAiAgentNodeInput;
 };
 
 const nodeTypesRequiringArg = (
@@ -1014,6 +1125,12 @@ const nodeTypesRequiringArg = (
 ).filter(
 	(type) => factoryImplementations[type].create.length > 0,
 ) as NodeContentType[];
+
+export function createAiAgentNode(
+	input: CreateAiAgentNodeInput,
+): AiAgentNode {
+	return aiAgentFactoryImpl.create(input);
+}
 
 export function createTextGenerationNode(
 	llm: TextGenerationContent["llm"],
@@ -1212,6 +1329,13 @@ export function cloneNode<N extends Node>(
 				) as NodeFactoryCloneResult<N>;
 			}
 			break;
+		case "aiAgent":
+			if (isAiAgentNode(sourceNode)) {
+				return aiAgentFactoryImpl.clone(
+					sourceNode,
+				) as NodeFactoryCloneResult<N>;
+			}
+			break;
 		default: {
 			const _exhaustive: never = contentType;
 			throw new Error(`No clone factory for content type: ${_exhaustive}`);
@@ -1275,6 +1399,10 @@ export const nodeFactories = {
 			case "contentGeneration":
 				return factoryImplementations.contentGeneration.create(
 					arg as CreateArgMap["contentGeneration"],
+				);
+			case "aiAgent":
+				return factoryImplementations.aiAgent.create(
+					arg as CreateArgMap["aiAgent"],
 				);
 			default: {
 				const _exhaustive: never = type;
@@ -1363,6 +1491,11 @@ export const nodeFactories = {
 			case "contentGeneration":
 				if (isContentGenerationNode(sourceNode)) {
 					return factoryImplementations.contentGeneration.clone(sourceNode);
+				}
+				break;
+			case "aiAgent":
+				if (isAiAgentNode(sourceNode)) {
+					return factoryImplementations.aiAgent.clone(sourceNode);
 				}
 				break;
 			default: {

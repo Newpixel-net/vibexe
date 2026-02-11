@@ -21,6 +21,7 @@ function getNodeIconColor(node: NodeLike): string {
 			case "imageGeneration":
 			case "action":
 			case "integration":
+			case "aiAgent":
 				return "text-inverse";
 			case "dataQuery":
 			case "trigger":
@@ -86,6 +87,8 @@ function getNodeIconBackground(node: NodeLike): string {
 				return "bg-data-query-node-1";
 			case "integration":
 				return "bg-integration-node-1";
+			case "aiAgent":
+				return "bg-generation-node-1";
 			default: {
 				const _exhaustiveCheck: never = node.content.type;
 				throw new Error(`Unhandled node type: ${_exhaustiveCheck}`);

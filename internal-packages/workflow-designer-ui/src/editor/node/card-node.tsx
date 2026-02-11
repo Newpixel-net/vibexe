@@ -10,6 +10,7 @@ import type {
 	OutputId,
 } from "@giselles-ai/protocol";
 import {
+	isAiAgentNode,
 	isContentGenerationNode,
 	isImageGenerationNode,
 	isTextGenerationNode,
@@ -85,6 +86,7 @@ function useVariant(node: NodeLike) {
 		const isQuery = node.content.type === "query";
 		const isDataQuery = node.content.type === "dataQuery";
 		const isIntegration = node.content.type === "integration";
+		const isAiAgent = node.content.type === "aiAgent";
 
 		const isVectorStoreGithub =
 			isVectorStore &&
@@ -104,7 +106,8 @@ function useVariant(node: NodeLike) {
 			isTrigger ||
 			isQuery ||
 			isDataStore ||
-			isDataQuery;
+			isDataQuery ||
+			isAiAgent;
 
 		const isDarkIconText =
 			isText || isFile || isWebPage || isQuery || isDataStore || isDataQuery;
@@ -115,7 +118,8 @@ function useVariant(node: NodeLike) {
 			isVectorStoreGithub ||
 			isTrigger ||
 			isAction ||
-			isIntegration;
+			isIntegration ||
+			isAiAgent;
 
 		return {
 			isText,
@@ -132,6 +136,7 @@ function useVariant(node: NodeLike) {
 			isQuery,
 			isDataQuery,
 			isIntegration,
+			isAiAgent,
 			isVectorStoreGithub,
 			isVectorStoreDocument,
 			isGithubTrigger,
@@ -173,6 +178,11 @@ export function NodeComponent({
 			const modelId = node.content.languageModel.id ?? "";
 			const parts = modelId.split("/");
 			return parts[parts.length - 1] || node.content.languageModel.provider;
+		}
+		if (isAiAgentNode(node)) {
+			const modelId = node.content.languageModel.id ?? "";
+			const parts = modelId.split("/");
+			return `Agent \u00b7 ${parts[parts.length - 1] || node.content.languageModel.provider}`;
 		}
 		if (isImageGenerationNode(node)) {
 			const modelId = node.content.llm.id ?? "";
@@ -234,6 +244,7 @@ export function NodeComponent({
 		isQuery: boolean;
 		isDataQuery: boolean;
 		isIntegration: boolean;
+		isAiAgent: boolean;
 		isVectorStoreGithub: boolean;
 		isVectorStoreDocument: boolean;
 		isGithubTrigger: boolean;
@@ -249,6 +260,7 @@ export function NodeComponent({
 			if (variant.isWebPage) return "var(--color-webPage-node-1)";
 			if (variant.isTextGeneration) return "var(--color-generation-node-1)";
 			if (variant.isContentGeneration) return "var(--color-generation-node-1)";
+			if (variant.isAiAgent) return "var(--color-generation-node-1)";
 			if (variant.isImageGeneration)
 				return "var(--color-image-generation-node-1)";
 			if (
@@ -290,7 +302,7 @@ export function NodeComponent({
 
 		// Stronger gradient for generation & integration nodes
 		const isGenOrIntegration =
-			v.isTextGeneration || v.isContentGeneration || v.isImageGeneration || v.isIntegration;
+			v.isTextGeneration || v.isContentGeneration || v.isImageGeneration || v.isIntegration || v.isAiAgent;
 		const [s1, s2, s3] = isGenOrIntegration
 			? ["30%", "15%", "8%"]
 			: ["20%", "10%", "5%"];
@@ -337,6 +349,7 @@ export function NodeComponent({
 				selected && v.isWebPage && "shadow-webPage-node-1",
 				selected && v.isTextGeneration && "shadow-generation-node-1",
 				selected && v.isContentGeneration && "shadow-generation-node-1",
+				selected && v.isAiAgent && "shadow-generation-node-1",
 				selected && v.isImageGeneration && "shadow-image-generation-node-1",
 				selected && v.isGithub && "shadow-github-node-1",
 				selected && v.isVectorStoreGithub && "shadow-github-node-1",
@@ -356,6 +369,7 @@ export function NodeComponent({
 				highlighted && v.isWebPage && "shadow-webPage-node-1",
 				highlighted && v.isTextGeneration && "shadow-generation-node-1",
 				highlighted && v.isContentGeneration && "shadow-generation-node-1",
+				highlighted && v.isAiAgent && "shadow-generation-node-1",
 				highlighted && v.isImageGeneration && "shadow-image-generation-node-1",
 				highlighted && v.isGithub && "shadow-github-node-1",
 				highlighted && v.isVectorStoreGithub && "shadow-github-node-1",
@@ -408,6 +422,9 @@ export function NodeComponent({
 						v.isContentGeneration &&
 						"from-generation-node-1/40 via-generation-node-1/70 to-generation-node-1",
 					!borderGradientStyle &&
+						v.isAiAgent &&
+						"from-generation-node-1/40 via-generation-node-1/70 to-generation-node-1",
+					!borderGradientStyle &&
 						v.isImageGeneration &&
 						"from-image-generation-node-1/40 via-image-generation-node-1/70 to-image-generation-node-1",
 					!borderGradientStyle &&
@@ -458,6 +475,7 @@ export function NodeComponent({
 					v.isWebPage && "bg-webPage-node-1",
 					v.isTextGeneration && "bg-generation-node-1",
 					v.isContentGeneration && "bg-generation-node-1",
+					v.isAiAgent && "bg-generation-node-1",
 					v.isImageGeneration && "bg-image-generation-node-1",
 					v.isGithub && "bg-github-node-1",
 					v.isVectorStoreGithub && "bg-github-node-1",
@@ -479,6 +497,7 @@ export function NodeComponent({
 						v.isWebPage && "fill-current",
 						v.isTextGeneration && "fill-current",
 						v.isContentGeneration && "fill-current",
+						v.isAiAgent && "stroke-current fill-none",
 						v.isImageGeneration && "fill-current",
 						v.isVectorStore &&
 							!v.isVectorStoreGithub &&
@@ -504,6 +523,7 @@ export function NodeComponent({
 						v.isGithubTrigger && "text-background",
 						v.isAction && "text-inverse",
 						v.isIntegration && "text-inverse",
+						v.isAiAgent && "text-inverse",
 						v.isQuery && "text-background",
 						v.isDataStore && "text-background",
 						v.isDataQuery && "text-background",
@@ -593,6 +613,8 @@ function InputOutput({
 							v.isTextGeneration && isInputConnected && "!bg-generation-node-1",
 							v.isContentGeneration && "!border-generation-node-1",
 							v.isContentGeneration && isInputConnected && "!bg-generation-node-1",
+							v.isAiAgent && "!border-generation-node-1",
+							v.isAiAgent && isInputConnected && "!bg-generation-node-1",
 							v.isImageGeneration && "!border-image-generation-node-1",
 							v.isImageGeneration && isInputConnected && "!bg-image-generation-node-1",
 							v.isAction && "!border-action-node-1",
@@ -618,6 +640,8 @@ function InputOutput({
 					v.isTextGeneration && isOutputConnected && "!bg-generation-node-1",
 					v.isContentGeneration && "!border-generation-node-1",
 					v.isContentGeneration && isOutputConnected && "!bg-generation-node-1",
+					v.isAiAgent && "!border-generation-node-1",
+					v.isAiAgent && isOutputConnected && "!bg-generation-node-1",
 					v.isImageGeneration && "!border-image-generation-node-1",
 					v.isImageGeneration && isOutputConnected && "!bg-image-generation-node-1",
 					v.isGithub && "!border-github-node-1",

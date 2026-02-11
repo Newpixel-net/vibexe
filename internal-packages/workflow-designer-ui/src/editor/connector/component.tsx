@@ -31,6 +31,7 @@ function ConnectedNodeRunning({
 const edgeColorMap: Record<string, string> = {
 	textGeneration: "var(--color-generation-node-1)",
 	contentGeneration: "var(--color-generation-node-1)",
+	aiAgent: "var(--color-generation-node-1)",
 	file: "var(--color-file-node-1)",
 	webPage: "var(--color-webPage-node-1)",
 	text: "var(--color-text-node-1)",

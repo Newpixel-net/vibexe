@@ -1,5 +1,6 @@
 import { hasTierAccess, languageModels } from "@giselles-ai/language-model";
 import {
+	type AiAgentNode,
 	type CompletedGeneration,
 	type ContentGenerationNode,
 	type DataQueryResultOutput,
@@ -11,6 +12,7 @@ import {
 	type GenerationId,
 	type GenerationOutput,
 	type ImageGenerationNode,
+	isAiAgentNode,
 	isImageGenerationNode,
 	isTextGenerationNode,
 	type Node,
@@ -75,6 +77,16 @@ export async function buildMessageObject({
 		case "contentGeneration": {
 			return await buildGenerationMessageForContentGeneration({
 				node: node as ContentGenerationNode,
+				contextNodes,
+				fileResolver,
+				generationContentResolver,
+				appEntryResolver,
+				dataStoreSchemaResolver,
+			});
+		}
+		case "aiAgent": {
+			return await buildGenerationMessageForContentGeneration({
+				node: node as AiAgentNode,
 				contextNodes,
 				fileResolver,
 				generationContentResolver,
@@ -168,7 +180,8 @@ async function buildGenerationMessageForTextGeneration({
 				break;
 			}
 			case "textGeneration":
-			case "contentGeneration": {
+			case "contentGeneration":
+			case "aiAgent": {
 				const result = await generationContentResolver(
 					contextNode.id,
 					sourceKeyword.outputId,
@@ -538,7 +551,8 @@ async function buildGenerationMessageForImageGeneration(
 				break;
 			}
 			case "textGeneration":
-			case "contentGeneration": {
+			case "contentGeneration":
+			case "aiAgent": {
 				const result = await textGenerationResolver(
 					contextNode.id,
 					sourceKeyword.outputId,
@@ -953,7 +967,7 @@ async function buildGenerationMessageForContentGeneration({
 	appEntryResolver,
 	dataStoreSchemaResolver,
 }: {
-	node: ContentGenerationNode;
+	node: ContentGenerationNode | AiAgentNode;
 	contextNodes: Node[];
 	fileResolver: (fileId: FileId) => Promise<DataContent>;
 	generationContentResolver: (
@@ -1004,7 +1018,8 @@ async function buildGenerationMessageForContentGeneration({
 				break;
 			}
 			case "textGeneration":
-			case "contentGeneration": {
+			case "contentGeneration":
+			case "aiAgent": {
 				const result = await generationContentResolver(
 					contextNode.id,
 					sourceKeyword.outputId,

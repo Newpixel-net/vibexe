@@ -5,6 +5,7 @@ import {
 } from "@giselles-ai/language-model";
 import {
 	type Connection,
+	isAiAgentNode,
 	isAppEntryNode,
 	isContentGenerationNode,
 	isDataQueryNode,
@@ -192,13 +193,14 @@ export function isSupportedConnection(
 		};
 	}
 
-	// Data store node can only be connected to data query, text generation, image generation, or content generation node
+	// Data store node can only be connected to data query, text generation, image generation, content generation, or AI agent node
 	if (isDataStoreNode(outputNode)) {
 		if (
 			isDataQueryNode(inputNode) ||
 			isTextGenerationNode(inputNode) ||
 			isImageGenerationNode(inputNode) ||
-			isContentGenerationNode(inputNode)
+			isContentGenerationNode(inputNode) ||
+			isAiAgentNode(inputNode)
 		) {
 			// Data Query can only have one Data Store connected
 			if (isDataQueryNode(inputNode) && options?.existingConnections) {
@@ -236,12 +238,13 @@ export function isSupportedConnection(
 		}
 	}
 
-	// data query can only be connected to text generation, image generation, or content generation
+	// data query can only be connected to text generation, image generation, content generation, or AI agent
 	if (isDataQueryNode(outputNode)) {
 		if (
 			!isTextGenerationNode(inputNode) &&
 			!isImageGenerationNode(inputNode) &&
-			!isContentGenerationNode(inputNode)
+			!isContentGenerationNode(inputNode) &&
+			!isAiAgentNode(inputNode)
 		) {
 			return {
 				canConnect: false,
@@ -261,6 +264,7 @@ export function isSupportedConnection(
 			"appEntry",
 			"textGeneration",
 			"contentGeneration",
+			"aiAgent",
 		];
 		if (!allowedOutputTypes.includes(outputNode.content.type)) {
 			return {

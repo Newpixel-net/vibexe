@@ -17,6 +17,7 @@ import {
 	type Tier,
 } from "@giselles-ai/language-model";
 import {
+	createAiAgentNode,
 	createAppEntryNode,
 	createContentGenerationNode,
 	createDataQueryNode,
@@ -42,6 +43,7 @@ import { useFeatureFlag } from "@giselles-ai/react";
 import { useUsageLimits } from "@giselles-ai/react";
 import clsx from "clsx/lite";
 import {
+	BotIcon,
 	ChevronLeftIcon,
 	FlagIcon,
 	GitBranchIcon,
@@ -327,6 +329,23 @@ export function WhatHappensNextPanel({
 		[handleAddAndConnect, generateContentNode],
 	);
 
+	const handleSelectModelForAgent = useCallback(
+		(model: LanguageModel) => {
+			const registryId = model.id.includes("/")
+				? model.id
+				: `${model.provider}/${model.id}`;
+			const newNode = createAiAgentNode({
+				id: registryId as Parameters<typeof createAiAgentNode>[0]["id"],
+			});
+			handleAddAndConnect(newNode);
+		},
+		[handleAddAndConnect],
+	);
+
+	const [aiModelMode, setAiModelMode] = useState<
+		"generation" | "agent-model-picker"
+	>("generation");
+
 	// Search results for categories-level search
 	const searchResults = useMemo(() => {
 		const q = searchQuery.trim().toLowerCase();
@@ -347,13 +366,15 @@ export function WhatHappensNextPanel({
 	// Header title
 	const headerTitle = useMemo(() => {
 		if (level === "categories") return "What happens next?";
+		if (level === "ai-models" && aiModelMode === "agent-model-picker")
+			return "AI Agent";
 		if (level === "ai-models") return "AI Generation";
 		if (level === "integrations") return "Action in an app";
 		if (level === "integration-actions")
 			return selectedPiece?.displayName ?? "Actions";
 		if (level === "context") return "Context & Data";
 		return "What happens next?";
-	}, [level, selectedPiece]);
+	}, [level, selectedPiece, aiModelMode]);
 
 	return (
 		<div
@@ -391,8 +412,11 @@ export function WhatHappensNextPanel({
 										if (level === "integration-actions") {
 											setLevel("integrations");
 											setSelectedPiece(null);
+										} else if (level === "ai-models" && aiModelMode === "agent-model-picker") {
+											setAiModelMode("generation");
 										} else {
 											setLevel("categories");
+											setAiModelMode("generation");
 										}
 										setSearchQuery("");
 									}}
@@ -677,8 +701,39 @@ export function WhatHappensNextPanel({
 						)}
 
 						{/* AI Models level */}
-						{level === "ai-models" && (
+						{level === "ai-models" && aiModelMode === "generation" && (
 							<div className="space-y-3 pt-1">
+								{/* AI Agent option */}
+								{!searchQuery.trim() && (
+									<div>
+										<div className="text-[10px] font-medium text-inverse/40 uppercase tracking-wide px-3 pb-1">
+											Agent
+										</div>
+										<button
+											type="button"
+											onClick={() => {
+												setAiModelMode("agent-model-picker");
+												setSearchQuery("");
+											}}
+											className={clsx(
+												"w-full flex items-center gap-3 px-3 py-2.5 rounded-[8px]",
+												"hover:bg-white/8 transition-colors text-left group/agent",
+											)}
+										>
+											<div className="w-[28px] h-[28px] rounded-[6px] bg-purple-500/20 flex items-center justify-center shrink-0">
+												<BotIcon className="w-4 h-4 text-purple-400" />
+											</div>
+											<div>
+												<div className="text-[12px] font-medium text-inverse">
+													AI Agent
+												</div>
+												<div className="text-[10px] text-inverse/40">
+													Multi-step reasoning with tools
+												</div>
+											</div>
+										</button>
+									</div>
+								)}
 								{searchQuery.trim() ? (
 									/* Flat filtered list when searching */
 									<div className="space-y-0.5">
@@ -743,6 +798,29 @@ export function WhatHappensNextPanel({
 										))}
 									</>
 								)}
+							</div>
+						)}
+
+						{/* AI Agent model picker */}
+						{level === "ai-models" && aiModelMode === "agent-model-picker" && (
+							<div className="space-y-3 pt-1">
+								<div className="text-[10px] font-medium text-inverse/40 uppercase tracking-wide px-3 pb-1">
+									Select model for AI Agent
+								</div>
+								{(searchQuery.trim()
+									? filteredModels.filter((m) =>
+											hasCapability(m, Capability.TextGeneration),
+										)
+									: availableModels.filter((m) =>
+											hasCapability(m, Capability.TextGeneration),
+										)
+								).map((model) => (
+									<ModelRow
+										key={`agent-${model.id}`}
+										model={model}
+										onClick={() => handleSelectModelForAgent(model)}
+									/>
+								))}
 							</div>
 						)}
 

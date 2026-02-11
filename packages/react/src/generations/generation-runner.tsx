@@ -35,6 +35,7 @@ export function GenerationRunner({ generation }: { generation: Generation }) {
 	switch (generationContext.operationNode.content.type) {
 		case "textGeneration":
 		case "contentGeneration":
+		case "aiAgent":
 			return <TextGenerationRunner generation={generation} />;
 		case "imageGeneration":
 			return <ImageGenerationRunner generation={generation} />;

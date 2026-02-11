@@ -1,5 +1,6 @@
 import {
 	isActionNode,
+	isAiAgentNode,
 	isAppEntryNode,
 	isContentGenerationNode,
 	isDataQueryNode,
@@ -21,6 +22,7 @@ import {
 	useAppDesignerStore,
 	useSetCurrentShortcutScope,
 } from "../../app-designer";
+import { AiAgentNodePropertiesPanel } from "./ai-agent-node-properties-panel";
 import { ActionNodePropertiesPanel } from "./action-node-properties-panel";
 import { AppEntryNodePropertiesPanel } from "./app-entry-node-properties-panel";
 import { DataQueryNodePropertiesPanel } from "./data-query-properties-panel";
@@ -136,6 +138,12 @@ export function PropertiesPanel() {
 			)}
 			{isContentGenerationNode(selectedNodes[0]) && (
 				<TextGenerationNodePropertiesPanelV2
+					node={selectedNodes[0]}
+					key={selectedNodes[0].id}
+				/>
+			)}
+			{isAiAgentNode(selectedNodes[0]) && (
+				<AiAgentNodePropertiesPanel
 					node={selectedNodes[0]}
 					key={selectedNodes[0].id}
 				/>

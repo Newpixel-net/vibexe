@@ -8,6 +8,7 @@ import {
 	AppEntryContentReference,
 	AppEntryType,
 } from "./app-entry";
+import { AiAgentContent, AiAgentContentReference } from "./ai-agent";
 import {
 	ContentGenerationContent,
 	ContentGenerationContentReference,
@@ -40,6 +41,7 @@ const OperationNodeContent = z.discriminatedUnion("type", [
 	ContentGenerationContent,
 	IntegrationContent,
 	EndContent,
+	AiAgentContent,
 ]);
 
 export const OperationNode = NodeBase.extend({
@@ -66,6 +68,7 @@ export const OperationNodeLike = NodeBase.extend({
 			ContentGenerationContent.shape.type,
 			IntegrationContent.shape.type,
 			EndContent.shape.type,
+			AiAgentContent.shape.type,
 		]),
 	}),
 });
@@ -184,6 +187,15 @@ export function isIntegrationNode(args?: unknown): args is IntegrationNode {
 	return result.success;
 }
 
+export const AiAgentNode = OperationNode.extend({
+	content: AiAgentContent,
+});
+export type AiAgentNode = z.infer<typeof AiAgentNode>;
+export function isAiAgentNode(args?: unknown): args is AiAgentNode {
+	const result = AiAgentNode.safeParse(args);
+	return result.success;
+}
+
 export const EndNode = OperationNode.extend({
 	content: EndContent,
 });
@@ -204,6 +216,7 @@ const OperationNodeContentReference = z.discriminatedUnion("type", [
 	ContentGenerationContentReference,
 	IntegrationContentReference,
 	EndContentReference,
+	AiAgentContentReference,
 ]);
 export const OperationNodeReference = NodeReferenceBase.extend({
 	type: OperationNode.shape.type,

@@ -1,6 +1,7 @@
 import { type ActionProvider, getEntry } from "@giselles-ai/action-registry";
 import {
 	isActionNode,
+	isAiAgentNode,
 	isContentGenerationNode,
 	isDataQueryNode,
 	isDataStoreNode,
@@ -104,6 +105,11 @@ export function defaultName(node: NodeLike) {
 						throw new Error(`Expected end node, got ${node.type}`);
 					}
 					return node.name ?? "End";
+				case "aiAgent":
+					if (!isAiAgentNode(node)) {
+						throw new Error(`Expected AI agent node, got ${node.type}`);
+					}
+					return node.name ?? "AI Agent";
 				case "appEntry":
 					return node.name ?? "Start";
 				default: {
