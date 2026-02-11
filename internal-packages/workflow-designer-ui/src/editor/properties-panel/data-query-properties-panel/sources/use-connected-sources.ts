@@ -101,6 +101,8 @@ export function useConnectedSources(node: DataQueryNode) {
 						case "query":
 						case "dataQuery":
 						case "integration":
+						case "aiAgent":
+						case "chatModel":
 							break;
 						case "end":
 							// End Node has no Output so do nothing

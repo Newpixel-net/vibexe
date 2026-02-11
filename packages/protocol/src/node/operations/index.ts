@@ -1,6 +1,7 @@
 export * from "./action";
 export * from "./ai-agent";
 export * from "./app-entry";
+export * from "./chat-model";
 export * from "./content-generation";
 export * from "./data-query";
 export * from "./end";

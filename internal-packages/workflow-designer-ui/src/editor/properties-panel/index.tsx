@@ -12,6 +12,7 @@ import {
 	isTextGenerationNode,
 	isTextNode,
 	isTriggerNode,
+	isChatModelNode,
 	isIntegrationNode,
 	isVectorStoreNode,
 	isWebPageNode,
@@ -23,6 +24,7 @@ import {
 	useSetCurrentShortcutScope,
 } from "../../app-designer";
 import { AiAgentNodePropertiesPanel } from "./ai-agent-node-properties-panel";
+import { ChatModelPropertiesPanel } from "./chat-model-properties-panel";
 import { ActionNodePropertiesPanel } from "./action-node-properties-panel";
 import { AppEntryNodePropertiesPanel } from "./app-entry-node-properties-panel";
 import { DataQueryNodePropertiesPanel } from "./data-query-properties-panel";
@@ -144,6 +146,12 @@ export function PropertiesPanel() {
 			)}
 			{isAiAgentNode(selectedNodes[0]) && (
 				<AiAgentNodePropertiesPanel
+					node={selectedNodes[0]}
+					key={selectedNodes[0].id}
+				/>
+			)}
+			{isChatModelNode(selectedNodes[0]) && (
+				<ChatModelPropertiesPanel
 					node={selectedNodes[0]}
 					key={selectedNodes[0].id}
 				/>

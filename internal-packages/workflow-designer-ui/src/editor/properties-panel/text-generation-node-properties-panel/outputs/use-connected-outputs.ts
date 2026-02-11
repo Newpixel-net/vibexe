@@ -132,6 +132,9 @@ export function useConnectedOutputs(node: TextGenerationNode) {
 								connection,
 							});
 							break;
+						case "aiAgent":
+						case "chatModel":
+							break;
 						default: {
 							const _exhaustiveCheck: never = outputNode.content.type;
 							throw new Error(`Unhandled node type: ${_exhaustiveCheck}`);

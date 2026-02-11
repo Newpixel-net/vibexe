@@ -10,6 +10,10 @@ import {
 } from "./app-entry";
 import { AiAgentContent, AiAgentContentReference } from "./ai-agent";
 import {
+	ChatModelContent,
+	ChatModelContentReference,
+} from "./chat-model";
+import {
 	ContentGenerationContent,
 	ContentGenerationContentReference,
 } from "./content-generation";
@@ -42,6 +46,7 @@ const OperationNodeContent = z.discriminatedUnion("type", [
 	IntegrationContent,
 	EndContent,
 	AiAgentContent,
+	ChatModelContent,
 ]);
 
 export const OperationNode = NodeBase.extend({
@@ -69,6 +74,7 @@ export const OperationNodeLike = NodeBase.extend({
 			IntegrationContent.shape.type,
 			EndContent.shape.type,
 			AiAgentContent.shape.type,
+			ChatModelContent.shape.type,
 		]),
 	}),
 });
@@ -196,6 +202,15 @@ export function isAiAgentNode(args?: unknown): args is AiAgentNode {
 	return result.success;
 }
 
+export const ChatModelNode = OperationNode.extend({
+	content: ChatModelContent,
+});
+export type ChatModelNode = z.infer<typeof ChatModelNode>;
+export function isChatModelNode(args?: unknown): args is ChatModelNode {
+	const result = ChatModelNode.safeParse(args);
+	return result.success;
+}
+
 export const EndNode = OperationNode.extend({
 	content: EndContent,
 });
@@ -217,6 +232,7 @@ const OperationNodeContentReference = z.discriminatedUnion("type", [
 	IntegrationContentReference,
 	EndContentReference,
 	AiAgentContentReference,
+	ChatModelContentReference,
 ]);
 export const OperationNodeReference = NodeReferenceBase.extend({
 	type: OperationNode.shape.type,

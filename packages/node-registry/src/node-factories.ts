@@ -9,6 +9,7 @@ import {
 	type ActionNode,
 	type AiAgentNode,
 	type AppEntryNode,
+	type ChatModelNode,
 	AppParameterId,
 	type ContentGenerationNode,
 	createPendingCopyFileData,
@@ -33,6 +34,7 @@ import {
 	isActionNode,
 	isAiAgentNode,
 	isAppEntryNode,
+	isChatModelNode,
 	isContentGenerationNode,
 	isDataQueryNode,
 	isDataStoreNode,
@@ -1077,6 +1079,55 @@ const aiAgentFactoryImpl = {
 	},
 } satisfies NodeFactory<AiAgentNode, CreateAiAgentNodeInput>;
 
+type CreateChatModelNodeInput = Pick<
+	ChatModelNode["content"]["languageModel"],
+	"id"
+> &
+	Partial<ChatModelNode["content"]["languageModel"]>;
+
+const chatModelFactoryImpl = {
+	create: (input: CreateChatModelNodeInput): ChatModelNode => {
+		const languageModel = getEntry(input.id);
+		return {
+			id: NodeId.generate(),
+			type: "operation",
+			content: {
+				type: "chatModel",
+				languageModel: {
+					provider: languageModel.providerId,
+					id: languageModel.id,
+					configuration: languageModel.defaultConfiguration,
+				},
+			},
+			inputs: [],
+			outputs: [
+				{
+					id: OutputId.generate(),
+					label: "Model",
+					accessor: "model",
+				},
+			],
+		} satisfies ChatModelNode;
+	},
+	clone: (orig: ChatModelNode): NodeFactoryCloneResult<ChatModelNode> => {
+		const clonedContent = structuredClone(orig.content);
+		const { newIo: newInputs, idMap: inputIdMap } =
+			cloneAndRenewInputIdsWithMap(orig.inputs);
+		const { newIo: newOutputs, idMap: outputIdMap } =
+			cloneAndRenewOutputIdsWithMap(orig.outputs);
+
+		const newNode = {
+			id: NodeId.generate(),
+			type: "operation",
+			name: `Copy of ${orig.name ?? defaultName(orig)}`,
+			content: clonedContent,
+			inputs: newInputs,
+			outputs: newOutputs,
+		} satisfies ChatModelNode;
+		return { newNode, inputIdMap, outputIdMap };
+	},
+} satisfies NodeFactory<ChatModelNode, CreateChatModelNodeInput>;
+
 // --- Factories Manager ---
 const factoryImplementations = {
 	textGeneration: textGenerationFactoryImpl,
@@ -1096,6 +1147,7 @@ const factoryImplementations = {
 	appEntry: appEntryFactoryImpl,
 	contentGeneration: contentGenerationFactoryImpl,
 	aiAgent: aiAgentFactoryImpl,
+	chatModel: chatModelFactoryImpl,
 } as const;
 
 type CreateArgMap = {
@@ -1116,6 +1168,7 @@ type CreateArgMap = {
 	appEntry: undefined;
 	contentGeneration: CreateContentGenerationNodeInput;
 	aiAgent: CreateAiAgentNodeInput;
+	chatModel: CreateChatModelNodeInput;
 };
 
 const nodeTypesRequiringArg = (
@@ -1130,6 +1183,12 @@ export function createAiAgentNode(
 	input: CreateAiAgentNodeInput,
 ): AiAgentNode {
 	return aiAgentFactoryImpl.create(input);
+}
+
+export function createChatModelNode(
+	input: CreateChatModelNodeInput,
+): ChatModelNode {
+	return chatModelFactoryImpl.create(input);
 }
 
 export function createTextGenerationNode(
@@ -1336,6 +1395,13 @@ export function cloneNode<N extends Node>(
 				) as NodeFactoryCloneResult<N>;
 			}
 			break;
+		case "chatModel":
+			if (isChatModelNode(sourceNode)) {
+				return chatModelFactoryImpl.clone(
+					sourceNode,
+				) as NodeFactoryCloneResult<N>;
+			}
+			break;
 		default: {
 			const _exhaustive: never = contentType;
 			throw new Error(`No clone factory for content type: ${_exhaustive}`);
@@ -1403,6 +1469,10 @@ export const nodeFactories = {
 			case "aiAgent":
 				return factoryImplementations.aiAgent.create(
 					arg as CreateArgMap["aiAgent"],
+				);
+			case "chatModel":
+				return factoryImplementations.chatModel.create(
+					arg as CreateArgMap["chatModel"],
 				);
 			default: {
 				const _exhaustive: never = type;
@@ -1496,6 +1566,11 @@ export const nodeFactories = {
 			case "aiAgent":
 				if (isAiAgentNode(sourceNode)) {
 					return factoryImplementations.aiAgent.clone(sourceNode);
+				}
+				break;
+			case "chatModel":
+				if (isChatModelNode(sourceNode)) {
+					return factoryImplementations.chatModel.clone(sourceNode);
 				}
 				break;
 			default: {

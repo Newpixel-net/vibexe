@@ -122,6 +122,7 @@ async function executeStep(args: {
 			case "appEntry":
 				break;
 			case "end":
+			case "chatModel":
 				break;
 			default: {
 				const _exhaustiveCheck: never =

@@ -1,6 +1,12 @@
 "use client";
 
-import { isAppEntryNode, isEndNode, type NodeId } from "@giselles-ai/protocol";
+import {
+	type InputId,
+	isAppEntryNode,
+	isEndNode,
+	type NodeId,
+} from "@giselles-ai/protocol";
+import { createChatModelNode } from "@giselles-ai/node-registry";
 import {
 	type Connection,
 	type Edge,
@@ -26,6 +32,7 @@ import { useShallow } from "zustand/shallow";
 import {
 	ConfirmProvider,
 	useAddAppEntryWithEndNodes,
+	useAddConnection,
 	useAddNode,
 	useAppDesignerStore,
 	useClearSelection,
@@ -288,6 +295,7 @@ function V2NodeCanvas() {
 			if (prev !== undefined && selected === prev.selected) {
 				return prev;
 			}
+			const isSubNode = connection.connectionType === "subNode";
 			const nextEdge: Edge = {
 				id: connection.id,
 				source: connection.outputNode.id,
@@ -295,6 +303,12 @@ function V2NodeCanvas() {
 				type: "giselleConnector",
 				selected,
 				data: { connection },
+				...(isSubNode
+					? {
+							sourceHandle: connection.outputId,
+							targetHandle: connection.inputId,
+						}
+					: {}),
 			};
 			next.set(connection.id, nextEdge);
 			return nextEdge;
@@ -536,6 +550,89 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 		window.addEventListener("what-happens-next", handler);
 		return () => window.removeEventListener("what-happens-next", handler);
 	}, [clearSelection]);
+
+	// Listen for "sub-node-add" custom events from AI Agent bottom handle "+" buttons
+	const addNode = useAddNode();
+	const addConnection = useAddConnection();
+	const { addNodeInput } = useWorkspaceActions((s) => ({
+		addNodeInput: s.addNodeInput,
+	}));
+	const { setUiNodeState } = useWorkspaceActions((s) => ({
+		setUiNodeState: s.setUiNodeState,
+	}));
+	const storeNodes = useAppDesignerStore((s) => s.nodes);
+	const storeNodeState = useAppDesignerStore((s) => s.ui.nodeState);
+
+	useEffect(() => {
+		const handler = (e: Event) => {
+			const detail = (e as CustomEvent).detail as {
+				parentNodeId: NodeId;
+				handleType: string;
+			};
+
+			if (detail.handleType === "chatModel") {
+				// Find the parent AI Agent node and its position
+				const parentNode = storeNodes.find(
+					(n) => n.id === detail.parentNodeId,
+				);
+				if (!parentNode) return;
+
+				const parentUi = storeNodeState[detail.parentNodeId];
+				const parentPos = parentUi?.position ?? { x: 0, y: 0 };
+				const parentHeight = parentUi?.measured?.height ?? 200;
+
+				// Create chatModel node with default model
+				const chatModelNode = createChatModelNode({
+					id: "openai/gpt-5" as Parameters<
+						typeof createChatModelNode
+					>[0]["id"],
+				});
+
+				// Position below the AI Agent
+				const position = {
+					x: parentPos.x,
+					y: parentPos.y + parentHeight + 60,
+				};
+
+				// Add node to store
+				addNode(chatModelNode, { position });
+
+				// Create an input on the AI Agent for this sub-node connection
+				const inputId = "chatModel" as InputId;
+				addNodeInput(detail.parentNodeId, {
+					id: inputId,
+					label: "Chat Model",
+					accessor: "chatModel",
+				});
+
+				// Create sub-node connection
+				const chatModelOutput = chatModelNode.outputs[0];
+				if (chatModelOutput) {
+					addConnection({
+						outputNode: chatModelNode,
+						outputId: chatModelOutput.id,
+						inputNode: parentNode,
+						inputId,
+						connectionType: "subNode",
+					});
+				}
+
+				// Select the new chatModel node
+				clearSelection();
+				setUiNodeState(chatModelNode.id, { selected: true });
+			}
+		};
+		window.addEventListener("sub-node-add", handler);
+		return () => window.removeEventListener("sub-node-add", handler);
+	}, [
+		storeNodes,
+		storeNodeState,
+		addNode,
+		addConnection,
+		addNodeInput,
+		clearSelection,
+		setUiNodeState,
+	]);
 
 	const selectedNodes = useAppDesignerStore(
 		useShallow((s) =>

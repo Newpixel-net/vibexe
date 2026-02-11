@@ -11,6 +11,7 @@ import type {
 } from "@giselles-ai/protocol";
 import {
 	isAiAgentNode,
+	isChatModelNode,
 	isContentGenerationNode,
 	isImageGenerationNode,
 	isTextGenerationNode,
@@ -87,6 +88,7 @@ function useVariant(node: NodeLike) {
 		const isDataQuery = node.content.type === "dataQuery";
 		const isIntegration = node.content.type === "integration";
 		const isAiAgent = node.content.type === "aiAgent";
+		const isChatModel = node.content.type === "chatModel";
 
 		const isVectorStoreGithub =
 			isVectorStore &&
@@ -107,7 +109,8 @@ function useVariant(node: NodeLike) {
 			isQuery ||
 			isDataStore ||
 			isDataQuery ||
-			isAiAgent;
+			isAiAgent ||
+			isChatModel;
 
 		const isDarkIconText =
 			isText || isFile || isWebPage || isQuery || isDataStore || isDataQuery;
@@ -119,7 +122,8 @@ function useVariant(node: NodeLike) {
 			isTrigger ||
 			isAction ||
 			isIntegration ||
-			isAiAgent;
+			isAiAgent ||
+			isChatModel;
 
 		return {
 			isText,
@@ -137,6 +141,7 @@ function useVariant(node: NodeLike) {
 			isDataQuery,
 			isIntegration,
 			isAiAgent,
+			isChatModel,
 			isVectorStoreGithub,
 			isVectorStoreDocument,
 			isGithubTrigger,
@@ -183,6 +188,11 @@ export function NodeComponent({
 			const modelId = node.content.languageModel.id ?? "";
 			const parts = modelId.split("/");
 			return `Agent \u00b7 ${parts[parts.length - 1] || node.content.languageModel.provider}`;
+		}
+		if (isChatModelNode(node)) {
+			const modelId = node.content.languageModel.id ?? "";
+			const parts = modelId.split("/");
+			return parts[parts.length - 1] || node.content.languageModel.provider;
 		}
 		if (isImageGenerationNode(node)) {
 			const modelId = node.content.llm.id ?? "";
@@ -245,6 +255,7 @@ export function NodeComponent({
 		isDataQuery: boolean;
 		isIntegration: boolean;
 		isAiAgent: boolean;
+		isChatModel: boolean;
 		isVectorStoreGithub: boolean;
 		isVectorStoreDocument: boolean;
 		isGithubTrigger: boolean;
@@ -261,6 +272,7 @@ export function NodeComponent({
 			if (variant.isTextGeneration) return "var(--color-generation-node-1)";
 			if (variant.isContentGeneration) return "var(--color-generation-node-1)";
 			if (variant.isAiAgent) return "var(--color-generation-node-1)";
+			if (variant.isChatModel) return "var(--color-generation-node-1)";
 			if (variant.isImageGeneration)
 				return "var(--color-image-generation-node-1)";
 			if (
@@ -302,7 +314,7 @@ export function NodeComponent({
 
 		// Stronger gradient for generation & integration nodes
 		const isGenOrIntegration =
-			v.isTextGeneration || v.isContentGeneration || v.isImageGeneration || v.isIntegration || v.isAiAgent;
+			v.isTextGeneration || v.isContentGeneration || v.isImageGeneration || v.isIntegration || v.isAiAgent || v.isChatModel;
 		const [s1, s2, s3] = isGenOrIntegration
 			? ["30%", "15%", "8%"]
 			: ["20%", "10%", "5%"];
@@ -350,6 +362,7 @@ export function NodeComponent({
 				selected && v.isTextGeneration && "shadow-generation-node-1",
 				selected && v.isContentGeneration && "shadow-generation-node-1",
 				selected && v.isAiAgent && "shadow-generation-node-1",
+				selected && v.isChatModel && "shadow-generation-node-1",
 				selected && v.isImageGeneration && "shadow-image-generation-node-1",
 				selected && v.isGithub && "shadow-github-node-1",
 				selected && v.isVectorStoreGithub && "shadow-github-node-1",
@@ -370,6 +383,7 @@ export function NodeComponent({
 				highlighted && v.isTextGeneration && "shadow-generation-node-1",
 				highlighted && v.isContentGeneration && "shadow-generation-node-1",
 				highlighted && v.isAiAgent && "shadow-generation-node-1",
+				highlighted && v.isChatModel && "shadow-generation-node-1",
 				highlighted && v.isImageGeneration && "shadow-image-generation-node-1",
 				highlighted && v.isGithub && "shadow-github-node-1",
 				highlighted && v.isVectorStoreGithub && "shadow-github-node-1",
@@ -425,6 +439,9 @@ export function NodeComponent({
 						v.isAiAgent &&
 						"from-generation-node-1/40 via-generation-node-1/70 to-generation-node-1",
 					!borderGradientStyle &&
+						v.isChatModel &&
+						"from-generation-node-1/40 via-generation-node-1/70 to-generation-node-1",
+					!borderGradientStyle &&
 						v.isImageGeneration &&
 						"from-image-generation-node-1/40 via-image-generation-node-1/70 to-image-generation-node-1",
 					!borderGradientStyle &&
@@ -476,6 +493,7 @@ export function NodeComponent({
 					v.isTextGeneration && "bg-generation-node-1",
 					v.isContentGeneration && "bg-generation-node-1",
 					v.isAiAgent && "bg-generation-node-1",
+					v.isChatModel && "bg-generation-node-1",
 					v.isImageGeneration && "bg-image-generation-node-1",
 					v.isGithub && "bg-github-node-1",
 					v.isVectorStoreGithub && "bg-github-node-1",
@@ -498,6 +516,7 @@ export function NodeComponent({
 						v.isTextGeneration && "fill-current",
 						v.isContentGeneration && "fill-current",
 						v.isAiAgent && "stroke-current fill-none",
+						v.isChatModel && "stroke-current fill-none",
 						v.isImageGeneration && "fill-current",
 						v.isVectorStore &&
 							!v.isVectorStoreGithub &&
@@ -524,6 +543,7 @@ export function NodeComponent({
 						v.isAction && "text-inverse",
 						v.isIntegration && "text-inverse",
 						v.isAiAgent && "text-inverse",
+						v.isChatModel && "text-inverse",
 						v.isQuery && "text-background",
 						v.isDataStore && "text-background",
 						v.isDataQuery && "text-background",
@@ -569,6 +589,94 @@ export function NodeComponent({
 					connectedOutputIds={connectedOutputIds}
 				/>
 			)}
+			{/* Bottom handles for AI Agent sub-node connections */}
+			{!preview && v.isAiAgent && (
+				<BottomHandles nodeId={node.id} />
+			)}
+		</div>
+	);
+}
+
+/**
+ * Bottom handles for AI Agent node - Chat Model*, Memory, Tool ports
+ */
+function BottomHandles({ nodeId }: { nodeId: NodeId }) {
+	const connections = useAppDesignerStore((s) => s.connections ?? []);
+
+	// Check which bottom handles have sub-node connections
+	const hasChatModel = useMemo(
+		() =>
+			connections.some(
+				(c) =>
+					c.inputNode.id === nodeId &&
+					c.connectionType === "subNode" &&
+					c.inputId === ("chatModel" as InputId),
+			),
+		[connections, nodeId],
+	);
+
+	const handleSubNodeAdd = useCallback(
+		(handleType: string) => (e: React.MouseEvent) => {
+			e.stopPropagation();
+			window.dispatchEvent(
+				new CustomEvent("sub-node-add", {
+					detail: { parentNodeId: nodeId, handleType },
+				}),
+			);
+		},
+		[nodeId],
+	);
+
+	return (
+		<div className="absolute -bottom-[28px] left-0 right-0 flex justify-around items-start px-[10px]">
+			{/* Chat Model handle */}
+			<div className="flex flex-col items-center gap-[2px]">
+				<Handle
+					type="target"
+					id={"chatModel" as string}
+					position={Position.Bottom}
+					style={{ position: "relative", transform: "none", left: 0, top: 0 }}
+					className={clsx(
+						"!w-[10px] !h-[10px] !rounded-full !border-[1.5px] !border-generation-node-1",
+						hasChatModel ? "!bg-generation-node-1" : "!bg-background",
+					)}
+				/>
+				{!hasChatModel && (
+					<button
+						type="button"
+						onClick={handleSubNodeAdd("chatModel")}
+						className="text-[8px] text-inverse/40 hover:text-inverse/80 cursor-pointer flex items-center gap-[1px]"
+					>
+						<PlusIcon className="w-[8px] h-[8px]" />
+						<span>Model*</span>
+					</button>
+				)}
+				{hasChatModel && (
+					<span className="text-[8px] text-inverse/40">Model*</span>
+				)}
+			</div>
+			{/* Memory handle (future) */}
+			<div className="flex flex-col items-center gap-[2px]">
+				<Handle
+					type="target"
+					id={"memory" as string}
+					position={Position.Bottom}
+					style={{ position: "relative", transform: "none", left: 0, top: 0 }}
+					className="!w-[10px] !h-[10px] !rounded-full !border-[1.5px] !border-generation-node-1/40 !bg-background"
+				/>
+				<span className="text-[8px] text-inverse/20">Memory</span>
+			</div>
+			{/* Tool handle (future) */}
+			<div className="flex flex-col items-center gap-[2px]">
+				<Handle
+					type="target"
+					id={"tool" as string}
+					position={Position.Bottom}
+					style={{ position: "relative", transform: "none", left: 0, top: 0 }}
+					className="!w-[10px] !h-[10px] !rounded-full !border-[1.5px] !border-generation-node-1/40 !bg-background"
+				/>
+				<span className="text-[8px] text-inverse/20">Tool</span>
+			</div>
 		</div>
 	);
 }
@@ -603,7 +711,8 @@ function InputOutput({
 			{/* Input handle - centered vertically on left edge */}
 			{node.type === "operation" &&
 				node.content.type !== "trigger" &&
-				node.content.type !== "appEntry" && (
+				node.content.type !== "appEntry" &&
+				node.content.type !== "chatModel" && (
 					<Handle
 						type="target"
 						position={Position.Left}
@@ -630,63 +739,78 @@ function InputOutput({
 				)}
 
 			{/* Output handle - centered vertically on right edge */}
-			<Handle
-				type="source"
-				position={Position.Right}
-				className={clsx(
-					"!absolute !w-[12px] !h-[12px] !rounded-full !right-0 !top-1/2 !translate-x-1/2 !-translate-y-1/2 !border-[1.5px]",
-					!isOutputConnected && "!bg-background",
-					v.isTextGeneration && "!border-generation-node-1",
-					v.isTextGeneration && isOutputConnected && "!bg-generation-node-1",
-					v.isContentGeneration && "!border-generation-node-1",
-					v.isContentGeneration && isOutputConnected && "!bg-generation-node-1",
-					v.isAiAgent && "!border-generation-node-1",
-					v.isAiAgent && isOutputConnected && "!bg-generation-node-1",
-					v.isImageGeneration && "!border-image-generation-node-1",
-					v.isImageGeneration && isOutputConnected && "!bg-image-generation-node-1",
-					v.isGithub && "!border-github-node-1",
-					v.isGithub && isOutputConnected && "!bg-github-node-1",
-					v.isVectorStoreGithub && "!border-github-node-1",
-					v.isVectorStoreGithub && isOutputConnected && "!bg-github-node-1",
-					v.isVectorStoreDocument && "!border-github-node-1",
-					v.isVectorStoreDocument && isOutputConnected && "!bg-github-node-1",
-					v.isText && "!border-text-node-1",
-					v.isText && isOutputConnected && "!bg-text-node-1",
-					v.isFile && "!border-file-node-1",
-					v.isFile && isOutputConnected && "!bg-file-node-1",
-					v.isWebPage && "!border-webPage-node-1",
-					v.isWebPage && isOutputConnected && "!bg-webPage-node-1",
-					v.isTrigger && "!border-trigger-node-1",
-					v.isTrigger && isOutputConnected && "!bg-trigger-node-1",
-					v.isAction && "!border-action-node-1",
-					v.isAction && isOutputConnected && "!bg-action-node-1",
-					v.isIntegration && "!border-integration-node-1",
-					v.isIntegration && isOutputConnected && "!bg-integration-node-1",
-					v.isQuery && "!border-query-node-1",
-					v.isQuery && isOutputConnected && "!bg-query-node-1",
-					v.isDataStore && "!border-data-store-node-1",
-					v.isDataStore && isOutputConnected && "!bg-data-store-node-1",
-					v.isDataQuery && "!border-data-query-node-1",
-					v.isDataQuery && isOutputConnected && "!bg-data-query-node-1",
-				)}
-			/>
+			{/* chatModel nodes have a top source handle instead of right */}
+			{v.isChatModel ? (
+				<Handle
+					type="source"
+					position={Position.Top}
+					className={clsx(
+						"!absolute !w-[10px] !h-[10px] !rounded-full !top-0 !left-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-[1.5px]",
+						"!border-generation-node-1",
+						isOutputConnected ? "!bg-generation-node-1" : "!bg-background",
+					)}
+				/>
+			) : (
+				<Handle
+					type="source"
+					position={Position.Right}
+					className={clsx(
+						"!absolute !w-[12px] !h-[12px] !rounded-full !right-0 !top-1/2 !translate-x-1/2 !-translate-y-1/2 !border-[1.5px]",
+						!isOutputConnected && "!bg-background",
+						v.isTextGeneration && "!border-generation-node-1",
+						v.isTextGeneration && isOutputConnected && "!bg-generation-node-1",
+						v.isContentGeneration && "!border-generation-node-1",
+						v.isContentGeneration && isOutputConnected && "!bg-generation-node-1",
+						v.isAiAgent && "!border-generation-node-1",
+						v.isAiAgent && isOutputConnected && "!bg-generation-node-1",
+						v.isImageGeneration && "!border-image-generation-node-1",
+						v.isImageGeneration && isOutputConnected && "!bg-image-generation-node-1",
+						v.isGithub && "!border-github-node-1",
+						v.isGithub && isOutputConnected && "!bg-github-node-1",
+						v.isVectorStoreGithub && "!border-github-node-1",
+						v.isVectorStoreGithub && isOutputConnected && "!bg-github-node-1",
+						v.isVectorStoreDocument && "!border-github-node-1",
+						v.isVectorStoreDocument && isOutputConnected && "!bg-github-node-1",
+						v.isText && "!border-text-node-1",
+						v.isText && isOutputConnected && "!bg-text-node-1",
+						v.isFile && "!border-file-node-1",
+						v.isFile && isOutputConnected && "!bg-file-node-1",
+						v.isWebPage && "!border-webPage-node-1",
+						v.isWebPage && isOutputConnected && "!bg-webPage-node-1",
+						v.isTrigger && "!border-trigger-node-1",
+						v.isTrigger && isOutputConnected && "!bg-trigger-node-1",
+						v.isAction && "!border-action-node-1",
+						v.isAction && isOutputConnected && "!bg-action-node-1",
+						v.isIntegration && "!border-integration-node-1",
+						v.isIntegration && isOutputConnected && "!bg-integration-node-1",
+						v.isQuery && "!border-query-node-1",
+						v.isQuery && isOutputConnected && "!bg-query-node-1",
+						v.isDataStore && "!border-data-store-node-1",
+						v.isDataStore && isOutputConnected && "!bg-data-store-node-1",
+						v.isDataQuery && "!border-data-query-node-1",
+						v.isDataQuery && isOutputConnected && "!bg-data-query-node-1",
+					)}
+				/>
+			)}
 
 			{/* Plus button - outside right edge, past the output handle */}
-			<button
-				type="button"
-				onClick={handlePlusClick}
-				className={clsx(
-					"absolute -right-[32px] top-1/2 -translate-y-1/2",
-					"w-[20px] h-[20px] rounded-full",
-					"flex items-center justify-center",
-					"bg-inverse/10 backdrop-blur-sm border border-inverse/20",
-					"text-inverse/60 hover:text-inverse hover:bg-inverse/20",
-					"opacity-0 group-hover:opacity-100 transition-opacity duration-150",
-					"cursor-pointer z-10",
-				)}
-			>
-				<PlusIcon className="w-[12px] h-[12px]" />
-			</button>
+			{!v.isChatModel && (
+				<button
+					type="button"
+					onClick={handlePlusClick}
+					className={clsx(
+						"absolute -right-[32px] top-1/2 -translate-y-1/2",
+						"w-[20px] h-[20px] rounded-full",
+						"flex items-center justify-center",
+						"bg-inverse/10 backdrop-blur-sm border border-inverse/20",
+						"text-inverse/60 hover:text-inverse hover:bg-inverse/20",
+						"opacity-0 group-hover:opacity-100 transition-opacity duration-150",
+						"cursor-pointer z-10",
+					)}
+				>
+					<PlusIcon className="w-[12px] h-[12px]" />
+				</button>
+			)}
 		</>
 	);
 }

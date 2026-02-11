@@ -263,6 +263,8 @@ async function resolveQuery(
 			}
 			case "query":
 			case "vectorStore":
+			case "aiAgent":
+			case "chatModel":
 				break;
 			default: {
 				const _exhaustiveCheck: never = contextNode.content;

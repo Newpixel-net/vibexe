@@ -22,6 +22,7 @@ import type {
 } from "@giselles-ai/protocol";
 import {
 	isAiAgentNode,
+	isChatModelNode,
 	isContentGenerationNode,
 	isTextGenerationNode,
 	type Output,
@@ -675,23 +676,48 @@ function generateContentV2({
 				tools: operationNode.content.tools,
 			});
 
+			// AI Agent: resolve model from connected chatModel sub-node if available
+			let resolvedContent = operationNode.content;
+			if (isAiAgentNode(operationNode)) {
+				const chatModelConnection = generationContext.connections.find(
+					(conn) =>
+						conn.connectionType === "subNode" &&
+						conn.inputNode.id === operationNode.id,
+				);
+				if (chatModelConnection) {
+					const chatModelNode = generationContext.sourceNodes.find(
+						(n) => n.id === chatModelConnection.outputNode.id,
+					);
+					if (chatModelNode && isChatModelNode(chatModelNode)) {
+						resolvedContent = {
+							...operationNode.content,
+							languageModel: chatModelNode.content.languageModel,
+						};
+						logger.info(
+							{ subNodeModelId: chatModelNode.content.languageModel.id },
+							"AI Agent using model from connected Chat Model sub-node",
+						);
+					}
+				}
+			}
+
 			const callOptions =
 				transformGiselleLanguageModelToAiSdkLanguageModelCallOptions(
-					operationNode.content,
+					resolvedContent,
 				);
 
 			const abortController = new AbortController();
 			let generationError: unknown | undefined;
 			const textGenerationStartTime = Date.now();
 
-			const v2Model = resolveModel(operationNode.content.languageModel.id);
+			const v2Model = resolveModel(resolvedContent.languageModel.id);
 			logger.info({
 				modelType: typeof v2Model,
 				modelProvider: (v2Model as any)?.provider,
 				modelId: (v2Model as any)?.modelId,
 				specVersion: (v2Model as any)?.specificationVersion,
 				constructorName: v2Model?.constructor?.name,
-				languageModelId: operationNode.content.languageModel.id,
+				languageModelId: resolvedContent.languageModel.id,
 			}, "V2 streamText model debug");
 
 			// AI Agent: extract system prompt and maxSteps

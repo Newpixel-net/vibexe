@@ -32,6 +32,7 @@ const edgeColorMap: Record<string, string> = {
 	textGeneration: "var(--color-generation-node-1)",
 	contentGeneration: "var(--color-generation-node-1)",
 	aiAgent: "var(--color-generation-node-1)",
+	chatModel: "var(--color-generation-node-1)",
 	file: "var(--color-file-node-1)",
 	webPage: "var(--color-webPage-node-1)",
 	text: "var(--color-text-node-1)",
@@ -97,6 +98,9 @@ export function Connector({
 	if (connection === undefined || !outputNodeContent || !inputNodeContent) {
 		return null;
 	}
+
+	const isSubNodeConnection = connection.connectionType === "subNode";
+
 	const [edgePath] = getBezierPath({
 		sourceX,
 		sourceY,
@@ -130,6 +134,7 @@ export function Connector({
 			data-output-node-content-type={outputContentType}
 			data-input-node-type={connection.inputNode.type}
 			data-input-node-content-type={inputContentType}
+			data-sub-node-connection={isSubNodeConnection || undefined}
 		>
 			<defs>
 				<filter
@@ -202,19 +207,24 @@ export function Connector({
 				id={id}
 				path={edgePath}
 				className={clsx("!stroke-[1.5px] bg-bg")}
-				style={{ stroke: `url(#${gradientId})` }}
+				style={{
+					stroke: `url(#${gradientId})`,
+					...(isSubNodeConnection ? { strokeDasharray: "6 4" } : {}),
+				}}
 				filter={`url(#${filterId})`}
 			/>
-			<ConnectedNodeRunning inputNodeId={connection.inputNode.id}>
-				<path
-					d={edgePath}
-					stroke={`url(#${gradientId}-animation)`}
-					strokeWidth="2"
-					fill="none"
-					strokeLinecap="round"
-					filter={`url(#${filterId})`}
-				/>
-			</ConnectedNodeRunning>
+			{!isSubNodeConnection && (
+				<ConnectedNodeRunning inputNodeId={connection.inputNode.id}>
+					<path
+						d={edgePath}
+						stroke={`url(#${gradientId}-animation)`}
+						strokeWidth="2"
+						fill="none"
+						strokeLinecap="round"
+						filter={`url(#${filterId})`}
+					/>
+				</ConnectedNodeRunning>
+			)}
 		</g>
 	);
 }

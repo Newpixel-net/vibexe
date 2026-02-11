@@ -114,8 +114,15 @@ export function transformGiselleLanguageModelToAiSdkLanguageModelCallOptions(
 				temperature: config.temperature,
 			} satisfies Partial<LanguageModelV2CallOptions>;
 		}
+		case "xai/grok-4-0709":
+		case "xai/grok-4-1-fast-reasoning":
+		case "xai/grok-4-1-fast-non-reasoning":
+		case "xai/grok-4-fast-reasoning":
+		case "xai/grok-4-fast-non-reasoning":
+		case "xai/grok-code-fast-1":
 		case "xai/grok-3":
-		case "xai/grok-3-mini": {
+		case "xai/grok-3-mini":
+		case "xai/grok-2-vision-1212": {
 			const config = parseConfiguration(
 				languageModel,
 				content.languageModel.configuration,

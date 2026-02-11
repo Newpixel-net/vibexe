@@ -21,8 +21,9 @@ export function useAddConnection() {
 			outputId: OutputId;
 			inputNode: NodeLike;
 			inputId: InputId;
+			connectionType?: "regular" | "subNode";
 		}) => {
-			const { outputNode, outputId, inputNode, inputId } = args;
+			const { outputNode, outputId, inputNode, inputId, connectionType } = args;
 			const newConnection = {
 				id: ConnectionId.generate(),
 				outputNode: {
@@ -37,6 +38,7 @@ export function useAddConnection() {
 					content: { type: inputNode.content.type },
 				},
 				inputId,
+				...(connectionType ? { connectionType } : {}),
 			} as Connection;
 
 			addConnection(newConnection);

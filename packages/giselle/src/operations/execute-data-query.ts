@@ -567,7 +567,9 @@ async function resolveQuery(
 				replaceKeywordValues.push({ replaceKeyword, value: text });
 				break;
 			}
-			case "end": {
+			case "end":
+			case "aiAgent":
+			case "chatModel": {
 				replaceKeywordValues.push({ replaceKeyword, value: "" });
 				break;
 			}

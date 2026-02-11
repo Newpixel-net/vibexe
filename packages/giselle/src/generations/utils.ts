@@ -111,7 +111,8 @@ export async function buildMessageObject({
 		case "trigger":
 		case "query":
 		case "appEntry":
-		case "integration": {
+		case "integration":
+		case "chatModel": {
 			return [];
 		}
 		default: {
@@ -324,7 +325,8 @@ async function buildGenerationMessageForTextGeneration({
 			case "dataQuery":
 			case "trigger":
 			case "action":
-			case "integration": {
+			case "integration":
+			case "chatModel": {
 				const result = await generationContentResolver(
 					contextNode.id,
 					sourceKeyword.outputId,
@@ -593,9 +595,7 @@ async function buildGenerationMessageForImageGeneration(
 				);
 				switch (llmProvider) {
 					case "fal":
-					case "nvidia":
 					case "openai":
-					case "xai":
 						userMessage = userMessage.replace(
 							replaceKeyword,
 							fileContents
@@ -638,7 +638,8 @@ async function buildGenerationMessageForImageGeneration(
 			case "trigger":
 			case "query":
 			case "dataQuery":
-			case "integration": {
+			case "integration":
+			case "chatModel": {
 				const result = await textGenerationResolver(
 					contextNode.id,
 					sourceKeyword.outputId,
@@ -1161,7 +1162,8 @@ async function buildGenerationMessageForContentGeneration({
 			case "trigger":
 			case "action":
 			case "dataQuery":
-			case "integration": {
+			case "integration":
+			case "chatModel": {
 				const result = await generationContentResolver(
 					contextNode.id,
 					sourceKeyword.outputId,
