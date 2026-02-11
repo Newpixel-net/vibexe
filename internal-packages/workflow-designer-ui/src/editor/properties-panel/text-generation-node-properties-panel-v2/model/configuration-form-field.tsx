@@ -69,6 +69,33 @@ export function ConfigurationFormField<T extends z.ZodType>({
 			const step = option.ui?.step ?? 1;
 			const min = option.ui?.min ?? 0;
 			const max = option.ui?.max ?? Infinity;
+			if (option.ui?.component === "numberInput") {
+				return (
+					<SettingRow
+						label={
+							<label htmlFor={name} className="text-text text-[14px]">
+								{label}
+							</label>
+						}
+					>
+						<input
+							id={name}
+							type="number"
+							min={min}
+							max={max}
+							step={step}
+							value={numValue}
+							onChange={(e) => {
+								const val = Number.parseInt(e.target.value, 10);
+								if (!Number.isNaN(val)) {
+									onValueChange(Math.min(Math.max(val, min), max));
+								}
+							}}
+							className="w-full rounded-[8px] border border-[hsla(0,0%,100%,0.1)] bg-[hsla(0,0%,100%,0.05)] px-[12px] py-[8px] text-[14px] text-white outline-none focus:border-[hsla(0,0%,100%,0.3)]"
+						/>
+					</SettingRow>
+				);
+			}
 			return (
 				<Slider
 					label={label}

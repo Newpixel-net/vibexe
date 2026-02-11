@@ -27,6 +27,22 @@ export const AiAgentContent = z.object({
 	systemPrompt: z.string(),
 	prompt: z.string(),
 	maxSteps: z.number().default(30),
+	structuredOutput: z
+		.object({
+			enabled: z.boolean().default(false),
+			schema: z.string().default(""),
+		})
+		.default({ enabled: false, schema: "" }),
+	fallbackModel: z
+		.object({
+			enabled: z.boolean().default(false),
+			provider: z
+				.custom<LanguageModelProvider>((v) => isLanguageModelProvider(v))
+				.optional(),
+			id: z.custom<LanguageModelId>(isLanguageModelId).optional(),
+			configuration: z.record(z.string(), z.any()).default({}),
+		})
+		.default({ enabled: false, configuration: {} }),
 });
 
 export type AiAgentContent = z.infer<typeof AiAgentContent>;

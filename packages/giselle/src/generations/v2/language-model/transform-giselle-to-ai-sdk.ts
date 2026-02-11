@@ -13,7 +13,10 @@ import type {
 
 export function transformGiselleLanguageModelToAiSdkLanguageModelCallOptions(
 	content: ContentGenerationContent | AiAgentContent,
-): Pick<LanguageModelV2CallOptions, "temperature" | "providerOptions"> {
+): Pick<
+	LanguageModelV2CallOptions,
+	"temperature" | "maxOutputTokens" | "topP" | "providerOptions"
+> {
 	const languageModel = getEntry(content.languageModel.id);
 	switch (languageModel.id) {
 		case "openai/gpt-5":
@@ -29,6 +32,7 @@ export function transformGiselleLanguageModelToAiSdkLanguageModelCallOptions(
 				content.languageModel.configuration,
 			);
 			return {
+				maxOutputTokens: config.maxTokens,
 				providerOptions: {
 					openai: {
 						reasoningEffort: config.reasoningEffort,
@@ -47,6 +51,8 @@ export function transformGiselleLanguageModelToAiSdkLanguageModelCallOptions(
 			if (config.thinking) {
 				return {
 					temperature: config.temperature,
+					maxOutputTokens: config.maxTokens,
+					topP: config.topP,
 					providerOptions: {
 						anthropic: {
 							thinking: {
@@ -59,6 +65,8 @@ export function transformGiselleLanguageModelToAiSdkLanguageModelCallOptions(
 			}
 			return {
 				temperature: config.temperature,
+				maxOutputTokens: config.maxTokens,
+				topP: config.topP,
 				providerOptions: {
 					anthropic: {
 						thinking: {
@@ -76,6 +84,8 @@ export function transformGiselleLanguageModelToAiSdkLanguageModelCallOptions(
 			);
 			return {
 				temperature: config.temperature,
+				maxOutputTokens: config.maxTokens,
+				topP: config.topP,
 				providerOptions: {
 					google: {
 						thinkingConfig: {
@@ -94,6 +104,8 @@ export function transformGiselleLanguageModelToAiSdkLanguageModelCallOptions(
 			);
 			return {
 				temperature: config.temperature,
+				maxOutputTokens: config.maxTokens,
+				topP: config.topP,
 				providerOptions: {
 					google: {
 						thinkingConfig: {
@@ -112,6 +124,8 @@ export function transformGiselleLanguageModelToAiSdkLanguageModelCallOptions(
 			);
 			return {
 				temperature: config.temperature,
+				maxOutputTokens: config.maxTokens,
+				topP: config.topP,
 			} satisfies Partial<LanguageModelV2CallOptions>;
 		}
 		case "xai/grok-4-0709":
@@ -129,6 +143,8 @@ export function transformGiselleLanguageModelToAiSdkLanguageModelCallOptions(
 			);
 			return {
 				temperature: config.temperature,
+				maxOutputTokens: config.maxTokens,
+				topP: config.topP,
 			} satisfies Partial<LanguageModelV2CallOptions>;
 		}
 		default: {

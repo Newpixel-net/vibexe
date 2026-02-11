@@ -36,9 +36,34 @@ export const nvidia = {
 				schema: z.number().min(0).max(2),
 				ui: { min: 0.0, max: 2.0, step: 0.1 },
 			},
+			maxTokens: {
+				description:
+					"Maximum number of tokens to generate. Leave at default for full model capability.",
+				schema: z.number().min(1).max(16_384),
+				ui: {
+					label: "Max Tokens",
+					min: 1,
+					max: 16_384,
+					step: 1,
+					component: "numberInput",
+				},
+			},
+			topP: {
+				description:
+					"Nucleus sampling: only consider tokens with cumulative probability up to this value. Lower values make output more focused.",
+				schema: z.number().min(0).max(1),
+				ui: {
+					label: "Top P",
+					min: 0.0,
+					max: 1.0,
+					step: 0.05,
+				},
+			},
 		},
 		defaultConfiguration: {
 			temperature: 0.7,
+			maxTokens: 16_384,
+			topP: 1.0,
 		},
 		url: "https://build.nvidia.com/moonshotai/kimi-k2.5",
 	}),

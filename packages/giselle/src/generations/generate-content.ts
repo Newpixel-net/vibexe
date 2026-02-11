@@ -839,7 +839,7 @@ function generateContentV2({
 			}, "V2 streamText model debug");
 
 			// AI Agent: extract system prompt and maxSteps
-			const agentSystemPrompt =
+			let agentSystemPrompt =
 				isAiAgentNode(operationNode) && operationNode.content.systemPrompt
 					? operationNode.content.systemPrompt
 					: undefined;
@@ -847,6 +847,18 @@ function generateContentV2({
 				isAiAgentNode(operationNode)
 					? operationNode.content.maxSteps ?? 30
 					: undefined;
+
+			// AI Agent: structured output — inject JSON schema into system prompt
+			if (
+				isAiAgentNode(operationNode) &&
+				operationNode.content.structuredOutput?.enabled &&
+				operationNode.content.structuredOutput.schema.trim()
+			) {
+				const structuredOutputInstruction = `\n\nIMPORTANT: Your final response MUST be valid JSON matching this schema:\n\`\`\`json\n${operationNode.content.structuredOutput.schema.trim()}\n\`\`\`\nDo NOT include any text before or after the JSON in your final response. Only output the raw JSON object.`;
+				agentSystemPrompt = agentSystemPrompt
+					? agentSystemPrompt + structuredOutputInstruction
+					: structuredOutputInstruction;
+			}
 
 			// AI Agent: load memory from connected memoryNode sub-node if available
 			let memoryConfig: {
@@ -975,6 +987,21 @@ function generateContentV2({
 					if (generationError) {
 						if (AISDKError.isInstance(generationError)) {
 							logger.error(generationError, `${generation.id} is failed`);
+						}
+						// Log fallback model availability when primary model fails (V2 AI Agent path)
+						if (
+							isAiAgentNode(operationNode) &&
+							operationNode.content.fallbackModel?.enabled &&
+							operationNode.content.fallbackModel?.id
+						) {
+							logger.warn(
+								{
+									primaryModel: resolvedContent.languageModel.id,
+									fallbackModel: operationNode.content.fallbackModel.id,
+									generationId: generation.id,
+								},
+								"Primary model failed. Fallback model is configured — automatic retry will be available in a future update.",
+							);
 						}
 						const errInfo = AISDKError.isInstance(generationError)
 							? {

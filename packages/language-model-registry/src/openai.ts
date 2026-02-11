@@ -49,10 +49,23 @@ export const openai = {
 				description: textVerbosityDescription,
 				schema: z.enum(["low", "medium", "high"]),
 			},
+			maxTokens: {
+				description:
+					"Maximum number of tokens to generate. Leave at default for full model capability.",
+				schema: z.number().min(1).max(128_000),
+				ui: {
+					label: "Max Tokens",
+					min: 1,
+					max: 128_000,
+					step: 1,
+					component: "numberInput",
+				},
+			},
 		},
 		defaultConfiguration: {
 			reasoningEffort: "none",
 			textVerbosity: "medium",
+			maxTokens: 128_000,
 		},
 		url: "https://platform.openai.com/docs/models/gpt-5.2",
 	}),
@@ -79,10 +92,23 @@ export const openai = {
 				description: textVerbosityDescription,
 				schema: z.enum(["low", "medium", "high"]),
 			},
+			maxTokens: {
+				description:
+					"Maximum number of tokens to generate. Leave at default for full model capability.",
+				schema: z.number().min(1).max(128_000),
+				ui: {
+					label: "Max Tokens",
+					min: 1,
+					max: 128_000,
+					step: 1,
+					component: "numberInput",
+				},
+			},
 		},
 		defaultConfiguration: {
 			reasoningEffort: "none",
 			textVerbosity: "medium",
+			maxTokens: 128_000,
 		},
 		url: "https://platform.openai.com/docs/models/gpt-5.1",
 	}),
@@ -109,10 +135,23 @@ export const openai = {
 				description: textVerbosityDescription,
 				schema: z.enum(["medium"]),
 			},
+			maxTokens: {
+				description:
+					"Maximum number of tokens to generate. Leave at default for full model capability.",
+				schema: z.number().min(1).max(128_000),
+				ui: {
+					label: "Max Tokens",
+					min: 1,
+					max: 128_000,
+					step: 1,
+					component: "numberInput",
+				},
+			},
 		},
 		defaultConfiguration: {
 			reasoningEffort: "medium",
 			textVerbosity: "medium",
+			maxTokens: 128_000,
 		},
 		url: "https://platform.openai.com/docs/models/gpt-5.1-codex",
 	}),
@@ -139,10 +178,23 @@ export const openai = {
 				description: textVerbosityDescription,
 				schema: z.enum(["medium"]),
 			},
+			maxTokens: {
+				description:
+					"Maximum number of tokens to generate. Leave at default for full model capability.",
+				schema: z.number().min(1).max(128_000),
+				ui: {
+					label: "Max Tokens",
+					min: 1,
+					max: 128_000,
+					step: 1,
+					component: "numberInput",
+				},
+			},
 		},
 		defaultConfiguration: {
 			reasoningEffort: "medium",
 			textVerbosity: "medium",
+			maxTokens: 128_000,
 		},
 		url: "https://platform.openai.com/docs/models/gpt-5.2-codex",
 	}),
@@ -170,10 +222,23 @@ export const openai = {
 				description: textVerbosityDescription,
 				schema: z.enum(["low", "medium", "high"]),
 			},
+			maxTokens: {
+				description:
+					"Maximum number of tokens to generate. Leave at default for full model capability.",
+				schema: z.number().min(1).max(128_000),
+				ui: {
+					label: "Max Tokens",
+					min: 1,
+					max: 128_000,
+					step: 1,
+					component: "numberInput",
+				},
+			},
 		},
 		defaultConfiguration: {
 			reasoningEffort: "medium",
 			textVerbosity: "medium",
+			maxTokens: 128_000,
 		},
 		url: "https://platform.openai.com/docs/models/gpt-5",
 	}),
@@ -201,10 +266,23 @@ export const openai = {
 				description: textVerbosityDescription,
 				schema: z.enum(["low", "medium", "high"]),
 			},
+			maxTokens: {
+				description:
+					"Maximum number of tokens to generate. Leave at default for full model capability.",
+				schema: z.number().min(1).max(128_000),
+				ui: {
+					label: "Max Tokens",
+					min: 1,
+					max: 128_000,
+					step: 1,
+					component: "numberInput",
+				},
+			},
 		},
 		defaultConfiguration: {
 			reasoningEffort: "medium",
 			textVerbosity: "medium",
+			maxTokens: 128_000,
 		},
 		url: "https://platform.openai.com/docs/models/gpt-5-codex",
 	}),
@@ -232,10 +310,23 @@ export const openai = {
 				description: textVerbosityDescription,
 				schema: z.enum(["low", "medium", "high"]),
 			},
+			maxTokens: {
+				description:
+					"Maximum number of tokens to generate. Leave at default for full model capability.",
+				schema: z.number().min(1).max(128_000),
+				ui: {
+					label: "Max Tokens",
+					min: 1,
+					max: 128_000,
+					step: 1,
+					component: "numberInput",
+				},
+			},
 		},
 		defaultConfiguration: {
 			reasoningEffort: "medium",
 			textVerbosity: "medium",
+			maxTokens: 128_000,
 		},
 		url: "https://platform.openai.com/docs/models/gpt-5-mini",
 	}),
@@ -263,10 +354,23 @@ export const openai = {
 				description: textVerbosityDescription,
 				schema: z.enum(["low", "medium", "high"]),
 			},
+			maxTokens: {
+				description:
+					"Maximum number of tokens to generate. Leave at default for full model capability.",
+				schema: z.number().min(1).max(128_000),
+				ui: {
+					label: "Max Tokens",
+					min: 1,
+					max: 128_000,
+					step: 1,
+					component: "numberInput",
+				},
+			},
 		},
 		defaultConfiguration: {
 			reasoningEffort: "medium",
 			textVerbosity: "medium",
+			maxTokens: 128_000,
 		},
 		url: "https://platform.openai.com/docs/models/gpt-5-nano",
 	}),

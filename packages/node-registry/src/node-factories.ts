@@ -996,6 +996,8 @@ const aiAgentFactoryImpl = {
 				systemPrompt: "",
 				prompt: "",
 				maxSteps: 30,
+				structuredOutput: { enabled: false, schema: "" },
+				fallbackModel: { enabled: false, configuration: {} },
 				languageModel: {
 					provider: languageModel.providerId,
 					id: languageModel.id,

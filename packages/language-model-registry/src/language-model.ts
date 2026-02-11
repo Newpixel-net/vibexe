@@ -62,6 +62,7 @@ export type ConfigurationOption<TSchema extends z.ZodType> = {
 		min?: number;
 		max?: number;
 		step?: number;
+		component?: "slider" | "numberInput";
 	};
 };
 

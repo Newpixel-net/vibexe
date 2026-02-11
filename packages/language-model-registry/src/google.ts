@@ -15,6 +15,31 @@ const googleProvider = {
 	},
 } as const satisfies LanguageModelProviderDefinition<"google">;
 
+const googleMaxTokens = {
+	description:
+		"Maximum number of tokens to generate. Leave at default for full model capability.",
+	schema: z.number().min(1).max(65_536),
+	ui: {
+		label: "Max Tokens",
+		min: 1,
+		max: 65_536,
+		step: 1,
+		component: "numberInput" as const,
+	},
+} as const;
+
+const googleTopP = {
+	description:
+		"Nucleus sampling: only consider tokens with cumulative probability up to this value. Lower values make output more focused.",
+	schema: z.number().min(0).max(1),
+	ui: {
+		label: "Top P",
+		min: 0.0,
+		max: 1.0,
+		step: 0.05,
+	},
+} as const;
+
 export const google = {
 	"google/gemini-3-pro-preview": defineLanguageModel({
 		provider: googleProvider,
@@ -45,10 +70,14 @@ export const google = {
 					"Control thinking behavior. Models adjust reasoning effort dynamically by default, but you can override this for specific latency or complexity requirements.",
 				schema: z.enum(["low", "high"]),
 			},
+			maxTokens: googleMaxTokens,
+			topP: googleTopP,
 		},
 		defaultConfiguration: {
 			temperature: 1.0,
 			thinkingLevel: "high",
+			maxTokens: 65_536,
+			topP: 1.0,
 		},
 		url: "https://ai.google.dev/gemini-api/docs/models",
 	}),
@@ -81,10 +110,14 @@ export const google = {
 					"Control thinking behavior. 'minimal' minimizes latency for chat or high-throughput apps. 'low' for simple tasks. 'medium' for balanced thinking. 'high' for complex reasoning.",
 				schema: z.enum(["minimal", "low", "medium", "high"]),
 			},
+			maxTokens: googleMaxTokens,
+			topP: googleTopP,
 		},
 		defaultConfiguration: {
 			temperature: 1.0,
 			thinkingLevel: "high",
+			maxTokens: 65_536,
+			topP: 1.0,
 		},
 		url: "https://ai.google.dev/gemini-api/docs/models",
 	}),
@@ -116,10 +149,14 @@ export const google = {
 				description: "Whether to include reasoning text in the response.",
 				schema: z.boolean(),
 			},
+			maxTokens: googleMaxTokens,
+			topP: googleTopP,
 		},
 		defaultConfiguration: {
 			temperature: 1.0,
 			thinking: true,
+			maxTokens: 65_536,
+			topP: 1.0,
 		},
 		url: "https://ai.google.dev/gemini-api/docs/models",
 	}),
@@ -151,10 +188,14 @@ export const google = {
 				description: "Whether to include reasoning text in the response.",
 				schema: z.boolean(),
 			},
+			maxTokens: googleMaxTokens,
+			topP: googleTopP,
 		},
 		defaultConfiguration: {
 			temperature: 1.0,
 			thinking: true,
+			maxTokens: 65_536,
+			topP: 1.0,
 		},
 		url: "https://ai.google.dev/gemini-api/docs/models",
 	}),
@@ -186,10 +227,14 @@ export const google = {
 				description: "Whether to include reasoning text in the response.",
 				schema: z.boolean(),
 			},
+			maxTokens: googleMaxTokens,
+			topP: googleTopP,
 		},
 		defaultConfiguration: {
 			temperature: 0.7,
 			thinking: false,
+			maxTokens: 65_536,
+			topP: 1.0,
 		},
 		url: "https://ai.google.dev/gemini-api/docs/models",
 	}),

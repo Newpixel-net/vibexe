@@ -15,6 +15,39 @@ const xaiProvider = {
 	},
 } as const satisfies LanguageModelProviderDefinition<"xai">;
 
+const xaiTemperature = {
+	description: "Controls the randomness of the output.",
+	schema: z.number().min(0).max(2),
+	ui: { min: 0.0, max: 2.0, step: 0.1 },
+} as const;
+
+const xaiTopP = {
+	description:
+		"Nucleus sampling: only consider tokens with cumulative probability up to this value. Lower values make output more focused.",
+	schema: z.number().min(0).max(1),
+	ui: {
+		label: "Top P",
+		min: 0.0,
+		max: 1.0,
+		step: 0.05,
+	},
+} as const;
+
+function xaiMaxTokens(max: number) {
+	return {
+		description:
+			"Maximum number of tokens to generate. Leave at default for full model capability.",
+		schema: z.number().min(1).max(max),
+		ui: {
+			label: "Max Tokens",
+			min: 1,
+			max,
+			step: 1,
+			component: "numberInput" as const,
+		},
+	};
+}
+
 export const xai = {
 	"xai/grok-4-0709": defineLanguageModel({
 		provider: xaiProvider,
@@ -31,14 +64,14 @@ export const xai = {
 		},
 		requiredTier: "pro",
 		configurationOptions: {
-			temperature: {
-				description: "Controls the randomness of the output.",
-				schema: z.number().min(0).max(2),
-				ui: { min: 0.0, max: 2.0, step: 0.1 },
-			},
+			temperature: xaiTemperature,
+			maxTokens: xaiMaxTokens(32_768),
+			topP: xaiTopP,
 		},
 		defaultConfiguration: {
 			temperature: 0.7,
+			maxTokens: 32_768,
+			topP: 1.0,
 		},
 		url: "https://docs.x.ai/developers/models",
 	}),
@@ -57,14 +90,14 @@ export const xai = {
 		},
 		requiredTier: "free",
 		configurationOptions: {
-			temperature: {
-				description: "Controls the randomness of the output.",
-				schema: z.number().min(0).max(2),
-				ui: { min: 0.0, max: 2.0, step: 0.1 },
-			},
+			temperature: xaiTemperature,
+			maxTokens: xaiMaxTokens(32_768),
+			topP: xaiTopP,
 		},
 		defaultConfiguration: {
 			temperature: 0.7,
+			maxTokens: 32_768,
+			topP: 1.0,
 		},
 		url: "https://docs.x.ai/developers/models",
 	}),
@@ -83,14 +116,14 @@ export const xai = {
 		},
 		requiredTier: "free",
 		configurationOptions: {
-			temperature: {
-				description: "Controls the randomness of the output.",
-				schema: z.number().min(0).max(2),
-				ui: { min: 0.0, max: 2.0, step: 0.1 },
-			},
+			temperature: xaiTemperature,
+			maxTokens: xaiMaxTokens(32_768),
+			topP: xaiTopP,
 		},
 		defaultConfiguration: {
 			temperature: 0.7,
+			maxTokens: 32_768,
+			topP: 1.0,
 		},
 		url: "https://docs.x.ai/developers/models",
 	}),
@@ -109,14 +142,14 @@ export const xai = {
 		},
 		requiredTier: "free",
 		configurationOptions: {
-			temperature: {
-				description: "Controls the randomness of the output.",
-				schema: z.number().min(0).max(2),
-				ui: { min: 0.0, max: 2.0, step: 0.1 },
-			},
+			temperature: xaiTemperature,
+			maxTokens: xaiMaxTokens(32_768),
+			topP: xaiTopP,
 		},
 		defaultConfiguration: {
 			temperature: 0.7,
+			maxTokens: 32_768,
+			topP: 1.0,
 		},
 		url: "https://docs.x.ai/developers/models",
 	}),
@@ -135,14 +168,14 @@ export const xai = {
 		},
 		requiredTier: "free",
 		configurationOptions: {
-			temperature: {
-				description: "Controls the randomness of the output.",
-				schema: z.number().min(0).max(2),
-				ui: { min: 0.0, max: 2.0, step: 0.1 },
-			},
+			temperature: xaiTemperature,
+			maxTokens: xaiMaxTokens(32_768),
+			topP: xaiTopP,
 		},
 		defaultConfiguration: {
 			temperature: 0.7,
+			maxTokens: 32_768,
+			topP: 1.0,
 		},
 		url: "https://docs.x.ai/developers/models",
 	}),
@@ -161,14 +194,14 @@ export const xai = {
 		},
 		requiredTier: "free",
 		configurationOptions: {
-			temperature: {
-				description: "Controls the randomness of the output.",
-				schema: z.number().min(0).max(2),
-				ui: { min: 0.0, max: 2.0, step: 0.1 },
-			},
+			temperature: xaiTemperature,
+			maxTokens: xaiMaxTokens(32_768),
+			topP: xaiTopP,
 		},
 		defaultConfiguration: {
 			temperature: 0.7,
+			maxTokens: 32_768,
+			topP: 1.0,
 		},
 		url: "https://docs.x.ai/developers/models",
 	}),
@@ -187,14 +220,14 @@ export const xai = {
 		},
 		requiredTier: "pro",
 		configurationOptions: {
-			temperature: {
-				description: "Controls the randomness of the output.",
-				schema: z.number().min(0).max(2),
-				ui: { min: 0.0, max: 2.0, step: 0.1 },
-			},
+			temperature: xaiTemperature,
+			maxTokens: xaiMaxTokens(32_768),
+			topP: xaiTopP,
 		},
 		defaultConfiguration: {
 			temperature: 0.7,
+			maxTokens: 32_768,
+			topP: 1.0,
 		},
 		url: "https://docs.x.ai/developers/models",
 	}),
@@ -213,14 +246,14 @@ export const xai = {
 		},
 		requiredTier: "free",
 		configurationOptions: {
-			temperature: {
-				description: "Controls the randomness of the output.",
-				schema: z.number().min(0).max(2),
-				ui: { min: 0.0, max: 2.0, step: 0.1 },
-			},
+			temperature: xaiTemperature,
+			maxTokens: xaiMaxTokens(32_768),
+			topP: xaiTopP,
 		},
 		defaultConfiguration: {
 			temperature: 0.7,
+			maxTokens: 32_768,
+			topP: 1.0,
 		},
 		url: "https://docs.x.ai/developers/models",
 	}),
@@ -239,14 +272,14 @@ export const xai = {
 		},
 		requiredTier: "pro",
 		configurationOptions: {
-			temperature: {
-				description: "Controls the randomness of the output.",
-				schema: z.number().min(0).max(2),
-				ui: { min: 0.0, max: 2.0, step: 0.1 },
-			},
+			temperature: xaiTemperature,
+			maxTokens: xaiMaxTokens(8_192),
+			topP: xaiTopP,
 		},
 		defaultConfiguration: {
 			temperature: 0.7,
+			maxTokens: 8_192,
+			topP: 1.0,
 		},
 		url: "https://docs.x.ai/developers/models",
 	}),

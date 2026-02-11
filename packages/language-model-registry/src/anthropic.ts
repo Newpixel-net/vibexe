@@ -44,10 +44,35 @@ export const anthropic = {
 				description: "Whether to include reasoning text in the response.",
 				schema: z.boolean(),
 			},
+			maxTokens: {
+				description:
+					"Maximum number of tokens to generate. Leave at default for full model capability.",
+				schema: z.number().min(1).max(64_000),
+				ui: {
+					label: "Max Tokens",
+					min: 1,
+					max: 64_000,
+					step: 1,
+					component: "numberInput",
+				},
+			},
+			topP: {
+				description:
+					"Nucleus sampling: only consider tokens with cumulative probability up to this value. Lower values make output more focused.",
+				schema: z.number().min(0).max(1),
+				ui: {
+					label: "Top P",
+					min: 0.0,
+					max: 1.0,
+					step: 0.05,
+				},
+			},
 		},
 		defaultConfiguration: {
 			temperature: 1.0,
 			thinking: false,
+			maxTokens: 64_000,
+			topP: 1.0,
 		},
 		url: "https://www.anthropic.com/claude/opus",
 	}),
@@ -79,10 +104,35 @@ export const anthropic = {
 				description: "Whether to include reasoning text in the response.",
 				schema: z.boolean(),
 			},
+			maxTokens: {
+				description:
+					"Maximum number of tokens to generate. Leave at default for full model capability.",
+				schema: z.number().min(1).max(64_000),
+				ui: {
+					label: "Max Tokens",
+					min: 1,
+					max: 64_000,
+					step: 1,
+					component: "numberInput",
+				},
+			},
+			topP: {
+				description:
+					"Nucleus sampling: only consider tokens with cumulative probability up to this value. Lower values make output more focused.",
+				schema: z.number().min(0).max(1),
+				ui: {
+					label: "Top P",
+					min: 0.0,
+					max: 1.0,
+					step: 0.05,
+				},
+			},
 		},
 		defaultConfiguration: {
 			temperature: 1.0,
 			thinking: false,
+			maxTokens: 64_000,
+			topP: 1.0,
 		},
 		url: "https://www.anthropic.com/claude/sonnet",
 	}),
@@ -91,7 +141,7 @@ export const anthropic = {
 		id: "anthropic/claude-haiku-4.5",
 		name: "Claude Haiku 4.5",
 		description:
-			"Claude Haiku 4.5 matches Sonnet 4's performance on coding, computer use, and agent tasks at substantially lower cost and faster speeds. It delivers near-frontier performance and Claude’s unique character at a price point that works for scaled sub-agent deployments, free tier products, and intelligence-sensitive applications with budget constraints.",
+			"Claude Haiku 4.5 matches Sonnet 4's performance on coding, computer use, and agent tasks at substantially lower cost and faster speeds. It delivers near-frontier performance and Claude's unique character at a price point that works for scaled sub-agent deployments, free tier products, and intelligence-sensitive applications with budget constraints.",
 		contextWindow: 200_000,
 		maxOutputTokens: 64_000,
 		knowledgeCutoff: new Date(2025, 1, 28).getTime(),
@@ -114,10 +164,35 @@ export const anthropic = {
 				description: "Whether to include reasoning text in the response.",
 				schema: z.boolean(),
 			},
+			maxTokens: {
+				description:
+					"Maximum number of tokens to generate. Leave at default for full model capability.",
+				schema: z.number().min(1).max(64_000),
+				ui: {
+					label: "Max Tokens",
+					min: 1,
+					max: 64_000,
+					step: 1,
+					component: "numberInput",
+				},
+			},
+			topP: {
+				description:
+					"Nucleus sampling: only consider tokens with cumulative probability up to this value. Lower values make output more focused.",
+				schema: z.number().min(0).max(1),
+				ui: {
+					label: "Top P",
+					min: 0.0,
+					max: 1.0,
+					step: 0.05,
+				},
+			},
 		},
 		defaultConfiguration: {
 			temperature: 1.0,
 			thinking: false,
+			maxTokens: 64_000,
+			topP: 1.0,
 		},
 		url: "https://www.anthropic.com/claude/haiku",
 	}),
