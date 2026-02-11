@@ -610,7 +610,7 @@ function BottomHandles({ nodeId }: { nodeId: NodeId }) {
 				(c) =>
 					c.inputNode.id === nodeId &&
 					c.connectionType === "subNode" &&
-					c.inputId === ("chatModel" as InputId),
+					c.outputNode.content.type === "chatModel",
 			),
 		[connections, nodeId],
 	);

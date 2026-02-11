@@ -35,6 +35,7 @@ import {
 	useAddConnection,
 	useAddNode,
 	useAppDesignerStore,
+	useAppDesignerStoreApi,
 	useClearSelection,
 	useConnectNodes,
 	useDeleteNodes,
@@ -560,8 +561,7 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 	const { setUiNodeState } = useWorkspaceActions((s) => ({
 		setUiNodeState: s.setUiNodeState,
 	}));
-	const storeNodes = useAppDesignerStore((s) => s.nodes);
-	const storeNodeState = useAppDesignerStore((s) => s.ui.nodeState);
+	const subNodeStoreApi = useAppDesignerStoreApi();
 
 	useEffect(() => {
 		const handler = (e: Event) => {
@@ -571,13 +571,17 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 			};
 
 			if (detail.handleType === "chatModel") {
+				// Use getState() for fresh state
+				const currentNodes = subNodeStoreApi.getState().nodes;
+				const currentNodeState = subNodeStoreApi.getState().ui.nodeState;
+
 				// Find the parent AI Agent node and its position
-				const parentNode = storeNodes.find(
+				const parentNode = currentNodes.find(
 					(n) => n.id === detail.parentNodeId,
 				);
 				if (!parentNode) return;
 
-				const parentUi = storeNodeState[detail.parentNodeId];
+				const parentUi = currentNodeState[detail.parentNodeId];
 				const parentPos = parentUi?.position ?? { x: 0, y: 0 };
 				const parentHeight = parentUi?.measured?.height ?? 200;
 
@@ -625,8 +629,7 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 		window.addEventListener("sub-node-add", handler);
 		return () => window.removeEventListener("sub-node-add", handler);
 	}, [
-		storeNodes,
-		storeNodeState,
+		subNodeStoreApi,
 		addNode,
 		addConnection,
 		addNodeInput,
