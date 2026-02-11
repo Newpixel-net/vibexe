@@ -26,7 +26,8 @@ const VALID_GENERATION_TRANSITIONS: Record<
 > = {
 	created: ["queued", "cancelled"],
 	queued: ["running", "cancelled"],
-	running: ["completed", "failed", "cancelled"],
+	running: ["completed", "failed", "cancelled", "awaiting_review"],
+	awaiting_review: ["running", "cancelled"],
 	completed: [],
 	failed: [],
 	cancelled: [],
