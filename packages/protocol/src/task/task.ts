@@ -67,6 +67,9 @@ const TaskStarter = z.union([
 		type: z.literal("app"),
 		appId: AppId.schema,
 	}),
+	z.object({
+		type: z.literal("api-trigger"),
+	}),
 ]);
 export type TaskStarter = z.infer<typeof TaskStarter>;
 

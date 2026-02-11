@@ -274,7 +274,28 @@ export async function createTask(
 			};
 			break;
 		}
-		case "api":
+		case "api": {
+			if (isTriggerNode(starterNode)) {
+				// API-triggered workflows (schedule, webhook, external API)
+				starter = {
+					type: "api-trigger",
+				};
+			} else if (isAppEntryNode(starterNode)) {
+				if (starterNode.content.status === "unconfigured") {
+					throw new Error("starterNode must be configured");
+				}
+				starter = {
+					type: "app",
+					appId: starterNode.content.appId,
+				};
+			} else {
+				// No recognized starter node — use api-trigger as fallback
+				starter = {
+					type: "api-trigger",
+				};
+			}
+			break;
+		}
 		case "stage":
 			if (!isAppEntryNode(starterNode)) {
 				throw new Error("starterNode must be an start node");

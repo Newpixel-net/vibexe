@@ -1,7 +1,9 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
+import { NodeId, WorkspaceId } from "@giselles-ai/protocol";
 import { db } from "@/db";
 import { scheduledWorkflows } from "@/db/schema";
+import { giselle } from "@/app/giselle";
 import { and, eq, lte } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -85,9 +87,15 @@ export async function GET(request: NextRequest) {
 					})
 					.where(eq(scheduledWorkflows.dbId, schedule.dbId));
 
-				// TODO: Trigger the actual workflow generation
-				// This would call giselle.runTask() or similar
-				// For now, we just log and mark as triggered
+				// Trigger the actual workflow generation
+				const workspaceId = WorkspaceId.parse(schedule.sdkWorkspaceId);
+				const nodeId = NodeId.parse(schedule.agentNodeId);
+				await giselle.createAndStartTask({
+					workspaceId,
+					nodeId,
+					inputs: [],
+					generationOriginType: "api",
+				});
 				console.log(
 					`[Scheduled Workflow] Triggered: workspace=${schedule.sdkWorkspaceId}, agent=${schedule.agentNodeId}, cron=${schedule.cronExpression}`,
 				);

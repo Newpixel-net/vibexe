@@ -683,6 +683,12 @@ function generateContentV2({
 
 			// AI Agent: resolve model from connected chatModel sub-node if available
 			let resolvedContent = operationNode.content;
+			const integrationToolNodes: Array<{
+				pieceName: string;
+				actionName: string;
+				pieceVersion?: string;
+				configuration: Record<string, unknown>;
+			}> = [];
 			if (isAiAgentNode(operationNode)) {
 				// Find all sub-node connections to this AI Agent
 				const subNodeConnections = generationContext.connections.filter(
@@ -763,15 +769,53 @@ function generateContentV2({
 							toolContent.pieceName &&
 							toolContent.actionName
 						) {
+							// Collect integration tool sub-nodes for AI SDK tool conversion
+							integrationToolNodes.push({
+								pieceName: toolContent.pieceName,
+								actionName: toolContent.actionName,
+								pieceVersion: toolContent.pieceVersion,
+								configuration: toolContent.configuration,
+							});
 							logger.info(
 								{
 									pieceName: toolContent.pieceName,
 									actionName: toolContent.actionName,
 								},
-								"AI Agent has integration tool sub-node (execution handled separately)",
+								"AI Agent collecting integration tool sub-node",
 							);
 						}
 					}
+				}
+			}
+
+			// Build AI SDK tools from integration tool sub-nodes
+			if (integrationToolNodes.length > 0) {
+				try {
+					const { buildIntegrationTools } = await import(
+						"./v2/tools/integration-tool"
+					);
+					const integrationTools = await buildIntegrationTools({
+						integrationNodes: integrationToolNodes,
+						context,
+					});
+					Object.assign(toolSet, integrationTools);
+					logger.info(
+						{
+							count: Object.keys(integrationTools).length,
+							toolNames: Object.keys(integrationTools),
+						},
+						"Added integration tools to AI Agent toolSet",
+					);
+				} catch (error) {
+					logger.error(
+						{
+							error:
+								error instanceof Error
+									? error.message
+									: String(error),
+						},
+						"Failed to build integration tools",
+					);
 				}
 			}
 

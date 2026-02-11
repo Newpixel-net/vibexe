@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
+import { NodeId, WorkspaceId } from "@giselles-ai/protocol";
 import { db } from "@/db";
 import { webhookEndpoints } from "@/db/schema";
+import { giselle } from "@/app/giselle";
 import { eq, and } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -59,9 +61,25 @@ export async function POST(
 			.set({ lastTriggeredAt: new Date() })
 			.where(eq(webhookEndpoints.dbId, endpoint.dbId));
 
-		// TODO: Trigger the actual workflow generation
-		// This would call giselle.runTask() with the webhook body as trigger input
-		// For now, we log and return success
+		// Trigger the actual workflow generation
+		const workspaceId = WorkspaceId.parse(endpoint.sdkWorkspaceId);
+		await giselle.createAndStartTask({
+			workspaceId,
+			nodeId: NodeId.parse(endpoint.agentNodeId),
+			inputs: Object.keys(body).length > 0
+				? [
+						{
+							type: "parameters" as const,
+							items: Object.entries(body).map(([name, value]) => ({
+								type: "string" as const,
+								name,
+								value: typeof value === "string" ? value : JSON.stringify(value),
+							})),
+						},
+					]
+				: [],
+			generationOriginType: "api",
+		});
 		console.log(
 			`[Webhook] Triggered: workspace=${endpoint.sdkWorkspaceId}, agent=${endpoint.agentNodeId}, path=${path}`,
 		);
@@ -124,7 +142,25 @@ export async function GET(
 			.set({ lastTriggeredAt: new Date() })
 			.where(eq(webhookEndpoints.dbId, endpoint.dbId));
 
-		// TODO: Trigger the actual workflow generation
+		// Trigger the actual workflow generation
+		const workspaceId = WorkspaceId.parse(endpoint.sdkWorkspaceId);
+		await giselle.createAndStartTask({
+			workspaceId,
+			nodeId: NodeId.parse(endpoint.agentNodeId),
+			inputs: Object.keys(queryParams).length > 0
+				? [
+						{
+							type: "parameters" as const,
+							items: Object.entries(queryParams).map(([name, value]) => ({
+								type: "string" as const,
+								name,
+								value,
+							})),
+						},
+					]
+				: [],
+			generationOriginType: "api",
+		});
 		console.log(
 			`[Webhook GET] Triggered: workspace=${endpoint.sdkWorkspaceId}, agent=${endpoint.agentNodeId}, path=${path}`,
 		);
