@@ -584,7 +584,7 @@ function generationModel(languageModel: TextGenerationLanguageModelData) {
 		case "perplexity":
 			return getPerplexityProvider()(languageModel.id);
 		case "nvidia":
-			return getNvidiaProvider()(languageModel.id);
+			return getNvidiaProvider().chat(languageModel.id);
 		case "xai":
 			return getXaiProvider()(languageModel.id);
 		default: {
@@ -607,7 +607,7 @@ function resolveModel(modelId: string) {
 		case "perplexity":
 			return getPerplexityProvider()(model);
 		case "nvidia":
-			return getNvidiaProvider()(model);
+			return getNvidiaProvider().chat(model);
 		case "xai":
 			return getXaiProvider()(model);
 		default:
