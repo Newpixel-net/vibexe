@@ -521,6 +521,7 @@ function V2NodeCanvas() {
 export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 	const [whatHappensNextSource, setWhatHappensNextSource] =
 		useState<NodeId | null>(null);
+	const clearSelection = useClearSelection();
 
 	// Listen for "what-happens-next" custom events from node plus buttons
 	useEffect(() => {
@@ -528,11 +529,13 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 			const detail = (e as CustomEvent).detail as {
 				sourceNodeId: NodeId;
 			};
+			// Close properties panel by deselecting nodes
+			clearSelection();
 			setWhatHappensNextSource(detail.sourceNodeId);
 		};
 		window.addEventListener("what-happens-next", handler);
 		return () => window.removeEventListener("what-happens-next", handler);
-	}, []);
+	}, [clearSelection]);
 
 	const selectedNodes = useAppDesignerStore(
 		useShallow((s) =>
@@ -541,6 +544,13 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 	);
 
 	const isPropertiesPanelOpen = selectedNodes.length === 1;
+
+	// Close "What happens next?" panel when a node is selected (properties panel opens)
+	useEffect(() => {
+		if (isPropertiesPanelOpen && whatHappensNextSource) {
+			setWhatHappensNextSource(null);
+		}
+	}, [isPropertiesPanelOpen, whatHappensNextSource]);
 	const isTextGenerationPanel =
 		isPropertiesPanelOpen &&
 		`${selectedNodes[0]?.content.type}` === "textGeneration";
