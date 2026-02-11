@@ -1099,7 +1099,7 @@ function generateContentV2({
 					// V3: Detect human review marker in tool results
 					for (const toolResult of result.toolResults ?? []) {
 						try {
-							const parsed = JSON.parse(String(toolResult.result));
+							const parsed = JSON.parse(String(toolResult.output));
 							if (parsed.__human_review_requested__) {
 								logger.info(
 									{
