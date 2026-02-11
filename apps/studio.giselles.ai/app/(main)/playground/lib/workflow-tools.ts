@@ -317,6 +317,12 @@ export function createWorkflowTools() {
 								xai: {
 									temperature: 0.7,
 									topP: 1.0,
+									presencePenalty: 0.0,
+									frequencyPenalty: 0.0,
+								},
+								nvidia: {
+									temperature: 0.7,
+									topP: 1.0,
 								},
 							};
 							const configurations = { ...(defaultConfigs[llmProvider] ?? {}) };

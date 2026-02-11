@@ -6,8 +6,8 @@ import { BaseCostCalculator } from "./costs/calculator";
 const OpenAILanguageModelConfigurations = z.object({
 	temperature: z.number(),
 	topP: z.number(),
-	presencePenalty: z.number(),
-	frequencyPenalty: z.number(),
+	presencePenalty: z.number().optional().default(0),
+	frequencyPenalty: z.number().optional().default(0),
 	textVerbosity: z.enum(["low", "medium", "high"]).optional().default("medium"),
 	reasoningEffort: z
 		.enum(["none", "minimal", "low", "medium", "high", "xhigh"])

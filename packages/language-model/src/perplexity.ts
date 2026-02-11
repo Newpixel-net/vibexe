@@ -4,8 +4,8 @@ import { Capability, LanguageModelBase, Tier } from "./base";
 const PerplexityLanguageModelConfigurations = z.object({
 	temperature: z.number(),
 	topP: z.number(),
-	presencePenalty: z.number(),
-	frequencyPenalty: z.number(),
+	presencePenalty: z.number().optional().default(0),
+	frequencyPenalty: z.number().optional().default(1),
 	searchDomainFilter: z.array(z.string()).optional(),
 });
 type PerplexityLanguageModelConfigurations = z.infer<

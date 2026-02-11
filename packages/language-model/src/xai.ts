@@ -4,8 +4,8 @@ import { Capability, LanguageModelBase, Tier } from "./base";
 const XaiLanguageModelConfigurations = z.object({
 	temperature: z.number(),
 	topP: z.number(),
-	frequencyPenalty: z.number(),
-	presencePenalty: z.number(),
+	frequencyPenalty: z.number().optional().default(0),
+	presencePenalty: z.number().optional().default(0),
 });
 type XaiLanguageModelConfigurations = z.infer<
 	typeof XaiLanguageModelConfigurations
