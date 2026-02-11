@@ -38,6 +38,87 @@ export function createWorkflowTools() {
 	}
 
 	return {
+		present_plan: tool({
+			description:
+				"Present the workflow plan to the user for visual review before building. The UI will render a node diagram from this data. Wait for user approval before proceeding to build.",
+			inputSchema: z.object({
+				name: z.string().describe("Workflow name"),
+				description: z
+					.string()
+					.describe("Brief description of what the workflow does"),
+				nodes: z.array(
+					z.object({
+						tempId: z
+							.string()
+							.describe('Temporary ID for this node, e.g. "node-1"'),
+						name: z.string().describe("Display name for the node"),
+						type: z
+							.enum([
+								"textGeneration",
+								"imageGeneration",
+								"trigger",
+								"action",
+								"query",
+								"dataQuery",
+								"end",
+								"text",
+								"file",
+								"github",
+								"webPage",
+								"vectorStore",
+								"dataStore",
+								"appEntry",
+								"integration",
+							])
+							.describe("The node type"),
+						provider: z
+							.string()
+							.optional()
+							.describe(
+								'LLM provider for model nodes, e.g. "openai", "anthropic", "xai"',
+							),
+						modelId: z
+							.string()
+							.optional()
+							.describe(
+								'LLM model ID, e.g. "gpt-5-mini", "claude-sonnet-4.5"',
+							),
+						pieceName: z
+							.string()
+							.optional()
+							.describe(
+								'Activepieces piece name for integration nodes, e.g. "slack"',
+							),
+						actionName: z
+							.string()
+							.optional()
+							.describe(
+								'Activepieces action name, e.g. "send-channel-message"',
+							),
+						promptSummary: z
+							.string()
+							.optional()
+							.describe(
+								"Brief description of what the prompt does (for textGeneration nodes)",
+							),
+					}),
+				),
+				connections: z.array(
+					z.object({
+						from: z.string().describe("tempId of source node"),
+						to: z.string().describe("tempId of target node"),
+					}),
+				),
+			}),
+			execute: async (plan) => {
+				return {
+					success: true,
+					plan,
+					message: "Plan presented. Waiting for user approval.",
+				};
+			},
+		}),
+
 		create_workflow: tool({
 			description: "Create a new empty workflow workspace",
 			inputSchema: z.object({

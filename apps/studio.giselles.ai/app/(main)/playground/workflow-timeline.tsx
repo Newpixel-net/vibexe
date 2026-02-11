@@ -15,7 +15,7 @@ import { useMemo } from "react";
 
 interface WorkflowStep {
 	id: string;
-	type: "create_workflow" | "add_node" | "add_connection" | "set_prompt" | "finalize_workflow";
+	type: "create_workflow" | "add_node" | "add_connection" | "set_prompt" | "finalize_workflow" | "lookup_piece_actions";
 	label: string;
 	status: "pending" | "running" | "completed" | "error";
 	result?: Record<string, unknown>;
@@ -31,7 +31,8 @@ interface ToolPart {
 	state: string;
 }
 
-const WORKFLOW_TOOLS = ["create_workflow", "add_node", "add_connection", "set_prompt", "finalize_workflow"];
+// present_plan is excluded — it's rendered as the visual plan preview instead
+const WORKFLOW_TOOLS = ["create_workflow", "add_node", "add_connection", "set_prompt", "finalize_workflow", "lookup_piece_actions"];
 
 function getNodeLabel(args: Record<string, unknown>): string {
 	if (args.type === "appEntry") return "Adding Start node";
@@ -80,6 +81,9 @@ function extractWorkflowSteps(messages: UIMessage[]): WorkflowStep[] {
 					break;
 				case "finalize_workflow":
 					label = "Finalizing workflow";
+					break;
+				case "lookup_piece_actions":
+					label = `Looking up: ${(args.pieceName as string) ?? "integration"}`;
 					break;
 				default:
 					label = toolName;

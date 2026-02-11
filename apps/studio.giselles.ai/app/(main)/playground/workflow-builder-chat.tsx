@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, isToolUIPart } from "ai";
 import clsx from "clsx";
 import { Loader2, RotateCcw, Send, Workflow as WorkflowIcon } from "lucide-react";
 import {
@@ -12,9 +12,23 @@ import {
 	useRef,
 	useState,
 } from "react";
+import {
+	WorkflowPlanPreview,
+	type WorkflowPlan,
+} from "./workflow-plan-preview";
 import { WorkflowTimeline } from "./workflow-timeline";
 
 const generateId = () => crypto.randomUUID();
+
+/** AI SDK v5 tool part shape */
+interface ToolPart {
+	type: string;
+	toolCallId: string;
+	toolName?: string;
+	input?: unknown;
+	output?: unknown;
+	state: string;
+}
 
 function UserMessage({ message }: { message: UIMessage }) {
 	const textContent = message.parts
@@ -79,12 +93,61 @@ function pickRandomSuggestions(count: number): string[] {
 	return shuffled.slice(0, count);
 }
 
+/**
+ * Extract the latest present_plan output from messages.
+ * Scans backwards to find the most recent present_plan tool call with output.
+ */
+function extractLatestPlan(messages: UIMessage[]): WorkflowPlan | null {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const msg = messages[i];
+		for (const part of msg.parts) {
+			if (!isToolUIPart(part)) continue;
+			const toolPart = part as unknown as ToolPart;
+			const toolName =
+				toolPart.toolName || toolPart.type.replace(/^tool-/, "");
+			if (toolName !== "present_plan") continue;
+			if (toolPart.state !== "output-available") continue;
+			const output = toolPart.output as
+				| { success: boolean; plan?: WorkflowPlan }
+				| undefined;
+			if (output?.success && output.plan) {
+				return output.plan;
+			}
+		}
+	}
+	return null;
+}
+
+/**
+ * Check if any build tool has been called (create_workflow, add_node, etc.)
+ */
+function hasBuildStarted(messages: UIMessage[]): boolean {
+	const BUILD_TOOLS = [
+		"create_workflow",
+		"add_node",
+		"add_connection",
+		"set_prompt",
+		"finalize_workflow",
+	];
+	for (const msg of messages) {
+		for (const part of msg.parts) {
+			if (!isToolUIPart(part)) continue;
+			const toolPart = part as unknown as ToolPart;
+			const toolName =
+				toolPart.toolName || toolPart.type.replace(/^tool-/, "");
+			if (BUILD_TOOLS.includes(toolName)) return true;
+		}
+	}
+	return false;
+}
+
 export function WorkflowBuilderChat() {
 	const [chatId, setChatId] = useState<string>(generateId);
 	const [input, setInput] = useState("");
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const [suggestions] = useState(() => pickRandomSuggestions(5));
+	const [buildApproved, setBuildApproved] = useState(false);
 
 	const transport = useMemo(
 		() =>
@@ -106,12 +169,21 @@ export function WorkflowBuilderChat() {
 		[messages],
 	);
 
+	// Detect plan and build state from messages
+	const latestPlan = useMemo(() => extractLatestPlan(messages), [messages]);
+	const buildStarted = useMemo(() => hasBuildStarted(messages), [messages]);
+
+	// Show plan preview when we have a plan but haven't started building yet
+	const showPlanPreview = latestPlan !== null && !buildStarted && !buildApproved;
+	// Show timeline when build has started
+	const showTimeline = buildStarted || buildApproved;
+
 	// Auto-scroll when messages change
 	useEffect(() => {
 		if (scrollRef.current) {
 			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
 		}
-	}, [chatMessages, isLoading]);
+	}, [chatMessages, isLoading, latestPlan]);
 
 	// Auto-resize textarea
 	useEffect(() => {
@@ -125,7 +197,6 @@ export function WorkflowBuilderChat() {
 		if (input.trim() && !isLoading) {
 			sendMessage({ text: input });
 			setInput("");
-			// Reset textarea height
 			if (textareaRef.current) {
 				textareaRef.current.style.height = "auto";
 			}
@@ -137,6 +208,7 @@ export function WorkflowBuilderChat() {
 		setChatId(newChatId);
 		setMessages([]);
 		setInput("");
+		setBuildApproved(false);
 	}, [setMessages]);
 
 	const handleKeyDown = useCallback(
@@ -148,6 +220,21 @@ export function WorkflowBuilderChat() {
 		},
 		[onSubmit],
 	);
+
+	const handleApprove = useCallback(() => {
+		setBuildApproved(true);
+		sendMessage({ text: "Build the workflow as planned." });
+	}, [sendMessage]);
+
+	// Determine placeholder text based on state
+	const placeholderText = showPlanPreview
+		? "Suggest changes to the plan, or click Build..."
+		: "Describe the workflow you want to create...";
+
+	// Loading text based on phase
+	const loadingText = showTimeline
+		? "Building workflow..."
+		: "Planning workflow...";
 
 	return (
 		<div className="w-full flex flex-col">
@@ -186,7 +273,7 @@ export function WorkflowBuilderChat() {
 
 						<div
 							ref={scrollRef}
-							className="max-h-[400px] overflow-y-auto rounded-xl border border-blue-muted/20 bg-[rgba(131,157,195,0.03)] p-4"
+							className="max-h-[500px] overflow-y-auto rounded-xl border border-blue-muted/20 bg-[rgba(131,157,195,0.03)] p-4"
 						>
 							<div className="flex flex-col gap-4">
 								{chatMessages.map((message, index) => {
@@ -208,17 +295,28 @@ export function WorkflowBuilderChat() {
 									<div className="flex justify-start">
 										<span className="inline-flex items-center gap-1.5 text-[13px] text-text-muted/60">
 											<Loader2 className="h-3 w-3 animate-spin" />
-											Building workflow...
+											{loadingText}
 										</span>
 									</div>
 								)}
 							</div>
 
-							{/* Workflow Timeline */}
-							<WorkflowTimeline
-								messages={messages}
-								isLoading={isLoading}
-							/>
+							{/* Plan Preview */}
+							{showPlanPreview && latestPlan && (
+								<WorkflowPlanPreview
+									plan={latestPlan}
+									onApprove={handleApprove}
+									isBuilding={isLoading}
+								/>
+							)}
+
+							{/* Workflow Timeline (build phase) */}
+							{showTimeline && (
+								<WorkflowTimeline
+									messages={messages}
+									isLoading={isLoading}
+								/>
+							)}
 						</div>
 					</div>
 				)}
@@ -240,7 +338,7 @@ export function WorkflowBuilderChat() {
 							value={input}
 							onChange={(e) => setInput(e.target.value)}
 							onKeyDown={handleKeyDown}
-							placeholder="Describe the workflow you want to create..."
+							placeholder={placeholderText}
 							rows={1}
 							className="w-full resize-none bg-transparent px-5 pt-4 pb-12 text-[14px] text-text placeholder:text-text-muted/40 outline-none leading-relaxed"
 						/>
