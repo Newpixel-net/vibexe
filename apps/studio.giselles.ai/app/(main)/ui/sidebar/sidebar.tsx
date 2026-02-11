@@ -215,6 +215,36 @@ export async function Sidebar() {
 					icon: "shield",
 					links: [
 						{
+							id: "admin-dashboard",
+							label: "Dashboard",
+							href: "/admin/dashboard",
+							activeMatchPattern: "/admin/dashboard*",
+						},
+						{
+							id: "admin-users",
+							label: "Users",
+							href: "/admin/users",
+							activeMatchPattern: "/admin/users*",
+						},
+						{
+							id: "admin-teams",
+							label: "Teams",
+							href: "/admin/teams",
+							activeMatchPattern: "/admin/teams*",
+						},
+						{
+							id: "admin-sessions",
+							label: "Sessions",
+							href: "/admin/sessions",
+							activeMatchPattern: "/admin/sessions*",
+						},
+						{
+							id: "admin-system",
+							label: "System",
+							href: "/admin/system",
+							activeMatchPattern: "/admin/system*",
+						},
+						{
 							id: "ai-providers",
 							label: "AI Providers",
 							href: "/admin/settings/ai-providers",
