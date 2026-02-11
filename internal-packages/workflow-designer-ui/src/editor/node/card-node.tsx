@@ -278,8 +278,8 @@ export function NodeComponent({
 		[],
 	);
 
-	const nodeRadiusClass = "rounded-[16px]";
-	const nodeLayoutClass = "flex flex-col py-[16px] gap-[16px] min-w-[180px]";
+	const nodeRadiusClass = "rounded-[12px]";
+	const nodeLayoutClass = "flex flex-col py-[12px] gap-[8px] min-w-[180px]";
 	const stageShapeClass = "transition-all backdrop-blur-[4px]";
 	const stageBackgroundClass = undefined;
 
@@ -334,7 +334,7 @@ export function NodeComponent({
 			}
 			style={{ ...integrationColorStyle, ...glowShadowStyle }}
 			className={clsx(
-				"group relative rounded-[16px]",
+				"group relative rounded-[12px]",
 				nodeLayoutClass,
 				// Stage Request / Stage Response are rendered as pill nodes, so avoid animating layout/border-radius.
 				stageShapeClass,
@@ -382,7 +382,7 @@ export function NodeComponent({
 					v.isTrigger &&
 					"shadow-[0px_0px_20px_1px_hsla(220,_15%,_50%,_0.4)]",
 				preview && "opacity-50",
-				!preview && "min-h-[110px]",
+				!preview && "min-h-[72px]",
 				requiresSetup && "opacity-80",
 			)}
 		>
@@ -605,7 +605,6 @@ function InputOutput({
 	const handlePlusClick = useCallback(
 		(e: React.MouseEvent) => {
 			e.stopPropagation();
-			// Dispatch custom event so V2Container can open the WhatHappensNext panel
 			window.dispatchEvent(
 				new CustomEvent("what-happens-next", {
 					detail: { sourceNodeId: node.id },
@@ -616,121 +615,90 @@ function InputOutput({
 	);
 
 	return (
-		<div className="flex justify-between">
-			<div className="grid">
-				{node.type === "operation" &&
-					node.content.type !== "trigger" &&
-					node.content.type !== "appEntry" && (
-						<div
-							className="group/input relative flex items-center h-[28px]"
-							data-state={isInputConnected ? "connected" : "disconnected"}
-						>
-							<Handle
-								type="target"
-								position={Position.Left}
-								className={clsx(
-									"!absolute !w-[11px] !h-[11px] !rounded-full !-left-[4.5px] !translate-x-[50%] !border-[1.5px] !bg-background",
-									v.isTextGeneration &&
-										"!border-generation-node-1 group-data-[state=connected]/input:!bg-generation-node-1",
-									v.isContentGeneration &&
-										"!border-generation-node-1 group-data-[state=connected]/input:!bg-generation-node-1",
-									v.isImageGeneration &&
-										"!border-image-generation-node-1 group-data-[state=connected]/input:!bg-image-generation-node-1",
-									v.isAction &&
-										"!border-action-node-1 group-data-[state=connected]/input:!bg-action-node-1",
-									v.isIntegration &&
-										"!border-integration-node-1 group-data-[state=connected]/input:!bg-integration-node-1",
-									v.isQuery &&
-										"!border-query-node-1 group-data-[state=connected]/input:!bg-query-node-1",
-									v.isDataQuery &&
-										"!border-data-query-node-1 group-data-[state=connected]/input:!bg-data-query-node-1",
-								)}
-							/>
-							<div
-								className={clsx(
-									"text-[12px]",
-									isInputConnected
-										? "px-[16px] text-inverse"
-										: "absolute -left-[12px] whitespace-nowrap -translate-x-[100%] text-text-muted",
-								)}
-							>
-								Input
-							</div>
-						</div>
-					)}
-			</div>
-
-			<div className="grid">
-				<div
-					className="relative group/output flex items-center h-[28px]"
-					data-state={isOutputConnected ? "connected" : "disconnected"}
-				>
+		<>
+			{/* Input handle - centered vertically on left edge */}
+			{node.type === "operation" &&
+				node.content.type !== "trigger" &&
+				node.content.type !== "appEntry" && (
 					<Handle
-						type="source"
-						position={Position.Right}
+						type="target"
+						position={Position.Left}
 						className={clsx(
-							"!absolute !w-[12px] !h-[12px] !rounded-full !border-[1.5px] !right-[-0.5px]",
-							"group-data-[state=disconnected]/output:!bg-background",
-							v.isTextGeneration &&
-								"!border-generation-node-1 group-data-[state=connected]/output:!bg-generation-node-1",
-							v.isContentGeneration &&
-								"!border-generation-node-1 group-data-[state=connected]/output:!bg-generation-node-1",
-							v.isImageGeneration &&
-								"!border-image-generation-node-1 group-data-[state=connected]/output:!bg-image-generation-node-1",
-							v.isGithub &&
-								"!border-github-node-1 group-data-[state=connected]/output:!bg-github-node-1",
-							v.isVectorStoreGithub &&
-								"!border-github-node-1 group-data-[state=connected]/output:!bg-github-node-1",
-							v.isVectorStoreDocument &&
-								"!border-github-node-1 group-data-[state=connected]/output:!bg-github-node-1",
-							v.isText &&
-								"!border-text-node-1 group-data-[state=connected]/output:!bg-text-node-1 group-data-[state=connected]/output:!border-text-node-1",
-							v.isFile &&
-								"!border-file-node-1 group-data-[state=connected]/output:!bg-file-node-1 group-data-[state=connected]/output:!border-file-node-1",
-							v.isWebPage &&
-								"!border-webPage-node-1 group-data-[state=connected]/output:!bg-webPage-node-1 group-data-[state=connected]/output:!border-webPage-node-1",
-							v.isTrigger &&
-								"!border-trigger-node-1 group-data-[state=connected]/output:!bg-trigger-node-1 group-data-[state=connected]/output:!border-trigger-node-1",
-							v.isAction &&
-								"!border-action-node-1 group-data-[state=connected]/output:!bg-action-node-1 group-data-[state=connected]/output:!border-action-node-1",
-							v.isIntegration &&
-								"!border-integration-node-1 group-data-[state=connected]/output:!bg-integration-node-1 group-data-[state=connected]/output:!border-integration-node-1",
-							v.isQuery &&
-								"!border-query-node-1 group-data-[state=connected]/output:!bg-query-node-1 group-data-[state=connected]/output:!border-query-node-1",
-							v.isDataStore &&
-								"!border-data-store-node-1 group-data-[state=connected]/output:!bg-data-store-node-1 group-data-[state=connected]/output:!border-data-store-node-1",
-							v.isDataQuery &&
-								"!border-data-query-node-1 group-data-[state=connected]/output:!bg-data-query-node-1 group-data-[state=connected]/output:!border-data-query-node-1",
+							"!absolute !w-[11px] !h-[11px] !rounded-full !left-0 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
+							v.isTextGeneration && "!border-generation-node-1",
+							v.isTextGeneration && isInputConnected && "!bg-generation-node-1",
+							v.isContentGeneration && "!border-generation-node-1",
+							v.isContentGeneration && isInputConnected && "!bg-generation-node-1",
+							v.isImageGeneration && "!border-image-generation-node-1",
+							v.isImageGeneration && isInputConnected && "!bg-image-generation-node-1",
+							v.isAction && "!border-action-node-1",
+							v.isAction && isInputConnected && "!bg-action-node-1",
+							v.isIntegration && "!border-integration-node-1",
+							v.isIntegration && isInputConnected && "!bg-integration-node-1",
+							v.isQuery && "!border-query-node-1",
+							v.isQuery && isInputConnected && "!bg-query-node-1",
+							v.isDataQuery && "!border-data-query-node-1",
+							v.isDataQuery && isInputConnected && "!bg-data-query-node-1",
 						)}
 					/>
-					{/* Plus button - appears on node hover */}
-					<button
-						type="button"
-						onClick={handlePlusClick}
-						className={clsx(
-							"absolute -right-[28px] top-1/2 -translate-y-1/2",
-							"w-[20px] h-[20px] rounded-full",
-							"flex items-center justify-center",
-							"bg-inverse/10 backdrop-blur-sm border border-inverse/20",
-							"text-inverse/60 hover:text-inverse hover:bg-inverse/20",
-							"opacity-0 group-hover:opacity-100 transition-opacity duration-150",
-							"cursor-pointer z-10",
-						)}
-					>
-						<PlusIcon className="w-[12px] h-[12px]" />
-					</button>
-					<div
-						className={clsx(
-							"text-[12px]",
-							isOutputConnected
-								? "px-[16px] text-inverse"
-								: "absolute -right-[12px] whitespace-nowrap translate-x-[100%] text-text-muted",
-						)}
-					>
-						Output
-					</div>
-				</div>
-			</div>
-		</div>
+				)}
+
+			{/* Output handle - centered vertically on right edge */}
+			<Handle
+				type="source"
+				position={Position.Right}
+				className={clsx(
+					"!absolute !w-[12px] !h-[12px] !rounded-full !right-0 !top-1/2 !translate-x-1/2 !-translate-y-1/2 !border-[1.5px]",
+					!isOutputConnected && "!bg-background",
+					v.isTextGeneration && "!border-generation-node-1",
+					v.isTextGeneration && isOutputConnected && "!bg-generation-node-1",
+					v.isContentGeneration && "!border-generation-node-1",
+					v.isContentGeneration && isOutputConnected && "!bg-generation-node-1",
+					v.isImageGeneration && "!border-image-generation-node-1",
+					v.isImageGeneration && isOutputConnected && "!bg-image-generation-node-1",
+					v.isGithub && "!border-github-node-1",
+					v.isGithub && isOutputConnected && "!bg-github-node-1",
+					v.isVectorStoreGithub && "!border-github-node-1",
+					v.isVectorStoreGithub && isOutputConnected && "!bg-github-node-1",
+					v.isVectorStoreDocument && "!border-github-node-1",
+					v.isVectorStoreDocument && isOutputConnected && "!bg-github-node-1",
+					v.isText && "!border-text-node-1",
+					v.isText && isOutputConnected && "!bg-text-node-1",
+					v.isFile && "!border-file-node-1",
+					v.isFile && isOutputConnected && "!bg-file-node-1",
+					v.isWebPage && "!border-webPage-node-1",
+					v.isWebPage && isOutputConnected && "!bg-webPage-node-1",
+					v.isTrigger && "!border-trigger-node-1",
+					v.isTrigger && isOutputConnected && "!bg-trigger-node-1",
+					v.isAction && "!border-action-node-1",
+					v.isAction && isOutputConnected && "!bg-action-node-1",
+					v.isIntegration && "!border-integration-node-1",
+					v.isIntegration && isOutputConnected && "!bg-integration-node-1",
+					v.isQuery && "!border-query-node-1",
+					v.isQuery && isOutputConnected && "!bg-query-node-1",
+					v.isDataStore && "!border-data-store-node-1",
+					v.isDataStore && isOutputConnected && "!bg-data-store-node-1",
+					v.isDataQuery && "!border-data-query-node-1",
+					v.isDataQuery && isOutputConnected && "!bg-data-query-node-1",
+				)}
+			/>
+
+			{/* Plus button - outside right edge, past the output handle */}
+			<button
+				type="button"
+				onClick={handlePlusClick}
+				className={clsx(
+					"absolute -right-[32px] top-1/2 -translate-y-1/2",
+					"w-[20px] h-[20px] rounded-full",
+					"flex items-center justify-center",
+					"bg-inverse/10 backdrop-blur-sm border border-inverse/20",
+					"text-inverse/60 hover:text-inverse hover:bg-inverse/20",
+					"opacity-0 group-hover:opacity-100 transition-opacity duration-150",
+					"cursor-pointer z-10",
+				)}
+			>
+				<PlusIcon className="w-[12px] h-[12px]" />
+			</button>
+		</>
 	);
 }

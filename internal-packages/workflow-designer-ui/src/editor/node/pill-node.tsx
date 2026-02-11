@@ -177,7 +177,7 @@ export function PillNode({
 						type="button"
 						onClick={handlePlusClick}
 						className={clsx(
-							"absolute -right-[28px] top-1/2 -translate-y-1/2",
+							"absolute -right-[32px] top-1/2 -translate-y-1/2",
 							"w-[20px] h-[20px] rounded-full",
 							"flex items-center justify-center",
 							"bg-inverse/10 backdrop-blur-sm border border-inverse/20",
