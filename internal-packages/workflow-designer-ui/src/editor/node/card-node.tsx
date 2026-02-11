@@ -24,7 +24,6 @@ import { type CSSProperties, useCallback, useMemo } from "react";
 import { useAppDesignerStore, useUpdateNodeData } from "../../app-designer";
 import { NodeIcon } from "../../icons/node";
 import { EditableText } from "../../ui/editable-text";
-import { Tooltip } from "../../ui/tooltip";
 import { NodeGenerationStatusBadge } from "./node-generation-status-badge";
 import { nodeRequiresSetup, useNodeGenerationStatus } from "./node-utils";
 import { DataStoreNodeInfo, DocumentNodeInfo, GitHubNodeInfo } from "./ui";
@@ -162,20 +161,11 @@ export function NodeComponent({
 	const updateNodeData = useUpdateNodeData();
 	const { currentGeneration, stopCurrentGeneration, showCompleteLabel } =
 		useNodeGenerationStatus(node.id);
-	const metadataTexts = useMemo(() => {
-		const tmp: { label: string; tooltip: string }[] = [];
-		if (isTextGenerationNode(node) || isImageGenerationNode(node)) {
-			tmp.push({ label: node.content.llm.provider, tooltip: "LLM Provider" });
-		}
-		tmp.push({ label: node.id.substring(3, 11), tooltip: "Node ID" });
-		return tmp;
-	}, [node]);
 
 	// Subtitle text for node type context
 	const subtitleText = useMemo(() => {
 		if (isTextGenerationNode(node)) {
 			const modelId = node.content.llm.id ?? "";
-			// Extract a readable name from model ID
 			const parts = modelId.split("/");
 			return parts[parts.length - 1] || node.content.llm.provider;
 		}
@@ -279,7 +269,7 @@ export function NodeComponent({
 	);
 
 	const nodeRadiusClass = "rounded-[12px]";
-	const nodeLayoutClass = "flex flex-col py-[12px] gap-[8px] min-w-[180px]";
+	const nodeLayoutClass = "flex flex-col items-center py-[14px] px-[10px] gap-[6px] w-[160px]";
 	const stageShapeClass = "transition-all backdrop-blur-[4px]";
 	const stageBackgroundClass = undefined;
 
@@ -336,7 +326,6 @@ export function NodeComponent({
 			className={clsx(
 				"group relative rounded-[12px]",
 				nodeLayoutClass,
-				// Stage Request / Stage Response are rendered as pill nodes, so avoid animating layout/border-radius.
 				stageShapeClass,
 				stageBackgroundClass,
 				"bg-transparent",
@@ -382,7 +371,6 @@ export function NodeComponent({
 					v.isTrigger &&
 					"shadow-[0px_0px_20px_1px_hsla(220,_15%,_50%,_0.4)]",
 				preview && "opacity-50",
-				!preview && "min-h-[72px]",
 				requiresSetup && "opacity-80",
 			)}
 		>
@@ -452,15 +440,6 @@ export function NodeComponent({
 				)}
 				style={borderGradientStyle}
 			/>
-			{/* Colored left accent stripe for integration nodes */}
-			{v.isIntegration && !requiresSetup && (
-				<div
-					className={clsx("absolute left-0 top-[16px] bottom-[16px] w-[3px] z-[1] rounded-full")}
-					style={{
-						backgroundColor: "var(--color-integration-node-1)",
-					}}
-				/>
-			)}
 			{isTriggerNode(node, "github") &&
 				node.content.state.status === "configured" && (
 					<div className="absolute top-[-20px] left-0 z-10">
@@ -469,111 +448,96 @@ export function NodeComponent({
 						/>
 					</div>
 				)}
-			<div className={clsx("px-[16px] relative")}>
-				<div className="flex items-center gap-[10px]">
-					<div
-						className={clsx(
-							"w-[44px] h-[44px] flex items-center justify-center shrink-0",
-							"rounded-[12px]",
-							v.isText && "bg-text-node-1",
-							v.isFile && "bg-file-node-1",
-							v.isWebPage && "bg-webPage-node-1",
-							v.isTextGeneration && "bg-generation-node-1",
-							v.isContentGeneration && "bg-generation-node-1",
-							v.isImageGeneration && "bg-image-generation-node-1",
-							v.isGithub && "bg-github-node-1",
-							v.isVectorStoreGithub && "bg-github-node-1",
-							v.isVectorStoreDocument && "bg-github-node-1",
-							v.isTrigger && "bg-trigger-node-1",
-							v.isAction && "bg-action-node-1",
-							v.isIntegration && "bg-integration-node-1",
-							v.isQuery && "bg-query-node-1",
-							v.isDataStore && "bg-data-store-node-1",
-							v.isDataQuery && "bg-data-query-node-1",
-						)}
-					>
-						<NodeIcon
-							node={node}
-							className={clsx(
-								"w-[24px] h-[24px]",
-								v.isText && "fill-current",
-								v.isFile && "fill-current",
-								v.isWebPage && "fill-current",
-								v.isTextGeneration && "fill-current",
-								v.isContentGeneration && "fill-current",
-								v.isImageGeneration && "fill-current",
-								v.isVectorStore &&
-									!v.isVectorStoreGithub &&
-									"stroke-current fill-none",
-								v.isVectorStoreGithub && "fill-current",
-								v.isVectorStoreDocument && "stroke-current fill-none",
-								v.isTrigger && !v.isGithubTrigger && "stroke-current fill-none",
-								v.isGithubTrigger && "fill-current",
-								v.isAction && "fill-current",
-								v.isQuery && "stroke-current fill-none",
-								v.isDataStore && "stroke-current fill-none",
-								v.isDataQuery && "stroke-current fill-none",
-								v.isGithub && "fill-current",
-								v.isText && "text-background",
-								v.isFile && "text-background",
-								v.isWebPage && "text-background",
-								v.isTextGeneration && "text-inverse",
-								v.isImageGeneration && "text-inverse",
-								v.isGithub && "text-background",
-								v.isVectorStoreGithub && "text-background",
-								v.isVectorStoreDocument && "text-background",
-								v.isTrigger && !v.isGithubTrigger && "text-inverse",
-								v.isGithubTrigger && "text-background",
-								v.isAction && "text-inverse",
-								v.isIntegration && "text-inverse",
-								v.isQuery && "text-background",
-								v.isDataStore && "text-background",
-								v.isDataQuery && "text-background",
-							)}
-						/>
+			{/* Icon centered at top */}
+			<div
+				className={clsx(
+					"w-[44px] h-[44px] flex items-center justify-center shrink-0",
+					"rounded-[12px]",
+					v.isText && "bg-text-node-1",
+					v.isFile && "bg-file-node-1",
+					v.isWebPage && "bg-webPage-node-1",
+					v.isTextGeneration && "bg-generation-node-1",
+					v.isContentGeneration && "bg-generation-node-1",
+					v.isImageGeneration && "bg-image-generation-node-1",
+					v.isGithub && "bg-github-node-1",
+					v.isVectorStoreGithub && "bg-github-node-1",
+					v.isVectorStoreDocument && "bg-github-node-1",
+					v.isTrigger && "bg-trigger-node-1",
+					v.isAction && "bg-action-node-1",
+					v.isIntegration && "bg-integration-node-1",
+					v.isQuery && "bg-query-node-1",
+					v.isDataStore && "bg-data-store-node-1",
+					v.isDataQuery && "bg-data-query-node-1",
+				)}
+			>
+				<NodeIcon
+					node={node}
+					className={clsx(
+						"w-[24px] h-[24px]",
+						v.isText && "fill-current",
+						v.isFile && "fill-current",
+						v.isWebPage && "fill-current",
+						v.isTextGeneration && "fill-current",
+						v.isContentGeneration && "fill-current",
+						v.isImageGeneration && "fill-current",
+						v.isVectorStore &&
+							!v.isVectorStoreGithub &&
+							"stroke-current fill-none",
+						v.isVectorStoreGithub && "fill-current",
+						v.isVectorStoreDocument && "stroke-current fill-none",
+						v.isTrigger && !v.isGithubTrigger && "stroke-current fill-none",
+						v.isGithubTrigger && "fill-current",
+						v.isAction && "fill-current",
+						v.isQuery && "stroke-current fill-none",
+						v.isDataStore && "stroke-current fill-none",
+						v.isDataQuery && "stroke-current fill-none",
+						v.isGithub && "fill-current",
+						v.isText && "text-background",
+						v.isFile && "text-background",
+						v.isWebPage && "text-background",
+						v.isTextGeneration && "text-inverse",
+						v.isImageGeneration && "text-inverse",
+						v.isGithub && "text-background",
+						v.isVectorStoreGithub && "text-background",
+						v.isVectorStoreDocument && "text-background",
+						v.isTrigger && !v.isGithubTrigger && "text-inverse",
+						v.isGithubTrigger && "text-background",
+						v.isAction && "text-inverse",
+						v.isIntegration && "text-inverse",
+						v.isQuery && "text-background",
+						v.isDataStore && "text-background",
+						v.isDataQuery && "text-background",
+					)}
+				/>
+			</div>
+			{/* Name + subtitle centered below icon */}
+			<div className="w-full text-center min-w-0">
+				<EditableText
+					className="group-data-[selected=false]:pointer-events-none **:data-input:w-full **:text-center text-[13px] font-semibold"
+					text={defaultName(node)}
+					onValueChange={(value) => {
+						if (value === defaultName(node)) {
+							return;
+						}
+						if (value.trim().length === 0) {
+							updateNodeData(node, { name: undefined });
+							return;
+						}
+						updateNodeData(node, { name: value });
+					}}
+					onClickToEditMode={(e) => {
+						if (!selected) {
+							e.preventDefault();
+							return;
+						}
+						e.stopPropagation();
+					}}
+				/>
+				{subtitleText && (
+					<div className="text-[10px] text-inverse/50 truncate mt-[2px]">
+						{subtitleText}
 					</div>
-					<div className="min-w-0 flex-1">
-						<div className="flex items-center gap-[2px] pl-[4px] text-[10px] font-mono [&>*:not(:last-child)]:after:content-['/'] [&>*:not(:last-child)]:after:ml-[2px] [&>*:not(:last-child)]:after:text-text/60">
-							{metadataTexts.map((item) => (
-								<div key={item.label} className="text-[10px] text-inverse">
-									{selected ? (
-										<Tooltip text={item.tooltip} variant="dark">
-											<button type="button">{item.label}</button>
-										</Tooltip>
-									) : (
-										item.label
-									)}
-								</div>
-							))}
-						</div>
-						<EditableText
-							className="group-data-[selected=false]:pointer-events-none **:data-input:w-full"
-							text={defaultName(node)}
-							onValueChange={(value) => {
-								if (value === defaultName(node)) {
-									return;
-								}
-								if (value.trim().length === 0) {
-									updateNodeData(node, { name: undefined });
-									return;
-								}
-								updateNodeData(node, { name: value });
-							}}
-							onClickToEditMode={(e) => {
-								if (!selected) {
-									e.preventDefault();
-									return;
-								}
-								e.stopPropagation();
-							}}
-						/>
-						{subtitleText && (
-							<div className="pl-[4px] text-[10px] text-inverse/50 truncate max-w-[160px] mt-[1px]">
-								{subtitleText}
-							</div>
-						)}
-					</div>
-				</div>
+				)}
 			</div>
 			<DataStoreNodeInfo node={node} />
 			<DocumentNodeInfo node={node} />
