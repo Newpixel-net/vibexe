@@ -12,6 +12,34 @@ function getXaiProvider() {
 	});
 }
 
+/**
+ * Detect if the user has approved a plan and we should enter build phase.
+ * The chat UI sends "Build the workflow as planned." when the user clicks
+ * the approval button. We also accept common freeform approval phrases.
+ */
+function isInBuildPhase(messages: UIMessage[]): boolean {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const msg = messages[i];
+		if (msg.role === "user") {
+			const text = msg.parts
+				.filter((p): p is { type: "text"; text: string } => p.type === "text")
+				.map((p) => p.text)
+				.join("")
+				.toLowerCase();
+			return (
+				text.includes("build the workflow as planned") ||
+				text.includes("build it") ||
+				text.includes("looks good") ||
+				text.includes("approve") ||
+				text.includes("go ahead") ||
+				text.includes("yes, build") ||
+				text.includes("do it")
+			);
+		}
+	}
+	return false;
+}
+
 export async function POST(request: Request) {
 	try {
 		const user = await getUser();
@@ -36,7 +64,15 @@ export async function POST(request: Request) {
 
 		const modelMessages = await convertToModelMessages(messages);
 
-		const tools = createWorkflowTools();
+		const allTools = createWorkflowTools();
+		const buildPhase = isInBuildPhase(messages);
+
+		// Phase 1 (planning): Only present_plan + lookup_piece_actions available.
+		// Phase 2 (building): All build tools, no present_plan.
+		const { present_plan, ...buildTools } = allTools;
+		const tools = buildPhase
+			? buildTools
+			: { present_plan: allTools.present_plan, lookup_piece_actions: allTools.lookup_piece_actions };
 
 		const xai = getXaiProvider();
 		const result = streamText({

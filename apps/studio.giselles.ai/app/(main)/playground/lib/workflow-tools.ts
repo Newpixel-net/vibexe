@@ -114,7 +114,8 @@ export function createWorkflowTools() {
 				return {
 					success: true,
 					plan,
-					message: "Plan presented. Waiting for user approval.",
+					message:
+					"Plan presented to user. STOP HERE. The UI is now showing the visual plan preview. Do NOT call any more tools. Wait for the user to review and approve the plan before building.",
 				};
 			},
 		}),
