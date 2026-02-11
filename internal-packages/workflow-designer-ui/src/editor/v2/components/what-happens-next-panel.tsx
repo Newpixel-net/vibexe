@@ -11,29 +11,43 @@ import {
 import {
 	Capability,
 	hasCapability,
+	hasTierAccess,
 	type LanguageModel,
 	languageModels,
+	type Tier,
 } from "@giselles-ai/language-model";
 import {
+	createAppEntryNode,
 	createContentGenerationNode,
 	createDataQueryNode,
 	createDataStoreNode,
 	createDocumentVectorStoreNode,
+	createEndNode,
 	createFileNode,
+	createGitHubVectorStoreNode,
+	createImageGenerationNode,
 	createIntegrationNode,
 	createQueryNode,
+	createTextGenerationNode,
 	createTextNode,
 	createWebPageNode,
 } from "@giselles-ai/node-registry";
-import { FileCategory, type NodeId } from "@giselles-ai/protocol";
+import {
+	FileCategory,
+	isImageGenerationLanguageModelData,
+	isTextGenerationLanguageModelData,
+	type NodeId,
+} from "@giselles-ai/protocol";
 import { useFeatureFlag } from "@giselles-ai/react";
+import { useUsageLimits } from "@giselles-ai/react";
 import clsx from "clsx/lite";
 import {
-	BrainCircuitIcon,
-	CableIcon,
 	ChevronLeftIcon,
-	DatabaseIcon,
-	FileTextIcon,
+	FlagIcon,
+	GitBranchIcon,
+	GlobeIcon,
+	LayersIcon,
+	PlayIcon,
 	SearchIcon,
 	SparklesIcon,
 	XIcon,
@@ -52,6 +66,8 @@ import {
 	useConnectNodes,
 	useWorkspaceActions,
 } from "../../../app-designer";
+import { ProviderIcon } from "../../tool/toolbar/model-components/provider-icon";
+import { getAvailableModels } from "../../tool/toolbar/model-components/model-utils";
 import { usePieceActions } from "../../tool/toolbar/integration-picker/use-piece-actions";
 
 interface WhatHappensNextPanelProps {
@@ -59,7 +75,12 @@ interface WhatHappensNextPanelProps {
 	onClose: () => void;
 }
 
-type PanelLevel = "categories" | "ai-models" | "integrations" | "integration-actions" | "context";
+type PanelLevel =
+	| "categories"
+	| "ai-models"
+	| "integrations"
+	| "integration-actions"
+	| "context";
 
 interface CategoryItem {
 	id: string;
@@ -68,6 +89,27 @@ interface CategoryItem {
 	icon: ReactNode;
 	targetLevel: PanelLevel;
 }
+
+// Provider display order and labels for the AI models view
+const PROVIDER_ORDER = [
+	"openai",
+	"anthropic",
+	"google",
+	"xai",
+	"nvidia",
+	"perplexity",
+	"fal",
+] as const;
+
+const PROVIDER_LABELS: Record<string, string> = {
+	openai: "OpenAI",
+	anthropic: "Anthropic",
+	google: "Google",
+	xai: "xAI",
+	nvidia: "NVIDIA",
+	perplexity: "Perplexity",
+	fal: "Image Generation",
+};
 
 export function WhatHappensNextPanel({
 	sourceNodeId,
@@ -88,7 +130,14 @@ export function WhatHappensNextPanel({
 		llmProviders: s.llmProviders,
 		nodes: s.nodes,
 	}));
-	const { generateContentNode, dataStore: dataStoreFlag } = useFeatureFlag();
+	const {
+		generateContentNode,
+		dataStore: dataStoreFlag,
+		stage: stageFlag,
+	} = useFeatureFlag();
+
+	const usageLimits = useUsageLimits();
+	const userTier: Tier = (usageLimits?.featureTier as Tier) ?? "free";
 
 	// Get the source node's position to place new node to the right
 	const sourceNodePosition = useAppDesignerStore((s) => {
@@ -109,7 +158,6 @@ export function WhatHappensNextPanel({
 			};
 			addNode(newNode, { position });
 			connectNodes(sourceNodeId, newNode.id);
-			// Select the new node
 			setUiNodeState(newNode.id, { selected: true });
 			onClose();
 		},
@@ -127,54 +175,90 @@ export function WhatHappensNextPanel({
 	const categories: CategoryItem[] = useMemo(
 		() => [
 			{
-				id: "ai-models",
-				label: "AI Model",
-				description: "Generate text or images with AI",
+				id: "ai",
+				label: "AI Generation",
+				description: "Generate text, images, or content with AI models",
 				icon: <SparklesIcon className="w-[18px] h-[18px]" />,
 				targetLevel: "ai-models" as PanelLevel,
 			},
 			{
-				id: "integrations",
-				label: "Integration",
-				description: "Connect to external apps & services",
-				icon: <CableIcon className="w-[18px] h-[18px]" />,
+				id: "integration",
+				label: "Action in an app",
+				description:
+					"Do something in an app like Slack, Google Sheets, or Discord",
+				icon: <GlobeIcon className="w-[18px] h-[18px]" />,
 				targetLevel: "integrations" as PanelLevel,
 			},
 			{
 				id: "context",
-				label: "Context Source",
-				description: "Add text, files, or web content",
-				icon: <FileTextIcon className="w-[18px] h-[18px]" />,
+				label: "Context & Data",
+				description: "Add input sources, data stores, and retrieval",
+				icon: <LayersIcon className="w-[18px] h-[18px]" />,
 				targetLevel: "context" as PanelLevel,
-			},
-			{
-				id: "data",
-				label: "Data & Knowledge",
-				description: "Vector stores, queries, data stores",
-				icon: <DatabaseIcon className="w-[18px] h-[18px]" />,
-				targetLevel: "context" as PanelLevel, // Handled inline
 			},
 		],
 		[],
 	);
 
-	// Focus search on level change
+	// Focus search on level change or when search appears
 	useEffect(() => {
-		if (level !== "categories") {
-			setTimeout(() => searchInputRef.current?.focus(), 100);
-		}
+		setTimeout(() => searchInputRef.current?.focus(), 100);
 	}, [level]);
 
-	// Available AI models
+	// Available AI models (ALL — both text and image generation)
 	const availableModels = useMemo(
-		() =>
-			languageModels.filter(
-				(model) =>
-					llmProviders.includes(model.provider) &&
-					hasCapability(model, Capability.TextGeneration),
-			),
+		() => languageModels.filter((model) => llmProviders.includes(model.provider)),
 		[llmProviders],
 	);
+
+	// Recommended models (top 3: one from each major provider)
+	const recommendedModels = useMemo(() => {
+		const isFreeUser = userTier === "free";
+		const openaiModels = getAvailableModels(
+			isFreeUser ? ["gpt-5-nano"] : ["gpt-5.2"],
+			"openai",
+			llmProviders,
+			availableModels,
+		);
+		const anthropicModels = getAvailableModels(
+			isFreeUser ? ["claude-haiku-4.5"] : ["claude-opus-4.5"],
+			"anthropic",
+			llmProviders,
+			availableModels,
+		);
+		const googleModels = getAvailableModels(
+			isFreeUser ? ["gemini-2.5-flash-lite"] : ["gemini-3-flash"],
+			"google",
+			llmProviders,
+			availableModels,
+		);
+
+		return isFreeUser
+			? [
+					...openaiModels.slice(0, 1),
+					...googleModels.slice(0, 1),
+					...anthropicModels.slice(0, 1),
+				]
+			: [
+					...googleModels.slice(0, 1),
+					...openaiModels.slice(0, 1),
+					...anthropicModels.slice(0, 1),
+				];
+	}, [userTier, llmProviders, availableModels]);
+
+	// Models grouped by provider (excluding recommended)
+	const modelsByProvider = useMemo(() => {
+		const recommendedIds = new Set(recommendedModels.map((m) => m.id));
+		const groups: Record<string, LanguageModel[]> = {};
+		for (const model of availableModels) {
+			if (recommendedIds.has(model.id)) continue;
+			if (!groups[model.provider]) {
+				groups[model.provider] = [];
+			}
+			groups[model.provider].push(model);
+		}
+		return groups;
+	}, [availableModels, recommendedModels]);
 
 	// Integration pieces (installed only)
 	const installedPieces = useMemo(() => {
@@ -205,21 +289,71 @@ export function WhatHappensNextPanel({
 		);
 	}, [searchQuery, availableModels]);
 
+	// Check if Start/End nodes already placed
+	const hasAppEntryNode = useMemo(
+		() => nodes.some((n) => n.content.type === "appEntry"),
+		[nodes],
+	);
+	const hasEndNode = useMemo(
+		() => nodes.some((n) => n.content.type === "end"),
+		[nodes],
+	);
+
 	const handleSelectModel = useCallback(
 		(model: LanguageModel) => {
 			if (generateContentNode) {
-				// Construct the registry-format model ID (provider/modelId)
 				const registryId = model.id.includes("/")
 					? model.id
 					: `${model.provider}/${model.id}`;
 				const newNode = createContentGenerationNode({
-					id: registryId as Parameters<typeof createContentGenerationNode>[0]["id"],
+					id: registryId as Parameters<
+						typeof createContentGenerationNode
+					>[0]["id"],
 				});
 				handleAddAndConnect(newNode);
+			} else {
+				const languageModelData = {
+					id: model.id,
+					provider: model.provider,
+					configurations: model.configurations,
+				};
+				if (isTextGenerationLanguageModelData(languageModelData)) {
+					handleAddAndConnect(createTextGenerationNode(languageModelData));
+				} else if (isImageGenerationLanguageModelData(languageModelData)) {
+					handleAddAndConnect(createImageGenerationNode(languageModelData));
+				}
 			}
 		},
 		[handleAddAndConnect, generateContentNode],
 	);
+
+	// Search results for categories-level search
+	const searchResults = useMemo(() => {
+		const q = searchQuery.trim().toLowerCase();
+		if (!q) return null;
+		const matchingModels = availableModels
+			.filter(
+				(m) =>
+					m.id.toLowerCase().includes(q) ||
+					m.provider.toLowerCase().includes(q),
+			)
+			.slice(0, 5);
+		const matchingPieces = searchPieces(searchQuery)
+			.filter((p) => isInstalledPiece(p.name))
+			.slice(0, 10);
+		return { models: matchingModels, pieces: matchingPieces };
+	}, [searchQuery, availableModels]);
+
+	// Header title
+	const headerTitle = useMemo(() => {
+		if (level === "categories") return "What happens next?";
+		if (level === "ai-models") return "AI Generation";
+		if (level === "integrations") return "Action in an app";
+		if (level === "integration-actions")
+			return selectedPiece?.displayName ?? "Actions";
+		if (level === "context") return "Context & Data";
+		return "What happens next?";
+	}, [level, selectedPiece]);
 
 	return (
 		<div
@@ -268,12 +402,7 @@ export function WhatHappensNextPanel({
 								</button>
 							)}
 							<h3 className="text-[13px] font-semibold text-inverse">
-								{level === "categories" && "What happens next?"}
-								{level === "ai-models" && "Choose AI Model"}
-								{level === "integrations" && "Choose Integration"}
-								{level === "integration-actions" &&
-									(selectedPiece?.displayName ?? "Actions")}
-								{level === "context" && "Add Source"}
+								{headerTitle}
 							</h3>
 						</div>
 						<button
@@ -285,37 +414,31 @@ export function WhatHappensNextPanel({
 						</button>
 					</div>
 
-					{/* Search bar (shown in sub-levels) */}
-					{level !== "categories" && (
-						<div className="px-3 py-2">
-							<div className="flex items-center gap-2 px-3 py-1.5 rounded-[8px] bg-white/5 border border-white/10">
-								<SearchIcon className="w-3.5 h-3.5 text-inverse/40" />
-								<input
-									ref={searchInputRef}
-									type="text"
-									value={searchQuery}
-									onChange={(e) => setSearchQuery(e.target.value)}
-									placeholder="Search..."
-									className="flex-1 bg-transparent text-[12px] text-inverse placeholder:text-inverse/30 outline-none"
-								/>
-							</div>
+					{/* Search bar (shown in all views) */}
+					<div className="px-3 py-2">
+						<div className="flex items-center gap-2 px-3 py-1.5 rounded-[8px] bg-white/5 border border-white/10">
+							<SearchIcon className="w-3.5 h-3.5 text-inverse/40" />
+							<input
+								ref={searchInputRef}
+								type="text"
+								value={searchQuery}
+								onChange={(e) => setSearchQuery(e.target.value)}
+								placeholder="Search..."
+								className="flex-1 bg-transparent text-[12px] text-inverse placeholder:text-inverse/30 outline-none"
+							/>
 						</div>
-					)}
+					</div>
 
 					{/* Body */}
 					<div className="flex-1 overflow-y-auto px-3 pb-3">
 						{/* Categories level */}
-						{level === "categories" && (
+						{level === "categories" && !searchResults && (
 							<div className="space-y-1 pt-1">
 								{categories.map((cat) => (
 									<button
 										key={cat.id}
 										type="button"
 										onClick={() => {
-											if (cat.id === "data") {
-												// Inline data node creation
-												return;
-											}
 											setLevel(cat.targetLevel);
 											setSearchQuery("");
 										}}
@@ -337,42 +460,108 @@ export function WhatHappensNextPanel({
 										</div>
 									</button>
 								))}
-								{/* Quick data actions */}
+
+								{/* Flow category (inline, only when stage flag is on) */}
+								{stageFlag && (
+									<div className="pt-2 border-t border-white/5 mt-1">
+										<div className="flex items-center gap-3 px-3 py-1.5">
+											<div className="w-[36px] h-[36px] rounded-[10px] bg-white/8 flex items-center justify-center text-inverse/70 shrink-0">
+												<GitBranchIcon className="w-[18px] h-[18px]" />
+											</div>
+											<div>
+												<div className="text-[13px] font-medium text-inverse">
+													Flow
+												</div>
+												<div className="text-[11px] text-inverse/50">
+													Set up workflow start and end points
+												</div>
+											</div>
+										</div>
+										<div className="flex gap-2 px-3 pt-1 pb-1 ml-[48px]">
+											<button
+												type="button"
+												disabled={hasAppEntryNode}
+												onClick={() =>
+													handleAddAndConnect(createAppEntryNode())
+												}
+												className={clsx(
+													"flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-[11px] font-medium transition-colors",
+													hasAppEntryNode
+														? "bg-white/3 text-inverse/25 cursor-not-allowed"
+														: "bg-white/8 text-inverse/70 hover:bg-white/12 hover:text-inverse",
+												)}
+											>
+												<PlayIcon className="w-3 h-3" />
+												Start
+											</button>
+											<button
+												type="button"
+												disabled={hasEndNode}
+												onClick={() =>
+													handleAddAndConnect(createEndNode())
+												}
+												className={clsx(
+													"flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-[11px] font-medium transition-colors",
+													hasEndNode
+														? "bg-white/3 text-inverse/25 cursor-not-allowed"
+														: "bg-white/8 text-inverse/70 hover:bg-white/12 hover:text-inverse",
+												)}
+											>
+												<FlagIcon className="w-3 h-3" />
+												End
+											</button>
+										</div>
+									</div>
+								)}
+
+								{/* Quick Add */}
 								<div className="pt-2 border-t border-white/5 mt-2">
 									<div className="text-[10px] font-medium text-inverse/40 uppercase tracking-wide px-3 pb-1">
 										Quick Add
 									</div>
 									<div className="grid grid-cols-2 gap-1">
 										<QuickAddButton
-											label="Text Prompt"
-											onClick={() => handleAddAndConnect(createTextNode())}
+											label="Text Input"
+											onClick={() =>
+												handleAddAndConnect(createTextNode())
+											}
 										/>
 										<QuickAddButton
-											label="PDF File"
+											label="PDF Upload"
 											onClick={() =>
-												handleAddAndConnect(createFileNode(FileCategory.enum.pdf))
+												handleAddAndConnect(
+													createFileNode(FileCategory.enum.pdf),
+												)
 											}
 										/>
 										<QuickAddButton
 											label="Web Page"
-											onClick={() => handleAddAndConnect(createWebPageNode())}
+											onClick={() =>
+												handleAddAndConnect(createWebPageNode())
+											}
 										/>
 										<QuickAddButton
-											label="Knowledge Query"
-											onClick={() => handleAddAndConnect(createQueryNode())}
+											label="Vector Query"
+											onClick={() =>
+												handleAddAndConnect(createQueryNode())
+											}
 										/>
 										{dataStoreFlag && (
 											<>
 												<QuickAddButton
 													label="Data Store"
 													onClick={() =>
-														handleAddAndConnect(createDataStoreNode())
+														handleAddAndConnect(
+															createDataStoreNode(),
+														)
 													}
 												/>
 												<QuickAddButton
 													label="Data Query"
 													onClick={() =>
-														handleAddAndConnect(createDataQueryNode())
+														handleAddAndConnect(
+															createDataQueryNode(),
+														)
 													}
 												/>
 											</>
@@ -390,36 +579,169 @@ export function WhatHappensNextPanel({
 							</div>
 						)}
 
+						{/* Global search results (shown at categories level when searching) */}
+						{level === "categories" && searchResults && (
+							<div className="space-y-3 pt-1">
+								{/* AI model results */}
+								{searchResults.models.length > 0 && (
+									<div>
+										<div className="text-[10px] font-medium text-inverse/40 uppercase tracking-wide px-3 pb-1">
+											AI Models
+										</div>
+										<div className="space-y-0.5">
+											{searchResults.models.map((model) => (
+												<button
+													key={model.id}
+													type="button"
+													onClick={() => handleSelectModel(model)}
+													className={clsx(
+														"w-full flex items-center gap-3 px-3 py-2 rounded-[8px]",
+														"hover:bg-white/8 transition-colors text-left",
+													)}
+												>
+													<div className="w-[28px] h-[28px] rounded-[6px] bg-white/8 flex items-center justify-center shrink-0">
+														<ProviderIcon
+															model={model}
+															className="w-4 h-4"
+														/>
+													</div>
+													<div className="min-w-0">
+														<div className="text-[12px] font-medium text-inverse truncate">
+															{model.id}
+														</div>
+														<div className="text-[10px] text-inverse/40 capitalize">
+															{PROVIDER_LABELS[model.provider] ??
+																model.provider}
+														</div>
+													</div>
+												</button>
+											))}
+										</div>
+									</div>
+								)}
+
+								{/* Integration results */}
+								{searchResults.pieces.length > 0 && (
+									<div>
+										<div className="text-[10px] font-medium text-inverse/40 uppercase tracking-wide px-3 pb-1">
+											Integrations
+										</div>
+										<div className="space-y-0.5">
+											{searchResults.pieces.map((piece) => (
+												<button
+													key={piece.name}
+													type="button"
+													onClick={() => {
+														setSelectedPiece(piece);
+														setLevel("integration-actions");
+														setSearchQuery("");
+													}}
+													className={clsx(
+														"w-full flex items-center gap-3 px-3 py-2 rounded-[8px]",
+														"hover:bg-white/8 transition-colors text-left",
+													)}
+												>
+													{piece.logoUrl ? (
+														<img
+															src={piece.logoUrl}
+															alt={piece.displayName}
+															className="w-[28px] h-[28px] rounded-[6px] object-contain shrink-0"
+														/>
+													) : (
+														<div className="w-[28px] h-[28px] rounded-[6px] bg-white/8 flex items-center justify-center shrink-0">
+															<GlobeIcon className="w-3.5 h-3.5 text-inverse/60" />
+														</div>
+													)}
+													<div className="min-w-0">
+														<div className="text-[12px] font-medium text-inverse truncate">
+															{piece.displayName}
+														</div>
+														<div className="text-[10px] text-inverse/40 truncate">
+															{piece.category}
+														</div>
+													</div>
+												</button>
+											))}
+										</div>
+									</div>
+								)}
+
+								{/* No results */}
+								{searchResults.models.length === 0 &&
+									searchResults.pieces.length === 0 && (
+										<div className="text-center text-inverse/40 text-[12px] py-6">
+											No results found
+										</div>
+									)}
+							</div>
+						)}
+
 						{/* AI Models level */}
 						{level === "ai-models" && (
-							<div className="space-y-1 pt-1">
-								{filteredModels.map((model) => (
-									<button
-										key={model.id}
-										type="button"
-										onClick={() => handleSelectModel(model)}
-										className={clsx(
-											"w-full flex items-center gap-3 px-3 py-2 rounded-[8px]",
-											"hover:bg-white/8 transition-colors text-left",
+							<div className="space-y-3 pt-1">
+								{searchQuery.trim() ? (
+									/* Flat filtered list when searching */
+									<div className="space-y-0.5">
+										{filteredModels.map((model) => (
+											<ModelRow
+												key={model.id}
+												model={model}
+												onClick={() => handleSelectModel(model)}
+											/>
+										))}
+										{filteredModels.length === 0 && (
+											<div className="text-center text-inverse/40 text-[12px] py-6">
+												No models found
+											</div>
 										)}
-									>
-										<div className="w-[32px] h-[32px] rounded-[8px] bg-white/8 flex items-center justify-center shrink-0">
-											<BrainCircuitIcon className="w-4 h-4 text-inverse/70" />
-										</div>
-										<div className="min-w-0">
-											<div className="text-[12px] font-medium text-inverse truncate">
-												{model.id}
-											</div>
-											<div className="text-[10px] text-inverse/40 capitalize">
-												{model.provider}
-											</div>
-										</div>
-									</button>
-								))}
-								{filteredModels.length === 0 && (
-									<div className="text-center text-inverse/40 text-[12px] py-6">
-										No models found
 									</div>
+								) : (
+									/* Grouped view with Recommended section */
+									<>
+										{/* Recommended */}
+										{recommendedModels.length > 0 && (
+											<div>
+												<div className="text-[10px] font-medium text-inverse/40 uppercase tracking-wide px-3 pb-1">
+													Recommended
+												</div>
+												<div className="space-y-0.5">
+													{recommendedModels.map((model) => (
+														<ModelRow
+															key={`rec-${model.id}`}
+															model={model}
+															onClick={() =>
+																handleSelectModel(model)
+															}
+														/>
+													))}
+												</div>
+											</div>
+										)}
+
+										{/* Models by provider */}
+										{PROVIDER_ORDER.filter(
+											(p) => modelsByProvider[p]?.length,
+										).map((provider) => (
+											<div key={provider}>
+												<div className="text-[10px] font-medium text-inverse/40 uppercase tracking-wide px-3 pb-1">
+													{PROVIDER_LABELS[provider] ?? provider}
+												</div>
+												<div className="space-y-0.5">
+													{modelsByProvider[provider].map(
+														(model) => (
+															<ModelRow
+																key={model.id}
+																model={model}
+																onClick={() =>
+																	handleSelectModel(model)
+																}
+															/>
+														),
+													)}
+												</div>
+											</div>
+										))}
+									</>
 								)}
 							</div>
 						)}
@@ -449,7 +771,7 @@ export function WhatHappensNextPanel({
 											/>
 										) : (
 											<div className="w-[28px] h-[28px] rounded-[6px] bg-white/8 flex items-center justify-center shrink-0">
-												<CableIcon className="w-3.5 h-3.5 text-inverse/60" />
+												<GlobeIcon className="w-3.5 h-3.5 text-inverse/60" />
 											</div>
 										)}
 										<div className="min-w-0">
@@ -486,86 +808,157 @@ export function WhatHappensNextPanel({
 							/>
 						)}
 
-						{/* Context sources level */}
+						{/* Context & Data level */}
 						{level === "context" && (
-							<div className="space-y-1 pt-1">
-								<ContextButton
-									label="Text Prompt"
-									description="Add free-form text input"
-									onClick={() => handleAddAndConnect(createTextNode())}
-								/>
-								<ContextButton
-									label="PDF File"
-									description="Upload a PDF document"
-									onClick={() =>
-										handleAddAndConnect(createFileNode(FileCategory.enum.pdf))
-									}
-								/>
-								<ContextButton
-									label="Image File"
-									description="Upload an image"
-									onClick={() =>
-										handleAddAndConnect(
-											createFileNode(FileCategory.enum.image),
-										)
-									}
-								/>
-								<ContextButton
-									label="Text File"
-									description="Upload a text file"
-									onClick={() =>
-										handleAddAndConnect(
-											createFileNode(FileCategory.enum.text),
-										)
-									}
-								/>
-								<ContextButton
-									label="Web Page"
-									description="Fetch content from a URL"
-									onClick={() =>
-										handleAddAndConnect(createWebPageNode())
-									}
-								/>
-								<ContextButton
-									label="Document Vector Store"
-									description="Semantic search over documents"
-									onClick={() =>
-										handleAddAndConnect(
-											createDocumentVectorStoreNode(),
-										)
-									}
-								/>
-								<ContextButton
-									label="Knowledge Query"
-									description="Query stored knowledge"
-									onClick={() =>
-										handleAddAndConnect(createQueryNode())
-									}
-								/>
-								{dataStoreFlag && (
-									<>
+							<div className="space-y-3 pt-1">
+								{/* Input Sources */}
+								<div>
+									<div className="text-[10px] font-medium text-inverse/40 uppercase tracking-wide px-3 pb-1">
+										Input Sources
+									</div>
+									<div className="space-y-0.5">
 										<ContextButton
-											label="Data Store"
-											description="Structured data storage"
+											label="Plain Text"
+											description="Add free-form text input"
 											onClick={() =>
-												handleAddAndConnect(createDataStoreNode())
+												handleAddAndConnect(createTextNode())
 											}
 										/>
 										<ContextButton
-											label="Data Query"
-											description="Query structured data"
+											label="PDF Upload"
+											description="Upload a PDF document"
 											onClick={() =>
-												handleAddAndConnect(createDataQueryNode())
+												handleAddAndConnect(
+													createFileNode(FileCategory.enum.pdf),
+												)
 											}
 										/>
-									</>
-								)}
+										<ContextButton
+											label="Image Upload"
+											description="Upload an image"
+											onClick={() =>
+												handleAddAndConnect(
+													createFileNode(FileCategory.enum.image),
+												)
+											}
+										/>
+										<ContextButton
+											label="Text File"
+											description="Upload a text file"
+											onClick={() =>
+												handleAddAndConnect(
+													createFileNode(FileCategory.enum.text),
+												)
+											}
+										/>
+										<ContextButton
+											label="Web Page"
+											description="Fetch content from a URL"
+											onClick={() =>
+												handleAddAndConnect(createWebPageNode())
+											}
+										/>
+									</div>
+								</div>
+
+								{/* Data Storage */}
+								<div>
+									<div className="text-[10px] font-medium text-inverse/40 uppercase tracking-wide px-3 pb-1">
+										Data Storage
+									</div>
+									<div className="space-y-0.5">
+										<ContextButton
+											label="Document Vector Store"
+											description="Semantic search over documents"
+											onClick={() =>
+												handleAddAndConnect(
+													createDocumentVectorStoreNode(),
+												)
+											}
+										/>
+										<ContextButton
+											label="GitHub Vector Store"
+											description="Semantic search over GitHub repos"
+											onClick={() =>
+												handleAddAndConnect(
+													createGitHubVectorStoreNode(),
+												)
+											}
+										/>
+										{dataStoreFlag && (
+											<ContextButton
+												label="Data Store"
+												description="Structured data storage"
+												onClick={() =>
+													handleAddAndConnect(
+														createDataStoreNode(),
+													)
+												}
+											/>
+										)}
+									</div>
+								</div>
+
+								{/* Data Retrieval */}
+								<div>
+									<div className="text-[10px] font-medium text-inverse/40 uppercase tracking-wide px-3 pb-1">
+										Data Retrieval
+									</div>
+									<div className="space-y-0.5">
+										<ContextButton
+											label="Vector Query"
+											description="Query stored knowledge"
+											onClick={() =>
+												handleAddAndConnect(createQueryNode())
+											}
+										/>
+										{dataStoreFlag && (
+											<ContextButton
+												label="Data Query"
+												description="Query structured data"
+												onClick={() =>
+													handleAddAndConnect(
+														createDataQueryNode(),
+													)
+												}
+											/>
+										)}
+									</div>
+								</div>
 							</div>
 						)}
 					</div>
 				</div>
 			</div>
 		</div>
+	);
+}
+
+function ModelRow({
+	model,
+	onClick,
+}: { model: LanguageModel; onClick: () => void }) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			className={clsx(
+				"w-full flex items-center gap-3 px-3 py-2 rounded-[8px]",
+				"hover:bg-white/8 transition-colors text-left",
+			)}
+		>
+			<div className="w-[28px] h-[28px] rounded-[6px] bg-white/8 flex items-center justify-center shrink-0">
+				<ProviderIcon model={model} className="w-4 h-4" />
+			</div>
+			<div className="min-w-0">
+				<div className="text-[12px] font-medium text-inverse truncate">
+					{model.id}
+				</div>
+				<div className="text-[10px] text-inverse/40">
+					{PROVIDER_LABELS[model.provider] ?? model.provider}
+				</div>
+			</div>
+		</button>
 	);
 }
 
