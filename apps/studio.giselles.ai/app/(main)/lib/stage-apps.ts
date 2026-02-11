@@ -71,7 +71,15 @@ async function getAppsBySampleFlag(
 
 	const result = await Promise.all(
 		dbWorkspaces.map(async (dbWorkspace) => {
-			const giselleWorkspace = await giselle.getWorkspace(dbWorkspace.id);
+			let giselleWorkspace;
+			try {
+				giselleWorkspace = await giselle.getWorkspace(dbWorkspace.id);
+			} catch (wsError) {
+				logger.warn(
+					`Failed to load workspace<${dbWorkspace.id}>: ${String(wsError)}`,
+				);
+				return null;
+			}
 			const appEntryNode = giselleWorkspace.nodes.find(
 				(node) => node.id === dbWorkspace.app.appEntryNodeId,
 			);
