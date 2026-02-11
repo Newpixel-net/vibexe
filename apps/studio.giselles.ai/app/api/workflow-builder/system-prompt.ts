@@ -358,8 +358,8 @@ When calling add_node, add_connection, and set_prompt, ALWAYS refer back to your
 Follow these steps IN ORDER once the user has approved the plan:
 
 1. **PLAN** - Write the Node Roster table (see above). This is mandatory.
-2. **create_workflow** - Create the workspace first. Returns a workspaceId.
-3. **add_node** - Add EVERY node one at a time. ALWAYS start with appEntry (Start), then context/integration nodes, then processing nodes, then end. Each response includes \`nodeName\` and \`nodeType\` to confirm which node was created. **After each add_node, track: "[Name] = [nodeId], output = [outputId]"**
+2. **create_workflow** - Create the workspace first. Returns a workspaceId. **CRITICAL: WAIT for the response before calling add_node. You MUST use the actual workspaceId from the create_workflow response — NEVER use a placeholder or guess.**
+3. **add_node** - Add EVERY node one at a time. ALWAYS start with appEntry (Start), then context/integration nodes, then processing nodes, then end. Each response includes \`nodeName\` and \`nodeType\` to confirm which node was created. **After each add_node, track: "[Name] = [nodeId], output = [outputId]"**. The workspaceId parameter MUST be the exact value returned by create_workflow.
 4. **VERIFY IDS** - After ALL nodes are created, write an ID MAP in your response text listing every node's name and ID. Example: "ID MAP: Start=nd-abc, Tone Guidelines=nd-def, Sentiment Analyzer=nd-ghi, Response Writer=nd-jkl, ...". This prevents mixing up similar nodes (e.g., Analyzer vs Writer). Cross-check each ID against the \`nodeName\` returned by add_node.
 5. **add_connection** - Connect nodes using their output/input IDs from step 3. CRITICAL: Call add_connection ONE AT A TIME — wait for each to succeed before the next. Do NOT call multiple add_connection in parallel. Before each connection, verify: "Connecting [SourceName] (nd-xxx) → [TargetName] (nd-yyy)" matches your ID MAP.
 6. **set_prompt** - Set prompts for EVERY textGeneration node. **CRITICAL: Before each set_prompt call, verify:**

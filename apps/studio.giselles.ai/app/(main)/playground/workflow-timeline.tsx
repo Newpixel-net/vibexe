@@ -111,7 +111,22 @@ function extractWorkflowSteps(messages: UIMessage[]): WorkflowStep[] {
 		}
 	}
 
-	return Array.from(stepMap.values());
+	const steps = Array.from(stepMap.values());
+
+	// Filter out error steps that were retried successfully (same type + label).
+	// This removes noise from the timeline when the AI retries a failed call.
+	return steps.filter((step, index) => {
+		if (step.status !== "error") return true;
+		// Keep the error if no later step with the same type+label succeeded
+		return !steps
+			.slice(index + 1)
+			.some(
+				(later) =>
+					later.type === step.type &&
+					later.label === step.label &&
+					later.status === "completed",
+			);
+	});
 }
 
 export function WorkflowTimeline({
