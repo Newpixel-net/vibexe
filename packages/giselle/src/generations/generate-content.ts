@@ -1,4 +1,9 @@
 import { type AnthropicProviderOptions, anthropic } from "@ai-sdk/anthropic";
+import {
+	loadMemory,
+	saveMemory,
+	buildSessionKey,
+} from "./v2/memory/memory-store";
 import { google } from "@ai-sdk/google";
 import {
 	type OpenAIResponsesProviderOptions,
@@ -659,7 +664,7 @@ function generateContentV2({
 				throw new Error("Invalid generation type");
 			}
 
-			const messages = await buildMessageObject({
+			let messages = await buildMessageObject({
 				node: operationNode,
 				contextNodes: generationContext.sourceNodes,
 				fileResolver,
@@ -679,24 +684,93 @@ function generateContentV2({
 			// AI Agent: resolve model from connected chatModel sub-node if available
 			let resolvedContent = operationNode.content;
 			if (isAiAgentNode(operationNode)) {
-				const chatModelConnection = generationContext.connections.find(
+				// Find all sub-node connections to this AI Agent
+				const subNodeConnections = generationContext.connections.filter(
 					(conn) =>
 						conn.connectionType === "subNode" &&
 						conn.inputNode.id === operationNode.id,
 				);
-				if (chatModelConnection) {
-					const chatModelNode = generationContext.sourceNodes.find(
-						(n) => n.id === chatModelConnection.outputNode.id,
+
+				for (const subConn of subNodeConnections) {
+					const subNode = generationContext.sourceNodes.find(
+						(n) => n.id === subConn.outputNode.id,
 					);
-					if (chatModelNode && isChatModelNode(chatModelNode)) {
+					if (!subNode) continue;
+
+					// Chat Model sub-node: override language model
+					if (isChatModelNode(subNode)) {
 						resolvedContent = {
 							...operationNode.content,
-							languageModel: chatModelNode.content.languageModel,
+							languageModel: subNode.content.languageModel,
 						};
 						logger.info(
-							{ subNodeModelId: chatModelNode.content.languageModel.id },
+							{ subNodeModelId: subNode.content.languageModel.id },
 							"AI Agent using model from connected Chat Model sub-node",
 						);
+					}
+
+					// Tool sub-nodes: add to tools array
+					if (subNode.content.type === "toolNode") {
+						const toolContent = subNode.content as {
+							type: "toolNode";
+							toolType: string;
+							builtinToolName?: string;
+							pieceName?: string;
+							actionName?: string;
+							pieceVersion?: string;
+							configuration: Record<string, unknown>;
+						};
+
+						if (
+							toolContent.toolType === "builtinTool" &&
+							toolContent.builtinToolName
+						) {
+							// Add built-in tool to the tools array so buildToolSet picks it up
+							resolvedContent = {
+								...resolvedContent,
+								tools: [
+									...resolvedContent.tools,
+									{
+										name: toolContent.builtinToolName as any,
+										configuration: toolContent.configuration,
+									},
+								],
+							};
+							logger.info(
+								{ toolName: toolContent.builtinToolName },
+								"AI Agent adding built-in tool from Tool sub-node",
+							);
+						} else if (
+							toolContent.toolType === "webSearch" &&
+							toolContent.builtinToolName
+						) {
+							resolvedContent = {
+								...resolvedContent,
+								tools: [
+									...resolvedContent.tools,
+									{
+										name: toolContent.builtinToolName as any,
+										configuration: toolContent.configuration,
+									},
+								],
+							};
+							logger.info(
+								{ toolName: toolContent.builtinToolName },
+								"AI Agent adding web search tool from Tool sub-node",
+							);
+						} else if (
+							toolContent.toolType === "integration" &&
+							toolContent.pieceName &&
+							toolContent.actionName
+						) {
+							logger.info(
+								{
+									pieceName: toolContent.pieceName,
+									actionName: toolContent.actionName,
+								},
+								"AI Agent has integration tool sub-node (execution handled separately)",
+							);
+						}
 					}
 				}
 			}
@@ -729,6 +803,65 @@ function generateContentV2({
 				isAiAgentNode(operationNode)
 					? operationNode.content.maxSteps ?? 30
 					: undefined;
+
+			// AI Agent: load memory from connected memoryNode sub-node if available
+			let memoryConfig: {
+				sessionKey: string;
+				contextWindowLength: number;
+			} | null = null;
+
+			if (isAiAgentNode(operationNode)) {
+				const subNodeConns = generationContext.connections.filter(
+					(conn) =>
+						conn.connectionType === "subNode" &&
+						conn.inputNode.id === operationNode.id,
+				);
+				for (const subConn of subNodeConns) {
+					const subNode = generationContext.sourceNodes.find(
+						(n) => n.id === subConn.outputNode.id,
+					);
+					if (subNode?.content.type === "memoryNode") {
+						const memContent = subNode.content as {
+							type: "memoryNode";
+							memoryType: string;
+							contextWindowLength: number;
+							sessionScope: "agent" | "workspace";
+						};
+						const sessionKey = buildSessionKey(
+							generationContext.origin.workspaceId ?? "",
+							operationNode.id,
+							memContent.sessionScope,
+						);
+						memoryConfig = {
+							sessionKey,
+							contextWindowLength: memContent.contextWindowLength,
+						};
+
+						// Load previous memory messages and prepend them
+						const memoryMessages = await loadMemory(
+							context.storage,
+							sessionKey,
+							memContent.contextWindowLength,
+						);
+						if (memoryMessages.length > 0) {
+							const historicalMessages = memoryMessages.map((m) => ({
+								role: m.role as "user" | "assistant" | "system",
+								content: m.content,
+							}));
+							// Prepend historical messages before current messages
+							messages = [...historicalMessages, ...messages];
+							logger.info(
+								{
+									memoryMessageCount: memoryMessages.length,
+									sessionKey,
+								},
+								"AI Agent loaded memory from connected Memory sub-node",
+							);
+						}
+						break;
+					}
+				}
+			}
 
 			const streamTextResult = streamText({
 				...callOptions,
@@ -881,6 +1014,52 @@ function generateContentV2({
 							sources,
 						});
 					}
+
+					// Save memory if memoryNode is connected (V2 AI Agent path)
+					if (memoryConfig && text) {
+						try {
+							const lastUserMsg = messages.findLast(
+								(m: { role: string }) => m.role === "user",
+							);
+							const userContent =
+								lastUserMsg && "content" in lastUserMsg
+									? typeof lastUserMsg.content === "string"
+										? lastUserMsg.content
+										: JSON.stringify(lastUserMsg.content)
+									: "";
+							await saveMemory(
+								context.storage,
+								memoryConfig.sessionKey,
+								[
+									...(userContent
+										? [
+												{
+													role: "user" as const,
+													content: userContent,
+													timestamp: Date.now(),
+												},
+											]
+										: []),
+									{
+										role: "assistant" as const,
+										content: text,
+										timestamp: Date.now(),
+									},
+								],
+								memoryConfig.contextWindowLength * 2,
+							);
+							logger.info(
+								{ sessionKey: memoryConfig.sessionKey },
+								"AI Agent saved memory after generation",
+							);
+						} catch (memErr) {
+							logger.warn(
+								{ error: memErr },
+								"Failed to save memory after generation",
+							);
+						}
+					}
+
 					const generationCompletionStartTime = Date.now();
 					const result = await finishGeneration({
 						inputMessages: messages,

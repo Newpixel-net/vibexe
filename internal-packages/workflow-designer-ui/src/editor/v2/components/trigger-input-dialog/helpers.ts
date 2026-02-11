@@ -10,6 +10,10 @@ export function buttonLabel(node: TriggerNode) {
 			return "Start Manual Flow";
 		case "github":
 			return "Test with Dummy Data";
+		case "schedule":
+			return "Test Schedule Trigger";
+		case "webhook":
+			return "Test Webhook Trigger";
 		default: {
 			const _exhaustiveCheck: never = node.content.provider;
 			throw new Error(`Unhandled trigger provider type: ${_exhaustiveCheck}`);
@@ -48,6 +52,14 @@ export function createInputsFromTrigger(
 				type: parameter.type,
 				required: parameter.required,
 			}));
+		}
+		case "schedule": {
+			// Schedule triggers fire on cron — no user-provided inputs
+			return [];
+		}
+		case "webhook": {
+			// Webhook triggers receive data from HTTP request — no form inputs needed
+			return [];
 		}
 		default: {
 			const _exhaustiveCheck: never = trigger.configuration;

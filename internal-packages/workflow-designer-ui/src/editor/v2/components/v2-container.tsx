@@ -6,7 +6,7 @@ import {
 	isEndNode,
 	type NodeId,
 } from "@giselles-ai/protocol";
-import { createChatModelNode } from "@giselles-ai/node-registry";
+import { createChatModelNode, createToolNodeNode, createMemoryNodeNode } from "@giselles-ai/node-registry";
 import {
 	type Connection,
 	type Edge,
@@ -625,6 +625,109 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 				clearSelection();
 				setUiNodeState(chatModelNode.id, { selected: true });
 			}
+
+			if (detail.handleType === "toolNode") {
+				const currentNodes = subNodeStoreApi.getState().nodes;
+				const currentNodeState = subNodeStoreApi.getState().ui.nodeState;
+				const currentConnections =
+					subNodeStoreApi.getState().connections ?? [];
+
+				const parentNode = currentNodes.find(
+					(n) => n.id === detail.parentNodeId,
+				);
+				if (!parentNode) return;
+
+				const parentUi = currentNodeState[detail.parentNodeId];
+				const parentPos = parentUi?.position ?? { x: 0, y: 0 };
+				const parentHeight = parentUi?.measured?.height ?? 200;
+
+				// Count existing tool sub-nodes to offset position
+				const existingToolCount = currentConnections.filter(
+					(c) =>
+						c.inputNode.id === detail.parentNodeId &&
+						c.connectionType === "subNode" &&
+						c.outputNode.content.type === "toolNode",
+				).length;
+
+				// Create a toolNode with default "builtinTool" type (user will configure later)
+				const toolNode = createToolNodeNode({
+					toolType: "builtinTool",
+				});
+
+				const position = {
+					x: parentPos.x + 200 + existingToolCount * 180,
+					y: parentPos.y + parentHeight + 60,
+				};
+
+				addNode(toolNode, { position });
+
+				const inputId = InputId.generate();
+				addNodeInput(detail.parentNodeId, {
+					id: inputId,
+					label: `Tool ${existingToolCount + 1}`,
+					accessor: `tool-${existingToolCount}`,
+				});
+
+				const toolOutput = toolNode.outputs[0];
+				if (toolOutput) {
+					addConnection({
+						outputNode: toolNode,
+						outputId: toolOutput.id,
+						inputNode: parentNode,
+						inputId,
+						connectionType: "subNode",
+					});
+				}
+
+				clearSelection();
+				setUiNodeState(toolNode.id, { selected: true });
+			}
+
+			if (detail.handleType === "memoryNode") {
+				const currentNodes = subNodeStoreApi.getState().nodes;
+				const currentNodeState = subNodeStoreApi.getState().ui.nodeState;
+
+				const parentNode = currentNodes.find(
+					(n) => n.id === detail.parentNodeId,
+				);
+				if (!parentNode) return;
+
+				const parentUi = currentNodeState[detail.parentNodeId];
+				const parentPos = parentUi?.position ?? { x: 0, y: 0 };
+				const parentHeight = parentUi?.measured?.height ?? 200;
+
+				const memoryNode = createMemoryNodeNode({
+					memoryType: "simpleMemory",
+				});
+
+				const position = {
+					x: parentPos.x + 100,
+					y: parentPos.y + parentHeight + 60,
+				};
+
+				addNode(memoryNode, { position });
+
+				const inputId = InputId.generate();
+				addNodeInput(detail.parentNodeId, {
+					id: inputId,
+					label: "Memory",
+					accessor: "memory",
+				});
+
+				const memoryOutput = memoryNode.outputs[0];
+				if (memoryOutput) {
+					addConnection({
+						outputNode: memoryNode,
+						outputId: memoryOutput.id,
+						inputNode: parentNode,
+						inputId,
+						connectionType: "subNode",
+					});
+				}
+
+				clearSelection();
+				setUiNodeState(memoryNode.id, { selected: true });
+			}
 		};
 		window.addEventListener("sub-node-add", handler);
 		return () => window.removeEventListener("sub-node-add", handler);
@@ -674,6 +777,19 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 			`${selectedNodes[0]?.content.type}` as "appEntry" | "end",
 		);
 
+	// 3-panel layout for generation/execution nodes (INPUT | PARAMETERS | OUTPUT)
+	const isThreePanelNode =
+		isPropertiesPanelOpen &&
+		[
+			"textGeneration",
+			"imageGeneration",
+			"contentGeneration",
+			"aiAgent",
+			"integration",
+			"dataQuery",
+			"query",
+		].includes(`${selectedNodes[0]?.content.type}`);
+
 	const mainRef = useRef<HTMLDivElement>(null);
 
 	return (
@@ -719,8 +835,13 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 							isOpen={isPropertiesPanelOpen}
 							container={mainRef.current}
 							title="Properties Panel"
-							defaultWidth={isTextGenerationPanel ? 400 : undefined}
-							minWidth={isTextGenerationPanel ? 400 : undefined}
+							defaultWidth={
+								isThreePanelNode ? 900 : isTextGenerationPanel ? 400 : undefined
+							}
+							minWidth={
+								isThreePanelNode ? 700 : isTextGenerationPanel ? 400 : undefined
+							}
+							maxWidth={isThreePanelNode ? 1400 : undefined}
 							autoHeight={
 								isFilePanel ||
 								isTextPanel ||

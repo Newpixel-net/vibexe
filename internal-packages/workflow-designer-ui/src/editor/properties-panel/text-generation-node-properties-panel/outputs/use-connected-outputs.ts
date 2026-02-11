@@ -134,6 +134,8 @@ export function useConnectedOutputs(node: TextGenerationNode) {
 							break;
 						case "aiAgent":
 						case "chatModel":
+						case "toolNode":
+						case "memoryNode":
 							break;
 						default: {
 							const _exhaustiveCheck: never = outputNode.content.type;

@@ -8,9 +8,11 @@ import {
 	isEndNode,
 	isFileNode,
 	isImageGenerationNode,
+	isMemoryNodeNode,
 	isQueryNode,
 	isTextGenerationNode,
 	isTextNode,
+	isToolNodeNode,
 	isTriggerNode,
 	isChatModelNode,
 	isIntegrationNode,
@@ -25,6 +27,8 @@ import {
 } from "../../app-designer";
 import { AiAgentNodePropertiesPanel } from "./ai-agent-node-properties-panel";
 import { ChatModelPropertiesPanel } from "./chat-model-properties-panel";
+import { ToolNodePropertiesPanel } from "./tool-node-properties-panel";
+import { MemoryNodePropertiesPanel } from "./memory-node-properties-panel";
 import { ActionNodePropertiesPanel } from "./action-node-properties-panel";
 import { AppEntryNodePropertiesPanel } from "./app-entry-node-properties-panel";
 import { DataQueryNodePropertiesPanel } from "./data-query-properties-panel";
@@ -32,14 +36,34 @@ import { DataStoreNodePropertiesPanel } from "./data-store-properties-panel";
 import { EndNodePropertiesPanel } from "./end-node-properties-panel";
 import { FileNodePropertiesPanel } from "./file-node-properties-panel";
 import { ImageGenerationNodePropertiesPanel } from "./image-generation-node-properties-panel";
+import { InputPanel } from "./input-panel";
 import { IntegrationNodePropertiesPanel } from "./integration-node-properties-panel";
+import { OutputPanel } from "./output-panel";
 import { QueryNodePropertiesPanel } from "./query-node-properties-panel";
 import { TextGenerationNodePropertiesPanel } from "./text-generation-node-properties-panel";
 import { TextGenerationNodePropertiesPanelV2 } from "./text-generation-node-properties-panel-v2";
 import { TextNodePropertiesPanel } from "./text-node-properties-panel";
+import { ThreePanelLayout } from "./three-panel-layout";
 import { TriggerNodePropertiesPanel } from "./trigger-node-properties-panel";
 import { VectorStoreNodePropertiesPanel } from "./vector-store";
 import { WebPageNodePropertiesPanel } from "./web-page-node-properties-panel";
+
+/**
+ * Check if a node should use the 3-panel layout (INPUT | PARAMETERS | OUTPUT).
+ * Only generation/execution nodes benefit from seeing inputs and outputs.
+ */
+function isThreePanelNode(node: unknown): boolean {
+	if (!node) return false;
+	return (
+		isTextGenerationNode(node) ||
+		isImageGenerationNode(node) ||
+		isContentGenerationNode(node) ||
+		isAiAgentNode(node) ||
+		isIntegrationNode(node) ||
+		isDataQueryNode(node) ||
+		isQueryNode(node)
+	);
+}
 
 export function PropertiesPanel() {
 	const selectedNodes = useAppDesignerStore(
@@ -48,6 +72,129 @@ export function PropertiesPanel() {
 		),
 	);
 	const setCurrentShortcutScope = useSetCurrentShortcutScope();
+
+	const node = selectedNodes[0];
+	const useThreePanel = isThreePanelNode(node);
+
+	const parametersContent = (
+		<>
+			{isTextGenerationNode(node) && (
+				<TextGenerationNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isImageGenerationNode(node) && (
+				<ImageGenerationNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isTextNode(node) && (
+				<TextNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isFileNode(node) && (
+				<FileNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isWebPageNode(node) && (
+				<WebPageNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isTriggerNode(node) && (
+				<TriggerNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isActionNode(node) && (
+				<ActionNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isIntegrationNode(node) && (
+				<IntegrationNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isVectorStoreNode(node) && (
+				<VectorStoreNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isDataStoreNode(node) && (
+				<DataStoreNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isDataQueryNode(node) && (
+				<DataQueryNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isQueryNode(node) && (
+				<QueryNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isAppEntryNode(node) && (
+				<AppEntryNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isContentGenerationNode(node) && (
+				<TextGenerationNodePropertiesPanelV2
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isAiAgentNode(node) && (
+				<AiAgentNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isChatModelNode(node) && (
+				<ChatModelPropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isToolNodeNode(node) && (
+				<ToolNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isMemoryNodeNode(node) && (
+				<MemoryNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{isEndNode(node) && (
+				<EndNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+		</>
+	);
+
 	return (
 		<section
 			className={clsx("h-full text-inverse outline-none")}
@@ -60,107 +207,14 @@ export function PropertiesPanel() {
 			}}
 			tabIndex={-1}
 		>
-			{isTextGenerationNode(selectedNodes[0]) && (
-				<TextGenerationNodePropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
+			{useThreePanel && node ? (
+				<ThreePanelLayout
+					inputPanel={<InputPanel nodeId={node.id} />}
+					parametersPanel={parametersContent}
+					outputPanel={<OutputPanel nodeId={node.id} />}
 				/>
-			)}
-			{isImageGenerationNode(selectedNodes[0]) && (
-				<ImageGenerationNodePropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
-			)}
-			{isTextNode(selectedNodes[0]) && (
-				<TextNodePropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
-			)}
-			{isFileNode(selectedNodes[0]) && (
-				<FileNodePropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
-			)}
-			{isWebPageNode(selectedNodes[0]) && (
-				<WebPageNodePropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
-			)}
-			{isTriggerNode(selectedNodes[0]) && (
-				<TriggerNodePropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
-			)}
-			{isActionNode(selectedNodes[0]) && (
-				<ActionNodePropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
-			)}
-			{isIntegrationNode(selectedNodes[0]) && (
-				<IntegrationNodePropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
-			)}
-			{isVectorStoreNode(selectedNodes[0]) && (
-				<VectorStoreNodePropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
-			)}
-			{isDataStoreNode(selectedNodes[0]) && (
-				<DataStoreNodePropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
-			)}
-			{isDataQueryNode(selectedNodes[0]) && (
-				<DataQueryNodePropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
-			)}
-			{isQueryNode(selectedNodes[0]) && (
-				<QueryNodePropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
-			)}
-			{isAppEntryNode(selectedNodes[0]) && (
-				<AppEntryNodePropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
-			)}
-			{isContentGenerationNode(selectedNodes[0]) && (
-				<TextGenerationNodePropertiesPanelV2
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
-			)}
-			{isAiAgentNode(selectedNodes[0]) && (
-				<AiAgentNodePropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
-			)}
-			{isChatModelNode(selectedNodes[0]) && (
-				<ChatModelPropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
-			)}
-			{isEndNode(selectedNodes[0]) && (
-				<EndNodePropertiesPanel
-					node={selectedNodes[0]}
-					key={selectedNodes[0].id}
-				/>
+			) : (
+				parametersContent
 			)}
 		</section>
 	);

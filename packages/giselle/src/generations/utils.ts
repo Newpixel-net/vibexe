@@ -112,7 +112,9 @@ export async function buildMessageObject({
 		case "query":
 		case "appEntry":
 		case "integration":
-		case "chatModel": {
+		case "chatModel":
+		case "toolNode":
+		case "memoryNode": {
 			return [];
 		}
 		default: {
@@ -326,7 +328,9 @@ async function buildGenerationMessageForTextGeneration({
 			case "trigger":
 			case "action":
 			case "integration":
-			case "chatModel": {
+			case "chatModel":
+			case "toolNode":
+			case "memoryNode": {
 				const result = await generationContentResolver(
 					contextNode.id,
 					sourceKeyword.outputId,
@@ -639,7 +643,9 @@ async function buildGenerationMessageForImageGeneration(
 			case "query":
 			case "dataQuery":
 			case "integration":
-			case "chatModel": {
+			case "chatModel":
+			case "toolNode":
+			case "memoryNode": {
 				const result = await textGenerationResolver(
 					contextNode.id,
 					sourceKeyword.outputId,
@@ -1163,7 +1169,9 @@ async function buildGenerationMessageForContentGeneration({
 			case "action":
 			case "dataQuery":
 			case "integration":
-			case "chatModel": {
+			case "chatModel":
+			case "toolNode":
+			case "memoryNode": {
 				const result = await generationContentResolver(
 					contextNode.id,
 					sourceKeyword.outputId,

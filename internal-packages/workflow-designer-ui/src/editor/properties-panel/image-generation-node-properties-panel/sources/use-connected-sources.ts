@@ -132,6 +132,8 @@ export function useConnectedSources(node: ImageGenerationNode) {
 						case "integration":
 						case "aiAgent":
 						case "chatModel":
+						case "toolNode":
+						case "memoryNode":
 							connectedActionSources.push({
 								output,
 								node: outputNode as ActionNode,

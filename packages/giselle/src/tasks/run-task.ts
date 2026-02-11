@@ -123,6 +123,8 @@ async function executeStep(args: {
 				break;
 			case "end":
 			case "chatModel":
+			case "toolNode":
+			case "memoryNode":
 				break;
 			default: {
 				const _exhaustiveCheck: never =

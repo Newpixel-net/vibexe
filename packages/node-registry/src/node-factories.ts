@@ -10,6 +10,8 @@ import {
 	type AiAgentNode,
 	type AppEntryNode,
 	type ChatModelNode,
+	type MemoryNodeNode,
+	type ToolNodeNode,
 	AppParameterId,
 	type ContentGenerationNode,
 	createPendingCopyFileData,
@@ -31,10 +33,14 @@ import {
 	InputId,
 	type IntegrationContent,
 	type IntegrationNode,
+	type MemoryNodeContent,
+	type ToolNodeContent,
 	isActionNode,
 	isAiAgentNode,
 	isAppEntryNode,
 	isChatModelNode,
+	isMemoryNodeNode,
+	isToolNodeNode,
 	isContentGenerationNode,
 	isDataQueryNode,
 	isDataStoreNode,
@@ -1128,6 +1134,114 @@ const chatModelFactoryImpl = {
 	},
 } satisfies NodeFactory<ChatModelNode, CreateChatModelNodeInput>;
 
+interface ToolNodeCreateInput {
+	toolType: ToolNodeContent["toolType"];
+	pieceName?: string;
+	actionName?: string;
+	pieceVersion?: string;
+	builtinToolName?: string;
+}
+
+const toolNodeFactoryImpl = {
+	create: (input: ToolNodeCreateInput): ToolNodeNode => {
+		const name =
+			input.toolType === "integration" && input.pieceName && input.actionName
+				? `${input.pieceName}: ${input.actionName}`
+				: input.toolType === "builtinTool" && input.builtinToolName
+					? input.builtinToolName
+					: "Tool";
+		return {
+			id: NodeId.generate(),
+			type: "operation",
+			name,
+			content: {
+				type: "toolNode",
+				toolType: input.toolType,
+				pieceName: input.pieceName,
+				actionName: input.actionName,
+				pieceVersion: input.pieceVersion,
+				builtinToolName: input.builtinToolName as any,
+				configuration: {},
+			},
+			inputs: [],
+			outputs: [
+				{
+					id: OutputId.generate(),
+					label: "Tool",
+					accessor: "tool",
+				},
+			],
+		} satisfies ToolNodeNode;
+	},
+	clone: (orig: ToolNodeNode): NodeFactoryCloneResult<ToolNodeNode> => {
+		const clonedContent = structuredClone(orig.content);
+		const { newIo: newInputs, idMap: inputIdMap } =
+			cloneAndRenewInputIdsWithMap(orig.inputs);
+		const { newIo: newOutputs, idMap: outputIdMap } =
+			cloneAndRenewOutputIdsWithMap(orig.outputs);
+
+		const newNode = {
+			id: NodeId.generate(),
+			type: "operation",
+			name: `Copy of ${orig.name ?? defaultName(orig)}`,
+			content: clonedContent,
+			inputs: newInputs,
+			outputs: newOutputs,
+		} satisfies ToolNodeNode;
+		return { newNode, inputIdMap, outputIdMap };
+	},
+} satisfies NodeFactory<ToolNodeNode, ToolNodeCreateInput>;
+
+interface MemoryNodeCreateInput {
+	memoryType: MemoryNodeContent["memoryType"];
+	contextWindowLength?: number;
+	sessionScope?: MemoryNodeContent["sessionScope"];
+}
+
+const memoryNodeFactoryImpl = {
+	create: (input: MemoryNodeCreateInput): MemoryNodeNode => {
+		return {
+			id: NodeId.generate(),
+			type: "operation",
+			name:
+				input.memoryType === "simpleMemory"
+					? "Simple Memory"
+					: "Window Buffer Memory",
+			content: {
+				type: "memoryNode",
+				memoryType: input.memoryType,
+				contextWindowLength: input.contextWindowLength ?? 10,
+				sessionScope: input.sessionScope ?? "agent",
+			},
+			inputs: [],
+			outputs: [
+				{
+					id: OutputId.generate(),
+					label: "Memory",
+					accessor: "memory",
+				},
+			],
+		} satisfies MemoryNodeNode;
+	},
+	clone: (orig: MemoryNodeNode): NodeFactoryCloneResult<MemoryNodeNode> => {
+		const clonedContent = structuredClone(orig.content);
+		const { newIo: newInputs, idMap: inputIdMap } =
+			cloneAndRenewInputIdsWithMap(orig.inputs);
+		const { newIo: newOutputs, idMap: outputIdMap } =
+			cloneAndRenewOutputIdsWithMap(orig.outputs);
+
+		const newNode = {
+			id: NodeId.generate(),
+			type: "operation",
+			name: `Copy of ${orig.name ?? defaultName(orig)}`,
+			content: clonedContent,
+			inputs: newInputs,
+			outputs: newOutputs,
+		} satisfies MemoryNodeNode;
+		return { newNode, inputIdMap, outputIdMap };
+	},
+} satisfies NodeFactory<MemoryNodeNode, MemoryNodeCreateInput>;
+
 // --- Factories Manager ---
 const factoryImplementations = {
 	textGeneration: textGenerationFactoryImpl,
@@ -1148,6 +1262,8 @@ const factoryImplementations = {
 	contentGeneration: contentGenerationFactoryImpl,
 	aiAgent: aiAgentFactoryImpl,
 	chatModel: chatModelFactoryImpl,
+	toolNode: toolNodeFactoryImpl,
+	memoryNode: memoryNodeFactoryImpl,
 } as const;
 
 type CreateArgMap = {
@@ -1169,6 +1285,8 @@ type CreateArgMap = {
 	contentGeneration: CreateContentGenerationNodeInput;
 	aiAgent: CreateAiAgentNodeInput;
 	chatModel: CreateChatModelNodeInput;
+	toolNode: ToolNodeCreateInput;
+	memoryNode: MemoryNodeCreateInput;
 };
 
 const nodeTypesRequiringArg = (
@@ -1189,6 +1307,16 @@ export function createChatModelNode(
 	input: CreateChatModelNodeInput,
 ): ChatModelNode {
 	return chatModelFactoryImpl.create(input);
+}
+
+export function createToolNodeNode(input: ToolNodeCreateInput): ToolNodeNode {
+	return toolNodeFactoryImpl.create(input);
+}
+
+export function createMemoryNodeNode(
+	input: MemoryNodeCreateInput,
+): MemoryNodeNode {
+	return memoryNodeFactoryImpl.create(input);
 }
 
 export function createTextGenerationNode(
@@ -1402,6 +1530,20 @@ export function cloneNode<N extends Node>(
 				) as NodeFactoryCloneResult<N>;
 			}
 			break;
+		case "toolNode":
+			if (isToolNodeNode(sourceNode)) {
+				return toolNodeFactoryImpl.clone(
+					sourceNode,
+				) as NodeFactoryCloneResult<N>;
+			}
+			break;
+		case "memoryNode":
+			if (isMemoryNodeNode(sourceNode)) {
+				return memoryNodeFactoryImpl.clone(
+					sourceNode,
+				) as NodeFactoryCloneResult<N>;
+			}
+			break;
 		default: {
 			const _exhaustive: never = contentType;
 			throw new Error(`No clone factory for content type: ${_exhaustive}`);
@@ -1473,6 +1615,14 @@ export const nodeFactories = {
 			case "chatModel":
 				return factoryImplementations.chatModel.create(
 					arg as CreateArgMap["chatModel"],
+				);
+			case "toolNode":
+				return factoryImplementations.toolNode.create(
+					arg as CreateArgMap["toolNode"],
+				);
+			case "memoryNode":
+				return factoryImplementations.memoryNode.create(
+					arg as CreateArgMap["memoryNode"],
 				);
 			default: {
 				const _exhaustive: never = type;
@@ -1571,6 +1721,16 @@ export const nodeFactories = {
 			case "chatModel":
 				if (isChatModelNode(sourceNode)) {
 					return factoryImplementations.chatModel.clone(sourceNode);
+				}
+				break;
+			case "toolNode":
+				if (isToolNodeNode(sourceNode)) {
+					return factoryImplementations.toolNode.clone(sourceNode);
+				}
+				break;
+			case "memoryNode":
+				if (isMemoryNodeNode(sourceNode)) {
+					return factoryImplementations.memoryNode.clone(sourceNode);
 				}
 				break;
 			default: {

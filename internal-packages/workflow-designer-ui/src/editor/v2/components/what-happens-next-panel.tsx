@@ -31,6 +31,7 @@ import {
 	createQueryNode,
 	createTextGenerationNode,
 	createTextNode,
+	createTriggerNode,
 	createWebPageNode,
 } from "@giselles-ai/node-registry";
 import {
@@ -45,10 +46,12 @@ import clsx from "clsx/lite";
 import {
 	BotIcon,
 	ChevronLeftIcon,
+	ClockIcon,
 	FlagIcon,
 	GitBranchIcon,
 	GlobeIcon,
 	LayersIcon,
+	LinkIcon,
 	PlayIcon,
 	SearchIcon,
 	SparklesIcon,
@@ -537,6 +540,49 @@ export function WhatHappensNextPanel({
 										</div>
 									</div>
 								)}
+
+								{/* Triggers */}
+								<div className="pt-2 border-t border-white/5 mt-1">
+									<div className="flex items-center gap-3 px-3 py-1.5">
+										<div className="w-[36px] h-[36px] rounded-[10px] bg-white/8 flex items-center justify-center text-inverse/70 shrink-0">
+											<ClockIcon className="w-[18px] h-[18px]" />
+										</div>
+										<div>
+											<div className="text-[13px] font-medium text-inverse">
+												Triggers
+											</div>
+											<div className="text-[11px] text-inverse/50">
+												Start workflows automatically
+											</div>
+										</div>
+									</div>
+									<div className="flex gap-2 px-3 pt-1 pb-1 ml-[48px]">
+										<button
+											type="button"
+											onClick={() =>
+												handleAddAndConnect(
+													createTriggerNode("schedule"),
+												)
+											}
+											className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-[11px] font-medium bg-white/8 text-inverse/70 hover:bg-white/12 hover:text-inverse transition-colors"
+										>
+											<ClockIcon className="w-3 h-3" />
+											Schedule
+										</button>
+										<button
+											type="button"
+											onClick={() =>
+												handleAddAndConnect(
+													createTriggerNode("webhook"),
+												)
+											}
+											className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-[11px] font-medium bg-white/8 text-inverse/70 hover:bg-white/12 hover:text-inverse transition-colors"
+										>
+											<LinkIcon className="w-3 h-3" />
+											Webhook
+										</button>
+									</div>
+								</div>
 
 								{/* Quick Add */}
 								<div className="pt-2 border-t border-white/5 mt-2">

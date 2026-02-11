@@ -569,7 +569,9 @@ async function resolveQuery(
 			}
 			case "end":
 			case "aiAgent":
-			case "chatModel": {
+			case "chatModel":
+			case "toolNode":
+			case "memoryNode": {
 				replaceKeywordValues.push({ replaceKeyword, value: "" });
 				break;
 			}

@@ -4,6 +4,8 @@ import { NodeId } from "../node/base";
 import { WorkspaceId } from "../workspace/id";
 import { GitHubEventConfiguration } from "./github";
 import { ManualTrigger } from "./manual";
+import { ScheduleTrigger } from "./schedule";
+import { WebhookTrigger } from "./webhook";
 
 export {
 	ManualParameterType as ParameterType,
@@ -12,6 +14,17 @@ export {
 	ManualTriggerParameter,
 	ManualTriggerParameterId,
 } from "./manual";
+
+export {
+	ScheduleTrigger,
+	ScheduleTriggerEvent,
+} from "./schedule";
+
+export {
+	WebhookTrigger,
+	WebhookTriggerEvent,
+	WebhookPathId,
+} from "./webhook";
 
 export const TriggerId = createIdGenerator("fltg");
 export type TriggerId = z.infer<typeof TriggerId.schema>;
@@ -24,6 +37,8 @@ export const Trigger = z.object({
 	configuration: z.discriminatedUnion("provider", [
 		GitHubEventConfiguration,
 		ManualTrigger,
+		ScheduleTrigger,
+		WebhookTrigger,
 	]),
 });
 export type Trigger = z.infer<typeof Trigger>;

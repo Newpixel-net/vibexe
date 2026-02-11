@@ -3,6 +3,8 @@ import {
 	isActionNode,
 	isAiAgentNode,
 	isChatModelNode,
+	isMemoryNodeNode,
+	isToolNodeNode,
 	isContentGenerationNode,
 	isDataQueryNode,
 	isDataStoreNode,
@@ -116,6 +118,16 @@ export function defaultName(node: NodeLike) {
 						throw new Error(`Expected chat model node, got ${node.type}`);
 					}
 					return node.name ?? "Chat Model";
+				case "toolNode":
+					if (!isToolNodeNode(node)) {
+						throw new Error(`Expected tool node, got ${node.type}`);
+					}
+					return node.name ?? "Tool";
+				case "memoryNode":
+					if (!isMemoryNodeNode(node)) {
+						throw new Error(`Expected memory node, got ${node.type}`);
+					}
+					return node.name ?? "Memory";
 				case "appEntry":
 					return node.name ?? "Start";
 				default: {

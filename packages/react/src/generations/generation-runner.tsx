@@ -58,7 +58,9 @@ export function GenerationRunner({ generation }: { generation: Generation }) {
 		case "integration":
 			return <IntegrationRunner generation={generation} />;
 		case "chatModel":
-			// Chat model nodes are configuration-only sub-nodes; no runner needed
+		case "toolNode":
+		case "memoryNode":
+			// Sub-nodes are configuration-only; no runner needed
 			return null;
 		default: {
 			const _exhaustiveCheck: never = generationContext.operationNode.content;

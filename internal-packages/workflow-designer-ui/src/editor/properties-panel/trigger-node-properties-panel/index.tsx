@@ -6,6 +6,8 @@ import { PropertiesPanelContent, PropertiesPanelRoot } from "../ui";
 import { NodePanelHeader } from "../ui/node-panel-header";
 import { GitHubTriggerPropertiesPanel } from "./providers/github-trigger/github-trigger-properties-panel";
 import { ManualTriggerPropertiesPanel } from "./providers/manual-trigger/manual-trigger-properties-panel";
+import { ScheduleTriggerPropertiesPanel } from "./providers/schedule-trigger/schedule-trigger-properties-panel";
+import { WebhookTriggerPropertiesPanel } from "./providers/webhook-trigger/webhook-trigger-properties-panel";
 
 export function TriggerNodePropertiesPanel({ node }: { node: TriggerNode }) {
 	const updateNodeData = useUpdateNodeData();
@@ -40,6 +42,10 @@ function PropertiesPanel({ node }: { node: TriggerNode }) {
 			return <GitHubTriggerPropertiesPanel node={node} />;
 		case "manual":
 			return <ManualTriggerPropertiesPanel node={node} />;
+		case "schedule":
+			return <ScheduleTriggerPropertiesPanel node={node} />;
+		case "webhook":
+			return <WebhookTriggerPropertiesPanel node={node} />;
 		default: {
 			const _exhaustiveCheck: never = node.content.provider;
 			throw new Error(`Unhandled action: ${_exhaustiveCheck}`);

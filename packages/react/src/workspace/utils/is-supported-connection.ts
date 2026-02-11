@@ -274,11 +274,15 @@ export function isSupportedConnection(
 		}
 	}
 
-	// chatModel sub-nodes cannot be connected via regular handles
-	if (outputNode.content.type === "chatModel") {
+	// Sub-nodes (chatModel, toolNode, memoryNode) cannot be connected via regular handles
+	if (
+		outputNode.content.type === "chatModel" ||
+		outputNode.content.type === "toolNode" ||
+		outputNode.content.type === "memoryNode"
+	) {
 		return {
 			canConnect: false,
-			message: "Chat Model nodes connect via AI Agent bottom handles",
+			message: "Sub-nodes connect via AI Agent bottom handles",
 		};
 	}
 

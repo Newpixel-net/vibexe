@@ -33,6 +33,8 @@ const edgeColorMap: Record<string, string> = {
 	contentGeneration: "var(--color-generation-node-1)",
 	aiAgent: "var(--color-generation-node-1)",
 	chatModel: "var(--color-generation-node-1)",
+	toolNode: "var(--color-generation-node-1)",
+	memoryNode: "var(--color-generation-node-1)",
 	file: "var(--color-file-node-1)",
 	webPage: "var(--color-webPage-node-1)",
 	text: "var(--color-text-node-1)",

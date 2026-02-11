@@ -27,11 +27,19 @@ import {
 	IntegrationContent,
 	IntegrationContentReference,
 } from "./integration";
+import {
+	MemoryNodeContent,
+	MemoryNodeContentReference,
+} from "./memory-node";
 import { QueryContent, QueryContentReference } from "./query";
 import {
 	TextGenerationContent,
 	TextGenerationContentReference,
 } from "./text-generation";
+import {
+	ToolNodeContent,
+	ToolNodeContentReference,
+} from "./tool-node";
 import { TriggerContent, TriggerContentReference } from "./trigger";
 
 const OperationNodeContent = z.discriminatedUnion("type", [
@@ -47,6 +55,8 @@ const OperationNodeContent = z.discriminatedUnion("type", [
 	EndContent,
 	AiAgentContent,
 	ChatModelContent,
+	ToolNodeContent,
+	MemoryNodeContent,
 ]);
 
 export const OperationNode = NodeBase.extend({
@@ -75,6 +85,8 @@ export const OperationNodeLike = NodeBase.extend({
 			EndContent.shape.type,
 			AiAgentContent.shape.type,
 			ChatModelContent.shape.type,
+			ToolNodeContent.shape.type,
+			MemoryNodeContent.shape.type,
 		]),
 	}),
 });
@@ -211,6 +223,24 @@ export function isChatModelNode(args?: unknown): args is ChatModelNode {
 	return result.success;
 }
 
+export const ToolNodeNode = OperationNode.extend({
+	content: ToolNodeContent,
+});
+export type ToolNodeNode = z.infer<typeof ToolNodeNode>;
+export function isToolNodeNode(args?: unknown): args is ToolNodeNode {
+	const result = ToolNodeNode.safeParse(args);
+	return result.success;
+}
+
+export const MemoryNodeNode = OperationNode.extend({
+	content: MemoryNodeContent,
+});
+export type MemoryNodeNode = z.infer<typeof MemoryNodeNode>;
+export function isMemoryNodeNode(args?: unknown): args is MemoryNodeNode {
+	const result = MemoryNodeNode.safeParse(args);
+	return result.success;
+}
+
 export const EndNode = OperationNode.extend({
 	content: EndContent,
 });
@@ -233,6 +263,8 @@ const OperationNodeContentReference = z.discriminatedUnion("type", [
 	EndContentReference,
 	AiAgentContentReference,
 	ChatModelContentReference,
+	ToolNodeContentReference,
+	MemoryNodeContentReference,
 ]);
 export const OperationNodeReference = NodeReferenceBase.extend({
 	type: OperationNode.shape.type,

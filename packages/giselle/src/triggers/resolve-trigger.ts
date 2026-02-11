@@ -170,6 +170,62 @@ export async function resolveTrigger(args: {
 			}
 			break;
 		}
+		case "schedule": {
+			// Schedule triggers don't have input parameters — they fire on cron.
+			// Any configured output (e.g., "triggered_at") can be set here.
+			const triggeredAtOutput = operationNode.outputs.find(
+				(output) => output.accessor === "triggered_at",
+			);
+			if (triggeredAtOutput) {
+				outputs.push({
+					type: "generated-text",
+					outputId: triggeredAtOutput.id,
+					content: new Date().toISOString(),
+				});
+			}
+			break;
+		}
+		case "webhook": {
+			// Webhook triggers pass the request body as trigger output.
+			// The body is available via ParametersInput (same as manual triggers).
+			const webhookParamsInput = generationContext.inputs?.find(
+				(i): i is GenerationContextInput & { type: "parameters" } =>
+					i.type === "parameters",
+			);
+
+			if (webhookParamsInput) {
+				// Map each item to an output by accessor name
+				for (const item of webhookParamsInput.items) {
+					const output = operationNode.outputs.find(
+						(o) => o.accessor === item.name,
+					);
+					if (output) {
+						outputs.push({
+							type: "generated-text",
+							outputId: output.id,
+							content: `${item.value}`,
+						});
+					}
+				}
+			}
+
+			// Also provide the raw body as a "body" output if it exists
+			const bodyOutput = operationNode.outputs.find(
+				(o) => o.accessor === "body",
+			);
+			if (bodyOutput && webhookParamsInput) {
+				const bodyObj: Record<string, unknown> = {};
+				for (const item of webhookParamsInput.items) {
+					bodyObj[item.name] = item.value;
+				}
+				outputs.push({
+					type: "generated-text",
+					outputId: bodyOutput.id,
+					content: JSON.stringify(bodyObj),
+				});
+			}
+			break;
+		}
 		default: {
 			const _exhaustiveCheck: never = triggerData.configuration;
 			throw new Error(`Unhandled provider: ${_exhaustiveCheck}`);

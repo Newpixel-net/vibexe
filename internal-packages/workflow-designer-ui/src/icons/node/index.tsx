@@ -12,7 +12,7 @@ import {
 	isVectorStoreNode,
 	type NodeLike,
 } from "@giselles-ai/protocol";
-import { BotIcon, BrainCircuitIcon, CableIcon, DatabaseZapIcon, FlagIcon, PlayIcon, ZapIcon } from "lucide-react";
+import { BotIcon, BrainCircuitIcon, BrainIcon, CableIcon, ClockIcon, DatabaseZapIcon, FlagIcon, LinkIcon, PlayIcon, WrenchIcon, ZapIcon } from "lucide-react";
 import type { SVGProps } from "react";
 import { AnthropicIcon } from "../anthropic";
 import { Flux1Icon } from "../flux1";
@@ -213,6 +213,10 @@ export function NodeIcon({
 							return <GitHubIcon {...props} data-content-type-icon />;
 						case "manual":
 							return <ZapIcon {...props} data-content-type-icon />;
+						case "schedule":
+							return <ClockIcon {...props} data-content-type-icon />;
+						case "webhook":
+							return <LinkIcon {...props} data-content-type-icon />;
 						default: {
 							const _exhaustiveCheck: never = node.content;
 							throw new Error(
@@ -257,6 +261,10 @@ export function NodeIcon({
 					return <BotIcon {...props} data-content-type-icon />;
 				case "chatModel":
 					return <BrainCircuitIcon {...props} data-content-type-icon />;
+				case "toolNode":
+					return <WrenchIcon {...props} data-content-type-icon />;
+				case "memoryNode":
+					return <BrainIcon {...props} data-content-type-icon />;
 				default: {
 					const _exhaustiveCheck: never = node.content.type;
 					throw new Error(`Unhandled node type: ${_exhaustiveCheck}`);

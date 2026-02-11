@@ -23,6 +23,8 @@ function getNodeIconColor(node: NodeLike): string {
 			case "integration":
 			case "aiAgent":
 			case "chatModel":
+			case "toolNode":
+			case "memoryNode":
 				return "text-inverse";
 			case "dataQuery":
 			case "trigger":
@@ -91,6 +93,8 @@ function getNodeIconBackground(node: NodeLike): string {
 			case "aiAgent":
 				return "bg-generation-node-1";
 			case "chatModel":
+			case "toolNode":
+			case "memoryNode":
 				return "bg-generation-node-1";
 			default: {
 				const _exhaustiveCheck: never = node.content.type;

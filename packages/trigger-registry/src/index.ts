@@ -13,6 +13,16 @@ export const triggerRegistry = [
 		label: "Manual Trigger",
 		events: [],
 	},
+	{
+		provider: "schedule",
+		label: "Schedule Trigger",
+		events: [],
+	},
+	{
+		provider: "webhook",
+		label: "Webhook Trigger",
+		events: [],
+	},
 ] as const;
 
 export type TriggerProvider = (typeof triggerRegistry)[number]["provider"];

@@ -1507,3 +1507,60 @@ export const integrationStore = pgTable("integration_store", {
 		.notNull()
 		.$onUpdate(() => new Date()),
 });
+
+// Scheduled Workflows - cron-based workflow execution
+export const scheduledWorkflows = pgTable(
+	"scheduled_workflows",
+	{
+		dbId: serial("db_id").primaryKey(),
+		teamDbId: integer("team_db_id")
+			.notNull()
+			.references(() => teams.dbId, { onDelete: "cascade" }),
+		sdkWorkspaceId: text("workspace_id").$type<WorkspaceId>().notNull(),
+		agentNodeId: text("agent_node_id").notNull(),
+		sdkFlowTriggerId: text("flow_trigger_id").$type<TriggerId>(),
+		cronExpression: text("cron_expression").notNull(),
+		timezone: text("timezone").notNull().default("UTC"),
+		enabled: boolean("enabled").notNull().default(false),
+		lastRunAt: timestamp("last_run_at"),
+		nextRunAt: timestamp("next_run_at"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		index("scheduled_workflows_team_idx").on(table.teamDbId),
+		index("scheduled_workflows_enabled_idx").on(table.enabled),
+		index("scheduled_workflows_next_run_idx").on(table.nextRunAt),
+	],
+);
+
+// Webhook Endpoints - HTTP-triggered workflow execution
+export const webhookEndpoints = pgTable(
+	"webhook_endpoints",
+	{
+		dbId: serial("db_id").primaryKey(),
+		teamDbId: integer("team_db_id")
+			.notNull()
+			.references(() => teams.dbId, { onDelete: "cascade" }),
+		sdkWorkspaceId: text("workspace_id").$type<WorkspaceId>().notNull(),
+		agentNodeId: text("agent_node_id").notNull(),
+		sdkFlowTriggerId: text("flow_trigger_id").$type<TriggerId>(),
+		webhookPath: text("webhook_path").notNull(),
+		method: text("method").notNull().default("POST"),
+		enabled: boolean("enabled").notNull().default(true),
+		lastTriggeredAt: timestamp("last_triggered_at"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		uniqueIndex("webhook_endpoints_path_unique").on(table.webhookPath),
+		index("webhook_endpoints_team_idx").on(table.teamDbId),
+		index("webhook_endpoints_enabled_idx").on(table.enabled),
+	],
+);

@@ -89,6 +89,8 @@ function useVariant(node: NodeLike) {
 		const isIntegration = node.content.type === "integration";
 		const isAiAgent = node.content.type === "aiAgent";
 		const isChatModel = node.content.type === "chatModel";
+		const isToolNode = node.content.type === "toolNode";
+		const isMemoryNode = node.content.type === "memoryNode";
 
 		const isVectorStoreGithub =
 			isVectorStore &&
@@ -110,7 +112,9 @@ function useVariant(node: NodeLike) {
 			isDataStore ||
 			isDataQuery ||
 			isAiAgent ||
-			isChatModel;
+			isChatModel ||
+			isToolNode ||
+			isMemoryNode;
 
 		const isDarkIconText =
 			isText || isFile || isWebPage || isQuery || isDataStore || isDataQuery;
@@ -123,7 +127,9 @@ function useVariant(node: NodeLike) {
 			isAction ||
 			isIntegration ||
 			isAiAgent ||
-			isChatModel;
+			isChatModel ||
+			isToolNode ||
+			isMemoryNode;
 
 		return {
 			isText,
@@ -142,6 +148,8 @@ function useVariant(node: NodeLike) {
 			isIntegration,
 			isAiAgent,
 			isChatModel,
+			isToolNode,
+			isMemoryNode,
 			isVectorStoreGithub,
 			isVectorStoreDocument,
 			isGithubTrigger,
@@ -615,6 +623,28 @@ function BottomHandles({ nodeId }: { nodeId: NodeId }) {
 		[connections, nodeId],
 	);
 
+	const hasMemory = useMemo(
+		() =>
+			connections.some(
+				(c) =>
+					c.inputNode.id === nodeId &&
+					c.connectionType === "subNode" &&
+					c.outputNode.content.type === "memoryNode",
+			),
+		[connections, nodeId],
+	);
+
+	const toolCount = useMemo(
+		() =>
+			connections.filter(
+				(c) =>
+					c.inputNode.id === nodeId &&
+					c.connectionType === "subNode" &&
+					c.outputNode.content.type === "toolNode",
+			).length,
+		[connections, nodeId],
+	);
+
 	const handleSubNodeAdd = useCallback(
 		(handleType: string) => (e: React.MouseEvent) => {
 			e.stopPropagation();
@@ -655,27 +685,52 @@ function BottomHandles({ nodeId }: { nodeId: NodeId }) {
 					<span className="text-[8px] text-inverse/40">Model*</span>
 				)}
 			</div>
-			{/* Memory handle (future) */}
+			{/* Memory handle */}
 			<div className="flex flex-col items-center gap-[2px]">
 				<Handle
 					type="target"
 					id={"memory" as string}
 					position={Position.Bottom}
 					style={{ position: "relative", transform: "none", left: 0, top: 0 }}
-					className="!w-[10px] !h-[10px] !rounded-full !border-[1.5px] !border-generation-node-1/40 !bg-background"
+					className={clsx(
+						"!w-[10px] !h-[10px] !rounded-full !border-[1.5px] !border-generation-node-1",
+						hasMemory ? "!bg-generation-node-1" : "!bg-background",
+					)}
 				/>
-				<span className="text-[8px] text-inverse/20">Memory</span>
+				{!hasMemory && (
+					<button
+						type="button"
+						onClick={handleSubNodeAdd("memoryNode")}
+						className="text-[8px] text-inverse/40 hover:text-inverse/80 cursor-pointer flex items-center gap-[1px]"
+					>
+						<PlusIcon className="w-[8px] h-[8px]" />
+						<span>Memory</span>
+					</button>
+				)}
+				{hasMemory && (
+					<span className="text-[8px] text-inverse/40">Memory</span>
+				)}
 			</div>
-			{/* Tool handle (future) */}
+			{/* Tool handle */}
 			<div className="flex flex-col items-center gap-[2px]">
 				<Handle
 					type="target"
 					id={"tool" as string}
 					position={Position.Bottom}
 					style={{ position: "relative", transform: "none", left: 0, top: 0 }}
-					className="!w-[10px] !h-[10px] !rounded-full !border-[1.5px] !border-generation-node-1/40 !bg-background"
+					className={clsx(
+						"!w-[10px] !h-[10px] !rounded-full !border-[1.5px] !border-generation-node-1",
+						toolCount > 0 ? "!bg-generation-node-1" : "!bg-background",
+					)}
 				/>
-				<span className="text-[8px] text-inverse/20">Tool</span>
+				<button
+					type="button"
+					onClick={handleSubNodeAdd("toolNode")}
+					className="text-[8px] text-inverse/40 hover:text-inverse/80 cursor-pointer flex items-center gap-[1px]"
+				>
+					<PlusIcon className="w-[8px] h-[8px]" />
+					<span>Tool{toolCount > 0 ? ` (${toolCount})` : ""}</span>
+				</button>
 			</div>
 		</div>
 	);
@@ -712,7 +767,9 @@ function InputOutput({
 			{node.type === "operation" &&
 				node.content.type !== "trigger" &&
 				node.content.type !== "appEntry" &&
-				node.content.type !== "chatModel" && (
+				node.content.type !== "chatModel" &&
+				node.content.type !== "toolNode" &&
+				node.content.type !== "memoryNode" && (
 					<Handle
 						type="target"
 						position={Position.Left}
@@ -739,8 +796,8 @@ function InputOutput({
 				)}
 
 			{/* Output handle - centered vertically on right edge */}
-			{/* chatModel nodes have a top source handle instead of right */}
-			{v.isChatModel ? (
+			{/* Sub-nodes (chatModel, toolNode, memoryNode) have a top source handle instead of right */}
+			{(v.isChatModel || v.isToolNode || v.isMemoryNode) ? (
 				<Handle
 					type="source"
 					position={Position.Top}
