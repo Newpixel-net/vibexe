@@ -4,10 +4,12 @@ import { useFeatureFlag } from "@giselles-ai/react";
 import { useCallback, useState } from "react";
 import { useShallow } from "zustand/shallow";
 import { useAppDesignerStore } from "../../app-designer";
+import { RunHistoryTable } from "../run-history/run-history-table";
 import { ReadOnlyBanner } from "../../ui/read-only-banner";
 import { FloatingChat } from "../chat";
 import { tourSteps, WorkspaceTour } from "../workspace-tour";
 import { V2Container, V2Footer, V2Header } from "./components";
+import type { EditorTab } from "./components/v2-header-tabs";
 import { RootProvider } from "./components/provider";
 import type { LeftPanelValue, V2LayoutState } from "./state";
 
@@ -33,6 +35,7 @@ export function V2Placeholder({
 	});
 	const [isTourOpen, setIsTourOpen] = useState(defaultTour);
 	const [isChatOpen, setIsChatOpen] = useState(false);
+	const [activeTab, setActiveTab] = useState<EditorTab>("editor");
 
 	const handleDismissBanner = useCallback(() => {
 		setShowReadOnlyBanner(false);
@@ -81,18 +84,45 @@ export function V2Placeholder({
 					onNameChange={onNameChange}
 					teamName={teamName}
 					teamAvatarUrl={teamAvatarUrl}
+					activeTab={activeTab}
+					onTabChange={setActiveTab}
 				/>
 				{layoutV3 ? (
 					<>
-						<V2Container
-							{...layoutState}
-							onLeftPanelClose={handleLeftPanelClose}
-						/>
-						<V2Footer
-							onLeftPanelValueChange={handleLeftPanelValueChange}
-							activePanel={layoutState.leftPanel}
-							chat={{ onToggle: handleChatToggle, isOpen: isChatOpen }}
-						/>
+						{activeTab === "editor" && (
+							<V2Container
+								{...layoutState}
+								onLeftPanelClose={handleLeftPanelClose}
+							/>
+						)}
+						{activeTab === "executions" && (
+							<main className="relative flex-1 bg-bg overflow-hidden">
+								<div className="h-full overflow-y-auto p-4">
+									<RunHistoryTable />
+								</div>
+							</main>
+						)}
+						{activeTab === "sharing" && (
+							<main className="relative flex-1 bg-bg overflow-hidden">
+								<div className="h-full flex items-center justify-center">
+									<div className="text-center">
+										<p className="text-inverse/60 text-[14px]">
+											Sharing settings coming soon
+										</p>
+										<p className="text-inverse/30 text-[12px] mt-1">
+											Manage team access and permissions
+										</p>
+									</div>
+								</div>
+							</main>
+						)}
+						{activeTab === "editor" && (
+							<V2Footer
+								onLeftPanelValueChange={handleLeftPanelValueChange}
+								activePanel={layoutState.leftPanel}
+								chat={{ onToggle: handleChatToggle, isOpen: isChatOpen }}
+							/>
+						)}
 					</>
 				) : (
 					<V2Container

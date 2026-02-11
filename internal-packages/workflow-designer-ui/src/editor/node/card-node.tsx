@@ -1,4 +1,7 @@
-import { getPieceCategoryColor } from "@giselles-ai/activepieces-adapter";
+import {
+	getCatalogEntry,
+	getPieceCategoryColor,
+} from "@giselles-ai/activepieces-adapter";
 import { defaultName } from "@giselles-ai/node-registry";
 import type {
 	InputId,
@@ -7,6 +10,7 @@ import type {
 	OutputId,
 } from "@giselles-ai/protocol";
 import {
+	isContentGenerationNode,
 	isImageGenerationNode,
 	isTextGenerationNode,
 	isTriggerNode,
@@ -15,6 +19,7 @@ import {
 import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import clsx from "clsx/lite";
+import { PlusIcon } from "lucide-react";
 import { type CSSProperties, useCallback, useMemo } from "react";
 import { useAppDesignerStore, useUpdateNodeData } from "../../app-designer";
 import { NodeIcon } from "../../icons/node";
@@ -166,6 +171,45 @@ export function NodeComponent({
 		return tmp;
 	}, [node]);
 
+	// Subtitle text for node type context
+	const subtitleText = useMemo(() => {
+		if (isTextGenerationNode(node)) {
+			const modelId = node.content.llm.id ?? "";
+			// Extract a readable name from model ID
+			const parts = modelId.split("/");
+			return parts[parts.length - 1] || node.content.llm.provider;
+		}
+		if (isContentGenerationNode(node)) {
+			const modelId = node.content.languageModel.id ?? "";
+			const parts = modelId.split("/");
+			return parts[parts.length - 1] || node.content.languageModel.provider;
+		}
+		if (isImageGenerationNode(node)) {
+			const modelId = node.content.llm.id ?? "";
+			const parts = modelId.split("/");
+			return parts[parts.length - 1] || node.content.llm.provider;
+		}
+		if (node.content.type === "integration") {
+			const content = node.content as unknown as {
+				pieceName: string;
+				actionName: string;
+			};
+			const piece = getCatalogEntry(content.pieceName);
+			const displayName = piece?.displayName ?? content.pieceName;
+			return `${displayName} \u00b7 ${content.actionName.replace(/_/g, " ")}`;
+		}
+		if (node.content.type === "text") return "Text Prompt";
+		if (node.content.type === "file") return "File Upload";
+		if (node.content.type === "webPage") return "Web Page";
+		if (node.content.type === "vectorStore") return "Vector Store";
+		if (node.content.type === "dataStore") return "Data Store";
+		if (node.content.type === "query") return "Knowledge Query";
+		if (node.content.type === "dataQuery") return "Data Query";
+		if (node.content.type === "trigger") return "Trigger";
+		if (node.content.type === "action") return "Action";
+		return null;
+	}, [node]);
+
 	const v = useVariant(node);
 
 	// Per-piece category color override for integration nodes
@@ -245,7 +289,7 @@ export function NodeComponent({
 		if (!colorVar) return undefined;
 
 		return {
-			backgroundImage: `linear-gradient(to bottom right, color-mix(in srgb, ${colorVar} 30%, transparent 70%), color-mix(in srgb, ${colorVar} 50%, transparent 50%) 50%, ${colorVar})`,
+			backgroundImage: `linear-gradient(to bottom right, color-mix(in srgb, ${colorVar} 40%, transparent 60%), color-mix(in srgb, ${colorVar} 70%, transparent 30%) 50%, ${colorVar})`,
 		};
 	}, [v, requiresSetup, getNodeColorVariable]);
 
@@ -254,9 +298,27 @@ export function NodeComponent({
 		const colorVar = getNodeColorVariable(v);
 		if (!colorVar) return undefined;
 
+		// Stronger gradient for generation & integration nodes
+		const isGenOrIntegration =
+			v.isTextGeneration || v.isContentGeneration || v.isImageGeneration || v.isIntegration;
+		const [s1, s2, s3] = isGenOrIntegration
+			? ["30%", "15%", "8%"]
+			: ["20%", "10%", "5%"];
+
 		return {
-			backgroundImage: `radial-gradient(ellipse farthest-corner at center, color-mix(in srgb, ${colorVar} 15%, transparent 85%) 0%, color-mix(in srgb, ${colorVar} 6%, transparent 94%) 50%, color-mix(in srgb, ${colorVar} 3%, transparent 97%) 75%, transparent 100%)`,
+			backgroundImage: `radial-gradient(ellipse farthest-corner at center, color-mix(in srgb, ${colorVar} ${s1}, transparent) 0%, color-mix(in srgb, ${colorVar} ${s2}, transparent) 50%, color-mix(in srgb, ${colorVar} ${s3}, transparent) 75%, transparent 100%)`,
 		};
+	}, [v, requiresSetup, getNodeColorVariable]);
+
+	// Outer glow shadow for richer visual effect
+	const glowShadowStyle = useMemo(() => {
+		if (requiresSetup) return undefined;
+		const colorVar = getNodeColorVariable(v);
+		if (!colorVar) return undefined;
+
+		return {
+			filter: `drop-shadow(0 0 12px color-mix(in srgb, ${colorVar} 25%, transparent 75%))`,
+		} as CSSProperties;
 	}, [v, requiresSetup, getNodeColorVariable]);
 
 	return (
@@ -270,7 +332,7 @@ export function NodeComponent({
 			data-vector-store-source-provider={
 				isVectorStoreNode(node) ? node.content.source.provider : undefined
 			}
-			style={integrationColorStyle}
+			style={{ ...integrationColorStyle, ...glowShadowStyle }}
 			className={clsx(
 				"group relative rounded-[16px]",
 				nodeLayoutClass,
@@ -336,7 +398,7 @@ export function NodeComponent({
 			/>
 			<div
 				className={clsx(
-					"absolute z-0 inset-0 border-[1.5px] mask-fill",
+					"absolute z-0 inset-0 border-[2px] mask-fill",
 					nodeRadiusClass,
 					requiresSetup
 						? "border-black/60 border-dashed [border-width:2px]"
@@ -344,52 +406,61 @@ export function NodeComponent({
 					!borderGradientStyle && "bg-gradient-to-br",
 					!borderGradientStyle &&
 						v.isText &&
-						"from-text-node-1/30 via-text-node-1/50 to-text-node-1",
+						"from-text-node-1/40 via-text-node-1/70 to-text-node-1",
 					!borderGradientStyle &&
 						v.isFile &&
-						"from-file-node-1/30 via-file-node-1/50 to-file-node-1",
+						"from-file-node-1/40 via-file-node-1/70 to-file-node-1",
 					!borderGradientStyle &&
 						v.isWebPage &&
-						"from-webPage-node-1/30 via-webPage-node-1/50 to-webPage-node-1",
+						"from-webPage-node-1/40 via-webPage-node-1/70 to-webPage-node-1",
 					!borderGradientStyle &&
 						v.isTextGeneration &&
-						"from-generation-node-1/30 via-generation-node-1/50 to-generation-node-1",
+						"from-generation-node-1/40 via-generation-node-1/70 to-generation-node-1",
 					!borderGradientStyle &&
 						v.isContentGeneration &&
-						"from-generation-node-1/30 via-generation-node-1/50 to-generation-node-1",
+						"from-generation-node-1/40 via-generation-node-1/70 to-generation-node-1",
 					!borderGradientStyle &&
 						v.isImageGeneration &&
-						"from-image-generation-node-1/30 via-image-generation-node-1/50 to-image-generation-node-1",
+						"from-image-generation-node-1/40 via-image-generation-node-1/70 to-image-generation-node-1",
 					!borderGradientStyle &&
 						v.isGithub &&
-						"from-github-node-1/30 via-github-node-1/50 to-github-node-1",
+						"from-github-node-1/40 via-github-node-1/70 to-github-node-1",
 					!borderGradientStyle &&
 						v.isVectorStoreGithub &&
-						"from-github-node-1/30 via-github-node-1/50 to-github-node-1",
+						"from-github-node-1/40 via-github-node-1/70 to-github-node-1",
 					!borderGradientStyle &&
 						v.isVectorStoreDocument &&
-						"from-github-node-1/30 via-github-node-1/50 to-github-node-1",
+						"from-github-node-1/40 via-github-node-1/70 to-github-node-1",
 					!borderGradientStyle &&
 						v.isTrigger &&
-						"from-trigger-node-1/30 via-trigger-node-1/50 to-trigger-node-1",
+						"from-trigger-node-1/40 via-trigger-node-1/70 to-trigger-node-1",
 					!borderGradientStyle &&
 						v.isAction &&
-						"from-action-node-1/30 via-action-node-1/50 to-action-node-1",
+						"from-action-node-1/40 via-action-node-1/70 to-action-node-1",
 					!borderGradientStyle &&
 						v.isIntegration &&
-						"from-integration-node-1/30 via-integration-node-1/50 to-integration-node-1",
+						"from-integration-node-1/40 via-integration-node-1/70 to-integration-node-1",
 					!borderGradientStyle &&
 						v.isQuery &&
-						"from-query-node-1/30 via-query-node-1/50 to-query-node-1",
+						"from-query-node-1/40 via-query-node-1/70 to-query-node-1",
 					!borderGradientStyle &&
 						v.isDataStore &&
-						"from-data-store-node-1/30 via-data-store-node-1/50 to-data-store-node-1",
+						"from-data-store-node-1/40 via-data-store-node-1/70 to-data-store-node-1",
 					!borderGradientStyle &&
 						v.isDataQuery &&
-						"from-data-query-node-1/30 via-data-query-node-1/50 to-data-query-node-1",
+						"from-data-query-node-1/40 via-data-query-node-1/70 to-data-query-node-1",
 				)}
 				style={borderGradientStyle}
 			/>
+			{/* Colored left accent stripe for integration nodes */}
+			{v.isIntegration && !requiresSetup && (
+				<div
+					className={clsx("absolute left-0 top-[16px] bottom-[16px] w-[3px] z-[1] rounded-full")}
+					style={{
+						backgroundColor: "var(--color-integration-node-1)",
+					}}
+				/>
+			)}
 			{isTriggerNode(node, "github") &&
 				node.content.state.status === "configured" && (
 					<div className="absolute top-[-20px] left-0 z-10">
@@ -399,11 +470,11 @@ export function NodeComponent({
 					</div>
 				)}
 			<div className={clsx("px-[16px] relative")}>
-				<div className="flex items-center gap-[8px]">
+				<div className="flex items-center gap-[10px]">
 					<div
 						className={clsx(
-							"w-[32px] h-[32px] flex items-center justify-center padding-[8px]",
-							"rounded-[8px]",
+							"w-[44px] h-[44px] flex items-center justify-center shrink-0",
+							"rounded-[12px]",
 							v.isText && "bg-text-node-1",
 							v.isFile && "bg-file-node-1",
 							v.isWebPage && "bg-webPage-node-1",
@@ -424,7 +495,7 @@ export function NodeComponent({
 						<NodeIcon
 							node={node}
 							className={clsx(
-								"w-[16px] h-[16px]",
+								"w-[24px] h-[24px]",
 								v.isText && "fill-current",
 								v.isFile && "fill-current",
 								v.isWebPage && "fill-current",
@@ -454,14 +525,14 @@ export function NodeComponent({
 								v.isTrigger && !v.isGithubTrigger && "text-inverse",
 								v.isGithubTrigger && "text-background",
 								v.isAction && "text-inverse",
-							v.isIntegration && "text-inverse",
+								v.isIntegration && "text-inverse",
 								v.isQuery && "text-background",
 								v.isDataStore && "text-background",
 								v.isDataQuery && "text-background",
 							)}
 						/>
 					</div>
-					<div>
+					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-[2px] pl-[4px] text-[10px] font-mono [&>*:not(:last-child)]:after:content-['/'] [&>*:not(:last-child)]:after:ml-[2px] [&>*:not(:last-child)]:after:text-text/60">
 							{metadataTexts.map((item) => (
 								<div key={item.label} className="text-[10px] text-inverse">
@@ -496,6 +567,11 @@ export function NodeComponent({
 								e.stopPropagation();
 							}}
 						/>
+						{subtitleText && (
+							<div className="pl-[4px] text-[10px] text-inverse/50 truncate max-w-[160px] mt-[1px]">
+								{subtitleText}
+							</div>
+						)}
 					</div>
 				</div>
 			</div>
@@ -525,6 +601,20 @@ function InputOutput({
 	const v = useVariant(node);
 	const isInputConnected = connectedInputIds?.length > 0;
 	const isOutputConnected = connectedOutputIds?.length > 0;
+
+	const handlePlusClick = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			// Dispatch custom event so V2Container can open the WhatHappensNext panel
+			window.dispatchEvent(
+				new CustomEvent("what-happens-next", {
+					detail: { sourceNodeId: node.id },
+				}),
+			);
+		},
+		[node.id],
+	);
+
 	return (
 		<div className="flex justify-between">
 			<div className="grid">
@@ -532,7 +622,7 @@ function InputOutput({
 					node.content.type !== "trigger" &&
 					node.content.type !== "appEntry" && (
 						<div
-							className="group relative flex items-center h-[28px]"
+							className="group/input relative flex items-center h-[28px]"
 							data-state={isInputConnected ? "connected" : "disconnected"}
 						>
 							<Handle
@@ -541,19 +631,19 @@ function InputOutput({
 								className={clsx(
 									"!absolute !w-[11px] !h-[11px] !rounded-full !-left-[4.5px] !translate-x-[50%] !border-[1.5px] !bg-background",
 									v.isTextGeneration &&
-										"!border-generation-node-1 group-data-[state=connected]:!bg-generation-node-1",
+										"!border-generation-node-1 group-data-[state=connected]/input:!bg-generation-node-1",
 									v.isContentGeneration &&
-										"!border-generation-node-1 group-data-[state=connected]:!bg-generation-node-1",
+										"!border-generation-node-1 group-data-[state=connected]/input:!bg-generation-node-1",
 									v.isImageGeneration &&
-										"!border-image-generation-node-1 group-data-[state=connected]:!bg-image-generation-node-1",
+										"!border-image-generation-node-1 group-data-[state=connected]/input:!bg-image-generation-node-1",
 									v.isAction &&
-										"!border-action-node-1 group-data-[state=connected]:!bg-action-node-1",
+										"!border-action-node-1 group-data-[state=connected]/input:!bg-action-node-1",
 									v.isIntegration &&
-										"!border-integration-node-1 group-data-[state=connected]:!bg-integration-node-1",
+										"!border-integration-node-1 group-data-[state=connected]/input:!bg-integration-node-1",
 									v.isQuery &&
-										"!border-query-node-1 group-data-[state=connected]:!bg-query-node-1",
+										"!border-query-node-1 group-data-[state=connected]/input:!bg-query-node-1",
 									v.isDataQuery &&
-										"!border-data-query-node-1 group-data-[state=connected]:!bg-data-query-node-1",
+										"!border-data-query-node-1 group-data-[state=connected]/input:!bg-data-query-node-1",
 								)}
 							/>
 							<div
@@ -572,7 +662,7 @@ function InputOutput({
 
 			<div className="grid">
 				<div
-					className="relative group flex items-center h-[28px]"
+					className="relative group/output flex items-center h-[28px]"
 					data-state={isOutputConnected ? "connected" : "disconnected"}
 				>
 					<Handle
@@ -580,39 +670,55 @@ function InputOutput({
 						position={Position.Right}
 						className={clsx(
 							"!absolute !w-[12px] !h-[12px] !rounded-full !border-[1.5px] !right-[-0.5px]",
-							"group-data-[state=disconnected]:!bg-background",
+							"group-data-[state=disconnected]/output:!bg-background",
 							v.isTextGeneration &&
-								"!border-generation-node-1 group-data-[state=connected]:!bg-generation-node-1",
+								"!border-generation-node-1 group-data-[state=connected]/output:!bg-generation-node-1",
 							v.isContentGeneration &&
-								"!border-generation-node-1 group-data-[state=connected]:!bg-generation-node-1",
+								"!border-generation-node-1 group-data-[state=connected]/output:!bg-generation-node-1",
 							v.isImageGeneration &&
-								"!border-image-generation-node-1 group-data-[state=connected]:!bg-image-generation-node-1",
+								"!border-image-generation-node-1 group-data-[state=connected]/output:!bg-image-generation-node-1",
 							v.isGithub &&
-								"!border-github-node-1 group-data-[state=connected]:!bg-github-node-1",
+								"!border-github-node-1 group-data-[state=connected]/output:!bg-github-node-1",
 							v.isVectorStoreGithub &&
-								"!border-github-node-1 group-data-[state=connected]:!bg-github-node-1",
+								"!border-github-node-1 group-data-[state=connected]/output:!bg-github-node-1",
 							v.isVectorStoreDocument &&
-								"!border-github-node-1 group-data-[state=connected]:!bg-github-node-1",
+								"!border-github-node-1 group-data-[state=connected]/output:!bg-github-node-1",
 							v.isText &&
-								"!border-text-node-1 group-data-[state=connected]:!bg-text-node-1 group-data-[state=connected]:!border-text-node-1",
+								"!border-text-node-1 group-data-[state=connected]/output:!bg-text-node-1 group-data-[state=connected]/output:!border-text-node-1",
 							v.isFile &&
-								"!border-file-node-1 group-data-[state=connected]:!bg-file-node-1 group-data-[state=connected]:!border-file-node-1",
+								"!border-file-node-1 group-data-[state=connected]/output:!bg-file-node-1 group-data-[state=connected]/output:!border-file-node-1",
 							v.isWebPage &&
-								"!border-webPage-node-1 group-data-[state=connected]:!bg-webPage-node-1 group-data-[state=connected]:!border-webPage-node-1",
+								"!border-webPage-node-1 group-data-[state=connected]/output:!bg-webPage-node-1 group-data-[state=connected]/output:!border-webPage-node-1",
 							v.isTrigger &&
-								"!border-trigger-node-1 group-data-[state=connected]:!bg-trigger-node-1 group-data-[state=connected]:!border-trigger-node-1",
+								"!border-trigger-node-1 group-data-[state=connected]/output:!bg-trigger-node-1 group-data-[state=connected]/output:!border-trigger-node-1",
 							v.isAction &&
-								"!border-action-node-1 group-data-[state=connected]:!bg-action-node-1 group-data-[state=connected]:!border-action-node-1",
+								"!border-action-node-1 group-data-[state=connected]/output:!bg-action-node-1 group-data-[state=connected]/output:!border-action-node-1",
 							v.isIntegration &&
-								"!border-integration-node-1 group-data-[state=connected]:!bg-integration-node-1 group-data-[state=connected]:!border-integration-node-1",
+								"!border-integration-node-1 group-data-[state=connected]/output:!bg-integration-node-1 group-data-[state=connected]/output:!border-integration-node-1",
 							v.isQuery &&
-								"!border-query-node-1 group-data-[state=connected]:!bg-query-node-1 group-data-[state=connected]:!border-query-node-1",
+								"!border-query-node-1 group-data-[state=connected]/output:!bg-query-node-1 group-data-[state=connected]/output:!border-query-node-1",
 							v.isDataStore &&
-								"!border-data-store-node-1 group-data-[state=connected]:!bg-data-store-node-1 group-data-[state=connected]:!border-data-store-node-1",
+								"!border-data-store-node-1 group-data-[state=connected]/output:!bg-data-store-node-1 group-data-[state=connected]/output:!border-data-store-node-1",
 							v.isDataQuery &&
-								"!border-data-query-node-1 group-data-[state=connected]:!bg-data-query-node-1 group-data-[state=connected]:!border-data-query-node-1",
+								"!border-data-query-node-1 group-data-[state=connected]/output:!bg-data-query-node-1 group-data-[state=connected]/output:!border-data-query-node-1",
 						)}
 					/>
+					{/* Plus button - appears on node hover */}
+					<button
+						type="button"
+						onClick={handlePlusClick}
+						className={clsx(
+							"absolute -right-[28px] top-1/2 -translate-y-1/2",
+							"w-[20px] h-[20px] rounded-full",
+							"flex items-center justify-center",
+							"bg-inverse/10 backdrop-blur-sm border border-inverse/20",
+							"text-inverse/60 hover:text-inverse hover:bg-inverse/20",
+							"opacity-0 group-hover:opacity-100 transition-opacity duration-150",
+							"cursor-pointer z-10",
+						)}
+					>
+						<PlusIcon className="w-[12px] h-[12px]" />
+					</button>
 					<div
 						className={clsx(
 							"text-[12px]",

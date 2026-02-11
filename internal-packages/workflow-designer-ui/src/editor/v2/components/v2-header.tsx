@@ -15,15 +15,20 @@ import {
 import { GiselleIcon } from "../../../icons";
 import { EditableText, type EditableTextRef } from "../../properties-panel/ui";
 import { RunButton } from "./run-button";
+import { type EditorTab, V2HeaderTabs } from "./v2-header-tabs";
 
 export function V2Header({
 	teamName,
 	teamAvatarUrl,
 	onNameChange,
+	activeTab,
+	onTabChange,
 }: {
 	teamName?: string;
 	teamAvatarUrl?: string | null;
 	onNameChange?: (name: string) => Promise<void>;
+	activeTab?: EditorTab;
+	onTabChange?: (tab: EditorTab) => void;
 }) {
 	const { workspaceId, name } = useAppDesignerStore((s) => ({
 		workspaceId: s.workspaceId,
@@ -188,6 +193,13 @@ export function V2Header({
 					)}
 				</div>
 			</div>
+
+			{/* Center section: Tabs */}
+			{activeTab && onTabChange && layoutV3 && (
+				<div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+					<V2HeaderTabs activeTab={activeTab} onTabChange={onTabChange} />
+				</div>
+			)}
 
 			{/* Right section: Run button */}
 			<RunButton />

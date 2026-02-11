@@ -7,7 +7,8 @@ import type {
 } from "@giselles-ai/protocol";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
 import clsx from "clsx/lite";
-import { useMemo } from "react";
+import { PlusIcon } from "lucide-react";
+import { useCallback, useMemo } from "react";
 import { useAppDesignerStore } from "../../app-designer";
 import { NodeIcon } from "../../icons/node";
 import { NodeGenerationStatusBadge } from "./node-generation-status-badge";
@@ -89,6 +90,18 @@ export function PillNode({
 	const stageBackgroundClass =
 		(isAppEntry || isEnd) && !requiresSetup ? STAGE_NODE_BG_CLASS : undefined;
 
+	const handlePlusClick = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			window.dispatchEvent(
+				new CustomEvent("what-happens-next", {
+					detail: { sourceNodeId: node.id },
+				}),
+			);
+		},
+		[node.id],
+	);
+
 	return (
 		<div
 			data-type={node.type}
@@ -102,7 +115,7 @@ export function PillNode({
 				"flex items-center gap-[8px] px-[14px] py-[8px] rounded-full",
 				"backdrop-blur-[4px]",
 				selected || highlighted
-					? "shadow-[0px_0px_20px_1px_rgba(0,_0,_0,_0.4)] shadow-trigger-node-1"
+					? "shadow-[0px_0px_24px_2px_rgba(0,_0,_0,_0.4)] shadow-trigger-node-1"
 					: "shadow-[4px_4px_8px_4px_rgba(0,_0,_0,_0.5)]",
 				preview && "opacity-50",
 				stageBackgroundClass,
@@ -111,6 +124,14 @@ export function PillNode({
 					? "bg-trigger-node-1"
 					: undefined,
 			)}
+			style={
+				!requiresSetup && !preview
+					? {
+							filter:
+								"drop-shadow(0 0 10px hsla(220, 15%, 50%, 0.2))",
+						}
+					: undefined
+			}
 		>
 			<NodeGenerationStatusBadge
 				node={node}
@@ -130,26 +151,44 @@ export function PillNode({
 			)}
 			<div
 				className={clsx(
-					"absolute z-0 inset-0 border-[1.5px] mask-fill",
+					"absolute z-0 inset-0 border-[2px] mask-fill",
 					"rounded-full",
 					"bg-gradient-to-br",
 					requiresSetup
-						? "border-black/60 border-dashed from-trigger-node-1/30 via-trigger-node-1/50 to-trigger-node-1"
+						? "border-black/60 border-dashed from-trigger-node-1/40 via-trigger-node-1/70 to-trigger-node-1"
 						: "border-transparent from-inverse/80 via-inverse/30 to-inverse/60",
 				)}
 			/>
 			{isAppEntry && (
-				<Handle
-					type="source"
-					position={Position.Right}
-					className={clsx(
-						"!absolute !w-[12px] !h-[12px] !rounded-full !border-[1.5px] !right-[-0.5px] !top-1/2",
-						STAGE_NODE_BORDER_CLASS,
-						isAppEntryAnyOutputConnected
-							? `${STAGE_NODE_HANDLE_BG_CLASS} [box-shadow:0_0_0_1.5px_rgba(0,0,0,0.8)]`
-							: "!bg-background",
-					)}
-				/>
+				<>
+					<Handle
+						type="source"
+						position={Position.Right}
+						className={clsx(
+							"!absolute !w-[12px] !h-[12px] !rounded-full !border-[1.5px] !right-[-0.5px] !top-1/2",
+							STAGE_NODE_BORDER_CLASS,
+							isAppEntryAnyOutputConnected
+								? `${STAGE_NODE_HANDLE_BG_CLASS} [box-shadow:0_0_0_1.5px_rgba(0,0,0,0.8)]`
+								: "!bg-background",
+						)}
+					/>
+					{/* Plus button on Start node */}
+					<button
+						type="button"
+						onClick={handlePlusClick}
+						className={clsx(
+							"absolute -right-[28px] top-1/2 -translate-y-1/2",
+							"w-[20px] h-[20px] rounded-full",
+							"flex items-center justify-center",
+							"bg-inverse/10 backdrop-blur-sm border border-inverse/20",
+							"text-inverse/60 hover:text-inverse hover:bg-inverse/20",
+							"opacity-0 group-hover:opacity-100 transition-opacity duration-150",
+							"cursor-pointer z-10",
+						)}
+					>
+						<PlusIcon className="w-[12px] h-[12px]" />
+					</button>
+				</>
 			)}
 			{isEnd && (
 				<Handle

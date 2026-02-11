@@ -44,12 +44,15 @@ function IntegrationPieceIcon({
 	const logoUrl = entry?.logoUrl;
 
 	if (logoUrl) {
+		// Extract size from className (e.g. "w-[24px] h-[24px]")
+		const sizeMatch = (props.className ?? "").match(/w-\[(\d+)px\]/);
+		const size = sizeMatch ? `${sizeMatch[1]}px` : "24px";
 		return (
 			<img
 				src={logoUrl}
 				alt={entry?.displayName ?? pieceName}
-				className={`${props.className ?? ""} rounded-[2px] object-contain`}
-				style={{ width: "16px", height: "16px" }}
+				className={`${props.className ?? ""} rounded-[3px] object-contain`}
+				style={{ width: size, height: size }}
 			/>
 		);
 	}
@@ -242,7 +245,9 @@ export function NodeIcon({
 				case "integration":
 					return (
 						<IntegrationPieceIcon
-							pieceName={(node.content as { pieceName: string }).pieceName}
+							pieceName={
+								(node.content as unknown as { pieceName: string }).pieceName
+							}
 							{...props}
 						/>
 					);

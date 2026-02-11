@@ -53,6 +53,7 @@ import type { V2LayoutState } from "../state";
 import { AppSetupHint } from "./app-setup-hint";
 import { FloatingPropertiesPanel } from "./floating-properties-panel";
 import { LeftPanel } from "./left-panel";
+import { WhatHappensNextPanel } from "./what-happens-next-panel";
 
 interface V2ContainerProps extends V2LayoutState {
 	onLeftPanelClose: () => void;
@@ -518,6 +519,21 @@ function V2NodeCanvas() {
 }
 
 export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
+	const [whatHappensNextSource, setWhatHappensNextSource] =
+		useState<NodeId | null>(null);
+
+	// Listen for "what-happens-next" custom events from node plus buttons
+	useEffect(() => {
+		const handler = (e: Event) => {
+			const detail = (e as CustomEvent).detail as {
+				sourceNodeId: NodeId;
+			};
+			setWhatHappensNextSource(detail.sourceNodeId);
+		};
+		window.addEventListener("what-happens-next", handler);
+		return () => window.removeEventListener("what-happens-next", handler);
+	}, []);
+
 	const selectedNodes = useAppDesignerStore(
 		useShallow((s) =>
 			s.nodes.filter((node) => s.ui.nodeState[node.id]?.selected),
@@ -608,6 +624,13 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 						</FloatingPropertiesPanel>
 					</Panel>
 				</PanelGroup>
+				{/* What Happens Next panel - shown when "+" button is clicked on a node */}
+				{whatHappensNextSource && (
+					<WhatHappensNextPanel
+						sourceNodeId={whatHappensNextSource}
+						onClose={() => setWhatHappensNextSource(null)}
+					/>
+				)}
 				<GradientDef />
 			</main>
 		</ConfirmProvider>
