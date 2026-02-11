@@ -70,6 +70,10 @@ function toNodeGenerationIndex(generation: Generation): NodeGenerationIndex {
 		failedAt: "failedAt" in generation ? generation.failedAt : undefined,
 		cancelledAt:
 			"cancelledAt" in generation ? generation.cancelledAt : undefined,
+		awaitingReviewAt:
+			"awaitingReviewAt" in generation
+				? generation.awaitingReviewAt
+				: undefined,
 	};
 }
 

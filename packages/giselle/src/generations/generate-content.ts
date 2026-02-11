@@ -18,6 +18,7 @@ import {
 	languageModels,
 } from "@giselles-ai/language-model";
 import type {
+	AwaitingReviewGeneration,
 	CompletedGeneration,
 	FailedGeneration,
 	GenerationOutput,
@@ -52,6 +53,7 @@ import {
 	type OnGenerationError,
 	useGenerationExecutor,
 } from "./internal/use-generation-executor";
+import { internalSetGeneration } from "./internal/set-generation";
 import { createPostgresTools } from "./tools/postgres";
 import type { GenerationMetadata, PreparedToolSet } from "./types";
 import { buildMessageObject, getGeneration } from "./utils";
@@ -725,6 +727,14 @@ function generateContentV2({
 							actionName?: string;
 							pieceVersion?: string;
 							configuration: Record<string, unknown>;
+							targetAgentNodeId?: string;
+							mcpServerUrl?: string;
+							mcpServerCommand?: string;
+							mcpServerArgs?: string[];
+							reviewToolName?: string;
+							reviewToolDescription?: string;
+							targetWorkspaceId?: string;
+							targetEntryNodeId?: string;
 						};
 
 						if (
@@ -809,6 +819,113 @@ function generateContentV2({
 								},
 								"AI Agent collecting integration tool sub-node",
 							);
+						} else if (
+							toolContent.toolType === "agentTool" &&
+							toolContent.targetAgentNodeId
+						) {
+							// V3: Recursive Agent Tool
+							try {
+								const { buildAgentTool } = await import(
+									"./v2/tools/agent-tool"
+								);
+								const agentTools = buildAgentTool({
+									targetAgentNodeId: toolContent.targetAgentNodeId,
+									context,
+									generationContext,
+									logger,
+								});
+								Object.assign(toolSet, agentTools);
+								logger.info(
+									{ targetAgentNodeId: toolContent.targetAgentNodeId },
+									"AI Agent adding recursive agent tool from Tool sub-node",
+								);
+							} catch (error) {
+								logger.error(
+									{ error: error instanceof Error ? error.message : String(error) },
+									"Failed to build agent tool",
+								);
+							}
+						} else if (
+							toolContent.toolType === "mcpClient" &&
+							(toolContent.mcpServerUrl || toolContent.mcpServerCommand)
+						) {
+							// V3: MCP Client Tool
+							try {
+								const { buildMcpClientTools } = await import(
+									"./v2/tools/mcp-client-tool"
+								);
+								const { toolSet: mcpTools, cleanup } = await buildMcpClientTools({
+									mcpServerUrl: toolContent.mcpServerUrl,
+									mcpServerCommand: toolContent.mcpServerCommand,
+									mcpServerArgs: toolContent.mcpServerArgs,
+									logger,
+								});
+								Object.assign(toolSet, mcpTools);
+								cleanupFunctions.push(cleanup);
+								logger.info(
+									{
+										url: toolContent.mcpServerUrl,
+										command: toolContent.mcpServerCommand,
+										toolCount: Object.keys(mcpTools).length,
+									},
+									"AI Agent adding MCP client tools from Tool sub-node",
+								);
+							} catch (error) {
+								logger.error(
+									{ error: error instanceof Error ? error.message : String(error) },
+									"Failed to build MCP client tools",
+								);
+							}
+						} else if (toolContent.toolType === "humanReview") {
+							// V3: Human Review Tool
+							try {
+								const { buildHumanReviewTool } = await import(
+									"./v2/tools/human-review-tool"
+								);
+								const reviewTools = buildHumanReviewTool({
+									toolName: toolContent.reviewToolName || "request_human_review",
+									description: toolContent.reviewToolDescription || "Request human review before proceeding with an action",
+									generationId: generation.id,
+									context,
+									logger,
+								});
+								Object.assign(toolSet, reviewTools);
+								logger.info(
+									{ toolName: toolContent.reviewToolName },
+									"AI Agent adding human review tool from Tool sub-node",
+								);
+							} catch (error) {
+								logger.error(
+									{ error: error instanceof Error ? error.message : String(error) },
+									"Failed to build human review tool",
+								);
+							}
+						} else if (
+							toolContent.toolType === "subWorkflow" &&
+							toolContent.targetWorkspaceId
+						) {
+							// V3: Sub-Workflow Tool
+							try {
+								const { buildSubWorkflowTool } = await import(
+									"./v2/tools/sub-workflow-tool"
+								);
+								const subTools = buildSubWorkflowTool({
+									targetWorkspaceId: toolContent.targetWorkspaceId,
+									targetEntryNodeId: toolContent.targetEntryNodeId,
+									context,
+									logger,
+								});
+								Object.assign(toolSet, subTools);
+								logger.info(
+									{ targetWorkspaceId: toolContent.targetWorkspaceId },
+									"AI Agent adding sub-workflow tool from Tool sub-node",
+								);
+							} catch (error) {
+								logger.error(
+									{ error: error instanceof Error ? error.message : String(error) },
+									"Failed to build sub-workflow tool",
+								);
+							}
 						}
 					}
 				}
@@ -968,7 +1085,7 @@ function generateContentV2({
 						abortController.abort();
 					}
 				},
-				onStepFinish: (result) => {
+				onStepFinish: async (result) => {
 					const toolCalls = result.toolCalls?.map((tc: { toolName: string }) => tc.toolName) ?? [];
 					logger.info(
 						{
@@ -978,6 +1095,49 @@ function generateContentV2({
 						},
 						"AI Agent step completed",
 					);
+
+					// V3: Detect human review marker in tool results
+					for (const toolResult of result.toolResults ?? []) {
+						try {
+							const parsed = JSON.parse(String(toolResult.result));
+							if (parsed.__human_review_requested__) {
+								logger.info(
+									{
+										action: parsed.action,
+										reason: parsed.reason,
+										generationId: generation.id,
+									},
+									"Human review requested, pausing generation",
+								);
+								// Transition generation to awaiting_review
+								await internalSetGeneration({
+									storage: context.storage,
+									generation: {
+										id: generation.id,
+										context: generation.context,
+										status: "awaiting_review",
+										createdAt: generation.createdAt,
+										queuedAt: (generation as any).queuedAt ?? generation.startedAt,
+										startedAt: generation.startedAt,
+										awaitingReviewAt: Date.now(),
+										messages: generation.messages,
+										reviewContext: {
+											toolCallId: toolResult.toolCallId,
+											proposedAction: parsed.action,
+											proposedArgs: parsed.details ?? {},
+											reviewPrompt: parsed.reason,
+										},
+									} satisfies AwaitingReviewGeneration,
+									logger,
+								});
+								// Abort the stream to stop further processing
+								abortController.abort();
+								return;
+							}
+						} catch {
+							/* not JSON, ignore */
+						}
+					}
 				},
 				onAbort: () => {
 					logger.debug({ generationId: generation.id }, "streamText onAbort");

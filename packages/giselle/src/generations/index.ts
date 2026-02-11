@@ -5,5 +5,6 @@ export * from "./get-generated-image";
 export * from "./get-generation";
 export * from "./get-generation-message-chunks";
 export * from "./get-node-generations";
+export * from "./resume-generation";
 export * from "./set-generation";
 export * from "./types";

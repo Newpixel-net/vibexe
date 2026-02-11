@@ -382,7 +382,8 @@ export function GenerationView({ generation }: { generation: Generation }) {
 	if (
 		generation.status !== "running" &&
 		generation.status !== "completed" &&
-		generation.status !== "cancelled"
+		generation.status !== "cancelled" &&
+		generation.status !== "awaiting_review"
 	) {
 		return (
 			<div className="pt-[8px]">
@@ -527,8 +528,70 @@ export function GenerationView({ generation }: { generation: Generation }) {
 				</div>
 				);
 			})}
+			{/* Human Review Card */}
+			{generation.status === "awaiting_review" && "reviewContext" in generation && (
+				<div className="my-[12px] rounded-[8px] border border-amber-500/40 bg-amber-500/10 p-[12px]">
+					<div className="flex items-center gap-[6px] mb-[8px]">
+						<span className="text-amber-400 text-[14px] font-semibold">Human Review Required</span>
+					</div>
+					<div className="text-[13px] text-inverse/80 mb-[4px]">
+						<span className="text-inverse/50">Action:</span> {(generation as any).reviewContext.proposedAction}
+					</div>
+					<div className="text-[13px] text-inverse/80 mb-[8px]">
+						<span className="text-inverse/50">Reason:</span> {(generation as any).reviewContext.reviewPrompt || "No reason provided"}
+					</div>
+					{Object.keys((generation as any).reviewContext.proposedArgs || {}).length > 0 && (
+						<details className="text-[12px] text-text-muted mb-[8px]">
+							<summary className="cursor-pointer mb-[4px]">Details</summary>
+							<pre className="text-[11px] overflow-x-auto bg-[color-mix(in_srgb,var(--color-text-inverse,#fff)_10%,transparent)] p-[8px] rounded-[4px]">
+								{JSON.stringify((generation as any).reviewContext.proposedArgs, null, 2)}
+							</pre>
+						</details>
+					)}
+					<div className="flex gap-[8px]">
+						<button
+							type="button"
+							onClick={async () => {
+								try {
+									const res = await fetch(`/api/giselle/generations/${generation.id}/review`, {
+										method: "POST",
+										headers: { "Content-Type": "application/json" },
+										body: JSON.stringify({ action: "approve" }),
+									});
+									if (!res.ok) console.error("Failed to approve review");
+								} catch (err) {
+									console.error("Approve failed:", err);
+								}
+							}}
+							className="px-[12px] py-[6px] text-[12px] font-medium rounded-[6px] bg-green-600 hover:bg-green-500 text-white transition-colors cursor-pointer"
+						>
+							Approve
+						</button>
+						<button
+							type="button"
+							onClick={async () => {
+								try {
+									const res = await fetch(`/api/giselle/generations/${generation.id}/review`, {
+										method: "POST",
+										headers: { "Content-Type": "application/json" },
+										body: JSON.stringify({ action: "reject" }),
+									});
+									if (!res.ok) console.error("Failed to reject review");
+								} catch (err) {
+									console.error("Reject failed:", err);
+								}
+							}}
+							className="px-[12px] py-[6px] text-[12px] font-medium rounded-[6px] bg-red-600/80 hover:bg-red-500 text-white transition-colors cursor-pointer"
+						>
+							Reject
+						</button>
+					</div>
+				</div>
+			)}
+
 			{generation.status !== "completed" &&
 				generation.status !== "cancelled" &&
+				generation.status !== "awaiting_review" &&
 				// Show the spinner only when there is no reasoning part
 				!generatedMessages.some((message) =>
 					message.parts.some((part) => part.type === "reasoning"),

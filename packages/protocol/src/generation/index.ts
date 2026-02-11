@@ -151,6 +151,39 @@ export function isCancelledGeneration(
 	return CancelledGeneration.safeParse(data).success;
 }
 
+export const ReviewContext = z.object({
+	toolCallId: z.string(),
+	proposedAction: z.string(),
+	proposedArgs: z.record(z.string(), z.any()),
+	reviewPrompt: z.string().optional(),
+});
+export type ReviewContext = z.infer<typeof ReviewContext>;
+
+export const AwaitingReviewGeneration = GenerationBase.extend({
+	id: GenerationId.schema,
+	context: GenerationContextLike,
+	status: z.literal("awaiting_review"),
+	createdAt: z.number(),
+	queuedAt: z.number(),
+	startedAt: z.number(),
+	awaitingReviewAt: z.number(),
+	messages: z.array(Message),
+	reviewContext: ReviewContext,
+	resumePointer: z.string().optional(),
+});
+export type AwaitingReviewGeneration = z.infer<
+	typeof AwaitingReviewGeneration
+>;
+
+/**
+ * Type guard to check if a Generation is an AwaitingReviewGeneration
+ */
+export function isAwaitingReviewGeneration(
+	data: unknown,
+): data is AwaitingReviewGeneration {
+	return AwaitingReviewGeneration.safeParse(data).success;
+}
+
 /**
  * Unified Generation schema with conditional validation based on status
  */
@@ -161,6 +194,7 @@ export const Generation = z.discriminatedUnion("status", [
 	CompletedGeneration,
 	FailedGeneration,
 	CancelledGeneration,
+	AwaitingReviewGeneration,
 ]);
 
 // Export the Generation type
@@ -187,5 +221,6 @@ export const NodeGenerationIndex = z.object({
 	completedAt: z.number().optional(),
 	failedAt: z.number().optional(),
 	cancelledAt: z.number().optional(),
+	awaitingReviewAt: z.number().optional(),
 });
 export type NodeGenerationIndex = z.infer<typeof NodeGenerationIndex>;

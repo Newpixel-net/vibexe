@@ -37,8 +37,8 @@
 		"@ai-sdk/google": "catalog:",
 		"@ai-sdk/openai": "catalog:",
 		"@ai-sdk/provider": "catalog:",
-		"@giselles-ai/activepieces-adapter": "workspace:*",
 		"@giselles-ai/action-registry": "workspace:*",
+		"@giselles-ai/activepieces-adapter": "workspace:*",
 		"@giselles-ai/data-store-registry": "workspace:*",
 		"@giselles-ai/github-tool": "workspace:^",
 		"@giselles-ai/language-model": "workspace:^",
@@ -52,6 +52,7 @@
 		"@giselles-ai/vault": "workspace:*",
 		"@giselles-ai/web-search": "workspace:^",
 		"@giselles-ai/workspace-utils": "workspace:*",
+		"@modelcontextprotocol/sdk": "^1.26.0",
 		"ai": "catalog:",
 		"openai": "catalog:",
 		"pg": "catalog:"

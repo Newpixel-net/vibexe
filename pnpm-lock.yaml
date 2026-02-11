@@ -1510,7 +1510,7 @@ importers:
         version: 0.4.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-google-gemini':
         specifier: ^0.1.3
-        version: 0.1.3(@modelcontextprotocol/sdk@1.25.2(hono@4.11.8)(zod@4.1.12))(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+        version: 0.1.3(@modelcontextprotocol/sdk@1.26.0(zod@4.1.12))(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/piece-google-my-business':
         specifier: ^0.1.3
         version: 0.1.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
@@ -2710,19 +2710,19 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: 'catalog:'
-        version: 2.0.49(zod@4.1.12)
+        version: 2.0.49(zod@4.1.13)
       '@ai-sdk/fal':
         specifier: 'catalog:'
-        version: 1.0.23(zod@4.1.12)
+        version: 1.0.23(zod@4.1.13)
       '@ai-sdk/gateway':
         specifier: 'catalog:'
-        version: 2.0.22(zod@4.1.12)
+        version: 2.0.22(zod@4.1.13)
       '@ai-sdk/google':
         specifier: 'catalog:'
-        version: 2.0.49(zod@4.1.12)
+        version: 2.0.49(zod@4.1.13)
       '@ai-sdk/openai':
         specifier: 'catalog:'
-        version: 2.0.72(zod@4.1.12)
+        version: 2.0.72(zod@4.1.13)
       '@ai-sdk/provider':
         specifier: 'catalog:'
         version: 2.0.0
@@ -2771,18 +2771,21 @@ importers:
       '@giselles-ai/workspace-utils':
         specifier: workspace:*
         version: link:../workspace-utils
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.26.0
+        version: 1.26.0(zod@4.1.13)
       ai:
         specifier: 'catalog:'
-        version: 5.0.101(zod@4.1.12)
+        version: 5.0.101(zod@4.1.13)
       openai:
         specifier: 'catalog:'
-        version: 5.11.0(ws@8.19.0(bufferutil@4.0.9)(utf-8-validate@6.0.5))(zod@4.1.12)
+        version: 5.11.0(ws@8.19.0(bufferutil@4.0.9)(utf-8-validate@6.0.5))(zod@4.1.13)
       pg:
         specifier: 'catalog:'
         version: 8.14.1
       zod:
         specifier: 'catalog:'
-        version: 4.1.12
+        version: 4.1.13
     devDependencies:
       '@giselles-ai/protocol':
         specifier: workspace:*
@@ -8021,6 +8024,16 @@ packages:
       '@cfworker/json-schema':
         optional: true
 
+  '@modelcontextprotocol/sdk@1.26.0':
+    resolution: {integrity: sha512-Y5RmPncpiDtTXDbLKswIJzTqu2hyBKxTNsgKqKclDbhIgg1wgtf1fRuvxgTnRfcnxtvvgbIEcqUOzZrJ6iSReg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@cfworker/json-schema': ^4.1.1
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      '@cfworker/json-schema':
+        optional: true
+
   '@modelcontextprotocol/sdk@https://codeload.github.com/dust-tt/typescript-sdk/tar.gz/bca26e405d6db2cf71fd7211234a72ecc46d0215':
     resolution: {tarball: https://codeload.github.com/dust-tt/typescript-sdk/tar.gz/bca26e405d6db2cf71fd7211234a72ecc46d0215}
     version: 1.12.1
@@ -12788,6 +12801,12 @@ packages:
     peerDependencies:
       express: '>= 4.11'
 
+  express-rate-limit@8.2.1:
+    resolution: {integrity: sha512-PCZEIEIxqwhzw4KF0n7QF4QqruVTcF73O5kFKUnGOyjbCCgizBBiFaYpd/fnBLUMPw/BWw9OsiN7GgrNYr7j6g==}
+    engines: {node: '>= 16'}
+    peerDependencies:
+      express: '>= 4.11'
+
   express@5.2.1:
     resolution: {integrity: sha512-hIS4idWWai69NezIdRt2xFVofaF4j+6INOpJlVOLDO8zXGpUVEVzIYk12UUi2JzjEzWL3IOAxcTubgz9Po0yXw==}
     engines: {node: '>= 18'}
@@ -13491,6 +13510,10 @@ packages:
   intersection-observer@0.10.0:
     resolution: {integrity: sha512-fn4bQ0Xq8FTej09YC/jqKZwtijpvARlRp6wxL5WTA6yPe2YWSJ5RJh7Nm79rK2qB0wr6iDQzH60XGq5V/7u8YQ==}
     deprecated: The Intersection Observer polyfill is no longer needed and can safely be removed. Intersection Observer has been Baseline since 2019.
+
+  ip-address@10.0.1:
+    resolution: {integrity: sha512-NWv9YLW4PoW2B7xtzaS3NCot75m6nK7Icdv0o3lfMceJVRfSoQwqD4wEH5rLwoKJwUiZ/rfpiVBhnaF0FK4HoA==}
+    engines: {node: '>= 12'}
 
   ip-address@10.1.0:
     resolution: {integrity: sha512-XXADHxXmvT9+CRxhXg56LJovE+bmWnEWB78LB83VZTprKTmaC5QfruXocxzTZ2Kl0DNwKuBdlIhjL8LeY8Sf8Q==}
@@ -22881,12 +22904,12 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@activepieces/piece-google-gemini@0.1.3(@modelcontextprotocol/sdk@1.25.2(hono@4.11.8)(zod@4.1.12))(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+  '@activepieces/piece-google-gemini@0.1.3(@modelcontextprotocol/sdk@1.26.0(zod@4.1.12))(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       '@activepieces/pieces-common': 0.11.5(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@activepieces/pieces-framework': 0.25.2(bufferutil@4.0.9)(utf-8-validate@6.0.5)(zod@4.1.13)
       '@activepieces/shared': 0.34.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
-      '@google/genai': 1.29.0(@modelcontextprotocol/sdk@1.25.2(hono@4.11.8)(zod@4.1.12))(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      '@google/genai': 1.29.0(@modelcontextprotocol/sdk@1.26.0(zod@4.1.12))(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       '@google/generative-ai': 0.21.0
       '@sinclair/typebox': 0.34.11
       ai: 6.0.77(zod@4.1.13)
@@ -32305,11 +32328,11 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.3(zod@4.1.13)
       zod: 4.1.13
 
-  '@ai-sdk/anthropic@2.0.49(zod@4.1.12)':
+  '@ai-sdk/anthropic@2.0.49(zod@4.1.13)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.17(zod@4.1.12)
-      zod: 4.1.12
+      '@ai-sdk/provider-utils': 3.0.17(zod@4.1.13)
+      zod: 4.1.13
 
   '@ai-sdk/anthropic@3.0.38(zod@4.1.13)':
     dependencies:
@@ -32324,11 +32347,11 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.14(zod@4.1.13)
       zod: 4.1.13
 
-  '@ai-sdk/fal@1.0.23(zod@4.1.12)':
+  '@ai-sdk/fal@1.0.23(zod@4.1.13)':
     dependencies:
       '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.17(zod@4.1.12)
-      zod: 4.1.12
+      '@ai-sdk/provider-utils': 3.0.17(zod@4.1.13)
+      zod: 4.1.13
 
   '@ai-sdk/gateway@1.0.23(zod@4.1.12)':
     dependencies:
@@ -32364,6 +32387,13 @@ snapshots:
       '@vercel/oidc': 3.0.5
       zod: 4.1.12
 
+  '@ai-sdk/gateway@2.0.22(zod@4.1.13)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.0
+      '@ai-sdk/provider-utils': 3.0.19(zod@4.1.13)
+      '@vercel/oidc': 3.0.5
+      zod: 4.1.13
+
   '@ai-sdk/gateway@3.0.39(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
@@ -32390,6 +32420,12 @@ snapshots:
       '@ai-sdk/provider': 2.0.0
       '@ai-sdk/provider-utils': 3.0.19(zod@4.1.12)
       zod: 4.1.12
+
+  '@ai-sdk/google@2.0.49(zod@4.1.13)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.0
+      '@ai-sdk/provider-utils': 3.0.19(zod@4.1.13)
+      zod: 4.1.13
 
   '@ai-sdk/google@2.0.6(zod@4.1.13)':
     dependencies:
@@ -32428,6 +32464,12 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.17(zod@4.1.12)
       zod: 4.1.12
 
+  '@ai-sdk/openai@2.0.72(zod@4.1.13)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.0
+      '@ai-sdk/provider-utils': 3.0.17(zod@4.1.13)
+      zod: 4.1.13
+
   '@ai-sdk/openai@3.0.26(zod@4.1.13)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
@@ -32461,6 +32503,13 @@ snapshots:
       '@standard-schema/spec': 1.0.0
       eventsource-parser: 3.0.6
       zod: 4.1.12
+
+  '@ai-sdk/provider-utils@3.0.19(zod@4.1.13)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.0
+      '@standard-schema/spec': 1.0.0
+      eventsource-parser: 3.0.6
+      zod: 4.1.13
 
   '@ai-sdk/provider-utils@3.0.3(zod@4.1.13)':
     dependencies:
@@ -34805,7 +34854,7 @@ snapshots:
       '@babel/traverse': 7.28.5
       '@babel/types': 7.28.5
       convert-source-map: 2.0.0
-      debug: 4.4.1
+      debug: 4.4.3
       gensync: 1.0.0-beta.2
       json5: 2.2.3
       semver: 6.3.1
@@ -35865,12 +35914,12 @@ snapshots:
       - encoding
       - supports-color
 
-  '@google/genai@1.29.0(@modelcontextprotocol/sdk@1.25.2(hono@4.11.8)(zod@4.1.12))(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
+  '@google/genai@1.29.0(@modelcontextprotocol/sdk@1.26.0(zod@4.1.12))(bufferutil@4.0.9)(utf-8-validate@6.0.5)':
     dependencies:
       google-auth-library: 10.5.0
       ws: 8.18.3(bufferutil@4.0.9)(utf-8-validate@6.0.5)
     optionalDependencies:
-      '@modelcontextprotocol/sdk': 1.25.2(hono@4.11.8)(zod@4.1.12)
+      '@modelcontextprotocol/sdk': 1.26.0(zod@4.1.12)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -36471,29 +36520,6 @@ snapshots:
 
   '@mixmark-io/domino@2.2.0': {}
 
-  '@modelcontextprotocol/sdk@1.25.2(hono@4.11.8)(zod@4.1.12)':
-    dependencies:
-      '@hono/node-server': 1.19.9(hono@4.11.8)
-      ajv: 8.17.1
-      ajv-formats: 3.0.1(ajv@8.17.1)
-      content-type: 1.0.5
-      cors: 2.8.5
-      cross-spawn: 7.0.6
-      eventsource: 3.0.7
-      eventsource-parser: 3.0.6
-      express: 5.2.1
-      express-rate-limit: 7.5.1(express@5.2.1)
-      jose: 6.1.3
-      json-schema-typed: 8.0.2
-      pkce-challenge: 5.0.1
-      raw-body: 3.0.2
-      zod: 4.1.12
-      zod-to-json-schema: 3.25.1(zod@4.1.12)
-    transitivePeerDependencies:
-      - hono
-      - supports-color
-    optional: true
-
   '@modelcontextprotocol/sdk@1.25.2(hono@4.11.8)(zod@4.1.13)':
     dependencies:
       '@hono/node-server': 1.19.9(hono@4.11.8)
@@ -36514,6 +36540,51 @@ snapshots:
       zod-to-json-schema: 3.25.1(zod@4.1.13)
     transitivePeerDependencies:
       - hono
+      - supports-color
+
+  '@modelcontextprotocol/sdk@1.26.0(zod@4.1.12)':
+    dependencies:
+      '@hono/node-server': 1.19.9(hono@4.11.8)
+      ajv: 8.17.1
+      ajv-formats: 3.0.1(ajv@8.17.1)
+      content-type: 1.0.5
+      cors: 2.8.5
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.0.6
+      express: 5.2.1
+      express-rate-limit: 8.2.1(express@5.2.1)
+      hono: 4.11.8
+      jose: 6.1.3
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.1
+      raw-body: 3.0.2
+      zod: 4.1.12
+      zod-to-json-schema: 3.25.1(zod@4.1.12)
+    transitivePeerDependencies:
+      - supports-color
+    optional: true
+
+  '@modelcontextprotocol/sdk@1.26.0(zod@4.1.13)':
+    dependencies:
+      '@hono/node-server': 1.19.9(hono@4.11.8)
+      ajv: 8.17.1
+      ajv-formats: 3.0.1(ajv@8.17.1)
+      content-type: 1.0.5
+      cors: 2.8.5
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.0.6
+      express: 5.2.1
+      express-rate-limit: 8.2.1(express@5.2.1)
+      hono: 4.11.8
+      jose: 6.1.3
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.1
+      raw-body: 3.0.2
+      zod: 4.1.13
+      zod-to-json-schema: 3.25.1(zod@4.1.13)
+    transitivePeerDependencies:
       - supports-color
 
   '@modelcontextprotocol/sdk@https://codeload.github.com/dust-tt/typescript-sdk/tar.gz/bca26e405d6db2cf71fd7211234a72ecc46d0215':
@@ -40352,7 +40423,7 @@ snapshots:
 
   agent-base@6.0.2:
     dependencies:
-      debug: 4.4.1
+      debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
 
@@ -40615,6 +40686,14 @@ snapshots:
   axios@1.13.1(debug@4.4.1):
     dependencies:
       follow-redirects: 1.15.11(debug@4.4.1)
+      form-data: 4.0.4
+      proxy-from-env: 1.1.0
+    transitivePeerDependencies:
+      - debug
+
+  axios@1.13.1(debug@4.4.3):
+    dependencies:
+      follow-redirects: 1.15.11(debug@4.4.3)
       form-data: 4.0.4
       proxy-from-env: 1.1.0
     transitivePeerDependencies:
@@ -41035,8 +41114,8 @@ snapshots:
 
   cmake-js@7.4.0:
     dependencies:
-      axios: 1.13.1(debug@4.4.1)
-      debug: 4.4.1
+      axios: 1.13.1(debug@4.4.3)
+      debug: 4.4.3
       fs-extra: 11.3.3
       memory-stream: 1.0.0
       node-api-headers: 1.8.0
@@ -42046,6 +42125,11 @@ snapshots:
     dependencies:
       express: 5.2.1
 
+  express-rate-limit@8.2.1(express@5.2.1):
+    dependencies:
+      express: 5.2.1
+      ip-address: 10.0.1
+
   express@5.2.1:
     dependencies:
       accepts: 2.0.0
@@ -42241,6 +42325,10 @@ snapshots:
   follow-redirects@1.15.11(debug@4.4.1):
     optionalDependencies:
       debug: 4.4.1
+
+  follow-redirects@1.15.11(debug@4.4.3):
+    optionalDependencies:
+      debug: 4.4.3
 
   for-each@0.3.5:
     dependencies:
@@ -42889,7 +42977,7 @@ snapshots:
   https-proxy-agent@5.0.1:
     dependencies:
       agent-base: 6.0.2
-      debug: 4.4.1
+      debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
 
@@ -43006,6 +43094,8 @@ snapshots:
       side-channel: 1.1.0
 
   intersection-observer@0.10.0: {}
+
+  ip-address@10.0.1: {}
 
   ip-address@10.1.0: {}
 
@@ -44550,6 +44640,11 @@ snapshots:
       ws: 8.19.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       zod: 4.1.12
 
+  openai@5.11.0(ws@8.19.0(bufferutil@4.0.9)(utf-8-validate@6.0.5))(zod@4.1.13):
+    optionalDependencies:
+      ws: 8.19.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      zod: 4.1.13
+
   opener@1.5.2: {}
 
   openpgp@6.3.0: {}
@@ -45766,7 +45861,7 @@ snapshots:
 
   retry-request@5.0.2:
     dependencies:
-      debug: 4.4.1
+      debug: 4.4.3
       extend: 3.0.2
     transitivePeerDependencies:
       - supports-color
@@ -45788,7 +45883,7 @@ snapshots:
       '@babel/types': 7.28.5
       ast-kit: 2.2.0
       birpc: 2.9.0
-      debug: 4.4.1
+      debug: 4.4.3
       dts-resolver: 2.1.3(oxc-resolver@11.13.0)
       get-tsconfig: 4.13.6
       rolldown: 1.0.0-beta.9
@@ -46771,7 +46866,7 @@ snapshots:
       ansis: 4.2.0
       cac: 6.7.14
       chokidar: 4.0.3
-      debug: 4.4.1
+      debug: 4.4.3
       diff: 8.0.3
       empathic: 1.1.0
       hookable: 5.5.3

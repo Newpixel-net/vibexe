@@ -21,7 +21,7 @@ export function ToolNodePropertiesPanel({
 	const handleToolTypeChange = useCallback(
 		(value: string) => {
 			updateNodeDataContent(node, {
-				toolType: value as "integration" | "webSearch" | "codeExecution" | "httpRequest" | "builtinTool",
+				toolType: value as any,
 			});
 		},
 		[node, updateNodeDataContent],
@@ -43,11 +43,19 @@ export function ToolNodePropertiesPanel({
 						onChange={(e) => handleToolTypeChange(e.target.value)}
 						className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
 					>
-						<option value="builtinTool">Built-in Tool</option>
-						<option value="integration">Integration Piece</option>
-						<option value="webSearch">Web Search</option>
-						<option value="httpRequest">HTTP Request</option>
-						<option value="codeExecution">Code Tool</option>
+						<optgroup label="Basic">
+							<option value="builtinTool">Built-in Tool</option>
+							<option value="integration">Integration Piece</option>
+							<option value="webSearch">Web Search</option>
+							<option value="httpRequest">HTTP Request</option>
+							<option value="codeExecution">Code Tool</option>
+						</optgroup>
+						<optgroup label="Advanced (V3)">
+							<option value="agentTool">Agent Tool</option>
+							<option value="mcpClient">MCP Client</option>
+							<option value="humanReview">Human Review</option>
+							<option value="subWorkflow">Sub-Workflow</option>
+						</optgroup>
 					</select>
 				</div>
 
@@ -186,6 +194,150 @@ export function ToolNodePropertiesPanel({
 							}
 							rows={8}
 							className="w-full rounded-[8px] border border-[hsla(0,0%,100%,0.1)] bg-[hsla(0,0%,100%,0.05)] px-[12px] py-[8px] text-[13px] text-white font-mono outline-none focus:border-[hsla(0,0%,100%,0.3)] resize-y"
+						/>
+					</div>
+				)}
+
+				{/* V3: Agent Tool Configuration */}
+				{node.content.toolType === "agentTool" && (
+					<div className="flex flex-col gap-[8px]">
+						<SettingLabel>Target AI Agent Node</SettingLabel>
+						<SettingDetail size="sm">
+							Enter the Node ID of another AI Agent in this workspace to delegate tasks to.
+						</SettingDetail>
+						<input
+							type="text"
+							placeholder="Node ID (e.g., nd_abc123)"
+							value={(node.content as any).targetAgentNodeId ?? ""}
+							onChange={(e) =>
+								updateNodeDataContent(node, {
+									targetAgentNodeId: e.target.value || undefined,
+								})
+							}
+							className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
+						/>
+					</div>
+				)}
+
+				{/* V3: MCP Client Configuration */}
+				{node.content.toolType === "mcpClient" && (
+					<div className="flex flex-col gap-[8px]">
+						<SettingLabel>MCP Server Connection</SettingLabel>
+						<SettingDetail size="sm">
+							Connect to an MCP server via SSE URL or stdio command.
+						</SettingDetail>
+						<SettingLabel>SSE URL</SettingLabel>
+						<input
+							type="text"
+							placeholder="https://mcp-server.example.com/sse"
+							value={(node.content as any).mcpServerUrl ?? ""}
+							onChange={(e) =>
+								updateNodeDataContent(node, {
+									mcpServerUrl: e.target.value || undefined,
+								})
+							}
+							className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
+						/>
+						<SettingDetail size="sm">
+							Or use stdio transport:
+						</SettingDetail>
+						<SettingLabel>Command</SettingLabel>
+						<input
+							type="text"
+							placeholder="npx -y @modelcontextprotocol/server-example"
+							value={(node.content as any).mcpServerCommand ?? ""}
+							onChange={(e) =>
+								updateNodeDataContent(node, {
+									mcpServerCommand: e.target.value || undefined,
+								})
+							}
+							className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
+						/>
+						<SettingLabel>Arguments (comma-separated)</SettingLabel>
+						<input
+							type="text"
+							placeholder="--port,3000"
+							value={((node.content as any).mcpServerArgs ?? []).join(",")}
+							onChange={(e) =>
+								updateNodeDataContent(node, {
+									mcpServerArgs: e.target.value
+										? e.target.value.split(",").map((s: string) => s.trim())
+										: undefined,
+								})
+							}
+							className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
+						/>
+					</div>
+				)}
+
+				{/* V3: Human Review Configuration */}
+				{node.content.toolType === "humanReview" && (
+					<div className="flex flex-col gap-[8px]">
+						<SettingLabel>Review Tool Name</SettingLabel>
+						<SettingDetail size="sm">
+							The tool name the AI will call to request human approval.
+						</SettingDetail>
+						<input
+							type="text"
+							placeholder="request_human_review"
+							value={(node.content as any).reviewToolName ?? ""}
+							onChange={(e) =>
+								updateNodeDataContent(node, {
+									reviewToolName: e.target.value || undefined,
+								})
+							}
+							className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
+						/>
+						<SettingLabel>Description</SettingLabel>
+						<SettingDetail size="sm">
+							Tell the AI when it should request human review.
+						</SettingDetail>
+						<textarea
+							placeholder="Request human review before proceeding with any destructive action"
+							value={(node.content as any).reviewToolDescription ?? ""}
+							onChange={(e) =>
+								updateNodeDataContent(node, {
+									reviewToolDescription: e.target.value || undefined,
+								})
+							}
+							rows={3}
+							className="w-full rounded-[8px] border border-[hsla(0,0%,100%,0.1)] bg-[hsla(0,0%,100%,0.05)] px-[12px] py-[8px] text-[13px] text-white outline-none focus:border-[hsla(0,0%,100%,0.3)] resize-y"
+						/>
+					</div>
+				)}
+
+				{/* V3: Sub-Workflow Configuration */}
+				{node.content.toolType === "subWorkflow" && (
+					<div className="flex flex-col gap-[8px]">
+						<SettingLabel>Target Workspace ID</SettingLabel>
+						<SettingDetail size="sm">
+							The workspace containing the workflow to execute as a tool.
+						</SettingDetail>
+						<input
+							type="text"
+							placeholder="Workspace ID (e.g., wrks_abc123)"
+							value={(node.content as any).targetWorkspaceId ?? ""}
+							onChange={(e) =>
+								updateNodeDataContent(node, {
+									targetWorkspaceId: e.target.value || undefined,
+								})
+							}
+							className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
+						/>
+						<SettingLabel>Entry Node ID (optional)</SettingLabel>
+						<SettingDetail size="sm">
+							Specify which node to run. Leave empty to auto-detect.
+						</SettingDetail>
+						<input
+							type="text"
+							placeholder="Node ID (auto-detect if empty)"
+							value={(node.content as any).targetEntryNodeId ?? ""}
+							onChange={(e) =>
+								updateNodeDataContent(node, {
+									targetEntryNodeId: e.target.value || undefined,
+								})
+							}
+							className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
 						/>
 					</div>
 				)}

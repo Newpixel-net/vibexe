@@ -30,6 +30,7 @@ import {
 } from "./data-stores";
 import { copyFile, getFileText, removeFile, uploadFile } from "./files";
 import {
+	approveReview,
 	cancelGeneration,
 	type GenerationMetadata,
 	generateContent,
@@ -40,6 +41,7 @@ import {
 	getNodeGenerations,
 	type OnGenerationComplete,
 	type OnGenerationError,
+	rejectReview,
 	setGeneration,
 } from "./generations";
 import { getTaskGenerationIndexes } from "./generations/get-task-generation-indexes";
@@ -169,6 +171,12 @@ export function Giselle(config: GiselleConfig) {
 				context,
 				generationId,
 			});
+		},
+		approveReview: async (generationId: string) => {
+			return await approveReview({ context, generationId });
+		},
+		rejectReview: async (generationId: string, reason?: string) => {
+			return await rejectReview({ context, generationId, reason });
 		},
 		copyFile: async (
 			workspaceId: WorkspaceId,

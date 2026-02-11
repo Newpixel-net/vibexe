@@ -12,6 +12,11 @@ export const ToolNodeContent = z.object({
 		"codeExecution",
 		"httpRequest",
 		"builtinTool",
+		// V3 additions:
+		"agentTool",
+		"mcpClient",
+		"humanReview",
+		"subWorkflow",
 	]),
 	// For integration tools:
 	pieceName: z.string().optional(),
@@ -27,6 +32,18 @@ export const ToolNodeContent = z.object({
 	codeToolDescription: z.string().optional(),
 	codeToolInputSchema: z.string().optional(),
 	codeToolCode: z.string().optional(),
+	// V3: For agent tool (recursive AI Agent):
+	targetAgentNodeId: z.string().optional(),
+	// V3: For MCP client:
+	mcpServerUrl: z.string().optional(),
+	mcpServerCommand: z.string().optional(),
+	mcpServerArgs: z.array(z.string()).optional(),
+	// V3: For human review:
+	reviewToolName: z.string().optional(),
+	reviewToolDescription: z.string().optional(),
+	// V3: For sub-workflow:
+	targetWorkspaceId: z.string().optional(),
+	targetEntryNodeId: z.string().optional(),
 });
 
 export type ToolNodeContent = z.infer<typeof ToolNodeContent>;

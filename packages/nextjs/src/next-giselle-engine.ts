@@ -107,6 +107,48 @@ export function createHttpHandler({
 				});
 			}
 
+			// Human review: approve/reject a generation awaiting review
+			const reviewMatch = pathname.match(
+				new RegExp(
+					`^${config.basePath}/generations/([^/]+)/review$`,
+				),
+			);
+			if (reviewMatch && request.method === "POST") {
+				const generationId = reviewMatch[1];
+				const body = await getBody(request);
+				const action = body?.action as string | undefined;
+
+				try {
+					if (action === "approve") {
+						await giselle.approveReview(generationId);
+						return new Response(JSON.stringify({ ok: true }), {
+							status: 200,
+							headers: { "Content-Type": "application/json" },
+						});
+					}
+					if (action === "reject") {
+						await giselle.rejectReview(
+							generationId,
+							(body?.reason as string) ?? "Rejected by user",
+						);
+						return new Response(JSON.stringify({ ok: true }), {
+							status: 200,
+							headers: { "Content-Type": "application/json" },
+						});
+					}
+					return new Response("Invalid action", { status: 400 });
+				} catch (e) {
+					const msg = e instanceof Error ? e.message : String(e);
+					return new Response(
+						JSON.stringify({ error: msg }),
+						{
+							status: 400,
+							headers: { "Content-Type": "application/json" },
+						},
+					);
+				}
+			}
+
 			const a = url.pathname.match(new RegExp(`^${config.basePath}(.+)`));
 
 			const segmentString = a?.at(-1);
