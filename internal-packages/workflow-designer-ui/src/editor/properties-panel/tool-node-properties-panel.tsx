@@ -47,6 +47,7 @@ export function ToolNodePropertiesPanel({
 						<option value="integration">Integration Piece</option>
 						<option value="webSearch">Web Search</option>
 						<option value="httpRequest">HTTP Request</option>
+						<option value="codeExecution">Code Tool</option>
 					</select>
 				</div>
 
@@ -126,6 +127,66 @@ export function ToolNodePropertiesPanel({
 							<option value="anthropic-web-search">Anthropic Web Search</option>
 							<option value="openai-web-search">OpenAI Web Search</option>
 						</select>
+					</div>
+				)}
+
+				{/* Code Execution Configuration */}
+				{node.content.toolType === "codeExecution" && (
+					<div className="flex flex-col gap-[8px]">
+						<SettingLabel>Tool Name</SettingLabel>
+						<input
+							type="text"
+							placeholder="e.g., calculate_price"
+							value={node.content.codeToolName ?? ""}
+							onChange={(e) =>
+								updateNodeDataContent(node, {
+									codeToolName: e.target.value || undefined,
+								})
+							}
+							className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
+						/>
+						<SettingLabel>Description</SettingLabel>
+						<textarea
+							placeholder="Describe what this tool does so the AI knows when to use it..."
+							value={node.content.codeToolDescription ?? ""}
+							onChange={(e) =>
+								updateNodeDataContent(node, {
+									codeToolDescription: e.target.value || undefined,
+								})
+							}
+							rows={2}
+							className="w-full rounded-[8px] border border-[hsla(0,0%,100%,0.1)] bg-[hsla(0,0%,100%,0.05)] px-[12px] py-[8px] text-[13px] text-white outline-none focus:border-[hsla(0,0%,100%,0.3)] resize-y"
+						/>
+						<SettingLabel>Input Schema (JSON)</SettingLabel>
+						<SettingDetail size="sm">
+							Define the parameters the AI can pass to this tool
+						</SettingDetail>
+						<textarea
+							placeholder={`{\n  "type": "object",\n  "properties": {\n    "query": { "type": "string", "description": "Search query" }\n  },\n  "required": ["query"]\n}`}
+							value={node.content.codeToolInputSchema ?? ""}
+							onChange={(e) =>
+								updateNodeDataContent(node, {
+									codeToolInputSchema: e.target.value || undefined,
+								})
+							}
+							rows={5}
+							className="w-full rounded-[8px] border border-[hsla(0,0%,100%,0.1)] bg-[hsla(0,0%,100%,0.05)] px-[12px] py-[8px] text-[13px] text-white font-mono outline-none focus:border-[hsla(0,0%,100%,0.3)] resize-y"
+						/>
+						<SettingLabel>Code</SettingLabel>
+						<SettingDetail size="sm">
+							JavaScript function body. Use `params` to access input. Return the result.
+						</SettingDetail>
+						<textarea
+							placeholder={`// Example: multiply two numbers\nconst result = params.a * params.b;\nreturn { product: result };`}
+							value={node.content.codeToolCode ?? ""}
+							onChange={(e) =>
+								updateNodeDataContent(node, {
+									codeToolCode: e.target.value || undefined,
+								})
+							}
+							rows={8}
+							className="w-full rounded-[8px] border border-[hsla(0,0%,100%,0.1)] bg-[hsla(0,0%,100%,0.05)] px-[12px] py-[8px] text-[13px] text-white font-mono outline-none focus:border-[hsla(0,0%,100%,0.3)] resize-y"
+						/>
 					</div>
 				)}
 

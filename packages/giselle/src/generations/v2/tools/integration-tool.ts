@@ -113,6 +113,103 @@ export async function buildIntegrationTools({
 	const toolSet: ToolSet = {};
 
 	for (const node of integrationNodes) {
+		// Handle code execution tools (not Activepieces pieces)
+		if (node.pieceName === "__code__" && node.configuration.__codeExecution) {
+			try {
+				const config = node.configuration as {
+					codeToolName: string;
+					codeToolDescription: string;
+					codeToolInputSchema: string;
+					codeToolCode: string;
+				};
+				const toolName = config.codeToolName;
+
+				// Parse user-defined JSON schema into Zod
+				let inputSchema: z.ZodTypeAny = z.object({});
+				try {
+					const jsonSchema = JSON.parse(config.codeToolInputSchema || "{}");
+					if (jsonSchema.properties) {
+						const fields: Record<string, z.ZodTypeAny> = {};
+						for (const [key, prop] of Object.entries(
+							jsonSchema.properties as Record<string, { type?: string; description?: string }>,
+						)) {
+							const desc = prop.description ?? key;
+							switch (prop.type) {
+								case "number":
+								case "integer":
+									fields[key] = z.number().describe(desc);
+									break;
+								case "boolean":
+									fields[key] = z.boolean().describe(desc);
+									break;
+								case "array":
+									fields[key] = z.array(z.any()).describe(desc);
+									break;
+								case "object":
+									fields[key] = z.record(z.string(), z.any()).describe(desc);
+									break;
+								default:
+									fields[key] = z.string().describe(desc);
+									break;
+							}
+						}
+						// Mark required fields
+						const required = (jsonSchema.required as string[]) ?? [];
+						for (const key of Object.keys(fields)) {
+							if (!required.includes(key)) {
+								fields[key] = fields[key].optional();
+							}
+						}
+						inputSchema = z.object(fields);
+					}
+				} catch {
+					context.logger.warn(
+						{ toolName },
+						"Failed to parse code tool input schema, using empty schema",
+					);
+				}
+
+				toolSet[toolName] = defineTool({
+					description: config.codeToolDescription || `Custom code tool: ${toolName}`,
+					inputSchema: inputSchema as z.ZodObject<Record<string, z.ZodTypeAny>>,
+					execute: async (params: Record<string, unknown>) => {
+						try {
+							// Execute user code in a sandboxed Function
+							const fn = new Function("params", config.codeToolCode);
+							const result = await fn(params);
+							return typeof result === "string"
+								? result
+								: JSON.stringify(result, null, 2);
+						} catch (error) {
+							const msg = error instanceof Error ? error.message : String(error);
+							context.logger.error(
+								{ error: msg, toolName },
+								"Code tool execution failed",
+							);
+							return JSON.stringify({
+								error: true,
+								message: `Code tool "${toolName}" failed: ${msg}`,
+							});
+						}
+					},
+				});
+
+				context.logger.info(
+					{ toolName },
+					"Created code execution tool for AI Agent",
+				);
+			} catch (error) {
+				context.logger.error(
+					{
+						toolName: node.actionName,
+						error: error instanceof Error ? error.message : String(error),
+					},
+					"Failed to create code tool, skipping",
+				);
+			}
+			continue;
+		}
+
 		try {
 			// Dynamic import to avoid pulling activepieces-adapter into every build
 			const { inspectPiece } = await import(

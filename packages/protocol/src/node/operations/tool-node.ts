@@ -22,6 +22,11 @@ export const ToolNodeContent = z.object({
 		.custom<LanguageModelToolName>(isLanguageModelToolName)
 		.optional(),
 	configuration: z.record(z.string(), z.any()),
+	// For code execution tools:
+	codeToolName: z.string().optional(),
+	codeToolDescription: z.string().optional(),
+	codeToolInputSchema: z.string().optional(),
+	codeToolCode: z.string().optional(),
 });
 
 export type ToolNodeContent = z.infer<typeof ToolNodeContent>;

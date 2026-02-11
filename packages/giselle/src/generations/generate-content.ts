@@ -765,6 +765,32 @@ function generateContentV2({
 								"AI Agent adding web search tool from Tool sub-node",
 							);
 						} else if (
+							toolContent.toolType === "codeExecution" &&
+							(toolContent as any).codeToolName &&
+							(toolContent as any).codeToolCode
+						) {
+							const codeTool = toolContent as {
+								codeToolName: string;
+								codeToolDescription?: string;
+								codeToolInputSchema?: string;
+								codeToolCode: string;
+							} & typeof toolContent;
+							integrationToolNodes.push({
+								pieceName: "__code__",
+								actionName: codeTool.codeToolName,
+								configuration: {
+									__codeExecution: true,
+									codeToolName: codeTool.codeToolName,
+									codeToolDescription: codeTool.codeToolDescription ?? "",
+									codeToolInputSchema: codeTool.codeToolInputSchema ?? "{}",
+									codeToolCode: codeTool.codeToolCode,
+								},
+							});
+							logger.info(
+								{ toolName: codeTool.codeToolName },
+								"AI Agent adding code execution tool from Tool sub-node",
+							);
+						} else if (
 							toolContent.toolType === "integration" &&
 							toolContent.pieceName &&
 							toolContent.actionName
@@ -943,7 +969,15 @@ function generateContentV2({
 					}
 				},
 				onStepFinish: (result) => {
-					logger.debug(result, "onStepFinish");
+					const toolCalls = result.toolCalls?.map((tc: { toolName: string }) => tc.toolName) ?? [];
+					logger.info(
+						{
+							finishReason: result.finishReason,
+							toolCalls,
+							usage: result.usage,
+						},
+						"AI Agent step completed",
+					);
 				},
 				onAbort: () => {
 					logger.debug({ generationId: generation.id }, "streamText onAbort");

@@ -20,11 +20,8 @@ type ToolPart = Extract<UIMessage["parts"][number], { type: string }> & {
 };
 
 function isToolPart(part: ToolPart): boolean {
-	return (
-		part.type.startsWith("tool-github-api_") ||
-		part.type.startsWith("tool-postgres_") ||
-		part.type.startsWith("tool-web_search")
-	);
+	// Recognize ALL tool parts (integration, code, built-in)
+	return part.type.startsWith("tool-");
 }
 
 function formatToolOutput(part: ToolPart): string {
@@ -235,9 +232,22 @@ function formatToolOutput(part: ToolPart): string {
 	}
 }
 
+function formatToolName(rawType: string): string {
+	const name = rawType.replace("tool-", "");
+	// Format "slack_sendMessage" -> "Slack: Send Message"
+	if (name.includes("_")) {
+		const [piece, ...actionParts] = name.split("_");
+		const action = actionParts.join("_");
+		// Convert camelCase to Title Case
+		const formatted = action.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase());
+		return `${piece.charAt(0).toUpperCase() + piece.slice(1)}: ${formatted}`;
+	}
+	return name.replace("github.", "");
+}
+
 function ToolResult({ part }: { part: ToolPart }) {
 	const [isExpanded, setIsExpanded] = useState(false);
-	const toolName = part.type.replace("tool-", "").replace("github.", "");
+	const toolName = formatToolName(part.type);
 	const hasOutput =
 		part.state === "output-available" && part.output !== undefined;
 	const isInputAvailable = part.state === "input-available";
@@ -414,7 +424,11 @@ export function GenerationView({ generation }: { generation: Generation }) {
 						</div>
 					);
 				})}
-			{generatedMessages.map((message, messageIndex) => (
+			{generatedMessages.map((message, messageIndex) => {
+				// Count step-start parts to display step numbers
+				let stepCounter = 0;
+				const totalSteps = message.parts.filter((p) => p.type === "step-start").length;
+				return (
 				<div key={`${message.id ?? "message"}-${messageIndex}`}>
 					{message.parts.map((part, partIndex) => {
 						const lastPart = message.parts.length === partIndex + 1;
@@ -424,8 +438,20 @@ export function GenerationView({ generation }: { generation: Generation }) {
 							return <ToolResult key={partKey} part={toolPart} />;
 						}
 						switch (part.type) {
-							case "step-start":
-								return <Fragment key={partKey} />;
+							case "step-start": {
+								stepCounter++;
+								// Only show step markers when there are multiple steps (agent used tools)
+								if (totalSteps <= 1) return <Fragment key={partKey} />;
+								return (
+									<div key={partKey} className="flex items-center gap-[8px] my-[8px] text-[11px] text-text-muted font-sans">
+										<div className="flex items-center justify-center w-[20px] h-[20px] rounded-full bg-[hsla(0,0%,100%,0.08)] text-[10px] font-semibold text-inverse/60">
+											{stepCounter}
+										</div>
+										<div className="flex-1 h-[1px] bg-[hsla(0,0%,100%,0.08)]" />
+										<span>Step {stepCounter}</span>
+									</div>
+								);
+							}
 							case "reasoning":
 								if (lastPart) {
 									return (
@@ -499,7 +525,8 @@ export function GenerationView({ generation }: { generation: Generation }) {
 						}
 					})}
 				</div>
-			))}
+				);
+			})}
 			{generation.status !== "completed" &&
 				generation.status !== "cancelled" &&
 				// Show the spinner only when there is no reasoning part
