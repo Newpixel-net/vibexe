@@ -1,7 +1,7 @@
 "use client";
 
 import {
-	type InputId,
+	InputId,
 	isAppEntryNode,
 	isEndNode,
 	type NodeId,
@@ -598,7 +598,7 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 				addNode(chatModelNode, { position });
 
 				// Create an input on the AI Agent for this sub-node connection
-				const inputId = "chatModel" as InputId;
+				const inputId = InputId.generate();
 				addNodeInput(detail.parentNodeId, {
 					id: inputId,
 					label: "Chat Model",
