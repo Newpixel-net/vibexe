@@ -1,3 +1,4 @@
+import { getPieceCategoryColor } from "@giselles-ai/activepieces-adapter";
 import type { NodeId } from "@giselles-ai/protocol";
 import { useNodeGenerations } from "@giselles-ai/react";
 import { BaseEdge, type EdgeProps, getBezierPath } from "@xyflow/react";
@@ -27,31 +28,39 @@ function ConnectedNodeRunning({
 	return null;
 }
 
-function getGradientColors(
-	outputContentType: string,
-	inputContentType: string,
-): { startColor: string; endColor: string } {
-	const colorMap: Record<string, string> = {
-		textGeneration: "var(--color-primary-900)",
-		contentGeneration: "var(--color-primary-900)",
-		file: "var(--color-node-data-900)",
-		webPage: "var(--color-webPage-node-1)",
-		text: "var(--color-text-node-1)",
-		imageGeneration: "var(--color-image-generation-node-1)",
-		trigger: "var(--color-trigger-node-1)",
-		action: "var(--color-action-node-1)",
-		query: "var(--color-query-node-1)",
-		dataQuery: "var(--color-data-query-node-1)",
-		vectorStore: "var(--color-vector-store-node-1)",
-		dataStore: "var(--color-data-store-node-1)",
-		appEntry: STAGE_NODE_COLOR_VAR,
-		end: STAGE_NODE_COLOR_VAR,
-	};
+const edgeColorMap: Record<string, string> = {
+	textGeneration: "var(--color-generation-node-1)",
+	contentGeneration: "var(--color-generation-node-1)",
+	file: "var(--color-file-node-1)",
+	webPage: "var(--color-webPage-node-1)",
+	text: "var(--color-text-node-1)",
+	imageGeneration: "var(--color-image-generation-node-1)",
+	trigger: "var(--color-trigger-node-1)",
+	action: "var(--color-action-node-1)",
+	query: "var(--color-query-node-1)",
+	dataQuery: "var(--color-data-query-node-1)",
+	vectorStore: "var(--color-vector-store-node-1)",
+	dataStore: "var(--color-data-store-node-1)",
+	integration: "var(--color-integration-node-1)",
+	github: "var(--color-github-node-1)",
+	appEntry: STAGE_NODE_COLOR_VAR,
+	end: STAGE_NODE_COLOR_VAR,
+};
 
-	return {
-		startColor: colorMap[outputContentType] ?? "var(--color-primary-900)",
-		endColor: colorMap[inputContentType] ?? "var(--color-primary-900)",
-	};
+function getNodeEdgeColor(nodeContent: {
+	type: string;
+	[key: string]: unknown;
+}): string {
+	// Integration nodes use per-piece category colors (purple, red, orange, etc.)
+	if (
+		nodeContent.type === "integration" &&
+		typeof nodeContent.pieceName === "string"
+	) {
+		const pieceColor = getPieceCategoryColor(nodeContent.pieceName);
+		if (pieceColor) return pieceColor;
+	}
+
+	return edgeColorMap[nodeContent.type] ?? "var(--color-primary-900)";
 }
 
 export function Connector({
@@ -82,10 +91,8 @@ export function Connector({
 	const inputContentType = connection.inputNode.content.type;
 	const gradientId = `gradient-${id}`;
 	const filterId = `glow-${id}`;
-	const { startColor, endColor } = getGradientColors(
-		outputContentType,
-		inputContentType,
-	);
+	const startColor = getNodeEdgeColor(connection.outputNode.content);
+	const endColor = getNodeEdgeColor(connection.inputNode.content);
 
 	// Calculate direction vector for animation
 	const dx = targetX - sourceX;
