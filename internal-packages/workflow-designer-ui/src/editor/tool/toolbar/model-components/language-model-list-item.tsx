@@ -5,6 +5,7 @@ import {
 	AnthropicIcon,
 	GoogleWhiteIcon,
 	ImageGenerationNodeIcon,
+	NvidiaIcon,
 	OpenaiIcon,
 	PerplexityIcon,
 	XaiIcon,
@@ -39,6 +40,9 @@ function _LanguageModelListItem({
 				)}
 				{languageModel.provider === "perplexity" && (
 					<PerplexityIcon className="w-[18px] h-[18px]" data-icon />
+				)}
+				{languageModel.provider === "nvidia" && (
+					<NvidiaIcon className="w-[18px] h-[18px]" data-icon />
 				)}
 				{languageModel.provider === "xai" && (
 					<XaiIcon className="w-[18px] h-[18px]" data-icon />

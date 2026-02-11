@@ -20,6 +20,7 @@ export * from "./html-file";
 export * from "./ideogram";
 export * from "./layers";
 export * from "./markdown-file";
+export * from "./nvidia";
 export * from "./openai";
 export * from "./panel-close";
 export * from "./panel-open";

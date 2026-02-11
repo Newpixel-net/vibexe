@@ -43,6 +43,14 @@ export const AI_PROVIDERS = [
 		placeholder: "xai-...",
 		description: "Powers Grok models for advanced reasoning and generation",
 	},
+	{
+		id: "nvidia",
+		name: "NVIDIA NIM (Kimi)",
+		envVar: "NVIDIA_API_KEY",
+		placeholder: "nvapi-...",
+		description:
+			"Powers Kimi K2.5 and other models via NVIDIA NIM API",
+	},
 ] as const;
 
 export type ProviderId = (typeof AI_PROVIDERS)[number]["id"];
@@ -53,6 +61,7 @@ const ENV_VAR_MAP: Record<ProviderId, string> = {
 	google: "GOOGLE_GENERATIVE_AI_API_KEY",
 	perplexity: "PERPLEXITY_API_KEY",
 	xai: "XAI_API_KEY",
+	nvidia: "NVIDIA_API_KEY",
 };
 
 export function redactKey(key: string): string {

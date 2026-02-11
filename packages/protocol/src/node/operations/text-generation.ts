@@ -1,6 +1,7 @@
 import {
 	AnthropicLanguageModel,
 	GoogleLanguageModel,
+	NvidiaLanguageModel,
 	OpenAILanguageModel,
 	PerplexityLanguageModel,
 	XaiLanguageModel,
@@ -38,6 +39,13 @@ export type PerplexityLanguageModelData = z.infer<
 	typeof PerplexityLanguageModelData
 >;
 
+export const NvidiaLanguageModelData = NvidiaLanguageModel.pick({
+	provider: true,
+	id: true,
+	configurations: true,
+});
+export type NvidiaLanguageModelData = z.infer<typeof NvidiaLanguageModelData>;
+
 export const XaiLanguageModelData = XaiLanguageModel.pick({
 	provider: true,
 	id: true,
@@ -48,6 +56,7 @@ export type XaiLanguageModelData = z.infer<typeof XaiLanguageModelData>;
 export const TextGenerationLanguageModelProvider = z.enum([
 	AnthropicLanguageModelData.shape.provider.value,
 	GoogleLanguageModelData.shape.provider.value,
+	NvidiaLanguageModelData.shape.provider.value,
 	OpenAILanguageModelData.shape.provider.value,
 	PerplexityLanguageModelData.shape.provider.value,
 	XaiLanguageModelData.shape.provider.value,
@@ -61,6 +70,7 @@ export const TextGenerationLanguageModelData = z.discriminatedUnion(
 	[
 		AnthropicLanguageModelData,
 		GoogleLanguageModelData,
+		NvidiaLanguageModelData,
 		OpenAILanguageModelData,
 		PerplexityLanguageModelData,
 		XaiLanguageModelData,

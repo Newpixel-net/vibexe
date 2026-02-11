@@ -2,6 +2,7 @@ import type { TextGenerationLanguageModelProvider } from "@giselles-ai/protocol"
 import type { SVGProps } from "react";
 import { AnthropicIcon } from "../anthropic";
 import { GoogleWhiteIcon } from "../google";
+import { NvidiaIcon } from "../nvidia";
 import { OpenaiIcon } from "../openai";
 import { PerplexityIcon } from "../perplexity";
 import { XaiIcon } from "../xai";
@@ -21,6 +22,8 @@ function _TextGenerationNodeIcon({
 			return <GoogleWhiteIcon {...props} />;
 		case "perplexity":
 			return <PerplexityIcon {...props} />;
+		case "nvidia":
+			return <NvidiaIcon {...props} />;
 		case "xai":
 			return <XaiIcon {...props} />;
 		default: {

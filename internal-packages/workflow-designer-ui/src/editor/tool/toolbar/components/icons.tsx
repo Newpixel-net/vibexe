@@ -6,6 +6,7 @@ export {
 	GenerateTextIcon,
 	GitHubIcon,
 	GoogleWhiteIcon,
+	NvidiaIcon,
 	OpenaiIcon,
 	PdfFileIcon,
 	PerplexityIcon,

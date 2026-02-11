@@ -3,6 +3,7 @@ import {
 	AnthropicIcon,
 	GoogleWhiteIcon,
 	ImageGenerationNodeIcon,
+	NvidiaIcon,
 	OpenaiIcon,
 	PerplexityIcon,
 	XaiIcon,
@@ -26,6 +27,8 @@ export function ProviderIcon({
 			return <GoogleWhiteIcon className={className} data-icon />;
 		case "perplexity":
 			return <PerplexityIcon className={className} data-icon />;
+		case "nvidia":
+			return <NvidiaIcon className={className} data-icon />;
 		case "xai":
 			return <XaiIcon className={className} data-icon />;
 		case "fal":

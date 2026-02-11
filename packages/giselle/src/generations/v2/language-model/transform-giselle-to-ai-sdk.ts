@@ -102,6 +102,15 @@ export function transformGiselleLanguageModelToAiSdkLanguageModelCallOptions(
 				},
 			} satisfies Partial<LanguageModelV2CallOptions>;
 		}
+		case "nvidia/moonshotai/kimi-k2.5": {
+			const config = parseConfiguration(
+				languageModel,
+				content.languageModel.configuration,
+			);
+			return {
+				temperature: config.temperature,
+			} satisfies Partial<LanguageModelV2CallOptions>;
+		}
 		case "xai/grok-3":
 		case "xai/grok-3-mini": {
 			const config = parseConfiguration(

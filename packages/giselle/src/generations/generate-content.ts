@@ -66,6 +66,13 @@ function getXaiProvider() {
 	});
 }
 
+function getNvidiaProvider() {
+	return createOpenAI({
+		apiKey: process.env.NVIDIA_API_KEY ?? "",
+		baseURL: "https://integrate.api.nvidia.com/v1",
+	});
+}
+
 type StreamItem<T> = T extends AsyncIterableStream<infer Inner> ? Inner : never;
 
 type GenerateContentResult =
@@ -576,6 +583,8 @@ function generationModel(languageModel: TextGenerationLanguageModelData) {
 			return google(languageModel.id);
 		case "perplexity":
 			return getPerplexityProvider()(languageModel.id);
+		case "nvidia":
+			return getNvidiaProvider()(languageModel.id);
 		case "xai":
 			return getXaiProvider()(languageModel.id);
 		default: {
@@ -597,6 +606,8 @@ function resolveModel(modelId: string) {
 			return google(model);
 		case "perplexity":
 			return getPerplexityProvider()(model);
+		case "nvidia":
+			return getNvidiaProvider()(model);
 		case "xai":
 			return getXaiProvider()(model);
 		default:

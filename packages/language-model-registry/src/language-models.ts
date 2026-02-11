@@ -1,5 +1,6 @@
 import { anthropic } from "./anthropic";
 import { google } from "./google";
+import { nvidia } from "./nvidia";
 import { openai } from "./openai";
 import { xai } from "./xai";
 
@@ -7,6 +8,7 @@ export const languageModels = [
 	...Object.values(openai),
 	...Object.values(anthropic),
 	...Object.values(google),
+	...Object.values(nvidia),
 	...Object.values(xai),
 ];
 

@@ -20,6 +20,7 @@ import { IdegramIcon } from "../ideogram";
 import { OpenaiIcon } from "../openai";
 import { PdfFileIcon } from "../pdf-file";
 import { PerplexityIcon } from "../perplexity";
+import { NvidiaIcon } from "../nvidia";
 import { XaiIcon } from "../xai";
 import { PictureIcon } from "../picture";
 import { PromptIcon } from "../prompt";
@@ -108,6 +109,10 @@ export function NodeIcon({
 								return <GoogleWhiteIcon {...props} data-content-type-icon />;
 							}
 							return <GoogleIcon {...props} data-content-type-icon />;
+						case "nvidia":
+							return <NvidiaIcon {...props} data-content-type-icon />;
+						case "xai":
+							return <XaiIcon {...props} data-content-type-icon />;
 						default: {
 							const _exhaustiveCheck: never =
 								node.content.languageModel.provider;
@@ -133,6 +138,8 @@ export function NodeIcon({
 								return <GoogleWhiteIcon {...props} data-content-type-icon />;
 							}
 							return <GoogleIcon {...props} data-content-type-icon />;
+						case "nvidia":
+							return <NvidiaIcon {...props} data-content-type-icon />;
 						case "perplexity":
 							return <PerplexityIcon {...props} data-content-type-icon />;
 						case "xai":

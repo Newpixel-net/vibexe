@@ -28,6 +28,10 @@ import {
 	models as perplexityLanguageModels,
 } from "./perplexity";
 import {
+	LanguageModel as NvidiaLanguageModel,
+	models as nvidiaLanguageModels,
+} from "./nvidia";
+import {
 	LanguageModel as XaiLanguageModel,
 	models as xaiLanguageModels,
 } from "./xai";
@@ -53,6 +57,7 @@ export const LanguageModel = z.union([
 	AnthropicLanguageModel,
 	GoogleLanguageModel,
 	GoogleImageLanguageModel,
+	NvidiaLanguageModel,
 	OpenAILanguageModel,
 	OpenAIImageLanguageModel,
 	PerplexityLanguageModel,
@@ -65,6 +70,7 @@ export const languageModels = [
 	...googleLanguageModels,
 	...googleImageLanguageModels,
 	...anthropicLanguageModels,
+	...nvidiaLanguageModels,
 	...openaiLanguageModels,
 	...openaiImageLanguageModels,
 	...perplexityLanguageModels,
@@ -76,6 +82,7 @@ export {
 	AnthropicLanguageModel,
 	GoogleLanguageModel,
 	GoogleImageLanguageModel,
+	NvidiaLanguageModel,
 	OpenAILanguageModel,
 	OpenAIImageLanguageModel,
 	PerplexityLanguageModel,
@@ -84,6 +91,7 @@ export {
 	anthropicLanguageModels,
 	googleLanguageModels,
 	googleImageLanguageModels,
+	nvidiaLanguageModels,
 	openaiLanguageModels,
 	perplexityLanguageModels,
 	xaiLanguageModels,
@@ -94,6 +102,7 @@ export const LanguageModelProviders = z.enum([
 	AnthropicLanguageModel.shape.provider.value,
 	GoogleLanguageModel.shape.provider.value,
 	GoogleImageLanguageModel.shape.provider.value,
+	NvidiaLanguageModel.shape.provider.value,
 	OpenAILanguageModel.shape.provider.value,
 	OpenAIImageLanguageModel.shape.provider.value,
 	PerplexityLanguageModel.shape.provider.value,
@@ -104,5 +113,6 @@ export type LanguageModelProvider = z.infer<typeof LanguageModelProviders>;
 
 export { AnthropicLanguageModelId } from "./anthropic";
 export { GoogleLanguageModelId } from "./google";
+export { NvidiaLanguageModelId } from "./nvidia";
 export { OpenAILanguageModelId } from "./openai";
 export { XaiLanguageModelId } from "./xai";

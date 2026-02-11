@@ -264,6 +264,7 @@ async function buildGenerationMessageForTextGeneration({
 				);
 				switch (llmProvider) {
 					case "anthropic":
+					case "nvidia":
 					case "openai":
 					case "perplexity":
 					case "xai":
@@ -578,6 +579,7 @@ async function buildGenerationMessageForImageGeneration(
 				);
 				switch (llmProvider) {
 					case "fal":
+					case "nvidia":
 					case "openai":
 					case "xai":
 						userMessage = userMessage.replace(
@@ -1078,6 +1080,7 @@ async function buildGenerationMessageForContentGeneration({
 				);
 				switch (llmProvider) {
 					case "anthropic":
+					case "nvidia":
 					case "openai":
 					case "xai":
 						userMessage = userMessage.replace(

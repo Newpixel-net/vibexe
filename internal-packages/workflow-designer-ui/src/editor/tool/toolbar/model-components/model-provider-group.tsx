@@ -3,6 +3,7 @@ import {
 	AnthropicIcon,
 	GoogleWhiteIcon,
 	ImageGenerationNodeIcon,
+	NvidiaIcon,
 	OpenaiIcon,
 	PerplexityIcon,
 	XaiIcon,
@@ -26,6 +27,8 @@ function _ModelProviderGroup({
 				return "Claude";
 			case "google":
 				return "Google";
+			case "nvidia":
+				return "NVIDIA NIM";
 			case "xai":
 				return "xAI";
 			default:
@@ -57,6 +60,9 @@ function _ModelProviderGroup({
 							)}
 							{provider === "perplexity" && (
 								<PerplexityIcon className="w-[18px] h-[18px]" data-icon />
+							)}
+							{provider === "nvidia" && (
+								<NvidiaIcon className="w-[18px] h-[18px]" data-icon />
 							)}
 							{provider === "xai" && (
 							<XaiIcon className="w-[18px] h-[18px]" data-icon />

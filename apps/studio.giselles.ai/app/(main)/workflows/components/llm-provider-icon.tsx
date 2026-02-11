@@ -1,6 +1,7 @@
 import {
 	AnthropicIcon,
 	GoogleWhiteIcon,
+	NvidiaIcon,
 	OpenaiIcon,
 	PerplexityIcon,
 	XaiIcon,
@@ -22,6 +23,8 @@ export function LLMProviderIcon({
 			return <GoogleWhiteIcon className={className} />;
 		case "perplexity":
 			return <PerplexityIcon className={className} />;
+		case "nvidia":
+			return <NvidiaIcon className={className} />;
 		case "xai":
 			return <XaiIcon className={className} />;
 		default:

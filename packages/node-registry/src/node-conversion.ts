@@ -1,6 +1,7 @@
 import {
 	AnthropicLanguageModelId,
 	GoogleLanguageModelId,
+	NvidiaLanguageModelId,
 	OpenAILanguageModelId,
 	XaiLanguageModelId,
 } from "@giselles-ai/language-model";
@@ -82,6 +83,8 @@ function convertTextGenerationLanguageModelIdToContentGenerationLanguageModelId(
 			return "xai/grok-3-mini";
 		case "grok-2-vision-1212":
 			return "xai/grok-2-vision-1212";
+		case "moonshotai/kimi-k2.5":
+			return "nvidia/moonshotai/kimi-k2.5";
 		case "sonar":
 		case "sonar-pro":
 			// fallback to gpt-5-nano
@@ -150,6 +153,8 @@ function convertContentGenerationLanguageModelIdToTextGenerationLanguageModelId(
 			return "grok-3-mini";
 		case "xai/grok-2-vision-1212":
 			return "grok-2-vision-1212";
+		case "nvidia/moonshotai/kimi-k2.5":
+			return "moonshotai/kimi-k2.5";
 		default: {
 			const _exhaustiveCheck: never = from;
 			throw new Error(`Unknown language model id: ${_exhaustiveCheck}`);
@@ -291,6 +296,16 @@ export function convertContentGenerationToTextGeneration(
 					frequencyPenalty: 0.0,
 					textVerbosity: "medium",
 					reasoningEffort: "medium",
+				},
+			};
+			break;
+		case "nvidia":
+			llm = {
+				provider: "nvidia",
+				id: NvidiaLanguageModelId.parse(languageModelId),
+				configurations: {
+					temperature: 0.7,
+					topP: 1.0,
 				},
 			};
 			break;

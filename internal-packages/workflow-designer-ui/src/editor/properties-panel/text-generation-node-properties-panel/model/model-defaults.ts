@@ -1,12 +1,13 @@
 import {
 	AnthropicLanguageModelData,
 	GoogleLanguageModelData,
+	NvidiaLanguageModelData,
 	OpenAILanguageModelData,
 	XaiLanguageModelData,
 	type TextGenerationLanguageModelData,
 } from "@giselles-ai/protocol";
 
-type Provider = "openai" | "anthropic" | "google" | "xai";
+type Provider = "openai" | "anthropic" | "google" | "nvidia" | "xai";
 
 /**
  * Returns the default reasoningEffort for the given OpenAI model.
@@ -59,6 +60,15 @@ export function createDefaultModelData(
 					searchGrounding: false,
 				},
 			});
+		case "nvidia":
+			return NvidiaLanguageModelData.parse({
+				provider: "nvidia",
+				id: "moonshotai/kimi-k2.5",
+				configurations: {
+					temperature: 0.7,
+					topP: 1.0,
+				},
+			});
 		case "xai":
 			return XaiLanguageModelData.parse({
 				provider: "xai",
@@ -100,6 +110,11 @@ export function updateModelId(
 			});
 		case "google":
 			return GoogleLanguageModelData.parse({
+				...currentModel,
+				id: newModelId,
+			});
+		case "nvidia":
+			return NvidiaLanguageModelData.parse({
 				...currentModel,
 				id: newModelId,
 			});
