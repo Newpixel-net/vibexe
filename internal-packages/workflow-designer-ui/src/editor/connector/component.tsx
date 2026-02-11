@@ -72,10 +72,28 @@ export function Connector({
 	targetY,
 	targetPosition,
 }: EdgeProps) {
-	const connection = useAppDesignerStore(
-		useShallow((s) => s.connections.find((connection) => connection.id === id)),
-	);
-	if (connection === undefined) {
+	const { connection, outputNodeContent, inputNodeContent } =
+		useAppDesignerStore(
+			useShallow((s) => {
+				const conn = s.connections.find(
+					(connection) => connection.id === id,
+				);
+				if (!conn) return { connection: undefined, outputNodeContent: undefined, inputNodeContent: undefined };
+				// Look up full nodes from store to get complete content (including pieceName for integrations)
+				const fullOutputNode = s.nodes.find(
+					(n) => n.id === conn.outputNode.id,
+				);
+				const fullInputNode = s.nodes.find(
+					(n) => n.id === conn.inputNode.id,
+				);
+				return {
+					connection: conn,
+					outputNodeContent: fullOutputNode?.content ?? conn.outputNode.content,
+					inputNodeContent: fullInputNode?.content ?? conn.inputNode.content,
+				};
+			}),
+		);
+	if (connection === undefined || !outputNodeContent || !inputNodeContent) {
 		return null;
 	}
 	const [edgePath] = getBezierPath({
@@ -87,12 +105,12 @@ export function Connector({
 		targetPosition,
 	});
 
-	const outputContentType = connection.outputNode.content.type;
-	const inputContentType = connection.inputNode.content.type;
+	const outputContentType = outputNodeContent.type;
+	const inputContentType = inputNodeContent.type;
 	const gradientId = `gradient-${id}`;
 	const filterId = `glow-${id}`;
-	const startColor = getNodeEdgeColor(connection.outputNode.content);
-	const endColor = getNodeEdgeColor(connection.inputNode.content);
+	const startColor = getNodeEdgeColor(outputNodeContent);
+	const endColor = getNodeEdgeColor(inputNodeContent);
 
 	// Calculate direction vector for animation
 	const dx = targetX - sourceX;
