@@ -38,9 +38,7 @@ import {
 import {
 	AISDKError,
 	type AsyncIterableStream,
-	jsonSchema,
 	type ModelMessage,
-	Output,
 	smoothStream,
 	stepCountIs,
 	streamText,
@@ -1005,8 +1003,8 @@ function generateContentV2({
 					? operationNode.content.maxSteps ?? 30
 					: undefined;
 
-			// AI Agent: structured output — try native AI SDK Output.object, fall back to prompt injection
-			let structuredOutputSpec: ReturnType<typeof Output.object> | undefined;
+			// AI Agent: structured output — inject schema into system prompt
+			let structuredOutputSchema: unknown;
 			if (
 				isAiAgentNode(operationNode) &&
 				operationNode.content.structuredOutput?.enabled &&
@@ -1014,18 +1012,15 @@ function generateContentV2({
 			) {
 				const schemaStr = operationNode.content.structuredOutput.schema.trim();
 				try {
-					const parsedSchema = JSON.parse(schemaStr);
-					structuredOutputSpec = Output.object({
-						schema: jsonSchema(parsedSchema),
-					});
-					logger.debug("Using native AI SDK structured output");
-				} catch {
-					// JSON parse failed or schema invalid — fall back to prompt injection
-					logger.debug("Falling back to prompt-injection structured output");
+					structuredOutputSchema = JSON.parse(schemaStr);
+					// Use prompt injection for broad model compatibility
 					const structuredOutputInstruction = `\n\nIMPORTANT: Your final response MUST be valid JSON matching this schema:\n\`\`\`json\n${schemaStr}\n\`\`\`\nDo NOT include any text before or after the JSON in your final response. Only output the raw JSON object.`;
 					agentSystemPrompt = agentSystemPrompt
 						? agentSystemPrompt + structuredOutputInstruction
 						: structuredOutputInstruction;
+					logger.debug("Using prompt-injection structured output");
+				} catch {
+					logger.debug("Invalid structured output schema JSON, skipping");
 				}
 			}
 
@@ -1134,7 +1129,7 @@ function generateContentV2({
 				model: v2Model,
 				messages,
 				...(agentSystemPrompt ? { system: agentSystemPrompt } : {}),
-				...(structuredOutputSpec ? { output: structuredOutputSpec } : {}),
+				// structuredOutputSchema is injected into system prompt above
 				...(agentMaxSteps ? { maxSteps: agentMaxSteps } : {}),
 				tools: toolSet,
 				stopWhen: ({ steps }) => {
