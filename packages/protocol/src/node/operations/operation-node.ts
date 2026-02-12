@@ -378,14 +378,19 @@ export function isErrorTriggerNode(args?: unknown): args is ErrorTriggerNode {
 	return ErrorTriggerNode.safeParse(args).success;
 }
 
-/** Helper to check if a node type is a flow-control type that requires DAG execution */
+/** Helper to check if a node type requires DAG execution (flow control + data transform) */
 export function isFlowControlNode(args?: unknown): boolean {
 	return (
 		isIfNode(args) ||
 		isSwitchNode(args) ||
 		isMergeNode(args) ||
 		isLoopNode(args) ||
-		isWaitNode(args)
+		isWaitNode(args) ||
+		isCodeNode(args) ||
+		isFilterNode(args) ||
+		isEditFieldsNode(args) ||
+		isSortNode(args) ||
+		isErrorTriggerNode(args)
 	);
 }
 

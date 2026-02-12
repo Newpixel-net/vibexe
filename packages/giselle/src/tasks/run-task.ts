@@ -100,6 +100,9 @@ async function executeStep(args: {
 	metadata?: GenerationMetadata;
 }) {
 	try {
+		// Track whether the case block handled completion callbacks itself
+		let handledCompletion = false;
+
 		switch (args.generation.context.operationNode.content.type) {
 			case "action":
 				await executeAction(args);
@@ -127,6 +130,7 @@ async function executeStep(args: {
 				if (isCompletedGeneration(finishedGeneration)) {
 					await args.callbacks?.onCompleted?.();
 				}
+				handledCompletion = true;
 				break;
 			}
 			case "trigger":
@@ -170,7 +174,9 @@ async function executeStep(args: {
 				throw new Error(`Unhandled step type: ${_exhaustiveCheck}`);
 			}
 		}
-		await args.callbacks?.onCompleted?.();
+		if (!handledCompletion) {
+			await args.callbacks?.onCompleted?.();
+		}
 	} catch (_e) {
 		console.log(_e);
 		await args.callbacks?.onFailed?.(args.generation);
@@ -311,12 +317,26 @@ async function runTaskWithDag(
 
 			const opNode = generation.context.operationNode as OperationNode;
 
+			// Wire errorConfig from the operation node to the DAG node
+			const errorConfig = (opNode as { errorConfig?: {
+				retryOnFail: boolean;
+				maxRetries: number;
+				retryDelay: number;
+				onError: "stopWorkflow" | "continueOnFail" | "routeToError";
+			} }).errorConfig;
+
 			dag.addNode({
 				nodeId: opNode.id,
 				operationNode: opNode,
 				generationId: step.generationId,
 				state: "pending",
 				retryCount: 0,
+				errorConfig: errorConfig ? {
+					retryOnFail: errorConfig.retryOnFail,
+					maxRetries: errorConfig.maxRetries,
+					retryDelay: errorConfig.retryDelay,
+					onError: errorConfig.onError,
+				} : undefined,
 			});
 		}
 	}
@@ -343,11 +363,23 @@ async function runTaskWithDag(
 					const edgeKey = `${conn.outputNode.id}-${conn.inputNode.id}-${conn.outputId ?? ""}-${conn.inputId ?? ""}`;
 					if (!processedEdges.has(edgeKey)) {
 						processedEdges.add(edgeKey);
+
+						// Resolve OutputId/InputId to accessor names.
+						// Connections store port IDs (otp-xxx, inp-xxx) but the DAG executor
+						// compares by accessor names ("true", "false", "data", etc.)
+						const sourceNode = dag.nodes.get(conn.outputNode.id as NodeId);
+						const outputPort = sourceNode?.operationNode.outputs.find(
+							(o) => o.id === conn.outputId,
+						);
+						const inputPort = opNode.inputs.find(
+							(i) => i.id === conn.inputId,
+						);
+
 						dag.addEdge({
 							fromNodeId: conn.outputNode.id as NodeId,
 							toNodeId: conn.inputNode.id as NodeId,
-							fromOutputPort: conn.outputId as string | undefined,
-							toInputPort: conn.inputId as string | undefined,
+							fromOutputPort: outputPort?.accessor ?? (conn.outputId as string | undefined),
+							toInputPort: inputPort?.accessor ?? (conn.inputId as string | undefined),
 							connection: conn,
 						});
 					}
@@ -437,14 +469,21 @@ async function runTaskWithDag(
 							const outputs = new Map<string, unknown>();
 							if (completed && "outputs" in completed) {
 								for (const out of (completed as { outputs: GenerationOutput[] }).outputs) {
+									// Resolve outputId (otp-xxx) to accessor name for DAG data flow
+									const port = dagNode.operationNode.outputs.find(
+										(o) => o.id === out.outputId,
+									);
+									const key = port?.accessor ?? out.outputId;
 									if (out.type === "generated-text") {
-										outputs.set(out.outputId, out.content);
+										outputs.set(key, out.content);
 									} else if (out.type === "structured-data") {
-										outputs.set(out.outputId, (out as { data: unknown }).data);
+										outputs.set(key, (out as { data: unknown }).data);
 									} else if (out.type === "data-query-result") {
-										outputs.set(out.outputId, out.content);
+										outputs.set(key, out.content);
 									} else if (out.type === "query-result") {
-										outputs.set(out.outputId, out.content);
+										outputs.set(key, out.content);
+									} else if (out.type === "generated-image") {
+										outputs.set(key, out.content);
 									}
 								}
 							}

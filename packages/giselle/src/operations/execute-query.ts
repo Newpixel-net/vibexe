@@ -267,6 +267,16 @@ async function resolveQuery(
 			case "chatModel":
 			case "toolNode":
 			case "memoryNode":
+			case "if":
+			case "switch":
+			case "merge":
+			case "loop":
+			case "code":
+			case "filter":
+			case "editFields":
+			case "sort":
+			case "wait":
+			case "errorTrigger":
 				break;
 			default: {
 				const _exhaustiveCheck: never = contextNode.content;

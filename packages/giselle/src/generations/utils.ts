@@ -114,7 +114,17 @@ export async function buildMessageObject({
 		case "integration":
 		case "chatModel":
 		case "toolNode":
-		case "memoryNode": {
+		case "memoryNode":
+		case "if":
+		case "switch":
+		case "merge":
+		case "loop":
+		case "code":
+		case "filter":
+		case "editFields":
+		case "sort":
+		case "wait":
+		case "errorTrigger": {
 			return [];
 		}
 		default: {
@@ -372,6 +382,17 @@ async function buildGenerationMessageForTextGeneration({
 
 				break;
 			}
+			case "if":
+			case "switch":
+			case "merge":
+			case "loop":
+			case "code":
+			case "filter":
+			case "editFields":
+			case "sort":
+			case "wait":
+			case "errorTrigger":
+				break;
 			default: {
 				const _exhaustiveCheck: never = contextNode.content;
 				throw new Error(`Unhandled type: ${_exhaustiveCheck}`);
@@ -728,6 +749,17 @@ async function buildGenerationMessageForImageGeneration(
 				userMessage = userMessage.replace(replaceKeyword, "");
 				break;
 
+			case "if":
+			case "switch":
+			case "merge":
+			case "loop":
+			case "code":
+			case "filter":
+			case "editFields":
+			case "sort":
+			case "wait":
+			case "errorTrigger":
+				break;
 			default: {
 				const _exhaustiveCheck: never = contextNode.content;
 				throw new Error(`Unhandled type: ${_exhaustiveCheck}`);
@@ -1213,6 +1245,17 @@ async function buildGenerationMessageForContentGeneration({
 
 				break;
 			}
+			case "if":
+			case "switch":
+			case "merge":
+			case "loop":
+			case "code":
+			case "filter":
+			case "editFields":
+			case "sort":
+			case "wait":
+			case "errorTrigger":
+				break;
 			default: {
 				const _exhaustiveCheck: never = contextNode.content;
 				throw new Error(`Unhandled type: ${_exhaustiveCheck}`);
