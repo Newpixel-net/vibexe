@@ -5,6 +5,15 @@ import { WorkspaceId } from "./id";
 
 export { WorkspaceId } from "./id";
 
+export const StickyNote = z.object({
+	id: z.string(),
+	text: z.string().default(""),
+	color: z.enum(["yellow", "blue", "green", "pink", "gray"]).default("yellow"),
+	position: z.object({ x: z.number(), y: z.number() }),
+	size: z.object({ width: z.number(), height: z.number() }).default({ width: 200, height: 150 }),
+});
+export type StickyNote = z.infer<typeof StickyNote>;
+
 export const WorkspaceSchemaVersion = z.enum(["20250221"]);
 export const Viewport = z.object({
 	x: z.number(),
@@ -32,6 +41,7 @@ export const Workspace = z.object({
 	nodes: z.array(NodeLike),
 	connections: z.array(Connection),
 	ui: UIState,
+	stickyNotes: z.array(StickyNote).default([]),
 });
 export type Workspace = z.infer<typeof Workspace>;
 

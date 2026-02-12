@@ -17,6 +17,7 @@ import {
 } from "../../../../../app-designer";
 import { useGiselle } from "../../../../../app-designer/store/giselle-client-provider";
 import { SpinnerIcon } from "../../../../../icons";
+import { WebhookLogs } from "./webhook-logs";
 
 export function WebhookTriggerPropertiesPanel({
 	node,
@@ -266,6 +267,18 @@ export function WebhookTriggerPropertiesPanel({
 				Send HTTP requests to the webhook URL to trigger this workflow. The
 				request body will be available as input data for downstream nodes.
 			</p>
+
+			{/* Webhook Request Logs */}
+			{isConfigured && (
+				<div className="flex flex-col gap-[8px]">
+					<span className="text-[11px] text-inverse/50 font-medium uppercase tracking-wider">
+						Request Logs
+					</span>
+					<div className="rounded-[8px] border border-inverse/10 overflow-hidden">
+						<WebhookLogs webhookPath={webhookPath} />
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

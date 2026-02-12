@@ -32,6 +32,7 @@ import {
 } from "../ui";
 import { NodePanelHeader } from "../ui/node-panel-header";
 import { NodeSettingsTab } from "../ui/node-settings-tab";
+import { CommentsTab } from "../ui/comments-tab";
 import { PanelTabs } from "../ui/panel-tabs";
 import { CredentialSelector } from "./credential-selector";
 import { DynamicPropertyField } from "./dynamic-property-field";
@@ -398,6 +399,11 @@ export function IntegrationNodePropertiesPanel({
 								node={node as unknown as OperationNode}
 							/>
 						),
+					},
+					{
+						id: "comments",
+						label: "Comments",
+						content: <CommentsTab nodeId={node.id} />,
 					},
 				]}
 			/>

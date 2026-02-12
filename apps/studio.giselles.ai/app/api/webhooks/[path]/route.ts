@@ -1,11 +1,56 @@
 import type { NextRequest } from "next/server";
 import { NodeId, WorkspaceId } from "@giselles-ai/protocol";
 import { db } from "@/db";
-import { webhookEndpoints } from "@/db/schema";
+import { webhookEndpoints, webhookRequestLogs } from "@/db/schema";
 import { giselle } from "@/app/giselle";
-import { eq, and } from "drizzle-orm";
+import { eq, and, lt, desc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
+
+/** Fire-and-forget webhook request logger. Auto-cleans entries beyond 100 per endpoint. */
+async function logWebhookRequest(
+	endpointDbId: number,
+	method: string,
+	path: string,
+	headers: Record<string, string>,
+	body: unknown,
+	statusCode: number,
+	responseBody: unknown,
+	ipAddress: string | null,
+) {
+	try {
+		await db.insert(webhookRequestLogs).values({
+			webhookEndpointDbId: endpointDbId,
+			method,
+			path,
+			headers,
+			body: body as Record<string, unknown>,
+			statusCode,
+			responseBody: responseBody as Record<string, unknown>,
+			ipAddress: ipAddress ?? undefined,
+		});
+		// Auto-cleanup: keep only latest 100 per endpoint
+		const oldest = await db
+			.select({ dbId: webhookRequestLogs.dbId })
+			.from(webhookRequestLogs)
+			.where(eq(webhookRequestLogs.webhookEndpointDbId, endpointDbId))
+			.orderBy(desc(webhookRequestLogs.createdAt))
+			.offset(100)
+			.limit(1);
+		if (oldest.length > 0) {
+			await db
+				.delete(webhookRequestLogs)
+				.where(
+					and(
+						eq(webhookRequestLogs.webhookEndpointDbId, endpointDbId),
+						lt(webhookRequestLogs.dbId, oldest[0].dbId),
+					),
+				);
+		}
+	} catch (err) {
+		console.error("[Webhook] Failed to log request:", err);
+	}
+}
 
 /**
  * POST /api/webhooks/[path]
@@ -84,12 +129,17 @@ export async function POST(
 			`[Webhook] Triggered: workspace=${endpoint.sdkWorkspaceId}, agent=${endpoint.agentNodeId}, path=${path}`,
 		);
 
-		return Response.json({
+		const responseBody = {
 			success: true,
 			message: "Webhook received and workflow triggered",
 			workspaceId: endpoint.sdkWorkspaceId,
 			timestamp: new Date().toISOString(),
-		});
+		};
+
+		// Log the request (fire-and-forget)
+		logWebhookRequest(endpoint.dbId, "POST", path, Object.fromEntries(request.headers), body, 200, responseBody, request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip"));
+
+		return Response.json(responseBody);
 	} catch (err) {
 		console.error("[Webhook] Error processing webhook:", err);
 		return Response.json(
@@ -165,12 +215,17 @@ export async function GET(
 			`[Webhook GET] Triggered: workspace=${endpoint.sdkWorkspaceId}, agent=${endpoint.agentNodeId}, path=${path}`,
 		);
 
-		return Response.json({
+		const responseBody = {
 			success: true,
 			message: "Webhook received and workflow triggered",
 			workspaceId: endpoint.sdkWorkspaceId,
 			timestamp: new Date().toISOString(),
-		});
+		};
+
+		// Log the request (fire-and-forget)
+		logWebhookRequest(endpoint.dbId, "GET", path, Object.fromEntries(request.headers), queryParams, 200, responseBody, request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip"));
+
+		return Response.json(responseBody);
 	} catch (err) {
 		console.error("[Webhook GET] Error processing webhook:", err);
 		return Response.json(

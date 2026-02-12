@@ -1,0 +1,65 @@
+import type { NextRequest } from "next/server";
+import { db } from "@/db";
+import { webhookEndpoints, webhookRequestLogs } from "@/db/schema";
+import { eq, desc } from "drizzle-orm";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * GET /api/webhooks/logs?endpointId=<dbId>&limit=50
+ * GET /api/webhooks/logs?path=<webhookPath>&limit=50
+ *
+ * Fetches recent webhook request logs for a given endpoint.
+ * Supports lookup by either dbId or webhook path.
+ */
+export async function GET(request: NextRequest) {
+	const endpointId = request.nextUrl.searchParams.get("endpointId");
+	const webhookPath = request.nextUrl.searchParams.get("path");
+	const limit = Math.min(
+		Number(request.nextUrl.searchParams.get("limit") ?? 50),
+		200,
+	);
+
+	if (!endpointId && !webhookPath) {
+		return Response.json(
+			{ error: "endpointId or path query parameter is required" },
+			{ status: 400 },
+		);
+	}
+
+	try {
+		let resolvedEndpointId = endpointId ? Number(endpointId) : null;
+
+		// Resolve by path if needed
+		if (!resolvedEndpointId && webhookPath) {
+			const [endpoint] = await db
+				.select({ dbId: webhookEndpoints.dbId })
+				.from(webhookEndpoints)
+				.where(eq(webhookEndpoints.webhookPath, webhookPath))
+				.limit(1);
+			if (!endpoint) {
+				return Response.json({ logs: [] });
+			}
+			resolvedEndpointId = endpoint.dbId;
+		}
+
+		if (!resolvedEndpointId) {
+			return Response.json({ logs: [] });
+		}
+
+		const logs = await db
+			.select()
+			.from(webhookRequestLogs)
+			.where(eq(webhookRequestLogs.webhookEndpointDbId, resolvedEndpointId))
+			.orderBy(desc(webhookRequestLogs.createdAt))
+			.limit(limit);
+
+		return Response.json({ logs });
+	} catch (err) {
+		console.error("[Webhook Logs] Error fetching logs:", err);
+		return Response.json(
+			{ error: "Internal server error" },
+			{ status: 500 },
+		);
+	}
+}

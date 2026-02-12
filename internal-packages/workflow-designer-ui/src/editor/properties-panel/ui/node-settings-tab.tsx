@@ -17,6 +17,8 @@ export function NodeSettingsTab({ node }: NodeSettingsTabProps) {
 		maxRetries: 3,
 		retryDelay: 1000,
 		onError: "stopWorkflow",
+		timeoutEnabled: false,
+		timeoutMs: 30000,
 	};
 
 	const updateErrorConfig = (partial: Partial<ErrorConfig>) => {
@@ -25,8 +27,69 @@ export function NodeSettingsTab({ node }: NodeSettingsTabProps) {
 		} as Partial<typeof node>);
 	};
 
+	const updateNodeField = (partial: Partial<OperationNode>) => {
+		updateNodeData(node, partial as Partial<typeof node>);
+	};
+
 	return (
 		<div className="flex flex-col gap-[16px] p-[12px]">
+			<SettingLabel size="md" colorClassName="text-inverse">
+				Execution
+			</SettingLabel>
+
+			<Toggle
+				name="node-disabled"
+				checked={node.disabled ?? false}
+				onCheckedChange={(checked) => {
+					updateNodeField({ disabled: checked as boolean });
+				}}
+			>
+				<label htmlFor="node-disabled" className="text-[14px] text-inverse">
+					Disabled
+				</label>
+			</Toggle>
+
+			{node.disabled && (
+				<p className="text-[12px] text-[hsla(0,0%,100%,0.4)] px-[4px]">
+					Disabled nodes pass input data through to downstream nodes without
+					executing.
+				</p>
+			)}
+
+			<Toggle
+				name="timeout-enabled"
+				checked={config.timeoutEnabled ?? false}
+				onCheckedChange={(checked) => {
+					updateErrorConfig({ timeoutEnabled: checked as boolean });
+				}}
+			>
+				<label htmlFor="timeout-enabled" className="text-[14px] text-inverse">
+					Timeout
+				</label>
+			</Toggle>
+
+			{config.timeoutEnabled && (
+				<div className="flex items-center justify-between gap-[12px]">
+					<SettingDetail size="md">Timeout (ms)</SettingDetail>
+					<input
+						type="number"
+						min={1000}
+						max={600000}
+						step={1000}
+						value={config.timeoutMs ?? 30000}
+						onChange={(e) => {
+							const value = Number.parseInt(e.target.value, 10);
+							if (!Number.isNaN(value) && value >= 1000 && value <= 600000) {
+								updateErrorConfig({ timeoutMs: value });
+							}
+						}}
+						className="w-[80px] bg-[color-mix(in_srgb,var(--color-text-inverse,#fff)_10%,transparent)] text-inverse text-[14px] rounded-[6px] px-[8px] py-[4px] border border-white-400/20 text-center outline-none"
+					/>
+				</div>
+			)}
+
+			<div className="mt-[8px] border-t border-white-400/10 pt-[12px]" />
+
 			<SettingLabel size="md" colorClassName="text-inverse">
 				Error Handling
 			</SettingLabel>

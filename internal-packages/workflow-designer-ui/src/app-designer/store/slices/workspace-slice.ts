@@ -6,6 +6,7 @@ import {
 	NodeId,
 	type NodeLike,
 	type NodeUIState,
+	type StickyNote,
 	type Viewport,
 	type Workspace,
 } from "@giselles-ai/protocol";
@@ -24,6 +25,9 @@ export interface WorkspaceActions {
 	setUiViewport: (viewport: Viewport, options?: { save?: boolean }) => void;
 	setSelectedConnectionIds: (connectionIds: ConnectionId[]) => void;
 	updateWorkspaceName: (name: string | undefined) => void;
+	addStickyNote: (note: StickyNote) => void;
+	updateStickyNote: (noteId: string, updates: Partial<StickyNote>) => void;
+	removeStickyNote: (noteId: string) => void;
 }
 
 export type WorkspaceSlice = Omit<Workspace, "id"> & {
@@ -47,6 +51,7 @@ export function createWorkspaceSlice(
 		nodes: initial.nodes,
 		connections: initial.connections,
 		ui: initial.ui,
+		stickyNotes: initial.stickyNotes ?? [],
 		addNode: (node) => set((s) => ({ nodes: [...s.nodes, node] })),
 		upsertUiNodeState: (nodeId, ui) =>
 			set((s) => ({
@@ -103,5 +108,17 @@ export function createWorkspaceSlice(
 				ui: { ...s.ui, selectedConnectionIds: connectionIds },
 			})),
 		updateWorkspaceName: (name) => set({ name }),
+		addStickyNote: (note) =>
+			set((s) => ({ stickyNotes: [...(s.stickyNotes ?? []), note] })),
+		updateStickyNote: (noteId, updates) =>
+			set((s) => ({
+				stickyNotes: (s.stickyNotes ?? []).map((n) =>
+					n.id === noteId ? { ...n, ...updates } : n,
+				),
+			})),
+		removeStickyNote: (noteId) =>
+			set((s) => ({
+				stickyNotes: (s.stickyNotes ?? []).filter((n) => n.id !== noteId),
+			})),
 	});
 }

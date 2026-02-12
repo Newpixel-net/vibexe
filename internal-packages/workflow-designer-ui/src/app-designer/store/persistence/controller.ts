@@ -19,6 +19,7 @@ const selectPersistedWorkspace = (s: AppDesignerStoreState): Workspace => ({
 	connections: s.connections,
 	schemaVersion: s.schemaVersion,
 	ui: s.ui,
+	stickyNotes: s.stickyNotes ?? [],
 });
 
 function hasWorkspaceChanged(
@@ -29,7 +30,8 @@ function hasWorkspaceChanged(
 		a.nodes !== b.nodes ||
 		a.connections !== b.connections ||
 		a.ui !== b.ui ||
-		a.name !== b.name
+		a.name !== b.name ||
+		a.stickyNotes !== b.stickyNotes
 	);
 }
 

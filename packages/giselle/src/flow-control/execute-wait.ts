@@ -1,15 +1,17 @@
 import type { WaitNodeContent } from "@giselles-ai/protocol";
 import type { DagNode, DagNodeResult } from "../tasks/dag-executor";
+import type { GiselleContext } from "../types";
 
 /**
  * Execute a Wait node.
  * - fixedTime: Wait for delaySeconds then pass through
- * - webhook: Generate a webhook URL and wait for it to be called (polls for data)
- * - approval: Wait for external approval signal (timeout-based)
+ * - webhook: Register a real webhook endpoint in DB, poll for incoming request
+ * - approval: Same as webhook but uses an approval-specific path
  */
 export async function executeWait(
 	node: DagNode,
 	inputData: Map<string, unknown>,
+	helpers?: GiselleContext["waitWebhookHelpers"],
 ): Promise<DagNodeResult> {
 	const content = node.operationNode.content as WaitNodeContent;
 
@@ -36,18 +38,77 @@ export async function executeWait(
 		}
 
 		case "webhook": {
-			// Generate a unique webhook ID for this wait node execution
 			const webhookId = `wh-wait-${node.nodeId}-${Date.now()}`;
-			const webhookPath = `/api/giselle/webhooks/wait/${webhookId}`;
-
-			// Store webhook info so the UI can display it
-			// In a full implementation, this would register in the webhook_endpoints DB table
-			// and poll/subscribe for the callback. For now, we apply a configurable timeout.
-			const timeoutMs = Math.min(content.timeoutSeconds, 300) * 1000; // Cap at 5 minutes for in-process wait
+			const webhookPath = `wait-${webhookId}`;
+			const timeoutMs = Math.min(content.timeoutSeconds, 300) * 1000;
+			const pollInterval = 2000;
 			const startTime = Date.now();
 
-			// Wait for the timeout (in production, this would poll a DB/cache for the webhook callback)
-			await new Promise((resolve) => setTimeout(resolve, timeoutMs));
+			// If no DB helpers available, fall back to simple timeout
+			if (!helpers) {
+				await new Promise((resolve) => setTimeout(resolve, timeoutMs));
+				return {
+					outputs: new Map([
+						["output", { ...data, webhookId, timedOut: true }],
+						["data", { ...data, webhookId, timedOut: true }],
+						["waitMode", "webhook"],
+						["webhookId", webhookId],
+						["webhookPath", `/api/webhooks/${webhookPath}`],
+						["timedOut", true],
+						["waitedSeconds", (Date.now() - startTime) / 1000],
+					]),
+				};
+			}
+
+			// Register webhook endpoint in DB
+			let endpointDbId: number;
+			try {
+				endpointDbId = await helpers.register(
+					webhookPath,
+					"", // workspaceId resolved inside the helper via context
+					node.nodeId,
+				);
+			} catch (err) {
+				// If registration fails, fall back to timeout
+				await new Promise((resolve) => setTimeout(resolve, timeoutMs));
+				return {
+					outputs: new Map([
+						["output", { ...data, webhookId, timedOut: true, error: "Failed to register webhook" }],
+						["data", { ...data, webhookId, timedOut: true }],
+						["waitMode", "webhook"],
+						["timedOut", true],
+						["waitedSeconds", (Date.now() - startTime) / 1000],
+					]),
+				};
+			}
+
+			// Poll for incoming webhook request
+			try {
+				while (Date.now() - startTime < timeoutMs) {
+					const payload = await helpers.poll(endpointDbId);
+					if (payload !== null) {
+						const elapsed = (Date.now() - startTime) / 1000;
+						// Cleanup the temp endpoint
+						await helpers.cleanup(endpointDbId).catch(() => {});
+						return {
+							outputs: new Map([
+								["output", { ...data, ...payload }],
+								["data", { ...data, ...payload }],
+								["webhookPayload", payload],
+								["waitMode", "webhook"],
+								["webhookId", webhookId],
+								["webhookPath", `/api/webhooks/${webhookPath}`],
+								["timedOut", false],
+								["waitedSeconds", elapsed],
+							]),
+						};
+					}
+					await new Promise((resolve) => setTimeout(resolve, pollInterval));
+				}
+			} finally {
+				// Always cleanup
+				await helpers.cleanup(endpointDbId).catch(() => {});
+			}
 
 			const elapsed = (Date.now() - startTime) / 1000;
 			return {
@@ -56,7 +117,7 @@ export async function executeWait(
 					["data", { ...data, webhookId, timedOut: true }],
 					["waitMode", "webhook"],
 					["webhookId", webhookId],
-					["webhookPath", webhookPath],
+					["webhookPath", `/api/webhooks/${webhookPath}`],
 					["timedOut", true],
 					["waitedSeconds", elapsed],
 				]),
@@ -64,13 +125,72 @@ export async function executeWait(
 		}
 
 		case "approval": {
-			// Approval mode: waits for a configurable timeout
-			// In production, this would create an approval request in the DB
-			// and poll for the approval/rejection decision
 			const approvalId = `appr-${node.nodeId}-${Date.now()}`;
-			const timeoutMs = Math.min(content.timeoutSeconds, 300) * 1000; // Cap at 5 minutes
+			const approvalPath = `approval-${approvalId}`;
+			const timeoutMs = Math.min(content.timeoutSeconds, 300) * 1000;
+			const pollInterval = 2000;
+			const startTime = Date.now();
 
-			await new Promise((resolve) => setTimeout(resolve, timeoutMs));
+			// If no DB helpers, fall back to timeout
+			if (!helpers) {
+				await new Promise((resolve) => setTimeout(resolve, timeoutMs));
+				return {
+					outputs: new Map([
+						["output", { ...data, approvalId, approved: false, timedOut: true }],
+						["data", { ...data, approvalId, approved: false, timedOut: true }],
+						["waitMode", "approval"],
+						["approvalId", approvalId],
+						["approved", false],
+						["timedOut", true],
+					]),
+				};
+			}
+
+			// Register an approval webhook endpoint
+			let endpointDbId: number;
+			try {
+				endpointDbId = await helpers.register(
+					approvalPath,
+					"",
+					node.nodeId,
+				);
+			} catch {
+				await new Promise((resolve) => setTimeout(resolve, timeoutMs));
+				return {
+					outputs: new Map([
+						["output", { ...data, approvalId, approved: false, timedOut: true }],
+						["data", { ...data, approvalId, approved: false, timedOut: true }],
+						["waitMode", "approval"],
+						["approved", false],
+						["timedOut", true],
+					]),
+				};
+			}
+
+			// Poll for approval signal (sent as a webhook POST with {"approved": true/false})
+			try {
+				while (Date.now() - startTime < timeoutMs) {
+					const payload = await helpers.poll(endpointDbId);
+					if (payload !== null) {
+						const approved = payload.approved === true;
+						await helpers.cleanup(endpointDbId).catch(() => {});
+						return {
+							outputs: new Map([
+								["output", { ...data, approvalId, approved, timedOut: false }],
+								["data", { ...data, approvalId, approved, timedOut: false }],
+								["waitMode", "approval"],
+								["approvalId", approvalId],
+								["approvalPath", `/api/webhooks/${approvalPath}`],
+								["approved", approved],
+								["timedOut", false],
+							]),
+						};
+					}
+					await new Promise((resolve) => setTimeout(resolve, pollInterval));
+				}
+			} finally {
+				await helpers.cleanup(endpointDbId).catch(() => {});
+			}
 
 			return {
 				outputs: new Map([

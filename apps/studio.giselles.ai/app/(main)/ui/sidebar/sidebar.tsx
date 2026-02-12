@@ -137,6 +137,12 @@ function createBaseSidebarParts(
 						]
 					: []),
 				{
+					id: "custom-nodes",
+					label: "Custom Nodes",
+					href: "/settings/team/custom-nodes",
+					activeMatchPattern: "/settings/team/custom-nodes*",
+				},
+				{
 					id: "tasks",
 					label: "Task History",
 					href: "/tasks",
@@ -185,6 +191,7 @@ function createBaseSidebarParts(
 						...(isDataStoreEnabled ? ["!/settings/team/data-stores*"] : []),
 						"!/settings/team/usage*",
 						"!/settings/team/api-keys*",
+						"!/settings/team/custom-nodes*",
 					],
 				},
 			],

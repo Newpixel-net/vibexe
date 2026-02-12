@@ -12,8 +12,8 @@ import { fsStorageDriver } from "@giselles-ai/storage";
 import { s3StorageDriver } from "@giselles-ai/s3-storage-driver";
 import { pgVaultDriver } from "@giselles-ai/vault";
 import { tasks as jobs } from "@trigger.dev/sdk";
-import { eq } from "drizzle-orm";
-import { apps, db, tasks } from "@/db";
+import { eq, desc } from "drizzle-orm";
+import { apps, db, tasks, webhookEndpoints, webhookRequestLogs } from "@/db";
 import { generateContentNodeFlag } from "@/flags";
 import { GenerationMetadata } from "@/lib/generation-metadata";
 import { logger } from "@/lib/logger";
@@ -545,6 +545,53 @@ giselle.updateContext({
 			authType: credential.authType,
 			config: credential.config,
 		};
+	},
+	waitWebhookHelpers: {
+		register: async (path: string, workspaceId: string, nodeId: string) => {
+			// Get team for this workspace — try from session first, then from DB
+			let teamDbId = 0;
+			try {
+				const currentTeam = await fetchCurrentTeam();
+				teamDbId = currentTeam.dbId;
+			} catch {
+				// Not in session context (API/webhook trigger) — resolve from workspace
+				if (workspaceId) {
+					const workspace = await db.query.workspaces.findFirst({
+						where: (workspaces, { eq: eqFn }) => eqFn(workspaces.id, workspaceId as any),
+						columns: {},
+						with: { team: { columns: { dbId: true } } },
+					});
+					teamDbId = workspace?.team.dbId ?? 0;
+				}
+			}
+			const [endpoint] = await db
+				.insert(webhookEndpoints)
+				.values({
+					teamDbId,
+					sdkWorkspaceId: (workspaceId || "wait-temp") as any,
+					agentNodeId: nodeId,
+					webhookPath: path,
+					method: "POST",
+					enabled: true,
+				})
+				.returning({ dbId: webhookEndpoints.dbId });
+			return endpoint.dbId;
+		},
+		poll: async (endpointDbId: number) => {
+			const [log] = await db
+				.select()
+				.from(webhookRequestLogs)
+				.where(eq(webhookRequestLogs.webhookEndpointDbId, endpointDbId))
+				.orderBy(desc(webhookRequestLogs.createdAt))
+				.limit(1);
+			if (!log) return null;
+			return (log.body as Record<string, unknown>) ?? {};
+		},
+		cleanup: async (endpointDbId: number) => {
+			await db
+				.delete(webhookEndpoints)
+				.where(eq(webhookEndpoints.dbId, endpointDbId));
+		},
 	},
 	createIntegrationStore: () => {
 		// Lazy resolve team for persistent store - returns sync adapter

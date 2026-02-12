@@ -7,6 +7,8 @@ import { useAppDesignerStore } from "../../app-designer";
 import { RunHistoryTable } from "../run-history/run-history-table";
 import { ReadOnlyBanner } from "../../ui/read-only-banner";
 import { FloatingChat } from "../chat";
+import { CommandPalette } from "../command-palette";
+import { VersionPanel } from "../version-history/version-panel";
 import { tourSteps, WorkspaceTour } from "../workspace-tour";
 import { V2Container, V2Footer, V2Header } from "./components";
 import type { EditorTab } from "./components/v2-header-tabs";
@@ -35,6 +37,7 @@ export function V2Placeholder({
 	});
 	const [isTourOpen, setIsTourOpen] = useState(defaultTour);
 	const [isChatOpen, setIsChatOpen] = useState(false);
+	const [isVersionPanelOpen, setIsVersionPanelOpen] = useState(false);
 	const [activeTab, setActiveTab] = useState<EditorTab>("editor");
 
 	const handleDismissBanner = useCallback(() => {
@@ -67,6 +70,10 @@ export function V2Placeholder({
 		setIsChatOpen(false);
 	}, []);
 
+	const handleVersionsToggle = useCallback(() => {
+		setIsVersionPanelOpen((prev) => !prev);
+	}, []);
+
 	const { layoutV3 } = useFeatureFlag();
 
 	return (
@@ -86,6 +93,7 @@ export function V2Placeholder({
 					teamAvatarUrl={teamAvatarUrl}
 					activeTab={activeTab}
 					onTabChange={setActiveTab}
+					onVersionsToggle={handleVersionsToggle}
 				/>
 				{layoutV3 ? (
 					<>
@@ -130,6 +138,19 @@ export function V2Placeholder({
 						onLeftPanelClose={handleLeftPanelClose}
 					/>
 				)}
+				{isVersionPanelOpen && (
+					<div className="fixed inset-0 z-[999] flex justify-end">
+						<div
+							className="flex-1"
+							onClick={() => setIsVersionPanelOpen(false)}
+							onKeyDown={() => {}}
+							role="button"
+							tabIndex={-1}
+						/>
+						<VersionPanel onClose={() => setIsVersionPanelOpen(false)} />
+					</div>
+				)}
+				<CommandPalette />
 			</RootProvider>
 			<WorkspaceTour
 				steps={tourSteps}

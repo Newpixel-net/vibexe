@@ -4,7 +4,7 @@ import { DropdownMenu } from "@giselle-internal/ui/dropdown-menu";
 import { useFeatureFlag } from "@giselles-ai/react";
 import Avatar from "boring-avatars";
 import clsx from "clsx/lite";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, DownloadIcon, HistoryIcon, SaveIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRef } from "react";
@@ -23,12 +23,14 @@ export function V2Header({
 	onNameChange,
 	activeTab,
 	onTabChange,
+	onVersionsToggle,
 }: {
 	teamName?: string;
 	teamAvatarUrl?: string | null;
 	onNameChange?: (name: string) => Promise<void>;
 	activeTab?: EditorTab;
 	onTabChange?: (tab: EditorTab) => void;
+	onVersionsToggle?: () => void;
 }) {
 	const { workspaceId, name } = useAppDesignerStore((s) => ({
 		workspaceId: s.workspaceId,
@@ -143,6 +145,20 @@ export function V2Header({
 									action: () => {
 										// TODO: Implement app duplication functionality
 										console.warn("Duplicate functionality not yet implemented");
+									},
+								},
+								{
+									value: "versions",
+									label: "Version History",
+									action: () => onVersionsToggle?.(),
+								},
+								{
+									value: "export",
+									label: "Export as JSON",
+									action: () => {
+										if (workspaceId) {
+											window.location.href = `/api/workspaces/${workspaceId}/export`;
+										}
 									},
 								},
 								{

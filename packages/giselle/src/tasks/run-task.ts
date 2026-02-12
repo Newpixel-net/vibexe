@@ -28,6 +28,7 @@ import {
 	executeSwitch,
 	executeWait,
 } from "../flow-control";
+import { executeCustomNode } from "../flow-control/execute-custom-node";
 import {
 	type GenerationMetadata,
 	generateImage,
@@ -421,13 +422,18 @@ async function runTaskWithDag(
 				case "sort":
 					return executeSort(dagNode, inputData);
 				case "wait":
-					return executeWait(dagNode, inputData);
+					return executeWait(dagNode, inputData, args.context.waitWebhookHelpers);
 				case "errorTrigger":
 					return executeErrorTrigger(dagNode, inputData);
 				case "dataTable":
 					return executeDataTable(dagNode, inputData);
 				case "formTrigger":
 					return { outputs: new Map() };
+			}
+
+			// Custom nodes: check if content has customNodeName
+			if ((dagNode.operationNode.content as Record<string, unknown>).customNodeName) {
+				return executeCustomNode(dagNode, inputData);
 			}
 
 			// Regular nodes: delegate to existing executeStep

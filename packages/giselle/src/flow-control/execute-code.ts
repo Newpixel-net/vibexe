@@ -26,10 +26,35 @@ export async function executeCode(
 		}
 	}
 
+	// Capture console.log output for execution logs
+	const consoleLogs: string[] = [];
+
 	// Create a sandboxed context — no access to require, process, fs, etc.
+	// Includes N8N-compatible special variables: $input, $json, $now, $today, $execution, $node
+	const clonedItems = structuredClone(items);
+	const clonedData = structuredClone(dataObj);
+	const firstItem = clonedItems[0] ?? {};
 	const sandbox: Record<string, unknown> = {
-		items: structuredClone(items),
-		data: structuredClone(dataObj),
+		items: clonedItems,
+		data: clonedData,
+		// N8N-compatible variables
+		$input: {
+			all: () => clonedItems,
+			first: () => clonedItems[0],
+			last: () => clonedItems[clonedItems.length - 1],
+			item: firstItem,
+		},
+		$json: typeof firstItem === "object" && firstItem !== null ? firstItem : {},
+		$now: new Date(),
+		$today: new Date().toISOString().split("T")[0],
+		$execution: {
+			id: node.nodeId,
+			timestamp: Date.now(),
+		},
+		$node: {
+			name: node.operationNode.name ?? node.nodeId,
+		},
+		// Standard JS globals
 		JSON,
 		Math,
 		Date,
@@ -45,7 +70,15 @@ export async function executeCode(
 		isNaN: Number.isNaN,
 		isFinite: Number.isFinite,
 		console: {
-			log: () => {}, // no-op in production
+			log: (...args: unknown[]) => {
+				consoleLogs.push(args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" "));
+			},
+			warn: (...args: unknown[]) => {
+				consoleLogs.push(`[WARN] ${args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ")}`);
+			},
+			error: (...args: unknown[]) => {
+				consoleLogs.push(`[ERROR] ${args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ")}`);
+			},
 		},
 		__result: undefined as unknown,
 	};
@@ -80,6 +113,7 @@ export async function executeCode(
 			outputs: new Map([
 				["output", result ?? items], // matches factory accessor "output"
 				["data", result ?? items],
+				...(consoleLogs.length > 0 ? [["_logs", consoleLogs] as [string, unknown]] : []),
 			]),
 		};
 	} catch (error) {

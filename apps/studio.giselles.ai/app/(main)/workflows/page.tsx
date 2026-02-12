@@ -29,6 +29,8 @@ function AgentList({
 				documentVectorStoreFiles: string[];
 				llmProviders: string[];
 				hasGithubIntegration: boolean;
+				tags: string[];
+				isPublished: boolean;
 			}
 		>
 	>;
@@ -64,6 +66,9 @@ async function agentsQuery(teamDbId: number) {
 			updatedAt: agents.updatedAt,
 			creatorDbId: agents.creatorDbId,
 			metadata: agents.metadata,
+			tags: agents.tags,
+			isPublished: agents.isPublished,
+			publishedAt: agents.publishedAt,
 			creatorDisplayName: users.displayName,
 			creatorAvatarUrl: users.avatarUrl,
 		})
@@ -283,6 +288,8 @@ async function agentsQuery(teamDbId: number) {
 			hasGithubIntegration: workspaceId
 				? hasGithubIntegrationMap.get(workspaceId) || false
 				: false,
+			tags: agent.tags ?? [],
+			isPublished: agent.isPublished ?? false,
 		};
 	});
 }

@@ -335,6 +335,9 @@ export const agents = pgTable(
 			.$type<AgentMetadata>()
 			.default({ sample: false })
 			.notNull(),
+		tags: text("tags").array().default([]).notNull(),
+		isPublished: boolean("is_published").default(false).notNull(),
+		publishedAt: timestamp("published_at"),
 	},
 	(table) => [index().on(table.teamDbId)],
 );
@@ -1565,6 +1568,29 @@ export const webhookEndpoints = pgTable(
 	],
 );
 
+// Webhook Request Logs - logs of incoming webhook requests for debugging
+export const webhookRequestLogs = pgTable(
+	"webhook_request_logs",
+	{
+		dbId: serial("db_id").primaryKey(),
+		webhookEndpointDbId: integer("webhook_endpoint_db_id")
+			.notNull()
+			.references(() => webhookEndpoints.dbId, { onDelete: "cascade" }),
+		method: text("method").notNull(),
+		path: text("path").notNull(),
+		headers: jsonb("headers").default({}),
+		body: jsonb("body"),
+		statusCode: integer("status_code").default(200),
+		responseBody: jsonb("response_body"),
+		ipAddress: text("ip_address"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("webhook_request_logs_endpoint_idx").on(table.webhookEndpointDbId),
+		index("webhook_request_logs_created_idx").on(table.createdAt),
+	],
+);
+
 // Chat Sessions - persistent chat conversations
 export const chatSessions = pgTable(
 	"chat_sessions",
@@ -1597,5 +1623,92 @@ export const chatMessages = pgTable(
 	},
 	(table) => [
 		index("chat_messages_session_idx").on(table.sessionDbId),
+	],
+);
+
+// Workspace Versions - workflow versioning / change history
+export const workspaceVersions = pgTable(
+	"workspace_versions",
+	{
+		dbId: serial("db_id").primaryKey(),
+		agentDbId: integer("agent_db_id")
+			.notNull()
+			.references(() => agents.dbId, { onDelete: "cascade" }),
+		versionNumber: integer("version_number").notNull(),
+		label: text("label"),
+		snapshot: jsonb("snapshot").notNull(),
+		createdByDbId: integer("created_by_db_id").references(() => users.dbId),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("workspace_versions_agent_idx").on(table.agentDbId),
+	],
+);
+
+// Node Comments - per-node comment threads for collaboration
+export const nodeComments = pgTable(
+	"node_comments",
+	{
+		dbId: serial("db_id").primaryKey(),
+		agentDbId: integer("agent_db_id")
+			.notNull()
+			.references(() => agents.dbId, { onDelete: "cascade" }),
+		nodeId: text("node_id").notNull(),
+		userDbId: integer("user_db_id").references(() => users.dbId),
+		content: text("content").notNull(),
+		resolved: boolean("resolved").default(false).notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("node_comments_agent_node_idx").on(table.agentDbId, table.nodeId),
+	],
+);
+
+// Workflow Templates - reusable workflow patterns / marketplace
+export const workflowTemplates = pgTable(
+	"workflow_templates",
+	{
+		dbId: serial("db_id").primaryKey(),
+		name: text("name").notNull(),
+		description: text("description"),
+		category: text("category").notNull(),
+		tags: text("tags").array().default([]).notNull(),
+		snapshot: jsonb("snapshot").notNull(),
+		thumbnailUrl: text("thumbnail_url"),
+		authorDbId: integer("author_db_id").references(() => users.dbId),
+		teamDbId: integer("team_db_id").references(() => teams.dbId),
+		isPublic: boolean("is_public").default(true).notNull(),
+		useCount: integer("use_count").default(0).notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("workflow_templates_category_idx").on(table.category),
+		index("workflow_templates_public_idx").on(table.isPublic),
+	],
+);
+
+export const customNodes = pgTable(
+	"custom_nodes",
+	{
+		dbId: serial("db_id").primaryKey(),
+		teamDbId: integer("team_db_id")
+			.notNull()
+			.references(() => teams.dbId, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		displayName: text("display_name").notNull(),
+		description: text("description"),
+		icon: text("icon").default("Box").notNull(),
+		category: text("category").default("Custom").notNull(),
+		version: text("version").default("1.0.0").notNull(),
+		definition: jsonb("definition").notNull(),
+		enabled: boolean("enabled").default(true).notNull(),
+		createdByDbId: integer("created_by_db_id").references(() => users.dbId),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("custom_nodes_team_idx").on(table.teamDbId),
+		index("custom_nodes_name_team_idx").on(table.name, table.teamDbId),
 	],
 );

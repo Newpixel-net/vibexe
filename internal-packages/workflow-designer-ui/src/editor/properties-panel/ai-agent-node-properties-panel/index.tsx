@@ -30,6 +30,7 @@ import { PropertiesPanelRoot } from "../ui";
 import { GenerateCtaButton } from "../ui/generate-cta-button";
 import { NodePanelHeader } from "../ui/node-panel-header";
 import { NodeSettingsTab } from "../ui/node-settings-tab";
+import { CommentsTab } from "../ui/comments-tab";
 import { PanelTabs } from "../ui/panel-tabs";
 import { PromptEditor } from "../ui/prompt-editor";
 import { SettingDetail, SettingLabel } from "../ui/setting-label";
@@ -352,6 +353,11 @@ export function AiAgentNodePropertiesPanel({
 								node={node as unknown as OperationNode}
 							/>
 						),
+					},
+					{
+						id: "comments",
+						label: "Comments",
+						content: <CommentsTab nodeId={node.id} />,
 					},
 				]}
 			/>

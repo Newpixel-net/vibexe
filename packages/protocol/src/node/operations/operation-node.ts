@@ -104,6 +104,8 @@ export const ErrorConfig = z.object({
 	maxRetries: z.number().int().min(0).max(10).default(3),
 	retryDelay: z.number().int().min(0).default(1000),
 	onError: z.enum(["stopWorkflow", "continueOnFail", "routeToError"]).default("stopWorkflow"),
+	timeoutEnabled: z.boolean().default(false),
+	timeoutMs: z.number().int().min(1000).max(600000).default(30000),
 });
 export type ErrorConfig = z.infer<typeof ErrorConfig>;
 
@@ -111,6 +113,8 @@ export const OperationNode = NodeBase.extend({
 	type: z.literal("operation"),
 	content: OperationNodeContent,
 	errorConfig: ErrorConfig.optional(),
+	disabled: z.boolean().optional(),
+	mockData: z.unknown().optional(),
 });
 export type OperationNode = z.infer<typeof OperationNode>;
 
@@ -407,9 +411,9 @@ export function isFormTriggerNode(args?: unknown): args is FormTriggerNode {
 	return FormTriggerNode.safeParse(args).success;
 }
 
-/** Helper to check if a node type requires DAG execution (flow control + data transform) */
+/** Helper to check if a node type requires DAG execution (flow control + data transform + custom) */
 export function isFlowControlNode(args?: unknown): boolean {
-	return (
+	if (
 		isIfNode(args) ||
 		isSwitchNode(args) ||
 		isMergeNode(args) ||
@@ -421,7 +425,17 @@ export function isFlowControlNode(args?: unknown): boolean {
 		isSortNode(args) ||
 		isErrorTriggerNode(args) ||
 		isDataTableNode(args)
-	);
+	) {
+		return true;
+	}
+	// Check for custom node content (has customNodeName field)
+	if (args && typeof args === "object" && "content" in args) {
+		const content = (args as { content: Record<string, unknown> }).content;
+		if (content && typeof content === "object" && "customNodeName" in content) {
+			return true;
+		}
+	}
+	return false;
 }
 
 const OperationNodeContentReference = z.discriminatedUnion("type", [

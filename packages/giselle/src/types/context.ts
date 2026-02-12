@@ -88,4 +88,13 @@ export interface GiselleContext {
 		put(key: string, value: unknown): Promise<void>;
 		delete(key: string): Promise<void>;
 	};
+	/** Helpers for Wait node webhook/approval modes to interact with the DB */
+	waitWebhookHelpers?: {
+		/** Register a temporary webhook endpoint and return its dbId */
+		register(path: string, workspaceId: string, nodeId: string): Promise<number>;
+		/** Poll for webhook request logs matching the given endpointDbId. Returns the body or null. */
+		poll(endpointDbId: number): Promise<Record<string, unknown> | null>;
+		/** Cleanup: delete the temporary webhook endpoint */
+		cleanup(endpointDbId: number): Promise<void>;
+	};
 }

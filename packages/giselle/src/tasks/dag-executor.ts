@@ -36,6 +36,8 @@ export interface DagNode {
 		retryDelay: number;
 		onError: "stopWorkflow" | "continueOnFail" | "routeToError";
 		errorOutputPort?: string;
+		timeoutEnabled?: boolean;
+		timeoutMs?: number;
 	};
 	retryCount: number;
 }
@@ -167,7 +169,11 @@ export class ExecutionDAG {
 
 		for (const edge of incoming) {
 			const sourceNode = this.nodes.get(edge.fromNodeId);
-			if (sourceNode?.state !== "completed" || !sourceNode.result) continue;
+			// Collect from completed nodes AND skipped nodes with results (disabled pass-through)
+			const hasResult = sourceNode?.result != null;
+			const isCompleted = sourceNode?.state === "completed";
+			const isSkippedWithResult = sourceNode?.state === "skipped" && hasResult;
+			if ((!isCompleted && !isSkippedWithResult) || !sourceNode?.result) continue;
 
 			// If the edge specifies a fromOutputPort, get that specific output
 			if (edge.fromOutputPort) {
@@ -302,13 +308,44 @@ export async function executeDag(
 		const node = dag.nodes.get(nodeId);
 		if (!node || node.state !== "waiting") return;
 
+		// Disabled nodes: skip and pass input data through to downstream
+		if (node.operationNode.disabled) {
+			node.state = "skipped";
+			const inputData = dag.collectInputData(nodeId);
+			node.result = { outputs: inputData };
+			await callbacks.onNodeSkipped?.(nodeId);
+			await propagateDownstream(nodeId);
+			return;
+		}
+
+		// Mock data: use stored mock data instead of executing the node
+		if (node.operationNode.mockData != null) {
+			node.state = "completed";
+			node.result = {
+				outputs: new Map([["output", node.operationNode.mockData]]),
+			};
+			await callbacks.onNodeComplete?.(nodeId, node.result);
+			await propagateDownstream(nodeId);
+			return;
+		}
+
 		node.state = "running";
 		await callbacks.onNodeStart?.(nodeId);
 
 		const inputData = dag.collectInputData(nodeId);
 
 		try {
-			const result = await callbacks.executeNode(node, inputData);
+			// Apply per-node timeout if configured
+			const timeoutMs = node.errorConfig?.timeoutEnabled ? (node.errorConfig.timeoutMs ?? 30000) : 0;
+			const nodePromise = callbacks.executeNode(node, inputData);
+			const result = timeoutMs > 0
+				? await Promise.race([
+						nodePromise,
+						new Promise<never>((_, reject) =>
+							setTimeout(() => reject(new Error(`Node timed out after ${timeoutMs}ms`)), timeoutMs),
+						),
+					])
+				: await nodePromise;
 			node.state = "completed";
 			node.result = result;
 			await callbacks.onNodeComplete?.(nodeId, result);

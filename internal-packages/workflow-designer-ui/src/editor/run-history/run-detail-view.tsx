@@ -9,11 +9,14 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	ClockIcon,
+	ListIcon,
 	LoaderIcon,
+	SplitIcon,
 	TimerIcon,
 	XCircleIcon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
+import { ExecutionLogsPanel } from "./execution-logs-panel";
 import useSWR from "swr";
 import { useGiselle } from "../../app-designer/store/giselle-client-provider";
 import { GenerationView } from "../../ui/generation-view";
@@ -157,6 +160,8 @@ export function RunDetailView({
 	task: Task;
 	onBack: () => void;
 }) {
+	const [activeTab, setActiveTab] = useState<"steps" | "logs">("steps");
+
 	return (
 		<div className="flex flex-col h-full">
 			{/* Header with back button */}
@@ -169,8 +174,43 @@ export function RunDetailView({
 					<ArrowLeftIcon className="size-3.5" />
 					Back to runs
 				</button>
+				<div className="ml-auto flex items-center rounded-[6px] border border-inverse/10 overflow-hidden">
+					<button
+						type="button"
+						className={`flex items-center gap-1 px-3 py-1 text-[10px] ${
+							activeTab === "steps"
+								? "bg-inverse/10 text-inverse/80"
+								: "text-inverse/40 hover:text-inverse/60"
+						}`}
+						onClick={() => setActiveTab("steps")}
+					>
+						<SplitIcon className="size-3" />
+						Steps
+					</button>
+					<button
+						type="button"
+						className={`flex items-center gap-1 px-3 py-1 text-[10px] ${
+							activeTab === "logs"
+								? "bg-inverse/10 text-inverse/80"
+								: "text-inverse/40 hover:text-inverse/60"
+						}`}
+						onClick={() => setActiveTab("logs")}
+					>
+						<ListIcon className="size-3" />
+						Logs
+					</button>
+				</div>
 			</div>
 
+			{/* Logs tab */}
+			{activeTab === "logs" && (
+				<div className="flex-1 overflow-hidden">
+					<ExecutionLogsPanel task={task} />
+				</div>
+			)}
+
+			{/* Steps tab */}
+			{activeTab === "steps" && <>
 			{/* Run summary */}
 			<div className="px-4 py-3 border-b border-inverse/10 space-y-2">
 				<div className="flex items-center gap-3">
@@ -277,6 +317,7 @@ export function RunDetailView({
 					</div>
 				)}
 			</div>
+			</>}
 		</div>
 	);
 }

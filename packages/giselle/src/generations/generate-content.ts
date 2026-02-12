@@ -38,7 +38,9 @@ import {
 import {
 	AISDKError,
 	type AsyncIterableStream,
+	jsonSchema,
 	type ModelMessage,
+	Output,
 	smoothStream,
 	stepCountIs,
 	streamText,
@@ -1003,16 +1005,28 @@ function generateContentV2({
 					? operationNode.content.maxSteps ?? 30
 					: undefined;
 
-			// AI Agent: structured output — inject JSON schema into system prompt
+			// AI Agent: structured output — try native AI SDK Output.object, fall back to prompt injection
+			let structuredOutputSpec: ReturnType<typeof Output.object> | undefined;
 			if (
 				isAiAgentNode(operationNode) &&
 				operationNode.content.structuredOutput?.enabled &&
 				operationNode.content.structuredOutput.schema.trim()
 			) {
-				const structuredOutputInstruction = `\n\nIMPORTANT: Your final response MUST be valid JSON matching this schema:\n\`\`\`json\n${operationNode.content.structuredOutput.schema.trim()}\n\`\`\`\nDo NOT include any text before or after the JSON in your final response. Only output the raw JSON object.`;
-				agentSystemPrompt = agentSystemPrompt
-					? agentSystemPrompt + structuredOutputInstruction
-					: structuredOutputInstruction;
+				const schemaStr = operationNode.content.structuredOutput.schema.trim();
+				try {
+					const parsedSchema = JSON.parse(schemaStr);
+					structuredOutputSpec = Output.object({
+						schema: jsonSchema(parsedSchema),
+					});
+					logger.debug("Using native AI SDK structured output");
+				} catch {
+					// JSON parse failed or schema invalid — fall back to prompt injection
+					logger.debug("Falling back to prompt-injection structured output");
+					const structuredOutputInstruction = `\n\nIMPORTANT: Your final response MUST be valid JSON matching this schema:\n\`\`\`json\n${schemaStr}\n\`\`\`\nDo NOT include any text before or after the JSON in your final response. Only output the raw JSON object.`;
+					agentSystemPrompt = agentSystemPrompt
+						? agentSystemPrompt + structuredOutputInstruction
+						: structuredOutputInstruction;
+				}
 			}
 
 			// AI Agent: load memory from connected memoryNode sub-node if available
@@ -1120,6 +1134,7 @@ function generateContentV2({
 				model: v2Model,
 				messages,
 				...(agentSystemPrompt ? { system: agentSystemPrompt } : {}),
+				...(structuredOutputSpec ? { output: structuredOutputSpec } : {}),
 				...(agentMaxSteps ? { maxSteps: agentMaxSteps } : {}),
 				tools: toolSet,
 				stopWhen: ({ steps }) => {

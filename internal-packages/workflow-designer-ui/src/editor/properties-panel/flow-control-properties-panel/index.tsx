@@ -27,6 +27,7 @@ import {
 	PropertiesPanelContent,
 	PropertiesPanelRoot,
 } from "../ui";
+import { CommentsTab } from "../ui/comments-tab";
 import { ExpressionInput } from "../ui/expression-input";
 import { NodeSettingsTab } from "../ui/node-settings-tab";
 import { PanelTabs } from "../ui/panel-tabs";
@@ -73,6 +74,11 @@ function FlowControlPanelLayout({
 						content: (
 							<NodeSettingsTab node={node as unknown as OperationNode} />
 						),
+					},
+					{
+						id: "comments",
+						label: "Comments",
+						content: <CommentsTab nodeId={node.id} />,
 					},
 				]}
 			/>
@@ -306,18 +312,27 @@ function ConditionRow({
 						})
 					}
 				>
-					<option value="equals">Equals</option>
-					<option value="notEquals">Not Equals</option>
-					<option value="contains">Contains</option>
-					<option value="greaterThan">Greater Than</option>
-					<option value="lessThan">Less Than</option>
-					<option value="isEmpty">Is Empty</option>
-					<option value="isNotEmpty">Is Not Empty</option>
-					<option value="isTrue">Is True</option>
-					<option value="isFalse">Is False</option>
-					<option value="regex">Regex</option>
-					<option value="startsWith">Starts With</option>
-					<option value="endsWith">Ends With</option>
+					<optgroup label="Comparison">
+						<option value="equals">Equals</option>
+						<option value="notEquals">Not Equals</option>
+						<option value="greaterThan">Greater Than</option>
+						<option value="lessThan">Less Than</option>
+						<option value="greaterThanOrEqual">Greater Or Equal</option>
+						<option value="lessThanOrEqual">Less Or Equal</option>
+					</optgroup>
+					<optgroup label="Text">
+						<option value="contains">Contains</option>
+						<option value="notContains">Not Contains</option>
+						<option value="startsWith">Starts With</option>
+						<option value="endsWith">Ends With</option>
+						<option value="regex">Regex</option>
+					</optgroup>
+					<optgroup label="State">
+						<option value="isEmpty">Is Empty</option>
+						<option value="isNotEmpty">Is Not Empty</option>
+						<option value="isTrue">Is True</option>
+						<option value="isFalse">Is False</option>
+					</optgroup>
 				</select>
 			</div>
 			<div className="flex-1">
@@ -376,6 +391,35 @@ function SwitchPanel({
 						className="rounded-[8px] border border-border-muted p-[12px] flex flex-col gap-[8px]"
 					>
 						<div className="flex items-center gap-[8px]">
+							{/* Reorder buttons */}
+							<div className="flex flex-col gap-[1px] shrink-0">
+								<button
+									type="button"
+									className="text-[10px] text-text-muted/50 hover:text-text-muted disabled:opacity-20"
+									disabled={i === 0}
+									onClick={() => {
+										const rules = [...node.content.rules];
+										[rules[i - 1], rules[i]] = [rules[i], rules[i - 1]];
+										updateContent(node, { rules });
+									}}
+									title="Move up"
+								>
+									&#9650;
+								</button>
+								<button
+									type="button"
+									className="text-[10px] text-text-muted/50 hover:text-text-muted disabled:opacity-20"
+									disabled={i === node.content.rules.length - 1}
+									onClick={() => {
+										const rules = [...node.content.rules];
+										[rules[i], rules[i + 1]] = [rules[i + 1], rules[i]];
+										updateContent(node, { rules });
+									}}
+									title="Move down"
+								>
+									&#9660;
+								</button>
+							</div>
 							<input
 								type="text"
 								className="flex-1 rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[4px] text-[12px] text-text"

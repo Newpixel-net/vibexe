@@ -5,6 +5,7 @@ import type {
 	FailedGeneration,
 	Generation,
 	NodeId,
+	OperationNode,
 } from "@giselles-ai/protocol";
 import { useNodeGenerations } from "@giselles-ai/react";
 import {
@@ -13,13 +14,15 @@ import {
 	CheckCircleIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
+	DatabaseIcon,
 	PlayIcon,
 	SquareIcon,
 	TimerIcon,
+	TrashIcon,
 	XCircleIcon,
 } from "lucide-react";
-import { useState } from "react";
-import { useAppDesignerStore } from "../../app-designer";
+import { useCallback, useState } from "react";
+import { useAppDesignerStore, useUpdateNodeData } from "../../app-designer";
 import { TextGenerationIcon } from "../../icons";
 import ClipboardButton from "../../ui/clipboard-button";
 import { EmptyState } from "../../ui/empty-state";
@@ -131,12 +134,106 @@ function StructuredDataSection({
 	);
 }
 
+/** Mock data editor for testing nodes without executing */
+function MockDataSection({ node }: { node: OperationNode }) {
+	const updateNodeData = useUpdateNodeData();
+	const [showEditor, setShowEditor] = useState(false);
+	const [draft, setDraft] = useState(() =>
+		node.mockData != null ? JSON.stringify(node.mockData, null, 2) : "",
+	);
+	const [parseError, setParseError] = useState<string | null>(null);
+
+	const hasMock = node.mockData != null;
+
+	const handleSave = useCallback(() => {
+		try {
+			const parsed = JSON.parse(draft);
+			setParseError(null);
+			updateNodeData(node, { mockData: parsed } as any);
+			setShowEditor(false);
+		} catch (e) {
+			setParseError((e as Error).message);
+		}
+	}, [draft, node, updateNodeData]);
+
+	const handleClear = useCallback(() => {
+		updateNodeData(node, { mockData: undefined } as any);
+		setDraft("");
+		setShowEditor(false);
+		setParseError(null);
+	}, [node, updateNodeData]);
+
+	return (
+		<div className="border-t border-inverse/5 px-[10px] py-[6px]">
+			<div className="flex items-center gap-[4px]">
+				<button
+					type="button"
+					className="flex items-center gap-[4px] text-[11px] text-inverse/50 hover:text-inverse/70"
+					onClick={() => setShowEditor(!showEditor)}
+				>
+					<DatabaseIcon className="size-[10px]" />
+					{hasMock ? "Mock Data Active" : "Set Mock Data"}
+				</button>
+				{hasMock && (
+					<>
+						<span className="px-[4px] py-[1px] rounded-[3px] bg-yellow-500/20 text-yellow-400 text-[9px] font-medium">
+							MOCK
+						</span>
+						<button
+							type="button"
+							className="ml-auto text-[10px] text-red-400/60 hover:text-red-400"
+							onClick={handleClear}
+							title="Clear mock data"
+						>
+							<TrashIcon className="size-[10px]" />
+						</button>
+					</>
+				)}
+			</div>
+			{showEditor && (
+				<div className="mt-[6px] flex flex-col gap-[4px]">
+					<textarea
+						className="w-full h-[120px] p-[6px] rounded-[4px] bg-black/30 border border-inverse/10 text-[10px] text-inverse/80 font-mono resize-y outline-none focus:border-blue-500/50"
+						value={draft}
+						onChange={(e) => {
+							setDraft(e.target.value);
+							setParseError(null);
+						}}
+						placeholder='{"key": "value"}'
+					/>
+					{parseError && (
+						<p className="text-[10px] text-red-400">{parseError}</p>
+					)}
+					<div className="flex gap-[4px] justify-end">
+						<button
+							type="button"
+							className="px-[8px] py-[2px] text-[10px] rounded-[3px] bg-inverse/10 text-inverse/60 hover:bg-inverse/20"
+							onClick={() => setShowEditor(false)}
+						>
+							Cancel
+						</button>
+						<button
+							type="button"
+							className="px-[8px] py-[2px] text-[10px] rounded-[3px] bg-blue-600/60 text-white hover:bg-blue-500/70"
+							onClick={handleSave}
+						>
+							Save Mock
+						</button>
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}
+
 export function OutputPanel({
 	nodeId,
 	onExecuteStep,
+	node,
 }: {
 	nodeId: NodeId;
 	onExecuteStep?: () => void;
+	node?: OperationNode;
 }) {
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
 	const { currentGeneration } = useNodeGenerations({
@@ -174,6 +271,8 @@ export function OutputPanel({
 						className="text-inverse/40"
 					/>
 				</div>
+				{/* Mock data editor */}
+				{node && <MockDataSection node={node} />}
 			</div>
 		);
 	}
@@ -276,6 +375,9 @@ export function OutputPanel({
 			{currentGeneration.status === "completed" && (
 				<StructuredDataSection generation={currentGeneration as CompletedGeneration} />
 			)}
+
+			{/* Mock data editor */}
+			{node && <MockDataSection node={node} />}
 		</div>
 	);
 }

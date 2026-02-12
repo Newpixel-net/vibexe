@@ -53,6 +53,7 @@ import { ContextMenu } from "../../context-menu";
 import type { ContextMenuProps } from "../../context-menu/types";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
 import { CardXyFlowNode, PillXyFlowNode } from "../../node";
+import { StickyNoteNode } from "../../node/sticky-note-node";
 import { PropertiesPanel } from "../../properties-panel";
 import { RunHistoryTable } from "../../run-history/run-history-table";
 import { SecretTable } from "../../secret/secret-table";
@@ -136,17 +137,21 @@ function DebugWorkspacePanel() {
 }
 
 function V2NodeCanvas() {
-	const { nodes, connections, nodeState, viewport, selectedConnectionIds } =
+	const { nodes, connections, nodeState, viewport, selectedConnectionIds, stickyNotes } =
 		useAppDesignerStore((s) => ({
 			nodes: s.nodes,
 			connections: s.connections,
 			nodeState: s.ui.nodeState,
 			viewport: s.ui.viewport,
 			selectedConnectionIds: s.ui.selectedConnectionIds ?? [],
+			stickyNotes: s.stickyNotes ?? [],
 		}));
-	const { setUiNodeState, setUiViewport } = useWorkspaceActions((a) => ({
+	const { setUiNodeState, setUiViewport, addStickyNote, updateStickyNote, removeStickyNote } = useWorkspaceActions((a) => ({
 		setUiNodeState: a.setUiNodeState,
 		setUiViewport: a.setUiViewport,
+		addStickyNote: a.addStickyNote,
+		updateStickyNote: a.updateStickyNote,
+		removeStickyNote: a.removeStickyNote,
 	}));
 	const deleteNodes = useDeleteNodes();
 	const selectConnection = useSelectConnection();
@@ -174,6 +179,7 @@ function V2NodeCanvas() {
 		() => ({
 			card: CardXyFlowNode,
 			pill: PillXyFlowNode,
+			stickyNote: StickyNoteNode,
 		}),
 		[],
 	);
@@ -218,8 +224,25 @@ function V2NodeCanvas() {
 			})
 			.filter((node) => node !== null);
 		cacheNodesRef.current = next;
-		return arr;
-	}, [nodes, nodeState, updateNodeInternals]);
+
+		// Append sticky notes as ReactFlow nodes
+		const stickyRfNodes: RFNode[] = stickyNotes.map((note) => ({
+			id: `sticky-${note.id}`,
+			type: "stickyNote" as const,
+			position: note.position,
+			data: {
+				text: note.text,
+				color: note.color,
+				onUpdate: (id: string, updates: Record<string, unknown>) => {
+					const noteId = id.replace("sticky-", "");
+					updateStickyNote(noteId, updates as any);
+				},
+			},
+			draggable: true,
+		}));
+
+		return [...arr, ...stickyRfNodes];
+	}, [nodes, nodeState, updateNodeInternals, stickyNotes, updateStickyNote]);
 
 	useEffect(() => {
 		if (didInitialAutoFitViewRef.current) {
@@ -369,27 +392,42 @@ function V2NodeCanvas() {
 		(changes) => {
 			const nodeIdsToRemove: string[] = [];
 			for (const change of changes) {
+				const isStickyNote = change.type !== "add" && change.id.startsWith("sticky-");
+				const stickyNoteId = isStickyNote ? change.id.replace("sticky-", "") : "";
+
 				switch (change.type) {
 					case "position": {
 						if (change.position === undefined) break;
-						setUiNodeState(change.id, { position: change.position });
+						if (isStickyNote) {
+							updateStickyNote(stickyNoteId, { position: change.position });
+						} else {
+							setUiNodeState(change.id, { position: change.position });
+						}
 						break;
 					}
 					case "dimensions": {
-						setUiNodeState(change.id, {
-							measured: {
-								width: change.dimensions?.width,
-								height: change.dimensions?.height,
-							},
-						});
+						if (!isStickyNote) {
+							setUiNodeState(change.id, {
+								measured: {
+									width: change.dimensions?.width,
+									height: change.dimensions?.height,
+								},
+							});
+						}
 						break;
 					}
 					case "select": {
-						setUiNodeState(change.id, { selected: change.selected });
+						if (!isStickyNote) {
+							setUiNodeState(change.id, { selected: change.selected });
+						}
 						break;
 					}
 					case "remove": {
-						nodeIdsToRemove.push(change.id);
+						if (isStickyNote) {
+							removeStickyNote(stickyNoteId);
+						} else {
+							nodeIdsToRemove.push(change.id);
+						}
 						break;
 					}
 				}
@@ -398,7 +436,7 @@ function V2NodeCanvas() {
 				void deleteNodes(nodeIdsToRemove);
 			}
 		},
-		[deleteNodes, setUiNodeState],
+		[deleteNodes, setUiNodeState, updateStickyNote, removeStickyNote],
 	);
 
 	const handleEdgesChange: OnEdgesChange = useCallback(
@@ -524,6 +562,28 @@ function V2NodeCanvas() {
 			)}
 			<XYFlowPanel position="top-left" className="m-[16px]">
 				<AppSetupHint />
+			</XYFlowPanel>
+			<XYFlowPanel position="top-right" className="m-[16px]">
+				<button
+					type="button"
+					className="rounded-[8px] bg-black/60 backdrop-blur-sm border border-white/10 px-[10px] py-[5px] text-[12px] text-white/70 hover:text-white hover:bg-black/80 transition-colors"
+					onClick={() => {
+						const center = reactFlowInstance.screenToFlowPosition({
+							x: window.innerWidth / 2,
+							y: window.innerHeight / 2,
+						});
+						addStickyNote({
+							id: `note-${Date.now()}`,
+							text: "",
+							color: "yellow",
+							position: { x: center.x, y: center.y },
+							size: { width: 200, height: 150 },
+						});
+					}}
+					title="Add sticky note"
+				>
+					+ Note
+				</button>
 			</XYFlowPanel>
 			<XYFlowPanel position="bottom-center">
 				<Toolbar />

@@ -27,6 +27,7 @@ import { useAppDesignerStore, useUpdateNodeData } from "../../app-designer";
 import { NodeIcon } from "../../icons/node";
 import { EditableText } from "../../ui/editable-text";
 import { NodeGenerationStatusBadge } from "./node-generation-status-badge";
+import { NodeHoverToolbar } from "./node-hover-toolbar";
 import { nodeRequiresSetup, useNodeGenerationStatus } from "./node-utils";
 import { DataStoreNodeInfo, DocumentNodeInfo, GitHubNodeInfo } from "./ui";
 import { GitHubTriggerStatusBadge } from "./ui/github-trigger/status-badge";
@@ -480,6 +481,17 @@ export function NodeComponent({
 				requiresSetup && "opacity-80",
 			)}
 		>
+			{!preview && (
+				<NodeHoverToolbar node={node as any} />
+			)}
+			{/* Disabled overlay */}
+			{(node as any).disabled && (
+				<div className="absolute inset-0 z-[5] rounded-[12px] bg-black/40 pointer-events-none flex items-center justify-center">
+					<span className="text-[11px] font-medium text-white/60 tracking-wide uppercase">
+						Disabled
+					</span>
+				</div>
+			)}
 			<NodeGenerationStatusBadge
 				node={node}
 				currentGeneration={currentGeneration}
