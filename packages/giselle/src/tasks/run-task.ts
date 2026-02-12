@@ -483,7 +483,7 @@ async function runTaskWithDag(
 									} else if (out.type === "query-result") {
 										outputs.set(key, out.content);
 									} else if (out.type === "generated-image") {
-										outputs.set(key, out.content);
+										outputs.set(key, out.contents);
 									}
 								}
 							}
