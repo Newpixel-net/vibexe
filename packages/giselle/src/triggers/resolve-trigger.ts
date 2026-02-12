@@ -226,6 +226,29 @@ export async function resolveTrigger(args: {
 			}
 			break;
 		}
+		case "chat": {
+			// Chat triggers pass the user message as trigger output.
+			const chatParamsInput = generationContext.inputs?.find(
+				(i): i is GenerationContextInput & { type: "parameters" } =>
+					i.type === "parameters",
+			);
+
+			if (chatParamsInput) {
+				for (const item of chatParamsInput.items) {
+					const output = operationNode.outputs.find(
+						(o) => o.accessor === item.name,
+					);
+					if (output) {
+						outputs.push({
+							type: "generated-text",
+							outputId: output.id,
+							content: `${item.value}`,
+						});
+					}
+				}
+			}
+			break;
+		}
 		default: {
 			const _exhaustiveCheck: never = triggerData.configuration;
 			throw new Error(`Unhandled provider: ${_exhaustiveCheck}`);
