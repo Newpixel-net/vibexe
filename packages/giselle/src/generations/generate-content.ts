@@ -598,7 +598,7 @@ function generationModel(languageModel: TextGenerationLanguageModelData) {
 		case "nvidia":
 			return getNvidiaProvider().chat(languageModel.id);
 		case "xai":
-			return getXaiProvider()(languageModel.id);
+			return getXaiProvider().chat(languageModel.id);
 		default: {
 			const _exhaustiveCheck: never = llmProvider;
 			throw new Error(`Unknown LLM provider: ${_exhaustiveCheck}`);
@@ -621,7 +621,7 @@ function resolveModel(modelId: string) {
 		case "nvidia":
 			return getNvidiaProvider().chat(model);
 		case "xai":
-			return getXaiProvider()(model);
+			return getXaiProvider().chat(model);
 		default:
 			throw new Error(`Unknown provider: ${provider}`);
 	}
