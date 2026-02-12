@@ -256,7 +256,7 @@ export function PropertiesPanel() {
 				<ThreePanelLayout
 					inputPanel={<InputPanel nodeId={node.id} />}
 					parametersPanel={parametersContent}
-					outputPanel={<OutputPanel nodeId={node.id} onExecuteStep={executeStep} />}
+					outputPanel={<OutputPanel nodeId={node.id} onExecuteStep={executeStep} node={operationNode} />}
 				/>
 			) : (
 				parametersContent
