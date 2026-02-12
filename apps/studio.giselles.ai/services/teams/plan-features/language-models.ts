@@ -2,7 +2,7 @@ import { Tier } from "@giselles-ai/language-model";
 import type { TeamPlan } from "@/db/schema";
 
 const LANGUAGE_MODEL_TIERS: Record<TeamPlan, Tier> = {
-	free: Tier.enum.free,
+	free: Tier.enum.pro, // Self-hosted: no billing, all models accessible
 	pro: Tier.enum.pro,
 	team: Tier.enum.pro,
 	enterprise: Tier.enum.pro,
