@@ -71,8 +71,12 @@ export function PillNode({
 	connectedInputIds?: InputId[];
 	connectedOutputIds?: OutputId[];
 }) {
-	const { currentGeneration, stopCurrentGeneration, showCompleteLabel } =
-		useNodeGenerationStatus(node.id as NodeId);
+	const {
+		currentGeneration,
+		stopCurrentGeneration,
+		showCompleteLabel,
+		showFailedLabel,
+	} = useNodeGenerationStatus(node.id as NodeId);
 	const isStartNodeConnectedToEndNode = useAppDesignerStore((s) =>
 		s.isStartNodeConnectedToEndNode(),
 	);
@@ -137,6 +141,7 @@ export function PillNode({
 				node={node}
 				currentGeneration={currentGeneration}
 				showCompleteLabel={showCompleteLabel}
+				showFailedLabel={showFailedLabel}
 				onStopCurrentGeneration={stopCurrentGeneration}
 			/>
 

@@ -59,7 +59,8 @@ export function useNodeGenerationStatus(nodeId: NodeId) {
 	const { currentGeneration, stopCurrentGeneration } =
 		useCurrentNodeGeneration(nodeId);
 	const prevGenerationStatusRef = useRef(currentGeneration?.status);
-	const [showCompleteLabel, startTransition] = useTransition();
+	const [showCompleteLabel, startCompleteTransition] = useTransition();
+	const [showFailedLabel, startFailedTransition] = useTransition();
 
 	useEffect(() => {
 		if (currentGeneration === undefined) {
@@ -69,7 +70,7 @@ export function useNodeGenerationStatus(nodeId: NodeId) {
 			prevGenerationStatusRef.current === "running" &&
 			currentGeneration.status === "completed"
 		) {
-			startTransition(
+			startCompleteTransition(
 				async () =>
 					new Promise((resolve) => {
 						setTimeout(() => {
@@ -78,8 +79,27 @@ export function useNodeGenerationStatus(nodeId: NodeId) {
 					}),
 			);
 		}
+		if (
+			(prevGenerationStatusRef.current === "running" ||
+				prevGenerationStatusRef.current === "queued") &&
+			currentGeneration.status === "failed"
+		) {
+			startFailedTransition(
+				async () =>
+					new Promise((resolve) => {
+						setTimeout(() => {
+							resolve();
+						}, 4000);
+					}),
+			);
+		}
 		prevGenerationStatusRef.current = currentGeneration.status;
 	}, [currentGeneration]);
 
-	return { currentGeneration, stopCurrentGeneration, showCompleteLabel };
+	return {
+		currentGeneration,
+		stopCurrentGeneration,
+		showCompleteLabel,
+		showFailedLabel,
+	};
 }

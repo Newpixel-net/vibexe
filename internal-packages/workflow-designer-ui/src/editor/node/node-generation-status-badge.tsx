@@ -1,6 +1,6 @@
 import type { NodeLike } from "@giselles-ai/protocol";
 import clsx from "clsx/lite";
-import { CheckIcon, SquareIcon } from "lucide-react";
+import { AlertCircleIcon, CheckIcon, ClockIcon, SquareIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { getCompletionLabel } from "./node-utils";
 
@@ -10,17 +10,20 @@ type GenerationStatus =
 	| "running"
 	| "completed"
 	| "failed"
-	| "cancelled";
+	| "cancelled"
+	| "awaiting_review";
 
 export function NodeGenerationStatusBadge({
 	node,
 	currentGeneration,
 	showCompleteLabel,
+	showFailedLabel,
 	onStopCurrentGeneration,
 }: {
 	node: NodeLike;
 	currentGeneration?: { status: GenerationStatus } | undefined;
 	showCompleteLabel: boolean;
+	showFailedLabel?: boolean;
 	onStopCurrentGeneration: () => void;
 }) {
 	if (node.content.type === "trigger") {
@@ -58,6 +61,16 @@ export function NodeGenerationStatusBadge({
 					</div>
 				</div>
 			)}
+			{currentGeneration?.status === "awaiting_review" && (
+				<div className="absolute top-[-28px] right-0 py-1 px-3 z-10 flex items-center justify-between rounded-t-[16px]">
+					<div className="flex items-center gap-[4px]">
+						<p className="text-xs font-medium font-sans text-amber-400">
+							Awaiting Review
+						</p>
+						<ClockIcon className="w-3.5 h-3.5 text-amber-400" />
+					</div>
+				</div>
+			)}
 			<AnimatePresence>
 				{showCompleteLabel && (
 					<motion.div
@@ -72,6 +85,22 @@ export function NodeGenerationStatusBadge({
 								{getCompletionLabel(node)}
 							</p>
 							<CheckIcon className="w-4 h-4" />
+						</div>
+					</motion.div>
+				)}
+			</AnimatePresence>
+			<AnimatePresence>
+				{showFailedLabel && (
+					<motion.div
+						className="absolute top-[-28px] right-0 py-1 px-3 z-10 flex items-center justify-between rounded-t-[16px]"
+						initial={{ opacity: 1 }}
+						exit={{ opacity: 0 }}
+					>
+						<div className="flex items-center gap-[4px]">
+							<p className="text-[10px] font-medium font-geist text-red-400 leading-[140%]">
+								Failed
+							</p>
+							<AlertCircleIcon className="w-3.5 h-3.5 text-red-400" />
 						</div>
 					</motion.div>
 				)}

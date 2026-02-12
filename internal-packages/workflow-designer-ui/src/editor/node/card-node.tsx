@@ -177,8 +177,12 @@ export function NodeComponent({
 	connectedOutputIds?: OutputId[];
 }) {
 	const updateNodeData = useUpdateNodeData();
-	const { currentGeneration, stopCurrentGeneration, showCompleteLabel } =
-		useNodeGenerationStatus(node.id);
+	const {
+		currentGeneration,
+		stopCurrentGeneration,
+		showCompleteLabel,
+		showFailedLabel,
+	} = useNodeGenerationStatus(node.id);
 
 	// Subtitle text for node type context
 	const subtitleText = useMemo(() => {
@@ -414,6 +418,7 @@ export function NodeComponent({
 				node={node}
 				currentGeneration={currentGeneration}
 				showCompleteLabel={showCompleteLabel}
+				showFailedLabel={showFailedLabel}
 				onStopCurrentGeneration={stopCurrentGeneration}
 			/>
 			<div

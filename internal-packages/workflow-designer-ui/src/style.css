@@ -164,6 +164,33 @@
 	--language-model-detail-panel-width: 350px;
 }
 
+/* Node execution status indicators */
+@keyframes execution-pulse {
+	0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+	50% { box-shadow: 0 0 12px 4px rgba(59, 130, 246, 0.2); }
+}
+
+@keyframes execution-failed-pulse {
+	0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+	50% { box-shadow: 0 0 10px 3px rgba(239, 68, 68, 0.15); }
+}
+
+[data-current-generation-status="running"],
+[data-current-generation-status="queued"] {
+	animation: execution-pulse 2s ease-in-out infinite;
+}
+
+[data-current-generation-status="failed"] {
+	animation: execution-failed-pulse 2.5s ease-in-out 3;
+	outline: 1px solid rgba(239, 68, 68, 0.3);
+	outline-offset: -1px;
+}
+
+[data-current-generation-status="awaiting_review"] {
+	outline: 1px solid rgba(251, 191, 36, 0.4);
+	outline-offset: -1px;
+}
+
 /* Chat panel utilities and animations */
 @keyframes slideUpFromLeft {
 	from {
