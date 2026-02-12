@@ -777,7 +777,7 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 			`${selectedNodes[0]?.content.type}` as "appEntry" | "end",
 		);
 
-	// 3-panel layout for generation/execution nodes (INPUT | PARAMETERS | OUTPUT)
+	// 3-panel layout for generation/execution/flow-control nodes (INPUT | PARAMETERS | OUTPUT)
 	const isThreePanelNode =
 		isPropertiesPanelOpen &&
 		[
@@ -788,6 +788,16 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 			"integration",
 			"dataQuery",
 			"query",
+			"if",
+			"switch",
+			"merge",
+			"loop",
+			"code",
+			"filter",
+			"editFields",
+			"sort",
+			"wait",
+			"errorTrigger",
 		].includes(`${selectedNodes[0]?.content.type}`);
 
 	const mainRef = useRef<HTMLDivElement>(null);

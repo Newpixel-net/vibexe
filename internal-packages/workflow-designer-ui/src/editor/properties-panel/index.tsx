@@ -61,7 +61,8 @@ import { WebPageNodePropertiesPanel } from "./web-page-node-properties-panel";
 
 /**
  * Check if a node should use the 3-panel layout (INPUT | PARAMETERS | OUTPUT).
- * Only generation/execution nodes benefit from seeing inputs and outputs.
+ * Generation/execution nodes AND flow control/data transform nodes benefit
+ * from seeing inputs and outputs alongside parameters.
  */
 function isThreePanelNode(node: unknown): boolean {
 	if (!node) return false;
@@ -72,7 +73,17 @@ function isThreePanelNode(node: unknown): boolean {
 		isAiAgentNode(node) ||
 		isIntegrationNode(node) ||
 		isDataQueryNode(node) ||
-		isQueryNode(node)
+		isQueryNode(node) ||
+		isIfNode(node) ||
+		isSwitchNode(node) ||
+		isMergeNode(node) ||
+		isLoopNode(node) ||
+		isCodeNode(node) ||
+		isFilterNode(node) ||
+		isEditFieldsNode(node) ||
+		isSortNode(node) ||
+		isWaitNode(node) ||
+		isErrorTriggerNode(node)
 	);
 }
 

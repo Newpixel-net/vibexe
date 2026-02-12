@@ -43,6 +43,7 @@ export const AiAgentContent = z.object({
 			configuration: z.record(z.string(), z.any()).default({}),
 		})
 		.default({ enabled: false, configuration: {} }),
+	chainTemplateId: z.string().optional(),
 });
 
 export type AiAgentContent = z.infer<typeof AiAgentContent>;

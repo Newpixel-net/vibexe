@@ -16,6 +16,7 @@ import {
 	languageModels,
 	type Tier,
 } from "@giselles-ai/language-model";
+import { chainTemplates, type ChainTemplate } from "@giselles-ai/giselle";
 import {
 	createAiAgentNode,
 	createAppEntryNode,
@@ -343,6 +344,32 @@ export function WhatHappensNextPanel({
 			handleAddAndConnect(newNode);
 		},
 		[handleAddAndConnect],
+	);
+
+	const handleSelectChainTemplate = useCallback(
+		(template: ChainTemplate) => {
+			// Create AI Agent with a reasonable default model
+			const defaultModels = availableModels.filter(
+				(m) => hasCapability(m, Capability.TextGeneration),
+			);
+			const defaultModel = defaultModels[0];
+			if (!defaultModel) return;
+
+			const registryId = defaultModel.id.includes("/")
+				? defaultModel.id
+				: `${defaultModel.provider}/${defaultModel.id}`;
+			const newNode = createAiAgentNode({
+				id: registryId as Parameters<typeof createAiAgentNode>[0]["id"],
+			});
+			// Pre-apply template settings to the node content
+			(newNode.content as Record<string, unknown>).chainTemplateId = template.id;
+			(newNode.content as Record<string, unknown>).systemPrompt = template.systemPrompt;
+			(newNode.content as Record<string, unknown>).structuredOutput = template.structuredOutput;
+			// Set a descriptive name
+			newNode.name = template.name;
+			handleAddAndConnect(newNode);
+		},
+		[handleAddAndConnect, availableModels],
 	);
 
 	const [aiModelMode, setAiModelMode] = useState<
@@ -778,6 +805,42 @@ export function WhatHappensNextPanel({
 												</div>
 											</div>
 										</button>
+									</div>
+								)}
+
+								{/* Chain Templates */}
+								{!searchQuery.trim() && (
+									<div>
+										<div className="text-[10px] font-medium text-inverse/40 uppercase tracking-wide px-3 pb-1">
+											AI Chains
+										</div>
+										<div className="space-y-0.5">
+											{chainTemplates.map((template) => (
+												<button
+													key={template.id}
+													type="button"
+													onClick={() =>
+														handleSelectChainTemplate(template)
+													}
+													className={clsx(
+														"w-full flex items-center gap-3 px-3 py-2 rounded-[8px]",
+														"hover:bg-white/8 transition-colors text-left",
+													)}
+												>
+													<div className="w-[28px] h-[28px] rounded-[6px] bg-blue-500/20 flex items-center justify-center shrink-0">
+														<SparklesIcon className="w-3.5 h-3.5 text-blue-400" />
+													</div>
+													<div className="min-w-0">
+														<div className="text-[12px] font-medium text-inverse truncate">
+															{template.name}
+														</div>
+														<div className="text-[10px] text-inverse/40 line-clamp-1">
+															{template.description}
+														</div>
+													</div>
+												</button>
+											))}
+										</div>
 									</div>
 								)}
 								{searchQuery.trim() ? (

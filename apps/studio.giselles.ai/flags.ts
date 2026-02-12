@@ -20,7 +20,7 @@ export const developerFlag = async () => takeLocalEnv("DEVELOPER_FLAG");
 export const webSearchActionFlag = async () =>
 	takeLocalEnv("WEB_SEARCH_ACTION_FLAG");
 
-export const layoutV3Flag = async () => takeLocalEnv("LAYOUT_V3_FLAG");
+export const layoutV3Flag = async () => true;
 
 // Note: experimental_storageFlag defaults to true when edge-config is undefined
 export const experimental_storageFlag = async () =>

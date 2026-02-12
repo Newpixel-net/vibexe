@@ -36,6 +36,7 @@ import { ModelSettings } from "../text-generation-node-properties-panel-v2/model
 import { useNodeContext } from "../text-generation-node-properties-panel-v2/node-context";
 import { ModelPickerV2 } from "../../../ui/model-picker-v2";
 import { AgentOutputPanel } from "./output-panel";
+import { chainTemplates, type ChainTemplate } from "@giselles-ai/giselle";
 
 function isNode(nodeLike: NodeLike): nodeLike is Node {
 	const result = Node.safeParse(nodeLike);
@@ -120,6 +121,41 @@ export function AiAgentNodePropertiesPanel({
 			/>
 
 			<div className="grow-1 overflow-y-auto flex flex-col gap-[12px]">
+				{/* Chain Template Selector */}
+				<div className="flex items-center justify-between gap-[12px] px-[8px]">
+					<SettingDetail size="md">Template</SettingDetail>
+					<select
+						value={(node.content as { chainTemplateId?: string }).chainTemplateId ?? "custom"}
+						onChange={(e) => {
+							const templateId = e.target.value;
+							if (templateId === "custom") {
+								updateNodeDataContent(node, {
+									chainTemplateId: undefined,
+								} as Record<string, unknown>);
+								return;
+							}
+							const template = chainTemplates.find(
+								(t) => t.id === templateId,
+							);
+							if (template) {
+								updateNodeDataContent(node, {
+									chainTemplateId: template.id,
+									systemPrompt: template.systemPrompt,
+									structuredOutput: template.structuredOutput,
+								} as Record<string, unknown>);
+							}
+						}}
+						className="bg-[color-mix(in_srgb,var(--color-text-inverse,#fff)_10%,transparent)] text-inverse text-[13px] rounded-[6px] px-[8px] py-[5px] border border-white-400/20 outline-none cursor-pointer min-w-[160px]"
+					>
+						<option value="custom">Custom</option>
+						{chainTemplates.map((t) => (
+							<option key={t.id} value={t.id}>
+								{t.name}
+							</option>
+						))}
+					</select>
+				</div>
+
 				<ModelSettings
 					node={node as unknown as ContentGenerationNode}
 					onContentGenerationContentChange={(value) => {
