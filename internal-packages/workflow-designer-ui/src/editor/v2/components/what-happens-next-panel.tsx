@@ -16,7 +16,7 @@ import {
 	languageModels,
 	type Tier,
 } from "@giselles-ai/language-model";
-import { chainTemplates, type ChainTemplate } from "@giselles-ai/giselle";
+import { chainTemplates, type ChainTemplate } from "../../lib/chain-templates";
 import {
 	createAiAgentNode,
 	createAppEntryNode,

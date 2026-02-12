@@ -36,7 +36,7 @@ import { ModelSettings } from "../text-generation-node-properties-panel-v2/model
 import { useNodeContext } from "../text-generation-node-properties-panel-v2/node-context";
 import { ModelPickerV2 } from "../../../ui/model-picker-v2";
 import { AgentOutputPanel } from "./output-panel";
-import { chainTemplates, type ChainTemplate } from "@giselles-ai/giselle";
+import { chainTemplates, type ChainTemplate } from "../../lib/chain-templates";
 
 function isNode(nodeLike: NodeLike): nodeLike is Node {
 	const result = Node.safeParse(nodeLike);
