@@ -92,6 +92,22 @@ function useVariant(node: NodeLike) {
 		const isToolNode = node.content.type === "toolNode";
 		const isMemoryNode = node.content.type === "memoryNode";
 
+		// Flow control & data transform nodes
+		const isFlowControl =
+			node.content.type === "if" ||
+			node.content.type === "switch" ||
+			node.content.type === "merge" ||
+			node.content.type === "loop" ||
+			node.content.type === "wait";
+		const isDataTransform =
+			node.content.type === "code" ||
+			node.content.type === "filter" ||
+			node.content.type === "editFields" ||
+			node.content.type === "sort";
+		const isErrorTrigger = node.content.type === "errorTrigger";
+		const isDataTable = node.content.type === "dataTable";
+		const isFormTrigger = node.content.type === "formTrigger";
+
 		const isVectorStoreGithub =
 			isVectorStore &&
 			isVectorStoreNode(node) &&
@@ -114,7 +130,12 @@ function useVariant(node: NodeLike) {
 			isAiAgent ||
 			isChatModel ||
 			isToolNode ||
-			isMemoryNode;
+			isMemoryNode ||
+			isFlowControl ||
+			isDataTransform ||
+			isErrorTrigger ||
+			isDataTable ||
+			isFormTrigger;
 
 		const isDarkIconText =
 			isText || isFile || isWebPage || isQuery || isDataStore || isDataQuery;
@@ -129,7 +150,12 @@ function useVariant(node: NodeLike) {
 			isAiAgent ||
 			isChatModel ||
 			isToolNode ||
-			isMemoryNode;
+			isMemoryNode ||
+			isFlowControl ||
+			isDataTransform ||
+			isErrorTrigger ||
+			isDataTable ||
+			isFormTrigger;
 
 		return {
 			isText,
@@ -153,6 +179,11 @@ function useVariant(node: NodeLike) {
 			isVectorStoreGithub,
 			isVectorStoreDocument,
 			isGithubTrigger,
+			isFlowControl,
+			isDataTransform,
+			isErrorTrigger,
+			isDataTable,
+			isFormTrigger,
 			isFillIcon,
 			isStrokeIcon,
 			isDarkIconText,
@@ -229,6 +260,21 @@ export function NodeComponent({
 		if (node.content.type === "dataQuery") return "Data Query";
 		if (node.content.type === "trigger") return "Trigger";
 		if (node.content.type === "action") return "Action";
+		// Flow control
+		if (node.content.type === "if") return "Condition";
+		if (node.content.type === "switch") return "Branch Router";
+		if (node.content.type === "merge") return "Merge Branches";
+		if (node.content.type === "loop") return "Loop Items";
+		if (node.content.type === "wait") return "Wait / Delay";
+		// Data transform
+		if (node.content.type === "code") return "JavaScript";
+		if (node.content.type === "filter") return "Filter Items";
+		if (node.content.type === "editFields") return "Edit Fields";
+		if (node.content.type === "sort") return "Sort Items";
+		// Other V3 nodes
+		if (node.content.type === "errorTrigger") return "Error Handler";
+		if (node.content.type === "dataTable") return "Data Table";
+		if (node.content.type === "formTrigger") return "Form Input";
 		return null;
 	}, [node]);
 
@@ -271,6 +317,11 @@ export function NodeComponent({
 		isVectorStoreGithub: boolean;
 		isVectorStoreDocument: boolean;
 		isGithubTrigger: boolean;
+		isFlowControl: boolean;
+		isDataTransform: boolean;
+		isErrorTrigger: boolean;
+		isDataTable: boolean;
+		isFormTrigger: boolean;
 		isFillIcon: boolean;
 		isStrokeIcon: boolean;
 		isDarkIconText: boolean;
@@ -299,6 +350,11 @@ export function NodeComponent({
 			if (variant.isIntegration) return "var(--color-integration-node-1)";
 			if (variant.isQuery) return "var(--color-query-node-1)";
 			if (variant.isDataQuery) return "var(--color-data-query-node-1)";
+			if (variant.isFlowControl) return "var(--color-flow-control-node-1)";
+			if (variant.isDataTransform) return "var(--color-data-transform-node-1)";
+			if (variant.isErrorTrigger) return "var(--color-error-trigger-node-1)";
+			if (variant.isDataTable) return "var(--color-data-store-node-1)";
+			if (variant.isFormTrigger) return "var(--color-trigger-node-1)";
 			return undefined;
 		},
 		[],
@@ -385,6 +441,11 @@ export function NodeComponent({
 				selected && v.isQuery && "shadow-query-node-1",
 				selected && v.isDataStore && "shadow-data-store-node-1",
 				selected && v.isDataQuery && "shadow-data-query-node-1",
+				selected && v.isFlowControl && "shadow-flow-control-node-1",
+				selected && v.isDataTransform && "shadow-data-transform-node-1",
+				selected && v.isErrorTrigger && "shadow-error-trigger-node-1",
+				selected && v.isDataTable && "shadow-data-store-node-1",
+				selected && v.isFormTrigger && "shadow-trigger-node-1",
 				selected && "shadow-[0px_0px_20px_1px_rgba(0,_0,_0,_0.4)]",
 				selected &&
 					v.isTrigger &&
@@ -406,6 +467,11 @@ export function NodeComponent({
 				highlighted && v.isQuery && "shadow-query-node-1",
 				highlighted && v.isDataStore && "shadow-data-store-node-1",
 				highlighted && v.isDataQuery && "shadow-data-query-node-1",
+				highlighted && v.isFlowControl && "shadow-flow-control-node-1",
+				highlighted && v.isDataTransform && "shadow-data-transform-node-1",
+				highlighted && v.isErrorTrigger && "shadow-error-trigger-node-1",
+				highlighted && v.isDataTable && "shadow-data-store-node-1",
+				highlighted && v.isFormTrigger && "shadow-trigger-node-1",
 				highlighted && "shadow-[0px_0px_20px_1px_rgba(0,_0,_0,_0.4)]",
 				highlighted &&
 					v.isTrigger &&
@@ -484,6 +550,21 @@ export function NodeComponent({
 					!borderGradientStyle &&
 						v.isDataQuery &&
 						"from-data-query-node-1/40 via-data-query-node-1/70 to-data-query-node-1",
+					!borderGradientStyle &&
+						v.isFlowControl &&
+						"from-flow-control-node-1/40 via-flow-control-node-1/70 to-flow-control-node-1",
+					!borderGradientStyle &&
+						v.isDataTransform &&
+						"from-data-transform-node-1/40 via-data-transform-node-1/70 to-data-transform-node-1",
+					!borderGradientStyle &&
+						v.isErrorTrigger &&
+						"from-error-trigger-node-1/40 via-error-trigger-node-1/70 to-error-trigger-node-1",
+					!borderGradientStyle &&
+						v.isDataTable &&
+						"from-data-store-node-1/40 via-data-store-node-1/70 to-data-store-node-1",
+					!borderGradientStyle &&
+						v.isFormTrigger &&
+						"from-trigger-node-1/40 via-trigger-node-1/70 to-trigger-node-1",
 				)}
 				style={borderGradientStyle}
 			/>
@@ -517,6 +598,11 @@ export function NodeComponent({
 					v.isQuery && "bg-query-node-1",
 					v.isDataStore && "bg-data-store-node-1",
 					v.isDataQuery && "bg-data-query-node-1",
+					v.isFlowControl && "bg-flow-control-node-1",
+					v.isDataTransform && "bg-data-transform-node-1",
+					v.isErrorTrigger && "bg-error-trigger-node-1",
+					v.isDataTable && "bg-data-store-node-1",
+					v.isFormTrigger && "bg-trigger-node-1",
 				)}
 			>
 				<NodeIcon
@@ -560,6 +646,16 @@ export function NodeComponent({
 						v.isQuery && "text-background",
 						v.isDataStore && "text-background",
 						v.isDataQuery && "text-background",
+						v.isFlowControl && "stroke-current fill-none",
+						v.isDataTransform && "stroke-current fill-none",
+						v.isErrorTrigger && "stroke-current fill-none",
+						v.isDataTable && "stroke-current fill-none",
+						v.isFormTrigger && "stroke-current fill-none",
+						v.isFlowControl && "text-inverse",
+						v.isDataTransform && "text-inverse",
+						v.isErrorTrigger && "text-inverse",
+						v.isDataTable && "text-inverse",
+						v.isFormTrigger && "text-inverse",
 					)}
 				/>
 			</div>
@@ -774,7 +870,9 @@ function InputOutput({
 				node.content.type !== "appEntry" &&
 				node.content.type !== "chatModel" &&
 				node.content.type !== "toolNode" &&
-				node.content.type !== "memoryNode" && (
+				node.content.type !== "memoryNode" &&
+				node.content.type !== "errorTrigger" &&
+				node.content.type !== "formTrigger" && (
 					<Handle
 						type="target"
 						position={Position.Left}
@@ -796,6 +894,16 @@ function InputOutput({
 							v.isQuery && isInputConnected && "!bg-query-node-1",
 							v.isDataQuery && "!border-data-query-node-1",
 							v.isDataQuery && isInputConnected && "!bg-data-query-node-1",
+							v.isFlowControl && "!border-flow-control-node-1",
+							v.isFlowControl && isInputConnected && "!bg-flow-control-node-1",
+							v.isDataTransform && "!border-data-transform-node-1",
+							v.isDataTransform && isInputConnected && "!bg-data-transform-node-1",
+							v.isErrorTrigger && "!border-error-trigger-node-1",
+							v.isErrorTrigger && isInputConnected && "!bg-error-trigger-node-1",
+							v.isDataTable && "!border-data-store-node-1",
+							v.isDataTable && isInputConnected && "!bg-data-store-node-1",
+							v.isFormTrigger && "!border-trigger-node-1",
+							v.isFormTrigger && isInputConnected && "!bg-trigger-node-1",
 						)}
 					/>
 				)}
@@ -851,6 +959,16 @@ function InputOutput({
 						v.isDataStore && isOutputConnected && "!bg-data-store-node-1",
 						v.isDataQuery && "!border-data-query-node-1",
 						v.isDataQuery && isOutputConnected && "!bg-data-query-node-1",
+						v.isFlowControl && "!border-flow-control-node-1",
+						v.isFlowControl && isOutputConnected && "!bg-flow-control-node-1",
+						v.isDataTransform && "!border-data-transform-node-1",
+						v.isDataTransform && isOutputConnected && "!bg-data-transform-node-1",
+						v.isErrorTrigger && "!border-error-trigger-node-1",
+						v.isErrorTrigger && isOutputConnected && "!bg-error-trigger-node-1",
+						v.isDataTable && "!border-data-store-node-1",
+						v.isDataTable && isOutputConnected && "!bg-data-store-node-1",
+						v.isFormTrigger && "!border-trigger-node-1",
+						v.isFormTrigger && isOutputConnected && "!bg-trigger-node-1",
 					)}
 				/>
 			)}

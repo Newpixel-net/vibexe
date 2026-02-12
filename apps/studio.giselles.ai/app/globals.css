@@ -124,6 +124,18 @@
 	--color-data-query-node-1: var(--color-node-data-query-primary);
 	--color-data-query-node-2: var(--color-node-data-query-secondary);
 
+	--color-flow-control-node-1: var(--color-node-flow-control-primary);
+	--color-flow-control-node-2: var(--color-node-flow-control-secondary);
+	--shadow-flow-control-node-1: 0px 4px 12px hsla(185, 80%, 42%, 0.3);
+
+	--color-data-transform-node-1: var(--color-node-data-transform-primary);
+	--color-data-transform-node-2: var(--color-node-data-transform-secondary);
+	--shadow-data-transform-node-1: 0px 4px 12px hsla(38, 92%, 50%, 0.3);
+
+	--color-error-trigger-node-1: var(--color-node-error-trigger-primary);
+	--color-error-trigger-node-2: var(--color-node-error-trigger-secondary);
+	--shadow-error-trigger-node-1: 0px 4px 12px hsla(0, 75%, 55%, 0.3);
+
 	--color-end-node-1: var(--color-blue-400);
 	--color-end-node-2: var(--color-blue-800);
 
