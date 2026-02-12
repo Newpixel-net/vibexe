@@ -320,26 +320,13 @@ async function runTaskWithDag(
 
 			const opNode = generation.context.operationNode as OperationNode;
 
-			// Wire errorConfig from the operation node to the DAG node
-			const errorConfig = (opNode as { errorConfig?: {
-				retryOnFail: boolean;
-				maxRetries: number;
-				retryDelay: number;
-				onError: "stopWorkflow" | "continueOnFail" | "routeToError";
-			} }).errorConfig;
-
 			dag.addNode({
 				nodeId: opNode.id,
 				operationNode: opNode,
 				generationId: step.generationId,
 				state: "pending",
 				retryCount: 0,
-				errorConfig: errorConfig ? {
-					retryOnFail: errorConfig.retryOnFail,
-					maxRetries: errorConfig.maxRetries,
-					retryDelay: errorConfig.retryDelay,
-					onError: errorConfig.onError,
-				} : undefined,
+				errorConfig: opNode.errorConfig,
 			});
 		}
 	}

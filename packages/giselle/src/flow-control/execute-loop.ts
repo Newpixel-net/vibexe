@@ -6,8 +6,9 @@ import type { DagNode, DagNodeResult } from "../tasks/dag-executor";
  * - forEach: Iterate over array items, yielding each one
  * - nTimes: Run N times with index
  *
- * NOTE: The actual looping of sub-DAGs is handled by the DAG executor.
- * This handler just determines the iteration data.
+ * This handler determines the iteration data. The DAG executor's
+ * executeLoopIterations() function handles re-executing downstream
+ * nodes for each item in the array.
  */
 export async function executeLoop(
 	node: DagNode,
@@ -20,24 +21,26 @@ export async function executeLoop(
 		const capped = items.slice(0, content.maxIterations);
 		return {
 			outputs: new Map([
-				["item", capped],   // matches factory accessor "item"
-				["output", capped], // matches factory accessor "output"
+				["item", capped],        // array of items (DAG executor iterates this)
+				["output", capped],      // matches factory accessor "output"
 				["items", capped],
 				["totalItems", capped.length],
+				["iterationMode", "forEach"],
 				["data", capped],
 			]),
 		};
 	}
 
-	// nTimes mode
+	// nTimes mode: generate array of indices [0, 1, ..., n-1]
 	const n = Math.min(content.nTimes ?? 1, content.maxIterations);
 	const indices = Array.from({ length: n }, (_, i) => i);
 	return {
 		outputs: new Map([
-			["item", indices],   // matches factory accessor "item"
-			["output", indices], // matches factory accessor "output"
+			["item", indices],        // array of indices (DAG executor iterates this)
+			["output", indices],      // matches factory accessor "output"
 			["items", indices],
 			["totalItems", n],
+			["iterationMode", "nTimes"],
 			["data", indices],
 		]),
 	};

@@ -110,6 +110,7 @@ export type ErrorConfig = z.infer<typeof ErrorConfig>;
 export const OperationNode = NodeBase.extend({
 	type: z.literal("operation"),
 	content: OperationNodeContent,
+	errorConfig: ErrorConfig.optional(),
 });
 export type OperationNode = z.infer<typeof OperationNode>;
 

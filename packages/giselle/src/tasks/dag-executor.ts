@@ -71,6 +71,8 @@ export class ExecutionDAG {
 	private incomingEdges: Map<NodeId, DagEdge[]> = new Map();
 	/** Map from nodeId -> edges where this node is the source */
 	private outgoingEdges: Map<NodeId, DagEdge[]> = new Map();
+	/** Pending error data for ErrorTrigger nodes (injected by error routing) */
+	errorTriggerData: Map<NodeId, Map<string, unknown>> = new Map();
 
 	addNode(node: DagNode): void {
 		this.nodes.set(node.nodeId, node);
@@ -116,6 +118,11 @@ export class ExecutionDAG {
 		const node = this.nodes.get(nodeId);
 		if (!node || node.state !== "waiting") return false;
 
+		// ErrorTrigger nodes with pending error data are always ready
+		if (node.operationNode.content.type === "errorTrigger" && this.errorTriggerData.has(nodeId)) {
+			return true;
+		}
+
 		const incoming = this.getIncomingEdges(nodeId);
 		if (incoming.length === 0) return true;
 
@@ -147,6 +154,15 @@ export class ExecutionDAG {
 	 */
 	collectInputData(nodeId: NodeId): Map<string, unknown> {
 		const data = new Map<string, unknown>();
+
+		// If this node has pending error data (ErrorTrigger), merge it first
+		const errorData = this.errorTriggerData.get(nodeId);
+		if (errorData) {
+			for (const [key, val] of errorData) {
+				data.set(key, val);
+			}
+		}
+
 		const incoming = this.getIncomingEdges(nodeId);
 
 		for (const edge of incoming) {
@@ -230,6 +246,42 @@ export class ExecutionDAG {
 		}
 		return false;
 	}
+
+	/** Find all ErrorTrigger nodes in the DAG */
+	getErrorTriggerNodes(): DagNode[] {
+		const results: DagNode[] = [];
+		for (const [, node] of this.nodes) {
+			if (node.operationNode.content.type === "errorTrigger") {
+				results.push(node);
+			}
+		}
+		return results;
+	}
+
+	/**
+	 * Route error data to all ErrorTrigger nodes and mark them ready to fire.
+	 * Called when a node fails and its onError strategy involves error routing.
+	 */
+	routeErrorToTriggers(
+		failedNodeId: NodeId,
+		failedNodeName: string,
+		errorMessage: string,
+		callbacks?: DagExecutorCallbacks,
+	): void {
+		const errorData = new Map<string, unknown>([
+			["errorMessage", errorMessage],
+			["failedNodeId", failedNodeId],
+			["failedNodeName", failedNodeName],
+			["timestamp", new Date().toISOString()],
+		]);
+
+		for (const triggerNode of this.getErrorTriggerNodes()) {
+			// Only fire if not already completed or running
+			if (triggerNode.state === "completed" || triggerNode.state === "running") continue;
+			this.errorTriggerData.set(triggerNode.nodeId, errorData);
+			triggerNode.state = "waiting";
+		}
+	}
 }
 
 // ---- DAG Executor ----
@@ -291,12 +343,20 @@ export async function executeDag(
 				node.result = { outputs: new Map(), error: err };
 				node.activeOutputPort = errorConfig.errorOutputPort ?? "__error__";
 				await callbacks.onNodeFailed?.(nodeId, err);
+				// Route error to all ErrorTrigger nodes
+				const nodeName = node.operationNode.name ?? nodeId;
+				dag.routeErrorToTriggers(nodeId, nodeName, err.message, callbacks);
 			} else {
 				// Default: stopWorkflow
 				node.state = "failed";
 				node.result = { outputs: new Map(), error: err };
 				await callbacks.onNodeFailed?.(nodeId, err);
-				return; // Don't propagate further
+				// Still route to ErrorTrigger nodes (they always fire on failure)
+				const nodeName = node.operationNode.name ?? nodeId;
+				dag.routeErrorToTriggers(nodeId, nodeName, err.message, callbacks);
+				// Fire any ErrorTrigger nodes that are now ready, then stop main path
+				await fireReadyNodes();
+				return;
 			}
 		}
 
@@ -310,6 +370,15 @@ export async function executeDag(
 
 		const outgoing = dag.getOutgoingEdges(completedNodeId);
 		const contentType = completedNode.operationNode.content.type;
+
+		// For Loop nodes: iterate over items and re-execute downstream per iteration
+		if (contentType === "loop" && completedNode.result) {
+			const items = completedNode.result.outputs.get("item");
+			if (Array.isArray(items) && items.length > 0) {
+				await executeLoopIterations(completedNodeId, items, outgoing);
+				return;
+			}
+		}
 
 		// For If nodes: activate only the matching branch, skip the other
 		if (contentType === "if" && completedNode.activeOutputPort) {
@@ -354,6 +423,121 @@ export async function executeDag(
 		}
 
 		// Now fire any nodes that are ready
+		await fireReadyNodes();
+	};
+
+	/**
+	 * Execute loop iterations sequentially. For each item in the array:
+	 * 1. Set the loop output to the current item
+	 * 2. Mark downstream nodes as "waiting"
+	 * 3. Fire and complete downstream sub-graph
+	 * 4. Collect iteration results
+	 * 5. After all iterations, set aggregated results and continue past loop
+	 */
+	const executeLoopIterations = async (
+		loopNodeId: NodeId,
+		items: unknown[],
+		outgoing: DagEdge[],
+	): Promise<void> => {
+		const loopNode = dag.nodes.get(loopNodeId);
+		if (!loopNode) return;
+
+		// Find all downstream nodes reachable from the loop (the "loop body")
+		const loopBodyNodeIds = new Set<NodeId>();
+		const collectLoopBody = (nodeId: NodeId) => {
+			for (const edge of dag.getOutgoingEdges(nodeId)) {
+				if (!loopBodyNodeIds.has(edge.toNodeId)) {
+					loopBodyNodeIds.add(edge.toNodeId);
+					collectLoopBody(edge.toNodeId);
+				}
+			}
+		};
+		for (const edge of outgoing) {
+			loopBodyNodeIds.add(edge.toNodeId);
+			collectLoopBody(edge.toNodeId);
+		}
+
+		// Store original outputs from loop body nodes (to restore between iterations)
+		const allIterationResults: unknown[] = [];
+
+		for (let i = 0; i < items.length; i++) {
+			const currentItem = items[i];
+
+			// Update loop node's result to the current item (not the full array)
+			loopNode.result = {
+				outputs: new Map([
+					["item", currentItem],
+					["output", currentItem],
+					["items", items],
+					["index", i],
+					["totalItems", items.length],
+					["data", currentItem],
+				]),
+			};
+
+			// Reset all loop body nodes to "pending" for this iteration
+			for (const bodyNodeId of loopBodyNodeIds) {
+				const bodyNode = dag.nodes.get(bodyNodeId);
+				if (bodyNode) {
+					bodyNode.state = "pending";
+					bodyNode.result = undefined;
+					bodyNode.activeOutputPort = undefined;
+				}
+			}
+
+			// Mark direct downstream of loop as "waiting"
+			for (const edge of outgoing) {
+				const downstream = dag.nodes.get(edge.toNodeId);
+				if (downstream) {
+					downstream.state = "waiting";
+				}
+			}
+
+			// Fire ready nodes until the loop body sub-graph completes
+			let maxSteps = 100; // safety limit
+			while (maxSteps-- > 0) {
+				const readyInBody: NodeId[] = [];
+				for (const bodyNodeId of loopBodyNodeIds) {
+					if (dag.isNodeReady(bodyNodeId)) {
+						readyInBody.push(bodyNodeId);
+					}
+				}
+				if (readyInBody.length === 0) break;
+				await Promise.all(readyInBody.map((nid) => fireNode(nid)));
+			}
+
+			// Collect results from the last node(s) in the loop body
+			const lastOutputs: Record<string, unknown> = {};
+			for (const bodyNodeId of loopBodyNodeIds) {
+				const bodyNode = dag.nodes.get(bodyNodeId);
+				if (bodyNode?.state === "completed" && bodyNode.result) {
+					for (const [key, val] of bodyNode.result.outputs) {
+						lastOutputs[key] = val;
+					}
+				}
+			}
+			allIterationResults.push(
+				Object.keys(lastOutputs).length === 1
+					? Object.values(lastOutputs)[0]
+					: lastOutputs,
+			);
+		}
+
+		// Set the loop node's final result to the aggregated array
+		loopNode.result = {
+			outputs: new Map([
+				["item", allIterationResults],
+				["output", allIterationResults],
+				["items", allIterationResults],
+				["totalItems", allIterationResults.length],
+				["data", allIterationResults],
+			]),
+		};
+
+		// Now propagate past the loop body to any nodes beyond it
+		// (nodes that are NOT in loopBodyNodeIds but connect from loop body nodes)
+		// Reset: we've already run the loop body, so leave body nodes in their final iteration state
+		// and fire any nodes waiting on those body outputs
 		await fireReadyNodes();
 	};
 
