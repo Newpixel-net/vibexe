@@ -46,6 +46,13 @@ export interface GiselleClient {
 	getWorkspaceTasks(input: {
 		workspaceId: WorkspaceId;
 	}): Promise<{ tasks: Task[] }>;
+	patchTask(input: {
+		taskId: string;
+		patches: Array<{ path: string; set: unknown }>;
+	}): Promise<Task>;
+	retryTask(input: {
+		taskId: string;
+	}): Promise<{ taskId: string; task: Task }>;
 	// streamTask omitted (not currently used in Studio editor UI)
 
 	// generations

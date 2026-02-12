@@ -4,6 +4,7 @@ import type {
 	CompletedGeneration,
 	FailedGeneration,
 	Generation,
+	GenerationId,
 	NodeId,
 	OperationNode,
 } from "@giselles-ai/protocol";
@@ -11,6 +12,7 @@ import { useNodeGenerations } from "@giselles-ai/react";
 import {
 	ArrowDownIcon,
 	ArrowUpIcon,
+	BugIcon,
 	CheckCircleIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -22,7 +24,10 @@ import {
 	XCircleIcon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
+import useSWR from "swr";
 import { useAppDesignerStore, useUpdateNodeData } from "../../app-designer";
+import { useGiselle } from "../../app-designer/store/giselle-client-provider";
+import { useDebugSessionStore } from "../debug-session-store";
 import { TextGenerationIcon } from "../../icons";
 import ClipboardButton from "../../ui/clipboard-button";
 import { EmptyState } from "../../ui/empty-state";
@@ -226,6 +231,24 @@ function MockDataSection({ node }: { node: OperationNode }) {
 	);
 }
 
+/** Debug-mode generation fetcher — loads generation from a past task */
+function useDebugGeneration(nodeId: NodeId): Generation | undefined {
+	const client = useGiselle();
+	const debugSession = useDebugSessionStore((s) => s.debugSession);
+
+	// Find generation for this node in the debug session
+	const debugGenId = debugSession?.nodeGenerationMap[nodeId] ?? null;
+
+	const { data } = useSWR<Generation>(
+		debugGenId
+			? { namespace: "debugGeneration", generationId: debugGenId }
+			: null,
+		() => client.getGeneration({ generationId: debugGenId as GenerationId }),
+	);
+
+	return data ?? undefined;
+}
+
 export function OutputPanel({
 	nodeId,
 	onExecuteStep,
@@ -236,10 +259,15 @@ export function OutputPanel({
 	node?: OperationNode;
 }) {
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
-	const { currentGeneration } = useNodeGenerations({
+	const debugSession = useDebugSessionStore((s) => s.debugSession);
+	const debugGeneration = useDebugGeneration(nodeId);
+	const { currentGeneration: liveGeneration } = useNodeGenerations({
 		nodeId,
 		origin: { type: "studio", workspaceId },
 	});
+
+	// In debug mode, prefer the debug generation
+	const currentGeneration = debugSession ? debugGeneration : liveGeneration;
 
 	const isRunning =
 		currentGeneration?.status === "created" ||
@@ -279,6 +307,13 @@ export function OutputPanel({
 
 	return (
 		<div className="flex flex-col h-full">
+			{/* Debug mode indicator */}
+			{debugSession && (
+				<div className="flex items-center gap-[4px] px-[10px] py-[4px] bg-purple-600/10 border-b border-purple-500/20">
+					<BugIcon className="size-[10px] text-purple-400" />
+					<span className="text-[10px] text-purple-400">Debug mode — showing data from past run</span>
+				</div>
+			)}
 			{/* Status bar */}
 			<div className="flex items-center gap-[6px] px-[10px] py-[6px] border-b border-inverse/10">
 				{isRunning && (

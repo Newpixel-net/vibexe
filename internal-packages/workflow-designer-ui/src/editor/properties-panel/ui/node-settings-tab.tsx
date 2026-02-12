@@ -57,6 +57,44 @@ export function NodeSettingsTab({ node }: NodeSettingsTabProps) {
 			)}
 
 			<Toggle
+				name="always-output-data"
+				checked={node.alwaysOutputData ?? false}
+				onCheckedChange={(checked) => {
+					updateNodeField({ alwaysOutputData: checked as boolean });
+				}}
+			>
+				<label htmlFor="always-output-data" className="text-[14px] text-inverse">
+					Always Output Data
+				</label>
+			</Toggle>
+
+			{node.alwaysOutputData && (
+				<p className="text-[12px] text-[hsla(0,0%,100%,0.4)] px-[4px]">
+					When enabled, the node outputs an empty item if no data is produced.
+					Prevents downstream nodes from failing due to missing input.
+				</p>
+			)}
+
+			<Toggle
+				name="execute-once"
+				checked={node.executeOnce ?? false}
+				onCheckedChange={(checked) => {
+					updateNodeField({ executeOnce: checked as boolean });
+				}}
+			>
+				<label htmlFor="execute-once" className="text-[14px] text-inverse">
+					Execute Once
+				</label>
+			</Toggle>
+
+			{node.executeOnce && (
+				<p className="text-[12px] text-[hsla(0,0%,100%,0.4)] px-[4px]">
+					When enabled, the node executes only once regardless of how many input
+					items it receives. Useful for API calls that should run once.
+				</p>
+			)}
+
+			<Toggle
 				name="timeout-enabled"
 				checked={config.timeoutEnabled ?? false}
 				onCheckedChange={(checked) => {

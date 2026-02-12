@@ -24,6 +24,8 @@ export function createInternalGiselleClient(): GiselleClient {
 		getWorkspaceInprogressTask: internalApi.getWorkspaceInprogressTask,
 		getTaskGenerationIndexes: internalApi.getTaskGenerationIndexes,
 		getWorkspaceTasks: internalApi.getWorkspaceTasks,
+		patchTask: internalApi.patchTask,
+		retryTask: internalApi.retryTask,
 
 		// generations
 		getGeneration: internalApi.getGeneration,

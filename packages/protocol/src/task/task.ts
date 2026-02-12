@@ -106,6 +106,8 @@ export const Task = z.object({
 	useDagExecution: z.boolean().optional(),
 	/** DAG execution metadata — maps nodeId to generationId for DAG executor */
 	dagNodeGenerationMap: z.record(z.string(), z.string()).optional(),
+	/** User-assigned tags for organization and filtering */
+	tags: z.array(z.string()).default([]),
 });
 export type Task = z.infer<typeof Task>;
 

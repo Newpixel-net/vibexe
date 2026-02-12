@@ -29,3 +29,17 @@ export async function getWorkspaceTasks(input: { workspaceId: WorkspaceId }) {
 	});
 	return { tasks };
 }
+
+export async function patchTask(input: {
+	taskId: string;
+	patches: Array<{ path: string; set: unknown }>;
+}) {
+	return await giselle.patchTask({
+		taskId: input.taskId as TaskId,
+		patches: input.patches,
+	});
+}
+
+export async function retryTask(input: { taskId: string }) {
+	return await giselle.retryTask({ taskId: input.taskId as TaskId });
+}

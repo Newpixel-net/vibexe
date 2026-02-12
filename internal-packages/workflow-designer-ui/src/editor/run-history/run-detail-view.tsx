@@ -5,15 +5,20 @@ import {
 	ArrowDownIcon,
 	ArrowLeftIcon,
 	ArrowUpIcon,
+	BugIcon,
 	CheckCircleIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
 	ClockIcon,
 	ListIcon,
 	LoaderIcon,
+	PlusIcon,
+	RefreshCwIcon,
 	SplitIcon,
+	TagIcon,
 	TimerIcon,
 	XCircleIcon,
+	XIcon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { ExecutionLogsPanel } from "./execution-logs-panel";
@@ -153,14 +158,117 @@ function StepDetailRow({
 	);
 }
 
+/** Tag chips with inline add/remove */
+function TaskTags({
+	task,
+	onAddTag,
+	onRemoveTag,
+}: {
+	task: Task;
+	onAddTag: (tag: string) => void;
+	onRemoveTag: (tag: string) => void;
+}) {
+	const [adding, setAdding] = useState(false);
+	const [draft, setDraft] = useState("");
+	const tags = task.tags ?? [];
+
+	const handleAdd = () => {
+		const trimmed = draft.trim();
+		if (trimmed && !tags.includes(trimmed)) {
+			onAddTag(trimmed);
+		}
+		setDraft("");
+		setAdding(false);
+	};
+
+	return (
+		<div className="flex flex-wrap items-center gap-1.5">
+			<TagIcon className="size-3 text-inverse/30" />
+			{tags.map((tag) => (
+				<span
+					key={tag}
+					className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20"
+				>
+					{tag}
+					<button
+						type="button"
+						onClick={() => onRemoveTag(tag)}
+						className="hover:text-red-400 transition-colors"
+					>
+						<XIcon className="size-2.5" />
+					</button>
+				</span>
+			))}
+			{adding ? (
+				<input
+					type="text"
+					value={draft}
+					onChange={(e) => setDraft(e.target.value)}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") handleAdd();
+						if (e.key === "Escape") { setAdding(false); setDraft(""); }
+					}}
+					onBlur={handleAdd}
+					placeholder="tag name"
+					autoFocus
+					className="w-[80px] px-2 py-0.5 text-[10px] rounded-full bg-inverse/5 border border-inverse/10 text-inverse outline-none"
+				/>
+			) : (
+				<button
+					type="button"
+					onClick={() => setAdding(true)}
+					className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] text-inverse/30 hover:text-inverse/60 border border-dashed border-inverse/10 hover:border-inverse/30 transition-colors"
+				>
+					<PlusIcon className="size-2.5" />
+					Tag
+				</button>
+			)}
+		</div>
+	);
+}
+
 export function RunDetailView({
 	task,
 	onBack,
+	onDebug,
 }: {
 	task: Task;
 	onBack: () => void;
+	onDebug?: (task: Task) => void;
 }) {
 	const [activeTab, setActiveTab] = useState<"steps" | "logs">("steps");
+	const client = useGiselle();
+	const [retrying, setRetrying] = useState(false);
+	const [localTags, setLocalTags] = useState<string[]>(task.tags ?? []);
+
+	const handleRetry = useCallback(async () => {
+		setRetrying(true);
+		try {
+			await client.retryTask({ taskId: task.id });
+		} finally {
+			setRetrying(false);
+		}
+	}, [client, task.id]);
+
+	const handleAddTag = useCallback(async (tag: string) => {
+		const newTags = [...localTags, tag];
+		setLocalTags(newTags);
+		await client.patchTask({
+			taskId: task.id,
+			patches: [{ path: "tags", set: newTags }],
+		});
+	}, [client, task.id, localTags]);
+
+	const handleRemoveTag = useCallback(async (tag: string) => {
+		const newTags = localTags.filter((t) => t !== tag);
+		setLocalTags(newTags);
+		await client.patchTask({
+			taskId: task.id,
+			patches: [{ path: "tags", set: newTags }],
+		});
+	}, [client, task.id, localTags]);
+
+	const isTerminal = task.status === "completed" || task.status === "failed" || task.status === "cancelled";
 
 	return (
 		<div className="flex flex-col h-full">
@@ -174,31 +282,60 @@ export function RunDetailView({
 					<ArrowLeftIcon className="size-3.5" />
 					Back to runs
 				</button>
-				<div className="ml-auto flex items-center rounded-[6px] border border-inverse/10 overflow-hidden">
-					<button
-						type="button"
-						className={`flex items-center gap-1 px-3 py-1 text-[10px] ${
-							activeTab === "steps"
-								? "bg-inverse/10 text-inverse/80"
-								: "text-inverse/40 hover:text-inverse/60"
-						}`}
-						onClick={() => setActiveTab("steps")}
-					>
-						<SplitIcon className="size-3" />
-						Steps
-					</button>
-					<button
-						type="button"
-						className={`flex items-center gap-1 px-3 py-1 text-[10px] ${
-							activeTab === "logs"
-								? "bg-inverse/10 text-inverse/80"
-								: "text-inverse/40 hover:text-inverse/60"
-						}`}
-						onClick={() => setActiveTab("logs")}
-					>
-						<ListIcon className="size-3" />
-						Logs
-					</button>
+
+				<div className="ml-auto flex items-center gap-2">
+					{/* Debug in Editor button */}
+					{onDebug && isTerminal && (
+						<button
+							type="button"
+							onClick={() => onDebug(task)}
+							className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium rounded-[5px] bg-purple-600/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/20 transition-colors"
+						>
+							<BugIcon className="size-3" />
+							Debug in Editor
+						</button>
+					)}
+
+					{/* Retry button */}
+					{isTerminal && (
+						<button
+							type="button"
+							onClick={handleRetry}
+							disabled={retrying}
+							className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium rounded-[5px] bg-blue-600/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/20 transition-colors disabled:opacity-50"
+						>
+							<RefreshCwIcon className={`size-3 ${retrying ? "animate-spin" : ""}`} />
+							{retrying ? "Retrying..." : "Retry"}
+						</button>
+					)}
+
+					{/* Tabs toggle */}
+					<div className="flex items-center rounded-[6px] border border-inverse/10 overflow-hidden">
+						<button
+							type="button"
+							className={`flex items-center gap-1 px-3 py-1 text-[10px] ${
+								activeTab === "steps"
+									? "bg-inverse/10 text-inverse/80"
+									: "text-inverse/40 hover:text-inverse/60"
+							}`}
+							onClick={() => setActiveTab("steps")}
+						>
+							<SplitIcon className="size-3" />
+							Steps
+						</button>
+						<button
+							type="button"
+							className={`flex items-center gap-1 px-3 py-1 text-[10px] ${
+								activeTab === "logs"
+									? "bg-inverse/10 text-inverse/80"
+									: "text-inverse/40 hover:text-inverse/60"
+							}`}
+							onClick={() => setActiveTab("logs")}
+						>
+							<ListIcon className="size-3" />
+							Logs
+						</button>
+					</div>
 				</div>
 			</div>
 
@@ -245,6 +382,13 @@ export function RunDetailView({
 						<span>Trigger: {task.trigger}</span>
 					)}
 				</div>
+
+				{/* Tags */}
+				<TaskTags
+					task={{ ...task, tags: localTags }}
+					onAddTag={handleAddTag}
+					onRemoveTag={handleRemoveTag}
+				/>
 
 				{/* Step summary counts */}
 				<div className="flex items-center gap-3 text-[10px]">

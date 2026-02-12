@@ -56,6 +56,7 @@ import { CardXyFlowNode, PillXyFlowNode } from "../../node";
 import { StickyNoteNode } from "../../node/sticky-note-node";
 import { PropertiesPanel } from "../../properties-panel";
 import { RunHistoryTable } from "../../run-history/run-history-table";
+import { useDebugSessionStore } from "../../debug-session-store";
 import { SecretTable } from "../../secret/secret-table";
 import { FloatingNodePreview, Toolbar, useToolbar } from "../../tool";
 import type { V2LayoutState } from "../state";
@@ -66,6 +67,36 @@ import { WhatHappensNextPanel } from "./what-happens-next-panel";
 
 interface V2ContainerProps extends V2LayoutState {
 	onLeftPanelClose: () => void;
+}
+
+function DebugBanner() {
+	const debugSession = useDebugSessionStore((s) => s.debugSession);
+	const exitDebug = useDebugSessionStore((s) => s.exitDebugSession);
+
+	if (!debugSession) return null;
+
+	const date = new Date(debugSession.createdAt);
+	const timeStr = date.toLocaleString();
+
+	return (
+		<div className="flex items-center gap-3 px-4 py-2 bg-purple-600/20 border-b border-purple-500/30 z-50">
+			<div className="size-2 rounded-full bg-purple-400 animate-pulse" />
+			<span className="text-[11px] text-purple-300 font-medium">
+				Debugging run from {timeStr}
+			</span>
+			<span className="text-[10px] text-purple-400/60">
+				{debugSession.taskName}
+			</span>
+			<div className="flex-1" />
+			<button
+				type="button"
+				onClick={exitDebug}
+				className="px-3 py-1 text-[10px] font-medium rounded-[4px] bg-purple-500/20 hover:bg-purple-500/40 text-purple-300 border border-purple-500/30 transition-colors"
+			>
+				Exit Debug
+			</button>
+		</div>
+	);
 }
 
 function DebugWorkspacePanel() {
@@ -873,7 +904,12 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 							<Panel order={1}>
 								{leftPanel === "run-history" && (
 									<LeftPanel onClose={onLeftPanelClose} title="Run History">
-										<RunHistoryTable />
+										<RunHistoryTable
+											onDebug={(task) => {
+												useDebugSessionStore.getState().enterDebugSession(task);
+												onLeftPanelClose();
+											}}
+										/>
 									</LeftPanel>
 								)}
 								{leftPanel === "secret" && (
@@ -900,6 +936,8 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 					)}
 
 					<Panel order={2}>
+						{/* Debug Session Banner */}
+						<DebugBanner />
 						{/* Main Content Area */}
 						<V2NodeCanvas />
 						{/* Floating Properties Panel */}

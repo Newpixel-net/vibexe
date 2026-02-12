@@ -9,8 +9,8 @@ import {
 	TableRow,
 } from "@giselle-internal/ui/table";
 import type { Task } from "@giselles-ai/protocol";
-import { LoaderIcon, RefreshCcwIcon } from "lucide-react";
-import { useState } from "react";
+import { FilterIcon, LoaderIcon, RefreshCcwIcon, XIcon } from "lucide-react";
+import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { useAppDesignerStore } from "../../app-designer";
 import { useGiselle } from "../../app-designer/store/giselle-client-provider";
@@ -30,10 +30,15 @@ function formatDuration(ms: number): string {
 	return `${(ms / 1000).toFixed(1)}s`;
 }
 
-export function RunHistoryTable() {
+export function RunHistoryTable({
+	onDebug,
+}: {
+	onDebug?: (task: Task) => void;
+} = {}) {
 	const client = useGiselle();
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
 	const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+	const [tagFilter, setTagFilter] = useState<string | null>(null);
 	const { data, isLoading, isValidating, mutate } = useSWR(
 		{
 			namespace: "getWorkspaceActs",
@@ -42,6 +47,25 @@ export function RunHistoryTable() {
 		({ workspaceId }) =>
 			client.getWorkspaceTasks({ workspaceId }).then((res) => res.tasks),
 	);
+
+	// Collect all unique tags across all tasks
+	const allTags = useMemo(() => {
+		if (!data) return [];
+		const tagSet = new Set<string>();
+		for (const task of data) {
+			for (const tag of task.tags ?? []) {
+				tagSet.add(tag);
+			}
+		}
+		return Array.from(tagSet).sort();
+	}, [data]);
+
+	// Filter tasks by selected tag
+	const filteredData = useMemo(() => {
+		if (!data) return undefined;
+		if (!tagFilter) return data;
+		return data.filter((task) => (task.tags ?? []).includes(tagFilter));
+	}, [data, tagFilter]);
 
 	if (isLoading) {
 		return null;
@@ -54,6 +78,7 @@ export function RunHistoryTable() {
 				<RunDetailView
 					task={selectedTask}
 					onBack={() => setSelectedTask(null)}
+					onDebug={onDebug}
 				/>
 			</div>
 		);
@@ -61,7 +86,38 @@ export function RunHistoryTable() {
 
 	return (
 		<div className="pl-4 pb-4 pt-2 h-full">
-			<div className="flex justify-end pb-2">
+			<div className="flex items-center justify-between pb-2 gap-2">
+				{/* Tag filter */}
+				{allTags.length > 0 && (
+					<div className="flex items-center gap-1.5">
+						<FilterIcon className="size-3 text-inverse/30" />
+						{allTags.map((tag) => (
+							<button
+								key={tag}
+								type="button"
+								onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
+								className={`px-2 py-0.5 rounded-full text-[10px] border transition-colors ${
+									tagFilter === tag
+										? "bg-blue-500/20 text-blue-400 border-blue-500/30"
+										: "bg-inverse/5 text-inverse/40 border-inverse/10 hover:border-inverse/20"
+								}`}
+							>
+								{tag}
+							</button>
+						))}
+						{tagFilter && (
+							<button
+								type="button"
+								onClick={() => setTagFilter(null)}
+								className="text-inverse/30 hover:text-inverse/60"
+								title="Clear filter"
+							>
+								<XIcon className="size-3" />
+							</button>
+						)}
+					</div>
+				)}
+				<div className="flex-1" />
 				<Button
 					type="button"
 					variant="outline"
@@ -79,7 +135,7 @@ export function RunHistoryTable() {
 					{isValidating ? "Refreshing..." : "Refresh"}
 				</Button>
 			</div>
-			{data === undefined || data.length < 1 ? (
+			{filteredData === undefined || filteredData.length < 1 ? (
 				<EmptyState title="No run" description="No runs have been executed." />
 			) : (
 				<Table>
@@ -88,6 +144,7 @@ export function RunHistoryTable() {
 							<TableHead>Time</TableHead>
 							<TableHead>Status</TableHead>
 							<TableHead>Steps</TableHead>
+							<TableHead>Tags</TableHead>
 							<TableHead>Trigger</TableHead>
 							<TableHead>
 								Duration
@@ -102,7 +159,7 @@ export function RunHistoryTable() {
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{data.map((run) => (
+						{filteredData.map((run) => (
 							<TableRow
 								key={run.id}
 								className="cursor-pointer hover:bg-inverse/5 transition-colors"
@@ -139,6 +196,18 @@ export function RunHistoryTable() {
 											</>
 										)}
 									</span>
+								</TableCell>
+								<TableCell>
+									<div className="flex flex-wrap gap-1">
+										{(run.tags ?? []).map((tag) => (
+											<span
+												key={tag}
+												className="px-1.5 py-0.5 rounded-full text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20"
+											>
+												{tag}
+											</span>
+										))}
+									</div>
 								</TableCell>
 								<TableCell className="whitespace-nowrap">
 									{run.trigger}

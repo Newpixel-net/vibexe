@@ -358,6 +358,27 @@ export function Giselle(config: GiselleConfig) {
 		patchTask(args: { taskId: TaskId; patches: Patch[] }) {
 			return patchTask({ ...args, context });
 		},
+		async retryTask(args: { taskId: TaskId }) {
+			const originalTask = await getTask({ ...args, context });
+			if (!originalTask) {
+				throw new Error(`Task ${args.taskId} not found`);
+			}
+			const { task, generations } = await createTask({
+				workspaceId: originalTask.workspaceId,
+				generationOriginType: "studio",
+				inputs: [],
+				onCreate: config.callbacks?.taskCreate,
+				context,
+			});
+			await startTask({
+				taskId: task.id,
+				generationOriginType: "studio",
+				onGenerationComplete: config.callbacks?.generationComplete,
+				onGenerationError: config.callbacks?.generationError,
+				context,
+			});
+			return { taskId: task.id, task };
+		},
 		getWorkspaceTasks(args: { workspaceId: WorkspaceId }) {
 			return getWorkspaceTasks({ ...args, context });
 		},

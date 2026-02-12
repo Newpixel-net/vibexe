@@ -115,6 +115,8 @@ export const OperationNode = NodeBase.extend({
 	errorConfig: ErrorConfig.optional(),
 	disabled: z.boolean().optional(),
 	mockData: z.unknown().optional(),
+	alwaysOutputData: z.boolean().optional(),
+	executeOnce: z.boolean().optional(),
 });
 export type OperationNode = z.infer<typeof OperationNode>;
 

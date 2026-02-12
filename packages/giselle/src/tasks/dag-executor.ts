@@ -332,7 +332,16 @@ export async function executeDag(
 		node.state = "running";
 		await callbacks.onNodeStart?.(nodeId);
 
-		const inputData = dag.collectInputData(nodeId);
+		let inputData = dag.collectInputData(nodeId);
+
+		// Execute Once: if enabled and input is an array, only pass the first item
+		if (node.operationNode.executeOnce) {
+			const trimmedData = new Map<string, unknown>();
+			for (const [key, val] of inputData) {
+				trimmedData.set(key, Array.isArray(val) ? val[0] : val);
+			}
+			inputData = trimmedData;
+		}
 
 		try {
 			// Apply per-node timeout if configured
@@ -348,6 +357,18 @@ export async function executeDag(
 				: await nodePromise;
 			node.state = "completed";
 			node.result = result;
+
+			// Always Output Data: if enabled and output is empty, emit empty item
+			if (node.operationNode.alwaysOutputData && result.outputs.size === 0) {
+				result.outputs.set("output", [{}]);
+				result.generationOutputs = [
+					{
+						type: "structured-data",
+						data: [{}],
+					} as GenerationOutput,
+				];
+			}
+
 			await callbacks.onNodeComplete?.(nodeId, result);
 		} catch (error) {
 			const err = error instanceof Error ? error : new Error(String(error));
