@@ -228,8 +228,27 @@ export function createHttpHandler({
 	};
 }
 
+/**
+ * Self-hosted waitUntil: directly invokes callbacks as fire-and-forget.
+ * Next.js `after()` may not execute callbacks in Server Action contexts
+ * on non-Vercel hosts. This ensures async work actually runs.
+ */
+function selfHostedWaitUntil(task: Promise<unknown> | (() => unknown | Promise<unknown>)): void {
+	if (typeof task === "function") {
+		Promise.resolve().then(() => task()).catch((err) => {
+			console.error("[waitUntil] callback error:", err);
+		});
+	} else {
+		task.catch((err: unknown) => {
+			console.error("[waitUntil] promise error:", err);
+		});
+	}
+}
+
 export function NextGiselle(config: NextGiselleConfig) {
-	const giselle = Giselle({ ...config, waitUntil: after });
+	const isVercel = process.env.VERCEL === "1";
+	const waitUntil = isVercel ? after : selfHostedWaitUntil;
+	const giselle = Giselle({ ...config, waitUntil });
 	const httpHandler = createHttpHandler({
 		giselle,
 		config,
