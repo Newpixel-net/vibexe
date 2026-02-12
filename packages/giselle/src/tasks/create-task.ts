@@ -362,6 +362,7 @@ export async function createTask(
 		},
 		createdAt: Date.now(),
 		updatedAt: Date.now(),
+		tags: [],
 		annotations: [],
 		sequences,
 		useDagExecution: hasFlowControlNodes || undefined,
