@@ -1022,6 +1022,7 @@ const aiAgentFactoryImpl = {
 				maxSteps: 30,
 				structuredOutput: { enabled: false, schema: "" },
 				fallbackModel: { enabled: false, configuration: {} },
+				guardrails: { enabled: false, inputRules: [], outputRules: [] },
 				languageModel: {
 					provider: languageModel.providerId,
 					id: languageModel.id,
