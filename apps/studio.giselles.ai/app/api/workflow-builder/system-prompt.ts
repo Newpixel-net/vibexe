@@ -194,6 +194,69 @@ The Start node is ALWAYS the first node. The End node is ALWAYS the last node. T
 
 ${INTEGRATION_CATALOG}
 
+### Flow Control Nodes (Branching, Looping, Data Transformation)
+
+These nodes enable N8N-style workflow logic. When present, the workflow uses a DAG executor with conditional branching instead of simple linear execution.
+
+12. **if** - Conditional branching (evaluates conditions, routes to true/false branch)
+    - Input: "input" accessor
+    - Outputs: "true" accessor, "false" accessor
+    - Conditions are configured in the UI after creation (field, operator, value)
+    - Only the matching branch executes; the other is skipped
+    - Use with a **merge** node downstream to reconverge branches
+
+13. **switch** - Multi-way branching (evaluates rules in order, routes to first match)
+    - Input: "input" accessor
+    - Outputs: "fallback" accessor (default) + dynamic rule outputs added in UI
+    - Rules are configured in the UI (each rule has conditions + output port name)
+    - Only the first matching rule's branch executes
+
+14. **merge** - Combine branches back together
+    - Inputs: "input1", "input2" accessors (more added via connections)
+    - Output: "output" accessor
+    - Mode "chooseBranch" (default): passes through data from whichever branch actually ran
+    - Other modes: "waitAll", "waitAny", "append" — configured in UI
+
+15. **loop** - Iterate over array items
+    - Input: "items" accessor (connect an array data source)
+    - Outputs: "item" accessor (current iteration), "output" accessor (final result)
+    - Mode: forEach (iterate array) or nTimes — configured in UI
+    - Safety limit: maxIterations default 100
+
+16. **code** - Run custom JavaScript in a sandboxed VM
+    - Input: "input" accessor
+    - Output: "output" accessor
+    - Default code: \`return items;\` — user edits in UI code editor
+    - Sandboxed: no network, no filesystem, 10s timeout
+    - Available globals: JSON, Math, Date, String, Number, Boolean, Array, Object, Map, Set, console.log
+
+17. **filter** - Filter array items by conditions
+    - Input: "input" accessor
+    - Outputs: "kept" accessor (matching items), "discarded" accessor (non-matching)
+    - Conditions configured in UI (same condition builder as If node)
+
+18. **editFields** - Transform object fields (set, remove, rename)
+    - Input: "input" accessor
+    - Output: "output" accessor
+    - Operations configured in UI: set (with expression), remove, rename
+    - Option: keepOnlySet — output only explicitly set fields
+
+19. **sort** - Sort array items by field(s)
+    - Input: "input" accessor
+    - Output: "output" accessor
+    - Sort keys configured in UI: field + direction (asc/desc), multiple sort keys
+
+20. **wait** - Pause workflow execution
+    - Input: "input" accessor
+    - Output: "output" accessor
+    - Mode: fixedTime (delay in seconds) — configured in UI
+    - Passes through all input data after delay
+
+21. **errorTrigger** - Fires when any node in the workflow fails
+    - No inputs (triggered automatically on error)
+    - Outputs: "errorMessage", "failedNodeId", "output" accessors
+    - Connect to a notification node (Slack, email) to alert on failures
+
 ### Vector Store Nodes (Advanced — require external setup)
 
 11. **vectorStore** - Vector store for semantic search
@@ -318,7 +381,25 @@ textGen_ANALYZER ─────────────────────
 
 Best for: feedback analysis, support ticket routing, content moderation, lead qualification — any pipeline that analyzes input, triggers multiple actions, AND produces a response.
 
-**Default to Patterns 7-10 when the user asks for automation, integrations, or multi-service workflows.** Default to Patterns 3-4 for content/writing workflows. Only use Patterns 5-6 (vectorStore/query) when the user explicitly asks for RAG or document search. Use Pattern 1-2 only for truly simple tasks.
+### Pattern 11: Conditional Routing (If/Merge — branching logic)
+Start → textGen_analyzer(xAI Grok) → if (check condition) ──┐
+                                                              ├─ true → integration_positive (e.g. Slack thanks)
+                                                              ├─ false → integration_negative (e.g. Jira ticket)
+                                                              └─ merge → textGen_summary(Claude) → End
+Best for: sentiment routing, approval workflows, error vs success handling.
+The If node evaluates conditions on the analyzer output. Each branch runs independently. Merge reconverges the branches.
+
+### Pattern 12: Data Pipeline (Filter + Sort + Code — data transformation)
+Start → integration_http (fetch API data) → filter (keep status=200) → sort (by date desc) → editFields (extract name, email) → textGen_report(Claude) → End
+Best for: API data processing, ETL pipelines, report generation from raw data.
+
+### Pattern 13: Error-Resilient Pipeline (ErrorTrigger — failure notification)
+Start → textGen_processor(xAI Grok) → integration_action ──→ End
+                                                     │(on error)
+errorTrigger → integration_slack (alert: "Workflow failed!")
+Best for: production workflows that need failure alerting.
+
+**Default to Patterns 7-10 when the user asks for automation, integrations, or multi-service workflows.** Default to Patterns 3-4 for content/writing workflows. Default to Patterns 11-13 when the user asks for conditional routing, branching, data filtering/sorting, or error handling. Only use Patterns 5-6 (vectorStore/query) when the user explicitly asks for RAG or document search. Use Pattern 1-2 only for truly simple tasks.
 
 **IMPORTANT: Prefer integration nodes over textGeneration-only workflows.** When a user says "notify", "send", "create ticket", "add to spreadsheet", "post", "update", etc., use the matching integration node. Integration nodes are what make Giselle powerful — they connect AI with real services.
 
@@ -560,6 +641,47 @@ Steps:
 28. set_prompt for Action Summary (Collector — summarizes all actions):
     "Summarize the actions taken for this customer feedback ticket.\\n\\nResponse Draft:\\n{{nd-responder:otp-response}}\\n\\nJira Ticket Result:\\n{{nd-jira:otp-jira-result}}\\n\\nSlack Notification Result:\\n{{nd-slack:otp-slack-result}}\\n\\nSheets Log Result:\\n{{nd-sheets:otp-sheets-result}}\\n\\nProvide a brief summary of: (1) the response that was drafted, (2) what Jira ticket was created, (3) what Slack notification was sent, (4) what was logged to Google Sheets:"
 29. finalize_workflow({ summary: "Feedback analysis pipeline — paste tone guidelines, set FAQ URL, configure Jira/Slack/Sheets credentials, then submit customer feedback" })
+
+## Example 5: Sentiment-Based Routing with If/Merge (Pattern 11 — conditional branching)
+
+User: "Build a feedback router that analyzes sentiment, sends positive feedback to Slack #praise and negative feedback to Jira as a bug ticket, then summarizes what happened"
+
+Node Roster:
+| # | Role | Type | Name | Receives From | Sends To | Prompt Summary |
+|---|------|------|------|---------------|----------|----------------|
+| 1 | Entry | appEntry | Start | (user) | Analyzer | — |
+| 2 | Processor | textGeneration(xAI Grok) | Sentiment Analyzer | Start | If Check | "Analyze sentiment, output POSITIVE or NEGATIVE as first word" |
+| 3 | Router | if | Sentiment Router | Analyzer | Slack (true), Jira (false) | — |
+| 4 | Action+ | integration(slack) | Praise to Slack | If (true branch) | Merge | — |
+| 5 | Action- | integration(jira-cloud) | Bug to Jira | If (false branch) | Merge | — |
+| 6 | Combiner | merge | Merge Results | Slack, Jira | Summary | — |
+| 7 | Collector | textGeneration(Claude) | Action Summary | Merge, Start | End | "Summarize which action was taken" |
+| 8 | Terminal | end | End | Summary | — | — |
+
+Steps:
+1. create_workflow({ name: "Sentiment Router", description: "Routes positive feedback to Slack, negative to Jira" })
+2. add_node({ type: "appEntry", name: "Start", position: { x: 0, y: 0 } }) -> nd-start [otp-text]
+3. add_node({ type: "textGeneration", name: "Sentiment Analyzer", llmProvider: "xai", llmModelId: "grok-4-1-fast-reasoning", position: { x: 400, y: 0 } }) -> nd-analyzer [otp-analysis]
+4. add_node({ type: "if", name: "Sentiment Router", position: { x: 750, y: 0 } }) -> nd-if [otp-true, otp-false]
+5. add_node({ type: "integration", name: "Praise to Slack", pieceName: "slack", actionName: "send_channel_message", position: { x: 1050, y: -200 } }) -> nd-slack [otp-slack-result]
+6. add_node({ type: "integration", name: "Bug to Jira", pieceName: "jira-cloud", actionName: "create_issue", position: { x: 1050, y: 200 } }) -> nd-jira [otp-jira-result]
+7. add_node({ type: "merge", name: "Merge Results", position: { x: 1350, y: 0 } }) -> nd-merge [otp-output]
+8. add_node({ type: "textGeneration", name: "Action Summary", llmProvider: "anthropic", llmModelId: "claude-haiku-4.5", position: { x: 1650, y: 0 } }) -> nd-summary [otp-summary]
+9. add_node({ type: "end", name: "End", position: { x: 1950, y: 0 } }) -> nd-end
+— Connections (one at a time): —
+10. Start → Analyzer
+11. Analyzer → If (analyzer output feeds condition check)
+12. If (true output) → Slack (positive branch)
+13. If (false output) → Jira (negative branch)
+14. Slack → Merge (positive result flows to merge)
+15. Jira → Merge (negative result flows to merge)
+16. Merge → Summary
+17. Start → Summary (original feedback for context)
+18. Summary → End
+— Prompts: —
+19. set_prompt for Sentiment Analyzer: "Analyze the sentiment of this customer feedback. Start your response with EXACTLY the word POSITIVE or NEGATIVE, then explain why.\\n\\nFeedback:\\n{{nd-start:otp-text}}"
+20. set_prompt for Action Summary: "Summarize the routing action taken for this feedback.\\n\\nOriginal Feedback:\\n{{nd-start:otp-text}}\\n\\nRouting Result:\\n{{nd-merge:otp-output}}\\n\\nExplain: Was this positive or negative? What action was taken (Slack praise or Jira ticket)?"
+21. finalize_workflow({ summary: "Sentiment router — configure Slack channel and Jira project in the integration nodes, set If conditions in UI, then submit feedback" })
 
 ## LLM Selection Guide
 

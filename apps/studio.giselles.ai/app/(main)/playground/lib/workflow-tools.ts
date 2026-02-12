@@ -69,6 +69,16 @@ export function createWorkflowTools() {
 								"dataStore",
 								"appEntry",
 								"integration",
+								"if",
+								"switch",
+								"merge",
+								"loop",
+								"code",
+								"filter",
+								"editFields",
+								"sort",
+								"wait",
+								"errorTrigger",
 							])
 							.describe("The node type"),
 						provider: z
@@ -197,6 +207,16 @@ export function createWorkflowTools() {
 						"dataStore",
 						"appEntry",
 						"integration",
+						"if",
+						"switch",
+						"merge",
+						"loop",
+						"code",
+						"filter",
+						"editFields",
+						"sort",
+						"wait",
+						"errorTrigger",
 					])
 					.describe("The node type to add"),
 				name: z.string().describe("Display name for the node"),
@@ -386,6 +406,16 @@ export function createWorkflowTools() {
 						case "webPage":
 						case "dataStore":
 						case "appEntry":
+						case "if":
+						case "switch":
+						case "merge":
+						case "loop":
+						case "code":
+						case "filter":
+						case "editFields":
+						case "sort":
+						case "wait":
+						case "errorTrigger":
 							node = nodeFactories.create(type);
 							break;
 						default:
@@ -796,9 +826,9 @@ export function createWorkflowTools() {
 						warnings.push(`MISSING END NODE: No End node found. Add one with add_node({ type: "end" }).`);
 					}
 
-					// Check for orphan nodes (no connections at all, except Start which only has outgoing)
+					// Check for orphan nodes (no connections at all, except Start/End/ErrorTrigger/FormTrigger which may only have outgoing)
 					for (const node of workspace.nodes) {
-						if (node.content.type === "appEntry" || node.content.type === "end") continue;
+						if (node.content.type === "appEntry" || node.content.type === "end" || node.content.type === "errorTrigger" || node.content.type === "formTrigger") continue;
 						const hasOutgoing = workspace.connections.some((c) => c.outputNode.id === node.id);
 						const hasIncoming = workspace.connections.some((c) => c.inputNode.id === node.id);
 						if (!hasOutgoing && !hasIncoming) {
