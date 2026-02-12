@@ -28,6 +28,9 @@ export async function executeWait(
 	}
 
 	return {
-		outputs: new Map([["data", data]]),
+		outputs: new Map([
+			["output", data], // matches factory accessor "output"
+			["data", data],
+		]),
 	};
 }

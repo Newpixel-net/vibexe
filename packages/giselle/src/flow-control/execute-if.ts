@@ -21,10 +21,15 @@ export async function executeIf(
 	// Set active port on the node so the DAG executor knows which branch to take
 	node.activeOutputPort = result ? "true" : "false";
 
+	// Output data on BOTH port accessor keys ("true" and "false").
+	// The DAG executor handles branching via skipBranch() — only the active
+	// branch runs, but collectInputData needs the key to match fromOutputPort.
 	return {
 		outputs: new Map([
+			["true", data],
+			["false", data],
 			["result", result],
-			["data", data], // pass through the data
+			["data", data],
 		]),
 	};
 }

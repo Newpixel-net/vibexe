@@ -19,35 +19,45 @@ export async function executeSwitch(
 			const matches = evaluateConditionGroup(rule.conditionGroup, data);
 			if (matches) {
 				node.activeOutputPort = rule.outputPortName;
-				return {
-					outputs: new Map([
-						["matchedRule", rule.name],
-						["data", data],
-					]),
-				};
+				// Output data on ALL port accessor keys so collectInputData finds it
+				const outputs = buildSwitchOutputs(content, data, rule.name);
+				outputs.set(rule.outputPortName, data);
+				return { outputs };
 			}
 		}
 
 		// No rule matched — use fallback if configured
 		if (content.hasFallback) {
 			node.activeOutputPort = "fallback";
-			return {
-				outputs: new Map([
-					["matchedRule", null],
-					["data", data],
-				]),
-			};
+			const outputs = buildSwitchOutputs(content, data, null);
+			outputs.set("fallback", data);
+			return { outputs };
 		}
 	}
 
 	// Expression mode or no match without fallback — pass through
 	node.activeOutputPort = "fallback";
-	return {
-		outputs: new Map([
-			["matchedRule", null],
-			["data", data],
-		]),
-	};
+	const outputs = buildSwitchOutputs(content, data, null);
+	outputs.set("fallback", data);
+	return { outputs };
+}
+
+function buildSwitchOutputs(
+	content: SwitchNodeContent,
+	data: unknown,
+	matchedRule: string | null,
+): Map<string, unknown> {
+	const outputs = new Map<string, unknown>();
+	outputs.set("matchedRule", matchedRule);
+	outputs.set("data", data);
+	// Put data on every rule port so collectInputData can find it by accessor
+	for (const rule of content.rules) {
+		outputs.set(rule.outputPortName, data);
+	}
+	if (content.hasFallback) {
+		outputs.set("fallback", data);
+	}
+	return outputs;
 }
 
 function inputMapToObject(inputData: Map<string, unknown>): unknown {

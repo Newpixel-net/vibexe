@@ -23,7 +23,10 @@ export async function executeMerge(
 				combined[key] = value;
 			}
 			return {
-				outputs: new Map([["data", combined]]),
+				outputs: new Map([
+					["output", combined], // matches factory accessor "output"
+					["data", combined],
+				]),
 			};
 		}
 
@@ -33,7 +36,10 @@ export async function executeMerge(
 			if (!firstEntry.done) {
 				const [, value] = firstEntry.value;
 				return {
-					outputs: new Map([["data", value]]),
+					outputs: new Map([
+						["output", value],
+						["data", value],
+					]),
 				};
 			}
 			return { outputs: new Map() };
@@ -50,7 +56,10 @@ export async function executeMerge(
 				}
 			}
 			return {
-				outputs: new Map([["data", items]]),
+				outputs: new Map([
+					["output", items],
+					["data", items],
+				]),
 			};
 		}
 
@@ -60,7 +69,10 @@ export async function executeMerge(
 			for (const [, value] of inputData) {
 				if (value !== undefined && value !== null) {
 					return {
-						outputs: new Map([["data", value]]),
+						outputs: new Map([
+							["output", value],
+							["data", value],
+						]),
 					};
 				}
 			}

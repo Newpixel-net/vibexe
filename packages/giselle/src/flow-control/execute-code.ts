@@ -77,7 +77,10 @@ export async function executeCode(
 		const result = sandbox.__result;
 
 		return {
-			outputs: new Map([["data", result ?? items]]),
+			outputs: new Map([
+				["output", result ?? items], // matches factory accessor "output"
+				["data", result ?? items],
+			]),
 		};
 	} catch (error) {
 		const errMsg =

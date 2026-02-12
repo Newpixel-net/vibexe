@@ -30,7 +30,10 @@ export async function executeSort(
 	}
 
 	return {
-		outputs: new Map([["data", sorted]]),
+		outputs: new Map([
+			["output", sorted], // matches factory accessor "output"
+			["data", sorted],
+		]),
 	};
 }
 

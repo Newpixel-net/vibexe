@@ -22,7 +22,10 @@ export async function executeEditFields(
 		: processed;
 
 	return {
-		outputs: new Map([["data", output]]),
+		outputs: new Map([
+			["output", output], // matches factory accessor "output"
+			["data", output],
+		]),
 	};
 }
 

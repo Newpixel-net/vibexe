@@ -20,6 +20,8 @@ export async function executeLoop(
 		const capped = items.slice(0, content.maxIterations);
 		return {
 			outputs: new Map([
+				["item", capped],   // matches factory accessor "item"
+				["output", capped], // matches factory accessor "output"
 				["items", capped],
 				["totalItems", capped.length],
 				["data", capped],
@@ -32,6 +34,8 @@ export async function executeLoop(
 	const indices = Array.from({ length: n }, (_, i) => i);
 	return {
 		outputs: new Map([
+			["item", indices],   // matches factory accessor "item"
+			["output", indices], // matches factory accessor "output"
 			["items", indices],
 			["totalItems", n],
 			["data", indices],
