@@ -44,14 +44,14 @@ export function CommentsTab({ nodeId }: { nodeId: string }) {
 		} finally {
 			setLoading(false);
 		}
-	}, [agentId, nodeId]);
+	}, [workspaceId, nodeId]);
 
 	useEffect(() => {
 		fetchComments();
 	}, [fetchComments]);
 
 	const handleSubmit = async () => {
-		if (!newComment.trim() || !agentId) return;
+		if (!newComment.trim() || !workspaceId) return;
 		setSubmitting(true);
 		try {
 			const res = await fetch(`/api/agents/by-workspace/comments?workspaceId=${workspaceId}`, {

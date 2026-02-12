@@ -28,6 +28,9 @@ export function useWorkspaceActions<T>(
 			setUiViewport: s.setUiViewport,
 			setSelectedConnectionIds: s.setSelectedConnectionIds,
 			updateWorkspaceName: s.updateWorkspaceName,
+			addStickyNote: s.addStickyNote,
+			updateStickyNote: s.updateStickyNote,
+			removeStickyNote: s.removeStickyNote,
 		}),
 	);
 }

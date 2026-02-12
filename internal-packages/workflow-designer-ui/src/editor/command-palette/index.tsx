@@ -45,7 +45,7 @@ export function CommandPalette() {
 
 	const { nodes, workspaceId, setUiNodeState } = useAppDesignerStore(
 		useShallow((s) => ({
-			nodes: s.graph.nodes,
+			nodes: s.nodes,
 			workspaceId: s.workspaceId,
 			setUiNodeState: s.setUiNodeState,
 		})),
