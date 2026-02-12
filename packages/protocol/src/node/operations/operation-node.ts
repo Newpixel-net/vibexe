@@ -98,6 +98,7 @@ const OperationNodeContent = z.discriminatedUnion("type", [
 	FormTriggerNodeContent,
 ]);
 
+/** Error handling config — used by DAG executor (V5), not on base OperationNode schema */
 export const ErrorConfig = z.object({
 	retryOnFail: z.boolean().default(false),
 	maxRetries: z.number().int().min(0).max(10).default(3),
@@ -109,7 +110,6 @@ export type ErrorConfig = z.infer<typeof ErrorConfig>;
 export const OperationNode = NodeBase.extend({
 	type: z.literal("operation"),
 	content: OperationNodeContent,
-	errorConfig: ErrorConfig.optional(),
 });
 export type OperationNode = z.infer<typeof OperationNode>;
 
@@ -145,6 +145,8 @@ export const OperationNodeLike = NodeBase.extend({
 			SortNodeContent.shape.type,
 			WaitNodeContent.shape.type,
 			ErrorTriggerNodeContent.shape.type,
+			DataTableNodeContent.shape.type,
+			FormTriggerNodeContent.shape.type,
 		]),
 	}),
 });
