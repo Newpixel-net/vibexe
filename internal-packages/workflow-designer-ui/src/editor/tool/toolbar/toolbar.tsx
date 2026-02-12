@@ -10,14 +10,24 @@ import {
 } from "@giselles-ai/language-model";
 import {
 	createAppEntryNode,
+	createCodeNode,
 	createContentGenerationNode,
 	createDataQueryNode,
 	createDataStoreNode,
 	createDocumentVectorStoreNode,
+	createEditFieldsNode,
+	createErrorTriggerNode,
 	createFileNode,
+	createFilterNode,
 	createGitHubVectorStoreNode,
+	createIfNode,
+	createLoopNode,
+	createMergeNode,
 	createQueryNode,
+	createSortNode,
+	createSwitchNode,
 	createTextNode,
+	createWaitNode,
 	createWebPageNode,
 } from "@giselles-ai/node-registry";
 import { FileCategory } from "@giselles-ai/protocol";
@@ -26,6 +36,7 @@ import clsx from "clsx/lite";
 import {
 	CableIcon,
 	DatabaseZapIcon,
+	GitBranchIcon,
 	HammerIcon,
 	Layers2Icon,
 	SparklesIcon,
@@ -70,6 +81,7 @@ import {
 	addNodeTool,
 	selectContextTool,
 	selectFileNodeCategoryTool,
+	selectFlowControlTool,
 	selectGithubTriggerTool,
 	selectIntegrationTool,
 	selectLanguageModelTool,
@@ -259,6 +271,9 @@ export function Toolbar() {
 								case "selectIntegration":
 									setSelectedTool(selectIntegrationTool());
 									break;
+								case "selectFlowControl":
+									setSelectedTool(selectFlowControlTool());
+									break;
 								case "selectContext":
 									setSelectedTool(selectContextTool());
 									break;
@@ -317,6 +332,158 @@ export function Toolbar() {
 										/>
 										<div className="relative">
 											<IntegrationPicker />
+										</div>
+									</Popover.Content>
+								</Popover.Portal>
+							</Popover.Root>
+						)}
+					</ToggleGroup.Item>
+
+					<ToggleGroup.Item
+						value="selectFlowControl"
+						data-tool
+						className="relative order-5"
+					>
+						<Tooltip text={<TooltipAndHotkey text="Flow Control" hotkey="f" />}>
+							<GitBranchIcon data-icon />
+						</Tooltip>
+						{selectedTool?.action === "selectFlowControl" && (
+							<Popover.Root open={true}>
+								<Popover.Anchor />
+								<Popover.Portal>
+									<Popover.Content
+										className={clsx(
+											"relative rounded-[8px] px-[8px] py-[8px]",
+											"text-inverse overflow-hidden",
+										)}
+										sideOffset={42}
+									>
+										<div
+											className="absolute inset-0 -z-10 rounded-[8px] pointer-events-none"
+											style={{
+												backgroundColor:
+													"color-mix(in srgb, var(--color-background, #00020b) 50%, transparent)",
+											}}
+										/>
+										<GlassSurfaceLayers
+											radiusClass="rounded-[8px]"
+											borderStyle="solid"
+											withBaseFill={false}
+											blurClass="backdrop-blur-md"
+											zIndexClass="z-0"
+										/>
+										<div className="relative flex flex-col gap-0">
+											<p className="text-[#505D7B] text-[12px] font-medium leading-[170%] mb-[4px] px-[8px]">
+												Flow Control
+											</p>
+											<ToggleGroup.Root
+												type="single"
+												className={clsx(
+													"flex flex-col gap-[8px]",
+													"**:data-tool:flex **:data-tool:rounded-[8px] **:data-tool:items-center **:data-tool:w-full",
+													"**:data-tool:select-none **:data-tool:outline-none **:data-tool:px-[8px] **:data-tool:py-[4px] **:data-tool:gap-[8px] **:data-tool:hover:bg-[rgba(222,233,242,0.10)]",
+													"**:data-tool:data-[state=on]:bg-primary-900 **:data-tool:focus:outline-none",
+												)}
+												onValueChange={(nodeType) => {
+													switch (nodeType) {
+														case "if":
+															setSelectedTool(addNodeTool(createIfNode()));
+															break;
+														case "switch":
+															setSelectedTool(addNodeTool(createSwitchNode()));
+															break;
+														case "merge":
+															setSelectedTool(addNodeTool(createMergeNode()));
+															break;
+														case "loop":
+															setSelectedTool(addNodeTool(createLoopNode()));
+															break;
+														case "wait":
+															setSelectedTool(addNodeTool(createWaitNode()));
+															break;
+													}
+												}}
+											>
+												<ToggleGroup.Item value="if" data-tool>
+													<p className="text-[14px]">If</p>
+												</ToggleGroup.Item>
+												<ToggleGroup.Item value="switch" data-tool>
+													<p className="text-[14px]">Switch</p>
+												</ToggleGroup.Item>
+												<ToggleGroup.Item value="merge" data-tool>
+													<p className="text-[14px]">Merge</p>
+												</ToggleGroup.Item>
+												<ToggleGroup.Item value="loop" data-tool>
+													<p className="text-[14px]">Loop</p>
+												</ToggleGroup.Item>
+												<ToggleGroup.Item value="wait" data-tool>
+													<p className="text-[14px]">Wait</p>
+												</ToggleGroup.Item>
+											</ToggleGroup.Root>
+
+											<p className="text-[#505D7B] text-[12px] font-medium leading-[170%] mt-[8px] mb-[4px] px-[8px]">
+												Data Transform
+											</p>
+											<ToggleGroup.Root
+												type="single"
+												className={clsx(
+													"flex flex-col gap-[8px]",
+													"**:data-tool:flex **:data-tool:rounded-[8px] **:data-tool:items-center **:data-tool:w-full",
+													"**:data-tool:select-none **:data-tool:outline-none **:data-tool:px-[8px] **:data-tool:py-[4px] **:data-tool:gap-[8px] **:data-tool:hover:bg-[rgba(222,233,242,0.10)]",
+													"**:data-tool:data-[state=on]:bg-primary-900 **:data-tool:focus:outline-none",
+												)}
+												onValueChange={(nodeType) => {
+													switch (nodeType) {
+														case "code":
+															setSelectedTool(addNodeTool(createCodeNode()));
+															break;
+														case "filter":
+															setSelectedTool(addNodeTool(createFilterNode()));
+															break;
+														case "editFields":
+															setSelectedTool(addNodeTool(createEditFieldsNode()));
+															break;
+														case "sort":
+															setSelectedTool(addNodeTool(createSortNode()));
+															break;
+													}
+												}}
+											>
+												<ToggleGroup.Item value="code" data-tool>
+													<p className="text-[14px]">Code</p>
+												</ToggleGroup.Item>
+												<ToggleGroup.Item value="filter" data-tool>
+													<p className="text-[14px]">Filter</p>
+												</ToggleGroup.Item>
+												<ToggleGroup.Item value="editFields" data-tool>
+													<p className="text-[14px]">Edit Fields</p>
+												</ToggleGroup.Item>
+												<ToggleGroup.Item value="sort" data-tool>
+													<p className="text-[14px]">Sort</p>
+												</ToggleGroup.Item>
+											</ToggleGroup.Root>
+
+											<p className="text-[#505D7B] text-[12px] font-medium leading-[170%] mt-[8px] mb-[4px] px-[8px]">
+												Error Handling
+											</p>
+											<ToggleGroup.Root
+												type="single"
+												className={clsx(
+													"flex flex-col gap-[8px]",
+													"**:data-tool:flex **:data-tool:rounded-[8px] **:data-tool:items-center **:data-tool:w-full",
+													"**:data-tool:select-none **:data-tool:outline-none **:data-tool:px-[8px] **:data-tool:py-[4px] **:data-tool:gap-[8px] **:data-tool:hover:bg-[rgba(222,233,242,0.10)]",
+													"**:data-tool:data-[state=on]:bg-primary-900 **:data-tool:focus:outline-none",
+												)}
+												onValueChange={(nodeType) => {
+													if (nodeType === "errorTrigger") {
+														setSelectedTool(addNodeTool(createErrorTriggerNode()));
+													}
+												}}
+											>
+												<ToggleGroup.Item value="errorTrigger" data-tool>
+													<p className="text-[14px]">Error Trigger</p>
+												</ToggleGroup.Item>
+											</ToggleGroup.Root>
 										</div>
 									</Popover.Content>
 								</Popover.Portal>

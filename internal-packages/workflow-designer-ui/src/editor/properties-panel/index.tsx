@@ -2,14 +2,23 @@ import {
 	isActionNode,
 	isAiAgentNode,
 	isAppEntryNode,
+	isCodeNode,
 	isContentGenerationNode,
 	isDataQueryNode,
 	isDataStoreNode,
+	isEditFieldsNode,
 	isEndNode,
+	isErrorTriggerNode,
 	isFileNode,
+	isFilterNode,
+	isIfNode,
 	isImageGenerationNode,
+	isLoopNode,
 	isMemoryNodeNode,
+	isMergeNode,
 	isQueryNode,
+	isSortNode,
+	isSwitchNode,
 	isTextGenerationNode,
 	isTextNode,
 	isToolNodeNode,
@@ -17,6 +26,7 @@ import {
 	isChatModelNode,
 	isIntegrationNode,
 	isVectorStoreNode,
+	isWaitNode,
 	isWebPageNode,
 } from "@giselles-ai/protocol";
 import clsx from "clsx/lite";
@@ -34,6 +44,7 @@ import { AppEntryNodePropertiesPanel } from "./app-entry-node-properties-panel";
 import { DataQueryNodePropertiesPanel } from "./data-query-properties-panel";
 import { DataStoreNodePropertiesPanel } from "./data-store-properties-panel";
 import { EndNodePropertiesPanel } from "./end-node-properties-panel";
+import { FlowControlPropertiesPanel } from "./flow-control-properties-panel";
 import { FileNodePropertiesPanel } from "./file-node-properties-panel";
 import { ImageGenerationNodePropertiesPanel } from "./image-generation-node-properties-panel";
 import { InputPanel } from "./input-panel";
@@ -188,6 +199,21 @@ export function PropertiesPanel() {
 			)}
 			{isEndNode(node) && (
 				<EndNodePropertiesPanel
+					node={node}
+					key={node.id}
+				/>
+			)}
+			{(isIfNode(node) ||
+				isSwitchNode(node) ||
+				isMergeNode(node) ||
+				isLoopNode(node) ||
+				isCodeNode(node) ||
+				isFilterNode(node) ||
+				isEditFieldsNode(node) ||
+				isSortNode(node) ||
+				isWaitNode(node) ||
+				isErrorTriggerNode(node)) && (
+				<FlowControlPropertiesPanel
 					node={node}
 					key={node.id}
 				/>

@@ -13,12 +13,23 @@ import {
 	ChatModelContent,
 	ChatModelContentReference,
 } from "./chat-model";
+import { CodeNodeContent, CodeNodeContentReference } from "./code-node";
 import {
 	ContentGenerationContent,
 	ContentGenerationContentReference,
 } from "./content-generation";
 import { DataQueryContent, DataQueryContentReference } from "./data-query";
+import {
+	EditFieldsNodeContent,
+	EditFieldsNodeContentReference,
+} from "./edit-fields-node";
 import { EndContent, EndContentReference } from "./end";
+import {
+	ErrorTriggerNodeContent,
+	ErrorTriggerNodeContentReference,
+} from "./error-trigger-node";
+import { FilterNodeContent, FilterNodeContentReference } from "./filter-node";
+import { IfNodeContent, IfNodeContentReference } from "./if-node";
 import {
 	ImageGenerationContent,
 	ImageGenerationContentReference,
@@ -27,11 +38,18 @@ import {
 	IntegrationContent,
 	IntegrationContentReference,
 } from "./integration";
+import { LoopNodeContent, LoopNodeContentReference } from "./loop-node";
 import {
 	MemoryNodeContent,
 	MemoryNodeContentReference,
 } from "./memory-node";
+import { MergeNodeContent, MergeNodeContentReference } from "./merge-node";
 import { QueryContent, QueryContentReference } from "./query";
+import { SortNodeContent, SortNodeContentReference } from "./sort-node";
+import {
+	SwitchNodeContent,
+	SwitchNodeContentReference,
+} from "./switch-node";
 import {
 	TextGenerationContent,
 	TextGenerationContentReference,
@@ -41,6 +59,7 @@ import {
 	ToolNodeContentReference,
 } from "./tool-node";
 import { TriggerContent, TriggerContentReference } from "./trigger";
+import { WaitNodeContent, WaitNodeContentReference } from "./wait-node";
 
 const OperationNodeContent = z.discriminatedUnion("type", [
 	TextGenerationContent,
@@ -57,11 +76,30 @@ const OperationNodeContent = z.discriminatedUnion("type", [
 	ChatModelContent,
 	ToolNodeContent,
 	MemoryNodeContent,
+	IfNodeContent,
+	SwitchNodeContent,
+	MergeNodeContent,
+	LoopNodeContent,
+	CodeNodeContent,
+	FilterNodeContent,
+	EditFieldsNodeContent,
+	SortNodeContent,
+	WaitNodeContent,
+	ErrorTriggerNodeContent,
 ]);
+
+export const ErrorConfig = z.object({
+	retryOnFail: z.boolean().default(false),
+	maxRetries: z.number().int().min(0).max(10).default(3),
+	retryDelay: z.number().int().min(0).default(1000),
+	onError: z.enum(["stopWorkflow", "continueOnFail", "routeToError"]).default("stopWorkflow"),
+});
+export type ErrorConfig = z.infer<typeof ErrorConfig>;
 
 export const OperationNode = NodeBase.extend({
 	type: z.literal("operation"),
 	content: OperationNodeContent,
+	errorConfig: ErrorConfig.optional(),
 });
 export type OperationNode = z.infer<typeof OperationNode>;
 
@@ -87,6 +125,16 @@ export const OperationNodeLike = NodeBase.extend({
 			ChatModelContent.shape.type,
 			ToolNodeContent.shape.type,
 			MemoryNodeContent.shape.type,
+			IfNodeContent.shape.type,
+			SwitchNodeContent.shape.type,
+			MergeNodeContent.shape.type,
+			LoopNodeContent.shape.type,
+			CodeNodeContent.shape.type,
+			FilterNodeContent.shape.type,
+			EditFieldsNodeContent.shape.type,
+			SortNodeContent.shape.type,
+			WaitNodeContent.shape.type,
+			ErrorTriggerNodeContent.shape.type,
 		]),
 	}),
 });
@@ -250,6 +298,97 @@ export function isEndNode(args?: unknown): args is EndNode {
 	return result.success;
 }
 
+export const IfNode = OperationNode.extend({
+	content: IfNodeContent,
+});
+export type IfNode = z.infer<typeof IfNode>;
+export function isIfNode(args?: unknown): args is IfNode {
+	return IfNode.safeParse(args).success;
+}
+
+export const SwitchNode = OperationNode.extend({
+	content: SwitchNodeContent,
+});
+export type SwitchNode = z.infer<typeof SwitchNode>;
+export function isSwitchNode(args?: unknown): args is SwitchNode {
+	return SwitchNode.safeParse(args).success;
+}
+
+export const MergeNode = OperationNode.extend({
+	content: MergeNodeContent,
+});
+export type MergeNode = z.infer<typeof MergeNode>;
+export function isMergeNode(args?: unknown): args is MergeNode {
+	return MergeNode.safeParse(args).success;
+}
+
+export const LoopNode = OperationNode.extend({
+	content: LoopNodeContent,
+});
+export type LoopNode = z.infer<typeof LoopNode>;
+export function isLoopNode(args?: unknown): args is LoopNode {
+	return LoopNode.safeParse(args).success;
+}
+
+export const CodeNode = OperationNode.extend({
+	content: CodeNodeContent,
+});
+export type CodeNode = z.infer<typeof CodeNode>;
+export function isCodeNode(args?: unknown): args is CodeNode {
+	return CodeNode.safeParse(args).success;
+}
+
+export const FilterNode = OperationNode.extend({
+	content: FilterNodeContent,
+});
+export type FilterNode = z.infer<typeof FilterNode>;
+export function isFilterNode(args?: unknown): args is FilterNode {
+	return FilterNode.safeParse(args).success;
+}
+
+export const EditFieldsNode = OperationNode.extend({
+	content: EditFieldsNodeContent,
+});
+export type EditFieldsNode = z.infer<typeof EditFieldsNode>;
+export function isEditFieldsNode(args?: unknown): args is EditFieldsNode {
+	return EditFieldsNode.safeParse(args).success;
+}
+
+export const SortNode = OperationNode.extend({
+	content: SortNodeContent,
+});
+export type SortNode = z.infer<typeof SortNode>;
+export function isSortNode(args?: unknown): args is SortNode {
+	return SortNode.safeParse(args).success;
+}
+
+export const WaitNode = OperationNode.extend({
+	content: WaitNodeContent,
+});
+export type WaitNode = z.infer<typeof WaitNode>;
+export function isWaitNode(args?: unknown): args is WaitNode {
+	return WaitNode.safeParse(args).success;
+}
+
+export const ErrorTriggerNode = OperationNode.extend({
+	content: ErrorTriggerNodeContent,
+});
+export type ErrorTriggerNode = z.infer<typeof ErrorTriggerNode>;
+export function isErrorTriggerNode(args?: unknown): args is ErrorTriggerNode {
+	return ErrorTriggerNode.safeParse(args).success;
+}
+
+/** Helper to check if a node type is a flow-control type that requires DAG execution */
+export function isFlowControlNode(args?: unknown): boolean {
+	return (
+		isIfNode(args) ||
+		isSwitchNode(args) ||
+		isMergeNode(args) ||
+		isLoopNode(args) ||
+		isWaitNode(args)
+	);
+}
+
 const OperationNodeContentReference = z.discriminatedUnion("type", [
 	AppEntryContentReference,
 	TextGenerationContentReference,
@@ -265,6 +404,16 @@ const OperationNodeContentReference = z.discriminatedUnion("type", [
 	ChatModelContentReference,
 	ToolNodeContentReference,
 	MemoryNodeContentReference,
+	IfNodeContentReference,
+	SwitchNodeContentReference,
+	MergeNodeContentReference,
+	LoopNodeContentReference,
+	CodeNodeContentReference,
+	FilterNodeContentReference,
+	EditFieldsNodeContentReference,
+	SortNodeContentReference,
+	WaitNodeContentReference,
+	ErrorTriggerNodeContentReference,
 ]);
 export const OperationNodeReference = NodeReferenceBase.extend({
 	type: OperationNode.shape.type,

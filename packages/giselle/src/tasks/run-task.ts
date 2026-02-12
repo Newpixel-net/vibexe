@@ -1,14 +1,32 @@
 import type { GiselleLogger } from "@giselles-ai/logger";
 import {
+	type Connection,
 	type Generation,
 	type GenerationId,
+	type GenerationOutput,
 	isCompletedGeneration,
 	isFailedGeneration,
+	isOperationNode,
+	type NodeId,
+	type OperationNode,
 	type QueuedGeneration,
 	type Sequence,
+	type Task,
 	TaskId,
 } from "@giselles-ai/protocol";
 import * as z from "zod/v4";
+import {
+	executeCode,
+	executeEditFields,
+	executeErrorTrigger,
+	executeFilter,
+	executeIf,
+	executeLoop,
+	executeMerge,
+	executeSort,
+	executeSwitch,
+	executeWait,
+} from "../flow-control";
 import {
 	type GenerationMetadata,
 	generateImage,
@@ -25,7 +43,14 @@ import {
 import { executeQuery } from "../operations/execute-query";
 import { resolveTrigger } from "../triggers";
 import type { GiselleContext } from "../types";
+import {
+	type DagNode,
+	type DagNodeResult,
+	ExecutionDAG,
+	executeDag,
+} from "./dag-executor";
 import { getTask } from "./get-task";
+import { patches } from "./object/patch-creators";
 import { createPatchQueue } from "./patch-queue";
 import { executeTask } from "./shared/task-execution-utils";
 
@@ -126,6 +151,19 @@ async function executeStep(args: {
 			case "toolNode":
 			case "memoryNode":
 				break;
+			// Flow control and data transform nodes — handled by DAG executor.
+			// In legacy sequence path they are no-ops.
+			case "if":
+			case "switch":
+			case "merge":
+			case "loop":
+			case "code":
+			case "filter":
+			case "editFields":
+			case "sort":
+			case "wait":
+			case "errorTrigger":
+				break;
 			default: {
 				const _exhaustiveCheck: never =
 					args.generation.context.operationNode.content.type;
@@ -159,6 +197,12 @@ export async function runTask(
 	// Create patch queue for this task execution
 	const patchQueue = createPatchQueue(args.context);
 	const applyPatches = patchQueue.createApplyPatches();
+
+	// Route to DAG executor or legacy executor
+	if (task.useDagExecution) {
+		await runTaskWithDag(args, task, patchQueue);
+		return;
+	}
 
 	let executionError: Error | null = null;
 	try {
@@ -230,4 +274,205 @@ export async function runTask(
 		console.error("Execution failed:", executionError);
 		throw executionError;
 	}
+}
+
+// ---- DAG Execution Path ----
+
+/**
+ * Execute a task using the DAG executor for workflows with flow control nodes.
+ * Builds the DAG from task metadata, executes flow control nodes directly,
+ * and delegates regular nodes (AI, integration, etc.) to the existing executeStep.
+ */
+async function runTaskWithDag(
+	args: RunTaskInputs & {
+		context: GiselleContext;
+		onGenerationComplete?: OnGenerationComplete;
+		onGenerationError?: OnGenerationError;
+	},
+	task: Task,
+	patchQueue: ReturnType<typeof createPatchQueue>,
+) {
+	const applyPatches = patchQueue.createApplyPatches();
+
+	// Set task to inProgress
+	await applyPatches(task.id, [patches.status.set("inProgress")]);
+
+	const dag = new ExecutionDAG();
+	const nodeGenMap = task.dagNodeGenerationMap ?? {};
+
+	// Build DAG nodes from task sequences/steps
+	for (const sequence of task.sequences) {
+		for (const step of sequence.steps) {
+			const generation = await getGeneration({
+				context: args.context,
+				generationId: step.generationId,
+			});
+			if (!generation) continue;
+
+			const opNode = generation.context.operationNode as OperationNode;
+
+			dag.addNode({
+				nodeId: opNode.id,
+				operationNode: opNode,
+				generationId: step.generationId,
+				state: "pending",
+				retryCount: 0,
+			});
+		}
+	}
+
+	// Build DAG edges from connections stored in generation contexts
+	const processedEdges = new Set<string>();
+	for (const sequence of task.sequences) {
+		for (const step of sequence.steps) {
+			const generation = await getGeneration({
+				context: args.context,
+				generationId: step.generationId,
+			});
+			if (!generation) continue;
+
+			const opNode = generation.context.operationNode as OperationNode;
+			const connections = (generation.context.connections ?? []) as Connection[];
+
+			for (const conn of connections) {
+				// Only add edges between operation nodes that are in the DAG
+				if (
+					dag.nodes.has(conn.outputNode.id as NodeId) &&
+					conn.inputNode.id === opNode.id
+				) {
+					const edgeKey = `${conn.outputNode.id}-${conn.inputNode.id}-${conn.outputId ?? ""}-${conn.inputId ?? ""}`;
+					if (!processedEdges.has(edgeKey)) {
+						processedEdges.add(edgeKey);
+						dag.addEdge({
+							fromNodeId: conn.outputNode.id as NodeId,
+							toNodeId: conn.inputNode.id as NodeId,
+							fromOutputPort: conn.outputId as string | undefined,
+							toInputPort: conn.inputId as string | undefined,
+							connection: conn,
+						});
+					}
+				}
+			}
+		}
+	}
+
+	const startTime = Date.now();
+
+	const result = await executeDag(dag, {
+		onNodeStart: async (nodeId) => {
+			args.context.logger.debug(`[DAG] Node ${nodeId} starting`);
+		},
+		onNodeComplete: async (nodeId, nodeResult) => {
+			args.context.logger.debug(`[DAG] Node ${nodeId} completed`);
+		},
+		onNodeSkipped: async (nodeId) => {
+			args.context.logger.debug(`[DAG] Node ${nodeId} skipped`);
+		},
+		onNodeFailed: async (nodeId, error) => {
+			args.context.logger.error(
+				{ error },
+				`[DAG] Node ${nodeId} failed: ${error.message}`,
+			);
+		},
+		executeNode: async (
+			dagNode: DagNode,
+			inputData: Map<string, unknown>,
+		): Promise<DagNodeResult> => {
+			const nodeType = dagNode.operationNode.content.type;
+
+			// Flow control nodes: execute directly (no generation needed)
+			switch (nodeType) {
+				case "if":
+					return executeIf(dagNode, inputData);
+				case "switch":
+					return executeSwitch(dagNode, inputData);
+				case "merge":
+					return executeMerge(dagNode, inputData);
+				case "loop":
+					return executeLoop(dagNode, inputData);
+				case "code":
+					return executeCode(dagNode, inputData);
+				case "filter":
+					return executeFilter(dagNode, inputData);
+				case "editFields":
+					return executeEditFields(dagNode, inputData);
+				case "sort":
+					return executeSort(dagNode, inputData);
+				case "wait":
+					return executeWait(dagNode, inputData);
+				case "errorTrigger":
+					return executeErrorTrigger(dagNode, inputData);
+			}
+
+			// Regular nodes: delegate to existing executeStep
+			if (!dagNode.generationId) {
+				throw new Error(`No generationId for node ${dagNode.nodeId}`);
+			}
+
+			const generation = await getGeneration({
+				context: args.context,
+				generationId: dagNode.generationId,
+			});
+			if (!generation || generation.status !== "created") {
+				return { outputs: new Map() };
+			}
+
+			const queuedGeneration: QueuedGeneration = {
+				...generation,
+				status: "queued",
+				queuedAt: Date.now(),
+			};
+
+			return new Promise<DagNodeResult>((resolve, reject) => {
+				executeStep({
+					context: args.context,
+					generation: queuedGeneration,
+					callbacks: {
+						onCompleted: async () => {
+							// Fetch completed generation to get outputs
+							const completed = await getGeneration({
+								context: args.context,
+								generationId: dagNode.generationId!,
+							});
+							const outputs = new Map<string, unknown>();
+							if (completed && "outputs" in completed) {
+								for (const out of (completed as { outputs: GenerationOutput[] }).outputs) {
+									if (out.type === "generated-text") {
+										outputs.set(out.outputId, out.content);
+									} else if (out.type === "structured-data") {
+										outputs.set(out.outputId, (out as { data: unknown }).data);
+									} else if (out.type === "data-query-result") {
+										outputs.set(out.outputId, out.content);
+									} else if (out.type === "query-result") {
+										outputs.set(out.outputId, out.content);
+									}
+								}
+							}
+							resolve({ outputs });
+						},
+						onFailed: async (failedGen) => {
+							reject(
+								new Error(
+									`Generation failed for node ${dagNode.nodeId}`,
+								),
+							);
+						},
+						onGenerationComplete: args.onGenerationComplete,
+						onGenerationError: args.onGenerationError,
+					},
+					metadata: args.metadata,
+				}).catch(reject);
+			});
+		},
+	});
+
+	// Finalize task
+	const duration = Date.now() - startTime;
+	await applyPatches(task.id, [
+		patches.status.set(result.hasError ? "failed" : "completed"),
+		patches.duration.wallClock.set(duration),
+	]);
+
+	await patchQueue.flush();
+	patchQueue.cleanup();
 }

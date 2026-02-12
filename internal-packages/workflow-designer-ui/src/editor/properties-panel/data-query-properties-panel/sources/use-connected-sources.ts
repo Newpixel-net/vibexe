@@ -105,6 +105,16 @@ export function useConnectedSources(node: DataQueryNode) {
 						case "chatModel":
 						case "toolNode":
 						case "memoryNode":
+						case "if":
+						case "switch":
+						case "merge":
+						case "loop":
+						case "code":
+						case "filter":
+						case "editFields":
+						case "sort":
+						case "wait":
+						case "errorTrigger":
 							break;
 						case "end":
 							// End Node has no Output so do nothing

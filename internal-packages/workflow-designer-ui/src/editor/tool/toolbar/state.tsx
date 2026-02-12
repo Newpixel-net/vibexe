@@ -7,6 +7,7 @@ import type {
 	MoveTool,
 	SelectContextTool,
 	SelectFileNodeCategoryTool,
+	SelectFlowControlTool,
 	SelectGitHubTriggerTool,
 	SelectIntegrationTool,
 	SelectLanguageModelTool,
@@ -109,4 +110,11 @@ export function selectIntegrationTool() {
 		action: "selectIntegration",
 		category: "edit",
 	} satisfies SelectIntegrationTool;
+}
+
+export function selectFlowControlTool() {
+	return {
+		action: "selectFlowControl",
+		category: "edit",
+	} satisfies SelectFlowControlTool;
 }

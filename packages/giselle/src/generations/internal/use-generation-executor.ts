@@ -292,6 +292,11 @@ export async function useGenerationExecutor<T>(args: {
 					return queryResultToText(generationOutput);
 				case "data-query-result":
 					return dataQueryResultToText(generationOutput);
+				case "structured-data": {
+					const data = (generationOutput as { data: unknown }).data;
+					if (typeof data === "string") return data;
+					return JSON.stringify(data);
+				}
 				default:
 					throw new Error("Generation output type is not supported");
 			}

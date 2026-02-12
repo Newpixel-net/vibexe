@@ -130,6 +130,26 @@ export function defaultName(node: NodeLike) {
 					return node.name ?? "Memory";
 				case "appEntry":
 					return node.name ?? "Start";
+				case "if":
+					return node.name ?? "If";
+				case "switch":
+					return node.name ?? "Switch";
+				case "merge":
+					return node.name ?? "Merge";
+				case "loop":
+					return node.name ?? "Loop";
+				case "code":
+					return node.name ?? "Code";
+				case "filter":
+					return node.name ?? "Filter";
+				case "editFields":
+					return node.name ?? "Edit Fields";
+				case "sort":
+					return node.name ?? "Sort";
+				case "wait":
+					return node.name ?? "Wait";
+				case "errorTrigger":
+					return node.name ?? "Error Trigger";
 				default: {
 					const _exhaustiveCheck: never = node.content.type;
 					throw new Error(`Unhandled action content type: ${_exhaustiveCheck}`);

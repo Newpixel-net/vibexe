@@ -33,6 +33,17 @@ function getNodeIconColor(node: NodeLike): string {
 			case "appEntry":
 			case "end":
 				return "text-inverse";
+			case "if":
+			case "switch":
+			case "merge":
+			case "loop":
+			case "code":
+			case "filter":
+			case "editFields":
+			case "sort":
+			case "wait":
+			case "errorTrigger":
+				return "text-inverse";
 			default: {
 				const _exhaustiveCheck: never = node.content.type;
 				throw new Error(`Unhandled node type: ${_exhaustiveCheck}`);
@@ -96,6 +107,17 @@ function getNodeIconBackground(node: NodeLike): string {
 			case "toolNode":
 			case "memoryNode":
 				return "bg-generation-node-1";
+			case "if":
+			case "switch":
+			case "merge":
+			case "loop":
+			case "code":
+			case "filter":
+			case "editFields":
+			case "sort":
+			case "wait":
+			case "errorTrigger":
+				return "bg-action-node-1";
 			default: {
 				const _exhaustiveCheck: never = node.content.type;
 				throw new Error(`Unhandled node type: ${_exhaustiveCheck}`);

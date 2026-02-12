@@ -102,6 +102,10 @@ export const Task = z.object({
 	annotations: z.array(ActAnnotationObject).default([]),
 	sequences: z.array(Sequence),
 	nodeIdsConnectedToEnd: z.array(NodeId.schema).optional(),
+	/** When true, this task uses DAG execution (flow control nodes present) */
+	useDagExecution: z.boolean().optional(),
+	/** DAG execution metadata — maps nodeId to generationId for DAG executor */
+	dagNodeGenerationMap: z.record(z.string(), z.string()).optional(),
 });
 export type Task = z.infer<typeof Task>;
 

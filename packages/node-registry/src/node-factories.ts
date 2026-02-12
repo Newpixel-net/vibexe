@@ -10,8 +10,18 @@ import {
 	type AiAgentNode,
 	type AppEntryNode,
 	type ChatModelNode,
+	type CodeNode,
+	type EditFieldsNode,
+	type ErrorTriggerNode,
+	type FilterNode,
+	type IfNode,
+	type LoopNode,
 	type MemoryNodeNode,
+	type MergeNode,
+	type SortNode,
+	type SwitchNode,
 	type ToolNodeNode,
+	type WaitNode,
 	AppParameterId,
 	type ContentGenerationNode,
 	createPendingCopyFileData,
@@ -39,8 +49,18 @@ import {
 	isAiAgentNode,
 	isAppEntryNode,
 	isChatModelNode,
+	isCodeNode,
+	isEditFieldsNode,
+	isErrorTriggerNode,
+	isFilterNode,
+	isIfNode,
+	isLoopNode,
 	isMemoryNodeNode,
+	isMergeNode,
+	isSortNode,
+	isSwitchNode,
 	isToolNodeNode,
+	isWaitNode,
 	isContentGenerationNode,
 	isDataQueryNode,
 	isDataStoreNode,
@@ -1244,6 +1264,130 @@ const memoryNodeFactoryImpl = {
 	},
 } satisfies NodeFactory<MemoryNodeNode, MemoryNodeCreateInput>;
 
+// --- Flow Control & Data Transform Node Factories ---
+
+function createSimpleOperationFactory<N extends OperationNode>(
+	contentType: string,
+	defaultInputs: Input[],
+	defaultOutputs: Output[],
+	defaultContent: Record<string, unknown>,
+) {
+	return {
+		create: (): N =>
+			({
+				id: NodeId.generate(),
+				type: "operation",
+				content: { type: contentType, ...defaultContent },
+				inputs: defaultInputs.map((inp) => ({ ...inp, id: InputId.generate() })),
+				outputs: defaultOutputs.map((out) => ({
+					...out,
+					id: OutputId.generate(),
+				})),
+			}) as unknown as N,
+		clone: (orig: N): NodeFactoryCloneResult<N> => {
+			const { newIo: newInputs, idMap: inputIdMap } =
+				cloneAndRenewInputIdsWithMap(orig.inputs);
+			const { newIo: newOutputs, idMap: outputIdMap } =
+				cloneAndRenewOutputIdsWithMap(orig.outputs);
+			const newNode = {
+				id: NodeId.generate(),
+				type: "operation",
+				name: `Copy of ${orig.name ?? defaultName(orig)}`,
+				content: structuredClone(orig.content),
+				inputs: newInputs,
+				outputs: newOutputs,
+			} satisfies OperationNode as unknown as N;
+			return { newNode, inputIdMap, outputIdMap };
+		},
+	} satisfies NodeFactory<N>;
+}
+
+const ifFactoryImpl = createSimpleOperationFactory<IfNode>(
+	"if",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[
+		{ id: OutputId.generate(), label: "True", accessor: "true" },
+		{ id: OutputId.generate(), label: "False", accessor: "false" },
+	],
+	{ conditionGroup: { conditions: [], combineWith: "and" } },
+);
+
+const switchFactoryImpl = createSimpleOperationFactory<SwitchNode>(
+	"switch",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[{ id: OutputId.generate(), label: "Fallback", accessor: "fallback" }],
+	{ mode: "rules", rules: [], hasFallback: true },
+);
+
+const mergeFactoryImpl = createSimpleOperationFactory<MergeNode>(
+	"merge",
+	[
+		{ id: InputId.generate(), label: "Input 1", accessor: "input1" },
+		{ id: InputId.generate(), label: "Input 2", accessor: "input2" },
+	],
+	[{ id: OutputId.generate(), label: "Output", accessor: "output" }],
+	{ mode: "chooseBranch" },
+);
+
+const loopFactoryImpl = createSimpleOperationFactory<LoopNode>(
+	"loop",
+	[{ id: InputId.generate(), label: "Items", accessor: "items" }],
+	[
+		{ id: OutputId.generate(), label: "Item", accessor: "item" },
+		{ id: OutputId.generate(), label: "Output", accessor: "output" },
+	],
+	{ mode: "forEach", maxIterations: 100 },
+);
+
+const codeFactoryImpl = createSimpleOperationFactory<CodeNode>(
+	"code",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[{ id: OutputId.generate(), label: "Output", accessor: "output" }],
+	{ code: "// Process items and return result\nreturn items;", language: "javascript", timeout: 10000 },
+);
+
+const filterFactoryImpl = createSimpleOperationFactory<FilterNode>(
+	"filter",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[
+		{ id: OutputId.generate(), label: "Kept", accessor: "kept" },
+		{ id: OutputId.generate(), label: "Discarded", accessor: "discarded" },
+	],
+	{ conditionGroup: { conditions: [], combineWith: "and" } },
+);
+
+const editFieldsFactoryImpl = createSimpleOperationFactory<EditFieldsNode>(
+	"editFields",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[{ id: OutputId.generate(), label: "Output", accessor: "output" }],
+	{ operations: [], keepOnlySet: false },
+);
+
+const sortFactoryImpl = createSimpleOperationFactory<SortNode>(
+	"sort",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[{ id: OutputId.generate(), label: "Output", accessor: "output" }],
+	{ sortKeys: [] },
+);
+
+const waitFactoryImpl = createSimpleOperationFactory<WaitNode>(
+	"wait",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[{ id: OutputId.generate(), label: "Output", accessor: "output" }],
+	{ mode: "fixedTime", delaySeconds: 0, timeoutSeconds: 86400 },
+);
+
+const errorTriggerFactoryImpl = createSimpleOperationFactory<ErrorTriggerNode>(
+	"errorTrigger",
+	[],
+	[
+		{ id: OutputId.generate(), label: "Error Message", accessor: "errorMessage" },
+		{ id: OutputId.generate(), label: "Failed Node", accessor: "failedNodeId" },
+		{ id: OutputId.generate(), label: "Output", accessor: "output" },
+	],
+	{},
+);
+
 // --- Factories Manager ---
 const factoryImplementations = {
 	textGeneration: textGenerationFactoryImpl,
@@ -1266,6 +1410,16 @@ const factoryImplementations = {
 	chatModel: chatModelFactoryImpl,
 	toolNode: toolNodeFactoryImpl,
 	memoryNode: memoryNodeFactoryImpl,
+	if: ifFactoryImpl,
+	switch: switchFactoryImpl,
+	merge: mergeFactoryImpl,
+	loop: loopFactoryImpl,
+	code: codeFactoryImpl,
+	filter: filterFactoryImpl,
+	editFields: editFieldsFactoryImpl,
+	sort: sortFactoryImpl,
+	wait: waitFactoryImpl,
+	errorTrigger: errorTriggerFactoryImpl,
 } as const;
 
 type CreateArgMap = {
@@ -1289,6 +1443,16 @@ type CreateArgMap = {
 	chatModel: CreateChatModelNodeInput;
 	toolNode: ToolNodeCreateInput;
 	memoryNode: MemoryNodeCreateInput;
+	if: undefined;
+	switch: undefined;
+	merge: undefined;
+	loop: undefined;
+	code: undefined;
+	filter: undefined;
+	editFields: undefined;
+	sort: undefined;
+	wait: undefined;
+	errorTrigger: undefined;
 };
 
 const nodeTypesRequiringArg = (
@@ -1405,6 +1569,46 @@ export function createWebPageNode(): WebPageNode {
 
 export function createAppEntryNode() {
 	return appEntryFactoryImpl.create();
+}
+
+export function createIfNode(): IfNode {
+	return ifFactoryImpl.create();
+}
+
+export function createSwitchNode(): SwitchNode {
+	return switchFactoryImpl.create();
+}
+
+export function createMergeNode(): MergeNode {
+	return mergeFactoryImpl.create();
+}
+
+export function createLoopNode(): LoopNode {
+	return loopFactoryImpl.create();
+}
+
+export function createCodeNode(): CodeNode {
+	return codeFactoryImpl.create();
+}
+
+export function createFilterNode(): FilterNode {
+	return filterFactoryImpl.create();
+}
+
+export function createEditFieldsNode(): EditFieldsNode {
+	return editFieldsFactoryImpl.create();
+}
+
+export function createSortNode(): SortNode {
+	return sortFactoryImpl.create();
+}
+
+export function createWaitNode(): WaitNode {
+	return waitFactoryImpl.create();
+}
+
+export function createErrorTriggerNode(): ErrorTriggerNode {
+	return errorTriggerFactoryImpl.create();
 }
 
 export function cloneNode<N extends Node>(
@@ -1546,6 +1750,46 @@ export function cloneNode<N extends Node>(
 				) as NodeFactoryCloneResult<N>;
 			}
 			break;
+		case "if":
+			if (isIfNode(sourceNode))
+				return ifFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "switch":
+			if (isSwitchNode(sourceNode))
+				return switchFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "merge":
+			if (isMergeNode(sourceNode))
+				return mergeFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "loop":
+			if (isLoopNode(sourceNode))
+				return loopFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "code":
+			if (isCodeNode(sourceNode))
+				return codeFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "filter":
+			if (isFilterNode(sourceNode))
+				return filterFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "editFields":
+			if (isEditFieldsNode(sourceNode))
+				return editFieldsFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "sort":
+			if (isSortNode(sourceNode))
+				return sortFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "wait":
+			if (isWaitNode(sourceNode))
+				return waitFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "errorTrigger":
+			if (isErrorTriggerNode(sourceNode))
+				return errorTriggerFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
 		default: {
 			const _exhaustive: never = contentType;
 			throw new Error(`No clone factory for content type: ${_exhaustive}`);
@@ -1626,6 +1870,26 @@ export const nodeFactories = {
 				return factoryImplementations.memoryNode.create(
 					arg as CreateArgMap["memoryNode"],
 				);
+			case "if":
+				return factoryImplementations.if.create();
+			case "switch":
+				return factoryImplementations.switch.create();
+			case "merge":
+				return factoryImplementations.merge.create();
+			case "loop":
+				return factoryImplementations.loop.create();
+			case "code":
+				return factoryImplementations.code.create();
+			case "filter":
+				return factoryImplementations.filter.create();
+			case "editFields":
+				return factoryImplementations.editFields.create();
+			case "sort":
+				return factoryImplementations.sort.create();
+			case "wait":
+				return factoryImplementations.wait.create();
+			case "errorTrigger":
+				return factoryImplementations.errorTrigger.create();
 			default: {
 				const _exhaustive: never = type;
 				throw new Error(`No create factory for content type: ${_exhaustive}`);
@@ -1734,6 +1998,46 @@ export const nodeFactories = {
 				if (isMemoryNodeNode(sourceNode)) {
 					return factoryImplementations.memoryNode.clone(sourceNode);
 				}
+				break;
+			case "if":
+				if (isIfNode(sourceNode))
+					return factoryImplementations.if.clone(sourceNode);
+				break;
+			case "switch":
+				if (isSwitchNode(sourceNode))
+					return factoryImplementations.switch.clone(sourceNode);
+				break;
+			case "merge":
+				if (isMergeNode(sourceNode))
+					return factoryImplementations.merge.clone(sourceNode);
+				break;
+			case "loop":
+				if (isLoopNode(sourceNode))
+					return factoryImplementations.loop.clone(sourceNode);
+				break;
+			case "code":
+				if (isCodeNode(sourceNode))
+					return factoryImplementations.code.clone(sourceNode);
+				break;
+			case "filter":
+				if (isFilterNode(sourceNode))
+					return factoryImplementations.filter.clone(sourceNode);
+				break;
+			case "editFields":
+				if (isEditFieldsNode(sourceNode))
+					return factoryImplementations.editFields.clone(sourceNode);
+				break;
+			case "sort":
+				if (isSortNode(sourceNode))
+					return factoryImplementations.sort.clone(sourceNode);
+				break;
+			case "wait":
+				if (isWaitNode(sourceNode))
+					return factoryImplementations.wait.clone(sourceNode);
+				break;
+			case "errorTrigger":
+				if (isErrorTriggerNode(sourceNode))
+					return factoryImplementations.errorTrigger.clone(sourceNode);
 				break;
 			default: {
 				const _exhaustive: never = contentType;

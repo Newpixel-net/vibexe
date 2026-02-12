@@ -137,6 +137,17 @@ export function useConnectedOutputs(node: TextGenerationNode) {
 						case "toolNode":
 						case "memoryNode":
 							break;
+						case "if":
+						case "switch":
+						case "merge":
+						case "loop":
+						case "code":
+						case "filter":
+						case "editFields":
+						case "sort":
+						case "wait":
+						case "errorTrigger":
+							break;
 						default: {
 							const _exhaustiveCheck: never = outputNode.content.type;
 							throw new Error(`Unhandled node type: ${_exhaustiveCheck}`);

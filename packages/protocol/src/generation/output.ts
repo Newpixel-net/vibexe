@@ -105,6 +105,13 @@ export const DataQueryResultOutput = GenerationOutputBase.extend({
 });
 export type DataQueryResultOutput = z.infer<typeof DataQueryResultOutput>;
 
+export const StructuredDataOutputType = z.literal("structured-data");
+export const StructuredDataOutput = GenerationOutputBase.extend({
+	type: StructuredDataOutputType,
+	data: z.unknown(),
+});
+export type StructuredDataOutput = z.infer<typeof StructuredDataOutput>;
+
 export const GenerationOutput = z.discriminatedUnion("type", [
 	GeneratedTextContentOutput,
 	GeneratedImageContentOutput,
@@ -112,6 +119,7 @@ export const GenerationOutput = z.discriminatedUnion("type", [
 	SourceOutput,
 	QueryResultOutput,
 	DataQueryResultOutput,
+	StructuredDataOutput,
 ]);
 export type GenerationOutput = z.infer<typeof GenerationOutput>;
 

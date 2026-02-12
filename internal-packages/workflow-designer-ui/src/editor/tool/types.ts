@@ -41,6 +41,10 @@ export interface SelectIntegrationTool extends ToolBase {
 	category: "edit";
 	action: "selectIntegration";
 }
+export interface SelectFlowControlTool extends ToolBase {
+	category: "edit";
+	action: "selectFlowControl";
+}
 export interface MoveTool extends ToolBase {
 	category: "move";
 	action: "move";
@@ -54,7 +58,8 @@ export type Tool =
 	| SelectTriggerTool
 	| SelectGitHubTriggerTool
 	| SelectIntegrationTool
-	| SelectLanguageModelV2Tool;
+	| SelectLanguageModelV2Tool
+	| SelectFlowControlTool;
 
 type ToolAction = Tool["action"];
 
@@ -69,7 +74,8 @@ export function isToolAction(args: unknown): args is ToolAction {
 			args === "selectTrigger" ||
 			args === "selectGithubTrigger" ||
 			args === "selectIntegration" ||
-			args === "selectLanguageModelV2"
+			args === "selectLanguageModelV2" ||
+			args === "selectFlowControl"
 		);
 	}
 	return false;

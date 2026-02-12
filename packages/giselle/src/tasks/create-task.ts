@@ -8,6 +8,7 @@ import {
 	GenerationOrigin,
 	isAppEntryNode,
 	isEndNode,
+	isFlowControlNode,
 	isOperationNode,
 	isTriggerNode,
 	Node,
@@ -135,6 +136,14 @@ export async function createTask(
 	const taskId = TaskId.generate();
 	const levels = buildLevels(nodes, connections);
 
+	// Detect if any flow control nodes are present — triggers DAG execution
+	const hasFlowControlNodes = nodes.some(
+		(node) => isOperationNode(node) && isFlowControlNode(node),
+	);
+
+	// Build a mapping of nodeId → generationId for DAG executor
+	const dagNodeGenerationMap: Record<string, string> = {};
+
 	const generations: CreatedGeneration[] = [];
 	const sequences: Sequence[] = [];
 	for (const level of levels) {
@@ -195,6 +204,7 @@ export async function createTask(
 				},
 			};
 			generations.push(generation);
+			dagNodeGenerationMap[nodeId] = generation.id;
 			steps.push({
 				id: StepId.generate(),
 				name: node.name ?? defaultName(node),
@@ -343,6 +353,8 @@ export async function createTask(
 		updatedAt: Date.now(),
 		annotations: [],
 		sequences,
+		useDagExecution: hasFlowControlNodes || undefined,
+		dagNodeGenerationMap: hasFlowControlNodes ? dagNodeGenerationMap : undefined,
 	};
 	args.context.logger.debug(`created task:${task.id}`);
 	await Promise.all([

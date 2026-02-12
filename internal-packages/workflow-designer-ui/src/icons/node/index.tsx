@@ -265,6 +265,17 @@ export function NodeIcon({
 					return <WrenchIcon {...props} data-content-type-icon />;
 				case "memoryNode":
 					return <BrainIcon {...props} data-content-type-icon />;
+				case "if":
+				case "switch":
+				case "merge":
+				case "loop":
+				case "code":
+				case "filter":
+				case "editFields":
+				case "sort":
+				case "wait":
+				case "errorTrigger":
+					return <ZapIcon {...props} data-content-type-icon />;
 				default: {
 					const _exhaustiveCheck: never = node.content.type;
 					throw new Error(`Unhandled node type: ${_exhaustiveCheck}`);
