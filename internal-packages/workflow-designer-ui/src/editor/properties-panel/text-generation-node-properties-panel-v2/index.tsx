@@ -6,6 +6,7 @@ import {
 	type ContentGenerationNode,
 	Node,
 	type NodeLike,
+	type OperationNode,
 } from "@giselles-ai/protocol";
 import { useNodeGenerations, useUsageLimits } from "@giselles-ai/react";
 import { useCallback } from "react";
@@ -23,6 +24,8 @@ import { isPromptEmpty } from "../../lib/validate-prompt";
 import { PropertiesPanelRoot } from "../ui";
 import { GenerateCtaButton } from "../ui/generate-cta-button";
 import { NodePanelHeader } from "../ui/node-panel-header";
+import { NodeSettingsTab } from "../ui/node-settings-tab";
+import { PanelTabs } from "../ui/panel-tabs";
 import { PromptEditor } from "../ui/prompt-editor";
 import { SettingLabel } from "../ui/setting-label";
 import { AdvancedOptions } from "./advanced-options";
@@ -105,6 +108,33 @@ export function TextGenerationNodePropertiesPanelV2({
 	const usageLimits = useUsageLimits();
 	const userTier: LanguageModelTier = usageLimits?.featureTier ?? "free";
 
+	const parametersContent = (
+		<div className="grow-1 overflow-y-auto flex flex-col gap-[12px]">
+			<ModelSettings
+				node={node}
+				onContentGenerationContentChange={(value) => {
+					updateNodeDataContent(node, value);
+				}}
+				userTier={userTier}
+			/>
+
+			<SettingLabel>Prompt</SettingLabel>
+			<PromptEditor
+				placeholder="Write your prompt... Use @ to reference other nodes"
+				value={node.content.prompt}
+				onValueChange={(value: string) => {
+					updateNodeDataContent(node, { prompt: value });
+				}}
+				connections={connections}
+			/>
+			<AdvancedOptions node={node} />
+			<div className="flex flex-col gap-[4px]">
+				<SettingLabel>Output</SettingLabel>
+				<GenerationPanel textGenerationNode={textGenerationNode} />
+			</div>
+		</div>
+	);
+
 	return (
 		<PropertiesPanelRoot>
 			{usageLimitsReached && <UsageLimitWarning />}
@@ -115,31 +145,25 @@ export function TextGenerationNodePropertiesPanelV2({
 				onDelete={() => deleteNode(node.id)}
 			/>
 
-			{/*<PropertiesPanelContent>*/}
-			<div className="grow-1 overflow-y-auto flex flex-col gap-[12px]">
-				<ModelSettings
-					node={node}
-					onContentGenerationContentChange={(value) => {
-						updateNodeDataContent(node, value);
-					}}
-					userTier={userTier}
-				/>
+			<PanelTabs
+				tabs={[
+					{
+						id: "parameters",
+						label: "Parameters",
+						content: parametersContent,
+					},
+					{
+						id: "settings",
+						label: "Settings",
+						content: (
+							<NodeSettingsTab
+								node={node as unknown as OperationNode}
+							/>
+						),
+					},
+				]}
+			/>
 
-				<SettingLabel>Prompt</SettingLabel>
-				<PromptEditor
-					placeholder="Write your prompt... Use @ to reference other nodes"
-					value={node.content.prompt}
-					onValueChange={(value: string) => {
-						updateNodeDataContent(node, { prompt: value });
-					}}
-					connections={connections}
-				/>
-				<AdvancedOptions node={node} />
-				<div className="flex flex-col gap-[4px]">
-					<SettingLabel>Output</SettingLabel>
-					<GenerationPanel textGenerationNode={textGenerationNode} />
-				</div>
-			</div>
 			<div className="shrink-0 px-[16px] pt-[8px] pb-[4px]">
 				<GenerateCtaButton
 					isGenerating={isGenerating}
@@ -150,7 +174,6 @@ export function TextGenerationNodePropertiesPanelV2({
 					}}
 				/>
 			</div>
-			{/*</PropertiesPanelContent>*/}
 		</PropertiesPanelRoot>
 	);
 }

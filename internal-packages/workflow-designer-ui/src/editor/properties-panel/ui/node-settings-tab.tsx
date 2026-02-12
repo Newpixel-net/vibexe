@@ -1,0 +1,117 @@
+"use client";
+
+import { Toggle } from "@giselle-internal/ui/toggle";
+import type { ErrorConfig, OperationNode } from "@giselles-ai/protocol";
+import { useUpdateNodeData } from "../../../app-designer";
+import { SettingDetail, SettingLabel } from "./setting-label";
+
+interface NodeSettingsTabProps {
+	node: OperationNode;
+}
+
+export function NodeSettingsTab({ node }: NodeSettingsTabProps) {
+	const updateNodeData = useUpdateNodeData();
+
+	const config: ErrorConfig = node.errorConfig ?? {
+		retryOnFail: false,
+		maxRetries: 3,
+		retryDelay: 1000,
+		onError: "stopWorkflow",
+	};
+
+	const updateErrorConfig = (partial: Partial<ErrorConfig>) => {
+		updateNodeData(node, {
+			errorConfig: { ...config, ...partial },
+		} as Partial<typeof node>);
+	};
+
+	return (
+		<div className="flex flex-col gap-[16px] p-[12px]">
+			<SettingLabel size="md" colorClassName="text-inverse">
+				Error Handling
+			</SettingLabel>
+
+			<Toggle
+				name="retry-on-fail"
+				checked={config.retryOnFail}
+				onCheckedChange={(checked) => {
+					updateErrorConfig({ retryOnFail: checked as boolean });
+				}}
+			>
+				<label htmlFor="retry-on-fail" className="text-[14px] text-inverse">
+					Retry On Fail
+				</label>
+			</Toggle>
+
+			{config.retryOnFail && (
+				<>
+					<div className="flex items-center justify-between gap-[12px]">
+						<SettingDetail size="md">Max Retries</SettingDetail>
+						<input
+							type="number"
+							min={0}
+							max={10}
+							value={config.maxRetries}
+							onChange={(e) => {
+								const value = Number.parseInt(e.target.value, 10);
+								if (!Number.isNaN(value) && value >= 0 && value <= 10) {
+									updateErrorConfig({ maxRetries: value });
+								}
+							}}
+							className="w-[60px] bg-[color-mix(in_srgb,var(--color-text-inverse,#fff)_10%,transparent)] text-inverse text-[14px] rounded-[6px] px-[8px] py-[4px] border border-white-400/20 text-center outline-none"
+						/>
+					</div>
+
+					<div className="flex items-center justify-between gap-[12px]">
+						<SettingDetail size="md">Retry Delay (ms)</SettingDetail>
+						<input
+							type="number"
+							min={0}
+							max={60000}
+							step={500}
+							value={config.retryDelay}
+							onChange={(e) => {
+								const value = Number.parseInt(e.target.value, 10);
+								if (!Number.isNaN(value) && value >= 0) {
+									updateErrorConfig({ retryDelay: value });
+								}
+							}}
+							className="w-[80px] bg-[color-mix(in_srgb,var(--color-text-inverse,#fff)_10%,transparent)] text-inverse text-[14px] rounded-[6px] px-[8px] py-[4px] border border-white-400/20 text-center outline-none"
+						/>
+					</div>
+				</>
+			)}
+
+			<div className="flex items-center justify-between gap-[12px]">
+				<SettingDetail size="md">On Error</SettingDetail>
+				<select
+					value={config.onError}
+					onChange={(e) => {
+						updateErrorConfig({
+							onError: e.target.value as ErrorConfig["onError"],
+						});
+					}}
+					className="bg-[color-mix(in_srgb,var(--color-text-inverse,#fff)_10%,transparent)] text-inverse text-[13px] rounded-[6px] px-[8px] py-[5px] border border-white-400/20 outline-none cursor-pointer min-w-[160px]"
+				>
+					<option value="stopWorkflow">Stop Workflow</option>
+					<option value="continueOnFail">Continue On Fail</option>
+					<option value="routeToError">Route To Error Handler</option>
+				</select>
+			</div>
+
+			{config.onError === "continueOnFail" && (
+				<p className="text-[12px] text-[hsla(0,0%,100%,0.4)] px-[4px]">
+					Downstream nodes will receive an error output instead of the expected
+					data.
+				</p>
+			)}
+
+			{config.onError === "routeToError" && (
+				<p className="text-[12px] text-[hsla(0,0%,100%,0.4)] px-[4px]">
+					Connect an Error Trigger node to handle the error. The error message,
+					failed node ID, and timestamp will be passed to it.
+				</p>
+			)}
+		</div>
+	);
+}
