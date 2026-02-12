@@ -1,15 +1,19 @@
+import type { NodeId } from "@giselles-ai/protocol";
+import { ExpressionInput } from "../ui/expression-input";
 import type { PropertyInfo } from "./use-piece-action-props";
 
 interface DynamicPropertyFieldProps {
 	prop: PropertyInfo;
 	value: unknown;
 	onChange: (value: unknown) => void;
+	nodeId?: NodeId;
 }
 
 export function DynamicPropertyField({
 	prop,
 	value,
 	onChange,
+	nodeId,
 }: DynamicPropertyFieldProps) {
 	const id = `prop-${prop.name}`;
 	const stringValue = value != null ? String(value) : "";
@@ -25,7 +29,7 @@ export function DynamicPropertyField({
 					{prop.description}
 				</p>
 			)}
-			{renderField(prop, id, value, stringValue, onChange)}
+			{renderField(prop, id, value, stringValue, onChange, nodeId)}
 		</div>
 	);
 }
@@ -36,6 +40,7 @@ function renderField(
 	value: unknown,
 	stringValue: string,
 	onChange: (value: unknown) => void,
+	nodeId?: NodeId,
 ) {
 	const baseInputClass =
 		"w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-integration-node-1";
@@ -44,12 +49,11 @@ function renderField(
 		case "LONG_TEXT":
 		case "MARKDOWN":
 			return (
-				<textarea
-					id={id}
-					className={`${baseInputClass} resize-y min-h-[60px]`}
-					placeholder={prop.displayName}
+				<ExpressionInput
 					value={stringValue}
-					onChange={(e) => onChange(e.target.value)}
+					onChange={(val) => onChange(val)}
+					placeholder={prop.displayName}
+					nodeId={nodeId}
 				/>
 			);
 
@@ -104,29 +108,23 @@ function renderField(
 				);
 			}
 			return (
-				<input
-					id={id}
-					type="text"
-					className={baseInputClass}
-					placeholder={prop.displayName}
+				<ExpressionInput
 					value={stringValue}
-					onChange={(e) => onChange(e.target.value)}
+					onChange={(val) => onChange(val)}
+					placeholder={prop.displayName}
+					nodeId={nodeId}
 				/>
 			);
 
 		case "DROPDOWN":
 		case "DYNAMIC_DROPDOWN":
 		case "MULTI_SELECT_DROPDOWN":
-			// Dynamic dropdowns require server-side option fetching
-			// Fall back to text input for now
 			return (
-				<input
-					id={id}
-					type="text"
-					className={baseInputClass}
-					placeholder={`${prop.displayName} (enter value)`}
+				<ExpressionInput
 					value={stringValue}
-					onChange={(e) => onChange(e.target.value)}
+					onChange={(val) => onChange(val)}
+					placeholder={`${prop.displayName} (enter value)`}
+					nodeId={nodeId}
 				/>
 			);
 
@@ -198,26 +196,22 @@ function renderField(
 
 		case "FILE":
 			return (
-				<input
-					id={id}
-					type="text"
-					className={baseInputClass}
-					placeholder="File URL or path"
+				<ExpressionInput
 					value={stringValue}
-					onChange={(e) => onChange(e.target.value)}
+					onChange={(val) => onChange(val)}
+					placeholder="File URL or path"
+					nodeId={nodeId}
 				/>
 			);
 
 		case "SHORT_TEXT":
 		default:
 			return (
-				<input
-					id={id}
-					type="text"
-					className={baseInputClass}
-					placeholder={prop.displayName}
+				<ExpressionInput
 					value={stringValue}
-					onChange={(e) => onChange(e.target.value)}
+					onChange={(val) => onChange(val)}
+					placeholder={prop.displayName}
+					nodeId={nodeId}
 				/>
 			);
 	}

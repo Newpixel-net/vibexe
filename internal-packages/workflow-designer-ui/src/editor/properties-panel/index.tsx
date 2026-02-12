@@ -30,6 +30,7 @@ import {
 	isWebPageNode,
 	isDataTableNode,
 	isFormTriggerNode,
+	type OperationNode,
 } from "@giselles-ai/protocol";
 import clsx from "clsx/lite";
 import { useShallow } from "zustand/shallow";
@@ -58,6 +59,7 @@ import { TextGenerationNodePropertiesPanelV2 } from "./text-generation-node-prop
 import { TextNodePropertiesPanel } from "./text-node-properties-panel";
 import { ThreePanelLayout } from "./three-panel-layout";
 import { TriggerNodePropertiesPanel } from "./trigger-node-properties-panel";
+import { useExecuteStep } from "./use-execute-step";
 import { VectorStoreNodePropertiesPanel } from "./vector-store";
 import { WebPageNodePropertiesPanel } from "./web-page-node-properties-panel";
 
@@ -99,6 +101,8 @@ export function PropertiesPanel() {
 
 	const node = selectedNodes[0];
 	const useThreePanel = isThreePanelNode(node);
+	const operationNode = useThreePanel ? (node as unknown as OperationNode) : undefined;
+	const { executeStep } = useExecuteStep(operationNode);
 
 	const parametersContent = (
 		<>
@@ -252,7 +256,7 @@ export function PropertiesPanel() {
 				<ThreePanelLayout
 					inputPanel={<InputPanel nodeId={node.id} />}
 					parametersPanel={parametersContent}
-					outputPanel={<OutputPanel nodeId={node.id} />}
+					outputPanel={<OutputPanel nodeId={node.id} onExecuteStep={executeStep} />}
 				/>
 			) : (
 				parametersContent

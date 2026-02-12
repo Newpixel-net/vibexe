@@ -8,10 +8,13 @@ import {
 	TableHeader,
 	TableRow,
 } from "@giselle-internal/ui/table";
+import type { Task } from "@giselles-ai/protocol";
 import { LoaderIcon, RefreshCcwIcon } from "lucide-react";
+import { useState } from "react";
 import useSWR from "swr";
 import { useAppDesignerStore } from "../../app-designer";
 import { useGiselle } from "../../app-designer/store/giselle-client-provider";
+import { RunDetailView } from "./run-detail-view";
 
 function formatDateTime(timestamp: number): string {
 	const date = new Date(timestamp);
@@ -30,6 +33,7 @@ function formatDuration(ms: number): string {
 export function RunHistoryTable() {
 	const client = useGiselle();
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
+	const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 	const { data, isLoading, isValidating, mutate } = useSWR(
 		{
 			namespace: "getWorkspaceActs",
@@ -41,6 +45,18 @@ export function RunHistoryTable() {
 
 	if (isLoading) {
 		return null;
+	}
+
+	// Show drill-down view when a task is selected
+	if (selectedTask) {
+		return (
+			<div className="h-full">
+				<RunDetailView
+					task={selectedTask}
+					onBack={() => setSelectedTask(null)}
+				/>
+			</div>
+		);
 	}
 
 	return (
@@ -87,7 +103,11 @@ export function RunHistoryTable() {
 					</TableHeader>
 					<TableBody>
 						{data.map((run) => (
-							<TableRow key={run.id}>
+							<TableRow
+								key={run.id}
+								className="cursor-pointer hover:bg-inverse/5 transition-colors"
+								onClick={() => setSelectedTask(run)}
+							>
 								<TableCell className="whitespace-nowrap">
 									{formatDateTime(run.createdAt)}
 								</TableCell>

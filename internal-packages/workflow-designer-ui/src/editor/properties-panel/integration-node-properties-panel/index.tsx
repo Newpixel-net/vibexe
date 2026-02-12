@@ -237,6 +237,7 @@ export function IntegrationNodePropertiesPanel({
 									prop={prop}
 									value={configuration[key]}
 									onChange={(val) => updateConfig(key, val)}
+									nodeId={node.id}
 								/>
 							))}
 						</div>
