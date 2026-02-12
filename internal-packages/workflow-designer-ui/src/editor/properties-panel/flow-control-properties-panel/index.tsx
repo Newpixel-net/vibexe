@@ -3,7 +3,9 @@
 import type {
 	CodeNode,
 	ConditionOperator,
+	DataTableNode,
 	EditFieldsNode,
+	FormTriggerNode,
 	ErrorTriggerNode,
 	FilterNode,
 	IfNode,
@@ -40,7 +42,9 @@ type FlowControlNodeType =
 	| EditFieldsNode
 	| SortNode
 	| WaitNode
-	| ErrorTriggerNode;
+	| ErrorTriggerNode
+	| DataTableNode
+	| FormTriggerNode;
 
 function FlowControlPanelLayout({
 	node,
@@ -151,6 +155,20 @@ export function FlowControlPropertiesPanel({
 			return (
 				<ErrorTriggerPanel
 					node={node as ErrorTriggerNode}
+					onDelete={() => deleteNode(node.id)}
+				/>
+			);
+		case "dataTable":
+			return (
+				<DataTablePanel
+					node={node as DataTableNode}
+					onDelete={() => deleteNode(node.id)}
+				/>
+			);
+		case "formTrigger":
+			return (
+				<FormTriggerPanel
+					node={node as FormTriggerNode}
 					onDelete={() => deleteNode(node.id)}
 				/>
 			);
@@ -1000,6 +1018,295 @@ function ErrorTriggerPanel({
 						<li>Error Message</li>
 						<li>Failed Node ID</li>
 						<li>Timestamp</li>
+					</ul>
+				</div>
+			</div>
+		</FlowControlPanelLayout>
+	);
+}
+
+// ---- Form Trigger Panel ----
+function FormTriggerPanel({
+	node,
+	onDelete,
+}: { node: FormTriggerNode; onDelete: () => void }) {
+	const updateContent = useUpdateNodeDataContent();
+
+	const addField = () => {
+		const id = `field_${Date.now()}`;
+		updateContent(node, {
+			fields: [
+				...node.content.fields,
+				{
+					id,
+					name: id,
+					label: `Field ${node.content.fields.length + 1}`,
+					type: "text",
+					required: false,
+					options: [],
+					placeholder: "",
+					defaultValue: "",
+				},
+			],
+		});
+	};
+
+	const removeField = (index: number) => {
+		updateContent(node, {
+			fields: node.content.fields.filter((_, i) => i !== index),
+		});
+	};
+
+	const updateField = (
+		index: number,
+		updates: Partial<FormTriggerNode["content"]["fields"][number]>,
+	) => {
+		const fields = [...node.content.fields];
+		fields[index] = { ...fields[index], ...updates };
+		updateContent(node, { fields });
+	};
+
+	return (
+		<FlowControlPanelLayout node={node} onDelete={onDelete}>
+			<div className="flex flex-col gap-[16px]">
+				<div>
+					<SettingLabel>Form Trigger</SettingLabel>
+					<p className="text-[11px] text-text-muted/50">
+						Creates a public form that triggers this workflow when submitted.
+						Form data flows as structured output to downstream nodes.
+					</p>
+				</div>
+				<div>
+					<SettingLabel>Form Title</SettingLabel>
+					<input
+						type="text"
+						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text"
+						value={node.content.title}
+						onChange={(e) => updateContent(node, { title: e.target.value })}
+						placeholder="My Form"
+					/>
+				</div>
+				<div>
+					<SettingLabel>Description</SettingLabel>
+					<textarea
+						className="w-full min-h-[60px] rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text resize-y"
+						value={node.content.description}
+						onChange={(e) =>
+							updateContent(node, { description: e.target.value })
+						}
+						placeholder="Describe what this form is for..."
+					/>
+				</div>
+				<div>
+					<SettingLabel>Fields</SettingLabel>
+					<div className="flex flex-col gap-[8px] mt-[4px]">
+						{node.content.fields.map((field, i) => (
+							<div
+								key={field.id}
+								className="rounded-[8px] border border-border-muted p-[10px] flex flex-col gap-[6px]"
+							>
+								<div className="flex gap-[4px] items-end">
+									<div className="flex-1">
+										<label className="text-[10px] text-text-muted/70">
+											Label
+										</label>
+										<input
+											type="text"
+											className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[4px] text-[12px] text-text"
+											value={field.label}
+											onChange={(e) =>
+												updateField(i, {
+													label: e.target.value,
+													name: e.target.value
+														.toLowerCase()
+														.replace(/\s+/g, "_")
+														.replace(/[^a-z0-9_]/g, ""),
+												})
+											}
+										/>
+									</div>
+									<div className="w-[100px]">
+										<label className="text-[10px] text-text-muted/70">
+											Type
+										</label>
+										<select
+											className="w-full rounded-[6px] border border-border-muted bg-transparent px-[6px] py-[4px] text-[12px] text-text"
+											value={field.type}
+											onChange={(e) =>
+												updateField(i, {
+													type: e.target.value as FormTriggerNode["content"]["fields"][number]["type"],
+												})
+											}
+										>
+											<option value="text">Text</option>
+											<option value="number">Number</option>
+											<option value="email">Email</option>
+											<option value="textarea">Textarea</option>
+											<option value="select">Select</option>
+											<option value="checkbox">Checkbox</option>
+											<option value="date">Date</option>
+										</select>
+									</div>
+									<label className="flex items-center gap-[4px] text-[10px] text-text-muted/70 shrink-0">
+										<input
+											type="checkbox"
+											checked={field.required}
+											onChange={(e) =>
+												updateField(i, { required: e.target.checked })
+											}
+										/>
+										Req
+									</label>
+									<button
+										type="button"
+										className="shrink-0 px-[6px] py-[4px] text-[12px] text-error-500 hover:text-error-400"
+										onClick={() => removeField(i)}
+									>
+										x
+									</button>
+								</div>
+								{field.type === "select" && (
+									<div>
+										<label className="text-[10px] text-text-muted/70">
+											Options (comma-separated)
+										</label>
+										<input
+											type="text"
+											className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[4px] text-[12px] text-text"
+											value={field.options.join(", ")}
+											onChange={(e) =>
+												updateField(i, {
+													options: e.target.value
+														.split(",")
+														.map((s) => s.trim())
+														.filter(Boolean),
+												})
+											}
+											placeholder="Option 1, Option 2, Option 3"
+										/>
+									</div>
+								)}
+								<div>
+									<label className="text-[10px] text-text-muted/70">
+										Placeholder
+									</label>
+									<input
+										type="text"
+										className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[4px] text-[12px] text-text"
+										value={field.placeholder}
+										onChange={(e) =>
+											updateField(i, { placeholder: e.target.value })
+										}
+									/>
+								</div>
+							</div>
+						))}
+					</div>
+					<button
+						type="button"
+						className="mt-[8px] w-full rounded-[8px] border border-dashed border-border-muted px-[12px] py-[8px] text-[12px] text-text-muted hover:border-text-muted/50 transition-colors"
+						onClick={addField}
+					>
+						+ Add Field
+					</button>
+				</div>
+				<div>
+					<SettingLabel>Submit Button Text</SettingLabel>
+					<input
+						type="text"
+						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text"
+						value={node.content.submitButtonText}
+						onChange={(e) =>
+							updateContent(node, { submitButtonText: e.target.value })
+						}
+					/>
+				</div>
+				<div>
+					<SettingLabel>Success Message</SettingLabel>
+					<input
+						type="text"
+						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text"
+						value={node.content.successMessage}
+						onChange={(e) =>
+							updateContent(node, { successMessage: e.target.value })
+						}
+					/>
+				</div>
+				<div className="rounded-[8px] border border-border-muted p-[12px] text-[12px] text-text-muted">
+					<p>Outputs:</p>
+					<ul className="mt-[4px] list-disc pl-[16px] space-y-[2px]">
+						<li>Form Data (all submitted field values as JSON)</li>
+					</ul>
+				</div>
+			</div>
+		</FlowControlPanelLayout>
+	);
+}
+
+function DataTablePanel({
+	node,
+	onDelete,
+}: { node: DataTableNode; onDelete: () => void }) {
+	const updateContent = useUpdateNodeDataContent();
+
+	return (
+		<FlowControlPanelLayout node={node} onDelete={onDelete}>
+			<div className="flex flex-col gap-[16px]">
+				<div>
+					<SettingLabel>Data Table</SettingLabel>
+					<p className="text-[11px] text-text-muted/50">
+						Persistent storage that persists across workflow executions.
+						Perform CRUD operations on structured data tables.
+					</p>
+				</div>
+				<div>
+					<SettingLabel>Table Name</SettingLabel>
+					<input
+						type="text"
+						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text-default"
+						value={(node.content as { tableName?: string }).tableName ?? ""}
+						onChange={(e) =>
+							updateContent(node.id, { tableName: e.target.value })
+						}
+						placeholder="Enter table name..."
+					/>
+				</div>
+				<div>
+					<SettingLabel>Operation</SettingLabel>
+					<select
+						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text-default"
+						value={(node.content as { operation?: string }).operation ?? "query"}
+						onChange={(e) =>
+							updateContent(node.id, { operation: e.target.value })
+						}
+					>
+						<option value="query">Query (Read)</option>
+						<option value="insert">Insert (Create)</option>
+						<option value="update">Update</option>
+						<option value="delete">Delete</option>
+						<option value="upsert">Upsert (Create or Update)</option>
+					</select>
+				</div>
+				<div>
+					<SettingLabel>Row Limit</SettingLabel>
+					<input
+						type="number"
+						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text-default"
+						value={(node.content as { limit?: number }).limit ?? 100}
+						onChange={(e) =>
+							updateContent(node.id, {
+								limit: Number.parseInt(e.target.value, 10) || 100,
+							})
+						}
+						min={0}
+						max={10000}
+					/>
+				</div>
+				<div className="rounded-[8px] border border-border-muted p-[12px] text-[12px] text-text-muted">
+					<p>Outputs:</p>
+					<ul className="mt-[4px] list-disc pl-[16px] space-y-[2px]">
+						<li>Data (query results or operation status)</li>
+						<li>Operation type</li>
 					</ul>
 				</div>
 			</div>

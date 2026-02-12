@@ -188,6 +188,55 @@ async function WorkflowContent({
 						`[Trigger] Webhook ${enabled ? "enabled" : "saved"}: workspace=${flowTrigger.workspaceId}, path=${webhookPath}`,
 					);
 				}
+
+				// Persist app event trigger to webhook_endpoints table (reuses webhook infra)
+				if (flowTrigger.configuration.provider === "appEvent") {
+					const { webhookPath } =
+						flowTrigger.configuration.event;
+					const enabled = flowTrigger.configuration.enabled ?? true;
+
+					const [existing] = await db
+						.select()
+						.from(webhookEndpoints)
+						.where(
+							and(
+								eq(
+									webhookEndpoints.sdkWorkspaceId,
+									flowTrigger.workspaceId,
+								),
+								eq(
+									webhookEndpoints.agentNodeId,
+									flowTrigger.nodeId,
+								),
+							),
+						)
+						.limit(1);
+
+					if (existing) {
+						await db
+							.update(webhookEndpoints)
+							.set({
+								webhookPath,
+								method: "POST",
+								enabled,
+								sdkFlowTriggerId: flowTrigger.id,
+							})
+							.where(eq(webhookEndpoints.dbId, existing.dbId));
+					} else {
+						await db.insert(webhookEndpoints).values({
+							teamDbId: workspace.teamDbId,
+							sdkWorkspaceId: flowTrigger.workspaceId,
+							agentNodeId: flowTrigger.nodeId,
+							sdkFlowTriggerId: flowTrigger.id,
+							webhookPath,
+							method: "POST",
+							enabled,
+						});
+					}
+					logger.info(
+						`[Trigger] App Event ${enabled ? "enabled" : "saved"}: workspace=${flowTrigger.workspaceId}, path=${webhookPath}`,
+					);
+				}
 			}}
 			workspaceNameUpdateAction={async (name: string) => {
 				"use server";

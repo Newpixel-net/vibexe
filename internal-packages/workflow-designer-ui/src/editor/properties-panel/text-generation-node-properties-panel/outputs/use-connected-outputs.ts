@@ -147,6 +147,8 @@ export function useConnectedOutputs(node: TextGenerationNode) {
 						case "sort":
 						case "wait":
 						case "errorTrigger":
+						case "dataTable":
+						case "formTrigger":
 							break;
 						default: {
 							const _exhaustiveCheck: never = outputNode.content.type;

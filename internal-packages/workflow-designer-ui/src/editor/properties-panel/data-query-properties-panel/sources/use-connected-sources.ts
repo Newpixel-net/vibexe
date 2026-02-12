@@ -115,6 +115,8 @@ export function useConnectedSources(node: DataQueryNode) {
 						case "sort":
 						case "wait":
 						case "errorTrigger":
+						case "dataTable":
+						case "formTrigger":
 							break;
 						case "end":
 							// End Node has no Output so do nothing

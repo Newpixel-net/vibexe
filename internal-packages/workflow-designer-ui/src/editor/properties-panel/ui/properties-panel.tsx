@@ -43,6 +43,8 @@ function getNodeIconColor(node: NodeLike): string {
 			case "sort":
 			case "wait":
 			case "errorTrigger":
+			case "dataTable":
+			case "formTrigger":
 				return "text-inverse";
 			default: {
 				const _exhaustiveCheck: never = node.content.type;
@@ -117,6 +119,8 @@ function getNodeIconBackground(node: NodeLike): string {
 			case "sort":
 			case "wait":
 			case "errorTrigger":
+			case "dataTable":
+			case "formTrigger":
 				return "bg-action-node-1";
 			default: {
 				const _exhaustiveCheck: never = node.content.type;

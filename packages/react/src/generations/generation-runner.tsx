@@ -72,6 +72,8 @@ export function GenerationRunner({ generation }: { generation: Generation }) {
 		case "sort":
 		case "wait":
 		case "errorTrigger":
+		case "dataTable":
+		case "formTrigger":
 			// Flow control & data transform nodes are handled by DAG executor, no client-side runner
 			return null;
 		default: {

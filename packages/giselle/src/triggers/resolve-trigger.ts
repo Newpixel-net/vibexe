@@ -249,6 +249,47 @@ export async function resolveTrigger(args: {
 			}
 			break;
 		}
+		case "appEvent": {
+			// App event triggers receive webhook data from third-party services
+			// (Slack, Google Drive, Notion, etc.) via the Activepieces trigger system.
+			// The webhook payload is passed as ParametersInput.
+			const appEventInput = generationContext.inputs?.find(
+				(i): i is GenerationContextInput & { type: "parameters" } =>
+					i.type === "parameters",
+			);
+
+			if (appEventInput) {
+				for (const item of appEventInput.items) {
+					const output = operationNode.outputs.find(
+						(o) => o.accessor === item.name,
+					);
+					if (output) {
+						outputs.push({
+							type: "generated-text",
+							outputId: output.id,
+							content: `${item.value}`,
+						});
+					}
+				}
+			}
+
+			// Also provide the full event payload as JSON on the "payload" output
+			const payloadOutput = operationNode.outputs.find(
+				(o) => o.accessor === "payload",
+			);
+			if (payloadOutput && appEventInput) {
+				const payloadObj: Record<string, unknown> = {};
+				for (const item of appEventInput.items) {
+					payloadObj[item.name] = item.value;
+				}
+				outputs.push({
+					type: "generated-text",
+					outputId: payloadOutput.id,
+					content: JSON.stringify(payloadObj),
+				});
+			}
+			break;
+		}
 		default: {
 			const _exhaustiveCheck: never = triggerData.configuration;
 			throw new Error(`Unhandled provider: ${_exhaustiveCheck}`);

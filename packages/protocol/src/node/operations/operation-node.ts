@@ -20,6 +20,10 @@ import {
 } from "./content-generation";
 import { DataQueryContent, DataQueryContentReference } from "./data-query";
 import {
+	DataTableNodeContent,
+	DataTableNodeContentReference,
+} from "./data-table-node";
+import {
 	EditFieldsNodeContent,
 	EditFieldsNodeContentReference,
 } from "./edit-fields-node";
@@ -29,6 +33,10 @@ import {
 	ErrorTriggerNodeContentReference,
 } from "./error-trigger-node";
 import { FilterNodeContent, FilterNodeContentReference } from "./filter-node";
+import {
+	FormTriggerNodeContent,
+	FormTriggerNodeContentReference,
+} from "./form-trigger-node";
 import { IfNodeContent, IfNodeContentReference } from "./if-node";
 import {
 	ImageGenerationContent,
@@ -86,6 +94,8 @@ const OperationNodeContent = z.discriminatedUnion("type", [
 	SortNodeContent,
 	WaitNodeContent,
 	ErrorTriggerNodeContent,
+	DataTableNodeContent,
+	FormTriggerNodeContent,
 ]);
 
 export const ErrorConfig = z.object({
@@ -378,6 +388,22 @@ export function isErrorTriggerNode(args?: unknown): args is ErrorTriggerNode {
 	return ErrorTriggerNode.safeParse(args).success;
 }
 
+export const DataTableNode = OperationNode.extend({
+	content: DataTableNodeContent,
+});
+export type DataTableNode = z.infer<typeof DataTableNode>;
+export function isDataTableNode(args?: unknown): args is DataTableNode {
+	return DataTableNode.safeParse(args).success;
+}
+
+export const FormTriggerNode = OperationNode.extend({
+	content: FormTriggerNodeContent,
+});
+export type FormTriggerNode = z.infer<typeof FormTriggerNode>;
+export function isFormTriggerNode(args?: unknown): args is FormTriggerNode {
+	return FormTriggerNode.safeParse(args).success;
+}
+
 /** Helper to check if a node type requires DAG execution (flow control + data transform) */
 export function isFlowControlNode(args?: unknown): boolean {
 	return (
@@ -390,7 +416,8 @@ export function isFlowControlNode(args?: unknown): boolean {
 		isFilterNode(args) ||
 		isEditFieldsNode(args) ||
 		isSortNode(args) ||
-		isErrorTriggerNode(args)
+		isErrorTriggerNode(args) ||
+		isDataTableNode(args)
 	);
 }
 
@@ -419,6 +446,8 @@ const OperationNodeContentReference = z.discriminatedUnion("type", [
 	SortNodeContentReference,
 	WaitNodeContentReference,
 	ErrorTriggerNodeContentReference,
+	DataTableNodeContentReference,
+	FormTriggerNodeContentReference,
 ]);
 export const OperationNodeReference = NodeReferenceBase.extend({
 	type: OperationNode.shape.type,

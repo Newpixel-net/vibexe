@@ -17,6 +17,8 @@ import {
 	createDocumentVectorStoreNode,
 	createEditFieldsNode,
 	createErrorTriggerNode,
+	createDataTableNode,
+	createFormTriggerNode,
 	createFileNode,
 	createFilterNode,
 	createGitHubVectorStoreNode,
@@ -464,7 +466,29 @@ export function Toolbar() {
 											</ToggleGroup.Root>
 
 											<p className="text-[#505D7B] text-[12px] font-medium leading-[170%] mt-[8px] mb-[4px] px-[8px]">
-												Error Handling
+												Storage
+											</p>
+											<ToggleGroup.Root
+												type="single"
+												className={clsx(
+													"flex flex-col gap-[8px]",
+													"**:data-tool:flex **:data-tool:rounded-[8px] **:data-tool:items-center **:data-tool:w-full",
+													"**:data-tool:select-none **:data-tool:outline-none **:data-tool:px-[8px] **:data-tool:py-[4px] **:data-tool:gap-[8px] **:data-tool:hover:bg-[rgba(222,233,242,0.10)]",
+													"**:data-tool:data-[state=on]:bg-primary-900 **:data-tool:focus:outline-none",
+												)}
+												onValueChange={(nodeType) => {
+													if (nodeType === "dataTable") {
+														setSelectedTool(addNodeTool(createDataTableNode()));
+													}
+												}}
+											>
+												<ToggleGroup.Item value="dataTable" data-tool>
+													<p className="text-[14px]">Data Table</p>
+												</ToggleGroup.Item>
+											</ToggleGroup.Root>
+
+											<p className="text-[#505D7B] text-[12px] font-medium leading-[170%] mt-[8px] mb-[4px] px-[8px]">
+												Triggers
 											</p>
 											<ToggleGroup.Root
 												type="single"
@@ -477,11 +501,16 @@ export function Toolbar() {
 												onValueChange={(nodeType) => {
 													if (nodeType === "errorTrigger") {
 														setSelectedTool(addNodeTool(createErrorTriggerNode()));
+													} else if (nodeType === "formTrigger") {
+														setSelectedTool(addNodeTool(createFormTriggerNode()));
 													}
 												}}
 											>
 												<ToggleGroup.Item value="errorTrigger" data-tool>
 													<p className="text-[14px]">Error Trigger</p>
+												</ToggleGroup.Item>
+												<ToggleGroup.Item value="formTrigger" data-tool>
+													<p className="text-[14px]">Form Trigger</p>
 												</ToggleGroup.Item>
 											</ToggleGroup.Root>
 										</div>

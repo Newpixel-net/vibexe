@@ -4,6 +4,7 @@ import {
 	saveMemory,
 	buildSessionKey,
 } from "./v2/memory/memory-store";
+import { evaluateGuardrails } from "../guardrails";
 import { google } from "@ai-sdk/google";
 import {
 	type OpenAIResponsesProviderOptions,
@@ -967,18 +968,29 @@ function generateContentV2({
 					resolvedContent,
 				);
 
+			// Fallback model setup
+			const fallbackModelId = isAiAgentNode(operationNode) &&
+				operationNode.content.fallbackModel?.enabled
+				? operationNode.content.fallbackModel?.id ?? null
+				: null;
+			let currentModelId = resolvedContent.languageModel.id;
+			let usedFallbackModel = false;
+			let shouldRetryWithFallback = false;
+
+			// Retry loop: primary model first, then fallback if available
+			do {
+			shouldRetryWithFallback = false;
 			const abortController = new AbortController();
 			let generationError: unknown | undefined;
 			const textGenerationStartTime = Date.now();
 
-			const v2Model = resolveModel(resolvedContent.languageModel.id);
+			const v2Model = resolveModel(currentModelId);
 			logger.info({
 				modelType: typeof v2Model,
 				modelProvider: (v2Model as any)?.provider,
 				modelId: (v2Model as any)?.modelId,
-				specVersion: (v2Model as any)?.specificationVersion,
-				constructorName: v2Model?.constructor?.name,
-				languageModelId: resolvedContent.languageModel.id,
+				languageModelId: currentModelId,
+				isFallback: usedFallbackModel,
 			}, "V2 streamText model debug");
 
 			// AI Agent: extract system prompt and maxSteps
@@ -1058,6 +1070,46 @@ function generateContentV2({
 							);
 						}
 						break;
+					}
+				}
+			}
+
+			// AI Agent: Input guardrails — validate user messages before LLM call
+			if (
+				isAiAgentNode(operationNode) &&
+				operationNode.content.guardrails?.enabled &&
+				operationNode.content.guardrails.inputRules.length > 0
+			) {
+				const lastUserMsg = messages.findLast(
+					(m: { role: string }) => m.role === "user",
+				);
+				if (lastUserMsg && "content" in lastUserMsg) {
+					const inputText =
+						typeof lastUserMsg.content === "string"
+							? lastUserMsg.content
+							: JSON.stringify(lastUserMsg.content);
+					const inputResult = evaluateGuardrails(
+						operationNode.content.guardrails.inputRules,
+						inputText,
+					);
+					if (!inputResult.passed) {
+						const violationMsg = inputResult.violations
+							.filter((v) => v.action === "block")
+							.map((v) => `[${v.ruleType}] ${v.message}`)
+							.join("; ");
+						logger.warn(
+							{ violations: inputResult.violations },
+							`Input guardrail blocked: ${violationMsg}`,
+						);
+						throw new Error(
+							`Input blocked by guardrail: ${violationMsg}`,
+						);
+					}
+					if (inputResult.violations.length > 0) {
+						logger.info(
+							{ violations: inputResult.violations },
+							"Input guardrail warnings",
+						);
 					}
 				}
 			}
@@ -1161,6 +1213,21 @@ function generateContentV2({
 					logger.info(
 						`Text generation stream completed in ${Date.now() - textGenerationStartTime}ms`,
 					);
+
+					// If primary model failed and fallback is available, skip cleanup and signal retry
+					if (generationError && fallbackModelId && !usedFallbackModel) {
+						logger.info(
+							{
+								primaryModel: resolvedContent.languageModel.id,
+								fallbackModel: fallbackModelId,
+								generationId: generation.id,
+							},
+							"Primary model failed, will retry with fallback model",
+						);
+						shouldRetryWithFallback = true;
+						return;
+					}
+
 					const toolCleanupStartTime = Date.now();
 					const cleanupResults = await Promise.allSettled(
 						cleanupFunctions.map((cleanupFunction) => cleanupFunction()),
@@ -1181,21 +1248,6 @@ function generateContentV2({
 					if (generationError) {
 						if (AISDKError.isInstance(generationError)) {
 							logger.error(generationError, `${generation.id} is failed`);
-						}
-						// Log fallback model availability when primary model fails (V2 AI Agent path)
-						if (
-							isAiAgentNode(operationNode) &&
-							operationNode.content.fallbackModel?.enabled &&
-							operationNode.content.fallbackModel?.id
-						) {
-							logger.warn(
-								{
-									primaryModel: resolvedContent.languageModel.id,
-									fallbackModel: operationNode.content.fallbackModel.id,
-									generationId: generation.id,
-								},
-								"Primary model failed. Fallback model is configured — automatic retry will be available in a future update.",
-							);
 						}
 						const errInfo = AISDKError.isInstance(generationError)
 							? {
@@ -1236,10 +1288,41 @@ function generateContentV2({
 							(output: Output) => output.accessor === "generated-text",
 						);
 					const textRetrievalStartTime = Date.now();
-					const text = await streamTextResult.text;
+					let text = await streamTextResult.text;
 					logger.info(
 						`Text retrieval completed in ${Date.now() - textRetrievalStartTime}ms`,
 					);
+
+					// AI Agent: Output guardrails — validate LLM output before passing downstream
+					if (
+						isAiAgentNode(operationNode) &&
+						operationNode.content.guardrails?.enabled &&
+						operationNode.content.guardrails.outputRules.length > 0 &&
+						text
+					) {
+						const outputResult = evaluateGuardrails(
+							operationNode.content.guardrails.outputRules,
+							text,
+						);
+						if (!outputResult.passed) {
+							const violationMsg = outputResult.violations
+								.filter((v) => v.action === "block")
+								.map((v) => `[${v.ruleType}] ${v.message}`)
+								.join("; ");
+							logger.warn(
+								{ violations: outputResult.violations },
+								`Output guardrail blocked: ${violationMsg}`,
+							);
+							text = `[Output blocked by guardrail: ${violationMsg}]`;
+						} else if (outputResult.processedText !== text) {
+							logger.info(
+								{ violations: outputResult.violations },
+								"Output guardrail applied redactions",
+							);
+							text = outputResult.processedText;
+						}
+					}
+
 					if (generatedTextOutput !== undefined) {
 						generationOutputs.push({
 							type: "generated-text",
@@ -1374,11 +1457,25 @@ function generateContentV2({
 			await writer.close();
 			logger.debug(`Writer closed`);
 
+			// Fallback retry: if primary model failed, switch to fallback and loop
+			if (shouldRetryWithFallback && fallbackModelId && !usedFallbackModel) {
+				usedFallbackModel = true;
+				currentModelId = fallbackModelId;
+				logger.info(
+					{ fallbackModelId },
+					"Retrying generation with fallback model",
+				);
+				continue;
+			}
+
 			if (uiMessageStreamResult === undefined) {
 				throw new Error("UI message stream result is undefined");
 			}
 
 			return uiMessageStreamResult;
+			} while (shouldRetryWithFallback);
+			// Safety: should not reach here — loop always returns or throws
+			throw new Error("Generation failed after all model attempts");
 		},
 	});
 }

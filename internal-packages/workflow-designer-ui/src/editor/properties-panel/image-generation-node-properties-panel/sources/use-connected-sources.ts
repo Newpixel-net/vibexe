@@ -150,6 +150,8 @@ export function useConnectedSources(node: ImageGenerationNode) {
 						case "sort":
 						case "wait":
 						case "errorTrigger":
+						case "dataTable":
+						case "formTrigger":
 							break;
 						default: {
 							const _exhaustiveCheck: never = outputNode.content.type;

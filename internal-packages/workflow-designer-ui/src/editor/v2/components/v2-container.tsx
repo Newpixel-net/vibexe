@@ -798,6 +798,8 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 			"sort",
 			"wait",
 			"errorTrigger",
+			"dataTable",
+			"formTrigger",
 		].includes(`${selectedNodes[0]?.content.type}`);
 
 	const mainRef = useRef<HTMLDivElement>(null);

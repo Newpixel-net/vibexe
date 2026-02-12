@@ -1,3 +1,4 @@
+export { executeDataTable } from "./execute-data-table";
 export { executeIf } from "./execute-if";
 export { executeSwitch } from "./execute-switch";
 export { executeMerge } from "./execute-merge";

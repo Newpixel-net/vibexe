@@ -28,6 +28,8 @@ import {
 	isVectorStoreNode,
 	isWaitNode,
 	isWebPageNode,
+	isDataTableNode,
+	isFormTriggerNode,
 } from "@giselles-ai/protocol";
 import clsx from "clsx/lite";
 import { useShallow } from "zustand/shallow";
@@ -223,7 +225,9 @@ export function PropertiesPanel() {
 				isEditFieldsNode(node) ||
 				isSortNode(node) ||
 				isWaitNode(node) ||
-				isErrorTriggerNode(node)) && (
+				isErrorTriggerNode(node) ||
+				isDataTableNode(node) ||
+				isFormTriggerNode(node)) && (
 				<FlowControlPropertiesPanel
 					node={node}
 					key={node.id}

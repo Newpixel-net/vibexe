@@ -150,6 +150,10 @@ export function defaultName(node: NodeLike) {
 					return node.name ?? "Wait";
 				case "errorTrigger":
 					return node.name ?? "Error Trigger";
+				case "dataTable":
+					return node.name ?? "Data Table";
+				case "formTrigger":
+					return node.name ?? "Form Trigger";
 				default: {
 					const _exhaustiveCheck: never = node.content.type;
 					throw new Error(`Unhandled action content type: ${_exhaustiveCheck}`);

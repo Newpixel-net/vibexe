@@ -14,7 +14,7 @@ import {
 	type OperationNode,
 } from "@giselles-ai/protocol";
 import { useNodeGenerations, useUsageLimits } from "@giselles-ai/react";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
 	useAppDesignerStore,
 	useDeleteNode,
@@ -289,6 +289,34 @@ export function AiAgentNodePropertiesPanel({
 				</div>
 			)}
 
+			<Toggle
+				name="guardrails"
+				checked={node.content.guardrails?.enabled ?? false}
+				onCheckedChange={(checked) => {
+					updateNodeDataContent(node, {
+						guardrails: {
+							...(node.content.guardrails ?? {
+								enabled: false,
+								inputRules: [],
+								outputRules: [],
+							}),
+							enabled: checked as boolean,
+						},
+					});
+				}}
+			>
+				<label htmlFor="guardrails" className="text-[14px]">
+					Enable Guardrails
+				</label>
+			</Toggle>
+
+			{node.content.guardrails?.enabled && (
+				<GuardrailsSection
+					node={node}
+					updateNodeDataContent={updateNodeDataContent}
+				/>
+			)}
+
 			<AdvancedOptions
 				node={node as unknown as ContentGenerationNode}
 			/>
@@ -339,5 +367,261 @@ export function AiAgentNodePropertiesPanel({
 				/>
 			</div>
 		</PropertiesPanelRoot>
+	);
+}
+
+const RULE_TYPES = [
+	{ value: "blocklist", label: "Blocklist", desc: "Block specific words or phrases" },
+	{ value: "regex", label: "Regex Pattern", desc: "Block text matching a pattern" },
+	{ value: "length", label: "Length Limit", desc: "Enforce min/max character count" },
+	{ value: "pii", label: "PII Detection", desc: "Detect personal info (email, phone, SSN)" },
+	{ value: "custom", label: "Custom", desc: "Custom JavaScript expression" },
+] as const;
+
+const RULE_ACTIONS = [
+	{ value: "block", label: "Block" },
+	{ value: "warn", label: "Warn" },
+	{ value: "redact", label: "Redact" },
+] as const;
+
+type GuardrailRule = {
+	id: string;
+	type: "blocklist" | "regex" | "length" | "pii" | "custom";
+	config: Record<string, unknown>;
+	action: "block" | "warn" | "redact";
+	enabled: boolean;
+};
+
+function GuardrailRuleEditor({
+	rule,
+	onUpdate,
+	onRemove,
+}: {
+	rule: GuardrailRule;
+	onUpdate: (updated: GuardrailRule) => void;
+	onRemove: () => void;
+}) {
+	return (
+		<div className="rounded-[8px] border border-border-muted p-[8px] flex flex-col gap-[6px]">
+			<div className="flex items-center justify-between">
+				<select
+					className="rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[4px] text-[11px] text-text-default"
+					value={rule.type}
+					onChange={(e) =>
+						onUpdate({ ...rule, type: e.target.value as GuardrailRule["type"], config: {} })
+					}
+				>
+					{RULE_TYPES.map((t) => (
+						<option key={t.value} value={t.value}>{t.label}</option>
+					))}
+				</select>
+				<div className="flex items-center gap-[4px]">
+					<select
+						className="rounded-[6px] border border-border-muted bg-transparent px-[6px] py-[3px] text-[10px] text-text-default"
+						value={rule.action}
+						onChange={(e) =>
+							onUpdate({ ...rule, action: e.target.value as GuardrailRule["action"] })
+						}
+					>
+						{RULE_ACTIONS.map((a) => (
+							<option key={a.value} value={a.value}>{a.label}</option>
+						))}
+					</select>
+					<button
+						type="button"
+						className="text-[10px] text-red-400 hover:text-red-300 px-[4px]"
+						onClick={onRemove}
+					>
+						Remove
+					</button>
+				</div>
+			</div>
+
+			{rule.type === "blocklist" && (
+				<textarea
+					className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[4px] text-[11px] text-text-default font-mono resize-y"
+					placeholder="Enter blocked words, one per line..."
+					rows={3}
+					value={((rule.config.words as string[]) ?? []).join("\n")}
+					onChange={(e) =>
+						onUpdate({
+							...rule,
+							config: { ...rule.config, words: e.target.value.split("\n").filter(Boolean) },
+						})
+					}
+				/>
+			)}
+
+			{rule.type === "regex" && (
+				<input
+					type="text"
+					className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[4px] text-[11px] text-text-default font-mono"
+					placeholder="Regex pattern (e.g., \\b(DROP|DELETE)\\s+TABLE\\b)"
+					value={(rule.config.pattern as string) ?? ""}
+					onChange={(e) =>
+						onUpdate({
+							...rule,
+							config: { ...rule.config, pattern: e.target.value },
+						})
+					}
+				/>
+			)}
+
+			{rule.type === "length" && (
+				<div className="flex gap-[8px]">
+					<input
+						type="number"
+						className="w-[80px] rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[4px] text-[11px] text-text-default"
+						placeholder="Min"
+						value={(rule.config.min as number) ?? ""}
+						onChange={(e) =>
+							onUpdate({
+								...rule,
+								config: { ...rule.config, min: Number.parseInt(e.target.value, 10) || 0 },
+							})
+						}
+					/>
+					<input
+						type="number"
+						className="w-[80px] rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[4px] text-[11px] text-text-default"
+						placeholder="Max"
+						value={(rule.config.max as number) ?? ""}
+						onChange={(e) =>
+							onUpdate({
+								...rule,
+								config: { ...rule.config, max: Number.parseInt(e.target.value, 10) || 10000 },
+							})
+						}
+					/>
+				</div>
+			)}
+
+			{rule.type === "pii" && (
+				<p className="text-[10px] text-text-muted/50">
+					Detects: email, phone, SSN, credit card, IP address
+				</p>
+			)}
+
+			{rule.type === "custom" && (
+				<input
+					type="text"
+					className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[4px] text-[11px] text-text-default font-mono"
+					placeholder='JS expression, e.g.: text.includes("secret")'
+					value={(rule.config.expression as string) ?? ""}
+					onChange={(e) =>
+						onUpdate({
+							...rule,
+							config: { ...rule.config, expression: e.target.value },
+						})
+					}
+				/>
+			)}
+		</div>
+	);
+}
+
+function GuardrailsSection({
+	node,
+	updateNodeDataContent,
+}: {
+	node: AiAgentNode;
+	updateNodeDataContent: (node: AiAgentNode, content: Partial<AiAgentNode["content"]>) => void;
+}) {
+	const [activeTab, setActiveTab] = useState<"input" | "output">("input");
+	const guardrails = node.content.guardrails ?? {
+		enabled: true,
+		inputRules: [],
+		outputRules: [],
+	};
+	const rules = activeTab === "input" ? guardrails.inputRules : guardrails.outputRules;
+	const rulesKey = activeTab === "input" ? "inputRules" : "outputRules";
+
+	const addRule = () => {
+		const newRule: GuardrailRule = {
+			id: `gr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+			type: "blocklist",
+			config: {},
+			action: "block",
+			enabled: true,
+		};
+		updateNodeDataContent(node, {
+			guardrails: {
+				...guardrails,
+				[rulesKey]: [...rules, newRule],
+			},
+		});
+	};
+
+	const updateRule = (index: number, updated: GuardrailRule) => {
+		const newRules = [...rules];
+		newRules[index] = updated;
+		updateNodeDataContent(node, {
+			guardrails: {
+				...guardrails,
+				[rulesKey]: newRules,
+			},
+		});
+	};
+
+	const removeRule = (index: number) => {
+		const newRules = rules.filter((_, i) => i !== index);
+		updateNodeDataContent(node, {
+			guardrails: {
+				...guardrails,
+				[rulesKey]: newRules,
+			},
+		});
+	};
+
+	return (
+		<div className="flex flex-col gap-[8px] px-[8px]">
+			<SettingDetail size="sm">
+				Validate inputs before sending to LLM and outputs before passing downstream
+			</SettingDetail>
+
+			<div className="flex gap-[4px]">
+				<button
+					type="button"
+					className={`px-[10px] py-[4px] rounded-[6px] text-[11px] ${
+						activeTab === "input"
+							? "bg-primary-900 text-white"
+							: "bg-transparent text-text-muted border border-border-muted"
+					}`}
+					onClick={() => setActiveTab("input")}
+				>
+					Input Rules ({guardrails.inputRules.length})
+				</button>
+				<button
+					type="button"
+					className={`px-[10px] py-[4px] rounded-[6px] text-[11px] ${
+						activeTab === "output"
+							? "bg-primary-900 text-white"
+							: "bg-transparent text-text-muted border border-border-muted"
+					}`}
+					onClick={() => setActiveTab("output")}
+				>
+					Output Rules ({guardrails.outputRules.length})
+				</button>
+			</div>
+
+			<div className="flex flex-col gap-[6px]">
+				{rules.map((rule, index) => (
+					<GuardrailRuleEditor
+						key={rule.id}
+						rule={rule}
+						onUpdate={(updated) => updateRule(index, updated)}
+						onRemove={() => removeRule(index)}
+					/>
+				))}
+			</div>
+
+			<button
+				type="button"
+				className="w-full rounded-[8px] border border-dashed border-border-muted py-[6px] text-[11px] text-text-muted hover:border-text-muted/50 hover:text-text-default"
+				onClick={addRule}
+			>
+				+ Add {activeTab === "input" ? "Input" : "Output"} Rule
+			</button>
+		</div>
 	);
 }

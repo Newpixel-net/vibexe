@@ -11,8 +11,10 @@ import {
 	type AppEntryNode,
 	type ChatModelNode,
 	type CodeNode,
+	type DataTableNode,
 	type EditFieldsNode,
 	type ErrorTriggerNode,
+	type FormTriggerNode,
 	type FilterNode,
 	type IfNode,
 	type LoopNode,
@@ -50,8 +52,10 @@ import {
 	isAppEntryNode,
 	isChatModelNode,
 	isCodeNode,
+	isDataTableNode,
 	isEditFieldsNode,
 	isErrorTriggerNode,
+	isFormTriggerNode,
 	isFilterNode,
 	isIfNode,
 	isLoopNode,
@@ -1388,6 +1392,20 @@ const errorTriggerFactoryImpl = createSimpleOperationFactory<ErrorTriggerNode>(
 	{},
 );
 
+const dataTableFactoryImpl = createSimpleOperationFactory<DataTableNode>(
+	"dataTable",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[{ id: OutputId.generate(), label: "Data", accessor: "data" }],
+	{ tableId: "", tableName: "", operation: "query", fields: [], limit: 100 },
+);
+
+const formTriggerFactoryImpl = createSimpleOperationFactory<FormTriggerNode>(
+	"formTrigger",
+	[],
+	[{ id: OutputId.generate(), label: "Form Data", accessor: "formData" }],
+	{ fields: [], submitButtonText: "Submit", successMessage: "Form submitted successfully!", title: "", description: "" },
+);
+
 // --- Factories Manager ---
 const factoryImplementations = {
 	textGeneration: textGenerationFactoryImpl,
@@ -1420,6 +1438,8 @@ const factoryImplementations = {
 	sort: sortFactoryImpl,
 	wait: waitFactoryImpl,
 	errorTrigger: errorTriggerFactoryImpl,
+	dataTable: dataTableFactoryImpl,
+	formTrigger: formTriggerFactoryImpl,
 } as const;
 
 type CreateArgMap = {
@@ -1453,6 +1473,8 @@ type CreateArgMap = {
 	sort: undefined;
 	wait: undefined;
 	errorTrigger: undefined;
+	dataTable: undefined;
+	formTrigger: undefined;
 };
 
 const nodeTypesRequiringArg = (
@@ -1609,6 +1631,14 @@ export function createWaitNode(): WaitNode {
 
 export function createErrorTriggerNode(): ErrorTriggerNode {
 	return errorTriggerFactoryImpl.create();
+}
+
+export function createDataTableNode(): DataTableNode {
+	return dataTableFactoryImpl.create();
+}
+
+export function createFormTriggerNode(): FormTriggerNode {
+	return formTriggerFactoryImpl.create();
 }
 
 export function cloneNode<N extends Node>(
@@ -1790,6 +1820,14 @@ export function cloneNode<N extends Node>(
 			if (isErrorTriggerNode(sourceNode))
 				return errorTriggerFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
 			break;
+		case "dataTable":
+			if (isDataTableNode(sourceNode))
+				return dataTableFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "formTrigger":
+			if (isFormTriggerNode(sourceNode))
+				return formTriggerFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
 		default: {
 			const _exhaustive: never = contentType;
 			throw new Error(`No clone factory for content type: ${_exhaustive}`);
@@ -1890,6 +1928,10 @@ export const nodeFactories = {
 				return factoryImplementations.wait.create();
 			case "errorTrigger":
 				return factoryImplementations.errorTrigger.create();
+			case "dataTable":
+				return factoryImplementations.dataTable.create();
+			case "formTrigger":
+				return factoryImplementations.formTrigger.create();
 			default: {
 				const _exhaustive: never = type;
 				throw new Error(`No create factory for content type: ${_exhaustive}`);
@@ -2038,6 +2080,14 @@ export const nodeFactories = {
 			case "errorTrigger":
 				if (isErrorTriggerNode(sourceNode))
 					return factoryImplementations.errorTrigger.clone(sourceNode);
+				break;
+			case "dataTable":
+				if (isDataTableNode(sourceNode))
+					return factoryImplementations.dataTable.clone(sourceNode);
+				break;
+			case "formTrigger":
+				if (isFormTriggerNode(sourceNode))
+					return factoryImplementations.formTrigger.clone(sourceNode);
 				break;
 			default: {
 				const _exhaustive: never = contentType;

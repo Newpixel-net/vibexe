@@ -28,6 +28,11 @@ export const triggerRegistry = [
 		label: "Chat Trigger",
 		events: [],
 	},
+	{
+		provider: "appEvent",
+		label: "App Event Trigger",
+		events: [],
+	},
 ] as const;
 
 export type TriggerProvider = (typeof triggerRegistry)[number]["provider"];

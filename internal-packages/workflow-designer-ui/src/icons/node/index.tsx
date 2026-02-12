@@ -275,6 +275,8 @@ export function NodeIcon({
 				case "sort":
 				case "wait":
 				case "errorTrigger":
+				case "dataTable":
+				case "formTrigger":
 					return <ZapIcon {...props} data-content-type-icon />;
 				default: {
 					const _exhaustiveCheck: never = node.content.type;

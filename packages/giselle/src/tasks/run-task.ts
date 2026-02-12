@@ -17,6 +17,7 @@ import {
 import * as z from "zod/v4";
 import {
 	executeCode,
+	executeDataTable,
 	executeEditFields,
 	executeErrorTrigger,
 	executeFilter,
@@ -167,6 +168,8 @@ async function executeStep(args: {
 			case "sort":
 			case "wait":
 			case "errorTrigger":
+			case "dataTable":
+			case "formTrigger":
 				break;
 			default: {
 				const _exhaustiveCheck: never =
@@ -434,6 +437,10 @@ async function runTaskWithDag(
 					return executeWait(dagNode, inputData);
 				case "errorTrigger":
 					return executeErrorTrigger(dagNode, inputData);
+				case "dataTable":
+					return executeDataTable(dagNode, inputData);
+				case "formTrigger":
+					return { outputs: new Map() };
 			}
 
 			// Regular nodes: delegate to existing executeStep

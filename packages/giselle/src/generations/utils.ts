@@ -124,7 +124,9 @@ export async function buildMessageObject({
 		case "editFields":
 		case "sort":
 		case "wait":
-		case "errorTrigger": {
+		case "errorTrigger":
+		case "dataTable":
+		case "formTrigger": {
 			return [];
 		}
 		default: {
@@ -392,6 +394,8 @@ async function buildGenerationMessageForTextGeneration({
 			case "sort":
 			case "wait":
 			case "errorTrigger":
+			case "dataTable":
+			case "formTrigger":
 				break;
 			default: {
 				const _exhaustiveCheck: never = contextNode.content;
@@ -759,6 +763,8 @@ async function buildGenerationMessageForImageGeneration(
 			case "sort":
 			case "wait":
 			case "errorTrigger":
+			case "dataTable":
+			case "formTrigger":
 				break;
 			default: {
 				const _exhaustiveCheck: never = contextNode.content;
@@ -1255,6 +1261,8 @@ async function buildGenerationMessageForContentGeneration({
 			case "sort":
 			case "wait":
 			case "errorTrigger":
+			case "dataTable":
+			case "formTrigger":
 				break;
 			default: {
 				const _exhaustiveCheck: never = contextNode.content;
