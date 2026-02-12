@@ -1,9 +1,16 @@
 "use client";
 
 import type { TriggerNode } from "@giselles-ai/protocol";
-import { ClockIcon } from "lucide-react";
-import { useCallback, useState } from "react";
-import { useUpdateNodeDataContent } from "../../../../../app-designer";
+import { useTrigger } from "@giselles-ai/react";
+import { CheckCircle2Icon, ClockIcon, PowerIcon } from "lucide-react";
+import { useCallback, useState, useTransition } from "react";
+import {
+	useAppDesignerStore,
+	useUpdateNodeData,
+	useUpdateNodeDataContent,
+} from "../../../../../app-designer";
+import { useGiselle } from "../../../../../app-designer/store/giselle-client-provider";
+import { SpinnerIcon } from "../../../../../icons";
 
 const CRON_PRESETS = [
 	{ label: "Every minute", cron: "* * * * *" },
@@ -44,16 +51,25 @@ export function ScheduleTriggerPropertiesPanel({
 	node: TriggerNode;
 }) {
 	const updateNodeDataContent = useUpdateNodeDataContent();
+	const updateNodeData = useUpdateNodeData();
+	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
+	const client = useGiselle();
+	const { callbacks } = useTrigger();
 	const [customCron, setCustomCron] = useState("");
 	const [showCustom, setShowCustom] = useState(false);
+	const [isPending, startTransition] = useTransition();
 
-	// Read current configuration from node state (stored externally)
-	// For now, show the configuration UI
+	const content = node.content as Record<string, unknown>;
+	const currentCron = (content.scheduleCron as string) ?? "0 * * * *";
+	const currentTimezone = (content.scheduleTimezone as string) ?? "UTC";
+	const isConfigured = content.state
+		? (content.state as Record<string, unknown>).status === "configured"
+		: false;
+	const isEnabled = (content.scheduleEnabled as boolean) ?? false;
+
 	const handlePresetSelect = useCallback(
 		(cron: string) => {
 			setShowCustom(false);
-			// Store the cron expression in the trigger node state
-			// The actual configuration happens via configureTrigger server action
 			updateNodeDataContent(node, {
 				scheduleCron: cron,
 			} as Record<string, unknown>);
@@ -70,12 +86,67 @@ export function ScheduleTriggerPropertiesPanel({
 		[node, updateNodeDataContent],
 	);
 
-	const currentCron =
-		(node.content as Record<string, unknown>).scheduleCron as string ??
-		"0 * * * *";
-	const currentTimezone =
-		(node.content as Record<string, unknown>).scheduleTimezone as string ??
-		"UTC";
+	const handleSave = useCallback(
+		(enabled: boolean) => {
+			startTransition(async () => {
+				const { triggerId } = await client.configureTrigger({
+					trigger: {
+						nodeId: node.id,
+						workspaceId,
+						enable: true,
+						configuration: {
+							provider: "schedule",
+							event: {
+								id: "schedule.cron",
+								cronExpression: currentCron,
+								timezone: currentTimezone,
+							},
+							enabled,
+						},
+					},
+				});
+
+				await callbacks?.triggerUpdate?.({
+					id: triggerId,
+					nodeId: node.id,
+					workspaceId,
+					enable: true,
+					configuration: {
+						provider: "schedule",
+						event: {
+							id: "schedule.cron",
+							cronExpression: currentCron,
+							timezone: currentTimezone,
+						},
+						enabled,
+					},
+				});
+
+				updateNodeData(node, {
+					content: {
+						...node.content,
+						scheduleCron: currentCron,
+						scheduleTimezone: currentTimezone,
+						scheduleEnabled: enabled,
+						state: {
+							status: "configured",
+							flowTriggerId: triggerId,
+						},
+					},
+					name: node.name,
+				});
+			});
+		},
+		[
+			client,
+			node,
+			workspaceId,
+			currentCron,
+			currentTimezone,
+			updateNodeData,
+			callbacks?.triggerUpdate,
+		],
+	);
 
 	return (
 		<div className="flex flex-col gap-[16px] p-[16px]">
@@ -84,6 +155,26 @@ export function ScheduleTriggerPropertiesPanel({
 				<ClockIcon className="size-[16px] text-trigger-node-1" />
 				<span className="text-[13px] font-semibold text-inverse">
 					Schedule Configuration
+				</span>
+			</div>
+
+			{/* Status */}
+			<div
+				className={`flex items-center gap-[8px] rounded-[8px] p-[10px] ${
+					isEnabled
+						? "bg-green-500/10 border border-green-500/30"
+						: "bg-inverse/5"
+				}`}
+			>
+				{isEnabled ? (
+					<CheckCircle2Icon className="size-[14px] text-green-400" />
+				) : (
+					<PowerIcon className="size-[14px] text-inverse/40" />
+				)}
+				<span
+					className={`text-[12px] font-medium ${isEnabled ? "text-green-400" : "text-inverse/50"}`}
+				>
+					{isEnabled ? "Active" : "Inactive"}
 				</span>
 			</div>
 
@@ -172,6 +263,49 @@ export function ScheduleTriggerPropertiesPanel({
 						</option>
 					))}
 				</select>
+			</div>
+
+			{/* Enable / Disable + Save */}
+			<div className="flex gap-[8px] pt-[8px]">
+				{isEnabled ? (
+					<button
+						type="button"
+						onClick={() => handleSave(false)}
+						disabled={isPending}
+						className="flex-1 flex items-center justify-center gap-[6px] px-[12px] py-[8px] rounded-[8px] bg-red-500/10 border border-red-500/30 text-red-400 text-[12px] font-medium hover:bg-red-500/20 transition-colors disabled:opacity-50"
+					>
+						{isPending ? (
+							<SpinnerIcon className="animate-follow-through-overlap-spin size-[14px]" />
+						) : (
+							<PowerIcon className="size-[14px]" />
+						)}
+						{isPending ? "Saving..." : "Disable Schedule"}
+					</button>
+				) : (
+					<button
+						type="button"
+						onClick={() => handleSave(true)}
+						disabled={isPending}
+						className="flex-1 flex items-center justify-center gap-[6px] px-[12px] py-[8px] rounded-[8px] bg-green-500/10 border border-green-500/30 text-green-400 text-[12px] font-medium hover:bg-green-500/20 transition-colors disabled:opacity-50"
+					>
+						{isPending ? (
+							<SpinnerIcon className="animate-follow-through-overlap-spin size-[14px]" />
+						) : (
+							<PowerIcon className="size-[14px]" />
+						)}
+						{isPending ? "Saving..." : "Enable Schedule"}
+					</button>
+				)}
+				{!isEnabled && (
+					<button
+						type="button"
+						onClick={() => handleSave(false)}
+						disabled={isPending}
+						className="px-[12px] py-[8px] rounded-[8px] bg-inverse/5 border border-inverse/20 text-inverse/60 text-[12px] font-medium hover:bg-inverse/10 transition-colors disabled:opacity-50"
+					>
+						Save Only
+					</button>
+				)}
 			</div>
 
 			{/* Help text */}

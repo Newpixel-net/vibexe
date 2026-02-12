@@ -1,9 +1,22 @@
 "use client";
 
 import type { TriggerNode } from "@giselles-ai/protocol";
-import { CheckIcon, CopyIcon, GlobeIcon } from "lucide-react";
-import { useCallback, useState } from "react";
-import { useUpdateNodeDataContent } from "../../../../../app-designer";
+import { useTrigger } from "@giselles-ai/react";
+import {
+	CheckCircle2Icon,
+	CheckIcon,
+	CopyIcon,
+	GlobeIcon,
+	PowerIcon,
+} from "lucide-react";
+import { useCallback, useState, useTransition } from "react";
+import {
+	useAppDesignerStore,
+	useUpdateNodeData,
+	useUpdateNodeDataContent,
+} from "../../../../../app-designer";
+import { useGiselle } from "../../../../../app-designer/store/giselle-client-provider";
+import { SpinnerIcon } from "../../../../../icons";
 
 export function WebhookTriggerPropertiesPanel({
 	node,
@@ -11,14 +24,23 @@ export function WebhookTriggerPropertiesPanel({
 	node: TriggerNode;
 }) {
 	const updateNodeDataContent = useUpdateNodeDataContent();
+	const updateNodeData = useUpdateNodeData();
+	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
+	const client = useGiselle();
+	const { callbacks } = useTrigger();
 	const [copied, setCopied] = useState(false);
+	const [isPending, startTransition] = useTransition();
 
+	const content = node.content as Record<string, unknown>;
 	const webhookPath =
-		(node.content as Record<string, unknown>).webhookPath as string ??
+		(content.webhookPath as string) ??
 		node.id.replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
 
-	const method =
-		(node.content as Record<string, unknown>).webhookMethod as string ?? "POST";
+	const method = (content.webhookMethod as string) ?? "POST";
+	const isConfigured = content.state
+		? (content.state as Record<string, unknown>).status === "configured"
+		: false;
+	const isEnabled = (content.webhookEnabled as boolean) ?? false;
 
 	const siteUrl =
 		typeof window !== "undefined"
@@ -42,6 +64,68 @@ export function WebhookTriggerPropertiesPanel({
 		[node, updateNodeDataContent],
 	);
 
+	const handleSave = useCallback(
+		(enabled: boolean) => {
+			startTransition(async () => {
+				const { triggerId } = await client.configureTrigger({
+					trigger: {
+						nodeId: node.id,
+						workspaceId,
+						enable: true,
+						configuration: {
+							provider: "webhook",
+							event: {
+								id: "webhook.http.received",
+								webhookPath,
+								method: method as "GET" | "POST",
+							},
+							enabled,
+						},
+					},
+				});
+
+				await callbacks?.triggerUpdate?.({
+					id: triggerId,
+					nodeId: node.id,
+					workspaceId,
+					enable: true,
+					configuration: {
+						provider: "webhook",
+						event: {
+							id: "webhook.http.received",
+							webhookPath,
+							method: method as "GET" | "POST",
+						},
+						enabled,
+					},
+				});
+
+				updateNodeData(node, {
+					content: {
+						...node.content,
+						webhookPath,
+						webhookMethod: method,
+						webhookEnabled: enabled,
+						state: {
+							status: "configured",
+							flowTriggerId: triggerId,
+						},
+					},
+					name: node.name,
+				});
+			});
+		},
+		[
+			client,
+			node,
+			workspaceId,
+			webhookPath,
+			method,
+			updateNodeData,
+			callbacks?.triggerUpdate,
+		],
+	);
+
 	return (
 		<div className="flex flex-col gap-[16px] p-[16px]">
 			{/* Header */}
@@ -49,6 +133,26 @@ export function WebhookTriggerPropertiesPanel({
 				<GlobeIcon className="size-[16px] text-trigger-node-1" />
 				<span className="text-[13px] font-semibold text-inverse">
 					Webhook Configuration
+				</span>
+			</div>
+
+			{/* Status */}
+			<div
+				className={`flex items-center gap-[8px] rounded-[8px] p-[10px] ${
+					isEnabled
+						? "bg-green-500/10 border border-green-500/30"
+						: "bg-inverse/5"
+				}`}
+			>
+				{isEnabled ? (
+					<CheckCircle2Icon className="size-[14px] text-green-400" />
+				) : (
+					<PowerIcon className="size-[14px] text-inverse/40" />
+				)}
+				<span
+					className={`text-[12px] font-medium ${isEnabled ? "text-green-400" : "text-inverse/50"}`}
+				>
+					{isEnabled ? "Active" : "Inactive"}
 				</span>
 			</div>
 
@@ -112,6 +216,49 @@ export function WebhookTriggerPropertiesPanel({
 							: `curl "${webhookUrl}"`}
 					</code>
 				</div>
+			</div>
+
+			{/* Enable / Disable + Save */}
+			<div className="flex gap-[8px] pt-[8px]">
+				{isEnabled ? (
+					<button
+						type="button"
+						onClick={() => handleSave(false)}
+						disabled={isPending}
+						className="flex-1 flex items-center justify-center gap-[6px] px-[12px] py-[8px] rounded-[8px] bg-red-500/10 border border-red-500/30 text-red-400 text-[12px] font-medium hover:bg-red-500/20 transition-colors disabled:opacity-50"
+					>
+						{isPending ? (
+							<SpinnerIcon className="animate-follow-through-overlap-spin size-[14px]" />
+						) : (
+							<PowerIcon className="size-[14px]" />
+						)}
+						{isPending ? "Saving..." : "Disable Webhook"}
+					</button>
+				) : (
+					<button
+						type="button"
+						onClick={() => handleSave(true)}
+						disabled={isPending}
+						className="flex-1 flex items-center justify-center gap-[6px] px-[12px] py-[8px] rounded-[8px] bg-green-500/10 border border-green-500/30 text-green-400 text-[12px] font-medium hover:bg-green-500/20 transition-colors disabled:opacity-50"
+					>
+						{isPending ? (
+							<SpinnerIcon className="animate-follow-through-overlap-spin size-[14px]" />
+						) : (
+							<PowerIcon className="size-[14px]" />
+						)}
+						{isPending ? "Saving..." : "Enable Webhook"}
+					</button>
+				)}
+				{!isEnabled && (
+					<button
+						type="button"
+						onClick={() => handleSave(false)}
+						disabled={isPending}
+						className="px-[12px] py-[8px] rounded-[8px] bg-inverse/5 border border-inverse/20 text-inverse/60 text-[12px] font-medium hover:bg-inverse/10 transition-colors disabled:opacity-50"
+					>
+						Save Only
+					</button>
+				)}
 			</div>
 
 			{/* Help text */}

@@ -1,10 +1,17 @@
 import { Background } from "@giselle-internal/workflow-designer-ui";
 import { type Workspace, WorkspaceId } from "@giselles-ai/protocol";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { giselle } from "@/app/giselle";
-import { agents, db, flowTriggers, workspaces } from "@/db";
+import {
+	agents,
+	db,
+	flowTriggers,
+	scheduledWorkflows,
+	webhookEndpoints,
+	workspaces,
+} from "@/db";
 import { generateContentNodeFlag } from "@/flags";
 import { logger } from "@/lib/logger";
 import { getGitHubIntegrationState } from "@/packages/lib/github";
@@ -77,6 +84,110 @@ async function WorkflowContent({
 								flowTrigger.configuration.staged,
 						},
 					});
+
+				// Persist schedule trigger to scheduled_workflows table
+				if (flowTrigger.configuration.provider === "schedule") {
+					const { cronExpression, timezone } =
+						flowTrigger.configuration.event;
+					const enabled = flowTrigger.configuration.enabled ?? false;
+					const nextRunAt = enabled
+						? calculateNextRun(cronExpression, timezone)
+						: null;
+
+					// Check if a schedule already exists for this workspace + node
+					const [existing] = await db
+						.select()
+						.from(scheduledWorkflows)
+						.where(
+							and(
+								eq(
+									scheduledWorkflows.sdkWorkspaceId,
+									flowTrigger.workspaceId,
+								),
+								eq(
+									scheduledWorkflows.agentNodeId,
+									flowTrigger.nodeId,
+								),
+							),
+						)
+						.limit(1);
+
+					if (existing) {
+						await db
+							.update(scheduledWorkflows)
+							.set({
+								cronExpression,
+								timezone,
+								enabled,
+								nextRunAt,
+								sdkFlowTriggerId: flowTrigger.id,
+							})
+							.where(eq(scheduledWorkflows.dbId, existing.dbId));
+					} else {
+						await db.insert(scheduledWorkflows).values({
+							teamDbId: workspace.teamDbId,
+							sdkWorkspaceId: flowTrigger.workspaceId,
+							agentNodeId: flowTrigger.nodeId,
+							sdkFlowTriggerId: flowTrigger.id,
+							cronExpression,
+							timezone,
+							enabled,
+							nextRunAt,
+						});
+					}
+					logger.info(
+						`[Trigger] Schedule ${enabled ? "enabled" : "saved"}: workspace=${flowTrigger.workspaceId}, cron=${cronExpression}`,
+					);
+				}
+
+				// Persist webhook trigger to webhook_endpoints table
+				if (flowTrigger.configuration.provider === "webhook") {
+					const { webhookPath, method } =
+						flowTrigger.configuration.event;
+					const enabled = flowTrigger.configuration.enabled ?? true;
+
+					const [existing] = await db
+						.select()
+						.from(webhookEndpoints)
+						.where(
+							and(
+								eq(
+									webhookEndpoints.sdkWorkspaceId,
+									flowTrigger.workspaceId,
+								),
+								eq(
+									webhookEndpoints.agentNodeId,
+									flowTrigger.nodeId,
+								),
+							),
+						)
+						.limit(1);
+
+					if (existing) {
+						await db
+							.update(webhookEndpoints)
+							.set({
+								webhookPath,
+								method,
+								enabled,
+								sdkFlowTriggerId: flowTrigger.id,
+							})
+							.where(eq(webhookEndpoints.dbId, existing.dbId));
+					} else {
+						await db.insert(webhookEndpoints).values({
+							teamDbId: workspace.teamDbId,
+							sdkWorkspaceId: flowTrigger.workspaceId,
+							agentNodeId: flowTrigger.nodeId,
+							sdkFlowTriggerId: flowTrigger.id,
+							webhookPath,
+							method,
+							enabled,
+						});
+					}
+					logger.info(
+						`[Trigger] Webhook ${enabled ? "enabled" : "saved"}: workspace=${flowTrigger.workspaceId}, path=${webhookPath}`,
+					);
+				}
 			}}
 			workspaceNameUpdateAction={async (name: string) => {
 				"use server";
@@ -130,4 +241,67 @@ export default async function ({
 			<WorkflowContent workspaceId={workspaceId} />
 		</Suspense>
 	);
+}
+
+/**
+ * Calculate the next run time from a cron expression.
+ * Simple implementation supporting standard 5-field cron.
+ */
+function calculateNextRun(cronExpression: string, _timezone: string): Date {
+	const now = new Date();
+	const parts = cronExpression.split(" ");
+
+	if (parts.length !== 5) {
+		const next = new Date(now);
+		next.setMinutes(0);
+		next.setSeconds(0);
+		next.setHours(next.getHours() + 1);
+		return next;
+	}
+
+	const [minute, hour] = parts;
+
+	// Every minute: * * * * *
+	if (minute === "*" && hour === "*") {
+		return new Date(now.getTime() + 60_000);
+	}
+
+	// Every N minutes: */N * * * *
+	if (minute?.startsWith("*/") && hour === "*") {
+		const interval = Number.parseInt(minute.slice(2), 10);
+		if (!Number.isNaN(interval) && interval > 0) {
+			return new Date(now.getTime() + interval * 60_000);
+		}
+	}
+
+	// Fixed minute, every hour: N * * * *
+	if (minute !== "*" && hour === "*") {
+		const targetMinute = Number.parseInt(minute!, 10);
+		const next = new Date(now);
+		next.setSeconds(0);
+		next.setMilliseconds(0);
+		if (now.getMinutes() >= targetMinute) {
+			next.setHours(next.getHours() + 1);
+		}
+		next.setMinutes(targetMinute);
+		return next;
+	}
+
+	// Fixed time: M H * * *
+	if (minute !== "*" && hour !== "*") {
+		const targetMinute = Number.parseInt(minute!, 10);
+		const targetHour = Number.parseInt(hour!, 10);
+		const next = new Date(now);
+		next.setSeconds(0);
+		next.setMilliseconds(0);
+		next.setMinutes(targetMinute);
+		next.setHours(targetHour);
+		if (next <= now) {
+			next.setDate(next.getDate() + 1);
+		}
+		return next;
+	}
+
+	// Default fallback: 1 hour from now
+	return new Date(now.getTime() + 3600_000);
 }

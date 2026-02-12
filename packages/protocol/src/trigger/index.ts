@@ -2,6 +2,7 @@ import { createIdGenerator } from "@giselles-ai/utils";
 import * as z from "zod/v4";
 import { NodeId } from "../node/base";
 import { WorkspaceId } from "../workspace/id";
+import { ChatTrigger } from "./chat";
 import { GitHubEventConfiguration } from "./github";
 import { ManualTrigger } from "./manual";
 import { ScheduleTrigger } from "./schedule";
@@ -26,6 +27,12 @@ export {
 	WebhookPathId,
 } from "./webhook";
 
+export {
+	ChatTrigger,
+	ChatTriggerEvent,
+	ChatTriggerWidgetConfig,
+} from "./chat";
+
 export const TriggerId = createIdGenerator("fltg");
 export type TriggerId = z.infer<typeof TriggerId.schema>;
 
@@ -39,6 +46,7 @@ export const Trigger = z.object({
 		ManualTrigger,
 		ScheduleTrigger,
 		WebhookTrigger,
+		ChatTrigger,
 	]),
 });
 export type Trigger = z.infer<typeof Trigger>;

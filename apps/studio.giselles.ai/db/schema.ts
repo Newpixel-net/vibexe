@@ -1564,3 +1564,38 @@ export const webhookEndpoints = pgTable(
 		index("webhook_endpoints_enabled_idx").on(table.enabled),
 	],
 );
+
+// Chat Sessions - persistent chat conversations
+export const chatSessions = pgTable(
+	"chat_sessions",
+	{
+		dbId: serial("db_id").primaryKey(),
+		sessionId: text("session_id").notNull(),
+		sdkWorkspaceId: text("workspace_id").$type<WorkspaceId>().notNull(),
+		agentNodeId: text("agent_node_id").notNull(),
+		metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		lastMessageAt: timestamp("last_message_at").defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("chat_sessions_session_id_unique").on(table.sessionId),
+		index("chat_sessions_workspace_idx").on(table.sdkWorkspaceId),
+	],
+);
+
+// Chat Messages - individual messages in a chat session
+export const chatMessages = pgTable(
+	"chat_messages",
+	{
+		dbId: serial("db_id").primaryKey(),
+		sessionDbId: integer("session_db_id")
+			.notNull()
+			.references(() => chatSessions.dbId, { onDelete: "cascade" }),
+		role: text("role").notNull().$type<"user" | "assistant">(),
+		content: text("content").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("chat_messages_session_idx").on(table.sessionDbId),
+	],
+);

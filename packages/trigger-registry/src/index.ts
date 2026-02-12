@@ -23,6 +23,11 @@ export const triggerRegistry = [
 		label: "Webhook Trigger",
 		events: [],
 	},
+	{
+		provider: "chat",
+		label: "Chat Trigger",
+		events: [],
+	},
 ] as const;
 
 export type TriggerProvider = (typeof triggerRegistry)[number]["provider"];

@@ -4,6 +4,7 @@ import { createContext, useContext, useState } from "react";
 import { useDeleteNode, useUpdateNodeData } from "../../../app-designer";
 import { PropertiesPanelContent, PropertiesPanelRoot } from "../ui";
 import { NodePanelHeader } from "../ui/node-panel-header";
+import { ChatTriggerPropertiesPanel } from "./providers/chat-trigger/chat-trigger-properties-panel";
 import { GitHubTriggerPropertiesPanel } from "./providers/github-trigger/github-trigger-properties-panel";
 import { ManualTriggerPropertiesPanel } from "./providers/manual-trigger/manual-trigger-properties-panel";
 import { ScheduleTriggerPropertiesPanel } from "./providers/schedule-trigger/schedule-trigger-properties-panel";
@@ -46,6 +47,8 @@ function PropertiesPanel({ node }: { node: TriggerNode }) {
 			return <ScheduleTriggerPropertiesPanel node={node} />;
 		case "webhook":
 			return <WebhookTriggerPropertiesPanel node={node} />;
+		case "chat":
+			return <ChatTriggerPropertiesPanel node={node} />;
 		default: {
 			const _exhaustiveCheck: never = node.content.provider;
 			throw new Error(`Unhandled action: ${_exhaustiveCheck}`);
