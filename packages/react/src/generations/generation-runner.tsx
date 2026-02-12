@@ -62,6 +62,18 @@ export function GenerationRunner({ generation }: { generation: Generation }) {
 		case "memoryNode":
 			// Sub-nodes are configuration-only; no runner needed
 			return null;
+		case "if":
+		case "switch":
+		case "merge":
+		case "loop":
+		case "code":
+		case "filter":
+		case "editFields":
+		case "sort":
+		case "wait":
+		case "errorTrigger":
+			// Flow control & data transform nodes are handled by DAG executor, no client-side runner
+			return null;
 		default: {
 			const _exhaustiveCheck: never = generationContext.operationNode.content;
 			return _exhaustiveCheck;
