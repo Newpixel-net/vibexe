@@ -11,9 +11,14 @@ import {
 	ArrowDownIcon,
 	ArrowUpIcon,
 	CheckCircleIcon,
+	ChevronDownIcon,
+	ChevronRightIcon,
+	PlayIcon,
+	SquareIcon,
 	TimerIcon,
 	XCircleIcon,
 } from "lucide-react";
+import { useState } from "react";
 import { useAppDesignerStore } from "../../app-designer";
 import { TextGenerationIcon } from "../../icons";
 import ClipboardButton from "../../ui/clipboard-button";
@@ -63,22 +68,112 @@ function getErrorContent(generation: Generation): string {
 	return "";
 }
 
-export function OutputPanel({ nodeId }: { nodeId: NodeId }) {
+/** Renders structured data outputs (JSON tree viewer) */
+function StructuredDataSection({
+	generation,
+}: { generation: CompletedGeneration }) {
+	const [expanded, setExpanded] = useState(false);
+
+	const structuredOutputs = generation.outputs.filter(
+		(o) =>
+			o.type === "structured-data" ||
+			o.type === "data-query-result" ||
+			o.type === "query-result",
+	);
+
+	if (structuredOutputs.length === 0) return null;
+
+	return (
+		<div className="border-t border-inverse/5 px-[10px] py-[6px]">
+			<button
+				type="button"
+				className="flex items-center gap-[4px] text-[11px] text-inverse/50 hover:text-inverse/70"
+				onClick={() => setExpanded(!expanded)}
+			>
+				{expanded ? (
+					<ChevronDownIcon className="size-[10px]" />
+				) : (
+					<ChevronRightIcon className="size-[10px]" />
+				)}
+				Structured Data ({structuredOutputs.length})
+			</button>
+			{expanded && (
+				<div className="mt-[6px] space-y-[6px]">
+					{structuredOutputs.map((output, idx) => {
+						const data =
+							output.type === "structured-data"
+								? output.data
+								: output.type === "data-query-result"
+									? output.content
+									: output.type === "query-result"
+										? output.content
+										: null;
+
+						return (
+							<div
+								key={`struct-${idx}`}
+								className="relative group"
+							>
+								<pre className="p-[8px] rounded-[6px] bg-blue-500/5 text-[10px] text-blue-300/70 whitespace-pre-wrap break-all max-h-[200px] overflow-y-auto font-mono">
+									{JSON.stringify(data, null, 2)}
+								</pre>
+								<ClipboardButton
+									text={JSON.stringify(data, null, 2)}
+									tooltip="Copy JSON"
+									className="absolute top-[4px] right-[4px] opacity-0 group-hover:opacity-100 transition-opacity text-inverse/30 hover:text-inverse/60"
+								/>
+							</div>
+						);
+					})}
+				</div>
+			)}
+		</div>
+	);
+}
+
+export function OutputPanel({
+	nodeId,
+	onExecuteStep,
+}: {
+	nodeId: NodeId;
+	onExecuteStep?: () => void;
+}) {
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
 	const { currentGeneration } = useNodeGenerations({
 		nodeId,
 		origin: { type: "studio", workspaceId },
 	});
 
+	const isRunning =
+		currentGeneration?.status === "created" ||
+		currentGeneration?.status === "queued" ||
+		currentGeneration?.status === "running";
+
 	if (!currentGeneration) {
 		return (
-			<div className="p-[12px]">
-				<EmptyState
-					icon={<TextGenerationIcon width={16} height={16} />}
-					title="No output yet"
-					description="Run the node to see results."
-					className="text-inverse/40"
-				/>
+			<div className="flex flex-col h-full">
+				{/* Execute Step button when no output */}
+				{onExecuteStep && (
+					<div className="flex items-center gap-[6px] px-[10px] py-[6px] border-b border-inverse/10">
+						<div className="flex-1" />
+						<button
+							type="button"
+							onClick={onExecuteStep}
+							className="flex items-center gap-[4px] px-[8px] py-[3px] text-[11px] font-medium rounded-[4px] bg-blue-600/80 hover:bg-blue-500/80 text-white transition-colors"
+						>
+							<PlayIcon className="size-[10px]" />
+							Execute Step
+						</button>
+					</div>
+				)}
+				<div className="flex-1 p-[12px]">
+					<EmptyState
+						icon={<TextGenerationIcon width={16} height={16} />}
+						title="No output yet"
+						description="Run the node to see results."
+						className="text-inverse/40"
+					/>
+				</div>
 			</div>
 		);
 	}
@@ -87,9 +182,7 @@ export function OutputPanel({ nodeId }: { nodeId: NodeId }) {
 		<div className="flex flex-col h-full">
 			{/* Status bar */}
 			<div className="flex items-center gap-[6px] px-[10px] py-[6px] border-b border-inverse/10">
-				{(currentGeneration.status === "created" ||
-					currentGeneration.status === "queued" ||
-					currentGeneration.status === "running") && (
+				{isRunning && (
 					<>
 						<div className="size-[6px] rounded-full bg-yellow-400 animate-pulse" />
 						<span className="text-[11px] text-inverse/60">Running...</span>
@@ -112,6 +205,19 @@ export function OutputPanel({ nodeId }: { nodeId: NodeId }) {
 				)}
 
 				<div className="flex-1" />
+
+				{/* Execute Step / Stop button */}
+				{onExecuteStep && !isRunning && (
+					<button
+						type="button"
+						onClick={onExecuteStep}
+						className="flex items-center gap-[4px] px-[6px] py-[2px] text-[10px] font-medium rounded-[3px] bg-blue-600/60 hover:bg-blue-500/70 text-white/80 transition-colors"
+						title="Re-execute this step"
+					>
+						<PlayIcon className="size-[8px]" />
+						Run
+					</button>
+				)}
 
 				{(currentGeneration.status === "completed" ||
 					currentGeneration.status === "cancelled") && (
@@ -165,6 +271,11 @@ export function OutputPanel({ nodeId }: { nodeId: NodeId }) {
 					<GenerationView generation={currentGeneration} />
 				</div>
 			</div>
+
+			{/* Structured data outputs */}
+			{currentGeneration.status === "completed" && (
+				<StructuredDataSection generation={currentGeneration as CompletedGeneration} />
+			)}
 		</div>
 	);
 }

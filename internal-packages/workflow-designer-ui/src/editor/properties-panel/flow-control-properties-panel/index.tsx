@@ -9,6 +9,7 @@ import type {
 	IfNode,
 	LoopNode,
 	MergeNode,
+	NodeId,
 	OperationNode,
 	SortNode,
 	SwitchNode,
@@ -24,6 +25,7 @@ import {
 	PropertiesPanelContent,
 	PropertiesPanelRoot,
 } from "../ui";
+import { ExpressionInput } from "../ui/expression-input";
 import { NodeSettingsTab } from "../ui/node-settings-tab";
 import { PanelTabs } from "../ui/panel-tabs";
 import { SettingLabel } from "../ui/setting-label";
@@ -194,6 +196,7 @@ function IfPanel({
 					<ConditionRow
 						key={`condition-${i}`}
 						condition={cond}
+						nodeId={node.id as NodeId}
 						onChange={(updated) => {
 							const conditions = [
 								...node.content.conditionGroup.conditions,
@@ -247,6 +250,7 @@ function ConditionRow({
 	condition,
 	onChange,
 	onRemove,
+	nodeId,
 }: {
 	condition: {
 		field: string;
@@ -259,19 +263,17 @@ function ConditionRow({
 		value?: string;
 	}) => void;
 	onRemove: () => void;
+	nodeId?: NodeId;
 }) {
 	return (
 		<div className="flex gap-[4px] items-end">
 			<div className="flex-1">
 				<label className="text-[10px] text-text-muted/70">Field</label>
-				<input
-					type="text"
-					className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text"
+				<ExpressionInput
 					value={condition.field}
-					onChange={(e) =>
-						onChange({ ...condition, field: e.target.value })
-					}
+					onChange={(v) => onChange({ ...condition, field: v })}
 					placeholder="e.g. status"
+					nodeId={nodeId}
 				/>
 			</div>
 			<div className="w-[120px]">
@@ -302,14 +304,11 @@ function ConditionRow({
 			</div>
 			<div className="flex-1">
 				<label className="text-[10px] text-text-muted/70">Value</label>
-				<input
-					type="text"
-					className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text"
+				<ExpressionInput
 					value={condition.value ?? ""}
-					onChange={(e) =>
-						onChange({ ...condition, value: e.target.value })
-					}
+					onChange={(v) => onChange({ ...condition, value: v })}
 					placeholder="compare value"
+					nodeId={nodeId}
 				/>
 			</div>
 			<button
@@ -607,6 +606,7 @@ function FilterPanel({
 					<ConditionRow
 						key={`filter-cond-${i}`}
 						condition={cond}
+						nodeId={node.id as NodeId}
 						onChange={(updated) => {
 							const conditions = [
 								...node.content.conditionGroup.conditions,
@@ -737,20 +737,20 @@ function EditFieldsPanel({
 								<label className="text-[10px] text-text-muted/70">
 									Value
 								</label>
-								<input
-									type="text"
-									className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text"
+								<ExpressionInput
 									value={op.value ?? ""}
-									onChange={(e) => {
+									onChange={(v) => {
 										const operations = [
 											...node.content.operations,
 										];
 										operations[i] = {
 											...op,
-											value: e.target.value,
+											value: v,
 										};
 										updateContent(node, { operations });
 									}}
+									placeholder="value or expression"
+									nodeId={node.id as NodeId}
 								/>
 							</div>
 						)}

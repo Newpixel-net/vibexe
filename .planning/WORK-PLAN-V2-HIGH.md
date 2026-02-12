@@ -12,12 +12,12 @@
 
 | Gap | Status | Notes |
 |-----|--------|-------|
-| GAP 5: AI Agent Sub-Nodes | NOT STARTED | Complex canvas changes needed |
+| GAP 5: AI Agent Sub-Nodes | COMPLETE | Already implemented: protocol schemas, BottomHandles canvas rendering, sub-node-add events, generateContentV2 resolution |
 | GAP 6: AI Chain Templates | COMPLETE | `chain-templates.ts` + template selector dropdown in AI Agent panel |
-| GAP 7: Vector Stores & RAG | NOT STARTED | Requires external infrastructure |
+| GAP 7: Vector Stores & RAG | DEFERRED | Requires external infrastructure (Pinecone/Weaviate/Qdrant) — Phase C long-term |
 | GAP 8: Execution History | COMPLETE | RunHistoryTable, API, V2 header tabs, canvas execution indicators (status badges + CSS pulse) |
-| GAP 9: Multiple Triggers | NOT STARTED | Requires DAG changes for selective trigger firing |
-| GAP 10: 3-Panel All Nodes | PARTIAL (60%) | `isThreePanelNode()` includes flow control. Missing: InputPanel data values, OutputPanel structured data, Execute Step button |
+| GAP 9: Multiple Triggers | COMPLETE | Already supported: Run button dropdown for multiple triggers, DB per-node registration, cron/webhook pass specific nodeId, create-task.ts prefers specified nodeId as starter |
+| GAP 10: 3-Panel All Nodes | COMPLETE | InputPanel with SourceDataPreview (upstream generation data), OutputPanel with StructuredDataSection + Execute Step button, ExpressionInput with fx toggle |
 
 ---
 

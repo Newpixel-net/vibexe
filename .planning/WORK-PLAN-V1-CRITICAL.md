@@ -14,10 +14,10 @@
 |-----|--------|-------|
 | GAP 1: Wire DAG Executor | COMPLETE | DAG detection, executeDag(), branch skipping, structured data all wired |
 | GAP 2: Data Transform Execution | COMPLETE | All 4 handlers (code/filter/editFields/sort) dispatched from DAG executor |
-| GAP 3: Expression System | BACKEND COMPLETE | Field access, system vars, condition evaluation all work. UI ExpressionInput component NOT YET BUILT |
+| GAP 3: Expression System | COMPLETE | Field access, system vars, condition evaluation, ExpressionInput UI with fx toggle + autocomplete dropdown |
 | GAP 4: Error Handling | COMPLETE | NodeSettingsTab + PanelTabs on all operation nodes, retry logic in DAG executor |
 
-**Remaining from V1**: ExpressionInput UI component (Step 3.4-3.6) — the `fx` toggle for switching between fixed values and expression mode on parameter fields.
+**V1 FULLY COMPLETE** (2026-02-12): All 4 CRITICAL gaps implemented. ExpressionInput component added to ConditionRow (If/Filter) and EditFields panels.
 
 ---
 

@@ -122,9 +122,20 @@ export async function createTask(
 		}
 	}
 
-	const starterNode = nodes.find(
-		(node) => isTriggerNode(node) || isAppEntryNode(node),
-	);
+	// When a specific nodeId is provided (e.g. from webhook/cron/studio trigger),
+	// prefer that node as the starter if it's a trigger/appEntry.
+	// This supports multiple triggers per workflow — each fires independently.
+	const specifiedStarter =
+		args.nodeId !== undefined
+			? nodes.find(
+					(node) =>
+						node.id === args.nodeId &&
+						(isTriggerNode(node) || isAppEntryNode(node)),
+				)
+			: undefined;
+	const starterNode =
+		specifiedStarter ??
+		nodes.find((node) => isTriggerNode(node) || isAppEntryNode(node));
 
 	if (
 		starterNode?.content.type === "appEntry" &&
