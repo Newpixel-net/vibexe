@@ -909,13 +909,13 @@ export async function checkUsageLimits(args: {
 			error: "Language model not found",
 		};
 	}
-	if (!hasTierAccess(languageModel, usageLimits.featureTier)) {
-		return {
-			type: "error",
-			error:
-				"Access denied: insufficient tier for the requested language model.",
-		};
-	}
+	// Tier check disabled for self-hosted — users manage their own API keys
+	// if (!hasTierAccess(languageModel, usageLimits.featureTier)) {
+	// 	return {
+	// 		type: "error",
+	// 		error: "Access denied: insufficient tier for the requested language model.",
+	// 	};
+	// }
 
 	const agentTimeLimits = usageLimits.resourceLimits.agentTime;
 	if (agentTimeLimits.used >= agentTimeLimits.limit) {
