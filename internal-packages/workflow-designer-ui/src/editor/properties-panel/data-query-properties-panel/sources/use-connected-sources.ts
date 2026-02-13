@@ -117,6 +117,9 @@ export function useConnectedSources(node: DataQueryNode) {
 						case "errorTrigger":
 						case "dataTable":
 						case "formTrigger":
+						case "executeSubWorkflow":
+						case "respondToWebhook":
+						case "customVariables":
 							break;
 						case "end":
 							// End Node has no Output so do nothing

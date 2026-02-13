@@ -277,6 +277,9 @@ export function NodeIcon({
 				case "errorTrigger":
 				case "dataTable":
 				case "formTrigger":
+				case "executeSubWorkflow":
+				case "respondToWebhook":
+				case "customVariables":
 					return <ZapIcon {...props} data-content-type-icon />;
 				default: {
 					const _exhaustiveCheck: never = node.content.type;

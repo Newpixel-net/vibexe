@@ -152,6 +152,9 @@ export function useConnectedSources(node: ImageGenerationNode) {
 						case "errorTrigger":
 						case "dataTable":
 						case "formTrigger":
+						case "executeSubWorkflow":
+						case "respondToWebhook":
+						case "customVariables":
 							break;
 						default: {
 							const _exhaustiveCheck: never = outputNode.content.type;

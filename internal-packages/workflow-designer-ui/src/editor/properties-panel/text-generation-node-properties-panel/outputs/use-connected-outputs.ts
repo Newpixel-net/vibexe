@@ -149,6 +149,9 @@ export function useConnectedOutputs(node: TextGenerationNode) {
 						case "errorTrigger":
 						case "dataTable":
 						case "formTrigger":
+						case "executeSubWorkflow":
+						case "respondToWebhook":
+						case "customVariables":
 							break;
 						default: {
 							const _exhaustiveCheck: never = outputNode.content.type;

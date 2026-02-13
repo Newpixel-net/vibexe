@@ -45,6 +45,9 @@ function getNodeIconColor(node: NodeLike): string {
 			case "errorTrigger":
 			case "dataTable":
 			case "formTrigger":
+			case "executeSubWorkflow":
+			case "respondToWebhook":
+			case "customVariables":
 				return "text-inverse";
 			default: {
 				const _exhaustiveCheck: never = node.content.type;
@@ -121,6 +124,9 @@ function getNodeIconBackground(node: NodeLike): string {
 			case "errorTrigger":
 			case "dataTable":
 			case "formTrigger":
+			case "executeSubWorkflow":
+			case "respondToWebhook":
+			case "customVariables":
 				return "bg-action-node-1";
 			default: {
 				const _exhaustiveCheck: never = node.content.type;

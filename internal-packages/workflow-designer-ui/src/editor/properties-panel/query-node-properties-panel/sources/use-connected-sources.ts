@@ -123,6 +123,9 @@ export function useConnectedSources(node: QueryNode) {
 						case "errorTrigger":
 						case "dataTable":
 						case "formTrigger":
+						case "executeSubWorkflow":
+						case "respondToWebhook":
+						case "customVariables":
 							break;
 						default: {
 							const _exhaustiveCheck: never = outputNode.content.type;

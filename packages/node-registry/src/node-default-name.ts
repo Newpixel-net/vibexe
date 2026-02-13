@@ -154,6 +154,12 @@ export function defaultName(node: NodeLike) {
 					return node.name ?? "Data Table";
 				case "formTrigger":
 					return node.name ?? "Form Trigger";
+				case "executeSubWorkflow":
+					return node.name ?? "Execute Sub-Workflow";
+				case "respondToWebhook":
+					return node.name ?? "Respond to Webhook";
+				case "customVariables":
+					return node.name ?? "Custom Variables";
 				default: {
 					const _exhaustiveCheck: never = node.content.type;
 					throw new Error(`Unhandled action content type: ${_exhaustiveCheck}`);
