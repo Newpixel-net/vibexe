@@ -593,7 +593,16 @@ export function getSubtitleText(node: NodeLike): string | null {
 	if (isAiAgentNode(node)) {
 		const modelId = node.content.languageModel.id ?? "";
 		const parts = modelId.split("/");
-		return `Agent \u00b7 ${parts[parts.length - 1] || node.content.languageModel.provider}`;
+		const agentType = (node.content as { agentType?: string }).agentType ?? "tools";
+		const typeLabels: Record<string, string> = {
+			tools: "Agent",
+			conversational: "Chat",
+			react: "ReAct",
+			planAndExecute: "Plan\u00b7Exec",
+			sql: "SQL",
+		};
+		const label = typeLabels[agentType] ?? "Agent";
+		return `${label} \u00b7 ${parts[parts.length - 1] || node.content.languageModel.provider}`;
 	}
 	if (isChatModelNode(node)) {
 		const modelId = node.content.languageModel.id ?? "";

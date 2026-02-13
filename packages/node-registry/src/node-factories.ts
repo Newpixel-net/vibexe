@@ -1021,11 +1021,13 @@ const aiAgentFactoryImpl = {
 			content: {
 				type: "aiAgent",
 				version: "v1",
+				agentType: "tools",
 				systemPrompt: "",
 				prompt: "",
 				maxSteps: 30,
 				structuredOutput: { enabled: false, schema: "" },
 				fallbackModel: { enabled: false, configuration: {} },
+				outputParser: { type: "none", retryAttempts: 3 },
 				guardrails: { enabled: false, inputRules: [], outputRules: [] },
 				languageModel: {
 					provider: languageModel.providerId,
@@ -1231,13 +1233,16 @@ interface MemoryNodeCreateInput {
 
 const memoryNodeFactoryImpl = {
 	create: (input: MemoryNodeCreateInput): MemoryNodeNode => {
+		const memoryNames: Record<string, string> = {
+			simpleMemory: "Simple Memory",
+			windowBuffer: "Window Buffer Memory",
+			tokenBuffer: "Token Buffer Memory",
+			summary: "Summary Memory",
+		};
 		return {
 			id: NodeId.generate(),
 			type: "operation",
-			name:
-				input.memoryType === "simpleMemory"
-					? "Simple Memory"
-					: "Window Buffer Memory",
+			name: memoryNames[input.memoryType] ?? "Memory",
 			content: {
 				type: "memoryNode",
 				memoryType: input.memoryType,

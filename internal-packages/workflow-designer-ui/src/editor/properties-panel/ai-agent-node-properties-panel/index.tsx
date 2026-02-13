@@ -115,8 +115,47 @@ export function AiAgentNodePropertiesPanel({
 	const usageLimits = useUsageLimits();
 	const userTier: LanguageModelTier = usageLimits?.featureTier ?? "free";
 
+	const agentType = (node.content as { agentType?: string }).agentType ?? "tools";
+	const isConversational = agentType === "conversational";
+	const isSqlAgent = agentType === "sql";
+
 	const parametersContent = (
 		<div className="flex flex-col gap-[12px]">
+			{/* Agent Type Selector */}
+			<div className="flex items-center justify-between gap-[12px] px-[8px]">
+				<SettingDetail size="md">Agent Type</SettingDetail>
+				<select
+					value={agentType}
+					onChange={(e) => {
+						const newType = e.target.value;
+						const updates: Record<string, unknown> = { agentType: newType };
+						// Set sensible defaults per type
+						if (newType === "conversational") {
+							updates.maxSteps = 1;
+						} else if (newType === "sql") {
+							updates.maxSteps = 15;
+						} else if (newType === "planAndExecute") {
+							updates.maxSteps = 50;
+						}
+						updateNodeDataContent(node, updates as Record<string, unknown>);
+					}}
+					className="bg-[color-mix(in_srgb,var(--color-text-inverse,#fff)_10%,transparent)] text-inverse text-[13px] rounded-[6px] px-[8px] py-[5px] border border-white-400/20 outline-none cursor-pointer min-w-[160px]"
+				>
+					<option value="tools">Tools Agent</option>
+					<option value="conversational">Conversational</option>
+					<option value="react">ReAct Agent</option>
+					<option value="planAndExecute">Plan &amp; Execute</option>
+					<option value="sql">SQL Agent</option>
+				</select>
+			</div>
+			<p className="text-[11px] text-white/40 px-[8px] -mt-[8px]">
+				{agentType === "tools" && "Multi-step agent with tool calling (default)"}
+				{agentType === "conversational" && "Multi-turn chat without tools"}
+				{agentType === "react" && "Thought \u2192 Action \u2192 Observation reasoning loop"}
+				{agentType === "planAndExecute" && "Creates a plan, then executes each step"}
+				{agentType === "sql" && "Specialized for database queries with schema awareness"}
+			</p>
+
 			{/* Chain Template Selector */}
 			<div className="flex items-center justify-between gap-[12px] px-[8px]">
 				<SettingDetail size="md">Template</SettingDetail>
@@ -179,22 +218,24 @@ export function AiAgentNodePropertiesPanel({
 				connections={connections}
 			/>
 
-			<div className="flex items-center justify-between gap-[12px] px-[8px]">
-				<SettingDetail size="md">Max Steps</SettingDetail>
-				<input
-					type="number"
-					min={1}
-					max={100}
-					value={node.content.maxSteps ?? 30}
-					onChange={(e) => {
-						const value = Number.parseInt(e.target.value, 10);
-						if (!Number.isNaN(value) && value >= 1 && value <= 100) {
-							updateNodeDataContent(node, { maxSteps: value });
-						}
-					}}
-					className="w-[60px] bg-[color-mix(in_srgb,var(--color-text-inverse,#fff)_10%,transparent)] text-inverse text-[14px] rounded-[6px] px-[8px] py-[4px] border border-white-400/20 text-center"
-				/>
-			</div>
+			{!isConversational && (
+				<div className="flex items-center justify-between gap-[12px] px-[8px]">
+					<SettingDetail size="md">Max Steps</SettingDetail>
+					<input
+						type="number"
+						min={1}
+						max={100}
+						value={node.content.maxSteps ?? 30}
+						onChange={(e) => {
+							const value = Number.parseInt(e.target.value, 10);
+							if (!Number.isNaN(value) && value >= 1 && value <= 100) {
+								updateNodeDataContent(node, { maxSteps: value });
+							}
+						}}
+						className="w-[60px] bg-[color-mix(in_srgb,var(--color-text-inverse,#fff)_10%,transparent)] text-inverse text-[14px] rounded-[6px] px-[8px] py-[4px] border border-white-400/20 text-center"
+					/>
+				</div>
+			)}
 
 			<Toggle
 				name="structured-output"
@@ -288,6 +329,56 @@ export function AiAgentNodePropertiesPanel({
 						/>
 					</div>
 				</div>
+			)}
+
+			{/* Output Parser */}
+			<div className="flex items-center justify-between gap-[12px] px-[8px]">
+				<SettingDetail size="md">Output Parser</SettingDetail>
+				<select
+					value={(node.content as { outputParser?: { type: string } }).outputParser?.type ?? "none"}
+					onChange={(e) => {
+						updateNodeDataContent(node, {
+							outputParser: {
+								...((node.content as { outputParser?: { type: string; retryAttempts: number } }).outputParser ?? { type: "none", retryAttempts: 3 }),
+								type: e.target.value,
+							},
+						});
+					}}
+					className="bg-[color-mix(in_srgb,var(--color-text-inverse,#fff)_10%,transparent)] text-inverse text-[13px] rounded-[6px] px-[8px] py-[5px] border border-white-400/20 outline-none cursor-pointer min-w-[140px]"
+				>
+					<option value="none">None</option>
+					<option value="autoFixing">Auto-Fixing</option>
+					<option value="structured">Structured JSON</option>
+					<option value="itemList">Item List</option>
+				</select>
+			</div>
+			{(node.content as { outputParser?: { type: string } }).outputParser?.type === "autoFixing" && (
+				<div className="flex items-center justify-between gap-[12px] px-[8px]">
+					<SettingDetail size="sm">Retry Attempts</SettingDetail>
+					<input
+						type="number"
+						min={1}
+						max={10}
+						value={(node.content as { outputParser?: { retryAttempts: number } }).outputParser?.retryAttempts ?? 3}
+						onChange={(e) => {
+							const value = Number.parseInt(e.target.value, 10);
+							if (!Number.isNaN(value) && value >= 1 && value <= 10) {
+								updateNodeDataContent(node, {
+									outputParser: {
+										...((node.content as { outputParser?: { type: string; retryAttempts: number } }).outputParser ?? { type: "autoFixing", retryAttempts: 3 }),
+										retryAttempts: value,
+									},
+								});
+							}
+						}}
+						className="w-[50px] bg-[color-mix(in_srgb,var(--color-text-inverse,#fff)_10%,transparent)] text-inverse text-[13px] rounded-[6px] px-[6px] py-[3px] border border-white-400/20 text-center"
+					/>
+				</div>
+			)}
+			{(node.content as { outputParser?: { type: string } }).outputParser?.type === "itemList" && (
+				<p className="text-[11px] text-white/40 px-[8px]">
+					Parses output into a list of items (one per line or JSON array)
+				</p>
 			)}
 
 			<Toggle

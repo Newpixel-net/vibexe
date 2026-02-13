@@ -11,6 +11,9 @@ import * as z from "zod/v4";
 export const AiAgentContent = z.object({
 	type: z.literal("aiAgent"),
 	version: z.literal("v1"),
+	agentType: z
+		.enum(["tools", "conversational", "planAndExecute", "react", "sql"])
+		.default("tools"),
 	languageModel: z.object({
 		provider: z.custom<LanguageModelProvider>((v) =>
 			isLanguageModelProvider(v),
@@ -43,6 +46,14 @@ export const AiAgentContent = z.object({
 			configuration: z.record(z.string(), z.any()).default({}),
 		})
 		.default({ enabled: false, configuration: {} }),
+	outputParser: z
+		.object({
+			type: z
+				.enum(["none", "structured", "autoFixing", "itemList"])
+				.default("none"),
+			retryAttempts: z.number().default(3),
+		})
+		.default({ type: "none", retryAttempts: 3 }),
 	chainTemplateId: z.string().optional(),
 	guardrails: z
 		.object({

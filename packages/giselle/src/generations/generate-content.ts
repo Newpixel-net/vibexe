@@ -993,15 +993,100 @@ function generateContentV2({
 				isFallback: usedFallbackModel,
 			}, "V2 streamText model debug");
 
-			// AI Agent: extract system prompt and maxSteps
+			// AI Agent: extract system prompt, maxSteps, and agent type
 			let agentSystemPrompt =
 				isAiAgentNode(operationNode) && operationNode.content.systemPrompt
 					? operationNode.content.systemPrompt
 					: undefined;
-			const agentMaxSteps =
+			const agentType =
+				isAiAgentNode(operationNode)
+					? (operationNode.content as { agentType?: string }).agentType ?? "tools"
+					: "tools";
+			let agentMaxSteps =
 				isAiAgentNode(operationNode)
 					? operationNode.content.maxSteps ?? 30
 					: undefined;
+			let agentToolSet = toolSet;
+
+			// Agent type-specific behavior modifications
+			if (isAiAgentNode(operationNode)) {
+				switch (agentType) {
+					case "conversational": {
+						// Conversational: no tools, single step, pure chat
+						agentToolSet = {};
+						agentMaxSteps = 1;
+						const conversationalPrefix = "You are a helpful conversational AI assistant. Engage in natural, multi-turn dialogue. Be concise but thorough.";
+						agentSystemPrompt = agentSystemPrompt
+							? `${conversationalPrefix}\n\n${agentSystemPrompt}`
+							: conversationalPrefix;
+						logger.info("Using Conversational agent type (no tools, single step)");
+						break;
+					}
+					case "react": {
+						// ReAct: explicit Thought → Action → Observation loop
+						const reactPrefix = `You are a ReAct (Reasoning and Acting) agent. For each step, follow this pattern strictly:
+
+Thought: [Analyze what you know and what you need to do next]
+Action: [Decide which tool to call and with what parameters]
+Observation: [Process the tool result]
+
+Continue the Thought → Action → Observation cycle until you have enough information to provide a final answer. When ready, write your final response prefixed with "Final Answer:".`;
+						agentSystemPrompt = agentSystemPrompt
+							? `${reactPrefix}\n\n${agentSystemPrompt}`
+							: reactPrefix;
+						logger.info("Using ReAct agent type");
+						break;
+					}
+					case "planAndExecute": {
+						// Plan & Execute: two-phase approach
+						const planExecPrefix = `You are a Plan-and-Execute agent. Follow this two-phase approach:
+
+PHASE 1 - PLANNING:
+First, analyze the task and create a numbered step-by-step plan. Output the plan in this format:
+Plan:
+1. [First step]
+2. [Second step]
+...
+
+PHASE 2 - EXECUTION:
+Then execute each step sequentially. For each step:
+- State which step you are executing
+- Use available tools as needed
+- Record the result before moving to the next step
+
+After all steps are complete, provide a final consolidated answer.`;
+						agentSystemPrompt = agentSystemPrompt
+							? `${planExecPrefix}\n\n${agentSystemPrompt}`
+							: planExecPrefix;
+						agentMaxSteps = Math.max(agentMaxSteps ?? 30, 50);
+						logger.info("Using Plan & Execute agent type");
+						break;
+					}
+					case "sql": {
+						// SQL Agent: database-specialized
+						const sqlPrefix = `You are a SQL database expert agent. Your workflow:
+1. First, inspect the database schema using available database tools to understand tables and columns
+2. Generate SQL queries to answer the user's question
+3. Execute queries and interpret results
+4. Provide clear, formatted answers with relevant data
+
+IMPORTANT RULES:
+- Always use SELECT queries first to inspect schema before writing data-modifying queries
+- Prefer LIMIT clauses to avoid returning too many rows
+- Explain your query logic when presenting results
+- Handle errors gracefully and suggest corrections`;
+						agentSystemPrompt = agentSystemPrompt
+							? `${sqlPrefix}\n\n${agentSystemPrompt}`
+							: sqlPrefix;
+						agentMaxSteps = Math.max(agentMaxSteps ?? 15, 15);
+						logger.info("Using SQL agent type");
+						break;
+					}
+					default:
+						// "tools" — default behavior, no modifications
+						break;
+				}
+			}
 
 			// AI Agent: structured output — inject schema into system prompt
 			let structuredOutputSchema: unknown;
@@ -1028,6 +1113,8 @@ function generateContentV2({
 			let memoryConfig: {
 				sessionKey: string;
 				contextWindowLength: number;
+				memoryType?: string;
+				maxTokens?: number;
 			} | null = null;
 
 			if (isAiAgentNode(operationNode)) {
@@ -1046,6 +1133,7 @@ function generateContentV2({
 							memoryType: string;
 							contextWindowLength: number;
 							sessionScope: "agent" | "workspace";
+							maxTokens?: number;
 						};
 						const sessionKey = buildSessionKey(
 							generationContext.origin.workspaceId ?? "",
@@ -1055,6 +1143,8 @@ function generateContentV2({
 						memoryConfig = {
 							sessionKey,
 							contextWindowLength: memContent.contextWindowLength,
+							memoryType: memContent.memoryType,
+							maxTokens: memContent.maxTokens,
 						};
 
 						// Load previous memory messages and prepend them
@@ -1062,6 +1152,10 @@ function generateContentV2({
 							context.storage,
 							sessionKey,
 							memContent.contextWindowLength,
+							{
+								memoryType: memContent.memoryType,
+								maxTokens: memContent.maxTokens,
+							},
 						);
 						if (memoryMessages.length > 0) {
 							const historicalMessages = memoryMessages.map((m) => ({
@@ -1131,7 +1225,7 @@ function generateContentV2({
 				...(agentSystemPrompt ? { system: agentSystemPrompt } : {}),
 				// structuredOutputSchema is injected into system prompt above
 				...(agentMaxSteps ? { maxSteps: agentMaxSteps } : {}),
-				tools: toolSet,
+				tools: agentToolSet,
 				stopWhen: ({ steps }) => {
 					logger.debug(steps, "stopWhen");
 					const lastStep = steps[steps.length - 1];
@@ -1333,6 +1427,73 @@ function generateContentV2({
 						}
 					}
 
+					// AI Agent: Output Parser — post-process output based on parser type
+					const outputParserConfig =
+						isAiAgentNode(operationNode)
+							? (operationNode.content as { outputParser?: { type: string; retryAttempts: number } }).outputParser
+							: undefined;
+					if (outputParserConfig && outputParserConfig.type !== "none" && text) {
+						switch (outputParserConfig.type) {
+							case "structured":
+							case "autoFixing": {
+								let parsed = false;
+								let parseError = "";
+								try {
+									JSON.parse(text.trim());
+									parsed = true;
+								} catch (e) {
+									parseError = e instanceof Error ? e.message : String(e);
+								}
+								if (!parsed && outputParserConfig.type === "autoFixing") {
+									logger.info({ parseError }, "Output parser: auto-fixing malformed JSON");
+									// Extract JSON from markdown code blocks
+									const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+									if (jsonMatch?.[1]) {
+										try {
+											JSON.parse(jsonMatch[1].trim());
+											text = jsonMatch[1].trim();
+											parsed = true;
+											logger.info("Output parser: extracted JSON from code block");
+										} catch { /* still invalid */ }
+									}
+									if (!parsed) {
+										const objectMatch = text.match(/(\{[\s\S]*\})/);
+										const arrayMatch = text.match(/(\[[\s\S]*\])/);
+										const candidate = objectMatch?.[1] ?? arrayMatch?.[1];
+										if (candidate) {
+											try {
+												JSON.parse(candidate);
+												text = candidate;
+												parsed = true;
+												logger.info("Output parser: extracted JSON object/array");
+											} catch { /* still invalid */ }
+										}
+									}
+								}
+								if (!parsed) {
+									logger.warn({ parseError }, "Output parser: could not parse JSON");
+								}
+								break;
+							}
+							case "itemList": {
+								try {
+									const arr = JSON.parse(text.trim());
+									if (Array.isArray(arr)) {
+										text = JSON.stringify(arr, null, 2);
+									}
+								} catch {
+									const items = text
+										.split("\n")
+										.map((line) => line.replace(/^\d+[\.\)]\s*/, "").trim())
+										.filter(Boolean);
+									text = JSON.stringify(items, null, 2);
+									logger.info({ itemCount: items.length }, "Output parser: converted to item list");
+								}
+								break;
+							}
+						}
+					}
+
 					if (generatedTextOutput !== undefined) {
 						generationOutputs.push({
 							type: "generated-text",
@@ -1405,6 +1566,10 @@ function generateContentV2({
 									},
 								],
 								memoryConfig.contextWindowLength * 2,
+								{
+									memoryType: memoryConfig.memoryType,
+									maxTokens: memoryConfig.maxTokens,
+								},
 							);
 							logger.info(
 								{ sessionKey: memoryConfig.sessionKey },
