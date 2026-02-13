@@ -236,6 +236,39 @@ export function useKeyboardShortcuts(
 		isCanvasFocused,
 	);
 
+	// Shift+S — create sticky note at viewport center
+	useKeyAction(
+		"Shift+s",
+		useCallback(() => {
+			window.dispatchEvent(new CustomEvent("add-sticky-note"));
+		}, []),
+		isCanvasFocused,
+	);
+
+	// Enter — open properties panel of selected node
+	useKeyAction(
+		"Enter",
+		useCallback(() => {
+			const selectedNode = nodes.find((n) => n.selected);
+			if (!selectedNode) return;
+			window.dispatchEvent(
+				new CustomEvent("open-properties", {
+					detail: { nodeId: selectedNode.id },
+				}),
+			);
+		}, [nodes]),
+		isCanvasFocused,
+	);
+
+	// ? — show keyboard shortcuts overlay
+	useKeyAction(
+		"Shift+?",
+		useCallback(() => {
+			window.dispatchEvent(new CustomEvent("toggle-shortcuts-overlay"));
+		}, []),
+		isCanvasFocused,
+	);
+
 	// Return handler for preventing browser default shortcuts
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent) => {

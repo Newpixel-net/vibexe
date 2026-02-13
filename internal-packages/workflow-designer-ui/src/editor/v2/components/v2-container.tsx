@@ -947,6 +947,43 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 		};
 	}, []);
 
+	// Listen for "add-sticky-note" events from Shift+S shortcut
+	useEffect(() => {
+		const handler = () => {
+			const center = reactFlowInstance.screenToFlowPosition({
+				x: window.innerWidth / 2,
+				y: window.innerHeight / 2,
+			});
+			addStickyNote({
+				id: `note-${Date.now()}`,
+				text: "",
+				color: "yellow",
+				position: { x: center.x, y: center.y },
+				size: { width: 200, height: 150 },
+			});
+		};
+		window.addEventListener("add-sticky-note", handler);
+		return () => window.removeEventListener("add-sticky-note", handler);
+	}, [reactFlowInstance, addStickyNote]);
+
+	// Listen for "open-properties" events from Enter shortcut
+	useEffect(() => {
+		const handler = (e: Event) => {
+			const detail = (e as CustomEvent).detail as { nodeId: NodeId };
+			setPropertiesNodeId(detail.nodeId);
+		};
+		window.addEventListener("open-properties", handler);
+		return () => window.removeEventListener("open-properties", handler);
+	}, []);
+
+	// Listen for "toggle-shortcuts-overlay" events from ? shortcut
+	const [showShortcutsOverlay, setShowShortcutsOverlay] = useState(false);
+	useEffect(() => {
+		const handler = () => setShowShortcutsOverlay((v) => !v);
+		window.addEventListener("toggle-shortcuts-overlay", handler);
+		return () => window.removeEventListener("toggle-shortcuts-overlay", handler);
+	}, []);
+
 	// Listen for "sub-node-add" custom events from AI Agent bottom handle "+" buttons
 	const addNode = useAddNode();
 	const addConnection = useAddConnection();
@@ -1297,6 +1334,49 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 					/>
 				)}
 				<GradientDef />
+				{/* Keyboard shortcuts overlay — toggled by ? key */}
+				{showShortcutsOverlay && (
+					<div
+						className="absolute inset-0 z-[2000] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+						onClick={() => setShowShortcutsOverlay(false)}
+						onKeyDown={(e) => { if (e.key === "Escape") setShowShortcutsOverlay(false); }}
+						role="dialog"
+						aria-label="Keyboard shortcuts"
+					>
+						<div
+							className="bg-[#1a1a2e] border border-white/10 rounded-[12px] p-[24px] min-w-[400px] max-w-[480px] shadow-2xl"
+							onClick={(e) => e.stopPropagation()}
+						>
+							<div className="flex items-center justify-between mb-[16px]">
+								<h2 className="text-[16px] font-semibold text-white">Keyboard Shortcuts</h2>
+								<button type="button" onClick={() => setShowShortcutsOverlay(false)} className="text-white/40 hover:text-white text-[18px] cursor-pointer">&times;</button>
+							</div>
+							<div className="space-y-[6px] text-[12px]">
+								{[
+									["Ctrl+Z", "Undo"],
+									["Ctrl+Shift+Z", "Redo"],
+									["Ctrl+C", "Copy node"],
+									["Ctrl+V", "Paste node"],
+									["Ctrl+D", "Duplicate node"],
+									["Ctrl+A", "Select all"],
+									["Delete", "Delete selected"],
+									["F2", "Rename node"],
+									["D", "Toggle disable"],
+									["P", "Toggle pin data"],
+									["Enter", "Open properties"],
+									["Shift+S", "Add sticky note"],
+									["Escape", "Cancel / deselect"],
+									["?", "Show this overlay"],
+								].map(([key, desc]) => (
+									<div key={key} className="flex items-center justify-between py-[4px] border-b border-white/5">
+										<span className="text-white/60">{desc}</span>
+										<kbd className="px-[8px] py-[2px] bg-white/10 rounded-[4px] text-white/80 font-mono text-[11px]">{key}</kbd>
+									</div>
+								))}
+							</div>
+						</div>
+					</div>
+				)}
 			</main>
 		</ConfirmProvider>
 	);
