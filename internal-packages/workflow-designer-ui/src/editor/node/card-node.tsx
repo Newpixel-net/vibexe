@@ -343,14 +343,15 @@ function HandleLabel({
 	return (
 		<span
 			className={clsx(
-				"absolute text-[9px] font-medium pointer-events-none",
+				"absolute text-[9px] font-medium pointer-events-none whitespace-nowrap",
 				"px-[5px] py-[1px] rounded-[4px] bg-black/70 backdrop-blur-sm",
 				color ?? "text-inverse/70",
 			)}
-			style={{
-				[side]: side === "right" ? "-44px" : "-52px",
-				top,
-			}}
+			style={
+				side === "right"
+					? { left: "calc(100% + 32px)", top }
+					: { right: "calc(100% + 10px)", top }
+			}
 		>
 			{text}
 		</span>
