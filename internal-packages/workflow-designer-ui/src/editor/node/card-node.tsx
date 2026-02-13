@@ -185,6 +185,44 @@ export function NodeComponent({
 	);
 }
 
+/** Per-output "+" button positioned next to a specific handle */
+function HandlePlusButton({
+	nodeId,
+	outputId,
+	top,
+}: { nodeId: string; outputId: string; top: string }) {
+	const onClick = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			window.dispatchEvent(
+				new CustomEvent("what-happens-next", {
+					detail: { sourceNodeId: nodeId, outputId },
+				}),
+			);
+		},
+		[nodeId, outputId],
+	);
+
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			className={clsx(
+				"absolute -right-[28px]",
+				"w-[16px] h-[16px] rounded-full",
+				"flex items-center justify-center",
+				"bg-inverse/10 backdrop-blur-sm border border-inverse/20",
+				"text-inverse/60 hover:text-inverse hover:bg-inverse/20",
+				"opacity-0 group-hover:opacity-100 transition-opacity duration-150",
+				"cursor-pointer z-10",
+			)}
+			style={{ top }}
+		>
+			<PlusIcon className="w-[10px] h-[10px]" />
+		</button>
+	);
+}
+
 /** All handle rendering for card nodes (input, output, multi-port) */
 function NodeHandles({
 	node,
@@ -199,6 +237,11 @@ function NodeHandles({
 	const contentType = node.content.type;
 	const isInputConnected = connectedInputIds.length > 0;
 	const isOutputConnected = connectedOutputIds.length > 0;
+	const isMultiOutput =
+		contentType === "if" ||
+		contentType === "switch" ||
+		contentType === "loop" ||
+		contentType === "filter";
 
 	const handlePlusClick = useCallback(
 		(e: React.MouseEvent) => {
@@ -244,13 +287,13 @@ function NodeHandles({
 
 			{/* Output handle(s) */}
 			{contentType === "if" ? (
-				<IfOutputHandles v={v} />
+				<IfOutputHandles v={v} nodeId={node.id} />
 			) : contentType === "switch" ? (
 				<SwitchOutputHandles v={v} node={node} />
 			) : contentType === "loop" ? (
-				<LoopOutputHandles v={v} />
+				<LoopOutputHandles v={v} nodeId={node.id} />
 			) : contentType === "filter" ? (
-				<FilterOutputHandles v={v} />
+				<FilterOutputHandles v={v} nodeId={node.id} />
 			) : (
 				<Handle
 					type="source"
@@ -263,22 +306,24 @@ function NodeHandles({
 				/>
 			)}
 
-			{/* Plus button */}
-			<button
-				type="button"
-				onClick={handlePlusClick}
-				className={clsx(
-					"absolute -right-[28px] top-1/2 -translate-y-1/2",
-					"w-[20px] h-[20px] rounded-full",
-					"flex items-center justify-center",
-					"bg-inverse/10 backdrop-blur-sm border border-inverse/20",
-					"text-inverse/60 hover:text-inverse hover:bg-inverse/20",
-					"opacity-0 group-hover:opacity-100 transition-opacity duration-150",
-					"cursor-pointer z-10",
-				)}
-			>
-				<PlusIcon className="w-[12px] h-[12px]" />
-			</button>
+			{/* Single plus button for single-output nodes only */}
+			{!isMultiOutput && (
+				<button
+					type="button"
+					onClick={handlePlusClick}
+					className={clsx(
+						"absolute -right-[28px] top-1/2 -translate-y-1/2",
+						"w-[20px] h-[20px] rounded-full",
+						"flex items-center justify-center",
+						"bg-inverse/10 backdrop-blur-sm border border-inverse/20",
+						"text-inverse/60 hover:text-inverse hover:bg-inverse/20",
+						"opacity-0 group-hover:opacity-100 transition-opacity duration-150",
+						"cursor-pointer z-10",
+					)}
+				>
+					<PlusIcon className="w-[12px] h-[12px]" />
+				</button>
+			)}
 		</>
 	);
 }
@@ -313,7 +358,7 @@ function HandleLabel({
 }
 
 /** If node: true/false labeled output handles */
-function IfOutputHandles({ v }: { v: VariantType }) {
+function IfOutputHandles({ v, nodeId }: { v: VariantType; nodeId: string }) {
 	const positions = getHandlePositions(2);
 	return (
 		<>
@@ -333,6 +378,7 @@ function IfOutputHandles({ v }: { v: VariantType }) {
 				top={`calc(${positions[0]}% - 7px)`}
 				color="text-emerald-400"
 			/>
+			<HandlePlusButton nodeId={nodeId} outputId="true" top={`calc(${positions[0]}% - 8px)`} />
 			<Handle
 				type="source"
 				id="false"
@@ -349,6 +395,7 @@ function IfOutputHandles({ v }: { v: VariantType }) {
 				top={`calc(${positions[1]}% - 7px)`}
 				color="text-red-400"
 			/>
+			<HandlePlusButton nodeId={nodeId} outputId="false" top={`calc(${positions[1]}% - 8px)`} />
 		</>
 	);
 }
@@ -384,6 +431,7 @@ function SwitchOutputHandles({ v, node }: { v: VariantType; node: NodeLike }) {
 						side="right"
 						top={`calc(${positions[i]}% - 7px)`}
 					/>
+					<HandlePlusButton nodeId={node.id} outputId={`case-${i}`} top={`calc(${positions[i]}% - 8px)`} />
 				</span>
 			))}
 		</>
@@ -391,7 +439,7 @@ function SwitchOutputHandles({ v, node }: { v: VariantType; node: NodeLike }) {
 }
 
 /** Loop node: done/loop labeled output handles */
-function LoopOutputHandles({ v }: { v: VariantType }) {
+function LoopOutputHandles({ v, nodeId }: { v: VariantType; nodeId: string }) {
 	const positions = getHandlePositions(2);
 	return (
 		<>
@@ -410,6 +458,7 @@ function LoopOutputHandles({ v }: { v: VariantType }) {
 				side="right"
 				top={`calc(${positions[0]}% - 7px)`}
 			/>
+			<HandlePlusButton nodeId={nodeId} outputId="done" top={`calc(${positions[0]}% - 8px)`} />
 			<Handle
 				type="source"
 				id="loop"
@@ -425,6 +474,7 @@ function LoopOutputHandles({ v }: { v: VariantType }) {
 				side="right"
 				top={`calc(${positions[1]}% - 7px)`}
 			/>
+			<HandlePlusButton nodeId={nodeId} outputId="loop" top={`calc(${positions[1]}% - 8px)`} />
 		</>
 	);
 }
@@ -474,7 +524,7 @@ function MergeInputHandles({
 }
 
 /** Filter node: kept/discarded labeled output handles */
-function FilterOutputHandles({ v }: { v: VariantType }) {
+function FilterOutputHandles({ v, nodeId }: { v: VariantType; nodeId: string }) {
 	const positions = getHandlePositions(2);
 	return (
 		<>
@@ -494,6 +544,7 @@ function FilterOutputHandles({ v }: { v: VariantType }) {
 				top={`calc(${positions[0]}% - 7px)`}
 				color="text-emerald-400"
 			/>
+			<HandlePlusButton nodeId={nodeId} outputId="kept" top={`calc(${positions[0]}% - 8px)`} />
 			<Handle
 				type="source"
 				id="discarded"
@@ -510,6 +561,7 @@ function FilterOutputHandles({ v }: { v: VariantType }) {
 				top={`calc(${positions[1]}% - 7px)`}
 				color="text-red-400"
 			/>
+			<HandlePlusButton nodeId={nodeId} outputId="discarded" top={`calc(${positions[1]}% - 8px)`} />
 		</>
 	);
 }

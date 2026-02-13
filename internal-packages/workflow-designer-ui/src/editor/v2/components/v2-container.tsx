@@ -611,14 +611,30 @@ function V2NodeCanvas() {
 			selectSingleNode(nodeClicked.id);
 			// Always maintain canvas focus when clicking nodes
 			setCurrentShortcutScope("canvas");
+			// Do NOT open properties panel on single click — double-click opens it
 		},
 		[selectSingleNode, setCurrentShortcutScope],
+	);
+
+	const handleNodeDoubleClick: NodeMouseHandler = useCallback(
+		(_event, nodeClicked) => {
+			selectSingleNode(nodeClicked.id);
+			// Dispatch custom event so V2Container can open properties panel
+			window.dispatchEvent(
+				new CustomEvent("open-properties-panel", {
+					detail: { nodeId: nodeClicked.id },
+				}),
+			);
+		},
+		[selectSingleNode],
 	);
 
 	const handlePanelClick = useCallback(
 		(e: React.MouseEvent) => {
 			setMenu(null);
 			clearSelection();
+			// Close properties panel when clicking on empty canvas
+			window.dispatchEvent(new CustomEvent("close-properties-panel"));
 			if (selectedTool?.action === "addNode") {
 				const position = reactFlowInstance.screenToFlowPosition({
 					x: e.clientX,
@@ -712,6 +728,7 @@ function V2NodeCanvas() {
 			onMoveEnd={handleMoveEnd}
 			onNodesChange={handleNodesChange}
 			onNodeClick={handleNodeClick}
+			onNodeDoubleClick={handleNodeDoubleClick}
 			onPaneClick={handlePanelClick}
 			onKeyDown={handleKeyDown}
 			onNodeContextMenu={handleNodeContextMenu}
@@ -783,6 +800,9 @@ function V2NodeCanvas() {
 export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 	const [whatHappensNextSource, setWhatHappensNextSource] =
 		useState<NodeId | null>(null);
+	const [whatHappensNextOutputId, setWhatHappensNextOutputId] =
+		useState<string | null>(null);
+	const [propertiesNodeId, setPropertiesNodeId] = useState<NodeId | null>(null);
 	const clearSelection = useClearSelection();
 
 	// Listen for "what-happens-next" custom events from node plus buttons
@@ -790,14 +810,34 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 		const handler = (e: Event) => {
 			const detail = (e as CustomEvent).detail as {
 				sourceNodeId: NodeId;
+				outputId?: string;
 			};
-			// Close properties panel by deselecting nodes
+			// Close properties panel
 			clearSelection();
+			setPropertiesNodeId(null);
 			setWhatHappensNextSource(detail.sourceNodeId);
+			setWhatHappensNextOutputId(detail.outputId ?? null);
 		};
 		window.addEventListener("what-happens-next", handler);
 		return () => window.removeEventListener("what-happens-next", handler);
 	}, [clearSelection]);
+
+	// Listen for "open-properties-panel" custom events from double-click
+	useEffect(() => {
+		const openHandler = (e: Event) => {
+			const detail = (e as CustomEvent).detail as { nodeId: NodeId };
+			setPropertiesNodeId(detail.nodeId);
+		};
+		const closeHandler = () => {
+			setPropertiesNodeId(null);
+		};
+		window.addEventListener("open-properties-panel", openHandler);
+		window.addEventListener("close-properties-panel", closeHandler);
+		return () => {
+			window.removeEventListener("open-properties-panel", openHandler);
+			window.removeEventListener("close-properties-panel", closeHandler);
+		};
+	}, []);
 
 	// Listen for "sub-node-add" custom events from AI Agent bottom handle "+" buttons
 	const addNode = useAddNode();
@@ -987,42 +1027,56 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 		setUiNodeState,
 	]);
 
-	const selectedNodes = useAppDesignerStore(
-		useShallow((s) =>
-			s.nodes.filter((node) => s.ui.nodeState[node.id]?.selected),
-		),
-	);
+	const allNodes = useAppDesignerStore((s) => s.nodes);
 
-	const isPropertiesPanelOpen = selectedNodes.length === 1;
+	// Properties panel is driven by explicit double-click, not by selection
+	const isPropertiesPanelOpen = propertiesNodeId !== null;
+	const propertiesNode = propertiesNodeId
+		? allNodes.find((n) => n.id === propertiesNodeId)
+		: null;
 
-	// Close "What happens next?" panel when a node is selected (properties panel opens)
+	// Close properties panel if the node was deleted
+	useEffect(() => {
+		if (propertiesNodeId && !allNodes.some((n) => n.id === propertiesNodeId)) {
+			setPropertiesNodeId(null);
+		}
+	}, [propertiesNodeId, allNodes]);
+
+	// Close "What happens next?" panel when properties panel opens
 	useEffect(() => {
 		if (isPropertiesPanelOpen && whatHappensNextSource) {
 			setWhatHappensNextSource(null);
 		}
 	}, [isPropertiesPanelOpen, whatHappensNextSource]);
+
+	const selectSingleNode = useSelectSingleNode();
+
+	// When properties panel opens, also select the node so PropertiesPanel reads it
+	useEffect(() => {
+		if (propertiesNodeId) {
+			selectSingleNode(propertiesNodeId);
+		}
+	}, [propertiesNodeId, selectSingleNode]);
+
+	const contentType = propertiesNode?.content.type;
 	const isTextGenerationPanel =
-		isPropertiesPanelOpen &&
-		`${selectedNodes[0]?.content.type}` === "textGeneration";
+		isPropertiesPanelOpen && contentType === "textGeneration";
 	const isFilePanel =
-		isPropertiesPanelOpen && `${selectedNodes[0]?.content.type}` === "file";
+		isPropertiesPanelOpen && contentType === "file";
 	const isTextPanel =
-		isPropertiesPanelOpen && `${selectedNodes[0]?.content.type}` === "text";
+		isPropertiesPanelOpen && contentType === "text";
 	const isVectorStorePanel =
-		isPropertiesPanelOpen &&
-		`${selectedNodes[0]?.content.type}` === "vectorStore";
+		isPropertiesPanelOpen && contentType === "vectorStore";
 	const isWebPagePanel =
-		isPropertiesPanelOpen && `${selectedNodes[0]?.content.type}` === "webPage";
+		isPropertiesPanelOpen && contentType === "webPage";
 	const isManualTriggerPanel =
 		isPropertiesPanelOpen &&
-		`${selectedNodes[0]?.content.type}` === "trigger" &&
-		`${(selectedNodes[0] as unknown as { content?: { provider?: string } })?.content?.provider}` ===
+		contentType === "trigger" &&
+		`${(propertiesNode as unknown as { content?: { provider?: string } })?.content?.provider}` ===
 			"manual";
 	const isStartOrEndPanel =
 		isPropertiesPanelOpen &&
-		(["appEntry", "end"] as const).includes(
-			`${selectedNodes[0]?.content.type}` as "appEntry" | "end",
-		);
+		(["appEntry", "end"] as const).includes(contentType as "appEntry" | "end");
 
 	// 3-panel layout for generation/execution/flow-control nodes (INPUT | PARAMETERS | OUTPUT)
 	const isThreePanelNode =
@@ -1047,7 +1101,7 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 			"errorTrigger",
 			"dataTable",
 			"formTrigger",
-		].includes(`${selectedNodes[0]?.content.type}`);
+		].includes(contentType ?? "");
 
 	const mainRef = useRef<HTMLDivElement>(null);
 
@@ -1102,12 +1156,12 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 							container={mainRef.current}
 							title="Properties Panel"
 							defaultWidth={
-								isThreePanelNode ? 900 : isTextGenerationPanel ? 400 : undefined
+								isThreePanelNode ? 640 : isTextGenerationPanel ? 400 : undefined
 							}
 							minWidth={
-								isThreePanelNode ? 700 : isTextGenerationPanel ? 400 : undefined
+								isThreePanelNode ? 520 : isTextGenerationPanel ? 400 : undefined
 							}
-							maxWidth={isThreePanelNode ? 1400 : undefined}
+							maxWidth={isThreePanelNode ? 1200 : undefined}
 							autoHeight={
 								isFilePanel ||
 								isTextPanel ||
@@ -1125,7 +1179,11 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 				{whatHappensNextSource && (
 					<WhatHappensNextPanel
 						sourceNodeId={whatHappensNextSource}
-						onClose={() => setWhatHappensNextSource(null)}
+						sourceOutputId={whatHappensNextOutputId}
+						onClose={() => {
+							setWhatHappensNextSource(null);
+							setWhatHappensNextOutputId(null);
+						}}
 					/>
 				)}
 				<GradientDef />

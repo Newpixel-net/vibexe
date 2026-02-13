@@ -96,6 +96,7 @@ import { usePieceActions } from "../../tool/toolbar/integration-picker/use-piece
 
 interface WhatHappensNextPanelProps {
 	sourceNodeId: NodeId;
+	sourceOutputId?: string | null;
 	onClose: () => void;
 }
 
@@ -157,6 +158,7 @@ const BUILT_IN_NODES: Array<{
 
 export function WhatHappensNextPanel({
 	sourceNodeId,
+	sourceOutputId,
 	onClose,
 }: WhatHappensNextPanelProps) {
 	const [level, setLevel] = useState<PanelLevel>("categories");
@@ -201,7 +203,7 @@ export function WhatHappensNextPanel({
 				y: sourceNodePosition.y,
 			};
 			addNode(newNode, { position });
-			connectNodes(sourceNodeId, newNode.id);
+			connectNodes(sourceNodeId, newNode.id, sourceOutputId ?? undefined);
 			setUiNodeState(newNode.id, { selected: true });
 			onClose();
 		},
@@ -209,6 +211,7 @@ export function WhatHappensNextPanel({
 			addNode,
 			connectNodes,
 			sourceNodeId,
+			sourceOutputId,
 			sourceNodePosition,
 			sourceNodeWidth,
 			setUiNodeState,
