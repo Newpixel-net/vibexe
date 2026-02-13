@@ -198,9 +198,32 @@ export function WhatHappensNextPanel({
 
 	const handleAddAndConnect = useCallback(
 		(newNode: Parameters<typeof addNode>[0]) => {
+			// Calculate Y offset for multi-output nodes so branches don't overlap
+			let yOffset = 0;
+			if (sourceOutputId) {
+				const sourceNode = nodes.find((n) => n.id === sourceNodeId);
+				if (sourceNode && sourceNode.outputs.length > 1) {
+					const ct = sourceNode.content.type;
+					let idx = -1;
+					if (ct === "if") {
+						idx = sourceOutputId === "true" ? 0 : sourceOutputId === "false" ? 1 : -1;
+					} else if (ct === "filter") {
+						idx = sourceOutputId === "kept" ? 0 : sourceOutputId === "discarded" ? 1 : -1;
+					} else if (ct === "loop") {
+						idx = sourceOutputId === "done" ? 0 : sourceOutputId === "loop" ? 1 : -1;
+					} else if (ct === "switch") {
+						const m = sourceOutputId.match(/^case-(\d+)$/);
+						if (m) idx = Number.parseInt(m[1], 10);
+					}
+					if (idx >= 0) {
+						const total = sourceNode.outputs.length;
+						yOffset = (idx - (total - 1) / 2) * 140;
+					}
+				}
+			}
 			const position = {
 				x: sourceNodePosition.x + sourceNodeWidth + 120,
-				y: sourceNodePosition.y,
+				y: sourceNodePosition.y + yOffset,
 			};
 			addNode(newNode, { position });
 			connectNodes(sourceNodeId, newNode.id, sourceOutputId ?? undefined);
@@ -216,6 +239,7 @@ export function WhatHappensNextPanel({
 			sourceNodeWidth,
 			setUiNodeState,
 			onClose,
+			nodes,
 		],
 	);
 
