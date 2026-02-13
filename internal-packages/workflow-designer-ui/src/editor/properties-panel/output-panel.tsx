@@ -14,16 +14,14 @@ import {
 	ArrowUpIcon,
 	BugIcon,
 	CheckCircleIcon,
-	ChevronDownIcon,
-	ChevronRightIcon,
 	DatabaseIcon,
+	FileTextIcon,
 	PlayIcon,
-	SquareIcon,
 	TimerIcon,
 	TrashIcon,
 	XCircleIcon,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 import { useAppDesignerStore, useUpdateNodeData } from "../../app-designer";
 import { useGiselle } from "../../app-designer/store/giselle-client-provider";
@@ -32,6 +30,7 @@ import { TextGenerationIcon } from "../../icons";
 import ClipboardButton from "../../ui/clipboard-button";
 import { EmptyState } from "../../ui/empty-state";
 import { GenerationView } from "../../ui/generation-view";
+import { ViewModeToggle, type ViewMode, SchemaTreeView, DataTableView, JsonSyntaxView } from "./data-views";
 
 function formatTime(startedAt: number, completedAt: number): string {
 	const durationMs = completedAt - startedAt;
@@ -76,64 +75,62 @@ function getErrorContent(generation: Generation): string {
 	return "";
 }
 
-/** Renders structured data outputs (JSON tree viewer) */
-function StructuredDataSection({
-	generation,
-}: { generation: CompletedGeneration }) {
-	const [expanded, setExpanded] = useState(false);
+type OutputTab = "text" | "data";
 
-	const structuredOutputs = generation.outputs.filter(
-		(o) =>
-			o.type === "structured-data" ||
-			o.type === "data-query-result" ||
-			o.type === "query-result",
-	);
+/** Extract structured data from a completed generation */
+function extractOutputData(generation: CompletedGeneration): unknown | null {
+	for (const output of generation.outputs) {
+		if (output.type === "structured-data") return output.data;
+		if (output.type === "data-query-result") return output.content;
+		if (output.type === "query-result") return output.content;
+	}
+	return null;
+}
 
-	if (structuredOutputs.length === 0) return null;
-
+/** Tab switcher for Text vs Data views in output panel */
+function OutputTabSwitcher({
+	activeTab,
+	onTabChange,
+	hasData,
+	itemCount,
+}: {
+	activeTab: OutputTab;
+	onTabChange: (tab: OutputTab) => void;
+	hasData: boolean;
+	itemCount?: number;
+}) {
 	return (
-		<div className="border-t border-inverse/5 px-[10px] py-[6px]">
+		<div className="flex items-center gap-[2px] px-[10px] py-[4px] border-b border-inverse/5">
 			<button
 				type="button"
-				className="flex items-center gap-[4px] text-[11px] text-inverse/50 hover:text-inverse/70"
-				onClick={() => setExpanded(!expanded)}
+				onClick={() => onTabChange("text")}
+				className={`px-[8px] py-[3px] text-[10px] rounded-[4px] transition-colors ${
+					activeTab === "text"
+						? "bg-inverse/10 text-inverse/70 font-medium"
+						: "text-inverse/30 hover:text-inverse/50"
+				}`}
 			>
-				{expanded ? (
-					<ChevronDownIcon className="size-[10px]" />
-				) : (
-					<ChevronRightIcon className="size-[10px]" />
-				)}
-				Structured Data ({structuredOutputs.length})
+				<FileTextIcon className="size-[10px] inline mr-[3px]" />
+				Text
 			</button>
-			{expanded && (
-				<div className="mt-[6px] space-y-[6px]">
-					{structuredOutputs.map((output, idx) => {
-						const data =
-							output.type === "structured-data"
-								? output.data
-								: output.type === "data-query-result"
-									? output.content
-									: output.type === "query-result"
-										? output.content
-										: null;
-
-						return (
-							<div
-								key={`struct-${idx}`}
-								className="relative group"
-							>
-								<pre className="p-[8px] rounded-[6px] bg-blue-500/5 text-[10px] text-blue-300/70 whitespace-pre-wrap break-all max-h-[200px] overflow-y-auto font-mono">
-									{JSON.stringify(data, null, 2)}
-								</pre>
-								<ClipboardButton
-									text={JSON.stringify(data, null, 2)}
-									tooltip="Copy JSON"
-									className="absolute top-[4px] right-[4px] opacity-0 group-hover:opacity-100 transition-opacity text-inverse/30 hover:text-inverse/60"
-								/>
-							</div>
-						);
-					})}
-				</div>
+			{hasData && (
+				<button
+					type="button"
+					onClick={() => onTabChange("data")}
+					className={`px-[8px] py-[3px] text-[10px] rounded-[4px] transition-colors ${
+						activeTab === "data"
+							? "bg-inverse/10 text-inverse/70 font-medium"
+							: "text-inverse/30 hover:text-inverse/50"
+					}`}
+				>
+					<DatabaseIcon className="size-[10px] inline mr-[3px]" />
+					Data
+					{itemCount != null && itemCount > 0 && (
+						<span className="ml-[3px] px-[4px] py-[0px] rounded-full bg-blue-500/15 text-blue-400 text-[8px]">
+							{itemCount}
+						</span>
+					)}
+				</button>
 			)}
 		</div>
 	);
@@ -399,20 +396,85 @@ export function OutputPanel({
 					</div>
 				)}
 
-			{/* Content */}
-			<div className="flex-1 overflow-y-auto p-[8px]">
-				<div className="text-[12px]">
-					<GenerationView generation={currentGeneration} />
-				</div>
-			</div>
+			{/* Content with Text/Data tab switching */}
+			<OutputContent
+				currentGeneration={currentGeneration}
+				node={node}
+			/>
+		</div>
+	);
+}
 
-			{/* Structured data outputs */}
-			{currentGeneration.status === "completed" && (
-				<StructuredDataSection generation={currentGeneration as CompletedGeneration} />
+/** Manages the Text/Data tab for completed output display */
+function OutputContent({
+	currentGeneration,
+	node,
+}: {
+	currentGeneration: Generation;
+	node?: OperationNode;
+}) {
+	const [activeTab, setActiveTab] = useState<OutputTab>("text");
+	const [dataViewMode, setDataViewMode] = useState<ViewMode>("schema");
+
+	const structuredData = useMemo(() => {
+		if (currentGeneration.status !== "completed") return null;
+		return extractOutputData(currentGeneration as CompletedGeneration);
+	}, [currentGeneration]);
+
+	const hasData = structuredData != null;
+	const itemCount = Array.isArray(structuredData)
+		? structuredData.length
+		: undefined;
+
+	return (
+		<>
+			{/* Tab switcher — only when there's structured data */}
+			{currentGeneration.status === "completed" && hasData && (
+				<OutputTabSwitcher
+					activeTab={activeTab}
+					onTabChange={setActiveTab}
+					hasData={hasData}
+					itemCount={itemCount}
+				/>
 			)}
+
+			{/* Tab content */}
+			<div className="flex-1 overflow-y-auto">
+				{activeTab === "text" && (
+					<div className="p-[8px]">
+						<div className="text-[12px]">
+							<GenerationView generation={currentGeneration} />
+						</div>
+					</div>
+				)}
+				{activeTab === "data" && hasData && (
+					<div className="p-[8px]">
+						{/* View mode toggle */}
+						<div className="mb-[6px]">
+							<ViewModeToggle
+								viewMode={dataViewMode}
+								onViewModeChange={setDataViewMode}
+								itemCount={itemCount}
+							/>
+						</div>
+						{/* Data view */}
+						<div className="rounded-[4px] bg-inverse/5 overflow-hidden">
+							{dataViewMode === "schema" && (
+								<SchemaTreeView data={structuredData} />
+							)}
+							{dataViewMode === "table" && (
+								<DataTableView data={structuredData} />
+							)}
+							{dataViewMode === "json" && (
+								<JsonSyntaxView data={structuredData} />
+							)}
+						</div>
+					</div>
+				)}
+			</div>
 
 			{/* Mock data editor */}
 			{node && <MockDataSection node={node} />}
-		</div>
+		</>
 	);
 }
