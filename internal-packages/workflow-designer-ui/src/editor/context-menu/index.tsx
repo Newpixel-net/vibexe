@@ -8,6 +8,7 @@ import {
 	CopyIcon,
 	EyeIcon,
 	EyeOffIcon,
+	FastForwardIcon,
 	LayoutGridIcon,
 	MousePointerClickIcon,
 	PencilIcon,
@@ -92,6 +93,7 @@ export function ContextMenu({
 	bottom,
 	onClose,
 	onExecute,
+	onExecuteToHere,
 	onSelectAll,
 	onFitView,
 	onTidyUp,
@@ -118,6 +120,11 @@ export function ContextMenu({
 		onExecute?.();
 		onClose();
 	}, [onExecute, onClose]);
+
+	const handleExecuteToHere = useCallback(() => {
+		onExecuteToHere?.();
+		onClose();
+	}, [onExecuteToHere, onClose]);
 
 	const handleRename = useCallback(() => {
 		// Dispatch custom event to trigger inline rename on the node
@@ -202,6 +209,13 @@ export function ContextMenu({
 							icon={PlayIcon}
 							onClick={handleExecute}
 						/>
+						{onExecuteToHere && (
+							<MenuItem
+								label="Execute to Here"
+								icon={FastForwardIcon}
+								onClick={handleExecuteToHere}
+							/>
+						)}
 						<MenuSeparator />
 					</>
 				)}

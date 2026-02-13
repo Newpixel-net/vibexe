@@ -56,6 +56,7 @@ import { GradientDef } from "../../connector/component";
 import { ContextMenu } from "../../context-menu";
 import type { ContextMenuProps } from "../../context-menu/types";
 import { useAutoArrange } from "../../hooks/use-auto-arrange";
+import { useExecuteToHere } from "../../hooks/use-execute-to-here";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
 import {
 	CardXyFlowNode,
@@ -252,13 +253,14 @@ function V2NodeCanvas() {
 	const connectNodes = useConnectNodes();
 	const disconnectNodes = useDisconnectNodes();
 	const toast = useToasts();
-	const [menu, setMenu] = useState<Omit<ContextMenuProps, "onClose" | "onSelectAll" | "onFitView"> | null>(
+	const [menu, setMenu] = useState<Omit<ContextMenuProps, "onClose" | "onSelectAll" | "onFitView" | "onExecuteToHere" | "onTidyUp"> | null>(
 		null,
 	);
 	const [snapToGrid, setSnapToGrid] = useState(false);
 	const reactFlowRef = useRef<HTMLDivElement>(null);
 	const didInitialAutoFitViewRef = useRef(false);
 	const autoArrange = useAutoArrange();
+	const executeToHere = useExecuteToHere();
 
 	const reactFlowInstance = useReactFlow();
 	const updateNodeInternals = useUpdateNodeInternals();
@@ -841,6 +843,9 @@ function V2NodeCanvas() {
 			<ContextMenu
 				{...menu}
 				onClose={() => setMenu(null)}
+				onExecuteToHere={() => {
+					executeToHere(menu.id);
+				}}
 				onSelectAll={() => {
 					for (const n of nodes) {
 						setUiNodeState(n.id, { selected: true });
