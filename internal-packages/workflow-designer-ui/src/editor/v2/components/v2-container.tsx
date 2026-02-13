@@ -251,7 +251,7 @@ function V2NodeCanvas() {
 	const connectNodes = useConnectNodes();
 	const disconnectNodes = useDisconnectNodes();
 	const toast = useToasts();
-	const [menu, setMenu] = useState<Omit<ContextMenuProps, "onClose"> | null>(
+	const [menu, setMenu] = useState<Omit<ContextMenuProps, "onClose" | "onSelectAll" | "onFitView"> | null>(
 		null,
 	);
 	const reactFlowRef = useRef<HTMLDivElement>(null);
@@ -788,7 +788,20 @@ function V2NodeCanvas() {
 			<XYFlowPanel position="bottom-center">
 				<Toolbar />
 			</XYFlowPanel>
-			{menu && <ContextMenu {...menu} onClose={() => setMenu(null)} />}
+			{menu && (
+			<ContextMenu
+				{...menu}
+				onClose={() => setMenu(null)}
+				onSelectAll={() => {
+					for (const n of nodes) {
+						setUiNodeState(n.id, { selected: true });
+					}
+				}}
+				onFitView={() => {
+					reactFlowInstance.fitView({ padding: 0.2, duration: 300 });
+				}}
+			/>
+		)}
 		<MiniMap
 			style={{
 				background: "rgba(0, 0, 0, 0.6)",

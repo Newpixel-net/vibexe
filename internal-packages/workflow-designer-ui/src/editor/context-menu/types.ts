@@ -5,4 +5,7 @@ export interface ContextMenuProps {
 	right?: number;
 	bottom?: number;
 	onClose: () => void;
+	onExecute?: () => void;
+	onSelectAll?: () => void;
+	onFitView?: () => void;
 }

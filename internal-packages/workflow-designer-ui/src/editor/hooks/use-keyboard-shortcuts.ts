@@ -1,9 +1,20 @@
 import { createAppEntryNode } from "@giselles-ai/node-registry";
-import { isAppEntryNode, isEndNode } from "@giselles-ai/protocol";
+import {
+	isAppEntryNode,
+	isEndNode,
+	isOperationNode,
+	type OperationNode,
+} from "@giselles-ai/protocol";
 import { useFeatureFlag } from "@giselles-ai/react";
 import { useKeyPress } from "@xyflow/react";
 import { useCallback, useEffect, useRef } from "react";
-import { useAppDesignerStore, useUndoRedoActions } from "../../app-designer";
+import {
+	useAppDesignerStore,
+	useDeleteNodes,
+	useUndoRedoActions,
+	useUpdateNodeData,
+	useWorkspaceActions,
+} from "../../app-designer";
 import { useNodeManipulation } from "../node";
 import {
 	addNodeTool,
@@ -21,9 +32,7 @@ type InputShortcutPolicy = "ignore" | "modifierOnly" | "always";
 // Browser shortcuts that should be prevented when canvas is focused
 const BROWSER_SHORTCUTS_TO_PREVENT = [
 	{ key: "d", modifiers: ["meta", "ctrl"] }, // Bookmark
-	// Add more shortcuts here as needed:
-	// { key: 's', modifiers: ['meta', 'ctrl'] }, // Save page
-	// { key: 'p', modifiers: ['meta', 'ctrl'] }, // Print
+	{ key: "a", modifiers: ["meta", "ctrl"] }, // Select all (browser)
 ];
 
 // Custom hook for handling key actions with repeat prevention
@@ -91,6 +100,11 @@ export function useKeyboardShortcuts(
 		undo: s.undo,
 		redo: s.redo,
 	}));
+	const deleteNodes = useDeleteNodes();
+	const updateNodeData = useUpdateNodeData();
+	const { setUiNodeState } = useWorkspaceActions((a) => ({
+		setUiNodeState: a.setUiNodeState,
+	}));
 	const { onGenerate } = options;
 
 	const isCanvasFocused = currentShortcutScope === "canvas";
@@ -139,6 +153,63 @@ export function useKeyboardShortcuts(
 		redo,
 		isCanvasFocused,
 		{ inputShortcutPolicy: "modifierOnly", preventDefault: true },
+	);
+
+	// Select All shortcut
+	useKeyAction(
+		["Meta+a", "Control+a"],
+		useCallback(() => {
+			for (const n of nodes) {
+				setUiNodeState(n.id, { selected: true });
+			}
+		}, [nodes, setUiNodeState]),
+		isCanvasFocused,
+		{ preventDefault: true },
+	);
+
+	// D key — toggle disable on selected node
+	useKeyAction(
+		"d",
+		useCallback(() => {
+			const selectedNode = nodes.find(
+				(n) => n.selected && isOperationNode(n),
+			);
+			if (!selectedNode) return;
+			const opNode = selectedNode as unknown as OperationNode;
+			updateNodeData(opNode, {
+				disabled: !(opNode.disabled ?? false),
+			} as any);
+		}, [nodes, updateNodeData]),
+		isCanvasFocused,
+	);
+
+	// F2 key — rename selected node
+	useKeyAction(
+		"F2",
+		useCallback(() => {
+			const selectedNode = nodes.find((n) => n.selected);
+			if (!selectedNode) return;
+			window.dispatchEvent(
+				new CustomEvent("node-rename", {
+					detail: { nodeId: selectedNode.id },
+				}),
+			);
+		}, [nodes]),
+		isCanvasFocused,
+	);
+
+	// Delete/Backspace — delete selected nodes
+	useKeyAction(
+		["Delete", "Backspace"],
+		useCallback(() => {
+			const selectedNodeIds = nodes
+				.filter((n) => n.selected)
+				.map((n) => n.id);
+			if (selectedNodeIds.length > 0) {
+				deleteNodes(selectedNodeIds);
+			}
+		}, [nodes, deleteNodes]),
+		isCanvasFocused,
 	);
 
 	// Return handler for preventing browser default shortcuts
