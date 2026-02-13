@@ -74,6 +74,9 @@ export function GenerationRunner({ generation }: { generation: Generation }) {
 		case "errorTrigger":
 		case "dataTable":
 		case "formTrigger":
+		case "executeSubWorkflow":
+		case "respondToWebhook":
+		case "customVariables":
 			// Flow control & data transform nodes are handled by DAG executor, no client-side runner
 			return null;
 		default: {
