@@ -1,8 +1,10 @@
 "use client";
 
 import clsx from "clsx/lite";
-import { File, Zap } from "lucide-react";
+import { File, PlusIcon, TagIcon, XIcon, Zap } from "lucide-react";
 import Link from "next/link";
+import { useCallback, useState } from "react";
+import { updateAgentTags } from "../actions";
 import type { agents as dbAgents } from "@/db";
 import { GitHubIcon } from "../../../../../../internal-packages/workflow-designer-ui/src/icons";
 import { Tooltip } from "../../../../../../internal-packages/workflow-designer-ui/src/ui/tooltip";
@@ -23,10 +25,46 @@ interface AgentCardProps {
 		documentVectorStoreFiles?: string[];
 		llmProviders?: string[];
 		hasGithubIntegration?: boolean;
+		tags?: string[];
 	};
 }
 
+const TAG_COLORS = [
+	"bg-blue-500/15 text-blue-400 border-blue-500/25",
+	"bg-purple-500/15 text-purple-400 border-purple-500/25",
+	"bg-green-500/15 text-green-400 border-green-500/25",
+	"bg-amber-500/15 text-amber-400 border-amber-500/25",
+	"bg-pink-500/15 text-pink-400 border-pink-500/25",
+	"bg-cyan-500/15 text-cyan-400 border-cyan-500/25",
+];
+
+function tagColor(tag: string): string {
+	let hash = 0;
+	for (const ch of tag) hash = ((hash << 5) - hash + ch.charCodeAt(0)) | 0;
+	return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
+}
+
 export function AgentCard({ agent }: AgentCardProps) {
+	const [localTags, setLocalTags] = useState<string[]>(agent.tags ?? []);
+	const [adding, setAdding] = useState(false);
+	const [draft, setDraft] = useState("");
+
+	const handleAddTag = useCallback(async () => {
+		const trimmed = draft.trim();
+		if (trimmed && !localTags.includes(trimmed)) {
+			const newTags = [...localTags, trimmed];
+			setLocalTags(newTags);
+			await updateAgentTags(agent.id, newTags);
+		}
+		setDraft("");
+		setAdding(false);
+	}, [agent.id, draft, localTags]);
+
+	const handleRemoveTag = useCallback(async (tag: string) => {
+		const newTags = localTags.filter((t) => t !== tag);
+		setLocalTags(newTags);
+		await updateAgentTags(agent.id, newTags);
+	}, [agent.id, localTags]);
 	if (!agent.workspaceId) {
 		return null;
 	}
@@ -47,6 +85,31 @@ export function AgentCard({ agent }: AgentCardProps) {
 
 			<div className="relative z-10 flex h-full w-full cursor-pointer flex-col pt-2 px-2 pb-4">
 				<div className="flex w-full justify-end gap-x-2">
+					{/* Inline tag add */}
+					{adding ? (
+						<input
+							type="text"
+							value={draft}
+							onChange={(e) => setDraft(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter") handleAddTag();
+								if (e.key === "Escape") { setAdding(false); setDraft(""); }
+							}}
+							onBlur={handleAddTag}
+							placeholder="tag"
+							autoFocus
+							className="w-[70px] px-2 py-0.5 text-[10px] rounded-full bg-white/5 border border-white/10 text-inverse outline-none"
+						/>
+					) : (
+						<button
+							type="button"
+							onClick={(e) => { e.stopPropagation(); setAdding(true); }}
+							className="p-1 rounded hover:bg-white/10 transition-colors"
+							title="Add tag"
+						>
+							<TagIcon className="w-3 h-3 text-text/40" />
+						</button>
+					)}
 					<DuplicateAgentButton
 						agentId={agent.id}
 						agentName={agent.name || "Untitled"}
@@ -73,6 +136,31 @@ export function AgentCard({ agent }: AgentCardProps) {
 							{agent.description}
 						</p>
 					) : null}
+
+					{/* Tag pills */}
+					{localTags.length > 0 && (
+						<div className="flex flex-wrap items-center gap-1 mb-2" onClick={(e) => e.preventDefault()}>
+							{localTags.map((tag) => (
+								<span
+									key={tag}
+									className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium border ${tagColor(tag)}`}
+								>
+									{tag}
+									<button
+										type="button"
+										className="hover:opacity-70 transition-opacity"
+										onClick={(e) => {
+											e.stopPropagation();
+											e.preventDefault();
+											handleRemoveTag(tag);
+										}}
+									>
+										<XIcon className="size-2.5" />
+									</button>
+								</span>
+							))}
+						</div>
+					)}
 
 					{/* Integration Icons and Footer */}
 					<div className="mt-auto flex flex-col gap-3">

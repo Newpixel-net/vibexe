@@ -338,6 +338,7 @@ export const agents = pgTable(
 		tags: text("tags").array().default([]).notNull(),
 		isPublished: boolean("is_published").default(false).notNull(),
 		publishedAt: timestamp("published_at"),
+		folderId: text("folder_id").$type<WorkspaceFolderId>(),
 	},
 	(table) => [index().on(table.teamDbId)],
 );
@@ -371,6 +372,7 @@ export const workspaces = pgTable("workspaces", {
 		.$type<WorkspaceMetadata>()
 		.default({ sample: false })
 		.notNull(),
+	errorWorkflowId: text("error_workflow_id").$type<WorkspaceId>(),
 });
 
 export const workspaceRelations = relations(workspaces, ({ one, many }) => ({
@@ -1686,6 +1688,35 @@ export const workflowTemplates = pgTable(
 		index("workflow_templates_category_idx").on(table.category),
 		index("workflow_templates_public_idx").on(table.isPublic),
 	],
+);
+
+// Workspace Folders - hierarchical organization for workflows
+export type WorkspaceFolderId = `wfld_${string}`;
+export const workspaceFolders = pgTable(
+	"workspace_folders",
+	{
+		id: text("id").$type<WorkspaceFolderId>().notNull().unique(),
+		dbId: serial("db_id").primaryKey(),
+		teamDbId: integer("team_db_id")
+			.notNull()
+			.references(() => teams.dbId, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		parentId: text("parent_id").$type<WorkspaceFolderId>(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("workspace_folders_team_idx").on(table.teamDbId),
+	],
+);
+
+export const workspaceFolderRelations = relations(
+	workspaceFolders,
+	({ one }) => ({
+		team: one(teams, {
+			fields: [workspaceFolders.teamDbId],
+			references: [teams.dbId],
+		}),
+	}),
 );
 
 export const customNodes = pgTable(

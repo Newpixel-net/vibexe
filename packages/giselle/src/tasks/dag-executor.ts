@@ -40,6 +40,9 @@ export interface DagNode {
 		timeoutMs?: number;
 	};
 	retryCount: number;
+	/** Execution timing */
+	startedAt?: number;
+	completedAt?: number;
 }
 
 export interface DagEdge {
@@ -341,6 +344,7 @@ export async function executeDag(
 		}
 
 		node.state = "running";
+		node.startedAt = Date.now();
 		await callbacks.onNodeStart?.(nodeId);
 
 		let inputData = dag.collectInputData(nodeId);
@@ -367,6 +371,7 @@ export async function executeDag(
 					])
 				: await nodePromise;
 			node.state = "completed";
+			node.completedAt = Date.now();
 			node.result = result;
 
 			// Always Output Data: if enabled and output is empty, emit empty item
@@ -398,6 +403,8 @@ export async function executeDag(
 				await fireNode(nodeId);
 				return;
 			}
+
+			node.completedAt = Date.now();
 
 			// Error handling strategies
 			if (errorConfig?.onError === "continueOnFail") {

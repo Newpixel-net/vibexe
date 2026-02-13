@@ -5,7 +5,7 @@ import type { GiselleContext } from "../types";
 import { getTask } from "./get-task";
 import { patches } from "./object/patch-creators";
 import { patchTask } from "./patch-task";
-import { runTask } from "./run-task";
+import { type RunTaskCallbacks, runTask } from "./run-task";
 
 export const StartTaskInputs = z.object({
 	taskId: TaskId.schema,
@@ -21,10 +21,12 @@ export async function startTask({
 	generationOriginType,
 	onGenerationComplete,
 	onGenerationError,
+	callbacks,
 }: StartTaskInputs & {
 	context: GiselleContext;
 	onGenerationComplete?: OnGenerationComplete;
 	onGenerationError?: OnGenerationError;
+	callbacks?: RunTaskCallbacks;
 }) {
 	const task = await getTask({ context, taskId });
 
@@ -45,6 +47,7 @@ export async function startTask({
 					await runTask({
 						context,
 						taskId,
+						callbacks,
 						onGenerationComplete,
 						onGenerationError,
 					}),

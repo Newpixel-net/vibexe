@@ -21,6 +21,12 @@ export type EmbeddingCompleteCallbackFunction = (
 	args: EmbeddingCompleteCallbackFunctionArgs,
 ) => void | Promise<void>;
 
+export type OnTaskFailed = (args: {
+	taskId: string;
+	workspaceId: string;
+	error: string;
+}) => void | Promise<void>;
+
 export type GiselleCallbacks = {
 	appCreate?: OnAppCreate;
 	appDelete?: OnAppDelete;
@@ -30,5 +36,6 @@ export type GiselleCallbacks = {
 	generationComplete?: OnGenerationComplete;
 	generationError?: OnGenerationError;
 	taskCreate?: OnTaskCreate;
+	taskFailed?: OnTaskFailed;
 	buildAiGatewayHeaders?: BuildAiGatewayHeaders;
 };

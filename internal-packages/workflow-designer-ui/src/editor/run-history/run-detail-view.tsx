@@ -114,7 +114,13 @@ function StepDetailRow({
 				<StatusBadge status={step.status} />
 
 				{step.duration > 0 && (
-					<span className="flex items-center gap-1 text-[10px] text-inverse/40 shrink-0">
+					<span className={`flex items-center gap-1 text-[10px] shrink-0 ${
+						step.duration < 1000
+							? "text-green-400"
+							: step.duration < 5000
+								? "text-yellow-400"
+								: "text-red-400"
+					}`}>
 						<TimerIcon className="size-2.5" />
 						{formatDuration(step.duration)}
 					</span>

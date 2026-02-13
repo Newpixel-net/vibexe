@@ -13,7 +13,7 @@ import { s3StorageDriver } from "@giselles-ai/s3-storage-driver";
 import { pgVaultDriver } from "@giselles-ai/vault";
 import { tasks as jobs } from "@trigger.dev/sdk";
 import { eq, desc } from "drizzle-orm";
-import { apps, db, tasks, webhookEndpoints, webhookRequestLogs } from "@/db";
+import { apps, db, tasks, webhookEndpoints, webhookRequestLogs, workspaces } from "@/db";
 import { generateContentNodeFlag } from "@/flags";
 import { GenerationMetadata } from "@/lib/generation-metadata";
 import { logger } from "@/lib/logger";
@@ -402,6 +402,39 @@ const callbacks: GiselleCallbacks = {
 			appDbId,
 			teamDbId: workspace.team.dbId,
 		});
+	},
+	taskFailed: async ({ taskId, workspaceId, error }) => {
+		try {
+			// Look up the workspace's errorWorkflowId
+			const workspace = await db.query.workspaces.findFirst({
+				where: (ws, { eq: eqFn }) => eqFn(ws.id, workspaceId as any),
+				columns: { errorWorkflowId: true },
+			});
+			if (!workspace?.errorWorkflowId) return;
+
+			// Trigger the error workflow with error context
+			logger.info(
+				`Task ${taskId} failed — triggering error workflow ${workspace.errorWorkflowId}`,
+			);
+			await giselle.createAndStartTask({
+				workspaceId: workspace.errorWorkflowId,
+				generationOriginType: "studio",
+				inputs: [
+					{
+						nodeId: "errorContext" as any,
+						values: {
+							errorMessage: error,
+							failedTaskId: taskId,
+							failedWorkspaceId: workspaceId,
+							timestamp: new Date().toISOString(),
+						},
+					},
+				],
+			});
+		} catch (err) {
+			// Don't let error workflow failures propagate
+			logger.error("Failed to trigger error workflow:", err);
+		}
 	},
 	buildAiGatewayHeaders: ({
 		metadata,

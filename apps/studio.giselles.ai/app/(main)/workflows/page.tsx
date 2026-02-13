@@ -9,13 +9,14 @@ import { RequestError } from "@octokit/request-error";
 import { and, count, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { Suspense, use } from "react";
 import { giselle } from "@/app/giselle";
-import { acts, agents, db, type agents as dbAgents, users } from "@/db";
+import { acts, agents, db, type agents as dbAgents, users, workspaceFolders } from "@/db";
 import { getDocumentVectorStores } from "@/lib/vector-stores/document/queries";
 import { fetchCurrentTeam } from "@/services/teams";
 import { SearchableAgentList } from "./components/searchable-agent-list";
 
 function AgentList({
 	agents: agentsPromise,
+	folders: foldersPromise,
 }: {
 	agents: Promise<
 		Array<
@@ -34,8 +35,10 @@ function AgentList({
 			}
 		>
 	>;
+	folders: Promise<Array<{ id: string; name: string; parentId: string | null }>>;
 }) {
 	const agents = use(agentsPromise);
+	const folders = use(foldersPromise);
 	if (agents.length === 0) {
 		return (
 			<div className="flex justify-center items-center h-full">
@@ -50,7 +53,7 @@ function AgentList({
 			</div>
 		);
 	}
-	return <SearchableAgentList agents={agents} />;
+	return <SearchableAgentList agents={agents} folders={folders} />;
 }
 
 async function agentsQuery(teamDbId: number) {
@@ -69,6 +72,7 @@ async function agentsQuery(teamDbId: number) {
 			tags: agents.tags,
 			isPublished: agents.isPublished,
 			publishedAt: agents.publishedAt,
+			folderId: agents.folderId,
 			creatorDisplayName: users.displayName,
 			creatorAvatarUrl: users.avatarUrl,
 		})
@@ -294,13 +298,26 @@ async function agentsQuery(teamDbId: number) {
 	});
 }
 
+async function foldersQuery(teamDbId: number) {
+	const rows = await db
+		.select({
+			id: workspaceFolders.id,
+			name: workspaceFolders.name,
+			parentId: workspaceFolders.parentId,
+		})
+		.from(workspaceFolders)
+		.where(eq(workspaceFolders.teamDbId, teamDbId));
+	return rows;
+}
+
 export default async function AgentListV2Page() {
 	const currentTeam = await fetchCurrentTeam();
 	const agents = agentsQuery(currentTeam.dbId);
+	const folders = foldersQuery(currentTeam.dbId);
 	return (
 		<div className="w-full pt-2 pb-2">
 			<Suspense fallback={<p className="text-center py-8">Loading...</p>}>
-				<AgentList agents={agents} />
+				<AgentList agents={agents} folders={folders} />
 			</Suspense>
 		</div>
 	);

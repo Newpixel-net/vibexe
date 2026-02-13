@@ -4,14 +4,16 @@ import type { WorkspaceId } from "@giselles-ai/protocol";
 import { AppId, isAppEntryNode, isTriggerNode } from "@giselles-ai/protocol";
 import type { AgentId } from "@giselles-ai/types";
 import { createId } from "@paralleldrive/cuid2";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { giselle } from "@/app/giselle";
 import {
 	agents,
 	db,
 	flowTriggers,
 	githubIntegrationSettings,
+	workspaceFolders,
 	workspaces,
+	type WorkspaceFolderId,
 } from "@/db";
 import { fetchCurrentUser } from "@/services/accounts";
 import { fetchCurrentTeam } from "@/services/teams";
@@ -156,6 +158,27 @@ export async function copyAgent(
 	}
 }
 
+export async function updateAgentTags(
+	agentId: string,
+	tags: string[],
+): Promise<{ result: "success" } | { result: "error"; message: string }> {
+	try {
+		const team = await fetchCurrentTeam();
+		const agent = await db.query.agents.findFirst({
+			where: (agents, { eq }) => eq(agents.id, agentId as AgentId),
+		});
+		if (!agent) return { result: "error", message: "Agent not found" };
+		if (agent.teamDbId !== team.dbId) return { result: "error", message: "Unauthorized" };
+		await db
+			.update(agents)
+			.set({ tags })
+			.where(eq(agents.id, agentId as AgentId));
+		return { result: "success" };
+	} catch (error) {
+		return { result: "error", message: String(error) };
+	}
+}
+
 export async function deleteAgent(agentId: string): Promise<DeleteAgentResult> {
 	if (typeof agentId !== "string" || agentId.length === 0) {
 		return { result: "error", message: "Invalid agent id" };
@@ -203,5 +226,112 @@ export async function deleteAgent(agentId: string): Promise<DeleteAgentResult> {
 			result: "error",
 			message: `Failed to delete agent: ${error instanceof Error ? error.message : "Unknown error"}`,
 		};
+	}
+}
+
+// ---- Folder CRUD ----
+
+export async function createFolder(
+	name: string,
+	parentId?: string,
+): Promise<{ result: "success"; folder: { id: string; name: string } } | { result: "error"; message: string }> {
+	try {
+		const team = await fetchCurrentTeam();
+		const id = `wfld_${createId()}` as WorkspaceFolderId;
+		await db.insert(workspaceFolders).values({
+			id,
+			teamDbId: team.dbId,
+			name,
+			parentId: parentId as WorkspaceFolderId | undefined,
+		});
+		return { result: "success", folder: { id, name } };
+	} catch (error) {
+		return { result: "error", message: String(error) };
+	}
+}
+
+export async function renameFolder(
+	folderId: string,
+	name: string,
+): Promise<{ result: "success" } | { result: "error"; message: string }> {
+	try {
+		const team = await fetchCurrentTeam();
+		await db
+			.update(workspaceFolders)
+			.set({ name })
+			.where(
+				and(
+					eq(workspaceFolders.id, folderId as WorkspaceFolderId),
+					eq(workspaceFolders.teamDbId, team.dbId),
+				),
+			);
+		return { result: "success" };
+	} catch (error) {
+		return { result: "error", message: String(error) };
+	}
+}
+
+export async function deleteFolder(
+	folderId: string,
+): Promise<{ result: "success" } | { result: "error"; message: string }> {
+	try {
+		const team = await fetchCurrentTeam();
+		// Un-assign agents in this folder
+		await db
+			.update(agents)
+			.set({ folderId: null })
+			.where(
+				and(
+					eq(agents.teamDbId, team.dbId),
+					eq(agents.folderId, folderId as WorkspaceFolderId),
+				),
+			);
+		await db
+			.delete(workspaceFolders)
+			.where(
+				and(
+					eq(workspaceFolders.id, folderId as WorkspaceFolderId),
+					eq(workspaceFolders.teamDbId, team.dbId),
+				),
+			);
+		return { result: "success" };
+	} catch (error) {
+		return { result: "error", message: String(error) };
+	}
+}
+
+export async function moveAgentToFolder(
+	agentId: string,
+	folderId: string | null,
+): Promise<{ result: "success" } | { result: "error"; message: string }> {
+	try {
+		const team = await fetchCurrentTeam();
+		await db
+			.update(agents)
+			.set({ folderId: folderId as WorkspaceFolderId | null })
+			.where(
+				and(
+					eq(agents.id, agentId as AgentId),
+					eq(agents.teamDbId, team.dbId),
+				),
+			);
+		return { result: "success" };
+	} catch (error) {
+		return { result: "error", message: String(error) };
+	}
+}
+
+export async function updateErrorWorkflowId(
+	workspaceId: string,
+	errorWorkflowId: string | null,
+): Promise<{ result: "success" } | { result: "error"; message: string }> {
+	try {
+		await db
+			.update(workspaces)
+			.set({ errorWorkflowId: (errorWorkflowId || null) as WorkspaceId | null })
+			.where(eq(workspaces.id, workspaceId as WorkspaceId));
+		return { result: "success" };
+	} catch (error) {
+		return { result: "error", message: String(error) };
 	}
 }

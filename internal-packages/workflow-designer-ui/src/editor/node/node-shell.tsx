@@ -124,6 +124,7 @@ export function NodeShell({
 				"transition-all backdrop-blur-[4px] bg-transparent",
 				getSelectionShadowClasses(selected, highlighted, v),
 				preview && "opacity-50",
+				(node as any).disabled && "opacity-50",
 				requiresSetup && "opacity-80",
 			)}
 		>

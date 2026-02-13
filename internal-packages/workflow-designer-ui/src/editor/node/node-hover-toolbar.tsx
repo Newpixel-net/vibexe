@@ -95,9 +95,9 @@ export function NodeHoverToolbar({ node, onExecute }: NodeHoverToolbarProps) {
 				title={isDisabled ? "Enable node" : "Disable node"}
 			>
 				{isDisabled ? (
-					<EyeOffIcon className="w-[14px] h-[14px] text-yellow-400" />
+					<EyeIcon className="w-[14px] h-[14px] text-yellow-400" />
 				) : (
-					<EyeIcon className="w-[14px] h-[14px] text-white/70" />
+					<EyeOffIcon className="w-[14px] h-[14px] text-white/70" />
 				)}
 			</button>
 			<button

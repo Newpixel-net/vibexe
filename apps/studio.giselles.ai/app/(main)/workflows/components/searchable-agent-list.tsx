@@ -1,10 +1,11 @@
 "use client";
 
-import { File, TagIcon, XIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ChevronRightIcon, File, FolderIcon, FolderOpenIcon, FolderPlusIcon, PencilIcon, TagIcon, Trash2Icon, XIcon } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import type { agents as dbAgents } from "@/db";
 import { GitHubIcon } from "../../../../../../internal-packages/workflow-designer-ui/src/icons";
 import { Card } from "../../settings/components/card";
+import { createFolder, deleteFolder, moveAgentToFolder, renameFolder } from "../actions";
 import { AgentCard } from "./agent-card";
 import { AppListItem } from "./app-list-item";
 import { LLMProviderIcon } from "./llm-provider-icon";
@@ -13,6 +14,8 @@ import { SearchHeader } from "./search-header";
 type SortOption = "name-asc" | "name-desc" | "date-desc" | "date-asc";
 type ViewMode = "grid" | "list";
 type PublishFilter = "all" | "published" | "draft";
+
+type FolderData = { id: string; name: string; parentId: string | null };
 
 type AgentWithMetadata = typeof dbAgents.$inferSelect & {
 	executionCount: number;
@@ -30,14 +33,52 @@ type AgentWithMetadata = typeof dbAgents.$inferSelect & {
 
 export function SearchableAgentList({
 	agents,
+	folders: initialFolders = [],
 }: {
 	agents: AgentWithMetadata[];
+	folders?: FolderData[];
 }) {
 	const [searchQuery, setSearchQuery] = useState("");
 	const [sortOption, setSortOption] = useState<SortOption>("date-desc");
 	const [viewMode, setViewMode] = useState<ViewMode>("grid");
 	const [selectedTags, setSelectedTags] = useState<string[]>([]);
 	const [publishFilter, setPublishFilter] = useState<PublishFilter>("all");
+	const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+	const [folders, setFolders] = useState<FolderData[]>(initialFolders);
+	const [creatingFolder, setCreatingFolder] = useState(false);
+	const [folderDraft, setFolderDraft] = useState("");
+	const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+	const [renameDraft, setRenameDraft] = useState("");
+
+	const handleCreateFolder = useCallback(async () => {
+		const trimmed = folderDraft.trim();
+		if (!trimmed) { setCreatingFolder(false); return; }
+		const res = await createFolder(trimmed);
+		if (res.result === "success") {
+			setFolders((prev) => [...prev, { id: res.folder.id, name: res.folder.name, parentId: null }]);
+		}
+		setFolderDraft("");
+		setCreatingFolder(false);
+	}, [folderDraft]);
+
+	const handleRenameFolder = useCallback(async (fId: string) => {
+		const trimmed = renameDraft.trim();
+		if (!trimmed) { setRenamingFolderId(null); return; }
+		await renameFolder(fId, trimmed);
+		setFolders((prev) => prev.map((f) => f.id === fId ? { ...f, name: trimmed } : f));
+		setRenamingFolderId(null);
+		setRenameDraft("");
+	}, [renameDraft]);
+
+	const handleDeleteFolder = useCallback(async (fId: string) => {
+		await deleteFolder(fId);
+		setFolders((prev) => prev.filter((f) => f.id !== fId));
+		if (selectedFolderId === fId) setSelectedFolderId(null);
+	}, [selectedFolderId]);
+
+	const handleMoveToFolder = useCallback(async (agentId: string, fId: string | null) => {
+		await moveAgentToFolder(agentId, fId);
+	}, []);
 
 	// Gather all unique tags across all agents
 	const allTags = useMemo(() => {
@@ -56,7 +97,7 @@ export function SearchableAgentList({
 		);
 	};
 
-	// Filter agents based on search query, tags, and publish state
+	// Filter agents based on search query, tags, publish state, and folder
 	const filteredAgents = useMemo(() => {
 		return agents.filter((agent) => {
 			// Search filter
@@ -77,9 +118,14 @@ export function SearchableAgentList({
 			if (publishFilter === "published" && !agent.isPublished) return false;
 			if (publishFilter === "draft" && agent.isPublished) return false;
 
+			// Folder filter
+			if (selectedFolderId !== null) {
+				if ((agent as any).folderId !== selectedFolderId) return false;
+			}
+
 			return true;
 		});
-	}, [agents, searchQuery, selectedTags, publishFilter]);
+	}, [agents, searchQuery, selectedTags, publishFilter, selectedFolderId]);
 
 	// Sort agents based on selected option
 	const sortedAgents = useMemo(() => {
@@ -112,7 +158,7 @@ export function SearchableAgentList({
 				onViewModeChange={setViewMode}
 			/>
 
-			{/* Tag filter bar + Publish filter */}
+			{/* Tag filter bar + Publish filter + Folder breadcrumb */}
 			{(allTags.length > 0 || true) && (
 				<div className="flex items-center gap-2 px-1 pb-3 flex-wrap">
 					{/* Publish filter */}
@@ -165,6 +211,130 @@ export function SearchableAgentList({
 				</div>
 			)}
 
+			<div className="flex gap-4">
+				{/* Folder sidebar */}
+				{folders.length > 0 && (
+					<div className="w-[180px] shrink-0 flex flex-col gap-1">
+						<button
+							type="button"
+							onClick={() => setSelectedFolderId(null)}
+							className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] font-medium transition-colors ${
+								selectedFolderId === null
+									? "bg-primary/10 text-primary"
+									: "text-text/60 hover:text-text/80 hover:bg-surface-variant"
+							}`}
+						>
+							<FolderOpenIcon className="size-3.5" />
+							All Workflows
+						</button>
+						{folders.map((folder) => (
+							<div key={folder.id} className="group flex items-center">
+								{renamingFolderId === folder.id ? (
+									<input
+										type="text"
+										value={renameDraft}
+										onChange={(e) => setRenameDraft(e.target.value)}
+										onKeyDown={(e) => {
+											if (e.key === "Enter") handleRenameFolder(folder.id);
+											if (e.key === "Escape") setRenamingFolderId(null);
+										}}
+										onBlur={() => handleRenameFolder(folder.id)}
+										autoFocus
+										className="flex-1 px-2 py-1 text-[12px] rounded bg-white/5 border border-white/10 text-inverse outline-none"
+									/>
+								) : (
+									<button
+										type="button"
+										onClick={() => setSelectedFolderId(folder.id)}
+										className={`flex-1 flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] font-medium transition-colors text-left ${
+											selectedFolderId === folder.id
+												? "bg-primary/10 text-primary"
+												: "text-text/60 hover:text-text/80 hover:bg-surface-variant"
+										}`}
+									>
+										<FolderIcon className="size-3.5" />
+										<span className="truncate">{folder.name}</span>
+									</button>
+								)}
+								<div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+									<button
+										type="button"
+										onClick={() => { setRenamingFolderId(folder.id); setRenameDraft(folder.name); }}
+										className="p-0.5 rounded hover:bg-white/10"
+										title="Rename"
+									>
+										<PencilIcon className="size-2.5 text-text/40" />
+									</button>
+									<button
+										type="button"
+										onClick={() => handleDeleteFolder(folder.id)}
+										className="p-0.5 rounded hover:bg-white/10"
+										title="Delete folder"
+									>
+										<Trash2Icon className="size-2.5 text-red-400/60" />
+									</button>
+								</div>
+							</div>
+						))}
+						{creatingFolder ? (
+							<input
+								type="text"
+								value={folderDraft}
+								onChange={(e) => setFolderDraft(e.target.value)}
+								onKeyDown={(e) => {
+									if (e.key === "Enter") handleCreateFolder();
+									if (e.key === "Escape") { setCreatingFolder(false); setFolderDraft(""); }
+								}}
+								onBlur={handleCreateFolder}
+								placeholder="Folder name"
+								autoFocus
+								className="px-2 py-1 text-[12px] rounded bg-white/5 border border-white/10 text-inverse outline-none"
+							/>
+						) : (
+							<button
+								type="button"
+								onClick={() => setCreatingFolder(true)}
+								className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] text-text/40 hover:text-text/60 transition-colors"
+							>
+								<FolderPlusIcon className="size-3.5" />
+								New Folder
+							</button>
+						)}
+					</div>
+				)}
+
+				{/* If no folders exist, show "New Folder" button inline */}
+				{folders.length === 0 && (
+					<div className="w-[180px] shrink-0 flex flex-col gap-1">
+						{creatingFolder ? (
+							<input
+								type="text"
+								value={folderDraft}
+								onChange={(e) => setFolderDraft(e.target.value)}
+								onKeyDown={(e) => {
+									if (e.key === "Enter") handleCreateFolder();
+									if (e.key === "Escape") { setCreatingFolder(false); setFolderDraft(""); }
+								}}
+								onBlur={handleCreateFolder}
+								placeholder="Folder name"
+								autoFocus
+								className="px-2 py-1 text-[12px] rounded bg-white/5 border border-white/10 text-inverse outline-none"
+							/>
+						) : (
+							<button
+								type="button"
+								onClick={() => setCreatingFolder(true)}
+								className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] text-text/40 hover:text-text/60 transition-colors"
+							>
+								<FolderPlusIcon className="size-3.5" />
+								New Folder
+							</button>
+						)}
+					</div>
+				)}
+
+				{/* Main content */}
+				<div className="flex-1 min-w-0">
 			{sortedAgents.length === 0 ? (
 				<div className="flex justify-center items-center h-full mt-12">
 					<div className="grid gap-[8px] justify-center text-center">
@@ -245,6 +415,8 @@ export function SearchableAgentList({
 					})}
 				</Card>
 			)}
+				</div>
+			</div>
 		</>
 	);
 }

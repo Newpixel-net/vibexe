@@ -292,6 +292,8 @@ export function Giselle(config: GiselleConfig) {
 						args.onGenerationComplete ?? config.callbacks?.generationComplete,
 					generationError:
 						args.onGenerationError ?? config.callbacks?.generationError,
+					onTaskFailed:
+						args.callbacks?.onTaskFailed ?? config.callbacks?.taskFailed,
 				},
 				context,
 			}),
@@ -307,6 +309,9 @@ export function Giselle(config: GiselleConfig) {
 					args.onGenerationComplete ?? config.callbacks?.generationComplete,
 				onGenerationError:
 					args.onGenerationError ?? config.callbacks?.generationError,
+				callbacks: {
+					onTaskFailed: config.callbacks?.taskFailed,
+				},
 				context,
 			}),
 		handleGitHubWebhookV2: async (args: {
@@ -375,6 +380,9 @@ export function Giselle(config: GiselleConfig) {
 				generationOriginType: "studio",
 				onGenerationComplete: config.callbacks?.generationComplete,
 				onGenerationError: config.callbacks?.generationError,
+				callbacks: {
+					onTaskFailed: config.callbacks?.taskFailed,
+				},
 				context,
 			});
 			return { taskId: task.id, task };

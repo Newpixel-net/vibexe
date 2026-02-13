@@ -97,6 +97,8 @@ export interface RunTaskCallbacks {
 	sequenceFail?: (args: { sequence: Sequence }) => void | Promise<void>;
 	sequenceComplete?: (args: { sequence: Sequence }) => void | Promise<void>;
 	sequenceSkip?: (args: { sequence: Sequence }) => void | Promise<void>;
+	/** Called when the entire task fails — used to trigger error workflows */
+	onTaskFailed?: (args: { taskId: string; workspaceId: string; error: string }) => void | Promise<void>;
 }
 
 async function executeStep(args: {
@@ -301,6 +303,18 @@ export async function runTask(
 
 	patchQueue.cleanup();
 	if (executionError !== null) {
+		// Trigger error workflow callback
+		if (args.callbacks?.onTaskFailed) {
+			try {
+				await args.callbacks.onTaskFailed({
+					taskId: task.id,
+					workspaceId: task.workspaceId,
+					error: executionError.message,
+				});
+			} catch (e) {
+				console.error("Error workflow callback failed:", e);
+			}
+		}
 		console.error("Execution failed:", executionError);
 		throw executionError;
 	}
@@ -545,13 +559,51 @@ async function runTaskWithDag(
 		},
 	});
 
+	// Persist per-node durations to task steps
+	for (const [seqIdx, sequence] of task.sequences.entries()) {
+		for (const [stepIdx, step] of sequence.steps.entries()) {
+			// Find DAG node by generationId
+			for (const [, dagNode] of dag.nodes) {
+				if (dagNode.generationId === step.generationId && dagNode.startedAt && dagNode.completedAt) {
+					const nodeDuration = dagNode.completedAt - dagNode.startedAt;
+					await applyPatches(task.id, [
+						patches.sequences(seqIdx).steps(stepIdx).duration.set(nodeDuration),
+					]);
+					break;
+				}
+			}
+		}
+	}
+
 	// Finalize task
 	const duration = Date.now() - startTime;
+	const finalStatus = result.hasError ? "failed" : "completed";
 	await applyPatches(task.id, [
-		patches.status.set(result.hasError ? "failed" : "completed"),
+		patches.status.set(finalStatus),
 		patches.duration.wallClock.set(duration),
 	]);
 
 	await patchQueue.flush();
 	patchQueue.cleanup();
+
+	// Trigger error workflow callback if task failed
+	if (finalStatus === "failed" && args.callbacks?.onTaskFailed) {
+		// Collect first error message from failed DAG nodes
+		let errorMessage = "Workflow execution failed";
+		for (const [, dagNode] of dag.nodes) {
+			if (dagNode.state === "failed" && dagNode.result?.error) {
+				errorMessage = dagNode.result.error.message;
+				break;
+			}
+		}
+		try {
+			await args.callbacks.onTaskFailed({
+				taskId: task.id,
+				workspaceId: task.workspaceId,
+				error: errorMessage,
+			});
+		} catch (e) {
+			args.context.logger.error({ error: e }, "Error workflow callback failed");
+		}
+	}
 }

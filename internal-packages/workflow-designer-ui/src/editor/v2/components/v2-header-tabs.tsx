@@ -2,7 +2,7 @@
 
 import clsx from "clsx/lite";
 
-export type EditorTab = "editor" | "executions" | "sharing";
+export type EditorTab = "editor" | "executions" | "sharing" | "settings";
 
 interface V2HeaderTabsProps {
 	activeTab: EditorTab;
@@ -12,6 +12,7 @@ interface V2HeaderTabsProps {
 const tabs: { id: EditorTab; label: string }[] = [
 	{ id: "editor", label: "Editor" },
 	{ id: "executions", label: "Executions" },
+	{ id: "settings", label: "Settings" },
 	{ id: "sharing", label: "Sharing" },
 ];
 

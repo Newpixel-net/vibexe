@@ -1,7 +1,8 @@
 "use client";
 
 import { useFeatureFlag } from "@giselles-ai/react";
-import { useCallback, useState } from "react";
+import { AlertTriangleIcon, CheckIcon, InfoIcon, Loader2Icon, SettingsIcon } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/shallow";
 import { useAppDesignerStore } from "../../app-designer";
 import { RunHistoryTable } from "../run-history/run-history-table";
@@ -15,6 +16,92 @@ import { V2Container, V2Footer, V2Header } from "./components";
 import type { EditorTab } from "./components/v2-header-tabs";
 import { RootProvider } from "./components/provider";
 import type { LeftPanelValue, V2LayoutState } from "./state";
+
+/** Workflow-level settings panel (error workflow, etc.) */
+function WorkflowSettingsPanel() {
+	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
+	const [localErrorWorkflowId, setLocalErrorWorkflowId] = useState("");
+	const [saving, setSaving] = useState(false);
+	const [saved, setSaved] = useState(false);
+
+	// Fetch current settings on mount
+	useEffect(() => {
+		fetch(`/api/workspaces/${workspaceId}/settings`)
+			.then((r) => r.json())
+			.then((data) => {
+				if (data.errorWorkflowId) setLocalErrorWorkflowId(data.errorWorkflowId);
+			})
+			.catch(() => {});
+	}, [workspaceId]);
+
+	const handleSave = useCallback(async () => {
+		setSaving(true);
+		setSaved(false);
+		try {
+			await fetch(`/api/workspaces/${workspaceId}/settings`, {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ errorWorkflowId: localErrorWorkflowId || null }),
+			});
+			setSaved(true);
+			setTimeout(() => setSaved(false), 2000);
+		} catch {
+			// silently fail
+		} finally {
+			setSaving(false);
+		}
+	}, [workspaceId, localErrorWorkflowId]);
+
+	return (
+		<div className="space-y-6">
+			<div className="flex items-center gap-2">
+				<SettingsIcon className="size-5 text-inverse/60" />
+				<h2 className="text-[16px] font-semibold text-inverse">Workflow Settings</h2>
+			</div>
+
+			{/* Error Workflow */}
+			<div className="rounded-lg border border-inverse/10 bg-inverse/[0.03] p-4 space-y-3">
+				<div className="flex items-center gap-2">
+					<AlertTriangleIcon className="size-4 text-amber-400" />
+					<h3 className="text-[13px] font-medium text-inverse">Error Workflow</h3>
+				</div>
+				<p className="text-[12px] text-inverse/50 leading-relaxed">
+					When this workflow fails, the error workflow will be triggered automatically
+					with the error context (error message, failed node, timestamp).
+				</p>
+				<div className="flex items-center gap-3">
+					<input
+						type="text"
+						value={localErrorWorkflowId}
+						onChange={(e) => setLocalErrorWorkflowId(e.target.value)}
+						placeholder="Enter workspace ID of error workflow (e.g. wrks_...)"
+						className="flex-1 px-3 py-2 text-[12px] rounded-md bg-inverse/5 border border-inverse/10 text-inverse placeholder:text-inverse/30 outline-none focus:border-primary/40"
+					/>
+					<button
+						type="button"
+						onClick={handleSave}
+						disabled={saving}
+						className="px-4 py-2 text-[12px] font-medium rounded-md bg-primary/20 text-primary hover:bg-primary/30 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+					>
+						{saving ? (
+							<Loader2Icon className="size-3 animate-spin" />
+						) : saved ? (
+							<CheckIcon className="size-3" />
+						) : null}
+						{saved ? "Saved" : "Save"}
+					</button>
+				</div>
+				<div className="flex items-start gap-2 text-[11px] text-inverse/40">
+					<InfoIcon className="size-3 mt-0.5 shrink-0" />
+					<span>
+						The error workflow should have an Error Trigger node to receive error data.
+						You can find the workspace ID in the URL when editing the workflow.
+					</span>
+				</div>
+			</div>
+		</div>
+	);
+}
 
 export function V2Placeholder({
 	isReadOnly = false,
@@ -111,6 +198,13 @@ export function V2Placeholder({
 							<main className="relative flex-1 bg-bg overflow-hidden">
 								<div className="h-full overflow-y-auto p-4">
 									<RunHistoryTable />
+								</div>
+							</main>
+						)}
+						{activeTab === "settings" && (
+							<main className="relative flex-1 bg-bg overflow-hidden">
+								<div className="h-full overflow-y-auto p-6 max-w-[600px]">
+									<WorkflowSettingsPanel />
 								</div>
 							</main>
 						)}
