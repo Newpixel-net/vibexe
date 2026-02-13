@@ -16,12 +16,14 @@ import {
 	CheckCircleIcon,
 	DatabaseIcon,
 	FileTextIcon,
+	PinIcon,
+	PinOffIcon,
 	PlayIcon,
 	TimerIcon,
 	TrashIcon,
 	XCircleIcon,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { useAppDesignerStore, useUpdateNodeData } from "../../app-designer";
 import { useGiselle } from "../../app-designer/store/giselle-client-provider";
@@ -246,6 +248,21 @@ function useDebugGeneration(nodeId: NodeId): Generation | undefined {
 	return data ?? undefined;
 }
 
+/** Helper: extract all generation output as a pinnable value */
+function extractPinnableData(generation: Generation): unknown | null {
+	if (generation.status !== "completed") return null;
+	const completed = generation as CompletedGeneration;
+	// Prefer structured data
+	for (const output of completed.outputs) {
+		if (output.type === "structured-data") return output.data;
+		if (output.type === "data-query-result") return output.content;
+		if (output.type === "query-result") return output.content;
+	}
+	// Fall back to text content
+	const text = getTextContent(generation);
+	return text || null;
+}
+
 export function OutputPanel({
 	nodeId,
 	onExecuteStep,
@@ -258,6 +275,7 @@ export function OutputPanel({
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
 	const debugSession = useDebugSessionStore((s) => s.debugSession);
 	const debugGeneration = useDebugGeneration(nodeId);
+	const updateNodeData = useUpdateNodeData();
 	const { currentGeneration: liveGeneration } = useNodeGenerations({
 		nodeId,
 		origin: { type: "studio", workspaceId },
@@ -271,7 +289,39 @@ export function OutputPanel({
 		currentGeneration?.status === "queued" ||
 		currentGeneration?.status === "running";
 
-	if (!currentGeneration) {
+	const isPinned = node?.pinnedData != null;
+
+	// Pin current output data
+	const handlePin = useCallback(() => {
+		if (!node || !currentGeneration) return;
+		const data = extractPinnableData(currentGeneration);
+		if (data != null) {
+			updateNodeData(node, { pinnedData: data } as any);
+		}
+	}, [node, currentGeneration, updateNodeData]);
+
+	// Unpin data
+	const handleUnpin = useCallback(() => {
+		if (!node) return;
+		updateNodeData(node, { pinnedData: undefined } as any);
+	}, [node, updateNodeData]);
+
+	// Listen for pin events from keyboard shortcut / context menu
+	useEffect(() => {
+		const handler = (e: Event) => {
+			const detail = (e as CustomEvent).detail;
+			if (detail?.nodeId !== nodeId) return;
+			if (isPinned) {
+				handleUnpin();
+			} else {
+				handlePin();
+			}
+		};
+		window.addEventListener("node-pin-data", handler);
+		return () => window.removeEventListener("node-pin-data", handler);
+	}, [nodeId, isPinned, handlePin, handleUnpin]);
+
+	if (!currentGeneration && !isPinned) {
 		return (
 			<div className="flex flex-col h-full">
 				{/* Execute Step button when no output */}
@@ -304,6 +354,21 @@ export function OutputPanel({
 
 	return (
 		<div className="flex flex-col h-full">
+			{/* Pinned data banner */}
+			{isPinned && (
+				<div className="flex items-center gap-[4px] px-[10px] py-[4px] bg-indigo-600/10 border-b border-indigo-500/20">
+					<PinIcon className="size-[10px] text-indigo-400" />
+					<span className="text-[10px] text-indigo-400 flex-1">Data pinned — execution will use this frozen output</span>
+					<button
+						type="button"
+						onClick={handleUnpin}
+						className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-[2px]"
+					>
+						<PinOffIcon className="size-[10px]" />
+						Unpin
+					</button>
+				</div>
+			)}
 			{/* Debug mode indicator */}
 			{debugSession && (
 				<div className="flex items-center gap-[4px] px-[10px] py-[4px] bg-purple-600/10 border-b border-purple-500/20">
@@ -319,23 +384,40 @@ export function OutputPanel({
 						<span className="text-[11px] text-inverse/60">Running...</span>
 					</>
 				)}
-				{currentGeneration.status === "completed" && (
+				{currentGeneration?.status === "completed" && (
 					<>
 						<CheckCircleIcon className="size-[12px] text-green-400" />
 						<span className="text-[11px] text-inverse/60">Completed</span>
 					</>
 				)}
-				{currentGeneration.status === "failed" && (
+				{currentGeneration?.status === "failed" && (
 					<>
 						<XCircleIcon className="size-[12px] text-red-400" />
 						<span className="text-[11px] text-inverse/60">Failed</span>
 					</>
 				)}
-				{currentGeneration.status === "cancelled" && (
+				{currentGeneration?.status === "cancelled" && (
 					<span className="text-[11px] text-inverse/40">Cancelled</span>
 				)}
 
 				<div className="flex-1" />
+
+				{/* Pin/Unpin button */}
+				{node && currentGeneration?.status === "completed" && (
+					<button
+						type="button"
+						onClick={isPinned ? handleUnpin : handlePin}
+						className={`flex items-center gap-[3px] px-[6px] py-[2px] text-[10px] rounded-[3px] transition-colors ${
+							isPinned
+								? "bg-indigo-600/40 text-indigo-300 hover:bg-indigo-500/50"
+								: "text-inverse/40 hover:text-inverse/60 hover:bg-inverse/10"
+						}`}
+						title={isPinned ? "Unpin data (P)" : "Pin output data (P)"}
+					>
+						{isPinned ? <PinOffIcon className="size-[10px]" /> : <PinIcon className="size-[10px]" />}
+						{isPinned ? "Unpin" : "Pin"}
+					</button>
+				)}
 
 				{/* Execute Step / Stop button */}
 				{onExecuteStep && !isRunning && (
@@ -350,7 +432,7 @@ export function OutputPanel({
 					</button>
 				)}
 
-				{(currentGeneration.status === "completed" ||
+				{currentGeneration && (currentGeneration.status === "completed" ||
 					currentGeneration.status === "cancelled") && (
 					<ClipboardButton
 						text={getTextContent(currentGeneration)}
@@ -358,7 +440,7 @@ export function OutputPanel({
 						className="text-inverse/40 hover:text-inverse/60"
 					/>
 				)}
-				{currentGeneration.status === "failed" && (
+				{currentGeneration?.status === "failed" && (
 					<ClipboardButton
 						text={getErrorContent(currentGeneration)}
 						tooltip="Copy error"
@@ -397,11 +479,43 @@ export function OutputPanel({
 				)}
 
 			{/* Content with Text/Data tab switching */}
-			<OutputContent
-				currentGeneration={currentGeneration}
-				node={node}
-			/>
+			{currentGeneration ? (
+				<OutputContent
+					currentGeneration={currentGeneration}
+					node={node}
+				/>
+			) : isPinned ? (
+				<PinnedDataContent node={node} />
+			) : null}
 		</div>
+	);
+}
+
+/** Shows pinned data when no current generation exists */
+function PinnedDataContent({ node }: { node?: OperationNode }) {
+	const [viewMode, setViewMode] = useState<ViewMode>("schema");
+	if (!node?.pinnedData) return null;
+	const data = node.pinnedData;
+	const itemCount = Array.isArray(data) ? data.length : undefined;
+
+	return (
+		<>
+			<div className="flex-1 overflow-y-auto p-[8px]">
+				<div className="mb-[6px]">
+					<ViewModeToggle
+						viewMode={viewMode}
+						onViewModeChange={setViewMode}
+						itemCount={itemCount}
+					/>
+				</div>
+				<div className="rounded-[4px] bg-inverse/5 overflow-hidden">
+					{viewMode === "schema" && <SchemaTreeView data={data} />}
+					{viewMode === "table" && <DataTableView data={data} />}
+					{viewMode === "json" && <JsonSyntaxView data={data} />}
+				</div>
+			</div>
+			{node && <MockDataSection node={node} />}
+		</>
 	);
 }
 

@@ -108,6 +108,10 @@ export function ContextMenu({
 		node && isOperationNode(node as any)
 			? (node as unknown as OperationNode).disabled ?? false
 			: false;
+	const isPinned =
+		node && isOperationNode(node as any)
+			? (node as unknown as OperationNode).pinnedData != null
+			: false;
 
 	const handleExecute = useCallback(() => {
 		onExecute?.();
@@ -128,6 +132,21 @@ export function ContextMenu({
 		}
 		onClose();
 	}, [node, isDisabled, updateNodeData, onClose]);
+
+	const handleTogglePin = useCallback(() => {
+		if (node && isOperationNode(node as any)) {
+			if (isPinned) {
+				// Unpin — clear pinned data
+				updateNodeData(node as any, { pinnedData: undefined } as any);
+			} else {
+				// Pin — dispatch event to capture current output as pinned data
+				window.dispatchEvent(
+					new CustomEvent("node-pin-data", { detail: { nodeId: id } }),
+				);
+			}
+		}
+		onClose();
+	}, [node, isPinned, updateNodeData, id, onClose]);
 
 	const handleCopy = useCallback(() => {
 		copyNode();
@@ -193,6 +212,13 @@ export function ContextMenu({
 					shortcut="D"
 					icon={isDisabled ? EyeIcon : EyeOffIcon}
 					onClick={handleToggleDisabled}
+					disabled={!isOperation}
+				/>
+				<MenuItem
+					label={isPinned ? "Unpin Data" : "Pin Data"}
+					shortcut="P"
+					icon={isPinned ? PinOffIcon : PinIcon}
+					onClick={handleTogglePin}
 					disabled={!isOperation}
 				/>
 				<MenuSeparator />

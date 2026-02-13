@@ -329,6 +329,17 @@ export async function executeDag(
 			return;
 		}
 
+		// Pinned data: use frozen output data, skip execution
+		if (node.operationNode.pinnedData != null) {
+			node.state = "completed";
+			node.result = {
+				outputs: new Map([["output", node.operationNode.pinnedData]]),
+			};
+			await callbacks.onNodeComplete?.(nodeId, node.result);
+			await propagateDownstream(nodeId);
+			return;
+		}
+
 		node.state = "running";
 		await callbacks.onNodeStart?.(nodeId);
 

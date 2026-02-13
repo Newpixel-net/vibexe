@@ -115,6 +115,7 @@ export const OperationNode = NodeBase.extend({
 	errorConfig: ErrorConfig.optional(),
 	disabled: z.boolean().optional(),
 	mockData: z.unknown().optional(),
+	pinnedData: z.unknown().optional(),
 	alwaysOutputData: z.boolean().optional(),
 	executeOnce: z.boolean().optional(),
 });

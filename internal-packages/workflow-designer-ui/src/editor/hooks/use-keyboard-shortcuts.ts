@@ -183,6 +183,30 @@ export function useKeyboardShortcuts(
 		isCanvasFocused,
 	);
 
+	// P key — toggle pin on selected node
+	useKeyAction(
+		"p",
+		useCallback(() => {
+			const selectedNode = nodes.find(
+				(n) => n.selected && isOperationNode(n),
+			);
+			if (!selectedNode) return;
+			const opNode = selectedNode as unknown as OperationNode;
+			if (opNode.pinnedData != null) {
+				// Unpin
+				updateNodeData(opNode, { pinnedData: undefined } as any);
+			} else {
+				// Pin — dispatch event to capture current output
+				window.dispatchEvent(
+					new CustomEvent("node-pin-data", {
+						detail: { nodeId: selectedNode.id },
+					}),
+				);
+			}
+		}, [nodes, updateNodeData]),
+		isCanvasFocused,
+	);
+
 	// F2 key — rename selected node
 	useKeyAction(
 		"F2",

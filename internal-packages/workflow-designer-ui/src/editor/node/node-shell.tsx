@@ -129,6 +129,13 @@ export function NodeShell({
 		>
 			{!preview && <NodeHoverToolbar node={node as any} onExecute={onExecute} />}
 
+			{/* Pinned data badge */}
+			{(node as any).pinnedData != null && (
+				<div className="absolute -top-2 -left-2 z-20 flex items-center justify-center w-5 h-5 rounded-full bg-indigo-500 text-white shadow-lg" title="Data pinned">
+					<svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
+				</div>
+			)}
+
 			{/* Disabled overlay */}
 			{(node as any).disabled && (
 				<div
