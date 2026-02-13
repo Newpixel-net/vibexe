@@ -8,7 +8,7 @@ import type {
 import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import clsx from "clsx/lite";
-import { PlusIcon } from "lucide-react";
+// PlusIcon no longer needed — using plain "+" text like N8N
 import { useCallback, useMemo } from "react";
 import { useAppDesignerStore, useUpdateNodeData } from "../../app-designer";
 import { NodeIcon } from "../../icons/node";
@@ -185,12 +185,22 @@ export function NodeComponent({
 	);
 }
 
-/** Per-output "+" button positioned next to a specific handle */
-function HandlePlusButton({
+/** N8N-style inline output row: ─── label  +  (connected by a thin line from the handle) */
+function HandleOutputRow({
 	nodeId,
 	outputId,
 	top,
-}: { nodeId: string; outputId: string; top: string }) {
+	label,
+	color,
+	showPlus = true,
+}: {
+	nodeId: string;
+	outputId: string;
+	top: string;
+	label?: string;
+	color?: string;
+	showPlus?: boolean;
+}) {
 	const onClick = useCallback(
 		(e: React.MouseEvent) => {
 			e.stopPropagation();
@@ -204,22 +214,40 @@ function HandlePlusButton({
 	);
 
 	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className={clsx(
-				"absolute -right-[28px]",
-				"w-[16px] h-[16px] rounded-full",
-				"flex items-center justify-center",
-				"bg-inverse/10 backdrop-blur-sm border border-inverse/20",
-				"text-inverse/60 hover:text-inverse hover:bg-inverse/20",
-				"opacity-0 group-hover:opacity-100 transition-opacity duration-150",
-				"cursor-pointer z-10",
-			)}
-			style={{ top }}
+		<div
+			className="absolute flex items-center z-10"
+			style={{ left: "calc(100% + 6px)", top, transform: "translateY(-50%)" }}
 		>
-			<PlusIcon className="w-[10px] h-[10px]" />
-		</button>
+			{/* Thin connecting line from handle dot */}
+			<div className="w-[14px] h-[1px] bg-inverse/20 shrink-0" />
+			{/* Label text (plain, no pill background) */}
+			{label && (
+				<span
+					className={clsx(
+						"text-[9px] font-medium whitespace-nowrap ml-[2px]",
+						color ?? "text-inverse/50",
+					)}
+				>
+					{label}
+				</span>
+			)}
+			{/* "+" button (always visible, plain style like N8N) */}
+			{showPlus && (
+				<button
+					type="button"
+					onClick={onClick}
+					className={clsx(
+						"w-[16px] h-[16px] rounded-[3px] ml-[3px] shrink-0",
+						"flex items-center justify-center",
+						"border border-inverse/20",
+						"text-inverse/40 hover:text-inverse hover:border-inverse/40",
+						"transition-colors duration-150 cursor-pointer",
+					)}
+				>
+					<span className="text-[12px] leading-none font-light">+</span>
+				</button>
+			)}
+		</div>
 	);
 }
 
@@ -243,18 +271,6 @@ function NodeHandles({
 		contentType === "loop" ||
 		contentType === "filter";
 
-	const handlePlusClick = useCallback(
-		(e: React.MouseEvent) => {
-			e.stopPropagation();
-			window.dispatchEvent(
-				new CustomEvent("what-happens-next", {
-					detail: { sourceNodeId: node.id },
-				}),
-			);
-		},
-		[node.id],
-	);
-
 	// Determine if this node needs input handles
 	const showInput =
 		node.type === "operation" &&
@@ -265,6 +281,17 @@ function NodeHandles({
 		contentType !== "memoryNode" &&
 		contentType !== "errorTrigger" &&
 		contentType !== "formTrigger";
+
+	// In N8N, sub-nodes and triggers don't have "+" buttons
+	const isSubNode =
+		contentType === "chatModel" ||
+		contentType === "toolNode" ||
+		contentType === "memoryNode";
+	const isTriggerType =
+		contentType === "trigger" ||
+		contentType === "errorTrigger" ||
+		contentType === "formTrigger";
+	const showPlusButton = !isSubNode && !isTriggerType;
 
 	return (
 		<>
@@ -295,40 +322,31 @@ function NodeHandles({
 			) : contentType === "filter" ? (
 				<FilterOutputHandles v={v} nodeId={node.id} />
 			) : (
-				<Handle
-					type="source"
-					position={Position.Right}
-					className={clsx(
-						"!absolute !w-[12px] !h-[12px] !rounded-full !right-0 !top-1/2 !translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
-						getHandleBorderClass(v),
-						isOutputConnected && getHandleActiveBgClass(v),
+				<>
+					<Handle
+						type="source"
+						position={Position.Right}
+						className={clsx(
+							"!absolute !w-[12px] !h-[12px] !rounded-full !right-0 !top-1/2 !translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
+							getHandleBorderClass(v),
+							isOutputConnected && getHandleActiveBgClass(v),
+						)}
+					/>
+					{/* N8N-style inline "+" for single-output nodes */}
+					{!isMultiOutput && showPlusButton && (
+						<HandleOutputRow
+							nodeId={node.id}
+							outputId="output"
+							top="50%"
+						/>
 					)}
-				/>
-			)}
-
-			{/* Single plus button for single-output nodes only */}
-			{!isMultiOutput && (
-				<button
-					type="button"
-					onClick={handlePlusClick}
-					className={clsx(
-						"absolute -right-[28px] top-1/2 -translate-y-1/2",
-						"w-[20px] h-[20px] rounded-full",
-						"flex items-center justify-center",
-						"bg-inverse/10 backdrop-blur-sm border border-inverse/20",
-						"text-inverse/60 hover:text-inverse hover:bg-inverse/20",
-						"opacity-0 group-hover:opacity-100 transition-opacity duration-150",
-						"cursor-pointer z-10",
-					)}
-				>
-					<PlusIcon className="w-[12px] h-[12px]" />
-				</button>
+				</>
 			)}
 		</>
 	);
 }
 
-/** Handle label pill - dark background like N8N */
+/** Handle label — plain text, no pill background (matches N8N) */
 function HandleLabel({
 	text,
 	side,
@@ -344,13 +362,12 @@ function HandleLabel({
 		<span
 			className={clsx(
 				"absolute text-[9px] font-medium pointer-events-none whitespace-nowrap",
-				"px-[5px] py-[1px] rounded-[4px] bg-black/70 backdrop-blur-sm",
-				color ?? "text-inverse/70",
+				color ?? "text-inverse/50",
 			)}
 			style={
-				side === "right"
-					? { left: "calc(100% + 32px)", top }
-					: { right: "calc(100% + 10px)", top }
+				side === "left"
+					? { right: "calc(100% + 10px)", top, transform: "translateY(-50%)" }
+					: undefined
 			}
 		>
 			{text}
@@ -373,13 +390,7 @@ function IfOutputHandles({ v, nodeId }: { v: VariantType; nodeId: string }) {
 					getHandleBorderClass(v),
 				)}
 			/>
-			<HandleLabel
-				text="true"
-				side="right"
-				top={`calc(${positions[0]}% - 7px)`}
-				color="text-emerald-400"
-			/>
-			<HandlePlusButton nodeId={nodeId} outputId="true" top={`calc(${positions[0]}% - 8px)`} />
+			<HandleOutputRow nodeId={nodeId} outputId="true" top={`${positions[0]}%`} label="true" color="text-emerald-400" />
 			<Handle
 				type="source"
 				id="false"
@@ -390,33 +401,25 @@ function IfOutputHandles({ v, nodeId }: { v: VariantType; nodeId: string }) {
 					getHandleBorderClass(v),
 				)}
 			/>
-			<HandleLabel
-				text="false"
-				side="right"
-				top={`calc(${positions[1]}% - 7px)`}
-				color="text-red-400"
-			/>
-			<HandlePlusButton nodeId={nodeId} outputId="false" top={`calc(${positions[1]}% - 8px)`} />
+			<HandleOutputRow nodeId={nodeId} outputId="false" top={`${positions[1]}%`} label="false" color="text-red-400" />
 		</>
 	);
 }
 
-/** Switch node: dynamic case output handles */
+/** Switch node: dynamic case output handles (labels "0", "1", etc. like N8N) */
 function SwitchOutputHandles({ v, node }: { v: VariantType; node: NodeLike }) {
-	const switchCases = useMemo(() => {
+	const caseCount = useMemo(() => {
 		const content = node.content as any;
 		const cases = content.cases ?? [];
-		return cases.length > 0
-			? cases.map((_: unknown, i: number) => `Case ${i}`)
-			: ["Case 0", "Case 1"];
+		return cases.length > 0 ? cases.length : 2;
 	}, [node.content]);
 
-	const positions = getHandlePositions(switchCases.length);
+	const positions = getHandlePositions(caseCount);
 
 	return (
 		<>
-			{switchCases.map((label: string, i: number) => (
-				<span key={label}>
+			{Array.from({ length: caseCount }, (_, i) => (
+				<span key={`case-${i}`}>
 					<Handle
 						type="source"
 						id={`case-${i}`}
@@ -427,19 +430,14 @@ function SwitchOutputHandles({ v, node }: { v: VariantType; node: NodeLike }) {
 							getHandleBorderClass(v),
 						)}
 					/>
-					<HandleLabel
-						text={label}
-						side="right"
-						top={`calc(${positions[i]}% - 7px)`}
-					/>
-					<HandlePlusButton nodeId={node.id} outputId={`case-${i}`} top={`calc(${positions[i]}% - 8px)`} />
+					<HandleOutputRow nodeId={node.id} outputId={`case-${i}`} top={`${positions[i]}%`} label={`${i}`} />
 				</span>
 			))}
 		</>
 	);
 }
 
-/** Loop node: done/loop labeled output handles */
+/** Loop node: done/loop labeled output handles (N8N: "loop" has no "+") */
 function LoopOutputHandles({ v, nodeId }: { v: VariantType; nodeId: string }) {
 	const positions = getHandlePositions(2);
 	return (
@@ -454,12 +452,7 @@ function LoopOutputHandles({ v, nodeId }: { v: VariantType; nodeId: string }) {
 					getHandleBorderClass(v),
 				)}
 			/>
-			<HandleLabel
-				text="done"
-				side="right"
-				top={`calc(${positions[0]}% - 7px)`}
-			/>
-			<HandlePlusButton nodeId={nodeId} outputId="done" top={`calc(${positions[0]}% - 8px)`} />
+			<HandleOutputRow nodeId={nodeId} outputId="done" top={`${positions[0]}%`} label="done" />
 			<Handle
 				type="source"
 				id="loop"
@@ -470,12 +463,7 @@ function LoopOutputHandles({ v, nodeId }: { v: VariantType; nodeId: string }) {
 					getHandleBorderClass(v),
 				)}
 			/>
-			<HandleLabel
-				text="loop"
-				side="right"
-				top={`calc(${positions[1]}% - 7px)`}
-			/>
-			<HandlePlusButton nodeId={nodeId} outputId="loop" top={`calc(${positions[1]}% - 8px)`} />
+			<HandleOutputRow nodeId={nodeId} outputId="loop" top={`${positions[1]}%`} label="loop" showPlus={false} />
 		</>
 	);
 }
@@ -539,13 +527,7 @@ function FilterOutputHandles({ v, nodeId }: { v: VariantType; nodeId: string }) 
 					getHandleBorderClass(v),
 				)}
 			/>
-			<HandleLabel
-				text="kept"
-				side="right"
-				top={`calc(${positions[0]}% - 7px)`}
-				color="text-emerald-400"
-			/>
-			<HandlePlusButton nodeId={nodeId} outputId="kept" top={`calc(${positions[0]}% - 8px)`} />
+			<HandleOutputRow nodeId={nodeId} outputId="kept" top={`${positions[0]}%`} label="kept" color="text-emerald-400" />
 			<Handle
 				type="source"
 				id="discarded"
@@ -556,13 +538,7 @@ function FilterOutputHandles({ v, nodeId }: { v: VariantType; nodeId: string }) 
 					getHandleBorderClass(v),
 				)}
 			/>
-			<HandleLabel
-				text="discarded"
-				side="right"
-				top={`calc(${positions[1]}% - 7px)`}
-				color="text-red-400"
-			/>
-			<HandlePlusButton nodeId={nodeId} outputId="discarded" top={`calc(${positions[1]}% - 8px)`} />
+			<HandleOutputRow nodeId={nodeId} outputId="discarded" top={`${positions[1]}%`} label="discarded" color="text-red-400" />
 		</>
 	);
 }
