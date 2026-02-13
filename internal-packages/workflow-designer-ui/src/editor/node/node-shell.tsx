@@ -152,6 +152,13 @@ export function NodeShell({
 				onStopCurrentGeneration={stopCurrentGeneration}
 			/>
 
+			{/* Unconfigured node warning badge */}
+			{requiresSetup && (
+				<div className="absolute -top-2 -right-2 z-20 flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-white text-xs font-bold shadow-lg animate-pulse">
+					!
+				</div>
+			)}
+
 			{/* Background gradient */}
 			<div
 				className={clsx("absolute z-[-1] inset-0", radiusClass)}

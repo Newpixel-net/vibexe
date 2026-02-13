@@ -1,6 +1,7 @@
 export * from "./card-node";
 export * from "./circle-node";
 export * from "./diamond-node";
+export * from "./hexagon-node";
 export * from "./small-circle-node";
 export * from "./wide-node";
 export * from "./pill-node";

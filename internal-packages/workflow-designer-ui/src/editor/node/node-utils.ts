@@ -52,6 +52,20 @@ export function nodeRequiresSetup(node: NodeLike): boolean {
 	if (isDataStoreNode(node)) {
 		return node.content.state.status !== "configured";
 	}
+	// Integration nodes need pieceName + actionName configured
+	if (node.content.type === "integration") {
+		const c = node.content as unknown as { pieceName?: string; actionName?: string };
+		return !c.pieceName || !c.actionName;
+	}
+	// Text generation needs a model selected
+	if (isTextGenerationNode(node)) {
+		return !node.content.llm?.provider || !node.content.llm?.id;
+	}
+	// AI Agent needs a language model configured
+	if (node.content.type === "aiAgent") {
+		const c = node.content as unknown as { languageModel?: { provider?: string; id?: string } };
+		return !c.languageModel?.provider || !c.languageModel?.id;
+	}
 	return false;
 }
 

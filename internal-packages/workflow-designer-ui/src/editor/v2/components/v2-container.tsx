@@ -59,6 +59,7 @@ import {
 	CardXyFlowNode,
 	CircleXyFlowNode,
 	DiamondXyFlowNode,
+	HexagonXyFlowNode,
 	PillXyFlowNode,
 	SmallCircleXyFlowNode,
 	WideXyFlowNode,
@@ -193,6 +194,8 @@ function getXyNodeType(contentType: string): string {
 		case "toolNode":
 		case "memoryNode":
 			return "smallCircle"; // N8N configuration: 80x80 circle
+		case "code":
+			return "hexagon"; // Hexagon shape for Code node
 		default:
 			return "card"; // N8N default: 96x96 rounded square
 	}
@@ -276,6 +279,7 @@ function V2NodeCanvas() {
 			diamond: DiamondXyFlowNode, // backward compat alias → card
 			smallCircle: SmallCircleXyFlowNode,
 			wide: WideXyFlowNode,
+			hexagon: HexagonXyFlowNode,
 			stickyNote: StickyNoteNode,
 		}),
 		[],

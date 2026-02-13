@@ -116,6 +116,14 @@
 	--color-node-flow-control-secondary: hsl(185, 80%, 30%);
 	--color-node-data-transform-primary: hsl(38, 92%, 50%);
 	--color-node-data-transform-secondary: hsl(38, 92%, 38%);
+	--color-node-branching-primary: hsl(152, 70%, 40%);
+	--color-node-branching-secondary: hsl(152, 70%, 28%);
+	--color-node-merge-primary: hsl(215, 65%, 52%);
+	--color-node-merge-secondary: hsl(215, 65%, 38%);
+	--color-node-wait-primary: hsl(35, 90%, 48%);
+	--color-node-wait-secondary: hsl(35, 90%, 36%);
+	--color-node-data-processing-primary: hsl(265, 65%, 55%);
+	--color-node-data-processing-secondary: hsl(265, 65%, 42%);
 	--color-node-error-trigger-primary: hsl(0, 75%, 55%);
 	--color-node-error-trigger-secondary: hsl(0, 75%, 43%);
 }

@@ -50,16 +50,16 @@ const edgeColorMap: Record<string, string> = {
 	appEntry: STAGE_NODE_COLOR_VAR,
 	end: STAGE_NODE_COLOR_VAR,
 	// Flow control nodes
-	if: "var(--color-flow-control-node-1)",
-	switch: "var(--color-flow-control-node-1)",
-	merge: "var(--color-flow-control-node-1)",
+	if: "var(--color-branching-node-1)",
+	switch: "var(--color-branching-node-1)",
+	merge: "var(--color-merge-node-1)",
 	loop: "var(--color-flow-control-node-1)",
-	wait: "var(--color-flow-control-node-1)",
+	wait: "var(--color-wait-node-1)",
 	// Data transform nodes
 	code: "var(--color-data-transform-node-1)",
-	filter: "var(--color-data-transform-node-1)",
-	editFields: "var(--color-data-transform-node-1)",
-	sort: "var(--color-data-transform-node-1)",
+	filter: "var(--color-data-processing-node-1)",
+	editFields: "var(--color-data-processing-node-1)",
+	sort: "var(--color-data-processing-node-1)",
 	// Error & storage
 	errorTrigger: "var(--color-error-trigger-node-1)",
 	dataTable: "var(--color-data-store-node-1)",

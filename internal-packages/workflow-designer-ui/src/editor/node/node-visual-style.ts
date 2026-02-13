@@ -41,6 +41,12 @@ export interface VariantType {
 	isGithubTrigger: boolean;
 	isFlowControl: boolean;
 	isDataTransform: boolean;
+	isBranching: boolean;
+	isLoop: boolean;
+	isMerge: boolean;
+	isWait: boolean;
+	isCode: boolean;
+	isDataProcessing: boolean;
 	isErrorTrigger: boolean;
 	isDataTable: boolean;
 	isFormTrigger: boolean;
@@ -85,6 +91,17 @@ export function useVariant(node: NodeLike): VariantType {
 		const isErrorTrigger = node.content.type === "errorTrigger";
 		const isDataTable = node.content.type === "dataTable";
 		const isFormTrigger = node.content.type === "formTrigger";
+
+		const isBranching =
+			node.content.type === "if" || node.content.type === "switch";
+		const isLoop = node.content.type === "loop";
+		const isMerge = node.content.type === "merge";
+		const isWait = node.content.type === "wait";
+		const isCode = node.content.type === "code";
+		const isDataProcessing =
+			node.content.type === "filter" ||
+			node.content.type === "editFields" ||
+			node.content.type === "sort";
 
 		const isVectorStoreGithub =
 			isVectorStore &&
@@ -162,6 +179,12 @@ export function useVariant(node: NodeLike): VariantType {
 			isErrorTrigger,
 			isDataTable,
 			isFormTrigger,
+			isBranching,
+			isLoop,
+			isMerge,
+			isWait,
+			isCode,
+			isDataProcessing,
 			isFillIcon,
 			isStrokeIcon,
 			isDarkIconText,
@@ -187,8 +210,12 @@ export function getNodeColorVariable(v: VariantType): string | undefined {
 	if (v.isIntegration) return "var(--color-integration-node-1)";
 	if (v.isQuery) return "var(--color-query-node-1)";
 	if (v.isDataQuery) return "var(--color-data-query-node-1)";
-	if (v.isFlowControl) return "var(--color-flow-control-node-1)";
-	if (v.isDataTransform) return "var(--color-data-transform-node-1)";
+	if (v.isBranching) return "var(--color-branching-node-1)";
+	if (v.isLoop) return "var(--color-flow-control-node-1)";
+	if (v.isMerge) return "var(--color-merge-node-1)";
+	if (v.isWait) return "var(--color-wait-node-1)";
+	if (v.isCode) return "var(--color-data-transform-node-1)";
+	if (v.isDataProcessing) return "var(--color-data-processing-node-1)";
 	if (v.isErrorTrigger) return "var(--color-error-trigger-node-1)";
 	if (v.isDataTable) return "var(--color-data-store-node-1)";
 	if (v.isFormTrigger) return "var(--color-trigger-node-1)";
@@ -262,8 +289,12 @@ export function getSelectionShadowClasses(
 		selected && v.isQuery && "shadow-query-node-1",
 		selected && v.isDataStore && "shadow-data-store-node-1",
 		selected && v.isDataQuery && "shadow-data-query-node-1",
-		selected && v.isFlowControl && "shadow-flow-control-node-1",
-		selected && v.isDataTransform && "shadow-data-transform-node-1",
+		selected && v.isBranching && "shadow-branching-node-1",
+		selected && v.isLoop && "shadow-flow-control-node-1",
+		selected && v.isMerge && "shadow-merge-node-1",
+		selected && v.isWait && "shadow-wait-node-1",
+		selected && v.isCode && "shadow-data-transform-node-1",
+		selected && v.isDataProcessing && "shadow-data-processing-node-1",
 		selected && v.isErrorTrigger && "shadow-error-trigger-node-1",
 		selected && v.isDataTable && "shadow-data-store-node-1",
 		selected && v.isFormTrigger && "shadow-trigger-node-1",
@@ -288,8 +319,12 @@ export function getSelectionShadowClasses(
 		highlighted && v.isQuery && "shadow-query-node-1",
 		highlighted && v.isDataStore && "shadow-data-store-node-1",
 		highlighted && v.isDataQuery && "shadow-data-query-node-1",
-		highlighted && v.isFlowControl && "shadow-flow-control-node-1",
-		highlighted && v.isDataTransform && "shadow-data-transform-node-1",
+		highlighted && v.isBranching && "shadow-branching-node-1",
+		highlighted && v.isLoop && "shadow-flow-control-node-1",
+		highlighted && v.isMerge && "shadow-merge-node-1",
+		highlighted && v.isWait && "shadow-wait-node-1",
+		highlighted && v.isCode && "shadow-data-transform-node-1",
+		highlighted && v.isDataProcessing && "shadow-data-processing-node-1",
 		highlighted && v.isErrorTrigger && "shadow-error-trigger-node-1",
 		highlighted && v.isDataTable && "shadow-data-store-node-1",
 		highlighted && v.isFormTrigger && "shadow-trigger-node-1",
@@ -362,11 +397,23 @@ export function getBorderGradientClasses(
 			v.isDataQuery &&
 			"from-data-query-node-1/40 via-data-query-node-1/70 to-data-query-node-1",
 		!hasBorderGradientStyle &&
-			v.isFlowControl &&
+			v.isBranching &&
+			"from-branching-node-1/40 via-branching-node-1/70 to-branching-node-1",
+		!hasBorderGradientStyle &&
+			v.isLoop &&
 			"from-flow-control-node-1/40 via-flow-control-node-1/70 to-flow-control-node-1",
 		!hasBorderGradientStyle &&
-			v.isDataTransform &&
+			v.isMerge &&
+			"from-merge-node-1/40 via-merge-node-1/70 to-merge-node-1",
+		!hasBorderGradientStyle &&
+			v.isWait &&
+			"from-wait-node-1/40 via-wait-node-1/70 to-wait-node-1",
+		!hasBorderGradientStyle &&
+			v.isCode &&
 			"from-data-transform-node-1/40 via-data-transform-node-1/70 to-data-transform-node-1",
+		!hasBorderGradientStyle &&
+			v.isDataProcessing &&
+			"from-data-processing-node-1/40 via-data-processing-node-1/70 to-data-processing-node-1",
 		!hasBorderGradientStyle &&
 			v.isErrorTrigger &&
 			"from-error-trigger-node-1/40 via-error-trigger-node-1/70 to-error-trigger-node-1",
@@ -398,8 +445,12 @@ export function getIconContainerClasses(v: VariantType): string {
 		v.isQuery && "bg-query-node-1",
 		v.isDataStore && "bg-data-store-node-1",
 		v.isDataQuery && "bg-data-query-node-1",
-		v.isFlowControl && "bg-flow-control-node-1",
-		v.isDataTransform && "bg-data-transform-node-1",
+		v.isBranching && "bg-branching-node-1",
+		v.isLoop && "bg-flow-control-node-1",
+		v.isMerge && "bg-merge-node-1",
+		v.isWait && "bg-wait-node-1",
+		v.isCode && "bg-data-transform-node-1",
+		v.isDataProcessing && "bg-data-processing-node-1",
 		v.isErrorTrigger && "bg-error-trigger-node-1",
 		v.isDataTable && "bg-data-store-node-1",
 		v.isFormTrigger && "bg-trigger-node-1",
@@ -481,8 +532,12 @@ export function getHandleBorderClass(v: VariantType): string {
 		v.isQuery && "!border-query-node-1",
 		v.isDataStore && "!border-data-store-node-1",
 		v.isDataQuery && "!border-data-query-node-1",
-		v.isFlowControl && "!border-flow-control-node-1",
-		v.isDataTransform && "!border-data-transform-node-1",
+		v.isBranching && "!border-branching-node-1",
+		v.isLoop && "!border-flow-control-node-1",
+		v.isMerge && "!border-merge-node-1",
+		v.isWait && "!border-wait-node-1",
+		v.isCode && "!border-data-transform-node-1",
+		v.isDataProcessing && "!border-data-processing-node-1",
 		v.isErrorTrigger && "!border-error-trigger-node-1",
 		v.isDataTable && "!border-data-store-node-1",
 		v.isFormTrigger && "!border-trigger-node-1",
@@ -510,8 +565,12 @@ export function getHandleActiveBgClass(v: VariantType): string {
 		v.isQuery && "!bg-query-node-1",
 		v.isDataStore && "!bg-data-store-node-1",
 		v.isDataQuery && "!bg-data-query-node-1",
-		v.isFlowControl && "!bg-flow-control-node-1",
-		v.isDataTransform && "!bg-data-transform-node-1",
+		v.isBranching && "!bg-branching-node-1",
+		v.isLoop && "!bg-flow-control-node-1",
+		v.isMerge && "!bg-merge-node-1",
+		v.isWait && "!bg-wait-node-1",
+		v.isCode && "!bg-data-transform-node-1",
+		v.isDataProcessing && "!bg-data-processing-node-1",
 		v.isErrorTrigger && "!bg-error-trigger-node-1",
 		v.isDataTable && "!bg-data-store-node-1",
 		v.isFormTrigger && "!bg-trigger-node-1",
