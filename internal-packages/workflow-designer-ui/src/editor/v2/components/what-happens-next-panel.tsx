@@ -20,19 +20,28 @@ import { chainTemplates, type ChainTemplate } from "../../lib/chain-templates";
 import {
 	createAiAgentNode,
 	createAppEntryNode,
+	createCodeNode,
 	createContentGenerationNode,
 	createDataQueryNode,
 	createDataStoreNode,
 	createDocumentVectorStoreNode,
+	createEditFieldsNode,
 	createEndNode,
 	createFileNode,
+	createFilterNode,
 	createGitHubVectorStoreNode,
+	createIfNode,
 	createImageGenerationNode,
 	createIntegrationNode,
+	createLoopNode,
+	createMergeNode,
 	createQueryNode,
+	createSortNode,
+	createSwitchNode,
 	createTextGenerationNode,
 	createTextNode,
 	createTriggerNode,
+	createWaitNode,
 	createWebPageNode,
 } from "@giselles-ai/node-registry";
 import {
@@ -40,22 +49,31 @@ import {
 	isImageGenerationLanguageModelData,
 	isTextGenerationLanguageModelData,
 	type NodeId,
+	type NodeLike,
 } from "@giselles-ai/protocol";
 import { useFeatureFlag } from "@giselles-ai/react";
 import { useUsageLimits } from "@giselles-ai/react";
 import clsx from "clsx/lite";
 import {
+	ArrowUpDownIcon,
 	BotIcon,
 	ChevronLeftIcon,
 	ClockIcon,
+	Code2Icon,
+	FilterIcon,
 	FlagIcon,
 	GitBranchIcon,
+	GitMergeIcon,
 	GlobeIcon,
 	LayersIcon,
 	LinkIcon,
+	PencilIcon,
 	PlayIcon,
+	RepeatIcon,
+	RouteIcon,
 	SearchIcon,
 	SparklesIcon,
+	TimerIcon,
 	XIcon,
 } from "lucide-react";
 import {
@@ -116,6 +134,26 @@ const PROVIDER_LABELS: Record<string, string> = {
 	perplexity: "Perplexity",
 	fal: "Image Generation",
 };
+
+// Built-in node types for search and the Logic section
+const BUILT_IN_NODES: Array<{
+	name: string;
+	description: string;
+	keywords: string[];
+	icon: ReactNode;
+	section: "flow" | "transform";
+	factory: () => NodeLike;
+}> = [
+	{ name: "If", description: "Branch based on conditions", keywords: ["if", "condition", "branch", "conditional"], icon: <GitBranchIcon className="w-3 h-3" />, section: "flow", factory: createIfNode },
+	{ name: "Switch", description: "Route to multiple branches", keywords: ["switch", "route", "case", "routing"], icon: <RouteIcon className="w-3 h-3" />, section: "flow", factory: createSwitchNode },
+	{ name: "Merge", description: "Combine multiple inputs", keywords: ["merge", "combine", "join"], icon: <GitMergeIcon className="w-3 h-3" />, section: "flow", factory: createMergeNode },
+	{ name: "Loop", description: "Iterate over items", keywords: ["loop", "iterate", "repeat", "foreach", "for each"], icon: <RepeatIcon className="w-3 h-3" />, section: "flow", factory: createLoopNode },
+	{ name: "Wait", description: "Pause or wait for event", keywords: ["wait", "delay", "pause", "timer", "sleep"], icon: <TimerIcon className="w-3 h-3" />, section: "flow", factory: createWaitNode },
+	{ name: "Code", description: "Run JavaScript code", keywords: ["code", "javascript", "script", "js", "function"], icon: <Code2Icon className="w-3 h-3" />, section: "transform", factory: createCodeNode },
+	{ name: "Filter", description: "Filter items by condition", keywords: ["filter", "where", "select", "exclude"], icon: <FilterIcon className="w-3 h-3" />, section: "transform", factory: createFilterNode },
+	{ name: "Edit Fields", description: "Map and transform fields", keywords: ["edit", "fields", "map", "transform", "rename"], icon: <PencilIcon className="w-3 h-3" />, section: "transform", factory: createEditFieldsNode },
+	{ name: "Sort", description: "Sort items by field", keywords: ["sort", "order", "arrange", "ascending", "descending"], icon: <ArrowUpDownIcon className="w-3 h-3" />, section: "transform", factory: createSortNode },
+];
 
 export function WhatHappensNextPanel({
 	sourceNodeId,
@@ -391,7 +429,13 @@ export function WhatHappensNextPanel({
 		const matchingPieces = searchPieces(searchQuery)
 			.filter((p) => isInstalledPiece(p.name))
 			.slice(0, 10);
-		return { models: matchingModels, pieces: matchingPieces };
+		const matchingBuiltIn = BUILT_IN_NODES.filter(
+			(n) =>
+				n.name.toLowerCase().includes(q) ||
+				n.description.toLowerCase().includes(q) ||
+				n.keywords.some((k) => k.includes(q)),
+		);
+		return { models: matchingModels, pieces: matchingPieces, builtIn: matchingBuiltIn };
 	}, [searchQuery, availableModels]);
 
 	// Header title
@@ -516,7 +560,60 @@ export function WhatHappensNextPanel({
 									</button>
 								))}
 
-								{/* Flow category (inline, only when stage flag is on and not in trigger-flow mode) */}
+								{/* Logic: Flow Control & Data Transform */}
+								<div className="pt-2 border-t border-white/5 mt-1">
+									<div className="flex items-center gap-3 px-3 py-1.5">
+										<div className="w-[36px] h-[36px] rounded-[10px] bg-white/8 flex items-center justify-center text-inverse/70 shrink-0">
+											<GitBranchIcon className="w-[18px] h-[18px]" />
+										</div>
+										<div>
+											<div className="text-[13px] font-medium text-inverse">
+												Logic
+											</div>
+											<div className="text-[11px] text-inverse/50">
+												Branch, loop, merge, and transform data
+											</div>
+										</div>
+									</div>
+									<div className="ml-[48px] space-y-1.5">
+										<div className="flex flex-wrap gap-1.5 px-3">
+											{BUILT_IN_NODES.filter((n) => n.section === "flow").map(
+												(node) => (
+													<button
+														key={node.name}
+														type="button"
+														onClick={() =>
+															handleAddAndConnect(node.factory())
+														}
+														className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-[11px] font-medium bg-white/8 text-inverse/70 hover:bg-white/12 hover:text-inverse transition-colors"
+													>
+														{node.icon}
+														{node.name}
+													</button>
+												),
+											)}
+										</div>
+										<div className="flex flex-wrap gap-1.5 px-3 pb-1">
+											{BUILT_IN_NODES.filter(
+												(n) => n.section === "transform",
+											).map((node) => (
+												<button
+													key={node.name}
+													type="button"
+													onClick={() =>
+														handleAddAndConnect(node.factory())
+													}
+													className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-[11px] font-medium bg-white/8 text-inverse/70 hover:bg-white/12 hover:text-inverse transition-colors"
+												>
+													{node.icon}
+													{node.name}
+												</button>
+											))}
+										</div>
+									</div>
+								</div>
+
+							{/* Flow category (inline, only when stage flag is on and not in trigger-flow mode) */}
 								{stageFlag && !isTriggerFlowMode && (
 									<div className="pt-2 border-t border-white/5 mt-1">
 										<div className="flex items-center gap-3 px-3 py-1.5">
@@ -764,9 +861,46 @@ export function WhatHappensNextPanel({
 									</div>
 								)}
 
-								{/* No results */}
+								{/* Built-in node results */}
+								{searchResults.builtIn.length > 0 && (
+									<div>
+										<div className="text-[10px] font-medium text-inverse/40 uppercase tracking-wide px-3 pb-1">
+											Built-in
+										</div>
+										<div className="space-y-0.5">
+											{searchResults.builtIn.map((node) => (
+												<button
+													key={node.name}
+													type="button"
+													onClick={() =>
+														handleAddAndConnect(node.factory())
+													}
+													className={clsx(
+														"w-full flex items-center gap-3 px-3 py-2 rounded-[8px]",
+														"hover:bg-white/8 transition-colors text-left",
+													)}
+												>
+													<div className="w-[28px] h-[28px] rounded-[6px] bg-white/8 flex items-center justify-center shrink-0 text-inverse/60">
+														{node.icon}
+													</div>
+													<div className="min-w-0">
+														<div className="text-[12px] font-medium text-inverse truncate">
+															{node.name}
+														</div>
+														<div className="text-[10px] text-inverse/40">
+															{node.description}
+														</div>
+													</div>
+												</button>
+											))}
+										</div>
+									</div>
+								)}
+
+							{/* No results */}
 								{searchResults.models.length === 0 &&
-									searchResults.pieces.length === 0 && (
+									searchResults.pieces.length === 0 &&
+									searchResults.builtIn.length === 0 && (
 										<div className="text-center text-inverse/40 text-[12px] py-6">
 											No results found
 										</div>
