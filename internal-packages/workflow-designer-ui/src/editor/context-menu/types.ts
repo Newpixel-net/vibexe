@@ -8,4 +8,5 @@ export interface ContextMenuProps {
 	onExecute?: () => void;
 	onSelectAll?: () => void;
 	onFitView?: () => void;
+	onTidyUp?: () => void;
 }

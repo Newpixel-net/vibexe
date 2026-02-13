@@ -94,6 +94,7 @@ export function ContextMenu({
 	onExecute,
 	onSelectAll,
 	onFitView,
+	onTidyUp,
 }: ContextMenuProps) {
 	const { duplicate: duplicateNode, copy: copyNode } = useNodeManipulation();
 	const deleteNode = useDeleteNode();
@@ -172,6 +173,11 @@ export function ContextMenu({
 		onFitView?.();
 		onClose();
 	}, [onFitView, onClose]);
+
+	const handleTidyUp = useCallback(() => {
+		onTidyUp?.();
+		onClose();
+	}, [onTidyUp, onClose]);
 
 	const handleDelete = useCallback(() => {
 		deleteNode(id);
@@ -254,6 +260,11 @@ export function ContextMenu({
 					label="Fit View"
 					icon={LayoutGridIcon}
 					onClick={handleFitView}
+				/>
+				<MenuItem
+					label="Tidy Up"
+					icon={LayoutGridIcon}
+					onClick={handleTidyUp}
 				/>
 				<MenuSeparator />
 

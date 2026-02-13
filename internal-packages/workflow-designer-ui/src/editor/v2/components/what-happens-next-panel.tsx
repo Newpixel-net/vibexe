@@ -88,6 +88,7 @@ import {
 	useAddNode,
 	useAppDesignerStore,
 	useConnectNodes,
+	useDisconnectNodes,
 	useWorkspaceActions,
 } from "../../../app-designer";
 import { ProviderIcon } from "../../tool/toolbar/model-components/provider-icon";
@@ -97,6 +98,10 @@ import { usePieceActions } from "../../tool/toolbar/integration-picker/use-piece
 interface WhatHappensNextPanelProps {
 	sourceNodeId: NodeId;
 	sourceOutputId?: string | null;
+	insertEdgeConfig?: {
+		connectionId: string;
+		targetNodeId: NodeId;
+	} | null;
 	onClose: () => void;
 }
 
@@ -159,6 +164,7 @@ const BUILT_IN_NODES: Array<{
 export function WhatHappensNextPanel({
 	sourceNodeId,
 	sourceOutputId,
+	insertEdgeConfig,
 	onClose,
 }: WhatHappensNextPanelProps) {
 	const [level, setLevel] = useState<PanelLevel>("categories");
@@ -169,6 +175,7 @@ export function WhatHappensNextPanel({
 	const searchInputRef = useRef<HTMLInputElement>(null);
 	const addNode = useAddNode();
 	const connectNodes = useConnectNodes();
+	const disconnectNodes = useDisconnectNodes();
 	const { setUiNodeState } = useWorkspaceActions((a) => ({
 		setUiNodeState: a.setUiNodeState,
 	}));
@@ -227,12 +234,21 @@ export function WhatHappensNextPanel({
 			};
 			addNode(newNode, { position });
 			connectNodes(sourceNodeId, newNode.id, sourceOutputId ?? undefined);
+
+			// If inserting on an edge, also connect new node → original target
+			// and remove the original source → target connection
+			if (insertEdgeConfig) {
+				disconnectNodes(sourceNodeId, insertEdgeConfig.targetNodeId);
+				connectNodes(newNode.id, insertEdgeConfig.targetNodeId);
+			}
+
 			setUiNodeState(newNode.id, { selected: true });
 			onClose();
 		},
 		[
 			addNode,
 			connectNodes,
+			disconnectNodes,
 			sourceNodeId,
 			sourceOutputId,
 			sourceNodePosition,
@@ -240,6 +256,7 @@ export function WhatHappensNextPanel({
 			setUiNodeState,
 			onClose,
 			nodes,
+			insertEdgeConfig,
 		],
 	);
 

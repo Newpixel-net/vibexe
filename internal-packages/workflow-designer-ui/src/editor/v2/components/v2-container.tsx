@@ -55,6 +55,7 @@ import { edgeTypes } from "../../connector";
 import { GradientDef } from "../../connector/component";
 import { ContextMenu } from "../../context-menu";
 import type { ContextMenuProps } from "../../context-menu/types";
+import { useAutoArrange } from "../../hooks/use-auto-arrange";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
 import {
 	CardXyFlowNode,
@@ -254,8 +255,10 @@ function V2NodeCanvas() {
 	const [menu, setMenu] = useState<Omit<ContextMenuProps, "onClose" | "onSelectAll" | "onFitView"> | null>(
 		null,
 	);
+	const [snapToGrid, setSnapToGrid] = useState(false);
 	const reactFlowRef = useRef<HTMLDivElement>(null);
 	const didInitialAutoFitViewRef = useRef(false);
+	const autoArrange = useAutoArrange();
 
 	const reactFlowInstance = useReactFlow();
 	const updateNodeInternals = useUpdateNodeInternals();
@@ -677,6 +680,26 @@ function V2NodeCanvas() {
 			setCurrentShortcutScope,
 		],
 	);
+	const handleEdgeClick = useCallback(
+		(_event, edge) => {
+			// Find the connection for this edge to get source/target info
+			const conn = connections.find((c) => c.id === edge.id);
+			if (!conn || conn.connectionType === "subNode") return;
+
+			// Dispatch insert-on-edge event — "What Happens Next" panel will handle insertion
+			window.dispatchEvent(
+				new CustomEvent("insert-on-edge", {
+					detail: {
+						connectionId: conn.id,
+						sourceNodeId: conn.outputNode.id,
+						targetNodeId: conn.inputNode.id,
+					},
+				}),
+			);
+		},
+		[connections],
+	);
+
 	const handleNodeContextMenu: NodeMouseHandler = useCallback((event, node) => {
 		event.preventDefault();
 		const pane = reactFlowRef.current?.getBoundingClientRect();
@@ -738,6 +761,8 @@ function V2NodeCanvas() {
 			panOnScroll={true}
 			zoomOnScroll={false}
 			zoomOnPinch={true}
+			snapToGrid={snapToGrid}
+			snapGrid={[16, 16]}
 			tabIndex={0}
 			onMoveEnd={handleMoveEnd}
 			onNodeDragStart={handleNodeDragStart}
@@ -747,6 +772,7 @@ function V2NodeCanvas() {
 			onPaneClick={handlePanelClick}
 			onKeyDown={handleKeyDown}
 			onNodeContextMenu={handleNodeContextMenu}
+			onEdgeClick={handleEdgeClick}
 			onEdgesChange={handleEdgesChange}
 		>
 			<Background />
@@ -764,26 +790,49 @@ function V2NodeCanvas() {
 				<AppSetupHint />
 			</XYFlowPanel>
 			<XYFlowPanel position="top-right" className="m-[16px]">
-				<button
-					type="button"
-					className="rounded-[8px] bg-black/60 backdrop-blur-sm border border-white/10 px-[10px] py-[5px] text-[12px] text-white/70 hover:text-white hover:bg-black/80 transition-colors"
-					onClick={() => {
-						const center = reactFlowInstance.screenToFlowPosition({
-							x: window.innerWidth / 2,
-							y: window.innerHeight / 2,
-						});
-						addStickyNote({
-							id: `note-${Date.now()}`,
-							text: "",
-							color: "yellow",
-							position: { x: center.x, y: center.y },
-							size: { width: 200, height: 150 },
-						});
-					}}
-					title="Add sticky note"
-				>
-					+ Note
-				</button>
+				<div className="flex gap-[6px]">
+					<button
+						type="button"
+						className={clsx(
+							"rounded-[8px] backdrop-blur-sm border px-[10px] py-[5px] text-[12px] transition-colors",
+							snapToGrid
+								? "bg-blue-500/20 border-blue-500/40 text-blue-300 hover:bg-blue-500/30"
+								: "bg-black/60 border-white/10 text-white/70 hover:text-white hover:bg-black/80",
+						)}
+						onClick={() => setSnapToGrid((v) => !v)}
+						title={snapToGrid ? "Disable snap to grid" : "Enable snap to grid"}
+					>
+						<svg className="w-[14px] h-[14px] inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+					</button>
+					<button
+						type="button"
+						className="rounded-[8px] bg-black/60 backdrop-blur-sm border border-white/10 px-[10px] py-[5px] text-[12px] text-white/70 hover:text-white hover:bg-black/80 transition-colors"
+						onClick={autoArrange}
+						title="Auto-arrange nodes"
+					>
+						<svg className="w-[14px] h-[14px] inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+					</button>
+					<button
+						type="button"
+						className="rounded-[8px] bg-black/60 backdrop-blur-sm border border-white/10 px-[10px] py-[5px] text-[12px] text-white/70 hover:text-white hover:bg-black/80 transition-colors"
+						onClick={() => {
+							const center = reactFlowInstance.screenToFlowPosition({
+								x: window.innerWidth / 2,
+								y: window.innerHeight / 2,
+							});
+							addStickyNote({
+								id: `note-${Date.now()}`,
+								text: "",
+								color: "yellow",
+								position: { x: center.x, y: center.y },
+								size: { width: 200, height: 150 },
+							});
+						}}
+						title="Add sticky note"
+					>
+						+ Note
+					</button>
+				</div>
 			</XYFlowPanel>
 			<XYFlowPanel position="bottom-center">
 				<Toolbar />
@@ -800,6 +849,7 @@ function V2NodeCanvas() {
 				onFitView={() => {
 					reactFlowInstance.fitView({ padding: 0.2, duration: 300 });
 				}}
+				onTidyUp={autoArrange}
 			/>
 		)}
 		<MiniMap
@@ -830,6 +880,10 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 		useState<NodeId | null>(null);
 	const [whatHappensNextOutputId, setWhatHappensNextOutputId] =
 		useState<string | null>(null);
+	const [insertEdgeConfig, setInsertEdgeConfig] = useState<{
+		connectionId: string;
+		targetNodeId: NodeId;
+	} | null>(null);
 	const [propertiesNodeId, setPropertiesNodeId] = useState<NodeId | null>(null);
 	const clearSelection = useClearSelection();
 
@@ -848,6 +902,27 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 		};
 		window.addEventListener("what-happens-next", handler);
 		return () => window.removeEventListener("what-happens-next", handler);
+	}, [clearSelection]);
+
+	// Listen for "insert-on-edge" events from edge clicks
+	useEffect(() => {
+		const handler = (e: Event) => {
+			const detail = (e as CustomEvent).detail as {
+				connectionId: string;
+				sourceNodeId: NodeId;
+				targetNodeId: NodeId;
+			};
+			clearSelection();
+			setPropertiesNodeId(null);
+			setWhatHappensNextSource(detail.sourceNodeId);
+			setWhatHappensNextOutputId(null);
+			setInsertEdgeConfig({
+				connectionId: detail.connectionId,
+				targetNodeId: detail.targetNodeId,
+			});
+		};
+		window.addEventListener("insert-on-edge", handler);
+		return () => window.removeEventListener("insert-on-edge", handler);
 	}, [clearSelection]);
 
 	// Listen for "open-properties-panel" custom events from double-click
@@ -1208,9 +1283,11 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 					<WhatHappensNextPanel
 						sourceNodeId={whatHappensNextSource}
 						sourceOutputId={whatHappensNextOutputId}
+						insertEdgeConfig={insertEdgeConfig}
 						onClose={() => {
 							setWhatHappensNextSource(null);
 							setWhatHappensNextOutputId(null);
+							setInsertEdgeConfig(null);
 						}}
 					/>
 				)}
