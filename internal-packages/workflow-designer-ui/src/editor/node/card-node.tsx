@@ -218,33 +218,38 @@ function HandleOutputRow({
 			className="absolute flex items-center z-10"
 			style={{ left: "calc(100% + 6px)", top, transform: "translateY(-50%)" }}
 		>
-			{/* Thin connecting line from handle dot */}
-			<div className="w-[14px] h-[1px] bg-inverse/20 shrink-0" />
+			{/* Connecting line from handle dot (N8N uses ~40px) */}
+			<div className="w-[36px] h-[1px] bg-inverse/20 shrink-0" />
 			{/* Label text (plain, no pill background) */}
 			{label && (
 				<span
 					className={clsx(
-						"text-[9px] font-medium whitespace-nowrap ml-[2px]",
+						"text-[9px] font-medium whitespace-nowrap ml-[3px]",
 						color ?? "text-inverse/50",
 					)}
 				>
 					{label}
 				</span>
 			)}
-			{/* "+" button (always visible, plain style like N8N) */}
+			{/* Separator line between label and "+" (N8N pattern: label ─── [+]) */}
+			{label && showPlus && (
+				<div className="w-[20px] h-[1px] bg-inverse/20 shrink-0 ml-[3px]" />
+			)}
+			{/* "+" button (N8N ~24x24, we use 20x20) */}
 			{showPlus && (
 				<button
 					type="button"
 					onClick={onClick}
 					className={clsx(
-						"w-[16px] h-[16px] rounded-[3px] ml-[3px] shrink-0",
+						"w-[20px] h-[20px] rounded-[4px] shrink-0",
+						!label && "ml-[3px]",
 						"flex items-center justify-center",
 						"border border-inverse/20",
 						"text-inverse/40 hover:text-inverse hover:border-inverse/40",
 						"transition-colors duration-150 cursor-pointer",
 					)}
 				>
-					<span className="text-[12px] leading-none font-light">+</span>
+					<span className="text-[14px] leading-none font-light">+</span>
 				</button>
 			)}
 		</div>
