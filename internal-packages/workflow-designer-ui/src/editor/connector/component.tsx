@@ -68,6 +68,14 @@ const edgeColorMap: Record<string, string> = {
 	executeSubWorkflow: "var(--color-flow-control-node-1)",
 	respondToWebhook: "var(--color-flow-control-node-1)",
 	customVariables: "var(--color-data-processing-node-1)",
+	// Wave 12 data transform nodes
+	aggregate: "var(--color-data-processing-node-1)",
+	summarize: "var(--color-data-processing-node-1)",
+	limit: "var(--color-data-processing-node-1)",
+	removeDuplicates: "var(--color-data-processing-node-1)",
+	renameKeys: "var(--color-data-processing-node-1)",
+	splitOut: "var(--color-data-processing-node-1)",
+	compareDatasets: "var(--color-data-processing-node-1)",
 };
 
 function getNodeEdgeColor(nodeContent: {

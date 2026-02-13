@@ -160,6 +160,20 @@ export function defaultName(node: NodeLike) {
 					return node.name ?? "Respond to Webhook";
 				case "customVariables":
 					return node.name ?? "Custom Variables";
+			case "aggregate":
+					return node.name ?? "Aggregate";
+				case "summarize":
+					return node.name ?? "Summarize";
+				case "limit":
+					return node.name ?? "Limit";
+				case "removeDuplicates":
+					return node.name ?? "Remove Duplicates";
+				case "renameKeys":
+					return node.name ?? "Rename Keys";
+				case "splitOut":
+					return node.name ?? "Split Out";
+				case "compareDatasets":
+					return node.name ?? "Compare Datasets";
 				default: {
 					const _exhaustiveCheck: never = node.content.type;
 					throw new Error(`Unhandled action content type: ${_exhaustiveCheck}`);

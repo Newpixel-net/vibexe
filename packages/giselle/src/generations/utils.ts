@@ -126,7 +126,17 @@ export async function buildMessageObject({
 		case "wait":
 		case "errorTrigger":
 		case "dataTable":
-		case "formTrigger": {
+		case "formTrigger":
+		case "executeSubWorkflow":
+		case "respondToWebhook":
+		case "customVariables":
+		case "aggregate":
+		case "summarize":
+		case "limit":
+		case "removeDuplicates":
+		case "renameKeys":
+		case "splitOut":
+		case "compareDatasets": {
 			return [];
 		}
 		default: {
@@ -396,6 +406,16 @@ async function buildGenerationMessageForTextGeneration({
 			case "errorTrigger":
 			case "dataTable":
 			case "formTrigger":
+			case "executeSubWorkflow":
+			case "respondToWebhook":
+			case "customVariables":
+			case "aggregate":
+			case "summarize":
+			case "limit":
+			case "removeDuplicates":
+			case "renameKeys":
+			case "splitOut":
+			case "compareDatasets":
 				break;
 			default: {
 				const _exhaustiveCheck: never = contextNode.content;
@@ -765,6 +785,16 @@ async function buildGenerationMessageForImageGeneration(
 			case "errorTrigger":
 			case "dataTable":
 			case "formTrigger":
+			case "executeSubWorkflow":
+			case "respondToWebhook":
+			case "customVariables":
+			case "aggregate":
+			case "summarize":
+			case "limit":
+			case "removeDuplicates":
+			case "renameKeys":
+			case "splitOut":
+			case "compareDatasets":
 				break;
 			default: {
 				const _exhaustiveCheck: never = contextNode.content;
@@ -1263,6 +1293,16 @@ async function buildGenerationMessageForContentGeneration({
 			case "errorTrigger":
 			case "dataTable":
 			case "formTrigger":
+			case "executeSubWorkflow":
+			case "respondToWebhook":
+			case "customVariables":
+			case "aggregate":
+			case "summarize":
+			case "limit":
+			case "removeDuplicates":
+			case "renameKeys":
+			case "splitOut":
+			case "compareDatasets":
 				break;
 			default: {
 				const _exhaustiveCheck: never = contextNode.content;

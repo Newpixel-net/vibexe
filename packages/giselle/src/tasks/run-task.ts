@@ -16,7 +16,9 @@ import {
 } from "@giselles-ai/protocol";
 import * as z from "zod/v4";
 import {
+	executeAggregate,
 	executeCode,
+	executeCompareDatasets,
 	executeCustomVariables,
 	executeDataTable,
 	executeEditFields,
@@ -24,10 +26,15 @@ import {
 	executeExecuteSubWorkflow,
 	executeFilter,
 	executeIf,
+	executeLimit,
 	executeLoop,
 	executeMerge,
+	executeRemoveDuplicates,
+	executeRenameKeys,
 	executeRespondToWebhook,
 	executeSort,
+	executeSplitOut,
+	executeSummarize,
 	executeSwitch,
 	executeWait,
 } from "../flow-control";
@@ -177,6 +184,13 @@ async function executeStep(args: {
 			case "executeSubWorkflow":
 			case "respondToWebhook":
 			case "customVariables":
+			case "aggregate":
+			case "summarize":
+			case "limit":
+			case "removeDuplicates":
+			case "renameKeys":
+			case "splitOut":
+			case "compareDatasets":
 				break;
 			default: {
 				const _exhaustiveCheck: never =
@@ -441,6 +455,20 @@ async function runTaskWithDag(
 					return executeRespondToWebhook(dagNode, inputData);
 				case "customVariables":
 					return executeCustomVariables(dagNode, inputData);
+				case "aggregate":
+					return executeAggregate(dagNode, inputData);
+				case "summarize":
+					return executeSummarize(dagNode, inputData);
+				case "limit":
+					return executeLimit(dagNode, inputData);
+				case "removeDuplicates":
+					return executeRemoveDuplicates(dagNode, inputData);
+				case "renameKeys":
+					return executeRenameKeys(dagNode, inputData);
+				case "splitOut":
+					return executeSplitOut(dagNode, inputData);
+				case "compareDatasets":
+					return executeCompareDatasets(dagNode, inputData);
 			}
 
 			// Custom nodes: check if content has customNodeName

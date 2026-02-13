@@ -4,6 +4,10 @@ import * as z from "zod/v4";
 import { NodeBase, NodeReferenceBase } from "../base";
 import { ActionContent, ActionContentReference } from "./action";
 import {
+	AggregateNodeContent,
+	AggregateNodeContentReference,
+} from "./aggregate-node";
+import {
 	AppEntryContent,
 	AppEntryContentReference,
 	AppEntryType,
@@ -14,6 +18,10 @@ import {
 	ChatModelContentReference,
 } from "./chat-model";
 import { CodeNodeContent, CodeNodeContentReference } from "./code-node";
+import {
+	CompareDatasetsNodeContent,
+	CompareDatasetsNodeContentReference,
+} from "./compare-datasets-node";
 import {
 	ContentGenerationContent,
 	ContentGenerationContentReference,
@@ -46,6 +54,7 @@ import {
 	IntegrationContent,
 	IntegrationContentReference,
 } from "./integration";
+import { LimitNodeContent, LimitNodeContentReference } from "./limit-node";
 import { LoopNodeContent, LoopNodeContentReference } from "./loop-node";
 import {
 	MemoryNodeContent,
@@ -53,7 +62,23 @@ import {
 } from "./memory-node";
 import { MergeNodeContent, MergeNodeContentReference } from "./merge-node";
 import { QueryContent, QueryContentReference } from "./query";
+import {
+	RemoveDuplicatesNodeContent,
+	RemoveDuplicatesNodeContentReference,
+} from "./remove-duplicates-node";
+import {
+	RenameKeysNodeContent,
+	RenameKeysNodeContentReference,
+} from "./rename-keys-node";
 import { SortNodeContent, SortNodeContentReference } from "./sort-node";
+import {
+	SplitOutNodeContent,
+	SplitOutNodeContentReference,
+} from "./split-out-node";
+import {
+	SummarizeNodeContent,
+	SummarizeNodeContentReference,
+} from "./summarize-node";
 import {
 	SwitchNodeContent,
 	SwitchNodeContentReference,
@@ -111,6 +136,13 @@ const OperationNodeContent = z.discriminatedUnion("type", [
 	ExecuteSubWorkflowNodeContent,
 	RespondToWebhookNodeContent,
 	CustomVariablesNodeContent,
+	AggregateNodeContent,
+	SummarizeNodeContent,
+	LimitNodeContent,
+	RemoveDuplicatesNodeContent,
+	RenameKeysNodeContent,
+	SplitOutNodeContent,
+	CompareDatasetsNodeContent,
 ]);
 
 /** Error handling config — used by DAG executor (V5), not on base OperationNode schema */
@@ -173,6 +205,13 @@ export const OperationNodeLike = NodeBase.extend({
 			ExecuteSubWorkflowNodeContent.shape.type,
 			RespondToWebhookNodeContent.shape.type,
 			CustomVariablesNodeContent.shape.type,
+			AggregateNodeContent.shape.type,
+			SummarizeNodeContent.shape.type,
+			LimitNodeContent.shape.type,
+			RemoveDuplicatesNodeContent.shape.type,
+			RenameKeysNodeContent.shape.type,
+			SplitOutNodeContent.shape.type,
+			CompareDatasetsNodeContent.shape.type,
 		]),
 	}),
 });
@@ -462,6 +501,62 @@ export function isCustomVariablesNode(
 	return CustomVariablesNode.safeParse(args).success;
 }
 
+export const AggregateNode = OperationNode.extend({
+	content: AggregateNodeContent,
+});
+export type AggregateNode = z.infer<typeof AggregateNode>;
+export function isAggregateNode(args?: unknown): args is AggregateNode {
+	return AggregateNode.safeParse(args).success;
+}
+
+export const SummarizeNode = OperationNode.extend({
+	content: SummarizeNodeContent,
+});
+export type SummarizeNode = z.infer<typeof SummarizeNode>;
+export function isSummarizeNode(args?: unknown): args is SummarizeNode {
+	return SummarizeNode.safeParse(args).success;
+}
+
+export const LimitNode = OperationNode.extend({
+	content: LimitNodeContent,
+});
+export type LimitNode = z.infer<typeof LimitNode>;
+export function isLimitNode(args?: unknown): args is LimitNode {
+	return LimitNode.safeParse(args).success;
+}
+
+export const RemoveDuplicatesNode = OperationNode.extend({
+	content: RemoveDuplicatesNodeContent,
+});
+export type RemoveDuplicatesNode = z.infer<typeof RemoveDuplicatesNode>;
+export function isRemoveDuplicatesNode(args?: unknown): args is RemoveDuplicatesNode {
+	return RemoveDuplicatesNode.safeParse(args).success;
+}
+
+export const RenameKeysNode = OperationNode.extend({
+	content: RenameKeysNodeContent,
+});
+export type RenameKeysNode = z.infer<typeof RenameKeysNode>;
+export function isRenameKeysNode(args?: unknown): args is RenameKeysNode {
+	return RenameKeysNode.safeParse(args).success;
+}
+
+export const SplitOutNode = OperationNode.extend({
+	content: SplitOutNodeContent,
+});
+export type SplitOutNode = z.infer<typeof SplitOutNode>;
+export function isSplitOutNode(args?: unknown): args is SplitOutNode {
+	return SplitOutNode.safeParse(args).success;
+}
+
+export const CompareDatasetsNode = OperationNode.extend({
+	content: CompareDatasetsNodeContent,
+});
+export type CompareDatasetsNode = z.infer<typeof CompareDatasetsNode>;
+export function isCompareDatasetsNode(args?: unknown): args is CompareDatasetsNode {
+	return CompareDatasetsNode.safeParse(args).success;
+}
+
 /** Helper to check if a node type requires DAG execution (flow control + data transform + custom) */
 export function isFlowControlNode(args?: unknown): boolean {
 	if (
@@ -478,7 +573,14 @@ export function isFlowControlNode(args?: unknown): boolean {
 		isDataTableNode(args) ||
 		isExecuteSubWorkflowNode(args) ||
 		isRespondToWebhookNode(args) ||
-		isCustomVariablesNode(args)
+		isCustomVariablesNode(args) ||
+		isAggregateNode(args) ||
+		isSummarizeNode(args) ||
+		isLimitNode(args) ||
+		isRemoveDuplicatesNode(args) ||
+		isRenameKeysNode(args) ||
+		isSplitOutNode(args) ||
+		isCompareDatasetsNode(args)
 	) {
 		return true;
 	}
@@ -522,6 +624,13 @@ const OperationNodeContentReference = z.discriminatedUnion("type", [
 	ExecuteSubWorkflowNodeContentReference,
 	RespondToWebhookNodeContentReference,
 	CustomVariablesNodeContentReference,
+	AggregateNodeContentReference,
+	SummarizeNodeContentReference,
+	LimitNodeContentReference,
+	RemoveDuplicatesNodeContentReference,
+	RenameKeysNodeContentReference,
+	SplitOutNodeContentReference,
+	CompareDatasetsNodeContentReference,
 ]);
 export const OperationNodeReference = NodeReferenceBase.extend({
 	type: OperationNode.shape.type,

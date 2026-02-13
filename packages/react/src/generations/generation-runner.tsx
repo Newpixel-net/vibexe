@@ -77,6 +77,13 @@ export function GenerationRunner({ generation }: { generation: Generation }) {
 		case "executeSubWorkflow":
 		case "respondToWebhook":
 		case "customVariables":
+		case "aggregate":
+		case "summarize":
+		case "limit":
+		case "removeDuplicates":
+		case "renameKeys":
+		case "splitOut":
+		case "compareDatasets":
 			// Flow control & data transform nodes are handled by DAG executor, no client-side runner
 			return null;
 		default: {

@@ -279,6 +279,16 @@ async function resolveQuery(
 			case "errorTrigger":
 			case "dataTable":
 			case "formTrigger":
+			case "executeSubWorkflow":
+			case "respondToWebhook":
+			case "customVariables":
+			case "aggregate":
+			case "summarize":
+			case "limit":
+			case "removeDuplicates":
+			case "renameKeys":
+			case "splitOut":
+			case "compareDatasets":
 				break;
 			default: {
 				const _exhaustiveCheck: never = contextNode.content;

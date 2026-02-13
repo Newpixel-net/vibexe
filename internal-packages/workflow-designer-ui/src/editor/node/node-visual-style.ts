@@ -90,7 +90,14 @@ export function useVariant(node: NodeLike): VariantType {
 			node.content.type === "filter" ||
 			node.content.type === "editFields" ||
 			node.content.type === "sort" ||
-			node.content.type === "customVariables";
+			node.content.type === "customVariables" ||
+			node.content.type === "aggregate" ||
+			node.content.type === "summarize" ||
+			node.content.type === "limit" ||
+			node.content.type === "removeDuplicates" ||
+			node.content.type === "renameKeys" ||
+			node.content.type === "splitOut" ||
+			node.content.type === "compareDatasets";
 		const isErrorTrigger = node.content.type === "errorTrigger";
 		const isDataTable = node.content.type === "dataTable";
 		const isFormTrigger = node.content.type === "formTrigger";
@@ -104,7 +111,14 @@ export function useVariant(node: NodeLike): VariantType {
 		const isDataProcessing =
 			node.content.type === "filter" ||
 			node.content.type === "editFields" ||
-			node.content.type === "sort";
+			node.content.type === "sort" ||
+			node.content.type === "aggregate" ||
+			node.content.type === "summarize" ||
+			node.content.type === "limit" ||
+			node.content.type === "removeDuplicates" ||
+			node.content.type === "renameKeys" ||
+			node.content.type === "splitOut" ||
+			node.content.type === "compareDatasets";
 
 		const isVectorStoreGithub =
 			isVectorStore &&

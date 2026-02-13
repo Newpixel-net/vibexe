@@ -7,10 +7,12 @@ import {
 import { getEntry } from "@giselles-ai/language-model-registry";
 import {
 	type ActionNode,
+	type AggregateNode,
 	type AiAgentNode,
 	type AppEntryNode,
 	type ChatModelNode,
 	type CodeNode,
+	type CompareDatasetsNode,
 	type CustomVariablesNode,
 	type DataTableNode,
 	type EditFieldsNode,
@@ -19,11 +21,16 @@ import {
 	type FormTriggerNode,
 	type FilterNode,
 	type IfNode,
+	type LimitNode,
 	type LoopNode,
 	type MemoryNodeNode,
 	type MergeNode,
+	type RemoveDuplicatesNode,
+	type RenameKeysNode,
 	type RespondToWebhookNode,
 	type SortNode,
+	type SplitOutNode,
+	type SummarizeNode,
 	type SwitchNode,
 	type ToolNodeNode,
 	type WaitNode,
@@ -51,10 +58,12 @@ import {
 	type MemoryNodeContent,
 	type ToolNodeContent,
 	isActionNode,
+	isAggregateNode,
 	isAiAgentNode,
 	isAppEntryNode,
 	isChatModelNode,
 	isCodeNode,
+	isCompareDatasetsNode,
 	isCustomVariablesNode,
 	isDataTableNode,
 	isEditFieldsNode,
@@ -63,11 +72,16 @@ import {
 	isFormTriggerNode,
 	isFilterNode,
 	isIfNode,
+	isLimitNode,
 	isLoopNode,
 	isMemoryNodeNode,
 	isMergeNode,
+	isRemoveDuplicatesNode,
+	isRenameKeysNode,
 	isRespondToWebhookNode,
 	isSortNode,
+	isSplitOutNode,
+	isSummarizeNode,
 	isSwitchNode,
 	isToolNodeNode,
 	isWaitNode,
@@ -1446,6 +1460,63 @@ const customVariablesFactoryImpl = createSimpleOperationFactory<CustomVariablesN
 	{ variableKeys: [], prefix: "vars" },
 );
 
+const aggregateFactoryImpl = createSimpleOperationFactory<AggregateNode>(
+	"aggregate",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[{ id: OutputId.generate(), label: "Output", accessor: "output" }],
+	{ operations: [], groupBy: [] },
+);
+
+const summarizeFactoryImpl = createSimpleOperationFactory<SummarizeNode>(
+	"summarize",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[{ id: OutputId.generate(), label: "Output", accessor: "output" }],
+	{ fields: [], operations: ["count", "sum", "avg", "min", "max"] },
+);
+
+const limitFactoryImpl = createSimpleOperationFactory<LimitNode>(
+	"limit",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[{ id: OutputId.generate(), label: "Output", accessor: "output" }],
+	{ maxItems: 10, keep: "first" },
+);
+
+const removeDuplicatesFactoryImpl = createSimpleOperationFactory<RemoveDuplicatesNode>(
+	"removeDuplicates",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[{ id: OutputId.generate(), label: "Output", accessor: "output" }],
+	{ fields: [], keepFirst: true },
+);
+
+const renameKeysFactoryImpl = createSimpleOperationFactory<RenameKeysNode>(
+	"renameKeys",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[{ id: OutputId.generate(), label: "Output", accessor: "output" }],
+	{ mappings: [] },
+);
+
+const splitOutFactoryImpl = createSimpleOperationFactory<SplitOutNode>(
+	"splitOut",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[{ id: OutputId.generate(), label: "Output", accessor: "output" }],
+	{ fieldToSplit: "", includeOtherFields: true },
+);
+
+const compareDatasetsFactoryImpl = createSimpleOperationFactory<CompareDatasetsNode>(
+	"compareDatasets",
+	[
+		{ id: InputId.generate(), label: "Input A", accessor: "inputA" },
+		{ id: InputId.generate(), label: "Input B", accessor: "inputB" },
+	],
+	[
+		{ id: OutputId.generate(), label: "In A Only", accessor: "inAOnly" },
+		{ id: OutputId.generate(), label: "In B Only", accessor: "inBOnly" },
+		{ id: OutputId.generate(), label: "Same", accessor: "same" },
+		{ id: OutputId.generate(), label: "Different", accessor: "different" },
+	],
+	{ mergeByFields: [], mode: "allMatches" },
+);
+
 // --- Factories Manager ---
 const factoryImplementations = {
 	textGeneration: textGenerationFactoryImpl,
@@ -1483,6 +1554,13 @@ const factoryImplementations = {
 	executeSubWorkflow: executeSubWorkflowFactoryImpl,
 	respondToWebhook: respondToWebhookFactoryImpl,
 	customVariables: customVariablesFactoryImpl,
+	aggregate: aggregateFactoryImpl,
+	summarize: summarizeFactoryImpl,
+	limit: limitFactoryImpl,
+	removeDuplicates: removeDuplicatesFactoryImpl,
+	renameKeys: renameKeysFactoryImpl,
+	splitOut: splitOutFactoryImpl,
+	compareDatasets: compareDatasetsFactoryImpl,
 } as const;
 
 type CreateArgMap = {
@@ -1521,6 +1599,13 @@ type CreateArgMap = {
 	executeSubWorkflow: undefined;
 	respondToWebhook: undefined;
 	customVariables: undefined;
+	aggregate: undefined;
+	summarize: undefined;
+	limit: undefined;
+	removeDuplicates: undefined;
+	renameKeys: undefined;
+	splitOut: undefined;
+	compareDatasets: undefined;
 };
 
 const nodeTypesRequiringArg = (
@@ -1697,6 +1782,34 @@ export function createRespondToWebhookNode(): RespondToWebhookNode {
 
 export function createCustomVariablesNode(): CustomVariablesNode {
 	return customVariablesFactoryImpl.create();
+}
+
+export function createAggregateNode(): AggregateNode {
+	return aggregateFactoryImpl.create();
+}
+
+export function createSummarizeNode(): SummarizeNode {
+	return summarizeFactoryImpl.create();
+}
+
+export function createLimitNode(): LimitNode {
+	return limitFactoryImpl.create();
+}
+
+export function createRemoveDuplicatesNode(): RemoveDuplicatesNode {
+	return removeDuplicatesFactoryImpl.create();
+}
+
+export function createRenameKeysNode(): RenameKeysNode {
+	return renameKeysFactoryImpl.create();
+}
+
+export function createSplitOutNode(): SplitOutNode {
+	return splitOutFactoryImpl.create();
+}
+
+export function createCompareDatasetsNode(): CompareDatasetsNode {
+	return compareDatasetsFactoryImpl.create();
 }
 
 export function cloneNode<N extends Node>(
@@ -1898,6 +2011,34 @@ export function cloneNode<N extends Node>(
 			if (isCustomVariablesNode(sourceNode))
 				return customVariablesFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
 			break;
+		case "aggregate":
+			if (isAggregateNode(sourceNode))
+				return aggregateFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "summarize":
+			if (isSummarizeNode(sourceNode))
+				return summarizeFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "limit":
+			if (isLimitNode(sourceNode))
+				return limitFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "removeDuplicates":
+			if (isRemoveDuplicatesNode(sourceNode))
+				return removeDuplicatesFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "renameKeys":
+			if (isRenameKeysNode(sourceNode))
+				return renameKeysFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "splitOut":
+			if (isSplitOutNode(sourceNode))
+				return splitOutFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "compareDatasets":
+			if (isCompareDatasetsNode(sourceNode))
+				return compareDatasetsFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
 		default: {
 			const _exhaustive: never = contentType;
 			throw new Error(`No clone factory for content type: ${_exhaustive}`);
@@ -2008,6 +2149,20 @@ export const nodeFactories = {
 				return factoryImplementations.respondToWebhook.create();
 			case "customVariables":
 				return factoryImplementations.customVariables.create();
+			case "aggregate":
+				return factoryImplementations.aggregate.create();
+			case "summarize":
+				return factoryImplementations.summarize.create();
+			case "limit":
+				return factoryImplementations.limit.create();
+			case "removeDuplicates":
+				return factoryImplementations.removeDuplicates.create();
+			case "renameKeys":
+				return factoryImplementations.renameKeys.create();
+			case "splitOut":
+				return factoryImplementations.splitOut.create();
+			case "compareDatasets":
+				return factoryImplementations.compareDatasets.create();
 			default: {
 				const _exhaustive: never = type;
 				throw new Error(`No create factory for content type: ${_exhaustive}`);
@@ -2176,6 +2331,34 @@ export const nodeFactories = {
 			case "customVariables":
 				if (isCustomVariablesNode(sourceNode))
 					return factoryImplementations.customVariables.clone(sourceNode);
+				break;
+			case "aggregate":
+				if (isAggregateNode(sourceNode))
+					return factoryImplementations.aggregate.clone(sourceNode);
+				break;
+			case "summarize":
+				if (isSummarizeNode(sourceNode))
+					return factoryImplementations.summarize.clone(sourceNode);
+				break;
+			case "limit":
+				if (isLimitNode(sourceNode))
+					return factoryImplementations.limit.clone(sourceNode);
+				break;
+			case "removeDuplicates":
+				if (isRemoveDuplicatesNode(sourceNode))
+					return factoryImplementations.removeDuplicates.clone(sourceNode);
+				break;
+			case "renameKeys":
+				if (isRenameKeysNode(sourceNode))
+					return factoryImplementations.renameKeys.clone(sourceNode);
+				break;
+			case "splitOut":
+				if (isSplitOutNode(sourceNode))
+					return factoryImplementations.splitOut.clone(sourceNode);
+				break;
+			case "compareDatasets":
+				if (isCompareDatasetsNode(sourceNode))
+					return factoryImplementations.compareDatasets.clone(sourceNode);
 				break;
 			default: {
 				const _exhaustive: never = contentType;
