@@ -82,12 +82,15 @@ export function useVariant(node: NodeLike): VariantType {
 			node.content.type === "switch" ||
 			node.content.type === "merge" ||
 			node.content.type === "loop" ||
-			node.content.type === "wait";
+			node.content.type === "wait" ||
+			node.content.type === "executeSubWorkflow" ||
+			node.content.type === "respondToWebhook";
 		const isDataTransform =
 			node.content.type === "code" ||
 			node.content.type === "filter" ||
 			node.content.type === "editFields" ||
-			node.content.type === "sort";
+			node.content.type === "sort" ||
+			node.content.type === "customVariables";
 		const isErrorTrigger = node.content.type === "errorTrigger";
 		const isDataTable = node.content.type === "dataTable";
 		const isFormTrigger = node.content.type === "formTrigger";
@@ -219,6 +222,9 @@ export function getNodeColorVariable(v: VariantType): string | undefined {
 	if (v.isErrorTrigger) return "var(--color-error-trigger-node-1)";
 	if (v.isDataTable) return "var(--color-data-store-node-1)";
 	if (v.isFormTrigger) return "var(--color-trigger-node-1)";
+	// Wave 10 nodes — fall through to flow control / data transform color
+	if (v.isFlowControl) return "var(--color-flow-control-node-1)";
+	if (v.isDataTransform) return "var(--color-data-processing-node-1)";
 	return undefined;
 }
 
@@ -644,6 +650,9 @@ export function getSubtitleText(node: NodeLike): string | null {
 	if (node.content.type === "errorTrigger") return "Error Handler";
 	if (node.content.type === "dataTable") return "Data Table";
 	if (node.content.type === "formTrigger") return "Form Input";
+	if (node.content.type === "executeSubWorkflow") return "Sub-Workflow";
+	if (node.content.type === "respondToWebhook") return "HTTP Response";
+	if (node.content.type === "customVariables") return "Team Variables";
 	return null;
 }
 

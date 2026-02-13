@@ -43,6 +43,9 @@ import {
 	createTriggerNode,
 	createWaitNode,
 	createWebPageNode,
+	createExecuteSubWorkflowNode,
+	createRespondToWebhookNode,
+	createCustomVariablesNode,
 } from "@giselles-ai/node-registry";
 import {
 	FileCategory,
@@ -72,8 +75,11 @@ import {
 	RepeatIcon,
 	RouteIcon,
 	SearchIcon,
+	SendIcon,
 	SparklesIcon,
 	TimerIcon,
+	VariableIcon,
+	WorkflowIcon,
 	XIcon,
 } from "lucide-react";
 import {
@@ -159,6 +165,9 @@ const BUILT_IN_NODES: Array<{
 	{ name: "Filter", description: "Filter items by condition", keywords: ["filter", "where", "select", "exclude"], icon: <FilterIcon className="w-3 h-3" />, section: "transform", factory: createFilterNode },
 	{ name: "Edit Fields", description: "Map and transform fields", keywords: ["edit", "fields", "map", "transform", "rename"], icon: <PencilIcon className="w-3 h-3" />, section: "transform", factory: createEditFieldsNode },
 	{ name: "Sort", description: "Sort items by field", keywords: ["sort", "order", "arrange", "ascending", "descending"], icon: <ArrowUpDownIcon className="w-3 h-3" />, section: "transform", factory: createSortNode },
+	{ name: "Sub-Workflow", description: "Execute another workflow", keywords: ["sub", "workflow", "subworkflow", "child", "invoke", "call"], icon: <WorkflowIcon className="w-3 h-3" />, section: "flow", factory: createExecuteSubWorkflowNode },
+	{ name: "Webhook Response", description: "Respond to webhook caller", keywords: ["webhook", "response", "http", "reply", "respond"], icon: <SendIcon className="w-3 h-3" />, section: "flow", factory: createRespondToWebhookNode },
+	{ name: "Variables", description: "Team-level custom variables", keywords: ["variables", "custom", "env", "config", "settings", "team"], icon: <VariableIcon className="w-3 h-3" />, section: "transform", factory: createCustomVariablesNode },
 ];
 
 export function WhatHappensNextPanel({

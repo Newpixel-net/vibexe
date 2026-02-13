@@ -11,15 +11,18 @@ import {
 	type AppEntryNode,
 	type ChatModelNode,
 	type CodeNode,
+	type CustomVariablesNode,
 	type DataTableNode,
 	type EditFieldsNode,
 	type ErrorTriggerNode,
+	type ExecuteSubWorkflowNode,
 	type FormTriggerNode,
 	type FilterNode,
 	type IfNode,
 	type LoopNode,
 	type MemoryNodeNode,
 	type MergeNode,
+	type RespondToWebhookNode,
 	type SortNode,
 	type SwitchNode,
 	type ToolNodeNode,
@@ -52,15 +55,18 @@ import {
 	isAppEntryNode,
 	isChatModelNode,
 	isCodeNode,
+	isCustomVariablesNode,
 	isDataTableNode,
 	isEditFieldsNode,
 	isErrorTriggerNode,
+	isExecuteSubWorkflowNode,
 	isFormTriggerNode,
 	isFilterNode,
 	isIfNode,
 	isLoopNode,
 	isMemoryNodeNode,
 	isMergeNode,
+	isRespondToWebhookNode,
 	isSortNode,
 	isSwitchNode,
 	isToolNodeNode,
@@ -1416,6 +1422,30 @@ const formTriggerFactoryImpl = createSimpleOperationFactory<FormTriggerNode>(
 	{ fields: [], submitButtonText: "Submit", successMessage: "Form submitted successfully!", title: "", description: "" },
 );
 
+const executeSubWorkflowFactoryImpl = createSimpleOperationFactory<ExecuteSubWorkflowNode>(
+	"executeSubWorkflow",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[
+		{ id: OutputId.generate(), label: "Output", accessor: "output" },
+		{ id: OutputId.generate(), label: "Status", accessor: "status" },
+	],
+	{ targetWorkspaceId: "", inputMapping: {}, outputMapping: {}, timeout: 300000, waitForCompletion: true },
+);
+
+const respondToWebhookFactoryImpl = createSimpleOperationFactory<RespondToWebhookNode>(
+	"respondToWebhook",
+	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
+	[],
+	{ statusCode: 200, headers: {}, responseBody: "", contentType: "application/json" },
+);
+
+const customVariablesFactoryImpl = createSimpleOperationFactory<CustomVariablesNode>(
+	"customVariables",
+	[],
+	[{ id: OutputId.generate(), label: "Variables", accessor: "variables" }],
+	{ variableKeys: [], prefix: "vars" },
+);
+
 // --- Factories Manager ---
 const factoryImplementations = {
 	textGeneration: textGenerationFactoryImpl,
@@ -1450,6 +1480,9 @@ const factoryImplementations = {
 	errorTrigger: errorTriggerFactoryImpl,
 	dataTable: dataTableFactoryImpl,
 	formTrigger: formTriggerFactoryImpl,
+	executeSubWorkflow: executeSubWorkflowFactoryImpl,
+	respondToWebhook: respondToWebhookFactoryImpl,
+	customVariables: customVariablesFactoryImpl,
 } as const;
 
 type CreateArgMap = {
@@ -1485,6 +1518,9 @@ type CreateArgMap = {
 	errorTrigger: undefined;
 	dataTable: undefined;
 	formTrigger: undefined;
+	executeSubWorkflow: undefined;
+	respondToWebhook: undefined;
+	customVariables: undefined;
 };
 
 const nodeTypesRequiringArg = (
@@ -1649,6 +1685,18 @@ export function createDataTableNode(): DataTableNode {
 
 export function createFormTriggerNode(): FormTriggerNode {
 	return formTriggerFactoryImpl.create();
+}
+
+export function createExecuteSubWorkflowNode(): ExecuteSubWorkflowNode {
+	return executeSubWorkflowFactoryImpl.create();
+}
+
+export function createRespondToWebhookNode(): RespondToWebhookNode {
+	return respondToWebhookFactoryImpl.create();
+}
+
+export function createCustomVariablesNode(): CustomVariablesNode {
+	return customVariablesFactoryImpl.create();
 }
 
 export function cloneNode<N extends Node>(
@@ -1838,6 +1886,18 @@ export function cloneNode<N extends Node>(
 			if (isFormTriggerNode(sourceNode))
 				return formTriggerFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
 			break;
+		case "executeSubWorkflow":
+			if (isExecuteSubWorkflowNode(sourceNode))
+				return executeSubWorkflowFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "respondToWebhook":
+			if (isRespondToWebhookNode(sourceNode))
+				return respondToWebhookFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
+		case "customVariables":
+			if (isCustomVariablesNode(sourceNode))
+				return customVariablesFactoryImpl.clone(sourceNode) as NodeFactoryCloneResult<N>;
+			break;
 		default: {
 			const _exhaustive: never = contentType;
 			throw new Error(`No clone factory for content type: ${_exhaustive}`);
@@ -1942,6 +2002,12 @@ export const nodeFactories = {
 				return factoryImplementations.dataTable.create();
 			case "formTrigger":
 				return factoryImplementations.formTrigger.create();
+			case "executeSubWorkflow":
+				return factoryImplementations.executeSubWorkflow.create();
+			case "respondToWebhook":
+				return factoryImplementations.respondToWebhook.create();
+			case "customVariables":
+				return factoryImplementations.customVariables.create();
 			default: {
 				const _exhaustive: never = type;
 				throw new Error(`No create factory for content type: ${_exhaustive}`);
@@ -2098,6 +2164,18 @@ export const nodeFactories = {
 			case "formTrigger":
 				if (isFormTriggerNode(sourceNode))
 					return factoryImplementations.formTrigger.clone(sourceNode);
+				break;
+			case "executeSubWorkflow":
+				if (isExecuteSubWorkflowNode(sourceNode))
+					return factoryImplementations.executeSubWorkflow.clone(sourceNode);
+				break;
+			case "respondToWebhook":
+				if (isRespondToWebhookNode(sourceNode))
+					return factoryImplementations.respondToWebhook.clone(sourceNode);
+				break;
+			case "customVariables":
+				if (isCustomVariablesNode(sourceNode))
+					return factoryImplementations.customVariables.clone(sourceNode);
 				break;
 			default: {
 				const _exhaustive: never = contentType;

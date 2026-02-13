@@ -17,13 +17,16 @@ import {
 import * as z from "zod/v4";
 import {
 	executeCode,
+	executeCustomVariables,
 	executeDataTable,
 	executeEditFields,
 	executeErrorTrigger,
+	executeExecuteSubWorkflow,
 	executeFilter,
 	executeIf,
 	executeLoop,
 	executeMerge,
+	executeRespondToWebhook,
 	executeSort,
 	executeSwitch,
 	executeWait,
@@ -171,6 +174,9 @@ async function executeStep(args: {
 			case "errorTrigger":
 			case "dataTable":
 			case "formTrigger":
+			case "executeSubWorkflow":
+			case "respondToWebhook":
+			case "customVariables":
 				break;
 			default: {
 				const _exhaustiveCheck: never =
@@ -429,6 +435,12 @@ async function runTaskWithDag(
 					return executeDataTable(dagNode, inputData);
 				case "formTrigger":
 					return { outputs: new Map() };
+				case "executeSubWorkflow":
+					return executeExecuteSubWorkflow(dagNode, inputData);
+				case "respondToWebhook":
+					return executeRespondToWebhook(dagNode, inputData);
+				case "customVariables":
+					return executeCustomVariables(dagNode, inputData);
 			}
 
 			// Custom nodes: check if content has customNodeName

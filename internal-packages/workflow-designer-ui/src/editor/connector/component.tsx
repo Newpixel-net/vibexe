@@ -64,6 +64,10 @@ const edgeColorMap: Record<string, string> = {
 	errorTrigger: "var(--color-error-trigger-node-1)",
 	dataTable: "var(--color-data-store-node-1)",
 	formTrigger: "var(--color-trigger-node-1)",
+	// Wave 10 nodes
+	executeSubWorkflow: "var(--color-flow-control-node-1)",
+	respondToWebhook: "var(--color-flow-control-node-1)",
+	customVariables: "var(--color-data-processing-node-1)",
 };
 
 function getNodeEdgeColor(nodeContent: {

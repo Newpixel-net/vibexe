@@ -68,6 +68,18 @@ import {
 } from "./tool-node";
 import { TriggerContent, TriggerContentReference } from "./trigger";
 import { WaitNodeContent, WaitNodeContentReference } from "./wait-node";
+import {
+	ExecuteSubWorkflowNodeContent,
+	ExecuteSubWorkflowNodeContentReference,
+} from "./execute-subworkflow-node";
+import {
+	RespondToWebhookNodeContent,
+	RespondToWebhookNodeContentReference,
+} from "./respond-to-webhook-node";
+import {
+	CustomVariablesNodeContent,
+	CustomVariablesNodeContentReference,
+} from "./custom-variables-node";
 
 const OperationNodeContent = z.discriminatedUnion("type", [
 	TextGenerationContent,
@@ -96,6 +108,9 @@ const OperationNodeContent = z.discriminatedUnion("type", [
 	ErrorTriggerNodeContent,
 	DataTableNodeContent,
 	FormTriggerNodeContent,
+	ExecuteSubWorkflowNodeContent,
+	RespondToWebhookNodeContent,
+	CustomVariablesNodeContent,
 ]);
 
 /** Error handling config — used by DAG executor (V5), not on base OperationNode schema */
@@ -155,6 +170,9 @@ export const OperationNodeLike = NodeBase.extend({
 			ErrorTriggerNodeContent.shape.type,
 			DataTableNodeContent.shape.type,
 			FormTriggerNodeContent.shape.type,
+			ExecuteSubWorkflowNodeContent.shape.type,
+			RespondToWebhookNodeContent.shape.type,
+			CustomVariablesNodeContent.shape.type,
 		]),
 	}),
 });
@@ -414,6 +432,36 @@ export function isFormTriggerNode(args?: unknown): args is FormTriggerNode {
 	return FormTriggerNode.safeParse(args).success;
 }
 
+export const ExecuteSubWorkflowNode = OperationNode.extend({
+	content: ExecuteSubWorkflowNodeContent,
+});
+export type ExecuteSubWorkflowNode = z.infer<typeof ExecuteSubWorkflowNode>;
+export function isExecuteSubWorkflowNode(
+	args?: unknown,
+): args is ExecuteSubWorkflowNode {
+	return ExecuteSubWorkflowNode.safeParse(args).success;
+}
+
+export const RespondToWebhookNode = OperationNode.extend({
+	content: RespondToWebhookNodeContent,
+});
+export type RespondToWebhookNode = z.infer<typeof RespondToWebhookNode>;
+export function isRespondToWebhookNode(
+	args?: unknown,
+): args is RespondToWebhookNode {
+	return RespondToWebhookNode.safeParse(args).success;
+}
+
+export const CustomVariablesNode = OperationNode.extend({
+	content: CustomVariablesNodeContent,
+});
+export type CustomVariablesNode = z.infer<typeof CustomVariablesNode>;
+export function isCustomVariablesNode(
+	args?: unknown,
+): args is CustomVariablesNode {
+	return CustomVariablesNode.safeParse(args).success;
+}
+
 /** Helper to check if a node type requires DAG execution (flow control + data transform + custom) */
 export function isFlowControlNode(args?: unknown): boolean {
 	if (
@@ -427,7 +475,10 @@ export function isFlowControlNode(args?: unknown): boolean {
 		isEditFieldsNode(args) ||
 		isSortNode(args) ||
 		isErrorTriggerNode(args) ||
-		isDataTableNode(args)
+		isDataTableNode(args) ||
+		isExecuteSubWorkflowNode(args) ||
+		isRespondToWebhookNode(args) ||
+		isCustomVariablesNode(args)
 	) {
 		return true;
 	}
@@ -468,6 +519,9 @@ const OperationNodeContentReference = z.discriminatedUnion("type", [
 	ErrorTriggerNodeContentReference,
 	DataTableNodeContentReference,
 	FormTriggerNodeContentReference,
+	ExecuteSubWorkflowNodeContentReference,
+	RespondToWebhookNodeContentReference,
+	CustomVariablesNodeContentReference,
 ]);
 export const OperationNodeReference = NodeReferenceBase.extend({
 	type: OperationNode.shape.type,

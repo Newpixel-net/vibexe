@@ -9,3 +9,6 @@ export { executeSort } from "./execute-sort";
 export { executeLoop } from "./execute-loop";
 export { executeWait } from "./execute-wait";
 export { executeErrorTrigger } from "./execute-error-trigger";
+export { executeExecuteSubWorkflow } from "./execute-execute-subworkflow";
+export { executeRespondToWebhook } from "./execute-respond-to-webhook";
+export { executeCustomVariables } from "./execute-custom-variables";
