@@ -8,6 +8,7 @@ import { RunHistoryTable } from "../run-history/run-history-table";
 import { ReadOnlyBanner } from "../../ui/read-only-banner";
 import { FloatingChat } from "../chat";
 import { CommandPalette } from "../command-palette";
+import { useAutoVersioning } from "../version-history/use-auto-versioning";
 import { VersionPanel } from "../version-history/version-panel";
 import { tourSteps, WorkspaceTour } from "../workspace-tour";
 import { V2Container, V2Footer, V2Header } from "./components";
@@ -73,6 +74,9 @@ export function V2Placeholder({
 	const handleVersionsToggle = useCallback(() => {
 		setIsVersionPanelOpen((prev) => !prev);
 	}, []);
+
+	// Auto-create version snapshots every 10 minutes while editing
+	useAutoVersioning();
 
 	const { layoutV3 } = useFeatureFlag();
 

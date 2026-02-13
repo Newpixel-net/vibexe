@@ -8,8 +8,16 @@ import {
 	TagIcon,
 	CheckIcon,
 	LoaderIcon,
+	ChevronDownIcon,
+	ChevronRightIcon,
+	PlusIcon,
+	MinusIcon,
+	PencilIcon,
+	BoxIcon,
+	LinkIcon,
+	StickyNoteIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppDesignerStore } from "../../app-designer";
 
 interface VersionEntry {
@@ -19,6 +27,128 @@ interface VersionEntry {
 	createdAt: string;
 	createdByName: string | null;
 	createdByAvatar: string | null;
+	nodeCount: number;
+	connectionCount: number;
+	stickyNoteCount: number;
+	nodeTypes: Record<string, number>;
+	nodeNames: string[];
+}
+
+interface VersionDiff {
+	addedNodes: number;
+	removedNodes: number;
+	addedConnections: number;
+	removedConnections: number;
+	typeChanges: { type: string; before: number; after: number }[];
+}
+
+function computeDiff(
+	older: VersionEntry | undefined,
+	newer: VersionEntry,
+): VersionDiff | null {
+	if (!older) return null;
+
+	const addedNodes = Math.max(0, newer.nodeCount - older.nodeCount);
+	const removedNodes = Math.max(0, older.nodeCount - newer.nodeCount);
+	const addedConnections = Math.max(
+		0,
+		newer.connectionCount - older.connectionCount,
+	);
+	const removedConnections = Math.max(
+		0,
+		older.connectionCount - newer.connectionCount,
+	);
+
+	// Compute type-level changes
+	const allTypes = new Set([
+		...Object.keys(older.nodeTypes ?? {}),
+		...Object.keys(newer.nodeTypes ?? {}),
+	]);
+	const typeChanges: { type: string; before: number; after: number }[] = [];
+	for (const type of allTypes) {
+		const before = older.nodeTypes?.[type] ?? 0;
+		const after = newer.nodeTypes?.[type] ?? 0;
+		if (before !== after) {
+			typeChanges.push({ type, before, after });
+		}
+	}
+
+	return { addedNodes, removedNodes, addedConnections, removedConnections, typeChanges };
+}
+
+function DiffBadge({ diff }: { diff: VersionDiff }) {
+	const changes: string[] = [];
+	if (diff.addedNodes > 0) changes.push(`+${diff.addedNodes} nodes`);
+	if (diff.removedNodes > 0) changes.push(`-${diff.removedNodes} nodes`);
+	if (diff.addedConnections > 0) changes.push(`+${diff.addedConnections} edges`);
+	if (diff.removedConnections > 0) changes.push(`-${diff.removedConnections} edges`);
+
+	if (changes.length === 0) return null;
+
+	return (
+		<div className="flex flex-wrap gap-1 mt-1.5">
+			{diff.addedNodes > 0 && (
+				<span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-medium rounded bg-emerald-500/20 text-emerald-400">
+					<PlusIcon className="size-2" />
+					{diff.addedNodes}
+				</span>
+			)}
+			{diff.removedNodes > 0 && (
+				<span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-medium rounded bg-red-500/20 text-red-400">
+					<MinusIcon className="size-2" />
+					{diff.removedNodes}
+				</span>
+			)}
+			{diff.typeChanges.length > 0 && (
+				<span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-medium rounded bg-amber-500/20 text-amber-400">
+					<PencilIcon className="size-2" />
+					{diff.typeChanges.length} types
+				</span>
+			)}
+		</div>
+	);
+}
+
+function VersionPreview({ version }: { version: VersionEntry }) {
+	const typeEntries = Object.entries(version.nodeTypes ?? {}).sort(
+		(a, b) => b[1] - a[1],
+	);
+
+	return (
+		<div className="mt-2 pl-5 space-y-1.5 border-l border-inverse/5">
+			<div className="flex items-center gap-2 text-[10px] text-inverse/40">
+				<BoxIcon className="size-3" />
+				<span>{version.nodeCount} nodes</span>
+				<LinkIcon className="size-3 ml-1" />
+				<span>{version.connectionCount} connections</span>
+				{version.stickyNoteCount > 0 && (
+					<>
+						<StickyNoteIcon className="size-3 ml-1" />
+						<span>{version.stickyNoteCount} notes</span>
+					</>
+				)}
+			</div>
+			{typeEntries.length > 0 && (
+				<div className="flex flex-wrap gap-1">
+					{typeEntries.map(([type, count]) => (
+						<span
+							key={type}
+							className="px-1.5 py-0.5 text-[9px] rounded bg-inverse/5 text-inverse/40"
+						>
+							{type}
+							{count > 1 ? ` x${count}` : ""}
+						</span>
+					))}
+				</div>
+			)}
+			{version.nodeNames.length > 0 && (
+				<div className="text-[10px] text-inverse/30 truncate">
+					{version.nodeNames.slice(0, 5).join(", ")}
+					{version.nodeNames.length > 5 && ` +${version.nodeNames.length - 5} more`}
+				</div>
+			)}
+		</div>
+	);
 }
 
 export function VersionPanel({ onClose }: { onClose: () => void }) {
@@ -29,6 +159,7 @@ export function VersionPanel({ onClose }: { onClose: () => void }) {
 	const [restoring, setRestoring] = useState<number | null>(null);
 	const [labelInput, setLabelInput] = useState("");
 	const [showLabelInput, setShowLabelInput] = useState(false);
+	const [expandedVersionId, setExpandedVersionId] = useState<number | null>(null);
 
 	const fetchVersions = useCallback(async () => {
 		if (!workspaceId) return;
@@ -48,6 +179,18 @@ export function VersionPanel({ onClose }: { onClose: () => void }) {
 	useEffect(() => {
 		fetchVersions();
 	}, [fetchVersions]);
+
+	// Compute diffs between adjacent versions
+	const diffs = useMemo(() => {
+		const map = new Map<number, VersionDiff | null>();
+		// Versions are sorted newest-first
+		for (let i = 0; i < versions.length; i++) {
+			const newer = versions[i];
+			const older = versions[i + 1]; // older version (lower version number)
+			map.set(newer.dbId, computeDiff(older, newer));
+		}
+		return map;
+	}, [versions]);
 
 	const handleSaveVersion = async () => {
 		if (!workspaceId) return;
@@ -72,7 +215,12 @@ export function VersionPanel({ onClose }: { onClose: () => void }) {
 
 	const handleRestore = async (versionDbId: number) => {
 		if (!workspaceId) return;
-		if (!window.confirm("Restore this version? Current changes will be overwritten.")) return;
+		if (
+			!window.confirm(
+				"Restore this version? Current changes will be overwritten.",
+			)
+		)
+			return;
 
 		setRestoring(versionDbId);
 		try {
@@ -91,6 +239,10 @@ export function VersionPanel({ onClose }: { onClose: () => void }) {
 		}
 	};
 
+	const toggleExpand = (dbId: number) => {
+		setExpandedVersionId((prev) => (prev === dbId ? null : dbId));
+	};
+
 	const formatDate = (dateStr: string) => {
 		const d = new Date(dateStr);
 		const now = new Date();
@@ -105,13 +257,23 @@ export function VersionPanel({ onClose }: { onClose: () => void }) {
 		return d.toLocaleDateString();
 	};
 
+	const isAutoVersion = (label: string | null) =>
+		label?.startsWith("Auto-save") ?? false;
+
 	return (
 		<div className="flex flex-col h-full bg-[#0d0d1a] border-l border-inverse/10 w-[320px]">
 			{/* Header */}
 			<div className="flex items-center justify-between px-4 py-3 border-b border-inverse/10">
 				<div className="flex items-center gap-2">
 					<HistoryIcon className="size-4 text-inverse/50" />
-					<span className="text-sm font-medium text-inverse/80">Versions</span>
+					<span className="text-sm font-medium text-inverse/80">
+						Versions
+					</span>
+					{versions.length > 0 && (
+						<span className="text-[10px] text-inverse/30 bg-inverse/5 px-1.5 py-0.5 rounded-full">
+							{versions.length}
+						</span>
+					)}
 				</div>
 				<button
 					type="button"
@@ -188,49 +350,76 @@ export function VersionPanel({ onClose }: { onClose: () => void }) {
 					</div>
 				) : (
 					<div className="py-2">
-						{versions.map((v) => (
-							<div
-								key={v.dbId}
-								className="px-4 py-3 hover:bg-inverse/5 transition-colors group"
-							>
-								<div className="flex items-start justify-between">
-									<div className="flex-1 min-w-0">
-										<div className="flex items-center gap-2">
-											<TagIcon className="size-3 text-inverse/30 shrink-0" />
-											<span className="text-sm text-inverse/80 font-medium truncate">
-												{v.label || `Version ${v.versionNumber}`}
-											</span>
-										</div>
-										<div className="flex items-center gap-2 mt-1">
-											<span className="text-[10px] text-inverse/30">
-												v{v.versionNumber}
-											</span>
-											<span className="text-[10px] text-inverse/20">
-												{formatDate(v.createdAt)}
-											</span>
-											{v.createdByName && (
-												<span className="text-[10px] text-inverse/20">
-													by {v.createdByName}
+						{versions.map((v) => {
+							const diff = diffs.get(v.dbId);
+							const isExpanded = expandedVersionId === v.dbId;
+							const isAuto = isAutoVersion(v.label);
+
+							return (
+								<div
+									key={v.dbId}
+									className="px-4 py-3 hover:bg-inverse/5 transition-colors group"
+								>
+									<div className="flex items-start justify-between">
+										<div className="flex-1 min-w-0">
+											<div className="flex items-center gap-2">
+												<button
+													type="button"
+													onClick={() => toggleExpand(v.dbId)}
+													className="p-0.5 -ml-0.5 rounded hover:bg-inverse/10 transition-colors"
+												>
+													{isExpanded ? (
+														<ChevronDownIcon className="size-3 text-inverse/40" />
+													) : (
+														<ChevronRightIcon className="size-3 text-inverse/40" />
+													)}
+												</button>
+												<TagIcon className="size-3 text-inverse/30 shrink-0" />
+												<span className="text-sm text-inverse/80 font-medium truncate">
+													{v.label || `Version ${v.versionNumber}`}
 												</span>
-											)}
+												{isAuto && (
+													<span className="text-[8px] px-1 py-0.5 rounded bg-blue-500/15 text-blue-400 uppercase tracking-wider">
+														auto
+													</span>
+												)}
+											</div>
+											<div className="flex items-center gap-2 mt-1 pl-5">
+												<span className="text-[10px] text-inverse/30">
+													v{v.versionNumber}
+												</span>
+												<span className="text-[10px] text-inverse/20">
+													{formatDate(v.createdAt)}
+												</span>
+												{v.createdByName && (
+													<span className="text-[10px] text-inverse/20">
+														by {v.createdByName}
+													</span>
+												)}
+												<span className="text-[10px] text-inverse/20">
+													{v.nodeCount} nodes
+												</span>
+											</div>
+											{diff && <DiffBadge diff={diff} />}
+											{isExpanded && <VersionPreview version={v} />}
 										</div>
+										<button
+											type="button"
+											onClick={() => handleRestore(v.dbId)}
+											disabled={restoring !== null}
+											className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-1 text-[10px] text-primary/80 border border-primary/20 rounded hover:bg-primary/10 transition-all disabled:opacity-50"
+										>
+											{restoring === v.dbId ? (
+												<LoaderIcon className="size-3 animate-spin" />
+											) : (
+												<RotateCcwIcon className="size-3" />
+											)}
+											Restore
+										</button>
 									</div>
-									<button
-										type="button"
-										onClick={() => handleRestore(v.dbId)}
-										disabled={restoring !== null}
-										className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-1 text-[10px] text-primary/80 border border-primary/20 rounded hover:bg-primary/10 transition-all disabled:opacity-50"
-									>
-										{restoring === v.dbId ? (
-											<LoaderIcon className="size-3 animate-spin" />
-										) : (
-											<RotateCcwIcon className="size-3" />
-										)}
-										Restore
-									</button>
 								</div>
-							</div>
-						))}
+							);
+						})}
 					</div>
 				)}
 			</div>
