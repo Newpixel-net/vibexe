@@ -29,6 +29,7 @@ import {
 	createSortNode,
 	createSwitchNode,
 	createTextNode,
+	createTriggerNode,
 	createWaitNode,
 	createWebPageNode,
 } from "@giselles-ai/node-registry";
@@ -120,6 +121,7 @@ export function Toolbar() {
 		() => nodes.some((node) => node.content.type === "end"),
 		[nodes],
 	);
+	const hasTriggerNode = useAppDesignerStore((s) => s.hasTriggerNode());
 	const isStageFlowAlreadyPlaced = hasAppRequestNode || hasEndNode;
 
 	const availableLanguageModels = useMemo(
@@ -286,7 +288,7 @@ export function Toolbar() {
 						}
 					}}
 				>
-					{stage && (
+					{stage && !hasTriggerNode && (
 						<ToggleGroup.Item
 							value="selectTrigger"
 							data-tool
@@ -499,13 +501,46 @@ export function Toolbar() {
 													"**:data-tool:data-[state=on]:bg-primary-900 **:data-tool:focus:outline-none",
 												)}
 												onValueChange={(nodeType) => {
-													if (nodeType === "errorTrigger") {
-														setSelectedTool(addNodeTool(createErrorTriggerNode()));
-													} else if (nodeType === "formTrigger") {
-														setSelectedTool(addNodeTool(createFormTriggerNode()));
+													switch (nodeType) {
+														case "manual":
+															setSelectedTool(addNodeTool(createTriggerNode("manual")));
+															break;
+														case "schedule":
+															setSelectedTool(addNodeTool(createTriggerNode("schedule")));
+															break;
+														case "webhook":
+															setSelectedTool(addNodeTool(createTriggerNode("webhook")));
+															break;
+														case "chat":
+															setSelectedTool(addNodeTool(createTriggerNode("chat")));
+															break;
+														case "appEvent":
+															setSelectedTool(addNodeTool(createTriggerNode("appEvent")));
+															break;
+														case "errorTrigger":
+															setSelectedTool(addNodeTool(createErrorTriggerNode()));
+															break;
+														case "formTrigger":
+															setSelectedTool(addNodeTool(createFormTriggerNode()));
+															break;
 													}
 												}}
 											>
+												<ToggleGroup.Item value="manual" data-tool>
+													<p className="text-[14px]">Manual</p>
+												</ToggleGroup.Item>
+												<ToggleGroup.Item value="schedule" data-tool>
+													<p className="text-[14px]">Schedule</p>
+												</ToggleGroup.Item>
+												<ToggleGroup.Item value="webhook" data-tool>
+													<p className="text-[14px]">Webhook</p>
+												</ToggleGroup.Item>
+												<ToggleGroup.Item value="chat" data-tool>
+													<p className="text-[14px]">Chat Message</p>
+												</ToggleGroup.Item>
+												<ToggleGroup.Item value="appEvent" data-tool>
+													<p className="text-[14px]">App Event</p>
+												</ToggleGroup.Item>
 												<ToggleGroup.Item value="errorTrigger" data-tool>
 													<p className="text-[14px]">Error Trigger</p>
 												</ToggleGroup.Item>

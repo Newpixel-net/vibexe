@@ -362,7 +362,11 @@ const triggerFactoryImpl = {
 				},
 			},
 			inputs: [],
-			outputs: [],
+			outputs: [{
+				id: OutputId.generate(),
+				label: "Output",
+				accessor: "trigger-output",
+			}],
 		}) satisfies TriggerNode,
 	clone: (orig: TriggerNode): NodeFactoryCloneResult<TriggerNode> => {
 		const clonedContent = structuredClone(orig.content);

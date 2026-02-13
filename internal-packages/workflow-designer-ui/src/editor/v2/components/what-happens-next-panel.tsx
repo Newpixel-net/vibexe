@@ -304,6 +304,7 @@ export function WhatHappensNextPanel({
 		() => nodes.some((n) => n.content.type === "end"),
 		[nodes],
 	);
+	const isTriggerFlowMode = useAppDesignerStore((s) => s.isTriggerFlowMode());
 
 	const handleSelectModel = useCallback(
 		(model: LanguageModel) => {
@@ -515,8 +516,8 @@ export function WhatHappensNextPanel({
 									</button>
 								))}
 
-								{/* Flow category (inline, only when stage flag is on) */}
-								{stageFlag && (
+								{/* Flow category (inline, only when stage flag is on and not in trigger-flow mode) */}
+								{stageFlag && !isTriggerFlowMode && (
 									<div className="pt-2 border-t border-white/5 mt-1">
 										<div className="flex items-center gap-3 px-3 py-1.5">
 											<div className="w-[36px] h-[36px] rounded-[10px] bg-white/8 flex items-center justify-center text-inverse/70 shrink-0">

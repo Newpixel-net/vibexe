@@ -4,9 +4,10 @@ import {
 	InputId,
 	isAppEntryNode,
 	isEndNode,
+	isTriggerNode,
 	type NodeId,
 } from "@giselles-ai/protocol";
-import { createChatModelNode, createToolNodeNode, createMemoryNodeNode } from "@giselles-ai/node-registry";
+import { createAppEntryNode, createChatModelNode, createToolNodeNode, createMemoryNodeNode } from "@giselles-ai/node-registry";
 import {
 	type Connection,
 	type Edge,
@@ -63,6 +64,7 @@ import type { V2LayoutState } from "../state";
 import { AppSetupHint } from "./app-setup-hint";
 import { FloatingPropertiesPanel } from "./floating-properties-panel";
 import { LeftPanel } from "./left-panel";
+import { TriggerPickerOverlay } from "./trigger-picker-overlay";
 import { WhatHappensNextPanel } from "./what-happens-next-panel";
 
 interface V2ContainerProps extends V2LayoutState {
@@ -206,6 +208,17 @@ function V2NodeCanvas() {
 	const updateNodeInternals = useUpdateNodeInternals();
 	const { handleKeyDown } = useKeyboardShortcuts();
 	const nodesInitialized = useNodesInitialized();
+
+	// Trigger-flow mode: check if workspace has trigger nodes but no appEntry
+	const hasTriggerNode = useMemo(
+		() => nodes.some((n) => isTriggerNode(n)),
+		[nodes],
+	);
+	const hasAppEntryNode = useMemo(
+		() => nodes.some((n) => isAppEntryNode(n)),
+		[nodes],
+	);
+	const isTriggerFlowMode = hasTriggerNode && !hasAppEntryNode;
 	const nodeTypes = useMemo(
 		() => ({
 			card: CardXyFlowNode,
@@ -562,6 +575,33 @@ function V2NodeCanvas() {
 		});
 	}, []);
 
+	const handleTriggerSelect = useCallback(
+		(triggerNode: Parameters<typeof addNode>[0]) => {
+			// Position at viewport center-left
+			const center = reactFlowInstance.screenToFlowPosition({
+				x: window.innerWidth * 0.35,
+				y: window.innerHeight / 2,
+			});
+			addNode(triggerNode, { position: center });
+			selectSingleNode(triggerNode.id);
+		},
+		[addNode, reactFlowInstance, selectSingleNode],
+	);
+
+	const handleLegacyFlow = useCallback(() => {
+		const center = reactFlowInstance.screenToFlowPosition({
+			x: window.innerWidth * 0.35,
+			y: window.innerHeight / 2,
+		});
+		addAppEntryWithEndNodes({
+			appEntryNode: createAppEntryNode(),
+			position: center,
+		});
+	}, [addAppEntryWithEndNodes, reactFlowInstance]);
+
+	// Show overlay only on completely empty canvas (no nodes at all, excluding sticky notes)
+	const showTriggerPicker = nodes.length === 0;
+
 	return (
 		<ReactFlow
 			ref={reactFlowRef}
@@ -588,6 +628,12 @@ function V2NodeCanvas() {
 		>
 			<Background />
 			<DebugWorkspacePanel />
+			{showTriggerPicker && (
+				<TriggerPickerOverlay
+					onSelect={handleTriggerSelect}
+					onLegacyFlow={handleLegacyFlow}
+				/>
+			)}
 			{selectedTool?.action === "addNode" && (
 				<FloatingNodePreview node={selectedTool.node} />
 			)}

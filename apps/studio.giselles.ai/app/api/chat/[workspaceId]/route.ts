@@ -7,7 +7,7 @@ import {
 } from "@giselles-ai/protocol";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { chatMessages, chatSessions } from "@/db/schema";
+import { agents, chatMessages, chatSessions } from "@/db/schema";
 import { giselle } from "@/app/giselle";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +53,19 @@ export async function POST(
 	}
 
 	try {
+		// Check if the associated agent is published
+		const [chatAgent] = await db
+			.select({ isPublished: agents.isPublished })
+			.from(agents)
+			.where(eq(agents.workspaceId, workspaceId))
+			.limit(1);
+		if (chatAgent && !chatAgent.isPublished) {
+			return Response.json(
+				{ error: "Workflow is not published. Chat is unavailable." },
+				{ status: 503 },
+			);
+		}
+
 		// Load workspace to find the AI agent/text generation node
 		const workspace = await giselle.getWorkspace(workspaceId);
 		if (!workspace) {

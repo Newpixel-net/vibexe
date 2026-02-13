@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { NodeId, WorkspaceId } from "@giselles-ai/protocol";
 import { db } from "@/db";
-import { scheduledWorkflows } from "@/db/schema";
+import { agents, scheduledWorkflows } from "@/db/schema";
 import { giselle } from "@/app/giselle";
 import { and, eq, lte } from "drizzle-orm";
 
@@ -48,14 +48,25 @@ export async function GET(request: NextRequest) {
 	try {
 		const now = new Date();
 
-		// Find all enabled schedules where nextRunAt <= now
+		// Find all enabled schedules where nextRunAt <= now and agent is published
 		const dueSchedules = await db
-			.select()
+			.select({
+				dbId: scheduledWorkflows.dbId,
+				sdkWorkspaceId: scheduledWorkflows.sdkWorkspaceId,
+				agentNodeId: scheduledWorkflows.agentNodeId,
+				cronExpression: scheduledWorkflows.cronExpression,
+				timezone: scheduledWorkflows.timezone,
+				enabled: scheduledWorkflows.enabled,
+				lastRunAt: scheduledWorkflows.lastRunAt,
+				nextRunAt: scheduledWorkflows.nextRunAt,
+			})
 			.from(scheduledWorkflows)
+			.innerJoin(agents, eq(agents.workspaceId, scheduledWorkflows.sdkWorkspaceId))
 			.where(
 				and(
 					eq(scheduledWorkflows.enabled, true),
 					lte(scheduledWorkflows.nextRunAt, now),
+					eq(agents.isPublished, true),
 				),
 			);
 

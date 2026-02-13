@@ -2,6 +2,7 @@ import {
 	type Connection,
 	isAppEntryNode,
 	isEndNode,
+	isTriggerNode,
 	type NodeId,
 	type NodeLike,
 } from "@giselles-ai/protocol";
@@ -67,6 +68,8 @@ function isStartNodeConnectedToEndNode(
 export type AppSlice = {
 	hasStartNode: () => boolean;
 	hasEndNode: () => boolean;
+	hasTriggerNode: () => boolean;
+	isTriggerFlowMode: () => boolean;
 	isStartNodeConnectedToEndNode: () => boolean;
 };
 
@@ -78,6 +81,11 @@ export const createAppSlice: StateCreator<
 > = (_set, get) => ({
 	hasStartNode: () => hasStartNode(get().nodes),
 	hasEndNode: () => hasEndNode(get().nodes),
+	hasTriggerNode: () => get().nodes.some((n) => isTriggerNode(n)),
+	isTriggerFlowMode: () => {
+		const nodes = get().nodes;
+		return nodes.some((n) => isTriggerNode(n)) && !nodes.some((n) => isAppEntryNode(n));
+	},
 	isStartNodeConnectedToEndNode: () =>
 		isStartNodeConnectedToEndNode(get().nodes, get().connections),
 });

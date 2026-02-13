@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NodeId, WorkspaceId } from "@giselles-ai/protocol";
 import { db } from "@/db";
-import { webhookEndpoints, webhookRequestLogs } from "@/db/schema";
+import { agents, webhookEndpoints, webhookRequestLogs } from "@/db/schema";
 import { giselle } from "@/app/giselle";
 import { eq, and, lt, desc } from "drizzle-orm";
 
@@ -80,6 +80,19 @@ export async function POST(
 		if (!endpoint) {
 			return Response.json(
 				{ error: "Webhook endpoint not found or disabled" },
+				{ status: 404 },
+			);
+		}
+
+		// Check if the associated agent is published
+		const [agent] = await db
+			.select({ isPublished: agents.isPublished })
+			.from(agents)
+			.where(eq(agents.workspaceId, endpoint.sdkWorkspaceId))
+			.limit(1);
+		if (agent && !agent.isPublished) {
+			return Response.json(
+				{ error: "Workflow is not published" },
 				{ status: 404 },
 			);
 		}
@@ -176,6 +189,19 @@ export async function GET(
 		if (!endpoint) {
 			return Response.json(
 				{ error: "Webhook endpoint not found or disabled" },
+				{ status: 404 },
+			);
+		}
+
+		// Check if the associated agent is published
+		const [getAgent] = await db
+			.select({ isPublished: agents.isPublished })
+			.from(agents)
+			.where(eq(agents.workspaceId, endpoint.sdkWorkspaceId))
+			.limit(1);
+		if (getAgent && !getAgent.isPublished) {
+			return Response.json(
+				{ error: "Workflow is not published" },
 				{ status: 404 },
 			);
 		}

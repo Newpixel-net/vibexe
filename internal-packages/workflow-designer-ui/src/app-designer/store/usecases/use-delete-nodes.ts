@@ -27,7 +27,9 @@ function buildDeleteSet(args: {
 		(appEntryNode && nodeIdsToDelete.has(appEntryNode.id)) ?? false;
 	const includesEnd = (endNode && nodeIdsToDelete.has(endNode.id)) ?? false;
 
-	const shouldPairDelete = includesAppEntry || includesEnd;
+	// Only pair-delete Start+End when appEntry nodes exist (not in trigger-flow mode)
+	const hasAppEntry = nodes.some((n) => isAppEntryNode(n));
+	const shouldPairDelete = hasAppEntry && (includesAppEntry || includesEnd);
 	if (shouldPairDelete) {
 		if (appEntryNode) nodeIdsToDelete.add(appEntryNode.id);
 		if (endNode) nodeIdsToDelete.add(endNode.id);

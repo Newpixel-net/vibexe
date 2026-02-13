@@ -14,6 +14,7 @@ import {
 } from "../../../app-designer";
 import { GiselleIcon } from "../../../icons";
 import { EditableText, type EditableTextRef } from "../../properties-panel/ui";
+import { PublishToggle } from "./publish-toggle";
 import { RunButton } from "./run-button";
 import { type EditorTab, V2HeaderTabs } from "./v2-header-tabs";
 
@@ -217,8 +218,11 @@ export function V2Header({
 				</div>
 			)}
 
-			{/* Right section: Run button */}
-			<RunButton />
+			{/* Right section: Publish toggle + Run button */}
+			<div className="flex items-center gap-2">
+				<PublishToggle />
+				<RunButton />
+			</div>
 		</div>
 	);
 }
