@@ -4,12 +4,13 @@ import { DropdownMenu } from "@giselle-internal/ui/dropdown-menu";
 import { useFeatureFlag } from "@giselles-ai/react";
 import Avatar from "boring-avatars";
 import clsx from "clsx/lite";
-import { ChevronDownIcon, DownloadIcon, HistoryIcon, SaveIcon } from "lucide-react";
+import { ChevronDownIcon, DownloadIcon, HistoryIcon, Redo2Icon, SaveIcon, Undo2Icon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRef } from "react";
 import {
 	useAppDesignerStore,
+	useUndoRedoActions,
 	useUpdateWorkspaceName,
 } from "../../../app-designer";
 import { GiselleIcon } from "../../../icons";
@@ -40,6 +41,12 @@ export function V2Header({
 	const updateWorkspaceName = useUpdateWorkspaceName();
 	const editableTextRef = useRef<EditableTextRef>(null);
 	const { layoutV3 } = useFeatureFlag();
+	const { undo, redo, canUndo, canRedo } = useUndoRedoActions((s) => ({
+		undo: s.undo,
+		redo: s.redo,
+		canUndo: s.canUndo,
+		canRedo: s.canRedo,
+	}));
 
 	const handleUpdateName = async (value?: string) => {
 		if (!value) return;
@@ -218,8 +225,38 @@ export function V2Header({
 				</div>
 			)}
 
-			{/* Right section: Publish toggle + Run button */}
+			{/* Right section: Undo/Redo + Publish toggle + Run button */}
 			<div className="flex items-center gap-2">
+				<div className="flex items-center gap-0.5 mr-1">
+					<button
+						type="button"
+						onClick={undo}
+						disabled={!canUndo()}
+						title="Undo (Ctrl+Z)"
+						className={clsx(
+							"p-1.5 rounded transition-colors",
+							canUndo()
+								? "text-inverse/60 hover:text-inverse hover:bg-white/10 cursor-pointer"
+								: "text-inverse/20 cursor-not-allowed",
+						)}
+					>
+						<Undo2Icon className="w-4 h-4" />
+					</button>
+					<button
+						type="button"
+						onClick={redo}
+						disabled={!canRedo()}
+						title="Redo (Ctrl+Shift+Z)"
+						className={clsx(
+							"p-1.5 rounded transition-colors",
+							canRedo()
+								? "text-inverse/60 hover:text-inverse hover:bg-white/10 cursor-pointer"
+								: "text-inverse/20 cursor-not-allowed",
+						)}
+					>
+						<Redo2Icon className="w-4 h-4" />
+					</button>
+				</div>
 				<PublishToggle />
 				<RunButton />
 			</div>

@@ -3,7 +3,7 @@ import { isAppEntryNode, isEndNode } from "@giselles-ai/protocol";
 import { useFeatureFlag } from "@giselles-ai/react";
 import { useKeyPress } from "@xyflow/react";
 import { useCallback, useEffect, useRef } from "react";
-import { useAppDesignerStore } from "../../app-designer";
+import { useAppDesignerStore, useUndoRedoActions } from "../../app-designer";
 import { useNodeManipulation } from "../node";
 import {
 	addNodeTool,
@@ -87,6 +87,10 @@ export function useKeyboardShortcuts(
 		paste: handlePaste,
 		duplicate: handleDuplicate,
 	} = useNodeManipulation();
+	const { undo, redo } = useUndoRedoActions((s) => ({
+		undo: s.undo,
+		redo: s.redo,
+	}));
 	const { onGenerate } = options;
 
 	const isCanvasFocused = currentShortcutScope === "canvas";
@@ -124,6 +128,18 @@ export function useKeyboardShortcuts(
 		{ preventDefault: false }, // Preserve browser paste events for FilePanel listeners
 	);
 	useKeyAction(["Meta+d", "Control+d"], handleDuplicate, isCanvasFocused);
+
+	// Undo/Redo shortcuts
+	useKeyAction(["Meta+z", "Control+z"], undo, isCanvasFocused, {
+		inputShortcutPolicy: "modifierOnly",
+		preventDefault: true,
+	});
+	useKeyAction(
+		["Meta+Shift+z", "Control+Shift+z"],
+		redo,
+		isCanvasFocused,
+		{ inputShortcutPolicy: "modifierOnly", preventDefault: true },
+	);
 
 	// Return handler for preventing browser default shortcuts
 	const handleKeyDown = useCallback(

@@ -15,6 +15,7 @@ export function useRemoveConnectionAndInput() {
 
 	return useCallback(
 		(connectionId: string) => {
+			store.getState().pushUndoSnapshot();
 			store.setState((s) => {
 				const targetConnection = s.connections.find(
 					(c) => c.id === connectionId,

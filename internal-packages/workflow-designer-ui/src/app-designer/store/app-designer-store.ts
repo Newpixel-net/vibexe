@@ -4,11 +4,18 @@ import { createStore, type StoreApi } from "zustand";
 import { type AppSlice, createAppSlice } from "./slices/app-slice";
 import { createUiSlice, type UiSlice } from "./slices/ui-slice";
 import {
+	type UndoRedoSlice,
+	createUndoRedoSlice,
+} from "./slices/undo-redo-slice";
+import {
 	createWorkspaceSlice,
 	type WorkspaceSlice,
 } from "./slices/workspace-slice";
 
-export type AppDesignerStoreState = WorkspaceSlice & AppSlice & UiSlice;
+export type AppDesignerStoreState = WorkspaceSlice &
+	AppSlice &
+	UiSlice &
+	UndoRedoSlice;
 
 export type AppDesignerStoreApi = StoreApi<AppDesignerStoreState>;
 
@@ -25,5 +32,6 @@ export function createAppDesignerStore(args: {
 			currentShortcutScope: initialWorkspace.ui.currentShortcutScope,
 		})(...a),
 		...createAppSlice(...a),
+		...createUndoRedoSlice()(...a),
 	}));
 }

@@ -47,6 +47,7 @@ import {
 	useSelectConnection,
 	useSelectSingleNode,
 	useSetCurrentShortcutScope,
+	useUndoRedoActions,
 	useWorkspaceActions,
 } from "../../../app-designer";
 import { Background } from "../../../ui/background";
@@ -520,12 +521,21 @@ function V2NodeCanvas() {
 		[connections],
 	);
 
+	const { pushUndoSnapshot } = useUndoRedoActions((s) => ({
+		pushUndoSnapshot: s.pushUndoSnapshot,
+	}));
+
 	const handleMoveEnd: OnMoveEnd = useCallback(
 		(_event, viewport) => {
 			setUiViewport(viewport, { save: true });
 		},
 		[setUiViewport],
 	);
+
+	// Capture undo snapshot before node drag starts
+	const handleNodeDragStart = useCallback(() => {
+		pushUndoSnapshot();
+	}, [pushUndoSnapshot]);
 
 	const handleNodesChange: OnNodesChange = useCallback(
 		(changes) => {
@@ -730,6 +740,7 @@ function V2NodeCanvas() {
 			zoomOnPinch={true}
 			tabIndex={0}
 			onMoveEnd={handleMoveEnd}
+			onNodeDragStart={handleNodeDragStart}
 			onNodesChange={handleNodesChange}
 			onNodeClick={handleNodeClick}
 			onNodeDoubleClick={handleNodeDoubleClick}

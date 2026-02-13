@@ -26,6 +26,7 @@ function hasWorkspaceChanged(
 	a: AppDesignerStoreState,
 	b: AppDesignerStoreState,
 ): boolean {
+	// Exclude undo/redo stack changes from triggering persistence
 	return (
 		a.nodes !== b.nodes ||
 		a.connections !== b.connections ||

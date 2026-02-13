@@ -1,6 +1,6 @@
 import type { NodeLike, NodeUIState } from "@giselles-ai/protocol";
 import { useCallback } from "react";
-import { useWorkspaceActions } from "../hooks";
+import { useUndoRedoActions, useWorkspaceActions } from "../hooks";
 import { useAutoConfigureAppEntryNode } from "./use-auto-configure-app-entry-node";
 
 export function useAddNode() {
@@ -8,15 +8,19 @@ export function useAddNode() {
 		addNode: s.addNode,
 		upsertUiNodeState: s.upsertUiNodeState,
 	}));
+	const { pushUndoSnapshot } = useUndoRedoActions((s) => ({
+		pushUndoSnapshot: s.pushUndoSnapshot,
+	}));
 	const autoConfigureAppEntryNode = useAutoConfigureAppEntryNode();
 	return useCallback(
 		(node: NodeLike, ui?: NodeUIState) => {
+			pushUndoSnapshot();
 			actions.addNode(node);
 			if (ui) {
 				actions.upsertUiNodeState(node.id, ui);
 			}
 			void autoConfigureAppEntryNode(node);
 		},
-		[actions, autoConfigureAppEntryNode],
+		[actions, pushUndoSnapshot, autoConfigureAppEntryNode],
 	);
 }

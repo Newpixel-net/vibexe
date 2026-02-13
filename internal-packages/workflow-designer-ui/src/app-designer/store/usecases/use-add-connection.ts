@@ -6,12 +6,15 @@ import {
 	type OutputId,
 } from "@giselles-ai/protocol";
 import { useCallback } from "react";
-import { useWorkspaceActions } from "../hooks";
+import { useUndoRedoActions, useWorkspaceActions } from "../hooks";
 import { useSyncAppConnectionStateIfNeeded } from "./use-sync-app-connection-state-if-needed";
 
 export function useAddConnection() {
 	const { addConnection } = useWorkspaceActions((s) => ({
 		addConnection: s.addConnection,
+	}));
+	const { pushUndoSnapshot } = useUndoRedoActions((s) => ({
+		pushUndoSnapshot: s.pushUndoSnapshot,
 	}));
 	const syncAppConnectionStateIfNeeded = useSyncAppConnectionStateIfNeeded();
 
@@ -41,10 +44,11 @@ export function useAddConnection() {
 				...(connectionType ? { connectionType } : {}),
 			} as Connection;
 
+			pushUndoSnapshot();
 			addConnection(newConnection);
 			syncAppConnectionStateIfNeeded();
 			return newConnection;
 		},
-		[addConnection, syncAppConnectionStateIfNeeded],
+		[addConnection, pushUndoSnapshot, syncAppConnectionStateIfNeeded],
 	);
 }

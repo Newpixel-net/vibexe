@@ -3,6 +3,7 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 import { useAppDesignerStoreApi } from "./app-designer-provider";
 import type { AppDesignerStoreState } from "./app-designer-store";
 import type { UiSlice } from "./slices/ui-slice";
+import type { UndoRedoSlice } from "./slices/undo-redo-slice";
 import type { WorkspaceActions } from "./slices/workspace-slice";
 
 export function useAppDesignerStore<T>(
@@ -44,6 +45,33 @@ export function useUiActions<T>(
 		selector({
 			setClipboardNode: s.setClipboardNode,
 			setCurrentShortcutScope: s.setCurrentShortcutScope,
+		}),
+	);
+}
+
+export function useUndoRedoActions<T>(
+	selector: (
+		actions: Pick<
+			UndoRedoSlice,
+			| "pushUndoSnapshot"
+			| "beginUndoBatch"
+			| "endUndoBatch"
+			| "undo"
+			| "redo"
+			| "canUndo"
+			| "canRedo"
+		>,
+	) => T,
+): T {
+	return useAppDesignerStore((s) =>
+		selector({
+			pushUndoSnapshot: s.pushUndoSnapshot,
+			beginUndoBatch: s.beginUndoBatch,
+			endUndoBatch: s.endUndoBatch,
+			undo: s.undo,
+			redo: s.redo,
+			canUndo: s.canUndo,
+			canRedo: s.canRedo,
 		}),
 	);
 }

@@ -169,6 +169,9 @@ export function useDeleteNodes() {
 				}
 			}
 
+			// Push undo snapshot before deleting
+			store.getState().pushUndoSnapshot();
+
 			store.setState((s) => {
 				const next = computeNextStateForDelete({
 					nodeIdsToDelete: expandedDeleteSet,

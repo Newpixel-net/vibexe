@@ -27,6 +27,8 @@ export function useCopyNode() {
 			const { newNode, inputIdMap, outputIdMap } =
 				nodeFactories.clone(sourceNode);
 
+			// Batch all sub-operations into a single undo entry
+			state.beginUndoBatch();
 			addNode(newNode, options?.ui);
 
 			const strategy =
@@ -94,6 +96,7 @@ export function useCopyNode() {
 				}
 			}
 
+			store.getState().endUndoBatch();
 			return newNode;
 		},
 		[addConnection, addNode, store],
