@@ -283,6 +283,35 @@ function NodeHandles({
 	);
 }
 
+/** Handle label pill - dark background like N8N */
+function HandleLabel({
+	text,
+	side,
+	top,
+	color,
+}: {
+	text: string;
+	side: "left" | "right";
+	top: string;
+	color?: string;
+}) {
+	return (
+		<span
+			className={clsx(
+				"absolute text-[9px] font-medium pointer-events-none",
+				"px-[5px] py-[1px] rounded-[4px] bg-black/70 backdrop-blur-sm",
+				color ?? "text-inverse/70",
+			)}
+			style={{
+				[side]: side === "right" ? "-44px" : "-52px",
+				top,
+			}}
+		>
+			{text}
+		</span>
+	);
+}
+
 /** If node: true/false labeled output handles */
 function IfOutputHandles({ v }: { v: VariantType }) {
 	const positions = getHandlePositions(2);
@@ -298,12 +327,12 @@ function IfOutputHandles({ v }: { v: VariantType }) {
 					getHandleBorderClass(v),
 				)}
 			/>
-			<span
-				className="absolute text-[9px] font-medium text-emerald-400/80 pointer-events-none"
-				style={{ right: "-36px", top: `calc(${positions[0]}% - 6px)` }}
-			>
-				true
-			</span>
+			<HandleLabel
+				text="true"
+				side="right"
+				top={`calc(${positions[0]}% - 7px)`}
+				color="text-emerald-400"
+			/>
 			<Handle
 				type="source"
 				id="false"
@@ -314,12 +343,12 @@ function IfOutputHandles({ v }: { v: VariantType }) {
 					getHandleBorderClass(v),
 				)}
 			/>
-			<span
-				className="absolute text-[9px] font-medium text-red-400/80 pointer-events-none"
-				style={{ right: "-40px", top: `calc(${positions[1]}% - 6px)` }}
-			>
-				false
-			</span>
+			<HandleLabel
+				text="false"
+				side="right"
+				top={`calc(${positions[1]}% - 7px)`}
+				color="text-red-400"
+			/>
 		</>
 	);
 }
@@ -350,15 +379,11 @@ function SwitchOutputHandles({ v, node }: { v: VariantType; node: NodeLike }) {
 							getHandleBorderClass(v),
 						)}
 					/>
-					<span
-						className="absolute text-[9px] text-inverse/50 pointer-events-none"
-						style={{
-							right: "-50px",
-							top: `calc(${positions[i]}% - 6px)`,
-						}}
-					>
-						{label}
-					</span>
+					<HandleLabel
+						text={label}
+						side="right"
+						top={`calc(${positions[i]}% - 7px)`}
+					/>
 				</span>
 			))}
 		</>
@@ -380,12 +405,11 @@ function LoopOutputHandles({ v }: { v: VariantType }) {
 					getHandleBorderClass(v),
 				)}
 			/>
-			<span
-				className="absolute right-[-44px] text-[9px] text-inverse/50 pointer-events-none"
-				style={{ top: `calc(${positions[0]}% - 5px)` }}
-			>
-				done
-			</span>
+			<HandleLabel
+				text="done"
+				side="right"
+				top={`calc(${positions[0]}% - 7px)`}
+			/>
 			<Handle
 				type="source"
 				id="loop"
@@ -396,12 +420,11 @@ function LoopOutputHandles({ v }: { v: VariantType }) {
 					getHandleBorderClass(v),
 				)}
 			/>
-			<span
-				className="absolute right-[-44px] text-[9px] text-inverse/50 pointer-events-none"
-				style={{ top: `calc(${positions[1]}% - 5px)` }}
-			>
-				loop
-			</span>
+			<HandleLabel
+				text="loop"
+				side="right"
+				top={`calc(${positions[1]}% - 7px)`}
+			/>
 		</>
 	);
 }
@@ -425,12 +448,11 @@ function MergeInputHandles({
 					connectedInputIds.length > 0 && getHandleActiveBgClass(v),
 				)}
 			/>
-			<span
-				className="absolute left-[-52px] text-[9px] text-inverse/50 pointer-events-none"
-				style={{ top: `calc(${positions[0]}% - 5px)` }}
-			>
-				Input 1
-			</span>
+			<HandleLabel
+				text="Input 1"
+				side="left"
+				top={`calc(${positions[0]}% - 7px)`}
+			/>
 			<Handle
 				type="target"
 				id="input-2"
@@ -442,12 +464,11 @@ function MergeInputHandles({
 					connectedInputIds.length > 1 && getHandleActiveBgClass(v),
 				)}
 			/>
-			<span
-				className="absolute left-[-52px] text-[9px] text-inverse/50 pointer-events-none"
-				style={{ top: `calc(${positions[1]}% - 5px)` }}
-			>
-				Input 2
-			</span>
+			<HandleLabel
+				text="Input 2"
+				side="left"
+				top={`calc(${positions[1]}% - 7px)`}
+			/>
 		</>
 	);
 }
@@ -467,12 +488,12 @@ function FilterOutputHandles({ v }: { v: VariantType }) {
 					getHandleBorderClass(v),
 				)}
 			/>
-			<span
-				className="absolute right-[-44px] text-[9px] text-inverse/50 pointer-events-none"
-				style={{ top: `calc(${positions[0]}% - 5px)` }}
-			>
-				kept
-			</span>
+			<HandleLabel
+				text="kept"
+				side="right"
+				top={`calc(${positions[0]}% - 7px)`}
+				color="text-emerald-400"
+			/>
 			<Handle
 				type="source"
 				id="discarded"
@@ -483,12 +504,12 @@ function FilterOutputHandles({ v }: { v: VariantType }) {
 					getHandleBorderClass(v),
 				)}
 			/>
-			<span
-				className="absolute right-[-62px] text-[9px] text-inverse/50 pointer-events-none"
-				style={{ top: `calc(${positions[1]}% - 5px)` }}
-			>
-				discarded
-			</span>
+			<HandleLabel
+				text="discarded"
+				side="right"
+				top={`calc(${positions[1]}% - 7px)`}
+				color="text-red-400"
+			/>
 		</>
 	);
 }

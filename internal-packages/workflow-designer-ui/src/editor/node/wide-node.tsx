@@ -105,7 +105,7 @@ export function WideNode({
 			highlighted={highlighted}
 			preview={preview}
 			style={style}
-			shapeClasses="rounded-[8px] w-[256px] h-[96px] flex items-center px-[16px] gap-[12px]"
+			shapeClasses="rounded-[8px] w-[224px] h-[96px] flex items-center px-[14px] gap-[10px]"
 			radiusClass="rounded-[8px]"
 		>
 			{/* Icon on left */}

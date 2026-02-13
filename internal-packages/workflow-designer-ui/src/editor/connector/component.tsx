@@ -223,7 +223,7 @@ export function Connector({
 			<BaseEdge
 				id={id}
 				path={edgePath}
-				className={clsx("!stroke-[1.5px] bg-bg")}
+				className={clsx("!stroke-[2px] bg-bg")}
 				style={{
 					stroke: `url(#${gradientId})`,
 					...(isSubNodeConnection ? { strokeDasharray: "6 4" } : {}),

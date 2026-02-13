@@ -12,6 +12,7 @@ import {
 	type Connection,
 	type Edge,
 	type IsValidConnection,
+	MiniMap,
 	type NodeMouseHandler,
 	type OnEdgesChange,
 	type OnMoveEnd,
@@ -21,6 +22,7 @@ import {
 	useNodesInitialized,
 	useReactFlow,
 	useUpdateNodeInternals,
+	useViewport,
 	Panel as XYFlowPanel,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -194,6 +196,26 @@ function getXyNodeType(contentType: string): string {
 		default:
 			return "card"; // N8N default: 96x96 rounded square
 	}
+}
+
+/** Zoom level indicator - bottom right above minimap */
+function ZoomIndicator() {
+	const { zoom } = useViewport();
+	const zoomPercent = Math.round(zoom * 100);
+	const reactFlowInstance = useReactFlow();
+
+	return (
+		<XYFlowPanel position="bottom-right" className="mr-[8px] mb-[140px]">
+			<button
+				type="button"
+				onClick={() => reactFlowInstance.fitView({ padding: 0.2, duration: 300 })}
+				className="rounded-[6px] bg-black/60 backdrop-blur-sm border border-white/10 px-[8px] py-[3px] text-[11px] text-white/50 hover:text-white/80 transition-colors cursor-pointer"
+				title="Click to fit view"
+			>
+				{zoomPercent}%
+			</button>
+		</XYFlowPanel>
+	);
 }
 
 function V2NodeCanvas() {
@@ -689,6 +711,25 @@ function V2NodeCanvas() {
 				<Toolbar />
 			</XYFlowPanel>
 			{menu && <ContextMenu {...menu} onClose={() => setMenu(null)} />}
+		<MiniMap
+			style={{
+				background: "rgba(0, 0, 0, 0.6)",
+				borderRadius: "8px",
+				border: "1px solid rgba(255, 255, 255, 0.1)",
+			}}
+			maskColor="rgba(0, 0, 0, 0.5)"
+			nodeColor={(node) => {
+				const ct = node.data?.contentType ?? node.type;
+				if (ct === "circle" || ct === "trigger" || ct === "formTrigger" || ct === "errorTrigger") return "hsl(220, 15%, 50%)";
+				if (ct === "wide" || ct === "aiAgent") return "hsl(260, 70%, 55%)";
+				if (ct === "pill" || ct === "appEntry" || ct === "end") return "hsl(220, 15%, 60%)";
+				if (ct === "smallCircle") return "hsl(260, 50%, 45%)";
+				return "hsl(220, 10%, 40%)";
+			}}
+			pannable
+			zoomable
+		/>
+		<ZoomIndicator />
 		</ReactFlow>
 	);
 }

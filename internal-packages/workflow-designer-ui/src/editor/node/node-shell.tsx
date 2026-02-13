@@ -1,7 +1,9 @@
-import type { NodeId, NodeLike } from "@giselles-ai/protocol";
+import { Node, type NodeId, type NodeLike, type OperationNode } from "@giselles-ai/protocol";
 import { isVectorStoreNode, isTriggerNode } from "@giselles-ai/protocol";
+import { useNodeGenerations } from "@giselles-ai/react";
 import clsx from "clsx/lite";
-import type { CSSProperties, ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useCallback } from "react";
+import { useAppDesignerStore, useWorkspaceActions } from "../../app-designer";
 import { NodeGenerationStatusBadge } from "./node-generation-status-badge";
 import { NodeHoverToolbar } from "./node-hover-toolbar";
 import { nodeRequiresSetup, useNodeGenerationStatus } from "./node-utils";
@@ -27,6 +29,47 @@ interface NodeShellProps {
 	/** Optional additional inline styles (e.g. dynamic height) */
 	additionalStyle?: CSSProperties;
 	children: ReactNode;
+}
+
+/** Hook to provide single-node execution from the hover toolbar */
+function useNodeExecute(node: NodeLike, preview?: boolean) {
+	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
+	const connections = useAppDesignerStore((s) => s.connections);
+	const nodes = useAppDesignerStore((s) => s.nodes);
+	const setUiNodeState = useWorkspaceActions((a) => a.setUiNodeState);
+
+	const isOperation = node.type === "operation";
+	const {
+		createAndStartGenerationRunner,
+		isGenerating,
+		stopGenerationRunner,
+	} = useNodeGenerations({
+		nodeId: (isOperation ? node.id : "noop") as NodeId,
+		origin: { type: "studio", workspaceId },
+	});
+
+	const onExecute = useCallback(() => {
+		if (!isOperation || preview) return;
+		if (isGenerating) {
+			stopGenerationRunner();
+			return;
+		}
+		setUiNodeState(node.id as NodeId, { showError: false });
+		const incomingConnections = connections.filter(
+			(c) => c.inputNode.id === node.id,
+		);
+		const sourceNodes = incomingConnections
+			.map((c) => nodes.find((n) => n.id === c.outputNode.id))
+			.filter((n): n is OperationNode => Node.safeParse(n).success);
+		createAndStartGenerationRunner({
+			origin: { type: "studio", workspaceId },
+			operationNode: node as OperationNode,
+			sourceNodes,
+			connections: incomingConnections,
+		});
+	}, [isOperation, preview, isGenerating, stopGenerationRunner, setUiNodeState, node, connections, nodes, createAndStartGenerationRunner, workspaceId]);
+
+	return isOperation && !preview ? onExecute : undefined;
 }
 
 export function NodeShell({
@@ -57,6 +100,8 @@ export function NodeShell({
 		showFailedLabel,
 	} = useNodeGenerationStatus(node.id as NodeId);
 
+	const onExecute = useNodeExecute(node, preview);
+
 	const clipStyle: CSSProperties | undefined = clipPath
 		? { clipPath }
 		: undefined;
@@ -82,7 +127,7 @@ export function NodeShell({
 				requiresSetup && "opacity-80",
 			)}
 		>
-			{!preview && <NodeHoverToolbar node={node as any} />}
+			{!preview && <NodeHoverToolbar node={node as any} onExecute={onExecute} />}
 
 			{/* Disabled overlay */}
 			{(node as any).disabled && (

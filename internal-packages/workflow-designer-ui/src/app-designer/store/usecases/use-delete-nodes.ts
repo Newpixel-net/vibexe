@@ -15,11 +15,14 @@ import { useAppDesignerStoreApi } from "../app-designer-provider";
 import { useGiselle } from "../giselle-client-provider";
 import { useSyncAppConnectionStateIfNeeded } from "./use-sync-app-connection-state-if-needed";
 
+const SUB_NODE_TYPES = new Set(["chatModel", "toolNode", "memoryNode"]);
+
 function buildDeleteSet(args: {
 	nodeIdsToDelete: Set<string>;
 	nodes: NodeLike[];
+	connections: Connection[];
 }) {
-	const { nodeIdsToDelete, nodes } = args;
+	const { nodeIdsToDelete, nodes, connections } = args;
 	const appEntryNode = nodes.find((n) => isAppEntryNode(n));
 	const endNode = nodes.find((n) => isEndNode(n));
 
@@ -33,6 +36,23 @@ function buildDeleteSet(args: {
 	if (shouldPairDelete) {
 		if (appEntryNode) nodeIdsToDelete.add(appEntryNode.id);
 		if (endNode) nodeIdsToDelete.add(endNode.id);
+	}
+
+	// Cascade-delete sub-nodes when AI Agent is deleted
+	for (const nodeId of [...nodeIdsToDelete]) {
+		const node = nodes.find((n) => n.id === nodeId);
+		if (node?.content.type === "aiAgent") {
+			// Find all sub-node connections to this AI Agent
+			for (const conn of connections) {
+				if (
+					conn.inputNode.id === nodeId &&
+					conn.connectionType === "subNode" &&
+					SUB_NODE_TYPES.has(conn.outputNode.content.type)
+				) {
+					nodeIdsToDelete.add(conn.outputNode.id);
+				}
+			}
+		}
 	}
 
 	return { shouldPairDelete, nodeIdsToDelete };
@@ -119,6 +139,7 @@ export function useDeleteNodes() {
 				buildDeleteSet({
 					nodeIdsToDelete: deleteSet,
 					nodes: currentState.nodes,
+					connections: currentState.connections,
 				});
 
 			if (shouldPairDelete) {
