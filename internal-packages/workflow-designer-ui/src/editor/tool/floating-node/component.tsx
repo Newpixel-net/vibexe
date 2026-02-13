@@ -1,7 +1,11 @@
 import { createEndNode } from "@giselles-ai/node-registry";
 import { isAppEntryNode, type Node } from "@giselles-ai/protocol";
 import { useMemo } from "react";
-import { NodeComponent, PillNode } from "../../node";
+import { CircleNode } from "../../node/circle-node";
+import { DiamondNode } from "../../node/diamond-node";
+import { PillNode } from "../../node/pill-node";
+import { SmallCircleNode } from "../../node/small-circle-node";
+import { NodeComponent } from "../../node/card-node";
 import { useMousePosition } from "./state";
 
 function PreviewConnector() {
@@ -26,6 +30,28 @@ function PreviewConnector() {
 	);
 }
 
+function ShapePreview({ node }: { node: Node }) {
+	const contentType = node.content.type;
+	switch (contentType) {
+		case "appEntry":
+		case "end":
+			return <PillNode node={node} preview />;
+		case "trigger":
+		case "formTrigger":
+		case "errorTrigger":
+			return <CircleNode node={node} preview />;
+		case "if":
+		case "switch":
+			return <DiamondNode node={node} preview />;
+		case "chatModel":
+		case "toolNode":
+		case "memoryNode":
+			return <SmallCircleNode node={node} preview />;
+		default:
+			return <NodeComponent node={node} preview />;
+	}
+}
+
 export const FloatingNodePreview = ({ node }: { node: Node }) => {
 	const mousePosition = useMousePosition();
 	const isAppEntry = isAppEntryNode(node);
@@ -41,7 +67,7 @@ export const FloatingNodePreview = ({ node }: { node: Node }) => {
 				transform: `translate(${mousePosition.x}px, ${mousePosition.y}px)`,
 			}}
 		>
-			<div className={isAppEntry ? "w-max" : "w-[180px]"}>
+			<div className={isAppEntry ? "w-max" : "w-max"}>
 				{isAppEntry ? (
 					<div className="flex items-center gap-[12px]">
 						<PillNode node={node} preview />
@@ -49,7 +75,7 @@ export const FloatingNodePreview = ({ node }: { node: Node }) => {
 						{endNode && <PillNode node={endNode} preview />}
 					</div>
 				) : (
-					<NodeComponent node={node} preview />
+					<ShapePreview node={node} />
 				)}
 			</div>
 		</div>

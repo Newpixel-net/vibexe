@@ -53,7 +53,13 @@ import { GradientDef } from "../../connector/component";
 import { ContextMenu } from "../../context-menu";
 import type { ContextMenuProps } from "../../context-menu/types";
 import { useKeyboardShortcuts } from "../../hooks/use-keyboard-shortcuts";
-import { CardXyFlowNode, PillXyFlowNode } from "../../node";
+import {
+	CardXyFlowNode,
+	CircleXyFlowNode,
+	DiamondXyFlowNode,
+	PillXyFlowNode,
+	SmallCircleXyFlowNode,
+} from "../../node";
 import { StickyNoteNode } from "../../node/sticky-note-node";
 import { PropertiesPanel } from "../../properties-panel";
 import { RunHistoryTable } from "../../run-history/run-history-table";
@@ -169,6 +175,27 @@ function DebugWorkspacePanel() {
 	);
 }
 
+function getXyNodeType(contentType: string): string {
+	switch (contentType) {
+		case "appEntry":
+		case "end":
+			return "pill";
+		case "trigger":
+		case "formTrigger":
+		case "errorTrigger":
+			return "circle";
+		case "if":
+		case "switch":
+			return "diamond";
+		case "chatModel":
+		case "toolNode":
+		case "memoryNode":
+			return "smallCircle";
+		default:
+			return "card";
+	}
+}
+
 function V2NodeCanvas() {
 	const { nodes, connections, nodeState, viewport, selectedConnectionIds, stickyNotes } =
 		useAppDesignerStore((s) => ({
@@ -223,6 +250,9 @@ function V2NodeCanvas() {
 		() => ({
 			card: CardXyFlowNode,
 			pill: PillXyFlowNode,
+			circle: CircleXyFlowNode,
+			diamond: DiamondXyFlowNode,
+			smallCircle: SmallCircleXyFlowNode,
 			stickyNote: StickyNoteNode,
 		}),
 		[],
@@ -235,10 +265,7 @@ function V2NodeCanvas() {
 			.map((node) => {
 				const nodeUiState = nodeState[node.id];
 				const prev = cacheNodesRef.current.get(node.id);
-				const xyNodeType =
-					node.content.type === "appEntry" || node.content.type === "end"
-						? "pill"
-						: "card";
+				const xyNodeType = getXyNodeType(node.content.type);
 				if (nodeUiState === undefined) {
 					return null;
 				}
@@ -363,7 +390,6 @@ function V2NodeCanvas() {
 			if (prev !== undefined && selected === prev.selected) {
 				return prev;
 			}
-			const isSubNode = connection.connectionType === "subNode";
 			const nextEdge: Edge = {
 				id: connection.id,
 				source: connection.outputNode.id,
@@ -371,12 +397,8 @@ function V2NodeCanvas() {
 				type: "giselleConnector",
 				selected,
 				data: { connection },
-				...(isSubNode
-					? {
-							sourceHandle: connection.outputId,
-							targetHandle: connection.inputId,
-						}
-					: {}),
+				sourceHandle: connection.outputId,
+				targetHandle: connection.inputId,
 			};
 			next.set(connection.id, nextEdge);
 			return nextEdge;
