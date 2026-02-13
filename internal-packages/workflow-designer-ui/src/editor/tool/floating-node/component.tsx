@@ -2,9 +2,9 @@ import { createEndNode } from "@giselles-ai/node-registry";
 import { isAppEntryNode, type Node } from "@giselles-ai/protocol";
 import { useMemo } from "react";
 import { CircleNode } from "../../node/circle-node";
-import { DiamondNode } from "../../node/diamond-node";
 import { PillNode } from "../../node/pill-node";
 import { SmallCircleNode } from "../../node/small-circle-node";
+import { WideNode } from "../../node/wide-node";
 import { NodeComponent } from "../../node/card-node";
 import { useMousePosition } from "./state";
 
@@ -40,9 +40,8 @@ function ShapePreview({ node }: { node: Node }) {
 		case "formTrigger":
 		case "errorTrigger":
 			return <CircleNode node={node} preview />;
-		case "if":
-		case "switch":
-			return <DiamondNode node={node} preview />;
+		case "aiAgent":
+			return <WideNode node={node} preview />;
 		case "chatModel":
 		case "toolNode":
 		case "memoryNode":

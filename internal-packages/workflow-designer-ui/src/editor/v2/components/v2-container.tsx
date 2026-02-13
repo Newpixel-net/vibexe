@@ -59,6 +59,7 @@ import {
 	DiamondXyFlowNode,
 	PillXyFlowNode,
 	SmallCircleXyFlowNode,
+	WideXyFlowNode,
 } from "../../node";
 import { StickyNoteNode } from "../../node/sticky-note-node";
 import { PropertiesPanel } from "../../properties-panel";
@@ -183,16 +184,15 @@ function getXyNodeType(contentType: string): string {
 		case "trigger":
 		case "formTrigger":
 		case "errorTrigger":
-			return "circle";
-		case "if":
-		case "switch":
-			return "diamond";
+			return "circle"; // D-shape trigger
+		case "aiAgent":
+			return "wide"; // N8N configurable: 256x96 horizontal
 		case "chatModel":
 		case "toolNode":
 		case "memoryNode":
-			return "smallCircle";
+			return "smallCircle"; // N8N configuration: 80x80 circle
 		default:
-			return "card";
+			return "card"; // N8N default: 96x96 rounded square
 	}
 }
 
@@ -251,8 +251,9 @@ function V2NodeCanvas() {
 			card: CardXyFlowNode,
 			pill: PillXyFlowNode,
 			circle: CircleXyFlowNode,
-			diamond: DiamondXyFlowNode,
+			diamond: DiamondXyFlowNode, // backward compat alias → card
 			smallCircle: SmallCircleXyFlowNode,
+			wide: WideXyFlowNode,
 			stickyNote: StickyNoteNode,
 		}),
 		[],

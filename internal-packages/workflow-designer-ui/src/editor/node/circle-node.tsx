@@ -1,6 +1,5 @@
 import { defaultName } from "@giselles-ai/node-registry";
 import type {
-	InputId,
 	NodeId,
 	NodeLike,
 	OutputId,
@@ -20,6 +19,15 @@ import {
 	getIconContainerClasses,
 	useNodeVisualStyle,
 } from "./node-visual-style";
+
+/**
+ * N8N-style trigger node: 96x96 "D-shape".
+ * Left side is pill-rounded (36px), right side is standard (8px).
+ * border-radius: 36px 8px 8px 36px
+ * Icon centered, name below outside. Output handle on right only.
+ */
+
+const D_SHAPE_CLASSES = "rounded-tl-[36px] rounded-bl-[36px] rounded-tr-[8px] rounded-br-[8px]";
 
 export function CircleXyFlowNode({ id, selected }: NodeProps) {
 	const { node, connections, highlighted } = useAppDesignerStore((s) => ({
@@ -86,25 +94,25 @@ export function CircleNode({
 			highlighted={highlighted}
 			preview={preview}
 			style={style}
-			shapeClasses="rounded-full w-[100px] h-[100px] flex items-center justify-center"
-			radiusClass="rounded-full"
+			shapeClasses={clsx("w-[96px] h-[96px] flex items-center justify-center", D_SHAPE_CLASSES)}
+			radiusClass={D_SHAPE_CLASSES}
 		>
 			{/* Icon centered */}
 			<div
 				className={clsx(
-					"w-[48px] h-[48px] flex items-center justify-center shrink-0 rounded-full",
+					"w-[40px] h-[40px] flex items-center justify-center shrink-0 rounded-[10px]",
 					getIconContainerClasses(v),
 				)}
 			>
 				<NodeIcon
 					node={node}
-					className={clsx("w-[28px] h-[28px]", getIconClasses(v))}
+					className={clsx("w-[24px] h-[24px]", getIconClasses(v))}
 				/>
 			</div>
 
-			{/* Name below circle (absolute) */}
-			<div className="absolute -bottom-[20px] left-1/2 -translate-x-1/2 whitespace-nowrap">
-				<span className="text-[10px] font-medium text-inverse/70">
+			{/* Name below node (outside) */}
+			<div className="absolute top-full mt-[6px] left-1/2 -translate-x-1/2 whitespace-nowrap text-center">
+				<span className="text-[11px] font-semibold text-inverse/70">
 					{defaultName(node)}
 				</span>
 			</div>
@@ -125,7 +133,7 @@ export function CircleNode({
 						type="button"
 						onClick={handlePlusClick}
 						className={clsx(
-							"absolute -right-[32px] top-1/2 -translate-y-1/2",
+							"absolute -right-[28px] top-1/2 -translate-y-1/2",
 							"w-[20px] h-[20px] rounded-full",
 							"flex items-center justify-center",
 							"bg-inverse/10 backdrop-blur-sm border border-inverse/20",

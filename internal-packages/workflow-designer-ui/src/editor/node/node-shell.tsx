@@ -18,12 +18,14 @@ interface NodeShellProps {
 	highlighted?: boolean;
 	preview?: boolean;
 	style: NodeVisualStyleResult;
-	/** Shape-specific outer classes: e.g. "rounded-[12px] w-[160px] flex flex-col items-center py-[14px] px-[10px] gap-[6px]" */
+	/** Shape-specific outer classes: e.g. "rounded-[8px] w-[96px] h-[96px] flex items-center justify-center" */
 	shapeClasses: string;
-	/** Inner layer radius class: "rounded-[12px]" or "rounded-full" */
+	/** Inner layer radius class: "rounded-[8px]" or "rounded-full" */
 	radiusClass: string;
-	/** Optional clip-path for non-rounded shapes (diamond) */
+	/** Optional clip-path for non-rounded shapes */
 	clipPath?: string;
+	/** Optional additional inline styles (e.g. dynamic height) */
+	additionalStyle?: CSSProperties;
 	children: ReactNode;
 }
 
@@ -36,6 +38,7 @@ export function NodeShell({
 	shapeClasses,
 	radiusClass,
 	clipPath,
+	additionalStyle,
 	children,
 }: NodeShellProps) {
 	const {
@@ -69,7 +72,7 @@ export function NodeShell({
 			data-vector-store-source-provider={
 				isVectorStoreNode(node) ? node.content.source.provider : undefined
 			}
-			style={{ ...integrationColorStyle, ...glowShadowStyle }}
+			style={{ ...integrationColorStyle, ...glowShadowStyle, ...additionalStyle }}
 			className={clsx(
 				"group relative",
 				shapeClasses,
