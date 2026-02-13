@@ -414,6 +414,25 @@ function V2NodeCanvas() {
 		didInitialAutoFitViewRef.current = true;
 	}, [nodesInitialized, reactFlowInstance]);
 
+	// Listen for "add-sticky-note" events from Shift+S shortcut
+	useEffect(() => {
+		const handler = () => {
+			const center = reactFlowInstance.screenToFlowPosition({
+				x: window.innerWidth / 2,
+				y: window.innerHeight / 2,
+			});
+			addStickyNote({
+				id: `note-${Date.now()}`,
+				text: "",
+				color: "yellow",
+				position: { x: center.x, y: center.y },
+				size: { width: 200, height: 150 },
+			});
+		};
+		window.addEventListener("add-sticky-note", handler);
+		return () => window.removeEventListener("add-sticky-note", handler);
+	}, [reactFlowInstance, addStickyNote]);
+
 	const cacheEdgesRef = useRef<Map<string, Edge>>(new Map());
 	const edges = useMemo(() => {
 		const next = new Map<string, Edge>();
@@ -946,25 +965,6 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 			window.removeEventListener("close-properties-panel", closeHandler);
 		};
 	}, []);
-
-	// Listen for "add-sticky-note" events from Shift+S shortcut
-	useEffect(() => {
-		const handler = () => {
-			const center = reactFlowInstance.screenToFlowPosition({
-				x: window.innerWidth / 2,
-				y: window.innerHeight / 2,
-			});
-			addStickyNote({
-				id: `note-${Date.now()}`,
-				text: "",
-				color: "yellow",
-				position: { x: center.x, y: center.y },
-				size: { width: 200, height: 150 },
-			});
-		};
-		window.addEventListener("add-sticky-note", handler);
-		return () => window.removeEventListener("add-sticky-note", handler);
-	}, [reactFlowInstance, addStickyNote]);
 
 	// Listen for "open-properties" events from Enter shortcut
 	useEffect(() => {
