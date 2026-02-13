@@ -413,6 +413,52 @@ function V2NodeCanvas() {
 			if (prev !== undefined && selected === prev.selected) {
 				return prev;
 			}
+
+			// Resolve handle IDs: map connection outputId/inputId to actual Handle id props
+			// on the node components. Without this mapping, ReactFlow can't find the handles
+			// and silently drops edges.
+			let sourceHandle: string | undefined;
+			let targetHandle: string | undefined;
+
+			if (connection.connectionType === "subNode") {
+				// Sub-node connections: source has id="parent", target has named sub-node handles
+				sourceHandle = "parent";
+				const subType = connection.outputNode.content.type;
+				if (subType === "chatModel") targetHandle = "chatModel";
+				else if (subType === "memoryNode") targetHandle = "memory";
+				else if (subType === "toolNode") targetHandle = "tool";
+			} else {
+				// Multi-output source nodes: map outputId to the named handle ID
+				const sourceNode = nodes.find((n) => n.id === connection.outputNode.id);
+				if (sourceNode) {
+					const ct = sourceNode.content.type;
+					if (ct === "if" || ct === "loop" || ct === "filter") {
+						const idx = sourceNode.type === "operation"
+							? (sourceNode as any).outputs?.findIndex((o: any) => o.id === connection.outputId) ?? -1
+							: -1;
+						if (ct === "if") sourceHandle = idx === 0 ? "true" : "false";
+						else if (ct === "loop") sourceHandle = idx === 0 ? "done" : "loop";
+						else if (ct === "filter") sourceHandle = idx === 0 ? "kept" : "discarded";
+					} else if (ct === "switch") {
+						const idx = sourceNode.type === "operation"
+							? (sourceNode as any).outputs?.findIndex((o: any) => o.id === connection.outputId) ?? -1
+							: -1;
+						sourceHandle = `case-${Math.max(0, idx)}`;
+					}
+					// else: undefined — matches the default Handle (no id prop)
+				}
+
+				// Multi-input target nodes: map inputId to the named handle ID
+				const targetNode = nodes.find((n) => n.id === connection.inputNode.id);
+				if (targetNode?.content.type === "merge" && targetNode.type === "operation") {
+					const idx = (targetNode as any).inputs?.findIndex(
+						(i: any) => i.id === connection.inputId,
+					) ?? -1;
+					targetHandle = `input-${Math.max(1, idx + 1)}`;
+				}
+				// else: undefined — matches the default Handle (no id prop)
+			}
+
 			const nextEdge: Edge = {
 				id: connection.id,
 				source: connection.outputNode.id,
@@ -420,15 +466,15 @@ function V2NodeCanvas() {
 				type: "giselleConnector",
 				selected,
 				data: { connection },
-				sourceHandle: connection.outputId,
-				targetHandle: connection.inputId,
+				sourceHandle,
+				targetHandle,
 			};
 			next.set(connection.id, nextEdge);
 			return nextEdge;
 		});
 		cacheEdgesRef.current = next;
 		return arr;
-	}, [connections, selectedConnectionIds]);
+	}, [connections, selectedConnectionIds, nodes]);
 
 	const handleConnect = useCallback(
 		(connection: Connection) => {
