@@ -18,6 +18,7 @@ describe("patchTask", () => {
 				warning: 0,
 				cancelled: 0,
 				failed: 0,
+				skipped: 0,
 			},
 			trigger: "manual",
 			duration: {

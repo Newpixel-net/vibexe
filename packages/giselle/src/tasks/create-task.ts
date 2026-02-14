@@ -349,6 +349,7 @@ export async function createTask(
 			completed: 0,
 			failed: 0,
 			cancelled: 0,
+			skipped: 0,
 		},
 		trigger: "testing",
 		duration: {

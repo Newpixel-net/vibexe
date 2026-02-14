@@ -49,6 +49,7 @@ function createTestTask(overrides?: Partial<Task>): Task {
 			warning: 0,
 			cancelled: 0,
 			failed: 0,
+			skipped: 0,
 		},
 		trigger: "manual",
 		duration: { wallClock: 0, totalTask: 0 },
@@ -503,6 +504,7 @@ describe("executeTask", () => {
 				warning: 0,
 				cancelled: 0,
 				failed: 0,
+				skipped: 0,
 			},
 		});
 
