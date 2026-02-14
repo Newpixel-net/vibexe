@@ -494,6 +494,78 @@ function SwitchPanel({
 								x
 							</button>
 						</div>
+						{/* Conditions within this rule */}
+						<div className="pl-[24px] flex flex-col gap-[6px]">
+							<div className="flex items-center gap-[6px]">
+								<label className="text-[10px] text-text-muted/70">Combine</label>
+								<select
+									className="rounded-[4px] border border-border-muted bg-transparent px-[6px] py-[2px] text-[11px] text-text"
+									value={rule.conditionGroup.combineWith}
+									onChange={(e) => {
+										const rules = [...node.content.rules];
+										rules[i] = {
+											...rule,
+											conditionGroup: {
+												...rule.conditionGroup,
+												combineWith: e.target.value as "and" | "or",
+											},
+										};
+										updateContent(node, { rules });
+									}}
+								>
+									<option value="and">AND</option>
+									<option value="or">OR</option>
+								</select>
+							</div>
+							{rule.conditionGroup.conditions.map((cond, j) => (
+								<ConditionRow
+									key={`rule-${i}-cond-${j}`}
+									condition={cond}
+									nodeId={node.id as NodeId}
+									onChange={(updated) => {
+										const rules = [...node.content.rules];
+										const conditions = [...rule.conditionGroup.conditions];
+										conditions[j] = updated;
+										rules[i] = {
+											...rule,
+											conditionGroup: { ...rule.conditionGroup, conditions },
+										};
+										updateContent(node, { rules });
+									}}
+									onRemove={() => {
+										const rules = [...node.content.rules];
+										const conditions = rule.conditionGroup.conditions.filter(
+											(_, k) => k !== j,
+										);
+										rules[i] = {
+											...rule,
+											conditionGroup: { ...rule.conditionGroup, conditions },
+										};
+										updateContent(node, { rules });
+									}}
+								/>
+							))}
+							<button
+								type="button"
+								className="rounded-[6px] border border-dashed border-border-muted px-[8px] py-[4px] text-[11px] text-text-muted hover:border-text-muted/50 transition-colors"
+								onClick={() => {
+									const rules = [...node.content.rules];
+									rules[i] = {
+										...rule,
+										conditionGroup: {
+											...rule.conditionGroup,
+											conditions: [
+												...rule.conditionGroup.conditions,
+												{ field: "", operator: "equals" as const, value: "" },
+											],
+										},
+									};
+									updateContent(node, { rules });
+								}}
+							>
+								+ Add Condition
+							</button>
+						</div>
 					</div>
 				))}
 				<button
