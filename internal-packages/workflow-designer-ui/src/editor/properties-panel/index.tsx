@@ -37,6 +37,9 @@ import {
 	isRenameKeysNode,
 	isSplitOutNode,
 	isCompareDatasetsNode,
+	isExecuteSubWorkflowNode,
+	isRespondToWebhookNode,
+	isCustomVariablesNode,
 	type OperationNode,
 } from "@giselles-ai/protocol";
 import clsx from "clsx/lite";
@@ -101,7 +104,10 @@ function isThreePanelNode(node: unknown): boolean {
 		isRemoveDuplicatesNode(node) ||
 		isRenameKeysNode(node) ||
 		isSplitOutNode(node) ||
-		isCompareDatasetsNode(node)
+		isCompareDatasetsNode(node) ||
+		isExecuteSubWorkflowNode(node) ||
+		isRespondToWebhookNode(node) ||
+		isCustomVariablesNode(node)
 	);
 }
 
@@ -252,7 +258,10 @@ export function PropertiesPanel() {
 				isRemoveDuplicatesNode(node) ||
 				isRenameKeysNode(node) ||
 				isSplitOutNode(node) ||
-				isCompareDatasetsNode(node)) && (
+				isCompareDatasetsNode(node) ||
+				isExecuteSubWorkflowNode(node) ||
+				isRespondToWebhookNode(node) ||
+				isCustomVariablesNode(node)) && (
 				<FlowControlPropertiesPanel
 					node={node}
 					key={node.id}

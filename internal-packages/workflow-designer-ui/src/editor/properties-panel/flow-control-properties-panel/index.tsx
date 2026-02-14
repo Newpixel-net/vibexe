@@ -5,8 +5,10 @@ import type {
 	CodeNode,
 	CompareDatasetsNode,
 	ConditionOperator,
+	CustomVariablesNode,
 	DataTableNode,
 	EditFieldsNode,
+	ExecuteSubWorkflowNode,
 	FormTriggerNode,
 	ErrorTriggerNode,
 	FilterNode,
@@ -18,6 +20,7 @@ import type {
 	OperationNode,
 	RemoveDuplicatesNode,
 	RenameKeysNode,
+	RespondToWebhookNode,
 	SortNode,
 	SplitOutNode,
 	SummarizeNode,
@@ -59,7 +62,10 @@ type FlowControlNodeType =
 	| RemoveDuplicatesNode
 	| RenameKeysNode
 	| SplitOutNode
-	| CompareDatasetsNode;
+	| CompareDatasetsNode
+	| ExecuteSubWorkflowNode
+	| RespondToWebhookNode
+	| CustomVariablesNode;
 
 function FlowControlPanelLayout({
 	node,
@@ -199,6 +205,9 @@ export function FlowControlPropertiesPanel({
 		case "renameKeys":
 		case "splitOut":
 		case "compareDatasets":
+		case "executeSubWorkflow":
+		case "respondToWebhook":
+		case "customVariables":
 			return (
 				<GenericFlowControlPanel
 					node={node}
@@ -1329,6 +1338,12 @@ const genericDescriptions: Record<string, string> = {
 		"Takes an array field inside each item and splits it out so each array element becomes its own item.",
 	compareDatasets:
 		"Compares two input datasets and outputs items that appear in both, only in Input 1, or only in Input 2.",
+	executeSubWorkflow:
+		"Executes another workflow as a sub-workflow, passing data in and receiving results back.",
+	respondToWebhook:
+		"Sends an HTTP response back to the webhook that triggered this workflow execution.",
+	customVariables:
+		"Reads and writes team-level custom variables that persist across workflow executions.",
 };
 
 function GenericFlowControlPanel({
