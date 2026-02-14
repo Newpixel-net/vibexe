@@ -450,7 +450,7 @@ export function OutputPanel({
 			</div>
 
 			{/* Metrics */}
-			{currentGeneration.status === "completed" &&
+			{currentGeneration?.status === "completed" &&
 				currentGeneration.usage && (
 					<div className="flex items-center gap-[8px] px-[10px] py-[4px] border-b border-inverse/5 text-[10px] text-inverse/40">
 						{currentGeneration.startedAt &&

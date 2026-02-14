@@ -13,6 +13,14 @@ import {
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
+function safeStringify(val: unknown): string {
+	try {
+		return JSON.stringify(val);
+	} catch {
+		return "[Object]";
+	}
+}
+
 export type ViewMode = "schema" | "table" | "json";
 
 // ---- Utility functions ----
@@ -183,7 +191,7 @@ export function DataTableView({ data }: { data: unknown }) {
 											: val === undefined
 												? ""
 												: typeof val === "object"
-													? JSON.stringify(val)
+													? safeStringify(val)
 													: String(val);
 									return (
 										<td
@@ -228,7 +236,7 @@ export function DataTableView({ data }: { data: unknown }) {
 							<tr key={k} className="border-b border-inverse/5">
 								<td className="px-2 py-1 text-inverse/60 font-medium">{k}</td>
 								<td className="px-2 py-1 text-inverse/50 max-w-[250px] truncate">
-									{v === null ? "null" : typeof v === "object" ? JSON.stringify(v) : String(v)}
+									{v === null ? "null" : typeof v === "object" ? safeStringify(v) : String(v)}
 								</td>
 							</tr>
 						))}

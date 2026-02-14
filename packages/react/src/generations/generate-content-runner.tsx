@@ -141,7 +141,13 @@ export function GenerateContentRunner({
 						startByte,
 					});
 					for (const chunk of data.messageChunks) {
-						const messageChunk = JSON.parse(chunk);
+						let messageChunk: unknown;
+						try {
+							messageChunk = JSON.parse(chunk);
+						} catch {
+							console.error("Failed to parse message chunk:", chunk);
+							continue;
+						}
 						writer.write(messageChunk);
 						startByte = data.range.endByte;
 						if (isStreamEndChunk(messageChunk)) {
@@ -208,8 +214,12 @@ export function GenerateContentRunner({
 			.then(({ generation: runningGeneration }) => {
 				onStart?.(runningGeneration);
 				updateGeneration(runningGeneration);
+			})
+			.catch((error) => {
+				console.error("Failed to start content generation:", error);
+				onError?.(error instanceof Error ? error : new Error(String(error)));
 			});
-	}, [generation, client, updateGeneration, onStart]);
+	}, [generation, client, updateGeneration, onStart, onError]);
 
 	useEffect(() => {
 		if (didListeningContentGeneration.current) {
@@ -220,8 +230,11 @@ export function GenerateContentRunner({
 		}
 		didListeningContentGeneration.current = true;
 
-		processStream();
-	}, [generation, processStream]);
+		processStream().catch((error) => {
+			console.error("Stream processing failed:", error);
+			onError?.(error instanceof Error ? error : new Error(String(error)));
+		});
+	}, [generation, processStream, onError]);
 
 	return null;
 }
