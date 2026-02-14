@@ -3,6 +3,35 @@ import * as vm from "node:vm";
 import type { DagNode, DagNodeResult } from "../tasks/dag-executor";
 
 /**
+ * Safely stringify a value, handling circular references and non-serializable values.
+ */
+function safeStringify(val: unknown): string {
+	if (typeof val === "string") return val;
+	try {
+		return JSON.stringify(val);
+	} catch {
+		return String(val);
+	}
+}
+
+/**
+ * Safely clone data for the sandbox. structuredClone can throw on non-cloneable
+ * values (functions, WeakMaps, Symbols, etc.), so fall back to JSON roundtrip.
+ */
+function safeClone<T>(value: T): T {
+	try {
+		return structuredClone(value);
+	} catch {
+		try {
+			return JSON.parse(JSON.stringify(value));
+		} catch {
+			// Last resort: return the original (not isolated, but won't crash)
+			return value;
+		}
+	}
+}
+
+/**
  * Execute a Code node: run user JavaScript in a sandboxed vm context.
  * Input data is available as `items` (array) and `data` (raw input object).
  * The code must return a value which becomes the output.
@@ -31,8 +60,8 @@ export async function executeCode(
 
 	// Create a sandboxed context — no access to require, process, fs, etc.
 	// Includes N8N-compatible special variables: $input, $json, $now, $today, $execution, $node
-	const clonedItems = structuredClone(items);
-	const clonedData = structuredClone(dataObj);
+	const clonedItems = safeClone(items);
+	const clonedData = safeClone(dataObj);
 	const firstItem = clonedItems[0] ?? {};
 	const sandbox: Record<string, unknown> = {
 		items: clonedItems,
@@ -65,34 +94,49 @@ export async function executeCode(
 		Object,
 		Map,
 		Set,
+		RegExp,
+		Error,
+		TypeError,
+		RangeError,
+		Promise,
 		parseInt,
 		parseFloat,
-		isNaN: Number.isNaN,
-		isFinite: Number.isFinite,
+		isNaN,
+		isFinite,
+		encodeURIComponent,
+		decodeURIComponent,
+		encodeURI,
+		decodeURI,
+		atob,
+		btoa,
+		structuredClone,
+		setTimeout: (fn: () => void, ms: number) => setTimeout(fn, Math.min(ms, 30000)),
+		clearTimeout,
 		console: {
 			log: (...args: unknown[]) => {
-				consoleLogs.push(args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" "));
+				consoleLogs.push(args.map(safeStringify).join(" "));
 			},
 			warn: (...args: unknown[]) => {
-				consoleLogs.push(`[WARN] ${args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ")}`);
+				consoleLogs.push(`[WARN] ${args.map(safeStringify).join(" ")}`);
 			},
 			error: (...args: unknown[]) => {
-				consoleLogs.push(`[ERROR] ${args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ")}`);
+				consoleLogs.push(`[ERROR] ${args.map(safeStringify).join(" ")}`);
 			},
 		},
 		__result: undefined as unknown,
 		__error: undefined as unknown,
+		__done: false,
 	};
 
 	const context = vm.createContext(sandbox);
 
-	// Wrap user code in an async IIFE that assigns to __result
-	// .catch() is critical: without it, async errors are silently swallowed
-	// and __result stays undefined until timeout (GLITCH #25)
+	// Wrap user code in an async IIFE that assigns to __result.
+	// __done flag prevents spinning on undefined returns (GLITCH #25 + undefined race fix).
+	// .catch() is critical: without it, async errors are silently swallowed.
 	const wrappedCode = `
 		(async () => {
 			${content.code}
-		})().then(r => { __result = r; }).catch(e => { __error = e; });
+		})().then(r => { __result = r; __done = true; }).catch(e => { __error = e; __done = true; });
 	`;
 
 	const script = new vm.Script(wrappedCode, {
@@ -104,11 +148,12 @@ export async function executeCode(
 	try {
 		script.runInContext(context, { timeout });
 
-		// Wait for the async result (with a timeout)
+		// Wait for the async result (with a timeout).
+		// Uses __done flag instead of checking __result === undefined,
+		// because user code may legitimately return undefined.
 		const startTime = Date.now();
 		while (
-			sandbox.__result === undefined &&
-			sandbox.__error === undefined &&
+			!sandbox.__done &&
 			Date.now() - startTime < timeout
 		) {
 			await new Promise((resolve) => setTimeout(resolve, 10));
