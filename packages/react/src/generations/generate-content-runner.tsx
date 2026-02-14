@@ -5,6 +5,16 @@ import { useGiselle } from "../use-giselle";
 import { useGenerationRunnerSystem } from "./contexts";
 import { useGenerationStore } from "./store";
 
+// Safety guard: requestAnimationFrame/cancelAnimationFrame may not exist during SSR
+const safeRAF =
+	typeof requestAnimationFrame === "function"
+		? requestAnimationFrame
+		: (fn: () => void) => setTimeout(fn, 16) as unknown as number;
+const safeCancelRAF =
+	typeof cancelAnimationFrame === "function"
+		? cancelAnimationFrame
+		: (id: number) => clearTimeout(id);
+
 // Based on: https://github.com/vercel/ai/blob/4a2b70e03bbb552e7d130cec7f8cbfcb96bdc03f/packages/ai/src/ui-message-stream/ui-message-chunks.ts#L14-L154
 type StreamEndChunk =
 	| { type: "finish" }
@@ -84,7 +94,7 @@ export function GenerateContentRunner({
 
 		// Cancel pending animation frame to prevent applying stale updates
 		if (pendingUpdate.current !== null) {
-			cancelAnimationFrame(pendingUpdate.current);
+			safeCancelRAF(pendingUpdate.current);
 			pendingUpdate.current = null;
 		}
 
@@ -112,7 +122,7 @@ export function GenerateContentRunner({
 
 			// Schedule a flush if not already scheduled
 			if (pendingUpdate.current === null) {
-				pendingUpdate.current = requestAnimationFrame(flushMessageUpdates);
+				pendingUpdate.current = safeRAF(flushMessageUpdates);
 			}
 		},
 		[flushMessageUpdates],
@@ -172,7 +182,7 @@ export function GenerateContentRunner({
 
 		// Ensure any remaining updates are flushed when stream ends
 		if (pendingUpdate.current !== null) {
-			cancelAnimationFrame(pendingUpdate.current);
+			safeCancelRAF(pendingUpdate.current);
 			flushMessageUpdates();
 		}
 	}, [

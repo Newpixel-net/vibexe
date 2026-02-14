@@ -173,6 +173,17 @@ export function RunHistoryTable({
 										<span className="text-[#39FF7F]">completed</span>
 									) : run.status === "failed" ? (
 										<span className="text-[#FF3D71]">failed</span>
+									) : run.status === "inProgress" ? (
+										<span className="inline-flex items-center gap-1">
+											<LoaderIcon className="size-3 animate-spin text-amber-400" />
+											<span className="text-amber-400">
+												{Date.now() - run.createdAt > 15 * 60 * 1000
+													? "stuck"
+													: "running"}
+											</span>
+										</span>
+									) : run.status === "cancelled" ? (
+										<span className="text-inverse/40">cancelled</span>
 									) : (
 										run.status
 									)}

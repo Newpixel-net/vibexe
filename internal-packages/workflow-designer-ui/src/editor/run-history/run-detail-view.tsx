@@ -245,6 +245,7 @@ export function RunDetailView({
 	const [activeTab, setActiveTab] = useState<"steps" | "logs">("steps");
 	const client = useGiselle();
 	const [retrying, setRetrying] = useState(false);
+	const [cancelling, setCancelling] = useState(false);
 	const [localTags, setLocalTags] = useState<string[]>(task.tags ?? []);
 
 	const handleRetry = useCallback(async () => {
@@ -253,6 +254,18 @@ export function RunDetailView({
 			await client.retryTask({ taskId: task.id });
 		} finally {
 			setRetrying(false);
+		}
+	}, [client, task.id]);
+
+	const handleCancel = useCallback(async () => {
+		setCancelling(true);
+		try {
+			await client.patchTask({
+				taskId: task.id,
+				patches: [{ path: "status", set: "cancelled" }],
+			});
+		} finally {
+			setCancelling(false);
 		}
 	}, [client, task.id]);
 
@@ -299,6 +312,19 @@ export function RunDetailView({
 						>
 							<BugIcon className="size-3" />
 							Debug in Editor
+						</button>
+					)}
+
+					{/* Cancel button for stuck inProgress tasks */}
+					{task.status === "inProgress" && (
+						<button
+							type="button"
+							onClick={handleCancel}
+							disabled={cancelling}
+							className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium rounded-[5px] bg-red-600/20 hover:bg-red-500/30 text-red-400 border border-red-500/20 transition-colors disabled:opacity-50"
+						>
+							<XCircleIcon className={`size-3 ${cancelling ? "animate-spin" : ""}`} />
+							{cancelling ? "Cancelling..." : "Force Cancel"}
 						</button>
 					)}
 

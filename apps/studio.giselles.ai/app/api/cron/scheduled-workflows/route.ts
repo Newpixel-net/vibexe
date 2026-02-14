@@ -1,10 +1,10 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
-import { NodeId, WorkspaceId } from "@giselles-ai/protocol";
+import { NodeId, type TaskId, WorkspaceId } from "@giselles-ai/protocol";
 import { db } from "@/db";
 import { agents, scheduledWorkflows } from "@/db/schema";
 import { giselle } from "@/app/giselle";
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, isNotNull, lte } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -130,9 +130,58 @@ export async function GET(request: NextRequest) {
 			}
 		}
 
+		// --- Cleanup stuck "inProgress" tasks (>15 minutes old) ---
+		let cleanedUp = 0;
+		try {
+			const STUCK_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+			// Get all distinct workspace IDs from agents table
+			const workspaces = await db
+				.selectDistinct({ workspaceId: agents.workspaceId })
+				.from(agents)
+				.where(isNotNull(agents.workspaceId));
+
+			for (const ws of workspaces) {
+				if (!ws.workspaceId) continue;
+				try {
+					const tasks = await giselle.getWorkspaceTasks({
+						workspaceId: ws.workspaceId,
+					});
+					for (const task of tasks) {
+						if (
+							task.status === "inProgress" &&
+							Date.now() - task.createdAt > STUCK_THRESHOLD_MS
+						) {
+							await giselle.patchTask({
+								taskId: task.id as TaskId,
+								patches: [
+									{ path: "status", set: "failed" },
+									{
+										path: "error",
+										set: {
+											name: "StuckTaskCleanup",
+											message: `Task was stuck inProgress for >15 minutes and was auto-cancelled by cleanup cron`,
+										},
+									},
+								],
+							});
+							cleanedUp++;
+							console.log(
+								`[Cleanup] Force-failed stuck task ${task.id} in workspace ${ws.workspaceId}`,
+							);
+						}
+					}
+				} catch (e) {
+					// Skip workspaces that fail to load
+				}
+			}
+		} catch (e) {
+			console.error("[Cleanup] Error during stuck task cleanup:", e);
+		}
+
 		return Response.json({
 			triggered: results.filter((r) => r.status === "triggered").length,
 			errors: results.filter((r) => r.status === "error").length,
+			cleanedUp,
 			results,
 		});
 	} catch (err) {
