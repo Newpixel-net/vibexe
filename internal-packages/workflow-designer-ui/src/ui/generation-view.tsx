@@ -370,6 +370,25 @@ export function GenerationView({ generation }: { generation: Generation }) {
 		return [];
 	}, [generation]);
 
+	// Check if messages contain actual text content (not just step-start markers)
+	const hasTextInMessages = useMemo(() => {
+		return generatedMessages.some((m) =>
+			m.parts.some(
+				(p) => p.type === "text" || p.type === "reasoning" || p.type.startsWith("tool-"),
+			),
+		);
+	}, [generatedMessages]);
+
+	// Fallback: extract generated-text from outputs when messages lack text content
+	const outputText = useMemo(() => {
+		if (hasTextInMessages) return null;
+		if (generation.status !== "completed" || !("outputs" in generation)) return null;
+		const textOutputs = (generation as { outputs: Array<{ type: string; content?: string }> }).outputs
+			.filter((o) => o.type === "generated-text" && o.content)
+			.map((o) => o.content as string);
+		return textOutputs.length > 0 ? textOutputs.join("\n\n") : null;
+	}, [generation, hasTextInMessages]);
+
 	if (generation.status === "failed") {
 		return (
 			<div>
@@ -528,6 +547,14 @@ export function GenerationView({ generation }: { generation: Generation }) {
 				</div>
 				);
 			})}
+			{/* Fallback: render generated-text output when messages lack text content */}
+			{outputText && (
+				<div>
+					<Streamdown className="markdown-renderer">
+						{outputText}
+					</Streamdown>
+				</div>
+			)}
 			{/* Human Review Card */}
 			{generation.status === "awaiting_review" && "reviewContext" in generation && (
 				<div className="my-[12px] rounded-[8px] border border-amber-500/40 bg-amber-500/10 p-[12px]">
