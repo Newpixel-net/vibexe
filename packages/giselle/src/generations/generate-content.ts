@@ -428,6 +428,7 @@ export function generateContent({
 							failedGeneration,
 							inputMessages: messages,
 						};
+						return;
 					}
 					const generationOutputs: GenerationOutput[] = [];
 					const generatedTextOutput =
@@ -1395,6 +1396,7 @@ IMPORTANT RULES:
 							failedGeneration,
 							inputMessages: messages,
 						};
+						return;
 					}
 					const generationOutputs: GenerationOutput[] = [];
 					const generatedTextOutput =
