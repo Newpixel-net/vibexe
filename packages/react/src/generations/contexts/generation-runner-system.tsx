@@ -56,13 +56,14 @@ interface GenerationRunnerSystemContextValue {
 		| CompletedGeneration
 		| FailedGeneration
 		| CancelledGeneration
+		| undefined
 	>;
 	updateGenerationStatusToComplete: (
 		generationId: GenerationId,
-	) => Promise<CompletedGeneration>;
+	) => Promise<CompletedGeneration | undefined>;
 	updateGenerationStatusToFailure: (
 		generationId: GenerationId,
-	) => Promise<FailedGeneration>;
+	) => Promise<FailedGeneration | undefined>;
 	updateMessages: (
 		generationId: GenerationId,
 		newMessages: UIMessage[],
