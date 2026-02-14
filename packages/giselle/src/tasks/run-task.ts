@@ -576,7 +576,7 @@ async function runTaskWithDag(
 									type: "paragraph",
 									content: [{ type: "text", text: `[Upstream workflow data]\n${contextText}` }],
 								};
-								doc.content = [contextParagraph, { type: "paragraph", content: [{ type: "text", text: "" }] }, ...doc.content];
+								doc.content = [contextParagraph, { type: "paragraph" }, ...doc.content];
 								opContent.prompt = JSON.stringify(doc);
 							} catch {
 								// If JSON parse fails, treat as plain text
