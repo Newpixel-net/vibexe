@@ -656,9 +656,12 @@ async function runTaskWithDag(
 							resolve({ outputs });
 						},
 						onFailed: async (failedGen) => {
+							const errMsg = failedGen && "error" in failedGen
+								? (failedGen as { error?: { message?: string } }).error?.message ?? "unknown error"
+								: "unknown error";
 							reject(
 								new Error(
-									`Generation failed for node ${dagNode.nodeId}`,
+									`Generation failed for node ${dagNode.nodeId}: ${errMsg}`,
 								),
 							);
 						},

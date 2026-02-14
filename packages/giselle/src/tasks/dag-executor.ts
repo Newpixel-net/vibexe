@@ -138,18 +138,32 @@ export class ExecutionDAG {
 			: null;
 
 		if (isMergeNode && (mergeMode === "waitAny" || mergeMode === "chooseBranch")) {
-			// At least one source must be completed (not just skipped)
-			return incoming.some((edge) => {
+			// At least one source must be completed, OR all sources must be terminal
+			const hasCompleted = incoming.some((edge) => {
 				const sourceNode = this.nodes.get(edge.fromNodeId);
 				return sourceNode?.state === "completed";
 			});
+			if (hasCompleted) return true;
+
+			// If all sources are terminal (completed/failed/skipped), fire anyway
+			// so the workflow doesn't hang when one branch fails
+			return incoming.every((edge) => {
+				const sourceNode = this.nodes.get(edge.fromNodeId);
+				return (
+					sourceNode?.state === "completed" ||
+					sourceNode?.state === "failed" ||
+					sourceNode?.state === "skipped"
+				);
+			});
 		}
 
-		// Default: all sources must be completed or skipped
+		// Default: all sources must be in a terminal state
 		return incoming.every((edge) => {
 			const sourceNode = this.nodes.get(edge.fromNodeId);
 			return (
-				sourceNode?.state === "completed" || sourceNode?.state === "skipped"
+				sourceNode?.state === "completed" ||
+				sourceNode?.state === "skipped" ||
+				sourceNode?.state === "failed"
 			);
 		});
 	}
@@ -422,6 +436,14 @@ export async function executeDag(
 				// Route error to all ErrorTrigger nodes
 				const nodeName = node.operationNode.name ?? nodeId;
 				dag.routeErrorToTriggers(nodeId, nodeName, err.message, callbacks);
+				// Propagate failure downstream so Merge/other nodes can react
+				const routeOutgoing = dag.getOutgoingEdges(nodeId);
+				for (const edge of routeOutgoing) {
+					const downstream = dag.nodes.get(edge.toNodeId);
+					if (downstream && downstream.state === "pending") {
+						downstream.state = "waiting";
+					}
+				}
 			} else {
 				// Default: stopWorkflow
 				node.state = "failed";
@@ -430,7 +452,15 @@ export async function executeDag(
 				// Still route to ErrorTrigger nodes (they always fire on failure)
 				const nodeName = node.operationNode.name ?? nodeId;
 				dag.routeErrorToTriggers(nodeId, nodeName, err.message, callbacks);
-				// Fire any ErrorTrigger nodes that are now ready, then stop main path
+				// Propagate failure downstream so Merge/other nodes can see the
+				// terminal state and fire if their other inputs are satisfied
+				const outgoing = dag.getOutgoingEdges(nodeId);
+				for (const edge of outgoing) {
+					const downstream = dag.nodes.get(edge.toNodeId);
+					if (downstream && downstream.state === "pending") {
+						downstream.state = "waiting";
+					}
+				}
 				await fireReadyNodes();
 				return;
 			}
