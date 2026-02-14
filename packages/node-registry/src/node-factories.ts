@@ -1349,8 +1349,27 @@ const ifFactoryImpl = createSimpleOperationFactory<IfNode>(
 const switchFactoryImpl = createSimpleOperationFactory<SwitchNode>(
 	"switch",
 	[{ id: InputId.generate(), label: "Input", accessor: "input" }],
-	[{ id: OutputId.generate(), label: "Fallback", accessor: "fallback" }],
-	{ mode: "rules", rules: [], hasFallback: true },
+	[
+		{ id: OutputId.generate(), label: "Rule 1", accessor: "rule_0" },
+		{ id: OutputId.generate(), label: "Rule 2", accessor: "rule_1" },
+		{ id: OutputId.generate(), label: "Fallback", accessor: "fallback" },
+	],
+	{
+		mode: "rules",
+		rules: [
+			{
+				name: "Rule 1",
+				conditionGroup: { conditions: [], combineWith: "and" },
+				outputPortName: "rule_0",
+			},
+			{
+				name: "Rule 2",
+				conditionGroup: { conditions: [], combineWith: "and" },
+				outputPortName: "rule_1",
+			},
+		],
+		hasFallback: true,
+	},
 );
 
 const mergeFactoryImpl = createSimpleOperationFactory<MergeNode>(
