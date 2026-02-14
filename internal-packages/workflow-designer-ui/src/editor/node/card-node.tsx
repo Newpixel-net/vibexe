@@ -8,6 +8,7 @@ import type {
 import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import clsx from "clsx/lite";
+import { PlusIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { useAppDesignerStore, useUpdateNodeData } from "../../app-designer";
 import { NodeIcon } from "../../icons/node";
@@ -185,11 +186,9 @@ export function NodeComponent({
 }
 
 /**
- * N8N-style unified output handle: the entire row (dot + line + label + line + "+")
- * lives INSIDE the React Flow <Handle>, so dragging from ANY part (including "+")
- * initiates a connection. Clicking "+" opens the "what happens next" panel.
- *
- * Architecture matches N8N's vue-flow__handle with overflow:visible.
+ * Output handle with "+" icon inside the dot on hover.
+ * Clicking "+" opens "What happens next?" panel.
+ * Dragging from the dot still creates a wire (unchanged React Flow behavior).
  */
 function OutputHandle({
 	id,
@@ -230,48 +229,35 @@ function OutputHandle({
 			style={{ top }}
 			className={clsx(
 				"!absolute !w-[16px] !h-[16px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
-				"!overflow-visible",
+				"!overflow-visible group/handle",
 				getHandleBorderClass(v),
 				isConnected && getHandleActiveBgClass(v),
 			)}
 		>
-			{/* Row extends rightward: label (if any) → line → "+" (N8N layout order) */}
-			<div
-				className="absolute flex items-center"
-				style={{ left: "calc(100% + 2px)", top: "50%", transform: "translateY(-50%)" }}
-			>
-				{/* Label immediately after dot (N8N puts label before the line) */}
-				{label && (
-					<span
-						className={clsx(
-							"text-[12px] font-normal whitespace-nowrap mr-[4px]",
-							color ?? "text-inverse/50",
-						)}
-					>
-						{label}
-					</span>
-				)}
-				{/* Connecting line to "+" (N8N: 47px single, 67px multi) */}
-				<div className={clsx("h-[2px] bg-inverse/20 shrink-0", label ? "w-[67px]" : "w-[47px]")} />
-				{/* "+" button — N8N style: filled gray bg, click opens panel, drag starts connection */}
-				{showPlus && (
-					<div
-						role="button"
-						tabIndex={-1}
-						onClick={onPlusClick}
-						onKeyDown={() => {}}
-						className={clsx(
-							"w-[20px] h-[20px] rounded-[5px] shrink-0 ml-[1px]",
-							"flex items-center justify-center",
-							"bg-inverse/[0.08] border border-inverse/15",
-							"text-inverse/50 hover:text-inverse hover:bg-inverse/15 hover:border-inverse/30",
-							"transition-colors duration-150 cursor-crosshair",
-						)}
-					>
-						<span className="text-[15px] leading-none font-light">+</span>
-					</div>
-				)}
-			</div>
+			{/* "+" overlay centered inside the dot */}
+			{showPlus && (
+				<div
+					role="button"
+					tabIndex={-1}
+					onClick={onPlusClick}
+					onKeyDown={() => {}}
+					className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/handle:opacity-100 transition-opacity duration-150 cursor-pointer z-10 pointer-events-auto"
+				>
+					<PlusIcon className="w-[10px] h-[10px] text-inverse/80" />
+				</div>
+			)}
+			{/* Label floats to the right of the dot */}
+			{label && (
+				<span
+					className={clsx(
+						"absolute text-[12px] font-normal whitespace-nowrap pointer-events-none",
+						color ?? "text-inverse/50",
+					)}
+					style={{ left: "calc(100% + 6px)", top: "50%", transform: "translateY(-50%)" }}
+				>
+					{label}
+				</span>
+			)}
 		</Handle>
 	);
 }

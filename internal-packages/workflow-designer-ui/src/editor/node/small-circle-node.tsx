@@ -167,34 +167,28 @@ export function SmallCircleNode({
 						)}
 					/>
 
-					{/* Output handle on right (for forwarding data to downstream nodes) */}
+					{/* Output handle on right with "+" inside */}
 					<Handle
 						type="source"
 						id="output"
 						position={Position.Right}
 						className={clsx(
 							"!absolute !w-[14px] !h-[14px] !rounded-full !right-0 !top-1/2 !translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
+							"!overflow-visible group/handle",
 							getHandleBorderClass(v),
 							hasRightConnection && getHandleActiveBgClass(v),
 						)}
-					/>
-
-					{/* Plus button on right */}
-					<button
-						type="button"
-						onClick={handlePlusClick}
-						className={clsx(
-							"absolute -right-[26px] top-1/2 -translate-y-1/2",
-							"w-[18px] h-[18px] rounded-full",
-							"flex items-center justify-center",
-							"bg-inverse/10 backdrop-blur-sm border border-inverse/20",
-							"text-inverse/60 hover:text-inverse hover:bg-inverse/20",
-							"opacity-0 group-hover:opacity-100 transition-opacity duration-150",
-							"cursor-pointer z-10",
-						)}
 					>
-						<PlusIcon className="w-[10px] h-[10px]" />
-					</button>
+						<div
+							role="button"
+							tabIndex={-1}
+							onClick={handlePlusClick}
+							onKeyDown={() => {}}
+							className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/handle:opacity-100 transition-opacity duration-150 cursor-pointer z-10 pointer-events-auto"
+						>
+							<PlusIcon className="w-[8px] h-[8px] text-inverse/80" />
+						</div>
+					</Handle>
 				</>
 			)}
 		</NodeShell>

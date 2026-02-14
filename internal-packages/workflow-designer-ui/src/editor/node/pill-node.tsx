@@ -165,35 +165,28 @@ export function PillNode({
 				)}
 			/>
 			{isAppEntry && (
-				<>
-					<Handle
-						type="source"
-						position={Position.Right}
-						className={clsx(
-							"!absolute !w-[16px] !h-[16px] !rounded-full !border-[1.5px] !right-[-0.5px] !top-1/2",
-							STAGE_NODE_BORDER_CLASS,
-							isAppEntryAnyOutputConnected
-								? `${STAGE_NODE_HANDLE_BG_CLASS} [box-shadow:0_0_0_1.5px_rgba(0,0,0,0.8)]`
-								: "!bg-background",
-						)}
-					/>
-					{/* Plus button on Start node */}
-					<button
-						type="button"
+				<Handle
+					type="source"
+					position={Position.Right}
+					className={clsx(
+						"!absolute !w-[16px] !h-[16px] !rounded-full !border-[1.5px] !right-[-0.5px] !top-1/2",
+						"!overflow-visible group/handle",
+						STAGE_NODE_BORDER_CLASS,
+						isAppEntryAnyOutputConnected
+							? `${STAGE_NODE_HANDLE_BG_CLASS} [box-shadow:0_0_0_1.5px_rgba(0,0,0,0.8)]`
+							: "!bg-background",
+					)}
+				>
+					<div
+						role="button"
+						tabIndex={-1}
 						onClick={handlePlusClick}
-						className={clsx(
-							"absolute -right-[32px] top-1/2 -translate-y-1/2",
-							"w-[20px] h-[20px] rounded-full",
-							"flex items-center justify-center",
-							"bg-inverse/10 backdrop-blur-sm border border-inverse/20",
-							"text-inverse/60 hover:text-inverse hover:bg-inverse/20",
-							"opacity-0 group-hover:opacity-100 transition-opacity duration-150",
-							"cursor-pointer z-10",
-						)}
+						onKeyDown={() => {}}
+						className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/handle:opacity-100 transition-opacity duration-150 cursor-pointer z-10 pointer-events-auto"
 					>
-						<PlusIcon className="w-[12px] h-[12px]" />
-					</button>
-				</>
+						<PlusIcon className="w-[10px] h-[10px] text-inverse/80" />
+					</div>
+				</Handle>
 			)}
 			{isEnd && (
 				<Handle
