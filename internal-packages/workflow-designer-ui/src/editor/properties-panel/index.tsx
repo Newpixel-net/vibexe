@@ -30,6 +30,13 @@ import {
 	isWebPageNode,
 	isDataTableNode,
 	isFormTriggerNode,
+	isAggregateNode,
+	isSummarizeNode,
+	isLimitNode,
+	isRemoveDuplicatesNode,
+	isRenameKeysNode,
+	isSplitOutNode,
+	isCompareDatasetsNode,
 	type OperationNode,
 } from "@giselles-ai/protocol";
 import clsx from "clsx/lite";
@@ -87,7 +94,14 @@ function isThreePanelNode(node: unknown): boolean {
 		isEditFieldsNode(node) ||
 		isSortNode(node) ||
 		isWaitNode(node) ||
-		isErrorTriggerNode(node)
+		isErrorTriggerNode(node) ||
+		isAggregateNode(node) ||
+		isSummarizeNode(node) ||
+		isLimitNode(node) ||
+		isRemoveDuplicatesNode(node) ||
+		isRenameKeysNode(node) ||
+		isSplitOutNode(node) ||
+		isCompareDatasetsNode(node)
 	);
 }
 
@@ -231,7 +245,14 @@ export function PropertiesPanel() {
 				isWaitNode(node) ||
 				isErrorTriggerNode(node) ||
 				isDataTableNode(node) ||
-				isFormTriggerNode(node)) && (
+				isFormTriggerNode(node) ||
+				isAggregateNode(node) ||
+				isSummarizeNode(node) ||
+				isLimitNode(node) ||
+				isRemoveDuplicatesNode(node) ||
+				isRenameKeysNode(node) ||
+				isSplitOutNode(node) ||
+				isCompareDatasetsNode(node)) && (
 				<FlowControlPropertiesPanel
 					node={node}
 					key={node.id}

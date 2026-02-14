@@ -280,6 +280,13 @@ export function NodeIcon({
 				case "executeSubWorkflow":
 				case "respondToWebhook":
 				case "customVariables":
+				case "aggregate":
+				case "summarize":
+				case "limit":
+				case "removeDuplicates":
+				case "renameKeys":
+				case "splitOut":
+				case "compareDatasets":
 					return <ZapIcon {...props} data-content-type-icon />;
 				default: {
 					const _exhaustiveCheck: never = node.content.type;

@@ -48,6 +48,13 @@ function getNodeIconColor(node: NodeLike): string {
 			case "executeSubWorkflow":
 			case "respondToWebhook":
 			case "customVariables":
+			case "aggregate":
+			case "summarize":
+			case "limit":
+			case "removeDuplicates":
+			case "renameKeys":
+			case "splitOut":
+			case "compareDatasets":
 				return "text-inverse";
 			default: {
 				const _exhaustiveCheck: never = node.content.type;
@@ -127,6 +134,13 @@ function getNodeIconBackground(node: NodeLike): string {
 			case "executeSubWorkflow":
 			case "respondToWebhook":
 			case "customVariables":
+			case "aggregate":
+			case "summarize":
+			case "limit":
+			case "removeDuplicates":
+			case "renameKeys":
+			case "splitOut":
+			case "compareDatasets":
 				return "bg-action-node-1";
 			default: {
 				const _exhaustiveCheck: never = node.content.type;

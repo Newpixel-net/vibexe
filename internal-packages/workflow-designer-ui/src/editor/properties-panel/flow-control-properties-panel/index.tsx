@@ -1,7 +1,9 @@
 "use client";
 
 import type {
+	AggregateNode,
 	CodeNode,
+	CompareDatasetsNode,
 	ConditionOperator,
 	DataTableNode,
 	EditFieldsNode,
@@ -9,11 +11,16 @@ import type {
 	ErrorTriggerNode,
 	FilterNode,
 	IfNode,
+	LimitNode,
 	LoopNode,
 	MergeNode,
 	NodeId,
 	OperationNode,
+	RemoveDuplicatesNode,
+	RenameKeysNode,
 	SortNode,
+	SplitOutNode,
+	SummarizeNode,
 	SwitchNode,
 	WaitNode,
 } from "@giselles-ai/protocol";
@@ -45,7 +52,14 @@ type FlowControlNodeType =
 	| WaitNode
 	| ErrorTriggerNode
 	| DataTableNode
-	| FormTriggerNode;
+	| FormTriggerNode
+	| AggregateNode
+	| SummarizeNode
+	| LimitNode
+	| RemoveDuplicatesNode
+	| RenameKeysNode
+	| SplitOutNode
+	| CompareDatasetsNode;
 
 function FlowControlPanelLayout({
 	node,
@@ -175,6 +189,19 @@ export function FlowControlPropertiesPanel({
 			return (
 				<FormTriggerPanel
 					node={node as FormTriggerNode}
+					onDelete={() => deleteNode(node.id)}
+				/>
+			);
+		case "aggregate":
+		case "summarize":
+		case "limit":
+		case "removeDuplicates":
+		case "renameKeys":
+		case "splitOut":
+		case "compareDatasets":
+			return (
+				<GenericFlowControlPanel
+					node={node}
 					onDelete={() => deleteNode(node.id)}
 				/>
 			);
@@ -1281,6 +1308,46 @@ function FormTriggerPanel({
 					<ul className="mt-[4px] list-disc pl-[16px] space-y-[2px]">
 						<li>Form Data (all submitted field values as JSON)</li>
 					</ul>
+				</div>
+			</div>
+		</FlowControlPanelLayout>
+	);
+}
+
+// ---- Generic panel for newer data transform nodes ----
+const genericDescriptions: Record<string, string> = {
+	aggregate:
+		"Groups items by a field and computes aggregations (sum, count, avg, min, max) on each group.",
+	summarize:
+		"Produces a statistical summary (count, sum, average, min, max) for numeric fields across all input items.",
+	limit: "Keeps only the first N items from the input, discarding the rest.",
+	removeDuplicates:
+		"Removes duplicate items based on a specified field, keeping only unique entries.",
+	renameKeys:
+		"Renames fields (keys) on each item according to configured old-name to new-name mappings.",
+	splitOut:
+		"Takes an array field inside each item and splits it out so each array element becomes its own item.",
+	compareDatasets:
+		"Compares two input datasets and outputs items that appear in both, only in Input 1, or only in Input 2.",
+};
+
+function GenericFlowControlPanel({
+	node,
+	onDelete,
+}: { node: FlowControlNodeType; onDelete: () => void }) {
+	const desc = genericDescriptions[node.content.type] ?? "Configure this node.";
+	return (
+		<FlowControlPanelLayout node={node} onDelete={onDelete}>
+			<div className="flex flex-col gap-[16px]">
+				<div>
+					<SettingLabel>Description</SettingLabel>
+					<p className="text-[11px] text-text-muted/50">{desc}</p>
+				</div>
+				<div className="rounded-[8px] border border-border-muted p-[12px] text-[12px] text-text-muted">
+					<p>
+						This node processes data automatically based on its inputs.
+						Connect upstream nodes to provide data.
+					</p>
 				</div>
 			</div>
 		</FlowControlPanelLayout>

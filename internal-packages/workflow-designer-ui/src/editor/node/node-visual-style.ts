@@ -667,6 +667,13 @@ export function getSubtitleText(node: NodeLike): string | null {
 	if (node.content.type === "executeSubWorkflow") return "Sub-Workflow";
 	if (node.content.type === "respondToWebhook") return "HTTP Response";
 	if (node.content.type === "customVariables") return "Team Variables";
+	if (node.content.type === "aggregate") return "Aggregate Items";
+	if (node.content.type === "summarize") return "Summarize Data";
+	if (node.content.type === "limit") return "Limit Results";
+	if (node.content.type === "removeDuplicates") return "Remove Duplicates";
+	if (node.content.type === "renameKeys") return "Rename Keys";
+	if (node.content.type === "splitOut") return "Split Out Items";
+	if (node.content.type === "compareDatasets") return "Compare Datasets";
 	return null;
 }
 
