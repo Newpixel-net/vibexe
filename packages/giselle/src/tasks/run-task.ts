@@ -686,6 +686,7 @@ async function runTaskWithDag(
 	let totalTaskDuration = 0;
 	let completedCount = 0;
 	let failedCount = 0;
+	let skippedCount = 0;
 	for (const [seqIdx, sequence] of task.sequences.entries()) {
 		for (const [stepIdx, step] of sequence.steps.entries()) {
 			// Find DAG node by generationId
@@ -694,9 +695,12 @@ async function runTaskWithDag(
 					const stepPatches = [];
 
 					// Set status based on DAG node state
-					if (dagNode.state === "completed" || dagNode.state === "skipped") {
+					if (dagNode.state === "completed") {
 						stepPatches.push(patches.sequences(seqIdx).steps(stepIdx).status.set("completed"));
 						completedCount++;
+					} else if (dagNode.state === "skipped") {
+						stepPatches.push(patches.sequences(seqIdx).steps(stepIdx).status.set("skipped"));
+						skippedCount++;
 					} else if (dagNode.state === "failed") {
 						stepPatches.push(patches.sequences(seqIdx).steps(stepIdx).status.set("failed"));
 						failedCount++;
@@ -727,6 +731,7 @@ async function runTaskWithDag(
 		patches.duration.totalTask.set(totalTaskDuration),
 		patches.steps.completed.set(completedCount),
 		patches.steps.failed.set(failedCount),
+		patches.steps.skipped.set(skippedCount),
 	]);
 
 	await patchQueue.flush();

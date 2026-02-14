@@ -21,9 +21,13 @@ const ActAnnotationObject = z.object({
 	stepId: StepId.schema,
 });
 
+/** Step status includes all generation statuses plus "skipped" for DAG-skipped nodes */
+export const StepStatus = z.union([GenerationStatus, z.literal("skipped")]);
+export type StepStatus = z.infer<typeof StepStatus>;
+
 export const Step = z.object({
 	id: StepId.schema,
-	status: GenerationStatus,
+	status: StepStatus,
 	name: z.string(),
 	generationId: GenerationId.schema,
 	duration: z.number(),
@@ -86,6 +90,7 @@ export const Task = z.object({
 		warning: z.number(),
 		cancelled: z.number(),
 		failed: z.number(),
+		skipped: z.number().default(0),
 	}),
 	trigger: z.string(),
 	duration: z.object({

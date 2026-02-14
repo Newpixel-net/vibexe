@@ -48,6 +48,12 @@ function StatusBadge({ status }: { status: string }) {
 					Completed
 				</span>
 			);
+		case "skipped":
+			return (
+				<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-500/10 text-inverse/40 border border-gray-500/20">
+					Skipped
+				</span>
+			);
 		case "failed":
 			return (
 				<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
@@ -435,6 +441,11 @@ export function RunDetailView({
 						<span className="flex items-center gap-1 text-red-400">
 							<XCircleIcon className="size-3" />
 							{task.steps.failed} failed
+						</span>
+					)}
+					{"skipped" in task.steps && (task.steps as { skipped?: number }).skipped! > 0 && (
+						<span className="text-inverse/40">
+							{(task.steps as { skipped?: number }).skipped} skipped
 						</span>
 					)}
 					{task.steps.cancelled > 0 && (

@@ -415,6 +415,17 @@ export function GenerationView({ generation }: { generation: Generation }) {
 		<>
 			{generation.status === "completed" &&
 				generation.outputs.map((output) => {
+					if (output.type === "structured-data" && "data" in output) {
+						const data = (output as { data: unknown }).data;
+						const displayText = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+						return (
+							<div key={output.outputId} className="pt-[6px]">
+								<pre className="text-[11px] text-inverse/70 bg-inverse/5 rounded-md px-3 py-2 overflow-x-auto max-h-[200px] overflow-y-auto whitespace-pre-wrap break-words border border-inverse/10">
+									{displayText}
+								</pre>
+							</div>
+						);
+					}
 					if (output.type !== "generated-image") {
 						return null;
 					}

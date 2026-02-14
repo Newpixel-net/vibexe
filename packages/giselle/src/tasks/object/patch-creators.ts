@@ -97,6 +97,16 @@ const steps = {
 			decrement: value,
 		}),
 	},
+	skipped: {
+		set: (value: number): Patch => ({
+			path: "steps.skipped",
+			set: value,
+		}),
+		increment: (value: number): Patch => ({
+			path: "steps.skipped",
+			increment: value,
+		}),
+	},
 } as const;
 
 // Duration patches
