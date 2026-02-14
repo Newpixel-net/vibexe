@@ -499,6 +499,12 @@ export async function executeDag(
 					await executeLoopIterations(completedNodeId, items, loopBodyEdges);
 				}
 
+				// If the loop failed during iteration, don't activate post-loop edges
+				if (completedNode.state === "failed") {
+					await fireReadyNodes(); // Still fire ErrorTrigger nodes etc.
+					return;
+				}
+
 				// Activate post-loop downstream normally (from "done" port)
 				for (const edge of postLoopEdges) {
 					const downstream = dag.nodes.get(edge.toNodeId);
@@ -614,6 +620,7 @@ export async function executeDag(
 					bodyNode.state = "pending";
 					bodyNode.result = undefined;
 					bodyNode.activeOutputPort = undefined;
+					bodyNode.retryCount = 0;
 				}
 			}
 
@@ -627,6 +634,7 @@ export async function executeDag(
 
 			// Fire ready nodes until the loop body sub-graph completes
 			let maxSteps = 100; // safety limit
+			let iterationFailed = false;
 			while (maxSteps-- > 0) {
 				const readyInBody: NodeId[] = [];
 				for (const bodyNodeId of loopBodyNodeIds) {
@@ -634,8 +642,38 @@ export async function executeDag(
 						readyInBody.push(bodyNodeId);
 					}
 				}
-				if (readyInBody.length === 0) break;
+				if (readyInBody.length === 0) {
+					// Check if a body node failed (which would cause no ready nodes)
+					for (const bodyNodeId of loopBodyNodeIds) {
+						const bodyNode = dag.nodes.get(bodyNodeId);
+						if (bodyNode?.state === "failed") {
+							iterationFailed = true;
+							break;
+						}
+					}
+					break;
+				}
 				await Promise.all(readyInBody.map((nid) => fireNode(nid)));
+			}
+
+			// If a body node failed with stopWorkflow, stop the loop entirely
+			if (iterationFailed) {
+				const failedBody = [...loopBodyNodeIds].find(
+					(nid) => dag.nodes.get(nid)?.state === "failed",
+				);
+				const failedNode = failedBody ? dag.nodes.get(failedBody) : undefined;
+				const errorMsg = failedNode?.result?.error?.message ?? "Loop body node failed";
+				console.error(`[dag-executor] Loop iteration ${i} failed: ${errorMsg}`);
+				// Mark loop itself as failed
+				loopNode.state = "failed";
+				loopNode.result = {
+					outputs: new Map([["error", errorMsg]]),
+					error: new Error(errorMsg),
+				};
+				const loopName = loopNode.operationNode.name ?? loopNodeId;
+				dag.routeErrorToTriggers(loopNodeId, loopName, errorMsg, callbacks);
+				await callbacks.onNodeFailed?.(loopNodeId, new Error(errorMsg));
+				return;
 			}
 
 			// Collect results from the last node(s) in the loop body
@@ -696,6 +734,34 @@ export async function executeDag(
 	// This handles cases where the initial propagation didn't reach all nodes
 	if (!dag.isComplete()) {
 		await fireReadyNodes();
+	}
+
+	// Detect stuck DAG: if nodes are still waiting/pending after full execution,
+	// something went wrong (deadlock, missing connections, etc.)
+	if (!dag.isComplete()) {
+		const stuckNodes: string[] = [];
+		for (const [nodeId, node] of dag.nodes) {
+			if (node.state === "pending" || node.state === "waiting" || node.state === "running") {
+				stuckNodes.push(`${node.operationNode.name ?? nodeId} (${node.state})`);
+			}
+		}
+		if (stuckNodes.length > 0) {
+			console.error(
+				`[dag-executor] DAG stuck with ${stuckNodes.length} non-terminal node(s): ${stuckNodes.join(", ")}. ` +
+				"This may indicate a deadlock or missing connection.",
+			);
+			// Mark stuck nodes as failed so the workflow doesn't hang
+			for (const [nodeId, node] of dag.nodes) {
+				if (node.state === "pending" || node.state === "waiting") {
+					node.state = "failed";
+					node.result = {
+						outputs: new Map(),
+						error: new Error("Node stuck: never reached by execution"),
+					};
+					await callbacks.onNodeFailed?.(nodeId, node.result.error);
+				}
+			}
+		}
 	}
 
 	return { hasError: dag.hasError() };
