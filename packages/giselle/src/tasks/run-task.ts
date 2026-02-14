@@ -55,6 +55,7 @@ import {
 } from "../operations";
 import { executeQuery } from "../operations/execute-query";
 import { resolveTrigger } from "../triggers";
+import { isJsonContent } from "@giselles-ai/text-editor-utils";
 import type { GiselleContext } from "../types";
 import {
 	type DagNode,
@@ -557,6 +558,37 @@ async function runTaskWithDag(
 				return { outputs: new Map() };
 			}
 
+			// GLITCH #6 FIX: Inject DAG inputData into textGen/aiAgent prompts.
+			// When flow control nodes (Switch, Merge, Loop, etc.) pass data to
+			// textGen nodes, the data must be injected into the prompt since
+			// textGen nodes only resolve explicit {{nodeId:outputId}} references.
+			if (inputData.size > 0) {
+				const ct = dagNode.operationNode.content.type;
+				if (ct === "textGeneration" || ct === "contentGeneration" || ct === "aiAgent") {
+					const contextText = stringifyDagInputData(inputData);
+					const opContent = generation.context.operationNode.content as Record<string, unknown>;
+					const prompt = opContent.prompt as string | undefined;
+					if (prompt) {
+						if (isJsonContent(prompt)) {
+							try {
+								const doc = JSON.parse(prompt);
+								const contextParagraph = {
+									type: "paragraph",
+									content: [{ type: "text", text: `[Upstream workflow data]\n${contextText}` }],
+								};
+								doc.content = [contextParagraph, { type: "paragraph", content: [{ type: "text", text: "" }] }, ...doc.content];
+								opContent.prompt = JSON.stringify(doc);
+							} catch {
+								// If JSON parse fails, treat as plain text
+								opContent.prompt = `[Upstream workflow data]\n${contextText}\n\n${prompt}`;
+							}
+						} else {
+							opContent.prompt = `[Upstream workflow data]\n${contextText}\n\n${prompt}`;
+						}
+					}
+				}
+			}
+
 			const queuedGeneration: QueuedGeneration = {
 				...generation,
 				status: "queued",
@@ -683,4 +715,26 @@ async function runTaskWithDag(
 			args.context.logger.error({ error: e }, "Error workflow callback failed");
 		}
 	}
+}
+
+/**
+ * Serialize DAG inputData map to a human-readable string for injection
+ * into textGen/aiAgent prompts when downstream of flow control nodes.
+ */
+function stringifyDagInputData(inputData: Map<string, unknown>): string {
+	const lines: string[] = [];
+	for (const [key, value] of inputData) {
+		if (typeof value === "string") {
+			lines.push(`${key}: ${value}`);
+		} else if (value === undefined || value === null) {
+			lines.push(`${key}: (empty)`);
+		} else {
+			try {
+				lines.push(`${key}: ${JSON.stringify(value)}`);
+			} catch {
+				lines.push(`${key}: ${String(value)}`);
+			}
+		}
+	}
+	return lines.join("\n");
 }
