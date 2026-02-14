@@ -215,8 +215,10 @@ export function ZustandBridgeGenerationProvider({
 					}),
 				generationId,
 			);
-			updateGeneration(generation);
-			generationListener.current[generationId] = generation;
+			if (generation) {
+				updateGeneration(generation);
+				generationListener.current[generationId] = generation;
+			}
 			return generation;
 		},
 		[client, updateGeneration],
@@ -231,8 +233,10 @@ export function ZustandBridgeGenerationProvider({
 					}),
 				generationId,
 			);
-			updateGeneration(generation);
-			generationListener.current[generationId] = generation;
+			if (generation) {
+				updateGeneration(generation);
+				generationListener.current[generationId] = generation;
+			}
 			return generation;
 		},
 		[client, updateGeneration],
@@ -247,8 +251,10 @@ export function ZustandBridgeGenerationProvider({
 					}),
 				generationId,
 			);
-			updateGeneration(generation);
-			generationListener.current[generationId] = generation;
+			if (generation) {
+				updateGeneration(generation);
+				generationListener.current[generationId] = generation;
+			}
 			return generation;
 		},
 		[client, updateGeneration],

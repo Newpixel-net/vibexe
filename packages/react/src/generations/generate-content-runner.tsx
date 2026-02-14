@@ -1,6 +1,6 @@
 import type { Generation, RunningGeneration } from "@giselles-ai/protocol";
 import { createUIMessageStream, readUIMessageStream, type UIMessage } from "ai";
-import { useCallback, useEffect, useRef } from "react";
+import { type MutableRefObject, useCallback, useEffect, useRef } from "react";
 import { useGiselle } from "../use-giselle";
 import { useGenerationRunnerSystem } from "./contexts";
 import { useGenerationStore } from "./store";
@@ -51,11 +51,13 @@ export function GenerateContentRunner({
 	onStart,
 	onFinish,
 	onError,
+	stopRef,
 }: {
 	generation: Generation;
 	onStart?: GenerateContentOnStart;
 	onFinish?: GenerateContentOnFinishCallback;
 	onError?: GenerateContentOnErrorCallback;
+	stopRef?: MutableRefObject<boolean>;
 }) {
 	const client = useGiselle();
 	const upsertMessage = useGenerationStore((s) => s.upsertMessage);
@@ -123,7 +125,7 @@ export function GenerateContentRunner({
 			},
 			async execute({ writer }) {
 				let startByte = 0;
-				while (!reachedStreamEnd.current) {
+				while (!reachedStreamEnd.current && !(stopRef?.current)) {
 					const data = await client.getGenerationMessageChunks({
 						generationId: generation.id,
 						startByte,
@@ -158,6 +160,7 @@ export function GenerateContentRunner({
 							}
 						}
 					}
+					if (stopRef?.current) break;
 					await new Promise((resolve) => setTimeout(resolve, 1000 * 5));
 				}
 			},

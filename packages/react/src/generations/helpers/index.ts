@@ -10,8 +10,10 @@ import { z } from "zod/v4";
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const MAX_BACKOFF_INTERVAL = 5000; // Cap at 5 seconds
+
 const exponentialBackoff = (interval: number) => {
-	return interval * 2;
+	return Math.min(interval * 2, MAX_BACKOFF_INTERVAL);
 };
 
 type GenerationFetcher = (
@@ -26,7 +28,7 @@ async function waitAndGetGenerationStatus(
 	fetcher: GenerationFetcher,
 	generationId: GenerationId,
 	status: Array<z.infer<typeof Generation>["status"]>,
-	{ initialInterval = 500, maxAttempts = 10 }: RequestOptions = {},
+	{ initialInterval = 500, maxAttempts = 60 }: RequestOptions = {},
 ) {
 	let currentInterval = initialInterval;
 	let attempts = 0;
@@ -46,7 +48,13 @@ async function waitAndGetGenerationStatus(
 		attempts++;
 	}
 
-	throw new Error("Maximum polling attempts reached without completion");
+	console.warn(
+		`[generation-poll] Polling timed out after ${maxAttempts} attempts for generation ${generationId}. ` +
+		`The generation may still complete server-side.`,
+	);
+	// Return the last known state instead of throwing — the generation may
+	// still be running server-side and will complete eventually.
+	return await fetcher(generationId);
 }
 
 export async function waitAndGetGenerationCompleted(
@@ -60,6 +68,7 @@ export async function waitAndGetGenerationCompleted(
 		["completed"],
 		requestOptions,
 	);
+	if (generation === undefined) return undefined;
 	return CompletedGeneration.parse(generation);
 }
 
@@ -74,6 +83,7 @@ export async function waitAndGetGenerationRunning(
 		["running", "completed", "failed", "cancelled"],
 		requestOptions,
 	);
+	if (generation === undefined) return undefined;
 	return z
 		.union([
 			RunningGeneration,
@@ -95,6 +105,7 @@ export async function waitAndGetGenerationFailed(
 		["failed"],
 		requestOptions,
 	);
+	if (failedGeneration === undefined) return undefined;
 	return FailedGeneration.parse(failedGeneration);
 }
 

@@ -95,13 +95,23 @@ export function GenerationRunner({ generation }: { generation: Generation }) {
 }
 
 function TextGenerationRunner({ generation }: { generation: Generation }) {
-	const { updateGenerationListener } = useGenerationRunnerSystem();
+	const { updateGenerationListener, addStopHandler } = useGenerationRunnerSystem();
+	const client = useGiselle();
+	const stopRef = useRef(false);
+
 	const handleStart = useCallback(
 		(generation: RunningGeneration) => {
 			updateGenerationListener(generation);
 		},
 		[updateGenerationListener],
 	);
+
+	useOnce(() => {
+		addStopHandler(generation.id, () => {
+			stopRef.current = true;
+			void client.cancelGeneration({ generationId: generation.id });
+		});
+	});
 
 	if (generation.status === "created") {
 		return null;
@@ -115,7 +125,7 @@ function TextGenerationRunner({ generation }: { generation: Generation }) {
 		throw new Error("Invalid generation type");
 	}
 	return (
-		<GenerateContentRunner generation={generation} onStart={handleStart} />
+		<GenerateContentRunner generation={generation} onStart={handleStart} stopRef={stopRef} />
 	);
 }
 
