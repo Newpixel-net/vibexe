@@ -203,6 +203,7 @@ function TriggerRunner({ generation }: { generation: Generation }) {
 	const {
 		updateGenerationStatusToComplete,
 		updateGenerationStatusToRunning,
+		updateGenerationStatusToFailure,
 		addStopHandler,
 	} = useGenerationRunnerSystem();
 	const client = useGiselle();
@@ -224,7 +225,15 @@ function TriggerRunner({ generation }: { generation: Generation }) {
 					})
 					.then(() => {
 						updateGenerationStatusToComplete(generation.id);
+					})
+					.catch((error) => {
+						console.error("Trigger resolution failed:", error);
+						updateGenerationStatusToFailure(generation.id);
 					});
+			})
+			.catch((error) => {
+				console.error("Failed to set generation:", error);
+				updateGenerationStatusToFailure(generation.id);
 			});
 	});
 	return null;
@@ -234,6 +243,7 @@ function ActionRunner({ generation }: { generation: Generation }) {
 	const {
 		updateGenerationStatusToComplete,
 		updateGenerationStatusToRunning,
+		updateGenerationStatusToFailure,
 		addStopHandler,
 	} = useGenerationRunnerSystem();
 	const client = useGiselle();
@@ -255,7 +265,15 @@ function ActionRunner({ generation }: { generation: Generation }) {
 					})
 					.then(() => {
 						updateGenerationStatusToComplete(generation.id);
+					})
+					.catch((error) => {
+						console.error("Action execution failed:", error);
+						updateGenerationStatusToFailure(generation.id);
 					});
+			})
+			.catch((error) => {
+				console.error("Failed to set generation:", error);
+				updateGenerationStatusToFailure(generation.id);
 			});
 	});
 	return null;
