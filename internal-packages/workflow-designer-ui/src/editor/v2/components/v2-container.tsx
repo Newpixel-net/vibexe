@@ -469,10 +469,18 @@ function V2NodeCanvas() {
 						else if (ct === "loop") sourceHandle = idx === 0 ? "done" : "loop";
 						else if (ct === "filter") sourceHandle = idx === 0 ? "kept" : "discarded";
 					} else if (ct === "switch") {
-						const idx = sourceNode.type === "operation"
-							? (sourceNode as any).outputs?.findIndex((o: any) => o.id === connection.outputId) ?? -1
-							: -1;
-						sourceHandle = `case-${Math.max(0, idx)}`;
+						// Match output by accessor (= outputPortName or "fallback")
+						const output = sourceNode.type === "operation"
+							? (sourceNode as any).outputs?.find((o: any) => o.id === connection.outputId)
+							: null;
+						if (output?.accessor) {
+							sourceHandle = output.accessor;
+						} else {
+							const idx = sourceNode.type === "operation"
+								? (sourceNode as any).outputs?.findIndex((o: any) => o.id === connection.outputId) ?? -1
+								: -1;
+							sourceHandle = `rule_${Math.max(0, idx)}`;
+						}
 					}
 					// else: undefined — matches the default Handle (no id prop)
 				}

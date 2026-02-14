@@ -399,26 +399,46 @@ function IfOutputHandles({ v, nodeId }: { v: VariantType; nodeId: string }) {
 	);
 }
 
-/** Switch node: dynamic case output handles (labels "0", "1", etc. like N8N) */
+/** Switch node: dynamic output handles from rules + optional fallback */
 function SwitchOutputHandles({ v, node }: { v: VariantType; node: NodeLike }) {
-	const caseCount = useMemo(() => {
+	const handles = useMemo(() => {
 		const content = node.content as any;
-		const cases = content.cases ?? [];
-		return cases.length > 0 ? cases.length : 2;
+		const rules: Array<{ name: string; outputPortName: string }> =
+			content.rules ?? [];
+		const hasFallback = content.hasFallback ?? true;
+		const result: Array<{ id: string; label: string }> = [];
+
+		if (rules.length > 0) {
+			for (let i = 0; i < rules.length; i++) {
+				result.push({
+					id: rules[i].outputPortName,
+					label: `${i}`,
+				});
+			}
+		} else {
+			// No rules yet — show 2 default case handles
+			result.push({ id: "rule_0", label: "0" });
+			result.push({ id: "rule_1", label: "1" });
+		}
+
+		if (hasFallback) {
+			result.push({ id: "fallback", label: "fb" });
+		}
+		return result;
 	}, [node.content]);
 
-	const positions = getHandlePositions(caseCount);
+	const positions = getHandlePositions(handles.length);
 
 	return (
 		<>
-			{Array.from({ length: caseCount }, (_, i) => (
+			{handles.map((h, i) => (
 				<OutputHandle
-					key={`case-${i}`}
-					id={`case-${i}`}
+					key={h.id}
+					id={h.id}
 					top={`${positions[i]}%`}
 					v={v}
 					nodeId={node.id}
-					label={`${i}`}
+					label={h.label}
 				/>
 			))}
 		</>

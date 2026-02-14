@@ -248,8 +248,13 @@ export function WhatHappensNextPanel({
 					} else if (ct === "loop") {
 						idx = sourceOutputId === "done" ? 0 : sourceOutputId === "loop" ? 1 : -1;
 					} else if (ct === "switch") {
-						const m = sourceOutputId.match(/^case-(\d+)$/);
+						const m = sourceOutputId.match(/^rule_(\d+)$/);
 						if (m) idx = Number.parseInt(m[1], 10);
+						else if (sourceOutputId === "fallback") {
+							const content = sourceNode.content as any;
+							const rules = content.rules ?? [];
+							idx = rules.length;
+						}
 					}
 					if (idx >= 0) {
 						const total = sourceNode.outputs.length;
