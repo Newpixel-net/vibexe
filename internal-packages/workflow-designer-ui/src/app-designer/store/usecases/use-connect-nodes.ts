@@ -4,15 +4,19 @@ import { useAppDesignerStoreApi } from "../app-designer-provider";
 import { useWorkspaceActions } from "../hooks";
 import { useAddConnection } from "./use-add-connection";
 
+/** Node types that have pre-allocated fixed input slots */
+const FIXED_INPUT_TYPES = new Set(["merge", "compareDatasets"]);
+
 export function useConnectNodes() {
 	const storeApi = useAppDesignerStoreApi();
 	const addConnection = useAddConnection();
 	const addNodeInput = useWorkspaceActions((s) => s.addNodeInput);
 	return useCallback(
-		(outputNodeId: NodeId, inputNodeId: NodeId, specificOutputId?: string) => {
+		(outputNodeId: NodeId, inputNodeId: NodeId, specificOutputId?: string, targetHandle?: string) => {
 			// Use getState() for fresh nodes — the hook-provided nodes would be
 			// stale when addNode() and connectNodes() are called in the same tick.
-			const nodes = storeApi.getState().nodes;
+			const state = storeApi.getState();
+			const nodes = state.nodes;
 			const outputNode = nodes.find((node) => node.id === outputNodeId);
 			const inputNode = nodes.find((node) => node.id === inputNodeId);
 			if (outputNode === undefined || inputNode === undefined) {
@@ -49,19 +53,64 @@ export function useConnectNodes() {
 				}
 			}
 
+			// For nodes with fixed input slots (Merge, CompareDatasets), reuse
+			// existing pre-allocated inputs instead of creating new ones.
+			const isFixedInput =
+				inputNode.type === "operation" &&
+				FIXED_INPUT_TYPES.has(inputNode.content.type);
+
 			for (const output of outputsToConnect) {
-				const newInputId = InputId.generate();
-				const newInput: Input = {
-					id: newInputId,
-					label: "Input",
-					accessor: newInputId,
-				};
-				addNodeInput(inputNode.id, newInput);
+				let inputId: InputId;
+
+				if (isFixedInput) {
+					// Find which pre-allocated inputs are already connected
+					const connectedInputIds = new Set(
+						state.connections
+							.filter((c) => c.inputNode.id === inputNode.id)
+							.map((c) => c.inputId),
+					);
+
+					// If targetHandle specified (drag-and-drop to specific handle),
+					// map it to the corresponding pre-allocated input
+					let reusedInput: Input | undefined;
+					if (targetHandle) {
+						const handleMatch = targetHandle.match(/^input-(\d+)$/);
+						if (handleMatch) {
+							const idx = Number.parseInt(handleMatch[1], 10) - 1;
+							if (idx >= 0 && idx < inputNode.inputs.length) {
+								reusedInput = inputNode.inputs[idx];
+							}
+						}
+					}
+
+					// Otherwise, find the first unconnected pre-allocated input
+					if (!reusedInput) {
+						reusedInput = inputNode.inputs.find(
+							(inp) => !connectedInputIds.has(inp.id),
+						);
+					}
+
+					if (!reusedInput) {
+						// All input slots are occupied — skip this connection
+						continue;
+					}
+					inputId = reusedInput.id;
+				} else {
+					const newInputId = InputId.generate();
+					const newInput: Input = {
+						id: newInputId,
+						label: "Input",
+						accessor: newInputId,
+					};
+					addNodeInput(inputNode.id, newInput);
+					inputId = newInputId;
+				}
+
 				addConnection({
 					outputNode,
 					outputId: output.id,
 					inputNode,
-					inputId: newInput.id,
+					inputId,
 				});
 			}
 		},

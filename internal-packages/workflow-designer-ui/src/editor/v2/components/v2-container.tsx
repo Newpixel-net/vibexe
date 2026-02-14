@@ -521,7 +521,7 @@ function V2NodeCanvas() {
 					throw new Error(supported.message);
 				}
 
-				connectNodes(outputNode.id, inputNode.id);
+				connectNodes(outputNode.id, inputNode.id, connection.sourceHandle ?? undefined, connection.targetHandle ?? undefined);
 			} catch (error: unknown) {
 				toast.error(
 					error instanceof Error ? error.message : "Failed to connect nodes",
