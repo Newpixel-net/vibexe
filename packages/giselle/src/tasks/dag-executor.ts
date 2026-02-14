@@ -656,6 +656,12 @@ export async function executeDag(
 				await Promise.all(readyInBody.map((nid) => fireNode(nid)));
 			}
 
+			if (maxSteps <= 0) {
+				console.error(
+					`[dag-executor] Loop body exceeded 100 fire steps at iteration ${i} — possible runaway sub-graph`,
+				);
+			}
+
 			// If a body node failed with stopWorkflow, stop the loop entirely
 			if (iterationFailed) {
 				const failedBody = [...loopBodyNodeIds].find(

@@ -72,7 +72,9 @@ async function waitUntilGenerationFinishes(args: {
 	context: GiselleContext;
 	generationId: GenerationId;
 }) {
-	while (true) {
+	const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+	const startTime = Date.now();
+	while (Date.now() - startTime < TIMEOUT_MS) {
 		const generation = await getGeneration({
 			context: args.context,
 			generationId: args.generationId,
@@ -92,6 +94,9 @@ async function waitUntilGenerationFinishes(args: {
 
 		await new Promise((resolve) => setTimeout(resolve, 1000));
 	}
+	throw new Error(
+		`Generation(id: ${args.generationId}) timed out after 10 minutes`,
+	);
 }
 
 export interface RunTaskCallbacks {
