@@ -429,22 +429,15 @@ async function runTaskWithDag(
 
 	// Helper: update a generation from "created" to "completed" so the client UI
 	// reflects that the DAG executor has finished processing the node.
+	// The actual DAG results are used internally for data flow — the client just
+	// needs to see status="completed" to stop showing "Waiting...".
 	const markGenerationCompleted = async (
 		generationId: GenerationId | undefined,
-		nodeResult: DagNodeResult,
 	) => {
 		if (!generationId) return;
 		const gen = await getGeneration({ context: args.context, generationId });
 		if (!gen || gen.status !== "created") return; // already handled by executeStep
 		const now = Date.now();
-		const outputs: GenerationOutput[] = [];
-		for (const [key, val] of nodeResult.outputs) {
-			if (typeof val === "string") {
-				outputs.push({ type: "generated-text" as const, outputId: key, content: val });
-			} else {
-				outputs.push({ type: "structured-data" as const, outputId: key, data: val } as GenerationOutput);
-			}
-		}
 		await setGeneration({
 			context: args.context,
 			generation: {
@@ -454,7 +447,7 @@ async function runTaskWithDag(
 				startedAt: now,
 				completedAt: now,
 				messages: [],
-				outputs,
+				outputs: [],
 			} as Generation,
 		});
 	};
@@ -466,12 +459,12 @@ async function runTaskWithDag(
 		onNodeComplete: async (nodeId, nodeResult) => {
 			args.context.logger.debug(`[DAG] Node ${nodeId} completed`);
 			const dagNode = dag.nodes.get(nodeId);
-			await markGenerationCompleted(dagNode?.generationId, nodeResult);
+			await markGenerationCompleted(dagNode?.generationId);
 		},
 		onNodeSkipped: async (nodeId) => {
 			args.context.logger.debug(`[DAG] Node ${nodeId} skipped`);
 			const dagNode = dag.nodes.get(nodeId);
-			await markGenerationCompleted(dagNode?.generationId, { outputs: new Map() });
+			await markGenerationCompleted(dagNode?.generationId);
 		},
 		onNodeFailed: async (nodeId, error) => {
 			args.context.logger.error(
