@@ -613,16 +613,36 @@ async function runTaskWithDag(
 		},
 	});
 
-	// Persist per-node durations to task steps
+	// Persist per-node durations and statuses to task steps
+	let totalTaskDuration = 0;
+	let completedCount = 0;
+	let failedCount = 0;
 	for (const [seqIdx, sequence] of task.sequences.entries()) {
 		for (const [stepIdx, step] of sequence.steps.entries()) {
 			// Find DAG node by generationId
 			for (const [, dagNode] of dag.nodes) {
-				if (dagNode.generationId === step.generationId && dagNode.startedAt && dagNode.completedAt) {
-					const nodeDuration = dagNode.completedAt - dagNode.startedAt;
-					await applyPatches(task.id, [
-						patches.sequences(seqIdx).steps(stepIdx).duration.set(nodeDuration),
-					]);
+				if (dagNode.generationId === step.generationId) {
+					const stepPatches = [];
+
+					// Set status based on DAG node state
+					if (dagNode.state === "completed" || dagNode.state === "skipped") {
+						stepPatches.push(patches.sequences(seqIdx).steps(stepIdx).status.set("completed"));
+						completedCount++;
+					} else if (dagNode.state === "failed") {
+						stepPatches.push(patches.sequences(seqIdx).steps(stepIdx).status.set("failed"));
+						failedCount++;
+					}
+
+					// Set duration if available
+					if (dagNode.startedAt && dagNode.completedAt) {
+						const nodeDuration = dagNode.completedAt - dagNode.startedAt;
+						stepPatches.push(patches.sequences(seqIdx).steps(stepIdx).duration.set(nodeDuration));
+						totalTaskDuration += nodeDuration;
+					}
+
+					if (stepPatches.length > 0) {
+						await applyPatches(task.id, stepPatches);
+					}
 					break;
 				}
 			}
@@ -635,6 +655,9 @@ async function runTaskWithDag(
 	await applyPatches(task.id, [
 		patches.status.set(finalStatus),
 		patches.duration.wallClock.set(duration),
+		patches.duration.totalTask.set(totalTaskDuration),
+		patches.steps.completed.set(completedCount),
+		patches.steps.failed.set(failedCount),
 	]);
 
 	await patchQueue.flush();
