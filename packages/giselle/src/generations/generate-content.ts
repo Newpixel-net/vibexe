@@ -1217,6 +1217,11 @@ IMPORTANT RULES:
 				}
 			}
 
+			// Capture text from each step via onStepFinish — this fires before stream
+			// transforms (smoothStream) so it reliably captures the raw model output
+			// even when streamTextResult.text resolves to empty string.
+			const agentStepTexts: string[] = [];
+
 			const streamTextResult = streamText({
 				...callOptions,
 				abortSignal: abortController.signal,
@@ -1242,12 +1247,17 @@ IMPORTANT RULES:
 					}
 				},
 				onStepFinish: async (result) => {
+					// Capture step text for fallback (before stream transforms)
+					if (result.text) {
+						agentStepTexts.push(result.text);
+					}
 					const toolCalls = result.toolCalls?.map((tc: { toolName: string }) => tc.toolName) ?? [];
 					logger.info(
 						{
 							finishReason: result.finishReason,
 							toolCalls,
 							usage: result.usage,
+							textLength: result.text?.length ?? 0,
 						},
 						"AI Agent step completed",
 					);
@@ -1394,8 +1404,39 @@ IMPORTANT RULES:
 					const textRetrievalStartTime = Date.now();
 					let text = await streamTextResult.text;
 					logger.info(
-						`Text retrieval completed in ${Date.now() - textRetrievalStartTime}ms`,
+						`Text retrieval completed in ${Date.now() - textRetrievalStartTime}ms, textLength=${text.length}`,
 					);
+
+					// Fallback: streamTextResult.text can resolve to empty for multi-step
+					// agent flows with stopWhen + smoothStream transform. Use text captured
+					// from onStepFinish callbacks which fire before stream transforms.
+					if (!text && agentStepTexts.length > 0) {
+						text = agentStepTexts.join("");
+						logger.info(
+							{ fallbackTextLength: text.length, stepCount: agentStepTexts.length },
+							"Using onStepFinish text fallback (streamTextResult.text was empty)",
+						);
+					}
+
+					// Fallback 2: try extracting from generateMessages UIMessage parts
+					if (!text && generateMessages && generateMessages.length > 0) {
+						for (let i = generateMessages.length - 1; i >= 0; i--) {
+							const msg = generateMessages[i];
+							if (msg.role === "assistant" && Array.isArray(msg.parts)) {
+								const textParts = (msg.parts as Array<{ type: string; text?: string }>)
+									.filter((p) => p.type === "text" && p.text)
+									.map((p) => p.text!);
+								if (textParts.length > 0) {
+									text = textParts.join("");
+									logger.info(
+										{ fallbackTextLength: text.length },
+										"Using generateMessages text fallback",
+									);
+									break;
+								}
+							}
+						}
+					}
 
 					// AI Agent: Output guardrails — validate LLM output before passing downstream
 					if (
