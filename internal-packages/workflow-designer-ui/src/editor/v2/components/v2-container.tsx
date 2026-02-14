@@ -474,7 +474,17 @@ function V2NodeCanvas() {
 							? (sourceNode as any).outputs?.find((o: any) => o.id === connection.outputId)
 							: null;
 						if (output?.accessor) {
-							sourceHandle = output.accessor;
+							// Check if accessor matches a known handle (rule_N or "fallback")
+							const isKnownHandle = output.accessor === "fallback" || /^rule_\d+$/.test(output.accessor);
+							if (isKnownHandle) {
+								sourceHandle = output.accessor;
+							} else {
+								// Legacy: accessor doesn't match new handle IDs; use index
+								const idx = sourceNode.type === "operation"
+									? (sourceNode as any).outputs?.findIndex((o: any) => o.id === connection.outputId) ?? -1
+									: -1;
+								sourceHandle = `rule_${Math.max(0, idx)}`;
+							}
 						} else {
 							const idx = sourceNode.type === "operation"
 								? (sourceNode as any).outputs?.findIndex((o: any) => o.id === connection.outputId) ?? -1

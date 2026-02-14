@@ -44,8 +44,11 @@ export function useConnectNodes() {
 					if (ct === "loop") {
 						idx = specificOutputId === "done" ? 0 : specificOutputId === "loop" ? 1 : -1;
 					} else if (ct === "switch") {
-						const m = specificOutputId.match(/^case-(\d+)$/);
+						const m = specificOutputId.match(/^rule_(\d+)$/);
 						if (m) idx = Number.parseInt(m[1], 10);
+						else if (specificOutputId === "fallback") {
+							idx = outputNode.outputs.length - 1;
+						}
 					}
 					if (idx >= 0 && idx < outputNode.outputs.length) {
 						outputsToConnect = [outputNode.outputs[idx]];

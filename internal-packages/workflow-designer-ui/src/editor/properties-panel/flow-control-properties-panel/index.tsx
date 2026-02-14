@@ -1,35 +1,37 @@
 "use client";
 
-import type {
-	AggregateNode,
-	CodeNode,
-	CompareDatasetsNode,
-	ConditionOperator,
-	CustomVariablesNode,
-	DataTableNode,
-	EditFieldsNode,
-	ExecuteSubWorkflowNode,
-	FormTriggerNode,
-	ErrorTriggerNode,
-	FilterNode,
-	IfNode,
-	LimitNode,
-	LoopNode,
-	MergeNode,
-	NodeId,
-	OperationNode,
-	RemoveDuplicatesNode,
-	RenameKeysNode,
-	RespondToWebhookNode,
-	SortNode,
-	SplitOutNode,
-	SummarizeNode,
-	SwitchNode,
-	WaitNode,
+import {
+	OutputId,
+	type AggregateNode,
+	type CodeNode,
+	type CompareDatasetsNode,
+	type ConditionOperator,
+	type CustomVariablesNode,
+	type DataTableNode,
+	type EditFieldsNode,
+	type ExecuteSubWorkflowNode,
+	type FormTriggerNode,
+	type ErrorTriggerNode,
+	type FilterNode,
+	type IfNode,
+	type LimitNode,
+	type LoopNode,
+	type MergeNode,
+	type NodeId,
+	type OperationNode,
+	type RemoveDuplicatesNode,
+	type RenameKeysNode,
+	type RespondToWebhookNode,
+	type SortNode,
+	type SplitOutNode,
+	type SummarizeNode,
+	type SwitchNode,
+	type WaitNode,
 } from "@giselles-ai/protocol";
-import type { ReactNode } from "react";
+import { type ReactNode, useCallback } from "react";
 import {
 	useDeleteNode,
+	useUpdateNodeData,
 	useUpdateNodeDataContent,
 } from "../../../app-designer";
 import {
@@ -397,6 +399,55 @@ function SwitchPanel({
 	onDelete,
 }: { node: SwitchNode; onDelete: () => void }) {
 	const updateContent = useUpdateNodeDataContent();
+	const updateNodeData = useUpdateNodeData();
+
+	/** Sync node.outputs with rules + hasFallback whenever content changes */
+	const updateSwitchContent = useCallback(
+		(contentPatch: Partial<SwitchNode["content"]>) => {
+			const newContent = { ...node.content, ...contentPatch };
+			const rules = newContent.rules ?? [];
+			const hasFallback = newContent.hasFallback ?? true;
+
+			// Build outputs, preserving existing IDs where accessor matches
+			const existingByAccessor = new Map(
+				node.outputs.map((o) => [o.accessor, o]),
+			);
+			const outputs: Array<{
+				id: string;
+				label: string;
+				accessor: string;
+			}> = [];
+
+			for (const rule of rules) {
+				const existing = existingByAccessor.get(rule.outputPortName);
+				outputs.push(
+					existing
+						? { ...existing, label: rule.name }
+						: {
+								id: OutputId.generate(),
+								label: rule.name,
+								accessor: rule.outputPortName,
+							},
+				);
+			}
+			if (hasFallback) {
+				const existing = existingByAccessor.get("fallback");
+				outputs.push(
+					existing ?? {
+						id: OutputId.generate(),
+						label: "Fallback",
+						accessor: "fallback",
+					},
+				);
+			}
+
+			updateNodeData(node, {
+				content: newContent,
+				outputs,
+			} as Partial<SwitchNode>);
+		},
+		[node, updateNodeData],
+	);
 
 	return (
 		<FlowControlPanelLayout node={node} onDelete={onDelete}>
@@ -415,7 +466,7 @@ function SwitchPanel({
 							className="mr-[6px]"
 							checked={node.content.hasFallback}
 							onChange={(e) =>
-								updateContent(node, { hasFallback: e.target.checked })
+								updateSwitchContent({ hasFallback: e.target.checked })
 							}
 						/>
 						Enable fallback output
@@ -436,7 +487,7 @@ function SwitchPanel({
 									onClick={() => {
 										const rules = [...node.content.rules];
 										[rules[i - 1], rules[i]] = [rules[i], rules[i - 1]];
-										updateContent(node, { rules });
+										updateSwitchContent({ rules });
 									}}
 									title="Move up"
 								>
@@ -449,7 +500,7 @@ function SwitchPanel({
 									onClick={() => {
 										const rules = [...node.content.rules];
 										[rules[i], rules[i + 1]] = [rules[i + 1], rules[i]];
-										updateContent(node, { rules });
+										updateSwitchContent({ rules });
 									}}
 									title="Move down"
 								>
@@ -463,7 +514,7 @@ function SwitchPanel({
 								onChange={(e) => {
 									const rules = [...node.content.rules];
 									rules[i] = { ...rule, name: e.target.value };
-									updateContent(node, { rules });
+									updateSwitchContent({ rules });
 								}}
 								placeholder="Rule name"
 							/>
@@ -477,7 +528,7 @@ function SwitchPanel({
 										...rule,
 										outputPortName: e.target.value,
 									};
-									updateContent(node, { rules });
+									updateSwitchContent({ rules });
 								}}
 								placeholder="Output port"
 							/>
@@ -488,7 +539,7 @@ function SwitchPanel({
 									const rules = node.content.rules.filter(
 										(_, j) => j !== i,
 									);
-									updateContent(node, { rules });
+									updateSwitchContent({ rules });
 								}}
 							>
 								x
@@ -510,7 +561,7 @@ function SwitchPanel({
 												combineWith: e.target.value as "and" | "or",
 											},
 										};
-										updateContent(node, { rules });
+										updateSwitchContent({ rules });
 									}}
 								>
 									<option value="and">AND</option>
@@ -530,7 +581,7 @@ function SwitchPanel({
 											...rule,
 											conditionGroup: { ...rule.conditionGroup, conditions },
 										};
-										updateContent(node, { rules });
+										updateSwitchContent({ rules });
 									}}
 									onRemove={() => {
 										const rules = [...node.content.rules];
@@ -541,7 +592,7 @@ function SwitchPanel({
 											...rule,
 											conditionGroup: { ...rule.conditionGroup, conditions },
 										};
-										updateContent(node, { rules });
+										updateSwitchContent({ rules });
 									}}
 								/>
 							))}
@@ -560,7 +611,7 @@ function SwitchPanel({
 											],
 										},
 									};
-									updateContent(node, { rules });
+									updateSwitchContent({ rules });
 								}}
 							>
 								+ Add Condition
@@ -572,7 +623,7 @@ function SwitchPanel({
 					type="button"
 					className="rounded-[8px] border border-dashed border-border-muted px-[12px] py-[8px] text-[12px] text-text-muted hover:border-text-muted/50"
 					onClick={() =>
-						updateContent(node, {
+						updateSwitchContent({
 							rules: [
 								...node.content.rules,
 								{
