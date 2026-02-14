@@ -356,6 +356,7 @@ export function generateContent({
 				},
 				onError: ({ error }) => {
 					generationError = error;
+					logger.error({ error: error instanceof Error ? error.message : JSON.stringify(error) }, `${generation.id} streamText onError`);
 				},
 				onFinish: () => {
 					logger.info(
@@ -406,7 +407,9 @@ export function generateContent({
 									message:
 										generationError instanceof Error
 											? generationError.message
-											: String(generationError),
+											: typeof generationError === "string"
+												? generationError
+												: JSON.stringify(generationError),
 								};
 
 						const failedGeneration = {
@@ -1311,6 +1314,7 @@ IMPORTANT RULES:
 				},
 				onError: ({ error }) => {
 					generationError = error;
+					logger.error({ error: error instanceof Error ? error.message : JSON.stringify(error) }, `${generation.id} streamText onError`);
 				},
 				onFinish: () => {
 					logger.info(
@@ -1374,7 +1378,9 @@ IMPORTANT RULES:
 									message:
 										generationError instanceof Error
 											? generationError.message
-											: String(generationError),
+											: typeof generationError === "string"
+												? generationError
+												: JSON.stringify(generationError),
 								};
 
 						const failedGeneration = {
