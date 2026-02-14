@@ -8,7 +8,6 @@ import type {
 import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import clsx from "clsx/lite";
-// PlusIcon no longer needed — using plain "+" text like N8N
 import { useCallback, useMemo } from "react";
 import { useAppDesignerStore, useUpdateNodeData } from "../../app-designer";
 import { NodeIcon } from "../../icons/node";
@@ -185,74 +184,142 @@ export function NodeComponent({
 	);
 }
 
-/** N8N-style inline output row: ─── label  +  (connected by a thin line from the handle) */
-function HandleOutputRow({
-	nodeId,
-	outputId,
+/**
+ * N8N-style unified output handle: the entire row (dot + line + label + line + "+")
+ * lives INSIDE the React Flow <Handle>, so dragging from ANY part (including "+")
+ * initiates a connection. Clicking "+" opens the "what happens next" panel.
+ *
+ * Architecture matches N8N's vue-flow__handle with overflow:visible.
+ */
+function OutputHandle({
+	id,
 	top,
+	v,
+	nodeId,
 	label,
 	color,
 	showPlus = true,
+	isConnected = false,
 }: {
-	nodeId: string;
-	outputId: string;
+	id: string;
 	top: string;
+	v: VariantType;
+	nodeId: string;
 	label?: string;
 	color?: string;
 	showPlus?: boolean;
+	isConnected?: boolean;
 }) {
-	const onClick = useCallback(
+	const onPlusClick = useCallback(
 		(e: React.MouseEvent) => {
 			e.stopPropagation();
 			window.dispatchEvent(
 				new CustomEvent("what-happens-next", {
-					detail: { sourceNodeId: nodeId, outputId },
+					detail: { sourceNodeId: nodeId, outputId: id },
 				}),
 			);
 		},
-		[nodeId, outputId],
+		[nodeId, id],
 	);
 
 	return (
-		<div
-			className="absolute flex items-center z-10"
-			style={{ left: "calc(100% + 6px)", top, transform: "translateY(-50%)" }}
+		<Handle
+			type="source"
+			id={id}
+			position={Position.Right}
+			style={{ top }}
+			className={clsx(
+				"!absolute !w-[10px] !h-[10px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
+				"!overflow-visible",
+				getHandleBorderClass(v),
+				isConnected && getHandleActiveBgClass(v),
+			)}
 		>
-			{/* Connecting line from handle dot (N8N uses ~40px) */}
-			<div className="w-[36px] h-[1px] bg-inverse/20 shrink-0" />
-			{/* Label text (plain, no pill background) */}
+			{/* Row extends rightward from the handle dot — all inside Handle for unified drag */}
+			<div
+				className="absolute flex items-center"
+				style={{ left: "calc(100% + 1px)", top: "50%", transform: "translateY(-50%)" }}
+			>
+				{/* Connecting line (N8N: 47px single-output, 67px multi-output) */}
+				<div className={clsx("h-[1px] bg-inverse/20 shrink-0", label ? "w-[30px]" : "w-[36px]")} />
+				{/* Label text */}
+				{label && (
+					<span
+						className={clsx(
+							"text-[9px] font-medium whitespace-nowrap ml-[3px]",
+							color ?? "text-inverse/50",
+						)}
+					>
+						{label}
+					</span>
+				)}
+				{/* Separator line between label and "+" */}
+				{label && showPlus && (
+					<div className="w-[20px] h-[1px] bg-inverse/20 shrink-0 ml-[3px]" />
+				)}
+				{/* "+" button — click opens panel, drag starts connection (inherited from Handle) */}
+				{showPlus && (
+					<div
+						role="button"
+						tabIndex={-1}
+						onClick={onPlusClick}
+						onKeyDown={() => {}}
+						className={clsx(
+							"w-[20px] h-[20px] rounded-[4px] shrink-0",
+							!label && "ml-[3px]",
+							"flex items-center justify-center",
+							"border border-inverse/20",
+							"text-inverse/40 hover:text-inverse hover:border-inverse/40",
+							"transition-colors duration-150 cursor-crosshair",
+						)}
+					>
+						<span className="text-[14px] leading-none font-light">+</span>
+					</div>
+				)}
+			</div>
+		</Handle>
+	);
+}
+
+/**
+ * N8N-style unified input handle with label inside.
+ * Label is positioned to the left of the handle dot.
+ */
+function InputHandle({
+	id,
+	top,
+	v,
+	label,
+	isConnected = false,
+}: {
+	id: string;
+	top: string;
+	v: VariantType;
+	label?: string;
+	isConnected?: boolean;
+}) {
+	return (
+		<Handle
+			type="target"
+			id={id}
+			position={Position.Left}
+			style={{ top }}
+			className={clsx(
+				"!absolute !w-[10px] !h-[10px] !rounded-full !left-0 !-translate-x-1/2 !border-[1.5px] !bg-background",
+				"!overflow-visible",
+				getHandleBorderClass(v),
+				isConnected && getHandleActiveBgClass(v),
+			)}
+		>
 			{label && (
 				<span
-					className={clsx(
-						"text-[9px] font-medium whitespace-nowrap ml-[3px]",
-						color ?? "text-inverse/50",
-					)}
+					className="absolute text-[9px] font-medium pointer-events-none whitespace-nowrap text-inverse/50"
+					style={{ right: "calc(100% + 6px)", top: "50%", transform: "translateY(-50%)" }}
 				>
 					{label}
 				</span>
 			)}
-			{/* Separator line between label and "+" (N8N pattern: label ─── [+]) */}
-			{label && showPlus && (
-				<div className="w-[20px] h-[1px] bg-inverse/20 shrink-0 ml-[3px]" />
-			)}
-			{/* "+" button (N8N ~24x24, we use 20x20) */}
-			{showPlus && (
-				<button
-					type="button"
-					onClick={onClick}
-					className={clsx(
-						"w-[20px] h-[20px] rounded-[4px] shrink-0",
-						!label && "ml-[3px]",
-						"flex items-center justify-center",
-						"border border-inverse/20",
-						"text-inverse/40 hover:text-inverse hover:border-inverse/40",
-						"transition-colors duration-150 cursor-pointer",
-					)}
-				>
-					<span className="text-[14px] leading-none font-light">+</span>
-				</button>
-			)}
-		</div>
+		</Handle>
 	);
 }
 
@@ -268,8 +335,8 @@ function NodeHandles({
 }) {
 	const v = useVariant(node);
 	const contentType = node.content.type;
-	const isInputConnected = connectedInputIds.length > 0;
 	const isOutputConnected = connectedOutputIds.length > 0;
+	const isInputConnected = connectedInputIds.length > 0;
 	const isMultiOutput =
 		contentType === "if" ||
 		contentType === "switch" ||
@@ -317,7 +384,7 @@ function NodeHandles({
 				)
 			)}
 
-			{/* Output handle(s) */}
+			{/* Output handle(s) — unified: row content is INSIDE the Handle */}
 			{contentType === "if" ? (
 				<IfOutputHandles v={v} nodeId={node.id} />
 			) : contentType === "switch" ? (
@@ -327,56 +394,16 @@ function NodeHandles({
 			) : contentType === "filter" ? (
 				<FilterOutputHandles v={v} nodeId={node.id} />
 			) : (
-				<>
-					<Handle
-						type="source"
-						position={Position.Right}
-						className={clsx(
-							"!absolute !w-[12px] !h-[12px] !rounded-full !right-0 !top-1/2 !translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
-							getHandleBorderClass(v),
-							isOutputConnected && getHandleActiveBgClass(v),
-						)}
-					/>
-					{/* N8N-style inline "+" for single-output nodes */}
-					{!isMultiOutput && showPlusButton && (
-						<HandleOutputRow
-							nodeId={node.id}
-							outputId="output"
-							top="50%"
-						/>
-					)}
-				</>
+				<OutputHandle
+					id="output"
+					top="50%"
+					v={v}
+					nodeId={node.id}
+					showPlus={showPlusButton}
+					isConnected={isOutputConnected}
+				/>
 			)}
 		</>
-	);
-}
-
-/** Handle label — plain text, no pill background (matches N8N) */
-function HandleLabel({
-	text,
-	side,
-	top,
-	color,
-}: {
-	text: string;
-	side: "left" | "right";
-	top: string;
-	color?: string;
-}) {
-	return (
-		<span
-			className={clsx(
-				"absolute text-[9px] font-medium pointer-events-none whitespace-nowrap",
-				color ?? "text-inverse/50",
-			)}
-			style={
-				side === "left"
-					? { right: "calc(100% + 10px)", top, transform: "translateY(-50%)" }
-					: undefined
-			}
-		>
-			{text}
-		</span>
 	);
 }
 
@@ -385,28 +412,8 @@ function IfOutputHandles({ v, nodeId }: { v: VariantType; nodeId: string }) {
 	const positions = getHandlePositions(2);
 	return (
 		<>
-			<Handle
-				type="source"
-				id="true"
-				position={Position.Right}
-				style={{ top: `${positions[0]}%` }}
-				className={clsx(
-					"!absolute !w-[10px] !h-[10px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
-					getHandleBorderClass(v),
-				)}
-			/>
-			<HandleOutputRow nodeId={nodeId} outputId="true" top={`${positions[0]}%`} label="true" color="text-emerald-400" />
-			<Handle
-				type="source"
-				id="false"
-				position={Position.Right}
-				style={{ top: `${positions[1]}%` }}
-				className={clsx(
-					"!absolute !w-[10px] !h-[10px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
-					getHandleBorderClass(v),
-				)}
-			/>
-			<HandleOutputRow nodeId={nodeId} outputId="false" top={`${positions[1]}%`} label="false" color="text-red-400" />
+			<OutputHandle id="true" top={`${positions[0]}%`} v={v} nodeId={nodeId} label="true" color="text-emerald-400" />
+			<OutputHandle id="false" top={`${positions[1]}%`} v={v} nodeId={nodeId} label="false" color="text-red-400" />
 		</>
 	);
 }
@@ -424,19 +431,14 @@ function SwitchOutputHandles({ v, node }: { v: VariantType; node: NodeLike }) {
 	return (
 		<>
 			{Array.from({ length: caseCount }, (_, i) => (
-				<span key={`case-${i}`}>
-					<Handle
-						type="source"
-						id={`case-${i}`}
-						position={Position.Right}
-						style={{ top: `${positions[i]}%` }}
-						className={clsx(
-							"!absolute !w-[10px] !h-[10px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
-							getHandleBorderClass(v),
-						)}
-					/>
-					<HandleOutputRow nodeId={node.id} outputId={`case-${i}`} top={`${positions[i]}%`} label={`${i}`} />
-				</span>
+				<OutputHandle
+					key={`case-${i}`}
+					id={`case-${i}`}
+					top={`${positions[i]}%`}
+					v={v}
+					nodeId={node.id}
+					label={`${i}`}
+				/>
 			))}
 		</>
 	);
@@ -447,28 +449,8 @@ function LoopOutputHandles({ v, nodeId }: { v: VariantType; nodeId: string }) {
 	const positions = getHandlePositions(2);
 	return (
 		<>
-			<Handle
-				type="source"
-				id="done"
-				position={Position.Right}
-				style={{ top: `${positions[0]}%` }}
-				className={clsx(
-					"!absolute !w-[10px] !h-[10px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
-					getHandleBorderClass(v),
-				)}
-			/>
-			<HandleOutputRow nodeId={nodeId} outputId="done" top={`${positions[0]}%`} label="done" />
-			<Handle
-				type="source"
-				id="loop"
-				position={Position.Right}
-				style={{ top: `${positions[1]}%` }}
-				className={clsx(
-					"!absolute !w-[10px] !h-[10px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
-					getHandleBorderClass(v),
-				)}
-			/>
-			<HandleOutputRow nodeId={nodeId} outputId="loop" top={`${positions[1]}%`} label="loop" showPlus={false} />
+			<OutputHandle id="done" top={`${positions[0]}%`} v={v} nodeId={nodeId} label="done" />
+			<OutputHandle id="loop" top={`${positions[1]}%`} v={v} nodeId={nodeId} label="loop" showPlus={false} />
 		</>
 	);
 }
@@ -481,38 +463,8 @@ function MergeInputHandles({
 	const positions = getHandlePositions(2);
 	return (
 		<>
-			<Handle
-				type="target"
-				id="input-1"
-				position={Position.Left}
-				style={{ top: `${positions[0]}%` }}
-				className={clsx(
-					"!absolute !w-[10px] !h-[10px] !rounded-full !left-0 !-translate-x-1/2 !border-[1.5px] !bg-background",
-					getHandleBorderClass(v),
-					connectedInputIds.length > 0 && getHandleActiveBgClass(v),
-				)}
-			/>
-			<HandleLabel
-				text="Input 1"
-				side="left"
-				top={`calc(${positions[0]}% - 7px)`}
-			/>
-			<Handle
-				type="target"
-				id="input-2"
-				position={Position.Left}
-				style={{ top: `${positions[1]}%` }}
-				className={clsx(
-					"!absolute !w-[10px] !h-[10px] !rounded-full !left-0 !-translate-x-1/2 !border-[1.5px] !bg-background",
-					getHandleBorderClass(v),
-					connectedInputIds.length > 1 && getHandleActiveBgClass(v),
-				)}
-			/>
-			<HandleLabel
-				text="Input 2"
-				side="left"
-				top={`calc(${positions[1]}% - 7px)`}
-			/>
+			<InputHandle id="input-1" top={`${positions[0]}%`} v={v} label="Input 1" isConnected={connectedInputIds.length > 0} />
+			<InputHandle id="input-2" top={`${positions[1]}%`} v={v} label="Input 2" isConnected={connectedInputIds.length > 1} />
 		</>
 	);
 }
@@ -522,28 +474,8 @@ function FilterOutputHandles({ v, nodeId }: { v: VariantType; nodeId: string }) 
 	const positions = getHandlePositions(2);
 	return (
 		<>
-			<Handle
-				type="source"
-				id="kept"
-				position={Position.Right}
-				style={{ top: `${positions[0]}%` }}
-				className={clsx(
-					"!absolute !w-[10px] !h-[10px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
-					getHandleBorderClass(v),
-				)}
-			/>
-			<HandleOutputRow nodeId={nodeId} outputId="kept" top={`${positions[0]}%`} label="kept" color="text-emerald-400" />
-			<Handle
-				type="source"
-				id="discarded"
-				position={Position.Right}
-				style={{ top: `${positions[1]}%` }}
-				className={clsx(
-					"!absolute !w-[10px] !h-[10px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
-					getHandleBorderClass(v),
-				)}
-			/>
-			<HandleOutputRow nodeId={nodeId} outputId="discarded" top={`${positions[1]}%`} label="discarded" color="text-red-400" />
+			<OutputHandle id="kept" top={`${positions[0]}%`} v={v} nodeId={nodeId} label="kept" color="text-emerald-400" />
+			<OutputHandle id="discarded" top={`${positions[1]}%`} v={v} nodeId={nodeId} label="discarded" color="text-red-400" />
 		</>
 	);
 }
