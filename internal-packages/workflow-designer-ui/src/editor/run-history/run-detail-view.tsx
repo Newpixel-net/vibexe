@@ -264,10 +264,11 @@ export function RunDetailView({
 				taskId: task.id,
 				patches: [{ path: "status", set: "cancelled" }],
 			});
-		} finally {
+			onBack();
+		} catch {
 			setCancelling(false);
 		}
-	}, [client, task.id]);
+	}, [client, task.id, onBack]);
 
 	const handleAddTag = useCallback(async (tag: string) => {
 		const newTags = [...localTags, tag];
