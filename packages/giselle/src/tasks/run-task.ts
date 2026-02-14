@@ -206,8 +206,16 @@ async function executeStep(args: {
 			await args.callbacks?.onCompleted?.();
 		}
 	} catch (_e) {
-		console.log(_e);
-		await args.callbacks?.onFailed?.(args.generation);
+		console.error("[executeStep] Error:", _e);
+		// Construct a Generation-like object with error details so DAG executor
+		// gets the real error message (not just "unknown error")
+		const errorMsg = _e instanceof Error ? _e.message : String(_e);
+		const failedGeneration = {
+			...args.generation,
+			status: "failed" as const,
+			error: { name: "ExecutionError", message: errorMsg },
+		};
+		await args.callbacks?.onFailed?.(failedGeneration as Generation);
 	}
 }
 
@@ -757,6 +765,12 @@ function stringifyDagInputData(inputData: Map<string, unknown>): string {
 			lines.push(`${key}: ${value}`);
 		} else if (value === undefined || value === null) {
 			lines.push(`${key}: (empty)`);
+		} else if (value instanceof Map) {
+			// Convert Map to plain object for serialization
+			const obj = Object.fromEntries(value);
+			lines.push(`${key}: ${JSON.stringify(obj)}`);
+		} else if (Array.isArray(value)) {
+			lines.push(`${key}: ${JSON.stringify(value)}`);
 		} else {
 			try {
 				lines.push(`${key}: ${JSON.stringify(value)}`);
