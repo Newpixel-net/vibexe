@@ -447,11 +447,36 @@ export async function executeDag(
 		const outgoing = dag.getOutgoingEdges(completedNodeId);
 		const contentType = completedNode.operationNode.content.type;
 
-		// For Loop nodes: iterate over items and re-execute downstream per iteration
+		// For Loop nodes: iterate over items and re-execute downstream per iteration.
+		// Split edges: "loop" body port (index 1) vs "done" post-loop port (index 0).
 		if (contentType === "loop" && completedNode.result) {
-			const items = completedNode.result.outputs.get("item");
+			const items =
+				completedNode.result.outputs.get("items") ??
+				completedNode.result.outputs.get("item");
 			if (Array.isArray(items) && items.length > 0) {
-				await executeLoopIterations(completedNodeId, items, outgoing);
+				// Determine loop body port accessor (handle "loop" = output index 1)
+				const loopOutputs = completedNode.operationNode.outputs;
+				const loopBodyAccessor = loopOutputs.length > 1 ? loopOutputs[1].accessor : undefined;
+
+				const loopBodyEdges = loopBodyAccessor
+					? outgoing.filter((e) => e.fromOutputPort === loopBodyAccessor)
+					: [];
+				const postLoopEdges = loopBodyAccessor
+					? outgoing.filter((e) => e.fromOutputPort !== loopBodyAccessor)
+					: outgoing;
+
+				if (loopBodyEdges.length > 0) {
+					await executeLoopIterations(completedNodeId, items, loopBodyEdges);
+				}
+
+				// Activate post-loop downstream normally (from "done" port)
+				for (const edge of postLoopEdges) {
+					const downstream = dag.nodes.get(edge.toNodeId);
+					if (downstream && downstream.state === "pending") {
+						downstream.state = "waiting";
+					}
+				}
+				await fireReadyNodes();
 				return;
 			}
 		}
@@ -544,6 +569,7 @@ export async function executeDag(
 				outputs: new Map([
 					["item", currentItem],
 					["output", currentItem],
+					["loop", currentItem],
 					["items", items],
 					["index", i],
 					["totalItems", items.length],
@@ -604,6 +630,8 @@ export async function executeDag(
 			outputs: new Map([
 				["item", allIterationResults],
 				["output", allIterationResults],
+				["done", allIterationResults],
+				["loop", allIterationResults],
 				["items", allIterationResults],
 				["totalItems", allIterationResults.length],
 				["data", allIterationResults],

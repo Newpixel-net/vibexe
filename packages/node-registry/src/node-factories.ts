@@ -1386,8 +1386,8 @@ const loopFactoryImpl = createSimpleOperationFactory<LoopNode>(
 	"loop",
 	[{ id: InputId.generate(), label: "Items", accessor: "items" }],
 	[
-		{ id: OutputId.generate(), label: "Item", accessor: "item" },
-		{ id: OutputId.generate(), label: "Output", accessor: "output" },
+		{ id: OutputId.generate(), label: "Done", accessor: "done" },
+		{ id: OutputId.generate(), label: "Loop", accessor: "loop" },
 	],
 	{ mode: "forEach", maxIterations: 100 },
 );

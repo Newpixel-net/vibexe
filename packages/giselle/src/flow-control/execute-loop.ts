@@ -21,8 +21,10 @@ export async function executeLoop(
 		const capped = items.slice(0, content.maxIterations);
 		return {
 			outputs: new Map([
-				["item", capped],        // array of items (DAG executor iterates this)
-				["output", capped],      // matches factory accessor "output"
+				["item", capped],
+				["output", capped],
+				["done", capped],
+				["loop", capped],
 				["items", capped],
 				["totalItems", capped.length],
 				["iterationMode", "forEach"],
@@ -36,8 +38,10 @@ export async function executeLoop(
 	const indices = Array.from({ length: n }, (_, i) => i);
 	return {
 		outputs: new Map([
-			["item", indices],        // array of indices (DAG executor iterates this)
-			["output", indices],      // matches factory accessor "output"
+			["item", indices],
+			["output", indices],
+			["done", indices],
+			["loop", indices],
 			["items", indices],
 			["totalItems", n],
 			["iterationMode", "nTimes"],
