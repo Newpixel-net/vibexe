@@ -128,16 +128,19 @@ export async function executeCustomNode(
 		},
 		fetch: executionContext.helpers.httpRequest,
 		__result: undefined as unknown,
+		__error: undefined as unknown,
 	};
 
 	const vmContext = vm.createContext(sandbox);
 
 	// The executeCode is expected to be an async function expression that takes context
+	// .catch() is critical: without it, async errors are silently swallowed
+	// and __result stays undefined until timeout (same pattern as execute-code.ts)
 	const wrappedCode = `
 		(async () => {
 			const executeFn = ${content.executeCode};
 			return await executeFn(context);
-		})().then(r => { __result = r; });
+		})().then(r => { __result = r; }).catch(e => { __error = e; });
 	`;
 
 	const script = new vm.Script(wrappedCode, {
@@ -151,8 +154,19 @@ export async function executeCustomNode(
 
 		// Wait for async result
 		const startTime = Date.now();
-		while (sandbox.__result === undefined && Date.now() - startTime < timeout) {
+		while (
+			sandbox.__result === undefined &&
+			sandbox.__error === undefined &&
+			Date.now() - startTime < timeout
+		) {
 			await new Promise((resolve) => setTimeout(resolve, 10));
+		}
+
+		// If async code threw an error, surface it immediately
+		if (sandbox.__error !== undefined) {
+			const asyncErr = sandbox.__error;
+			const errMsg = asyncErr instanceof Error ? asyncErr.message : String(asyncErr);
+			throw new Error(errMsg);
 		}
 
 		const result = sandbox.__result;

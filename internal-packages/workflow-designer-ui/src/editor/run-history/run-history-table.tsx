@@ -206,12 +206,12 @@ export function RunHistoryTable({
 												<span className="text-xs">{run.steps.failed}</span>
 											</>
 										)}
-										{"skipped" in run.steps && (run.steps as { skipped?: number }).skipped! > 0 && (
+										{(run.steps.skipped ?? 0) > 0 && (
 											<>
 												<span className="w-4 h-4 rounded-full bg-inverse/20 text-inverse/50 text-[9px] flex items-center justify-center">
 													⊘
 												</span>
-												<span className="text-xs text-inverse/40">{(run.steps as { skipped?: number }).skipped}</span>
+												<span className="text-xs text-inverse/40">{run.steps.skipped}</span>
 											</>
 										)}
 									</span>

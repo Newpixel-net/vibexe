@@ -443,9 +443,9 @@ export function RunDetailView({
 							{task.steps.failed} failed
 						</span>
 					)}
-					{"skipped" in task.steps && (task.steps as { skipped?: number }).skipped! > 0 && (
+					{(task.steps.skipped ?? 0) > 0 && (
 						<span className="text-inverse/40">
-							{(task.steps as { skipped?: number }).skipped} skipped
+							{task.steps.skipped} skipped
 						</span>
 					)}
 					{task.steps.cancelled > 0 && (
