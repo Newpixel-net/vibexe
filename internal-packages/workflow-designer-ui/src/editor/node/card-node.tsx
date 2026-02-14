@@ -145,7 +145,7 @@ export function NodeComponent({
 			{/* Name + subtitle below node (outside) */}
 			<div className="absolute top-full mt-[6px] left-1/2 -translate-x-1/2 w-[130px] text-center pointer-events-auto">
 				<EditableText
-					className="group-data-[selected=false]:pointer-events-none **:data-input:w-full **:text-center text-[11px] font-semibold"
+					className="group-data-[selected=false]:pointer-events-none **:data-input:w-full **:text-center text-[13px] font-semibold"
 					text={defaultName(node)}
 					onValueChange={(value) => {
 						if (value === defaultName(node)) {
@@ -166,7 +166,7 @@ export function NodeComponent({
 					}}
 				/>
 				{subtitleText && (
-					<div className="text-[9px] text-inverse/40 truncate mt-[1px]">
+					<div className="text-[10px] text-inverse/40 truncate mt-[1px]">
 						{subtitleText}
 					</div>
 				)}
@@ -229,7 +229,7 @@ function OutputHandle({
 			position={Position.Right}
 			style={{ top }}
 			className={clsx(
-				"!absolute !w-[14px] !h-[14px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
+				"!absolute !w-[16px] !h-[16px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
 				"!overflow-visible",
 				getHandleBorderClass(v),
 				isConnected && getHandleActiveBgClass(v),
@@ -252,7 +252,7 @@ function OutputHandle({
 					</span>
 				)}
 				{/* Connecting line to "+" (N8N: 47px single, 67px multi) */}
-				<div className={clsx("h-[1.5px] bg-inverse/20 shrink-0", label ? "w-[60px]" : "w-[47px]")} />
+				<div className={clsx("h-[2px] bg-inverse/20 shrink-0", label ? "w-[67px]" : "w-[47px]")} />
 				{/* "+" button — N8N style: filled gray bg, click opens panel, drag starts connection */}
 				{showPlus && (
 					<div
@@ -300,7 +300,7 @@ function InputHandle({
 			position={Position.Left}
 			style={{ top }}
 			className={clsx(
-				"!absolute !w-[14px] !h-[14px] !rounded-full !left-0 !-translate-x-1/2 !border-[1.5px] !bg-background",
+				"!absolute !w-[16px] !h-[16px] !rounded-full !left-0 !-translate-x-1/2 !border-[1.5px] !bg-background",
 				"!overflow-visible",
 				getHandleBorderClass(v),
 				isConnected && getHandleActiveBgClass(v),
@@ -371,7 +371,7 @@ function NodeHandles({
 						type="target"
 						position={Position.Left}
 						className={clsx(
-							"!absolute !w-[14px] !h-[14px] !rounded-full !left-0 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
+							"!absolute !w-[16px] !h-[16px] !rounded-full !left-0 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
 							getHandleBorderClass(v),
 							isInputConnected && getHandleActiveBgClass(v),
 						)}

@@ -112,7 +112,7 @@ export function CircleNode({
 
 			{/* Name below node (outside) */}
 			<div className="absolute top-full mt-[6px] left-1/2 -translate-x-1/2 whitespace-nowrap text-center">
-				<span className="text-[11px] font-semibold text-inverse/70">
+				<span className="text-[13px] font-semibold text-inverse/70">
 					{defaultName(node)}
 				</span>
 			</div>
@@ -124,7 +124,7 @@ export function CircleNode({
 						type="source"
 						position={Position.Right}
 						className={clsx(
-							"!absolute !w-[14px] !h-[14px] !rounded-full !right-0 !top-1/2 !translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
+							"!absolute !w-[16px] !h-[16px] !rounded-full !right-0 !top-1/2 !translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
 							getHandleBorderClass(v),
 							isOutputConnected && getHandleActiveBgClass(v),
 						)}
