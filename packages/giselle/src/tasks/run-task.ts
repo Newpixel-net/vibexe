@@ -227,19 +227,15 @@ export async function runTask(
 ) {
 	const task = await getTask(args);
 
-	console.log(`[runTask] taskId=${args.taskId}, useDagExecution=${task.useDagExecution}, sequences=${task.sequences?.length}`);
-
 	// Create patch queue for this task execution
 	const patchQueue = createPatchQueue(args.context);
 	const applyPatches = patchQueue.createApplyPatches();
 
 	// Route to DAG executor or legacy executor
 	if (task.useDagExecution) {
-		console.log("[runTask] Entering DAG path");
 		await runTaskWithDag(args, task, patchQueue);
 		return;
 	}
-	console.log("[runTask] Entering legacy path");
 
 	let executionError: Error | null = null;
 	try {
@@ -343,8 +339,6 @@ async function runTaskWithDag(
 ) {
 	const applyPatches = patchQueue.createApplyPatches();
 
-	console.log(`[runTaskWithDag] Starting DAG execution for task ${task.id}`);
-
 	// Set task to inProgress
 	await applyPatches(task.id, [patches.status.set("inProgress")]);
 
@@ -421,11 +415,6 @@ async function runTaskWithDag(
 	}
 
 	const startTime = Date.now();
-
-	console.log(`[runTaskWithDag] DAG built: ${dag.nodes.size} nodes, ${dag.edges.length} edges. Starting executeDag...`);
-	for (const [nodeId, dagNode] of dag.nodes) {
-		console.log(`[runTaskWithDag]   Node: ${nodeId} type=${dagNode.operationNode.content.type} genId=${dagNode.generationId}`);
-	}
 
 	// Helper: update a generation from "created" to "completed" so the client UI
 	// reflects that the DAG executor has finished processing the node.

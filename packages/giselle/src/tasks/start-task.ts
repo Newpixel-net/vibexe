@@ -29,7 +29,6 @@ export async function startTask({
 	callbacks?: RunTaskCallbacks;
 }) {
 	const task = await getTask({ context, taskId });
-	console.log(`[startTask] taskId=${taskId}, status=${task.status}, runTaskProcess=${context.runTaskProcess.type}`);
 
 	if (task.status !== "created") {
 		throw new Error(`Task ${taskId} is not in the created state`);
@@ -43,10 +42,8 @@ export async function startTask({
 
 	switch (context.runTaskProcess.type) {
 		case "self":
-			console.log(`[startTask] Calling waitUntil(runTask) for task ${taskId}`);
 			context.waitUntil(
 				async () => {
-					console.log(`[startTask/waitUntil] runTask callback fired for task ${taskId}`);
 					await runTask({
 						context,
 						taskId,
@@ -54,7 +51,6 @@ export async function startTask({
 						onGenerationComplete,
 						onGenerationError,
 					});
-					console.log(`[startTask/waitUntil] runTask completed for task ${taskId}`);
 				},
 			);
 			break;
