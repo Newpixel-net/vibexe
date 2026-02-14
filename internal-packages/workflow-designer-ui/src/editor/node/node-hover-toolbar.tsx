@@ -52,7 +52,7 @@ export function NodeHoverToolbar({ node, onExecute }: NodeHoverToolbarProps) {
 	const handleDelete = useCallback(
 		(e: React.MouseEvent) => {
 			e.stopPropagation();
-			deleteNode({ nodeId: node.id });
+			deleteNode(node.id);
 		},
 		[node.id, deleteNode],
 	);
@@ -78,6 +78,8 @@ export function NodeHoverToolbar({ node, onExecute }: NodeHoverToolbarProps) {
 				"pointer-events-none group-hover:pointer-events-auto",
 			)}
 		>
+			{/* Invisible bridge extending down to meet the node — keeps group-hover alive while moving mouse */}
+			<div className="absolute top-full left-0 right-0 h-[14px]" />
 			{onExecute && (
 				<button
 					type="button"
