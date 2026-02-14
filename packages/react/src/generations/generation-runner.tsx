@@ -1,6 +1,7 @@
 import {
 	type Generation,
 	GenerationContext,
+	isAiAgentNode,
 	isCompletedGeneration,
 	isContentGenerationNode,
 	isQueuedGeneration,
@@ -108,7 +109,8 @@ function TextGenerationRunner({ generation }: { generation: Generation }) {
 	const generationContext = GenerationContext.parse(generation.context);
 	if (
 		!isTextGenerationNode(generationContext.operationNode) &&
-		!isContentGenerationNode(generationContext.operationNode)
+		!isContentGenerationNode(generationContext.operationNode) &&
+		!isAiAgentNode(generationContext.operationNode)
 	) {
 		throw new Error("Invalid generation type");
 	}
