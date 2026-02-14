@@ -151,7 +151,7 @@ export function SmallCircleNode({
 						id="parent"
 						position={Position.Top}
 						className={clsx(
-							"!absolute !w-[10px] !h-[10px] !rounded-full !top-0 !left-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-[1.5px]",
+							"!absolute !w-[12px] !h-[12px] !rounded-full !top-0 !left-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-[1.5px]",
 							"!border-generation-node-1",
 							isOutputConnected ? "!bg-generation-node-1" : "!bg-background",
 						)}
@@ -162,7 +162,7 @@ export function SmallCircleNode({
 						type="target"
 						position={Position.Left}
 						className={clsx(
-							"!absolute !w-[10px] !h-[10px] !rounded-full !left-0 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
+							"!absolute !w-[12px] !h-[12px] !rounded-full !left-0 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
 							getHandleBorderClass(v),
 						)}
 					/>
@@ -173,7 +173,7 @@ export function SmallCircleNode({
 						id="output"
 						position={Position.Right}
 						className={clsx(
-							"!absolute !w-[10px] !h-[10px] !rounded-full !right-0 !top-1/2 !translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
+							"!absolute !w-[12px] !h-[12px] !rounded-full !right-0 !top-1/2 !translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
 							getHandleBorderClass(v),
 							hasRightConnection && getHandleActiveBgClass(v),
 						)}

@@ -229,7 +229,7 @@ function OutputHandle({
 			position={Position.Right}
 			style={{ top }}
 			className={clsx(
-				"!absolute !w-[12px] !h-[12px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
+				"!absolute !w-[14px] !h-[14px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
 				"!overflow-visible",
 				getHandleBorderClass(v),
 				isConnected && getHandleActiveBgClass(v),
@@ -244,7 +244,7 @@ function OutputHandle({
 				{label && (
 					<span
 						className={clsx(
-							"text-[11px] font-medium whitespace-nowrap mr-[4px]",
+							"text-[12px] font-normal whitespace-nowrap mr-[4px]",
 							color ?? "text-inverse/50",
 						)}
 					>
@@ -252,7 +252,7 @@ function OutputHandle({
 					</span>
 				)}
 				{/* Connecting line to "+" (N8N: 47px single, 67px multi) */}
-				<div className={clsx("h-[1.5px] bg-inverse/20 shrink-0", label ? "w-[50px]" : "w-[47px]")} />
+				<div className={clsx("h-[1.5px] bg-inverse/20 shrink-0", label ? "w-[60px]" : "w-[47px]")} />
 				{/* "+" button — N8N style: filled gray bg, click opens panel, drag starts connection */}
 				{showPlus && (
 					<div
@@ -261,7 +261,7 @@ function OutputHandle({
 						onClick={onPlusClick}
 						onKeyDown={() => {}}
 						className={clsx(
-							"w-[22px] h-[22px] rounded-[5px] shrink-0 ml-[1px]",
+							"w-[20px] h-[20px] rounded-[5px] shrink-0 ml-[1px]",
 							"flex items-center justify-center",
 							"bg-inverse/[0.08] border border-inverse/15",
 							"text-inverse/50 hover:text-inverse hover:bg-inverse/15 hover:border-inverse/30",
@@ -300,7 +300,7 @@ function InputHandle({
 			position={Position.Left}
 			style={{ top }}
 			className={clsx(
-				"!absolute !w-[12px] !h-[12px] !rounded-full !left-0 !-translate-x-1/2 !border-[1.5px] !bg-background",
+				"!absolute !w-[14px] !h-[14px] !rounded-full !left-0 !-translate-x-1/2 !border-[1.5px] !bg-background",
 				"!overflow-visible",
 				getHandleBorderClass(v),
 				isConnected && getHandleActiveBgClass(v),
@@ -308,7 +308,7 @@ function InputHandle({
 		>
 			{label && (
 				<span
-					className="absolute text-[11px] font-medium pointer-events-none whitespace-nowrap text-inverse/50"
+					className="absolute text-[12px] font-normal pointer-events-none whitespace-nowrap text-inverse/50"
 					style={{ right: "calc(100% + 6px)", top: "50%", transform: "translateY(-50%)" }}
 				>
 					{label}
@@ -371,7 +371,7 @@ function NodeHandles({
 						type="target"
 						position={Position.Left}
 						className={clsx(
-							"!absolute !w-[12px] !h-[12px] !rounded-full !left-0 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
+							"!absolute !w-[14px] !h-[14px] !rounded-full !left-0 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
 							getHandleBorderClass(v),
 							isInputConnected && getHandleActiveBgClass(v),
 						)}

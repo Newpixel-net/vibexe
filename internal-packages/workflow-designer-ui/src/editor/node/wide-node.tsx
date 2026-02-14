@@ -156,7 +156,7 @@ export function WideNode({
 						type="target"
 						position={Position.Left}
 						className={clsx(
-							"!absolute !w-[11px] !h-[11px] !rounded-full !left-0 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
+							"!absolute !w-[14px] !h-[14px] !rounded-full !left-0 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
 							getHandleBorderClass(v),
 							isInputConnected && getHandleActiveBgClass(v),
 						)}
@@ -167,7 +167,7 @@ export function WideNode({
 						type="source"
 						position={Position.Right}
 						className={clsx(
-							"!absolute !w-[12px] !h-[12px] !rounded-full !right-0 !top-1/2 !translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
+							"!absolute !w-[14px] !h-[14px] !rounded-full !right-0 !top-1/2 !translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
 							getHandleBorderClass(v),
 							isOutputConnected && getHandleActiveBgClass(v),
 						)}

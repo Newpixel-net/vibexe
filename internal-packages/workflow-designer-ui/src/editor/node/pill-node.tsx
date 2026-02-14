@@ -170,7 +170,7 @@ export function PillNode({
 						type="source"
 						position={Position.Right}
 						className={clsx(
-							"!absolute !w-[12px] !h-[12px] !rounded-full !border-[1.5px] !right-[-0.5px] !top-1/2",
+							"!absolute !w-[14px] !h-[14px] !rounded-full !border-[1.5px] !right-[-0.5px] !top-1/2",
 							STAGE_NODE_BORDER_CLASS,
 							isAppEntryAnyOutputConnected
 								? `${STAGE_NODE_HANDLE_BG_CLASS} [box-shadow:0_0_0_1.5px_rgba(0,0,0,0.8)]`
@@ -200,7 +200,7 @@ export function PillNode({
 					type="target"
 					position={Position.Left}
 					className={clsx(
-						"!absolute !w-[12px] !h-[12px] !rounded-full !border-[1.5px] !left-[-0.5px] !top-1/2",
+						"!absolute !w-[14px] !h-[14px] !rounded-full !border-[1.5px] !left-[-0.5px] !top-1/2",
 						STAGE_NODE_BORDER_CLASS,
 						isEndAnyInputConnected
 							? `${STAGE_NODE_HANDLE_BG_CLASS} [box-shadow:0_0_0_1.5px_rgba(0,0,0,0.8)]`
