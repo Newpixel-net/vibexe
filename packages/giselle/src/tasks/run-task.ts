@@ -45,6 +45,7 @@ import {
 	getGeneration,
 	type OnGenerationComplete,
 	type OnGenerationError,
+	setGeneration,
 } from "../generations";
 import { startContentGeneration } from "../generations/start-content-generation";
 import {
@@ -426,21 +427,77 @@ async function runTaskWithDag(
 		console.log(`[runTaskWithDag]   Node: ${nodeId} type=${dagNode.operationNode.content.type} genId=${dagNode.generationId}`);
 	}
 
+	// Helper: update a generation from "created" to "completed" so the client UI
+	// reflects that the DAG executor has finished processing the node.
+	const markGenerationCompleted = async (
+		generationId: GenerationId | undefined,
+		nodeResult: DagNodeResult,
+	) => {
+		if (!generationId) return;
+		const gen = await getGeneration({ context: args.context, generationId });
+		if (!gen || gen.status !== "created") return; // already handled by executeStep
+		const now = Date.now();
+		const outputs: GenerationOutput[] = [];
+		for (const [key, val] of nodeResult.outputs) {
+			if (typeof val === "string") {
+				outputs.push({ type: "generated-text" as const, outputId: key, content: val });
+			} else {
+				outputs.push({ type: "structured-data" as const, outputId: key, data: val } as GenerationOutput);
+			}
+		}
+		await setGeneration({
+			context: args.context,
+			generation: {
+				...gen,
+				status: "completed",
+				queuedAt: now,
+				startedAt: now,
+				completedAt: now,
+				messages: [],
+				outputs,
+			} as Generation,
+		});
+	};
+
 	const result = await executeDag(dag, {
 		onNodeStart: async (nodeId) => {
 			args.context.logger.debug(`[DAG] Node ${nodeId} starting`);
 		},
 		onNodeComplete: async (nodeId, nodeResult) => {
 			args.context.logger.debug(`[DAG] Node ${nodeId} completed`);
+			const dagNode = dag.nodes.get(nodeId);
+			await markGenerationCompleted(dagNode?.generationId, nodeResult);
 		},
 		onNodeSkipped: async (nodeId) => {
 			args.context.logger.debug(`[DAG] Node ${nodeId} skipped`);
+			const dagNode = dag.nodes.get(nodeId);
+			await markGenerationCompleted(dagNode?.generationId, { outputs: new Map() });
 		},
 		onNodeFailed: async (nodeId, error) => {
 			args.context.logger.error(
 				{ error },
 				`[DAG] Node ${nodeId} failed: ${error.message}`,
 			);
+			// Mark generation as failed so the client shows failure status
+			const dagNode = dag.nodes.get(nodeId);
+			if (dagNode?.generationId) {
+				const gen = await getGeneration({ context: args.context, generationId: dagNode.generationId });
+				if (gen && gen.status === "created") {
+					const now = Date.now();
+					await setGeneration({
+						context: args.context,
+						generation: {
+							...gen,
+							status: "failed",
+							queuedAt: now,
+							startedAt: now,
+							failedAt: now,
+							messages: [],
+							error: { message: error.message, name: error.name },
+						} as Generation,
+					});
+				}
+			}
 		},
 		executeNode: async (
 			dagNode: DagNode,
