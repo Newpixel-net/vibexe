@@ -229,35 +229,31 @@ function OutputHandle({
 			position={Position.Right}
 			style={{ top }}
 			className={clsx(
-				"!absolute !w-[10px] !h-[10px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
+				"!absolute !w-[12px] !h-[12px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
 				"!overflow-visible",
 				getHandleBorderClass(v),
 				isConnected && getHandleActiveBgClass(v),
 			)}
 		>
-			{/* Row extends rightward from the handle dot — all inside Handle for unified drag */}
+			{/* Row extends rightward: label (if any) → line → "+" (N8N layout order) */}
 			<div
 				className="absolute flex items-center"
-				style={{ left: "calc(100% + 1px)", top: "50%", transform: "translateY(-50%)" }}
+				style={{ left: "calc(100% + 2px)", top: "50%", transform: "translateY(-50%)" }}
 			>
-				{/* Connecting line (N8N: 47px single-output, 67px multi-output) */}
-				<div className={clsx("h-[1px] bg-inverse/20 shrink-0", label ? "w-[30px]" : "w-[36px]")} />
-				{/* Label text */}
+				{/* Label immediately after dot (N8N puts label before the line) */}
 				{label && (
 					<span
 						className={clsx(
-							"text-[9px] font-medium whitespace-nowrap ml-[3px]",
+							"text-[11px] font-medium whitespace-nowrap mr-[4px]",
 							color ?? "text-inverse/50",
 						)}
 					>
 						{label}
 					</span>
 				)}
-				{/* Separator line between label and "+" */}
-				{label && showPlus && (
-					<div className="w-[20px] h-[1px] bg-inverse/20 shrink-0 ml-[3px]" />
-				)}
-				{/* "+" button — click opens panel, drag starts connection (inherited from Handle) */}
+				{/* Connecting line to "+" (N8N: 47px single, 67px multi) */}
+				<div className={clsx("h-[1.5px] bg-inverse/20 shrink-0", label ? "w-[50px]" : "w-[47px]")} />
+				{/* "+" button — N8N style: filled gray bg, click opens panel, drag starts connection */}
 				{showPlus && (
 					<div
 						role="button"
@@ -265,15 +261,14 @@ function OutputHandle({
 						onClick={onPlusClick}
 						onKeyDown={() => {}}
 						className={clsx(
-							"w-[20px] h-[20px] rounded-[4px] shrink-0",
-							!label && "ml-[3px]",
+							"w-[22px] h-[22px] rounded-[5px] shrink-0 ml-[1px]",
 							"flex items-center justify-center",
-							"border border-inverse/20",
-							"text-inverse/40 hover:text-inverse hover:border-inverse/40",
+							"bg-inverse/[0.08] border border-inverse/15",
+							"text-inverse/50 hover:text-inverse hover:bg-inverse/15 hover:border-inverse/30",
 							"transition-colors duration-150 cursor-crosshair",
 						)}
 					>
-						<span className="text-[14px] leading-none font-light">+</span>
+						<span className="text-[15px] leading-none font-light">+</span>
 					</div>
 				)}
 			</div>
@@ -305,7 +300,7 @@ function InputHandle({
 			position={Position.Left}
 			style={{ top }}
 			className={clsx(
-				"!absolute !w-[10px] !h-[10px] !rounded-full !left-0 !-translate-x-1/2 !border-[1.5px] !bg-background",
+				"!absolute !w-[12px] !h-[12px] !rounded-full !left-0 !-translate-x-1/2 !border-[1.5px] !bg-background",
 				"!overflow-visible",
 				getHandleBorderClass(v),
 				isConnected && getHandleActiveBgClass(v),
@@ -313,7 +308,7 @@ function InputHandle({
 		>
 			{label && (
 				<span
-					className="absolute text-[9px] font-medium pointer-events-none whitespace-nowrap text-inverse/50"
+					className="absolute text-[11px] font-medium pointer-events-none whitespace-nowrap text-inverse/50"
 					style={{ right: "calc(100% + 6px)", top: "50%", transform: "translateY(-50%)" }}
 				>
 					{label}
@@ -376,7 +371,7 @@ function NodeHandles({
 						type="target"
 						position={Position.Left}
 						className={clsx(
-							"!absolute !w-[11px] !h-[11px] !rounded-full !left-0 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
+							"!absolute !w-[12px] !h-[12px] !rounded-full !left-0 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
 							getHandleBorderClass(v),
 							isInputConnected && getHandleActiveBgClass(v),
 						)}
