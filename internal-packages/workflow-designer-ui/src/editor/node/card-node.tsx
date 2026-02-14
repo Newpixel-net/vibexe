@@ -228,7 +228,7 @@ function OutputHandle({
 			position={Position.Right}
 			style={{ top }}
 			className={clsx(
-				"!absolute !w-[16px] !h-[16px] !rounded-full !right-0 !translate-x-1/2 !border-[1.5px] !bg-background",
+				"!absolute !w-[16px] !h-[16px] !rounded-full !right-0 !border-[1.5px] !bg-background",
 				"!overflow-visible group/handle",
 				getHandleBorderClass(v),
 				isConnected && getHandleActiveBgClass(v),
@@ -286,7 +286,7 @@ function InputHandle({
 			position={Position.Left}
 			style={{ top }}
 			className={clsx(
-				"!absolute !w-[16px] !h-[16px] !rounded-full !left-0 !-translate-x-1/2 !border-[1.5px] !bg-background",
+				"!absolute !w-[16px] !h-[16px] !rounded-full !left-0 !border-[1.5px] !bg-background",
 				"!overflow-visible",
 				getHandleBorderClass(v),
 				isConnected && getHandleActiveBgClass(v),
@@ -357,7 +357,7 @@ function NodeHandles({
 						type="target"
 						position={Position.Left}
 						className={clsx(
-							"!absolute !w-[16px] !h-[16px] !rounded-full !left-0 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !border-[1.5px] !bg-background",
+							"!absolute !w-[16px] !h-[16px] !rounded-full !left-0 !top-1/2 !border-[1.5px] !bg-background",
 							getHandleBorderClass(v),
 							isInputConnected && getHandleActiveBgClass(v),
 						)}
