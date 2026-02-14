@@ -463,6 +463,10 @@ async function runTaskWithDag(
 					return executeDataTable(dagNode, inputData);
 				case "formTrigger":
 					return { outputs: new Map() };
+				case "trigger":
+					// Manual/configured triggers are the DAG entry point.
+					// Trigger data (if any) is injected as generation inputs by create-task.
+					return { outputs: new Map() };
 				case "executeSubWorkflow":
 					return executeExecuteSubWorkflow(dagNode, inputData);
 				case "respondToWebhook":
