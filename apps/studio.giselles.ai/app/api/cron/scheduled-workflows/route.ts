@@ -191,66 +191,98 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * Calculate the next run time from a cron expression.
- * Simple implementation supporting standard 5-field cron.
+ * Parse a cron field into a set of matching values.
+ * Supports: *, N, N-M, N/step, star/step, comma-separated, and 0-based day-of-week.
+ */
+function parseCronField(
+	field: string,
+	min: number,
+	max: number,
+): Set<number> | null {
+	if (field === "*") return null; // null means "any"
+	const values = new Set<number>();
+	for (const part of field.split(",")) {
+		const trimmed = part.trim();
+		// */N or N/step
+		if (trimmed.includes("/")) {
+			const [rangeStr, stepStr] = trimmed.split("/");
+			const step = Number.parseInt(stepStr, 10);
+			if (Number.isNaN(step) || step <= 0) continue;
+			let start = min;
+			let end = max;
+			if (rangeStr !== "*") {
+				if (rangeStr.includes("-")) {
+					const [a, b] = rangeStr.split("-");
+					start = Number.parseInt(a, 10);
+					end = Number.parseInt(b, 10);
+				} else {
+					start = Number.parseInt(rangeStr, 10);
+				}
+			}
+			for (let i = start; i <= end; i += step) values.add(i);
+		} else if (trimmed.includes("-")) {
+			// N-M range
+			const [a, b] = trimmed.split("-");
+			const rangeStart = Number.parseInt(a, 10);
+			const rangeEnd = Number.parseInt(b, 10);
+			for (let i = rangeStart; i <= rangeEnd; i++) values.add(i);
+		} else {
+			// Single value
+			const v = Number.parseInt(trimmed, 10);
+			if (!Number.isNaN(v)) values.add(v);
+		}
+	}
+	return values.size > 0 ? values : null;
+}
+
+/**
+ * Calculate the next run time from a standard 5-field cron expression.
+ * Fields: minute hour dayOfMonth month dayOfWeek
+ * Supports *, N, N-M, N/step, comma-separated values for all fields.
+ * Timezone is not yet applied (all times are server-local / UTC).
  */
 function calculateNextRun(cronExpression: string, _timezone: string): Date {
-	// Simple next-minute calculation for common patterns
 	const now = new Date();
 	const parts = cronExpression.split(" ");
 
 	if (parts.length !== 5) {
-		// Default: next hour
-		const next = new Date(now);
-		next.setMinutes(0);
-		next.setSeconds(0);
-		next.setHours(next.getHours() + 1);
-		return next;
+		// Invalid — fallback to 1 hour from now
+		return new Date(now.getTime() + 3600_000);
 	}
 
-	const [minute, hour] = parts;
+	const minuteSet = parseCronField(parts[0], 0, 59);
+	const hourSet = parseCronField(parts[1], 0, 23);
+	const domSet = parseCronField(parts[2], 1, 31);
+	const monthSet = parseCronField(parts[3], 1, 12);
+	const dowSet = parseCronField(parts[4], 0, 6); // 0=Sunday
 
-	// Every minute: * * * * *
-	if (minute === "*" && hour === "*") {
-		return new Date(now.getTime() + 60_000);
-	}
+	// Brute-force search starting from next minute, up to 400 days ahead
+	const candidate = new Date(now);
+	candidate.setSeconds(0);
+	candidate.setMilliseconds(0);
+	candidate.setMinutes(candidate.getMinutes() + 1);
 
-	// Every N minutes: */N * * * *
-	if (minute?.startsWith("*/") && hour === "*") {
-		const interval = Number.parseInt(minute.slice(2), 10);
-		if (!Number.isNaN(interval) && interval > 0) {
-			return new Date(now.getTime() + interval * 60_000);
+	const maxIterations = 400 * 24 * 60; // ~400 days of minutes
+	for (let i = 0; i < maxIterations; i++) {
+		const m = candidate.getMinutes();
+		const h = candidate.getHours();
+		const dom = candidate.getDate();
+		const month = candidate.getMonth() + 1; // 1-based
+		const dow = candidate.getDay(); // 0=Sunday
+
+		if (
+			(minuteSet === null || minuteSet.has(m)) &&
+			(hourSet === null || hourSet.has(h)) &&
+			(domSet === null || domSet.has(dom)) &&
+			(monthSet === null || monthSet.has(month)) &&
+			(dowSet === null || dowSet.has(dow))
+		) {
+			return candidate;
 		}
+
+		candidate.setMinutes(candidate.getMinutes() + 1);
 	}
 
-	// Fixed minute, every hour: N * * * *
-	if (minute !== "*" && hour === "*") {
-		const targetMinute = Number.parseInt(minute, 10);
-		const next = new Date(now);
-		next.setSeconds(0);
-		next.setMilliseconds(0);
-		if (now.getMinutes() >= targetMinute) {
-			next.setHours(next.getHours() + 1);
-		}
-		next.setMinutes(targetMinute);
-		return next;
-	}
-
-	// Fixed time: M H * * *
-	if (minute !== "*" && hour !== "*") {
-		const targetMinute = Number.parseInt(minute, 10);
-		const targetHour = Number.parseInt(hour, 10);
-		const next = new Date(now);
-		next.setSeconds(0);
-		next.setMilliseconds(0);
-		next.setMinutes(targetMinute);
-		next.setHours(targetHour);
-		if (next <= now) {
-			next.setDate(next.getDate() + 1);
-		}
-		return next;
-	}
-
-	// Default fallback: 1 hour from now
+	// Fallback if no match found within ~400 days
 	return new Date(now.getTime() + 3600_000);
 }
