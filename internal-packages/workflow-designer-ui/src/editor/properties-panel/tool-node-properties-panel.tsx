@@ -1,11 +1,17 @@
+import {
+	PIECE_CATALOG,
+	isInstalledPiece,
+} from "@giselles-ai/activepieces-adapter";
 import type { ToolNodeNode } from "@giselles-ai/protocol";
-import { useCallback, useMemo } from "react";
+import { SearchIcon } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import {
 	useAppDesignerStore,
 	useDeleteNode,
 	useUpdateNodeData,
 	useUpdateNodeDataContent,
 } from "../../app-designer";
+import { usePieceActions } from "../tool/toolbar/integration-picker/use-piece-actions";
 import { PropertiesPanelRoot } from "./ui";
 import { NodePanelHeader } from "./ui/node-panel-header";
 import { SettingDetail, SettingLabel } from "./ui/setting-label";
@@ -30,6 +36,39 @@ export function ToolNodePropertiesPanel({
 			),
 		[nodes, node.id],
 	);
+
+	// Integration piece picker state
+	const [pieceSearch, setPieceSearch] = useState("");
+	const [showPiecePicker, setShowPiecePicker] = useState(false);
+
+	// Get installed pieces from catalog
+	const installedPieces = useMemo(
+		() =>
+			PIECE_CATALOG.filter((p) => isInstalledPiece(p.name)).sort((a, b) =>
+				a.displayName.localeCompare(b.displayName),
+			),
+		[],
+	);
+
+	// Filter pieces by search query
+	const filteredPieces = useMemo(() => {
+		if (!pieceSearch.trim()) return installedPieces;
+		const q = pieceSearch.toLowerCase();
+		return installedPieces.filter(
+			(p) =>
+				p.displayName.toLowerCase().includes(q) ||
+				p.name.toLowerCase().includes(q) ||
+				p.category.toLowerCase().includes(q),
+		);
+	}, [installedPieces, pieceSearch]);
+
+	// Fetch actions for selected piece
+	const selectedPieceName = node.content.toolType === "integration" ? (node.content.pieceName ?? null) : null;
+	const {
+		actions: pieceActions,
+		version: pieceVersion,
+		loading: actionsLoading,
+	} = usePieceActions(selectedPieceName);
 
 	const handleToolTypeChange = useCallback(
 		(value: string) => {
@@ -99,35 +138,133 @@ export function ToolNodePropertiesPanel({
 				{node.content.toolType === "integration" && (
 					<div className="flex flex-col gap-[8px]">
 						<SettingLabel>Integration Piece</SettingLabel>
-						<SettingDetail size="sm">
-							{node.content.pieceName
-								? `${node.content.pieceName}: ${node.content.actionName}`
-								: "No piece selected"}
-						</SettingDetail>
-						<div className="flex flex-col gap-[4px]">
-							<input
-								type="text"
-								placeholder="Piece name (e.g., slack)"
-								value={node.content.pieceName ?? ""}
-								onChange={(e) =>
-									updateNodeDataContent(node, {
-										pieceName: e.target.value || undefined,
-									})
-								}
-								className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
-							/>
-							<input
-								type="text"
-								placeholder="Action name (e.g., send_message)"
-								value={node.content.actionName ?? ""}
-								onChange={(e) =>
-									updateNodeDataContent(node, {
-										actionName: e.target.value || undefined,
-									})
-								}
-								className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
-							/>
-						</div>
+						{/* Selected piece display */}
+						{node.content.pieceName ? (
+							<div className="flex items-center gap-[8px]">
+								<div className="flex-1 bg-[hsla(0,0%,100%,0.05)] border border-inverse/20 rounded-md px-[8px] py-[6px]">
+									<p className="text-[13px] text-inverse">
+										{installedPieces.find((p) => p.name === node.content.pieceName)?.displayName ?? node.content.pieceName}
+									</p>
+									{node.content.actionName && (
+										<p className="text-[11px] text-inverse/40">{node.content.actionName}</p>
+									)}
+								</div>
+								<button
+									type="button"
+									onClick={() => {
+										updateNodeDataContent(node, {
+											pieceName: undefined,
+											actionName: undefined,
+											pieceVersion: undefined,
+										});
+										setShowPiecePicker(true);
+									}}
+									className="px-[8px] py-[6px] text-[11px] text-inverse/60 hover:text-inverse border border-inverse/20 rounded-md"
+								>
+									Change
+								</button>
+							</div>
+						) : (
+							<button
+								type="button"
+								onClick={() => setShowPiecePicker(!showPiecePicker)}
+								className="w-full bg-transparent border border-inverse/20 border-dashed rounded-md px-[8px] py-[10px] text-[13px] text-inverse/40 hover:text-inverse/60 hover:border-inverse/40 transition-colors"
+							>
+								Select an integration...
+							</button>
+						)}
+
+						{/* Piece picker dropdown */}
+						{showPiecePicker && !node.content.pieceName && (
+							<div className="flex flex-col gap-[4px] border border-inverse/20 rounded-md bg-[hsla(0,0%,0%,0.3)] max-h-[240px]">
+								<div className="flex items-center gap-[6px] px-[8px] py-[4px] border-b border-inverse/10">
+									<SearchIcon className="size-[12px] text-inverse/40 shrink-0" />
+									<input
+										type="text"
+										placeholder="Search pieces..."
+										className="w-full bg-transparent border-none text-inverse text-[12px] placeholder:text-inverse/30 focus:outline-none"
+										value={pieceSearch}
+										onChange={(e) => setPieceSearch(e.target.value)}
+										autoFocus
+									/>
+								</div>
+								<div className="overflow-y-auto max-h-[200px] px-[4px] pb-[4px]">
+									{filteredPieces.length === 0 ? (
+										<p className="text-[11px] text-inverse/40 text-center py-[8px]">No pieces found</p>
+									) : (
+										filteredPieces.slice(0, 30).map((piece) => (
+											<button
+												key={piece.name}
+												type="button"
+												onClick={() => {
+													updateNodeDataContent(node, {
+														pieceName: piece.name,
+														actionName: undefined,
+														pieceVersion: undefined,
+													});
+													setPieceSearch("");
+													setShowPiecePicker(false);
+												}}
+												className="flex items-center gap-[6px] rounded-[4px] px-[6px] py-[4px] hover:bg-[rgba(222,233,242,0.10)] w-full text-left"
+											>
+												<div className="size-[16px] rounded-[3px] bg-[rgba(222,233,242,0.15)] flex items-center justify-center text-[8px] font-bold text-inverse/60 shrink-0">
+													{piece.displayName.charAt(0)}
+												</div>
+												<div className="flex-1 min-w-0">
+													<p className="text-[12px] text-inverse truncate">{piece.displayName}</p>
+												</div>
+												<span className="text-[9px] text-inverse/30 shrink-0">{piece.category}</span>
+											</button>
+										))
+									)}
+									{filteredPieces.length > 30 && (
+										<p className="text-[10px] text-inverse/30 text-center py-[2px]">
+											+{filteredPieces.length - 30} more
+										</p>
+									)}
+								</div>
+							</div>
+						)}
+
+						{/* Action picker (shown after piece is selected) */}
+						{node.content.pieceName && (
+							<div className="flex flex-col gap-[4px]">
+								<SettingLabel>Action</SettingLabel>
+								{actionsLoading ? (
+									<p className="text-[11px] text-inverse/40">Loading actions...</p>
+								) : pieceActions.length > 0 ? (
+									<select
+										value={node.content.actionName ?? ""}
+										onChange={(e) =>
+											updateNodeDataContent(node, {
+												actionName: e.target.value || undefined,
+												pieceVersion: pieceVersion ?? undefined,
+											})
+										}
+										className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
+									>
+										<option value="">Select an action...</option>
+										{pieceActions.map((action) => (
+											<option key={action.name} value={action.name}>
+												{action.displayName}
+											</option>
+										))}
+									</select>
+								) : (
+									<input
+										type="text"
+										placeholder="Action name (e.g., send_message)"
+										value={node.content.actionName ?? ""}
+										onChange={(e) =>
+											updateNodeDataContent(node, {
+												actionName: e.target.value || undefined,
+											})
+										}
+										className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
+									/>
+								)}
+							</div>
+						)}
 					</div>
 				)}
 
