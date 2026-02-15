@@ -1094,10 +1094,19 @@ function generateContentV2({
 			let generationError: unknown | undefined;
 			const textGenerationStartTime = Date.now();
 
-			// Stream inactivity timeout: abort if no data arrives for 3 minutes
-			const STREAM_INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000;
+			// Stream timeout: abort if generation doesn't complete within 3 minutes
+			const STREAM_TIMEOUT_MS = 3 * 60 * 1000;
 			let lastStreamActivity = Date.now();
 			let streamTimedOut = false;
+			// Global generation timeout using setTimeout (fires even if for-await blocks)
+			const globalTimeout = setTimeout(() => {
+				streamTimedOut = true;
+				logger.warn(
+					{ generationId: generation.id, elapsed: `${Math.round((Date.now() - textGenerationStartTime) / 1000)}s` },
+					"Global generation timeout (3min), aborting",
+				);
+				abortController.abort("Generation timeout: no response within 3 minutes");
+			}, STREAM_TIMEOUT_MS);
 
 			const v2Model = resolveModel(currentModelId);
 			logger.info({
@@ -1339,6 +1348,7 @@ IMPORTANT RULES:
 			// even when streamTextResult.text resolves to empty string.
 			const agentStepTexts: string[] = [];
 
+			logger.info({ generationId: generation.id }, "About to call streamText");
 			const streamTextResult = streamText({
 				...callOptions,
 				abortSignal: abortController.signal,
@@ -1440,9 +1450,11 @@ IMPORTANT RULES:
 					chunking: "line",
 				}),
 			});
+			logger.info({ generationId: generation.id }, "streamText() returned, creating uiMessageStream");
 			let uiMessageStreamResult: GenerateContentResult | undefined;
 			const uiMessageStream = streamTextResult.toUIMessageStream({
 				onFinish: async ({ messages: generateMessages }) => {
+					clearTimeout(globalTimeout);
 					logger.info(
 						`Text generation stream completed in ${Date.now() - textGenerationStartTime}ms`,
 					);
@@ -1796,30 +1808,20 @@ IMPORTANT RULES:
 
 			let chunkCount = 0;
 
-			// Inactivity timeout: abort stream if no data arrives for 3 minutes
-			lastStreamActivity = Date.now();
-			const inactivityChecker = setInterval(() => {
-				if (Date.now() - lastStreamActivity > STREAM_INACTIVITY_TIMEOUT_MS) {
-					streamTimedOut = true;
-					logger.warn(
-						{ generationId: generation.id, elapsed: `${Math.round((Date.now() - textGenerationStartTime) / 1000)}s` },
-						"Stream inactivity timeout, aborting generation",
-					);
-					abortController.abort();
-					clearInterval(inactivityChecker);
-				}
-			}, 10_000);
+			logger.info({ generationId: generation.id }, "Starting for-await stream loop");
 
 			try {
 				for await (const chunk of uiMessageStream) {
 					chunkCount++;
 					lastStreamActivity = Date.now();
-					logger.debug(`Adding chunk ${chunkCount}: ${chunk.type}`);
+					if (chunkCount <= 3 || chunkCount % 50 === 0) {
+						logger.info({ chunkCount, type: chunk.type, generationId: generation.id }, "Stream chunk received");
+					}
 					writer.add(chunk);
 				}
 			} catch (streamError) {
 				logger.error(
-					{ error: streamError instanceof Error ? streamError.message : String(streamError) },
+					{ error: streamError instanceof Error ? streamError.message : String(streamError), generationId: generation.id },
 					`${generation.id} stream iteration error after ${chunkCount} chunks`,
 				);
 				// Write an error chunk so the client receives a terminal signal
@@ -1828,13 +1830,14 @@ IMPORTANT RULES:
 					errorText: streamError instanceof Error ? streamError.message : "Stream processing error",
 				} as StreamItem<typeof uiMessageStream>);
 			}
-			clearInterval(inactivityChecker);
+
+			clearTimeout(globalTimeout);
 
 			// Handle stream timeout: explicitly fail the generation
 			if (streamTimedOut && uiMessageStreamResult === undefined) {
 				logger.error(
 					{ generationId: generation.id },
-					"Generation failed due to stream inactivity timeout",
+					"Generation failed due to stream timeout",
 				);
 				const failedGeneration = {
 					...runningGeneration,
@@ -1853,9 +1856,9 @@ IMPORTANT RULES:
 				};
 			}
 
-			logger.debug(`Stream ended, total chunks: ${chunkCount}`);
+			logger.info({ generationId: generation.id, chunkCount }, "Stream ended");
 			await writer.close();
-			logger.debug(`Writer closed`);
+			logger.info({ generationId: generation.id }, "Writer closed");
 
 			// Fallback retry: if primary model failed, switch to fallback and loop
 			if (shouldRetryWithFallback && fallbackModelId && !usedFallbackModel) {
