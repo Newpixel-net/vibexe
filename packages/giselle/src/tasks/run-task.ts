@@ -72,8 +72,9 @@ async function waitUntilGenerationFinishes(args: {
 	context: GiselleContext;
 	generationId: GenerationId;
 }) {
-	const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+	const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes — AI agents with tools/memory can take 10+ min
 	const startTime = Date.now();
+	let pollCount = 0;
 	while (Date.now() - startTime < TIMEOUT_MS) {
 		const generation = await getGeneration({
 			context: args.context,
@@ -92,10 +93,16 @@ async function waitUntilGenerationFinishes(args: {
 			return generation;
 		}
 
+		pollCount++;
+		if (pollCount % 60 === 0) {
+			const elapsedMin = Math.round((Date.now() - startTime) / 60000);
+			console.log(`[waitUntilGenerationFinishes] Still waiting for ${args.generationId}, status=${generation.status}, elapsed=${elapsedMin}min`);
+		}
+
 		await new Promise((resolve) => setTimeout(resolve, 1000));
 	}
 	throw new Error(
-		`Generation(id: ${args.generationId}) timed out after 10 minutes`,
+		`Generation(id: ${args.generationId}) timed out after 30 minutes`,
 	);
 }
 
@@ -134,7 +141,6 @@ async function executeStep(args: {
 			case "textGeneration":
 			case "contentGeneration":
 			case "aiAgent": {
-				console.log(`[executeStep] Starting content generation for ${args.generation.context.operationNode.content.type}, genId=${args.generation.id}`);
 				await startContentGeneration({
 					generation: args.generation,
 					context: args.context,
@@ -142,19 +148,15 @@ async function executeStep(args: {
 					onComplete: args.callbacks?.onGenerationComplete,
 					onError: args.callbacks?.onGenerationError,
 				});
-				console.log(`[executeStep] startContentGeneration returned, now polling for completion...`);
 				const finishedGeneration = await waitUntilGenerationFinishes({
 					context: args.context,
 					generationId: args.generation.id,
 				});
-				console.log(`[executeStep] Generation finished with status: ${finishedGeneration.status}`);
 				if (isFailedGeneration(finishedGeneration)) {
 					await args.callbacks?.onFailed?.(finishedGeneration);
 				}
 				if (isCompletedGeneration(finishedGeneration)) {
-					console.log(`[executeStep] Calling onCompleted callback...`);
 					await args.callbacks?.onCompleted?.();
-					console.log(`[executeStep] onCompleted callback finished`);
 				}
 				handledCompletion = true;
 				break;
@@ -245,7 +247,6 @@ export async function runTask(
 	},
 ) {
 	const task = await getTask(args);
-	console.log(`[runTask] Task ${task.id} loaded, useDagExecution=${task.useDagExecution}, sequences=${task.sequences.length}, status=${task.status}`);
 
 	// Create patch queue for this task execution
 	const patchQueue = createPatchQueue(args.context);
@@ -253,11 +254,9 @@ export async function runTask(
 
 	// Route to DAG executor or legacy executor
 	if (task.useDagExecution) {
-		console.log(`[runTask] Entering DAG execution path for task ${task.id}`);
 		await runTaskWithDag(args, task, patchQueue);
 		return;
 	}
-	console.log(`[runTask] Using LEGACY execution path for task ${task.id}`);
 
 	let executionError: Error | null = null;
 	try {
@@ -364,7 +363,6 @@ async function runTaskWithDag(
 	// Set task to inProgress
 	await applyPatches(task.id, [patches.status.set("inProgress")]);
 
-	console.log(`[runTaskWithDag] Starting DAG build for task ${task.id}`);
 	const dag = new ExecutionDAG();
 	const nodeGenMap = task.dagNodeGenerationMap ?? {};
 
@@ -502,24 +500,16 @@ async function runTaskWithDag(
 		});
 	};
 
-	console.log(`[runTaskWithDag] DAG built with ${dag.nodes.size} nodes, ${dag.edges.length} edges. Starting executeDag...`);
-	for (const [nodeId, node] of dag.nodes) {
-		console.log(`[runTaskWithDag]   Node ${nodeId}: type=${node.operationNode.content.type}, genId=${node.generationId}`);
-	}
-
 	const result = await executeDag(dag, {
 		onNodeStart: async (nodeId) => {
-			console.log(`[DAG] Node ${nodeId} starting`);
 			args.context.logger.debug(`[DAG] Node ${nodeId} starting`);
 		},
 		onNodeComplete: async (nodeId, nodeResult) => {
-			console.log(`[DAG] Node ${nodeId} completed`);
 			args.context.logger.debug(`[DAG] Node ${nodeId} completed`);
 			const dagNode = dag.nodes.get(nodeId);
 			await markGenerationCompleted(dagNode?.generationId, dagNode, nodeResult);
 		},
 		onNodeSkipped: async (nodeId) => {
-			console.log(`[DAG] Node ${nodeId} skipped`);
 			args.context.logger.debug(`[DAG] Node ${nodeId} skipped`);
 			const dagNode = dag.nodes.get(nodeId);
 			await markGenerationCompleted(dagNode?.generationId);
