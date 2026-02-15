@@ -182,10 +182,18 @@ export function convertN8NToGiselle(
 			}
 
 			// Extract credential hints (Phase 2)
+			// Check n8nNode.credentials first, then fallback to issues.credentials and parameters.nodeCredentialType
 			if (n8nNode.credentials) {
 				const credHint = extractCredentialHint(n8nNode.credentials, n8nNode.name, warnings);
 				if (credHint) {
 					giselleNode.credentialHint = credHint;
+					nodesNeedingCredentials++;
+				}
+			}
+			if (!giselleNode.credentialHint) {
+				const fallbackHint = extractCredentialHintFromIssues(n8nNode);
+				if (fallbackHint) {
+					giselleNode.credentialHint = fallbackHint;
 					nodesNeedingCredentials++;
 				}
 			}
@@ -1568,6 +1576,41 @@ function extractCredentialHint(
 		return {
 			n8nCredentialType: credType,
 			n8nCredentialName: credName,
+			suggestedPiece,
+		};
+	}
+	return null;
+}
+
+/**
+ * Fallback credential hint extraction from issues.credentials or parameters.nodeCredentialType.
+ * N8N templates often have credentials: {} (empty) but still contain credential type info
+ * in issues.credentials (e.g. {"openAiApi": ["Credentials for OpenAI are not set."]})
+ * or in parameters.nodeCredentialType (for HTTP Request nodes with predefined credentials).
+ */
+function extractCredentialHintFromIssues(
+	n8nNode: N8NNode,
+): GiselleNodeData["credentialHint"] | null {
+	// Check issues.credentials
+	const issues = (n8nNode as Record<string, unknown>).issues as Record<string, unknown> | undefined;
+	if (issues?.credentials) {
+		const credIssues = issues.credentials as Record<string, unknown>;
+		for (const credType of Object.keys(credIssues)) {
+			const suggestedPiece = N8N_CREDENTIAL_TO_PIECE[credType] ?? null;
+			return {
+				n8nCredentialType: credType,
+				n8nCredentialName: credType,
+				suggestedPiece,
+			};
+		}
+	}
+	// Check parameters.nodeCredentialType (HTTP Request with predefined credentials)
+	const nodeCredType = n8nNode.parameters?.nodeCredentialType as string | undefined;
+	if (nodeCredType) {
+		const suggestedPiece = N8N_CREDENTIAL_TO_PIECE[nodeCredType] ?? null;
+		return {
+			n8nCredentialType: nodeCredType,
+			n8nCredentialName: nodeCredType,
 			suggestedPiece,
 		};
 	}
