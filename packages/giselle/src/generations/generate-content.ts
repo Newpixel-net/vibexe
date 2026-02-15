@@ -1354,7 +1354,6 @@ IMPORTANT RULES:
 			// even when streamTextResult.text resolves to empty string.
 			const agentStepTexts: string[] = [];
 
-			logger.info({ generationId: generation.id }, "About to call streamText");
 			const streamTextResult = streamText({
 				...callOptions,
 				abortSignal: abortController.signal,
@@ -1456,7 +1455,6 @@ IMPORTANT RULES:
 					chunking: "line",
 				}),
 			});
-			logger.info({ generationId: generation.id }, "streamText() returned, creating uiMessageStream");
 			let uiMessageStreamResult: GenerateContentResult | undefined;
 			const uiMessageStream = streamTextResult.toUIMessageStream({
 				onFinish: async ({ messages: generateMessages }) => {
@@ -1814,15 +1812,10 @@ IMPORTANT RULES:
 
 			let chunkCount = 0;
 
-			logger.info({ generationId: generation.id }, "Starting for-await stream loop");
-
 			try {
 				for await (const chunk of uiMessageStream) {
 					chunkCount++;
 					resetStreamTimeout();
-					if (chunkCount <= 3 || chunkCount % 50 === 0) {
-						logger.info({ chunkCount, type: chunk.type, generationId: generation.id }, "Stream chunk received");
-					}
 					writer.add(chunk);
 				}
 			} catch (streamError) {
@@ -1862,9 +1855,8 @@ IMPORTANT RULES:
 				};
 			}
 
-			logger.info({ generationId: generation.id, chunkCount }, "Stream ended");
+			logger.debug({ generationId: generation.id, chunkCount }, "Stream ended");
 			await writer.close();
-			logger.info({ generationId: generation.id }, "Writer closed");
 
 			// Fallback retry: if primary model failed, switch to fallback and loop
 			if (shouldRetryWithFallback && fallbackModelId && !usedFallbackModel) {
