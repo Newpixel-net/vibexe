@@ -4,8 +4,14 @@ import type { DagNode, DagNodeResult } from "../tasks/dag-executor";
 
 /**
  * Execute an If node: evaluate conditions against input data.
- * Sets activeOutputPort on the dag node to "true" or "false".
- * Returns structured-data output with the result boolean.
+ *
+ * N8N-style per-item evaluation:
+ * - If input is an array, each item is evaluated independently.
+ *   Matching items → "true" port, non-matching → "false" port.
+ * - If input is a single object, it's evaluated as-is and the
+ *   entire object is routed to one branch.
+ *
+ * Sets activeOutputPort so the DAG executor can skip empty branches.
  */
 export async function executeIf(
 	node: DagNode,
@@ -13,17 +19,46 @@ export async function executeIf(
 ): Promise<DagNodeResult> {
 	const content = node.operationNode.content as IfNodeContent;
 
-	// Merge all input data into a single object for condition evaluation
-	const data = inputMapToObject(inputData);
+	// Check if input contains an array for per-item evaluation
+	const items = extractArray(inputData);
 
+	if (items !== null) {
+		// Per-item mode: evaluate each item and split into true/false arrays
+		const trueItems: unknown[] = [];
+		const falseItems: unknown[] = [];
+
+		for (const item of items) {
+			if (evaluateConditionGroup(content.conditionGroup, item)) {
+				trueItems.push(item);
+			} else {
+				falseItems.push(item);
+			}
+		}
+
+		// Set activeOutputPort to skip empty branches
+		if (trueItems.length > 0 && falseItems.length === 0) {
+			node.activeOutputPort = "true";
+		} else if (falseItems.length > 0 && trueItems.length === 0) {
+			node.activeOutputPort = "false";
+		}
+		// else: both have items — leave activeOutputPort undefined so both branches execute
+
+		return {
+			outputs: new Map([
+				["true", trueItems],
+				["false", falseItems],
+				["result", trueItems.length > 0],
+				["data", trueItems.length > 0 ? trueItems : falseItems],
+			]),
+		};
+	}
+
+	// Single-object mode: evaluate entire input as one unit
+	const data = inputMapToObject(inputData);
 	const result = evaluateConditionGroup(content.conditionGroup, data);
 
-	// Set active port on the node so the DAG executor knows which branch to take
 	node.activeOutputPort = result ? "true" : "false";
 
-	// Output data on BOTH port accessor keys ("true" and "false").
-	// The DAG executor handles branching via skipBranch() — only the active
-	// branch runs, but collectInputData needs the key to match fromOutputPort.
 	return {
 		outputs: new Map([
 			["true", data],
@@ -34,14 +69,23 @@ export async function executeIf(
 	};
 }
 
+/**
+ * Extract an array from input data (for per-item evaluation).
+ * Returns null if no array is found (triggers single-object mode).
+ */
+function extractArray(inputData: Map<string, unknown>): unknown[] | null {
+	for (const [, value] of inputData) {
+		if (Array.isArray(value)) return value;
+	}
+	return null;
+}
+
 function inputMapToObject(inputData: Map<string, unknown>): unknown {
 	if (inputData.size === 1) {
-		// If there's only one input, use it directly
 		const [, value] = inputData.entries().next().value as [string, unknown];
 		if (typeof value === "object" && value !== null) return value;
 		return { value };
 	}
-	// Otherwise, combine into an object
 	const obj: Record<string, unknown> = {};
 	for (const [key, value] of inputData) {
 		obj[key] = value;

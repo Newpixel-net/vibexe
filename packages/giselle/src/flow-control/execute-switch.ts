@@ -3,8 +3,14 @@ import { evaluateConditionGroup } from "../expressions/evaluate";
 import type { DagNode, DagNodeResult } from "../tasks/dag-executor";
 
 /**
- * Execute a Switch node: evaluate rules in order, activate first matching branch.
- * Sets activeOutputPort on the dag node to the matching rule's outputPortName or "fallback".
+ * Execute a Switch node: evaluate rules in order, route items to matching branch.
+ *
+ * N8N-style per-item evaluation (when input is an array):
+ * - Each item is tested against rules in order; first match wins.
+ * - Items are distributed into per-port arrays.
+ * - Non-matching items go to the fallback port.
+ *
+ * Single-object mode: first matching rule wins (current behavior).
  */
 export async function executeSwitch(
 	node: DagNode,
@@ -12,6 +18,60 @@ export async function executeSwitch(
 ): Promise<DagNodeResult> {
 	const content = node.operationNode.content as SwitchNodeContent;
 
+	// Check for array input (per-item mode)
+	const items = extractArray(inputData);
+
+	if (items !== null && content.mode === "rules") {
+		// Per-item: distribute items across rule ports
+		const portItems = new Map<string, unknown[]>();
+		// Initialize all ports with empty arrays
+		for (const rule of content.rules) {
+			portItems.set(rule.outputPortName, []);
+		}
+		if (content.hasFallback) {
+			portItems.set("fallback", []);
+		}
+
+		for (const item of items) {
+			let matched = false;
+			for (const rule of content.rules) {
+				if (evaluateConditionGroup(rule.conditionGroup, item)) {
+					const arr = portItems.get(rule.outputPortName) ?? [];
+					arr.push(item);
+					portItems.set(rule.outputPortName, arr);
+					matched = true;
+					break; // first match wins
+				}
+			}
+			if (!matched && content.hasFallback) {
+				const arr = portItems.get("fallback") ?? [];
+				arr.push(item);
+				portItems.set("fallback", arr);
+			}
+		}
+
+		// Find which ports have items
+		const activePorts: string[] = [];
+		for (const [port, arr] of portItems) {
+			if (arr.length > 0) activePorts.push(port);
+		}
+
+		// If exactly one port has items, set activeOutputPort for branch skipping
+		if (activePorts.length === 1) {
+			node.activeOutputPort = activePorts[0];
+		}
+		// else: multiple ports have items — leave activeOutputPort undefined so all branches execute
+
+		const outputs = new Map<string, unknown>();
+		outputs.set("matchedRule", activePorts[0] ?? null);
+		for (const [port, arr] of portItems) {
+			outputs.set(port, arr);
+		}
+		outputs.set("data", items);
+		return { outputs };
+	}
+
+	// Single-object mode (original behavior)
 	const data = inputMapToObject(inputData);
 
 	if (content.mode === "rules") {
@@ -19,14 +79,12 @@ export async function executeSwitch(
 			const matches = evaluateConditionGroup(rule.conditionGroup, data);
 			if (matches) {
 				node.activeOutputPort = rule.outputPortName;
-				// Output data on ALL port accessor keys so collectInputData finds it
 				const outputs = buildSwitchOutputs(content, data, rule.name);
 				outputs.set(rule.outputPortName, data);
 				return { outputs };
 			}
 		}
 
-		// No rule matched — use fallback if configured
 		if (content.hasFallback) {
 			node.activeOutputPort = "fallback";
 			const outputs = buildSwitchOutputs(content, data, null);
@@ -35,11 +93,17 @@ export async function executeSwitch(
 		}
 	}
 
-	// Expression mode or no match without fallback — pass through
 	node.activeOutputPort = "fallback";
 	const outputs = buildSwitchOutputs(content, data, null);
 	outputs.set("fallback", data);
 	return { outputs };
+}
+
+function extractArray(inputData: Map<string, unknown>): unknown[] | null {
+	for (const [, value] of inputData) {
+		if (Array.isArray(value)) return value;
+	}
+	return null;
 }
 
 function buildSwitchOutputs(
@@ -50,7 +114,6 @@ function buildSwitchOutputs(
 	const outputs = new Map<string, unknown>();
 	outputs.set("matchedRule", matchedRule);
 	outputs.set("data", data);
-	// Put data on every rule port so collectInputData can find it by accessor
 	for (const rule of content.rules) {
 		outputs.set(rule.outputPortName, data);
 	}
