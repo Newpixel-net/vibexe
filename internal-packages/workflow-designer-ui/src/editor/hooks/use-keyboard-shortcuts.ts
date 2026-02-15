@@ -29,6 +29,16 @@ import type { Tool } from "../tool/types";
 
 type InputShortcutPolicy = "ignore" | "modifierOnly" | "always";
 
+/** Check if focus is on a text-editable element (input, textarea, contenteditable). */
+function isEditingText(): boolean {
+	const el = document.activeElement;
+	if (!el) return false;
+	const tag = el.tagName;
+	if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+	if ((el as HTMLElement).isContentEditable) return true;
+	return false;
+}
+
 // Browser shortcuts that should be prevented when canvas is focused
 const BROWSER_SHORTCUTS_TO_PREVENT = [
 	{ key: "d", modifiers: ["meta", "ctrl"] }, // Bookmark
@@ -167,10 +177,11 @@ export function useKeyboardShortcuts(
 		{ preventDefault: true },
 	);
 
-	// D key — toggle disable on selected node
+	// D key — toggle disable on selected node (skip when editing text)
 	useKeyAction(
 		"d",
 		useCallback(() => {
+			if (isEditingText()) return;
 			const selectedNode = nodes.find(
 				(n) => n.selected && isOperationNode(n),
 			);
@@ -183,10 +194,11 @@ export function useKeyboardShortcuts(
 		isCanvasFocused,
 	);
 
-	// P key — toggle pin on selected node
+	// P key — toggle pin on selected node (skip when editing text)
 	useKeyAction(
 		"p",
 		useCallback(() => {
+			if (isEditingText()) return;
 			const selectedNode = nodes.find(
 				(n) => n.selected && isOperationNode(n),
 			);
@@ -222,10 +234,11 @@ export function useKeyboardShortcuts(
 		isCanvasFocused,
 	);
 
-	// Delete/Backspace — delete selected nodes
+	// Delete/Backspace — delete selected nodes (skip when editing text)
 	useKeyAction(
 		["Delete", "Backspace"],
 		useCallback(() => {
+			if (isEditingText()) return;
 			const selectedNodeIds = nodes
 				.filter((n) => n.selected)
 				.map((n) => n.id);

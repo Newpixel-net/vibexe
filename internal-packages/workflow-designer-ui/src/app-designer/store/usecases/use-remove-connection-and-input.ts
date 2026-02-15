@@ -15,7 +15,10 @@ export function useRemoveConnectionAndInput() {
 
 	return useCallback(
 		(connectionId: string) => {
-			store.getState().pushUndoSnapshot();
+			// Check connection exists before pushing undo snapshot (avoid no-op snapshots)
+			const state = store.getState();
+			if (!state.connections.some((c) => c.id === connectionId)) return;
+			state.pushUndoSnapshot();
 			store.setState((s) => {
 				const targetConnection = s.connections.find(
 					(c) => c.id === connectionId,
