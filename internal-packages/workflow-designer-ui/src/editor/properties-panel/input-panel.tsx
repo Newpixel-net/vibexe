@@ -15,19 +15,29 @@ import { DataViewSwitcher } from "./data-views";
 
 // ---- Data extraction helper ----
 
-function extractUpstreamData(generation: CompletedGeneration): unknown {
+function extractUpstreamData(generation: CompletedGeneration, outputId?: string): unknown {
+	// Filter outputs by the specific port if outputId is provided
+	const outputs = outputId
+		? generation.outputs.filter((o) => o.outputId === outputId)
+		: generation.outputs;
+
 	// Priority: structured-data > data-query-result > query-result > generated-text > assistant messages
-	for (const output of generation.outputs) {
+	for (const output of outputs) {
 		if (output.type === "structured-data") return output.data;
 		if (output.type === "data-query-result") return output.content;
 		if (output.type === "query-result") return output.content;
 	}
 
-	const textOutputs = generation.outputs
+	const textOutputs = outputs
 		.filter((o) => o.type === "generated-text")
 		.map((o) => (o.type === "generated-text" ? o.content : ""));
 
 	if (textOutputs.length > 0) return textOutputs.join("\n\n");
+
+	// If filtered by outputId and found nothing, try unfiltered as fallback
+	if (outputId && outputs.length === 0) {
+		return extractUpstreamData(generation);
+	}
 
 	// Fallback: assistant messages
 	if ("messages" in generation) {
@@ -48,7 +58,7 @@ function extractUpstreamData(generation: CompletedGeneration): unknown {
 
 // ---- Source Data with View Modes ----
 
-function SourceDataInspector({ sourceNodeId }: { sourceNodeId: NodeId }) {
+function SourceDataInspector({ sourceNodeId, outputId }: { sourceNodeId: NodeId; outputId?: string }) {
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
 	const { currentGeneration } = useNodeGenerations({
 		nodeId: sourceNodeId,
@@ -63,7 +73,7 @@ function SourceDataInspector({ sourceNodeId }: { sourceNodeId: NodeId }) {
 		);
 	}
 
-	const data = extractUpstreamData(currentGeneration as CompletedGeneration);
+	const data = extractUpstreamData(currentGeneration as CompletedGeneration, outputId);
 
 	if (data === null || data === undefined) {
 		return (
@@ -161,6 +171,7 @@ export function InputPanel({ nodeId }: { nodeId: NodeId }) {
 						{/* Data inspector with Schema/Table/JSON views */}
 						<SourceDataInspector
 							sourceNodeId={conn.sourceNode.id as NodeId}
+							outputId={conn.sourceOutput?.id}
 						/>
 					</div>
 				);
