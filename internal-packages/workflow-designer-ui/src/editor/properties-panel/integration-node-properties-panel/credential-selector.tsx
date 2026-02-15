@@ -116,9 +116,10 @@ export function CredentialSelector({
 		);
 		popupRef.current = popup;
 
-		// Poll for popup close
+		// Poll for popup close — use ref to avoid stale closure
 		pollRef.current = setInterval(() => {
-			if (!popup || popup.closed) {
+			const p = popupRef.current;
+			if (!p || p.closed) {
 				if (pollRef.current) clearInterval(pollRef.current);
 				pollRef.current = null;
 				popupRef.current = null;

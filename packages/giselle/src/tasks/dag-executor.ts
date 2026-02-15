@@ -558,8 +558,8 @@ export async function executeDag(
 				}
 			}
 		}
-		// For Switch nodes: activate matching rule's branch, skip others
-		else if (contentType === "switch" && completedNode.activeOutputPort) {
+		// For Switch/Filter nodes: activate matching branch, skip others
+		else if ((contentType === "switch" || contentType === "filter") && completedNode.activeOutputPort) {
 			const activePort = completedNode.activeOutputPort;
 			for (const edge of outgoing) {
 				const port = edge.fromOutputPort ?? "";

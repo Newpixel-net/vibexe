@@ -26,6 +26,14 @@ export async function executeFilter(
 		}
 	}
 
+	// Set activeOutputPort for branch skipping in DAG executor
+	if (kept.length > 0 && discarded.length === 0) {
+		node.activeOutputPort = "kept";
+	} else if (discarded.length > 0 && kept.length === 0) {
+		node.activeOutputPort = "discarded";
+	}
+	// else: both have items — leave undefined so both branches execute
+
 	return {
 		outputs: new Map([
 			["kept", kept],

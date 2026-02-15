@@ -1258,6 +1258,7 @@ const memoryNodeFactoryImpl = {
 			windowBuffer: "Window Buffer Memory",
 			tokenBuffer: "Token Buffer Memory",
 			summary: "Summary Memory",
+			postgresMemory: "PostgreSQL Memory",
 		};
 		return {
 			id: NodeId.generate(),
