@@ -15,6 +15,7 @@ import {
 	BugIcon,
 	CheckCircleIcon,
 	DatabaseIcon,
+	Edit3Icon,
 	FileTextIcon,
 	PinIcon,
 	PinOffIcon,
@@ -290,6 +291,31 @@ export function OutputPanel({
 		currentGeneration?.status === "running";
 
 	const isPinned = node?.pinnedData != null;
+	const [editingOutput, setEditingOutput] = useState(false);
+	const [editDraft, setEditDraft] = useState("");
+	const [editError, setEditError] = useState<string | null>(null);
+
+	// Start editing output data
+	const handleStartEdit = useCallback(() => {
+		if (!currentGeneration) return;
+		const data = extractPinnableData(currentGeneration);
+		setEditDraft(data != null ? JSON.stringify(data, null, 2) : "");
+		setEditError(null);
+		setEditingOutput(true);
+	}, [currentGeneration]);
+
+	// Save edited output as pinned data
+	const handleSaveEdit = useCallback(() => {
+		if (!node) return;
+		try {
+			const parsed = JSON.parse(editDraft);
+			updateNodeData(node, { pinnedData: parsed } as any);
+			setEditingOutput(false);
+			setEditError(null);
+		} catch (e) {
+			setEditError((e as Error).message);
+		}
+	}, [node, editDraft, updateNodeData]);
 
 	// Pin current output data
 	const handlePin = useCallback(() => {
@@ -402,6 +428,19 @@ export function OutputPanel({
 
 				<div className="flex-1" />
 
+				{/* Edit Output button */}
+				{node && currentGeneration?.status === "completed" && (
+					<button
+						type="button"
+						onClick={handleStartEdit}
+						className="flex items-center gap-[3px] px-[6px] py-[2px] text-[10px] rounded-[3px] text-inverse/40 hover:text-inverse/60 hover:bg-inverse/10 transition-colors"
+						title="Edit output data"
+					>
+						<Edit3Icon className="size-[10px]" />
+						Edit
+					</button>
+				)}
+
 				{/* Pin/Unpin button */}
 				{node && currentGeneration?.status === "completed" && (
 					<button
@@ -478,13 +517,51 @@ export function OutputPanel({
 					</div>
 				)}
 
+			{/* Edit output overlay */}
+			{editingOutput && (
+				<div className="flex-1 flex flex-col p-[8px] gap-[6px]">
+					<div className="flex items-center justify-between">
+						<span className="text-[11px] text-inverse/60 font-medium">Edit Output Data</span>
+						<span className="text-[10px] text-inverse/30">Saved as pinned data</span>
+					</div>
+					<textarea
+						className="flex-1 min-h-[150px] p-[8px] rounded-[4px] bg-black/30 border border-inverse/10 text-[11px] text-inverse/80 font-mono resize-y outline-none focus:border-blue-500/50"
+						value={editDraft}
+						onChange={(e) => {
+							setEditDraft(e.target.value);
+							setEditError(null);
+						}}
+						placeholder='{"key": "value"}'
+					/>
+					{editError && (
+						<p className="text-[10px] text-red-400">JSON parse error: {editError}</p>
+					)}
+					<div className="flex gap-[4px] justify-end">
+						<button
+							type="button"
+							className="px-[8px] py-[3px] text-[10px] rounded-[3px] bg-inverse/10 text-inverse/60 hover:bg-inverse/20 transition-colors"
+							onClick={() => setEditingOutput(false)}
+						>
+							Cancel
+						</button>
+						<button
+							type="button"
+							className="px-[8px] py-[3px] text-[10px] rounded-[3px] bg-blue-600/60 text-white hover:bg-blue-500/70 transition-colors"
+							onClick={handleSaveEdit}
+						>
+							Save as Pinned
+						</button>
+					</div>
+				</div>
+			)}
+
 			{/* Content with Text/Data tab switching */}
-			{currentGeneration ? (
+			{!editingOutput && currentGeneration ? (
 				<OutputContent
 					currentGeneration={currentGeneration}
 					node={node}
 				/>
-			) : isPinned ? (
+			) : !editingOutput && isPinned ? (
 				<PinnedDataContent node={node} />
 			) : null}
 		</div>

@@ -2,7 +2,9 @@
 
 import { Toggle } from "@giselle-internal/ui/toggle";
 import type { ErrorConfig, OperationNode } from "@giselles-ai/protocol";
+import { useState } from "react";
 import { useUpdateNodeData } from "../../../app-designer";
+import { SearchableSelect } from "./searchable-select";
 import { SettingDetail, SettingLabel } from "./setting-label";
 
 interface NodeSettingsTabProps {
@@ -185,19 +187,21 @@ export function NodeSettingsTab({ node }: NodeSettingsTabProps) {
 
 			<div className="flex items-center justify-between gap-[12px]">
 				<SettingDetail size="md">On Error</SettingDetail>
-				<select
-					value={config.onError}
-					onChange={(e) => {
-						updateErrorConfig({
-							onError: e.target.value as ErrorConfig["onError"],
-						});
-					}}
-					className="bg-[color-mix(in_srgb,var(--color-text-inverse,#fff)_10%,transparent)] text-inverse text-[13px] rounded-[6px] px-[8px] py-[5px] border border-white-400/20 outline-none cursor-pointer min-w-[160px]"
-				>
-					<option value="stopWorkflow">Stop Workflow</option>
-					<option value="continueOnFail">Continue On Fail</option>
-					<option value="routeToError">Route To Error Handler</option>
-				</select>
+				<div className="min-w-[160px]">
+					<SearchableSelect
+						options={[
+							{ label: "Stop Workflow", value: "stopWorkflow" },
+							{ label: "Continue On Fail", value: "continueOnFail" },
+							{ label: "Route To Error Handler", value: "routeToError" },
+						]}
+						value={config.onError}
+						onChange={(v) => {
+							updateErrorConfig({
+								onError: v as ErrorConfig["onError"],
+							});
+						}}
+					/>
+				</div>
 			</div>
 
 			{config.onError === "continueOnFail" && (
@@ -213,6 +217,20 @@ export function NodeSettingsTab({ node }: NodeSettingsTabProps) {
 					failed node ID, and timestamp will be passed to it.
 				</p>
 			)}
+
+			<div className="mt-[8px] border-t border-white-400/10 pt-[12px]" />
+
+			<SettingLabel size="md" colorClassName="text-inverse">
+				Notes
+			</SettingLabel>
+			<textarea
+				className="w-full min-h-[80px] p-[8px] rounded-[6px] bg-[color-mix(in_srgb,var(--color-text-inverse,#fff)_5%,transparent)] border border-white-400/10 text-[13px] text-inverse placeholder:text-inverse/30 resize-y outline-none focus:border-blue-500/30"
+				value={node.notes ?? ""}
+				onChange={(e) => {
+					updateNodeField({ notes: e.target.value || undefined });
+				}}
+				placeholder="Add notes about this node..."
+			/>
 		</div>
 	);
 }

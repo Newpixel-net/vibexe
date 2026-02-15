@@ -1,5 +1,9 @@
 import type { NodeId } from "@giselles-ai/protocol";
-import { ExpressionInput } from "../ui/expression-input";
+import { LoaderIcon } from "lucide-react";
+import { FieldWrapper } from "../ui/field-wrapper";
+import { InlineCodeEditor } from "../ui/inline-code-editor";
+import { SearchableSelect, type SelectOption } from "../ui/searchable-select";
+import { useDynamicOptions } from "./use-dynamic-options";
 import type { PropertyInfo } from "./use-piece-action-props";
 
 interface DynamicPropertyFieldProps {
@@ -7,6 +11,12 @@ interface DynamicPropertyFieldProps {
 	value: unknown;
 	onChange: (value: unknown) => void;
 	nodeId?: NodeId;
+	/** Piece name for dynamic option resolution */
+	pieceName?: string;
+	/** Action name for dynamic option resolution */
+	actionName?: string;
+	/** All current configuration values (for dependent dropdowns) */
+	allValues?: Record<string, unknown>;
 }
 
 export function DynamicPropertyField({
@@ -14,53 +24,139 @@ export function DynamicPropertyField({
 	value,
 	onChange,
 	nodeId,
+	pieceName,
+	actionName,
+	allValues,
 }: DynamicPropertyFieldProps) {
-	const id = `prop-${prop.name}`;
 	const stringValue = value != null ? String(value) : "";
 
+	// For DROPDOWN/DYNAMIC_DROPDOWN types, use the dynamic options hook
+	if (
+		(prop.type === "DROPDOWN" || prop.type === "DYNAMIC_DROPDOWN") &&
+		pieceName &&
+		actionName
+	) {
+		return (
+			<DynamicDropdownField
+				prop={prop}
+				value={value}
+				onChange={onChange}
+				nodeId={nodeId}
+				pieceName={pieceName}
+				actionName={actionName}
+				allValues={allValues}
+			/>
+		);
+	}
+
 	return (
-		<div className="flex flex-col gap-1">
-			<label htmlFor={id} className="text-xs text-text-muted">
-				{prop.displayName}
-				{prop.required && <span className="text-red-400 ml-0.5">*</span>}
-			</label>
-			{prop.description && (
-				<p className="text-[10px] text-text-muted/60 leading-tight">
-					{prop.description}
-				</p>
-			)}
-			{renderField(prop, id, value, stringValue, onChange, nodeId)}
-		</div>
+		<FieldWrapper
+			value={stringValue}
+			onChange={(v) => onChange(v)}
+			nodeId={nodeId}
+			label={prop.displayName}
+			description={prop.description}
+			required={prop.required}
+			defaultValue={prop.defaultValue != null ? String(prop.defaultValue) : ""}
+		>
+			{renderFixedField(prop, value, stringValue, onChange)}
+		</FieldWrapper>
 	);
 }
 
-function renderField(
+/** Dynamic dropdown that fetches options from the API */
+function DynamicDropdownField({
+	prop,
+	value,
+	onChange,
+	nodeId,
+	pieceName,
+	actionName,
+	allValues,
+}: {
+	prop: PropertyInfo;
+	value: unknown;
+	onChange: (value: unknown) => void;
+	nodeId?: NodeId;
+	pieceName: string;
+	actionName: string;
+	allValues?: Record<string, unknown>;
+}) {
+	const stringValue = value != null ? String(value) : "";
+	const { options, loading } = useDynamicOptions(
+		pieceName,
+		actionName,
+		prop.name,
+		undefined,
+		allValues,
+	);
+
+	const selectOptions: SelectOption[] = options.map((opt) => ({
+		label: opt.label,
+		value: String(opt.value),
+	}));
+
+	return (
+		<FieldWrapper
+			value={stringValue}
+			onChange={(v) => onChange(v)}
+			nodeId={nodeId}
+			label={prop.displayName}
+			description={prop.description}
+			required={prop.required}
+			defaultValue={prop.defaultValue != null ? String(prop.defaultValue) : ""}
+		>
+			{selectOptions.length > 0 ? (
+				<SearchableSelect
+					options={selectOptions}
+					value={stringValue}
+					onChange={(v) => onChange(v)}
+					placeholder="Select..."
+					loading={loading}
+					className="flex-1"
+				/>
+			) : loading ? (
+				<div className="flex items-center gap-[6px] rounded-r-[6px] border border-l-0 border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text-muted">
+					<LoaderIcon className="size-[11px] animate-spin" />
+					Loading options...
+				</div>
+			) : (
+				<input
+					type="text"
+					className="w-full rounded-r-[6px] border border-l-0 border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+					placeholder={`${prop.displayName} (enter value)`}
+					value={stringValue}
+					onChange={(e) => onChange(e.target.value)}
+				/>
+			)}
+		</FieldWrapper>
+	);
+}
+
+function renderFixedField(
 	prop: PropertyInfo,
-	id: string,
 	value: unknown,
 	stringValue: string,
 	onChange: (value: unknown) => void,
-	nodeId?: NodeId,
 ) {
 	const baseInputClass =
-		"w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-inverse placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-integration-node-1";
+		"w-full rounded-r-[6px] border border-l-0 border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30";
 
 	switch (prop.type) {
 		case "LONG_TEXT":
 		case "MARKDOWN":
 			return (
-				<ExpressionInput
-					value={stringValue}
-					onChange={(val) => onChange(val)}
+				<textarea
+					className={`${baseInputClass} resize-y min-h-[60px]`}
 					placeholder={prop.displayName}
-					nodeId={nodeId}
+					value={stringValue}
+					onChange={(e) => onChange(e.target.value)}
 				/>
 			);
 
 		case "NUMBER":
 			return (
 				<input
-					id={id}
 					type="number"
 					className={baseInputClass}
 					placeholder={prop.displayName}
@@ -74,107 +170,137 @@ function renderField(
 
 		case "CHECKBOX":
 			return (
-				<label
-					htmlFor={id}
-					className="flex items-center gap-2 cursor-pointer"
-				>
+				<label className="flex items-center gap-[6px] rounded-r-[6px] border border-l-0 border-border-muted bg-transparent px-[8px] py-[6px] cursor-pointer">
 					<input
-						id={id}
 						type="checkbox"
-						className="rounded border-white/10 bg-white/5 text-integration-node-1 focus:ring-integration-node-1"
+						className="rounded border-white/10 bg-white/5 text-blue-500 focus:ring-blue-500/30"
 						checked={Boolean(value)}
 						onChange={(e) => onChange(e.target.checked)}
 					/>
-					<span className="text-xs text-inverse">{prop.displayName}</span>
+					<span className="text-[12px] text-inverse">
+						{Boolean(value) ? "Yes" : "No"}
+					</span>
 				</label>
 			);
 
 		case "STATIC_DROPDOWN":
 			if (prop.options && prop.options.length > 0) {
+				const selectOptions: SelectOption[] = prop.options.map(
+					(opt) => ({
+						label: opt.label,
+						value: String(opt.value),
+					}),
+				);
 				return (
-					<select
-						id={id}
-						className={`${baseInputClass} cursor-pointer [&>option]:bg-[#141120] [&>option]:text-white`}
+					<SearchableSelect
+						options={selectOptions}
 						value={stringValue}
-						onChange={(e) => onChange(e.target.value)}
-					>
-						<option value="">Select...</option>
-						{prop.options.map((opt) => (
-							<option key={String(opt.value)} value={String(opt.value)}>
-								{opt.label}
-							</option>
-						))}
-					</select>
+						onChange={(v) => onChange(v)}
+						placeholder="Select..."
+						className="flex-1"
+					/>
 				);
 			}
 			return (
-				<ExpressionInput
-					value={stringValue}
-					onChange={(val) => onChange(val)}
+				<input
+					type="text"
+					className={baseInputClass}
 					placeholder={prop.displayName}
-					nodeId={nodeId}
+					value={stringValue}
+					onChange={(e) => onChange(e.target.value)}
 				/>
 			);
 
 		case "DROPDOWN":
 		case "DYNAMIC_DROPDOWN":
-		case "MULTI_SELECT_DROPDOWN":
+			// Fallback for when dynamic resolution isn't available
 			return (
-				<ExpressionInput
-					value={stringValue}
-					onChange={(val) => onChange(val)}
+				<input
+					type="text"
+					className={baseInputClass}
 					placeholder={`${prop.displayName} (enter value)`}
-					nodeId={nodeId}
+					value={stringValue}
+					onChange={(e) => onChange(e.target.value)}
+				/>
+			);
+
+		case "MULTI_SELECT_DROPDOWN":
+			if (prop.options && prop.options.length > 0) {
+				const selectOptions: SelectOption[] = prop.options.map(
+					(opt) => ({
+						label: opt.label,
+						value: String(opt.value),
+					}),
+				);
+				return (
+					<SearchableSelect
+						options={selectOptions}
+						value={stringValue}
+						onChange={(v) => onChange(v)}
+						placeholder="Select..."
+						multi
+						className="flex-1"
+					/>
+				);
+			}
+			return (
+				<input
+					type="text"
+					className={baseInputClass}
+					placeholder={`${prop.displayName} (comma-separated)`}
+					value={stringValue}
+					onChange={(e) => onChange(e.target.value)}
 				/>
 			);
 
 		case "JSON":
 		case "OBJECT":
 			return (
-				<textarea
-					id={id}
-					className={`${baseInputClass} resize-y min-h-[80px] font-mono text-xs`}
-					placeholder='{"key": "value"}'
+				<InlineCodeEditor
 					value={
 						typeof value === "object" && value !== null
 							? JSON.stringify(value, null, 2)
 							: stringValue
 					}
-					onChange={(e) => {
+					onChange={(v) => {
 						try {
-							onChange(JSON.parse(e.target.value));
+							onChange(JSON.parse(v));
 						} catch {
-							onChange(e.target.value);
+							onChange(v);
 						}
 					}}
+					language="json"
+					minHeight={80}
+					maxHeight={300}
+					placeholder='{"key": "value"}'
 				/>
 			);
 
 		case "ARRAY":
 			return (
-				<textarea
-					id={id}
-					className={`${baseInputClass} resize-y min-h-[60px] font-mono text-xs`}
-					placeholder='["item1", "item2"]'
+				<InlineCodeEditor
 					value={
 						Array.isArray(value)
 							? JSON.stringify(value, null, 2)
 							: stringValue
 					}
-					onChange={(e) => {
+					onChange={(v) => {
 						try {
-							onChange(JSON.parse(e.target.value));
+							onChange(JSON.parse(v));
 						} catch {
-							onChange(e.target.value);
+							onChange(v);
 						}
 					}}
+					language="json"
+					minHeight={60}
+					maxHeight={200}
+					placeholder='["item1", "item2"]'
 				/>
 			);
 
 		case "SECRET_TEXT":
 			return (
 				<input
-					id={id}
 					type="password"
 					className={baseInputClass}
 					placeholder={prop.displayName}
@@ -186,7 +312,6 @@ function renderField(
 		case "DATE_TIME":
 			return (
 				<input
-					id={id}
 					type="datetime-local"
 					className={baseInputClass}
 					value={stringValue}
@@ -196,22 +321,24 @@ function renderField(
 
 		case "FILE":
 			return (
-				<ExpressionInput
-					value={stringValue}
-					onChange={(val) => onChange(val)}
+				<input
+					type="text"
+					className={baseInputClass}
 					placeholder="File URL or path"
-					nodeId={nodeId}
+					value={stringValue}
+					onChange={(e) => onChange(e.target.value)}
 				/>
 			);
 
 		case "SHORT_TEXT":
 		default:
 			return (
-				<ExpressionInput
-					value={stringValue}
-					onChange={(val) => onChange(val)}
+				<input
+					type="text"
+					className={baseInputClass}
 					placeholder={prop.displayName}
-					nodeId={nodeId}
+					value={stringValue}
+					onChange={(e) => onChange(e.target.value)}
 				/>
 			);
 	}

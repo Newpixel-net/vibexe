@@ -6,6 +6,7 @@ import { useNodeGenerations } from "@giselles-ai/react";
 import {
 	ArrowRightIcon,
 	LinkIcon,
+	PlayIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useAppDesignerStore } from "../../app-designer";
@@ -92,7 +93,7 @@ function SourceDataInspector({ sourceNodeId, outputId }: { sourceNodeId: NodeId;
 
 // ---- Main Input Panel ----
 
-export function InputPanel({ nodeId }: { nodeId: NodeId }) {
+export function InputPanel({ nodeId, onExecutePrevious }: { nodeId: NodeId; onExecutePrevious?: () => void }) {
 	const { nodes, connections } = useAppDesignerStore((s) => ({
 		nodes: s.nodes,
 		connections: s.connections,
@@ -143,6 +144,18 @@ export function InputPanel({ nodeId }: { nodeId: NodeId }) {
 
 	return (
 		<div className="flex flex-col gap-[2px] p-[8px]">
+			{onExecutePrevious && (
+				<div className="flex items-center justify-end px-[4px] pb-[4px]">
+					<button
+						type="button"
+						onClick={onExecutePrevious}
+						className="flex items-center gap-[4px] px-[8px] py-[3px] text-[11px] font-medium rounded-[4px] bg-blue-600/60 hover:bg-blue-500/70 text-white/80 transition-colors"
+					>
+						<PlayIcon className="size-[10px]" />
+						Execute Previous Nodes
+					</button>
+				</div>
+			)}
 			{inputConnections.map((conn) => {
 				if (!conn) return null;
 				return (

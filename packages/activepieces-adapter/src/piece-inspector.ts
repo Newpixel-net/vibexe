@@ -181,6 +181,99 @@ export async function inspectPiece(pieceName: string): Promise<PieceInfo> {
 }
 
 /**
+ * Resolve dynamic dropdown options for a property.
+ * Calls the property's options() function with auth and current values.
+ */
+export async function resolveDynamicOptions(
+	pieceName: string,
+	actionName: string,
+	propertyName: string,
+	auth: unknown,
+	currentValues: Record<string, unknown>,
+): Promise<{ options: { label: string; value: unknown }[] }> {
+	const piece = await loadPiece(pieceName);
+	if (!piece || typeof piece !== "object") {
+		throw new Error(`Failed to load piece: ${pieceName}`);
+	}
+
+	const p = piece as Record<string, unknown>;
+	const actionsObj =
+		typeof p.actions === "function"
+			? (p.actions as () => Record<string, unknown>)()
+			: (p.actions as Record<string, unknown> | undefined);
+
+	if (!actionsObj) {
+		throw new Error(`Piece "${pieceName}" has no actions`);
+	}
+
+	const action = actionsObj[actionName] as Record<string, unknown> | undefined;
+	if (!action) {
+		throw new Error(
+			`Action "${actionName}" not found in piece "${pieceName}"`,
+		);
+	}
+
+	const propsObj = action.props as Record<string, unknown> | undefined;
+	if (!propsObj) {
+		throw new Error(`Action "${actionName}" has no props`);
+	}
+
+	const propDef = propsObj[propertyName] as Record<string, unknown> | undefined;
+	if (!propDef) {
+		throw new Error(
+			`Property "${propertyName}" not found in action "${actionName}"`,
+		);
+	}
+
+	// Check if this property has a dynamic options function
+	const optionsField = propDef.options;
+	if (!optionsField) {
+		// No options to resolve — return static options if available
+		if (propDef.type === "STATIC_DROPDOWN" && propDef.options) {
+			const opts = propDef.options as Record<string, unknown>;
+			if (Array.isArray(opts.options)) {
+				return {
+					options: (opts.options as Array<Record<string, unknown>>).map(
+						(o) => ({
+							label: String(o.label ?? o.value ?? ""),
+							value: o.value,
+						}),
+					),
+				};
+			}
+		}
+		return { options: [] };
+	}
+
+	// If options is a function, call it to resolve dynamic options
+	if (typeof optionsField === "function") {
+		try {
+			const result = await (optionsField as Function)({
+				auth,
+				...currentValues,
+			});
+			if (result && typeof result === "object" && Array.isArray((result as Record<string, unknown>).options)) {
+				return {
+					options: ((result as Record<string, unknown>).options as Array<Record<string, unknown>>).map(
+						(o) => ({
+							label: String(o.label ?? o.value ?? ""),
+							value: o.value,
+						}),
+					),
+				};
+			}
+		} catch (err) {
+			console.error(
+				`Failed to resolve dynamic options for ${pieceName}/${actionName}/${propertyName}:`,
+				err,
+			);
+		}
+	}
+
+	return { options: [] };
+}
+
+/**
  * Get detailed properties for a specific action of a piece.
  */
 export async function getActionProps(

@@ -40,9 +40,11 @@ import {
 	PropertiesPanelRoot,
 } from "../ui";
 import { CommentsTab } from "../ui/comments-tab";
-import { ExpressionInput } from "../ui/expression-input";
+import { FieldWrapper } from "../ui/field-wrapper";
+import { InlineCodeEditor } from "../ui/inline-code-editor";
 import { NodeSettingsTab } from "../ui/node-settings-tab";
 import { PanelTabs } from "../ui/panel-tabs";
+import { SearchableSelect } from "../ui/searchable-select";
 import { SettingLabel } from "../ui/setting-label";
 
 type FlowControlNodeType =
@@ -273,6 +275,118 @@ export function FlowControlPropertiesPanel({
 	}
 }
 
+// ---- Operator options for SearchableSelect ----
+const comparisonOperators = [
+	{ label: "Equals", value: "equals", group: "Comparison" },
+	{ label: "Not Equals", value: "notEquals", group: "Comparison" },
+	{ label: "Greater Than", value: "greaterThan", group: "Comparison" },
+	{ label: "Less Than", value: "lessThan", group: "Comparison" },
+	{
+		label: "Greater Or Equal",
+		value: "greaterThanOrEqual",
+		group: "Comparison",
+	},
+	{ label: "Less Or Equal", value: "lessThanOrEqual", group: "Comparison" },
+	{ label: "Contains", value: "contains", group: "Text" },
+	{ label: "Not Contains", value: "notContains", group: "Text" },
+	{ label: "Starts With", value: "startsWith", group: "Text" },
+	{ label: "Ends With", value: "endsWith", group: "Text" },
+	{ label: "Regex", value: "regex", group: "Text" },
+	{ label: "Is Empty", value: "isEmpty", group: "State" },
+	{ label: "Is Not Empty", value: "isNotEmpty", group: "State" },
+	{ label: "Is True", value: "isTrue", group: "State" },
+	{ label: "Is False", value: "isFalse", group: "State" },
+];
+
+const combineWithOptions = [
+	{ label: "AND (all must match)", value: "and" },
+	{ label: "OR (any must match)", value: "or" },
+];
+
+// ---- Condition Row (shared by If, Switch, Filter) ----
+function ConditionRow({
+	condition,
+	onChange,
+	onRemove,
+	nodeId,
+}: {
+	condition: {
+		field: string;
+		operator: ConditionOperator;
+		value?: string;
+	};
+	onChange: (updated: {
+		field: string;
+		operator: ConditionOperator;
+		value?: string;
+	}) => void;
+	onRemove: () => void;
+	nodeId?: NodeId;
+}) {
+	return (
+		<div className="flex gap-[4px] items-end">
+			<div className="flex-1">
+				<FieldWrapper
+					value={condition.field}
+					onChange={(v) => onChange({ ...condition, field: v })}
+					nodeId={nodeId}
+					label="Field"
+					showContextMenu={false}
+				>
+					<input
+						type="text"
+						className="w-full rounded-r-[6px] border border-l-0 border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+						value={condition.field}
+						onChange={(e) =>
+							onChange({ ...condition, field: e.target.value })
+						}
+						placeholder="e.g. status"
+					/>
+				</FieldWrapper>
+			</div>
+			<div className="w-[120px]">
+				<label className="text-[10px] text-text-muted/70">Operator</label>
+				<SearchableSelect
+					options={comparisonOperators}
+					value={condition.operator}
+					onChange={(v) =>
+						onChange({
+							...condition,
+							operator: v as ConditionOperator,
+						})
+					}
+				/>
+			</div>
+			<div className="flex-1">
+				<FieldWrapper
+					value={condition.value ?? ""}
+					onChange={(v) => onChange({ ...condition, value: v })}
+					nodeId={nodeId}
+					label="Value"
+					showContextMenu={false}
+				>
+					<input
+						type="text"
+						className="w-full rounded-r-[6px] border border-l-0 border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+						value={condition.value ?? ""}
+						onChange={(e) =>
+							onChange({ ...condition, value: e.target.value })
+						}
+						placeholder="compare value"
+					/>
+				</FieldWrapper>
+			</div>
+			<button
+				type="button"
+				className="shrink-0 px-[6px] py-[6px] text-[12px] text-error-500 hover:text-error-400"
+				onClick={onRemove}
+			>
+				x
+			</button>
+		</div>
+	);
+}
+
 // ---- If Panel ----
 function IfPanel({
 	node,
@@ -292,21 +406,18 @@ function IfPanel({
 				</div>
 				<div className="flex flex-col gap-[8px]">
 					<label className="text-[12px] text-text-muted">Combine with</label>
-					<select
-						className="rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[13px] text-text"
+					<SearchableSelect
+						options={combineWithOptions}
 						value={node.content.conditionGroup.combineWith}
-						onChange={(e) =>
+						onChange={(v) =>
 							updateContent(node, {
 								conditionGroup: {
 									...node.content.conditionGroup,
-									combineWith: e.target.value as "and" | "or",
+									combineWith: v as "and" | "or",
 								},
 							})
 						}
-					>
-						<option value="and">AND (all must match)</option>
-						<option value="or">OR (any must match)</option>
-					</select>
+					/>
 				</div>
 				{node.content.conditionGroup.conditions.map((cond, i) => (
 					<ConditionRow
@@ -361,92 +472,6 @@ function IfPanel({
 	);
 }
 
-// ---- Condition Row (shared by If, Switch, Filter) ----
-function ConditionRow({
-	condition,
-	onChange,
-	onRemove,
-	nodeId,
-}: {
-	condition: {
-		field: string;
-		operator: ConditionOperator;
-		value?: string;
-	};
-	onChange: (updated: {
-		field: string;
-		operator: ConditionOperator;
-		value?: string;
-	}) => void;
-	onRemove: () => void;
-	nodeId?: NodeId;
-}) {
-	return (
-		<div className="flex gap-[4px] items-end">
-			<div className="flex-1">
-				<label className="text-[10px] text-text-muted/70">Field</label>
-				<ExpressionInput
-					value={condition.field}
-					onChange={(v) => onChange({ ...condition, field: v })}
-					placeholder="e.g. status"
-					nodeId={nodeId}
-				/>
-			</div>
-			<div className="w-[120px]">
-				<label className="text-[10px] text-text-muted/70">Operator</label>
-				<select
-					className="w-full rounded-[6px] border border-border-muted bg-transparent px-[6px] py-[6px] text-[12px] text-text"
-					value={condition.operator}
-					onChange={(e) =>
-						onChange({
-							...condition,
-							operator: e.target.value as ConditionOperator,
-						})
-					}
-				>
-					<optgroup label="Comparison">
-						<option value="equals">Equals</option>
-						<option value="notEquals">Not Equals</option>
-						<option value="greaterThan">Greater Than</option>
-						<option value="lessThan">Less Than</option>
-						<option value="greaterThanOrEqual">Greater Or Equal</option>
-						<option value="lessThanOrEqual">Less Or Equal</option>
-					</optgroup>
-					<optgroup label="Text">
-						<option value="contains">Contains</option>
-						<option value="notContains">Not Contains</option>
-						<option value="startsWith">Starts With</option>
-						<option value="endsWith">Ends With</option>
-						<option value="regex">Regex</option>
-					</optgroup>
-					<optgroup label="State">
-						<option value="isEmpty">Is Empty</option>
-						<option value="isNotEmpty">Is Not Empty</option>
-						<option value="isTrue">Is True</option>
-						<option value="isFalse">Is False</option>
-					</optgroup>
-				</select>
-			</div>
-			<div className="flex-1">
-				<label className="text-[10px] text-text-muted/70">Value</label>
-				<ExpressionInput
-					value={condition.value ?? ""}
-					onChange={(v) => onChange({ ...condition, value: v })}
-					placeholder="compare value"
-					nodeId={nodeId}
-				/>
-			</div>
-			<button
-				type="button"
-				className="shrink-0 px-[6px] py-[6px] text-[12px] text-error-500 hover:text-error-400"
-				onClick={onRemove}
-			>
-				x
-			</button>
-		</div>
-	);
-}
-
 // ---- Switch Panel ----
 function SwitchPanel({
 	node,
@@ -455,15 +480,12 @@ function SwitchPanel({
 	const updateContent = useUpdateNodeDataContent();
 	const updateNodeData = useUpdateNodeData();
 
-	/** Sync node.outputs with rules + hasFallback whenever content changes */
 	const updateSwitchContent = useCallback(
 		(contentPatch: Partial<SwitchNode["content"]>) => {
 			const newContent = { ...node.content, ...contentPatch };
 			const rules = newContent.rules ?? [];
 			const hasFallback = newContent.hasFallback ?? true;
 
-			// Build outputs, preserving existing IDs where accessor matches
-			// or by position (handles renames where accessor changed)
 			const existingByAccessor = new Map(
 				node.outputs.map((o) => [o.accessor, o]),
 			);
@@ -475,9 +497,7 @@ function SwitchPanel({
 
 			for (let i = 0; i < rules.length; i++) {
 				const rule = rules[i];
-				// Try accessor match first (handles reorder, add, delete)
 				const byAccessor = existingByAccessor.get(rule.outputPortName);
-				// Fall back to position match (handles renames)
 				const byPosition =
 					!byAccessor &&
 					i < node.outputs.length &&
@@ -547,7 +567,6 @@ function SwitchPanel({
 						className="rounded-[8px] border border-border-muted p-[12px] flex flex-col gap-[8px]"
 					>
 						<div className="flex items-center gap-[8px]">
-							{/* Reorder buttons */}
 							<div className="flex flex-col gap-[1px] shrink-0">
 								<button
 									type="button"
@@ -618,24 +637,25 @@ function SwitchPanel({
 						<div className="pl-[24px] flex flex-col gap-[6px]">
 							<div className="flex items-center gap-[6px]">
 								<label className="text-[10px] text-text-muted/70">Combine</label>
-								<select
-									className="rounded-[4px] border border-border-muted bg-transparent px-[6px] py-[2px] text-[11px] text-text"
+								<SearchableSelect
+									options={[
+										{ label: "AND", value: "and" },
+										{ label: "OR", value: "or" },
+									]}
 									value={rule.conditionGroup.combineWith}
-									onChange={(e) => {
+									onChange={(v) => {
 										const rules = [...node.content.rules];
 										rules[i] = {
 											...rule,
 											conditionGroup: {
 												...rule.conditionGroup,
-												combineWith: e.target.value as "and" | "or",
+												combineWith: v as "and" | "or",
 											},
 										};
 										updateSwitchContent({ rules });
 									}}
-								>
-									<option value="and">AND</option>
-									<option value="or">OR</option>
-								</select>
+									className="w-[100px]"
+								/>
 							</div>
 							{rule.conditionGroup.conditions.map((cond, j) => (
 								<ConditionRow
@@ -715,6 +735,13 @@ function SwitchPanel({
 }
 
 // ---- Merge Panel ----
+const mergeOptions = [
+	{ label: "Choose Branch (use whichever ran)", value: "chooseBranch" },
+	{ label: "Wait All (combine all inputs)", value: "waitAll" },
+	{ label: "Wait Any (first available)", value: "waitAny" },
+	{ label: "Append (concatenate as array)", value: "append" },
+];
+
 function MergePanel({
 	node,
 	onDelete,
@@ -730,28 +757,26 @@ function MergePanel({
 						How to combine inputs from multiple branches.
 					</p>
 				</div>
-				<select
-					className="rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[13px] text-text"
+				<SearchableSelect
+					options={mergeOptions}
 					value={node.content.mode}
-					onChange={(e) =>
+					onChange={(v) =>
 						updateContent(node, {
-							mode: e.target.value as MergeNode["content"]["mode"],
+							mode: v as MergeNode["content"]["mode"],
 						})
 					}
-				>
-					<option value="chooseBranch">
-						Choose Branch (use whichever ran)
-					</option>
-					<option value="waitAll">Wait All (combine all inputs)</option>
-					<option value="waitAny">Wait Any (first available)</option>
-					<option value="append">Append (concatenate as array)</option>
-				</select>
+				/>
 			</div>
 		</FlowControlPanelLayout>
 	);
 }
 
 // ---- Loop Panel ----
+const loopModeOptions = [
+	{ label: "For Each (iterate array)", value: "forEach" },
+	{ label: "N Times (repeat count)", value: "nTimes" },
+];
+
 function LoopPanel({
 	node,
 	onDelete,
@@ -763,18 +788,15 @@ function LoopPanel({
 			<div className="flex flex-col gap-[16px]">
 				<div>
 					<SettingLabel>Mode</SettingLabel>
-					<select
-						className="rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[13px] text-text"
+					<SearchableSelect
+						options={loopModeOptions}
 						value={node.content.mode}
-						onChange={(e) =>
+						onChange={(v) =>
 							updateContent(node, {
-								mode: e.target.value as "forEach" | "nTimes",
+								mode: v as "forEach" | "nTimes",
 							})
 						}
-					>
-						<option value="forEach">For Each (iterate array)</option>
-						<option value="nTimes">N Times (repeat count)</option>
-					</select>
+					/>
 				</div>
 				{node.content.mode === "nTimes" && (
 					<div>
@@ -833,11 +855,13 @@ function CodePanel({
 						<code>data</code> (object). Return the processed result.
 					</p>
 				</div>
-				<textarea
-					className="w-full min-h-[200px] rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text font-mono resize-y"
+				<InlineCodeEditor
 					value={node.content.code}
-					onChange={(e) => updateContent(node, { code: e.target.value })}
-					spellCheck={false}
+					onChange={(v) => updateContent(node, { code: v })}
+					language="javascript"
+					minHeight={200}
+					maxHeight={500}
+					placeholder="// Write your code here..."
 				/>
 				<div>
 					<SettingLabel>Timeout (ms)</SettingLabel>
@@ -877,21 +901,18 @@ function FilterPanel({
 						Discarded.
 					</p>
 				</div>
-				<select
-					className="rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[13px] text-text"
+				<SearchableSelect
+					options={combineWithOptions}
 					value={node.content.conditionGroup.combineWith}
-					onChange={(e) =>
+					onChange={(v) =>
 						updateContent(node, {
 							conditionGroup: {
 								...node.content.conditionGroup,
-								combineWith: e.target.value as "and" | "or",
+								combineWith: v as "and" | "or",
 							},
 						})
 					}
-				>
-					<option value="and">AND (all must match)</option>
-					<option value="or">OR (any must match)</option>
-				</select>
+				/>
 				{node.content.conditionGroup.conditions.map((cond, i) => (
 					<ConditionRow
 						key={`filter-cond-${i}`}
@@ -946,6 +967,12 @@ function FilterPanel({
 }
 
 // ---- Edit Fields Panel ----
+const editFieldsOperationOptions = [
+	{ label: "Set", value: "set" },
+	{ label: "Remove", value: "remove" },
+	{ label: "Rename", value: "rename" },
+];
+
 function EditFieldsPanel({
 	node,
 	onDelete,
@@ -980,11 +1007,11 @@ function EditFieldsPanel({
 							<label className="text-[10px] text-text-muted/70">
 								Operation
 							</label>
-							<select
-								className="w-full rounded-[6px] border border-border-muted bg-transparent px-[6px] py-[6px] text-[12px] text-text"
+							<SearchableSelect
+								options={editFieldsOperationOptions}
 								value={op.operation}
-								onChange={(e) => {
-									const newType = e.target.value as
+								onChange={(v) => {
+									const newType = v as
 										| "set"
 										| "remove"
 										| "rename";
@@ -1003,38 +1030,45 @@ function EditFieldsPanel({
 									};
 									updateContent(node, { operations });
 								}}
-							>
-								<option value="set">Set</option>
-								<option value="remove">Remove</option>
-								<option value="rename">Rename</option>
-							</select>
+							/>
 						</div>
 						<div className="flex-1">
-							<label className="text-[10px] text-text-muted/70">
-								Field Name
-							</label>
-							<input
-								type="text"
-								className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text"
+							<FieldWrapper
 								value={op.fieldName}
-								onChange={(e) => {
+								onChange={(v) => {
 									const operations = [
 										...node.content.operations,
 									];
 									operations[i] = {
 										...op,
-										fieldName: e.target.value,
+										fieldName: v,
 									};
 									updateContent(node, { operations });
 								}}
-							/>
+								nodeId={node.id as NodeId}
+								label="Field Name"
+								showContextMenu={false}
+							>
+								<input
+									type="text"
+									className="w-full rounded-r-[6px] border border-l-0 border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+									value={op.fieldName}
+									onChange={(e) => {
+										const operations = [
+											...node.content.operations,
+										];
+										operations[i] = {
+											...op,
+											fieldName: e.target.value,
+										};
+										updateContent(node, { operations });
+									}}
+								/>
+							</FieldWrapper>
 						</div>
 						{op.operation === "set" && (
 							<div className="flex-1">
-								<label className="text-[10px] text-text-muted/70">
-									Value
-								</label>
-								<ExpressionInput
+								<FieldWrapper
 									value={op.value ?? ""}
 									onChange={(v) => {
 										const operations = [
@@ -1046,31 +1080,63 @@ function EditFieldsPanel({
 										};
 										updateContent(node, { operations });
 									}}
-									placeholder="value or expression"
 									nodeId={node.id as NodeId}
-								/>
+									label="Value"
+									showContextMenu={false}
+								>
+									<input
+										type="text"
+										className="w-full rounded-r-[6px] border border-l-0 border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+										value={op.value ?? ""}
+										onChange={(e) => {
+											const operations = [
+												...node.content.operations,
+											];
+											operations[i] = {
+												...op,
+												value: e.target.value,
+											};
+											updateContent(node, { operations });
+										}}
+										placeholder="value or expression"
+									/>
+								</FieldWrapper>
 							</div>
 						)}
 						{op.operation === "rename" && (
 							<div className="flex-1">
-								<label className="text-[10px] text-text-muted/70">
-									New Name
-								</label>
-								<input
-									type="text"
-									className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text"
+								<FieldWrapper
 									value={op.newFieldName ?? ""}
-									onChange={(e) => {
+									onChange={(v) => {
 										const operations = [
 											...node.content.operations,
 										];
 										operations[i] = {
 											...op,
-											newFieldName: e.target.value,
+											newFieldName: v,
 										};
 										updateContent(node, { operations });
 									}}
-								/>
+									nodeId={node.id as NodeId}
+									label="New Name"
+									showContextMenu={false}
+								>
+									<input
+										type="text"
+										className="w-full rounded-r-[6px] border border-l-0 border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+										value={op.newFieldName ?? ""}
+										onChange={(e) => {
+											const operations = [
+												...node.content.operations,
+											];
+											operations[i] = {
+												...op,
+												newFieldName: e.target.value,
+											};
+											updateContent(node, { operations });
+										}}
+									/>
+								</FieldWrapper>
 							</div>
 						)}
 						<button
@@ -1112,6 +1178,11 @@ function EditFieldsPanel({
 }
 
 // ---- Sort Panel ----
+const sortDirectionOptions = [
+	{ label: "Ascending", value: "asc" },
+	{ label: "Descending", value: "desc" },
+];
+
 function SortPanel({
 	node,
 	onDelete,
@@ -1133,49 +1204,60 @@ function SortPanel({
 						className="flex gap-[4px] items-end"
 					>
 						<div className="flex-1">
-							<label className="text-[10px] text-text-muted/70">
-								Field
-							</label>
-							<input
-								type="text"
-								className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text"
+							<FieldWrapper
 								value={key.field}
-								onChange={(e) => {
+								onChange={(v) => {
 									const sortKeys = [
 										...node.content.sortKeys,
 									];
 									sortKeys[i] = {
 										...key,
-										field: e.target.value,
+										field: v,
 									};
 									updateContent(node, { sortKeys });
 								}}
-								placeholder="field name"
-							/>
+								nodeId={node.id as NodeId}
+								label="Field"
+								showContextMenu={false}
+							>
+								<input
+									type="text"
+									className="w-full rounded-r-[6px] border border-l-0 border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+									value={key.field}
+									onChange={(e) => {
+										const sortKeys = [
+											...node.content.sortKeys,
+										];
+										sortKeys[i] = {
+											...key,
+											field: e.target.value,
+										};
+										updateContent(node, { sortKeys });
+									}}
+									placeholder="field name"
+								/>
+							</FieldWrapper>
 						</div>
 						<div className="w-[100px]">
 							<label className="text-[10px] text-text-muted/70">
 								Direction
 							</label>
-							<select
-								className="w-full rounded-[6px] border border-border-muted bg-transparent px-[6px] py-[6px] text-[12px] text-text"
+							<SearchableSelect
+								options={sortDirectionOptions}
 								value={key.direction}
-								onChange={(e) => {
+								onChange={(v) => {
 									const sortKeys = [
 										...node.content.sortKeys,
 									];
 									sortKeys[i] = {
 										...key,
-										direction: e.target.value as
+										direction: v as
 											| "asc"
 											| "desc",
 									};
 									updateContent(node, { sortKeys });
 								}}
-							>
-								<option value="asc">Ascending</option>
-								<option value="desc">Descending</option>
-							</select>
+							/>
 						</div>
 						<button
 							type="button"
@@ -1212,6 +1294,12 @@ function SortPanel({
 }
 
 // ---- Wait Panel ----
+const waitModeOptions = [
+	{ label: "Fixed Time Delay", value: "fixedTime" },
+	{ label: "Wait for Webhook", value: "webhook" },
+	{ label: "Wait for Approval", value: "approval" },
+];
+
 function WaitPanel({
 	node,
 	onDelete,
@@ -1223,22 +1311,18 @@ function WaitPanel({
 			<div className="flex flex-col gap-[16px]">
 				<div>
 					<SettingLabel>Mode</SettingLabel>
-					<select
-						className="rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[13px] text-text"
+					<SearchableSelect
+						options={waitModeOptions}
 						value={node.content.mode}
-						onChange={(e) =>
+						onChange={(v) =>
 							updateContent(node, {
-								mode: e.target.value as
+								mode: v as
 									| "fixedTime"
 									| "webhook"
 									| "approval",
 							})
 						}
-					>
-						<option value="fixedTime">Fixed Time Delay</option>
-						<option value="webhook">Wait for Webhook</option>
-						<option value="approval">Wait for Approval</option>
-					</select>
+					/>
 				</div>
 				{node.content.mode === "fixedTime" && (
 					<div>
@@ -1305,6 +1389,16 @@ function ErrorTriggerPanel({
 }
 
 // ---- Form Trigger Panel ----
+const formFieldTypeOptions = [
+	{ label: "Text", value: "text" },
+	{ label: "Number", value: "number" },
+	{ label: "Email", value: "email" },
+	{ label: "Textarea", value: "textarea" },
+	{ label: "Select", value: "select" },
+	{ label: "Checkbox", value: "checkbox" },
+	{ label: "Date", value: "date" },
+];
+
 function FormTriggerPanel({
 	node,
 	onDelete,
@@ -1408,23 +1502,15 @@ function FormTriggerPanel({
 										<label className="text-[10px] text-text-muted/70">
 											Type
 										</label>
-										<select
-											className="w-full rounded-[6px] border border-border-muted bg-transparent px-[6px] py-[4px] text-[12px] text-text"
+										<SearchableSelect
+											options={formFieldTypeOptions}
 											value={field.type}
-											onChange={(e) =>
+											onChange={(v) =>
 												updateField(i, {
-													type: e.target.value as FormTriggerNode["content"]["fields"][number]["type"],
+													type: v as FormTriggerNode["content"]["fields"][number]["type"],
 												})
 											}
-										>
-											<option value="text">Text</option>
-											<option value="number">Number</option>
-											<option value="email">Email</option>
-											<option value="textarea">Textarea</option>
-											<option value="select">Select</option>
-											<option value="checkbox">Checkbox</option>
-											<option value="date">Date</option>
-										</select>
+										/>
 									</div>
 									<label className="flex items-center gap-[4px] text-[10px] text-text-muted/70 shrink-0">
 										<input
@@ -1523,6 +1609,16 @@ function FormTriggerPanel({
 }
 
 // ---- Aggregate Panel ----
+const aggregateOperationOptions = [
+	{ label: "Sum", value: "sum" },
+	{ label: "Average", value: "avg" },
+	{ label: "Min", value: "min" },
+	{ label: "Max", value: "max" },
+	{ label: "Count", value: "count" },
+	{ label: "Count Distinct", value: "countDistinct" },
+	{ label: "Concatenate", value: "concatenate" },
+];
+
 function AggregatePanel({
 	node,
 	onDelete,
@@ -1570,25 +1666,17 @@ function AggregatePanel({
 								placeholder="field name"
 							/>
 						</div>
-						<div className="w-[100px]">
+						<div className="w-[120px]">
 							<label className="text-[10px] text-text-muted/70">Function</label>
-							<select
-								className="w-full rounded-[6px] border border-border-muted bg-transparent px-[6px] py-[6px] text-[12px] text-text"
+							<SearchableSelect
+								options={aggregateOperationOptions}
 								value={op.operation}
-								onChange={(e) => {
+								onChange={(v) => {
 									const operations = [...ops];
-									operations[i] = { ...op, operation: e.target.value as typeof op.operation };
+									operations[i] = { ...op, operation: v as typeof op.operation };
 									updateContent(node, { operations });
 								}}
-							>
-								<option value="sum">Sum</option>
-								<option value="avg">Average</option>
-								<option value="min">Min</option>
-								<option value="max">Max</option>
-								<option value="count">Count</option>
-								<option value="countDistinct">Count Distinct</option>
-								<option value="concatenate">Concatenate</option>
-							</select>
+							/>
 						</div>
 						<div className="flex-1">
 							<label className="text-[10px] text-text-muted/70">Result Field</label>
@@ -1684,6 +1772,11 @@ function SummarizePanel({
 }
 
 // ---- Limit Panel ----
+const limitKeepOptions = [
+	{ label: "First N items", value: "first" },
+	{ label: "Last N items", value: "last" },
+];
+
 function LimitPanel({
 	node,
 	onDelete,
@@ -1705,14 +1798,11 @@ function LimitPanel({
 				</div>
 				<div>
 					<SettingLabel>Keep</SettingLabel>
-					<select
-						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[13px] text-text"
+					<SearchableSelect
+						options={limitKeepOptions}
 						value={node.content.keep ?? "first"}
-						onChange={(e) => updateContent(node, { keep: e.target.value as "first" | "last" })}
-					>
-						<option value="first">First N items</option>
-						<option value="last">Last N items</option>
-					</select>
+						onChange={(v) => updateContent(node, { keep: v as "first" | "last" })}
+					/>
 				</div>
 			</div>
 		</FlowControlPanelLayout>
@@ -1780,33 +1870,55 @@ function RenameKeysPanel({
 				{mappings.map((m, i) => (
 					<div key={`rk-${i}`} className="flex gap-[4px] items-end">
 						<div className="flex-1">
-							<label className="text-[10px] text-text-muted/70">From</label>
-							<input
-								type="text"
-								className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text"
+							<FieldWrapper
 								value={m.from}
-								onChange={(e) => {
+								onChange={(v) => {
 									const updated = [...mappings];
-									updated[i] = { ...m, from: e.target.value };
+									updated[i] = { ...m, from: v };
 									updateContent(node, { mappings: updated });
 								}}
-								placeholder="old_name"
-							/>
+								nodeId={node.id as NodeId}
+								label="From"
+								showContextMenu={false}
+							>
+								<input
+									type="text"
+									className="w-full rounded-r-[6px] border border-l-0 border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+									value={m.from}
+									onChange={(e) => {
+										const updated = [...mappings];
+										updated[i] = { ...m, from: e.target.value };
+										updateContent(node, { mappings: updated });
+									}}
+									placeholder="old_name"
+								/>
+							</FieldWrapper>
 						</div>
 						<span className="text-[12px] text-text-muted/50 pb-[6px]">&rarr;</span>
 						<div className="flex-1">
-							<label className="text-[10px] text-text-muted/70">To</label>
-							<input
-								type="text"
-								className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text"
+							<FieldWrapper
 								value={m.to}
-								onChange={(e) => {
+								onChange={(v) => {
 									const updated = [...mappings];
-									updated[i] = { ...m, to: e.target.value };
+									updated[i] = { ...m, to: v };
 									updateContent(node, { mappings: updated });
 								}}
-								placeholder="new_name"
-							/>
+								nodeId={node.id as NodeId}
+								label="To"
+								showContextMenu={false}
+							>
+								<input
+									type="text"
+									className="w-full rounded-r-[6px] border border-l-0 border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+									value={m.to}
+									onChange={(e) => {
+										const updated = [...mappings];
+										updated[i] = { ...m, to: e.target.value };
+										updateContent(node, { mappings: updated });
+									}}
+									placeholder="new_name"
+								/>
+							</FieldWrapper>
 						</div>
 						<button
 							type="button"
@@ -1871,6 +1983,11 @@ function SplitOutPanel({
 }
 
 // ---- Compare Datasets Panel ----
+const compareModeOptions = [
+	{ label: "All Matches", value: "allMatches" },
+	{ label: "First Match Only", value: "firstMatchOnly" },
+];
+
 function CompareDatasetsPanel({
 	node,
 	onDelete,
@@ -1899,14 +2016,11 @@ function CompareDatasetsPanel({
 				</div>
 				<div>
 					<SettingLabel>Match Mode</SettingLabel>
-					<select
-						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[13px] text-text"
+					<SearchableSelect
+						options={compareModeOptions}
 						value={node.content.mode ?? "allMatches"}
-						onChange={(e) => updateContent(node, { mode: e.target.value as "allMatches" | "firstMatchOnly" })}
-					>
-						<option value="allMatches">All Matches</option>
-						<option value="firstMatchOnly">First Match Only</option>
-					</select>
+						onChange={(v) => updateContent(node, { mode: v as "allMatches" | "firstMatchOnly" })}
+					/>
 				</div>
 				<div className="rounded-[8px] border border-border-muted p-[12px] text-[12px] text-text-muted">
 					<p>Outputs 4 ports:</p>
@@ -1969,6 +2083,12 @@ function ExecuteSubWorkflowPanel({
 }
 
 // ---- Respond to Webhook Panel ----
+const contentTypeOptions = [
+	{ label: "application/json", value: "application/json" },
+	{ label: "text/plain", value: "text/plain" },
+	{ label: "text/html", value: "text/html" },
+];
+
 function RespondToWebhookPanel({
 	node,
 	onDelete,
@@ -1989,24 +2109,21 @@ function RespondToWebhookPanel({
 				</div>
 				<div>
 					<SettingLabel>Content Type</SettingLabel>
-					<select
-						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[13px] text-text"
+					<SearchableSelect
+						options={contentTypeOptions}
 						value={node.content.contentType ?? "application/json"}
-						onChange={(e) => updateContent(node, { contentType: e.target.value })}
-					>
-						<option value="application/json">application/json</option>
-						<option value="text/plain">text/plain</option>
-						<option value="text/html">text/html</option>
-					</select>
+						onChange={(v) => updateContent(node, { contentType: v })}
+					/>
 				</div>
 				<div>
 					<SettingLabel>Response Body</SettingLabel>
-					<textarea
-						className="w-full min-h-[100px] rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text font-mono resize-y"
+					<InlineCodeEditor
 						value={node.content.responseBody ?? ""}
-						onChange={(e) => updateContent(node, { responseBody: e.target.value })}
+						onChange={(v) => updateContent(node, { responseBody: v })}
+						language="json"
+						minHeight={100}
+						maxHeight={300}
 						placeholder='{"message": "success"}'
-						spellCheck={false}
 					/>
 				</div>
 			</div>
@@ -2059,6 +2176,15 @@ function CustomVariablesPanel({
 	);
 }
 
+// ---- Data Table Panel ----
+const dataTableOperationOptions = [
+	{ label: "Query (Read)", value: "query" },
+	{ label: "Insert (Create)", value: "insert" },
+	{ label: "Update", value: "update" },
+	{ label: "Delete", value: "delete" },
+	{ label: "Upsert (Create or Update)", value: "upsert" },
+];
+
 function DataTablePanel({
 	node,
 	onDelete,
@@ -2089,19 +2215,13 @@ function DataTablePanel({
 				</div>
 				<div>
 					<SettingLabel>Operation</SettingLabel>
-					<select
-						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text-default"
+					<SearchableSelect
+						options={dataTableOperationOptions}
 						value={(node.content as { operation?: string }).operation ?? "query"}
-						onChange={(e) =>
-							updateContent(node, { operation: e.target.value })
+						onChange={(v) =>
+							updateContent(node, { operation: v })
 						}
-					>
-						<option value="query">Query (Read)</option>
-						<option value="insert">Insert (Create)</option>
-						<option value="update">Update</option>
-						<option value="delete">Delete</option>
-						<option value="upsert">Upsert (Create or Update)</option>
-					</select>
+					/>
 				</div>
 				<div>
 					<SettingLabel>Row Limit</SettingLabel>

@@ -15,6 +15,7 @@ import {
 	CopyIcon,
 	LoaderIcon,
 	PlusIcon,
+	TerminalIcon,
 	TrashIcon,
 	XCircleIcon,
 } from "lucide-react";
@@ -34,9 +35,10 @@ import { NodePanelHeader } from "../ui/node-panel-header";
 import { NodeSettingsTab } from "../ui/node-settings-tab";
 import { CommentsTab } from "../ui/comments-tab";
 import { PanelTabs } from "../ui/panel-tabs";
+import { SearchableSelect, type SelectOption } from "../ui/searchable-select";
 import { CredentialSelector } from "./credential-selector";
 import { DynamicPropertyField } from "./dynamic-property-field";
-import { usePieceActionProps } from "./use-piece-action-props";
+import { usePieceActionProps, usePieceInspect } from "./use-piece-action-props";
 
 export function IntegrationNodePropertiesPanel({
 	node,
@@ -61,14 +63,38 @@ export function IntegrationNodePropertiesPanel({
 	const [newKey, setNewKey] = useState("");
 	const [newValue, setNewValue] = useState("");
 	const [copied, setCopied] = useState(false);
+	const [showCurlImport, setShowCurlImport] = useState(false);
+	const [curlInput, setCurlInput] = useState("");
 
-	// Fetch dynamic props from the piece inspector API
+	// Fetch piece info (all actions) and dynamic props for current action
+	const { data: pieceData } = usePieceInspect(node.content.pieceName);
 	const {
 		props: dynamicProps,
 		auth: authInfo,
 		loading: propsLoading,
 		error: propsError,
 	} = usePieceActionProps(node.content.pieceName, node.content.actionName);
+
+	// Action selector options
+	const actionOptions: SelectOption[] = useMemo(() => {
+		if (!pieceData?.actions) return [];
+		return pieceData.actions.map((a) => ({
+			label: a.displayName,
+			value: a.name,
+		}));
+	}, [pieceData]);
+
+	const handleActionChange = useCallback(
+		(newActionName: string) => {
+			if (newActionName === node.content.actionName) return;
+			// Clear configuration when switching actions (old fields don't apply)
+			updateNodeDataContent(node, {
+				actionName: newActionName,
+				configuration: {},
+			});
+		},
+		[node, updateNodeDataContent],
+	);
 
 	const resultText = useMemo(() => {
 		if (!currentGeneration) return null;
@@ -173,6 +199,68 @@ export function IntegrationNodePropertiesPanel({
 		([k]) => !dynamicPropKeys.has(k),
 	);
 
+	const isHttpPiece = node.content.pieceName === "http" || node.content.pieceName === "http-oauth2";
+
+	const handleCurlImport = useCallback(() => {
+		const cmd = curlInput.trim();
+		if (!cmd) return;
+
+		// Simple cURL parser
+		const config: Record<string, unknown> = {};
+
+		// Extract URL: first non-flag argument, or after -X/--url
+		const urlMatch = cmd.match(/curl\s+(?:['"]([^'"]+)['"]|(\S+))/i)
+			?? cmd.match(/(?:--url\s+)(?:['"]([^'"]+)['"]|(\S+))/i);
+		if (urlMatch) {
+			config.url = urlMatch[1] ?? urlMatch[2] ?? "";
+		}
+
+		// Also try to find URL as any https?:// token
+		if (!config.url) {
+			const httpMatch = cmd.match(/(https?:\/\/\S+)/);
+			if (httpMatch) config.url = httpMatch[1].replace(/['"]$/, "");
+		}
+
+		// Extract method: -X METHOD or --request METHOD
+		const methodMatch = cmd.match(/(?:-X|--request)\s+['"]?(\w+)['"]?/i);
+		config.method = methodMatch ? methodMatch[1].toUpperCase() : "GET";
+
+		// Extract headers: -H 'Key: Value' or --header 'Key: Value'
+		const headerRegex = /(?:-H|--header)\s+['"]([^'"]+)['"]/gi;
+		const headers: Record<string, string> = {};
+		let headerMatch: RegExpExecArray | null;
+		while ((headerMatch = headerRegex.exec(cmd)) !== null) {
+			const colonIdx = headerMatch[1].indexOf(":");
+			if (colonIdx > 0) {
+				const key = headerMatch[1].slice(0, colonIdx).trim();
+				const val = headerMatch[1].slice(colonIdx + 1).trim();
+				headers[key] = val;
+			}
+		}
+		if (Object.keys(headers).length > 0) {
+			config.headers = headers;
+		}
+
+		// Extract body: -d 'data' or --data 'data' or --data-raw 'data'
+		const bodyMatch = cmd.match(/(?:-d|--data|--data-raw|--data-binary)\s+['"]([^'"]*)['"]/i)
+			?? cmd.match(/(?:-d|--data|--data-raw|--data-binary)\s+(\S+)/i);
+		if (bodyMatch) {
+			const bodyStr = bodyMatch[1];
+			try {
+				config.body = JSON.parse(bodyStr);
+			} catch {
+				config.body = bodyStr;
+			}
+			if (config.method === "GET") config.method = "POST";
+		}
+
+		// Apply parsed config to the node
+		const merged = { ...configuration, ...config };
+		updateNodeDataContent(node, { configuration: merged });
+		setShowCurlImport(false);
+		setCurlInput("");
+	}, [curlInput, configuration, node, updateNodeDataContent]);
+
 	const integrationColorStyle = useMemo(() => {
 		const color = getPieceCategoryColor(node.content.pieceName);
 		if (!color) return undefined;
@@ -190,6 +278,37 @@ export function IntegrationNodePropertiesPanel({
 						<span>Integration Node</span>
 					</div>
 
+					{/* Import cURL — HTTP piece only */}
+					{isHttpPiece && (
+						<div className="flex flex-col gap-2">
+							<button
+								type="button"
+								className="flex items-center gap-[6px] px-[8px] py-[5px] text-[11px] rounded-[6px] border border-white/10 bg-white/5 text-text-muted hover:text-inverse hover:bg-white/10 transition-colors w-fit"
+								onClick={() => setShowCurlImport(!showCurlImport)}
+							>
+								<TerminalIcon className="size-[12px]" />
+								{showCurlImport ? "Cancel" : "Import cURL"}
+							</button>
+							{showCurlImport && (
+								<div className="flex flex-col gap-[6px]">
+									<textarea
+										className="w-full h-[100px] p-[8px] rounded-[6px] bg-black/30 border border-white/10 text-[11px] text-inverse/80 font-mono resize-y outline-none focus:border-blue-500/30 placeholder:text-text-muted/40"
+										value={curlInput}
+										onChange={(e) => setCurlInput(e.target.value)}
+										placeholder={"curl -X POST 'https://api.example.com/data' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"key\": \"value\"}'"}
+									/>
+									<button
+										type="button"
+										className="self-end px-[10px] py-[4px] text-[11px] rounded-[4px] bg-blue-600/60 text-white hover:bg-blue-500/70 transition-colors"
+										onClick={handleCurlImport}
+									>
+										Import
+									</button>
+								</div>
+							)}
+						</div>
+					)}
+
 					<div className="flex flex-col gap-2">
 						<div className="text-xs text-text-muted">Piece</div>
 						<div className="text-sm text-inverse font-medium">
@@ -199,9 +318,19 @@ export function IntegrationNodePropertiesPanel({
 
 					<div className="flex flex-col gap-2">
 						<div className="text-xs text-text-muted">Action</div>
-						<div className="text-sm text-inverse font-medium">
-							{node.content.actionName}
-						</div>
+						{actionOptions.length > 1 ? (
+							<SearchableSelect
+								options={actionOptions}
+								value={node.content.actionName}
+								onChange={handleActionChange}
+								placeholder="Select action..."
+								className="w-full"
+							/>
+						) : (
+							<div className="text-sm text-inverse font-medium">
+								{pieceData?.actions.find((a) => a.name === node.content.actionName)?.displayName ?? node.content.actionName}
+							</div>
+						)}
 					</div>
 
 					{/* Credential selector - shown when piece requires auth */}
@@ -239,6 +368,9 @@ export function IntegrationNodePropertiesPanel({
 									value={configuration[key]}
 									onChange={(val) => updateConfig(key, val)}
 									nodeId={node.id}
+									pieceName={node.content.pieceName}
+									actionName={node.content.actionName}
+									allValues={configuration}
 								/>
 							))}
 						</div>
@@ -381,6 +513,7 @@ export function IntegrationNodePropertiesPanel({
 		<PropertiesPanelRoot>
 			<NodePanelHeader
 				node={node}
+				docsUrl={`https://www.activepieces.com/pieces/${encodeURIComponent(node.content.pieceName)}`}
 				onChangeName={(name) => updateNodeData(node, { name })}
 				onDelete={() => deleteNode(node.id)}
 			/>

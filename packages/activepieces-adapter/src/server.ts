@@ -31,7 +31,7 @@ export type {
 	PieceTriggerMetadata,
 } from "./piece-registry";
 
-export { inspectPiece, getActionProps } from "./piece-inspector";
+export { inspectPiece, getActionProps, resolveDynamicOptions } from "./piece-inspector";
 export type {
 	PieceInfo,
 	PieceActionInfo,
