@@ -201,18 +201,72 @@ export function FlowControlPropertiesPanel({
 				/>
 			);
 		case "aggregate":
+			return (
+				<AggregatePanel
+					node={node as AggregateNode}
+					onDelete={() => deleteNode(node.id)}
+				/>
+			);
 		case "summarize":
+			return (
+				<SummarizePanel
+					node={node as SummarizeNode}
+					onDelete={() => deleteNode(node.id)}
+				/>
+			);
 		case "limit":
+			return (
+				<LimitPanel
+					node={node as LimitNode}
+					onDelete={() => deleteNode(node.id)}
+				/>
+			);
 		case "removeDuplicates":
+			return (
+				<RemoveDuplicatesPanel
+					node={node as RemoveDuplicatesNode}
+					onDelete={() => deleteNode(node.id)}
+				/>
+			);
 		case "renameKeys":
+			return (
+				<RenameKeysPanel
+					node={node as RenameKeysNode}
+					onDelete={() => deleteNode(node.id)}
+				/>
+			);
 		case "splitOut":
+			return (
+				<SplitOutPanel
+					node={node as SplitOutNode}
+					onDelete={() => deleteNode(node.id)}
+				/>
+			);
 		case "compareDatasets":
+			return (
+				<CompareDatasetsPanel
+					node={node as CompareDatasetsNode}
+					onDelete={() => deleteNode(node.id)}
+				/>
+			);
 		case "executeSubWorkflow":
+			return (
+				<ExecuteSubWorkflowPanel
+					node={node as ExecuteSubWorkflowNode}
+					onDelete={() => deleteNode(node.id)}
+				/>
+			);
 		case "respondToWebhook":
+			return (
+				<RespondToWebhookPanel
+					node={node as RespondToWebhookNode}
+					onDelete={() => deleteNode(node.id)}
+				/>
+			);
 		case "customVariables":
 			return (
-				<GenericFlowControlPanel
-					node={node}
+				<CustomVariablesPanel
+					node={node as CustomVariablesNode}
 					onDelete={() => deleteNode(node.id)}
 				/>
 			);
@@ -1446,45 +1500,536 @@ function FormTriggerPanel({
 	);
 }
 
-// ---- Generic panel for newer data transform nodes ----
-const genericDescriptions: Record<string, string> = {
-	aggregate:
-		"Groups items by a field and computes aggregations (sum, count, avg, min, max) on each group.",
-	summarize:
-		"Produces a statistical summary (count, sum, average, min, max) for numeric fields across all input items.",
-	limit: "Keeps only the first N items from the input, discarding the rest.",
-	removeDuplicates:
-		"Removes duplicate items based on a specified field, keeping only unique entries.",
-	renameKeys:
-		"Renames fields (keys) on each item according to configured old-name to new-name mappings.",
-	splitOut:
-		"Takes an array field inside each item and splits it out so each array element becomes its own item.",
-	compareDatasets:
-		"Compares two input datasets and outputs items that appear in both, only in Input 1, or only in Input 2.",
-	executeSubWorkflow:
-		"Executes another workflow as a sub-workflow, passing data in and receiving results back.",
-	respondToWebhook:
-		"Sends an HTTP response back to the webhook that triggered this workflow execution.",
-	customVariables:
-		"Reads and writes team-level custom variables that persist across workflow executions.",
-};
-
-function GenericFlowControlPanel({
+// ---- Aggregate Panel ----
+function AggregatePanel({
 	node,
 	onDelete,
-}: { node: FlowControlNodeType; onDelete: () => void }) {
-	const desc = genericDescriptions[node.content.type] ?? "Configure this node.";
+}: { node: AggregateNode; onDelete: () => void }) {
+	const updateContent = useUpdateNodeDataContent();
+	const ops = node.content.operations ?? [];
+	const groupBy = node.content.groupBy ?? [];
+
 	return (
 		<FlowControlPanelLayout node={node} onDelete={onDelete}>
 			<div className="flex flex-col gap-[16px]">
 				<div>
-					<SettingLabel>Description</SettingLabel>
-					<p className="text-[11px] text-text-muted/50">{desc}</p>
+					<SettingLabel>Group By Fields</SettingLabel>
+					<p className="text-[11px] text-text-muted/50">
+						Fields to group items by before aggregating.
+					</p>
+					<input
+						type="text"
+						className="mt-[4px] w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text"
+						value={groupBy.join(", ")}
+						onChange={(e) =>
+							updateContent(node, {
+								groupBy: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+							})
+						}
+						placeholder="field1, field2 (comma-separated)"
+					/>
+				</div>
+				<div>
+					<SettingLabel>Aggregation Operations</SettingLabel>
+				</div>
+				{ops.map((op, i) => (
+					<div key={`agg-${i}`} className="flex gap-[4px] items-end">
+						<div className="flex-1">
+							<label className="text-[10px] text-text-muted/70">Field</label>
+							<input
+								type="text"
+								className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text"
+								value={op.field}
+								onChange={(e) => {
+									const operations = [...ops];
+									operations[i] = { ...op, field: e.target.value };
+									updateContent(node, { operations });
+								}}
+								placeholder="field name"
+							/>
+						</div>
+						<div className="w-[100px]">
+							<label className="text-[10px] text-text-muted/70">Function</label>
+							<select
+								className="w-full rounded-[6px] border border-border-muted bg-transparent px-[6px] py-[6px] text-[12px] text-text"
+								value={op.operation}
+								onChange={(e) => {
+									const operations = [...ops];
+									operations[i] = { ...op, operation: e.target.value as typeof op.operation };
+									updateContent(node, { operations });
+								}}
+							>
+								<option value="sum">Sum</option>
+								<option value="avg">Average</option>
+								<option value="min">Min</option>
+								<option value="max">Max</option>
+								<option value="count">Count</option>
+								<option value="countDistinct">Count Distinct</option>
+								<option value="concatenate">Concatenate</option>
+							</select>
+						</div>
+						<div className="flex-1">
+							<label className="text-[10px] text-text-muted/70">Result Field</label>
+							<input
+								type="text"
+								className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text"
+								value={op.resultField}
+								onChange={(e) => {
+									const operations = [...ops];
+									operations[i] = { ...op, resultField: e.target.value };
+									updateContent(node, { operations });
+								}}
+								placeholder="output name"
+							/>
+						</div>
+						<button
+							type="button"
+							className="shrink-0 px-[6px] py-[6px] text-[12px] text-error-500"
+							onClick={() => updateContent(node, { operations: ops.filter((_, j) => j !== i) })}
+						>
+							x
+						</button>
+					</div>
+				))}
+				<button
+					type="button"
+					className="rounded-[8px] border border-dashed border-border-muted px-[12px] py-[8px] text-[12px] text-text-muted hover:border-text-muted/50"
+					onClick={() =>
+						updateContent(node, {
+							operations: [...ops, { field: "", operation: "sum", resultField: "", separator: "" }],
+						})
+					}
+				>
+					+ Add Aggregation
+				</button>
+			</div>
+		</FlowControlPanelLayout>
+	);
+}
+
+// ---- Summarize Panel ----
+function SummarizePanel({
+	node,
+	onDelete,
+}: { node: SummarizeNode; onDelete: () => void }) {
+	const updateContent = useUpdateNodeDataContent();
+	const allOps = ["count", "sum", "avg", "min", "max", "median", "mode", "stddev"] as const;
+
+	return (
+		<FlowControlPanelLayout node={node} onDelete={onDelete}>
+			<div className="flex flex-col gap-[16px]">
+				<div>
+					<SettingLabel>Fields to Summarize</SettingLabel>
+					<p className="text-[11px] text-text-muted/50">
+						Numeric fields to compute statistics on. Leave empty for all numeric fields.
+					</p>
+					<input
+						type="text"
+						className="mt-[4px] w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text"
+						value={(node.content.fields ?? []).join(", ")}
+						onChange={(e) =>
+							updateContent(node, {
+								fields: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+							})
+						}
+						placeholder="price, quantity (comma-separated, or empty for all)"
+					/>
+				</div>
+				<div>
+					<SettingLabel>Statistics</SettingLabel>
+					<div className="flex flex-wrap gap-[6px] mt-[4px]">
+						{allOps.map((op) => (
+							<label key={op} className="flex items-center gap-[4px] text-[12px] text-text-muted">
+								<input
+									type="checkbox"
+									checked={(node.content.operations ?? []).includes(op)}
+									onChange={(e) => {
+										const current = node.content.operations ?? [];
+										const updated = e.target.checked
+											? [...current, op]
+											: current.filter((o) => o !== op);
+										updateContent(node, { operations: updated });
+									}}
+								/>
+								{op}
+							</label>
+						))}
+					</div>
+				</div>
+			</div>
+		</FlowControlPanelLayout>
+	);
+}
+
+// ---- Limit Panel ----
+function LimitPanel({
+	node,
+	onDelete,
+}: { node: LimitNode; onDelete: () => void }) {
+	const updateContent = useUpdateNodeDataContent();
+
+	return (
+		<FlowControlPanelLayout node={node} onDelete={onDelete}>
+			<div className="flex flex-col gap-[16px]">
+				<div>
+					<SettingLabel>Max Items</SettingLabel>
+					<input
+						type="number"
+						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[13px] text-text"
+						value={node.content.maxItems ?? 10}
+						min={0}
+						onChange={(e) => updateContent(node, { maxItems: Number(e.target.value) })}
+					/>
+				</div>
+				<div>
+					<SettingLabel>Keep</SettingLabel>
+					<select
+						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[13px] text-text"
+						value={node.content.keep ?? "first"}
+						onChange={(e) => updateContent(node, { keep: e.target.value as "first" | "last" })}
+					>
+						<option value="first">First N items</option>
+						<option value="last">Last N items</option>
+					</select>
+				</div>
+			</div>
+		</FlowControlPanelLayout>
+	);
+}
+
+// ---- Remove Duplicates Panel ----
+function RemoveDuplicatesPanel({
+	node,
+	onDelete,
+}: { node: RemoveDuplicatesNode; onDelete: () => void }) {
+	const updateContent = useUpdateNodeDataContent();
+
+	return (
+		<FlowControlPanelLayout node={node} onDelete={onDelete}>
+			<div className="flex flex-col gap-[16px]">
+				<div>
+					<SettingLabel>Deduplicate By Fields</SettingLabel>
+					<p className="text-[11px] text-text-muted/50">
+						Fields to check for duplicates. Empty = compare entire objects.
+					</p>
+					<input
+						type="text"
+						className="mt-[4px] w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text"
+						value={(node.content.fields ?? []).join(", ")}
+						onChange={(e) =>
+							updateContent(node, {
+								fields: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+							})
+						}
+						placeholder="email, name (comma-separated)"
+					/>
+				</div>
+				<label className="text-[12px] text-text-muted">
+					<input
+						type="checkbox"
+						className="mr-[6px]"
+						checked={node.content.keepFirst ?? true}
+						onChange={(e) => updateContent(node, { keepFirst: e.target.checked })}
+					/>
+					Keep first occurrence (uncheck to keep last)
+				</label>
+			</div>
+		</FlowControlPanelLayout>
+	);
+}
+
+// ---- Rename Keys Panel ----
+function RenameKeysPanel({
+	node,
+	onDelete,
+}: { node: RenameKeysNode; onDelete: () => void }) {
+	const updateContent = useUpdateNodeDataContent();
+	const mappings = node.content.mappings ?? [];
+
+	return (
+		<FlowControlPanelLayout node={node} onDelete={onDelete}>
+			<div className="flex flex-col gap-[16px]">
+				<div>
+					<SettingLabel>Key Mappings</SettingLabel>
+					<p className="text-[11px] text-text-muted/50">
+						Rename fields on each item. Original field is removed, new name is added.
+					</p>
+				</div>
+				{mappings.map((m, i) => (
+					<div key={`rk-${i}`} className="flex gap-[4px] items-end">
+						<div className="flex-1">
+							<label className="text-[10px] text-text-muted/70">From</label>
+							<input
+								type="text"
+								className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text"
+								value={m.from}
+								onChange={(e) => {
+									const updated = [...mappings];
+									updated[i] = { ...m, from: e.target.value };
+									updateContent(node, { mappings: updated });
+								}}
+								placeholder="old_name"
+							/>
+						</div>
+						<span className="text-[12px] text-text-muted/50 pb-[6px]">&rarr;</span>
+						<div className="flex-1">
+							<label className="text-[10px] text-text-muted/70">To</label>
+							<input
+								type="text"
+								className="w-full rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text"
+								value={m.to}
+								onChange={(e) => {
+									const updated = [...mappings];
+									updated[i] = { ...m, to: e.target.value };
+									updateContent(node, { mappings: updated });
+								}}
+								placeholder="new_name"
+							/>
+						</div>
+						<button
+							type="button"
+							className="shrink-0 px-[6px] py-[6px] text-[12px] text-error-500"
+							onClick={() => updateContent(node, { mappings: mappings.filter((_, j) => j !== i) })}
+						>
+							x
+						</button>
+					</div>
+				))}
+				<button
+					type="button"
+					className="rounded-[8px] border border-dashed border-border-muted px-[12px] py-[8px] text-[12px] text-text-muted hover:border-text-muted/50"
+					onClick={() =>
+						updateContent(node, {
+							mappings: [...mappings, { from: "", to: "" }],
+						})
+					}
+				>
+					+ Add Mapping
+				</button>
+			</div>
+		</FlowControlPanelLayout>
+	);
+}
+
+// ---- Split Out Panel ----
+function SplitOutPanel({
+	node,
+	onDelete,
+}: { node: SplitOutNode; onDelete: () => void }) {
+	const updateContent = useUpdateNodeDataContent();
+
+	return (
+		<FlowControlPanelLayout node={node} onDelete={onDelete}>
+			<div className="flex flex-col gap-[16px]">
+				<div>
+					<SettingLabel>Field to Split</SettingLabel>
+					<p className="text-[11px] text-text-muted/50">
+						Array field to split — each element becomes its own item.
+					</p>
+					<input
+						type="text"
+						className="mt-[4px] w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text"
+						value={node.content.fieldToSplit ?? ""}
+						onChange={(e) => updateContent(node, { fieldToSplit: e.target.value })}
+						placeholder="e.g. items, tags, results"
+					/>
+				</div>
+				<label className="text-[12px] text-text-muted">
+					<input
+						type="checkbox"
+						className="mr-[6px]"
+						checked={node.content.includeOtherFields ?? true}
+						onChange={(e) => updateContent(node, { includeOtherFields: e.target.checked })}
+					/>
+					Include other fields from parent item
+				</label>
+			</div>
+		</FlowControlPanelLayout>
+	);
+}
+
+// ---- Compare Datasets Panel ----
+function CompareDatasetsPanel({
+	node,
+	onDelete,
+}: { node: CompareDatasetsNode; onDelete: () => void }) {
+	const updateContent = useUpdateNodeDataContent();
+
+	return (
+		<FlowControlPanelLayout node={node} onDelete={onDelete}>
+			<div className="flex flex-col gap-[16px]">
+				<div>
+					<SettingLabel>Merge By Fields</SettingLabel>
+					<p className="text-[11px] text-text-muted/50">
+						Fields used to match items between Input A and Input B.
+					</p>
+					<input
+						type="text"
+						className="mt-[4px] w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text"
+						value={(node.content.mergeByFields ?? []).join(", ")}
+						onChange={(e) =>
+							updateContent(node, {
+								mergeByFields: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+							})
+						}
+						placeholder="id, email (comma-separated)"
+					/>
+				</div>
+				<div>
+					<SettingLabel>Match Mode</SettingLabel>
+					<select
+						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[13px] text-text"
+						value={node.content.mode ?? "allMatches"}
+						onChange={(e) => updateContent(node, { mode: e.target.value as "allMatches" | "firstMatchOnly" })}
+					>
+						<option value="allMatches">All Matches</option>
+						<option value="firstMatchOnly">First Match Only</option>
+					</select>
 				</div>
 				<div className="rounded-[8px] border border-border-muted p-[12px] text-[12px] text-text-muted">
-					<p>
-						This node processes data automatically based on its inputs.
-						Connect upstream nodes to provide data.
+					<p>Outputs 4 ports:</p>
+					<ul className="mt-[4px] list-disc pl-[16px] space-y-[2px]">
+						<li>In A Only — items unique to Input A</li>
+						<li>In B Only — items unique to Input B</li>
+						<li>Same — items matching in both</li>
+						<li>Different — items with same key but different values</li>
+					</ul>
+				</div>
+			</div>
+		</FlowControlPanelLayout>
+	);
+}
+
+// ---- Execute Sub-Workflow Panel ----
+function ExecuteSubWorkflowPanel({
+	node,
+	onDelete,
+}: { node: ExecuteSubWorkflowNode; onDelete: () => void }) {
+	const updateContent = useUpdateNodeDataContent();
+
+	return (
+		<FlowControlPanelLayout node={node} onDelete={onDelete}>
+			<div className="flex flex-col gap-[16px]">
+				<div>
+					<SettingLabel>Target Workspace ID</SettingLabel>
+					<input
+						type="text"
+						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text"
+						value={node.content.targetWorkspaceId ?? ""}
+						onChange={(e) => updateContent(node, { targetWorkspaceId: e.target.value })}
+						placeholder="wrks-..."
+					/>
+				</div>
+				<div>
+					<SettingLabel>Timeout (ms)</SettingLabel>
+					<input
+						type="number"
+						className="w-[150px] rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[13px] text-text"
+						value={node.content.timeout ?? 300000}
+						min={1000}
+						max={600000}
+						step={1000}
+						onChange={(e) => updateContent(node, { timeout: Number(e.target.value) })}
+					/>
+				</div>
+				<label className="text-[12px] text-text-muted">
+					<input
+						type="checkbox"
+						className="mr-[6px]"
+						checked={node.content.waitForCompletion ?? true}
+						onChange={(e) => updateContent(node, { waitForCompletion: e.target.checked })}
+					/>
+					Wait for sub-workflow to complete
+				</label>
+			</div>
+		</FlowControlPanelLayout>
+	);
+}
+
+// ---- Respond to Webhook Panel ----
+function RespondToWebhookPanel({
+	node,
+	onDelete,
+}: { node: RespondToWebhookNode; onDelete: () => void }) {
+	const updateContent = useUpdateNodeDataContent();
+
+	return (
+		<FlowControlPanelLayout node={node} onDelete={onDelete}>
+			<div className="flex flex-col gap-[16px]">
+				<div>
+					<SettingLabel>Status Code</SettingLabel>
+					<input
+						type="number"
+						className="w-[100px] rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[13px] text-text"
+						value={node.content.statusCode ?? 200}
+						onChange={(e) => updateContent(node, { statusCode: Number(e.target.value) })}
+					/>
+				</div>
+				<div>
+					<SettingLabel>Content Type</SettingLabel>
+					<select
+						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[13px] text-text"
+						value={node.content.contentType ?? "application/json"}
+						onChange={(e) => updateContent(node, { contentType: e.target.value })}
+					>
+						<option value="application/json">application/json</option>
+						<option value="text/plain">text/plain</option>
+						<option value="text/html">text/html</option>
+					</select>
+				</div>
+				<div>
+					<SettingLabel>Response Body</SettingLabel>
+					<textarea
+						className="w-full min-h-[100px] rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text font-mono resize-y"
+						value={node.content.responseBody ?? ""}
+						onChange={(e) => updateContent(node, { responseBody: e.target.value })}
+						placeholder='{"message": "success"}'
+						spellCheck={false}
+					/>
+				</div>
+			</div>
+		</FlowControlPanelLayout>
+	);
+}
+
+// ---- Custom Variables Panel ----
+function CustomVariablesPanel({
+	node,
+	onDelete,
+}: { node: CustomVariablesNode; onDelete: () => void }) {
+	const updateContent = useUpdateNodeDataContent();
+
+	return (
+		<FlowControlPanelLayout node={node} onDelete={onDelete}>
+			<div className="flex flex-col gap-[16px]">
+				<div>
+					<SettingLabel>Variable Keys</SettingLabel>
+					<p className="text-[11px] text-text-muted/50">
+						Which team variables to inject. Empty = all team variables.
+					</p>
+					<input
+						type="text"
+						className="mt-[4px] w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text"
+						value={(node.content.variableKeys ?? []).join(", ")}
+						onChange={(e) =>
+							updateContent(node, {
+								variableKeys: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+							})
+						}
+						placeholder="API_KEY, BASE_URL (comma-separated)"
+					/>
+				</div>
+				<div>
+					<SettingLabel>Output Prefix</SettingLabel>
+					<input
+						type="text"
+						className="w-[150px] rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text"
+						value={node.content.prefix ?? "vars"}
+						onChange={(e) => updateContent(node, { prefix: e.target.value })}
+						placeholder="vars"
+					/>
+					<p className="mt-[4px] text-[10px] text-text-muted/50">
+						Access variables as $prefix.KEY_NAME in expressions.
 					</p>
 				</div>
 			</div>
@@ -1515,7 +2060,7 @@ function DataTablePanel({
 						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text-default"
 						value={(node.content as { tableName?: string }).tableName ?? ""}
 						onChange={(e) =>
-							updateContent(node.id, { tableName: e.target.value })
+							updateContent(node, { tableName: e.target.value })
 						}
 						placeholder="Enter table name..."
 					/>
@@ -1526,7 +2071,7 @@ function DataTablePanel({
 						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text-default"
 						value={(node.content as { operation?: string }).operation ?? "query"}
 						onChange={(e) =>
-							updateContent(node.id, { operation: e.target.value })
+							updateContent(node, { operation: e.target.value })
 						}
 					>
 						<option value="query">Query (Read)</option>
@@ -1543,7 +2088,7 @@ function DataTablePanel({
 						className="w-full rounded-[8px] border border-border-muted bg-transparent px-[12px] py-[8px] text-[12px] text-text-default"
 						value={(node.content as { limit?: number }).limit ?? 100}
 						onChange={(e) =>
-							updateContent(node.id, {
+							updateContent(node, {
 								limit: Number.parseInt(e.target.value, 10) || 100,
 							})
 						}
