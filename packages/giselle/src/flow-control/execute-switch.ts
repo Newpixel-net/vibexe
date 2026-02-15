@@ -91,11 +91,18 @@ export async function executeSwitch(
 			outputs.set("fallback", data);
 			return { outputs };
 		}
+
+		// No rules matched and no fallback — return empty outputs with no active port
+		// This prevents creating a phantom "fallback" port when hasFallback is false
+		const outputs = buildSwitchOutputs(content, data, null);
+		return { outputs };
 	}
 
-	node.activeOutputPort = "fallback";
+	// Expression mode or unknown mode — pass through on fallback if available
+	if (content.hasFallback) {
+		node.activeOutputPort = "fallback";
+	}
 	const outputs = buildSwitchOutputs(content, data, null);
-	outputs.set("fallback", data);
 	return { outputs };
 }
 

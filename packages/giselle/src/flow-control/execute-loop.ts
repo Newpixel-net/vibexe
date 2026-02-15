@@ -18,7 +18,7 @@ export async function executeLoop(
 
 	if (content.mode === "forEach") {
 		const items = extractArray(inputData);
-		const capped = items.slice(0, content.maxIterations);
+		const capped = items.slice(0, Math.max(0, content.maxIterations));
 		return {
 			outputs: new Map([
 				["item", capped],
@@ -34,7 +34,7 @@ export async function executeLoop(
 	}
 
 	// nTimes mode: generate array of indices [0, 1, ..., n-1]
-	const n = Math.min(content.nTimes ?? 1, content.maxIterations);
+	const n = Math.max(0, Math.min(content.nTimes ?? 1, content.maxIterations));
 	const indices = Array.from({ length: n }, (_, i) => i);
 	return {
 		outputs: new Map([

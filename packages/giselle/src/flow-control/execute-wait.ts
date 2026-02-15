@@ -40,7 +40,7 @@ export async function executeWait(
 		case "webhook": {
 			const webhookId = `wh-wait-${node.nodeId}-${Date.now()}`;
 			const webhookPath = `wait-${webhookId}`;
-			const timeoutMs = Math.min(content.timeoutSeconds, 300) * 1000;
+			const timeoutMs = Math.min(content.timeoutSeconds, 3600) * 1000;
 			const pollInterval = 2000;
 			const startTime = Date.now();
 
@@ -127,7 +127,7 @@ export async function executeWait(
 		case "approval": {
 			const approvalId = `appr-${node.nodeId}-${Date.now()}`;
 			const approvalPath = `approval-${approvalId}`;
-			const timeoutMs = Math.min(content.timeoutSeconds, 300) * 1000;
+			const timeoutMs = Math.min(content.timeoutSeconds, 3600) * 1000;
 			const pollInterval = 2000;
 			const startTime = Date.now();
 

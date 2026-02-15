@@ -166,6 +166,11 @@ export async function executeCode(
 			throw new Error(errMsg);
 		}
 
+		// If code didn't complete within the timeout, throw rather than silently returning input
+		if (!sandbox.__done) {
+			throw new Error(`Code execution timed out after ${timeout}ms`);
+		}
+
 		const result = sandbox.__result;
 
 		return {
