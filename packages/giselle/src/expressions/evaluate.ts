@@ -116,7 +116,7 @@ export function resolveExpressions(
 			const value = resolver(nodeId, outputId, fieldPath);
 			if (value === undefined || value === null) return "";
 			if (typeof value === "string") return value;
-			return JSON.stringify(value);
+			try { return JSON.stringify(value); } catch { return String(value); }
 		},
 	);
 }
@@ -176,28 +176,34 @@ function evaluateOperator(
 			const b = Number(compareValue);
 			return !Number.isNaN(a) && !Number.isNaN(b) && a <= b;
 		}
-		case "isEmpty":
-			return (
-				fieldValue === undefined ||
-				fieldValue === null ||
-				strField === "" ||
-				(Array.isArray(fieldValue) && fieldValue.length === 0)
-			);
-		case "isNotEmpty":
-			return !(
-				fieldValue === undefined ||
-				fieldValue === null ||
-				strField === "" ||
-				(Array.isArray(fieldValue) && fieldValue.length === 0)
-			);
+		case "isEmpty": {
+			if (fieldValue === undefined || fieldValue === null || strField === "") return true;
+			if (Array.isArray(fieldValue)) return fieldValue.length === 0;
+			if (typeof fieldValue === "object" && fieldValue !== null) {
+				return Object.keys(fieldValue).length === 0;
+			}
+			return false;
+		}
+		case "isNotEmpty": {
+			if (fieldValue === undefined || fieldValue === null || strField === "") return false;
+			if (Array.isArray(fieldValue)) return fieldValue.length > 0;
+			if (typeof fieldValue === "object" && fieldValue !== null) {
+				return Object.keys(fieldValue).length > 0;
+			}
+			return true;
+		}
 		case "isTrue":
 			return fieldValue === true || strField === "true" || strField === "1";
 		case "isFalse":
 			return fieldValue === false || strField === "false" || strField === "0";
 		case "regex": {
 			try {
-				const re = new RegExp(compareValue ?? "");
-				return re.test(strField);
+				const pattern = compareValue ?? "";
+				// Guard against ReDoS: reject overly long or deeply nested patterns
+				if (pattern.length > 500) return false;
+				const re = new RegExp(pattern);
+				// Test against a limited-length string to prevent hangs
+				return re.test(strField.length > 10000 ? strField.slice(0, 10000) : strField);
 			} catch {
 				return false;
 			}

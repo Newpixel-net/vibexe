@@ -782,13 +782,18 @@ export async function executeDag(
 			for (const [nodeId, node] of dag.nodes) {
 				if (node.state === "pending" || node.state === "waiting") {
 					node.state = "failed";
+					const errorMsg = "Node stuck: never reached by execution";
 					node.result = {
 						outputs: new Map(),
-						error: new Error("Node stuck: never reached by execution"),
+						error: new Error(errorMsg),
 					};
 					await callbacks.onNodeFailed?.(nodeId, node.result.error);
+					// Route to ErrorTrigger nodes so error workflows can fire
+					dag.routeErrorToTriggers(nodeId, node.operationNode.name ?? nodeId, errorMsg, callbacks);
 				}
 			}
+			// Fire any error triggers that became ready
+			await fireReadyNodes();
 		}
 	}
 

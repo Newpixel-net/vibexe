@@ -107,7 +107,9 @@ function isThreePanelNode(node: unknown): boolean {
 		isCompareDatasetsNode(node) ||
 		isExecuteSubWorkflowNode(node) ||
 		isRespondToWebhookNode(node) ||
-		isCustomVariablesNode(node)
+		isCustomVariablesNode(node) ||
+		isDataTableNode(node) ||
+		isFormTriggerNode(node)
 	);
 }
 

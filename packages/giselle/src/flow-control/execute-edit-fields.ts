@@ -58,7 +58,7 @@ function processItem(
 								const resolved = navigatePath(obj, expr.trim());
 								if (resolved === undefined || resolved === null) return "";
 								if (typeof resolved === "string") return resolved;
-								return JSON.stringify(resolved);
+								try { return JSON.stringify(resolved); } catch { return String(resolved); }
 							},
 						);
 					}
