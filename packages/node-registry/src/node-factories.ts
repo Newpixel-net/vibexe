@@ -1435,8 +1435,10 @@ const errorTriggerFactoryImpl = createSimpleOperationFactory<ErrorTriggerNode>(
 	[],
 	[
 		{ id: OutputId.generate(), label: "Error Message", accessor: "errorMessage" },
-		{ id: OutputId.generate(), label: "Failed Node", accessor: "failedNodeId" },
-		{ id: OutputId.generate(), label: "Output", accessor: "output" },
+		{ id: OutputId.generate(), label: "Failed Node ID", accessor: "failedNodeId" },
+		{ id: OutputId.generate(), label: "Failed Node Name", accessor: "failedNodeName" },
+		{ id: OutputId.generate(), label: "Timestamp", accessor: "timestamp" },
+		{ id: OutputId.generate(), label: "Error Data", accessor: "data" },
 	],
 	{},
 );
