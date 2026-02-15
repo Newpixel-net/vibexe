@@ -69,8 +69,8 @@ export async function executeCode(
 		// N8N-compatible variables
 		$input: {
 			all: () => clonedItems,
-			first: () => clonedItems[0],
-			last: () => clonedItems[clonedItems.length - 1],
+			first: () => clonedItems[0] ?? null,
+			last: () => clonedItems[clonedItems.length - 1] ?? null,
 			item: firstItem,
 		},
 		$json: typeof firstItem === "object" && firstItem !== null ? firstItem : {},

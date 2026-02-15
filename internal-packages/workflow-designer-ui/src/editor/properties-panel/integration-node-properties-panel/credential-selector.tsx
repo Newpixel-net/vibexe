@@ -37,29 +37,35 @@ export function CredentialSelector({
 	const popupRef = useRef<Window | null>(null);
 	const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-	const fetchCredentials = useCallback(() => {
+	const fetchCredentials = useCallback((signal?: AbortSignal) => {
 		setLoading(true);
 		fetch(
 			`/api/integrations/credentials?pieceName=${encodeURIComponent(pieceName)}`,
+			{ signal },
 		)
 			.then(async (res) => {
 				if (!res.ok) return;
 				const data = (await res.json()) as {
 					credentials: CredentialOption[];
 				};
-				setCredentials(data.credentials);
+				if (!signal?.aborted) setCredentials(data.credentials);
 			})
 			.catch((err) => {
+				if (signal?.aborted) return;
 				console.error("Failed to fetch credentials:", err);
 			})
-			.finally(() => setLoading(false));
+			.finally(() => {
+				if (!signal?.aborted) setLoading(false);
+			});
 	}, [pieceName]);
 
 	// Check if one-click OAuth connect is available
 	useEffect(() => {
 		if (authInfo.type !== "OAUTH2") return;
+		const controller = new AbortController();
 		fetch(
 			`/api/integrations/oauth2/status?pieceName=${encodeURIComponent(pieceName)}`,
+			{ signal: controller.signal },
 		)
 			.then(async (res) => {
 				if (!res.ok) return;
@@ -67,10 +73,13 @@ export function CredentialSelector({
 				setOauthStatus(data);
 			})
 			.catch(() => {});
+		return () => controller.abort();
 	}, [pieceName, authInfo.type]);
 
 	useEffect(() => {
-		fetchCredentials();
+		const controller = new AbortController();
+		fetchCredentials(controller.signal);
+		return () => controller.abort();
 	}, [fetchCredentials]);
 
 	// Clean up popup poll on unmount

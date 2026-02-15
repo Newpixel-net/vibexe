@@ -30,24 +30,27 @@ export function CommentsTab({ nodeId }: { nodeId: string }) {
 	const [submitting, setSubmitting] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-	const fetchComments = useCallback(async () => {
+	const fetchComments = useCallback(async (signal?: AbortSignal) => {
 		if (!workspaceId) return;
 		try {
-			const res = await fetch(`/api/agents/by-workspace/comments?workspaceId=${workspaceId}`);
+			const res = await fetch(`/api/agents/by-workspace/comments?workspaceId=${workspaceId}`, { signal });
 			if (res.ok) {
 				const data = await res.json();
 				const nodeComments = data.comments?.[nodeId] ?? [];
-				setComments(nodeComments);
+				if (!signal?.aborted) setComments(nodeComments);
 			}
 		} catch (err) {
+			if (signal?.aborted) return;
 			console.error("Failed to fetch comments:", err);
 		} finally {
-			setLoading(false);
+			if (!signal?.aborted) setLoading(false);
 		}
 	}, [workspaceId, nodeId]);
 
 	useEffect(() => {
-		fetchComments();
+		const controller = new AbortController();
+		fetchComments(controller.signal);
+		return () => controller.abort();
 	}, [fetchComments]);
 
 	const handleSubmit = async () => {

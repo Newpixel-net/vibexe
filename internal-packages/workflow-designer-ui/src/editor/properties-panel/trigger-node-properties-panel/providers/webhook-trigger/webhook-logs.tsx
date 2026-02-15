@@ -125,24 +125,26 @@ export function WebhookLogs({ webhookPath }: { webhookPath: string | null }) {
 	const [loading, setLoading] = useState(false);
 	const [autoRefresh, setAutoRefresh] = useState(false);
 
-	const fetchLogs = useCallback(async () => {
+	const fetchLogs = useCallback(async (signal?: AbortSignal) => {
 		if (!webhookPath) return;
 		setLoading(true);
 		try {
-			const res = await fetch(`/api/webhooks/logs?path=${encodeURIComponent(webhookPath)}&limit=50`);
+			const res = await fetch(`/api/webhooks/logs?path=${encodeURIComponent(webhookPath)}&limit=50`, { signal });
 			if (res.ok) {
 				const data = await res.json();
-				setLogs(data.logs ?? []);
+				if (!signal?.aborted) setLogs(data.logs ?? []);
 			}
 		} catch {
-			// ignore
+			// ignore (includes AbortError)
 		} finally {
-			setLoading(false);
+			if (!signal?.aborted) setLoading(false);
 		}
 	}, [webhookPath]);
 
 	useEffect(() => {
-		fetchLogs();
+		const controller = new AbortController();
+		fetchLogs(controller.signal);
+		return () => controller.abort();
 	}, [fetchLogs]);
 
 	useEffect(() => {
