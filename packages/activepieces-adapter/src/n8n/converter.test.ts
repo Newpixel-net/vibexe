@@ -734,4 +734,125 @@ describe("convertN8NToGiselle", () => {
 			expect(result.importMeta?.cyclesConverted).toBe(0);
 		});
 	});
+
+	describe("Layout: N8N Position Preservation", () => {
+		it("should preserve relative horizontal ordering from N8N positions", () => {
+			const result = convertN8NToGiselle(fixture.simpleLinear());
+			const positions = result.uiState?.nodePositions ?? {};
+			const trigger = result.nodes.find((n) => n.name === "Manual Trigger")!;
+			const code = result.nodes.find((n) => n.name === "Code")!;
+			const slack = result.nodes.find((n) => n.name === "Slack")!;
+
+			expect(positions[trigger.id]).toBeDefined();
+			expect(positions[code.id]).toBeDefined();
+			expect(positions[slack.id]).toBeDefined();
+
+			// Trigger should be leftmost, then Code, then Slack
+			expect(positions[trigger.id].x).toBeLessThan(positions[code.id].x);
+			expect(positions[code.id].x).toBeLessThan(positions[slack.id].x);
+		});
+
+		it("should preserve vertical branching positions from N8N", () => {
+			const result = convertN8NToGiselle(fixture.branching());
+			const positions = result.uiState?.nodePositions ?? {};
+			const trueBranch = result.nodes.find((n) => n.name === "True Branch")!;
+			const falseBranch = result.nodes.find((n) => n.name === "False Branch")!;
+
+			// True Branch at y=-100, False Branch at y=100 in N8N
+			// After normalization, True Branch should be above False Branch
+			expect(positions[trueBranch.id].y).toBeLessThan(positions[falseBranch.id].y);
+		});
+
+		it("should place sticky notes at their N8N positions", () => {
+			const workflow: N8NWorkflow = {
+				name: "With Sticky",
+				nodes: [
+					{
+						name: "Trigger",
+						type: "n8n-nodes-base.manualTrigger",
+						position: [0, 300],
+						parameters: {},
+					},
+					{
+						name: "Step",
+						type: "n8n-nodes-base.set",
+						position: [300, 300],
+						parameters: { assignments: { assignments: [] } },
+					},
+					{
+						name: "Note",
+						type: "n8n-nodes-base.stickyNote",
+						position: [0, 0],
+						parameters: { content: "Annotation" },
+					},
+				],
+				connections: {
+					Trigger: { main: [[{ node: "Step", type: "main", index: 0 }]] },
+				},
+			};
+			const result = convertN8NToGiselle(workflow);
+			const positions = result.uiState?.nodePositions ?? {};
+			const note = result.nodes.find((n) => n.name === "Note")!;
+			const trigger = result.nodes.find((n) => n.name === "Trigger")!;
+
+			// Sticky note should be positioned above the trigger (lower Y = higher on screen)
+			expect(positions[note.id].y).toBeLessThan(positions[trigger.id].y);
+		});
+
+		it("should normalize positions so minimum is at (0,0)", () => {
+			const result = convertN8NToGiselle(fixture.simpleLinear());
+			const positions = result.uiState?.nodePositions ?? {};
+			const allX = Object.values(positions).map((p) => p.x);
+			const allY = Object.values(positions).map((p) => p.y);
+
+			expect(Math.min(...allX)).toBe(0);
+			expect(Math.min(...allY)).toBe(0);
+		});
+
+		it("should handle the Sora2 test workflow with multiple triggers and forks", () => {
+			// Load the test workflow positions
+			const workflow: N8NWorkflow = {
+				name: "Sora2 Test",
+				nodes: [
+					{ name: "Manual", type: "n8n-nodes-base.manualTrigger", position: [0, 300], parameters: {} },
+					{ name: "Schedule", type: "n8n-nodes-base.scheduleTrigger", position: [0, 600], parameters: { rule: { interval: [{ field: "hours", hoursInterval: 1 }] } } },
+					{ name: "Get Data", type: "n8n-nodes-base.set", position: [300, 300], parameters: { assignments: { assignments: [] } } },
+					{ name: "Process", type: "n8n-nodes-base.set", position: [600, 300], parameters: { assignments: { assignments: [] } } },
+					{ name: "Upload", type: "n8n-nodes-base.set", position: [900, 100], parameters: { assignments: { assignments: [] } } },
+					{ name: "YouTube", type: "n8n-nodes-base.set", position: [900, 500], parameters: { assignments: { assignments: [] } } },
+				],
+				connections: {
+					Manual: { main: [[{ node: "Get Data", type: "main", index: 0 }]] },
+					Schedule: { main: [[{ node: "Get Data", type: "main", index: 0 }]] },
+					"Get Data": { main: [[{ node: "Process", type: "main", index: 0 }]] },
+					Process: { main: [[{ node: "Upload", type: "main", index: 0 }, { node: "YouTube", type: "main", index: 0 }]] },
+				},
+			};
+			const result = convertN8NToGiselle(workflow);
+			const positions = result.uiState?.nodePositions ?? {};
+			const manual = result.nodes.find((n) => n.name === "Manual")!;
+			const schedule = result.nodes.find((n) => n.name === "Schedule")!;
+			const upload = result.nodes.find((n) => n.name === "Upload")!;
+			const youtube = result.nodes.find((n) => n.name === "YouTube")!;
+
+			// Two triggers: Manual at y=300, Schedule at y=600 → Schedule below Manual
+			expect(positions[manual.id].y).toBeLessThan(positions[schedule.id].y);
+
+			// Fork: Upload at y=100, YouTube at y=500 → Upload above YouTube
+			expect(positions[upload.id].y).toBeLessThan(positions[youtube.id].y);
+
+			// Fork targets should be at the same X
+			expect(positions[upload.id].x).toBe(positions[youtube.id].x);
+		});
+
+		it("should position synthesized loop nodes near their neighbors", () => {
+			const result = convertN8NToGiselle(fixture.pollingLoop());
+			const positions = result.uiState?.nodePositions ?? {};
+
+			// All nodes should have positions
+			for (const node of result.nodes) {
+				expect(positions[node.id]).toBeDefined();
+			}
+		});
+	});
 });

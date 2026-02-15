@@ -1970,19 +1970,19 @@ function traceCyclePath(
 }
 
 /**
- * Compute a clean left-to-right layout using topological sort.
- * Separates sticky notes (variable nodes) into a row above the main flow.
+ * Compute layout by preserving N8N's original node positions.
+ * Falls back to topological sort when no raw positions are available.
+ *
+ * N8N positions are designed by the user in N8N's visual editor and already
+ * represent the ideal layout. Giselle nodes are ~100px wide vs N8N's ~150px,
+ * so N8N's 300px gaps translate to comfortable 200px visible gaps.
  */
 function computeLayout(
 	nodes: GiselleNodeData[],
 	connections: GiselleConnectionData[],
-	_rawPositions: Record<string, { x: number; y: number }>,
+	rawPositions: Record<string, { x: number; y: number }>,
 ): Record<string, { x: number; y: number }> {
-	const HORIZONTAL_GAP = 450;
-	const VERTICAL_GAP = 280;
-	const STICKY_Y_OFFSET = -400;
-
-	// Separate sticky notes from main flow nodes
+	// Separate sticky notes from flow nodes
 	const stickyNodes: GiselleNodeData[] = [];
 	const flowNodes: GiselleNodeData[] = [];
 	for (const node of nodes) {
@@ -1996,10 +1996,126 @@ function computeLayout(
 		}
 	}
 
+	// Check how many flow nodes have raw positions
+	const flowNodesWithPositions = flowNodes.filter((n) => rawPositions[n.id]);
+
+	if (flowNodesWithPositions.length >= flowNodes.length * 0.5) {
+		// Use N8N positions (majority have positions)
+		return computeLayoutFromRawPositions(
+			flowNodes,
+			stickyNodes,
+			connections,
+			rawPositions,
+		);
+	}
+
+	// Fallback: topological sort layout
+	return computeLayoutTopological(flowNodes, stickyNodes, connections);
+}
+
+/**
+ * Position-preserving layout: uses N8N's original coordinates directly.
+ * Synthesized nodes (e.g. from cycle→loop conversion) are placed relative
+ * to their connected neighbors.
+ */
+function computeLayoutFromRawPositions(
+	flowNodes: GiselleNodeData[],
+	stickyNodes: GiselleNodeData[],
+	connections: GiselleConnectionData[],
+	rawPositions: Record<string, { x: number; y: number }>,
+): Record<string, { x: number; y: number }> {
+	const positions: Record<string, { x: number; y: number }> = {};
+
+	// Place flow nodes that have raw positions
+	for (const node of flowNodes) {
+		const raw = rawPositions[node.id];
+		if (raw) {
+			positions[node.id] = { x: raw.x, y: raw.y };
+		}
+	}
+
+	// Place synthesized nodes (no raw position) relative to neighbors
+	const synthesized = flowNodes.filter((n) => !rawPositions[n.id]);
+	if (synthesized.length > 0) {
+		// Build neighbor lookup
+		const neighbors = new Map<string, string[]>();
+		for (const node of flowNodes) {
+			neighbors.set(node.id, []);
+		}
+		for (const conn of connections) {
+			const src = conn.outputNode.id;
+			const dst = conn.inputNode.id;
+			neighbors.get(src)?.push(dst);
+			neighbors.get(dst)?.push(src);
+		}
+
+		for (const node of synthesized) {
+			const nbrs = (neighbors.get(node.id) ?? [])
+				.filter((id) => positions[id])
+				.map((id) => positions[id]);
+
+			if (nbrs.length > 0) {
+				// Place before neighbors (to the left), at average Y
+				const minX = Math.min(...nbrs.map((p) => p.x));
+				const avgY =
+					nbrs.reduce((sum, p) => sum + p.y, 0) / nbrs.length;
+				positions[node.id] = { x: minX - 250, y: avgY };
+			} else {
+				// No positioned neighbors — place at origin
+				positions[node.id] = { x: 0, y: 0 };
+			}
+		}
+	}
+
+	// Place sticky notes using their raw N8N position
+	for (const node of stickyNodes) {
+		const raw = rawPositions[node.id];
+		if (raw) {
+			positions[node.id] = { x: raw.x, y: raw.y };
+		} else {
+			// Fallback: place above the flow
+			const flowYValues = Object.values(positions).map((p) => p.y);
+			const minFlowY =
+				flowYValues.length > 0 ? Math.min(...flowYValues) : 0;
+			positions[node.id] = { x: 0, y: minFlowY - 200 };
+		}
+	}
+
+	// Normalize: shift so minimum position is at (0, 0)
+	const allPositions = Object.values(positions);
+	if (allPositions.length > 0) {
+		const minX = Math.min(...allPositions.map((p) => p.x));
+		const minY = Math.min(...allPositions.map((p) => p.y));
+		for (const id of Object.keys(positions)) {
+			positions[id] = {
+				x: positions[id].x - minX,
+				y: positions[id].y - minY,
+			};
+		}
+	}
+
+	return positions;
+}
+
+/**
+ * Fallback topological sort layout for workflows without N8N positions.
+ * Uses Kahn's algorithm for layer assignment with fork-aware vertical spreading.
+ */
+function computeLayoutTopological(
+	flowNodes: GiselleNodeData[],
+	stickyNodes: GiselleNodeData[],
+	connections: GiselleConnectionData[],
+): Record<string, { x: number; y: number }> {
+	const HORIZONTAL_GAP = 250;
+	const VERTICAL_GAP = 180;
+
 	// Build adjacency for flow nodes
 	const flowNodeIds = new Set(flowNodes.map((n) => n.id));
 	const adj: Record<string, string[]> = {};
 	const inDegree: Record<string, number> = {};
+	// Track which output port a connection comes from (for fork spreading)
+	const parentOutput = new Map<string, string>(); // childId -> outputId
+
 	for (const n of flowNodes) {
 		adj[n.id] = [];
 		inDegree[n.id] = 0;
@@ -2010,6 +2126,7 @@ function computeLayout(
 		if (flowNodeIds.has(src) && flowNodeIds.has(dst)) {
 			adj[src].push(dst);
 			inDegree[dst] = (inDegree[dst] ?? 0) + 1;
+			parentOutput.set(dst, `${src}:${conn.outputId}`);
 		}
 	}
 
@@ -2028,7 +2145,6 @@ function computeLayout(
 		const nodeId = queue[head++];
 		for (const neighbor of adj[nodeId] ?? []) {
 			const newDepth = (depth[nodeId] ?? 0) + 1;
-			// Take the maximum depth to handle convergent paths
 			depth[neighbor] = Math.max(depth[neighbor] ?? 0, newDepth);
 			inDegree[neighbor] = (inDegree[neighbor] ?? 1) - 1;
 			if (inDegree[neighbor] === 0) {
@@ -2037,7 +2153,7 @@ function computeLayout(
 		}
 	}
 
-	// Handle any nodes not reached (cycles / disconnected) -- assign depth 0
+	// Handle unreached nodes
 	for (const n of flowNodes) {
 		if (depth[n.id] === undefined) {
 			depth[n.id] = 0;
@@ -2052,23 +2168,41 @@ function computeLayout(
 		columns[d].push(n.id);
 	}
 
-	// Position each column
+	// Position each column with fork-aware vertical spreading
 	const positions: Record<string, { x: number; y: number }> = {};
 	for (const [colStr, nodeIds] of Object.entries(columns)) {
 		const col = Number(colStr);
 		const x = col * HORIZONTAL_GAP;
+
+		// Group nodes by their parent output port for fork spreading
+		const groups = new Map<string, string[]>();
+		for (const nodeId of nodeIds) {
+			const key = parentOutput.get(nodeId) ?? "root";
+			if (!groups.has(key)) groups.set(key, []);
+			groups.get(key)!.push(nodeId);
+		}
+
+		// Spread groups vertically, centering around y=0
+		const groupKeys = Array.from(groups.keys());
 		const totalHeight = (nodeIds.length - 1) * VERTICAL_GAP;
-		const startY = -totalHeight / 2;
-		for (let i = 0; i < nodeIds.length; i++) {
-			positions[nodeIds[i]] = { x, y: startY + i * VERTICAL_GAP };
+		let currentY = -totalHeight / 2;
+
+		for (const key of groupKeys) {
+			const group = groups.get(key)!;
+			for (const nodeId of group) {
+				positions[nodeId] = { x, y: currentY };
+				currentY += VERTICAL_GAP;
+			}
 		}
 	}
 
-	// Position sticky notes in a row above the main flow
+	// Position sticky notes above the flow
+	const flowYValues = Object.values(positions).map((p) => p.y);
+	const minFlowY = flowYValues.length > 0 ? Math.min(...flowYValues) : 0;
 	for (let i = 0; i < stickyNodes.length; i++) {
 		positions[stickyNodes[i].id] = {
 			x: i * HORIZONTAL_GAP,
-			y: STICKY_Y_OFFSET,
+			y: minFlowY - 200,
 		};
 	}
 

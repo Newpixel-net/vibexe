@@ -121,7 +121,18 @@ export function useAutoArrange() {
 			return measured?.width ?? 96;
 		};
 
-		// Position each layer
+		// Build a map: for each node, track which parent output port it comes from
+		// This lets us group fork branches visually (e.g., If true/false)
+		const parentOutputPort = new Map<string, string>();
+		for (const conn of connections) {
+			if (conn.connectionType === "subNode") continue;
+			const childId = conn.inputNode.id;
+			if (!parentOutputPort.has(childId)) {
+				parentOutputPort.set(childId, `${conn.outputNode.id}:${conn.outputId}`);
+			}
+		}
+
+		// Position each layer with fork-aware vertical spreading
 		const maxLayer = Math.max(...Array.from(layerGroups.keys()), 0);
 		let currentX = START_X;
 
@@ -135,15 +146,25 @@ export function useAutoArrange() {
 				maxWidth = Math.max(maxWidth, getNodeWidth(nodeId));
 			}
 
-			// Center nodes vertically in this layer
+			// Group nodes by their parent output port for fork spreading
+			// Keeps same-branch nodes together and separates different branches
+			const branchGroups = new Map<string, string[]>();
+			for (const nodeId of group) {
+				const key = parentOutputPort.get(nodeId) ?? "root";
+				if (!branchGroups.has(key)) branchGroups.set(key, []);
+				branchGroups.get(key)!.push(nodeId);
+			}
+
 			const totalHeight = group.length * NODE_SPACING_Y;
 			let currentY = START_Y + (group.length > 1 ? 0 : totalHeight / 2);
 
-			for (const nodeId of group) {
-				setUiNodeState(nodeId, {
-					position: { x: currentX, y: currentY },
-				});
-				currentY += NODE_SPACING_Y;
+			for (const [, branchNodes] of branchGroups) {
+				for (const nodeId of branchNodes) {
+					setUiNodeState(nodeId, {
+						position: { x: currentX, y: currentY },
+					});
+					currentY += NODE_SPACING_Y;
+				}
 			}
 
 			currentX += maxWidth + LAYER_SPACING_X;
