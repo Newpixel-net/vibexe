@@ -82,9 +82,16 @@ export function createWorkspaceSlice(
 				connections: s.connections.filter((c) => c.id !== connectionId),
 			})),
 		removeNodeById: (nodeIdToDelete) =>
-			set((s) => ({
-				nodes: s.nodes.filter((n) => n.id !== NodeId.parse(nodeIdToDelete)),
-			})),
+			set((s) => {
+				const parsedId = NodeId.parse(nodeIdToDelete);
+				return {
+					nodes: s.nodes.filter((n) => n.id !== parsedId),
+					connections: s.connections.filter(
+						(c) =>
+							c.outputNode.id !== parsedId && c.inputNode.id !== parsedId,
+					),
+				};
+			}),
 		setUiNodeState: (nodeId, ui) =>
 			set((s) => {
 				const parsedNodeId = NodeId.parse(nodeId);

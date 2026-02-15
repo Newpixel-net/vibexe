@@ -415,11 +415,18 @@ async function runTaskWithDag(
 							(i) => i.id === conn.inputId,
 						);
 
+						const resolvedOutputPort = outputPort?.accessor ?? (conn.outputId as string | undefined);
+						const resolvedInputPort = inputPort?.accessor ?? (conn.inputId as string | undefined);
+						if (!outputPort && conn.outputId) {
+							console.warn(
+								`[DAG] Port lookup failed: outputId "${conn.outputId}" not found in node ${conn.outputNode.id} outputs. Falling back to raw ID "${resolvedOutputPort}".`,
+							);
+						}
 						dag.addEdge({
 							fromNodeId: conn.outputNode.id as NodeId,
 							toNodeId: conn.inputNode.id as NodeId,
-							fromOutputPort: outputPort?.accessor ?? (conn.outputId as string | undefined),
-							toInputPort: inputPort?.accessor ?? (conn.inputId as string | undefined),
+							fromOutputPort: resolvedOutputPort,
+							toInputPort: resolvedInputPort,
 							connection: conn,
 						});
 					}
@@ -447,8 +454,10 @@ async function runTaskWithDag(
 		// Convert DAG result data to generation outputs for UI display
 		const outputs: GenerationOutput[] = [];
 		if (dagResult && dagNode) {
+			const matchedAccessors = new Set<string>();
 			for (const port of dagNode.operationNode.outputs) {
 				const val = dagResult.outputs.get(port.accessor);
+				matchedAccessors.add(port.accessor);
 				if (val !== undefined && val !== null) {
 					if (typeof val === "string") {
 						outputs.push({
@@ -463,6 +472,25 @@ async function runTaskWithDag(
 							data: val,
 						});
 					}
+				}
+			}
+			// Also capture extra executor outputs not declared as factory ports
+			// so the properties panel can display all result data
+			for (const [key, val] of dagResult.outputs) {
+				if (matchedAccessors.has(key) || val === undefined || val === null) continue;
+				// Use a synthetic outputId for display-only extra outputs
+				if (typeof val === "string") {
+					outputs.push({
+						type: "generated-text" as const,
+						outputId: `extra-${key}` as any,
+						content: val,
+					});
+				} else {
+					outputs.push({
+						type: "structured-data" as const,
+						outputId: `extra-${key}` as any,
+						data: val,
+					});
 				}
 			}
 		}
