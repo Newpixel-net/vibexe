@@ -357,6 +357,28 @@ export async function executeDag(
 			return;
 		}
 
+		// Guard: if this node has upstream edges and NONE of them completed,
+		// skip the node instead of executing with empty data. This prevents
+		// cascading failures when an upstream node fails with stopWorkflow.
+		// Exceptions: Merge nodes (have their own multi-input logic) and
+		// ErrorTrigger nodes (fire on injected error data).
+		const nodeContentType = node.operationNode.content.type;
+		if (nodeContentType !== "merge" && nodeContentType !== "errorTrigger") {
+			const incomingEdges = dag.getIncomingEdges(nodeId);
+			if (incomingEdges.length > 0) {
+				const hasCompletedSource = incomingEdges.some((edge) => {
+					const src = dag.nodes.get(edge.fromNodeId);
+					return src?.state === "completed";
+				});
+				if (!hasCompletedSource) {
+					node.state = "skipped";
+					await callbacks.onNodeSkipped?.(nodeId);
+					await propagateDownstream(nodeId);
+					return;
+				}
+			}
+		}
+
 		node.state = "running";
 		node.startedAt = Date.now();
 		await callbacks.onNodeStart?.(nodeId);
