@@ -151,14 +151,9 @@ export async function duplicateApp(
 		.returning();
 
 	// Copy files
-	const originalApp = await db.query.builderApps.findFirst({
-		where: eq(builderApps.id, appId as BuilderAppId),
-		columns: { dbId: true },
-	});
-
-	if (originalApp) {
+	{
 		const files = await db.query.builderFiles.findMany({
-			where: eq(builderFiles.appDbId, originalApp.dbId),
+			where: eq(builderFiles.appDbId, original.dbId),
 		});
 
 		for (const file of files) {

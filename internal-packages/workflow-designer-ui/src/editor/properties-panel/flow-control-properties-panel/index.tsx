@@ -463,6 +463,7 @@ function SwitchPanel({
 			const hasFallback = newContent.hasFallback ?? true;
 
 			// Build outputs, preserving existing IDs where accessor matches
+			// or by position (handles renames where accessor changed)
 			const existingByAccessor = new Map(
 				node.outputs.map((o) => [o.accessor, o]),
 			);
@@ -472,11 +473,25 @@ function SwitchPanel({
 				accessor: string;
 			}> = [];
 
-			for (const rule of rules) {
-				const existing = existingByAccessor.get(rule.outputPortName);
+			for (let i = 0; i < rules.length; i++) {
+				const rule = rules[i];
+				// Try accessor match first (handles reorder, add, delete)
+				const byAccessor = existingByAccessor.get(rule.outputPortName);
+				// Fall back to position match (handles renames)
+				const byPosition =
+					!byAccessor &&
+					i < node.outputs.length &&
+					node.outputs[i].accessor !== "fallback"
+						? node.outputs[i]
+						: undefined;
+				const existing = byAccessor ?? byPosition;
 				outputs.push(
 					existing
-						? { ...existing, label: rule.name }
+						? {
+								...existing,
+								label: rule.name,
+								accessor: rule.outputPortName,
+							}
 						: {
 								id: OutputId.generate(),
 								label: rule.name,
@@ -969,15 +984,22 @@ function EditFieldsPanel({
 								className="w-full rounded-[6px] border border-border-muted bg-transparent px-[6px] py-[6px] text-[12px] text-text"
 								value={op.operation}
 								onChange={(e) => {
+									const newType = e.target.value as
+										| "set"
+										| "remove"
+										| "rename";
 									const operations = [
 										...node.content.operations,
 									];
 									operations[i] = {
 										...op,
-										operation: e.target.value as
-											| "set"
-											| "remove"
-											| "rename",
+										operation: newType,
+										...(newType !== "set"
+											? { value: undefined }
+											: {}),
+										...(newType !== "rename"
+											? { newFieldName: undefined }
+											: {}),
 									};
 									updateContent(node, { operations });
 								}}
