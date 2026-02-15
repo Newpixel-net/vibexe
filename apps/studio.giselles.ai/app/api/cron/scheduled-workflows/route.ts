@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
 		// --- Cleanup stuck "inProgress" tasks (>15 minutes old) ---
 		let cleanedUp = 0;
 		try {
-			const STUCK_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+			const STUCK_THRESHOLD_MS = 35 * 60 * 1000; // 35 minutes (waitUntilGenerationFinishes allows 30min)
 			// Get all distinct workspace IDs from agents table
 			const workspaces = await db
 				.selectDistinct({ workspaceId: agents.workspaceId })
