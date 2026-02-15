@@ -526,10 +526,22 @@ export function generateContent({
 			});
 
 			let chunkCount = 0;
-			for await (const chunk of uiMessageStream) {
-				chunkCount++;
-				logger.debug(`Adding chunk ${chunkCount}: ${chunk.type}`);
-				writer.add(chunk);
+			try {
+				for await (const chunk of uiMessageStream) {
+					chunkCount++;
+					logger.debug(`Adding chunk ${chunkCount}: ${chunk.type}`);
+					writer.add(chunk);
+				}
+			} catch (streamError) {
+				logger.error(
+					{ error: streamError instanceof Error ? streamError.message : String(streamError) },
+					`${generation.id} stream iteration error after ${chunkCount} chunks`,
+				);
+				// Write an error chunk so the client receives a terminal signal
+				writer.add({
+					type: "error",
+					errorText: streamError instanceof Error ? streamError.message : "Stream processing error",
+				} as StreamItem<typeof uiMessageStream>);
 			}
 			logger.debug(`Stream ended, total chunks: ${chunkCount}`);
 			await writer.close();
@@ -1777,10 +1789,22 @@ IMPORTANT RULES:
 			});
 
 			let chunkCount = 0;
-			for await (const chunk of uiMessageStream) {
-				chunkCount++;
-				logger.debug(`Adding chunk ${chunkCount}: ${chunk.type}`);
-				writer.add(chunk);
+			try {
+				for await (const chunk of uiMessageStream) {
+					chunkCount++;
+					logger.debug(`Adding chunk ${chunkCount}: ${chunk.type}`);
+					writer.add(chunk);
+				}
+			} catch (streamError) {
+				logger.error(
+					{ error: streamError instanceof Error ? streamError.message : String(streamError) },
+					`${generation.id} stream iteration error after ${chunkCount} chunks`,
+				);
+				// Write an error chunk so the client receives a terminal signal
+				writer.add({
+					type: "error",
+					errorText: streamError instanceof Error ? streamError.message : "Stream processing error",
+				} as StreamItem<typeof uiMessageStream>);
 			}
 			logger.debug(`Stream ended, total chunks: ${chunkCount}`);
 			await writer.close();
