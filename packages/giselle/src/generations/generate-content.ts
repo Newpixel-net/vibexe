@@ -1094,6 +1094,11 @@ function generateContentV2({
 			let generationError: unknown | undefined;
 			const textGenerationStartTime = Date.now();
 
+			// Stream inactivity timeout: abort if no data arrives for 3 minutes
+			const STREAM_INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000;
+			let lastStreamActivity = Date.now();
+			let streamTimedOut = false;
+
 			const v2Model = resolveModel(currentModelId);
 			logger.info({
 				modelType: typeof v2Model,
@@ -1349,6 +1354,7 @@ IMPORTANT RULES:
 					return lastStep.finishReason !== "tool-calls";
 				},
 				onChunk: async () => {
+					lastStreamActivity = Date.now();
 					const currentGeneration = await getGeneration({
 						storage: context.storage,
 						generationId: generation.id,
@@ -1789,9 +1795,25 @@ IMPORTANT RULES:
 			});
 
 			let chunkCount = 0;
+
+			// Inactivity timeout: abort stream if no data arrives for 3 minutes
+			lastStreamActivity = Date.now();
+			const inactivityChecker = setInterval(() => {
+				if (Date.now() - lastStreamActivity > STREAM_INACTIVITY_TIMEOUT_MS) {
+					streamTimedOut = true;
+					logger.warn(
+						{ generationId: generation.id, elapsed: `${Math.round((Date.now() - textGenerationStartTime) / 1000)}s` },
+						"Stream inactivity timeout, aborting generation",
+					);
+					abortController.abort();
+					clearInterval(inactivityChecker);
+				}
+			}, 10_000);
+
 			try {
 				for await (const chunk of uiMessageStream) {
 					chunkCount++;
+					lastStreamActivity = Date.now();
 					logger.debug(`Adding chunk ${chunkCount}: ${chunk.type}`);
 					writer.add(chunk);
 				}
@@ -1806,6 +1828,31 @@ IMPORTANT RULES:
 					errorText: streamError instanceof Error ? streamError.message : "Stream processing error",
 				} as StreamItem<typeof uiMessageStream>);
 			}
+			clearInterval(inactivityChecker);
+
+			// Handle stream timeout: explicitly fail the generation
+			if (streamTimedOut && uiMessageStreamResult === undefined) {
+				logger.error(
+					{ generationId: generation.id },
+					"Generation failed due to stream inactivity timeout",
+				);
+				const failedGeneration = {
+					...runningGeneration,
+					status: "failed",
+					failedAt: Date.now(),
+					error: {
+						name: "StreamTimeoutError",
+						message: "No data received from AI provider within 3 minutes. The API may be overloaded or unreachable.",
+					},
+				} satisfies FailedGeneration;
+				await setGeneration(failedGeneration);
+				uiMessageStreamResult = {
+					success: false,
+					failedGeneration,
+					inputMessages: messages,
+				};
+			}
+
 			logger.debug(`Stream ended, total chunks: ${chunkCount}`);
 			await writer.close();
 			logger.debug(`Writer closed`);
