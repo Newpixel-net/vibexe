@@ -430,6 +430,7 @@ export async function executeDag(
 			if (errorConfig?.retryOnFail && node.retryCount < errorConfig.maxRetries) {
 				node.retryCount++;
 				node.state = "waiting";
+				node.result = undefined; // Clear failed result before retry
 				if (errorConfig.retryDelay > 0) {
 					await new Promise((resolve) =>
 						setTimeout(resolve, errorConfig.retryDelay),
@@ -682,6 +683,14 @@ export async function executeDag(
 				console.error(
 					`[dag-executor] Loop body exceeded 100 fire steps at iteration ${i} — possible runaway sub-graph`,
 				);
+				// Treat as fatal — mark loop as failed to prevent resource exhaustion
+				iterationFailed = true;
+				loopNode.state = "failed";
+				loopNode.result = {
+					outputs: new Map([["error", `Loop body exceeded 100 fire steps at iteration ${i}`]]),
+					error: new Error(`Loop body exceeded 100 fire steps at iteration ${i}`),
+				};
+				break; // Exit the for-loop over items
 			}
 
 			// If a body node failed with stopWorkflow, stop the loop entirely

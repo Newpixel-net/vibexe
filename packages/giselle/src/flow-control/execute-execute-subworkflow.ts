@@ -12,6 +12,7 @@ import type { DagNode, DagNodeResult } from "../tasks/dag-executor";
 export async function executeExecuteSubWorkflow(
 	node: DagNode,
 	inputData: Map<string, unknown>,
+	currentWorkspaceId?: string,
 ): Promise<DagNodeResult> {
 	const content = node.operationNode
 		.content as ExecuteSubWorkflowNodeContent;
@@ -26,6 +27,18 @@ export async function executeExecuteSubWorkflow(
 					"ExecuteSubWorkflow: No target workspace configured",
 				],
 				["data", { error: "No target workspace configured" }],
+			]),
+		};
+	}
+
+	// Guard against recursive invocation (workflow calling itself)
+	if (currentWorkspaceId && content.targetWorkspaceId === currentWorkspaceId) {
+		return {
+			outputs: new Map([
+				["output", null],
+				["status", "error"],
+				["error", "ExecuteSubWorkflow: Recursive invocation detected — workflow cannot call itself"],
+				["data", { error: "Recursive invocation detected" }],
 			]),
 		};
 	}

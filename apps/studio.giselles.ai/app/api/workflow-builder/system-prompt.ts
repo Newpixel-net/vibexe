@@ -83,6 +83,7 @@ The Start node is ALWAYS the first node. The End node is ALWAYS the last node. T
      - **Google**: "gemini-2.5-flash" (fast/cheap), "gemini-2.5-pro" (powerful)
        - Google nodes support \`searchGrounding: true\` for built-in web search capability
      - **Perplexity**: "sonar" (basic), "sonar-pro" (web search built-in)
+     - **NVIDIA NIM**: "moonshotai/kimi-k2.5" (Kimi K2.5, 1T MoE, 256K ctx, multimodal)
 
 4. **query** - Semantic search over vector stores
    - Output: "result"
@@ -257,6 +258,82 @@ These nodes enable N8N-style workflow logic. When present, the workflow uses a D
     - Outputs: "errorMessage", "failedNodeId", "output" accessors
     - Connect to a notification node (Slack, email) to alert on failures
 
+### Data Transform Nodes (Array/Object Processing)
+
+22. **aggregate** - Group array items and compute aggregations (sum, avg, count, min, max, countDistinct, concatenate)
+    - Input: "input" accessor (array of objects)
+    - Output: "output" accessor (grouped/aggregated results)
+    - Config: groupBy fields + operations (field, operation, outputField)
+    - Use for: reporting, analytics, grouping data by category
+
+23. **summarize** - Compute statistics across all items (sum, avg, min, max, count)
+    - Input: "input" accessor (array of objects)
+    - Output: "output" accessor (single summary object)
+    - Config: fields to summarize + operation per field
+    - Use for: quick stats, totals, dashboard data
+
+24. **limit** - Restrict number of items in output
+    - Input: "input" accessor (array)
+    - Output: "output" accessor (truncated array)
+    - Config: maxItems (default 10), keep "first" or "last"
+    - Use for: pagination, top-N lists, sampling
+
+25. **removeDuplicates** - Deduplicate array items by specified fields
+    - Input: "input" accessor (array of objects)
+    - Output: "output" accessor (deduplicated array)
+    - Config: fields to compare, keepFirst (true/false)
+    - Use for: cleaning data, removing repeated entries
+
+26. **renameKeys** - Rename object keys/properties
+    - Input: "input" accessor (object or array of objects)
+    - Output: "output" accessor (renamed keys)
+    - Config: mappings array [{from, to}]
+    - Use for: API response normalization, field name standardization
+
+27. **splitOut** - Split an array field into individual items
+    - Input: "input" accessor (object with array field)
+    - Output: "output" accessor (array of individual items)
+    - Config: fieldToSplit, includeOtherFields (preserve parent object fields)
+    - Use for: flattening nested data, processing array items individually
+
+28. **compareDatasets** - Compare two datasets and find differences
+    - Inputs: "inputA" accessor, "inputB" accessor (two arrays to compare)
+    - Outputs: "inAOnly", "inBOnly", "same", "different" accessors
+    - Config: mergeByFields (fields to match on), mode ("allMatches" or "firstMatch")
+    - Use for: data sync, diff reports, finding new/changed/deleted records
+
+### Workflow Control Nodes
+
+29. **executeSubWorkflow** - Execute another workflow as a sub-workflow
+    - Input: "input" accessor (data to pass to sub-workflow)
+    - Outputs: "output" accessor (sub-workflow result), "status" accessor
+    - Config: targetWorkspaceId (the workflow to call), inputMapping (key mappings)
+    - Use for: modular workflows, reusable workflow components
+
+30. **respondToWebhook** - Send HTTP response back to a webhook trigger
+    - Input: "input" accessor (data to include in response)
+    - No outputs (terminal node for webhook response)
+    - Config: statusCode (default 200), headers, responseBody
+    - Use for: webhook-triggered workflows that need to send a response
+
+31. **customVariables** - Define custom variables accessible by downstream nodes
+    - No inputs (generates values)
+    - Output: "variables" accessor (object with defined variables)
+    - Config: variableKeys (list of variable names), prefix
+    - Use for: workflow configuration, shared constants, environment-like values
+
+32. **dataTable** - Create or query a data table
+    - Input: "input" accessor
+    - Output: "data" accessor (table data)
+    - Config: tableId, operation ("query", "insert", "update", "delete"), fields
+    - Use for: persistent data storage within workflows
+
+33. **formTrigger** - Trigger workflow via a form submission
+    - No inputs (entry point)
+    - Output: "formData" accessor (submitted form data)
+    - Config: fields (form field definitions), submitButtonText, title
+    - Use for: user-facing forms that kick off workflows
+
 ### Vector Store Nodes (Advanced — require external setup)
 
 11. **vectorStore** - Vector store for semantic search
@@ -399,7 +476,17 @@ Start → textGen_processor(xAI Grok) → integration_action ──→ End
 errorTrigger → integration_slack (alert: "Workflow failed!")
 Best for: production workflows that need failure alerting.
 
-**Default to Patterns 7-10 when the user asks for automation, integrations, or multi-service workflows.** Default to Patterns 3-4 for content/writing workflows. Default to Patterns 11-13 when the user asks for conditional routing, branching, data filtering/sorting, or error handling. Only use Patterns 5-6 (vectorStore/query) when the user explicitly asks for RAG or document search. Use Pattern 1-2 only for truly simple tasks.
+### Pattern 14: Data Processing Pipeline (Aggregate + Limit + Sort)
+integration_http (fetch API data) → splitOut (flatten nested array) → removeDuplicates (deduplicate) → filter (keep active items) → sort (by date desc) → limit (top 20) → aggregate (group by category, count) → textGen_report(Claude) → End
+Best for: ETL pipelines, data cleanup, analytics dashboards, report generation from API data.
+
+### Pattern 15: Dataset Comparison (CompareDatasets — diff two sources)
+integration_sheets (current data) ──┐
+                                     ├→ compareDatasets → editFields (format changes) → textGen_report(Claude) → integration_slack (alert) → End
+integration_http (new data) ────────┘
+Best for: data sync monitoring, change detection, inventory tracking.
+
+**Default to Patterns 7-10 when the user asks for automation, integrations, or multi-service workflows.** Default to Patterns 3-4 for content/writing workflows. Default to Patterns 11-15 when the user asks for conditional routing, branching, data filtering/sorting, aggregation, or error handling. Only use Patterns 5-6 (vectorStore/query) when the user explicitly asks for RAG or document search. Use Pattern 1-2 only for truly simple tasks.
 
 **IMPORTANT: Prefer integration nodes over textGeneration-only workflows.** When a user says "notify", "send", "create ticket", "add to spreadsheet", "post", "update", etc., use the matching integration node. Integration nodes are what make Giselle powerful — they connect AI with real services.
 
@@ -692,6 +779,7 @@ Choose the right model for each role in the workflow:
 - **OpenAI GPT**: Good for structured output and data extraction. gpt-5-nano for simple tasks, gpt-5-mini for balanced. ALWAYS AVAILABLE.
 - **Google Gemini**: Supports searchGrounding for web search. gemini-2.5-flash is fast. NOTE: Requires Google AI API key — only use if the user confirms Google is configured.
 - **Perplexity**: Has built-in web search. NOTE: Requires Perplexity API key — only use if the user confirms Perplexity is configured.
+- **NVIDIA NIM**: Hosts cutting-edge open-source models. "moonshotai/kimi-k2.5" (1T MoE, 256K ctx). NOTE: Requires NVIDIA API key — only use if the user requests NVIDIA models.
 
 **IMPORTANT: Default to xAI Grok + Anthropic Claude for all workflows.** Use grok-4-1-fast-reasoning for processing/intermediate nodes and claude-sonnet-4.5 for final response nodes. Only use Google or Perplexity when the user specifically requests them or confirms the API keys are set up.
 

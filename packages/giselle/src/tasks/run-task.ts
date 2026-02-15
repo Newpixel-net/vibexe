@@ -558,7 +558,7 @@ async function runTaskWithDag(
 					// Trigger data (if any) is injected as generation inputs by create-task.
 					return { outputs: new Map() };
 				case "executeSubWorkflow":
-					return executeExecuteSubWorkflow(dagNode, inputData);
+					return executeExecuteSubWorkflow(dagNode, inputData, task.workspaceId);
 				case "respondToWebhook":
 					return executeRespondToWebhook(dagNode, inputData);
 				case "customVariables":

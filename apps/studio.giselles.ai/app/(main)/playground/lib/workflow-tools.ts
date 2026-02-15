@@ -79,6 +79,18 @@ export function createWorkflowTools() {
 								"sort",
 								"wait",
 								"errorTrigger",
+								"aggregate",
+								"summarize",
+								"limit",
+								"removeDuplicates",
+								"renameKeys",
+								"splitOut",
+								"compareDatasets",
+								"executeSubWorkflow",
+								"respondToWebhook",
+								"customVariables",
+								"dataTable",
+								"formTrigger",
 							])
 							.describe("The node type"),
 						provider: z
@@ -221,7 +233,7 @@ export function createWorkflowTools() {
 					.describe("The node type to add"),
 				name: z.string().describe("Display name for the node"),
 				llmProvider: z
-					.enum(["openai", "anthropic", "google", "perplexity", "xai"])
+					.enum(["openai", "anthropic", "google", "perplexity", "xai", "nvidia"])
 					.optional()
 					.describe(
 						"LLM provider (required for textGeneration and imageGeneration)",
@@ -416,6 +428,18 @@ export function createWorkflowTools() {
 						case "sort":
 						case "wait":
 						case "errorTrigger":
+						case "aggregate":
+						case "summarize":
+						case "limit":
+						case "removeDuplicates":
+						case "renameKeys":
+						case "splitOut":
+						case "compareDatasets":
+						case "executeSubWorkflow":
+						case "respondToWebhook":
+						case "customVariables":
+						case "dataTable":
+						case "formTrigger":
 							node = nodeFactories.create(type);
 							break;
 						default:
@@ -828,7 +852,7 @@ export function createWorkflowTools() {
 
 					// Check for orphan nodes (no connections at all, except Start/End/ErrorTrigger/FormTrigger which may only have outgoing)
 					for (const node of workspace.nodes) {
-						if (node.content.type === "appEntry" || node.content.type === "end" || node.content.type === "errorTrigger" || node.content.type === "formTrigger") continue;
+						if (node.content.type === "appEntry" || node.content.type === "end" || node.content.type === "errorTrigger" || node.content.type === "formTrigger" || node.content.type === "customVariables") continue;
 						const hasOutgoing = workspace.connections.some((c) => c.outputNode.id === node.id);
 						const hasIncoming = workspace.connections.some((c) => c.inputNode.id === node.id);
 						if (!hasOutgoing && !hasIncoming) {
