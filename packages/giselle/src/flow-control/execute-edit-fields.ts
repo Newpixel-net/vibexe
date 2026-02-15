@@ -45,14 +45,23 @@ function processItem(
 			case "set": {
 				// Value can be a literal or an expression reference to a field
 				let value: unknown = op.value;
-				// If value starts with "{{" it's an expression, resolve from the item
-				if (
-					typeof op.value === "string" &&
-					op.value.startsWith("{{") &&
-					op.value.endsWith("}}")
-				) {
-					const path = op.value.slice(2, -2).trim();
-					value = navigatePath(obj, path);
+				if (typeof op.value === "string" && op.value.includes("{{")) {
+					// Pure single expression like {{field}} — preserves original type
+					const pureMatch = op.value.match(/^\{\{([^}]+)\}\}$/);
+					if (pureMatch) {
+						value = navigatePath(obj, pureMatch[1].trim());
+					} else {
+						// Template interpolation: replace ALL {{field}} placeholders
+						value = op.value.replace(
+							/\{\{([^}]+)\}\}/g,
+							(_match, expr: string) => {
+								const resolved = navigatePath(obj, expr.trim());
+								if (resolved === undefined || resolved === null) return "";
+								if (typeof resolved === "string") return resolved;
+								return JSON.stringify(resolved);
+							},
+						);
+					}
 				}
 				result[op.fieldName] = value;
 				break;
