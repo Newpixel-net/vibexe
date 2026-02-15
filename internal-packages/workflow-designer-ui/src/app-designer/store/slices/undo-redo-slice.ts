@@ -15,6 +15,7 @@ export interface WorkspaceSnapshot {
 	stickyNotes: unknown[];
 	name: string | undefined;
 	nodeState: Record<string, NodeUIState>;
+	selectedConnectionIds?: string[];
 }
 
 export interface UndoRedoSlice {
@@ -45,6 +46,7 @@ function captureSnapshot(s: AppDesignerStoreState): WorkspaceSnapshot {
 		stickyNotes: (s as unknown as Record<string, unknown>).stickyNotes as unknown[] ?? [],
 		name: s.name,
 		nodeState: s.ui.nodeState,
+		selectedConnectionIds: s.ui.selectedConnectionIds as string[] | undefined,
 	};
 }
 
@@ -60,6 +62,7 @@ function restoreSnapshot(
 		ui: {
 			...s.ui,
 			nodeState: snapshot.nodeState,
+			selectedConnectionIds: snapshot.selectedConnectionIds ?? [],
 		},
 	};
 }

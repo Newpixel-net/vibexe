@@ -554,13 +554,26 @@ function V2NodeCanvas() {
 			if (connection.source === connection.target) {
 				return false;
 			}
-			return !connections.some(
+			// Check for duplicate connections
+			if (connections.some(
 				(conn) =>
 					conn.inputNode.id === connection.target &&
 					conn.outputNode.id === connection.source,
-			);
+			)) {
+				return false;
+			}
+			// Semantic validation: check if the connection is actually supported
+			const outputNode = nodes.find((n) => n.id === connection.source);
+			const inputNode = nodes.find((n) => n.id === connection.target);
+			if (!outputNode || !inputNode) {
+				return false;
+			}
+			const supported = isSupportedConnection(outputNode, inputNode, {
+				existingConnections: connections,
+			});
+			return supported.canConnect;
 		},
-		[connections],
+		[connections, nodes],
 	);
 
 	const { pushUndoSnapshot } = useUndoRedoActions((s) => ({
