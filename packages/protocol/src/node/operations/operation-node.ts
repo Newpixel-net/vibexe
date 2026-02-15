@@ -165,6 +165,11 @@ export const OperationNode = NodeBase.extend({
 	pinnedData: z.unknown().optional(),
 	alwaysOutputData: z.boolean().optional(),
 	executeOnce: z.boolean().optional(),
+	credentialHint: z.object({
+		n8nCredentialType: z.string(),
+		n8nCredentialName: z.string(),
+		suggestedPiece: z.string().nullable(),
+	}).optional(),
 });
 export type OperationNode = z.infer<typeof OperationNode>;
 
@@ -214,6 +219,11 @@ export const OperationNodeLike = NodeBase.extend({
 			CompareDatasetsNodeContent.shape.type,
 		]),
 	}),
+	credentialHint: z.object({
+		n8nCredentialType: z.string(),
+		n8nCredentialName: z.string(),
+		suggestedPiece: z.string().nullable(),
+	}).optional(),
 });
 
 export type OperationNodeLike = z.infer<typeof OperationNodeLike>;
