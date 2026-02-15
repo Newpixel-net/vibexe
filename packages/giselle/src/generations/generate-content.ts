@@ -1094,19 +1094,25 @@ function generateContentV2({
 			let generationError: unknown | undefined;
 			const textGenerationStartTime = Date.now();
 
-			// Stream timeout: abort if generation doesn't complete within 3 minutes
-			const STREAM_TIMEOUT_MS = 3 * 60 * 1000;
+			// Rolling inactivity timeout: abort if no stream activity for 2 minutes
+			// Resets on each chunk received, so active streams never trigger it
+			const STREAM_INACTIVITY_TIMEOUT_MS = 2 * 60 * 1000;
 			let lastStreamActivity = Date.now();
 			let streamTimedOut = false;
-			// Global generation timeout using setTimeout (fires even if for-await blocks)
-			const globalTimeout = setTimeout(() => {
+			const onStreamTimeout = () => {
 				streamTimedOut = true;
 				logger.warn(
 					{ generationId: generation.id, elapsed: `${Math.round((Date.now() - textGenerationStartTime) / 1000)}s` },
-					"Global generation timeout (3min), aborting",
+					"Stream inactivity timeout (2min no data), aborting",
 				);
-				abortController.abort("Generation timeout: no response within 3 minutes");
-			}, STREAM_TIMEOUT_MS);
+				abortController.abort("Stream inactivity timeout: no data for 2 minutes");
+			};
+			let streamTimeoutHandle = setTimeout(onStreamTimeout, STREAM_INACTIVITY_TIMEOUT_MS);
+			const resetStreamTimeout = () => {
+				lastStreamActivity = Date.now();
+				clearTimeout(streamTimeoutHandle);
+				streamTimeoutHandle = setTimeout(onStreamTimeout, STREAM_INACTIVITY_TIMEOUT_MS);
+			};
 
 			const v2Model = resolveModel(currentModelId);
 			logger.info({
@@ -1364,7 +1370,7 @@ IMPORTANT RULES:
 					return lastStep.finishReason !== "tool-calls";
 				},
 				onChunk: async () => {
-					lastStreamActivity = Date.now();
+					resetStreamTimeout();
 					const currentGeneration = await getGeneration({
 						storage: context.storage,
 						generationId: generation.id,
@@ -1454,7 +1460,7 @@ IMPORTANT RULES:
 			let uiMessageStreamResult: GenerateContentResult | undefined;
 			const uiMessageStream = streamTextResult.toUIMessageStream({
 				onFinish: async ({ messages: generateMessages }) => {
-					clearTimeout(globalTimeout);
+					clearTimeout(streamTimeoutHandle);
 					logger.info(
 						`Text generation stream completed in ${Date.now() - textGenerationStartTime}ms`,
 					);
@@ -1813,7 +1819,7 @@ IMPORTANT RULES:
 			try {
 				for await (const chunk of uiMessageStream) {
 					chunkCount++;
-					lastStreamActivity = Date.now();
+					resetStreamTimeout();
 					if (chunkCount <= 3 || chunkCount % 50 === 0) {
 						logger.info({ chunkCount, type: chunk.type, generationId: generation.id }, "Stream chunk received");
 					}
@@ -1831,7 +1837,7 @@ IMPORTANT RULES:
 				} as StreamItem<typeof uiMessageStream>);
 			}
 
-			clearTimeout(globalTimeout);
+			clearTimeout(streamTimeoutHandle);
 
 			// Handle stream timeout: explicitly fail the generation
 			if (streamTimedOut && uiMessageStreamResult === undefined) {
@@ -1845,7 +1851,7 @@ IMPORTANT RULES:
 					failedAt: Date.now(),
 					error: {
 						name: "StreamTimeoutError",
-						message: "No data received from AI provider within 3 minutes. The API may be overloaded or unreachable.",
+						message: "No data received from AI provider for 2 minutes. The API may be overloaded or unreachable.",
 					},
 				} satisfies FailedGeneration;
 				await setGeneration(failedGeneration);
