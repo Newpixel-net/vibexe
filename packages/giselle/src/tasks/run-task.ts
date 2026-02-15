@@ -316,7 +316,7 @@ export async function runTask(
 		executionError = error as Error;
 	}
 
-	patchQueue.cleanup();
+	await patchQueue.cleanup();
 	if (executionError !== null) {
 		// Trigger error workflow callback
 		if (args.callbacks?.onTaskFailed) {
@@ -768,7 +768,7 @@ async function runTaskWithDag(
 	]);
 
 	await patchQueue.flush();
-	patchQueue.cleanup();
+	await patchQueue.cleanup();
 
 	// Trigger error workflow callback if task failed
 	if (finalStatus === "failed" && args.callbacks?.onTaskFailed) {

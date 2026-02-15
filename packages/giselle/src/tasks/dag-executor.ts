@@ -657,7 +657,7 @@ export async function executeDag(
 			}
 
 			// Fire ready nodes until the loop body sub-graph completes
-			let maxSteps = 100; // safety limit
+			let maxSteps = 1000; // safety limit (complex loop bodies may need many fire steps)
 			let iterationFailed = false;
 			while (maxSteps-- > 0) {
 				const readyInBody: NodeId[] = [];
@@ -682,14 +682,14 @@ export async function executeDag(
 
 			if (maxSteps <= 0) {
 				console.error(
-					`[dag-executor] Loop body exceeded 100 fire steps at iteration ${i} — possible runaway sub-graph`,
+					`[dag-executor] Loop body exceeded 1000 fire steps at iteration ${i} — possible runaway sub-graph`,
 				);
 				// Treat as fatal — mark loop as failed to prevent resource exhaustion
 				iterationFailed = true;
 				loopNode.state = "failed";
 				loopNode.result = {
-					outputs: new Map([["error", `Loop body exceeded 100 fire steps at iteration ${i}`]]),
-					error: new Error(`Loop body exceeded 100 fire steps at iteration ${i}`),
+					outputs: new Map([["error", `Loop body exceeded 1000 fire steps at iteration ${i}`]]),
+					error: new Error(`Loop body exceeded 1000 fire steps at iteration ${i}`),
 				};
 				break; // Exit the for-loop over items
 			}

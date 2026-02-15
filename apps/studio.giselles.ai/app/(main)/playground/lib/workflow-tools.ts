@@ -583,16 +583,31 @@ export function createWorkflowTools() {
 					}
 
 					// Find or create input on target node
+					// Prefer using pre-defined input ports (e.g. Merge's input1/input2)
+					// over creating new ones with auto-derived accessor names
 					let actualInputId = targetInputId;
 					if (!actualInputId) {
-						const newInputId = InputId.generate();
-						const newInput = {
-							id: newInputId,
-							label: sourceNode.name ?? "Input",
-							accessor: sourceNode.name?.toLowerCase().replace(/\s+/g, "-") ?? "input",
-						};
-						targetNode.inputs.push(newInput);
-						actualInputId = newInputId;
+						const connectedInputIds = new Set(
+							workspace.connections
+								.filter((c) => c.inputNode.id === targetNode.id)
+								.map((c) => c.inputId),
+						);
+						const unusedInput = targetNode.inputs.find(
+							(inp) => !connectedInputIds.has(inp.id),
+						);
+
+						if (unusedInput) {
+							actualInputId = unusedInput.id;
+						} else {
+							const newInputId = InputId.generate();
+							const newInput = {
+								id: newInputId,
+								label: sourceNode.name ?? "Input",
+								accessor: sourceNode.name?.toLowerCase().replace(/\s+/g, "-") ?? "input",
+							};
+							targetNode.inputs.push(newInput);
+							actualInputId = newInputId;
+						}
 					}
 
 					const connectionData = {

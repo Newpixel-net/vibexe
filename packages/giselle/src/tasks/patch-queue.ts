@@ -157,21 +157,24 @@ export function createPatchQueue(
 
 	/**
 	 * Stops the batch processing and cleans up resources
-	 * Discards any remaining patches without processing them
+	 * Flushes remaining patches before clearing to prevent data loss
 	 */
-	function cleanup() {
+	async function cleanup() {
 		if (state.intervalId !== null) {
 			clearInterval(state.intervalId);
 			state.intervalId = null;
 		}
 
-		// Clear the queue without processing remaining patches
-		// Since cleanup indicates end of task execution, remaining patches
-		// likely represent incomplete or invalid state changes
-		if (state.queue.length > 0) {
-			console.warn(
-				`Discarding ${state.queue.length} unprocessed patches during cleanup`,
-			);
+		// Flush remaining patches before cleanup to prevent data loss
+		if (state.queue.length > 0 || state.processing) {
+			try {
+				await flush();
+			} catch (error) {
+				console.error(
+					`Failed to flush ${state.queue.length} patches during cleanup:`,
+					error,
+				);
+			}
 		}
 		state.queue = [];
 	}

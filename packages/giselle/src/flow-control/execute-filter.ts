@@ -19,7 +19,7 @@ export async function executeFilter(
 	const discarded: unknown[] = [];
 
 	for (const item of items) {
-		if (evaluateConditionGroup(content.conditionGroup, item)) {
+		if (content.conditionGroup && evaluateConditionGroup(content.conditionGroup, item)) {
 			kept.push(item);
 		} else {
 			discarded.push(item);
