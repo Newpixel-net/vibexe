@@ -41,6 +41,10 @@ export async function GET(request: Request) {
 	const provider = cookieStore.get("oauth2_provider")?.value;
 
 	if (!storedState || storedState !== state) {
+		// Delete cookies on CSRF failure to prevent replay
+		cookieStore.delete("oauth2_state");
+		cookieStore.delete("oauth2_piece");
+		cookieStore.delete("oauth2_provider");
 		return htmlResponse(
 			closePopupHtml(
 				false,
@@ -50,6 +54,9 @@ export async function GET(request: Request) {
 	}
 
 	if (!pieceName || !provider) {
+		cookieStore.delete("oauth2_state");
+		cookieStore.delete("oauth2_piece");
+		cookieStore.delete("oauth2_provider");
 		return htmlResponse(
 			closePopupHtml(false, "Session expired. Please try again."),
 		);
@@ -135,9 +142,25 @@ export async function GET(request: Request) {
 
 		const tokens = (await tokenResponse.json()) as Record<string, unknown>;
 
+		// Validate access_token is present
+		if (!tokens.access_token || typeof tokens.access_token !== "string") {
+			console.error("OAuth2 token response missing access_token:", Object.keys(tokens));
+			return htmlResponse(
+				closePopupHtml(
+					false,
+					"Provider returned invalid token response (missing access_token).",
+				),
+			);
+		}
+
 		// 4. Build credential config with all necessary data for future refreshes
 		const now = Date.now();
-		const expiresIn = tokens.expires_in as number | undefined;
+		const rawExpiresIn = tokens.expires_in;
+		const expiresIn = typeof rawExpiresIn === "number" && rawExpiresIn > 0
+			? rawExpiresIn
+			: typeof rawExpiresIn === "string" && Number(rawExpiresIn) > 0
+				? Number(rawExpiresIn)
+				: undefined;
 		const credentialConfig: Record<string, unknown> = {
 			accessToken: tokens.access_token,
 			refreshToken: tokens.refresh_token,

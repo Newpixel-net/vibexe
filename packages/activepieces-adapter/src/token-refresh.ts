@@ -20,7 +20,7 @@ interface OAuth2Config {
  * Check if an OAuth2 token is expired or about to expire (within 5 minutes).
  */
 function isTokenExpired(config: OAuth2Config): boolean {
-	if (!config.expiresAt) return false; // No expiry info, assume valid
+	if (!config.expiresAt || Number.isNaN(config.expiresAt)) return false;
 	const bufferMs = 5 * 60 * 1000; // 5 minutes buffer
 	return Date.now() >= config.expiresAt - bufferMs;
 }
@@ -67,15 +67,20 @@ async function refreshOAuth2Token(
 
 	const tokens = (await response.json()) as Record<string, unknown>;
 
+	const rawExpiresIn = tokens.expires_in;
+	const expiresIn = typeof rawExpiresIn === "number" && rawExpiresIn > 0
+		? rawExpiresIn
+		: typeof rawExpiresIn === "string" && Number(rawExpiresIn) > 0
+			? Number(rawExpiresIn)
+			: undefined;
+
 	return {
 		accessToken: (tokens.access_token as string) ?? config.accessToken,
 		refreshToken:
 			(tokens.refresh_token as string) ?? config.refreshToken,
 		tokenType: (tokens.token_type as string) ?? config.tokenType ?? "Bearer",
-		expiresIn: tokens.expires_in as number | undefined,
-		expiresAt: tokens.expires_in
-			? Date.now() + (tokens.expires_in as number) * 1000
-			: undefined,
+		expiresIn,
+		expiresAt: expiresIn ? Date.now() + expiresIn * 1000 : undefined,
 	};
 }
 

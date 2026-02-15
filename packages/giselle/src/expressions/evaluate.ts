@@ -228,7 +228,10 @@ export function evaluateConditionGroup(
 	group: ConditionGroup,
 	data: unknown,
 ): boolean {
-	if (group.conditions.length === 0) return true;
+	if (group.conditions.length === 0) {
+		// AND of nothing = true (vacuous truth), OR of nothing = false
+		return group.combineWith !== "or";
+	}
 
 	if (group.combineWith === "or") {
 		return group.conditions.some((c) => evaluateCondition(c, data));
