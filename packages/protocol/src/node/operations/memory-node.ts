@@ -2,7 +2,7 @@ import * as z from "zod/v4";
 
 export const MemoryNodeContent = z.object({
 	type: z.literal("memoryNode"),
-	memoryType: z.enum(["simpleMemory", "windowBuffer", "tokenBuffer", "summary"]),
+	memoryType: z.enum(["simpleMemory", "windowBuffer", "tokenBuffer", "summary", "postgresMemory"]),
 	contextWindowLength: z.number().default(10),
 	sessionScope: z.enum(["workspace", "agent"]).default("agent"),
 	maxTokens: z.number().default(4000).optional(),

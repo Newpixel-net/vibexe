@@ -21,7 +21,7 @@ export function MemoryNodePropertiesPanel({
 	const handleMemoryTypeChange = useCallback(
 		(value: string) => {
 			updateNodeDataContent(node, {
-				memoryType: value as "simpleMemory" | "windowBuffer",
+				memoryType: value as "simpleMemory" | "windowBuffer" | "tokenBuffer" | "summary" | "postgresMemory",
 			});
 		},
 		[node, updateNodeDataContent],
@@ -61,15 +61,55 @@ export function MemoryNodePropertiesPanel({
 						onChange={(e) => handleMemoryTypeChange(e.target.value)}
 						className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
 					>
-						<option value="simpleMemory">Simple Memory</option>
-						<option value="windowBuffer">Window Buffer</option>
+						<optgroup label="In-Memory">
+							<option value="simpleMemory">Simple Memory</option>
+							<option value="windowBuffer">Window Buffer</option>
+							<option value="tokenBuffer">Token Buffer</option>
+							<option value="summary">Summary Memory</option>
+						</optgroup>
+						<optgroup label="Persistent (Database)">
+							<option value="postgresMemory">PostgreSQL Memory</option>
+						</optgroup>
 					</select>
 					<p className="text-[11px] text-inverse/40">
 						{node.content.memoryType === "simpleMemory"
-							? "Stores all conversation messages. Best for short sessions."
-							: "Keeps only the last N messages. Best for long-running agents."}
+							? "Stores all conversation messages in memory. Lost on restart."
+							: node.content.memoryType === "windowBuffer"
+								? "Keeps only the last N messages. Best for long-running agents."
+								: node.content.memoryType === "tokenBuffer"
+									? "Keeps messages that fit within a token budget."
+									: node.content.memoryType === "summary"
+										? "Summarizes old messages, keeps recent ones."
+										: node.content.memoryType === "postgresMemory"
+											? "Persists chat history in PostgreSQL. Survives restarts."
+											: "Select a memory type."}
 					</p>
 				</div>
+
+				{/* Max Tokens (for token buffer) */}
+				{node.content.memoryType === "tokenBuffer" && (
+					<div className="flex flex-col gap-[8px]">
+						<SettingLabel>Max Tokens</SettingLabel>
+						<div className="flex items-center gap-[8px]">
+							<input
+								type="number"
+								min={100}
+								max={128000}
+								value={node.content.maxTokens ?? 4000}
+								onChange={(e) =>
+									updateNodeDataContent(node, {
+										maxTokens: Math.max(100, Math.min(128000, Number.parseInt(e.target.value) || 4000)),
+									})
+								}
+								className="w-[100px] bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
+							/>
+							<span className="text-[11px] text-inverse/40">tokens</span>
+						</div>
+						<p className="text-[11px] text-inverse/40">
+							Keep messages that fit within this token budget.
+						</p>
+					</div>
+				)}
 
 				{/* Context Window Length */}
 				<div className="flex flex-col gap-[8px]">

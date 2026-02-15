@@ -2,6 +2,8 @@ import { type AnthropicProviderOptions, anthropic } from "@ai-sdk/anthropic";
 import {
 	loadMemory,
 	saveMemory,
+	loadPostgresMemory,
+	savePostgresMemory,
 	buildSessionKey,
 } from "./v2/memory/memory-store";
 import { evaluateGuardrails } from "../guardrails";
@@ -43,8 +45,10 @@ import {
 	stepCountIs,
 	streamText,
 	type Tool,
+	tool as defineTool,
 	type UIMessage,
 } from "ai";
+import z from "zod/v4";
 import { generationUiMessageChunksPath } from "../path";
 import { decryptSecret } from "../secrets";
 import type { GiselleContext } from "../types";
@@ -752,6 +756,11 @@ function generateContentV2({
 							reviewToolDescription?: string;
 							targetWorkspaceId?: string;
 							targetEntryNodeId?: string;
+							httpUrl?: string;
+							httpMethod?: string;
+							httpHeaders?: Record<string, string>;
+							httpBody?: string;
+							httpDescription?: string;
 						};
 
 						if (
@@ -790,6 +799,79 @@ function generateContentV2({
 							logger.info(
 								{ toolName: toolContent.builtinToolName },
 								"AI Agent adding web search tool from Tool sub-node",
+							);
+						} else if (toolContent.toolType === "httpRequest") {
+							// HTTP Request Tool — allows AI to make HTTP calls
+							const httpToolName = `http_request_${subNode.id.replace(/[^a-zA-Z0-9]/g, "_")}`;
+							const defaultMethod = toolContent.httpMethod ?? "GET";
+							const defaultUrl = toolContent.httpUrl ?? "";
+							const defaultHeaders = toolContent.httpHeaders ?? {};
+							const defaultBody = toolContent.httpBody ?? "";
+							const description = toolContent.httpDescription ?? `Make an HTTP ${defaultMethod} request`;
+
+							const httpInputSchema: Record<string, z.ZodTypeAny> = {
+								url: z.string().describe(`URL to request${defaultUrl ? ` (default: ${defaultUrl})` : ""}`),
+							};
+							if (!defaultUrl) {
+								// URL is required if not pre-configured
+							} else {
+								httpInputSchema.url = httpInputSchema.url.optional();
+							}
+							httpInputSchema.method = z.string().describe(`HTTP method (default: ${defaultMethod})`).optional();
+							if (defaultMethod !== "GET" && defaultMethod !== "HEAD") {
+								httpInputSchema.body = z.string().describe("Request body (JSON string)").optional();
+							}
+
+							toolSet[httpToolName] = defineTool({
+								description,
+								inputSchema: z.object(httpInputSchema),
+								execute: async (params: Record<string, unknown>) => {
+									try {
+										const url = (params.url as string) || defaultUrl;
+										const method = (params.method as string) || defaultMethod;
+										if (!url) return JSON.stringify({ error: true, message: "No URL provided" });
+
+										const headers: Record<string, string> = { ...defaultHeaders };
+										const fetchInit: RequestInit = { method, headers };
+
+										if (method !== "GET" && method !== "HEAD") {
+											const body = (params.body as string) || defaultBody;
+											if (body) {
+												fetchInit.body = body;
+												if (!headers["Content-Type"]) {
+													headers["Content-Type"] = "application/json";
+												}
+											}
+										}
+
+										const response = await fetch(url, fetchInit);
+										const text = await response.text();
+
+										// Try to parse as JSON for cleaner output
+										try {
+											const json = JSON.parse(text);
+											return JSON.stringify({
+												status: response.status,
+												statusText: response.statusText,
+												data: json,
+											}, null, 2);
+										} catch {
+											return JSON.stringify({
+												status: response.status,
+												statusText: response.statusText,
+												data: text.slice(0, 5000), // Limit response size
+											}, null, 2);
+										}
+									} catch (error) {
+										const msg = error instanceof Error ? error.message : String(error);
+										logger.error({ error: msg }, "HTTP Request tool failed");
+										return JSON.stringify({ error: true, message: `HTTP request failed: ${msg}` });
+									}
+								},
+							});
+							logger.info(
+								{ toolName: httpToolName, method: defaultMethod, url: defaultUrl },
+								"AI Agent adding HTTP Request tool from Tool sub-node",
 							);
 						} else if (
 							toolContent.toolType === "codeExecution" &&
@@ -1164,15 +1246,17 @@ IMPORTANT RULES:
 						};
 
 						// Load previous memory messages and prepend them
-						const memoryMessages = await loadMemory(
-							context.storage,
-							sessionKey,
-							memContent.contextWindowLength,
-							{
-								memoryType: memContent.memoryType,
-								maxTokens: memContent.maxTokens,
-							},
-						);
+						const memoryMessages = memContent.memoryType === "postgresMemory"
+							? await loadPostgresMemory(sessionKey, memContent.contextWindowLength)
+							: await loadMemory(
+								context.storage,
+								sessionKey,
+								memContent.contextWindowLength,
+								{
+									memoryType: memContent.memoryType,
+									maxTokens: memContent.maxTokens,
+								},
+							);
 						if (memoryMessages.length > 0) {
 							const historicalMessages = memoryMessages.map((m) => ({
 								role: m.role as "user" | "assistant" | "system",
@@ -1607,10 +1691,7 @@ IMPORTANT RULES:
 										? lastUserMsg.content
 										: JSON.stringify(lastUserMsg.content)
 									: "";
-							await saveMemory(
-								context.storage,
-								memoryConfig.sessionKey,
-								[
+							const memMsgs = [
 									...(userContent
 										? [
 												{
@@ -1625,13 +1706,25 @@ IMPORTANT RULES:
 										content: text,
 										timestamp: Date.now(),
 									},
-								],
-								memoryConfig.contextWindowLength * 2,
-								{
-									memoryType: memoryConfig.memoryType,
-									maxTokens: memoryConfig.maxTokens,
-								},
-							);
+								];
+							if (memoryConfig.memoryType === "postgresMemory") {
+								await savePostgresMemory(
+									memoryConfig.sessionKey,
+									memMsgs,
+									memoryConfig.contextWindowLength * 2,
+								);
+							} else {
+								await saveMemory(
+									context.storage,
+									memoryConfig.sessionKey,
+									memMsgs,
+									memoryConfig.contextWindowLength * 2,
+									{
+										memoryType: memoryConfig.memoryType,
+										maxTokens: memoryConfig.maxTokens,
+									},
+								);
+							}
 							logger.info(
 								{ sessionKey: memoryConfig.sessionKey },
 								"AI Agent saved memory after generation",

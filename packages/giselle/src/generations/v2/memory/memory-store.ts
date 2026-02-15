@@ -1,5 +1,6 @@
 import type { GiselleStorage } from "@giselles-ai/storage";
 import * as z from "zod/v4";
+import { Pool } from "pg";
 
 const CoreMessageSchema = z.object({
 	role: z.enum(["user", "assistant", "system"]),
@@ -187,4 +188,92 @@ export function buildSessionKey(
 		return workspaceId;
 	}
 	return `${workspaceId}/${agentNodeId}`;
+}
+
+// ── Postgres Memory ──
+
+let pgPool: Pool | null = null;
+let pgTableEnsured = false;
+
+function getPgPool(): Pool {
+	if (!pgPool) {
+		const url = process.env.POSTGRES_URL ?? "";
+		if (!url) throw new Error("POSTGRES_URL not set — cannot use Postgres memory");
+		pgPool = new Pool({ connectionString: url, max: 3 });
+	}
+	return pgPool;
+}
+
+async function ensurePgTable(): Promise<void> {
+	if (pgTableEnsured) return;
+	const pool = getPgPool();
+	await pool.query(`
+		CREATE TABLE IF NOT EXISTS chat_memory_messages (
+			id SERIAL PRIMARY KEY,
+			session_key TEXT NOT NULL,
+			role TEXT NOT NULL,
+			content TEXT NOT NULL,
+			timestamp BIGINT,
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		)
+	`);
+	await pool.query(`
+		CREATE INDEX IF NOT EXISTS idx_chat_memory_session ON chat_memory_messages(session_key)
+	`);
+	pgTableEnsured = true;
+}
+
+export async function loadPostgresMemory(
+	sessionKey: string,
+	limit: number,
+): Promise<MemoryMessage[]> {
+	await ensurePgTable();
+	const pool = getPgPool();
+	const query = limit > 0
+		? `SELECT role, content, timestamp FROM chat_memory_messages WHERE session_key = $1 ORDER BY id DESC LIMIT $2`
+		: `SELECT role, content, timestamp FROM chat_memory_messages WHERE session_key = $1 ORDER BY id ASC`;
+	const params = limit > 0 ? [sessionKey, limit] : [sessionKey];
+	const result = await pool.query(query, params);
+	const rows = result.rows as Array<{ role: string; content: string; timestamp: string | null }>;
+	// If limited, rows come DESC — reverse to chronological
+	if (limit > 0) rows.reverse();
+	return rows.map((r) => ({
+		role: r.role as "user" | "assistant" | "system",
+		content: r.content,
+		timestamp: r.timestamp ? Number(r.timestamp) : undefined,
+	}));
+}
+
+export async function savePostgresMemory(
+	sessionKey: string,
+	newMessages: MemoryMessage[],
+	maxMessages: number,
+): Promise<void> {
+	if (newMessages.length === 0) return;
+	await ensurePgTable();
+	const pool = getPgPool();
+
+	// Insert new messages
+	const values: string[] = [];
+	const params: unknown[] = [];
+	let idx = 1;
+	for (const msg of newMessages) {
+		values.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++})`);
+		params.push(sessionKey, msg.role, msg.content, msg.timestamp ?? Date.now());
+	}
+	await pool.query(
+		`INSERT INTO chat_memory_messages (session_key, role, content, timestamp) VALUES ${values.join(", ")}`,
+		params,
+	);
+
+	// Trim old messages if over limit
+	if (maxMessages > 0) {
+		await pool.query(
+			`DELETE FROM chat_memory_messages
+			 WHERE session_key = $1 AND id NOT IN (
+				SELECT id FROM chat_memory_messages WHERE session_key = $1 ORDER BY id DESC LIMIT $2
+			 )`,
+			[sessionKey, maxMessages],
+		);
+	}
 }

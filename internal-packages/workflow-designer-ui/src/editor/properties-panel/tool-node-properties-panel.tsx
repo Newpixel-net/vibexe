@@ -1,6 +1,7 @@
 import type { ToolNodeNode } from "@giselles-ai/protocol";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import {
+	useAppDesignerStore,
 	useDeleteNode,
 	useUpdateNodeData,
 	useUpdateNodeDataContent,
@@ -17,6 +18,18 @@ export function ToolNodePropertiesPanel({
 	const updateNodeData = useUpdateNodeData();
 	const updateNodeDataContent = useUpdateNodeDataContent();
 	const deleteNode = useDeleteNode();
+
+	const nodes = useAppDesignerStore((s) => s.nodes);
+
+	// Get all AI Agent nodes in the workspace (for agent tool picker)
+	const aiAgentNodes = useMemo(
+		() =>
+			nodes.filter(
+				(n) =>
+					n.content.type === "aiAgent" && n.id !== node.id,
+			),
+		[nodes, node.id],
+	);
 
 	const handleToolTypeChange = useCallback(
 		(value: string) => {
@@ -138,6 +151,98 @@ export function ToolNodePropertiesPanel({
 					</div>
 				)}
 
+				{/* HTTP Request Configuration */}
+				{node.content.toolType === "httpRequest" && (
+					<div className="flex flex-col gap-[8px]">
+						<SettingLabel>Description</SettingLabel>
+						<SettingDetail size="sm">
+							Tell the AI when to use this HTTP tool
+						</SettingDetail>
+						<input
+							type="text"
+							placeholder="e.g., Fetch user data from the API"
+							value={(node.content as any).httpDescription ?? ""}
+							onChange={(e) =>
+								updateNodeDataContent(node, {
+									httpDescription: e.target.value || undefined,
+								})
+							}
+							className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
+						/>
+						<SettingLabel>Method</SettingLabel>
+						<select
+							value={(node.content as any).httpMethod ?? "GET"}
+							onChange={(e) =>
+								updateNodeDataContent(node, {
+									httpMethod: e.target.value,
+								})
+							}
+							className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
+						>
+							<option value="GET">GET</option>
+							<option value="POST">POST</option>
+							<option value="PUT">PUT</option>
+							<option value="DELETE">DELETE</option>
+							<option value="PATCH">PATCH</option>
+							<option value="HEAD">HEAD</option>
+						</select>
+						<SettingLabel>URL</SettingLabel>
+						<SettingDetail size="sm">
+							The AI can override this URL dynamically
+						</SettingDetail>
+						<input
+							type="text"
+							placeholder="https://api.example.com/endpoint"
+							value={(node.content as any).httpUrl ?? ""}
+							onChange={(e) =>
+								updateNodeDataContent(node, {
+									httpUrl: e.target.value || undefined,
+								})
+							}
+							className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
+						/>
+						<SettingLabel>Headers (JSON)</SettingLabel>
+						<textarea
+							placeholder={`{\n  "Content-Type": "application/json",\n  "Authorization": "Bearer ..."\n}`}
+							value={
+								(node.content as any).httpHeaders
+									? JSON.stringify((node.content as any).httpHeaders, null, 2)
+									: ""
+							}
+							onChange={(e) => {
+								try {
+									const parsed = e.target.value ? JSON.parse(e.target.value) : undefined;
+									updateNodeDataContent(node, { httpHeaders: parsed });
+								} catch {
+									// Allow typing; don't update until valid JSON
+								}
+							}}
+							rows={3}
+							className="w-full rounded-[8px] border border-[hsla(0,0%,100%,0.1)] bg-[hsla(0,0%,100%,0.05)] px-[12px] py-[8px] text-[13px] text-white font-mono outline-none focus:border-[hsla(0,0%,100%,0.3)] resize-y"
+						/>
+						{((node.content as any).httpMethod ?? "GET") !== "GET" &&
+							((node.content as any).httpMethod ?? "GET") !== "HEAD" && (
+							<>
+								<SettingLabel>Body</SettingLabel>
+								<SettingDetail size="sm">
+									Request body. The AI can provide this dynamically.
+								</SettingDetail>
+								<textarea
+									placeholder={`{\n  "key": "value"\n}`}
+									value={(node.content as any).httpBody ?? ""}
+									onChange={(e) =>
+										updateNodeDataContent(node, {
+											httpBody: e.target.value || undefined,
+										})
+									}
+									rows={4}
+									className="w-full rounded-[8px] border border-[hsla(0,0%,100%,0.1)] bg-[hsla(0,0%,100%,0.05)] px-[12px] py-[8px] text-[13px] text-white font-mono outline-none focus:border-[hsla(0,0%,100%,0.3)] resize-y"
+								/>
+							</>
+						)}
+					</div>
+				)}
+
 				{/* Code Execution Configuration */}
 				{node.content.toolType === "codeExecution" && (
 					<div className="flex flex-col gap-[8px]">
@@ -201,21 +306,32 @@ export function ToolNodePropertiesPanel({
 				{/* V3: Agent Tool Configuration */}
 				{node.content.toolType === "agentTool" && (
 					<div className="flex flex-col gap-[8px]">
-						<SettingLabel>Target AI Agent Node</SettingLabel>
+						<SettingLabel>Target AI Agent</SettingLabel>
 						<SettingDetail size="sm">
-							Enter the Node ID of another AI Agent in this workspace to delegate tasks to.
+							Select an AI Agent node in this workspace to delegate tasks to.
 						</SettingDetail>
-						<input
-							type="text"
-							placeholder="Node ID (e.g., nd_abc123)"
-							value={(node.content as any).targetAgentNodeId ?? ""}
-							onChange={(e) =>
-								updateNodeDataContent(node, {
-									targetAgentNodeId: e.target.value || undefined,
-								})
-							}
-							className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
-						/>
+						{aiAgentNodes.length > 0 ? (
+							<select
+								value={(node.content as any).targetAgentNodeId ?? ""}
+								onChange={(e) =>
+									updateNodeDataContent(node, {
+										targetAgentNodeId: e.target.value || undefined,
+									})
+								}
+								className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
+							>
+								<option value="">Select an AI Agent...</option>
+								{aiAgentNodes.map((agentNode) => (
+									<option key={agentNode.id} value={agentNode.id}>
+										{agentNode.name || agentNode.id}
+									</option>
+								))}
+							</select>
+						) : (
+							<SettingDetail size="sm">
+								No other AI Agent nodes found. Add an AI Agent node to the workspace first.
+							</SettingDetail>
+						)}
 					</div>
 				)}
 

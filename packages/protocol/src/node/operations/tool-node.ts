@@ -44,6 +44,12 @@ export const ToolNodeContent = z.object({
 	// V3: For sub-workflow:
 	targetWorkspaceId: z.string().optional(),
 	targetEntryNodeId: z.string().optional(),
+	// For HTTP Request tool:
+	httpUrl: z.string().optional(),
+	httpMethod: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"]).optional(),
+	httpHeaders: z.record(z.string(), z.string()).optional(),
+	httpBody: z.string().optional(),
+	httpDescription: z.string().optional(),
 });
 
 export type ToolNodeContent = z.infer<typeof ToolNodeContent>;
