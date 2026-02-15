@@ -697,13 +697,17 @@ function extractLoopConfig(
  */
 function extractCodeContent(
 	params: Record<string, unknown>,
-): { code: string; language: "javascript" | "python" } {
+): { code: string; language: "javascript" } {
 	const jsCode = params.jsCode as string | undefined;
 	const functionCode = params.functionCode as string | undefined;
 	const pythonCode = params.pythonCode as string | undefined;
 
-	if (pythonCode) {
-		return { code: cleanN8NExpression(pythonCode), language: "python" };
+	// Schema only supports "javascript" — convert Python code as a JS comment
+	if (pythonCode && !jsCode && !functionCode) {
+		return {
+			code: `// Converted from Python:\n// ${pythonCode.split("\n").join("\n// ")}\nreturn items;`,
+			language: "javascript",
+		};
 	}
 
 	const code = jsCode ?? functionCode ?? "// Process items and return result\nreturn items;";
@@ -740,8 +744,8 @@ function extractWaitSeconds(
  */
 function convertN8NSetToFieldOperations(
 	params: Record<string, unknown>,
-): Array<{ name: string; type: string; value: string }> {
-	const operations: Array<{ name: string; type: string; value: string }> = [];
+): Array<{ operation: "set" | "remove" | "rename"; fieldName: string; value?: string; newFieldName?: string }> {
+	const operations: Array<{ operation: "set" | "remove" | "rename"; fieldName: string; value?: string; newFieldName?: string }> = [];
 
 	// V2 format: params.assignments.assignments = [{ name, value, type }]
 	const assignments = params.assignments as
@@ -750,8 +754,8 @@ function convertN8NSetToFieldOperations(
 	if (assignments?.assignments) {
 		for (const a of assignments.assignments) {
 			operations.push({
-				name: a.name,
-				type: a.type ?? "string",
+				operation: "set",
+				fieldName: a.name,
 				value: cleanN8NExpression(String(a.value ?? "")),
 			});
 		}
@@ -767,8 +771,8 @@ function convertN8NSetToFieldOperations(
 				for (const v of typedValues) {
 					const item = v as Record<string, unknown>;
 					operations.push({
-						name: String(item.name ?? ""),
-						type: dataType,
+						operation: "set",
+						fieldName: String(item.name ?? ""),
 						value: cleanN8NExpression(String(item.value ?? "")),
 					});
 				}
