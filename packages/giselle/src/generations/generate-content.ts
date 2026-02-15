@@ -589,6 +589,18 @@ function toAnthropicApiModelId(platformModelId: string): string {
 	return platformModelId.replace(/(\d+)\.(\d+)/, "$1-$2");
 }
 
+/**
+ * Map canonical Google model IDs to actual Google API model IDs.
+ * Gemini 3 Flash requires "-preview" suffix in the API but we store it without.
+ */
+const googleApiModelIdMap: Record<string, string> = {
+	"gemini-3-flash": "gemini-3-flash-preview",
+};
+
+function toGoogleApiModelId(platformModelId: string): string {
+	return googleApiModelIdMap[platformModelId] ?? platformModelId;
+}
+
 function generationModel(languageModel: TextGenerationLanguageModelData) {
 	const llmProvider = languageModel.provider;
 	switch (llmProvider) {
@@ -597,7 +609,7 @@ function generationModel(languageModel: TextGenerationLanguageModelData) {
 		case "anthropic":
 			return anthropic(toAnthropicApiModelId(languageModel.id));
 		case "google":
-			return google(languageModel.id);
+			return google(toGoogleApiModelId(languageModel.id));
 		case "perplexity":
 			return getPerplexityProvider()(languageModel.id);
 		case "nvidia":
@@ -620,7 +632,7 @@ function resolveModel(modelId: string) {
 		case "anthropic":
 			return anthropic(toAnthropicApiModelId(model));
 		case "google":
-			return google(model);
+			return google(toGoogleApiModelId(model));
 		case "perplexity":
 			return getPerplexityProvider()(model);
 		case "nvidia":
