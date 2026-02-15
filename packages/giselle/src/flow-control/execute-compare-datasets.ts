@@ -1,4 +1,5 @@
 import type { CompareDatasetsNodeContent } from "@giselles-ai/protocol";
+import { navigatePath } from "../expressions/evaluate";
 import type { DagNode, DagNodeResult } from "../tasks/dag-executor";
 
 export async function executeCompareDatasets(
@@ -104,7 +105,7 @@ function buildKey(item: unknown, fields: string[]): string {
 		return JSON.stringify(item);
 	}
 	const obj = item as Record<string, unknown>;
-	return fields.map((f) => JSON.stringify(obj[f])).join("||");
+	return fields.map((f) => JSON.stringify(navigatePath(obj, f))).join("\x00");
 }
 
 function extractArrayByAccessor(

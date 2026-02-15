@@ -1,4 +1,5 @@
 import type { AggregateNodeContent } from "@giselles-ai/protocol";
+import { navigatePath } from "../expressions/evaluate";
 import type { DagNode, DagNodeResult } from "../tasks/dag-executor";
 
 export async function executeAggregate(
@@ -22,9 +23,8 @@ export async function executeAggregate(
 
 		// Add group-by fields
 		if (content.groupBy.length > 0 && groupItems.length > 0) {
-			const first = groupItems[0] as Record<string, unknown>;
 			for (const field of content.groupBy) {
-				row[field] = first[field];
+				row[field] = getField(groupItems[0], field);
 			}
 		}
 
@@ -91,8 +91,7 @@ function extractArray(inputData: Map<string, unknown>): unknown[] {
 }
 
 function getField(item: unknown, field: string): unknown {
-	if (item == null || typeof item !== "object") return undefined;
-	return (item as Record<string, unknown>)[field];
+	return navigatePath(item, field);
 }
 
 function toNumber(v: unknown): number {
@@ -112,8 +111,8 @@ function groupItems(
 	const groups = new Map<string, unknown[]>();
 	for (const item of items) {
 		const key = groupBy
-			.map((field) => String(getField(item, field) ?? ""))
-			.join("||");
+			.map((field) => JSON.stringify(getField(item, field) ?? null))
+			.join("\x00");
 		if (!groups.has(key)) groups.set(key, []);
 		groups.get(key)!.push(item);
 	}

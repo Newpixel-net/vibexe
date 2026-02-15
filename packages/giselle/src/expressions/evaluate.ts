@@ -192,10 +192,14 @@ function evaluateOperator(
 			}
 			return true;
 		}
-		case "isTrue":
-			return fieldValue === true || strField === "true" || strField === "1";
-		case "isFalse":
-			return fieldValue === false || strField === "false" || strField === "0";
+		case "isTrue": {
+			const lower = strField.toLowerCase();
+			return fieldValue === true || lower === "true" || lower === "1" || lower === "yes";
+		}
+		case "isFalse": {
+			const lower = strField.toLowerCase();
+			return fieldValue === false || lower === "false" || lower === "0" || lower === "no";
+		}
 		case "regex": {
 			try {
 				const pattern = compareValue ?? "";

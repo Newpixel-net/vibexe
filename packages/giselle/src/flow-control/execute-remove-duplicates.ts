@@ -1,4 +1,5 @@
 import type { RemoveDuplicatesNodeContent } from "@giselles-ai/protocol";
+import { navigatePath } from "../expressions/evaluate";
 import type { DagNode, DagNodeResult } from "../tasks/dag-executor";
 
 export async function executeRemoveDuplicates(
@@ -45,7 +46,7 @@ function buildKey(item: unknown, fields: string[]): string {
 		// Compare all fields
 		return JSON.stringify(obj);
 	}
-	return fields.map((f) => JSON.stringify(obj[f])).join("||");
+	return fields.map((f) => JSON.stringify(navigatePath(obj, f))).join("\x00");
 }
 
 function extractArray(inputData: Map<string, unknown>): unknown[] {
