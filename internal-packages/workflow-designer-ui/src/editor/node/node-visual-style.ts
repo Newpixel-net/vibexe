@@ -638,7 +638,29 @@ export function getSubtitleText(node: NodeLike): string | null {
 		const content = node.content as unknown as {
 			pieceName: string;
 			actionName: string;
+			configuration?: Record<string, unknown>;
 		};
+
+		// HTTP Request: show method + domain
+		if (content.pieceName === "http" && content.configuration) {
+			const method = ((content.configuration.method as string) ?? "GET").toUpperCase();
+			const url = (content.configuration.url as string) ?? "";
+			if (url) {
+				try {
+					const parsed = new URL(url);
+					const domain = parsed.hostname;
+					const path = parsed.pathname !== "/" ? parsed.pathname : "";
+					const truncated = path.length > 20 ? `${path.slice(0, 20)}...` : path;
+					return `${method} \u00b7 ${domain}${truncated}`;
+				} catch {
+					// Not a valid URL, show raw
+					const truncUrl = url.length > 30 ? `${url.slice(0, 30)}...` : url;
+					return `${method} \u00b7 ${truncUrl}`;
+				}
+			}
+			return `${method} Request`;
+		}
+
 		const piece = getCatalogEntry(content.pieceName);
 		const displayName = piece?.displayName ?? content.pieceName;
 		return `${displayName} \u00b7 ${content.actionName.replace(/_/g, " ")}`;

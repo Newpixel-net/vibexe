@@ -5,6 +5,7 @@ export type {
 	GiselleWorkspaceData,
 	GiselleNodeData,
 	GiselleConnectionData,
+	GiselleStickyNoteData,
 	ConversionWarning,
 } from "./converter";
 export { mapN8NNodeType } from "./node-mapping";

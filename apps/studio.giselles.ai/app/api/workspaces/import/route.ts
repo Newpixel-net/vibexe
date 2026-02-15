@@ -83,6 +83,17 @@ export async function POST(request: Request) {
 			connections.push(connection);
 		}
 
+		// Add sticky notes
+		if (converted.stickyNotes && converted.stickyNotes.length > 0) {
+			// biome-ignore lint/suspicious/noExplicitAny: converter sticky note types match protocol StickyNote
+			const stickyNotes = (savedWorkspace as any).stickyNotes ?? [];
+			for (const note of converted.stickyNotes) {
+				stickyNotes.push(note);
+			}
+			// biome-ignore lint/suspicious/noExplicitAny: setting stickyNotes on workspace
+			(savedWorkspace as any).stickyNotes = stickyNotes;
+		}
+
 		// Add UI state for node positions
 		// biome-ignore lint/suspicious/noExplicitAny: bridging converter UI state to protocol NodeUIState
 		const nodeState = savedWorkspace.ui.nodeState as any;

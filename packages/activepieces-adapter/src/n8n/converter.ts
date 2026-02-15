@@ -41,11 +41,21 @@ export interface N8NNode {
 	waitBetweenTries?: number;
 }
 
+// Sticky note data for native StickyNote rendering
+export interface GiselleStickyNoteData {
+	id: string;
+	text: string;
+	color: "yellow" | "blue" | "green" | "pink" | "gray";
+	position: { x: number; y: number };
+	size: { width: number; height: number };
+}
+
 // Giselle workspace types (simplified for conversion)
 export interface GiselleWorkspaceData {
 	name: string;
 	nodes: GiselleNodeData[];
 	connections: GiselleConnectionData[];
+	stickyNotes: GiselleStickyNoteData[];
 	warnings: ConversionWarning[];
 	hasFlowControl: boolean;
 	importMeta?: {
@@ -113,6 +123,7 @@ export function convertN8NToGiselle(
 ): GiselleWorkspaceData {
 	const warnings: ConversionWarning[] = [];
 	const giselleNodes: GiselleNodeData[] = [];
+	const stickyNotes: GiselleStickyNoteData[] = [];
 	const nodePositions: Record<string, { x: number; y: number }> = {};
 	const nodeIdMapping: Record<
 		string,
@@ -147,6 +158,13 @@ export function convertN8NToGiselle(
 				nodeName: n8nNode.name,
 				message: mapping.reason,
 			});
+			continue;
+		}
+
+		// Sticky notes → native StickyNote objects (not variable nodes)
+		if (mapping.type === "text") {
+			const stickyNote = createStickyNote(n8nNode);
+			stickyNotes.push(stickyNote);
 			continue;
 		}
 
@@ -230,6 +248,7 @@ export function convertN8NToGiselle(
 		name: n8nWorkflow.name ?? "Imported N8N Workflow",
 		nodes: giselleNodes,
 		connections,
+		stickyNotes,
 		warnings,
 		hasFlowControl,
 		importMeta: {
@@ -738,17 +757,9 @@ function createGiselleNode(
 		}
 
 		case "text":
-			return {
-				id: NodeId.generate(),
-				type: "variable",
-				name: n8nNode.name,
-				content: {
-					type: "text",
-					text: extractTextFromN8NParams(n8nNode.parameters),
-				},
-				inputs: [],
-				outputs: [],
-			};
+			// Sticky notes are now handled before createGiselleNode is called.
+			// This case should not be reached but is kept for safety.
+			return null;
 
 		case "end":
 			return {
@@ -1162,6 +1173,48 @@ function extractTextFromN8NParams(params: Record<string, unknown>): string {
 	const plainText =
 		(params.content as string) ?? (params.text as string) ?? "";
 	return plainTextToTipTapJson(plainText);
+}
+
+/**
+ * Map N8N sticky note color (number 1-7) to Giselle color name.
+ */
+function mapStickyNoteColor(
+	colorIndex: unknown,
+): GiselleStickyNoteData["color"] {
+	const index = typeof colorIndex === "number" ? colorIndex : Number(colorIndex);
+	switch (index) {
+		case 1: return "yellow";
+		case 2: return "blue";
+		case 3: return "green";
+		case 4: return "pink";
+		case 5:
+		case 6:
+		case 7: return "gray";
+		default: return "yellow";
+	}
+}
+
+/**
+ * Create a native StickyNote from an N8N sticky note node.
+ * Uses N8N's raw position, size, content, and color.
+ */
+function createStickyNote(n8nNode: N8NNode): GiselleStickyNoteData {
+	const text = (n8nNode.parameters.content as string) ?? "";
+	const color = mapStickyNoteColor(n8nNode.parameters.color);
+	const width = typeof n8nNode.parameters.width === "number"
+		? n8nNode.parameters.width
+		: 200;
+	const height = typeof n8nNode.parameters.height === "number"
+		? n8nNode.parameters.height
+		: 150;
+
+	return {
+		id: `sticky-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+		text,
+		color,
+		position: { x: n8nNode.position[0], y: n8nNode.position[1] },
+		size: { width, height },
+	};
 }
 
 // N8N operation name -> Activepieces action name per piece
@@ -1982,19 +2035,9 @@ function computeLayout(
 	connections: GiselleConnectionData[],
 	rawPositions: Record<string, { x: number; y: number }>,
 ): Record<string, { x: number; y: number }> {
-	// Separate sticky notes from flow nodes
+	// All nodes are flow nodes now (sticky notes handled separately)
+	const flowNodes = nodes;
 	const stickyNodes: GiselleNodeData[] = [];
-	const flowNodes: GiselleNodeData[] = [];
-	for (const node of nodes) {
-		if (
-			node.type === "variable" &&
-			(node.content as Record<string, unknown>).type === "text"
-		) {
-			stickyNodes.push(node);
-		} else {
-			flowNodes.push(node);
-		}
-	}
 
 	// Check how many flow nodes have raw positions
 	const flowNodesWithPositions = flowNodes.filter((n) => rawPositions[n.id]);

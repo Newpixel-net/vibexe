@@ -763,7 +763,7 @@ describe("convertN8NToGiselle", () => {
 			expect(positions[trueBranch.id].y).toBeLessThan(positions[falseBranch.id].y);
 		});
 
-		it("should place sticky notes at their N8N positions", () => {
+		it("should convert sticky notes to native StickyNote objects", () => {
 			const workflow: N8NWorkflow = {
 				name: "With Sticky",
 				nodes: [
@@ -783,7 +783,7 @@ describe("convertN8NToGiselle", () => {
 						name: "Note",
 						type: "n8n-nodes-base.stickyNote",
 						position: [0, 0],
-						parameters: { content: "Annotation" },
+						parameters: { content: "Annotation", color: 2, width: 400, height: 300 },
 					},
 				],
 				connections: {
@@ -791,12 +791,44 @@ describe("convertN8NToGiselle", () => {
 				},
 			};
 			const result = convertN8NToGiselle(workflow);
-			const positions = result.uiState?.nodePositions ?? {};
-			const note = result.nodes.find((n) => n.name === "Note")!;
-			const trigger = result.nodes.find((n) => n.name === "Trigger")!;
 
-			// Sticky note should be positioned above the trigger (lower Y = higher on screen)
-			expect(positions[note.id].y).toBeLessThan(positions[trigger.id].y);
+			// Sticky notes should NOT be in nodes array
+			expect(result.nodes.find((n) => n.name === "Note")).toBeUndefined();
+			// Only 2 flow nodes (trigger + set)
+			expect(result.nodes).toHaveLength(2);
+
+			// Sticky notes should be in stickyNotes array
+			expect(result.stickyNotes).toHaveLength(1);
+			const note = result.stickyNotes[0];
+			expect(note.text).toBe("Annotation");
+			expect(note.color).toBe("blue"); // color 2 = blue
+			expect(note.size.width).toBe(400);
+			expect(note.size.height).toBe(300);
+			expect(note.position.x).toBe(0);
+			expect(note.position.y).toBe(0);
+		});
+
+		it("should map sticky note color numbers correctly", () => {
+			const workflow: N8NWorkflow = {
+				name: "Color Test",
+				nodes: [
+					{ name: "Yellow", type: "n8n-nodes-base.stickyNote", position: [0, 0], parameters: { content: "Y", color: 1 } },
+					{ name: "Blue", type: "n8n-nodes-base.stickyNote", position: [0, 100], parameters: { content: "B", color: 2 } },
+					{ name: "Green", type: "n8n-nodes-base.stickyNote", position: [0, 200], parameters: { content: "G", color: 3 } },
+					{ name: "Pink", type: "n8n-nodes-base.stickyNote", position: [0, 300], parameters: { content: "P", color: 4 } },
+					{ name: "Gray", type: "n8n-nodes-base.stickyNote", position: [0, 400], parameters: { content: "Gr", color: 5 } },
+					{ name: "Default", type: "n8n-nodes-base.stickyNote", position: [0, 500], parameters: { content: "D" } },
+				],
+				connections: {},
+			};
+			const result = convertN8NToGiselle(workflow);
+			expect(result.stickyNotes).toHaveLength(6);
+			expect(result.stickyNotes[0].color).toBe("yellow");
+			expect(result.stickyNotes[1].color).toBe("blue");
+			expect(result.stickyNotes[2].color).toBe("green");
+			expect(result.stickyNotes[3].color).toBe("pink");
+			expect(result.stickyNotes[4].color).toBe("gray");
+			expect(result.stickyNotes[5].color).toBe("yellow"); // default
 		});
 
 		it("should normalize positions so minimum is at (0,0)", () => {

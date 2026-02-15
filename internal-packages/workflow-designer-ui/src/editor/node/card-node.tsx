@@ -8,7 +8,7 @@ import type {
 import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import clsx from "clsx/lite";
-import { PlusIcon } from "lucide-react";
+import { AlertTriangleIcon, PlusIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { useAppDesignerStore, useUpdateNodeData } from "../../app-designer";
 import { NodeIcon } from "../../icons/node";
@@ -122,6 +122,15 @@ export function NodeComponent({
 	const maxHandles = Math.max(outputCount, inputCount, 1);
 	const nodeHeight = 96 + Math.max(0, maxHandles - 2) * 32;
 
+	// Check if node needs credential setup
+	const needsCredential = useMemo(() => {
+		if (node.type !== "operation") return false;
+		const hint = (node as { credentialHint?: unknown }).credentialHint;
+		if (!hint) return false;
+		const content = node.content as { credentialId?: string };
+		return !content.credentialId;
+	}, [node]);
+
 	return (
 		<NodeShell
 			node={node}
@@ -145,6 +154,16 @@ export function NodeComponent({
 					className={clsx("w-[24px] h-[24px]", getIconClasses(v))}
 				/>
 			</div>
+
+			{/* Credential warning badge */}
+			{needsCredential && (
+				<div
+					className="absolute top-[4px] right-[4px] w-[18px] h-[18px] rounded-full bg-amber-500 flex items-center justify-center"
+					title="Credential not configured"
+				>
+					<AlertTriangleIcon className="w-[11px] h-[11px] text-white" />
+				</div>
+			)}
 
 			{/* Name + subtitle below node (outside) */}
 			<div className="absolute top-full mt-[6px] left-1/2 -translate-x-1/2 w-[130px] text-center pointer-events-auto">
