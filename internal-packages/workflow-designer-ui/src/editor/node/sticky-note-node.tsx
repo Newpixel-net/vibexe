@@ -51,7 +51,8 @@ export function StickyNoteNode({ id, data, selected }: NodeProps) {
 				selected && "ring-2 ring-blue-500/50",
 			)}
 			style={{ width: 200, minHeight: 150 }}
-			onDoubleClick={() => {
+			onDoubleClick={(e) => {
+				e.stopPropagation();
 				setIsEditing(true);
 				setTimeout(() => textareaRef.current?.focus(), 0);
 			}}

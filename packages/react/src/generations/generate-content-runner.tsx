@@ -135,7 +135,9 @@ export function GenerateContentRunner({
 			},
 			async execute({ writer }) {
 				let startByte = 0;
-				while (!reachedStreamEnd.current && !(stopRef?.current)) {
+				const pollStartTime = Date.now();
+				const MAX_POLL_MS = 5 * 60 * 1000; // 5 minute timeout
+				while (!reachedStreamEnd.current && !(stopRef?.current) && (Date.now() - pollStartTime < MAX_POLL_MS)) {
 					const data = await client.getGenerationMessageChunks({
 						generationId: generation.id,
 						startByte,
@@ -178,6 +180,12 @@ export function GenerateContentRunner({
 					}
 					if (stopRef?.current) break;
 					await new Promise((resolve) => setTimeout(resolve, 1000 * 5));
+				}
+				if (!reachedStreamEnd.current && !stopRef?.current) {
+					// Poll timeout reached — write error chunk to terminate stream
+					writer.write({ type: "error", errorText: "Generation timed out waiting for response" });
+					onError?.(new Error("Generation timed out waiting for response"));
+					onFinish?.({ isAbort: false, isError: true });
 				}
 			},
 		});

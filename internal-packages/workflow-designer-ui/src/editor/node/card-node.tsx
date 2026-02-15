@@ -243,6 +243,7 @@ function OutputHandle({
 					role="button"
 					tabIndex={-1}
 					onClick={onPlusClick}
+					onMouseDown={(e) => e.stopPropagation()}
 					onKeyDown={() => {}}
 					className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/handle:opacity-100 transition-opacity duration-150 cursor-pointer z-10 pointer-events-auto"
 				>
