@@ -8,7 +8,7 @@ import {
 	ExternalLinkIcon,
 	MessageSquareIcon,
 } from "lucide-react";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
 	useAppDesignerStore,
 	useUpdateNodeData,
@@ -29,6 +29,14 @@ export function ChatTriggerPropertiesPanel({
 	const { callbacks } = useTrigger();
 	const [isPending, startTransition] = useTransition();
 	const [copiedField, setCopiedField] = useState<string | null>(null);
+	const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	// Clean up copy timer on unmount
+	useEffect(() => {
+		return () => {
+			if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+		};
+	}, []);
 
 	const content = node.content as Record<string, unknown>;
 	const widgetTitle = (content.widgetTitle as string) ?? "Chat with AI";
@@ -52,7 +60,8 @@ export function ChatTriggerPropertiesPanel({
 	const handleCopy = useCallback((text: string, field: string) => {
 		navigator.clipboard.writeText(text);
 		setCopiedField(field);
-		setTimeout(() => setCopiedField(null), 2000);
+		if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+		copyTimerRef.current = setTimeout(() => setCopiedField(null), 2000);
 	}, []);
 
 	const handleFieldChange = useCallback(

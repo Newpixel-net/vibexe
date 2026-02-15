@@ -9,7 +9,7 @@ import {
 	GlobeIcon,
 	PowerIcon,
 } from "lucide-react";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
 	useAppDesignerStore,
 	useUpdateNodeData,
@@ -31,6 +31,14 @@ export function WebhookTriggerPropertiesPanel({
 	const { callbacks } = useTrigger();
 	const [copied, setCopied] = useState(false);
 	const [isPending, startTransition] = useTransition();
+	const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	// Clean up copy timer on unmount
+	useEffect(() => {
+		return () => {
+			if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+		};
+	}, []);
 
 	const content = node.content as Record<string, unknown>;
 	const webhookPath =
@@ -53,7 +61,8 @@ export function WebhookTriggerPropertiesPanel({
 	const handleCopyUrl = useCallback(() => {
 		navigator.clipboard.writeText(webhookUrl);
 		setCopied(true);
-		setTimeout(() => setCopied(false), 2000);
+		if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+		copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
 	}, [webhookUrl]);
 
 	const handleMethodChange = useCallback(

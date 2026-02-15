@@ -3,7 +3,7 @@
 import type { TriggerNode } from "@giselles-ai/protocol";
 import { useTrigger } from "@giselles-ai/react";
 import { CheckCircle2Icon, ClockIcon, PowerIcon } from "lucide-react";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import {
 	useAppDesignerStore,
 	useUpdateNodeData,
@@ -58,6 +58,12 @@ export function ScheduleTriggerPropertiesPanel({
 	const [customCron, setCustomCron] = useState("");
 	const [showCustom, setShowCustom] = useState(false);
 	const [isPending, startTransition] = useTransition();
+
+	// Reset local state when node changes
+	useEffect(() => {
+		setCustomCron("");
+		setShowCustom(false);
+	}, [node.id]);
 
 	const content = node.content as Record<string, unknown>;
 	const currentCron = (content.scheduleCron as string) ?? "0 * * * *";

@@ -85,6 +85,7 @@ export async function copyWorkspace(args: {
 		nodes: updatedNodes,
 		connections: sourceWorkspace.connections,
 		ui: sourceWorkspace.ui,
+		stickyNotes: sourceWorkspace.stickyNotes,
 	};
 
 	await Promise.all([
