@@ -474,25 +474,9 @@ async function runTaskWithDag(
 					}
 				}
 			}
-			// Also capture extra executor outputs not declared as factory ports
-			// so the properties panel can display all result data
-			for (const [key, val] of dagResult.outputs) {
-				if (matchedAccessors.has(key) || val === undefined || val === null) continue;
-				// Use a synthetic outputId for display-only extra outputs
-				if (typeof val === "string") {
-					outputs.push({
-						type: "generated-text" as const,
-						outputId: `extra-${key}` as any,
-						content: val,
-					});
-				} else {
-					outputs.push({
-						type: "structured-data" as const,
-						outputId: `extra-${key}` as any,
-						data: val,
-					});
-				}
-			}
+			// Extra executor outputs (e.g. "result", "data" from If/Switch) are used
+			// internally by the DAG executor for routing but are NOT persisted —
+			// their synthetic IDs would fail OutputId schema validation.
 		}
 
 		await setGeneration({
