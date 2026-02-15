@@ -89,7 +89,8 @@ export function SmallCircleNode({
 	const style = useNodeVisualStyle(node);
 	const { v } = style;
 	const isOutputConnected = connectedOutputIds.length > 0;
-	const hasRightConnection = connectedInputIds.length > 0;
+	const hasRightConnection = connectedOutputIds.length > 0;
+	const isInputConnected = connectedInputIds.length > 0;
 	const categoryLabel = getCategoryLabel(node.content.type);
 
 	const handlePlusClick = useCallback(
@@ -162,8 +163,9 @@ export function SmallCircleNode({
 						type="target"
 						position={Position.Left}
 						className={clsx(
-							"!absolute !w-[14px] !h-[14px] !rounded-full !left-0 !top-1/2 !border-[1.5px] !bg-background",
+							"!absolute !w-[14px] !h-[14px] !rounded-full !left-0 !top-1/2 !border-[1.5px]",
 							getHandleBorderClass(v),
+							isInputConnected ? getHandleActiveBgClass(v) : "!bg-background",
 						)}
 					/>
 
