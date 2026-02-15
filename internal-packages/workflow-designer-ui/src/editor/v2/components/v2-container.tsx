@@ -561,6 +561,23 @@ function V2NodeCanvas() {
 			)) {
 				return false;
 			}
+			// Cycle detection: adding source→target would create a cycle if
+			// target can already reach source through existing connections
+			const visited = new Set<string>();
+			const queue = [connection.target];
+			while (queue.length > 0) {
+				const current = queue.pop() as string;
+				if (current === connection.source) {
+					return false; // cycle detected
+				}
+				if (visited.has(current)) continue;
+				visited.add(current);
+				for (const conn of connections) {
+					if (conn.outputNode.id === current) {
+						queue.push(conn.inputNode.id);
+					}
+				}
+			}
 			// Semantic validation: check if the connection is actually supported
 			const outputNode = nodes.find((n) => n.id === connection.source);
 			const inputNode = nodes.find((n) => n.id === connection.target);
