@@ -571,6 +571,7 @@ export function isFlowControlNode(args?: unknown): boolean {
 		isSortNode(args) ||
 		isErrorTriggerNode(args) ||
 		isDataTableNode(args) ||
+		isFormTriggerNode(args) ||
 		isExecuteSubWorkflowNode(args) ||
 		isRespondToWebhookNode(args) ||
 		isCustomVariablesNode(args) ||

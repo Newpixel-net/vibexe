@@ -92,9 +92,11 @@ export async function executeSwitch(
 			return { outputs };
 		}
 
-		// No rules matched and no fallback — return empty outputs with no active port
-		// This prevents creating a phantom "fallback" port when hasFallback is false
-		const outputs = buildSwitchOutputs(content, data, null);
+		// No rules matched and no fallback — return empty outputs
+		// Don't leak data to all rule ports; only set metadata
+		const outputs = new Map<string, unknown>();
+		outputs.set("matchedRule", null);
+		outputs.set("data", data);
 		return { outputs };
 	}
 

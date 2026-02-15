@@ -38,6 +38,9 @@ export async function executeIf(
 		// Set activeOutputPort to skip empty branches
 		if (trueItems.length > 0 && falseItems.length === 0) {
 			node.activeOutputPort = "true";
+		} else if (trueItems.length === 0 && falseItems.length === 0) {
+			// Empty input array — nothing matched, route to false branch
+			node.activeOutputPort = "false";
 		} else if (falseItems.length > 0 && trueItems.length === 0) {
 			node.activeOutputPort = "false";
 		}

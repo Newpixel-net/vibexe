@@ -80,7 +80,7 @@ async function executeSequence({
 	wallClockDuration: number;
 }> {
 	const startTime = Date.now();
-	let totalTaskDuration = 0;
+	const stepDurations: number[] = new Array(sequence.steps.length).fill(0);
 	let hasError = false;
 
 	// Start sequence
@@ -99,7 +99,7 @@ async function executeSequence({
 				await options.startGeneration(step.generationId, {
 					onCompleted: async () => {
 						const duration = Date.now() - stepStartTime;
-						totalTaskDuration += duration;
+						stepDurations[stepIndex] = duration;
 						step.status = "completed";
 						step.duration = duration;
 						await options.onStepComplete?.(step, stepIndex);
@@ -107,7 +107,7 @@ async function executeSequence({
 					onFailed: async (failedGeneration) => {
 						hasError = true;
 						const duration = Date.now() - stepStartTime;
-						totalTaskDuration += duration;
+						stepDurations[stepIndex] = duration;
 						await options.onStepError?.(
 							{ ...step, duration, status: "failed" },
 							stepIndex,
@@ -118,7 +118,7 @@ async function executeSequence({
 			} catch (error) {
 				hasError = true;
 				const duration = Date.now() - stepStartTime;
-				totalTaskDuration += duration;
+				stepDurations[stepIndex] = duration;
 				await options.onStepError?.({ ...step, duration }, stepIndex, error);
 			}
 			return step;
@@ -126,6 +126,7 @@ async function executeSequence({
 	);
 
 	const wallClockDuration = Date.now() - startTime;
+	const totalTaskDuration = stepDurations.reduce((a, b) => a + b, 0);
 	sequence.steps = executedSteps;
 	sequence.duration = {
 		totalTask: totalTaskDuration,

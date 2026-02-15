@@ -538,9 +538,11 @@ giselle.updateContext({
 		const { getCredential } = await import(
 			"@/services/integrations/credential-store"
 		);
+		const parsedId = Number.parseInt(credentialId, 10);
+		if (Number.isNaN(parsedId)) return null;
 		const credential = await getCredential(
 			currentTeam.dbId,
-			Number.parseInt(credentialId, 10),
+			parsedId,
 		);
 		if (!credential) return null;
 		return {
@@ -557,9 +559,11 @@ giselle.updateContext({
 		const { updateCredential } = await import(
 			"@/services/integrations/credential-store"
 		);
+		const parsedId = Number.parseInt(credentialId, 10);
+		if (Number.isNaN(parsedId)) return;
 		await updateCredential({
 			teamDbId: currentTeam.dbId,
-			credentialId: Number.parseInt(credentialId, 10),
+			credentialId: parsedId,
 			config,
 		});
 	},
