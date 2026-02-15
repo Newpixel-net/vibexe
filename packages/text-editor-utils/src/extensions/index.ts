@@ -1,3 +1,4 @@
+import "./raf-polyfill";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import StarterKit from "@tiptap/starter-kit";
 import js from "highlight.js/lib/languages/javascript";
