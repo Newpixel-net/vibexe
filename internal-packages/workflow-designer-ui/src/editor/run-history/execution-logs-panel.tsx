@@ -14,7 +14,7 @@ interface LogEntry {
 function flattenTaskToLogs(task: Task): LogEntry[] {
 	const logs: LogEntry[] = [];
 
-	// Flatten annotations
+	// Flatten annotations — shown at task creation time
 	if (task.annotations) {
 		for (const ann of task.annotations) {
 			logs.push({
@@ -32,8 +32,11 @@ function flattenTaskToLogs(task: Task): LogEntry[] {
 	}
 
 	// Flatten step data from sequences
+	// Use cumulative duration offsets to estimate per-step timing
+	let cumulativeDuration = 0;
 	for (const seq of task.sequences) {
 		for (const step of seq.steps) {
+			const stepTimestamp = task.createdAt + cumulativeDuration;
 			const severity =
 				step.status === "failed"
 					? "error"
@@ -45,10 +48,12 @@ function flattenTaskToLogs(task: Task): LogEntry[] {
 					? `Completed in ${step.duration}ms`
 					: step.status === "failed"
 						? "Execution failed"
-						: `Status: ${step.status}`;
+						: step.status === "skipped"
+							? "Skipped"
+							: `Status: ${step.status}`;
 
 			logs.push({
-				timestamp: task.createdAt,
+				timestamp: stepTimestamp,
 				nodeName: step.name,
 				severity,
 				message: statusMsg,
@@ -56,12 +61,14 @@ function flattenTaskToLogs(task: Task): LogEntry[] {
 
 			if (step.usage.totalTokens > 0) {
 				logs.push({
-					timestamp: task.createdAt,
+					timestamp: stepTimestamp,
 					nodeName: step.name,
 					severity: "info",
 					message: `Tokens: ${step.usage.inputTokens} in / ${step.usage.outputTokens} out (${step.usage.totalTokens} total)`,
 				});
 			}
+
+			cumulativeDuration += step.duration;
 		}
 	}
 

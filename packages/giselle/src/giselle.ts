@@ -372,6 +372,11 @@ export function Giselle(config: GiselleConfig) {
 				workspaceId: originalTask.workspaceId,
 				generationOriginType: "studio",
 				inputs: [],
+				// Preserve the node scope from the original task so retry runs the same subset
+				...(originalTask.nodeIdsConnectedToEnd &&
+					originalTask.nodeIdsConnectedToEnd.length > 0 && {
+						nodeId: originalTask.nodeIdsConnectedToEnd[0],
+					}),
 				onCreate: config.callbacks?.taskCreate,
 				context,
 			});

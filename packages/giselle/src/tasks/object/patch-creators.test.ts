@@ -57,10 +57,10 @@ describe("patch creators", () => {
 	});
 
 	describe("usage", () => {
-		it("should create usage.promptTokens increment patch", () => {
+		it("should create usage.inputTokens increment patch", () => {
 			const patch = patches.usage.inputTokens.increment(50);
 			expect(patch).toEqual({
-				path: "usage.promptTokens",
+				path: "usage.inputTokens",
 				increment: 50,
 			});
 		});

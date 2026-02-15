@@ -71,8 +71,11 @@ function getOutputHandleCount(node: NodeLike): number {
 	const type = node.content.type;
 	if (type === "if") return 2;
 	if (type === "switch") {
-		const cases = (node.content as any).cases ?? [];
-		return cases.length > 0 ? cases.length : 2;
+		const content = node.content as any;
+		const rules = content.rules ?? [];
+		const hasFallback = content.hasFallback ?? true;
+		const ruleCount = rules.length > 0 ? rules.length : 2;
+		return hasFallback ? ruleCount + 1 : ruleCount;
 	}
 	if (type === "loop") return 2;
 	if (type === "filter") return 2;

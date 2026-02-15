@@ -145,29 +145,29 @@ const duration = {
 const usage = {
 	inputTokens: {
 		set: (value: Task["usage"]["inputTokens"]): Patch => ({
-			path: "usage.promptTokens",
+			path: "usage.inputTokens",
 			set: value,
 		}),
 		increment: (value: number): Patch => ({
-			path: "usage.promptTokens",
+			path: "usage.inputTokens",
 			increment: value,
 		}),
 		decrement: (value: number): Patch => ({
-			path: "usage.promptTokens",
+			path: "usage.inputTokens",
 			decrement: value,
 		}),
 	},
 	outputTokens: {
 		set: (value: Task["usage"]["outputTokens"]): Patch => ({
-			path: "usage.completionTokens",
+			path: "usage.outputTokens",
 			set: value,
 		}),
 		increment: (value: number): Patch => ({
-			path: "usage.completionTokens",
+			path: "usage.outputTokens",
 			increment: value,
 		}),
 		decrement: (value: number): Patch => ({
-			path: "usage.completionTokens",
+			path: "usage.outputTokens",
 			decrement: value,
 		}),
 	},
