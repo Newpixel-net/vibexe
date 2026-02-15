@@ -48,11 +48,12 @@ export function transformGiselleLanguageModelToAiSdkLanguageModelCallOptions(
 				languageModel,
 				content.languageModel.configuration,
 			);
+			// Anthropic API does not allow both temperature and top_p simultaneously.
+			// Send only temperature (the more commonly used parameter).
 			if (config.thinking) {
 				return {
 					temperature: config.temperature,
 					maxOutputTokens: config.maxTokens,
-					topP: config.topP,
 					providerOptions: {
 						anthropic: {
 							thinking: {
@@ -66,7 +67,6 @@ export function transformGiselleLanguageModelToAiSdkLanguageModelCallOptions(
 			return {
 				temperature: config.temperature,
 				maxOutputTokens: config.maxTokens,
-				topP: config.topP,
 				providerOptions: {
 					anthropic: {
 						thinking: {
