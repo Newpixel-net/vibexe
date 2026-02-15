@@ -28,7 +28,13 @@ export async function GET(request: NextRequest) {
 	}
 
 	try {
-		let resolvedEndpointId = endpointId ? Number(endpointId) : null;
+		let resolvedEndpointId = endpointId ? Number.parseInt(endpointId, 10) : null;
+		if (resolvedEndpointId !== null && Number.isNaN(resolvedEndpointId)) {
+			return Response.json(
+				{ error: "endpointId must be a valid integer" },
+				{ status: 400 },
+			);
+		}
 
 		// Resolve by path if needed
 		if (!resolvedEndpointId && webhookPath) {

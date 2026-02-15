@@ -91,21 +91,9 @@ export async function POST(
 			);
 		}
 
-		// Upsert chat session
-		const [existingSession] = await db
-			.select()
-			.from(chatSessions)
-			.where(eq(chatSessions.sessionId, sessionId))
-			.limit(1);
-
+		// Upsert chat session (insert-first to avoid TOCTOU race on concurrent requests)
 		let sessionDbId: number;
-		if (existingSession) {
-			sessionDbId = existingSession.dbId;
-			await db
-				.update(chatSessions)
-				.set({ lastMessageAt: new Date() })
-				.where(eq(chatSessions.dbId, existingSession.dbId));
-		} else {
+		try {
 			const [newSession] = await db
 				.insert(chatSessions)
 				.values({
@@ -115,6 +103,24 @@ export async function POST(
 				})
 				.returning({ dbId: chatSessions.dbId });
 			sessionDbId = newSession.dbId;
+		} catch {
+			// Session already exists (unique constraint) — update and use existing
+			const [existingSession] = await db
+				.select({ dbId: chatSessions.dbId })
+				.from(chatSessions)
+				.where(eq(chatSessions.sessionId, sessionId))
+				.limit(1);
+			if (!existingSession) {
+				return Response.json(
+					{ error: "Failed to create or find chat session" },
+					{ status: 500 },
+				);
+			}
+			sessionDbId = existingSession.dbId;
+			await db
+				.update(chatSessions)
+				.set({ lastMessageAt: new Date() })
+				.where(eq(chatSessions.dbId, existingSession.dbId));
 		}
 
 		// Save user message

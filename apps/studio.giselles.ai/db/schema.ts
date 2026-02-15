@@ -284,7 +284,7 @@ export const teamMemberships = pgTable(
 		id: serial("id").primaryKey(),
 		userDbId: integer("user_db_id")
 			.notNull()
-			.references(() => users.dbId),
+			.references(() => users.dbId, { onDelete: "cascade" }),
 		teamDbId: integer("team_db_id")
 			.notNull()
 			.references(() => teams.dbId, { onDelete: "cascade" }),
@@ -397,7 +397,7 @@ export const oauthCredentials = pgTable(
 		id: serial("id").primaryKey(),
 		userId: integer("user_id")
 			.notNull()
-			.references(() => users.dbId),
+			.references(() => users.dbId, { onDelete: "cascade" }),
 		provider: text("provider").notNull(),
 		providerAccountId: text("provider_account_id").notNull(),
 		accessToken: text("access_token").notNull(),
@@ -1463,21 +1463,27 @@ export const aiProviderKeys = pgTable("ai_provider_keys", {
 		.$onUpdate(() => new Date()),
 });
 
-export const integrationCredentials = pgTable("integration_credentials", {
-	dbId: serial("db_id").primaryKey(),
-	teamDbId: integer("team_db_id")
-		.notNull()
-		.references(() => teams.dbId),
-	pieceName: text("piece_name").notNull(), // e.g. "slack", "google-sheets"
-	displayName: text("display_name").notNull(), // User-facing label
-	authType: text("auth_type").notNull(), // "oauth2" | "secret_text" | "basic" | "custom"
-	encryptedConfig: text("encrypted_config").notNull(), // Encrypted JSON blob with tokens/keys
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at")
-		.defaultNow()
-		.notNull()
-		.$onUpdate(() => new Date()),
-});
+export const integrationCredentials = pgTable(
+	"integration_credentials",
+	{
+		dbId: serial("db_id").primaryKey(),
+		teamDbId: integer("team_db_id")
+			.notNull()
+			.references(() => teams.dbId),
+		pieceName: text("piece_name").notNull(), // e.g. "slack", "google-sheets"
+		displayName: text("display_name").notNull(), // User-facing label
+		authType: text("auth_type").notNull(), // "oauth2" | "secret_text" | "basic" | "custom"
+		encryptedConfig: text("encrypted_config").notNull(), // Encrypted JSON blob with tokens/keys
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		index("integration_credentials_team_piece_idx").on(table.teamDbId, table.pieceName),
+	],
+);
 
 // OAuth App Configs - stores client_id + client_secret per provider group
 // One Google config covers google-sheets, google-drive, gmail, etc.
@@ -1499,19 +1505,25 @@ export const oauthAppConfigs = pgTable("oauth_app_configs", {
 
 // Integration Store - persistent key-value store for Activepieces piece executions
 // Scoped per team so pieces can persist state across runs
-export const integrationStore = pgTable("integration_store", {
-	dbId: serial("db_id").primaryKey(),
-	teamDbId: integer("team_db_id")
-		.notNull()
-		.references(() => teams.dbId),
-	storeKey: text("store_key").notNull(),
-	value: text("value"), // JSON-serialized value
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at")
-		.defaultNow()
-		.notNull()
-		.$onUpdate(() => new Date()),
-});
+export const integrationStore = pgTable(
+	"integration_store",
+	{
+		dbId: serial("db_id").primaryKey(),
+		teamDbId: integer("team_db_id")
+			.notNull()
+			.references(() => teams.dbId),
+		storeKey: text("store_key").notNull(),
+		value: text("value"), // JSON-serialized value
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		unique("integration_store_team_key_idx").on(table.teamDbId, table.storeKey),
+	],
+);
 
 // Scheduled Workflows - cron-based workflow execution
 export const scheduledWorkflows = pgTable(

@@ -34,24 +34,26 @@ export function createPersistentStore(teamDbId: number): StoreAdapter {
 			const serialized =
 				typeof value === "string" ? value : JSON.stringify(value);
 
-			// Upsert: try update first, insert if not found
-			const updated = await db
-				.update(integrationStore)
-				.set({ value: serialized })
-				.where(
-					and(
-						eq(integrationStore.teamDbId, teamDbId),
-						eq(integrationStore.storeKey, key),
-					),
-				)
-				.returning({ dbId: integrationStore.dbId });
-
-			if (updated.length === 0) {
+			// Upsert: try insert first, fall back to update on conflict.
+			// This avoids the TOCTOU race of update-then-insert where two concurrent
+			// requests could both see 0 updated rows and both try to insert.
+			try {
 				await db.insert(integrationStore).values({
 					teamDbId,
 					storeKey: key,
 					value: serialized,
 				});
+			} catch {
+				// Row already exists — update it
+				await db
+					.update(integrationStore)
+					.set({ value: serialized })
+					.where(
+						and(
+							eq(integrationStore.teamDbId, teamDbId),
+							eq(integrationStore.storeKey, key),
+						),
+					);
 			}
 		},
 

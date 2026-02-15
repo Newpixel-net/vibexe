@@ -65,7 +65,7 @@ export async function POST(
 	const { path } = await params;
 
 	try {
-		// Look up the webhook endpoint
+		// Look up the webhook endpoint (filter by POST method)
 		const [endpoint] = await db
 			.select()
 			.from(webhookEndpoints)
@@ -73,6 +73,7 @@ export async function POST(
 				and(
 					eq(webhookEndpoints.webhookPath, path),
 					eq(webhookEndpoints.enabled, true),
+					eq(webhookEndpoints.method, "POST"),
 				),
 			)
 			.limit(1);
@@ -94,14 +95,6 @@ export async function POST(
 			return Response.json(
 				{ error: "Workflow is not published" },
 				{ status: 404 },
-			);
-		}
-
-		// Check method
-		if (endpoint.method !== "POST" && endpoint.method !== request.method) {
-			return Response.json(
-				{ error: `Method ${request.method} not allowed. Expected ${endpoint.method}` },
-				{ status: 405 },
 			);
 		}
 
