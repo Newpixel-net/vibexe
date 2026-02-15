@@ -107,7 +107,6 @@ import {
 	useAddNode,
 	useAppDesignerStore,
 	useConnectNodes,
-	useDisconnectNodes,
 	useWorkspaceActions,
 } from "../../../app-designer";
 import { ProviderIcon } from "../../tool/toolbar/model-components/provider-icon";
@@ -204,9 +203,9 @@ export function WhatHappensNextPanel({
 	const searchInputRef = useRef<HTMLInputElement>(null);
 	const addNode = useAddNode();
 	const connectNodes = useConnectNodes();
-	const disconnectNodes = useDisconnectNodes();
-	const { setUiNodeState } = useWorkspaceActions((a) => ({
+	const { setUiNodeState, removeConnectionById } = useWorkspaceActions((a) => ({
 		setUiNodeState: a.setUiNodeState,
+		removeConnectionById: a.removeConnectionById,
 	}));
 	const { llmProviders, nodes } = useAppDesignerStore((s) => ({
 		llmProviders: s.llmProviders,
@@ -270,9 +269,9 @@ export function WhatHappensNextPanel({
 			connectNodes(sourceNodeId, newNode.id, sourceOutputId ?? undefined);
 
 			// If inserting on an edge, also connect new node → original target
-			// and remove the original source → target connection
+			// and remove only the specific connection being split (not all between the pair)
 			if (insertEdgeConfig) {
-				disconnectNodes(sourceNodeId, insertEdgeConfig.targetNodeId);
+				removeConnectionById(insertEdgeConfig.connectionId);
 				connectNodes(newNode.id, insertEdgeConfig.targetNodeId);
 			}
 
@@ -282,7 +281,7 @@ export function WhatHappensNextPanel({
 		[
 			addNode,
 			connectNodes,
-			disconnectNodes,
+			removeConnectionById,
 			sourceNodeId,
 			sourceOutputId,
 			sourceNodePosition,

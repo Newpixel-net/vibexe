@@ -8,7 +8,7 @@ import {
 	type TaskId,
 	type WorkspaceId,
 } from "@giselles-ai/protocol";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import useSWR from "swr";
 import { useShallow } from "zustand/shallow";
 import { useGenerationRunnerSystem } from "../generations";
@@ -56,12 +56,13 @@ export function useTaskSystem(workspaceId: WorkspaceId) {
 	);
 	const setActiveTask = useTaskStore((s) => s.setActiveTask);
 	const setCreating = useTaskStore((s) => s.setCreating);
+	const pollingAbortRef = useRef(false);
 
 	const pollingTaskGenerations = useCallback(
 		async (taskId: TaskId) => {
 			let didTaskFinished = false;
 			const prevGenerationIndexMap = new Map<string, NodeGenerationIndex>();
-			while (!didTaskFinished) {
+			while (!didTaskFinished && !pollingAbortRef.current) {
 				const { task, generationIndexes } =
 					await client.getTaskGenerationIndexes({
 						taskId,
@@ -120,8 +121,12 @@ export function useTaskSystem(workspaceId: WorkspaceId) {
 		}
 		setActiveTask(data?.task);
 		if (data?.task !== undefined) {
+			pollingAbortRef.current = false;
 			pollingTaskGenerations(data.task.id);
 		}
+		return () => {
+			pollingAbortRef.current = true;
+		};
 	}, [data, isLoading, setActiveTask, pollingTaskGenerations]);
 
 	const createAndStartTask = useCallback(
