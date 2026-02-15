@@ -35,6 +35,7 @@ export interface N8NNode {
 	credentials?: Record<string, unknown>;
 	typeVersion?: number;
 	disabled?: boolean;
+	issues?: { credentials?: Record<string, unknown> };
 	onError?: string;
 	retryOnFail?: boolean;
 	maxTries?: number;
@@ -1592,10 +1593,8 @@ function extractCredentialHintFromIssues(
 	n8nNode: N8NNode,
 ): GiselleNodeData["credentialHint"] | null {
 	// Check issues.credentials
-	const issues = (n8nNode as Record<string, unknown>).issues as Record<string, unknown> | undefined;
-	if (issues?.credentials) {
-		const credIssues = issues.credentials as Record<string, unknown>;
-		for (const credType of Object.keys(credIssues)) {
+	if (n8nNode.issues?.credentials) {
+		for (const credType of Object.keys(n8nNode.issues.credentials)) {
 			const suggestedPiece = N8N_CREDENTIAL_TO_PIECE[credType] ?? null;
 			return {
 				n8nCredentialType: credType,
