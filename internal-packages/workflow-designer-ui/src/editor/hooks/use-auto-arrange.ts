@@ -60,35 +60,50 @@ export function useAutoArrange() {
 				!subNodeParents.has(n.id),
 		);
 
-		// BFS to assign layers
-		const layers = new Map<string, number>();
-		const queue: { id: string; layer: number }[] = [];
-
-		for (const root of roots) {
-			if (!layers.has(root.id)) {
-				queue.push({ id: root.id, layer: 0 });
-				layers.set(root.id, 0);
-			}
-		}
-
-		// Also ensure any disconnected non-sub-nodes get layered
+		// Kahn's algorithm for layer assignment (handles cycles gracefully)
+		const inDegree = new Map<string, number>();
 		for (const node of nodes) {
-			if (!layers.has(node.id) && !subNodeParents.has(node.id)) {
-				queue.push({ id: node.id, layer: 0 });
-				layers.set(node.id, 0);
+			if (!subNodeParents.has(node.id)) {
+				inDegree.set(node.id, 0);
+			}
+		}
+		for (const conn of connections) {
+			if (conn.connectionType === "subNode") continue;
+			const targetId = conn.inputNode.id;
+			if (inDegree.has(targetId)) {
+				inDegree.set(targetId, (inDegree.get(targetId) ?? 0) + 1);
 			}
 		}
 
-		while (queue.length > 0) {
-			const { id, layer } = queue.shift()!;
-			const downNodes = downstream.get(id) ?? [];
-			for (const downId of downNodes) {
-				const existingLayer = layers.get(downId) ?? -1;
+		const layers = new Map<string, number>();
+		const queue: string[] = [];
+		for (const [nodeId, deg] of inDegree) {
+			if (deg === 0) {
+				queue.push(nodeId);
+				layers.set(nodeId, 0);
+			}
+		}
+
+		let head = 0;
+		while (head < queue.length) {
+			const id = queue[head++];
+			const layer = layers.get(id) ?? 0;
+			for (const downId of downstream.get(id) ?? []) {
+				if (!inDegree.has(downId)) continue;
 				const newLayer = layer + 1;
-				if (newLayer > existingLayer) {
-					layers.set(downId, newLayer);
-					queue.push({ id: downId, layer: newLayer });
+				layers.set(downId, Math.max(layers.get(downId) ?? 0, newLayer));
+				const newDeg = (inDegree.get(downId) ?? 1) - 1;
+				inDegree.set(downId, newDeg);
+				if (newDeg === 0) {
+					queue.push(downId);
 				}
+			}
+		}
+
+		// Nodes in cycles won't be processed — assign layer 0
+		for (const node of nodes) {
+			if (!subNodeParents.has(node.id) && !layers.has(node.id)) {
+				layers.set(node.id, 0);
 			}
 		}
 

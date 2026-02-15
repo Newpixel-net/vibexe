@@ -136,11 +136,14 @@ export function convertN8NToGiselle(
 	}
 
 	// Phase 2: Convert connections
-	const connections = convertConnections(
+	const rawConnections = convertConnections(
 		n8nWorkflow.connections,
 		nodeIdMapping,
 		() => ConnectionId.generate(),
 	);
+
+	// Phase 2b: Remove back-edges (cycles) that would crash the workflow designer
+	const connections = removeBackEdges(rawConnections, warnings);
 
 	// Phase 3: Compute clean layout
 	const layoutPositions = computeLayout(
@@ -1124,6 +1127,78 @@ function convertN8NParameters(
 		converted[key] = serializeConfigValue(value);
 	}
 	return converted;
+}
+
+/**
+ * Detect and remove back-edges (cycles) from connections.
+ * Uses DFS-based cycle detection. Back-edges are skipped with a warning.
+ * This prevents infinite loops in the workflow designer's graph layout.
+ */
+function removeBackEdges(
+	connections: GiselleConnectionData[],
+	warnings: ConversionWarning[],
+): GiselleConnectionData[] {
+	// Build adjacency list
+	const adj = new Map<string, Array<{ targetId: string; connIndex: number }>>();
+	for (let i = 0; i < connections.length; i++) {
+		const conn = connections[i];
+		const srcId = conn.outputNode.id;
+		const dstId = conn.inputNode.id;
+		if (!adj.has(srcId)) adj.set(srcId, []);
+		adj.get(srcId)!.push({ targetId: dstId, connIndex: i });
+	}
+
+	// DFS to detect back-edges
+	const WHITE = 0;
+	const GRAY = 1;
+	const BLACK = 2;
+	const color = new Map<string, number>();
+	const backEdgeIndices = new Set<number>();
+
+	// Collect all node IDs
+	const allNodeIds = new Set<string>();
+	for (const conn of connections) {
+		allNodeIds.add(conn.outputNode.id);
+		allNodeIds.add(conn.inputNode.id);
+	}
+	for (const nodeId of allNodeIds) {
+		color.set(nodeId, WHITE);
+	}
+
+	function dfs(nodeId: string) {
+		color.set(nodeId, GRAY);
+		for (const edge of adj.get(nodeId) ?? []) {
+			const targetColor = color.get(edge.targetId) ?? WHITE;
+			if (targetColor === GRAY) {
+				// Back-edge found — this creates a cycle
+				backEdgeIndices.add(edge.connIndex);
+			} else if (targetColor === WHITE) {
+				dfs(edge.targetId);
+			}
+		}
+		color.set(nodeId, BLACK);
+	}
+
+	for (const nodeId of allNodeIds) {
+		if ((color.get(nodeId) ?? WHITE) === WHITE) {
+			dfs(nodeId);
+		}
+	}
+
+	if (backEdgeIndices.size > 0) {
+		for (const idx of backEdgeIndices) {
+			const conn = connections[idx];
+			warnings.push({
+				nodeType: "connection",
+				nodeName: `${conn.outputNode.id} → ${conn.inputNode.id}`,
+				message:
+					"Cyclic connection (polling loop) removed — Giselle does not support graph cycles. Use a Loop node instead.",
+			});
+		}
+		return connections.filter((_, i) => !backEdgeIndices.has(i));
+	}
+
+	return connections;
 }
 
 /**
