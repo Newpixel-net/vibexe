@@ -507,9 +507,10 @@ export async function executeDag(
 				completedNode.result.outputs.get("items") ??
 				completedNode.result.outputs.get("item");
 			if (Array.isArray(items) && items.length > 0) {
-				// Determine loop body port accessor (handle "loop" = output index 1)
+				// Determine loop body port accessor by name (not index) for safety
 				const loopOutputs = completedNode.operationNode.outputs;
-				const loopBodyAccessor = loopOutputs.length > 1 ? loopOutputs[1].accessor : undefined;
+				const loopBodyAccessor = loopOutputs.find((o) => o.accessor === "loop")?.accessor
+					?? (loopOutputs.length > 1 ? loopOutputs[1].accessor : undefined);
 
 				const loopBodyEdges = loopBodyAccessor
 					? outgoing.filter((e) => e.fromOutputPort === loopBodyAccessor)

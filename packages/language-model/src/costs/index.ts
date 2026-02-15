@@ -33,6 +33,11 @@ export function createDisplayCostCalculator(provider: string): CostCalculator {
 			return new AnthropicCostCalculator();
 		case "google":
 			return new GoogleCostCalculator();
+		case "xai":
+		case "nvidia":
+		case "perplexity":
+			// Known providers without detailed pricing tables — use default calculator silently
+			return new DefaultCostCalculator(provider);
 		default:
 			console.log(`Unimplemented provider: ${provider}`);
 			return new DefaultCostCalculator(provider);
