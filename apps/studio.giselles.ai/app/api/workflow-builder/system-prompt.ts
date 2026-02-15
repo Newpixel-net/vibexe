@@ -220,7 +220,7 @@ These nodes enable N8N-style workflow logic. When present, the workflow uses a D
 
 15. **loop** - Iterate over array items
     - Input: "items" accessor (connect an array data source)
-    - Outputs: "item" accessor (current iteration), "output" accessor (final result)
+    - Outputs: "done" accessor (loop exit / final result), "loop" accessor (loop body / each iteration)
     - Mode: forEach (iterate array) or nTimes — configured in UI
     - Safety limit: maxIterations default 100
 
@@ -255,7 +255,7 @@ These nodes enable N8N-style workflow logic. When present, the workflow uses a D
 
 21. **errorTrigger** - Fires when any node in the workflow fails
     - No inputs (triggered automatically on error)
-    - Outputs: "errorMessage", "failedNodeId", "output" accessors
+    - Outputs: "errorMessage", "failedNodeId", "failedNodeName", "timestamp", "data" accessors
     - Connect to a notification node (Slack, email) to alert on failures
 
 ### Data Transform Nodes (Array/Object Processing)
@@ -372,6 +372,8 @@ The \`{{nodeId:outputId}}\` placeholders are replaced with actual data at runtim
 
 - Connect an output of one node to an input of another
 - textGeneration and end nodes start with no inputs; inputs are auto-created when you connect to them
+- Flow control nodes (if, switch, merge, loop, filter, etc.) have PRE-DEFINED input ports — connections automatically use existing unused ports before creating new ones
+- Merge has "input1" and "input2" ports — the first two connections use these automatically
 - vectorStore nodes MUST connect to query nodes (not directly to textGeneration)
 - The Start node's text output MUST be referenced in at least one textGeneration prompt
 - Do NOT create cycles
