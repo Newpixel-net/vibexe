@@ -15,7 +15,7 @@ import {
 	type N8NConnections,
 	convertConnections,
 } from "./connection-mapping";
-import { mapN8NNodeType } from "./node-mapping";
+import { mapN8NNodeType, N8N_CREDENTIAL_TO_PIECE } from "./node-mapping";
 
 // N8N Workflow JSON types
 export interface N8NWorkflow {
@@ -23,6 +23,7 @@ export interface N8NWorkflow {
 	nodes: N8NNode[];
 	connections: N8NConnections;
 	settings?: Record<string, unknown>;
+	pinData?: Record<string, unknown>;
 }
 
 export interface N8NNode {
@@ -34,6 +35,10 @@ export interface N8NNode {
 	credentials?: Record<string, unknown>;
 	typeVersion?: number;
 	disabled?: boolean;
+	onError?: string;
+	retryOnFail?: boolean;
+	maxTries?: number;
+	waitBetweenTries?: number;
 }
 
 // Giselle workspace types (simplified for conversion)
@@ -43,6 +48,14 @@ export interface GiselleWorkspaceData {
 	connections: GiselleConnectionData[];
 	warnings: ConversionWarning[];
 	hasFlowControl: boolean;
+	importMeta?: {
+		source: "n8n";
+		nodesNeedingCredentials: number;
+		expressionsPartiallyTranslated: number;
+		cyclesConverted: number;
+		disabledNodes: number;
+		scheduleConfig?: { cronExpression: string; timezone: string };
+	};
 	uiState: {
 		nodePositions: Record<string, { x: number; y: number }>;
 	};
@@ -55,6 +68,19 @@ export interface GiselleNodeData {
 	content: Record<string, unknown>;
 	inputs: Array<{ id: string; label: string; accessor: string }>;
 	outputs: Array<{ id: string; label: string; accessor: string }>;
+	disabled?: boolean;
+	pinnedData?: unknown;
+	errorConfig?: {
+		retryOnFail?: boolean;
+		maxRetries?: number;
+		retryDelay?: number;
+		onError?: string;
+	};
+	credentialHint?: {
+		n8nCredentialType: string;
+		n8nCredentialName: string;
+		suggestedPiece: string | null;
+	};
 }
 
 export interface GiselleConnectionData {
@@ -74,7 +100,9 @@ export interface ConversionWarning {
 // Flow-control content types that trigger DAG execution
 const FLOW_CONTROL_TYPES = new Set([
 	"if", "switch", "merge", "loop", "code", "filter",
-	"editFields", "sort", "wait",
+	"editFields", "sort", "wait", "aggregate", "limit",
+	"removeDuplicates", "renameKeys", "splitOut",
+	"compareDatasets", "summarize", "respondToWebhook",
 ]);
 
 /**
@@ -98,6 +126,16 @@ export function convertN8NToGiselle(
 	> = {};
 
 	let hasFlowControl = false;
+	let nodesNeedingCredentials = 0;
+	let expressionsPartiallyTranslated = 0;
+	let disabledNodes = 0;
+	let scheduleConfig: { cronExpression: string; timezone: string } | undefined;
+
+	// Build a name-to-name map for expression translation
+	const nodeNameMap = new Map<string, string>();
+	for (const n8nNode of n8nWorkflow.nodes) {
+		nodeNameMap.set(n8nNode.name, n8nNode.name);
+	}
 
 	// Phase 1: Convert each N8N node
 	for (const n8nNode of n8nWorkflow.nodes) {
@@ -112,8 +150,39 @@ export function convertN8NToGiselle(
 			continue;
 		}
 
-		const giselleNode = createGiselleNode(n8nNode, mapping);
+		const giselleNode = createGiselleNode(n8nNode, mapping, nodeNameMap, warnings);
 		if (giselleNode) {
+			// Transfer disabled metadata
+			if (n8nNode.disabled) {
+				giselleNode.disabled = true;
+				disabledNodes++;
+			}
+
+			// Transfer pinned data from workflow-level pinData
+			if (n8nWorkflow.pinData?.[n8nNode.name] !== undefined) {
+				giselleNode.pinnedData = n8nWorkflow.pinData[n8nNode.name];
+			}
+
+			// Extract credential hints (Phase 2)
+			if (n8nNode.credentials) {
+				const credHint = extractCredentialHint(n8nNode.credentials, n8nNode.name, warnings);
+				if (credHint) {
+					giselleNode.credentialHint = credHint;
+					nodesNeedingCredentials++;
+				}
+			}
+
+			// Extract error handling config (Phase 2)
+			const errorConfig = extractErrorConfig(n8nNode);
+			if (errorConfig) {
+				giselleNode.errorConfig = errorConfig;
+			}
+
+			// Extract schedule config from schedule trigger (Phase 4)
+			if (mapping.type === "nativeTrigger" && mapping.provider === "schedule") {
+				scheduleConfig = extractScheduleConfig(n8nNode.parameters);
+			}
+
 			giselleNodes.push(giselleNode);
 			nodePositions[giselleNode.id] = {
 				x: n8nNode.position[0],
@@ -142,8 +211,13 @@ export function convertN8NToGiselle(
 		() => ConnectionId.generate(),
 	);
 
-	// Phase 2b: Remove back-edges (cycles) that would crash the workflow designer
-	const connections = removeBackEdges(rawConnections, warnings);
+	// Phase 2b: Convert cycles to Loop+If patterns or strip back-edges
+	const { connections, cyclesConverted } = transformCyclesToLoops(
+		rawConnections,
+		giselleNodes,
+		nodeIdMapping,
+		warnings,
+	);
 
 	// Phase 3: Compute clean layout
 	const layoutPositions = computeLayout(
@@ -158,6 +232,14 @@ export function convertN8NToGiselle(
 		connections,
 		warnings,
 		hasFlowControl,
+		importMeta: {
+			source: "n8n",
+			nodesNeedingCredentials,
+			expressionsPartiallyTranslated,
+			cyclesConverted,
+			disabledNodes,
+			scheduleConfig,
+		},
 		uiState: {
 			nodePositions: layoutPositions,
 		},
@@ -167,6 +249,8 @@ export function convertN8NToGiselle(
 function createGiselleNode(
 	n8nNode: N8NNode,
 	mapping: Exclude<ReturnType<typeof mapN8NNodeType>, { type: "skip" }>,
+	nodeNameMap: Map<string, string>,
+	warnings: ConversionWarning[],
 ): GiselleNodeData | null {
 	switch (mapping.type) {
 		case "trigger":
@@ -466,6 +550,190 @@ function createGiselleNode(
 				outputs: [
 					{ id: OutputId.generate(), label: "Output", accessor: "output" },
 				],
+			};
+		}
+
+		// --- Additional Data Transform Nodes (Phase 1) ---
+
+		case "nativeAggregate": {
+			const aggOps = extractAggregateOperations(n8nNode.parameters);
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "aggregate",
+					operations: aggOps.operations,
+					groupBy: aggOps.groupBy,
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Input", accessor: "input" },
+				],
+				outputs: [
+					{ id: OutputId.generate(), label: "Output", accessor: "output" },
+				],
+			};
+		}
+
+		case "nativeLimit": {
+			const maxItems = Number(n8nNode.parameters.maxItems ?? n8nNode.parameters.limit ?? 10);
+			const keep = (n8nNode.parameters.keep as string) === "lastItems" ? "last" : "first";
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "limit",
+					maxItems: Math.max(maxItems, 0),
+					keep,
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Input", accessor: "input" },
+				],
+				outputs: [
+					{ id: OutputId.generate(), label: "Output", accessor: "output" },
+				],
+			};
+		}
+
+		case "nativeRemoveDuplicates": {
+			const fields = extractStringArray(n8nNode.parameters, "fieldToCompare", "compareValue");
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "removeDuplicates",
+					fields,
+					keepFirst: true,
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Input", accessor: "input" },
+				],
+				outputs: [
+					{ id: OutputId.generate(), label: "Output", accessor: "output" },
+				],
+			};
+		}
+
+		case "nativeRenameKeys": {
+			const mappings = extractRenameKeyMappings(n8nNode.parameters);
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "renameKeys",
+					mappings,
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Input", accessor: "input" },
+				],
+				outputs: [
+					{ id: OutputId.generate(), label: "Output", accessor: "output" },
+				],
+			};
+		}
+
+		case "nativeSplitOut": {
+			const fieldToSplit = String(n8nNode.parameters.fieldToSplitOut ?? n8nNode.parameters.fieldName ?? "");
+			const includeOtherFields = n8nNode.parameters.include !== "noOtherFields";
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "splitOut",
+					fieldToSplit,
+					includeOtherFields,
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Input", accessor: "input" },
+				],
+				outputs: [
+					{ id: OutputId.generate(), label: "Output", accessor: "output" },
+				],
+			};
+		}
+
+		case "nativeCompareDatasets": {
+			const mergeByFields = extractStringArray(n8nNode.parameters, "mergeByField1", "mergeByField2");
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "compareDatasets",
+					mergeByFields: mergeByFields.length > 0 ? mergeByFields : [],
+					mode: "allMatches",
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Input 1", accessor: "input1" },
+					{ id: InputId.generate(), label: "Input 2", accessor: "input2" },
+				],
+				outputs: [
+					{ id: OutputId.generate(), label: "In Both", accessor: "inBoth" },
+					{ id: OutputId.generate(), label: "Only in First", accessor: "onlyInFirst" },
+					{ id: OutputId.generate(), label: "Only in Second", accessor: "onlyInSecond" },
+				],
+			};
+		}
+
+		case "nativeSummarize": {
+			const sumFields = extractStringArray(n8nNode.parameters, "fieldsToSummarize", "fields");
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "summarize",
+					fields: sumFields,
+					operations: ["count", "sum", "avg", "min", "max"],
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Input", accessor: "input" },
+				],
+				outputs: [
+					{ id: OutputId.generate(), label: "Output", accessor: "output" },
+				],
+			};
+		}
+
+		// --- Respond to Webhook (Phase 4) ---
+
+		case "nativeRespondToWebhook": {
+			const statusCode = Number(n8nNode.parameters.responseCode ?? 200);
+			const contentType = (n8nNode.parameters.contentType as string) ?? "application/json";
+			const headers: Record<string, string> = {};
+			if (n8nNode.parameters.responseHeaders && typeof n8nNode.parameters.responseHeaders === "object") {
+				const hObj = n8nNode.parameters.responseHeaders as Record<string, unknown>;
+				const entries = hObj.entries ?? hObj.parameters;
+				if (Array.isArray(entries)) {
+					for (const entry of entries) {
+						const e = entry as Record<string, unknown>;
+						if (e.name && e.value) {
+							headers[String(e.name)] = String(e.value);
+						}
+					}
+				}
+			}
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name || "Respond to Webhook",
+				content: {
+					type: "respondToWebhook",
+					statusCode,
+					headers,
+					responseBody: "",
+					contentType: contentType === "text/html" ? "text/html"
+						: contentType === "text/plain" ? "text/plain"
+						: "application/json",
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Input", accessor: "input" },
+				],
+				outputs: [],
 			};
 		}
 
@@ -1052,35 +1320,378 @@ function extractModelId(
 	return null;
 }
 
-function cleanN8NExpression(value: string): string {
-	if (!value) return value;
-	// Strip leading = prefix
+// ─── Expression System (Phase 3) ─────────────────────────────────────────────
+
+/**
+ * Convert N8N expressions to Giselle format.
+ * Supports 15+ patterns with ordered regex pipeline (most specific first).
+ * Returns { value, hadPartialTranslation } to track partial translations.
+ */
+function convertN8NExpressionToGiselle(
+	value: string,
+	nodeNameMap: Map<string, string>,
+	warnings: ConversionWarning[],
+): { value: string; partial: boolean } {
+	if (!value) return { value, partial: false };
+	let partial = false;
+
+	// Strip leading = prefix (N8N expression marker)
 	let cleaned = value.startsWith("=") ? value.slice(1) : value;
-	// Replace {{ $('NodeName').item.json.field }} with [NodeName.field]
+
+	// 1. {{ $('NodeName').first().json.field }} -> [NodeName.field]
+	cleaned = cleaned.replace(
+		/\{\{\s*\$\(['"]([^'"]+)['"]\)\.first\(\)\.json\.([^\s}]+)\s*\}\}/g,
+		"[$1.$2]",
+	);
+
+	// 2. {{ $('NodeName').all() }} -> [NodeName.*]
+	cleaned = cleaned.replace(
+		/\{\{\s*\$\(['"]([^'"]+)['"]\)\.all\(\)\s*\}\}/g,
+		"[$1.*]",
+	);
+
+	// 3. {{ $('NodeName').item.json.field }} -> [NodeName.field]
 	cleaned = cleaned.replace(
 		/\{\{\s*\$\(['"]([^'"]+)['"]\)\.item\.json\.([^\s}]+)\s*\}\}/g,
 		"[$1.$2]",
 	);
-	// Replace {{ $('NodeName').item.json }} with [NodeName]
+
+	// 4. {{ $('NodeName').item.json }} -> [NodeName]
 	cleaned = cleaned.replace(
 		/\{\{\s*\$\(['"]([^'"]+)['"]\)\.item\.json\s*\}\}/g,
 		"[$1]",
 	);
-	// Replace {{ $json.field }} or {{ $json["field"] }} with [input.field]
+
+	// 5. {{ $('NodeName').first().json }} -> [NodeName]
+	cleaned = cleaned.replace(
+		/\{\{\s*\$\(['"]([^'"]+)['"]\)\.first\(\)\.json\s*\}\}/g,
+		"[$1]",
+	);
+
+	// 6. {{ $input.first().json.field }} -> [input.field]
+	cleaned = cleaned.replace(
+		/\{\{\s*\$input\.first\(\)\.json\.([^\s}]+)\s*\}\}/g,
+		"[input.$1]",
+	);
+
+	// 7. {{ $input.all() }} -> [input.*]
+	cleaned = cleaned.replace(
+		/\{\{\s*\$input\.all\(\)\s*\}\}/g,
+		"[input.*]",
+	);
+
+	// 8. {{ $input.item.json.field }} -> [input.field]
+	cleaned = cleaned.replace(
+		/\{\{\s*\$input\.item\.json\.([^\s}]+)\s*\}\}/g,
+		"[input.$1]",
+	);
+
+	// 9. {{ $node["NodeName"].json.field }} -> [NodeName.field]
+	cleaned = cleaned.replace(
+		/\{\{\s*\$node\[['"]([^'"]+)['"]\]\.json\.([^\s}]+)\s*\}\}/g,
+		"[$1.$2]",
+	);
+
+	// 10. {{ $node["NodeName"].json }} -> [NodeName]
+	cleaned = cleaned.replace(
+		/\{\{\s*\$node\[['"]([^'"]+)['"]\]\.json\s*\}\}/g,
+		"[$1]",
+	);
+
+	// 11. {{ $json.field }} or {{ $json["field"] }} -> [input.field]
 	cleaned = cleaned.replace(
 		/\{\{\s*\$json(?:\.|\[['"])([^\s}'"\]]+)(?:['"]\])?\s*\}\}/g,
 		"[input.$1]",
 	);
-	// Replace {{ $json }} with [input]
+
+	// 12. {{ $json }} -> [input]
 	cleaned = cleaned.replace(/\{\{\s*\$json\s*\}\}/g, "[input]");
-	// Replace {{ $now.format(...) }} with [timestamp]
+
+	// 13. {{ $execution.id }} -> [execution.id]
+	cleaned = cleaned.replace(
+		/\{\{\s*\$execution\.id\s*\}\}/g,
+		"[execution.id]",
+	);
+
+	// 14. {{ $runIndex }} / {{ $itemIndex }} -> [index]
+	cleaned = cleaned.replace(
+		/\{\{\s*\$(?:runIndex|itemIndex)\s*\}\}/g,
+		"[index]",
+	);
+
+	// 15. {{ $prevNode.name }} -> [prevNode]
+	cleaned = cleaned.replace(
+		/\{\{\s*\$prevNode\.name\s*\}\}/g,
+		"[prevNode]",
+	);
+
+	// 16. {{ $now.format(...) }} -> [timestamp]
 	cleaned = cleaned.replace(
 		/\{\{\s*\$now\.format\([^)]*\)\s*\}\}/g,
 		"[timestamp]",
 	);
-	// Replace {{ $now }} with [timestamp]
-	cleaned = cleaned.replace(/\{\{\s*\$now\s*\}\}/g, "[timestamp]");
-	return cleaned;
+
+	// 17. {{ $now }} / {{ $today }} -> [timestamp]
+	cleaned = cleaned.replace(/\{\{\s*\$(?:now|today)\s*\}\}/g, "[timestamp]");
+
+	// 18. {{ $env.VAR_NAME }} -> warning + strip
+	cleaned = cleaned.replace(
+		/\{\{\s*\$env\.([^\s}]+)\s*\}\}/g,
+		(_match, varName) => {
+			partial = true;
+			warnings.push({
+				nodeType: "expression",
+				nodeName: "expression",
+				message: `Environment variable $env.${varName} is not supported — replaced with placeholder`,
+			});
+			return `[env.${varName}]`;
+		},
+	);
+
+	// 19. {{ $binary... }} -> warning + strip
+	cleaned = cleaned.replace(
+		/\{\{\s*\$binary[^}]*\}\}/g,
+		(_match) => {
+			partial = true;
+			warnings.push({
+				nodeType: "expression",
+				nodeName: "expression",
+				message: "Binary data expressions are not supported",
+			});
+			return "[binary]";
+		},
+	);
+
+	// 20. Remaining {{ ... }} with JS functions — extract field ref, strip function call
+	cleaned = cleaned.replace(
+		/\{\{\s*(.*?)\s*\}\}/g,
+		(_match, inner: string) => {
+			// Try to extract a useful field reference from expressions like Math.round($json.value)
+			const fieldMatch = inner.match(/\$(?:json|input)\.([a-zA-Z_]\w*)/);
+			if (fieldMatch) {
+				partial = true;
+				return `[input.${fieldMatch[1]}]`;
+			}
+			const nodeFieldMatch = inner.match(/\$\(['"]([^'"]+)['"]\).*?\.json\.([a-zA-Z_]\w*)/);
+			if (nodeFieldMatch) {
+				partial = true;
+				return `[${nodeFieldMatch[1]}.${nodeFieldMatch[2]}]`;
+			}
+			// Can't parse — leave as literal
+			partial = true;
+			return inner;
+		},
+	);
+
+	return { value: cleaned, partial };
+}
+
+/** Backward-compatible wrapper that calls the new expression system */
+function cleanN8NExpression(value: string): string {
+	if (!value) return value;
+	const result = convertN8NExpressionToGiselle(value, new Map(), []);
+	return result.value;
+}
+
+// ─── Credential Extraction (Phase 2) ────────────────────────────────────────
+
+function extractCredentialHint(
+	credentials: Record<string, unknown>,
+	nodeName: string,
+	warnings: ConversionWarning[],
+): GiselleNodeData["credentialHint"] | null {
+	for (const [credType, credRef] of Object.entries(credentials)) {
+		const credName = typeof credRef === "object" && credRef !== null
+			? String((credRef as Record<string, unknown>).name ?? credType)
+			: credType;
+		const suggestedPiece = N8N_CREDENTIAL_TO_PIECE[credType] ?? null;
+
+		warnings.push({
+			nodeType: "credential",
+			nodeName,
+			message: `Credential '${credName}' (${credType}) must be reconfigured in Giselle${suggestedPiece ? ` — suggested piece: ${suggestedPiece}` : ""}`,
+		});
+
+		return {
+			n8nCredentialType: credType,
+			n8nCredentialName: credName,
+			suggestedPiece,
+		};
+	}
+	return null;
+}
+
+// ─── Error Config Extraction (Phase 2) ──────────────────────────────────────
+
+function extractErrorConfig(
+	n8nNode: N8NNode,
+): GiselleNodeData["errorConfig"] | null {
+	const params = n8nNode.parameters;
+	const onError = (params.onError as string) ?? n8nNode.onError ?? "stopWorkflow";
+	const retryOnFail = (params.retryOnFail as boolean) ?? n8nNode.retryOnFail ?? false;
+	const maxTries = Number(params.maxTries ?? n8nNode.maxTries ?? 3);
+	const waitBetweenTries = Number(params.waitBetweenTries ?? n8nNode.waitBetweenTries ?? 1000);
+
+	// Only create errorConfig if non-default settings exist
+	if (onError === "stopWorkflow" && !retryOnFail) {
+		return null;
+	}
+
+	let mappedOnError: string;
+	switch (onError) {
+		case "continueOnFail":
+			mappedOnError = "continueOnFail";
+			break;
+		case "continueErrorOutput":
+			mappedOnError = "routeToError";
+			break;
+		default:
+			mappedOnError = "stopWorkflow";
+	}
+
+	return {
+		onError: mappedOnError,
+		retryOnFail,
+		maxRetries: retryOnFail ? maxTries : undefined,
+		retryDelay: retryOnFail ? waitBetweenTries : undefined,
+	};
+}
+
+// ─── Schedule Config Extraction (Phase 4) ───────────────────────────────────
+
+function extractScheduleConfig(
+	params: Record<string, unknown>,
+): { cronExpression: string; timezone: string } {
+	// Check for explicit cron expression
+	if (params.cronExpression && typeof params.cronExpression === "string") {
+		return {
+			cronExpression: params.cronExpression,
+			timezone: (params.timezone as string) ?? "UTC",
+		};
+	}
+
+	// N8N interval format: { rule: { interval: [{ field, ...interval }] } }
+	const rule = params.rule as Record<string, unknown> | undefined;
+	const intervals = rule?.interval;
+	if (Array.isArray(intervals) && intervals.length > 0) {
+		const interval = intervals[0] as Record<string, unknown>;
+		const field = (interval.field as string) ?? "hours";
+
+		switch (field) {
+			case "seconds": {
+				const sec = Number(interval.secondsInterval ?? 30);
+				return { cronExpression: `*/${sec} * * * * *`, timezone: "UTC" };
+			}
+			case "minutes": {
+				const min = Number(interval.minutesInterval ?? 5);
+				return { cronExpression: `*/${min} * * * *`, timezone: "UTC" };
+			}
+			case "hours": {
+				const hrs = Number(interval.hoursInterval ?? 1);
+				return { cronExpression: `0 */${hrs} * * *`, timezone: "UTC" };
+			}
+			case "days": {
+				const hour = Number(interval.triggerAtHour ?? 0);
+				const minute = Number(interval.triggerAtMinute ?? 0);
+				const daysInterval = Number(interval.daysInterval ?? 1);
+				if (daysInterval === 1) {
+					return { cronExpression: `${minute} ${hour} * * *`, timezone: "UTC" };
+				}
+				return { cronExpression: `${minute} ${hour} */${daysInterval} * *`, timezone: "UTC" };
+			}
+			case "weeks": {
+				const hour = Number(interval.triggerAtHour ?? 0);
+				const minute = Number(interval.triggerAtMinute ?? 0);
+				const day = Number(interval.triggerAtDay ?? 1);
+				return { cronExpression: `${minute} ${hour} * * ${day}`, timezone: "UTC" };
+			}
+			default:
+				break;
+		}
+	}
+
+	return { cronExpression: "0 * * * *", timezone: "UTC" };
+}
+
+// ─── New Node Type Helpers (Phase 1) ────────────────────────────────────────
+
+function extractAggregateOperations(
+	params: Record<string, unknown>,
+): { operations: Array<{ field: string; operation: string; resultField: string }>; groupBy: string[] } {
+	const operations: Array<{ field: string; operation: string; resultField: string }> = [];
+	const groupBy: string[] = [];
+
+	// N8N aggregate format: { fieldsToAggregate: { values: [{ field, operation }] }, groupBy: "field1,field2" }
+	const fieldsToAgg = params.fieldsToAggregate as Record<string, unknown> | undefined;
+	if (fieldsToAgg?.values && Array.isArray(fieldsToAgg.values)) {
+		for (const v of fieldsToAgg.values) {
+			const item = v as Record<string, unknown>;
+			const field = String(item.field ?? item.fieldToAggregate ?? "");
+			const operation = String(item.aggregation ?? item.operation ?? "sum").toLowerCase();
+			operations.push({
+				field,
+				operation: ["sum", "avg", "min", "max", "count", "countDistinct", "concatenate"].includes(operation) ? operation : "sum",
+				resultField: `${operation}_${field}`,
+			});
+		}
+	}
+
+	if (params.groupBy && typeof params.groupBy === "string") {
+		groupBy.push(...params.groupBy.split(",").map((s: string) => s.trim()).filter(Boolean));
+	}
+
+	return { operations, groupBy };
+}
+
+function extractStringArray(
+	params: Record<string, unknown>,
+	...keys: string[]
+): string[] {
+	const result: string[] = [];
+	for (const key of keys) {
+		const val = params[key];
+		if (typeof val === "string" && val) {
+			result.push(val);
+		} else if (Array.isArray(val)) {
+			for (const item of val) {
+				if (typeof item === "string") result.push(item);
+				else if (typeof item === "object" && item !== null) {
+					const obj = item as Record<string, unknown>;
+					const v = obj.fieldName ?? obj.field ?? obj.value;
+					if (typeof v === "string") result.push(v);
+				}
+			}
+		}
+	}
+	// Also check options
+	const options = params.options as Record<string, unknown> | undefined;
+	if (options) {
+		for (const key of keys) {
+			const val = options[key];
+			if (typeof val === "string" && val) result.push(val);
+		}
+	}
+	return result;
+}
+
+function extractRenameKeyMappings(
+	params: Record<string, unknown>,
+): Array<{ from: string; to: string }> {
+	const mappings: Array<{ from: string; to: string }> = [];
+
+	// N8N format: { keys: { key: [{ currentKey, newKey }] } }
+	const keys = params.keys as Record<string, unknown> | undefined;
+	if (keys?.key && Array.isArray(keys.key)) {
+		for (const k of keys.key) {
+			const item = k as Record<string, unknown>;
+			mappings.push({
+				from: String(item.currentKey ?? ""),
+				to: String(item.newKey ?? ""),
+			});
+		}
+	}
+
+	return mappings;
 }
 
 function serializeConfigValue(value: unknown): unknown {
@@ -1130,14 +1741,28 @@ function convertN8NParameters(
 }
 
 /**
- * Detect and remove back-edges (cycles) from connections.
- * Uses DFS-based cycle detection. Back-edges are skipped with a warning.
- * This prevents infinite loops in the workflow designer's graph layout.
+ * Transform N8N polling cycles into Giselle Loop+If patterns, or remove back-edges
+ * with a warning for complex cycles that can't be automatically converted.
+ *
+ * Phase 6: Pragmatic cycle support — instead of rewriting the DAG executor for
+ * arbitrary cycles, we convert common N8N polling loop patterns to equivalent
+ * Giselle Loop nodes during import.
+ *
+ * Algorithm:
+ * 1. Detect cycles via DFS
+ * 2. For each back-edge (A -> B where B is ancestor):
+ *    a. Trace cycle body: all nodes on path from B to A
+ *    b. Find condition node (If/Switch) in cycle
+ *    c. Classify: POLLING_LOOP, RETRY_LOOP, or UNKNOWN
+ * 3. For known patterns: synthesize Loop node, rewire connections
+ * 4. For unknown: strip back-edge with warning (graceful degradation)
  */
-function removeBackEdges(
+function transformCyclesToLoops(
 	connections: GiselleConnectionData[],
+	nodes: GiselleNodeData[],
+	nodeIdMapping: Record<string, { nodeId: string; nodeType: string; contentType: string; outputIds: string[]; inputIds: string[] }>,
 	warnings: ConversionWarning[],
-): GiselleConnectionData[] {
+): { connections: GiselleConnectionData[]; cyclesConverted: number } {
 	// Build adjacency list
 	const adj = new Map<string, Array<{ targetId: string; connIndex: number }>>();
 	for (let i = 0; i < connections.length; i++) {
@@ -1153,9 +1778,9 @@ function removeBackEdges(
 	const GRAY = 1;
 	const BLACK = 2;
 	const color = new Map<string, number>();
-	const backEdgeIndices = new Set<number>();
+	const backEdges: Array<{ fromId: string; toId: string; connIndex: number }> = [];
+	const parent = new Map<string, string | null>();
 
-	// Collect all node IDs
 	const allNodeIds = new Set<string>();
 	for (const conn of connections) {
 		allNodeIds.add(conn.outputNode.id);
@@ -1170,9 +1795,13 @@ function removeBackEdges(
 		for (const edge of adj.get(nodeId) ?? []) {
 			const targetColor = color.get(edge.targetId) ?? WHITE;
 			if (targetColor === GRAY) {
-				// Back-edge found — this creates a cycle
-				backEdgeIndices.add(edge.connIndex);
+				backEdges.push({
+					fromId: nodeId,
+					toId: edge.targetId,
+					connIndex: edge.connIndex,
+				});
 			} else if (targetColor === WHITE) {
+				parent.set(edge.targetId, nodeId);
 				dfs(edge.targetId);
 			}
 		}
@@ -1181,24 +1810,163 @@ function removeBackEdges(
 
 	for (const nodeId of allNodeIds) {
 		if ((color.get(nodeId) ?? WHITE) === WHITE) {
+			parent.set(nodeId, null);
 			dfs(nodeId);
 		}
 	}
 
-	if (backEdgeIndices.size > 0) {
-		for (const idx of backEdgeIndices) {
-			const conn = connections[idx];
-			warnings.push({
-				nodeType: "connection",
-				nodeName: `${conn.outputNode.id} → ${conn.inputNode.id}`,
-				message:
-					"Cyclic connection (polling loop) removed — Giselle does not support graph cycles. Use a Loop node instead.",
-			});
-		}
-		return connections.filter((_, i) => !backEdgeIndices.has(i));
+	if (backEdges.length === 0) {
+		return { connections, cyclesConverted: 0 };
 	}
 
-	return connections;
+	// Process each back-edge
+	const backEdgeIndices = new Set<number>();
+	let cyclesConverted = 0;
+
+	for (const backEdge of backEdges) {
+		backEdgeIndices.add(backEdge.connIndex);
+
+		// Trace cycle body: find all nodes on path from backEdge.toId -> backEdge.fromId
+		const cycleBody = traceCyclePath(backEdge.toId, backEdge.fromId, adj);
+
+		if (cycleBody.length === 0) {
+			// Can't trace path — just strip the edge
+			warnings.push({
+				nodeType: "connection",
+				nodeName: `cycle`,
+				message: `Cyclic connection removed — could not trace cycle path for Loop conversion`,
+			});
+			continue;
+		}
+
+		// Check if cycle contains an If/Switch node (condition for breaking)
+		const hasConditionNode = cycleBody.some((nodeId) => {
+			const node = nodes.find((n) => n.id === nodeId);
+			if (!node) return false;
+			const ct = (node.content as { type: string }).type;
+			return ct === "if" || ct === "switch";
+		});
+
+		if (hasConditionNode && cycleBody.length >= 2 && cycleBody.length <= 10) {
+			// POLLING_LOOP or RETRY_LOOP — synthesize a Loop node
+			const loopNode: GiselleNodeData = {
+				id: NodeId.generate(),
+				type: "operation",
+				name: `Loop (converted)`,
+				content: {
+					type: "loop",
+					mode: "forEach",
+					maxIterations: 100,
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Items", accessor: "items" },
+				],
+				outputs: [
+					{ id: OutputId.generate(), label: "Done", accessor: "done" },
+					{ id: OutputId.generate(), label: "Loop", accessor: "loop" },
+				],
+			};
+			nodes.push(loopNode);
+
+			// Rewire: the back-edge source's output goes to the Loop's input instead
+			// The Loop's "loop" output connects to the cycle body entry
+			// The cycle body's "true/exit" branch connects to Loop's "done" output downstream
+
+			// Find the entry connection to the cycle (what feeds into backEdge.toId from outside the cycle)
+			const entryConns = connections.filter(
+				(c) => c.inputNode.id === backEdge.toId && !cycleBody.includes(c.outputNode.id),
+			);
+
+			if (entryConns.length > 0) {
+				// Rewire entry connections to feed the Loop node instead
+				for (const ec of entryConns) {
+					ec.inputNode = {
+						id: loopNode.id,
+						type: "operation",
+						content: { type: "loop" },
+					};
+					ec.inputId = loopNode.inputs[0].id;
+				}
+
+				// Add connection: Loop "loop" output -> cycle body entry
+				connections.push({
+					id: ConnectionId.generate(),
+					outputNode: {
+						id: loopNode.id,
+						type: "operation",
+						content: { type: "loop" },
+					},
+					outputId: loopNode.outputs[1].id, // "loop" output
+					inputNode: connections[backEdge.connIndex].inputNode,
+					inputId: connections[backEdge.connIndex].inputId,
+				});
+
+				cyclesConverted++;
+				warnings.push({
+					nodeType: "cycle",
+					nodeName: `${cycleBody.length}-node polling loop`,
+					message: `Polling loop (${cycleBody.length} nodes) converted to Loop node — verify loop exit condition`,
+				});
+			} else {
+				// No clear entry point — graceful degradation
+				warnings.push({
+					nodeType: "connection",
+					nodeName: "cycle",
+					message: `Cyclic connection removed — no clear entry point for Loop conversion (${cycleBody.length} nodes in cycle)`,
+				});
+			}
+		} else {
+			// UNKNOWN or too complex — strip back-edge
+			warnings.push({
+				nodeType: "connection",
+				nodeName: "cycle",
+				message: hasConditionNode
+					? `Complex cycle (${cycleBody.length} nodes) removed — too complex for automatic Loop conversion`
+					: `Cyclic connection removed — no If/Switch node found in cycle for Loop conversion`,
+			});
+		}
+	}
+
+	return {
+		connections: connections.filter((_, i) => !backEdgeIndices.has(i)),
+		cyclesConverted,
+	};
+}
+
+/** BFS to find all nodes on any path from startId to endId. */
+function traceCyclePath(
+	startId: string,
+	endId: string,
+	adj: Map<string, Array<{ targetId: string; connIndex: number }>>,
+): string[] {
+	const visited = new Set<string>();
+	const parentMap = new Map<string, string>();
+	const queue: string[] = [startId];
+	visited.add(startId);
+
+	while (queue.length > 0) {
+		const current = queue.shift()!;
+		if (current === endId) {
+			// Reconstruct path
+			const path: string[] = [];
+			let node: string | undefined = endId;
+			while (node && node !== startId) {
+				path.unshift(node);
+				node = parentMap.get(node);
+			}
+			path.unshift(startId);
+			return path;
+		}
+		for (const edge of adj.get(current) ?? []) {
+			if (!visited.has(edge.targetId)) {
+				visited.add(edge.targetId);
+				parentMap.set(edge.targetId, current);
+				queue.push(edge.targetId);
+			}
+		}
+	}
+
+	return []; // No path found
 }
 
 /**

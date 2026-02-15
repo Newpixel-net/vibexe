@@ -25,6 +25,14 @@ export type GiselleNodeMapping =
 	| { type: "nativeEditFields" }
 	| { type: "nativeSort" }
 	| { type: "nativeWait" }
+	| { type: "nativeAggregate" }
+	| { type: "nativeLimit" }
+	| { type: "nativeRemoveDuplicates" }
+	| { type: "nativeRenameKeys" }
+	| { type: "nativeSplitOut" }
+	| { type: "nativeCompareDatasets" }
+	| { type: "nativeSummarize" }
+	| { type: "nativeRespondToWebhook" }
 	| { type: "text"; description: string }
 	| { type: "skip"; reason: string }
 	| { type: "end" };
@@ -110,12 +118,21 @@ const EXACT_MAPPINGS: Record<string, GiselleNodeMapping> = {
 	"n8n-nodes-base.filter": { type: "nativeFilter" },
 	"n8n-nodes-base.sort": { type: "nativeSort" },
 
+	// Data transform - additional native V6
+	"n8n-nodes-base.aggregate": { type: "nativeAggregate" },
+	"n8n-nodes-base.limit": { type: "nativeLimit" },
+	"n8n-nodes-base.removeduplicates": { type: "nativeRemoveDuplicates" },
+	"n8n-nodes-base.renamekeys": { type: "nativeRenameKeys" },
+	"n8n-nodes-base.splitout": { type: "nativeSplitOut" },
+	"n8n-nodes-base.comparedatasets": { type: "nativeCompareDatasets" },
+	"n8n-nodes-base.summarize": { type: "nativeSummarize" },
+
 	// Skip
 	"n8n-nodes-base.noop": { type: "skip", reason: "No-op node" },
 	"n8n-nodes-base.noopnode": { type: "skip", reason: "No-op node" },
 
-	// End
-	"n8n-nodes-base.respondtowebhook": { type: "end" },
+	// Respond to Webhook (native node, not just "end")
+	"n8n-nodes-base.respondtowebhook": { type: "nativeRespondToWebhook" },
 
 	// Sticky notes
 	"n8n-nodes-base.stickynote": {
@@ -203,6 +220,41 @@ const N8N_TO_PIECE_NAME: Record<string, string> = {
 	googlecontacts: "google-contacts",
 	httprequest: "http",
 	emailsend: "gmail",
+};
+
+// N8N credential type -> Giselle piece name (for credential hints)
+export const N8N_CREDENTIAL_TO_PIECE: Record<string, string> = {
+	slackOAuth2Api: "slack",
+	slackApi: "slack",
+	googleSheetsOAuth2Api: "google-sheets",
+	googleDriveOAuth2Api: "google-drive",
+	gmailOAuth2: "gmail",
+	notionApi: "notion",
+	airtableApi: "airtable",
+	airtableTokenApi: "airtable",
+	hubspotOAuth2Api: "hubspot",
+	discordOAuth2Api: "discord",
+	discordWebhookApi: "discord",
+	telegramApi: "telegram-bot",
+	stripeApi: "stripe",
+	mailchimpApi: "mailchimp",
+	twitterOAuth2Api: "twitter",
+	linkedInOAuth2Api: "linkedin",
+	googleCalendarOAuth2Api: "google-calendar",
+	dropboxOAuth2Api: "dropbox",
+	zoomOAuth2Api: "zoom",
+	googleContactsOAuth2Api: "google-contacts",
+	shopifyApi: "shopify",
+	jiraCloudApi: "jira-cloud",
+	mondayComOAuth2Api: "monday",
+	clickUpOAuth2Api: "clickup",
+	asanaOAuth2Api: "asana",
+	trelloApi: "trello",
+	gitlabOAuth2Api: "gitlab",
+	githubOAuth2Api: "github",
+	boxOAuth2Api: "box",
+	microsoftOutlookOAuth2Api: "microsoft-outlook",
+	microsoftTeamsOAuth2Api: "microsoft-teams",
 };
 
 // Langchain node name -> provider

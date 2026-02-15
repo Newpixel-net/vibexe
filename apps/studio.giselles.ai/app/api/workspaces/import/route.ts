@@ -1,6 +1,6 @@
 import { createId } from "@paralleldrive/cuid2";
 import { NextResponse } from "next/server";
-import { agents, db, workspaces } from "@/db";
+import { agents, db, scheduledWorkflows, workspaces } from "@/db";
 import { fetchCurrentUser } from "@/services/accounts";
 import { fetchCurrentTeam } from "@/services/teams";
 import { giselle } from "../../../giselle";
@@ -41,10 +41,16 @@ export async function POST(request: Request) {
 		for (const t of nodeTypes) {
 			nodeTypeCounts[t] = (nodeTypeCounts[t] ?? 0) + 1;
 		}
+		const importMeta = converted.importMeta;
 		console.log(
 			`[N8N Import] Converting "${converted.name}": ${converted.nodes.length} nodes, ${converted.connections.length} connections, hasFlowControl=${converted.hasFlowControl}`,
 		);
 		console.log("[N8N Import] Node types:", JSON.stringify(nodeTypeCounts));
+		if (importMeta) {
+			console.log(
+				`[N8N Import] Import meta: credentials=${importMeta.nodesNeedingCredentials}, cycles=${importMeta.cyclesConverted}, disabled=${importMeta.disabledNodes}`,
+			);
+		}
 		if (converted.warnings.length > 0) {
 			console.log(
 				`[N8N Import] ${converted.warnings.length} warnings:`,
@@ -107,6 +113,31 @@ export async function POST(request: Request) {
 			name: workflowName,
 		});
 
+		// Persist schedule config from N8N schedule trigger (Phase 4)
+		if (importMeta?.scheduleConfig) {
+			try {
+				// Find the trigger node to use as agentNodeId
+				const triggerNode = converted.nodes.find(
+					(n: { content: { type: string } }) => n.content.type === "trigger",
+				);
+				if (triggerNode) {
+					await db.insert(scheduledWorkflows).values({
+						teamDbId: team.dbId,
+						sdkWorkspaceId: workspace.id,
+						agentNodeId: triggerNode.id,
+						cronExpression: importMeta.scheduleConfig.cronExpression,
+						timezone: importMeta.scheduleConfig.timezone,
+						enabled: false, // Imported as disabled — user must enable after credential setup
+					});
+					console.log(
+						`[N8N Import] Schedule saved: cron="${importMeta.scheduleConfig.cronExpression}", timezone="${importMeta.scheduleConfig.timezone}" (disabled)`,
+					);
+				}
+			} catch (schedErr) {
+				console.warn("[N8N Import] Failed to persist schedule config:", schedErr);
+			}
+		}
+
 		const redirectPath = `/workflows/${workspace.id}`;
 		console.log(
 			`[N8N Import] Success: workspace=${workspace.id}, redirect=${redirectPath}`,
@@ -119,6 +150,7 @@ export async function POST(request: Request) {
 				warnings: converted.warnings ?? [],
 				hasFlowControl: converted.hasFlowControl ?? false,
 				nodeTypeCounts,
+				importMeta: importMeta ?? null,
 			},
 			{ status: 201 },
 		);

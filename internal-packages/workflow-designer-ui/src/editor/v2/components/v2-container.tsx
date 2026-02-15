@@ -75,6 +75,7 @@ import { FloatingNodePreview, Toolbar, useToolbar } from "../../tool";
 import type { V2LayoutState } from "../state";
 import { AppSetupHint } from "./app-setup-hint";
 import { FloatingPropertiesPanel } from "./floating-properties-panel";
+import { ImportWarningBanner } from "./import-warning-banner";
 import { LeftPanel } from "./left-panel";
 import { TriggerPickerOverlay } from "./trigger-picker-overlay";
 import { WhatHappensNextPanel } from "./what-happens-next-panel";
@@ -1339,6 +1340,8 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 					<Panel order={2}>
 						{/* Debug Session Banner */}
 						<DebugBanner />
+						{/* Import Warning Banner */}
+						<ImportWarningBanner />
 						{/* Main Content Area */}
 						<V2NodeCanvas />
 						{/* Floating Properties Panel */}
