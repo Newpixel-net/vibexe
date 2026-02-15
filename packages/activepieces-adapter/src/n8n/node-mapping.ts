@@ -2,24 +2,29 @@
  * N8N Node Type -> Giselle Node Type Mapping
  *
  * Maps N8N node types to either:
- * - Giselle native types (textGeneration, trigger, etc.)
+ * - Giselle native V6 types (nativeIf, nativeCode, etc.)
+ * - Giselle legacy types (textGeneration, trigger, etc.)
  * - Integration nodes (backed by Activepieces pieces)
  */
 
 export type GiselleNodeMapping =
 	| { type: "trigger"; subtype: "manual" }
+	| { type: "nativeTrigger"; provider: "schedule" | "webhook" }
 	| {
 			type: "textGeneration";
 			provider: "openai" | "anthropic" | "google";
 			modelId: string;
 	  }
 	| { type: "integration"; pieceName: string; actionName: string }
-	| { type: "delay" }
-	| { type: "conditional"; subtype: "if" | "switch" }
-	| {
-			type: "dataTransform";
-			subtype: "set" | "code" | "merge" | "splitInBatches";
-	  }
+	| { type: "nativeIf" }
+	| { type: "nativeSwitch" }
+	| { type: "nativeMerge" }
+	| { type: "nativeLoop" }
+	| { type: "nativeCode" }
+	| { type: "nativeFilter" }
+	| { type: "nativeEditFields" }
+	| { type: "nativeSort" }
+	| { type: "nativeWait" }
 	| { type: "text"; description: string }
 	| { type: "skip"; reason: string }
 	| { type: "end" };
@@ -83,30 +88,42 @@ function extractPieceNameFromN8NType(n8nType: string): string | null {
 
 // Exact N8N type -> Giselle mapping
 const EXACT_MAPPINGS: Record<string, GiselleNodeMapping> = {
+	// Triggers
 	"n8n-nodes-base.manualtrigger": { type: "trigger", subtype: "manual" },
-	"n8n-nodes-base.scheduletrigger": { type: "trigger", subtype: "manual" },
-	"n8n-nodes-base.webhooktrigger": { type: "trigger", subtype: "manual" },
-	"n8n-nodes-base.webhook": { type: "trigger", subtype: "manual" },
+	"n8n-nodes-base.scheduletrigger": { type: "nativeTrigger", provider: "schedule" },
+	"n8n-nodes-base.webhooktrigger": { type: "nativeTrigger", provider: "webhook" },
+	"n8n-nodes-base.webhook": { type: "nativeTrigger", provider: "webhook" },
 	"n8n-nodes-base.start": { type: "trigger", subtype: "manual" },
+
+	// Flow control - native V6
+	"n8n-nodes-base.if": { type: "nativeIf" },
+	"n8n-nodes-base.switch": { type: "nativeSwitch" },
+	"n8n-nodes-base.merge": { type: "nativeMerge" },
+	"n8n-nodes-base.wait": { type: "nativeWait" },
+	"n8n-nodes-base.splitinbatches": { type: "nativeLoop" },
+
+	// Data transform - native V6
+	"n8n-nodes-base.set": { type: "nativeEditFields" },
+	"n8n-nodes-base.code": { type: "nativeCode" },
+	"n8n-nodes-base.function": { type: "nativeCode" },
+	"n8n-nodes-base.functionitem": { type: "nativeCode" },
+	"n8n-nodes-base.filter": { type: "nativeFilter" },
+	"n8n-nodes-base.sort": { type: "nativeSort" },
+
+	// Skip
 	"n8n-nodes-base.noop": { type: "skip", reason: "No-op node" },
 	"n8n-nodes-base.noopnode": { type: "skip", reason: "No-op node" },
-	"n8n-nodes-base.wait": { type: "delay" },
-	"n8n-nodes-base.if": { type: "conditional", subtype: "if" },
-	"n8n-nodes-base.switch": { type: "conditional", subtype: "switch" },
-	"n8n-nodes-base.set": { type: "dataTransform", subtype: "set" },
-	"n8n-nodes-base.code": { type: "dataTransform", subtype: "code" },
-	"n8n-nodes-base.function": { type: "dataTransform", subtype: "code" },
-	"n8n-nodes-base.functionitem": { type: "dataTransform", subtype: "code" },
-	"n8n-nodes-base.merge": { type: "dataTransform", subtype: "merge" },
-	"n8n-nodes-base.splitinbatches": {
-		type: "dataTransform",
-		subtype: "splitInBatches",
-	},
+
+	// End
+	"n8n-nodes-base.respondtowebhook": { type: "end" },
+
+	// Sticky notes
 	"n8n-nodes-base.stickynote": {
 		type: "text",
 		description: "Converted from N8N sticky note",
 	},
-	"n8n-nodes-base.respondtowebhook": { type: "end" },
+
+	// Integration nodes
 	"n8n-nodes-base.httprequest": {
 		type: "integration",
 		pieceName: "http",
@@ -117,6 +134,8 @@ const EXACT_MAPPINGS: Record<string, GiselleNodeMapping> = {
 		pieceName: "gmail",
 		actionName: "send_email",
 	},
+
+	// LLM nodes
 	"@n8n/n8n-nodes-langchain.openai": {
 		type: "textGeneration",
 		provider: "openai",

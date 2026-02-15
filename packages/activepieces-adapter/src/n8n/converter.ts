@@ -1,5 +1,8 @@
 /**
  * N8N Workflow Converter: Converts N8N workflow JSON to Giselle workspace format.
+ *
+ * Supports native V6 flow-control nodes (If, Switch, Merge, Loop, Code, Filter,
+ * EditFields, Sort, Wait) which trigger the DAG executor at runtime.
  */
 
 import {
@@ -39,6 +42,7 @@ export interface GiselleWorkspaceData {
 	nodes: GiselleNodeData[];
 	connections: GiselleConnectionData[];
 	warnings: ConversionWarning[];
+	hasFlowControl: boolean;
 	uiState: {
 		nodePositions: Record<string, { x: number; y: number }>;
 	};
@@ -67,6 +71,12 @@ export interface ConversionWarning {
 	message: string;
 }
 
+// Flow-control content types that trigger DAG execution
+const FLOW_CONTROL_TYPES = new Set([
+	"if", "switch", "merge", "loop", "code", "filter",
+	"editFields", "sort", "wait",
+]);
+
 /**
  * Convert an N8N workflow JSON to Giselle workspace data.
  */
@@ -86,6 +96,8 @@ export function convertN8NToGiselle(
 			inputIds: string[];
 		}
 	> = {};
+
+	let hasFlowControl = false;
 
 	// Phase 1: Convert each N8N node
 	for (const n8nNode of n8nWorkflow.nodes) {
@@ -107,10 +119,16 @@ export function convertN8NToGiselle(
 				x: n8nNode.position[0],
 				y: n8nNode.position[1],
 			};
+
+			const contentType = (giselleNode.content as { type: string }).type;
+			if (FLOW_CONTROL_TYPES.has(contentType)) {
+				hasFlowControl = true;
+			}
+
 			nodeIdMapping[n8nNode.name] = {
 				nodeId: giselleNode.id,
 				nodeType: giselleNode.type,
-				contentType: (giselleNode.content as { type: string }).type,
+				contentType,
 				outputIds: giselleNode.outputs.map((o) => o.id),
 				inputIds: giselleNode.inputs.map((i) => i.id),
 			};
@@ -136,6 +154,7 @@ export function convertN8NToGiselle(
 		nodes: giselleNodes,
 		connections,
 		warnings,
+		hasFlowControl,
 		uiState: {
 			nodePositions: layoutPositions,
 		},
@@ -155,6 +174,26 @@ function createGiselleNode(
 				content: {
 					type: "trigger",
 					provider: "manual",
+					state: { status: "unconfigured" },
+				},
+				inputs: [],
+				outputs: [
+					{
+						id: OutputId.generate(),
+						label: "Output",
+						accessor: "trigger-output",
+					},
+				],
+			};
+
+		case "nativeTrigger":
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "trigger",
+					provider: mapping.provider,
 					state: { status: "unconfigured" },
 				},
 				inputs: [],
@@ -231,127 +270,201 @@ function createGiselleNode(
 				],
 			};
 
-		case "delay":
+		// --- Native V6 Flow Control Nodes ---
+
+		case "nativeIf": {
+			const conditionData = convertN8NConditions(n8nNode.parameters);
 			return {
 				id: NodeId.generate(),
 				type: "operation",
 				name: n8nNode.name,
 				content: {
-					type: "integration",
-					pieceName: "delay",
-					actionName: "delay_for",
-					pieceVersion: "latest",
-					configuration: extractDelayConfig(n8nNode.parameters),
+					type: "if",
+					conditionGroup: conditionData,
 				},
 				inputs: [
-					{
-						id: InputId.generate(),
-						label: "Input",
-						accessor: "input",
-					},
+					{ id: InputId.generate(), label: "Input", accessor: "input" },
 				],
 				outputs: [
-					{
-						id: OutputId.generate(),
-						label: "After delay",
-						accessor: "action-result",
-					},
+					{ id: OutputId.generate(), label: "True", accessor: "true" },
+					{ id: OutputId.generate(), label: "False", accessor: "false" },
 				],
-			};
-
-		case "conditional": {
-			const outputs =
-				mapping.subtype === "if"
-					? [
-							{
-								id: OutputId.generate(),
-								label: "True",
-								accessor: "true-branch",
-							},
-							{
-								id: OutputId.generate(),
-								label: "False",
-								accessor: "false-branch",
-							},
-						]
-					: [
-							{
-								id: OutputId.generate(),
-								label: "Output 0",
-								accessor: "branch-0",
-							},
-							{
-								id: OutputId.generate(),
-								label: "Output 1",
-								accessor: "branch-1",
-							},
-							{
-								id: OutputId.generate(),
-								label: "Output 2",
-								accessor: "branch-2",
-							},
-							{
-								id: OutputId.generate(),
-								label: "Output 3",
-								accessor: "branch-3",
-							},
-						];
-			return {
-				id: NodeId.generate(),
-				type: "operation",
-				name: n8nNode.name,
-				content: {
-					type: "integration",
-					pieceName: "conditions",
-					actionName:
-						mapping.subtype === "if" ? "if_condition" : "switch_condition",
-					pieceVersion: "latest",
-					configuration: convertN8NParameters(n8nNode.parameters),
-				},
-				inputs: [
-					{
-						id: InputId.generate(),
-						label: "Input",
-						accessor: "input",
-					},
-				],
-				outputs,
 			};
 		}
 
-		case "dataTransform":
+		case "nativeSwitch": {
+			const switchData = convertN8NSwitchRules(n8nNode.parameters);
+			const switchOutputs = [];
+			for (let i = 0; i < switchData.outputCount; i++) {
+				switchOutputs.push({
+					id: OutputId.generate(),
+					label: `Rule ${i + 1}`,
+					accessor: `rule_${i}`,
+				});
+			}
+			switchOutputs.push({
+				id: OutputId.generate(),
+				label: "Fallback",
+				accessor: "fallback",
+			});
 			return {
 				id: NodeId.generate(),
 				type: "operation",
 				name: n8nNode.name,
 				content: {
-					type: "integration",
-					pieceName: "data-mapper",
-					actionName: resolveDataTransformAction(
-						mapping.subtype,
-						n8nNode.parameters,
-					),
-					pieceVersion: "latest",
-					configuration: extractDataTransformConfig(
-						mapping.subtype,
-						n8nNode.parameters,
-					),
+					type: "switch",
+					mode: "rules",
+					rules: switchData.rules,
+					hasFallback: true,
 				},
 				inputs: [
-					{
-						id: InputId.generate(),
-						label: "Input",
-						accessor: "input",
-					},
+					{ id: InputId.generate(), label: "Input", accessor: "input" },
+				],
+				outputs: switchOutputs,
+			};
+		}
+
+		case "nativeMerge": {
+			const mergeMode = extractMergeMode(n8nNode.parameters);
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "merge",
+					mode: mergeMode,
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Input 1", accessor: "input1" },
+					{ id: InputId.generate(), label: "Input 2", accessor: "input2" },
 				],
 				outputs: [
-					{
-						id: OutputId.generate(),
-						label: "Result",
-						accessor: "action-result",
-					},
+					{ id: OutputId.generate(), label: "Output", accessor: "output" },
 				],
 			};
+		}
+
+		case "nativeLoop": {
+			const loopConfig = extractLoopConfig(n8nNode.parameters);
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "loop",
+					mode: "forEach",
+					maxIterations: loopConfig.maxIterations,
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Items", accessor: "items" },
+				],
+				outputs: [
+					{ id: OutputId.generate(), label: "Done", accessor: "done" },
+					{ id: OutputId.generate(), label: "Loop", accessor: "loop" },
+				],
+			};
+		}
+
+		case "nativeCode": {
+			const codeData = extractCodeContent(n8nNode.parameters);
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "code",
+					code: codeData.code,
+					language: codeData.language,
+					timeout: 10000,
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Input", accessor: "input" },
+				],
+				outputs: [
+					{ id: OutputId.generate(), label: "Output", accessor: "output" },
+				],
+			};
+		}
+
+		case "nativeFilter": {
+			const filterData = convertN8NConditions(n8nNode.parameters);
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "filter",
+					conditionGroup: filterData,
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Input", accessor: "input" },
+				],
+				outputs: [
+					{ id: OutputId.generate(), label: "Kept", accessor: "kept" },
+					{ id: OutputId.generate(), label: "Discarded", accessor: "discarded" },
+				],
+			};
+		}
+
+		case "nativeEditFields": {
+			const fieldOps = convertN8NSetToFieldOperations(n8nNode.parameters);
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "editFields",
+					operations: fieldOps,
+					keepOnlySet: Boolean(n8nNode.parameters.keepOnlySet),
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Input", accessor: "input" },
+				],
+				outputs: [
+					{ id: OutputId.generate(), label: "Output", accessor: "output" },
+				],
+			};
+		}
+
+		case "nativeSort": {
+			const sortKeys = convertN8NSortKeys(n8nNode.parameters);
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "sort",
+					sortKeys,
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Input", accessor: "input" },
+				],
+				outputs: [
+					{ id: OutputId.generate(), label: "Output", accessor: "output" },
+				],
+			};
+		}
+
+		case "nativeWait": {
+			const delaySeconds = extractWaitSeconds(n8nNode.parameters);
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "wait",
+					mode: "fixedTime",
+					delaySeconds,
+					timeoutSeconds: 86400,
+				},
+				inputs: [
+					{ id: InputId.generate(), label: "Input", accessor: "input" },
+				],
+				outputs: [
+					{ id: OutputId.generate(), label: "Output", accessor: "output" },
+				],
+			};
+		}
 
 		case "text":
 			return {
@@ -386,6 +499,322 @@ function createGiselleNode(
 			return null;
 	}
 }
+
+// ─── N8N Operator Mapping ────────────────────────────────────────────────────
+
+/** Maps N8N condition operator strings to Giselle Condition operator enum values */
+const N8N_OPERATOR_MAP: Record<string, string> = {
+	// String operators
+	equal: "equals",
+	equals: "equals",
+	notEqual: "notEquals",
+	contains: "contains",
+	notContains: "notContains",
+	startsWith: "startsWith",
+	endsWith: "endsWith",
+	regex: "regex",
+	isEmpty: "isEmpty",
+	isNotEmpty: "isNotEmpty",
+	// Number operators
+	larger: "greaterThan",
+	largerEqual: "greaterThanOrEqual",
+	smaller: "lessThan",
+	smallerEqual: "lessThanOrEqual",
+	// Boolean
+	isTrue: "isTrue",
+	isFalse: "isFalse",
+	// Existence
+	exists: "isNotEmpty",
+	notExists: "isEmpty",
+};
+
+// ─── Parameter Conversion Helpers ────────────────────────────────────────────
+
+/**
+ * Convert N8N If/Filter conditions to Giselle conditionGroup format.
+ * Handles both N8N v1 format (params.conditions.string/number/boolean)
+ * and v2 format (params.conditions array).
+ */
+function convertN8NConditions(
+	params: Record<string, unknown>,
+): { conditions: Array<{ field: string; operator: string; value: string }>; combineWith: "and" | "or" } {
+	const combineWith: "and" | "or" =
+		(params.combineOperation as string) === "any" ||
+		(params.combineWith as string) === "or"
+			? "or"
+			: "and";
+
+	const conditions: Array<{ field: string; operator: string; value: string }> = [];
+
+	// V2 format: params.conditions is an object with a conditions array
+	const conditionsParam = params.conditions;
+	if (conditionsParam && typeof conditionsParam === "object") {
+		// V2: { conditions: [...] }
+		const condObj = conditionsParam as Record<string, unknown>;
+		if (Array.isArray(condObj.conditions)) {
+			for (const cond of condObj.conditions) {
+				const c = cond as Record<string, unknown>;
+				const leftValue = cleanN8NExpression(String(c.leftValue ?? c.value1 ?? ""));
+				const rightValue = cleanN8NExpression(String(c.rightValue ?? c.value2 ?? ""));
+				const op = N8N_OPERATOR_MAP[String(c.operator ?? "")] ?? "equals";
+				conditions.push({ field: leftValue, operator: op, value: rightValue });
+			}
+			return { conditions, combineWith };
+		}
+
+		// V1: { string: [...], number: [...], boolean: [...] }
+		for (const dataType of ["string", "number", "boolean"]) {
+			const typedConditions = condObj[dataType];
+			if (Array.isArray(typedConditions)) {
+				for (const cond of typedConditions) {
+					const c = cond as Record<string, unknown>;
+					const field = cleanN8NExpression(String(c.value1 ?? ""));
+					const value = cleanN8NExpression(String(c.value2 ?? ""));
+					const op = N8N_OPERATOR_MAP[String(c.operation ?? "")] ?? "equals";
+					conditions.push({ field, operator: op, value });
+				}
+			}
+		}
+	}
+
+	// V2 alternate: params.options?.conditions (filter node format)
+	const options = params.options as Record<string, unknown> | undefined;
+	if (conditions.length === 0 && options?.conditions) {
+		const filterConds = options.conditions;
+		if (Array.isArray(filterConds)) {
+			for (const cond of filterConds) {
+				const c = cond as Record<string, unknown>;
+				const field = cleanN8NExpression(String(c.leftValue ?? c.field ?? ""));
+				const value = cleanN8NExpression(String(c.rightValue ?? c.value ?? ""));
+				const op = N8N_OPERATOR_MAP[String(c.operator ?? "")] ?? "equals";
+				conditions.push({ field, operator: op, value });
+			}
+		}
+	}
+
+	return { conditions, combineWith };
+}
+
+/**
+ * Convert N8N Switch rules to Giselle switch rules format.
+ */
+function convertN8NSwitchRules(
+	params: Record<string, unknown>,
+): { rules: Array<{ name: string; conditionGroup: { conditions: Array<{ field: string; operator: string; value: string }>; combineWith: "and" | "or" }; outputPortName: string }>; outputCount: number } {
+	const rules: Array<{
+		name: string;
+		conditionGroup: { conditions: Array<{ field: string; operator: string; value: string }>; combineWith: "and" | "or" };
+		outputPortName: string;
+	}> = [];
+
+	// N8N switch can have rules array or numbered rule params
+	const rulesParam = params.rules;
+	if (rulesParam && typeof rulesParam === "object") {
+		const rulesObj = rulesParam as Record<string, unknown>;
+		const ruleValues = rulesObj.values ?? rulesObj.rules;
+		if (Array.isArray(ruleValues)) {
+			for (let i = 0; i < ruleValues.length; i++) {
+				const rule = ruleValues[i] as Record<string, unknown>;
+				const conditions: Array<{ field: string; operator: string; value: string }> = [];
+
+				// Each rule may have conditions
+				const ruleConds = rule.conditions;
+				if (ruleConds && typeof ruleConds === "object") {
+					const condObj = ruleConds as Record<string, unknown>;
+					if (Array.isArray(condObj.conditions)) {
+						for (const cond of condObj.conditions) {
+							const c = cond as Record<string, unknown>;
+							const field = cleanN8NExpression(String(c.leftValue ?? c.value1 ?? ""));
+							const value = cleanN8NExpression(String(c.rightValue ?? c.value2 ?? ""));
+							const op = N8N_OPERATOR_MAP[String(c.operator ?? "")] ?? "equals";
+							conditions.push({ field, operator: op, value });
+						}
+					}
+				}
+
+				rules.push({
+					name: String(rule.name ?? `Rule ${i + 1}`),
+					conditionGroup: { conditions, combineWith: "and" },
+					outputPortName: `rule_${i}`,
+				});
+			}
+		}
+	}
+
+	// If no rules parsed, create 2 default rules
+	if (rules.length === 0) {
+		const outputCount = typeof params.numberOutputs === "number"
+			? params.numberOutputs
+			: 2;
+		for (let i = 0; i < outputCount; i++) {
+			rules.push({
+				name: `Rule ${i + 1}`,
+				conditionGroup: { conditions: [], combineWith: "and" },
+				outputPortName: `rule_${i}`,
+			});
+		}
+		return { rules, outputCount };
+	}
+
+	return { rules, outputCount: rules.length };
+}
+
+/**
+ * Extract merge mode from N8N merge node parameters.
+ */
+function extractMergeMode(
+	params: Record<string, unknown>,
+): "waitAll" | "append" | "chooseBranch" {
+	const mode = (params.mode as string) ?? "";
+	switch (mode.toLowerCase()) {
+		case "append":
+			return "append";
+		case "multiplex":
+		case "combinebylookingup":
+		case "combinebyposition":
+		case "waitall":
+			return "waitAll";
+		case "choosebranch":
+		case "passthrough":
+		default:
+			return "chooseBranch";
+	}
+}
+
+/**
+ * Extract loop configuration from N8N SplitInBatches parameters.
+ */
+function extractLoopConfig(
+	params: Record<string, unknown>,
+): { maxIterations: number } {
+	const options = params.options as Record<string, unknown> | undefined;
+	const batchSize = Number(params.batchSize ?? options?.batchSize ?? 100);
+	return { maxIterations: Math.max(batchSize, 1) };
+}
+
+/**
+ * Extract code content from N8N Code/Function node parameters.
+ */
+function extractCodeContent(
+	params: Record<string, unknown>,
+): { code: string; language: "javascript" | "python" } {
+	const jsCode = params.jsCode as string | undefined;
+	const functionCode = params.functionCode as string | undefined;
+	const pythonCode = params.pythonCode as string | undefined;
+
+	if (pythonCode) {
+		return { code: cleanN8NExpression(pythonCode), language: "python" };
+	}
+
+	const code = jsCode ?? functionCode ?? "// Process items and return result\nreturn items;";
+	return { code: cleanN8NExpression(code), language: "javascript" };
+}
+
+/**
+ * Extract wait delay in seconds from N8N Wait node parameters.
+ */
+function extractWaitSeconds(
+	params: Record<string, unknown>,
+): number {
+	const amount = Number(params.amount ?? params.value ?? 0);
+	const unit = (params.unit as string) ?? "seconds";
+
+	switch (unit) {
+		case "milliseconds":
+			return Math.max(Math.round(amount / 1000), 1);
+		case "seconds":
+			return amount;
+		case "minutes":
+			return amount * 60;
+		case "hours":
+			return amount * 3600;
+		case "days":
+			return amount * 86400;
+		default:
+			return amount;
+	}
+}
+
+/**
+ * Convert N8N Set node assignments to Giselle EditFields operations.
+ */
+function convertN8NSetToFieldOperations(
+	params: Record<string, unknown>,
+): Array<{ name: string; type: string; value: string }> {
+	const operations: Array<{ name: string; type: string; value: string }> = [];
+
+	// V2 format: params.assignments.assignments = [{ name, value, type }]
+	const assignments = params.assignments as
+		| { assignments?: Array<{ name: string; value: unknown; type?: string }> }
+		| undefined;
+	if (assignments?.assignments) {
+		for (const a of assignments.assignments) {
+			operations.push({
+				name: a.name,
+				type: a.type ?? "string",
+				value: cleanN8NExpression(String(a.value ?? "")),
+			});
+		}
+		return operations;
+	}
+
+	// V1 format: params.values.string/number/boolean = [{ name, value }]
+	const values = params.values as Record<string, unknown> | undefined;
+	if (values && typeof values === "object") {
+		for (const dataType of ["string", "number", "boolean"]) {
+			const typedValues = (values as Record<string, unknown>)[dataType];
+			if (Array.isArray(typedValues)) {
+				for (const v of typedValues) {
+					const item = v as Record<string, unknown>;
+					operations.push({
+						name: String(item.name ?? ""),
+						type: dataType,
+						value: cleanN8NExpression(String(item.value ?? "")),
+					});
+				}
+			}
+		}
+	}
+
+	return operations;
+}
+
+/**
+ * Convert N8N Sort node fields to Giselle sortKeys.
+ */
+function convertN8NSortKeys(
+	params: Record<string, unknown>,
+): Array<{ field: string; direction: "asc" | "desc" }> {
+	const sortKeys: Array<{ field: string; direction: "asc" | "desc" }> = [];
+
+	// V1: params.sortFieldsUi.sortField = [{ fieldName, order }]
+	const sortFieldsUi = params.sortFieldsUi as Record<string, unknown> | undefined;
+	if (sortFieldsUi?.sortField && Array.isArray(sortFieldsUi.sortField)) {
+		for (const sf of sortFieldsUi.sortField) {
+			const item = sf as Record<string, unknown>;
+			sortKeys.push({
+				field: String(item.fieldName ?? ""),
+				direction: (item.order as string) === "descending" ? "desc" : "asc",
+			});
+		}
+	}
+
+	// V2: params.options?.sortFields = [{ field, direction }]
+	const options = params.options as Record<string, unknown> | undefined;
+	if (sortKeys.length === 0 && options?.sortFields && Array.isArray(options.sortFields)) {
+		for (const sf of options.sortFields) {
+			const item = sf as Record<string, unknown>;
+			sortKeys.push({
+				field: String(item.field ?? item.fieldName ?? ""),
+				direction: (item.direction as string) === "desc" ? "desc" : "asc",
+			});
+		}
+	}
+
+	return sortKeys;
+}
+
+// ─── Shared Helpers ──────────────────────────────────────────────────────────
 
 /**
  * Wrap plain text into a TipTap JSON document string.
@@ -647,66 +1076,6 @@ function cleanN8NExpression(value: string): string {
 	return cleaned;
 }
 
-function extractDelayConfig(
-	params: Record<string, unknown>,
-): Record<string, unknown> {
-	return {
-		amount: params.amount ?? params.value ?? 60,
-		unit: params.unit ?? "seconds",
-	};
-}
-
-function resolveDataTransformAction(
-	subtype: string,
-	_params: Record<string, unknown>,
-): string {
-	switch (subtype) {
-		case "set":
-			return "set_values";
-		case "code":
-			return "run_code";
-		case "merge":
-			return "merge_data";
-		case "splitInBatches":
-			return "split_batches";
-		default:
-			return "transform";
-	}
-}
-
-function extractDataTransformConfig(
-	subtype: string,
-	params: Record<string, unknown>,
-): Record<string, unknown> {
-	switch (subtype) {
-		case "set": {
-			const assignments = params.assignments as
-				| { assignments?: Array<{ name: string; value: unknown }> }
-				| undefined;
-			if (assignments?.assignments) {
-				const pairs: Record<string, string> = {};
-				for (const a of assignments.assignments) {
-					pairs[a.name] = cleanN8NExpression(String(a.value ?? ""));
-				}
-				return { assignments: pairs };
-			}
-			return convertN8NParameters(params);
-		}
-		case "code": {
-			const code =
-				(params.jsCode as string) ??
-				(params.pythonCode as string) ??
-				(params.functionCode as string) ??
-				"";
-			return { code: cleanN8NExpression(code), language: params.jsCode ? "javascript" : "python" };
-		}
-		case "merge":
-			return { mode: (params.mode as string) ?? "append" };
-		default:
-			return convertN8NParameters(params);
-	}
-}
-
 function serializeConfigValue(value: unknown): unknown {
 	if (value === null || value === undefined) return value;
 
@@ -821,7 +1190,7 @@ function computeLayout(
 		}
 	}
 
-	// Handle any nodes not reached (cycles / disconnected) — assign depth 0
+	// Handle any nodes not reached (cycles / disconnected) -- assign depth 0
 	for (const n of flowNodes) {
 		if (depth[n.id] === undefined) {
 			depth[n.id] = 0;

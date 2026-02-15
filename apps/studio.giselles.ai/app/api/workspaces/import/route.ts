@@ -6,6 +6,7 @@ import { fetchCurrentTeam } from "@/services/teams";
 import { giselle } from "../../../giselle";
 
 export async function POST(request: Request) {
+	let workspaceId: string | undefined;
 	try {
 		const body = (await request.json()) as { n8nWorkflow?: unknown };
 
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
 
 		// Create a fresh workspace
 		const workspace = await giselle.createWorkspace();
+		workspaceId = workspace.id;
 
 		// Convert N8N workflow to Giselle nodes
 		// Dynamic import to avoid bundling the adapter in all routes
@@ -31,10 +33,28 @@ export async function POST(request: Request) {
 			body.n8nWorkflow as Parameters<typeof convertN8NToGiselle>[0],
 		);
 
+		// Diagnostic logging
+		const nodeTypes = converted.nodes.map(
+			(n: { content: { type: string } }) => n.content.type,
+		);
+		const nodeTypeCounts: Record<string, number> = {};
+		for (const t of nodeTypes) {
+			nodeTypeCounts[t] = (nodeTypeCounts[t] ?? 0) + 1;
+		}
+		console.log(
+			`[N8N Import] Converting "${converted.name}": ${converted.nodes.length} nodes, ${converted.connections.length} connections, hasFlowControl=${converted.hasFlowControl}`,
+		);
+		console.log("[N8N Import] Node types:", JSON.stringify(nodeTypeCounts));
+		if (converted.warnings.length > 0) {
+			console.log(
+				`[N8N Import] ${converted.warnings.length} warnings:`,
+				converted.warnings.map(
+					(w: { nodeName: string; message: string }) => `${w.nodeName}: ${w.message}`,
+				),
+			);
+		}
+
 		// Merge converted nodes and connections into the workspace
-		// The converter generates IDs via protocol generators (nd-xxx, inp-xxx, etc.)
-		// so the runtime data matches protocol schemas. We use any[] to bridge the
-		// simplified converter types with the strict protocol Zod-inferred types.
 		const savedWorkspace = await giselle.getWorkspace(workspace.id);
 
 		// Apply workflow name
@@ -88,23 +108,32 @@ export async function POST(request: Request) {
 		});
 
 		const redirectPath = `/workflows/${workspace.id}`;
+		console.log(
+			`[N8N Import] Success: workspace=${workspace.id}, redirect=${redirectPath}`,
+		);
 		return NextResponse.json(
 			{
 				redirectPath,
 				nodeCount: converted.nodes.length,
 				connectionCount: converted.connections.length,
 				warnings: converted.warnings ?? [],
+				hasFlowControl: converted.hasFlowControl ?? false,
+				nodeTypeCounts,
 			},
 			{ status: 201 },
 		);
 	} catch (error) {
-		console.error("N8N import error:", error);
+		console.error(
+			`[N8N Import] Error${workspaceId ? ` (workspace=${workspaceId})` : ""}:`,
+			error,
+		);
 		return NextResponse.json(
 			{
 				error:
 					error instanceof Error
 						? error.message
 						: "Failed to import workflow",
+				...(workspaceId ? { workspaceId } : {}),
 			},
 			{ status: 500 },
 		);
