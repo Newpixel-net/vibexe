@@ -43,7 +43,6 @@ import {
 	useConnectNodes,
 	useDeleteNodes,
 	useDeselectConnection,
-	useDisconnectNodes,
 	useSelectConnection,
 	useSelectSingleNode,
 	useSetCurrentShortcutScope,
@@ -234,12 +233,13 @@ function V2NodeCanvas() {
 			selectedConnectionIds: s.ui.selectedConnectionIds ?? [],
 			stickyNotes: s.stickyNotes ?? [],
 		}));
-	const { setUiNodeState, setUiViewport, addStickyNote, updateStickyNote, removeStickyNote } = useWorkspaceActions((a) => ({
+	const { setUiNodeState, setUiViewport, addStickyNote, updateStickyNote, removeStickyNote, removeConnectionById } = useWorkspaceActions((a) => ({
 		setUiNodeState: a.setUiNodeState,
 		setUiViewport: a.setUiViewport,
 		addStickyNote: a.addStickyNote,
 		updateStickyNote: a.updateStickyNote,
 		removeStickyNote: a.removeStickyNote,
+		removeConnectionById: a.removeConnectionById,
 	}));
 	const deleteNodes = useDeleteNodes();
 	const selectConnection = useSelectConnection();
@@ -251,7 +251,6 @@ function V2NodeCanvas() {
 	const setCurrentShortcutScope = useSetCurrentShortcutScope();
 	const { selectedTool, reset } = useToolbar();
 	const connectNodes = useConnectNodes();
-	const disconnectNodes = useDisconnectNodes();
 	const toast = useToasts();
 	const [menu, setMenu] = useState<Omit<ContextMenuProps, "onClose" | "onSelectAll" | "onFitView" | "onExecuteToHere" | "onTidyUp"> | null>(
 		null,
@@ -661,18 +660,17 @@ function V2NodeCanvas() {
 						);
 						if (removeConnection === undefined) {
 							console.warn(`Connection with id ${change.id} not found`);
-							return;
+							break;
 						}
-						disconnectNodes(
-							removeConnection.outputNode.id,
-							removeConnection.inputNode.id,
-						);
+						// Remove only this specific connection (not all between same node pair)
+						pushUndoSnapshot();
+						removeConnectionById(removeConnection.id);
 						break;
 					}
 				}
 			}
 		},
-		[deselectConnection, disconnectNodes, selectConnection, connections],
+		[deselectConnection, selectConnection, connections, pushUndoSnapshot, removeConnectionById],
 	);
 
 	const handleNodeClick: NodeMouseHandler = useCallback(
