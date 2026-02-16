@@ -34,6 +34,7 @@ export type GiselleNodeMapping =
 	| { type: "nativeSummarize" }
 	| { type: "nativeRespondToWebhook" }
 	| { type: "text"; description: string }
+	| { type: "unsupported"; originalType: string; reason: string }
 	| { type: "skip"; reason: string }
 	| { type: "end" };
 
@@ -66,7 +67,7 @@ export function mapN8NNodeType(n8nType: string): GiselleNodeMapping {
 		};
 	}
 
-	return { type: "skip", reason: `Unsupported N8N node type: ${n8nType}` };
+	return { type: "unsupported", originalType: n8nType, reason: `Community/unsupported node: ${n8nType}` };
 }
 
 function extractPieceNameFromN8NType(n8nType: string): string | null {

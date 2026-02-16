@@ -162,6 +162,46 @@ export function convertN8NToGiselle(
 			continue;
 		}
 
+		// Unsupported/community nodes → disabled placeholder nodes (preserves connections)
+		if (mapping.type === "unsupported") {
+			warnings.push({
+				nodeType: mapping.originalType,
+				nodeName: n8nNode.name,
+				message: mapping.reason,
+			});
+			const nodeId = NodeId.generate();
+			const inputId = InputId.generate();
+			const outputId = OutputId.generate();
+			const placeholderNode: GiselleNodeData = {
+				id: nodeId,
+				type: "operation",
+				name: `${n8nNode.name} (unsupported)`,
+				disabled: true,
+				content: {
+					type: "editFields",
+					fields: [],
+				},
+				inputs: [{ id: inputId, label: "Input", accessor: "input" }],
+				outputs: [{ id: outputId, label: "Output", accessor: "output" }],
+			};
+			giselleNodes.push(placeholderNode);
+			disabledNodes++;
+			nodeIdMapping[n8nNode.name] = {
+				nodeId,
+				nodeType: "operation",
+				contentType: "editFields",
+				outputIds: [outputId],
+				inputIds: [inputId],
+			};
+			if (n8nNode.position) {
+				nodePositions[nodeId] = {
+					x: n8nNode.position[0],
+					y: n8nNode.position[1],
+				};
+			}
+			continue;
+		}
+
 		// Sticky notes → native StickyNote objects (not variable nodes)
 		if (mapping.type === "text") {
 			const stickyNote = createStickyNote(n8nNode);
@@ -276,7 +316,7 @@ export function convertN8NToGiselle(
 
 function createGiselleNode(
 	n8nNode: N8NNode,
-	mapping: Exclude<ReturnType<typeof mapN8NNodeType>, { type: "skip" }>,
+	mapping: Exclude<ReturnType<typeof mapN8NNodeType>, { type: "skip" } | { type: "unsupported" }>,
 	nodeNameMap: Map<string, string>,
 	warnings: ConversionWarning[],
 ): GiselleNodeData | null {
@@ -447,6 +487,14 @@ function createGiselleNode(
 
 		case "nativeMerge": {
 			const mergeMode = extractMergeMode(n8nNode.parameters);
+			const numInputs = typeof n8nNode.parameters.numberInputs === "number"
+				? n8nNode.parameters.numberInputs
+				: 2;
+			const mergeInputs = Array.from({ length: numInputs }, (_, i) => ({
+				id: InputId.generate(),
+				label: `Input ${i + 1}`,
+				accessor: `input${i + 1}`,
+			}));
 			return {
 				id: NodeId.generate(),
 				type: "operation",
@@ -455,10 +503,7 @@ function createGiselleNode(
 					type: "merge",
 					mode: mergeMode,
 				},
-				inputs: [
-					{ id: InputId.generate(), label: "Input 1", accessor: "input1" },
-					{ id: InputId.generate(), label: "Input 2", accessor: "input2" },
-				],
+				inputs: mergeInputs,
 				outputs: [
 					{ id: OutputId.generate(), label: "Output", accessor: "output" },
 				],
@@ -1198,15 +1243,48 @@ function mapStickyNoteColor(
 ): GiselleStickyNoteData["color"] {
 	const index = typeof colorIndex === "number" ? colorIndex : Number(colorIndex);
 	switch (index) {
-		case 1: return "yellow";
-		case 2: return "blue";
-		case 3: return "green";
-		case 4: return "pink";
-		case 5:
-		case 6:
-		case 7: return "gray";
+		case 1: return "yellow";   // N8N yellow → yellow
+		case 2: return "yellow";   // N8N orange → yellow (no orange available)
+		case 3: return "pink";     // N8N red → pink (closest)
+		case 4: return "green";    // N8N green → green
+		case 5: return "blue";     // N8N blue → blue
+		case 6: return "pink";     // N8N purple → pink (closest)
+		case 7: return "gray";     // N8N gray → gray
 		default: return "yellow";
 	}
+}
+
+/**
+ * Pre-process N8N markdown content into standard markdown.
+ * N8N's markdown renderer has custom handling that standard markdown (Streamdown)
+ * doesn't support. This transforms N8N-specific patterns during import.
+ */
+function preprocessN8NMarkdown(text: string): string {
+	if (!text) return text;
+	let result = text;
+
+	// Transform 1: YouTube embeds → clickable links (fixes D5)
+	result = result.replace(
+		/@\[youtube\]\(([^)]+)\)/g,
+		"[Watch on YouTube](https://youtube.com/watch?v=$1)",
+	);
+
+	// Transform 2: Sub-bullets with • → standard markdown sub-list items (fixes D2)
+	result = result.replace(/\n\s*•\s*/g, "\n  - ");
+
+	// Transform 3: Checklists with ✓ → list items (fixes D4)
+	result = result.replace(/\n\s*✓\s*/g, "\n- ✓ ");
+
+	// Transform 4: Flow arrows ↓ → ensure separate paragraphs (fixes D3)
+	result = result.replace(/\n↓\n/g, "\n\n↓\n\n");
+
+	// Transform 5: Number-emoji flow steps → paragraph breaks (fixes D3)
+	result = result.replace(/\n([1-9]️⃣|🔟)/g, "\n\n$1");
+
+	// Transform 6: Emoji callout lines → separate paragraphs (fixes D6)
+	result = result.replace(/\n(📋|💡|✅|⏱️|🎯)/g, "\n\n$1");
+
+	return result;
 }
 
 /**
@@ -1214,7 +1292,8 @@ function mapStickyNoteColor(
  * Uses N8N's raw position, size, content, and color.
  */
 function createStickyNote(n8nNode: N8NNode): GiselleStickyNoteData {
-	const text = (n8nNode.parameters.content as string) ?? "";
+	const rawText = (n8nNode.parameters.content as string) ?? "";
+	const text = preprocessN8NMarkdown(rawText);
 	const color = mapStickyNoteColor(n8nNode.parameters.color);
 	const width = typeof n8nNode.parameters.width === "number"
 		? n8nNode.parameters.width
