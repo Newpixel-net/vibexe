@@ -334,9 +334,11 @@ function V2NodeCanvas() {
 			id: `sticky-${note.id}`,
 			type: "stickyNote" as const,
 			position: note.position,
+			style: { width: note.size.width, minHeight: note.size.height },
 			data: {
 				text: note.text,
 				color: note.color,
+				size: note.size,
 				onUpdate: (id: string, updates: Record<string, unknown>) => {
 					const noteId = id.replace("sticky-", "");
 					updateStickyNote(noteId, updates as any);

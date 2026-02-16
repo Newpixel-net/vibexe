@@ -203,6 +203,69 @@
 	}
 }
 
+/* Sticky note markdown rendering */
+.sticky-note-markdown h1,
+.sticky-note-markdown h2 {
+	font-size: 16px;
+	font-weight: 700;
+	margin: 4px 0 8px;
+	color: #f1f5f9;
+}
+.sticky-note-markdown h3 {
+	font-size: 14px;
+	font-weight: 600;
+	margin: 4px 0 6px;
+	color: #e2e8f0;
+}
+.sticky-note-markdown p {
+	font-size: 12px;
+	line-height: 1.5;
+	margin: 2px 0;
+	color: #cbd5e1;
+}
+.sticky-note-markdown ul,
+.sticky-note-markdown ol {
+	font-size: 12px;
+	line-height: 1.5;
+	padding-left: 16px;
+	margin: 4px 0;
+	color: #cbd5e1;
+}
+.sticky-note-markdown li {
+	margin: 1px 0;
+}
+.sticky-note-markdown a {
+	color: #60a5fa;
+	text-decoration: underline;
+}
+.sticky-note-markdown a:hover {
+	color: #93bbfc;
+}
+.sticky-note-markdown strong {
+	font-weight: 700;
+	color: #f1f5f9;
+}
+.sticky-note-markdown em {
+	font-style: italic;
+}
+.sticky-note-markdown code {
+	background: rgba(255, 255, 255, 0.1);
+	padding: 1px 4px;
+	border-radius: 3px;
+	font-size: 11px;
+}
+.sticky-note-markdown pre {
+	background: rgba(0, 0, 0, 0.3);
+	padding: 8px;
+	border-radius: 4px;
+	margin: 4px 0;
+	overflow-x: auto;
+}
+.sticky-note-markdown hr {
+	border-color: rgba(255, 255, 255, 0.1);
+	margin: 8px 0;
+}
+
 @layer utilities {
 	/* Apply a bottom fade mask for scroll areas */
 	.mask-fade-b {
