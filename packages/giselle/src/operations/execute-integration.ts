@@ -143,7 +143,7 @@ export function executeIntegration(args: {
 			});
 
 			// Merge configuration with resolved inputs (inputs override config)
-			const mergedConfig = {
+			const mergedConfig: Record<string, unknown> = {
 				...configuration,
 				...resolvedInputs,
 			};
@@ -203,6 +203,23 @@ export function executeIntegration(args: {
 							return null;
 						}
 					: undefined;
+
+				// For HTTP piece with secret_text credential, inject Authorization header
+				if (
+					(pieceName === "http" || pieceName === "http-oauth2") &&
+					auth &&
+					typeof auth === "string"
+				) {
+					const existing = mergedConfig.headers;
+					const headers: Record<string, string> =
+						existing && typeof existing === "object" && !Array.isArray(existing)
+							? { ...(existing as Record<string, string>) }
+							: {};
+					if (!headers.Authorization && !headers.authorization) {
+						headers.Authorization = `Bearer ${auth}`;
+						mergedConfig.headers = headers;
+					}
+				}
 
 				// Create persistent store if available
 				const store = args.context.createIntegrationStore?.();

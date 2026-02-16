@@ -3,7 +3,7 @@
 import { Toggle } from "@giselle-internal/ui/toggle";
 import type { NodeId } from "@giselles-ai/protocol";
 import { ChevronRightIcon, InfoIcon } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FieldWrapper } from "../ui/field-wrapper";
 import { InlineCodeEditor } from "../ui/inline-code-editor";
 import { KeyValueEditor, type KeyValuePair } from "../ui/key-value-editor";
@@ -62,14 +62,34 @@ export function HttpPieceFields({
 	const method = (configuration.method as string) || "GET";
 	const url = (configuration.url as string) || "";
 
-	const headerPairs = useMemo(
+	// Use local state for header/query pairs to preserve empty rows while editing
+	const configHeaderPairs = useMemo(
 		() => recordToPairs(configuration.headers),
 		[configuration.headers],
 	);
-	const queryPairs = useMemo(
+	const configQueryPairs = useMemo(
 		() => recordToPairs(configuration.queryParameters),
 		[configuration.queryParameters],
 	);
+
+	const [headerPairs, setHeaderPairs] = useState<KeyValuePair[]>(configHeaderPairs);
+	const [queryPairs, setQueryPairs] = useState<KeyValuePair[]>(configQueryPairs);
+
+	// Sync local state when config changes externally (but not from our own edits)
+	const headerSyncRef = useRef(false);
+	const querySyncRef = useRef(false);
+	useEffect(() => {
+		if (!headerSyncRef.current) {
+			setHeaderPairs(configHeaderPairs);
+		}
+		headerSyncRef.current = false;
+	}, [configHeaderPairs]);
+	useEffect(() => {
+		if (!querySyncRef.current) {
+			setQueryPairs(configQueryPairs);
+		}
+		querySyncRef.current = false;
+	}, [configQueryPairs]);
 
 	const sendHeaders = headerPairs.length > 0 || Boolean(configuration._sendHeaders);
 	const sendQuery = queryPairs.length > 0 || Boolean(configuration._sendQuery);
@@ -87,25 +107,33 @@ export function HttpPieceFields({
 	const handleHeadersToggle = useCallback(
 		(checked: boolean) => {
 			if (!checked) {
+				setHeaderPairs([]);
 				updateConfig("headers", undefined);
 				updateConfig("_sendHeaders", undefined);
 			} else {
+				if (headerPairs.length === 0) {
+					setHeaderPairs([{ key: "", value: "" }]);
+				}
 				updateConfig("_sendHeaders", true);
 			}
 		},
-		[updateConfig],
+		[updateConfig, headerPairs.length],
 	);
 
 	const handleQueryToggle = useCallback(
 		(checked: boolean) => {
 			if (!checked) {
+				setQueryPairs([]);
 				updateConfig("queryParameters", undefined);
 				updateConfig("_sendQuery", undefined);
 			} else {
+				if (queryPairs.length === 0) {
+					setQueryPairs([{ key: "", value: "" }]);
+				}
 				updateConfig("_sendQuery", true);
 			}
 		},
-		[updateConfig],
+		[updateConfig, queryPairs.length],
 	);
 
 	const handleBodyToggle = useCallback(
@@ -126,14 +154,24 @@ export function HttpPieceFields({
 
 	const handleHeadersChange = useCallback(
 		(pairs: KeyValuePair[]) => {
-			updateConfig("headers", pairsToRecord(pairs));
+			headerSyncRef.current = true;
+			setHeaderPairs(pairs);
+			const record = pairsToRecord(pairs);
+			if (Object.keys(record).length > 0) {
+				updateConfig("headers", record);
+			}
 		},
 		[updateConfig],
 	);
 
 	const handleQueryChange = useCallback(
 		(pairs: KeyValuePair[]) => {
-			updateConfig("queryParameters", pairsToRecord(pairs));
+			querySyncRef.current = true;
+			setQueryPairs(pairs);
+			const record = pairsToRecord(pairs);
+			if (Object.keys(record).length > 0) {
+				updateConfig("queryParameters", record);
+			}
 		},
 		[updateConfig],
 	);
@@ -202,7 +240,7 @@ export function HttpPieceFields({
 				{sendQuery && (
 					<div className="pl-[4px]">
 						<KeyValueEditor
-							pairs={queryPairs.length > 0 ? queryPairs : [{ key: "", value: "" }]}
+							pairs={queryPairs}
 							onChange={handleQueryChange}
 							nodeId={nodeId}
 							keyPlaceholder="Parameter name"
@@ -229,7 +267,7 @@ export function HttpPieceFields({
 				{sendHeaders && (
 					<div className="pl-[4px]">
 						<KeyValueEditor
-							pairs={headerPairs.length > 0 ? headerPairs : [{ key: "", value: "" }]}
+							pairs={headerPairs}
 							onChange={handleHeadersChange}
 							nodeId={nodeId}
 							keyPlaceholder="Header name"
