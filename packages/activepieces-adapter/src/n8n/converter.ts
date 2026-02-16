@@ -293,26 +293,23 @@ export function convertN8NToGiselle(
 		nodePositions,
 	);
 
-	// Normalize node positions to start near origin
-	const nodeCoords = Object.values(layoutPositions);
-	if (nodeCoords.length > 0) {
-		const minX = Math.min(...nodeCoords.map((p) => p.x));
-		const minY = Math.min(...nodeCoords.map((p) => p.y));
+	// Normalize all positions (nodes + sticky notes) to start near origin
+	const allCoords = [
+		...Object.values(layoutPositions),
+		...stickyNotes.map((n) => n.position),
+	];
+	if (allCoords.length > 0) {
+		const minX = Math.min(...allCoords.map((p) => p.x));
+		const minY = Math.min(...allCoords.map((p) => p.y));
 		for (const id of Object.keys(layoutPositions)) {
 			layoutPositions[id] = {
 				x: layoutPositions[id].x - minX,
 				y: layoutPositions[id].y - minY,
 			};
 		}
-	}
-
-	// Position sticky notes as a sidebar column to the left of the flow
-	if (stickyNotes.length > 0) {
-		let stickyY = 0;
 		for (const note of stickyNotes) {
-			note.position.x = -note.size.width - 40;
-			note.position.y = stickyY;
-			stickyY += note.size.height + 30;
+			note.position.x -= minX;
+			note.position.y -= minY;
 		}
 	}
 
@@ -1334,8 +1331,8 @@ function createStickyNote(n8nNode: N8NNode): GiselleStickyNoteData {
 			y: n8nNode.position[1],
 		},
 		size: {
-			width: Math.min(width, 300),
-			height: Math.min(height, 400),
+			width,
+			height,
 		},
 	};
 }
@@ -2235,15 +2232,39 @@ function traceCyclePath(
 }
 
 /**
- * Compute layout using topological sort with compact spacing.
- * Raw positions are used only for Y-sort ordering within layers.
+ * Compute layout by using N8N raw positions directly (1:1 mapping).
+ * N8N coordinates have ~272px gaps between adjacent nodes, which works well
+ * for Giselle's 96px card nodes (visible gap = 272 - 96 = 176px).
+ * Falls back to topological layout only if raw positions are missing.
  */
 function computeLayout(
 	nodes: GiselleNodeData[],
 	connections: GiselleConnectionData[],
 	rawPositions: Record<string, { x: number; y: number }>,
 ): Record<string, { x: number; y: number }> {
-	return computeLayoutTopological(nodes, [], connections, rawPositions);
+	// Use raw N8N positions directly — they preserve the author's 2D layout intent
+	const positions: Record<string, { x: number; y: number }> = {};
+	let hasPositions = false;
+	for (const node of nodes) {
+		if (rawPositions[node.id]) {
+			positions[node.id] = { ...rawPositions[node.id] };
+			hasPositions = true;
+		}
+	}
+
+	// Fall back to topological layout only if we have no raw positions
+	if (!hasPositions) {
+		return computeLayoutTopological(nodes, [], connections, rawPositions);
+	}
+
+	// Assign default position for any nodes missing from rawPositions
+	for (const node of nodes) {
+		if (!positions[node.id]) {
+			positions[node.id] = { x: 0, y: 0 };
+		}
+	}
+
+	return positions;
 }
 
 /**
