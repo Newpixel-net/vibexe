@@ -339,6 +339,8 @@ export function IntegrationNodePropertiesPanel({
 						<CredentialSelector
 							node={node}
 							pieceName={node.content.pieceName}
+							pieceDisplayName={pieceData?.displayName}
+							pieceDescription={pieceData?.description}
 							authInfo={authInfo}
 						/>
 					)}

@@ -33,7 +33,10 @@ export function ImportedCredentialSelector({
 			<div className="flex items-center gap-2 text-xs text-yellow-400/70 py-1">
 				<AlertTriangleIcon className="size-3 shrink-0" />
 				<span>
-					Requires {credentialHint.n8nCredentialName || credentialHint.n8nCredentialType} credential (no matching piece found)
+					Requires{" "}
+					{credentialHint.n8nCredentialName ||
+						credentialHint.n8nCredentialType}{" "}
+					credential (no matching piece found)
 				</span>
 			</div>
 		);
@@ -46,25 +49,21 @@ export function ImportedCredentialSelector({
 			<div className="flex items-center gap-2 text-xs text-yellow-400/70 py-1">
 				<AlertTriangleIcon className="size-3 shrink-0" />
 				<span>
-					Requires {credentialHint.n8nCredentialName || suggestedPiece} credential
+					Requires{" "}
+					{credentialHint.n8nCredentialName || suggestedPiece}{" "}
+					credential
 				</span>
 			</div>
 		);
 	}
 
 	return (
-		<div className="flex flex-col gap-2">
-			<div className="flex items-center gap-2 text-xs text-yellow-400/70">
-				<AlertTriangleIcon className="size-3 shrink-0" />
-				<span>
-					Requires {suggestedPieceData.displayName || suggestedPiece} credential
-				</span>
-			</div>
-			<CredentialSelector
-				node={node}
-				pieceName={suggestedPiece}
-				authInfo={suggestedPieceData.auth}
-			/>
-		</div>
+		<CredentialSelector
+			node={node}
+			pieceName={suggestedPiece}
+			pieceDisplayName={suggestedPieceData.displayName || suggestedPiece}
+			pieceDescription={suggestedPieceData.description}
+			authInfo={suggestedPieceData.auth}
+		/>
 	);
 }

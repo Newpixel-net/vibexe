@@ -1,9 +1,15 @@
 import type { IntegrationNode } from "@giselles-ai/protocol";
-import { KeyIcon, LinkIcon, LoaderIcon, PlusIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	CheckCircle2Icon,
+	KeyIcon,
+	LoaderIcon,
+	PencilIcon,
+	XIcon,
+} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { useUpdateNodeDataContent } from "../../../app-designer";
+import { CredentialConfigModal } from "./credential-config-modal";
 import type { PieceAuthInfo } from "./use-piece-action-props";
-import { CredentialForm } from "./credential-form";
 
 interface CredentialOption {
 	dbId: number;
@@ -12,69 +18,48 @@ interface CredentialOption {
 	authType: string;
 }
 
-interface OAuthStatus {
-	available: boolean;
-	provider?: string;
-	displayName?: string;
-	reason?: string;
-}
-
 export function CredentialSelector({
 	node,
 	pieceName,
+	pieceDisplayName,
+	pieceDescription,
 	authInfo,
 }: {
 	node: IntegrationNode;
 	pieceName: string;
+	pieceDisplayName?: string;
+	pieceDescription?: string;
 	authInfo: PieceAuthInfo;
 }) {
 	const updateNodeDataContent = useUpdateNodeDataContent();
 	const [credentials, setCredentials] = useState<CredentialOption[]>([]);
 	const [loading, setLoading] = useState(true);
-	const [showForm, setShowForm] = useState(false);
-	const [oauthStatus, setOauthStatus] = useState<OAuthStatus | null>(null);
-	const [oauthConnecting, setOauthConnecting] = useState(false);
-	const popupRef = useRef<Window | null>(null);
-	const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+	const [showModal, setShowModal] = useState(false);
 
-	const fetchCredentials = useCallback((signal?: AbortSignal) => {
-		setLoading(true);
-		fetch(
-			`/api/integrations/credentials?pieceName=${encodeURIComponent(pieceName)}`,
-			{ signal },
-		)
-			.then(async (res) => {
-				if (!res.ok) return;
-				const data = (await res.json()) as {
-					credentials: CredentialOption[];
-				};
-				if (!signal?.aborted) setCredentials(data.credentials);
-			})
-			.catch((err) => {
-				if (signal?.aborted) return;
-				console.error("Failed to fetch credentials:", err);
-			})
-			.finally(() => {
-				if (!signal?.aborted) setLoading(false);
-			});
-	}, [pieceName]);
-
-	// Check if one-click OAuth connect is available
-	useEffect(() => {
-		if (authInfo.type !== "OAUTH2") return;
-		const controller = new AbortController();
-		fetch(
-			`/api/integrations/oauth2/status?pieceName=${encodeURIComponent(pieceName)}`,
-			{ signal: controller.signal },
-		)
-			.then(async (res) => {
-				if (!res.ok) return;
-				const data = (await res.json()) as OAuthStatus;
-				setOauthStatus(data);
-			})
-			.catch(() => {});
-		return () => controller.abort();
-	}, [pieceName, authInfo.type]);
+	const fetchCredentials = useCallback(
+		(signal?: AbortSignal) => {
+			setLoading(true);
+			fetch(
+				`/api/integrations/credentials?pieceName=${encodeURIComponent(pieceName)}`,
+				{ signal },
+			)
+				.then(async (res) => {
+					if (!res.ok) return;
+					const data = (await res.json()) as {
+						credentials: CredentialOption[];
+					};
+					if (!signal?.aborted) setCredentials(data.credentials);
+				})
+				.catch((err) => {
+					if (signal?.aborted) return;
+					console.error("Failed to fetch credentials:", err);
+				})
+				.finally(() => {
+					if (!signal?.aborted) setLoading(false);
+				});
+		},
+		[pieceName],
+	);
 
 	useEffect(() => {
 		const controller = new AbortController();
@@ -82,130 +67,102 @@ export function CredentialSelector({
 		return () => controller.abort();
 	}, [fetchCredentials]);
 
-	// Clean up popup poll on unmount
-	useEffect(() => {
-		return () => {
-			if (pollRef.current) clearInterval(pollRef.current);
-		};
-	}, []);
+	const selectedCredential = credentials.find(
+		(c) => String(c.dbId) === node.content.credentialId,
+	);
 
-	const handleSelect = useCallback(
+	const handleCredentialSelected = useCallback(
 		(credentialId: string) => {
 			updateNodeDataContent(node, {
 				credentialId: credentialId || undefined,
 			});
+			// Refresh credential list
+			fetchCredentials();
+			setShowModal(false);
 		},
-		[node, updateNodeDataContent],
+		[node, updateNodeDataContent, fetchCredentials],
 	);
 
-	const handleCredentialCreated = useCallback(
-		(newCredential: CredentialOption) => {
-			setCredentials((prev) => [...prev, newCredential]);
-			updateNodeDataContent(node, {
-				credentialId: String(newCredential.dbId),
-			});
-			setShowForm(false);
-		},
-		[node, updateNodeDataContent],
-	);
+	const handleRemove = useCallback(() => {
+		updateNodeDataContent(node, {
+			credentialId: undefined,
+		});
+	}, [node, updateNodeDataContent]);
 
-	const handleOAuthConnect = useCallback(() => {
-		setOauthConnecting(true);
-
-		// Open popup for OAuth flow
-		const width = 600;
-		const height = 700;
-		const left = window.screenX + (window.outerWidth - width) / 2;
-		const top = window.screenY + (window.outerHeight - height) / 2;
-
-		const popup = window.open(
-			`/api/integrations/oauth2/authorize?pieceName=${encodeURIComponent(pieceName)}`,
-			"oauth2-connect",
-			`width=${width},height=${height},left=${left},top=${top},scrollbars=yes`,
-		);
-		popupRef.current = popup;
-
-		// Poll for popup close — use ref to avoid stale closure
-		pollRef.current = setInterval(() => {
-			const p = popupRef.current;
-			if (!p || p.closed) {
-				if (pollRef.current) clearInterval(pollRef.current);
-				pollRef.current = null;
-				popupRef.current = null;
-				setOauthConnecting(false);
-				// Refresh credentials - the callback should have created one
-				fetchCredentials();
-			}
-		}, 500);
-	}, [pieceName, fetchCredentials]);
+	const resolvedDisplayName = pieceDisplayName || pieceName;
 
 	return (
-		<div className="flex flex-col gap-2">
-			<div className="flex items-center gap-1.5">
-				<KeyIcon className="size-3 text-text-muted" />
-				<span className="text-xs text-text-muted">
-					Authentication ({authInfo.type.replace(/_/g, " ").toLowerCase()})
-				</span>
-			</div>
-
-			{loading ? (
-				<div className="flex items-center gap-2 text-xs text-text-muted py-1">
-					<LoaderIcon className="size-3 animate-spin" />
-					Loading credentials...
+		<>
+			<div className="flex flex-col gap-2">
+				<div className="flex items-center gap-1.5">
+					<KeyIcon className="size-3 text-text-muted" />
+					<span className="text-xs text-text-muted">
+						Authentication (
+						{authInfo.type.replace(/_/g, " ").toLowerCase()})
+					</span>
 				</div>
-			) : (
-				<div className="flex flex-col gap-2">
-					<select
-						className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-inverse focus:outline-none focus:ring-1 focus:ring-integration-node-1 cursor-pointer [&>option]:bg-[#141120] [&>option]:text-white"
-						value={node.content.credentialId ?? ""}
-						onChange={(e) => handleSelect(e.target.value)}
-					>
-						<option value="">No credential selected</option>
-						{credentials.map((cred) => (
-							<option key={cred.dbId} value={String(cred.dbId)}>
-								{cred.displayName}
-							</option>
-						))}
-					</select>
 
-					{/* One-click OAuth connect button */}
-					{oauthStatus?.available && (
+				{loading ? (
+					<div className="flex items-center gap-2 text-xs text-text-muted py-1">
+						<LoaderIcon className="size-3 animate-spin" />
+						Loading credentials...
+					</div>
+				) : selectedCredential ? (
+					/* ── Connected state ── */
+					<div className="flex flex-col gap-2 p-3 rounded-lg bg-emerald-500/[0.06] border border-emerald-500/20">
+						<div className="flex items-center gap-2">
+							<CheckCircle2Icon className="size-4 text-emerald-400 shrink-0" />
+							<div className="flex-1 min-w-0">
+								<p className="text-sm font-medium text-emerald-300 truncate">
+									{selectedCredential.displayName}
+								</p>
+							</div>
+						</div>
+						<div className="flex items-center gap-2">
+							<button
+								type="button"
+								onClick={() => setShowModal(true)}
+								className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-white/5 border border-white/10 text-white/60 hover:text-white hover:border-white/20 transition-colors"
+							>
+								<PencilIcon className="size-3" />
+								Change
+							</button>
+							<button
+								type="button"
+								onClick={handleRemove}
+								className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-red-400/60 hover:text-red-400 hover:bg-red-500/[0.06] transition-colors"
+							>
+								<XIcon className="size-3" />
+								Remove
+							</button>
+						</div>
+					</div>
+				) : (
+					/* ── Not connected state ── */
+					<div className="flex flex-col gap-2">
 						<button
 							type="button"
-							className="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-lg bg-integration-node-1/20 border border-integration-node-1/30 text-sm text-inverse hover:bg-integration-node-1/30 transition-colors disabled:opacity-50"
-							onClick={handleOAuthConnect}
-							disabled={oauthConnecting}
+							onClick={() => setShowModal(true)}
+							className="flex items-center justify-center gap-2 w-full py-2.5 px-3 rounded-lg bg-integration-node-1/20 border border-integration-node-1/30 text-sm text-inverse hover:bg-integration-node-1/30 transition-colors"
 						>
-							{oauthConnecting ? (
-								<LoaderIcon className="size-3.5 animate-spin" />
-							) : (
-								<LinkIcon className="size-3.5" />
-							)}
-							{oauthConnecting
-								? "Connecting..."
-								: `Connect ${oauthStatus.displayName ?? pieceName}`}
+							<KeyIcon className="size-3.5" />
+							Set up {resolvedDisplayName} credential
 						</button>
-					)}
+					</div>
+				)}
+			</div>
 
-					<button
-						type="button"
-						className="flex items-center gap-1.5 text-xs text-text-muted hover:text-inverse transition-colors py-1"
-						onClick={() => setShowForm(!showForm)}
-					>
-						<PlusIcon className="size-3" />
-						{showForm ? "Cancel" : "Add credential manually"}
-					</button>
-
-					{showForm && (
-						<CredentialForm
-							pieceName={pieceName}
-							authInfo={authInfo}
-							onCreated={handleCredentialCreated}
-							onCancel={() => setShowForm(false)}
-						/>
-					)}
-				</div>
+			{showModal && (
+				<CredentialConfigModal
+					pieceName={pieceName}
+					pieceDisplayName={resolvedDisplayName}
+					pieceDescription={pieceDescription}
+					authInfo={authInfo}
+					existingCredentialId={node.content.credentialId}
+					onClose={() => setShowModal(false)}
+					onCredentialSelected={handleCredentialSelected}
+				/>
 			)}
-		</div>
+		</>
 	);
 }
