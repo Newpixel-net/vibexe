@@ -116,6 +116,10 @@ const FLOW_CONTROL_TYPES = new Set([
 	"compareDatasets", "summarize", "respondToWebhook",
 ]);
 
+/** N8N uses ~40px icon nodes; Giselle uses 96px card nodes with labels.
+ *  Scale all N8N coordinates by this factor to maintain comfortable spacing. */
+const N8N_POSITION_SCALE = 1.75;
+
 /**
  * Convert an N8N workflow JSON to Giselle workspace data.
  */
@@ -292,6 +296,26 @@ export function convertN8NToGiselle(
 		connections,
 		nodePositions,
 	);
+
+	// Normalize all positions (nodes + sticky notes) to start near origin
+	const allCoords = [
+		...Object.values(layoutPositions),
+		...stickyNotes.map((n) => n.position),
+	];
+	if (allCoords.length > 0) {
+		const minX = Math.min(...allCoords.map((p) => p.x));
+		const minY = Math.min(...allCoords.map((p) => p.y));
+		for (const id of Object.keys(layoutPositions)) {
+			layoutPositions[id] = {
+				x: layoutPositions[id].x - minX,
+				y: layoutPositions[id].y - minY,
+			};
+		}
+		for (const note of stickyNotes) {
+			note.position.x -= minX;
+			note.position.y -= minY;
+		}
+	}
 
 	return {
 		name: n8nWorkflow.name ?? "Imported N8N Workflow",
@@ -1306,8 +1330,14 @@ function createStickyNote(n8nNode: N8NNode): GiselleStickyNoteData {
 		id: `sticky-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
 		text,
 		color,
-		position: { x: n8nNode.position[0], y: n8nNode.position[1] },
-		size: { width, height },
+		position: {
+			x: n8nNode.position[0] * N8N_POSITION_SCALE,
+			y: n8nNode.position[1] * N8N_POSITION_SCALE,
+		},
+		size: {
+			width: Math.round(width * N8N_POSITION_SCALE),
+			height: Math.round(height * N8N_POSITION_SCALE),
+		},
 	};
 }
 
@@ -2252,11 +2282,11 @@ function computeLayoutFromRawPositions(
 ): Record<string, { x: number; y: number }> {
 	const positions: Record<string, { x: number; y: number }> = {};
 
-	// Place flow nodes that have raw positions
+	// Place flow nodes that have raw positions (scaled)
 	for (const node of flowNodes) {
 		const raw = rawPositions[node.id];
 		if (raw) {
-			positions[node.id] = { x: raw.x, y: raw.y };
+			positions[node.id] = { x: raw.x * N8N_POSITION_SCALE, y: raw.y * N8N_POSITION_SCALE };
 		}
 	}
 
@@ -2293,30 +2323,17 @@ function computeLayoutFromRawPositions(
 		}
 	}
 
-	// Place sticky notes using their raw N8N position
+	// Place sticky notes using their raw N8N position (scaled)
 	for (const node of stickyNodes) {
 		const raw = rawPositions[node.id];
 		if (raw) {
-			positions[node.id] = { x: raw.x, y: raw.y };
+			positions[node.id] = { x: raw.x * N8N_POSITION_SCALE, y: raw.y * N8N_POSITION_SCALE };
 		} else {
 			// Fallback: place above the flow
 			const flowYValues = Object.values(positions).map((p) => p.y);
 			const minFlowY =
 				flowYValues.length > 0 ? Math.min(...flowYValues) : 0;
 			positions[node.id] = { x: 0, y: minFlowY - 200 };
-		}
-	}
-
-	// Normalize: shift so minimum position is at (0, 0)
-	const allPositions = Object.values(positions);
-	if (allPositions.length > 0) {
-		const minX = Math.min(...allPositions.map((p) => p.x));
-		const minY = Math.min(...allPositions.map((p) => p.y));
-		for (const id of Object.keys(positions)) {
-			positions[id] = {
-				x: positions[id].x - minX,
-				y: positions[id].y - minY,
-			};
 		}
 	}
 
