@@ -1,13 +1,16 @@
 import type { IntegrationNode } from "@giselles-ai/protocol";
 import {
+	AlertTriangleIcon,
 	CheckCircle2Icon,
 	KeyIcon,
 	LoaderIcon,
 	PencilIcon,
+	PlusIcon,
 	XIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useUpdateNodeDataContent } from "../../../app-designer";
+import { SearchableSelect, type SelectOption } from "../ui/searchable-select";
 import { CredentialConfigModal } from "./credential-config-modal";
 import type { PieceAuthInfo } from "./use-piece-action-props";
 
@@ -67,8 +70,28 @@ export function CredentialSelector({
 		return () => controller.abort();
 	}, [fetchCredentials]);
 
+	const selectedCredentialId = node.content.credentialId ?? "";
+
+	const selectOptions: SelectOption[] = useMemo(
+		() =>
+			credentials.map((c) => ({
+				label: c.displayName,
+				value: String(c.dbId),
+			})),
+		[credentials],
+	);
+
 	const selectedCredential = credentials.find(
-		(c) => String(c.dbId) === node.content.credentialId,
+		(c) => String(c.dbId) === selectedCredentialId,
+	);
+
+	const handleDropdownChange = useCallback(
+		(value: string) => {
+			updateNodeDataContent(node, {
+				credentialId: value || undefined,
+			});
+		},
+		[node, updateNodeDataContent],
 	);
 
 	const handleCredentialSelected = useCallback(
@@ -76,7 +99,6 @@ export function CredentialSelector({
 			updateNodeDataContent(node, {
 				credentialId: credentialId || undefined,
 			});
-			// Refresh credential list
 			fetchCredentials();
 			setShowModal(false);
 		},
@@ -93,61 +115,74 @@ export function CredentialSelector({
 
 	return (
 		<>
-			<div className="flex flex-col gap-2">
-				<div className="flex items-center gap-1.5">
-					<KeyIcon className="size-3 text-text-muted" />
-					<span className="text-xs text-text-muted">
-						Authentication (
-						{authInfo.type.replace(/_/g, " ").toLowerCase()})
-					</span>
-				</div>
-
-				{loading ? (
-					<div className="flex items-center gap-2 text-xs text-text-muted py-1">
-						<LoaderIcon className="size-3 animate-spin" />
-						Loading credentials...
-					</div>
-				) : selectedCredential ? (
-					/* ── Connected state ── */
-					<div className="flex flex-col gap-2 p-3 rounded-lg bg-emerald-500/[0.06] border border-emerald-500/20">
-						<div className="flex items-center gap-2">
-							<CheckCircle2Icon className="size-4 text-emerald-400 shrink-0" />
-							<div className="flex-1 min-w-0">
-								<p className="text-sm font-medium text-emerald-300 truncate">
-									{selectedCredential.displayName}
-								</p>
-							</div>
-						</div>
-						<div className="flex items-center gap-2">
+			<div className="flex flex-col gap-[4px]">
+				<div className="flex items-center justify-between">
+					<label className="text-[12px] text-text-muted flex items-center gap-[4px]">
+						<KeyIcon className="size-[11px]" />
+						Credential
+					</label>
+					{selectedCredential && (
+						<div className="flex items-center gap-[2px]">
 							<button
 								type="button"
 								onClick={() => setShowModal(true)}
-								className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-white/5 border border-white/10 text-white/60 hover:text-white hover:border-white/20 transition-colors"
+								className="p-[3px] text-text-muted/50 hover:text-inverse/70 transition-colors rounded-[3px] hover:bg-inverse/10"
+								title="Edit credential"
 							>
-								<PencilIcon className="size-3" />
-								Change
+								<PencilIcon className="size-[11px]" />
 							</button>
 							<button
 								type="button"
 								onClick={handleRemove}
-								className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md text-red-400/60 hover:text-red-400 hover:bg-red-500/[0.06] transition-colors"
+								className="p-[3px] text-text-muted/50 hover:text-red-400 transition-colors rounded-[3px] hover:bg-red-500/10"
+								title="Remove credential"
 							>
-								<XIcon className="size-3" />
-								Remove
+								<XIcon className="size-[11px]" />
 							</button>
 						</div>
+					)}
+				</div>
+
+				<div className="flex items-center gap-[4px]">
+					<div className="flex-1 min-w-0">
+						{loading ? (
+							<div className="flex items-center gap-[6px] rounded-[6px] border border-border-muted bg-transparent px-[8px] py-[6px] text-[12px] text-text-muted">
+								<LoaderIcon className="size-[11px] animate-spin" />
+								Loading...
+							</div>
+						) : (
+							<SearchableSelect
+								options={selectOptions}
+								value={selectedCredentialId}
+								onChange={handleDropdownChange}
+								placeholder="Select credential..."
+								className="w-full"
+							/>
+						)}
 					</div>
-				) : (
-					/* ── Not connected state ── */
-					<div className="flex flex-col gap-2">
-						<button
-							type="button"
-							onClick={() => setShowModal(true)}
-							className="flex items-center justify-center gap-2 w-full py-2.5 px-3 rounded-lg bg-integration-node-1/20 border border-integration-node-1/30 text-sm text-inverse hover:bg-integration-node-1/30 transition-colors"
-						>
-							<KeyIcon className="size-3.5" />
-							Set up {resolvedDisplayName} credential
-						</button>
+					<button
+						type="button"
+						onClick={() => setShowModal(true)}
+						className="shrink-0 flex items-center justify-center size-[30px] rounded-[6px] border border-border-muted text-text-muted/60 hover:text-inverse hover:border-inverse/20 transition-colors"
+						title={`Create new ${resolvedDisplayName} credential`}
+					>
+						<PlusIcon className="size-[14px]" />
+					</button>
+				</div>
+
+				{/* Warning when no credential selected and piece requires auth */}
+				{!selectedCredential && !loading && (
+					<div className="flex items-center gap-[4px] text-[10px] text-yellow-400/70">
+						<AlertTriangleIcon className="size-[10px] shrink-0" />
+						<span>Required — select or create a credential</span>
+					</div>
+				)}
+
+				{/* Connected indicator */}
+				{selectedCredential && (
+					<div className="flex items-center gap-[4px] text-[10px] text-emerald-400/70">
+						<CheckCircle2Icon className="size-[10px] shrink-0" />
+						<span>Connected</span>
 					</div>
 				)}
 			</div>

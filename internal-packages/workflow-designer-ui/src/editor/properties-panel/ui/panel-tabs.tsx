@@ -6,14 +6,16 @@ import { useState, type ReactNode } from "react";
 interface PanelTabsProps {
 	defaultTab?: string;
 	tabs: { id: string; label: string; content: ReactNode }[];
+	/** Optional action element rendered right-aligned in the tab bar (e.g. Execute button) */
+	action?: ReactNode;
 }
 
-export function PanelTabs({ defaultTab, tabs }: PanelTabsProps) {
+export function PanelTabs({ defaultTab, tabs, action }: PanelTabsProps) {
 	const [activeTab, setActiveTab] = useState(defaultTab ?? tabs[0]?.id ?? "");
 
 	return (
 		<div className="flex flex-col h-full overflow-hidden">
-			<div className="flex shrink-0 border-b border-[hsla(0,0%,100%,0.08)] px-[8px]">
+			<div className="flex items-center shrink-0 border-b border-[hsla(0,0%,100%,0.08)] px-[8px]">
 				{tabs.map((tab) => (
 					<button
 						key={tab.id}
@@ -32,6 +34,7 @@ export function PanelTabs({ defaultTab, tabs }: PanelTabsProps) {
 						)}
 					</button>
 				))}
+				{action && <div className="ml-auto">{action}</div>}
 			</div>
 			<div className="flex-1 overflow-y-auto">
 				{tabs.find((t) => t.id === activeTab)?.content}
