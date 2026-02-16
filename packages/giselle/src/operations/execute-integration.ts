@@ -221,6 +221,40 @@ export function executeIntegration(args: {
 					}
 				}
 
+				// For HTTP piece, wrap body in { data: <content> } structure
+				// The Activepieces HTTP piece defines `body` as DynamicProperties
+				// which returns { data: Property.Json() }, so it accesses body['data']
+				if (
+					(pieceName === "http" || pieceName === "http-oauth2") &&
+					mergedConfig.body_type &&
+					mergedConfig.body_type !== "none" &&
+					mergedConfig.body !== undefined
+				) {
+					const rawBody = mergedConfig.body;
+					// If body is already wrapped in { data: ... }, leave it alone
+					if (
+						typeof rawBody === "object" &&
+						rawBody !== null &&
+						"data" in (rawBody as Record<string, unknown>)
+					) {
+						// Already in correct format
+					} else {
+						// Parse JSON string if needed, then wrap in { data: ... }
+						let bodyContent = rawBody;
+						if (
+							mergedConfig.body_type === "json" &&
+							typeof rawBody === "string"
+						) {
+							try {
+								bodyContent = JSON.parse(rawBody);
+							} catch {
+								// Keep as string if parsing fails
+							}
+						}
+						mergedConfig.body = { data: bodyContent };
+					}
+				}
+
 				// Create persistent store if available
 				const store = args.context.createIntegrationStore?.();
 
