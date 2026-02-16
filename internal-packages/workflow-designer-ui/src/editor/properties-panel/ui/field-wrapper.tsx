@@ -3,7 +3,7 @@
 import { defaultName } from "@giselles-ai/node-registry";
 import type { NodeId } from "@giselles-ai/protocol";
 import clsx from "clsx/lite";
-import { BracesIcon, CopyIcon, RotateCcwIcon, TypeIcon } from "lucide-react";
+import { BracesIcon, CopyIcon, InfoIcon, RotateCcwIcon, TypeIcon } from "lucide-react";
 import {
 	type ReactNode,
 	useCallback,
@@ -142,12 +142,22 @@ export function FieldWrapper({
 			{/* Label row with context menu */}
 			{label && (
 				<div className="flex items-center justify-between group">
-					<label className="text-[12px] text-text-muted">
-						{label}
-						{required && (
-							<span className="text-red-400 ml-[2px]">*</span>
+					<div className="flex items-center gap-[4px]">
+						<label className="text-[12px] text-text-muted">
+							{label}
+							{required && (
+								<span className="text-red-400 ml-[2px]">*</span>
+							)}
+						</label>
+						{description && (
+							<span
+								className="cursor-help"
+								title={description}
+							>
+								<InfoIcon className="size-[11px] text-text-muted/40 hover:text-text-muted" />
+							</span>
 						)}
-					</label>
+					</div>
 					{showContextMenu && (
 						<div className="relative">
 							<button

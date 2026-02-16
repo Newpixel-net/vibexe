@@ -14,6 +14,12 @@ interface NodeSettingsTabProps {
 export function NodeSettingsTab({ node }: NodeSettingsTabProps) {
 	const updateNodeData = useUpdateNodeData();
 
+	// Compute node version info for display
+	const nodeContent = node.content as Record<string, unknown>;
+	const nodeVersionInfo = nodeContent.pieceName
+		? `${nodeContent.pieceName} v${nodeContent.pieceVersion ?? "latest"}`
+		: null;
+
 	const config: ErrorConfig = node.errorConfig ?? {
 		retryOnFail: false,
 		maxRetries: 3,
@@ -231,6 +237,30 @@ export function NodeSettingsTab({ node }: NodeSettingsTabProps) {
 				}}
 				placeholder="Add notes about this node..."
 			/>
+
+			{node.notes && (
+				<Toggle
+					name="display-note-in-flow"
+					checked={node.displayNoteInFlow ?? false}
+					onCheckedChange={(checked) => {
+						updateNodeField({ displayNoteInFlow: checked as boolean });
+					}}
+				>
+					<label htmlFor="display-note-in-flow" className="text-[14px] text-inverse">
+						Display Note in Flow?
+					</label>
+				</Toggle>
+			)}
+
+			{/* Node version info */}
+			{nodeVersionInfo && (
+				<>
+					<div className="mt-[8px] border-t border-white-400/10 pt-[12px]" />
+					<div className="text-[12px] text-[hsla(0,0%,100%,0.25)]">
+						{nodeVersionInfo}
+					</div>
+				</>
+			)}
 		</div>
 	);
 }

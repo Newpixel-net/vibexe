@@ -255,6 +255,13 @@ export const N8N_CREDENTIAL_TO_PIECE: Record<string, string> = {
 	boxOAuth2Api: "box",
 	microsoftOutlookOAuth2Api: "microsoft-outlook",
 	microsoftTeamsOAuth2Api: "microsoft-teams",
+	openAiApi: "openai",
+	anthropicApi: "openai", // Uses API key auth
+	googlePalmApi: "google-generative-ai",
+	httpBasicAuth: "http",
+	httpDigestAuth: "http",
+	httpHeaderAuth: "http",
+	httpQueryAuth: "http",
 };
 
 // Langchain node name -> provider

@@ -353,7 +353,12 @@ function createGiselleNode(
 			};
 		}
 
-		case "integration":
+		case "integration": {
+			let config = convertN8NParameters(n8nNode.parameters);
+			// Map N8N HTTP params to Activepieces HTTP piece property names
+			if (mapping.pieceName === "http") {
+				config = mapHttpParamsToActivepiecesSchema(config);
+			}
 			return {
 				id: NodeId.generate(),
 				type: "operation",
@@ -367,7 +372,7 @@ function createGiselleNode(
 						n8nNode.parameters,
 					),
 					pieceVersion: "latest",
-					configuration: convertN8NParameters(n8nNode.parameters),
+					configuration: config,
 				},
 				inputs: [
 					{
@@ -384,6 +389,7 @@ function createGiselleNode(
 					},
 				],
 			};
+		}
 
 		// --- Native V6 Flow Control Nodes ---
 
@@ -1815,6 +1821,62 @@ function serializeConfigValue(value: unknown): unknown {
 	}
 
 	return value;
+}
+
+/**
+ * Map N8N HTTP node parameters to Activepieces HTTP piece property names.
+ * N8N uses sendHeaders/headerParameters/sendBody/specifyBody/jsonBody etc.
+ * Activepieces HTTP piece uses url/method/headers/body/body_type etc.
+ */
+function mapHttpParamsToActivepiecesSchema(
+	config: Record<string, unknown>,
+): Record<string, unknown> {
+	const mapped: Record<string, unknown> = {};
+
+	// Direct mappings
+	if (config.url) mapped.url = config.url;
+	if (config.method) mapped.method = config.method;
+
+	// Headers: N8N uses sendHeaders + headerParameters.parameters[]
+	// Activepieces HTTP piece uses headers as object
+	if (config.sendHeaders && config.headerParameters) {
+		const params = config.headerParameters as Record<string, unknown>;
+		const entries = (params?.parameters ?? params?.entries ?? params) as unknown;
+		if (Array.isArray(entries)) {
+			const headers: Record<string, string> = {};
+			for (const entry of entries) {
+				const e = entry as Record<string, unknown>;
+				if (e.name && e.value) headers[String(e.name)] = String(e.value);
+			}
+			mapped.headers = headers;
+		}
+	}
+
+	// Body: N8N uses sendBody + specifyBody + jsonBody/body
+	// Activepieces HTTP piece uses body_type + body
+	if (config.sendBody) {
+		mapped.body_type = config.specifyBody === "json" ? "json" : "form-data";
+		mapped.body = config.jsonBody ?? config.body ?? "";
+	}
+
+	// Query params: N8N uses queryParameters
+	if (config.queryParameters) {
+		mapped.queryParams = config.queryParameters;
+	}
+
+	// Copy remaining params that aren't N8N-specific
+	const n8nSpecific = new Set([
+		"sendHeaders", "headerParameters", "sendBody", "specifyBody",
+		"jsonBody", "authentication", "nodeCredentialType", "options",
+		"queryParameters",
+	]);
+	for (const [key, value] of Object.entries(config)) {
+		if (!n8nSpecific.has(key) && !(key in mapped)) {
+			mapped[key] = value;
+		}
+	}
+
+	return mapped;
 }
 
 function convertN8NParameters(

@@ -166,6 +166,7 @@ export const OperationNode = NodeBase.extend({
 	alwaysOutputData: z.boolean().optional(),
 	executeOnce: z.boolean().optional(),
 	notes: z.string().optional(),
+	displayNoteInFlow: z.boolean().optional(),
 	credentialHint: z.object({
 		n8nCredentialType: z.string(),
 		n8nCredentialName: z.string(),

@@ -131,6 +131,16 @@ export function NodeComponent({
 		return !content.credentialId;
 	}, [node]);
 
+	// Check if note should be displayed on the canvas
+	const displayNote = useMemo(() => {
+		if (node.type !== "operation") return null;
+		const opNode = node as { displayNoteInFlow?: boolean; notes?: string };
+		if (opNode.displayNoteInFlow && opNode.notes) {
+			return opNode.notes;
+		}
+		return null;
+	}, [node]);
+
 	return (
 		<NodeShell
 			node={node}
@@ -191,6 +201,11 @@ export function NodeComponent({
 				{subtitleText && (
 					<div className="text-[10px] text-inverse/40 truncate mt-[1px]">
 						{subtitleText}
+					</div>
+				)}
+				{displayNote && (
+					<div className="mt-[4px] px-[4px] py-[2px] rounded-[3px] bg-yellow-500/10 border border-yellow-500/20 text-[9px] text-yellow-300/70 leading-tight max-w-[120px] truncate" title={displayNote}>
+						{displayNote}
 					</div>
 				)}
 			</div>

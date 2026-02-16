@@ -38,6 +38,7 @@ import { PanelTabs } from "../ui/panel-tabs";
 import { SearchableSelect, type SelectOption } from "../ui/searchable-select";
 import { CredentialSelector } from "./credential-selector";
 import { DynamicPropertyField } from "./dynamic-property-field";
+import { ImportedCredentialSelector } from "./imported-credential-selector";
 import { usePieceActionProps, usePieceInspect } from "./use-piece-action-props";
 
 export function IntegrationNodePropertiesPanel({
@@ -339,6 +340,14 @@ export function IntegrationNodePropertiesPanel({
 							node={node}
 							pieceName={node.content.pieceName}
 							authInfo={authInfo}
+						/>
+					)}
+
+					{/* Credential selector for N8N-imported nodes with credential hints */}
+					{!authInfo && node.credentialHint?.suggestedPiece && (
+						<ImportedCredentialSelector
+							node={node}
+							credentialHint={node.credentialHint}
 						/>
 					)}
 

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+export interface PropertyVisibilityCondition {
+	property: string;
+	operator: "==" | "!=" | "in" | "notIn";
+	value: unknown;
+}
+
 export interface PropertyInfo {
 	name: string;
 	displayName: string;
@@ -8,6 +14,8 @@ export interface PropertyInfo {
 	required: boolean;
 	defaultValue?: unknown;
 	options?: { label: string; value: unknown }[];
+	/** Conditional visibility — field is hidden unless condition is met */
+	condition?: PropertyVisibilityCondition;
 }
 
 export interface PieceAuthInfo {

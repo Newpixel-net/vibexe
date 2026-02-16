@@ -9,6 +9,12 @@ import { loadPiece } from "./piece-registry";
 
 // ─── Types ──────────────────────────────────────────────
 
+export interface PropertyVisibilityCondition {
+	property: string;
+	operator: "==" | "!=" | "in" | "notIn";
+	value: unknown;
+}
+
 export interface PropertyInfo {
 	name: string;
 	displayName: string;
@@ -17,6 +23,8 @@ export interface PropertyInfo {
 	required: boolean;
 	defaultValue?: unknown;
 	options?: { label: string; value: unknown }[];
+	/** Conditional visibility — field is hidden unless condition is met */
+	condition?: PropertyVisibilityCondition;
 }
 
 export interface PieceActionInfo {
@@ -56,6 +64,20 @@ const PIECE_AUTH_OVERRIDES: Record<string, PieceAuthInfo> = {
 	},
 };
 
+// ─── Field visibility overrides ────────────────────────
+// Manually define conditional visibility for pieces that don't declare it in schema.
+// Format: pieceName → actionName → fieldName → condition
+
+const FIELD_VISIBILITY_OVERRIDES: Record<string, Record<string, Record<string, PropertyVisibilityCondition>>> = {
+	http: {
+		send_request: {
+			headers: { property: "headers", operator: "!=", value: undefined }, // always visible when populated
+			body: { property: "body_type", operator: "!=", value: "" },
+			body_type: { property: "body_type", operator: "!=", value: undefined }, // always visible
+		},
+	},
+};
+
 // ─── Cache ──────────────────────────────────────────────
 
 const pieceInfoCache = new Map<string, PieceInfo>();
@@ -79,7 +101,7 @@ function extractPropertyInfo(
 		}
 	}
 
-	return {
+	const info: PropertyInfo = {
 		name,
 		displayName: String(prop.displayName ?? name),
 		description: String(prop.description ?? ""),
@@ -88,6 +110,8 @@ function extractPropertyInfo(
 		defaultValue: prop.defaultValue,
 		options,
 	};
+
+	return info;
 }
 
 function extractPropsFromObject(
@@ -307,6 +331,17 @@ export async function getActionProps(
 	}
 
 	const props = extractPropsFromObject(action.props);
+
+	// Apply visibility overrides for pieces that don't declare conditions in schema
+	const overrides = FIELD_VISIBILITY_OVERRIDES[pieceName]?.[actionName];
+	if (overrides) {
+		for (const [fieldName, condition] of Object.entries(overrides)) {
+			if (props[fieldName]) {
+				props[fieldName].condition = condition;
+			}
+		}
+	}
+
 	actionPropsCache.set(cacheKey, props);
 	return props;
 }

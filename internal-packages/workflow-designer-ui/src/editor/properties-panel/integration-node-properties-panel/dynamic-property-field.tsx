@@ -1,10 +1,31 @@
+import { Toggle } from "@giselle-internal/ui/toggle";
 import type { NodeId } from "@giselles-ai/protocol";
-import { LoaderIcon } from "lucide-react";
+import { InfoIcon, LoaderIcon } from "lucide-react";
 import { FieldWrapper } from "../ui/field-wrapper";
 import { InlineCodeEditor } from "../ui/inline-code-editor";
 import { SearchableSelect, type SelectOption } from "../ui/searchable-select";
 import { useDynamicOptions } from "./use-dynamic-options";
-import type { PropertyInfo } from "./use-piece-action-props";
+import type { PropertyInfo, PropertyVisibilityCondition } from "./use-piece-action-props";
+
+/** Evaluate a visibility condition against current field values */
+function evaluateCondition(
+	condition: PropertyVisibilityCondition,
+	allValues: Record<string, unknown>,
+): boolean {
+	const actual = allValues[condition.property];
+	switch (condition.operator) {
+		case "==":
+			return actual === condition.value || String(actual ?? "") === String(condition.value ?? "");
+		case "!=":
+			return actual !== condition.value && String(actual ?? "") !== String(condition.value ?? "");
+		case "in":
+			return Array.isArray(condition.value) && (condition.value as unknown[]).includes(actual);
+		case "notIn":
+			return Array.isArray(condition.value) && !(condition.value as unknown[]).includes(actual);
+		default:
+			return true;
+	}
+}
 
 interface DynamicPropertyFieldProps {
 	prop: PropertyInfo;
@@ -28,7 +49,40 @@ export function DynamicPropertyField({
 	actionName,
 	allValues,
 }: DynamicPropertyFieldProps) {
+	// Conditional visibility — hide field if condition is not met
+	if (prop.condition && allValues) {
+		const visible = evaluateCondition(prop.condition, allValues);
+		if (!visible) return null;
+	}
+
 	const stringValue = value != null ? String(value) : "";
+
+	// CHECKBOX type renders as a standalone Toggle row (not inside FieldWrapper)
+	if (prop.type === "CHECKBOX") {
+		return (
+			<div className="flex flex-col gap-[2px]">
+				<Toggle
+					name={`prop-${prop.name}`}
+					checked={Boolean(value)}
+					onCheckedChange={(checked) => onChange(checked)}
+				>
+					<div className="flex items-center gap-[4px]">
+						<label htmlFor={`prop-${prop.name}`} className="text-[12px] text-inverse">
+							{prop.displayName}
+						</label>
+						{prop.description && (
+							<span
+								className="cursor-help"
+								title={prop.description}
+							>
+								<InfoIcon className="size-[11px] text-text-muted/50 hover:text-text-muted" />
+							</span>
+						)}
+					</div>
+				</Toggle>
+			</div>
+		);
+	}
 
 	// For DROPDOWN/DYNAMIC_DROPDOWN types, use the dynamic options hook
 	if (
@@ -169,19 +223,7 @@ function renderFixedField(
 			);
 
 		case "CHECKBOX":
-			return (
-				<label className="flex items-center gap-[6px] rounded-r-[6px] border border-l-0 border-border-muted bg-transparent px-[8px] py-[6px] cursor-pointer">
-					<input
-						type="checkbox"
-						className="rounded border-white/10 bg-white/5 text-blue-500 focus:ring-blue-500/30"
-						checked={Boolean(value)}
-						onChange={(e) => onChange(e.target.checked)}
-					/>
-					<span className="text-[12px] text-inverse">
-						{Boolean(value) ? "Yes" : "No"}
-					</span>
-				</label>
-			);
+			return null; // Rendered as a standalone Toggle row (see DynamicPropertyField)
 
 		case "STATIC_DROPDOWN":
 			if (prop.options && prop.options.length > 0) {
