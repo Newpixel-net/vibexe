@@ -95,6 +95,112 @@ async function resolveIntegrationInputs(args: {
 	return inputs;
 }
 
+/**
+ * Resolve a dotted path like "message.content.title" against an object.
+ */
+function resolvePath(obj: unknown, path: string): unknown {
+	const parts = path.split(".");
+	let current = obj;
+	for (const part of parts) {
+		if (current == null || typeof current !== "object") return undefined;
+		current = (current as Record<string, unknown>)[part];
+	}
+	return current;
+}
+
+/**
+ * Search for a key anywhere in a nested object (depth-first).
+ */
+function findByLeafKey(obj: unknown, leafKey: string): unknown {
+	if (obj == null || typeof obj !== "object") return undefined;
+	const record = obj as Record<string, unknown>;
+	if (leafKey in record) return record[leafKey];
+	for (const value of Object.values(record)) {
+		if (value && typeof value === "object") {
+			const found = findByLeafKey(value, leafKey);
+			if (found !== undefined) return found;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Built-in HTML template engine for n8n-nodes-base.html nodes.
+ * Handles [input.xxx] and {{ $json.xxx }} template expressions.
+ * Uses smart path resolution: tries exact path first, then leaf-key fallback.
+ */
+function executeHtmlTemplate(
+	config: Record<string, unknown>,
+	resolvedInputs: Record<string, string>,
+): string {
+	// Get template from config — could be under "html" key or any string value
+	let template =
+		(config.html as string) ||
+		Object.values(config).find((v) => typeof v === "string" && v.includes("<")) as string ||
+		"";
+
+	if (!template) {
+		return JSON.stringify({
+			error: true,
+			message: "HTML template node: no template found in configuration",
+		});
+	}
+
+	// Parse all inputs as JSON where possible
+	const parsedInputs: unknown[] = [];
+	for (const value of Object.values(resolvedInputs)) {
+		try {
+			parsedInputs.push(JSON.parse(value));
+		} catch {
+			parsedInputs.push(value);
+		}
+	}
+
+	// Resolver: try exact path, then leaf-key fallback
+	function resolveExpression(path: string): string | undefined {
+		for (const parsed of parsedInputs) {
+			// 1. Try exact dotted path
+			const exact = resolvePath(parsed, path);
+			if (exact !== undefined) {
+				return typeof exact === "string" ? exact : JSON.stringify(exact);
+			}
+		}
+		// 2. Try leaf key (last segment) — handles N8N→Vibexe path mismatches
+		const leafKey = path.split(".").pop() || path;
+		for (const parsed of parsedInputs) {
+			const found = findByLeafKey(parsed, leafKey);
+			if (found !== undefined) {
+				return typeof found === "string" ? found : JSON.stringify(found);
+			}
+		}
+		return undefined;
+	}
+
+	// Replace [input.xxx.yyy] patterns (Vibexe-translated expressions)
+	template = template.replace(
+		/\[input(?:\.([^\]]+))?\]/g,
+		(match, path) => {
+			if (!path) {
+				return Object.values(resolvedInputs)[0] || match;
+			}
+			return resolveExpression(path) ?? match;
+		},
+	);
+
+	// Replace {{ $json.xxx }} patterns (untranslated N8N expressions)
+	template = template.replace(
+		/\{\{\s*\$json(?:\.([^\s}]+))?\s*\}\}/g,
+		(match, path) => {
+			if (!path) {
+				return Object.values(resolvedInputs)[0] || match;
+			}
+			return resolveExpression(path) ?? match;
+		},
+	);
+
+	return template;
+}
+
 function createIntegrationOutput(
 	result: unknown,
 	generationContext: GenerationContext,
@@ -150,7 +256,15 @@ export function executeIntegration(args: {
 
 			let result: unknown;
 			const warnings: string[] = [];
-			try {
+
+			// Built-in handlers for N8N node types that don't map to Activepieces pieces
+			if (pieceName === "html") {
+				// N8N HTML node: template interpolation engine
+				result = executeHtmlTemplate(
+					configuration as Record<string, unknown>,
+					resolvedInputs,
+				);
+			} else try {
 				// Dynamic import of activepieces adapter
 				const { executePieceAction, resolveAuth, ensureFreshToken } =
 					await import("@giselles-ai/activepieces-adapter/server");
