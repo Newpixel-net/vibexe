@@ -2,8 +2,13 @@
 
 import type { NodeProps } from "@xyflow/react";
 import clsx from "clsx/lite";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
+
+/** Preserve blank lines the user typed by converting empty lines to &nbsp; lines */
+function preserveBlankLines(text: string): string {
+	return text.replace(/\n[ \t]*\n/g, "\n\n&nbsp;\n\n");
+}
 
 const accentColors: Record<string, string> = {
 	yellow: "#fbbf24",
@@ -112,7 +117,7 @@ export function StickyNoteNode({ id, data, selected }: NodeProps) {
 					<div className="sticky-note-markdown min-h-[40px]">
 						{noteData.text ? (
 							<Streamdown className="sticky-note-markdown">
-								{noteData.text}
+								{preserveBlankLines(noteData.text)}
 							</Streamdown>
 						) : (
 							<span className="opacity-40 italic text-[13px]">
