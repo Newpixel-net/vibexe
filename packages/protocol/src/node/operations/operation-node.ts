@@ -226,6 +226,9 @@ export const OperationNodeLike = NodeBase.extend({
 		n8nCredentialName: z.string(),
 		suggestedPiece: z.string().nullable(),
 	}).optional(),
+	disabled: z.boolean().optional(),
+	notes: z.string().optional(),
+	displayNoteInFlow: z.boolean().optional(),
 });
 
 export type OperationNodeLike = z.infer<typeof OperationNodeLike>;

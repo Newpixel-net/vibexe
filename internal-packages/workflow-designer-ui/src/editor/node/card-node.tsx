@@ -84,7 +84,9 @@ function getOutputHandleCount(node: NodeLike): number {
 
 /** Compute how many input handles a node needs */
 function getInputHandleCount(node: NodeLike): number {
-	if (node.content.type === "merge") return 2;
+	if (node.content.type === "merge") {
+		return Math.max(node.inputs.length, 2);
+	}
 	return 1;
 }
 
@@ -389,7 +391,7 @@ function NodeHandles({
 			{/* Input handle(s) */}
 			{showInput && (
 				contentType === "merge" ? (
-					<MergeInputHandles v={v} connectedInputIds={connectedInputIds} />
+					<MergeInputHandles v={v} node={node} connectedInputIds={connectedInputIds} />
 				) : (
 					<Handle
 						type="target"
@@ -494,16 +496,36 @@ function LoopOutputHandles({ v, nodeId }: { v: VariantType; nodeId: string }) {
 	);
 }
 
-/** Merge node: 2 labeled input handles */
+/** Merge node: dynamic labeled input handles based on node.inputs */
 function MergeInputHandles({
 	v,
+	node,
 	connectedInputIds,
-}: { v: VariantType; connectedInputIds: InputId[] }) {
-	const positions = getHandlePositions(2);
+}: { v: VariantType; node: NodeLike; connectedInputIds: InputId[] }) {
+	const inputs = useMemo(() => {
+		if (node.inputs.length >= 2) return node.inputs;
+		// Fallback to 2 inputs if none defined
+		return [
+			{ id: "input-1" as InputId, label: "Input 1", accessor: "input1" },
+			{ id: "input-2" as InputId, label: "Input 2", accessor: "input2" },
+		];
+	}, [node.inputs]);
+
+	const positions = getHandlePositions(inputs.length);
+	const connectedSet = useMemo(() => new Set(connectedInputIds), [connectedInputIds]);
+
 	return (
 		<>
-			<InputHandle id="input-1" top={`${positions[0]}%`} v={v} label="Input 1" isConnected={connectedInputIds.length > 0} />
-			<InputHandle id="input-2" top={`${positions[1]}%`} v={v} label="Input 2" isConnected={connectedInputIds.length > 1} />
+			{inputs.map((input, i) => (
+				<InputHandle
+					key={input.id}
+					id={input.id}
+					top={`${positions[i]}%`}
+					v={v}
+					label={input.label ?? `Input ${i + 1}`}
+					isConnected={connectedSet.has(input.id)}
+				/>
+			))}
 		</>
 	);
 }
