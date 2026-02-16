@@ -334,6 +334,7 @@ function V2NodeCanvas() {
 			id: `sticky-${note.id}`,
 			type: "stickyNote" as const,
 			position: note.position,
+			zIndex: -1,
 			style: { width: note.size.width, minHeight: note.size.height },
 			data: {
 				text: note.text,
