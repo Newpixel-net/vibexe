@@ -498,13 +498,11 @@ function V2NodeCanvas() {
 					// else: undefined — matches the default Handle (no id prop)
 				}
 
-				// Multi-input target nodes: map inputId to the named handle ID
+				// Multi-input target nodes: use the connection's inputId directly as handle ID
+				// (MergeInputHandles renders handles with id={input.id} = the InputId)
 				const targetNode = nodes.find((n) => n.id === connection.inputNode.id);
 				if (targetNode?.content.type === "merge" && targetNode.type === "operation") {
-					const idx = (targetNode as any).inputs?.findIndex(
-						(i: any) => i.id === connection.inputId,
-					) ?? -1;
-					targetHandle = `input-${Math.max(1, idx + 1)}`;
+					targetHandle = connection.inputId;
 				}
 				// else: undefined — matches the default Handle (no id prop)
 			}
