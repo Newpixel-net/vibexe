@@ -40,7 +40,7 @@ function flattenTaskToLogs(task: Task): LogEntry[] {
 			const severity =
 				step.status === "failed"
 					? "error"
-					: step.status === "warning"
+					: (step.status as string) === "warning"
 						? "warning"
 						: "info";
 			const statusMsg =
@@ -48,7 +48,7 @@ function flattenTaskToLogs(task: Task): LogEntry[] {
 					? `Completed in ${step.duration}ms`
 					: step.status === "failed"
 						? "Execution failed"
-						: step.status === "skipped"
+						: (step.status as string) === "skipped"
 							? "Skipped"
 							: `Status: ${step.status}`;
 

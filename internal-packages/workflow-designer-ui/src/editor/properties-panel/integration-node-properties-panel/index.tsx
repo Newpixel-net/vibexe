@@ -342,10 +342,10 @@ export function IntegrationNodePropertiesPanel({
 					)}
 
 					{/* Credential selector for N8N-imported nodes with credential hints */}
-					{!authInfo && node.credentialHint?.suggestedPiece && (
+					{!authInfo && (node as any).credentialHint?.suggestedPiece && (
 						<ImportedCredentialSelector
 							node={node}
-							credentialHint={node.credentialHint}
+							credentialHint={(node as any).credentialHint}
 						/>
 					)}
 

@@ -97,7 +97,7 @@ export function AgentOutputPanel({ nodeId }: { nodeId: NodeId }) {
 						currentGeneration.status === "running") && (
 						<p data-header-text>Running agent...</p>
 					)}
-					{currentGeneration.status === "awaiting_review" && (
+					{(currentGeneration.status as string) === "awaiting_review" && (
 						<p data-header-text>Awaiting Review</p>
 					)}
 					{currentGeneration.status === "completed" && (

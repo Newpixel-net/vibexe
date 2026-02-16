@@ -63,7 +63,7 @@ export function useAutoConfigureManualTrigger() {
 							flowTriggerId: triggerId,
 						},
 					},
-				});
+				} as any);
 			} catch (error) {
 				console.error("Failed to auto-configure manual trigger:", error);
 			}

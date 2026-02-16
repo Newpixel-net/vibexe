@@ -88,23 +88,23 @@ function LogRow({ log }: { log: WebhookLog }) {
 
 			{expanded && (
 				<div className="px-4 pb-3 pt-1 ml-5 space-y-2">
-					{log.body && Object.keys(log.body as object).length > 0 && (
+					{(log.body && Object.keys(log.body as object).length > 0 && (
 						<div>
 							<div className="text-[9px] text-inverse/40 uppercase tracking-wider mb-1">Request Body</div>
 							<pre className="p-2 rounded bg-black/30 text-[10px] text-inverse/60 font-mono whitespace-pre-wrap break-all max-h-[120px] overflow-y-auto">
-								{JSON.stringify(log.body, null, 2)}
+								{String(JSON.stringify(log.body, null, 2)) as any}
 							</pre>
 						</div>
-					)}
+					)) as any}
 
-					{log.responseBody && (
+					{(log.responseBody && (
 						<div>
 							<div className="text-[9px] text-inverse/40 uppercase tracking-wider mb-1">Response</div>
 							<pre className="p-2 rounded bg-black/30 text-[10px] text-inverse/60 font-mono whitespace-pre-wrap break-all max-h-[120px] overflow-y-auto">
-								{JSON.stringify(log.responseBody, null, 2)}
+								{String(JSON.stringify(log.responseBody, null, 2)) as any}
 							</pre>
 						</div>
-					)}
+					)) as any}
 
 					<button
 						type="button"
@@ -181,7 +181,7 @@ export function WebhookLogs({ webhookPath }: { webhookPath: string | null }) {
 				</button>
 				<button
 					type="button"
-					onClick={fetchLogs}
+					onClick={() => fetchLogs()}
 					disabled={loading}
 					className="p-1 rounded hover:bg-inverse/10 text-inverse/40 hover:text-inverse/70 disabled:opacity-50"
 				>

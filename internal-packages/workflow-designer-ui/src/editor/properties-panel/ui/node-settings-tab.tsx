@@ -231,19 +231,19 @@ export function NodeSettingsTab({ node }: NodeSettingsTabProps) {
 			</SettingLabel>
 			<textarea
 				className="w-full min-h-[80px] p-[8px] rounded-[6px] bg-[color-mix(in_srgb,var(--color-text-inverse,#fff)_5%,transparent)] border border-white-400/10 text-[13px] text-inverse placeholder:text-inverse/30 resize-y outline-none focus:border-blue-500/30"
-				value={node.notes ?? ""}
+				value={(node as any).notes ?? ""}
 				onChange={(e) => {
-					updateNodeField({ notes: e.target.value || undefined });
+					updateNodeField({ notes: e.target.value || undefined } as any);
 				}}
 				placeholder="Add notes about this node..."
 			/>
 
-			{node.notes && (
+			{(node as any).notes && (
 				<Toggle
 					name="display-note-in-flow"
-					checked={node.displayNoteInFlow ?? false}
+					checked={(node as any).displayNoteInFlow ?? false}
 					onCheckedChange={(checked) => {
-						updateNodeField({ displayNoteInFlow: checked as boolean });
+						updateNodeField({ displayNoteInFlow: checked as boolean } as any);
 					}}
 				>
 					<label htmlFor="display-note-in-flow" className="text-[14px] text-inverse">

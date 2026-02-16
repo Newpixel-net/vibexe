@@ -21,7 +21,7 @@ export function MemoryNodePropertiesPanel({
 	const handleMemoryTypeChange = useCallback(
 		(value: string) => {
 			updateNodeDataContent(node, {
-				memoryType: value as "simpleMemory" | "windowBuffer" | "tokenBuffer" | "summary" | "postgresMemory",
+				memoryType: value as any,
 			});
 		},
 		[node, updateNodeDataContent],

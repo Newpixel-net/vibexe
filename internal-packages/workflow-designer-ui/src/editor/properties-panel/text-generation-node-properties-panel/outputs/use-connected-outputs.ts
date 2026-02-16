@@ -69,9 +69,9 @@ export function useConnectedOutputs(node: TextGenerationNode) {
 			uiConnections.push({
 				id: connection.id,
 				output,
-				outputNode,
+				outputNode: outputNode as any,
 				input,
-				inputNode,
+				inputNode: inputNode as any,
 			});
 
 			switch (outputNode.type) {
@@ -152,6 +152,13 @@ export function useConnectedOutputs(node: TextGenerationNode) {
 						case "executeSubWorkflow":
 						case "respondToWebhook":
 						case "customVariables":
+						case "aggregate":
+						case "summarize":
+						case "limit":
+						case "removeDuplicates":
+						case "renameKeys":
+						case "splitOut":
+						case "compareDatasets":
 							break;
 						default: {
 							const _exhaustiveCheck: never = outputNode.content.type;

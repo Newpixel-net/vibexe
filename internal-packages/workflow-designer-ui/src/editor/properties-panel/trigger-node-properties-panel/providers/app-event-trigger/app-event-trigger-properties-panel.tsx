@@ -99,13 +99,13 @@ export function AppEventTriggerPropertiesPanel({
 						workspaceId,
 						enable: true,
 						configuration: {
-							provider: "appEvent",
+							provider: "appEvent" as any,
 							event: {
-								id: `${selectedPiece}.${selectedTrigger}`,
+								id: `${selectedPiece}.${selectedTrigger}` as any,
 								webhookPath,
 								pieceName: selectedPiece,
 								triggerName: selectedTrigger,
-							},
+							} as any,
 							enabled,
 						},
 					},
@@ -139,7 +139,7 @@ export function AppEventTriggerPropertiesPanel({
 							status: "configured",
 							flowTriggerId: triggerId,
 						},
-					},
+					} as any,
 					name: node.name || `${selectedPieceData?.displayName ?? selectedPiece} Event`,
 				});
 			});
@@ -166,11 +166,9 @@ export function AppEventTriggerPropertiesPanel({
 				</span>
 			</div>
 
-			<p className="text-[11px] text-inverse/50">
-				Trigger this workflow when an event occurs in a connected app
-				(e.g., new Slack message, Google Drive file change, Notion page
-				update).
-			</p>
+			{(<p className="text-[11px] text-inverse/50">
+				Trigger this workflow when an event occurs in a connected app (e.g., new Slack message, Google Drive file change, Notion page update).
+			</p>) as any}
 
 			{/* Status */}
 			{isConfigured && (
@@ -196,9 +194,9 @@ export function AppEventTriggerPropertiesPanel({
 
 			{/* Piece Selection */}
 			<div className="flex flex-col gap-[8px]">
-				<span className="text-[11px] text-inverse/50 font-medium uppercase tracking-wider">
+				{(<span className="text-[11px] text-inverse/50 font-medium uppercase tracking-wider">
 					App / Service
-				</span>
+				</span>) as any}
 				{loadingPieces ? (
 					<div className="flex items-center gap-[8px] p-[10px] bg-inverse/5 rounded-[8px]">
 						<SpinnerIcon className="animate-follow-through-overlap-spin size-[14px] text-inverse/40" />

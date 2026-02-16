@@ -3,6 +3,7 @@ import {
 	isAppEntryNode,
 	isEndNode,
 	isOperationNode,
+	type NodeLike,
 	type OperationNode,
 } from "@giselles-ai/protocol";
 import { useFeatureFlag } from "@giselles-ai/react";
@@ -99,7 +100,7 @@ export function useKeyboardShortcuts(
 	const currentShortcutScope = useAppDesignerStore(
 		(s) => s.currentShortcutScope,
 	);
-	const nodes = useAppDesignerStore((s) => s.nodes);
+	const nodes = useAppDesignerStore((s) => s.nodes) as (NodeLike & { selected?: boolean })[];
 	const { generateContentNode } = useFeatureFlag();
 	const {
 		copy: handleCopy,

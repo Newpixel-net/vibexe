@@ -81,16 +81,16 @@ export function ChatTriggerPropertiesPanel({
 					workspaceId,
 					enable: true,
 					configuration: {
-						provider: "chat",
+						provider: "chat" as any,
 						event: {
-							id: "chat.message",
+							id: "chat.message" as any,
 							widgetConfig: {
 								title: widgetTitle,
 								placeholder: widgetPlaceholder,
 								primaryColor: widgetColor,
 								welcomeMessage: welcomeMessage || undefined,
 							},
-						},
+						} as any,
 						enabled: true,
 					},
 				},
@@ -133,7 +133,7 @@ export function ChatTriggerPropertiesPanel({
 						status: "configured",
 						flowTriggerId: triggerId,
 					},
-				},
+				} as any,
 				name: node.name,
 			});
 		});

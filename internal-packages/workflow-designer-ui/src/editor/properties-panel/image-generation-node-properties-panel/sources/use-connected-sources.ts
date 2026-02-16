@@ -155,6 +155,13 @@ export function useConnectedSources(node: ImageGenerationNode) {
 						case "executeSubWorkflow":
 						case "respondToWebhook":
 						case "customVariables":
+						case "aggregate":
+						case "summarize":
+						case "limit":
+						case "removeDuplicates":
+						case "renameKeys":
+						case "splitOut":
+						case "compareDatasets":
 							break;
 						default: {
 							const _exhaustiveCheck: never = outputNode.content.type;
@@ -214,9 +221,9 @@ export function useConnectedSources(node: ImageGenerationNode) {
 			uiConnections.push({
 				id: connection.id,
 				output,
-				outputNode,
+				outputNode: outputNode as any,
 				input,
-				inputNode: node,
+				inputNode: node as any,
 			});
 		}
 

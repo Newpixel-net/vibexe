@@ -14,6 +14,9 @@ export function buttonLabel(node: TriggerNode) {
 			return "Test Schedule Trigger";
 		case "webhook":
 			return "Test Webhook Trigger";
+		case "appEvent":
+		case "chat":
+			return "Test Trigger";
 		default: {
 			const _exhaustiveCheck: never = node.content.provider;
 			throw new Error(`Unhandled trigger provider type: ${_exhaustiveCheck}`);
@@ -61,6 +64,9 @@ export function createInputsFromTrigger(
 			// Webhook triggers receive data from HTTP request — no form inputs needed
 			return [];
 		}
+		case "appEvent":
+		case "chat":
+			return [];
 		default: {
 			const _exhaustiveCheck: never = trigger.configuration;
 			throw new Error(`Unhandled provider: ${_exhaustiveCheck}`);

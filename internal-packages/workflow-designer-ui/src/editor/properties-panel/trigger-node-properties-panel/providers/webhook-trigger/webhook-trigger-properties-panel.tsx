@@ -120,7 +120,7 @@ export function WebhookTriggerPropertiesPanel({
 							status: "configured",
 							flowTriggerId: triggerId,
 						},
-					},
+					} as any,
 					name: node.name,
 				});
 			});

@@ -749,7 +749,7 @@ function V2NodeCanvas() {
 		],
 	);
 	const handleEdgeClick = useCallback(
-		(_event, edge) => {
+		(_event: any, edge: any) => {
 			// Find the connection for this edge to get source/target info
 			const conn = connections.find((c) => c.id === edge.id);
 			if (!conn || conn.connectionType === "subNode") return;

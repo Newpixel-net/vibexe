@@ -2112,7 +2112,7 @@ function RespondToWebhookPanel({
 					<SearchableSelect
 						options={contentTypeOptions}
 						value={node.content.contentType ?? "application/json"}
-						onChange={(v) => updateContent(node, { contentType: v })}
+						onChange={(v) => updateContent(node, { contentType: v as any })}
 					/>
 				</div>
 				<div>
@@ -2219,7 +2219,7 @@ function DataTablePanel({
 						options={dataTableOperationOptions}
 						value={(node.content as { operation?: string }).operation ?? "query"}
 						onChange={(v) =>
-							updateContent(node, { operation: v })
+							updateContent(node, { operation: v as any })
 						}
 					/>
 				</div>

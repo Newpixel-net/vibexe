@@ -56,9 +56,9 @@ export function useConnectedSources(node: QueryNode) {
 			uiConnections.push({
 				id: connection.id,
 				output,
-				outputNode,
+				outputNode: outputNode as any,
 				input,
-				inputNode: node,
+				inputNode: node as any,
 			});
 
 			switch (outputNode.type) {
@@ -126,6 +126,13 @@ export function useConnectedSources(node: QueryNode) {
 						case "executeSubWorkflow":
 						case "respondToWebhook":
 						case "customVariables":
+						case "aggregate":
+						case "summarize":
+						case "limit":
+						case "removeDuplicates":
+						case "renameKeys":
+						case "splitOut":
+						case "compareDatasets":
 							break;
 						default: {
 							const _exhaustiveCheck: never = outputNode.content.type;

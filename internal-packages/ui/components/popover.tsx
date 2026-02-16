@@ -4,14 +4,16 @@ import { GlassSurfaceLayers } from "./glass-surface";
 
 export function PopoverContent({
 	widthClassName,
+	className,
 	...props
-}: React.PropsWithChildren<{ widthClassName?: string }>) {
+}: React.PropsWithChildren<{ widthClassName?: string; className?: string }>) {
 	return (
 		<div
 			className={clsx(
 				// Match profile dropdown styling (rounded-xl, p-2, custom shadow)
 				"relative rounded-xl p-2 shadow-[0_2px_8px_rgba(5,10,20,0.4),0_1px_2px_rgba(0,0,0,0.3)] flex flex-col min-h-0 h-full z-50",
 				widthClassName,
+				className,
 			)}
 			{...props}
 		>

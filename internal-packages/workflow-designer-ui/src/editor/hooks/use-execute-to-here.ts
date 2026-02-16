@@ -11,7 +11,7 @@ import { useAppDesignerStore, useWorkspaceActions } from "../../app-designer";
  */
 function computePredecessorConnections(
 	targetNodeId: string,
-	connections: { id: string; inputNode: { id: string }; outputNode: { id: string }; connectionType: string }[],
+	connections: { id: string; inputNode: { id: string }; outputNode: { id: string }; connectionType?: string }[],
 ): string[] {
 	const regularConnections = connections.filter(
 		(c) => c.connectionType !== "subNode",

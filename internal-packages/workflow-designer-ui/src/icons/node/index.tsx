@@ -12,7 +12,7 @@ import {
 	isVectorStoreNode,
 	type NodeLike,
 } from "@giselles-ai/protocol";
-import { BotIcon, BrainCircuitIcon, BrainIcon, CableIcon, ClockIcon, DatabaseZapIcon, FlagIcon, LinkIcon, PlayIcon, WrenchIcon, ZapIcon } from "lucide-react";
+import { BotIcon, BrainCircuitIcon, BrainIcon, CableIcon, ClockIcon, DatabaseZapIcon, FlagIcon, LinkIcon, MessageSquareIcon, PlayIcon, WrenchIcon, ZapIcon } from "lucide-react";
 import type { SVGProps } from "react";
 import { AnthropicIcon } from "../anthropic";
 import { Flux1Icon } from "../flux1";
@@ -217,6 +217,10 @@ export function NodeIcon({
 							return <ClockIcon {...props} data-content-type-icon />;
 						case "webhook":
 							return <LinkIcon {...props} data-content-type-icon />;
+						case "appEvent":
+							return <ZapIcon {...props} data-content-type-icon />;
+						case "chat":
+							return <MessageSquareIcon {...props} data-content-type-icon />;
 						default: {
 							const _exhaustiveCheck: never = node.content;
 							throw new Error(

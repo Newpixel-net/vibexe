@@ -340,7 +340,7 @@ export function AiAgentNodePropertiesPanel({
 						updateNodeDataContent(node, {
 							outputParser: {
 								...((node.content as { outputParser?: { type: string; retryAttempts: number } }).outputParser ?? { type: "none", retryAttempts: 3 }),
-								type: e.target.value,
+								type: e.target.value as "none" | "structured" | "autoFixing" | "itemList",
 							},
 						});
 					}}
@@ -365,7 +365,7 @@ export function AiAgentNodePropertiesPanel({
 							if (!Number.isNaN(value) && value >= 1 && value <= 10) {
 								updateNodeDataContent(node, {
 									outputParser: {
-										...((node.content as { outputParser?: { type: string; retryAttempts: number } }).outputParser ?? { type: "autoFixing", retryAttempts: 3 }),
+										...((node.content as { outputParser?: { type: "none" | "structured" | "autoFixing" | "itemList"; retryAttempts: number } }).outputParser ?? { type: "autoFixing" as const, retryAttempts: 3 }),
 										retryAttempts: value,
 									},
 								});

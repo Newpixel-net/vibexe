@@ -138,7 +138,7 @@ export function ScheduleTriggerPropertiesPanel({
 							status: "configured",
 							flowTriggerId: triggerId,
 						},
-					},
+					} as any,
 					name: node.name,
 				});
 			});

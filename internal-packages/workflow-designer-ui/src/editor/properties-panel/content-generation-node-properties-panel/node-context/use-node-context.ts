@@ -51,9 +51,9 @@ export function useNodeContext(node: ContentGenerationNode) {
 			uiConnections.push({
 				id: connection.id,
 				output,
-				outputNode,
+				outputNode: outputNode as any,
 				input,
-				inputNode,
+				inputNode: inputNode as any,
 			});
 		}
 		return uiConnections;

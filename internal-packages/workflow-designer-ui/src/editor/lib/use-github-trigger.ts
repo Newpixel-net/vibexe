@@ -67,7 +67,7 @@ export function useGitHubTrigger(triggerId: TriggerId) {
 				return;
 			}
 			mutate(
-				async () => {
+				(async () => {
 					const newData = {
 						...trigger,
 						...newValue,
@@ -76,12 +76,12 @@ export function useGitHubTrigger(triggerId: TriggerId) {
 						trigger: newData,
 					});
 					return newData;
-				},
+				}) as any,
 				{
-					optimisticData: () => ({
+					optimisticData: (() => ({
 						...trigger,
 						...newValue,
-					}),
+					})) as any,
 				},
 			);
 		},

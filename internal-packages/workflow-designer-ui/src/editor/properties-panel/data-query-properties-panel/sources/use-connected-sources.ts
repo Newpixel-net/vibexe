@@ -120,6 +120,13 @@ export function useConnectedSources(node: DataQueryNode) {
 						case "executeSubWorkflow":
 						case "respondToWebhook":
 						case "customVariables":
+						case "aggregate":
+						case "summarize":
+						case "limit":
+						case "removeDuplicates":
+						case "renameKeys":
+						case "splitOut":
+						case "compareDatasets":
 							break;
 						case "end":
 							// End Node has no Output so do nothing
@@ -170,9 +177,9 @@ export function useConnectedSources(node: DataQueryNode) {
 			uiConnections.push({
 				id: connection.id,
 				output,
-				outputNode,
+				outputNode: outputNode as any,
 				input,
-				inputNode: node,
+				inputNode: node as any,
 			});
 		}
 

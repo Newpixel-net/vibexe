@@ -257,7 +257,7 @@ export function RunDetailView({
 	const handleRetry = useCallback(async () => {
 		setRetrying(true);
 		try {
-			await client.retryTask({ taskId: task.id });
+			await (client as any).retryTask({ taskId: task.id });
 		} finally {
 			setRetrying(false);
 		}
@@ -266,7 +266,7 @@ export function RunDetailView({
 	const handleCancel = useCallback(async () => {
 		setCancelling(true);
 		try {
-			await client.patchTask({
+			await (client as any).patchTask({
 				taskId: task.id,
 				patches: [{ path: "status", set: "cancelled" }],
 			});
@@ -279,7 +279,7 @@ export function RunDetailView({
 	const handleAddTag = useCallback(async (tag: string) => {
 		const newTags = [...localTags, tag];
 		setLocalTags(newTags);
-		await client.patchTask({
+		await (client as any).patchTask({
 			taskId: task.id,
 			patches: [{ path: "tags", set: newTags }],
 		});
@@ -288,7 +288,7 @@ export function RunDetailView({
 	const handleRemoveTag = useCallback(async (tag: string) => {
 		const newTags = localTags.filter((t) => t !== tag);
 		setLocalTags(newTags);
-		await client.patchTask({
+		await (client as any).patchTask({
 			taskId: task.id,
 			patches: [{ path: "tags", set: newTags }],
 		});
@@ -443,9 +443,9 @@ export function RunDetailView({
 							{task.steps.failed} failed
 						</span>
 					)}
-					{(task.steps.skipped ?? 0) > 0 && (
+					{((task.steps as any).skipped ?? 0) > 0 && (
 						<span className="text-inverse/40">
-							{task.steps.skipped} skipped
+							{(task.steps as any).skipped} skipped
 						</span>
 					)}
 					{task.steps.cancelled > 0 && (

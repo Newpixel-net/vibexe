@@ -21,12 +21,12 @@ export function useTrigger(node: TriggerNode) {
 			if (data === undefined) {
 				return;
 			}
-			mutate(
+			(mutate as any)(
 				async () => {
 					const newData = {
 						...data,
 						...newValue,
-					} satisfies Trigger;
+					} as Trigger;
 					await client.setTrigger({
 						trigger: newData,
 					});
@@ -36,7 +36,7 @@ export function useTrigger(node: TriggerNode) {
 					optimisticData: () => ({
 						...data,
 						...newValue,
-					}),
+					} as any),
 				},
 			);
 		},

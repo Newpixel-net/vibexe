@@ -302,7 +302,7 @@ export function ToolNodePropertiesPanel({
 							onChange={(e) =>
 								updateNodeDataContent(node, {
 									httpDescription: e.target.value || undefined,
-								})
+								} as any)
 							}
 							className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
 						/>
@@ -312,7 +312,7 @@ export function ToolNodePropertiesPanel({
 							onChange={(e) =>
 								updateNodeDataContent(node, {
 									httpMethod: e.target.value,
-								})
+								} as any)
 							}
 							className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
 						>
@@ -334,7 +334,7 @@ export function ToolNodePropertiesPanel({
 							onChange={(e) =>
 								updateNodeDataContent(node, {
 									httpUrl: e.target.value || undefined,
-								})
+								} as any)
 							}
 							className="bg-transparent border border-inverse/20 rounded-md px-[8px] py-[6px] text-[13px] text-inverse"
 						/>
@@ -349,7 +349,7 @@ export function ToolNodePropertiesPanel({
 							onChange={(e) => {
 								try {
 									const parsed = e.target.value ? JSON.parse(e.target.value) : undefined;
-									updateNodeDataContent(node, { httpHeaders: parsed });
+									updateNodeDataContent(node, { httpHeaders: parsed } as any);
 								} catch {
 									// Allow typing; don't update until valid JSON
 								}
@@ -370,7 +370,7 @@ export function ToolNodePropertiesPanel({
 									onChange={(e) =>
 										updateNodeDataContent(node, {
 											httpBody: e.target.value || undefined,
-										})
+										} as any)
 									}
 									rows={4}
 									className="w-full rounded-[8px] border border-[hsla(0,0%,100%,0.1)] bg-[hsla(0,0%,100%,0.05)] px-[12px] py-[8px] text-[13px] text-white font-mono outline-none focus:border-[hsla(0,0%,100%,0.3)] resize-y"
