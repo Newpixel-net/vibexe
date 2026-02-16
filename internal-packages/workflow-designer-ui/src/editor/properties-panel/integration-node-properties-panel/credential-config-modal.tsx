@@ -97,6 +97,107 @@ const API_KEY_LINKS: Record<
 		label: "Get API key from Stripe",
 		description: "Copy your secret key from the Stripe Dashboard",
 	},
+	github: {
+		url: "https://github.com/settings/tokens",
+		label: "Get Personal Access Token from GitHub",
+		description: "Create a fine-grained or classic token in GitHub Settings",
+	},
+	slack: {
+		url: "https://api.slack.com/apps",
+		label: "Get Bot Token from Slack",
+		description:
+			"Create a Slack app and copy the Bot User OAuth Token (xoxb-...)",
+	},
+	notion: {
+		url: "https://www.notion.so/my-integrations",
+		label: "Get API key from Notion",
+		description: "Create an internal integration and copy the secret token",
+	},
+	airtable: {
+		url: "https://airtable.com/create/tokens",
+		label: "Get API token from Airtable",
+		description: "Create a personal access token in Airtable",
+	},
+	hubspot: {
+		url: "https://app.hubspot.com/settings/private-apps",
+		label: "Get API key from HubSpot",
+		description: "Create a private app and copy the access token",
+	},
+	"google-sheets": {
+		url: "https://console.cloud.google.com/apis/credentials",
+		label: "Get credentials from Google Cloud",
+		description: "Create OAuth2 or API key credentials for Google Sheets",
+	},
+	gmail: {
+		url: "https://console.cloud.google.com/apis/credentials",
+		label: "Get credentials from Google Cloud",
+		description: "Create OAuth2 credentials for Gmail API access",
+	},
+	"google-drive": {
+		url: "https://console.cloud.google.com/apis/credentials",
+		label: "Get credentials from Google Cloud",
+		description: "Create OAuth2 credentials for Google Drive API access",
+	},
+	linear: {
+		url: "https://linear.app/settings/api",
+		label: "Get API key from Linear",
+		description: "Create a personal API key in Linear Settings",
+	},
+	asana: {
+		url: "https://app.asana.com/0/developer-console",
+		label: "Get Personal Access Token from Asana",
+		description: "Create a token in the Asana Developer Console",
+	},
+	clickup: {
+		url: "https://app.clickup.com/settings/apps",
+		label: "Get API token from ClickUp",
+		description: "Generate a personal token in ClickUp Settings",
+	},
+	todoist: {
+		url: "https://todoist.com/app/settings/integrations/developer",
+		label: "Get API token from Todoist",
+		description: "Copy your API token from Todoist Integrations",
+	},
+	mailchimp: {
+		url: "https://us1.admin.mailchimp.com/account/api/",
+		label: "Get API key from Mailchimp",
+		description: "Generate an API key in Mailchimp Account Settings",
+	},
+	"open-router": {
+		url: "https://openrouter.ai/keys",
+		label: "Get API key from OpenRouter",
+		description: "Create an API key in the OpenRouter dashboard",
+	},
+	groq: {
+		url: "https://console.groq.com/keys",
+		label: "Get API key from Groq",
+		description: "Create an API key in the Groq Console",
+	},
+	"perplexity-ai": {
+		url: "https://www.perplexity.ai/settings/api",
+		label: "Get API key from Perplexity",
+		description: "Create an API key in Perplexity AI Settings",
+	},
+	"mistral-ai": {
+		url: "https://console.mistral.ai/api-keys",
+		label: "Get API key from Mistral",
+		description: "Create an API key in the Mistral Console",
+	},
+	deepseek: {
+		url: "https://platform.deepseek.com/api_keys",
+		label: "Get API key from DeepSeek",
+		description: "Create an API key in the DeepSeek Platform",
+	},
+	elevenlabs: {
+		url: "https://elevenlabs.io/app/settings/api-keys",
+		label: "Get API key from ElevenLabs",
+		description: "Create an API key in ElevenLabs Settings",
+	},
+	"stability-ai": {
+		url: "https://platform.stability.ai/account/keys",
+		label: "Get API key from Stability AI",
+		description: "Create an API key in the Stability Platform",
+	},
 };
 
 // ─── Piece Icon ─────────────────────────────────────────
@@ -1051,6 +1152,20 @@ export function CredentialConfigModal({
 							)}
 						</>
 					)}
+
+					{/* Link to integrations settings page */}
+					<div className="flex items-center justify-center pt-2 border-t border-white/[0.06]">
+						<a
+							href="/settings/team/integrations"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/60 transition-colors"
+						>
+							<KeyRoundIcon className="size-3" />
+							Manage all credentials
+							<ExternalLinkIcon className="size-3" />
+						</a>
+					</div>
 				</div>
 			</div>
 		</div>

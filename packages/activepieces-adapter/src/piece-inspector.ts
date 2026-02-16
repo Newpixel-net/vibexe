@@ -5,6 +5,8 @@
  * Results are cached since piece metadata is static per deployment.
  */
 
+import { getCatalogEntry } from "./piece-catalog";
+import type { PieceAuthType } from "./piece-catalog";
 import { loadPiece } from "./piece-registry";
 
 // ─── Types ──────────────────────────────────────────────
@@ -152,16 +154,90 @@ function extractAuthInfo(auth: unknown): PieceAuthInfo | null {
 	};
 }
 
+// ─── Catalog fallback auth ──────────────────────────────
+// When a piece's npm package fails to load (e.g., missing wasm, bundling issues),
+// we can still provide auth info from the PIECE_CATALOG metadata so the credential
+// modal works for API key entry.
+
+function catalogAuthTypeToInspectorType(authType: PieceAuthType): string | null {
+	switch (authType) {
+		case "api_key":
+		case "secret_text":
+			return "SECRET_TEXT";
+		case "oauth2":
+			return "OAUTH2";
+		case "basic":
+			return "BASIC_AUTH";
+		case "custom":
+			return "CUSTOM_AUTH";
+		case "none":
+			return null;
+		default:
+			return null;
+	}
+}
+
+function buildCatalogFallbackInfo(pieceName: string): PieceInfo | null {
+	const entry = getCatalogEntry(pieceName);
+	if (!entry) return null;
+
+	const inspectorType = catalogAuthTypeToInspectorType(entry.authType);
+
+	return {
+		name: entry.name,
+		displayName: entry.displayName,
+		description: entry.description,
+		version: "0.0.0",
+		auth: inspectorType
+			? {
+					type: inspectorType,
+					displayName:
+						inspectorType === "SECRET_TEXT"
+							? "API Key"
+							: inspectorType === "OAUTH2"
+								? "OAuth2"
+								: "Authentication",
+					description: `${entry.displayName} authentication`,
+				}
+			: null,
+		actions: [],
+	};
+}
+
 // ─── Main functions ─────────────────────────────────────
 
 /**
  * Inspect a piece by name. Returns full metadata including actions and auth.
+ * Falls back to catalog metadata if the npm package fails to load.
  */
 export async function inspectPiece(pieceName: string): Promise<PieceInfo> {
 	const cached = pieceInfoCache.get(pieceName);
 	if (cached) return cached;
 
-	const piece = await loadPiece(pieceName);
+	let piece: unknown;
+	try {
+		piece = await loadPiece(pieceName);
+	} catch {
+		// Piece npm package failed to load (e.g., missing wasm, bundling issues).
+		// Fall back to catalog metadata so credential modal still works.
+		const fallback =
+			PIECE_AUTH_OVERRIDES[pieceName]
+				? {
+						name: pieceName,
+						displayName: pieceName,
+						description: "",
+						version: "0.0.0",
+						auth: PIECE_AUTH_OVERRIDES[pieceName],
+						actions: [],
+					}
+				: buildCatalogFallbackInfo(pieceName);
+		if (fallback) {
+			pieceInfoCache.set(pieceName, fallback);
+			return fallback;
+		}
+		throw new Error(`Failed to load piece: ${pieceName}`);
+	}
+
 	if (!piece || typeof piece !== "object") {
 		throw new Error(`Failed to load piece: ${pieceName}`);
 	}
