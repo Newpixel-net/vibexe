@@ -96,6 +96,12 @@ function extractPieceNameFromN8NType(n8nType: string): string | null {
 		}
 	}
 
+	// n8n-nodes-mcp.mcpClientTool -> mcpclienttool
+	const mcpMatch = n8nType.match(/^n8n-nodes-mcp\.(.+)$/);
+	if (mcpMatch) {
+		return mcpMatch[1].toLowerCase();
+	}
+
 	return null;
 }
 
@@ -132,9 +138,9 @@ const EXACT_MAPPINGS: Record<string, GiselleNodeMapping> = {
 	"n8n-nodes-base.comparedatasets": { type: "nativeCompareDatasets" },
 	"n8n-nodes-base.summarize": { type: "nativeSummarize" },
 
-	// Skip
-	"n8n-nodes-base.noop": { type: "skip", reason: "No-op node" },
-	"n8n-nodes-base.noopnode": { type: "skip", reason: "No-op node" },
+	// NoOp → end node (preserves incoming connections like If false branch)
+	"n8n-nodes-base.noop": { type: "end" },
+	"n8n-nodes-base.noopnode": { type: "end" },
 
 	// Respond to Webhook (native node, not just "end")
 	"n8n-nodes-base.respondtowebhook": { type: "nativeRespondToWebhook" },
@@ -225,6 +231,9 @@ const EXACT_MAPPINGS: Record<string, GiselleNodeMapping> = {
 		type: "toolNode",
 		toolType: "builtinTool",
 	},
+
+	// MCP Client nodes (community/Bright Data)
+	"n8n-nodes-mcp.mcpclienttool": { type: "toolNode", toolType: "builtinTool" },
 };
 
 // Pattern-based mappings
