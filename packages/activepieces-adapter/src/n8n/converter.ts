@@ -455,10 +455,11 @@ export function convertN8NToGiselle(
 		}
 	}
 
-	// Phase 2h: Scale coordinates for Vibexe's larger node sizes
-	// N8N uses ~272px node gaps for ~50px icon nodes.
-	// Vibexe uses 96-224px card nodes. 1.5x scaling provides comfortable spacing.
-	const IMPORT_SCALE = 1.5;
+	// Phase 2h: Scale coordinates to match N8N's compact layout
+	// N8N uses ~272px node gaps for ~50px nodes. Vibexe nodes are 96px cards.
+	// 1.0x preserves N8N's tight spacing — wires stay short like the original.
+	// (Previously 1.5x which spread everything too far, creating long stretched wires.)
+	const IMPORT_SCALE = 1.0;
 	for (const id of Object.keys(nodePositions)) {
 		nodePositions[id] = {
 			x: nodePositions[id].x * IMPORT_SCALE,
