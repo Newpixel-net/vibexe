@@ -308,6 +308,32 @@ export function convertN8NToGiselle(
 		}
 	}
 
+	// Phase 2d: Remove orphan nodes (nodes with zero connections)
+	// Nodes that appear in neither side of any connection are useless clutter.
+	// Keep trigger nodes (they're valid entry points even without downstream).
+	const connectedNodeIds = new Set<string>();
+	for (const conn of connections) {
+		connectedNodeIds.add(conn.outputNode.id);
+		connectedNodeIds.add(conn.inputNode.id);
+	}
+	const orphanNames: string[] = [];
+	for (let i = giselleNodes.length - 1; i >= 0; i--) {
+		const node = giselleNodes[i];
+		if (connectedNodeIds.has(node.id)) continue;
+		const contentType = (node.content as { type: string }).type;
+		if (contentType === "trigger") continue;
+		orphanNames.push(node.name);
+		giselleNodes.splice(i, 1);
+		delete nodePositions[node.id];
+	}
+	if (orphanNames.length > 0) {
+		warnings.push({
+			nodeType: "orphan",
+			nodeName: orphanNames.join(", "),
+			message: `${orphanNames.length} disconnected node(s) removed: ${orphanNames.join(", ")}`,
+		});
+	}
+
 	// Phase 3: Compute clean layout
 	const layoutPositions = computeLayout(
 		giselleNodes,
