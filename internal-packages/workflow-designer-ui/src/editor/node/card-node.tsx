@@ -367,6 +367,7 @@ function NodeHandles({
 	// Determine if this node needs input handles
 	const showInput =
 		node.type === "operation" &&
+		node.inputs.length > 0 &&
 		contentType !== "trigger" &&
 		contentType !== "appEntry" &&
 		contentType !== "chatModel" &&
