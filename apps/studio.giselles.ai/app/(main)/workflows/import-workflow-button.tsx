@@ -35,8 +35,29 @@ export function ImportWorkflowButton() {
 
 				const data = (await response.json()) as {
 					redirectPath?: string;
+					nodeCount?: number;
+					connectionCount?: number;
+					hasFlowControl?: boolean;
+					warnings?: Array<{ nodeName: string; message: string }>;
+					importMeta?: {
+						nodesNeedingCredentials?: number;
+						cyclesConverted?: number;
+						disabledNodes?: number;
+					} | null;
 				};
 				if (data.redirectPath) {
+					// Store import summary for the target page banner to display
+					try {
+						sessionStorage.setItem("n8n-import-summary", JSON.stringify({
+							nodeCount: data.nodeCount ?? 0,
+							connectionCount: data.connectionCount ?? 0,
+							credentialsNeeded: data.importMeta?.nodesNeedingCredentials ?? 0,
+							hasFlowControl: data.hasFlowControl ?? false,
+							warningCount: data.warnings?.length ?? 0,
+						}));
+					} catch {
+						// sessionStorage may be unavailable
+					}
 					router.push(data.redirectPath);
 				}
 			} catch (err) {
