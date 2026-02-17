@@ -966,10 +966,10 @@ function createGiselleNode(
 		// --- LangChain Sub-Nodes (round circle rendering) ---
 
 		case "chatModel": {
-			// Extract actual model from N8N params, prefix with provider to match registry format
+			// Extract actual model from N8N params, normalize to registry ID format
 			const extractedModel = extractModelId(n8nNode.parameters);
 			const chatModelId = extractedModel
-				? `${mapping.provider}/${extractedModel}`
+				? normalizeModelId(mapping.provider, extractedModel)
 				: mapping.defaultModelId;
 			return {
 				id: NodeId.generate(),
@@ -1688,6 +1688,50 @@ function extractModelId(
 	}
 	return null;
 }
+
+/**
+ * Normalize an N8N model name to a valid registry model ID.
+ * N8N uses legacy OpenAI names (gpt-4o-mini) while our registry uses current names (gpt-5-mini).
+ */
+function normalizeModelId(provider: string, rawModel: string): string {
+	const key = `${provider}/${rawModel}`;
+	if (key in MODEL_ID_ALIASES) {
+		return MODEL_ID_ALIASES[key];
+	}
+	// If already in provider/model format and no alias found, return as-is
+	if (rawModel.includes("/")) {
+		return rawModel;
+	}
+	return `${provider}/${rawModel}`;
+}
+
+const MODEL_ID_ALIASES: Record<string, string> = {
+	// OpenAI legacy → current
+	"openai/gpt-4o": "openai/gpt-5",
+	"openai/gpt-4o-mini": "openai/gpt-5-mini",
+	"openai/gpt-4-turbo": "openai/gpt-5",
+	"openai/gpt-4": "openai/gpt-5",
+	"openai/gpt-3.5-turbo": "openai/gpt-5-nano",
+	"openai/o3": "openai/gpt-5",
+	"openai/o3-mini": "openai/gpt-5-mini",
+	"openai/o1": "openai/gpt-5",
+	"openai/o1-mini": "openai/gpt-5-mini",
+	"openai/o4-mini": "openai/gpt-5-mini",
+	"openai/gpt-4.1": "openai/gpt-5",
+	"openai/gpt-4.1-mini": "openai/gpt-5-mini",
+	"openai/gpt-4.1-nano": "openai/gpt-5-nano",
+	// Anthropic legacy → current
+	"anthropic/claude-3-opus": "anthropic/claude-sonnet-4.5",
+	"anthropic/claude-3-sonnet": "anthropic/claude-sonnet-4.5",
+	"anthropic/claude-3-haiku": "anthropic/claude-haiku-3.5",
+	"anthropic/claude-3.5-sonnet": "anthropic/claude-sonnet-4.5",
+	"anthropic/claude-3.5-haiku": "anthropic/claude-haiku-3.5",
+	"anthropic/claude-sonnet-4-5-20250929": "anthropic/claude-sonnet-4.5",
+	// Google legacy → current
+	"google/gemini-2.0-flash": "google/gemini-2.5-flash",
+	"google/gemini-1.5-pro": "google/gemini-2.5-pro",
+	"google/gemini-1.5-flash": "google/gemini-2.5-flash",
+};
 
 // ─── Expression System (Phase 3) ─────────────────────────────────────────────
 
