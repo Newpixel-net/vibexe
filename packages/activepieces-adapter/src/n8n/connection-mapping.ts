@@ -20,6 +20,7 @@ export interface GiselleConnection {
 	outputId: string;
 	inputNode: { id: string; type: string; content: { type: string } };
 	inputId: string;
+	connectionType?: "regular" | "subNode";
 }
 
 interface NodeIdMapping {
@@ -49,10 +50,13 @@ export function convertConnections(
 		if (!sourceMapping) continue;
 
 		// Iterate ALL connection type keys (main, ai_languageModel, ai_outputParser, ai_tool, etc.)
-		for (const [_connectionType, outputArrays] of Object.entries(
+		for (const [connectionType, outputArrays] of Object.entries(
 			connectionGroups,
 		)) {
 			if (!Array.isArray(outputArrays)) continue;
+
+			// Detect sub-node connections by N8N connection type key
+			const isSubNode = connectionType.startsWith("ai_");
 
 			for (
 				let outputIndex = 0;
@@ -72,27 +76,57 @@ export function convertConnections(
 					const targetMapping = nodeIdMapping[target.node];
 					if (!targetMapping) continue;
 
-					// Use the target's index to pick the right input port
-					const inputId =
-						targetMapping.inputIds[target.index] ??
-						targetMapping.inputIds[0];
-					if (!inputId) continue;
+					if (isSubNode) {
+						// Sub-node connection: route from circle's top handle to agent's bottom handle
+						let targetHandle: string;
+						if (connectionType === "ai_languageModel") {
+							targetHandle = "chatModel";
+						} else if (connectionType === "ai_memory") {
+							targetHandle = "memory";
+						} else {
+							// ai_outputParser, ai_tool, and any other ai_* types → tool handle
+							targetHandle = "tool";
+						}
 
-					connections.push({
-						id: generateId(),
-						outputNode: {
-							id: sourceMapping.nodeId,
-							type: sourceMapping.nodeType,
-							content: { type: sourceMapping.contentType },
-						},
-						outputId,
-						inputNode: {
-							id: targetMapping.nodeId,
-							type: targetMapping.nodeType,
-							content: { type: targetMapping.contentType },
-						},
-						inputId,
-					});
+						connections.push({
+							id: generateId(),
+							outputNode: {
+								id: sourceMapping.nodeId,
+								type: sourceMapping.nodeType,
+								content: { type: sourceMapping.contentType },
+							},
+							outputId: "parent",
+							inputNode: {
+								id: targetMapping.nodeId,
+								type: targetMapping.nodeType,
+								content: { type: targetMapping.contentType },
+							},
+							inputId: targetHandle,
+							connectionType: "subNode",
+						});
+					} else {
+						// Regular main connection — existing logic
+						const inputId =
+							targetMapping.inputIds[target.index] ??
+							targetMapping.inputIds[0];
+						if (!inputId) continue;
+
+						connections.push({
+							id: generateId(),
+							outputNode: {
+								id: sourceMapping.nodeId,
+								type: sourceMapping.nodeType,
+								content: { type: sourceMapping.contentType },
+							},
+							outputId,
+							inputNode: {
+								id: targetMapping.nodeId,
+								type: targetMapping.nodeType,
+								content: { type: targetMapping.contentType },
+							},
+							inputId,
+						});
+					}
 				}
 			}
 		}

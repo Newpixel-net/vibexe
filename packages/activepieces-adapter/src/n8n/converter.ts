@@ -100,6 +100,7 @@ export interface GiselleConnectionData {
 	outputId: string;
 	inputNode: { id: string; type: string; content: { type: string } };
 	inputId: string;
+	connectionType?: "regular" | "subNode";
 }
 
 export interface ConversionWarning {
