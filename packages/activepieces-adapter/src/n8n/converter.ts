@@ -966,7 +966,11 @@ function createGiselleNode(
 		// --- LangChain Sub-Nodes (round circle rendering) ---
 
 		case "chatModel": {
-			// Always use defaultModelId from registry — N8N model names don't match our registry format
+			// Extract actual model from N8N params, prefix with provider to match registry format
+			const extractedModel = extractModelId(n8nNode.parameters);
+			const chatModelId = extractedModel
+				? `${mapping.provider}/${extractedModel}`
+				: mapping.defaultModelId;
 			return {
 				id: NodeId.generate(),
 				type: "operation",
@@ -975,7 +979,7 @@ function createGiselleNode(
 					type: "chatModel",
 					languageModel: {
 						provider: mapping.provider,
-						id: mapping.defaultModelId,
+						id: chatModelId,
 						configuration: {},
 					},
 				},
@@ -998,6 +1002,26 @@ function createGiselleNode(
 					type: "toolNode",
 					toolType: mapping.toolType,
 					configuration: {},
+				},
+				inputs: [],
+				outputs: [{
+					id: OutputId.generate(),
+					label: "Output",
+					accessor: "output",
+				}],
+			};
+		}
+
+		case "memoryNode": {
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "memoryNode",
+					memoryType: mapping.memoryType,
+					contextWindowLength: 10,
+					sessionScope: "agent",
 				},
 				inputs: [],
 				outputs: [{

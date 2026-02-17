@@ -36,6 +36,7 @@ export type GiselleNodeMapping =
 	| { type: "aiAgent"; agentType: "tools" | "conversational" | "react" }
 	| { type: "chatModel"; provider: "openai" | "anthropic" | "google"; defaultModelId: string }
 	| { type: "toolNode"; toolType: string }
+	| { type: "memoryNode"; memoryType: string }
 	| { type: "text"; description: string }
 	| { type: "unsupported"; originalType: string; reason: string }
 	| { type: "skip"; reason: string }
@@ -159,12 +160,10 @@ const EXACT_MAPPINGS: Record<string, GiselleNodeMapping> = {
 	// LangChain Agent → native aiAgent node
 	"@n8n/n8n-nodes-langchain.agent": { type: "aiAgent", agentType: "tools" },
 
-	// LangChain LLM Chain → textGeneration (basic prompt → LLM → output)
-	"@n8n/n8n-nodes-langchain.chainllm": {
-		type: "textGeneration",
-		provider: "openai",
-		modelId: "gpt-4o",
-	},
+	// LangChain LLM Chain → aiAgent (needs bottom handles for sub-node connections)
+	// In N8N, chainLlm has ai_languageModel and ai_outputParser sub-node ports,
+	// so it must be an aiAgent (WideNode) to render those connections correctly.
+	"@n8n/n8n-nodes-langchain.chainllm": { type: "aiAgent", agentType: "tools" },
 
 	// LangChain tool sub-nodes → toolNode (renders as round "Tool" circle)
 	"@n8n/n8n-nodes-langchain.toolcode": { type: "toolNode", toolType: "builtinTool" },
@@ -176,11 +175,12 @@ const EXACT_MAPPINGS: Record<string, GiselleNodeMapping> = {
 	"@n8n/n8n-nodes-langchain.toolserpapi": { type: "toolNode", toolType: "builtinTool" },
 	"@n8n/n8n-nodes-langchain.toolvectorstorelookup": { type: "toolNode", toolType: "builtinTool" },
 
-	// LangChain memory sub-nodes → toolNode (renders as round circle)
-	"@n8n/n8n-nodes-langchain.memorybufferwindow": { type: "toolNode", toolType: "builtinTool" },
-	"@n8n/n8n-nodes-langchain.memorymotorhead": { type: "toolNode", toolType: "builtinTool" },
-	"@n8n/n8n-nodes-langchain.memoryxata": { type: "toolNode", toolType: "builtinTool" },
-	"@n8n/n8n-nodes-langchain.memoryzep": { type: "toolNode", toolType: "builtinTool" },
+	// LangChain memory sub-nodes → memoryNode (renders as round circle with "Memory" label)
+	// Must be memoryNode (not toolNode) so v2-container routes to "memory" bottom handle
+	"@n8n/n8n-nodes-langchain.memorybufferwindow": { type: "memoryNode", memoryType: "windowBuffer" },
+	"@n8n/n8n-nodes-langchain.memorymotorhead": { type: "memoryNode", memoryType: "simpleMemory" },
+	"@n8n/n8n-nodes-langchain.memoryxata": { type: "memoryNode", memoryType: "simpleMemory" },
+	"@n8n/n8n-nodes-langchain.memoryzep": { type: "memoryNode", memoryType: "simpleMemory" },
 
 	// LangChain output parser sub-nodes → toolNode (renders as round circle)
 	"@n8n/n8n-nodes-langchain.outputparserautofixing": { type: "toolNode", toolType: "builtinTool" },
