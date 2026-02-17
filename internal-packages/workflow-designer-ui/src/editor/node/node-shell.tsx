@@ -124,7 +124,7 @@ export function NodeShell({
 				"transition-all backdrop-blur-[4px] bg-transparent",
 				getSelectionShadowClasses(selected, highlighted, v),
 				preview && "opacity-50",
-				(node as any).disabled && "opacity-50",
+				(node as any).disabled && "opacity-70",
 				requiresSetup && "opacity-80",
 			)}
 		>
@@ -137,18 +137,30 @@ export function NodeShell({
 				</div>
 			)}
 
-			{/* Disabled overlay */}
+			{/* Disabled overlay — diagonal stripe pattern matching N8N */}
 			{(node as any).disabled && (
 				<div
 					className={clsx(
-						"absolute inset-0 z-[5] bg-black/40 pointer-events-none flex items-center justify-center",
+						"absolute inset-0 z-[5] pointer-events-none overflow-hidden",
 						radiusClass,
 					)}
 					style={clipStyle}
 				>
-					<span className="text-[11px] font-medium text-white/60 tracking-wide uppercase">
-						Disabled
-					</span>
+					<svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+						<defs>
+							<pattern
+								id={`disabled-stripe-${node.id}`}
+								patternUnits="userSpaceOnUse"
+								width="8"
+								height="8"
+								patternTransform="rotate(-45)"
+							>
+								<line x1="0" y1="0" x2="0" y2="8"
+									stroke="rgba(0,0,0,0.35)" strokeWidth="4" />
+							</pattern>
+						</defs>
+						<rect width="100%" height="100%" fill={`url(#disabled-stripe-${node.id})`} />
+					</svg>
 				</div>
 			)}
 

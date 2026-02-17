@@ -8,7 +8,7 @@ export { WorkspaceId } from "./id";
 export const StickyNote = z.object({
 	id: z.string(),
 	text: z.string().default(""),
-	color: z.enum(["yellow", "blue", "green", "pink", "gray"]).default("yellow"),
+	color: z.enum(["yellow", "orange", "red", "blue", "green", "purple", "gray"]).default("yellow"),
 	position: z.object({ x: z.number(), y: z.number() }),
 	size: z.object({ width: z.number(), height: z.number() }).default({ width: 200, height: 150 }),
 });

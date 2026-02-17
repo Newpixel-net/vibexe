@@ -46,7 +46,7 @@ export interface N8NNode {
 export interface GiselleStickyNoteData {
 	id: string;
 	text: string;
-	color: "yellow" | "blue" | "green" | "pink" | "gray";
+	color: "yellow" | "orange" | "red" | "blue" | "green" | "purple" | "gray";
 	position: { x: number; y: number };
 	size: { width: number; height: number };
 }
@@ -285,7 +285,7 @@ export function convertN8NToGiselle(
 	);
 
 	// Phase 2b: Convert cycles to Loop+If patterns or strip back-edges
-	const { connections, cyclesConverted } = transformCyclesToLoops(
+	let { connections, cyclesConverted } = transformCyclesToLoops(
 		rawConnections,
 		giselleNodes,
 		nodeIdMapping,
@@ -427,6 +427,47 @@ export function convertN8NToGiselle(
 				agentContent.outputParser = { type: "itemList", retryAttempts: 3 };
 			}
 		}
+	}
+
+	// Phase 2g: Remove absorbed sub-nodes from canvas
+	// chatModel, toolNode, and memoryNode sub-nodes have their configs
+	// transferred into parent aiAgent during Phase 2e/2f. They clutter
+	// the canvas as 80px circles that serve no purpose after absorption.
+	{
+		const ABSORBED_CONTENT_TYPES = new Set(["chatModel", "toolNode", "memoryNode"]);
+		const absorbedNodeIds = new Set<string>();
+		for (let i = giselleNodes.length - 1; i >= 0; i--) {
+			const node = giselleNodes[i];
+			const contentType = (node.content as { type: string }).type;
+			// Only remove if the node is disabled (was a sub-node) and is an absorbed type
+			if (node.disabled && ABSORBED_CONTENT_TYPES.has(contentType)) {
+				absorbedNodeIds.add(node.id);
+				giselleNodes.splice(i, 1);
+				delete nodePositions[node.id];
+			}
+		}
+		if (absorbedNodeIds.size > 0) {
+			connections = connections.filter(
+				(c) => !absorbedNodeIds.has(c.outputNode.id) && !absorbedNodeIds.has(c.inputNode.id),
+			);
+		}
+	}
+
+	// Phase 2h: Scale coordinates for Vibexe's larger node sizes
+	// N8N uses ~272px node gaps for ~50px icon nodes.
+	// Vibexe uses 96-224px card nodes. 1.5x scaling provides comfortable spacing.
+	const IMPORT_SCALE = 1.5;
+	for (const id of Object.keys(nodePositions)) {
+		nodePositions[id] = {
+			x: nodePositions[id].x * IMPORT_SCALE,
+			y: nodePositions[id].y * IMPORT_SCALE,
+		};
+	}
+	for (const note of stickyNotes) {
+		note.position.x *= IMPORT_SCALE;
+		note.position.y *= IMPORT_SCALE;
+		note.size.width *= IMPORT_SCALE;
+		note.size.height *= IMPORT_SCALE;
 	}
 
 	// Phase 3: Compute clean layout
@@ -1542,13 +1583,13 @@ function mapStickyNoteColor(
 ): GiselleStickyNoteData["color"] {
 	const index = typeof colorIndex === "number" ? colorIndex : Number(colorIndex);
 	switch (index) {
-		case 1: return "yellow";   // N8N yellow → yellow
-		case 2: return "yellow";   // N8N orange → yellow (no orange available)
-		case 3: return "pink";     // N8N red → pink (closest)
-		case 4: return "green";    // N8N green → green
-		case 5: return "blue";     // N8N blue → blue
-		case 6: return "pink";     // N8N purple → pink (closest)
-		case 7: return "gray";     // N8N gray → gray
+		case 1: return "yellow";
+		case 2: return "orange";
+		case 3: return "red";
+		case 4: return "green";
+		case 5: return "blue";
+		case 6: return "purple";
+		case 7: return "gray";
 		default: return "yellow";
 	}
 }

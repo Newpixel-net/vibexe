@@ -2,7 +2,7 @@
 
 import type { NodeProps } from "@xyflow/react";
 import clsx from "clsx/lite";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 
 /** Preserve blank lines the user typed by converting empty lines to &nbsp; lines */
@@ -10,15 +10,17 @@ function preserveBlankLines(text: string): string {
 	return text.replace(/\n[ \t]*\n/g, "\n\n&nbsp;\n\n");
 }
 
-const accentColors: Record<string, string> = {
-	yellow: "#fbbf24",
-	blue: "#60a5fa",
-	green: "#34d399",
-	pink: "#f472b6",
-	gray: "#9ca3af",
+// N8N dark-theme sticky note colors (from _tokens.dark.scss)
+const N8N_NOTE_COLORS: Record<string, { bg: string; border: string; dot: string }> = {
+	yellow: { bg: "hsl(46, 100%, 10%)",  border: "hsl(46, 100%, 22%)",  dot: "#fbbf24" },
+	orange: { bg: "hsl(36, 77%, 10%)",   border: "hsl(36, 77%, 22%)",   dot: "#e67e22" },
+	red:    { bg: "hsl(355, 83%, 17%)",  border: "hsl(355, 83%, 27%)",  dot: "#ef4444" },
+	green:  { bg: "hsl(151, 60%, 10%)",  border: "hsl(151, 60%, 20%)",  dot: "#34d399" },
+	blue:   { bg: "hsl(210, 67%, 10%)",  border: "hsl(210, 67%, 22%)",  dot: "#60a5fa" },
+	purple: { bg: "hsl(247, 49%, 21%)",  border: "hsl(247, 49%, 37%)",  dot: "#a78bfa" },
+	gray:   { bg: "hsl(0, 0%, 13%)",     border: "hsl(0, 0%, 24%)",     dot: "#9ca3af" },
 };
-
-const colorOptions = ["yellow", "blue", "green", "pink", "gray"] as const;
+const colorOptions = ["yellow", "orange", "red", "green", "blue", "purple", "gray"] as const;
 
 export function StickyNoteNode({ id, data, selected }: NodeProps) {
 	const noteData = data as {
@@ -29,7 +31,7 @@ export function StickyNoteNode({ id, data, selected }: NodeProps) {
 	};
 
 	const color = noteData.color ?? "yellow";
-	const accent = accentColors[color] ?? accentColors.yellow;
+	const theme = N8N_NOTE_COLORS[color] ?? N8N_NOTE_COLORS.yellow;
 	const [isEditing, setIsEditing] = useState(false);
 	const [showColorPicker, setShowColorPicker] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -52,12 +54,12 @@ export function StickyNoteNode({ id, data, selected }: NodeProps) {
 	return (
 		<div
 			className={clsx(
-				"relative rounded-[6px] border border-white/10 shadow-lg backdrop-blur-sm",
+				"relative rounded-[6px] shadow-lg",
 				selected && "ring-2 ring-blue-500/50",
 			)}
 			style={{
-				backgroundColor: "rgba(20, 20, 35, 0.85)",
-				borderLeft: `4px solid ${accent}`,
+				backgroundColor: theme.bg,
+				border: `1px solid ${theme.border}`,
 			}}
 			onDoubleClick={(e) => {
 				e.stopPropagation();
@@ -70,7 +72,7 @@ export function StickyNoteNode({ id, data, selected }: NodeProps) {
 				<button
 					type="button"
 					className="w-[16px] h-[16px] rounded-full border border-white/20 opacity-0 hover:opacity-100 transition-opacity"
-					style={{ background: accent }}
+					style={{ background: theme.dot }}
 					onClick={(e) => {
 						e.stopPropagation();
 						setShowColorPicker(!showColorPicker);
@@ -92,7 +94,7 @@ export function StickyNoteNode({ id, data, selected }: NodeProps) {
 								"w-[20px] h-[20px] rounded-full border-2",
 								c === color ? "border-white" : "border-transparent",
 							)}
-							style={{ background: accentColors[c] }}
+							style={{ background: N8N_NOTE_COLORS[c]?.dot }}
 							onClick={(e) => {
 								e.stopPropagation();
 								handleColorChange(c);
@@ -103,7 +105,7 @@ export function StickyNoteNode({ id, data, selected }: NodeProps) {
 			)}
 
 			{/* Content area */}
-			<div className="p-[12px] h-full text-gray-200">
+			<div className="p-[12px] h-full" style={{ color: "hsl(0,0%,96%)" }}>
 				{isEditing ? (
 					<textarea
 						ref={textareaRef}

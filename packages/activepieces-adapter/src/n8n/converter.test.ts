@@ -801,9 +801,9 @@ describe("convertN8NToGiselle", () => {
 			expect(result.stickyNotes).toHaveLength(1);
 			const note = result.stickyNotes[0];
 			expect(note.text).toBe("Annotation");
-			expect(note.color).toBe("blue"); // color 2 = blue
-			expect(note.size.width).toBe(400);
-			expect(note.size.height).toBe(300);
+			expect(note.color).toBe("orange"); // color 2 = orange (N8N 1:1 mapping)
+			expect(note.size.width).toBe(600);  // 400 * 1.5 import scale
+			expect(note.size.height).toBe(450); // 300 * 1.5 import scale
 			expect(note.position.x).toBe(0);
 			expect(note.position.y).toBe(0);
 		});
@@ -813,22 +813,26 @@ describe("convertN8NToGiselle", () => {
 				name: "Color Test",
 				nodes: [
 					{ name: "Yellow", type: "n8n-nodes-base.stickyNote", position: [0, 0], parameters: { content: "Y", color: 1 } },
-					{ name: "Blue", type: "n8n-nodes-base.stickyNote", position: [0, 100], parameters: { content: "B", color: 2 } },
-					{ name: "Green", type: "n8n-nodes-base.stickyNote", position: [0, 200], parameters: { content: "G", color: 3 } },
-					{ name: "Pink", type: "n8n-nodes-base.stickyNote", position: [0, 300], parameters: { content: "P", color: 4 } },
-					{ name: "Gray", type: "n8n-nodes-base.stickyNote", position: [0, 400], parameters: { content: "Gr", color: 5 } },
-					{ name: "Default", type: "n8n-nodes-base.stickyNote", position: [0, 500], parameters: { content: "D" } },
+					{ name: "Orange", type: "n8n-nodes-base.stickyNote", position: [0, 100], parameters: { content: "O", color: 2 } },
+					{ name: "Red", type: "n8n-nodes-base.stickyNote", position: [0, 200], parameters: { content: "R", color: 3 } },
+					{ name: "Green", type: "n8n-nodes-base.stickyNote", position: [0, 300], parameters: { content: "G", color: 4 } },
+					{ name: "Blue", type: "n8n-nodes-base.stickyNote", position: [0, 400], parameters: { content: "B", color: 5 } },
+					{ name: "Purple", type: "n8n-nodes-base.stickyNote", position: [0, 500], parameters: { content: "P", color: 6 } },
+					{ name: "Gray", type: "n8n-nodes-base.stickyNote", position: [0, 600], parameters: { content: "Gr", color: 7 } },
+					{ name: "Default", type: "n8n-nodes-base.stickyNote", position: [0, 700], parameters: { content: "D" } },
 				],
 				connections: {},
 			};
 			const result = convertN8NToGiselle(workflow);
-			expect(result.stickyNotes).toHaveLength(6);
+			expect(result.stickyNotes).toHaveLength(8);
 			expect(result.stickyNotes[0].color).toBe("yellow");
-			expect(result.stickyNotes[1].color).toBe("blue");
-			expect(result.stickyNotes[2].color).toBe("green");
-			expect(result.stickyNotes[3].color).toBe("pink");
-			expect(result.stickyNotes[4].color).toBe("gray");
-			expect(result.stickyNotes[5].color).toBe("yellow"); // default
+			expect(result.stickyNotes[1].color).toBe("orange");
+			expect(result.stickyNotes[2].color).toBe("red");
+			expect(result.stickyNotes[3].color).toBe("green");
+			expect(result.stickyNotes[4].color).toBe("blue");
+			expect(result.stickyNotes[5].color).toBe("purple");
+			expect(result.stickyNotes[6].color).toBe("gray");
+			expect(result.stickyNotes[7].color).toBe("yellow"); // default
 		});
 
 		it("should normalize positions so minimum is at (0,0)", () => {
