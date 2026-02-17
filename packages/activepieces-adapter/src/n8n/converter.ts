@@ -237,6 +237,11 @@ export function convertN8NToGiselle(
 				if (fallbackHint) {
 					giselleNode.credentialHint = fallbackHint;
 					nodesNeedingCredentials++;
+					warnings.push({
+						nodeType: "credential",
+						nodeName: n8nNode.name,
+						message: `Credential '${fallbackHint.n8nCredentialName}' (${fallbackHint.n8nCredentialType}) must be configured${fallbackHint.suggestedPiece ? ` — suggested piece: ${fallbackHint.suggestedPiece}` : ""}`,
+					});
 				}
 			}
 
@@ -520,7 +525,10 @@ function createGiselleNode(
 			};
 
 		case "textGeneration": {
-			const modelId = extractModelId(n8nNode.parameters) ?? mapping.modelId;
+			const extractedModel = extractModelId(n8nNode.parameters);
+			const modelId = extractedModel
+				? normalizeModelId(mapping.provider, extractedModel)
+				: `${mapping.provider}/${mapping.modelId}`;
 			return {
 				id: NodeId.generate(),
 				type: "operation",
@@ -1781,29 +1789,21 @@ function normalizeModelId(provider: string, rawModel: string): string {
 }
 
 const MODEL_ID_ALIASES: Record<string, string> = {
-	// OpenAI legacy → current
-	"openai/gpt-4o": "openai/gpt-5",
-	"openai/gpt-4o-mini": "openai/gpt-5-mini",
-	"openai/gpt-4-turbo": "openai/gpt-5",
-	"openai/gpt-4": "openai/gpt-5",
-	"openai/gpt-3.5-turbo": "openai/gpt-5-nano",
-	"openai/o3": "openai/gpt-5",
-	"openai/o3-mini": "openai/gpt-5-mini",
-	"openai/o1": "openai/gpt-5",
-	"openai/o1-mini": "openai/gpt-5-mini",
-	"openai/o4-mini": "openai/gpt-5-mini",
-	"openai/gpt-4.1": "openai/gpt-5",
-	"openai/gpt-4.1-mini": "openai/gpt-5-mini",
-	"openai/gpt-4.1-nano": "openai/gpt-5-nano",
-	// Anthropic legacy → current
+	// Only map truly deprecated/unavailable models.
+	// Models that are still valid on the provider API are preserved as-is
+	// so imported workflows behave identically to the original.
+
+	// OpenAI deprecated models → current equivalents
+	"openai/gpt-4-turbo": "openai/gpt-4o",
+	"openai/gpt-4": "openai/gpt-4o",
+	"openai/gpt-3.5-turbo": "openai/gpt-4o-mini",
+	// Anthropic deprecated models → current equivalents
 	"anthropic/claude-3-opus": "anthropic/claude-sonnet-4.5",
 	"anthropic/claude-3-sonnet": "anthropic/claude-sonnet-4.5",
 	"anthropic/claude-3-haiku": "anthropic/claude-haiku-3.5",
-	"anthropic/claude-3.5-sonnet": "anthropic/claude-sonnet-4.5",
-	"anthropic/claude-3.5-haiku": "anthropic/claude-haiku-3.5",
+	// Anthropic version-stamped → friendly names
 	"anthropic/claude-sonnet-4-5-20250929": "anthropic/claude-sonnet-4.5",
-	// Google legacy → current
-	"google/gemini-2.0-flash": "google/gemini-2.5-flash",
+	// Google deprecated models → current equivalents
 	"google/gemini-1.5-pro": "google/gemini-2.5-pro",
 	"google/gemini-1.5-flash": "google/gemini-2.5-flash",
 };
@@ -2037,6 +2037,45 @@ function extractCredentialHintFromIssues(
 			n8nCredentialType: nodeCredType,
 			n8nCredentialName: nodeCredType,
 			suggestedPiece,
+		};
+	}
+	// Check parameters.authentication + genericAuthType (N8N templates without credentials field)
+	// e.g. HTTP Request nodes with authentication: "genericCredentialType", genericAuthType: "httpHeaderAuth"
+	const authParam = n8nNode.parameters?.authentication as string | undefined;
+	const genericAuthType = n8nNode.parameters?.genericAuthType as string | undefined;
+	if (authParam === "genericCredentialType" && genericAuthType) {
+		const suggestedPiece = N8N_CREDENTIAL_TO_PIECE[genericAuthType] ?? null;
+		return {
+			n8nCredentialType: genericAuthType,
+			n8nCredentialName: genericAuthType,
+			suggestedPiece,
+		};
+	}
+	// Check node type for inherently authenticated services (Google Sheets, Drive, etc.)
+	// N8N templates often omit the credentials field but these nodes always require OAuth2
+	const nodeType = n8nNode.type?.toLowerCase() ?? "";
+	const INHERENT_CREDENTIAL_TYPES: Record<string, { credType: string; piece: string }> = {
+		"n8n-nodes-base.googlesheets": { credType: "googleSheetsOAuth2Api", piece: "google-sheets" },
+		"n8n-nodes-base.googledrive": { credType: "googleDriveOAuth2Api", piece: "google-drive" },
+		"n8n-nodes-base.gmail": { credType: "gmailOAuth2", piece: "gmail" },
+		"n8n-nodes-base.googlecalendar": { credType: "googleCalendarOAuth2Api", piece: "google-calendar" },
+		"n8n-nodes-base.slack": { credType: "slackOAuth2Api", piece: "slack" },
+		"n8n-nodes-base.notion": { credType: "notionApi", piece: "notion" },
+		"n8n-nodes-base.airtable": { credType: "airtableApi", piece: "airtable" },
+		"n8n-nodes-base.discord": { credType: "discordOAuth2Api", piece: "discord" },
+		"n8n-nodes-base.hubspot": { credType: "hubspotOAuth2Api", piece: "hubspot" },
+		"n8n-nodes-base.telegram": { credType: "telegramApi", piece: "telegram-bot" },
+		"n8n-nodes-base.dropbox": { credType: "dropboxOAuth2Api", piece: "dropbox" },
+		"n8n-nodes-base.trello": { credType: "trelloApi", piece: "trello" },
+		"n8n-nodes-base.jira": { credType: "jiraCloudApi", piece: "jira-cloud" },
+		"n8n-nodes-base.asana": { credType: "asanaOAuth2Api", piece: "asana" },
+	};
+	if (nodeType in INHERENT_CREDENTIAL_TYPES) {
+		const entry = INHERENT_CREDENTIAL_TYPES[nodeType];
+		return {
+			n8nCredentialType: entry.credType,
+			n8nCredentialName: entry.credType,
+			suggestedPiece: entry.piece,
 		};
 	}
 	return null;
@@ -2573,10 +2612,29 @@ function computeLayout(
 		return computeLayoutTopological(nodes, [], connections, rawPositions);
 	}
 
-	// Assign default position for any nodes missing from rawPositions
+	// Assign smart position for synthesized nodes (e.g. Loop (converted))
+	// by averaging the positions of their connected neighbors
 	for (const node of nodes) {
 		if (!positions[node.id]) {
-			positions[node.id] = { x: 0, y: 0 };
+			// Find connected nodes that DO have positions
+			const neighborPositions: Array<{ x: number; y: number }> = [];
+			for (const conn of connections) {
+				if (conn.outputNode.id === node.id && positions[conn.inputNode.id]) {
+					neighborPositions.push(positions[conn.inputNode.id]);
+				}
+				if (conn.inputNode.id === node.id && positions[conn.outputNode.id]) {
+					neighborPositions.push(positions[conn.outputNode.id]);
+				}
+			}
+			if (neighborPositions.length > 0) {
+				// Place between the upstream and downstream neighbors
+				const avgX = neighborPositions.reduce((s, p) => s + p.x, 0) / neighborPositions.length;
+				const avgY = neighborPositions.reduce((s, p) => s + p.y, 0) / neighborPositions.length;
+				// Offset slightly left of the average so it sits between input and first body node
+				positions[node.id] = { x: avgX - 100, y: avgY };
+			} else {
+				positions[node.id] = { x: 0, y: 0 };
+			}
 		}
 	}
 

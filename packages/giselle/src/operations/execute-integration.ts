@@ -125,6 +125,77 @@ function findByLeafKey(obj: unknown, leafKey: string): unknown {
 }
 
 /**
+ * Resolve [NodeName.field.path] expression placeholders in all string values
+ * within a config object. Mutates the config in-place.
+ *
+ * These placeholders are created by the N8N converter from expressions like
+ * {{ $('NodeName').item.json.field }}. We resolve them against all available
+ * input data by trying: (1) exact dotted path, (2) leaf-key fallback.
+ */
+function resolveConfigExpressions(
+	config: Record<string, unknown>,
+	resolvedInputs: Record<string, string>,
+): void {
+	// Parse all inputs as JSON where possible for field extraction
+	const parsedInputs: unknown[] = [];
+	for (const value of Object.values(resolvedInputs)) {
+		try {
+			parsedInputs.push(JSON.parse(value));
+		} catch {
+			parsedInputs.push(value);
+		}
+	}
+
+	if (parsedInputs.length === 0) return;
+
+	const resolveField = (fieldPath: string): string | undefined => {
+		for (const parsed of parsedInputs) {
+			const exact = resolvePath(parsed, fieldPath);
+			if (exact !== undefined) {
+				return typeof exact === "string" ? exact : JSON.stringify(exact);
+			}
+		}
+		const leafKey = fieldPath.split(".").pop() || fieldPath;
+		for (const parsed of parsedInputs) {
+			const found = findByLeafKey(parsed, leafKey);
+			if (found !== undefined) {
+				return typeof found === "string" ? found : JSON.stringify(found);
+			}
+		}
+		return undefined;
+	};
+
+	// Recursively scan config for string values containing [Something.field] patterns
+	function resolveInObject(obj: Record<string, unknown>): void {
+		for (const [key, value] of Object.entries(obj)) {
+			if (typeof value === "string" && value.includes("[")) {
+				let resolved = value;
+				// Replace [timestamp] with ISO date string
+				resolved = resolved.replace(/\[timestamp\]/g, new Date().toISOString().replace(/[-:T.Z]/g, "").slice(0, 14));
+				// Replace [execution.id] with a run ID
+				resolved = resolved.replace(/\[execution\.id\]/g, `run-${Date.now()}`);
+				// Replace [NodeName.field.path] and [input.field] patterns
+				resolved = resolved.replace(
+					/\[([^\]]+\.[\w.]+)\]/g,
+					(match, fullPath: string) => {
+						// Strip node name prefix: "Create Video.request_id" → "request_id"
+						const dotIndex = fullPath.indexOf(".");
+						if (dotIndex === -1) return match;
+						const fieldPath = fullPath.substring(dotIndex + 1);
+						return resolveField(fieldPath) ?? match;
+					},
+				);
+				obj[key] = resolved;
+			} else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+				resolveInObject(value as Record<string, unknown>);
+			}
+		}
+	}
+
+	resolveInObject(config);
+}
+
+/**
  * Built-in HTML template engine for n8n-nodes-base.html nodes.
  * Handles [input.xxx] and {{ $json.xxx }} template expressions.
  * Uses smart path resolution: tries exact path first, then leaf-key fallback.
@@ -266,6 +337,11 @@ export function executeIntegration(args: {
 				...configuration,
 				...resolvedInputs,
 			};
+
+			// Resolve [NodeName.field] expression placeholders in string config values.
+			// These are created by the N8N converter from {{ $('NodeName').item.json.field }}
+			// expressions. We try to resolve them against all available input data.
+			resolveConfigExpressions(mergedConfig, resolvedInputs);
 
 			let result: unknown;
 			const warnings: string[] = [];
