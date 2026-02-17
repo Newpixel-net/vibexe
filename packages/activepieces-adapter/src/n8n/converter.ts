@@ -365,6 +365,65 @@ export function convertN8NToGiselle(
 		}
 	}
 
+	// Phase 2f: Absorb output parser sub-node configs into aiAgent nodes
+	// N8N uses ai_outputParser connections to link parsers to agents (or to other parsers in chains).
+	// We traverse these chains to find the ultimate AI agent and transfer parser configurations.
+	{
+		// Step 1: Build parser→target map from ai_outputParser connections
+		const parserTargetMap = new Map<string, string>(); // sourceName → targetName
+		for (const [sourceName, connTypes] of Object.entries(n8nWorkflow.connections)) {
+			for (const [connType, outputGroups] of Object.entries(connTypes as Record<string, unknown[][]>)) {
+				if (connType !== "ai_outputParser") continue;
+				for (const outputGroup of outputGroups) {
+					for (const conn of outputGroup as Array<{ node: string }>) {
+						parserTargetMap.set(sourceName, conn.node);
+					}
+				}
+			}
+		}
+
+		// Step 2: For each parser, follow chain to find ultimate AI agent
+		const n8nNodeByName = new Map(n8nWorkflow.nodes.map(n => [n.name, n]));
+
+		for (const [parserName] of parserTargetMap) {
+			// Follow the chain: parser → parser → ... → agent
+			let currentTarget = parserTargetMap.get(parserName);
+			const visited = new Set<string>([parserName]);
+			while (currentTarget && parserTargetMap.has(currentTarget) && !visited.has(currentTarget)) {
+				visited.add(currentTarget);
+				currentTarget = parserTargetMap.get(currentTarget);
+			}
+
+			if (!currentTarget) continue;
+			const agentMapping = nodeIdMapping[currentTarget];
+			if (!agentMapping || agentMapping.contentType !== "aiAgent") continue;
+
+			const agentNode = giselleNodes.find(n => n.id === agentMapping.nodeId);
+			if (!agentNode) continue;
+
+			const n8nNode = n8nNodeByName.get(parserName);
+			if (!n8nNode) continue;
+
+			const agentContent = agentNode.content as Record<string, unknown>;
+			const n8nType = n8nNode.type.toLowerCase();
+
+			if (n8nType.includes("outputparserstructured")) {
+				// Extract JSON schema and enable structured output
+				const schema = n8nNode.parameters?.jsonSchemaExample as string ?? "";
+				agentContent.structuredOutput = { enabled: true, schema };
+				// Set parser type to "structured" only if still "none" (autoFixing takes precedence)
+				if ((agentContent.outputParser as Record<string, unknown>)?.type === "none") {
+					agentContent.outputParser = { type: "structured", retryAttempts: 3 };
+				}
+			} else if (n8nType.includes("outputparserautofixing")) {
+				// Auto-fixing always takes precedence over structured for parser type
+				agentContent.outputParser = { type: "autoFixing", retryAttempts: 3 };
+			} else if (n8nType.includes("outputparseritemlist")) {
+				agentContent.outputParser = { type: "itemList", retryAttempts: 3 };
+			}
+		}
+	}
+
 	// Phase 3: Compute clean layout
 	const layoutPositions = computeLayout(
 		giselleNodes,
@@ -1110,14 +1169,22 @@ function convertN8NConditions(
 		// V2: { conditions: [...] }
 		const condObj = conditionsParam as Record<string, unknown>;
 		if (Array.isArray(condObj.conditions)) {
+			// V2 combinator override: stored in conditions.combinator, not top-level params
+			const v2Combinator = condObj.combinator as string | undefined;
+			const effectiveCombineWith: "and" | "or" = v2Combinator === "or" ? "or" : combineWith;
+
 			for (const cond of condObj.conditions) {
 				const c = cond as Record<string, unknown>;
 				const leftValue = cleanN8NExpression(String(c.leftValue ?? c.value1 ?? ""));
 				const rightValue = cleanN8NExpression(String(c.rightValue ?? c.value2 ?? ""));
-				const op = N8N_OPERATOR_MAP[String(c.operator ?? "")] ?? "equals";
+				// V2 operator can be an object: { type: "string", operation: "equals" }
+				const rawOperator = typeof c.operator === "object" && c.operator !== null
+					? String((c.operator as Record<string, unknown>).operation ?? "")
+					: String(c.operator ?? "");
+				const op = N8N_OPERATOR_MAP[rawOperator] ?? "equals";
 				conditions.push({ field: leftValue, operator: op, value: rightValue });
 			}
-			return { conditions, combineWith };
+			return { conditions, combineWith: effectiveCombineWith };
 		}
 
 		// V1: { string: [...], number: [...], boolean: [...] }
@@ -1144,7 +1211,11 @@ function convertN8NConditions(
 				const c = cond as Record<string, unknown>;
 				const field = cleanN8NExpression(String(c.leftValue ?? c.field ?? ""));
 				const value = cleanN8NExpression(String(c.rightValue ?? c.value ?? ""));
-				const op = N8N_OPERATOR_MAP[String(c.operator ?? "")] ?? "equals";
+				// V2 operator can be an object: { type: "string", operation: "equals" }
+				const rawOperator = typeof c.operator === "object" && c.operator !== null
+					? String((c.operator as Record<string, unknown>).operation ?? "")
+					: String(c.operator ?? "");
+				const op = N8N_OPERATOR_MAP[rawOperator] ?? "equals";
 				conditions.push({ field, operator: op, value });
 			}
 		}
@@ -1184,7 +1255,11 @@ function convertN8NSwitchRules(
 							const c = cond as Record<string, unknown>;
 							const field = cleanN8NExpression(String(c.leftValue ?? c.value1 ?? ""));
 							const value = cleanN8NExpression(String(c.rightValue ?? c.value2 ?? ""));
-							const op = N8N_OPERATOR_MAP[String(c.operator ?? "")] ?? "equals";
+							// V2 operator can be an object: { type: "string", operation: "equals" }
+							const rawOperator = typeof c.operator === "object" && c.operator !== null
+								? String((c.operator as Record<string, unknown>).operation ?? "")
+								: String(c.operator ?? "");
+							const op = N8N_OPERATOR_MAP[rawOperator] ?? "equals";
 							conditions.push({ field, operator: op, value });
 						}
 					}
