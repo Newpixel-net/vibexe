@@ -2,7 +2,7 @@ import * as z from "zod/v4";
 
 export const LoopNodeContent = z.object({
 	type: z.literal("loop"),
-	mode: z.enum(["forEach", "nTimes"]).default("forEach"),
+	mode: z.enum(["forEach", "nTimes", "polling"]).default("forEach"),
 	maxIterations: z.number().default(100),
 	nTimes: z.number().optional(),
 });

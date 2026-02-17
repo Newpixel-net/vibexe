@@ -2,6 +2,7 @@ import type {
 	Connection,
 	GenerationId,
 	GenerationOutput,
+	LoopNodeContent,
 	NodeId,
 	OperationNode,
 } from "@giselles-ai/protocol";
@@ -712,6 +713,76 @@ export async function executeDag(
 				dag.routeErrorToTriggers(loopNodeId, loopName, errorMsg, callbacks);
 				await callbacks.onNodeFailed?.(loopNodeId, new Error(errorMsg));
 				return;
+			}
+
+			// Polling mode: check if exit condition was met after this iteration.
+			// An exit condition is when an If/Switch node in the body activates a
+			// branch that leads to a node OUTSIDE the loop body.
+			const isPolling = (loopNode.operationNode.content as LoopNodeContent).mode === "polling";
+			if (isPolling) {
+				let exitTargetNodeId: NodeId | null = null;
+				for (const bodyNodeId of loopBodyNodeIds) {
+					const bodyNode = dag.nodes.get(bodyNodeId);
+					if (!bodyNode || bodyNode.state !== "completed") continue;
+					const ct = bodyNode.operationNode.content.type;
+					if (ct !== "if" && ct !== "switch") continue;
+					if (!bodyNode.activeOutputPort) continue;
+
+					const outEdges = dag.getOutgoingEdges(bodyNodeId);
+					for (const edge of outEdges) {
+						if (
+							edge.fromOutputPort === bodyNode.activeOutputPort &&
+							!loopBodyNodeIds.has(edge.toNodeId)
+						) {
+							exitTargetNodeId = edge.toNodeId;
+							break;
+						}
+					}
+					if (exitTargetNodeId) break;
+				}
+
+				if (exitTargetNodeId) {
+					// Exit condition met — ensure the exit target node is ready to fire
+					const exitNode = dag.nodes.get(exitTargetNodeId);
+					if (exitNode && (exitNode.state === "pending" || exitNode.state === "skipped")) {
+						exitNode.state = "waiting";
+					}
+					// Collect this final iteration's results before breaking
+					const lastOutputs: Record<string, unknown> = {};
+					for (const bodyNodeId of loopBodyNodeIds) {
+						const bodyNode = dag.nodes.get(bodyNodeId);
+						if (bodyNode?.state === "completed" && bodyNode.result) {
+							for (const [key, val] of bodyNode.result.outputs) {
+								lastOutputs[key] = val;
+							}
+						}
+					}
+					allIterationResults.push(
+						Object.keys(lastOutputs).length === 1
+							? Object.values(lastOutputs)[0]
+							: lastOutputs,
+					);
+					break; // Exit the polling loop
+				}
+
+				// No exit yet — reset any outside-body nodes that were skipped by
+				// If/Switch branch propagation so next iteration starts clean
+				for (const bodyNodeId of loopBodyNodeIds) {
+					const bodyNode = dag.nodes.get(bodyNodeId);
+					if (!bodyNode) continue;
+					const ct = bodyNode.operationNode.content.type;
+					if (ct !== "if" && ct !== "switch") continue;
+
+					const outEdges = dag.getOutgoingEdges(bodyNodeId);
+					for (const edge of outEdges) {
+						if (!loopBodyNodeIds.has(edge.toNodeId)) {
+							const outsideNode = dag.nodes.get(edge.toNodeId);
+							if (outsideNode && outsideNode.state === "skipped") {
+								outsideNode.state = "pending";
+							}
+						}
+					}
+				}
 			}
 
 			// Collect results from the last node(s) in the loop body

@@ -5,6 +5,10 @@
  * store, server info, etc. We build a minimal compatible version.
  */
 
+import { writeFile, mkdir } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+
 export interface StoreAdapter {
 	get(key: string): Promise<unknown>;
 	put(key: string, value: unknown): Promise<void>;
@@ -59,7 +63,14 @@ export function buildActionContext(args: ActionContextArgs) {
 		},
 		files: args.files ?? {
 			write: async (_args: { fileName: string; data: Buffer }) => {
-				return `file://${_args.fileName}`;
+				// Write binary data to a temp directory so piece actions can
+				// produce files (e.g. HTTP binary downloads) that flow through
+				// the node pipeline as file paths.
+				const dir = join(tmpdir(), "giselle-files");
+				await mkdir(dir, { recursive: true });
+				const filePath = join(dir, `${Date.now()}-${_args.fileName}`);
+				await writeFile(filePath, _args.data);
+				return filePath;
 			},
 		},
 		server: {

@@ -2425,14 +2425,15 @@ function transformCyclesToLoops(
 		});
 
 		if (hasConditionNode && cycleBody.length >= 2 && cycleBody.length <= 10) {
-			// POLLING_LOOP or RETRY_LOOP — synthesize a Loop node
+			// POLLING_LOOP or RETRY_LOOP — synthesize a Loop node in polling mode.
+			// Polling mode repeats the loop body until an If/Switch routes to an exit branch.
 			const loopNode: GiselleNodeData = {
 				id: NodeId.generate(),
 				type: "operation",
 				name: `Loop (converted)`,
 				content: {
 					type: "loop",
-					mode: "forEach",
+					mode: "polling",
 					maxIterations: 100,
 				},
 				inputs: [

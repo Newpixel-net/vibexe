@@ -16,6 +16,25 @@ export async function executeLoop(
 ): Promise<DagNodeResult> {
 	const content = node.operationNode.content as LoopNodeContent;
 
+	if (content.mode === "polling") {
+		// Polling mode: repeat body up to maxIterations times.
+		// The DAG executor checks after each iteration if an exit condition was met.
+		const n = Math.max(1, content.maxIterations);
+		const indices = Array.from({ length: n }, (_, i) => i);
+		return {
+			outputs: new Map([
+				["item", indices],
+				["output", indices],
+				["done", indices],
+				["loop", indices],
+				["items", indices],
+				["totalItems", n],
+				["iterationMode", "polling"],
+				["data", indices],
+			]),
+		};
+	}
+
 	if (content.mode === "forEach") {
 		const items = extractArray(inputData);
 		const capped = items.slice(0, Math.max(0, content.maxIterations));

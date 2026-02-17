@@ -211,13 +211,26 @@ function createIntegrationOutput(
 	if (resultOutput === undefined) {
 		return [];
 	}
+
+	// Use structured-data for object/array results so raw data (including
+	// binary references, file paths, etc.) flows through the DAG without
+	// being stringified. Only use generated-text for plain string results.
+	if (typeof result === "string") {
+		return [
+			{
+				type: "generated-text",
+				content: result,
+				outputId: resultOutput.id,
+			},
+		];
+	}
+
 	return [
 		{
-			type: "generated-text",
-			content:
-				typeof result === "string" ? result : JSON.stringify(result, null, 2),
+			type: "structured-data",
+			data: result,
 			outputId: resultOutput.id,
-		},
+		} as GenerationOutput,
 	];
 }
 
