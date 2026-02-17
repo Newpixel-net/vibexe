@@ -79,9 +79,33 @@ export class ExecutionDAG {
 	private outgoingEdges: Map<NodeId, DagEdge[]> = new Map();
 	/** Pending error data for ErrorTrigger nodes (injected by error routing) */
 	errorTriggerData: Map<NodeId, Map<string, unknown>> = new Map();
+	/** Name-based index for cross-node lookups (N8N $('NodeName') expressions) */
+	nodesByName: Map<string, NodeId> = new Map();
 
 	addNode(node: DagNode): void {
 		this.nodes.set(node.nodeId, node);
+		// Index by name for cross-node expression resolution
+		const name = node.operationNode.name;
+		if (name) {
+			this.nodesByName.set(name, node.nodeId);
+		}
+	}
+
+	/**
+	 * Look up a completed node's output data by its display name.
+	 * Used by N8N expression resolution: $('NodeName').item.json.field
+	 * Returns undefined if the node doesn't exist or hasn't completed yet.
+	 */
+	getNodeOutputByName(name: string): Record<string, unknown> | undefined {
+		const nodeId = this.nodesByName.get(name);
+		if (!nodeId) return undefined;
+		const node = this.nodes.get(nodeId);
+		if (!node?.result) return undefined;
+		const obj: Record<string, unknown> = {};
+		for (const [key, val] of node.result.outputs) {
+			obj[key] = val;
+		}
+		return obj;
 	}
 
 	addEdge(edge: DagEdge): void {

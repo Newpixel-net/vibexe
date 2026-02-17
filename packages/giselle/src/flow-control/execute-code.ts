@@ -39,6 +39,7 @@ function safeClone<T>(value: T): T {
 export async function executeCode(
 	node: DagNode,
 	inputData: Map<string, unknown>,
+	dagLookup?: (name: string) => Record<string, unknown> | undefined,
 ): Promise<DagNodeResult> {
 	const content = node.operationNode.content as CodeNodeContent;
 
@@ -83,6 +84,22 @@ export async function executeCode(
 		$node: {
 			name: node.operationNode.name ?? node.nodeId,
 		},
+		// N8N cross-node reference: $('NodeName').item.json.field
+		$: dagLookup
+			? (nodeName: string) => {
+				const data = dagLookup(nodeName) ?? {};
+				const item = { json: data };
+				return {
+					item,
+					first: () => item,
+					last: () => item,
+					all: () => [item],
+				};
+			}
+			: ((_name: string) => {
+				const item = { json: {} };
+				return { item, first: () => item, last: () => item, all: () => [item] };
+			}),
 		// Standard JS globals
 		JSON,
 		Math,

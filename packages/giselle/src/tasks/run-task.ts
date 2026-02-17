@@ -15,6 +15,7 @@ import {
 	TaskId,
 } from "@giselles-ai/protocol";
 import * as z from "zod/v4";
+import { resolveDagExpressions } from "../expressions/resolve-dag-expressions";
 import {
 	executeAggregate,
 	executeCode,
@@ -557,7 +558,7 @@ async function runTaskWithDag(
 				case "loop":
 					return executeLoop(dagNode, inputData);
 				case "code":
-					return executeCode(dagNode, inputData);
+					return executeCode(dagNode, inputData, (name) => dag.getNodeOutputByName(name));
 				case "filter":
 					return executeFilter(dagNode, inputData);
 				case "editFields":
@@ -644,6 +645,20 @@ async function runTaskWithDag(
 							opContent.prompt = `[Upstream workflow data]\n${contextText}\n\n${prompt}`;
 						}
 					}
+				}
+			}
+
+			// Pre-resolve cross-node [NodeName.field] expressions in integration config
+			// using the global DAG data store. This supplements resolveConfigExpressions()
+			// which only searches direct inputs from port connections.
+			if (nodeType === "integration") {
+				const opContent = generation.context.operationNode.content as Record<string, unknown>;
+				const config = opContent.configuration;
+				if (config && typeof config === "object") {
+					resolveDagExpressions(
+						config as Record<string, unknown>,
+						(name) => dag.getNodeOutputByName(name),
+					);
 				}
 			}
 
