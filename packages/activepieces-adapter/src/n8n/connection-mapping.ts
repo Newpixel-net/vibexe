@@ -10,7 +10,7 @@ export interface N8NConnection {
 
 export interface N8NConnections {
 	[sourceNodeName: string]: {
-		main: Array<N8NConnection[]>;
+		[connectionType: string]: Array<N8NConnection[]>;
 	};
 }
 
@@ -48,47 +48,52 @@ export function convertConnections(
 		const sourceMapping = nodeIdMapping[sourceName];
 		if (!sourceMapping) continue;
 
-		if (!connectionGroups.main) continue;
+		// Iterate ALL connection type keys (main, ai_languageModel, ai_outputParser, ai_tool, etc.)
+		for (const [_connectionType, outputArrays] of Object.entries(
+			connectionGroups,
+		)) {
+			if (!Array.isArray(outputArrays)) continue;
 
-		for (
-			let outputIndex = 0;
-			outputIndex < connectionGroups.main.length;
-			outputIndex++
-		) {
-			const targets = connectionGroups.main[outputIndex];
-			if (!targets) continue;
+			for (
+				let outputIndex = 0;
+				outputIndex < outputArrays.length;
+				outputIndex++
+			) {
+				const targets = outputArrays[outputIndex];
+				if (!targets) continue;
 
-			// Use the outputIndex to pick the right output port, defaulting to first
-			const outputId =
-				sourceMapping.outputIds[outputIndex] ??
-				sourceMapping.outputIds[0];
-			if (!outputId) continue;
+				// Use the outputIndex to pick the right output port, defaulting to first
+				const outputId =
+					sourceMapping.outputIds[outputIndex] ??
+					sourceMapping.outputIds[0];
+				if (!outputId) continue;
 
-			for (const target of targets) {
-				const targetMapping = nodeIdMapping[target.node];
-				if (!targetMapping) continue;
+				for (const target of targets) {
+					const targetMapping = nodeIdMapping[target.node];
+					if (!targetMapping) continue;
 
-				// Use the target's index to pick the right input port
-				const inputId =
-					targetMapping.inputIds[target.index] ??
-					targetMapping.inputIds[0];
-				if (!inputId) continue;
+					// Use the target's index to pick the right input port
+					const inputId =
+						targetMapping.inputIds[target.index] ??
+						targetMapping.inputIds[0];
+					if (!inputId) continue;
 
-				connections.push({
-					id: generateId(),
-					outputNode: {
-						id: sourceMapping.nodeId,
-						type: sourceMapping.nodeType,
-						content: { type: sourceMapping.contentType },
-					},
-					outputId,
-					inputNode: {
-						id: targetMapping.nodeId,
-						type: targetMapping.nodeType,
-						content: { type: targetMapping.contentType },
-					},
-					inputId,
-				});
+					connections.push({
+						id: generateId(),
+						outputNode: {
+							id: sourceMapping.nodeId,
+							type: sourceMapping.nodeType,
+							content: { type: sourceMapping.contentType },
+						},
+						outputId,
+						inputNode: {
+							id: targetMapping.nodeId,
+							type: targetMapping.nodeType,
+							content: { type: targetMapping.contentType },
+						},
+						inputId,
+					});
+				}
 			}
 		}
 	}
