@@ -286,6 +286,28 @@ export function convertN8NToGiselle(
 		warnings,
 	);
 
+	// Phase 2c: Remove input ports from leaf nodes (N8N sub-nodes with no incoming connections)
+	// In N8N, certain node types (AI models, parsers, tools) are "sub-nodes" that only
+	// have outputs — they plug into agent sub-inputs. These should NOT have input handles.
+	const nodesWithIncoming = new Set<string>();
+	for (const conn of connections) {
+		nodesWithIncoming.add(conn.inputNode.id);
+	}
+	for (const node of giselleNodes) {
+		if (nodesWithIncoming.has(node.id)) continue;
+		const contentType = (node.content as { type: string }).type;
+		if (contentType === "trigger") continue;
+		if (node.inputs.length > 0) {
+			node.inputs = [];
+			for (const mapping of Object.values(nodeIdMapping)) {
+				if (mapping.nodeId === node.id) {
+					mapping.inputIds = [];
+					break;
+				}
+			}
+		}
+	}
+
 	// Phase 3: Compute clean layout
 	const layoutPositions = computeLayout(
 		giselleNodes,
