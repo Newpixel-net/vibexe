@@ -33,6 +33,7 @@ export type GiselleNodeMapping =
 	| { type: "nativeCompareDatasets" }
 	| { type: "nativeSummarize" }
 	| { type: "nativeRespondToWebhook" }
+	| { type: "aiAgent"; agentType: "tools" | "conversational" | "react" }
 	| { type: "chatModel"; provider: "openai" | "anthropic" | "google"; defaultModelId: string }
 	| { type: "toolNode"; toolType: string }
 	| { type: "text"; description: string }
@@ -154,6 +155,36 @@ const EXACT_MAPPINGS: Record<string, GiselleNodeMapping> = {
 		pieceName: "gmail",
 		actionName: "send_email",
 	},
+
+	// LangChain Agent → native aiAgent node
+	"@n8n/n8n-nodes-langchain.agent": { type: "aiAgent", agentType: "tools" },
+
+	// LangChain LLM Chain → textGeneration (basic prompt → LLM → output)
+	"@n8n/n8n-nodes-langchain.chainllm": {
+		type: "textGeneration",
+		provider: "openai",
+		modelId: "gpt-4o",
+	},
+
+	// LangChain tool sub-nodes → toolNode (renders as round "Tool" circle)
+	"@n8n/n8n-nodes-langchain.toolcode": { type: "toolNode", toolType: "builtinTool" },
+	"@n8n/n8n-nodes-langchain.toolcalculator": { type: "toolNode", toolType: "builtinTool" },
+	"@n8n/n8n-nodes-langchain.toolhttprequest": { type: "toolNode", toolType: "builtinTool" },
+	"@n8n/n8n-nodes-langchain.toolwikipedia": { type: "toolNode", toolType: "builtinTool" },
+	"@n8n/n8n-nodes-langchain.toolworkflow": { type: "toolNode", toolType: "builtinTool" },
+	"@n8n/n8n-nodes-langchain.toolwolframalpha": { type: "toolNode", toolType: "builtinTool" },
+	"@n8n/n8n-nodes-langchain.toolserpapi": { type: "toolNode", toolType: "builtinTool" },
+	"@n8n/n8n-nodes-langchain.toolvectorstorelookup": { type: "toolNode", toolType: "builtinTool" },
+
+	// LangChain memory sub-nodes → toolNode (renders as round circle)
+	"@n8n/n8n-nodes-langchain.memorybufferwindow": { type: "toolNode", toolType: "builtinTool" },
+	"@n8n/n8n-nodes-langchain.memorymotorhead": { type: "toolNode", toolType: "builtinTool" },
+	"@n8n/n8n-nodes-langchain.memoryxata": { type: "toolNode", toolType: "builtinTool" },
+	"@n8n/n8n-nodes-langchain.memoryzep": { type: "toolNode", toolType: "builtinTool" },
+
+	// LangChain output parser sub-nodes → toolNode (renders as round circle)
+	"@n8n/n8n-nodes-langchain.outputparserautofixing": { type: "toolNode", toolType: "builtinTool" },
+	"@n8n/n8n-nodes-langchain.outputparseritemlist": { type: "toolNode", toolType: "builtinTool" },
 
 	// LLM nodes — standalone OpenAI node (renders as card)
 	"@n8n/n8n-nodes-langchain.openai": {

@@ -334,6 +334,36 @@ export function convertN8NToGiselle(
 		});
 	}
 
+	// Phase 2e: Absorb connected chatModel sub-nodes' model config into aiAgent nodes
+	// In N8N, agents get their model from connected ai_languageModel sub-nodes.
+	// In Vibexe, aiAgent has an inline model picker. This phase copies the model config.
+	for (const [sourceName, connTypes] of Object.entries(n8nWorkflow.connections)) {
+		for (const [connType, outputGroups] of Object.entries(connTypes as Record<string, unknown[][]>)) {
+			if (connType !== "ai_languageModel") continue;
+			for (const outputGroup of outputGroups) {
+				for (const conn of outputGroup as Array<{ node: string; type: string; index: number }>) {
+					const targetMapping = nodeIdMapping[conn.node];
+					const sourceMapping = nodeIdMapping[sourceName];
+					if (!targetMapping || !sourceMapping) continue;
+					if (targetMapping.contentType !== "aiAgent") continue;
+					if (sourceMapping.contentType !== "chatModel") continue;
+
+					// Find the target aiAgent node and source chatModel node
+					const agentNode = giselleNodes.find((n) => n.id === targetMapping.nodeId);
+					const modelNode = giselleNodes.find((n) => n.id === sourceMapping.nodeId);
+					if (!agentNode || !modelNode) continue;
+
+					// Copy model config from chatModel to aiAgent's inline model picker
+					const modelContent = modelNode.content as { type: string; languageModel?: { provider: string; id: string; configuration: Record<string, unknown> } };
+					if (modelContent.languageModel) {
+						const agentContent = agentNode.content as Record<string, unknown>;
+						agentContent.languageModel = { ...modelContent.languageModel };
+					}
+				}
+			}
+		}
+	}
+
 	// Phase 3: Compute clean layout
 	const layoutPositions = computeLayout(
 		giselleNodes,
@@ -881,6 +911,54 @@ function createGiselleNode(
 					{ id: InputId.generate(), label: "Input", accessor: "input" },
 				],
 				outputs: [],
+			};
+		}
+
+		// --- LangChain AI Agent → native aiAgent node ---
+
+		case "aiAgent": {
+			// Extract system prompt and user prompt from N8N agent parameters
+			const agentSystemPrompt = typeof n8nNode.parameters.options === "object"
+				? String((n8nNode.parameters.options as Record<string, unknown>).systemMessage ?? "")
+				: "";
+			const agentUserPrompt = extractPromptFromN8NParams(n8nNode.parameters);
+
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "aiAgent",
+					version: "v1",
+					agentType: mapping.agentType,
+					languageModel: {
+						provider: "openai",
+						id: "openai/gpt-5",
+						configuration: {},
+					},
+					tools: [],
+					systemPrompt: cleanN8NExpression(agentSystemPrompt),
+					prompt: cleanN8NExpression(agentUserPrompt),
+					maxSteps: 30,
+					structuredOutput: { enabled: false, schema: "" },
+					fallbackModel: { enabled: false, configuration: {} },
+					outputParser: { type: "none", retryAttempts: 3 },
+					guardrails: { enabled: false, inputRules: [], outputRules: [] },
+				},
+				inputs: [
+					{
+						id: InputId.generate(),
+						label: "Input",
+						accessor: "input",
+					},
+				],
+				outputs: [
+					{
+						id: OutputId.generate(),
+						label: "Output",
+						accessor: "generated-text",
+					},
+				],
 			};
 		}
 
