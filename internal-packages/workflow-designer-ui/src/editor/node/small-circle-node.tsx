@@ -60,6 +60,9 @@ export function SmallCircleXyFlowNode({ id, selected }: NodeProps) {
 		return null;
 	}
 
+	const outputHandleId = (node as NodeLike).outputs?.[0]?.id ?? "output";
+	const hasInputs = ((node as NodeLike).inputs?.length ?? 0) > 0;
+
 	return (
 		<SmallCircleNode
 			node={node as NodeLike}
@@ -67,6 +70,8 @@ export function SmallCircleXyFlowNode({ id, selected }: NodeProps) {
 			highlighted={highlighted}
 			connectedOutputIds={connectedOutputIds as OutputId[]}
 			connectedInputIds={connectedInputIds as InputId[]}
+			outputHandleId={outputHandleId as string}
+			hasInputs={hasInputs}
 		/>
 	);
 }
@@ -78,6 +83,8 @@ export function SmallCircleNode({
 	connectedOutputIds = [],
 	connectedInputIds = [],
 	preview = false,
+	outputHandleId = "output",
+	hasInputs = true,
 }: {
 	node: NodeLike;
 	selected?: boolean;
@@ -85,6 +92,8 @@ export function SmallCircleNode({
 	highlighted?: boolean;
 	connectedOutputIds?: OutputId[];
 	connectedInputIds?: InputId[];
+	outputHandleId?: string;
+	hasInputs?: boolean;
 }) {
 	const style = useNodeVisualStyle(node);
 	const { v } = style;
@@ -159,20 +168,22 @@ export function SmallCircleNode({
 					/>
 
 					{/* Input handle on left (for receiving data from other nodes) */}
-					<Handle
-						type="target"
-						position={Position.Left}
-						className={clsx(
-							"!absolute !w-[14px] !h-[14px] !rounded-full !left-0 !top-1/2 !border-[1.5px]",
-							getHandleBorderClass(v),
-							isInputConnected ? getHandleActiveBgClass(v) : "!bg-background",
-						)}
-					/>
+					{hasInputs && (
+						<Handle
+							type="target"
+							position={Position.Left}
+							className={clsx(
+								"!absolute !w-[14px] !h-[14px] !rounded-full !left-0 !top-1/2 !border-[1.5px]",
+								getHandleBorderClass(v),
+								isInputConnected ? getHandleActiveBgClass(v) : "!bg-background",
+							)}
+						/>
+					)}
 
 					{/* Output handle on right with "+" inside */}
 					<Handle
 						type="source"
-						id="output"
+						id={outputHandleId}
 						position={Position.Right}
 						className={clsx(
 							"!absolute !w-[14px] !h-[14px] !rounded-full !right-0 !top-1/2 !border-[1.5px] !bg-background",

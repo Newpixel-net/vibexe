@@ -858,6 +858,51 @@ function createGiselleNode(
 			};
 		}
 
+		// --- LangChain Sub-Nodes (round circle rendering) ---
+
+		case "chatModel": {
+			const modelId = extractModelId(n8nNode.parameters) ?? mapping.defaultModelId;
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				content: {
+					type: "chatModel",
+					languageModel: {
+						provider: mapping.provider,
+						id: modelId,
+						configuration: {},
+					},
+				},
+				inputs: [],
+				outputs: [{
+					id: OutputId.generate(),
+					label: "Output",
+					accessor: "output",
+				}],
+			};
+		}
+
+		case "toolNode": {
+			return {
+				id: NodeId.generate(),
+				type: "operation",
+				name: n8nNode.name,
+				disabled: true,
+				content: {
+					type: "toolNode",
+					toolType: mapping.toolType,
+					configuration: {},
+				},
+				inputs: [],
+				outputs: [{
+					id: OutputId.generate(),
+					label: "Output",
+					accessor: "output",
+				}],
+			};
+		}
+
 		case "text":
 			// Sticky notes are now handled before createGiselleNode is called.
 			// This case should not be reached but is kept for safety.

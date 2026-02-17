@@ -33,6 +33,8 @@ export type GiselleNodeMapping =
 	| { type: "nativeCompareDatasets" }
 	| { type: "nativeSummarize" }
 	| { type: "nativeRespondToWebhook" }
+	| { type: "chatModel"; provider: "openai" | "anthropic" | "google"; defaultModelId: string }
+	| { type: "toolNode"; toolType: string }
 	| { type: "text"; description: string }
 	| { type: "unsupported"; originalType: string; reason: string }
 	| { type: "skip"; reason: string }
@@ -153,26 +155,43 @@ const EXACT_MAPPINGS: Record<string, GiselleNodeMapping> = {
 		actionName: "send_email",
 	},
 
-	// LLM nodes
+	// LLM nodes — standalone OpenAI node (renders as card)
 	"@n8n/n8n-nodes-langchain.openai": {
 		type: "textGeneration",
 		provider: "openai",
 		modelId: "gpt-4o",
 	},
-	"@n8n/n8n-nodes-langchain.lmopenai": {
-		type: "textGeneration",
+
+	// LangChain LM sub-nodes → chatModel (renders as round circle with "Model" label)
+	"@n8n/n8n-nodes-langchain.lmchatopenai": {
+		type: "chatModel",
 		provider: "openai",
-		modelId: "gpt-4o",
+		defaultModelId: "gpt-4o",
+	},
+	"@n8n/n8n-nodes-langchain.lmopenai": {
+		type: "chatModel",
+		provider: "openai",
+		defaultModelId: "gpt-4o",
 	},
 	"@n8n/n8n-nodes-langchain.lmchatanthropic": {
-		type: "textGeneration",
+		type: "chatModel",
 		provider: "anthropic",
-		modelId: "claude-sonnet-4-5-20250929",
+		defaultModelId: "claude-sonnet-4-5-20250929",
 	},
 	"@n8n/n8n-nodes-langchain.lmchatgooglegenerativeai": {
-		type: "textGeneration",
+		type: "chatModel",
 		provider: "google",
-		modelId: "gemini-2.0-flash",
+		defaultModelId: "gemini-2.0-flash",
+	},
+
+	// LangChain tool/parser sub-nodes → toolNode (renders as round circle with "Tool" label)
+	"@n8n/n8n-nodes-langchain.outputparserstructured": {
+		type: "toolNode",
+		toolType: "builtinTool",
+	},
+	"@n8n/n8n-nodes-langchain.toolthink": {
+		type: "toolNode",
+		toolType: "builtinTool",
 	},
 };
 
