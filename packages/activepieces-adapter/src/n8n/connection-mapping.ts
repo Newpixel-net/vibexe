@@ -77,16 +77,15 @@ export function convertConnections(
 					if (!targetMapping) continue;
 
 					if (isSubNode) {
-						// Sub-node connection: route from circle's top handle to agent's bottom handle
-						let targetHandle: string;
-						if (connectionType === "ai_languageModel") {
-							targetHandle = "chatModel";
-						} else if (connectionType === "ai_memory") {
-							targetHandle = "memory";
-						} else {
-							// ai_outputParser, ai_tool, and any other ai_* types → tool handle
-							targetHandle = "tool";
-						}
+						// Sub-node connection: set connectionType so v2-container.tsx routes
+						// the edge from circle's top handle to agent's bottom handle.
+						// The rendering layer determines actual handle positions from
+						// connection.outputNode.content.type (chatModel/toolNode/memoryNode),
+						// so inputId/outputId just need valid protocol IDs.
+						const subInputId =
+							targetMapping.inputIds[target.index] ??
+							targetMapping.inputIds[0];
+						if (!subInputId) continue;
 
 						connections.push({
 							id: generateId(),
@@ -95,13 +94,13 @@ export function convertConnections(
 								type: sourceMapping.nodeType,
 								content: { type: sourceMapping.contentType },
 							},
-							outputId: "parent",
+							outputId,
 							inputNode: {
 								id: targetMapping.nodeId,
 								type: targetMapping.nodeType,
 								content: { type: targetMapping.contentType },
 							},
-							inputId: targetHandle,
+							inputId: subInputId,
 							connectionType: "subNode",
 						});
 					} else {
