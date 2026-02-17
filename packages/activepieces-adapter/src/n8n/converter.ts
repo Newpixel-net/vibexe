@@ -439,8 +439,10 @@ export function convertN8NToGiselle(
 		for (let i = giselleNodes.length - 1; i >= 0; i--) {
 			const node = giselleNodes[i];
 			const contentType = (node.content as { type: string }).type;
-			// Only remove if the node is disabled (was a sub-node) and is an absorbed type
-			if (node.disabled && ABSORBED_CONTENT_TYPES.has(contentType)) {
+			// Remove all sub-node types (chatModel, toolNode, memoryNode) — their configs
+			// were absorbed into parent aiAgent nodes. chatModel nodes aren't disabled,
+			// so we can't rely on the disabled flag alone.
+			if (ABSORBED_CONTENT_TYPES.has(contentType)) {
 				absorbedNodeIds.add(node.id);
 				giselleNodes.splice(i, 1);
 				delete nodePositions[node.id];
