@@ -163,25 +163,26 @@ const EXACT_MAPPINGS: Record<string, GiselleNodeMapping> = {
 	},
 
 	// LangChain LM sub-nodes → chatModel (renders as round circle with "Model" label)
+	// Model IDs must be in "provider/model-name" format matching the language-model-registry
 	"@n8n/n8n-nodes-langchain.lmchatopenai": {
 		type: "chatModel",
 		provider: "openai",
-		defaultModelId: "gpt-4o",
+		defaultModelId: "openai/gpt-5",
 	},
 	"@n8n/n8n-nodes-langchain.lmopenai": {
 		type: "chatModel",
 		provider: "openai",
-		defaultModelId: "gpt-4o",
+		defaultModelId: "openai/gpt-5",
 	},
 	"@n8n/n8n-nodes-langchain.lmchatanthropic": {
 		type: "chatModel",
 		provider: "anthropic",
-		defaultModelId: "claude-sonnet-4-5-20250929",
+		defaultModelId: "anthropic/claude-sonnet-4.5",
 	},
 	"@n8n/n8n-nodes-langchain.lmchatgooglegenerativeai": {
 		type: "chatModel",
 		provider: "google",
-		defaultModelId: "gemini-2.0-flash",
+		defaultModelId: "google/gemini-2.5-flash",
 	},
 
 	// LangChain tool/parser sub-nodes → toolNode (renders as round circle with "Tool" label)

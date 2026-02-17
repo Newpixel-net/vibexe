@@ -861,7 +861,7 @@ function createGiselleNode(
 		// --- LangChain Sub-Nodes (round circle rendering) ---
 
 		case "chatModel": {
-			const modelId = extractModelId(n8nNode.parameters) ?? mapping.defaultModelId;
+			// Always use defaultModelId from registry — N8N model names don't match our registry format
 			return {
 				id: NodeId.generate(),
 				type: "operation",
@@ -870,7 +870,7 @@ function createGiselleNode(
 					type: "chatModel",
 					languageModel: {
 						provider: mapping.provider,
-						id: modelId,
+						id: mapping.defaultModelId,
 						configuration: {},
 					},
 				},
