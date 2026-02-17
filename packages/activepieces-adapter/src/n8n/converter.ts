@@ -457,9 +457,8 @@ export function convertN8NToGiselle(
 
 	// Phase 2h: Scale coordinates to match Vibexe's node sizes
 	// N8N nodes are ~130x40px compact rectangles, Vibexe nodes are 96x96px cards.
-	// N8N avg center-to-center: ~272px → visible wire ~142px (short).
-	// At 0.5x: 272→136px c2c → visible wire ~40px (compact, matching N8N feel).
-	const IMPORT_SCALE = 0.5;
+	// 0.9x balances shorter wires with no node overlap.
+	const IMPORT_SCALE = 0.9;
 	for (const id of Object.keys(nodePositions)) {
 		nodePositions[id] = {
 			x: nodePositions[id].x * IMPORT_SCALE,
