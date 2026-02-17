@@ -1772,40 +1772,70 @@ function extractModelId(
 	return null;
 }
 
+/** Default fallback model IDs per provider for when an N8N model isn't in our registry. */
+const PROVIDER_DEFAULT_MODELS: Record<string, string> = {
+	openai: "openai/gpt-5",
+	anthropic: "anthropic/claude-sonnet-4.5",
+	google: "google/gemini-2.5-flash",
+	xai: "xai/grok-3",
+	nvidia: "nvidia/moonshotai/kimi-k2.5",
+};
+
 /**
  * Normalize an N8N model name to a valid registry model ID.
  * N8N uses legacy OpenAI names (gpt-4o-mini) while our registry uses current names (gpt-5-mini).
+ * Falls back to provider default if the model isn't in our alias table or registry.
  */
 function normalizeModelId(provider: string, rawModel: string): string {
 	const key = `${provider}/${rawModel}`;
 	if (key in MODEL_ID_ALIASES) {
 		return MODEL_ID_ALIASES[key];
 	}
-	// If already in provider/model format and no alias found, return as-is
-	if (rawModel.includes("/")) {
-		return rawModel;
+	// If already in provider/model format and no alias found, check if it's already valid
+	const candidateId = rawModel.includes("/") ? rawModel : `${provider}/${rawModel}`;
+	// If the candidate is in the alias table (shouldn't reach here but safety check)
+	if (candidateId in MODEL_ID_ALIASES) {
+		return MODEL_ID_ALIASES[candidateId];
 	}
-	return `${provider}/${rawModel}`;
+	// Fall back to provider default to avoid invalid model IDs that crash workspace loading
+	return PROVIDER_DEFAULT_MODELS[provider] ?? candidateId;
 }
 
 const MODEL_ID_ALIASES: Record<string, string> = {
-	// Only map truly deprecated/unavailable models.
-	// Models that are still valid on the provider API are preserved as-is
-	// so imported workflows behave identically to the original.
+	// Map N8N model names to valid registry model IDs.
+	// Our registry uses current model names (gpt-5 series, claude-4.5 series).
+	// N8N workflows may reference older or different-named models.
 
-	// OpenAI deprecated models → current equivalents
-	"openai/gpt-4-turbo": "openai/gpt-4o",
-	"openai/gpt-4": "openai/gpt-4o",
-	"openai/gpt-3.5-turbo": "openai/gpt-4o-mini",
-	// Anthropic deprecated models → current equivalents
+	// OpenAI: current generation → registry equivalents
+	"openai/gpt-4o": "openai/gpt-5",
+	"openai/gpt-4o-mini": "openai/gpt-5-mini",
+	"openai/gpt-4.1": "openai/gpt-5",
+	"openai/gpt-4.1-mini": "openai/gpt-5-mini",
+	"openai/gpt-4.1-nano": "openai/gpt-5-nano",
+	"openai/o4-mini": "openai/gpt-5-mini",
+	"openai/o4": "openai/gpt-5",
+	"openai/o3": "openai/gpt-5",
+	"openai/o3-mini": "openai/gpt-5-mini",
+	"openai/o1": "openai/gpt-5",
+	"openai/o1-mini": "openai/gpt-5-mini",
+	"openai/o1-preview": "openai/gpt-5",
+	// OpenAI: deprecated models → registry equivalents
+	"openai/gpt-4-turbo": "openai/gpt-5",
+	"openai/gpt-4": "openai/gpt-5",
+	"openai/gpt-3.5-turbo": "openai/gpt-5-mini",
+	// Anthropic: deprecated models → current equivalents
 	"anthropic/claude-3-opus": "anthropic/claude-sonnet-4.5",
 	"anthropic/claude-3-sonnet": "anthropic/claude-sonnet-4.5",
-	"anthropic/claude-3-haiku": "anthropic/claude-haiku-3.5",
+	"anthropic/claude-3-haiku": "anthropic/claude-haiku-4.5",
+	"anthropic/claude-3.5-sonnet": "anthropic/claude-sonnet-4.5",
+	"anthropic/claude-3.5-haiku": "anthropic/claude-haiku-4.5",
 	// Anthropic version-stamped → friendly names
 	"anthropic/claude-sonnet-4-5-20250929": "anthropic/claude-sonnet-4.5",
-	// Google deprecated models → current equivalents
+	// Google: deprecated models → current equivalents
 	"google/gemini-1.5-pro": "google/gemini-2.5-pro",
 	"google/gemini-1.5-flash": "google/gemini-2.5-flash",
+	"google/gemini-2.0-flash": "google/gemini-2.5-flash",
+	"google/gemini-pro": "google/gemini-2.5-pro",
 };
 
 // ─── Expression System (Phase 3) ─────────────────────────────────────────────
