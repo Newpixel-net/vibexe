@@ -34,7 +34,7 @@ export type GiselleNodeMapping =
 	| { type: "nativeSummarize" }
 	| { type: "nativeRespondToWebhook" }
 	| { type: "aiAgent"; agentType: "tools" | "conversational" | "react" }
-	| { type: "chatModel"; provider: "openai" | "anthropic" | "google"; defaultModelId: string }
+	| { type: "chatModel"; provider: "openai" | "anthropic" | "google" | "xai" | "nvidia"; defaultModelId: string }
 	| { type: "toolNode"; toolType: string }
 	| { type: "memoryNode"; memoryType: string }
 	| { type: "text"; description: string }
@@ -240,8 +240,8 @@ const EXACT_MAPPINGS: Record<string, GiselleNodeMapping> = {
 	},
 	"@n8n/n8n-nodes-langchain.lmchatxaigrok": {
 		type: "chatModel",
-		provider: "openai",
-		defaultModelId: "openai/gpt-5",
+		provider: "xai",
+		defaultModelId: "xai/grok-3",
 	},
 	"@n8n/n8n-nodes-langchain.lmchatdeepseek": {
 		type: "chatModel",

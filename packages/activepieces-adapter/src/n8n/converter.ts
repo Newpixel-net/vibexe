@@ -154,17 +154,17 @@ export function convertN8NToGiselle(
 	for (const n8nNode of n8nWorkflow.nodes) {
 		let mapping = mapN8NNodeType(n8nNode.type);
 
-		// Override: OpenAI node with resource: "image" → integration (HTTP) instead of textGeneration
+		// Override: OpenAI node with resource: "image" → keep as textGeneration (shows OpenAI icon)
+		// but set model hint to "gpt-image-1" so extractModelId picks it up
 		if (
 			mapping.type === "textGeneration" &&
 			n8nNode.type === "@n8n/n8n-nodes-langchain.openAi" &&
 			n8nNode.parameters?.resource === "image"
 		) {
-			mapping = {
-				type: "integration",
-				pieceName: "http",
-				actionName: "send_request",
-			};
+			// Ensure the image model name is used instead of the chat model fallback
+			if (!n8nNode.parameters.modelId && !n8nNode.parameters.model) {
+				n8nNode.parameters = { ...n8nNode.parameters, model: "gpt-image-1" };
+			}
 		}
 
 		if (mapping.type === "skip") {
@@ -1893,6 +1893,11 @@ const MODEL_ID_ALIASES: Record<string, string> = {
 	// Map N8N model names to valid registry model IDs.
 	// Our registry uses current model names (gpt-5 series, claude-4.5 series).
 	// N8N workflows may reference older or different-named models.
+
+	// OpenAI: image generation models → map to gpt-5 (node name shows "Generate Image")
+	"openai/gpt-image-1": "openai/gpt-5",
+	"openai/dall-e-3": "openai/gpt-5",
+	"openai/dall-e-2": "openai/gpt-5",
 
 	// OpenAI: current generation → registry equivalents
 	"openai/gpt-4o": "openai/gpt-5",

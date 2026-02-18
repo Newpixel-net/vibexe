@@ -264,6 +264,25 @@ export function NodeIcon({
 				case "aiAgent":
 					return <BotIcon {...props} data-content-type-icon />;
 				case "chatModel":
+					if (isChatModelNode(node)) {
+						switch (node.content.languageModel.provider) {
+							case "openai":
+								return <OpenaiIcon {...props} data-content-type-icon />;
+							case "anthropic":
+								return <AnthropicIcon {...props} data-content-type-icon />;
+							case "google":
+								if (/text-inverse/.test(props.className ?? "")) {
+									return <GoogleWhiteIcon {...props} data-content-type-icon />;
+								}
+								return <GoogleIcon {...props} data-content-type-icon />;
+							case "nvidia":
+								return <NvidiaIcon {...props} data-content-type-icon />;
+							case "xai":
+								return <XaiIcon {...props} data-content-type-icon />;
+							default:
+								return <BrainCircuitIcon {...props} data-content-type-icon />;
+						}
+					}
 					return <BrainCircuitIcon {...props} data-content-type-icon />;
 				case "toolNode":
 					return <WrenchIcon {...props} data-content-type-icon />;
