@@ -39,6 +39,9 @@ const TECH_SIGNALS: Record<string, string[]> = {
 };
 
 export function classifyIntent(prompt: string): IntentClassification {
+	const URL_REGEX = /https?:\/\/[^\s"'<>]+/gi;
+	const detectedUrls = prompt.match(URL_REGEX) || [];
+
 	const lower = prompt.toLowerCase();
 	const words = lower.split(/\s+/);
 
@@ -78,7 +81,13 @@ export function classifyIntent(prompt: string): IntentClassification {
 		type = "single-component";
 	}
 
+	if (detectedUrls.length > 0) {
+		suggestedFlow = "replicate";
+		complexity = "complex";
+		type = "website-replication";
+	}
+
 	const reasoning = `Detected ${complexity} complexity: ${hasComplexSignals} complex signals, ${hasSimpleSignals} simple signals, ${techStack.length} tech areas. Suggested flow: ${suggestedFlow}.`;
 
-	return { complexity, type, techStack, suggestedFlow, reasoning };
+	return { complexity, type, techStack, suggestedFlow, reasoning, detectedUrls };
 }
