@@ -221,6 +221,48 @@ const EXACT_MAPPINGS: Record<string, GiselleNodeMapping> = {
 		provider: "google",
 		defaultModelId: "google/gemini-2.5-flash",
 	},
+	"@n8n/n8n-nodes-langchain.lmchatgooglegemini": {
+		type: "chatModel",
+		provider: "google",
+		defaultModelId: "google/gemini-2.5-flash",
+	},
+
+	// Additional LangChain LM sub-nodes (showcase/alternative models in templates)
+	"@n8n/n8n-nodes-langchain.lmchatmistralcloud": {
+		type: "chatModel",
+		provider: "openai",
+		defaultModelId: "openai/gpt-5",
+	},
+	"@n8n/n8n-nodes-langchain.lmchatopenrouter": {
+		type: "chatModel",
+		provider: "openai",
+		defaultModelId: "openai/gpt-5",
+	},
+	"@n8n/n8n-nodes-langchain.lmchatxaigrok": {
+		type: "chatModel",
+		provider: "openai",
+		defaultModelId: "openai/gpt-5",
+	},
+	"@n8n/n8n-nodes-langchain.lmchatdeepseek": {
+		type: "chatModel",
+		provider: "openai",
+		defaultModelId: "openai/gpt-5",
+	},
+	"@n8n/n8n-nodes-langchain.lmopenhuggingfaceinference": {
+		type: "chatModel",
+		provider: "openai",
+		defaultModelId: "openai/gpt-5",
+	},
+	"@n8n/n8n-nodes-langchain.lmchatollama": {
+		type: "chatModel",
+		provider: "openai",
+		defaultModelId: "openai/gpt-5",
+	},
+	"@n8n/n8n-nodes-langchain.lmchatazureopenai": {
+		type: "chatModel",
+		provider: "openai",
+		defaultModelId: "openai/gpt-5",
+	},
 
 	// LangChain tool/parser sub-nodes → toolNode (renders as round circle with "Tool" label)
 	"@n8n/n8n-nodes-langchain.outputparserstructured": {

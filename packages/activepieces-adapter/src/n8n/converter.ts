@@ -152,7 +152,20 @@ export function convertN8NToGiselle(
 
 	// Phase 1: Convert each N8N node
 	for (const n8nNode of n8nWorkflow.nodes) {
-		const mapping = mapN8NNodeType(n8nNode.type);
+		let mapping = mapN8NNodeType(n8nNode.type);
+
+		// Override: OpenAI node with resource: "image" → integration (HTTP) instead of textGeneration
+		if (
+			mapping.type === "textGeneration" &&
+			n8nNode.type === "@n8n/n8n-nodes-langchain.openAi" &&
+			n8nNode.parameters?.resource === "image"
+		) {
+			mapping = {
+				type: "integration",
+				pieceName: "http",
+				actionName: "send_request",
+			};
+		}
 
 		if (mapping.type === "skip") {
 			warnings.push({
@@ -314,29 +327,26 @@ export function convertN8NToGiselle(
 		}
 	}
 
-	// Phase 2d: Remove orphan nodes (nodes with zero connections)
-	// Nodes that appear in neither side of any connection are useless clutter.
-	// Keep trigger nodes (they're valid entry points even without downstream).
+	// Phase 2d: Identify orphan nodes (nodes with zero connections)
+	// N8N templates often include unconnected "showcase" nodes as visual documentation.
+	// We preserve them so the import matches the original layout.
 	const connectedNodeIds = new Set<string>();
 	for (const conn of connections) {
 		connectedNodeIds.add(conn.outputNode.id);
 		connectedNodeIds.add(conn.inputNode.id);
 	}
 	const orphanNames: string[] = [];
-	for (let i = giselleNodes.length - 1; i >= 0; i--) {
-		const node = giselleNodes[i];
+	for (const node of giselleNodes) {
 		if (connectedNodeIds.has(node.id)) continue;
 		const contentType = (node.content as { type: string }).type;
 		if (contentType === "trigger") continue;
 		orphanNames.push(node.name);
-		giselleNodes.splice(i, 1);
-		delete nodePositions[node.id];
 	}
 	if (orphanNames.length > 0) {
 		warnings.push({
 			nodeType: "orphan",
 			nodeName: orphanNames.join(", "),
-			message: `${orphanNames.length} disconnected node(s) removed: ${orphanNames.join(", ")}`,
+			message: `${orphanNames.length} disconnected node(s) preserved: ${orphanNames.join(", ")}`,
 		});
 	}
 
