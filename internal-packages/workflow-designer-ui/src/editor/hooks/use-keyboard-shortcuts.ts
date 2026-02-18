@@ -274,6 +274,16 @@ export function useKeyboardShortcuts(
 		isCanvasFocused,
 	);
 
+	// Ctrl+0 — fit to view
+	useKeyAction(
+		["Meta+0", "Control+0"],
+		useCallback(() => {
+			window.dispatchEvent(new CustomEvent("fit-view"));
+		}, []),
+		isCanvasFocused,
+		{ inputShortcutPolicy: "modifierOnly", preventDefault: true },
+	);
+
 	// ? — show keyboard shortcuts overlay
 	useKeyAction(
 		"Shift+?",

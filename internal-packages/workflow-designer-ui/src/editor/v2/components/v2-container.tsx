@@ -204,22 +204,58 @@ function getXyNodeType(contentType: string): string {
 	}
 }
 
-/** Zoom level indicator - bottom right above minimap */
-function ZoomIndicator() {
+/** Zoom controls — fit-to-view, zoom in/out, percentage display */
+function ZoomControls() {
 	const { zoom } = useViewport();
 	const zoomPercent = Math.round(zoom * 100);
 	const reactFlowInstance = useReactFlow();
 
 	return (
 		<XYFlowPanel position="bottom-right" className="mr-[8px] mb-[140px]">
-			<button
-				type="button"
-				onClick={() => reactFlowInstance.fitView({ padding: 0.2, duration: 300 })}
-				className="rounded-[6px] bg-black/60 backdrop-blur-sm border border-white/10 px-[8px] py-[3px] text-[11px] text-white/50 hover:text-white/80 transition-colors cursor-pointer"
-				title="Click to fit view"
-			>
-				{zoomPercent}%
-			</button>
+			<div className="flex items-center gap-[2px] rounded-[8px] bg-black/60 backdrop-blur-sm border border-white/10 overflow-hidden">
+				{/* Fit to view */}
+				<button
+					type="button"
+					onClick={() => reactFlowInstance.fitView({ padding: 0.1, duration: 300 })}
+					className="px-[6px] py-[4px] text-white/50 hover:text-white/90 hover:bg-white/10 transition-colors cursor-pointer"
+					title="Fit to view (Ctrl+0)"
+				>
+					<svg className="w-[14px] h-[14px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+						<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+					</svg>
+				</button>
+				{/* Zoom out */}
+				<button
+					type="button"
+					onClick={() => reactFlowInstance.zoomOut({ duration: 200 })}
+					className="px-[6px] py-[4px] text-white/50 hover:text-white/90 hover:bg-white/10 transition-colors cursor-pointer"
+					title="Zoom out"
+				>
+					<svg className="w-[14px] h-[14px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+						<line x1="5" y1="12" x2="19" y2="12" />
+					</svg>
+				</button>
+				{/* Zoom percentage */}
+				<button
+					type="button"
+					onClick={() => reactFlowInstance.zoomTo(1, { duration: 200 })}
+					className="px-[6px] py-[3px] text-[11px] text-white/50 hover:text-white/90 hover:bg-white/10 transition-colors cursor-pointer min-w-[36px] text-center"
+					title="Reset to 100%"
+				>
+					{zoomPercent}%
+				</button>
+				{/* Zoom in */}
+				<button
+					type="button"
+					onClick={() => reactFlowInstance.zoomIn({ duration: 200 })}
+					className="px-[6px] py-[4px] text-white/50 hover:text-white/90 hover:bg-white/10 transition-colors cursor-pointer"
+					title="Zoom in"
+				>
+					<svg className="w-[14px] h-[14px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+						<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+					</svg>
+				</button>
+			</div>
 		</XYFlowPanel>
 	);
 }
@@ -435,6 +471,15 @@ function V2NodeCanvas() {
 		window.addEventListener("add-sticky-note", handler);
 		return () => window.removeEventListener("add-sticky-note", handler);
 	}, [reactFlowInstance, addStickyNote]);
+
+	// Listen for "fit-view" events from Ctrl+0 shortcut
+	useEffect(() => {
+		const handler = () => {
+			reactFlowInstance.fitView({ padding: 0.1, duration: 300 });
+		};
+		window.addEventListener("fit-view", handler);
+		return () => window.removeEventListener("fit-view", handler);
+	}, [reactFlowInstance]);
 
 	const cacheEdgesRef = useRef<Map<string, Edge>>(new Map());
 	const edges = useMemo(() => {
@@ -876,7 +921,15 @@ function V2NodeCanvas() {
 					<button
 						type="button"
 						className="rounded-[8px] bg-black/60 backdrop-blur-sm border border-white/10 px-[10px] py-[5px] text-[12px] text-white/70 hover:text-white hover:bg-black/80 transition-colors"
-						onClick={autoArrange}
+						onClick={() => {
+							if (stickyNotes.length > 0) {
+								const confirmed = window.confirm(
+									"This will rearrange all nodes and may disrupt the imported layout.\nYou can undo with Ctrl+Z.\n\nContinue?",
+								);
+								if (!confirmed) return;
+							}
+							autoArrange();
+						}}
 						title="Auto-arrange nodes"
 					>
 						<svg className="w-[14px] h-[14px] inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
@@ -942,7 +995,7 @@ function V2NodeCanvas() {
 			pannable
 			zoomable
 		/>
-		<ZoomIndicator />
+		<ZoomControls />
 		</ReactFlow>
 	);
 }
@@ -1409,6 +1462,7 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 									["Ctrl+V", "Paste node"],
 									["Ctrl+D", "Duplicate node"],
 									["Ctrl+A", "Select all"],
+									["Ctrl+0", "Fit to view"],
 									["Delete", "Delete selected"],
 									["F2", "Rename node"],
 									["D", "Toggle disable"],
