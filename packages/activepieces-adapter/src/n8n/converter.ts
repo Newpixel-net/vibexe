@@ -436,9 +436,8 @@ export function convertN8NToGiselle(
 
 	// Phase 2h: Scale coordinates to match Vibexe's node sizes
 	// N8N nodes are ~130x40px compact rectangles, Vibexe nodes are 96x96px cards.
-	// 1.0x preserves N8N author's exact layout — Vibexe cards (96px) are narrower
-	// than N8N nodes (130px), so there's MORE whitespace, not less.
-	const IMPORT_SCALE = 1.0;
+	// 0.65x balances N8N layout preservation with Vibexe card sizes.
+	const IMPORT_SCALE = 0.65;
 	for (const id of Object.keys(nodePositions)) {
 		nodePositions[id] = {
 			x: nodePositions[id].x * IMPORT_SCALE,
