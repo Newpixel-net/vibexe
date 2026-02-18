@@ -100,7 +100,7 @@ export interface GiselleConnectionData {
 	outputId: string;
 	inputNode: { id: string; type: string; content: { type: string } };
 	inputId: string;
-	connectionType?: "regular" | "subNode";
+	connectionType?: "regular" | "subNode" | "loopBack";
 }
 
 export interface ConversionWarning {
