@@ -37,6 +37,22 @@ export function resolveDagExpressions(
 						const nodeData = lookup(nodeName);
 						if (!nodeData) return match; // Node not found or not completed
 
+						// Direct key lookup: handles field names with spaces (e.g., "URL FINAL VIDEO")
+						// that navigatePath would split incorrectly on dots
+						if (fieldPath.includes(" ")) {
+							for (const outputVal of Object.values(nodeData)) {
+								if (outputVal && typeof outputVal === "object") {
+									const record = outputVal as Record<string, unknown>;
+									if (fieldPath in record) {
+										const v = record[fieldPath];
+										return typeof v === "string"
+											? v
+											: JSON.stringify(v);
+									}
+								}
+							}
+						}
+
 						// Try navigatePath for deep access (handles array[0], nested.field)
 						for (const outputVal of Object.values(nodeData)) {
 							const resolved = navigatePath(outputVal, fieldPath);

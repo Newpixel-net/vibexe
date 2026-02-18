@@ -15,6 +15,7 @@ import {
 	TaskId,
 } from "@giselles-ai/protocol";
 import * as z from "zod/v4";
+import { evaluateN8NExpressions } from "../expressions/n8n-expression-evaluator";
 import { resolveDagExpressions } from "../expressions/resolve-dag-expressions";
 import {
 	executeAggregate,
@@ -562,7 +563,7 @@ async function runTaskWithDag(
 				case "filter":
 					return executeFilter(dagNode, inputData);
 				case "editFields":
-					return executeEditFields(dagNode, inputData);
+					return executeEditFields(dagNode, inputData, (name) => dag.getNodeOutputByName(name));
 				case "sort":
 					return executeSort(dagNode, inputData);
 				case "wait":
@@ -655,9 +656,22 @@ async function runTaskWithDag(
 				const opContent = generation.context.operationNode.content as Record<string, unknown>;
 				const config = opContent.configuration;
 				if (config && typeof config === "object") {
+					const dagLookup = (name: string) => dag.getNodeOutputByName(name);
 					resolveDagExpressions(
 						config as Record<string, unknown>,
-						(name) => dag.getNodeOutputByName(name),
+						dagLookup,
+					);
+
+					// Final pass: evaluate any remaining raw N8N expressions
+					// that couldn't be converted to bracket notation (e.g., $json['key'], .match(), .replace())
+					const inputObj: Record<string, unknown> = {};
+					for (const [k, v] of inputData) {
+						inputObj[k] = v;
+					}
+					evaluateN8NExpressions(
+						config as Record<string, unknown>,
+						inputObj,
+						dagLookup,
 					);
 				}
 			}

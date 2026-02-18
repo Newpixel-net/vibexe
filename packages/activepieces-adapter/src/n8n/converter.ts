@@ -1959,6 +1959,12 @@ function convertN8NExpressionToGiselle(
 		"[$1]",
 	);
 
+	// 10.5. {{ $json['key with spaces'] }} -> [input.key with spaces]
+	cleaned = cleaned.replace(
+		/\{\{\s*\$json\[['"]([^'"]+)['"]\]\s*\}\}/g,
+		"[input.$1]",
+	);
+
 	// 11. {{ $json.field }} or {{ $json["field"] }} -> [input.field]
 	cleaned = cleaned.replace(
 		/\{\{\s*\$json(?:\.|\[['"])([^\s}'"\]]+)(?:['"]\])?\s*\}\}/g,
@@ -2021,6 +2027,18 @@ function convertN8NExpressionToGiselle(
 			});
 			return "[binary]";
 		},
+	);
+
+	// 19.5a. {{ $('NodeName').first().json['key with spaces'] }} -> [NodeName.key with spaces]
+	cleaned = cleaned.replace(
+		/\{\{\s*\$\(['"]([^'"]+)['"]\)\.first\(\)\.json\[['"]([^'"]+)['"]\]\s*\}\}/g,
+		"[$1.$2]",
+	);
+
+	// 19.5b. {{ $('NodeName').item.json['key with spaces'] }} -> [NodeName.key with spaces]
+	cleaned = cleaned.replace(
+		/\{\{\s*\$\(['"]([^'"]+)['"]\)\.item\.json\[['"]([^'"]+)['"]\]\s*\}\}/g,
+		"[$1.$2]",
 	);
 
 	// 20. Remaining {{ ... }} with JS functions — extract field ref, strip function call

@@ -12,6 +12,7 @@ import {
 	isJsonContent,
 	jsonContentToText,
 } from "@giselles-ai/text-editor-utils";
+import { evaluateN8NExpressions } from "../expressions/n8n-expression-evaluator";
 import { useGenerationExecutor } from "../generations/internal/use-generation-executor";
 import type { AppEntryResolver } from "../generations/types";
 import type { GiselleContext } from "../types";
@@ -175,8 +176,9 @@ function resolveConfigExpressions(
 				// Replace [execution.id] with a run ID
 				resolved = resolved.replace(/\[execution\.id\]/g, `run-${Date.now()}`);
 				// Replace [NodeName.field.path] and [input.field] patterns
+				// Uses [^\]]+ to match any content between brackets (including spaces in field names)
 				resolved = resolved.replace(
-					/\[([^\]]+\.[\w.]+)\]/g,
+					/\[([^\]]+)\]/g,
 					(match, fullPath: string) => {
 						// Strip node name prefix: "Create Video.request_id" → "request_id"
 						const dotIndex = fullPath.indexOf(".");
@@ -342,6 +344,12 @@ export function executeIntegration(args: {
 			// These are created by the N8N converter from {{ $('NodeName').item.json.field }}
 			// expressions. We try to resolve them against all available input data.
 			resolveConfigExpressions(mergedConfig, resolvedInputs);
+
+			// Evaluate any remaining raw N8N expressions (partial translations with $json, $(), etc.)
+			evaluateN8NExpressions(
+				mergedConfig,
+				resolvedInputs as Record<string, unknown>,
+			);
 
 			let result: unknown;
 			const warnings: string[] = [];

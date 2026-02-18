@@ -1,5 +1,7 @@
 import type { EditFieldsNodeContent } from "@giselles-ai/protocol";
 import { navigatePath } from "../expressions/evaluate";
+import { evaluateN8NExpressions } from "../expressions/n8n-expression-evaluator";
+import type { NodeOutputLookup } from "../expressions/resolve-dag-expressions";
 import type { DagNode, DagNodeResult } from "../tasks/dag-executor";
 
 /**
@@ -9,6 +11,7 @@ import type { DagNode, DagNodeResult } from "../tasks/dag-executor";
 export async function executeEditFields(
 	node: DagNode,
 	inputData: Map<string, unknown>,
+	dagLookup?: NodeOutputLookup,
 ): Promise<DagNodeResult> {
 	const content = node.operationNode.content as EditFieldsNodeContent;
 
@@ -20,6 +23,20 @@ export async function executeEditFields(
 	const output = items.length === 1 && !isArrayInput(inputData)
 		? processed[0]
 		: processed;
+
+	// Evaluate any remaining raw N8N expressions in the output values
+	// (e.g., EditFields "set" operations with $json['key'] or regex expressions)
+	if (output && typeof output === "object" && !Array.isArray(output)) {
+		const inputObj: Record<string, unknown> = {};
+		for (const [k, v] of inputData) {
+			inputObj[k] = v;
+		}
+		evaluateN8NExpressions(
+			output as Record<string, unknown>,
+			inputObj,
+			dagLookup,
+		);
+	}
 
 	return {
 		outputs: new Map([
