@@ -129,6 +129,7 @@ export function Connector({
 	}
 
 	const isSubNodeConnection = connection.connectionType === "subNode";
+	const isLoopBackConnection = connection.connectionType === "loopBack";
 
 	const [edgePath] = getBezierPath({
 		sourceX,
@@ -239,10 +240,11 @@ export function Connector({
 				style={{
 					stroke: `url(#${gradientId})`,
 					...(isSubNodeConnection ? { strokeDasharray: "6 4" } : {}),
+					...(isLoopBackConnection ? { strokeDasharray: "8 6", opacity: 0.5 } : {}),
 				}}
 				filter={`url(#${filterId})`}
 			/>
-			{!isSubNodeConnection && (
+			{!isSubNodeConnection && !isLoopBackConnection && (
 				<ConnectedNodeRunning inputNodeId={connection.inputNode.id}>
 					<path
 						d={edgePath}

@@ -2606,14 +2606,31 @@ function transformCyclesToLoops(
 				});
 			}
 		} else {
-			// UNKNOWN or too complex — strip back-edge
-			warnings.push({
-				nodeType: "connection",
-				nodeName: "cycle",
-				message: hasConditionNode
-					? `Complex cycle (${cycleBody.length} nodes) removed — too complex for automatic Loop conversion`
-					: `Cyclic connection removed — no If/Switch node found in cycle for Loop conversion`,
-			});
+			// Check if the back-edge target is already a Loop node (nativeLoop from splitInBatches).
+			// If so, keep the connection as a visual-only "loopBack" edge instead of stripping it.
+			const targetNode = nodes.find((n) => n.id === backEdge.toId);
+			const targetContentType = targetNode ? (targetNode.content as { type: string }).type : "";
+
+			if (targetContentType === "loop") {
+				// Keep as visual-only loopBack edge — Loop executor handles iteration internally
+				const backConn = connections[backEdge.connIndex];
+				backConn.connectionType = "loopBack";
+				backEdgeIndices.delete(backEdge.connIndex);
+				warnings.push({
+					nodeType: "connection",
+					nodeName: "cycle",
+					message: `Loop back-edge kept as visual indicator (${cycleBody.length} body nodes)`,
+				});
+			} else {
+				// UNKNOWN or too complex — strip back-edge
+				warnings.push({
+					nodeType: "connection",
+					nodeName: "cycle",
+					message: hasConditionNode
+						? `Complex cycle (${cycleBody.length} nodes) removed — too complex for automatic Loop conversion`
+						: `Cyclic connection removed — no If/Switch node found in cycle for Loop conversion`,
+				});
+			}
 		}
 	}
 
