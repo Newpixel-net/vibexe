@@ -120,12 +120,32 @@ export async function POST(request: Request) {
 		// --- GENERATE MODE: Multi-agent orchestration ---
 
 		// Extract latest user message for intent classification
-		const lastUserMessage =
-			[...messages].reverse().find((m) => m.role === "user")?.content || "";
-		const userPrompt =
-			typeof lastUserMessage === "string"
-				? lastUserMessage
-				: JSON.stringify(lastUserMessage);
+		// AI SDK v5: content may be empty with text in parts[].text
+		const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+		let userPrompt = "";
+		if (lastUserMsg) {
+			const content = lastUserMsg.content;
+			if (typeof content === "string" && content.length > 0) {
+				userPrompt = content;
+			} else {
+				// Fallback: extract text from parts array (AI SDK v5+ format)
+				const parts = (lastUserMsg as Record<string, unknown>).parts;
+				if (Array.isArray(parts)) {
+					userPrompt = parts
+						.filter((p: Record<string, unknown>) => p.type === "text" && typeof p.text === "string")
+						.map((p: Record<string, unknown>) => p.text)
+						.join("\n");
+				}
+				if (!userPrompt) {
+					userPrompt = typeof content === "string" ? content : JSON.stringify(content);
+				}
+			}
+		}
+
+		// Debug: log message structure to diagnose empty userPrompt
+		console.log(
+			`[Chat API] Debug: userPrompt="${userPrompt.slice(0, 100)}", content type=${typeof lastUserMessage}, msg keys=${lastUserMsg ? Object.keys(lastUserMsg).join(",") : "null"}, parts=${JSON.stringify((lastUserMsg as Record<string, unknown>)?.parts ?? "none").slice(0, 200)}`,
+		);
 
 		// Detect URLs in user prompt and fetch site analysis
 		const URL_REGEX = /https?:\/\/[^\s"'<>]+/gi;
