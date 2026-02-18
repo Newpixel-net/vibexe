@@ -66,6 +66,7 @@ export interface IntentClassification {
 	techStack: string[];
 	suggestedFlow: string;
 	reasoning: string;
+	detectedUrls: string[];
 }
 
 export interface AgentEvent {
