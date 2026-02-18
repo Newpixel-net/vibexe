@@ -274,41 +274,97 @@ export function ChatColumn({
 
 	const isLoading = status === "submitted" || status === "streaming";
 
-	// Load messages from localStorage after mount (hydration-safe)
+	// Debounced DB save timer
+	const dbSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const dbChatId = useRef<string | null>(null);
+
+	/** Save messages to DB (fire-and-forget). */
+	const saveToDb = useCallback(
+		(msgs: typeof messages) => {
+			const cid = dbChatId.current;
+			if (!cid || msgs.length === 0) return;
+			fetch(`/api/app-builder/apps/${appId}/chat`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ messages: msgs }),
+			}).catch((e) => console.error("[ChatColumn] DB save error:", e));
+		},
+		[appId],
+	);
+
+	// Load messages from DB first, fallback to localStorage
 	useEffect(() => {
 		if (hasMounted && !hasLoadedMessages.current) {
 			hasLoadedMessages.current = true;
-			try {
-				const stored = localStorage.getItem(getMessagesStorageKey(appId));
-				if (stored) {
-					const parsedMessages = JSON.parse(stored);
-					if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
+
+			fetch(`/api/app-builder/apps/${appId}/chat`)
+				.then((res) => (res.ok ? res.json() : null))
+				.then((data) => {
+					if (data?.chatId) {
+						dbChatId.current = data.chatId;
+					}
+					if (
+						data?.messages &&
+						Array.isArray(data.messages) &&
+						data.messages.length > 0
+					) {
 						console.log(
 							"[ChatColumn] Restoring",
-							parsedMessages.length,
-							"messages from localStorage",
+							data.messages.length,
+							"messages from DB",
 						);
-						setMessages(parsedMessages);
+						setMessages(data.messages);
+						return;
 					}
-				}
-			} catch (e) {
-				console.error(
-					"[ChatColumn] Error loading messages from localStorage:",
-					e,
-				);
-			}
+					// Fallback to localStorage
+					const stored = localStorage.getItem(getMessagesStorageKey(appId));
+					if (stored) {
+						const parsedMessages = JSON.parse(stored);
+						if (
+							Array.isArray(parsedMessages) &&
+							parsedMessages.length > 0
+						) {
+							console.log(
+								"[ChatColumn] Restoring",
+								parsedMessages.length,
+								"messages from localStorage",
+							);
+							setMessages(parsedMessages);
+						}
+					}
+				})
+				.catch((e) => {
+					console.error("[ChatColumn] DB load error, falling back to localStorage:", e);
+					try {
+						const stored = localStorage.getItem(getMessagesStorageKey(appId));
+						if (stored) {
+							const parsedMessages = JSON.parse(stored);
+							if (
+								Array.isArray(parsedMessages) &&
+								parsedMessages.length > 0
+							) {
+								setMessages(parsedMessages);
+							}
+						}
+					} catch (_) {
+						// ignore
+					}
+				});
 		}
 	}, [hasMounted, appId, setMessages]);
 
-	// Persist messages to localStorage whenever they change
+	// Persist messages to localStorage + debounced DB save
 	useEffect(() => {
 		if (hasMounted && messages.length > 0) {
 			localStorage.setItem(
 				getMessagesStorageKey(appId),
 				JSON.stringify(messages),
 			);
+			// Debounce DB save (3s)
+			if (dbSaveTimer.current) clearTimeout(dbSaveTimer.current);
+			dbSaveTimer.current = setTimeout(() => saveToDb(messages), 3000);
 		}
-	}, [appId, messages, hasMounted]);
+	}, [appId, messages, hasMounted, saveToDb]);
 
 	// Extract agent events from data parts in assistant messages
 	const processedEventCount = useRef(0);
@@ -379,9 +435,12 @@ export function ChatColumn({
 				}
 				return new Set();
 			});
+			// Flush messages to DB immediately (no debounce)
+			if (dbSaveTimer.current) clearTimeout(dbSaveTimer.current);
+			saveToDb(messages);
 		}
 		wasLoadingRef.current = isLoading;
-	}, [isLoading]);
+	}, [isLoading, messages, saveToDb]);
 
 	// Convert AI SDK messages to VibeSDK ChatMessage format
 	const chatMessages = useMemo(() => toChatMessages(messages), [messages]);
@@ -456,6 +515,15 @@ export function ChatColumn({
 		localStorage.setItem(getChatStorageKey(appId), newChatId);
 		// Clear stored messages for new chat
 		localStorage.removeItem(getMessagesStorageKey(appId));
+		// Clear DB messages
+		if (dbChatId.current) {
+			fetch(`/api/app-builder/apps/${appId}/chat`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ messages: [] }),
+			}).catch(() => {});
+			dbChatId.current = null;
+		}
 		// Reset chat state
 		setMessages([]);
 		hasLoadedMessages.current = true; // Prevent loading old messages
