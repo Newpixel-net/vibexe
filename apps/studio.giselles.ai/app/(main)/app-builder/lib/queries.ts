@@ -172,6 +172,65 @@ export async function duplicateApp(
 }
 
 // ============================================================================
+// Share Queries
+// ============================================================================
+
+/**
+ * Get an app by its share token (public, no auth required)
+ */
+export async function getAppByShareToken(token: string) {
+	return await db.query.builderApps.findFirst({
+		where: eq(builderApps.shareToken, token),
+	});
+}
+
+/**
+ * Get files for a shared app by share token (public, no auth required)
+ */
+export async function getFilesForSharedApp(token: string) {
+	const app = await getAppByShareToken(token);
+	if (!app) return null;
+
+	const files = await db.query.builderFiles.findMany({
+		where: eq(builderFiles.appDbId, app.dbId),
+		orderBy: (files, { asc }) => [asc(files.path)],
+	});
+
+	return { app, files };
+}
+
+/**
+ * Generate a share token for an app (or return existing one)
+ */
+export async function enableShare(appId: string) {
+	const app = await db.query.builderApps.findFirst({
+		where: eq(builderApps.id, appId as BuilderAppId),
+	});
+
+	if (!app) throw new Error(`App not found: ${appId}`);
+
+	if (app.shareToken) return app.shareToken;
+
+	const token = nanoid(12);
+	await db
+		.update(builderApps)
+		.set({ shareToken: token })
+		.where(eq(builderApps.id, appId as BuilderAppId));
+
+	return token;
+}
+
+/**
+ * Revoke share access for an app
+ */
+export async function disableShare(appId: string) {
+	await db
+		.update(builderApps)
+		.set({ shareToken: null })
+		.where(eq(builderApps.id, appId as BuilderAppId));
+}
+
+// ============================================================================
 // File Queries
 // ============================================================================
 

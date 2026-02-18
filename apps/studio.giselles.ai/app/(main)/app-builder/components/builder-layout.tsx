@@ -89,7 +89,7 @@ export function BuilderLayout({
 	return (
 		<div className="flex flex-col h-dvh w-screen overflow-hidden bg-background">
 			{/* Header with back button and app name */}
-			<BuilderHeader appName={app.name} />
+			<BuilderHeader appId={app.id} appName={app.name} />
 
 			{/* Content area - 3-column layout */}
 			<div className="flex-1 flex min-h-0">

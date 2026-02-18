@@ -1273,6 +1273,7 @@ export const builderApps = pgTable(
 		),
 		name: text("name").notNull(),
 		description: text("description"),
+		shareToken: text("share_token"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at")
 			.defaultNow()
@@ -1283,6 +1284,7 @@ export const builderApps = pgTable(
 		index("builder_apps_team_db_id_idx").on(table.teamDbId),
 		index("builder_apps_created_by_user_db_id_idx").on(table.createdByUserDbId),
 		index("builder_apps_project_db_id_idx").on(table.projectDbId),
+		uniqueIndex("builder_apps_share_token_idx").on(table.shareToken),
 	],
 );
 
