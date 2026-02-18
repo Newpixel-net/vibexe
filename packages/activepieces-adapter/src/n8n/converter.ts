@@ -429,31 +429,10 @@ export function convertN8NToGiselle(
 		}
 	}
 
-	// Phase 2g: Remove absorbed sub-nodes from canvas
-	// chatModel, toolNode, and memoryNode sub-nodes have their configs
-	// transferred into parent aiAgent during Phase 2e/2f. They clutter
-	// the canvas as 80px circles that serve no purpose after absorption.
-	{
-		const ABSORBED_CONTENT_TYPES = new Set(["chatModel", "toolNode", "memoryNode"]);
-		const absorbedNodeIds = new Set<string>();
-		for (let i = giselleNodes.length - 1; i >= 0; i--) {
-			const node = giselleNodes[i];
-			const contentType = (node.content as { type: string }).type;
-			// Remove all sub-node types (chatModel, toolNode, memoryNode) — their configs
-			// were absorbed into parent aiAgent nodes. chatModel nodes aren't disabled,
-			// so we can't rely on the disabled flag alone.
-			if (ABSORBED_CONTENT_TYPES.has(contentType)) {
-				absorbedNodeIds.add(node.id);
-				giselleNodes.splice(i, 1);
-				delete nodePositions[node.id];
-			}
-		}
-		if (absorbedNodeIds.size > 0) {
-			connections = connections.filter(
-				(c) => !absorbedNodeIds.has(c.outputNode.id) && !absorbedNodeIds.has(c.inputNode.id),
-			);
-		}
-	}
+	// Phase 2g: Sub-nodes KEPT on canvas (not deleted)
+	// chatModel, toolNode, and memoryNode sub-nodes remain visible below
+	// their parent aiAgent node, connected with dashed subNode connections.
+	// Phase 2e/2f still copies model/parser config into aiAgent for runtime.
 
 	// Phase 2h: Scale coordinates to match Vibexe's node sizes
 	// N8N nodes are ~130x40px compact rectangles, Vibexe nodes are 96x96px cards.
@@ -470,6 +449,59 @@ export function convertN8NToGiselle(
 		note.position.y *= IMPORT_SCALE;
 		note.size.width *= IMPORT_SCALE;
 		note.size.height *= IMPORT_SCALE;
+	}
+
+	// Phase 2i: Expand sticky notes to encompass contained Vibexe nodes.
+	// After scaling, Vibexe cards are physically wider (96-224px) than N8N nodes (~130px).
+	// Each sticky note must be expanded to cover actual rendered bounding boxes.
+	{
+		const CARD_WIDTH = 224; // WideNode max width
+		const CARD_HEIGHT = 96;
+		const PAD = 30; // Margin inside sticky note border
+
+		for (const note of stickyNotes) {
+			const noteRight = note.position.x + note.size.width;
+			const noteBottom = note.position.y + note.size.height;
+
+			// Find nodes whose positions fall within this sticky note's bounds
+			const contained: Array<{ x: number; y: number }> = [];
+			for (const pos of Object.values(nodePositions)) {
+				if (
+					pos.x >= note.position.x - PAD &&
+					pos.x <= noteRight + PAD &&
+					pos.y >= note.position.y - PAD &&
+					pos.y <= noteBottom + PAD
+				) {
+					contained.push(pos);
+				}
+			}
+			if (contained.length === 0) continue;
+
+			// Compute bounding box of contained nodes + card render size
+			const minX = Math.min(...contained.map((p) => p.x)) - PAD;
+			const minY = Math.min(...contained.map((p) => p.y)) - PAD;
+			const maxX =
+				Math.max(...contained.map((p) => p.x + CARD_WIDTH)) + PAD;
+			const maxY =
+				Math.max(...contained.map((p) => p.y + CARD_HEIGHT)) + PAD;
+
+			// Expand note to encompass bounding box (never shrink)
+			const newLeft = Math.min(note.position.x, minX);
+			const newTop = Math.min(note.position.y, minY);
+			const newRight = Math.max(
+				note.position.x + note.size.width,
+				maxX,
+			);
+			const newBottom = Math.max(
+				note.position.y + note.size.height,
+				maxY,
+			);
+
+			note.position.x = newLeft;
+			note.position.y = newTop;
+			note.size.width = newRight - newLeft;
+			note.size.height = newBottom - newTop;
+		}
 	}
 
 	// Phase 3: Compute clean layout
@@ -1898,6 +1930,40 @@ function convertN8NExpressionToGiselle(
 
 	// Strip leading = prefix (N8N expression marker)
 	let cleaned = value.startsWith("=") ? value.slice(1) : value;
+
+	// Handle bare expressions without {{ }} wrappers (N8N = prefix mode)
+	if (!cleaned.includes("{{") && cleaned.includes("$")) {
+		// $json['key'] or $json["key"] -> [input.key]
+		cleaned = cleaned.replace(
+			/\$json\[['"]([^'"]+)['"]\]/g,
+			"[input.$1]",
+		);
+		// $json.field -> [input.field]
+		cleaned = cleaned.replace(
+			/\$json\.([a-zA-Z_]\w*)/g,
+			"[input.$1]",
+		);
+		// $('NodeName').first().json['key'] -> [NodeName.key]
+		cleaned = cleaned.replace(
+			/\$\(['"]([^'"]+)['"]\)\.first\(\)\.json\[['"]([^'"]+)['"]\]/g,
+			"[$1.$2]",
+		);
+		// $('NodeName').item.json['key'] -> [NodeName.key]
+		cleaned = cleaned.replace(
+			/\$\(['"]([^'"]+)['"]\)\.item\.json\[['"]([^'"]+)['"]\]/g,
+			"[$1.$2]",
+		);
+		// $('NodeName').first().json.field -> [NodeName.field]
+		cleaned = cleaned.replace(
+			/\$\(['"]([^'"]+)['"]\)\.first\(\)\.json\.([a-zA-Z_][\w.]*)/g,
+			"[$1.$2]",
+		);
+		// $('NodeName').item.json.field -> [NodeName.field]
+		cleaned = cleaned.replace(
+			/\$\(['"]([^'"]+)['"]\)\.item\.json\.([a-zA-Z_][\w.]*)/g,
+			"[$1.$2]",
+		);
+	}
 
 	// 1. {{ $('NodeName').first().json.field }} -> [NodeName.field]
 	cleaned = cleaned.replace(
