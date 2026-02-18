@@ -10,15 +10,16 @@ function preserveBlankLines(text: string): string {
 	return text.replace(/\n[ \t]*\n/g, "\n\n&nbsp;\n\n");
 }
 
-// N8N dark-theme sticky note colors (from _tokens.dark.scss)
+// Sticky note colors — bumped lightness from N8N _primitives.scss (10-17%)
+// to 25-30% so colors are clearly distinguishable on the dark canvas.
 const N8N_NOTE_COLORS: Record<string, { bg: string; border: string; dot: string }> = {
-	yellow: { bg: "hsl(46, 100%, 10%)",  border: "hsl(46, 100%, 22%)",  dot: "#fbbf24" },
-	orange: { bg: "hsl(36, 77%, 10%)",   border: "hsl(36, 77%, 22%)",   dot: "#e67e22" },
-	red:    { bg: "hsl(355, 83%, 17%)",  border: "hsl(355, 83%, 27%)",  dot: "#ef4444" },
-	green:  { bg: "hsl(151, 60%, 10%)",  border: "hsl(151, 60%, 20%)",  dot: "#34d399" },
-	blue:   { bg: "hsl(210, 67%, 10%)",  border: "hsl(210, 67%, 22%)",  dot: "#60a5fa" },
-	purple: { bg: "hsl(247, 49%, 21%)",  border: "hsl(247, 49%, 37%)",  dot: "#a78bfa" },
-	gray:   { bg: "hsl(0, 0%, 13%)",     border: "hsl(0, 0%, 24%)",     dot: "#9ca3af" },
+	yellow: { bg: "hsl(46, 100%, 25%)",  border: "hsl(46, 100%, 38%)",  dot: "#fbbf24" },
+	orange: { bg: "hsl(36, 77%, 25%)",   border: "hsl(36, 77%, 38%)",   dot: "#e67e22" },
+	red:    { bg: "hsl(355, 83%, 28%)",  border: "hsl(355, 83%, 40%)",  dot: "#ef4444" },
+	green:  { bg: "hsl(151, 60%, 25%)",  border: "hsl(151, 60%, 36%)",  dot: "#34d399" },
+	blue:   { bg: "hsl(210, 67%, 25%)",  border: "hsl(210, 67%, 38%)",  dot: "#60a5fa" },
+	purple: { bg: "hsl(247, 49%, 30%)",  border: "hsl(247, 49%, 44%)",  dot: "#a78bfa" },
+	gray:   { bg: "hsl(0, 0%, 25%)",     border: "hsl(0, 0%, 36%)",     dot: "#9ca3af" },
 };
 const colorOptions = ["yellow", "orange", "red", "green", "blue", "purple", "gray"] as const;
 
