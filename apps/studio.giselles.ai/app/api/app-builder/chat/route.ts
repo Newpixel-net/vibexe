@@ -1,163 +1,38 @@
-// giselle-integration/api/app-builder/chat/route.ts
 // Chat API endpoint with AI SDK streaming for App Builder
-//
-// This endpoint handles AI chat interactions for code generation.
-// Uses OpenAI via AI SDK v6 with useChat hook compatibility.
-//
-// Deploy to: /opt/giselle/apps/studio.giselles.ai/app/api/app-builder/chat/route.ts
+// Uses ECC multi-agent orchestration engine with skill-enriched prompts.
+// Streams orchestration events (agent activations, skills, verdicts) via data channel.
 
-import { openai } from "@ai-sdk/openai";
+import {
+	ALL_FLOWS,
+	DEFAULT_AGENTS,
+	DEFAULT_SKILLS,
+	executeOrchestration,
+	registerAgents,
+	registerSkills,
+} from "@giselles-ai/vibexe-engine";
 import type { UIMessage } from "ai";
-import { convertToModelMessages, streamText } from "ai";
+import {
+	convertToModelMessages,
+	createUIMessageStream,
+	createUIMessageStreamResponse,
+	streamText,
+} from "ai";
 import { createFileTools } from "@/app/(main)/app-builder/lib/file-tools";
+import {
+	resolveModel,
+	resolveModelByTier,
+} from "@/app/(main)/app-builder/lib/model-resolver";
 import {
 	getAppById,
 	getFilesForApp,
 } from "@/app/(main)/app-builder/lib/queries";
 import { getUser } from "@/lib/auth/get-user";
 
-// System prompt for app generation mode
-const GENERATION_SYSTEM_PROMPT = `You are an expert full-stack developer who builds complete, working React applications.
+// Initialize engine registries (runs once at module load)
+registerAgents(DEFAULT_AGENTS);
+registerSkills(DEFAULT_SKILLS);
 
-## CRITICAL WORKFLOW - YOU MUST FOLLOW THIS EXACTLY
-
-When the user describes an app, you MUST call create_file THREE times in sequence:
-
-**Step 1:** Call create_file to create Blueprint.md (2-3 sentences describing the app)
-**Step 2:** IMMEDIATELY call create_file to create src/App.tsx with COMPLETE working React code
-**Step 3:** IMMEDIATELY call create_file to create README.md with comprehensive project documentation
-
-⚠️ WARNING: If you stop after Blueprint.md or src/App.tsx, you have FAILED the task.
-⚠️ WARNING: You MUST create ALL THREE files. Missing any file is a FAILURE.
-
-## File Tools Available
-- create_file: Create files with path and content
-- update_file: Modify existing files
-- delete_file: Remove files
-
-## Required Tool Calls (in order)
-1. create_file for Blueprint.md - Brief 2-3 sentence app description
-2. create_file for src/App.tsx - COMPLETE React component with ALL code
-3. create_file for README.md - Comprehensive project documentation
-
-## Code Requirements for src/App.tsx
-- Use React functional components with hooks (useState, useEffect, etc.)
-- Include ALL necessary imports at the top (React hooks, etc.)
-- Use Tailwind CSS classes for styling (Tailwind is pre-loaded via CDN)
-- DO NOT import tailwindcss or any CSS files - Tailwind classes work automatically
-- Make sure the code is complete and will render without errors
-- Export the component as default
-- DO NOT use external packages like @headlessui/react, react-icons, framer-motion, etc.
-- For icons, use simple SVG or emoji characters instead
-- Only use React hooks and Tailwind CSS - nothing else
-
-## IMPORTANT: Tailwind CSS Usage
-Tailwind CSS is already loaded in the preview environment via CDN.
-- ✅ DO: Use Tailwind classes directly: className="bg-blue-500 text-white p-4"
-- ❌ DON'T: import 'tailwindcss/tailwind.css' or any CSS imports
-- ❌ DON'T: Create separate CSS files
-
-## README.md Requirements
-The README.md MUST be comprehensive and well-structured. Follow this template:
-
-\`\`\`markdown
-# [App Name]
-
-[Brief 1-2 sentence description of the app and its purpose.]
-
-## ✨ Features
-
-- **[Feature 1 Name]**: [Brief description]
-- **[Feature 2 Name]**: [Brief description]
-- **[Feature 3 Name]**: [Brief description]
-- **[Feature 4 Name]**: [Brief description]
-(list 4-8 key features based on the app)
-
-## 🛠 Tech Stack
-
-| Category | Technologies |
-|----------|-------------|
-| Frontend | React 18, TypeScript, Vite, Tailwind CSS |
-| UI/UX | Custom components, Responsive design, Dark mode support |
-| State | React Hooks (useState, useEffect, useCallback) |
-| Styling | Tailwind CSS utility classes |
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Node.js 18+ installed
-- npm or pnpm package manager
-
-### Installation
-1. Clone the repository
-2. Install dependencies: \\\`npm install\\\`
-3. Start development server: \\\`npm run dev\\\`
-
-### Development
-- Open http://localhost:5173 in your browser
-- Edit src/App.tsx to modify the application
-- Changes hot-reload automatically
-
-## 📚 Usage
-
-### [Main Feature Section]
-[Describe how to use the primary feature]
-
-### [Secondary Feature Section]
-[Describe how to use secondary features]
-
-### Key Files
-- \\\`src/App.tsx\\\` - Main application component
-- \\\`package.json\\\` - Dependencies and scripts
-
-## 🚀 Deployment
-
-1. Build: \\\`npm run build\\\`
-2. Preview: \\\`npm run preview\\\`
-3. Deploy the \\\`dist/\\\` folder to any static hosting
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## 📄 License
-
-MIT License
-
-## 💬 Support
-
-For questions or issues, please open a GitHub issue.
-\`\`\`
-
-Adapt the README.md content to match the specific app being built. Make it detailed and useful.
-
-## Example: Counter App
-For "Build a counter app", you would call create_file THREE times:
-
-**First call:** Blueprint.md
-- path: "Blueprint.md"
-- content: "# Counter App\\nA simple counter with increment/decrement buttons."
-
-**Second call:** src/App.tsx
-- path: "src/App.tsx"
-- content: Complete React component code
-
-**Third call:** README.md
-- path: "README.md"
-- content: Full documentation following the template above, customized for the counter app
-
-## FINAL REMINDER
-Your response is INCOMPLETE unless you have called create_file for ALL THREE:
-1. Blueprint.md ✓
-2. src/App.tsx ✓ (with complete, working code)
-3. README.md ✓ (with comprehensive documentation)
-
-DO NOT STOP until all three files are created.`;
-
-// System prompt for discussion mode (no file tools)
+// Discussion mode prompt (no file tools)
 const DISCUSSION_SYSTEM_PROMPT = `You are an expert full-stack developer helping users plan and discuss web applications.
 
 Help the user:
@@ -172,7 +47,6 @@ When the user is ready to generate code, they should switch to generation mode.`
 
 export async function POST(request: Request) {
 	try {
-		// Auth check using Giselle's session system
 		const user = await getUser();
 		if (!user) {
 			return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -181,21 +55,21 @@ export async function POST(request: Request) {
 			});
 		}
 
-		// Parse request body
 		const body = await request.json();
 		const {
 			messages,
 			appId,
 			chatId,
 			mode = "generate",
+			modelId,
 		} = body as {
 			messages: UIMessage[];
 			appId: string;
 			chatId?: string;
 			mode?: "generate" | "discussion";
+			modelId?: string;
 		};
 
-		// Validate required fields
 		if (!appId) {
 			return new Response(JSON.stringify({ error: "Missing appId" }), {
 				status: 400,
@@ -210,7 +84,6 @@ export async function POST(request: Request) {
 			});
 		}
 
-		// Verify app exists (ownership check via team membership)
 		const app = await getAppById(appId, user.id);
 		if (!app) {
 			return new Response(JSON.stringify({ error: "App not found" }), {
@@ -223,58 +96,189 @@ export async function POST(request: Request) {
 		const existingFiles = await getFilesForApp(appId);
 		const fileContext =
 			existingFiles.length > 0
-				? `\n\nExisting files in the project:\n${existingFiles.map((f) => `- ${f.path}`).join("\n")}`
+				? `Existing files in the project:\n${existingFiles.map((f) => `- ${f.path}`).join("\n")}`
 				: "";
 
-		// Select system prompt and tools based on mode
-		const systemPrompt =
-			mode === "discussion"
-				? DISCUSSION_SYSTEM_PROMPT
-				: GENERATION_SYSTEM_PROMPT + fileContext;
-
-		const tools = mode === "generate" ? createFileTools(appId) : {};
-
-		// Log in development
-		if (process.env.NODE_ENV === "development") {
-			console.log(
-				`[Chat API] App: ${appId}, Mode: ${mode}, Messages: ${messages.length}, Files: ${existingFiles.length}`,
-			);
+		// Discussion mode — simple pass-through (no orchestration)
+		if (mode === "discussion") {
+			const modelMessages = await convertToModelMessages(messages);
+			const result = streamText({
+				model: resolveModel(modelId),
+				system: DISCUSSION_SYSTEM_PROMPT,
+				messages: modelMessages,
+				toolChoice: "auto",
+			});
+			return result.toUIMessageStreamResponse({
+				originalMessages: messages,
+			});
 		}
 
-		// Convert UI messages to model messages (AI SDK v6 requirement)
+		// --- GENERATE MODE: Multi-agent orchestration ---
+
+		// Extract latest user message for intent classification
+		const lastUserMessage =
+			[...messages].reverse().find((m) => m.role === "user")?.content || "";
+		const userPrompt =
+			typeof lastUserMessage === "string"
+				? lastUserMessage
+				: JSON.stringify(lastUserMessage);
+
+		// Run orchestration engine
+		const plan = executeOrchestration(userPrompt, ALL_FLOWS, fileContext);
+
+		// Find the developer agent (the one that actually writes files)
+		const developerAgent = plan.agents.find((a) => !a.readOnly);
+		const agentPrompt = developerAgent
+			? plan.agentPrompts.get(developerAgent.id)
+			: undefined;
+
+		// Build the system prompt: orchestrated agent prompt + file generation rules
+		const fileGenerationRules = `
+## File Tools Available
+- create_file: Create files with path and content
+- update_file: Modify existing files
+- delete_file: Remove files
+
+## CRITICAL WORKFLOW
+When the user describes an app, create files using create_file tool calls.
+You MUST create at minimum:
+1. Blueprint.md — Architecture overview (component tree, data flow, tech decisions)
+2. src/App.tsx — Main React component with COMPLETE working code
+3. README.md — Comprehensive project documentation
+
+For medium/complex apps, also create:
+- src/components/*.tsx — Separate component files
+- src/hooks/*.ts — Custom hooks
+- src/utils/*.ts — Utility functions
+- src/types/index.ts — Type definitions
+- src/context/*.tsx — Context providers (if needed)
+
+## Blueprint.md Format
+\`\`\`markdown
+# [App Name] — Architecture Blueprint
+
+## Overview
+[2-3 paragraph description of what the app does]
+
+## Architecture
+- Component tree with relationships
+- Data flow description
+- State management approach
+
+## Tech Stack
+| Layer | Technology | Rationale |
+|-------|-----------|-----------|
+
+## File Structure
+[Tree of all files being generated]
+
+## Implementation Phases
+1. Phase 1: [description] — [files]
+2. Phase 2: [description] — [files]
+\`\`\`
+
+## Code Requirements
+- React functional components with TypeScript
+- Tailwind CSS for all styling (CDN is preloaded — do NOT import CSS files)
+- DO NOT use external packages (no framer-motion, no react-icons, etc.)
+- For icons, use simple SVG or emoji characters
+- Export components as default
+- All code must be complete and render without errors
+
+## IMPORTANT
+DO NOT STOP until all required files are created.
+Your response is INCOMPLETE unless Blueprint.md, src/App.tsx, and README.md all exist.`;
+
+		const systemPrompt = agentPrompt
+			? `${agentPrompt}\n\n${fileGenerationRules}`
+			: fileGenerationRules;
+
+		const tools = createFileTools(appId);
 		const modelMessages = await convertToModelMessages(messages);
 
-		// Debug: Log converted messages
-		if (process.env.NODE_ENV === "development") {
-			console.log(
-				`[Chat API] Converted ${messages.length} messages to ${modelMessages.length} model messages`,
-			);
-		}
+		// Use user-selected model if provided, otherwise use the agent's tier
+		const model = modelId
+			? resolveModel(modelId)
+			: developerAgent
+				? resolveModelByTier(developerAgent.modelTier)
+				: resolveModel();
 
-		// Stream response using AI SDK v6
-		const result = streamText({
-			model: openai("gpt-4o"),
-			system: systemPrompt,
-			messages: modelMessages,
-			tools,
-			// Force the model to use tools in generate mode (ensures it creates files)
-			// @ts-ignore - maxSteps supported in AI SDK 4.x
-			maxSteps: 25,
-			toolChoice: mode === "generate" ? "required" : "auto",
-		});
+		console.log(
+			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, model=${modelId || developerAgent?.modelTier || "default"}`,
+		);
 
-		// Return streaming response (toUIMessageStreamResponse for useChat compatibility in AI SDK v6)
-		// CRITICAL: originalMessages must be passed for proper message continuity
-		return result.toUIMessageStreamResponse({
-			originalMessages: messages,
-			onFinish: ({ messages: finalMessages }) => {
-				if (process.env.NODE_ENV === "development") {
-					console.log(
-						`[Chat API] Stream finished - Chat ID: ${chatId || "new"}, Messages: ${finalMessages.length}`,
-					);
+		// Stream orchestration events + AI response via UI message stream
+		const stream = createUIMessageStream({
+			execute: async ({ writer }) => {
+				// 1. Write orchestration-start event as data part
+				writer.write({
+					type: "data-agent-event" as const,
+					data: {
+						type: "orchestration-start",
+						intent: {
+							complexity: plan.intent.complexity,
+							suggestedFlow: plan.intent.suggestedFlow,
+							techStack: plan.intent.techStack,
+						},
+						agents: plan.agents.map((a) => ({
+							id: a.id,
+							name: a.name,
+							modelTier: a.modelTier,
+							readOnly: a.readOnly,
+							icon: a.icon,
+						})),
+						timestamp: Date.now(),
+					},
+				} as never);
+
+				// 2. Write agent-start events with skills as data parts
+				for (const agent of plan.agents) {
+					const skills = plan.agentSkills.get(agent.id) || [];
+					writer.write({
+						type: "data-agent-event" as const,
+						data: {
+							type: "agent-start",
+							agentId: agent.id,
+							agentName: agent.name,
+							modelTier: agent.modelTier,
+							icon: agent.icon,
+							readOnly: agent.readOnly,
+							skills: skills.map((s) => ({
+								id: s.id,
+								name: s.name,
+								category: s.category,
+							})),
+							timestamp: Date.now(),
+						},
+					} as never);
 				}
+
+				// 3. Run the AI stream and merge into writer
+				const result = streamText({
+					model,
+					system: systemPrompt,
+					messages: modelMessages,
+					tools,
+					maxSteps: 25,
+					toolChoice: "required",
+					onFinish: () => {
+						console.log(
+							`[Chat API] Stream finished - Chat: ${chatId || "new"}, Intent: ${plan.intent.complexity}`,
+						);
+					},
+				});
+
+				writer.merge(
+					result.toUIMessageStream({ originalMessages: messages }),
+				);
+			},
+			onError: (error) => {
+				console.error("[Chat API] Stream error:", error);
+				return String(error);
 			},
 		});
+
+		return createUIMessageStreamResponse({ stream });
 	} catch (error) {
 		console.error("[Chat API] Error:", error);
 		return new Response(JSON.stringify({ error: "Internal server error" }), {

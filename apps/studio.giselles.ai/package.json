@@ -24,6 +24,7 @@
 	},
 	"packageManager": "pnpm@10.16.0",
 	"dependencies": {
+		"@ai-sdk/anthropic": "catalog:",
 		"@ai-sdk/openai": "catalog:",
 		"@ai-sdk/react": "catalog:",
 		"@aws-sdk/client-s3": "catalog:",
@@ -35,6 +36,7 @@
 		"@giselles-ai/data-store-registry": "workspace:*",
 		"@giselles-ai/document-preprocessor": "workspace:*",
 		"@giselles-ai/giselle": "workspace:*",
+		"@giselles-ai/vibexe-engine": "workspace:*",
 		"@giselles-ai/github-tool": "workspace:*",
 		"@giselles-ai/langfuse": "workspace:*",
 		"@giselles-ai/language-model": "workspace:*",

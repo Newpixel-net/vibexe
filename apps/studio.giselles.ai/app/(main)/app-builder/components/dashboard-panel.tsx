@@ -4,13 +4,14 @@
  * DashboardPanel Component
  *
  * Main dashboard panel combining sidebar navigation and content area.
- * Code section uses CodePanel, other sections show placeholders.
- *
- * Deploy to: /opt/giselle/apps/studio.giselles.ai/app/(main)/app-builder/components/dashboard-panel.tsx
+ * Code section uses CodePanel, Agents uses AgentsPanel, Automations uses AutomationsPanel.
+ * Other sections show placeholders.
  */
 
 import { useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
+import { AgentsPanel } from "./agents-panel";
+import { AutomationsPanel } from "./automations-panel";
 import { CodePanel } from "./code-panel";
 import { type DashboardSection, DashboardSidebar } from "./dashboard-sidebar";
 
@@ -86,15 +87,6 @@ function SectionPlaceholder({ section }: { section: DashboardSection }) {
 
 /**
  * DashboardPanel - Sidebar navigation + content area
- *
- * Layout:
- * - Left: DashboardSidebar (200px fixed width)
- * - Right: Content area (flex-1)
- *
- * Behavior:
- * - Code section renders CodePanel with file explorer and editor
- * - Other sections render placeholder with title and description
- * - Internal section state (not lifted to parent)
  */
 export function DashboardPanel({
 	appId,
@@ -106,14 +98,10 @@ export function DashboardPanel({
 	const [activeSection, setActiveSection] =
 		useState<DashboardSection>("overview");
 
-	return (
-		<div className="flex h-full min-h-0">
-			<DashboardSidebar
-				activeSection={activeSection}
-				onSectionChange={setActiveSection}
-			/>
-			<div className="flex-1 min-w-0">
-				{activeSection === "code" ? (
+	const renderContent = () => {
+		switch (activeSection) {
+			case "code":
+				return (
 					<CodePanel
 						appId={appId}
 						files={files}
@@ -121,10 +109,23 @@ export function DashboardPanel({
 						onFileSelect={onFileSelect}
 						onFileUpdate={onFileUpdate}
 					/>
-				) : (
-					<SectionPlaceholder section={activeSection} />
-				)}
-			</div>
+				);
+			case "agents":
+				return <AgentsPanel />;
+			case "automations":
+				return <AutomationsPanel />;
+			default:
+				return <SectionPlaceholder section={activeSection} />;
+		}
+	};
+
+	return (
+		<div className="flex h-full min-h-0">
+			<DashboardSidebar
+				activeSection={activeSection}
+				onSectionChange={setActiveSection}
+			/>
+			<div className="flex-1 min-w-0">{renderContent()}</div>
 		</div>
 	);
 }

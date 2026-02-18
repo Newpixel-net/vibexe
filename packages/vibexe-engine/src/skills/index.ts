@@ -1,0 +1,24 @@
+import type { SkillDefinition } from "../types";
+import { apiDesign } from "./api-design";
+import { backendPatterns } from "./backend-patterns";
+import { codingStandards } from "./coding-standards";
+import { deploymentPatterns } from "./deployment-patterns";
+import { dockerPatterns } from "./docker-patterns";
+import { frontendPatterns } from "./frontend-patterns";
+import { postgresPatterns } from "./postgres-patterns";
+import { securityReview } from "./security-review";
+import { tddWorkflow } from "./tdd-workflow";
+import { verificationLoop } from "./verification-loop";
+
+export const DEFAULT_SKILLS: SkillDefinition[] = [
+	codingStandards,
+	frontendPatterns,
+	backendPatterns,
+	securityReview,
+	tddWorkflow,
+	postgresPatterns,
+	apiDesign,
+	deploymentPatterns,
+	dockerPatterns,
+	verificationLoop,
+];

@@ -38,17 +38,24 @@ import {
 	updatePhaseWithFile,
 	updateProjectStage,
 } from "../adapters/phase-adapter";
+import { DEFAULT_MODEL_ID } from "../lib/model-resolver";
 import type {
+	AgentEvent,
 	ChatMode,
 	FileType,
 	ImageAttachment,
 	PhaseTimelineItem,
 	ProjectStage,
 } from "../types/vibesdk";
+import {
+	AgentActivityCard,
+	OrchestrationHeader,
+} from "./agent-activity-card";
 import { ChatBottomBar } from "./chat-bottom-bar";
 import { ChatInput } from "./chat-input";
 import { AIMessage, UserMessage } from "./messages";
 import { PhaseTimeline } from "./phase-timeline";
+import { ReviewVerdict } from "./review-verdict";
 
 interface ChatColumnProps {
 	appId: string;
@@ -65,6 +72,8 @@ const generateId = () => crypto.randomUUID();
 const getChatStorageKey = (appId: string) => `giselle-builder-chat-${appId}`;
 const getMessagesStorageKey = (appId: string) =>
 	`giselle-builder-messages-${appId}`;
+const getModelStorageKey = (appId: string) =>
+	`giselle-builder-model-${appId}`;
 
 /**
  * Deploy banner shown when code generation is complete.
@@ -112,6 +121,7 @@ export function ChatColumn({
 	const [chatId, setChatId] = useState<string>(generateId);
 
 	const [mode, _setMode] = useState<ChatMode>("generate");
+	const [selectedModelId, setSelectedModelId] = useState(DEFAULT_MODEL_ID);
 	const [input, setInput] = useState("");
 	const [attachments, setAttachments] = useState<ImageAttachment[]>([]);
 
@@ -121,6 +131,13 @@ export function ChatColumn({
 	);
 	const [phaseTimeline, setPhaseTimeline] = useState<PhaseTimelineItem[]>([]);
 	const [isThinking, setIsThinking] = useState(false);
+
+	// Agent events from orchestration data stream
+	const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([]);
+	const [activeAgentIds, setActiveAgentIds] = useState<Set<string>>(new Set());
+	const [completedAgentIds, setCompletedAgentIds] = useState<Set<string>>(
+		new Set(),
+	);
 
 	// Ref for scroll area (needed by PhaseTimeline)
 	const scrollRef = useRef<HTMLDivElement>(null);
@@ -162,7 +179,26 @@ export function ChatColumn({
 		}
 	}, [appId, chatId, hasMounted]);
 
-	// Create transport with custom body for our API - recreate when mode changes
+	// Load model selection from localStorage after mount
+	useEffect(() => {
+		if (hasMounted) {
+			const stored = localStorage.getItem(getModelStorageKey(appId));
+			if (stored) {
+				setSelectedModelId(stored);
+			}
+		}
+	}, [appId, hasMounted]);
+
+	// Persist model selection to localStorage
+	const handleModelChange = useCallback(
+		(modelId: string) => {
+			setSelectedModelId(modelId);
+			localStorage.setItem(getModelStorageKey(appId), modelId);
+		},
+		[appId],
+	);
+
+	// Create transport with custom body for our API - recreate when mode or model changes
 	const transport = useMemo(
 		() =>
 			new DefaultChatTransport({
@@ -171,16 +207,18 @@ export function ChatColumn({
 					appId,
 					chatId,
 					mode,
+					modelId: selectedModelId,
 				},
 			}),
-		[appId, chatId, mode],
+		[appId, chatId, mode, selectedModelId],
 	);
 
 	// useChat hook for AI interaction
-	const { messages, setMessages, sendMessage, status, error, stop } = useChat({
-		id: chatId,
-		transport,
-		onToolCall: ({ toolCall }) => {
+	const { messages, setMessages, sendMessage, status, error, stop } =
+		useChat({
+			id: chatId,
+			transport,
+			onToolCall: ({ toolCall }) => {
 			// Update phase timeline when a tool is called
 			// AI SDK v6 uses `input` instead of `args` for tool call arguments
 			const toolInput = "input" in toolCall ? toolCall.input : undefined;
@@ -272,12 +310,48 @@ export function ChatColumn({
 		}
 	}, [appId, messages, hasMounted]);
 
+	// Extract agent events from data parts in assistant messages
+	const processedEventCount = useRef(0);
+	useEffect(() => {
+		if (messages.length === 0) return;
+
+		// Find latest assistant message with data parts
+		const lastAssistant = [...messages]
+			.reverse()
+			.find((m) => m.role === "assistant");
+		if (!lastAssistant?.parts) return;
+
+		// Extract data-agent-event parts
+		const events: AgentEvent[] = [];
+		for (const part of lastAssistant.parts) {
+			if (
+				"type" in part &&
+				part.type === "data-agent-event" &&
+				"data" in part
+			) {
+				events.push(
+					(part as { type: string; data: AgentEvent }).data,
+				);
+			}
+		}
+
+		// Only update if we have new events
+		if (events.length > processedEventCount.current) {
+			processedEventCount.current = events.length;
+			setAgentEvents(events);
+			const startIds = events
+				.filter((e) => e.type === "agent-start" && e.agentId)
+				.map((e) => e.agentId!);
+			setActiveAgentIds(new Set(startIds));
+		}
+	}, [messages]);
+
 	// Update thinking state when loading
 	useEffect(() => {
 		setIsThinking(isLoading && mode === "generate");
 	}, [isLoading, mode]);
 
-	// Finalize all phases and project stages when streaming finishes
+	// Finalize all phases, agents, and project stages when streaming finishes
 	const wasLoadingRef = useRef(false);
 	useEffect(() => {
 		if (wasLoadingRef.current && !isLoading) {
@@ -298,6 +372,13 @@ export function ChatColumn({
 					"completed",
 				),
 			);
+			// Mark all active agents as complete
+			setActiveAgentIds((prev) => {
+				if (prev.size > 0) {
+					setCompletedAgentIds((completed) => new Set([...completed, ...prev]));
+				}
+				return new Set();
+			});
 		}
 		wasLoadingRef.current = isLoading;
 	}, [isLoading]);
@@ -381,6 +462,11 @@ export function ChatColumn({
 		// Reset phase state for new chat
 		setPhaseTimeline([]);
 		setProjectStages(createDefaultProjectStages());
+		// Reset agent events
+		setAgentEvents([]);
+		setActiveAgentIds(new Set());
+		setCompletedAgentIds(new Set());
+		processedEventCount.current = 0;
 	}, [appId, setMessages]);
 
 	return (
@@ -457,6 +543,45 @@ export function ChatColumn({
 								})}
 							</div>
 
+							{/* Agent Events — orchestration header + agent cards + review verdicts */}
+							{agentEvents.length > 0 && (
+								<div className="mt-4 space-y-2">
+									{agentEvents.map((event, idx) => {
+										if (event.type === "orchestration-start") {
+											return (
+												<OrchestrationHeader
+													key={`orch-${idx}`}
+													event={event}
+												/>
+											);
+										}
+										if (event.type === "agent-start") {
+											return (
+												<AgentActivityCard
+													key={`agent-${event.agentId}-${idx}`}
+													event={event}
+													isActive={activeAgentIds.has(
+														event.agentId || "",
+													)}
+													isComplete={completedAgentIds.has(
+														event.agentId || "",
+													)}
+												/>
+											);
+										}
+										if (event.type === "review-verdict") {
+											return (
+												<ReviewVerdict
+													key={`verdict-${event.agentId}-${idx}`}
+													event={event}
+												/>
+											);
+										}
+										return null;
+									})}
+								</div>
+							)}
+
 							{/* PhaseTimeline INLINE after messages */}
 							{phaseTimeline.length > 0 && (
 								<div className="mt-4">
@@ -508,7 +633,10 @@ export function ChatColumn({
 			</div>
 
 			{/* Bottom action bar */}
-			<ChatBottomBar />
+			<ChatBottomBar
+				selectedModelId={selectedModelId}
+				onModelChange={handleModelChange}
+			/>
 		</div>
 	);
 }

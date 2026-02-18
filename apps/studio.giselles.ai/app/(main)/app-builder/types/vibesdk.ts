@@ -151,6 +151,40 @@ export interface FileTreeItem {
  * - generate: AI can create/modify files
  * - discuss: AI can only discuss, no file operations
  */
+/**
+ * Agent event from the orchestration engine.
+ * Streamed alongside AI messages to show agent activity in the timeline.
+ */
+export interface AgentEvent {
+	type:
+		| "orchestration-start"
+		| "agent-start"
+		| "agent-complete"
+		| "skill-loaded"
+		| "review-verdict";
+	agentId?: string;
+	agentName?: string;
+	modelTier?: string;
+	icon?: string;
+	readOnly?: boolean;
+	skills?: Array<{ id: string; name: string; category: string }>;
+	result?: "success" | "warning" | "error";
+	verdict?: "approve" | "warning" | "block";
+	issues?: string[];
+	intent?: {
+		complexity: string;
+		suggestedFlow: string;
+		techStack: string[];
+	};
+	agents?: Array<{
+		id: string;
+		name: string;
+		modelTier: string;
+		readOnly: boolean;
+	}>;
+	timestamp?: number;
+}
+
 export type ChatMode = "generate" | "discuss";
 
 /**

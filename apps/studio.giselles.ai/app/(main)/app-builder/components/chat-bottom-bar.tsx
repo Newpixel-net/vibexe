@@ -3,17 +3,15 @@
 /**
  * ChatBottomBar Component
  *
- * Bottom action bar with 4 buttons (BASE44 style):
- * Settings, Plus, Discuss, Mic
- *
- * Reference: base44-Dashboard-1.png shows: gear | + | Discuss | mic
- *
- * Note: Uses plain <button> elements instead of Button component
- * because the custom Button has base styles (w-full, px-[20px], border)
- * that interfere with icon-only button rendering.
+ * Bottom action bar with model picker and action buttons.
+ * Model selection persists per-app via localStorage.
  */
 
-import { MessageSquare, Mic, Plus, Settings } from "lucide-react";
+import { ChevronDown, MessageSquare, Mic, Plus, Settings } from "lucide-react";
+import {
+	DEFAULT_MODEL_ID,
+	MODEL_OPTIONS,
+} from "@/app/(main)/app-builder/lib/model-resolver";
 import { cn } from "@/lib/utils";
 
 interface ChatBottomBarProps {
@@ -21,37 +19,57 @@ interface ChatBottomBarProps {
 	onPlus?: () => void;
 	onDiscuss?: () => void;
 	onMic?: () => void;
+	selectedModelId: string;
+	onModelChange: (modelId: string) => void;
 }
 
-/**
- * ChatBottomBar - 4-button action bar below chat input
- *
- * Layout (matching BASE44):
- * - Settings gear (left)
- * - Plus button (left)
- * - Discuss button with text (center-left)
- * - Mic button (right)
- */
+const tierColors: Record<string, string> = {
+	opus: "text-purple-400",
+	sonnet: "text-blue-400",
+	haiku: "text-green-400",
+	standard: "text-muted-foreground",
+};
+
 export function ChatBottomBar({
 	onSettings,
 	onPlus,
 	onDiscuss,
 	onMic,
+	selectedModelId,
+	onModelChange,
 }: ChatBottomBarProps) {
-	// Base styles for icon-only buttons
 	const iconButtonClass = cn(
 		"flex items-center justify-center h-8 w-8 rounded-md transition-colors",
 		"text-muted-foreground hover:text-foreground hover:bg-muted/50",
 	);
 
-	// Styles for the Discuss button with text
 	const textButtonClass = cn(
 		"flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors",
 		"text-muted-foreground hover:text-foreground hover:bg-muted/50",
 	);
 
+	const selected =
+		MODEL_OPTIONS.find((m) => m.id === selectedModelId) ||
+		MODEL_OPTIONS.find((m) => m.id === DEFAULT_MODEL_ID)!;
+
 	return (
 		<div className="flex items-center gap-2 px-4 py-2 border-t border-border bg-card">
+			{/* Model picker dropdown */}
+			<div className="relative">
+				<select
+					value={selectedModelId}
+					onChange={(e) => onModelChange(e.target.value)}
+					className="appearance-none bg-muted/50 border border-border rounded-md pl-2 pr-7 py-1.5 text-xs font-medium text-foreground cursor-pointer hover:bg-muted transition-colors focus:outline-none focus:ring-1 focus:ring-primary"
+				>
+					{MODEL_OPTIONS.map((opt) => (
+						<option key={opt.id} value={opt.id}>
+							{opt.name}
+						</option>
+					))}
+				</select>
+				<ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+			</div>
+
 			{/* Settings icon button */}
 			<button
 				type="button"

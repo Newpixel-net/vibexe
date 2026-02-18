@@ -5,7 +5,13 @@
  * Sandpack React template expects files at root level (/App.js, /index.js).
  * Includes Tailwind CSS support via Play CDN.
  *
- * Deploy to: /opt/giselle/apps/studio.giselles.ai/app/(main)/app-builder/adapters/sandpack-adapter.ts
+ * Supports multi-file projects with:
+ * - Nested directory structures (src/components/Header.tsx -> /components/Header.tsx)
+ * - Context providers wrapping App
+ * - Custom hooks files
+ * - Utility files
+ * - Type definition files
+ * - Auto-generated entry point with proper imports
  */
 
 import type { AppFile } from "./file-adapter";
@@ -23,7 +29,6 @@ export interface SandpackFiles {
 
 /**
  * Custom index.html with Tailwind Play CDN
- * This enables Tailwind CSS classes to work in the preview
  */
 const TAILWIND_INDEX_HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -60,18 +65,7 @@ const TAILWIND_INDEX_HTML = `<!DOCTYPE html>
 `;
 
 /**
- * Default entry point for React apps
- */
-const DEFAULT_INDEX = `import React from "react";
-import { createRoot } from "react-dom/client";
-import App from "./App";
-
-const root = createRoot(document.getElementById("root"));
-root.render(<App />);
-`;
-
-/**
- * Default App.jsx if no App file exists
+ * Default App.tsx if no App file exists
  */
 const DEFAULT_APP = `export default function App() {
   return (
@@ -88,109 +82,20 @@ const DEFAULT_APP = `export default function App() {
 `;
 
 /**
- * Convert AppFile[] to Sandpack files format
- *
- * Sandpack React template expects:
- * - /App.tsx as the main component (react-ts template)
- * - /index.js as the entry point
- *
- * This adapter:
- * - Strips src/ prefix from paths (src/App.tsx -> /App.tsx)
- * - Auto-generates /index.js entry point
- * - Includes custom index.html with Tailwind CDN
- * - Skips non-code files (markdown, etc.)
+ * Check if a file is a code file (JS/TS/JSX/TSX)
  */
-export function convertToSandpackFiles(files: AppFile[]): SandpackFiles {
-	const sandpackFiles: SandpackFiles = {};
-
-	// Always include custom index.html with Tailwind support
-	sandpackFiles["/public/index.html"] = {
-		code: TAILWIND_INDEX_HTML,
-		hidden: true,
-	};
-
-	// Check if we have any code files
-	const codeFiles = files.filter(
-		(f) =>
-			f.language === "javascript" ||
-			f.language === "typescript" ||
-			f.language === "javascriptreact" ||
-			f.language === "typescriptreact" ||
-			f.path.endsWith(".js") ||
-			f.path.endsWith(".jsx") ||
-			f.path.endsWith(".ts") ||
-			f.path.endsWith(".tsx"),
+function isCodeFile(file: AppFile): boolean {
+	const codeLanguages = [
+		"javascript",
+		"typescript",
+		"javascriptreact",
+		"typescriptreact",
+	];
+	const codeExtensions = [".js", ".jsx", ".ts", ".tsx"];
+	return (
+		codeLanguages.includes(file.language || "") ||
+		codeExtensions.some((ext) => file.path.endsWith(ext))
 	);
-
-	if (codeFiles.length === 0) {
-		// No code files yet, use defaults (tsx to match react-ts template)
-		sandpackFiles["/App.tsx"] = { code: DEFAULT_APP };
-		sandpackFiles["/index.js"] = { code: DEFAULT_INDEX, hidden: true };
-		return sandpackFiles;
-	}
-
-	// Convert each code file
-	for (const file of codeFiles) {
-		// Normalize path: strip src/ prefix and ensure leading /
-		let path = file.path;
-
-		// Remove src/ prefix if present
-		if (path.startsWith("src/")) {
-			path = path.slice(4); // Remove "src/"
-		}
-
-		// Ensure leading /
-		if (!path.startsWith("/")) {
-			path = `/${path}`;
-		}
-
-		// Add to files
-		sandpackFiles[path] = {
-			code: file.content || "",
-			active: isAppFile(path),
-		};
-	}
-
-	// Ensure we have an entry point at /index.js
-	const hasIndex = Object.keys(sandpackFiles).some(
-		(p) =>
-			p === "/index.js" ||
-			p === "/index.jsx" ||
-			p === "/index.ts" ||
-			p === "/index.tsx",
-	);
-
-	if (!hasIndex) {
-		// Find the main App file
-		const appFile = Object.keys(sandpackFiles).find((p) => isAppFile(p));
-		if (appFile) {
-			// Create index that imports the App
-			const fileName = appFile.split("/").pop() || "App.jsx";
-			const importName = fileName.replace(/\.(jsx?|tsx?)$/, "");
-			sandpackFiles["/index.js"] = {
-				code: `import React from "react";
-import { createRoot } from "react-dom/client";
-import App from "./${importName}";
-
-const root = createRoot(document.getElementById("root"));
-root.render(<App />);
-`,
-				hidden: true,
-			};
-		} else {
-			// Use defaults (tsx to match react-ts template)
-			sandpackFiles["/index.js"] = { code: DEFAULT_INDEX, hidden: true };
-			sandpackFiles["/App.tsx"] = { code: DEFAULT_APP };
-		}
-	}
-
-	// Debug: log the converted files
-	console.log(
-		"[sandpack-adapter] Converted files:",
-		Object.keys(sandpackFiles),
-	);
-
-	return sandpackFiles;
 }
 
 /**
@@ -205,6 +110,203 @@ function isAppFile(path: string): boolean {
 			lower.endsWith(".js") ||
 			lower.endsWith(".ts"))
 	);
+}
+
+/**
+ * Detect context provider files (files that export *Provider or *Context)
+ */
+function isContextFile(file: AppFile): boolean {
+	if (!file.content) return false;
+	const path = file.path.toLowerCase();
+	return (
+		path.includes("context") ||
+		path.includes("provider") ||
+		/export\s+(default\s+)?function\s+\w*Provider/i.test(file.content) ||
+		/export\s+const\s+\w*Context/i.test(file.content)
+	);
+}
+
+/**
+ * Generate entry point that wraps App with detected context providers
+ */
+function generateEntryPoint(
+	appImportPath: string,
+	contextFiles: Array<{ sandpackPath: string; providerName: string }>,
+): string {
+	const lines: string[] = [
+		'import React from "react";',
+		'import { createRoot } from "react-dom/client";',
+		`import App from "${appImportPath}";`,
+	];
+
+	// Import context providers
+	for (const ctx of contextFiles) {
+		const importPath = ctx.sandpackPath.replace(/\.(tsx?|jsx?)$/, "");
+		lines.push(`import { ${ctx.providerName} } from "${importPath}";`);
+	}
+
+	lines.push("");
+	lines.push('const root = createRoot(document.getElementById("root"));');
+
+	if (contextFiles.length === 0) {
+		lines.push("root.render(<App />);");
+	} else {
+		// Wrap App with providers
+		let jsx = "<App />";
+		for (const ctx of contextFiles.reverse()) {
+			jsx = `<${ctx.providerName}>${jsx}</${ctx.providerName}>`;
+		}
+		lines.push(`root.render(${jsx});`);
+	}
+
+	return lines.join("\n");
+}
+
+/**
+ * Extract provider component name from file content
+ */
+function extractProviderName(content: string): string | null {
+	const match = content.match(
+		/export\s+(?:default\s+)?function\s+(\w*Provider)/,
+	);
+	if (match) return match[1];
+
+	const constMatch = content.match(
+		/export\s+const\s+(\w*Provider)\s*=/,
+	);
+	if (constMatch) return constMatch[1];
+
+	return null;
+}
+
+/**
+ * Convert AppFile[] to Sandpack files format
+ *
+ * Handles:
+ * - Strips src/ prefix from paths (src/App.tsx -> /App.tsx)
+ * - Nested directories (src/components/Header.tsx -> /components/Header.tsx)
+ * - Auto-generates /index.js entry point with context provider wrapping
+ * - Includes custom index.html with Tailwind CDN
+ * - Skips non-code files (markdown, etc.)
+ * - CSS files included but referenced via CDN instead
+ */
+export function convertToSandpackFiles(files: AppFile[]): SandpackFiles {
+	const sandpackFiles: SandpackFiles = {};
+
+	// Always include custom index.html with Tailwind support
+	sandpackFiles["/public/index.html"] = {
+		code: TAILWIND_INDEX_HTML,
+		hidden: true,
+	};
+
+	// Filter to code files only
+	const codeFiles = files.filter(isCodeFile);
+
+	if (codeFiles.length === 0) {
+		sandpackFiles["/App.tsx"] = { code: DEFAULT_APP };
+		sandpackFiles["/index.js"] = {
+			code: generateEntryPoint("./App", []),
+			hidden: true,
+		};
+		return sandpackFiles;
+	}
+
+	// Track context providers for entry point wrapping
+	const contextProviders: Array<{
+		sandpackPath: string;
+		providerName: string;
+	}> = [];
+
+	// Convert each code file
+	for (const file of codeFiles) {
+		let path = file.path;
+
+		// Remove src/ prefix if present
+		if (path.startsWith("src/")) {
+			path = path.slice(4);
+		}
+
+		// Ensure leading /
+		if (!path.startsWith("/")) {
+			path = `/${path}`;
+		}
+
+		sandpackFiles[path] = {
+			code: file.content || "",
+			active: isAppFile(path),
+		};
+
+		// Detect context providers
+		if (isContextFile(file)) {
+			const providerName = extractProviderName(file.content || "");
+			if (providerName) {
+				contextProviders.push({ sandpackPath: path, providerName });
+			}
+		}
+	}
+
+	// Ensure we have an entry point
+	const hasIndex = Object.keys(sandpackFiles).some(
+		(p) =>
+			p === "/index.js" ||
+			p === "/index.jsx" ||
+			p === "/index.ts" ||
+			p === "/index.tsx",
+	);
+
+	if (!hasIndex) {
+		const appFile = Object.keys(sandpackFiles).find((p) => isAppFile(p));
+		if (appFile) {
+			const importName = appFile.replace(/\.(jsx?|tsx?)$/, "");
+			const importPath = importName.startsWith("/")
+				? `.${importName}`
+				: `./${importName}`;
+			sandpackFiles["/index.js"] = {
+				code: generateEntryPoint(importPath, contextProviders),
+				hidden: true,
+			};
+		} else {
+			sandpackFiles["/index.js"] = {
+				code: generateEntryPoint("./App", []),
+				hidden: true,
+			};
+			if (!sandpackFiles["/App.tsx"]) {
+				sandpackFiles["/App.tsx"] = { code: DEFAULT_APP };
+			}
+		}
+	}
+
+	// Also include CSS files (Tailwind CDN handles most styling, but include any custom CSS)
+	const cssFiles = files.filter(
+		(f) =>
+			f.path.endsWith(".css") ||
+			f.language === "css" ||
+			f.language === "scss",
+	);
+	for (const cssFile of cssFiles) {
+		let path = cssFile.path;
+		if (path.startsWith("src/")) path = path.slice(4);
+		if (!path.startsWith("/")) path = `/${path}`;
+		sandpackFiles[path] = {
+			code: cssFile.content || "",
+			hidden: true,
+		};
+	}
+
+	// Include JSON files (like package.json) if present
+	const jsonFiles = files.filter(
+		(f) => f.path.endsWith(".json") && !f.path.includes("node_modules"),
+	);
+	for (const jsonFile of jsonFiles) {
+		let path = jsonFile.path;
+		if (!path.startsWith("/")) path = `/${path}`;
+		sandpackFiles[path] = {
+			code: jsonFile.content || "",
+			hidden: true,
+		};
+	}
+
+	return sandpackFiles;
 }
 
 /**
