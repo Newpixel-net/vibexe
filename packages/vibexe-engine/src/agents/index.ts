@@ -12,6 +12,7 @@ import { refactorCleaner } from "./refactor-cleaner";
 import { securityReviewer } from "./security-reviewer";
 import { tddGuide } from "./tdd-guide";
 import { uiDesigner } from "./ui-designer";
+import { siteReplicator } from "./site-replicator";
 
 export const DEFAULT_AGENTS: AgentDefinition[] = [
 	planner,
@@ -27,4 +28,5 @@ export const DEFAULT_AGENTS: AgentDefinition[] = [
 	docUpdater,
 	refactorCleaner,
 	e2eRunner,
+	siteReplicator,
 ];

@@ -42,9 +42,17 @@ export const REFACTOR_FLOW: OrchestrationFlow = {
 	],
 };
 
+export const REPLICATE_FLOW: OrchestrationFlow = {
+	id: "replicate",
+	name: "Replicate Flow",
+	description: "Site replicator for URL-based website recreation",
+	steps: [{ agentId: "site-replicator", order: 1, required: true }],
+};
+
 export const ALL_FLOWS: OrchestrationFlow[] = [
 	FEATURE_FLOW,
 	QUICK_FLOW,
 	FIX_FLOW,
 	REFACTOR_FLOW,
+	REPLICATE_FLOW,
 ];

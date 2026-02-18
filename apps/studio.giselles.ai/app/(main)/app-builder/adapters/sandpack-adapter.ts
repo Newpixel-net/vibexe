@@ -36,6 +36,9 @@ const TAILWIND_INDEX_HTML = `<!DOCTYPE html>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>App Preview</title>
+    <!-- Google Fonts preconnect for fast loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Tailwind CSS Play CDN - compiles Tailwind classes in browser -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -54,6 +57,9 @@ const TAILWIND_INDEX_HTML = `<!DOCTYPE html>
       @layer base {
         body {
           @apply antialiased;
+        }
+        html {
+          scroll-behavior: smooth;
         }
       }
     </style>

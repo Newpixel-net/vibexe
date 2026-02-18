@@ -1,4 +1,5 @@
 import type { SkillDefinition } from "../types";
+import { animationPatterns } from "./animation-patterns";
 import { apiDesign } from "./api-design";
 import { backendPatterns } from "./backend-patterns";
 import { codingStandards } from "./coding-standards";
@@ -9,6 +10,7 @@ import { postgresPatterns } from "./postgres-patterns";
 import { securityReview } from "./security-review";
 import { tddWorkflow } from "./tdd-workflow";
 import { verificationLoop } from "./verification-loop";
+import { visualReplication } from "./visual-replication";
 
 export const DEFAULT_SKILLS: SkillDefinition[] = [
 	codingStandards,
@@ -21,4 +23,6 @@ export const DEFAULT_SKILLS: SkillDefinition[] = [
 	deploymentPatterns,
 	dockerPatterns,
 	verificationLoop,
+	visualReplication,
+	animationPatterns,
 ];

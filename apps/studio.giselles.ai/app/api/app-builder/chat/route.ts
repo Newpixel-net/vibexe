@@ -26,6 +26,10 @@ import {
 	getAppById,
 	getFilesForApp,
 } from "@/app/(main)/app-builder/lib/queries";
+import {
+	analyzeUrl,
+	formatSiteAnalysis,
+} from "@/app/(main)/app-builder/lib/url-analyzer";
 import { getUser } from "@/lib/auth/get-user";
 
 // Initialize engine registries (runs once at module load)
@@ -123,8 +127,27 @@ export async function POST(request: Request) {
 				? lastUserMessage
 				: JSON.stringify(lastUserMessage);
 
+		// Detect URLs in user prompt and fetch site analysis
+		const URL_REGEX = /https?:\/\/[^\s"'<>]+/gi;
+		const detectedUrls = userPrompt.match(URL_REGEX) || [];
+
+		let enrichedFileContext = fileContext;
+		if (detectedUrls.length > 0) {
+			try {
+				const analysis = await analyzeUrl(detectedUrls[0]);
+				if (analysis) {
+					enrichedFileContext = `${fileContext}\n\n${formatSiteAnalysis(analysis)}`;
+					console.log(
+						`[Chat API] URL analysis complete: ${detectedUrls[0]} — ${analysis.fonts.length} fonts, ${analysis.colors.length} colors, ${analysis.layout.sections.length} sections`,
+					);
+				}
+			} catch (error) {
+				console.error("[Chat API] URL analysis failed:", error);
+			}
+		}
+
 		// Run orchestration engine
-		const plan = executeOrchestration(userPrompt, ALL_FLOWS, fileContext);
+		const plan = executeOrchestration(userPrompt, ALL_FLOWS, enrichedFileContext);
 
 		// Find the developer agent (the one that actually writes files)
 		const developerAgent = plan.agents.find((a) => !a.readOnly);
@@ -203,8 +226,11 @@ Your response is INCOMPLETE unless Blueprint.md, src/App.tsx, and README.md all 
 				? resolveModelByTier(developerAgent.modelTier)
 				: resolveModel();
 
+		const isReplication = plan.intent.suggestedFlow === "replicate";
+		const maxSteps = isReplication ? 40 : 25;
+
 		console.log(
-			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, model=${modelId || developerAgent?.modelTier || "default"}`,
+			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, model=${modelId || developerAgent?.modelTier || "default"}, maxSteps=${maxSteps}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,
 		);
 
 		// Stream orchestration events + AI response via UI message stream
@@ -259,7 +285,7 @@ Your response is INCOMPLETE unless Blueprint.md, src/App.tsx, and README.md all 
 					system: systemPrompt,
 					messages: modelMessages,
 					tools,
-					maxSteps: 25,
+					maxSteps,
 					toolChoice: "required",
 					onFinish: () => {
 						console.log(
