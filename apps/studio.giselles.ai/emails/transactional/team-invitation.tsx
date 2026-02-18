@@ -52,11 +52,11 @@ export const TeamInvitationEmail = ({
 			<Head>
 				<EmailFonts />
 			</Head>
-			<Preview>Invitation to join {displayTeamName} on Giselle</Preview>
+			<Preview>Invitation to join {displayTeamName} on Vibexe</Preview>
 			<Body style={main}>
 				<Container style={container}>
 					<EmailHeader
-						heading="You've been invited to collaborate in Giselle."
+						heading="You've been invited to collaborate in Vibexe."
 						subheading="Join your team and start building together."
 					/>
 					<Section style={topBorderSection}>
@@ -81,10 +81,10 @@ export const TeamInvitationEmail = ({
 						</Text>
 						<Text style={signatureText}>
 							—<br />
-							The Giselle Team
+							The Vibexe Team
 							<br />
-							<Link href="https://giselles.ai" style={link}>
-								https://giselles.ai
+							<Link href="https://vibexe.online" style={link}>
+								https://vibexe.online
 							</Link>
 						</Text>
 					</Section>

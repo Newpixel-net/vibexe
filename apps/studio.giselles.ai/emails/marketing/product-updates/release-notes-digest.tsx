@@ -31,7 +31,7 @@ interface ReleaseNotesDigestEmailProps {
 
 export const ReleaseNotesDigestEmail = ({
 	userName = "there",
-	viewReleaseNotesUrl = "https://giselles.ai/changelog",
+	viewReleaseNotesUrl = "https://vibexe.online/changelog",
 }: ReleaseNotesDigestEmailProps) => {
 	const digestImageSrc = getEmailAssetUrl("digest-202512.jpg");
 	return (
@@ -81,10 +81,10 @@ export const ReleaseNotesDigestEmail = ({
 						</Text>
 						<Text style={signatureText}>
 							—<br />
-							The Giselle Team
+							The Vibexe Team
 							<br />
-							<Link href="https://giselles.ai" style={link}>
-								https://giselles.ai
+							<Link href="https://vibexe.online" style={link}>
+								https://vibexe.online
 							</Link>
 						</Text>
 					</Section>
@@ -100,7 +100,7 @@ export const ReleaseNotesDigestEmail = ({
 
 ReleaseNotesDigestEmail.PreviewProps = {
 	userName: "John",
-	viewReleaseNotesUrl: "https://giselles.ai/changelog",
+	viewReleaseNotesUrl: "https://vibexe.online/changelog",
 } as ReleaseNotesDigestEmailProps;
 
 const imageSection = {

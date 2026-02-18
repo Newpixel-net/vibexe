@@ -31,7 +31,7 @@ export default async function AccountSettingPage() {
 								Teams
 							</h4>
 							<p className="text-link-muted text-[12px] font-geist">
-								The teams that are associated with your Giselle account.
+								The teams that are associated with your Vibexe account.
 							</p>
 						</div>
 						<div className="grid placeitems-center">

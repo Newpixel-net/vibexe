@@ -31,7 +31,7 @@ interface MilestoneCelebrationEmailProps {
 }
 
 export const MilestoneCelebrationEmail = ({
-	seeWhatsNextUrl = "https://studio.giselles.ai",
+	seeWhatsNextUrl = "https://vibexe.online",
 }: MilestoneCelebrationEmailProps) => {
 	const heroImageSrc = getEmailAssetUrl("milestone-celebration-1.jpg");
 	return (
@@ -80,7 +80,7 @@ export const MilestoneCelebrationEmail = ({
 };
 
 MilestoneCelebrationEmail.PreviewProps = {
-	seeWhatsNextUrl: "https://studio.giselles.ai",
+	seeWhatsNextUrl: "https://vibexe.online",
 } as MilestoneCelebrationEmailProps;
 
 const imageSection = {

@@ -76,10 +76,10 @@ export const ChangeEmailAddressEmail = ({
 						</Text>
 						<Text style={signatureText}>
 							—<br />
-							The Giselle Team
+							The Vibexe Team
 							<br />
-							<Link href="https://giselles.ai" style={link}>
-								https://giselles.ai
+							<Link href="https://vibexe.online" style={link}>
+								https://vibexe.online
 							</Link>
 						</Text>
 					</Section>

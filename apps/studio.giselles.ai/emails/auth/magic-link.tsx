@@ -42,7 +42,7 @@ export const MagicLinkEmail = ({ confirmationUrl }: MagicLinkEmailProps) => {
 			<Body style={main}>
 				<Container style={container}>
 					<EmailHeader
-						heading="Sign in to Giselle."
+						heading="Sign in to Vibexe."
 						subheading="Access your workspace instantly."
 					/>
 					<Section style={topBorderSection}>

@@ -1,5 +1,5 @@
 const DEFAULT_PREVIEW_HOST = "http://localhost:3333";
-const DEFAULT_PRODUCTION_HOST = "https://studio.giselles.ai";
+const DEFAULT_PRODUCTION_HOST = "https://vibexe.online";
 
 // React Email injects EMAILS_DIR_ABSOLUTE_PATH when the preview server runs.
 const isReactEmailPreview = Boolean(process.env.EMAILS_DIR_ABSOLUTE_PATH);

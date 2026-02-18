@@ -34,7 +34,7 @@ interface AmbassadorInviteEmailProps {
 
 export const AmbassadorInviteEmail = ({
 	userName = "there",
-	applyUrl = "https://giselles.ai/ambassador",
+	applyUrl = "https://vibexe.online/ambassador",
 }: AmbassadorInviteEmailProps) => {
 	const heroImageSrc = getEmailAssetUrl("ambassador-invite.jpg");
 	return (
@@ -42,7 +42,7 @@ export const AmbassadorInviteEmail = ({
 			<Head>
 				<EmailFonts />
 			</Head>
-			<Preview>Join the Giselle Ambassador Program 🪶</Preview>
+			<Preview>Join the Vibexe Ambassador Program 🪶</Preview>
 			<Body style={main}>
 				<Container style={container}>
 					<EmailHeader />
@@ -50,7 +50,7 @@ export const AmbassadorInviteEmail = ({
 						<Img
 							src={heroImageSrc}
 							width="600"
-							alt="Giselle Ambassador Program"
+							alt="Vibexe Ambassador Program"
 							style={image}
 						/>
 					</Section>
@@ -58,7 +58,7 @@ export const AmbassadorInviteEmail = ({
 						<Text style={text}>Hi {userName},</Text>
 						<Text style={text}>
 							We&apos;re inviting a select group of creators and developers to
-							join the early Giselle Ambassador Program.
+							join the early Vibexe Ambassador Program.
 						</Text>
 						<Text style={text}>
 							As an ambassador, you&apos;ll gain early access to new features,
@@ -69,10 +69,10 @@ export const AmbassadorInviteEmail = ({
 						</Button>
 						<Text style={signatureText}>
 							—<br />
-							The Giselle Team
+							The Vibexe Team
 							<br />
-							<Link href="https://giselles.ai" style={link}>
-								https://giselles.ai
+							<Link href="https://vibexe.online" style={link}>
+								https://vibexe.online
 							</Link>
 						</Text>
 					</Section>
@@ -88,7 +88,7 @@ export const AmbassadorInviteEmail = ({
 
 AmbassadorInviteEmail.PreviewProps = {
 	userName: "John",
-	applyUrl: "https://giselles.ai/ambassador",
+	applyUrl: "https://vibexe.online/ambassador",
 } as AmbassadorInviteEmailProps;
 
 const imageSection = {

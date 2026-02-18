@@ -43,7 +43,7 @@ export const ChangelogAnnouncementEmail = ({
 		year: "numeric",
 	}),
 	screenshotUrl,
-	viewChangelogUrl = "https://giselles.ai/changelog",
+	viewChangelogUrl = "https://vibexe.online/changelog",
 }: ChangelogAnnouncementEmailProps) => {
 	const headerBannerSrc = getEmailAssetUrl("giselletimes.png");
 	return (
@@ -51,7 +51,7 @@ export const ChangelogAnnouncementEmail = ({
 			<Head>
 				<EmailFonts />
 			</Head>
-			<Preview>Giselle update</Preview>
+			<Preview>Vibexe update</Preview>
 			<Body style={main}>
 				<Container style={container}>
 					<EmailHeader />
@@ -59,7 +59,7 @@ export const ChangelogAnnouncementEmail = ({
 						<Img
 							src={headerBannerSrc}
 							width="300"
-							alt="Giselle Times"
+							alt="Vibexe Times"
 							style={headerBannerImage}
 						/>
 					</Section>
@@ -70,7 +70,7 @@ export const ChangelogAnnouncementEmail = ({
 					<Section style={titleSection}>
 						<Row>
 							<Column style={titleLeftColumn}>
-								<Text style={copyrightText}>©️2025 Giselle</Text>
+								<Text style={copyrightText}>©️2025 Vibexe</Text>
 							</Column>
 							<Column style={titleCenterColumn}>
 								<Heading style={titleText}>Product Update</Heading>
@@ -89,12 +89,12 @@ export const ChangelogAnnouncementEmail = ({
 						</Heading>
 						<Text style={articleSubheading}>
 							This week&apos;s rollout brings a faster, cleaner, more stable
-							Giselle Studio.
+							Vibexe Studio.
 						</Text>
 						<Hr style={articleDivider} />
 						<Text style={text}>
 							We&apos;ve just shipped a new round of improvements and fixes
-							across Giselle Studio:
+							across Vibexe Studio:
 						</Text>
 						<Text style={text}>
 							• Faster agent deployment and improved queue management
@@ -106,7 +106,7 @@ export const ChangelogAnnouncementEmail = ({
 								<Img
 									src={screenshotUrl}
 									width="600"
-									alt="Giselle Studio updates"
+									alt="Vibexe Studio updates"
 									style={image}
 								/>
 							</Section>
@@ -118,14 +118,14 @@ export const ChangelogAnnouncementEmail = ({
 							</Link>
 						</Text>
 						<Text style={text}>
-							As always, your feedback helps us refine Giselle.
+							As always, your feedback helps us refine Vibexe.
 						</Text>
 						<Text style={signatureText}>
 							—<br />
-							The Giselle Team
+							The Vibexe Team
 							<br />
-							<Link href="https://giselles.ai" style={link}>
-								https://giselles.ai
+							<Link href="https://vibexe.online" style={link}>
+								https://vibexe.online
 							</Link>
 						</Text>
 					</Section>
@@ -143,7 +143,7 @@ ChangelogAnnouncementEmail.PreviewProps = {
 	userName: "John",
 	date: "December 15, 2025",
 	screenshotUrl: undefined,
-	viewChangelogUrl: "https://giselles.ai/changelog",
+	viewChangelogUrl: "https://vibexe.online/changelog",
 } as ChangelogAnnouncementEmailProps;
 
 const headerBannerSection = {

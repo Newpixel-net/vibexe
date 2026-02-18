@@ -16,10 +16,10 @@ export const SampleEmail = ({ username = "there" }: SampleEmailProps) => {
 	return (
 		<Html>
 			<Head />
-			<Preview>Welcome to Giselle!</Preview>
+			<Preview>Welcome to Vibexe!</Preview>
 			<Body style={main}>
 				<Container style={container}>
-					<Heading style={h1}>Welcome to Giselle, {username}!</Heading>
+					<Heading style={h1}>Welcome to Vibexe, {username}!</Heading>
 					<Text style={text}>
 						We're excited to have you on board. Get started by exploring our
 						platform.

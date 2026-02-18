@@ -18,7 +18,7 @@ export function OfficialRepositorySection({
 		<Card className="rounded-[8px] bg-transparent p-6 border-0">
 			<SectionHeader
 				title="Official GitHub Repositories"
-				description="These are the official GitHub repositories of Giselle. They're available to all users as read-only sources for GitHub Vector Store Nodes."
+				description="These are the official GitHub repositories of Vibexe. They're available to all users as read-only sources for GitHub Vector Store Nodes."
 				className="mb-4"
 			/>
 			<div className="space-y-4">

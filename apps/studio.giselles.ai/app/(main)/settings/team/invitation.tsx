@@ -165,7 +165,7 @@ export async function sendInvitationEmail(invitation: Invitation) {
 	const emailText = toPlainText(emailHtml);
 
 	await sendEmail(
-		`Invitation to join ${teamName} on Giselle`,
+		`Invitation to join ${teamName} on Vibexe`,
 		emailText,
 		[
 			{

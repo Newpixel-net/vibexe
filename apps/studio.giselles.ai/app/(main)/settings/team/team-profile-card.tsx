@@ -23,7 +23,7 @@ export function TeamProfileCard({
 	return (
 		<Card
 			title="Team Profile"
-			description="This is your team's display name and profile image in Giselle."
+			description="This is your team's display name and profile image in Vibexe."
 			action={{
 				component: (
 					<Button

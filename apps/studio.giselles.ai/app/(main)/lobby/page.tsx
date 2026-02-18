@@ -14,7 +14,7 @@ export default async function LobbyPage() {
 				{/* Text Banner */}
 				<TextBanner
 					title="Introducing Library"
-					description="Bring your docs, code, and files to collaborate with Giselle and your team."
+					description="Bring your docs, code, and files to collaborate with Vibexe and your team."
 					moreLinkText="More"
 				/>
 				<div className="flex items-center gap-3 w-full sm:w-auto">

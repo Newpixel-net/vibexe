@@ -9,9 +9,9 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { PostHogPageView } from "./posthog-page-view";
 import { PHProvider } from "./providers";
 
-const title = "Giselle";
-const description = "AI for Agentic Workflows. Human-AI Collaboration";
-const url = process.env.NEXT_PUBLIC_SITE_URL || "https://studio.giselles.ai";
+const title = "Vibexe";
+const description = "AI-Powered App Builder & Workflow Automation";
+const url = process.env.NEXT_PUBLIC_SITE_URL || "https://vibexe.online";
 
 const dmSans = DM_Sans({
 	weight: "variable",

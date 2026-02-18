@@ -34,10 +34,10 @@ interface ReminderEmailProps {
 
 export const ReminderEmail = ({
 	userName = "there",
-	returnToGiselleUrl = "https://studio.giselles.ai",
-	examplesGalleryUrl = "https://giselles.ai",
+	returnToGiselleUrl = "https://vibexe.online",
+	examplesGalleryUrl = "https://vibexe.online",
 	releaseNotesUrl:
-		_releaseNotesUrl = "https://docs.giselles.ai/en/releases/release-notes",
+		_releaseNotesUrl = "https://vibexe.online/docs/en/releases/release-notes",
 }: ReminderEmailProps) => {
 	return (
 		<Html>
@@ -58,7 +58,7 @@ export const ReminderEmail = ({
 						<Text style={text}>
 							Hi {userName},<br />
 							<br />
-							You started setting up Giselle but haven&apos;t created your first
+							You started setting up Vibexe but haven&apos;t created your first
 							agent yet.
 							<br />
 							<br />
@@ -78,17 +78,17 @@ export const ReminderEmail = ({
 								examples gallery
 							</Link>{" "}
 							or reach out anytime at{" "}
-							<Link href="mailto:support@giselles.ai" style={link}>
-								support@giselles.ai
+							<Link href="mailto:support@vibexe.online" style={link}>
+								support@vibexe.online
 							</Link>
 							.
 						</Text>
 						<Text style={signatureText}>
 							—<br />
-							The Giselle Team
+							The Vibexe Team
 							<br />
-							<Link href="https://giselles.ai" style={link}>
-								https://giselles.ai
+							<Link href="https://vibexe.online" style={link}>
+								https://vibexe.online
 							</Link>
 						</Text>
 					</Section>
@@ -104,9 +104,9 @@ export const ReminderEmail = ({
 
 ReminderEmail.PreviewProps = {
 	userName: "John",
-	returnToGiselleUrl: "https://studio.giselles.ai",
-	examplesGalleryUrl: "https://giselles.ai",
-	releaseNotesUrl: "https://docs.giselles.ai/en/releases/release-notes",
+	returnToGiselleUrl: "https://vibexe.online",
+	examplesGalleryUrl: "https://vibexe.online",
+	releaseNotesUrl: "https://vibexe.online/docs/en/releases/release-notes",
 } as ReminderEmailProps;
 
 export default ReminderEmail;

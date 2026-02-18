@@ -34,16 +34,16 @@ interface LongTimeNoSeeEmailProps {
 
 export const LongTimeNoSeeEmail = ({
 	userName = "there",
-	returnUrl = "https://studio.giselles.ai",
-	examplesGalleryUrl = "https://giselles.ai",
-	releaseNotesUrl = "https://docs.giselles.ai/en/releases/release-notes",
+	returnUrl = "https://vibexe.online",
+	examplesGalleryUrl = "https://vibexe.online",
+	releaseNotesUrl = "https://vibexe.online/docs/en/releases/release-notes",
 }: LongTimeNoSeeEmailProps) => {
 	return (
 		<Html>
 			<Head>
 				<EmailFonts />
 			</Head>
-			<Preview>We've missed you at Giselle 💫</Preview>
+			<Preview>We've missed you at Vibexe 💫</Preview>
 			<Body style={main}>
 				<Container style={container}>
 					<EmailHeader
@@ -57,7 +57,7 @@ export const LongTimeNoSeeEmail = ({
 						<Text style={text}>
 							Hi {userName},<br />
 							<br />
-							It&apos;s been a while since you last visited Giselle.
+							It&apos;s been a while since you last visited Vibexe.
 							<br />
 							<br />
 							Your Stage and workspace are still here — ready whenever you are.
@@ -75,7 +75,7 @@ export const LongTimeNoSeeEmail = ({
 							Jump back in, explore what&apos;s new, and keep creating.
 						</Text>
 						<Button href={returnUrl} style={button}>
-							Return to Giselle
+							Return to Vibexe
 						</Button>
 						<Text style={text}>
 							Need help or inspiration? Visit our{" "}
@@ -83,17 +83,17 @@ export const LongTimeNoSeeEmail = ({
 								examples gallery
 							</Link>{" "}
 							or reach out anytime at{" "}
-							<Link href="mailto:support@giselles.ai" style={link}>
-								support@giselles.ai
+							<Link href="mailto:support@vibexe.online" style={link}>
+								support@vibexe.online
 							</Link>
 							.
 						</Text>
 						<Text style={signatureText}>
 							—<br />
-							The Giselle Team
+							The Vibexe Team
 							<br />
-							<Link href="https://giselles.ai" style={link}>
-								https://giselles.ai
+							<Link href="https://vibexe.online" style={link}>
+								https://vibexe.online
 							</Link>
 						</Text>
 					</Section>
@@ -109,9 +109,9 @@ export const LongTimeNoSeeEmail = ({
 
 LongTimeNoSeeEmail.PreviewProps = {
 	userName: "John",
-	returnUrl: "https://studio.giselles.ai",
-	examplesGalleryUrl: "https://giselles.ai",
-	releaseNotesUrl: "https://docs.giselles.ai/en/releases/release-notes",
+	returnUrl: "https://vibexe.online",
+	examplesGalleryUrl: "https://vibexe.online",
+	releaseNotesUrl: "https://vibexe.online/docs/en/releases/release-notes",
 } as LongTimeNoSeeEmailProps;
 
 export default LongTimeNoSeeEmail;

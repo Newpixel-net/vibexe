@@ -6,7 +6,7 @@ export default function () {
 					We'll be back.
 				</h1>
 				<p className="mb-8 text-lg text-gray-400">
-					We're busy updating the Giselle.
+					We're busy updating Vibexe.
 					<br /> Please check back soon.
 				</p>
 				{/* <div className="inline-flex items-center justify-center rounded-md border border-gray-800 px-4 py-2 text-sm font-medium text-gray-300">

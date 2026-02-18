@@ -46,7 +46,7 @@ export default async function Page({
 
 			<div className="auth-action-section">
 				<ActionPrompt
-					prompt="Already have a Giselle account?"
+					prompt="Already have a Vibexe account?"
 					action={
 						<ClickableText asChild>
 							<Link href={`/join/${token}/login`}>Log in</Link>

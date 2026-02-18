@@ -36,19 +36,19 @@ export const WebinarInvitationEmail = ({
 	userName = "there",
 	webinarDate = "January 15, 2025",
 	webinarTime = "2:00 PM EST",
-	joinUrl = "https://giselles.ai/webinar",
+	joinUrl = "https://vibexe.online/webinar",
 }: WebinarInvitationEmailProps) => {
 	return (
 		<Html>
 			<Head>
 				<EmailFonts />
 			</Head>
-			<Preview>Join us for Building AI Agents with Giselle</Preview>
+			<Preview>Join us for Building AI Agents with Vibexe</Preview>
 			<Body style={main}>
 				<Container style={container}>
 					<EmailHeader
 						heading="Let's grow together."
-						subheading="Become a Giselle Ambassador."
+						subheading="Become a Vibexe Ambassador."
 					/>
 					<Section style={topBorderSection}>
 						<Hr style={topBorder} />
@@ -57,7 +57,7 @@ export const WebinarInvitationEmail = ({
 						<Text style={text}>Hi {userName},</Text>
 						<Text style={text}>
 							We&apos;re hosting a live webinar: &quot;Building AI Agents with
-							Giselle.&quot;
+							Vibexe.&quot;
 						</Text>
 						<Text style={text}>
 							🗓️ Date: {webinarDate}
@@ -72,10 +72,10 @@ export const WebinarInvitationEmail = ({
 						</Button>
 						<Text style={signatureText}>
 							—<br />
-							The Giselle Team
+							The Vibexe Team
 							<br />
-							<Link href="https://giselles.ai" style={link}>
-								https://giselles.ai
+							<Link href="https://vibexe.online" style={link}>
+								https://vibexe.online
 							</Link>
 						</Text>
 					</Section>
@@ -93,7 +93,7 @@ WebinarInvitationEmail.PreviewProps = {
 	userName: "John",
 	webinarDate: "January 15, 2025",
 	webinarTime: "2:00 PM EST",
-	joinUrl: "https://giselles.ai/webinar",
+	joinUrl: "https://vibexe.online/webinar",
 } as WebinarInvitationEmailProps;
 
 export default WebinarInvitationEmail;

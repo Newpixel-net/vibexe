@@ -14,7 +14,7 @@ export default async function AccountAuthenticationPage({
 	return (
 		<div className="flex flex-col gap-[12px]">
 			<p className="text-link-muted text-[12px] leading-[20.4px] tracking-normal font-geist">
-				Connect your Giselle Account with a third-party service to use it for
+				Connect your Vibexe Account with a third-party service to use it for
 				login.
 			</p>
 			{oauthError && (

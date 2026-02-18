@@ -43,7 +43,7 @@ export const NewFeatureReleaseEmail = ({
 		day: "numeric",
 		year: "numeric",
 	}),
-	viewUpdateUrl = "https://studio.giselles.ai",
+	viewUpdateUrl = "https://vibexe.online",
 }: NewFeatureReleaseEmailProps) => {
 	const headerBannerSrc = getEmailAssetUrl("giselletimes.png");
 	const featureImageSrc = getEmailAssetUrl("new-feature-release-sample.jpg");
@@ -52,7 +52,7 @@ export const NewFeatureReleaseEmail = ({
 			<Head>
 				<EmailFonts />
 			</Head>
-			<Preview>New in Giselle: Node Builder</Preview>
+			<Preview>New in Vibexe: Node Builder</Preview>
 			<Body style={main}>
 				<Container style={container}>
 					<EmailHeader />
@@ -65,7 +65,7 @@ export const NewFeatureReleaseEmail = ({
 								<Img
 									src={headerBannerSrc}
 									width="300"
-									alt="Giselle Times"
+									alt="Vibexe Times"
 									style={headerBannerImage}
 								/>
 							</Column>
@@ -81,7 +81,7 @@ export const NewFeatureReleaseEmail = ({
 					<Section style={titleSection}>
 						<Row>
 							<Column style={titleLeftColumn}>
-								<Text style={copyrightText}>©️2025 Giselle</Text>
+								<Text style={copyrightText}>©️2025 Vibexe</Text>
 							</Column>
 							<Column style={titleCenterColumn}>
 								<Heading style={titleText}>New Feature Release</Heading>
@@ -105,7 +105,7 @@ export const NewFeatureReleaseEmail = ({
 						<Img
 							src={featureImageSrc}
 							width="600"
-							alt="New feature in Giselle"
+							alt="New feature in Vibexe"
 							style={image}
 						/>
 						<Text style={text}>
@@ -125,15 +125,15 @@ export const NewFeatureReleaseEmail = ({
 						<Text style={text}>
 							Try it today →{" "}
 							<Link href={viewUpdateUrl} style={link}>
-								Open in Giselle Studio
+								Open in Vibexe Studio
 							</Link>
 						</Text>
 						<Text style={signatureText}>
 							—<br />
-							The Giselle Team
+							The Vibexe Team
 							<br />
-							<Link href="https://giselles.ai" style={link}>
-								https://giselles.ai
+							<Link href="https://vibexe.online" style={link}>
+								https://vibexe.online
 							</Link>
 						</Text>
 					</Section>
@@ -151,7 +151,7 @@ NewFeatureReleaseEmail.PreviewProps = {
 	userName: "John",
 	featureName: "Node Builder",
 	date: "December 15, 2025",
-	viewUpdateUrl: "https://studio.giselles.ai",
+	viewUpdateUrl: "https://vibexe.online",
 } as NewFeatureReleaseEmailProps;
 
 const headerBannerSection = {

@@ -9,7 +9,7 @@ export default function Page() {
 			<div className="flex items-center justify-center py-12">
 				<div className="flex flex-col items-center justify-center gap-6 max-w-md text-center px-6">
 					<h1 className="text-[34px] font-[500] text-accent font-sans auth-title-glow">
-						Welcome to Giselle!
+						Welcome to Vibexe!
 					</h1>
 					<div className="flex flex-col gap-4">
 						<p className="text-[20px] text-text font-medium">Setup complete!</p>

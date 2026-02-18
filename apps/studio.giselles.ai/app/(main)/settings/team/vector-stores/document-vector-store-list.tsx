@@ -76,7 +76,7 @@ export function DocumentVectorStoreList({
 				<Card className="rounded-[8px] bg-transparent p-6 border-0">
 					<SectionHeader
 						title="Official Document Vector Stores"
-						description="These are provided by Giselle and available to all users. Read-only."
+						description="These are provided by Vibexe and available to all users. Read-only."
 						className="mb-4"
 					/>
 					<div className="space-y-4">

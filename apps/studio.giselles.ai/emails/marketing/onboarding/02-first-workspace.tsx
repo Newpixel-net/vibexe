@@ -34,9 +34,9 @@ interface FirstWorkspaceEmailProps {
 
 export const FirstWorkspaceEmail = ({
 	userName = "there",
-	createWorkspaceUrl = "https://studio.giselles.ai",
-	stageUrl: _stageUrl = "https://studio.giselles.ai/stage",
-	docsUrl = "https://docs.giselles.ai/en/guides/introduction",
+	createWorkspaceUrl = "https://vibexe.online",
+	stageUrl: _stageUrl = "https://vibexe.online/stage",
+	docsUrl = "https://vibexe.online/docs/en/guides/introduction",
 }: FirstWorkspaceEmailProps) => {
 	return (
 		<Html>
@@ -57,7 +57,7 @@ export const FirstWorkspaceEmail = ({
 						<Text style={text}>
 							Hi {userName},<br />
 							<br />
-							You&apos;ve explored Giselle&apos;s Stage — now it&apos;s time to
+							You&apos;ve explored Vibexe&apos;s Stage — now it&apos;s time to
 							take the next step.
 							<br />
 							<br />
@@ -86,10 +86,10 @@ export const FirstWorkspaceEmail = ({
 						</Text>
 						<Text style={signatureText}>
 							—<br />
-							The Giselle Team
+							The Vibexe Team
 							<br />
-							<Link href="https://giselles.ai" style={link}>
-								https://giselles.ai
+							<Link href="https://vibexe.online" style={link}>
+								https://vibexe.online
 							</Link>
 						</Text>
 					</Section>
@@ -105,9 +105,9 @@ export const FirstWorkspaceEmail = ({
 
 FirstWorkspaceEmail.PreviewProps = {
 	userName: "John",
-	createWorkspaceUrl: "https://studio.giselles.ai",
-	stageUrl: "https://studio.giselles.ai/stage",
-	docsUrl: "https://docs.giselles.ai/en/guides/introduction",
+	createWorkspaceUrl: "https://vibexe.online",
+	stageUrl: "https://vibexe.online/stage",
+	docsUrl: "https://vibexe.online/docs/en/guides/introduction",
 } as FirstWorkspaceEmailProps;
 
 export default FirstWorkspaceEmail;

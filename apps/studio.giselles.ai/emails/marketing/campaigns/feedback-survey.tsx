@@ -30,7 +30,7 @@ interface FeedbackSurveyEmailProps {
 
 export const FeedbackSurveyEmail = ({
 	userName = "there",
-	surveyUrl = "https://giselles.ai/feedback",
+	surveyUrl = "https://vibexe.online/feedback",
 }: FeedbackSurveyEmailProps) => {
 	return (
 		<Html>
@@ -42,7 +42,7 @@ export const FeedbackSurveyEmail = ({
 				<Container style={container}>
 					<EmailHeader
 						heading="We'd love your feedback."
-						subheading="Your thoughts help us make Giselle better."
+						subheading="Your thoughts help us make Vibexe better."
 					/>
 					<Section style={topBorderSection}>
 						<Hr style={topBorder} />
@@ -63,7 +63,7 @@ export const FeedbackSurveyEmail = ({
 							Thanks for being part of the journey.
 							<br />
 							—<br />
-							The Giselle Team
+							The Vibexe Team
 						</Text>
 					</Section>
 					<Section style={topBorderSection}>
@@ -78,7 +78,7 @@ export const FeedbackSurveyEmail = ({
 
 FeedbackSurveyEmail.PreviewProps = {
 	userName: "John",
-	surveyUrl: "https://giselles.ai/feedback",
+	surveyUrl: "https://vibexe.online/feedback",
 } as FeedbackSurveyEmailProps;
 
 export default FeedbackSurveyEmail;

@@ -17,20 +17,20 @@ export const EmailFooter = () => {
 					src={footerLogoSrc}
 					width="100"
 					height="39"
-					alt="Giselle"
+					alt="Vibexe"
 					style={footerLogo}
 				/>
 				<Text style={footerLinksText}>
-					<Link href="https://studio.giselles.ai" style={footerLink}>
+					<Link href="https://vibexe.online" style={footerLink}>
 						Product
 					</Link>
 					{" / "}
-					<Link href="https://giselles.ai/blog" style={footerLink}>
+					<Link href="https://vibexe.online/blog" style={footerLink}>
 						Blog
 					</Link>
 					{" / "}
 					<Link
-						href="https://docs.giselles.ai/en/guides/introduction"
+						href="https://vibexe.online/docs/en/guides/introduction"
 						style={footerLink}
 					>
 						Documentation
@@ -108,12 +108,12 @@ export const EmailFooter = () => {
 					</Link>
 				</Section>
 				<Text style={footerCopyright}>
-					© {new Date().getFullYear()} Giselle
+					© {new Date().getFullYear()} Vibexe
 				</Text>
 				<Text style={footerExplanation}>
 					You received this email because you signed up for{" "}
-					<Link href="https://giselles.ai" style={footerLink}>
-						Giselle
+					<Link href="https://vibexe.online" style={footerLink}>
+						Vibexe
 					</Link>
 					—a platform for building AI agents.
 				</Text>

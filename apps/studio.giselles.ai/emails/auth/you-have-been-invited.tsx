@@ -51,7 +51,7 @@ export const YouHaveBeenInvitedEmail = ({
 			<Body style={main}>
 				<Container style={container}>
 					<EmailHeader
-						heading="Welcome to Giselle."
+						heading="Welcome to Vibexe."
 						subheading="Your journey to build AI agents begins here."
 					/>
 					<Section style={topBorderSection}>
@@ -75,10 +75,10 @@ export const YouHaveBeenInvitedEmail = ({
 						</Text>
 						<Text style={signatureText}>
 							—<br />
-							The Giselle Team
+							The Vibexe Team
 							<br />
-							<Link href="https://giselles.ai" style={link}>
-								https://giselles.ai
+							<Link href="https://vibexe.online" style={link}>
+								https://vibexe.online
 							</Link>
 						</Text>
 					</Section>
@@ -93,7 +93,7 @@ export const YouHaveBeenInvitedEmail = ({
 };
 
 YouHaveBeenInvitedEmail.PreviewProps = {
-	siteUrl: "https://studio.giselles.ai",
+	siteUrl: "https://vibexe.online",
 	confirmationUrl: "https://example.com/confirm",
 } as YouHaveBeenInvitedEmailProps;
 

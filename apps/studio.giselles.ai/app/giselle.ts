@@ -449,8 +449,8 @@ const callbacks: GiselleCallbacks = {
 			: undefined;
 		const aiGatewayHeaders: AiGatewayHeaders = {
 			"http-referer":
-				process.env.AI_GATEWAY_HTTP_REFERER ?? "https://giselles.ai",
-			"x-title": process.env.AI_GATEWAY_X_TITLE ?? "Giselle",
+				process.env.AI_GATEWAY_HTTP_REFERER ?? "https://vibexe.online",
+			"x-title": process.env.AI_GATEWAY_X_TITLE ?? "Vibexe",
 		};
 		if (stripeCustomerId !== undefined) {
 			aiGatewayHeaders["stripe-customer-id"] = stripeCustomerId;

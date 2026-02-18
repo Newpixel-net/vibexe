@@ -55,10 +55,10 @@ export function GitHubAppInstallRequiredCard({
 		<Card className="rounded-[8px] bg-transparent p-6 border-0">
 			<div className="flex flex-col items-center justify-center py-8">
 				<h4 className="text-text font-medium text-[18px] leading-[21.6px] font-sans mb-2">
-					Please install Giselle's GitHub App.
+					Please install Vibexe's GitHub App.
 				</h4>
 				<p className="text-link-muted text-[14px] leading-[20.4px] font-geist text-center mb-4">
-					To use Vector Stores, you need to install Giselle's GitHub App on
+					To use Vector Stores, you need to install Vibexe's GitHub App on
 					your GitHub account to grant repository access.
 				</p>
 				{installationUrl ? (

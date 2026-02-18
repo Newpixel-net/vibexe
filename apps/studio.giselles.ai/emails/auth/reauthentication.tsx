@@ -44,7 +44,7 @@ export const ReauthenticationEmail = ({
 				<Container style={container}>
 					<EmailHeader
 						heading="Verify your identity."
-						subheading="Secure access with Giselle."
+						subheading="Secure access with Vibexe."
 					/>
 					<Section style={topBorderSection}>
 						<Hr style={topBorder} />

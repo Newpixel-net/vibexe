@@ -28,7 +28,7 @@ export async function AgentUsage() {
 						<AgentUsageDialog activities={activities} />
 					) : null,
 			}}
-			description="This shows the usage data from running your Apps in Giselle."
+			description="This shows the usage data from running your Apps in Vibexe."
 		>
 			<AgentUsageTable activities={recentActivities} />
 		</Card>

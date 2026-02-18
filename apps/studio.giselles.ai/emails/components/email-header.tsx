@@ -11,7 +11,7 @@ export const EmailHeader = ({ heading, subheading }: EmailHeaderProps) => {
 	const logoSrc = getEmailAssetUrl("logo.png");
 	return (
 		<Section style={logoSection}>
-			<Img src={logoSrc} width="140" height="70" alt="Giselle" style={logo} />
+			<Img src={logoSrc} width="140" height="70" alt="Vibexe" style={logo} />
 			{heading && <Heading style={welcomeHeading}>{heading}</Heading>}
 			{subheading && <Text style={welcomeText}>{subheading}</Text>}
 		</Section>

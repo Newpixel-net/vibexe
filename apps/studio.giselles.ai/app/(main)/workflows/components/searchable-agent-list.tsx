@@ -384,7 +384,7 @@ export function SearchableAgentList({
 								subtitle={`Edited ${agent.updatedAt.toLocaleDateString()}`}
 								creator={
 									agent.metadata.sample
-										? "Giselle Team"
+										? "Vibexe Team"
 										: agent.creator?.displayName || null
 								}
 								githubRepositories={agent.githubRepositories}

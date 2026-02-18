@@ -46,11 +46,11 @@ export const ResetPasswordEmail = ({
 			<Head>
 				<EmailFonts />
 			</Head>
-			<Preview>Reset your Giselle password</Preview>
+			<Preview>Reset your Vibexe password</Preview>
 			<Body style={main}>
 				<Container style={container}>
 					<EmailHeader
-						heading="Reset your Giselle password."
+						heading="Reset your Vibexe password."
 						subheading="Your journey continues securely."
 					/>
 					<Section style={topBorderSection}>
@@ -58,7 +58,7 @@ export const ResetPasswordEmail = ({
 					</Section>
 					<Section style={section}>
 						<Text style={text}>
-							We received a request to reset your Giselle account password.
+							We received a request to reset your Vibexe account password.
 						</Text>
 						<Text style={text}>
 							Click the button below to complete your password reset. The link
@@ -73,10 +73,10 @@ export const ResetPasswordEmail = ({
 						</Text>
 						<Text style={signatureText}>
 							—<br />
-							The Giselle Team
+							The Vibexe Team
 							<br />
-							<Link href="https://giselles.ai" style={link}>
-								https://giselles.ai
+							<Link href="https://vibexe.online" style={link}>
+								https://vibexe.online
 							</Link>
 						</Text>
 					</Section>
@@ -91,7 +91,7 @@ export const ResetPasswordEmail = ({
 };
 
 ResetPasswordEmail.PreviewProps = {
-	siteUrl: "https://studio.giselles.ai",
+	siteUrl: "https://vibexe.online",
 	tokenHash: "example-token-hash",
 } as ResetPasswordEmailProps;
 

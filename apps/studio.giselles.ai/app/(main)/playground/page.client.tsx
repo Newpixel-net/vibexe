@@ -334,12 +334,12 @@ export function Page({
 
 					{/* App sections */}
 					<div className="flex flex-col gap-8 w-full pb-8 pt-12">
-						{/* Section 1: Sample apps from Giselle team */}
+						{/* Section 1: Sample apps from Vibexe team */}
 						{data.sampleApps.length > 0 && (
 							<div className="flex flex-col">
 								<div className="flex items-center justify-between max-w-[960px] mx-auto w-full px-2">
 									<h2 className="mt-1 text-[16px] text-text-muted/80">
-										Sample Agents from Giselle
+										Sample Agents from Vibexe
 									</h2>
 								</div>
 								<div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 pb-4 max-w-[960px] mx-auto w-full px-4">

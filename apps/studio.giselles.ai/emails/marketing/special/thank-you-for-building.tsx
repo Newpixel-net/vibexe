@@ -31,7 +31,7 @@ interface ThankYouForBuildingEmailProps {
 }
 
 export const ThankYouForBuildingEmail = ({
-	continueBuildingUrl = "https://studio.giselles.ai",
+	continueBuildingUrl = "https://vibexe.online",
 }: ThankYouForBuildingEmailProps) => {
 	const heroImageSrc = getEmailAssetUrl("thank-you-for-building-1.jpg");
 	return (
@@ -39,7 +39,7 @@ export const ThankYouForBuildingEmail = ({
 			<Head>
 				<EmailFonts />
 			</Head>
-			<Preview>Thank you for building with Giselle</Preview>
+			<Preview>Thank you for building with Vibexe</Preview>
 			<Body style={main}>
 				<Container style={container}>
 					<EmailHeader />
@@ -52,7 +52,7 @@ export const ThankYouForBuildingEmail = ({
 						/>
 					</Section>
 					<Section style={section}>
-						<Heading style={h1}>Thank You for Building with Giselle.</Heading>
+						<Heading style={h1}>Thank You for Building with Vibexe.</Heading>
 						<Text style={text}>
 							Every workflow, every experiment, every deployment — they all move
 							us forward.
@@ -78,7 +78,7 @@ export const ThankYouForBuildingEmail = ({
 };
 
 ThankYouForBuildingEmail.PreviewProps = {
-	continueBuildingUrl: "https://studio.giselles.ai",
+	continueBuildingUrl: "https://vibexe.online",
 } as ThankYouForBuildingEmailProps;
 
 const imageSection = {

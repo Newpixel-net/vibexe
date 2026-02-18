@@ -10,7 +10,7 @@ export default function Page() {
 	return (
 		<AuthContainer
 			title="Unleash Your Potential"
-			description="New here? Launch your first agent and start building with Giselle."
+			description="New here? Launch your first agent and start building with Vibexe."
 		>
 			<AuthContainerHeader title="Sign up with Email" />
 

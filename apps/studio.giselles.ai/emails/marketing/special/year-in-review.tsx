@@ -31,7 +31,7 @@ interface YearInReviewEmailProps {
 }
 
 export const YearInReviewEmail = ({
-	viewYearInGiselleUrl = "https://studio.giselles.ai/year-in-review",
+	viewYearInGiselleUrl = "https://vibexe.online/year-in-review",
 }: YearInReviewEmailProps) => {
 	const heroImageSrc = getEmailAssetUrl("year-in-review-1.jpg");
 	const currentYear = new Date().getFullYear();
@@ -67,7 +67,7 @@ export const YearInReviewEmail = ({
 							— and a glimpse of what&apos;s next.
 						</Text>
 						<Button href={viewYearInGiselleUrl} style={button}>
-							View Your Year in Giselle →
+							View Your Year in Vibexe →
 						</Button>
 					</Section>
 					<Section style={topBorderSection}>
@@ -81,7 +81,7 @@ export const YearInReviewEmail = ({
 };
 
 YearInReviewEmail.PreviewProps = {
-	viewYearInGiselleUrl: "https://studio.giselles.ai/year-in-review",
+	viewYearInGiselleUrl: "https://vibexe.online/year-in-review",
 } as YearInReviewEmailProps;
 
 const imageSection = {

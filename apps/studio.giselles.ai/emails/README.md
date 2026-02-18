@@ -1,6 +1,6 @@
 # Email Templates
 
-Email templates for Giselle using [React Email](https://react.email/).
+Email templates for Vibexe using [React Email](https://react.email/).
 
 ## Development
 
@@ -17,7 +17,7 @@ This opens a local preview server at `http://localhost:3333` where you can view 
 - Store shared images in `apps/studio.giselles.ai/public/emails`. These files are served from `/emails/*` in production emails.
 - The `emails/static` directory is a symlink to the public assets, so the React Email preview (`pnpm email:dev`) can continue to serve `/static/*` without duplicating files.
 - Use `getEmailAssetUrl("<filename>")` (re-exported via `emails/components`) to reference any asset. The helper automatically switches between `/static` for preview and `/emails` for production, so **do not** hardcode `baseUrl` yourself.
-- `EmailHeader` and `EmailFooter` already include the Giselle logo, footer logo, and social icons using `getEmailAssetUrl`. Just render them without props—no need to pass URLs or hosts.
+- `EmailHeader` and `EmailFooter` already include the Vibexe logo, footer logo, and social icons using `getEmailAssetUrl`. Just render them without props—no need to pass URLs or hosts.
 
 ## Creating Templates
 
@@ -56,11 +56,11 @@ Output will be in the `out/` directory.
 
 Marketing emails are stored in the `marketing/` directory. These templates are used for promotional and marketing campaigns.
 
-### 📘 Giselle Email Style Guide v1
+### 📘 Vibexe Email Style Guide v1
 
 #### 🌐 Overview
 
-Giselle marketing emails are designed with the purpose of:
+Vibexe marketing emails are designed with the purpose of:
 
 **"Brand experience as an extension of product experience"**
 
@@ -76,7 +76,7 @@ All emails belong to one of these three categories:
 |---------|------------------|-------|
 | Background | `#0B0F1A` (dark) + white container | For positive experiences like Onboarding, Campaigns |
 | Spacing | 32px top/bottom / 24px inner padding | Always maintain breathing room |
-| Logo | Giselle logo at top center | Size 32–40px |
+| Logo | Vibexe logo at top center | Size 32–40px |
 | Title (H1) | `font-size: 24px; font-weight: 600;` | Main message |
 | Subtitle | `font-size: 16px; color: var(--color-text-muted)` | Explanatory text |
 | CTA Button | `background: var(--color-accent-blue)` | `border-radius: 8px; padding: 14px 28px;` |
@@ -119,44 +119,44 @@ marketing/
 | Onboarding | Friendly × Guided | ✅ Yes | Get Started / Explore Docs | Guide first-time experience |
 | Product Updates | Professional × Confident | ⚪ Yes | View Updates / Try It | Feature introduction, announcements |
 | Campaigns | Bright × Community | ✅ Yes | Join Event / Learn More | Encourage participation, engagement |
-| Reactivation | Warm × Personal | ⚪ Short | Return to Giselle | Promote return, reuse |
+| Reactivation | Warm × Personal | ⚪ Short | Return to Vibexe | Promote return, reuse |
 | Special | Reflective × Thankful | ✅ Yes | View Story / Celebrate | Share appreciation, milestones |
 
 #### 🪄 Example Templates
 
 **🩵 Onboarding → 01-welcome**
 
-- **Subject**: Welcome to Giselle — your AI workspace starts here 🪶
-- **Header**: Welcome to Giselle. / Your journey to build AI agents begins here.
+- **Subject**: Welcome to Vibexe — your AI workspace starts here 🪶
+- **Header**: Welcome to Vibexe. / Your journey to build AI agents begins here.
 - **Body**: Hi {{firstName}}, We're thrilled to have you on board. Start by creating your first workspace — it only takes a few minutes.
 - **CTA**: [Create your workspace]
 
 **💎 Product Updates → new-feature-release**
 
-- **Subject**: Giselle now supports Gemini 2.5 Flash 🚀
-- **Header**: New in Giselle. / Smarter, faster, and more connected than ever.
+- **Subject**: Vibexe now supports Gemini 2.5 Flash 🚀
+- **Header**: New in Vibexe. / Smarter, faster, and more connected than ever.
 - **Body**: You can now integrate Gemini 2.5 Flash directly into your agent flows. Build multi-model orchestration with ease — no extra setup required.
 - **CTA**: [View Update]
 
 **🌷 Campaigns → ambassador-invite**
 
-- **Subject**: Join the Giselle Ambassador Program 🪶
-- **Header**: Let's grow together. / Become a Giselle Ambassador.
+- **Subject**: Join the Vibexe Ambassador Program 🪶
+- **Header**: Let's grow together. / Become a Vibexe Ambassador.
 - **Body**: We're inviting creators and developers to join our early ambassador program. Share your workflows, build templates, and shape the next generation of AI builders.
 - **CTA**: [Apply Now]
 
 **⚡ Reactivation → long-time-no-see**
 
-- **Subject**: We've missed you at Giselle 💫
+- **Subject**: We've missed you at Vibexe 💫
 - **Header**: It's been a while. / Your agents are waiting for you.
 - **Body**: A lot has changed since your last visit — new models, new features, and faster deployments. Come see what's new and continue building.
-- **CTA**: [Return to Giselle]
+- **CTA**: [Return to Vibexe]
 
 **🎉 Special → year-in-review**
 
-- **Subject**: Your 2025 journey with Giselle ✨
+- **Subject**: Your 2025 journey with Vibexe ✨
 - **Header**: A year of creation. / Thank you for building with us.
-- **Body**: This year, thousands of agents were created in Giselle — and you were part of it. Here's a look back at your milestones and what's coming next.
+- **Body**: This year, thousands of agents were created in Vibexe — and you were part of it. Here's a look back at your milestones and what's coming next.
 - **CTA**: [View Your 2025 Highlights]
 
 #### 🔐 Footer Guideline
@@ -167,13 +167,13 @@ Common footer (insert in all marketing emails - same structure as transactional 
 1. Footer logo (`letter_footer-logo.png`) with reduced opacity (0.3)
 2. Links: Product / Blog / Documentation (horizontal, separated by " / ")
 3. Social media icons (GitHub, LinkedIn, Facebook, X, Instagram, YouTube)
-4. Copyright: `© {current year} Giselle`
-5. Explanation text: "You received this email because you signed up for Giselle—a platform for building AI agents."
+4. Copyright: `© {current year} Vibexe`
+5. Explanation text: "You received this email because you signed up for Vibexe—a platform for building AI agents."
 
 **Links:**
-- Product: `https://studio.giselles.ai`
-- Blog: `https://giselles.ai/blog`
-- Documentation: `https://docs.giselles.ai/en/guides/introduction`
+- Product: `https://vibexe.online`
+- Blog: `https://vibexe.online/blog`
+- Documentation: `https://vibexe.online/docs/en/guides/introduction`
 
 **Social Media Links:**
 - GitHub: `https://github.com/giselles-ai/giselle`
@@ -193,7 +193,7 @@ Common footer (insert in all marketing emails - same structure as transactional 
 
 #### 🪶 End Note
 
-> "Every email from Giselle should feel like a calm, confident nudge — not a shout."
+> "Every email from Vibexe should feel like a calm, confident nudge — not a shout."
 
 ### Creating Marketing Email Templates
 
@@ -228,7 +228,7 @@ const baseUrl =
   process.env.NEXT_PUBLIC_SITE_URL ||
   (process.env.NODE_ENV === "development"
     ? "http://localhost:3333"
-    : "https://studio.giselles.ai");
+    : "https://vibexe.online");
 
 export const NewsletterEmail = ({
   userName = "there",
@@ -265,7 +265,7 @@ import { NewsletterEmail } from "./emails/marketing/newsletter";
 const html = render(
   <NewsletterEmail
     userName="John Doe"
-    unsubscribeUrl="https://giselles.ai/unsubscribe"
+    unsubscribeUrl="https://vibexe.online/unsubscribe"
   />
 );
 

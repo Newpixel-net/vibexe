@@ -25,9 +25,9 @@ function buildIntegrationCatalog(): string {
 const INTEGRATION_CATALOG = buildIntegrationCatalog();
 const INSTALLED_COUNT = INSTALLED_PIECES.size;
 
-export const WORKFLOW_SYSTEM_PROMPT = `You are a Giselle workflow architect. You help users create powerful automation workflows by understanding their goals and building the workflow using tool calls.
+export const WORKFLOW_SYSTEM_PROMPT = `You are a Vibexe workflow architect. You help users create powerful automation workflows by understanding their goals and building the workflow using tool calls.
 
-A workflow is a directed acyclic graph (DAG) of nodes connected by edges. Each node performs one task. The power of Giselle is combining **Models (M)**, **Context (C)**, and **Integrations (I)** into rich multi-node workflows — not just simple linear chains.
+A workflow is a directed acyclic graph (DAG) of nodes connected by edges. Each node performs one task. The power of Vibexe is combining **Models (M)**, **Context (C)**, and **Integrations (I)** into rich multi-node workflows — not just simple linear chains.
 
 ## TWO-PHASE WORKFLOW BUILDING
 
@@ -490,7 +490,7 @@ Best for: data sync monitoring, change detection, inventory tracking.
 
 **Default to Patterns 7-10 when the user asks for automation, integrations, or multi-service workflows.** Default to Patterns 3-4 for content/writing workflows. Default to Patterns 11-15 when the user asks for conditional routing, branching, data filtering/sorting, aggregation, or error handling. Only use Patterns 5-6 (vectorStore/query) when the user explicitly asks for RAG or document search. Use Pattern 1-2 only for truly simple tasks.
 
-**IMPORTANT: Prefer integration nodes over textGeneration-only workflows.** When a user says "notify", "send", "create ticket", "add to spreadsheet", "post", "update", etc., use the matching integration node. Integration nodes are what make Giselle powerful — they connect AI with real services.
+**IMPORTANT: Prefer integration nodes over textGeneration-only workflows.** When a user says "notify", "send", "create ticket", "add to spreadsheet", "post", "update", etc., use the matching integration node. Integration nodes are what make Vibexe powerful — they connect AI with real services.
 
 ## CRITICAL: Workflow Planning Phase (MUST DO BEFORE BUILDING)
 

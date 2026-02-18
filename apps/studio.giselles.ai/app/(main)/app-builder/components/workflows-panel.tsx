@@ -171,7 +171,7 @@ export function WorkflowsPanel({ appId }: WorkflowsPanelProps) {
 						Workflows
 					</h2>
 					<p className="text-sm text-muted-foreground mt-1">
-						Connect Giselle workflows to automate testing, content generation,
+						Connect Vibexe workflows to automate testing, content generation,
 						and more.
 					</p>
 				</div>
@@ -242,7 +242,7 @@ export function WorkflowsPanel({ appId }: WorkflowsPanelProps) {
 					<Link2 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
 					<h3 className="text-sm font-medium mb-1">No workflows linked</h3>
 					<p className="text-xs text-muted-foreground mb-4">
-						Attach a Giselle workflow to automate tasks for this app.
+						Attach a Vibexe workflow to automate tasks for this app.
 					</p>
 					<button
 						type="button"

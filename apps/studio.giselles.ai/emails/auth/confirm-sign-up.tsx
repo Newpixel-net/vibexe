@@ -40,7 +40,7 @@ export const ConfirmSignUpEmail = ({ token }: ConfirmSignUpEmailProps) => {
 			<Head>
 				<EmailFonts />
 			</Head>
-			<Preview>Verification code for Giselle</Preview>
+			<Preview>Verification code for Vibexe</Preview>
 			<Body style={main}>
 				<Container style={container}>
 					<EmailHeader
@@ -59,7 +59,7 @@ export const ConfirmSignUpEmail = ({ token }: ConfirmSignUpEmailProps) => {
 							<Text style={code}>{displayToken}</Text>
 						</Section>
 						<Text style={text}>
-							Enter it to verify your email and begin your journey with Giselle.
+							Enter it to verify your email and begin your journey with Vibexe.
 						</Text>
 						<Text style={footerText}>This code will expire in 1 hour.</Text>
 						<Text style={footerText}>
@@ -68,16 +68,16 @@ export const ConfirmSignUpEmail = ({ token }: ConfirmSignUpEmailProps) => {
 						</Text>
 						<Text style={footerText}>
 							Need a hand?{" "}
-							<Link href="mailto:support@giselles.ai" style={link}>
-								support@giselles.ai
+							<Link href="mailto:support@vibexe.online" style={link}>
+								support@vibexe.online
 							</Link>
 						</Text>
 						<Text style={signatureText}>
 							—<br />
-							The Giselle Team
+							The Vibexe Team
 							<br />
-							<Link href="https://giselles.ai" style={link}>
-								https://giselles.ai
+							<Link href="https://vibexe.online" style={link}>
+								https://vibexe.online
 							</Link>
 						</Text>
 					</Section>

@@ -35,15 +35,15 @@ interface IncompleteSignupEmailProps {
 
 export const IncompleteSignupEmail = ({
 	userName = "there",
-	completeSignupUrl = "https://studio.giselles.ai/signup/verify-email",
-	resendCodeUrl = "https://studio.giselles.ai/signup/verify-email",
+	completeSignupUrl = "https://vibexe.online/signup/verify-email",
+	resendCodeUrl = "https://vibexe.online/signup/verify-email",
 }: IncompleteSignupEmailProps) => {
 	return (
 		<Html>
 			<Head>
 				<EmailFonts />
 			</Head>
-			<Preview>Complete your Giselle signup</Preview>
+			<Preview>Complete your Vibexe signup</Preview>
 			<Body style={main}>
 				<Container style={container}>
 					<EmailHeader
@@ -56,7 +56,7 @@ export const IncompleteSignupEmail = ({
 					<Section style={section}>
 						<Heading style={h1}>Verify your email.</Heading>
 						<Text style={text}>
-							Hi {userName}, we noticed you started signing up for Giselle but
+							Hi {userName}, we noticed you started signing up for Vibexe but
 							didn&apos;t finish verifying your email.
 						</Text>
 						<Text style={text}>
@@ -75,10 +75,10 @@ export const IncompleteSignupEmail = ({
 						</Text>
 						<Text style={signatureText}>
 							—<br />
-							The Giselle Team
+							The Vibexe Team
 							<br />
-							<Link href="https://giselles.ai" style={link}>
-								https://giselles.ai
+							<Link href="https://vibexe.online" style={link}>
+								https://vibexe.online
 							</Link>
 						</Text>
 					</Section>
@@ -94,8 +94,8 @@ export const IncompleteSignupEmail = ({
 
 IncompleteSignupEmail.PreviewProps = {
 	userName: "John",
-	completeSignupUrl: "https://studio.giselles.ai/signup/verify-email",
-	resendCodeUrl: "https://studio.giselles.ai/signup/verify-email",
+	completeSignupUrl: "https://vibexe.online/signup/verify-email",
+	resendCodeUrl: "https://vibexe.online/signup/verify-email",
 } as IncompleteSignupEmailProps;
 
 export default IncompleteSignupEmail;

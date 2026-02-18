@@ -13,9 +13,9 @@ export default async function Page({ searchParams }: AuthPageProps) {
 	return (
 		<AuthContainer
 			title="From idea to orchestration."
-			description="Continue orchestrating your AI agents with Giselle."
+			description="Continue building with Vibexe."
 		>
-			<AuthContainerHeader title="Log in to Giselle" />
+			<AuthContainerHeader title="Log in to Vibexe" />
 
 			<div className="auth-form-section">
 				<OAuthProviders labelPrefix="Continue" returnUrl={returnUrl} />
