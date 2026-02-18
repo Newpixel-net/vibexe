@@ -10,6 +10,6 @@ export const Connection = z.object({
 	outputId: OutputId.schema,
 	inputNode: NodeReference,
 	inputId: InputId.schema,
-	connectionType: z.enum(["regular", "subNode", "loopBack"]).optional(),
+	connectionType: z.enum(["regular", "subNode"]).optional(),
 });
 export type Connection = z.infer<typeof Connection>;

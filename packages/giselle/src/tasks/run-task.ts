@@ -403,8 +403,6 @@ async function runTaskWithDag(
 			const connections = (generation.context.connections ?? []) as Connection[];
 
 			for (const conn of connections) {
-				// Skip visual-only loopBack edges — they exist only for UI display
-				if (conn.connectionType === "loopBack") continue;
 				// Only add edges between operation nodes that are in the DAG
 				if (
 					dag.nodes.has(conn.outputNode.id as NodeId) &&
