@@ -141,12 +141,6 @@ export async function POST(request: Request) {
 				}
 			}
 		}
-
-		// Debug: log message structure to diagnose empty userPrompt
-		console.log(
-			`[Chat API] Debug: userPrompt="${userPrompt.slice(0, 100)}", content type=${typeof lastUserMessage}, msg keys=${lastUserMsg ? Object.keys(lastUserMsg).join(",") : "null"}, parts=${JSON.stringify((lastUserMsg as Record<string, unknown>)?.parts ?? "none").slice(0, 200)}`,
-		);
-
 		// Detect URLs in user prompt and fetch site analysis
 		const URL_REGEX = /https?:\/\/[^\s"'<>]+/gi;
 		const detectedUrls = userPrompt.match(URL_REGEX) || [];
