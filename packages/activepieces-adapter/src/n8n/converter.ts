@@ -457,8 +457,8 @@ export function convertN8NToGiselle(
 
 	// Phase 2h: Scale coordinates to match Vibexe's node sizes
 	// N8N nodes are ~130x40px compact rectangles, Vibexe nodes are 96x96px cards.
-	// 0.5x gives the best compact layout with no overlap.
-	const IMPORT_SCALE = 0.5;
+	// 0.5x = best baseline. 0.6x adds a bit more wire spacing.
+	const IMPORT_SCALE = 0.6;
 	for (const id of Object.keys(nodePositions)) {
 		nodePositions[id] = {
 			x: nodePositions[id].x * IMPORT_SCALE,
