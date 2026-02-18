@@ -436,8 +436,9 @@ export function convertN8NToGiselle(
 
 	// Phase 2h: Scale coordinates to match Vibexe's node sizes
 	// N8N nodes are ~130x40px compact rectangles, Vibexe nodes are 96x96px cards.
-	// 0.5x = best baseline. 0.6x adds a bit more wire spacing.
-	const IMPORT_SCALE = 0.6;
+	// 1.0x preserves N8N author's exact layout — Vibexe cards (96px) are narrower
+	// than N8N nodes (130px), so there's MORE whitespace, not less.
+	const IMPORT_SCALE = 1.0;
 	for (const id of Object.keys(nodePositions)) {
 		nodePositions[id] = {
 			x: nodePositions[id].x * IMPORT_SCALE,
@@ -452,55 +453,58 @@ export function convertN8NToGiselle(
 	}
 
 	// Phase 2i: Expand sticky notes to encompass contained Vibexe nodes.
-	// After scaling, Vibexe cards are physically wider (96-224px) than N8N nodes (~130px).
-	// Each sticky note must be expanded to cover actual rendered bounding boxes.
+	// Uses per-node-type dimensions so aiAgent (224px wide) expands notes more
+	// than standard cards (96px) or sub-nodes (80px).
 	{
-		const CARD_WIDTH = 224; // WideNode max width
-		const CARD_HEIGHT = 96;
-		const PAD = 30; // Margin inside sticky note border
+		const PAD = 50; // Margin inside sticky note border
+
+		// Get rendered width/height per node based on content type
+		function getNodeDimensions(nodeId: string): { w: number; h: number } {
+			const node = giselleNodes.find((n) => n.id === nodeId);
+			if (!node) return { w: 96, h: 96 };
+			const contentType = node.content.type as string;
+			switch (contentType) {
+				case "aiAgent":
+					return { w: 224, h: 96 };
+				case "chatModel":
+				case "toolNode":
+				case "memoryNode":
+					return { w: 80, h: 80 };
+				default:
+					return { w: 96, h: 96 };
+			}
+		}
 
 		for (const note of stickyNotes) {
 			const noteRight = note.position.x + note.size.width;
 			const noteBottom = note.position.y + note.size.height;
 
 			// Find nodes whose positions fall within this sticky note's bounds
-			const contained: Array<{ x: number; y: number }> = [];
-			for (const pos of Object.values(nodePositions)) {
+			const contained: Array<{ x: number; y: number; w: number; h: number }> = [];
+			for (const [id, pos] of Object.entries(nodePositions)) {
 				if (
 					pos.x >= note.position.x - PAD &&
 					pos.x <= noteRight + PAD &&
 					pos.y >= note.position.y - PAD &&
 					pos.y <= noteBottom + PAD
 				) {
-					contained.push(pos);
+					const dims = getNodeDimensions(id);
+					contained.push({ x: pos.x, y: pos.y, w: dims.w, h: dims.h });
 				}
 			}
 			if (contained.length === 0) continue;
 
-			// Compute bounding box of contained nodes + card render size
+			// Compute bounding box using actual node dimensions
 			const minX = Math.min(...contained.map((p) => p.x)) - PAD;
 			const minY = Math.min(...contained.map((p) => p.y)) - PAD;
-			const maxX =
-				Math.max(...contained.map((p) => p.x + CARD_WIDTH)) + PAD;
-			const maxY =
-				Math.max(...contained.map((p) => p.y + CARD_HEIGHT)) + PAD;
+			const maxX = Math.max(...contained.map((p) => p.x + p.w)) + PAD;
+			const maxY = Math.max(...contained.map((p) => p.y + p.h)) + PAD;
 
 			// Expand note to encompass bounding box (never shrink)
-			const newLeft = Math.min(note.position.x, minX);
-			const newTop = Math.min(note.position.y, minY);
-			const newRight = Math.max(
-				note.position.x + note.size.width,
-				maxX,
-			);
-			const newBottom = Math.max(
-				note.position.y + note.size.height,
-				maxY,
-			);
-
-			note.position.x = newLeft;
-			note.position.y = newTop;
-			note.size.width = newRight - newLeft;
-			note.size.height = newBottom - newTop;
+			note.position.x = Math.min(note.position.x, minX);
+			note.position.y = Math.min(note.position.y, minY);
+			note.size.width = Math.max(note.size.width, maxX - note.position.x);
+			note.size.height = Math.max(note.size.height, maxY - note.position.y);
 		}
 	}
 
