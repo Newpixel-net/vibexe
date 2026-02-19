@@ -104,14 +104,44 @@ function extractProviderName(content: string): string | null {
 	return null;
 }
 
+function hasDefaultExport(content: string): boolean {
+	return (
+		/export\s+default\s+/.test(content) ||
+		/export\s*\{\s*[^}]*\bdefault\b/.test(content)
+	);
+}
+
+function extractAppComponentName(content: string): string | null {
+	// export default function Foo / export function Foo
+	const fn = content.match(
+		/export\s+(?:default\s+)?function\s+(\w+)/,
+	);
+	if (fn) return fn[1];
+	// export const Foo = ...
+	const cn = content.match(/export\s+(?:default\s+)?const\s+(\w+)\s*=/);
+	if (cn) return cn[1];
+	// function Foo ... export default Foo
+	const def = content.match(/export\s+default\s+(\w+)/);
+	if (def) return def[1];
+	return null;
+}
+
 function generateEntryPoint(
 	appPath: string,
+	appContent: string,
 	providers: Array<{ path: string; name: string }>,
 ): string {
+	const isDefault = hasDefaultExport(appContent);
+	const compName = extractAppComponentName(appContent) || "App";
+	const importPath = `./${appPath.replace(/\.(tsx?|jsx?)$/, "")}`;
+	const appImport = isDefault
+		? `import ${compName} from "${importPath}";`
+		: `import { ${compName} } from "${importPath}";`;
+
 	const lines = [
 		'import React from "react";',
 		'import { createRoot } from "react-dom/client";',
-		`import App from "./${appPath.replace(/\.(tsx?|jsx?)$/, "")}";`,
+		appImport,
 	];
 	for (const p of providers) {
 		lines.push(
@@ -123,9 +153,9 @@ function generateEntryPoint(
 		'const root = createRoot(document.getElementById("root"));',
 	);
 	if (providers.length === 0) {
-		lines.push("root.render(<App />);");
+		lines.push(`root.render(<${compName} />);`);
 	} else {
-		let jsx = "<App />";
+		let jsx = `<${compName} />`;
 		for (const p of [...providers].reverse()) {
 			jsx = `<${p.name}>${jsx}</${p.name}>`;
 		}
@@ -309,9 +339,10 @@ export async function buildApp(
 		log(`Entry: ${appPath}, ${providers.length} providers`);
 
 		// 4. Generate entry and add to virtual FS
+		const appContent = virtualFiles.get(appPath) || "";
 		virtualFiles.set(
 			"__entry__.tsx",
-			generateEntryPoint(appPath, providers),
+			generateEntryPoint(appPath, appContent, providers),
 		);
 
 		// 5. Bundle with esbuild
