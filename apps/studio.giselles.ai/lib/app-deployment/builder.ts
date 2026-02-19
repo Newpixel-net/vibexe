@@ -137,6 +137,21 @@ function generateEntryPoint(
  * Create the esbuild virtual-fs plugin.
  * All app files live in a Map; React/ReactDOM are shimmed from window globals.
  */
+/** Normalize a virtual path: resolve `.` and `..` segments */
+function normalizePath(p: string): string {
+	const parts = p.split("/");
+	const out: string[] = [];
+	for (const seg of parts) {
+		if (seg === "." || seg === "") continue;
+		if (seg === "..") {
+			out.pop();
+		} else {
+			out.push(seg);
+		}
+	}
+	return out.join("/");
+}
+
 function createVirtualPlugin(
 	files: Map<string, string>,
 ): import("esbuild").Plugin {
@@ -174,7 +189,7 @@ function createVirtualPlugin(
 				const dir = args.importer
 					? args.importer.replace(/[^/]+$/, "")
 					: "";
-				const base = (dir + args.path).replace(/^\//, "");
+				const base = normalizePath(dir + args.path);
 				const exts = ["", ".tsx", ".ts", ".jsx", ".js", "/index.tsx", "/index.ts", "/index.jsx", "/index.js"];
 				for (const ext of exts) {
 					if (files.has(base + ext))
