@@ -296,6 +296,8 @@ ${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;
 				}
 
 				// 3. Run the AI stream and merge into writer
+				let stepCount = 0;
+				let totalFileCalls = 0;
 				const result = streamText({
 					model,
 					system: systemPrompt,
@@ -303,9 +305,21 @@ ${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;
 					tools,
 					maxSteps,
 					toolChoice: "auto",
+					onStepFinish: ({ toolCalls, finishReason, usage }) => {
+						stepCount++;
+						const fileToolNames = ["create_file", "update_file", "delete_file", "define_entities"];
+						const fileCallsInStep = (toolCalls || []).filter(
+							(tc) => fileToolNames.includes(tc.toolName),
+						).length;
+						totalFileCalls += fileCallsInStep;
+						const toolNames = (toolCalls || []).map((tc) => tc.toolName).join(",") || "text-only";
+						console.log(
+							`[Chat API] Step ${stepCount}: tools=${toolNames}, files=${totalFileCalls}, tokens=${usage?.totalTokens || 0}, finish=${finishReason}`,
+						);
+					},
 					onFinish: (event) => {
 						console.log(
-							`[Chat API] Stream finished - Chat: ${chatId || "new"}, maxSteps=${maxSteps}, finishReason=${event.finishReason}`,
+							`[Chat API] Stream finished - Chat: ${chatId || "new"}, steps=${stepCount}, files=${totalFileCalls}, maxSteps=${maxSteps}, finishReason=${event.finishReason}`,
 						);
 					},
 				});
