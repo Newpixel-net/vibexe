@@ -61,7 +61,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 						deployedAt: deployment.deployedAt,
 						createdAt: deployment.createdAt,
 						url: deployment.subdomain
-							? `https://${deployment.subdomain}.vibexe.online`
+							? `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://vibexe.online"}/apps/${deployment.subdomain}/`
 							: null,
 					}
 				: null,
@@ -175,7 +175,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 				})
 				.where(eq(builderDeployments.dbId, deploymentDbId));
 
-			const url = `https://${subdomain}.vibexe.online`;
+			const url = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://vibexe.online"}/apps/${subdomain}/`;
 			return NextResponse.json({
 				success: true,
 				url,

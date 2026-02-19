@@ -48,15 +48,15 @@ function generateIndexHtml(appName: string, hasCss: boolean): string {
   <\/script>
   <style type="text/tailwindcss">
     @layer base { body { @apply antialiased; } html { scroll-behavior: smooth; } }
-  </style>${hasCss ? '\n  <link rel="stylesheet" href="/styles.css" />' : ""}
+  </style>${hasCss ? '\n  <link rel="stylesheet" href="styles.css" />' : ""}
   <!-- React 18 from CDN (UMD → window.React, window.ReactDOM) -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"><\/script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"><\/script>
 </head>
 <body>
   <div id="root"></div>
-  <script src="/vibexe-sdk.js"><\/script>
-  <script src="/bundle.js"><\/script>
+  <script src="vibexe-sdk.js"><\/script>
+  <script src="bundle.js"><\/script>
 </body>
 </html>`;
 }

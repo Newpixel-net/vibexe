@@ -145,7 +145,7 @@ export function DomainsPanel({ appId }: DomainsPanelProps) {
 	}
 
 	const isLive = deployment?.status === "live";
-	const liveUrl = deployment?.url || (deployment?.subdomain ? `https://${deployment.subdomain}.vibexe.online` : null);
+	const liveUrl = deployment?.url || (deployment?.subdomain ? `https://vibexe.online/apps/${deployment.subdomain}/` : null);
 
 	return (
 		<div className="flex-1 overflow-y-auto p-6">
@@ -224,6 +224,9 @@ export function DomainsPanel({ appId }: DomainsPanelProps) {
 					</p>
 
 					<div className="flex items-center gap-2">
+						<span className="text-sm text-muted-foreground whitespace-nowrap font-mono">
+							vibexe.online/apps/
+						</span>
 						<input
 							type="text"
 							value={subdomain}
@@ -237,9 +240,6 @@ export function DomainsPanel({ appId }: DomainsPanelProps) {
 							disabled={deploying}
 							className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
 						/>
-						<span className="text-sm text-muted-foreground whitespace-nowrap">
-							.vibexe.online
-						</span>
 					</div>
 
 					{error && (
