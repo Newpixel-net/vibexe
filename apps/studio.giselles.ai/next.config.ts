@@ -11,6 +11,7 @@ const projectDir = fileURLToPath(new URL(".", import.meta.url));
 const pdfiumWasmPath = moduleRequire.resolve("@embedpdf/pdfium/pdfium.wasm");
 
 export const serverExternalPackages = [
+	"esbuild",
 	"@embedpdf/pdfium",
 	"pino",
 	"pino-pretty",
