@@ -32,6 +32,7 @@ function escapeHtml(s: string): string {
 }
 
 function generateIndexHtml(appName: string, hasCss: boolean): string {
+	const v = Date.now(); // Cache-busting version
 	return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -48,15 +49,15 @@ function generateIndexHtml(appName: string, hasCss: boolean): string {
   <\/script>
   <style type="text/tailwindcss">
     @layer base { body { @apply antialiased; } html { scroll-behavior: smooth; } }
-  </style>${hasCss ? '\n  <link rel="stylesheet" href="styles.css" />' : ""}
+  </style>${hasCss ? `\n  <link rel="stylesheet" href="styles.css?v=${v}" />` : ""}
   <!-- React 18 from CDN (UMD → window.React, window.ReactDOM) -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"><\/script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"><\/script>
 </head>
 <body>
   <div id="root"></div>
-  <script src="vibexe-sdk.js"><\/script>
-  <script src="bundle.js"><\/script>
+  <script src="vibexe-sdk.js?v=${v}"><\/script>
+  <script src="bundle.js?v=${v}"><\/script>
 </body>
 </html>`;
 }
@@ -335,7 +336,7 @@ export async function buildApp(
 			jsx: "transform",
 			jsxFactory: "React.createElement",
 			jsxFragment: "React.Fragment",
-			minify: false,
+			minify: true,
 			write: false,
 			plugins: [createVirtualPlugin(virtualFiles)],
 			define: { "process.env.NODE_ENV": '"production"' },
