@@ -19,6 +19,29 @@ interface RouteParams {
 	params: Promise<{ appId: string; entity: string }>;
 }
 
+/** Internal auth tables that exist in every app database */
+const INTERNAL_TABLES: Record<string, { name: string; tableName: string; fields: Array<{ name: string; type: string; required?: boolean }> }> = {
+	_app_users: {
+		name: "AppUser",
+		tableName: "_app_users",
+		fields: [
+			{ name: "email", type: "text", required: true },
+			{ name: "password_hash", type: "text", required: true },
+			{ name: "display_name", type: "text" },
+			{ name: "role", type: "text" },
+			{ name: "email_verified", type: "boolean" },
+		],
+	},
+	_app_sessions: {
+		name: "AppSession",
+		tableName: "_app_sessions",
+		fields: [
+			{ name: "user_id", type: "number", required: true },
+			{ name: "expires_at", type: "date", required: true },
+		],
+	},
+};
+
 /**
  * Resolve app + database + validate entity.
  */
@@ -36,6 +59,23 @@ async function resolveContext(appId: string, entityName: string, request: NextRe
 	});
 	if (!appDb || appDb.status !== "active") {
 		return { error: "App database not available", status: 503 } as const;
+	}
+
+	// Check internal tables first (e.g. _app_users, _app_sessions)
+	const internalTable = INTERNAL_TABLES[entityName];
+	if (internalTable) {
+		// Auth: API key or platform session
+		const apiKey = request.headers.get("x-vibexe-api-key");
+		if (apiKey) {
+			const valid = await verifyApiKey(app.dbId, apiKey);
+			if (!valid) return { error: "Invalid API key", status: 401 } as const;
+		}
+		return {
+			app,
+			appDb,
+			entity: internalTable,
+			databaseName: appDb.databaseName,
+		};
 	}
 
 	// Validate entity exists in schema
