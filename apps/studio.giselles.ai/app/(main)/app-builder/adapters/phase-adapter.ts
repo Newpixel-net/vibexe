@@ -60,27 +60,10 @@ function extractFilePath(args: Record<string, unknown>): string | null {
 }
 
 /**
- * Check if a file path is a blueprint file
- */
-function isBlueprintFile(path: string): boolean {
-	const lowerPath = path.toLowerCase();
-	return (
-		lowerPath === "blueprint.md" ||
-		lowerPath.endsWith("/blueprint.md") ||
-		lowerPath.includes("blueprint")
-	);
-}
-
-/**
  * Generate phase name from file paths
  */
 function generatePhaseName(filePaths: string[]): string {
 	if (filePaths.length === 0) return "Processing";
-
-	// Check if this is a blueprint file
-	if (filePaths.length === 1 && isBlueprintFile(filePaths[0])) {
-		return "Generating Blueprint";
-	}
 
 	if (filePaths.length === 1) {
 		const fileName = filePaths[0].split("/").pop() || filePaths[0];
@@ -334,7 +317,7 @@ export function markFileError(
 export function createDefaultProjectStages(): ProjectStage[] {
 	return [
 		{ id: "bootstrap", title: "Bootstrapping project", status: "pending" },
-		{ id: "blueprint", title: "Generating Blueprint", status: "pending" },
+		{ id: "blueprint", title: "Analyzing request", status: "pending" },
 		{ id: "code", title: "Generating code", status: "pending" },
 	];
 }

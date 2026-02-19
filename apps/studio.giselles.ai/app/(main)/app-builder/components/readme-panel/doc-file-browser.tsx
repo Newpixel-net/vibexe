@@ -34,8 +34,7 @@ export function DocFileBrowser({
 	const docFiles = files.filter(
 		(f) =>
 			f.path.endsWith(".md") ||
-			f.path.toLowerCase().includes("readme") ||
-			f.path.toLowerCase().includes("blueprint"),
+			f.path.toLowerCase().includes("readme"),
 	);
 
 	const fileCount = docFiles.length;

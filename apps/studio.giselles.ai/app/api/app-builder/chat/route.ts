@@ -218,7 +218,10 @@ const app = new VibexeApp({ appId: "${appId}" });
 - Create ALL files. Do NOT stop after 1-2 files.
 - Every create_file call must contain COMPLETE, working code.
 - For complex apps: create 8-15+ files with proper component separation.
-- After creating all files, write a brief summary of what was built.
+
+## COMPLETION
+After creating ALL files, write a brief summary (3-5 lines) of what was built.
+Your FINAL message MUST be text-only with NO tool calls. Do NOT review, revise, or update files after initial creation.
 ${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;
 
 		const tools = createFileTools(appId);

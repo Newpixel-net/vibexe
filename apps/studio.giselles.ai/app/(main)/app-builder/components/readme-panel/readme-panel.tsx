@@ -24,29 +24,23 @@ export interface ReadmePanelProps {
  * Integrates file browser, markdown viewer, and table of contents.
  */
 export function ReadmePanel({ files }: ReadmePanelProps) {
-	// Filter to only documentation files (.md, readme, blueprint)
+	// Filter to only documentation files (.md, readme)
 	const docFiles = useMemo(() => {
 		return files.filter(
 			(f) =>
 				f.path.endsWith(".md") ||
-				f.path.toLowerCase().includes("readme") ||
-				f.path.toLowerCase().includes("blueprint"),
+				f.path.toLowerCase().includes("readme"),
 		);
 	}, [files]);
 
-	// Find default file (prefer README.md or Blueprint.md)
+	// Find default file (prefer README.md)
 	const defaultFile = useMemo(() => {
 		const readme = docFiles.find(
 			(f) =>
 				f.path.toLowerCase() === "readme.md" ||
 				f.path.toLowerCase().endsWith("/readme.md"),
 		);
-		const blueprint = docFiles.find(
-			(f) =>
-				f.path.toLowerCase() === "blueprint.md" ||
-				f.path.toLowerCase().endsWith("/blueprint.md"),
-		);
-		return readme?.path || blueprint?.path || docFiles[0]?.path || "";
+		return readme?.path || docFiles[0]?.path || "";
 	}, [docFiles]);
 
 	// Selected file state

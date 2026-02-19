@@ -734,25 +734,6 @@ export function PhaseTimeline({
 														)}
 												</div>
 
-												{/* Blueprint button */}
-												{stage.id === "blueprint" &&
-													stage.status !== "pending" && (
-														<button
-															type="button"
-															onClick={() => onViewChange?.("blueprint")}
-															className={cn(
-																"flex items-start ml-0.5 transition-colors font-mono",
-																view === "blueprint"
-																	? "text-primary underline decoration-dotted"
-																	: "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-															)}
-														>
-															<span className="text-xs text-left truncate">
-																Blueprint.md
-															</span>
-														</button>
-													)}
-
 												{/* Detailed Phase Timeline for code stage */}
 												{stage.id === "code" && (
 													<div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 relative">
