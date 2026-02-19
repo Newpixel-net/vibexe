@@ -180,27 +180,38 @@ export async function POST(request: Request) {
 		// Find the developer agent (the one that actually writes files)
 		const developerAgent = plan.agents.find((a) => !a.readOnly);
 
-		// Build the system prompt — focused on ACTION (creating files), not planning
-		const systemPrompt = `You are an expert fullstack developer. Your job is to BUILD working applications by creating code files.
+		// Build the system prompt — Plan first (Blueprint.md), then build
+		const systemPrompt = `You are an expert fullstack developer. Your job is to PLAN and BUILD working applications.
 
-## CRITICAL: ACTION-FIRST WORKFLOW
-When the user describes an app, IMMEDIATELY start creating files using create_file.
-Do NOT plan, do NOT explain, do NOT ask questions — just create files.
-Do NOT create Blueprint.md, plan.md, README.md, or any planning/documentation files.
+## WORKFLOW: Plan First, Then Build
+
+### Phase 1: Blueprint (ALWAYS DO THIS FIRST)
+Create a **Blueprint.md** file using create_file with a comprehensive project plan:
+- **App Overview**: What the app does, target users, and core value proposition
+- **Features**: Detailed list of ALL features with descriptions and acceptance criteria
+- **Architecture**: Component hierarchy, data flow, and state management approach
+- **Data Models**: Entity definitions with fields, types, and relationships (if using backend)
+- **File Structure**: Complete list of ALL files that will be created with descriptions
+- **Tech Stack**: React + TypeScript + Tailwind CSS, plus any patterns used
+- **UI/UX Plan**: Layout structure, navigation, color scheme, responsive design approach
+
+### Phase 2: Code Generation (AFTER Blueprint.md is created)
+Create ALL code files using create_file.
 BATCH multiple create_file calls in a single response when files are independent.
 
 **File creation order:**
-1. src/App.tsx — Main React component (ALWAYS create this FIRST)
-2. src/components/*.tsx — Feature components (one per file)
-3. src/hooks/*.ts — Custom hooks
-4. src/types/index.ts — TypeScript types
-5. src/utils/*.ts — Utility functions
-6. src/context/*.tsx — Context providers if needed
+1. Blueprint.md — Full project documentation (ALWAYS FIRST)
+2. src/App.tsx — Main React component
+3. src/components/*.tsx — Feature components (one per file)
+4. src/hooks/*.ts — Custom hooks
+5. src/types/index.ts — TypeScript types
+6. src/utils/*.ts — Utility functions
+7. src/context/*.tsx — Context providers if needed
 
 ## Data Management
 - For most apps: use React state (useState) and localStorage for persistence. This works immediately.
-- Only call define_entities when the user EXPLICITLY asks for a database, backend API, or multi-user data.
-- If define_entities returns an error, IGNORE IT and continue creating files using localStorage instead.
+- When the user asks for a SaaS, multi-user app, or backend: call define_entities to create real database tables.
+- If define_entities returns an error, fall back to localStorage instead.
 
 ## Backend SDK (only when define_entities succeeds)
 \`\`\`tsx
@@ -215,13 +226,14 @@ const app = new VibexeApp({ appId: "${appId}" });
 - Every file must be COMPLETE and render without errors
 
 ## IMPORTANT
-- Create ALL files. Do NOT stop after 1-2 files.
+- ALWAYS create Blueprint.md first with the full project plan.
+- Create ALL code files. Do NOT stop after 1-2 files.
 - Every create_file call must contain COMPLETE, working code.
 - For complex apps: create 8-15+ files with proper component separation.
 
 ## COMPLETION
-After creating ALL files, write a brief summary (3-5 lines) of what was built.
-Your FINAL message MUST be text-only with NO tool calls. Do NOT review, revise, or update files after initial creation.
+After creating ALL files, write a brief summary (3-5 lines) of what was built and list all features.
+Your FINAL message MUST be text-only with NO tool calls.
 ${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;
 
 		const tools = createFileTools(appId);
@@ -324,7 +336,7 @@ ${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;
 					},
 				});
 
-				writer.merge(
+				await writer.merge(
 					result.toUIMessageStream({ originalMessages: messages }),
 				);
 			},
