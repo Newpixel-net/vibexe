@@ -63,6 +63,7 @@ interface ChatColumnProps {
 	files: AppFile[];
 	onFilesChange: () => void;
 	onFileClick: (file: FileType) => void;
+	onAppNameChange?: (name: string) => void;
 }
 
 // Generate unique ID (fallback if nanoid not available)
@@ -107,12 +108,46 @@ function DeployBanner() {
 	);
 }
 
+/**
+ * Generate a display name from the user's first message.
+ * Strips common prefixes like "Create/Build/Make a/an/the", capitalizes words, truncates to 50 chars.
+ */
+function generateAppName(message: string): string {
+	let name = message.trim();
+	// Strip common imperative prefixes
+	name = name.replace(
+		/^(please\s+)?(create|build|make|design|develop|generate|write|code)\s+(me\s+)?(a|an|the)\s+/i,
+		"",
+	);
+	// Also strip without article
+	name = name.replace(
+		/^(please\s+)?(create|build|make|design|develop|generate|write|code)\s+(me\s+)?/i,
+		"",
+	);
+	// Collapse URLs to just domain
+	name = name.replace(
+		/https?:\/\/(?:www\.)?([^\s/]+)\S*/gi,
+		(_match, domain) => domain,
+	);
+	// Capitalize first letter of each word
+	name = name
+		.split(/\s+/)
+		.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+		.join(" ");
+	// Truncate to 50 chars at word boundary
+	if (name.length > 50) {
+		name = name.slice(0, 50).replace(/\s+\S*$/, "");
+	}
+	return name || "My App";
+}
+
 export function ChatColumn({
 	appId,
-	appName: _appName,
+	appName,
 	files,
 	onFilesChange,
 	onFileClick,
+	onAppNameChange,
 }: ChatColumnProps) {
 	// Track if component has mounted (for hydration safety)
 	const [hasMounted, setHasMounted] = useState(false);
@@ -438,9 +473,32 @@ export function ChatColumn({
 			// Flush messages to DB immediately (no debounce)
 			if (dbSaveTimer.current) clearTimeout(dbSaveTimer.current);
 			saveToDb(messages);
+
+			// Auto-rename app on first generation (if still "Untitled App")
+			if (appName === "Untitled App" && onAppNameChange && messages.length > 0) {
+				const firstUserMsg = messages.find((m) => m.role === "user");
+				if (firstUserMsg) {
+					const text =
+						"content" in firstUserMsg && typeof firstUserMsg.content === "string"
+							? firstUserMsg.content
+							: "";
+					if (text) {
+						const newName = generateAppName(text);
+						fetch(`/api/app-builder/apps/${appId}/name`, {
+							method: "PUT",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ name: newName }),
+						})
+							.then((r) => {
+								if (r.ok) onAppNameChange(newName);
+							})
+							.catch(() => {});
+					}
+				}
+			}
 		}
 		wasLoadingRef.current = isLoading;
-	}, [isLoading, messages, saveToDb]);
+	}, [isLoading, messages, saveToDb, appName, appId, onAppNameChange]);
 
 	// Convert AI SDK messages to VibeSDK ChatMessage format
 	const chatMessages = useMemo(() => toChatMessages(messages), [messages]);

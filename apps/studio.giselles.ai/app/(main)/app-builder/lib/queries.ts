@@ -94,6 +94,16 @@ export async function createApp(
 }
 
 /**
+ * Update an app's name
+ */
+export async function updateAppName(appId: string, name: string) {
+	await db
+		.update(builderApps)
+		.set({ name })
+		.where(eq(builderApps.id, appId as BuilderAppId));
+}
+
+/**
  * Delete a builder app and all its related data (files, chats, versions)
  */
 export async function deleteApp(appId: string) {

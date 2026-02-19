@@ -57,6 +57,9 @@ export function BuilderLayout({
 	// Local files state for updates
 	const [files, setFiles] = useState<AppFile[]>(initialFiles);
 
+	// App name state (lifted so ChatColumn can update it and header reflects changes)
+	const [appName, setAppName] = useState(app.name);
+
 	// Handle file selection from PhaseTimeline in ChatColumn (switches to Code view)
 	// Note: DashboardPanel manages its own section state; user can access Code via sidebar
 	const handleFileClick = useCallback((file: FileType) => {
@@ -89,7 +92,7 @@ export function BuilderLayout({
 	return (
 		<div className="flex flex-col h-dvh w-screen overflow-hidden bg-background">
 			{/* Header with back button and app name */}
-			<BuilderHeader appId={app.id} appName={app.name} />
+			<BuilderHeader appId={app.id} appName={appName} />
 
 			{/* Content area - 3-column layout */}
 			<div className="flex-1 flex min-h-0">
@@ -108,10 +111,11 @@ export function BuilderLayout({
 				<div className="flex flex-col w-full max-w-md border-r border-border bg-card">
 					<ChatColumn
 						appId={app.id}
-						appName={app.name}
+						appName={appName}
 						files={files}
 						onFilesChange={handleFilesChange}
 						onFileClick={handleFileClick}
+						onAppNameChange={setAppName}
 					/>
 				</div>
 

@@ -16,14 +16,17 @@ import {
 	useSandpack,
 } from "@codesandbox/sandpack-react";
 import {
+	Check,
 	ChevronDown,
 	ChevronUp,
+	Copy,
+	ExternalLink,
 	Monitor,
 	RefreshCw,
 	Smartphone,
 	Tablet,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import {
 	type SandpackFiles,
@@ -151,12 +154,99 @@ const sandpackFullHeightStyles = `
 `;
 
 /**
+ * Inline preview link in the toolbar - auto-enables share and shows a clickable URL with copy.
+ */
+function PreviewLink({ appId }: { appId: string }) {
+	const [shareUrl, setShareUrl] = useState<string | null>(null);
+	const [copied, setCopied] = useState(false);
+
+	// On mount, fetch or create share URL
+	useEffect(() => {
+		let cancelled = false;
+
+		async function ensureShare() {
+			try {
+				// Check existing
+				const getRes = await fetch(`/api/app-builder/apps/${appId}/share`);
+				const getData = await getRes.json();
+				if (getData.shareUrl) {
+					if (!cancelled) setShareUrl(getData.shareUrl);
+					return;
+				}
+				// Auto-enable
+				const postRes = await fetch(`/api/app-builder/apps/${appId}/share`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ enabled: true }),
+				});
+				const postData = await postRes.json();
+				if (!cancelled && postData.shareUrl) {
+					setShareUrl(postData.shareUrl);
+				}
+			} catch {
+				// Silently fail
+			}
+		}
+
+		ensureShare();
+		return () => { cancelled = true; };
+	}, [appId]);
+
+	const handleCopy = useCallback(async () => {
+		if (!shareUrl) return;
+		try {
+			await navigator.clipboard.writeText(shareUrl);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		} catch {
+			// Clipboard API may fail in some contexts
+		}
+	}, [shareUrl]);
+
+	if (!shareUrl) return null;
+
+	// Show shortened URL (strip https://)
+	const displayUrl = shareUrl.replace(/^https?:\/\//, "");
+	const truncated =
+		displayUrl.length > 35
+			? `${displayUrl.slice(0, 32)}...`
+			: displayUrl;
+
+	return (
+		<div className="flex items-center gap-1.5 px-2 py-1 rounded bg-muted/50">
+			<ExternalLink className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+			<a
+				href={shareUrl}
+				target="_blank"
+				rel="noopener noreferrer"
+				className="text-xs text-muted-foreground hover:text-foreground truncate max-w-[200px]"
+				title={shareUrl}
+			>
+				{truncated}
+			</a>
+			<button
+				type="button"
+				onClick={handleCopy}
+				className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+				title={copied ? "Copied!" : "Copy link"}
+			>
+				{copied ? (
+					<Check className="w-3 h-3 text-green-500" />
+				) : (
+					<Copy className="w-3 h-3" />
+				)}
+			</button>
+		</div>
+	);
+}
+
+/**
  * Main preview component with responsive toggles and console.
  * No key on SandpackProvider - SandpackFileSync handles incremental
  * updates so the preview iframe stays alive during streaming.
  */
 export function SandpackPreview({
-	appId: _appId,
+	appId,
 	files,
 }: SandpackPreviewProps) {
 	const [device, setDevice] = useState<DeviceSize>("desktop");
@@ -208,8 +298,9 @@ export function SandpackPreview({
 					})}
 				</div>
 
-				{/* Actions */}
-				<div className="flex items-center gap-1">
+				{/* Preview link + Actions */}
+				<div className="flex items-center gap-2">
+					<PreviewLink appId={appId} />
 					<button
 						type="button"
 						onClick={() => setShowConsole(!showConsole)}
