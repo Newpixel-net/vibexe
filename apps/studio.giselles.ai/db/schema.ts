@@ -1207,6 +1207,7 @@ export type BuilderFileId = `bldf_${string}`;
 export type BuilderChatId = `bldc_${string}`;
 export type BuilderVersionId = `bldv_${string}`;
 export type BuilderAppWorkflowId = `bawf_${string}`;
+export type BuilderDeploymentId = `bdep_${string}`;
 
 /**
  * Builder Projects - organizational containers for builder apps
@@ -1312,6 +1313,7 @@ export const builderAppRelations = relations(builderApps, ({ one, many }) => ({
 		references: [builderAppDatabases.appDbId],
 	}),
 	apiKeys: many(builderAppApiKeys),
+	deployments: many(builderDeployments),
 }));
 
 export type BuilderApp = typeof builderApps.$inferSelect;
@@ -1533,6 +1535,52 @@ export const builderAppApiKeyRelations = relations(
 
 export type BuilderAppApiKey = typeof builderAppApiKeys.$inferSelect;
 export type NewBuilderAppApiKey = typeof builderAppApiKeys.$inferInsert;
+
+// ====================================================================
+// BUILDER DEPLOYMENTS
+// ====================================================================
+
+/**
+ * Builder Deployments — tracks deployed app builds.
+ * Each deployment creates static files served via Apache VirtualHost.
+ */
+export const builderDeployments = pgTable(
+	"builder_deployments",
+	{
+		id: text("id").$type<BuilderDeploymentId>().notNull().unique(),
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		subdomain: text("subdomain").unique(), // "my-app" → my-app.vibexe.online
+		customDomain: text("custom_domain").unique(), // "app.example.com"
+		status: text("status").notNull().default("pending"), // pending | building | live | failed
+		buildLog: text("build_log"),
+		deployedAt: timestamp("deployed_at", { withTimezone: true }),
+		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		index("builder_deployments_app_db_id_idx").on(table.appDbId),
+		uniqueIndex("builder_deployments_subdomain_idx").on(table.subdomain),
+	],
+);
+
+export const builderDeploymentRelations = relations(
+	builderDeployments,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderDeployments.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);
+
+export type BuilderDeployment = typeof builderDeployments.$inferSelect;
+export type NewBuilderDeployment = typeof builderDeployments.$inferInsert;
 
 // ====================================================================
 // AI PROVIDER KEY MANAGEMENT
