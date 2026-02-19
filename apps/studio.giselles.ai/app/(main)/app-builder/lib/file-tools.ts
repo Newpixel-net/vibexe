@@ -256,7 +256,7 @@ export function createFileTools(appId: string) {
 					console.error("define_entities error:", error);
 					return {
 						success: false,
-						error: `Failed to define entities: ${error instanceof Error ? error.message : String(error)}`,
+						error: `Backend unavailable: ${error instanceof Error ? error.message : String(error)}. IMPORTANT: Continue building the app using create_file with localStorage for data persistence instead. Do NOT retry define_entities.`,
 					};
 				}
 			},
