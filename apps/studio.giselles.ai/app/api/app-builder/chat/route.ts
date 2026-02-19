@@ -232,12 +232,12 @@ ${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;
 
 		const isReplication = plan.intent.suggestedFlow === "replicate";
 		const maxSteps = isReplication
-			? 50
+			? 75
 			: plan.intent.complexity === "complex"
-				? 50
+				? 75
 				: plan.intent.complexity === "medium"
-					? 35
-					: 25;
+					? 50
+					: 30;
 
 		console.log(
 			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, model=${modelId || developerAgent?.modelTier || "default"}, maxSteps=${maxSteps}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,
