@@ -35,6 +35,8 @@ export interface MainContentPanelProps {
 	view: RightPanelView;
 	/** Callback when view tab changes */
 	onViewChange: (view: RightPanelView) => void;
+	/** Whether AI is currently generating code */
+	isGenerating?: boolean;
 }
 
 /**
@@ -55,6 +57,7 @@ export function MainContentPanel({
 	onFileUpdate,
 	view,
 	onViewChange,
+	isGenerating,
 }: MainContentPanelProps) {
 	return (
 		<div className="flex-1 flex flex-col min-h-0">
@@ -71,7 +74,7 @@ export function MainContentPanel({
 						className="flex-1 flex flex-col min-h-0"
 					>
 						{view === "preview" && (
-							<SandpackPreview appId={appId} files={files} />
+							<SandpackPreview appId={appId} files={files} isGenerating={isGenerating} />
 						)}
 						{view === "code" && (
 							<DashboardPanel

@@ -64,6 +64,7 @@ interface ChatColumnProps {
 	onFilesChange: () => void;
 	onFileClick: (file: FileType) => void;
 	onAppNameChange?: (name: string) => void;
+	onGeneratingChange?: (isGenerating: boolean) => void;
 }
 
 // Generate unique ID (fallback if nanoid not available)
@@ -148,6 +149,7 @@ export function ChatColumn({
 	onFilesChange,
 	onFileClick,
 	onAppNameChange,
+	onGeneratingChange,
 }: ChatColumnProps) {
 	// Track if component has mounted (for hydration safety)
 	const [hasMounted, setHasMounted] = useState(false);
@@ -308,6 +310,11 @@ export function ChatColumn({
 	});
 
 	const isLoading = status === "submitted" || status === "streaming";
+
+	// Notify parent when generating state changes (for preview loading overlay)
+	useEffect(() => {
+		onGeneratingChange?.(isLoading);
+	}, [isLoading, onGeneratingChange]);
 
 	// Debounced DB save timer
 	const dbSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

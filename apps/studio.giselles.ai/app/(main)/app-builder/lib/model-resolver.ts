@@ -2,7 +2,7 @@
  * Model Resolver for App Builder
  *
  * Maps model ID strings to AI SDK provider instances.
- * Supports Anthropic Claude (default), OpenAI, and xAI Grok.
+ * Supports Anthropic Claude (default), OpenAI, xAI Grok, and NVIDIA NIM (Kimi K2.5).
  * Supports BYOK (Bring Your Own Key) via optional apiKeys parameter.
  */
 
@@ -86,6 +86,20 @@ export const MODEL_OPTIONS: ModelOption[] = [
 			supportedDocTypes: [],
 		},
 	},
+	{
+		id: "kimi-k2-5",
+		name: "Kimi K2.5 (NVIDIA)",
+		provider: "nvidia",
+		tier: "standard",
+		capabilities: {
+			vision: false,
+			documents: false,
+			maxFiles: 0,
+			maxFileSizeMB: 0,
+			supportedImageTypes: [],
+			supportedDocTypes: [],
+		},
+	},
 ];
 
 export const DEFAULT_MODEL_ID = "claude-sonnet-4-5";
@@ -143,6 +157,14 @@ function createModelMap(
 				apiKey: apiKeys?.xai ?? process.env.XAI_API_KEY ?? "",
 			});
 			return xai("grok-4-1-fast-reasoning");
+		},
+		"kimi-k2-5": () => {
+			const nvidia = createOpenAI({
+				baseURL: "https://integrate.api.nvidia.com/v1",
+				apiKey: apiKeys?.nvidia ?? process.env.NVIDIA_API_KEY ?? "",
+			});
+			// NVIDIA NIM only supports Chat Completions API, not Responses API
+			return nvidia.chat("moonshotai/kimi-k2.5");
 		},
 	};
 }

@@ -45,6 +45,7 @@ const DEVICE_SIZES: Record<DeviceSize, { width: number; label: string }> = {
 interface SandpackPreviewProps {
 	appId: string;
 	files: AppFile[];
+	isGenerating?: boolean;
 }
 
 /**
@@ -248,6 +249,7 @@ function PreviewLink({ appId }: { appId: string }) {
 export function SandpackPreview({
 	appId,
 	files,
+	isGenerating,
 }: SandpackPreviewProps) {
 	const [device, setDevice] = useState<DeviceSize>("desktop");
 	const [showConsole, setShowConsole] = useState(false);
@@ -368,6 +370,19 @@ export function SandpackPreview({
 											height: "100%",
 										}}
 									/>
+								</div>
+							)}
+
+							{/* Generating overlay — covers preview during AI code generation */}
+							{isGenerating && (
+								<div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+									<div className="flex flex-col items-center gap-3">
+										<div className="relative h-10 w-10">
+											<div className="absolute inset-0 rounded-full border-2 border-muted" />
+											<div className="absolute inset-0 rounded-full border-2 border-t-orange-500 animate-spin" />
+										</div>
+										<p className="text-sm font-medium text-muted-foreground">Generating app...</p>
+									</div>
 								</div>
 							)}
 

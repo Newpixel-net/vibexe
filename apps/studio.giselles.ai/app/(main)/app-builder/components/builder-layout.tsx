@@ -60,6 +60,9 @@ export function BuilderLayout({
 	// App name state (lifted so ChatColumn can update it and header reflects changes)
 	const [appName, setAppName] = useState(app.name);
 
+	// Whether AI is currently generating (for preview loading overlay)
+	const [isGenerating, setIsGenerating] = useState(false);
+
 	// Handle file selection from PhaseTimeline in ChatColumn (switches to Code view)
 	// Note: DashboardPanel manages its own section state; user can access Code via sidebar
 	const handleFileClick = useCallback((file: FileType) => {
@@ -116,6 +119,7 @@ export function BuilderLayout({
 						onFilesChange={handleFilesChange}
 						onFileClick={handleFileClick}
 						onAppNameChange={setAppName}
+						onGeneratingChange={setIsGenerating}
 					/>
 				</div>
 
@@ -129,6 +133,7 @@ export function BuilderLayout({
 						onFileUpdate={handleFileUpdate}
 						view={view}
 						onViewChange={setView}
+						isGenerating={isGenerating}
 					/>
 				</div>
 			</div>
