@@ -13,6 +13,7 @@ import {
 import type { UIMessage } from "ai";
 import {
 	convertToModelMessages,
+	stepCountIs,
 	streamText,
 } from "ai";
 import { createFileTools } from "@/app/(main)/app-builder/lib/file-tools";
@@ -247,7 +248,7 @@ ${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;
 			system: systemPrompt,
 			messages: modelMessages,
 			tools,
-			maxSteps,
+			stopWhen: stepCountIs(maxSteps),
 			toolChoice: "auto",
 			onStepFinish: ({ toolCalls, finishReason, usage }) => {
 				stepCount++;
