@@ -1,0 +1,307 @@
+"use client";
+
+/**
+ * SecurityPanel Component
+ *
+ * API key management and security settings.
+ * Creates, lists, and revokes API keys for the app.
+ */
+
+import {
+	AlertTriangle,
+	Check,
+	Copy,
+	Eye,
+	EyeOff,
+	Key,
+	Loader2,
+	Plus,
+	Shield,
+	Trash2,
+} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+
+interface ApiKeyInfo {
+	id: number;
+	keyPrefix: string;
+	label: string;
+	createdAt: string;
+	lastUsedAt: string | null;
+}
+
+interface SecurityPanelProps {
+	appId: string;
+}
+
+export function SecurityPanel({ appId }: SecurityPanelProps) {
+	const [keys, setKeys] = useState<ApiKeyInfo[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [creating, setCreating] = useState(false);
+	const [newKeyLabel, setNewKeyLabel] = useState("");
+	const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
+	const [showCreateForm, setShowCreateForm] = useState(false);
+	const [copied, setCopied] = useState(false);
+
+	const fetchKeys = useCallback(async () => {
+		try {
+			const res = await fetch(`/api/apps/${appId}/api-keys`);
+			if (res.ok) {
+				const data = await res.json();
+				setKeys(data.keys || []);
+			}
+		} catch {
+			// Ignore
+		}
+		setLoading(false);
+	}, [appId]);
+
+	useEffect(() => {
+		fetchKeys();
+	}, [fetchKeys]);
+
+	const handleCreate = useCallback(async () => {
+		if (!newKeyLabel.trim()) return;
+		setCreating(true);
+		try {
+			const res = await fetch(`/api/apps/${appId}/api-keys`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ label: newKeyLabel.trim() }),
+			});
+			if (res.ok) {
+				const data = await res.json();
+				setNewKeyValue(data.key);
+				fetchKeys();
+			}
+		} catch {
+			// Error handling
+		}
+		setCreating(false);
+	}, [appId, newKeyLabel, fetchKeys]);
+
+	const handleRevoke = useCallback(
+		async (keyId: number) => {
+			if (!window.confirm("Revoke this API key? This cannot be undone."))
+				return;
+			try {
+				await fetch(`/api/apps/${appId}/api-keys/${keyId}`, {
+					method: "DELETE",
+				});
+				fetchKeys();
+			} catch {
+				// Ignore
+			}
+		},
+		[appId, fetchKeys],
+	);
+
+	const handleCopyKey = useCallback(async () => {
+		if (!newKeyValue) return;
+		try {
+			await navigator.clipboard.writeText(newKeyValue);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		} catch {
+			// Clipboard may fail
+		}
+	}, [newKeyValue]);
+
+	if (loading) {
+		return (
+			<div className="flex-1 flex items-center justify-center">
+				<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+			</div>
+		);
+	}
+
+	return (
+		<div className="flex-1 overflow-y-auto p-6">
+			<div className="max-w-3xl mx-auto space-y-6">
+				{/* Header */}
+				<div className="flex items-center justify-between">
+					<div>
+						<h1 className="text-2xl font-bold text-foreground">Security</h1>
+						<p className="text-sm text-muted-foreground mt-1">
+							Manage API keys and security settings
+						</p>
+					</div>
+					{!showCreateForm && (
+						<button
+							type="button"
+							onClick={() => {
+								setShowCreateForm(true);
+								setNewKeyValue(null);
+								setNewKeyLabel("");
+							}}
+							className="px-3 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity flex items-center gap-2"
+						>
+							<Plus className="h-3.5 w-3.5" />
+							New API Key
+						</button>
+					)}
+				</div>
+
+				{/* New Key Created Banner */}
+				{newKeyValue && (
+					<div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-4 space-y-3">
+						<div className="flex items-start gap-3">
+							<AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+							<div className="flex-1">
+								<h3 className="text-sm font-medium text-foreground">
+									Save your API key
+								</h3>
+								<p className="text-xs text-muted-foreground mt-1">
+									This key will only be shown once. Copy it now and store it
+									securely.
+								</p>
+							</div>
+						</div>
+						<div className="flex items-center gap-2 p-3 rounded-md bg-muted/50">
+							<code className="text-sm font-mono text-foreground flex-1 break-all">
+								{newKeyValue}
+							</code>
+							<button
+								type="button"
+								onClick={handleCopyKey}
+								className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+							>
+								{copied ? (
+									<Check className="h-4 w-4 text-green-500" />
+								) : (
+									<Copy className="h-4 w-4" />
+								)}
+							</button>
+						</div>
+						<button
+							type="button"
+							onClick={() => {
+								setNewKeyValue(null);
+								setShowCreateForm(false);
+							}}
+							className="text-xs text-muted-foreground hover:text-foreground"
+						>
+							I&apos;ve saved it, dismiss
+						</button>
+					</div>
+				)}
+
+				{/* Create Form */}
+				{showCreateForm && !newKeyValue && (
+					<div className="rounded-lg border border-border bg-card p-4 space-y-3">
+						<h3 className="text-sm font-medium text-foreground">
+							Create API Key
+						</h3>
+						<div className="flex gap-2">
+							<input
+								type="text"
+								value={newKeyLabel}
+								onChange={(e) => setNewKeyLabel(e.target.value)}
+								placeholder="Key label (e.g., Production, Testing)"
+								className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+								onKeyDown={(e) => {
+									if (e.key === "Enter") handleCreate();
+								}}
+							/>
+							<button
+								type="button"
+								onClick={handleCreate}
+								disabled={creating || !newKeyLabel.trim()}
+								className="px-4 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+							>
+								{creating && (
+									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								)}
+								Create
+							</button>
+							<button
+								type="button"
+								onClick={() => setShowCreateForm(false)}
+								className="px-3 py-2 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground transition-colors"
+							>
+								Cancel
+							</button>
+						</div>
+					</div>
+				)}
+
+				{/* Keys List */}
+				<div className="rounded-lg border border-border bg-card overflow-hidden">
+					<div className="p-4 border-b border-border">
+						<h3 className="text-sm font-medium text-foreground">
+							API Keys ({keys.length})
+						</h3>
+					</div>
+					{keys.length === 0 ? (
+						<div className="p-8 text-center">
+							<Key className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+							<p className="text-sm text-muted-foreground">
+								No API keys yet
+							</p>
+							<p className="text-xs text-muted-foreground mt-1">
+								Create an API key to access your app's data from external
+								services
+							</p>
+						</div>
+					) : (
+						<div className="divide-y divide-border">
+							{keys.map((key) => (
+								<div
+									key={key.id}
+									className="flex items-center justify-between px-4 py-3"
+								>
+									<div className="flex items-center gap-3">
+										<Key className="h-4 w-4 text-muted-foreground" />
+										<div>
+											<div className="text-sm text-foreground">
+												{key.label || "Unnamed key"}
+											</div>
+											<div className="text-xs text-muted-foreground font-mono">
+												{key.keyPrefix}...
+											</div>
+										</div>
+									</div>
+									<div className="flex items-center gap-3">
+										<span className="text-xs text-muted-foreground">
+											{key.lastUsedAt
+												? `Last used ${new Date(key.lastUsedAt).toLocaleDateString()}`
+												: "Never used"}
+										</span>
+										<button
+											type="button"
+											onClick={() => handleRevoke(key.id)}
+											className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
+											title="Revoke key"
+										>
+											<Trash2 className="h-3.5 w-3.5" />
+										</button>
+									</div>
+								</div>
+							))}
+						</div>
+					)}
+				</div>
+
+				{/* Security Info */}
+				<div className="rounded-lg border border-border bg-card p-4">
+					<div className="flex items-start gap-3">
+						<Shield className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+						<div>
+							<h3 className="text-sm font-medium text-foreground">
+								Security Notes
+							</h3>
+							<ul className="text-xs text-muted-foreground mt-2 space-y-1 list-disc list-inside">
+								<li>API keys are hashed and stored securely</li>
+								<li>Keys are shown only once at creation time</li>
+								<li>Revoked keys are immediately invalidated</li>
+								<li>All API requests are rate-limited</li>
+								<li>
+									Use separate keys for development and production
+								</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}

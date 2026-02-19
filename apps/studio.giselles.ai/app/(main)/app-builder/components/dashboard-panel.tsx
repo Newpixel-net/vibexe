@@ -4,17 +4,24 @@
  * DashboardPanel Component
  *
  * Main dashboard panel combining sidebar navigation and content area.
- * Code section uses CodePanel, Agents uses AgentsPanel, Automations uses AutomationsPanel.
- * Other sections show placeholders.
+ * All 13 sections are implemented with real panels.
  */
 
 import { useEffect, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import { AgentsPanel } from "./agents-panel";
+import { AnalyticsPanel } from "./analytics-panel";
+import { ApiDocsPanel } from "./api-docs-panel";
 import { AutomationsPanel } from "./automations-panel";
 import { CodePanel } from "./code-panel";
 import { type DashboardSection, DashboardSidebar } from "./dashboard-sidebar";
 import { DataBrowser } from "./data-browser";
+import { DomainsPanel } from "./domains-panel";
+import { IntegrationsPanel } from "./integrations-panel";
+import { LogsPanel } from "./logs-panel";
+import { OverviewPanel } from "./overview-panel";
+import { SecurityPanel } from "./security-panel";
+import { SettingsPanel } from "./settings-panel";
 import { UsersPanel } from "./users-panel";
 
 interface DashboardPanelProps {
@@ -31,64 +38,8 @@ interface DashboardPanelProps {
 }
 
 /**
- * Section titles for placeholder content
- */
-const sectionTitles: Record<DashboardSection, string> = {
-	overview: "Overview",
-	users: "Users",
-	data: "Data",
-	analytics: "Analytics",
-	domains: "Domains",
-	integrations: "Integrations",
-	security: "Security",
-	code: "Code",
-	agents: "Agents",
-	automations: "Automations",
-	logs: "Logs",
-	api: "API",
-	settings: "Settings",
-};
-
-/**
- * Section descriptions for placeholder content
- */
-const sectionDescriptions: Record<DashboardSection, string> = {
-	overview: "View your app's health, metrics, and recent activity at a glance.",
-	users: "Manage user accounts, permissions, and authentication settings.",
-	data: "Browse and manage your app's database tables and records.",
-	analytics: "Track usage metrics, performance, and user behavior.",
-	domains: "Configure custom domains and SSL certificates for your app.",
-	integrations: "Connect third-party services and manage webhooks.",
-	security: "Review security settings, access logs, and API keys.",
-	code: "Browse and edit your app's source code files.",
-	agents: "Configure AI agents and their capabilities.",
-	automations: "Set up automated workflows and triggers.",
-	logs: "View application logs and debug issues.",
-	api: "Explore your app's API endpoints and documentation.",
-	settings: "Configure app-level settings and preferences.",
-};
-
-/**
- * Placeholder component for sections not yet implemented
- */
-function SectionPlaceholder({ section }: { section: DashboardSection }) {
-	return (
-		<div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-			<h2 className="text-2xl font-semibold text-foreground mb-2">
-				{sectionTitles[section]}
-			</h2>
-			<p className="text-muted-foreground max-w-md">
-				{sectionDescriptions[section]}
-			</p>
-			<div className="mt-6 px-4 py-2 rounded-md bg-muted text-sm text-muted-foreground">
-				Coming soon
-			</div>
-		</div>
-	);
-}
-
-/**
  * DashboardPanel - Sidebar navigation + content area
+ * All 13 sections are wired to real panel components.
  */
 export function DashboardPanel({
 	appId,
@@ -100,7 +51,7 @@ export function DashboardPanel({
 	const [activeSection, setActiveSection] =
 		useState<DashboardSection>("overview");
 
-	// Fetch app schema for data browser
+	// Fetch app schema for data browser + API docs + overview
 	const [schema, setSchema] = useState<{
 		entities: Array<{
 			name: string;
@@ -118,7 +69,7 @@ export function DashboardPanel({
 					setSchema(data.schema);
 				}
 			} catch {
-				// Schema not available yet — that's fine
+				// Schema not available yet
 			}
 		}
 		fetchSchema();
@@ -126,6 +77,17 @@ export function DashboardPanel({
 
 	const renderContent = () => {
 		switch (activeSection) {
+			case "overview":
+				return (
+					<OverviewPanel
+						appId={appId}
+						files={files}
+						schema={schema}
+						onNavigate={(section) =>
+							setActiveSection(section as DashboardSection)
+						}
+					/>
+				);
 			case "code":
 				return (
 					<CodePanel
@@ -144,8 +106,20 @@ export function DashboardPanel({
 				return <AgentsPanel />;
 			case "automations":
 				return <AutomationsPanel />;
-			default:
-				return <SectionPlaceholder section={activeSection} />;
+			case "analytics":
+				return <AnalyticsPanel appId={appId} files={files} />;
+			case "domains":
+				return <DomainsPanel appId={appId} />;
+			case "integrations":
+				return <IntegrationsPanel appId={appId} />;
+			case "security":
+				return <SecurityPanel appId={appId} />;
+			case "logs":
+				return <LogsPanel appId={appId} />;
+			case "api":
+				return <ApiDocsPanel appId={appId} schema={schema} />;
+			case "settings":
+				return <SettingsPanel appId={appId} />;
 		}
 	};
 
