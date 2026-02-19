@@ -478,10 +478,11 @@ export function ChatColumn({
 			if (appName === "Untitled App" && onAppNameChange && messages.length > 0) {
 				const firstUserMsg = messages.find((m) => m.role === "user");
 				if (firstUserMsg) {
-					const text =
+					// AI SDK v6: text is in parts[0].text, not content
+				const text =
 						"content" in firstUserMsg && typeof firstUserMsg.content === "string"
 							? firstUserMsg.content
-							: "";
+							: firstUserMsg.parts?.find((p: { type: string }) => p.type === "text")?.text ?? "";
 					if (text) {
 						const newName = generateAppName(text);
 						fetch(`/api/app-builder/apps/${appId}/name`, {
