@@ -468,7 +468,7 @@ export function convertToSandpackFiles(files: AppFile[]): SandpackFiles {
 		(f) => f.content && f.content.includes("@vibexe/sdk"),
 	);
 	if (usesVibexeSdk) {
-		sandpackFiles["/@vibexe/sdk/index.js"] = {
+		sandpackFiles["/node_modules/@vibexe/sdk/index.js"] = {
 			code: VIBEXE_SDK_SOURCE,
 			hidden: true,
 		};
