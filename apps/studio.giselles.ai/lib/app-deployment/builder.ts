@@ -335,7 +335,7 @@ export async function buildApp(
 			jsx: "transform",
 			jsxFactory: "React.createElement",
 			jsxFragment: "React.Fragment",
-			minify: true,
+			minify: false,
 			write: false,
 			plugins: [createVirtualPlugin(virtualFiles)],
 			define: { "process.env.NODE_ENV": '"production"' },
