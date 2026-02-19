@@ -38,12 +38,12 @@ import {
 	updatePhaseWithFile,
 	updateProjectStage,
 } from "../adapters/phase-adapter";
-import { DEFAULT_MODEL_ID } from "../lib/model-resolver";
+import { DEFAULT_MODEL_ID, getModelCapabilities } from "../lib/model-resolver";
 import type {
 	AgentEvent,
+	Attachment,
 	ChatMode,
 	FileType,
-	ImageAttachment,
 	PhaseTimelineItem,
 	ProjectStage,
 } from "../types/vibesdk";
@@ -155,10 +155,10 @@ export function ChatColumn({
 	// Chat state with localStorage persistence
 	const [chatId, setChatId] = useState<string>(generateId);
 
-	const [mode, _setMode] = useState<ChatMode>("generate");
+	const [mode, setMode] = useState<ChatMode>("generate");
 	const [selectedModelId, setSelectedModelId] = useState(DEFAULT_MODEL_ID);
 	const [input, setInput] = useState("");
-	const [attachments, setAttachments] = useState<ImageAttachment[]>([]);
+	const [attachments, setAttachments] = useState<Attachment[]>([]);
 
 	// Phase state managed internally (not from props)
 	const [projectStages, setProjectStages] = useState<ProjectStage[]>(
@@ -553,11 +553,35 @@ export function ChatColumn({
 		}
 	}, []);
 
-	// Submit handler
-	const onSubmit = useCallback(() => {
-		if (input.trim()) {
-			sendMessage({ text: input });
+	// Convert File to data URL for AI SDK FileUIPart
+	const fileToDataUrl = useCallback((file: File): Promise<string> => {
+		return new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = () => resolve(reader.result as string);
+			reader.onerror = reject;
+			reader.readAsDataURL(file);
+		});
+	}, []);
+
+	// Submit handler — sends text + file attachments via AI SDK
+	const onSubmit = useCallback(async () => {
+		if (input.trim() || attachments.length > 0) {
+			if (attachments.length > 0) {
+				// Convert File objects to FileUIPart data URLs
+				const fileUIParts = await Promise.all(
+					attachments.map(async (a) => ({
+						type: "file" as const,
+						mediaType: a.mediaType,
+						filename: a.name,
+						url: await fileToDataUrl(a.file),
+					})),
+				);
+				sendMessage({ text: input || " ", files: fileUIParts });
+			} else {
+				sendMessage({ text: input });
+			}
 			setInput("");
+			setAttachments([]);
 			// Mark first stage as active when user sends first message in generate mode
 			if (mode === "generate" && messages.length === 0) {
 				setProjectStages((stages) =>
@@ -565,7 +589,7 @@ export function ChatColumn({
 				);
 			}
 		}
-	}, [input, sendMessage, mode, messages.length]);
+	}, [input, attachments, sendMessage, mode, messages.length, fileToDataUrl]);
 
 	// Start new chat
 	const handleNewChat = useCallback(() => {
@@ -595,6 +619,25 @@ export function ChatColumn({
 		setCompletedAgentIds(new Set());
 		processedEventCount.current = 0;
 	}, [appId, setMessages]);
+
+	// Discuss mode toggle
+	const handleDiscussToggle = useCallback(() => {
+		setMode((prev) => (prev === "generate" ? "discuss" : "generate"));
+	}, []);
+
+	// Plus button opens file picker on the ChatInput
+	const handlePlus = useCallback(() => {
+		// Trigger the file input inside ChatInput via ref
+		const fileInput = document.querySelector<HTMLInputElement>(
+			'input[type="file"][data-attachment-input]',
+		);
+		if (fileInput) fileInput.click();
+	}, []);
+
+	// Voice transcript handler
+	const handleVoiceTranscript = useCallback((text: string) => {
+		setInput((prev) => (prev ? `${prev} ${text}` : text));
+	}, []);
 
 	return (
 		<div className="flex flex-col h-full min-h-0">
@@ -745,6 +788,13 @@ export function ChatColumn({
 				</div>
 			)}
 
+			{/* Discussion mode banner */}
+			{mode === "discuss" && (
+				<div className="px-4 py-2 text-xs text-center text-muted-foreground bg-accent/10 border-t border-accent/20">
+					Discussion mode — no file changes will be made
+				</div>
+			)}
+
 			{/* Input area using VibeSDK ChatInput */}
 			<div className="border-t p-4">
 				<ChatInput
@@ -756,13 +806,19 @@ export function ChatColumn({
 					onStop={stop}
 					attachments={attachments}
 					onAttachmentsChange={setAttachments}
+					modelCapabilities={getModelCapabilities(selectedModelId)}
 				/>
 			</div>
 
 			{/* Bottom action bar */}
 			<ChatBottomBar
+				appId={appId}
 				selectedModelId={selectedModelId}
 				onModelChange={handleModelChange}
+				onPlus={handlePlus}
+				onDiscuss={handleDiscussToggle}
+				onVoiceTranscript={handleVoiceTranscript}
+				mode={mode}
 			/>
 		</div>
 	);

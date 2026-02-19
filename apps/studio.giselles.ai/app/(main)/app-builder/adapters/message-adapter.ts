@@ -6,8 +6,8 @@
  */
 
 import type { UIMessage } from "@ai-sdk/react";
-import { isTextUIPart, isToolUIPart } from "ai";
-import type { ChatMessage, ToolEvent } from "../types/vibesdk";
+import { isFileUIPart, isTextUIPart, isToolUIPart } from "ai";
+import type { Attachment, ChatMessage, ToolEvent } from "../types/vibesdk";
 
 /**
  * AI SDK v6 tool part shape for type extraction.
@@ -83,17 +83,48 @@ function mapToolState(state?: string): ToolEvent["status"] {
 }
 
 /**
+ * Extract file attachments from AI SDK message parts.
+ * AI SDK stores sent files as FileUIPart with data URLs.
+ */
+function extractAttachments(message: UIMessage): Attachment[] {
+	if (!message.parts) return [];
+
+	return message.parts.filter(isFileUIPart).map((part, idx) => {
+		const mediaType = part.mediaType || "application/octet-stream";
+		const isImage = mediaType.startsWith("image/");
+		const filename = ("filename" in part ? part.filename : undefined) || `file-${idx + 1}`;
+		// Estimate size from data URL (base64 is ~4/3 of original)
+		let size = 0;
+		if (typeof part.url === "string" && part.url.startsWith("data:")) {
+			const base64 = part.url.split(",")[1];
+			if (base64) size = Math.round((base64.length * 3) / 4);
+		}
+
+		return {
+			id: `att-${message.id}-${idx}`,
+			file: null as unknown as File, // File object not available from stored parts
+			url: part.url,
+			name: filename,
+			mediaType,
+			size,
+			category: isImage ? "image" as const : "document" as const,
+		};
+	});
+}
+
+/**
  * Convert a single AI SDK message to ChatMessage.
  */
 export function toChatMessage(message: UIMessage): ChatMessage {
+	const attachments = message.role === "user" ? extractAttachments(message) : [];
 	return {
 		id: message.id,
 		role: message.role as "user" | "assistant",
 		content: extractTextContent(message),
-		timestamp: Date.now(), // UIMessage doesn't have createdAt in v6
+		timestamp: Date.now(),
 		toolEvents:
 			message.role === "assistant" ? extractToolEvents(message) : undefined,
-		images: undefined, // TODO: Extract images from file parts if needed
+		attachments: attachments.length > 0 ? attachments : undefined,
 	};
 }
 

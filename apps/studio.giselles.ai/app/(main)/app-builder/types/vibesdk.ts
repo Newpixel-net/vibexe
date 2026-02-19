@@ -93,8 +93,10 @@ export interface ChatMessage {
 	timestamp: number;
 	/** Tool invocations embedded in this message */
 	toolEvents?: ToolEvent[];
-	/** Image attachments (for user messages) */
+	/** Image attachments (for user messages — legacy) */
 	images?: ImageAttachment[];
+	/** Unified attachments (images + documents) */
+	attachments?: Attachment[];
 }
 
 /**
@@ -115,8 +117,7 @@ export interface ToolEvent {
 }
 
 /**
- * Image attachment for chat messages.
- * Used for tracking attached images before sending.
+ * Image attachment for chat messages (legacy — use Attachment instead).
  */
 export interface ImageAttachment {
 	/** Unique ID */
@@ -127,6 +128,20 @@ export interface ImageAttachment {
 	url: string;
 	/** Display name (usually filename) */
 	name: string;
+}
+
+/**
+ * Unified attachment for chat messages.
+ * Supports images and documents with model-aware limits.
+ */
+export interface Attachment {
+	id: string;
+	file: File;
+	url: string;
+	name: string;
+	mediaType: string;
+	size: number;
+	category: "image" | "document";
 }
 
 /**

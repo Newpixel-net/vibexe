@@ -14,11 +14,12 @@ import {
 	ChevronDown,
 	Copy,
 	FileCode,
+	FileText,
 	Loader2,
 	MoreHorizontal,
 	RotateCcw,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeExternalLinks from "rehype-external-links";
 import remarkGfm from "remark-gfm";
@@ -30,7 +31,8 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { ChatMessage, ToolEvent } from "../types/vibesdk";
+import type { Attachment, ChatMessage, ToolEvent } from "../types/vibesdk";
+import { AttachmentLightbox } from "./attachment-lightbox";
 
 interface MarkdownContentProps {
 	content: string;
@@ -290,6 +292,114 @@ function getToolAction(toolName: string): string {
 	}
 }
 
+/** Format bytes to human-readable size */
+function formatFileSize(bytes: number): string {
+	if (bytes < 1024) return `${bytes}B`;
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
+	return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+/**
+ * Displays attachments in a sent message (images as grid, docs as cards).
+ */
+function MessageAttachments({ attachments }: { attachments: Attachment[] }) {
+	const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+	const [lightboxName, setLightboxName] = useState("");
+	const [lightboxSize, setLightboxSize] = useState(0);
+
+	const images = attachments.filter((a) => a.category === "image");
+	const documents = attachments.filter((a) => a.category === "document");
+
+	const openLightbox = useCallback((att: Attachment) => {
+		setLightboxUrl(att.url);
+		setLightboxName(att.name);
+		setLightboxSize(att.size);
+	}, []);
+
+	// Determine grid layout based on image count
+	const gridClass =
+		images.length === 1
+			? ""
+			: images.length <= 4
+				? "grid grid-cols-2 gap-1.5"
+				: "grid grid-cols-2 gap-1.5";
+
+	const showOverflow = images.length > 4;
+	const displayImages = showOverflow ? images.slice(0, 4) : images;
+
+	return (
+		<>
+			{images.length > 0 && (
+				<div className={cn("mt-2 max-w-[300px]", gridClass)}>
+					{displayImages.map((att, idx) => (
+						<div
+							key={att.id}
+							className="relative rounded-lg overflow-hidden cursor-pointer"
+						>
+							{/* biome-ignore lint/a11y/useKeyWithClickEvents: Image preview click */}
+							{/* biome-ignore lint/performance/noImgElement: Dynamic data URLs */}
+							<img
+								src={att.url}
+								alt={att.name}
+								className={cn(
+									"w-full object-cover rounded-lg",
+									images.length === 1 ? "max-h-[300px]" : "h-[120px]",
+								)}
+								onClick={() => openLightbox(att)}
+							/>
+							{/* +N overlay on last image */}
+							{showOverflow && idx === 3 && (
+								// biome-ignore lint/a11y/useKeyWithClickEvents: Overlay click
+								<div
+									className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg"
+									onClick={() => openLightbox(att)}
+								>
+									<span className="text-white text-lg font-bold">
+										+{images.length - 4}
+									</span>
+								</div>
+							)}
+						</div>
+					))}
+				</div>
+			)}
+
+			{documents.length > 0 && (
+				<div className="mt-2 flex flex-col gap-1.5">
+					{documents.map((att) => (
+						<div
+							key={att.id}
+							className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-border bg-muted/30 max-w-[250px]"
+						>
+							<FileText
+								className={cn(
+									"h-4 w-4 flex-shrink-0",
+									att.mediaType === "application/pdf" ? "text-red-500" : "text-muted-foreground",
+								)}
+							/>
+							<span className="text-xs truncate flex-1">{att.name}</span>
+							{att.size > 0 && (
+								<span className="text-[10px] text-muted-foreground flex-shrink-0">
+									{formatFileSize(att.size)}
+								</span>
+							)}
+						</div>
+					))}
+				</div>
+			)}
+
+			{lightboxUrl && (
+				<AttachmentLightbox
+					url={lightboxUrl}
+					name={lightboxName}
+					size={lightboxSize}
+					onClose={() => setLightboxUrl(null)}
+				/>
+			)}
+		</>
+	);
+}
+
 interface UserMessageProps {
 	message: ChatMessage;
 }
@@ -308,7 +418,12 @@ export function UserMessage({ message }: UserMessageProps) {
 				<div className="text-foreground whitespace-pre-wrap">
 					{message.content}
 				</div>
-				{message.images && message.images.length > 0 && (
+				{/* Unified attachments display */}
+				{message.attachments && message.attachments.length > 0 && (
+					<MessageAttachments attachments={message.attachments} />
+				)}
+				{/* Legacy image attachments fallback */}
+				{!message.attachments && message.images && message.images.length > 0 && (
 					<div className="flex gap-2 mt-2 flex-wrap">
 						{message.images.map((img) => (
 							// biome-ignore lint/performance/noImgElement: Using native img for dynamic blob/data URLs which Next.js Image doesn't support

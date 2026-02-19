@@ -16,12 +16,14 @@ import {
 	type KeyboardEvent,
 	useCallback,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
 import { cn } from "@/lib/utils";
-import type { ImageAttachment } from "../types/vibesdk";
-import { ImageAttachmentPreview } from "./image-attachment-preview";
+import type { ModelCapabilities } from "../lib/model-resolver";
+import type { Attachment } from "../types/vibesdk";
+import { AttachmentPreview } from "./attachment-preview";
 
 // Internal word limit (not visible to user)
 const MAX_WORDS = 4000;
@@ -50,10 +52,12 @@ interface ChatInputProps {
 	isGenerating?: boolean;
 	/** Callback to stop generation */
 	onStop?: () => void;
-	/** Current image attachments */
-	attachments?: ImageAttachment[];
+	/** Current attachments (images + documents) */
+	attachments?: Attachment[];
 	/** Callback when attachments change */
-	onAttachmentsChange?: (attachments: ImageAttachment[]) => void;
+	onAttachmentsChange?: (attachments: Attachment[]) => void;
+	/** Model capabilities for enforcing file limits */
+	modelCapabilities?: ModelCapabilities;
 }
 
 export function ChatInput({
@@ -68,6 +72,7 @@ export function ChatInput({
 	onStop,
 	attachments = [],
 	onAttachmentsChange,
+	modelCapabilities,
 }: ChatInputProps) {
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -87,27 +92,55 @@ export function ChatInput({
 		textareaRef.current?.focus();
 	}, []);
 
-	// Process files into ImageAttachment format
+	// Supported file types (images + documents)
+	const supportedTypes = useMemo(() => {
+		if (!modelCapabilities) return ["image/*"];
+		const types = [...modelCapabilities.supportedImageTypes];
+		if (modelCapabilities.documents) {
+			types.push(...modelCapabilities.supportedDocTypes);
+		}
+		return types;
+	}, [modelCapabilities]);
+
+	const acceptString = useMemo(() => supportedTypes.join(","), [supportedTypes]);
+
+	// Process files into unified Attachment format
 	const processFiles = useCallback(
 		(files: FileList | File[]) => {
 			if (!onAttachmentsChange) return;
 
-			const imageFiles = Array.from(files).filter((file) =>
-				file.type.startsWith("image/"),
-			);
+			const maxFiles = modelCapabilities?.maxFiles ?? 20;
+			const maxSizeBytes = (modelCapabilities?.maxFileSizeMB ?? 5) * 1024 * 1024;
+			const imageTypes = new Set(modelCapabilities?.supportedImageTypes ?? ["image/jpeg", "image/png", "image/gif", "image/webp"]);
+			const docTypes = new Set(modelCapabilities?.supportedDocTypes ?? []);
 
-			if (imageFiles.length === 0) return;
+			const validFiles = Array.from(files).filter((file) => {
+				const isImage = file.type.startsWith("image/") || imageTypes.has(file.type);
+				const isDoc = docTypes.has(file.type);
+				if (!isImage && !isDoc) return false;
+				if (file.size > maxSizeBytes) return false;
+				return true;
+			});
 
-			const newAttachments: ImageAttachment[] = imageFiles.map((file) => ({
+			if (validFiles.length === 0) return;
+
+			// Enforce max files limit
+			const remaining = maxFiles - attachments.length;
+			const filesToAdd = validFiles.slice(0, remaining);
+
+			const newAttachments: Attachment[] = filesToAdd.map((file) => ({
 				id: crypto.randomUUID(),
 				file,
-				url: URL.createObjectURL(file),
+				url: file.type.startsWith("image/") ? URL.createObjectURL(file) : "",
 				name: file.name,
+				mediaType: file.type,
+				size: file.size,
+				category: file.type.startsWith("image/") ? "image" as const : "document" as const,
 			}));
 
 			onAttachmentsChange([...attachments, ...newAttachments]);
 		},
-		[attachments, onAttachmentsChange],
+		[attachments, onAttachmentsChange, modelCapabilities],
 	);
 
 	// Handle file input change
@@ -128,8 +161,7 @@ export function ChatInput({
 			if (!onAttachmentsChange) return;
 
 			const attachment = attachments.find((a) => a.id === id);
-			if (attachment) {
-				// Revoke object URL to prevent memory leak
+			if (attachment?.url) {
 				URL.revokeObjectURL(attachment.url);
 			}
 
@@ -156,7 +188,7 @@ export function ChatInput({
 		// Enter without Shift submits
 		if (e.key === "Enter" && !e.shiftKey) {
 			e.preventDefault();
-			if (value.trim() && !isLoading && !disabled) {
+			if ((value.trim() || attachments.length > 0) && !isLoading && !disabled) {
 				onSubmit();
 			}
 		}
@@ -202,24 +234,25 @@ export function ChatInput({
 
 	const handleSubmit = (e: FormEvent) => {
 		e.preventDefault();
-		if (value.trim() && !isLoading && !disabled) {
+		if ((value.trim() || attachments.length > 0) && !isLoading && !disabled) {
 			onSubmit();
 		}
 	};
 
 	const isDisabled = disabled || isLoading;
-	const canSubmit = value.trim().length > 0 && !isDisabled;
+	const canSubmit = (value.trim().length > 0 || attachments.length > 0) && !isDisabled;
 
 	return (
 		<form onSubmit={handleSubmit} className={cn("relative", className)}>
-			{/* Hidden file input for image attachments */}
+			{/* Hidden file input for attachments */}
 			<input
 				ref={fileInputRef}
 				type="file"
-				accept="image/*"
+				accept={acceptString}
 				multiple
 				className="hidden"
 				onChange={handleFileChange}
+				data-attachment-input=""
 			/>
 
 			{/* Drag wrapper */}
@@ -236,17 +269,18 @@ export function ChatInput({
 				{isDragging && (
 					<div className="absolute inset-0 flex items-center justify-center bg-accent/10 backdrop-blur-sm rounded-xl z-50 border-2 border-dashed border-accent">
 						<span className="text-sm font-medium text-accent-foreground">
-							Drop images here
+							Drop files here
 						</span>
 					</div>
 				)}
 
 				<div className="space-y-2">
-					{/* Image attachment previews */}
+					{/* Attachment previews (images + documents) */}
 					{attachments.length > 0 && (
-						<ImageAttachmentPreview
+						<AttachmentPreview
 							attachments={attachments}
 							onRemove={handleRemoveAttachment}
+							maxFiles={modelCapabilities?.maxFiles ?? 20}
 						/>
 					)}
 
@@ -274,7 +308,7 @@ export function ChatInput({
 							className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
 							onClick={handleImageClick}
 							disabled={isDisabled}
-							title="Attach image"
+							title="Attach files"
 						>
 							<ImageIcon className="h-4 w-4" />
 						</button>

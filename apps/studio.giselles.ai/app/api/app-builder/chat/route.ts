@@ -96,6 +96,14 @@ export async function POST(request: Request) {
 			});
 		}
 
+		// Log file attachments if present
+		const fileParts = messages.flatMap((m: UIMessage) =>
+			(m.parts || []).filter((p: { type: string }) => p.type === "file"),
+		);
+		if (fileParts.length > 0) {
+			console.log(`[Chat API] ${fileParts.length} file attachment(s) included`);
+		}
+
 		// Get existing files for context
 		const existingFiles = await getFilesForApp(appId);
 		const fileContext =
