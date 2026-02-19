@@ -1114,6 +1114,13 @@ function generateContentV2({
 					resolvedContent,
 				);
 
+			// Resolve BYOK keys lazily (per-team, from request context)
+			const byokKeysV2 = context.resolveApiKeys
+				? await context.resolveApiKeys()
+				: undefined;
+			const apiKeysForModel =
+				byokKeysV2 && Object.keys(byokKeysV2).length > 0 ? byokKeysV2 : undefined;
+
 			// Fallback model setup
 			const fallbackModelId = isAiAgentNode(operationNode) &&
 				operationNode.content.fallbackModel?.enabled
