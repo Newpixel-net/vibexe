@@ -13,8 +13,6 @@ import {
 import type { UIMessage } from "ai";
 import {
 	convertToModelMessages,
-	createUIMessageStream,
-	createUIMessageStreamResponse,
 	streamText,
 } from "ai";
 import { createFileTools } from "@/app/(main)/app-builder/lib/file-tools";
@@ -239,93 +237,41 @@ ${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;
 			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, model=${modelId || developerAgent?.modelTier || "default"}, maxSteps=${maxSteps}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,
 		);
 
-		// Stream orchestration events + AI response via UI message stream
-		const stream = createUIMessageStream({
-			execute: async ({ writer }) => {
-				// 1. Write orchestration-start event as data part
-				const activeAgents = developerAgent ? [developerAgent] : plan.agents.filter((a) => !a.readOnly);
-				writer.write({
-					type: "data-agent-event" as const,
-					data: {
-						type: "orchestration-start",
-						intent: {
-							complexity: plan.intent.complexity,
-							suggestedFlow: plan.intent.suggestedFlow,
-							techStack: plan.intent.techStack,
-						},
-						agents: activeAgents.map((a) => ({
-							id: a.id,
-							name: a.name,
-							modelTier: a.modelTier,
-							readOnly: a.readOnly,
-							icon: a.icon,
-						})),
-						timestamp: Date.now(),
-					},
-				} as never);
-
-				// 2. Write agent-start event for the developer agent only
-				for (const agent of activeAgents) {
-					const skills = plan.agentSkills.get(agent.id) || [];
-					writer.write({
-						type: "data-agent-event" as const,
-						data: {
-							type: "agent-start",
-							agentId: agent.id,
-							agentName: agent.name,
-							modelTier: agent.modelTier,
-							icon: agent.icon,
-							readOnly: agent.readOnly,
-							skills: skills.map((s) => ({
-								id: s.id,
-								name: s.name,
-								category: s.category,
-							})),
-							timestamp: Date.now(),
-						},
-					} as never);
-				}
-
-				// 3. Run the AI stream and merge into writer
-				let stepCount = 0;
-				let totalFileCalls = 0;
-				const result = streamText({
-					model,
-					system: systemPrompt,
-					messages: modelMessages,
-					tools,
-					maxSteps,
-					toolChoice: "auto",
-					onStepFinish: ({ toolCalls, finishReason, usage }) => {
-						stepCount++;
-						const fileToolNames = ["create_file", "update_file", "delete_file", "define_entities"];
-						const fileCallsInStep = (toolCalls || []).filter(
-							(tc) => fileToolNames.includes(tc.toolName),
-						).length;
-						totalFileCalls += fileCallsInStep;
-						const toolNames = (toolCalls || []).map((tc) => tc.toolName).join(",") || "text-only";
-						console.log(
-							`[Chat API] Step ${stepCount}: tools=${toolNames}, files=${totalFileCalls}, tokens=${usage?.totalTokens || 0}, finish=${finishReason}`,
-						);
-					},
-					onFinish: (event) => {
-						console.log(
-							`[Chat API] Stream finished - Chat: ${chatId || "new"}, steps=${stepCount}, files=${totalFileCalls}, maxSteps=${maxSteps}, finishReason=${event.finishReason}`,
-						);
-					},
-				});
-
-				await writer.merge(
-					result.toUIMessageStream({ originalMessages: messages }),
+		// Use streamText directly with toUIMessageStreamResponse for proper multi-step support.
+		// The createUIMessageStream + writer.merge() pattern breaks multi-step: the model
+		// gets finishReason=tool-calls (wants to continue) but the stream closes after step 1.
+		let stepCount = 0;
+		let totalFileCalls = 0;
+		const result = streamText({
+			model,
+			system: systemPrompt,
+			messages: modelMessages,
+			tools,
+			maxSteps,
+			toolChoice: "auto",
+			onStepFinish: ({ toolCalls, finishReason, usage }) => {
+				stepCount++;
+				const fileToolNames = ["create_file", "update_file", "delete_file", "define_entities"];
+				const fileCallsInStep = (toolCalls || []).filter(
+					(tc) => fileToolNames.includes(tc.toolName),
+				).length;
+				totalFileCalls += fileCallsInStep;
+				const toolNames = (toolCalls || []).map((tc) => tc.toolName).join(",") || "text-only";
+				console.log(
+					`[Chat API] Step ${stepCount}: tools=${toolNames}, files=${totalFileCalls}, tokens=${usage?.totalTokens || 0}, finish=${finishReason}`,
 				);
 			},
-			onError: (error) => {
-				console.error("[Chat API] Stream error:", error);
-				return String(error);
+			onFinish: (event) => {
+				console.log(
+					`[Chat API] Stream finished - Chat: ${chatId || "new"}, steps=${stepCount}, files=${totalFileCalls}, maxSteps=${maxSteps}, finishReason=${event.finishReason}`,
+				);
 			},
 		});
 
-		return createUIMessageStreamResponse({ stream });
+		return result.toUIMessageStreamResponse({
+			originalMessages: messages,
+			sendRoundtrips: true,
+		});
 	} catch (error) {
 		console.error("[Chat API] Error:", error);
 		return new Response(JSON.stringify({ error: "Internal server error" }), {
