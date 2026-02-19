@@ -1465,6 +1465,32 @@ export const aiProviderKeys = pgTable("ai_provider_keys", {
 		.$onUpdate(() => new Date()),
 });
 
+export const teamAiProviderKeys = pgTable(
+	"team_ai_provider_keys",
+	{
+		dbId: serial("db_id").primaryKey(),
+		teamDbId: integer("team_db_id")
+			.notNull()
+			.references(() => teams.dbId, { onDelete: "cascade" }),
+		provider: text("provider").notNull(),
+		encryptedApiKey: text("encrypted_api_key").notNull(),
+		isActive: boolean("is_active").notNull().default(true),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		uniqueIndex("team_ai_provider_keys_team_provider_idx").on(
+			table.teamDbId,
+			table.provider,
+		),
+	],
+);
+
 export const integrationCredentials = pgTable(
 	"integration_credentials",
 	{

@@ -180,6 +180,12 @@ function createBaseSidebarParts(
 						]
 					: []),
 				{
+					id: "ai-keys",
+					label: "AI Keys",
+					href: "/settings/team/ai-keys",
+					activeMatchPattern: "/settings/team/ai-keys*",
+				},
+				{
 					id: "team-settings",
 					label: "Team Settings",
 					href: "/settings/team",
@@ -191,6 +197,7 @@ function createBaseSidebarParts(
 						...(isDataStoreEnabled ? ["!/settings/team/data-stores*"] : []),
 						"!/settings/team/usage*",
 						"!/settings/team/api-keys*",
+						"!/settings/team/ai-keys*",
 						"!/settings/team/custom-nodes*",
 					],
 				},

@@ -88,6 +88,8 @@ export interface GiselleContext {
 		put(key: string, value: unknown): Promise<void>;
 		delete(key: string): Promise<void>;
 	};
+	/** BYOK: lazily resolve per-team API keys at request time. Returns provider->key map. */
+	resolveApiKeys?: () => Promise<Record<string, string>>;
 	/** Helpers for Wait node webhook/approval modes to interact with the DB */
 	waitWebhookHelpers?: {
 		/** Register a temporary webhook endpoint and return its dbId */

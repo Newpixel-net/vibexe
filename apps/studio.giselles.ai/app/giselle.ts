@@ -532,6 +532,14 @@ export const giselle = NextGiselle({
 // These are called during Server Action execution (not HTTP routes),
 // so they resolve the current team on each invocation via cookies().
 giselle.updateContext({
+	resolveApiKeys: async () => {
+		const currentTeam = await fetchCurrentTeam().catch(() => null);
+		if (!currentTeam) return {};
+		const { resolveAllProviderApiKeys } = await import(
+			"@/lib/team-ai-provider-keys"
+		);
+		return resolveAllProviderApiKeys(currentTeam.dbId);
+	},
 	resolveIntegrationCredential: async (credentialId: string) => {
 		const currentTeam = await fetchCurrentTeam().catch(() => null);
 		if (!currentTeam) return null;

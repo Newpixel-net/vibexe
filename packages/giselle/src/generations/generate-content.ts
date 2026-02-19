@@ -1,4 +1,4 @@
-import { type AnthropicProviderOptions, anthropic } from "@ai-sdk/anthropic";
+import { type AnthropicProviderOptions, anthropic, createAnthropic } from "@ai-sdk/anthropic";
 import {
 	loadMemory,
 	saveMemory,
@@ -7,7 +7,7 @@ import {
 	buildSessionKey,
 } from "./v2/memory/memory-store";
 import { evaluateGuardrails } from "../guardrails";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI, google } from "@ai-sdk/google";
 import {
 	type OpenAIResponsesProviderOptions,
 	createOpenAI,
@@ -66,23 +66,23 @@ import { transformGiselleLanguageModelToAiSdkLanguageModelCallOptions } from "./
 import { buildToolSet } from "./v2/tools";
 
 /** Create providers lazily so they pick up API keys set after module load (e.g. via admin panel). */
-function getPerplexityProvider() {
+function getPerplexityProvider(explicitKey?: string) {
 	return createOpenAI({
-		apiKey: process.env.PERPLEXITY_API_KEY ?? "",
+		apiKey: explicitKey ?? process.env.PERPLEXITY_API_KEY ?? "",
 		baseURL: "https://api.perplexity.ai/",
 	});
 }
 
-function getXaiProvider() {
+function getXaiProvider(explicitKey?: string) {
 	return createOpenAI({
-		apiKey: process.env.XAI_API_KEY ?? "",
+		apiKey: explicitKey ?? process.env.XAI_API_KEY ?? "",
 		baseURL: "https://api.x.ai/v1",
 	});
 }
 
-function getNvidiaProvider() {
+function getNvidiaProvider(explicitKey?: string) {
 	return createOpenAI({
-		apiKey: process.env.NVIDIA_API_KEY ?? "",
+		apiKey: explicitKey ?? process.env.NVIDIA_API_KEY ?? "",
 		baseURL: "https://integrate.api.nvidia.com/v1",
 	});
 }
@@ -323,7 +323,14 @@ export function generateContent({
 
 			const providerOptions = getProviderOptions(operationNode.content.llm);
 
-			const model = generationModel(operationNode.content.llm);
+			// Resolve BYOK keys lazily (per-team, from request context)
+			const byokKeys = context.resolveApiKeys
+				? await context.resolveApiKeys()
+				: undefined;
+			const apiKeysForModel =
+				byokKeys && Object.keys(byokKeys).length > 0 ? byokKeys : undefined;
+
+			const model = generationModel(operationNode.content.llm, apiKeysForModel);
 			logger.info({
 				modelType: typeof model,
 				modelProvider: (model as any)?.provider,
@@ -617,21 +624,37 @@ function toGoogleApiModelId(platformModelId: string): string {
 	return googleApiModelIdMap[platformModelId] ?? platformModelId;
 }
 
-function generationModel(languageModel: TextGenerationLanguageModelData) {
+function generationModel(
+	languageModel: TextGenerationLanguageModelData,
+	apiKeys?: Record<string, string>,
+) {
 	const llmProvider = languageModel.provider;
 	switch (llmProvider) {
 		case "openai":
+			if (apiKeys?.openai) {
+				return createOpenAI({ apiKey: apiKeys.openai })(languageModel.id);
+			}
 			return openai(languageModel.id);
 		case "anthropic":
+			if (apiKeys?.anthropic) {
+				return createAnthropic({ apiKey: apiKeys.anthropic })(
+					toAnthropicApiModelId(languageModel.id),
+				);
+			}
 			return anthropic(toAnthropicApiModelId(languageModel.id));
 		case "google":
+			if (apiKeys?.google) {
+				return createGoogleGenerativeAI({ apiKey: apiKeys.google })(
+					toGoogleApiModelId(languageModel.id),
+				);
+			}
 			return google(toGoogleApiModelId(languageModel.id));
 		case "perplexity":
-			return getPerplexityProvider()(languageModel.id);
+			return getPerplexityProvider(apiKeys?.perplexity)(languageModel.id);
 		case "nvidia":
-			return getNvidiaProvider().chat(languageModel.id);
+			return getNvidiaProvider(apiKeys?.nvidia).chat(languageModel.id);
 		case "xai":
-			return getXaiProvider().chat(languageModel.id);
+			return getXaiProvider(apiKeys?.xai).chat(languageModel.id);
 		default: {
 			const _exhaustiveCheck: never = llmProvider;
 			throw new Error(`Unknown LLM provider: ${_exhaustiveCheck}`);
@@ -639,22 +662,35 @@ function generationModel(languageModel: TextGenerationLanguageModelData) {
 	}
 }
 
-function resolveModel(modelId: string) {
+function resolveModel(modelId: string, apiKeys?: Record<string, string>) {
 	const [provider, ...rest] = modelId.split("/");
 	const model = rest.join("/");
 	switch (provider) {
 		case "openai":
+			if (apiKeys?.openai) {
+				return createOpenAI({ apiKey: apiKeys.openai })(model);
+			}
 			return openai(model);
 		case "anthropic":
+			if (apiKeys?.anthropic) {
+				return createAnthropic({ apiKey: apiKeys.anthropic })(
+					toAnthropicApiModelId(model),
+				);
+			}
 			return anthropic(toAnthropicApiModelId(model));
 		case "google":
+			if (apiKeys?.google) {
+				return createGoogleGenerativeAI({ apiKey: apiKeys.google })(
+					toGoogleApiModelId(model),
+				);
+			}
 			return google(toGoogleApiModelId(model));
 		case "perplexity":
-			return getPerplexityProvider()(model);
+			return getPerplexityProvider(apiKeys?.perplexity)(model);
 		case "nvidia":
-			return getNvidiaProvider().chat(model);
+			return getNvidiaProvider(apiKeys?.nvidia).chat(model);
 		case "xai":
-			return getXaiProvider().chat(model);
+			return getXaiProvider(apiKeys?.xai).chat(model);
 		default:
 			throw new Error(`Unknown provider: ${provider}`);
 	}
@@ -1114,7 +1150,7 @@ function generateContentV2({
 				streamTimeoutHandle = setTimeout(onStreamTimeout, STREAM_INACTIVITY_TIMEOUT_MS);
 			};
 
-			const v2Model = resolveModel(currentModelId);
+			const v2Model = resolveModel(currentModelId, apiKeysForModel);
 			logger.info({
 				modelType: typeof v2Model,
 				modelProvider: (v2Model as any)?.provider,

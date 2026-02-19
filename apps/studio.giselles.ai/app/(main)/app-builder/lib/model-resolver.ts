@@ -3,9 +3,10 @@
  *
  * Maps model ID strings to AI SDK provider instances.
  * Supports Anthropic Claude (default), OpenAI, and xAI Grok.
+ * Supports BYOK (Bring Your Own Key) via optional apiKeys parameter.
  */
 
-import { anthropic } from "@ai-sdk/anthropic";
+import { createAnthropic, anthropic } from "@ai-sdk/anthropic";
 import { createOpenAI, openai } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 
@@ -99,35 +100,74 @@ export function getModelCapabilities(modelId?: string): ModelCapabilities {
 	return model?.capabilities ?? MODEL_OPTIONS[0].capabilities;
 }
 
-const modelMap: Record<string, () => LanguageModel> = {
-	"claude-sonnet-4-5": () =>
-		anthropic("claude-sonnet-4-5-20250929"),
-	"claude-opus-4-6": () =>
-		anthropic("claude-opus-4-6"),
-	"claude-haiku-4-5": () =>
-		anthropic("claude-haiku-4-5-20251001"),
-	"gpt-4o": () => openai("gpt-4o"),
-	"grok-4-1-fast": () => {
-		const xai = createOpenAI({
-			baseURL: "https://api.x.ai/v1",
-			apiKey: process.env.XAI_API_KEY ?? "",
-		});
-		return xai("grok-4-1-fast-reasoning");
-	},
-};
+/** Optional BYOK keys map: { anthropic: "sk-...", openai: "sk-...", xai: "xai-..." } */
+export type ByokApiKeys = Record<string, string>;
+
+function createModelMap(
+	apiKeys?: ByokApiKeys,
+): Record<string, () => LanguageModel> {
+	return {
+		"claude-sonnet-4-5": () => {
+			if (apiKeys?.anthropic) {
+				return createAnthropic({ apiKey: apiKeys.anthropic })(
+					"claude-sonnet-4-5-20250929",
+				);
+			}
+			return anthropic("claude-sonnet-4-5-20250929");
+		},
+		"claude-opus-4-6": () => {
+			if (apiKeys?.anthropic) {
+				return createAnthropic({ apiKey: apiKeys.anthropic })(
+					"claude-opus-4-6",
+				);
+			}
+			return anthropic("claude-opus-4-6");
+		},
+		"claude-haiku-4-5": () => {
+			if (apiKeys?.anthropic) {
+				return createAnthropic({ apiKey: apiKeys.anthropic })(
+					"claude-haiku-4-5-20251001",
+				);
+			}
+			return anthropic("claude-haiku-4-5-20251001");
+		},
+		"gpt-4o": () => {
+			if (apiKeys?.openai) {
+				return createOpenAI({ apiKey: apiKeys.openai })("gpt-4o");
+			}
+			return openai("gpt-4o");
+		},
+		"grok-4-1-fast": () => {
+			const xai = createOpenAI({
+				baseURL: "https://api.x.ai/v1",
+				apiKey: apiKeys?.xai ?? process.env.XAI_API_KEY ?? "",
+			});
+			return xai("grok-4-1-fast-reasoning");
+		},
+	};
+}
+
+// Default model map (no BYOK — uses process.env)
+const defaultModelMap = createModelMap();
 
 /**
  * Resolve a model ID string to an AI SDK LanguageModel instance.
  * Falls back to Claude Sonnet 4.5 if the model ID is unknown.
+ *
+ * @param modelId - The model identifier (e.g. "claude-sonnet-4-5")
+ * @param apiKeys - Optional BYOK keys. If provided, creates provider with explicit apiKey.
  */
-export function resolveModel(modelId?: string): LanguageModel {
+export function resolveModel(
+	modelId?: string,
+	apiKeys?: ByokApiKeys,
+): LanguageModel {
 	const id = modelId || DEFAULT_MODEL_ID;
-	const factory = modelMap[id];
+	const map = apiKeys ? createModelMap(apiKeys) : defaultModelMap;
+	const factory = map[id];
 	if (factory) {
 		return factory();
 	}
-	// Fallback to default
-	return modelMap[DEFAULT_MODEL_ID]();
+	return map[DEFAULT_MODEL_ID]();
 }
 
 /**
@@ -135,13 +175,15 @@ export function resolveModel(modelId?: string): LanguageModel {
  */
 export function resolveModelByTier(
 	tier: "opus" | "sonnet" | "haiku",
+	apiKeys?: ByokApiKeys,
 ): LanguageModel {
+	const map = apiKeys ? createModelMap(apiKeys) : defaultModelMap;
 	switch (tier) {
 		case "opus":
-			return modelMap["claude-opus-4-6"]();
+			return map["claude-opus-4-6"]();
 		case "sonnet":
-			return modelMap["claude-sonnet-4-5"]();
+			return map["claude-sonnet-4-5"]();
 		case "haiku":
-			return modelMap["claude-haiku-4-5"]();
+			return map["claude-haiku-4-5"]();
 	}
 }

@@ -19,6 +19,7 @@ import {
 } from "ai";
 import { createFileTools } from "@/app/(main)/app-builder/lib/file-tools";
 import {
+	type ByokApiKeys,
 	resolveModel,
 	resolveModelByTier,
 } from "@/app/(main)/app-builder/lib/model-resolver";
@@ -31,6 +32,7 @@ import {
 	formatSiteAnalysis,
 } from "@/app/(main)/app-builder/lib/url-analyzer";
 import { getUser } from "@/lib/auth/get-user";
+import { resolveAllProviderApiKeys } from "@/lib/team-ai-provider-keys";
 
 // Initialize engine registries (runs once at module load)
 registerAgents(DEFAULT_AGENTS);
@@ -96,6 +98,10 @@ export async function POST(request: Request) {
 			});
 		}
 
+		// Resolve BYOK keys for the team (empty object if no team keys configured)
+		const byokKeys: ByokApiKeys = await resolveAllProviderApiKeys(app.teamDbId);
+		const hasByok = Object.keys(byokKeys).length > 0;
+
 		// Log file attachments if present
 		const fileParts = messages.flatMap((m: UIMessage) =>
 			(m.parts || []).filter((p: { type: string }) => p.type === "file"),
@@ -115,7 +121,7 @@ export async function POST(request: Request) {
 		if (mode === "discussion") {
 			const modelMessages = await convertToModelMessages(messages);
 			const result = streamText({
-				model: resolveModel(modelId),
+				model: resolveModel(modelId, hasByok ? byokKeys : undefined),
 				system: DISCUSSION_SYSTEM_PROMPT,
 				messages: modelMessages,
 				toolChoice: "auto",
@@ -242,11 +248,12 @@ Your response is INCOMPLETE unless Blueprint.md, src/App.tsx, and README.md all 
 		const modelMessages = await convertToModelMessages(messages);
 
 		// Use user-selected model if provided, otherwise use the agent's tier
+		const byok = hasByok ? byokKeys : undefined;
 		const model = modelId
-			? resolveModel(modelId)
+			? resolveModel(modelId, byok)
 			: developerAgent
-				? resolveModelByTier(developerAgent.modelTier)
-				: resolveModel();
+				? resolveModelByTier(developerAgent.modelTier, byok)
+				: resolveModel(undefined, byok);
 
 		const isReplication = plan.intent.suggestedFlow === "replicate";
 		const maxSteps = isReplication ? 40 : 25;
