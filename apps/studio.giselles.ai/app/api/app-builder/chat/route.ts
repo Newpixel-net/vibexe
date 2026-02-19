@@ -189,6 +189,33 @@ export async function POST(request: Request) {
 - create_file: Create files with path and content
 - update_file: Modify existing files
 - delete_file: Remove files
+- define_entities: Define data entities (database tables) for the app's backend
+
+## BACKEND & DATA ENTITIES
+When the user describes data models, a database, a backend, or needs persistent data:
+1. Call define_entities FIRST with ALL entities before generating any code
+2. Each entity becomes a real PostgreSQL table with auto-generated CRUD REST API
+3. Generated code MUST use the Vibexe SDK for data operations:
+   \`\`\`tsx
+   import { VibexeApp } from "@vibexe/sdk";
+   const app = new VibexeApp({ appId: "${appId}" });
+
+   // CRUD operations
+   const items = await app.data.list("courses");
+   const item = await app.data.get("courses", id);
+   const newItem = await app.data.create("courses", { title: "React 101" });
+   await app.data.update("courses", id, { title: "Updated" });
+   await app.data.delete("courses", id);
+
+   // Auth (for apps with user login)
+   const user = await app.auth.getCurrentUser();
+   await app.auth.signUp({ email, password });
+   await app.auth.signIn({ email, password });
+   await app.auth.signOut();
+   \`\`\`
+4. Every entity auto-gets: id (serial), created_at, updated_at — DO NOT include these in define_entities
+5. Use the SDK in React components with useEffect/useState for data fetching
+6. Wrap SDK calls in try/catch for error handling
 
 ## CRITICAL WORKFLOW
 When the user describes an app, create files using create_file tool calls.

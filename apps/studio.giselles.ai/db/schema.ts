@@ -1305,6 +1305,11 @@ export const builderAppRelations = relations(builderApps, ({ one, many }) => ({
 	chats: many(builderChats),
 	versions: many(builderVersions),
 	workflows: many(builderAppWorkflows),
+	database: one(builderAppDatabases, {
+		fields: [builderApps.dbId],
+		references: [builderAppDatabases.appDbId],
+	}),
+	apiKeys: many(builderAppApiKeys),
 }));
 
 export type BuilderApp = typeof builderApps.$inferSelect;
@@ -1448,6 +1453,84 @@ export const builderAppWorkflowRelations = relations(
 
 export type BuilderAppWorkflow = typeof builderAppWorkflows.$inferSelect;
 export type NewBuilderAppWorkflow = typeof builderAppWorkflows.$inferInsert;
+
+// ====================================================================
+// BUILDER APP DATABASES (Per-App Isolated PostgreSQL)
+// ====================================================================
+
+/**
+ * Builder App Databases — tracks per-app PostgreSQL databases.
+ * Each app can have its own isolated database (vibexe_app_{shortId}).
+ */
+export const builderAppDatabases = pgTable(
+	"builder_app_databases",
+	{
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.unique()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		databaseName: text("database_name").notNull().unique(),
+		status: text("status").notNull().default("pending"), // pending | provisioning | active | error | deleted
+		schemaJson: jsonb("schema_json").default({}), // Entity definitions (AppSchema)
+		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		index("builder_app_databases_app_db_id_idx").on(table.appDbId),
+	],
+);
+
+export const builderAppDatabaseRelations = relations(
+	builderAppDatabases,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppDatabases.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);
+
+export type BuilderAppDatabase = typeof builderAppDatabases.$inferSelect;
+export type NewBuilderAppDatabase = typeof builderAppDatabases.$inferInsert;
+
+/**
+ * Builder App API Keys — per-app API keys for external data access.
+ * Keys are stored as SHA-256 hashes; the raw key is shown only once on creation.
+ */
+export const builderAppApiKeys = pgTable(
+	"builder_app_api_keys",
+	{
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		keyHash: text("key_hash").notNull(),
+		keyPrefix: text("key_prefix").notNull(), // First 8 chars for display ("vbx_abc1...")
+		label: text("label"),
+		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+	},
+	(table) => [
+		index("builder_app_api_keys_app_db_id_idx").on(table.appDbId),
+	],
+);
+
+export const builderAppApiKeyRelations = relations(
+	builderAppApiKeys,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppApiKeys.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);
+
+export type BuilderAppApiKey = typeof builderAppApiKeys.$inferSelect;
+export type NewBuilderAppApiKey = typeof builderAppApiKeys.$inferInsert;
 
 // ====================================================================
 // AI PROVIDER KEY MANAGEMENT

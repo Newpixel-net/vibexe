@@ -8,12 +8,14 @@
  * Other sections show placeholders.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import { AgentsPanel } from "./agents-panel";
 import { AutomationsPanel } from "./automations-panel";
 import { CodePanel } from "./code-panel";
 import { type DashboardSection, DashboardSidebar } from "./dashboard-sidebar";
+import { DataBrowser } from "./data-browser";
+import { UsersPanel } from "./users-panel";
 
 interface DashboardPanelProps {
 	/** App ID for API calls */
@@ -98,6 +100,30 @@ export function DashboardPanel({
 	const [activeSection, setActiveSection] =
 		useState<DashboardSection>("overview");
 
+	// Fetch app schema for data browser
+	const [schema, setSchema] = useState<{
+		entities: Array<{
+			name: string;
+			tableName: string;
+			fields: Array<{ name: string; type: string; required?: boolean }>;
+		}>;
+	} | null>(null);
+
+	useEffect(() => {
+		async function fetchSchema() {
+			try {
+				const res = await fetch(`/api/apps/${appId}/schema`);
+				if (res.ok) {
+					const data = await res.json();
+					setSchema(data.schema);
+				}
+			} catch {
+				// Schema not available yet — that's fine
+			}
+		}
+		fetchSchema();
+	}, [appId]);
+
 	const renderContent = () => {
 		switch (activeSection) {
 			case "code":
@@ -110,6 +136,10 @@ export function DashboardPanel({
 						onFileUpdate={onFileUpdate}
 					/>
 				);
+			case "data":
+				return <DataBrowser appId={appId} schema={schema} />;
+			case "users":
+				return <UsersPanel appId={appId} />;
 			case "agents":
 				return <AgentsPanel />;
 			case "automations":

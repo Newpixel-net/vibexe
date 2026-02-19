@@ -88,6 +88,157 @@ const DEFAULT_APP = `export default function App() {
 `;
 
 /**
+ * Inlined Vibexe SDK for Sandpack browser preview.
+ * This is a bundled version of @vibexe/sdk that works in the Sandpack iframe.
+ */
+const VIBEXE_SDK_SOURCE = `
+class DataClient {
+  constructor(baseUrl, headers) {
+    this.baseUrl = baseUrl;
+    this.headers = headers;
+  }
+
+  async list(entity, options = {}) {
+    const params = new URLSearchParams();
+    if (options.page) params.set("page", String(options.page));
+    if (options.limit) params.set("limit", String(options.limit));
+    if (options.sort) params.set("sort", options.sort);
+    if (options.order) params.set("order", options.order);
+    if (options.filter) {
+      for (const [key, value] of Object.entries(options.filter)) {
+        params.set("filter[" + key + "]", String(value));
+      }
+    }
+    const qs = params.toString();
+    const url = this.baseUrl + "/data/" + entity + (qs ? "?" + qs : "");
+    const res = await fetch(url, { headers: this.headers });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to list " + entity);
+    }
+    return await res.json();
+  }
+
+  async get(entity, id) {
+    const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id, { headers: this.headers });
+    if (!res.ok) throw new Error("Failed to get " + entity + "/" + id);
+    const json = await res.json();
+    return json.data;
+  }
+
+  async create(entity, data) {
+    const res = await fetch(this.baseUrl + "/data/" + entity, {
+      method: "POST",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to create " + entity);
+    const json = await res.json();
+    return json.data;
+  }
+
+  async update(entity, id, data) {
+    const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id, {
+      method: "PUT",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to update " + entity + "/" + id);
+    const json = await res.json();
+    return json.data;
+  }
+
+  async delete(entity, id) {
+    const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id, {
+      method: "DELETE",
+      headers: this.headers,
+    });
+    if (!res.ok) throw new Error("Failed to delete " + entity + "/" + id);
+  }
+}
+
+class AuthClient {
+  constructor(baseUrl, headers) {
+    this.baseUrl = baseUrl;
+    this.headers = headers;
+    this.sessionToken = typeof window !== "undefined" ? localStorage.getItem("vibexe_session") : null;
+  }
+
+  async signUp({ email, password, displayName }) {
+    const res = await fetch(this.baseUrl + "/auth/signup", {
+      method: "POST",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, display_name: displayName }),
+    });
+    if (!res.ok) throw new Error("Signup failed");
+    const data = await res.json();
+    this._setSession(data.token);
+    return data;
+  }
+
+  async signIn({ email, password }) {
+    const res = await fetch(this.baseUrl + "/auth/signin", {
+      method: "POST",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) throw new Error("Signin failed");
+    const data = await res.json();
+    this._setSession(data.token);
+    return data;
+  }
+
+  async signOut() {
+    if (this.sessionToken) {
+      try {
+        await fetch(this.baseUrl + "/auth/signout", {
+          method: "POST",
+          headers: { ...this.headers, Authorization: "Bearer " + this.sessionToken },
+        });
+      } catch {}
+    }
+    this._clearSession();
+  }
+
+  async getCurrentUser() {
+    if (!this.sessionToken) return null;
+    const res = await fetch(this.baseUrl + "/auth/me", {
+      headers: { ...this.headers, Authorization: "Bearer " + this.sessionToken },
+    });
+    if (!res.ok) { this._clearSession(); return null; }
+    const data = await res.json();
+    return data.user;
+  }
+
+  isAuthenticated() { return this.sessionToken !== null; }
+  getToken() { return this.sessionToken; }
+
+  _setSession(token) {
+    this.sessionToken = token;
+    if (typeof window !== "undefined") localStorage.setItem("vibexe_session", token);
+  }
+
+  _clearSession() {
+    this.sessionToken = null;
+    if (typeof window !== "undefined") localStorage.removeItem("vibexe_session");
+  }
+}
+
+export class VibexeApp {
+  constructor(config) {
+    this.appId = config.appId;
+    const base = config.baseUrl
+      ? config.baseUrl + "/api/apps/" + config.appId
+      : (typeof window !== "undefined" ? window.location.origin : "") + "/api/apps/" + config.appId;
+    const headers = {};
+    if (config.apiKey) headers["X-Vibexe-Api-Key"] = config.apiKey;
+    this.data = new DataClient(base, headers);
+    this.auth = new AuthClient(base, headers);
+  }
+}
+`;
+
+/**
  * Check if a file is a code file (JS/TS/JSX/TSX)
  */
 function isCodeFile(file: AppFile): boolean {
@@ -308,6 +459,17 @@ export function convertToSandpackFiles(files: AppFile[]): SandpackFiles {
 		if (!path.startsWith("/")) path = `/${path}`;
 		sandpackFiles[path] = {
 			code: jsonFile.content || "",
+			hidden: true,
+		};
+	}
+
+	// Inject Vibexe SDK if any file imports it
+	const usesVibexeSdk = files.some(
+		(f) => f.content && f.content.includes("@vibexe/sdk"),
+	);
+	if (usesVibexeSdk) {
+		sandpackFiles["/@vibexe/sdk/index.js"] = {
+			code: VIBEXE_SDK_SOURCE,
 			hidden: true,
 		};
 	}

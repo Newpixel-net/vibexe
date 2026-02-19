@@ -6,8 +6,17 @@
 //
 // Deploy to: /opt/giselle/apps/studio.giselles.ai/app/(main)/app-builder/lib/file-tools.ts
 
+import { eq } from "drizzle-orm";
 import { tool } from "ai";
 import { z } from "zod";
+import { db } from "@/db";
+import { type BuilderAppId, builderApps } from "@/db/schema";
+import {
+	ensureAppDatabase,
+	entityToTableName,
+	type AppSchema,
+} from "@/lib/app-database";
+import { applySchema, diffAndApplySchema } from "@/lib/app-database/schema-executor";
 import { deleteFile, saveFile } from "./queries";
 
 /**
@@ -107,6 +116,147 @@ export function createFileTools(appId: string) {
 						action: "deleted",
 						path,
 						error: `Failed to delete file: ${String(error)}`,
+					};
+				}
+			},
+		}),
+
+		define_entities: tool({
+			description:
+				"Define the data entities (database tables) for the app's backend. Call this ONCE with all entities when the user describes data models, a backend, or needs to persist data. Each entity becomes a real PostgreSQL table with auto-generated CRUD API.",
+			inputSchema: z.object({
+				entities: z
+					.array(
+						z.object({
+							name: z
+								.string()
+								.describe(
+									'Entity name in PascalCase (e.g., "Course", "UserProgress", "BlogPost")',
+								),
+							fields: z.array(
+								z.object({
+									name: z
+										.string()
+										.describe(
+											'Field name in snake_case (e.g., "title", "price", "is_published")',
+										),
+									type: z
+										.enum([
+											"text",
+											"number",
+											"boolean",
+											"date",
+											"json",
+											"relation",
+										])
+										.describe(
+											"Field data type. Use 'relation' for foreign key references to other entities.",
+										),
+									required: z
+										.boolean()
+										.optional()
+										.describe("Whether this field is required (NOT NULL)"),
+									unique: z
+										.boolean()
+										.optional()
+										.describe("Whether this field must be unique"),
+									relationTo: z
+										.string()
+										.optional()
+										.describe(
+											'For relation fields: the entity name this references (e.g., "Course")',
+										),
+								}),
+							),
+						}),
+					)
+					.describe("All entities to create. Each gets id, created_at, updated_at automatically."),
+			}),
+			execute: async ({ entities }) => {
+				try {
+					// Look up the app's dbId from the string appId
+					const app = await db.query.builderApps.findFirst({
+						where: eq(builderApps.id, appId as BuilderAppId),
+						columns: { dbId: true },
+					});
+
+					if (!app) {
+						return {
+							success: false,
+							error: `App not found: ${appId}`,
+						};
+					}
+
+					// Ensure the app has a database
+					const appDb = await ensureAppDatabase(app.dbId);
+					if (appDb.status !== "active") {
+						return {
+							success: false,
+							error: `Database is in '${appDb.status}' state. Please try again.`,
+						};
+					}
+
+					// Build the schema
+					const schema: AppSchema = {
+						version: 1,
+						entities: entities.map((e) => ({
+							name: e.name,
+							tableName: entityToTableName(e.name),
+							fields: e.fields,
+						})),
+					};
+
+					// Check if there's an existing schema to diff against
+					const existingSchema = appDb.schemaJson as AppSchema | null;
+					if (
+						existingSchema &&
+						existingSchema.entities &&
+						existingSchema.entities.length > 0
+					) {
+						const diff = await diffAndApplySchema(
+							appDb.databaseName,
+							existingSchema,
+							{ ...schema, version: existingSchema.version + 1 },
+							appDb.dbId,
+						);
+						return {
+							success: true,
+							action: "updated_schema",
+							database: appDb.databaseName,
+							entities: schema.entities.map((e) => ({
+								name: e.name,
+								tableName: e.tableName,
+								fields: e.fields.map((f) => f.name),
+								apiEndpoint: `/api/apps/${appId}/data/${e.tableName}`,
+							})),
+							newTables: diff.newTables,
+							newColumns: diff.newColumns,
+							sdkImport: '@vibexe/sdk',
+							sdkUsage: `import { VibexeApp } from "@vibexe/sdk";\nconst app = new VibexeApp({ appId: "${appId}" });`,
+						};
+					}
+
+					// Fresh schema — apply from scratch
+					await applySchema(appDb.databaseName, schema, appDb.dbId);
+
+					return {
+						success: true,
+						action: "created_schema",
+						database: appDb.databaseName,
+						entities: schema.entities.map((e) => ({
+							name: e.name,
+							tableName: e.tableName,
+							fields: e.fields.map((f) => f.name),
+							apiEndpoint: `/api/apps/${appId}/data/${e.tableName}`,
+						})),
+						sdkImport: '@vibexe/sdk',
+						sdkUsage: `import { VibexeApp } from "@vibexe/sdk";\nconst app = new VibexeApp({ appId: "${appId}" });`,
+					};
+				} catch (error) {
+					console.error("define_entities error:", error);
+					return {
+						success: false,
+						error: `Failed to define entities: ${error instanceof Error ? error.message : String(error)}`,
 					};
 				}
 			},
