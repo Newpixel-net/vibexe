@@ -179,97 +179,54 @@ export async function POST(request: Request) {
 
 		// Find the developer agent (the one that actually writes files)
 		const developerAgent = plan.agents.find((a) => !a.readOnly);
-		const agentPrompt = developerAgent
-			? plan.agentPrompts.get(developerAgent.id)
-			: undefined;
 
-		// Build the system prompt: orchestrated agent prompt + file generation rules
-		const fileGenerationRules = `
-## File Tools Available
-- create_file: Create files with path and content
-- update_file: Modify existing files
-- delete_file: Remove files
-- define_entities: Define data entities (database tables) for the app's backend
+		// Build the system prompt — focused on ACTION (creating files), not planning
+		const systemPrompt = `You are an expert fullstack developer. Your job is to BUILD working applications by creating code files.
 
-## BACKEND & DATA ENTITIES
-When the user describes data models, a database, a backend, or needs persistent data:
-1. Call define_entities FIRST with ALL entities before generating any code
-2. Each entity becomes a real PostgreSQL table with auto-generated CRUD REST API
-3. Generated code MUST use the Vibexe SDK for data operations:
-   \`\`\`tsx
-   import { VibexeApp } from "@vibexe/sdk";
-   const app = new VibexeApp({ appId: "${appId}" });
+## Available Tools
+- create_file: Create a new file (path + content)
+- update_file: Replace an existing file's content
+- delete_file: Remove a file
+- define_entities: Define database tables for the app's backend
 
-   // CRUD operations
-   const items = await app.data.list("courses");
-   const item = await app.data.get("courses", id);
-   const newItem = await app.data.create("courses", { title: "React 101" });
-   await app.data.update("courses", id, { title: "Updated" });
-   await app.data.delete("courses", id);
+## CRITICAL: ACTION-FIRST WORKFLOW
+When the user describes an app, IMMEDIATELY start creating source code files.
+Do NOT plan, do NOT explain — just create files one by one using create_file.
 
-   // Auth (for apps with user login)
-   const user = await app.auth.getCurrentUser();
-   await app.auth.signUp({ email, password });
-   await app.auth.signIn({ email, password });
-   await app.auth.signOut();
-   \`\`\`
-4. Every entity auto-gets: id (serial), created_at, updated_at — DO NOT include these in define_entities
-5. Use the SDK in React components with useEffect/useState for data fetching
-6. Wrap SDK calls in try/catch for error handling
+**File creation order:**
+1. If backend/data needed → call define_entities FIRST with ALL entities
+2. src/App.tsx — Main React component (ALWAYS create this)
+3. src/components/*.tsx — Feature components (one per file)
+4. src/hooks/*.ts — Custom hooks for data fetching, auth, etc.
+5. src/types/index.ts — Shared TypeScript types
+6. src/utils/*.ts — Utility functions
+7. src/context/*.tsx — Context providers if needed
 
-## CRITICAL WORKFLOW
-When the user describes an app, create files using create_file tool calls.
-You MUST create at minimum:
-1. Blueprint.md — Architecture overview (component tree, data flow, tech decisions)
-2. src/App.tsx — Main React component with COMPLETE working code
-3. README.md — Comprehensive project documentation
+## Backend & SDK
+When the app needs data persistence or user accounts:
+- Call define_entities with all entities (each gets id, created_at, updated_at automatically)
+- Use the Vibexe SDK in generated code:
+\`\`\`tsx
+import { VibexeApp } from "@vibexe/sdk";
+const app = new VibexeApp({ appId: "${appId}" });
 
-For medium/complex apps, also create:
-- src/components/*.tsx — Separate component files
-- src/hooks/*.ts — Custom hooks
-- src/utils/*.ts — Utility functions
-- src/types/index.ts — Type definitions
-- src/context/*.tsx — Context providers (if needed)
-
-## Blueprint.md Format
-\`\`\`markdown
-# [App Name] — Architecture Blueprint
-
-## Overview
-[2-3 paragraph description of what the app does]
-
-## Architecture
-- Component tree with relationships
-- Data flow description
-- State management approach
-
-## Tech Stack
-| Layer | Technology | Rationale |
-|-------|-----------|-----------|
-
-## File Structure
-[Tree of all files being generated]
-
-## Implementation Phases
-1. Phase 1: [description] — [files]
-2. Phase 2: [description] — [files]
+// Data: app.data.list("entity"), app.data.get("entity", id), app.data.create("entity", data), app.data.update("entity", id, data), app.data.delete("entity", id)
+// Auth: app.auth.signUp({email, password}), app.auth.signIn({email, password}), app.auth.signOut(), app.auth.getCurrentUser()
 \`\`\`
 
-## Code Requirements
+## Code Standards
 - React functional components with TypeScript
-- Tailwind CSS for all styling (CDN is preloaded — do NOT import CSS files)
-- DO NOT use external packages (no framer-motion, no react-icons, etc.)
-- For icons, use simple SVG or emoji characters
-- Export components as default
-- All code must be complete and render without errors
+- Tailwind CSS for ALL styling (CDN is preloaded — NO CSS imports)
+- NO external packages (no framer-motion, no react-icons, no libraries)
+- Use inline SVG or emoji for icons
+- Every file must be COMPLETE and render without errors
+- Use useEffect + useState for data fetching, try/catch for error handling
 
 ## IMPORTANT
-DO NOT STOP until all required files are created.
-Your response is INCOMPLETE unless Blueprint.md, src/App.tsx, and README.md all exist.`;
-
-		const systemPrompt = agentPrompt
-			? `${agentPrompt}\n\n${fileGenerationRules}`
-			: fileGenerationRules;
+- Create ALL files. Do NOT stop after 1-2 files.
+- Every create_file call should contain COMPLETE, working code.
+- For complex apps: create 8-15+ files with proper component separation.
+${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;
 
 		const tools = createFileTools(appId);
 		const modelMessages = await convertToModelMessages(messages);
@@ -283,7 +240,13 @@ Your response is INCOMPLETE unless Blueprint.md, src/App.tsx, and README.md all 
 				: resolveModel(undefined, byok);
 
 		const isReplication = plan.intent.suggestedFlow === "replicate";
-		const maxSteps = isReplication ? 40 : 25;
+		const maxSteps = isReplication
+			? 50
+			: plan.intent.complexity === "complex"
+				? 50
+				: plan.intent.complexity === "medium"
+					? 35
+					: 25;
 
 		console.log(
 			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, model=${modelId || developerAgent?.modelTier || "default"}, maxSteps=${maxSteps}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,
@@ -293,6 +256,7 @@ Your response is INCOMPLETE unless Blueprint.md, src/App.tsx, and README.md all 
 		const stream = createUIMessageStream({
 			execute: async ({ writer }) => {
 				// 1. Write orchestration-start event as data part
+				const activeAgents = developerAgent ? [developerAgent] : plan.agents.filter((a) => !a.readOnly);
 				writer.write({
 					type: "data-agent-event" as const,
 					data: {
@@ -302,7 +266,7 @@ Your response is INCOMPLETE unless Blueprint.md, src/App.tsx, and README.md all 
 							suggestedFlow: plan.intent.suggestedFlow,
 							techStack: plan.intent.techStack,
 						},
-						agents: plan.agents.map((a) => ({
+						agents: activeAgents.map((a) => ({
 							id: a.id,
 							name: a.name,
 							modelTier: a.modelTier,
@@ -313,8 +277,8 @@ Your response is INCOMPLETE unless Blueprint.md, src/App.tsx, and README.md all 
 					},
 				} as never);
 
-				// 2. Write agent-start events with skills as data parts
-				for (const agent of plan.agents) {
+				// 2. Write agent-start event for the developer agent only
+				for (const agent of activeAgents) {
 					const skills = plan.agentSkills.get(agent.id) || [];
 					writer.write({
 						type: "data-agent-event" as const,
@@ -343,9 +307,9 @@ Your response is INCOMPLETE unless Blueprint.md, src/App.tsx, and README.md all 
 					tools,
 					maxSteps,
 					toolChoice: "required",
-					onFinish: () => {
+					onFinish: (event) => {
 						console.log(
-							`[Chat API] Stream finished - Chat: ${chatId || "new"}, Intent: ${plan.intent.complexity}`,
+							`[Chat API] Stream finished - Chat: ${chatId || "new"}, maxSteps=${maxSteps}, finishReason=${event.finishReason}`,
 						);
 					},
 				});
