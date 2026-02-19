@@ -186,6 +186,8 @@ export async function POST(request: Request) {
 ## CRITICAL: ACTION-FIRST WORKFLOW
 When the user describes an app, IMMEDIATELY start creating files using create_file.
 Do NOT plan, do NOT explain, do NOT ask questions — just create files.
+Do NOT create Blueprint.md, plan.md, README.md, or any planning/documentation files.
+BATCH multiple create_file calls in a single response when files are independent.
 
 **File creation order:**
 1. src/App.tsx — Main React component (ALWAYS create this FIRST)
@@ -232,12 +234,12 @@ ${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;
 
 		const isReplication = plan.intent.suggestedFlow === "replicate";
 		const maxSteps = isReplication
-			? 75
+			? 100
 			: plan.intent.complexity === "complex"
-				? 75
+				? 100
 				: plan.intent.complexity === "medium"
-					? 50
-					: 30;
+					? 60
+					: 35;
 
 		console.log(
 			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, model=${modelId || developerAgent?.modelTier || "default"}, maxSteps=${maxSteps}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,
