@@ -1,0 +1,54 @@
+"use client";
+
+/**
+ * AppTemplatePanel Component
+ *
+ * Allows users to publish their app as a reusable template.
+ * Requires the app to be deployed first.
+ */
+
+import { FileCode2, Rocket } from "lucide-react";
+
+interface AppTemplatePanelProps {
+	appId: string;
+}
+
+export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
+	return (
+		<div className="flex-1 overflow-y-auto p-6">
+			<div className="max-w-3xl mx-auto space-y-6">
+				{/* Header */}
+				<div>
+					<h1 className="text-2xl font-bold text-foreground">
+						App Template
+					</h1>
+					<p className="text-sm text-muted-foreground mt-1">
+						Turn your app into a reusable template that others can clone.
+					</p>
+				</div>
+
+				{/* Empty state */}
+				<div className="flex flex-col items-center justify-center rounded-lg border border-border bg-card p-12 text-center">
+					<div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+						<Rocket className="h-8 w-8 text-muted-foreground/50" />
+					</div>
+					<h2 className="text-lg font-semibold text-foreground mb-2">
+						Ready to create a template?
+					</h2>
+					<p className="text-sm text-muted-foreground max-w-md">
+						Before you can turn this application into a template, it needs
+						to be deployed. Click Deploy in the Domains section to publish
+						your app, then return here to set it up as a template.
+					</p>
+					<button
+						type="button"
+						className="mt-6 px-6 py-2.5 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors opacity-50 cursor-not-allowed"
+						disabled
+					>
+						Create Template
+					</button>
+				</div>
+			</div>
+		</div>
+	);
+}

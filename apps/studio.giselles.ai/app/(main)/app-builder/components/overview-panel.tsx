@@ -16,8 +16,16 @@ import {
 	Activity,
 	ArrowRight,
 	Clock,
+	Globe,
+	Lock,
+	Link2,
+	Copy,
+	Check,
+	Send,
+	Eye,
+	EyeOff,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 
 interface OverviewPanelProps {
@@ -70,6 +78,66 @@ export function OverviewPanel({
 	schema,
 	onNavigate,
 }: OverviewPanelProps) {
+	// App settings state
+	const [visibility, setVisibility] = useState<"public" | "private">("public");
+	const [requireLogin, setRequireLogin] = useState(false);
+	const [appName, setAppName] = useState("");
+	const [appDescription, setAppDescription] = useState("");
+	const [saving, setSaving] = useState(false);
+	const [copied, setCopied] = useState(false);
+
+	// Fetch app settings
+	useEffect(() => {
+		async function fetchSettings() {
+			try {
+				const res = await fetch(`/api/app-builder/apps/${appId}`);
+				if (res.ok) {
+					const data = await res.json();
+					setVisibility(data.visibility || "public");
+					setRequireLogin(data.requireLogin || false);
+					setAppName(data.name || "");
+					setAppDescription(data.description || "");
+				}
+			} catch {}
+		}
+		fetchSettings();
+	}, [appId]);
+
+	const updateSetting = useCallback(
+		async (key: string, value: unknown) => {
+			setSaving(true);
+			try {
+				await fetch(`/api/app-builder/apps/${appId}`, {
+					method: "PATCH",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ [key]: value }),
+				});
+			} catch {}
+			setSaving(false);
+		},
+		[appId],
+	);
+
+	const handleVisibilityChange = useCallback(
+		(v: "public" | "private") => {
+			setVisibility(v);
+			updateSetting("visibility", v);
+		},
+		[updateSetting],
+	);
+
+	const handleRequireLoginToggle = useCallback(() => {
+		const next = !requireLogin;
+		setRequireLogin(next);
+		updateSetting("requireLogin", next);
+	}, [requireLogin, updateSetting]);
+
+	const copyInviteLink = useCallback(() => {
+		const url = `${window.location.origin}/app-builder/${appId}`;
+		navigator.clipboard.writeText(url);
+		setCopied(true);
+		setTimeout(() => setCopied(false), 2000);
+	}, [appId]);
 	const stats = useMemo(() => {
 		const sourceFiles = files.filter(
 			(f) => f.path !== "Blueprint.md" && !f.path.startsWith("."),
@@ -104,12 +172,106 @@ export function OverviewPanel({
 	return (
 		<div className="flex-1 overflow-y-auto p-6">
 			<div className="max-w-4xl mx-auto space-y-8">
-				{/* Header */}
+				{/* Header with app name */}
 				<div>
-					<h1 className="text-2xl font-bold text-foreground">Overview</h1>
-					<p className="text-sm text-muted-foreground mt-1">
-						Your app at a glance
-					</p>
+					<h1 className="text-2xl font-bold text-foreground">
+						{appName || "Overview"}
+					</h1>
+					{appDescription && (
+						<p className="text-sm text-muted-foreground mt-1">
+							{appDescription}
+						</p>
+					)}
+					{!appDescription && (
+						<p className="text-sm text-muted-foreground mt-1">
+							Your app at a glance
+						</p>
+					)}
+				</div>
+
+				{/* App Visibility + Invite Users */}
+				<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+					{/* App Visibility */}
+					<div className="rounded-lg border border-border bg-card p-4">
+						<div className="flex items-center justify-between mb-3">
+							<div>
+								<h3 className="text-sm font-medium text-foreground">
+									App Visibility
+								</h3>
+								<p className="text-xs text-muted-foreground mt-0.5">
+									Control who can access your application
+								</p>
+							</div>
+						</div>
+						<div className="space-y-3">
+							<div className="flex items-center gap-2">
+								<select
+									value={visibility}
+									onChange={(e) =>
+										handleVisibilityChange(
+											e.target.value as "public" | "private",
+										)
+									}
+									className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+								>
+									<option value="public">Public</option>
+									<option value="private">Private</option>
+								</select>
+								{visibility === "public" ? (
+									<Globe className="h-4 w-4 text-green-500" />
+								) : (
+									<Lock className="h-4 w-4 text-yellow-500" />
+								)}
+							</div>
+							<label className="flex items-center gap-2 cursor-pointer">
+								<input
+									type="checkbox"
+									checked={requireLogin}
+									onChange={handleRequireLoginToggle}
+									className="rounded border-border"
+								/>
+								<span className="text-sm text-muted-foreground">
+									Require login to access
+								</span>
+							</label>
+						</div>
+					</div>
+
+					{/* Invite Users */}
+					<div className="rounded-lg border border-border bg-card p-4">
+						<div className="flex items-center justify-between mb-3">
+							<div>
+								<h3 className="text-sm font-medium text-foreground">
+									Invite Users
+								</h3>
+								<p className="text-xs text-muted-foreground mt-0.5">
+									Grow your user base by inviting others
+								</p>
+							</div>
+							<Link2 className="h-4 w-4 text-muted-foreground" />
+						</div>
+						<div className="flex items-center gap-2">
+							<button
+								type="button"
+								onClick={copyInviteLink}
+								className="flex items-center gap-2 px-4 py-2 rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+							>
+								{copied ? (
+									<Check className="h-3.5 w-3.5 text-green-500" />
+								) : (
+									<Copy className="h-3.5 w-3.5" />
+								)}
+								{copied ? "Copied!" : "Copy Link"}
+							</button>
+							<button
+								type="button"
+								className="flex items-center gap-2 px-4 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
+							>
+								<Send className="h-3.5 w-3.5" />
+								Send Invites
+							</button>
+						</div>
+					</div>
 				</div>
 
 				{/* Stats Grid */}

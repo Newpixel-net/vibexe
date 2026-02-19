@@ -104,6 +104,35 @@ export async function updateAppName(appId: string, name: string) {
 }
 
 /**
+ * Update app settings (name, description, visibility, requireLogin)
+ */
+export async function updateAppSettings(
+	appId: string,
+	settings: {
+		name?: string;
+		description?: string;
+		visibility?: string;
+		requireLogin?: boolean;
+	},
+) {
+	const updateData: Record<string, unknown> = {};
+	if (settings.name !== undefined) updateData.name = settings.name;
+	if (settings.description !== undefined)
+		updateData.description = settings.description;
+	if (settings.visibility !== undefined)
+		updateData.visibility = settings.visibility;
+	if (settings.requireLogin !== undefined)
+		updateData.requireLogin = settings.requireLogin;
+
+	if (Object.keys(updateData).length === 0) return;
+
+	await db
+		.update(builderApps)
+		.set(updateData)
+		.where(eq(builderApps.id, appId as BuilderAppId));
+}
+
+/**
  * Delete a builder app and all its related data (files, chats, versions)
  */
 export async function deleteApp(appId: string) {

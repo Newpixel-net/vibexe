@@ -4,7 +4,7 @@
  * DashboardPanel Component
  *
  * Main dashboard panel combining sidebar navigation and content area.
- * All 13 sections are implemented with real panels.
+ * Settings section has 3 sub-items: App Settings, Authentication, App Template.
  */
 
 import { useEffect, useState } from "react";
@@ -12,6 +12,8 @@ import type { AppFile } from "../adapters/file-adapter";
 import { AgentsPanel } from "./agents-panel";
 import { AnalyticsPanel } from "./analytics-panel";
 import { ApiDocsPanel } from "./api-docs-panel";
+import { AuthenticationPanel } from "./authentication-panel";
+import { AppTemplatePanel } from "./app-template-panel";
 import { AutomationsPanel } from "./automations-panel";
 import { CodePanel } from "./code-panel";
 import { type DashboardSection, DashboardSidebar } from "./dashboard-sidebar";
@@ -37,10 +39,6 @@ interface DashboardPanelProps {
 	onFileUpdate: (fileId: string, content: string) => void;
 }
 
-/**
- * DashboardPanel - Sidebar navigation + content area
- * All 13 sections are wired to real panel components.
- */
 export function DashboardPanel({
 	appId,
 	files,
@@ -119,7 +117,12 @@ export function DashboardPanel({
 			case "api":
 				return <ApiDocsPanel appId={appId} schema={schema} />;
 			case "settings":
+			case "settings-app":
 				return <SettingsPanel appId={appId} />;
+			case "settings-auth":
+				return <AuthenticationPanel appId={appId} />;
+			case "settings-template":
+				return <AppTemplatePanel appId={appId} />;
 		}
 	};
 

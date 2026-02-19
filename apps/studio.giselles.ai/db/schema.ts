@@ -1274,6 +1274,8 @@ export const builderApps = pgTable(
 		name: text("name").notNull(),
 		description: text("description"),
 		shareToken: text("share_token"),
+		visibility: text("visibility").notNull().default("public"),
+		requireLogin: boolean("require_login").notNull().default(false),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at")
 			.defaultNow()

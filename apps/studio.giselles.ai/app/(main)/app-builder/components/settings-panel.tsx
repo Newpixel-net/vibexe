@@ -3,11 +3,22 @@
 /**
  * SettingsPanel Component
  *
- * App configuration: name, description, sharing, and danger zone.
+ * App configuration: name, description, visibility, sharing, clone, badge, and danger zone.
  * Uses existing API endpoints for updates.
  */
 
-import { Check, Copy, ExternalLink, Loader2, Trash2 } from "lucide-react";
+import {
+	Check,
+	Copy as CopyIcon,
+	ExternalLink,
+	Eye,
+	EyeOff,
+	Globe,
+	Loader2,
+	Lock,
+	Sparkles,
+	Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 interface SettingsPanelProps {
@@ -17,12 +28,16 @@ interface SettingsPanelProps {
 export function SettingsPanel({ appId }: SettingsPanelProps) {
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
+	const [visibility, setVisibility] = useState("public");
+	const [requireLogin, setRequireLogin] = useState(false);
+	const [platformBadge, setPlatformBadge] = useState(true);
 	const [shareEnabled, setShareEnabled] = useState(false);
 	const [shareUrl, setShareUrl] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [saved, setSaved] = useState(false);
 	const [copied, setCopied] = useState(false);
 	const [loading, setLoading] = useState(true);
+	const [cloning, setCloning] = useState(false);
 
 	// Fetch current app info
 	useEffect(() => {
@@ -31,8 +46,10 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 				const res = await fetch(`/api/app-builder/apps/${appId}`);
 				if (res.ok) {
 					const data = await res.json();
-					setName(data.app?.name || "");
-					setDescription(data.app?.description || "");
+					setName(data.name || "");
+					setDescription(data.description || "");
+					setVisibility(data.visibility || "public");
+					setRequireLogin(data.requireLogin || false);
 				}
 			} catch {
 				// Ignore
@@ -40,7 +57,9 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 
 			// Fetch share status
 			try {
-				const shareRes = await fetch(`/api/app-builder/apps/${appId}/share`);
+				const shareRes = await fetch(
+					`/api/app-builder/apps/${appId}/share`,
+				);
 				if (shareRes.ok) {
 					const shareData = await shareRes.json();
 					setShareEnabled(!!shareData.shareUrl);
@@ -61,7 +80,12 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 			await fetch(`/api/app-builder/apps/${appId}`, {
 				method: "PATCH",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name, description }),
+				body: JSON.stringify({
+					name,
+					description,
+					visibility,
+					requireLogin,
+				}),
 			});
 			setSaved(true);
 			setTimeout(() => setSaved(false), 2000);
@@ -69,7 +93,7 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 			// Error handling
 		}
 		setSaving(false);
-	}, [appId, name, description]);
+	}, [appId, name, description, visibility, requireLogin]);
 
 	const handleShareToggle = useCallback(async () => {
 		const newEnabled = !shareEnabled;
@@ -100,6 +124,32 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 		}
 	}, [shareUrl]);
 
+	const handleClone = useCallback(async () => {
+		if (
+			!window.confirm(
+				"Clone this app? A copy will be created with all files.",
+			)
+		)
+			return;
+		setCloning(true);
+		try {
+			const res = await fetch(`/api/app-builder/apps/${appId}`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ action: "duplicate" }),
+			});
+			if (res.ok) {
+				const data = await res.json();
+				if (data.appId) {
+					window.location.href = `/app-builder/${data.appId}`;
+				}
+			}
+		} catch {
+			// Error handling
+		}
+		setCloning(false);
+	}, [appId]);
+
 	if (loading) {
 		return (
 			<div className="flex-1 flex items-center justify-center">
@@ -113,7 +163,9 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 			<div className="max-w-2xl mx-auto space-y-8">
 				{/* Header */}
 				<div>
-					<h1 className="text-2xl font-bold text-foreground">Settings</h1>
+					<h1 className="text-2xl font-bold text-foreground">
+						App Settings
+					</h1>
 					<p className="text-sm text-muted-foreground mt-1">
 						Configure your app settings and preferences
 					</p>
@@ -121,7 +173,9 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 
 				{/* General */}
 				<div className="rounded-lg border border-border bg-card p-6 space-y-4">
-					<h2 className="text-lg font-semibold text-foreground">General</h2>
+					<h2 className="text-lg font-semibold text-foreground">
+						General
+					</h2>
 
 					<div className="space-y-2">
 						<label
@@ -156,30 +210,94 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 							placeholder="A brief description of your app..."
 						/>
 					</div>
+				</div>
 
-					<div className="flex items-center gap-2">
-						<button
-							type="button"
-							onClick={handleSave}
-							disabled={saving}
-							className="px-4 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
-						>
-							{saving ? (
-								<Loader2 className="h-3.5 w-3.5 animate-spin" />
-							) : saved ? (
-								<Check className="h-3.5 w-3.5" />
-							) : null}
-							{saved ? "Saved" : "Save Changes"}
-						</button>
+				{/* App Visibility */}
+				<div className="rounded-lg border border-border bg-card p-6 space-y-4">
+					<h2 className="text-lg font-semibold text-foreground">
+						Visibility
+					</h2>
+					<p className="text-sm text-muted-foreground">
+						Control who can access your app and its data.
+					</p>
+
+					<div className="space-y-4">
+						<div className="flex items-center justify-between">
+							<div className="flex items-center gap-3">
+								{visibility === "public" ? (
+									<Globe className="h-4 w-4 text-green-500" />
+								) : (
+									<Lock className="h-4 w-4 text-amber-500" />
+								)}
+								<div>
+									<span className="text-sm font-medium text-foreground">
+										App Access
+									</span>
+									<p className="text-xs text-muted-foreground">
+										{visibility === "public"
+											? "Anyone with the link can view this app"
+											: "Only invited users can access this app"}
+									</p>
+								</div>
+							</div>
+							<select
+								value={visibility}
+								onChange={(e) => setVisibility(e.target.value)}
+								className="px-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+							>
+								<option value="public">Public</option>
+								<option value="private">Private</option>
+							</select>
+						</div>
+
+						<div className="flex items-center justify-between">
+							<div className="flex items-center gap-3">
+								{requireLogin ? (
+									<Eye className="h-4 w-4 text-blue-500" />
+								) : (
+									<EyeOff className="h-4 w-4 text-muted-foreground" />
+								)}
+								<div>
+									<span className="text-sm font-medium text-foreground">
+										Require Login
+									</span>
+									<p className="text-xs text-muted-foreground">
+										Users must sign in before accessing the
+										app
+									</p>
+								</div>
+							</div>
+							<button
+								type="button"
+								onClick={() =>
+									setRequireLogin(!requireLogin)
+								}
+								className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+									requireLogin
+										? "bg-foreground"
+										: "bg-muted-foreground/20"
+								}`}
+							>
+								<span
+									className={`inline-block h-4 w-4 transform rounded-full bg-background transition-transform ${
+										requireLogin
+											? "translate-x-6"
+											: "translate-x-1"
+									}`}
+								/>
+							</button>
+						</div>
 					</div>
 				</div>
 
 				{/* Sharing */}
 				<div className="rounded-lg border border-border bg-card p-6 space-y-4">
-					<h2 className="text-lg font-semibold text-foreground">Sharing</h2>
+					<h2 className="text-lg font-semibold text-foreground">
+						Sharing
+					</h2>
 					<p className="text-sm text-muted-foreground">
-						Share your app with a public preview link. Anyone with the link can
-						view the app.
+						Share your app with a public preview link. Anyone with
+						the link can view the app.
 					</p>
 
 					<div className="flex items-center justify-between">
@@ -195,7 +313,9 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 						>
 							<span
 								className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-									shareEnabled ? "translate-x-6" : "translate-x-1"
+									shareEnabled
+										? "translate-x-6"
+										: "translate-x-1"
 								}`}
 							/>
 						</button>
@@ -221,16 +341,56 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 								{copied ? (
 									<Check className="h-3.5 w-3.5 text-green-500" />
 								) : (
-									<Copy className="h-3.5 w-3.5" />
+									<CopyIcon className="h-3.5 w-3.5" />
 								)}
 							</button>
 						</div>
 					)}
 				</div>
 
+				{/* Platform Badge */}
+				<div className="rounded-lg border border-border bg-card p-6 space-y-4">
+					<h2 className="text-lg font-semibold text-foreground">
+						Platform Badge
+					</h2>
+					<div className="flex items-center justify-between">
+						<div className="flex items-center gap-3">
+							<Sparkles className="h-4 w-4 text-muted-foreground" />
+							<div>
+								<span className="text-sm font-medium text-foreground">
+									Show &quot;Built with Vibexe&quot; badge
+								</span>
+								<p className="text-xs text-muted-foreground">
+									Display a small badge in the footer of your
+									deployed app
+								</p>
+							</div>
+						</div>
+						<button
+							type="button"
+							onClick={() => setPlatformBadge(!platformBadge)}
+							className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+								platformBadge
+									? "bg-foreground"
+									: "bg-muted-foreground/20"
+							}`}
+						>
+							<span
+								className={`inline-block h-4 w-4 transform rounded-full bg-background transition-transform ${
+									platformBadge
+										? "translate-x-6"
+										: "translate-x-1"
+								}`}
+							/>
+						</button>
+					</div>
+				</div>
+
 				{/* App ID */}
 				<div className="rounded-lg border border-border bg-card p-6 space-y-2">
-					<h2 className="text-lg font-semibold text-foreground">App ID</h2>
+					<h2 className="text-lg font-semibold text-foreground">
+						App ID
+					</h2>
 					<p className="text-sm text-muted-foreground">
 						Use this ID when calling the Vibexe SDK or API.
 					</p>
@@ -239,33 +399,90 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 					</code>
 				</div>
 
-				{/* Danger Zone */}
-				<div className="rounded-lg border border-red-500/30 bg-card p-6 space-y-4">
-					<h2 className="text-lg font-semibold text-red-500">Danger Zone</h2>
-					<p className="text-sm text-muted-foreground">
-						Permanently delete this app and all its data. This action cannot be
-						undone.
-					</p>
+				{/* Save */}
+				<div className="flex items-center gap-3">
 					<button
 						type="button"
-						onClick={() => {
-							if (
-								window.confirm(
-									"Are you sure? This will permanently delete the app and all its files.",
-								)
-							) {
-								fetch(`/api/app-builder/apps/${appId}`, {
-									method: "DELETE",
-								}).then(() => {
-									window.location.href = "/app-builder";
-								});
-							}
-						}}
-						className="px-4 py-2 rounded-md border border-red-500/50 text-red-500 text-sm font-medium hover:bg-red-500/10 transition-colors flex items-center gap-2"
+						onClick={handleSave}
+						disabled={saving}
+						className="px-4 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
 					>
-						<Trash2 className="h-3.5 w-3.5" />
-						Delete App
+						{saving ? (
+							<Loader2 className="h-3.5 w-3.5 animate-spin" />
+						) : saved ? (
+							<Check className="h-3.5 w-3.5" />
+						) : null}
+						{saved ? "Saved" : "Save Changes"}
 					</button>
+				</div>
+
+				{/* Danger Zone */}
+				<div className="rounded-lg border border-red-500/30 bg-card p-6 space-y-4">
+					<h2 className="text-lg font-semibold text-red-500">
+						Danger Zone
+					</h2>
+
+					<div className="space-y-4">
+						{/* Clone App */}
+						<div className="flex items-center justify-between p-3 rounded-md border border-border">
+							<div>
+								<h3 className="text-sm font-medium text-foreground">
+									Clone App
+								</h3>
+								<p className="text-xs text-muted-foreground">
+									Create a copy of this app with all its files
+								</p>
+							</div>
+							<button
+								type="button"
+								onClick={handleClone}
+								disabled={cloning}
+								className="px-3 py-1.5 rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50 flex items-center gap-2"
+							>
+								{cloning && (
+									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								)}
+								Clone
+							</button>
+						</div>
+
+						{/* Delete */}
+						<div className="flex items-center justify-between p-3 rounded-md border border-red-500/20">
+							<div>
+								<h3 className="text-sm font-medium text-red-500">
+									Delete App
+								</h3>
+								<p className="text-xs text-muted-foreground">
+									Permanently delete this app and all its
+									data. This cannot be undone.
+								</p>
+							</div>
+							<button
+								type="button"
+								onClick={() => {
+									if (
+										window.confirm(
+											"Are you sure? This will permanently delete the app and all its files.",
+										)
+									) {
+										fetch(
+											`/api/app-builder/apps/${appId}`,
+											{
+												method: "DELETE",
+											},
+										).then(() => {
+											window.location.href =
+												"/app-builder";
+										});
+									}
+								}}
+								className="px-3 py-1.5 rounded-md border border-red-500/50 text-red-500 text-sm font-medium hover:bg-red-500/10 transition-colors flex items-center gap-2"
+							>
+								<Trash2 className="h-3.5 w-3.5" />
+								Delete
+							</button>
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>
