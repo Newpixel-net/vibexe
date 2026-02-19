@@ -180,55 +180,39 @@ export async function POST(request: Request) {
 		// Find the developer agent (the one that actually writes files)
 		const developerAgent = plan.agents.find((a) => !a.readOnly);
 
-		// Build the system prompt — Blueprint + all code in ONE response
-		const systemPrompt = `You are an expert fullstack developer. You PLAN and BUILD complete applications in a single response.
+		// Build the system prompt — all files created via consecutive create_file calls
+		const systemPrompt = `You are an expert fullstack developer. Create COMPLETE web applications.
 
-## WORKFLOW — ALL IN ONE RESPONSE
+## TASK
 
-You MUST create ALL files in a SINGLE response. Call create_file multiple times — first for Blueprint.md, then for every code file. Do NOT stop after creating Blueprint.md. Keep going until every file is created.
+Call create_file for EVERY file the application needs. A typical app requires 8-15+ files.
 
-### Step 1: Blueprint.md (call create_file FIRST)
-Create **Blueprint.md** with:
-- App Overview, Features (with acceptance criteria), Architecture (components, data flow, state)
-- Data Models (if backend needed), File Structure (ALL files), Tech Stack, UI/UX Plan
+## Required Files (call create_file for ALL)
 
-### Step 2: ALL Code Files (in the SAME response, immediately after Blueprint.md)
-Call create_file for EVERY code file. Batch them all — do NOT wait.
+1. **Blueprint.md** — Full project documentation: overview, features with acceptance criteria, architecture, data flow, component structure, complete file list, tech stack, UI/UX notes
+2. **src/types/index.ts** — TypeScript interfaces and type definitions
+3. **Utility files** — src/utils/*.ts for helpers, constants, mock data
+4. **React hooks** — src/hooks/*.ts for data management, localStorage, state
+5. **Components** — src/components/*.tsx, one file per UI component, well-separated by feature
+6. **src/App.tsx** — Main component importing and rendering all components
 
-**File order:**
-1. Blueprint.md (step 1)
-2. src/types/index.ts — TypeScript types and interfaces
-3. src/utils/*.ts — Utility functions and helpers
-4. src/hooks/*.ts — Custom React hooks
-5. src/context/*.tsx — Context providers (if needed)
-6. src/components/*.tsx — Feature components (one per file)
-7. src/App.tsx — Main React component (imports all above)
+You MUST call create_file for items 1-6 above. Do NOT stop after creating Blueprint.md — keep calling create_file for every remaining file. Aim for 8-15+ total create_file calls.
 
-### Step 3: Summary (text-only, NO tool calls)
-After ALL files are created, write a brief summary listing what was built and all features.
+After ALL create_file calls are done, write a SHORT summary (2-3 sentences) of what was built.
 
 ## Data Management
-- For most apps: use React state (useState) + localStorage for persistence.
-- When user asks for SaaS, multi-user, or backend: call define_entities to create database tables.
-- If define_entities returns an error, fall back to localStorage instead.
-
-## Backend SDK (only when define_entities succeeds)
+- Default: React state (useState) + localStorage for persistence
+- SaaS/multi-user apps: call define_entities to create database tables, then use:
 \`\`\`tsx
 import { VibexeApp } from "@vibexe/sdk";
 const app = new VibexeApp({ appId: "${appId}" });
-// app.data.list("entity"), app.data.create("entity", data), etc.
 \`\`\`
 
 ## Code Standards
 - React + TypeScript + Tailwind CSS (CDN preloaded, NO CSS imports needed)
 - NO external packages — use inline SVG or emoji for icons
 - Every file must be COMPLETE and render without errors
-
-## CRITICAL RULES
-- Create Blueprint.md AND all code files in ONE response. Never stop after just Blueprint.md.
-- Every create_file call must contain COMPLETE, working code.
-- For complex apps: create 8-15+ files with proper component separation.
-- Your FINAL message after all create_file calls MUST be text-only with NO tool calls.
+- Complex apps need 8-15+ well-separated component files
 ${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;
 
 		const tools = createFileTools(appId);
