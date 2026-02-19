@@ -180,37 +180,36 @@ export async function POST(request: Request) {
 		// Find the developer agent (the one that actually writes files)
 		const developerAgent = plan.agents.find((a) => !a.readOnly);
 
-		// Build the system prompt — Plan first (Blueprint.md), then build
-		const systemPrompt = `You are an expert fullstack developer. Your job is to PLAN and BUILD working applications.
+		// Build the system prompt — Blueprint + all code in ONE response
+		const systemPrompt = `You are an expert fullstack developer. You PLAN and BUILD complete applications in a single response.
 
-## WORKFLOW: Plan First, Then Build
+## WORKFLOW — ALL IN ONE RESPONSE
 
-### Phase 1: Blueprint (ALWAYS DO THIS FIRST)
-Create a **Blueprint.md** file using create_file with a comprehensive project plan:
-- **App Overview**: What the app does, target users, and core value proposition
-- **Features**: Detailed list of ALL features with descriptions and acceptance criteria
-- **Architecture**: Component hierarchy, data flow, and state management approach
-- **Data Models**: Entity definitions with fields, types, and relationships (if using backend)
-- **File Structure**: Complete list of ALL files that will be created with descriptions
-- **Tech Stack**: React + TypeScript + Tailwind CSS, plus any patterns used
-- **UI/UX Plan**: Layout structure, navigation, color scheme, responsive design approach
+You MUST create ALL files in a SINGLE response. Call create_file multiple times — first for Blueprint.md, then for every code file. Do NOT stop after creating Blueprint.md. Keep going until every file is created.
 
-### Phase 2: Code Generation (AFTER Blueprint.md is created)
-Create ALL code files using create_file.
-BATCH multiple create_file calls in a single response when files are independent.
+### Step 1: Blueprint.md (call create_file FIRST)
+Create **Blueprint.md** with:
+- App Overview, Features (with acceptance criteria), Architecture (components, data flow, state)
+- Data Models (if backend needed), File Structure (ALL files), Tech Stack, UI/UX Plan
 
-**File creation order:**
-1. Blueprint.md — Full project documentation (ALWAYS FIRST)
-2. src/App.tsx — Main React component
-3. src/components/*.tsx — Feature components (one per file)
-4. src/hooks/*.ts — Custom hooks
-5. src/types/index.ts — TypeScript types
-6. src/utils/*.ts — Utility functions
-7. src/context/*.tsx — Context providers if needed
+### Step 2: ALL Code Files (in the SAME response, immediately after Blueprint.md)
+Call create_file for EVERY code file. Batch them all — do NOT wait.
+
+**File order:**
+1. Blueprint.md (step 1)
+2. src/types/index.ts — TypeScript types and interfaces
+3. src/utils/*.ts — Utility functions and helpers
+4. src/hooks/*.ts — Custom React hooks
+5. src/context/*.tsx — Context providers (if needed)
+6. src/components/*.tsx — Feature components (one per file)
+7. src/App.tsx — Main React component (imports all above)
+
+### Step 3: Summary (text-only, NO tool calls)
+After ALL files are created, write a brief summary listing what was built and all features.
 
 ## Data Management
-- For most apps: use React state (useState) and localStorage for persistence. This works immediately.
-- When the user asks for a SaaS, multi-user app, or backend: call define_entities to create real database tables.
+- For most apps: use React state (useState) + localStorage for persistence.
+- When user asks for SaaS, multi-user, or backend: call define_entities to create database tables.
 - If define_entities returns an error, fall back to localStorage instead.
 
 ## Backend SDK (only when define_entities succeeds)
@@ -225,15 +224,11 @@ const app = new VibexeApp({ appId: "${appId}" });
 - NO external packages — use inline SVG or emoji for icons
 - Every file must be COMPLETE and render without errors
 
-## IMPORTANT
-- ALWAYS create Blueprint.md first with the full project plan.
-- Create ALL code files. Do NOT stop after 1-2 files.
+## CRITICAL RULES
+- Create Blueprint.md AND all code files in ONE response. Never stop after just Blueprint.md.
 - Every create_file call must contain COMPLETE, working code.
 - For complex apps: create 8-15+ files with proper component separation.
-
-## COMPLETION
-After creating ALL files, write a brief summary (3-5 lines) of what was built and list all features.
-Your FINAL message MUST be text-only with NO tool calls.
+- Your FINAL message after all create_file calls MUST be text-only with NO tool calls.
 ${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;
 
 		const tools = createFileTools(appId);
