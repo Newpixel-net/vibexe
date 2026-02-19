@@ -81,7 +81,7 @@ export function ChatSettingsPopover({ modelId, appId, onClose }: ChatSettingsPop
 	return (
 		<div
 			ref={popoverRef}
-			className="absolute bottom-full left-0 mb-2 w-64 rounded-lg border border-border bg-popover shadow-lg z-50"
+			className="absolute bottom-full left-0 mb-2 w-64 rounded-lg border border-border bg-[#2f343e] shadow-lg z-50"
 		>
 			{/* Header */}
 			<div className="flex items-center justify-between px-3 py-2 border-b border-border">
