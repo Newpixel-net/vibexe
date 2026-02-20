@@ -20,24 +20,24 @@ const VERDICT_CONFIG = {
 	approve: {
 		icon: <Check className="h-4 w-4" />,
 		label: "APPROVE",
-		bg: "bg-green-500/10",
-		border: "border-green-500/20",
-		text: "text-green-400",
+		bg: "bg-emerald-500/[0.06]",
+		border: "border-emerald-500/[0.12]",
+		text: "text-emerald-400",
 		description: "No critical or high-severity issues",
 	},
 	warning: {
 		icon: <AlertTriangle className="h-4 w-4" />,
 		label: "WARNING",
-		bg: "bg-yellow-500/10",
-		border: "border-yellow-500/20",
-		text: "text-yellow-400",
+		bg: "bg-amber-500/[0.06]",
+		border: "border-amber-500/[0.12]",
+		text: "text-amber-400",
 		description: "Minor issues found",
 	},
 	block: {
 		icon: <XCircle className="h-4 w-4" />,
 		label: "BLOCK",
-		bg: "bg-red-500/10",
-		border: "border-red-500/20",
+		bg: "bg-red-500/[0.06]",
+		border: "border-red-500/[0.12]",
 		text: "text-red-400",
 		description: "Critical issues must be resolved",
 	},
@@ -54,7 +54,7 @@ export function ReviewVerdict({ event }: ReviewVerdictProps) {
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
 			className={cn(
-				"rounded-lg border overflow-hidden",
+				"rounded-2xl border overflow-hidden backdrop-blur-sm",
 				config.bg,
 				config.border,
 			)}

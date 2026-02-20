@@ -1,15 +1,14 @@
 "use client";
 
 /**
- * Message Components (VibeSDK)
+ * Message Components — Aurora Glass Design
  *
- * Provides markdown rendering, code highlighting, and tool event display
- * for the App Builder chat interface.
+ * Glass message cards with warm user tint and cool AI tint.
+ * Markdown rendering, code highlighting, and tool event display.
  */
 
 import {
 	AlertCircle,
-	Bot,
 	CheckCircle2,
 	ChevronDown,
 	Copy,
@@ -40,7 +39,7 @@ interface MarkdownContentProps {
 }
 
 /**
- * Markdown renderer with syntax highlighting and external link handling.
+ * Markdown renderer with glass-themed code blocks.
  */
 export function MarkdownContent({ content, className }: MarkdownContentProps) {
 	return (
@@ -56,31 +55,29 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
 					],
 				]}
 				components={{
-					// Custom code block rendering
 					code({ className, children, ...props }) {
 						const isInline = !className;
 						if (isInline) {
 							return (
 								<code
-									className="px-1.5 py-0.5 rounded bg-muted font-mono text-sm"
+									className="px-1.5 py-0.5 rounded-md bg-white/[0.08] font-mono text-sm text-white/80"
 									{...props}
 								>
 									{children}
 								</code>
 							);
 						}
-						// Block code
 						const language = className?.replace("language-", "") || "";
 						return (
 							<div className="relative group my-3">
 								{language && (
-									<div className="absolute top-0 right-0 px-2 py-1 text-xs text-muted-foreground bg-muted rounded-bl">
+									<div className="absolute top-0 right-0 px-2 py-1 text-xs text-white/30 bg-white/[0.04] rounded-bl-lg">
 										{language}
 									</div>
 								)}
-								<pre className="p-4 rounded-lg bg-muted overflow-x-auto">
+								<pre className="p-4 rounded-xl bg-white/[0.04] border border-white/[0.08] overflow-x-auto">
 									<code
-										className={cn("font-mono text-sm", className)}
+										className={cn("font-mono text-sm text-white/80", className)}
 										{...props}
 									>
 										{children}
@@ -89,29 +86,26 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
 							</div>
 						);
 					},
-					// Custom link styling
 					a({ children, href, ...props }) {
 						return (
 							<a
 								href={href}
-								className="text-primary hover:underline"
+								className="text-violet-400 hover:text-violet-300 hover:underline"
 								{...props}
 							>
 								{children}
 							</a>
 						);
 					},
-					// Custom heading sizes
 					h1: ({ children }) => (
-						<h1 className="text-xl font-bold mt-4 mb-2">{children}</h1>
+						<h1 className="text-xl font-bold mt-4 mb-2 text-white/90">{children}</h1>
 					),
 					h2: ({ children }) => (
-						<h2 className="text-lg font-semibold mt-3 mb-2">{children}</h2>
+						<h2 className="text-lg font-semibold mt-3 mb-2 text-white/90">{children}</h2>
 					),
 					h3: ({ children }) => (
-						<h3 className="text-base font-medium mt-2 mb-1">{children}</h3>
+						<h3 className="text-base font-medium mt-2 mb-1 text-white/85">{children}</h3>
 					),
-					// Custom list styling
 					ul: ({ children }) => (
 						<ul className="list-disc list-inside my-2 space-y-1">{children}</ul>
 					),
@@ -120,14 +114,14 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
 							{children}
 						</ol>
 					),
-					li: ({ children }) => <li className="text-foreground">{children}</li>,
-					// Custom paragraph
+					li: ({ children }) => <li className="text-white/70">{children}</li>,
 					p: ({ children }) => (
-						<p className="my-2 leading-relaxed">{children}</p>
+						<p className="my-2 leading-relaxed text-white/70">{children}</p>
 					),
-					// Custom blockquote
 					blockquote: ({ children }) => (
-						<blockquote className="border-l-2 border-primary pl-4 my-2 italic text-muted-foreground">
+						<blockquote className="border-l-2 border-gradient-to-b from-violet-500 to-cyan-500 pl-4 my-2 italic text-white/50"
+							style={{ borderImage: "linear-gradient(to bottom, rgb(139,92,246), rgb(6,182,212)) 1" }}
+						>
 							{children}
 						</blockquote>
 					),
@@ -140,21 +134,21 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
 }
 
 /**
- * Tool event status indicator shown inline with messages.
+ * Tool event status indicator — glass chip style.
  */
 function ToolStatusIndicator({ event }: { event: ToolEvent }) {
 	const getStatusIcon = () => {
 		switch (event.status) {
 			case "completed":
-				return <CheckCircle2 className="size-3 text-green-500" />;
+				return <CheckCircle2 className="size-3 text-teal-400" />;
 			case "running":
 				return (
-					<Loader2 className="size-3 text-muted-foreground animate-spin" />
+					<Loader2 className="size-3 text-white/40 animate-spin" />
 				);
 			case "error":
-				return <AlertCircle className="size-3 text-red-500" />;
+				return <AlertCircle className="size-3 text-red-400" />;
 			default:
-				return <Loader2 className="size-3 text-muted-foreground" />;
+				return <Loader2 className="size-3 text-white/30" />;
 		}
 	};
 
@@ -175,7 +169,7 @@ function ToolStatusIndicator({ event }: { event: ToolEvent }) {
 	};
 
 	return (
-		<div className="flex items-center gap-2 px-3 py-1.5 my-1 rounded bg-muted text-sm text-muted-foreground">
+		<div className="flex items-center gap-2 px-3 py-1.5 my-1 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white/50">
 			<FileCode className="size-3" />
 			{getStatusIcon()}
 			<span>{getToolLabel()}</span>
@@ -184,13 +178,11 @@ function ToolStatusIndicator({ event }: { event: ToolEvent }) {
 }
 
 /**
- * Collapsed summary for tool events (3+ events).
- * Shows live progress while streaming, collapsed summary when complete.
+ * Collapsed summary for tool events — glass chip style.
  */
 function ToolEventsSummary({ events }: { events: ToolEvent[] }) {
 	const [expanded, setExpanded] = useState(false);
 
-	// For 1-2 events, show individual badges
 	if (events.length <= 2) {
 		return (
 			<>
@@ -201,7 +193,6 @@ function ToolEventsSummary({ events }: { events: ToolEvent[] }) {
 		);
 	}
 
-	// Count by action and status
 	const isStreaming = events.some(
 		(e) => e.status === "running" || e.status === "pending",
 	);
@@ -219,20 +210,19 @@ function ToolEventsSummary({ events }: { events: ToolEvent[] }) {
 	const summaryText = summaryParts.join(", ");
 
 	if (isStreaming) {
-		// Live progress card
 		const pct = events.length > 0 ? (completed / events.length) * 100 : 0;
 		return (
-			<div className="rounded-lg bg-muted/50 border border-border/50 px-3 py-2 my-1">
-				<div className="flex items-center gap-2 text-sm text-muted-foreground">
+			<div className="rounded-xl bg-white/[0.04] border border-white/[0.08] px-3 py-2 my-1">
+				<div className="flex items-center gap-2 text-sm text-white/50">
 					<FileCode className="size-3.5" />
 					<Loader2 className="size-3 animate-spin" />
 					<span>
 						Working on files... ({completed} of {events.length} done)
 					</span>
 				</div>
-				<div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden">
+				<div className="mt-1.5 h-1 rounded-full bg-white/[0.06] overflow-hidden">
 					<div
-						className="h-full rounded-full bg-green-500/50 transition-all duration-300"
+						className="h-full rounded-full bg-gradient-to-r from-violet-500/60 to-teal-500/60 transition-all duration-300"
 						style={{ width: `${pct}%` }}
 					/>
 				</div>
@@ -240,16 +230,15 @@ function ToolEventsSummary({ events }: { events: ToolEvent[] }) {
 		);
 	}
 
-	// Collapsed summary card
 	return (
-		<div className="rounded-lg bg-muted/50 border border-border/50 my-1">
+		<div className="rounded-xl bg-white/[0.04] border border-white/[0.08] my-1">
 			<button
 				type="button"
-				className="flex items-center gap-2 w-full px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+				className="flex items-center gap-2 w-full px-3 py-2 text-sm text-white/50 hover:text-white/70 transition-colors"
 				onClick={() => setExpanded(!expanded)}
 			>
 				<FileCode className="size-3.5" />
-				<CheckCircle2 className="size-3 text-green-500" />
+				<CheckCircle2 className="size-3 text-teal-400" />
 				<span className="flex-1 text-left">{summaryText}</span>
 				<ChevronDown
 					className={cn(
@@ -263,9 +252,9 @@ function ToolEventsSummary({ events }: { events: ToolEvent[] }) {
 					{events.map((event) => (
 						<div
 							key={event.id}
-							className="flex items-center gap-2 text-xs text-muted-foreground py-0.5"
+							className="flex items-center gap-2 text-xs text-white/40 py-0.5"
 						>
-							<CheckCircle2 className="size-2.5 text-green-500" />
+							<CheckCircle2 className="size-2.5 text-teal-400" />
 							<span>{(event.args as { path?: string }).path || event.toolName}</span>
 						</div>
 					))}
@@ -275,7 +264,6 @@ function ToolEventsSummary({ events }: { events: ToolEvent[] }) {
 	);
 }
 
-/** Map tool name to a human-readable verb. */
 function getToolAction(toolName: string): string {
 	switch (toolName) {
 		case "createFile":
@@ -292,7 +280,6 @@ function getToolAction(toolName: string): string {
 	}
 }
 
-/** Format bytes to human-readable size */
 function formatFileSize(bytes: number): string {
 	if (bytes < 1024) return `${bytes}B`;
 	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
@@ -300,7 +287,7 @@ function formatFileSize(bytes: number): string {
 }
 
 /**
- * Displays attachments in a sent message (images as grid, docs as cards).
+ * Displays attachments — glass image frames and glass doc cards.
  */
 function MessageAttachments({ attachments }: { attachments: Attachment[] }) {
 	const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -316,7 +303,6 @@ function MessageAttachments({ attachments }: { attachments: Attachment[] }) {
 		setLightboxSize(att.size);
 	}, []);
 
-	// Determine grid layout based on image count
 	const gridClass =
 		images.length === 1
 			? ""
@@ -334,7 +320,7 @@ function MessageAttachments({ attachments }: { attachments: Attachment[] }) {
 					{displayImages.map((att, idx) => (
 						<div
 							key={att.id}
-							className="relative rounded-lg overflow-hidden cursor-pointer"
+							className="relative rounded-xl overflow-hidden cursor-pointer border border-white/[0.08]"
 						>
 							{/* biome-ignore lint/a11y/useKeyWithClickEvents: Image preview click */}
 							{/* biome-ignore lint/performance/noImgElement: Dynamic data URLs */}
@@ -342,16 +328,15 @@ function MessageAttachments({ attachments }: { attachments: Attachment[] }) {
 								src={att.url}
 								alt={att.name}
 								className={cn(
-									"w-full object-cover rounded-lg",
+									"w-full object-cover rounded-xl",
 									images.length === 1 ? "max-h-[300px]" : "h-[120px]",
 								)}
 								onClick={() => openLightbox(att)}
 							/>
-							{/* +N overlay on last image */}
 							{showOverflow && idx === 3 && (
 								// biome-ignore lint/a11y/useKeyWithClickEvents: Overlay click
 								<div
-									className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg"
+									className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center rounded-xl"
 									onClick={() => openLightbox(att)}
 								>
 									<span className="text-white text-lg font-bold">
@@ -369,17 +354,17 @@ function MessageAttachments({ attachments }: { attachments: Attachment[] }) {
 					{documents.map((att) => (
 						<div
 							key={att.id}
-							className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-border bg-muted/30 max-w-[250px]"
+							className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] max-w-[250px]"
 						>
 							<FileText
 								className={cn(
 									"h-4 w-4 flex-shrink-0",
-									att.mediaType === "application/pdf" ? "text-red-500" : "text-muted-foreground",
+									att.mediaType === "application/pdf" ? "text-red-400" : "text-white/40",
 								)}
 							/>
-							<span className="text-xs truncate flex-1">{att.name}</span>
+							<span className="text-xs truncate flex-1 text-white/60">{att.name}</span>
 							{att.size > 0 && (
-								<span className="text-[10px] text-muted-foreground flex-shrink-0">
+								<span className="text-[10px] text-white/30 flex-shrink-0">
 									{formatFileSize(att.size)}
 								</span>
 							)}
@@ -405,37 +390,37 @@ interface UserMessageProps {
 }
 
 /**
- * User message display with avatar.
+ * User message — warm glass card with orange tint.
  */
 export function UserMessage({ message }: UserMessageProps) {
 	return (
 		<div className="flex gap-3">
-			<div className="flex-shrink-0 w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center">
-				<span className="text-sm font-semibold text-white">Y</span>
-			</div>
 			<div className="flex-1 min-w-0">
-				<div className="text-sm font-medium text-foreground mb-1">You</div>
-				<div className="text-foreground whitespace-pre-wrap">
-					{message.content}
+				<div className="flex items-center gap-2 mb-1.5">
+					<div className="w-2 h-2 rounded-full bg-orange-400" />
+					<span className="text-xs font-medium text-white/60">You</span>
 				</div>
-				{/* Unified attachments display */}
-				{message.attachments && message.attachments.length > 0 && (
-					<MessageAttachments attachments={message.attachments} />
-				)}
-				{/* Legacy image attachments fallback */}
-				{!message.attachments && message.images && message.images.length > 0 && (
-					<div className="flex gap-2 mt-2 flex-wrap">
-						{message.images.map((img) => (
-							// biome-ignore lint/performance/noImgElement: Using native img for dynamic blob/data URLs which Next.js Image doesn't support
-							<img
-								key={img.id}
-								src={img.url}
-								alt={img.name || "Attached image"}
-								className="max-w-[200px] max-h-[200px] rounded object-cover"
-							/>
-						))}
+				<div className="rounded-2xl px-4 py-3 bg-orange-500/[0.06] backdrop-blur-sm border border-orange-500/[0.1] shadow-[inset_-1px_0_12px_rgba(249,115,22,0.06)]">
+					<div className="text-white/80 whitespace-pre-wrap text-sm">
+						{message.content}
 					</div>
-				)}
+					{message.attachments && message.attachments.length > 0 && (
+						<MessageAttachments attachments={message.attachments} />
+					)}
+					{!message.attachments && message.images && message.images.length > 0 && (
+						<div className="flex gap-2 mt-2 flex-wrap">
+							{message.images.map((img) => (
+								// biome-ignore lint/performance/noImgElement: Using native img for dynamic blob/data URLs
+								<img
+									key={img.id}
+									src={img.url}
+									alt={img.name || "Attached image"}
+									className="max-w-[200px] max-h-[200px] rounded-xl object-cover border border-white/[0.08]"
+								/>
+							))}
+						</div>
+					)}
+				</div>
 			</div>
 		</div>
 	);
@@ -450,7 +435,7 @@ interface AIMessageProps {
 }
 
 /**
- * AI assistant message with markdown rendering and tool events.
+ * AI message — cool glass card with teal tint.
  */
 export function AIMessage({
 	message,
@@ -468,25 +453,25 @@ export function AIMessage({
 
 	return (
 		<div className="flex gap-3">
-			<div className="flex-shrink-0 w-8 h-8 rounded-full bg-teal-500/20 flex items-center justify-center">
-				<Bot className="size-4 text-teal-500" />
-			</div>
 			<div className="flex-1 min-w-0">
-				<div className="flex items-center justify-between mb-1">
-					<div className="text-sm font-medium text-foreground flex items-center gap-2">
-						{aiName}
+				<div className="flex items-center justify-between mb-1.5">
+					<div className="flex items-center gap-2">
+						<div className="w-2 h-2 rounded-full bg-teal-400 shadow-[0_0_6px_rgba(20,184,166,0.4)]" />
+						<span className="text-xs font-medium text-white/60">
+							{aiName}
+						</span>
 						{isLoading && (
-							<Loader2 className="size-3 animate-spin text-muted-foreground" />
+							<Loader2 className="size-3 animate-spin text-white/30" />
 						)}
 					</div>
 					{!isLoading && message.content && (
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
-								<Button variant="link" className="h-6 w-6">
-									<MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+								<Button variant="link" className="h-6 w-6 text-white/30 hover:text-white/60">
+									<MoreHorizontal className="h-4 w-4" />
 								</Button>
 							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
+							<DropdownMenuContent align="end" className="backdrop-blur-xl bg-[#1a1a2e]/95 border-white/[0.1]">
 								<DropdownMenuItem onClick={handleCopy}>
 									<Copy className="h-4 w-4 mr-2" />
 									Copy
@@ -501,16 +486,14 @@ export function AIMessage({
 						</DropdownMenu>
 					)}
 				</div>
-				<div className="text-foreground">
-					{/* Render tool events — collapsed summary for 3+ */}
+				<div className="rounded-2xl px-4 py-3 bg-white/[0.03] backdrop-blur-sm border border-white/[0.08] shadow-[inset_1px_0_12px_rgba(20,184,166,0.06)]">
 					{message.toolEvents && message.toolEvents.length > 0 && (
 						<ToolEventsSummary events={message.toolEvents} />
 					)}
-					{/* Render markdown content */}
 					{message.content ? (
 						<MarkdownContent content={message.content} />
 					) : isLoading ? (
-						<span className="text-muted-foreground animate-pulse">
+						<span className="text-white/30 animate-pulse text-sm">
 							Thinking...
 						</span>
 					) : null}
@@ -526,12 +509,9 @@ interface MessageListProps {
 	aiName?: string;
 }
 
-/**
- * List of messages with alternating user/assistant display.
- */
 export function MessageList({ messages, isLoading, aiName }: MessageListProps) {
 	return (
-		<div className="flex flex-col gap-5">
+		<div className="flex flex-col gap-4">
 			{messages.map((message, index) => {
 				const isLastMessage = index === messages.length - 1;
 				if (message.role === "user") {

@@ -538,9 +538,9 @@ export function PhaseTimeline({
 							transition={commonTransitions.smooth}
 						/>
 
-						{/* Main frosted panel - Hoverable and Expandable */}
+						{/* Main frosted glass panel - Hoverable and Expandable */}
 						<motion.div
-							className="relative bg-card/95 backdrop-blur-md border border-border shadow-lg rounded-xl overflow-hidden mx-4 hover:bg-muted/95 transition-colors cursor-pointer group"
+							className="relative backdrop-blur-xl bg-white/[0.06] border border-white/[0.1] shadow-lg rounded-xl overflow-hidden mx-4 hover:bg-white/[0.08] transition-colors cursor-pointer group"
 							onClick={() => setIsCollapsedBarExpanded(!isCollapsedBarExpanded)}
 							initial={{ scale: 0.96 }}
 							animate={{ scale: 1 }}
@@ -570,7 +570,7 @@ export function PhaseTimeline({
 								</div>
 								{collapsedBarInfo.badge && (
 									<div className="flex-shrink-0">
-										<span className="text-xs font-medium px-2 py-0.5 bg-primary/10 text-primary rounded-full">
+										<span className="text-xs font-medium px-2 py-0.5 bg-violet-500/[0.12] text-violet-300 rounded-full">
 											{collapsedBarInfo.badge}
 										</span>
 									</div>
@@ -679,12 +679,12 @@ export function PhaseTimeline({
 				className="mb-2 relative"
 				ref={componentRef}
 			>
-				{/* Main Timeline Card with orange left border */}
+				{/* Main Timeline Card — glass with gradient left border */}
 				<div
 					ref={timelineCardRef}
-					className="rounded-lg border border-border bg-card overflow-hidden"
+					className="rounded-2xl bg-white/[0.03] backdrop-blur-md border border-white/[0.08] overflow-hidden"
 				>
-					<div className="border-l-4 border-l-orange-400 pl-4 pr-4 py-4">
+					<div className="pl-4 pr-4 py-4" style={{ borderLeft: "4px solid transparent", borderImage: "linear-gradient(to bottom, rgb(139,92,246), rgb(6,182,212), rgb(20,184,166)) 1" }}>
 						{/* Calculate if Done will show for line extension */}
 						{(() => {
 							const allStagesCompleted = projectStages.every(

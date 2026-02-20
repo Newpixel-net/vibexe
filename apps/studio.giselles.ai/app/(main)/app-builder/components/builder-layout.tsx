@@ -1,21 +1,11 @@
 "use client";
 
 /**
- * BuilderLayout Component
+ * BuilderLayout Component — Aurora Glass Design
  *
- * VibeSDK-style full-screen layout.
- *
- * Layout structure:
- * - BuilderHeader: Top bar with back button, app name, Upgrade/Publish buttons
- * - Content area: 3-column layout (flex-1)
- *   - LeftNavBar: Narrow vertical navigation (orange + button, settings, clear)
- *   - ChatColumn: Chat interface with bottom action bar
- *   - MainContentPanel: Preview/Code/Documents tabs
- *     - Preview tab: Sandpack preview (placeholder)
- *     - Code tab: Sidebar + code editor
- *     - Documents tab: ReadmePanel with doc browser and TOC
- *
- * Deploy to: /opt/giselle/apps/studio.giselles.ai/app/(main)/app-builder/components/builder-layout.tsx
+ * Full-screen layout with animated aurora gradient mesh background,
+ * frosted glass panels, and 2-column layout (chat + main content).
+ * LeftNavBar removed — actions merged into chat header/bottom bar.
  */
 
 import { useRouter } from "next/navigation";
@@ -24,7 +14,6 @@ import type { AppFile } from "../adapters/file-adapter";
 import type { FileType } from "../types/vibesdk";
 import { BuilderHeader } from "./builder-header";
 import { ChatColumn } from "./chat-column";
-import { LeftNavBar } from "./left-nav-bar";
 import { MainContentPanel, type ViewType } from "./main-content-panel";
 import { SettingsFab } from "./settings-fab";
 
@@ -36,41 +25,22 @@ interface BuilderLayoutProps {
 	files: AppFile[];
 }
 
-/**
- * BuilderLayout - VibeSDK-style full-screen layout with header.
- *
- * View state is lifted here and passed to MainContentPanel.
- * File clicks in PhaseTimeline trigger view change to "code" tab.
- */
 export function BuilderLayout({
 	app,
 	files: initialFiles,
 }: BuilderLayoutProps) {
 	const router = useRouter();
-
-	// View state for MainContentPanel tabs (default: preview)
 	const [view, setView] = useState<ViewType>("preview");
-
-	// Selected file for Code tab
 	const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
-
-	// Local files state for updates
 	const [files, setFiles] = useState<AppFile[]>(initialFiles);
-
-	// App name state (lifted so ChatColumn can update it and header reflects changes)
 	const [appName, setAppName] = useState(app.name);
-
-	// Whether AI is currently generating (for preview loading overlay)
 	const [isGenerating, setIsGenerating] = useState(false);
 
-	// Handle file selection from PhaseTimeline in ChatColumn (switches to Code view)
-	// Note: DashboardPanel manages its own section state; user can access Code via sidebar
 	const handleFileClick = useCallback((file: FileType) => {
 		setSelectedFileId(file.id);
 		setView("code");
 	}, []);
 
-	// Handle file content update after save
 	const handleFileUpdate = useCallback((fileId: string, content: string) => {
 		setFiles((prevFiles) =>
 			prevFiles.map((file) =>
@@ -79,7 +49,6 @@ export function BuilderLayout({
 		);
 	}, []);
 
-	// Handle files refresh after AI modifications
 	const handleFilesChange = useCallback(async () => {
 		try {
 			const response = await fetch(`/api/app-builder/apps/${app.id}/files`);
@@ -88,57 +57,80 @@ export function BuilderLayout({
 				setFiles(data.files);
 			}
 		} catch {
-			// Silently fail - file refresh is not critical
+			// Silently fail
 		}
 	}, [app.id]);
 
 	return (
-		<div className="flex flex-col h-dvh w-screen overflow-hidden bg-background">
-			{/* Header with back button and app name */}
-			<BuilderHeader appId={app.id} appName={appName} />
-
-			{/* Content area - 3-column layout */}
-			<div className="flex-1 flex min-h-0">
-				{/* Left Nav Bar - narrow vertical navigation */}
-				<LeftNavBar
-					onNewApp={() => router.push("/app-builder")}
-					onClearChat={() => {
-						/* TODO: Clear chat */
-					}}
-					onSettings={() => {
-						/* TODO: Open settings modal */
+		<div className="flex flex-col h-dvh w-screen overflow-hidden bg-[#0a0a14]">
+			{/* Aurora gradient mesh — 3 animated blobs */}
+			<div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+				<div
+					className="aurora-blob"
+					style={{
+						background: "rgba(124, 58, 237, 0.15)",
+						top: "10%",
+						left: "15%",
+						animation: "aurora-drift-1 20s ease-in-out infinite",
 					}}
 				/>
+				<div
+					className="aurora-blob"
+					style={{
+						background: "rgba(20, 184, 166, 0.12)",
+						top: "50%",
+						right: "10%",
+						animation: "aurora-drift-2 25s ease-in-out infinite",
+					}}
+				/>
+				<div
+					className="aurora-blob"
+					style={{
+						background: "rgba(59, 130, 246, 0.10)",
+						bottom: "10%",
+						left: "40%",
+						animation: "aurora-drift-3 30s ease-in-out infinite",
+					}}
+				/>
+			</div>
 
-				{/* Chat Column - constrained width, ALWAYS visible */}
-				<div className="flex flex-col w-full max-w-md border-r border-border bg-card">
-					<ChatColumn
-						appId={app.id}
-						appName={appName}
-						files={files}
-						onFilesChange={handleFilesChange}
-						onFileClick={handleFileClick}
-						onAppNameChange={setAppName}
-						onGeneratingChange={setIsGenerating}
-					/>
-				</div>
+			{/* Content — above aurora */}
+			<div className="relative z-10 flex flex-col h-full">
+				{/* Glass header */}
+				<BuilderHeader appId={app.id} appName={appName} />
 
-				{/* Main Content Panel - fills remaining space */}
-				<div className="flex-1 flex flex-col min-w-0">
-					<MainContentPanel
-						appId={app.id}
-						files={files}
-						selectedFileId={selectedFileId}
-						onFileSelect={setSelectedFileId}
-						onFileUpdate={handleFileUpdate}
-						view={view}
-						onViewChange={setView}
-						isGenerating={isGenerating}
-					/>
+				{/* Content area — 2-column layout */}
+				<div className="flex-1 flex min-h-0">
+					{/* Chat Column — 520px, glass panel */}
+					<div className="flex flex-col w-[520px] min-w-[400px] border-r border-white/[0.06] backdrop-blur-xl bg-white/[0.02]">
+						<ChatColumn
+							appId={app.id}
+							appName={appName}
+							files={files}
+							onFilesChange={handleFilesChange}
+							onFileClick={handleFileClick}
+							onAppNameChange={setAppName}
+							onGeneratingChange={setIsGenerating}
+						/>
+					</div>
+
+					{/* Main Content Panel — fills remaining space, glass */}
+					<div className="flex-1 flex flex-col min-w-0 backdrop-blur-lg bg-white/[0.015]">
+						<MainContentPanel
+							appId={app.id}
+							files={files}
+							selectedFileId={selectedFileId}
+							onFileSelect={setSelectedFileId}
+							onFileUpdate={handleFileUpdate}
+							view={view}
+							onViewChange={setView}
+							isGenerating={isGenerating}
+						/>
+					</div>
 				</div>
 			</div>
 
-			{/* Settings FAB - bottom right corner */}
+			{/* Settings FAB */}
 			<SettingsFab
 				badgeCount={3}
 				onClick={() => {

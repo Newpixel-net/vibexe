@@ -46,18 +46,18 @@ const AGENT_ICONS: Record<string, React.ReactNode> = {
 const TIER_COLORS: Record<string, { bg: string; text: string; label: string }> =
 	{
 		opus: {
-			bg: "bg-purple-500/10",
-			text: "text-purple-400",
+			bg: "bg-purple-500/[0.08]",
+			text: "text-purple-300",
 			label: "Opus",
 		},
 		sonnet: {
-			bg: "bg-blue-500/10",
-			text: "text-blue-400",
+			bg: "bg-blue-500/[0.08]",
+			text: "text-blue-300",
 			label: "Sonnet",
 		},
 		haiku: {
-			bg: "bg-green-500/10",
-			text: "text-green-400",
+			bg: "bg-green-500/[0.08]",
+			text: "text-green-300",
 			label: "Haiku",
 		},
 	};
@@ -84,12 +84,12 @@ export function AgentActivityCard({
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
 			className={cn(
-				"rounded-lg border overflow-hidden",
+				"rounded-2xl border overflow-hidden backdrop-blur-sm",
 				isActive
-					? "border-primary/30 bg-primary/5"
+					? "border-violet-500/[0.2] bg-violet-500/[0.04]"
 					: isComplete
-						? "border-border bg-card"
-						: "border-border/50 bg-card/50",
+						? "border-white/[0.08] bg-white/[0.04]"
+						: "border-white/[0.06] bg-white/[0.02]",
 			)}
 		>
 			<div className="px-3 py-2.5">
@@ -195,7 +195,7 @@ export function OrchestrationHeader({ event }: { event: AgentEvent }) {
 			initial={{ opacity: 0, y: 8 }}
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: 0.3 }}
-			className="rounded-lg border border-border/50 bg-card/30 px-3 py-2"
+			className="rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-sm px-3 py-2"
 		>
 			<div className="flex items-center gap-2 text-xs">
 				<Zap className="h-3.5 w-3.5 text-primary" />

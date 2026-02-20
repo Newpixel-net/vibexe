@@ -1,12 +1,15 @@
 "use client";
 
+/**
+ * ThinkingIndicator — Aurora Glass Design
+ *
+ * Glass pill with gradient shimmer effect.
+ */
+
 import { AnimatePresence, motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
-/**
- * Phrases cycled through during AI thinking
- */
 const THINKING_PHRASES = [
 	"Thinking",
 	"Ideating",
@@ -31,14 +34,9 @@ const THINKING_PHRASES = [
 ];
 
 interface ThinkingIndicatorProps {
-	/** Whether the indicator is visible */
 	visible: boolean;
 }
 
-/**
- * Animated thinking indicator with rotating phrases.
- * Shows a sparkle icon with cycling "Thinking...", "Planning...", etc.
- */
 export function ThinkingIndicator({ visible }: ThinkingIndicatorProps) {
 	const [phraseIndex, setPhraseIndex] = useState(0);
 
@@ -50,7 +48,7 @@ export function ThinkingIndicator({ visible }: ThinkingIndicatorProps) {
 
 		const interval = setInterval(() => {
 			setPhraseIndex((prev) => (prev + 1) % THINKING_PHRASES.length);
-		}, 2000); // Change phrase every 2 seconds
+		}, 2000);
 
 		return () => clearInterval(interval);
 	}, [visible]);
@@ -70,40 +68,55 @@ export function ThinkingIndicator({ visible }: ThinkingIndicatorProps) {
 					}}
 					className="flex items-center gap-2 mt-3"
 				>
-					<motion.div
-						animate={{
-							rotate: [0, 360],
-							scale: [1, 1.1, 1],
-						}}
-						transition={{
-							rotate: { duration: 3, repeat: Infinity, ease: "linear" },
-							scale: { duration: 2, repeat: Infinity, ease: "easeInOut" },
-						}}
+					{/* Glass pill container with shimmer */}
+					<div
+						className="relative flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.05] border border-white/[0.1] overflow-hidden"
 					>
-						<Sparkles className="size-3 text-orange-400" />
-					</motion.div>
-					<AnimatePresence mode="wait">
-						<motion.span
-							key={phraseIndex}
-							initial={{ opacity: 0, x: -10 }}
-							animate={{ opacity: 1, x: 0 }}
-							exit={{ opacity: 0, x: 10 }}
-							transition={{
-								duration: 0.3,
-								ease: [0.23, 1, 0.32, 1],
+						{/* Shimmer sweep effect */}
+						<div
+							className="absolute inset-0 pointer-events-none"
+							style={{
+								background: "linear-gradient(90deg, transparent 0%, rgba(124,58,237,0.06) 50%, transparent 100%)",
+								backgroundSize: "200% 100%",
+								animation: "shimmer-sweep 3s ease-in-out infinite",
 							}}
-							className="text-sm text-muted-foreground font-medium flex items-center gap-1"
+						/>
+
+						<motion.div
+							animate={{
+								rotate: [0, 360],
+								scale: [1, 1.1, 1],
+							}}
+							transition={{
+								rotate: { duration: 3, repeat: Infinity, ease: "linear" },
+								scale: { duration: 2, repeat: Infinity, ease: "easeInOut" },
+							}}
 						>
-							{THINKING_PHRASES[phraseIndex]}
+							<Sparkles className="size-3 text-teal-400" style={{ filter: "drop-shadow(0 0 4px rgba(20,184,166,0.4))" }} />
+						</motion.div>
+						<AnimatePresence mode="wait">
 							<motion.span
-								animate={{ opacity: [1, 0.3, 1] }}
-								transition={{ duration: 1.5, repeat: Infinity }}
-								className="inline-block"
+								key={phraseIndex}
+								initial={{ opacity: 0, x: -10 }}
+								animate={{ opacity: 1, x: 0 }}
+								exit={{ opacity: 0, x: 10 }}
+								transition={{
+									duration: 0.3,
+									ease: [0.23, 1, 0.32, 1],
+								}}
+								className="text-sm text-white/50 font-medium flex items-center gap-1 relative z-10"
 							>
-								...
+								{THINKING_PHRASES[phraseIndex]}
+								<motion.span
+									animate={{ opacity: [1, 0.3, 1] }}
+									transition={{ duration: 1.5, repeat: Infinity }}
+									className="inline-block"
+								>
+									...
+								</motion.span>
 							</motion.span>
-						</motion.span>
-					</AnimatePresence>
+						</AnimatePresence>
+					</div>
 				</motion.div>
 			)}
 		</AnimatePresence>
@@ -125,7 +138,7 @@ export function ThinkingDots() {
 						repeat: Infinity,
 						delay: i * 0.2,
 					}}
-					className="w-1.5 h-1.5 rounded-full bg-muted-foreground"
+					className="w-1.5 h-1.5 rounded-full bg-white/40"
 				/>
 			))}
 		</span>

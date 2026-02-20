@@ -60,7 +60,7 @@ export function MainContentPanel({
 	isGenerating,
 }: MainContentPanelProps) {
 	return (
-		<div className="flex-1 flex flex-col min-h-0">
+		<div className="flex-1 flex flex-col min-h-0 bg-white/[0.015] backdrop-blur-lg">
 			<RightPanelTabs view={view} onViewChange={onViewChange} />
 
 			<div className="flex-1 flex flex-col min-h-0 overflow-hidden">

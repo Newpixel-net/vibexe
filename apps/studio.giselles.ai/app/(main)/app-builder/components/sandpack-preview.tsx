@@ -262,14 +262,14 @@ export function SandpackPreview({
 	const previewWidth = DEVICE_SIZES[device].width;
 
 	return (
-		<div className="flex-1 flex flex-col min-h-0 bg-background">
+		<div className="flex-1 flex flex-col min-h-0 bg-transparent">
 			{/* Inject Sandpack styles */}
 			{/* biome-ignore lint/security/noDangerouslySetInnerHtml: Internal CSS string constant, not user input */}
 			<style dangerouslySetInnerHTML={{ __html: sandpackFullHeightStyles }} />
 
-			{/* Toolbar */}
-			<div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-border bg-muted/30">
-				{/* Device toggles */}
+			{/* Glass toolbar */}
+			<div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-white/[0.06] bg-white/[0.03]">
+				{/* Glass device toggles */}
 				<div className="flex items-center gap-1">
 					{(Object.keys(DEVICE_SIZES) as DeviceSize[]).map((size) => {
 						const Icon =
@@ -284,10 +284,10 @@ export function SandpackPreview({
 								type="button"
 								key={size}
 								onClick={() => setDevice(size)}
-								className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded transition-colors ${
+								className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-xl transition-all duration-200 ${
 									isActive
-										? "bg-background text-foreground shadow-sm"
-										: "text-muted-foreground hover:bg-muted hover:text-foreground"
+										? "bg-white/[0.08] text-white/90 border border-white/[0.12]"
+										: "text-white/40 hover:bg-white/[0.04] hover:text-white/70"
 								}`}
 								title={DEVICE_SIZES[size].label}
 							>
@@ -306,10 +306,10 @@ export function SandpackPreview({
 					<button
 						type="button"
 						onClick={() => setShowConsole(!showConsole)}
-						className={`flex items-center gap-1 px-2 py-1.5 text-xs rounded transition-colors ${
+						className={`flex items-center gap-1 px-2 py-1.5 text-xs rounded-xl transition-all duration-200 ${
 							showConsole
-								? "bg-background text-foreground shadow-sm"
-								: "text-muted-foreground hover:bg-muted hover:text-foreground"
+								? "bg-white/[0.08] text-white/90 border border-white/[0.12]"
+								: "text-white/40 hover:bg-white/[0.04] hover:text-white/70"
 						}`}
 					>
 						{showConsole ? (
@@ -373,15 +373,15 @@ export function SandpackPreview({
 								</div>
 							)}
 
-							{/* Generating overlay — covers preview during AI code generation */}
+							{/* Generating overlay — glass with spinner */}
 							{isGenerating && (
-								<div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-									<div className="flex flex-col items-center gap-3">
+								<div className="absolute inset-0 z-10 flex items-center justify-center backdrop-blur-md bg-black/40">
+									<div className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-white/[0.06] border border-white/[0.1]">
 										<div className="relative h-10 w-10">
-											<div className="absolute inset-0 rounded-full border-2 border-muted" />
-											<div className="absolute inset-0 rounded-full border-2 border-t-orange-500 animate-spin" />
+											<div className="absolute inset-0 rounded-full border-2 border-white/[0.1]" />
+											<div className="absolute inset-0 rounded-full border-2 border-t-violet-500 animate-spin" />
 										</div>
-										<p className="text-sm font-medium text-muted-foreground">Generating app...</p>
+										<p className="text-sm font-medium text-white/50">Generating app...</p>
 									</div>
 								</div>
 							)}

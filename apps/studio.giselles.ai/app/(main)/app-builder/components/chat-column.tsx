@@ -11,10 +11,12 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { motion } from "framer-motion";
 import {
 	Lightbulb,
 	MessageSquare,
 	MoreHorizontal,
+	Plus,
 	Rocket,
 	RotateCcw,
 } from "lucide-react";
@@ -83,31 +85,40 @@ const getModelStorageKey = (appId: string) =>
  */
 function DeployBanner() {
 	return (
-		<div className="mx-4 mb-4 p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+		<div className="mx-4 mb-4 p-4 rounded-2xl bg-emerald-500/[0.06] backdrop-blur-sm border border-emerald-500/[0.12]">
 			<div className="flex items-center gap-3">
-				<div className="flex-shrink-0 w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-					<Rocket className="h-5 w-5 text-green-500" />
+				<div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-500/[0.12] border border-emerald-500/[0.15] flex items-center justify-center">
+					<Rocket className="h-5 w-5 text-emerald-400" />
 				</div>
 				<div className="flex-1">
-					<p className="font-medium text-green-500">Ready to Deploy</p>
-					<p className="text-sm text-muted-foreground">
+					<p className="font-medium text-emerald-400">Ready to Deploy</p>
+					<p className="text-sm text-white/40">
 						Your app is ready for deployment.
 					</p>
 				</div>
-				<Button
-					variant="default"
+				<button
+					type="button"
 					onClick={() => {
 						window.alert(
 							"Deployment coming soon! Your app will be available at a public URL.",
 						);
 					}}
+					className="px-4 py-2 text-sm font-medium rounded-xl bg-gradient-to-r from-emerald-500/80 to-teal-500/80 hover:from-emerald-500 hover:to-teal-500 text-white transition-all duration-200"
 				>
 					Deploy
-				</Button>
+				</button>
 			</div>
 		</div>
 	);
 }
+
+/** Suggestion chips for empty state */
+const SUGGESTION_CHIPS = [
+	"Task manager app",
+	"Landing page with animations",
+	"Dashboard with charts",
+	"Social media feed",
+];
 
 /**
  * Generate a display name from the user's first message.
@@ -646,83 +657,135 @@ export function ChatColumn({
 		setInput((prev) => (prev ? `${prev} ${text}` : text));
 	}, []);
 
+	// Handle suggestion chip click — fill input and focus textarea
+	const handleSuggestionClick = useCallback(
+		(text: string) => {
+			setInput(text);
+			// Focus the textarea
+			const textarea = document.querySelector<HTMLTextAreaElement>(
+				"textarea[placeholder]",
+			);
+			if (textarea) textarea.focus();
+		},
+		[setInput],
+	);
+
 	return (
 		<div className="flex flex-col h-full min-h-0">
-			{/* Header - minimal with dropdown menu */}
-			<div className="flex items-center justify-between border-b px-4 py-3">
-				<span className="text-sm text-muted-foreground">Chat</span>
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button variant="link" className="h-8 w-8">
-							<MoreHorizontal className="h-4 w-4" />
-							<span className="sr-only">Chat options</span>
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<DropdownMenuItem onClick={handleNewChat}>
-							<RotateCcw className="h-4 w-4 mr-2" />
-							Reset conversation
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
+			{/* Glass header with New Chat + dropdown */}
+			<div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3 backdrop-blur-sm bg-white/[0.02]">
+				<div className="flex items-center gap-2">
+					<span className="text-sm text-white/40 font-medium">Chat</span>
+				</div>
+				<div className="flex items-center gap-1.5">
+					<button
+						type="button"
+						onClick={handleNewChat}
+						className="h-7 px-2.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] text-white/60 hover:text-white/90 flex items-center gap-1.5 text-xs font-medium transition-all duration-200"
+					>
+						<Plus className="h-3.5 w-3.5" />
+						New Chat
+					</button>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button variant="link" className="h-7 w-7 text-white/40 hover:text-white/70">
+								<MoreHorizontal className="h-4 w-4" />
+								<span className="sr-only">Chat options</span>
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="backdrop-blur-xl bg-[#1a1a2e]/95 border-white/[0.1]">
+							<DropdownMenuItem onClick={handleNewChat}>
+								<RotateCcw className="h-4 w-4 mr-2" />
+								Reset conversation
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
 			</div>
 
-			{/* Messages area with scroll - PhaseTimeline renders INLINE after messages */}
+			{/* Messages area with scroll */}
 			<ScrollArea ref={scrollRef} className="flex-1 min-h-0">
 				<div className="pt-5 px-4 pb-4">
 					{chatMessages.length === 0 ? (
-						// Empty state - mode aware
-						<div className="flex flex-col items-center justify-center min-h-[300px] py-20 text-center">
-							{mode === "generate" ? (
-								<>
-									<MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-									<h3 className="text-lg font-medium mb-2">
-										Hi! Describe what you want to build.
-									</h3>
-									<p className="text-sm text-muted-foreground max-w-md">
-										I&apos;ll help you create your app by generating code and
-										files.
-									</p>
-								</>
-							) : (
-								<>
-									<Lightbulb className="h-12 w-12 text-muted-foreground mb-4" />
-									<h3 className="text-lg font-medium mb-2">
-										Let&apos;s plan your app together
-									</h3>
-									<p className="text-sm text-muted-foreground max-w-md">
-										I&apos;ll help you think through your app&apos;s design
-										without generating code yet. Switch to Generate mode when
-										you&apos;re ready to build.
-									</p>
-								</>
-							)}
+						// Glass empty state with suggestion chips
+						<div className="flex flex-col items-center justify-center min-h-[400px] py-16 text-center">
+							<div className="relative p-8 rounded-3xl glass-card max-w-sm w-full">
+								{/* Animated gradient border */}
+								<div
+									className="absolute inset-0 rounded-3xl opacity-30 pointer-events-none"
+									style={{
+										background:
+											"conic-gradient(from 0deg, rgba(124,58,237,0.3), rgba(20,184,166,0.3), rgba(59,130,246,0.3), rgba(124,58,237,0.3))",
+										padding: "1px",
+										mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+										WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+										WebkitMaskComposite: "xor",
+										maskComposite: "exclude",
+									}}
+								/>
+								{mode === "generate" ? (
+									<>
+										<h3 className="text-xl font-semibold mb-2 bg-gradient-to-r from-violet-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent">
+											What do you want to build?
+										</h3>
+										<p className="text-sm text-white/40 mb-6">
+											Describe your app and I&apos;ll bring it to life
+										</p>
+									</>
+								) : (
+									<>
+										<Lightbulb className="h-10 w-10 text-violet-400/60 mx-auto mb-3" />
+										<h3 className="text-xl font-semibold mb-2 bg-gradient-to-r from-violet-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent">
+											Let&apos;s plan together
+										</h3>
+										<p className="text-sm text-white/40 mb-6">
+											Think through your app&apos;s design without generating code yet
+										</p>
+									</>
+								)}
+
+								{/* Suggestion chips */}
+								{mode === "generate" && (
+									<div className="flex flex-wrap justify-center gap-2">
+										{SUGGESTION_CHIPS.map((chip) => (
+											<motion.button
+												key={chip}
+												type="button"
+												onClick={() => handleSuggestionClick(chip)}
+												className="px-3 py-1.5 text-xs font-medium rounded-xl bg-white/[0.05] border border-white/[0.1] text-white/60 hover:bg-white/[0.08] hover:text-white/80 hover:border-white/[0.15] transition-all duration-200"
+												whileHover={{ scale: 1.04 }}
+												whileTap={{ scale: 0.97 }}
+											>
+												{chip}
+											</motion.button>
+										))}
+									</div>
+								)}
+							</div>
 						</div>
 					) : (
-						// Messages list using VibeSDK components
-						<div className="rounded-2xl border border-border/50 bg-card/50 p-4">
-							<div className="flex flex-col gap-5">
-								{chatMessages.map((message, index) => {
-									const isLastMessage =
-										index === chatMessages.length - 1;
-									if (message.role === "user") {
-										return (
-											<UserMessage key={message.id} message={message} />
-										);
-									}
+						// Messages list — no outer card wrapper (messages float directly)
+						<div className="flex flex-col gap-4">
+							{chatMessages.map((message, index) => {
+								const isLastMessage =
+									index === chatMessages.length - 1;
+								if (message.role === "user") {
 									return (
-										<AIMessage
-											key={message.id}
-											message={message}
-											isLoading={isLoading && isLastMessage}
-										/>
+										<UserMessage key={message.id} message={message} />
 									);
-								})}
-							</div>
+								}
+								return (
+									<AIMessage
+										key={message.id}
+										message={message}
+										isLoading={isLoading && isLastMessage}
+									/>
+								);
+							})}
 
-							{/* Agent Events — orchestration header + agent cards + review verdicts */}
+							{/* Agent Events */}
 							{agentEvents.length > 0 && (
-								<div className="mt-4 space-y-2">
+								<div className="space-y-2">
 									{agentEvents.map((event, idx) => {
 										if (event.type === "orchestration-start") {
 											return (
@@ -761,7 +824,7 @@ export function ChatColumn({
 
 							{/* PhaseTimeline INLINE after messages */}
 							{phaseTimeline.length > 0 && (
-								<div className="mt-4">
+								<div className="mt-2">
 									<PhaseTimeline
 										projectStages={projectStages}
 										phaseTimeline={phaseTimeline}
@@ -788,22 +851,22 @@ export function ChatColumn({
 				</div>
 			</ScrollArea>
 
-			{/* Error display */}
+			{/* Error display — glass */}
 			{error && (
-				<div className="px-4 py-2 text-sm text-destructive bg-destructive/10 border-t">
+				<div className="px-4 py-2 text-sm text-red-400 bg-red-500/[0.06] border-t border-red-500/[0.1]">
 					Error: {error.message}
 				</div>
 			)}
 
-			{/* Discussion mode banner */}
+			{/* Discussion mode banner — glass */}
 			{mode === "discuss" && (
-				<div className="px-4 py-2 text-xs text-center text-muted-foreground bg-accent/10 border-t border-accent/20">
+				<div className="px-4 py-2 text-xs text-center text-violet-300/60 bg-violet-500/[0.04] border-t border-violet-500/[0.08]">
 					Discussion mode — no file changes will be made
 				</div>
 			)}
 
-			{/* Input area using VibeSDK ChatInput */}
-			<div className="border-t p-4">
+			{/* Input area — glass */}
+			<div className="border-t border-white/[0.06] p-4">
 				<ChatInput
 					value={input}
 					onChange={setInput}
@@ -825,6 +888,7 @@ export function ChatColumn({
 				onPlus={handlePlus}
 				onDiscuss={handleDiscussToggle}
 				onVoiceTranscript={handleVoiceTranscript}
+				onNewChat={handleNewChat}
 				mode={mode}
 			/>
 		</div>
