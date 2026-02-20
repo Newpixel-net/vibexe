@@ -147,7 +147,11 @@ interface HistoryEntry {
 		filesCreated?: string[];
 		filesModified?: string[];
 		filesDeleted?: string[];
+		urls?: string[];
+		userMessages?: string[];
 		messageCount?: number;
+		userMessageCount?: number;
+		assistantMessageCount?: number;
 	};
 	sessionType: string;
 	createdAt: string;
@@ -1176,28 +1180,69 @@ export function ChatColumn({
 									{/* Timeline line */}
 									<div className="absolute left-[11px] top-2 bottom-2 w-px bg-white/[0.06]" />
 
-									<div className="flex flex-col gap-4">
+									<div className="flex flex-col gap-5">
 										{historyEntries.map((entry) => {
 											const date = new Date(entry.createdAt);
 											const details = entry.details || {};
 											const created = details.filesCreated || [];
 											const modified = details.filesModified || [];
 											const deleted = details.filesDeleted || [];
+											const urls = details.urls || [];
+											const userMsgs = details.userMessages || [];
+											const msgCount = details.messageCount || 0;
 
 											return (
 												<div key={entry.id} className="relative pl-8 group">
 													{/* Timeline dot */}
 													<div className="absolute left-[7px] top-1.5 w-[9px] h-[9px] rounded-full bg-white/[0.15] border-2 border-[#0f0f1a] group-hover:bg-teal-400/50 transition-colors" />
 
-													<div className="text-xs text-white/25 mb-1">
-														{date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-														{" "}
-														{date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+													<div className="flex items-center gap-2 text-xs text-white/25 mb-1.5">
+														<span>
+															{date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+															{" "}
+															{date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+														</span>
+														{msgCount > 0 && (
+															<span className="text-white/15">{msgCount} messages</span>
+														)}
 													</div>
-													<p className="text-sm text-white/70 leading-snug">{entry.summary}</p>
 
+													{/* URLs referenced */}
+													{urls.length > 0 && (
+														<div className="flex flex-wrap gap-1.5 mb-1.5">
+															{urls.map((url) => (
+																<a
+																	key={url}
+																	href={url}
+																	target="_blank"
+																	rel="noopener noreferrer"
+																	className="text-[11px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400/70 hover:text-violet-300 hover:bg-violet-500/20 transition-colors truncate max-w-[280px]"
+																>
+																	{url.replace(/^https?:\/\//, "")}
+																</a>
+															))}
+														</div>
+													)}
+
+													{/* User messages */}
+													{userMsgs.length > 0 ? (
+														<div className="flex flex-col gap-1.5">
+															{userMsgs.map((msg, i) => (
+																<div key={i} className="text-[13px] text-white/60 leading-snug">
+																	{userMsgs.length > 1 && (
+																		<span className="text-white/25 text-[10px] mr-1">#{i + 1}</span>
+																	)}
+																	{msg.length > 200 ? `${msg.slice(0, 200)}...` : msg}
+																</div>
+															))}
+														</div>
+													) : (
+														<p className="text-sm text-white/50 leading-snug">{entry.summary}</p>
+													)}
+
+													{/* File operation badges */}
 													{(created.length > 0 || modified.length > 0 || deleted.length > 0) && (
-														<div className="mt-1.5 flex flex-wrap gap-1.5">
+														<div className="mt-2 flex flex-wrap gap-1.5">
 															{created.length > 0 && (
 																<span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400/60">
 																	+{created.length} created

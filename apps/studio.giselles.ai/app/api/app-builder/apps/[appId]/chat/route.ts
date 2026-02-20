@@ -16,35 +16,47 @@ interface RouteContext {
 	params: Promise<{ appId: string }>;
 }
 
-/** Extract a summary from chat messages for the history log. */
+/** Extract text from a single message (AI SDK v5/v6 format). */
+function extractMessageText(msg: Record<string, unknown>): string {
+	if (typeof msg.content === "string") return msg.content;
+	if (Array.isArray(msg.parts)) {
+		const texts: string[] = [];
+		for (const part of msg.parts as { type: string; text?: string }[]) {
+			if (part.type === "text" && part.text) texts.push(part.text);
+		}
+		return texts.join("\n");
+	}
+	return "";
+}
+
+/** Extract all URLs from a string. */
+function extractUrls(text: string): string[] {
+	const urlRegex = /https?:\/\/[^\s"'<>)}\]]+/gi;
+	return [...new Set(text.match(urlRegex) || [])];
+}
+
+/** Extract a rich summary from chat messages for the history log. */
 function buildHistorySummary(messages: Record<string, unknown>[]) {
 	const filesCreated: string[] = [];
 	const filesModified: string[] = [];
 	const filesDeleted: string[] = [];
-	let userMessageCount = 0;
+	const userMessages: string[] = [];
+	const urls: string[] = [];
 	let assistantMessageCount = 0;
-	let firstUserText = "";
 
 	for (const msg of messages) {
 		const role = msg.role as string;
 		if (role === "user") {
-			userMessageCount++;
-			if (!firstUserText) {
-				// AI SDK v6: text is in parts[0].text or content
-				if (typeof msg.content === "string") {
-					firstUserText = msg.content;
-				} else if (Array.isArray(msg.parts)) {
-					const tp = (msg.parts as { type: string; text?: string }[]).find(
-						(p) => p.type === "text",
-					);
-					if (tp?.text) firstUserText = tp.text;
-				}
+			const text = extractMessageText(msg);
+			if (text.trim()) {
+				userMessages.push(text.trim());
+				urls.push(...extractUrls(text));
 			}
 		} else if (role === "assistant") {
 			assistantMessageCount++;
-			// Extract file tool calls from parts
+			// Extract file tool calls from parts (AI SDK v5/v6 formats)
 			if (Array.isArray(msg.parts)) {
-				for (const part of msg.parts as { type: string; toolName?: string; args?: Record<string, string>; input?: Record<string, string> }[]) {
+				for (const part of msg.parts as { type: string; toolName?: string; args?: Record<string, string>; input?: Record<string, string>; result?: unknown }[]) {
 					if (part.type === "tool-invocation" || part.type === "tool-call") {
 						const args = part.input ?? part.args ?? {};
 						const path = args.path || args.filePath || "";
@@ -61,17 +73,32 @@ function buildHistorySummary(messages: Record<string, unknown>[]) {
 		}
 	}
 
-	// Build summary string
-	const parts: string[] = [];
-	if (filesCreated.length > 0) parts.push(`Created ${filesCreated.length} file${filesCreated.length > 1 ? "s" : ""}`);
-	if (filesModified.length > 0) parts.push(`Modified ${filesModified.length} file${filesModified.length > 1 ? "s" : ""}`);
-	if (filesDeleted.length > 0) parts.push(`Deleted ${filesDeleted.length} file${filesDeleted.length > 1 ? "s" : ""}`);
+	// Build rich summary
+	const summaryParts: string[] = [];
 
-	let summary = parts.length > 0 ? parts.join(", ") : "Chat session";
-	if (firstUserText) {
-		const truncated = firstUserText.length > 80 ? `${firstUserText.slice(0, 80)}...` : firstUserText;
-		summary += ` — "${truncated}"`;
+	// File operations line
+	const opParts: string[] = [];
+	if (filesCreated.length > 0) opParts.push(`Created ${filesCreated.length} file${filesCreated.length > 1 ? "s" : ""}`);
+	if (filesModified.length > 0) opParts.push(`Updated ${filesModified.length} file${filesModified.length > 1 ? "s" : ""}`);
+	if (filesDeleted.length > 0) opParts.push(`Deleted ${filesDeleted.length} file${filesDeleted.length > 1 ? "s" : ""}`);
+	if (opParts.length > 0) summaryParts.push(opParts.join(", "));
+
+	// URLs mentioned
+	if (urls.length > 0) {
+		summaryParts.push(`Referenced: ${urls.join(", ")}`);
 	}
+
+	// All user requests (each truncated to 200 chars)
+	for (let i = 0; i < userMessages.length; i++) {
+		const text = userMessages[i];
+		const truncated = text.length > 200 ? `${text.slice(0, 200)}...` : text;
+		const prefix = userMessages.length > 1 ? `Request ${i + 1}: ` : "";
+		summaryParts.push(`${prefix}"${truncated}"`);
+	}
+
+	const summary = summaryParts.length > 0
+		? summaryParts.join("\n")
+		: "Empty chat session";
 
 	return {
 		summary,
@@ -79,8 +106,10 @@ function buildHistorySummary(messages: Record<string, unknown>[]) {
 			filesCreated,
 			filesModified,
 			filesDeleted,
-			messageCount: userMessageCount + assistantMessageCount,
-			userMessageCount,
+			urls,
+			userMessages: userMessages.map((m) => m.length > 500 ? `${m.slice(0, 500)}...` : m),
+			messageCount: userMessages.length + assistantMessageCount,
+			userMessageCount: userMessages.length,
 			assistantMessageCount,
 		},
 	};
