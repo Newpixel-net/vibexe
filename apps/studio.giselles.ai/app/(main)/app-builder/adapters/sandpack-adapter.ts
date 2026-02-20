@@ -27,11 +27,45 @@ export interface SandpackFiles {
 	[path: string]: SandpackFile | string;
 }
 
+/** Language configuration for Sandpack preview */
+export interface SandpackLanguageConfig {
+	/** ISO 639-1 code (e.g. "he", "ar", "en") */
+	lang: string;
+	/** Text direction */
+	dir: "ltr" | "rtl";
+}
+
 /**
- * Custom index.html with Tailwind Play CDN
+ * Build index.html with Tailwind Play CDN and dynamic language/RTL support.
  */
-const TAILWIND_INDEX_HTML = `<!DOCTYPE html>
-<html lang="en">
+function buildIndexHtml(langConfig?: SandpackLanguageConfig): string {
+	const lang = langConfig?.lang || "en";
+	const dir = langConfig?.dir || "ltr";
+	const isRtl = dir === "rtl";
+
+	const rtlStyles = isRtl
+		? `
+        /* RTL base styles */
+        [dir="rtl"] { direction: rtl; text-align: right; }
+        [dir="rtl"] .flex { flex-direction: row-reverse; }
+        [dir="rtl"] .space-x-1 > :not([hidden]) ~ :not([hidden]),
+        [dir="rtl"] .space-x-2 > :not([hidden]) ~ :not([hidden]),
+        [dir="rtl"] .space-x-3 > :not([hidden]) ~ :not([hidden]),
+        [dir="rtl"] .space-x-4 > :not([hidden]) ~ :not([hidden]),
+        [dir="rtl"] .space-x-6 > :not([hidden]) ~ :not([hidden]),
+        [dir="rtl"] .space-x-8 > :not([hidden]) ~ :not([hidden]) {
+          --tw-space-x-reverse: 1;
+        }
+        [dir="rtl"] .ml-auto { margin-left: unset; margin-right: auto; }
+        [dir="rtl"] .mr-auto { margin-right: unset; margin-left: auto; }
+        [dir="rtl"] .text-left { text-align: right; }
+        [dir="rtl"] .text-right { text-align: left; }
+        [dir="rtl"] .pl-4, [dir="rtl"] .pl-6, [dir="rtl"] .pl-8 { padding-left: 0; padding-right: inherit; }
+        [dir="rtl"] .pr-4, [dir="rtl"] .pr-6, [dir="rtl"] .pr-8 { padding-right: 0; padding-left: inherit; }`
+		: "";
+
+	return `<!DOCTYPE html>
+<html lang="${lang}" dir="${dir}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -60,15 +94,19 @@ const TAILWIND_INDEX_HTML = `<!DOCTYPE html>
         }
         html {
           scroll-behavior: smooth;
-        }
+        }${rtlStyles}
       }
     </style>
   </head>
-  <body>
+  <body dir="${dir}">
     <div id="root"></div>
   </body>
 </html>
 `;
+}
+
+/** Default index.html (English, LTR) — kept for backward compat */
+const TAILWIND_INDEX_HTML = buildIndexHtml();
 
 /**
  * Default App.tsx if no App file exists
@@ -347,12 +385,12 @@ function extractProviderName(content: string): string | null {
  * - Skips non-code files (markdown, etc.)
  * - CSS files included but referenced via CDN instead
  */
-export function convertToSandpackFiles(files: AppFile[]): SandpackFiles {
+export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLanguageConfig): SandpackFiles {
 	const sandpackFiles: SandpackFiles = {};
 
-	// Always include custom index.html with Tailwind support
+	// Always include custom index.html with Tailwind support + language/RTL
 	sandpackFiles["/public/index.html"] = {
-		code: TAILWIND_INDEX_HTML,
+		code: langConfig ? buildIndexHtml(langConfig) : TAILWIND_INDEX_HTML,
 		hidden: true,
 	};
 

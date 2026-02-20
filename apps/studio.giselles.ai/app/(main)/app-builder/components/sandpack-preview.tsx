@@ -30,9 +30,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import {
 	type SandpackFiles,
+	type SandpackLanguageConfig,
 	convertToSandpackFiles,
 	extractDependencies,
 } from "../adapters/sandpack-adapter";
+import { isRtlLanguage } from "../lib/languages";
 
 type DeviceSize = "desktop" | "tablet" | "mobile";
 
@@ -254,8 +256,39 @@ export function SandpackPreview({
 	const [device, setDevice] = useState<DeviceSize>("desktop");
 	const [showConsole, setShowConsole] = useState(false);
 
+	// Detect language from generated files (Blueprint.md or App.tsx may contain lang hints)
+	const langConfig = useMemo((): SandpackLanguageConfig | undefined => {
+		for (const f of files) {
+			if (!f.content) continue;
+			// Check for explicit lang/dir markers the AI may have included
+			const langMatch = f.content.match(/(?:lang|language)[=:]\s*["']?([a-z]{2}(?:-[A-Z]{2})?)["']?/i);
+			const dirMatch = f.content.match(/dir[=:]\s*["']?(rtl|ltr)["']?/i);
+			if (langMatch) {
+				const code = langMatch[1].toLowerCase();
+				return { lang: code, dir: isRtlLanguage(code) ? "rtl" : "ltr" };
+			}
+			if (dirMatch && dirMatch[1].toLowerCase() === "rtl") {
+				// RTL detected but no specific lang — check content for Hebrew/Arabic chars
+				const allContent = files.map((x) => x.content || "").join("");
+				const hebrewCount = (allContent.match(/[\u0590-\u05FF]/g) || []).length;
+				const arabicCount = (allContent.match(/[\u0600-\u06FF]/g) || []).length;
+				const lang = hebrewCount > arabicCount ? "he" : arabicCount > 0 ? "ar" : "he";
+				return { lang, dir: "rtl" };
+			}
+		}
+		// Scan all file content for non-Latin script to auto-detect
+		const allText = files.map((f) => f.content || "").join("");
+		const hebrewChars = (allText.match(/[\u0590-\u05FF]/g) || []).length;
+		const arabicChars = (allText.match(/[\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF]/g) || []).length;
+		const cjkChars = (allText.match(/[\u4E00-\u9FFF\u3040-\u30FF]/g) || []).length;
+		if (hebrewChars > 20) return { lang: "he", dir: "rtl" };
+		if (arabicChars > 20) return { lang: "ar", dir: "rtl" };
+		if (cjkChars > 20) return { lang: "zh", dir: "ltr" };
+		return undefined; // Default English LTR
+	}, [files]);
+
 	// Convert files to Sandpack format
-	const sandpackFiles = useMemo(() => convertToSandpackFiles(files), [files]);
+	const sandpackFiles = useMemo(() => convertToSandpackFiles(files, langConfig), [files, langConfig]);
 	const dependencies = useMemo(() => extractDependencies(files), [files]);
 
 	// Calculate preview width based on device

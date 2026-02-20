@@ -1,20 +1,37 @@
 /**
  * URL Analyzer — Server-side website content extraction for site replication.
  * Fetches HTML/CSS and extracts design tokens (fonts, colors, typography, layout).
+ * Detects language, text direction, and content locale for multi-language support.
  */
+
+import { isRtlLanguage, getLanguageConfig, getLanguageLabel } from "./languages";
+
+export interface SiteLanguage {
+  /** ISO 639-1 code detected from HTML lang, meta, or content analysis */
+  code: string;
+  /** Human-readable label (e.g. "Hebrew (עברית)") */
+  label: string;
+  /** Text direction: "ltr" or "rtl" */
+  direction: "ltr" | "rtl";
+  /** How was the language detected */
+  source: "html-lang" | "meta-language" | "content-language-header" | "og-locale" | "content-analysis";
+}
 
 export interface SiteAnalysis {
   url: string;
   title: string;
   description: string;
+  language: SiteLanguage;
   fonts: { family: string; weights: string[]; source: "google" | "adobe" | "custom" }[];
   colors: { role: string; value: string }[];
   typography: { element: string; fontSize: string; fontWeight: string; lineHeight: string }[];
-  layout: { sections: string[]; hasHero: boolean; hasNav: boolean; hasFooter: boolean };
+  layout: { sections: string[]; hasHero: boolean; hasNav: boolean; hasFooter: boolean; hasRtl: boolean };
   animations: string[];
   images: { src: string; alt: string; role: "logo" | "hero" | "background" | "content" }[];
   cssVariables: Record<string, string>;
   meta: Record<string, string>;
+  /** Raw text content samples for AI context (helps AI understand the site's language) */
+  textSamples: string[];
 }
 
 const CHROME_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -35,10 +52,17 @@ export async function analyzeUrl(url: string): Promise<SiteAnalysis | null> {
     const html = await response.text();
     const baseUrl = new URL(url).origin;
 
+    // Detect language from multiple sources (priority order)
+    const contentLanguageHeader = response.headers.get("Content-Language") || "";
+    const language = detectLanguage(html, contentLanguageHeader);
+
     // Extract meta info
     const title = extractTag(html, "title") || "";
     const description = extractMeta(html, "description") || extractMeta(html, "og:description") || "";
     const meta = extractAllMeta(html);
+
+    // Extract visible text samples for AI context
+    const textSamples = extractTextSamples(html);
 
     // Extract fonts
     const fonts = extractFonts(html, baseUrl);
@@ -49,8 +73,10 @@ export async function analyzeUrl(url: string): Promise<SiteAnalysis | null> {
     // Extract typography patterns
     const typography = extractTypography(html);
 
-    // Extract layout structure
+    // Extract layout structure (includes RTL detection)
     const layout = extractLayout(html);
+    // Override RTL flag from language detection
+    if (language.direction === "rtl") layout.hasRtl = true;
 
     // Extract animation patterns
     const animations = extractAnimations(html);
@@ -96,10 +122,13 @@ export async function analyzeUrl(url: string): Promise<SiteAnalysis | null> {
       }
     }
 
+    console.log(`[URL Analyzer] Language detected: ${language.label} (${language.code}), direction: ${language.direction}, source: ${language.source}`);
+
     return {
       url,
       title,
       description,
+      language,
       fonts,
       colors: colors.slice(0, 20),
       typography,
@@ -108,6 +137,7 @@ export async function analyzeUrl(url: string): Promise<SiteAnalysis | null> {
       images: images.slice(0, 20),
       cssVariables,
       meta,
+      textSamples,
     };
   } catch (error) {
     console.error("[URL Analyzer] Failed to analyze:", url, error);
@@ -314,11 +344,15 @@ function extractLayout(html: string): SiteAnalysis["layout"] {
     }
   }
 
+  // Detect RTL from dir attribute or direction CSS
+  const hasRtl = /dir=["']rtl["']/i.test(html) || /direction:\s*rtl/i.test(html);
+
   return {
     sections,
     hasHero: sections.includes("hero"),
     hasNav: sections.includes("navigation"),
     hasFooter: sections.includes("footer"),
+    hasRtl,
   };
 }
 
@@ -450,6 +484,190 @@ function extractStylesheetUrls(html: string, baseUrl: string): string[] {
   return urls;
 }
 
+// ─── Language Detection ──────────────────────────────────────────
+
+/**
+ * Detect website language from multiple sources (priority order):
+ * 1. <html lang="..."> attribute
+ * 2. <meta http-equiv="content-language"> tag
+ * 3. Content-Language HTTP header
+ * 4. og:locale meta tag
+ * 5. dir="rtl" attribute (infers RTL language)
+ * 6. Content analysis (Unicode script detection)
+ */
+function detectLanguage(html: string, contentLanguageHeader: string): SiteLanguage {
+  // 1. HTML lang attribute — most reliable
+  const htmlLangMatch = html.match(/<html[^>]+lang=["']([^"']+)["']/i);
+  if (htmlLangMatch) {
+    const code = htmlLangMatch[1].trim();
+    return buildSiteLanguage(code, "html-lang");
+  }
+
+  // 2. Meta http-equiv content-language
+  const metaLangMatch = html.match(/<meta[^>]+http-equiv=["']content-language["'][^>]+content=["']([^"']+)["']/i)
+    || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+http-equiv=["']content-language["']/i);
+  if (metaLangMatch) {
+    return buildSiteLanguage(metaLangMatch[1].trim(), "meta-language");
+  }
+
+  // 3. Content-Language HTTP header
+  if (contentLanguageHeader) {
+    const code = contentLanguageHeader.split(",")[0].trim();
+    if (code) return buildSiteLanguage(code, "content-language-header");
+  }
+
+  // 4. og:locale meta tag (e.g. "he_IL", "ar_SA")
+  const ogLocaleMatch = html.match(/<meta[^>]+property=["']og:locale["'][^>]+content=["']([^"']+)["']/i)
+    || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:locale["']/i);
+  if (ogLocaleMatch) {
+    const locale = ogLocaleMatch[1].trim();
+    // Convert og:locale format (he_IL) to language code (he)
+    const code = locale.replace("_", "-").split("-")[0];
+    return buildSiteLanguage(code, "og-locale");
+  }
+
+  // 5. dir="rtl" attribute suggests RTL language
+  const dirRtlMatch = html.match(/<(?:html|body)[^>]+dir=["']rtl["']/i);
+  if (dirRtlMatch) {
+    // Try to identify specific RTL language from content
+    const rtlCode = detectRtlLanguageFromContent(html);
+    return buildSiteLanguage(rtlCode, "content-analysis");
+  }
+
+  // 6. Content analysis — detect from Unicode script ranges
+  const detectedCode = detectLanguageFromContent(html);
+  if (detectedCode !== "en") {
+    return buildSiteLanguage(detectedCode, "content-analysis");
+  }
+
+  // Default to English
+  return buildSiteLanguage("en", "content-analysis");
+}
+
+function buildSiteLanguage(code: string, source: SiteLanguage["source"]): SiteLanguage {
+  const normalizedCode = code.toLowerCase().split(",")[0].trim();
+  const config = getLanguageConfig(normalizedCode);
+  return {
+    code: normalizedCode,
+    label: config ? getLanguageLabel(normalizedCode) : normalizedCode,
+    direction: isRtlLanguage(normalizedCode) ? "rtl" : "ltr",
+    source,
+  };
+}
+
+/**
+ * Detect language from text content using Unicode script ranges.
+ * Returns ISO 639-1 code.
+ */
+function detectLanguageFromContent(html: string): string {
+  // Strip HTML tags to get visible text
+  const text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .substring(0, 5000);
+
+  // Count characters in different Unicode ranges
+  const hebrewChars = (text.match(/[\u0590-\u05FF]/g) || []).length;
+  const arabicChars = (text.match(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/g) || []).length;
+  const cjkChars = (text.match(/[\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF]/g) || []).length;
+  const cyrillicChars = (text.match(/[\u0400-\u04FF]/g) || []).length;
+  const thaiChars = (text.match(/[\u0E00-\u0E7F]/g) || []).length;
+  const koreanChars = (text.match(/[\uAC00-\uD7AF\u1100-\u11FF]/g) || []).length;
+  const devanagariChars = (text.match(/[\u0900-\u097F]/g) || []).length;
+  const bengaliChars = (text.match(/[\u0980-\u09FF]/g) || []).length;
+  const georgianChars = (text.match(/[\u10A0-\u10FF]/g) || []).length;
+  const armenianChars = (text.match(/[\u0530-\u058F]/g) || []).length;
+  const tamilChars = (text.match(/[\u0B80-\u0BFF]/g) || []).length;
+
+  const threshold = 10; // Minimum chars to consider a detection
+  const counts: [string, number][] = [
+    ["he", hebrewChars],
+    ["ar", arabicChars],
+    ["zh", cjkChars],
+    ["ru", cyrillicChars],
+    ["th", thaiChars],
+    ["ko", koreanChars],
+    ["hi", devanagariChars],
+    ["bn", bengaliChars],
+    ["ka", georgianChars],
+    ["hy", armenianChars],
+    ["ta", tamilChars],
+  ];
+
+  // Find the script with the most characters
+  const best = counts.reduce((max, curr) => curr[1] > max[1] ? curr : max, ["en", 0]);
+  return best[1] >= threshold ? best[0] : "en";
+}
+
+/**
+ * When dir="rtl" is detected but no lang attribute, try to identify the specific RTL language.
+ */
+function detectRtlLanguageFromContent(html: string): string {
+  const text = html.replace(/<[^>]+>/g, " ").substring(0, 5000);
+  const hebrewChars = (text.match(/[\u0590-\u05FF]/g) || []).length;
+  const arabicChars = (text.match(/[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/g) || []).length;
+
+  if (hebrewChars > arabicChars && hebrewChars > 10) return "he";
+  if (arabicChars > hebrewChars && arabicChars > 10) return "ar";
+  if (hebrewChars > 5) return "he";
+  if (arabicChars > 5) return "ar";
+  return "ar"; // Default RTL to Arabic
+}
+
+/**
+ * Extract visible text samples from the page for AI context.
+ * Returns headings, nav items, and key paragraphs.
+ */
+function extractTextSamples(html: string): string[] {
+  const samples: string[] = [];
+
+  // Extract heading content
+  const headingRegex = /<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = headingRegex.exec(html)) !== null) {
+    const text = match[1].replace(/<[^>]+>/g, "").trim();
+    if (text.length > 2 && text.length < 200) {
+      samples.push(text);
+    }
+  }
+
+  // Extract nav link text
+  const navLinkRegex = /<a[^>]*>([\s\S]*?)<\/a>/gi;
+  const navTexts: string[] = [];
+  while ((match = navLinkRegex.exec(html)) !== null) {
+    const text = match[1].replace(/<[^>]+>/g, "").trim();
+    if (text.length > 1 && text.length < 50 && navTexts.length < 10) {
+      navTexts.push(text);
+    }
+  }
+  if (navTexts.length > 0) {
+    samples.push(`Navigation: ${navTexts.slice(0, 8).join(", ")}`);
+  }
+
+  // Extract first few paragraphs
+  const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
+  let pCount = 0;
+  while ((match = pRegex.exec(html)) !== null && pCount < 3) {
+    const text = match[1].replace(/<[^>]+>/g, "").trim();
+    if (text.length > 20 && text.length < 300) {
+      samples.push(text);
+      pCount++;
+    }
+  }
+
+  // Extract button/CTA text
+  const btnRegex = /<(?:button|a)[^>]*class[^>]*(?:btn|button|cta)[^>]*>([\s\S]*?)<\/(?:button|a)>/gi;
+  while ((match = btnRegex.exec(html)) !== null) {
+    const text = match[1].replace(/<[^>]+>/g, "").trim();
+    if (text.length > 1 && text.length < 50 && samples.length < 15) {
+      samples.push(`CTA: ${text}`);
+    }
+  }
+
+  return samples.slice(0, 15);
+}
+
 // ─── Format for Prompt ────────────────────────────────────────────
 
 /**
@@ -461,6 +679,26 @@ export function formatSiteAnalysis(analysis: SiteAnalysis): string {
   sections.push(`## Reference Website Analysis: ${new URL(analysis.url).hostname}`);
   if (analysis.title) sections.push(`**Title**: ${analysis.title}`);
   if (analysis.description) sections.push(`**Description**: ${analysis.description}`);
+
+  // Language & Direction — CRITICAL for replication
+  sections.push(`\n### ⚠️ LANGUAGE & TEXT DIRECTION (CRITICAL)`);
+  sections.push(`- **Language**: ${analysis.language.label} (code: \`${analysis.language.code}\`)`);
+  sections.push(`- **Text direction**: ${analysis.language.direction.toUpperCase()}`);
+  sections.push(`- **Detection source**: ${analysis.language.source}`);
+  if (analysis.language.direction === "rtl") {
+    sections.push(`- **RTL REQUIRED**: This site uses right-to-left layout. ALL text, menus, navigation, and layout must flow RTL.`);
+  }
+  if (analysis.language.code !== "en") {
+    sections.push(`- **NON-ENGLISH**: All visible text content (headings, buttons, paragraphs, labels, navigation, footers) MUST be written in ${analysis.language.label}. Do NOT translate to English.`);
+  }
+
+  // Text samples for language context
+  if (analysis.textSamples.length > 0) {
+    sections.push(`\n### Original Text Content (preserve this language)`);
+    for (const sample of analysis.textSamples) {
+      sections.push(`- "${sample}"`);
+    }
+  }
 
   // Fonts
   if (analysis.fonts.length > 0) {
@@ -500,6 +738,7 @@ export function formatSiteAnalysis(analysis: SiteAnalysis): string {
   sections.push(`- Has hero: ${analysis.layout.hasHero ? "yes" : "no"}`);
   sections.push(`- Has navigation: ${analysis.layout.hasNav ? "yes" : "no"}`);
   sections.push(`- Has footer: ${analysis.layout.hasFooter ? "yes" : "no"}`);
+  sections.push(`- RTL layout: ${analysis.layout.hasRtl ? "yes" : "no"}`);
 
   // Animations
   if (analysis.animations.length > 0) {

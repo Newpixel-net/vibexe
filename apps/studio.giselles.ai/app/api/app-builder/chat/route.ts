@@ -27,6 +27,7 @@ import {
 	getFilesForApp,
 } from "@/app/(main)/app-builder/lib/queries";
 import {
+	type SiteAnalysis,
 	analyzeUrl,
 	formatSiteAnalysis,
 } from "@/app/(main)/app-builder/lib/url-analyzer";
@@ -37,6 +38,43 @@ import { resolveAllProviderApiKeys } from "@/lib/team-ai-provider-keys";
 // Initialize engine registries (runs once at module load)
 registerAgents(DEFAULT_AGENTS);
 registerSkills(DEFAULT_SKILLS);
+
+/**
+ * Build language-specific instructions for the AI system prompt.
+ * Ensures the AI generates content in the detected language with proper RTL support.
+ */
+function buildLanguageInstructions(analysis: SiteAnalysis): string {
+	const { language } = analysis;
+	const isRtl = language.direction === "rtl";
+
+	let instructions = `\n## ⚠️ LANGUAGE & LOCALIZATION (MANDATORY)
+
+**Detected language: ${language.label} (${language.code})**
+**Text direction: ${language.direction.toUpperCase()}**
+
+### CRITICAL RULES — YOU MUST FOLLOW ALL:
+1. ALL visible text (headings, paragraphs, buttons, labels, navigation, footer, placeholders, tooltips, error messages) MUST be written in **${language.label}**
+2. Do NOT translate content to English — keep everything in the original language
+3. Variable names, function names, and code comments may remain in English
+4. Use proper ${language.label} typography and punctuation conventions`;
+
+	if (isRtl) {
+		instructions += `
+
+### RTL LAYOUT REQUIREMENTS (${language.label} is RTL):
+1. The \`<html>\` element already has \`dir="rtl"\` set — Tailwind will handle most RTL automatically
+2. Use Tailwind RTL utilities where available: \`rtl:mr-4\`, \`rtl:text-right\`, etc.
+3. Navigation menus should flow right-to-left
+4. Icons that indicate direction (arrows, chevrons) must be mirrored for RTL
+5. Use \`flex-row-reverse\` for horizontal layouts that need RTL flow
+6. Phone numbers and URLs remain left-to-right (use \`dir="ltr"\` inline)
+7. For flexbox layouts, the browser's RTL mode will automatically reverse \`flex-row\` — use this instead of manually reversing
+8. Text alignment defaults to right in RTL — only override when needed
+9. Padding/margin: use logical properties when possible (\`ps-4\`/\`pe-4\` instead of \`pl-4\`/\`pr-4\`)`;
+	}
+
+	return instructions;
+}
 
 // Discussion mode prompt (no file tools)
 const DISCUSSION_SYSTEM_PROMPT = `You are an expert full-stack developer helping users plan and discuss web applications.
@@ -160,13 +198,14 @@ export async function POST(request: Request) {
 		const detectedUrls = userPrompt.match(URL_REGEX) || [];
 
 		let enrichedFileContext = fileContext;
+		let siteAnalysis: SiteAnalysis | null = null;
 		if (detectedUrls.length > 0) {
 			try {
-				const analysis = await analyzeUrl(detectedUrls[0]);
-				if (analysis) {
-					enrichedFileContext = `${fileContext}\n\n${formatSiteAnalysis(analysis)}`;
+				siteAnalysis = await analyzeUrl(detectedUrls[0]);
+				if (siteAnalysis) {
+					enrichedFileContext = `${fileContext}\n\n${formatSiteAnalysis(siteAnalysis)}`;
 					console.log(
-						`[Chat API] URL analysis complete: ${detectedUrls[0]} — ${analysis.fonts.length} fonts, ${analysis.colors.length} colors, ${analysis.layout.sections.length} sections`,
+						`[Chat API] URL analysis complete: ${detectedUrls[0]} — lang=${siteAnalysis.language.code} (${siteAnalysis.language.direction}), ${siteAnalysis.fonts.length} fonts, ${siteAnalysis.colors.length} colors, ${siteAnalysis.layout.sections.length} sections`,
 					);
 				}
 			} catch (error) {
@@ -205,7 +244,13 @@ const app = new VibexeApp({ appId: "${appId}" });
 \`\`\``;
 
 		// Build the system prompt — all files created via consecutive create_file calls
+		// Build language-specific instructions when a non-English site is detected
+		const langInstructions = siteAnalysis && siteAnalysis.language.code !== "en"
+			? buildLanguageInstructions(siteAnalysis)
+			: "";
+
 		const systemPrompt = `You are an expert fullstack developer. Create COMPLETE web applications.
+You support 100+ languages including RTL languages like Hebrew, Arabic, Persian, and Urdu.
 
 ## TASK
 
@@ -231,7 +276,7 @@ ${dataManagementSection}
 - NO external packages — use inline SVG or emoji for icons${supabaseConfig ? "\n- EXCEPTION: You may import from `@supabase/supabase-js`" : ""}
 - Every file must be COMPLETE and render without errors
 - Complex apps need 8-15+ well-separated component files
-${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;
+${langInstructions}${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;
 
 		const tools = createFileTools(appId);
 		const modelMessages = await convertToModelMessages(messages);
