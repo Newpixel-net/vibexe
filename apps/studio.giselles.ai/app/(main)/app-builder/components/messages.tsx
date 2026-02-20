@@ -11,6 +11,7 @@ import {
 	AlertCircle,
 	CheckCircle2,
 	ChevronDown,
+	ChevronRight,
 	Copy,
 	FileCode,
 	FileText,
@@ -18,7 +19,7 @@ import {
 	MoreHorizontal,
 	RotateCcw,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeExternalLinks from "rehype-external-links";
 import remarkGfm from "remark-gfm";
@@ -129,6 +130,81 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
 			>
 				{content}
 			</ReactMarkdown>
+		</div>
+	);
+}
+
+/**
+ * Split markdown into intro paragraph and collapsible details.
+ * Splits at the first bold heading (**Text:**), markdown heading (#), or
+ * list that follows a blank line — whichever comes first.
+ */
+function splitMarkdownIntro(content: string): {
+	intro: string;
+	details: string;
+} {
+	// Match: blank line followed by bold heading, markdown heading, or list item
+	const splitPattern = /\n\n(?=\*\*[^*]+\*\*:?|#{1,3}\s|[-*]\s|\d+\.\s)/;
+	const match = content.match(splitPattern);
+	if (!match || match.index === undefined) {
+		return { intro: content, details: "" };
+	}
+	return {
+		intro: content.slice(0, match.index).trim(),
+		details: content.slice(match.index).trim(),
+	};
+}
+
+/** Minimum details length to bother collapsing */
+const COLLAPSE_THRESHOLD = 120;
+
+interface CollapsibleMarkdownProps {
+	content: string;
+	className?: string;
+}
+
+/**
+ * Collapsible markdown — shows intro text with expand/collapse for long responses.
+ */
+function CollapsibleMarkdownContent({
+	content,
+	className,
+}: CollapsibleMarkdownProps) {
+	const [expanded, setExpanded] = useState(false);
+	const { intro, details } = useMemo(
+		() => splitMarkdownIntro(content),
+		[content],
+	);
+
+	const shouldCollapse = details.length > COLLAPSE_THRESHOLD;
+
+	if (!shouldCollapse) {
+		return <MarkdownContent content={content} className={className} />;
+	}
+
+	return (
+		<div>
+			<MarkdownContent content={intro} className={className} />
+			<button
+				type="button"
+				onClick={() => setExpanded((v) => !v)}
+				className="flex items-center gap-1.5 mt-1 mb-1 px-2.5 py-1 rounded-lg text-xs font-medium text-teal-400/80 hover:text-teal-300 bg-teal-500/[0.06] hover:bg-teal-500/[0.12] border border-teal-500/[0.1] transition-all duration-200"
+			>
+				{expanded ? (
+					<>
+						<ChevronDown className="size-3" />
+						Collapse
+					</>
+				) : (
+					<>
+						<ChevronRight className="size-3" />
+						Expand details
+					</>
+				)}
+			</button>
+			{expanded && (
+				<MarkdownContent content={details} className={className} />
+			)}
 		</div>
 	);
 }
@@ -491,7 +567,7 @@ export function AIMessage({
 						<ToolEventsSummary events={message.toolEvents} />
 					)}
 					{message.content ? (
-						<MarkdownContent content={message.content} />
+						<CollapsibleMarkdownContent content={message.content} />
 					) : isLoading ? (
 						<span className="text-white/30 animate-pulse text-sm">
 							Thinking...
