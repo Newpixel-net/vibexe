@@ -54,23 +54,23 @@ function MetricCard({
 	live?: boolean;
 }) {
 	return (
-		<div className="p-4 rounded-lg border border-border bg-card">
+		<div className="p-4">
 			<div className="flex items-center justify-between mb-3">
-				<Icon className="h-4 w-4 text-muted-foreground" />
+				<Icon className="h-4 w-4 text-white/20" />
 				{live && (
 					<span className="flex items-center gap-1.5">
 						<span className="relative flex h-2 w-2">
 							<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
 							<span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
 						</span>
-						<span className="text-[10px] text-green-600 font-medium">LIVE</span>
+						<span className="text-[10px] text-green-400 font-medium">LIVE</span>
 					</span>
 				)}
 			</div>
-			<div className="text-2xl font-bold text-foreground">{value}</div>
-			<div className="text-xs text-muted-foreground mt-1">{label}</div>
+			<div className="text-3xl font-light tracking-tight text-white/90">{value}</div>
+			<div className="text-[11px] text-white/30 uppercase tracking-wider mt-1">{label}</div>
 			{sublabel && (
-				<div className="text-[10px] text-muted-foreground/70 mt-0.5">
+				<div className="text-[10px] text-white/20 mt-0.5">
 					{sublabel}
 				</div>
 			)}
@@ -90,8 +90,8 @@ function TimeBarChart({
 	if (data.length === 0) {
 		return (
 			<div className="text-center py-8">
-				<BarChart3 className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-				<p className="text-xs text-muted-foreground">No data yet</p>
+				<BarChart3 className="h-8 w-8 text-white/40/20 mx-auto mb-2" />
+				<p className="text-xs text-white/40">No data yet</p>
 			</div>
 		);
 	}
@@ -106,7 +106,7 @@ function TimeBarChart({
 						title={`${item.label}: ${item.value} views`}
 					>
 						<div
-							className="w-full rounded-t bg-blue-500/40 hover:bg-blue-500/60 transition-colors min-h-[2px]"
+							className="w-full rounded-t bg-violet-500/40 hover:bg-violet-500/60 transition-colors min-h-[2px]"
 							style={{
 								height: `${Math.max(2, (item.value / maxValue) * 100)}%`,
 							}}
@@ -114,7 +114,7 @@ function TimeBarChart({
 					</div>
 				))}
 			</div>
-			<div className="flex justify-between text-[9px] text-muted-foreground px-0.5">
+			<div className="flex justify-between text-[9px] text-white/40 px-0.5">
 				{data.length > 2 && (
 					<>
 						<span>{data[0].label}</span>
@@ -224,23 +224,23 @@ export function AnalyticsPanel({ appId, files }: AnalyticsPanelProps) {
 				{/* Header */}
 				<div className="flex items-center justify-between">
 					<div>
-						<h1 className="text-2xl font-bold text-foreground">Analytics</h1>
-						<p className="text-sm text-muted-foreground mt-1">
+						<h1 className="text-2xl font-semibold text-white/90">Analytics</h1>
+						<p className="text-sm text-white/40 mt-1">
 							Visitor traffic and engagement metrics
 						</p>
 					</div>
 
 					{/* Period selector */}
-					<div className="flex bg-muted/50 rounded-lg p-1 gap-1">
+					<div className="flex bg-white/[0.04] backdrop-blur-sm border border-white/[0.08] rounded-xl p-1 gap-1">
 						{(["24h", "7d", "30d"] as Period[]).map((p) => (
 							<button
 								key={p}
 								type="button"
 								onClick={() => setPeriod(p)}
-								className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+								className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-150 ${
 									period === p
-										? "bg-background text-foreground shadow-sm"
-										: "text-muted-foreground hover:text-foreground"
+										? "bg-white/[0.08] text-white/90 border border-white/[0.08]"
+										: "text-white/40 hover:text-white/70"
 								}`}
 							>
 								{p === "24h"
@@ -260,13 +260,13 @@ export function AnalyticsPanel({ appId, files }: AnalyticsPanelProps) {
 				) : !hasData ? (
 					/* Empty state */
 					<div className="flex flex-col items-center justify-center py-20 text-center">
-						<div className="rounded-full bg-muted/50 p-4 mb-4">
-							<Globe className="h-10 w-10 text-muted-foreground/40" />
+						<div className="rounded-full bg-white/[0.06] border border-white/[0.08] p-4 mb-4">
+							<Globe className="h-10 w-10 text-white/40/40" />
 						</div>
-						<h2 className="text-lg font-semibold text-foreground mb-2">
+						<h2 className="text-lg font-semibold text-white/90 mb-2">
 							No visitor data yet
 						</h2>
-						<p className="text-sm text-muted-foreground max-w-sm">
+						<p className="text-sm text-white/40 max-w-sm">
 							Publish your app to start collecting visitor analytics.
 							Traffic data will appear here once users visit your app.
 						</p>
@@ -307,8 +307,8 @@ export function AnalyticsPanel({ appId, files }: AnalyticsPanelProps) {
 
 						{/* Traffic charts */}
 						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-							<div className="rounded-lg border border-border bg-card p-4">
-								<h3 className="text-sm font-medium text-foreground mb-4">
+							<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
+								<h3 className="text-sm font-medium text-white/80 mb-4">
 									Visits by Hour (24h)
 								</h3>
 								<TimeBarChart
@@ -316,8 +316,8 @@ export function AnalyticsPanel({ appId, files }: AnalyticsPanelProps) {
 									label="Hourly"
 								/>
 							</div>
-							<div className="rounded-lg border border-border bg-card p-4">
-								<h3 className="text-sm font-medium text-foreground mb-4">
+							<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
+								<h3 className="text-sm font-medium text-white/80 mb-4">
 									Visits by Day (30d)
 								</h3>
 								<TimeBarChart
@@ -329,33 +329,33 @@ export function AnalyticsPanel({ appId, files }: AnalyticsPanelProps) {
 
 						{/* Top Pages table */}
 						{data?.topPages && data.topPages.length > 0 && (
-							<div className="rounded-lg border border-border bg-card overflow-hidden">
-								<div className="p-4 border-b border-border">
-									<h3 className="text-sm font-medium text-foreground">
+							<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm overflow-hidden">
+								<div className="p-4 border-b border-white/[0.06]">
+									<h3 className="text-sm font-medium text-white/80">
 										Top Pages
 									</h3>
 								</div>
 								<table className="w-full text-sm">
 									<thead>
-										<tr className="bg-muted/30">
-											<th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
+										<tr className="bg-white/[0.03]">
+											<th className="px-4 py-2.5 text-left text-xs font-medium text-white/40">
 												Page Path
 											</th>
-											<th className="px-4 py-2.5 text-right text-xs font-medium text-muted-foreground">
+											<th className="px-4 py-2.5 text-right text-xs font-medium text-white/40">
 												Views
 											</th>
 										</tr>
 									</thead>
-									<tbody className="divide-y divide-border">
+									<tbody className="divide-y divide-white/[0.06]">
 										{data.topPages.map((page) => (
 											<tr
 												key={page.path}
-												className="hover:bg-muted/20"
+												className="hover:bg-white/[0.04]"
 											>
-												<td className="px-4 py-2.5 text-foreground font-mono text-xs">
+												<td className="px-4 py-2.5 text-white/90 font-mono text-xs">
 													{page.path}
 												</td>
-												<td className="px-4 py-2.5 text-right text-foreground">
+												<td className="px-4 py-2.5 text-right text-white/90">
 													{page.views.toLocaleString()}
 												</td>
 											</tr>
@@ -368,47 +368,47 @@ export function AnalyticsPanel({ appId, files }: AnalyticsPanelProps) {
 				)}
 
 				{/* Collapsible Code Stats section */}
-				<div className="rounded-lg border border-border bg-card">
+				<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm">
 					<button
 						type="button"
 						onClick={() => setCodeStatsOpen(!codeStatsOpen)}
-						className="w-full flex items-center gap-3 p-4 text-left hover:bg-muted/20 transition-colors"
+						className="w-full flex items-center gap-3 p-4 text-left hover:bg-white/[0.04] transition-colors"
 					>
 						{codeStatsOpen ? (
-							<ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+							<ChevronDown className="h-4 w-4 text-white/40 flex-shrink-0" />
 						) : (
-							<ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+							<ChevronRight className="h-4 w-4 text-white/40 flex-shrink-0" />
 						)}
-						<Code2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-						<span className="text-sm font-medium text-foreground">
+						<Code2 className="h-4 w-4 text-white/40 flex-shrink-0" />
+						<span className="text-sm font-medium text-white/80">
 							Code Stats
 						</span>
-						<span className="text-xs text-muted-foreground ml-auto">
+						<span className="text-xs text-white/40 ml-auto">
 							{codeStats.fileCount} files,{" "}
 							{codeStats.totalLines.toLocaleString()} lines
 						</span>
 					</button>
 					{codeStatsOpen && (
-						<div className="px-4 pb-4 pt-0 border-t border-border">
+						<div className="px-4 pb-4 pt-0 border-t border-white/[0.06]">
 							<div className="grid grid-cols-2 gap-4 mt-4">
 								<div className="flex items-center gap-3">
-									<FileCode2 className="h-4 w-4 text-muted-foreground" />
+									<FileCode2 className="h-4 w-4 text-white/40" />
 									<div>
-										<div className="text-lg font-bold text-foreground">
+										<div className="text-lg font-bold text-white/90">
 											{codeStats.fileCount}
 										</div>
-										<div className="text-xs text-muted-foreground">
+										<div className="text-xs text-white/40">
 											Source Files
 										</div>
 									</div>
 								</div>
 								<div className="flex items-center gap-3">
-									<BarChart3 className="h-4 w-4 text-muted-foreground" />
+									<BarChart3 className="h-4 w-4 text-white/40" />
 									<div>
-										<div className="text-lg font-bold text-foreground">
+										<div className="text-lg font-bold text-white/90">
 											{codeStats.totalLines.toLocaleString()}
 										</div>
-										<div className="text-xs text-muted-foreground">
+										<div className="text-xs text-white/40">
 											Lines of Code
 										</div>
 									</div>

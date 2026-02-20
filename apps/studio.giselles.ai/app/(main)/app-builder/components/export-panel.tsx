@@ -81,8 +81,8 @@ export function ExportPanel({ appId }: ExportPanelProps) {
 		<div className="flex-1 overflow-y-auto p-6">
 			<div className="max-w-3xl mx-auto space-y-6">
 				<div>
-					<h1 className="text-2xl font-bold text-foreground">Export</h1>
-					<p className="text-sm text-muted-foreground mt-1">
+					<h1 className="text-2xl font-bold text-white/90">Export</h1>
+					<p className="text-sm text-white/40 mt-1">
 						Download your app as a self-hosted package
 					</p>
 				</div>
@@ -104,16 +104,16 @@ export function ExportPanel({ appId }: ExportPanelProps) {
 				)}
 
 				{/* Export Button */}
-				<div className="rounded-lg border border-border bg-card p-6 space-y-4">
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-6 space-y-4">
 					<div className="flex items-center gap-3">
-						<div className="h-10 w-10 rounded-lg bg-foreground/10 flex items-center justify-center">
-							<FileArchive className="h-5 w-5 text-foreground" />
+						<div className="h-10 w-10 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center">
+							<FileArchive className="h-5 w-5 text-white/90" />
 						</div>
 						<div>
-							<h3 className="text-sm font-semibold text-foreground">
+							<h3 className="text-sm font-semibold text-white/90">
 								Self-Hosted Package
 							</h3>
-							<p className="text-xs text-muted-foreground">
+							<p className="text-xs text-white/40">
 								Complete Vite + React + TypeScript project with Docker support
 							</p>
 						</div>
@@ -123,7 +123,7 @@ export function ExportPanel({ appId }: ExportPanelProps) {
 						type="button"
 						onClick={handleExport}
 						disabled={exporting}
-						className="w-full px-4 py-3 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+						className="w-full px-4 py-3 rounded-md bg-gradient-to-r from-violet-500/80 to-cyan-500/80 text-white text-sm font-medium hover:from-violet-500 hover:to-cyan-500 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
 					>
 						{exporting ? (
 							<>
@@ -140,51 +140,51 @@ export function ExportPanel({ appId }: ExportPanelProps) {
 				</div>
 
 				{/* What's Included */}
-				<div className="rounded-lg border border-border bg-card p-4 space-y-3">
-					<h3 className="text-sm font-medium text-foreground">
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-3">
+					<h3 className="text-sm font-medium text-white/90">
 						What&apos;s included
 					</h3>
 					<div className="grid grid-cols-2 gap-3">
 						<div className="flex items-start gap-2">
-							<FileCode className="h-4 w-4 text-muted-foreground mt-0.5" />
+							<FileCode className="h-4 w-4 text-white/40 mt-0.5" />
 							<div>
-								<p className="text-xs font-medium text-foreground">
+								<p className="text-xs font-medium text-white/90">
 									Source Code
 								</p>
-								<p className="text-[11px] text-muted-foreground">
+								<p className="text-[11px] text-white/40">
 									All React components, hooks, utilities, and types
 								</p>
 							</div>
 						</div>
 						<div className="flex items-start gap-2">
-							<Package className="h-4 w-4 text-muted-foreground mt-0.5" />
+							<Package className="h-4 w-4 text-white/40 mt-0.5" />
 							<div>
-								<p className="text-xs font-medium text-foreground">
+								<p className="text-xs font-medium text-white/90">
 									Build Config
 								</p>
-								<p className="text-[11px] text-muted-foreground">
+								<p className="text-[11px] text-white/40">
 									Vite, TypeScript, Tailwind, PostCSS config
 								</p>
 							</div>
 						</div>
 						<div className="flex items-start gap-2">
-							<Server className="h-4 w-4 text-muted-foreground mt-0.5" />
+							<Server className="h-4 w-4 text-white/40 mt-0.5" />
 							<div>
-								<p className="text-xs font-medium text-foreground">
+								<p className="text-xs font-medium text-white/90">
 									Docker Setup
 								</p>
-								<p className="text-[11px] text-muted-foreground">
+								<p className="text-[11px] text-white/40">
 									Dockerfile + docker-compose.yml for production
 								</p>
 							</div>
 						</div>
 						<div className="flex items-start gap-2">
-							<Download className="h-4 w-4 text-muted-foreground mt-0.5" />
+							<Download className="h-4 w-4 text-white/40 mt-0.5" />
 							<div>
-								<p className="text-xs font-medium text-foreground">
+								<p className="text-xs font-medium text-white/90">
 									Database Schema
 								</p>
-								<p className="text-[11px] text-muted-foreground">
+								<p className="text-[11px] text-white/40">
 									SQL schema + auth tables (if app uses entities)
 								</p>
 							</div>
@@ -193,41 +193,41 @@ export function ExportPanel({ appId }: ExportPanelProps) {
 				</div>
 
 				{/* Instructions */}
-				<div className="rounded-lg border border-border bg-card p-4 space-y-3">
-					<h3 className="text-sm font-medium text-foreground">
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-3">
+					<h3 className="text-sm font-medium text-white/90">
 						Quick start after export
 					</h3>
 					<div className="space-y-2">
 						<div className="flex items-start gap-2">
-							<span className="h-5 w-5 rounded-full bg-foreground/10 flex items-center justify-center text-[10px] font-bold text-foreground flex-shrink-0">
+							<span className="h-5 w-5 rounded-full bg-white/[0.06] flex items-center justify-center text-[10px] font-bold text-white/90 flex-shrink-0">
 								1
 							</span>
-							<p className="text-xs text-muted-foreground">
+							<p className="text-xs text-white/40">
 								Unzip and run{" "}
-								<code className="px-1.5 py-0.5 rounded bg-muted text-foreground">
+								<code className="px-1.5 py-0.5 rounded bg-white/[0.06] text-white/90">
 									npm install
 								</code>
 							</p>
 						</div>
 						<div className="flex items-start gap-2">
-							<span className="h-5 w-5 rounded-full bg-foreground/10 flex items-center justify-center text-[10px] font-bold text-foreground flex-shrink-0">
+							<span className="h-5 w-5 rounded-full bg-white/[0.06] flex items-center justify-center text-[10px] font-bold text-white/90 flex-shrink-0">
 								2
 							</span>
-							<p className="text-xs text-muted-foreground">
+							<p className="text-xs text-white/40">
 								Run{" "}
-								<code className="px-1.5 py-0.5 rounded bg-muted text-foreground">
+								<code className="px-1.5 py-0.5 rounded bg-white/[0.06] text-white/90">
 									npm run dev
 								</code>{" "}
 								for local development
 							</p>
 						</div>
 						<div className="flex items-start gap-2">
-							<span className="h-5 w-5 rounded-full bg-foreground/10 flex items-center justify-center text-[10px] font-bold text-foreground flex-shrink-0">
+							<span className="h-5 w-5 rounded-full bg-white/[0.06] flex items-center justify-center text-[10px] font-bold text-white/90 flex-shrink-0">
 								3
 							</span>
-							<p className="text-xs text-muted-foreground">
+							<p className="text-xs text-white/40">
 								Or run{" "}
-								<code className="px-1.5 py-0.5 rounded bg-muted text-foreground">
+								<code className="px-1.5 py-0.5 rounded bg-white/[0.06] text-white/90">
 									docker-compose up
 								</code>{" "}
 								for production with PostgreSQL

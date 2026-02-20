@@ -133,7 +133,7 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 	if (loading) {
 		return (
 			<div className="flex-1 flex items-center justify-center">
-				<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+				<Loader2 className="h-6 w-6 animate-spin text-white/40" />
 			</div>
 		);
 	}
@@ -142,8 +142,8 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 		<div className="flex-1 overflow-y-auto p-6">
 			<div className="max-w-3xl mx-auto space-y-6">
 				<div>
-					<h1 className="text-2xl font-bold text-foreground">Backend</h1>
-					<p className="text-sm text-muted-foreground mt-1">
+					<h1 className="text-2xl font-bold text-white/90">Backend</h1>
+					<p className="text-sm text-white/40 mt-1">
 						Choose how your app stores and manages data
 					</p>
 				</div>
@@ -173,24 +173,24 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 						}}
 						className={`relative p-4 rounded-lg border-2 text-left transition-colors ${
 							mode === "native"
-								? "border-foreground bg-foreground/5"
-								: "border-border hover:border-muted-foreground/50"
+								? "border-violet-500/50 bg-violet-500/5"
+								: "border-white/[0.08] hover:border-white/10"
 						}`}
 					>
 						{mode === "native" && (
-							<span className="absolute top-3 right-3 h-5 w-5 rounded-full bg-foreground flex items-center justify-center">
-								<Check className="h-3 w-3 text-background" />
+							<span className="absolute top-3 right-3 h-5 w-5 rounded-full bg-violet-500 flex items-center justify-center">
+								<Check className="h-3 w-3 text-white" />
 							</span>
 						)}
-						<Server className="h-6 w-6 text-foreground mb-2" />
-						<h3 className="text-sm font-semibold text-foreground">
+						<Server className="h-6 w-6 text-white/90 mb-2" />
+						<h3 className="text-sm font-semibold text-white/90">
 							Built-in Backend
 						</h3>
-						<p className="text-xs text-muted-foreground mt-1">
+						<p className="text-xs text-white/40 mt-1">
 							Managed PostgreSQL database, REST API, auth, and dashboard.
 							Everything included.
 						</p>
-						<span className="inline-block mt-2 px-2 py-0.5 rounded-full bg-foreground/10 text-foreground text-[10px] font-medium">
+						<span className="inline-block mt-2 px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-300 text-[10px] font-medium">
 							Included
 						</span>
 					</button>
@@ -204,20 +204,20 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 						}}
 						className={`relative p-4 rounded-lg border-2 text-left transition-colors ${
 							mode === "supabase"
-								? "border-foreground bg-foreground/5"
-								: "border-border hover:border-muted-foreground/50"
+								? "border-violet-500/50 bg-violet-500/5"
+								: "border-white/[0.08] hover:border-white/10"
 						}`}
 					>
 						{mode === "supabase" && (
-							<span className="absolute top-3 right-3 h-5 w-5 rounded-full bg-foreground flex items-center justify-center">
-								<Check className="h-3 w-3 text-background" />
+							<span className="absolute top-3 right-3 h-5 w-5 rounded-full bg-violet-500 flex items-center justify-center">
+								<Check className="h-3 w-3 text-white" />
 							</span>
 						)}
-						<Cloud className="h-6 w-6 text-foreground mb-2" />
-						<h3 className="text-sm font-semibold text-foreground">
+						<Cloud className="h-6 w-6 text-white/90 mb-2" />
+						<h3 className="text-sm font-semibold text-white/90">
 							Connect Supabase
 						</h3>
-						<p className="text-xs text-muted-foreground mt-1">
+						<p className="text-xs text-white/40 mt-1">
 							Bring your own Supabase project. AI generates Supabase-native
 							code.
 						</p>
@@ -229,20 +229,20 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 
 				{/* Native Backend Info */}
 				{mode === "native" && (
-					<div className="rounded-lg border border-border bg-card p-4 space-y-3">
+					<div className="rounded-lg border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-3">
 						<div className="flex items-center gap-2">
-							<Database className="h-4 w-4 text-foreground" />
-							<h3 className="text-sm font-medium text-foreground">
+							<Database className="h-4 w-4 text-white/90" />
+							<h3 className="text-sm font-medium text-white/90">
 								Native Backend
 							</h3>
 							<span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 text-xs font-medium">
 								Active
 							</span>
 						</div>
-						<p className="text-xs text-muted-foreground">
+						<p className="text-xs text-white/40">
 							Your app uses the built-in Vibexe backend with PostgreSQL database,
 							auto-generated REST API, end-user authentication, and full
-							dashboard management. Use <code className="px-1 py-0.5 rounded bg-muted text-foreground">@vibexe/sdk</code> in
+							dashboard management. Use <code className="px-1 py-0.5 rounded bg-white/[0.04] text-white/90">@vibexe/sdk</code> in
 							your app code.
 						</p>
 					</div>
@@ -250,10 +250,10 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 
 				{/* Supabase Connect Form */}
 				{mode === "supabase" && (
-					<div className="rounded-lg border border-border bg-card p-4 space-y-4">
+					<div className="rounded-lg border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-4">
 						<div className="flex items-center gap-2">
-							<Cloud className="h-4 w-4 text-foreground" />
-							<h3 className="text-sm font-medium text-foreground">
+							<Cloud className="h-4 w-4 text-white/90" />
+							<h3 className="text-sm font-medium text-white/90">
 								Supabase Connection
 							</h3>
 							{externalDb?.status === "connected" && (
@@ -265,23 +265,23 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 
 						{externalDb?.status === "connected" ? (
 							<>
-								<div className="p-3 rounded-md bg-muted/30 space-y-2">
+								<div className="p-3 rounded-md bg-white/[0.04] space-y-2">
 									<div className="flex items-center justify-between">
-										<span className="text-xs text-muted-foreground">
+										<span className="text-xs text-white/40">
 											Project URL
 										</span>
 										<a
 											href={externalDb.url}
 											target="_blank"
 											rel="noopener noreferrer"
-											className="text-xs text-foreground hover:underline flex items-center gap-1"
+											className="text-xs text-white/90 hover:underline flex items-center gap-1"
 										>
 											{externalDb.url.replace("https://", "").slice(0, 40)}...
 											<ExternalLink className="h-3 w-3" />
 										</a>
 									</div>
 									<div className="flex items-center justify-between">
-										<span className="text-xs text-muted-foreground">
+										<span className="text-xs text-white/40">
 											Status
 										</span>
 										<span className="flex items-center gap-1 text-xs text-green-600">
@@ -291,9 +291,9 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 									</div>
 								</div>
 
-								<p className="text-xs text-muted-foreground">
+								<p className="text-xs text-white/40">
 									The AI will generate code using{" "}
-									<code className="px-1 py-0.5 rounded bg-muted text-foreground">
+									<code className="px-1 py-0.5 rounded bg-white/[0.04] text-white/90">
 										@supabase/supabase-js
 									</code>{" "}
 									for data access and authentication.
@@ -313,13 +313,13 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 							</>
 						) : (
 							<>
-								<p className="text-xs text-muted-foreground">
+								<p className="text-xs text-white/40">
 									Connect your Supabase project. Find these values in your{" "}
 									<a
 										href="https://supabase.com/dashboard/project/_/settings/api"
 										target="_blank"
 										rel="noopener noreferrer"
-										className="text-foreground underline"
+										className="text-white/90 underline"
 									>
 										Supabase Dashboard &rarr; Settings &rarr; API
 									</a>
@@ -328,7 +328,7 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 
 								<div className="space-y-3">
 									<div>
-										<label className="text-xs font-medium text-foreground block mb-1">
+										<label className="text-xs font-medium text-white/90 block mb-1">
 											Project URL
 										</label>
 										<input
@@ -340,12 +340,12 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 											}}
 											placeholder="https://your-project.supabase.co"
 											disabled={saving}
-											className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+											className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-violet-500/30 disabled:opacity-50"
 										/>
 									</div>
 
 									<div>
-										<label className="text-xs font-medium text-foreground block mb-1">
+										<label className="text-xs font-medium text-white/90 block mb-1">
 											Anon Key
 										</label>
 										<input
@@ -357,7 +357,7 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 											}}
 											placeholder="eyJhbGciOiJIUzI1NiIs..."
 											disabled={saving}
-											className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+											className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-violet-500/30 disabled:opacity-50"
 										/>
 									</div>
 								</div>
@@ -368,7 +368,7 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 									disabled={
 										saving || !supabaseUrl.trim() || !anonKey.trim()
 									}
-									className="px-4 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+									className="px-4 py-2 rounded-md bg-violet-500 text-white text-sm font-medium hover:bg-violet-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 								>
 									{saving ? (
 										<>
@@ -388,24 +388,24 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 				)}
 
 				{/* Info box */}
-				<div className="rounded-lg border border-border bg-card p-4">
-					<h3 className="text-sm font-medium text-foreground mb-2">
+				<div className="rounded-lg border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
+					<h3 className="text-sm font-medium text-white/90 mb-2">
 						How it works
 					</h3>
-					<ul className="space-y-2 text-xs text-muted-foreground">
+					<ul className="space-y-2 text-xs text-white/40">
 						<li className="flex items-start gap-2">
 							<Server className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
 							<span>
-								<strong className="text-foreground">Built-in Backend</strong>:
+								<strong className="text-white/90">Built-in Backend</strong>:
 								Your app gets a dedicated PostgreSQL database, REST API, and
-								auth system. Use <code className="px-1 py-0.5 rounded bg-muted">@vibexe/sdk</code> to
+								auth system. Use <code className="px-1 py-0.5 rounded bg-white/[0.04]">@vibexe/sdk</code> to
 								interact with data.
 							</span>
 						</li>
 						<li className="flex items-start gap-2">
 							<Cloud className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
 							<span>
-								<strong className="text-foreground">Supabase Connect</strong>:
+								<strong className="text-white/90">Supabase Connect</strong>:
 								Bring your own Supabase project. The AI generates code using
 								Supabase&apos;s client library directly. You manage your own
 								database, auth, and storage through the Supabase dashboard.

@@ -56,17 +56,17 @@ function StatCard({
 		<button
 			type="button"
 			onClick={onClick}
-			className="flex flex-col gap-2 p-4 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors text-left group"
+			className="flex flex-col gap-3 p-4 rounded-2xl bg-white/[0.04] backdrop-blur-sm border border-white/[0.08] hover:bg-white/[0.06] transition-all duration-150 text-left group"
 		>
 			<div className="flex items-center justify-between">
-				<Icon className="h-5 w-5 text-muted-foreground" />
+				<Icon className="h-4 w-4 text-white/30" />
 				{onClick && (
-					<ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+					<ArrowRight className="h-3.5 w-3.5 text-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
 				)}
 			</div>
 			<div>
-				<div className="text-2xl font-bold text-foreground">{value}</div>
-				<div className="text-xs text-muted-foreground">{label}</div>
+				<div className="text-3xl font-light tracking-tight text-white/90">{value}</div>
+				<div className="text-[11px] text-white/30 uppercase tracking-wider mt-1">{label}</div>
 			</div>
 		</button>
 	);
@@ -174,16 +174,16 @@ export function OverviewPanel({
 			<div className="max-w-4xl mx-auto space-y-8">
 				{/* Header with app name */}
 				<div>
-					<h1 className="text-2xl font-bold text-foreground">
+					<h1 className="text-2xl font-semibold text-white/90">
 						{appName || "Overview"}
 					</h1>
 					{appDescription && (
-						<p className="text-sm text-muted-foreground mt-1">
+						<p className="text-sm text-white/40 mt-1">
 							{appDescription}
 						</p>
 					)}
 					{!appDescription && (
-						<p className="text-sm text-muted-foreground mt-1">
+						<p className="text-sm text-white/40 mt-1">
 							Your app at a glance
 						</p>
 					)}
@@ -192,13 +192,13 @@ export function OverviewPanel({
 				{/* App Visibility + Invite Users */}
 				<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 					{/* App Visibility */}
-					<div className="rounded-lg border border-border bg-card p-4">
+					<div className="rounded-2xl bg-white/[0.04] backdrop-blur-sm border border-white/[0.08] p-4">
 						<div className="flex items-center justify-between mb-3">
 							<div>
-								<h3 className="text-sm font-medium text-foreground">
+								<h3 className="text-sm font-medium text-white/80">
 									App Visibility
 								</h3>
-								<p className="text-xs text-muted-foreground mt-0.5">
+								<p className="text-xs text-white/30 mt-0.5">
 									Control who can access your application
 								</p>
 							</div>
@@ -212,7 +212,7 @@ export function OverviewPanel({
 											e.target.value as "public" | "private",
 										)
 									}
-									className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+									className="flex-1 px-3 py-2 rounded-xl border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 								>
 									<option value="public">Public</option>
 									<option value="private">Private</option>
@@ -228,9 +228,9 @@ export function OverviewPanel({
 									type="checkbox"
 									checked={requireLogin}
 									onChange={handleRequireLoginToggle}
-									className="rounded border-border"
+									className="rounded border-white/[0.1]"
 								/>
-								<span className="text-sm text-muted-foreground">
+								<span className="text-sm text-white/40">
 									Require login to access
 								</span>
 							</label>
@@ -238,23 +238,23 @@ export function OverviewPanel({
 					</div>
 
 					{/* Invite Users */}
-					<div className="rounded-lg border border-border bg-card p-4">
+					<div className="rounded-2xl bg-white/[0.04] backdrop-blur-sm border border-white/[0.08] p-4">
 						<div className="flex items-center justify-between mb-3">
 							<div>
-								<h3 className="text-sm font-medium text-foreground">
+								<h3 className="text-sm font-medium text-white/80">
 									Invite Users
 								</h3>
-								<p className="text-xs text-muted-foreground mt-0.5">
+								<p className="text-xs text-white/30 mt-0.5">
 									Grow your user base by inviting others
 								</p>
 							</div>
-							<Link2 className="h-4 w-4 text-muted-foreground" />
+							<Link2 className="h-4 w-4 text-white/20" />
 						</div>
 						<div className="flex items-center gap-2">
 							<button
 								type="button"
 								onClick={copyInviteLink}
-								className="flex items-center gap-2 px-4 py-2 rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+								className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/[0.08] text-sm font-medium text-white/70 hover:bg-white/[0.04] transition-colors"
 							>
 								{copied ? (
 									<Check className="h-3.5 w-3.5 text-green-500" />
@@ -265,7 +265,7 @@ export function OverviewPanel({
 							</button>
 							<button
 								type="button"
-								className="flex items-center gap-2 px-4 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:bg-foreground/90 transition-colors"
+								className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-500/80 to-cyan-500/80 text-white text-sm font-medium hover:from-violet-500/90 hover:to-cyan-500/90 transition-colors"
 							>
 								<Send className="h-3.5 w-3.5" />
 								Send Invites
@@ -305,35 +305,35 @@ export function OverviewPanel({
 				{/* Two columns */}
 				<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 					{/* Recent Files */}
-					<div className="rounded-lg border border-border bg-card">
-						<div className="flex items-center justify-between p-4 border-b border-border">
-							<h3 className="text-sm font-medium text-foreground">
+					<div>
+						<div className="flex items-center justify-between mb-3">
+							<h3 className="text-xs font-medium text-white/40 uppercase tracking-wider">
 								Project Files
 							</h3>
 							<button
 								type="button"
 								onClick={() => onNavigate("code")}
-								className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+								className="text-xs text-white/30 hover:text-white/60 transition-colors"
 							>
 								View all
 							</button>
 						</div>
-						<div className="divide-y divide-border">
+						<div className="divide-y divide-white/[0.06]">
 							{recentFiles.length === 0 ? (
-								<div className="p-4 text-sm text-muted-foreground text-center">
+								<div className="py-6 text-sm text-white/30 text-center">
 									No files yet. Start generating!
 								</div>
 							) : (
 								recentFiles.map((file) => (
 									<div
 										key={file.id}
-										className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
+										className="flex items-center gap-3 px-2 py-2.5 hover:bg-white/[0.04] rounded-lg transition-colors"
 									>
-										<Code2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-										<span className="text-sm text-foreground truncate">
+										<Code2 className="h-3.5 w-3.5 text-white/20 flex-shrink-0" />
+										<span className="text-sm text-white/70 truncate">
 											{file.path}
 										</span>
-										<span className="text-xs text-muted-foreground ml-auto flex-shrink-0">
+										<span className="text-xs text-white/20 ml-auto flex-shrink-0">
 											{file.language}
 										</span>
 									</div>
@@ -343,27 +343,27 @@ export function OverviewPanel({
 					</div>
 
 					{/* Schema Overview */}
-					<div className="rounded-lg border border-border bg-card">
-						<div className="flex items-center justify-between p-4 border-b border-border">
-							<h3 className="text-sm font-medium text-foreground">
+					<div>
+						<div className="flex items-center justify-between mb-3">
+							<h3 className="text-xs font-medium text-white/40 uppercase tracking-wider">
 								Database Schema
 							</h3>
 							<button
 								type="button"
 								onClick={() => onNavigate("data")}
-								className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+								className="text-xs text-white/30 hover:text-white/60 transition-colors"
 							>
 								Browse data
 							</button>
 						</div>
-						<div className="divide-y divide-border">
+						<div className="divide-y divide-white/[0.06]">
 							{!schema || schema.entities.length === 0 ? (
-								<div className="p-4 text-center">
-									<Database className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-									<p className="text-sm text-muted-foreground">
+								<div className="py-8 text-center">
+									<Database className="h-7 w-7 text-white/10 mx-auto mb-2" />
+									<p className="text-sm text-white/30">
 										No database yet
 									</p>
-									<p className="text-xs text-muted-foreground mt-1">
+									<p className="text-xs text-white/20 mt-1">
 										Ask the AI to build an app with data entities
 									</p>
 								</div>
@@ -371,15 +371,15 @@ export function OverviewPanel({
 								schema.entities.map((entity) => (
 									<div
 										key={entity.name}
-										className="flex items-center justify-between px-4 py-2.5 hover:bg-muted/30 transition-colors"
+										className="flex items-center justify-between px-2 py-2.5 hover:bg-white/[0.04] rounded-lg transition-colors"
 									>
 										<div className="flex items-center gap-3">
-											<Database className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-											<span className="text-sm text-foreground">
+											<Database className="h-3.5 w-3.5 text-white/20 flex-shrink-0" />
+											<span className="text-sm text-white/70">
 												{entity.name}
 											</span>
 										</div>
-										<span className="text-xs text-muted-foreground">
+										<span className="text-xs text-white/20">
 											{entity.fields.length} fields
 										</span>
 									</div>
@@ -390,34 +390,34 @@ export function OverviewPanel({
 				</div>
 
 				{/* App Info */}
-				<div className="rounded-lg border border-border bg-card p-4">
-					<h3 className="text-sm font-medium text-foreground mb-3">
+				<div className="pt-2">
+					<h3 className="text-xs font-medium text-white/40 uppercase tracking-wider mb-4">
 						App Details
 					</h3>
-					<div className="grid grid-cols-2 gap-4 text-sm">
+					<div className="grid grid-cols-2 gap-6 text-sm">
 						<div>
-							<span className="text-muted-foreground">App ID</span>
-							<p className="text-foreground font-mono text-xs mt-0.5">
+							<span className="text-white/30 text-xs">App ID</span>
+							<p className="text-white/70 font-mono text-xs mt-1">
 								{appId}
 							</p>
 						</div>
 						<div>
-							<span className="text-muted-foreground">Blueprint</span>
-							<p className="text-foreground mt-0.5">
+							<span className="text-white/30 text-xs">Blueprint</span>
+							<p className="text-white/70 mt-1">
 								{stats.hasBlueprint ? "Generated" : "Not yet created"}
 							</p>
 						</div>
 						<div>
-							<span className="text-muted-foreground">File Types</span>
-							<p className="text-foreground mt-0.5">
+							<span className="text-white/30 text-xs">File Types</span>
+							<p className="text-white/70 mt-1">
 								{Object.entries(stats.byExtension)
 									.map(([ext, count]) => `.${ext} (${count})`)
 									.join(", ") || "None"}
 							</p>
 						</div>
 						<div>
-							<span className="text-muted-foreground">Database Fields</span>
-							<p className="text-foreground mt-0.5">
+							<span className="text-white/30 text-xs">Database Fields</span>
+							<p className="text-white/70 mt-1">
 								{stats.fieldCount > 0
 									? `${stats.fieldCount} across ${stats.entityCount} entities`
 									: "No schema defined"}
@@ -427,7 +427,7 @@ export function OverviewPanel({
 				</div>
 
 				{/* Quick Actions */}
-				<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+				<div className="grid grid-cols-2 md:grid-cols-4 gap-2">
 					{[
 						{
 							label: "Edit Code",
@@ -454,7 +454,7 @@ export function OverviewPanel({
 							type="button"
 							key={action.section}
 							onClick={() => onNavigate(action.section)}
-							className="flex items-center gap-2 px-4 py-3 rounded-lg border border-border hover:bg-muted/50 transition-colors text-sm text-muted-foreground hover:text-foreground"
+							className="flex items-center gap-2 px-4 py-3 rounded-2xl border border-white/[0.08] hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-150 text-sm text-white/40 hover:text-white/70"
 						>
 							<action.icon className="h-4 w-4" />
 							{action.label}

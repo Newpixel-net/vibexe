@@ -139,7 +139,7 @@ export function DomainsPanel({ appId }: DomainsPanelProps) {
 	if (loading) {
 		return (
 			<div className="flex-1 flex items-center justify-center">
-				<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+				<Loader2 className="h-6 w-6 animate-spin text-white/40" />
 			</div>
 		);
 	}
@@ -152,35 +152,35 @@ export function DomainsPanel({ appId }: DomainsPanelProps) {
 			<div className="max-w-3xl mx-auto space-y-6">
 				{/* Header */}
 				<div>
-					<h1 className="text-2xl font-bold text-foreground">Domains</h1>
-					<p className="text-sm text-muted-foreground mt-1">
+					<h1 className="text-2xl font-bold text-white/90">Domains</h1>
+					<p className="text-sm text-white/40 mt-1">
 						Deploy your app and configure domains
 					</p>
 				</div>
 
 				{/* Live Deployment Banner */}
 				{isLive && liveUrl && (
-					<div className="rounded-lg border border-green-500/30 bg-green-500/5 p-4 space-y-3">
+					<div className="rounded-xl border border-green-500/20 bg-green-500/[0.03] p-4 space-y-3">
 						<div className="flex items-center gap-2">
 							<span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-							<h3 className="text-sm font-medium text-foreground">
+							<h3 className="text-sm font-medium text-white/90">
 								Your app is live
 							</h3>
 						</div>
-						<div className="flex items-center gap-2 p-3 rounded-md bg-background/50 border border-border">
+						<div className="flex items-center gap-2 p-3 rounded-md bg-white/[0.04] border border-white/[0.08]">
 							<Globe className="h-4 w-4 text-green-500 flex-shrink-0" />
 							<a
 								href={liveUrl}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="text-sm text-foreground hover:underline flex-1 truncate font-mono"
+								className="text-sm text-white/90 hover:underline flex-1 truncate font-mono"
 							>
 								{liveUrl}
 							</a>
 							<button
 								type="button"
 								onClick={() => handleCopy(liveUrl)}
-								className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+								className="p-1.5 rounded hover:bg-white/[0.06] text-white/40 hover:text-white/90 transition-colors"
 								title="Copy URL"
 							>
 								{copied ? (
@@ -193,14 +193,14 @@ export function DomainsPanel({ appId }: DomainsPanelProps) {
 								href={liveUrl}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+								className="p-1.5 rounded hover:bg-white/[0.06] text-white/40 hover:text-white/90 transition-colors"
 								title="Open in new tab"
 							>
 								<ExternalLink className="h-3.5 w-3.5" />
 							</a>
 						</div>
 						{deployment.deployedAt && (
-							<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+							<div className="flex items-center gap-1.5 text-xs text-white/40">
 								<Clock className="h-3 w-3" />
 								Last deployed: {new Date(deployment.deployedAt).toLocaleString()}
 							</div>
@@ -209,22 +209,22 @@ export function DomainsPanel({ appId }: DomainsPanelProps) {
 				)}
 
 				{/* Deploy Section */}
-				<div className="rounded-lg border border-border bg-card p-4 space-y-4">
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-4">
 					<div className="flex items-center gap-2">
-						<Rocket className="h-4 w-4 text-foreground" />
-						<h3 className="text-sm font-medium text-foreground">
+						<Rocket className="h-4 w-4 text-white/90" />
+						<h3 className="text-sm font-medium text-white/90">
 							{isLive ? "Re-deploy" : "Deploy to Subdomain"}
 						</h3>
 					</div>
 
-					<p className="text-xs text-muted-foreground">
+					<p className="text-xs text-white/40">
 						{isLive
 							? "Deploy the latest version of your app to update the live site."
 							: "Choose a subdomain and deploy your app to a live URL."}
 					</p>
 
 					<div className="flex items-center gap-2">
-						<span className="text-sm text-muted-foreground whitespace-nowrap font-mono">
+						<span className="text-sm text-white/40 whitespace-nowrap font-mono">
 							vibexe.online/apps/
 						</span>
 						<input
@@ -238,7 +238,7 @@ export function DomainsPanel({ appId }: DomainsPanelProps) {
 							}}
 							placeholder="my-app"
 							disabled={deploying}
-							className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+							className="flex-1 px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-violet-500/30 disabled:opacity-50"
 						/>
 					</div>
 
@@ -254,7 +254,7 @@ export function DomainsPanel({ appId }: DomainsPanelProps) {
 							type="button"
 							onClick={handleDeploy}
 							disabled={deploying || !subdomain.trim()}
-							className="px-4 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+							className="px-4 py-2 rounded-md bg-gradient-to-r from-violet-500/80 to-cyan-500/80 text-white text-sm font-medium hover:from-violet-500 hover:to-cyan-500 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 						>
 							{deploying ? (
 								<>
@@ -285,18 +285,18 @@ export function DomainsPanel({ appId }: DomainsPanelProps) {
 
 				{/* Build Log */}
 				{deployment?.buildLog && (
-					<div className="rounded-lg border border-border bg-card overflow-hidden">
+					<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm overflow-hidden">
 						<button
 							type="button"
 							onClick={() => setShowLog(!showLog)}
-							className="w-full flex items-center gap-2 px-4 py-3 hover:bg-muted/30 transition-colors text-left"
+							className="w-full flex items-center gap-2 px-4 py-3 hover:bg-white/[0.04] transition-colors text-left"
 						>
 							{showLog ? (
-								<ChevronDown className="h-4 w-4 text-muted-foreground" />
+								<ChevronDown className="h-4 w-4 text-white/40" />
 							) : (
-								<ChevronRight className="h-4 w-4 text-muted-foreground" />
+								<ChevronRight className="h-4 w-4 text-white/40" />
 							)}
-							<span className="text-sm font-medium text-foreground">
+							<span className="text-sm font-medium text-white/90">
 								Build Log
 							</span>
 							<span
@@ -313,7 +313,7 @@ export function DomainsPanel({ appId }: DomainsPanelProps) {
 						</button>
 						{showLog && (
 							<div className="px-4 pb-4">
-								<pre className="text-[11px] font-mono text-muted-foreground bg-muted/30 rounded-md p-3 overflow-x-auto whitespace-pre-wrap max-h-64 overflow-y-auto">
+								<pre className="text-[11px] font-mono text-white/40 bg-white/[0.04] rounded-md p-3 overflow-x-auto whitespace-pre-wrap max-h-64 overflow-y-auto">
 									{deployment.buildLog}
 								</pre>
 							</div>
@@ -323,26 +323,26 @@ export function DomainsPanel({ appId }: DomainsPanelProps) {
 
 				{/* Preview URL */}
 				{shareUrl && (
-					<div className="rounded-lg border border-border bg-card p-4 space-y-3">
+					<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-3">
 						<div className="flex items-center gap-2">
 							<Globe className="h-4 w-4 text-blue-500" />
-							<h3 className="text-sm font-medium text-foreground">
+							<h3 className="text-sm font-medium text-white/90">
 								Preview URL
 							</h3>
 							<span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 text-xs font-medium">
 								In-browser
 							</span>
 						</div>
-						<p className="text-xs text-muted-foreground">
+						<p className="text-xs text-white/40">
 							This URL shows the Sandpack in-browser preview. For a real
 							deployed app, use the subdomain above.
 						</p>
-						<div className="flex items-center gap-2 p-3 rounded-md bg-muted/50">
+						<div className="flex items-center gap-2 p-3 rounded-md bg-white/[0.06]">
 							<a
 								href={shareUrl}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="text-sm text-foreground hover:underline flex-1 truncate font-mono"
+								className="text-sm text-white/90 hover:underline flex-1 truncate font-mono"
 							>
 								{shareUrl}
 							</a>
@@ -350,7 +350,7 @@ export function DomainsPanel({ appId }: DomainsPanelProps) {
 								href={shareUrl}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+								className="p-1.5 rounded hover:bg-white/[0.06] text-white/40 hover:text-white/90 transition-colors"
 							>
 								<ExternalLink className="h-3.5 w-3.5" />
 							</a>
@@ -359,36 +359,36 @@ export function DomainsPanel({ appId }: DomainsPanelProps) {
 				)}
 
 				{/* Custom Domain */}
-				<div className="rounded-lg border border-border bg-card p-4 space-y-3">
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-3">
 					<div className="flex items-center gap-2">
-						<Globe className="h-4 w-4 text-muted-foreground" />
-						<h3 className="text-sm font-medium text-foreground">
+						<Globe className="h-4 w-4 text-white/40" />
+						<h3 className="text-sm font-medium text-white/90">
 							Custom Domain
 						</h3>
-						<span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-xs font-medium">
+						<span className="px-2 py-0.5 rounded-full bg-white/[0.06] text-white/40 text-xs font-medium">
 							Coming soon
 						</span>
 					</div>
-					<p className="text-xs text-muted-foreground">
+					<p className="text-xs text-white/40">
 						Connect your own domain to your deployed app
 					</p>
 					<input
 						type="text"
 						disabled
 						placeholder="app.yourdomain.com"
-						className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm opacity-50 cursor-not-allowed"
+						className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm opacity-50 cursor-not-allowed"
 					/>
 				</div>
 
 				{/* SSL */}
-				<div className="rounded-lg border border-border bg-card p-4">
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
 					<div className="flex items-start gap-3">
-						<Shield className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+						<Shield className="h-5 w-5 text-white/40 flex-shrink-0 mt-0.5" />
 						<div>
-							<h3 className="text-sm font-medium text-foreground">
+							<h3 className="text-sm font-medium text-white/90">
 								SSL Certificates
 							</h3>
-							<p className="text-xs text-muted-foreground mt-1">
+							<p className="text-xs text-white/40 mt-1">
 								All deployed apps automatically receive SSL certificates.
 								Custom domains will also receive free SSL upon DNS
 								verification.

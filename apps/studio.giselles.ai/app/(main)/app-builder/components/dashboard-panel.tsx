@@ -138,7 +138,7 @@ export function DashboardPanel({
 				activeSection={activeSection}
 				onSectionChange={setActiveSection}
 			/>
-			<div className="flex-1 min-w-0 min-h-0 overflow-y-auto">{renderContent()}</div>
+			<div className="flex-1 min-w-0 min-h-0 overflow-y-auto backdrop-blur-xl bg-white/[0.02]">{renderContent()}</div>
 		</div>
 	);
 }

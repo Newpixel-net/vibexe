@@ -98,8 +98,8 @@ export function EntityForm({ appId, entity, fields, editRow, onClose, onSaved }:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-700">
+      <div className="bg-white/[0.015] border border-white/[0.04] rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.04]">
           <h2 className="text-lg font-semibold text-zinc-100">
             {isEdit ? "Edit" : "Add"} {entity}
           </h2>
@@ -130,7 +130,7 @@ export function EntityForm({ appId, entity, fields, editRow, onClose, onSaved }:
             </div>
           ))}
 
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-700">
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/[0.04]">
             <button
               type="button"
               onClick={onClose}
@@ -176,7 +176,7 @@ function renderFieldInput(
   onChange: (val: string | boolean) => void,
 ) {
   const baseInputClass =
-    "w-full px-3 py-2 bg-zinc-800 border border-zinc-600 rounded-md text-zinc-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-zinc-500";
+    "w-full px-3 py-2 bg-white/[0.03] border border-white/[0.06] rounded-md text-zinc-200 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30 focus:border-transparent placeholder-zinc-500";
 
   switch (field.type) {
     case "boolean":
@@ -186,7 +186,7 @@ function renderFieldInput(
             type="checkbox"
             checked={Boolean(value)}
             onChange={(e) => onChange(e.target.checked)}
-            className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+            className="w-4 h-4 rounded border-white/[0.06] bg-white/[0.03] text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
           />
           <span className="text-sm text-zinc-300">{value ? "True" : "False"}</span>
         </label>

@@ -95,7 +95,7 @@ function AuthIcon({ type }: { type: string }) {
 			);
 		case "github":
 			return (
-				<svg className="h-5 w-5 text-foreground" viewBox="0 0 24 24" fill="currentColor">
+				<svg className="h-5 w-5 text-white/90" viewBox="0 0 24 24" fill="currentColor">
 					<path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
 				</svg>
 			);
@@ -110,12 +110,12 @@ function AuthIcon({ type }: { type: string }) {
 			);
 		case "apple":
 			return (
-				<svg className="h-5 w-5 text-foreground" viewBox="0 0 24 24" fill="currentColor">
+				<svg className="h-5 w-5 text-white/90" viewBox="0 0 24 24" fill="currentColor">
 					<path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
 				</svg>
 			);
 		default:
-			return <Mail className="h-5 w-5 text-muted-foreground" />;
+			return <Mail className="h-5 w-5 text-white/40" />;
 	}
 }
 
@@ -171,10 +171,10 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 			<div className="max-w-3xl mx-auto space-y-6">
 				{/* Header */}
 				<div>
-					<h1 className="text-2xl font-bold text-foreground">
+					<h1 className="text-2xl font-bold text-white/90">
 						Authentication
 					</h1>
-					<p className="text-sm text-muted-foreground mt-1">
+					<p className="text-sm text-white/40 mt-1">
 						Configure the authentication methods that members of your app
 						can use to log in.
 					</p>
@@ -185,17 +185,17 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 					{methods.map((method) => (
 						<div
 							key={method.id}
-							className="flex items-center justify-between rounded-lg border border-border bg-card p-4"
+							className="flex items-center justify-between rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4"
 						>
 							<div className="flex items-center gap-4">
-								<div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+								<div className="h-10 w-10 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center">
 									<AuthIcon type={method.icon} />
 								</div>
 								<div>
-									<h3 className="text-sm font-medium text-foreground">
+									<h3 className="text-sm font-medium text-white/90">
 										{method.label}
 									</h3>
-									<p className="text-xs text-muted-foreground">
+									<p className="text-xs text-white/40">
 										{method.description}
 									</p>
 								</div>
@@ -206,12 +206,12 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 								disabled={!method.available}
 								className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
 									method.enabled
-										? "bg-foreground"
-										: "bg-muted-foreground/20"
+										? "bg-gradient-to-r from-violet-500 to-cyan-500"
+										: "bg-white/[0.08]"
 								} ${!method.available ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
 							>
 								<span
-									className={`inline-block h-4 w-4 transform rounded-full bg-background transition-transform ${
+									className={`inline-block h-4 w-4 transform rounded-full bg-transparent transition-transform ${
 										method.enabled
 											? "translate-x-6"
 											: "translate-x-1"
@@ -223,22 +223,22 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 				</div>
 
 				{/* SSO Section */}
-				<div className="rounded-lg border border-border bg-card p-4">
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
 					<div className="flex items-start justify-between">
 						<div className="flex items-center gap-4">
-							<div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
-								<Shield className="h-5 w-5 text-muted-foreground" />
+							<div className="h-10 w-10 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center">
+								<Shield className="h-5 w-5 text-white/40" />
 							</div>
 							<div>
 								<div className="flex items-center gap-2">
-									<h3 className="text-sm font-medium text-foreground">
+									<h3 className="text-sm font-medium text-white/90">
 										Single Sign-on (SSO)
 									</h3>
 									<span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
 										Coming Soon
 									</span>
 								</div>
-								<p className="text-xs text-muted-foreground mt-0.5">
+								<p className="text-xs text-white/40 mt-0.5">
 									Allow members to log in using a custom SSO that
 									fits your organization's needs.
 								</p>

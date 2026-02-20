@@ -168,7 +168,7 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 	if (loading) {
 		return (
 			<div className="flex-1 flex items-center justify-center">
-				<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+				<Loader2 className="h-6 w-6 animate-spin text-white/40" />
 			</div>
 		);
 	}
@@ -179,8 +179,8 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 				{/* Header */}
 				<div className="flex items-center justify-between">
 					<div>
-						<h1 className="text-2xl font-bold text-foreground">App Security</h1>
-						<p className="text-sm text-muted-foreground mt-1">
+						<h1 className="text-2xl font-bold text-white/90">App Security</h1>
+						<p className="text-sm text-white/40 mt-1">
 							Manage entity access policies and API keys
 						</p>
 					</div>
@@ -192,7 +192,7 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 								setNewKeyValue(null);
 								setNewKeyLabel("");
 							}}
-							className="px-3 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity flex items-center gap-2"
+							className="px-3 py-2 rounded-md bg-gradient-to-r from-violet-500/80 to-cyan-500/80 text-white hover:from-violet-500 hover:to-cyan-500 text-sm font-medium transition-colors flex items-center gap-2"
 						>
 							<Plus className="h-3.5 w-3.5" />
 							New API Key
@@ -201,24 +201,24 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 				</div>
 
 				{/* Entity Access Policies */}
-				<div className="rounded-lg border border-border bg-card overflow-hidden">
-					<div className="p-4 border-b border-border flex items-center gap-2">
-						<Lock className="h-4 w-4 text-muted-foreground" />
-						<h3 className="text-sm font-medium text-foreground">
+				<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm overflow-hidden">
+					<div className="p-4 border-b border-white/[0.06] flex items-center gap-2">
+						<Lock className="h-4 w-4 text-white/40" />
+						<h3 className="text-sm font-medium text-white/90">
 							Entity Access Policies
 						</h3>
 					</div>
 					{policiesLoading ? (
 						<div className="p-8 flex justify-center">
-							<Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+							<Loader2 className="h-5 w-5 animate-spin text-white/40" />
 						</div>
 					) : policies.length === 0 ? (
 						<div className="p-8 text-center">
-							<Shield className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
-							<p className="text-sm text-muted-foreground">
+							<Shield className="h-8 w-8 text-white/20 mx-auto mb-3" />
+							<p className="text-sm text-white/40">
 								No entities defined yet
 							</p>
-							<p className="text-xs text-muted-foreground mt-1">
+							<p className="text-xs text-white/40 mt-1">
 								Define entities in your app to configure access policies
 							</p>
 						</div>
@@ -226,17 +226,17 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 						<div className="overflow-x-auto">
 							<table className="w-full text-sm">
 								<thead>
-									<tr className="border-b border-border text-left">
-										<th className="px-4 py-2.5 font-medium text-muted-foreground">Entity</th>
-										<th className="px-4 py-2.5 font-medium text-muted-foreground">Read</th>
-										<th className="px-4 py-2.5 font-medium text-muted-foreground">Write</th>
-										<th className="px-4 py-2.5 font-medium text-muted-foreground">Delete</th>
+									<tr className="border-b border-white/[0.06] text-left">
+										<th className="px-4 py-2.5 font-medium text-white/40">Entity</th>
+										<th className="px-4 py-2.5 font-medium text-white/40">Read</th>
+										<th className="px-4 py-2.5 font-medium text-white/40">Write</th>
+										<th className="px-4 py-2.5 font-medium text-white/40">Delete</th>
 									</tr>
 								</thead>
-								<tbody className="divide-y divide-border">
+								<tbody className="divide-y divide-white/[0.06]">
 									{policies.map((policy) => (
 										<tr key={policy.entityName}>
-											<td className="px-4 py-2.5 font-mono text-foreground">
+											<td className="px-4 py-2.5 font-mono text-white/90">
 												{policy.entityName}
 											</td>
 											{(["readAccess", "writeAccess", "deleteAccess"] as const).map((field) => (
@@ -244,7 +244,7 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 													<select
 														value={policy[field]}
 														onChange={(e) => updatePolicy(policy.entityName, field, e.target.value)}
-														className="px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+														className="px-2 py-1 rounded border border-white/[0.1] bg-white/[0.06] text-white/90 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 													>
 														{ACCESS_OPTIONS.map((opt) => (
 															<option key={opt.value} value={opt.value}>
@@ -268,23 +268,23 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 						<div className="flex items-start gap-3">
 							<AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
 							<div className="flex-1">
-								<h3 className="text-sm font-medium text-foreground">
+								<h3 className="text-sm font-medium text-white/90">
 									Save your API key
 								</h3>
-								<p className="text-xs text-muted-foreground mt-1">
+								<p className="text-xs text-white/40 mt-1">
 									This key will only be shown once. Copy it now and store it
 									securely.
 								</p>
 							</div>
 						</div>
-						<div className="flex items-center gap-2 p-3 rounded-md bg-muted/50">
-							<code className="text-sm font-mono text-foreground flex-1 break-all">
+						<div className="flex items-center gap-2 p-3 rounded-md bg-white/[0.06]">
+							<code className="text-sm font-mono text-white/90 flex-1 break-all">
 								{newKeyValue}
 							</code>
 							<button
 								type="button"
 								onClick={handleCopyKey}
-								className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+								className="p-1.5 rounded hover:bg-white/[0.06] text-white/40 hover:text-white/90 transition-colors flex-shrink-0"
 							>
 								{copied ? (
 									<Check className="h-4 w-4 text-green-500" />
@@ -299,7 +299,7 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 								setNewKeyValue(null);
 								setShowCreateForm(false);
 							}}
-							className="text-xs text-muted-foreground hover:text-foreground"
+							className="text-xs text-white/40 hover:text-white/90"
 						>
 							I&apos;ve saved it, dismiss
 						</button>
@@ -308,8 +308,8 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 
 				{/* Create Form */}
 				{showCreateForm && !newKeyValue && (
-					<div className="rounded-lg border border-border bg-card p-4 space-y-3">
-						<h3 className="text-sm font-medium text-foreground">
+					<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-3">
+						<h3 className="text-sm font-medium text-white/90">
 							Create API Key
 						</h3>
 						<div className="flex gap-2">
@@ -318,7 +318,7 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 								value={newKeyLabel}
 								onChange={(e) => setNewKeyLabel(e.target.value)}
 								placeholder="Key label (e.g., Production, Testing)"
-								className="flex-1 px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+								className="flex-1 px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 								onKeyDown={(e) => {
 									if (e.key === "Enter") handleCreate();
 								}}
@@ -327,7 +327,7 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 								type="button"
 								onClick={handleCreate}
 								disabled={creating || !newKeyLabel.trim()}
-								className="px-4 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+								className="px-4 py-2 rounded-md bg-gradient-to-r from-violet-500/80 to-cyan-500/80 text-white hover:from-violet-500 hover:to-cyan-500 text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
 							>
 								{creating && (
 									<Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -337,7 +337,7 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 							<button
 								type="button"
 								onClick={() => setShowCreateForm(false)}
-								className="px-3 py-2 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground transition-colors"
+								className="px-3 py-2 rounded-md border border-white/[0.08] text-sm text-white/40 hover:text-white/90 transition-colors"
 							>
 								Cancel
 							</button>
@@ -346,43 +346,43 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 				)}
 
 				{/* Keys List */}
-				<div className="rounded-lg border border-border bg-card overflow-hidden">
-					<div className="p-4 border-b border-border">
-						<h3 className="text-sm font-medium text-foreground">
+				<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm overflow-hidden">
+					<div className="p-4 border-b border-white/[0.06]">
+						<h3 className="text-sm font-medium text-white/90">
 							API Keys ({keys.length})
 						</h3>
 					</div>
 					{keys.length === 0 ? (
 						<div className="p-8 text-center">
-							<Key className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
-							<p className="text-sm text-muted-foreground">
+							<Key className="h-8 w-8 text-white/20 mx-auto mb-3" />
+							<p className="text-sm text-white/40">
 								No API keys yet
 							</p>
-							<p className="text-xs text-muted-foreground mt-1">
+							<p className="text-xs text-white/40 mt-1">
 								Create an API key to access your app's data from external
 								services
 							</p>
 						</div>
 					) : (
-						<div className="divide-y divide-border">
+						<div className="divide-y divide-white/[0.06]">
 							{keys.map((key) => (
 								<div
 									key={key.id}
 									className="flex items-center justify-between px-4 py-3"
 								>
 									<div className="flex items-center gap-3">
-										<Key className="h-4 w-4 text-muted-foreground" />
+										<Key className="h-4 w-4 text-white/40" />
 										<div>
-											<div className="text-sm text-foreground">
+											<div className="text-sm text-white/90">
 												{key.label || "Unnamed key"}
 											</div>
-											<div className="text-xs text-muted-foreground font-mono">
+											<div className="text-xs text-white/40 font-mono">
 												{key.keyPrefix}...
 											</div>
 										</div>
 									</div>
 									<div className="flex items-center gap-3">
-										<span className="text-xs text-muted-foreground">
+										<span className="text-xs text-white/40">
 											{key.lastUsedAt
 												? `Last used ${new Date(key.lastUsedAt).toLocaleDateString()}`
 												: "Never used"}
@@ -390,7 +390,7 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 										<button
 											type="button"
 											onClick={() => handleRevoke(key.id)}
-											className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
+											className="p-1.5 rounded hover:bg-red-500/10 text-white/40 hover:text-red-500 transition-colors"
 											title="Revoke key"
 										>
 											<Trash2 className="h-3.5 w-3.5" />
@@ -403,14 +403,14 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 				</div>
 
 				{/* Security Info */}
-				<div className="rounded-lg border border-border bg-card p-4">
+				<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
 					<div className="flex items-start gap-3">
-						<Shield className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+						<Shield className="h-5 w-5 text-white/40 flex-shrink-0 mt-0.5" />
 						<div>
-							<h3 className="text-sm font-medium text-foreground">
+							<h3 className="text-sm font-medium text-white/90">
 								Security Notes
 							</h3>
-							<ul className="text-xs text-muted-foreground mt-2 space-y-1 list-disc list-inside">
+							<ul className="text-xs text-white/40 mt-2 space-y-1 list-disc list-inside">
 								<li>API keys are hashed and stored securely</li>
 								<li>Keys are shown only once at creation time</li>
 								<li>Revoked keys are immediately invalidated</li>

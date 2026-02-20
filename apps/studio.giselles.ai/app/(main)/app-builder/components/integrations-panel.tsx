@@ -171,7 +171,7 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 	if (loading) {
 		return (
 			<div className="flex-1 flex items-center justify-center">
-				<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+				<Loader2 className="h-6 w-6 animate-spin text-white/40" />
 			</div>
 		);
 	}
@@ -182,10 +182,10 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 				{/* Header */}
 				<div className="flex items-center justify-between">
 					<div>
-						<h1 className="text-2xl font-bold text-foreground">
+						<h1 className="text-2xl font-bold text-white/90">
 							Integrations
 						</h1>
-						<p className="text-sm text-muted-foreground mt-1">
+						<p className="text-sm text-white/40 mt-1">
 							{total} connectors available — connect services to
 							your app
 						</p>
@@ -193,14 +193,14 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 				</div>
 
 				{/* Tabs */}
-				<div className="flex gap-1 border-b border-border">
+				<div className="flex gap-1 border-b border-white/[0.06]">
 					<button
 						type="button"
 						onClick={() => setActiveTab("browse")}
 						className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
 							activeTab === "browse"
-								? "border-foreground text-foreground"
-								: "border-transparent text-muted-foreground hover:text-foreground"
+								? "border-violet-400 text-white/90"
+								: "border-transparent text-white/40 hover:text-white/90"
 						}`}
 					>
 						Browse
@@ -210,8 +210,8 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 						onClick={() => setActiveTab("connected")}
 						className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
 							activeTab === "connected"
-								? "border-foreground text-foreground"
-								: "border-transparent text-muted-foreground hover:text-foreground"
+								? "border-violet-400 text-white/90"
+								: "border-transparent text-white/40 hover:text-white/90"
 						}`}
 					>
 						My Integrations
@@ -221,22 +221,22 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 				{activeTab === "connected" ? (
 					connectedLoading ? (
 						<div className="flex items-center justify-center py-12">
-							<Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+							<Loader2 className="h-5 w-5 animate-spin text-white/40" />
 						</div>
 					) : connected.length === 0 ? (
-						<div className="rounded-lg border border-border bg-card p-8 text-center">
-							<Link className="h-8 w-8 text-muted-foreground/50 mx-auto mb-3" />
-							<h3 className="text-sm font-medium text-foreground mb-1">
+						<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-8 text-center">
+							<Link className="h-8 w-8 text-white/20 mx-auto mb-3" />
+							<h3 className="text-sm font-medium text-white/90 mb-1">
 								No integrations connected yet
 							</h3>
-							<p className="text-xs text-muted-foreground max-w-sm mx-auto">
+							<p className="text-xs text-white/40 max-w-sm mx-auto">
 								Browse available integrations and connect them to
 								start using external services in your app.
 							</p>
 							<button
 								type="button"
 								onClick={() => setActiveTab("browse")}
-								className="mt-4 px-4 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
+								className="mt-4 px-4 py-2 rounded-md bg-gradient-to-r from-violet-500/80 to-cyan-500/80 text-white hover:from-violet-500 hover:to-cyan-500 text-sm font-medium transition-colors"
 							>
 								Browse Integrations
 							</button>
@@ -248,9 +248,9 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 								return (
 									<div
 										key={integration.pieceName}
-										className="flex items-center gap-3 rounded-lg border border-border bg-card p-3"
+										className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-3"
 									>
-										<div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
+										<div className="h-9 w-9 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center flex-shrink-0 overflow-hidden">
 											{piece?.logoUrl ? (
 												<img
 													src={piece.logoUrl}
@@ -258,14 +258,14 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 													className="h-5 w-5 object-contain"
 												/>
 											) : (
-												<Puzzle className="h-4 w-4 text-muted-foreground" />
+												<Puzzle className="h-4 w-4 text-white/40" />
 											)}
 										</div>
 										<div className="min-w-0 flex-1">
-											<h3 className="text-sm font-medium text-foreground">
+											<h3 className="text-sm font-medium text-white/90">
 												{integration.displayName}
 											</h3>
-											<p className="text-[11px] text-muted-foreground">
+											<p className="text-[11px] text-white/40">
 												Connected {new Date(integration.connectedAt).toLocaleDateString()}
 												{integration.hasCredentials && (
 													<>
@@ -281,7 +281,7 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 										<button
 											type="button"
 											onClick={() => handleDisconnect(integration.pieceName)}
-											className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
+											className="p-1.5 rounded hover:bg-red-500/10 text-white/40 hover:text-red-500 transition-colors"
 											title="Disconnect"
 										>
 											<Trash2 className="h-3.5 w-3.5" />
@@ -296,13 +296,13 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 						{/* Search + Category */}
 						<div className="flex flex-col sm:flex-row gap-3">
 							<div className="relative flex-1">
-								<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+								<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
 								<input
 									type="text"
 									value={search}
 									onChange={(e) => setSearch(e.target.value)}
 									placeholder="Search integrations..."
-									className="w-full pl-9 pr-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+									className="w-full pl-9 pr-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 								/>
 							</div>
 							<select
@@ -310,7 +310,7 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 								onChange={(e) =>
 									setActiveCategory(e.target.value)
 								}
-								className="px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+								className="px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 							>
 								<option value="all">
 									All Categories ({pieces.length})
@@ -330,7 +330,7 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 						</div>
 
 						{/* Results count */}
-						<p className="text-xs text-muted-foreground">
+						<p className="text-xs text-white/40">
 							Showing {visiblePieces.length} of{" "}
 							{filtered.length} integrations
 							{search && ` matching "${search}"`}
@@ -341,9 +341,9 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 							{visiblePieces.map((piece) => (
 								<div
 									key={piece.name}
-									className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 hover:border-muted-foreground/30 transition-colors group"
+									className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-3 hover:border-white/[0.12] transition-colors group"
 								>
-									<div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
+									<div className="h-9 w-9 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center flex-shrink-0 overflow-hidden">
 										{piece.logoUrl ? (
 											<img
 												src={piece.logoUrl}
@@ -356,18 +356,18 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 													(
 														e.target as HTMLImageElement
 													).parentElement!.innerHTML =
-														'<svg class="h-5 w-5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>';
+														'<svg class="h-5 w-5 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>';
 												}}
 											/>
 										) : (
-											<Puzzle className="h-4 w-4 text-muted-foreground" />
+											<Puzzle className="h-4 w-4 text-white/40" />
 										)}
 									</div>
 									<div className="min-w-0 flex-1">
-										<h3 className="text-sm font-medium text-foreground truncate">
+										<h3 className="text-sm font-medium text-white/90 truncate">
 											{piece.displayName}
 										</h3>
-										<p className="text-[11px] text-muted-foreground truncate">
+										<p className="text-[11px] text-white/40 truncate">
 											{piece.category}
 											{piece.authType !== "none" && (
 												<>
@@ -394,7 +394,7 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 											type="button"
 											onClick={() => handleConnect(piece)}
 											disabled={connectingPiece === piece.name}
-											className="px-2.5 py-1 rounded-md border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 disabled:opacity-50"
+											className="px-2.5 py-1 rounded-md border border-white/[0.08] text-xs font-medium text-white/40 hover:text-white/90 hover:bg-white/[0.06] transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 disabled:opacity-50"
 										>
 											{connectingPiece === piece.name ? (
 												<Loader2 className="h-3 w-3 animate-spin" />
@@ -417,7 +417,7 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 											(v) => v + ITEMS_PER_PAGE,
 										)
 									}
-									className="px-6 py-2 rounded-md border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+									className="px-6 py-2 rounded-md border border-white/[0.08] text-sm font-medium text-white/40 hover:text-white/90 hover:bg-white/[0.06] transition-colors"
 								>
 									Load More ({filtered.length - visibleCount}{" "}
 									remaining)
@@ -428,8 +428,8 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 						{/* Empty state */}
 						{filtered.length === 0 && (
 							<div className="text-center py-8">
-								<Puzzle className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
-								<p className="text-sm text-muted-foreground">
+								<Puzzle className="h-8 w-8 text-white/20 mx-auto mb-2" />
+								<p className="text-sm text-white/40">
 									No integrations found
 									{search && ` for "${search}"`}
 								</p>
@@ -437,14 +437,14 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 						)}
 
 						{/* Webhooks */}
-						<div className="rounded-lg border border-border bg-card p-4">
+						<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
 							<div className="flex items-start gap-3">
-								<Webhook className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+								<Webhook className="h-5 w-5 text-white/40 flex-shrink-0 mt-0.5" />
 								<div>
-									<h3 className="text-sm font-medium text-foreground">
+									<h3 className="text-sm font-medium text-white/90">
 										Webhooks
 									</h3>
-									<p className="text-xs text-muted-foreground mt-1">
+									<p className="text-xs text-white/40 mt-1">
 										Configure webhooks to receive real-time
 										notifications when data changes in your
 										app. Webhooks will be available once

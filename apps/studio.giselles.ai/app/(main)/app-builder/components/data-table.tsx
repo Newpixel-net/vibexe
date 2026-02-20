@@ -81,10 +81,10 @@ export function DataTable({ appId, entity, fields, onAddRow, onEditRow, refreshT
           <p className="text-sm">Click &quot;Add Row&quot; to create your first entry.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-zinc-700">
+        <div className="overflow-x-auto rounded-xl border border-white/[0.04]">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-zinc-800/50">
+              <tr className="bg-white/[0.03]">
                 {allColumns.map(col => (
                   <th key={col} className="px-4 py-2.5 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
                     {col}
@@ -95,9 +95,9 @@ export function DataTable({ appId, entity, fields, onAddRow, onEditRow, refreshT
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-700/50">
+            <tbody className="divide-y divide-white/[0.04]">
               {rows.map((row) => (
-                <tr key={String(row.id)} className="hover:bg-zinc-800/30 transition-colors">
+                <tr key={String(row.id)} className="hover:bg-white/[0.03] transition-colors">
                   {allColumns.map(col => (
                     <td key={col} className="px-4 py-2.5 text-zinc-300 max-w-[200px] truncate">
                       {formatCellValue(row[col])}

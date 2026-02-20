@@ -65,8 +65,8 @@ const LEVEL_CONFIG: Record<
 	},
 	debug: {
 		icon: Terminal,
-		color: "text-muted-foreground",
-		bg: "bg-muted/50",
+		color: "text-white/40",
+		bg: "bg-white/[0.03]",
 		label: "DEBUG",
 	},
 };
@@ -176,11 +176,11 @@ export function LogsPanel({ appId }: LogsPanelProps) {
 	return (
 		<div className="flex-1 flex flex-col min-h-0">
 			{/* Header */}
-			<div className="flex-shrink-0 p-4 border-b border-border space-y-3">
+			<div className="flex-shrink-0 p-4 border-b border-white/[0.06] space-y-3">
 				<div className="flex items-center justify-between">
 					<div>
-						<h1 className="text-lg font-bold text-foreground">Logs</h1>
-						<p className="text-xs text-muted-foreground">
+						<h1 className="text-lg font-bold text-white/90">Logs</h1>
+						<p className="text-xs text-white/40">
 							{filteredLogs.length} log entries
 							{logs.length !== filteredLogs.length &&
 								` (${logs.length} total)`}
@@ -194,7 +194,7 @@ export function LogsPanel({ appId }: LogsPanelProps) {
 							className={`p-2 rounded-md transition-colors flex items-center gap-1.5 text-xs ${
 								autoRefresh
 									? "bg-green-500/10 text-green-500"
-									: "hover:bg-muted text-muted-foreground hover:text-foreground"
+									: "hover:bg-white/[0.06] text-white/40 hover:text-white/90"
 							}`}
 							title={
 								autoRefresh ? "Stop auto-refresh" : "Auto-refresh (5s)"
@@ -211,23 +211,23 @@ export function LogsPanel({ appId }: LogsPanelProps) {
 						<div className="relative group">
 							<button
 								type="button"
-								className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 text-xs"
+								className="p-2 rounded-md hover:bg-white/[0.06] text-white/40 hover:text-white/90 transition-colors flex items-center gap-1.5 text-xs"
 							>
 								<Download className="h-3.5 w-3.5" />
 								Export
 							</button>
-							<div className="absolute right-0 top-full mt-1 bg-card border border-border rounded-md shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity z-10">
+							<div className="absolute right-0 top-full mt-1 bg-white/[0.04] backdrop-blur-sm border border-white/[0.08] rounded-md shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity z-10">
 								<button
 									type="button"
 									onClick={() => handleExport("json")}
-									className="block w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-muted transition-colors"
+									className="block w-full text-left px-3 py-1.5 text-xs text-white/90 hover:bg-white/[0.06] transition-colors"
 								>
 									Export JSON
 								</button>
 								<button
 									type="button"
 									onClick={() => handleExport("csv")}
-									className="block w-full text-left px-3 py-1.5 text-xs text-foreground hover:bg-muted transition-colors"
+									className="block w-full text-left px-3 py-1.5 text-xs text-white/90 hover:bg-white/[0.06] transition-colors"
 								>
 									Export CSV
 								</button>
@@ -240,7 +240,7 @@ export function LogsPanel({ appId }: LogsPanelProps) {
 								setLoading(true);
 								fetchLogs();
 							}}
-							className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+							className="p-2 rounded-md hover:bg-white/[0.06] text-white/40 hover:text-white/90 transition-colors"
 							title="Refresh logs"
 						>
 							<RefreshCw
@@ -253,20 +253,20 @@ export function LogsPanel({ appId }: LogsPanelProps) {
 				{/* Search + Filters */}
 				<div className="flex items-center gap-3">
 					<div className="relative flex-1">
-						<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+						<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/40" />
 						<input
 							type="text"
 							value={search}
 							onChange={(e) => setSearch(e.target.value)}
 							placeholder="Search logs..."
-							className="w-full pl-9 pr-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+							className="w-full pl-9 pr-3 py-1.5 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 						/>
 					</div>
 					{sources.length > 1 && (
 						<select
 							value={sourceFilter}
 							onChange={(e) => setSourceFilter(e.target.value)}
-							className="px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+							className="px-2.5 py-1.5 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 						>
 							<option value="all">All Sources</option>
 							{sources.map((s) => (
@@ -285,8 +285,8 @@ export function LogsPanel({ appId }: LogsPanelProps) {
 						onClick={() => setFilter("all")}
 						className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
 							filter === "all"
-								? "bg-foreground text-background"
-								: "text-muted-foreground hover:text-foreground hover:bg-muted"
+								? "bg-gradient-to-r from-violet-500/80 to-cyan-500/80 text-white"
+								: "text-white/40 hover:text-white/90 hover:bg-white/[0.06]"
 						}`}
 					>
 						All ({logs.length})
@@ -303,7 +303,7 @@ export function LogsPanel({ appId }: LogsPanelProps) {
 								className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1 ${
 									filter === level
 										? `${config.bg} ${config.color}`
-										: "text-muted-foreground hover:text-foreground hover:bg-muted"
+										: "text-white/40 hover:text-white/90 hover:bg-white/[0.06]"
 								}`}
 							>
 								{config.label}
@@ -322,22 +322,22 @@ export function LogsPanel({ appId }: LogsPanelProps) {
 			<div className="flex-1 overflow-y-auto">
 				{loading && logs.length === 0 ? (
 					<div className="flex items-center justify-center p-8">
-						<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+						<Loader2 className="h-6 w-6 animate-spin text-white/40" />
 					</div>
 				) : filteredLogs.length === 0 ? (
 					<div className="flex flex-col items-center justify-center p-12 text-center">
-						<Terminal className="h-10 w-10 text-muted-foreground/30 mb-4" />
-						<h3 className="text-sm font-medium text-foreground mb-1">
+						<Terminal className="h-10 w-10 text-white/20 mb-4" />
+						<h3 className="text-sm font-medium text-white/90 mb-1">
 							{logs.length === 0 ? "No logs yet" : "No matching logs"}
 						</h3>
-						<p className="text-xs text-muted-foreground max-w-sm">
+						<p className="text-xs text-white/40 max-w-sm">
 							{logs.length === 0
 								? "Logs will appear here as your app receives traffic and processes requests."
 								: "Try adjusting your search or filter criteria."}
 						</p>
 					</div>
 				) : (
-					<div className="divide-y divide-border font-mono text-xs">
+					<div className="divide-y divide-white/[0.06] font-mono text-xs">
 						{filteredLogs.map((log) => {
 							const config = LEVEL_CONFIG[log.level] || LEVEL_CONFIG.info;
 							const Icon = config.icon;
@@ -349,13 +349,13 @@ export function LogsPanel({ appId }: LogsPanelProps) {
 										onClick={() =>
 											setExpandedId(isExpanded ? null : log.id)
 										}
-										className="w-full flex items-start gap-2 px-4 py-2.5 hover:bg-muted/30 transition-colors text-left"
+										className="w-full flex items-start gap-2 px-4 py-2.5 hover:bg-white/[0.04] transition-colors text-left"
 									>
 										{log.details ? (
 											isExpanded ? (
-												<ChevronDown className="h-3 w-3 mt-0.5 flex-shrink-0 text-muted-foreground" />
+												<ChevronDown className="h-3 w-3 mt-0.5 flex-shrink-0 text-white/40" />
 											) : (
-												<ChevronRight className="h-3 w-3 mt-0.5 flex-shrink-0 text-muted-foreground" />
+												<ChevronRight className="h-3 w-3 mt-0.5 flex-shrink-0 text-white/40" />
 											)
 										) : (
 											<span className="w-3 flex-shrink-0" />
@@ -365,19 +365,19 @@ export function LogsPanel({ appId }: LogsPanelProps) {
 										>
 											{config.label}
 										</span>
-										<span className="text-muted-foreground flex-shrink-0 w-[130px]">
+										<span className="text-white/40 flex-shrink-0 w-[130px]">
 											{new Date(log.timestamp).toLocaleString()}
 										</span>
-										<span className="text-muted-foreground flex-shrink-0 w-[70px] truncate">
+										<span className="text-white/40 flex-shrink-0 w-[70px] truncate">
 											{log.source}
 										</span>
-										<span className="text-foreground break-all flex-1">
+										<span className="text-white/90 break-all flex-1">
 											{log.message}
 										</span>
 									</button>
 									{isExpanded && log.details && (
 										<div className="px-4 pb-3 ml-8">
-											<pre className="text-[11px] text-muted-foreground bg-muted/30 rounded-md p-3 overflow-x-auto whitespace-pre-wrap">
+											<pre className="text-[11px] text-white/40 bg-white/[0.04] border border-white/[0.08] rounded-md p-3 overflow-x-auto whitespace-pre-wrap">
 												{log.details}
 											</pre>
 										</div>
@@ -391,9 +391,9 @@ export function LogsPanel({ appId }: LogsPanelProps) {
 
 			{/* Footer status bar */}
 			{autoRefresh && (
-				<div className="flex-shrink-0 px-4 py-1.5 border-t border-border bg-muted/20 flex items-center gap-2">
+				<div className="flex-shrink-0 px-4 py-1.5 border-t border-white/[0.06] bg-white/[0.03] flex items-center gap-2">
 					<span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-					<span className="text-[10px] text-muted-foreground">
+					<span className="text-[10px] text-white/40">
 						Auto-refreshing every 5 seconds
 					</span>
 				</div>

@@ -189,7 +189,7 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 	if (loading) {
 		return (
 			<div className="flex-1 flex items-center justify-center">
-				<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+				<Loader2 className="h-6 w-6 animate-spin text-white/40" />
 			</div>
 		);
 	}
@@ -201,14 +201,14 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 				<div className="flex items-center justify-between">
 					<div>
 						<div className="flex items-center gap-2">
-							<h1 className="text-2xl font-bold text-foreground">
+							<h1 className="text-2xl font-bold text-white/90">
 								Automations
 							</h1>
 							<span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
 								Paid Feature
 							</span>
 						</div>
-						<p className="text-sm text-muted-foreground mt-1">
+						<p className="text-sm text-white/40 mt-1">
 							Automate actions when events happen in your app
 						</p>
 					</div>
@@ -216,7 +216,7 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 						<button
 							type="button"
 							onClick={() => setShowCreateForm(true)}
-							className="px-3 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity flex items-center gap-2"
+							className="px-3 py-2 rounded-md bg-gradient-to-r from-violet-500/80 to-cyan-500/80 text-white hover:from-violet-500 hover:to-cyan-500 text-sm font-medium transition-colors flex items-center gap-2"
 						>
 							<Plus className="h-3.5 w-3.5" />
 							New Automation
@@ -226,14 +226,14 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 
 				{/* Create Form */}
 				{showCreateForm && (
-					<div className="rounded-lg border border-border bg-card p-4 space-y-4">
-						<h3 className="text-sm font-medium text-foreground">
+					<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-4">
+						<h3 className="text-sm font-medium text-white/90">
 							Create Automation
 						</h3>
 
 						{/* Name */}
 						<div>
-							<label className="block text-xs text-muted-foreground mb-1">
+							<label className="block text-xs text-white/40 mb-1">
 								Name
 							</label>
 							<input
@@ -241,20 +241,20 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 								value={newName}
 								onChange={(e) => setNewName(e.target.value)}
 								placeholder="e.g., Send welcome email on signup"
-								className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+								className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 							/>
 						</div>
 
 						{/* Trigger + Action row */}
 						<div className="grid grid-cols-2 gap-4">
 							<div>
-								<label className="block text-xs text-muted-foreground mb-1">
+								<label className="block text-xs text-white/40 mb-1">
 									Trigger
 								</label>
 								<select
 									value={newTriggerType}
 									onChange={(e) => setNewTriggerType(e.target.value)}
-									className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+									className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 								>
 									{TRIGGER_TYPES.map((t) => (
 										<option key={t.value} value={t.value}>
@@ -264,13 +264,13 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 								</select>
 							</div>
 							<div>
-								<label className="block text-xs text-muted-foreground mb-1">
+								<label className="block text-xs text-white/40 mb-1">
 									Action
 								</label>
 								<select
 									value={newActionType}
 									onChange={(e) => setNewActionType(e.target.value)}
-									className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+									className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 								>
 									{ACTION_TYPES.map((a) => (
 										<option key={a.value} value={a.value}>
@@ -284,7 +284,7 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 						{/* Config fields */}
 						<div className="grid grid-cols-2 gap-4">
 							<div>
-								<label className="block text-xs text-muted-foreground mb-1">
+								<label className="block text-xs text-white/40 mb-1">
 									Trigger Config (JSON, optional)
 								</label>
 								<textarea
@@ -292,11 +292,11 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 									onChange={(e) => setNewTriggerConfig(e.target.value)}
 									placeholder='{"entity": "tasks"}'
 									rows={2}
-									className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm font-mono focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+									className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-violet-500/30 resize-none"
 								/>
 							</div>
 							<div>
-								<label className="block text-xs text-muted-foreground mb-1">
+								<label className="block text-xs text-white/40 mb-1">
 									Action Config (JSON, optional)
 								</label>
 								<textarea
@@ -304,7 +304,7 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 									onChange={(e) => setNewActionConfig(e.target.value)}
 									placeholder='{"url": "https://..."}'
 									rows={2}
-									className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm font-mono focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+									className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-violet-500/30 resize-none"
 								/>
 							</div>
 						</div>
@@ -315,7 +315,7 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 								type="button"
 								onClick={handleCreate}
 								disabled={creating || !newName.trim()}
-								className="px-4 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+								className="px-4 py-2 rounded-md bg-gradient-to-r from-violet-500/80 to-cyan-500/80 text-white hover:from-violet-500 hover:to-cyan-500 text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
 							>
 								{creating && (
 									<Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -330,7 +330,7 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 									setNewTriggerConfig("");
 									setNewActionConfig("");
 								}}
-								className="px-3 py-2 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground transition-colors"
+								className="px-3 py-2 rounded-md border border-white/[0.08] text-sm text-white/40 hover:text-white/90 transition-colors"
 							>
 								Cancel
 							</button>
@@ -339,27 +339,27 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 				)}
 
 				{/* Automations List */}
-				<div className="rounded-lg border border-border bg-card overflow-hidden">
-					<div className="p-4 border-b border-border flex items-center gap-2">
-						<Zap className="h-4 w-4 text-muted-foreground" />
-						<h3 className="text-sm font-medium text-foreground">
+				<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm overflow-hidden">
+					<div className="p-4 border-b border-white/[0.06] flex items-center gap-2">
+						<Zap className="h-4 w-4 text-white/40" />
+						<h3 className="text-sm font-medium text-white/90">
 							Automations ({automations.length})
 						</h3>
 					</div>
 					{automations.length === 0 ? (
 						<div className="p-8 text-center">
-							<Zap className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
-							<p className="text-sm text-muted-foreground">
+							<Zap className="h-8 w-8 text-white/20 mx-auto mb-3" />
+							<p className="text-sm text-white/40">
 								No automations yet
 							</p>
-							<p className="text-xs text-muted-foreground mt-1">
+							<p className="text-xs text-white/40 mt-1">
 								Create an automation to trigger actions when events occur
 							</p>
 							{!showCreateForm && (
 								<button
 									type="button"
 									onClick={() => setShowCreateForm(true)}
-									className="mt-4 px-3 py-1.5 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors inline-flex items-center gap-1.5"
+									className="mt-4 px-3 py-1.5 rounded-md border border-white/[0.08] text-sm text-white/40 hover:text-white/90 hover:bg-white/[0.06] transition-colors inline-flex items-center gap-1.5"
 								>
 									<Plus className="h-3.5 w-3.5" />
 									New Automation
@@ -367,7 +367,7 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 							)}
 						</div>
 					) : (
-						<div className="divide-y divide-border">
+						<div className="divide-y divide-white/[0.06]">
 							{automations.map((automation) => (
 								<div
 									key={automation.dbId}
@@ -380,13 +380,13 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 											onClick={() => handleToggle(automation)}
 											className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
 												automation.enabled
-													? "bg-foreground"
+													? "bg-gradient-to-r from-violet-500 to-cyan-500"
 													: "bg-muted-foreground/20"
 											}`}
 											title={automation.enabled ? "Disable" : "Enable"}
 										>
 											<span
-												className={`inline-block h-3.5 w-3.5 transform rounded-full bg-background transition-transform ${
+												className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white/[0.02] transition-transform ${
 													automation.enabled
 														? "translate-x-[18px]"
 														: "translate-x-[3px]"
@@ -396,7 +396,7 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 
 										<div className="min-w-0 flex-1">
 											<div className="flex items-center gap-2 flex-wrap">
-												<span className="text-sm font-medium text-foreground truncate">
+												<span className="text-sm font-medium text-white/90 truncate">
 													{automation.name}
 												</span>
 											</div>
@@ -404,7 +404,7 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 												<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
 													{getTriggerLabel(automation.triggerType)}
 												</span>
-												<span className="text-[10px] text-muted-foreground">
+												<span className="text-[10px] text-white/40">
 													then
 												</span>
 												<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
@@ -417,14 +417,14 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 									<div className="flex items-center gap-3 flex-shrink-0 ml-3">
 										{/* Run info */}
 										<div className="text-right">
-											<div className="flex items-center gap-1 text-xs text-muted-foreground">
+											<div className="flex items-center gap-1 text-xs text-white/40">
 												<Clock className="h-3 w-3" />
 												{automation.lastRunAt
 													? new Date(automation.lastRunAt).toLocaleDateString()
 													: "Never run"}
 											</div>
 											{automation.runCount > 0 && (
-												<span className="text-[10px] text-muted-foreground">
+												<span className="text-[10px] text-white/40">
 													{automation.runCount} run{automation.runCount !== 1 ? "s" : ""}
 												</span>
 											)}
@@ -434,7 +434,7 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 										<button
 											type="button"
 											onClick={() => handleDelete(automation.dbId)}
-											className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
+											className="p-1.5 rounded hover:bg-red-500/10 text-white/40 hover:text-red-500 transition-colors"
 											title="Delete automation"
 										>
 											<Trash2 className="h-3.5 w-3.5" />
@@ -447,14 +447,14 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 				</div>
 
 				{/* Info Section */}
-				<div className="rounded-lg border border-border bg-card p-4">
+				<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
 					<div className="flex items-start gap-3">
-						<Zap className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+						<Zap className="h-5 w-5 text-white/40 flex-shrink-0 mt-0.5" />
 						<div>
-							<h3 className="text-sm font-medium text-foreground">
+							<h3 className="text-sm font-medium text-white/90">
 								About Automations
 							</h3>
-							<ul className="text-xs text-muted-foreground mt-2 space-y-1 list-disc list-inside">
+							<ul className="text-xs text-white/40 mt-2 space-y-1 list-disc list-inside">
 								<li>Automations run server-side when trigger events occur</li>
 								<li>Supports entity lifecycle events and scheduled triggers</li>
 								<li>Actions include sending emails, calling webhooks, and running code</li>

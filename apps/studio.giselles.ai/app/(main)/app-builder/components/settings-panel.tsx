@@ -153,7 +153,7 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 	if (loading) {
 		return (
 			<div className="flex-1 flex items-center justify-center">
-				<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+				<Loader2 className="h-6 w-6 animate-spin text-white/40" />
 			</div>
 		);
 	}
@@ -163,24 +163,24 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 			<div className="max-w-2xl mx-auto space-y-8">
 				{/* Header */}
 				<div>
-					<h1 className="text-2xl font-bold text-foreground">
+					<h1 className="text-2xl font-bold text-white/90">
 						App Settings
 					</h1>
-					<p className="text-sm text-muted-foreground mt-1">
+					<p className="text-sm text-white/40 mt-1">
 						Configure your app settings and preferences
 					</p>
 				</div>
 
 				{/* General */}
-				<div className="rounded-lg border border-border bg-card p-6 space-y-4">
-					<h2 className="text-lg font-semibold text-foreground">
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-6 space-y-4">
+					<h2 className="text-lg font-semibold text-white/90">
 						General
 					</h2>
 
 					<div className="space-y-2">
 						<label
 							htmlFor="app-name"
-							className="text-sm font-medium text-foreground"
+							className="text-sm font-medium text-white/90"
 						>
 							App Name
 						</label>
@@ -189,7 +189,7 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 							type="text"
 							value={name}
 							onChange={(e) => setName(e.target.value)}
-							className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+							className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 							placeholder="My App"
 						/>
 					</div>
@@ -197,7 +197,7 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 					<div className="space-y-2">
 						<label
 							htmlFor="app-desc"
-							className="text-sm font-medium text-foreground"
+							className="text-sm font-medium text-white/90"
 						>
 							Description
 						</label>
@@ -206,18 +206,18 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 							value={description}
 							onChange={(e) => setDescription(e.target.value)}
 							rows={3}
-							className="w-full px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+							className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30 resize-none"
 							placeholder="A brief description of your app..."
 						/>
 					</div>
 				</div>
 
 				{/* App Visibility */}
-				<div className="rounded-lg border border-border bg-card p-6 space-y-4">
-					<h2 className="text-lg font-semibold text-foreground">
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-6 space-y-4">
+					<h2 className="text-lg font-semibold text-white/90">
 						Visibility
 					</h2>
-					<p className="text-sm text-muted-foreground">
+					<p className="text-sm text-white/40">
 						Control who can access your app and its data.
 					</p>
 
@@ -230,10 +230,10 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 									<Lock className="h-4 w-4 text-amber-500" />
 								)}
 								<div>
-									<span className="text-sm font-medium text-foreground">
+									<span className="text-sm font-medium text-white/90">
 										App Access
 									</span>
-									<p className="text-xs text-muted-foreground">
+									<p className="text-xs text-white/40">
 										{visibility === "public"
 											? "Anyone with the link can view this app"
 											: "Only invited users can access this app"}
@@ -243,7 +243,7 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 							<select
 								value={visibility}
 								onChange={(e) => setVisibility(e.target.value)}
-								className="px-3 py-1.5 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+								className="px-3 py-1.5 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 							>
 								<option value="public">Public</option>
 								<option value="private">Private</option>
@@ -255,13 +255,13 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 								{requireLogin ? (
 									<Eye className="h-4 w-4 text-blue-500" />
 								) : (
-									<EyeOff className="h-4 w-4 text-muted-foreground" />
+									<EyeOff className="h-4 w-4 text-white/40" />
 								)}
 								<div>
-									<span className="text-sm font-medium text-foreground">
+									<span className="text-sm font-medium text-white/90">
 										Require Login
 									</span>
-									<p className="text-xs text-muted-foreground">
+									<p className="text-xs text-white/40">
 										Users must sign in before accessing the
 										app
 									</p>
@@ -274,12 +274,12 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 								}
 								className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
 									requireLogin
-										? "bg-foreground"
-										: "bg-muted-foreground/20"
+										? "bg-gradient-to-r from-violet-500 to-cyan-500"
+										: "bg-white/[0.08]"
 								}`}
 							>
 								<span
-									className={`inline-block h-4 w-4 transform rounded-full bg-background transition-transform ${
+									className={`inline-block h-4 w-4 transform rounded-full bg-white/[0.02] transition-transform ${
 										requireLogin
 											? "translate-x-6"
 											: "translate-x-1"
@@ -291,24 +291,24 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 				</div>
 
 				{/* Sharing */}
-				<div className="rounded-lg border border-border bg-card p-6 space-y-4">
-					<h2 className="text-lg font-semibold text-foreground">
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-6 space-y-4">
+					<h2 className="text-lg font-semibold text-white/90">
 						Sharing
 					</h2>
-					<p className="text-sm text-muted-foreground">
+					<p className="text-sm text-white/40">
 						Share your app with a public preview link. Anyone with
 						the link can view the app.
 					</p>
 
 					<div className="flex items-center justify-between">
-						<span className="text-sm text-foreground">
+						<span className="text-sm text-white/90">
 							Public sharing
 						</span>
 						<button
 							type="button"
 							onClick={handleShareToggle}
 							className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-								shareEnabled ? "bg-green-500" : "bg-muted"
+								shareEnabled ? "bg-green-500" : "bg-white/[0.04]"
 							}`}
 						>
 							<span
@@ -322,20 +322,20 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 					</div>
 
 					{shareUrl && (
-						<div className="flex items-center gap-2 p-3 rounded-md bg-muted/50">
-							<ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+						<div className="flex items-center gap-2 p-3 rounded-md bg-white/[0.06]">
+							<ExternalLink className="h-4 w-4 text-white/40 flex-shrink-0" />
 							<a
 								href={shareUrl}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="text-sm text-foreground truncate hover:underline flex-1"
+								className="text-sm text-white/90 truncate hover:underline flex-1"
 							>
 								{shareUrl}
 							</a>
 							<button
 								type="button"
 								onClick={handleCopy}
-								className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+								className="p-1.5 rounded hover:bg-white/[0.06] text-white/40 hover:text-white/90 transition-colors flex-shrink-0"
 								title={copied ? "Copied!" : "Copy link"}
 							>
 								{copied ? (
@@ -349,18 +349,18 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 				</div>
 
 				{/* Platform Badge */}
-				<div className="rounded-lg border border-border bg-card p-6 space-y-4">
-					<h2 className="text-lg font-semibold text-foreground">
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-6 space-y-4">
+					<h2 className="text-lg font-semibold text-white/90">
 						Platform Badge
 					</h2>
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-3">
-							<Sparkles className="h-4 w-4 text-muted-foreground" />
+							<Sparkles className="h-4 w-4 text-white/40" />
 							<div>
-								<span className="text-sm font-medium text-foreground">
+								<span className="text-sm font-medium text-white/90">
 									Show &quot;Built with Vibexe&quot; badge
 								</span>
-								<p className="text-xs text-muted-foreground">
+								<p className="text-xs text-white/40">
 									Display a small badge in the footer of your
 									deployed app
 								</p>
@@ -371,12 +371,12 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 							onClick={() => setPlatformBadge(!platformBadge)}
 							className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
 								platformBadge
-									? "bg-foreground"
-									: "bg-muted-foreground/20"
+									? "bg-gradient-to-r from-violet-500 to-cyan-500"
+									: "bg-white/[0.08]"
 							}`}
 						>
 							<span
-								className={`inline-block h-4 w-4 transform rounded-full bg-background transition-transform ${
+								className={`inline-block h-4 w-4 transform rounded-full bg-white/[0.02] transition-transform ${
 									platformBadge
 										? "translate-x-6"
 										: "translate-x-1"
@@ -387,14 +387,14 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 				</div>
 
 				{/* App ID */}
-				<div className="rounded-lg border border-border bg-card p-6 space-y-2">
-					<h2 className="text-lg font-semibold text-foreground">
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-6 space-y-2">
+					<h2 className="text-lg font-semibold text-white/90">
 						App ID
 					</h2>
-					<p className="text-sm text-muted-foreground">
+					<p className="text-sm text-white/40">
 						Use this ID when calling the Vibexe SDK or API.
 					</p>
-					<code className="block px-3 py-2 rounded-md bg-muted text-sm font-mono text-foreground">
+					<code className="block px-3 py-2 rounded-md bg-white/[0.06] text-sm font-mono text-white/90">
 						{appId}
 					</code>
 				</div>
@@ -405,7 +405,7 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 						type="button"
 						onClick={handleSave}
 						disabled={saving}
-						className="px-4 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+						className="px-4 py-2 rounded-md bg-gradient-to-r from-violet-500/80 to-cyan-500/80 text-white text-sm font-medium hover:from-violet-500 hover:to-cyan-500 transition-opacity disabled:opacity-50 flex items-center gap-2"
 					>
 						{saving ? (
 							<Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -417,19 +417,19 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 				</div>
 
 				{/* Danger Zone */}
-				<div className="rounded-lg border border-red-500/30 bg-card p-6 space-y-4">
+				<div className="rounded-xl border border-red-500/20 bg-red-500/[0.02] p-6 space-y-4">
 					<h2 className="text-lg font-semibold text-red-500">
 						Danger Zone
 					</h2>
 
 					<div className="space-y-4">
 						{/* Clone App */}
-						<div className="flex items-center justify-between p-3 rounded-md border border-border">
+						<div className="flex items-center justify-between p-3 rounded-md border border-white/[0.08]">
 							<div>
-								<h3 className="text-sm font-medium text-foreground">
+								<h3 className="text-sm font-medium text-white/90">
 									Clone App
 								</h3>
-								<p className="text-xs text-muted-foreground">
+								<p className="text-xs text-white/40">
 									Create a copy of this app with all its files
 								</p>
 							</div>
@@ -437,7 +437,7 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 								type="button"
 								onClick={handleClone}
 								disabled={cloning}
-								className="px-3 py-1.5 rounded-md border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50 flex items-center gap-2"
+								className="px-3 py-1.5 rounded-md border border-white/[0.08] text-sm font-medium text-white/90 hover:bg-white/[0.06] transition-colors disabled:opacity-50 flex items-center gap-2"
 							>
 								{cloning && (
 									<Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -452,7 +452,7 @@ export function SettingsPanel({ appId }: SettingsPanelProps) {
 								<h3 className="text-sm font-medium text-red-500">
 									Delete App
 								</h3>
-								<p className="text-xs text-muted-foreground">
+								<p className="text-xs text-white/40">
 									Permanently delete this app and all its
 									data. This cannot be undone.
 								</p>

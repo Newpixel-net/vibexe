@@ -38,7 +38,7 @@ function CopyButton({ text }: { text: string }) {
 		<button
 			type="button"
 			onClick={handleCopy}
-			className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+			className="p-1 rounded hover:bg-white/[0.06] text-white/40 hover:text-white/90 transition-colors"
 			title={copied ? "Copied!" : "Copy"}
 		>
 			{copied ? (
@@ -56,7 +56,7 @@ function CodeBlock({ code }: { code: string }) {
 			<div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
 				<CopyButton text={code} />
 			</div>
-			<pre className="px-4 py-3 rounded-md bg-muted/70 text-xs font-mono text-foreground overflow-x-auto whitespace-pre-wrap">
+			<pre className="px-4 py-3 rounded-md bg-white/[0.06] border border-white/[0.08] text-xs font-mono text-white/90 overflow-x-auto whitespace-pre-wrap">
 				{code}
 			</pre>
 		</div>
@@ -82,12 +82,12 @@ function EndpointRow({
 	return (
 		<div className="flex items-center gap-3 px-4 py-2.5">
 			<span
-				className={`px-2 py-0.5 rounded text-xs font-bold ${methodColors[method] || "bg-muted text-foreground"}`}
+				className={`px-2 py-0.5 rounded text-xs font-bold ${methodColors[method] || "bg-white/[0.06] text-white/90"}`}
 			>
 				{method}
 			</span>
-			<code className="text-sm font-mono text-foreground flex-1">{path}</code>
-			<span className="text-xs text-muted-foreground">{description}</span>
+			<code className="text-sm font-mono text-white/90 flex-1">{path}</code>
+			<span className="text-xs text-white/40">{description}</span>
 		</div>
 	);
 }
@@ -209,11 +209,11 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 	if (!schema || schema.entities.length === 0) {
 		return (
 			<div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-				<Server className="h-12 w-12 text-muted-foreground/30 mb-4" />
-				<h2 className="text-xl font-semibold text-foreground mb-2">
+				<Server className="h-12 w-12 text-white/20 mb-4" />
+				<h2 className="text-xl font-semibold text-white/90 mb-2">
 					No API Endpoints Yet
 				</h2>
-				<p className="text-muted-foreground max-w-md text-sm">
+				<p className="text-white/40 max-w-md text-sm">
 					Ask the AI to build an app with data entities. Once entities are
 					defined, REST API endpoints are automatically generated.
 				</p>
@@ -227,17 +227,17 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 				{/* Header */}
 				<div className="flex items-center justify-between">
 					<div>
-						<h1 className="text-2xl font-bold text-foreground">
+						<h1 className="text-2xl font-bold text-white/90">
 							API Reference
 						</h1>
-						<p className="text-sm text-muted-foreground mt-1">
+						<p className="text-sm text-white/40 mt-1">
 							Auto-generated REST API for your app&apos;s data entities
 						</p>
 					</div>
 					<button
 						type="button"
 						onClick={generateOpenApi}
-						className="px-3 py-1.5 rounded-md border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center gap-1.5"
+						className="px-3 py-1.5 rounded-md border border-white/[0.08] text-sm font-medium text-white/40 hover:text-white/90 hover:bg-white/[0.06] transition-colors flex items-center gap-1.5"
 					>
 						<Download className="h-3.5 w-3.5" />
 						OpenAPI JSON
@@ -245,13 +245,13 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 				</div>
 
 				{/* Base URL */}
-				<div className="rounded-lg border border-border bg-card p-4">
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
 					<div className="flex items-center justify-between">
 						<div>
-							<h3 className="text-sm font-medium text-foreground">
+							<h3 className="text-sm font-medium text-white/90">
 								Base URL
 							</h3>
-							<code className="text-xs font-mono text-muted-foreground">
+							<code className="text-xs font-mono text-white/40">
 								{baseUrl}/api/apps/{appId}/data
 							</code>
 						</div>
@@ -260,18 +260,18 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 				</div>
 
 				{/* Authentication */}
-				<div className="rounded-lg border border-border bg-card p-4">
-					<h3 className="text-sm font-medium text-foreground mb-2">
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
+					<h3 className="text-sm font-medium text-white/90 mb-2">
 						Authentication
 					</h3>
-					<p className="text-xs text-muted-foreground mb-3">
+					<p className="text-xs text-white/40 mb-3">
 						Include your API key in the request header:
 					</p>
 					<CodeBlock code={"X-Vibexe-Api-Key: vbx_your_api_key_here"} />
 				</div>
 
 				{/* Entity Tabs */}
-				<div className="flex gap-2 border-b border-border pb-0">
+				<div className="flex gap-2 border-b border-white/[0.06] pb-0">
 					{schema.entities.map((e) => (
 						<button
 							type="button"
@@ -279,8 +279,8 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 							onClick={() => setSelectedEntity(e.tableName)}
 							className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
 								selectedEntity === e.tableName
-									? "border-foreground text-foreground"
-									: "border-transparent text-muted-foreground hover:text-foreground"
+									? "border-violet-400 text-white/90"
+									: "border-transparent text-white/40 hover:text-white/90"
 							}`}
 						>
 							{e.name}
@@ -306,8 +306,8 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 									onClick={() => setActiveTab(tab.key)}
 									className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
 										activeTab === tab.key
-											? "bg-muted text-foreground"
-											: "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+											? "bg-white/[0.08] border border-white/[0.12] text-white/90"
+											: "text-white/40 hover:text-white/90 hover:bg-white/[0.06]"
 									}`}
 								>
 									{tab.label}
@@ -318,13 +318,13 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 						{/* Endpoints */}
 						{activeTab === "endpoints" && (
 							<>
-								<div className="rounded-lg border border-border bg-card overflow-hidden">
-									<div className="p-4 border-b border-border">
-										<h3 className="text-sm font-medium text-foreground">
+								<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm overflow-hidden">
+									<div className="p-4 border-b border-white/[0.06]">
+										<h3 className="text-sm font-medium text-white/90">
 											Endpoints for {entity.name}
 										</h3>
 									</div>
-									<div className="divide-y divide-border">
+									<div className="divide-y divide-white/[0.06]">
 										<EndpointRow
 											method="GET"
 											path={`/data/${entity.tableName}`}
@@ -354,61 +354,61 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 								</div>
 
 								{/* Schema Table */}
-								<div className="rounded-lg border border-border bg-card p-4">
-									<h3 className="text-sm font-medium text-foreground mb-3">
+								<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
+									<h3 className="text-sm font-medium text-white/90 mb-3">
 										Schema
 									</h3>
 									<div className="overflow-x-auto">
 										<table className="w-full text-sm">
 											<thead>
-												<tr className="border-b border-border">
-													<th className="text-left py-2 pr-4 text-muted-foreground font-medium">
+												<tr className="border-b border-white/[0.06]">
+													<th className="text-left py-2 pr-4 text-white/40 font-medium">
 														Field
 													</th>
-													<th className="text-left py-2 pr-4 text-muted-foreground font-medium">
+													<th className="text-left py-2 pr-4 text-white/40 font-medium">
 														Type
 													</th>
-													<th className="text-left py-2 text-muted-foreground font-medium">
+													<th className="text-left py-2 text-white/40 font-medium">
 														Required
 													</th>
 												</tr>
 											</thead>
 											<tbody>
-												<tr className="border-b border-border/50">
+												<tr className="border-b border-white/[0.06]/50">
 													<td className="py-2 pr-4 font-mono text-xs">
 														id
 													</td>
-													<td className="py-2 pr-4 text-muted-foreground">
+													<td className="py-2 pr-4 text-white/40">
 														integer
 													</td>
-													<td className="py-2 text-muted-foreground">
+													<td className="py-2 text-white/40">
 														auto
 													</td>
 												</tr>
 												{entity.fields.map((field) => (
 													<tr
 														key={field.name}
-														className="border-b border-border/50"
+														className="border-b border-white/[0.06]/50"
 													>
 														<td className="py-2 pr-4 font-mono text-xs">
 															{field.name}
 														</td>
-														<td className="py-2 pr-4 text-muted-foreground">
+														<td className="py-2 pr-4 text-white/40">
 															{field.type}
 														</td>
-														<td className="py-2 text-muted-foreground">
+														<td className="py-2 text-white/40">
 															{field.required ? "yes" : "no"}
 														</td>
 													</tr>
 												))}
-												<tr className="border-b border-border/50">
+												<tr className="border-b border-white/[0.06]/50">
 													<td className="py-2 pr-4 font-mono text-xs">
 														created_at
 													</td>
-													<td className="py-2 pr-4 text-muted-foreground">
+													<td className="py-2 pr-4 text-white/40">
 														timestamp
 													</td>
-													<td className="py-2 text-muted-foreground">
+													<td className="py-2 text-white/40">
 														auto
 													</td>
 												</tr>
@@ -416,10 +416,10 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 													<td className="py-2 pr-4 font-mono text-xs">
 														updated_at
 													</td>
-													<td className="py-2 pr-4 text-muted-foreground">
+													<td className="py-2 pr-4 text-white/40">
 														timestamp
 													</td>
-													<td className="py-2 text-muted-foreground">
+													<td className="py-2 text-white/40">
 														auto
 													</td>
 												</tr>
@@ -433,54 +433,54 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 						{/* Query Parameters */}
 						{activeTab === "params" && (
 							<div className="space-y-4">
-								<div className="rounded-lg border border-border bg-card p-4">
-									<h3 className="text-sm font-medium text-foreground mb-3">
+								<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
+									<h3 className="text-sm font-medium text-white/90 mb-3">
 										Pagination
 									</h3>
 									<div className="overflow-x-auto">
 										<table className="w-full text-sm">
 											<thead>
-												<tr className="border-b border-border">
-													<th className="text-left py-2 pr-4 text-muted-foreground font-medium">
+												<tr className="border-b border-white/[0.06]">
+													<th className="text-left py-2 pr-4 text-white/40 font-medium">
 														Param
 													</th>
-													<th className="text-left py-2 pr-4 text-muted-foreground font-medium">
+													<th className="text-left py-2 pr-4 text-white/40 font-medium">
 														Type
 													</th>
-													<th className="text-left py-2 pr-4 text-muted-foreground font-medium">
+													<th className="text-left py-2 pr-4 text-white/40 font-medium">
 														Default
 													</th>
-													<th className="text-left py-2 text-muted-foreground font-medium">
+													<th className="text-left py-2 text-white/40 font-medium">
 														Description
 													</th>
 												</tr>
 											</thead>
 											<tbody className="text-xs">
-												<tr className="border-b border-border/50">
+												<tr className="border-b border-white/[0.06]/50">
 													<td className="py-2 pr-4 font-mono">
 														page
 													</td>
-													<td className="py-2 pr-4 text-muted-foreground">
+													<td className="py-2 pr-4 text-white/40">
 														integer
 													</td>
-													<td className="py-2 pr-4 text-muted-foreground">
+													<td className="py-2 pr-4 text-white/40">
 														1
 													</td>
-													<td className="py-2 text-muted-foreground">
+													<td className="py-2 text-white/40">
 														Page number (starts at 1)
 													</td>
 												</tr>
-												<tr className="border-b border-border/50">
+												<tr className="border-b border-white/[0.06]/50">
 													<td className="py-2 pr-4 font-mono">
 														limit
 													</td>
-													<td className="py-2 pr-4 text-muted-foreground">
+													<td className="py-2 pr-4 text-white/40">
 														integer
 													</td>
-													<td className="py-2 pr-4 text-muted-foreground">
+													<td className="py-2 pr-4 text-white/40">
 														20
 													</td>
-													<td className="py-2 text-muted-foreground">
+													<td className="py-2 text-white/40">
 														Records per page (max 100)
 													</td>
 												</tr>
@@ -489,65 +489,65 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 									</div>
 								</div>
 
-								<div className="rounded-lg border border-border bg-card p-4">
-									<h3 className="text-sm font-medium text-foreground mb-3">
+								<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
+									<h3 className="text-sm font-medium text-white/90 mb-3">
 										Sorting
 									</h3>
 									<div className="overflow-x-auto">
 										<table className="w-full text-sm">
 											<thead>
-												<tr className="border-b border-border">
-													<th className="text-left py-2 pr-4 text-muted-foreground font-medium">
+												<tr className="border-b border-white/[0.06]">
+													<th className="text-left py-2 pr-4 text-white/40 font-medium">
 														Param
 													</th>
-													<th className="text-left py-2 pr-4 text-muted-foreground font-medium">
+													<th className="text-left py-2 pr-4 text-white/40 font-medium">
 														Type
 													</th>
-													<th className="text-left py-2 pr-4 text-muted-foreground font-medium">
+													<th className="text-left py-2 pr-4 text-white/40 font-medium">
 														Default
 													</th>
-													<th className="text-left py-2 text-muted-foreground font-medium">
+													<th className="text-left py-2 text-white/40 font-medium">
 														Description
 													</th>
 												</tr>
 											</thead>
 											<tbody className="text-xs">
-												<tr className="border-b border-border/50">
+												<tr className="border-b border-white/[0.06]/50">
 													<td className="py-2 pr-4 font-mono">
 														sort
 													</td>
-													<td className="py-2 pr-4 text-muted-foreground">
+													<td className="py-2 pr-4 text-white/40">
 														string
 													</td>
-													<td className="py-2 pr-4 text-muted-foreground">
+													<td className="py-2 pr-4 text-white/40">
 														created_at
 													</td>
-													<td className="py-2 text-muted-foreground">
+													<td className="py-2 text-white/40">
 														Field to sort by. Valid:{" "}
-														<code className="text-foreground">
+														<code className="text-white/90">
 															id, created_at, updated_at
 															{entity.fields.length > 0 &&
 																`, ${entity.fields.map((f) => f.name).join(", ")}`}
 														</code>
 													</td>
 												</tr>
-												<tr className="border-b border-border/50">
+												<tr className="border-b border-white/[0.06]/50">
 													<td className="py-2 pr-4 font-mono">
 														order
 													</td>
-													<td className="py-2 pr-4 text-muted-foreground">
+													<td className="py-2 pr-4 text-white/40">
 														string
 													</td>
-													<td className="py-2 pr-4 text-muted-foreground">
+													<td className="py-2 pr-4 text-white/40">
 														desc
 													</td>
-													<td className="py-2 text-muted-foreground">
+													<td className="py-2 text-white/40">
 														Sort direction:{" "}
-														<code className="text-foreground">
+														<code className="text-white/90">
 															asc
 														</code>{" "}
 														or{" "}
-														<code className="text-foreground">
+														<code className="text-white/90">
 															desc
 														</code>
 													</td>
@@ -557,25 +557,25 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 									</div>
 								</div>
 
-								<div className="rounded-lg border border-border bg-card p-4">
-									<h3 className="text-sm font-medium text-foreground mb-3">
+								<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
+									<h3 className="text-sm font-medium text-white/90 mb-3">
 										Filtering
 									</h3>
-									<p className="text-xs text-muted-foreground mb-3">
+									<p className="text-xs text-white/40 mb-3">
 										Filter records by field values using bracket
 										notation:
 									</p>
 									<CodeBlock
 										code={`GET /data/${entity.tableName}?filter[${entity.fields[0]?.name || "field"}]=value`}
 									/>
-									<p className="text-xs text-muted-foreground mt-3">
+									<p className="text-xs text-white/40 mt-3">
 										Multiple filters can be combined (AND logic):
 									</p>
 									<CodeBlock
 										code={`GET /data/${entity.tableName}?filter[${entity.fields[0]?.name || "field"}]=value&filter[${entity.fields[1]?.name || "field2"}]=value2`}
 									/>
 									<div className="mt-3">
-										<p className="text-xs text-muted-foreground mb-2">
+										<p className="text-xs text-white/40 mb-2">
 											Filterable fields for {entity.name}:
 										</p>
 										<div className="flex flex-wrap gap-1.5">
@@ -587,7 +587,7 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 											].map((f) => (
 												<code
 													key={f}
-													className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono text-foreground"
+													className="px-1.5 py-0.5 rounded bg-white/[0.06] text-xs font-mono text-white/90"
 												>
 													{f}
 												</code>
@@ -596,8 +596,8 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 									</div>
 								</div>
 
-								<div className="rounded-lg border border-border bg-card p-4">
-									<h3 className="text-sm font-medium text-foreground mb-2">
+								<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
+									<h3 className="text-sm font-medium text-white/90 mb-2">
 										Response Format
 									</h3>
 									<CodeBlock
@@ -617,37 +617,37 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 
 						{/* Error Codes */}
 						{activeTab === "errors" && (
-							<div className="rounded-lg border border-border bg-card overflow-hidden">
-								<div className="p-4 border-b border-border">
-									<h3 className="text-sm font-medium text-foreground">
+							<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm overflow-hidden">
+								<div className="p-4 border-b border-white/[0.06]">
+									<h3 className="text-sm font-medium text-white/90">
 										Error Codes
 									</h3>
 								</div>
 								<table className="w-full text-sm">
 									<thead>
-										<tr className="bg-muted/30">
-											<th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
+										<tr className="bg-white/[0.03]">
+											<th className="px-4 py-2.5 text-left text-xs font-medium text-white/40">
 												Status
 											</th>
-											<th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
+											<th className="px-4 py-2.5 text-left text-xs font-medium text-white/40">
 												Meaning
 											</th>
-											<th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
+											<th className="px-4 py-2.5 text-left text-xs font-medium text-white/40">
 												Response
 											</th>
 										</tr>
 									</thead>
-									<tbody className="divide-y divide-border text-xs">
+									<tbody className="divide-y divide-white/[0.06] text-xs">
 										<tr>
 											<td className="px-4 py-2.5">
 												<span className="px-2 py-0.5 rounded bg-green-500/10 text-green-600 font-bold">
 													200
 												</span>
 											</td>
-											<td className="px-4 py-2.5 text-foreground">
+											<td className="px-4 py-2.5 text-white/90">
 												Success
 											</td>
-											<td className="px-4 py-2.5 text-muted-foreground font-mono">
+											<td className="px-4 py-2.5 text-white/40 font-mono">
 												{'{ "data": ... }'}
 											</td>
 										</tr>
@@ -657,10 +657,10 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 													201
 												</span>
 											</td>
-											<td className="px-4 py-2.5 text-foreground">
+											<td className="px-4 py-2.5 text-white/90">
 												Created (POST success)
 											</td>
-											<td className="px-4 py-2.5 text-muted-foreground font-mono">
+											<td className="px-4 py-2.5 text-white/40 font-mono">
 												{'{ "data": { ... } }'}
 											</td>
 										</tr>
@@ -670,11 +670,11 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 													400
 												</span>
 											</td>
-											<td className="px-4 py-2.5 text-foreground">
+											<td className="px-4 py-2.5 text-white/90">
 												Bad Request — invalid body or no valid
 												fields
 											</td>
-											<td className="px-4 py-2.5 text-muted-foreground font-mono">
+											<td className="px-4 py-2.5 text-white/40 font-mono">
 												{'{ "error": "No valid fields provided" }'}
 											</td>
 										</tr>
@@ -684,10 +684,10 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 													401
 												</span>
 											</td>
-											<td className="px-4 py-2.5 text-foreground">
+											<td className="px-4 py-2.5 text-white/90">
 												Unauthorized — missing or invalid API key
 											</td>
-											<td className="px-4 py-2.5 text-muted-foreground font-mono">
+											<td className="px-4 py-2.5 text-white/40 font-mono">
 												{'{ "error": "Invalid API key" }'}
 											</td>
 										</tr>
@@ -697,11 +697,11 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 													404
 												</span>
 											</td>
-											<td className="px-4 py-2.5 text-foreground">
+											<td className="px-4 py-2.5 text-white/90">
 												Not Found — entity or record doesn&apos;t
 												exist
 											</td>
-											<td className="px-4 py-2.5 text-muted-foreground font-mono">
+											<td className="px-4 py-2.5 text-white/40 font-mono">
 												{'{ "error": "Not found" }'}
 											</td>
 										</tr>
@@ -711,10 +711,10 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 													500
 												</span>
 											</td>
-											<td className="px-4 py-2.5 text-foreground">
+											<td className="px-4 py-2.5 text-white/90">
 												Internal Server Error
 											</td>
-											<td className="px-4 py-2.5 text-muted-foreground font-mono">
+											<td className="px-4 py-2.5 text-white/40 font-mono">
 												{
 													'{ "error": "Internal server error" }'
 												}
@@ -726,11 +726,11 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 													503
 												</span>
 											</td>
-											<td className="px-4 py-2.5 text-foreground">
+											<td className="px-4 py-2.5 text-white/90">
 												Service Unavailable — app database not
 												provisioned
 											</td>
-											<td className="px-4 py-2.5 text-muted-foreground font-mono">
+											<td className="px-4 py-2.5 text-white/40 font-mono">
 												{
 													'{ "error": "App database not available" }'
 												}
@@ -745,13 +745,13 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 						{activeTab === "sdk" && (
 							<div className="space-y-4">
 								{/* cURL Examples */}
-								<div className="rounded-lg border border-border bg-card p-4 space-y-4">
-									<h3 className="text-sm font-medium text-foreground">
+								<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-4">
+									<h3 className="text-sm font-medium text-white/90">
 										cURL Examples
 									</h3>
 
 									<div>
-										<p className="text-xs text-muted-foreground mb-2">
+										<p className="text-xs text-white/40 mb-2">
 											List records (with pagination and sorting):
 										</p>
 										<CodeBlock
@@ -760,7 +760,7 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 									</div>
 
 									<div>
-										<p className="text-xs text-muted-foreground mb-2">
+										<p className="text-xs text-white/40 mb-2">
 											Get single record:
 										</p>
 										<CodeBlock
@@ -769,7 +769,7 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 									</div>
 
 									<div>
-										<p className="text-xs text-muted-foreground mb-2">
+										<p className="text-xs text-white/40 mb-2">
 											Create record:
 										</p>
 										<CodeBlock
@@ -791,7 +791,7 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 									</div>
 
 									<div>
-										<p className="text-xs text-muted-foreground mb-2">
+										<p className="text-xs text-white/40 mb-2">
 											Update record:
 										</p>
 										<CodeBlock
@@ -811,7 +811,7 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 									</div>
 
 									<div>
-										<p className="text-xs text-muted-foreground mb-2">
+										<p className="text-xs text-white/40 mb-2">
 											Delete record:
 										</p>
 										<CodeBlock
@@ -820,7 +820,7 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 									</div>
 
 									<div>
-										<p className="text-xs text-muted-foreground mb-2">
+										<p className="text-xs text-white/40 mb-2">
 											Filter records:
 										</p>
 										<CodeBlock
@@ -830,8 +830,8 @@ export function ApiDocsPanel({ appId, schema }: ApiDocsPanelProps) {
 								</div>
 
 								{/* SDK Example */}
-								<div className="rounded-lg border border-border bg-card p-4 space-y-3">
-									<h3 className="text-sm font-medium text-foreground">
+								<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-3">
+									<h3 className="text-sm font-medium text-white/90">
 										Vibexe SDK (JavaScript/TypeScript)
 									</h3>
 									<CodeBlock

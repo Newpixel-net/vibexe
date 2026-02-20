@@ -113,9 +113,9 @@ export function DashboardSidebar({
 	};
 
 	return (
-		<div className="w-[200px] border-r border-border bg-background">
+		<div className="w-[200px] border-r border-white/[0.06] backdrop-blur-xl bg-white/[0.02]">
 			<ScrollArea className="h-full">
-				<nav className="p-2 space-y-1">
+				<nav className="p-2 space-y-0.5">
 					{navItems.map((item) => {
 						const Icon = item.icon;
 						const hasChildren = item.children && item.children.length > 0;
@@ -132,7 +132,6 @@ export function DashboardSidebar({
 									onClick={() => {
 										if (hasChildren) {
 											toggleExpand(item.id);
-											// Navigate to first child if not already on a child
 											if (
 												!item.children!.some(
 													(c) => c.id === activeSection,
@@ -145,12 +144,12 @@ export function DashboardSidebar({
 										}
 									}}
 									className={cn(
-										"w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+										"w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150",
 										isActive && !hasChildren
-											? "bg-muted text-foreground"
+											? "bg-white/[0.08] text-white/90 font-medium border-l-2 border-violet-400 pl-[10px] shadow-[0_0_12px_rgba(124,58,237,0.08)]"
 											: isActive && hasChildren
-												? "text-foreground"
-												: "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+												? "text-white/90 font-medium"
+												: "text-white/40 hover:text-white/70 hover:bg-white/[0.06]",
 									)}
 								>
 									<Icon className="h-4 w-4 shrink-0" />
@@ -167,17 +166,17 @@ export function DashboardSidebar({
 									)}
 								</button>
 								{hasChildren && isExpanded && (
-									<div className="ml-4 mt-1 space-y-0.5">
+									<div className="ml-4 mt-0.5 space-y-0.5">
 										{item.children!.map((child) => (
 											<button
 												type="button"
 												key={child.id}
 												onClick={() => onSectionChange(child.id)}
 												className={cn(
-													"w-full flex items-center px-3 py-1.5 rounded-md text-sm transition-colors",
+													"w-full flex items-center px-3 py-1.5 rounded-lg text-sm transition-all duration-150",
 													activeSection === child.id
-														? "bg-muted text-foreground font-medium"
-														: "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+														? "bg-white/[0.08] text-white/90 font-medium border-l-2 border-violet-400 pl-[10px] shadow-[0_0_12px_rgba(124,58,237,0.08)]"
+														: "text-white/40 hover:text-white/70 hover:bg-white/[0.06]",
 												)}
 											>
 												<span className="truncate">

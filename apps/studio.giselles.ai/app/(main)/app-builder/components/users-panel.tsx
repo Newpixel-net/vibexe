@@ -270,7 +270,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 	if (loading && users.length === 0) {
 		return (
 			<div className="flex-1 flex items-center justify-center">
-				<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+				<Loader2 className="h-6 w-6 animate-spin text-white/40" />
 			</div>
 		);
 	}
@@ -278,9 +278,9 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 	if (!hasDatabase) {
 		return (
 			<div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-				<Users className="h-12 w-12 text-muted-foreground/30 mb-4" />
-				<h2 className="text-xl font-semibold text-foreground mb-2">Users</h2>
-				<p className="text-muted-foreground max-w-md text-sm">
+				<Users className="h-12 w-12 text-white/20 mb-4" />
+				<h2 className="text-xl font-semibold text-white/90 mb-2">Users</h2>
+				<p className="text-white/40 max-w-md text-sm">
 					No backend database has been provisioned for this app yet. Define data
 					entities in the builder to create one.
 				</p>
@@ -294,8 +294,8 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 				{/* Header */}
 				<div className="flex items-center justify-between">
 					<div>
-						<h1 className="text-2xl font-bold text-foreground">Users</h1>
-						<p className="text-sm text-muted-foreground mt-1">
+						<h1 className="text-2xl font-bold text-white/90">Users</h1>
+						<p className="text-sm text-white/40 mt-1">
 							{total} registered user{total !== 1 ? "s" : ""}
 						</p>
 					</div>
@@ -303,7 +303,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 						<button
 							type="button"
 							onClick={handleExport}
-							className="px-3 py-1.5 rounded-md border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center gap-1.5"
+							className="px-3 py-1.5 rounded-md border border-white/[0.08] text-sm font-medium text-white/40 hover:text-white/90 hover:bg-white/[0.06] transition-colors flex items-center gap-1.5"
 						>
 							<Download className="h-3.5 w-3.5" />
 							Export
@@ -311,7 +311,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 						<button
 							type="button"
 							onClick={() => setShowAddUser(!showAddUser)}
-							className="px-3 py-1.5 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity flex items-center gap-1.5"
+							className="px-3 py-1.5 rounded-md bg-gradient-to-r from-violet-500/80 to-cyan-500/80 text-white hover:from-violet-500 hover:to-cyan-500 text-sm font-medium hover:opacity-90 transition-opacity flex items-center gap-1.5"
 						>
 							<UserPlus className="h-3.5 w-3.5" />
 							Add User
@@ -321,8 +321,8 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 
 				{/* Add User Form */}
 				{showAddUser && (
-					<div className="rounded-lg border border-border bg-card p-4 space-y-3">
-						<h3 className="text-sm font-medium text-foreground">
+					<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-3">
+						<h3 className="text-sm font-medium text-white/90">
 							Create New User
 						</h3>
 						<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -331,26 +331,26 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 								value={newEmail}
 								onChange={(e) => setNewEmail(e.target.value)}
 								placeholder="Email address *"
-								className="px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+								className="px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 							/>
 							<input
 								type="text"
 								value={newName}
 								onChange={(e) => setNewName(e.target.value)}
 								placeholder="Display name"
-								className="px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+								className="px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 							/>
 							<input
 								type="password"
 								value={newPassword}
 								onChange={(e) => setNewPassword(e.target.value)}
 								placeholder="Password (auto-generated if empty)"
-								className="px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+								className="px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 							/>
 							<select
 								value={newRole}
 								onChange={(e) => setNewRole(e.target.value)}
-								className="px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+								className="px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 							>
 								<option value="user">User</option>
 								<option value="admin">Admin</option>
@@ -363,7 +363,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 								type="button"
 								onClick={handleAddUser}
 								disabled={!newEmail.trim() || actionLoading === "add-user"}
-								className="px-4 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+								className="px-4 py-2 rounded-md bg-gradient-to-r from-violet-500/80 to-cyan-500/80 text-white hover:from-violet-500 hover:to-cyan-500 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
 							>
 								{actionLoading === "add-user" && (
 									<Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -373,7 +373,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 							<button
 								type="button"
 								onClick={() => setShowAddUser(false)}
-								className="px-4 py-2 rounded-md border border-border text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+								className="px-4 py-2 rounded-md border border-white/[0.08] text-sm font-medium text-white/40 hover:text-white/90 transition-colors"
 							>
 								Cancel
 							</button>
@@ -384,19 +384,19 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 				{/* Search + Filters */}
 				<div className="flex flex-col sm:flex-row gap-3">
 					<div className="relative flex-1">
-						<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+						<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
 						<input
 							type="text"
 							value={search}
 							onChange={(e) => setSearch(e.target.value)}
 							placeholder="Search by email or name..."
-							className="w-full pl-9 pr-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+							className="w-full pl-9 pr-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 						/>
 					</div>
 					<select
 						value={roleFilter}
 						onChange={(e) => setRoleFilter(e.target.value)}
-						className="px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+						className="px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 					>
 						<option value="all">All Roles</option>
 						{roles.map((r) => (
@@ -408,7 +408,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 					<button
 						type="button"
 						onClick={() => fetchUsers()}
-						className="p-2 rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+						className="p-2 rounded-md border border-white/[0.08] hover:bg-white/[0.06] text-white/40 hover:text-white/90 transition-colors"
 						title="Refresh"
 					>
 						<RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -417,8 +417,8 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 
 				{/* Bulk Actions Bar */}
 				{selectedIds.size > 0 && (
-					<div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-muted/50 border border-border">
-						<span className="text-sm text-foreground font-medium">
+					<div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-white/[0.04] backdrop-blur-sm border border-white/[0.08]">
+						<span className="text-sm text-white/90 font-medium">
 							{selectedIds.size} selected
 						</span>
 						<button
@@ -437,7 +437,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 						<button
 							type="button"
 							onClick={() => setSelectedIds(new Set())}
-							className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+							className="text-xs text-white/40 hover:text-white/90 transition-colors"
 						>
 							Clear selection
 						</button>
@@ -446,22 +446,22 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 
 				{/* User Table */}
 				{filteredUsers.length === 0 ? (
-					<div className="flex flex-col items-center justify-center py-12 text-center rounded-lg border border-border bg-card">
-						<Users className="h-10 w-10 text-muted-foreground/30 mb-3" />
-						<h3 className="text-sm font-medium text-foreground mb-1">
+					<div className="flex flex-col items-center justify-center py-12 text-center rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm">
+						<Users className="h-10 w-10 text-white/20 mb-3" />
+						<h3 className="text-sm font-medium text-white/90 mb-1">
 							{users.length === 0 ? "No users yet" : "No matching users"}
 						</h3>
-						<p className="text-xs text-muted-foreground max-w-sm">
+						<p className="text-xs text-white/40 max-w-sm">
 							{users.length === 0
 								? "Users will appear here when they sign up through your app."
 								: "Try adjusting your search or filter criteria."}
 						</p>
 					</div>
 				) : (
-					<div className="overflow-x-auto rounded-lg border border-border">
+					<div className="overflow-x-auto rounded-xl border border-white/[0.08]">
 						<table className="w-full text-sm">
 							<thead>
-								<tr className="bg-muted/30">
+								<tr className="bg-white/[0.03]">
 									<th className="px-3 py-2.5 text-left w-8">
 										<input
 											type="checkbox"
@@ -470,57 +470,57 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 												filteredUsers.length > 0
 											}
 											onChange={toggleSelectAll}
-											className="rounded border-border"
+											className="rounded border-white/[0.08]"
 										/>
 									</th>
 									<th
-										className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase cursor-pointer group"
+										className="px-3 py-2.5 text-left text-xs font-medium text-white/40 uppercase cursor-pointer group"
 										onClick={() => handleSort("email")}
 									>
 										<span className="flex items-center gap-1">
 											Email <SortIcon field="email" />
 										</span>
 									</th>
-									<th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">
+									<th className="px-3 py-2.5 text-left text-xs font-medium text-white/40 uppercase">
 										Name
 									</th>
 									<th
-										className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase cursor-pointer group"
+										className="px-3 py-2.5 text-left text-xs font-medium text-white/40 uppercase cursor-pointer group"
 										onClick={() => handleSort("role")}
 									>
 										<span className="flex items-center gap-1">
 											Role <SortIcon field="role" />
 										</span>
 									</th>
-									<th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase">
+									<th className="px-3 py-2.5 text-left text-xs font-medium text-white/40 uppercase">
 										Status
 									</th>
 									<th
-										className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase cursor-pointer group"
+										className="px-3 py-2.5 text-left text-xs font-medium text-white/40 uppercase cursor-pointer group"
 										onClick={() => handleSort("created_at")}
 									>
 										<span className="flex items-center gap-1">
 											Joined <SortIcon field="created_at" />
 										</span>
 									</th>
-									<th className="px-3 py-2.5 text-right text-xs font-medium text-muted-foreground uppercase w-20">
+									<th className="px-3 py-2.5 text-right text-xs font-medium text-white/40 uppercase w-20">
 										Actions
 									</th>
 								</tr>
 							</thead>
-							<tbody className="divide-y divide-border">
+							<tbody className="divide-y divide-white/[0.06]">
 								{filteredUsers.map((user) => (
 									<>
 										<tr
 											key={user.id}
-											className={`hover:bg-muted/20 transition-colors ${expandedId === user.id ? "bg-muted/20" : ""}`}
+											className={`hover:bg-white/[0.04] transition-colors ${expandedId === user.id ? "bg-white/[0.04]" : ""}`}
 										>
 											<td className="px-3 py-2.5">
 												<input
 													type="checkbox"
 													checked={selectedIds.has(user.id)}
 													onChange={() => toggleSelect(user.id)}
-													className="rounded border-border"
+													className="rounded border-white/[0.08]"
 												/>
 											</td>
 											<td className="px-3 py-2.5">
@@ -531,14 +531,14 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 															expandedId === user.id ? null : user.id,
 														)
 													}
-													className="text-foreground hover:underline text-left"
+													className="text-white/90 hover:underline text-left"
 												>
 													{user.email}
 												</button>
 											</td>
-											<td className="px-3 py-2.5 text-foreground">
+											<td className="px-3 py-2.5 text-white/90">
 												{user.display_name || (
-													<span className="text-muted-foreground">--</span>
+													<span className="text-white/40">--</span>
 												)}
 											</td>
 											<td className="px-3 py-2.5">
@@ -549,7 +549,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 															onChange={(e) =>
 																setEditRoleValue(e.target.value)
 															}
-															className="px-1.5 py-0.5 rounded border border-border bg-background text-foreground text-xs"
+															className="px-1.5 py-0.5 rounded border border-white/[0.1] bg-white/[0.06] text-white/90 text-xs"
 														>
 															<option value="user">user</option>
 															<option value="admin">admin</option>
@@ -566,7 +566,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 														<button
 															type="button"
 															onClick={() => setEditingRole(null)}
-															className="p-0.5 text-muted-foreground hover:text-foreground"
+															className="p-0.5 text-white/40 hover:text-white/90"
 														>
 															<X className="h-3 w-3" />
 														</button>
@@ -578,7 +578,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 															setEditingRole(user.id);
 															setEditRoleValue(user.role);
 														}}
-														className="px-2 py-0.5 text-xs rounded-full bg-muted text-foreground hover:bg-muted-foreground/20 transition-colors"
+														className="px-2 py-0.5 text-xs rounded-full bg-white/[0.06] text-white/90 hover:bg-white/[0.08] transition-colors"
 														title="Click to edit role"
 													>
 														{user.role}
@@ -592,13 +592,13 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 														Verified
 													</span>
 												) : (
-													<span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+													<span className="inline-flex items-center gap-1 text-xs text-white/40">
 														<AlertCircle className="h-3 w-3" />
 														Pending
 													</span>
 												)}
 											</td>
-											<td className="px-3 py-2.5 text-muted-foreground text-xs">
+											<td className="px-3 py-2.5 text-white/40 text-xs">
 												{new Date(user.created_at).toLocaleDateString()}
 											</td>
 											<td className="px-3 py-2.5 text-right">
@@ -608,7 +608,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 													disabled={
 														actionLoading === `delete-${user.id}`
 													}
-													className="p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors"
+													className="p-1 rounded text-white/40 hover:text-red-500 hover:bg-red-500/10 transition-colors"
 													title="Delete user"
 												>
 													{actionLoading === `delete-${user.id}` ? (
@@ -622,39 +622,39 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 										{/* Expanded detail row */}
 										{expandedId === user.id && (
 											<tr key={`${user.id}-detail`}>
-												<td colSpan={7} className="px-6 py-4 bg-muted/10">
+												<td colSpan={7} className="px-6 py-4 bg-white/[0.01]">
 													<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
 														<div>
-															<span className="text-muted-foreground block mb-1">
+															<span className="text-white/40 block mb-1">
 																User ID
 															</span>
-															<span className="text-foreground font-mono">
+															<span className="text-white/90 font-mono">
 																{user.id}
 															</span>
 														</div>
 														<div>
-															<span className="text-muted-foreground block mb-1">
+															<span className="text-white/40 block mb-1">
 																Email
 															</span>
-															<span className="text-foreground">
+															<span className="text-white/90">
 																{user.email}
 															</span>
 														</div>
 														<div>
-															<span className="text-muted-foreground block mb-1">
+															<span className="text-white/40 block mb-1">
 																Created
 															</span>
-															<span className="text-foreground">
+															<span className="text-white/90">
 																{new Date(
 																	user.created_at,
 																).toLocaleString()}
 															</span>
 														</div>
 														<div>
-															<span className="text-muted-foreground block mb-1">
+															<span className="text-white/40 block mb-1">
 																Updated
 															</span>
-															<span className="text-foreground">
+															<span className="text-white/90">
 																{user.updated_at
 																	? new Date(
 																			user.updated_at,
@@ -676,7 +676,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 				{/* Pagination */}
 				{totalPages > 1 && (
 					<div className="flex items-center justify-between">
-						<p className="text-xs text-muted-foreground">
+						<p className="text-xs text-white/40">
 							Page {page} of {totalPages} ({total} total)
 						</p>
 						<div className="flex items-center gap-2">
@@ -684,7 +684,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 								type="button"
 								onClick={() => setPage((p) => Math.max(1, p - 1))}
 								disabled={page <= 1}
-								className="px-3 py-1.5 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+								className="px-3 py-1.5 rounded-md border border-white/[0.08] text-sm text-white/40 hover:text-white/90 disabled:opacity-40 transition-colors"
 							>
 								Previous
 							</button>
@@ -692,7 +692,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 								type="button"
 								onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
 								disabled={page >= totalPages}
-								className="px-3 py-1.5 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+								className="px-3 py-1.5 rounded-md border border-white/[0.08] text-sm text-white/40 hover:text-white/90 disabled:opacity-40 transition-colors"
 							>
 								Next
 							</button>

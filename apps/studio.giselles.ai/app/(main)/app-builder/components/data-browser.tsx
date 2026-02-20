@@ -31,7 +31,7 @@ export function DataBrowser({ appId, schema }: DataBrowserProps) {
 
   if (!schema || schema.entities.length === 0) {
     return (
-      <div className="text-center py-16 text-zinc-500">
+      <div className="text-center py-16 text-white/40">
         <p className="text-lg mb-2">No entities defined</p>
         <p className="text-sm">Add entities to your app schema to manage data here.</p>
       </div>
@@ -64,7 +64,7 @@ export function DataBrowser({ appId, schema }: DataBrowserProps) {
   return (
     <div>
       {/* Entity tab bar */}
-      <div className="flex items-center gap-1 mb-6 border-b border-zinc-700 overflow-x-auto">
+      <div className="flex items-center gap-1 mb-6 border-b border-white/[0.06] overflow-x-auto">
         {schema.entities.map((entity) => (
           <button
             key={entity.tableName}
@@ -76,8 +76,8 @@ export function DataBrowser({ appId, schema }: DataBrowserProps) {
             }}
             className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
               selectedEntity === entity.tableName
-                ? "border-blue-500 text-blue-400"
-                : "border-transparent text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
+                ? "border-violet-400 text-violet-300"
+                : "border-transparent text-white/40 hover:text-white/70 hover:border-white/40"
             }`}
           >
             {entity.name}
