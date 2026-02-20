@@ -103,9 +103,9 @@ export function DashboardPanel({
 			case "users":
 				return <UsersPanel appId={appId} />;
 			case "agents":
-				return <AgentsPanel />;
+				return <AgentsPanel appId={appId} />;
 			case "automations":
-				return <AutomationsPanel />;
+				return <AutomationsPanel appId={appId} />;
 			case "analytics":
 				return <AnalyticsPanel appId={appId} files={files} />;
 			case "domains":
@@ -138,7 +138,7 @@ export function DashboardPanel({
 				activeSection={activeSection}
 				onSectionChange={setActiveSection}
 			/>
-			<div className="flex-1 min-w-0">{renderContent()}</div>
+			<div className="flex-1 min-w-0 min-h-0 overflow-y-auto">{renderContent()}</div>
 		</div>
 	);
 }
