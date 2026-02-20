@@ -502,7 +502,7 @@ export function PhaseTimeline({
 							y: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
 							scaleY: { duration: 0.35, ease: [0.23, 1, 0.32, 1] },
 						}}
-						className="absolute -top-2 -left-2 -right-2 z-50 px-2 pt-4 pb-2"
+						className="sticky top-0 z-50 -mx-4 px-2 pt-2 pb-2"
 					>
 						{/* Subtle frosted glass background area */}
 						<motion.div
