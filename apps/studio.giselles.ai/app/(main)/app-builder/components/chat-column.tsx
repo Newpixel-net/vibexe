@@ -306,29 +306,6 @@ export function ChatColumn({
 		}
 	}, [appId, hasMounted]);
 
-	// Continuation analysis for returning users
-	useEffect(() => {
-		if (
-			hasMounted &&
-			files.length > 0 &&
-			chatMessages.length === 0 &&
-			!continuationAnalyzed.current &&
-			!continuationLoading
-		) {
-			continuationAnalyzed.current = true;
-			setContinuationLoading(true);
-			fetch(`/api/app-builder/apps/${appId}/analyze`)
-				.then((res) => (res.ok ? res.json() : null))
-				.then((data: AnalyzeResponse | null) => {
-					if (data?.hasProject) {
-						setContinuationSuggestions(buildContinuationSuggestions(data));
-					}
-				})
-				.catch(() => {})
-				.finally(() => setContinuationLoading(false));
-		}
-	}, [hasMounted, files.length, chatMessages.length, appId, continuationLoading]);
-
 	// Persist model selection to localStorage
 	const handleModelChange = useCallback(
 		(modelId: string) => {
@@ -613,6 +590,29 @@ export function ChatColumn({
 
 	// Convert AI SDK messages to VibeSDK ChatMessage format
 	const chatMessages = useMemo(() => toChatMessages(messages), [messages]);
+
+	// Continuation analysis for returning users
+	useEffect(() => {
+		if (
+			hasMounted &&
+			files.length > 0 &&
+			chatMessages.length === 0 &&
+			!continuationAnalyzed.current &&
+			!continuationLoading
+		) {
+			continuationAnalyzed.current = true;
+			setContinuationLoading(true);
+			fetch(`/api/app-builder/apps/${appId}/analyze`)
+				.then((res) => (res.ok ? res.json() : null))
+				.then((data: AnalyzeResponse | null) => {
+					if (data?.hasProject) {
+						setContinuationSuggestions(buildContinuationSuggestions(data));
+					}
+				})
+				.catch(() => {})
+				.finally(() => setContinuationLoading(false));
+		}
+	}, [hasMounted, files.length, chatMessages.length, appId, continuationLoading]);
 
 	// Track which tool completions we've already triggered file fetches for
 	const fetchedToolIds = useRef<Set<string>>(new Set());
