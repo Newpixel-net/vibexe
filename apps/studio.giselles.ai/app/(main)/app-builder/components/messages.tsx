@@ -9,6 +9,7 @@
 
 import {
 	AlertCircle,
+	Bot,
 	CheckCircle2,
 	ChevronDown,
 	ChevronRight,
@@ -18,6 +19,7 @@ import {
 	Loader2,
 	MoreHorizontal,
 	RotateCcw,
+	User,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
@@ -158,6 +160,50 @@ function splitMarkdownIntro(content: string): {
 /** Minimum details length to bother collapsing */
 const COLLAPSE_THRESHOLD = 120;
 
+/**
+ * Animated typing dots — three bouncing dots for AI thinking state.
+ */
+function TypingIndicator() {
+	return (
+		<div className="flex items-center gap-1 py-1">
+			{[0, 1, 2].map((i) => (
+				<span
+					key={i}
+					className="w-1.5 h-1.5 rounded-full bg-teal-400/60"
+					style={{
+						animation: "typing-bounce 1.4s ease-in-out infinite",
+						animationDelay: `${i * 0.16}s`,
+					}}
+				/>
+			))}
+			<style>{`
+				@keyframes typing-bounce {
+					0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+					30% { transform: translateY(-4px); opacity: 1; }
+				}
+			`}</style>
+		</div>
+	);
+}
+
+/**
+ * Avatar bubble — gradient circle with icon.
+ */
+function Avatar({ variant }: { variant: "user" | "ai" }) {
+	if (variant === "user") {
+		return (
+			<div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-orange-400/80 to-amber-500/80 flex items-center justify-center shadow-[0_0_10px_rgba(251,146,60,0.2)]">
+				<User className="size-3.5 text-white" />
+			</div>
+		);
+	}
+	return (
+		<div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-teal-400/80 to-cyan-500/80 flex items-center justify-center shadow-[0_0_10px_rgba(20,184,166,0.25)]">
+			<Bot className="size-3.5 text-white" />
+		</div>
+	);
+}
+
 interface CollapsibleMarkdownProps {
 	content: string;
 	className?: string;
@@ -184,26 +230,33 @@ function CollapsibleMarkdownContent({
 
 	return (
 		<div>
-			<MarkdownContent content={intro} className={className} />
+			<div className="relative">
+				<MarkdownContent content={intro} className={className} />
+				{!expanded && (
+					<div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-[rgba(255,255,255,0.03)] to-transparent pointer-events-none" />
+				)}
+			</div>
 			<button
 				type="button"
 				onClick={() => setExpanded((v) => !v)}
-				className="flex items-center gap-1.5 mt-1 mb-1 px-2.5 py-1 rounded-lg text-xs font-medium text-teal-400/80 hover:text-teal-300 bg-teal-500/[0.06] hover:bg-teal-500/[0.12] border border-teal-500/[0.1] transition-all duration-200"
+				className="flex items-center gap-1.5 mt-2 mb-1 px-3 py-1.5 rounded-lg text-xs font-medium text-teal-400/70 hover:text-teal-300 bg-teal-500/[0.06] hover:bg-teal-500/[0.12] border border-teal-500/[0.08] hover:border-teal-500/[0.15] transition-all duration-200 group"
 			>
 				{expanded ? (
 					<>
-						<ChevronDown className="size-3" />
+						<ChevronDown className="size-3 transition-transform group-hover:translate-y-0.5" />
 						Collapse
 					</>
 				) : (
 					<>
-						<ChevronRight className="size-3" />
+						<ChevronRight className="size-3 transition-transform group-hover:translate-x-0.5" />
 						Expand details
 					</>
 				)}
 			</button>
 			{expanded && (
-				<MarkdownContent content={details} className={className} />
+				<div className="animate-in fade-in slide-in-from-top-1 duration-200">
+					<MarkdownContent content={details} className={className} />
+				</div>
 			)}
 		</div>
 	);
@@ -470,14 +523,12 @@ interface UserMessageProps {
  */
 export function UserMessage({ message }: UserMessageProps) {
 	return (
-		<div className="flex gap-3">
+		<div className="flex gap-2.5">
+			<Avatar variant="user" />
 			<div className="flex-1 min-w-0">
-				<div className="flex items-center gap-2 mb-1.5">
-					<div className="w-2 h-2 rounded-full bg-orange-400" />
-					<span className="text-xs font-medium text-white/60">You</span>
-				</div>
+				<span className="text-xs font-medium text-white/50 mb-1 block">You</span>
 				<div className="rounded-2xl px-4 py-3 bg-orange-500/[0.06] backdrop-blur-sm border border-orange-500/[0.1] shadow-[inset_-1px_0_12px_rgba(249,115,22,0.06)]">
-					<div className="text-white/80 whitespace-pre-wrap text-sm">
+					<div className="text-white/80 whitespace-pre-wrap text-sm leading-relaxed">
 						{message.content}
 					</div>
 					{message.attachments && message.attachments.length > 0 && (
@@ -528,22 +579,22 @@ export function AIMessage({
 	};
 
 	return (
-		<div className="flex gap-3">
+		<div className="flex gap-2.5">
+			<Avatar variant="ai" />
 			<div className="flex-1 min-w-0">
-				<div className="flex items-center justify-between mb-1.5">
+				<div className="flex items-center justify-between mb-1">
 					<div className="flex items-center gap-2">
-						<div className="w-2 h-2 rounded-full bg-teal-400 shadow-[0_0_6px_rgba(20,184,166,0.4)]" />
-						<span className="text-xs font-medium text-white/60">
+						<span className="text-xs font-medium text-white/50">
 							{aiName}
 						</span>
 						{isLoading && (
-							<Loader2 className="size-3 animate-spin text-white/30" />
+							<span className="text-[10px] text-teal-400/50 font-medium">typing</span>
 						)}
 					</div>
 					{!isLoading && message.content && (
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
-								<Button variant="link" className="h-6 w-6 text-white/30 hover:text-white/60">
+								<Button variant="link" className="h-6 w-6 text-white/20 hover:text-white/60 transition-colors">
 									<MoreHorizontal className="h-4 w-4" />
 								</Button>
 							</DropdownMenuTrigger>
@@ -569,9 +620,7 @@ export function AIMessage({
 					{message.content ? (
 						<CollapsibleMarkdownContent content={message.content} />
 					) : isLoading ? (
-						<span className="text-white/30 animate-pulse text-sm">
-							Thinking...
-						</span>
+						<TypingIndicator />
 					) : null}
 				</div>
 			</div>
@@ -587,7 +636,7 @@ interface MessageListProps {
 
 export function MessageList({ messages, isLoading, aiName }: MessageListProps) {
 	return (
-		<div className="flex flex-col gap-4">
+		<div className="flex flex-col gap-5">
 			{messages.map((message, index) => {
 				const isLastMessage = index === messages.length - 1;
 				if (message.role === "user") {
