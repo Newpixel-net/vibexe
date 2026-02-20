@@ -1582,6 +1582,44 @@ export const builderDeploymentRelations = relations(
 export type BuilderDeployment = typeof builderDeployments.$inferSelect;
 export type NewBuilderDeployment = typeof builderDeployments.$inferInsert;
 
+// ── External Database Connections (Supabase Connect) ──
+
+export type BuilderExternalDbId = `bext_${string}`;
+
+export const builderAppExternalDbs = pgTable(
+	"builder_app_external_dbs",
+	{
+		id: text("id").$type<BuilderExternalDbId>().notNull().unique(),
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.unique()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		provider: text("provider").notNull().default("supabase"), // supabase | firebase | custom
+		encryptedUrl: text("encrypted_url").notNull(), // Encrypted Supabase project URL
+		encryptedAnonKey: text("encrypted_anon_key").notNull(), // Encrypted anon key
+		status: text("status").notNull().default("pending"), // pending | connected | error
+		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		index("builder_app_external_dbs_app_db_id_idx").on(table.appDbId),
+	],
+);
+
+export const builderAppExternalDbRelations = relations(
+	builderAppExternalDbs,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppExternalDbs.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);
+
 // ====================================================================
 // AI PROVIDER KEY MANAGEMENT
 // ====================================================================

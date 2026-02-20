@@ -31,6 +31,7 @@ import {
 	formatSiteAnalysis,
 } from "@/app/(main)/app-builder/lib/url-analyzer";
 import { getUser } from "@/lib/auth/get-user";
+import { getSupabaseConfig, getAppBackendType } from "@/lib/app-database/supabase-connect";
 import { resolveAllProviderApiKeys } from "@/lib/team-ai-provider-keys";
 
 // Initialize engine registries (runs once at module load)
@@ -179,6 +180,30 @@ export async function POST(request: Request) {
 		// Find the developer agent (the one that actually writes files)
 		const developerAgent = plan.agents.find((a) => !a.readOnly);
 
+		// Detect backend type (native vs Supabase)
+		const backendType = await getAppBackendType(appId);
+		const supabaseConfig = backendType === "supabase" ? await getSupabaseConfig(appId) : null;
+
+		const dataManagementSection = supabaseConfig
+			? `## Data Management — Supabase Connected
+This app is connected to a Supabase project. Use the Supabase client for ALL data access:
+\`\`\`tsx
+import { createClient } from "@supabase/supabase-js";
+const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey}");
+\`\`\`
+- Use \`supabase.from("table").select()\` for queries
+- Use \`supabase.from("table").insert()\` for inserts
+- Use \`supabase.auth.signUp()\` / \`supabase.auth.signInWithPassword()\` for authentication
+- Do NOT use \`@vibexe/sdk\` or \`define_entities\` — use Supabase directly
+- Do NOT call define_entities — the user manages their schema through Supabase Dashboard`
+			: `## Data Management
+- Default: React state (useState) + localStorage for persistence
+- SaaS/multi-user apps: call define_entities to create database tables, then use:
+\`\`\`tsx
+import { VibexeApp } from "@vibexe/sdk";
+const app = new VibexeApp({ appId: "${appId}" });
+\`\`\``;
+
 		// Build the system prompt — all files created via consecutive create_file calls
 		const systemPrompt = `You are an expert fullstack developer. Create COMPLETE web applications.
 
@@ -199,17 +224,11 @@ You MUST call create_file for items 1-6 above. Do NOT stop after creating Bluepr
 
 After ALL create_file calls are done, write a SHORT summary (2-3 sentences) of what was built.
 
-## Data Management
-- Default: React state (useState) + localStorage for persistence
-- SaaS/multi-user apps: call define_entities to create database tables, then use:
-\`\`\`tsx
-import { VibexeApp } from "@vibexe/sdk";
-const app = new VibexeApp({ appId: "${appId}" });
-\`\`\`
+${dataManagementSection}
 
 ## Code Standards
 - React + TypeScript + Tailwind CSS (CDN preloaded, NO CSS imports needed)
-- NO external packages — use inline SVG or emoji for icons
+- NO external packages — use inline SVG or emoji for icons${supabaseConfig ? "\n- EXCEPTION: You may import from `@supabase/supabase-js`" : ""}
 - Every file must be COMPLETE and render without errors
 - Complex apps need 8-15+ well-separated component files
 ${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;

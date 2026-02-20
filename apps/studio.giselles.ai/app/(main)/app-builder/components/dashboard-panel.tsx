@@ -13,6 +13,8 @@ import { AgentsPanel } from "./agents-panel";
 import { AnalyticsPanel } from "./analytics-panel";
 import { ApiDocsPanel } from "./api-docs-panel";
 import { AuthenticationPanel } from "./authentication-panel";
+import { BackendSettings } from "./backend-settings";
+import { ExportPanel } from "./export-panel";
 import { AppTemplatePanel } from "./app-template-panel";
 import { AutomationsPanel } from "./automations-panel";
 import { CodePanel } from "./code-panel";
@@ -121,6 +123,10 @@ export function DashboardPanel({
 				return <SettingsPanel appId={appId} />;
 			case "settings-auth":
 				return <AuthenticationPanel appId={appId} />;
+			case "settings-backend":
+				return <BackendSettings appId={appId} />;
+			case "settings-export":
+				return <ExportPanel appId={appId} />;
 			case "settings-template":
 				return <AppTemplatePanel appId={appId} />;
 		}

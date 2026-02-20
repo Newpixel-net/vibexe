@@ -49,6 +49,8 @@ export type DashboardSection =
 	| "settings"
 	| "settings-app"
 	| "settings-auth"
+	| "settings-backend"
+	| "settings-export"
 	| "settings-template";
 
 interface NavItem {
@@ -78,6 +80,8 @@ const navItems: NavItem[] = [
 		children: [
 			{ id: "settings-app", label: "App Settings" },
 			{ id: "settings-auth", label: "Authentication" },
+			{ id: "settings-backend", label: "Backend" },
+			{ id: "settings-export", label: "Export" },
 			{ id: "settings-template", label: "App Template" },
 		],
 	},
