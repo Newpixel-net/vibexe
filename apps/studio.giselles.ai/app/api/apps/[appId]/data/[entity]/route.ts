@@ -11,6 +11,7 @@ import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { type BuilderAppId, builderApps, builderAppDatabases } from "@/db/schema";
+import { logAppEvent } from "@/lib/app-database/app-logger";
 import { verifyApiKey } from "@/lib/app-database/api-keys";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 import type { AppSchema } from "@/lib/app-database/schema-types";
@@ -176,6 +177,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			[...filterParams, limit, offset],
 		);
 
+		// Log the query (fire-and-forget, don't await)
+		logAppEvent(ctx.databaseName, {
+			level: "info",
+			category: "entity",
+			eventType: "app.entity.query",
+			message: `Listed ${entityName}: ${rows.length} rows returned`,
+		});
+
 		return NextResponse.json({
 			data: rows,
 			pagination: {
@@ -244,6 +253,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			`INSERT INTO "${ctx.entity.tableName}" (${fields.join(", ")}) VALUES (${placeholders.join(", ")}) RETURNING *`,
 			values,
 		);
+
+		// Log the creation (fire-and-forget, don't await)
+		logAppEvent(ctx.databaseName, {
+			level: "info",
+			category: "entity",
+			eventType: "app.entity.create",
+			message: `Created row in ${entityName}`,
+			metadata: { entityName },
+		});
 
 		return NextResponse.json({ data: rows[0] }, { status: 201 });
 	} catch (error) {

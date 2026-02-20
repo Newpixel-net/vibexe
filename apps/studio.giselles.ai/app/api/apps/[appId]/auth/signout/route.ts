@@ -11,6 +11,7 @@ import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { type BuilderAppId, builderAppDatabases, builderApps } from "@/db/schema";
+import { logAppEvent } from "@/lib/app-database/app-logger";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 
 interface RouteParams {
@@ -56,6 +57,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			`DELETE FROM "_app_sessions" WHERE id = $1`,
 			[token],
 		);
+
+		// Log signout (fire-and-forget, don't await)
+		logAppEvent(databaseName, {
+			level: "info",
+			category: "auth",
+			eventType: "app.user.signout",
+			message: "User signed out",
+		});
 
 		return NextResponse.json({ success: true });
 	} catch (error) {

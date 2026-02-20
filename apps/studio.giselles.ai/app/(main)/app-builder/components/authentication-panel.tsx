@@ -121,15 +121,50 @@ function AuthIcon({ type }: { type: string }) {
 
 export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 	const [methods, setMethods] = useState<AuthMethod[]>(DEFAULT_AUTH_METHODS);
+	const [saving, setSaving] = useState(false);
+
+	// Fetch persisted auth settings on mount
+	useEffect(() => {
+		async function fetchSettings() {
+			try {
+				const res = await fetch(`/api/apps/${appId}/auth-settings`);
+				if (res.ok) {
+					const data = await res.json();
+					setMethods((prev) =>
+						prev.map((m) => {
+							const key = `${m.id.replace("email_password", "emailPassword").replace(/^(google|github|microsoft|apple)$/, "$1")}Enabled`;
+							const camelKey = m.id === "email_password" ? "emailPasswordEnabled" : `${m.id}Enabled`;
+							return { ...m, enabled: data[camelKey] ?? m.enabled };
+						}),
+					);
+				}
+			} catch {
+				// Use defaults on error
+			}
+		}
+		fetchSettings();
+	}, [appId]);
 
 	const toggleMethod = useCallback((methodId: string) => {
-		setMethods((prev) =>
-			prev.map((m) =>
+		setMethods((prev) => {
+			const updated = prev.map((m) =>
 				m.id === methodId && m.available ? { ...m, enabled: !m.enabled } : m,
-			),
-		);
-		// TODO: Persist to API when app-level auth settings storage is added
-	}, []);
+			);
+			// Persist to API
+			const body: Record<string, boolean> = {};
+			for (const m of updated) {
+				const key = m.id === "email_password" ? "emailPasswordEnabled" : `${m.id}Enabled`;
+				body[key] = m.enabled;
+			}
+			setSaving(true);
+			fetch(`/api/apps/${appId}/auth-settings`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(body),
+			}).finally(() => setSaving(false));
+			return updated;
+		});
+	}, [appId]);
 
 	return (
 		<div className="flex-1 overflow-y-auto p-6">

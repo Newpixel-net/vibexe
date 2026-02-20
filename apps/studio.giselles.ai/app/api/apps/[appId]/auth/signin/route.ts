@@ -14,6 +14,7 @@ import { nanoid } from "nanoid";
 import { db } from "@/db";
 import { type BuilderAppId, builderAppDatabases, builderApps } from "@/db/schema";
 import { verifyPassword } from "@/lib/auth/password";
+import { logAppEvent } from "@/lib/app-database/app-logger";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 
 interface RouteParams {
@@ -104,6 +105,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			 VALUES ($1, $2, $3)`,
 			[token, user.id, expiresAt.toISOString()],
 		);
+
+		// Log signin (fire-and-forget, don't await)
+		logAppEvent(databaseName, {
+			level: "info",
+			category: "auth",
+			eventType: "app.user.signin",
+			message: `User signed in: ${user.email}`,
+			userId: Number(user.id),
+			userEmail: user.email,
+		});
 
 		return NextResponse.json({
 			user: {

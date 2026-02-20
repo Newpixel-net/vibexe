@@ -8,12 +8,15 @@
  */
 
 import {
+	Check,
 	ExternalLink,
 	Link,
 	Loader2,
 	Puzzle,
 	Search,
+	Trash2,
 	Webhook,
+	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -31,6 +34,14 @@ interface PieceEntry {
 	logoUrl?: string;
 }
 
+interface ConnectedIntegration {
+	pieceName: string;
+	displayName: string;
+	status: string;
+	connectedAt: string;
+	hasCredentials: boolean;
+}
+
 const ITEMS_PER_PAGE = 30;
 
 export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
@@ -44,6 +55,9 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 	const [activeTab, setActiveTab] = useState<"browse" | "connected">(
 		"browse",
 	);
+	const [connected, setConnected] = useState<ConnectedIntegration[]>([]);
+	const [connectedLoading, setConnectedLoading] = useState(true);
+	const [connectingPiece, setConnectingPiece] = useState<string | null>(null);
 
 	// Fetch piece catalog
 	useEffect(() => {
@@ -63,6 +77,67 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 		}
 		fetchPieces();
 	}, []);
+
+	// Fetch connected integrations
+	const fetchConnected = useCallback(async () => {
+		try {
+			const res = await fetch(`/api/apps/${appId}/integrations`);
+			if (res.ok) {
+				const data = await res.json();
+				setConnected(data.integrations || []);
+			}
+		} catch {
+			// Ignore
+		}
+		setConnectedLoading(false);
+	}, [appId]);
+
+	useEffect(() => {
+		fetchConnected();
+	}, [fetchConnected]);
+
+	const connectedSet = useMemo(
+		() => new Set(connected.map((c) => c.pieceName)),
+		[connected],
+	);
+
+	const handleConnect = useCallback(
+		async (piece: PieceEntry) => {
+			setConnectingPiece(piece.name);
+			try {
+				await fetch(`/api/apps/${appId}/integrations`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						pieceName: piece.name,
+						displayName: piece.displayName,
+					}),
+				});
+				fetchConnected();
+			} catch {
+				// Ignore
+			}
+			setConnectingPiece(null);
+		},
+		[appId, fetchConnected],
+	);
+
+	const handleDisconnect = useCallback(
+		async (pieceName: string) => {
+			if (!window.confirm("Disconnect this integration?")) return;
+			try {
+				await fetch(`/api/apps/${appId}/integrations`, {
+					method: "DELETE",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ pieceName }),
+				});
+				fetchConnected();
+			} catch {
+				// Ignore
+			}
+		},
+		[appId, fetchConnected],
+	);
 
 	// Filter pieces
 	const filtered = useMemo(() => {
@@ -144,23 +219,78 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 				</div>
 
 				{activeTab === "connected" ? (
-					<div className="rounded-lg border border-border bg-card p-8 text-center">
-						<Link className="h-8 w-8 text-muted-foreground/50 mx-auto mb-3" />
-						<h3 className="text-sm font-medium text-foreground mb-1">
-							No integrations connected yet
-						</h3>
-						<p className="text-xs text-muted-foreground max-w-sm mx-auto">
-							Browse available integrations and connect them to
-							start using external services in your app.
-						</p>
-						<button
-							type="button"
-							onClick={() => setActiveTab("browse")}
-							className="mt-4 px-4 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
-						>
-							Browse Integrations
-						</button>
-					</div>
+					connectedLoading ? (
+						<div className="flex items-center justify-center py-12">
+							<Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+						</div>
+					) : connected.length === 0 ? (
+						<div className="rounded-lg border border-border bg-card p-8 text-center">
+							<Link className="h-8 w-8 text-muted-foreground/50 mx-auto mb-3" />
+							<h3 className="text-sm font-medium text-foreground mb-1">
+								No integrations connected yet
+							</h3>
+							<p className="text-xs text-muted-foreground max-w-sm mx-auto">
+								Browse available integrations and connect them to
+								start using external services in your app.
+							</p>
+							<button
+								type="button"
+								onClick={() => setActiveTab("browse")}
+								className="mt-4 px-4 py-2 rounded-md bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity"
+							>
+								Browse Integrations
+							</button>
+						</div>
+					) : (
+						<div className="space-y-2">
+							{connected.map((integration) => {
+								const piece = pieces.find((p) => p.name === integration.pieceName);
+								return (
+									<div
+										key={integration.pieceName}
+										className="flex items-center gap-3 rounded-lg border border-border bg-card p-3"
+									>
+										<div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
+											{piece?.logoUrl ? (
+												<img
+													src={piece.logoUrl}
+													alt=""
+													className="h-5 w-5 object-contain"
+												/>
+											) : (
+												<Puzzle className="h-4 w-4 text-muted-foreground" />
+											)}
+										</div>
+										<div className="min-w-0 flex-1">
+											<h3 className="text-sm font-medium text-foreground">
+												{integration.displayName}
+											</h3>
+											<p className="text-[11px] text-muted-foreground">
+												Connected {new Date(integration.connectedAt).toLocaleDateString()}
+												{integration.hasCredentials && (
+													<>
+														{" "}&middot;{" "}
+														<span className="text-green-600">Credentials saved</span>
+													</>
+												)}
+											</p>
+										</div>
+										<span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+											{integration.status}
+										</span>
+										<button
+											type="button"
+											onClick={() => handleDisconnect(integration.pieceName)}
+											className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
+											title="Disconnect"
+										>
+											<Trash2 className="h-3.5 w-3.5" />
+										</button>
+									</div>
+								);
+							})}
+						</div>
+					)
 				) : (
 					<>
 						{/* Search + Category */}
@@ -254,12 +384,25 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 											)}
 										</p>
 									</div>
-									<button
-										type="button"
-										className="px-2.5 py-1 rounded-md border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-									>
-										Add
-									</button>
+									{connectedSet.has(piece.name) ? (
+										<span className="px-2.5 py-1 rounded-md text-xs font-medium text-green-600 flex items-center gap-1 flex-shrink-0">
+											<Check className="h-3 w-3" />
+											Added
+										</span>
+									) : (
+										<button
+											type="button"
+											onClick={() => handleConnect(piece)}
+											disabled={connectingPiece === piece.name}
+											className="px-2.5 py-1 rounded-md border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 disabled:opacity-50"
+										>
+											{connectingPiece === piece.name ? (
+												<Loader2 className="h-3 w-3 animate-spin" />
+											) : (
+												"Add"
+											)}
+										</button>
+									)}
 								</div>
 							))}
 						</div>

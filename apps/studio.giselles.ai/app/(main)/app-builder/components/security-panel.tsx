@@ -15,6 +15,7 @@ import {
 	EyeOff,
 	Key,
 	Loader2,
+	Lock,
 	Plus,
 	Shield,
 	Trash2,
@@ -29,13 +30,28 @@ interface ApiKeyInfo {
 	lastUsedAt: string | null;
 }
 
+interface EntityPolicy {
+	entityName: string;
+	readAccess: string;
+	writeAccess: string;
+	deleteAccess: string;
+}
+
 interface SecurityPanelProps {
 	appId: string;
 }
 
+const ACCESS_OPTIONS = [
+	{ value: "public", label: "Public" },
+	{ value: "authenticated", label: "Authenticated" },
+	{ value: "owner", label: "Owner Only" },
+];
+
 export function SecurityPanel({ appId }: SecurityPanelProps) {
 	const [keys, setKeys] = useState<ApiKeyInfo[]>([]);
 	const [loading, setLoading] = useState(true);
+	const [policies, setPolicies] = useState<EntityPolicy[]>([]);
+	const [policiesLoading, setPoliciesLoading] = useState(true);
 	const [creating, setCreating] = useState(false);
 	const [newKeyLabel, setNewKeyLabel] = useState("");
 	const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
@@ -58,6 +74,49 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 	useEffect(() => {
 		fetchKeys();
 	}, [fetchKeys]);
+
+	// Fetch entity access policies
+	useEffect(() => {
+		async function fetchPolicies() {
+			try {
+				const res = await fetch(`/api/apps/${appId}/security/policies`);
+				if (res.ok) {
+					const data = await res.json();
+					setPolicies(data.policies || []);
+				}
+			} catch {
+				// Ignore
+			}
+			setPoliciesLoading(false);
+		}
+		fetchPolicies();
+	}, [appId]);
+
+	const updatePolicy = useCallback(
+		async (entityName: string, field: "readAccess" | "writeAccess" | "deleteAccess", value: string) => {
+			setPolicies((prev) =>
+				prev.map((p) =>
+					p.entityName === entityName ? { ...p, [field]: value } : p,
+				),
+			);
+			try {
+				const policy = policies.find((p) => p.entityName === entityName);
+				await fetch(`/api/apps/${appId}/security/policies`, {
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						entityName,
+						readAccess: field === "readAccess" ? value : policy?.readAccess ?? "public",
+						writeAccess: field === "writeAccess" ? value : policy?.writeAccess ?? "authenticated",
+						deleteAccess: field === "deleteAccess" ? value : policy?.deleteAccess ?? "authenticated",
+					}),
+				});
+			} catch {
+				// Revert on error - refetch
+			}
+		},
+		[appId, policies],
+	);
 
 	const handleCreate = useCallback(async () => {
 		if (!newKeyLabel.trim()) return;
@@ -120,9 +179,9 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 				{/* Header */}
 				<div className="flex items-center justify-between">
 					<div>
-						<h1 className="text-2xl font-bold text-foreground">Security</h1>
+						<h1 className="text-2xl font-bold text-foreground">App Security</h1>
 						<p className="text-sm text-muted-foreground mt-1">
-							Manage API keys and security settings
+							Manage entity access policies and API keys
 						</p>
 					</div>
 					{!showCreateForm && (
@@ -138,6 +197,68 @@ export function SecurityPanel({ appId }: SecurityPanelProps) {
 							<Plus className="h-3.5 w-3.5" />
 							New API Key
 						</button>
+					)}
+				</div>
+
+				{/* Entity Access Policies */}
+				<div className="rounded-lg border border-border bg-card overflow-hidden">
+					<div className="p-4 border-b border-border flex items-center gap-2">
+						<Lock className="h-4 w-4 text-muted-foreground" />
+						<h3 className="text-sm font-medium text-foreground">
+							Entity Access Policies
+						</h3>
+					</div>
+					{policiesLoading ? (
+						<div className="p-8 flex justify-center">
+							<Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+						</div>
+					) : policies.length === 0 ? (
+						<div className="p-8 text-center">
+							<Shield className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+							<p className="text-sm text-muted-foreground">
+								No entities defined yet
+							</p>
+							<p className="text-xs text-muted-foreground mt-1">
+								Define entities in your app to configure access policies
+							</p>
+						</div>
+					) : (
+						<div className="overflow-x-auto">
+							<table className="w-full text-sm">
+								<thead>
+									<tr className="border-b border-border text-left">
+										<th className="px-4 py-2.5 font-medium text-muted-foreground">Entity</th>
+										<th className="px-4 py-2.5 font-medium text-muted-foreground">Read</th>
+										<th className="px-4 py-2.5 font-medium text-muted-foreground">Write</th>
+										<th className="px-4 py-2.5 font-medium text-muted-foreground">Delete</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-border">
+									{policies.map((policy) => (
+										<tr key={policy.entityName}>
+											<td className="px-4 py-2.5 font-mono text-foreground">
+												{policy.entityName}
+											</td>
+											{(["readAccess", "writeAccess", "deleteAccess"] as const).map((field) => (
+												<td key={field} className="px-4 py-2.5">
+													<select
+														value={policy[field]}
+														onChange={(e) => updatePolicy(policy.entityName, field, e.target.value)}
+														className="px-2 py-1 rounded border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+													>
+														{ACCESS_OPTIONS.map((opt) => (
+															<option key={opt.value} value={opt.value}>
+																{opt.label}
+															</option>
+														))}
+													</select>
+												</td>
+											))}
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
 					)}
 				</div>
 

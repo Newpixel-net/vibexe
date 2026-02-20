@@ -1621,6 +1621,181 @@ export const builderAppExternalDbRelations = relations(
 );
 
 // ====================================================================
+// APP ENTITY ACCESS POLICIES
+// ====================================================================
+
+export const builderAppEntityPolicies = pgTable(
+	"builder_app_entity_policies",
+	{
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		entityName: text("entity_name").notNull(),
+		readAccess: text("read_access").notNull().default("public"), // public | authenticated | owner
+		writeAccess: text("write_access").notNull().default("authenticated"),
+		deleteAccess: text("delete_access").notNull().default("authenticated"),
+		ownerField: text("owner_field").default("user_id"),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		uniqueIndex("builder_app_entity_policies_app_entity_idx").on(
+			table.appDbId,
+			table.entityName,
+		),
+	],
+);
+
+export const builderAppEntityPolicyRelations = relations(
+	builderAppEntityPolicies,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppEntityPolicies.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);
+
+// ====================================================================
+// APP AUTH SETTINGS
+// ====================================================================
+
+export const builderAppAuthSettings = pgTable("builder_app_auth_settings", {
+	dbId: serial("db_id").primaryKey(),
+	appDbId: integer("app_db_id")
+		.notNull()
+		.unique()
+		.references(() => builderApps.dbId, { onDelete: "cascade" }),
+	emailPasswordEnabled: boolean("email_password_enabled").notNull().default(true),
+	googleEnabled: boolean("google_enabled").notNull().default(false),
+	githubEnabled: boolean("github_enabled").notNull().default(false),
+	microsoftEnabled: boolean("microsoft_enabled").notNull().default(false),
+	appleEnabled: boolean("apple_enabled").notNull().default(false),
+	updatedAt: timestamp("updated_at", { withTimezone: true })
+		.defaultNow()
+		.notNull()
+		.$onUpdate(() => new Date()),
+});
+
+export const builderAppAuthSettingsRelations = relations(
+	builderAppAuthSettings,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppAuthSettings.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);
+
+// ====================================================================
+// APP-LEVEL INTEGRATIONS (connected services per app)
+// ====================================================================
+
+export const builderAppIntegrations = pgTable(
+	"builder_app_integrations",
+	{
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		pieceName: text("piece_name").notNull(),
+		displayName: text("display_name").notNull(),
+		status: text("status").notNull().default("connected"),
+		config: jsonb("config").default({}),
+		encryptedCredentials: text("encrypted_credentials"),
+		connectedAt: timestamp("connected_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("builder_app_integrations_app_piece_idx").on(
+			table.appDbId,
+			table.pieceName,
+		),
+	],
+);
+
+export const builderAppIntegrationRelations = relations(
+	builderAppIntegrations,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppIntegrations.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);
+
+// ====================================================================
+// APP-LEVEL AI AGENTS
+// ====================================================================
+
+export const builderAppAgents = pgTable("builder_app_agents", {
+	dbId: serial("db_id").primaryKey(),
+	appDbId: integer("app_db_id")
+		.notNull()
+		.references(() => builderApps.dbId, { onDelete: "cascade" }),
+	name: text("name").notNull().default("AI Assistant"),
+	enabled: boolean("enabled").notNull().default(false),
+	systemPrompt: text("system_prompt"),
+	model: text("model").notNull().default("gpt-4o-mini"),
+	temperature: numeric("temperature").default("0.7"),
+	toolsEnabled: jsonb("tools_enabled").default([]),
+	uiConfig: jsonb("ui_config").default({}),
+	createdAt: timestamp("created_at", { withTimezone: true })
+		.defaultNow()
+		.notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true })
+		.defaultNow()
+		.notNull()
+		.$onUpdate(() => new Date()),
+});
+
+export const builderAppAgentRelations = relations(
+	builderAppAgents,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppAgents.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);
+
+// ====================================================================
+// APP-LEVEL AUTOMATIONS
+// ====================================================================
+
+export const builderAppAutomations = pgTable("builder_app_automations", {
+	dbId: serial("db_id").primaryKey(),
+	appDbId: integer("app_db_id")
+		.notNull()
+		.references(() => builderApps.dbId, { onDelete: "cascade" }),
+	name: text("name").notNull(),
+	enabled: boolean("enabled").notNull().default(true),
+	triggerType: text("trigger_type").notNull(),
+	triggerConfig: jsonb("trigger_config").default({}),
+	actionType: text("action_type").notNull(),
+	actionConfig: jsonb("action_config").default({}),
+	lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+	runCount: integer("run_count").default(0),
+	createdAt: timestamp("created_at", { withTimezone: true })
+		.defaultNow()
+		.notNull(),
+});
+
+export const builderAppAutomationRelations = relations(
+	builderAppAutomations,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppAutomations.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);
+
+// ====================================================================
 // AI PROVIDER KEY MANAGEMENT
 // ====================================================================
 

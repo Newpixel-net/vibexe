@@ -194,4 +194,72 @@ async function createAuthTables(databaseName: string): Promise<void> {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
 	);
+
+	// Analytics tables for visitor tracking
+	await executeQuery(
+		databaseName,
+		`CREATE TABLE IF NOT EXISTS _app_analytics_sessions (
+			id TEXT PRIMARY KEY,
+			visitor_id TEXT NOT NULL,
+			user_id INTEGER REFERENCES _app_users(id),
+			started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			last_active_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			user_agent TEXT,
+			referrer TEXT,
+			country TEXT
+		)`,
+	);
+
+	await executeQuery(
+		databaseName,
+		`CREATE INDEX IF NOT EXISTS _app_analytics_sessions_started_idx ON _app_analytics_sessions(started_at)`,
+	);
+
+	await executeQuery(
+		databaseName,
+		`CREATE TABLE IF NOT EXISTS _app_analytics_events (
+			id SERIAL PRIMARY KEY,
+			session_id TEXT REFERENCES _app_analytics_sessions(id),
+			event_type TEXT NOT NULL,
+			page_path TEXT,
+			metadata JSONB DEFAULT '{}',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+	);
+
+	await executeQuery(
+		databaseName,
+		`CREATE INDEX IF NOT EXISTS _app_analytics_events_created_idx ON _app_analytics_events(created_at)`,
+	);
+
+	await executeQuery(
+		databaseName,
+		`CREATE INDEX IF NOT EXISTS _app_analytics_events_type_idx ON _app_analytics_events(event_type)`,
+	);
+
+	// Logs table for runtime event tracking
+	await executeQuery(
+		databaseName,
+		`CREATE TABLE IF NOT EXISTS _app_logs (
+			id SERIAL PRIMARY KEY,
+			level TEXT NOT NULL DEFAULT 'info',
+			category TEXT NOT NULL,
+			event_type TEXT NOT NULL,
+			message TEXT NOT NULL,
+			user_id INTEGER,
+			user_email TEXT,
+			metadata JSONB DEFAULT '{}',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+	);
+
+	await executeQuery(
+		databaseName,
+		`CREATE INDEX IF NOT EXISTS _app_logs_created_idx ON _app_logs(created_at)`,
+	);
+
+	await executeQuery(
+		databaseName,
+		`CREATE INDEX IF NOT EXISTS _app_logs_level_idx ON _app_logs(level)`,
+	);
 }
