@@ -17,7 +17,7 @@ import {
 	type AppSchema,
 } from "@/lib/app-database";
 import { applySchema, diffAndApplySchema } from "@/lib/app-database/schema-executor";
-import { deleteFile, saveFile } from "./queries";
+import { deleteFile, getFileByPath, saveFile } from "./queries";
 
 /**
  * Create file operation tools for AI SDK.
@@ -116,6 +116,43 @@ export function createFileTools(appId: string) {
 						action: "deleted",
 						path,
 						error: `Failed to delete file: ${String(error)}`,
+					};
+				}
+			},
+		}),
+
+		read_file: tool({
+			description:
+				"Read the contents of an existing file in the project. Use this BEFORE update_file to understand the current code, or to inspect any file's implementation.",
+			inputSchema: z.object({
+				path: z
+					.string()
+					.describe(
+						'File path relative to project root, e.g., "src/App.tsx" or "Blueprint.md"',
+					),
+			}),
+			execute: async ({ path }) => {
+				try {
+					const file = await getFileByPath(appId, path);
+					if (!file) {
+						return {
+							success: false,
+							path,
+							error: `File not found: ${path}`,
+						};
+					}
+					return {
+						success: true,
+						path,
+						content: file.content,
+						language: file.language,
+					};
+				} catch (error) {
+					console.error("read_file error:", error);
+					return {
+						success: false,
+						path,
+						error: `Failed to read file: ${String(error)}`,
 					};
 				}
 			},

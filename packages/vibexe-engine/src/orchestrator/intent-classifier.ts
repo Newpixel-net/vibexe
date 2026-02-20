@@ -1,5 +1,27 @@
 import type { IntentClassification } from "../types";
 
+const CONTINUATION_KEYWORDS = [
+	"continue",
+	"what next",
+	"what's next",
+	"resume",
+	"pick up",
+	"where was i",
+	"where did i leave",
+	"next steps",
+	"what should i do",
+	"keep going",
+	"carry on",
+];
+
+/**
+ * Check if user prompt is a continuation intent (returning to an existing project).
+ */
+export function isContinuationIntent(prompt: string): boolean {
+	const lower = prompt.toLowerCase().trim();
+	return CONTINUATION_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 const COMPLEXITY_SIGNALS = {
 	simple: [
 		"counter",

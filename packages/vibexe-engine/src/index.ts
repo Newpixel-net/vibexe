@@ -54,9 +54,13 @@ export {
 // Flows
 export {
 	ALL_FLOWS,
+	CONTINUE_FLOW,
 	FEATURE_FLOW,
 	FIX_FLOW,
 	QUICK_FLOW,
 	REFACTOR_FLOW,
 	REPLICATE_FLOW,
 } from "./flows";
+
+// Intent helpers
+export { isContinuationIntent } from "./orchestrator/intent-classifier";

@@ -49,10 +49,18 @@ export const REPLICATE_FLOW: OrchestrationFlow = {
 	steps: [{ agentId: "site-replicator", order: 1, required: true }],
 };
 
+export const CONTINUE_FLOW: OrchestrationFlow = {
+	id: "continue",
+	name: "Continue Flow",
+	description: "Analyze existing project and suggest next steps",
+	steps: [{ agentId: "continuation-analyst", order: 1, required: true }],
+};
+
 export const ALL_FLOWS: OrchestrationFlow[] = [
 	FEATURE_FLOW,
 	QUICK_FLOW,
 	FIX_FLOW,
 	REFACTOR_FLOW,
 	REPLICATE_FLOW,
+	CONTINUE_FLOW,
 ];

@@ -12,6 +12,7 @@ import { refactorCleaner } from "./refactor-cleaner";
 import { securityReviewer } from "./security-reviewer";
 import { tddGuide } from "./tdd-guide";
 import { uiDesigner } from "./ui-designer";
+import { continuationAnalyst } from "./continuation-analyst";
 import { siteReplicator } from "./site-replicator";
 
 export const DEFAULT_AGENTS: AgentDefinition[] = [
@@ -29,4 +30,5 @@ export const DEFAULT_AGENTS: AgentDefinition[] = [
 	refactorCleaner,
 	e2eRunner,
 	siteReplicator,
+	continuationAnalyst,
 ];

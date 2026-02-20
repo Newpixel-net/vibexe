@@ -24,6 +24,7 @@ import {
 } from "@/app/(main)/app-builder/lib/model-resolver";
 import {
 	getAppById,
+	getFileByPath,
 	getFilesForApp,
 } from "@/app/(main)/app-builder/lib/queries";
 import {
@@ -110,7 +111,7 @@ export async function POST(request: Request) {
 			messages: UIMessage[];
 			appId: string;
 			chatId?: string;
-			mode?: "generate" | "discussion";
+			mode?: "generate" | "discussion" | "continue";
 			modelId?: string;
 		};
 
@@ -169,6 +170,66 @@ export async function POST(request: Request) {
 			});
 		}
 
+		// Continue mode — AI-powered project analysis with read-only tools
+		if (mode === "continue") {
+			// Gather project context for the continuation analyst
+			let projectContext = fileContext;
+			if (existingFiles.length > 0) {
+				try {
+					const blueprint = await getFileByPath(appId, "Blueprint.md");
+					if (blueprint?.content) {
+						projectContext += `\n\n## Blueprint.md\n\`\`\`markdown\n${blueprint.content.slice(0, 6000)}\n\`\`\``;
+					}
+					const appTsx = await getFileByPath(appId, "src/App.tsx");
+					if (appTsx?.content) {
+						projectContext += `\n\n## src/App.tsx\n\`\`\`tsx\n${appTsx.content.slice(0, 4000)}\n\`\`\``;
+					}
+					const types = await getFileByPath(appId, "src/types/index.ts");
+					if (types?.content) {
+						projectContext += `\n\n## src/types/index.ts\n\`\`\`typescript\n${types.content.slice(0, 3000)}\n\`\`\``;
+					}
+				} catch (_) {
+					// Best-effort file reading
+				}
+			}
+
+			const continueSystemPrompt = `You are a project analyst. Analyze this existing project and suggest what to do next.
+
+## Project Files
+${projectContext}
+
+## Instructions
+1. Summarize what has been built
+2. Identify incomplete or missing features
+3. Suggest 3-5 actionable next steps, prioritized by impact
+4. Each suggestion should be specific and actionable
+
+Respond in a friendly, concise format. Use markdown for structure.`;
+
+			const readOnlyTools = createFileTools(appId);
+			const modelMessages = await convertToModelMessages(messages);
+			const byok = hasByok ? byokKeys : undefined;
+			const model = modelId
+				? resolveModel(modelId, byok)
+				: resolveModel(undefined, byok);
+
+			console.log(`[Chat API] Continue mode: ${existingFiles.length} files, model=${modelId || "default"}`);
+
+			const result = streamText({
+				model,
+				system: continueSystemPrompt,
+				messages: modelMessages,
+				tools: { read_file: readOnlyTools.read_file },
+				stopWhen: stepCountIs(10),
+				toolChoice: "auto",
+			});
+
+			return result.toUIMessageStreamResponse({
+				originalMessages: messages,
+				sendRoundtrips: true,
+			});
+		}
+
 		// --- GENERATE MODE: Multi-agent orchestration ---
 
 		// Extract latest user message for intent classification
@@ -197,7 +258,23 @@ export async function POST(request: Request) {
 		const URL_REGEX = /https?:\/\/[^\s"'<>]+/gi;
 		const detectedUrls = userPrompt.match(URL_REGEX) || [];
 
-		let enrichedFileContext = fileContext;
+		// Inject Blueprint.md content for returning users (gives AI full project context)
+		let blueprintContext = "";
+		if (existingFiles.length > 0) {
+			try {
+				const blueprint = await getFileByPath(appId, "Blueprint.md");
+				if (blueprint?.content) {
+					const truncated = blueprint.content.length > 4000
+						? `${blueprint.content.slice(0, 4000)}\n... (truncated)`
+						: blueprint.content;
+					blueprintContext = `\n\n## Blueprint (Project Documentation)\n\`\`\`markdown\n${truncated}\n\`\`\``;
+				}
+			} catch (_) {
+				// Blueprint read is best-effort
+			}
+		}
+
+		let enrichedFileContext = fileContext + blueprintContext;
 		let siteAnalysis: SiteAnalysis | null = null;
 		if (detectedUrls.length > 0) {
 			try {
@@ -249,9 +326,14 @@ const app = new VibexeApp({ appId: "${appId}" });
 			? buildLanguageInstructions(siteAnalysis)
 			: "";
 
+		const isReturningUser = existingFiles.length > 0;
+
 		const systemPrompt = `You are an expert fullstack developer. Create COMPLETE web applications.
 You support 100+ languages including RTL languages like Hebrew, Arabic, Persian, and Urdu.
-
+${isReturningUser ? `
+## IMPORTANT: Existing Project
+This is an EXISTING project with ${existingFiles.length} files. You have a \`read_file\` tool — use it to inspect existing files BEFORE modifying them with \`update_file\`. Never blindly overwrite files without reading them first.
+` : ""}
 ## TASK
 
 Call create_file for EVERY file the application needs. A typical app requires 8-15+ files.
@@ -316,7 +398,7 @@ ${langInstructions}${enrichedFileContext ? `\n## Project Context\n${enrichedFile
 			toolChoice: "auto",
 			onStepFinish: ({ toolCalls, finishReason, usage }) => {
 				stepCount++;
-				const fileToolNames = ["create_file", "update_file", "delete_file", "define_entities"];
+				const fileToolNames = ["create_file", "update_file", "delete_file", "define_entities", "read_file"];
 				const fileCallsInStep = (toolCalls || []).filter(
 					(tc) => fileToolNames.includes(tc.toolName),
 				).length;

@@ -10,6 +10,7 @@ import { postgresPatterns } from "./postgres-patterns";
 import { securityReview } from "./security-review";
 import { tddWorkflow } from "./tdd-workflow";
 import { verificationLoop } from "./verification-loop";
+import { continuationAnalysis } from "./continuation-analysis";
 import { visualReplication } from "./visual-replication";
 
 export const DEFAULT_SKILLS: SkillDefinition[] = [
@@ -25,4 +26,5 @@ export const DEFAULT_SKILLS: SkillDefinition[] = [
 	verificationLoop,
 	visualReplication,
 	animationPatterns,
+	continuationAnalysis,
 ];

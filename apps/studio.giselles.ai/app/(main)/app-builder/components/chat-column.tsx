@@ -13,12 +13,17 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
 import {
+	ArrowRight,
+	Compass,
 	Lightbulb,
+	Loader2,
 	MessageSquare,
 	MoreHorizontal,
 	Plus,
 	Rocket,
 	RotateCcw,
+	Sparkles,
+	Wrench,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -112,13 +117,72 @@ function DeployBanner() {
 	);
 }
 
-/** Suggestion chips for empty state */
+/** Suggestion chips for empty state (new projects) */
 const SUGGESTION_CHIPS = [
 	"Task manager app",
 	"Landing page with animations",
 	"Dashboard with charts",
 	"Social media feed",
 ];
+
+/** Continuation suggestion for returning users */
+interface ContinuationSuggestion {
+	id: string;
+	label: string;
+	icon: "sparkles" | "wrench" | "compass";
+	prompt: string;
+}
+
+/** Analyze response from /api/app-builder/apps/[appId]/analyze */
+interface AnalyzeResponse {
+	hasProject: boolean;
+	fileCount?: number;
+	hasBlueprint?: boolean;
+	hasEntities?: boolean;
+	todoCount?: number;
+	todoItems?: string[];
+	plannedFeatures?: string[];
+	appName?: string;
+}
+
+/** Build smart suggestions from analyze response */
+function buildContinuationSuggestions(
+	analysis: AnalyzeResponse,
+): ContinuationSuggestion[] {
+	const suggestions: ContinuationSuggestion[] = [];
+
+	// TODOs are highest priority
+	if (analysis.todoCount && analysis.todoCount > 0) {
+		suggestions.push({
+			id: "fix-todos",
+			label: `Fix ${analysis.todoCount} TODO${analysis.todoCount > 1 ? "s" : ""} in code`,
+			icon: "wrench",
+			prompt: `Read the existing files and fix all TODO, FIXME, and HACK comments. Replace placeholder implementations with real working code.`,
+		});
+	}
+
+	// Planned features from Blueprint
+	if (analysis.plannedFeatures && analysis.plannedFeatures.length > 0) {
+		for (const feature of analysis.plannedFeatures.slice(0, 3)) {
+			suggestions.push({
+				id: `feature-${feature.slice(0, 20).replace(/\s/g, "-").toLowerCase()}`,
+				label: `Implement: ${feature}`,
+				icon: "sparkles",
+				prompt: `Read Blueprint.md and the existing code, then implement the "${feature}" feature. Make sure to integrate it properly with the existing components.`,
+			});
+		}
+	}
+
+	// Always offer polish
+	suggestions.push({
+		id: "polish",
+		label: "Improve & polish the app",
+		icon: "compass",
+		prompt: `Read all existing files and improve the app: better error handling, loading states, animations, accessibility, and visual polish. Don't change core functionality — just make everything more polished and production-ready.`,
+	});
+
+	return suggestions.slice(0, 4);
+}
 
 /**
  * Generate a display name from the user's first message.
@@ -187,6 +251,11 @@ export function ChatColumn({
 		new Set(),
 	);
 
+	// Continuation agent state for returning users
+	const [continuationSuggestions, setContinuationSuggestions] = useState<ContinuationSuggestion[]>([]);
+	const [continuationLoading, setContinuationLoading] = useState(false);
+	const continuationAnalyzed = useRef(false);
+
 	// Ref for scroll area (needed by PhaseTimeline)
 	const scrollRef = useRef<HTMLDivElement>(null);
 	// Track if we've loaded messages from localStorage (prevent duplicate loads)
@@ -236,6 +305,29 @@ export function ChatColumn({
 			}
 		}
 	}, [appId, hasMounted]);
+
+	// Continuation analysis for returning users
+	useEffect(() => {
+		if (
+			hasMounted &&
+			files.length > 0 &&
+			chatMessages.length === 0 &&
+			!continuationAnalyzed.current &&
+			!continuationLoading
+		) {
+			continuationAnalyzed.current = true;
+			setContinuationLoading(true);
+			fetch(`/api/app-builder/apps/${appId}/analyze`)
+				.then((res) => (res.ok ? res.json() : null))
+				.then((data: AnalyzeResponse | null) => {
+					if (data?.hasProject) {
+						setContinuationSuggestions(buildContinuationSuggestions(data));
+					}
+				})
+				.catch(() => {})
+				.finally(() => setContinuationLoading(false));
+		}
+	}, [hasMounted, files.length, chatMessages.length, appId, continuationLoading]);
 
 	// Persist model selection to localStorage
 	const handleModelChange = useCallback(
@@ -636,6 +728,9 @@ export function ChatColumn({
 		setActiveAgentIds(new Set());
 		setCompletedAgentIds(new Set());
 		processedEventCount.current = 0;
+		// Reset continuation state so it re-analyzes on next empty chat
+		setContinuationSuggestions([]);
+		continuationAnalyzed.current = false;
 	}, [appId, setMessages]);
 
 	// Discuss mode toggle
@@ -668,6 +763,20 @@ export function ChatColumn({
 			if (textarea) textarea.focus();
 		},
 		[setInput],
+	);
+
+	// Handle continuation suggestion click — auto-submit the prompt
+	const handleContinuationClick = useCallback(
+		(suggestion: ContinuationSuggestion) => {
+			sendMessage({ text: suggestion.prompt });
+			setContinuationSuggestions([]);
+			if (mode === "generate") {
+				setProjectStages((stages) =>
+					updateProjectStage(stages, "bootstrap", "active"),
+				);
+			}
+		},
+		[sendMessage, mode],
 	);
 
 	return (
@@ -707,62 +816,121 @@ export function ChatColumn({
 			<ScrollArea ref={scrollRef} className="flex-1 min-h-0">
 				<div className="pt-5 px-4 pb-4">
 					{chatMessages.length === 0 ? (
-						// Glass empty state with suggestion chips
-						<div className="flex flex-col items-center justify-center min-h-[400px] py-16 text-center">
-							<div className="relative p-8 rounded-3xl glass-card max-w-sm w-full">
-								{/* Animated gradient border */}
-								<div
-									className="absolute inset-0 rounded-3xl opacity-30 pointer-events-none"
-									style={{
-										background:
-											"conic-gradient(from 0deg, rgba(124,58,237,0.3), rgba(20,184,166,0.3), rgba(59,130,246,0.3), rgba(124,58,237,0.3))",
-										padding: "1px",
-										mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-										WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
-										WebkitMaskComposite: "xor",
-										maskComposite: "exclude",
-									}}
-								/>
-								{mode === "generate" ? (
-									<>
-										<h3 className="text-xl font-semibold mb-2 bg-gradient-to-r from-violet-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent">
-											What do you want to build?
-										</h3>
-										<p className="text-sm text-white/40 mb-6">
-											Describe your app and I&apos;ll bring it to life
-										</p>
-									</>
-								) : (
-									<>
-										<Lightbulb className="h-10 w-10 text-violet-400/60 mx-auto mb-3" />
-										<h3 className="text-xl font-semibold mb-2 bg-gradient-to-r from-violet-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent">
-											Let&apos;s plan together
-										</h3>
-										<p className="text-sm text-white/40 mb-6">
-											Think through your app&apos;s design without generating code yet
-										</p>
-									</>
-								)}
+						files.length > 0 && (continuationSuggestions.length > 0 || continuationLoading) ? (
+							// Returning user — "Welcome back" with smart suggestions
+							<div className="flex flex-col items-center justify-center min-h-[400px] py-16 text-center">
+								<div className="relative p-8 rounded-3xl glass-card max-w-sm w-full">
+									<div
+										className="absolute inset-0 rounded-3xl opacity-30 pointer-events-none"
+										style={{
+											background:
+												"conic-gradient(from 0deg, rgba(20,184,166,0.3), rgba(59,130,246,0.3), rgba(124,58,237,0.3), rgba(20,184,166,0.3))",
+											padding: "1px",
+											mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+											WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+											WebkitMaskComposite: "xor",
+											maskComposite: "exclude",
+										}}
+									/>
+									<Compass className="h-10 w-10 text-teal-400/60 mx-auto mb-3" />
+									<h3 className="text-xl font-semibold mb-2 bg-gradient-to-r from-teal-400 via-cyan-400 to-violet-400 bg-clip-text text-transparent">
+										Welcome back
+									</h3>
+									<p className="text-sm text-white/40 mb-6">
+										{appName !== "Untitled App" ? appName : "Your project"} has {files.length} files. What&apos;s next?
+									</p>
 
-								{/* Suggestion chips */}
-								{mode === "generate" && (
-									<div className="flex flex-wrap justify-center gap-2">
-										{SUGGESTION_CHIPS.map((chip) => (
-											<motion.button
-												key={chip}
-												type="button"
-												onClick={() => handleSuggestionClick(chip)}
-												className="px-3 py-1.5 text-xs font-medium rounded-xl bg-white/[0.05] border border-white/[0.1] text-white/60 hover:bg-white/[0.08] hover:text-white/80 hover:border-white/[0.15] transition-all duration-200"
-												whileHover={{ scale: 1.04 }}
-												whileTap={{ scale: 0.97 }}
-											>
-												{chip}
-											</motion.button>
-										))}
-									</div>
-								)}
+									{continuationLoading ? (
+										<div className="flex items-center justify-center gap-2 text-white/30">
+											<Loader2 className="h-4 w-4 animate-spin" />
+											<span className="text-xs">Analyzing project...</span>
+										</div>
+									) : (
+										<div className="flex flex-col gap-2">
+											{continuationSuggestions.map((suggestion) => (
+												<motion.button
+													key={suggestion.id}
+													type="button"
+													onClick={() => handleContinuationClick(suggestion)}
+													className="flex items-center gap-3 w-full px-4 py-3 text-left text-sm rounded-xl bg-white/[0.04] border border-white/[0.08] text-white/70 hover:bg-white/[0.08] hover:text-white/90 hover:border-white/[0.15] transition-all duration-200 group"
+													whileHover={{ scale: 1.02 }}
+													whileTap={{ scale: 0.98 }}
+												>
+													<span className="flex-shrink-0 w-7 h-7 rounded-lg bg-white/[0.06] flex items-center justify-center">
+														{suggestion.icon === "sparkles" && <Sparkles className="h-3.5 w-3.5 text-violet-400" />}
+														{suggestion.icon === "wrench" && <Wrench className="h-3.5 w-3.5 text-amber-400" />}
+														{suggestion.icon === "compass" && <Compass className="h-3.5 w-3.5 text-teal-400" />}
+													</span>
+													<span className="flex-1 truncate">{suggestion.label}</span>
+													<ArrowRight className="h-3.5 w-3.5 text-white/20 group-hover:text-white/50 transition-colors" />
+												</motion.button>
+											))}
+										</div>
+									)}
+
+									<p className="text-xs text-white/20 mt-4">
+										Or type your own request below
+									</p>
+								</div>
 							</div>
-						</div>
+						) : (
+							// New project — original empty state with suggestion chips
+							<div className="flex flex-col items-center justify-center min-h-[400px] py-16 text-center">
+								<div className="relative p-8 rounded-3xl glass-card max-w-sm w-full">
+									{/* Animated gradient border */}
+									<div
+										className="absolute inset-0 rounded-3xl opacity-30 pointer-events-none"
+										style={{
+											background:
+												"conic-gradient(from 0deg, rgba(124,58,237,0.3), rgba(20,184,166,0.3), rgba(59,130,246,0.3), rgba(124,58,237,0.3))",
+											padding: "1px",
+											mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+											WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+											WebkitMaskComposite: "xor",
+											maskComposite: "exclude",
+										}}
+									/>
+									{mode === "generate" ? (
+										<>
+											<h3 className="text-xl font-semibold mb-2 bg-gradient-to-r from-violet-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent">
+												What do you want to build?
+											</h3>
+											<p className="text-sm text-white/40 mb-6">
+												Describe your app and I&apos;ll bring it to life
+											</p>
+										</>
+									) : (
+										<>
+											<Lightbulb className="h-10 w-10 text-violet-400/60 mx-auto mb-3" />
+											<h3 className="text-xl font-semibold mb-2 bg-gradient-to-r from-violet-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent">
+												Let&apos;s plan together
+											</h3>
+											<p className="text-sm text-white/40 mb-6">
+												Think through your app&apos;s design without generating code yet
+											</p>
+										</>
+									)}
+
+									{/* Suggestion chips */}
+									{mode === "generate" && (
+										<div className="flex flex-wrap justify-center gap-2">
+											{SUGGESTION_CHIPS.map((chip) => (
+												<motion.button
+													key={chip}
+													type="button"
+													onClick={() => handleSuggestionClick(chip)}
+													className="px-3 py-1.5 text-xs font-medium rounded-xl bg-white/[0.05] border border-white/[0.1] text-white/60 hover:bg-white/[0.08] hover:text-white/80 hover:border-white/[0.15] transition-all duration-200"
+													whileHover={{ scale: 1.04 }}
+													whileTap={{ scale: 0.97 }}
+												>
+													{chip}
+												</motion.button>
+											))}
+										</div>
+									)}
+								</div>
+							</div>
+						)
 					) : (
 						// Messages list — no outer card wrapper (messages float directly)
 						<div className="flex flex-col gap-4">
