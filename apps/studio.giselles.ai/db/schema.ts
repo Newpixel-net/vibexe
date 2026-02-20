@@ -2129,3 +2129,57 @@ export const customNodes = pgTable(
 		index("custom_nodes_name_team_idx").on(table.name, table.teamDbId),
 	],
 );
+
+// ====================================================================
+// BUILDER APP HISTORY (Development session history)
+// ====================================================================
+
+export const builderAppHistory = pgTable(
+	"builder_app_history",
+	{
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		summary: text("summary").notNull(),
+		details: jsonb("details").default({}),
+		sessionType: text("session_type").default("generate"),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("builder_app_history_app_idx").on(table.appDbId),
+	],
+);
+
+export const builderAppHistoryRelations = relations(
+	builderAppHistory,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppHistory.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);
+
+// ====================================================================
+// BUILDER SUGGESTION TEMPLATES (Admin-managed smart suggestions)
+// ====================================================================
+
+export const builderSuggestionTemplates = pgTable(
+	"builder_suggestion_templates",
+	{
+		dbId: serial("db_id").primaryKey(),
+		label: text("label").notNull(),
+		prompt: text("prompt").notNull(),
+		icon: text("icon").default("sparkles"),
+		category: text("category").default("general"),
+		conditions: jsonb("conditions").default({}),
+		priority: integer("priority").default(50),
+		enabled: boolean("enabled").default(true).notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+);

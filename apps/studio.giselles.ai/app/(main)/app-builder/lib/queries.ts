@@ -6,7 +6,7 @@
 //
 // Deploy to: /opt/giselle/apps/studio.giselles.ai/app/(main)/app-builder/lib/queries.ts
 
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "@/db";
 import {
@@ -14,9 +14,11 @@ import {
 	type BuilderChatId,
 	type BuilderFileId,
 	type BuilderVersionId,
+	builderAppHistory,
 	builderApps,
 	builderChats,
 	builderFiles,
+	builderSuggestionTemplates,
 	builderVersions,
 } from "@/db/schema";
 
@@ -507,4 +509,121 @@ export async function getVersionsForApp(appId: string) {
 		where: eq(builderVersions.appDbId, app.dbId),
 		orderBy: (v, { desc }) => [desc(v.versionNumber)],
 	});
+}
+
+// ============================================================================
+// History Queries
+// ============================================================================
+
+/**
+ * Get development history for an app
+ */
+export async function getHistoryForApp(appId: string) {
+	const app = await db.query.builderApps.findFirst({
+		where: eq(builderApps.id, appId as BuilderAppId),
+		columns: { dbId: true },
+	});
+
+	if (!app) return [];
+
+	return db
+		.select()
+		.from(builderAppHistory)
+		.where(eq(builderAppHistory.appDbId, app.dbId))
+		.orderBy(desc(builderAppHistory.createdAt))
+		.limit(50);
+}
+
+/**
+ * Create a history entry for an app
+ */
+export async function createHistoryEntry(
+	appDbId: number,
+	summary: string,
+	details: Record<string, unknown>,
+	sessionType: string,
+) {
+	const [entry] = await db
+		.insert(builderAppHistory)
+		.values({ appDbId, summary, details, sessionType })
+		.returning();
+	return entry;
+}
+
+// ============================================================================
+// Suggestion Template Queries
+// ============================================================================
+
+/**
+ * Get all suggestion templates (admin)
+ */
+export async function getAllSuggestionTemplates() {
+	return db
+		.select()
+		.from(builderSuggestionTemplates)
+		.orderBy(desc(builderSuggestionTemplates.priority));
+}
+
+/**
+ * Get enabled suggestion templates
+ */
+export async function getEnabledSuggestionTemplates() {
+	return db
+		.select()
+		.from(builderSuggestionTemplates)
+		.where(eq(builderSuggestionTemplates.enabled, true))
+		.orderBy(desc(builderSuggestionTemplates.priority));
+}
+
+/**
+ * Create a suggestion template
+ */
+export async function createSuggestionTemplate(data: {
+	label: string;
+	prompt: string;
+	icon?: string;
+	category?: string;
+	conditions?: Record<string, unknown>;
+	priority?: number;
+	enabled?: boolean;
+}) {
+	const [template] = await db
+		.insert(builderSuggestionTemplates)
+		.values(data)
+		.returning();
+	return template;
+}
+
+/**
+ * Update a suggestion template
+ */
+export async function updateSuggestionTemplate(
+	dbId: number,
+	data: Partial<{
+		label: string;
+		prompt: string;
+		icon: string;
+		category: string;
+		conditions: Record<string, unknown>;
+		priority: number;
+		enabled: boolean;
+	}>,
+) {
+	const [updated] = await db
+		.update(builderSuggestionTemplates)
+		.set(data)
+		.where(eq(builderSuggestionTemplates.dbId, dbId))
+		.returning();
+	return updated;
+}
+
+/**
+ * Delete a suggestion template
+ */
+export async function deleteSuggestionTemplate(dbId: number) {
+	const [deleted] = await db
+		.delete(builderSuggestionTemplates)
+		.where(eq(builderSuggestionTemplates.dbId, dbId))
+		.returning();
+	return deleted;
 }

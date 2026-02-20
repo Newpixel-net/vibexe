@@ -93,6 +93,7 @@ export function DashboardClient({ stats }: { stats: DashboardStats }) {
 					{ label: "System", href: "/admin/system" },
 					{ label: "AI Providers", href: "/admin/settings/ai-providers" },
 					{ label: "OAuth Apps", href: "/admin/settings/oauth-apps" },
+					{ label: "Suggestions", href: "/admin/suggestions" },
 					{ label: "Engine", href: "/admin/engine" },
 				].map((link) => (
 					<a

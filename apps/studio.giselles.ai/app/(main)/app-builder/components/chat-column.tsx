@@ -14,7 +14,10 @@ import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
 import {
 	ArrowRight,
+	Clock,
 	Compass,
+	Globe,
+	LayoutGrid,
 	Lightbulb,
 	Loader2,
 	MessageSquare,
@@ -22,8 +25,11 @@ import {
 	Plus,
 	Rocket,
 	RotateCcw,
+	Shield,
 	Sparkles,
 	Wrench,
+	X,
+	Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -129,8 +135,22 @@ const SUGGESTION_CHIPS = [
 interface ContinuationSuggestion {
 	id: string;
 	label: string;
-	icon: "sparkles" | "wrench" | "compass";
+	icon: string;
 	prompt: string;
+}
+
+/** History entry from /api/app-builder/apps/[appId]/history */
+interface HistoryEntry {
+	id: number;
+	summary: string;
+	details: {
+		filesCreated?: string[];
+		filesModified?: string[];
+		filesDeleted?: string[];
+		messageCount?: number;
+	};
+	sessionType: string;
+	createdAt: string;
 }
 
 /** Analyze response from /api/app-builder/apps/[appId]/analyze */
@@ -143,15 +163,16 @@ interface AnalyzeResponse {
 	todoItems?: string[];
 	plannedFeatures?: string[];
 	appName?: string;
+	suggestions?: { id: number; label: string; prompt: string; icon: string; category: string }[];
 }
 
-/** Build smart suggestions from analyze response */
+/** Build continuation suggestions from server data + client-side TODO fallback */
 function buildContinuationSuggestions(
 	analysis: AnalyzeResponse,
 ): ContinuationSuggestion[] {
 	const suggestions: ContinuationSuggestion[] = [];
 
-	// TODOs are highest priority
+	// TODOs — always generated client-side as highest priority
 	if (analysis.todoCount && analysis.todoCount > 0) {
 		suggestions.push({
 			id: "fix-todos",
@@ -161,27 +182,43 @@ function buildContinuationSuggestions(
 		});
 	}
 
-	// Planned features from Blueprint
-	if (analysis.plannedFeatures && analysis.plannedFeatures.length > 0) {
-		for (const feature of analysis.plannedFeatures.slice(0, 3)) {
+	// Server-matched suggestion templates
+	if (analysis.suggestions && analysis.suggestions.length > 0) {
+		for (const s of analysis.suggestions) {
 			suggestions.push({
-				id: `feature-${feature.slice(0, 20).replace(/\s/g, "-").toLowerCase()}`,
-				label: `Implement: ${feature}`,
-				icon: "sparkles",
-				prompt: `Read Blueprint.md and the existing code, then implement the "${feature}" feature. Make sure to integrate it properly with the existing components.`,
+				id: `tmpl-${s.id}`,
+				label: s.label,
+				icon: s.icon || "sparkles",
+				prompt: s.prompt,
 			});
 		}
 	}
 
-	// Always offer polish
-	suggestions.push({
-		id: "polish",
-		label: "Improve & polish the app",
-		icon: "compass",
-		prompt: `Read all existing files and improve the app: better error handling, loading states, animations, accessibility, and visual polish. Don't change core functionality — just make everything more polished and production-ready.`,
-	});
+	// Fallback: if no server suggestions, add polish
+	if (!analysis.suggestions || analysis.suggestions.length === 0) {
+		suggestions.push({
+			id: "polish",
+			label: "Improve & polish the app",
+			icon: "compass",
+			prompt: `Read all existing files and improve the app: better error handling, loading states, animations, accessibility, and visual polish. Don't change core functionality — just make everything more polished and production-ready.`,
+		});
+	}
 
-	return suggestions.slice(0, 4);
+	return suggestions.slice(0, 5);
+}
+
+/** Render an icon by name */
+function SuggestionIcon({ icon }: { icon: string }) {
+	switch (icon) {
+		case "wrench": return <Wrench className="h-3.5 w-3.5 text-amber-400" />;
+		case "compass": return <Compass className="h-3.5 w-3.5 text-teal-400" />;
+		case "rocket": return <Rocket className="h-3.5 w-3.5 text-emerald-400" />;
+		case "globe": return <Globe className="h-3.5 w-3.5 text-blue-400" />;
+		case "layout": return <LayoutGrid className="h-3.5 w-3.5 text-indigo-400" />;
+		case "shield": return <Shield className="h-3.5 w-3.5 text-orange-400" />;
+		case "zap": return <Zap className="h-3.5 w-3.5 text-yellow-400" />;
+		default: return <Sparkles className="h-3.5 w-3.5 text-violet-400" />;
+	}
 }
 
 /**
@@ -255,6 +292,11 @@ export function ChatColumn({
 	const [continuationSuggestions, setContinuationSuggestions] = useState<ContinuationSuggestion[]>([]);
 	const [continuationLoading, setContinuationLoading] = useState(false);
 	const continuationAnalyzed = useRef(false);
+
+	// History modal state
+	const [showHistory, setShowHistory] = useState(false);
+	const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
+	const [historyLoading, setHistoryLoading] = useState(false);
 
 	// Ref for scroll area (needed by PhaseTimeline)
 	const scrollRef = useRef<HTMLDivElement>(null);
@@ -765,19 +807,36 @@ export function ChatColumn({
 		[setInput],
 	);
 
-	// Handle continuation suggestion click — auto-submit the prompt
+	// Handle continuation suggestion click — populate input for user editing
 	const handleContinuationClick = useCallback(
 		(suggestion: ContinuationSuggestion) => {
-			sendMessage({ text: suggestion.prompt });
+			setInput(suggestion.prompt);
 			setContinuationSuggestions([]);
-			if (mode === "generate") {
-				setProjectStages((stages) =>
-					updateProjectStage(stages, "bootstrap", "active"),
-				);
-			}
+			// Focus the textarea
+			const textarea = document.querySelector<HTMLTextAreaElement>(
+				"textarea[placeholder]",
+			);
+			if (textarea) textarea.focus();
 		},
-		[sendMessage, mode],
+		[],
 	);
+
+	// Load and show history modal
+	const handleShowHistory = useCallback(async () => {
+		setShowHistory(true);
+		setHistoryLoading(true);
+		try {
+			const res = await fetch(`/api/app-builder/apps/${appId}/history`);
+			if (res.ok) {
+				const data = await res.json();
+				setHistoryEntries(data.history || []);
+			}
+		} catch (e) {
+			console.error("[ChatColumn] History load error:", e);
+		} finally {
+			setHistoryLoading(false);
+		}
+	}, [appId]);
 
 	return (
 		<div className="flex flex-col h-full min-h-0">
@@ -787,6 +846,14 @@ export function ChatColumn({
 					<span className="text-sm text-white/40 font-medium">Chat</span>
 				</div>
 				<div className="flex items-center gap-1.5">
+					<button
+						type="button"
+						onClick={handleShowHistory}
+						className="h-7 px-2.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] text-white/60 hover:text-white/90 flex items-center gap-1.5 text-xs font-medium transition-all duration-200"
+						title="Development History"
+					>
+						<Clock className="h-3.5 w-3.5" />
+					</button>
 					<button
 						type="button"
 						onClick={handleNewChat}
@@ -857,9 +924,7 @@ export function ChatColumn({
 													whileTap={{ scale: 0.98 }}
 												>
 													<span className="flex-shrink-0 w-7 h-7 rounded-lg bg-white/[0.06] flex items-center justify-center">
-														{suggestion.icon === "sparkles" && <Sparkles className="h-3.5 w-3.5 text-violet-400" />}
-														{suggestion.icon === "wrench" && <Wrench className="h-3.5 w-3.5 text-amber-400" />}
-														{suggestion.icon === "compass" && <Compass className="h-3.5 w-3.5 text-teal-400" />}
+														<SuggestionIcon icon={suggestion.icon} />
 													</span>
 													<span className="flex-1 truncate">{suggestion.label}</span>
 													<ArrowRight className="h-3.5 w-3.5 text-white/20 group-hover:text-white/50 transition-colors" />
@@ -868,9 +933,19 @@ export function ChatColumn({
 										</div>
 									)}
 
-									<p className="text-xs text-white/20 mt-4">
-										Or type your own request below
-									</p>
+									<div className="flex items-center justify-center gap-4 mt-4">
+										<p className="text-xs text-white/20">
+											Or type your own request below
+										</p>
+										<button
+											type="button"
+											onClick={handleShowHistory}
+											className="text-xs text-white/20 hover:text-white/40 flex items-center gap-1 transition-colors"
+										>
+											<Clock className="h-3 w-3" />
+											History
+										</button>
+									</div>
 								</div>
 							</div>
 						) : (
@@ -1059,6 +1134,97 @@ export function ChatColumn({
 				onNewChat={handleNewChat}
 				mode={mode}
 			/>
+
+			{/* History Modal */}
+			{showHistory && (
+				<div
+					className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+					onClick={(e) => { if (e.target === e.currentTarget) setShowHistory(false); }}
+					onKeyDown={(e) => { if (e.key === "Escape") setShowHistory(false); }}
+					role="dialog"
+					aria-modal="true"
+					aria-label="Development History"
+				>
+					<div className="bg-[#0f0f1a] border border-white/[0.1] rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden shadow-2xl">
+						<div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+							<div className="flex items-center gap-2.5">
+								<Clock className="h-4.5 w-4.5 text-teal-400" />
+								<h3 className="text-base font-medium text-white">Development History</h3>
+							</div>
+							<button
+								type="button"
+								onClick={() => setShowHistory(false)}
+								className="p-1 rounded-lg hover:bg-white/[0.08] text-white/40 hover:text-white/70 transition-colors"
+							>
+								<X className="h-4 w-4" />
+							</button>
+						</div>
+
+						<div className="flex-1 overflow-y-auto px-5 py-4">
+							{historyLoading ? (
+								<div className="flex items-center justify-center py-12">
+									<Loader2 className="h-5 w-5 animate-spin text-white/30" />
+								</div>
+							) : historyEntries.length === 0 ? (
+								<div className="text-center py-12">
+									<Clock className="h-8 w-8 text-white/10 mx-auto mb-3" />
+									<p className="text-sm text-white/30">No development history yet</p>
+									<p className="text-xs text-white/15 mt-1">History is saved when you start a new chat</p>
+								</div>
+							) : (
+								<div className="relative">
+									{/* Timeline line */}
+									<div className="absolute left-[11px] top-2 bottom-2 w-px bg-white/[0.06]" />
+
+									<div className="flex flex-col gap-4">
+										{historyEntries.map((entry) => {
+											const date = new Date(entry.createdAt);
+											const details = entry.details || {};
+											const created = details.filesCreated || [];
+											const modified = details.filesModified || [];
+											const deleted = details.filesDeleted || [];
+
+											return (
+												<div key={entry.id} className="relative pl-8 group">
+													{/* Timeline dot */}
+													<div className="absolute left-[7px] top-1.5 w-[9px] h-[9px] rounded-full bg-white/[0.15] border-2 border-[#0f0f1a] group-hover:bg-teal-400/50 transition-colors" />
+
+													<div className="text-xs text-white/25 mb-1">
+														{date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+														{" "}
+														{date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+													</div>
+													<p className="text-sm text-white/70 leading-snug">{entry.summary}</p>
+
+													{(created.length > 0 || modified.length > 0 || deleted.length > 0) && (
+														<div className="mt-1.5 flex flex-wrap gap-1.5">
+															{created.length > 0 && (
+																<span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400/60">
+																	+{created.length} created
+																</span>
+															)}
+															{modified.length > 0 && (
+																<span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400/60">
+																	~{modified.length} modified
+																</span>
+															)}
+															{deleted.length > 0 && (
+																<span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400/60">
+																	-{deleted.length} deleted
+																</span>
+															)}
+														</div>
+													)}
+												</div>
+											);
+										})}
+									</div>
+								</div>
+							)}
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }
