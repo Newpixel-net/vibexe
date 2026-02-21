@@ -5,7 +5,7 @@ export const securityReview: SkillDefinition = {
 	name: "Security Review",
 	category: "specialized",
 	description:
-		"OWASP Top 10, input validation, secrets management, auth patterns, and Vibexe platform-specific security",
+		"Security patterns for React apps built with @vibexe/sdk — XSS prevention, auth guards, input validation, data safety",
 	activationTriggers: [
 		"security",
 		"auth",
@@ -14,63 +14,59 @@ export const securityReview: SkillDefinition = {
 		"xss",
 		"injection",
 		"csrf",
-		"ssrf",
 		"secrets",
 		"owasp",
 		"audit",
 		"vulnerability",
 	],
-	content: `## OWASP Top 10 Checklist
-1. **Injection**: Use parameterized queries (Drizzle tagged templates); never concatenate user input into SQL or use sql.raw() with untrusted data
-2. **Broken Auth**: Enforce session validation on every route; use httpOnly+secure+sameSite cookies; implement account lockout
-3. **Sensitive Data**: Encrypt secrets with AES-256-GCM (vault package); never log PII or API keys; mask in error responses
-4. **XXE**: Disable external entity processing in XML parsers; validate uploaded file contents
-5. **Broken Access Control**: Verify permissions on every request with sessionMiddleware/assertWorkspaceAccess; default deny; filter all queries by teamDbId
-6. **Misconfiguration**: Remove default credentials; check Next.js middleware matcher covers all protected routes; no directory listing
-7. **XSS**: Escape all output; never use dangerouslySetInnerHTML with user content; set Content-Security-Policy headers; sanitize with DOMPurify if rendering HTML
-8. **Insecure Deserialization**: Validate with Zod schemas at API boundaries; never trust client-sent JSON structure
-9. **Known Vulnerabilities**: Keep dependencies updated via Dependabot; audit with npm audit; check CVE databases
-10. **Logging**: Log security events (auth failures, access violations); use Pino structured logging; never log secrets or tokens
+	content: `## XSS Prevention
+- React JSX auto-escapes by default — this is the primary defense
+- NEVER use dangerouslySetInnerHTML with user-supplied content
+- Validate URLs before using in href/src attributes (block javascript: protocol)
+- If HTML rendering is needed, sanitize with DOMPurify first
+- Never build event handler strings from user data
 
-## Input Validation Patterns
-- Validate type, length, range, and format with Zod schemas on ALL API routes
-- Whitelist allowed values over blacklisting dangerous ones
-- Sanitize HTML input with DOMPurify if rendering user content
-- Validate URL inputs against allowlists; block private IP ranges for SSRF prevention
-- Check file upload types, sizes, and content (not just extensions)
+## Authentication Patterns (@vibexe/sdk)
+- Check app.auth.isAuthenticated() before rendering protected content
+- Call app.auth.getCurrentUser() on mount to restore session from localStorage
+- Wrap protected routes/pages with an AuthGuard component
+- Clear password fields after submission — never keep in React state
+- Handle auth errors gracefully (show message, don't expose details)
+- On signOut: call app.auth.signOut(), clear localStorage, redirect to login
 
-## Secrets Management
-- All secrets in environment variables via .env.local, never in source code
-- No credentials in commit history — .env files in .gitignore
-- Encrypt stored secrets (OAuth tokens, API keys) with TOKEN_ENCRYPTION_KEY via vault package
-- Use lazy initialization pattern (?? "" defaults) for module-level env reads to prevent build-time exposure
-- Rotate secrets regularly; use short-lived tokens where possible
+## Input Validation
+- Validate all form inputs before calling app.data.create/update
+- Check required fields, email format, number ranges, string lengths
+- Sanitize text inputs: trim whitespace, limit length
+- Validate numeric inputs: no negative prices, enforce min/max
+- Never pass raw user input to SDK without validation
 
-## Auth Patterns (Vibexe-Specific)
-- sessionMiddleware wraps all protected API routes — missing it = auth bypass
-- assertWorkspaceAccess validates team membership — missing it = horizontal escalation
-- OAuth2 callback must validate state parameter to prevent CSRF
-- Password reset tokens must be single-use with expiry
-- Session cookies: httpOnly=true, secure=true, sameSite=lax
+## Session Token Safety
+- Token is stored as vibexe_session in localStorage
+- Never display tokens in UI, logs, or error messages
+- Never pass tokens in URL query parameters
+- Only send tokens via Authorization header (SDK handles this)
+- Always call localStorage.removeItem on signOut
 
-## Database Security (Drizzle ORM)
-- Always use Drizzle's tagged template literals for queries (auto-parameterized)
-- Never use sql.raw() with user-controlled strings
-- All multi-tenant queries MUST include teamDbId/userId filter
-- Per-app database tables use prefixed naming (_app_*) for isolation
-- Validate all identifiers (table names, column names) against allowlists if dynamic
+## Data Access Patterns
+- Filter data by authenticated user when appropriate (ownership checks)
+- Don't expose entity IDs that allow enumeration (sequential IDs)
+- Add confirmation dialogs before destructive actions (delete)
+- Use POST for state-changing operations, GET for reads only
+- Validate entity IDs from URL params before querying
 
-## App Builder Security
-- User-generated code runs in Sandpack (iframe sandbox) during preview
-- Deployed apps are esbuild IIFE bundles — client-only, no server execution
-- Bridge script (visual-edit-bridge.ts) communicates only via postMessage
-- Cross-app isolation: each app has its own prefixed database tables
-- Never include platform secrets in deployed app bundles
+## Sensitive Data
+- Never hardcode passwords, API keys, or secrets in source files
+- Remove console.log statements that output user data or tokens
+- Mask PII in UI where appropriate (email: a***@example.com)
+- Show generic error messages to users, not stack traces or DB errors
+- Don't store sensitive data in React state longer than needed
 
-## Rate Limiting
-- Auth endpoints (login, signup, password reset) need rate limiting
-- AI generation endpoints need per-user token budgets
-- API routes need request-per-minute caps
-- Webhook endpoints need signature verification + rate limits`,
+## Unsafe Code Patterns to Flag
+- eval(), Function(), new Function() with any input
+- window.location set from user-controlled data (open redirect)
+- postMessage without origin validation
+- setTimeout/setInterval with string arguments
+- innerHTML set via DOM manipulation (bypasses React escaping)`,
 	enabled: true,
 };
