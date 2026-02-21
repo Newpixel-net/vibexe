@@ -17,7 +17,8 @@ export type AgentTool =
 	| "update_file"
 	| "delete_file"
 	| "read_file"
-	| "search_code";
+	| "search_code"
+	| "define_entities";
 
 export interface SkillDefinition {
 	id: string;

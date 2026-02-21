@@ -13,6 +13,7 @@ import {
 import type { UIMessage } from "ai";
 import {
 	convertToModelMessages,
+	generateText,
 	stepCountIs,
 	streamText,
 } from "ai";
@@ -170,7 +171,7 @@ export async function POST(request: Request) {
 			});
 		}
 
-		// Continue mode — AI-powered project analysis with read-only tools
+		// Continue mode — use the continuation-analyst agent from the engine
 		if (mode === "continue") {
 			// Gather project context for the continuation analyst
 			let projectContext = fileContext;
@@ -193,27 +194,23 @@ export async function POST(request: Request) {
 				}
 			}
 
-			const continueSystemPrompt = `You are a project analyst. Analyze this existing project and suggest what to do next.
-
-## Project Files
-${projectContext}
-
-## Instructions
-1. Summarize what has been built
-2. Identify incomplete or missing features
-3. Suggest 3-5 actionable next steps, prioritized by impact
-4. Each suggestion should be specific and actionable
-
-Respond in a friendly, concise format. Use markdown for structure.`;
+			// Use orchestration engine to get the continuation-analyst's assembled prompt
+			const continuePlan = executeOrchestration("continue what next", ALL_FLOWS, projectContext);
+			const continueAgent = continuePlan.agents[0];
+			const continueSystemPrompt = continueAgent
+				? (continuePlan.agentPrompts.get(continueAgent.id) || "")
+				: "Analyze this project and suggest next steps.";
 
 			const readOnlyTools = createFileTools(appId);
 			const modelMessages = await convertToModelMessages(messages);
 			const byok = hasByok ? byokKeys : undefined;
 			const model = modelId
 				? resolveModel(modelId, byok)
-				: resolveModel(undefined, byok);
+				: continueAgent
+					? resolveModelByTier(continueAgent.modelTier, byok)
+					: resolveModel(undefined, byok);
 
-			console.log(`[Chat API] Continue mode: ${existingFiles.length} files, model=${modelId || "default"}`);
+			console.log(`[Chat API] Continue mode: ${existingFiles.length} files, agent=${continueAgent?.id || "fallback"}, model=${modelId || continueAgent?.modelTier || "default"}`);
 
 			const result = streamText({
 				model,
@@ -323,8 +320,35 @@ The user is using Visual Edit mode. They selected a specific element in the live
 		const backendType = await getAppBackendType(appId);
 		const supabaseConfig = backendType === "supabase" ? await getSupabaseConfig(appId) : null;
 
-		const dataManagementSection = supabaseConfig
-			? `## Data Management — Supabase Connected
+		// --- Build system prompt from orchestrated agent prompt + runtime addenda ---
+		// The assembled prompt already contains: role, platform constraints, SDK docs,
+		// code standards, skills content, complexity template, and project context.
+		// We only add dynamic runtime-specific sections the agent couldn't know at definition time.
+
+		const langInstructions = siteAnalysis && siteAnalysis.language.code !== "en"
+			? buildLanguageInstructions(siteAnalysis)
+			: "";
+
+		const isReturningUser = existingFiles.length > 0;
+
+		// Get the assembled prompt for the primary agent (developer or single-agent flow)
+		const primaryAgent = developerAgent || plan.agents[0];
+		let assembledPrompt = primaryAgent
+			? plan.agentPrompts.get(primaryAgent.id) || ""
+			: "";
+
+		// Inject the actual appId into SDK examples (agent prompt has "..." placeholder)
+		assembledPrompt = assembledPrompt.replace(
+			/appId:\s*"\.\.\."/g,
+			`appId: "${appId}"`,
+		);
+
+		// Build runtime addenda — only things not in the agent prompt
+		const runtimeAddenda: string[] = [];
+
+		// Supabase override: if app uses Supabase, override SDK instructions
+		if (supabaseConfig) {
+			runtimeAddenda.push(`## ⚠️ OVERRIDE: Supabase Connected (ignore @vibexe/sdk instructions)
 This app is connected to a Supabase project. Use the Supabase client for ALL data access:
 \`\`\`tsx
 import { createClient } from "@supabase/supabase-js";
@@ -334,60 +358,91 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 - Use \`supabase.from("table").insert()\` for inserts
 - Use \`supabase.auth.signUp()\` / \`supabase.auth.signInWithPassword()\` for authentication
 - Do NOT use \`@vibexe/sdk\` or \`define_entities\` — use Supabase directly
-- Do NOT call define_entities — the user manages their schema through Supabase Dashboard`
-			: `## Data Management
-- Default: React state (useState) + localStorage for persistence
-- SaaS/multi-user apps: call define_entities to create database tables, then use:
-\`\`\`tsx
-import { VibexeApp } from "@vibexe/sdk";
-const app = new VibexeApp({ appId: "${appId}" });
-\`\`\``;
+- You may import from \`@supabase/supabase-js\``);
+		}
 
-		// Build the system prompt — all files created via consecutive create_file calls
-		// Build language-specific instructions when a non-English site is detected
-		const langInstructions = siteAnalysis && siteAnalysis.language.code !== "en"
-			? buildLanguageInstructions(siteAnalysis)
-			: "";
+		// Existing project awareness
+		if (isReturningUser) {
+			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)
+This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE modifying them with \`update_file\`. Never blindly overwrite files without reading them first.`);
+		}
 
-		const isReturningUser = existingFiles.length > 0;
+		// Language/RTL instructions from URL analysis
+		if (langInstructions) {
+			runtimeAddenda.push(langInstructions);
+		}
 
-		const systemPrompt = `You are an expert fullstack developer. Create COMPLETE web applications.
-You support 100+ languages including RTL languages like Hebrew, Arabic, Persian, and Urdu.
-${isReturningUser ? `
-## IMPORTANT: Existing Project
-This is an EXISTING project with ${existingFiles.length} files. You have a \`read_file\` tool — use it to inspect existing files BEFORE modifying them with \`update_file\`. Never blindly overwrite files without reading them first.
-` : ""}
-## TASK
+		// Visual edit mode addendum
+		if (visualEditSystemAddendum) {
+			runtimeAddenda.push(visualEditSystemAddendum);
+		}
 
-Call create_file for EVERY file the application needs. A typical app requires 8-15+ files.
-
-## Required Files (call create_file for ALL)
-
-1. **Blueprint.md** — Full project documentation: overview, features with acceptance criteria, architecture, data flow, component structure, complete file list, tech stack, UI/UX notes
-2. **src/types/index.ts** — TypeScript interfaces and type definitions
-3. **Utility files** — src/utils/*.ts for helpers, constants, mock data
-4. **React hooks** — src/hooks/*.ts for data management, localStorage, state
-5. **Components** — src/components/*.tsx, one file per UI component, well-separated by feature
-6. **src/App.tsx** — Main component importing and rendering all components
-
-You MUST call create_file for items 1-6 above. Do NOT stop after creating Blueprint.md — keep calling create_file for every remaining file. Aim for 8-15+ total create_file calls.
-
-After ALL create_file calls are done, write a SHORT summary (2-3 sentences) of what was built.
-
-${dataManagementSection}
-
-## Code Standards
-- React + TypeScript + Tailwind CSS (CDN preloaded, NO CSS imports needed)
-- NO external packages — use inline SVG or emoji for icons${supabaseConfig ? "\n- EXCEPTION: You may import from `@supabase/supabase-js`" : ""}
-- Every file must be COMPLETE and render without errors
-- Complex apps need 8-15+ well-separated component files
-${langInstructions}${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}${visualEditSystemAddendum}`;
+		// Combine: assembled agent prompt + runtime addenda
+		let systemPrompt = runtimeAddenda.length > 0
+			? `${assembledPrompt}\n\n${runtimeAddenda.join("\n\n")}`
+			: assembledPrompt;
 
 		const tools = createFileTools(appId);
 		const modelMessages = await convertToModelMessages(messages);
-
-		// Use user-selected model if provided, otherwise use the agent's tier
 		const byok = hasByok ? byokKeys : undefined;
+
+		// --- Pre-stream agent chaining ---
+		// For multi-agent flows, run read-only agents (architect, planner) BEFORE the
+		// main developer stream. Their analysis becomes part of the developer's context.
+		// This makes the pipeline a true chain instead of classification-only.
+		const primaryAgentIndex = plan.agents.findIndex((a) => !a.readOnly);
+		const preStreamAgents = primaryAgentIndex > 0
+			? plan.agents.slice(0, primaryAgentIndex)
+			: [];
+
+		if (preStreamAgents.length > 0 && !isVisualEdit) {
+			const chainedAnalysis: string[] = [];
+
+			for (const agent of preStreamAgents) {
+				const agentPrompt = plan.agentPrompts.get(agent.id) || "";
+				// Use user-selected model if provided, otherwise use agent's own tier
+				const agentModel = modelId
+					? resolveModel(modelId, byok)
+					: resolveModelByTier(agent.modelTier, byok);
+
+				console.log(
+					`[Chat API] Pre-stream agent: ${agent.id} (${agent.modelTier})`,
+				);
+
+				try {
+					const agentResult = await generateText({
+						model: agentModel,
+						system: agentPrompt,
+						messages: modelMessages,
+						maxSteps: 1, // Read-only agents: single analysis step, no tool loop
+					});
+
+					const output = agentResult.text.trim();
+					if (output) {
+						chainedAnalysis.push(
+							`## ${agent.name} Analysis\n\n${output}`,
+						);
+					}
+
+					console.log(
+						`[Chat API] Agent ${agent.id} complete: ${output.length} chars, ${agentResult.usage?.totalTokens || 0} tokens`,
+					);
+				} catch (err) {
+					// Pre-stream failure is non-fatal — developer can still generate without it
+					console.error(
+						`[Chat API] Pre-stream agent ${agent.id} failed:`,
+						err,
+					);
+				}
+			}
+
+			// Inject accumulated analysis into the developer's system prompt
+			if (chainedAnalysis.length > 0) {
+				systemPrompt = `${systemPrompt}\n\n# Pipeline Context (from upstream agents)\n\n${chainedAnalysis.join("\n\n")}`;
+			}
+		}
+
+		// Use user-selected model if provided, otherwise use the primary agent's tier
 		const model = modelId
 			? resolveModel(modelId, byok)
 			: developerAgent
@@ -406,7 +461,7 @@ ${langInstructions}${enrichedFileContext ? `\n## Project Context\n${enrichedFile
 						: 35;
 
 		console.log(
-			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, model=${modelId || developerAgent?.modelTier || "default"}, maxSteps=${maxSteps}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,
+			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, preStream=${preStreamAgents.length}, model=${modelId || primaryAgent?.modelTier || "default"}, maxSteps=${maxSteps}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,
 		);
 
 		// Use streamText directly with toUIMessageStreamResponse for proper multi-step support.

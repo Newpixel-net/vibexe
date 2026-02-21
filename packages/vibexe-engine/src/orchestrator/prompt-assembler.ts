@@ -37,9 +37,17 @@ export function assemblePrompt(
 		}
 	}
 
-	// Reference active skills (no full content — keep prompt compact)
+	// Inject active skill content into the prompt (enriches agent knowledge)
 	if (skills.length > 0) {
-		sections.push(`Active skills: ${skills.map((s) => s.name).join(", ")}`);
+		const MAX_SKILL_CHARS = 2000; // Per-skill content budget
+		const skillSections: string[] = [];
+		for (const skill of skills) {
+			const content = skill.content.length > MAX_SKILL_CHARS
+				? `${skill.content.slice(0, MAX_SKILL_CHARS)}\n... (truncated)`
+				: skill.content;
+			skillSections.push(`### ${skill.name}\n${content}`);
+		}
+		sections.push(`# Reference Knowledge\n\n${skillSections.join("\n\n")}`);
 	}
 
 	// Project context
