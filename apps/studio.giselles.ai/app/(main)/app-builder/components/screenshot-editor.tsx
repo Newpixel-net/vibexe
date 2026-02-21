@@ -4,7 +4,7 @@
  * ScreenshotEditor Component — Canvas-based annotation editor
  *
  * Full-screen overlay with two-layer canvas (base image + annotations).
- * Tools: Crop, Rectangle, Arrow, Freehand, Text, Blur.
+ * Tools: Crop, Rectangle, Arrow, Mask.
  * Glass-styled toolbar with Aurora aesthetic.
  */
 
@@ -12,10 +12,8 @@ import {
 	Crop,
 	EyeOff,
 	MoveUpRight,
-	Pencil,
 	RectangleHorizontal,
 	Redo2,
-	Type,
 	Undo2,
 	X,
 } from "lucide-react";
@@ -30,7 +28,7 @@ import { cn } from "@/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────
 
-type Tool = "crop" | "rectangle" | "arrow" | "freehand" | "text" | "blur";
+type Tool = "crop" | "rectangle" | "arrow" | "mask";
 
 interface Point {
 	x: number;
@@ -38,20 +36,12 @@ interface Point {
 }
 
 interface Annotation {
-	type: "rectangle" | "arrow" | "freehand" | "text" | "blur";
+	type: "rectangle" | "arrow" | "mask";
 	color: string;
 	strokeWidth: number;
-	/** Rectangle / Arrow / Blur: start + end points in image-space */
+	/** Rectangle / Arrow / Mask: start + end points in image-space */
 	start?: Point;
 	end?: Point;
-	/** Freehand: path points in image-space */
-	points?: Point[];
-	/** Text: position + content */
-	position?: Point;
-	text?: string;
-	fontSize?: number;
-	/** Blur: pixel data for the blurred region */
-	blurData?: ImageData;
 }
 
 interface CropRect {
@@ -87,9 +77,7 @@ const TOOLS: { id: Tool; icon: typeof Crop; label: string }[] = [
 	{ id: "crop", icon: Crop, label: "Crop" },
 	{ id: "rectangle", icon: RectangleHorizontal, label: "Rectangle" },
 	{ id: "arrow", icon: MoveUpRight, label: "Arrow" },
-	{ id: "freehand", icon: Pencil, label: "Freehand" },
-	{ id: "text", icon: Type, label: "Text" },
-	{ id: "blur", icon: EyeOff, label: "Blur" },
+	{ id: "mask", icon: EyeOff, label: "Mask" },
 ];
 
 const MAX_UNDO = 50;
@@ -132,60 +120,6 @@ function drawArrowhead(
 	ctx.fill();
 }
 
-/** Apply 8x8 block averaging (pixelation) to a region */
-function pixelateRegion(
-	ctx: CanvasRenderingContext2D,
-	x: number,
-	y: number,
-	w: number,
-	h: number,
-	blockSize = 8,
-): ImageData {
-	const imageData = ctx.getImageData(x, y, w, h);
-	const data = imageData.data;
-
-	for (let by = 0; by < h; by += blockSize) {
-		for (let bx = 0; bx < w; bx += blockSize) {
-			let r = 0;
-			let g = 0;
-			let b = 0;
-			let a = 0;
-			let count = 0;
-
-			const maxY = Math.min(by + blockSize, h);
-			const maxX = Math.min(bx + blockSize, w);
-
-			for (let py = by; py < maxY; py++) {
-				for (let px = bx; px < maxX; px++) {
-					const idx = (py * w + px) * 4;
-					r += data[idx];
-					g += data[idx + 1];
-					b += data[idx + 2];
-					a += data[idx + 3];
-					count++;
-				}
-			}
-
-			r = Math.round(r / count);
-			g = Math.round(g / count);
-			b = Math.round(b / count);
-			a = Math.round(a / count);
-
-			for (let py = by; py < maxY; py++) {
-				for (let px = bx; px < maxX; px++) {
-					const idx = (py * w + px) * 4;
-					data[idx] = r;
-					data[idx + 1] = g;
-					data[idx + 2] = b;
-					data[idx + 3] = a;
-				}
-			}
-		}
-	}
-
-	return imageData;
-}
-
 // ── Component ──────────────────────────────────────────────────────
 
 export function ScreenshotEditor({
@@ -208,7 +142,7 @@ export function ScreenshotEditor({
 	const [cropApplied, setCropApplied] = useState<CropRect | null>(null);
 
 	// Tool state
-	const [activeTool, setActiveTool] = useState<Tool>("rectangle");
+	const [activeTool, setActiveTool] = useState<Tool>("crop");
 	const [color, setColor] = useState("#EF4444");
 	const [strokeWidth, setStrokeWidth] = useState(4);
 
@@ -222,14 +156,6 @@ export function ScreenshotEditor({
 	const [isDrawing, setIsDrawing] = useState(false);
 	const [drawStart, setDrawStart] = useState<Point | null>(null);
 	const [drawCurrent, setDrawCurrent] = useState<Point | null>(null);
-	const [freehandPoints, setFreehandPoints] = useState<Point[]>([]);
-
-	// Text input state
-	const [textInput, setTextInput] = useState<{
-		position: Point;
-		value: string;
-	} | null>(null);
-	const textInputRef = useRef<HTMLInputElement>(null);
 
 	// Annotations (undo/redo stacks)
 	const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -354,25 +280,14 @@ export function ScreenshotEditor({
 							drawArrowhead(ctx, ann.start, ann.end, ann.strokeWidth * 4);
 						}
 						break;
-					case "freehand":
-						if (ann.points && ann.points.length > 1) {
-							ctx.beginPath();
-							ctx.moveTo(ann.points[0].x, ann.points[0].y);
-							for (let i = 1; i < ann.points.length; i++) {
-								ctx.lineTo(ann.points[i].x, ann.points[i].y);
-							}
-							ctx.stroke();
-						}
-						break;
-					case "text":
-						if (ann.position && ann.text) {
-							ctx.font = `bold ${ann.fontSize ?? 24}px sans-serif`;
-							ctx.fillText(ann.text, ann.position.x, ann.position.y);
-						}
-						break;
-					case "blur":
-						if (ann.blurData && ann.start) {
-							ctx.putImageData(ann.blurData, ann.start.x, ann.start.y);
+					case "mask":
+						if (ann.start && ann.end) {
+							ctx.fillStyle = "rgba(0,0,0,0.95)";
+							const rx = Math.min(ann.start.x, ann.end.x);
+							const ry = Math.min(ann.start.y, ann.end.y);
+							const rw = Math.abs(ann.end.x - ann.start.x);
+							const rh = Math.abs(ann.end.y - ann.start.y);
+							ctx.fillRect(rx, ry, rw, rh);
 						}
 						break;
 				}
@@ -459,19 +374,9 @@ export function ScreenshotEditor({
 				return;
 			}
 
-			if (activeTool === "text") {
-				setTextInput({ position: p, value: "" });
-				setTimeout(() => textInputRef.current?.focus(), 50);
-				return;
-			}
-
 			setIsDrawing(true);
 			setDrawStart(p);
 			setDrawCurrent(p);
-
-			if (activeTool === "freehand") {
-				setFreehandPoints([p]);
-			}
 		},
 		[activeTool, scale, offset, getCropHandle, cropRect],
 	);
@@ -540,10 +445,6 @@ export function ScreenshotEditor({
 
 			setDrawCurrent(p);
 
-			if (activeTool === "freehand") {
-				setFreehandPoints((prev) => [...prev, p]);
-			}
-
 			// Live preview of current drawing
 			const ctx = canvas.getContext("2d");
 			if (!ctx) return;
@@ -569,31 +470,19 @@ export function ScreenshotEditor({
 				ctx.lineTo(p.x, p.y);
 				ctx.stroke();
 				drawArrowhead(ctx, drawStart, p, strokeWidth * 4);
-			} else if (activeTool === "freehand" && freehandPoints.length > 1) {
-				ctx.beginPath();
-				ctx.moveTo(freehandPoints[0].x, freehandPoints[0].y);
-				for (let i = 1; i < freehandPoints.length; i++) {
-					ctx.lineTo(freehandPoints[i].x, freehandPoints[i].y);
-				}
-				ctx.stroke();
-			} else if (activeTool === "blur" && drawStart) {
-				// Show outline of blur region
-				ctx.setLineDash([4, 4]);
-				ctx.strokeStyle = "rgba(255,255,255,0.5)";
-				ctx.lineWidth = 1;
+			} else if (activeTool === "mask" && drawStart) {
+				ctx.fillStyle = "rgba(0,0,0,0.85)";
 				const rx = Math.min(drawStart.x, p.x);
 				const ry = Math.min(drawStart.y, p.y);
 				const rw = Math.abs(p.x - drawStart.x);
 				const rh = Math.abs(p.y - drawStart.y);
-				ctx.strokeRect(rx, ry, rw, rh);
-				ctx.setLineDash([]);
+				ctx.fillRect(rx, ry, rw, rh);
 			}
 		},
 		[
 			activeTool,
 			isDrawing,
 			drawStart,
-			freehandPoints,
 			scale,
 			offset,
 			color,
@@ -622,7 +511,6 @@ export function ScreenshotEditor({
 		const end = drawCurrent ?? drawStart;
 
 		if (activeTool === "rectangle" || activeTool === "arrow") {
-			// Only add if there's actual size
 			const dist = Math.sqrt((end.x - drawStart.x) ** 2 + (end.y - drawStart.y) ** 2);
 			if (dist > 3) {
 				const ann: Annotation = {
@@ -635,92 +523,36 @@ export function ScreenshotEditor({
 				setAnnotations((prev) => [...prev.slice(-MAX_UNDO + 1), ann]);
 				setRedoStack([]);
 			}
-		} else if (activeTool === "freehand" && freehandPoints.length > 1) {
-			const ann: Annotation = {
-				type: "freehand",
-				color,
-				strokeWidth,
-				points: [...freehandPoints],
-			};
-			setAnnotations((prev) => [...prev.slice(-MAX_UNDO + 1), ann]);
-			setRedoStack([]);
-		} else if (activeTool === "blur") {
-			const baseCanvas = baseCanvasRef.current;
-			const annoCanvas = annoCanvasRef.current;
-			if (baseCanvas && annoCanvas) {
-				const rx = Math.round(Math.min(drawStart.x, end.x));
-				const ry = Math.round(Math.min(drawStart.y, end.y));
-				const rw = Math.round(Math.abs(end.x - drawStart.x));
-				const rh = Math.round(Math.abs(end.y - drawStart.y));
-
-				if (rw > 4 && rh > 4) {
-					// Read from base canvas + existing annotation canvas
-					const offscreen = document.createElement("canvas");
-					offscreen.width = effectiveW;
-					offscreen.height = effectiveH;
-					const offCtx = offscreen.getContext("2d");
-					if (offCtx) {
-						offCtx.drawImage(baseCanvas, 0, 0);
-						offCtx.drawImage(annoCanvas, 0, 0);
-						const blurData = pixelateRegion(offCtx, rx, ry, rw, rh);
-
-						const ann: Annotation = {
-							type: "blur",
-							color: "transparent",
-							strokeWidth: 0,
-							start: { x: rx, y: ry },
-							end: { x: rx + rw, y: ry + rh },
-							blurData,
-						};
-						setAnnotations((prev) => [...prev.slice(-MAX_UNDO + 1), ann]);
-						setRedoStack([]);
-					}
-				}
+		} else if (activeTool === "mask") {
+			const rx = Math.min(drawStart.x, end.x);
+			const ry = Math.min(drawStart.y, end.y);
+			const rw = Math.abs(end.x - drawStart.x);
+			const rh = Math.abs(end.y - drawStart.y);
+			if (rw > 4 && rh > 4) {
+				const ann: Annotation = {
+					type: "mask",
+					color: "#000000",
+					strokeWidth: 0,
+					start: drawStart,
+					end,
+				};
+				setAnnotations((prev) => [...prev.slice(-MAX_UNDO + 1), ann]);
+				setRedoStack([]);
 			}
 		}
 
 		setIsDrawing(false);
 		setDrawStart(null);
 		setDrawCurrent(null);
-		setFreehandPoints([]);
 	}, [
 		activeTool,
 		isDrawing,
 		drawStart,
 		drawCurrent,
-		freehandPoints,
 		color,
 		strokeWidth,
-		effectiveW,
-		effectiveH,
 		cropDragging,
 	]);
-
-	// ── Text commit ────────────────────────────────────────────
-
-	const commitText = useCallback(() => {
-		if (!textInput || !textInput.value.trim()) {
-			setTextInput(null);
-			return;
-		}
-
-		const fontSizes = [16, 24, 32];
-		const fontSize =
-			strokeWidth <= 2 ? fontSizes[0] : strokeWidth <= 4 ? fontSizes[1] : fontSizes[2];
-
-		const ann: Annotation = {
-			type: "text",
-			color,
-			strokeWidth,
-			position: textInput.position,
-			text: textInput.value,
-			fontSize,
-		};
-
-		setAnnotations((prev) => [...prev.slice(-MAX_UNDO + 1), ann]);
-		setRedoStack([]);
-		setTextInput(null);
-	}, [textInput, color, strokeWidth]);
 
 	// ── Undo / Redo ────────────────────────────────────────────
 
@@ -802,9 +634,7 @@ export function ScreenshotEditor({
 	useEffect(() => {
 		const handler = (e: KeyboardEvent) => {
 			if (e.key === "Escape") {
-				if (textInput) {
-					setTextInput(null);
-				} else if (activeTool === "crop") {
+				if (activeTool === "crop") {
 					setCropRect(null);
 					setActiveTool("rectangle");
 				} else {
@@ -825,7 +655,7 @@ export function ScreenshotEditor({
 
 		window.addEventListener("keydown", handler);
 		return () => window.removeEventListener("keydown", handler);
-	}, [onCancel, undo, redo, textInput, activeTool]);
+	}, [onCancel, undo, redo, activeTool]);
 
 	// ── Render ──────────────────────────────────────────────────
 
@@ -874,10 +704,7 @@ export function ScreenshotEditor({
 						<button
 							key={id}
 							type="button"
-							onClick={() => {
-								if (textInput) commitText();
-								setActiveTool(id);
-							}}
+							onClick={() => setActiveTool(id)}
 							className={cn(
 								"h-8 w-8 flex items-center justify-center rounded-lg transition-all text-sm",
 								activeTool === id
@@ -907,8 +734,8 @@ export function ScreenshotEditor({
 						</>
 					)}
 
-					{/* Color dots (hide during crop) */}
-					{activeTool !== "crop" && (
+					{/* Color dots + stroke (hide during crop/mask) */}
+					{activeTool !== "crop" && activeTool !== "mask" && (
 						<>
 							{COLORS.map(({ value, label }) => (
 								<button
@@ -991,7 +818,7 @@ export function ScreenshotEditor({
 				<canvas
 					ref={annoCanvasRef}
 					className="absolute top-0 left-0"
-					style={{ ...canvasStyle, cursor: activeTool === "text" ? "text" : "crosshair" }}
+					style={{ ...canvasStyle, cursor: "crosshair" }}
 					onMouseDown={handleMouseDown}
 					onMouseMove={handleMouseMove}
 					onMouseUp={handleMouseUp}
@@ -1086,40 +913,6 @@ export function ScreenshotEditor({
 					</div>
 				)}
 
-				{/* Text input overlay */}
-				{textInput && (
-					<input
-						ref={textInputRef}
-						type="text"
-						value={textInput.value}
-						onChange={(e) =>
-							setTextInput((prev) =>
-								prev ? { ...prev, value: e.target.value } : null,
-							)
-						}
-						onKeyDown={(e) => {
-							if (e.key === "Enter") {
-								e.preventDefault();
-								commitText();
-							} else if (e.key === "Escape") {
-								setTextInput(null);
-							}
-						}}
-						onBlur={commitText}
-						className="absolute bg-black/40 backdrop-blur-sm border border-white/20 rounded px-2 py-1 text-white text-sm outline-none focus:border-violet-500/50 min-w-[120px]"
-						style={{
-							left: offset.x + textInput.position.x * scale,
-							top: offset.y + textInput.position.y * scale,
-							fontSize:
-								strokeWidth <= 2
-									? 14
-									: strokeWidth <= 4
-										? 18
-										: 22,
-						}}
-						placeholder="Type text..."
-					/>
-				)}
 			</div>
 		</div>
 	);
