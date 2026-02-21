@@ -394,41 +394,6 @@ export function ChatColumn({
 		);
 	}, [phaseTimeline]);
 
-	// --- Pipeline action detection ---
-	// Detect if last assistant message is a plan (Plan-then-Execute feature)
-	const isPlanResponse = useMemo(() => {
-		if (isLoading || chatMessages.length === 0) return false;
-		const lastAssistant = [...chatMessages].reverse().find((m) => m.role === "assistant");
-		if (!lastAssistant?.content) return false;
-		const text = lastAssistant.content;
-		// Plan heuristics: contains structured plan sections AND short conversation
-		return (
-			(text.includes("## File Map") || text.includes("## Implementation Plan") || text.includes("## Component Architecture")) &&
-			text.includes("Execute Plan") &&
-			chatMessages.length <= 3
-		);
-	}, [chatMessages, isLoading]);
-
-	// Detect if last assistant message is a review with issues (Review Feedback Loop)
-	const isReviewWithIssues = useMemo(() => {
-		if (isLoading || chatMessages.length === 0) return false;
-		const lastAssistant = [...chatMessages].reverse().find((m) => m.role === "assistant");
-		if (!lastAssistant?.content) return false;
-		const text = lastAssistant.content;
-		return (
-			text.includes("## Combined Verdict") &&
-			(text.includes("WARNING") || text.includes("BLOCK") || text.includes("FAIL")) &&
-			text.includes("Fix Issues")
-		);
-	}, [chatMessages, isLoading]);
-
-	// Detect if we just completed a code generation (for showing Review button)
-	const showReviewButton = useMemo(() => {
-		if (isLoading || isPlanResponse || isReviewWithIssues) return false;
-		// Show review button when generation completed and we have files
-		return isGenerationComplete && files.length > 0;
-	}, [isLoading, isPlanResponse, isReviewWithIssues, isGenerationComplete, files.length]);
-
 	// Load chatId from localStorage after mount (hydration-safe)
 	useEffect(() => {
 		setHasMounted(true);
@@ -739,6 +704,41 @@ export function ChatColumn({
 
 	// Convert AI SDK messages to VibeSDK ChatMessage format
 	const chatMessages = useMemo(() => toChatMessages(messages), [messages]);
+
+	// --- Pipeline action detection ---
+	// Detect if last assistant message is a plan (Plan-then-Execute feature)
+	const isPlanResponse = useMemo(() => {
+		if (isLoading || chatMessages.length === 0) return false;
+		const lastAssistant = [...chatMessages].reverse().find((m) => m.role === "assistant");
+		if (!lastAssistant?.content) return false;
+		const text = lastAssistant.content;
+		// Plan heuristics: contains structured plan sections AND short conversation
+		return (
+			(text.includes("## File Map") || text.includes("## Implementation Plan") || text.includes("## Component Architecture")) &&
+			text.includes("Execute Plan") &&
+			chatMessages.length <= 3
+		);
+	}, [chatMessages, isLoading]);
+
+	// Detect if last assistant message is a review with issues (Review Feedback Loop)
+	const isReviewWithIssues = useMemo(() => {
+		if (isLoading || chatMessages.length === 0) return false;
+		const lastAssistant = [...chatMessages].reverse().find((m) => m.role === "assistant");
+		if (!lastAssistant?.content) return false;
+		const text = lastAssistant.content;
+		return (
+			text.includes("## Combined Verdict") &&
+			(text.includes("WARNING") || text.includes("BLOCK") || text.includes("FAIL")) &&
+			text.includes("Fix Issues")
+		);
+	}, [chatMessages, isLoading]);
+
+	// Detect if we just completed a code generation (for showing Review button)
+	const showReviewButton = useMemo(() => {
+		if (isLoading || isPlanResponse || isReviewWithIssues) return false;
+		// Show review button when generation completed and we have files
+		return isGenerationComplete && files.length > 0;
+	}, [isLoading, isPlanResponse, isReviewWithIssues, isGenerationComplete, files.length]);
 
 	// Continuation analysis for returning users
 	useEffect(() => {
