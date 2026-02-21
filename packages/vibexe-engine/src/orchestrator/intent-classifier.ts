@@ -22,6 +22,48 @@ export function isContinuationIntent(prompt: string): boolean {
 	return CONTINUATION_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
+/** Keywords that indicate the user wants to fix a bug/error (routes to FIX_FLOW) */
+const FIX_KEYWORDS = [
+	"fix",
+	"error",
+	"bug",
+	"broken",
+	"crash",
+	"not working",
+	"doesn't work",
+	"doesn't load",
+	"blank screen",
+	"white screen",
+	"unexpected token",
+	"module not found",
+	"cannot read",
+	"is not defined",
+	"is not a function",
+	"type error",
+	"syntax error",
+	"failed to fetch",
+	"not valid json",
+	"infinite loop",
+	"too many re-renders",
+];
+
+/** Keywords that indicate refactoring intent (routes to REFACTOR_FLOW) */
+const REFACTOR_KEYWORDS = [
+	"refactor",
+	"clean up",
+	"cleanup",
+	"restructure",
+	"reorganize",
+	"simplify",
+	"split into",
+	"extract component",
+	"extract hook",
+	"improve code quality",
+	"code smell",
+	"dry",
+	"reduce duplication",
+];
+
 const COMPLEXITY_SIGNALS = {
 	simple: [
 		"counter",
@@ -77,6 +119,16 @@ export function classifyIntent(prompt: string): IntentClassification {
 	if (!techStack.includes("react")) techStack.unshift("react");
 	if (!techStack.includes("tailwind")) techStack.push("tailwind");
 
+	// --- Flow detection: check fix/refactor FIRST (highest priority after URL) ---
+
+	// Count fix signals — if user is reporting an error, route to FIX_FLOW
+	const fixSignalCount = FIX_KEYWORDS.filter((kw) => lower.includes(kw)).length;
+	const hasFixIntent = fixSignalCount >= 1;
+
+	// Count refactor signals
+	const refactorSignalCount = REFACTOR_KEYWORDS.filter((kw) => lower.includes(kw)).length;
+	const hasRefactorIntent = refactorSignalCount >= 1;
+
 	// Detect complexity
 	const hasComplexSignals = COMPLEXITY_SIGNALS.complex.filter((s) =>
 		lower.includes(s),
@@ -89,7 +141,27 @@ export function classifyIntent(prompt: string): IntentClassification {
 	let suggestedFlow: string;
 	let type: string;
 
-	if (hasComplexSignals >= 2 || words.length > 30) {
+	// Priority 1: URL replication
+	if (detectedUrls.length > 0) {
+		suggestedFlow = "replicate";
+		complexity = "complex";
+		type = "website-replication";
+	}
+	// Priority 2: Fix/error intent — route to build-error-resolver
+	else if (hasFixIntent) {
+		suggestedFlow = "fix";
+		// Fix requests are always at least medium complexity (need to read + diagnose + fix)
+		complexity = hasComplexSignals >= 1 ? "complex" : "medium";
+		type = "bug-fix";
+	}
+	// Priority 3: Refactor intent
+	else if (hasRefactorIntent) {
+		suggestedFlow = "refactor";
+		complexity = hasComplexSignals >= 2 ? "complex" : "medium";
+		type = "refactoring";
+	}
+	// Priority 4: Normal feature/quick flow based on complexity
+	else if (hasComplexSignals >= 2 || words.length > 30) {
 		complexity = "complex";
 		suggestedFlow = "feature";
 		type = "full-app";
@@ -103,13 +175,7 @@ export function classifyIntent(prompt: string): IntentClassification {
 		type = "single-component";
 	}
 
-	if (detectedUrls.length > 0) {
-		suggestedFlow = "replicate";
-		complexity = "complex";
-		type = "website-replication";
-	}
-
-	const reasoning = `Detected ${complexity} complexity: ${hasComplexSignals} complex signals, ${hasSimpleSignals} simple signals, ${techStack.length} tech areas. Suggested flow: ${suggestedFlow}.`;
+	const reasoning = `Detected ${complexity} complexity: ${hasComplexSignals} complex signals, ${hasSimpleSignals} simple signals, ${fixSignalCount} fix signals, ${refactorSignalCount} refactor signals, ${techStack.length} tech areas. Suggested flow: ${suggestedFlow}.`;
 
 	return { complexity, type, techStack, suggestedFlow, reasoning, detectedUrls };
 }

@@ -486,6 +486,27 @@ After creating ALL files, end with a short summary. If the app has auth, include
 This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE modifying them with \`update_file\`. Never blindly overwrite files without reading them first.`);
 		}
 
+		// --- FIX FLOW: Inject existing file contents so the error resolver has full context ---
+		if (plan.intent.suggestedFlow === "fix" && existingFiles.length > 0) {
+			const fileContents: string[] = [];
+			for (const f of existingFiles.slice(0, 12)) {
+				try {
+					const file = await getFileByPath(appId, f.path);
+					if (file?.content) {
+						const truncated = file.content.length > 3000
+							? `${file.content.slice(0, 3000)}\n... (truncated)`
+							: file.content;
+						fileContents.push(`### ${f.path}\n\`\`\`\n${truncated}\n\`\`\``);
+					}
+				} catch (_) {
+					// Best-effort
+				}
+			}
+			if (fileContents.length > 0) {
+				runtimeAddenda.push(`## Current Project Files (for diagnosis)\n\n${fileContents.join("\n\n")}`);
+			}
+		}
+
 		// Language/RTL instructions from URL analysis
 		if (langInstructions) {
 			runtimeAddenda.push(langInstructions);
@@ -501,7 +522,17 @@ This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE 
 			? `${assembledPrompt}\n\n${runtimeAddenda.join("\n\n")}`
 			: assembledPrompt;
 
-		const tools = createFileTools(appId);
+		const allTools = createFileTools(appId);
+
+		// Agent-specific tool filtering: only pass tools the primary agent is allowed to use
+		const agentToolIds = primaryAgent?.tools || [];
+		const tools: Record<string, unknown> = {};
+		for (const [toolId, toolDef] of Object.entries(allTools)) {
+			if (agentToolIds.length === 0 || agentToolIds.includes(toolId)) {
+				tools[toolId] = toolDef;
+			}
+		}
+
 		const modelMessages = await convertToModelMessages(messages);
 		const byok = hasByok ? byokKeys : undefined;
 
@@ -513,6 +544,7 @@ This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE 
 				: resolveModel(undefined, byok);
 
 		const isReplication = plan.intent.suggestedFlow === "replicate";
+		const isFix = plan.intent.suggestedFlow === "fix";
 		const isPlanOnly = isNewProject && !isVisualEdit;
 		const maxSteps = isPlanOnly
 			? 5 // Plan-only: just Blueprint.md creation
@@ -520,13 +552,15 @@ This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE 
 				? 100 // Execute-plan: full project build from Blueprint needs many steps
 				: isVisualEdit
 					? 10
-					: isReplication
-						? 100
-						: plan.intent.complexity === "complex"
+					: isFix
+						? 30 // Fix flow: read + diagnose + fix (may need multiple read/update cycles)
+						: isReplication
 							? 100
-							: plan.intent.complexity === "medium"
-								? 60
-								: 35;
+							: plan.intent.complexity === "complex"
+								? 100
+								: plan.intent.complexity === "medium"
+									? 60
+									: 35;
 
 		const upstreamCount = plan.agents.filter((a) => a.readOnly).length;
 		console.log(

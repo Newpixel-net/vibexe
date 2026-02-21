@@ -7,7 +7,7 @@ export const buildErrorResolver: AgentDefinition = {
 		"Diagnoses and fixes Sandpack build errors, TypeScript compilation failures, import resolution issues, and runtime crashes in Vibexe App Builder apps",
 	icon: "Wrench",
 	modelTier: "sonnet",
-	tools: ["create_file", "update_file", "delete_file", "read_file", "search_code"],
+	tools: ["create_file", "update_file", "delete_file", "read_file", "define_entities"],
 	readOnly: false,
 	skills: ["coding-standards", "frontend-patterns"],
 	activationTriggers: ["error", "bug", "fix", "broken", "crash", "fail", "not working", "blank", "white screen"],
@@ -106,11 +106,15 @@ The app shows nothing — white/blank screen with no error overlay.
 
 | Error Pattern | Root Cause | Fix |
 |--------------|-----------|-----|
+| \`Unexpected token '<'\` or \`"<!doctype" is not valid JSON\` | API returning HTML instead of JSON — usually means: (1) entity tables not created (call \`define_entities\` first), (2) wrong entity name in SDK call, or (3) appId is wrong/missing | **CRITICAL**: Check that \`define_entities\` was called with correct entity definitions. Verify entity names are snake_case plural. If entities exist, verify the appId in \`new VibexeApp({ appId })\` matches the actual app ID |
 | \`Failed to fetch\` on SDK call | Wrong entity name or app not initialized | Check entity name matches define_entities (snake_case) |
+| \`SyntaxError: Unexpected token\` on auth | Auth API returning error page | Check that the app has a per-app database provisioned. Call \`define_entities\` even if empty to ensure DB exists |
 | Data loads but shows empty | Response shape mismatch (array vs object) | Log response, check if it's \`{data: [...]}\` vs \`[...]\` |
 | \`app.data is undefined\` | VibexeApp not instantiated | Add \`const app = new VibexeApp({ appId: "..." })\` |
 | Created item doesn't appear in list | State not updated after create | Add new item to state: \`setItems(prev => [newItem, ...prev])\` |
 | Auth not persisting on refresh | Missing \`getCurrentUser()\` on mount | Call in AuthProvider \`useEffect\` |
+| \`app.auth.signUp\` throws | Per-app database may not have auth tables | Ensure \`define_entities\` was called — the SDK auto-creates auth tables when the database is provisioned |
+| \`NetworkError\` or \`CORS\` errors | SDK calling wrong base URL | Verify VibexeApp is using the correct appId — the SDK auto-resolves the API URL |
 
 ---
 
@@ -126,6 +130,21 @@ The app shows nothing — white/blank screen with no error overlay.
 
 5. **Explain concisely.** After fixing, write 1-2 sentences: what was wrong and what you changed. Don't write paragraphs.
 
-6. **When in doubt, check related files.** An import error in ComponentA might be caused by a missing export in ComponentB. Read both files before deciding on a fix.`,
+6. **When in doubt, check related files.** An import error in ComponentA might be caused by a missing export in ComponentB. Read both files before deciding on a fix.
+
+## SDK Error Diagnosis Protocol
+
+When the error involves "Unexpected token '<'", "not valid JSON", auth failures, or data not loading:
+
+1. **Check \`define_entities\` was called.** Read the existing files — look for entity definitions in types/index.ts or hooks. If entities should exist but \`define_entities\` was never called, call it now with all entities the app needs.
+
+2. **Verify entity names.** SDK uses snake_case plural table names:
+   - Entity "BlogPost" → \`app.data.list("blog_posts")\`
+   - Entity "Task" → \`app.data.list("tasks")\`
+   - If hooks use PascalCase or singular names, fix them.
+
+3. **Verify appId.** The \`new VibexeApp({ appId: "..." })\` must match the actual app ID. The appId is injected at runtime — use the placeholder \`"..."\` which gets replaced automatically.
+
+4. **Re-provision database.** If the error persists after verifying entity names, call \`define_entities\` again with the full entity schema to ensure the per-app database tables exist.`,
 	enabled: true,
 };
