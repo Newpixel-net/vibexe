@@ -29,7 +29,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
-import { getVisualEditBridgeScript } from "../lib/visual-edit-bridge";
 import { useVisualEdit } from "../lib/visual-edit-context";
 import type { RightPanelView } from "./right-panel-tabs";
 import { VisualEditToolbar } from "./visual-edit-toolbar";
@@ -312,20 +311,10 @@ export function SandpackPreview({
 
 	// Listen for postMessage from Sandpack iframe
 	useEffect(() => {
-		const bridgeCode = getVisualEditBridgeScript();
 		const handler = (e: MessageEvent) => {
 			const data = e.data;
 			if (!data || typeof data !== "object" || !data.type) return;
-			if (data.type === "visual-edit-ready") {
-				// Iframe bootstrap is ready — inject the bridge code
-				const iframe = iframeRef.current;
-				if (iframe?.contentWindow) {
-					iframe.contentWindow.postMessage(
-						{ type: "visual-edit-inject", code: bridgeCode },
-						"*",
-					);
-				}
-			} else if (data.type === "visual-edit-select") {
+			if (data.type === "visual-edit-select") {
 				visualEdit.selectElement({
 					tagName: data.tagName,
 					className: data.className,
@@ -411,6 +400,15 @@ export function SandpackPreview({
 	// Convert files to Sandpack format
 	const sandpackFiles = useMemo(() => convertToSandpackFiles(files, langConfig), [files, langConfig]);
 	const dependencies = useMemo(() => extractDependencies(files), [files]);
+
+	// Visual Edit bridge loaded as external script (bypasses Sandpack's bundler)
+	const externalResources = useMemo(() => {
+		const resources = ["https://cdn.tailwindcss.com"];
+		if (typeof window !== "undefined") {
+			resources.push(`${window.location.origin}/api/app-builder/bridge`);
+		}
+		return resources;
+	}, []);
 
 	// Calculate preview width based on device
 	const previewWidth = DEVICE_SIZES[device].width;
@@ -510,7 +508,7 @@ export function SandpackPreview({
 							autoReload: true,
 							recompileMode: "delayed",
 							recompileDelay: 300,
-							externalResources: ["https://cdn.tailwindcss.com"],
+							externalResources,
 						}}
 						theme="auto"
 					>

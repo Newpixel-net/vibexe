@@ -16,24 +16,6 @@
 
 import type { AppFile } from "./file-adapter";
 
-/**
- * Tiny bootstrap injected into the Sandpack entry point.
- * Signals readiness to parent and receives bridge code via postMessage.
- * Executes bridge via new Function() to bypass Sandpack's bundler limitations.
- */
-function getVisualEditBootstrap(): string {
-	return [
-		"// Visual Edit bridge bootstrap",
-		"window.parent.postMessage({type:'visual-edit-ready'},'*');",
-		"window.addEventListener('message',function _veI(e){",
-		"  if(e.data&&e.data.type==='visual-edit-inject'){",
-		"    window.removeEventListener('message',_veI);",
-		"    (new Function(e.data.code))();",
-		"  }",
-		"});",
-	].join("\n");
-}
-
 export interface SandpackFile {
 	code: string;
 	hidden?: boolean;
@@ -359,11 +341,6 @@ function generateEntryPoint(
 	}
 
 	lines.push("");
-
-	// Visual Edit bridge bootstrap — signals parent and receives bridge code via postMessage
-	lines.push(getVisualEditBootstrap());
-	lines.push("");
-
 	lines.push('const root = createRoot(document.getElementById("root"));');
 
 	if (contextFiles.length === 0) {
@@ -491,23 +468,6 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			if (!sandpackFiles["/App.tsx"]) {
 				sandpackFiles["/App.tsx"] = { code: DEFAULT_APP };
 			}
-		}
-	} else {
-		// User-provided entry point — prepend bootstrap for Visual Edit bridge injection
-		const indexKey = Object.keys(sandpackFiles).find(
-			(p) =>
-				p === "/index.js" ||
-				p === "/index.jsx" ||
-				p === "/index.ts" ||
-				p === "/index.tsx",
-		);
-		if (indexKey) {
-			const file = sandpackFiles[indexKey];
-			const code = typeof file === "string" ? file : file.code;
-			sandpackFiles[indexKey] = {
-				...(typeof file === "string" ? {} : file),
-				code: `${getVisualEditBootstrap()}\n${code}`,
-			};
 		}
 	}
 
