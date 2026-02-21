@@ -101,6 +101,7 @@ function buildIndexHtml(langConfig?: SandpackLanguageConfig): string {
   </head>
   <body dir="${dir}">
     <div id="root"></div>
+    <script>${getVisualEditBridgeScript()}</script>
   </body>
 </html>
 `;
@@ -355,11 +356,6 @@ function generateEntryPoint(
 		lines.push(`root.render(${jsx});`);
 	}
 
-	// Append visual edit bridge IIFE directly (import-based injection doesn't work in Sandpack)
-	lines.push("");
-	lines.push("// Visual Edit Bridge (auto-injected)");
-	lines.push(getVisualEditBridgeScript());
-
 	return lines.join("\n");
 }
 
@@ -474,23 +470,6 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			if (!sandpackFiles["/App.tsx"]) {
 				sandpackFiles["/App.tsx"] = { code: DEFAULT_APP };
 			}
-		}
-	} else {
-		// User-provided entry point — append bridge IIFE directly
-		const indexKey = Object.keys(sandpackFiles).find(
-			(p) =>
-				p === "/index.js" ||
-				p === "/index.jsx" ||
-				p === "/index.ts" ||
-				p === "/index.tsx",
-		);
-		if (indexKey) {
-			const file = sandpackFiles[indexKey];
-			const code = typeof file === "string" ? file : file.code;
-			sandpackFiles[indexKey] = {
-				...(typeof file === "string" ? {} : file),
-				code: `${code}\n\n// Visual Edit Bridge (auto-injected)\n${getVisualEditBridgeScript()}`,
-			};
 		}
 	}
 
