@@ -27,6 +27,7 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { AppFile } from "../adapters/file-adapter";
 import {
 	deleteElementFromSource,
@@ -325,9 +326,13 @@ export function VisualEditToolbar({
 
 	if (!selectedElement) return null;
 
+	// Render via portal to escape backdrop-filter containing blocks
+	// (backdrop-filter on ancestors breaks position:fixed offset)
+	const portalTarget = typeof document !== "undefined" ? document.body : null;
+
 	// Edit mode: replace entire toolbar with input bar
 	if (activePanel === "edit") {
-		return (
+		const editToolbar = (
 			<div ref={toolbarRef} style={toolbarStyle}>
 				<div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-[#1a1a2e]/95 border border-white/[0.12] shadow-2xl backdrop-blur-xl animate-in fade-in duration-150 min-w-[420px]">
 					<button
@@ -388,6 +393,7 @@ export function VisualEditToolbar({
 				</div>
 			</div>
 		);
+		return portalTarget ? createPortal(editToolbar, portalTarget) : editToolbar;
 	}
 
 	const buttons = [
@@ -449,7 +455,7 @@ export function VisualEditToolbar({
 		},
 	];
 
-	return (
+	const toolbar = (
 		<div ref={toolbarRef} style={toolbarStyle}>
 			{/* Main toolbar */}
 			<div className="flex items-center gap-0.5 p-1 rounded-xl bg-[#1a1a2e]/95 border border-white/[0.12] shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -572,4 +578,5 @@ export function VisualEditToolbar({
 			)}
 		</div>
 	);
+	return portalTarget ? createPortal(toolbar, portalTarget) : toolbar;
 }
