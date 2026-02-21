@@ -7,7 +7,7 @@
  * Auto-resizing textarea with Enter to submit.
  */
 
-import { Image as ImageIcon, Loader2, Send, Square } from "lucide-react";
+import { Camera, Image as ImageIcon, Loader2, Send, Square } from "lucide-react";
 import {
 	type ChangeEvent,
 	type DragEvent,
@@ -62,6 +62,7 @@ export function ChatInput({
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [isDragging, setIsDragging] = useState(false);
+	const [isCapturing, setIsCapturing] = useState(false);
 
 	useEffect(() => {
 		const textarea = textareaRef.current;
@@ -149,6 +150,76 @@ export function ChatInput({
 	const handleImageClick = useCallback(() => {
 		fileInputRef.current?.click();
 	}, []);
+
+	const handleScreenshot = useCallback(async () => {
+		if (!onAttachmentsChange || isCapturing) return;
+		setIsCapturing(true);
+
+		try {
+			// Use getDisplayMedia to capture the screen
+			const stream = await navigator.mediaDevices.getDisplayMedia({
+				video: { displaySurface: "browser" } as MediaTrackConstraints,
+				audio: false,
+				// @ts-expect-error -- preferCurrentTab is a Chromium-only hint
+				preferCurrentTab: true,
+			});
+
+			// Grab a single frame from the video track
+			const track = stream.getVideoTracks()[0];
+			const canvas = document.createElement("canvas");
+			const video = document.createElement("video");
+			video.srcObject = stream;
+			video.muted = true;
+
+			await new Promise<void>((resolve) => {
+				video.onloadedmetadata = () => {
+					video.play();
+					// Small delay ensures the frame is rendered
+					requestAnimationFrame(() => {
+						canvas.width = video.videoWidth;
+						canvas.height = video.videoHeight;
+						const ctx = canvas.getContext("2d");
+						if (ctx) ctx.drawImage(video, 0, 0);
+						resolve();
+					});
+				};
+			});
+
+			// Stop all tracks immediately
+			for (const t of stream.getTracks()) t.stop();
+
+			// Convert canvas to File
+			const blob = await new Promise<Blob | null>((resolve) =>
+				canvas.toBlob(resolve, "image/png"),
+			);
+
+			if (blob) {
+				const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+				const file = new File([blob], `screenshot-${timestamp}.png`, { type: "image/png" });
+				const url = URL.createObjectURL(file);
+
+				const maxFiles = modelCapabilities?.maxFiles ?? 20;
+				if (attachments.length < maxFiles) {
+					onAttachmentsChange([
+						...attachments,
+						{
+							id: crypto.randomUUID(),
+							file,
+							url,
+							name: file.name,
+							mediaType: "image/png",
+							size: file.size,
+							category: "image" as const,
+						},
+					]);
+				}
+			}
+		} catch {
+			// User cancelled the picker or API not supported — silently ignore
+		} finally {
+			setIsCapturing(false);
+		}
+	}, [attachments, onAttachmentsChange, modelCapabilities, isCapturing]);
 
 	const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
 		const newValue = e.target.value;
@@ -282,6 +353,21 @@ export function ChatInput({
 								title="Attach files"
 							>
 								<ImageIcon className="h-4 w-4" />
+							</button>
+
+							{/* Screenshot button — camera icon */}
+							<button
+								type="button"
+								className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.08] transition-all duration-200 disabled:opacity-50"
+								onClick={handleScreenshot}
+								disabled={isDisabled || isCapturing}
+								title="Take screenshot"
+							>
+								{isCapturing ? (
+									<Loader2 className="h-4 w-4 animate-spin" />
+								) : (
+									<Camera className="h-4 w-4" />
+								)}
 							</button>
 
 							{/* Stop button — glass red */}
