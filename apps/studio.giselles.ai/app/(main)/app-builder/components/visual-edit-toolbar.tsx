@@ -76,6 +76,7 @@ interface VisualEditToolbarProps {
 	onFileUpdate: (fileId: string, content: string) => void;
 	onViewChange: (view: RightPanelView) => void;
 	onFileSelect: (fileId: string) => void;
+	onViewInCode?: (fileId: string, filePath: string, lineNumber: number) => void;
 }
 
 export function VisualEditToolbar({
@@ -84,6 +85,7 @@ export function VisualEditToolbar({
 	onFileUpdate,
 	onViewChange,
 	onFileSelect,
+	onViewInCode,
 }: VisualEditToolbarProps) {
 	const { selectedElement, deselectElement, sendVisualEditMessage, sendToIframe } =
 		useVisualEdit();
@@ -209,12 +211,14 @@ export function VisualEditToolbar({
 
 	// View in Code
 	const handleViewInCode = useCallback(() => {
-		if (!selectedElement) return;
-		if (sourceLocation) {
+		if (!selectedElement || !sourceLocation) return;
+		if (onViewInCode) {
+			onViewInCode(sourceLocation.fileId, sourceLocation.filePath, sourceLocation.lineNumber);
+		} else {
 			onFileSelect(sourceLocation.fileId);
 			onViewChange("code");
 		}
-	}, [selectedElement, sourceLocation, onFileSelect, onViewChange]);
+	}, [selectedElement, sourceLocation, onFileSelect, onViewChange, onViewInCode]);
 
 	// Delete Element
 	const handleDelete = useCallback(() => {

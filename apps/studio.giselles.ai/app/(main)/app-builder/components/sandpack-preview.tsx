@@ -26,6 +26,7 @@ import {
 	RefreshCw,
 	Smartphone,
 	Tablet,
+	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
@@ -251,6 +252,91 @@ function PreviewLink({ appId }: { appId: string }) {
 }
 
 /**
+ * Code Viewer Overlay — shows source code with highlighted line
+ * when "View in Code" is clicked from the Visual Edit toolbar.
+ */
+function CodeViewerOverlay({
+	filePath,
+	content,
+	lineNumber,
+	onClose,
+}: {
+	filePath: string;
+	content: string;
+	lineNumber: number;
+	onClose: () => void;
+}) {
+	const scrollRef = useRef<HTMLDivElement>(null);
+	const highlightRef = useRef<HTMLDivElement>(null);
+
+	// Scroll to highlighted line after mount
+	useEffect(() => {
+		setTimeout(() => {
+			highlightRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+		}, 50);
+	}, []);
+
+	// Close on Escape
+	useEffect(() => {
+		const handler = (e: KeyboardEvent) => {
+			if (e.key === "Escape") onClose();
+		};
+		window.addEventListener("keydown", handler);
+		return () => window.removeEventListener("keydown", handler);
+	}, [onClose]);
+
+	const lines = content.split("\n");
+
+	return (
+		<div
+			className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+			onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+			role="dialog"
+			aria-modal="true"
+			aria-label={`Source: ${filePath}`}
+		>
+			<div className="bg-[#0f0f1a] border border-white/[0.12] rounded-2xl w-[90%] max-w-3xl max-h-[80%] flex flex-col overflow-hidden shadow-2xl">
+				{/* Header */}
+				<div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08] bg-white/[0.02]">
+					<div className="flex items-center gap-2">
+						<span className="text-xs font-mono text-violet-400">{filePath}</span>
+						<span className="text-[10px] text-white/25">:{lineNumber}</span>
+					</div>
+					<button
+						type="button"
+						onClick={onClose}
+						className="p-1 rounded-lg hover:bg-white/[0.08] text-white/40 hover:text-white/70 transition-colors"
+					>
+						<X className="h-4 w-4" />
+					</button>
+				</div>
+				{/* Code area */}
+				<div ref={scrollRef} className="flex-1 overflow-y-auto font-mono text-xs leading-5">
+					{lines.map((line, idx) => {
+						const ln = idx + 1;
+						const isHighlighted = ln === lineNumber;
+						return (
+							<div
+								key={ln}
+								ref={isHighlighted ? highlightRef : undefined}
+								className={`flex ${isHighlighted ? "bg-violet-500/15 border-l-2 border-violet-500" : "border-l-2 border-transparent hover:bg-white/[0.02]"}`}
+							>
+								<span className={`select-none w-12 text-right pr-3 flex-shrink-0 ${isHighlighted ? "text-violet-400" : "text-white/20"}`}>
+									{ln}
+								</span>
+								<pre className="text-white/70 whitespace-pre overflow-x-auto pr-4">
+									{line || " "}
+								</pre>
+							</div>
+						);
+					})}
+				</div>
+			</div>
+		</div>
+	);
+}
+
+/**
  * Main preview component with responsive toggles and console.
  * No key on SandpackProvider - SandpackFileSync handles incremental
  * updates so the preview iframe stays alive during streaming.
@@ -269,6 +355,22 @@ export function SandpackPreview({
 	const iframeContainerRef = useRef<HTMLDivElement>(null);
 	const iframeRef = useRef<HTMLIFrameElement | null>(null);
 	const [iframeBounds, setIframeBounds] = useState<DOMRect | null>(null);
+	const [codeViewer, setCodeViewer] = useState<{
+		filePath: string;
+		content: string;
+		lineNumber: number;
+	} | null>(null);
+
+	// View in Code callback for the toolbar
+	const handleViewInCode = useCallback(
+		(fileId: string, filePath: string, lineNumber: number) => {
+			const file = files.find((f) => f.id === fileId);
+			if (file?.content) {
+				setCodeViewer({ filePath, content: file.content, lineNumber });
+			}
+		},
+		[files],
+	);
 
 	// Register iframe ref with context once mounted
 	useEffect(() => {
@@ -567,6 +669,17 @@ export function SandpackPreview({
 							onFileUpdate={onFileUpdate || (() => {})}
 							onViewChange={onViewChange || (() => {})}
 							onFileSelect={onFileSelect || (() => {})}
+							onViewInCode={handleViewInCode}
+						/>
+					)}
+
+					{/* Code Viewer Overlay */}
+					{codeViewer && (
+						<CodeViewerOverlay
+							filePath={codeViewer.filePath}
+							content={codeViewer.content}
+							lineNumber={codeViewer.lineNumber}
+							onClose={() => setCodeViewer(null)}
 						/>
 					)}
 				</div>
