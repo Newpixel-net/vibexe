@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
+import { getVisualEditBridgeScript } from "../lib/visual-edit-bridge";
 import { useVisualEdit } from "../lib/visual-edit-context";
 import type { RightPanelView } from "./right-panel-tabs";
 import { VisualEditToolbar } from "./visual-edit-toolbar";
@@ -311,10 +312,20 @@ export function SandpackPreview({
 
 	// Listen for postMessage from Sandpack iframe
 	useEffect(() => {
+		const bridgeCode = getVisualEditBridgeScript();
 		const handler = (e: MessageEvent) => {
 			const data = e.data;
 			if (!data || typeof data !== "object" || !data.type) return;
-			if (data.type === "visual-edit-select") {
+			if (data.type === "visual-edit-ready") {
+				// Iframe bootstrap is ready — inject the bridge code
+				const iframe = iframeRef.current;
+				if (iframe?.contentWindow) {
+					iframe.contentWindow.postMessage(
+						{ type: "visual-edit-inject", code: bridgeCode },
+						"*",
+					);
+				}
+			} else if (data.type === "visual-edit-select") {
 				visualEdit.selectElement({
 					tagName: data.tagName,
 					className: data.className,
