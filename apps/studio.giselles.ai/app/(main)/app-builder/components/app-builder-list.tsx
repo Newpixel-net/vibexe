@@ -25,6 +25,7 @@ import {
 	TrashIcon,
 	X,
 } from "lucide-react";
+import { TemplateGallery } from "./template-gallery";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, useTransition } from "react";
@@ -416,6 +417,7 @@ export function AppBuilderList({
 }: AppBuilderListProps) {
 	const [searchQuery, setSearchQuery] = useState("");
 	const [sortOption, setSortOption] = useState<SortOption>("date-desc");
+	const [galleryOpen, setGalleryOpen] = useState(false);
 
 	const allApps = useMemo(() => {
 		const projectApps = projects.flatMap((p) => p.apps);
@@ -470,15 +472,14 @@ export function AppBuilderList({
 								New Project
 							</button>
 						</form>
-						<form action={createAppAction}>
-							<button
-								type="submit"
-								className="inline-flex items-center gap-2 px-4 py-2 rounded-[8px] bg-primary-200 text-background hover:bg-primary-200/90 transition-colors text-sm font-medium"
-							>
-								<Plus className="h-4 w-4" />
-								New App
-							</button>
-						</form>
+						<button
+							type="button"
+							onClick={() => setGalleryOpen(true)}
+							className="inline-flex items-center gap-2 px-4 py-2 rounded-[8px] bg-primary-200 text-background hover:bg-primary-200/90 transition-colors text-sm font-medium"
+						>
+							<Plus className="h-4 w-4" />
+							New App
+						</button>
 					</div>
 				</div>
 
@@ -491,15 +492,14 @@ export function AppBuilderList({
 						<p className="text-text/60 mb-4">
 							Create your first app to get started
 						</p>
-						<form action={createAppAction}>
-							<button
-								type="submit"
-								className="inline-flex items-center gap-2 px-4 py-2 bg-primary-200 text-background rounded-[8px] hover:bg-primary-200/90 transition-colors"
-							>
-								<Plus className="h-4 w-4" />
-								Create App
-							</button>
-						</form>
+						<button
+							type="button"
+							onClick={() => setGalleryOpen(true)}
+							className="inline-flex items-center gap-2 px-4 py-2 bg-primary-200 text-background rounded-[8px] hover:bg-primary-200/90 transition-colors"
+						>
+							<Plus className="h-4 w-4" />
+							Create App
+						</button>
 					</div>
 				) : (
 					<div>
@@ -571,6 +571,12 @@ export function AppBuilderList({
 					</div>
 				)}
 			</div>
+
+			<TemplateGallery
+				open={galleryOpen}
+				onOpenChange={setGalleryOpen}
+				createAppAction={createAppAction}
+			/>
 		</div>
 	);
 }

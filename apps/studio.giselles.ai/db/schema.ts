@@ -1208,6 +1208,7 @@ export type BuilderChatId = `bldc_${string}`;
 export type BuilderVersionId = `bldv_${string}`;
 export type BuilderAppWorkflowId = `bawf_${string}`;
 export type BuilderDeploymentId = `bdep_${string}`;
+export type BuilderAppTemplateId = `btpl_${string}`;
 
 /**
  * Builder Projects - organizational containers for builder apps
@@ -2183,3 +2184,72 @@ export const builderSuggestionTemplates = pgTable(
 			.$onUpdate(() => new Date()),
 	},
 );
+
+// ====================================================================
+// BUILDER APP TEMPLATES (Publishable, cloneable app templates)
+// ====================================================================
+
+export const builderAppTemplates = pgTable(
+	"builder_app_templates",
+	{
+		dbId: serial("db_id").primaryKey(),
+		id: text("id").$type<BuilderAppTemplateId>().notNull().unique(),
+		sourceAppDbId: integer("source_app_db_id").references(
+			() => builderApps.dbId,
+			{ onDelete: "set null" },
+		),
+		authorUserDbId: integer("author_user_db_id").references(
+			() => users.dbId,
+		),
+		teamDbId: integer("team_db_id")
+			.notNull()
+			.references(() => teams.dbId, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		description: text("description"),
+		category: text("category").notNull().default("Other"),
+		tags: text("tags")
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
+		thumbnailUrl: text("thumbnail_url"),
+		filesSnapshot: jsonb("files_snapshot").notNull(),
+		schemaSnapshot: jsonb("schema_snapshot"),
+		appConfig: jsonb("app_config").default({}),
+		visibility: text("visibility").notNull().default("public"),
+		useCount: integer("use_count").notNull().default(0),
+		fileCount: integer("file_count").notNull().default(0),
+		entityCount: integer("entity_count").notNull().default(0),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		index("builder_app_templates_team_db_id_idx").on(table.teamDbId),
+		index("builder_app_templates_category_idx").on(table.category),
+		index("builder_app_templates_visibility_idx").on(table.visibility),
+		index("builder_app_templates_use_count_idx").on(table.useCount),
+	],
+);
+
+export const builderAppTemplateRelations = relations(
+	builderAppTemplates,
+	({ one }) => ({
+		sourceApp: one(builderApps, {
+			fields: [builderAppTemplates.sourceAppDbId],
+			references: [builderApps.dbId],
+		}),
+		author: one(users, {
+			fields: [builderAppTemplates.authorUserDbId],
+			references: [users.dbId],
+		}),
+		team: one(teams, {
+			fields: [builderAppTemplates.teamDbId],
+			references: [teams.dbId],
+		}),
+	}),
+);
+
+export type BuilderAppTemplate = typeof builderAppTemplates.$inferSelect;
+export type NewBuilderAppTemplate = typeof builderAppTemplates.$inferInsert;
