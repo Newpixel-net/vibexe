@@ -101,7 +101,6 @@ function buildIndexHtml(langConfig?: SandpackLanguageConfig): string {
   </head>
   <body dir="${dir}">
     <div id="root"></div>
-    <script id="visual-edit-bridge">${getVisualEditBridgeScript()}</script>
   </body>
 </html>
 `;
@@ -333,6 +332,7 @@ function generateEntryPoint(
 	const lines: string[] = [
 		'import React from "react";',
 		'import { createRoot } from "react-dom/client";',
+		'import "./__visual-edit-bridge";',
 		`import App from "${appImportPath}";`,
 	];
 
@@ -393,6 +393,12 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 	// Always include custom index.html with Tailwind support + language/RTL
 	sandpackFiles["/public/index.html"] = {
 		code: langConfig ? buildIndexHtml(langConfig) : TAILWIND_INDEX_HTML,
+		hidden: true,
+	};
+
+	// Include visual edit bridge as a bundled JS file (inline <script> tags don't execute in Sandpack)
+	sandpackFiles["/__visual-edit-bridge.js"] = {
+		code: getVisualEditBridgeScript(),
 		hidden: true,
 	};
 
