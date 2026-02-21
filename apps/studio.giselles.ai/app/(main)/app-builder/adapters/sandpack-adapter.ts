@@ -355,10 +355,8 @@ function generateEntryPoint(
 		lines.push(`root.render(${jsx});`);
 	}
 
-	// Inject Visual Edit bridge — inline IIFE directly (createElement approach fails in Sandpack's bundler)
-	lines.push("");
-	lines.push("// Visual Edit Bridge (auto-injected)");
-	lines.push(getVisualEditBridgeScript());
+	// Side-effect import for Visual Edit bridge (separate file added in convertToSandpackFiles)
+	lines.unshift('import "./__bridge";');
 
 	return lines.join("\n");
 }
@@ -397,6 +395,12 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 	// Always include custom index.html with Tailwind support + language/RTL
 	sandpackFiles["/public/index.html"] = {
 		code: langConfig ? buildIndexHtml(langConfig) : TAILWIND_INDEX_HTML,
+		hidden: true,
+	};
+
+	// Visual Edit bridge as separate hidden file (imported via side-effect import)
+	sandpackFiles["/__bridge.js"] = {
+		code: getVisualEditBridgeScript(),
 		hidden: true,
 	};
 
@@ -476,7 +480,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			}
 		}
 	} else {
-		// User-provided entry point — append bridge IIFE directly
+		// User-provided entry point — prepend side-effect import for bridge
 		const indexKey = Object.keys(sandpackFiles).find(
 			(p) =>
 				p === "/index.js" ||
@@ -487,10 +491,9 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		if (indexKey) {
 			const file = sandpackFiles[indexKey];
 			const code = typeof file === "string" ? file : file.code;
-			const bridgeInjection = `\n// Visual Edit Bridge (auto-injected)\n${getVisualEditBridgeScript()}`;
 			sandpackFiles[indexKey] = {
 				...(typeof file === "string" ? {} : file),
-				code: `${code}${bridgeInjection}`,
+				code: `import "./__bridge";\n${code}`,
 			};
 		}
 	}
