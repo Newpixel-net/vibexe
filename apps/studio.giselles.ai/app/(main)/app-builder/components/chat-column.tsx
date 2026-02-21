@@ -302,6 +302,9 @@ export function ChatColumn({
 	const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
 	const [historyLoading, setHistoryLoading] = useState(false);
 
+	// Source URL extracted from history (the domain the website was copied from)
+	const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+
 	// Ref for scroll area (needed by PhaseTimeline)
 	const scrollRef = useRef<HTMLDivElement>(null);
 	// Track if we've loaded messages from localStorage (prevent duplicate loads)
@@ -657,8 +660,33 @@ export function ChatColumn({
 				})
 				.catch(() => {})
 				.finally(() => setContinuationLoading(false));
+
+			// Also fetch history to extract source URL (the domain the site was copied from)
+			if (!sourceUrl) {
+				fetch(`/api/app-builder/apps/${appId}/history`)
+					.then((res) => (res.ok ? res.json() : null))
+					.then((data: { history?: HistoryEntry[] } | null) => {
+						if (data?.history && data.history.length > 0) {
+							setHistoryEntries(data.history);
+							// Find the first URL from any history entry (oldest first = last in array)
+							for (let i = data.history.length - 1; i >= 0; i--) {
+								const urls = data.history[i].details?.urls;
+								if (urls && urls.length > 0) {
+									try {
+										const hostname = new URL(urls[0]).hostname;
+										setSourceUrl(hostname);
+									} catch {
+										setSourceUrl(urls[0].replace(/^https?:\/\//, "").split("/")[0]);
+									}
+									break;
+								}
+							}
+						}
+					})
+					.catch(() => {});
+			}
 		}
-	}, [hasMounted, files.length, chatMessages.length, appId, continuationLoading]);
+	}, [hasMounted, files.length, chatMessages.length, appId, continuationLoading, sourceUrl]);
 
 	// Track which tool completions we've already triggered file fetches for
 	const fetchedToolIds = useRef<Set<string>>(new Set());
@@ -908,7 +936,21 @@ export function ChatColumn({
 										Welcome back
 									</h3>
 									<p className="text-sm text-white/40 mb-6">
-										{appName !== "Untitled App" ? appName : "Your project"} has {files.length} files. What&apos;s next?
+										{appName !== "Untitled App" ? appName : "Your project"}
+										{sourceUrl ? (
+											<>
+												{" "}
+												<a
+													href={`https://${sourceUrl}`}
+													target="_blank"
+													rel="noopener noreferrer"
+													className="text-violet-400/70 hover:text-violet-300 transition-colors"
+												>
+													({sourceUrl})
+												</a>
+											</>
+										) : null}
+										{" "}has {files.length} files. What&apos;s next?
 									</p>
 
 									{continuationLoading ? (
