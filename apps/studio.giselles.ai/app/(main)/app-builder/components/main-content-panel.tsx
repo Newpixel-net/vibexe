@@ -74,7 +74,14 @@ export function MainContentPanel({
 						className="flex-1 flex flex-col min-h-0"
 					>
 						{view === "preview" && (
-							<SandpackPreview appId={appId} files={files} isGenerating={isGenerating} />
+							<SandpackPreview
+								appId={appId}
+								files={files}
+								isGenerating={isGenerating}
+								onFileUpdate={onFileUpdate}
+								onViewChange={onViewChange}
+								onFileSelect={(id) => onFileSelect(id)}
+							/>
 						)}
 						{view === "code" && (
 							<DashboardPanel

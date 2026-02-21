@@ -43,6 +43,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { AppFile } from "../adapters/file-adapter";
 import { toFileTypes } from "../adapters/file-adapter";
 import { toChatMessages } from "../adapters/message-adapter";
+import { useVisualEdit } from "../lib/visual-edit-context";
 import {
 	createDefaultProjectStages,
 	createPhaseFromToolEvent,
@@ -687,6 +688,15 @@ export function ChatColumn({
 			}
 		}
 	}, [hasMounted, files.length, chatMessages.length, appId, continuationLoading, sourceUrl]);
+
+	// Visual Edit: auto-append pending messages from Visual Edit context
+	const visualEdit = useVisualEdit();
+	useEffect(() => {
+		if (visualEdit.pendingVisualEditMessage && !isLoading) {
+			sendMessage({ text: visualEdit.pendingVisualEditMessage });
+			visualEdit.clearPendingMessage();
+		}
+	}, [visualEdit.pendingVisualEditMessage, isLoading, sendMessage, visualEdit.clearPendingMessage]);
 
 	// Track which tool completions we've already triggered file fetches for
 	const fetchedToolIds = useRef<Set<string>>(new Set());

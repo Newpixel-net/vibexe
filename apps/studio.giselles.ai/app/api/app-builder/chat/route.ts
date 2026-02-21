@@ -290,6 +290,18 @@ Respond in a friendly, concise format. Use markdown for structure.`;
 			}
 		}
 
+		// Detect Visual Edit mode
+		const isVisualEdit = userPrompt.startsWith("[VISUAL EDIT]");
+		const visualEditSystemAddendum = isVisualEdit
+			? `\n\n## VISUAL EDIT MODE
+The user is using Visual Edit mode. They selected a specific element in the live preview and want a targeted change.
+- Use read_file to find the file containing the element, then update_file with the MINIMAL change needed.
+- Do NOT rewrite the entire file — only modify the specific element mentioned.
+- Be precise: match the element by its tag, classes, and text content.
+- The user message contains the element's tag name, CSS classes, and text content.
+- Make the exact change requested and nothing else.`
+			: "";
+
 		// Run orchestration engine
 		const plan = executeOrchestration(userPrompt, ALL_FLOWS, enrichedFileContext);
 
@@ -358,7 +370,7 @@ ${dataManagementSection}
 - NO external packages — use inline SVG or emoji for icons${supabaseConfig ? "\n- EXCEPTION: You may import from `@supabase/supabase-js`" : ""}
 - Every file must be COMPLETE and render without errors
 - Complex apps need 8-15+ well-separated component files
-${langInstructions}${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}`;
+${langInstructions}${enrichedFileContext ? `\n## Project Context\n${enrichedFileContext}` : ""}${visualEditSystemAddendum}`;
 
 		const tools = createFileTools(appId);
 		const modelMessages = await convertToModelMessages(messages);
@@ -372,13 +384,15 @@ ${langInstructions}${enrichedFileContext ? `\n## Project Context\n${enrichedFile
 				: resolveModel(undefined, byok);
 
 		const isReplication = plan.intent.suggestedFlow === "replicate";
-		const maxSteps = isReplication
-			? 100
-			: plan.intent.complexity === "complex"
+		const maxSteps = isVisualEdit
+			? 10
+			: isReplication
 				? 100
-				: plan.intent.complexity === "medium"
-					? 60
-					: 35;
+				: plan.intent.complexity === "complex"
+					? 100
+					: plan.intent.complexity === "medium"
+						? 60
+						: 35;
 
 		console.log(
 			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, model=${modelId || developerAgent?.modelTier || "default"}, maxSteps=${maxSteps}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,

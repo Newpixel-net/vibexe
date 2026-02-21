@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import type { FileType } from "../types/vibesdk";
+import { VisualEditProvider } from "../lib/visual-edit-context";
 import { BuilderHeader } from "./builder-header";
 import { ChatColumn } from "./chat-column";
 import { MainContentPanel, type ViewType } from "./main-content-panel";
@@ -62,6 +63,7 @@ export function BuilderLayout({
 	}, [app.id]);
 
 	return (
+		<VisualEditProvider>
 		<div className="flex flex-col h-dvh w-screen overflow-hidden bg-[#0a0a14]">
 			{/* Aurora gradient mesh — 3 animated blobs */}
 			<div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
@@ -138,5 +140,6 @@ export function BuilderLayout({
 				}}
 			/>
 		</div>
+		</VisualEditProvider>
 	);
 }

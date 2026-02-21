@@ -22,12 +22,16 @@ import {
 	Copy,
 	ExternalLink,
 	Monitor,
+	MousePointer2,
 	RefreshCw,
 	Smartphone,
 	Tablet,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
+import { useVisualEdit } from "../lib/visual-edit-context";
+import type { RightPanelView } from "./right-panel-tabs";
+import { VisualEditToolbar } from "./visual-edit-toolbar";
 import {
 	type SandpackFiles,
 	type SandpackLanguageConfig,
@@ -48,6 +52,9 @@ interface SandpackPreviewProps {
 	appId: string;
 	files: AppFile[];
 	isGenerating?: boolean;
+	onFileUpdate?: (fileId: string, content: string) => void;
+	onViewChange?: (view: RightPanelView) => void;
+	onFileSelect?: (fileId: string) => void;
 }
 
 /**
@@ -252,9 +259,106 @@ export function SandpackPreview({
 	appId,
 	files,
 	isGenerating,
+	onFileUpdate,
+	onViewChange,
+	onFileSelect,
 }: SandpackPreviewProps) {
 	const [device, setDevice] = useState<DeviceSize>("desktop");
 	const [showConsole, setShowConsole] = useState(false);
+	const visualEdit = useVisualEdit();
+	const iframeContainerRef = useRef<HTMLDivElement>(null);
+	const iframeRef = useRef<HTMLIFrameElement | null>(null);
+	const [iframeBounds, setIframeBounds] = useState<DOMRect | null>(null);
+
+	// Register iframe ref with context once mounted
+	useEffect(() => {
+		// Query the Sandpack iframe
+		const container = iframeContainerRef.current;
+		if (!container) return;
+		const findIframe = () => {
+			const iframe = container.querySelector("iframe");
+			if (iframe && iframe !== iframeRef.current) {
+				iframeRef.current = iframe;
+				visualEdit.setIframeRef(iframeRef as React.RefObject<HTMLIFrameElement | null>);
+			}
+		};
+		findIframe();
+		// Observe DOM changes to catch Sandpack iframe insertion
+		const observer = new MutationObserver(findIframe);
+		observer.observe(container, { childList: true, subtree: true });
+		return () => observer.disconnect();
+	}, [visualEdit.setIframeRef]);
+
+	// Update iframe bounds when selection changes or window resizes
+	useEffect(() => {
+		if (!visualEdit.selectedElement || !iframeRef.current) {
+			setIframeBounds(null);
+			return;
+		}
+		const updateBounds = () => {
+			if (iframeRef.current) {
+				setIframeBounds(iframeRef.current.getBoundingClientRect());
+			}
+		};
+		updateBounds();
+		window.addEventListener("resize", updateBounds);
+		window.addEventListener("scroll", updateBounds);
+		return () => {
+			window.removeEventListener("resize", updateBounds);
+			window.removeEventListener("scroll", updateBounds);
+		};
+	}, [visualEdit.selectedElement]);
+
+	// Listen for postMessage from Sandpack iframe
+	useEffect(() => {
+		const handler = (e: MessageEvent) => {
+			const data = e.data;
+			if (!data || typeof data !== "object" || !data.type) return;
+			if (data.type === "visual-edit-select") {
+				visualEdit.selectElement({
+					tagName: data.tagName,
+					className: data.className,
+					textContent: data.textContent,
+					innerHTML: data.innerHTML,
+					boundingRect: data.boundingRect,
+					selector: data.selector,
+					computedStyles: data.computedStyles,
+				});
+				// Update iframe bounds when an element is selected
+				if (iframeRef.current) {
+					setIframeBounds(iframeRef.current.getBoundingClientRect());
+				}
+			} else if (data.type === "visual-edit-deselect") {
+				visualEdit.deselectElement();
+			}
+		};
+		window.addEventListener("message", handler);
+		return () => window.removeEventListener("message", handler);
+	}, [visualEdit]);
+
+	// Keyboard shortcuts for visual edit
+	useEffect(() => {
+		const handler = (e: KeyboardEvent) => {
+			// Don't intercept if focus is in an input/textarea
+			const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+			if (tag === "input" || tag === "textarea" || tag === "select") return;
+
+			if (e.key === "Escape" && visualEdit.enabled) {
+				if (visualEdit.selectedElement) {
+					visualEdit.deselectElement();
+				} else {
+					visualEdit.setEnabled(false);
+				}
+				e.preventDefault();
+			}
+			if (e.key === "v" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+				visualEdit.toggleVisualEdit();
+				e.preventDefault();
+			}
+		};
+		window.addEventListener("keydown", handler);
+		return () => window.removeEventListener("keydown", handler);
+	}, [visualEdit]);
 
 	// Detect language from generated files (Blueprint.md or App.tsx may contain lang hints)
 	const langConfig = useMemo((): SandpackLanguageConfig | undefined => {
@@ -333,8 +437,21 @@ export function SandpackPreview({
 					})}
 				</div>
 
-				{/* Preview link + Actions */}
+				{/* Visual Edit toggle + Preview link + Actions */}
 				<div className="flex items-center gap-2">
+					<button
+						type="button"
+						onClick={visualEdit.toggleVisualEdit}
+						className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-xl transition-all duration-200 ${
+							visualEdit.enabled
+								? "bg-violet-500/[0.15] text-violet-300 border border-violet-500/[0.25]"
+								: "text-white/40 hover:bg-white/[0.04] hover:text-white/70"
+						}`}
+						title={visualEdit.enabled ? "Disable Visual Edit (V)" : "Enable Visual Edit (V)"}
+					>
+						<MousePointer2 className="w-3.5 h-3.5" />
+						<span className="hidden sm:inline">Visual Edit</span>
+					</button>
 					<PreviewLink appId={appId} />
 					<button
 						type="button"
@@ -358,7 +475,8 @@ export function SandpackPreview({
 			{/* Sandpack container - fills remaining space */}
 			<div className="sandpack-container flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/20 p-2">
 				<div
-					className="bg-background rounded-lg shadow-lg overflow-hidden flex-1 min-h-0 transition-all duration-200 mx-auto"
+					ref={iframeContainerRef}
+					className="bg-background rounded-lg shadow-lg overflow-hidden flex-1 min-h-0 transition-all duration-200 mx-auto relative"
 					style={{
 						width: device === "desktop" ? "100%" : previewWidth,
 						maxWidth: "100%",
@@ -425,6 +543,17 @@ export function SandpackPreview({
 							</div>
 						</div>
 					</SandpackProvider>
+
+					{/* Visual Edit Toolbar (floating overlay) */}
+					{visualEdit.enabled && visualEdit.selectedElement && (
+						<VisualEditToolbar
+							iframeBounds={iframeBounds}
+							files={files}
+							onFileUpdate={onFileUpdate || (() => {})}
+							onViewChange={onViewChange || (() => {})}
+							onFileSelect={onFileSelect || (() => {})}
+						/>
+					)}
 				</div>
 			</div>
 		</div>

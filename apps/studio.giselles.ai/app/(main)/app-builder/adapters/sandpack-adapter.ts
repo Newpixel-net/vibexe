@@ -14,6 +14,7 @@
  * - Auto-generated entry point with proper imports
  */
 
+import { getVisualEditBridgeScript } from "../lib/visual-edit-bridge";
 import type { AppFile } from "./file-adapter";
 
 export interface SandpackFile {
@@ -100,6 +101,7 @@ function buildIndexHtml(langConfig?: SandpackLanguageConfig): string {
   </head>
   <body dir="${dir}">
     <div id="root"></div>
+    <script id="visual-edit-bridge">${getVisualEditBridgeScript()}</script>
   </body>
 </html>
 `;
