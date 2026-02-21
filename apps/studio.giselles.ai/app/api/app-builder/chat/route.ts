@@ -463,38 +463,14 @@ This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE 
 			messages.length <= 1; // Only on first message
 
 		if (shouldPlanFirst) {
-			// Run architect as hidden pre-analysis (feeds into planner)
-			const architectAgent = plan.agents.find((a) => a.id === "architect");
-			let architectAnalysis = "";
-			if (architectAgent) {
-				try {
-					const archPrompt = plan.agentPrompts.get(architectAgent.id) || "";
-					const archModel = modelId
-						? resolveModel(modelId, byok)
-						: resolveModelByTier(architectAgent.modelTier, byok);
-					const archResult = await generateText({
-						model: archModel,
-						system: archPrompt,
-						messages: modelMessages,
-						maxSteps: 1,
-					});
-					architectAnalysis = archResult.text.trim();
-					console.log(`[Chat API] Plan-first: architect complete (${architectAnalysis.length} chars, ${archResult.usage?.totalTokens || 0} tokens)`);
-				} catch (err) {
-					console.error("[Chat API] Plan-first: architect failed:", err);
-				}
-			}
-
-			// Stream planner's blueprint (visible to user as the plan)
+			// Stream planner's blueprint directly (no blocking architect pre-pass).
+			// Architect analysis was causing 30-60s of silence before the stream started,
+			// which killed the HTTP connection via the WHM reverse proxy timeout.
+			// The planner's own rich prompt + orchestration context is sufficient for good plans.
 			const plannerAgent = plan.agents.find((a) => a.id === "planner");
 			let plannerPrompt = plannerAgent
 				? (plan.agentPrompts.get(plannerAgent.id) || "")
 				: "";
-
-			// Inject architect analysis into planner's context
-			if (architectAnalysis) {
-				plannerPrompt += `\n\n# Architecture Specialist Analysis\n\n${architectAnalysis}`;
-			}
 
 			// Instruction to end with execute prompt
 			plannerPrompt += `\n\nAfter presenting your complete implementation plan, end your response with exactly this markdown:\n\n---\n*Your plan is ready. Click **Execute Plan** below to start building, or reply to adjust the plan.*`;
@@ -503,13 +479,16 @@ This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE 
 				? (modelId ? resolveModel(modelId, byok) : resolveModelByTier(plannerAgent.modelTier, byok))
 				: resolveModel(modelId, byok);
 
-			console.log(`[Chat API] Plan-first mode: streaming planner for complex project (architect=${architectAnalysis.length > 0 ? "ok" : "skipped"})`);
+			console.log(`[Chat API] Plan-first mode: streaming planner directly for complex project`);
 
 			const planResult = streamText({
 				model: plannerModel,
 				system: plannerPrompt,
 				messages: modelMessages,
 				maxSteps: 1,
+				onFinish: (event) => {
+					console.log(`[Chat API] Plan stream finished: finishReason=${event.finishReason}`);
+				},
 			});
 
 			return planResult.toUIMessageStreamResponse({
