@@ -454,6 +454,7 @@ Create ONLY \`Blueprint.md\` with a comprehensive project plan. Include:
 - **Component Architecture**: Component tree with parent→child relationships
 - **File Map**: Every file to be created, in order, with purpose and dependencies
 - **UX Flows**: Primary user journeys, empty/loading/error states
+- **Getting Started**: If the app uses auth, include: "Sign up with any email and password (8+ characters) to create your first account. There are no default credentials — every user registers through the app."
 
 Make Blueprint.md thorough and detailed — this is the plan the user will review.
 
@@ -473,8 +474,12 @@ The user has reviewed the Blueprint.md plan (available in the Documents tab). No
 3. Then create ALL remaining code files following the plan's File Map
 4. Do NOT recreate or modify Blueprint.md — it's already done
 5. Use define_entities to register data entities if the plan includes a Data Model section
+6. **Auth UX**: If the app has auth, the Login/Register page MUST default to showing the **Sign Up** form (not Sign In), since new apps have zero users. Include a toggle to switch between Sign Up and Sign In.
 
-Start immediately with file creation. Do not re-explain the plan.`);
+Start immediately with file creation. Do not re-explain the plan.
+
+After creating ALL files, end with a short summary. If the app has auth, include:
+"To get started, **sign up** with any email and password (8+ characters) to create your first account."`);
 		} else if (isReturningUser) {
 			// Normal existing project — edit/add files
 			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)

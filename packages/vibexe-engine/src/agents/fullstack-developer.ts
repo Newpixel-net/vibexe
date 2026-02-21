@@ -190,6 +190,8 @@ Components call hook methods — **never call app.data.* directly in components*
 ### Auth Pattern (when needed)
 - Wrap app with AuthProvider context
 - Login/Register pages shown when not authenticated
+- **Default to Sign Up view** (not Sign In) — new apps start with zero users, so first-time visitors need to register
+- Include a toggle link between "Sign Up" and "Already have an account? Sign In"
 - Call \`getCurrentUser()\` on mount to restore session
 - Protected content: \`if (!user) return <LoginPage />\`
 - Clear sensitive state on sign out
