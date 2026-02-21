@@ -10,6 +10,7 @@
 import { Camera, Image as ImageIcon, Loader2, Send, Square } from "lucide-react";
 import {
 	type ChangeEvent,
+	type ClipboardEvent,
 	type DragEvent,
 	type FormEvent,
 	type KeyboardEvent,
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 import type { ModelCapabilities } from "../lib/model-resolver";
 import type { Attachment } from "../types/vibesdk";
 import { AttachmentPreview } from "./attachment-preview";
+import { ScreenshotEditor } from "./screenshot-editor";
 
 const MAX_WORDS = 4000;
 
@@ -63,6 +65,8 @@ export function ChatInput({
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [isDragging, setIsDragging] = useState(false);
 	const [isCapturing, setIsCapturing] = useState(false);
+	const [editingImage, setEditingImage] = useState<File | null>(null);
+	const [editingAttachmentId, setEditingAttachmentId] = useState<string | null>(null);
 
 	useEffect(() => {
 		const textarea = textareaRef.current;
@@ -188,7 +192,7 @@ export function ChatInput({
 			// Stop all tracks immediately
 			for (const t of stream.getTracks()) t.stop();
 
-			// Convert canvas to File
+			// Convert canvas to File and open in editor
 			const blob = await new Promise<Blob | null>((resolve) =>
 				canvas.toBlob(resolve, "image/png"),
 			);
@@ -196,30 +200,90 @@ export function ChatInput({
 			if (blob) {
 				const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 				const file = new File([blob], `screenshot-${timestamp}.png`, { type: "image/png" });
-				const url = URL.createObjectURL(file);
-
-				const maxFiles = modelCapabilities?.maxFiles ?? 20;
-				if (attachments.length < maxFiles) {
-					onAttachmentsChange([
-						...attachments,
-						{
-							id: crypto.randomUUID(),
-							file,
-							url,
-							name: file.name,
-							mediaType: "image/png",
-							size: file.size,
-							category: "image" as const,
-						},
-					]);
-				}
+				setEditingImage(file);
+				setEditingAttachmentId(null);
 			}
 		} catch {
 			// User cancelled the picker or API not supported — silently ignore
 		} finally {
 			setIsCapturing(false);
 		}
-	}, [attachments, onAttachmentsChange, modelCapabilities, isCapturing]);
+	}, [onAttachmentsChange, isCapturing]);
+
+	// Paste handler — intercept clipboard images and open editor
+	const handlePaste = useCallback(
+		(e: ClipboardEvent<HTMLTextAreaElement>) => {
+			if (!onAttachmentsChange) return;
+			const items = e.clipboardData?.items;
+			if (!items) return;
+
+			for (const item of Array.from(items)) {
+				if (item.type.startsWith("image/")) {
+					e.preventDefault();
+					const file = item.getAsFile();
+					if (file) {
+						setEditingImage(file);
+						setEditingAttachmentId(null);
+					}
+					return;
+				}
+			}
+		},
+		[onAttachmentsChange],
+	);
+
+	// Editor save — add annotated file as attachment (or replace existing)
+	const handleEditorSave = useCallback(
+		(file: File) => {
+			if (!onAttachmentsChange) return;
+
+			const url = URL.createObjectURL(file);
+			const newAttachment: Attachment = {
+				id: editingAttachmentId ?? crypto.randomUUID(),
+				file,
+				url,
+				name: file.name,
+				mediaType: "image/png",
+				size: file.size,
+				category: "image" as const,
+			};
+
+			if (editingAttachmentId) {
+				// Replace existing attachment
+				const old = attachments.find((a) => a.id === editingAttachmentId);
+				if (old?.url) URL.revokeObjectURL(old.url);
+				onAttachmentsChange(
+					attachments.map((a) => (a.id === editingAttachmentId ? newAttachment : a)),
+				);
+			} else {
+				const maxFiles = modelCapabilities?.maxFiles ?? 20;
+				if (attachments.length < maxFiles) {
+					onAttachmentsChange([...attachments, newAttachment]);
+				}
+			}
+
+			setEditingImage(null);
+			setEditingAttachmentId(null);
+		},
+		[attachments, onAttachmentsChange, modelCapabilities, editingAttachmentId],
+	);
+
+	const handleEditorCancel = useCallback(() => {
+		setEditingImage(null);
+		setEditingAttachmentId(null);
+	}, []);
+
+	// Edit existing attachment — reopen in editor
+	const handleEditAttachment = useCallback(
+		(id: string) => {
+			const attachment = attachments.find((a) => a.id === id);
+			if (attachment?.file && attachment.category === "image") {
+				setEditingImage(attachment.file);
+				setEditingAttachmentId(id);
+			}
+		},
+		[attachments],
+	);
 
 	const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
 		const newValue = e.target.value;
@@ -320,6 +384,7 @@ export function ChatInput({
 						<AttachmentPreview
 							attachments={attachments}
 							onRemove={handleRemoveAttachment}
+							onEdit={handleEditAttachment}
 							maxFiles={modelCapabilities?.maxFiles ?? 20}
 						/>
 					)}
@@ -331,6 +396,7 @@ export function ChatInput({
 							value={value}
 							onChange={handleChange}
 							onKeyDown={handleKeyDown}
+							onPaste={handlePaste}
 							placeholder={placeholder}
 							disabled={isDisabled}
 							rows={3}
@@ -404,6 +470,15 @@ export function ChatInput({
 					</div>
 				</div>
 			</div>
+
+			{/* Screenshot annotation editor overlay */}
+			{editingImage && (
+				<ScreenshotEditor
+					image={editingImage}
+					onSave={handleEditorSave}
+					onCancel={handleEditorCancel}
+				/>
+			)}
 		</form>
 	);
 }

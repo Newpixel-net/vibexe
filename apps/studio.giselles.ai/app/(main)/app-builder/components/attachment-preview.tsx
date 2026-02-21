@@ -8,7 +8,7 @@
  * Includes file count indicator with model limit awareness.
  */
 
-import { FileText, X } from "lucide-react";
+import { FileText, Pencil, X } from "lucide-react";
 import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { Attachment } from "../types/vibesdk";
@@ -17,6 +17,7 @@ import { AttachmentLightbox } from "./attachment-lightbox";
 interface AttachmentPreviewProps {
 	attachments: Attachment[];
 	onRemove: (id: string) => void;
+	onEdit?: (id: string) => void;
 	maxFiles?: number;
 	className?: string;
 }
@@ -38,6 +39,7 @@ function getDocColor(mediaType: string): string {
 export function AttachmentPreview({
 	attachments,
 	onRemove,
+	onEdit,
 	maxFiles = 20,
 	className,
 }: AttachmentPreviewProps) {
@@ -83,6 +85,22 @@ export function AttachmentPreview({
 									className="w-16 h-16 object-cover"
 									onClick={() => handleImageClick(att)}
 								/>
+								{onEdit && (
+								<button
+									type="button"
+									onClick={(e) => {
+										e.stopPropagation();
+										onEdit(att.id);
+									}}
+									className={cn(
+										"absolute top-0.5 left-0.5 h-5 w-5 flex items-center justify-center rounded-full",
+										"bg-background/80 hover:bg-background text-muted-foreground hover:text-foreground",
+										"opacity-0 group-hover:opacity-100 transition-opacity",
+									)}
+								>
+									<Pencil className="h-2.5 w-2.5" />
+								</button>
+							)}
 								<button
 									type="button"
 									onClick={(e) => {
