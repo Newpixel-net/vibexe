@@ -98,10 +98,10 @@ function buildIndexHtml(langConfig?: SandpackLanguageConfig): string {
         }${rtlStyles}
       }
     </style>
+    <script>${getVisualEditBridgeScript()}</script>
   </head>
   <body dir="${dir}">
     <div id="root"></div>
-    <script>${getVisualEditBridgeScript()}</script>
   </body>
 </html>
 `;
