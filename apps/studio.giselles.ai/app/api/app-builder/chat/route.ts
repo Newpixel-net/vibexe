@@ -456,11 +456,9 @@ This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE 
 		// --- Plan-then-Execute: For complex NEW projects, show plan first ---
 		// Instead of generating code immediately, stream the planner's blueprint
 		// so the user can review architecture, data model, and file map before building.
-		const shouldPlanFirst =
-			plan.intent.complexity === "complex" &&
-			!isExecutePlan && !isAutoFix && !isReviewCode && !isVisualEdit &&
-			existingFiles.length === 0 &&
-			messages.length <= 1; // Only on first message
+		// Plan-first DISABLED: streamText without tools fails to stream through WHM proxy.
+		// TODO: investigate why toUIMessageStreamResponse works with tools but not without.
+		const shouldPlanFirst = false;
 
 		if (shouldPlanFirst) {
 			// Stream planner's blueprint directly (no blocking architect pre-pass).
@@ -506,7 +504,10 @@ This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE 
 			? plan.agents.slice(0, primaryAgentIndex)
 			: [];
 
-		const skipPreStream = isExecutePlan || isAutoFix || isVisualEdit;
+		// Pre-stream DISABLED: blocking generateText() calls delay the HTTP response,
+		// causing WHM reverse proxy to timeout the connection before streaming starts.
+		// TODO: implement non-blocking pre-stream (fire-and-forget or SSE keep-alive).
+		const skipPreStream = true;
 
 		if (preStreamAgents.length > 0 && !skipPreStream) {
 			const chainedAnalysis: string[] = [];
