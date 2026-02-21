@@ -169,6 +169,16 @@ const nextConfig: NextConfig = {
 					},
 				],
 			},
+			{
+				// CORS for app API routes — called from Sandpack iframe (codesandbox.io origin)
+				source: "/api/apps/:path*",
+				headers: [
+					{ key: "Access-Control-Allow-Origin", value: "*" },
+					{ key: "Access-Control-Allow-Methods", value: "GET, POST, PUT, DELETE, OPTIONS" },
+					{ key: "Access-Control-Allow-Headers", value: "Content-Type, Authorization, X-Vibexe-Api-Key" },
+					{ key: "Access-Control-Max-Age", value: "86400" },
+				],
+			},
 		];
 	},
 	typescript: {

@@ -37,11 +37,10 @@ export class VibexeApp {
 	constructor(config: VibexeAppConfig) {
 		this.appId = config.appId;
 
-		const baseUrl = config.baseUrl
-			? `${config.baseUrl}/api/apps/${config.appId}`
-			: typeof window !== "undefined"
-				? `${window.location.origin}/api/apps/${config.appId}`
-				: `/api/apps/${config.appId}`;
+		const origin = config.baseUrl
+			|| (typeof window !== "undefined" && (window as Record<string, unknown>).__VIBEXE_API_ORIGIN__ as string)
+			|| (typeof window !== "undefined" ? window.location.origin : "");
+		const baseUrl = `${origin}/api/apps/${config.appId}`;
 
 		const headers: Record<string, string> = {};
 		if (config.apiKey) {
