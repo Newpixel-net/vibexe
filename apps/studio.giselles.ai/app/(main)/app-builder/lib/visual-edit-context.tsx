@@ -26,6 +26,7 @@ export interface SelectedElement {
 	boundingRect: { top: number; left: number; width: number; height: number };
 	selector: string;
 	computedStyles: Record<string, string>;
+	isDynamicContent?: boolean;
 }
 
 interface VisualEditState {

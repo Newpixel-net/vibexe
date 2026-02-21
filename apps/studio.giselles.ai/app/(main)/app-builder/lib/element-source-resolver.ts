@@ -12,11 +12,26 @@ export interface SourceLocation {
 	fileId: string;
 	lineNumber: number;
 	lineContent: string;
+	confidence: number; // 0-1, higher = more confident
+}
+
+// Cache to avoid re-scanning files on every call
+const resolverCache = new Map<string, SourceLocation | null>();
+
+function cacheKey(element: { tagName: string; className: string; textContent: string }): string {
+	return `${element.tagName}|${element.className}|${element.textContent.slice(0, 60)}`;
+}
+
+/**
+ * Clear the resolver cache (call when files change).
+ */
+export function clearResolverCache(): void {
+	resolverCache.clear();
 }
 
 /**
  * Find the source file and line for a selected element.
- * Matches by className and/or textContent in JSX files.
+ * Uses multiple strategies with confidence scoring, returns best match.
  */
 export function resolveElementSource(
 	element: {
@@ -26,6 +41,9 @@ export function resolveElementSource(
 	},
 	files: AppFile[],
 ): SourceLocation | null {
+	const key = cacheKey(element);
+	if (resolverCache.has(key)) return resolverCache.get(key) || null;
+
 	const jsxFiles = files.filter(
 		(f) =>
 			f.path.endsWith(".tsx") ||
@@ -34,30 +52,85 @@ export function resolveElementSource(
 			f.path.endsWith(".ts"),
 	);
 
-	// Strategy 1: Match by className (most reliable)
+	const candidates: SourceLocation[] = [];
+
+	// Strategy 1: Exact className match (highest confidence)
 	if (element.className) {
-		// Escape special regex chars in className, and search for it in className="..."
 		const escaped = element.className.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-		const classPattern = new RegExp(
-			`className=["'\`]${escaped}["'\`]`,
-		);
+		const classPattern = new RegExp(`className=["'\`]${escaped}["'\`]`);
 
 		for (const file of jsxFiles) {
 			if (!file.content) continue;
 			const lines = file.content.split("\n");
 			for (let i = 0; i < lines.length; i++) {
 				if (classPattern.test(lines[i])) {
-					return {
+					candidates.push({
 						filePath: file.path,
 						fileId: file.id,
 						lineNumber: i + 1,
 						lineContent: lines[i],
-					};
+						confidence: 1.0,
+					});
 				}
 			}
 		}
+	}
 
-		// Partial match: search for the first 3 classes
+	// Strategy 2: Multi-line className match (join adjacent lines)
+	if (element.className && candidates.length === 0) {
+		const classTokens = element.className.split(/\s+/).filter(Boolean);
+		if (classTokens.length >= 2) {
+			for (const file of jsxFiles) {
+				if (!file.content) continue;
+				const lines = file.content.split("\n");
+				for (let i = 0; i < lines.length; i++) {
+					// Check current line and next few lines (multi-line className)
+					const block = lines.slice(i, Math.min(i + 5, lines.length)).join(" ");
+					if (
+						block.includes("className") &&
+						classTokens.every((cls) => block.includes(cls))
+					) {
+						candidates.push({
+							filePath: file.path,
+							fileId: file.id,
+							lineNumber: i + 1,
+							lineContent: lines[i],
+							confidence: 0.85,
+						});
+					}
+				}
+			}
+		}
+	}
+
+	// Strategy 3: cn() / clsx() / twMerge() pattern matching
+	if (element.className && candidates.length === 0) {
+		const firstClasses = element.className.split(/\s+/).slice(0, 3);
+		if (firstClasses.length >= 1) {
+			const cnPattern = /(?:cn|clsx|twMerge|classNames)\s*\(/;
+			for (const file of jsxFiles) {
+				if (!file.content) continue;
+				const lines = file.content.split("\n");
+				for (let i = 0; i < lines.length; i++) {
+					if (cnPattern.test(lines[i])) {
+						const block = lines.slice(i, Math.min(i + 8, lines.length)).join(" ");
+						if (firstClasses.every((cls) => block.includes(cls))) {
+							candidates.push({
+								filePath: file.path,
+								fileId: file.id,
+								lineNumber: i + 1,
+								lineContent: lines[i],
+								confidence: 0.7,
+							});
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Strategy 4: Partial class match (first 3 classes in className="...")
+	if (element.className && candidates.length === 0) {
 		const classTokens = element.className.split(/\s+/).slice(0, 3);
 		if (classTokens.length >= 2) {
 			for (const file of jsxFiles) {
@@ -66,23 +139,24 @@ export function resolveElementSource(
 				for (let i = 0; i < lines.length; i++) {
 					const line = lines[i];
 					if (
-						line.includes("className=") &&
+						line.includes("className") &&
 						classTokens.every((cls) => line.includes(cls))
 					) {
-						return {
+						candidates.push({
 							filePath: file.path,
 							fileId: file.id,
 							lineNumber: i + 1,
 							lineContent: line,
-						};
+							confidence: 0.6,
+						});
 					}
 				}
 			}
 		}
 	}
 
-	// Strategy 2: Match by text content + tag name
-	if (element.textContent && element.textContent.length > 2) {
+	// Strategy 5: Match by text content + tag name
+	if (element.textContent && element.textContent.trim().length > 2) {
 		const text = element.textContent.trim().slice(0, 60);
 		const tag = element.tagName.toLowerCase();
 
@@ -91,39 +165,43 @@ export function resolveElementSource(
 			const lines = file.content.split("\n");
 			for (let i = 0; i < lines.length; i++) {
 				const line = lines[i];
-				// Check if line has the tag and contains the text
-				if (
-					line.includes(`<${tag}`) &&
-					line.includes(text.slice(0, 20))
-				) {
-					return {
+				if (line.includes(`<${tag}`) && line.includes(text.slice(0, 20))) {
+					candidates.push({
 						filePath: file.path,
 						fileId: file.id,
 						lineNumber: i + 1,
 						lineContent: line,
-					};
+						confidence: 0.5,
+					});
 				}
 			}
 		}
 
 		// Broader: just search for the text content
-		for (const file of jsxFiles) {
-			if (!file.content) continue;
-			const lines = file.content.split("\n");
-			for (let i = 0; i < lines.length; i++) {
-				if (lines[i].includes(text.slice(0, 30))) {
-					return {
-						filePath: file.path,
-						fileId: file.id,
-						lineNumber: i + 1,
-						lineContent: lines[i],
-					};
+		if (candidates.length === 0) {
+			for (const file of jsxFiles) {
+				if (!file.content) continue;
+				const lines = file.content.split("\n");
+				for (let i = 0; i < lines.length; i++) {
+					if (lines[i].includes(text.slice(0, 30))) {
+						candidates.push({
+							filePath: file.path,
+							fileId: file.id,
+							lineNumber: i + 1,
+							lineContent: lines[i],
+							confidence: 0.3,
+						});
+					}
 				}
 			}
 		}
 	}
 
-	return null;
+	// Return highest confidence match
+	candidates.sort((a, b) => b.confidence - a.confidence);
+	const result = candidates[0] || null;
+	resolverCache.set(key, result);
+	return result;
 }
 
 /**
@@ -140,12 +218,12 @@ export function updateClassNameInSource(
 	const idx = lineNumber - 1;
 	if (idx < 0 || idx >= lines.length) return fileContent;
 
-	// Replace the className value on that line
+	// Replace className="old" with className="new"
 	lines[idx] = lines[idx].replace(
 		`className="${oldClassName}"`,
 		`className="${newClassName}"`,
 	);
-	// Also handle single quotes and template literals
+	// Also handle single quotes
 	lines[idx] = lines[idx].replace(
 		`className='${oldClassName}'`,
 		`className='${newClassName}'`,
@@ -156,7 +234,6 @@ export function updateClassNameInSource(
 
 /**
  * Update text content in source code at a specific location.
- * Handles text between JSX tags.
  */
 export function updateTextContentInSource(
 	fileContent: string,
@@ -174,7 +251,6 @@ export function updateTextContentInSource(
 
 /**
  * Delete an element from source code.
- * Finds the JSX element spanning from the line and removes it.
  */
 export function deleteElementFromSource(
 	fileContent: string,
@@ -199,7 +275,6 @@ export function deleteElementFromSource(
 	let endIdx = idx;
 	for (let i = idx; i < lines.length; i++) {
 		const l = lines[i];
-		// Count opening tags (excluding self-closing)
 		const opens = (l.match(new RegExp(`<${tag}[\\s>]`, "gi")) || []).length;
 		const selfCloses = (l.match(new RegExp(`<${tag}[^>]*/>`, "gi")) || []).length;
 		const closes = (l.match(new RegExp(`</${tag}>`, "gi")) || []).length;

@@ -7,19 +7,39 @@
  * Each panel appears below the toolbar when its button is clicked.
  */
 
-import { Minus, Plus } from "lucide-react";
+import {
+	AlignCenter,
+	AlignJustify,
+	AlignLeft,
+	AlignRight,
+	ChevronDown,
+	ChevronUp,
+	Minus,
+	RotateCcw,
+	Strikethrough,
+	Underline,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
+	COLOR_FAMILIES,
+	COLOR_SHADES,
+	SPACING_SCALE,
+	getColorHex,
 	getCategoryValues,
 	getCurrentValue,
+	parseSpacingValue,
+	pxToRoundedClass,
+	removeCategory,
 	replaceClass,
+	roundedClassToPx,
 } from "../lib/tailwind-utils";
 
 /** Panel wrapper with consistent styling */
 function PanelWrapper({
 	children,
 	onClose,
-}: { children: React.ReactNode; onClose: () => void }) {
+	width,
+}: { children: React.ReactNode; onClose: () => void; width?: string }) {
 	useEffect(() => {
 		const handler = (e: KeyboardEvent) => {
 			if (e.key === "Escape") onClose();
@@ -29,7 +49,10 @@ function PanelWrapper({
 	}, [onClose]);
 
 	return (
-		<div className="mt-2 p-3 rounded-xl bg-[#1a1a2e]/95 border border-white/[0.12] shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-1 duration-150 min-w-[280px] max-w-[380px]">
+		<div
+			className="mt-2 p-3 rounded-xl bg-[#1a1a2e]/95 border border-white/[0.12] shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-1 duration-150"
+			style={{ minWidth: width || "280px", maxWidth: width || "380px" }}
+		>
 			{children}
 		</div>
 	);
@@ -41,6 +64,64 @@ function Label({ children }: { children: React.ReactNode }) {
 		<span className="text-[10px] uppercase tracking-wider text-white/30 font-medium">
 			{children}
 		</span>
+	);
+}
+
+/** Numeric input with up/down steppers */
+function NumericInput({
+	value,
+	onChange,
+	min = 0,
+	max = 999,
+	step = 1,
+	suffix,
+}: {
+	value: number;
+	onChange: (val: number) => void;
+	min?: number;
+	max?: number;
+	step?: number;
+	suffix?: string;
+}) {
+	const handleStep = useCallback(
+		(dir: 1 | -1) => {
+			const next = Math.min(max, Math.max(min, value + dir * step));
+			onChange(next);
+		},
+		[value, onChange, min, max, step],
+	);
+
+	return (
+		<div className="flex items-center gap-0.5 bg-white/[0.06] border border-white/[0.1] rounded-lg overflow-hidden">
+			<input
+				type="number"
+				value={value}
+				onChange={(e) => {
+					const v = Number.parseFloat(e.target.value);
+					if (!Number.isNaN(v)) onChange(Math.min(max, Math.max(min, v)));
+				}}
+				className="w-12 px-2 py-1 text-xs text-white bg-transparent text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+			/>
+			{suffix && (
+				<span className="text-[9px] text-white/30 pr-0.5">{suffix}</span>
+			)}
+			<div className="flex flex-col border-l border-white/[0.08]">
+				<button
+					type="button"
+					onClick={() => handleStep(1)}
+					className="px-1 py-0 hover:bg-white/[0.08] text-white/40 hover:text-white/70 transition-colors"
+				>
+					<ChevronUp className="w-2.5 h-2.5" />
+				</button>
+				<button
+					type="button"
+					onClick={() => handleStep(-1)}
+					className="px-1 py-0 hover:bg-white/[0.08] text-white/40 hover:text-white/70 transition-colors"
+				>
+					<ChevronDown className="w-2.5 h-2.5" />
+				</button>
+			</div>
+		</div>
 	);
 }
 
@@ -73,6 +154,40 @@ function TwSelect({
 					</option>
 				))}
 			</select>
+		</div>
+	);
+}
+
+/** Toggle button group */
+function ButtonGroup({
+	options,
+	value,
+	onChange,
+}: {
+	options: Array<{ value: string; label: React.ReactNode; title?: string }>;
+	value: string | null;
+	onChange: (val: string) => void;
+}) {
+	return (
+		<div className="flex gap-0.5 bg-white/[0.04] rounded-lg p-0.5">
+			{options.map((opt) => {
+				const isActive = value === opt.value;
+				return (
+					<button
+						key={opt.value}
+						type="button"
+						onClick={() => onChange(opt.value)}
+						title={opt.title}
+						className={`flex-1 px-2 py-1.5 text-xs rounded-md transition-all ${
+							isActive
+								? "bg-violet-500/20 text-violet-300"
+								: "text-white/40 hover:bg-white/[0.06] hover:text-white/60"
+						}`}
+					>
+						{opt.label}
+					</button>
+				);
+			})}
 		</div>
 	);
 }
@@ -141,52 +256,110 @@ export function TextStylePanel({
 		[className, onUpdate],
 	);
 
+	// Font size slider value (map text-xs=0 through text-9xl=12)
+	const fontSizeOptions = getCategoryValues("fontSize");
+	const currentFontSize = getCurrentValue(className, "fontSize");
+	const fontSizeIdx = currentFontSize
+		? fontSizeOptions.indexOf(currentFontSize)
+		: 2; // default text-base
+
 	return (
-		<PanelWrapper onClose={onClose}>
-			<div className="grid grid-cols-2 gap-3">
-				<TwSelect
-					label="Font Size"
-					value={getCurrentValue(className, "fontSize")}
-					options={getCategoryValues("fontSize")}
-					onChange={(v) => handleChange("fontSize", v)}
-				/>
+		<PanelWrapper onClose={onClose} width="340px">
+			{/* Font Size: dropdown + slider */}
+			<div className="mb-3">
+				<Label>Font Size</Label>
+				<div className="flex items-center gap-2 mt-1">
+					<select
+						value={currentFontSize || ""}
+						onChange={(e) => handleChange("fontSize", e.target.value)}
+						className="px-2 py-1.5 text-xs bg-white/[0.06] border border-white/[0.1] rounded-lg text-white focus:outline-none focus:border-violet-500/50 appearance-none cursor-pointer flex-shrink-0"
+					>
+						{fontSizeOptions.map((opt) => (
+							<option key={opt} value={opt} className="bg-[#1a1a2e]">
+								{opt}
+							</option>
+						))}
+					</select>
+					<input
+						type="range"
+						min={0}
+						max={fontSizeOptions.length - 1}
+						value={fontSizeIdx >= 0 ? fontSizeIdx : 2}
+						onChange={(e) =>
+							handleChange("fontSize", fontSizeOptions[Number(e.target.value)])
+						}
+						className="flex-1 accent-violet-500 h-1.5"
+					/>
+				</div>
+			</div>
+
+			{/* Font Weight */}
+			<div className="mb-3">
 				<TwSelect
 					label="Font Weight"
 					value={getCurrentValue(className, "fontWeight")}
 					options={getCategoryValues("fontWeight")}
 					onChange={(v) => handleChange("fontWeight", v)}
 				/>
-				<TwSelect
-					label="Alignment"
-					value={getCurrentValue(className, "textAlign")}
-					options={getCategoryValues("textAlign")}
-					onChange={(v) => handleChange("textAlign", v)}
-				/>
-				<TwSelect
-					label="Transform"
-					value={getCurrentValue(className, "textTransform")}
-					options={getCategoryValues("textTransform")}
-					onChange={(v) => handleChange("textTransform", v)}
-				/>
 			</div>
-			<div className="mt-3 flex gap-2">
+
+			{/* Alignment: icon button group */}
+			<div className="mb-3">
+				<Label>Alignment</Label>
+				<div className="mt-1">
+					<ButtonGroup
+						options={[
+							{ value: "text-left", label: <AlignLeft className="w-3.5 h-3.5 mx-auto" />, title: "Left" },
+							{ value: "text-center", label: <AlignCenter className="w-3.5 h-3.5 mx-auto" />, title: "Center" },
+							{ value: "text-right", label: <AlignRight className="w-3.5 h-3.5 mx-auto" />, title: "Right" },
+							{ value: "text-justify", label: <AlignJustify className="w-3.5 h-3.5 mx-auto" />, title: "Justify" },
+						]}
+						value={getCurrentValue(className, "textAlign")}
+						onChange={(v) => handleChange("textAlign", v)}
+					/>
+				</div>
+			</div>
+
+			{/* Transform: button group */}
+			<div className="mb-3">
+				<Label>Transform</Label>
+				<div className="mt-1">
+					<ButtonGroup
+						options={[
+							{ value: "normal-case", label: "—", title: "Normal" },
+							{ value: "uppercase", label: "AA", title: "Uppercase" },
+							{ value: "lowercase", label: "aa", title: "Lowercase" },
+							{ value: "capitalize", label: "Aa", title: "Capitalize" },
+						]}
+						value={getCurrentValue(className, "textTransform")}
+						onChange={(v) => handleChange("textTransform", v)}
+					/>
+				</div>
+			</div>
+
+			{/* Decoration: icon buttons */}
+			<div>
 				<Label>Decoration</Label>
-				<div className="flex gap-1 ml-auto">
-					{getCategoryValues("textDecoration").map((dec) => {
-						const isActive =
-							getCurrentValue(className, "textDecoration") === dec;
+				<div className="flex gap-1.5 mt-1">
+					{[
+						{ value: "underline", icon: <Underline className="w-3.5 h-3.5" />, title: "Underline" },
+						{ value: "line-through", icon: <Strikethrough className="w-3.5 h-3.5" />, title: "Strikethrough" },
+						{ value: "no-underline", icon: <span className="text-[10px]">none</span>, title: "No decoration" },
+					].map((dec) => {
+						const isActive = getCurrentValue(className, "textDecoration") === dec.value;
 						return (
 							<button
-								key={dec}
+								key={dec.value}
 								type="button"
-								onClick={() => handleChange("textDecoration", dec)}
-								className={`px-2 py-1 text-[10px] rounded ${
+								onClick={() => handleChange("textDecoration", dec.value)}
+								title={dec.title}
+								className={`p-2 rounded-lg transition-all ${
 									isActive
 										? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
 										: "bg-white/[0.04] text-white/40 border border-white/[0.06] hover:bg-white/[0.08]"
-								} transition-all`}
+								}`}
 							>
-								{dec}
+								{dec.icon}
 							</button>
 						);
 					})}
@@ -197,50 +370,8 @@ export function TextStylePanel({
 }
 
 // ═══════════════════════════════════════════════
-// 3. Colors Panel
+// 3. Colors Panel — Full Tailwind Palette
 // ═══════════════════════════════════════════════
-
-const COLOR_PALETTE = [
-	"slate",
-	"gray",
-	"zinc",
-	"red",
-	"orange",
-	"amber",
-	"yellow",
-	"lime",
-	"green",
-	"emerald",
-	"teal",
-	"cyan",
-	"sky",
-	"blue",
-	"indigo",
-	"violet",
-	"purple",
-	"fuchsia",
-	"pink",
-	"rose",
-];
-
-const COLOR_SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
-
-/** Rough hex approximation for Tailwind colors (subset) */
-const COLOR_HEX: Record<string, Record<number, string>> = {
-	slate: { 50: "#f8fafc", 100: "#f1f5f9", 200: "#e2e8f0", 300: "#cbd5e1", 400: "#94a3b8", 500: "#64748b", 600: "#475569", 700: "#334155", 800: "#1e293b", 900: "#0f172a", 950: "#020617" },
-	red: { 50: "#fef2f2", 100: "#fee2e2", 200: "#fecaca", 300: "#fca5a5", 400: "#f87171", 500: "#ef4444", 600: "#dc2626", 700: "#b91c1c", 800: "#991b1b", 900: "#7f1d1d", 950: "#450a0a" },
-	blue: { 50: "#eff6ff", 100: "#dbeafe", 200: "#bfdbfe", 300: "#93c5fd", 400: "#60a5fa", 500: "#3b82f6", 600: "#2563eb", 700: "#1d4ed8", 800: "#1e40af", 900: "#1e3a8a", 950: "#172554" },
-	green: { 50: "#f0fdf4", 100: "#dcfce7", 200: "#bbf7d0", 300: "#86efac", 400: "#4ade80", 500: "#22c55e", 600: "#16a34a", 700: "#15803d", 800: "#166534", 900: "#14532d", 950: "#052e16" },
-	violet: { 50: "#f5f3ff", 100: "#ede9fe", 200: "#ddd6fe", 300: "#c4b5fd", 400: "#a78bfa", 500: "#8b5cf6", 600: "#7c3aed", 700: "#6d28d9", 800: "#5b21b6", 900: "#4c1d95", 950: "#2e1065" },
-	amber: { 50: "#fffbeb", 100: "#fef3c7", 200: "#fde68a", 300: "#fcd34d", 400: "#fbbf24", 500: "#f59e0b", 600: "#d97706", 700: "#b45309", 800: "#92400e", 900: "#78350f", 950: "#451a03" },
-	pink: { 50: "#fdf2f8", 100: "#fce7f3", 200: "#fbcfe8", 300: "#f9a8d4", 400: "#f472b6", 500: "#ec4899", 600: "#db2777", 700: "#be185d", 800: "#9d174d", 900: "#831843", 950: "#500724" },
-	cyan: { 50: "#ecfeff", 100: "#cffafe", 200: "#a5f3fc", 300: "#67e8f9", 400: "#22d3ee", 500: "#06b6d4", 600: "#0891b2", 700: "#0e7490", 800: "#155e75", 900: "#164e63", 950: "#083344" },
-	teal: { 50: "#f0fdfa", 100: "#ccfbf1", 200: "#99f6e4", 300: "#5eead4", 400: "#2dd4bf", 500: "#14b8a6", 600: "#0d9488", 700: "#0f766e", 800: "#115e59", 900: "#134e4a", 950: "#042f2e" },
-};
-
-function getColorHex(name: string, shade: number): string {
-	return COLOR_HEX[name]?.[shade] || "#888";
-}
 
 interface ColorsPanelProps {
 	className: string;
@@ -254,6 +385,7 @@ export function ColorsPanel({
 	onClose,
 }: ColorsPanelProps) {
 	const [colorType, setColorType] = useState<"text" | "bg">("text");
+	const [expandedFamily, setExpandedFamily] = useState<string | null>(null);
 
 	const handleColorSelect = useCallback(
 		(color: string, shade: number) => {
@@ -267,24 +399,30 @@ export function ColorsPanel({
 		[colorType, className, onUpdate],
 	);
 
+	const handleClear = useCallback(() => {
+		const category = colorType === "text" ? "textColor" : "bgColor";
+		onUpdate(removeCategory(className, category));
+	}, [colorType, className, onUpdate]);
+
 	return (
-		<PanelWrapper onClose={onClose}>
+		<PanelWrapper onClose={onClose} width="360px">
+			{/* Tab switcher */}
 			<div className="flex gap-2 mb-3">
 				<button
 					type="button"
 					onClick={() => setColorType("text")}
-					className={`px-3 py-1 text-xs rounded-lg transition-all ${
+					className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
 						colorType === "text"
 							? "bg-white/[0.1] text-white"
 							: "text-white/40 hover:text-white/60"
 					}`}
 				>
-					Text
+					Text Color
 				</button>
 				<button
 					type="button"
 					onClick={() => setColorType("bg")}
-					className={`px-3 py-1 text-xs rounded-lg transition-all ${
+					className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
 						colorType === "bg"
 							? "bg-white/[0.1] text-white"
 							: "text-white/40 hover:text-white/60"
@@ -292,8 +430,8 @@ export function ColorsPanel({
 				>
 					Background
 				</button>
-				{/* Special: white/black/transparent */}
-				<div className="flex gap-1 ml-auto">
+				{/* Special colors */}
+				<div className="flex gap-1 ml-auto items-center">
 					{["white", "black", "transparent"].map((c) => (
 						<button
 							key={c}
@@ -307,7 +445,7 @@ export function ColorsPanel({
 									),
 								)
 							}
-							className="w-5 h-5 rounded border border-white/[0.15]"
+							className="w-5 h-5 rounded border border-white/[0.15] hover:scale-110 transition-transform"
 							style={{
 								background:
 									c === "white"
@@ -321,20 +459,46 @@ export function ColorsPanel({
 					))}
 				</div>
 			</div>
-			<div className="grid grid-cols-10 gap-0.5 max-h-[200px] overflow-y-auto">
-				{COLOR_PALETTE.map((color) =>
-					[400, 500, 600].map((shade) => (
+
+			{/* Full palette grid: 22 families x 11 shades */}
+			<div className="max-h-[260px] overflow-y-auto pr-1 space-y-0.5">
+				{COLOR_FAMILIES.map((family) => (
+					<div key={family} className="flex items-center gap-0.5">
 						<button
-							key={`${color}-${shade}`}
 							type="button"
-							onClick={() => handleColorSelect(color, shade)}
-							className="w-5 h-5 rounded-sm border border-white/[0.06] hover:scale-125 transition-transform"
-							style={{ background: getColorHex(color, shade) }}
-							title={`${color}-${shade}`}
-						/>
-					)),
-				)}
+							onClick={() =>
+								setExpandedFamily(expandedFamily === family ? null : family)
+							}
+							className="w-12 text-[9px] text-white/30 hover:text-white/50 text-right pr-1 flex-shrink-0 truncate transition-colors"
+							title={family}
+						>
+							{family}
+						</button>
+						<div className="flex gap-px flex-1">
+							{COLOR_SHADES.map((shade) => (
+								<button
+									key={shade}
+									type="button"
+									onClick={() => handleColorSelect(family, shade)}
+									className="flex-1 h-5 rounded-sm hover:scale-y-150 hover:z-10 transition-transform border border-transparent hover:border-white/20"
+									style={{ background: getColorHex(family, shade) }}
+									title={`${family}-${shade}`}
+								/>
+							))}
+						</div>
+					</div>
+				))}
 			</div>
+
+			{/* Clear color */}
+			<button
+				type="button"
+				onClick={handleClear}
+				className="mt-2 flex items-center gap-1.5 px-2 py-1.5 text-[10px] text-white/30 hover:text-white/50 transition-colors"
+			>
+				<RotateCcw className="w-3 h-3" />
+				Clear Color
+			</button>
 		</PanelWrapper>
 	);
 }
@@ -388,7 +552,7 @@ export function OpacityPanel({
 }
 
 // ═══════════════════════════════════════════════
-// 5. Spacing Panel
+// 5. Spacing Panel — Numeric Inputs + 4-Side Toggle
 // ═══════════════════════════════════════════════
 
 interface SpacingPanelProps {
@@ -397,11 +561,11 @@ interface SpacingPanelProps {
 	onClose: () => void;
 }
 
-function SpacingControl({
+function SpacingNumericControl({
 	label,
 	category,
 	prefix,
-	className,
+	className: cls,
 	onUpdate,
 }: {
 	label: string;
@@ -410,40 +574,63 @@ function SpacingControl({
 	className: string;
 	onUpdate: (cls: string) => void;
 }) {
-	const current = getCurrentValue(className, category);
-	const match = current?.match(/-(\d+)$/);
-	const val = match ? Number.parseInt(match[1], 10) : 0;
+	const current = getCurrentValue(cls, category);
+	const val = parseSpacingValue(current);
+
+	const handleStep = useCallback(
+		(dir: 1 | -1) => {
+			const idx = SPACING_SCALE.indexOf(val);
+			let next: number;
+			if (dir === 1) {
+				next =
+					idx >= 0 && idx < SPACING_SCALE.length - 1
+						? SPACING_SCALE[idx + 1]
+						: Math.min(96, val + 1);
+			} else {
+				next = idx > 0 ? SPACING_SCALE[idx - 1] : Math.max(0, val - 1);
+			}
+			onUpdate(replaceClass(cls, category, `${prefix}-${next}`));
+		},
+		[val, cls, category, prefix, onUpdate],
+	);
+
+	const handleDirect = useCallback(
+		(v: number) => {
+			onUpdate(replaceClass(cls, category, `${prefix}-${v}`));
+		},
+		[cls, category, prefix, onUpdate],
+	);
 
 	return (
-		<div className="flex items-center gap-2">
-			<span className="text-[10px] text-white/30 w-6">{label}</span>
-			<button
-				type="button"
-				onClick={() =>
-					onUpdate(
-						replaceClass(
-							className,
-							category,
-							`${prefix}-${Math.max(0, val - 1)}`,
-						),
-					)
-				}
-				className="w-6 h-6 rounded bg-white/[0.06] flex items-center justify-center text-white/40 hover:bg-white/[0.1] hover:text-white/70 transition-colors"
-			>
-				<Minus className="w-3 h-3" />
-			</button>
-			<span className="text-xs text-white/60 w-6 text-center">{val}</span>
-			<button
-				type="button"
-				onClick={() =>
-					onUpdate(
-						replaceClass(className, category, `${prefix}-${val + 1}`),
-					)
-				}
-				className="w-6 h-6 rounded bg-white/[0.06] flex items-center justify-center text-white/40 hover:bg-white/[0.1] hover:text-white/70 transition-colors"
-			>
-				<Plus className="w-3 h-3" />
-			</button>
+		<div className="flex items-center gap-1.5">
+			<span className="text-[10px] text-white/30 w-5 text-right font-mono">
+				{label}
+			</span>
+			<div className="flex items-center gap-0.5 bg-white/[0.06] border border-white/[0.1] rounded-lg overflow-hidden">
+				<button
+					type="button"
+					onClick={() => handleStep(-1)}
+					className="px-1.5 py-1 hover:bg-white/[0.08] text-white/40 hover:text-white/70 transition-colors"
+				>
+					<Minus className="w-2.5 h-2.5" />
+				</button>
+				<input
+					type="number"
+					value={val}
+					onChange={(e) => {
+						const v = Number.parseFloat(e.target.value);
+						if (!Number.isNaN(v) && v >= 0) handleDirect(v);
+					}}
+					className="w-8 text-xs text-white bg-transparent text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+				/>
+				<button
+					type="button"
+					onClick={() => handleStep(1)}
+					className="px-1.5 py-1 hover:bg-white/[0.08] text-white/40 hover:text-white/70 transition-colors"
+				>
+					<span className="text-xs">+</span>
+				</button>
+			</div>
 		</div>
 	);
 }
@@ -453,45 +640,59 @@ export function SpacingPanel({
 	onUpdate,
 	onClose,
 }: SpacingPanelProps) {
+	const [expanded, setExpanded] = useState(false);
+
 	return (
-		<PanelWrapper onClose={onClose}>
-			<div className="grid grid-cols-2 gap-3">
+		<PanelWrapper onClose={onClose} width="320px">
+			<div className="flex items-center justify-between mb-2">
+				<Label>Spacing</Label>
+				<button
+					type="button"
+					onClick={() => setExpanded(!expanded)}
+					className="text-[10px] text-white/30 hover:text-white/50 transition-colors px-1.5 py-0.5 rounded bg-white/[0.04] hover:bg-white/[0.08]"
+				>
+					{expanded ? "2-axis" : "4-sides"}
+				</button>
+			</div>
+
+			<div className="grid grid-cols-2 gap-4">
+				{/* Margin */}
 				<div>
-					<Label>Margin</Label>
-					<div className="flex flex-col gap-1.5 mt-1.5">
-						<SpacingControl
-							label="H"
-							category="marginX"
-							prefix="mx"
-							className={className}
-							onUpdate={onUpdate}
-						/>
-						<SpacingControl
-							label="V"
-							category="marginY"
-							prefix="my"
-							className={className}
-							onUpdate={onUpdate}
-						/>
+					<span className="text-[10px] text-white/40 font-medium">Margin</span>
+					<div className="flex flex-col gap-1.5 mt-1">
+						{expanded ? (
+							<>
+								<SpacingNumericControl label="T" category="marginTop" prefix="mt" className={className} onUpdate={onUpdate} />
+								<SpacingNumericControl label="R" category="marginRight" prefix="mr" className={className} onUpdate={onUpdate} />
+								<SpacingNumericControl label="B" category="marginBottom" prefix="mb" className={className} onUpdate={onUpdate} />
+								<SpacingNumericControl label="L" category="marginLeft" prefix="ml" className={className} onUpdate={onUpdate} />
+							</>
+						) : (
+							<>
+								<SpacingNumericControl label="H" category="marginX" prefix="mx" className={className} onUpdate={onUpdate} />
+								<SpacingNumericControl label="V" category="marginY" prefix="my" className={className} onUpdate={onUpdate} />
+							</>
+						)}
 					</div>
 				</div>
+
+				{/* Padding */}
 				<div>
-					<Label>Padding</Label>
-					<div className="flex flex-col gap-1.5 mt-1.5">
-						<SpacingControl
-							label="H"
-							category="paddingX"
-							prefix="px"
-							className={className}
-							onUpdate={onUpdate}
-						/>
-						<SpacingControl
-							label="V"
-							category="paddingY"
-							prefix="py"
-							className={className}
-							onUpdate={onUpdate}
-						/>
+					<span className="text-[10px] text-white/40 font-medium">Padding</span>
+					<div className="flex flex-col gap-1.5 mt-1">
+						{expanded ? (
+							<>
+								<SpacingNumericControl label="T" category="paddingTop" prefix="pt" className={className} onUpdate={onUpdate} />
+								<SpacingNumericControl label="R" category="paddingRight" prefix="pr" className={className} onUpdate={onUpdate} />
+								<SpacingNumericControl label="B" category="paddingBottom" prefix="pb" className={className} onUpdate={onUpdate} />
+								<SpacingNumericControl label="L" category="paddingLeft" prefix="pl" className={className} onUpdate={onUpdate} />
+							</>
+						) : (
+							<>
+								<SpacingNumericControl label="H" category="paddingX" prefix="px" className={className} onUpdate={onUpdate} />
+								<SpacingNumericControl label="V" category="paddingY" prefix="py" className={className} onUpdate={onUpdate} />
+							</>
+						)}
 					</div>
 				</div>
 			</div>
@@ -500,7 +701,7 @@ export function SpacingPanel({
 }
 
 // ═══════════════════════════════════════════════
-// 6. Corner Radius Panel
+// 6. Corner Radius Panel — Numeric + Individual Corners
 // ═══════════════════════════════════════════════
 
 interface CornerRadiusPanelProps {
@@ -514,33 +715,97 @@ export function CornerRadiusPanel({
 	onUpdate,
 	onClose,
 }: CornerRadiusPanelProps) {
-	const options = getCategoryValues("borderRadius");
+	const [showIndividual, setShowIndividual] = useState(false);
+
 	const current = getCurrentValue(className, "borderRadius");
+	const currentPx = roundedClassToPx(current);
+
+	const handleAllCorners = useCallback(
+		(px: number) => {
+			const cls = pxToRoundedClass(px);
+			onUpdate(replaceClass(className, "borderRadius", cls));
+		},
+		[className, onUpdate],
+	);
+
+	const handleCorner = useCallback(
+		(corner: "roundedTL" | "roundedTR" | "roundedBL" | "roundedBR", px: number) => {
+			const prefixMap = {
+				roundedTL: "rounded-tl",
+				roundedTR: "rounded-tr",
+				roundedBL: "rounded-bl",
+				roundedBR: "rounded-br",
+			};
+			const cls = pxToRoundedClass(px, prefixMap[corner]);
+			onUpdate(replaceClass(className, corner, cls));
+		},
+		[className, onUpdate],
+	);
 
 	return (
 		<PanelWrapper onClose={onClose}>
-			<Label>Corner Radius</Label>
-			<div className="flex flex-wrap gap-1.5 mt-2">
-				{options.map((opt) => {
-					const isActive = current === opt;
-					return (
-						<button
-							key={opt}
-							type="button"
-							onClick={() =>
-								onUpdate(replaceClass(className, "borderRadius", opt))
-							}
-							className={`px-2.5 py-1 text-[11px] rounded-lg transition-all ${
-								isActive
-									? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
-									: "bg-white/[0.04] text-white/40 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white/60"
-							}`}
-						>
-							{opt.replace("rounded-", "").replace("rounded", "default") || "default"}
-						</button>
-					);
-				})}
+			<div className="flex items-center justify-between mb-2">
+				<Label>Corner Radius</Label>
+				<button
+					type="button"
+					onClick={() => setShowIndividual(!showIndividual)}
+					className="text-[10px] text-white/30 hover:text-white/50 transition-colors px-1.5 py-0.5 rounded bg-white/[0.04] hover:bg-white/[0.08]"
+				>
+					{showIndividual ? "All corners" : "Individual"}
+				</button>
 			</div>
+
+			{showIndividual ? (
+				<div className="grid grid-cols-2 gap-2">
+					{(
+						[
+							["roundedTL", "TL"],
+							["roundedTR", "TR"],
+							["roundedBL", "BL"],
+							["roundedBR", "BR"],
+						] as const
+					).map(([corner, label]) => {
+						const val = roundedClassToPx(getCurrentValue(className, corner));
+						return (
+							<div key={corner} className="flex items-center gap-1.5">
+								<span className="text-[10px] text-white/30 w-5">{label}</span>
+								<NumericInput
+									value={val}
+									onChange={(v) => handleCorner(corner, v)}
+									suffix="px"
+								/>
+							</div>
+						);
+					})}
+				</div>
+			) : (
+				<div className="flex items-center gap-3">
+					<NumericInput
+						value={currentPx}
+						onChange={handleAllCorners}
+						suffix="px"
+					/>
+					<input
+						type="range"
+						min={0}
+						max={48}
+						value={Math.min(48, currentPx)}
+						onChange={(e) => handleAllCorners(Number(e.target.value))}
+						className="flex-1 accent-violet-500 h-1.5"
+					/>
+					<button
+						type="button"
+						onClick={() => handleAllCorners(9999)}
+						className={`px-2 py-1 text-[10px] rounded-lg transition-all ${
+							currentPx >= 9999
+								? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
+								: "bg-white/[0.04] text-white/40 border border-white/[0.06] hover:bg-white/[0.08]"
+						}`}
+					>
+						Full
+					</button>
+				</div>
+			)}
 		</PanelWrapper>
 	);
 }

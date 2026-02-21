@@ -13,12 +13,17 @@ export function getVisualEditBridgeScript(): string {
   var selected = null;
   var hoverOverlay = null;
   var selectOverlay = null;
-  var tagBadge = null;
+  var hoverBadge = null;
+  var selectBadge = null;
+  var dropdownOpen = false;
+  var repositionTimer = null;
 
-  var SKIP_SELECTORS = ['html','head','body','#root','script','style','link','meta','title','[id="visual-edit-bridge"]'];
+  var SKIP_SELECTORS = ['html','head','body','#root','script','style','link','meta','title','[id^="ve-"]','noscript','svg path','svg circle','svg rect','svg line','svg polyline','svg polygon'];
 
   function shouldSkip(el) {
     if (!el || el.nodeType !== 1) return true;
+    // Skip SVG child elements (path, circle, etc.)
+    if (el instanceof SVGElement && el.tagName.toLowerCase() !== 'svg') return true;
     for (var i = 0; i < SKIP_SELECTORS.length; i++) {
       try { if (el.matches(SKIP_SELECTORS[i])) return true; } catch(e) {}
     }
@@ -28,7 +33,15 @@ export function getVisualEditBridgeScript(): string {
   function createOverlay(id, style) {
     var div = document.createElement('div');
     div.id = id;
-    div.style.cssText = 'position:fixed;pointer-events:none;z-index:99999;transition:all 0.1s ease;' + (style || '');
+    div.style.cssText = 'position:fixed;pointer-events:none;z-index:99999;transition:all 0.15s ease;display:none;' + (style || '');
+    document.body.appendChild(div);
+    return div;
+  }
+
+  function createBadge(id) {
+    var div = document.createElement('div');
+    div.id = id;
+    div.style.cssText = 'position:fixed;pointer-events:none;z-index:100000;padding:2px 8px;font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;border-radius:3px;display:none;white-space:nowrap;line-height:1.4;';
     document.body.appendChild(div);
     return div;
   }
@@ -40,20 +53,29 @@ export function getVisualEditBridgeScript(): string {
     overlay.style.height = rect.height + 'px';
   }
 
+  function positionBadge(badge, rect) {
+    badge.style.top = (rect.top - 27) + 'px';
+    badge.style.left = (rect.left - 2) + 'px';
+  }
+
   function ensureOverlays() {
     if (!hoverOverlay) {
-      hoverOverlay = createOverlay('ve-hover', 'border:2px dashed #3b82f6;background:rgba(59,130,246,0.05);');
-      hoverOverlay.style.display = 'none';
+      hoverOverlay = createOverlay('ve-hover', 'border:2px solid #95a5fc;background:rgba(99,102,241,0.05);');
     }
     if (!selectOverlay) {
-      selectOverlay = createOverlay('ve-select', 'border:2px solid #7c3aed;background:rgba(124,58,237,0.06);box-shadow:0 0 0 1px rgba(124,58,237,0.3);');
-      selectOverlay.style.display = 'none';
+      selectOverlay = createOverlay('ve-select', 'border:2px solid #2563EB;background:rgba(37,99,235,0.04);');
     }
-    if (!tagBadge) {
-      tagBadge = document.createElement('div');
-      tagBadge.id = 've-tag';
-      tagBadge.style.cssText = 'position:fixed;pointer-events:none;z-index:100000;padding:1px 6px;font-size:10px;font-family:monospace;background:#3b82f6;color:white;border-radius:3px;display:none;white-space:nowrap;';
-      document.body.appendChild(tagBadge);
+    if (!hoverBadge) {
+      hoverBadge = createBadge('ve-hover-badge');
+      hoverBadge.style.fontWeight = '400';
+      hoverBadge.style.color = '#526cff';
+      hoverBadge.style.background = '#DBEAFE';
+    }
+    if (!selectBadge) {
+      selectBadge = createBadge('ve-select-badge');
+      selectBadge.style.fontWeight = '500';
+      selectBadge.style.color = '#ffffff';
+      selectBadge.style.background = '#526cff';
     }
   }
 
@@ -64,7 +86,7 @@ export function getVisualEditBridgeScript(): string {
     while (current && current !== document.body && current !== document.documentElement) {
       var tag = current.tagName.toLowerCase();
       if (current.id) { path.unshift('#' + current.id); break; }
-      var classes = Array.from(current.classList).filter(function(c) { return !/^(\\s)/.test(c); }).slice(0, 3);
+      var classes = Array.from(current.classList).filter(function(c) { return !/^(\\\\s)/.test(c); }).slice(0, 3);
       var sel = tag + (classes.length > 0 ? '.' + classes.join('.') : '');
       var parent = current.parentElement;
       if (parent) {
@@ -91,7 +113,15 @@ export function getVisualEditBridgeScript(): string {
       opacity: cs.opacity,
       borderRadius: cs.borderRadius,
       padding: cs.padding,
+      paddingTop: cs.paddingTop,
+      paddingRight: cs.paddingRight,
+      paddingBottom: cs.paddingBottom,
+      paddingLeft: cs.paddingLeft,
       margin: cs.margin,
+      marginTop: cs.marginTop,
+      marginRight: cs.marginRight,
+      marginBottom: cs.marginBottom,
+      marginLeft: cs.marginLeft,
       textAlign: cs.textAlign,
       textDecoration: cs.textDecoration,
       textTransform: cs.textTransform,
@@ -99,12 +129,47 @@ export function getVisualEditBridgeScript(): string {
       letterSpacing: cs.letterSpacing,
       display: cs.display,
       width: cs.width,
-      height: cs.height
+      height: cs.height,
+      borderWidth: cs.borderWidth,
+      borderColor: cs.borderColor,
+      boxShadow: cs.boxShadow
     };
   }
 
+  // Detect if element is inside a dynamic list (map/forEach pattern)
+  function isDynamicContent(el) {
+    var parent = el.parentElement;
+    if (!parent) return false;
+    var siblings = Array.from(parent.children);
+    if (siblings.length < 2) return false;
+    // Check if multiple siblings share the same tag and similar class structure
+    var tag = el.tagName;
+    var cls = el.className;
+    var matches = siblings.filter(function(s) { return s.tagName === tag && s.className === cls; });
+    return matches.length >= 2;
+  }
+
+  function repositionOverlays() {
+    if (selected) {
+      ensureOverlays();
+      var rect = selected.getBoundingClientRect();
+      positionOverlay(selectOverlay, rect);
+      positionBadge(selectBadge, rect);
+      // Notify parent of position update for toolbar repositioning
+      window.parent.postMessage({
+        type: 'visual-edit-position-update',
+        boundingRect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+      }, '*');
+    }
+  }
+
+  function debouncedReposition() {
+    if (repositionTimer) clearTimeout(repositionTimer);
+    repositionTimer = setTimeout(repositionOverlays, 50);
+  }
+
   function onMouseOver(e) {
-    if (!enabled) return;
+    if (!enabled || dropdownOpen) return;
     var el = e.target;
     if (shouldSkip(el)) return;
     if (el === selected) return;
@@ -112,16 +177,16 @@ export function getVisualEditBridgeScript(): string {
     var rect = el.getBoundingClientRect();
     positionOverlay(hoverOverlay, rect);
     hoverOverlay.style.display = 'block';
-    tagBadge.textContent = el.tagName.toLowerCase();
-    tagBadge.style.top = (rect.top - 18) + 'px';
-    tagBadge.style.left = rect.left + 'px';
-    tagBadge.style.display = 'block';
+    hoverBadge.textContent = el.tagName.toLowerCase();
+    positionBadge(hoverBadge, rect);
+    // Only show badge if there's room above
+    hoverBadge.style.display = rect.top > 30 ? 'block' : 'none';
   }
 
   function onMouseOut(e) {
     if (!enabled) return;
     if (hoverOverlay) hoverOverlay.style.display = 'none';
-    if (tagBadge) tagBadge.style.display = 'none';
+    if (hoverBadge) hoverBadge.style.display = 'none';
   }
 
   function onClick(e) {
@@ -135,8 +200,11 @@ export function getVisualEditBridgeScript(): string {
     var rect = el.getBoundingClientRect();
     positionOverlay(selectOverlay, rect);
     selectOverlay.style.display = 'block';
+    selectBadge.textContent = el.tagName.toLowerCase();
+    positionBadge(selectBadge, rect);
+    selectBadge.style.display = rect.top > 30 ? 'block' : 'none';
     if (hoverOverlay) hoverOverlay.style.display = 'none';
-    if (tagBadge) tagBadge.style.display = 'none';
+    if (hoverBadge) hoverBadge.style.display = 'none';
 
     window.parent.postMessage({
       type: 'visual-edit-select',
@@ -146,7 +214,8 @@ export function getVisualEditBridgeScript(): string {
       innerHTML: (el.innerHTML || '').slice(0, 500),
       boundingRect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
       selector: getUniqueSelector(el),
-      computedStyles: getComputedStyleMap(el)
+      computedStyles: getComputedStyleMap(el),
+      isDynamicContent: isDynamicContent(el)
     }, '*');
   }
 
@@ -155,8 +224,29 @@ export function getVisualEditBridgeScript(): string {
       if (selected) {
         selected = null;
         if (selectOverlay) selectOverlay.style.display = 'none';
+        if (selectBadge) selectBadge.style.display = 'none';
         window.parent.postMessage({ type: 'visual-edit-deselect' }, '*');
       }
+    }
+  }
+
+  // MutationObserver to reposition overlays when DOM changes
+  var observer = null;
+  function startObserver() {
+    if (observer) return;
+    observer = new MutationObserver(debouncedReposition);
+    observer.observe(document.body, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style', 'class', 'width', 'height'],
+      childList: true
+    });
+  }
+
+  function stopObserver() {
+    if (observer) {
+      observer.disconnect();
+      observer = null;
     }
   }
 
@@ -167,19 +257,27 @@ export function getVisualEditBridgeScript(): string {
     document.addEventListener('mouseout', onMouseOut, true);
     document.addEventListener('click', onClick, true);
     document.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('scroll', debouncedReposition, true);
+    window.addEventListener('resize', debouncedReposition);
+    startObserver();
   }
 
   function deactivate() {
     enabled = false;
     selected = null;
+    dropdownOpen = false;
     document.body.style.cursor = '';
     document.removeEventListener('mouseover', onMouseOver, true);
     document.removeEventListener('mouseout', onMouseOut, true);
     document.removeEventListener('click', onClick, true);
     document.removeEventListener('keydown', onKeyDown, true);
+    window.removeEventListener('scroll', debouncedReposition, true);
+    window.removeEventListener('resize', debouncedReposition);
+    stopObserver();
     if (hoverOverlay) hoverOverlay.style.display = 'none';
     if (selectOverlay) selectOverlay.style.display = 'none';
-    if (tagBadge) tagBadge.style.display = 'none';
+    if (hoverBadge) hoverBadge.style.display = 'none';
+    if (selectBadge) selectBadge.style.display = 'none';
   }
 
   function handleHighlight(selector) {
@@ -190,6 +288,9 @@ export function getVisualEditBridgeScript(): string {
         var rect = el.getBoundingClientRect();
         positionOverlay(selectOverlay, rect);
         selectOverlay.style.display = 'block';
+        selectBadge.textContent = el.tagName.toLowerCase();
+        positionBadge(selectBadge, rect);
+        selectBadge.style.display = rect.top > 30 ? 'block' : 'none';
         selected = el;
       }
     } catch(e) {}
@@ -199,13 +300,18 @@ export function getVisualEditBridgeScript(): string {
     try {
       var el = document.querySelector(selector);
       if (!el) return;
-      // For className updates
       if (property === 'className') {
         el.className = value;
         return;
       }
-      // For direct style property
       el.style[property] = value;
+    } catch(e) {}
+  }
+
+  function handleUpdateContent(selector, content) {
+    try {
+      var el = document.querySelector(selector);
+      if (el) el.textContent = content;
     } catch(e) {}
   }
 
@@ -217,9 +323,14 @@ export function getVisualEditBridgeScript(): string {
       case 'visual-edit-disable': deactivate(); break;
       case 'visual-edit-highlight': handleHighlight(d.selector); break;
       case 'visual-edit-update-style': handleUpdateStyle(d.selector, d.property, d.value); break;
+      case 'visual-edit-update-content': handleUpdateContent(d.selector, d.content); break;
       case 'visual-edit-deselect-cmd':
         selected = null;
         if (selectOverlay) selectOverlay.style.display = 'none';
+        if (selectBadge) selectBadge.style.display = 'none';
+        break;
+      case 'visual-edit-dropdown-state':
+        dropdownOpen = !!d.open;
         break;
     }
   });

@@ -290,17 +290,28 @@ Respond in a friendly, concise format. Use markdown for structure.`;
 			}
 		}
 
-		// Detect Visual Edit mode
+		// Detect Visual Edit mode — message format:
+		// [VISUAL EDIT] Element: <tag> with classes "..."
+		// Source: filepath:lineNumber
+		// Text content: "..."
+		// User request: ...
 		const isVisualEdit = userPrompt.startsWith("[VISUAL EDIT]");
-		const visualEditSystemAddendum = isVisualEdit
-			? `\n\n## VISUAL EDIT MODE
+		let visualEditSystemAddendum = "";
+		if (isVisualEdit) {
+			// Extract source file hint from the message
+			const sourceMatch = userPrompt.match(/Source:\s*([^\n]+)/);
+			const sourceHint = sourceMatch
+				? `\n- The element is located at: ${sourceMatch[1]}. Use read_file on that file first.`
+				: "";
+			visualEditSystemAddendum = `\n\n## VISUAL EDIT MODE
 The user is using Visual Edit mode. They selected a specific element in the live preview and want a targeted change.
-- Use read_file to find the file containing the element, then update_file with the MINIMAL change needed.
+- The user message contains the element's tag name, CSS classes, text content, and source file location.${sourceHint}
+- Use read_file to open the source file, then update_file with the MINIMAL change needed.
 - Do NOT rewrite the entire file — only modify the specific element mentioned.
 - Be precise: match the element by its tag, classes, and text content.
-- The user message contains the element's tag name, CSS classes, and text content.
-- Make the exact change requested and nothing else.`
-			: "";
+- Make the exact change requested and nothing else.
+- Respond concisely — no need for lengthy explanations for visual edits.`;
+		}
 
 		// Run orchestration engine
 		const plan = executeOrchestration(userPrompt, ALL_FLOWS, enrichedFileContext);

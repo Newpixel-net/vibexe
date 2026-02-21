@@ -522,14 +522,36 @@ interface UserMessageProps {
  * User message — warm glass card with orange tint.
  */
 export function UserMessage({ message }: UserMessageProps) {
+	const isVisualEdit = message.content?.startsWith("[VISUAL EDIT]");
+	// Extract the element tag from visual edit messages (e.g., "Element: <h1>")
+	const visualEditTag = isVisualEdit
+		? message.content.match(/Element:\s*<(\w+)>/)?.[1] || null
+		: null;
+	// Extract just the user request part for display
+	const displayContent = isVisualEdit
+		? message.content.match(/User request:\s*([\s\S]*)/)?.[1]?.trim() || message.content
+		: message.content;
+
 	return (
 		<div className="flex gap-2.5">
 			<Avatar variant="user" />
 			<div className="flex-1 min-w-0">
 				<span className="text-xs font-medium text-white/50 mb-1 block">You</span>
-				<div className="rounded-2xl px-4 py-3 bg-orange-500/[0.06] backdrop-blur-sm border border-orange-500/[0.1] shadow-[inset_-1px_0_12px_rgba(249,115,22,0.06)]">
+				<div className={`rounded-2xl px-4 py-3 backdrop-blur-sm border shadow-[inset_-1px_0_12px_rgba(249,115,22,0.06)] ${
+					isVisualEdit
+						? "bg-violet-500/[0.06] border-violet-500/[0.12]"
+						: "bg-orange-500/[0.06] border-orange-500/[0.1]"
+				}`}>
+					{isVisualEdit && (
+						<div className="flex items-center gap-1.5 mb-1.5">
+							<span className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-violet-500/20 text-violet-300 border border-violet-500/20">
+								{visualEditTag ? `<${visualEditTag}>` : "Visual Edit"}
+							</span>
+							<span className="text-[10px] text-white/30">Visual Edit</span>
+						</div>
+					)}
 					<div className="text-white/80 whitespace-pre-wrap text-sm leading-relaxed">
-						{message.content}
+						{displayContent}
 					</div>
 					{message.attachments && message.attachments.length > 0 && (
 						<MessageAttachments attachments={message.attachments} />

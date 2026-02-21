@@ -4,16 +4,21 @@
  * Visual Edit Toolbar
  *
  * Floating toolbar that appears when an element is selected in Visual Edit mode.
- * Contains 10 action buttons matching Base44's design.
+ * Contains 8 property panel buttons + View in Code + Delete + Close.
  * Positioned near the selected element, above or below based on viewport space.
+ *
+ * "Edit Element" replaces the toolbar with a full-width input bar:
+ * [← Back] [What to change?] [Send] [X Cancel]
  */
 
 import {
 	ALargeSmall,
+	ArrowLeft,
 	CircleDot,
 	Code2,
 	FileCode,
 	Paintbrush,
+	Send,
 	Space,
 	Sparkles,
 	Square,
@@ -66,15 +71,10 @@ const CONTAINER_TAGS = new Set([
 ]);
 
 interface VisualEditToolbarProps {
-	/** Bounding rect of the Sandpack iframe relative to the viewport */
 	iframeBounds: DOMRect | null;
-	/** All project files (for source resolution) */
 	files: AppFile[];
-	/** Callback to update a file */
 	onFileUpdate: (fileId: string, content: string) => void;
-	/** Callback to switch view */
 	onViewChange: (view: RightPanelView) => void;
-	/** Callback to select a file in code view */
 	onFileSelect: (fileId: string) => void;
 }
 
@@ -91,6 +91,7 @@ export function VisualEditToolbar({
 	const [editPrompt, setEditPrompt] = useState("");
 	const [confirmDelete, setConfirmDelete] = useState(false);
 	const toolbarRef = useRef<HTMLDivElement>(null);
+	const inputRef = useRef<HTMLInputElement>(null);
 
 	// Reset panel when selection changes
 	useEffect(() => {
@@ -99,6 +100,13 @@ export function VisualEditToolbar({
 		setConfirmDelete(false);
 	}, [selectedElement]);
 
+	// Auto-focus input when entering edit mode
+	useEffect(() => {
+		if (activePanel === "edit") {
+			setTimeout(() => inputRef.current?.focus(), 50);
+		}
+	}, [activePanel]);
+
 	const isContainer = useMemo(
 		() =>
 			selectedElement
@@ -106,6 +114,12 @@ export function VisualEditToolbar({
 				: false,
 		[selectedElement],
 	);
+
+	// Resolve source location for this element
+	const sourceLocation = useMemo(() => {
+		if (!selectedElement) return null;
+		return resolveElementSource(selectedElement, files);
+	}, [selectedElement, files]);
 
 	// Calculate toolbar position
 	const toolbarStyle = useMemo(() => {
@@ -125,8 +139,7 @@ export function VisualEditToolbar({
 		}
 
 		let left = absLeft;
-		// Clamp to right edge
-		const toolbarWidth = 440;
+		const toolbarWidth = activePanel === "edit" ? 480 : 440;
 		if (left + toolbarWidth > window.innerWidth - 16) {
 			left = window.innerWidth - toolbarWidth - 16;
 		}
@@ -138,34 +151,70 @@ export function VisualEditToolbar({
 			left: `${left}px`,
 			zIndex: 50,
 		};
-	}, [selectedElement, iframeBounds]);
+	}, [selectedElement, iframeBounds, activePanel]);
+
+	// Listen for position updates from bridge (scroll/resize inside iframe)
+	useEffect(() => {
+		const handler = (e: MessageEvent) => {
+			const data = e.data;
+			if (!data || data.type !== "visual-edit-position-update") return;
+			if (selectedElement) {
+				// Update bounding rect from iframe
+				selectedElement.boundingRect = data.boundingRect;
+			}
+		};
+		window.addEventListener("message", handler);
+		return () => window.removeEventListener("message", handler);
+	}, [selectedElement]);
 
 	const handlePanelToggle = useCallback(
 		(panel: PanelType) => {
 			setActivePanel((prev) => (prev === panel ? null : panel));
 			setConfirmDelete(false);
+			// Tell bridge about dropdown state for hover suppression
+			sendToIframe({ type: "visual-edit-dropdown-state", open: true });
 		},
-		[],
+		[sendToIframe],
 	);
 
-	// Edit Element — send AI prompt
+	const handlePanelClose = useCallback(() => {
+		setActivePanel(null);
+		sendToIframe({ type: "visual-edit-dropdown-state", open: false });
+	}, [sendToIframe]);
+
+	// Edit Element — send AI prompt with full element context
 	const handleEditSubmit = useCallback(() => {
 		if (!editPrompt.trim() || !selectedElement) return;
-		const msg = `[VISUAL EDIT] Element: <${selectedElement.tagName}> with classes "${selectedElement.className}"\nText content: "${selectedElement.textContent.slice(0, 100)}"\nUser request: ${editPrompt.trim()}`;
-		sendVisualEditMessage(msg);
+
+		const parts = [
+			`[VISUAL EDIT] Element: <${selectedElement.tagName}> with classes "${selectedElement.className}"`,
+		];
+		if (sourceLocation) {
+			parts.push(
+				`Source: ${sourceLocation.filePath}:${sourceLocation.lineNumber}`,
+			);
+		}
+		if (selectedElement.textContent.trim()) {
+			parts.push(
+				`Text content: "${selectedElement.textContent.trim().slice(0, 100)}"`,
+			);
+		}
+		parts.push(`User request: ${editPrompt.trim()}`);
+
+		sendVisualEditMessage(parts.join("\n"));
 		setEditPrompt("");
 		setActivePanel(null);
-	}, [editPrompt, selectedElement, sendVisualEditMessage]);
+		sendToIframe({ type: "visual-edit-dropdown-state", open: false });
+	}, [editPrompt, selectedElement, sourceLocation, sendVisualEditMessage, sendToIframe]);
 
 	// View in Code
 	const handleViewInCode = useCallback(() => {
 		if (!selectedElement) return;
-		const source = resolveElementSource(selectedElement, files);
-		if (source) {
-			onFileSelect(source.fileId);
+		if (sourceLocation) {
+			onFileSelect(sourceLocation.fileId);
 			onViewChange("code");
 		}
-	}, [selectedElement, files, onFileSelect, onViewChange]);
+	}, [selectedElement, sourceLocation, onFileSelect, onViewChange]);
 
 	// Delete Element
 	const handleDelete = useCallback(() => {
@@ -174,20 +223,19 @@ export function VisualEditToolbar({
 			return;
 		}
 		if (!selectedElement) return;
-		const source = resolveElementSource(selectedElement, files);
-		if (source) {
-			const file = files.find((f) => f.id === source.fileId);
+		if (sourceLocation) {
+			const file = files.find((f) => f.id === sourceLocation.fileId);
 			if (file?.content) {
 				const newContent = deleteElementFromSource(
 					file.content,
-					source.lineNumber,
+					sourceLocation.lineNumber,
 					selectedElement.tagName,
 				);
-				onFileUpdate(source.fileId, newContent);
+				onFileUpdate(sourceLocation.fileId, newContent);
 			}
 		}
 		deselectElement();
-	}, [confirmDelete, selectedElement, files, onFileUpdate, deselectElement]);
+	}, [confirmDelete, selectedElement, sourceLocation, files, onFileUpdate, deselectElement]);
 
 	// Handle className updates from panels
 	const handleClassNameUpdate = useCallback(
@@ -201,46 +249,114 @@ export function VisualEditToolbar({
 				value: newClassName,
 			});
 			// Update source file
-			const source = resolveElementSource(selectedElement, files);
-			if (source) {
-				const file = files.find((f) => f.id === source.fileId);
+			if (sourceLocation) {
+				const file = files.find((f) => f.id === sourceLocation.fileId);
 				if (file?.content) {
 					const lines = file.content.split("\n");
-					const idx = source.lineNumber - 1;
+					const idx = sourceLocation.lineNumber - 1;
 					if (idx >= 0 && idx < lines.length) {
-						// Replace className="old" with className="new"
 						lines[idx] = lines[idx].replace(
 							/className="[^"]*"/,
 							`className="${newClassName}"`,
 						);
-						onFileUpdate(source.fileId, lines.join("\n"));
+						onFileUpdate(sourceLocation.fileId, lines.join("\n"));
 					}
 				}
 			}
 		},
-		[selectedElement, files, onFileUpdate, sendToIframe],
+		[selectedElement, sourceLocation, files, onFileUpdate, sendToIframe],
 	);
 
 	// Handle text content updates from text panel
 	const handleTextUpdate = useCallback(
 		(newText: string) => {
 			if (!selectedElement) return;
-			const source = resolveElementSource(selectedElement, files);
-			if (source) {
-				const file = files.find((f) => f.id === source.fileId);
+			// Instant preview in iframe
+			sendToIframe({
+				type: "visual-edit-update-content",
+				selector: selectedElement.selector,
+				content: newText,
+			});
+			if (sourceLocation) {
+				const file = files.find((f) => f.id === sourceLocation.fileId);
 				if (file?.content) {
 					const oldText = selectedElement.textContent.trim();
 					if (oldText) {
 						const newContent = file.content.replace(oldText, newText);
-						onFileUpdate(source.fileId, newContent);
+						onFileUpdate(sourceLocation.fileId, newContent);
 					}
 				}
 			}
 		},
-		[selectedElement, files, onFileUpdate],
+		[selectedElement, sourceLocation, files, onFileUpdate, sendToIframe],
 	);
 
 	if (!selectedElement) return null;
+
+	// Edit mode: replace entire toolbar with input bar
+	if (activePanel === "edit") {
+		return (
+			<div ref={toolbarRef} style={toolbarStyle}>
+				<div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-[#1a1a2e]/95 border border-white/[0.12] shadow-2xl backdrop-blur-xl animate-in fade-in duration-150 min-w-[420px]">
+					<button
+						type="button"
+						onClick={() => {
+							setActivePanel(null);
+							sendToIframe({ type: "visual-edit-dropdown-state", open: false });
+						}}
+						className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-white/70 transition-colors flex-shrink-0"
+						title="Back"
+					>
+						<ArrowLeft className="w-4 h-4" />
+					</button>
+
+					{/* Element badge */}
+					<span className="px-2 py-0.5 text-[10px] font-mono rounded bg-violet-500/20 text-violet-300 flex-shrink-0">
+						{`<${selectedElement.tagName}>`}
+					</span>
+
+					<input
+						ref={inputRef}
+						type="text"
+						value={editPrompt}
+						onChange={(e) => setEditPrompt(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter") handleEditSubmit();
+							if (e.key === "Escape") {
+								setActivePanel(null);
+								sendToIframe({ type: "visual-edit-dropdown-state", open: false });
+							}
+						}}
+						placeholder="What do you want to change?"
+						className="flex-1 px-3 py-1.5 text-sm bg-white/[0.06] border border-white/[0.1] rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-violet-500/50"
+					/>
+
+					<button
+						type="button"
+						onClick={handleEditSubmit}
+						disabled={!editPrompt.trim()}
+						className="p-1.5 rounded-lg bg-violet-500/80 hover:bg-violet-500 text-white disabled:opacity-30 transition-all flex-shrink-0"
+						title="Send"
+					>
+						<Send className="w-4 h-4" />
+					</button>
+
+					<button
+						type="button"
+						onClick={() => {
+							setActivePanel(null);
+							setEditPrompt("");
+							sendToIframe({ type: "visual-edit-dropdown-state", open: false });
+						}}
+						className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/30 hover:text-white/60 transition-colors flex-shrink-0"
+						title="Cancel"
+					>
+						<X className="w-3.5 h-3.5" />
+					</button>
+				</div>
+			</div>
+		);
+	}
 
 	const buttons = [
 		{
@@ -336,7 +452,7 @@ export function VisualEditToolbar({
 					type="button"
 					onClick={handleViewInCode}
 					className="p-2 rounded-lg hover:bg-white/[0.06] transition-all"
-					title="View in Code"
+					title={sourceLocation ? `View in Code (${sourceLocation.filePath}:${sourceLocation.lineNumber})` : "View in Code"}
 				>
 					<FileCode className="w-4 h-4 text-white/50 hover:text-white/80" />
 				</button>
@@ -367,38 +483,11 @@ export function VisualEditToolbar({
 			</div>
 
 			{/* Sub-panels */}
-			{activePanel === "edit" && (
-				<div className="mt-2 p-3 rounded-xl bg-[#1a1a2e]/95 border border-white/[0.12] shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-1 duration-150 min-w-[300px]">
-					<div className="flex gap-2">
-						<input
-							type="text"
-							value={editPrompt}
-							onChange={(e) => setEditPrompt(e.target.value)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter") handleEditSubmit();
-								if (e.key === "Escape") setActivePanel(null);
-							}}
-							placeholder="What do you want to change?"
-							className="flex-1 px-3 py-2 text-sm bg-white/[0.06] border border-white/[0.1] rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-violet-500/50"
-							autoFocus
-						/>
-						<button
-							type="button"
-							onClick={handleEditSubmit}
-							disabled={!editPrompt.trim()}
-							className="px-3 py-2 text-sm rounded-lg bg-violet-500/80 hover:bg-violet-500 text-white disabled:opacity-30 transition-all"
-						>
-							<Sparkles className="w-4 h-4" />
-						</button>
-					</div>
-				</div>
-			)}
-
 			{activePanel === "text" && selectedElement && (
 				<TextContentPanel
 					textContent={selectedElement.textContent}
 					onUpdate={handleTextUpdate}
-					onClose={() => setActivePanel(null)}
+					onClose={handlePanelClose}
 				/>
 			)}
 
@@ -406,7 +495,7 @@ export function VisualEditToolbar({
 				<TextStylePanel
 					className={selectedElement.className}
 					onUpdate={handleClassNameUpdate}
-					onClose={() => setActivePanel(null)}
+					onClose={handlePanelClose}
 				/>
 			)}
 
@@ -414,7 +503,7 @@ export function VisualEditToolbar({
 				<ColorsPanel
 					className={selectedElement.className}
 					onUpdate={handleClassNameUpdate}
-					onClose={() => setActivePanel(null)}
+					onClose={handlePanelClose}
 				/>
 			)}
 
@@ -422,7 +511,7 @@ export function VisualEditToolbar({
 				<OpacityPanel
 					className={selectedElement.className}
 					onUpdate={handleClassNameUpdate}
-					onClose={() => setActivePanel(null)}
+					onClose={handlePanelClose}
 				/>
 			)}
 
@@ -430,7 +519,7 @@ export function VisualEditToolbar({
 				<SpacingPanel
 					className={selectedElement.className}
 					onUpdate={handleClassNameUpdate}
-					onClose={() => setActivePanel(null)}
+					onClose={handlePanelClose}
 				/>
 			)}
 
@@ -438,7 +527,7 @@ export function VisualEditToolbar({
 				<CornerRadiusPanel
 					className={selectedElement.className}
 					onUpdate={handleClassNameUpdate}
-					onClose={() => setActivePanel(null)}
+					onClose={handlePanelClose}
 				/>
 			)}
 
@@ -446,7 +535,7 @@ export function VisualEditToolbar({
 				<TailwindClassesPanel
 					className={selectedElement.className}
 					onUpdate={handleClassNameUpdate}
-					onClose={() => setActivePanel(null)}
+					onClose={handlePanelClose}
 				/>
 			)}
 		</div>
