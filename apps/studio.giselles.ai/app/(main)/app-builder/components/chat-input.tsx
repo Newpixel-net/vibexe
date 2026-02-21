@@ -67,9 +67,10 @@ export function ChatInput({
 		const textarea = textareaRef.current;
 		if (textarea) {
 			textarea.style.height = "auto";
-			textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+			const minH = 80; // ~3 lines
+			textarea.style.height = `${Math.max(Math.min(textarea.scrollHeight, 200), minH)}px`;
 		}
-	}, []);
+	}, [value]);
 
 	useEffect(() => {
 		textareaRef.current?.focus();
@@ -252,8 +253,8 @@ export function ChatInput({
 						/>
 					)}
 
-					{/* Glass pill input */}
-					<div className="glass-input flex items-end gap-2 p-2">
+					{/* Glass pill input — large textarea with floating buttons */}
+					<div className="glass-input relative rounded-2xl p-3 pb-11">
 						<textarea
 							ref={textareaRef}
 							value={value}
@@ -261,56 +262,59 @@ export function ChatInput({
 							onKeyDown={handleKeyDown}
 							placeholder={placeholder}
 							disabled={isDisabled}
-							rows={1}
+							rows={3}
 							className={cn(
-								"flex-1 resize-none bg-transparent border-0 focus:ring-0 focus:outline-none",
+								"w-full resize-none bg-transparent border-0 focus:ring-0 focus:outline-none",
 								"text-white/90 placeholder:text-white/30",
-								"min-h-[24px] max-h-[120px] py-1 px-1 text-sm",
+								"min-h-[80px] max-h-[200px] py-1 px-1 text-sm leading-relaxed",
 								isDisabled && "opacity-50 cursor-not-allowed",
 							)}
 						/>
 
-						{/* Image button — glass icon */}
-						<button
-							type="button"
-							className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.08] transition-all duration-200 disabled:opacity-50"
-							onClick={handleImageClick}
-							disabled={isDisabled}
-							title="Attach files"
-						>
-							<ImageIcon className="h-4 w-4" />
-						</button>
-
-						{/* Stop button — glass red */}
-						{isGenerating && onStop && (
+						{/* Bottom-right action buttons */}
+						<div className="absolute bottom-2.5 right-3 flex items-center gap-1.5">
+							{/* Image button — glass icon */}
 							<button
 								type="button"
-								className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg bg-red-500/[0.1] border border-red-500/[0.2] text-red-400 hover:bg-red-500/[0.15] transition-all duration-200"
-								onClick={onStop}
-								title="Stop generation"
+								className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.08] transition-all duration-200 disabled:opacity-50"
+								onClick={handleImageClick}
+								disabled={isDisabled}
+								title="Attach files"
 							>
-								<Square className="h-4 w-4 fill-current" />
+								<ImageIcon className="h-4 w-4" />
 							</button>
-						)}
 
-						{/* Send button — gradient */}
-						<button
-							type="submit"
-							disabled={!canSubmit}
-							className={cn(
-								"flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-xl transition-all duration-200 disabled:opacity-30",
-								canSubmit
-									? "bg-gradient-to-r from-violet-500 to-cyan-500 text-white hover:scale-105 shadow-[0_0_12px_rgba(124,58,237,0.2)]"
-									: "text-white/30",
+							{/* Stop button — glass red */}
+							{isGenerating && onStop && (
+								<button
+									type="button"
+									className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg bg-red-500/[0.1] border border-red-500/[0.2] text-red-400 hover:bg-red-500/[0.15] transition-all duration-200"
+									onClick={onStop}
+									title="Stop generation"
+								>
+									<Square className="h-4 w-4 fill-current" />
+								</button>
 							)}
-						>
-							{isLoading ? (
-								<Loader2 className="h-4 w-4 animate-spin" />
-							) : (
-								<Send className="h-4 w-4" />
-							)}
-							<span className="sr-only">Send message</span>
-						</button>
+
+							{/* Send button — gradient */}
+							<button
+								type="submit"
+								disabled={!canSubmit}
+								className={cn(
+									"flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl transition-all duration-200 disabled:opacity-30",
+									canSubmit
+										? "bg-gradient-to-r from-violet-500 to-cyan-500 text-white hover:scale-105 shadow-[0_0_12px_rgba(124,58,237,0.2)]"
+										: "text-white/30",
+								)}
+							>
+								{isLoading ? (
+									<Loader2 className="h-4 w-4 animate-spin" />
+								) : (
+									<Send className="h-4 w-4" />
+								)}
+								<span className="sr-only">Send message</span>
+							</button>
+						</div>
 					</div>
 				</div>
 			</div>
