@@ -84,17 +84,18 @@ const MAX_UNDO = 50;
 
 // ── Helpers ────────────────────────────────────────────────────────
 
-/** Convert mouse event coords to image-space coords */
+/** Convert mouse event coords to image-space coords.
+ *  getBoundingClientRect() already includes the margin offset,
+ *  so we only need to subtract rect.left/top and divide by scale. */
 function toImageCoords(
 	e: ReactMouseEvent | MouseEvent,
 	canvas: HTMLCanvasElement,
 	scale: number,
-	offset: Point,
 ): Point {
 	const rect = canvas.getBoundingClientRect();
 	return {
-		x: (e.clientX - rect.left - offset.x) / scale,
-		y: (e.clientY - rect.top - offset.y) / scale,
+		x: (e.clientX - rect.left) / scale,
+		y: (e.clientY - rect.top) / scale,
 	};
 }
 
@@ -362,7 +363,7 @@ export function ScreenshotEditor({
 		(e: ReactMouseEvent<HTMLCanvasElement>) => {
 			const canvas = annoCanvasRef.current;
 			if (!canvas) return;
-			const p = toImageCoords(e, canvas, scale, offset);
+			const p = toImageCoords(e, canvas, scale);
 
 			if (activeTool === "crop") {
 				const handle = getCropHandle(p);
@@ -378,14 +379,14 @@ export function ScreenshotEditor({
 			setDrawStart(p);
 			setDrawCurrent(p);
 		},
-		[activeTool, scale, offset, getCropHandle, cropRect],
+		[activeTool, scale, getCropHandle, cropRect],
 	);
 
 	const handleMouseMove = useCallback(
 		(e: ReactMouseEvent<HTMLCanvasElement>) => {
 			const canvas = annoCanvasRef.current;
 			if (!canvas) return;
-			const p = toImageCoords(e, canvas, scale, offset);
+			const p = toImageCoords(e, canvas, scale);
 
 			// Crop dragging
 			if (activeTool === "crop" && cropDragging && cropDragStart && cropRectStart) {
@@ -484,7 +485,6 @@ export function ScreenshotEditor({
 			isDrawing,
 			drawStart,
 			scale,
-			offset,
 			color,
 			strokeWidth,
 			annotations,
