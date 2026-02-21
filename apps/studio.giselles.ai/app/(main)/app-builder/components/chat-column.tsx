@@ -14,14 +14,17 @@ import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
 import {
 	ArrowRight,
+	CheckCircle2,
 	Clock,
 	Compass,
+	Eye,
 	Globe,
 	LayoutGrid,
 	Lightbulb,
 	Loader2,
 	MessageSquare,
 	MoreHorizontal,
+	Play,
 	Plus,
 	Rocket,
 	RotateCcw,
@@ -121,6 +124,67 @@ function DeployBanner() {
 				</button>
 			</div>
 		</div>
+	);
+}
+
+/**
+ * Pipeline action buttons — appear after plan/generation/review responses.
+ * These drive the Plan-then-Execute and Review Feedback Loop features.
+ */
+function PipelineActionButton({
+	icon,
+	label,
+	description,
+	onClick,
+	variant = "primary",
+}: {
+	icon: React.ReactNode;
+	label: string;
+	description: string;
+	onClick: () => void;
+	variant?: "primary" | "secondary" | "warning";
+}) {
+	const colorMap = {
+		primary: {
+			bg: "from-violet-500/80 to-indigo-500/80 hover:from-violet-500 hover:to-indigo-500",
+			border: "border-violet-500/[0.2]",
+			iconBg: "bg-violet-500/[0.15] border-violet-500/[0.2]",
+			iconText: "text-violet-400",
+		},
+		secondary: {
+			bg: "from-cyan-500/80 to-teal-500/80 hover:from-cyan-500 hover:to-teal-500",
+			border: "border-cyan-500/[0.2]",
+			iconBg: "bg-cyan-500/[0.15] border-cyan-500/[0.2]",
+			iconText: "text-cyan-400",
+		},
+		warning: {
+			bg: "from-amber-500/80 to-orange-500/80 hover:from-amber-500 hover:to-orange-500",
+			border: "border-amber-500/[0.2]",
+			iconBg: "bg-amber-500/[0.15] border-amber-500/[0.2]",
+			iconText: "text-amber-400",
+		},
+	};
+	const colors = colorMap[variant];
+
+	return (
+		<motion.button
+			type="button"
+			onClick={onClick}
+			className={`w-full flex items-center gap-3 p-3 rounded-2xl bg-white/[0.03] backdrop-blur-sm border ${colors.border} hover:bg-white/[0.06] transition-all duration-200 group`}
+			whileHover={{ scale: 1.01 }}
+			whileTap={{ scale: 0.99 }}
+		>
+			<div className={`flex-shrink-0 w-10 h-10 rounded-full ${colors.iconBg} border flex items-center justify-center`}>
+				<span className={colors.iconText}>{icon}</span>
+			</div>
+			<div className="flex-1 text-left">
+				<p className="text-sm font-medium text-white/90">{label}</p>
+				<p className="text-xs text-white/40">{description}</p>
+			</div>
+			<div className={`px-3 py-1.5 rounded-xl bg-gradient-to-r ${colors.bg} text-white text-xs font-medium transition-all duration-200`}>
+				Go
+			</div>
+		</motion.button>
 	);
 }
 
@@ -329,6 +393,41 @@ export function ChatColumn({
 			(p) => p.status === "completed" || p.status === "error",
 		);
 	}, [phaseTimeline]);
+
+	// --- Pipeline action detection ---
+	// Detect if last assistant message is a plan (Plan-then-Execute feature)
+	const isPlanResponse = useMemo(() => {
+		if (isLoading || chatMessages.length === 0) return false;
+		const lastAssistant = [...chatMessages].reverse().find((m) => m.role === "assistant");
+		if (!lastAssistant?.content) return false;
+		const text = lastAssistant.content;
+		// Plan heuristics: contains structured plan sections AND short conversation
+		return (
+			(text.includes("## File Map") || text.includes("## Implementation Plan") || text.includes("## Component Architecture")) &&
+			text.includes("Execute Plan") &&
+			chatMessages.length <= 3
+		);
+	}, [chatMessages, isLoading]);
+
+	// Detect if last assistant message is a review with issues (Review Feedback Loop)
+	const isReviewWithIssues = useMemo(() => {
+		if (isLoading || chatMessages.length === 0) return false;
+		const lastAssistant = [...chatMessages].reverse().find((m) => m.role === "assistant");
+		if (!lastAssistant?.content) return false;
+		const text = lastAssistant.content;
+		return (
+			text.includes("## Combined Verdict") &&
+			(text.includes("WARNING") || text.includes("BLOCK") || text.includes("FAIL")) &&
+			text.includes("Fix Issues")
+		);
+	}, [chatMessages, isLoading]);
+
+	// Detect if we just completed a code generation (for showing Review button)
+	const showReviewButton = useMemo(() => {
+		if (isLoading || isPlanResponse || isReviewWithIssues) return false;
+		// Show review button when generation completed and we have files
+		return isGenerationComplete && files.length > 0;
+	}, [isLoading, isPlanResponse, isReviewWithIssues, isGenerationComplete, files.length]);
 
 	// Load chatId from localStorage after mount (hydration-safe)
 	useEffect(() => {
@@ -863,6 +962,19 @@ export function ChatColumn({
 		[],
 	);
 
+	// --- Pipeline action handlers ---
+	const handleExecutePlan = useCallback(() => {
+		sendMessage({ text: "[EXECUTE PLAN] Build the application following the implementation plan above. Create all files in dependency order, starting with types and utilities, then hooks, then components, then App.tsx." });
+	}, [sendMessage]);
+
+	const handleReviewCode = useCallback(() => {
+		sendMessage({ text: "[REVIEW CODE] Review all generated files for code quality, correctness, and security issues." });
+	}, [sendMessage]);
+
+	const handleFixIssues = useCallback(() => {
+		sendMessage({ text: "[AUTO-FIX] Fix all the issues identified in the code review above. Read each affected file, apply the recommended fixes, and ensure the app builds without errors." });
+	}, [sendMessage]);
+
 	// Load and show history modal
 	const handleShowHistory = useCallback(async () => {
 		setShowHistory(true);
@@ -1141,8 +1253,48 @@ export function ChatColumn({
 						</div>
 					)}
 
-					{/* Deploy banner when generation complete */}
-					{isGenerationComplete && mode === "generate" && (
+					{/* Pipeline action buttons */}
+					{isPlanResponse && !isLoading && (
+						<div className="mt-4 mx-1">
+							<PipelineActionButton
+								icon={<Play className="h-5 w-5" />}
+								label="Execute Plan"
+								description="Build the application following the plan above"
+								onClick={handleExecutePlan}
+								variant="primary"
+							/>
+						</div>
+					)}
+
+					{/* Review button after generation completes */}
+					{showReviewButton && (
+						<div className="mt-4 mx-1 space-y-2">
+							<DeployBanner />
+							<PipelineActionButton
+								icon={<Eye className="h-5 w-5" />}
+								label="Review Code"
+								description="Run code quality and security review"
+								onClick={handleReviewCode}
+								variant="secondary"
+							/>
+						</div>
+					)}
+
+					{/* Fix Issues button after review finds problems */}
+					{isReviewWithIssues && !isLoading && (
+						<div className="mt-4 mx-1">
+							<PipelineActionButton
+								icon={<Wrench className="h-5 w-5" />}
+								label="Fix Issues"
+								description="Auto-fix all issues from the review above"
+								onClick={handleFixIssues}
+								variant="warning"
+							/>
+						</div>
+					)}
+
+					{/* Deploy banner (standalone when no review button shown) */}
+					{isGenerationComplete && mode === "generate" && !showReviewButton && (
 						<div className="mt-4">
 							<DeployBanner />
 						</div>

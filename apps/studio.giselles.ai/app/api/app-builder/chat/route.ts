@@ -251,6 +251,11 @@ export async function POST(request: Request) {
 				}
 			}
 		}
+
+		// --- Pipeline action prefixes ---
+		const isExecutePlan = userPrompt.startsWith("[EXECUTE PLAN]");
+		const isReviewCode = userPrompt.startsWith("[REVIEW CODE]");
+		const isAutoFix = userPrompt.startsWith("[AUTO-FIX]");
 		// Detect URLs in user prompt and fetch site analysis
 		const URL_REGEX = /https?:\/\/[^\s"'<>]+/gi;
 		const detectedUrls = userPrompt.match(URL_REGEX) || [];
@@ -308,6 +313,68 @@ The user is using Visual Edit mode. They selected a specific element in the live
 - Be precise: match the element by its tag, classes, and text content.
 - Make the exact change requested and nothing else.
 - Respond concisely — no need for lengthy explanations for visual edits.`;
+		}
+
+		// --- REVIEW CODE handler ---
+		// When user clicks "Review Code", we read all project files and stream a
+		// combined code quality + security review from the code-reviewer agent.
+		if (isReviewCode) {
+			const allFiles = await getFilesForApp(appId);
+			const fileContents: string[] = [];
+			for (const f of allFiles.slice(0, 15)) {
+				try {
+					const file = await getFileByPath(appId, f.path);
+					if (file?.content) {
+						const truncated = file.content.length > 4000
+							? `${file.content.slice(0, 4000)}\n... (truncated)`
+							: file.content;
+						fileContents.push(`## ${f.path}\n\`\`\`\n${truncated}\n\`\`\``);
+					}
+				} catch (_) {
+					// Best-effort file reading
+				}
+			}
+
+			const reviewFileContext = fileContents.join("\n\n");
+			const reviewPlan = executeOrchestration("review code quality security audit", ALL_FLOWS, reviewFileContext);
+			const reviewer = reviewPlan.agents.find((a) => a.id === "code-reviewer") || reviewPlan.agents[0];
+			let reviewPrompt = reviewer ? (reviewPlan.agentPrompts.get(reviewer.id) || "") : "";
+
+			// Add security audit section
+			reviewPrompt += `\n\n## ALSO: Security Audit
+In addition to code quality, audit for: XSS (dangerouslySetInnerHTML, user input in DOM), auth bypass, hardcoded secrets, eval(), missing input validation, token exposure. Add a **Security Audit** section after the Code Review.`;
+
+			// Add files to review
+			reviewPrompt += `\n\n# Project Files to Review\n\n${reviewFileContext}`;
+
+			// End instruction
+			reviewPrompt += `\n\nEnd with a Combined Verdict section in this format:
+\`\`\`
+## Combined Verdict
+- **Code Quality**: APPROVE / WARNING / BLOCK
+- **Security**: PASS / WARNING / FAIL
+- **Issues Found**: [count]
+- **Recommended Fixes**: [1-sentence summary]
+\`\`\`
+If any issues need fixing, end with exactly: '---\\n*Click **Fix Issues** below to auto-fix these problems.*'`;
+
+			const reviewByok = hasByok ? byokKeys : undefined;
+			const reviewModel = modelId
+				? resolveModel(modelId, reviewByok)
+				: resolveModelByTier("sonnet", reviewByok);
+
+			console.log(`[Chat API] Review mode: ${allFiles.length} files, reviewer=${reviewer?.id || "fallback"}`);
+
+			const reviewResult = streamText({
+				model: reviewModel,
+				system: reviewPrompt,
+				messages: await convertToModelMessages(messages),
+				maxSteps: 1,
+			});
+
+			return reviewResult.toUIMessageStreamResponse({
+				originalMessages: messages,
+			});
 		}
 
 		// Run orchestration engine
@@ -386,16 +453,83 @@ This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE 
 		const modelMessages = await convertToModelMessages(messages);
 		const byok = hasByok ? byokKeys : undefined;
 
+		// --- Plan-then-Execute: For complex NEW projects, show plan first ---
+		// Instead of generating code immediately, stream the planner's blueprint
+		// so the user can review architecture, data model, and file map before building.
+		const shouldPlanFirst =
+			plan.intent.complexity === "complex" &&
+			!isExecutePlan && !isAutoFix && !isReviewCode && !isVisualEdit &&
+			existingFiles.length === 0 &&
+			messages.length <= 1; // Only on first message
+
+		if (shouldPlanFirst) {
+			// Run architect as hidden pre-analysis (feeds into planner)
+			const architectAgent = plan.agents.find((a) => a.id === "architect");
+			let architectAnalysis = "";
+			if (architectAgent) {
+				try {
+					const archPrompt = plan.agentPrompts.get(architectAgent.id) || "";
+					const archModel = modelId
+						? resolveModel(modelId, byok)
+						: resolveModelByTier(architectAgent.modelTier, byok);
+					const archResult = await generateText({
+						model: archModel,
+						system: archPrompt,
+						messages: modelMessages,
+						maxSteps: 1,
+					});
+					architectAnalysis = archResult.text.trim();
+					console.log(`[Chat API] Plan-first: architect complete (${architectAnalysis.length} chars, ${archResult.usage?.totalTokens || 0} tokens)`);
+				} catch (err) {
+					console.error("[Chat API] Plan-first: architect failed:", err);
+				}
+			}
+
+			// Stream planner's blueprint (visible to user as the plan)
+			const plannerAgent = plan.agents.find((a) => a.id === "planner");
+			let plannerPrompt = plannerAgent
+				? (plan.agentPrompts.get(plannerAgent.id) || "")
+				: "";
+
+			// Inject architect analysis into planner's context
+			if (architectAnalysis) {
+				plannerPrompt += `\n\n# Architecture Specialist Analysis\n\n${architectAnalysis}`;
+			}
+
+			// Instruction to end with execute prompt
+			plannerPrompt += `\n\nAfter presenting your complete implementation plan, end your response with exactly this markdown:\n\n---\n*Your plan is ready. Click **Execute Plan** below to start building, or reply to adjust the plan.*`;
+
+			const plannerModel = plannerAgent
+				? (modelId ? resolveModel(modelId, byok) : resolveModelByTier(plannerAgent.modelTier, byok))
+				: resolveModel(modelId, byok);
+
+			console.log(`[Chat API] Plan-first mode: streaming planner for complex project (architect=${architectAnalysis.length > 0 ? "ok" : "skipped"})`);
+
+			const planResult = streamText({
+				model: plannerModel,
+				system: plannerPrompt,
+				messages: modelMessages,
+				maxSteps: 1,
+			});
+
+			return planResult.toUIMessageStreamResponse({
+				originalMessages: messages,
+			});
+		}
+
 		// --- Pre-stream agent chaining ---
 		// For multi-agent flows, run read-only agents (architect, planner) BEFORE the
 		// main developer stream. Their analysis becomes part of the developer's context.
 		// This makes the pipeline a true chain instead of classification-only.
+		// SKIP for: Execute Plan (plan already in conversation), Auto-Fix, Visual Edit, Review
 		const primaryAgentIndex = plan.agents.findIndex((a) => !a.readOnly);
 		const preStreamAgents = primaryAgentIndex > 0
 			? plan.agents.slice(0, primaryAgentIndex)
 			: [];
 
-		if (preStreamAgents.length > 0 && !isVisualEdit) {
+		const skipPreStream = isExecutePlan || isAutoFix || isVisualEdit;
+
+		if (preStreamAgents.length > 0 && !skipPreStream) {
 			const chainedAnalysis: string[] = [];
 
 			for (const agent of preStreamAgents) {
