@@ -477,6 +477,23 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				sandpackFiles["/App.tsx"] = { code: DEFAULT_APP };
 			}
 		}
+	} else {
+		// User-provided entry point — prepend bridge import so it executes
+		const indexKey = Object.keys(sandpackFiles).find(
+			(p) =>
+				p === "/index.js" ||
+				p === "/index.jsx" ||
+				p === "/index.ts" ||
+				p === "/index.tsx",
+		);
+		if (indexKey) {
+			const file = sandpackFiles[indexKey];
+			const code = typeof file === "string" ? file : file.code;
+			sandpackFiles[indexKey] = {
+				...(typeof file === "string" ? {} : file),
+				code: `import "./__visual-edit-bridge";\n${code}`,
+			};
+		}
 	}
 
 	// Also include CSS files (Tailwind CDN handles most styling, but include any custom CSS)
