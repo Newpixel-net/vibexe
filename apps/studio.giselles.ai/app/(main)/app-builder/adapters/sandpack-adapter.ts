@@ -98,7 +98,6 @@ function buildIndexHtml(langConfig?: SandpackLanguageConfig): string {
         }${rtlStyles}
       }
     </style>
-    <script>${getVisualEditBridgeScript()}</script>
   </head>
   <body dir="${dir}">
     <div id="root"></div>
@@ -356,6 +355,15 @@ function generateEntryPoint(
 		lines.push(`root.render(${jsx});`);
 	}
 
+	// Inject Visual Edit bridge via dynamic script (inline <script> tags don't execute in Sandpack's innerHTML)
+	const bridgeCode = getVisualEditBridgeScript();
+	const escapedBridge = JSON.stringify(bridgeCode);
+	lines.push("");
+	lines.push("// Visual Edit Bridge (auto-injected)");
+	lines.push(`var _veS = document.createElement("script");`);
+	lines.push(`_veS.textContent = ${escapedBridge};`);
+	lines.push(`document.head.appendChild(_veS);`);
+
 	return lines.join("\n");
 }
 
@@ -470,6 +478,32 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			if (!sandpackFiles["/App.tsx"]) {
 				sandpackFiles["/App.tsx"] = { code: DEFAULT_APP };
 			}
+		}
+	} else {
+		// User-provided entry point — append bridge injection dynamically
+		const indexKey = Object.keys(sandpackFiles).find(
+			(p) =>
+				p === "/index.js" ||
+				p === "/index.jsx" ||
+				p === "/index.ts" ||
+				p === "/index.tsx",
+		);
+		if (indexKey) {
+			const file = sandpackFiles[indexKey];
+			const code = typeof file === "string" ? file : file.code;
+			const bridgeCode = getVisualEditBridgeScript();
+			const escapedBridge = JSON.stringify(bridgeCode);
+			const bridgeInjection = [
+				"",
+				"// Visual Edit Bridge (auto-injected)",
+				`var _veS = document.createElement("script");`,
+				`_veS.textContent = ${escapedBridge};`,
+				`document.head.appendChild(_veS);`,
+			].join("\n");
+			sandpackFiles[indexKey] = {
+				...(typeof file === "string" ? {} : file),
+				code: `${code}\n${bridgeInjection}`,
+			};
 		}
 	}
 
