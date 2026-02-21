@@ -332,7 +332,6 @@ function generateEntryPoint(
 	const lines: string[] = [
 		'import React from "react";',
 		'import { createRoot } from "react-dom/client";',
-		'import "./__visual-edit-bridge";',
 		`import App from "${appImportPath}";`,
 	];
 
@@ -355,6 +354,11 @@ function generateEntryPoint(
 		}
 		lines.push(`root.render(${jsx});`);
 	}
+
+	// Append visual edit bridge IIFE directly (import-based injection doesn't work in Sandpack)
+	lines.push("");
+	lines.push("// Visual Edit Bridge (auto-injected)");
+	lines.push(getVisualEditBridgeScript());
 
 	return lines.join("\n");
 }
@@ -393,12 +397,6 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 	// Always include custom index.html with Tailwind support + language/RTL
 	sandpackFiles["/public/index.html"] = {
 		code: langConfig ? buildIndexHtml(langConfig) : TAILWIND_INDEX_HTML,
-		hidden: true,
-	};
-
-	// Include visual edit bridge as a bundled JS file (inline <script> tags don't execute in Sandpack)
-	sandpackFiles["/__visual-edit-bridge.js"] = {
-		code: getVisualEditBridgeScript(),
 		hidden: true,
 	};
 
@@ -478,7 +476,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			}
 		}
 	} else {
-		// User-provided entry point — prepend bridge import so it executes
+		// User-provided entry point — append bridge IIFE directly
 		const indexKey = Object.keys(sandpackFiles).find(
 			(p) =>
 				p === "/index.js" ||
@@ -491,7 +489,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			const code = typeof file === "string" ? file : file.code;
 			sandpackFiles[indexKey] = {
 				...(typeof file === "string" ? {} : file),
-				code: `import "./__visual-edit-bridge";\n${code}`,
+				code: `${code}\n\n// Visual Edit Bridge (auto-injected)\n${getVisualEditBridgeScript()}`,
 			};
 		}
 	}
