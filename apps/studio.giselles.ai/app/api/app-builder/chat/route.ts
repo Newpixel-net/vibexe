@@ -469,9 +469,10 @@ CRITICAL: Only create Blueprint.md. No other files.`);
 
 The user has reviewed the Blueprint.md plan (available in the Documents tab). Now execute it:
 1. Read Blueprint.md to understand the full plan
-2. Create ALL code files following the plan's File Map section exactly
-3. Follow the creation order specified in the plan
+2. **CRITICAL: Create src/App.tsx FIRST** — this is the entry point that Sandpack needs to render the preview. Import all main page/layout components. Without App.tsx the preview will be blank.
+3. Then create ALL remaining code files following the plan's File Map
 4. Do NOT recreate or modify Blueprint.md — it's already done
+5. Use define_entities to register data entities if the plan includes a Data Model section
 
 Start immediately with file creation. Do not re-explain the plan.`);
 		} else if (isReturningUser) {
@@ -510,15 +511,17 @@ This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE 
 		const isPlanOnly = isNewProject && !isVisualEdit;
 		const maxSteps = isPlanOnly
 			? 5 // Plan-only: just Blueprint.md creation
-			: isVisualEdit
-				? 10
-				: isReplication
-					? 100
-					: plan.intent.complexity === "complex"
+			: hasBlueprintOnly
+				? 100 // Execute-plan: full project build from Blueprint needs many steps
+				: isVisualEdit
+					? 10
+					: isReplication
 						? 100
-						: plan.intent.complexity === "medium"
-							? 60
-							: 35;
+						: plan.intent.complexity === "complex"
+							? 100
+							: plan.intent.complexity === "medium"
+								? 60
+								: 35;
 
 		const upstreamCount = plan.agents.filter((a) => a.readOnly).length;
 		console.log(

@@ -375,6 +375,91 @@ function extractProviderName(content: string): string | null {
 }
 
 /**
+ * Auto-generate an App.tsx when component files exist but no App entry point was created.
+ * Searches for the most likely "main" component (DashboardLayout, HomePage, MainLayout, etc.)
+ * and creates a minimal App.tsx that renders it.
+ */
+function generateAppFromComponents(
+	sandpackFiles: SandpackFiles,
+	contextProviders: Array<{ sandpackPath: string; providerName: string }>,
+): string {
+	const allPaths = Object.keys(sandpackFiles).filter(
+		(p) => p.endsWith(".tsx") || p.endsWith(".jsx"),
+	);
+
+	// Priority order for finding the main component
+	const mainPatterns = [
+		/DashboardLayout/i,
+		/MainLayout/i,
+		/AppLayout/i,
+		/Layout/i,
+		/DashboardHome/i,
+		/Dashboard/i,
+		/HomePage/i,
+		/Home/i,
+		/MainPage/i,
+		/Main/i,
+		/LoginPage/i,
+	];
+
+	let mainPath: string | null = null;
+	for (const pattern of mainPatterns) {
+		const found = allPaths.find((p) => pattern.test(p));
+		if (found) {
+			mainPath = found;
+			break;
+		}
+	}
+
+	// Fallback: pick the longest file (likely the most complex/main component)
+	if (!mainPath && allPaths.length > 0) {
+		let maxLen = 0;
+		for (const p of allPaths) {
+			const file = sandpackFiles[p];
+			const code = typeof file === "string" ? file : file?.code || "";
+			if (code.length > maxLen) {
+				maxLen = code.length;
+				mainPath = p;
+			}
+		}
+	}
+
+	if (!mainPath) {
+		return DEFAULT_APP;
+	}
+
+	// Extract component name from path
+	const fileName = mainPath.split("/").pop()?.replace(/\.(tsx|jsx)$/, "") || "Main";
+	const importPath = mainPath.replace(/\.(tsx|jsx)$/, "");
+	const importFrom = importPath.startsWith("/") ? `.${importPath}` : `./${importPath}`;
+
+	// Check if the component has a default export
+	const fileObj = sandpackFiles[mainPath];
+	const code = typeof fileObj === "string" ? fileObj : fileObj?.code || "";
+	const hasDefault = /export\s+default/.test(code);
+	const importStatement = hasDefault
+		? `import ${fileName} from "${importFrom}";`
+		: `import { ${fileName} } from "${importFrom}";`;
+
+	// Wrap with context providers if detected
+	let providerImports = "";
+	let jsx = `<${fileName} />`;
+	for (const ctx of contextProviders) {
+		const ctxImport = ctx.sandpackPath.replace(/\.(tsx?|jsx?)$/, "");
+		const ctxFrom = ctxImport.startsWith("/") ? `.${ctxImport}` : `./${ctxImport}`;
+		providerImports += `import { ${ctx.providerName} } from "${ctxFrom}";\n`;
+		jsx = `<${ctx.providerName}>${jsx}</${ctx.providerName}>`;
+	}
+
+	return `${importStatement}
+${providerImports}
+export default function App() {
+  return ${jsx};
+}
+`;
+}
+
+/**
  * Convert AppFile[] to Sandpack files format
  *
  * Handles:
@@ -458,6 +543,15 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				: `./${importName}`;
 			sandpackFiles["/index.js"] = {
 				code: generateEntryPoint(importPath, contextProviders),
+				hidden: true,
+			};
+		} else if (codeFiles.length > 3) {
+			// No App file but we have component files — auto-generate an App.tsx
+			// that imports the most likely main component
+			const generatedApp = generateAppFromComponents(sandpackFiles, contextProviders);
+			sandpackFiles["/App.tsx"] = { code: generatedApp };
+			sandpackFiles["/index.js"] = {
+				code: generateEntryPoint("./App", contextProviders),
 				hidden: true,
 			};
 		} else {
