@@ -425,8 +425,57 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 - You may import from \`@supabase/supabase-js\``);
 		}
 
-		// Existing project awareness
-		if (isReturningUser) {
+		// --- Plan-then-Execute Logic ---
+		// Detect project state to implement two-phase generation:
+		// Phase 1 (new project): Create ONLY Blueprint.md, stop, let user review
+		// Phase 2 (user says "build it"): Execute the plan from Blueprint.md
+		const hasCodeFiles = existingFiles.some(
+			(f) =>
+				f.path.endsWith(".tsx") ||
+				f.path.endsWith(".ts") ||
+				f.path.endsWith(".jsx") ||
+				f.path.endsWith(".js"),
+		);
+		const hasBlueprintOnly =
+			existingFiles.length > 0 &&
+			existingFiles.some((f) => f.path === "Blueprint.md") &&
+			!hasCodeFiles;
+		const isNewProject = existingFiles.length === 0;
+
+		if (isNewProject && !isVisualEdit) {
+			// Phase 1: Plan only — create Blueprint.md and stop
+			runtimeAddenda.push(`## ⚠️ PLAN FIRST (MANDATORY)
+
+Create ONLY \`Blueprint.md\` with a comprehensive project plan. Include:
+- **Overview**: What the app does, who it's for
+- **Features**: Numbered list with acceptance criteria (F1, F2, F3...)
+- **Data Model**: Entity schemas with fields, types, relationships
+- **Auth Strategy**: No auth / Simple auth / Role-based
+- **Component Architecture**: Component tree with parent→child relationships
+- **File Map**: Every file to be created, in order, with purpose and dependencies
+- **UX Flows**: Primary user journeys, empty/loading/error states
+
+Make Blueprint.md thorough and detailed — this is the plan the user will review.
+
+After creating Blueprint.md, **STOP**. Do NOT create any code files (.ts, .tsx, .js, .jsx).
+
+End your response with:
+"📋 **Project plan created!** Review it in the **Documents tab**, then say **'build it'** when you're ready for me to generate the code."
+
+CRITICAL: Only create Blueprint.md. No other files.`);
+		} else if (hasBlueprintOnly) {
+			// Phase 2: Execute the plan — Blueprint.md exists, no code yet
+			runtimeAddenda.push(`## EXECUTE THE PLAN
+
+The user has reviewed the Blueprint.md plan (available in the Documents tab). Now execute it:
+1. Read Blueprint.md to understand the full plan
+2. Create ALL code files following the plan's File Map section exactly
+3. Follow the creation order specified in the plan
+4. Do NOT recreate or modify Blueprint.md — it's already done
+
+Start immediately with file creation. Do not re-explain the plan.`);
+		} else if (isReturningUser) {
+			// Normal existing project — edit/add files
 			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)
 This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE modifying them with \`update_file\`. Never blindly overwrite files without reading them first.`);
 		}
@@ -458,18 +507,22 @@ This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE 
 				: resolveModel(undefined, byok);
 
 		const isReplication = plan.intent.suggestedFlow === "replicate";
-		const maxSteps = isVisualEdit
-			? 10
-			: isReplication
-				? 100
-				: plan.intent.complexity === "complex"
+		const isPlanOnly = isNewProject && !isVisualEdit;
+		const maxSteps = isPlanOnly
+			? 5 // Plan-only: just Blueprint.md creation
+			: isVisualEdit
+				? 10
+				: isReplication
 					? 100
-					: plan.intent.complexity === "medium"
-						? 60
-						: 35;
+					: plan.intent.complexity === "complex"
+						? 100
+						: plan.intent.complexity === "medium"
+							? 60
+							: 35;
 
+		const upstreamCount = plan.agents.filter((a) => a.readOnly).length;
 		console.log(
-			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, model=${modelId || primaryAgent?.modelTier || "default"}, maxSteps=${maxSteps}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,
+			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, chained=${upstreamCount}, model=${modelId || primaryAgent?.modelTier || "default"}, maxSteps=${maxSteps}${isPlanOnly ? ", mode=plan-only" : hasBlueprintOnly ? ", mode=execute-plan" : ""}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,
 		);
 
 		// Use streamText directly with toUIMessageStreamResponse for proper multi-step support.

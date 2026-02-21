@@ -5,6 +5,7 @@ import type {
 	SkillDefinition,
 } from "../types";
 import { selectAgentSequence } from "./agent-router";
+import { condenseUpstreamAgents } from "./chain-condenser";
 import { classifyIntent } from "./intent-classifier";
 import { assemblePrompt } from "./prompt-assembler";
 import { resolveSkills } from "./skill-resolver";
@@ -34,7 +35,15 @@ export function executeOrchestration(
 		agentSkills.set(agent.id, skills);
 	}
 
-	// 4. Assemble prompts per agent (with complexity for developer agents)
+	// 4. Agent Chaining via Knowledge Injection
+	// For multi-agent flows (e.g. architect → planner → developer),
+	// condense upstream read-only agents' decision frameworks and inject
+	// them into the developer's system prompt. This gives the developer
+	// "all agents' intelligence" in a single streaming call.
+	const upstreamAgents = agents.filter((a) => a.readOnly);
+	const upstreamInsights = condenseUpstreamAgents(upstreamAgents);
+
+	// 5. Assemble prompts per agent (with upstream insights for developer agents)
 	const agentPrompts = new Map<string, string>();
 	for (const agent of agents) {
 		const skills = agentSkills.get(agent.id) || [];
@@ -44,6 +53,8 @@ export function executeOrchestration(
 			projectContext,
 			userPrompt,
 			intent.complexity,
+			// Only inject upstream insights into write-capable (developer) agents
+			!agent.readOnly ? upstreamInsights : undefined,
 		);
 		agentPrompts.set(agent.id, prompt);
 	}

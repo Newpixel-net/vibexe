@@ -23,11 +23,18 @@ export function assemblePrompt(
 	projectContext?: string,
 	_userRequest?: string,
 	complexity?: string,
+	upstreamInsights?: string,
 ): string {
 	const sections: string[] = [];
 
 	// Agent identity and instructions
 	sections.push(`# Role: ${agent.name}\n\n${agent.systemPrompt}`);
+
+	// Inject upstream agent frameworks (agent chaining via knowledge injection)
+	// This gives the developer the architect's decision frameworks + planner's process
+	if (upstreamInsights) {
+		sections.push(upstreamInsights);
+	}
 
 	// Inject complexity-specific template for developer agents
 	if (!agent.readOnly && complexity) {
