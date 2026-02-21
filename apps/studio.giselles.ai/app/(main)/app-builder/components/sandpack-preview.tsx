@@ -433,11 +433,6 @@ export function SandpackPreview({
 				}
 			} else if (data.type === "visual-edit-deselect") {
 				visualEdit.deselectElement();
-			} else if (data.type === "visual-edit-position-update") {
-				// Reposition toolbar when iframe scrolls/resizes
-				if (iframeRef.current) {
-					setIframeBounds(iframeRef.current.getBoundingClientRect());
-				}
 			}
 		};
 		window.addEventListener("message", handler);

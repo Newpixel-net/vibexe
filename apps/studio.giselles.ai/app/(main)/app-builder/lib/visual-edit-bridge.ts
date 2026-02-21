@@ -149,23 +149,38 @@ export function getVisualEditBridgeScript(): string {
     return matches.length >= 2;
   }
 
-  function repositionOverlays() {
+  // Reposition overlays inside iframe only — no parent notification
+  function repositionOverlaysLocal() {
     if (selected) {
       ensureOverlays();
       var rect = selected.getBoundingClientRect();
       positionOverlay(selectOverlay, rect);
       positionBadge(selectBadge, rect);
-      // Notify parent of position update for toolbar repositioning
-      window.parent.postMessage({
-        type: 'visual-edit-position-update',
-        boundingRect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
-      }, '*');
     }
   }
 
-  function debouncedReposition() {
+  // Send position update to parent (for toolbar repositioning)
+  var rafPending = false;
+  function sendPositionToParent() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(function() {
+      rafPending = false;
+      if (selected) {
+        var rect = selected.getBoundingClientRect();
+        positionOverlay(selectOverlay, rect);
+        positionBadge(selectBadge, rect);
+        window.parent.postMessage({
+          type: 'visual-edit-position-update',
+          boundingRect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
+        }, '*');
+      }
+    });
+  }
+
+  function debouncedRepositionLocal() {
     if (repositionTimer) clearTimeout(repositionTimer);
-    repositionTimer = setTimeout(repositionOverlays, 50);
+    repositionTimer = setTimeout(repositionOverlaysLocal, 50);
   }
 
   function onMouseOver(e) {
@@ -234,7 +249,7 @@ export function getVisualEditBridgeScript(): string {
   var observer = null;
   function startObserver() {
     if (observer) return;
-    observer = new MutationObserver(debouncedReposition);
+    observer = new MutationObserver(debouncedRepositionLocal);
     observer.observe(document.body, {
       subtree: true,
       attributes: true,
@@ -257,8 +272,8 @@ export function getVisualEditBridgeScript(): string {
     document.addEventListener('mouseout', onMouseOut, true);
     document.addEventListener('click', onClick, true);
     document.addEventListener('keydown', onKeyDown, true);
-    window.addEventListener('scroll', debouncedReposition, true);
-    window.addEventListener('resize', debouncedReposition);
+    window.addEventListener('scroll', sendPositionToParent, true);
+    window.addEventListener('resize', sendPositionToParent);
     startObserver();
   }
 
@@ -271,8 +286,8 @@ export function getVisualEditBridgeScript(): string {
     document.removeEventListener('mouseout', onMouseOut, true);
     document.removeEventListener('click', onClick, true);
     document.removeEventListener('keydown', onKeyDown, true);
-    window.removeEventListener('scroll', debouncedReposition, true);
-    window.removeEventListener('resize', debouncedReposition);
+    window.removeEventListener('scroll', sendPositionToParent, true);
+    window.removeEventListener('resize', sendPositionToParent);
     stopObserver();
     if (hoverOverlay) hoverOverlay.style.display = 'none';
     if (selectOverlay) selectOverlay.style.display = 'none';

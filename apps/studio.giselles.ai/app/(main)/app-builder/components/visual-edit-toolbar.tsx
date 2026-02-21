@@ -95,11 +95,24 @@ export function VisualEditToolbar({
 	const toolbarRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 
-	// Reset panel when selection changes
+	// Track element rect separately via proper state (not mutation)
+	const [elementRect, setElementRect] = useState<{
+		top: number;
+		left: number;
+		width: number;
+		height: number;
+	} | null>(null);
+
+	// Reset panel and snapshot rect when selection changes
 	useEffect(() => {
 		setActivePanel(null);
 		setEditPrompt("");
 		setConfirmDelete(false);
+		if (selectedElement) {
+			setElementRect({ ...selectedElement.boundingRect });
+		} else {
+			setElementRect(null);
+		}
 	}, [selectedElement]);
 
 	// Auto-focus input when entering edit mode
@@ -123,29 +136,40 @@ export function VisualEditToolbar({
 		return resolveElementSource(selectedElement, files);
 	}, [selectedElement, files]);
 
-	// Calculate toolbar position
+	// Calculate toolbar position — centered over element, clamped to iframe container
 	const toolbarStyle = useMemo(() => {
-		if (!selectedElement || !iframeBounds) return { display: "none" as const };
+		if (!selectedElement || !iframeBounds || !elementRect)
+			return { display: "none" as const };
 
-		const elRect = selectedElement.boundingRect;
+		const elRect = elementRect;
 		const absTop = iframeBounds.top + elRect.top;
 		const absLeft = iframeBounds.left + elRect.left;
-		const spaceAbove = absTop;
 		const toolbarHeight = 48;
+		const toolbarWidth = activePanel === "edit" ? 480 : 440;
 
+		// Vertical: prefer above, fall back to below, then clamp to viewport
 		let top: number;
-		if (spaceAbove > toolbarHeight + 8) {
+		if (absTop > toolbarHeight + 12) {
 			top = absTop - toolbarHeight - 8;
 		} else {
 			top = absTop + elRect.height + 8;
 		}
-
-		let left = absLeft;
-		const toolbarWidth = activePanel === "edit" ? 480 : 440;
-		if (left + toolbarWidth > window.innerWidth - 16) {
-			left = window.innerWidth - toolbarWidth - 16;
+		// Clamp to viewport vertically
+		if (top < 8) top = 8;
+		if (top + toolbarHeight > window.innerHeight - 8) {
+			top = window.innerHeight - toolbarHeight - 8;
 		}
-		if (left < 8) left = 8;
+
+		// Horizontal: CENTER over element, then clamp to iframe container bounds
+		let left = absLeft + elRect.width / 2 - toolbarWidth / 2;
+		const containerLeft = iframeBounds.left;
+		const containerRight = iframeBounds.left + iframeBounds.width;
+		if (left + toolbarWidth > containerRight - 8) {
+			left = containerRight - toolbarWidth - 8;
+		}
+		if (left < containerLeft + 8) {
+			left = containerLeft + 8;
+		}
 
 		return {
 			position: "fixed" as const,
@@ -153,16 +177,20 @@ export function VisualEditToolbar({
 			left: `${left}px`,
 			zIndex: 50,
 		};
-	}, [selectedElement, iframeBounds, activePanel]);
+	}, [selectedElement, iframeBounds, elementRect, activePanel]);
 
-	// Listen for position updates from bridge (scroll/resize inside iframe)
+	// Listen for position updates from bridge (scroll/resize inside iframe only — not animations)
 	useEffect(() => {
 		const handler = (e: MessageEvent) => {
 			const data = e.data;
 			if (!data || data.type !== "visual-edit-position-update") return;
-			if (selectedElement) {
-				// Update bounding rect from iframe
-				selectedElement.boundingRect = data.boundingRect;
+			if (selectedElement && data.boundingRect) {
+				setElementRect({
+					top: data.boundingRect.top,
+					left: data.boundingRect.left,
+					width: data.boundingRect.width,
+					height: data.boundingRect.height,
+				});
 			}
 		};
 		window.addEventListener("message", handler);
