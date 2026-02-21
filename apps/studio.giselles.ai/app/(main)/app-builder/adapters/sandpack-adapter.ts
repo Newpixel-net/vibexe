@@ -355,14 +355,10 @@ function generateEntryPoint(
 		lines.push(`root.render(${jsx});`);
 	}
 
-	// Inject Visual Edit bridge via dynamic script (inline <script> tags don't execute in Sandpack's innerHTML)
-	const bridgeCode = getVisualEditBridgeScript();
-	const escapedBridge = JSON.stringify(bridgeCode);
+	// Inject Visual Edit bridge — inline IIFE directly (createElement approach fails in Sandpack's bundler)
 	lines.push("");
 	lines.push("// Visual Edit Bridge (auto-injected)");
-	lines.push(`var _veS = document.createElement("script");`);
-	lines.push(`_veS.textContent = ${escapedBridge};`);
-	lines.push(`document.head.appendChild(_veS);`);
+	lines.push(getVisualEditBridgeScript());
 
 	return lines.join("\n");
 }
@@ -480,7 +476,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			}
 		}
 	} else {
-		// User-provided entry point — append bridge injection dynamically
+		// User-provided entry point — append bridge IIFE directly
 		const indexKey = Object.keys(sandpackFiles).find(
 			(p) =>
 				p === "/index.js" ||
@@ -491,18 +487,10 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		if (indexKey) {
 			const file = sandpackFiles[indexKey];
 			const code = typeof file === "string" ? file : file.code;
-			const bridgeCode = getVisualEditBridgeScript();
-			const escapedBridge = JSON.stringify(bridgeCode);
-			const bridgeInjection = [
-				"",
-				"// Visual Edit Bridge (auto-injected)",
-				`var _veS = document.createElement("script");`,
-				`_veS.textContent = ${escapedBridge};`,
-				`document.head.appendChild(_veS);`,
-			].join("\n");
+			const bridgeInjection = `\n// Visual Edit Bridge (auto-injected)\n${getVisualEditBridgeScript()}`;
 			sandpackFiles[indexKey] = {
 				...(typeof file === "string" ? {} : file),
-				code: `${code}\n${bridgeInjection}`,
+				code: `${code}${bridgeInjection}`,
 			};
 		}
 	}
