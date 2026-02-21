@@ -13,7 +13,6 @@ import {
 import type { UIMessage } from "ai";
 import {
 	convertToModelMessages,
-	generateText,
 	stepCountIs,
 	streamText,
 } from "ai";
@@ -253,9 +252,7 @@ export async function POST(request: Request) {
 		}
 
 		// --- Pipeline action prefixes ---
-		const isExecutePlan = userPrompt.startsWith("[EXECUTE PLAN]");
 		const isReviewCode = userPrompt.startsWith("[REVIEW CODE]");
-		const isAutoFix = userPrompt.startsWith("[AUTO-FIX]");
 		// Detect URLs in user prompt and fetch site analysis
 		const URL_REGEX = /https?:\/\/[^\s"'<>]+/gi;
 		const detectedUrls = userPrompt.match(URL_REGEX) || [];
@@ -453,109 +450,6 @@ This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE 
 		const modelMessages = await convertToModelMessages(messages);
 		const byok = hasByok ? byokKeys : undefined;
 
-		// --- Plan-then-Execute: For complex NEW projects, show plan first ---
-		// Instead of generating code immediately, stream the planner's blueprint
-		// so the user can review architecture, data model, and file map before building.
-		// Plan-first DISABLED: streamText without tools fails to stream through WHM proxy.
-		// TODO: investigate why toUIMessageStreamResponse works with tools but not without.
-		const shouldPlanFirst = false;
-
-		if (shouldPlanFirst) {
-			// Stream planner's blueprint directly (no blocking architect pre-pass).
-			// Architect analysis was causing 30-60s of silence before the stream started,
-			// which killed the HTTP connection via the WHM reverse proxy timeout.
-			// The planner's own rich prompt + orchestration context is sufficient for good plans.
-			const plannerAgent = plan.agents.find((a) => a.id === "planner");
-			let plannerPrompt = plannerAgent
-				? (plan.agentPrompts.get(plannerAgent.id) || "")
-				: "";
-
-			// Instruction to end with execute prompt
-			plannerPrompt += `\n\nAfter presenting your complete implementation plan, end your response with exactly this markdown:\n\n---\n*Your plan is ready. Click **Execute Plan** below to start building, or reply to adjust the plan.*`;
-
-			const plannerModel = plannerAgent
-				? (modelId ? resolveModel(modelId, byok) : resolveModelByTier(plannerAgent.modelTier, byok))
-				: resolveModel(modelId, byok);
-
-			console.log(`[Chat API] Plan-first mode: streaming planner directly for complex project`);
-
-			const planResult = streamText({
-				model: plannerModel,
-				system: plannerPrompt,
-				messages: modelMessages,
-				maxSteps: 1,
-				onFinish: (event) => {
-					console.log(`[Chat API] Plan stream finished: finishReason=${event.finishReason}`);
-				},
-			});
-
-			return planResult.toUIMessageStreamResponse({
-				originalMessages: messages,
-			});
-		}
-
-		// --- Pre-stream agent chaining ---
-		// For multi-agent flows, run read-only agents (architect, planner) BEFORE the
-		// main developer stream. Their analysis becomes part of the developer's context.
-		// This makes the pipeline a true chain instead of classification-only.
-		// SKIP for: Execute Plan (plan already in conversation), Auto-Fix, Visual Edit, Review
-		const primaryAgentIndex = plan.agents.findIndex((a) => !a.readOnly);
-		const preStreamAgents = primaryAgentIndex > 0
-			? plan.agents.slice(0, primaryAgentIndex)
-			: [];
-
-		// Pre-stream DISABLED: blocking generateText() calls delay the HTTP response,
-		// causing WHM reverse proxy to timeout the connection before streaming starts.
-		// TODO: implement non-blocking pre-stream (fire-and-forget or SSE keep-alive).
-		const skipPreStream = true;
-
-		if (preStreamAgents.length > 0 && !skipPreStream) {
-			const chainedAnalysis: string[] = [];
-
-			for (const agent of preStreamAgents) {
-				const agentPrompt = plan.agentPrompts.get(agent.id) || "";
-				// Use user-selected model if provided, otherwise use agent's own tier
-				const agentModel = modelId
-					? resolveModel(modelId, byok)
-					: resolveModelByTier(agent.modelTier, byok);
-
-				console.log(
-					`[Chat API] Pre-stream agent: ${agent.id} (${agent.modelTier})`,
-				);
-
-				try {
-					const agentResult = await generateText({
-						model: agentModel,
-						system: agentPrompt,
-						messages: modelMessages,
-						maxSteps: 1, // Read-only agents: single analysis step, no tool loop
-					});
-
-					const output = agentResult.text.trim();
-					if (output) {
-						chainedAnalysis.push(
-							`## ${agent.name} Analysis\n\n${output}`,
-						);
-					}
-
-					console.log(
-						`[Chat API] Agent ${agent.id} complete: ${output.length} chars, ${agentResult.usage?.totalTokens || 0} tokens`,
-					);
-				} catch (err) {
-					// Pre-stream failure is non-fatal — developer can still generate without it
-					console.error(
-						`[Chat API] Pre-stream agent ${agent.id} failed:`,
-						err,
-					);
-				}
-			}
-
-			// Inject accumulated analysis into the developer's system prompt
-			if (chainedAnalysis.length > 0) {
-				systemPrompt = `${systemPrompt}\n\n# Pipeline Context (from upstream agents)\n\n${chainedAnalysis.join("\n\n")}`;
-			}
-		}
-
 		// Use user-selected model if provided, otherwise use the primary agent's tier
 		const model = modelId
 			? resolveModel(modelId, byok)
@@ -575,7 +469,7 @@ This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE 
 						: 35;
 
 		console.log(
-			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, preStream=${preStreamAgents.length}, model=${modelId || primaryAgent?.modelTier || "default"}, maxSteps=${maxSteps}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,
+			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, model=${modelId || primaryAgent?.modelTier || "default"}, maxSteps=${maxSteps}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,
 		);
 
 		// Use streamText directly with toUIMessageStreamResponse for proper multi-step support.
