@@ -12,7 +12,7 @@ import {
 	ChevronRight,
 	Copy,
 	ExternalLink,
-	KeyRound,
+	Globe,
 	Lock,
 	Mail,
 	Shield,
@@ -131,9 +131,23 @@ interface OAuthCredentials {
 	githubClientSecret: string;
 }
 
-const CALLBACK_URL = typeof window !== "undefined"
-	? `${window.location.origin}/api/apps/oauth/callback`
-	: "/api/apps/oauth/callback";
+interface DeploymentInfo {
+	subdomain: string | null;
+	customDomain: string | null;
+	status: string;
+}
+
+/** Derive the OAuth callback base URL from the app's deployed domain. */
+function getCallbackBaseUrl(deployment: DeploymentInfo | null): string | null {
+	if (!deployment || deployment.status !== "live") return null;
+	if (deployment.customDomain) {
+		return `https://${deployment.customDomain}/api/apps/oauth/callback`;
+	}
+	if (deployment.subdomain) {
+		return `https://${deployment.subdomain}.vibexe.online/api/apps/oauth/callback`;
+	}
+	return null;
+}
 
 export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 	const [methods, setMethods] = useState<AuthMethod[]>(DEFAULT_AUTH_METHODS);
@@ -147,18 +161,24 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 	});
 	const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
 	const [copied, setCopied] = useState<string | null>(null);
+	const [deployment, setDeployment] = useState<DeploymentInfo | null>(null);
 	const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-	// Fetch persisted auth settings on mount
+	const callbackBaseUrl = getCallbackBaseUrl(deployment);
+
+	// Fetch persisted auth settings + deployment info on mount
 	useEffect(() => {
-		async function fetchSettings() {
+		async function fetchData() {
 			try {
-				const res = await fetch(`/api/apps/${appId}/auth-settings`);
-				if (res.ok) {
-					const data = await res.json();
+				const [settingsRes, deployRes] = await Promise.all([
+					fetch(`/api/apps/${appId}/auth-settings`),
+					fetch(`/api/apps/${appId}/deploy`),
+				]);
+
+				if (settingsRes.ok) {
+					const data = await settingsRes.json();
 					setMethods((prev) =>
 						prev.map((m) => {
-							const key = `${m.id.replace("email_password", "emailPassword").replace(/^(google|github|microsoft|apple)$/, "$1")}Enabled`;
 							const camelKey = m.id === "email_password" ? "emailPasswordEnabled" : `${m.id}Enabled`;
 							return { ...m, enabled: data[camelKey] ?? m.enabled };
 						}),
@@ -171,11 +191,22 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 						githubClientSecret: data.githubClientSecret ?? "",
 					});
 				}
+
+				if (deployRes.ok) {
+					const data = await deployRes.json();
+					if (data.deployment) {
+						setDeployment({
+							subdomain: data.deployment.subdomain,
+							customDomain: data.deployment.customDomain,
+							status: data.deployment.status,
+						});
+					}
+				}
 			} catch {
 				// Use defaults on error
 			}
 		}
-		fetchSettings();
+		fetchData();
 	}, [appId]);
 
 	const saveSettings = useCallback((
@@ -304,11 +335,14 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 								{/* Credential configuration panel */}
 								{hasCredentialConfig && method.enabled && isExpanded && (
 									<div className="border-t border-white/[0.06] px-4 pb-4 pt-3 space-y-3">
+										{!callbackBaseUrl ? (
+											<NoDomainNotice />
+										) : (<>
 										{method.id === "google" && (
 											<OAuthCredentialForm
 												provider="Google"
 												consoleUrl="https://console.cloud.google.com/apis/credentials"
-												callbackUrl={`${CALLBACK_URL}/google`}
+												callbackUrl={`${callbackBaseUrl}/google`}
 												clientId={credentials.googleClientId}
 												clientSecret={credentials.googleClientSecret}
 												onClientIdChange={(v) => updateCredential("googleClientId", v)}
@@ -321,7 +355,7 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 											<OAuthCredentialForm
 												provider="GitHub"
 												consoleUrl="https://github.com/settings/developers"
-												callbackUrl={`${CALLBACK_URL}/github`}
+												callbackUrl={`${callbackBaseUrl}/github`}
 												clientId={credentials.githubClientId}
 												clientSecret={credentials.githubClientSecret}
 												onClientIdChange={(v) => updateCredential("githubClientId", v)}
@@ -330,6 +364,7 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 												onCopy={copyToClipboard}
 											/>
 										)}
+										</>)}
 									</div>
 								)}
 							</div>
@@ -407,6 +442,33 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 	);
 }
 
+/* ─── No Domain Notice ───────────────────────────────────────────── */
+
+function NoDomainNotice() {
+	return (
+		<div className="rounded-lg bg-amber-500/[0.06] border border-amber-500/20 p-4 space-y-2">
+			<div className="flex items-start gap-2.5">
+				<Globe className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
+				<div className="space-y-1.5">
+					<p className="text-xs font-medium text-white/80">
+						Domain required for OAuth
+					</p>
+					<p className="text-xs text-white/45 leading-relaxed">
+						Social login requires your app to have its own domain. Deploy your
+						app and connect a domain in the{" "}
+						<span className="text-white/60 font-medium">Domains</span>{" "}
+						panel first, then come back here to configure your OAuth credentials.
+					</p>
+					<p className="text-xs text-white/35 leading-relaxed">
+						The callback URL for Google/GitHub will be based on your
+						app's domain once connected.
+					</p>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 /* ─── OAuth Credential Form Sub-Component ────────────────────────── */
 
 interface OAuthCredentialFormProps {
@@ -437,7 +499,7 @@ function OAuthCredentialForm({
 			{/* Setup instructions */}
 			<div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-3">
 				<p className="text-xs text-white/50 leading-relaxed">
-					To enable {provider} login, create an OAuth app in the{" "}
+					Create an OAuth app in the{" "}
 					<a
 						href={consoleUrl}
 						target="_blank"
@@ -447,14 +509,14 @@ function OAuthCredentialForm({
 						{provider} Developer Console
 						<ExternalLink className="h-3 w-3" />
 					</a>
-					{" "}and set the callback URL below as the authorized redirect URI.
+					{" "}and add the redirect URI below to your OAuth app settings.
 				</p>
 			</div>
 
 			{/* Callback URL (read-only, copyable) */}
 			<div>
 				<label className="block text-xs text-white/40 mb-1">
-					Callback URL (add this as Redirect URI in {provider})
+					Redirect URI (add this to your {provider} OAuth app)
 				</label>
 				<div className="flex items-center gap-2">
 					<input
