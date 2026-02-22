@@ -393,6 +393,38 @@ class StorageClient {
   }
 }
 
+class WebhooksClient {
+  constructor(baseUrl, headers) {
+    this.baseUrl = baseUrl;
+    this.headers = headers;
+  }
+
+  async create(config) {
+    const res = await fetch(this.baseUrl + "/webhooks", {
+      method: "POST",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || "Failed to create webhook"); }
+    return (await res.json()).webhook;
+  }
+
+  async list() {
+    const res = await fetch(this.baseUrl + "/webhooks", { headers: this.headers });
+    if (!res.ok) throw new Error("Failed to list webhooks");
+    return await res.json();
+  }
+
+  async delete(webhookDbId) {
+    const res = await fetch(this.baseUrl + "/webhooks", {
+      method: "DELETE",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ webhookDbId }),
+    });
+    if (!res.ok) throw new Error("Failed to delete webhook");
+  }
+}
+
 export class VibexeApp {
   constructor(config) {
     // Runtime appId override (injected by Sandpack host) takes precedence over hardcoded config
@@ -408,6 +440,7 @@ export class VibexeApp {
     this.auth = new AuthClient(base, headers);
     this.functions = new FunctionsClient(base, headers);
     this.storage = new StorageClient(base, headers);
+    this.webhooks = new WebhooksClient(base, headers);
   }
 }
 `;

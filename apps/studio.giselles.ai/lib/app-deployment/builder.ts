@@ -96,7 +96,12 @@ async list(p,o){var q=new URLSearchParams();if(p)q.set("prefix",p);if(o&&o.limit
 async delete(p){var r=await fetch(this.b+"/storage/"+p,{method:"DELETE",headers:this._ah()});if(!r.ok)throw new Error("Delete failed")}
 getUrl(p,t){var u=this.b+"/storage/"+p;if(t){var q=new URLSearchParams();if(t.width)q.set("width",String(t.width));if(t.height)q.set("height",String(t.height));if(t.format)q.set("format",t.format);if(t.quality)q.set("quality",String(t.quality));var s=q.toString();if(s)u+="?"+s}return u}
 }
-class VibexeApp{constructor(c){this.appId=c.appId;var base=(c.baseUrl||g.location.protocol+"//vibexe.online")+"/api/apps/"+c.appId;var h={};if(c.apiKey)h["X-Vibexe-Api-Key"]=c.apiKey;this.data=new DataClient(base,h);this.auth=new AuthClient(base,h);this.functions=new FunctionsClient(base,h);this.storage=new StorageClient(base,h)}}
+class WebhooksClient{constructor(b,h){this.b=b;this.h=h}
+async create(c){var r=await fetch(this.b+"/webhooks",{method:"POST",headers:Object.assign({},this.h,{"Content-Type":"application/json"}),body:JSON.stringify(c)});if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.error||"Failed to create webhook")}return(await r.json()).webhook}
+async list(){var r=await fetch(this.b+"/webhooks",{headers:this.h});if(!r.ok)throw new Error("Failed to list webhooks");return await r.json()}
+async delete(id){var r=await fetch(this.b+"/webhooks",{method:"DELETE",headers:Object.assign({},this.h,{"Content-Type":"application/json"}),body:JSON.stringify({webhookDbId:id})});if(!r.ok)throw new Error("Failed to delete webhook")}
+}
+class VibexeApp{constructor(c){this.appId=c.appId;var base=(c.baseUrl||g.location.protocol+"//vibexe.online")+"/api/apps/"+c.appId;var h={};if(c.apiKey)h["X-Vibexe-Api-Key"]=c.apiKey;this.data=new DataClient(base,h);this.auth=new AuthClient(base,h);this.functions=new FunctionsClient(base,h);this.storage=new StorageClient(base,h);this.webhooks=new WebhooksClient(base,h)}}
 g.VibexeApp=VibexeApp;
 })(typeof globalThis!=="undefined"?globalThis:window);
 `;

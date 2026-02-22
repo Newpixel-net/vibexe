@@ -77,6 +77,22 @@ const result = await app.functions.invoke("calculatePrice", { items: [...] });
 // Sends POST to /api/apps/{appId}/functions/{name}
 // Returns whatever the function returns
 
+// ─── Webhooks ───
+// Create a webhook to be notified when events happen
+const webhook = await app.webhooks.create({
+  url: "https://example.com/webhooks/vibexe",
+  events: ["entity.created:tasks", "user.signup"],
+  description: "Notify Slack on new tasks",
+  secret: "whsec_...",  // optional — enables HMAC-SHA256 payload signing
+  headers: { "Authorization": "Bearer ..." },  // optional custom headers
+});
+
+// List all webhooks
+const { webhooks } = await app.webhooks.list();
+
+// Delete a webhook
+await app.webhooks.delete(webhook.dbId);
+
 // ─── File Storage ───
 // Upload a file
 const { url, path, size } = await app.storage.upload(fileInput.files[0], "avatars/photo.jpg");
@@ -419,6 +435,11 @@ export const mockApp = {
   },
   functions: {
     invoke: vi.fn().mockResolvedValue(null),
+  },
+  webhooks: {
+    create: vi.fn().mockResolvedValue({ dbId: 1, url: "https://example.com/webhook", events: ["entity.created:tasks"], enabled: true }),
+    list: vi.fn().mockResolvedValue({ webhooks: [] }),
+    delete: vi.fn().mockResolvedValue(undefined),
   },
 };
 \`\`\`

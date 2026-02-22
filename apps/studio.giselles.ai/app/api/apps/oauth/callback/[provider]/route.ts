@@ -32,6 +32,7 @@ import {
 } from "@/lib/app-auth/oauth-utils";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 import { logAppEvent } from "@/lib/app-database/app-logger";
+import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 
 interface RouteParams {
 	params: Promise<{ provider: string }>;
@@ -231,6 +232,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			userId: Number(user.id),
 			userEmail: user.email,
 		});
+
+		// Dispatch webhooks (fire-and-forget)
+		const isNewUser = existingUsers.length === 0;
+		dispatchWebhooks(
+			appDbId,
+			appId,
+			isNewUser ? "user.signup" : "user.signin",
+			null,
+			{ id: user.id, email: user.email, display_name: user.display_name },
+		);
 
 		// Check if pending approval
 		if (user.status === "pending") {

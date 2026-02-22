@@ -19,6 +19,7 @@ import { executeQuery } from "@/lib/app-database/pool-manager";
 import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
 import type { AppSchema } from "@/lib/app-database/schema-types";
 import { runEntityHook } from "@/lib/app-functions/hooks";
+import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { getUser } from "@/lib/auth/get-user";
 
 interface RouteParams {
@@ -365,6 +366,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
 		// Emit real-time event
 		emitDataEvent(appId, { entity: entityName, action: "created", record: rows[0] as Record<string, unknown> });
+
+		// Dispatch webhooks (fire-and-forget)
+		dispatchWebhooks(ctx.app.dbId, appId, "entity.created", entityName, rows[0]);
 
 		// Run afterCreate hook (fire-and-forget)
 		if (!ctx.isInternal) {

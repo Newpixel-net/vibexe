@@ -19,6 +19,7 @@ import { emitDataEvent } from "@/lib/realtime/event-bus";
 import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
 import type { AppSchema } from "@/lib/app-database/schema-types";
 import { runEntityHook } from "@/lib/app-functions/hooks";
+import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { getUser } from "@/lib/auth/get-user";
 
 interface RouteParams {
@@ -303,6 +304,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 		// Emit real-time event
 		emitDataEvent(appId, { entity: entityName, action: "updated", record: rows[0] as Record<string, unknown> });
 
+		// Dispatch webhooks (fire-and-forget)
+		dispatchWebhooks(ctx.app.dbId, appId, "entity.updated", entityName, rows[0]);
+
 		// Run afterUpdate hook (fire-and-forget)
 		if (!ctx.isInternal) {
 			runEntityHook({
@@ -408,6 +412,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
 		// Emit real-time event
 		emitDataEvent(appId, { entity: entityName, action: "deleted", record: { id: rowId } });
+
+		// Dispatch webhooks (fire-and-forget)
+		dispatchWebhooks(ctx.app.dbId, appId, "entity.deleted", entityName, { id: rowId });
 
 		// Run afterDelete hook (fire-and-forget)
 		if (!ctx.isInternal) {

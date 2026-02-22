@@ -21,6 +21,7 @@ import { AuthClient } from "./auth";
 import { DataClient } from "./data";
 import { FunctionsClient } from "./functions";
 import { StorageClient } from "./storage";
+import { WebhooksClient } from "./webhooks";
 
 export interface VibexeAppConfig {
 	/** The builder app ID (bldr_xxx) */
@@ -36,6 +37,7 @@ export class VibexeApp {
 	public readonly auth: AuthClient;
 	public readonly functions: FunctionsClient;
 	public readonly storage: StorageClient;
+	public readonly webhooks: WebhooksClient;
 	public readonly appId: string;
 
 	constructor(config: VibexeAppConfig) {
@@ -55,6 +57,7 @@ export class VibexeApp {
 		this.auth = new AuthClient(baseUrl, headers);
 		this.functions = new FunctionsClient(baseUrl, headers);
 		this.storage = new StorageClient(baseUrl, headers);
+		this.webhooks = new WebhooksClient(baseUrl, headers);
 	}
 }
 
@@ -62,3 +65,4 @@ export class VibexeApp {
 export type { ListOptions, PaginatedResponse, DataChangeEvent, SubscribeOptions } from "./data";
 export type { AppUser, AuthResponse } from "./auth";
 export type { FileInfo, UploadResult, ListFilesResult, ImageTransformOptions } from "./storage";
+export type { Webhook, WebhookConfig } from "./webhooks";

@@ -1,166 +1,293 @@
 "use client";
 
 /**
- * AutomationsPanel Component
+ * WebhooksPanel Component
  *
- * Dashboard > Automations section for configuring app-level trigger/action automations.
- * Supports CRUD for automations with trigger type + action type configuration.
+ * Dashboard > Webhooks section for configuring webhook endpoints.
+ * Supports CRUD, event selection, signing secrets, test pings, and delivery logs.
  */
 
 import {
-	Clock,
+	AlertCircle,
+	Check,
+	ChevronDown,
+	ChevronRight,
+	Copy,
+	ExternalLink,
 	Loader2,
-	Pause,
-	Play,
 	Plus,
+	RefreshCw,
+	Send,
 	Trash2,
-	Zap,
+	Webhook,
+	X,
 } from "lucide-react";
+import { nanoid } from "nanoid";
 import { useCallback, useEffect, useState } from "react";
 
-interface Automation {
+interface WebhookItem {
 	dbId: number;
-	name: string;
+	url: string;
+	description: string | null;
+	events: string[];
+	secret: string | null;
+	headers: Record<string, string>;
 	enabled: boolean;
-	triggerType: string;
-	triggerConfig: Record<string, unknown>;
-	actionType: string;
-	actionConfig: Record<string, unknown>;
-	lastRunAt: string | null;
-	runCount: number;
+	lastDeliveryAt: string | null;
+	lastDeliveryOk: boolean | null;
+	deliverySuccessCount: number;
+	deliveryFailureCount: number;
 	createdAt: string;
 }
 
-interface AutomationsPanelProps {
+interface DeliveryLog {
+	dbId: number;
+	eventType: string;
+	responseStatus: number | null;
+	success: boolean;
+	durationMs: number | null;
+	attempt: number;
+	errorMessage: string | null;
+	createdAt: string;
+}
+
+interface WebhooksPanelProps {
 	appId: string;
+	schema: {
+		entities: Array<{
+			name: string;
+			tableName: string;
+			fields: Array<{ name: string; type: string; required?: boolean }>;
+		}>;
+	} | null;
 }
 
-const TRIGGER_TYPES = [
-	{ value: "entity.created", label: "When entity is created" },
-	{ value: "entity.updated", label: "When entity is updated" },
-	{ value: "entity.deleted", label: "When entity is deleted" },
-	{ value: "user.signup", label: "When user signs up" },
-	{ value: "schedule", label: "On schedule" },
+/** All available auth events */
+const AUTH_EVENTS = [
+	{ value: "user.signup", label: "User signs up" },
+	{ value: "user.signin", label: "User signs in" },
 ];
 
-const ACTION_TYPES = [
-	{ value: "send_email", label: "Send email" },
-	{ value: "webhook", label: "Call webhook" },
-	{ value: "update_entity", label: "Update entity" },
-	{ value: "run_code", label: "Run custom code" },
-];
-
-function getTriggerLabel(type: string): string {
-	return TRIGGER_TYPES.find((t) => t.value === type)?.label ?? type;
+/** Build entity events from schema */
+function buildEntityEvents(
+	entities: WebhooksPanelProps["schema"],
+): Array<{ value: string; label: string }> {
+	if (!entities?.entities?.length) return [];
+	const events: Array<{ value: string; label: string }> = [];
+	for (const entity of entities.entities) {
+		events.push(
+			{
+				value: `entity.created:${entity.tableName}`,
+				label: `${entity.name} created`,
+			},
+			{
+				value: `entity.updated:${entity.tableName}`,
+				label: `${entity.name} updated`,
+			},
+			{
+				value: `entity.deleted:${entity.tableName}`,
+				label: `${entity.name} deleted`,
+			},
+		);
+	}
+	return events;
 }
 
-function getActionLabel(type: string): string {
-	return ACTION_TYPES.find((a) => a.value === type)?.label ?? type;
+function StatusDot({ ok }: { ok: boolean | null }) {
+	if (ok === null)
+		return (
+			<span className="inline-block w-2 h-2 rounded-full bg-white/20" />
+		);
+	return ok ? (
+		<span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+	) : (
+		<span className="inline-block w-2 h-2 rounded-full bg-red-500" />
+	);
 }
 
-export function AutomationsPanel({ appId }: AutomationsPanelProps) {
-	const [automations, setAutomations] = useState<Automation[]>([]);
+function timeAgo(dateStr: string): string {
+	const diff = Date.now() - new Date(dateStr).getTime();
+	const mins = Math.floor(diff / 60_000);
+	if (mins < 1) return "just now";
+	if (mins < 60) return `${mins}m ago`;
+	const hrs = Math.floor(mins / 60);
+	if (hrs < 24) return `${hrs}h ago`;
+	const days = Math.floor(hrs / 24);
+	return `${days}d ago`;
+}
+
+export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
+	const [webhooks, setWebhooks] = useState<WebhookItem[]>([]);
 	const [loading, setLoading] = useState(true);
-	const [showCreateForm, setShowCreateForm] = useState(false);
-	const [creating, setCreating] = useState(false);
+	const [showForm, setShowForm] = useState(false);
+	const [editingId, setEditingId] = useState<number | null>(null);
+	const [saving, setSaving] = useState(false);
+	const [expandedLogs, setExpandedLogs] = useState<number | null>(null);
+	const [logs, setLogs] = useState<DeliveryLog[]>([]);
+	const [logsLoading, setLogsLoading] = useState(false);
+	const [testingId, setTestingId] = useState<number | null>(null);
+	const [testResult, setTestResult] = useState<{
+		success: boolean;
+		status?: number;
+		durationMs?: number;
+	} | null>(null);
 
-	// Create form state
-	const [newName, setNewName] = useState("");
-	const [newTriggerType, setNewTriggerType] = useState("entity.created");
-	const [newActionType, setNewActionType] = useState("webhook");
-	const [newTriggerConfig, setNewTriggerConfig] = useState("");
-	const [newActionConfig, setNewActionConfig] = useState("");
+	// Form state
+	const [formUrl, setFormUrl] = useState("");
+	const [formDescription, setFormDescription] = useState("");
+	const [formEvents, setFormEvents] = useState<string[]>([]);
+	const [formSecret, setFormSecret] = useState("");
+	const [formHeaders, setFormHeaders] = useState<
+		Array<{ key: string; value: string }>
+	>([]);
 
-	const fetchAutomations = useCallback(async () => {
+	const entityEvents = buildEntityEvents(schema);
+	const allEvents = [...entityEvents, ...AUTH_EVENTS];
+
+	const fetchWebhooks = useCallback(async () => {
 		try {
-			const res = await fetch(`/api/apps/${appId}/automations`);
+			const res = await fetch(`/api/apps/${appId}/webhooks`);
 			if (res.ok) {
 				const data = await res.json();
-				setAutomations(data.automations || []);
+				setWebhooks(data.webhooks || []);
 			}
 		} catch {
-			// Ignore
+			// ignore
 		}
 		setLoading(false);
 	}, [appId]);
 
 	useEffect(() => {
-		fetchAutomations();
-	}, [fetchAutomations]);
+		fetchWebhooks();
+	}, [fetchWebhooks]);
 
-	const handleCreate = useCallback(async () => {
-		if (!newName.trim()) return;
-		setCreating(true);
-		try {
-			let triggerConfig = {};
-			let actionConfig = {};
-			if (newTriggerConfig.trim()) {
-				try {
-					triggerConfig = JSON.parse(newTriggerConfig);
-				} catch {
-					// Invalid JSON, use empty
-				}
-			}
-			if (newActionConfig.trim()) {
-				try {
-					actionConfig = JSON.parse(newActionConfig);
-				} catch {
-					// Invalid JSON, use empty
-				}
-			}
-
-			const res = await fetch(`/api/apps/${appId}/automations`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					name: newName.trim(),
-					triggerType: newTriggerType,
-					triggerConfig,
-					actionType: newActionType,
-					actionConfig,
-				}),
-			});
-			if (res.ok) {
-				setShowCreateForm(false);
-				setNewName("");
-				setNewTriggerType("entity.created");
-				setNewActionType("webhook");
-				setNewTriggerConfig("");
-				setNewActionConfig("");
-				fetchAutomations();
-			}
-		} catch {
-			// Error
-		}
-		setCreating(false);
-	}, [appId, newName, newTriggerType, newActionType, newTriggerConfig, newActionConfig, fetchAutomations]);
-
-	const handleToggle = useCallback(
-		async (automation: Automation) => {
-			// Optimistic update
-			setAutomations((prev) =>
-				prev.map((a) =>
-					a.dbId === automation.dbId
-						? { ...a, enabled: !a.enabled }
-						: a,
-				),
-			);
+	const fetchLogs = useCallback(
+		async (webhookDbId: number) => {
+			setLogsLoading(true);
 			try {
-				await fetch(`/api/apps/${appId}/automations`, {
+				const res = await fetch(
+					`/api/apps/${appId}/webhooks/${webhookDbId}/logs?limit=10`,
+				);
+				if (res.ok) {
+					const data = await res.json();
+					setLogs(data.logs || []);
+				}
+			} catch {
+				// ignore
+			}
+			setLogsLoading(false);
+		},
+		[appId],
+	);
+
+	const resetForm = () => {
+		setFormUrl("");
+		setFormDescription("");
+		setFormEvents([]);
+		setFormSecret("");
+		setFormHeaders([]);
+		setEditingId(null);
+	};
+
+	const openCreateForm = () => {
+		resetForm();
+		setShowForm(true);
+	};
+
+	const openEditForm = (wh: WebhookItem) => {
+		setFormUrl(wh.url);
+		setFormDescription(wh.description || "");
+		setFormEvents([...wh.events]);
+		setFormSecret("");
+		setFormHeaders(
+			Object.entries(wh.headers || {}).map(([key, value]) => ({
+				key,
+				value,
+			})),
+		);
+		setEditingId(wh.dbId);
+		setShowForm(true);
+	};
+
+	const handleSave = useCallback(async () => {
+		if (!formUrl.trim() || formEvents.length === 0) return;
+		setSaving(true);
+		try {
+			const headers =
+				formHeaders.length > 0
+					? Object.fromEntries(
+							formHeaders
+								.filter((h) => h.key.trim())
+								.map((h) => [h.key.trim(), h.value]),
+						)
+					: {};
+
+			if (editingId) {
+				// Update
+				await fetch(`/api/apps/${appId}/webhooks`, {
 					method: "PUT",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
-						automationDbId: automation.dbId,
-						enabled: !automation.enabled,
+						webhookDbId: editingId,
+						url: formUrl.trim(),
+						description: formDescription.trim() || null,
+						events: formEvents,
+						secret: formSecret || undefined,
+						headers,
+					}),
+				});
+			} else {
+				// Create
+				await fetch(`/api/apps/${appId}/webhooks`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						url: formUrl.trim(),
+						description: formDescription.trim() || null,
+						events: formEvents,
+						secret: formSecret || null,
+						headers,
+					}),
+				});
+			}
+			setShowForm(false);
+			resetForm();
+			fetchWebhooks();
+		} catch {
+			// error
+		}
+		setSaving(false);
+	}, [
+		appId,
+		formUrl,
+		formDescription,
+		formEvents,
+		formSecret,
+		formHeaders,
+		editingId,
+		fetchWebhooks,
+	]);
+
+	const handleToggle = useCallback(
+		async (wh: WebhookItem) => {
+			setWebhooks((prev) =>
+				prev.map((w) =>
+					w.dbId === wh.dbId ? { ...w, enabled: !w.enabled } : w,
+				),
+			);
+			try {
+				await fetch(`/api/apps/${appId}/webhooks`, {
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						webhookDbId: wh.dbId,
+						enabled: !wh.enabled,
 					}),
 				});
 			} catch {
-				// Revert on error
-				setAutomations((prev) =>
-					prev.map((a) =>
-						a.dbId === automation.dbId
-							? { ...a, enabled: automation.enabled }
-							: a,
+				setWebhooks((prev) =>
+					prev.map((w) =>
+						w.dbId === wh.dbId ? { ...w, enabled: wh.enabled } : w,
 					),
 				);
 			}
@@ -170,21 +297,56 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 
 	const handleDelete = useCallback(
 		async (dbId: number) => {
-			if (!window.confirm("Delete this automation? This cannot be undone."))
+			if (!window.confirm("Delete this webhook? This cannot be undone."))
 				return;
 			try {
-				await fetch(`/api/apps/${appId}/automations`, {
+				await fetch(`/api/apps/${appId}/webhooks`, {
 					method: "DELETE",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ automationDbId: dbId }),
+					body: JSON.stringify({ webhookDbId: dbId }),
 				});
-				fetchAutomations();
+				fetchWebhooks();
 			} catch {
-				// Ignore
+				// ignore
 			}
 		},
-		[appId, fetchAutomations],
+		[appId, fetchWebhooks],
 	);
+
+	const handleTest = useCallback(
+		async (dbId: number) => {
+			setTestingId(dbId);
+			setTestResult(null);
+			try {
+				const res = await fetch(`/api/apps/${appId}/webhooks/test`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ webhookDbId: dbId }),
+				});
+				const data = await res.json();
+				setTestResult({
+					success: data.success,
+					status: data.status,
+					durationMs: data.durationMs,
+				});
+			} catch {
+				setTestResult({ success: false });
+			}
+			setTimeout(() => {
+				setTestingId(null);
+				setTestResult(null);
+			}, 4000);
+		},
+		[appId],
+	);
+
+	const toggleEvent = (event: string) => {
+		setFormEvents((prev) =>
+			prev.includes(event)
+				? prev.filter((e) => e !== event)
+				: [...prev, event],
+		);
+	};
 
 	if (loading) {
 		return (
@@ -200,135 +362,217 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 				{/* Header */}
 				<div className="flex items-center justify-between">
 					<div>
-						<div className="flex items-center gap-2">
-							<h1 className="text-2xl font-bold text-white/90">
-								Automations
-							</h1>
-							<span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-								Paid Feature
-							</span>
-						</div>
+						<h1 className="text-2xl font-bold text-white/90">Webhooks</h1>
 						<p className="text-sm text-white/40 mt-1">
-							Automate actions when events happen in your app
+							Send HTTP callbacks when events happen in your app
 						</p>
 					</div>
-					{!showCreateForm && (
+					{!showForm && (
 						<button
 							type="button"
-							onClick={() => setShowCreateForm(true)}
+							onClick={openCreateForm}
 							className="px-3 py-2 rounded-md bg-gradient-to-r from-violet-500/80 to-cyan-500/80 text-white hover:from-violet-500 hover:to-cyan-500 text-sm font-medium transition-colors flex items-center gap-2"
 						>
 							<Plus className="h-3.5 w-3.5" />
-							New Automation
+							New Webhook
 						</button>
 					)}
 				</div>
 
-				{/* Create Form */}
-				{showCreateForm && (
+				{/* Create/Edit Form */}
+				{showForm && (
 					<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-4">
 						<h3 className="text-sm font-medium text-white/90">
-							Create Automation
+							{editingId ? "Edit Webhook" : "New Webhook"}
 						</h3>
 
-						{/* Name */}
+						{/* URL */}
 						<div>
 							<label className="block text-xs text-white/40 mb-1">
-								Name
+								Endpoint URL
+							</label>
+							<input
+								type="url"
+								value={formUrl}
+								onChange={(e) => setFormUrl(e.target.value)}
+								placeholder="https://example.com/webhooks/vibexe"
+								className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30 font-mono"
+							/>
+						</div>
+
+						{/* Description */}
+						<div>
+							<label className="block text-xs text-white/40 mb-1">
+								Description (optional)
 							</label>
 							<input
 								type="text"
-								value={newName}
-								onChange={(e) => setNewName(e.target.value)}
-								placeholder="e.g., Send welcome email on signup"
+								value={formDescription}
+								onChange={(e) => setFormDescription(e.target.value)}
+								placeholder="e.g., Slack notification on new orders"
 								className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
 							/>
 						</div>
 
-						{/* Trigger + Action row */}
-						<div className="grid grid-cols-2 gap-4">
-							<div>
-								<label className="block text-xs text-white/40 mb-1">
-									Trigger
-								</label>
-								<select
-									value={newTriggerType}
-									onChange={(e) => setNewTriggerType(e.target.value)}
-									className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
-								>
-									{TRIGGER_TYPES.map((t) => (
-										<option key={t.value} value={t.value}>
-											{t.label}
-										</option>
-									))}
-								</select>
-							</div>
-							<div>
-								<label className="block text-xs text-white/40 mb-1">
-									Action
-								</label>
-								<select
-									value={newActionType}
-									onChange={(e) => setNewActionType(e.target.value)}
-									className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
-								>
-									{ACTION_TYPES.map((a) => (
-										<option key={a.value} value={a.value}>
-											{a.label}
-										</option>
-									))}
-								</select>
+						{/* Events */}
+						<div>
+							<label className="block text-xs text-white/40 mb-2">
+								Events ({formEvents.length} selected)
+							</label>
+							<div className="space-y-3">
+								{entityEvents.length > 0 && (
+									<div>
+										<div className="text-[10px] uppercase tracking-wider text-white/30 mb-1.5">
+											Data Events
+										</div>
+										<div className="flex flex-wrap gap-1.5">
+											{entityEvents.map((ev) => (
+												<button
+													key={ev.value}
+													type="button"
+													onClick={() => toggleEvent(ev.value)}
+													className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+														formEvents.includes(ev.value)
+															? "bg-violet-500/30 text-violet-200 border border-violet-500/40"
+															: "bg-white/[0.04] text-white/50 border border-white/[0.06] hover:bg-white/[0.08]"
+													}`}
+												>
+													{ev.label}
+												</button>
+											))}
+										</div>
+									</div>
+								)}
+								<div>
+									<div className="text-[10px] uppercase tracking-wider text-white/30 mb-1.5">
+										Auth Events
+									</div>
+									<div className="flex flex-wrap gap-1.5">
+										{AUTH_EVENTS.map((ev) => (
+											<button
+												key={ev.value}
+												type="button"
+												onClick={() => toggleEvent(ev.value)}
+												className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+													formEvents.includes(ev.value)
+														? "bg-violet-500/30 text-violet-200 border border-violet-500/40"
+														: "bg-white/[0.04] text-white/50 border border-white/[0.06] hover:bg-white/[0.08]"
+												}`}
+											>
+												{ev.label}
+											</button>
+										))}
+									</div>
+								</div>
 							</div>
 						</div>
 
-						{/* Config fields */}
-						<div className="grid grid-cols-2 gap-4">
-							<div>
-								<label className="block text-xs text-white/40 mb-1">
-									Trigger Config (JSON, optional)
-								</label>
-								<textarea
-									value={newTriggerConfig}
-									onChange={(e) => setNewTriggerConfig(e.target.value)}
-									placeholder='{"entity": "tasks"}'
-									rows={2}
-									className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-violet-500/30 resize-none"
+						{/* Secret */}
+						<div>
+							<label className="block text-xs text-white/40 mb-1">
+								Signing Secret (optional)
+							</label>
+							<div className="flex gap-2">
+								<input
+									type="text"
+									value={formSecret}
+									onChange={(e) => setFormSecret(e.target.value)}
+									placeholder={
+										editingId
+											? "Leave empty to keep current"
+											: "HMAC-SHA256 signing key"
+									}
+									className="flex-1 px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30 font-mono"
 								/>
+								<button
+									type="button"
+									onClick={() => setFormSecret(`whsec_${nanoid(32)}`)}
+									className="px-3 py-2 rounded-md border border-white/[0.08] text-xs text-white/40 hover:text-white/90 hover:bg-white/[0.06] transition-colors flex-shrink-0"
+									title="Generate random secret"
+								>
+									Generate
+								</button>
 							</div>
-							<div>
-								<label className="block text-xs text-white/40 mb-1">
-									Action Config (JSON, optional)
-								</label>
-								<textarea
-									value={newActionConfig}
-									onChange={(e) => setNewActionConfig(e.target.value)}
-									placeholder='{"url": "https://..."}'
-									rows={2}
-									className="w-full px-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-violet-500/30 resize-none"
-								/>
-							</div>
+						</div>
+
+						{/* Custom Headers */}
+						<div>
+							<label className="block text-xs text-white/40 mb-1">
+								Custom Headers (optional)
+							</label>
+							{formHeaders.map((h, i) => (
+								<div key={i} className="flex gap-2 mb-1.5">
+									<input
+										type="text"
+										value={h.key}
+										onChange={(e) =>
+											setFormHeaders((prev) =>
+												prev.map((x, j) =>
+													j === i ? { ...x, key: e.target.value } : x,
+												),
+											)
+										}
+										placeholder="Header name"
+										className="flex-1 px-3 py-1.5 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500/30 font-mono"
+									/>
+									<input
+										type="text"
+										value={h.value}
+										onChange={(e) =>
+											setFormHeaders((prev) =>
+												prev.map((x, j) =>
+													j === i ? { ...x, value: e.target.value } : x,
+												),
+											)
+										}
+										placeholder="Value"
+										className="flex-1 px-3 py-1.5 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-xs focus:outline-none focus:ring-1 focus:ring-violet-500/30 font-mono"
+									/>
+									<button
+										type="button"
+										onClick={() =>
+											setFormHeaders((prev) => prev.filter((_, j) => j !== i))
+										}
+										className="p-1.5 text-white/40 hover:text-red-400 transition-colors"
+									>
+										<X className="h-3 w-3" />
+									</button>
+								</div>
+							))}
+							<button
+								type="button"
+								onClick={() =>
+									setFormHeaders((prev) => [
+										...prev,
+										{ key: "", value: "" },
+									])
+								}
+								className="text-[11px] text-white/40 hover:text-white/70 transition-colors"
+							>
+								+ Add header
+							</button>
 						</div>
 
 						{/* Buttons */}
 						<div className="flex gap-2">
 							<button
 								type="button"
-								onClick={handleCreate}
-								disabled={creating || !newName.trim()}
+								onClick={handleSave}
+								disabled={
+									saving || !formUrl.trim() || formEvents.length === 0
+								}
 								className="px-4 py-2 rounded-md bg-gradient-to-r from-violet-500/80 to-cyan-500/80 text-white hover:from-violet-500 hover:to-cyan-500 text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
 							>
-								{creating && (
+								{saving && (
 									<Loader2 className="h-3.5 w-3.5 animate-spin" />
 								)}
-								Create
+								{editingId ? "Update" : "Create"}
 							</button>
 							<button
 								type="button"
 								onClick={() => {
-									setShowCreateForm(false);
-									setNewName("");
-									setNewTriggerConfig("");
-									setNewActionConfig("");
+									setShowForm(false);
+									resetForm();
 								}}
 								className="px-3 py-2 rounded-md border border-white/[0.08] text-sm text-white/40 hover:text-white/90 transition-colors"
 							>
@@ -338,127 +582,277 @@ export function AutomationsPanel({ appId }: AutomationsPanelProps) {
 					</div>
 				)}
 
-				{/* Automations List */}
+				{/* Webhooks List */}
 				<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm overflow-hidden">
 					<div className="p-4 border-b border-white/[0.06] flex items-center gap-2">
-						<Zap className="h-4 w-4 text-white/40" />
+						<Webhook className="h-4 w-4 text-white/40" />
 						<h3 className="text-sm font-medium text-white/90">
-							Automations ({automations.length})
+							Webhooks ({webhooks.length})
 						</h3>
 					</div>
-					{automations.length === 0 ? (
+
+					{webhooks.length === 0 ? (
 						<div className="p-8 text-center">
-							<Zap className="h-8 w-8 text-white/20 mx-auto mb-3" />
-							<p className="text-sm text-white/40">
-								No automations yet
+							<Webhook className="h-8 w-8 text-white/20 mx-auto mb-3" />
+							<p className="text-sm text-white/40">No webhooks configured</p>
+							<p className="text-xs text-white/30 mt-1">
+								Create a webhook to get notified when events happen
 							</p>
-							<p className="text-xs text-white/40 mt-1">
-								Create an automation to trigger actions when events occur
-							</p>
-							{!showCreateForm && (
+							{!showForm && (
 								<button
 									type="button"
-									onClick={() => setShowCreateForm(true)}
+									onClick={openCreateForm}
 									className="mt-4 px-3 py-1.5 rounded-md border border-white/[0.08] text-sm text-white/40 hover:text-white/90 hover:bg-white/[0.06] transition-colors inline-flex items-center gap-1.5"
 								>
 									<Plus className="h-3.5 w-3.5" />
-									New Automation
+									New Webhook
 								</button>
 							)}
 						</div>
 					) : (
 						<div className="divide-y divide-white/[0.06]">
-							{automations.map((automation) => (
-								<div
-									key={automation.dbId}
-									className="flex items-center justify-between px-4 py-3"
-								>
-									<div className="flex items-center gap-3 min-w-0 flex-1">
-										{/* Enable/disable toggle */}
-										<button
-											type="button"
-											onClick={() => handleToggle(automation)}
-											className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
-												automation.enabled
-													? "bg-gradient-to-r from-violet-500 to-cyan-500"
-													: "bg-muted-foreground/20"
-											}`}
-											title={automation.enabled ? "Disable" : "Enable"}
-										>
-											<span
-												className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white/[0.02] transition-transform ${
-													automation.enabled
-														? "translate-x-[18px]"
-														: "translate-x-[3px]"
+							{webhooks.map((wh) => (
+								<div key={wh.dbId}>
+									<div className="flex items-center justify-between px-4 py-3">
+										<div className="flex items-center gap-3 min-w-0 flex-1">
+											{/* Toggle */}
+											<button
+												type="button"
+												onClick={() => handleToggle(wh)}
+												className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
+													wh.enabled
+														? "bg-gradient-to-r from-violet-500 to-cyan-500"
+														: "bg-white/10"
 												}`}
-											/>
-										</button>
+												title={wh.enabled ? "Disable" : "Enable"}
+											>
+												<span
+													className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+														wh.enabled
+															? "translate-x-[18px]"
+															: "translate-x-[3px]"
+													}`}
+												/>
+											</button>
 
-										<div className="min-w-0 flex-1">
-											<div className="flex items-center gap-2 flex-wrap">
-												<span className="text-sm font-medium text-white/90 truncate">
-													{automation.name}
-												</span>
+											<div className="min-w-0 flex-1">
+												<div className="flex items-center gap-2">
+													<span className="text-sm font-mono text-white/80 truncate max-w-[280px]">
+														{wh.url}
+													</span>
+													{wh.secret && (
+														<span className="text-[9px] px-1 py-0.5 rounded bg-green-900/40 text-green-400 flex-shrink-0">
+															SIGNED
+														</span>
+													)}
+												</div>
+												{wh.description && (
+													<p className="text-xs text-white/40 truncate mt-0.5">
+														{wh.description}
+													</p>
+												)}
+												<div className="flex items-center gap-1.5 mt-1 flex-wrap">
+													{wh.events.slice(0, 3).map((ev) => (
+														<span
+															key={ev}
+															className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-900/40 text-blue-300"
+														>
+															{ev}
+														</span>
+													))}
+													{wh.events.length > 3 && (
+														<span className="text-[10px] text-white/30">
+															+{wh.events.length - 3} more
+														</span>
+													)}
+												</div>
 											</div>
-											<div className="flex items-center gap-2 mt-0.5 flex-wrap">
-												<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-													{getTriggerLabel(automation.triggerType)}
-												</span>
-												<span className="text-[10px] text-white/40">
-													then
-												</span>
-												<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
-													{getActionLabel(automation.actionType)}
-												</span>
+										</div>
+
+										<div className="flex items-center gap-2 flex-shrink-0 ml-3">
+											{/* Delivery status */}
+											<div className="flex items-center gap-1.5 text-right">
+												<StatusDot ok={wh.lastDeliveryOk} />
+												<div>
+													<div className="text-[10px] text-white/40">
+														{wh.lastDeliveryAt
+															? timeAgo(wh.lastDeliveryAt)
+															: "Never"}
+													</div>
+													{(wh.deliverySuccessCount > 0 ||
+														wh.deliveryFailureCount > 0) && (
+														<div className="text-[9px] text-white/30">
+															<span className="text-emerald-400">
+																{wh.deliverySuccessCount}
+															</span>
+															{" / "}
+															<span className="text-red-400">
+																{wh.deliveryFailureCount}
+															</span>
+														</div>
+													)}
+												</div>
 											</div>
+
+											{/* Actions */}
+											<button
+												type="button"
+												onClick={() => handleTest(wh.dbId)}
+												disabled={testingId === wh.dbId}
+												className="p-1.5 rounded hover:bg-white/[0.06] text-white/40 hover:text-white/90 transition-colors"
+												title="Send test ping"
+											>
+												{testingId === wh.dbId ? (
+													testResult ? (
+														testResult.success ? (
+															<Check className="h-3.5 w-3.5 text-emerald-400" />
+														) : (
+															<AlertCircle className="h-3.5 w-3.5 text-red-400" />
+														)
+													) : (
+														<Loader2 className="h-3.5 w-3.5 animate-spin" />
+													)
+												) : (
+													<Send className="h-3.5 w-3.5" />
+												)}
+											</button>
+
+											<button
+												type="button"
+												onClick={() => {
+													if (expandedLogs === wh.dbId) {
+														setExpandedLogs(null);
+													} else {
+														setExpandedLogs(wh.dbId);
+														fetchLogs(wh.dbId);
+													}
+												}}
+												className="p-1.5 rounded hover:bg-white/[0.06] text-white/40 hover:text-white/90 transition-colors"
+												title="View delivery logs"
+											>
+												{expandedLogs === wh.dbId ? (
+													<ChevronDown className="h-3.5 w-3.5" />
+												) : (
+													<ChevronRight className="h-3.5 w-3.5" />
+												)}
+											</button>
+
+											<button
+												type="button"
+												onClick={() => openEditForm(wh)}
+												className="p-1.5 rounded hover:bg-white/[0.06] text-white/40 hover:text-white/90 transition-colors"
+												title="Edit webhook"
+											>
+												<ExternalLink className="h-3.5 w-3.5" />
+											</button>
+
+											<button
+												type="button"
+												onClick={() => handleDelete(wh.dbId)}
+												className="p-1.5 rounded hover:bg-red-500/10 text-white/40 hover:text-red-500 transition-colors"
+												title="Delete webhook"
+											>
+												<Trash2 className="h-3.5 w-3.5" />
+											</button>
 										</div>
 									</div>
 
-									<div className="flex items-center gap-3 flex-shrink-0 ml-3">
-										{/* Run info */}
-										<div className="text-right">
-											<div className="flex items-center gap-1 text-xs text-white/40">
-												<Clock className="h-3 w-3" />
-												{automation.lastRunAt
-													? new Date(automation.lastRunAt).toLocaleDateString()
-													: "Never run"}
-											</div>
-											{automation.runCount > 0 && (
-												<span className="text-[10px] text-white/40">
-													{automation.runCount} run{automation.runCount !== 1 ? "s" : ""}
+									{/* Expanded Logs */}
+									{expandedLogs === wh.dbId && (
+										<div className="border-t border-white/[0.04] bg-black/20 px-4 py-3">
+											<div className="flex items-center justify-between mb-2">
+												<span className="text-[11px] text-white/40 font-medium">
+													Recent Deliveries
 												</span>
+												<button
+													type="button"
+													onClick={() => fetchLogs(wh.dbId)}
+													className="text-[10px] text-white/30 hover:text-white/60 transition-colors flex items-center gap-1"
+												>
+													<RefreshCw className="h-2.5 w-2.5" />
+													Refresh
+												</button>
+											</div>
+											{logsLoading ? (
+												<div className="py-4 flex justify-center">
+													<Loader2 className="h-4 w-4 animate-spin text-white/30" />
+												</div>
+											) : logs.length === 0 ? (
+												<p className="text-[11px] text-white/30 py-2">
+													No deliveries yet
+												</p>
+											) : (
+												<div className="space-y-1">
+													{logs.map((log) => (
+														<div
+															key={log.dbId}
+															className="flex items-center gap-3 text-[11px] py-1"
+														>
+															<StatusDot ok={log.success} />
+															<span className="text-white/50 font-mono w-[120px] truncate">
+																{log.eventType}
+															</span>
+															<span
+																className={`w-8 text-center font-mono ${
+																	log.success
+																		? "text-emerald-400"
+																		: "text-red-400"
+																}`}
+															>
+																{log.responseStatus ?? "ERR"}
+															</span>
+															<span className="text-white/30 w-12">
+																{log.durationMs
+																	? `${log.durationMs}ms`
+																	: "-"}
+															</span>
+															<span className="text-white/20 w-6 text-center">
+																#{log.attempt}
+															</span>
+															<span className="text-white/30 flex-1 text-right">
+																{timeAgo(log.createdAt)}
+															</span>
+															{log.errorMessage && (
+																<span
+																	className="text-red-400/60 truncate max-w-[120px]"
+																	title={log.errorMessage}
+																>
+																	{log.errorMessage}
+																</span>
+															)}
+														</div>
+													))}
+												</div>
 											)}
 										</div>
-
-										{/* Delete */}
-										<button
-											type="button"
-											onClick={() => handleDelete(automation.dbId)}
-											className="p-1.5 rounded hover:bg-red-500/10 text-white/40 hover:text-red-500 transition-colors"
-											title="Delete automation"
-										>
-											<Trash2 className="h-3.5 w-3.5" />
-										</button>
-									</div>
+									)}
 								</div>
 							))}
 						</div>
 					)}
 				</div>
 
-				{/* Info Section */}
+				{/* Info */}
 				<div className="rounded-xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
 					<div className="flex items-start gap-3">
-						<Zap className="h-5 w-5 text-white/40 flex-shrink-0 mt-0.5" />
+						<Webhook className="h-5 w-5 text-white/40 flex-shrink-0 mt-0.5" />
 						<div>
 							<h3 className="text-sm font-medium text-white/90">
-								About Automations
+								About Webhooks
 							</h3>
 							<ul className="text-xs text-white/40 mt-2 space-y-1 list-disc list-inside">
-								<li>Automations run server-side when trigger events occur</li>
-								<li>Supports entity lifecycle events and scheduled triggers</li>
-								<li>Actions include sending emails, calling webhooks, and running code</li>
-								<li>Toggle automations on/off without deleting their configuration</li>
+								<li>
+									Webhooks send HTTP POST requests when events happen in your
+									app
+								</li>
+								<li>
+									Payloads are signed with HMAC-SHA256 if a secret is configured
+								</li>
+								<li>Failed deliveries retry up to 3 times with exponential backoff</li>
+								<li>
+									Headers include X-Vibexe-Event, X-Vibexe-Signature, and
+									X-Vibexe-Delivery
+								</li>
 							</ul>
 						</div>
 					</div>

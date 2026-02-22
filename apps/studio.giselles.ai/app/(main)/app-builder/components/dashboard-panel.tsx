@@ -16,7 +16,7 @@ import { AuthenticationPanel } from "./authentication-panel";
 import { BackendSettings } from "./backend-settings";
 import { ExportPanel } from "./export-panel";
 import { AppTemplatePanel } from "./app-template-panel";
-import { AutomationsPanel } from "./automations-panel";
+import { WebhooksPanel } from "./automations-panel";
 import { CodePanel } from "./code-panel";
 import { type DashboardSection, DashboardSidebar } from "./dashboard-sidebar";
 import { DataBrowser } from "./data-browser";
@@ -108,7 +108,7 @@ export function DashboardPanel({
 			case "agents":
 				return <AgentsPanel appId={appId} />;
 			case "automations":
-				return <AutomationsPanel appId={appId} />;
+				return <WebhooksPanel appId={appId} schema={schema} />;
 			case "analytics":
 				return <AnalyticsPanel appId={appId} files={files} />;
 			case "domains":

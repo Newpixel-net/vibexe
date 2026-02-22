@@ -1804,6 +1804,69 @@ export const builderAppAutomationRelations = relations(
 );
 
 // ====================================================================
+// APP WEBHOOKS
+// ====================================================================
+
+export const builderAppWebhooks = pgTable("builder_app_webhooks", {
+	dbId: serial("db_id").primaryKey(),
+	appDbId: integer("app_db_id")
+		.notNull()
+		.references(() => builderApps.dbId, { onDelete: "cascade" }),
+	url: text("url").notNull(),
+	description: text("description"),
+	events: jsonb("events").notNull().$type<string[]>(),
+	secret: text("secret"),
+	headers: jsonb("headers").default({}).$type<Record<string, string>>(),
+	enabled: boolean("enabled").notNull().default(true),
+	lastDeliveryAt: timestamp("last_delivery_at", { withTimezone: true }),
+	lastDeliveryOk: boolean("last_delivery_ok"),
+	deliverySuccessCount: integer("delivery_success_count").default(0),
+	deliveryFailureCount: integer("delivery_failure_count").default(0),
+	createdAt: timestamp("created_at", { withTimezone: true })
+		.defaultNow()
+		.notNull(),
+});
+
+export const builderAppWebhookRelations = relations(
+	builderAppWebhooks,
+	({ one, many }) => ({
+		app: one(builderApps, {
+			fields: [builderAppWebhooks.appDbId],
+			references: [builderApps.dbId],
+		}),
+		logs: many(builderAppWebhookLogs),
+	}),
+);
+
+export const builderAppWebhookLogs = pgTable("builder_app_webhook_logs", {
+	dbId: serial("db_id").primaryKey(),
+	webhookDbId: integer("webhook_db_id")
+		.notNull()
+		.references(() => builderAppWebhooks.dbId, { onDelete: "cascade" }),
+	eventType: text("event_type").notNull(),
+	payload: jsonb("payload"),
+	responseStatus: integer("response_status"),
+	responseBody: text("response_body"),
+	attempt: integer("attempt").notNull(),
+	success: boolean("success").notNull(),
+	durationMs: integer("duration_ms"),
+	errorMessage: text("error_message"),
+	createdAt: timestamp("created_at", { withTimezone: true })
+		.defaultNow()
+		.notNull(),
+});
+
+export const builderAppWebhookLogRelations = relations(
+	builderAppWebhookLogs,
+	({ one }) => ({
+		webhook: one(builderAppWebhooks, {
+			fields: [builderAppWebhookLogs.webhookDbId],
+			references: [builderAppWebhooks.dbId],
+		}),
+	}),
+);
+
+// ====================================================================
 // AI PROVIDER KEY MANAGEMENT
 // ====================================================================
 

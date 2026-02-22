@@ -15,6 +15,7 @@ import { db } from "@/db";
 import { type BuilderAppId, builderAppDatabases, builderApps } from "@/db/schema";
 import { verifyPassword } from "@/lib/auth/password";
 import { logAppEvent } from "@/lib/app-database/app-logger";
+import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 
 interface RouteParams {
@@ -33,7 +34,7 @@ async function resolveAppDb(appId: string) {
 	});
 	if (!appDb || appDb.status !== "active") return null;
 
-	return appDb.databaseName;
+	return { databaseName: appDb.databaseName, appDbId: app.dbId };
 }
 
 const SESSION_DURATION_DAYS = 30;
@@ -41,10 +42,11 @@ const SESSION_DURATION_DAYS = 30;
 export async function POST(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
-		const databaseName = await resolveAppDb(appId);
-		if (!databaseName) {
+		const appInfo = await resolveAppDb(appId);
+		if (!appInfo) {
 			return NextResponse.json({ error: "App not found" }, { status: 404 });
 		}
+		const { databaseName, appDbId } = appInfo;
 
 		const body = await request.json();
 		const { email, password } = body as {
@@ -146,6 +148,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			message: `User signed in: ${user.email}`,
 			userId: Number(user.id),
 			userEmail: user.email,
+		});
+
+		// Dispatch webhooks (fire-and-forget)
+		dispatchWebhooks(appDbId, appId, "user.signin", null, {
+			id: user.id,
+			email: user.email,
 		});
 
 		return NextResponse.json({

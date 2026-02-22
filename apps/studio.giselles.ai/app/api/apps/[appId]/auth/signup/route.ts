@@ -20,6 +20,7 @@ import {
 } from "@/db/schema";
 import { hashPassword } from "@/lib/auth/password";
 import { logAppEvent } from "@/lib/app-database/app-logger";
+import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 
 interface RouteParams {
@@ -139,6 +140,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			userId: Number(user.id),
 			userEmail: email.toLowerCase(),
 		});
+
+		// Dispatch webhooks (fire-and-forget)
+		if (app) {
+			dispatchWebhooks(app.dbId, appId, "user.signup", null, {
+				id: user.id,
+				email: user.email,
+				display_name: user.display_name,
+			});
+		}
 
 		// If pending approval, skip session creation
 		if (requireApproval) {

@@ -24,7 +24,7 @@ import {
 	Settings,
 	Shield,
 	Users,
-	Zap,
+	Webhook,
 } from "lucide-react";
 import { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -73,7 +73,7 @@ const navItems: NavItem[] = [
 	{ id: "security", label: "Security", icon: Shield },
 	{ id: "code", label: "Code", icon: Code2 },
 	{ id: "agents", label: "Agents", icon: Bot },
-	{ id: "automations", label: "Automations", icon: Zap },
+	{ id: "automations", label: "Webhooks", icon: Webhook },
 	{ id: "logs", label: "Logs", icon: FileText },
 	{ id: "api", label: "API", icon: Key },
 	{
