@@ -12,7 +12,12 @@ import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import { db } from "@/db";
-import { type BuilderAppId, builderAppDatabases, builderApps } from "@/db/schema";
+import {
+	type BuilderAppId,
+	builderAppDatabases,
+	builderApps,
+	builderAppAuthSettings,
+} from "@/db/schema";
 import { hashPassword } from "@/lib/auth/password";
 import { logAppEvent } from "@/lib/app-database/app-logger";
 import { executeQuery } from "@/lib/app-database/pool-manager";
@@ -92,20 +97,57 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		// Hash password
 		const passwordHash = await hashPassword(password);
 
+		// Check if app requires signup approval
+		const app = await db.query.builderApps.findFirst({
+			where: eq(builderApps.id, appId as BuilderAppId),
+			columns: { dbId: true },
+		});
+		let requireApproval = false;
+		if (app) {
+			const authSettings = await db.query.builderAppAuthSettings.findFirst({
+				where: eq(builderAppAuthSettings.appDbId, app.dbId),
+			});
+			requireApproval = authSettings?.requireApproval ?? false;
+		}
+
+		const userStatus = requireApproval ? "pending" : "active";
+
 		// Insert user
 		const users = await executeQuery<{
 			id: string;
 			email: string;
 			display_name: string | null;
+			status: string;
 			created_at: string;
 		}>(
 			databaseName,
-			`INSERT INTO "_app_users" (email, password_hash, display_name)
-			 VALUES ($1, $2, $3)
-			 RETURNING id, email, display_name, created_at`,
-			[email.toLowerCase(), passwordHash, display_name || null],
+			`INSERT INTO "_app_users" (email, password_hash, display_name, status)
+			 VALUES ($1, $2, $3, $4)
+			 RETURNING id, email, display_name, status, created_at`,
+			[email.toLowerCase(), passwordHash, display_name || null, userStatus],
 		);
 		const user = users[0];
+
+		// Log signup (fire-and-forget, don't await)
+		logAppEvent(databaseName, {
+			level: "info",
+			category: "auth",
+			eventType: "app.user.signup",
+			message: `New user signed up: ${email.toLowerCase()}${requireApproval ? " (pending approval)" : ""}`,
+			userId: Number(user.id),
+			userEmail: email.toLowerCase(),
+		});
+
+		// If pending approval, skip session creation
+		if (requireApproval) {
+			return NextResponse.json(
+				{
+					pending: true,
+					message: "Your account is pending approval",
+				},
+				{ status: 202 },
+			);
+		}
 
 		// Create session
 		const token = nanoid(48);
@@ -119,16 +161,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			 VALUES ($1, $2, $3)`,
 			[token, user.id, expiresAt.toISOString()],
 		);
-
-		// Log signup (fire-and-forget, don't await)
-		logAppEvent(databaseName, {
-			level: "info",
-			category: "auth",
-			eventType: "app.user.signup",
-			message: `New user signed up: ${email.toLowerCase()}`,
-			userId: Number(user.id),
-			userEmail: email.toLowerCase(),
-		});
 
 		return NextResponse.json(
 			{

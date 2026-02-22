@@ -24,6 +24,7 @@ const DEFAULTS = {
 	githubEnabled: false,
 	microsoftEnabled: false,
 	appleEnabled: false,
+	requireApproval: false,
 };
 
 export async function GET(_request: Request, { params }: RouteParams) {
@@ -53,6 +54,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 			githubEnabled: settings.githubEnabled,
 			microsoftEnabled: settings.microsoftEnabled,
 			appleEnabled: settings.appleEnabled,
+			requireApproval: settings.requireApproval,
 		});
 	} catch (error) {
 		console.error("[Auth Settings API] GET error:", error);
@@ -85,6 +87,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			githubEnabled: body.githubEnabled ?? DEFAULTS.githubEnabled,
 			microsoftEnabled: body.microsoftEnabled ?? DEFAULTS.microsoftEnabled,
 			appleEnabled: body.appleEnabled ?? DEFAULTS.appleEnabled,
+			requireApproval: body.requireApproval ?? DEFAULTS.requireApproval,
 		};
 
 		await db
@@ -98,6 +101,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
 					githubEnabled: values.githubEnabled,
 					microsoftEnabled: values.microsoftEnabled,
 					appleEnabled: values.appleEnabled,
+					requireApproval: values.requireApproval,
 				},
 			});
 

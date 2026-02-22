@@ -9,6 +9,7 @@
 
 import {
 	KeyRound,
+	Lock,
 	Mail,
 	Shield,
 } from "lucide-react";
@@ -122,6 +123,7 @@ function AuthIcon({ type }: { type: string }) {
 export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 	const [methods, setMethods] = useState<AuthMethod[]>(DEFAULT_AUTH_METHODS);
 	const [saving, setSaving] = useState(false);
+	const [requireApproval, setRequireApproval] = useState(false);
 
 	// Fetch persisted auth settings on mount
 	useEffect(() => {
@@ -137,6 +139,7 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 							return { ...m, enabled: data[camelKey] ?? m.enabled };
 						}),
 					);
+					setRequireApproval(data.requireApproval ?? false);
 				}
 			} catch {
 				// Use defaults on error
@@ -220,6 +223,58 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 							</button>
 						</div>
 					))}
+				</div>
+
+				{/* Signup Approval */}
+				<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4">
+					<div className="flex items-center justify-between">
+						<div className="flex items-center gap-4">
+							<div className="h-10 w-10 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center">
+								<Lock className="h-5 w-5 text-white/40" />
+							</div>
+							<div>
+								<h3 className="text-sm font-medium text-white/90">
+									Signup Approval
+								</h3>
+								<p className="text-xs text-white/40 mt-0.5">
+									Require admin approval for new signups. New users will be set to
+									"pending" until approved in the Users panel.
+								</p>
+							</div>
+						</div>
+						<button
+							type="button"
+							onClick={() => {
+								const newVal = !requireApproval;
+								setRequireApproval(newVal);
+								// Build full settings body
+								const body: Record<string, boolean> = { requireApproval: newVal };
+								for (const m of methods) {
+									const key = m.id === "email_password" ? "emailPasswordEnabled" : `${m.id}Enabled`;
+									body[key] = m.enabled;
+								}
+								setSaving(true);
+								fetch(`/api/apps/${appId}/auth-settings`, {
+									method: "PUT",
+									headers: { "Content-Type": "application/json" },
+									body: JSON.stringify(body),
+								}).finally(() => setSaving(false));
+							}}
+							className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+								requireApproval
+									? "bg-gradient-to-r from-violet-500 to-cyan-500"
+									: "bg-white/[0.08]"
+							}`}
+						>
+							<span
+								className={`inline-block h-4 w-4 transform rounded-full bg-transparent transition-transform ${
+									requireApproval
+										? "translate-x-6"
+										: "translate-x-1"
+								}`}
+							/>
+						</button>
+					</div>
 				</div>
 
 				{/* SSO Section */}

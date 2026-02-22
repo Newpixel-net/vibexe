@@ -65,10 +65,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			email: string;
 			display_name: string | null;
 			password_hash: string;
+			status: string;
 			created_at: string;
 		}>(
 			databaseName,
-			`SELECT id, email, display_name, password_hash, created_at
+			`SELECT id, email, display_name, password_hash, status, created_at
 			 FROM "_app_users"
 			 WHERE email = $1
 			 LIMIT 1`,
@@ -93,6 +94,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
+		// Check account status
+		if (user.status === "suspended") {
+			return NextResponse.json(
+				{ error: "Account is suspended" },
+				{ status: 403 },
+			);
+		}
+		if (user.status === "pending") {
+			return NextResponse.json(
+				{ error: "Account is pending approval" },
+				{ status: 403 },
+			);
+		}
+
 		// Create session
 		const token = nanoid(48);
 		const expiresAt = new Date(
@@ -104,6 +119,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			`INSERT INTO "_app_sessions" (id, user_id, expires_at)
 			 VALUES ($1, $2, $3)`,
 			[token, user.id, expiresAt.toISOString()],
+		);
+
+		// Update last_login_at (fire-and-forget)
+		executeQuery(
+			databaseName,
+			`UPDATE "_app_users" SET last_login_at = NOW() WHERE id = $1`,
+			[user.id],
 		);
 
 		// Log signin (fire-and-forget, don't await)

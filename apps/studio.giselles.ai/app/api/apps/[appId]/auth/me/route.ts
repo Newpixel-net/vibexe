@@ -55,6 +55,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			user_id: string;
 			email: string;
 			display_name: string | null;
+			role: string;
+			status: string;
+			last_login_at: string | null;
 			created_at: string;
 			session_expires_at: string;
 		}>(
@@ -63,6 +66,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 				u.id AS user_id,
 				u.email,
 				u.display_name,
+				u.role,
+				u.status,
+				u.last_login_at,
 				u.created_at,
 				s.expires_at AS session_expires_at
 			 FROM "_app_sessions" s
@@ -81,11 +87,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 		const row = results[0];
 
+		// Reject suspended or pending users
+		if (row.status === "suspended" || row.status === "pending") {
+			return NextResponse.json(
+				{ error: "Account is not active" },
+				{ status: 401 },
+			);
+		}
+
 		return NextResponse.json({
 			user: {
 				id: row.user_id,
 				email: row.email,
 				display_name: row.display_name,
+				role: row.role,
+				status: row.status,
+				last_login_at: row.last_login_at,
 				created_at: row.created_at,
 			},
 		});

@@ -180,9 +180,21 @@ async function createAuthTables(databaseName: string): Promise<void> {
 			display_name TEXT,
 			role TEXT NOT NULL DEFAULT 'user',
 			email_verified BOOLEAN NOT NULL DEFAULT false,
+			status TEXT NOT NULL DEFAULT 'active',
+			last_login_at TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
+	);
+
+	// Add columns for existing app databases that were created before these columns existed
+	await executeQuery(
+		databaseName,
+		`ALTER TABLE _app_users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'`,
+	);
+	await executeQuery(
+		databaseName,
+		`ALTER TABLE _app_users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ`,
 	);
 
 	await executeQuery(
