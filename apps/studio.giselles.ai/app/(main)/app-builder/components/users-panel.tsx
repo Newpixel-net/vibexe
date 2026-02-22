@@ -382,7 +382,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 
 	// Suspend / activate
 	const handleToggleStatus = async (user: AppUser) => {
-		const action = user.status === "active" ? "suspend" : "activate";
+		const action = (user.status || "active") === "active" ? "suspend" : "activate";
 		const confirmMsg =
 			action === "suspend"
 				? `Suspend ${user.email}? They will be logged out and unable to sign in.`
@@ -1037,7 +1037,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 																/>
 																<DropdownItem
 																	icon={
-																		user.status ===
+																		(user.status || "active") ===
 																		"active" ? (
 																			<Ban className="h-3.5 w-3.5" />
 																		) : (
@@ -1045,7 +1045,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 																		)
 																	}
 																	label={
-																		user.status ===
+																		(user.status || "active") ===
 																		"active"
 																			? "Suspend"
 																			: "Activate"
@@ -1216,19 +1216,19 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 											selectedUser.status || "active"
 										}
 									/>
-									{selectedUser.status !== "pending" && (
+									{(selectedUser.status || "active") !== "pending" && (
 										<button
 											type="button"
 											onClick={() =>
 												handleToggleStatus(selectedUser)
 											}
 											className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${
-												selectedUser.status === "active"
+												(selectedUser.status || "active") === "active"
 													? "border-red-500/30 text-red-400 hover:bg-red-500/10"
 													: "border-green-500/30 text-green-400 hover:bg-green-500/10"
 											}`}
 										>
-											{selectedUser.status === "active"
+											{(selectedUser.status || "active") === "active"
 												? "Suspend"
 												: "Activate"}
 										</button>
