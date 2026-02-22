@@ -62,6 +62,12 @@ await app.auth.signOut();
 const user = await app.auth.getCurrentUser();   // returns AppUser | null
 app.auth.isAuthenticated();                      // boolean
 // Session token: localStorage "vibexe_session" (SDK manages automatically)
+
+// ─── Serverless Functions ───
+// Invoke custom backend functions registered in the Functions panel
+const result = await app.functions.invoke("calculatePrice", { items: [...] });
+// Sends POST to /api/apps/{appId}/functions/{name}
+// Returns whatever the function returns
 \`\`\`
 
 **Entity naming**: \`define_entities\` uses PascalCase names (e.g. "BlogPost"). SDK calls use the auto-generated snake_case table name: \`app.data.list("blog_posts")\`.
@@ -387,4 +393,87 @@ async function validateAuthFlow(): Promise<FlowResult> {
   return { flow: "Authentication", steps };
 }
 \`\`\`
+`;
+
+/** Backend function file conventions for AI agents */
+export const SDK_FUNCTIONS_REFERENCE = `
+## Backend Functions — File Convention
+
+Backend functions live in the \`functions/\` directory. Each file exports a default async function
+that receives a context object (\`ctx\`). Functions are registered with a trigger type:
+
+### HTTP Endpoint Function
+\`\`\`typescript
+// functions/calculatePrice.ts
+export default async function(ctx) {
+  const { items } = ctx.request.body;
+  const products = await ctx.db.query(
+    'SELECT * FROM "products" WHERE id = ANY($1)',
+    [items.map(i => i.product_id)]
+  );
+  const total = items.reduce((sum, item) => {
+    const product = products.find(p => p.id === item.product_id);
+    return sum + (product?.price ?? 0) * item.quantity;
+  }, 0);
+  return { total, currency: "USD" };
+}
+// Trigger: { triggerType: "http" }
+// Call from frontend: app.functions.invoke("calculatePrice", { items })
+\`\`\`
+
+### Entity Hook Function
+\`\`\`typescript
+// functions/validateOrder.ts
+export default async function(ctx) {
+  // ctx.data = the incoming record data
+  // ctx.record = the existing record (for update/delete)
+  // ctx.entity = entity name
+  // ctx.hookType = "beforeCreate" | "afterCreate" | etc.
+  if (!ctx.data.total || ctx.data.total <= 0) {
+    throw new Error("Order total must be positive");
+  }
+  // Return modified data (for "before" hooks)
+  return { ...ctx.data, validated_at: new Date().toISOString() };
+}
+// Trigger: { triggerType: "entity_hook", triggerConfig: { entity: "orders", hook: "beforeCreate" } }
+\`\`\`
+
+### Scheduled Function
+\`\`\`typescript
+// functions/dailyCleanup.ts
+export default async function(ctx) {
+  const result = await ctx.db.query(
+    'DELETE FROM "sessions" WHERE expires_at < NOW() RETURNING id'
+  );
+  console.log("Cleaned up " + result.length + " expired sessions");
+}
+// Trigger: { triggerType: "scheduled", triggerConfig: { cron: "0 2 * * *" } }
+\`\`\`
+
+### Context Object API
+\`\`\`
+ctx.db.query(sql, params)     — Parameterized SQL query, returns row array
+ctx.db.list(entity, options)  — List rows { data, total } (same as SDK)
+ctx.db.get(entity, id)        — Get single row by ID
+ctx.db.create(entity, data)   — Insert row, returns created row
+ctx.db.update(entity, id, d)  — Update row, returns updated row
+ctx.db.delete(entity, id)     — Delete row, returns boolean
+ctx.auth                      — { userId, email, role } or null
+ctx.env                       — App secrets (key-value from Secrets panel)
+ctx.fetch                     — Global fetch for external API calls
+ctx.console.log/warn/error    — Captured to app logs
+ctx.request                   — (HTTP only) { body, headers, query, method }
+ctx.data / ctx.record         — (Hook only) mutation data / existing record
+ctx.hookType                  — (Hook only) "beforeCreate" | "afterCreate" | etc.
+\`\`\`
+
+### Hook Types
+| Hook | Runs | Can modify? | Can abort? |
+|------|------|------------|------------|
+| beforeCreate | Before INSERT | Return modified data | Throw to abort |
+| afterCreate  | After INSERT  | No | No (fire-and-forget) |
+| beforeUpdate | Before UPDATE | Return modified data | Throw to abort |
+| afterUpdate  | After UPDATE  | No | No (fire-and-forget) |
+| beforeDelete | Before DELETE | No | Throw to abort |
+| afterDelete  | After DELETE  | No | No (fire-and-forget) |
 `;

@@ -18,6 +18,7 @@ import { executeQuery } from "@/lib/app-database/pool-manager";
 import { emitDataEvent } from "@/lib/realtime/event-bus";
 import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
 import type { AppSchema } from "@/lib/app-database/schema-types";
+import { runEntityHook } from "@/lib/app-functions/hooks";
 
 interface RouteParams {
 	params: Promise<{ appId: string; entity: string; id: string }>;
@@ -191,12 +192,39 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 			return NextResponse.json({ error: "Request body must be a JSON object" }, { status: 400 });
 		}
 
+		// Run beforeUpdate hook (can modify body or abort)
+		let hookBody = body;
+		if (!ctx.isInternal) {
+			// Fetch existing record for hook context
+			const existingRows = await executeQuery(
+				ctx.databaseName,
+				`SELECT * FROM "${ctx.entity.tableName}" WHERE id = $1`,
+				[rowId],
+			);
+			const existing = existingRows[0] as Record<string, unknown> | undefined;
+
+			const hookResult = await runEntityHook({
+				databaseName: ctx.databaseName,
+				appDbId: ctx.appDb.appDbId,
+				appId,
+				entity: entityName,
+				hookType: "beforeUpdate",
+				data: body,
+				existing: existing ?? undefined,
+				user: await resolveAppUser(ctx.databaseName, request).catch(() => null),
+			});
+			if (hookResult.abort) {
+				return NextResponse.json({ error: hookResult.abort }, { status: 400 });
+			}
+			if (hookResult.data) hookBody = hookResult.data;
+		}
+
 		const fieldMap = new Map(ctx.entity.fields.map((f) => [f.name, f]));
 		const setClauses: string[] = [];
 		const values: unknown[] = [];
 		let paramIndex = 1;
 
-		for (const [key, value] of Object.entries(body)) {
+		for (const [key, value] of Object.entries(hookBody)) {
 			const field = fieldMap.get(key);
 			if (field) {
 				// Coerce empty strings to null for non-text types
@@ -261,6 +289,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 		// Emit real-time event
 		emitDataEvent(appId, { entity: entityName, action: "updated", record: rows[0] as Record<string, unknown> });
 
+		// Run afterUpdate hook (fire-and-forget)
+		if (!ctx.isInternal) {
+			runEntityHook({
+				databaseName: ctx.databaseName,
+				appDbId: ctx.appDb.appDbId,
+				appId,
+				entity: entityName,
+				hookType: "afterUpdate",
+				data: rows[0] as Record<string, unknown>,
+				user: await resolveAppUser(ctx.databaseName, request).catch(() => null),
+			}).catch(() => {});
+		}
+
 		return NextResponse.json({ data: rows[0] });
 	} catch (error) {
 		console.error("[Data API] PUT error:", error);
@@ -282,6 +323,30 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 		const rowId = Number.parseInt(id, 10);
 		if (Number.isNaN(rowId)) {
 			return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+		}
+
+		// Run beforeDelete hook (can abort)
+		if (!ctx.isInternal) {
+			const existingRows = await executeQuery(
+				ctx.databaseName,
+				`SELECT * FROM "${ctx.entity.tableName}" WHERE id = $1`,
+				[rowId],
+			);
+			const existing = existingRows[0] as Record<string, unknown> | undefined;
+
+			const hookResult = await runEntityHook({
+				databaseName: ctx.databaseName,
+				appDbId: ctx.appDb.appDbId,
+				appId,
+				entity: entityName,
+				hookType: "beforeDelete",
+				data: existing ?? { id: rowId },
+				existing: existing ?? undefined,
+				user: await resolveAppUser(ctx.databaseName, request).catch(() => null),
+			});
+			if (hookResult.abort) {
+				return NextResponse.json({ error: hookResult.abort }, { status: 400 });
+			}
 		}
 
 		// Build WHERE clause: id = $1 + optional RLS clauses
@@ -329,6 +394,19 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
 		// Emit real-time event
 		emitDataEvent(appId, { entity: entityName, action: "deleted", record: { id: rowId } });
+
+		// Run afterDelete hook (fire-and-forget)
+		if (!ctx.isInternal) {
+			runEntityHook({
+				databaseName: ctx.databaseName,
+				appDbId: ctx.appDb.appDbId,
+				appId,
+				entity: entityName,
+				hookType: "afterDelete",
+				data: { id: rowId },
+				user: await resolveAppUser(ctx.databaseName, request).catch(() => null),
+			}).catch(() => {});
+		}
 
 		return NextResponse.json({ success: true, deleted: rowId });
 	} catch (error) {

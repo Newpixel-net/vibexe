@@ -82,7 +82,10 @@ getToken(){return this.t}
 _s(t){this.t=t;if(typeof window!=="undefined")localStorage.setItem("vibexe_session",t)}
 _c(){this.t=null;if(typeof window!=="undefined")localStorage.removeItem("vibexe_session")}
 }
-class VibexeApp{constructor(c){this.appId=c.appId;var base=(c.baseUrl||g.location.protocol+"//vibexe.online")+"/api/apps/"+c.appId;var h={};if(c.apiKey)h["X-Vibexe-Api-Key"]=c.apiKey;this.data=new DataClient(base,h);this.auth=new AuthClient(base,h)}}
+class FunctionsClient{constructor(b,h){this.b=b;this.h=h}
+async invoke(n,d){var r=await fetch(this.b+"/functions/"+encodeURIComponent(n),{method:"POST",headers:Object.assign({},this.h,{"Content-Type":"application/json"}),body:d!==undefined?JSON.stringify(d):undefined});if(!r.ok){var err=await r.json().catch(function(){return{}});throw new Error(err.error||"Function failed")}return(await r.json()).data}
+}
+class VibexeApp{constructor(c){this.appId=c.appId;var base=(c.baseUrl||g.location.protocol+"//vibexe.online")+"/api/apps/"+c.appId;var h={};if(c.apiKey)h["X-Vibexe-Api-Key"]=c.apiKey;this.data=new DataClient(base,h);this.auth=new AuthClient(base,h);this.functions=new FunctionsClient(base,h)}}
 g.VibexeApp=VibexeApp;
 })(typeof globalThis!=="undefined"?globalThis:window);
 `;

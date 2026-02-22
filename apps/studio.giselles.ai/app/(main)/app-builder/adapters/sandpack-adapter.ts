@@ -283,6 +283,27 @@ class AuthClient {
   }
 }
 
+class FunctionsClient {
+  constructor(baseUrl, headers) {
+    this.baseUrl = baseUrl;
+    this.headers = headers;
+  }
+
+  async invoke(name, data) {
+    const url = this.baseUrl + "/functions/" + encodeURIComponent(name);
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: data !== undefined ? JSON.stringify(data) : undefined,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Function failed: " + res.status);
+    }
+    return (await res.json()).data;
+  }
+}
+
 export class VibexeApp {
   constructor(config) {
     // Runtime appId override (injected by Sandpack host) takes precedence over hardcoded config
@@ -296,6 +317,7 @@ export class VibexeApp {
     if (config.apiKey) headers["X-Vibexe-Api-Key"] = config.apiKey;
     this.data = new DataClient(base, headers);
     this.auth = new AuthClient(base, headers);
+    this.functions = new FunctionsClient(base, headers);
   }
 }
 `;

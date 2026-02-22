@@ -2,9 +2,10 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { NodeId, type TaskId, WorkspaceId } from "@giselles-ai/protocol";
 import { db } from "@/db";
-import { agents, scheduledWorkflows } from "@/db/schema";
+import { agents, scheduledWorkflows, builderAppFunctions, builderAppDatabases, builderApps } from "@/db/schema";
 import { giselle } from "@/app/giselle";
 import { and, eq, isNotNull, lte } from "drizzle-orm";
+import { executeFunction, loadFunctionSource } from "@/lib/app-functions/runner";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -178,10 +179,100 @@ export async function GET(request: NextRequest) {
 			console.error("[Cleanup] Error during stuck task cleanup:", e);
 		}
 
+		// --- Sweep: Scheduled App Functions ---
+		let functionsTriggered = 0;
+		let functionsErrors = 0;
+		try {
+			const dueFunctions = await db
+				.select({
+					fnDbId: builderAppFunctions.dbId,
+					fnName: builderAppFunctions.name,
+					fnFilePath: builderAppFunctions.filePath,
+					fnTimeoutMs: builderAppFunctions.timeoutMs,
+					fnTriggerConfig: builderAppFunctions.triggerConfig,
+					fnRunCount: builderAppFunctions.runCount,
+					fnErrorCount: builderAppFunctions.errorCount,
+					appDbId: builderAppDatabases.appDbId,
+					databaseName: builderAppDatabases.databaseName,
+					appId: builderApps.id,
+				})
+				.from(builderAppFunctions)
+				.innerJoin(builderAppDatabases, eq(builderAppDatabases.appDbId, builderAppFunctions.appDbId))
+				.innerJoin(builderApps, eq(builderApps.dbId, builderAppFunctions.appDbId))
+				.where(
+					and(
+						eq(builderAppFunctions.triggerType, "scheduled"),
+						eq(builderAppFunctions.enabled, true),
+						eq(builderAppDatabases.status, "active"),
+					),
+				);
+
+			for (const fn of dueFunctions) {
+				try {
+					const config = fn.fnTriggerConfig as Record<string, unknown> | null;
+					const cronExpr = (config?.cron as string) ?? "";
+					if (!cronExpr) continue;
+
+					// Check if function is due (compare lastRunAt with cron schedule)
+					const lastRun = await db.query.builderAppFunctions.findFirst({
+						where: eq(builderAppFunctions.dbId, fn.fnDbId),
+						columns: { lastRunAt: true },
+					});
+
+					const nextRun = calculateNextRun(cronExpr, (config?.timezone as string) ?? "UTC");
+					// If nextRun is in the future from the last run, but in the past from now → it's due
+					const lastRunTime = lastRun?.lastRunAt?.getTime() ?? 0;
+					if (nextRun.getTime() > now.getTime()) continue; // Not due yet
+
+					// Prevent re-running within the same minute
+					if (lastRunTime > 0 && now.getTime() - lastRunTime < 55000) continue;
+
+					// Load source and execute
+					const source = await loadFunctionSource(fn.appDbId, fn.fnFilePath);
+					if (!source) {
+						console.warn(`[Scheduled Function] Source not found: ${fn.fnFilePath}`);
+						continue;
+					}
+
+					await executeFunction({
+						appId: fn.appId,
+						appDbId: fn.appDbId,
+						databaseName: fn.databaseName,
+						source,
+						timeoutMs: fn.fnTimeoutMs ?? 10000,
+					});
+
+					// Update stats
+					await db.update(builderAppFunctions).set({
+						lastRunAt: now,
+						runCount: (fn.fnRunCount ?? 0) + 1,
+						lastError: null,
+					}).where(eq(builderAppFunctions.dbId, fn.fnDbId));
+
+					functionsTriggered++;
+					console.log(`[Scheduled Function] Ran: ${fn.fnName} (app=${fn.appId})`);
+				} catch (err) {
+					functionsErrors++;
+					const errMsg = err instanceof Error ? err.message : String(err);
+					console.error(`[Scheduled Function] Error running ${fn.fnName}:`, errMsg);
+
+					await db.update(builderAppFunctions).set({
+						lastRunAt: now,
+						errorCount: (fn.fnErrorCount ?? 0) + 1,
+						lastError: errMsg,
+					}).where(eq(builderAppFunctions.dbId, fn.fnDbId)).catch(() => {});
+				}
+			}
+		} catch (e) {
+			console.error("[Scheduled Functions] Sweep error:", e);
+		}
+
 		return Response.json({
 			triggered: results.filter((r) => r.status === "triggered").length,
 			errors: results.filter((r) => r.status === "error").length,
 			cleanedUp,
+			functionsTriggered,
+			functionsErrors,
 			results,
 		});
 	} catch (err) {

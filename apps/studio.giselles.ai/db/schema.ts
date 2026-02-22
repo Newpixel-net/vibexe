@@ -2259,3 +2259,83 @@ export const builderAppTemplateRelations = relations(
 
 export type BuilderAppTemplate = typeof builderAppTemplates.$inferSelect;
 export type NewBuilderAppTemplate = typeof builderAppTemplates.$inferInsert;
+
+// ====================================================================
+// BUILDER APP FUNCTIONS (Serverless Backend Functions)
+// ====================================================================
+
+export const builderAppFunctions = pgTable(
+	"builder_app_functions",
+	{
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		filePath: text("file_path").notNull(),
+		triggerType: text("trigger_type").notNull(), // http | entity_hook | scheduled
+		triggerConfig: jsonb("trigger_config").default({}),
+		enabled: boolean("enabled").default(true).notNull(),
+		timeoutMs: integer("timeout_ms").default(10000),
+		lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+		runCount: integer("run_count").default(0).notNull(),
+		errorCount: integer("error_count").default(0).notNull(),
+		lastError: text("last_error"),
+		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		unique("builder_app_functions_app_name_idx").on(table.appDbId, table.name),
+		index("builder_app_functions_app_db_id_idx").on(table.appDbId),
+		index("builder_app_functions_trigger_type_idx").on(table.triggerType),
+	],
+);
+
+export const builderAppFunctionRelations = relations(
+	builderAppFunctions,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppFunctions.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);
+
+export type BuilderAppFunction = typeof builderAppFunctions.$inferSelect;
+
+// ====================================================================
+// BUILDER APP SECRETS (Encrypted key-value store per app)
+// ====================================================================
+
+export const builderAppSecrets = pgTable(
+	"builder_app_secrets",
+	{
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		key: text("key").notNull(),
+		encryptedValue: text("encrypted_value").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		unique("builder_app_secrets_app_key_idx").on(table.appDbId, table.key),
+	],
+);
+
+export const builderAppSecretRelations = relations(
+	builderAppSecrets,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppSecrets.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);

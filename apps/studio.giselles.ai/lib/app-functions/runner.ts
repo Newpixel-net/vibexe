@@ -1,0 +1,261 @@
+/**
+ * Serverless Function Runner
+ *
+ * Executes user TypeScript functions in a sandboxed node:vm context.
+ * TypeScript is transpiled to JS via esbuild's transform() API.
+ * Functions receive a context object with db, auth, env, fetch, console.
+ *
+ * Security: No require, process, __dirname, __filename, Buffer, global access.
+ * Only safe globals are exposed (JSON, Math, Date, Promise, etc.).
+ */
+
+import * as vm from "node:vm";
+import { transform } from "esbuild";
+import { eq, and } from "drizzle-orm";
+import { db } from "@/db";
+import { builderFiles, builderApps, builderAppDatabases } from "@/db/schema";
+import type { BuilderAppId } from "@/db/schema";
+import { logAppEvent } from "@/lib/app-database/app-logger";
+import type { AppUser } from "@/lib/app-database/rls";
+import { buildFunctionContext, type BuildContextOpts } from "./context";
+import { loadAppSecrets } from "./secrets";
+
+// ---- Types ----
+
+export interface ExecuteFunctionOpts {
+	appId: string;
+	appDbId: number;
+	databaseName: string;
+	/** Function source code (TypeScript) */
+	source: string;
+	/** Timeout in milliseconds */
+	timeoutMs?: number;
+	/** Current user (from auth) */
+	user?: AppUser | null;
+	/** HTTP request context (for HTTP triggers) */
+	request?: BuildContextOpts["request"];
+	/** Entity hook context */
+	entity?: string;
+	record?: Record<string, unknown>;
+	hookData?: Record<string, unknown>;
+	hookType?: string;
+}
+
+export interface ExecuteFunctionResult {
+	result: unknown;
+	logs: string[];
+	durationMs: number;
+}
+
+// ---- Transpile ----
+
+async function transpileTS(source: string): Promise<string> {
+	const result = await transform(source, {
+		loader: "ts",
+		format: "esm",
+		target: "es2022",
+	});
+	return result.code;
+}
+
+// ---- Execute ----
+
+export async function executeFunction(opts: ExecuteFunctionOpts): Promise<ExecuteFunctionResult> {
+	const startTime = Date.now();
+	const timeoutMs = Math.min(opts.timeoutMs ?? 10000, 30000);
+	const consoleLogs: string[] = [];
+
+	// 1. Transpile TS → JS
+	let jsCode: string;
+	try {
+		jsCode = await transpileTS(opts.source);
+	} catch (err) {
+		throw new Error(`TypeScript compilation failed: ${err instanceof Error ? err.message : String(err)}`);
+	}
+
+	// 2. Load app secrets
+	const secrets = await loadAppSecrets(opts.appDbId);
+
+	// 3. Build function context
+	const ctx = buildFunctionContext({
+		databaseName: opts.databaseName,
+		user: opts.user ?? null,
+		secrets,
+		consoleLogs,
+		appId: opts.appId,
+		request: opts.request,
+		entity: opts.entity,
+		record: opts.record,
+		hookData: opts.hookData,
+		hookType: opts.hookType,
+	});
+
+	// 4. Create sandbox with safe globals + context
+	const sandbox: Record<string, unknown> = {
+		// Function context exposed as `ctx`
+		ctx,
+		// Also expose top-level for convenience
+		db: ctx.db,
+		auth: ctx.auth,
+		env: ctx.env,
+		console: ctx.console,
+		// HTTP trigger
+		request: ctx.request,
+		// Entity hook
+		entity: ctx.entity,
+		record: ctx.record,
+		data: ctx.data,
+		hookType: ctx.hookType,
+		// Safe JS globals
+		JSON,
+		Math,
+		Date,
+		String,
+		Number,
+		Boolean,
+		Array,
+		Object,
+		Map,
+		Set,
+		RegExp,
+		Error,
+		TypeError,
+		RangeError,
+		Promise,
+		parseInt,
+		parseFloat,
+		isNaN,
+		isFinite,
+		encodeURIComponent,
+		decodeURIComponent,
+		encodeURI,
+		decodeURI,
+		atob,
+		btoa,
+		URL,
+		URLSearchParams,
+		setTimeout: (fn: () => void, ms: number) => setTimeout(fn, Math.min(ms, 30000)),
+		clearTimeout,
+		fetch: globalThis.fetch,
+		// Async completion tracking
+		__result: undefined as unknown,
+		__error: undefined as unknown,
+		__done: false,
+	};
+
+	const vmContext = vm.createContext(sandbox);
+
+	// 5. Wrap user code in async IIFE
+	// The transpiled ESM code has `export default` → we need to capture that.
+	// esbuild converts `export default async function(ctx)` to a variable assignment.
+	// We wrap it so the default export function is called with ctx.
+	const wrappedCode = `
+		(async () => {
+			// Capture any default export
+			let __defaultFn;
+			const __exports = {};
+			const __defineExport = (key, val) => {
+				__exports[key] = val;
+				if (key === 'default') __defaultFn = val;
+			};
+
+			// Rewrite export patterns from esbuild ESM output
+			${jsCode
+				.replace(/export\s+default\s+/g, "__defaultFn = ")
+				.replace(/export\s*\{[^}]*\}/g, "")}
+
+			if (typeof __defaultFn === 'function') {
+				return await __defaultFn(ctx);
+			}
+			return undefined;
+		})().then(r => { __result = r; __done = true; }).catch(e => { __error = e; __done = true; });
+	`;
+
+	const script = new vm.Script(wrappedCode, { filename: "user-function.js" });
+
+	// 6. Execute
+	try {
+		script.runInContext(vmContext, { timeout: timeoutMs });
+
+		// Wait for async completion
+		const deadline = Date.now() + timeoutMs;
+		while (!sandbox.__done && Date.now() < deadline) {
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		}
+
+		if (sandbox.__error !== undefined) {
+			const err = sandbox.__error;
+			throw new Error(err instanceof Error ? err.message : String(err));
+		}
+
+		if (!sandbox.__done) {
+			throw new Error(`Function execution timed out after ${timeoutMs}ms`);
+		}
+
+		const durationMs = Date.now() - startTime;
+
+		// Fire-and-forget: log console output
+		if (consoleLogs.length > 0) {
+			logAppEvent(opts.databaseName, {
+				level: "info",
+				category: "system",
+				eventType: "app.function.log",
+				message: consoleLogs.join("\n"),
+				metadata: { appId: opts.appId },
+			});
+		}
+
+		return {
+			result: sandbox.__result,
+			logs: consoleLogs,
+			durationMs,
+		};
+	} catch (error) {
+		const durationMs = Date.now() - startTime;
+		const errMsg = error instanceof Error ? error.message : "Function execution failed";
+
+		// Log error
+		logAppEvent(opts.databaseName, {
+			level: "error",
+			category: "system",
+			eventType: "app.function.error",
+			message: errMsg,
+			metadata: { appId: opts.appId, logs: consoleLogs },
+		});
+
+		throw new Error(errMsg);
+	}
+}
+
+// ---- Load function source from builder_files ----
+
+export async function loadFunctionSource(appDbId: number, filePath: string): Promise<string | null> {
+	const file = await db.query.builderFiles.findFirst({
+		where: and(
+			eq(builderFiles.appDbId, appDbId),
+			eq(builderFiles.path, filePath),
+		),
+		columns: { content: true },
+	});
+	return file?.content ?? null;
+}
+
+// ---- Resolve app context for function execution ----
+
+export async function resolveAppContext(appId: string): Promise<{
+	appDbId: number;
+	databaseName: string;
+} | null> {
+	const app = await db.query.builderApps.findFirst({
+		where: eq(builderApps.id, appId as BuilderAppId),
+		columns: { dbId: true },
+	});
+	if (!app) return null;
+
+	const appDb = await db.query.builderAppDatabases.findFirst({
+		where: eq(builderAppDatabases.appDbId, app.dbId),
+	});
+	if (!appDb || appDb.status !== "active") return null;
+
+	return { appDbId: app.dbId, databaseName: appDb.databaseName };
+}

@@ -18,6 +18,7 @@ import { emitDataEvent } from "@/lib/realtime/event-bus";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
 import type { AppSchema } from "@/lib/app-database/schema-types";
+import { runEntityHook } from "@/lib/app-functions/hooks";
 
 interface RouteParams {
 	params: Promise<{ appId: string; entity: string }>;
@@ -275,6 +276,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			rlsAutoFields = rls.autoFields;
 		}
 
+		// Run beforeCreate hook (can modify body or abort)
+		let hookBody = body;
+		if (!ctx.isInternal) {
+			const hookResult = await runEntityHook({
+				databaseName: ctx.databaseName,
+				appDbId: ctx.appDb.appDbId,
+				appId,
+				entity: entityName,
+				hookType: "beforeCreate",
+				data: body,
+				user: await resolveAppUser(ctx.databaseName, request).catch(() => null),
+			});
+			if (hookResult.abort) {
+				return NextResponse.json({ error: hookResult.abort }, { status: 400 });
+			}
+			if (hookResult.data) hookBody = hookResult.data;
+		}
+
 		// Filter to only known fields
 		const fieldMap = new Map(ctx.entity.fields.map((f) => [f.name, f]));
 		const fields: string[] = [];
@@ -292,7 +311,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			paramIndex++;
 		}
 
-		for (const [key, value] of Object.entries(body)) {
+		for (const [key, value] of Object.entries(hookBody)) {
 			// Skip fields already set by RLS (prevent client from overriding owner)
 			if (key in rlsAutoFields) continue;
 
@@ -332,6 +351,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
 		// Emit real-time event
 		emitDataEvent(appId, { entity: entityName, action: "created", record: rows[0] as Record<string, unknown> });
+
+		// Run afterCreate hook (fire-and-forget)
+		if (!ctx.isInternal) {
+			runEntityHook({
+				databaseName: ctx.databaseName,
+				appDbId: ctx.appDb.appDbId,
+				appId,
+				entity: entityName,
+				hookType: "afterCreate",
+				data: rows[0] as Record<string, unknown>,
+				user: await resolveAppUser(ctx.databaseName, request).catch(() => null),
+			}).catch(() => {});
+		}
 
 		return NextResponse.json({ data: rows[0] }, { status: 201 });
 	} catch (error) {
