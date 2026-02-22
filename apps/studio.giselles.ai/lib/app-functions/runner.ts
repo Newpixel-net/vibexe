@@ -146,23 +146,25 @@ export async function executeFunction(opts: ExecuteFunctionOpts): Promise<Execut
 	const vmContext = vm.createContext(sandbox);
 
 	// 5. Wrap user code in async IIFE
-	// The transpiled ESM code has `export default` → we need to capture that.
-	// esbuild converts `export default async function(ctx)` to a variable assignment.
-	// We wrap it so the default export function is called with ctx.
+	// esbuild converts `export default async function(ctx)` to:
+	//   function stdin_default(ctx) { ... }
+	//   export { stdin_default as default };
+	// We need to capture the default export name and call it with ctx.
+	const processedCode = jsCode
+		.replace(/export\s+default\s+/g, "__defaultFn = ")
+		.replace(/export\s*\{([^}]*)\}/g, (_match, contents: string) => {
+			const defaultMatch = contents.match(/(\w+)\s+as\s+default/);
+			if (defaultMatch) {
+				return `__defaultFn = ${defaultMatch[1]};`;
+			}
+			return "";
+		});
+
 	const wrappedCode = `
 		(async () => {
-			// Capture any default export
 			let __defaultFn;
-			const __exports = {};
-			const __defineExport = (key, val) => {
-				__exports[key] = val;
-				if (key === 'default') __defaultFn = val;
-			};
 
-			// Rewrite export patterns from esbuild ESM output
-			${jsCode
-				.replace(/export\s+default\s+/g, "__defaultFn = ")
-				.replace(/export\s*\{[^}]*\}/g, "")}
+			${processedCode}
 
 			if (typeof __defaultFn === 'function') {
 				return await __defaultFn(ctx);
