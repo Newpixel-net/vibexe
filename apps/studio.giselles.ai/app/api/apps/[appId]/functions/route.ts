@@ -16,6 +16,7 @@ import {
 	builderAppFunctions,
 } from "@/db/schema";
 import { verifyApiKey } from "@/lib/app-database/api-keys";
+import { getUser } from "@/lib/auth/get-user";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -28,12 +29,23 @@ async function resolveApp(appId: string, request: NextRequest) {
 	});
 	if (!app) return { error: "App not found", status: 404 } as const;
 
+	// Check API key first
 	const apiKey = request.headers.get("x-vibexe-api-key");
-	if (!apiKey) return { error: "API key required", status: 401 } as const;
-	const valid = await verifyApiKey(app.dbId, apiKey);
-	if (!valid) return { error: "Invalid API key", status: 401 } as const;
+	if (apiKey) {
+		const valid = await verifyApiKey(app.dbId, apiKey);
+		if (!valid) return { error: "Invalid API key", status: 401 } as const;
+		return { app };
+	}
 
-	return { app };
+	// Builder session fallback — logged-in builders have full access
+	try {
+		const builderUser = await getUser();
+		if (builderUser) return { app };
+	} catch {
+		// Not a builder session
+	}
+
+	return { error: "API key required", status: 401 } as const;
 }
 
 /**

@@ -19,6 +19,7 @@ import {
 import { verifyApiKey } from "@/lib/app-database/api-keys";
 import { resolveAppUser } from "@/lib/app-database/rls";
 import { logAppEvent } from "@/lib/app-database/app-logger";
+import { getUser } from "@/lib/auth/get-user";
 import {
 	uploadFile,
 	listFiles,
@@ -70,6 +71,14 @@ async function authenticateRequest(
 		const valid = await verifyApiKey(appDbId, apiKey);
 		if (!valid) return { allowed: false, error: "Invalid API key", status: 401 };
 		return { allowed: true };
+	}
+
+	// Builder session fallback — logged-in builders have full read/write access
+	try {
+		const builderUser = await getUser();
+		if (builderUser) return { allowed: true };
+	} catch {
+		// Not a builder session — continue with end-user auth
 	}
 
 	// Public = no auth needed
