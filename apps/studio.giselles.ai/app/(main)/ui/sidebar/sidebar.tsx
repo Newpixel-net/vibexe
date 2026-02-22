@@ -65,10 +65,22 @@ function SidebarItem({ part }: { part: SidebarPart }) {
 function createBuildPart(isStageV2Enabled: boolean): SidebarPart {
 	const links: SidebarLink[] = [
 		{
+			id: "dashboard",
+			label: "Dashboard",
+			href: "/dashboard",
+			activeMatchPattern: "/dashboard*",
+		},
+		{
 			id: "app-builder",
 			label: "App Builder",
 			href: "/app-builder",
-			activeMatchPattern: "/app-builder*",
+			activeMatchPattern: ["/app-builder*", "!/app-builder/templates*"],
+		},
+		{
+			id: "templates",
+			label: "Templates",
+			href: "/app-builder/templates",
+			activeMatchPattern: "/app-builder/templates*",
 		},
 		...(isStageV2Enabled
 			? [

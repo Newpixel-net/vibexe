@@ -23,6 +23,7 @@ export async function GET(request: Request) {
 		const teamDbId = searchParams.get("teamDbId")
 			? Number.parseInt(searchParams.get("teamDbId")!, 10)
 			: undefined;
+		const includeAll = searchParams.get("includeAll") === "true";
 
 		const { templates, total } = await listTemplates({
 			category,
@@ -30,6 +31,7 @@ export async function GET(request: Request) {
 			teamDbId,
 			limit,
 			offset,
+			includeAll,
 		});
 
 		return NextResponse.json({

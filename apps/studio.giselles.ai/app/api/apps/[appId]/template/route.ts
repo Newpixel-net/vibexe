@@ -114,6 +114,9 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			category: body.category,
 			tags: body.tags,
 			visibility: body.visibility,
+			featured: body.featured,
+			status: body.status,
+			thumbnailUrl: body.thumbnailUrl,
 		});
 
 		return NextResponse.json({ success: true, template: updated });

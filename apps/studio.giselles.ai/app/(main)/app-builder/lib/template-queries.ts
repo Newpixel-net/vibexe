@@ -109,6 +109,9 @@ export async function updateTemplate(
 		category?: string;
 		tags?: string[];
 		visibility?: string;
+		featured?: boolean;
+		status?: string;
+		thumbnailUrl?: string;
 	},
 ) {
 	const updateData: Record<string, unknown> = {};
@@ -117,6 +120,10 @@ export async function updateTemplate(
 	if (data.category !== undefined) updateData.category = data.category;
 	if (data.tags !== undefined) updateData.tags = data.tags;
 	if (data.visibility !== undefined) updateData.visibility = data.visibility;
+	if (data.featured !== undefined) updateData.featured = data.featured;
+	if (data.status !== undefined) updateData.status = data.status;
+	if (data.thumbnailUrl !== undefined)
+		updateData.thumbnailUrl = data.thumbnailUrl;
 
 	if (Object.keys(updateData).length === 0) return null;
 
@@ -226,6 +233,7 @@ export async function listTemplates(filters: {
 	teamDbId?: number;
 	limit?: number;
 	offset?: number;
+	includeAll?: boolean;
 }) {
 	const conditions = [];
 
@@ -239,6 +247,11 @@ export async function listTemplates(filters: {
 		);
 	} else {
 		conditions.push(eq(builderAppTemplates.visibility, "public"));
+	}
+
+	// Status filter: gallery only shows active, admin sees all
+	if (!filters.includeAll) {
+		conditions.push(eq(builderAppTemplates.status, "active"));
 	}
 
 	if (filters.category) {
@@ -270,6 +283,8 @@ export async function listTemplates(filters: {
 			category: builderAppTemplates.category,
 			tags: builderAppTemplates.tags,
 			visibility: builderAppTemplates.visibility,
+			featured: builderAppTemplates.featured,
+			status: builderAppTemplates.status,
 			useCount: builderAppTemplates.useCount,
 			fileCount: builderAppTemplates.fileCount,
 			entityCount: builderAppTemplates.entityCount,
@@ -278,7 +293,10 @@ export async function listTemplates(filters: {
 		})
 		.from(builderAppTemplates)
 		.where(whereClause)
-		.orderBy(desc(builderAppTemplates.useCount))
+		.orderBy(
+			desc(builderAppTemplates.featured),
+			desc(builderAppTemplates.useCount),
+		)
 		.limit(limit)
 		.offset(offset);
 
@@ -368,4 +386,121 @@ export async function cloneTemplateToApp(
 		app: newApp,
 		schemaSnapshot: template.schemaSnapshot,
 	};
+}
+
+// ============================================================================
+// Admin Queries
+// ============================================================================
+
+export async function listTeamTemplatesAdmin(teamDbId: number) {
+	const templates = await db
+		.select({
+			dbId: builderAppTemplates.dbId,
+			id: builderAppTemplates.id,
+			name: builderAppTemplates.name,
+			description: builderAppTemplates.description,
+			category: builderAppTemplates.category,
+			tags: builderAppTemplates.tags,
+			visibility: builderAppTemplates.visibility,
+			featured: builderAppTemplates.featured,
+			status: builderAppTemplates.status,
+			useCount: builderAppTemplates.useCount,
+			fileCount: builderAppTemplates.fileCount,
+			entityCount: builderAppTemplates.entityCount,
+			sourceAppDbId: builderAppTemplates.sourceAppDbId,
+			authorUserDbId: builderAppTemplates.authorUserDbId,
+			createdAt: builderAppTemplates.createdAt,
+			updatedAt: builderAppTemplates.updatedAt,
+			thumbnailUrl: builderAppTemplates.thumbnailUrl,
+		})
+		.from(builderAppTemplates)
+		.where(eq(builderAppTemplates.teamDbId, teamDbId))
+		.orderBy(
+			desc(builderAppTemplates.featured),
+			desc(builderAppTemplates.updatedAt),
+		);
+
+	// Resolve author names + check source app existence
+	const enriched = await Promise.all(
+		templates.map(async (t) => {
+			let authorName: string | null = null;
+			if (t.authorUserDbId) {
+				const author = await db.query.users.findFirst({
+					where: eq(users.dbId, t.authorUserDbId),
+					columns: { displayName: true, email: true },
+				});
+				authorName = author?.displayName ?? author?.email ?? null;
+			}
+
+			let sourceAppExists = false;
+			let sourceAppId: string | null = null;
+			if (t.sourceAppDbId) {
+				const app = await db.query.builderApps.findFirst({
+					where: eq(builderApps.dbId, t.sourceAppDbId),
+					columns: { id: true },
+				});
+				sourceAppExists = !!app;
+				sourceAppId = app?.id ?? null;
+			}
+
+			return {
+				...t,
+				authorName,
+				sourceAppExists,
+				sourceAppId,
+			};
+		}),
+	);
+
+	return enriched;
+}
+
+export async function rematerializeTemplate(
+	templateDbId: number,
+	teamDbId: number,
+	userDbId: number,
+) {
+	const template = await db.query.builderAppTemplates.findFirst({
+		where: eq(builderAppTemplates.dbId, templateDbId),
+	});
+	if (!template) throw new Error("Template not found");
+
+	// Create a new app from the template snapshot
+	const newId = `bldr_${nanoid()}` as BuilderAppId;
+	const [newApp] = await db
+		.insert(builderApps)
+		.values({
+			id: newId,
+			teamDbId,
+			createdByUserDbId: userDbId,
+			name: template.name,
+			description: template.description,
+		})
+		.returning();
+
+	// Copy files from snapshot
+	const filesSnapshot = template.filesSnapshot as Array<{
+		path: string;
+		content: string;
+		language: string;
+	}>;
+
+	for (const file of filesSnapshot) {
+		const fileId = `bldf_${nanoid()}` as BuilderFileId;
+		await db.insert(builderFiles).values({
+			id: fileId,
+			appDbId: newApp.dbId,
+			path: file.path,
+			content: file.content,
+			language: file.language,
+		});
+	}
+
+	// Update template to point to new source app
+	await db
+		.update(builderAppTemplates)
+		.set({ sourceAppDbId: newApp.dbId })
+		.where(eq(builderAppTemplates.dbId, templateDbId));
+
+	return newApp;
 }

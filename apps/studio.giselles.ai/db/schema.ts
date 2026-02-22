@@ -2216,6 +2216,8 @@ export const builderAppTemplates = pgTable(
 		schemaSnapshot: jsonb("schema_snapshot"),
 		appConfig: jsonb("app_config").default({}),
 		visibility: text("visibility").notNull().default("public"),
+		featured: boolean("featured").notNull().default(false),
+		status: text("status").notNull().default("active"),
 		useCount: integer("use_count").notNull().default(0),
 		fileCount: integer("file_count").notNull().default(0),
 		entityCount: integer("entity_count").notNull().default(0),
@@ -2230,6 +2232,7 @@ export const builderAppTemplates = pgTable(
 		index("builder_app_templates_category_idx").on(table.category),
 		index("builder_app_templates_visibility_idx").on(table.visibility),
 		index("builder_app_templates_use_count_idx").on(table.useCount),
+		index("builder_app_templates_status_idx").on(table.status),
 	],
 );
 
