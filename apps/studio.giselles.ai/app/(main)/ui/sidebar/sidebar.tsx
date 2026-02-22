@@ -282,6 +282,12 @@ export async function Sidebar() {
 							href: "/admin/settings/oauth-apps",
 							activeMatchPattern: "/admin/settings/oauth-apps*",
 						},
+						{
+							id: "admin-templates",
+							label: "Templates",
+							href: "/admin/templates",
+							activeMatchPattern: "/admin/templates*",
+						},
 					],
 				},
 			]
