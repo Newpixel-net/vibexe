@@ -19,6 +19,7 @@ import { emitDataEvent } from "@/lib/realtime/event-bus";
 import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
 import type { AppSchema } from "@/lib/app-database/schema-types";
 import { runEntityHook } from "@/lib/app-functions/hooks";
+import { getUser } from "@/lib/auth/get-user";
 
 interface RouteParams {
 	params: Promise<{ appId: string; entity: string; id: string }>;
@@ -67,8 +68,18 @@ async function resolveContext(appId: string, entityName: string, request: NextRe
 	let apiKeyValid = false;
 	const apiKey = request.headers.get("x-vibexe-api-key");
 	if (apiKey) {
-		apiKeyValid = await verifyApiKey(app.dbId, apiKey);
+		apiKeyValid = !!(await verifyApiKey(app.dbId, apiKey));
 		if (!apiKeyValid) return { error: "Invalid API key", status: 401 } as const;
+	}
+
+	// Builder session fallback — logged-in builder users get full access
+	if (!apiKeyValid) {
+		try {
+			const builderUser = await getUser();
+			if (builderUser) apiKeyValid = true;
+		} catch {
+			// Not a builder session — continue with end-user auth
+		}
 	}
 
 	// Check internal tables first (e.g. _app_users, _app_sessions)
