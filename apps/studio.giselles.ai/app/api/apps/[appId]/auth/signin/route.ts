@@ -87,6 +87,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
 		const user = users[0];
 
+		// OAuth-only users cannot sign in with password
+		if (!user.password_hash) {
+			return NextResponse.json(
+				{ error: "This account uses social login. Please sign in with Google or GitHub." },
+				{ status: 400 },
+			);
+		}
+
 		// Verify password
 		const valid = await verifyPassword(password, user.password_hash);
 		if (!valid) {

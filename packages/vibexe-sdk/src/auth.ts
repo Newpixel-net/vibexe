@@ -11,6 +11,8 @@ export interface AppUser {
 	display_name: string | null;
 	role: string;
 	email_verified: boolean;
+	auth_provider: string | null;
+	avatar_url: string | null;
 	created_at: string;
 }
 
@@ -142,6 +144,70 @@ export class AuthClient {
 	 */
 	getToken(): string | null {
 		return this.sessionToken;
+	}
+
+	/**
+	 * Sign in with Google via popup OAuth flow.
+	 */
+	async signInWithGoogle(): Promise<AuthResponse> {
+		return this.signInWithOAuth("google");
+	}
+
+	/**
+	 * Sign in with GitHub via popup OAuth flow.
+	 */
+	async signInWithGitHub(): Promise<AuthResponse> {
+		return this.signInWithOAuth("github");
+	}
+
+	private signInWithOAuth(
+		provider: "google" | "github",
+	): Promise<AuthResponse> {
+		return new Promise((resolve, reject) => {
+			const width = 500;
+			const height = 600;
+			const left = window.screenX + (window.outerWidth - width) / 2;
+			const top = window.screenY + (window.outerHeight - height) / 2;
+			const popup = window.open(
+				`${this.baseUrl}/auth/oauth/${provider}`,
+				`vibexe-oauth-${provider}`,
+				`width=${width},height=${height},left=${left},top=${top},popup=yes`,
+			);
+
+			if (!popup) {
+				reject(new Error("Failed to open popup. Please allow popups for this site."));
+				return;
+			}
+
+			const onMessage = (event: MessageEvent) => {
+				if (!event.data || event.data.type !== "vibexe-oauth") return;
+				cleanup();
+				if (event.data.error) {
+					reject(new Error(event.data.error));
+				} else if (event.data.token && event.data.user) {
+					this.setSession(event.data.token);
+					resolve({ user: event.data.user, token: event.data.token });
+				} else {
+					reject(new Error("Invalid OAuth response"));
+				}
+			};
+
+			// Poll for popup close (user cancelled)
+			const pollTimer = setInterval(() => {
+				if (popup.closed) {
+					cleanup();
+					reject(new Error("Authentication cancelled"));
+				}
+			}, 500);
+
+			const cleanup = () => {
+				window.removeEventListener("message", onMessage);
+				clearInterval(pollTimer);
+				if (!popup.closed) popup.close();
+			};
+
+			window.addEventListener("message", onMessage);
+		});
 	}
 
 	private setSession(token: string): void {

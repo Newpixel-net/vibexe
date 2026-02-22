@@ -123,8 +123,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			created_at: string;
 		}>(
 			databaseName,
-			`INSERT INTO "_app_users" (email, password_hash, display_name, status)
-			 VALUES ($1, $2, $3, $4)
+			`INSERT INTO "_app_users" (email, password_hash, display_name, status, auth_provider)
+			 VALUES ($1, $2, $3, $4, 'email')
 			 RETURNING id, email, display_name, role, email_verified, status, created_at`,
 			[email.toLowerCase(), passwordHash, display_name || null, userStatus],
 		);

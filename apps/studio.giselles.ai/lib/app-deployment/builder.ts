@@ -77,6 +77,9 @@ async signUp(o){var r=await fetch(this.b+"/auth/signup",{method:"POST",headers:O
 async signIn(o){var r=await fetch(this.b+"/auth/signin",{method:"POST",headers:Object.assign({},this.h,{"Content-Type":"application/json"}),body:JSON.stringify({email:o.email,password:o.password})});if(!r.ok)throw new Error("Signin failed");var d=await r.json();this._s(d.token);return d}
 async signOut(){if(this.t){try{await fetch(this.b+"/auth/signout",{method:"POST",headers:Object.assign({},this.h,{Authorization:"Bearer "+this.t})})}catch(e){}}this._c()}
 async getCurrentUser(){if(!this.t)return null;var r=await fetch(this.b+"/auth/me",{headers:Object.assign({},this.h,{Authorization:"Bearer "+this.t})});if(!r.ok){this._c();return null}return(await r.json()).user}
+async signInWithGoogle(){return this._op("google")}
+async signInWithGitHub(){return this._op("github")}
+_op(p){var s=this;return new Promise(function(ok,no){var w=500,h=600,l=window.screenX+(window.outerWidth-w)/2,t=window.screenY+(window.outerHeight-h)/2;var pu=window.open(s.b+"/auth/oauth/"+p,"vibexe-oauth-"+p,"width="+w+",height="+h+",left="+l+",top="+t+",popup=yes");if(!pu){no(new Error("Failed to open popup"));return}function onM(e){if(!e.data||e.data.type!=="vibexe-oauth")return;cl();if(e.data.error)no(new Error(e.data.error));else if(e.data.token&&e.data.user){s._s(e.data.token);ok({user:e.data.user,token:e.data.token})}else no(new Error("Invalid OAuth response"))}var pi=setInterval(function(){if(pu.closed){cl();no(new Error("Authentication cancelled"))}},500);function cl(){window.removeEventListener("message",onM);clearInterval(pi);if(!pu.closed)pu.close()}window.addEventListener("message",onM)})}
 isAuthenticated(){return this.t!==null}
 getToken(){return this.t}
 _s(t){this.t=t;if(typeof window!=="undefined")localStorage.setItem("vibexe_session",t)}

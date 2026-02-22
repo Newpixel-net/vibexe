@@ -32,12 +32,15 @@ const INTERNAL_TABLES: Record<string, { name: string; tableName: string; fields:
 		tableName: "_app_users",
 		fields: [
 			{ name: "email", type: "text", required: true },
-			{ name: "password_hash", type: "text", required: true },
+			{ name: "password_hash", type: "text" },
 			{ name: "display_name", type: "text" },
 			{ name: "role", type: "text" },
 			{ name: "status", type: "text" },
 			{ name: "email_verified", type: "boolean" },
 			{ name: "last_login_at", type: "date" },
+			{ name: "auth_provider", type: "text" },
+			{ name: "provider_user_id", type: "text" },
+			{ name: "avatar_url", type: "text" },
 		],
 	},
 	_app_sessions: {

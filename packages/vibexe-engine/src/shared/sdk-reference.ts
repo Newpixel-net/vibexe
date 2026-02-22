@@ -53,10 +53,17 @@ unsubscribe();
 // signUp/signIn return AuthResponse { user, token }, NOT user directly
 const response = await app.auth.signUp({ email, password, displayName }); // "displayName", NOT "name"
 // response = { user: AppUser, token: string }
-// response.user = { id, email, display_name, role, email_verified, created_at }
+// response.user = { id, email, display_name, role, email_verified, auth_provider, avatar_url, created_at }
 
 const response = await app.auth.signIn({ email, password });
 // response = { user: AppUser, token: string }
+
+// Social OAuth (popup-based — opens provider consent screen in popup window)
+const { user, token } = await app.auth.signInWithGoogle();
+const { user, token } = await app.auth.signInWithGitHub();
+// Returns same AuthResponse { user, token }. Popup closes automatically.
+// If user cancels popup, throws Error("Authentication cancelled").
+// OAuth must be enabled in Dashboard > Settings > Auth for the provider.
 
 await app.auth.signOut();
 const user = await app.auth.getCurrentUser();   // returns AppUser | null
@@ -99,6 +106,8 @@ await app.storage.delete("avatars/photo.jpg");
 | \`signUp({ email, password, name })\` | \`signUp({ email, password, displayName })\` |
 | \`const data = await app.data.list(...); setItems(data)\` | \`const result = await app.data.list(...); setItems(result.data)\` |
 | \`const user = await app.auth.signIn(...)\` | \`const { user } = await app.auth.signIn(...)\` (returns AuthResponse) |
+| "This account uses social login" error on signIn | User signed up via Google/GitHub (no password). Cannot use email/password signin. | Use \`app.auth.signInWithGoogle()\` or \`app.auth.signInWithGitHub()\` instead |
+| Popup blocked when calling signInWithGoogle/signInWithGitHub | Browser blocks popups not triggered by user gesture | Call \`signInWithGoogle()\` directly inside a click handler, NOT in async chains or useEffect |
 `;
 
 /** Correct data hook pattern showing result.data destructuring */
@@ -212,6 +221,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return response.user;
   };
 
+  // Social OAuth — popup-based, returns same AuthResponse
+  const signInWithGoogle = async () => {
+    const response = await app.auth.signInWithGoogle();
+    setUser(response.user);
+    return response.user;
+  };
+
+  const signInWithGitHub = async () => {
+    const response = await app.auth.signInWithGitHub();
+    setUser(response.user);
+    return response.user;
+  };
+
   const signOut = async () => {
     await app.auth.signOut();
     setUser(null);
@@ -220,7 +242,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   if (loading) return <div className="flex h-screen items-center justify-center">Loading...</div>;
 
   return (
-    <AuthContext.Provider value={{ user, signIn, signUp, signOut, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, signIn, signUp, signInWithGoogle, signInWithGitHub, signOut, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );
@@ -230,6 +252,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 ### Auth Patterns
 - **Public app**: No auth needed. Anyone can read/write.
 - **Login required**: Wrap app with AuthProvider. Show Login/Register when no user.
+- **Social login**: Add "Sign in with Google" / "Sign in with GitHub" buttons that call \`signInWithGoogle()\` / \`signInWithGitHub()\`. Opens a popup — user sees consent screen, popup closes automatically, SDK stores session. Provider must be enabled in Dashboard > Settings > Auth.
+- **Mixed auth**: Offer both email/password AND social login. Accounts link by email — if a user signs up with email then later signs in with Google using the same email, it links to the same account.
 - **Owner-only data**: The backend enforces RLS automatically — when the entity policy is set to "owner", the server auto-filters queries to \`user_id = currentUser\` and auto-injects \`user_id\` on create. No client-side filter needed.
 - **Role-based**: The backend checks \`user.role\` against the entity's allowedRoles list. Use \`user.role\` in UI for conditional rendering: \`if (user.role === "admin")\`
 
@@ -339,6 +363,7 @@ export const SDK_REVIEW_CHECKLIST = `
 | \`setItems(data)\` or \`data.map()\` directly after \`app.data.list()\` | list() returns PaginatedResponse \`{ data, pagination }\`, not an array | Use \`result.data.map()\` or \`setItems(result.data)\` |
 | \`signUp({ name: ... })\` or \`signUp({ ..., name })\` | Wrong param name — display_name won't be saved | Use \`signUp({ displayName: ... })\` |
 | \`const user = await app.auth.signIn(...)\` then \`user.email\` | signIn returns \`{ user, token }\`, not user directly | Destructure: \`const { user } = await app.auth.signIn(...)\` |
+| \`signInWithGoogle()\` called in useEffect or async chain | Popup will be blocked by browser. Must be in direct click handler. | Move call into onClick handler: \`<button onClick={() => signInWithGoogle()}>...\` |
 `;
 
 /** Correct mock return shapes for TDD testing */
@@ -365,11 +390,19 @@ export const mockApp = {
   },
   auth: {
     signUp: vi.fn().mockResolvedValue({
-      user: { id: "user-1", email: "test@test.com", display_name: null, role: "user", email_verified: false, created_at: new Date().toISOString() },
+      user: { id: "user-1", email: "test@test.com", display_name: null, role: "user", email_verified: false, auth_provider: "email", avatar_url: null, created_at: new Date().toISOString() },
       token: "mock-token",
     }),
     signIn: vi.fn().mockResolvedValue({
-      user: { id: "user-1", email: "test@test.com", display_name: null, role: "user", email_verified: false, created_at: new Date().toISOString() },
+      user: { id: "user-1", email: "test@test.com", display_name: null, role: "user", email_verified: false, auth_provider: "email", avatar_url: null, created_at: new Date().toISOString() },
+      token: "mock-token",
+    }),
+    signInWithGoogle: vi.fn().mockResolvedValue({
+      user: { id: "user-1", email: "test@test.com", display_name: "Test User", role: "user", email_verified: true, auth_provider: "google", avatar_url: "https://lh3.googleusercontent.com/photo.jpg", created_at: new Date().toISOString() },
+      token: "mock-token",
+    }),
+    signInWithGitHub: vi.fn().mockResolvedValue({
+      user: { id: "user-1", email: "test@test.com", display_name: "Test User", role: "user", email_verified: true, auth_provider: "github", avatar_url: "https://avatars.githubusercontent.com/u/123", created_at: new Date().toISOString() },
       token: "mock-token",
     }),
     signOut: vi.fn().mockResolvedValue(undefined),

@@ -176,12 +176,15 @@ async function createAuthTables(databaseName: string): Promise<void> {
 		`CREATE TABLE IF NOT EXISTS _app_users (
 			id SERIAL PRIMARY KEY,
 			email TEXT NOT NULL UNIQUE,
-			password_hash TEXT NOT NULL,
+			password_hash TEXT,
 			display_name TEXT,
 			role TEXT NOT NULL DEFAULT 'user',
 			email_verified BOOLEAN NOT NULL DEFAULT false,
 			status TEXT NOT NULL DEFAULT 'active',
 			last_login_at TIMESTAMPTZ,
+			auth_provider TEXT,
+			provider_user_id TEXT,
+			avatar_url TEXT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
@@ -195,6 +198,24 @@ async function createAuthTables(databaseName: string): Promise<void> {
 	await executeQuery(
 		databaseName,
 		`ALTER TABLE _app_users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ`,
+	);
+	// Make password_hash nullable for OAuth-only users
+	await executeQuery(
+		databaseName,
+		`ALTER TABLE _app_users ALTER COLUMN password_hash DROP NOT NULL`,
+	);
+	// OAuth columns
+	await executeQuery(
+		databaseName,
+		`ALTER TABLE _app_users ADD COLUMN IF NOT EXISTS auth_provider TEXT`,
+	);
+	await executeQuery(
+		databaseName,
+		`ALTER TABLE _app_users ADD COLUMN IF NOT EXISTS provider_user_id TEXT`,
+	);
+	await executeQuery(
+		databaseName,
+		`ALTER TABLE _app_users ADD COLUMN IF NOT EXISTS avatar_url TEXT`,
 	);
 
 	await executeQuery(

@@ -269,6 +269,34 @@ class AuthClient {
     return data.user;
   }
 
+  async signInWithGoogle() { return this._oauthPopup("google"); }
+  async signInWithGitHub() { return this._oauthPopup("github"); }
+
+  _oauthPopup(provider) {
+    var self = this;
+    return new Promise(function(resolve, reject) {
+      var w = 500, h = 600;
+      var left = window.screenX + (window.outerWidth - w) / 2;
+      var top = window.screenY + (window.outerHeight - h) / 2;
+      var popup = window.open(
+        self.baseUrl + "/auth/oauth/" + provider,
+        "vibexe-oauth-" + provider,
+        "width=" + w + ",height=" + h + ",left=" + left + ",top=" + top + ",popup=yes"
+      );
+      if (!popup) { reject(new Error("Failed to open popup")); return; }
+      function onMsg(e) {
+        if (!e.data || e.data.type !== "vibexe-oauth") return;
+        cleanup();
+        if (e.data.error) reject(new Error(e.data.error));
+        else if (e.data.token && e.data.user) { self._setSession(e.data.token); resolve({ user: e.data.user, token: e.data.token }); }
+        else reject(new Error("Invalid OAuth response"));
+      }
+      var poll = setInterval(function() { if (popup.closed) { cleanup(); reject(new Error("Authentication cancelled")); } }, 500);
+      function cleanup() { window.removeEventListener("message", onMsg); clearInterval(poll); if (!popup.closed) popup.close(); }
+      window.addEventListener("message", onMsg);
+    });
+  }
+
   isAuthenticated() { return this.sessionToken !== null; }
   getToken() { return this.sessionToken; }
 

@@ -59,6 +59,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			email_verified: boolean;
 			status: string;
 			last_login_at: string | null;
+			auth_provider: string | null;
+			avatar_url: string | null;
 			created_at: string;
 			session_expires_at: string;
 		}>(
@@ -71,6 +73,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 				u.email_verified,
 				u.status,
 				u.last_login_at,
+				u.auth_provider,
+				u.avatar_url,
 				u.created_at,
 				s.expires_at AS session_expires_at
 			 FROM "_app_sessions" s
@@ -106,6 +110,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 				email_verified: row.email_verified,
 				status: row.status,
 				last_login_at: row.last_login_at,
+				auth_provider: row.auth_provider,
+				avatar_url: row.avatar_url,
 				created_at: row.created_at,
 			},
 		});
