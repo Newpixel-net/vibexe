@@ -30,7 +30,9 @@ const INTERNAL_TABLES: Record<string, { name: string; tableName: string; fields:
 			{ name: "password_hash", type: "text", required: true },
 			{ name: "display_name", type: "text" },
 			{ name: "role", type: "text" },
+			{ name: "status", type: "text" },
 			{ name: "email_verified", type: "boolean" },
+			{ name: "last_login_at", type: "date" },
 		],
 	},
 	_app_sessions: {
