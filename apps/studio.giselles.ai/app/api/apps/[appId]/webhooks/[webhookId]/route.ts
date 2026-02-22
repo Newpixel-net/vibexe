@@ -7,12 +7,8 @@
 import { and, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import {
-	type BuilderAppId,
-	builderApps,
-	builderAppWebhooks,
-	builderAppWebhookLogs,
-} from "@/db/schema";
+import { builderAppWebhooks, builderAppWebhookLogs } from "@/db/schema";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
 	params: Promise<{ appId: string; webhookId: string }>;
@@ -29,18 +25,24 @@ export async function GET(_request: Request, { params }: RouteParams) {
 			);
 		}
 
-		const app = await db.query.builderApps.findFirst({
-			where: eq(builderApps.id, appId as BuilderAppId),
-			columns: { dbId: true },
-		});
-		if (!app) {
+		let appDbId: number;
+		try {
+			({ appDbId } = await verifyAppAccess(appId));
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : "";
+			if (msg.includes("session")) {
+				return NextResponse.json(
+					{ error: "Unauthorized" },
+					{ status: 401 },
+				);
+			}
 			return NextResponse.json({ error: "App not found" }, { status: 404 });
 		}
 
 		const webhook = await db.query.builderAppWebhooks.findFirst({
 			where: and(
 				eq(builderAppWebhooks.dbId, webhookDbId),
-				eq(builderAppWebhooks.appDbId, app.dbId),
+				eq(builderAppWebhooks.appDbId, appDbId),
 			),
 		});
 		if (!webhook) {

@@ -12,6 +12,7 @@ export interface WebhookRecord {
 	url: string;
 	secret: string | null;
 	headers: Record<string, string> | null;
+	timeoutMs?: number;
 }
 
 export interface WebhookPayload {
@@ -65,7 +66,10 @@ export async function executeWebhook(
 
 	try {
 		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 10_000);
+		const timeout = setTimeout(
+			() => controller.abort(),
+			webhook.timeoutMs || 10_000,
+		);
 
 		const res = await fetch(webhook.url, {
 			method: "POST",

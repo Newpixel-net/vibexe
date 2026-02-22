@@ -7,8 +7,9 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { type BuilderAppId, builderApps, builderAppWebhooks } from "@/db/schema";
+import { builderAppWebhooks } from "@/db/schema";
 import { executeWebhook } from "@/lib/app-webhooks/executor";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -17,12 +18,17 @@ interface RouteParams {
 export async function POST(request: Request, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
-
-		const app = await db.query.builderApps.findFirst({
-			where: eq(builderApps.id, appId as BuilderAppId),
-			columns: { dbId: true },
-		});
-		if (!app) {
+		let appDbId: number;
+		try {
+			({ appDbId } = await verifyAppAccess(appId));
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : "";
+			if (msg.includes("session")) {
+				return NextResponse.json(
+					{ error: "Unauthorized" },
+					{ status: 401 },
+				);
+			}
 			return NextResponse.json({ error: "App not found" }, { status: 404 });
 		}
 
@@ -39,7 +45,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 		const webhook = await db.query.builderAppWebhooks.findFirst({
 			where: and(
 				eq(builderAppWebhooks.dbId, webhookDbId),
-				eq(builderAppWebhooks.appDbId, app.dbId),
+				eq(builderAppWebhooks.appDbId, appDbId),
 			),
 		});
 		if (!webhook) {
@@ -55,6 +61,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 				url: webhook.url,
 				secret: webhook.secret,
 				headers: webhook.headers as Record<string, string> | null,
+				timeoutMs: webhook.timeoutMs ?? 10_000,
 			},
 			"webhook.test",
 			{
@@ -65,6 +72,17 @@ export async function POST(request: Request, { params }: RouteParams) {
 			},
 			1,
 		);
+
+		// Update last delivery timestamp for UI visibility (don't count in stats)
+		db.update(builderAppWebhooks)
+			.set({
+				lastDeliveryAt: new Date(),
+				lastDeliveryOk: result.success,
+			})
+			.where(eq(builderAppWebhooks.dbId, webhook.dbId))
+			.catch((e) =>
+				console.error("[Webhook] Failed to update test stats:", e),
+			);
 
 		return NextResponse.json({
 			success: result.success,

@@ -1822,6 +1822,7 @@ export const builderAppWebhooks = pgTable("builder_app_webhooks", {
 	lastDeliveryOk: boolean("last_delivery_ok"),
 	deliverySuccessCount: integer("delivery_success_count").default(0),
 	deliveryFailureCount: integer("delivery_failure_count").default(0),
+	timeoutMs: integer("timeout_ms").default(10000),
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.defaultNow()
 		.notNull(),

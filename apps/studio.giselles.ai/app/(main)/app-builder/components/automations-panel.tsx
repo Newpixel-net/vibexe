@@ -11,6 +11,7 @@ import {
 	AlertCircle,
 	Check,
 	ChevronDown,
+	ChevronLeft,
 	ChevronRight,
 	Copy,
 	ExternalLink,
@@ -37,6 +38,7 @@ interface WebhookItem {
 	lastDeliveryOk: boolean | null;
 	deliverySuccessCount: number;
 	deliveryFailureCount: number;
+	timeoutMs?: number;
 	createdAt: string;
 }
 
@@ -125,6 +127,8 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 	const [expandedLogs, setExpandedLogs] = useState<number | null>(null);
 	const [logs, setLogs] = useState<DeliveryLog[]>([]);
 	const [logsLoading, setLogsLoading] = useState(false);
+	const [logsPage, setLogsPage] = useState(1);
+	const [logsTotalPages, setLogsTotalPages] = useState(1);
 	const [testingId, setTestingId] = useState<number | null>(null);
 	const [testResult, setTestResult] = useState<{
 		success: boolean;
@@ -138,8 +142,9 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 	const [formEvents, setFormEvents] = useState<string[]>([]);
 	const [formSecret, setFormSecret] = useState("");
 	const [formHeaders, setFormHeaders] = useState<
-		Array<{ key: string; value: string }>
+		Array<{ uid: string; key: string; value: string }>
 	>([]);
+	const [formTimeout, setFormTimeout] = useState(10000);
 
 	const entityEvents = buildEntityEvents(schema);
 	const allEvents = [...entityEvents, ...AUTH_EVENTS];
@@ -162,16 +167,18 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 	}, [fetchWebhooks]);
 
 	const fetchLogs = useCallback(
-		async (webhookDbId: number) => {
+		async (webhookDbId: number, page = 1) => {
 			setLogs([]);
 			setLogsLoading(true);
 			try {
 				const res = await fetch(
-					`/api/apps/${appId}/webhooks/${webhookDbId}/logs?limit=10`,
+					`/api/apps/${appId}/webhooks/${webhookDbId}/logs?limit=10&page=${page}`,
 				);
 				if (res.ok) {
 					const data = await res.json();
 					setLogs(data.logs || []);
+					setLogsPage(data.pagination?.page || 1);
+					setLogsTotalPages(data.pagination?.totalPages || 1);
 				}
 			} catch {
 				// ignore
@@ -187,6 +194,7 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 		setFormEvents([]);
 		setFormSecret("");
 		setFormHeaders([]);
+		setFormTimeout(10000);
 		setEditingId(null);
 	};
 
@@ -202,10 +210,12 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 		setFormSecret("");
 		setFormHeaders(
 			Object.entries(wh.headers || {}).map(([key, value]) => ({
+				uid: nanoid(8),
 				key,
 				value,
 			})),
 		);
+		setFormTimeout(wh.timeoutMs ?? 10000);
 		setEditingId(wh.dbId);
 		setShowForm(true);
 	};
@@ -234,6 +244,7 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 							events: formEvents,
 							secret: formSecret || undefined,
 							headers,
+							timeoutMs: formTimeout,
 						}),
 					})
 				: await fetch(`/api/apps/${appId}/webhooks`, {
@@ -272,6 +283,7 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 		formEvents,
 		formSecret,
 		formHeaders,
+		formTimeout,
 		editingId,
 		fetchWebhooks,
 	]);
@@ -345,6 +357,8 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 					status: data.status,
 					durationMs: data.durationMs,
 				});
+				// Refresh webhook list to show updated lastDeliveryAt/lastDeliveryOk
+				fetchWebhooks();
 			} catch {
 				setTestResult({ success: false });
 			}
@@ -353,7 +367,7 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 				setTestResult(null);
 			}, 4000);
 		},
-		[appId],
+		[appId, fetchWebhooks],
 	);
 
 	const toggleEvent = (event: string) => {
@@ -516,15 +530,17 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 							<label className="block text-xs text-white/40 mb-1">
 								Custom Headers (optional)
 							</label>
-							{formHeaders.map((h, i) => (
-								<div key={i} className="flex gap-2 mb-1.5">
+							{formHeaders.map((h) => (
+								<div key={h.uid} className="flex gap-2 mb-1.5">
 									<input
 										type="text"
 										value={h.key}
 										onChange={(e) =>
 											setFormHeaders((prev) =>
-												prev.map((x, j) =>
-													j === i ? { ...x, key: e.target.value } : x,
+												prev.map((x) =>
+													x.uid === h.uid
+														? { ...x, key: e.target.value }
+														: x,
 												),
 											)
 										}
@@ -536,8 +552,10 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 										value={h.value}
 										onChange={(e) =>
 											setFormHeaders((prev) =>
-												prev.map((x, j) =>
-													j === i ? { ...x, value: e.target.value } : x,
+												prev.map((x) =>
+													x.uid === h.uid
+														? { ...x, value: e.target.value }
+														: x,
 												),
 											)
 										}
@@ -547,7 +565,9 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 									<button
 										type="button"
 										onClick={() =>
-											setFormHeaders((prev) => prev.filter((_, j) => j !== i))
+											setFormHeaders((prev) =>
+												prev.filter((x) => x.uid !== h.uid),
+											)
 										}
 										className="p-1.5 text-white/40 hover:text-red-400 transition-colors"
 									>
@@ -560,7 +580,7 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 								onClick={() =>
 									setFormHeaders((prev) => [
 										...prev,
-										{ key: "", value: "" },
+										{ uid: nanoid(8), key: "", value: "" },
 									])
 								}
 								className="text-[11px] text-white/40 hover:text-white/70 transition-colors"
@@ -568,6 +588,33 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 								+ Add header
 							</button>
 						</div>
+
+						{/* Timeout (edit mode only) */}
+						{editingId && (
+							<div>
+								<label className="block text-xs text-white/40 mb-1">
+									Timeout ({Math.round(formTimeout / 1000)}s)
+								</label>
+								<div className="flex items-center gap-3">
+									<input
+										type="range"
+										min={1}
+										max={30}
+										value={Math.round(formTimeout / 1000)}
+										onChange={(e) =>
+											setFormTimeout(Number(e.target.value) * 1000)
+										}
+										className="flex-1 accent-violet-500"
+									/>
+									<span className="text-xs text-white/50 w-8 text-right font-mono">
+										{Math.round(formTimeout / 1000)}s
+									</span>
+								</div>
+								<p className="text-[10px] text-white/30 mt-1">
+									How long to wait for a response (1-30 seconds)
+								</p>
+							</div>
+						)}
 
 						{/* Buttons */}
 						<div className="flex gap-2">
@@ -740,7 +787,8 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 														setExpandedLogs(null);
 													} else {
 														setExpandedLogs(wh.dbId);
-														fetchLogs(wh.dbId);
+														setLogsPage(1);
+														fetchLogs(wh.dbId, 1);
 													}
 												}}
 												className="p-1.5 rounded hover:bg-white/[0.06] text-white/40 hover:text-white/90 transition-colors"
@@ -782,7 +830,7 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 												</span>
 												<button
 													type="button"
-													onClick={() => fetchLogs(wh.dbId)}
+													onClick={() => fetchLogs(wh.dbId, logsPage)}
 													className="text-[10px] text-white/30 hover:text-white/60 transition-colors flex items-center gap-1"
 												>
 													<RefreshCw className="h-2.5 w-2.5" />
@@ -838,6 +886,37 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 															)}
 														</div>
 													))}
+												</div>
+											)}
+
+											{/* Pagination */}
+											{logsTotalPages > 1 && (
+												<div className="flex items-center justify-between mt-2 pt-2 border-t border-white/[0.04]">
+													<button
+														type="button"
+														disabled={logsPage <= 1}
+														onClick={() =>
+															fetchLogs(wh.dbId, logsPage - 1)
+														}
+														className="flex items-center gap-1 text-[10px] text-white/40 hover:text-white/70 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+													>
+														<ChevronLeft className="h-3 w-3" />
+														Previous
+													</button>
+													<span className="text-[10px] text-white/30">
+														Page {logsPage} of {logsTotalPages}
+													</span>
+													<button
+														type="button"
+														disabled={logsPage >= logsTotalPages}
+														onClick={() =>
+															fetchLogs(wh.dbId, logsPage + 1)
+														}
+														className="flex items-center gap-1 text-[10px] text-white/40 hover:text-white/70 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+													>
+														Next
+														<ChevronRight className="h-3 w-3" />
+													</button>
 												</div>
 											)}
 										</div>

@@ -10,33 +10,32 @@
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import {
-	type BuilderAppId,
-	builderApps,
-	builderAppWebhooks,
-} from "@/db/schema";
+import { builderAppWebhooks } from "@/db/schema";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
 }
 
-async function resolveApp(appId: string) {
-	return db.query.builderApps.findFirst({
-		where: eq(builderApps.id, appId as BuilderAppId),
-		columns: { dbId: true },
-	});
-}
-
 export async function GET(_request: Request, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
-		const app = await resolveApp(appId);
-		if (!app) {
+		let appDbId: number;
+		try {
+			({ appDbId } = await verifyAppAccess(appId));
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : "";
+			if (msg.includes("session")) {
+				return NextResponse.json(
+					{ error: "Unauthorized" },
+					{ status: 401 },
+				);
+			}
 			return NextResponse.json({ error: "App not found" }, { status: 404 });
 		}
 
 		const webhooks = await db.query.builderAppWebhooks.findMany({
-			where: eq(builderAppWebhooks.appDbId, app.dbId),
+			where: eq(builderAppWebhooks.appDbId, appDbId),
 		});
 
 		return NextResponse.json({
@@ -52,6 +51,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 				lastDeliveryOk: w.lastDeliveryOk,
 				deliverySuccessCount: w.deliverySuccessCount,
 				deliveryFailureCount: w.deliveryFailureCount,
+				timeoutMs: w.timeoutMs,
 				createdAt: w.createdAt,
 			})),
 		});
@@ -67,8 +67,17 @@ export async function GET(_request: Request, { params }: RouteParams) {
 export async function POST(request: Request, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
-		const app = await resolveApp(appId);
-		if (!app) {
+		let appDbId: number;
+		try {
+			({ appDbId } = await verifyAppAccess(appId));
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : "";
+			if (msg.includes("session")) {
+				return NextResponse.json(
+					{ error: "Unauthorized" },
+					{ status: 401 },
+				);
+			}
 			return NextResponse.json({ error: "App not found" }, { status: 404 });
 		}
 
@@ -108,7 +117,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 		const [webhook] = await db
 			.insert(builderAppWebhooks)
 			.values({
-				appDbId: app.dbId,
+				appDbId,
 				url,
 				description: description || null,
 				events,
@@ -138,8 +147,17 @@ export async function POST(request: Request, { params }: RouteParams) {
 export async function PUT(request: Request, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
-		const app = await resolveApp(appId);
-		if (!app) {
+		let appDbId: number;
+		try {
+			({ appDbId } = await verifyAppAccess(appId));
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : "";
+			if (msg.includes("session")) {
+				return NextResponse.json(
+					{ error: "Unauthorized" },
+					{ status: 401 },
+				);
+			}
 			return NextResponse.json({ error: "App not found" }, { status: 404 });
 		}
 
@@ -152,6 +170,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			description?: string;
 			secret?: string;
 			headers?: Record<string, string>;
+			timeoutMs?: number;
 		};
 
 		if (!webhookDbId) {
@@ -189,6 +208,20 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			}
 		}
 
+		// Validate timeoutMs if provided
+		if (updates.timeoutMs !== undefined) {
+			if (
+				typeof updates.timeoutMs !== "number" ||
+				updates.timeoutMs < 1000 ||
+				updates.timeoutMs > 30000
+			) {
+				return NextResponse.json(
+					{ error: "timeoutMs must be between 1000 and 30000" },
+					{ status: 400 },
+				);
+			}
+		}
+
 		const setValues: Record<string, unknown> = {};
 		if (updates.url !== undefined) setValues.url = updates.url;
 		if (updates.events !== undefined) setValues.events = updates.events;
@@ -197,6 +230,8 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			setValues.description = updates.description;
 		if (updates.secret !== undefined) setValues.secret = updates.secret;
 		if (updates.headers !== undefined) setValues.headers = updates.headers;
+		if (updates.timeoutMs !== undefined)
+			setValues.timeoutMs = updates.timeoutMs;
 
 		if (Object.keys(setValues).length === 0) {
 			return NextResponse.json(
@@ -211,7 +246,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			.where(
 				and(
 					eq(builderAppWebhooks.dbId, webhookDbId),
-					eq(builderAppWebhooks.appDbId, app.dbId),
+					eq(builderAppWebhooks.appDbId, appDbId),
 				),
 			)
 			.returning();
@@ -241,8 +276,17 @@ export async function PUT(request: Request, { params }: RouteParams) {
 export async function DELETE(request: Request, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
-		const app = await resolveApp(appId);
-		if (!app) {
+		let appDbId: number;
+		try {
+			({ appDbId } = await verifyAppAccess(appId));
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : "";
+			if (msg.includes("session")) {
+				return NextResponse.json(
+					{ error: "Unauthorized" },
+					{ status: 401 },
+				);
+			}
 			return NextResponse.json({ error: "App not found" }, { status: 404 });
 		}
 
@@ -261,7 +305,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 			.where(
 				and(
 					eq(builderAppWebhooks.dbId, webhookDbId),
-					eq(builderAppWebhooks.appDbId, app.dbId),
+					eq(builderAppWebhooks.appDbId, appDbId),
 				),
 			)
 			.returning({ dbId: builderAppWebhooks.dbId });

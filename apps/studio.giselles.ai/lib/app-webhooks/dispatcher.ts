@@ -79,6 +79,7 @@ async function _dispatch(
 				url: wh.url,
 				secret: wh.secret,
 				headers: wh.headers as Record<string, string> | null,
+				timeoutMs: wh.timeoutMs ?? 10_000,
 			},
 			fullEvent,
 			payload,
