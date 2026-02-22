@@ -27,7 +27,8 @@ const fullScreenStyles = `
 `;
 
 export function PreviewClient({ appName, files }: PreviewClientProps) {
-	const sandpackFiles = useMemo(() => convertToSandpackFiles(files), [files]);
+	const apiOrigin = typeof window !== "undefined" ? window.location.origin : "";
+	const sandpackFiles = useMemo(() => convertToSandpackFiles(files, undefined, apiOrigin), [files, apiOrigin]);
 	const dependencies = useMemo(() => extractDependencies(files), [files]);
 
 	return (
