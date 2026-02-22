@@ -12,7 +12,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { builderAppDatabases } from "@/db/schema";
 import { executeQuery } from "./pool-manager";
-import type { AppSchema, EntityDefinition, EntityField } from "./schema-types";
+import type { AppSchema, EntityDefinition, EntityField, SearchFieldConfig } from "./schema-types";
 import { fieldTypeToSql } from "./schema-types";
 
 /**
@@ -33,6 +33,9 @@ export async function applySchema(
 	for (const entity of schema.entities) {
 		const createSql = buildCreateTableSql(entity, schema.entities);
 		await executeQuery(databaseName, createSql);
+
+		// Apply full-text search vector if entity has text fields
+		await applySearchVector(databaseName, entity);
 	}
 
 	// Create app-level auth tables (always present)
@@ -85,6 +88,11 @@ export async function diffAndApplySchema(
 				}
 			}
 		}
+	}
+
+	// Apply/update search vectors for all entities (handles new + changed configs)
+	for (const entity of newSchema.entities) {
+		await applySearchVector(databaseName, entity);
 	}
 
 	// Create auth tables if not yet present
@@ -164,6 +172,90 @@ function buildAddColumnSql(
 ): string {
 	const colDef = buildColumnDef(field, allEntities);
 	return `ALTER TABLE "${tableName}" ADD COLUMN IF NOT EXISTS ${colDef}`;
+}
+
+// ─── Full-Text Search Vector Support ────────────────────────────────────────
+
+/**
+ * Build the tsvector expression for a set of search fields.
+ * Uses weighted setweight() for ranked results.
+ */
+function buildTsvectorExpression(
+	searchFields: SearchFieldConfig[],
+): string {
+	const parts = searchFields.map(
+		(sf) =>
+			`setweight(to_tsvector('english', coalesce(NEW."${sf.field}", '')), '${sf.weight}')`,
+	);
+	return parts.join(" || ");
+}
+
+/**
+ * Apply full-text search vector column, trigger, and GIN index to an entity table.
+ * If no searchConfig is provided, auto-includes all text fields with weight "D".
+ * Idempotent — safe to call multiple times.
+ */
+export async function applySearchVector(
+	databaseName: string,
+	entity: EntityDefinition,
+): Promise<void> {
+	const textFields = entity.fields.filter((f) => f.type === "text");
+	if (textFields.length === 0) return; // No text fields — nothing to index
+
+	// Determine search config: explicit or default (all text fields, weight D)
+	const searchConfig: SearchFieldConfig[] =
+		entity.searchConfig && entity.searchConfig.length > 0
+			? entity.searchConfig
+			: textFields.map((f) => ({ field: f.name, weight: "D" as const }));
+
+	const tableName = entity.tableName;
+	const triggerFnName = `${tableName}_search_update`;
+
+	// 1. Add _search_vector column if not exists
+	await executeQuery(
+		databaseName,
+		`ALTER TABLE "${tableName}" ADD COLUMN IF NOT EXISTS _search_vector TSVECTOR`,
+	);
+
+	// 2. Create/replace trigger function (always recreate to pick up field changes)
+	const tsvecExpr = buildTsvectorExpression(searchConfig);
+	await executeQuery(
+		databaseName,
+		`CREATE OR REPLACE FUNCTION "${triggerFnName}"() RETURNS trigger AS $$
+BEGIN
+  NEW._search_vector := ${tsvecExpr};
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql`,
+	);
+
+	// 3. Create trigger (drop first to handle field changes)
+	await executeQuery(
+		databaseName,
+		`DROP TRIGGER IF EXISTS "${triggerFnName}_trg" ON "${tableName}"`,
+	);
+	await executeQuery(
+		databaseName,
+		`CREATE TRIGGER "${triggerFnName}_trg" BEFORE INSERT OR UPDATE ON "${tableName}" FOR EACH ROW EXECUTE FUNCTION "${triggerFnName}"()`,
+	);
+
+	// 4. Create GIN index if not exists
+	await executeQuery(
+		databaseName,
+		`CREATE INDEX IF NOT EXISTS "${tableName}_search_idx" ON "${tableName}" USING GIN(_search_vector)`,
+	);
+
+	// 5. Backfill existing rows that have NULL _search_vector
+	const backfillExpr = searchConfig
+		.map(
+			(sf) =>
+				`setweight(to_tsvector('english', coalesce("${sf.field}", '')), '${sf.weight}')`,
+		)
+		.join(" || ");
+	await executeQuery(
+		databaseName,
+		`UPDATE "${tableName}" SET _search_vector = ${backfillExpr} WHERE _search_vector IS NULL`,
+	);
 }
 
 /**

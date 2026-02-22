@@ -22,15 +22,46 @@ const result = await app.data.list("tasks", {
   order: "desc",                                       // separate param: "asc" | "desc"
   page: 1,                                             // 1-indexed page number, NOT "offset"
   limit: 50,
+  search: "urgent bug",                                // full-text search across indexed fields
 });
 // result = { data: Task[], pagination: { page, limit, total, totalPages } }
 // Access the array: result.data
 // Access pagination: result.pagination.total, result.pagination.totalPages
 
+// Advanced filter operators (beyond equality)
+const result = await app.data.list("products", {
+  filter: {
+    price: { gte: 10, lte: 100 },      // range: price >= 10 AND price <= 100
+    status: { in: ["active", "featured"] },  // set: status IN ('active', 'featured')
+    name: { like: "Pro%" },              // pattern: name ILIKE 'Pro%'
+    stock: { gt: 0 },                    // greater than: stock > 0
+    category: { ne: "archived" },        // not equal: category != 'archived'
+  },
+});
+// Supported operators: eq, ne, gt, gte, lt, lte, like (ILIKE), in (array)
+// Plain values still work: filter: { status: "active" } → equality
+
 await app.data.get("tasks", id);                      // returns single item directly
 await app.data.create("tasks", { title: "New", status: "active" }); // returns created item
 await app.data.update("tasks", id, { status: "done" });             // returns updated item
 await app.data.delete("tasks", id);                                  // returns void
+
+// ─── Aggregation ───
+// Get grouped statistics without fetching all rows
+const stats = await app.data.aggregate("orders", {
+  group: "status",    // group by this field
+  count: true,        // include COUNT(*)
+  sum: "amount",      // SUM(amount) — must be numeric field
+  avg: "amount",      // AVG(amount) — must be numeric field
+  min: "created_at",  // MIN(created_at)
+  max: "created_at",  // MAX(created_at)
+  filter: { status: { in: ["active", "completed"] } },  // same advanced filters
+});
+// stats = { data: [{ status: "active", count: 42, sum_amount: 15000, avg_amount: 357.14, ... }, ...] }
+
+// Without group — returns single row with totals
+const totals = await app.data.aggregate("orders", { count: true, sum: "amount" });
+// totals = { data: [{ count: 100, sum_amount: 45000 }] }
 
 // ─── Real-Time Subscriptions ───
 // subscribe() opens an SSE connection and calls callback on data changes
@@ -124,6 +155,8 @@ await app.storage.delete("avatars/photo.jpg");
 | \`const user = await app.auth.signIn(...)\` | \`const { user } = await app.auth.signIn(...)\` (returns AuthResponse) |
 | "This account uses social login" error on signIn | User signed up via Google/GitHub (no password). Cannot use email/password signin. | Use \`app.auth.signInWithGoogle()\` or \`app.auth.signInWithGitHub()\` instead |
 | Popup blocked when calling signInWithGoogle/signInWithGitHub | Browser blocks popups not triggered by user gesture | Call \`signInWithGoogle()\` directly inside a click handler, NOT in async chains or useEffect |
+| \`app.data.aggregate("x", {})\` returns error | At least one aggregation param required | Pass \`count: true\`, \`sum: "field"\`, etc. |
+| \`sum\`/\`avg\` aggregate on text field fails | \`sum\` and \`avg\` only work on numeric fields | Use numeric field names, or use \`count: true\` / \`min\` / \`max\` for non-numeric |
 `;
 
 /** Correct data hook pattern showing result.data destructuring */
@@ -304,17 +337,41 @@ setTotalPages(result.pagination.totalPages);
 
 ### Search + Filter
 \`\`\`typescript
-const fetchFiltered = async (filters: Record<string, string>) => {
+// Full-text search (uses PostgreSQL tsvector when configured, ILIKE fallback)
+const result = await app.data.list("tasks", { search: "urgent bug" });
+setTasks(result.data);
+
+// Search + advanced filters combined
+const fetchFiltered = async (searchTerm: string, filters: Record<string, unknown>) => {
   const cleanFilter = Object.fromEntries(
     Object.entries(filters).filter(([_, v]) => v !== "" && v !== "all")
   );
   const result = await app.data.list("tasks", {
+    search: searchTerm,
     filter: cleanFilter,
     sort: "created_at",
     order: "desc",
   });
   setTasks(result.data);
 };
+
+// Advanced range filter
+const expensive = await app.data.list("products", {
+  filter: { price: { gte: 100 }, status: { in: ["active", "featured"] } },
+});
+\`\`\`
+
+### Aggregation
+\`\`\`typescript
+// Dashboard stats
+const stats = await app.data.aggregate("orders", {
+  group: "status", count: true, sum: "amount",
+});
+// stats.data = [{ status: "active", count: 42, sum_amount: 15000 }, ...]
+
+// Total count without grouping
+const { data: [totals] } = await app.data.aggregate("users", { count: true });
+console.log("Total users:", totals.count);
 \`\`\`
 
 ### Real-Time Subscription
@@ -380,6 +437,8 @@ export const SDK_REVIEW_CHECKLIST = `
 | \`signUp({ name: ... })\` or \`signUp({ ..., name })\` | Wrong param name — display_name won't be saved | Use \`signUp({ displayName: ... })\` |
 | \`const user = await app.auth.signIn(...)\` then \`user.email\` | signIn returns \`{ user, token }\`, not user directly | Destructure: \`const { user } = await app.auth.signIn(...)\` |
 | \`signInWithGoogle()\` called in useEffect or async chain | Popup will be blocked by browser. Must be in direct click handler. | Move call into onClick handler: \`<button onClick={() => signInWithGoogle()}>...\` |
+| \`filter: { price: ">100" }\` for range queries | String comparison, not numeric. Use advanced operators | \`filter: { price: { gt: 100 } }\` |
+| \`app.data.aggregate("orders", { sum: "status" })\` | \`sum\`/\`avg\` must be numeric fields | Use \`count: true\` or \`min\`/\`max\` for non-numeric fields |
 `;
 
 /** Correct mock return shapes for TDD testing */
@@ -403,6 +462,7 @@ export const mockApp = {
     ),
     delete: vi.fn().mockResolvedValue(undefined),
     subscribe: vi.fn().mockReturnValue(() => {}), // returns unsubscribe function
+    aggregate: vi.fn().mockResolvedValue({ data: [] }),
   },
   auth: {
     signUp: vi.fn().mockResolvedValue({

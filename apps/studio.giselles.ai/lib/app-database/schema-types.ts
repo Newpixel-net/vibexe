@@ -22,6 +22,14 @@ export interface EntityField {
 	relationType?: "one-to-many" | "many-to-one";
 }
 
+/** Configuration for a single field in full-text search */
+export interface SearchFieldConfig {
+	/** Field name (must be a text field in the entity) */
+	field: string;
+	/** PostgreSQL ts_rank weight: A (highest) through D (lowest) */
+	weight: "A" | "B" | "C" | "D";
+}
+
 export interface EntityDefinition {
 	/** Display name (PascalCase, e.g., "Course", "UserProgress") */
 	name: string;
@@ -29,6 +37,8 @@ export interface EntityDefinition {
 	tableName: string;
 	/** Entity fields (id, created_at, updated_at are auto-added) */
 	fields: EntityField[];
+	/** Full-text search configuration — which fields to index and their weights */
+	searchConfig?: SearchFieldConfig[];
 }
 
 export interface AppSchema {

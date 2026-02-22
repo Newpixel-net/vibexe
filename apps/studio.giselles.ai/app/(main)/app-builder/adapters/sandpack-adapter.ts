@@ -144,15 +144,59 @@ class DataClient {
     if (options.order) params.set("order", options.order);
     if (options.filter) {
       for (const [key, value] of Object.entries(options.filter)) {
-        params.set("filter[" + key + "]", String(value));
+        if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+          for (const [op, opVal] of Object.entries(value)) {
+            if (op === "in" && Array.isArray(opVal)) {
+              params.set("filter[" + key + "][in]", opVal.join(","));
+            } else if (opVal !== undefined) {
+              params.set("filter[" + key + "][" + op + "]", String(opVal));
+            }
+          }
+        } else {
+          params.set("filter[" + key + "]", String(value));
+        }
       }
     }
+    if (options.search) params.set("search", options.search);
     const qs = params.toString();
     const url = this.baseUrl + "/data/" + entity + (qs ? "?" + qs : "");
     const res = await fetch(url, { headers: this.headers });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || "Failed to list " + entity);
+    }
+    return await res.json();
+  }
+
+  async aggregate(entity, options = {}) {
+    const params = new URLSearchParams();
+    if (options.group) params.set("group", options.group);
+    if (options.count) params.set("count", "true");
+    if (options.sum) params.set("sum", options.sum);
+    if (options.avg) params.set("avg", options.avg);
+    if (options.min) params.set("min", options.min);
+    if (options.max) params.set("max", options.max);
+    if (options.filter) {
+      for (const [key, value] of Object.entries(options.filter)) {
+        if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+          for (const [op, opVal] of Object.entries(value)) {
+            if (op === "in" && Array.isArray(opVal)) {
+              params.set("filter[" + key + "][in]", opVal.join(","));
+            } else if (opVal !== undefined) {
+              params.set("filter[" + key + "][" + op + "]", String(opVal));
+            }
+          }
+        } else {
+          params.set("filter[" + key + "]", String(value));
+        }
+      }
+    }
+    const qs = params.toString();
+    const url = this.baseUrl + "/data/" + entity + "/aggregate" + (qs ? "?" + qs : "");
+    const res = await fetch(url, { headers: this.headers });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to aggregate " + entity);
     }
     return await res.json();
   }

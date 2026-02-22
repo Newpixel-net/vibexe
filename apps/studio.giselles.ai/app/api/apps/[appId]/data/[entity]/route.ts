@@ -17,10 +17,96 @@ import { verifyApiKey } from "@/lib/app-database/api-keys";
 import { emitDataEvent } from "@/lib/realtime/event-bus";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
-import type { AppSchema } from "@/lib/app-database/schema-types";
+import type { AppSchema, EntityField } from "@/lib/app-database/schema-types";
 import { runEntityHook } from "@/lib/app-functions/hooks";
 import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { getUser } from "@/lib/auth/get-user";
+
+// ─── Advanced Filter Operators ──────────────────────────────────────────────
+
+const FILTER_OPERATORS: Record<string, string> = {
+	eq: "=",
+	gte: ">=",
+	gt: ">",
+	lte: "<=",
+	lt: "<",
+	ne: "!=",
+	like: "ILIKE",
+};
+
+/**
+ * Parse advanced filter query params into SQL WHERE clauses.
+ *
+ * Supported formats:
+ *   filter[field]=value           → "field" = $N          (equality, backward-compatible)
+ *   filter[field][gte]=100        → "field" >= $N
+ *   filter[field][like]=John%     → "field" ILIKE $N
+ *   filter[field][in]=a,b,c       → "field" = ANY($N::text[])
+ */
+function parseAdvancedFilters(
+	searchParams: URLSearchParams,
+	entityFields: EntityField[],
+): { clauses: string[]; params: unknown[]; paramCount: number } {
+	const validFields = new Set([
+		"id",
+		"created_at",
+		"updated_at",
+		...entityFields.map((f) => f.name),
+	]);
+	const clauses: string[] = [];
+	const params: unknown[] = [];
+	let idx = 1;
+
+	// Match filter[field] or filter[field][operator]
+	const filterRegex = /^filter\[(\w+)\](?:\[(\w+)\])?$/;
+
+	for (const [key, value] of searchParams) {
+		const match = key.match(filterRegex);
+		if (!match) continue;
+
+		const fieldName = match[1];
+		const operator = match[2]; // undefined for plain equality
+
+		if (!validFields.has(fieldName)) continue;
+
+		if (!operator || operator === "eq") {
+			// Equality: filter[status]=active
+			clauses.push(`"${fieldName}" = $${idx}`);
+			params.push(value);
+			idx++;
+		} else if (operator === "in") {
+			// IN: filter[status][in]=active,pending
+			const values = value.split(",").map((v) => v.trim());
+			clauses.push(`"${fieldName}" = ANY($${idx}::text[])`);
+			params.push(values);
+			idx++;
+		} else if (FILTER_OPERATORS[operator]) {
+			clauses.push(`"${fieldName}" ${FILTER_OPERATORS[operator]} $${idx}`);
+			params.push(value);
+			idx++;
+		}
+		// Unknown operators silently ignored
+	}
+
+	return { clauses, params, paramCount: idx - 1 };
+}
+
+/**
+ * Check if a column exists in a table.
+ * Used to detect _search_vector for full-text search.
+ */
+async function checkColumnExists(
+	databaseName: string,
+	tableName: string,
+	columnName: string,
+): Promise<boolean> {
+	const result = await executeQuery<{ exists: boolean }>(
+		databaseName,
+		`SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name = $1 AND column_name = $2) as exists`,
+		[tableName, columnName],
+	);
+	return result[0]?.exists === true;
+}
 
 interface RouteParams {
 	params: Promise<{ appId: string; entity: string }>;
@@ -150,22 +236,38 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		const order = url.searchParams.get("order") === "asc" ? "ASC" : "DESC";
 		const offset = (page - 1) * limit;
 
-		// Build WHERE clause from filter params
-		const filters: string[] = [];
-		const filterParams: unknown[] = [];
-		let paramIndex = 1;
+		// Build WHERE clause from advanced filter params
+		const parsed = parseAdvancedFilters(url.searchParams, ctx.entity.fields);
+		const filters: string[] = [...parsed.clauses];
+		const filterParams: unknown[] = [...parsed.params];
+		let paramIndex = parsed.paramCount + 1;
 
-		for (const [key, value] of url.searchParams) {
-			const match = key.match(/^filter\[(\w+)\]$/);
-			if (match) {
-				const fieldName = match[1];
-				// Validate field exists in entity
-				const fieldExists =
-					ctx.entity.fields.some((f) => f.name === fieldName) ||
-					["id", "created_at", "updated_at"].includes(fieldName);
-				if (fieldExists) {
-					filters.push(`"${fieldName}" = $${paramIndex}`);
-					filterParams.push(value);
+		// Full-text search: ?search=term
+		const searchTerm = url.searchParams.get("search");
+		if (searchTerm && searchTerm.trim()) {
+			const trimmed = searchTerm.trim();
+			const hasSearchVector = await checkColumnExists(
+				ctx.databaseName,
+				ctx.entity.tableName,
+				"_search_vector",
+			);
+			if (hasSearchVector) {
+				filters.push(
+					`_search_vector @@ plainto_tsquery('english', $${paramIndex})`,
+				);
+				filterParams.push(trimmed);
+				paramIndex++;
+			} else {
+				// Fallback: ILIKE across all text fields
+				const textFields = ctx.entity.fields
+					.filter((f) => f.type === "text")
+					.map((f) => f.name);
+				if (textFields.length > 0) {
+					const ilikeConditions = textFields.map(
+						(f) => `"${f}" ILIKE $${paramIndex}`,
+					);
+					filters.push(`(${ilikeConditions.join(" OR ")})`);
+					filterParams.push(`%${trimmed}%`);
 					paramIndex++;
 				}
 			}
@@ -198,27 +300,42 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 		const whereClause = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
 
-		// Validate sort column
+		// Validate sort column (support _relevance for FTS ranking)
 		const validColumns = [
 			"id",
 			"created_at",
 			"updated_at",
 			...ctx.entity.fields.map((f) => f.name),
 		];
-		const safeSort = validColumns.includes(sort) ? sort : "created_at";
+		const isRelevanceSort = sort === "_relevance" && searchTerm?.trim();
+		const safeSort = isRelevanceSort
+			? "_relevance"
+			: validColumns.includes(sort)
+				? sort
+				: "created_at";
+
+		// Build ORDER BY clause
+		let orderByClause: string;
+		if (isRelevanceSort) {
+			orderByClause = `ORDER BY ts_rank(_search_vector, plainto_tsquery('english', $${paramIndex})) DESC`;
+			filterParams.push(searchTerm!.trim());
+			paramIndex++;
+		} else {
+			orderByClause = `ORDER BY "${safeSort}" ${order}`;
+		}
 
 		// Count total
 		const countResult = await executeQuery<{ count: string }>(
 			ctx.databaseName,
 			`SELECT COUNT(*) as count FROM "${ctx.entity.tableName}" ${whereClause}`,
-			filterParams,
+			filterParams.slice(0, isRelevanceSort ? filterParams.length - 1 : filterParams.length),
 		);
 		const total = Number.parseInt(countResult[0]?.count || "0", 10);
 
 		// Fetch rows
 		const rows = await executeQuery(
 			ctx.databaseName,
-			`SELECT * FROM "${ctx.entity.tableName}" ${whereClause} ORDER BY "${safeSort}" ${order} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+			`SELECT * FROM "${ctx.entity.tableName}" ${whereClause} ${orderByClause} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
 			[...filterParams, limit, offset],
 		);
 

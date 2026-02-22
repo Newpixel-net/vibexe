@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	Check,
 	ChevronDown,
 	ChevronUp,
 	Download,
@@ -9,6 +10,7 @@ import {
 	Plus,
 	RefreshCw,
 	Search,
+	Settings,
 	Upload,
 	X,
 } from "lucide-react";
@@ -158,11 +160,20 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 	const [sortField, setSortField] = useState("created_at");
 	const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
-	// Search state (client-side)
+	// Search state (server-side debounced)
 	const [search, setSearch] = useState("");
+	const [debouncedSearch, setDebouncedSearch] = useState("");
+	const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	// Filter state (server-side)
 	const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+
+	// Search config state
+	const [searchConfigOpen, setSearchConfigOpen] = useState(false);
+	const [searchConfig, setSearchConfig] = useState<Array<{ field: string; weight: string }> | null>(null);
+	const [searchTextFields, setSearchTextFields] = useState<string[]>([]);
+	const [searchConfigLoading, setSearchConfigLoading] = useState(false);
+	const [searchConfigSaving, setSearchConfigSaving] = useState(false);
 
 	// Entity counts for tab badges
 	const [entityCounts, setEntityCounts] = useState<Record<string, number>>({});
@@ -207,6 +218,19 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 	// Non-editable columns
 	const readonlyColumns = new Set(["id", "created_at", "updated_at"]);
 
+	// ─── Debounced Search ───────────────────────────────────────────────────
+
+	useEffect(() => {
+		if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+		searchTimerRef.current = setTimeout(() => {
+			setDebouncedSearch(search);
+			setPage(1);
+		}, 300);
+		return () => {
+			if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+		};
+	}, [search]);
+
 	// ─── Fetch Data ─────────────────────────────────────────────────────────
 
 	const fetchData = useCallback(async () => {
@@ -222,6 +246,9 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 			for (const [key, val] of Object.entries(activeFilters)) {
 				if (val) params.set(`filter[${key}]`, val);
 			}
+			if (debouncedSearch.trim()) {
+				params.set("search", debouncedSearch.trim());
+			}
 			const res = await fetch(
 				`/api/apps/${appId}/data/${selectedEntity}?${params}`,
 			);
@@ -236,7 +263,7 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 		} finally {
 			setLoading(false);
 		}
-	}, [appId, selectedEntity, page, sortField, sortOrder, activeFilters]);
+	}, [appId, selectedEntity, page, sortField, sortOrder, activeFilters, debouncedSearch]);
 
 	useEffect(() => {
 		fetchData();
@@ -269,19 +296,52 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 		fetchEntityCounts();
 	}, [fetchEntityCounts, refreshTrigger]);
 
-	// ─── Client-side Search Filter ──────────────────────────────────────────
+	// ─── Search Config Fetch ────────────────────────────────────────────────
 
-	const filteredRows = useMemo(() => {
-		if (!search.trim()) return rows;
-		const q = search.toLowerCase().trim();
-		return rows.filter((row) =>
-			allColumns.some((col) => {
-				const val = row[col];
-				if (val === null || val === undefined) return false;
-				return String(val).toLowerCase().includes(q);
-			}),
-		);
-	}, [rows, search, allColumns]);
+	const fetchSearchConfig = useCallback(async () => {
+		if (!selectedEntity) return;
+		setSearchConfigLoading(true);
+		try {
+			const res = await fetch(
+				`/api/apps/${appId}/data/${selectedEntity}/search-config`,
+			);
+			if (res.ok) {
+				const json = await res.json();
+				setSearchConfig(json.searchConfig);
+				setSearchTextFields(json.textFields || []);
+			}
+		} catch {
+			// Silently fail — search config is optional
+		} finally {
+			setSearchConfigLoading(false);
+		}
+	}, [appId, selectedEntity]);
+
+	useEffect(() => {
+		if (searchConfigOpen) fetchSearchConfig();
+	}, [searchConfigOpen, fetchSearchConfig]);
+
+	const saveSearchConfig = async (newConfig: Array<{ field: string; weight: string }> | null) => {
+		if (!selectedEntity) return;
+		setSearchConfigSaving(true);
+		try {
+			const res = await fetch(
+				`/api/apps/${appId}/data/${selectedEntity}/search-config`,
+				{
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ searchConfig: newConfig }),
+				},
+			);
+			if (res.ok) {
+				setSearchConfig(newConfig);
+			}
+		} catch (err) {
+			console.error("Failed to save search config:", err);
+		} finally {
+			setSearchConfigSaving(false);
+		}
+	};
 
 	// ─── Auto-detect Filterable Fields ──────────────────────────────────────
 
@@ -344,11 +404,13 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 		setFormOpen(false);
 		setEditRow(null);
 		setSearch("");
+		setDebouncedSearch("");
 		setActiveFilters({});
 		setSortField("created_at");
 		setSortOrder("desc");
 		setPage(1);
 		setEditingCell(null);
+		setSearchConfigOpen(false);
 	};
 
 	// ─── Delete Row ─────────────────────────────────────────────────────────
@@ -440,7 +502,7 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 	const handleExport = () => {
 		if (!currentEntity) return;
 		const csvHeader = allColumns.map(escapeCsv).join(",");
-		const csvRows = filteredRows
+		const csvRows = rows
 			.map((row) => allColumns.map((col) => escapeCsv(row[col])).join(","))
 			.join("\n");
 		const blob = new Blob([`${csvHeader}\n${csvRows}`], {
@@ -610,15 +672,29 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 				<div className="shrink-0 px-1 pt-4 pb-3 space-y-3">
 					{/* Row 1: Search + Refresh + Export + Import + Add */}
 					<div className="flex flex-col sm:flex-row gap-2">
-						<div className="relative flex-1">
-							<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-							<input
-								type="text"
-								value={search}
-								onChange={(e) => setSearch(e.target.value)}
-								placeholder="Search within current page..."
-								className="w-full pl-9 pr-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
-							/>
+						<div className="relative flex-1 flex items-center gap-1.5">
+							<div className="relative flex-1">
+								<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+								<input
+									type="text"
+									value={search}
+									onChange={(e) => setSearch(e.target.value)}
+									placeholder="Search..."
+									className="w-full pl-9 pr-3 py-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-white/90 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/30"
+								/>
+							</div>
+							<button
+								type="button"
+								onClick={() => setSearchConfigOpen((o) => !o)}
+								className={`p-2 rounded-md border transition-colors ${
+									searchConfigOpen
+										? "border-violet-500/30 bg-violet-500/10 text-violet-300"
+										: "border-white/[0.08] hover:bg-white/[0.06] text-white/40 hover:text-white/90"
+								}`}
+								title="Search settings"
+							>
+								<Settings className="h-4 w-4" />
+							</button>
 						</div>
 						<div className="flex items-center gap-2">
 							{/* Refresh */}
@@ -636,7 +712,7 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 							<button
 								type="button"
 								onClick={handleExport}
-								disabled={filteredRows.length === 0}
+								disabled={rows.length === 0}
 								className="px-3 py-1.5 rounded-md border border-white/[0.08] text-sm font-medium text-white/40 hover:text-white/90 hover:bg-white/[0.06] transition-colors flex items-center gap-1.5 disabled:opacity-30"
 							>
 								<Download className="h-3.5 w-3.5" />
@@ -725,12 +801,102 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 				<div className="shrink-0 px-1 pb-2 flex items-center justify-between">
 					<p className="text-xs text-white/40">
 						{total} row{total !== 1 ? "s" : ""}
-						{search.trim() && (
-							<span className="ml-2 text-white/30">
-								({filteredRows.length} matching on this page)
+						{debouncedSearch.trim() && (
+							<span className="ml-2 text-violet-400/60">
+								matching &ldquo;{debouncedSearch}&rdquo;
 							</span>
 						)}
 					</p>
+				</div>
+			)}
+
+			{/* Search Config Panel */}
+			{searchConfigOpen && currentEntity && (
+				<div className="shrink-0 mx-1 mb-2 p-3 rounded-lg border border-violet-500/20 bg-violet-500/[0.04] space-y-3">
+					<div className="flex items-center justify-between">
+						<h4 className="text-xs font-medium text-white/70">Search Settings</h4>
+						<button
+							type="button"
+							onClick={() => setSearchConfigOpen(false)}
+							className="text-white/30 hover:text-white/70"
+						>
+							<X className="h-3.5 w-3.5" />
+						</button>
+					</div>
+					{searchConfigLoading ? (
+						<div className="flex items-center gap-2 text-xs text-white/40">
+							<Loader2 className="h-3 w-3 animate-spin" /> Loading...
+						</div>
+					) : searchTextFields.length === 0 ? (
+						<p className="text-xs text-white/40">No text fields to configure.</p>
+					) : (
+						<>
+							<p className="text-[11px] text-white/40">
+								{searchConfig
+									? `Full-text search: Enabled (${searchConfig.length} field${searchConfig.length !== 1 ? "s" : ""} indexed)`
+									: "Not configured \u2014 searching all text fields with ILIKE fallback"}
+							</p>
+							<div className="space-y-1.5">
+								{searchTextFields.map((field) => {
+									const existing = searchConfig?.find((sc) => sc.field === field);
+									const isEnabled = !!existing;
+									const weight = existing?.weight || "D";
+									return (
+										<div key={field} className="flex items-center gap-2">
+											<button
+												type="button"
+												onClick={() => {
+													if (isEnabled) {
+														const next = (searchConfig || []).filter((sc) => sc.field !== field);
+														setSearchConfig(next.length > 0 ? next : null);
+													} else {
+														setSearchConfig([...(searchConfig || []), { field, weight: "D" }]);
+													}
+												}}
+												className={`h-4 w-4 rounded border flex items-center justify-center transition-colors ${
+													isEnabled
+														? "bg-violet-500 border-violet-500 text-white"
+														: "border-white/20 hover:border-white/40"
+												}`}
+											>
+												{isEnabled && <Check className="h-3 w-3" />}
+											</button>
+											<span className="text-xs text-white/70 flex-1">{field}</span>
+											{isEnabled && (
+												<select
+													value={weight}
+													onChange={(e) => {
+														setSearchConfig((prev) =>
+															(prev || []).map((sc) =>
+																sc.field === field ? { ...sc, weight: e.target.value } : sc,
+															),
+														);
+													}}
+													className="px-1.5 py-0.5 rounded border border-white/[0.1] bg-white/[0.06] text-white/80 text-[10px] focus:outline-none"
+												>
+													<option value="A">High (A)</option>
+													<option value="B">Medium (B)</option>
+													<option value="C">Normal (C)</option>
+													<option value="D">Low (D)</option>
+												</select>
+											)}
+										</div>
+									);
+								})}
+							</div>
+							<div className="flex items-center justify-end gap-2 pt-1">
+								<button
+									type="button"
+									onClick={() => saveSearchConfig(searchConfig)}
+									disabled={searchConfigSaving}
+									className="px-3 py-1 rounded-md bg-violet-500/80 text-white text-xs font-medium hover:bg-violet-500 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+								>
+									{searchConfigSaving && <Loader2 className="h-3 w-3 animate-spin" />}
+									Save
+								</button>
+							</div>
+						</>
+					)}
 				</div>
 			)}
 
@@ -759,7 +925,7 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 			)}
 
 			{/* Data Table */}
-			{!loading && filteredRows.length > 0 && currentEntity && (
+			{!loading && rows.length > 0 && currentEntity && (
 				<div className="flex-1 min-h-0 overflow-auto px-1">
 					<div className="overflow-x-auto rounded-xl border border-white/[0.08]">
 						<table className="w-full text-sm">
@@ -783,7 +949,7 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-white/[0.04]">
-								{filteredRows.map((row) => (
+								{rows.map((row) => (
 									<tr
 										key={String(row.id)}
 										className="hover:bg-white/[0.03] transition-colors"

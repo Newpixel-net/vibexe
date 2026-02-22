@@ -5,12 +5,40 @@
  * Each entity maps to a PostgreSQL table with auto-generated endpoints.
  */
 
+/** Advanced filter operators for a single field */
+export interface FilterOperator {
+	eq?: string | number | boolean;
+	ne?: string | number;
+	gt?: number;
+	gte?: number;
+	lt?: number;
+	lte?: number;
+	like?: string;
+	in?: (string | number)[];
+}
+
 export interface ListOptions {
 	page?: number;
 	limit?: number;
 	sort?: string;
 	order?: "asc" | "desc";
-	filter?: Record<string, string | number | boolean>;
+	filter?: Record<string, string | number | boolean | FilterOperator>;
+	/** Full-text search across indexed fields */
+	search?: string;
+}
+
+export interface AggregateOptions {
+	group?: string;
+	count?: boolean;
+	sum?: string;
+	avg?: string;
+	min?: string;
+	max?: string;
+	filter?: Record<string, string | number | boolean | FilterOperator>;
+}
+
+export interface AggregateResponse {
+	data: Record<string, unknown>[];
 }
 
 export interface DataChangeEvent<T = Record<string, unknown>> {
@@ -57,9 +85,21 @@ export class DataClient {
 		if (options.order) params.set("order", options.order);
 		if (options.filter) {
 			for (const [key, value] of Object.entries(options.filter)) {
-				params.set(`filter[${key}]`, String(value));
+				if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+					// Advanced operator: filter[price][gte]=100
+					for (const [op, opVal] of Object.entries(value as FilterOperator)) {
+						if (op === "in" && Array.isArray(opVal)) {
+							params.set(`filter[${key}][in]`, (opVal as (string | number)[]).join(","));
+						} else if (opVal !== undefined) {
+							params.set(`filter[${key}][${op}]`, String(opVal));
+						}
+					}
+				} else {
+					params.set(`filter[${key}]`, String(value));
+				}
 			}
 		}
+		if (options.search) params.set("search", options.search);
 
 		const qs = params.toString();
 		const url = `${this.baseUrl}/data/${entity}${qs ? `?${qs}` : ""}`;
@@ -195,5 +235,47 @@ export class DataClient {
 		return () => {
 			es.close();
 		};
+	}
+
+	/**
+	 * Aggregate data with grouping and statistics.
+	 */
+	async aggregate(
+		entity: string,
+		options: AggregateOptions = {},
+	): Promise<AggregateResponse> {
+		const params = new URLSearchParams();
+		if (options.group) params.set("group", options.group);
+		if (options.count) params.set("count", "true");
+		if (options.sum) params.set("sum", options.sum);
+		if (options.avg) params.set("avg", options.avg);
+		if (options.min) params.set("min", options.min);
+		if (options.max) params.set("max", options.max);
+		if (options.filter) {
+			for (const [key, value] of Object.entries(options.filter)) {
+				if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+					for (const [op, opVal] of Object.entries(value as FilterOperator)) {
+						if (op === "in" && Array.isArray(opVal)) {
+							params.set(`filter[${key}][in]`, (opVal as (string | number)[]).join(","));
+						} else if (opVal !== undefined) {
+							params.set(`filter[${key}][${op}]`, String(opVal));
+						}
+					}
+				} else {
+					params.set(`filter[${key}]`, String(value));
+				}
+			}
+		}
+
+		const qs = params.toString();
+		const url = `${this.baseUrl}/data/${entity}/aggregate${qs ? `?${qs}` : ""}`;
+		const res = await fetch(url, { headers: this.headers });
+
+		if (!res.ok) {
+			const err = await res.json().catch(() => ({}));
+			throw new Error(err.error || `Failed to aggregate ${entity}: ${res.status}`);
+		}
+
+		return await res.json();
 	}
 }
