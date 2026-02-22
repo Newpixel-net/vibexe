@@ -228,16 +228,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		}
 
 		// Filter to only known fields
-		const validFieldNames = new Set(ctx.entity.fields.map((f) => f.name));
+		const fieldMap = new Map(ctx.entity.fields.map((f) => [f.name, f]));
 		const fields: string[] = [];
 		const values: unknown[] = [];
 		const placeholders: string[] = [];
 		let paramIndex = 1;
 
 		for (const [key, value] of Object.entries(body)) {
-			if (validFieldNames.has(key)) {
+			const field = fieldMap.get(key);
+			if (field) {
+				// Coerce empty strings to null for non-text types
+				const coerced =
+					value === "" && field.type !== "text" ? null : value;
 				fields.push(`"${key}"`);
-				values.push(value);
+				values.push(coerced);
 				placeholders.push(`$${paramIndex}`);
 				paramIndex++;
 			}

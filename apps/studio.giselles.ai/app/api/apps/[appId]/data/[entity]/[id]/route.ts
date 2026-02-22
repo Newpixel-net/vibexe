@@ -144,15 +144,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 			return NextResponse.json({ error: "Request body must be a JSON object" }, { status: 400 });
 		}
 
-		const validFieldNames = new Set(ctx.entity.fields.map((f) => f.name));
+		const fieldMap = new Map(ctx.entity.fields.map((f) => [f.name, f]));
 		const setClauses: string[] = [];
 		const values: unknown[] = [];
 		let paramIndex = 1;
 
 		for (const [key, value] of Object.entries(body)) {
-			if (validFieldNames.has(key)) {
+			const field = fieldMap.get(key);
+			if (field) {
+				// Coerce empty strings to null for non-text types
+				const coerced =
+					value === "" && field.type !== "text" ? null : value;
 				setClauses.push(`"${key}" = $${paramIndex}`);
-				values.push(value);
+				values.push(coerced);
 				paramIndex++;
 			}
 		}
