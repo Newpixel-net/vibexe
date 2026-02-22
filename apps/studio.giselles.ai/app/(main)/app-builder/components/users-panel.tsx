@@ -156,6 +156,9 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 	const dropdownRef = useRef<HTMLDivElement>(null);
 	const actionBtnRef = useRef<HTMLButtonElement>(null);
 
+	// Cache status counts from "all" tab so badges stay stable across tab switches
+	const cachedStatusCountsRef = useRef({ active: 0, suspended: 0, pending: 0 });
+
 	const fetchUsers = useCallback(async () => {
 		setLoading(true);
 		try {
@@ -253,8 +256,16 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 			else if (u.status === "suspended") counts.suspended++;
 			else if (u.status === "pending") counts.pending++;
 		}
+		// Cache counts when on "all" tab so badges stay stable when switching tabs
+		if (statusFilter === "all") {
+			cachedStatusCountsRef.current = {
+				active: counts.active,
+				suspended: counts.suspended,
+				pending: counts.pending,
+			};
+		}
 		return counts;
-	}, [users]);
+	}, [users, statusFilter]);
 
 	// Unique roles for filter
 	const roles = useMemo(() => {
@@ -570,7 +581,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 								Users
 							</h1>
 							<p className="text-sm text-white/40 mt-1">
-								{total} registered user{total !== 1 ? "s" : ""}
+								{total} {statusFilter !== "all" ? `${statusFilter} ` : "registered "}user{total !== 1 ? "s" : ""}
 							</p>
 						</div>
 						<div className="flex items-center gap-2">
@@ -677,9 +688,9 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 							>
 								{tab.label}
 								{tab.key !== "all" &&
-									statusCounts[tab.key] > 0 && (
+									cachedStatusCountsRef.current[tab.key] > 0 && (
 										<span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-white/[0.06]">
-											{statusCounts[tab.key]}
+											{cachedStatusCountsRef.current[tab.key]}
 										</span>
 									)}
 							</button>
