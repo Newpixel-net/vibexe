@@ -191,6 +191,11 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 		setPage(1);
 	}, [roleFilter, statusFilter]);
 
+	const closeDropdown = useCallback(() => {
+		setOpenDropdownId(null);
+		setDropdownPos(null);
+	}, []);
+
 	// Close dropdown on click outside
 	useEffect(() => {
 		function handleClickOutside(e: MouseEvent) {
@@ -260,11 +265,6 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 		() => users.find((u) => u.id === selectedUserId) ?? null,
 		[users, selectedUserId],
 	);
-
-	const closeDropdown = useCallback(() => {
-		closeDropdown();
-		setDropdownPos(null);
-	}, []);
 
 	// Selection handlers
 	const toggleSelect = (id: number) => {
