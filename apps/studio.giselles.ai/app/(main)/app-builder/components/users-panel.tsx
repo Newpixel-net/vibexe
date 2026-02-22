@@ -141,6 +141,10 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 	const [sidebarSessions, setSidebarSessions] = useState<UserSession[]>([]);
 	const [sidebarSessionsLoading, setSidebarSessionsLoading] = useState(false);
 	const [copied, setCopied] = useState(false);
+	const [dropdownPos, setDropdownPos] = useState<{
+		top: number;
+		left: number;
+	} | null>(null);
 
 	// Add user form state
 	const [newEmail, setNewEmail] = useState("");
@@ -149,6 +153,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 	const [newRole, setNewRole] = useState("user");
 
 	const dropdownRef = useRef<HTMLDivElement>(null);
+	const actionBtnRef = useRef<HTMLButtonElement>(null);
 
 	const fetchUsers = useCallback(async () => {
 		setLoading(true);
@@ -189,15 +194,18 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 	// Close dropdown on click outside
 	useEffect(() => {
 		function handleClickOutside(e: MouseEvent) {
-			if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-				setOpenDropdownId(null);
+			const target = e.target as Node;
+			// Don't close if clicking the action button itself (toggle handled by button onClick)
+			if (actionBtnRef.current?.contains(target)) return;
+			if (dropdownRef.current && !dropdownRef.current.contains(target)) {
+				closeDropdown();
 			}
 		}
 		if (openDropdownId !== null) {
 			document.addEventListener("mousedown", handleClickOutside);
 			return () => document.removeEventListener("mousedown", handleClickOutside);
 		}
-	}, [openDropdownId]);
+	}, [openDropdownId, closeDropdown]);
 
 	// Fetch sidebar sessions when selectedUserId changes
 	useEffect(() => {
@@ -252,6 +260,11 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 		() => users.find((u) => u.id === selectedUserId) ?? null,
 		[users, selectedUserId],
 	);
+
+	const closeDropdown = useCallback(() => {
+		closeDropdown();
+		setDropdownPos(null);
+	}, []);
 
 	// Selection handlers
 	const toggleSelect = (id: number) => {
@@ -389,7 +402,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 				: `Activate ${user.email}?`;
 		if (!window.confirm(confirmMsg)) return;
 		await adminAction(action, user.id);
-		setOpenDropdownId(null);
+		closeDropdown();
 		await fetchUsers();
 	};
 
@@ -409,7 +422,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 				// tempPassword state will be shown in sidebar
 			}
 		}
-		setOpenDropdownId(null);
+		closeDropdown();
 		await fetchUsers();
 	};
 
@@ -422,7 +435,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 		)
 			return;
 		await adminAction("revoke-sessions", userId);
-		setOpenDropdownId(null);
+		closeDropdown();
 		// Refresh sidebar sessions
 		if (selectedUserId === userId) {
 			setSidebarSessions([]);
@@ -433,7 +446,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 	// Approve / reject pending user
 	const handleApprove = async (userId: number) => {
 		await adminAction("approve", userId);
-		setOpenDropdownId(null);
+		closeDropdown();
 		await fetchUsers();
 	};
 
@@ -445,7 +458,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 		)
 			return;
 		await adminAction("reject", userId);
-		setOpenDropdownId(null);
+		closeDropdown();
 		if (selectedUserId === userId) setSelectedUserId(null);
 		await fetchUsers();
 	};
@@ -965,32 +978,59 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 												).toLocaleDateString()}
 											</td>
 											<td
-												className="px-3 py-2.5 text-right relative"
+												className="px-3 py-2.5 text-right"
 												onClick={(e) =>
 													e.stopPropagation()
 												}
 											>
 												<button
 													type="button"
-													onClick={() =>
-														setOpenDropdownId(
-															openDropdownId ===
-																user.id
-																? null
-																: user.id,
-														)
+													ref={
+														openDropdownId ===
+														user.id
+															? actionBtnRef
+															: undefined
 													}
+													onClick={(e) => {
+														if (
+															openDropdownId ===
+															user.id
+														) {
+															closeDropdown();
+															return;
+														}
+														const rect =
+															e.currentTarget.getBoundingClientRect();
+														const dropLeft =
+															rect.right - 192;
+														setDropdownPos({
+															top:
+																rect.bottom + 4,
+															left:
+																dropLeft < 8
+																	? 8
+																	: dropLeft,
+														});
+														setOpenDropdownId(
+															user.id,
+														);
+													}}
 													className="p-1 rounded text-white/40 hover:text-white/90 hover:bg-white/[0.06] transition-colors"
 												>
 													<MoreHorizontal className="h-4 w-4" />
 												</button>
 
-												{/* Dropdown menu */}
+												{/* Dropdown menu — fixed position to escape overflow clipping */}
 												{openDropdownId ===
-													user.id && (
+													user.id &&
+													dropdownPos && (
 													<div
 														ref={dropdownRef}
-														className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-white/[0.08] bg-[#1a1a2e] shadow-xl z-50"
+														className="fixed w-48 rounded-lg border border-white/[0.08] bg-[#1a1a2e] shadow-xl z-[100]"
+														style={{
+															top: dropdownPos.top,
+															left: dropdownPos.left,
+														}}
 													>
 														{user.status ===
 														"pending" ? (
@@ -1030,9 +1070,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 																		setSelectedUserId(
 																			user.id,
 																		);
-																		setOpenDropdownId(
-																			null,
-																		);
+																		closeDropdown();
 																	}}
 																/>
 																<DropdownItem
@@ -1085,9 +1123,7 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 																	}
 																	label="Delete"
 																	onClick={() => {
-																		setOpenDropdownId(
-																			null,
-																		);
+																		closeDropdown();
 																		handleDelete(
 																			user.id,
 																		);
