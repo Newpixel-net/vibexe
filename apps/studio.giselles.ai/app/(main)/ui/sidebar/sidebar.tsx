@@ -288,6 +288,12 @@ export async function Sidebar() {
 							href: "/admin/templates",
 							activeMatchPattern: "/admin/templates*",
 						},
+						{
+							id: "admin-suggestions",
+							label: "Suggestions",
+							href: "/admin/suggestions",
+							activeMatchPattern: "/admin/suggestions*",
+						},
 					],
 				},
 			]
