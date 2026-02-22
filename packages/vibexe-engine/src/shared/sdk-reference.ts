@@ -60,7 +60,8 @@ const response = await app.auth.signIn({ email, password });
 
 await app.auth.signOut();
 const user = await app.auth.getCurrentUser();   // returns AppUser | null
-app.auth.isAuthenticated();                      // boolean
+app.auth.isAuthenticated();                      // boolean (sync check)
+const token = app.auth.getToken();               // returns string | null
 // Session token: localStorage "vibexe_session" (SDK manages automatically)
 
 // ─── Serverless Functions ───
@@ -374,6 +375,7 @@ export const mockApp = {
     signOut: vi.fn().mockResolvedValue(undefined),
     getCurrentUser: vi.fn().mockReturnValue(null),
     isAuthenticated: vi.fn().mockReturnValue(false),
+    getToken: vi.fn().mockReturnValue(null),
   },
   storage: {
     upload: vi.fn().mockResolvedValue({ url: "/storage/test.jpg", path: "test.jpg", size: 1024, contentType: "image/jpeg" }),
@@ -381,6 +383,9 @@ export const mockApp = {
     list: vi.fn().mockResolvedValue({ files: [], hasMore: false }),
     delete: vi.fn().mockResolvedValue(undefined),
     getUrl: vi.fn().mockImplementation((path, transforms) => "/storage/" + path),
+  },
+  functions: {
+    invoke: vi.fn().mockResolvedValue(null),
   },
 };
 \`\`\`
