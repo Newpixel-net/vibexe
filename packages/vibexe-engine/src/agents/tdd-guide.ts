@@ -1,4 +1,5 @@
 import type { AgentDefinition } from "../types";
+import { SDK_MOCK_PATTERNS } from "../shared/sdk-reference";
 
 export const tddGuide: AgentDefinition = {
 	id: "tdd-guide",
@@ -191,31 +192,7 @@ describe("validateTask", () => {
 });
 \`\`\`
 
-### SDK Mock Pattern
-
-\`\`\`typescript
-// src/utils/__tests__/mocks.ts — SDK mock for testing
-export const mockApp = {
-  data: {
-    list: vi.fn().mockResolvedValue([]),
-    get: vi.fn().mockResolvedValue(null),
-    create: vi.fn().mockImplementation((entity, data) =>
-      Promise.resolve({ id: "mock-id", ...data, created_at: new Date().toISOString() })
-    ),
-    update: vi.fn().mockImplementation((entity, id, data) =>
-      Promise.resolve({ id, ...data })
-    ),
-    delete: vi.fn().mockResolvedValue(undefined),
-  },
-  auth: {
-    signUp: vi.fn().mockResolvedValue({ id: "user-1", email: "test@test.com" }),
-    signIn: vi.fn().mockResolvedValue({ id: "user-1", email: "test@test.com" }),
-    signOut: vi.fn().mockResolvedValue(undefined),
-    getCurrentUser: vi.fn().mockReturnValue(null),
-    isAuthenticated: vi.fn().mockReturnValue(false),
-  },
-};
-\`\`\`
+${SDK_MOCK_PATTERNS}
 
 ---
 

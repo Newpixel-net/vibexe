@@ -1,4 +1,5 @@
 import type { AgentDefinition } from "../types";
+import { SDK_REVIEW_CHECKLIST } from "../shared/sdk-reference";
 
 export const codeReviewer: AgentDefinition = {
 	id: "code-reviewer",
@@ -49,6 +50,8 @@ These cause Sandpack to show a blank screen or error overlay:
 | Missing \`getCurrentUser()\` on mount | Session not restored after refresh | Call in AuthProvider useEffect |
 | Storing password in React state | Security risk, stays in memory | Clear after submission |
 | Not initializing \`VibexeApp\` | SDK calls fail silently | Ensure \`new VibexeApp({ appId })\` at module level |
+
+${SDK_REVIEW_CHECKLIST}
 
 ### 3. Component Quality Issues (MEDIUM — app works but poorly)
 

@@ -1,4 +1,8 @@
 import type { AgentDefinition } from "../types";
+import {
+	SDK_API_REFERENCE,
+	SDK_HOOK_PATTERN,
+} from "../shared/sdk-reference";
 
 export const fullstackDeveloper: AgentDefinition = {
 	id: "fullstack-developer",
@@ -52,34 +56,7 @@ When files already exist (the user is modifying an existing app):
 - **Images**: Use placeholder services (picsum.photos, placehold.co) or inline SVG. No local image files.
 - **Routing**: Use \`window.location.hash\` or conditional rendering — no react-router
 
-## @vibexe/sdk — Backend API
-
-When the app needs persistent data or multi-user auth, use the SDK:
-
-\`\`\`typescript
-import { VibexeApp } from "@vibexe/sdk";
-const app = new VibexeApp({ appId: "..." }); // appId is injected at runtime
-
-// ─── CRUD (isolated PostgreSQL per app) ───
-const items = await app.data.list("tasks");                              // GET all
-const items = await app.data.list("tasks", { filters: { status: "active" }, sort: { created_at: "desc" }, limit: 50 });
-const item  = await app.data.get("tasks", id);                          // GET one
-const item  = await app.data.create("tasks", { title: "New", status: "active" }); // POST
-const item  = await app.data.update("tasks", id, { status: "done" });   // PUT
-await app.data.delete("tasks", id);                                      // DELETE
-
-// ─── Auth (per-app user system) ───
-const user = await app.auth.signUp({ email, password, name });
-const user = await app.auth.signIn({ email, password });
-await app.auth.signOut();
-const user = await app.auth.getCurrentUser();   // returns user | null
-const isAuth = app.auth.isAuthenticated();       // boolean
-// Session token: localStorage "vibexe_session" (SDK manages automatically)
-\`\`\`
-
-**Entity names in SDK calls use the table name** (snake_case plural), NOT PascalCase:
-- Entity "BlogPost" → table "blog_posts" → \`app.data.list("blog_posts")\`
-- Entity "Task" → table "tasks" → \`app.data.list("tasks")\`
+${SDK_API_REFERENCE}
 
 ### define_entities Tool
 
@@ -94,59 +71,7 @@ For apps that need persistent data, call \`define_entities\` ONCE with all entit
 
 Simple apps that don't need persistence (calculators, converters, timers, games, tools) should use React state only. Use \`useState\` + optionally \`localStorage\` for single-user persistence.
 
-## Data Hook Pattern
-
-Every entity gets a custom hook that encapsulates ALL SDK calls:
-
-\`\`\`typescript
-// src/hooks/useTasks.ts
-import { useState, useEffect, useCallback } from "react";
-import { VibexeApp } from "@vibexe/sdk";
-
-const app = new VibexeApp({ appId: "..." });
-
-export function useTasks() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchTasks = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await app.data.list("tasks", { sort: { created_at: "desc" } });
-      setTasks(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load tasks");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchTasks(); }, [fetchTasks]);
-
-  const createTask = async (data: Omit<Task, "id" | "created_at" | "updated_at">) => {
-    const task = await app.data.create("tasks", data);
-    setTasks(prev => [task, ...prev]);
-    return task;
-  };
-
-  const updateTask = async (id: string, data: Partial<Task>) => {
-    const updated = await app.data.update("tasks", id, data);
-    setTasks(prev => prev.map(t => t.id === id ? updated : t));
-    return updated;
-  };
-
-  const deleteTask = async (id: string) => {
-    await app.data.delete("tasks", id);
-    setTasks(prev => prev.filter(t => t.id !== id));
-  };
-
-  return { tasks, loading, error, createTask, updateTask, deleteTask, refetch: fetchTasks };
-}
-\`\`\`
-
-Components call hook methods — **never call app.data.* directly in components**.
+${SDK_HOOK_PATTERN}
 
 ## Code Quality Standards
 

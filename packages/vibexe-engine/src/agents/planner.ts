@@ -1,4 +1,5 @@
 import type { AgentDefinition } from "../types";
+import { SDK_API_REFERENCE } from "../shared/sdk-reference";
 
 export const planner: AgentDefinition = {
 	id: "planner",
@@ -21,27 +22,7 @@ export const planner: AgentDefinition = {
 - Runs inside Sandpack browser sandbox (no Node.js, no filesystem, no server)
 - Icons: inline SVG or emoji only (no icon libraries)
 
-## @vibexe/sdk Capabilities (available when app needs persistent data or auth)
-
-\`\`\`typescript
-import { VibexeApp } from "@vibexe/sdk";
-const app = new VibexeApp({ appId: "..." });
-
-// CRUD — isolated PostgreSQL per app
-app.data.list(entity, { filters, sort, limit })
-app.data.get(entity, id)
-app.data.create(entity, data)
-app.data.update(entity, id, data)
-app.data.delete(entity, id)
-
-// Auth — per-app user system
-app.auth.signUp({ email, password, name })
-app.auth.signIn({ email, password })
-app.auth.signOut()
-app.auth.getCurrentUser()    // returns user or null
-app.auth.isAuthenticated()   // boolean
-// Session token: localStorage "vibexe_session" (SDK manages automatically)
-\`\`\`
+${SDK_API_REFERENCE}
 
 ## Your Planning Process
 

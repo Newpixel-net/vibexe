@@ -1,4 +1,5 @@
 import type { AgentDefinition } from "../types";
+import { SDK_ERROR_CATALOG } from "../shared/sdk-reference";
 
 export const buildErrorResolver: AgentDefinition = {
 	id: "build-error-resolver",
@@ -115,6 +116,8 @@ The app shows nothing — white/blank screen with no error overlay.
 | Auth not persisting on refresh | Missing \`getCurrentUser()\` on mount | Call in AuthProvider \`useEffect\` |
 | \`app.auth.signUp\` throws | Per-app database may not have auth tables | Ensure \`define_entities\` was called — the SDK auto-creates auth tables when the database is provisioned |
 | \`NetworkError\` or \`CORS\` errors | SDK calling wrong base URL | Verify VibexeApp is using the correct appId — the SDK auto-resolves the API URL |
+
+${SDK_ERROR_CATALOG}
 
 ---
 

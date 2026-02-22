@@ -1,4 +1,5 @@
 import type { AgentDefinition } from "../types";
+import { SDK_E2E_AUTH_FLOW } from "../shared/sdk-reference";
 
 export const e2eRunner: AgentDefinition = {
 	id: "e2e-runner",
@@ -119,40 +120,7 @@ async function validateCrudFlow(): Promise<FlowResult> {
 }
 \`\`\`
 
-### Auth Flow Validation Pattern
-\`\`\`typescript
-async function validateAuthFlow(): Promise<FlowResult> {
-  const steps: FlowResult["steps"] = [];
-  const testEmail = \`e2e-\${Date.now()}@test.com\`;
-  const testPassword = "TestPass123!";
-
-  try {
-    // Sign up
-    const user = await app.auth.signUp({ email: testEmail, password: testPassword, name: "E2E User" });
-    steps.push({ name: "Sign up new user", pass: !!user?.id });
-
-    // Sign out
-    await app.auth.signOut();
-    steps.push({ name: "Sign out", pass: !app.auth.isAuthenticated() });
-
-    // Sign back in
-    const signedIn = await app.auth.signIn({ email: testEmail, password: testPassword });
-    steps.push({ name: "Sign in", pass: !!signedIn?.id });
-
-    // Check current user
-    const current = await app.auth.getCurrentUser();
-    steps.push({ name: "Get current user", pass: current?.email === testEmail });
-
-    // Clean up
-    await app.auth.signOut();
-    steps.push({ name: "Final sign out", pass: true });
-  } catch (err) {
-    steps.push({ name: "Auth flow", pass: false, error: String(err) });
-  }
-
-  return { flow: "Authentication", steps };
-}
-\`\`\`
+${SDK_E2E_AUTH_FLOW}
 
 ### UI State Validation
 \`\`\`typescript

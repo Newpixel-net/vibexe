@@ -1,4 +1,10 @@
 import type { AgentDefinition } from "../types";
+import {
+	SDK_API_REFERENCE,
+	SDK_HOOK_PATTERN,
+	SDK_AUTH_PATTERN,
+	SDK_COMMON_PATTERNS,
+} from "../shared/sdk-reference";
 
 export const backendDeveloper: AgentDefinition = {
 	id: "backend-developer",
@@ -35,34 +41,7 @@ Your job: design the data model, create entities via \`define_entities\`, write 
 5. **Create/update custom data hooks** in \`src/hooks/\`.
 6. **Wire hooks into components** via \`update_file\`.
 
-## @vibexe/sdk — Complete API Reference
-
-\`\`\`typescript
-import { VibexeApp } from "@vibexe/sdk";
-const app = new VibexeApp({ appId: "..." }); // appId injected at runtime
-
-// ─── CRUD Operations ───
-await app.data.list("tasks");
-await app.data.list("tasks", {
-  filters: { status: "active", assigned_to: userId },
-  sort: { created_at: "desc" },
-  limit: 50,
-  offset: 0,
-});
-await app.data.get("tasks", id);
-await app.data.create("tasks", { title: "New", status: "active" });
-await app.data.update("tasks", id, { status: "done" });
-await app.data.delete("tasks", id);
-
-// ─── Auth ───
-await app.auth.signUp({ email, password, name });
-await app.auth.signIn({ email, password });
-await app.auth.signOut();
-await app.auth.getCurrentUser();   // user | null
-app.auth.isAuthenticated();        // boolean
-\`\`\`
-
-**Entity naming**: \`define_entities\` uses PascalCase names (e.g. "BlogPost"). SDK calls use the auto-generated snake_case table name: \`app.data.list("blog_posts")\`.
+${SDK_API_REFERENCE}
 
 ## define_entities — Schema Design Guide
 
@@ -90,7 +69,7 @@ Call \`define_entities\` with ALL entities. Each entity automatically gets \`id\
 }
 \`\`\`
 - Relations create a \`[field_name]_id\` column in the database
-- Fetch related data by filtering: \`app.data.list("comments", { filters: { post_id: postId } })\`
+- Fetch related data by filtering: \`app.data.list("comments", { filter: { post_id: postId } })\`
 
 ### Schema Design Principles
 1. **Normalize to 3NF** — no repeated groups, no transitive dependencies
@@ -100,120 +79,9 @@ Call \`define_entities\` with ALL entities. Each entity automatically gets \`id\
 5. **Use \`json\` type sparingly** — only for truly unstructured data (metadata, settings, tag arrays)
 6. **Add \`user\` relation for multi-user apps** — enables per-user data filtering
 
-## Custom Data Hook Pattern
+${SDK_HOOK_PATTERN}
 
-Every entity gets a dedicated hook that encapsulates ALL SDK interactions:
-
-\`\`\`typescript
-// src/hooks/useComments.ts
-import { useState, useEffect, useCallback } from "react";
-import { VibexeApp } from "@vibexe/sdk";
-import type { Comment, CreateCommentInput } from "../types";
-
-const app = new VibexeApp({ appId: "..." });
-
-export function useComments(postId: string) {
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchComments = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await app.data.list("comments", {
-        filters: { post_id: postId },
-        sort: { created_at: "desc" },
-      });
-      setComments(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load comments");
-    } finally {
-      setLoading(false);
-    }
-  }, [postId]);
-
-  useEffect(() => { fetchComments(); }, [fetchComments]);
-
-  const createComment = async (input: CreateCommentInput) => {
-    const comment = await app.data.create("comments", { ...input, post_id: postId });
-    setComments(prev => [comment, ...prev]);
-    return comment;
-  };
-
-  const deleteComment = async (id: string) => {
-    await app.data.delete("comments", id);
-    setComments(prev => prev.filter(c => c.id !== id));
-  };
-
-  return { comments, loading, error, createComment, deleteComment, refetch: fetchComments };
-}
-\`\`\`
-
-### Hook Rules
-- **One hook per entity** (or per entity + filter context, like \`useComments(postId)\`)
-- **Components call hook methods** — never call \`app.data.*\` directly in components
-- **Optimistic updates**: Update local state immediately, revert on error
-- **Error handling**: Every SDK call in a try/catch, error stored in hook state
-- **Loading states**: Set loading before fetch, clear in finally block
-
-## Auth Flow Pattern
-
-\`\`\`typescript
-// src/hooks/useAuth.ts
-const AuthContext = React.createContext<AuthContextValue | null>(null);
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  // Restore session on mount
-  useEffect(() => {
-    const restore = async () => {
-      try {
-        const currentUser = await app.auth.getCurrentUser();
-        setUser(currentUser);
-      } catch {
-        // No valid session — stay logged out
-      } finally {
-        setLoading(false);
-      }
-    };
-    restore();
-  }, []);
-
-  const signIn = async (email: string, password: string) => {
-    const user = await app.auth.signIn({ email, password });
-    setUser(user);
-    return user;
-  };
-
-  const signUp = async (email: string, password: string, name: string) => {
-    const user = await app.auth.signUp({ email, password, name });
-    setUser(user);
-    return user;
-  };
-
-  const signOut = async () => {
-    await app.auth.signOut();
-    setUser(null);
-  };
-
-  if (loading) return <div className="flex h-screen items-center justify-center">Loading...</div>;
-
-  return (
-    <AuthContext.Provider value={{ user, signIn, signUp, signOut, isAuthenticated: !!user }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
-\`\`\`
-
-### Auth Patterns
-- **Public app**: No auth needed. Anyone can read/write.
-- **Login required**: Wrap app with AuthProvider. Show Login/Register when no user.
-- **Owner-only data**: Filter by \`user_id\`: \`app.data.list("tasks", { filters: { user_id: user.id } })\`
-- **Role-based**: Add \`role\` text field on User entity. Check in UI: \`if (user.role === "admin")\`
+${SDK_AUTH_PATTERN}
 
 ## Input Validation
 
@@ -241,36 +109,7 @@ const createTask = async (data: CreateTaskInput) => {
 };
 \`\`\`
 
-## Common Data Patterns
-
-### Pagination
-\`\`\`typescript
-const PAGE_SIZE = 20;
-const [page, setPage] = useState(0);
-const data = await app.data.list("items", { limit: PAGE_SIZE, offset: page * PAGE_SIZE });
-\`\`\`
-
-### Search + Filter
-\`\`\`typescript
-const fetchFiltered = async (filters: Record<string, string>) => {
-  const cleanFilters = Object.fromEntries(
-    Object.entries(filters).filter(([_, v]) => v !== "" && v !== "all")
-  );
-  const data = await app.data.list("tasks", { filters: cleanFilters, sort: { created_at: "desc" } });
-  setTasks(data);
-};
-\`\`\`
-
-### Cascading Delete (manual)
-\`\`\`typescript
-const deleteProject = async (projectId: string) => {
-  // Delete children first
-  const tasks = await app.data.list("tasks", { filters: { project_id: projectId } });
-  await Promise.all(tasks.map(t => app.data.delete("tasks", t.id)));
-  // Then delete parent
-  await app.data.delete("projects", projectId);
-};
-\`\`\`
+${SDK_COMMON_PATTERNS}
 
 ## Output Principles
 
