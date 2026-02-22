@@ -56,6 +56,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			email: string;
 			display_name: string | null;
 			role: string;
+			email_verified: boolean;
 			status: string;
 			last_login_at: string | null;
 			created_at: string;
@@ -67,6 +68,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 				u.email,
 				u.display_name,
 				u.role,
+				u.email_verified,
 				u.status,
 				u.last_login_at,
 				u.created_at,
@@ -101,6 +103,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 				email: row.email,
 				display_name: row.display_name,
 				role: row.role,
+				email_verified: row.email_verified,
 				status: row.status,
 				last_login_at: row.last_login_at,
 				created_at: row.created_at,

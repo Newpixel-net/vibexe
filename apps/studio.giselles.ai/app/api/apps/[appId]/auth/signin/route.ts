@@ -65,11 +65,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			email: string;
 			display_name: string | null;
 			password_hash: string;
+			role: string;
+			email_verified: boolean;
 			status: string;
 			created_at: string;
 		}>(
 			databaseName,
-			`SELECT id, email, display_name, password_hash, status, created_at
+			`SELECT id, email, display_name, password_hash, role, email_verified, status, created_at
 			 FROM "_app_users"
 			 WHERE email = $1
 			 LIMIT 1`,
@@ -143,6 +145,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 				id: user.id,
 				email: user.email,
 				display_name: user.display_name,
+				role: user.role,
+				email_verified: user.email_verified,
 				created_at: user.created_at,
 			},
 			token,

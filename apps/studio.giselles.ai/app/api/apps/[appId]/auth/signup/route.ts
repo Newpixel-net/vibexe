@@ -117,13 +117,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			id: string;
 			email: string;
 			display_name: string | null;
+			role: string;
+			email_verified: boolean;
 			status: string;
 			created_at: string;
 		}>(
 			databaseName,
 			`INSERT INTO "_app_users" (email, password_hash, display_name, status)
 			 VALUES ($1, $2, $3, $4)
-			 RETURNING id, email, display_name, status, created_at`,
+			 RETURNING id, email, display_name, role, email_verified, status, created_at`,
 			[email.toLowerCase(), passwordHash, display_name || null, userStatus],
 		);
 		const user = users[0];
@@ -168,6 +170,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 					id: user.id,
 					email: user.email,
 					display_name: user.display_name,
+					role: user.role,
+					email_verified: user.email_verified,
 					created_at: user.created_at,
 				},
 				token,
