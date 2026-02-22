@@ -163,6 +163,7 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 
 	const fetchLogs = useCallback(
 		async (webhookDbId: number) => {
+			setLogs([]);
 			setLogsLoading(true);
 			try {
 				const res = await fetch(
@@ -222,39 +223,46 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 						)
 					: {};
 
-			if (editingId) {
-				// Update
-				await fetch(`/api/apps/${appId}/webhooks`, {
-					method: "PUT",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						webhookDbId: editingId,
-						url: formUrl.trim(),
-						description: formDescription.trim() || null,
-						events: formEvents,
-						secret: formSecret || undefined,
-						headers,
-					}),
-				});
-			} else {
-				// Create
-				await fetch(`/api/apps/${appId}/webhooks`, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						url: formUrl.trim(),
-						description: formDescription.trim() || null,
-						events: formEvents,
-						secret: formSecret || null,
-						headers,
-					}),
-				});
+			const res = editingId
+				? await fetch(`/api/apps/${appId}/webhooks`, {
+						method: "PUT",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							webhookDbId: editingId,
+							url: formUrl.trim(),
+							description: formDescription.trim() || null,
+							events: formEvents,
+							secret: formSecret || undefined,
+							headers,
+						}),
+					})
+				: await fetch(`/api/apps/${appId}/webhooks`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							url: formUrl.trim(),
+							description: formDescription.trim() || null,
+							events: formEvents,
+							secret: formSecret || null,
+							headers,
+						}),
+					});
+
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({}));
+				alert(
+					(err as Record<string, string>).error ||
+						`Failed to save webhook (${res.status})`,
+				);
+				setSaving(false);
+				return;
 			}
+
 			setShowForm(false);
 			resetForm();
 			fetchWebhooks();
 		} catch {
-			// error
+			alert("Network error saving webhook");
 		}
 		setSaving(false);
 	}, [
@@ -276,7 +284,7 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 				),
 			);
 			try {
-				await fetch(`/api/apps/${appId}/webhooks`, {
+				const res = await fetch(`/api/apps/${appId}/webhooks`, {
 					method: "PUT",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
@@ -284,6 +292,7 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 						enabled: !wh.enabled,
 					}),
 				});
+				if (!res.ok) throw new Error("Toggle failed");
 			} catch {
 				setWebhooks((prev) =>
 					prev.map((w) =>
@@ -300,14 +309,21 @@ export function WebhooksPanel({ appId, schema }: WebhooksPanelProps) {
 			if (!window.confirm("Delete this webhook? This cannot be undone."))
 				return;
 			try {
-				await fetch(`/api/apps/${appId}/webhooks`, {
+				const res = await fetch(`/api/apps/${appId}/webhooks`, {
 					method: "DELETE",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ webhookDbId: dbId }),
 				});
+				if (!res.ok) {
+					const err = await res.json().catch(() => ({}));
+					alert(
+						(err as Record<string, string>).error ||
+							`Failed to delete webhook (${res.status})`,
+					);
+				}
 				fetchWebhooks();
 			} catch {
-				// ignore
+				alert("Network error deleting webhook");
 			}
 		},
 		[appId, fetchWebhooks],

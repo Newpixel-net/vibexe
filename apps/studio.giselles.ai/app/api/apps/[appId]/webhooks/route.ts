@@ -117,7 +117,15 @@ export async function POST(request: Request, { params }: RouteParams) {
 			})
 			.returning();
 
-		return NextResponse.json({ webhook }, { status: 201 });
+		return NextResponse.json(
+			{
+				webhook: {
+					...webhook,
+					secret: webhook.secret ? "••••••••" : null,
+				},
+			},
+			{ status: 201 },
+		);
 	} catch (error) {
 		console.error("[Webhooks API] POST error:", error);
 		return NextResponse.json(
@@ -165,6 +173,22 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			}
 		}
 
+		// Validate events if provided
+		if (updates.events !== undefined) {
+			if (
+				!Array.isArray(updates.events) ||
+				updates.events.length === 0 ||
+				!updates.events.every(
+					(e: unknown) => typeof e === "string" && e.length > 0,
+				)
+			) {
+				return NextResponse.json(
+					{ error: "events must be a non-empty array of strings" },
+					{ status: 400 },
+				);
+			}
+		}
+
 		const setValues: Record<string, unknown> = {};
 		if (updates.url !== undefined) setValues.url = updates.url;
 		if (updates.events !== undefined) setValues.events = updates.events;
@@ -199,7 +223,12 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			);
 		}
 
-		return NextResponse.json({ webhook: updated });
+		return NextResponse.json({
+			webhook: {
+				...updated,
+				secret: updated.secret ? "••••••••" : null,
+			},
+		});
 	} catch (error) {
 		console.error("[Webhooks API] PUT error:", error);
 		return NextResponse.json(
