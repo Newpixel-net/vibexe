@@ -20,6 +20,8 @@ interface RouteParams {
 	params: Promise<{ appId: string }>;
 }
 
+const VALID_LEVELS = ["public", "authenticated", "owner", "role", "custom"];
+
 export async function GET(_request: Request, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
@@ -49,12 +51,21 @@ export async function GET(_request: Request, { params }: RouteParams) {
 		const policyMap = new Map(policies.map((p) => [p.entityName, p]));
 		const result = entityNames.map((name) => {
 			const existing = policyMap.get(name);
+			let allowedRoles: string[] | null = null;
+			if (existing?.allowedRoles) {
+				try {
+					allowedRoles = JSON.parse(existing.allowedRoles);
+				} catch { /* ignore */ }
+			}
+
 			return {
 				entityName: name,
 				readAccess: existing?.readAccess ?? "public",
 				writeAccess: existing?.writeAccess ?? "authenticated",
 				deleteAccess: existing?.deleteAccess ?? "authenticated",
 				ownerField: existing?.ownerField ?? "user_id",
+				allowedRoles,
+				customExpression: existing?.customExpression ?? null,
 			};
 		});
 
@@ -78,24 +89,59 @@ export async function PUT(request: Request, { params }: RouteParams) {
 		}
 
 		const body = await request.json();
-		const { entityName, readAccess, writeAccess, deleteAccess } = body as {
+		const {
+			entityName,
+			readAccess,
+			writeAccess,
+			deleteAccess,
+			ownerField,
+			allowedRoles,
+			customExpression,
+		} = body as {
 			entityName: string;
 			readAccess?: string;
 			writeAccess?: string;
 			deleteAccess?: string;
+			ownerField?: string;
+			allowedRoles?: string[];
+			customExpression?: string;
 		};
 
 		if (!entityName) {
 			return NextResponse.json({ error: "entityName required" }, { status: 400 });
 		}
 
-		const validLevels = ["public", "authenticated", "owner"];
+		const ra = VALID_LEVELS.includes(readAccess ?? "") ? readAccess! : "public";
+		const wa = VALID_LEVELS.includes(writeAccess ?? "") ? writeAccess! : "authenticated";
+		const da = VALID_LEVELS.includes(deleteAccess ?? "") ? deleteAccess! : "authenticated";
+
+		// Validate: if any access is "role", allowedRoles must be non-empty
+		const anyRole = [ra, wa, da].includes("role");
+		if (anyRole && (!allowedRoles || allowedRoles.length === 0)) {
+			return NextResponse.json(
+				{ error: "allowedRoles must be a non-empty array when using role-based access" },
+				{ status: 400 },
+			);
+		}
+
+		// Validate: if any access is "custom", customExpression must be non-empty
+		const anyCustom = [ra, wa, da].includes("custom");
+		if (anyCustom && !customExpression) {
+			return NextResponse.json(
+				{ error: "customExpression is required when using custom access" },
+				{ status: 400 },
+			);
+		}
+
 		const values = {
 			appDbId: app.dbId,
 			entityName,
-			readAccess: validLevels.includes(readAccess ?? "") ? readAccess! : "public",
-			writeAccess: validLevels.includes(writeAccess ?? "") ? writeAccess! : "authenticated",
-			deleteAccess: validLevels.includes(deleteAccess ?? "") ? deleteAccess! : "authenticated",
+			readAccess: ra,
+			writeAccess: wa,
+			deleteAccess: da,
+			ownerField: ownerField || "user_id",
+			allowedRoles: allowedRoles ? JSON.stringify(allowedRoles) : null,
+			customExpression: customExpression || null,
 		};
 
 		// Check if policy exists
@@ -113,6 +159,9 @@ export async function PUT(request: Request, { params }: RouteParams) {
 					readAccess: values.readAccess,
 					writeAccess: values.writeAccess,
 					deleteAccess: values.deleteAccess,
+					ownerField: values.ownerField,
+					allowedRoles: values.allowedRoles,
+					customExpression: values.customExpression,
 				})
 				.where(eq(builderAppEntityPolicies.dbId, existing.dbId));
 		} else {

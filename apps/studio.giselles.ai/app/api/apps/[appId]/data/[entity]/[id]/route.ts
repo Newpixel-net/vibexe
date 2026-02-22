@@ -5,7 +5,8 @@
  * PUT    /api/apps/{appId}/data/{entity}/{id}  — Update a row
  * DELETE /api/apps/{appId}/data/{entity}/{id}  — Delete a row
  *
- * Auth: X-Vibexe-Api-Key header OR platform session cookie.
+ * Auth: X-Vibexe-Api-Key header OR Bearer token (end-user).
+ * RLS: API keys bypass RLS. Bearer token auth enforces entity access policies.
  */
 
 import { eq } from "drizzle-orm";
@@ -15,6 +16,7 @@ import { type BuilderAppId, builderApps, builderAppDatabases } from "@/db/schema
 import { verifyApiKey } from "@/lib/app-database/api-keys";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 import { emitDataEvent } from "@/lib/realtime/event-bus";
+import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
 import type { AppSchema } from "@/lib/app-database/schema-types";
 
 interface RouteParams {
@@ -60,15 +62,25 @@ async function resolveContext(appId: string, entityName: string, request: NextRe
 		return { error: "App database not available", status: 503 } as const;
 	}
 
+	// Check API key once
+	let apiKeyValid = false;
+	const apiKey = request.headers.get("x-vibexe-api-key");
+	if (apiKey) {
+		apiKeyValid = await verifyApiKey(app.dbId, apiKey);
+		if (!apiKeyValid) return { error: "Invalid API key", status: 401 } as const;
+	}
+
 	// Check internal tables first (e.g. _app_users, _app_sessions)
 	const internalTable = INTERNAL_TABLES[entityName];
 	if (internalTable) {
-		const apiKey = request.headers.get("x-vibexe-api-key");
-		if (apiKey) {
-			const valid = await verifyApiKey(app.dbId, apiKey);
-			if (!valid) return { error: "Invalid API key", status: 401 } as const;
-		}
-		return { app, appDb, entity: internalTable, databaseName: appDb.databaseName };
+		return {
+			app,
+			appDb,
+			entity: internalTable,
+			databaseName: appDb.databaseName,
+			apiKeyValid,
+			isInternal: true as const,
+		};
 	}
 
 	const schema = appDb.schemaJson as AppSchema | null;
@@ -81,13 +93,14 @@ async function resolveContext(appId: string, entityName: string, request: NextRe
 		return { error: `Entity '${entityName}' not found`, status: 404 } as const;
 	}
 
-	const apiKey = request.headers.get("x-vibexe-api-key");
-	if (apiKey) {
-		const valid = await verifyApiKey(app.dbId, apiKey);
-		if (!valid) return { error: "Invalid API key", status: 401 } as const;
-	}
-
-	return { app, appDb, entity, databaseName: appDb.databaseName };
+	return {
+		app,
+		appDb,
+		entity,
+		databaseName: appDb.databaseName,
+		apiKeyValid,
+		isInternal: false as const,
+	};
 }
 
 /**
@@ -106,14 +119,47 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 		}
 
+		// RLS enforcement
+		let rlsActive = false;
+		const whereClauses = [`id = $1`];
+		const queryParams: unknown[] = [rowId];
+		let paramIndex = 2;
+
+		if (!ctx.apiKeyValid && !ctx.isInternal) {
+			const user = await resolveAppUser(ctx.databaseName, request);
+			const policy = await getEntityPolicy(ctx.appDb.appDbId, entityName);
+			const entityFields = ctx.entity.fields.map((f) => f.name);
+			const rls = enforceRLS({
+				policy,
+				operation: "read",
+				user,
+				paramOffset: paramIndex - 1,
+				entityFields,
+			});
+
+			if (!rls.allowed) {
+				return NextResponse.json({ error: rls.error }, { status: rls.status });
+			}
+
+			if (rls.whereClauses.length > 0) {
+				rlsActive = true;
+				whereClauses.push(...rls.whereClauses);
+				queryParams.push(...rls.whereParams);
+				paramIndex += rls.whereParams.length;
+			}
+		}
+
 		const rows = await executeQuery(
 			ctx.databaseName,
-			`SELECT * FROM "${ctx.entity.tableName}" WHERE id = $1`,
-			[rowId],
+			`SELECT * FROM "${ctx.entity.tableName}" WHERE ${whereClauses.join(" AND ")}`,
+			queryParams,
 		);
 
 		if (rows.length === 0) {
-			return NextResponse.json({ error: "Not found" }, { status: 404 });
+			return NextResponse.json(
+				{ error: rlsActive ? "Access denied" : "Not found" },
+				{ status: rlsActive ? 403 : 404 },
+			);
 		}
 
 		return NextResponse.json({ data: rows[0] });
@@ -169,15 +215,47 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 		// Always update updated_at
 		setClauses.push(`"updated_at" = NOW()`);
 
+		// Build WHERE clause: id = $N + optional RLS clauses
+		const whereClauses = [`id = $${paramIndex}`];
 		values.push(rowId);
+		paramIndex++;
+
+		let rlsActive = false;
+		if (!ctx.apiKeyValid && !ctx.isInternal) {
+			const user = await resolveAppUser(ctx.databaseName, request);
+			const policy = await getEntityPolicy(ctx.appDb.appDbId, entityName);
+			const entityFields = ctx.entity.fields.map((f) => f.name);
+			const rls = enforceRLS({
+				policy,
+				operation: "write",
+				user,
+				paramOffset: paramIndex - 1,
+				entityFields,
+			});
+
+			if (!rls.allowed) {
+				return NextResponse.json({ error: rls.error }, { status: rls.status });
+			}
+
+			if (rls.whereClauses.length > 0) {
+				rlsActive = true;
+				whereClauses.push(...rls.whereClauses);
+				values.push(...rls.whereParams);
+				paramIndex += rls.whereParams.length;
+			}
+		}
+
 		const rows = await executeQuery(
 			ctx.databaseName,
-			`UPDATE "${ctx.entity.tableName}" SET ${setClauses.join(", ")} WHERE id = $${paramIndex} RETURNING *`,
+			`UPDATE "${ctx.entity.tableName}" SET ${setClauses.join(", ")} WHERE ${whereClauses.join(" AND ")} RETURNING *`,
 			values,
 		);
 
 		if (rows.length === 0) {
-			return NextResponse.json({ error: "Not found" }, { status: 404 });
+			return NextResponse.json(
+				{ error: rlsActive ? "Access denied" : "Not found" },
+				{ status: rlsActive ? 403 : 404 },
+			);
 		}
 
 		// Emit real-time event
@@ -206,14 +284,47 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 			return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 		}
 
+		// Build WHERE clause: id = $1 + optional RLS clauses
+		const whereClauses = [`id = $1`];
+		const queryParams: unknown[] = [rowId];
+		let paramIndex = 2;
+
+		let rlsActive = false;
+		if (!ctx.apiKeyValid && !ctx.isInternal) {
+			const user = await resolveAppUser(ctx.databaseName, request);
+			const policy = await getEntityPolicy(ctx.appDb.appDbId, entityName);
+			const entityFields = ctx.entity.fields.map((f) => f.name);
+			const rls = enforceRLS({
+				policy,
+				operation: "delete",
+				user,
+				paramOffset: paramIndex - 1,
+				entityFields,
+			});
+
+			if (!rls.allowed) {
+				return NextResponse.json({ error: rls.error }, { status: rls.status });
+			}
+
+			if (rls.whereClauses.length > 0) {
+				rlsActive = true;
+				whereClauses.push(...rls.whereClauses);
+				queryParams.push(...rls.whereParams);
+				paramIndex += rls.whereParams.length;
+			}
+		}
+
 		const rows = await executeQuery(
 			ctx.databaseName,
-			`DELETE FROM "${ctx.entity.tableName}" WHERE id = $1 RETURNING id`,
-			[rowId],
+			`DELETE FROM "${ctx.entity.tableName}" WHERE ${whereClauses.join(" AND ")} RETURNING id`,
+			queryParams,
 		);
 
 		if (rows.length === 0) {
-			return NextResponse.json({ error: "Not found" }, { status: 404 });
+			return NextResponse.json(
+				{ error: rlsActive ? "Access denied" : "Not found" },
+				{ status: rlsActive ? 403 : 404 },
+			);
 		}
 
 		// Emit real-time event

@@ -1633,10 +1633,12 @@ export const builderAppEntityPolicies = pgTable(
 			.notNull()
 			.references(() => builderApps.dbId, { onDelete: "cascade" }),
 		entityName: text("entity_name").notNull(),
-		readAccess: text("read_access").notNull().default("public"), // public | authenticated | owner
+		readAccess: text("read_access").notNull().default("public"), // public | authenticated | owner | role | custom
 		writeAccess: text("write_access").notNull().default("authenticated"),
 		deleteAccess: text("delete_access").notNull().default("authenticated"),
 		ownerField: text("owner_field").default("user_id"),
+		allowedRoles: text("allowed_roles"), // JSON: '["admin", "editor"]'
+		customExpression: text("custom_expression"), // WHERE template with $userId/$userRole placeholders
 		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.defaultNow()
 			.notNull()

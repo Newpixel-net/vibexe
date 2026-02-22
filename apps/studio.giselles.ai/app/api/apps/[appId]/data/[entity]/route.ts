@@ -4,7 +4,8 @@
  * GET  /api/apps/{appId}/data/{entity}     — List rows (paginated, filterable, sortable)
  * POST /api/apps/{appId}/data/{entity}     — Create a new row
  *
- * Auth: X-Vibexe-Api-Key header OR platform session cookie.
+ * Auth: X-Vibexe-Api-Key header OR Bearer token (end-user).
+ * RLS: API keys bypass RLS. Bearer token auth enforces entity access policies.
  */
 
 import { eq } from "drizzle-orm";
@@ -15,6 +16,7 @@ import { logAppEvent } from "@/lib/app-database/app-logger";
 import { verifyApiKey } from "@/lib/app-database/api-keys";
 import { emitDataEvent } from "@/lib/realtime/event-bus";
 import { executeQuery } from "@/lib/app-database/pool-manager";
+import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
 import type { AppSchema } from "@/lib/app-database/schema-types";
 
 interface RouteParams {
@@ -48,6 +50,7 @@ const INTERNAL_TABLES: Record<string, { name: string; tableName: string; fields:
 
 /**
  * Resolve app + database + validate entity.
+ * Returns `apiKeyValid` and `isInternal` flags for RLS decisions.
  */
 async function resolveContext(appId: string, entityName: string, request: NextRequest) {
 	// Look up app
@@ -65,20 +68,24 @@ async function resolveContext(appId: string, entityName: string, request: NextRe
 		return { error: "App database not available", status: 503 } as const;
 	}
 
+	// Check API key once
+	let apiKeyValid = false;
+	const apiKey = request.headers.get("x-vibexe-api-key");
+	if (apiKey) {
+		apiKeyValid = await verifyApiKey(app.dbId, apiKey);
+		if (!apiKeyValid) return { error: "Invalid API key", status: 401 } as const;
+	}
+
 	// Check internal tables first (e.g. _app_users, _app_sessions)
 	const internalTable = INTERNAL_TABLES[entityName];
 	if (internalTable) {
-		// Auth: API key or platform session
-		const apiKey = request.headers.get("x-vibexe-api-key");
-		if (apiKey) {
-			const valid = await verifyApiKey(app.dbId, apiKey);
-			if (!valid) return { error: "Invalid API key", status: 401 } as const;
-		}
 		return {
 			app,
 			appDb,
 			entity: internalTable,
 			databaseName: appDb.databaseName,
+			apiKeyValid,
+			isInternal: true as const,
 		};
 	}
 
@@ -96,19 +103,13 @@ async function resolveContext(appId: string, entityName: string, request: NextRe
 		} as const;
 	}
 
-	// Auth: API key or platform session
-	const apiKey = request.headers.get("x-vibexe-api-key");
-	if (apiKey) {
-		const valid = await verifyApiKey(app.dbId, apiKey);
-		if (!valid) return { error: "Invalid API key", status: 401 } as const;
-	}
-	// TODO: Also accept platform session cookies for dashboard access
-
 	return {
 		app,
 		appDb,
 		entity,
 		databaseName: appDb.databaseName,
+		apiKeyValid,
+		isInternal: false as const,
 	};
 }
 
@@ -152,6 +153,31 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 					paramIndex++;
 				}
 			}
+		}
+
+		// RLS enforcement (skip for API key auth and internal tables)
+		if (!ctx.apiKeyValid && !ctx.isInternal) {
+			const user = await resolveAppUser(ctx.databaseName, request);
+			const policy = await getEntityPolicy(ctx.appDb.appDbId, entityName);
+			const entityFields = ctx.entity.fields.map((f) => f.name);
+			const rls = enforceRLS({
+				policy,
+				operation: "read",
+				user,
+				paramOffset: paramIndex - 1,
+				entityFields,
+			});
+
+			if (!rls.allowed) {
+				return NextResponse.json({ error: rls.error }, { status: rls.status });
+			}
+
+			// Append RLS WHERE clauses
+			for (const clause of rls.whereClauses) {
+				filters.push(clause);
+			}
+			filterParams.push(...rls.whereParams);
+			paramIndex += rls.whereParams.length;
 		}
 
 		const whereClause = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
@@ -228,6 +254,27 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
+		// RLS enforcement (skip for API key auth and internal tables)
+		let rlsAutoFields: Record<string, unknown> = {};
+		if (!ctx.apiKeyValid && !ctx.isInternal) {
+			const user = await resolveAppUser(ctx.databaseName, request);
+			const policy = await getEntityPolicy(ctx.appDb.appDbId, entityName);
+			const entityFields = ctx.entity.fields.map((f) => f.name);
+			const rls = enforceRLS({
+				policy,
+				operation: "write",
+				user,
+				paramOffset: 0,
+				entityFields,
+			});
+
+			if (!rls.allowed) {
+				return NextResponse.json({ error: rls.error }, { status: rls.status });
+			}
+
+			rlsAutoFields = rls.autoFields;
+		}
+
 		// Filter to only known fields
 		const fieldMap = new Map(ctx.entity.fields.map((f) => [f.name, f]));
 		const fields: string[] = [];
@@ -235,7 +282,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		const placeholders: string[] = [];
 		let paramIndex = 1;
 
+		// First, inject RLS auto-fields (e.g. owner field)
+		for (const [key, value] of Object.entries(rlsAutoFields)) {
+			if (fieldMap.has(key)) {
+				fields.push(`"${key}"`);
+				values.push(value);
+				placeholders.push(`$${paramIndex}`);
+				paramIndex++;
+			}
+		}
+
 		for (const [key, value] of Object.entries(body)) {
+			// Skip fields already set by RLS (prevent client from overriding owner)
+			if (key in rlsAutoFields) continue;
+
 			const field = fieldMap.get(key);
 			if (field) {
 				// Coerce empty strings to null for non-text types

@@ -206,8 +206,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 ### Auth Patterns
 - **Public app**: No auth needed. Anyone can read/write.
 - **Login required**: Wrap app with AuthProvider. Show Login/Register when no user.
-- **Owner-only data**: Filter by \`user_id\`: \`app.data.list("tasks", { filter: { user_id: user.id } })\`
-- **Role-based**: Add \`role\` text field on User entity. Check in UI: \`if (user.role === "admin")\`
+- **Owner-only data**: The backend enforces RLS automatically — when the entity policy is set to "owner", the server auto-filters queries to \`user_id = currentUser\` and auto-injects \`user_id\` on create. No client-side filter needed.
+- **Role-based**: The backend checks \`user.role\` against the entity's allowedRoles list. Use \`user.role\` in UI for conditional rendering: \`if (user.role === "admin")\`
+
+### Row-Level Security (RLS) — Server-Side Enforcement
+RLS is enforced automatically by the backend based on entity access policies. No SDK code changes are needed.
+
+| Policy Level | Read Behavior | Write/Delete Behavior |
+|-------------|--------------|----------------------|
+| \`public\` | Anyone can read, no auth needed | Anyone can write/delete, no auth needed |
+| \`authenticated\` | Must be logged in (Bearer token) | Must be logged in |
+| \`owner\` | Only see rows where \`user_id\` = your user ID | Can only modify/delete your own rows. \`user_id\` is auto-set on create. |
+| \`role\` | Only allowed roles can read | Only allowed roles can write/delete |
+| \`custom\` | Server-defined WHERE clause with \`$userId\`/\`$userRole\` | Same custom WHERE for writes/deletes |
+
+**For owner-based apps**: Add a \`user_id\` (number) field to your entities. The backend auto-populates it on create and filters on read/update/delete. Do NOT manually set \`user_id\` in create calls — the server enforces it.
+
+**API key requests bypass RLS entirely** — they represent the app builder (admin access).
 `;
 
 /** Common data patterns with correct pagination, search, and cascading delete */
