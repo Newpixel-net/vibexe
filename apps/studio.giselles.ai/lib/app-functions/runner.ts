@@ -98,6 +98,7 @@ export async function executeFunction(opts: ExecuteFunctionOpts): Promise<Execut
 		db: ctx.db,
 		auth: ctx.auth,
 		env: ctx.env,
+		storage: ctx.storage,
 		console: ctx.console,
 		// HTTP trigger
 		request: ctx.request,

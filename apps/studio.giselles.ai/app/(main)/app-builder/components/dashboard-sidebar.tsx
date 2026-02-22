@@ -17,6 +17,7 @@ import {
 	Database,
 	FileText,
 	Globe,
+	HardDrive,
 	Home,
 	Key,
 	Puzzle,
@@ -37,6 +38,7 @@ export type DashboardSection =
 	| "overview"
 	| "users"
 	| "data"
+	| "storage"
 	| "analytics"
 	| "domains"
 	| "integrations"
@@ -64,6 +66,7 @@ const navItems: NavItem[] = [
 	{ id: "overview", label: "Overview", icon: Home },
 	{ id: "users", label: "Users", icon: Users },
 	{ id: "data", label: "Data", icon: Database },
+	{ id: "storage", label: "Storage", icon: HardDrive },
 	{ id: "analytics", label: "Analytics", icon: BarChart3 },
 	{ id: "domains", label: "Domains", icon: Globe },
 	{ id: "integrations", label: "Integrations", icon: Puzzle },

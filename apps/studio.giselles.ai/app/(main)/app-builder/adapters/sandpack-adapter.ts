@@ -304,6 +304,67 @@ class FunctionsClient {
   }
 }
 
+class StorageClient {
+  constructor(baseUrl, headers) {
+    this.baseUrl = baseUrl;
+    this.headers = headers;
+  }
+
+  _authHeaders() {
+    var h = Object.assign({}, this.headers);
+    var t = typeof window !== "undefined" ? localStorage.getItem("vibexe_session") : null;
+    if (t) h["Authorization"] = "Bearer " + t;
+    return h;
+  }
+
+  async upload(file, path) {
+    var fd = new FormData();
+    fd.append("file", file);
+    if (path) fd.append("path", path);
+    var h = this._authHeaders();
+    delete h["Content-Type"];
+    var res = await fetch(this.baseUrl + "/storage", { method: "POST", headers: h, body: fd });
+    if (!res.ok) { var err = await res.json().catch(function(){return{}}); throw new Error(err.error || "Upload failed"); }
+    return await res.json();
+  }
+
+  async download(path) {
+    var res = await fetch(this.baseUrl + "/storage/" + path, { headers: this._authHeaders() });
+    if (!res.ok) throw new Error("Download failed: " + res.status);
+    return await res.blob();
+  }
+
+  async list(prefix, options) {
+    var p = new URLSearchParams();
+    if (prefix) p.set("prefix", prefix);
+    if (options && options.limit) p.set("limit", String(options.limit));
+    if (options && options.cursor) p.set("cursor", options.cursor);
+    var qs = p.toString();
+    var res = await fetch(this.baseUrl + "/storage" + (qs ? "?" + qs : ""), { headers: this._authHeaders() });
+    if (!res.ok) throw new Error("List failed");
+    return await res.json();
+  }
+
+  async delete(path) {
+    var res = await fetch(this.baseUrl + "/storage/" + path, { method: "DELETE", headers: this._authHeaders() });
+    if (!res.ok) throw new Error("Delete failed");
+  }
+
+  getUrl(path, transforms) {
+    var url = this.baseUrl + "/storage/" + path;
+    if (transforms) {
+      var p = new URLSearchParams();
+      if (transforms.width) p.set("width", String(transforms.width));
+      if (transforms.height) p.set("height", String(transforms.height));
+      if (transforms.format) p.set("format", transforms.format);
+      if (transforms.quality) p.set("quality", String(transforms.quality));
+      var qs = p.toString();
+      if (qs) url += "?" + qs;
+    }
+    return url;
+  }
+}
+
 export class VibexeApp {
   constructor(config) {
     // Runtime appId override (injected by Sandpack host) takes precedence over hardcoded config
@@ -318,6 +379,7 @@ export class VibexeApp {
     this.data = new DataClient(base, headers);
     this.auth = new AuthClient(base, headers);
     this.functions = new FunctionsClient(base, headers);
+    this.storage = new StorageClient(base, headers);
   }
 }
 `;

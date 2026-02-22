@@ -68,6 +68,23 @@ app.auth.isAuthenticated();                      // boolean
 const result = await app.functions.invoke("calculatePrice", { items: [...] });
 // Sends POST to /api/apps/{appId}/functions/{name}
 // Returns whatever the function returns
+
+// ─── File Storage ───
+// Upload a file
+const { url, path, size } = await app.storage.upload(fileInput.files[0], "avatars/photo.jpg");
+
+// Get image URL with transforms (on-the-fly resize/format)
+const thumbUrl = app.storage.getUrl("avatars/photo.jpg", { width: 200, height: 200, format: "webp" });
+
+// List files with optional prefix
+const { files, hasMore, cursor } = await app.storage.list("avatars/");
+// files = [{ path, size, contentType, uploadedAt, url }, ...]
+
+// Download as Blob
+const blob = await app.storage.download("avatars/photo.jpg");
+
+// Delete
+await app.storage.delete("avatars/photo.jpg");
 \`\`\`
 
 **Entity naming**: \`define_entities\` uses PascalCase names (e.g. "BlogPost"). SDK calls use the auto-generated snake_case table name: \`app.data.list("blog_posts")\`.
@@ -282,6 +299,17 @@ const deleteProject = async (projectId: string) => {
   await app.data.delete("projects", projectId);
 };
 \`\`\`
+
+### File Upload (profile picture)
+\`\`\`typescript
+const handleAvatarUpload = async (file: File) => {
+  const { url } = await app.storage.upload(file, "avatars/" + user.id + ".jpg");
+  await app.data.update("users", user.id, { avatar_url: url });
+};
+
+// Display with transform
+<img src={app.storage.getUrl(user.avatar_url, { width: 80, height: 80, format: "webp" })} />
+\`\`\`
 `;
 
 /** Error catalog entries for build-error-resolver — 6 new API mismatch diagnoses */
@@ -346,6 +374,13 @@ export const mockApp = {
     signOut: vi.fn().mockResolvedValue(undefined),
     getCurrentUser: vi.fn().mockReturnValue(null),
     isAuthenticated: vi.fn().mockReturnValue(false),
+  },
+  storage: {
+    upload: vi.fn().mockResolvedValue({ url: "/storage/test.jpg", path: "test.jpg", size: 1024, contentType: "image/jpeg" }),
+    download: vi.fn().mockResolvedValue(new Blob()),
+    list: vi.fn().mockResolvedValue({ files: [], hasMore: false }),
+    delete: vi.fn().mockResolvedValue(undefined),
+    getUrl: vi.fn().mockImplementation((path, transforms) => "/storage/" + path),
   },
 };
 \`\`\`
@@ -461,6 +496,11 @@ ctx.db.delete(entity, id)     — Delete row, returns boolean
 ctx.auth                      — { userId, email, role } or null
 ctx.env                       — App secrets (key-value from Secrets panel)
 ctx.fetch                     — Global fetch for external API calls
+ctx.storage.upload(path, buf, ct)  — Upload Buffer to app storage
+ctx.storage.download(path)         — Download file, returns Buffer
+ctx.storage.list(prefix?)          — List files [{path, size, url}]
+ctx.storage.delete(path)           — Delete file from storage
+ctx.storage.getUrl(path, transforms?) — Get URL string (with optional transforms)
 ctx.console.log/warn/error    — Captured to app logs
 ctx.request                   — (HTTP only) { body, headers, query, method }
 ctx.data / ctx.record         — (Hook only) mutation data / existing record

@@ -26,6 +26,7 @@ import { LogsPanel } from "./logs-panel";
 import { OverviewPanel } from "./overview-panel";
 import { SecurityPanel } from "./security-panel";
 import { SettingsPanel } from "./settings-panel";
+import { StoragePanel } from "./storage-panel";
 import { UsersPanel } from "./users-panel";
 
 interface DashboardPanelProps {
@@ -100,6 +101,8 @@ export function DashboardPanel({
 				);
 			case "data":
 				return <DataBrowser appId={appId} schema={schema} />;
+			case "storage":
+				return <StoragePanel appId={appId} />;
 			case "users":
 				return <UsersPanel appId={appId} />;
 			case "agents":

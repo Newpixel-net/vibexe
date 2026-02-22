@@ -2307,6 +2307,40 @@ export const builderAppFunctionRelations = relations(
 export type BuilderAppFunction = typeof builderAppFunctions.$inferSelect;
 
 // ====================================================================
+// BUILDER APP STORAGE SETTINGS (Per-app file storage configuration)
+// ====================================================================
+
+export const builderAppStorageSettings = pgTable("builder_app_storage_settings", {
+	dbId: serial("db_id").primaryKey(),
+	appDbId: integer("app_db_id")
+		.notNull()
+		.references(() => builderApps.dbId, { onDelete: "cascade" })
+		.unique(),
+	accessLevel: text("access_level").notNull().default("authenticated"),
+	maxFileSizeMb: integer("max_file_size_mb").notNull().default(10),
+	storageQuotaMb: integer("storage_quota_mb").notNull().default(500),
+	usedStorageBytes: text("used_storage_bytes").notNull().default("0"),
+	allowedTypes: text("allowed_types")
+		.array()
+		.default(["image/*", "application/pdf", "text/*"]),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true })
+		.defaultNow()
+		.notNull()
+		.$onUpdate(() => new Date()),
+});
+
+export const builderAppStorageSettingsRelations = relations(
+	builderAppStorageSettings,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppStorageSettings.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);
+
+// ====================================================================
 // BUILDER APP SECRETS (Encrypted key-value store per app)
 // ====================================================================
 

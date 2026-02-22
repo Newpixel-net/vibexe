@@ -20,6 +20,7 @@
 import { AuthClient } from "./auth";
 import { DataClient } from "./data";
 import { FunctionsClient } from "./functions";
+import { StorageClient } from "./storage";
 
 export interface VibexeAppConfig {
 	/** The builder app ID (bldr_xxx) */
@@ -34,6 +35,7 @@ export class VibexeApp {
 	public readonly data: DataClient;
 	public readonly auth: AuthClient;
 	public readonly functions: FunctionsClient;
+	public readonly storage: StorageClient;
 	public readonly appId: string;
 
 	constructor(config: VibexeAppConfig) {
@@ -52,9 +54,11 @@ export class VibexeApp {
 		this.data = new DataClient(baseUrl, headers);
 		this.auth = new AuthClient(baseUrl, headers);
 		this.functions = new FunctionsClient(baseUrl, headers);
+		this.storage = new StorageClient(baseUrl, headers);
 	}
 }
 
 // Re-export types for convenience
 export type { ListOptions, PaginatedResponse, DataChangeEvent, SubscribeOptions } from "./data";
 export type { AppUser, AuthResponse } from "./auth";
+export type { FileInfo, UploadResult, ListFilesResult, ImageTransformOptions } from "./storage";

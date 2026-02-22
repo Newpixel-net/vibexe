@@ -8,6 +8,13 @@
 import { executeQuery } from "@/lib/app-database/pool-manager";
 import { logAppEvent } from "@/lib/app-database/app-logger";
 import type { AppUser } from "@/lib/app-database/rls";
+import {
+	uploadFile as s3Upload,
+	downloadFile as s3Download,
+	listFiles as s3List,
+	deleteFile as s3Delete,
+	getPublicUrl,
+} from "@/lib/app-storage/storage-manager";
 
 // ---- Types ----
 
@@ -27,6 +34,13 @@ export interface FunctionContext {
 		log: (...args: unknown[]) => void;
 		warn: (...args: unknown[]) => void;
 		error: (...args: unknown[]) => void;
+	};
+	storage: {
+		upload(path: string, data: Buffer, contentType: string): Promise<{ url: string; path: string; size: number; contentType: string }>;
+		download(path: string): Promise<Buffer>;
+		list(prefix?: string): Promise<{ path: string; size: number; url: string }[]>;
+		delete(path: string): Promise<void>;
+		getUrl(path: string, transforms?: { width?: number; height?: number; format?: string; quality?: number }): string;
 	};
 	// HTTP trigger fields
 	request?: {
@@ -174,12 +188,45 @@ export function buildFunctionContext(opts: BuildContextOpts): FunctionContext {
 		},
 	};
 
+	const appId = opts.appId ?? "";
+
+	const storageHelpers: FunctionContext["storage"] = {
+		async upload(path: string, data: Buffer, contentType: string) {
+			return s3Upload(appId, path, data, contentType);
+		},
+		async download(path: string): Promise<Buffer> {
+			const result = await s3Download(appId, path);
+			return result.data;
+		},
+		async list(prefix?: string) {
+			const result = await s3List(appId, prefix);
+			return result.files.map((f) => ({ path: f.path, size: f.size, url: f.url }));
+		},
+		async delete(path: string): Promise<void> {
+			return s3Delete(appId, path);
+		},
+		getUrl(path: string, transforms?: { width?: number; height?: number; format?: string; quality?: number }): string {
+			let url = getPublicUrl(appId, path);
+			if (transforms) {
+				const params = new URLSearchParams();
+				if (transforms.width) params.set("width", String(transforms.width));
+				if (transforms.height) params.set("height", String(transforms.height));
+				if (transforms.format) params.set("format", transforms.format);
+				if (transforms.quality) params.set("quality", String(transforms.quality));
+				const qs = params.toString();
+				if (qs) url += `?${qs}`;
+			}
+			return url;
+		},
+	};
+
 	const ctx: FunctionContext = {
 		db: dbHelpers,
 		auth: user ? { userId: user.userId, email: user.email, role: user.role } : null,
 		env: secrets,
 		fetch: globalThis.fetch,
 		console: capturedConsole,
+		storage: storageHelpers,
 	};
 
 	if (opts.request) ctx.request = opts.request;
