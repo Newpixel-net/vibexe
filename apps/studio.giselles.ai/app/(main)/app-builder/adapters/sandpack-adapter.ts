@@ -264,11 +264,13 @@ class AuthClient {
 
 export class VibexeApp {
   constructor(config) {
-    this.appId = config.appId;
+    // Runtime appId override (injected by Sandpack host) takes precedence over hardcoded config
+    const resolvedAppId = (typeof window !== "undefined" && window.__VIBEXE_APP_ID__) || config.appId;
+    this.appId = resolvedAppId;
     const origin = config.baseUrl
       || (typeof window !== "undefined" && window.__VIBEXE_API_ORIGIN__)
       || (typeof window !== "undefined" ? window.location.origin : "");
-    const base = origin + "/api/apps/" + config.appId;
+    const base = origin + "/api/apps/" + resolvedAppId;
     const headers = {};
     if (config.apiKey) headers["X-Vibexe-Api-Key"] = config.apiKey;
     this.data = new DataClient(base, headers);
@@ -471,7 +473,7 @@ export default function App() {
  * - Skips non-code files (markdown, etc.)
  * - CSS files included but referenced via CDN instead
  */
-export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLanguageConfig, apiOrigin?: string): SandpackFiles {
+export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLanguageConfig, apiOrigin?: string, appId?: string): SandpackFiles {
 	const sandpackFiles: SandpackFiles = {};
 
 	// Always include custom index.html with Tailwind support + language/RTL
@@ -605,10 +607,10 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			code: JSON.stringify({ name: "@vibexe/sdk", version: "1.0.0", main: "index.js" }),
 			hidden: true,
 		};
-		// Inject the API origin so the SDK calls the correct server from within Sandpack's iframe
-		const sdkSetup = apiOrigin
-			? `window.__VIBEXE_API_ORIGIN__ = "${apiOrigin}";\n`
-			: "";
+		// Inject runtime overrides so the SDK calls the correct server and app from within Sandpack's iframe
+		let sdkSetup = "";
+		if (apiOrigin) sdkSetup += `window.__VIBEXE_API_ORIGIN__ = "${apiOrigin}";\n`;
+		if (appId) sdkSetup += `window.__VIBEXE_APP_ID__ = "${appId}";\n`;
 		sandpackFiles["/node_modules/@vibexe/sdk/index.js"] = {
 			code: sdkSetup + VIBEXE_SDK_SOURCE,
 			hidden: true,

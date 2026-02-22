@@ -497,7 +497,7 @@ export function SandpackPreview({
 	// Convert files to Sandpack format
 	// Pass the real origin so the SDK calls vibexe.online APIs (not the Sandpack iframe's origin)
 	const apiOrigin = typeof window !== "undefined" ? window.location.origin : "";
-	const sandpackFiles = useMemo(() => convertToSandpackFiles(files, langConfig, apiOrigin), [files, langConfig, apiOrigin]);
+	const sandpackFiles = useMemo(() => convertToSandpackFiles(files, langConfig, apiOrigin, appId), [files, langConfig, apiOrigin, appId]);
 	const dependencies = useMemo(() => extractDependencies(files), [files]);
 
 	// Visual Edit bridge loaded as external script (bypasses Sandpack's bundler)

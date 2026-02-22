@@ -37,6 +37,7 @@ export default async function PreviewPage({ params }: Props) {
 	return (
 		<PreviewClient
 			appName={result.app.name}
+			appId={result.app.id}
 			files={files}
 		/>
 	);

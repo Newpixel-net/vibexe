@@ -13,6 +13,7 @@ import {
 
 interface PreviewClientProps {
 	appName: string;
+	appId: string;
 	files: AppFile[];
 }
 
@@ -26,9 +27,9 @@ const fullScreenStyles = `
   .sp-preview iframe { height: 100% !important; }
 `;
 
-export function PreviewClient({ appName, files }: PreviewClientProps) {
+export function PreviewClient({ appName, appId, files }: PreviewClientProps) {
 	const apiOrigin = typeof window !== "undefined" ? window.location.origin : "";
-	const sandpackFiles = useMemo(() => convertToSandpackFiles(files, undefined, apiOrigin), [files, apiOrigin]);
+	const sandpackFiles = useMemo(() => convertToSandpackFiles(files, undefined, apiOrigin, appId), [files, apiOrigin, appId]);
 	const dependencies = useMemo(() => extractDependencies(files), [files]);
 
 	return (
