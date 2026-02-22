@@ -2,33 +2,18 @@
  * Shared OAuth Utilities for App End-User Authentication
  *
  * Provides helper functions used by both the OAuth initiation and callback routes.
- * Reuses platform OAuth credentials with optional per-app overrides.
+ * Each app configures its own OAuth credentials in Dashboard > Settings > Auth.
  */
 
 import { createHmac, randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { type BuilderAppId, builderAppDatabases, builderApps } from "@/db/schema";
-
-// OAuth credentials — prefer app-specific env vars, fall back to platform credentials
-const GOOGLE_CLIENT_ID =
-	process.env.APP_OAUTH_GOOGLE_CLIENT_ID ??
-	process.env.GOOGLE_CLIENT_ID ??
-	"";
-const GOOGLE_CLIENT_SECRET =
-	process.env.APP_OAUTH_GOOGLE_CLIENT_SECRET ??
-	process.env.GOOGLE_CLIENT_SECRET ??
-	"";
-const GITHUB_CLIENT_ID =
-	process.env.APP_OAUTH_GITHUB_CLIENT_ID ??
-	process.env.GITHUB_APP_CLIENT_ID ??
-	process.env.GITHUB_CLIENT_ID ??
-	"";
-const GITHUB_CLIENT_SECRET =
-	process.env.APP_OAUTH_GITHUB_CLIENT_SECRET ??
-	process.env.GITHUB_APP_CLIENT_SECRET ??
-	process.env.GITHUB_CLIENT_SECRET ??
-	"";
+import {
+	type BuilderAppId,
+	builderAppAuthSettings,
+	builderAppDatabases,
+	builderApps,
+} from "@/db/schema";
 
 const HMAC_SECRET = process.env.COOKIE_SECRET ?? "fallback-secret";
 
@@ -38,8 +23,44 @@ export function isValidProvider(p: string): p is OAuthProvider {
 	return p === "google" || p === "github";
 }
 
-export function getClientId(provider: OAuthProvider): string {
-	return provider === "google" ? GOOGLE_CLIENT_ID : GITHUB_CLIENT_ID;
+/** Per-app OAuth credentials stored in builder_app_auth_settings */
+export interface AppOAuthCredentials {
+	clientId: string;
+	clientSecret: string;
+}
+
+/**
+ * Fetch per-app OAuth credentials for a given provider.
+ * Returns null if the app or credentials are not found.
+ */
+export async function getAppOAuthCredentials(
+	appId: string,
+	provider: OAuthProvider,
+): Promise<AppOAuthCredentials | null> {
+	const app = await db.query.builderApps.findFirst({
+		where: eq(builderApps.id, appId as BuilderAppId),
+		columns: { dbId: true },
+	});
+	if (!app) return null;
+
+	const settings = await db.query.builderAppAuthSettings.findFirst({
+		where: eq(builderAppAuthSettings.appDbId, app.dbId),
+	});
+	if (!settings) return null;
+
+	if (provider === "google") {
+		if (!settings.googleClientId || !settings.googleClientSecret) return null;
+		return {
+			clientId: settings.googleClientId,
+			clientSecret: settings.googleClientSecret,
+		};
+	}
+
+	if (!settings.githubClientId || !settings.githubClientSecret) return null;
+	return {
+		clientId: settings.githubClientId,
+		clientSecret: settings.githubClientSecret,
+	};
 }
 
 /**
@@ -116,11 +137,13 @@ interface OAuthTokenResponse {
 
 /**
  * Exchange an authorization code for an access token.
+ * Uses per-app credentials passed as parameter.
  */
 export async function exchangeCodeForToken(
 	provider: OAuthProvider,
 	code: string,
 	redirectUri: string,
+	creds: AppOAuthCredentials,
 ): Promise<OAuthTokenResponse> {
 	if (provider === "github") {
 		const res = await fetch("https://github.com/login/oauth/access_token", {
@@ -130,8 +153,8 @@ export async function exchangeCodeForToken(
 				Accept: "application/json",
 			},
 			body: JSON.stringify({
-				client_id: GITHUB_CLIENT_ID,
-				client_secret: GITHUB_CLIENT_SECRET,
+				client_id: creds.clientId,
+				client_secret: creds.clientSecret,
 				code,
 				redirect_uri: redirectUri,
 			}),
@@ -143,8 +166,8 @@ export async function exchangeCodeForToken(
 		method: "POST",
 		headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		body: new URLSearchParams({
-			client_id: GOOGLE_CLIENT_ID,
-			client_secret: GOOGLE_CLIENT_SECRET,
+			client_id: creds.clientId,
+			client_secret: creds.clientSecret,
 			code,
 			redirect_uri: redirectUri,
 			grant_type: "authorization_code",

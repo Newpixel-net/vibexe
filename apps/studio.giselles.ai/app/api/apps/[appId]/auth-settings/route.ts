@@ -25,6 +25,10 @@ const DEFAULTS = {
 	microsoftEnabled: false,
 	appleEnabled: false,
 	requireApproval: false,
+	googleClientId: "",
+	googleClientSecret: "",
+	githubClientId: "",
+	githubClientSecret: "",
 };
 
 export async function GET(_request: Request, { params }: RouteParams) {
@@ -55,6 +59,10 @@ export async function GET(_request: Request, { params }: RouteParams) {
 			microsoftEnabled: settings.microsoftEnabled,
 			appleEnabled: settings.appleEnabled,
 			requireApproval: settings.requireApproval,
+			googleClientId: settings.googleClientId ?? "",
+			googleClientSecret: settings.googleClientSecret ? "••••••••" : "",
+			githubClientId: settings.githubClientId ?? "",
+			githubClientSecret: settings.githubClientSecret ? "••••••••" : "",
 		});
 	} catch (error) {
 		console.error("[Auth Settings API] GET error:", error);
@@ -80,7 +88,8 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
 		const body = await request.json();
 
-		const values = {
+		// Build values — only include credentials if actually provided (not masked placeholder)
+		const values: Record<string, unknown> = {
 			appDbId: app.dbId,
 			emailPasswordEnabled: body.emailPasswordEnabled ?? DEFAULTS.emailPasswordEnabled,
 			googleEnabled: body.googleEnabled ?? DEFAULTS.googleEnabled,
@@ -90,19 +99,39 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			requireApproval: body.requireApproval ?? DEFAULTS.requireApproval,
 		};
 
+		const setFields: Record<string, unknown> = {
+			emailPasswordEnabled: values.emailPasswordEnabled,
+			googleEnabled: values.googleEnabled,
+			githubEnabled: values.githubEnabled,
+			microsoftEnabled: values.microsoftEnabled,
+			appleEnabled: values.appleEnabled,
+			requireApproval: values.requireApproval,
+		};
+
+		// Only update credentials if a real value was sent (not the masked placeholder)
+		if (body.googleClientId !== undefined && body.googleClientId !== "••••••••") {
+			values.googleClientId = body.googleClientId || null;
+			setFields.googleClientId = body.googleClientId || null;
+		}
+		if (body.googleClientSecret !== undefined && body.googleClientSecret !== "••••••••") {
+			values.googleClientSecret = body.googleClientSecret || null;
+			setFields.googleClientSecret = body.googleClientSecret || null;
+		}
+		if (body.githubClientId !== undefined && body.githubClientId !== "••••••••") {
+			values.githubClientId = body.githubClientId || null;
+			setFields.githubClientId = body.githubClientId || null;
+		}
+		if (body.githubClientSecret !== undefined && body.githubClientSecret !== "••••••••") {
+			values.githubClientSecret = body.githubClientSecret || null;
+			setFields.githubClientSecret = body.githubClientSecret || null;
+		}
+
 		await db
 			.insert(builderAppAuthSettings)
-			.values(values)
+			.values(values as typeof builderAppAuthSettings.$inferInsert)
 			.onConflictDoUpdate({
 				target: builderAppAuthSettings.appDbId,
-				set: {
-					emailPasswordEnabled: values.emailPasswordEnabled,
-					googleEnabled: values.googleEnabled,
-					githubEnabled: values.githubEnabled,
-					microsoftEnabled: values.microsoftEnabled,
-					appleEnabled: values.appleEnabled,
-					requireApproval: values.requireApproval,
-				},
+				set: setFields,
 			});
 
 		return NextResponse.json({ success: true });

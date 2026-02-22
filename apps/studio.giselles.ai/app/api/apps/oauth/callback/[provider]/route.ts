@@ -4,16 +4,17 @@
  * GET /api/apps/oauth/callback/{provider}
  *
  * Single callback URL per provider (no appId in path — appId travels in the
- * HMAC-signed state parameter). This keeps the redirect URI fixed for
- * Google/GitHub console registration.
+ * HMAC-signed state parameter). This keeps the redirect URI fixed so each
+ * app creator only needs to register one callback URL per provider.
  *
  * Flow:
- * 1. Verify HMAC state → extract appId
- * 2. Exchange code for token
- * 3. Fetch user info (email, name, avatar)
- * 4. Find-or-create _app_users row (link by email)
- * 5. Create _app_sessions row
- * 6. Return HTML that postMessages {token, user} to opener and closes
+ * 1. Verify HMAC state -> extract appId
+ * 2. Fetch per-app OAuth credentials from builder_app_auth_settings
+ * 3. Exchange code for token using per-app credentials
+ * 4. Fetch user info (email, name, avatar)
+ * 5. Find-or-create _app_users row (link by email)
+ * 6. Create _app_sessions row
+ * 7. Return HTML that postMessages {token, user} to opener and closes
  */
 
 import { eq } from "drizzle-orm";
@@ -25,6 +26,7 @@ import {
 	isValidProvider,
 	verifyOAuthState,
 	resolveAppDb,
+	getAppOAuthCredentials,
 	exchangeCodeForToken,
 	fetchUserInfo,
 } from "@/lib/app-auth/oauth-utils";
@@ -87,7 +89,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			return errorPage("Missing authorization code or state");
 		}
 
-		// Verify HMAC-signed state → extract appId
+		// Verify HMAC-signed state -> extract appId
 		const stateData = verifyOAuthState(state);
 		if (!stateData) {
 			return errorPage("Invalid or expired OAuth state. Please try again.");
@@ -102,9 +104,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		}
 		const { databaseName, appDbId } = appDbInfo;
 
-		// Exchange code for token
+		// Fetch per-app OAuth credentials
+		const creds = await getAppOAuthCredentials(appId, provider);
+		if (!creds) {
+			return errorPage("OAuth credentials not configured for this app");
+		}
+
+		// Exchange code for token using per-app credentials
 		const redirectUri = `${SITE_URL}/api/apps/oauth/callback/${provider}`;
-		const tokenData = await exchangeCodeForToken(provider, code, redirectUri);
+		const tokenData = await exchangeCodeForToken(provider, code, redirectUri, creds);
 		if (!tokenData.access_token) {
 			console.error("[App OAuth] Token exchange failed:", tokenData);
 			return errorPage(

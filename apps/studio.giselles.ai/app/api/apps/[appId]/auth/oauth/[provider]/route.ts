@@ -3,8 +3,9 @@
  *
  * GET /api/apps/{appId}/auth/oauth/{provider}
  *
- * Validates the provider is enabled for this app, builds an HMAC-signed
- * state parameter carrying the appId, and redirects to the OAuth provider's
+ * Validates the provider is enabled for this app, reads the app's own
+ * OAuth credentials from builder_app_auth_settings, builds an HMAC-signed
+ * state parameter carrying the appId, and redirects to the provider's
  * authorization URL.
  */
 
@@ -14,7 +15,7 @@ import { db } from "@/db";
 import { type BuilderAppId, builderApps, builderAppAuthSettings } from "@/db/schema";
 import {
 	isValidProvider,
-	getClientId,
+	getAppOAuthCredentials,
 	buildOAuthState,
 } from "@/lib/app-auth/oauth-utils";
 
@@ -61,12 +62,12 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
-		// Check that we have credentials configured
-		const clientId = getClientId(provider);
-		if (!clientId) {
+		// Get per-app OAuth credentials
+		const creds = await getAppOAuthCredentials(appId, provider);
+		if (!creds) {
 			return NextResponse.json(
-				{ error: `${provider} OAuth is not configured on this server` },
-				{ status: 500 },
+				{ error: `${provider} OAuth credentials are not configured for this app. Set them in Dashboard > Settings > Auth.` },
+				{ status: 400 },
 			);
 		}
 
@@ -77,7 +78,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 		let authUrl: string;
 		if (provider === "google") {
 			const params = new URLSearchParams({
-				client_id: clientId,
+				client_id: creds.clientId,
 				redirect_uri: redirectUri,
 				response_type: "code",
 				scope: "openid email profile",
@@ -87,7 +88,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 			authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 		} else {
 			const params = new URLSearchParams({
-				client_id: clientId,
+				client_id: creds.clientId,
 				redirect_uri: redirectUri,
 				scope: "user:email",
 				state,

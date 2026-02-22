@@ -1678,6 +1678,10 @@ export const builderAppAuthSettings = pgTable("builder_app_auth_settings", {
 	microsoftEnabled: boolean("microsoft_enabled").notNull().default(false),
 	appleEnabled: boolean("apple_enabled").notNull().default(false),
 	requireApproval: boolean("require_approval").notNull().default(false),
+	googleClientId: text("google_client_id"),
+	googleClientSecret: text("google_client_secret"),
+	githubClientId: text("github_client_id"),
+	githubClientSecret: text("github_client_secret"),
 	updatedAt: timestamp("updated_at", { withTimezone: true })
 		.defaultNow()
 		.notNull()

@@ -8,12 +8,16 @@
  */
 
 import {
+	ChevronDown,
+	ChevronRight,
+	Copy,
+	ExternalLink,
 	KeyRound,
 	Lock,
 	Mail,
 	Shield,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface AuthenticationPanelProps {
 	appId: string;
@@ -120,10 +124,30 @@ function AuthIcon({ type }: { type: string }) {
 	}
 }
 
+interface OAuthCredentials {
+	googleClientId: string;
+	googleClientSecret: string;
+	githubClientId: string;
+	githubClientSecret: string;
+}
+
+const CALLBACK_URL = typeof window !== "undefined"
+	? `${window.location.origin}/api/apps/oauth/callback`
+	: "/api/apps/oauth/callback";
+
 export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 	const [methods, setMethods] = useState<AuthMethod[]>(DEFAULT_AUTH_METHODS);
 	const [saving, setSaving] = useState(false);
 	const [requireApproval, setRequireApproval] = useState(false);
+	const [credentials, setCredentials] = useState<OAuthCredentials>({
+		googleClientId: "",
+		googleClientSecret: "",
+		githubClientId: "",
+		githubClientSecret: "",
+	});
+	const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
+	const [copied, setCopied] = useState<string | null>(null);
+	const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	// Fetch persisted auth settings on mount
 	useEffect(() => {
@@ -140,6 +164,12 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 						}),
 					);
 					setRequireApproval(data.requireApproval ?? false);
+					setCredentials({
+						googleClientId: data.googleClientId ?? "",
+						googleClientSecret: data.googleClientSecret ?? "",
+						githubClientId: data.githubClientId ?? "",
+						githubClientSecret: data.githubClientSecret ?? "",
+					});
 				}
 			} catch {
 				// Use defaults on error
@@ -148,26 +178,56 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 		fetchSettings();
 	}, [appId]);
 
+	const saveSettings = useCallback((
+		updatedMethods?: AuthMethod[],
+		updatedApproval?: boolean,
+		updatedCreds?: Partial<OAuthCredentials>,
+	) => {
+		const m = updatedMethods ?? methods;
+		const body: Record<string, unknown> = {};
+		for (const method of m) {
+			const key = method.id === "email_password" ? "emailPasswordEnabled" : `${method.id}Enabled`;
+			body[key] = method.enabled;
+		}
+		body.requireApproval = updatedApproval ?? requireApproval;
+		if (updatedCreds) {
+			Object.assign(body, updatedCreds);
+		}
+		setSaving(true);
+		fetch(`/api/apps/${appId}/auth-settings`, {
+			method: "PUT",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(body),
+		}).finally(() => setSaving(false));
+	}, [appId, methods, requireApproval]);
+
 	const toggleMethod = useCallback((methodId: string) => {
 		setMethods((prev) => {
 			const updated = prev.map((m) =>
 				m.id === methodId && m.available ? { ...m, enabled: !m.enabled } : m,
 			);
-			// Persist to API
-			const body: Record<string, boolean> = {};
-			for (const m of updated) {
-				const key = m.id === "email_password" ? "emailPasswordEnabled" : `${m.id}Enabled`;
-				body[key] = m.enabled;
-			}
-			setSaving(true);
-			fetch(`/api/apps/${appId}/auth-settings`, {
-				method: "PUT",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(body),
-			}).finally(() => setSaving(false));
+			saveSettings(updated);
 			return updated;
 		});
-	}, [appId]);
+	}, [saveSettings]);
+
+	const updateCredential = useCallback((field: keyof OAuthCredentials, value: string) => {
+		setCredentials((prev) => {
+			const updated = { ...prev, [field]: value };
+			// Debounce credential saves (500ms)
+			if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+			saveTimerRef.current = setTimeout(() => {
+				saveSettings(undefined, undefined, { [field]: value });
+			}, 500);
+			return updated;
+		});
+	}, [saveSettings]);
+
+	const copyToClipboard = useCallback((text: string, label: string) => {
+		navigator.clipboard.writeText(text);
+		setCopied(label);
+		setTimeout(() => setCopied(null), 2000);
+	}, []);
 
 	return (
 		<div className="flex-1 overflow-y-auto p-6">
@@ -185,44 +245,96 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 
 				{/* Auth Methods */}
 				<div className="space-y-3">
-					{methods.map((method) => (
-						<div
-							key={method.id}
-							className="flex items-center justify-between rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4"
-						>
-							<div className="flex items-center gap-4">
-								<div className="h-10 w-10 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center">
-									<AuthIcon type={method.icon} />
+					{methods.map((method) => {
+						const hasCredentialConfig = method.id === "google" || method.id === "github";
+						const isExpanded = expandedProvider === method.id;
+						return (
+							<div key={method.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm">
+								<div className="flex items-center justify-between p-4">
+									<div
+										className={`flex items-center gap-4 flex-1 ${hasCredentialConfig && method.enabled ? "cursor-pointer" : ""}`}
+										onClick={() => {
+											if (hasCredentialConfig && method.enabled) {
+												setExpandedProvider(isExpanded ? null : method.id);
+											}
+										}}
+										onKeyDown={() => {}}
+										role={hasCredentialConfig && method.enabled ? "button" : undefined}
+										tabIndex={hasCredentialConfig && method.enabled ? 0 : undefined}
+									>
+										<div className="h-10 w-10 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center">
+											<AuthIcon type={method.icon} />
+										</div>
+										<div className="flex-1">
+											<div className="flex items-center gap-2">
+												<h3 className="text-sm font-medium text-white/90">
+													{method.label}
+												</h3>
+												{hasCredentialConfig && method.enabled && (
+													isExpanded
+														? <ChevronDown className="h-3.5 w-3.5 text-white/30" />
+														: <ChevronRight className="h-3.5 w-3.5 text-white/30" />
+												)}
+											</div>
+											<p className="text-xs text-white/40">
+												{method.description}
+											</p>
+										</div>
+									</div>
+									<button
+										type="button"
+										onClick={() => toggleMethod(method.id)}
+										disabled={!method.available}
+										className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+											method.enabled
+												? "bg-gradient-to-r from-violet-500 to-cyan-500"
+												: "bg-white/[0.08]"
+										} ${!method.available ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+									>
+										<span
+											className={`inline-block h-4 w-4 transform rounded-full bg-transparent transition-transform ${
+												method.enabled
+													? "translate-x-6"
+													: "translate-x-1"
+											}`}
+										/>
+									</button>
 								</div>
-								<div>
-									<h3 className="text-sm font-medium text-white/90">
-										{method.label}
-									</h3>
-									<p className="text-xs text-white/40">
-										{method.description}
-									</p>
-								</div>
+
+								{/* Credential configuration panel */}
+								{hasCredentialConfig && method.enabled && isExpanded && (
+									<div className="border-t border-white/[0.06] px-4 pb-4 pt-3 space-y-3">
+										{method.id === "google" && (
+											<OAuthCredentialForm
+												provider="Google"
+												consoleUrl="https://console.cloud.google.com/apis/credentials"
+												callbackUrl={`${CALLBACK_URL}/google`}
+												clientId={credentials.googleClientId}
+												clientSecret={credentials.googleClientSecret}
+												onClientIdChange={(v) => updateCredential("googleClientId", v)}
+												onClientSecretChange={(v) => updateCredential("googleClientSecret", v)}
+												copied={copied}
+												onCopy={copyToClipboard}
+											/>
+										)}
+										{method.id === "github" && (
+											<OAuthCredentialForm
+												provider="GitHub"
+												consoleUrl="https://github.com/settings/developers"
+												callbackUrl={`${CALLBACK_URL}/github`}
+												clientId={credentials.githubClientId}
+												clientSecret={credentials.githubClientSecret}
+												onClientIdChange={(v) => updateCredential("githubClientId", v)}
+												onClientSecretChange={(v) => updateCredential("githubClientSecret", v)}
+												copied={copied}
+												onCopy={copyToClipboard}
+											/>
+										)}
+									</div>
+								)}
 							</div>
-							<button
-								type="button"
-								onClick={() => toggleMethod(method.id)}
-								disabled={!method.available}
-								className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-									method.enabled
-										? "bg-gradient-to-r from-violet-500 to-cyan-500"
-										: "bg-white/[0.08]"
-								} ${!method.available ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-							>
-								<span
-									className={`inline-block h-4 w-4 transform rounded-full bg-transparent transition-transform ${
-										method.enabled
-											? "translate-x-6"
-											: "translate-x-1"
-									}`}
-								/>
-							</button>
-						</div>
-					))}
+						);
+					})}
 				</div>
 
 				{/* Signup Approval */}
@@ -247,18 +359,7 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 							onClick={() => {
 								const newVal = !requireApproval;
 								setRequireApproval(newVal);
-								// Build full settings body
-								const body: Record<string, boolean> = { requireApproval: newVal };
-								for (const m of methods) {
-									const key = m.id === "email_password" ? "emailPasswordEnabled" : `${m.id}Enabled`;
-									body[key] = m.enabled;
-								}
-								setSaving(true);
-								fetch(`/api/apps/${appId}/auth-settings`, {
-									method: "PUT",
-									headers: { "Content-Type": "application/json" },
-									body: JSON.stringify(body),
-								}).finally(() => setSaving(false));
+								saveSettings(undefined, newVal);
 							}}
 							className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
 								requireApproval
@@ -302,6 +403,113 @@ export function AuthenticationPanel({ appId }: AuthenticationPanelProps) {
 					</div>
 				</div>
 			</div>
+		</div>
+	);
+}
+
+/* ─── OAuth Credential Form Sub-Component ────────────────────────── */
+
+interface OAuthCredentialFormProps {
+	provider: string;
+	consoleUrl: string;
+	callbackUrl: string;
+	clientId: string;
+	clientSecret: string;
+	onClientIdChange: (v: string) => void;
+	onClientSecretChange: (v: string) => void;
+	copied: string | null;
+	onCopy: (text: string, label: string) => void;
+}
+
+function OAuthCredentialForm({
+	provider,
+	consoleUrl,
+	callbackUrl,
+	clientId,
+	clientSecret,
+	onClientIdChange,
+	onClientSecretChange,
+	copied,
+	onCopy,
+}: OAuthCredentialFormProps) {
+	return (
+		<div className="space-y-3">
+			{/* Setup instructions */}
+			<div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-3">
+				<p className="text-xs text-white/50 leading-relaxed">
+					To enable {provider} login, create an OAuth app in the{" "}
+					<a
+						href={consoleUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="text-violet-400 hover:text-violet-300 inline-flex items-center gap-0.5"
+					>
+						{provider} Developer Console
+						<ExternalLink className="h-3 w-3" />
+					</a>
+					{" "}and set the callback URL below as the authorized redirect URI.
+				</p>
+			</div>
+
+			{/* Callback URL (read-only, copyable) */}
+			<div>
+				<label className="block text-xs text-white/40 mb-1">
+					Callback URL (add this as Redirect URI in {provider})
+				</label>
+				<div className="flex items-center gap-2">
+					<input
+						type="text"
+						readOnly
+						value={callbackUrl}
+						className="flex-1 rounded-lg bg-white/[0.03] border border-white/[0.08] px-3 py-2 text-xs text-white/60 font-mono"
+					/>
+					<button
+						type="button"
+						onClick={() => onCopy(callbackUrl, "callback")}
+						className="p-2 rounded-lg bg-white/[0.06] border border-white/[0.08] hover:bg-white/[0.10] transition-colors"
+						title="Copy to clipboard"
+					>
+						<Copy className="h-3.5 w-3.5 text-white/50" />
+					</button>
+					{copied === "callback" && (
+						<span className="text-[10px] text-emerald-400">Copied!</span>
+					)}
+				</div>
+			</div>
+
+			{/* Client ID */}
+			<div>
+				<label className="block text-xs text-white/40 mb-1">
+					Client ID
+				</label>
+				<input
+					type="text"
+					value={clientId}
+					onChange={(e) => onClientIdChange(e.target.value)}
+					placeholder={`Paste your ${provider} Client ID`}
+					className="w-full rounded-lg bg-white/[0.03] border border-white/[0.08] px-3 py-2 text-xs text-white/80 placeholder:text-white/20 font-mono focus:outline-none focus:border-violet-500/50"
+				/>
+			</div>
+
+			{/* Client Secret */}
+			<div>
+				<label className="block text-xs text-white/40 mb-1">
+					Client Secret
+				</label>
+				<input
+					type="password"
+					value={clientSecret}
+					onChange={(e) => onClientSecretChange(e.target.value)}
+					placeholder={`Paste your ${provider} Client Secret`}
+					className="w-full rounded-lg bg-white/[0.03] border border-white/[0.08] px-3 py-2 text-xs text-white/80 placeholder:text-white/20 font-mono focus:outline-none focus:border-violet-500/50"
+				/>
+			</div>
+
+			{!clientId && (
+				<p className="text-[10px] text-amber-400/60">
+					{provider} login won't work until you provide your Client ID and Client Secret.
+				</p>
+			)}
 		</div>
 	);
 }
