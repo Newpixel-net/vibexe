@@ -42,6 +42,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { createPortal } from "react-dom";
 
 interface AppUser {
 	id: number;
@@ -1020,13 +1021,14 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 													<MoreHorizontal className="h-4 w-4" />
 												</button>
 
-												{/* Dropdown menu — fixed position to escape overflow clipping */}
+												{/* Dropdown menu — portal to escape backdrop-filter containing block */}
 												{openDropdownId ===
 													user.id &&
-													dropdownPos && (
+													dropdownPos &&
+													createPortal(
 													<div
 														ref={dropdownRef}
-														className="fixed w-48 rounded-lg border border-white/[0.08] bg-[#1a1a2e] shadow-xl z-[100]"
+														className="fixed w-48 rounded-lg border border-white/[0.08] bg-[#1a1a2e] shadow-xl z-[9999]"
 														style={{
 															top: dropdownPos.top,
 															left: dropdownPos.left,
@@ -1132,7 +1134,8 @@ export function UsersPanel({ appId }: UsersPanelProps) {
 																/>
 															</>
 														)}
-													</div>
+													</div>,
+												document.body,
 												)}
 											</td>
 										</tr>
