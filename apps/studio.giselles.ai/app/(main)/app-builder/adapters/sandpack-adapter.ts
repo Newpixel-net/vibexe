@@ -193,6 +193,27 @@ class DataClient {
     });
     if (!res.ok) throw new Error("Failed to delete " + entity + "/" + id);
   }
+
+  subscribe(entity, optionsOrCallback, maybeCallback) {
+    const options = typeof optionsOrCallback === "function" ? {} : optionsOrCallback;
+    const callback = typeof optionsOrCallback === "function" ? optionsOrCallback : maybeCallback;
+    const filter = options.filter;
+    const url = this.baseUrl + "/data/subscribe?entities=" + encodeURIComponent(entity);
+    const es = new EventSource(url);
+    es.onmessage = function(e) {
+      try {
+        const event = JSON.parse(e.data);
+        if (event.type === "connected") return;
+        if (filter && event.action !== "deleted") {
+          const r = event.record;
+          const ok = Object.keys(filter).every(function(k) { return r[k] === filter[k]; });
+          if (!ok) return;
+        }
+        callback(event);
+      } catch (err) {}
+    };
+    return function() { es.close(); };
+  }
 }
 
 class AuthClient {

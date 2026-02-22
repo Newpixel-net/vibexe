@@ -14,6 +14,7 @@ import { db } from "@/db";
 import { type BuilderAppId, builderApps, builderAppDatabases } from "@/db/schema";
 import { verifyApiKey } from "@/lib/app-database/api-keys";
 import { executeQuery } from "@/lib/app-database/pool-manager";
+import { emitDataEvent } from "@/lib/realtime/event-bus";
 import type { AppSchema } from "@/lib/app-database/schema-types";
 
 interface RouteParams {
@@ -179,6 +180,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 			return NextResponse.json({ error: "Not found" }, { status: 404 });
 		}
 
+		// Emit real-time event
+		emitDataEvent(appId, { entity: entityName, action: "updated", record: rows[0] as Record<string, unknown> });
+
 		return NextResponse.json({ data: rows[0] });
 	} catch (error) {
 		console.error("[Data API] PUT error:", error);
@@ -211,6 +215,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 		if (rows.length === 0) {
 			return NextResponse.json({ error: "Not found" }, { status: 404 });
 		}
+
+		// Emit real-time event
+		emitDataEvent(appId, { entity: entityName, action: "deleted", record: { id: rowId } });
 
 		return NextResponse.json({ success: true, deleted: rowId });
 	} catch (error) {

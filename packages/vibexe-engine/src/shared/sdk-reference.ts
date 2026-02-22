@@ -32,6 +32,23 @@ await app.data.create("tasks", { title: "New", status: "active" }); // returns c
 await app.data.update("tasks", id, { status: "done" });             // returns updated item
 await app.data.delete("tasks", id);                                  // returns void
 
+// ─── Real-Time Subscriptions ───
+// subscribe() opens an SSE connection and calls callback on data changes
+const unsubscribe = app.data.subscribe("tasks", (event) => {
+  // event.entity: string          — e.g. "tasks"
+  // event.action: "created" | "updated" | "deleted"
+  // event.record: the full row (created/updated) or { id } (deleted)
+  // event.timestamp: ISO string
+});
+
+// With client-side filter (only receive events matching filter)
+const unsub = app.data.subscribe("tasks", { filter: { status: "active" } }, (event) => {
+  console.log("Active task changed:", event);
+});
+
+// Cleanup — call the returned function to close the connection
+unsubscribe();
+
 // ─── Auth ───
 // signUp/signIn return AuthResponse { user, token }, NOT user directly
 const response = await app.auth.signUp({ email, password, displayName }); // "displayName", NOT "name"
@@ -108,6 +125,16 @@ export function useComments(postId: string) {
     await app.data.delete("comments", id);
     setComments(prev => prev.filter(c => c.id !== id));
   };
+
+  // Real-time: auto-update when data changes on server
+  useEffect(() => {
+    const unsub = app.data.subscribe("comments", { filter: { post_id: postId } }, (event) => {
+      if (event.action === "created") setComments(prev => [event.record as Comment, ...prev]);
+      if (event.action === "updated") setComments(prev => prev.map(c => c.id === (event.record as Comment).id ? event.record as Comment : c));
+      if (event.action === "deleted") setComments(prev => prev.filter(c => c.id !== (event.record as any).id));
+    });
+    return unsub;
+  }, [postId]);
 
   return { comments, loading, error, createComment, deleteComment, refetch: fetchComments };
 }
@@ -211,6 +238,19 @@ const fetchFiltered = async (filters: Record<string, string>) => {
 };
 \`\`\`
 
+### Real-Time Subscription
+\`\`\`typescript
+// Subscribe to entity changes — auto-update UI when data changes
+useEffect(() => {
+  const unsub = app.data.subscribe("tasks", (event) => {
+    if (event.action === "created") setTasks(prev => [...prev, event.record]);
+    if (event.action === "updated") setTasks(prev => prev.map(t => t.id === event.record.id ? event.record : t));
+    if (event.action === "deleted") setTasks(prev => prev.filter(t => t.id !== event.record.id));
+  });
+  return unsub; // cleanup on unmount
+}, []);
+\`\`\`
+
 ### Cascading Delete (manual)
 \`\`\`typescript
 const deleteProject = async (projectId: string) => {
@@ -271,6 +311,7 @@ export const mockApp = {
       Promise.resolve({ id, ...data })
     ),
     delete: vi.fn().mockResolvedValue(undefined),
+    subscribe: vi.fn().mockReturnValue(() => {}), // returns unsubscribe function
   },
   auth: {
     signUp: vi.fn().mockResolvedValue({

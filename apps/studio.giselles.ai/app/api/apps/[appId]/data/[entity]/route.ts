@@ -13,6 +13,7 @@ import { db } from "@/db";
 import { type BuilderAppId, builderApps, builderAppDatabases } from "@/db/schema";
 import { logAppEvent } from "@/lib/app-database/app-logger";
 import { verifyApiKey } from "@/lib/app-database/api-keys";
+import { emitDataEvent } from "@/lib/realtime/event-bus";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 import type { AppSchema } from "@/lib/app-database/schema-types";
 
@@ -268,6 +269,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			message: `Created row in ${entityName}`,
 			metadata: { entityName },
 		});
+
+		// Emit real-time event
+		emitDataEvent(appId, { entity: entityName, action: "created", record: rows[0] as Record<string, unknown> });
 
 		return NextResponse.json({ data: rows[0] }, { status: 201 });
 	} catch (error) {

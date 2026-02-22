@@ -53,5 +53,5 @@ export class VibexeApp {
 }
 
 // Re-export types for convenience
-export type { ListOptions, PaginatedResponse } from "./data";
+export type { ListOptions, PaginatedResponse, DataChangeEvent, SubscribeOptions } from "./data";
 export type { AppUser, AuthResponse } from "./auth";

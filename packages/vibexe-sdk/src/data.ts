@@ -13,6 +13,17 @@ export interface ListOptions {
 	filter?: Record<string, string | number | boolean>;
 }
 
+export interface DataChangeEvent<T = Record<string, unknown>> {
+	entity: string;
+	action: "created" | "updated" | "deleted";
+	record: T;
+	timestamp: string;
+}
+
+export interface SubscribeOptions {
+	filter?: Record<string, string | number | boolean>;
+}
+
 export interface PaginatedResponse<T> {
 	data: T[];
 	pagination: {
@@ -142,5 +153,47 @@ export class DataClient {
 			const err = await res.json().catch(() => ({}));
 			throw new Error(err.error || `Failed to delete ${entity}/${id}: ${res.status}`);
 		}
+	}
+
+	/**
+	 * Subscribe to real-time data changes for an entity via SSE.
+	 * Returns an unsubscribe function that closes the connection.
+	 */
+	subscribe<T = Record<string, unknown>>(
+		entity: string,
+		optionsOrCallback: SubscribeOptions | ((event: DataChangeEvent<T>) => void),
+		maybeCallback?: (event: DataChangeEvent<T>) => void,
+	): () => void {
+		const options = typeof optionsOrCallback === "function" ? {} : optionsOrCallback;
+		const callback = typeof optionsOrCallback === "function" ? optionsOrCallback : maybeCallback!;
+		const filter = options.filter;
+
+		const url = `${this.baseUrl}/data/subscribe?entities=${encodeURIComponent(entity)}`;
+		const es = new EventSource(url);
+
+		es.onmessage = (e) => {
+			try {
+				const event = JSON.parse(e.data) as DataChangeEvent<T>;
+				// Skip the initial "connected" event
+				if ((event as Record<string, unknown>).type === "connected") return;
+
+				// Client-side filter matching
+				if (filter && event.action !== "deleted") {
+					const record = event.record as Record<string, unknown>;
+					const matches = Object.entries(filter).every(
+						([key, val]) => record[key] === val,
+					);
+					if (!matches) return;
+				}
+
+				callback(event);
+			} catch {
+				// Ignore malformed events
+			}
+		};
+
+		return () => {
+			es.close();
+		};
 	}
 }
