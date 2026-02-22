@@ -807,6 +807,10 @@ export function ChatColumn({
 			}
 			setInput("");
 			setAttachments([]);
+			// Dismiss Welcome back banner when prompt is sent
+			if (isReturningUser && !welcomeDismissed) {
+				setWelcomeDismissed(true);
+			}
 			// Mark first stage as active when user sends first message in generate mode
 			if (mode === "generate" && messages.length === 0) {
 				setProjectStages((stages) =>
@@ -814,7 +818,7 @@ export function ChatColumn({
 				);
 			}
 		}
-	}, [input, attachments, sendMessage, mode, messages.length, fileToDataUrl]);
+	}, [input, attachments, sendMessage, mode, messages.length, fileToDataUrl, isReturningUser, welcomeDismissed]);
 
 	// Start new chat
 	const handleNewChat = useCallback(() => {
@@ -884,10 +888,10 @@ export function ChatColumn({
 	);
 
 	// Handle continuation suggestion click — populate input for user editing
+	// Banner stays visible until the prompt is actually sent
 	const handleContinuationClick = useCallback(
 		(suggestion: ContinuationSuggestion) => {
 			setInput(suggestion.prompt);
-			setContinuationSuggestions([]);
 			// Focus the textarea
 			const textarea = document.querySelector<HTMLTextAreaElement>(
 				"textarea[placeholder]",
@@ -1108,66 +1112,6 @@ export function ChatColumn({
 					) : (
 						// Messages list — no outer card wrapper (messages float directly)
 						<div className="flex flex-col gap-4">
-							{/* Welcome back banner for returning users with existing messages */}
-							{isReturningUser && !welcomeDismissed && files.length > 0 && (continuationSuggestions.length > 0 || continuationLoading) && (
-								<motion.div
-									initial={{ opacity: 0, y: -10 }}
-									animate={{ opacity: 1, y: 0 }}
-									exit={{ opacity: 0, y: -10 }}
-									className="relative p-5 rounded-2xl bg-gradient-to-br from-teal-500/[0.06] via-cyan-500/[0.04] to-violet-500/[0.06] border border-teal-500/[0.15] backdrop-blur-sm"
-								>
-									<button
-										type="button"
-										onClick={() => setWelcomeDismissed(true)}
-										className="absolute top-3 right-3 h-6 w-6 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center text-white/30 hover:text-white/60 transition-all"
-									>
-										<X className="h-3.5 w-3.5" />
-									</button>
-									<div className="flex items-start gap-3 mb-3">
-										<div className="flex-shrink-0 w-9 h-9 rounded-xl bg-teal-500/[0.12] border border-teal-500/[0.15] flex items-center justify-center">
-											<Compass className="h-5 w-5 text-teal-400/70" />
-										</div>
-										<div className="flex-1 min-w-0">
-											<h4 className="text-sm font-semibold bg-gradient-to-r from-teal-400 via-cyan-400 to-violet-400 bg-clip-text text-transparent">
-												Welcome back
-											</h4>
-											<p className="text-xs text-white/40 mt-0.5">
-												{appName !== "Untitled App" ? appName : "Your project"}
-												{sourceUrl ? (
-													<>
-														{" "}
-														<a href={`https://${sourceUrl}`} target="_blank" rel="noopener noreferrer" className="text-violet-400/70 hover:text-violet-300 transition-colors">
-															({sourceUrl})
-														</a>
-													</>
-												) : null}
-												{" "}&mdash; {files.length} files. Pick up where you left off:
-											</p>
-										</div>
-									</div>
-									{continuationLoading ? (
-										<div className="flex items-center gap-2 text-white/30 pl-12">
-											<Loader2 className="h-3.5 w-3.5 animate-spin" />
-											<span className="text-xs">Analyzing project...</span>
-										</div>
-									) : (
-										<div className="flex flex-wrap gap-2 pl-12">
-											{continuationSuggestions.map((suggestion) => (
-												<button
-													key={suggestion.id}
-													type="button"
-													onClick={() => handleContinuationClick(suggestion)}
-													className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg bg-white/[0.04] border border-white/[0.08] text-white/60 hover:bg-white/[0.08] hover:text-white/90 hover:border-white/[0.15] transition-all duration-200"
-												>
-													<SuggestionIcon icon={suggestion.icon} />
-													<span className="truncate max-w-[200px]">{suggestion.label}</span>
-												</button>
-											))}
-										</div>
-									)}
-								</motion.div>
-							)}
-
 							{chatMessages.map((message, index) => {
 								const isLastMessage =
 									index === chatMessages.length - 1;
@@ -1240,6 +1184,66 @@ export function ChatColumn({
 										isThinking={isThinking}
 									/>
 								</div>
+							)}
+
+							{/* Welcome back banner for returning users — at bottom of messages */}
+							{isReturningUser && !welcomeDismissed && files.length > 0 && (continuationSuggestions.length > 0 || continuationLoading) && (
+								<motion.div
+									initial={{ opacity: 0, y: 10 }}
+									animate={{ opacity: 1, y: 0 }}
+									exit={{ opacity: 0, y: 10 }}
+									className="relative p-5 rounded-2xl bg-gradient-to-br from-teal-500/[0.06] via-cyan-500/[0.04] to-violet-500/[0.06] border border-teal-500/[0.15] backdrop-blur-sm"
+								>
+									<button
+										type="button"
+										onClick={() => setWelcomeDismissed(true)}
+										className="absolute top-3 right-3 h-6 w-6 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] flex items-center justify-center text-white/30 hover:text-white/60 transition-all"
+									>
+										<X className="h-3.5 w-3.5" />
+									</button>
+									<div className="flex items-start gap-3 mb-3">
+										<div className="flex-shrink-0 w-9 h-9 rounded-xl bg-teal-500/[0.12] border border-teal-500/[0.15] flex items-center justify-center">
+											<Compass className="h-5 w-5 text-teal-400/70" />
+										</div>
+										<div className="flex-1 min-w-0">
+											<h4 className="text-sm font-semibold bg-gradient-to-r from-teal-400 via-cyan-400 to-violet-400 bg-clip-text text-transparent">
+												Welcome back
+											</h4>
+											<p className="text-xs text-white/40 mt-0.5">
+												{appName !== "Untitled App" ? appName : "Your project"}
+												{sourceUrl ? (
+													<>
+														{" "}
+														<a href={`https://${sourceUrl}`} target="_blank" rel="noopener noreferrer" className="text-violet-400/70 hover:text-violet-300 transition-colors">
+															({sourceUrl})
+														</a>
+													</>
+												) : null}
+												{" "}&mdash; {files.length} files. Pick up where you left off:
+											</p>
+										</div>
+									</div>
+									{continuationLoading ? (
+										<div className="flex items-center gap-2 text-white/30 pl-12">
+											<Loader2 className="h-3.5 w-3.5 animate-spin" />
+											<span className="text-xs">Analyzing project...</span>
+										</div>
+									) : (
+										<div className="flex flex-wrap gap-2 pl-12">
+											{continuationSuggestions.map((suggestion) => (
+												<button
+													key={suggestion.id}
+													type="button"
+													onClick={() => handleContinuationClick(suggestion)}
+													className="flex items-center gap-2 px-3 py-2 text-xs rounded-lg bg-white/[0.04] border border-white/[0.08] text-white/60 hover:bg-white/[0.08] hover:text-white/90 hover:border-white/[0.15] transition-all duration-200"
+												>
+													<SuggestionIcon icon={suggestion.icon} />
+													<span className="truncate max-w-[200px]">{suggestion.label}</span>
+												</button>
+											))}
+										</div>
+									)}
+								</motion.div>
 							)}
 						</div>
 					)}
