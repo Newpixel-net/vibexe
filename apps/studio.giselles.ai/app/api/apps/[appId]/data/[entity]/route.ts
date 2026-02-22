@@ -283,13 +283,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		let paramIndex = 1;
 
 		// First, inject RLS auto-fields (e.g. owner field)
+		// Always inject — the builder configured this field in the security policy,
+		// and the column exists in the DB even if not in schema_json.
 		for (const [key, value] of Object.entries(rlsAutoFields)) {
-			if (fieldMap.has(key)) {
-				fields.push(`"${key}"`);
-				values.push(value);
-				placeholders.push(`$${paramIndex}`);
-				paramIndex++;
-			}
+			fields.push(`"${key}"`);
+			values.push(value);
+			placeholders.push(`$${paramIndex}`);
+			paramIndex++;
 		}
 
 		for (const [key, value] of Object.entries(body)) {

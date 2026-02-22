@@ -171,12 +171,13 @@ export function enforceRLS(opts: EnforceOpts): RLSCheck {
 	if (accessLevel === "owner") {
 		const ownerField = policy.ownerField || "user_id";
 
-		// If we know the entity fields and ownerField doesn't exist, fall back to authenticated
+		// Warn if ownerField isn't in schema, but still enforce — the builder
+		// explicitly configured this field in the security policy, and the column
+		// may exist in the DB even if not in schema_json.
 		if (entityFields && entityFields.length > 0 && !entityFields.includes(ownerField)) {
 			console.warn(
-				`[RLS] ownerField "${ownerField}" not found in entity fields, falling back to authenticated`,
+				`[RLS] ownerField "${ownerField}" not in schema fields — enforcing anyway (column must exist in DB)`,
 			);
-			return { allowed: true, whereClauses: [], whereParams: [], autoFields: {} };
 		}
 
 		const paramNum = paramOffset + 1;
