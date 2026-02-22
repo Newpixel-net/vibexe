@@ -4,7 +4,7 @@
  * BackendSettings Component
  *
  * Choose between Native Backend (built-in) and Supabase Connect (BYOB).
- * Allows users to paste Supabase URL + anon key, test connection, and save.
+ * Shows service status cards for Database, Storage, Auth, Functions when native.
  */
 
 import {
@@ -13,10 +13,12 @@ import {
 	Cloud,
 	Database,
 	ExternalLink,
+	HardDrive,
 	Loader2,
+	Lock,
 	Server,
-	Trash2,
 	Unplug,
+	Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -34,16 +36,38 @@ interface ExternalDbInfo {
 	createdAt: string;
 }
 
+interface ServiceStats {
+	entityCount: number;
+	storageUsedBytes: number;
+	storageQuotaMb: number;
+	storageAccessLevel: string;
+	functionsCount: number;
+}
+
+function formatBytesCompact(bytes: number): string {
+	if (bytes === 0) return "0 B";
+	const k = 1024;
+	const sizes = ["B", "KB", "MB", "GB"];
+	const i = Math.floor(Math.log(bytes) / Math.log(k));
+	return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`;
+}
+
 export function BackendSettings({ appId }: BackendSettingsProps) {
 	const [mode, setMode] = useState<BackendMode>("native");
 	const [supabaseUrl, setSupabaseUrl] = useState("");
 	const [anonKey, setAnonKey] = useState("");
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
-	const [testing, setTesting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState<string | null>(null);
 	const [externalDb, setExternalDb] = useState<ExternalDbInfo | null>(null);
+	const [stats, setStats] = useState<ServiceStats>({
+		entityCount: 0,
+		storageUsedBytes: 0,
+		storageQuotaMb: 500,
+		storageAccessLevel: "authenticated",
+		functionsCount: 0,
+	});
 
 	useEffect(() => {
 		async function fetchConfig() {
@@ -63,6 +87,43 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 			setLoading(false);
 		}
 		fetchConfig();
+	}, [appId]);
+
+	// Fetch backend service stats for the service cards
+	useEffect(() => {
+		async function fetchStats() {
+			const results = await Promise.allSettled([
+				fetch(`/api/apps/${appId}/schema`).then((r) =>
+					r.ok ? r.json() : null,
+				),
+				fetch(`/api/apps/${appId}/storage/settings`).then((r) =>
+					r.ok ? r.json() : null,
+				),
+				fetch(`/api/apps/${appId}/functions`).then((r) =>
+					r.ok ? r.json() : null,
+				),
+			]);
+
+			const schema =
+				results[0].status === "fulfilled" ? results[0].value : null;
+			const storageSettings =
+				results[1].status === "fulfilled" ? results[1].value : null;
+			const functions =
+				results[2].status === "fulfilled" ? results[2].value : null;
+
+			setStats({
+				entityCount: schema?.schema?.entities?.length ?? 0,
+				storageUsedBytes: Number.parseInt(
+					storageSettings?.usedStorageBytes ?? "0",
+					10,
+				),
+				storageQuotaMb: storageSettings?.storageQuotaMb ?? 500,
+				storageAccessLevel:
+					storageSettings?.accessLevel ?? "authenticated",
+				functionsCount: functions?.functions?.length ?? 0,
+			});
+		}
+		fetchStats();
 	}, [appId]);
 
 	const handleSave = useCallback(async () => {
@@ -138,6 +199,11 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 		);
 	}
 
+	const storageUsagePercent = Math.min(
+		100,
+		(stats.storageUsedBytes / (stats.storageQuotaMb * 1024 * 1024)) * 100,
+	);
+
 	return (
 		<div className="flex-1 overflow-y-auto p-6">
 			<div className="max-w-3xl mx-auto space-y-6">
@@ -187,8 +253,8 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 							Built-in Backend
 						</h3>
 						<p className="text-xs text-white/40 mt-1">
-							Managed PostgreSQL database, REST API, auth, and dashboard.
-							Everything included.
+							Managed PostgreSQL database, REST API, auth, storage,
+							and functions. Everything included.
 						</p>
 						<span className="inline-block mt-2 px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-300 text-[10px] font-medium">
 							Included
@@ -218,8 +284,8 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 							Connect Supabase
 						</h3>
 						<p className="text-xs text-white/40 mt-1">
-							Bring your own Supabase project. AI generates Supabase-native
-							code.
+							Bring your own Supabase project. AI generates
+							Supabase-native code.
 						</p>
 						<span className="inline-block mt-2 px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 text-[10px] font-medium">
 							Free tier
@@ -227,24 +293,191 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 					</button>
 				</div>
 
-				{/* Native Backend Info */}
+				{/* Native Backend — Service Status Cards */}
 				{mode === "native" && (
-					<div className="rounded-lg border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-3">
+					<div className="space-y-4">
 						<div className="flex items-center gap-2">
-							<Database className="h-4 w-4 text-white/90" />
-							<h3 className="text-sm font-medium text-white/90">
-								Native Backend
+							<h3 className="text-sm font-medium text-white/60">
+								Backend Services
 							</h3>
 							<span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 text-xs font-medium">
-								Active
+								All Active
 							</span>
 						</div>
-						<p className="text-xs text-white/40">
-							Your app uses the built-in Vibexe backend with PostgreSQL database,
-							auto-generated REST API, end-user authentication, and full
-							dashboard management. Use <code className="px-1 py-0.5 rounded bg-white/[0.04] text-white/90">@vibexe/sdk</code> in
-							your app code.
-						</p>
+
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+							{/* Database */}
+							<div className="rounded-lg border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-3">
+								<div className="flex items-center justify-between">
+									<div className="flex items-center gap-2.5">
+										<div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+											<Database className="h-4 w-4 text-blue-400" />
+										</div>
+										<div>
+											<h4 className="text-sm font-medium text-white/90">
+												Database
+											</h4>
+											<p className="text-[10px] text-white/30">
+												PostgreSQL
+											</p>
+										</div>
+									</div>
+									<span
+										className="h-2 w-2 rounded-full bg-green-500"
+										title="Active"
+									/>
+								</div>
+								<div className="flex items-center justify-between text-xs">
+									<span className="text-white/40">
+										{stats.entityCount > 0
+											? `${stats.entityCount} entit${stats.entityCount === 1 ? "y" : "ies"}`
+											: "No entities yet"}
+									</span>
+									{stats.entityCount > 0 && (
+										<span className="text-white/30">
+											{stats.entityCount * 5} endpoints
+										</span>
+									)}
+								</div>
+								<p className="text-[11px] text-white/30 leading-relaxed">
+									Per-app PostgreSQL database with auto-generated
+									REST API. Define entities in your app and manage
+									data from the Data panel.
+								</p>
+							</div>
+
+							{/* File Storage */}
+							<div className="rounded-lg border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-3">
+								<div className="flex items-center justify-between">
+									<div className="flex items-center gap-2.5">
+										<div className="h-8 w-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
+											<HardDrive className="h-4 w-4 text-violet-400" />
+										</div>
+										<div>
+											<h4 className="text-sm font-medium text-white/90">
+												File Storage
+											</h4>
+											<p className="text-[10px] text-white/30">
+												S3-Compatible
+											</p>
+										</div>
+									</div>
+									<span
+										className="h-2 w-2 rounded-full bg-green-500"
+										title="Active"
+									/>
+								</div>
+								<div className="flex items-center justify-between text-xs">
+									<span className="text-white/40">
+										{formatBytesCompact(stats.storageUsedBytes)}{" "}
+										/ {stats.storageQuotaMb} MB
+									</span>
+									<span className="text-white/30 capitalize">
+										{stats.storageAccessLevel}
+									</span>
+								</div>
+								<div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+									<div
+										className="h-full rounded-full bg-violet-500/60 transition-all"
+										style={{
+											width: `${storageUsagePercent}%`,
+										}}
+									/>
+								</div>
+								<p className="text-[11px] text-white/30 leading-relaxed">
+									Upload, download, and serve files with
+									on-the-fly image transforms. Manage from the
+									Storage panel.
+								</p>
+							</div>
+
+							{/* Authentication */}
+							<div className="rounded-lg border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-3">
+								<div className="flex items-center justify-between">
+									<div className="flex items-center gap-2.5">
+										<div className="h-8 w-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+											<Lock className="h-4 w-4 text-green-400" />
+										</div>
+										<div>
+											<h4 className="text-sm font-medium text-white/90">
+												Authentication
+											</h4>
+											<p className="text-[10px] text-white/30">
+												Email + JWT
+											</p>
+										</div>
+									</div>
+									<span
+										className="h-2 w-2 rounded-full bg-green-500"
+										title="Active"
+									/>
+								</div>
+								<p className="text-[11px] text-white/30 leading-relaxed">
+									Signup, signin, and session management for end
+									users. Manage users from the Users panel and
+									configure auth in Settings.
+								</p>
+							</div>
+
+							{/* Serverless Functions */}
+							<div className="rounded-lg border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-4 space-y-3">
+								<div className="flex items-center justify-between">
+									<div className="flex items-center gap-2.5">
+										<div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+											<Zap className="h-4 w-4 text-amber-400" />
+										</div>
+										<div>
+											<h4 className="text-sm font-medium text-white/90">
+												Functions
+											</h4>
+											<p className="text-[10px] text-white/30">
+												Serverless
+											</p>
+										</div>
+									</div>
+									<span
+										className="h-2 w-2 rounded-full bg-green-500"
+										title="Active"
+									/>
+								</div>
+								<div className="text-xs text-white/40">
+									{stats.functionsCount > 0
+										? `${stats.functionsCount} function${stats.functionsCount === 1 ? "" : "s"} deployed`
+										: "No functions yet"}
+								</div>
+								<p className="text-[11px] text-white/30 leading-relaxed">
+									HTTP endpoints, entity hooks, and scheduled
+									cron jobs. TypeScript functions with full
+									backend context.
+								</p>
+							</div>
+						</div>
+
+						{/* SDK reference */}
+						<div className="rounded-lg border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-3">
+							<p className="text-xs text-white/40">
+								Access all services via{" "}
+								<code className="px-1 py-0.5 rounded bg-white/[0.06] text-white/80 text-[11px]">
+									@vibexe/sdk
+								</code>{" "}
+								&mdash;{" "}
+								<code className="px-1 py-0.5 rounded bg-white/[0.06] text-white/80 text-[11px]">
+									app.data
+								</code>
+								,{" "}
+								<code className="px-1 py-0.5 rounded bg-white/[0.06] text-white/80 text-[11px]">
+									app.storage
+								</code>
+								,{" "}
+								<code className="px-1 py-0.5 rounded bg-white/[0.06] text-white/80 text-[11px]">
+									app.auth
+								</code>
+								,{" "}
+								<code className="px-1 py-0.5 rounded bg-white/[0.06] text-white/80 text-[11px]">
+									app.functions
+								</code>
+							</p>
+						</div>
 					</div>
 				)}
 
@@ -276,7 +509,10 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 											rel="noopener noreferrer"
 											className="text-xs text-white/90 hover:underline flex items-center gap-1"
 										>
-											{externalDb.url.replace("https://", "").slice(0, 40)}...
+											{externalDb.url
+												.replace("https://", "")
+												.slice(0, 40)}
+											...
 											<ExternalLink className="h-3 w-3" />
 										</a>
 									</div>
@@ -314,14 +550,16 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 						) : (
 							<>
 								<p className="text-xs text-white/40">
-									Connect your Supabase project. Find these values in your{" "}
+									Connect your Supabase project. Find these
+									values in your{" "}
 									<a
 										href="https://supabase.com/dashboard/project/_/settings/api"
 										target="_blank"
 										rel="noopener noreferrer"
 										className="text-white/90 underline"
 									>
-										Supabase Dashboard &rarr; Settings &rarr; API
+										Supabase Dashboard &rarr; Settings &rarr;
+										API
 									</a>
 									.
 								</p>
@@ -366,7 +604,9 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 									type="button"
 									onClick={handleSave}
 									disabled={
-										saving || !supabaseUrl.trim() || !anonKey.trim()
+										saving ||
+										!supabaseUrl.trim() ||
+										!anonKey.trim()
 									}
 									className="px-4 py-2 rounded-md bg-violet-500 text-white text-sm font-medium hover:bg-violet-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 								>
@@ -396,19 +636,28 @@ export function BackendSettings({ appId }: BackendSettingsProps) {
 						<li className="flex items-start gap-2">
 							<Server className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
 							<span>
-								<strong className="text-white/90">Built-in Backend</strong>:
-								Your app gets a dedicated PostgreSQL database, REST API, and
-								auth system. Use <code className="px-1 py-0.5 rounded bg-white/[0.04]">@vibexe/sdk</code> to
-								interact with data.
+								<strong className="text-white/90">
+									Built-in Backend
+								</strong>
+								: Your app gets a dedicated PostgreSQL database,
+								REST API, file storage, auth system, and
+								serverless functions. Use{" "}
+								<code className="px-1 py-0.5 rounded bg-white/[0.04]">
+									@vibexe/sdk
+								</code>{" "}
+								to interact with all services.
 							</span>
 						</li>
 						<li className="flex items-start gap-2">
 							<Cloud className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
 							<span>
-								<strong className="text-white/90">Supabase Connect</strong>:
-								Bring your own Supabase project. The AI generates code using
-								Supabase&apos;s client library directly. You manage your own
-								database, auth, and storage through the Supabase dashboard.
+								<strong className="text-white/90">
+									Supabase Connect
+								</strong>
+								: Bring your own Supabase project. The AI
+								generates code using Supabase&apos;s client
+								library directly. You manage your own database,
+								auth, and storage through the Supabase dashboard.
 							</span>
 						</li>
 					</ul>

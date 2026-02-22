@@ -11,6 +11,7 @@ import {
 	Code2,
 	Database,
 	FileCode2,
+	HardDrive,
 	Key,
 	Users,
 	Activity,
@@ -86,7 +87,10 @@ export function OverviewPanel({
 	const [saving, setSaving] = useState(false);
 	const [copied, setCopied] = useState(false);
 
-	// Fetch app settings
+	// Storage stats
+	const [storageFileCount, setStorageFileCount] = useState(0);
+
+	// Fetch app settings + storage stats
 	useEffect(() => {
 		async function fetchSettings() {
 			try {
@@ -100,7 +104,17 @@ export function OverviewPanel({
 				}
 			} catch {}
 		}
+		async function fetchStorageStats() {
+			try {
+				const res = await fetch(`/api/apps/${appId}/storage?limit=50`);
+				if (res.ok) {
+					const data = await res.json();
+					setStorageFileCount(data.files?.length ?? 0);
+				}
+			} catch {}
+		}
 		fetchSettings();
+		fetchStorageStats();
 	}, [appId]);
 
 	const updateSetting = useCallback(
@@ -275,7 +289,7 @@ export function OverviewPanel({
 				</div>
 
 				{/* Stats Grid */}
-				<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+				<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
 					<StatCard
 						icon={FileCode2}
 						label="Source Files"
@@ -287,6 +301,12 @@ export function OverviewPanel({
 						label="Entities"
 						value={stats.entityCount}
 						onClick={() => onNavigate("data")}
+					/>
+					<StatCard
+						icon={HardDrive}
+						label="Storage Files"
+						value={storageFileCount}
+						onClick={() => onNavigate("storage")}
 					/>
 					<StatCard
 						icon={Key}
@@ -427,7 +447,7 @@ export function OverviewPanel({
 				</div>
 
 				{/* Quick Actions */}
-				<div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+				<div className="grid grid-cols-2 md:grid-cols-5 gap-2">
 					{[
 						{
 							label: "Edit Code",
@@ -438,6 +458,11 @@ export function OverviewPanel({
 							label: "Browse Data",
 							section: "data",
 							icon: Database,
+						},
+						{
+							label: "Storage",
+							section: "storage",
+							icon: HardDrive,
 						},
 						{
 							label: "API Docs",
