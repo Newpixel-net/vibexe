@@ -668,4 +668,19 @@
 		border-radius: 4px;
 		letter-spacing: 0.02em;
 	}
+
+	/* Workspace custom scrollbar — near-invisible, reveals on hover */
+	.workspace-scroll::-webkit-scrollbar {
+		width: 4px;
+	}
+	.workspace-scroll::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	.workspace-scroll::-webkit-scrollbar-thumb {
+		background: rgba(255, 255, 255, 0.06);
+		border-radius: 2px;
+	}
+	.workspace-scroll:hover::-webkit-scrollbar-thumb {
+		background: rgba(255, 255, 255, 0.12);
+	}
 }
