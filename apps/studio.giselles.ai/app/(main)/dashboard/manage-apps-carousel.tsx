@@ -273,28 +273,32 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 						</button>
 
 						{isDropdownOpen && (
-							<div className="absolute top-full left-0 right-0 mt-1 z-20 glass-card p-1 max-h-48 overflow-y-auto">
-								{apps.map((a, i) => (
-									<button
-										key={a.id}
-										type="button"
-										onClick={() => {
-											goTo(i, i > currentIndex ? "left" : "right");
-											setIsDropdownOpen(false);
-										}}
-										className={`w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors truncate ${
-											i === currentIndex
-												? "bg-white/[0.08] text-white/80"
-												: "text-white/40 hover:bg-white/[0.06] hover:text-white/60"
-										}`}
-									>
-										{a.name}
-										{a.deployment?.status === "live" && (
-											<span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-										)}
-									</button>
-								))}
-							</div>
+							<>
+								{/* Backdrop to close dropdown */}
+								<div className="fixed inset-0 z-30" onClick={() => setIsDropdownOpen(false)} />
+								<div className="absolute top-full left-0 right-0 mt-1 z-40 rounded-xl border border-white/[0.1] bg-[#1a1a2e] shadow-2xl shadow-black/60 p-1 max-h-60 overflow-y-auto">
+									{apps.map((a, i) => (
+										<button
+											key={a.id}
+											type="button"
+											onClick={() => {
+												goTo(i, i > currentIndex ? "left" : "right");
+												setIsDropdownOpen(false);
+											}}
+											className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors truncate flex items-center gap-2 ${
+												i === currentIndex
+													? "bg-blue-500/15 text-white/90"
+													: "text-white/50 hover:bg-white/[0.08] hover:text-white/70"
+											}`}
+										>
+											<span className="truncate flex-1">{a.name}</span>
+											{a.deployment?.status === "live" && (
+												<span className="flex-shrink-0 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+											)}
+										</button>
+									))}
+								</div>
+							</>
 						)}
 					</div>
 
