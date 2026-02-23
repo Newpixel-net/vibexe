@@ -114,6 +114,9 @@ function buildCreateTableSql(
 	entity: EntityDefinition,
 	allEntities: EntityDefinition[],
 ): string {
+	if (!SAFE_IDENTIFIER.test(entity.tableName)) {
+		throw new Error(`Invalid table name: ${entity.tableName}`);
+	}
 	const columns: string[] = [
 		"id SERIAL PRIMARY KEY",
 	];
@@ -132,10 +135,16 @@ function buildCreateTableSql(
 /**
  * Build a column definition string for a single field.
  */
+/** Safe SQL default values — only allow simple literals and function calls */
+const SAFE_DEFAULT = /^(?:'[^']*'|true|false|NULL|NOW\(\)|-?\d+(?:\.\d+)?|\d+|'[^']*'::(?:text|integer|numeric|boolean|jsonb|timestamptz))$/i;
+
 function buildColumnDef(
 	field: EntityField,
 	allEntities: EntityDefinition[],
 ): string {
+	if (!SAFE_IDENTIFIER.test(field.name)) {
+		throw new Error(`Invalid field name: ${field.name}`);
+	}
 	const sqlType = fieldTypeToSql(field.type);
 	const parts = [`"${field.name}" ${sqlType}`];
 
@@ -148,6 +157,9 @@ function buildColumnDef(
 	}
 
 	if (field.defaultValue !== undefined && field.defaultValue !== "") {
+		if (!SAFE_DEFAULT.test(field.defaultValue)) {
+			throw new Error(`Unsafe default value for field ${field.name}: ${field.defaultValue}`);
+		}
 		parts.push(`DEFAULT ${field.defaultValue}`);
 	}
 
@@ -176,6 +188,20 @@ function buildAddColumnSql(
 
 // ─── Full-Text Search Vector Support ────────────────────────────────────────
 
+/** Validate a field name is a safe SQL identifier (letters, digits, underscores) */
+const SAFE_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]{0,62}$/;
+/** Valid PostgreSQL tsvector weights */
+const VALID_WEIGHTS = new Set(["A", "B", "C", "D"]);
+
+function validateSearchField(sf: SearchFieldConfig): void {
+	if (!SAFE_IDENTIFIER.test(sf.field)) {
+		throw new Error(`Invalid search field name: ${sf.field}`);
+	}
+	if (!VALID_WEIGHTS.has(sf.weight)) {
+		throw new Error(`Invalid search weight: ${sf.weight}`);
+	}
+}
+
 /**
  * Build the tsvector expression for a set of search fields.
  * Uses weighted setweight() for ranked results.
@@ -183,6 +209,9 @@ function buildAddColumnSql(
 function buildTsvectorExpression(
 	searchFields: SearchFieldConfig[],
 ): string {
+	for (const sf of searchFields) {
+		validateSearchField(sf);
+	}
 	const parts = searchFields.map(
 		(sf) =>
 			`setweight(to_tsvector('english', coalesce(NEW."${sf.field}", '')), '${sf.weight}')`,
@@ -246,6 +275,9 @@ $$ LANGUAGE plpgsql`,
 	);
 
 	// 5. Backfill existing rows that have NULL _search_vector
+	for (const sf of searchConfig) {
+		validateSearchField(sf);
+	}
 	const backfillExpr = searchConfig
 		.map(
 			(sf) =>

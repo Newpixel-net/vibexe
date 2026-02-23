@@ -16,6 +16,7 @@ import { type BuilderAppId, builderAppDatabases, builderApps } from "@/db/schema
 import { hashPassword } from "@/lib/auth/password";
 import { logAppEvent } from "@/lib/app-database/app-logger";
 import { executeQuery } from "@/lib/app-database/pool-manager";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -39,6 +40,14 @@ async function resolveAppDb(appId: string) {
 export async function POST(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+
+		// Verify the caller is a logged-in builder who owns this app
+		try {
+			await verifyAppAccess(appId);
+		} catch {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
+
 		const databaseName = await resolveAppDb(appId);
 		if (!databaseName) {
 			return NextResponse.json({ error: "App not found" }, { status: 404 });

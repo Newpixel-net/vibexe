@@ -22,7 +22,7 @@ import { verifyApiKey } from "@/lib/app-database/api-keys";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
 import type { AppSchema, EntityField } from "@/lib/app-database/schema-types";
-import { getUser } from "@/lib/auth/get-user";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
 	params: Promise<{ appId: string; entity: string }>;
@@ -127,10 +127,10 @@ async function resolveContext(appId: string, entityName: string, request: NextRe
 
 	if (!apiKeyValid) {
 		try {
-			const builderUser = await getUser();
-			if (builderUser) apiKeyValid = true;
+			await verifyAppAccess(appId);
+			apiKeyValid = true;
 		} catch {
-			// Not a builder session
+			// Not a builder session or no access
 		}
 	}
 
@@ -261,10 +261,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		const selectParts: string[] = [];
 		if (groupField) selectParts.push(`"${groupField}"`);
 		if (wantCount) selectParts.push("COUNT(*)::int as count");
-		if (sumField) selectParts.push(`SUM("${sumField}")::numeric as sum_${sumField}`);
-		if (avgField) selectParts.push(`AVG("${avgField}")::numeric as avg_${avgField}`);
-		if (minField) selectParts.push(`MIN("${minField}") as min_${minField}`);
-		if (maxField) selectParts.push(`MAX("${maxField}") as max_${maxField}`);
+		if (sumField) selectParts.push(`SUM("${sumField}")::numeric as "sum_${sumField}"`);
+		if (avgField) selectParts.push(`AVG("${avgField}")::numeric as "avg_${avgField}"`);
+		if (minField) selectParts.push(`MIN("${minField}") as "min_${minField}"`);
+		if (maxField) selectParts.push(`MAX("${maxField}") as "max_${maxField}"`);
+
 
 		if (selectParts.length === 0) {
 			return NextResponse.json(

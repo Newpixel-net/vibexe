@@ -17,6 +17,21 @@ import {
 
 const HMAC_SECRET = process.env.COOKIE_SECRET ?? "fallback-secret";
 
+// ─── Nonce Store (prevents state replay within 5-minute window) ──────────────
+const usedNonces = new Map<string, number>(); // nonce -> timestamp
+const NONCE_CLEANUP_INTERVAL = 5 * 60 * 1000;
+let lastNonceCleanup = Date.now();
+
+function cleanupNonces(): void {
+	const now = Date.now();
+	if (now - lastNonceCleanup < NONCE_CLEANUP_INTERVAL) return;
+	lastNonceCleanup = now;
+	const cutoff = now - 6 * 60 * 1000; // Keep 6 min to cover 5-min window + margin
+	for (const [nonce, ts] of usedNonces) {
+		if (ts < cutoff) usedNonces.delete(nonce);
+	}
+}
+
 export type OAuthProvider = "google" | "github";
 
 export function isValidProvider(p: string): p is OAuthProvider {
@@ -99,10 +114,13 @@ export function buildOAuthState(appId: string): string {
 /**
  * Verify and parse an HMAC-signed OAuth state parameter.
  * Returns the appId if valid, null if invalid or expired (5-minute window).
+ * Each nonce can only be used once (prevents replay attacks).
  */
 export function verifyOAuthState(
 	state: string,
 ): { appId: string } | null {
+	cleanupNonces();
+
 	const parts = state.split(":");
 	if (parts.length !== 4) return null;
 
@@ -123,6 +141,10 @@ export function verifyOAuthState(
 	// Check 5-minute expiry
 	const elapsed = Date.now() - Number.parseInt(ts, 10);
 	if (elapsed > 5 * 60 * 1000 || elapsed < 0) return null;
+
+	// Consume nonce — prevent replay
+	if (usedNonces.has(nonce)) return null;
+	usedNonces.set(nonce, Date.now());
 
 	return { appId };
 }

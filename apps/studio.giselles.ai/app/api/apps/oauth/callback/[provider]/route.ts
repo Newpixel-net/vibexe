@@ -53,7 +53,7 @@ function errorPage(message: string): NextResponse {
 		`<!DOCTYPE html><html><head><title>OAuth Error</title></head><body>
 <script>
 if (window.opener) {
-  window.opener.postMessage({ type: "vibexe-oauth", error: ${JSON.stringify(message)} }, "*");
+  window.opener.postMessage({ type: "vibexe-oauth", error: ${JSON.stringify(message)} }, window.location.origin);
   window.close();
 } else {
   document.body.innerText = ${JSON.stringify(message)};
@@ -249,7 +249,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 				`<!DOCTYPE html><html><head><title>Pending Approval</title></head><body>
 <script>
 if (window.opener) {
-  window.opener.postMessage({ type: "vibexe-oauth", pending: true, error: "Account pending approval" }, "*");
+  window.opener.postMessage({ type: "vibexe-oauth", pending: true, error: "Account pending approval" }, window.location.origin);
   window.close();
 } else {
   document.body.innerText = "Your account is pending approval.";
@@ -296,7 +296,7 @@ if (window.opener) {
     type: "vibexe-oauth",
     token: ${JSON.stringify(token)},
     user: ${userData}
-  }, "*");
+  }, window.location.origin);
   window.close();
 } else {
   document.body.innerText = "Authentication complete. You can close this window.";

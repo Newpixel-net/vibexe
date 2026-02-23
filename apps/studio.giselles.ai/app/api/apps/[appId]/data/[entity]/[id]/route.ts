@@ -20,7 +20,7 @@ import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/
 import type { AppSchema } from "@/lib/app-database/schema-types";
 import { runEntityHook } from "@/lib/app-functions/hooks";
 import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
-import { getUser } from "@/lib/auth/get-user";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
 	params: Promise<{ appId: string; entity: string; id: string }>;
@@ -76,13 +76,13 @@ async function resolveContext(appId: string, entityName: string, request: NextRe
 		if (!apiKeyValid) return { error: "Invalid API key", status: 401 } as const;
 	}
 
-	// Builder session fallback — logged-in builder users get full access
+	// Builder session fallback — verify builder owns this app via team membership
 	if (!apiKeyValid) {
 		try {
-			const builderUser = await getUser();
-			if (builderUser) apiKeyValid = true;
+			await verifyAppAccess(appId);
+			apiKeyValid = true;
 		} catch {
-			// Not a builder session — continue with end-user auth
+			// Not a builder session or no access — continue with end-user auth
 		}
 	}
 

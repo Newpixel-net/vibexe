@@ -97,9 +97,15 @@ export async function POST(request: Request, { params }: RouteParams) {
 			);
 		}
 
-		// Basic URL validation
+		// URL validation — restrict to http/https only
 		try {
-			new URL(url);
+			const parsed = new URL(url);
+			if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+				return NextResponse.json(
+					{ error: "Webhook URL must use http or https" },
+					{ status: 400 },
+				);
+			}
 		} catch {
 			return NextResponse.json(
 				{ error: "Invalid URL format" },
@@ -180,10 +186,16 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			);
 		}
 
-		// Validate URL if provided
+		// Validate URL if provided — restrict to http/https only
 		if (updates.url) {
 			try {
-				new URL(updates.url);
+				const parsed = new URL(updates.url);
+				if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+					return NextResponse.json(
+						{ error: "Webhook URL must use http or https" },
+						{ status: 400 },
+					);
+				}
 			} catch {
 				return NextResponse.json(
 					{ error: "Invalid URL format" },

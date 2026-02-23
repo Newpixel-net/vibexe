@@ -41,6 +41,24 @@ export async function executeWebhook(
 	payload: WebhookPayload,
 	attempt: number,
 ): Promise<ExecutionResult> {
+	// Defense-in-depth: reject non-http(s) URLs
+	try {
+		const parsed = new URL(webhook.url);
+		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+			return {
+				success: false,
+				durationMs: 0,
+				errorMessage: `Rejected webhook URL scheme: ${parsed.protocol}`,
+			};
+		}
+	} catch {
+		return {
+			success: false,
+			durationMs: 0,
+			errorMessage: "Invalid webhook URL",
+		};
+	}
+
 	const body = JSON.stringify(payload);
 	const deliveryId = nanoid();
 	const timestampHeader = payload.timestamp;
