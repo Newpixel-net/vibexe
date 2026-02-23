@@ -78,6 +78,8 @@ function parseAdvancedFilters(
 			clauses.push(`"${fieldName}" ${FILTER_OPERATORS[operator]} $${idx}`);
 			params.push(value);
 			idx++;
+		} else {
+			return { clauses: [], params: [], paramCount: 0, error: `Unknown filter operator: '${operator}'. Supported: eq, gte, gt, lte, lt, ne, like, in` };
 		}
 	}
 
@@ -168,6 +170,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 		// Parse filters
 		const parsed = parseAdvancedFilters(url.searchParams, ctx.entity.fields);
+		if ("error" in parsed && parsed.error) {
+			return NextResponse.json({ error: parsed.error }, { status: 400 });
+		}
 		const filters: string[] = [...parsed.clauses];
 		const filterParams: unknown[] = [...parsed.params];
 		let paramIndex = parsed.paramCount + 1;

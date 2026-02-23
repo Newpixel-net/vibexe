@@ -207,21 +207,11 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			);
 		}
 
-		// Validate URL if provided — restrict to http/https only
+		// Validate URL if provided — restrict to http/https, block internal/private networks
 		if (updates.url) {
-			try {
-				const parsed = new URL(updates.url);
-				if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-					return NextResponse.json(
-						{ error: "Webhook URL must use http or https" },
-						{ status: 400 },
-					);
-				}
-			} catch {
-				return NextResponse.json(
-					{ error: "Invalid URL format" },
-					{ status: 400 },
-				);
+			const urlError = isBlockedUrl(updates.url);
+			if (urlError) {
+				return NextResponse.json({ error: urlError }, { status: 400 });
 			}
 		}
 

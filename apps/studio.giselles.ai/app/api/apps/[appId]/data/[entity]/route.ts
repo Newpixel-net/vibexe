@@ -84,8 +84,10 @@ function parseAdvancedFilters(
 			clauses.push(`"${fieldName}" ${FILTER_OPERATORS[operator]} $${idx}`);
 			params.push(value);
 			idx++;
+		} else {
+			// Reject unknown operators instead of silently ignoring
+			return { clauses: [], params: [], paramCount: 0, error: `Unknown filter operator: '${operator}'. Supported: eq, gte, gt, lte, lt, ne, like, in` };
 		}
-		// Unknown operators silently ignored
 	}
 
 	return { clauses, params, paramCount: idx - 1 };
@@ -200,7 +202,7 @@ async function resolveContext(appId: string, entityName: string, request: NextRe
 	const entity = schema.entities.find((e) => e.tableName === entityName);
 	if (!entity) {
 		return {
-			error: `Entity '${entityName}' not found. Available: ${schema.entities.map((e) => e.tableName).join(", ")}`,
+			error: `Entity '${entityName}' not found`,
 			status: 404,
 		} as const;
 	}
@@ -238,6 +240,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 		// Build WHERE clause from advanced filter params
 		const parsed = parseAdvancedFilters(url.searchParams, ctx.entity.fields);
+		if ("error" in parsed && parsed.error) {
+			return NextResponse.json({ error: parsed.error }, { status: 400 });
+		}
 		const filters: string[] = [...parsed.clauses];
 		const filterParams: unknown[] = [...parsed.params];
 		let paramIndex = parsed.paramCount + 1;

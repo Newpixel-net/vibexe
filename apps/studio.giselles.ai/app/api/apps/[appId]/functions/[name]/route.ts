@@ -68,8 +68,8 @@ async function resolveContext(appId: string, fnName: string, request: NextReques
 			eq(builderAppFunctions.name, fnName),
 		),
 	});
-	if (!fn) return { error: `Function '${fnName}' not found`, status: 404 } as const;
-	if (!fn.enabled) return { error: `Function '${fnName}' is disabled`, status: 403 } as const;
+	if (!fn) return { error: "Function not found", status: 404 } as const;
+	if (!fn.enabled) return { error: "Function is disabled", status: 403 } as const;
 
 	return { app, appDb, fn, user };
 }
@@ -86,7 +86,7 @@ async function executeFn(request: NextRequest, { params }: RouteParams) {
 		const source = await loadFunctionSource(ctx.app.dbId, ctx.fn.filePath);
 		if (!source) {
 			return NextResponse.json(
-				{ error: `Function file '${ctx.fn.filePath}' not found` },
+				{ error: "Function source not found" },
 				{ status: 404 },
 			);
 		}
