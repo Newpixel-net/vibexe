@@ -90,6 +90,18 @@ export async function createAppDatabase(appDbId: number) {
 
 		return { ...row, status: "active" as const };
 	} catch (error) {
+		// Clean up: try to drop the orphaned database if it was created
+		try {
+			const cleanupPool = getPlatformPool();
+			try {
+				await cleanupPool.query(`DROP DATABASE IF EXISTS ${databaseName}`);
+			} finally {
+				await cleanupPool.end();
+			}
+		} catch {
+			// Best-effort cleanup — database may not have been created yet
+		}
+
 		// Mark as error
 		await db
 			.update(builderAppDatabases)

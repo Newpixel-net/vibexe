@@ -204,6 +204,7 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 		errors: number;
 	} | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const fetchAbortRef = useRef<AbortController | null>(null);
 
 	const currentEntity = useMemo(
 		() => schema?.entities.find((e) => e.tableName === selectedEntity) ?? null,
@@ -235,6 +236,10 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 
 	const fetchData = useCallback(async () => {
 		if (!selectedEntity) return;
+		// Cancel previous in-flight request to prevent stale data overwriting fresh results
+		if (fetchAbortRef.current) fetchAbortRef.current.abort();
+		const controller = new AbortController();
+		fetchAbortRef.current = controller;
 		setLoading(true);
 		try {
 			const params = new URLSearchParams({
@@ -251,6 +256,7 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 			}
 			const res = await fetch(
 				`/api/apps/${appId}/data/${selectedEntity}?${params}`,
+				{ signal: controller.signal },
 			);
 			if (res.ok) {
 				const json = await res.json();
@@ -259,9 +265,10 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 				setTotal(json.pagination?.total || 0);
 			}
 		} catch (err) {
+			if (err instanceof DOMException && err.name === "AbortError") return;
 			console.error("Failed to fetch data:", err);
 		} finally {
-			setLoading(false);
+			if (!controller.signal.aborted) setLoading(false);
 		}
 	}, [appId, selectedEntity, page, sortField, sortOrder, activeFilters, debouncedSearch]);
 

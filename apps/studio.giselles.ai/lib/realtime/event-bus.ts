@@ -60,6 +60,11 @@ export function offDataEvent(
 	emitter.off(channelKey(appId), callback);
 }
 
+/** Remove all listeners for an app (call when app is deleted to prevent leaks). */
+export function removeAllListenersForApp(appId: string): void {
+	emitter.removeAllListeners(channelKey(appId));
+}
+
 /** Get the number of active listeners for an app (for debugging/monitoring). */
 export function getListenerCount(appId: string): number {
 	return emitter.listenerCount(channelKey(appId));

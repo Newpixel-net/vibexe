@@ -204,12 +204,21 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 				email_verified: true,
 			};
 		} else {
-			// New user
+			// New user — use ON CONFLICT to handle race condition where two
+			// simultaneous OAuth callbacks for the same email both see 0 rows
 			const userStatus = requireApproval ? "pending" : "active";
 			const inserted = await executeQuery<typeof user>(
 				databaseName,
 				`INSERT INTO "_app_users" (email, password_hash, display_name, role, email_verified, status, auth_provider, provider_user_id, avatar_url)
 				 VALUES ($1, NULL, $2, 'user', true, $3, $4, $5, $6)
+				 ON CONFLICT (email) DO UPDATE SET
+				   auth_provider = COALESCE("_app_users".auth_provider, EXCLUDED.auth_provider),
+				   provider_user_id = COALESCE("_app_users".provider_user_id, EXCLUDED.provider_user_id),
+				   avatar_url = COALESCE("_app_users".avatar_url, EXCLUDED.avatar_url),
+				   display_name = COALESCE("_app_users".display_name, EXCLUDED.display_name),
+				   email_verified = true,
+				   last_login_at = NOW(),
+				   updated_at = NOW()
 				 RETURNING id, email, display_name, role, email_verified, status, auth_provider, avatar_url, created_at`,
 				[
 					userInfo.email.toLowerCase(),

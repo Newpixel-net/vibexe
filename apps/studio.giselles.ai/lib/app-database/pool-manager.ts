@@ -18,6 +18,7 @@ interface PoolEntry {
 const MAX_POOLS = 20;
 const CONNECTIONS_PER_POOL = 2;
 const IDLE_TIMEOUT_MS = 30_000; // 30 seconds
+const STATEMENT_TIMEOUT_MS = 30_000; // 30 seconds — prevents runaway queries from blocking the pool
 
 /** Map of database name → pool entry */
 const pools = new Map<string, PoolEntry>();
@@ -90,6 +91,7 @@ export async function getAppPool(databaseName: string): Promise<Pool> {
 		connectionString: buildConnectionString(databaseName),
 		max: CONNECTIONS_PER_POOL,
 		idleTimeoutMillis: IDLE_TIMEOUT_MS,
+		statement_timeout: STATEMENT_TIMEOUT_MS,
 	});
 
 	pools.set(databaseName, {
@@ -121,7 +123,11 @@ export async function closePool(databaseName: string): Promise<void> {
 	const entry = pools.get(databaseName);
 	if (entry) {
 		pools.delete(databaseName);
-		await entry.pool.end();
+		try {
+			await entry.pool.end();
+		} catch {
+			// Pool may already be closed or connections in use — ignore
+		}
 	}
 }
 
