@@ -90,12 +90,17 @@ export function checkRateLimit(
 /**
  * Extract client IP from a request. Checks X-Forwarded-For (for proxies),
  * X-Real-IP, then falls back to a default.
+ *
+ * Uses the RIGHTMOST IP in X-Forwarded-For — this is the one added by the
+ * closest trusted proxy and cannot be spoofed by the client. The leftmost
+ * entry is user-controlled and trivially faked.
  */
 export function getClientIp(request: Request): string {
 	const forwarded = request.headers.get("x-forwarded-for");
 	if (forwarded) {
-		// Take the first IP (client's IP before proxies)
-		return forwarded.split(",")[0].trim();
+		const ips = forwarded.split(",").map((s) => s.trim()).filter(Boolean);
+		// Rightmost IP = added by closest trusted proxy (hardest to spoof)
+		return ips[ips.length - 1] || "unknown";
 	}
 	return request.headers.get("x-real-ip") ?? "unknown";
 }

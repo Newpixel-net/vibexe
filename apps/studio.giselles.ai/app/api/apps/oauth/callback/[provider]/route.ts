@@ -39,7 +39,7 @@ interface RouteParams {
 }
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-const SESSION_DURATION_DAYS = 30;
+const SESSION_DURATION_DAYS = 7;
 
 function htmlResponse(body: string, status = 200): NextResponse {
 	return new NextResponse(body, {

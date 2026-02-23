@@ -16,12 +16,34 @@ import { type BuilderAppId, builderApps, builderAppDatabases } from "@/db/schema
 import { verifyApiKey } from "@/lib/app-database/api-keys";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 import { resolveAppUser } from "@/lib/app-database/rls";
+import { getClientIp } from "@/lib/rate-limiter";
 import {
 	type DataChangeEvent,
 	type DataEventCallback,
 	onDataEvent,
 	offDataEvent,
 } from "@/lib/realtime/event-bus";
+
+// ---- Concurrent SSE connection limiter ----
+// Tracks active SSE connections per key to prevent resource exhaustion.
+const activeConnections = new Map<string, number>();
+const MAX_SSE_PER_IP = 10; // max concurrent SSE connections per IP per app
+
+function acquireSSESlot(key: string): boolean {
+	const current = activeConnections.get(key) ?? 0;
+	if (current >= MAX_SSE_PER_IP) return false;
+	activeConnections.set(key, current + 1);
+	return true;
+}
+
+function releaseSSESlot(key: string): void {
+	const current = activeConnections.get(key) ?? 1;
+	if (current <= 1) {
+		activeConnections.delete(key);
+	} else {
+		activeConnections.set(key, current - 1);
+	}
+}
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -85,6 +107,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		});
 	}
 
+	// Concurrent connection limit per IP per app
+	const ip = getClientIp(request);
+	const sseKey = `${appId}:${ip}`;
+	if (!acquireSSESlot(sseKey)) {
+		return new Response(JSON.stringify({ error: "Too many active connections" }), {
+			status: 429,
+			headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+		});
+	}
+
 	// Parse entity filter from query string
 	const url = new URL(request.url);
 	const entitiesParam = url.searchParams.get("entities");
@@ -105,6 +137,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		if (heartbeat) clearInterval(heartbeat);
 		if (maxLifetimeTimer) clearTimeout(maxLifetimeTimer);
 		if (eventHandler) offDataEvent(appId, eventHandler);
+		releaseSSESlot(sseKey);
 		heartbeat = null;
 		maxLifetimeTimer = null;
 		eventHandler = null;

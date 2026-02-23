@@ -39,7 +39,7 @@ async function resolveAppDb(appId: string) {
 	return { databaseName: appDb.databaseName, appDbId: app.dbId };
 }
 
-const SESSION_DURATION_DAYS = 30;
+const SESSION_DURATION_DAYS = 7;
 
 export const OPTIONS = () => handleAuthOptions();
 

@@ -6,6 +6,7 @@
  * "after" hooks are fire-and-forget (errors logged, don't block response).
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { builderAppFunctions } from "@/db/schema";
@@ -39,9 +40,9 @@ export interface HookResult {
 }
 
 // ---- Recursion guard ----
-// Tracks nested hook depth per entity+hookType to prevent infinite loops.
-// Key = "appDbId:entity:hookType", value = current depth.
-const hookDepth = new Map<string, number>();
+// Uses AsyncLocalStorage so hook depth is tracked per-request, preventing
+// false positives when concurrent requests trigger the same entity hook.
+const hookDepthStorage = new AsyncLocalStorage<Map<string, number>>();
 const MAX_HOOK_DEPTH = 3;
 
 /**
@@ -52,28 +53,42 @@ const MAX_HOOK_DEPTH = 3;
  * For "after" hooks: fires and forgets, returns immediately.
  */
 export async function runEntityHook(opts: RunEntityHookOpts): Promise<HookResult> {
-	const { databaseName, appDbId, appId, entity, hookType, data, existing, user } = opts;
-	const isBefore = hookType.startsWith("before");
+	const isBefore = opts.hookType.startsWith("before");
 
-	// Recursion guard: prevent infinite loops when hooks mutate the same entity
-	const depthKey = `${appDbId}:${entity}:${hookType}`;
-	const currentDepth = hookDepth.get(depthKey) ?? 0;
+	// Get or create per-request depth map
+	let depthMap = hookDepthStorage.getStore();
+	const isTopLevel = !depthMap;
+	if (!depthMap) {
+		depthMap = new Map<string, number>();
+	}
+
+	const depthKey = `${opts.appDbId}:${opts.entity}:${opts.hookType}`;
+	const currentDepth = depthMap.get(depthKey) ?? 0;
 	if (currentDepth >= MAX_HOOK_DEPTH) {
 		console.warn(`[Entity Hook] Max depth (${MAX_HOOK_DEPTH}) reached for ${depthKey}, skipping to prevent infinite loop`);
-		return { data };
+		return { data: opts.data };
 	}
-	hookDepth.set(depthKey, currentDepth + 1);
+	depthMap.set(depthKey, currentDepth + 1);
 
-	try {
-		return await _runEntityHookInner(opts, isBefore);
-	} finally {
-		const depth = hookDepth.get(depthKey) ?? 1;
-		if (depth <= 1) {
-			hookDepth.delete(depthKey);
-		} else {
-			hookDepth.set(depthKey, depth - 1);
+	const run = async (): Promise<HookResult> => {
+		try {
+			return await _runEntityHookInner(opts, isBefore);
+		} finally {
+			const dm = hookDepthStorage.getStore() ?? depthMap;
+			const depth = dm.get(depthKey) ?? 1;
+			if (depth <= 1) {
+				dm.delete(depthKey);
+			} else {
+				dm.set(depthKey, depth - 1);
+			}
 		}
+	};
+
+	// Top-level call: enter AsyncLocalStorage context
+	if (isTopLevel) {
+		return hookDepthStorage.run(depthMap, run);
 	}
+	return run();
 }
 
 async function _runEntityHookInner(opts: RunEntityHookOpts, isBefore: boolean): Promise<HookResult> {

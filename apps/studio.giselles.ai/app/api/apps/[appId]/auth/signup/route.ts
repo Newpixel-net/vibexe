@@ -44,7 +44,7 @@ async function resolveAppDb(appId: string) {
 	return appDb.databaseName;
 }
 
-const SESSION_DURATION_DAYS = 30;
+const SESSION_DURATION_DAYS = 7;
 
 export const OPTIONS = () => handleAuthOptions();
 
@@ -109,6 +109,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			));
 		}
 
+		// Hash password first (before checking existence) to prevent
+		// timing-based account enumeration — both paths take equal time
+		const passwordHash = await hashPassword(password);
+
 		// Check if email already exists
 		const existing = await executeQuery<{ id: string }>(
 			databaseName,
@@ -121,9 +125,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 				{ status: 409 },
 			));
 		}
-
-		// Hash password
-		const passwordHash = await hashPassword(password);
 
 		// Check if app requires signup approval
 		const app = await db.query.builderApps.findFirst({
