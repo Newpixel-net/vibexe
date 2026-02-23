@@ -143,12 +143,25 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 	}
 
 	// Parse entity filter from query string (url already parsed above for auth)
-	const entitiesParam = url.searchParams.get("entities");
-	const entityFilter = entitiesParam
-		? new Set(entitiesParam.split(",").map((e) => e.trim()).filter(Boolean))
-		: null; // null = subscribe to all entities
-
-	const encoder = new TextEncoder();
+	// Wrapped in try/catch to ensure SSE slot is released if anything fails
+	// before the ReadableStream is created (prevents permanent slot leaks).
+	let entitiesParam: string | null;
+	let entityFilter: Set<string> | null;
+	let encoder: TextEncoder;
+	try {
+		entitiesParam = url.searchParams.get("entities");
+		entityFilter = entitiesParam
+			? new Set(entitiesParam.split(",").map((e) => e.trim()).filter(Boolean))
+			: null; // null = subscribe to all entities
+		encoder = new TextEncoder();
+	} catch (err) {
+		releaseSSESlot(sseKey);
+		console.error("[SSE] Setup error:", err);
+		return new Response(JSON.stringify({ error: "Internal server error" }), {
+			status: 500,
+			headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+		});
+	}
 
 	let heartbeat: ReturnType<typeof setInterval> | null = null;
 	let maxLifetimeTimer: ReturnType<typeof setTimeout> | null = null;

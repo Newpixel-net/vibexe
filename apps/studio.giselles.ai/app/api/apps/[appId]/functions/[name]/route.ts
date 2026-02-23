@@ -66,6 +66,10 @@ async function resolveContext(appId: string, fnName: string, request: NextReques
 		// If not a builder, try app user Bearer token
 		if (!isBuilder) {
 			user = await resolveAppUser(appDb.databaseName, request);
+			// Explicit auth gate — reject if no auth method succeeded
+			if (!user) {
+				return { error: "Authentication required", status: 401 } as const;
+			}
 		}
 	}
 
@@ -179,9 +183,20 @@ async function executeFn(request: NextRequest, { params }: RouteParams) {
 			.where(eq(builderAppFunctions.dbId, ctx.fn.dbId))
 			.catch(() => {});
 
+		// Redact potential secrets from console output before returning to client
+		const safeLogs = result.logs.map((line) =>
+			line.replace(
+				/(?:(?:api[_-]?key|secret|password|token|credential|authorization)\s*[:=]\s*)[^\s,}"']+/gi,
+				(match) => {
+					const colonIdx = match.search(/[:=]/);
+					return `${match.slice(0, colonIdx + 1)} [REDACTED]`;
+				},
+			),
+		);
+
 		return withCors(NextResponse.json({
 			data: result.result,
-			logs: result.logs,
+			logs: safeLogs,
 			durationMs: result.durationMs,
 		}));
 	} catch (error) {

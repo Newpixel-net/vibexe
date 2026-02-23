@@ -271,6 +271,25 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 			}
 		}
 
+		// RLS enforcement for end-users
+		let rlsWriteCheck: { whereClauses: string[]; whereParams: unknown[] } = { whereClauses: [], whereParams: [] };
+		if (!ctx.apiKeyValid) {
+			const user = await resolveAppUser(ctx.databaseName, request);
+			const policy = await getEntityPolicy(ctx.appDb.appDbId, entityName);
+			const entityFields = ctx.entity.fields.map((f) => f.name);
+			const rls = enforceRLS({
+				policy,
+				operation: "write",
+				user,
+				paramOffset: 0,
+				entityFields,
+			});
+			if (!rls.allowed) {
+				return NextResponse.json({ error: rls.error }, { status: rls.status });
+			}
+			rlsWriteCheck = { whereClauses: rls.whereClauses, whereParams: rls.whereParams };
+		}
+
 		const body = await request.json();
 		const updates = body?.updates;
 		if (!Array.isArray(updates) || updates.length === 0) {
@@ -320,15 +339,24 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 				setClauses.push(`"updated_at" = NOW()`);
 				params.push(id);
 
+				// Build WHERE clause: id = $N + RLS conditions
+				const whereParts = [`id = $${pIdx}`];
+				for (const clause of rlsWriteCheck.whereClauses) {
+					pIdx++;
+					// Re-parameterize: replace $1 in the clause with the new param index
+					whereParts.push(clause.replace(/\$\d+/g, `$${pIdx}`));
+					params.push(...rlsWriteCheck.whereParams);
+				}
+
 				const rows = await query(
-					`UPDATE "${ctx.entity.tableName}" SET ${setClauses.join(", ")} WHERE id = $${pIdx} RETURNING *`,
+					`UPDATE "${ctx.entity.tableName}" SET ${setClauses.join(", ")} WHERE ${whereParts.join(" AND ")} RETURNING *`,
 					params,
 				);
 
 				if (rows.length > 0) {
 					allResults.push({ id, success: true, data: rows[0] });
 				} else {
-					allResults.push({ id, success: false, error: "Row not found" });
+					allResults.push({ id, success: false, error: "Row not found or access denied" });
 				}
 			}
 
@@ -397,6 +425,25 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 			}
 		}
 
+		// RLS enforcement for end-users
+		let rlsDeleteCheck: { whereClauses: string[]; whereParams: unknown[] } = { whereClauses: [], whereParams: [] };
+		if (!ctx.apiKeyValid) {
+			const user = await resolveAppUser(ctx.databaseName, request);
+			const policy = await getEntityPolicy(ctx.appDb.appDbId, entityName);
+			const entityFields = ctx.entity.fields.map((f) => f.name);
+			const rls = enforceRLS({
+				policy,
+				operation: "delete",
+				user,
+				paramOffset: 1, // $1 is the ids array
+				entityFields,
+			});
+			if (!rls.allowed) {
+				return NextResponse.json({ error: rls.error }, { status: rls.status });
+			}
+			rlsDeleteCheck = { whereClauses: rls.whereClauses, whereParams: rls.whereParams };
+		}
+
 		const body = await request.json();
 		const ids = body?.ids;
 		if (!Array.isArray(ids) || ids.length === 0) {
@@ -412,10 +459,20 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
+		// Build WHERE clause: id = ANY($1::int[]) + RLS conditions
+		const deleteWhere = [`id = ANY($1::int[])`];
+		const deleteParams: unknown[] = [ids];
+		let dIdx = 1;
+		for (const clause of rlsDeleteCheck.whereClauses) {
+			dIdx++;
+			deleteWhere.push(clause.replace(/\$\d+/g, `$${dIdx}`));
+			deleteParams.push(...rlsDeleteCheck.whereParams);
+		}
+
 		const deleted = await withTransaction(ctx.databaseName, async (query) => {
 			return query<{ id: number }>(
-				`DELETE FROM "${ctx.entity.tableName}" WHERE id = ANY($1::int[]) RETURNING id`,
-				[ids],
+				`DELETE FROM "${ctx.entity.tableName}" WHERE ${deleteWhere.join(" AND ")} RETURNING id`,
+				deleteParams,
 			);
 		});
 

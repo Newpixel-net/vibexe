@@ -17,6 +17,7 @@ import {
 } from "@/db/schema";
 import { verifyApiKey } from "@/lib/app-database/api-keys";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -91,6 +92,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function POST(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+
+		// Rate limit: 10 function registrations per IP per minute
+		const ip = getClientIp(request);
+		const rateCheck = checkRateLimit("fn-register", `${appId}:${ip}`, 10, 60 * 1000);
+		if (!rateCheck.allowed) {
+			return NextResponse.json(
+				{ error: "Too many requests. Please try again later." },
+				{ status: 429, headers: { "Retry-After": String(Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)) } },
+			);
+		}
+
 		const ctx = await resolveApp(appId, request);
 		if ("error" in ctx) {
 			return NextResponse.json({ error: ctx.error }, { status: ctx.status });

@@ -24,6 +24,17 @@ import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 
+const DATA_CORS_HEADERS = {
+	"Access-Control-Allow-Origin": "*",
+	"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+	"Access-Control-Allow-Headers": "Content-Type, Authorization, X-Vibexe-Api-Key",
+	"Access-Control-Max-Age": "86400",
+} as const;
+
+export function OPTIONS() {
+	return new Response(null, { status: 204, headers: DATA_CORS_HEADERS });
+}
+
 // ─── Advanced Filter Operators ──────────────────────────────────────────────
 
 const FILTER_OPERATORS: Record<string, string> = {

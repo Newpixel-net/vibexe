@@ -25,6 +25,17 @@ import type { AppSchema, EntityField } from "@/lib/app-database/schema-types";
 import { INTERNAL_TABLES, MAX_IN_FILTER_ITEMS } from "@/lib/app-database/internal-tables";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
+const DATA_CORS_HEADERS = {
+	"Access-Control-Allow-Origin": "*",
+	"Access-Control-Allow-Methods": "GET, OPTIONS",
+	"Access-Control-Allow-Headers": "Content-Type, Authorization, X-Vibexe-Api-Key",
+	"Access-Control-Max-Age": "86400",
+} as const;
+
+export function OPTIONS() {
+	return new Response(null, { status: 204, headers: DATA_CORS_HEADERS });
+}
+
 interface RouteParams {
 	params: Promise<{ appId: string; entity: string }>;
 }

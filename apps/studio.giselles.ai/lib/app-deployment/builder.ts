@@ -63,6 +63,10 @@ function generateIndexHtml(appName: string, hasCss: boolean): string {
 }
 
 function generateSdkSource(appId: string): string {
+	// Validate appId format — must match bldr_xxx pattern (no special chars)
+	if (!/^bldr_[a-zA-Z0-9_-]+$/.test(appId)) {
+		throw new Error(`Invalid appId format: ${appId.slice(0, 50)}`);
+	}
 	return `(function(g){
 class DataClient{constructor(b,h){this.b=b;this.h=h}
 async list(e,o){o=o||{};var p=new URLSearchParams();if(o.page)p.set("page",String(o.page));if(o.limit)p.set("limit",String(o.limit));if(o.sort)p.set("sort",o.sort);if(o.order)p.set("order",o.order);if(o.filter){for(var k in o.filter){var v=o.filter[k];if(v!==null&&typeof v==="object"&&!Array.isArray(v)){for(var op in v){if(op==="in"&&Array.isArray(v[op]))p.set("filter["+k+"][in]",v[op].join(","));else if(v[op]!==undefined)p.set("filter["+k+"]["+op+"]",String(v[op]))}}else p.set("filter["+k+"]",String(v))}}if(o.search)p.set("search",o.search);var q=p.toString();var r=await fetch(this.b+"/data/"+e+(q?"?"+q:""),{headers:this.h});if(!r.ok){var err=await r.json().catch(function(){return{}});throw new Error(err.error||"Failed")}return await r.json()}
@@ -192,14 +196,15 @@ function generateEntryPoint(
  * Create the esbuild virtual-fs plugin.
  * All app files live in a Map; React/ReactDOM are shimmed from window globals.
  */
-/** Normalize a virtual path: resolve `.` and `..` segments */
+/** Normalize a virtual path: resolve `.` and `..` segments (clamped to root) */
 function normalizePath(p: string): string {
 	const parts = p.split("/");
 	const out: string[] = [];
 	for (const seg of parts) {
 		if (seg === "." || seg === "") continue;
 		if (seg === "..") {
-			out.pop();
+			// Only pop if we have segments — prevents traversal below virtual root
+			if (out.length > 0) out.pop();
 		} else {
 			out.push(seg);
 		}
@@ -354,6 +359,21 @@ export async function buildApp(
 
 		log(`${virtualFiles.size} code files, ${cssContents.length} CSS files`);
 		if (virtualFiles.size === 0) throw new Error("No code files in app");
+
+		// Pre-build input size check — prevent CPU/memory exhaustion from huge inputs
+		const MAX_INPUT_BYTES = 5 * 1024 * 1024; // 5 MB total
+		let totalInputSize = 0;
+		for (const content of virtualFiles.values()) {
+			totalInputSize += content.length;
+		}
+		for (const css of cssContents) {
+			totalInputSize += css.length;
+		}
+		if (totalInputSize > MAX_INPUT_BYTES) {
+			throw new Error(
+				`Total input size (${Math.round(totalInputSize / 1024)} KB) exceeds ${MAX_INPUT_BYTES / 1024 / 1024} MB limit`,
+			);
+		}
 
 		// 3. Find App component + context providers
 		let appPath: string | null = null;
