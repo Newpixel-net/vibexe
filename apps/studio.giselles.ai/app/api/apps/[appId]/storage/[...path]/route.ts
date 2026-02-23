@@ -58,6 +58,7 @@ async function getSettings(appDbId: number) {
 
 async function authenticateRequest(
 	request: NextRequest,
+	appId: string,
 	appDbId: number,
 	databaseName: string | undefined,
 	accessLevel: string,
@@ -68,6 +69,15 @@ async function authenticateRequest(
 		const valid = await verifyApiKey(appDbId, apiKey);
 		if (!valid) return { allowed: false, error: "Invalid API key", status: 401 };
 		return { allowed: true };
+	}
+
+	// Builder session fallback — verify builder owns this app via team membership
+	try {
+		const { verifyAppAccess } = await import("@/lib/auth/verify-app-access");
+		await verifyAppAccess(appId);
+		return { allowed: true };
+	} catch {
+		// Not a builder session or no access — continue with end-user auth
 	}
 
 	// Public = no auth needed
@@ -104,6 +114,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 		const auth = await authenticateRequest(
 			request,
+			appId,
 			resolved.app.dbId,
 			resolved.appDb?.databaseName,
 			settings.accessLevel,
@@ -130,11 +141,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		const hasTransforms = width || height || format || quality;
 
 		if (hasTransforms && isTransformableImage(result.contentType)) {
+			const MAX_DIM = 4096;
 			const transformParams: TransformParams = {};
-			if (width) transformParams.width = Number.parseInt(width, 10);
-			if (height) transformParams.height = Number.parseInt(height, 10);
+			if (width) transformParams.width = Math.min(Math.max(1, Number.parseInt(width, 10)), MAX_DIM);
+			if (height) transformParams.height = Math.min(Math.max(1, Number.parseInt(height, 10)), MAX_DIM);
 			if (format) transformParams.format = format;
-			if (quality) transformParams.quality = Number.parseInt(quality, 10);
+			if (quality) transformParams.quality = Math.min(Math.max(1, Number.parseInt(quality, 10)), 100);
 
 			const transformed = await transformImage(
 				appId,
@@ -185,6 +197,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
 		const auth = await authenticateRequest(
 			request,
+			appId,
 			resolved.app.dbId,
 			resolved.appDb?.databaseName,
 			settings.accessLevel,

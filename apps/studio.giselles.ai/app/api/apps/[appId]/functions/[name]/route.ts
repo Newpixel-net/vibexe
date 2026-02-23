@@ -38,14 +38,27 @@ async function resolveContext(appId: string, fnName: string, request: NextReques
 		return { error: "App database not available", status: 503 } as const;
 	}
 
-	// Auth: API key or Bearer token
+	// Auth: API key, builder session (team ownership), or Bearer token (app user)
 	let user = null;
 	const apiKey = request.headers.get("x-vibexe-api-key");
 	if (apiKey) {
 		const valid = await verifyApiKey(app.dbId, apiKey);
 		if (!valid) return { error: "Invalid API key", status: 401 } as const;
 	} else {
-		user = await resolveAppUser(appDb.databaseName, request);
+		// Try builder session first (team ownership check)
+		let isBuilder = false;
+		try {
+			const { verifyAppAccess } = await import("@/lib/auth/verify-app-access");
+			await verifyAppAccess(appId);
+			isBuilder = true;
+		} catch {
+			// Not a builder session or no access
+		}
+
+		// If not a builder, try app user Bearer token
+		if (!isBuilder) {
+			user = await resolveAppUser(appDb.databaseName, request);
+		}
 	}
 
 	// Load function metadata

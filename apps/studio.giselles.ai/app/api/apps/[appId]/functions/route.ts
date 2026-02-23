@@ -16,7 +16,7 @@ import {
 	builderAppFunctions,
 } from "@/db/schema";
 import { verifyApiKey } from "@/lib/app-database/api-keys";
-import { getUser } from "@/lib/auth/get-user";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -37,12 +37,12 @@ async function resolveApp(appId: string, request: NextRequest) {
 		return { app };
 	}
 
-	// Builder session fallback — logged-in builders have full access
+	// Builder session fallback — verify builder owns this app via team membership
 	try {
-		const builderUser = await getUser();
-		if (builderUser) return { app };
+		await verifyAppAccess(appId);
+		return { app };
 	} catch {
-		// Not a builder session
+		// Not a builder session or no access
 	}
 
 	return { error: "API key required", status: 401 } as const;

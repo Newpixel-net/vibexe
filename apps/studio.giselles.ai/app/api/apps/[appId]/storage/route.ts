@@ -19,7 +19,7 @@ import {
 import { verifyApiKey } from "@/lib/app-database/api-keys";
 import { resolveAppUser } from "@/lib/app-database/rls";
 import { logAppEvent } from "@/lib/app-database/app-logger";
-import { getUser } from "@/lib/auth/get-user";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 import {
 	uploadFile,
 	listFiles,
@@ -61,6 +61,7 @@ async function getSettings(appDbId: number) {
 
 async function authenticateRequest(
 	request: NextRequest,
+	appId: string,
 	appDbId: number,
 	databaseName: string | undefined,
 	accessLevel: string,
@@ -73,12 +74,12 @@ async function authenticateRequest(
 		return { allowed: true };
 	}
 
-	// Builder session fallback — logged-in builders have full read/write access
+	// Builder session fallback — verify builder owns this app via team membership
 	try {
-		const builderUser = await getUser();
-		if (builderUser) return { allowed: true };
+		await verifyAppAccess(appId);
+		return { allowed: true };
 	} catch {
-		// Not a builder session — continue with end-user auth
+		// Not a builder session or no access — continue with end-user auth
 	}
 
 	// Public = no auth needed
@@ -125,6 +126,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 		const auth = await authenticateRequest(
 			request,
+			appId,
 			resolved.app.dbId,
 			resolved.appDb?.databaseName,
 			settings.accessLevel,
@@ -165,6 +167,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
 		const auth = await authenticateRequest(
 			request,
+			appId,
 			resolved.app.dbId,
 			resolved.appDb?.databaseName,
 			settings.accessLevel,
@@ -212,10 +215,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		const customPath = formData.get("path") as string | null;
 		const filePath = customPath || file.name;
 
-		// Sanitize path (no ../ traversal, no leading /)
+		// Sanitize path — prevent all traversal vectors
 		const safePath = filePath
-			.replace(/\.\.\//g, "")
-			.replace(/^\/+/, "");
+			.replace(/\\/g, "/")             // Normalize backslashes
+			.replace(/\.{2,}/g, ".")         // Collapse consecutive dots
+			.replace(/^\/+/, "")             // Strip leading slashes
+			.split("/")
+			.filter((seg) => seg !== ".." && seg !== "." && seg.length > 0)
+			.join("/");
+
+		if (!safePath) {
+			return NextResponse.json({ error: "Invalid file path" }, { status: 400 });
+		}
 
 		// Get file buffer
 		const arrayBuffer = await file.arrayBuffer();
