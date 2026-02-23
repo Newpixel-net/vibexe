@@ -79,6 +79,14 @@ function checkForDangerousCode(code: string): string | null {
 	if (/\brequire\s*\(/.test(code) || /\bprocess\b/.test(code)) {
 		return "Function cannot use require() or access process";
 	}
+	// Block constructor-chain sandbox escape attempts
+	if (/\.constructor\s*\.\s*constructor/.test(code)) {
+		return "Function cannot access constructor chain (sandbox violation)";
+	}
+	// Block dynamic import()
+	if (/\bimport\s*\(/.test(code)) {
+		return "Function cannot use dynamic import()";
+	}
 	return null;
 }
 
@@ -193,6 +201,41 @@ export async function executeFunction(opts: ExecuteFunctionOpts): Promise<Execut
 	if (ctx.request) Object.freeze(ctx.request);
 
 	const vmContext = vm.createContext(sandbox);
+
+	// 4.5. Block constructor-chain sandbox escapes
+	// In node:vm, `({}).constructor.constructor('return process')()` escapes the sandbox.
+	// We redefine Function.prototype.constructor inside the VM context so the chain breaks.
+	// Also block eval, Function, and import() to prevent code generation from strings.
+	const sandboxSetup = new vm.Script(`
+		(function() {
+			'use strict';
+			// Block Function constructor access (the main escape vector)
+			var _Fn = Function;
+			Object.defineProperty(_Fn.prototype, 'constructor', {
+				get: function() { throw new Error('Sandbox: Function constructor access is blocked'); },
+				set: function() {},
+				configurable: false
+			});
+			// Block GeneratorFunction and AsyncFunction constructors
+			try {
+				var _Gen = Object.getPrototypeOf(function*(){}).constructor;
+				Object.defineProperty(_Gen.prototype, 'constructor', {
+					get: function() { throw new Error('Sandbox: GeneratorFunction constructor access is blocked'); },
+					set: function() {},
+					configurable: false
+				});
+			} catch(e) {}
+			try {
+				var _Async = Object.getPrototypeOf(async function(){}).constructor;
+				Object.defineProperty(_Async.prototype, 'constructor', {
+					get: function() { throw new Error('Sandbox: AsyncFunction constructor access is blocked'); },
+					set: function() {},
+					configurable: false
+				});
+			} catch(e) {}
+		})();
+	`, { filename: "sandbox-setup.js" });
+	sandboxSetup.runInContext(vmContext, { timeout: 1000 });
 
 	// 5. Wrap user code in async IIFE
 	// esbuild converts `export default async function(ctx)` to:

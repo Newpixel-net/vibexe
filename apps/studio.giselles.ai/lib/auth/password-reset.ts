@@ -42,9 +42,9 @@ export async function verifyPasswordResetToken(
 	if (!record) return { valid: false };
 	if (record.expiresAt < new Date()) return { valid: false };
 
+	// Delete the token so it cannot be reused within its expiry window
 	await db
-		.update(passwordResetTokens)
-		.set({ usedAt: new Date() })
+		.delete(passwordResetTokens)
 		.where(eq(passwordResetTokens.id, record.id));
 
 	return { valid: true, userDbId: record.userDbId };

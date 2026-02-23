@@ -7,6 +7,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { generateExport } from "@/lib/app-deployment/exporter";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -15,6 +16,14 @@ interface RouteParams {
 export async function POST(_request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+
+		// Auth: only the app owner (builder) can export source code
+		try {
+			await verifyAppAccess(appId);
+		} catch {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
+
 		const result = await generateExport(appId);
 
 		if (!result.success) {

@@ -103,7 +103,13 @@ async function authenticateRequest(
 export async function GET(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId, path: pathSegments } = await params;
-		const filePath = pathSegments.join("/");
+		// Sanitize path — prevent directory traversal
+		const filePath = pathSegments
+			.filter((seg) => seg !== ".." && seg !== "." && seg.length > 0)
+			.join("/");
+		if (!filePath) {
+			return NextResponse.json({ error: "Invalid file path" }, { status: 400 });
+		}
 
 		const resolved = await resolveApp(appId);
 		if (!resolved?.app) {
@@ -142,11 +148,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 		if (hasTransforms && isTransformableImage(result.contentType)) {
 			const MAX_DIM = 4096;
+			const VALID_FORMATS = new Set(["jpeg", "png", "webp", "avif"]);
 			const transformParams: TransformParams = {};
-			if (width) transformParams.width = Math.min(Math.max(1, Number.parseInt(width, 10)), MAX_DIM);
-			if (height) transformParams.height = Math.min(Math.max(1, Number.parseInt(height, 10)), MAX_DIM);
-			if (format) transformParams.format = format;
-			if (quality) transformParams.quality = Math.min(Math.max(1, Number.parseInt(quality, 10)), 100);
+			if (width) transformParams.width = Math.min(Math.max(1, Number.parseInt(width, 10) || 1), MAX_DIM);
+			if (height) transformParams.height = Math.min(Math.max(1, Number.parseInt(height, 10) || 1), MAX_DIM);
+			if (format && VALID_FORMATS.has(format)) transformParams.format = format;
+			if (quality) transformParams.quality = Math.min(Math.max(1, Number.parseInt(quality, 10) || 80), 100);
 
 			const transformed = await transformImage(
 				appId,
@@ -186,7 +193,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId, path: pathSegments } = await params;
-		const filePath = pathSegments.join("/");
+		// Sanitize path — prevent directory traversal
+		const filePath = pathSegments
+			.filter((seg) => seg !== ".." && seg !== "." && seg.length > 0)
+			.join("/");
+		if (!filePath) {
+			return NextResponse.json({ error: "Invalid file path" }, { status: 400 });
+		}
 
 		const resolved = await resolveApp(appId);
 		if (!resolved?.app) {

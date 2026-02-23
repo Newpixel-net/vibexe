@@ -20,6 +20,7 @@ import {
 	builderDeployments,
 } from "@/db/schema";
 import { buildApp } from "@/lib/app-deployment/builder";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -36,6 +37,13 @@ function isValidSubdomain(s: string): boolean {
 export async function GET(_request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+
+		// Auth: only the app owner (builder) can view deployment status
+		try {
+			await verifyAppAccess(appId);
+		} catch {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
 
 		const app = await db.query.builderApps.findFirst({
 			where: eq(builderApps.id, appId as BuilderAppId),
@@ -81,6 +89,13 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 export async function POST(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+
+		// Auth: only the app owner (builder) can trigger deployments
+		try {
+			await verifyAppAccess(appId);
+		} catch {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
 
 		const body = await request.json().catch(() => ({}));
 		const subdomain = body.subdomain?.toLowerCase()?.trim();
