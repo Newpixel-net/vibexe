@@ -1521,6 +1521,7 @@ export const builderAppApiKeys = pgTable(
 	},
 	(table) => [
 		index("builder_app_api_keys_app_db_id_idx").on(table.appDbId),
+		index("builder_app_api_keys_lookup_idx").on(table.appDbId, table.keyHash),
 	],
 );
 
@@ -1826,7 +1827,9 @@ export const builderAppWebhooks = pgTable("builder_app_webhooks", {
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.defaultNow()
 		.notNull(),
-});
+}, (table) => [
+	index("builder_app_webhooks_app_enabled_idx").on(table.appDbId, table.enabled),
+]);
 
 export const builderAppWebhookRelations = relations(
 	builderAppWebhooks,
@@ -1855,7 +1858,10 @@ export const builderAppWebhookLogs = pgTable("builder_app_webhook_logs", {
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.defaultNow()
 		.notNull(),
-});
+}, (table) => [
+	index("builder_app_webhook_logs_webhook_idx").on(table.webhookDbId),
+	index("builder_app_webhook_logs_created_idx").on(table.createdAt),
+]);
 
 export const builderAppWebhookLogRelations = relations(
 	builderAppWebhookLogs,
