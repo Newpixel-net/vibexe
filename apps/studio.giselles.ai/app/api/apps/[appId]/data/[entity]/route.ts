@@ -18,7 +18,7 @@ import { emitDataEvent } from "@/lib/realtime/event-bus";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
 import type { AppSchema, EntityField } from "@/lib/app-database/schema-types";
-import { INTERNAL_TABLES, MAX_IN_FILTER_ITEMS } from "@/lib/app-database/internal-tables";
+import { INTERNAL_TABLES, MAX_IN_FILTER_ITEMS, getInternalSelectColumns } from "@/lib/app-database/internal-tables";
 import { runEntityHook } from "@/lib/app-functions/hooks";
 import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
@@ -319,10 +319,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		);
 		const total = Number.parseInt(countResult[0]?.count || "0", 10);
 
-		// Fetch rows
+		// Fetch rows (use safe column list for internal tables to exclude sensitive fields)
+		const selectCols = ctx.isInternal
+			? getInternalSelectColumns(ctx.entity as import("@/lib/app-database/internal-tables").InternalTableDef)
+			: "*";
 		const rows = await executeQuery(
 			ctx.databaseName,
-			`SELECT * FROM "${ctx.entity.tableName}" ${whereClause} ${orderByClause} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+			`SELECT ${selectCols} FROM "${ctx.entity.tableName}" ${whereClause} ${orderByClause} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
 			[...filterParams, limit, offset],
 		);
 
@@ -453,9 +456,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
+		const returningCols = ctx.isInternal
+			? getInternalSelectColumns(ctx.entity as import("@/lib/app-database/internal-tables").InternalTableDef)
+			: "*";
 		const rows = await executeQuery(
 			ctx.databaseName,
-			`INSERT INTO "${ctx.entity.tableName}" (${fields.join(", ")}) VALUES (${placeholders.join(", ")}) RETURNING *`,
+			`INSERT INTO "${ctx.entity.tableName}" (${fields.join(", ")}) VALUES (${placeholders.join(", ")}) RETURNING ${returningCols}`,
 			values,
 		);
 

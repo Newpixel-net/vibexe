@@ -13,6 +13,9 @@ export interface InternalTableDef {
 	name: string;
 	tableName: string;
 	fields: Array<{ name: string; type: string; required?: boolean }>;
+	/** Whether to include the `id` column in SELECT results. Default: true.
+	 *  Set to false for tables where `id` is sensitive (e.g. session tokens). */
+	exposeId?: boolean;
 }
 
 /** Internal auth tables that exist in every app database */
@@ -36,8 +39,8 @@ export const INTERNAL_TABLES: Record<string, InternalTableDef> = {
 	_app_sessions: {
 		name: "AppSession",
 		tableName: "_app_sessions",
+		exposeId: false, // id IS the session token — never expose via data API
 		fields: [
-			// id (session token) intentionally excluded — never expose via data API
 			{ name: "user_id", type: "number", required: true },
 			{ name: "expires_at", type: "date", required: true },
 		],
@@ -46,3 +49,16 @@ export const INTERNAL_TABLES: Record<string, InternalTableDef> = {
 
 /** Max items allowed in a single IN filter array */
 export const MAX_IN_FILTER_ITEMS = 100;
+
+/**
+ * Build safe SQL column list for internal tables.
+ * Excludes sensitive columns (password_hash, session tokens).
+ * Use instead of SELECT * for internal tables.
+ */
+export function getInternalSelectColumns(tableDef: InternalTableDef): string {
+	const cols: string[] = [];
+	if (tableDef.exposeId !== false) cols.push('"id"');
+	for (const f of tableDef.fields) cols.push(`"${f.name}"`);
+	cols.push('"created_at"', '"updated_at"');
+	return cols.join(", ");
+}

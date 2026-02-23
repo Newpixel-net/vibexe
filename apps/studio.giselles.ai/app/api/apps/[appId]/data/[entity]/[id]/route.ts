@@ -18,7 +18,7 @@ import { executeQuery } from "@/lib/app-database/pool-manager";
 import { emitDataEvent } from "@/lib/realtime/event-bus";
 import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
 import type { AppSchema } from "@/lib/app-database/schema-types";
-import { INTERNAL_TABLES } from "@/lib/app-database/internal-tables";
+import { INTERNAL_TABLES, getInternalSelectColumns } from "@/lib/app-database/internal-tables";
 import { runEntityHook } from "@/lib/app-functions/hooks";
 import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
@@ -143,9 +143,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			}
 		}
 
+		const selectCols = ctx.isInternal
+			? getInternalSelectColumns(ctx.entity as import("@/lib/app-database/internal-tables").InternalTableDef)
+			: "*";
 		const rows = await executeQuery(
 			ctx.databaseName,
-			`SELECT * FROM "${ctx.entity.tableName}" WHERE ${whereClauses.join(" AND ")}`,
+			`SELECT ${selectCols} FROM "${ctx.entity.tableName}" WHERE ${whereClauses.join(" AND ")}`,
 			queryParams,
 		);
 
@@ -266,9 +269,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 			}
 		}
 
+		const returningCols = ctx.isInternal
+			? getInternalSelectColumns(ctx.entity as import("@/lib/app-database/internal-tables").InternalTableDef)
+			: "*";
 		const rows = await executeQuery(
 			ctx.databaseName,
-			`UPDATE "${ctx.entity.tableName}" SET ${setClauses.join(", ")} WHERE ${whereClauses.join(" AND ")} RETURNING *`,
+			`UPDATE "${ctx.entity.tableName}" SET ${setClauses.join(", ")} WHERE ${whereClauses.join(" AND ")} RETURNING ${returningCols}`,
 			values,
 		);
 
