@@ -170,6 +170,26 @@ const nextConfig: NextConfig = {
 				],
 			},
 			{
+				// Allow preview pages to be iframed from same origin (dashboard carousel)
+				source: "/preview/:path*",
+				headers: [
+					{
+						key: "X-Frame-Options",
+						value: "SAMEORIGIN",
+					},
+				],
+			},
+			{
+				// Allow deployed apps to be iframed from same origin (dashboard carousel)
+				source: "/apps/:path*",
+				headers: [
+					{
+						key: "X-Frame-Options",
+						value: "SAMEORIGIN",
+					},
+				],
+			},
+			{
 				// CORS for app API routes — called from Sandpack iframe (codesandbox.io origin)
 				source: "/api/apps/:path*",
 				headers: [
