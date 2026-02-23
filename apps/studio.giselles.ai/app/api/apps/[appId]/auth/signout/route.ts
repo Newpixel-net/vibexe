@@ -13,6 +13,7 @@ import { db } from "@/db";
 import { type BuilderAppId, builderAppDatabases, builderApps } from "@/db/schema";
 import { logAppEvent } from "@/lib/app-database/app-logger";
 import { executeQuery } from "@/lib/app-database/pool-manager";
+import { handleAuthOptions, withCors } from "@/lib/app-auth/cors";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -33,21 +34,23 @@ async function resolveAppDb(appId: string) {
 	return appDb.databaseName;
 }
 
+export const OPTIONS = () => handleAuthOptions();
+
 export async function POST(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
 		const databaseName = await resolveAppDb(appId);
 		if (!databaseName) {
-			return NextResponse.json({ error: "App not found" }, { status: 404 });
+			return withCors(NextResponse.json({ error: "App not found" }, { status: 404 }));
 		}
 
 		// Extract token from Authorization header
 		const authHeader = request.headers.get("authorization");
 		if (!authHeader?.startsWith("Bearer ")) {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "Missing or invalid Authorization header" },
 				{ status: 401 },
-			);
+			));
 		}
 		const token = authHeader.slice(7);
 
@@ -66,12 +69,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			message: "User signed out",
 		});
 
-		return NextResponse.json({ success: true });
+		return withCors(NextResponse.json({ success: true }));
 	} catch (error) {
 		console.error("[App Auth] Signout error:", error);
-		return NextResponse.json(
+		return withCors(NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 },
-		);
+		));
 	}
 }

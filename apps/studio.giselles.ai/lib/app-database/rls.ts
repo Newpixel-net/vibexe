@@ -237,13 +237,45 @@ export function enforceRLS(opts: EnforceOpts): RLSCheck {
 			return { allowed: true, whereClauses: [], whereParams: [], autoFields: {} };
 		}
 
+		// Validate expression length — prevent excessively long queries
+		if (expr.length > 500) {
+			return {
+				allowed: false,
+				error: "Custom expression exceeds maximum length (500 chars)",
+				status: 400,
+				whereClauses: [],
+				whereParams: [],
+				autoFields: {},
+			};
+		}
+
 		// Validate expression — reject dangerous SQL patterns
+		// Comprehensive blocklist: DDL, DML (except SELECT), admin, and injection markers
 		const dangerousPattern =
-			/(\b(DROP|DELETE|INSERT|UPDATE|TRUNCATE|ALTER|CREATE|EXEC|EXECUTE|UNION|INTO|GRANT|REVOKE|COPY|pg_|information_schema)\b|--|\/\*|;)/i;
+			/(\b(DROP|DELETE|INSERT|UPDATE|TRUNCATE|ALTER|CREATE|EXEC|EXECUTE|UNION|INTO|GRANT|REVOKE|COPY|CALL|SET|RESET|LOAD|IMPORT|RETURNING|pg_|information_schema|pg_catalog)\b|--|\/\*|\*\/|;|\\x[0-9a-f]|CHR\s*\()/i;
 		if (dangerousPattern.test(expr)) {
 			return {
 				allowed: false,
 				error: "Custom expression contains disallowed SQL syntax",
+				status: 400,
+				whereClauses: [],
+				whereParams: [],
+				autoFields: {},
+			};
+		}
+
+		// Check balanced parentheses and reject excessive nesting
+		let depth = 0;
+		let maxDepth = 0;
+		for (const ch of expr) {
+			if (ch === "(") { depth++; maxDepth = Math.max(maxDepth, depth); }
+			else if (ch === ")") { depth--; }
+			if (depth < 0) break;
+		}
+		if (depth !== 0 || maxDepth > 5) {
+			return {
+				allowed: false,
+				error: depth !== 0 ? "Custom expression has unbalanced parentheses" : "Custom expression has excessive nesting (max 5 levels)",
 				status: 400,
 				whereClauses: [],
 				whereParams: [],

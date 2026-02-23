@@ -12,6 +12,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { type BuilderAppId, builderAppDatabases, builderApps } from "@/db/schema";
 import { executeQuery } from "@/lib/app-database/pool-manager";
+import { handleAuthOptions, withCors } from "@/lib/app-auth/cors";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -32,21 +33,23 @@ async function resolveAppDb(appId: string) {
 	return appDb.databaseName;
 }
 
+export const OPTIONS = () => handleAuthOptions();
+
 export async function GET(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
 		const databaseName = await resolveAppDb(appId);
 		if (!databaseName) {
-			return NextResponse.json({ error: "App not found" }, { status: 404 });
+			return withCors(NextResponse.json({ error: "App not found" }, { status: 404 }));
 		}
 
 		// Extract token from Authorization header
 		const authHeader = request.headers.get("authorization");
 		if (!authHeader?.startsWith("Bearer ")) {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "Missing or invalid Authorization header" },
 				{ status: 401 },
-			);
+			));
 		}
 		const token = authHeader.slice(7);
 
@@ -85,23 +88,23 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		);
 
 		if (results.length === 0) {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "Invalid or expired session" },
 				{ status: 401 },
-			);
+			));
 		}
 
 		const row = results[0];
 
 		// Reject suspended or pending users
 		if (row.status === "suspended" || row.status === "pending") {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "Account is not active" },
 				{ status: 401 },
-			);
+			));
 		}
 
-		return NextResponse.json({
+		return withCors(NextResponse.json({
 			user: {
 				id: row.user_id,
 				email: row.email,
@@ -114,12 +117,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 				avatar_url: row.avatar_url,
 				created_at: row.created_at,
 			},
-		});
+		}));
 	} catch (error) {
 		console.error("[App Auth] Me error:", error);
-		return NextResponse.json(
+		return withCors(NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 },
-		);
+		));
 	}
 }

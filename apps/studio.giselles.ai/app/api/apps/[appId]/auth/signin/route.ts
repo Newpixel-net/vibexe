@@ -18,6 +18,7 @@ import { logAppEvent } from "@/lib/app-database/app-logger";
 import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
+import { handleAuthOptions, withCors } from "@/lib/app-auth/cors";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -40,6 +41,8 @@ async function resolveAppDb(appId: string) {
 
 const SESSION_DURATION_DAYS = 30;
 
+export const OPTIONS = () => handleAuthOptions();
+
 export async function POST(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
@@ -48,15 +51,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		const ip = getClientIp(request);
 		const rateCheck = checkRateLimit("signin", `${appId}:${ip}`, 5, 60 * 1000);
 		if (!rateCheck.allowed) {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "Too many login attempts. Please try again later." },
 				{ status: 429, headers: { "Retry-After": String(Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)) } },
-			);
+			));
 		}
 
 		const appInfo = await resolveAppDb(appId);
 		if (!appInfo) {
-			return NextResponse.json({ error: "App not found" }, { status: 404 });
+			return withCors(NextResponse.json({ error: "App not found" }, { status: 404 }));
 		}
 		const { databaseName, appDbId } = appInfo;
 
@@ -67,10 +70,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		};
 
 		if (!email || !password) {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "email and password are required" },
 				{ status: 400 },
-			);
+			));
 		}
 
 		// Look up user by email
@@ -93,43 +96,43 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		);
 
 		if (users.length === 0) {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "Invalid email or password" },
 				{ status: 401 },
-			);
+			));
 		}
 
 		const user = users[0];
 
 		// OAuth-only users cannot sign in with password
 		if (!user.password_hash) {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "This account uses social login. Please sign in with Google or GitHub." },
 				{ status: 400 },
-			);
+			));
 		}
 
 		// Verify password
 		const valid = await verifyPassword(password, user.password_hash);
 		if (!valid) {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "Invalid email or password" },
 				{ status: 401 },
-			);
+			));
 		}
 
 		// Check account status
 		if (user.status === "suspended") {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "Account is suspended" },
 				{ status: 403 },
-			);
+			));
 		}
 		if (user.status === "pending") {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "Account is pending approval" },
 				{ status: 403 },
-			);
+			));
 		}
 
 		// Create session
@@ -168,7 +171,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			email: user.email,
 		});
 
-		return NextResponse.json({
+		return withCors(NextResponse.json({
 			user: {
 				id: user.id,
 				email: user.email,
@@ -178,12 +181,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 				created_at: user.created_at,
 			},
 			token,
-		});
+		}));
 	} catch (error) {
 		console.error("[App Auth] Signin error:", error);
-		return NextResponse.json(
+		return withCors(NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 },
-		);
+		));
 	}
 }

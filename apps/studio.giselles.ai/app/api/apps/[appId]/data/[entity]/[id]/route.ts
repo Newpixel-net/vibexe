@@ -18,6 +18,7 @@ import { executeQuery } from "@/lib/app-database/pool-manager";
 import { emitDataEvent } from "@/lib/realtime/event-bus";
 import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
 import type { AppSchema } from "@/lib/app-database/schema-types";
+import { INTERNAL_TABLES } from "@/lib/app-database/internal-tables";
 import { runEntityHook } from "@/lib/app-functions/hooks";
 import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
@@ -26,33 +27,6 @@ interface RouteParams {
 	params: Promise<{ appId: string; entity: string; id: string }>;
 }
 
-/** Internal auth tables that exist in every app database */
-const INTERNAL_TABLES: Record<string, { name: string; tableName: string; fields: Array<{ name: string; type: string; required?: boolean }> }> = {
-	_app_users: {
-		name: "AppUser",
-		tableName: "_app_users",
-		fields: [
-			{ name: "email", type: "text", required: true },
-			{ name: "password_hash", type: "text" },
-			{ name: "display_name", type: "text" },
-			{ name: "role", type: "text" },
-			{ name: "status", type: "text" },
-			{ name: "email_verified", type: "boolean" },
-			{ name: "last_login_at", type: "date" },
-			{ name: "auth_provider", type: "text" },
-			{ name: "provider_user_id", type: "text" },
-			{ name: "avatar_url", type: "text" },
-		],
-	},
-	_app_sessions: {
-		name: "AppSession",
-		tableName: "_app_sessions",
-		fields: [
-			{ name: "user_id", type: "number", required: true },
-			{ name: "expires_at", type: "date", required: true },
-		],
-	},
-};
 
 async function resolveContext(appId: string, entityName: string, request: NextRequest) {
 	const app = await db.query.builderApps.findFirst({
@@ -89,6 +63,10 @@ async function resolveContext(appId: string, entityName: string, request: NextRe
 	// Check internal tables first (e.g. _app_users, _app_sessions)
 	const internalTable = INTERNAL_TABLES[entityName];
 	if (internalTable) {
+		// SECURITY: Internal tables require API key or builder session.
+		if (!apiKeyValid) {
+			return { error: "Internal tables require admin access", status: 403 } as const;
+		}
 		return {
 			app,
 			appDb,

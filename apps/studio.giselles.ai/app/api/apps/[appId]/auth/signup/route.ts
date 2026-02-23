@@ -23,6 +23,7 @@ import { logAppEvent } from "@/lib/app-database/app-logger";
 import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
+import { handleAuthOptions, withCors } from "@/lib/app-auth/cors";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -45,6 +46,8 @@ async function resolveAppDb(appId: string) {
 
 const SESSION_DURATION_DAYS = 30;
 
+export const OPTIONS = () => handleAuthOptions();
+
 export async function POST(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
@@ -53,15 +56,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		const ip = getClientIp(request);
 		const rateCheck = checkRateLimit("signup", `${appId}:${ip}`, 3, 10 * 60 * 1000);
 		if (!rateCheck.allowed) {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "Too many signup attempts. Please try again later." },
 				{ status: 429, headers: { "Retry-After": String(Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)) } },
-			);
+			));
 		}
 
 		const databaseName = await resolveAppDb(appId);
 		if (!databaseName) {
-			return NextResponse.json({ error: "App not found" }, { status: 404 });
+			return withCors(NextResponse.json({ error: "App not found" }, { status: 404 }));
 		}
 
 		const body = await request.json();
@@ -72,26 +75,38 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		};
 
 		if (!email || !password) {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "email and password are required" },
 				{ status: 400 },
-			);
+			));
 		}
 
-		// Validate email format
+		// Validate email format and length
+		if (email.length > 254) {
+			return withCors(NextResponse.json(
+				{ error: "Email exceeds maximum length" },
+				{ status: 400 },
+			));
+		}
 		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "Invalid email format" },
 				{ status: 400 },
-			);
+			));
 		}
 
 		// Validate password length
 		if (password.length < 8) {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "Password must be at least 8 characters" },
 				{ status: 400 },
-			);
+			));
+		}
+		if (password.length > 128) {
+			return withCors(NextResponse.json(
+				{ error: "Password exceeds maximum length" },
+				{ status: 400 },
+			));
 		}
 
 		// Check if email already exists
@@ -101,10 +116,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			[email.toLowerCase()],
 		);
 		if (existing.length > 0) {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "Email already registered" },
 				{ status: 409 },
-			);
+			));
 		}
 
 		// Hash password
@@ -164,13 +179,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
 		// If pending approval, skip session creation
 		if (requireApproval) {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{
 					pending: true,
 					message: "Your account is pending approval",
 				},
 				{ status: 202 },
-			);
+			));
 		}
 
 		// Create session
@@ -186,7 +201,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			[token, user.id, expiresAt.toISOString()],
 		);
 
-		return NextResponse.json(
+		return withCors(NextResponse.json(
 			{
 				user: {
 					id: user.id,
@@ -199,12 +214,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 				token,
 			},
 			{ status: 201 },
-		);
+		));
 	} catch (error) {
 		console.error("[App Auth] Signup error:", error);
-		return NextResponse.json(
+		return withCors(NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 },
-		);
+		));
 	}
 }

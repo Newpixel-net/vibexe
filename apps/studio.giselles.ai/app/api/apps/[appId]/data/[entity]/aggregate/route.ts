@@ -22,6 +22,7 @@ import { verifyApiKey } from "@/lib/app-database/api-keys";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
 import type { AppSchema, EntityField } from "@/lib/app-database/schema-types";
+import { INTERNAL_TABLES, MAX_IN_FILTER_ITEMS } from "@/lib/app-database/internal-tables";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
@@ -70,7 +71,10 @@ function parseAdvancedFilters(
 			params.push(value);
 			idx++;
 		} else if (operator === "in") {
-			const values = value.split(",").map((v) => v.trim());
+			const values = value.split(",").map((v) => v.trim()).filter(Boolean);
+			if (values.length > MAX_IN_FILTER_ITEMS) {
+				return { clauses: [], params: [], paramCount: 0, error: `IN filter for '${fieldName}' exceeds maximum of ${MAX_IN_FILTER_ITEMS} values` } as ReturnType<typeof parseAdvancedFilters>;
+			}
 			clauses.push(`"${fieldName}" = ANY($${idx}::text[])`);
 			params.push(values);
 			idx++;
@@ -86,23 +90,7 @@ function parseAdvancedFilters(
 	return { clauses, params, paramCount: idx - 1 };
 }
 
-// ─── Internal tables ────────────────────────────────────────────────────────
-
-const INTERNAL_TABLES: Record<string, { name: string; tableName: string; fields: Array<{ name: string; type: string }> }> = {
-	_app_users: {
-		name: "AppUser",
-		tableName: "_app_users",
-		fields: [
-			{ name: "email", type: "text" },
-			{ name: "display_name", type: "text" },
-			{ name: "role", type: "text" },
-			{ name: "status", type: "text" },
-			{ name: "email_verified", type: "boolean" },
-			{ name: "last_login_at", type: "date" },
-			{ name: "auth_provider", type: "text" },
-		],
-	},
-};
+// Internal tables imported from @/lib/app-database/internal-tables
 
 // ─── Resolve context (shared pattern) ───────────────────────────────────────
 
@@ -138,6 +126,10 @@ async function resolveContext(appId: string, entityName: string, request: NextRe
 
 	const internalTable = INTERNAL_TABLES[entityName];
 	if (internalTable) {
+		// SECURITY: Internal tables require API key or builder session.
+		if (!apiKeyValid) {
+			return { error: "Internal tables require admin access", status: 403 } as const;
+		}
 		return { app, appDb, entity: internalTable, databaseName: appDb.databaseName, apiKeyValid, isInternal: true as const };
 	}
 

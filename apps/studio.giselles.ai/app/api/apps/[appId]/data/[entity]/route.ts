@@ -18,6 +18,7 @@ import { emitDataEvent } from "@/lib/realtime/event-bus";
 import { executeQuery } from "@/lib/app-database/pool-manager";
 import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
 import type { AppSchema, EntityField } from "@/lib/app-database/schema-types";
+import { INTERNAL_TABLES, MAX_IN_FILTER_ITEMS } from "@/lib/app-database/internal-tables";
 import { runEntityHook } from "@/lib/app-functions/hooks";
 import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
@@ -76,7 +77,10 @@ function parseAdvancedFilters(
 			idx++;
 		} else if (operator === "in") {
 			// IN: filter[status][in]=active,pending
-			const values = value.split(",").map((v) => v.trim());
+			const values = value.split(",").map((v) => v.trim()).filter(Boolean);
+			if (values.length > MAX_IN_FILTER_ITEMS) {
+				return { clauses: [], params: [], paramCount: 0, error: `IN filter for '${fieldName}' exceeds maximum of ${MAX_IN_FILTER_ITEMS} values` } as ReturnType<typeof parseAdvancedFilters>;
+			}
 			clauses.push(`"${fieldName}" = ANY($${idx}::text[])`);
 			params.push(values);
 			idx++;
@@ -114,33 +118,6 @@ interface RouteParams {
 	params: Promise<{ appId: string; entity: string }>;
 }
 
-/** Internal auth tables that exist in every app database */
-const INTERNAL_TABLES: Record<string, { name: string; tableName: string; fields: Array<{ name: string; type: string; required?: boolean }> }> = {
-	_app_users: {
-		name: "AppUser",
-		tableName: "_app_users",
-		fields: [
-			{ name: "email", type: "text", required: true },
-			{ name: "password_hash", type: "text" },
-			{ name: "display_name", type: "text" },
-			{ name: "role", type: "text" },
-			{ name: "status", type: "text" },
-			{ name: "email_verified", type: "boolean" },
-			{ name: "last_login_at", type: "date" },
-			{ name: "auth_provider", type: "text" },
-			{ name: "provider_user_id", type: "text" },
-			{ name: "avatar_url", type: "text" },
-		],
-	},
-	_app_sessions: {
-		name: "AppSession",
-		tableName: "_app_sessions",
-		fields: [
-			{ name: "user_id", type: "number", required: true },
-			{ name: "expires_at", type: "date", required: true },
-		],
-	},
-};
 
 /**
  * Resolve app + database + validate entity.
@@ -183,6 +160,11 @@ async function resolveContext(appId: string, entityName: string, request: NextRe
 	// Check internal tables first (e.g. _app_users, _app_sessions)
 	const internalTable = INTERNAL_TABLES[entityName];
 	if (internalTable) {
+		// SECURITY: Internal tables require API key or builder session.
+		// End-users (Bearer token only) must NOT access _app_users/_app_sessions directly.
+		if (!apiKeyValid) {
+			return { error: "Internal tables require admin access", status: 403 } as const;
+		}
 		return {
 			app,
 			appDb,
