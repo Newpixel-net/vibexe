@@ -129,6 +129,7 @@ export async function executeCustomNode(
 		fetch: executionContext.helpers.httpRequest,
 		__result: undefined as unknown,
 		__error: undefined as unknown,
+		__done: false,
 	};
 
 	const vmContext = vm.createContext(sandbox);
@@ -140,7 +141,7 @@ export async function executeCustomNode(
 		(async () => {
 			const executeFn = ${content.executeCode};
 			return await executeFn(context);
-		})().then(r => { __result = r; }).catch(e => { __error = e; });
+		})().then(r => { __result = r; __done = true; }).catch(e => { __error = e; __done = true; });
 	`;
 
 	const script = new vm.Script(wrappedCode, {
@@ -152,11 +153,11 @@ export async function executeCustomNode(
 	try {
 		script.runInContext(vmContext, { timeout });
 
-		// Wait for async result
+		// Wait for async result using __done flag (not __result === undefined,
+		// because user code may legitimately return undefined)
 		const startTime = Date.now();
 		while (
-			sandbox.__result === undefined &&
-			sandbox.__error === undefined &&
+			!sandbox.__done &&
 			Date.now() - startTime < timeout
 		) {
 			await new Promise((resolve) => setTimeout(resolve, 10));
@@ -167,6 +168,11 @@ export async function executeCustomNode(
 			const asyncErr = sandbox.__error;
 			const errMsg = asyncErr instanceof Error ? asyncErr.message : String(asyncErr);
 			throw new Error(errMsg);
+		}
+
+		// If code didn't complete within the timeout, throw rather than silently returning undefined
+		if (!sandbox.__done) {
+			throw new Error(`Custom node execution timed out after ${timeout}ms`);
 		}
 
 		const result = sandbox.__result;
