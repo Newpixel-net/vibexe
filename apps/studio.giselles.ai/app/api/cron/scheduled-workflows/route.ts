@@ -293,12 +293,44 @@ export async function GET(request: NextRequest) {
 			console.error("[Scheduled Functions] Sweep error:", e);
 		}
 
+		// --- Sweep: Expired App Sessions ---
+		let sessionsDeleted = 0;
+		try {
+			const activeAppDbs = await db
+				.select({ databaseName: builderAppDatabases.databaseName })
+				.from(builderAppDatabases)
+				.where(eq(builderAppDatabases.status, "active"));
+
+			const { executeQuery } = await import("@/lib/app-database/pool-manager");
+			for (const appDb of activeAppDbs) {
+				try {
+					const result = await executeQuery<{ cnt: string }>(
+						appDb.databaseName,
+						`WITH deleted AS (
+							DELETE FROM "_app_sessions"
+							WHERE expires_at < NOW() - INTERVAL '1 day'
+							RETURNING id
+						) SELECT COUNT(*)::text AS cnt FROM deleted`,
+					);
+					sessionsDeleted += Number.parseInt(result[0]?.cnt ?? "0", 10);
+				} catch {
+					// Table may not exist yet in this app database — skip
+				}
+			}
+			if (sessionsDeleted > 0) {
+				console.log(`[Session Cleanup] Deleted ${sessionsDeleted} expired sessions across ${activeAppDbs.length} app databases`);
+			}
+		} catch (e) {
+			console.error("[Session Cleanup] Error:", e);
+		}
+
 		return Response.json({
 			triggered: results.filter((r) => r.status === "triggered").length,
 			errors: results.filter((r) => r.status === "error").length,
 			cleanedUp,
 			functionsTriggered,
 			functionsErrors,
+			sessionsDeleted,
 			results,
 		});
 	} catch (err) {

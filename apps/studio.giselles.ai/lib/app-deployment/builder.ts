@@ -375,7 +375,8 @@ export async function buildApp(
 		}
 
 		log("Bundling with esbuild...");
-		const result = await esbuild.build({
+		const ESBUILD_TIMEOUT_MS = 30_000;
+		const buildPromise = esbuild.build({
 			stdin: {
 				contents: virtualFiles.get("__entry__.tsx")!,
 				loader: "tsx",
@@ -394,6 +395,12 @@ export async function buildApp(
 			define: { "process.env.NODE_ENV": '"production"' },
 			logLevel: "silent",
 		});
+		const result = await Promise.race([
+			buildPromise,
+			new Promise<never>((_, reject) =>
+				setTimeout(() => reject(new Error("esbuild build timed out after 30s")), ESBUILD_TIMEOUT_MS),
+			),
+		]);
 
 		if (result.errors.length > 0) {
 			const errs = result.errors.map((e) => e.text);

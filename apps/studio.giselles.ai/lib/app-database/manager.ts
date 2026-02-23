@@ -188,7 +188,15 @@ export async function ensureAppDatabase(appDbId: number) {
 		return existing;
 	}
 
-	return await createAppDatabase(appDbId);
+	try {
+		return await createAppDatabase(appDbId);
+	} catch (error) {
+		// Race condition: another request may have created the DB concurrently.
+		// Re-check before propagating the error.
+		const raceCheck = await getAppDatabaseInfo(appDbId);
+		if (raceCheck) return raceCheck;
+		throw error;
+	}
 }
 
 /**
