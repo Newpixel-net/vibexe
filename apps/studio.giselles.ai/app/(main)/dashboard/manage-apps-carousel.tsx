@@ -12,6 +12,7 @@ import {
 	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
+	ChevronUp,
 	ExternalLink,
 	Eye,
 	Ghost,
@@ -136,6 +137,7 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 	const router = useRouter();
 	const [currentIndex, setCurrentIndex] = useState(0);
 	const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+	const [isExpanded, setIsExpanded] = useState(false);
 	const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [iframeLoaded, setIframeLoaded] = useState(false);
@@ -240,22 +242,29 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 	return (
 		<>
 			<div className="glass-card p-5 mb-6 dash-animate-fade-up" style={{ animationDelay: "0.1s" }}>
-				{/* Header row */}
-				<div className="flex items-center justify-between mb-4">
+				{/* Header row — always visible, clickable to toggle */}
+				<button
+					type="button"
+					onClick={() => setIsExpanded((v) => !v)}
+					className="w-full flex items-center justify-between group cursor-pointer"
+				>
 					<h3 className="text-sm font-medium text-white/50 flex items-center gap-1.5">
 						<Layers className="h-3.5 w-3.5" />
 						Manage Your Apps
 					</h3>
-					<span className="text-[10px] text-white/20 tabular-nums">
-						{currentIndex + 1} / {apps.length}
-					</span>
-				</div>
+					<div className="flex items-center gap-2">
+						<span className="text-[10px] text-white/20 tabular-nums">
+							{currentIndex + 1} / {apps.length}
+						</span>
+						<ChevronUp className={`h-3.5 w-3.5 text-white/20 group-hover:text-white/40 transition-transform duration-200 ${isExpanded ? "" : "rotate-180"}`} />
+					</div>
+				</button>
 
-				{/* App selector row */}
-				<div className="flex items-center gap-2 mb-4">
+				{/* App selector row — always visible */}
+				<div className="flex items-center gap-2 mt-3">
 					<button
 						type="button"
-						onClick={goPrev}
+						onClick={(e) => { e.stopPropagation(); goPrev(); }}
 						className="h-7 w-7 rounded-lg bg-white/[0.06] flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/[0.1] transition-colors flex-shrink-0"
 					>
 						<ChevronLeft className="h-3.5 w-3.5" />
@@ -304,184 +313,207 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 
 					<button
 						type="button"
-						onClick={goNext}
+						onClick={(e) => { e.stopPropagation(); goNext(); }}
 						className="h-7 w-7 rounded-lg bg-white/[0.06] flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/[0.1] transition-colors flex-shrink-0"
 					>
 						<ChevronRight className="h-3.5 w-3.5" />
 					</button>
 				</div>
 
-				{/* Content: iframe + info */}
-				<div
-					className={`flex flex-col md:flex-row gap-4 transition-all duration-200 ${
-						slideDir === "left"
-							? "opacity-0 translate-x-4"
-							: slideDir === "right"
-								? "opacity-0 -translate-x-4"
-								: "opacity-100 translate-x-0"
-					}`}
-				>
-					{/* Iframe preview */}
-					<div className="flex-1 min-w-0">
-						<div className="relative aspect-[16/10] rounded-xl overflow-hidden bg-white/[0.02] border border-white/[0.06]">
-							{iframeSrc ? (
-								<>
-									{/* Shimmer loader */}
-									{!iframeLoaded && (
-										<div className="absolute inset-0 iframe-shimmer rounded-xl z-10" />
-									)}
-
-									{/* Interactive iframe */}
-									<iframe
-										src={iframeSrc}
-										title={`Preview: ${app.name}`}
-										className={`absolute inset-0 w-full h-full transition-opacity duration-300 ${
-											iframeLoaded ? "opacity-100" : "opacity-0"
-										} ${interactMode ? "" : "pointer-events-none"}`}
-										sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-										loading="lazy"
-										onLoad={() => setIframeLoaded(true)}
-									/>
-
-									{/* Status badge overlay */}
-									<div className="absolute top-2.5 left-2.5 z-20">
-										{isDeployed ? (
-											<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 backdrop-blur-sm text-[10px] font-medium text-emerald-400 border border-emerald-500/20">
-												<Globe className="h-2.5 w-2.5" />
-												LIVE
-											</span>
-										) : (
-											<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/20 backdrop-blur-sm text-[10px] font-medium text-blue-400 border border-blue-500/20">
-												<Eye className="h-2.5 w-2.5" />
-												PREVIEW
-											</span>
-										)}
-									</div>
-
-									{/* Click-to-interact overlay */}
-									{!interactMode && iframeLoaded && (
-										<button
-											type="button"
-											onClick={() => setInteractMode(true)}
-											className="absolute inset-0 z-10 flex items-center justify-center bg-transparent hover:bg-black/10 transition-colors group cursor-pointer"
-										>
-											<span className="px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm text-[11px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5">
-												<Eye className="h-3 w-3" />
-												Click to interact
-											</span>
-										</button>
-									)}
-								</>
-							) : enablingShare ? (
-								<div className="absolute inset-0 flex flex-col items-center justify-center">
-									<Loader2 className="h-6 w-6 text-blue-400/40 animate-spin mb-2" />
-									<span className="text-[11px] text-white/25">Loading preview...</span>
-								</div>
-							) : (
-								<div className="absolute inset-0 flex flex-col items-center justify-center">
-									<Ghost className="h-8 w-8 text-white/10 mb-2" />
-									<span className="text-xs text-white/20 mb-2">No preview available</span>
-									<button
-										type="button"
-										onClick={() => router.push(`/app-builder/${app.id}`)}
-										className="text-[10px] text-blue-400/60 hover:text-blue-400 transition-colors flex items-center gap-1"
-									>
-										<Pencil className="h-3 w-3" />
-										Open in Builder
-									</button>
-								</div>
-							)}
-						</div>
+				{/* Collapsed: compact stats strip */}
+				{!isExpanded && (
+					<div className="flex items-center gap-4 mt-3 pt-2 border-t border-white/[0.04]">
+						<StatusBadge status={app.deployment?.status ?? null} />
+						<span className="text-[11px] text-white/30">{app.entityCount} entities</span>
+						<span className="text-[11px] text-white/30">{app.functionCount} functions</span>
+						<div className="flex-1" />
+						<button
+							type="button"
+							onClick={(e) => { e.stopPropagation(); router.push(`/app-builder/${app.id}`); }}
+							className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"
+						>
+							<Pencil className="h-2.5 w-2.5" />
+							Edit
+						</button>
 					</div>
+				)}
 
-					{/* Info panel */}
-					<div className="md:w-48 flex flex-row md:flex-col gap-3 flex-wrap">
-						<div className="flex items-center gap-2 text-xs">
-							<HardDrive className="h-3 w-3 text-white/20 flex-shrink-0" />
+				{/* Expanded: full preview + info + actions */}
+				{isExpanded && (
+					<>
+						{/* Content: iframe + info */}
+						<div
+							className={`mt-4 flex flex-col md:flex-row gap-4 transition-all duration-200 ${
+								slideDir === "left"
+									? "opacity-0 translate-x-4"
+									: slideDir === "right"
+										? "opacity-0 -translate-x-4"
+										: "opacity-100 translate-x-0"
+							}`}
+						>
+							{/* Iframe preview */}
 							<div className="flex-1 min-w-0">
-								<span className="text-white/50">
-									{formatBytes(app.usedStorageBytes)} / {app.storageQuotaMb} MB
-								</span>
-								<div className="mt-0.5 h-1 bg-white/[0.06] rounded-full overflow-hidden">
-									<div
-										className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all"
-										style={{
-											width: `${Math.min((app.usedStorageBytes / (app.storageQuotaMb * 1024 * 1024)) * 100, 100)}%`,
-										}}
-									/>
+								<div className="relative aspect-[16/10] rounded-xl overflow-hidden bg-white/[0.02] border border-white/[0.06]">
+									{iframeSrc ? (
+										<>
+											{/* Shimmer loader */}
+											{!iframeLoaded && (
+												<div className="absolute inset-0 iframe-shimmer rounded-xl z-10" />
+											)}
+
+											{/* Interactive iframe */}
+											<iframe
+												src={iframeSrc}
+												title={`Preview: ${app.name}`}
+												className={`absolute inset-0 w-full h-full transition-opacity duration-300 ${
+													iframeLoaded ? "opacity-100" : "opacity-0"
+												} ${interactMode ? "" : "pointer-events-none"}`}
+												sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+												loading="lazy"
+												onLoad={() => setIframeLoaded(true)}
+											/>
+
+											{/* Status badge overlay */}
+											<div className="absolute top-2.5 left-2.5 z-20">
+												{isDeployed ? (
+													<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 backdrop-blur-sm text-[10px] font-medium text-emerald-400 border border-emerald-500/20">
+														<Globe className="h-2.5 w-2.5" />
+														LIVE
+													</span>
+												) : (
+													<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/20 backdrop-blur-sm text-[10px] font-medium text-blue-400 border border-blue-500/20">
+														<Eye className="h-2.5 w-2.5" />
+														PREVIEW
+													</span>
+												)}
+											</div>
+
+											{/* Click-to-interact overlay */}
+											{!interactMode && iframeLoaded && (
+												<button
+													type="button"
+													onClick={() => setInteractMode(true)}
+													className="absolute inset-0 z-10 flex items-center justify-center bg-transparent hover:bg-black/10 transition-colors group cursor-pointer"
+												>
+													<span className="px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm text-[11px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5">
+														<Eye className="h-3 w-3" />
+														Click to interact
+													</span>
+												</button>
+											)}
+										</>
+									) : enablingShare ? (
+										<div className="absolute inset-0 flex flex-col items-center justify-center">
+											<Loader2 className="h-6 w-6 text-blue-400/40 animate-spin mb-2" />
+											<span className="text-[11px] text-white/25">Loading preview...</span>
+										</div>
+									) : (
+										<div className="absolute inset-0 flex flex-col items-center justify-center">
+											<Ghost className="h-8 w-8 text-white/10 mb-2" />
+											<span className="text-xs text-white/20 mb-2">No preview available</span>
+											<button
+												type="button"
+												onClick={() => router.push(`/app-builder/${app.id}`)}
+												className="text-[10px] text-blue-400/60 hover:text-blue-400 transition-colors flex items-center gap-1"
+											>
+												<Pencil className="h-3 w-3" />
+												Open in Builder
+											</button>
+										</div>
+									)}
+								</div>
+							</div>
+
+							{/* Info panel */}
+							<div className="md:w-48 flex flex-row md:flex-col gap-3 flex-wrap">
+								<div className="flex items-center gap-2 text-xs">
+									<HardDrive className="h-3 w-3 text-white/20 flex-shrink-0" />
+									<div className="flex-1 min-w-0">
+										<span className="text-white/50">
+											{formatBytes(app.usedStorageBytes)} / {app.storageQuotaMb} MB
+										</span>
+										<div className="mt-0.5 h-1 bg-white/[0.06] rounded-full overflow-hidden">
+											<div
+												className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all"
+												style={{
+													width: `${Math.min((app.usedStorageBytes / (app.storageQuotaMb * 1024 * 1024)) * 100, 100)}%`,
+												}}
+											/>
+										</div>
+									</div>
+								</div>
+
+								<div className="flex items-center gap-2 text-xs">
+									<Power className="h-3 w-3 text-white/20 flex-shrink-0" />
+									<StatusBadge status={app.deployment?.status ?? null} />
+								</div>
+
+								<div className="flex items-center gap-2 text-xs">
+									<Layers className="h-3 w-3 text-white/20 flex-shrink-0" />
+									<span className="text-white/40">{app.entityCount} entities</span>
+								</div>
+
+								<div className="flex items-center gap-2 text-xs">
+									<Zap className="h-3 w-3 text-white/20 flex-shrink-0" />
+									<span className="text-white/40">{app.functionCount} functions</span>
+								</div>
+
+								<div className="flex items-center gap-2 text-xs">
+									<Rocket className="h-3 w-3 text-white/20 flex-shrink-0" />
+									<span className="text-white/40">
+										Deployed {timeAgo(app.deployment?.deployedAt ?? null)}
+									</span>
 								</div>
 							</div>
 						</div>
 
-						<div className="flex items-center gap-2 text-xs">
-							<Power className="h-3 w-3 text-white/20 flex-shrink-0" />
-							<StatusBadge status={app.deployment?.status ?? null} />
+						{/* Action buttons */}
+						<div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/[0.06]">
+							<button
+								type="button"
+								onClick={() => setDeleteConfirm(app.id)}
+								className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+							>
+								<Trash2 className="h-3 w-3" />
+								Delete
+							</button>
+
+							<button
+								type="button"
+								disabled
+								title="Coming soon"
+								className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-white/20 cursor-not-allowed"
+							>
+								<Power className="h-3 w-3" />
+								ON/OFF
+							</button>
+
+							<div className="flex-1" />
+
+							<button
+								type="button"
+								onClick={() => {
+									const url = deployUrl ?? previewUrl;
+									if (url) window.open(url, "_blank");
+									else router.push(`/app-builder/${app.id}`);
+								}}
+								className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-white/40 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
+							>
+								<ExternalLink className="h-3 w-3" />
+								{isDeployed ? "Open Live" : "Preview"}
+							</button>
+
+							<button
+								type="button"
+								onClick={() => router.push(`/app-builder/${app.id}`)}
+								className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"
+							>
+								<Pencil className="h-3 w-3" />
+								Edit
+							</button>
 						</div>
-
-						<div className="flex items-center gap-2 text-xs">
-							<Layers className="h-3 w-3 text-white/20 flex-shrink-0" />
-							<span className="text-white/40">{app.entityCount} entities</span>
-						</div>
-
-						<div className="flex items-center gap-2 text-xs">
-							<Zap className="h-3 w-3 text-white/20 flex-shrink-0" />
-							<span className="text-white/40">{app.functionCount} functions</span>
-						</div>
-
-						<div className="flex items-center gap-2 text-xs">
-							<Rocket className="h-3 w-3 text-white/20 flex-shrink-0" />
-							<span className="text-white/40">
-								Deployed {timeAgo(app.deployment?.deployedAt ?? null)}
-							</span>
-						</div>
-					</div>
-				</div>
-
-				{/* Action buttons */}
-				<div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/[0.06]">
-					<button
-						type="button"
-						onClick={() => setDeleteConfirm(app.id)}
-						className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-					>
-						<Trash2 className="h-3 w-3" />
-						Delete
-					</button>
-
-					<button
-						type="button"
-						disabled
-						title="Coming soon"
-						className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-white/20 cursor-not-allowed"
-					>
-						<Power className="h-3 w-3" />
-						ON/OFF
-					</button>
-
-					<div className="flex-1" />
-
-					<button
-						type="button"
-						onClick={() => {
-							const url = deployUrl ?? previewUrl;
-							if (url) window.open(url, "_blank");
-							else router.push(`/app-builder/${app.id}`);
-						}}
-						className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-white/40 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
-					>
-						<ExternalLink className="h-3 w-3" />
-						{isDeployed ? "Open Live" : "Preview"}
-					</button>
-
-					<button
-						type="button"
-						onClick={() => router.push(`/app-builder/${app.id}`)}
-						className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"
-					>
-						<Pencil className="h-3 w-3" />
-						Edit
-					</button>
-				</div>
+					</>
+				)}
 			</div>
 
 			{/* Delete confirmation modal */}
