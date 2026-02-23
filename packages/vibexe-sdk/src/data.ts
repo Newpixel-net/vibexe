@@ -25,6 +25,8 @@ export interface ListOptions {
 	filter?: Record<string, string | number | boolean | FilterOperator>;
 	/** Full-text search across indexed fields */
 	search?: string;
+	/** Populate relation fields with nested objects (e.g., ["author", "category"]) */
+	include?: string[];
 }
 
 export interface AggregateOptions {
@@ -100,6 +102,7 @@ export class DataClient {
 			}
 		}
 		if (options.search) params.set("search", options.search);
+		if (options.include?.length) params.set("include", options.include.join(","));
 
 		const qs = params.toString();
 		const url = `${this.baseUrl}/data/${entity}${qs ? `?${qs}` : ""}`;
@@ -119,8 +122,12 @@ export class DataClient {
 	async get<T = Record<string, unknown>>(
 		entity: string,
 		id: number | string,
+		options?: { include?: string[] },
 	): Promise<T> {
-		const url = `${this.baseUrl}/data/${entity}/${id}`;
+		const params = new URLSearchParams();
+		if (options?.include?.length) params.set("include", options.include.join(","));
+		const qs = params.toString();
+		const url = `${this.baseUrl}/data/${entity}/${id}${qs ? `?${qs}` : ""}`;
 		const res = await fetch(url, { headers: this.headers });
 
 		if (!res.ok) {

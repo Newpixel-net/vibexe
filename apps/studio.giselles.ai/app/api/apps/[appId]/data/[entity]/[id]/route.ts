@@ -19,6 +19,15 @@ import { emitDataEvent } from "@/lib/realtime/event-bus";
 import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
 import type { AppSchema } from "@/lib/app-database/schema-types";
 import { INTERNAL_TABLES, getInternalSelectColumns } from "@/lib/app-database/internal-tables";
+import {
+	resolveIncludes,
+	buildManyToOneJoins,
+	qualifyWhereClause,
+	fetchOneToMany,
+	attachRelations,
+	IncludeError,
+	type IncludeSpec,
+} from "@/lib/app-database/relation-resolver";
 import { runEntityHook } from "@/lib/app-functions/hooks";
 import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
@@ -125,9 +134,28 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 		}
 
+		// Parse ?include=author,comments for relation population
+		const url = new URL(request.url);
+		const includeParam = url.searchParams.get("include");
+		let includes: IncludeSpec[] = [];
+		if (includeParam && !ctx.isInternal) {
+			try {
+				const schema = ctx.appDb.schemaJson as AppSchema;
+				includes = resolveIncludes(schema, entityName, includeParam);
+			} catch (err) {
+				if (err instanceof IncludeError) {
+					return NextResponse.json({ error: err.message }, { status: 400 });
+				}
+				throw err;
+			}
+		}
+
+		const hasJoins = includes.some((s) => s.strategy === "many-to-one");
+
 		// RLS enforcement
 		let rlsActive = false;
-		const whereClauses = [`id = $1`];
+		const idClause = hasJoins ? `t.id = $1` : `id = $1`;
+		const whereClauses = [idClause];
 		const queryParams: unknown[] = [rowId];
 		let paramIndex = 2;
 
@@ -149,18 +177,33 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 			if (rls.whereClauses.length > 0) {
 				rlsActive = true;
-				whereClauses.push(...rls.whereClauses);
+				for (const clause of rls.whereClauses) {
+					whereClauses.push(hasJoins ? qualifyWhereClause(clause) : clause);
+				}
 				queryParams.push(...rls.whereParams);
 				paramIndex += rls.whereParams.length;
 			}
 		}
 
-		const selectCols = ctx.isInternal
-			? getInternalSelectColumns(ctx.entity as import("@/lib/app-database/internal-tables").InternalTableDef)
-			: "*";
+		// Build SELECT + FROM + JOIN based on includes
+		let selectExpr: string;
+		let fromClause: string;
+
+		if (hasJoins) {
+			const { selectExprs, joinClauses } = buildManyToOneJoins(includes);
+			selectExpr = `t.*${selectExprs.length > 0 ? `, ${selectExprs.join(", ")}` : ""}`;
+			fromClause = `"${ctx.entity.tableName}" t ${joinClauses.join(" ")}`;
+		} else {
+			const selectCols = ctx.isInternal
+				? getInternalSelectColumns(ctx.entity as import("@/lib/app-database/internal-tables").InternalTableDef)
+				: "*";
+			selectExpr = selectCols;
+			fromClause = `"${ctx.entity.tableName}"`;
+		}
+
 		const rows = await executeQuery(
 			ctx.databaseName,
-			`SELECT ${selectCols} FROM "${ctx.entity.tableName}" WHERE ${whereClauses.join(" AND ")}`,
+			`SELECT ${selectExpr} FROM ${fromClause} WHERE ${whereClauses.join(" AND ")}`,
 			queryParams,
 		);
 
@@ -171,7 +214,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
-		return NextResponse.json({ data: rows[0] });
+		// Post-process: fetch one-to-many children and attach all relations
+		let resultRows = rows as Record<string, unknown>[];
+		if (includes.length > 0) {
+			const parentIds = [rowId];
+			const otmResults = await fetchOneToMany(
+				ctx.databaseName,
+				includes,
+				parentIds,
+			);
+			resultRows = attachRelations(resultRows, includes, otmResults);
+		}
+
+		return NextResponse.json({ data: resultRows[0] });
 	} catch (error) {
 		console.error("[Data API] GET single error:", error);
 		return NextResponse.json({ error: "Internal server error" }, { status: 500 });

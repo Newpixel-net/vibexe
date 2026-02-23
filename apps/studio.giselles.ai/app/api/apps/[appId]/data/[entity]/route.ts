@@ -19,6 +19,15 @@ import { executeQuery } from "@/lib/app-database/pool-manager";
 import { resolveAppUser, getEntityPolicy, enforceRLS } from "@/lib/app-database/rls";
 import type { AppSchema, EntityField } from "@/lib/app-database/schema-types";
 import { INTERNAL_TABLES, MAX_IN_FILTER_ITEMS, getInternalSelectColumns } from "@/lib/app-database/internal-tables";
+import {
+	resolveIncludes,
+	buildManyToOneJoins,
+	qualifyWhereClause,
+	fetchOneToMany,
+	attachRelations,
+	IncludeError,
+	type IncludeSpec,
+} from "@/lib/app-database/relation-resolver";
 import { runEntityHook } from "@/lib/app-functions/hooks";
 import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
@@ -232,12 +241,32 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		const order = url.searchParams.get("order") === "asc" ? "ASC" : "DESC";
 		const offset = (page - 1) * limit;
 
+		// Parse ?include=author,comments for relation population
+		const includeParam = url.searchParams.get("include");
+		let includes: IncludeSpec[] = [];
+		if (includeParam && !ctx.isInternal) {
+			try {
+				const schema = ctx.appDb.schemaJson as AppSchema;
+				includes = resolveIncludes(schema, entityName, includeParam);
+			} catch (err) {
+				if (err instanceof IncludeError) {
+					return NextResponse.json({ error: err.message }, { status: 400 });
+				}
+				throw err;
+			}
+		}
+
+		const hasJoins = includes.some((s) => s.strategy === "many-to-one");
+
 		// Build WHERE clause from advanced filter params
 		const parsed = parseAdvancedFilters(url.searchParams, ctx.entity.fields);
 		if ("error" in parsed && parsed.error) {
 			return NextResponse.json({ error: parsed.error }, { status: 400 });
 		}
-		const filters: string[] = [...parsed.clauses];
+		// Qualify column references when JOINs are active
+		const filters: string[] = hasJoins
+			? parsed.clauses.map(qualifyWhereClause)
+			: [...parsed.clauses];
 		const filterParams: unknown[] = [...parsed.params];
 		let paramIndex = parsed.paramCount + 1;
 
@@ -251,8 +280,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 				"_search_vector",
 			);
 			if (hasSearchVector) {
+				const svCol = hasJoins ? `t._search_vector` : `_search_vector`;
 				filters.push(
-					`_search_vector @@ plainto_tsquery('english', $${paramIndex})`,
+					`${svCol} @@ plainto_tsquery('english', $${paramIndex})`,
 				);
 				filterParams.push(trimmed);
 				paramIndex++;
@@ -263,7 +293,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 					.map((f) => f.name);
 				if (textFields.length > 0) {
 					const ilikeConditions = textFields.map(
-						(f) => `"${f}" ILIKE $${paramIndex}`,
+						(f) => hasJoins ? `t."${f}" ILIKE $${paramIndex}` : `"${f}" ILIKE $${paramIndex}`,
 					);
 					filters.push(`(${ilikeConditions.join(" OR ")})`);
 					filterParams.push(`%${trimmed}%`);
@@ -289,9 +319,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 				return NextResponse.json({ error: rls.error }, { status: rls.status });
 			}
 
-			// Append RLS WHERE clauses
+			// Append RLS WHERE clauses (qualify if JOINs active)
 			for (const clause of rls.whereClauses) {
-				filters.push(clause);
+				filters.push(hasJoins ? qualifyWhereClause(clause) : clause);
 			}
 			filterParams.push(...rls.whereParams);
 			paramIndex += rls.whereParams.length;
@@ -316,41 +346,73 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		// Build ORDER BY clause
 		let orderByClause: string;
 		if (isRelevanceSort) {
-			orderByClause = `ORDER BY ts_rank(_search_vector, plainto_tsquery('english', $${paramIndex})) DESC`;
+			const svCol = hasJoins ? `t._search_vector` : `_search_vector`;
+			orderByClause = `ORDER BY ts_rank(${svCol}, plainto_tsquery('english', $${paramIndex})) DESC`;
 			filterParams.push(searchTerm!.trim());
 			paramIndex++;
 		} else {
-			orderByClause = `ORDER BY "${safeSort}" ${order}`;
+			const sortCol = hasJoins ? `t."${safeSort}"` : `"${safeSort}"`;
+			orderByClause = `ORDER BY ${sortCol} ${order}`;
 		}
 
-		// Count total
+		// Build SELECT + FROM + JOIN based on includes
+		let selectExpr: string;
+		let fromClause: string;
+
+		if (hasJoins) {
+			const { selectExprs, joinClauses } = buildManyToOneJoins(includes);
+			selectExpr = `t.*${selectExprs.length > 0 ? `, ${selectExprs.join(", ")}` : ""}`;
+			fromClause = `"${ctx.entity.tableName}" t ${joinClauses.join(" ")}`;
+		} else {
+			const selectCols = ctx.isInternal
+				? getInternalSelectColumns(ctx.entity as import("@/lib/app-database/internal-tables").InternalTableDef)
+				: "*";
+			selectExpr = selectCols;
+			fromClause = `"${ctx.entity.tableName}"`;
+		}
+
+		// Count total (use base table + WHERE, no JOINs needed for count)
+		const countFrom = hasJoins
+			? `"${ctx.entity.tableName}" t`
+			: `"${ctx.entity.tableName}"`;
 		const countResult = await executeQuery<{ count: string }>(
 			ctx.databaseName,
-			`SELECT COUNT(*) as count FROM "${ctx.entity.tableName}" ${whereClause}`,
+			`SELECT COUNT(*) as count FROM ${countFrom} ${whereClause}`,
 			filterParams.slice(0, isRelevanceSort ? filterParams.length - 1 : filterParams.length),
 		);
 		const total = Number.parseInt(countResult[0]?.count || "0", 10);
 
-		// Fetch rows (use safe column list for internal tables to exclude sensitive fields)
-		const selectCols = ctx.isInternal
-			? getInternalSelectColumns(ctx.entity as import("@/lib/app-database/internal-tables").InternalTableDef)
-			: "*";
+		// Fetch rows
 		const rows = await executeQuery(
 			ctx.databaseName,
-			`SELECT ${selectCols} FROM "${ctx.entity.tableName}" ${whereClause} ${orderByClause} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+			`SELECT ${selectExpr} FROM ${fromClause} ${whereClause} ${orderByClause} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
 			[...filterParams, limit, offset],
 		);
+
+		// Post-process: fetch one-to-many children and attach all relations
+		let resultRows = rows as Record<string, unknown>[];
+		if (includes.length > 0) {
+			const parentIds = resultRows
+				.map((r) => r.id as number)
+				.filter((id) => id != null);
+			const otmResults = await fetchOneToMany(
+				ctx.databaseName,
+				includes,
+				parentIds,
+			);
+			resultRows = attachRelations(resultRows, includes, otmResults);
+		}
 
 		// Log the query (fire-and-forget, don't await)
 		logAppEvent(ctx.databaseName, {
 			level: "info",
 			category: "entity",
 			eventType: "app.entity.query",
-			message: `Listed ${entityName}: ${rows.length} rows returned`,
+			message: `Listed ${entityName}: ${resultRows.length} rows returned`,
 		});
 
 		return NextResponse.json({
-			data: rows,
+			data: resultRows,
 			pagination: {
 				page,
 				limit,

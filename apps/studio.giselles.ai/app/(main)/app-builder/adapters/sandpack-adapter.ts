@@ -158,6 +158,7 @@ class DataClient {
       }
     }
     if (options.search) params.set("search", options.search);
+    if (options.include && options.include.length) params.set("include", options.include.join(","));
     const qs = params.toString();
     const url = this.baseUrl + "/data/" + entity + (qs ? "?" + qs : "");
     const res = await fetch(url, { headers: this.headers });
@@ -201,8 +202,11 @@ class DataClient {
     return await res.json();
   }
 
-  async get(entity, id) {
-    const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id, { headers: this.headers });
+  async get(entity, id, options) {
+    const params = new URLSearchParams();
+    if (options && options.include && options.include.length) params.set("include", options.include.join(","));
+    const qs = params.toString();
+    const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id + (qs ? "?" + qs : ""), { headers: this.headers });
     if (!res.ok) throw new Error("Failed to get " + entity + "/" + id);
     const json = await res.json();
     return json.data;

@@ -42,6 +42,21 @@ const result = await app.data.list("products", {
 // Plain values still work: filter: { status: "active" } → equality
 
 await app.data.get("tasks", id);                      // returns single item directly
+await app.data.get("tasks", id, { include: ["author", "comments"] }); // with relations
+
+// ─── Relation Population (include) ───
+// Populate relation fields to avoid N+1 manual queries
+const posts = await app.data.list("posts", {
+  include: ["author", "category"],  // populate many-to-one relations
+});
+// posts.data[0].author = { id: 1, name: "John", ... }  (nested object, not just FK ID)
+// posts.data[0].category = { id: 3, name: "Tech", ... }
+
+const post = await app.data.get("posts", 1, { include: ["author", "comments"] });
+// post.author = { id: 1, name: "John", ... }       (many-to-one: single object)
+// post.comments = [{ id: 10, text: "Great!", ... }] (one-to-many: array of children)
+// Max 5 includes per request. Only relation-type fields can be included.
+
 await app.data.create("tasks", { title: "New", status: "active" }); // returns created item
 await app.data.update("tasks", id, { status: "done" });             // returns updated item
 await app.data.delete("tasks", id);                                  // returns void
@@ -175,6 +190,7 @@ await app.storage.delete("avatars/photo.jpg");
 | "This account uses social login" error on signIn | User signed up via Google/GitHub (no password). Cannot use email/password signin. | Use \`app.auth.signInWithGoogle()\` or \`app.auth.signInWithGitHub()\` instead |
 | Popup blocked when calling signInWithGoogle/signInWithGitHub | Browser blocks popups not triggered by user gesture | Call \`signInWithGoogle()\` directly inside a click handler, NOT in async chains or useEffect |
 | \`app.data.aggregate("x", {})\` returns error | At least one aggregation param required | Pass \`count: true\`, \`sum: "field"\`, etc. |
+| Manual N+1 queries to fetch related records | Use \`include\` to populate relations in one request | \`app.data.list("posts", { include: ["author"] })\` → \`post.author = { id, name, ... }\` |
 | \`sum\`/\`avg\` aggregate on text field fails | \`sum\` and \`avg\` only work on numeric fields | Use numeric field names, or use \`count: true\` / \`min\` / \`max\` for non-numeric |
 `;
 
@@ -406,6 +422,30 @@ useEffect(() => {
 }, []);
 \`\`\`
 
+### Relation Population (include)
+\`\`\`typescript
+// Fetch posts with nested author and category objects (many-to-one)
+const result = await app.data.list("posts", {
+  include: ["author", "category"],
+  sort: "created_at",
+  order: "desc",
+});
+// result.data[0].author = { id: 1, name: "John", email: "john@..." }
+// result.data[0].category = { id: 3, name: "Tech" }
+
+// Fetch a single post with one-to-many children
+const post = await app.data.get("posts", postId, { include: ["author", "comments"] });
+// post.author = { id: 1, name: "John" }
+// post.comments = [{ id: 10, text: "Great!", post_id: 1, ... }, ...]
+
+// Combine with filters — filters still work when include is active
+const result = await app.data.list("posts", {
+  filter: { status: "published" },
+  include: ["author"],
+  limit: 10,
+});
+\`\`\`
+
 ### Cascading Delete (manual)
 \`\`\`typescript
 const deleteProject = async (projectId: string) => {
@@ -472,7 +512,7 @@ export const mockApp = {
       data: [],
       pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
     }),
-    get: vi.fn().mockResolvedValue(null),
+    get: vi.fn().mockResolvedValue(null), // get(entity, id, options?) — options.include populates relations
     create: vi.fn().mockImplementation((entity, data) =>
       Promise.resolve({ id: "mock-id", ...data, created_at: new Date().toISOString() })
     ),
