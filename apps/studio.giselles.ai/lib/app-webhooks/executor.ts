@@ -52,7 +52,7 @@ export async function executeWebhook(
 			};
 		}
 		const BLOCKED_HOSTS = new Set([
-			"localhost", "127.0.0.1", "[::1]", "0.0.0.0",
+			"localhost", "127.0.0.1", "::1", "::", "0.0.0.0",
 			"metadata.google.internal", "169.254.169.254",
 		]);
 		const host = parsed.hostname.replace(/^\[|\]$/g, ""); // strip IPv6 brackets

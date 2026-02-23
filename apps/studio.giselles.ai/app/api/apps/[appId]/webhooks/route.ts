@@ -14,7 +14,7 @@ import { builderAppWebhooks } from "@/db/schema";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 const BLOCKED_HOSTS = new Set([
-	"localhost", "127.0.0.1", "[::1]", "0.0.0.0",
+	"localhost", "127.0.0.1", "::1", "::", "0.0.0.0",
 	"metadata.google.internal", "169.254.169.254",
 ]);
 
