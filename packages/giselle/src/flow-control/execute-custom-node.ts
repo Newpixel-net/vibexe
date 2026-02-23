@@ -9,6 +9,61 @@ interface CustomNodeContent {
 	outputs?: Array<{ name: string; displayName: string; type: string }>;
 }
 
+// ---- Static analysis — reject dangerous patterns before VM execution ----
+
+const DANGEROUS_PATTERNS = [
+	/\bwhile\s*\(\s*true\s*\)/,     // while(true)
+	/\bwhile\s*\(\s*1\s*\)/,         // while(1)
+	/\bfor\s*\(\s*;\s*;\s*\)/,       // for(;;)
+	/\bfor\s*\(\s*;;\s*\)/,          // for(;;)
+	/\bwhile\s*\(\s*!0\s*\)/,        // while(!0)
+	/\bwhile\s*\(\s*!false\s*\)/,    // while(!false)
+];
+
+function checkForDangerousCode(code: string): string | null {
+	for (const pattern of DANGEROUS_PATTERNS) {
+		if (pattern.test(code)) {
+			return `Custom node contains a potential infinite loop pattern: ${pattern.source}`;
+		}
+	}
+	if (/\brequire\s*\(/.test(code) || /\bprocess\b/.test(code)) {
+		return "Custom node cannot use require() or access process";
+	}
+	if (/\.constructor\s*\.\s*constructor/.test(code)) {
+		return "Custom node cannot access constructor chain (sandbox violation)";
+	}
+	if (/\bimport\s*\(/.test(code)) {
+		return "Custom node cannot use dynamic import()";
+	}
+	return null;
+}
+
+// ---- SSRF protection — block requests to internal/private networks ----
+
+const BLOCKED_HOSTS = new Set([
+	"localhost",
+	"127.0.0.1",
+	"[::1]",
+	"0.0.0.0",
+	"metadata.google.internal",
+	"169.254.169.254", // AWS/GCP metadata endpoint
+]);
+
+function isPrivateIP(hostname: string): boolean {
+	const parts = hostname.split(".").map(Number);
+	if (parts.length === 4 && parts.every((p) => !Number.isNaN(p))) {
+		if (parts[0] === 10) return true;
+		if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+		if (parts[0] === 192 && parts[1] === 168) return true;
+		if (parts[0] === 127) return true;
+		if (parts[0] === 0) return true;
+	}
+	return false;
+}
+
+/** Maximum executeCode size (100 KB) — prevents CPU exhaustion */
+const MAX_SOURCE_SIZE = 100 * 1024;
+
 /**
  * Execute a Custom Node: run user-defined executeCode in a sandboxed vm context.
  * The code receives an ExecutionContext with inputs, properties, node info, and helpers.
@@ -21,6 +76,17 @@ export async function executeCustomNode(
 
 	if (!content.executeCode) {
 		throw new Error("Custom node has no executeCode defined");
+	}
+
+	// 0. Source size check
+	if (content.executeCode.length > MAX_SOURCE_SIZE) {
+		throw new Error(`Custom node code exceeds maximum size (${MAX_SOURCE_SIZE} bytes)`);
+	}
+
+	// 1. Static analysis — reject dangerous patterns
+	const danger = checkForDangerousCode(content.executeCode);
+	if (danger) {
+		throw new Error(danger);
 	}
 
 	// Build input data object
@@ -52,6 +118,20 @@ export async function executeCustomNode(
 					body?: unknown;
 				},
 			) => {
+				// SSRF protection: block internal/private addresses
+				let parsed: URL;
+				try {
+					parsed = new URL(url);
+				} catch {
+					throw new Error(`Invalid URL: ${url}`);
+				}
+				if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+					throw new Error(`Blocked: fetch only supports http/https (got ${parsed.protocol})`);
+				}
+				if (BLOCKED_HOSTS.has(parsed.hostname) || isPrivateIP(parsed.hostname)) {
+					throw new Error(`Blocked: cannot fetch internal/private address ${parsed.hostname}`);
+				}
+
 				const fetchOptions: RequestInit = {
 					method: options?.method ?? "GET",
 					headers: options?.headers,
@@ -132,7 +212,45 @@ export async function executeCustomNode(
 		__done: false,
 	};
 
+	// Freeze context objects to prevent prototype pollution
+	Object.freeze(executionContext);
+	Object.freeze(executionContext.inputs);
+	Object.freeze(executionContext.properties);
+	Object.freeze(executionContext.node);
+	Object.freeze(executionContext.helpers);
+
 	const vmContext = vm.createContext(sandbox);
+
+	// Block constructor-chain sandbox escapes
+	// In node:vm, `({}).constructor.constructor('return process')()` escapes the sandbox.
+	const sandboxSetup = new vm.Script(`
+		(function() {
+			'use strict';
+			var _Fn = Function;
+			Object.defineProperty(_Fn.prototype, 'constructor', {
+				get: function() { throw new Error('Sandbox: Function constructor access is blocked'); },
+				set: function() {},
+				configurable: false
+			});
+			try {
+				var _Gen = Object.getPrototypeOf(function*(){}).constructor;
+				Object.defineProperty(_Gen.prototype, 'constructor', {
+					get: function() { throw new Error('Sandbox: GeneratorFunction constructor access is blocked'); },
+					set: function() {},
+					configurable: false
+				});
+			} catch(e) {}
+			try {
+				var _Async = Object.getPrototypeOf(async function(){}).constructor;
+				Object.defineProperty(_Async.prototype, 'constructor', {
+					get: function() { throw new Error('Sandbox: AsyncFunction constructor access is blocked'); },
+					set: function() {},
+					configurable: false
+				});
+			} catch(e) {}
+		})();
+	`, { filename: "sandbox-setup.js" });
+	sandboxSetup.runInContext(vmContext, { timeout: 1000 });
 
 	// The executeCode is expected to be an async function expression that takes context
 	// .catch() is critical: without it, async errors are silently swallowed

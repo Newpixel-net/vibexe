@@ -13,6 +13,7 @@ import {
 	builderApps,
 	builderAppAuthSettings,
 } from "@/db/schema";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -34,6 +35,12 @@ const DEFAULTS = {
 export async function GET(_request: Request, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+
+		try {
+			await verifyAppAccess(appId);
+		} catch {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
 
 		const app = await db.query.builderApps.findFirst({
 			where: eq(builderApps.id, appId as BuilderAppId),
@@ -76,6 +83,12 @@ export async function GET(_request: Request, { params }: RouteParams) {
 export async function PUT(request: Request, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+
+		try {
+			await verifyAppAccess(appId);
+		} catch {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
 
 		const app = await db.query.builderApps.findFirst({
 			where: eq(builderApps.id, appId as BuilderAppId),
