@@ -17,6 +17,7 @@ import { verifyPassword } from "@/lib/auth/password";
 import { logAppEvent } from "@/lib/app-database/app-logger";
 import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { executeQuery } from "@/lib/app-database/pool-manager";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -42,6 +43,17 @@ const SESSION_DURATION_DAYS = 30;
 export async function POST(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+
+		// Rate limit: 5 signin attempts per IP per minute
+		const ip = getClientIp(request);
+		const rateCheck = checkRateLimit("signin", `${appId}:${ip}`, 5, 60 * 1000);
+		if (!rateCheck.allowed) {
+			return NextResponse.json(
+				{ error: "Too many login attempts. Please try again later." },
+				{ status: 429, headers: { "Retry-After": String(Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)) } },
+			);
+		}
+
 		const appInfo = await resolveAppDb(appId);
 		if (!appInfo) {
 			return NextResponse.json({ error: "App not found" }, { status: 404 });

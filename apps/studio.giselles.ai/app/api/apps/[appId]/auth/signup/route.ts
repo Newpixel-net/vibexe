@@ -22,6 +22,7 @@ import { hashPassword } from "@/lib/auth/password";
 import { logAppEvent } from "@/lib/app-database/app-logger";
 import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { executeQuery } from "@/lib/app-database/pool-manager";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -47,6 +48,17 @@ const SESSION_DURATION_DAYS = 30;
 export async function POST(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+
+		// Rate limit: 3 signups per IP per 10 minutes
+		const ip = getClientIp(request);
+		const rateCheck = checkRateLimit("signup", `${appId}:${ip}`, 3, 10 * 60 * 1000);
+		if (!rateCheck.allowed) {
+			return NextResponse.json(
+				{ error: "Too many signup attempts. Please try again later." },
+				{ status: 429, headers: { "Retry-After": String(Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)) } },
+			);
+		}
+
 		const databaseName = await resolveAppDb(appId);
 		if (!databaseName) {
 			return NextResponse.json({ error: "App not found" }, { status: 404 });

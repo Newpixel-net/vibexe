@@ -58,6 +58,30 @@ async function transpileTS(source: string): Promise<string> {
 	return result.code;
 }
 
+// ---- Static analysis ----
+
+const DANGEROUS_PATTERNS = [
+	/\bwhile\s*\(\s*true\s*\)/,     // while(true)
+	/\bwhile\s*\(\s*1\s*\)/,         // while(1)
+	/\bfor\s*\(\s*;\s*;\s*\)/,       // for(;;)
+	/\bfor\s*\(\s*;;\s*\)/,          // for(;;)
+	/\bwhile\s*\(\s*!0\s*\)/,        // while(!0)
+	/\bwhile\s*\(\s*!false\s*\)/,    // while(!false)
+];
+
+function checkForDangerousCode(code: string): string | null {
+	for (const pattern of DANGEROUS_PATTERNS) {
+		if (pattern.test(code)) {
+			return `Function contains a potential infinite loop pattern: ${pattern.source}`;
+		}
+	}
+	// Reject require/import of dangerous modules
+	if (/\brequire\s*\(/.test(code) || /\bprocess\b/.test(code)) {
+		return "Function cannot use require() or access process";
+	}
+	return null;
+}
+
 // ---- Execute ----
 
 export async function executeFunction(opts: ExecuteFunctionOpts): Promise<ExecuteFunctionResult> {
@@ -71,6 +95,12 @@ export async function executeFunction(opts: ExecuteFunctionOpts): Promise<Execut
 		jsCode = await transpileTS(opts.source);
 	} catch (err) {
 		throw new Error(`TypeScript compilation failed: ${err instanceof Error ? err.message : String(err)}`);
+	}
+
+	// 1.5. Static analysis — reject dangerous patterns
+	const danger = checkForDangerousCode(jsCode);
+	if (danger) {
+		throw new Error(danger);
 	}
 
 	// 2. Load app secrets
@@ -180,11 +210,20 @@ export async function executeFunction(opts: ExecuteFunctionOpts): Promise<Execut
 	try {
 		script.runInContext(vmContext, { timeout: timeoutMs });
 
-		// Wait for async completion
-		const deadline = Date.now() + timeoutMs;
-		while (!sandbox.__done && Date.now() < deadline) {
-			await new Promise((resolve) => setTimeout(resolve, 10));
-		}
+		// Wait for async completion with a hard timeout via Promise.race
+		const waitForCompletion = async (): Promise<void> => {
+			const deadline = Date.now() + timeoutMs;
+			while (!sandbox.__done && Date.now() < deadline) {
+				await new Promise((resolve) => setTimeout(resolve, 50));
+			}
+		};
+
+		await Promise.race([
+			waitForCompletion(),
+			new Promise<never>((_, reject) =>
+				setTimeout(() => reject(new Error(`Function execution timed out after ${timeoutMs}ms`)), timeoutMs + 500),
+			),
+		]);
 
 		if (sandbox.__error !== undefined) {
 			const err = sandbox.__error;
