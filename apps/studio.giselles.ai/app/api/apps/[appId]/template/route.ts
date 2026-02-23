@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { type BuilderAppId, builderApps } from "@/db/schema";
 import { getUser } from "@/lib/auth/get-user";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 import {
 	deleteTemplate,
 	getTemplateBySourceApp,
@@ -54,6 +55,14 @@ export async function GET(_request: Request, { params }: RouteParams) {
 export async function POST(request: Request, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+
+		// Auth: only the app owner can publish templates
+		try {
+			await verifyAppAccess(appId);
+		} catch {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
+
 		const user = await getUser();
 		const app = await resolveApp(appId);
 		if (!app)
@@ -88,6 +97,14 @@ export async function POST(request: Request, { params }: RouteParams) {
 export async function PUT(request: Request, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+
+		// Auth: only the app owner can update templates
+		try {
+			await verifyAppAccess(appId);
+		} catch {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
+
 		const app = await resolveApp(appId);
 		if (!app)
 			return NextResponse.json({ error: "App not found" }, { status: 404 });
@@ -132,6 +149,14 @@ export async function PUT(request: Request, { params }: RouteParams) {
 export async function DELETE(_request: Request, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+
+		// Auth: only the app owner can unpublish templates
+		try {
+			await verifyAppAccess(appId);
+		} catch {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
+
 		const app = await resolveApp(appId);
 		if (!app)
 			return NextResponse.json({ error: "App not found" }, { status: 404 });

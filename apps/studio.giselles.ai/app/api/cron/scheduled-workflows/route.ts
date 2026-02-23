@@ -4,7 +4,7 @@ import { NodeId, type TaskId, WorkspaceId } from "@giselles-ai/protocol";
 import { db } from "@/db";
 import { agents, scheduledWorkflows, builderAppFunctions, builderAppDatabases, builderApps } from "@/db/schema";
 import { giselle } from "@/app/giselle";
-import { and, eq, isNotNull, lte } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lte } from "drizzle-orm";
 import { executeFunction, loadFunctionSource } from "@/lib/app-functions/runner";
 
 export const dynamic = "force-dynamic";
@@ -90,14 +90,27 @@ export async function GET(request: NextRequest) {
 					schedule.timezone,
 				);
 
-				// Update last_run_at and next_run_at
-				await db
+				// Atomically claim this schedule (optimistic lock):
+				// Only update if nextRunAt still matches — prevents duplicate
+				// execution when two cron calls overlap.
+				const [claimed] = await db
 					.update(scheduledWorkflows)
 					.set({
 						lastRunAt: now,
 						nextRunAt: nextRun,
 					})
-					.where(eq(scheduledWorkflows.dbId, schedule.dbId));
+					.where(
+						and(
+							eq(scheduledWorkflows.dbId, schedule.dbId),
+							lte(scheduledWorkflows.nextRunAt, now),
+						),
+					)
+					.returning({ dbId: scheduledWorkflows.dbId });
+
+				if (!claimed) {
+					// Another cron instance already claimed this schedule
+					continue;
+				}
 
 				// Trigger the actual workflow generation
 				const workspaceId = WorkspaceId.parse(schedule.sdkWorkspaceId);
@@ -226,6 +239,19 @@ export async function GET(request: NextRequest) {
 
 					// Prevent re-running within the same minute
 					if (lastRunTime > 0 && now.getTime() - lastRunTime < 55000) continue;
+
+					// Atomically claim (optimistic lock) — prevents duplicate execution
+					const lastRunDate = lastRun?.lastRunAt ?? null;
+					const [fnClaimed] = await db
+						.update(builderAppFunctions)
+						.set({ lastRunAt: now })
+						.where(
+							lastRunDate
+								? and(eq(builderAppFunctions.dbId, fn.fnDbId), eq(builderAppFunctions.lastRunAt, lastRunDate))
+								: and(eq(builderAppFunctions.dbId, fn.fnDbId), isNull(builderAppFunctions.lastRunAt)),
+						)
+						.returning({ dbId: builderAppFunctions.dbId });
+					if (!fnClaimed) continue; // Another cron instance already claimed
 
 					// Load source and execute
 					const source = await loadFunctionSource(fn.appDbId, fn.fnFilePath);

@@ -61,6 +61,17 @@ export async function POST(request: Request, { params }: RouteParams) {
 			);
 		}
 
+		// Visibility check: team-only templates can only be cloned by team members
+		if (
+			template.visibility === "team" &&
+			template.teamDbId !== membership.teamDbId
+		) {
+			return NextResponse.json(
+				{ error: "This template is not available to your team" },
+				{ status: 403 },
+			);
+		}
+
 		// Clone: create app + copy files + apply config + increment use count
 		const { app, schemaSnapshot } = await cloneTemplateToApp(
 			template.dbId,
