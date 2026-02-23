@@ -1132,8 +1132,8 @@ export function createWorkflowTools() {
 							break;
 						}
 						case "switch": {
-							if (!params.switchRules) {
-								return { success: false, error: "Switch nodes require 'switchRules' parameter" };
+							if (!params.switchRules || params.switchRules.length === 0) {
+								return { success: false, error: "Switch nodes require at least one rule in 'switchRules' array" };
 							}
 							content.rules = params.switchRules.map((rule, i) => ({
 								name: rule.name,
@@ -1149,12 +1149,18 @@ export function createWorkflowTools() {
 						}
 						case "loop": {
 							if (params.loopMode) content.mode = params.loopMode;
+							if (params.loopMode === "nTimes" && params.nTimes === undefined) {
+								return { success: false, error: "Loop mode 'nTimes' requires the 'nTimes' parameter" };
+							}
 							if (params.maxIterations !== undefined) content.maxIterations = params.maxIterations;
 							if (params.nTimes !== undefined) content.nTimes = params.nTimes;
 							break;
 						}
 						case "code": {
-							if (params.code) content.code = params.code;
+							if (!params.code || params.code.trim() === "") {
+								return { success: false, error: "Code nodes require a non-empty 'code' parameter with valid JavaScript" };
+							}
+							content.code = params.code;
 							if (params.codeTimeout !== undefined) content.timeout = params.codeTimeout;
 							content.language = "javascript";
 							break;
@@ -1175,8 +1181,8 @@ export function createWorkflowTools() {
 							break;
 						}
 						case "sort": {
-							if (!params.sortKeys) {
-								return { success: false, error: "Sort nodes require 'sortKeys' parameter" };
+							if (!params.sortKeys || params.sortKeys.length === 0) {
+								return { success: false, error: "Sort nodes require at least one key in 'sortKeys' array" };
 							}
 							content.sortKeys = params.sortKeys;
 							break;

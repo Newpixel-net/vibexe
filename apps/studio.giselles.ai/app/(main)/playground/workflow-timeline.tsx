@@ -15,7 +15,7 @@ import { useMemo } from "react";
 
 interface WorkflowStep {
 	id: string;
-	type: "create_workflow" | "add_node" | "add_connection" | "set_prompt" | "finalize_workflow" | "lookup_piece_actions";
+	type: "create_workflow" | "add_node" | "add_connection" | "set_prompt" | "configure_node" | "finalize_workflow" | "lookup_piece_actions";
 	label: string;
 	status: "pending" | "running" | "completed" | "error";
 	result?: Record<string, unknown>;
@@ -32,7 +32,7 @@ interface ToolPart {
 }
 
 // present_plan is excluded — it's rendered as the visual plan preview instead
-const WORKFLOW_TOOLS = ["create_workflow", "add_node", "add_connection", "set_prompt", "finalize_workflow", "lookup_piece_actions"];
+const WORKFLOW_TOOLS = ["create_workflow", "add_node", "add_connection", "set_prompt", "configure_node", "finalize_workflow", "lookup_piece_actions"];
 
 function getNodeLabel(args: Record<string, unknown>): string {
 	if (args.type === "appEntry") return "Adding Start node";
@@ -78,6 +78,9 @@ function extractWorkflowSteps(messages: UIMessage[]): WorkflowStep[] {
 					break;
 				case "set_prompt":
 					label = "Setting prompt";
+					break;
+				case "configure_node":
+					label = "Configuring flow control node";
 					break;
 				case "finalize_workflow":
 					label = "Finalizing workflow";

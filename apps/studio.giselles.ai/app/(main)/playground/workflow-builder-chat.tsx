@@ -128,6 +128,7 @@ function hasBuildStarted(messages: UIMessage[]): boolean {
 		"add_node",
 		"add_connection",
 		"set_prompt",
+		"configure_node",
 		"finalize_workflow",
 	];
 	for (const msg of messages) {
@@ -185,7 +186,7 @@ export function WorkflowBuilderChat() {
 			url.searchParams.delete("prompt");
 			url.searchParams.delete("type");
 			url.searchParams.delete("category");
-			window.history.replaceState({}, "", url.pathname);
+			window.history.replaceState({}, "", url.toString());
 		}, 800);
 
 		return () => clearTimeout(timer);
@@ -199,6 +200,28 @@ export function WorkflowBuilderChat() {
 	// Detect plan and build state from messages
 	const latestPlan = useMemo(() => extractLatestPlan(messages), [messages]);
 	const buildStarted = useMemo(() => hasBuildStarted(messages), [messages]);
+
+	// Count present_plan calls to detect when a NEW plan arrives (reset buildApproved)
+	const planCount = useMemo(() => {
+		let count = 0;
+		for (const msg of messages) {
+			for (const part of msg.parts) {
+				if (!isToolUIPart(part)) continue;
+				const tp = part as unknown as ToolPart;
+				const name = tp.toolName || tp.type.replace(/^tool-/, "");
+				if (name === "present_plan" && tp.state === "output-available") count++;
+			}
+		}
+		return count;
+	}, [messages]);
+
+	const prevPlanCountRef = useRef(0);
+	useEffect(() => {
+		if (planCount > prevPlanCountRef.current && buildApproved) {
+			setBuildApproved(false);
+		}
+		prevPlanCountRef.current = planCount;
+	}, [planCount, buildApproved]);
 
 	// Show plan preview when we have a plan but haven't started building yet
 	const showPlanPreview = latestPlan !== null && !buildStarted && !buildApproved;
@@ -256,7 +279,9 @@ export function WorkflowBuilderChat() {
 	// Determine placeholder text based on state
 	const placeholderText = showPlanPreview
 		? "Suggest changes to the plan, or click Build..."
-		: "Describe the workflow you want to create...";
+		: showTimeline
+			? "Refine the workflow or ask for adjustments..."
+			: "Describe the workflow you want to create...";
 
 	// Loading text based on phase
 	const loadingText = showTimeline

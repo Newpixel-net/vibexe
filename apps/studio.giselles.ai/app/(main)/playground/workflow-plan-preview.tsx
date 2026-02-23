@@ -7,14 +7,22 @@ import {
 import clsx from "clsx";
 import {
 	ArrowDown,
+	ArrowUpDown,
 	Bot,
 	ChevronRight,
+	Code,
 	Database,
 	FileText,
+	Filter,
+	GitBranch,
+	GitMerge,
 	Globe,
 	Loader2,
+	Pencil,
 	Play,
 	Plug,
+	Repeat,
+	Route,
 	Search,
 	Square,
 	Type,
@@ -128,9 +136,24 @@ function getNodeIcon(node: PlanNode) {
 		case "query":
 			return <Search className="h-3.5 w-3.5" />;
 		case "vectorStore":
-			return <Database className="h-3.5 w-3.5" />;
 		case "dataStore":
 			return <Database className="h-3.5 w-3.5" />;
+		case "if":
+			return <GitBranch className="h-3.5 w-3.5" />;
+		case "switch":
+			return <Route className="h-3.5 w-3.5" />;
+		case "merge":
+			return <GitMerge className="h-3.5 w-3.5" />;
+		case "loop":
+			return <Repeat className="h-3.5 w-3.5" />;
+		case "code":
+			return <Code className="h-3.5 w-3.5" />;
+		case "filter":
+			return <Filter className="h-3.5 w-3.5" />;
+		case "editFields":
+			return <Pencil className="h-3.5 w-3.5" />;
+		case "sort":
+			return <ArrowUpDown className="h-3.5 w-3.5" />;
 		default:
 			return <Bot className="h-3.5 w-3.5" />;
 	}
@@ -154,6 +177,15 @@ function getNodeBorderColor(node: PlanNode): string {
 		case "vectorStore":
 		case "dataStore":
 			return "border-[rgba(251,191,36,0.4)]";
+		case "if":
+		case "switch":
+		case "merge":
+		case "loop":
+		case "code":
+		case "filter":
+		case "editFields":
+		case "sort":
+			return "border-[rgba(245,158,11,0.4)]";
 		default:
 			return "border-[rgba(131,157,195,0.3)]";
 	}
@@ -177,6 +209,15 @@ function getNodeBgColor(node: PlanNode): string {
 		case "vectorStore":
 		case "dataStore":
 			return "bg-[rgba(251,191,36,0.06)]";
+		case "if":
+		case "switch":
+		case "merge":
+		case "loop":
+		case "code":
+		case "filter":
+		case "editFields":
+		case "sort":
+			return "bg-[rgba(245,158,11,0.06)]";
 		default:
 			return "bg-[rgba(131,157,195,0.06)]";
 	}
@@ -206,6 +247,22 @@ function getTypeBadge(node: PlanNode): string {
 			return "Vector Store";
 		case "dataStore":
 			return "Data Store";
+		case "if":
+			return "Condition";
+		case "switch":
+			return "Switch";
+		case "merge":
+			return "Merge";
+		case "loop":
+			return "Loop";
+		case "code":
+			return "Code";
+		case "filter":
+			return "Filter";
+		case "editFields":
+			return "Edit Fields";
+		case "sort":
+			return "Sort";
 		default:
 			return node.type;
 	}
@@ -313,7 +370,7 @@ export function WorkflowPlanPreview({
 			</div>
 
 			{/* Node diagram */}
-			<div className="px-4 pb-3">
+			<div className="px-4 pb-3 max-h-[400px] overflow-y-auto">
 				<div className="flex flex-col items-center gap-0">
 					{layers.map((layer, layerIdx) => (
 						<div key={`layer-${layerIdx}`}>
