@@ -153,11 +153,11 @@ export function HeroPrompt() {
 			</div>
 
 			{/* Content */}
-			<div className="relative z-10 px-8 pt-10 pb-8">
+			<div className="relative z-10 px-8 pt-12 pb-10">
 				{/* Heading */}
 				<div className="text-center mb-8 dash-animate-fade-up">
 					<h1
-						className="text-[32px] font-bold tracking-tight leading-tight dash-animate-gradient bg-clip-text text-transparent"
+						className="text-[38px] font-bold tracking-tight leading-tight dash-animate-gradient bg-clip-text text-transparent"
 						style={{
 							backgroundImage:
 								"linear-gradient(135deg, hsl(219, 90%, 72%), hsl(178, 94%, 60%), hsl(219, 90%, 72%))",
@@ -166,7 +166,7 @@ export function HeroPrompt() {
 					>
 						Describe it. Deploy it.
 					</h1>
-					<p className="text-white/40 text-sm mt-2 max-w-md mx-auto">
+					<p className="text-white/40 text-[15px] mt-2.5 max-w-lg mx-auto">
 						Tell us what you want to build — AI handles the rest
 					</p>
 				</div>
@@ -186,7 +186,7 @@ export function HeroPrompt() {
 									setSelectedCategory(null);
 								}}
 								className={`
-									relative flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium
+									relative flex items-center gap-2 px-4 py-2 rounded-full text-[13px] font-medium
 									transition-all duration-200
 									${
 										isActive
@@ -195,7 +195,7 @@ export function HeroPrompt() {
 									}
 								`}
 							>
-								<Icon className="h-3.5 w-3.5" />
+								<Icon className="h-4 w-4" />
 								{type.label}
 							</button>
 						);
@@ -235,7 +235,7 @@ export function HeroPrompt() {
 
 				{/* Prompt Input */}
 				<div
-					className="max-w-2xl mx-auto dash-animate-fade-up"
+					className="max-w-3xl mx-auto dash-animate-fade-up"
 					style={{ animationDelay: "0.2s" }}
 				>
 					<div className="relative glass-input group">
@@ -248,14 +248,14 @@ export function HeroPrompt() {
 							aria-label="Describe your project"
 							maxLength={500}
 							rows={1}
-							className="w-full bg-transparent text-white/90 text-sm placeholder:text-white/20 px-5 py-4 pr-28 resize-none focus:outline-none min-h-[52px] max-h-[120px]"
+							className="w-full bg-transparent text-white/90 text-[15px] placeholder:text-white/20 px-6 py-5 pr-32 resize-none focus:outline-none min-h-[58px] max-h-[140px]"
 							style={{ fontFamily: "var(--font-sans)" }}
 						/>
 
 						{/* Hidden measurement span for cursor alignment */}
 						<span
 							ref={measureRef}
-							className="absolute left-5 top-4 pointer-events-none text-sm opacity-0"
+							className="absolute left-6 top-5 pointer-events-none text-[15px] opacity-0"
 							style={{ fontFamily: "var(--font-sans)" }}
 							aria-hidden="true"
 						>
@@ -265,7 +265,7 @@ export function HeroPrompt() {
 						{/* Cursor overlay when empty */}
 						{!prompt && showCursor && (
 							<span
-								className="absolute left-5 top-4 pointer-events-none text-white/30 dash-animate-cursor"
+								className="absolute left-6 top-5 pointer-events-none text-white/30 dash-animate-cursor"
 								style={{ marginLeft: `${cursorOffset}px` }}
 							>
 								|
@@ -285,8 +285,8 @@ export function HeroPrompt() {
 							onClick={handleGenerate}
 							disabled={!prompt.trim() || isGenerating}
 							className={`
-								absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5
-								px-4 py-2 rounded-lg text-xs font-semibold
+								absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-2
+								px-5 py-2.5 rounded-lg text-sm font-semibold
 								transition-all duration-200
 								${
 									prompt.trim()

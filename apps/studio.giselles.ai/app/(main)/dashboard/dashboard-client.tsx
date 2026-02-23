@@ -121,24 +121,24 @@ function StatCard({
 }: StatCardProps) {
 	const { value: animated, ref } = useCountUp(comingSoon ? 0 : value);
 	return (
-		<div className="glass-card p-4 flex items-center gap-3 group hover:bg-white/[0.06] transition-colors relative">
+		<div className="glass-card p-5 flex items-center gap-3.5 group hover:bg-white/[0.06] transition-colors relative">
 			<div
-				className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0"
+				className="h-11 w-11 rounded-xl flex items-center justify-center flex-shrink-0"
 				style={{ background: `${color}15` }}
 			>
-				<Icon className="h-4 w-4" style={{ color }} />
+				<Icon className="h-5 w-5" style={{ color }} />
 			</div>
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center gap-1.5">
-					<span ref={ref} className="text-lg font-semibold text-white/90 tabular-nums">
+					<span ref={ref} className="text-xl font-semibold text-white/90 tabular-nums">
 						{displayValue ?? animated}
 					</span>
 					{suffix && <span className="text-xs text-white/30">{suffix}</span>}
 					{comingSoon && <span className="coming-soon-badge">Coming Soon</span>}
 				</div>
-				<p className="text-[11px] text-white/30 leading-tight">{label}</p>
+				<p className="text-xs text-white/30 leading-tight">{label}</p>
 				{progress !== undefined && (
-					<div className="mt-1.5 h-1 bg-white/[0.06] rounded-full overflow-hidden">
+					<div className="mt-1.5 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
 						<div
 							className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all"
 							style={{ width: `${Math.min(progress, 100)}%` }}
@@ -150,9 +150,9 @@ function StatCard({
 				<button
 					type="button"
 					onClick={onQuickAdd}
-					className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] text-white/30 hover:text-white/50 hover:bg-white/[0.06] transition-colors opacity-0 group-hover:opacity-100"
+					className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] text-white/30 hover:text-white/50 hover:bg-white/[0.06] transition-colors opacity-0 group-hover:opacity-100"
 				>
-					<Plus className="h-2.5 w-2.5" />
+					<Plus className="h-3 w-3" />
 					{quickAddLabel || "New"}
 				</button>
 			)}
@@ -186,14 +186,14 @@ function AppCard({ app }: { app: EnhancedApp }) {
 	return (
 		<Link
 			href={`/app-builder/${app.id}`}
-			className="glass-card p-4 group hover:bg-white/[0.06] hover:border-white/[0.12] transition-all block"
+			className="glass-card p-5 group hover:bg-white/[0.06] hover:border-white/[0.12] transition-all block"
 		>
-			<div className="flex items-start justify-between mb-2">
-				<div className="flex items-center gap-2 min-w-0">
-					<div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-						<Layers className="h-4 w-4 text-blue-400" />
+			<div className="flex items-start justify-between mb-2.5">
+				<div className="flex items-center gap-2.5 min-w-0">
+					<div className="h-9 w-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+						<Layers className="h-4.5 w-4.5 text-blue-400" />
 					</div>
-					<h3 className="text-sm font-medium text-white/80 truncate group-hover:text-white/90 transition-colors">
+					<h3 className="text-[15px] font-medium text-white/80 truncate group-hover:text-white/90 transition-colors">
 						{app.name}
 					</h3>
 				</div>
@@ -201,12 +201,12 @@ function AppCard({ app }: { app: EnhancedApp }) {
 			</div>
 
 			{app.description && (
-				<p className="text-xs text-white/30 line-clamp-2 mb-3 ml-10">
+				<p className="text-xs text-white/30 line-clamp-2 mb-3 ml-[46px]">
 					{app.description}
 				</p>
 			)}
 
-			<div className="flex items-center gap-3 ml-10 text-[10px] text-white/20">
+			<div className="flex items-center gap-3 ml-[46px] text-[11px] text-white/20">
 				{app.entityCount > 0 && (
 					<span className="flex items-center gap-0.5">
 						<FileCode2 className="h-2.5 w-2.5" />
@@ -242,10 +242,10 @@ function WorkflowCard({ workflow }: { workflow: RecentWorkflow }) {
 	return (
 		<Link
 			href={`/workflows/${workflow.id}`}
-			className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.04] transition-colors group"
+			className="flex items-center gap-3 p-3.5 rounded-xl hover:bg-white/[0.04] transition-colors group"
 		>
-			<div className="h-8 w-8 rounded-lg bg-violet-500/10 flex items-center justify-center flex-shrink-0">
-				<GitBranch className="h-4 w-4 text-violet-400" />
+			<div className="h-9 w-9 rounded-lg bg-violet-500/10 flex items-center justify-center flex-shrink-0">
+				<GitBranch className="h-4.5 w-4.5 text-violet-400" />
 			</div>
 			<div className="flex-1 min-w-0">
 				<h4 className="text-sm text-white/70 truncate group-hover:text-white/85 transition-colors">
@@ -273,18 +273,18 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 	const Icon = config.icon;
 
 	return (
-		<div className="flex items-start gap-3 py-2">
+		<div className="flex items-start gap-3 py-2.5">
 			<div className="relative mt-0.5">
 				<div
-					className="h-6 w-6 rounded-full flex items-center justify-center"
+					className="h-7 w-7 rounded-full flex items-center justify-center"
 					style={{ background: `${config.color}15` }}
 				>
-					<Icon className="h-3 w-3" style={{ color: config.color }} />
+					<Icon className="h-3.5 w-3.5" style={{ color: config.color }} />
 				</div>
 			</div>
 			<div className="flex-1 min-w-0">
-				<p className="text-xs text-white/60 truncate">{item.title}</p>
-				<p className="text-[10px] text-white/20">{timeAgo(item.timestamp)}</p>
+				<p className="text-[13px] text-white/60 truncate">{item.title}</p>
+				<p className="text-[11px] text-white/20">{timeAgo(item.timestamp)}</p>
 			</div>
 		</div>
 	);
@@ -308,19 +308,19 @@ function QuickLink({
 	return (
 		<Link
 			href={href}
-			className="glass-card p-4 group hover:bg-white/[0.06] hover:border-white/[0.12] transition-all block"
+			className="glass-card p-5 group hover:bg-white/[0.06] hover:border-white/[0.12] transition-all block"
 		>
 			<div className="flex items-center gap-3">
-				<div className="h-8 w-8 rounded-lg bg-white/[0.06] flex items-center justify-center flex-shrink-0">
-					<Icon className="h-4 w-4 text-white/40 group-hover:text-white/60 transition-colors" />
+				<div className="h-9 w-9 rounded-lg bg-white/[0.06] flex items-center justify-center flex-shrink-0">
+					<Icon className="h-4.5 w-4.5 text-white/40 group-hover:text-white/60 transition-colors" />
 				</div>
 				<div className="flex-1 min-w-0">
-					<span className="text-sm text-white/70 group-hover:text-white/85 transition-colors font-medium">
+					<span className="text-[15px] text-white/70 group-hover:text-white/85 transition-colors font-medium">
 						{label}
 					</span>
-					<p className="text-[10px] text-white/25">{description}</p>
+					<p className="text-[11px] text-white/25">{description}</p>
 				</div>
-				<ArrowUpRight className="h-3.5 w-3.5 text-white/10 group-hover:text-white/30 transition-colors" />
+				<ArrowUpRight className="h-4 w-4 text-white/10 group-hover:text-white/30 transition-colors" />
 			</div>
 		</Link>
 	);
@@ -384,10 +384,10 @@ export function DashboardClient({ data }: DashboardClientProps) {
 			: 0;
 
 	return (
-		<div className="max-w-6xl mx-auto px-6 py-6">
+		<div className="max-w-7xl mx-auto px-6 py-8">
 			{/* Greeting */}
-			<div className="mb-2 dash-animate-fade-up">
-				<h2 className="text-lg font-semibold text-white/80">
+			<div className="mb-3 dash-animate-fade-up">
+				<h2 className="text-xl font-semibold text-white/80">
 					Welcome back{user.displayName !== "User" ? `, ${user.displayName}` : ""}
 				</h2>
 			</div>
@@ -400,7 +400,7 @@ export function DashboardClient({ data }: DashboardClientProps) {
 
 			{/* Stats Row 1 */}
 			<div
-				className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3 dash-animate-fade-up"
+				className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 dash-animate-fade-up"
 				style={{ animationDelay: "0.15s" }}
 			>
 				<StatCard
@@ -426,7 +426,7 @@ export function DashboardClient({ data }: DashboardClientProps) {
 
 			{/* Stats Row 2 */}
 			<div
-				className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8 dash-animate-fade-up"
+				className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10 dash-animate-fade-up"
 				style={{ animationDelay: "0.18s" }}
 			>
 				<StatCard
@@ -456,44 +456,44 @@ export function DashboardClient({ data }: DashboardClientProps) {
 
 			{/* Bento Grid — Apps (60%) + Workflows (40%) */}
 			<div
-				className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8 dash-animate-fade-up"
+				className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-10 dash-animate-fade-up"
 				style={{ animationDelay: "0.2s" }}
 			>
 				{/* Recent Apps — 3/5 width */}
 				<div className="lg:col-span-3">
-					<div className="flex items-center justify-between mb-3">
-						<h3 className="text-sm font-medium text-white/50 flex items-center gap-1.5">
-							<Sparkles className="h-3.5 w-3.5" />
+					<div className="flex items-center justify-between mb-4">
+						<h3 className="text-[15px] font-medium text-white/50 flex items-center gap-2">
+							<Sparkles className="h-4 w-4" />
 							Recent Apps
 						</h3>
-						<div className="flex items-center gap-2">
+						<div className="flex items-center gap-2.5">
 							<button
 								type="button"
 								onClick={() => handleQuickCreate("app")}
 								disabled={isCreating}
-								className="flex items-center gap-1 text-[10px] text-white/30 hover:text-white/50 transition-colors disabled:opacity-50"
+								className="flex items-center gap-1 text-[11px] text-white/30 hover:text-white/50 transition-colors disabled:opacity-50"
 							>
 								<Plus className="h-3 w-3" />
 								New
 							</button>
 							<Link
 								href="/app-builder"
-								className="text-[10px] text-white/20 hover:text-white/40 transition-colors flex items-center gap-0.5"
+								className="text-[11px] text-white/20 hover:text-white/40 transition-colors flex items-center gap-0.5"
 							>
-								View all <ArrowRight className="h-2.5 w-2.5" />
+								View all <ArrowRight className="h-3 w-3" />
 							</Link>
 						</div>
 					</div>
 
 					{recentApps.length === 0 ? (
-						<div className="glass-card p-8 text-center">
-							<Sparkles className="h-8 w-8 mx-auto text-white/10 mb-3" />
-							<p className="text-sm text-white/30 mb-3">
+						<div className="glass-card p-10 text-center">
+							<Sparkles className="h-9 w-9 mx-auto text-white/10 mb-3" />
+							<p className="text-[15px] text-white/30 mb-3">
 								No apps yet. Describe your first project above!
 							</p>
 						</div>
 					) : (
-						<div className="grid gap-3 sm:grid-cols-2">
+						<div className="grid gap-4 sm:grid-cols-2">
 							{recentApps.map((app, i) => (
 								<div
 									key={app.id}
@@ -509,37 +509,37 @@ export function DashboardClient({ data }: DashboardClientProps) {
 
 				{/* Recent Workflows — 2/5 width */}
 				<div className="lg:col-span-2">
-					<div className="flex items-center justify-between mb-3">
-						<h3 className="text-sm font-medium text-white/50 flex items-center gap-1.5">
-							<GitBranch className="h-3.5 w-3.5" />
+					<div className="flex items-center justify-between mb-4">
+						<h3 className="text-[15px] font-medium text-white/50 flex items-center gap-2">
+							<GitBranch className="h-4 w-4" />
 							Recent Workflows
 						</h3>
-						<div className="flex items-center gap-2">
+						<div className="flex items-center gap-2.5">
 							<button
 								type="button"
 								onClick={() => handleQuickCreate("workflow")}
 								disabled={isCreating}
-								className="flex items-center gap-1 text-[10px] text-white/30 hover:text-white/50 transition-colors disabled:opacity-50"
+								className="flex items-center gap-1 text-[11px] text-white/30 hover:text-white/50 transition-colors disabled:opacity-50"
 							>
 								<Plus className="h-3 w-3" />
 								New
 							</button>
 							<Link
 								href="/workflows"
-								className="text-[10px] text-white/20 hover:text-white/40 transition-colors flex items-center gap-0.5"
+								className="text-[11px] text-white/20 hover:text-white/40 transition-colors flex items-center gap-0.5"
 							>
-								View all <ArrowRight className="h-2.5 w-2.5" />
+								View all <ArrowRight className="h-3 w-3" />
 							</Link>
 						</div>
 					</div>
 
 					{recentWorkflows.length === 0 ? (
-						<div className="glass-card p-8 text-center">
-							<Workflow className="h-8 w-8 mx-auto text-white/10 mb-3" />
-							<p className="text-sm text-white/30">No workflows yet</p>
+						<div className="glass-card p-10 text-center">
+							<Workflow className="h-9 w-9 mx-auto text-white/10 mb-3" />
+							<p className="text-[15px] text-white/30">No workflows yet</p>
 						</div>
 					) : (
-						<div className="glass-card p-2 space-y-0.5">
+						<div className="glass-card p-2.5 space-y-0.5">
 							{recentWorkflows.map((w, i) => (
 								<div
 									key={w.id}
@@ -561,18 +561,18 @@ export function DashboardClient({ data }: DashboardClientProps) {
 			>
 				{/* Activity — 3/5 width */}
 				<div className="lg:col-span-3">
-					<h3 className="text-sm font-medium text-white/50 mb-3 flex items-center gap-1.5">
-						<Clock className="h-3.5 w-3.5" />
+					<h3 className="text-[15px] font-medium text-white/50 mb-4 flex items-center gap-2">
+						<Clock className="h-4 w-4" />
 						Recent Activity
 					</h3>
 					{activity.length === 0 ? (
-						<div className="glass-card p-6 text-center">
+						<div className="glass-card p-8 text-center">
 							<p className="text-xs text-white/20">
 								Activity will appear as you build
 							</p>
 						</div>
 					) : (
-						<div className="glass-card p-4 space-y-1 max-h-[240px] overflow-y-auto">
+						<div className="glass-card p-5 space-y-1 max-h-[280px] overflow-y-auto">
 							{activity.slice(0, 10).map((item, i) => (
 								<ActivityRow key={`${item.type}-${item.timestamp}-${i}`} item={item} />
 							))}
@@ -581,8 +581,8 @@ export function DashboardClient({ data }: DashboardClientProps) {
 				</div>
 
 				{/* Quick Links — 2/5 width */}
-				<div className="lg:col-span-2 space-y-3">
-					<h3 className="text-sm font-medium text-white/50 mb-3">Quick Links</h3>
+				<div className="lg:col-span-2 space-y-3.5">
+					<h3 className="text-[15px] font-medium text-white/50 mb-4">Quick Links</h3>
 					<QuickLink
 						href="/app-builder"
 						icon={Code2}

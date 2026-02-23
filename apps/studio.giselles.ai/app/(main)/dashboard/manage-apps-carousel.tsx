@@ -250,25 +250,25 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 	// Empty state
 	if (apps.length === 0) {
 		return (
-			<div className="glass-card p-8 mb-6 text-center dash-animate-fade-up" style={{ animationDelay: "0.1s" }}>
-				<Ghost className="h-10 w-10 mx-auto text-white/10 mb-3" />
-				<p className="text-sm text-white/30 mb-1">No apps yet</p>
-				<p className="text-xs text-white/20">Describe your first project above!</p>
+			<div className="glass-card p-10 mb-8 text-center dash-animate-fade-up" style={{ animationDelay: "0.1s" }}>
+				<Ghost className="h-12 w-12 mx-auto text-white/10 mb-3" />
+				<p className="text-[15px] text-white/30 mb-1">No apps yet</p>
+				<p className="text-sm text-white/20">Describe your first project above!</p>
 			</div>
 		);
 	}
 
 	return (
 		<>
-			<div className="glass-card p-5 mb-6 dash-animate-fade-up" style={{ animationDelay: "0.1s" }}>
+			<div className="glass-card p-6 mb-8 dash-animate-fade-up" style={{ animationDelay: "0.1s" }}>
 				{/* Header row — always visible, clickable to toggle */}
 				<button
 					type="button"
 					onClick={() => setIsExpanded((v) => !v)}
 					className="w-full flex items-center justify-between group cursor-pointer"
 				>
-					<h3 className="text-sm font-medium text-white/50 flex items-center gap-1.5">
-						<Layers className="h-3.5 w-3.5" />
+					<h3 className="text-[15px] font-medium text-white/50 flex items-center gap-2">
+						<Layers className="h-4 w-4" />
 						Manage Your Apps
 					</h3>
 					<div className="flex items-center gap-2">
@@ -280,13 +280,13 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 				</button>
 
 				{/* App selector row — always visible */}
-				<div className="flex items-center gap-2 mt-3">
+				<div className="flex items-center gap-2.5 mt-3.5">
 					<button
 						type="button"
 						onClick={(e) => { e.stopPropagation(); goPrev(); }}
-						className="h-7 w-7 rounded-lg bg-white/[0.06] flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/[0.1] transition-colors flex-shrink-0"
+						className="h-8 w-8 rounded-lg bg-white/[0.06] flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/[0.1] transition-colors flex-shrink-0"
 					>
-						<ChevronLeft className="h-3.5 w-3.5" />
+						<ChevronLeft className="h-4 w-4" />
 					</button>
 
 					{/* Dropdown selector */}
@@ -294,9 +294,9 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 						<button
 							type="button"
 							onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-							className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] transition-colors text-left"
+							className="w-full flex items-center justify-between px-3.5 py-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] transition-colors text-left"
 						>
-							<span className="text-sm text-white/70 truncate">{app.name}</span>
+							<span className="text-[15px] text-white/70 truncate">{app.name}</span>
 							<ChevronDown className={`h-3 w-3 text-white/30 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
 						</button>
 
@@ -333,9 +333,9 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 					<button
 						type="button"
 						onClick={(e) => { e.stopPropagation(); goNext(); }}
-						className="h-7 w-7 rounded-lg bg-white/[0.06] flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/[0.1] transition-colors flex-shrink-0"
+						className="h-8 w-8 rounded-lg bg-white/[0.06] flex items-center justify-center text-white/30 hover:text-white/60 hover:bg-white/[0.1] transition-colors flex-shrink-0"
 					>
-						<ChevronRight className="h-3.5 w-3.5" />
+						<ChevronRight className="h-4 w-4" />
 					</button>
 				</div>
 
