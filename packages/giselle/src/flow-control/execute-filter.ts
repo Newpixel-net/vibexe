@@ -31,8 +31,10 @@ export async function executeFilter(
 		node.activeOutputPort = "kept";
 	} else if (discarded.length > 0 && kept.length === 0) {
 		node.activeOutputPort = "discarded";
+	} else if (kept.length > 0 && discarded.length > 0) {
+		// Both branches have items — use sentinel so DAG executor activates both
+		node.activeOutputPort = "__both__";
 	}
-	// else: both have items — leave undefined so both branches execute
 
 	return {
 		outputs: new Map([
