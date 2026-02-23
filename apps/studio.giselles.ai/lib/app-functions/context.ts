@@ -105,6 +105,18 @@ export interface ListOptions {
 
 // ---- Helpers ----
 
+/** Only allow safe SQL identifier chars (letters, digits, underscore, dash) */
+const SAFE_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_-]{0,63}$/;
+
+function assertSafeIdentifier(value: string, label: string): void {
+	if (!SAFE_IDENTIFIER.test(value)) {
+		throw new Error(`Invalid ${label}: "${value}". Only letters, digits, underscore, and dash are allowed.`);
+	}
+}
+
+/** Max total size for captured console logs (10 KB) */
+const MAX_LOG_BYTES = 10 * 1024;
+
 function safeStringify(val: unknown): string {
 	if (typeof val === "string") return val;
 	try {
@@ -140,10 +152,12 @@ export function buildFunctionContext(opts: BuildContextOpts): FunctionContext {
 		},
 
 		async list(entity: string, options: ListOptions = {}): Promise<{ data: unknown[]; total: number }> {
+			assertSafeIdentifier(entity, "entity name");
 			const page = Math.max(1, options.page ?? 1);
 			const limit = Math.min(100, Math.max(1, options.limit ?? 20));
 			const offset = (page - 1) * limit;
 			const sort = options.sort ?? "created_at";
+			assertSafeIdentifier(sort, "sort column");
 			const order = options.order === "asc" ? "ASC" : "DESC";
 
 			const filters: string[] = [];
@@ -152,6 +166,7 @@ export function buildFunctionContext(opts: BuildContextOpts): FunctionContext {
 
 			if (options.filter) {
 				for (const [key, value] of Object.entries(options.filter)) {
+					assertSafeIdentifier(key, "filter key");
 					filters.push(`"${key}" = $${paramIdx}`);
 					params.push(value);
 					paramIdx++;
@@ -177,13 +192,16 @@ export function buildFunctionContext(opts: BuildContextOpts): FunctionContext {
 		},
 
 		async get(entity: string, id: number): Promise<unknown | null> {
+			assertSafeIdentifier(entity, "entity name");
 			const rows = await executeQuery(databaseName, `SELECT * FROM "${entity}" WHERE id = $1`, [id]);
 			return rows[0] ?? null;
 		},
 
 		async create(entity: string, data: Record<string, unknown>): Promise<unknown> {
+			assertSafeIdentifier(entity, "entity name");
 			const keys = Object.keys(data);
 			if (keys.length === 0) throw new Error("No fields provided for create");
+			for (const k of keys) assertSafeIdentifier(k, "field name");
 			const fields = keys.map((k) => `"${k}"`).join(", ");
 			const placeholders = keys.map((_, i) => `$${i + 1}`).join(", ");
 			const values = keys.map((k) => data[k]);
@@ -196,8 +214,10 @@ export function buildFunctionContext(opts: BuildContextOpts): FunctionContext {
 		},
 
 		async update(entity: string, id: number, data: Record<string, unknown>): Promise<unknown> {
+			assertSafeIdentifier(entity, "entity name");
 			const keys = Object.keys(data);
 			if (keys.length === 0) throw new Error("No fields provided for update");
+			for (const k of keys) assertSafeIdentifier(k, "field name");
 			const setClauses = keys.map((k, i) => `"${k}" = $${i + 1}`);
 			setClauses.push(`"updated_at" = NOW()`);
 			const values = [...keys.map((k) => data[k]), id];
@@ -210,20 +230,34 @@ export function buildFunctionContext(opts: BuildContextOpts): FunctionContext {
 		},
 
 		async delete(entity: string, id: number): Promise<boolean> {
+			assertSafeIdentifier(entity, "entity name");
 			const rows = await executeQuery(databaseName, `DELETE FROM "${entity}" WHERE id = $1 RETURNING id`, [id]);
 			return rows.length > 0;
 		},
 	};
 
+	let logBytes = 0;
+	let logTruncated = false;
+	const pushLog = (msg: string) => {
+		if (logTruncated) return;
+		logBytes += msg.length;
+		if (logBytes > MAX_LOG_BYTES) {
+			consoleLogs.push("[truncated — log output exceeded 10 KB]");
+			logTruncated = true;
+			return;
+		}
+		consoleLogs.push(msg);
+	};
+
 	const capturedConsole: FunctionContext["console"] = {
 		log: (...args: unknown[]) => {
-			consoleLogs.push(args.map(safeStringify).join(" "));
+			pushLog(args.map(safeStringify).join(" "));
 		},
 		warn: (...args: unknown[]) => {
-			consoleLogs.push(`[WARN] ${args.map(safeStringify).join(" ")}`);
+			pushLog(`[WARN] ${args.map(safeStringify).join(" ")}`);
 		},
 		error: (...args: unknown[]) => {
-			consoleLogs.push(`[ERROR] ${args.map(safeStringify).join(" ")}`);
+			pushLog(`[ERROR] ${args.map(safeStringify).join(" ")}`);
 		},
 	};
 

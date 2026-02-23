@@ -38,6 +38,12 @@ export interface HookResult {
 	abort?: string;
 }
 
+// ---- Recursion guard ----
+// Tracks nested hook depth per entity+hookType to prevent infinite loops.
+// Key = "appDbId:entity:hookType", value = current depth.
+const hookDepth = new Map<string, number>();
+const MAX_HOOK_DEPTH = 3;
+
 /**
  * Run an entity hook if one is registered for this entity + hookType.
  *
@@ -48,6 +54,30 @@ export interface HookResult {
 export async function runEntityHook(opts: RunEntityHookOpts): Promise<HookResult> {
 	const { databaseName, appDbId, appId, entity, hookType, data, existing, user } = opts;
 	const isBefore = hookType.startsWith("before");
+
+	// Recursion guard: prevent infinite loops when hooks mutate the same entity
+	const depthKey = `${appDbId}:${entity}:${hookType}`;
+	const currentDepth = hookDepth.get(depthKey) ?? 0;
+	if (currentDepth >= MAX_HOOK_DEPTH) {
+		console.warn(`[Entity Hook] Max depth (${MAX_HOOK_DEPTH}) reached for ${depthKey}, skipping to prevent infinite loop`);
+		return { data };
+	}
+	hookDepth.set(depthKey, currentDepth + 1);
+
+	try {
+		return await _runEntityHookInner(opts, isBefore);
+	} finally {
+		const depth = hookDepth.get(depthKey) ?? 1;
+		if (depth <= 1) {
+			hookDepth.delete(depthKey);
+		} else {
+			hookDepth.set(depthKey, depth - 1);
+		}
+	}
+}
+
+async function _runEntityHookInner(opts: RunEntityHookOpts, isBefore: boolean): Promise<HookResult> {
+	const { databaseName, appDbId, appId, entity, hookType, data, existing, user } = opts;
 
 	// Find matching function
 	const functions = await db.query.builderAppFunctions.findMany({

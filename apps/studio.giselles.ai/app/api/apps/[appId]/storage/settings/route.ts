@@ -16,6 +16,7 @@ import {
 	builderAppStorageSettings,
 } from "@/db/schema";
 import { calculateUsedStorage } from "@/lib/app-storage/storage-manager";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -33,14 +34,18 @@ export async function GET(_request: Request, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
 
-		const app = await db.query.builderApps.findFirst({
-			where: eq(builderApps.id, appId as BuilderAppId),
-			columns: { dbId: true },
-		});
-
-		if (!app) {
+		let appDbId: number;
+		try {
+			({ appDbId } = await verifyAppAccess(appId));
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : "";
+			if (msg.includes("session")) {
+				return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+			}
 			return NextResponse.json({ error: "App not found" }, { status: 404 });
 		}
+
+		const app = { dbId: appDbId };
 
 		const settings = await db.query.builderAppStorageSettings.findFirst({
 			where: eq(builderAppStorageSettings.appDbId, app.dbId),
@@ -67,14 +72,18 @@ export async function PUT(request: Request, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
 
-		const app = await db.query.builderApps.findFirst({
-			where: eq(builderApps.id, appId as BuilderAppId),
-			columns: { dbId: true },
-		});
-
-		if (!app) {
+		let appDbId: number;
+		try {
+			({ appDbId } = await verifyAppAccess(appId));
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : "";
+			if (msg.includes("session")) {
+				return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+			}
 			return NextResponse.json({ error: "App not found" }, { status: 404 });
 		}
+
+		const app = { dbId: appDbId };
 
 		const body = await request.json();
 

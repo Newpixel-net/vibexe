@@ -6,13 +6,16 @@
  * Streams data mutation events (created/updated/deleted) to connected clients
  * via Server-Sent Events. Auto-reconnect is handled by the browser's EventSource API.
  *
- * Auth: X-Vibexe-Api-Key header or no auth (open for now, same as data routes).
+ * Auth: X-Vibexe-Api-Key header, builder session, or end-user Bearer token.
  */
 
 import { eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { db } from "@/db";
 import { type BuilderAppId, builderApps } from "@/db/schema";
+import { verifyApiKey } from "@/lib/app-database/api-keys";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
+import { resolveAppUser } from "@/lib/app-database/rls";
 import {
 	type DataChangeEvent,
 	type DataEventCallback,
@@ -32,12 +35,46 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 	// Validate app exists
 	const app = await db.query.builderApps.findFirst({
 		where: eq(builderApps.id, appId as BuilderAppId),
-		columns: { id: true },
+		columns: { id: true, dbId: true },
 	});
 	if (!app) {
 		return new Response(JSON.stringify({ error: "App not found" }), {
 			status: 404,
 			headers: { "Content-Type": "application/json" },
+		});
+	}
+
+	// Auth: API key, builder session, or end-user Bearer token
+	let authenticated = false;
+	const apiKey = request.headers.get("x-vibexe-api-key");
+	if (apiKey) {
+		authenticated = !!(await verifyApiKey(app.dbId, apiKey));
+		if (!authenticated) {
+			return new Response(JSON.stringify({ error: "Invalid API key" }), {
+				status: 401,
+				headers: { "Content-Type": "application/json" },
+			});
+		}
+	}
+	if (!authenticated) {
+		try {
+			await verifyAppAccess(appId);
+			authenticated = true;
+		} catch {
+			// Not a builder session — check end-user auth
+		}
+	}
+	if (!authenticated) {
+		const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+		if (bearer) {
+			const user = await resolveAppUser(app.dbId, bearer);
+			if (user) authenticated = true;
+		}
+	}
+	if (!authenticated) {
+		return new Response(JSON.stringify({ error: "Authentication required. Provide X-Vibexe-Api-Key header or Bearer token." }), {
+			status: 401,
+			headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
 		});
 	}
 
@@ -124,7 +161,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			Connection: "keep-alive",
 			"Access-Control-Allow-Origin": "*",
 			"Access-Control-Allow-Methods": "GET",
-			"Access-Control-Allow-Headers": "X-Vibexe-Api-Key",
+			"Access-Control-Allow-Headers": "X-Vibexe-Api-Key, Authorization",
+		},
+	});
+}
+
+export async function OPTIONS() {
+	return new Response(null, {
+		status: 204,
+		headers: {
+			"Access-Control-Allow-Origin": "*",
+			"Access-Control-Allow-Methods": "GET, OPTIONS",
+			"Access-Control-Allow-Headers": "X-Vibexe-Api-Key, Authorization",
+			"Access-Control-Max-Age": "86400",
 		},
 	});
 }

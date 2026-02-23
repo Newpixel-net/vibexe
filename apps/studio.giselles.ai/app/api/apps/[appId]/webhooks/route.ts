@@ -13,6 +13,37 @@ import { db } from "@/db";
 import { builderAppWebhooks } from "@/db/schema";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
+const BLOCKED_HOSTS = new Set([
+	"localhost", "127.0.0.1", "[::1]", "0.0.0.0",
+	"metadata.google.internal", "169.254.169.254",
+]);
+
+function isPrivateIP(hostname: string): boolean {
+	const parts = hostname.split(".").map(Number);
+	if (parts.length === 4 && parts.every((p) => !Number.isNaN(p))) {
+		if (parts[0] === 10) return true;
+		if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+		if (parts[0] === 192 && parts[1] === 168) return true;
+		if (parts[0] === 0) return true;
+	}
+	return false;
+}
+
+function isBlockedUrl(urlStr: string): string | null {
+	try {
+		const parsed = new URL(urlStr);
+		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+			return "Webhook URL must use http or https";
+		}
+		if (BLOCKED_HOSTS.has(parsed.hostname) || isPrivateIP(parsed.hostname)) {
+			return "Webhook URL cannot target internal or private networks";
+		}
+	} catch {
+		return "Invalid URL format";
+	}
+	return null;
+}
+
 interface RouteParams {
 	params: Promise<{ appId: string }>;
 }
@@ -90,27 +121,17 @@ export async function POST(request: Request, { params }: RouteParams) {
 			headers?: Record<string, string>;
 		};
 
-		if (!url || typeof url !== "string") {
+		if (!url || typeof url !== "string" || url.length > 2048) {
 			return NextResponse.json(
-				{ error: "url is required" },
+				{ error: "url is required and must be under 2048 chars" },
 				{ status: 400 },
 			);
 		}
 
-		// URL validation — restrict to http/https only
-		try {
-			const parsed = new URL(url);
-			if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-				return NextResponse.json(
-					{ error: "Webhook URL must use http or https" },
-					{ status: 400 },
-				);
-			}
-		} catch {
-			return NextResponse.json(
-				{ error: "Invalid URL format" },
-				{ status: 400 },
-			);
+		// URL validation — restrict to http/https, block internal/private networks
+		const urlError = isBlockedUrl(url);
+		if (urlError) {
+			return NextResponse.json({ error: urlError }, { status: 400 });
 		}
 
 		if (!events || !Array.isArray(events) || events.length === 0) {

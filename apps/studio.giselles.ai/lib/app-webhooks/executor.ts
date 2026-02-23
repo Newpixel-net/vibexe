@@ -41,7 +41,7 @@ export async function executeWebhook(
 	payload: WebhookPayload,
 	attempt: number,
 ): Promise<ExecutionResult> {
-	// Defense-in-depth: reject non-http(s) URLs
+	// Defense-in-depth: reject non-http(s) URLs and internal/private networks
 	try {
 		const parsed = new URL(webhook.url);
 		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
@@ -49,6 +49,24 @@ export async function executeWebhook(
 				success: false,
 				durationMs: 0,
 				errorMessage: `Rejected webhook URL scheme: ${parsed.protocol}`,
+			};
+		}
+		const BLOCKED_HOSTS = new Set([
+			"localhost", "127.0.0.1", "[::1]", "0.0.0.0",
+			"metadata.google.internal", "169.254.169.254",
+		]);
+		const parts = parsed.hostname.split(".").map(Number);
+		const isPrivate = parts.length === 4 && parts.every((p) => !Number.isNaN(p)) && (
+			parts[0] === 10 ||
+			(parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+			(parts[0] === 192 && parts[1] === 168) ||
+			parts[0] === 0
+		);
+		if (BLOCKED_HOSTS.has(parsed.hostname) || isPrivate) {
+			return {
+				success: false,
+				durationMs: 0,
+				errorMessage: "Rejected: webhook URL targets internal/private network",
 			};
 		}
 	} catch {
