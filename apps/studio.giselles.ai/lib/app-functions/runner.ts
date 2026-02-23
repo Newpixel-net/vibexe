@@ -165,14 +165,32 @@ export async function executeFunction(opts: ExecuteFunctionOpts): Promise<Execut
 		btoa,
 		URL,
 		URLSearchParams,
-		setTimeout: (fn: () => void, ms: number) => setTimeout(fn, Math.min(ms, 30000)),
+		setTimeout: (() => {
+			let timerCount = 0;
+			const MAX_TIMERS = 10;
+			return (fn: () => void, ms: number) => {
+				if (timerCount >= MAX_TIMERS) {
+					throw new Error(`Timer limit exceeded (max ${MAX_TIMERS} concurrent timers)`);
+				}
+				timerCount++;
+				return setTimeout(() => { timerCount--; fn(); }, Math.min(ms, 30000));
+			};
+		})(),
 		clearTimeout,
-		fetch: globalThis.fetch,
+		fetch: ctx.fetch, // Use sandboxed fetch from context (blocks internal IPs)
 		// Async completion tracking
 		__result: undefined as unknown,
 		__error: undefined as unknown,
 		__done: false,
 	};
+
+	// Freeze context objects to prevent prototype pollution
+	Object.freeze(ctx.db);
+	Object.freeze(ctx.auth);
+	Object.freeze(ctx.env);
+	Object.freeze(ctx.console);
+	Object.freeze(ctx.storage);
+	if (ctx.request) Object.freeze(ctx.request);
 
 	const vmContext = vm.createContext(sandbox);
 

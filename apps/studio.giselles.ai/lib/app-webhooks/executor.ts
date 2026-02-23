@@ -71,10 +71,11 @@ export async function executeWebhook(
 		...(webhook.headers || {}),
 	};
 
-	// HMAC-SHA256 signing
+	// HMAC-SHA256 signing — includes timestamp to prevent replay attacks
 	if (webhook.secret) {
+		const signedPayload = `${timestampHeader}.${body}`;
 		const signature = createHmac("sha256", webhook.secret)
-			.update(body)
+			.update(signedPayload)
 			.digest("hex");
 		headers["X-Vibexe-Signature"] = `sha256=${signature}`;
 	}
@@ -117,12 +118,26 @@ export async function executeWebhook(
 		};
 	}
 
+	// Build safe payload for logging — strip any sensitive data from headers
+	const safePayload = { ...payload } as Record<string, unknown>;
+	if (webhook.headers) {
+		const maskedHeaders: Record<string, string> = {};
+		for (const [k, v] of Object.entries(webhook.headers)) {
+			const lower = k.toLowerCase();
+			maskedHeaders[k] =
+				lower === "authorization" || lower.includes("secret") || lower.includes("token")
+					? "••••••••"
+					: v;
+		}
+		safePayload._request_headers = maskedHeaders;
+	}
+
 	// Log to database (fire-and-forget)
 	db.insert(builderAppWebhookLogs)
 		.values({
 			webhookDbId: webhook.dbId,
 			eventType,
-			payload: payload as unknown as Record<string, unknown>,
+			payload: safePayload,
 			responseStatus: result.status ?? null,
 			responseBody: result.responseBody ?? null,
 			attempt,

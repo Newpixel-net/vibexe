@@ -16,6 +16,45 @@ import {
 	getPublicUrl,
 } from "@/lib/app-storage/storage-manager";
 
+// ─── Sandboxed fetch — block requests to internal/private networks ──────────
+
+const BLOCKED_HOSTS = new Set([
+	"localhost",
+	"127.0.0.1",
+	"[::1]",
+	"0.0.0.0",
+	"metadata.google.internal",
+	"169.254.169.254", // AWS/GCP metadata endpoint
+]);
+
+function isPrivateIP(hostname: string): boolean {
+	// IPv4 private ranges: 10.x, 172.16-31.x, 192.168.x
+	const parts = hostname.split(".").map(Number);
+	if (parts.length === 4 && parts.every((p) => !Number.isNaN(p))) {
+		if (parts[0] === 10) return true;
+		if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+		if (parts[0] === 192 && parts[1] === 168) return true;
+		if (parts[0] === 0) return true;
+	}
+	return false;
+}
+
+function createSandboxedFetch(): typeof globalThis.fetch {
+	return async (input: RequestInfo | URL, init?: RequestInit) => {
+		const url = typeof input === "string" ? new URL(input) : input instanceof URL ? input : new URL(input.url);
+
+		if (url.protocol !== "http:" && url.protocol !== "https:") {
+			throw new Error(`Blocked: fetch only supports http/https (got ${url.protocol})`);
+		}
+
+		if (BLOCKED_HOSTS.has(url.hostname) || isPrivateIP(url.hostname)) {
+			throw new Error(`Blocked: cannot fetch internal/private address ${url.hostname}`);
+		}
+
+		return globalThis.fetch(input, init);
+	};
+}
+
 // ---- Types ----
 
 export interface FunctionContext {
@@ -224,7 +263,7 @@ export function buildFunctionContext(opts: BuildContextOpts): FunctionContext {
 		db: dbHelpers,
 		auth: user ? { userId: user.userId, email: user.email, role: user.role } : null,
 		env: secrets,
-		fetch: globalThis.fetch,
+		fetch: createSandboxedFetch(),
 		console: capturedConsole,
 		storage: storageHelpers,
 	};

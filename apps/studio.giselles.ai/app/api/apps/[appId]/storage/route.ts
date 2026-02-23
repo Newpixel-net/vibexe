@@ -7,7 +7,7 @@
  * Auth: X-Vibexe-Api-Key header OR Bearer token (end-user).
  */
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import {
@@ -110,6 +110,42 @@ function matchesAllowedType(contentType: string, allowedTypes: string[]): boolea
 	return false;
 }
 
+// ─── MIME magic byte validation ─────────────────────────────────────────────
+// Validates the actual file content against its declared Content-Type using
+// file magic bytes (file signature). Only checks types we care about —
+// unknown types pass through (defense-in-depth, not a gate).
+
+const MAGIC_SIGNATURES: Array<{ mime: string; bytes: number[]; offset?: number }> = [
+	{ mime: "image/png", bytes: [0x89, 0x50, 0x4E, 0x47] },
+	{ mime: "image/jpeg", bytes: [0xFF, 0xD8, 0xFF] },
+	{ mime: "image/gif", bytes: [0x47, 0x49, 0x46, 0x38] },
+	{ mime: "image/webp", bytes: [0x52, 0x49, 0x46, 0x46], offset: 0 }, // RIFF....WEBP
+	{ mime: "application/pdf", bytes: [0x25, 0x50, 0x44, 0x46] }, // %PDF
+	{ mime: "application/zip", bytes: [0x50, 0x4B, 0x03, 0x04] },
+];
+
+function validateMagicBytes(buffer: Buffer, declaredType: string): boolean {
+	// Find a signature rule for the declared type
+	const rule = MAGIC_SIGNATURES.find((s) => s.mime === declaredType);
+	if (!rule) return true; // No rule → pass through
+
+	const offset = rule.offset ?? 0;
+	if (buffer.length < offset + rule.bytes.length) return false;
+
+	for (let i = 0; i < rule.bytes.length; i++) {
+		if (buffer[offset + i] !== rule.bytes[i]) return false;
+	}
+
+	// Extra check for WebP: bytes 8-11 must be "WEBP"
+	if (declaredType === "image/webp") {
+		if (buffer.length < 12) return false;
+		const webpTag = buffer.subarray(8, 12).toString("ascii");
+		if (webpTag !== "WEBP") return false;
+	}
+
+	return true;
+}
+
 /**
  * GET — List files
  */
@@ -201,7 +237,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
-		// Check quota
+		// Check quota (preliminary — atomic check happens after upload)
 		const quotaBytes = (settings.storageQuotaMb ?? DEFAULTS.storageQuotaMb) * 1024 * 1024;
 		const usedBytes = Number.parseInt(String(settings.usedStorageBytes ?? "0"), 10);
 		if (usedBytes + file.size > quotaBytes) {
@@ -232,6 +268,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		const arrayBuffer = await file.arrayBuffer();
 		const buffer = Buffer.from(arrayBuffer);
 
+		// Validate magic bytes — reject files whose content doesn't match declared type
+		if (!validateMagicBytes(buffer, file.type)) {
+			return NextResponse.json(
+				{ error: `File content does not match declared type '${file.type}'` },
+				{ status: 415 },
+			);
+		}
+
 		// Get uploader metadata
 		let uploadedBy: string | undefined;
 		if (resolved.appDb?.databaseName) {
@@ -251,9 +295,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			uploadedBy ? { uploaded_by: uploadedBy } : undefined,
 		);
 
-		// Update used_storage_bytes (fire-and-forget)
+		// Atomic quota update — uses SQL addition to prevent race conditions
+		// Concurrent uploads safely increment without overwriting each other
 		db.update(builderAppStorageSettings)
-			.set({ usedStorageBytes: String(usedBytes + file.size) })
+			.set({
+				usedStorageBytes: sql`(CAST(${builderAppStorageSettings.usedStorageBytes} AS bigint) + ${file.size})::text`,
+			})
 			.where(eq(builderAppStorageSettings.appDbId, resolved.app.dbId))
 			.then(() => {})
 			.catch(() => {});

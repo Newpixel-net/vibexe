@@ -410,6 +410,14 @@ export async function buildApp(
 		const bundleJs = result.outputFiles?.[0]?.text || "";
 		log(`Bundle: ${Math.round(bundleJs.length / 1024)} KB`);
 
+		// Enforce bundle size limit (10 MB)
+		const MAX_BUNDLE_BYTES = 10 * 1024 * 1024;
+		if (bundleJs.length > MAX_BUNDLE_BYTES) {
+			throw new Error(
+				`Bundle too large: ${Math.round(bundleJs.length / 1024)} KB exceeds ${MAX_BUNDLE_BYTES / 1024 / 1024} MB limit. Reduce code size or split dependencies.`,
+			);
+		}
+
 		// 6. Write output
 		const outputDir = join(DEPLOY_ROOT, subdomain);
 		await mkdir(outputDir, { recursive: true });
