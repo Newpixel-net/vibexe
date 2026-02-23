@@ -129,9 +129,28 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 					{ status: 400 },
 				);
 			}
-			// Minimum interval: reject every-second patterns and sub-minute frequencies
-			// Block "* * * * *" (every minute) — minimum allowed interval is every 5 minutes
-			if (cronParts[0] === "*" && cronParts[1] === "*") {
+			// Minimum interval: reject sub-5-minute frequencies
+			// Block "* * * * *" (every minute), "*/1 * * * *", "*/2 * * * *", etc.
+			const minuteField = cronParts[0];
+			let tooFrequent = false;
+			if (minuteField === "*") {
+				// "* ..." = every minute
+				tooFrequent = true;
+			} else if (minuteField.startsWith("*/")) {
+				// "*/N ..." = every N minutes — must be >= 5
+				const interval = Number.parseInt(minuteField.slice(2), 10);
+				if (!Number.isNaN(interval) && interval < 5) {
+					tooFrequent = true;
+				}
+			} else if (minuteField.includes(",")) {
+				// "0,1,2,3,4 ..." = multiple minute marks — check spacing
+				const minutes = minuteField.split(",").map(Number).filter((n) => !Number.isNaN(n)).sort((a, b) => a - b);
+				if (minutes.length > 12) {
+					// More than 12 runs per hour = avg less than 5 min apart
+					tooFrequent = true;
+				}
+			}
+			if (tooFrequent) {
 				return NextResponse.json(
 					{ error: "Cron schedule too frequent: minimum interval is every 5 minutes (e.g. '*/5 * * * *')" },
 					{ status: 400 },

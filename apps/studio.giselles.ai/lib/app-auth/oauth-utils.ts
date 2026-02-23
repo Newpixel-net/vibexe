@@ -15,7 +15,18 @@ import {
 	builderApps,
 } from "@/db/schema";
 
-const HMAC_SECRET = process.env.COOKIE_SECRET ?? "fallback-secret";
+// Lazy HMAC secret — validated on first use, not at module load (build-time safety)
+let _hmacSecret: string | null = null;
+function getHmacSecret(): string {
+	if (!_hmacSecret) {
+		const secret = process.env.COOKIE_SECRET;
+		if (!secret) {
+			throw new Error("COOKIE_SECRET environment variable is required for OAuth state signing");
+		}
+		_hmacSecret = secret;
+	}
+	return _hmacSecret;
+}
 
 // ─── Nonce Store (prevents state replay within 5-minute window) ──────────────
 const usedNonces = new Map<string, number>(); // nonce -> timestamp
@@ -107,7 +118,7 @@ export function buildOAuthState(appId: string): string {
 	const nonce = randomBytes(16).toString("hex");
 	const ts = Date.now().toString();
 	const payload = `${appId}:${nonce}:${ts}`;
-	const sig = createHmac("sha256", HMAC_SECRET).update(payload).digest("hex");
+	const sig = createHmac("sha256", getHmacSecret()).update(payload).digest("hex");
 	return `${payload}:${sig}`;
 }
 
@@ -126,7 +137,7 @@ export function verifyOAuthState(
 
 	const [appId, nonce, ts, sig] = parts;
 	const payload = `${appId}:${nonce}:${ts}`;
-	const expected = createHmac("sha256", HMAC_SECRET)
+	const expected = createHmac("sha256", getHmacSecret())
 		.update(payload)
 		.digest("hex");
 

@@ -390,6 +390,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
+		// Reject oversized payloads (1 MB per record)
+		const bodySize = JSON.stringify(body).length;
+		if (bodySize > 1_000_000) {
+			return NextResponse.json(
+				{ error: `Record too large (${Math.round(bodySize / 1024)} KB). Maximum size is 1 MB.` },
+				{ status: 413 },
+			);
+		}
+
 		// RLS enforcement (skip for API key auth and internal tables)
 		let rlsAutoFields: Record<string, unknown> = {};
 		if (!ctx.apiKeyValid && !ctx.isInternal) {

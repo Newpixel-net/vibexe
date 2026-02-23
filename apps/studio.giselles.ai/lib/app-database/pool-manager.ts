@@ -23,6 +23,9 @@ const STATEMENT_TIMEOUT_MS = 30_000; // 30 seconds — prevents runaway queries 
 /** Map of database name → pool entry */
 const pools = new Map<string, PoolEntry>();
 
+/** In-flight pool creation promises to prevent duplicate pool creation */
+const pendingPools = new Map<string, Promise<Pool>>();
+
 /**
  * Build a connection string for an app database.
  * Uses the same host/port/credentials as the platform database.
@@ -77,6 +80,8 @@ async function evictIfNeeded(): Promise<void> {
 
 /**
  * Get or create a connection pool for the given app database.
+ * Uses a pending-promises map to prevent duplicate pool creation
+ * when concurrent requests arrive for the same database.
  */
 export async function getAppPool(databaseName: string): Promise<Pool> {
 	const existing = pools.get(databaseName);
@@ -85,21 +90,44 @@ export async function getAppPool(databaseName: string): Promise<Pool> {
 		return existing.pool;
 	}
 
-	await evictIfNeeded();
+	// Check if another request is already creating this pool
+	const pending = pendingPools.get(databaseName);
+	if (pending) {
+		return pending;
+	}
 
-	const pool = new Pool({
-		connectionString: buildConnectionString(databaseName),
-		max: CONNECTIONS_PER_POOL,
-		idleTimeoutMillis: IDLE_TIMEOUT_MS,
-		statement_timeout: STATEMENT_TIMEOUT_MS,
-	});
+	// Create pool with deduplication
+	const createPromise = (async () => {
+		// Double-check after awaiting (another request may have completed)
+		const recheck = pools.get(databaseName);
+		if (recheck) {
+			recheck.lastAccessed = Date.now();
+			return recheck.pool;
+		}
 
-	pools.set(databaseName, {
-		pool,
-		lastAccessed: Date.now(),
-	});
+		await evictIfNeeded();
 
-	return pool;
+		const pool = new Pool({
+			connectionString: buildConnectionString(databaseName),
+			max: CONNECTIONS_PER_POOL,
+			idleTimeoutMillis: IDLE_TIMEOUT_MS,
+			statement_timeout: STATEMENT_TIMEOUT_MS,
+		});
+
+		pools.set(databaseName, {
+			pool,
+			lastAccessed: Date.now(),
+		});
+
+		return pool;
+	})();
+
+	pendingPools.set(databaseName, createPromise);
+	try {
+		return await createPromise;
+	} finally {
+		pendingPools.delete(databaseName);
+	}
 }
 
 /**

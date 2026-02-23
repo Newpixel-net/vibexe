@@ -201,6 +201,7 @@ export function buildFunctionContext(opts: BuildContextOpts): FunctionContext {
 			assertSafeIdentifier(entity, "entity name");
 			const keys = Object.keys(data);
 			if (keys.length === 0) throw new Error("No fields provided for create");
+			if (keys.length > 100) throw new Error("Too many fields (max 100 per operation)");
 			for (const k of keys) assertSafeIdentifier(k, "field name");
 			const fields = keys.map((k) => `"${k}"`).join(", ");
 			const placeholders = keys.map((_, i) => `$${i + 1}`).join(", ");
@@ -217,6 +218,7 @@ export function buildFunctionContext(opts: BuildContextOpts): FunctionContext {
 			assertSafeIdentifier(entity, "entity name");
 			const keys = Object.keys(data);
 			if (keys.length === 0) throw new Error("No fields provided for update");
+			if (keys.length > 100) throw new Error("Too many fields (max 100 per operation)");
 			for (const k of keys) assertSafeIdentifier(k, "field name");
 			const setClauses = keys.map((k, i) => `"${k}" = $${i + 1}`);
 			setClauses.push(`"updated_at" = NOW()`);

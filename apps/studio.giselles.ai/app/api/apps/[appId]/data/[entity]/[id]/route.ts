@@ -201,6 +201,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 			return NextResponse.json({ error: "Request body must be a JSON object" }, { status: 400 });
 		}
 
+		// Reject oversized payloads (1 MB per record)
+		const bodySize = JSON.stringify(body).length;
+		if (bodySize > 1_000_000) {
+			return NextResponse.json(
+				{ error: `Record too large (${Math.round(bodySize / 1024)} KB). Maximum size is 1 MB.` },
+				{ status: 413 },
+			);
+		}
+
 		// Run beforeUpdate hook (can modify body or abort)
 		let hookBody = body;
 		if (!ctx.isInternal) {

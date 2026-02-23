@@ -12,7 +12,7 @@
 import { eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { db } from "@/db";
-import { type BuilderAppId, builderApps } from "@/db/schema";
+import { type BuilderAppId, builderApps, builderAppDatabases } from "@/db/schema";
 import { verifyApiKey } from "@/lib/app-database/api-keys";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 import { resolveAppUser } from "@/lib/app-database/rls";
@@ -65,10 +65,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		}
 	}
 	if (!authenticated) {
-		const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-		if (bearer) {
-			const user = await resolveAppUser(app.dbId, bearer);
-			if (user) authenticated = true;
+		// End-user Bearer token auth — need database name to look up sessions
+		const authHeader = request.headers.get("authorization");
+		if (authHeader?.startsWith("Bearer ")) {
+			const appDb = await db.query.builderAppDatabases.findFirst({
+				where: eq(builderAppDatabases.appDbId, app.dbId),
+				columns: { databaseName: true },
+			});
+			if (appDb) {
+				const user = await resolveAppUser(appDb.databaseName, request);
+				if (user) authenticated = true;
+			}
 		}
 	}
 	if (!authenticated) {
@@ -88,6 +95,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 	const encoder = new TextEncoder();
 
 	let heartbeat: ReturnType<typeof setInterval> | null = null;
+	let maxLifetimeTimer: ReturnType<typeof setTimeout> | null = null;
 	let eventHandler: DataEventCallback | null = null;
 	let cleaned = false;
 
@@ -95,8 +103,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		if (cleaned) return;
 		cleaned = true;
 		if (heartbeat) clearInterval(heartbeat);
+		if (maxLifetimeTimer) clearTimeout(maxLifetimeTimer);
 		if (eventHandler) offDataEvent(appId, eventHandler);
 		heartbeat = null;
+		maxLifetimeTimer = null;
 		eventHandler = null;
 	}
 
@@ -121,7 +131,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			}, 30_000);
 
 			// Safety net: max connection lifetime of 30 minutes to prevent zombie leaks
-			const maxLifetime = setTimeout(() => {
+			maxLifetimeTimer = setTimeout(() => {
 				cleanup();
 				try { controller.close(); } catch { /* already closed */ }
 			}, 30 * 60 * 1000);
@@ -143,7 +153,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 			// Cleanup on disconnect (abort signal)
 			request.signal.addEventListener("abort", () => {
-				clearTimeout(maxLifetime);
 				cleanup();
 				try { controller.close(); } catch { /* already closed */ }
 			});

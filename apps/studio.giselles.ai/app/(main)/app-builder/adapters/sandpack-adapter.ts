@@ -819,8 +819,8 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		};
 		// Inject runtime overrides so the SDK calls the correct server and app from within Sandpack's iframe
 		let sdkSetup = "";
-		if (apiOrigin) sdkSetup += `window.__VIBEXE_API_ORIGIN__ = "${apiOrigin}";\n`;
-		if (appId) sdkSetup += `window.__VIBEXE_APP_ID__ = "${appId}";\n`;
+		if (apiOrigin) sdkSetup += `window.__VIBEXE_API_ORIGIN__ = ${JSON.stringify(apiOrigin)};\n`;
+		if (appId) sdkSetup += `window.__VIBEXE_APP_ID__ = ${JSON.stringify(appId)};\n`;
 		sandpackFiles["/node_modules/@vibexe/sdk/index.js"] = {
 			code: sdkSetup + VIBEXE_SDK_SOURCE,
 			hidden: true,
