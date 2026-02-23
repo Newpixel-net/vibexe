@@ -22,6 +22,7 @@ import { INTERNAL_TABLES, getInternalSelectColumns } from "@/lib/app-database/in
 import { runEntityHook } from "@/lib/app-functions/hooks";
 import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 
 interface RouteParams {
 	params: Promise<{ appId: string; entity: string; id: string }>;
@@ -178,6 +179,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 			return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 		}
 
+		// Rate limit writes for end-users (API key / builder users bypass)
+		if (!ctx.apiKeyValid) {
+			const ip = getClientIp(request);
+			const rateCheck = checkRateLimit("data-write", `${appId}:${ip}`, 60, 60_000);
+			if (!rateCheck.allowed) {
+				return NextResponse.json(
+					{ error: "Too many write requests. Please try again later." },
+					{ status: 429, headers: { "Retry-After": String(Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)) } },
+				);
+			}
+		}
+
 		const rowId = Number.parseInt(id, 10);
 		if (Number.isNaN(rowId)) {
 			return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
@@ -320,6 +333,18 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 		const ctx = await resolveContext(appId, entityName, request);
 		if ("error" in ctx) {
 			return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+		}
+
+		// Rate limit writes for end-users (API key / builder users bypass)
+		if (!ctx.apiKeyValid) {
+			const ip = getClientIp(request);
+			const rateCheck = checkRateLimit("data-write", `${appId}:${ip}`, 60, 60_000);
+			if (!rateCheck.allowed) {
+				return NextResponse.json(
+					{ error: "Too many write requests. Please try again later." },
+					{ status: 429, headers: { "Retry-After": String(Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)) } },
+				);
+			}
 		}
 
 		const rowId = Number.parseInt(id, 10);

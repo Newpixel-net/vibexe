@@ -22,6 +22,7 @@ import { INTERNAL_TABLES, MAX_IN_FILTER_ITEMS, getInternalSelectColumns } from "
 import { runEntityHook } from "@/lib/app-functions/hooks";
 import { dispatchWebhooks } from "@/lib/app-webhooks/dispatcher";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 
 // ─── Advanced Filter Operators ──────────────────────────────────────────────
 
@@ -367,6 +368,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		const ctx = await resolveContext(appId, entityName, request);
 		if ("error" in ctx) {
 			return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+		}
+
+		// Rate limit writes for end-users (API key / builder users bypass)
+		if (!ctx.apiKeyValid) {
+			const ip = getClientIp(request);
+			const rateCheck = checkRateLimit("data-write", `${appId}:${ip}`, 60, 60_000);
+			if (!rateCheck.allowed) {
+				return NextResponse.json(
+					{ error: "Too many write requests. Please try again later." },
+					{ status: 429, headers: { "Retry-After": String(Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)) } },
+				);
+			}
 		}
 
 		const body = await request.json();
