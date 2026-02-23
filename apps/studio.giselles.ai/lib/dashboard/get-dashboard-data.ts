@@ -16,6 +16,7 @@ import {
 	builderAppAuthSettings,
 	builderAppTemplates,
 	builderAppFunctions,
+	builderAppStorageSettings,
 	workspaces,
 	teams,
 	users,
@@ -79,6 +80,24 @@ export interface SuggestedTemplate {
 	thumbnailUrl: string | null;
 }
 
+export interface ManageableApp {
+	id: string;
+	name: string;
+	description: string | null;
+	createdAt: string;
+	updatedAt: string;
+	deployment: { status: string; subdomain: string | null; deployedAt: string | null } | null;
+	entityCount: number;
+	functionCount: number;
+	usedStorageBytes: number;
+	storageQuotaMb: number;
+}
+
+export interface StorageStats {
+	totalUsedBytes: number;
+	totalQuotaMb: number;
+}
+
 export interface DashboardUser {
 	displayName: string;
 }
@@ -96,6 +115,8 @@ export interface DashboardData {
 	recentWorkflows: RecentWorkflow[];
 	activity: ActivityItem[];
 	suggestedTemplates: SuggestedTemplate[];
+	allApps: ManageableApp[];
+	storageStats: StorageStats;
 }
 
 // ====================================================================
@@ -360,6 +381,118 @@ async function fetchActivity(teamDbId: number): Promise<ActivityItem[]> {
 }
 
 // ====================================================================
+// ALL APPS FOR MANAGEMENT CAROUSEL
+// ====================================================================
+
+/**
+ * Fetch ALL apps (no limit) with lightweight management data for the
+ * Manage Your Apps carousel. Includes deployment info, entity/function
+ * counts, and storage usage per app.
+ */
+async function fetchAllAppsForManagement(teamDbId: number): Promise<ManageableApp[]> {
+	const result = await db.execute<{
+		id: string;
+		name: string;
+		description: string | null;
+		updated_at: string;
+		created_at: string;
+		deploy_status: string | null;
+		deploy_subdomain: string | null;
+		deployed_at: string | null;
+		entity_count: string;
+		function_count: string;
+		used_storage_bytes: string;
+		storage_quota_mb: string;
+	}>(sql`
+		SELECT
+			a.id,
+			a.name,
+			a.description,
+			a.updated_at,
+			a.created_at,
+			dep.status       AS deploy_status,
+			dep.subdomain    AS deploy_subdomain,
+			dep.deployed_at,
+			COALESCE(
+				CASE
+					WHEN d.schema_json IS NOT NULL
+						AND d.schema_json->'entities' IS NOT NULL
+						AND jsonb_typeof(d.schema_json->'entities') = 'array'
+					THEN jsonb_array_length(d.schema_json->'entities')
+					ELSE 0
+				END, 0
+			)::text AS entity_count,
+			COALESCE(fn.cnt, 0)::text AS function_count,
+			COALESCE(st.used_storage_bytes, '0') AS used_storage_bytes,
+			COALESCE(st.storage_quota_mb, 500)::text AS storage_quota_mb
+		FROM builder_apps a
+		LEFT JOIN LATERAL (
+			SELECT status, subdomain, deployed_at
+			FROM builder_deployments
+			WHERE app_db_id = a.db_id
+			ORDER BY deployed_at DESC NULLS LAST
+			LIMIT 1
+		) dep ON true
+		LEFT JOIN builder_app_databases d ON d.app_db_id = a.db_id
+		LEFT JOIN LATERAL (
+			SELECT COUNT(*)::int AS cnt
+			FROM builder_app_functions
+			WHERE app_db_id = a.db_id
+		) fn ON true
+		LEFT JOIN builder_app_storage_settings st ON st.app_db_id = a.db_id
+		WHERE a.team_db_id = ${teamDbId}
+		ORDER BY a.updated_at DESC
+	`);
+
+	return result.rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		description: row.description,
+		updatedAt: new Date(row.updated_at).toISOString(),
+		createdAt: new Date(row.created_at).toISOString(),
+		deployment: row.deploy_status
+			? {
+					status: row.deploy_status,
+					subdomain: row.deploy_subdomain,
+					deployedAt: row.deployed_at
+						? new Date(row.deployed_at).toISOString()
+						: null,
+				}
+			: null,
+		entityCount: Number.parseInt(row.entity_count, 10),
+		functionCount: Number.parseInt(row.function_count, 10),
+		usedStorageBytes: Number.parseInt(row.used_storage_bytes, 10) || 0,
+		storageQuotaMb: Number.parseInt(row.storage_quota_mb, 10) || 500,
+	}));
+}
+
+// ====================================================================
+// TOTAL STORAGE STATS
+// ====================================================================
+
+/**
+ * Aggregate storage usage across all apps for the Storage stat card.
+ */
+async function fetchTotalStorage(teamDbId: number): Promise<StorageStats> {
+	const result = await db.execute<{
+		total_used: string;
+		total_quota_mb: string;
+	}>(sql`
+		SELECT
+			COALESCE(SUM(CAST(st.used_storage_bytes AS bigint)), 0)::text AS total_used,
+			COALESCE(SUM(st.storage_quota_mb), 0)::text AS total_quota_mb
+		FROM builder_app_storage_settings st
+		INNER JOIN builder_apps a ON a.db_id = st.app_db_id
+		WHERE a.team_db_id = ${teamDbId}
+	`);
+
+	return {
+		totalUsedBytes: Number.parseInt(result.rows[0]?.total_used ?? "0", 10),
+		totalQuotaMb: Number.parseInt(result.rows[0]?.total_quota_mb ?? "0", 10),
+	};
+}
+
+// ====================================================================
 // TEMPLATE SUGGESTIONS
 // ====================================================================
 
@@ -450,6 +583,8 @@ export async function getDashboardData(
 		recentWorkflows,
 		activity,
 		suggestedTemplates,
+		allApps,
+		storageStats,
 	] = await Promise.all([
 		// User display name
 		db.query.users.findFirst({
@@ -477,6 +612,12 @@ export async function getDashboardData(
 
 		// Template suggestions
 		fetchSuggestedTemplates(),
+
+		// All apps for management carousel
+		fetchAllAppsForManagement(teamDbId),
+
+		// Aggregated storage for stat card
+		fetchTotalStorage(teamDbId),
 	]);
 
 	return {
@@ -492,5 +633,7 @@ export async function getDashboardData(
 		recentWorkflows,
 		activity,
 		suggestedTemplates,
+		allApps,
+		storageStats,
 	};
 }

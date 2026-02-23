@@ -646,4 +646,26 @@
 		background-size: 200% 100%;
 		animation: dash-shimmer 2s linear infinite;
 	}
+
+	/* Iframe shimmer loading placeholder */
+	.iframe-shimmer {
+		background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 100%);
+		background-size: 200% 100%;
+		animation: dash-shimmer 1.5s linear infinite;
+	}
+
+	/* Progress bar subtle glow */
+	.progress-glow {
+		box-shadow: 0 0 6px rgba(59, 130, 246, 0.3);
+	}
+
+	/* Coming Soon badge */
+	.coming-soon-badge {
+		background: rgba(255, 255, 255, 0.06);
+		color: rgba(255, 255, 255, 0.3);
+		font-size: 9px;
+		padding: 1px 6px;
+		border-radius: 4px;
+		letter-spacing: 0.02em;
+	}
 }

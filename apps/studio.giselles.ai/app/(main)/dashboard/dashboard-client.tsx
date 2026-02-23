@@ -12,10 +12,12 @@ import {
 	ArrowUpRight,
 	BookOpen,
 	Clock,
+	Coins,
 	Code2,
 	FileCode2,
 	GitBranch,
 	Globe,
+	HardDrive,
 	Layers,
 	Loader2,
 	Plus,
@@ -23,6 +25,7 @@ import {
 	Shield,
 	Sparkles,
 	Users,
+	Wallet,
 	Workflow,
 	Zap,
 } from "lucide-react";
@@ -31,6 +34,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DashboardData, ActivityItem, EnhancedApp, RecentWorkflow } from "@/lib/dashboard/get-dashboard-data";
 import { HeroPrompt } from "./hero-prompt";
+import { ManageAppsCarousel } from "./manage-apps-carousel";
 
 // ====================================================================
 // ANIMATED COUNTER HOOK
@@ -75,35 +79,83 @@ function useCountUp(target: number, duration = 1200) {
 }
 
 // ====================================================================
+// FORMAT HELPERS
+// ====================================================================
+
+function formatBytes(bytes: number): string {
+	if (bytes === 0) return "0 B";
+	const k = 1024;
+	const sizes = ["B", "KB", "MB", "GB"];
+	const i = Math.floor(Math.log(bytes) / Math.log(k));
+	return `${(bytes / k ** i).toFixed(i > 1 ? 1 : 0)} ${sizes[i]}`;
+}
+
+// ====================================================================
 // STAT CARD
 // ====================================================================
+
+interface StatCardProps {
+	label: string;
+	value: number;
+	icon: React.ElementType;
+	color: string;
+	onQuickAdd?: () => void;
+	quickAddLabel?: string;
+	suffix?: string;
+	progress?: number;
+	displayValue?: string;
+	comingSoon?: boolean;
+}
 
 function StatCard({
 	label,
 	value,
 	icon: Icon,
 	color,
-}: {
-	label: string;
-	value: number;
-	icon: React.ElementType;
-	color: string;
-}) {
-	const { value: animated, ref } = useCountUp(value);
+	onQuickAdd,
+	quickAddLabel,
+	suffix,
+	progress,
+	displayValue,
+	comingSoon,
+}: StatCardProps) {
+	const { value: animated, ref } = useCountUp(comingSoon ? 0 : value);
 	return (
-		<div className="glass-card p-4 flex items-center gap-3 group hover:bg-white/[0.06] transition-colors">
+		<div className="glass-card p-4 flex items-center gap-3 group hover:bg-white/[0.06] transition-colors relative">
 			<div
 				className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0"
 				style={{ background: `${color}15` }}
 			>
 				<Icon className="h-4 w-4" style={{ color }} />
 			</div>
-			<div>
-				<span ref={ref} className="text-lg font-semibold text-white/90 tabular-nums">
-					{animated}
-				</span>
+			<div className="flex-1 min-w-0">
+				<div className="flex items-center gap-1.5">
+					<span ref={ref} className="text-lg font-semibold text-white/90 tabular-nums">
+						{displayValue ?? animated}
+					</span>
+					{suffix && <span className="text-xs text-white/30">{suffix}</span>}
+					{comingSoon && <span className="coming-soon-badge">Coming Soon</span>}
+				</div>
 				<p className="text-[11px] text-white/30 leading-tight">{label}</p>
+				{progress !== undefined && (
+					<div className="mt-1.5 h-1 bg-white/[0.06] rounded-full overflow-hidden">
+						<div
+							className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all"
+							style={{ width: `${Math.min(progress, 100)}%` }}
+						/>
+					</div>
+				)}
 			</div>
+			{onQuickAdd && (
+				<button
+					type="button"
+					onClick={onQuickAdd}
+					className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] text-white/30 hover:text-white/50 hover:bg-white/[0.06] transition-colors opacity-0 group-hover:opacity-100"
+				>
+					<Plus className="h-2.5 w-2.5" />
+					{quickAddLabel || "New"}
+				</button>
+			)}
 		</div>
 	);
 }
@@ -324,7 +376,12 @@ export function DashboardClient({ data }: DashboardClientProps) {
 		[isCreating, router],
 	);
 
-	const { stats, recentApps, recentWorkflows, activity, user } = data;
+	const { stats, recentApps, recentWorkflows, activity, user, allApps, storageStats } = data;
+
+	const storageProgressPct =
+		storageStats.totalQuotaMb > 0
+			? (storageStats.totalUsedBytes / (storageStats.totalQuotaMb * 1024 * 1024)) * 100
+			: 0;
 
 	return (
 		<div className="max-w-6xl mx-auto px-6 py-6">
@@ -338,15 +395,63 @@ export function DashboardClient({ data }: DashboardClientProps) {
 			{/* Hero Prompt */}
 			<HeroPrompt />
 
-			{/* Stats Bar */}
+			{/* Manage Your Apps Carousel */}
+			<ManageAppsCarousel apps={allApps} />
+
+			{/* Stats Row 1 */}
 			<div
-				className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8 dash-animate-fade-up"
+				className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3 dash-animate-fade-up"
 				style={{ animationDelay: "0.15s" }}
 			>
-				<StatCard label="Apps" value={stats.totalApps} icon={Layers} color="hsl(219, 90%, 60%)" />
-				<StatCard label="Workflows" value={stats.totalWorkflows} icon={Workflow} color="hsl(275, 96%, 60%)" />
+				<StatCard
+					label="Apps"
+					value={stats.totalApps}
+					icon={Layers}
+					color="hsl(219, 90%, 60%)"
+					onQuickAdd={() => handleQuickCreate("app")}
+					quickAddLabel="New"
+				/>
+				<StatCard
+					label="Apps Storage"
+					value={0}
+					displayValue={formatBytes(storageStats.totalUsedBytes)}
+					suffix={storageStats.totalQuotaMb > 0 ? `/ ${storageStats.totalQuotaMb} MB` : ""}
+					icon={HardDrive}
+					color="hsl(192, 73%, 84%)"
+					progress={storageProgressPct}
+				/>
 				<StatCard label="Live Deploys" value={stats.liveDeployments} icon={Rocket} color="hsl(141, 100%, 61%)" />
 				<StatCard label="Entities" value={stats.totalEntities} icon={FileCode2} color="hsl(178, 94%, 49%)" />
+			</div>
+
+			{/* Stats Row 2 */}
+			<div
+				className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8 dash-animate-fade-up"
+				style={{ animationDelay: "0.18s" }}
+			>
+				<StatCard
+					label="Workflows"
+					value={stats.totalWorkflows}
+					icon={Workflow}
+					color="hsl(275, 96%, 60%)"
+					onQuickAdd={() => handleQuickCreate("workflow")}
+					quickAddLabel="New"
+				/>
+				<StatCard
+					label="AI Tokens"
+					value={0}
+					icon={Coins}
+					color="hsl(45, 93%, 58%)"
+					comingSoon
+				/>
+				<StatCard
+					label="Wallet"
+					value={0}
+					displayValue="$0.00"
+					icon={Wallet}
+					color="hsl(160, 84%, 39%)"
+					comingSoon
+				/>
 			</div>
 
 			{/* Bento Grid — Apps (60%) + Workflows (40%) */}
