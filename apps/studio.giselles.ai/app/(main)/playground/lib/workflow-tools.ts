@@ -150,6 +150,55 @@ export function createWorkflowTools() {
 				),
 			}),
 			execute: async (plan) => {
+				// Validate unique tempIds — duplicate tempIds cause silent node loss during build
+				const tempIds = plan.nodes.map((n) => n.tempId);
+				const seen = new Set<string>();
+				const duplicates: string[] = [];
+				for (const id of tempIds) {
+					if (seen.has(id)) duplicates.push(id);
+					seen.add(id);
+				}
+				if (duplicates.length > 0) {
+					return {
+						success: false,
+						plan,
+						message: `Plan has duplicate tempIds: ${duplicates.join(", ")}. Each node must have a unique tempId.`,
+					};
+				}
+
+				// Validate appEntry exists
+				if (!plan.nodes.some((n) => n.type === "appEntry")) {
+					return {
+						success: false,
+						plan,
+						message: "Plan is missing a Start (appEntry) node. Every workflow must have a Start node.",
+					};
+				}
+
+				// Validate end node exists
+				if (!plan.nodes.some((n) => n.type === "end")) {
+					return {
+						success: false,
+						plan,
+						message: "Plan is missing an End node. Every workflow must have an End node.",
+					};
+				}
+
+				// Validate connections reference valid tempIds
+				const validTempIds = new Set(tempIds);
+				const badConns: string[] = [];
+				for (const conn of plan.connections) {
+					if (!validTempIds.has(conn.from)) badConns.push(`from "${conn.from}"`);
+					if (!validTempIds.has(conn.to)) badConns.push(`to "${conn.to}"`);
+				}
+				if (badConns.length > 0) {
+					return {
+						success: false,
+						plan,
+						message: `Plan has connections referencing non-existent nodes: ${badConns.join(", ")}. Fix the connections to use valid tempIds.`,
+					};
+				}
+
 				return {
 					success: true,
 					plan,
@@ -433,10 +482,25 @@ export function createWorkflowTools() {
 							if (!pieceName || !actionName) {
 								return errResult("pieceName and actionName are required for integration nodes");
 							}
+							// Resolve real piece version if not explicitly provided
+							let resolvedVersion = pieceVersion ?? "0.0.0";
+							if (!pieceVersion) {
+								try {
+									const { inspectPiece } = await import(
+										"@giselles-ai/activepieces-adapter/server"
+									);
+									const info = await inspectPiece(pieceName);
+									if (info.version && info.version !== "0.0.0") {
+										resolvedVersion = info.version;
+									}
+								} catch {
+									// Fall back to "0.0.0" — piece will still work at runtime
+								}
+							}
 							node = nodeFactories.create("integration", {
 								pieceName,
 								actionName,
-								pieceVersion: pieceVersion ?? "0.0.0",
+								pieceVersion: resolvedVersion,
 							});
 							break;
 						}
@@ -779,6 +843,7 @@ export function createWorkflowTools() {
 					}
 
 					// Validate that all {{nodeId:outputId}} references point to connected nodes
+					// and that the referenced outputId actually exists on the source node
 					const connectedNodeIds = new Set(
 						workspace.connections
 							.filter((c) => c.inputNode.id === nodeId)
@@ -789,12 +854,23 @@ export function createWorkflowTools() {
 					let validateMatch: RegExpExecArray | null;
 					validateMatch = validateRefPattern.exec(prompt);
 					while (validateMatch !== null) {
-						const refNodeId = validateMatch[1];
-						if (!connectedNodeIds.has(refNodeId)) {
-							const refNode = workspace.nodes.find((n) => n.id === refNodeId);
-							const refName = refNode?.name ?? refNodeId;
-							const targetName = node.name ?? nodeId;
-							promptWarnings.push(`Reference {{${refNodeId}:${validateMatch[2]}}} in prompt for "${targetName}" points to node "${refName}" which is NOT connected to "${targetName}". Add a connection first, or this reference will be empty at runtime.`);
+						const refNodeId = validateMatch[1] as string;
+						const refOutputId = validateMatch[2] as string;
+						const refNode = workspace.nodes.find((n) => (n.id as string) === refNodeId);
+						const refName = refNode?.name ?? refNodeId;
+						const targetName = node.name ?? nodeId;
+
+						if (!refNode) {
+							promptWarnings.push(`Reference {{${refNodeId}:${refOutputId}}} in prompt for "${targetName}" points to node "${refNodeId}" which does NOT exist. Check the node ID.`);
+						} else if (!connectedNodeIds.has(refNodeId as `nd-${string}`)) {
+							promptWarnings.push(`Reference {{${refNodeId}:${refOutputId}}} in prompt for "${targetName}" points to node "${refName}" which is NOT connected to "${targetName}". Add a connection first, or this reference will be empty at runtime.`);
+						} else {
+							// Verify outputId exists on the referenced node
+							const outputExists = refNode.outputs.some((o) => (o.id as string) === refOutputId);
+							if (!outputExists) {
+								const validOutputs = refNode.outputs.map((o) => o.id).join(", ");
+								promptWarnings.push(`Reference {{${refNodeId}:${refOutputId}}} in prompt for "${targetName}" uses outputId "${refOutputId}" which does NOT exist on node "${refName}". Valid outputs: ${validOutputs}`);
+							}
 						}
 						validateMatch = validateRefPattern.exec(prompt);
 					}
@@ -947,6 +1023,12 @@ export function createWorkflowTools() {
 				try {
 					const workspace = await getWorkspaceCached(workspaceId);
 					const warnings: string[] = [];
+
+					// Check Start (appEntry) node exists
+					const startNode = workspace.nodes.find((n) => n.content.type === "appEntry");
+					if (!startNode) {
+						warnings.push(`MISSING START NODE: No Start (appEntry) node found. Add one with add_node({ type: "appEntry" }).`);
+					}
 
 					// Check every textGeneration/contentGeneration node has a non-empty prompt
 					for (const node of workspace.nodes) {

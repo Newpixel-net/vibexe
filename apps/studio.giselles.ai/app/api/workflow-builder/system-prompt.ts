@@ -116,7 +116,7 @@ The Start node is ALWAYS the first node. The End node is ALWAYS the last node. T
 ### Integration Nodes (Activepieces — ${INSTALLED_COUNT} installed third-party service actions)
 
 10. **integration** - Execute third-party service actions via Activepieces
-    - Requires: pieceName, actionName, pieceVersion (pieceVersion defaults to "0.0.0")
+    - Requires: pieceName, actionName (pieceVersion is auto-resolved from installed packages)
     - Input: "input" accessor
     - Output: "action-result" accessor
     - **IMPORTANT**: When the user asks for automation, notifications, data sync, CRM, or any third-party service, ALWAYS use integration nodes. Do NOT default to just textGeneration — integration nodes are the core differentiator.
