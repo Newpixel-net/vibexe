@@ -582,3 +582,68 @@
 		pointer-events: none;
 	}
 }
+
+/* ===== Dashboard Hero Animations ===== */
+
+@keyframes dash-fade-up {
+	from { opacity: 0; transform: translateY(16px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dash-gradient-shift {
+	0% { background-position: 0% 50%; }
+	50% { background-position: 100% 50%; }
+	100% { background-position: 0% 50%; }
+}
+
+@keyframes dash-cursor-blink {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0; }
+}
+
+@keyframes dash-dot-breathe {
+	0%, 100% { opacity: 0.15; transform: scale(1); }
+	50% { opacity: 0.25; transform: scale(1.15); }
+}
+
+@keyframes dash-glow-ring {
+	0%, 100% { box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.15), 0 0 20px rgba(59, 130, 246, 0.06); }
+	50% { box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.3), 0 0 32px rgba(59, 130, 246, 0.12); }
+}
+
+@keyframes dash-pill-slide {
+	from { transform: scaleX(0.92); opacity: 0.7; }
+	to { transform: scaleX(1); opacity: 1; }
+}
+
+@keyframes dash-shimmer {
+	0% { background-position: -200% 0; }
+	100% { background-position: 200% 0; }
+}
+
+@keyframes dash-launch-burst {
+	0% { transform: scale(1); opacity: 1; }
+	50% { transform: scale(1.04); opacity: 0.9; }
+	100% { transform: scale(1); opacity: 1; }
+}
+
+@layer utilities {
+	.dash-animate-fade-up {
+		animation: dash-fade-up 0.5s ease-out both;
+	}
+	.dash-animate-gradient {
+		background-size: 200% 200%;
+		animation: dash-gradient-shift 6s ease infinite;
+	}
+	.dash-animate-cursor {
+		animation: dash-cursor-blink 1s step-end infinite;
+	}
+	.dash-animate-glow {
+		animation: dash-glow-ring 3s ease-in-out infinite;
+	}
+	.dash-animate-shimmer {
+		background: linear-gradient(90deg, transparent 33%, rgba(255,255,255,0.04) 50%, transparent 67%);
+		background-size: 200% 100%;
+		animation: dash-shimmer 2s linear infinite;
+	}
+}

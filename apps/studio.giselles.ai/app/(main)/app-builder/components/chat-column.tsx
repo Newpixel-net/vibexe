@@ -33,6 +33,7 @@ import {
 	X,
 	Zap,
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -446,6 +447,28 @@ export function ChatColumn({
 	});
 
 	const isLoading = status === "submitted" || status === "streaming";
+
+	// Auto-submit from ?prompt= query param (dashboard → builder flow)
+	const searchParams = useSearchParams();
+	const autoSubmitFired = useRef(false);
+	useEffect(() => {
+		if (autoSubmitFired.current) return;
+		const promptParam = searchParams.get("prompt");
+		if (!promptParam || !hasMounted) return;
+
+		// Wait for message loading to settle, then auto-send
+		const timer = setTimeout(() => {
+			if (autoSubmitFired.current) return;
+			autoSubmitFired.current = true;
+			sendMessage({ text: promptParam });
+			// Clean up URL (remove ?prompt=)
+			const url = new URL(window.location.href);
+			url.searchParams.delete("prompt");
+			window.history.replaceState({}, "", url.pathname);
+		}, 800);
+
+		return () => clearTimeout(timer);
+	}, [searchParams, hasMounted, sendMessage]);
 
 	// Notify parent when generating state changes (for preview loading overlay)
 	useEffect(() => {
