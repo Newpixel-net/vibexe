@@ -3,30 +3,30 @@
 /**
  * ManageAppsCarousel — Hero carousel for managing all apps.
  *
- * Live iframe preview for deployed apps, rich info card for non-deployed apps,
- * navigation (arrows + dropdown), quick stats panel, and action buttons.
+ * Live interactive iframe preview for ALL apps (deployed via subdomain URL,
+ * non-deployed via Sandpack preview URL). Auto-enables share tokens for
+ * apps that don't have one yet.
  */
 
 import {
 	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
-	Clock,
-	Code2,
 	ExternalLink,
-	FileCode2,
+	Eye,
 	Ghost,
+	Globe,
 	HardDrive,
 	Layers,
+	Loader2,
 	Pencil,
 	Power,
 	Rocket,
-	Shield,
 	Trash2,
 	Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ManageableApp } from "@/lib/dashboard/get-dashboard-data";
 
 // ====================================================================
@@ -140,14 +140,59 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [iframeLoaded, setIframeLoaded] = useState(false);
 	const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
+	const [interactMode, setInteractMode] = useState(false);
 	const dropdownRef = useRef<HTMLDivElement>(null);
 
+	// Track share tokens for apps that need them generated client-side
+	const [tokenOverrides, setTokenOverrides] = useState<Record<string, string>>({});
+	const [enablingShare, setEnablingShare] = useState(false);
+
 	const app = apps[currentIndex];
+
+	const isDeployed = app?.deployment?.status === "live" && app?.deployment?.subdomain;
+	const deployUrl = isDeployed ? `https://vibexe.online/apps/${app.deployment!.subdomain}/` : null;
+	const shareToken = tokenOverrides[app?.id] ?? app?.shareToken;
+	const previewUrl = shareToken ? `https://vibexe.online/preview/${shareToken}` : null;
+
+	// The URL to show in the iframe: deployed URL or preview URL
+	const iframeSrc = deployUrl ?? previewUrl;
+
+	// Auto-enable share token for current app if it doesn't have one
+	useEffect(() => {
+		if (!app || isDeployed || shareToken || enablingShare) return;
+
+		let cancelled = false;
+		setEnablingShare(true);
+
+		fetch(`/api/app-builder/apps/${app.id}/share`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ enabled: true }),
+		})
+			.then((res) => res.json())
+			.then((data) => {
+				if (!cancelled && data.shareToken) {
+					setTokenOverrides((prev) => ({ ...prev, [app.id]: data.shareToken }));
+				}
+			})
+			.catch(() => {})
+			.finally(() => {
+				if (!cancelled) setEnablingShare(false);
+			});
+
+		return () => { cancelled = true; };
+	}, [app?.id, isDeployed, shareToken, enablingShare]);
+
+	// Reset interact mode on slide change
+	useEffect(() => {
+		setInteractMode(false);
+	}, [currentIndex]);
 
 	const goTo = useCallback(
 		(index: number, dir: "left" | "right") => {
 			setSlideDir(dir);
 			setIframeLoaded(false);
+			setInteractMode(false);
 			setTimeout(() => {
 				setCurrentIndex(index);
 				setSlideDir(null);
@@ -191,9 +236,6 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 			</div>
 		);
 	}
-
-	const isDeployed = app.deployment?.status === "live" && app.deployment?.subdomain;
-	const deployUrl = isDeployed ? `https://vibexe.online/apps/${app.deployment!.subdomain}/` : null;
 
 	return (
 		<>
@@ -278,77 +320,71 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 					{/* Iframe preview */}
 					<div className="flex-1 min-w-0">
 						<div className="relative aspect-[16/10] rounded-xl overflow-hidden bg-white/[0.02] border border-white/[0.06]">
-							{isDeployed && deployUrl ? (
+							{iframeSrc ? (
 								<>
+									{/* Shimmer loader */}
 									{!iframeLoaded && (
-										<div className="absolute inset-0 iframe-shimmer rounded-xl" />
+										<div className="absolute inset-0 iframe-shimmer rounded-xl z-10" />
 									)}
+
+									{/* Interactive iframe */}
 									<iframe
-										src={deployUrl}
+										src={iframeSrc}
 										title={`Preview: ${app.name}`}
-										className="absolute inset-0 w-full h-full pointer-events-none"
-										sandbox="allow-scripts allow-same-origin"
+										className={`absolute inset-0 w-full h-full transition-opacity duration-300 ${
+											iframeLoaded ? "opacity-100" : "opacity-0"
+										} ${interactMode ? "" : "pointer-events-none"}`}
+										sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
 										loading="lazy"
 										onLoad={() => setIframeLoaded(true)}
 									/>
-								</>
-							) : (
-								<div className="absolute inset-0 flex flex-col p-5 overflow-hidden">
-									{/* App name + created */}
-									<div className="flex items-center gap-2 mb-3">
-										<div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-											<Code2 className="h-4 w-4 text-blue-400" />
-										</div>
-										<div className="flex-1 min-w-0">
-											<h4 className="text-sm font-medium text-white/70 truncate">{app.name}</h4>
-											<span className="text-[10px] text-white/25">Created {timeAgo(app.createdAt)}</span>
-										</div>
+
+									{/* Status badge overlay */}
+									<div className="absolute top-2.5 left-2.5 z-20">
+										{isDeployed ? (
+											<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 backdrop-blur-sm text-[10px] font-medium text-emerald-400 border border-emerald-500/20">
+												<Globe className="h-2.5 w-2.5" />
+												LIVE
+											</span>
+										) : (
+											<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/20 backdrop-blur-sm text-[10px] font-medium text-blue-400 border border-blue-500/20">
+												<Eye className="h-2.5 w-2.5" />
+												PREVIEW
+											</span>
+										)}
 									</div>
 
-									{/* Description */}
-									{app.description && (
-										<p className="text-[11px] text-white/30 line-clamp-2 mb-3 leading-relaxed">{app.description}</p>
+									{/* Click-to-interact overlay */}
+									{!interactMode && iframeLoaded && (
+										<button
+											type="button"
+											onClick={() => setInteractMode(true)}
+											className="absolute inset-0 z-10 flex items-center justify-center bg-transparent hover:bg-black/10 transition-colors group cursor-pointer"
+										>
+											<span className="px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm text-[11px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5">
+												<Eye className="h-3 w-3" />
+												Click to interact
+											</span>
+										</button>
 									)}
-
-									{/* Quick stats chips */}
-									<div className="flex flex-wrap gap-2 mb-4">
-										{app.entityCount > 0 && (
-											<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.04] text-[10px] text-white/40">
-												<FileCode2 className="h-2.5 w-2.5" />
-												{app.entityCount} entities
-											</span>
-										)}
-										{app.functionCount > 0 && (
-											<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.04] text-[10px] text-white/40">
-												<Zap className="h-2.5 w-2.5" />
-												{app.functionCount} functions
-											</span>
-										)}
-										<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 text-[10px] text-amber-400/70">
-											<Clock className="h-2.5 w-2.5" />
-											Not deployed
-										</span>
-									</div>
-
-									{/* CTA */}
-									<div className="mt-auto flex items-center gap-2">
-										<button
-											type="button"
-											onClick={() => router.push(`/app-builder/${app.id}`)}
-											className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors"
-										>
-											<Pencil className="h-3 w-3" />
-											Open in Builder
-										</button>
-										<button
-											type="button"
-											onClick={() => router.push(`/app-builder/${app.id}`)}
-											className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-white/30 hover:text-white/50 hover:bg-white/[0.06] transition-colors"
-										>
-											<Rocket className="h-3 w-3" />
-											Deploy
-										</button>
-									</div>
+								</>
+							) : enablingShare ? (
+								<div className="absolute inset-0 flex flex-col items-center justify-center">
+									<Loader2 className="h-6 w-6 text-blue-400/40 animate-spin mb-2" />
+									<span className="text-[11px] text-white/25">Loading preview...</span>
+								</div>
+							) : (
+								<div className="absolute inset-0 flex flex-col items-center justify-center">
+									<Ghost className="h-8 w-8 text-white/10 mb-2" />
+									<span className="text-xs text-white/20 mb-2">No preview available</span>
+									<button
+										type="button"
+										onClick={() => router.push(`/app-builder/${app.id}`)}
+										className="text-[10px] text-blue-400/60 hover:text-blue-400 transition-colors flex items-center gap-1"
+									>
+										<Pencil className="h-3 w-3" />
+										Open in Builder
+									</button>
 								</div>
 							)}
 						</div>
@@ -423,16 +459,14 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 					<button
 						type="button"
 						onClick={() => {
-							if (deployUrl) {
-								window.open(deployUrl, "_blank");
-							} else {
-								router.push(`/app-builder/${app.id}`);
-							}
+							const url = deployUrl ?? previewUrl;
+							if (url) window.open(url, "_blank");
+							else router.push(`/app-builder/${app.id}`);
 						}}
 						className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-white/40 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
 					>
 						<ExternalLink className="h-3 w-3" />
-						{isDeployed ? "Preview" : "Open"}
+						{isDeployed ? "Open Live" : "Preview"}
 					</button>
 
 					<button

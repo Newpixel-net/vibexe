@@ -91,6 +91,7 @@ export interface ManageableApp {
 	functionCount: number;
 	usedStorageBytes: number;
 	storageQuotaMb: number;
+	shareToken: string | null;
 }
 
 export interface StorageStats {
@@ -403,6 +404,7 @@ async function fetchAllAppsForManagement(teamDbId: number): Promise<ManageableAp
 		function_count: string;
 		used_storage_bytes: string;
 		storage_quota_mb: string;
+		share_token: string | null;
 	}>(sql`
 		SELECT
 			a.id,
@@ -410,6 +412,7 @@ async function fetchAllAppsForManagement(teamDbId: number): Promise<ManageableAp
 			a.description,
 			a.updated_at,
 			a.created_at,
+			a.share_token,
 			dep.status       AS deploy_status,
 			dep.subdomain    AS deploy_subdomain,
 			dep.deployed_at,
@@ -463,6 +466,7 @@ async function fetchAllAppsForManagement(teamDbId: number): Promise<ManageableAp
 		functionCount: Number.parseInt(row.function_count, 10),
 		usedStorageBytes: Number.parseInt(row.used_storage_bytes, 10) || 0,
 		storageQuotaMb: Number.parseInt(row.storage_quota_mb, 10) || 500,
+		shareToken: row.share_token,
 	}));
 }
 
