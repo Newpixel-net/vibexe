@@ -50,6 +50,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 	const encoder = new TextEncoder();
 
+	let heartbeat: ReturnType<typeof setInterval> | null = null;
+	let eventHandler: DataEventCallback | null = null;
+	let cleaned = false;
+
+	function cleanup() {
+		if (cleaned) return;
+		cleaned = true;
+		if (heartbeat) clearInterval(heartbeat);
+		if (eventHandler) offDataEvent(appId, eventHandler);
+		heartbeat = null;
+		eventHandler = null;
+	}
+
 	const stream = new ReadableStream({
 		start(controller) {
 			// Send initial connection event
@@ -60,40 +73,47 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			);
 
 			// Heartbeat every 30s to keep connection alive
-			const heartbeat = setInterval(() => {
+			heartbeat = setInterval(() => {
 				try {
 					controller.enqueue(encoder.encode(": ping\n\n"));
 				} catch {
-					clearInterval(heartbeat);
+					// enqueue failed = client disconnected
+					cleanup();
+					try { controller.close(); } catch { /* already closed */ }
 				}
 			}, 30_000);
 
+			// Safety net: max connection lifetime of 30 minutes to prevent zombie leaks
+			const maxLifetime = setTimeout(() => {
+				cleanup();
+				try { controller.close(); } catch { /* already closed */ }
+			}, 30 * 60 * 1000);
+
 			// Listen for data events
 			const onEvent: DataEventCallback = (event: DataChangeEvent) => {
-				// Filter by entity if specified
 				if (entityFilter && !entityFilter.has(event.entity)) return;
-
 				try {
 					controller.enqueue(
 						encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
 					);
 				} catch {
-					// Client disconnected — cleanup will happen via cancel()
+					cleanup();
 				}
 			};
+			eventHandler = onEvent;
 
 			onDataEvent(appId, onEvent);
 
-			// Cleanup on disconnect
+			// Cleanup on disconnect (abort signal)
 			request.signal.addEventListener("abort", () => {
-				clearInterval(heartbeat);
-				offDataEvent(appId, onEvent);
-				try {
-					controller.close();
-				} catch {
-					// Already closed
-				}
+				clearTimeout(maxLifetime);
+				cleanup();
+				try { controller.close(); } catch { /* already closed */ }
 			});
+		},
+		cancel() {
+			// ReadableStream cancel — called when consumer drops the stream
+			cleanup();
 		},
 	});
 

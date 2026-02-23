@@ -59,3 +59,16 @@ export function offDataEvent(
 ): void {
 	emitter.off(channelKey(appId), callback);
 }
+
+/** Get the number of active listeners for an app (for debugging/monitoring). */
+export function getListenerCount(appId: string): number {
+	return emitter.listenerCount(channelKey(appId));
+}
+
+/** Get total listener count across all channels. */
+export function getTotalListenerCount(): number {
+	return emitter.eventNames().reduce(
+		(sum, name) => sum + emitter.listenerCount(name),
+		0,
+	);
+}
