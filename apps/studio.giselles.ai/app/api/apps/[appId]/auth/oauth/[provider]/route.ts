@@ -18,6 +18,7 @@ import {
 	getAppOAuthCredentials,
 	buildOAuthState,
 } from "@/lib/app-auth/oauth-utils";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 
 interface RouteParams {
 	params: Promise<{ appId: string; provider: string }>;
@@ -28,6 +29,16 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "";
 export async function GET(_request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId, provider: providerParam } = await params;
+
+		// Rate limit: 20 OAuth initiations per IP per hour
+		const ip = getClientIp(_request);
+		const rateCheck = checkRateLimit("oauth-init", `${appId}:${ip}`, 20, 60 * 60 * 1000);
+		if (!rateCheck.allowed) {
+			return NextResponse.json(
+				{ error: "Too many OAuth attempts. Please try again later." },
+				{ status: 429 },
+			);
+		}
 
 		if (!isValidProvider(providerParam)) {
 			return NextResponse.json(

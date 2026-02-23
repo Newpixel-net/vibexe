@@ -54,6 +54,19 @@ function isBlockedUrl(urlStr: string): string | null {
 	return null;
 }
 
+// Valid base event types (may optionally have :entityName suffix for entity events)
+const VALID_BASE_EVENTS = new Set([
+	"entity.created", "entity.updated", "entity.deleted",
+	"user.signup", "user.signin",
+]);
+const EVENT_PATTERN = /^[a-z][a-z0-9_.]*(?::[a-zA-Z_][a-zA-Z0-9_-]*)?$/;
+
+function isValidEvent(event: string): boolean {
+	if (!EVENT_PATTERN.test(event) || event.length > 128) return false;
+	const base = event.includes(":") ? event.split(":")[0] : event;
+	return VALID_BASE_EVENTS.has(base);
+}
+
 interface RouteParams {
 	params: Promise<{ appId: string }>;
 }
@@ -151,6 +164,15 @@ export async function POST(request: Request, { params }: RouteParams) {
 			);
 		}
 
+		// Validate event types
+		const invalidEvents = events.filter((e: unknown) => typeof e !== "string" || !isValidEvent(e as string));
+		if (invalidEvents.length > 0) {
+			return NextResponse.json(
+				{ error: `Invalid event types: ${invalidEvents.join(", ")}. Valid: entity.created, entity.updated, entity.deleted, user.signup, user.signin (optionally with :entityName suffix)` },
+				{ status: 400 },
+			);
+		}
+
 		const [webhook] = await db
 			.insert(builderAppWebhooks)
 			.values({
@@ -236,6 +258,13 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			) {
 				return NextResponse.json(
 					{ error: "events must be a non-empty array of strings" },
+					{ status: 400 },
+				);
+			}
+			const invalidEvents = updates.events.filter((e: unknown) => typeof e !== "string" || !isValidEvent(e as string));
+			if (invalidEvents.length > 0) {
+				return NextResponse.json(
+					{ error: `Invalid event types: ${invalidEvents.join(", ")}` },
 					{ status: 400 },
 				);
 			}

@@ -12,6 +12,11 @@ import { builderAppWebhooks } from "@/db/schema";
 import { executeWithRetry } from "./retry";
 import type { WebhookPayload } from "./executor";
 
+const VALID_EVENT_TYPES = new Set([
+	"entity.created", "entity.updated", "entity.deleted",
+	"user.signup", "user.signin",
+]);
+
 /**
  * Dispatch webhooks for a given event — fire-and-forget.
  *
@@ -28,6 +33,11 @@ export function dispatchWebhooks(
 	entityName: string | null,
 	data: unknown,
 ): void {
+	// Validate event type to prevent injection of arbitrary event names
+	if (!VALID_EVENT_TYPES.has(eventType)) {
+		console.warn(`[Webhook Dispatch] Rejected unknown event type: ${eventType}`);
+		return;
+	}
 	// Full event: "entity.created:tasks" or just "user.signup"
 	const fullEvent = entityName ? `${eventType}:${entityName}` : eventType;
 

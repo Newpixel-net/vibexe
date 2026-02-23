@@ -19,6 +19,7 @@ import {
 import { verifyApiKey } from "@/lib/app-database/api-keys";
 import { resolveAppUser } from "@/lib/app-database/rls";
 import { executeFunction, loadFunctionSource } from "@/lib/app-functions/runner";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 
 const CORS_HEADERS = {
 	"Access-Control-Allow-Origin": "*",
@@ -78,6 +79,14 @@ async function resolveContext(appId: string, fnName: string, request: NextReques
 	if (!fn) return { error: "Function not found", status: 404 } as const;
 	if (!fn.enabled) return { error: "Function is disabled", status: 403 } as const;
 
+	// Only HTTP-trigger functions can be invoked via the HTTP endpoint
+	if (fn.triggerType !== "http") {
+		return {
+			error: `Function "${fnName}" is a ${fn.triggerType} trigger and cannot be invoked via HTTP`,
+			status: 400,
+		} as const;
+	}
+
 	return { app, appDb, fn, user };
 }
 
@@ -95,6 +104,17 @@ export function OPTIONS() {
 async function executeFn(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId, name: fnName } = await params;
+
+		// Rate limit: 60 function executions per IP per minute
+		const ip = getClientIp(request);
+		const rateCheck = checkRateLimit("fn-exec", `${appId}:${ip}`, 60, 60 * 1000);
+		if (!rateCheck.allowed) {
+			return withCors(NextResponse.json(
+				{ error: "Too many requests. Please try again later." },
+				{ status: 429, headers: { "Retry-After": String(Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)) } },
+			));
+		}
+
 		const ctx = await resolveContext(appId, fnName, request);
 		if ("error" in ctx) {
 			return withCors(NextResponse.json({ error: ctx.error }, { status: ctx.status }));
@@ -103,10 +123,10 @@ async function executeFn(request: NextRequest, { params }: RouteParams) {
 		// Load function source
 		const source = await loadFunctionSource(ctx.app.dbId, ctx.fn.filePath);
 		if (!source) {
-			return NextResponse.json(
+			return withCors(NextResponse.json(
 				{ error: "Function source not found" },
 				{ status: 404 },
-			);
+			));
 		}
 
 		// Build request context

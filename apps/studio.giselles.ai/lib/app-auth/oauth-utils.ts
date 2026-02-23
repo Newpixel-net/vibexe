@@ -5,7 +5,7 @@
  * Each app configures its own OAuth credentials in Dashboard > Settings > Auth.
  */
 
-import { createHmac, randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -31,15 +31,22 @@ function getHmacSecret(): string {
 // ─── Nonce Store (prevents state replay within 5-minute window) ──────────────
 const usedNonces = new Map<string, number>(); // nonce -> timestamp
 const NONCE_CLEANUP_INTERVAL = 5 * 60 * 1000;
+const MAX_NONCES = 100_000; // Prevent unbounded memory growth
 let lastNonceCleanup = Date.now();
 
 function cleanupNonces(): void {
 	const now = Date.now();
-	if (now - lastNonceCleanup < NONCE_CLEANUP_INTERVAL) return;
+	if (now - lastNonceCleanup < NONCE_CLEANUP_INTERVAL && usedNonces.size < MAX_NONCES) return;
 	lastNonceCleanup = now;
 	const cutoff = now - 6 * 60 * 1000; // Keep 6 min to cover 5-min window + margin
 	for (const [nonce, ts] of usedNonces) {
 		if (ts < cutoff) usedNonces.delete(nonce);
+	}
+	// If still over limit after expiry cleanup, evict oldest entries
+	if (usedNonces.size > MAX_NONCES) {
+		const sorted = Array.from(usedNonces.entries()).sort((a, b) => a[1] - b[1]);
+		const toDelete = sorted.slice(0, sorted.length - MAX_NONCES);
+		for (const [nonce] of toDelete) usedNonces.delete(nonce);
 	}
 }
 
@@ -141,13 +148,11 @@ export function verifyOAuthState(
 		.update(payload)
 		.digest("hex");
 
-	// Timing-safe comparison
+	// Timing-safe comparison using Node.js built-in
 	if (sig.length !== expected.length) return null;
-	let match = true;
-	for (let i = 0; i < sig.length; i++) {
-		if (sig[i] !== expected[i]) match = false;
-	}
-	if (!match) return null;
+	const sigBuf = Buffer.from(sig, "utf8");
+	const expectedBuf = Buffer.from(expected, "utf8");
+	if (!timingSafeEqual(sigBuf, expectedBuf)) return null;
 
 	// Check 5-minute expiry
 	const elapsed = Date.now() - Number.parseInt(ts, 10);

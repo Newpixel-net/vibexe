@@ -96,6 +96,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		);
 
 		if (users.length === 0) {
+			// Log failed login (fire-and-forget) — user not found
+			logAppEvent(databaseName, {
+				level: "warn",
+				category: "auth",
+				eventType: "app.user.signin_failed",
+				message: `Failed signin: unknown email ${email.toLowerCase()} from ${ip}`,
+			});
 			return withCors(NextResponse.json(
 				{ error: "Invalid email or password" },
 				{ status: 401 },
@@ -115,6 +122,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		// Verify password
 		const valid = await verifyPassword(password, user.password_hash);
 		if (!valid) {
+			// Log failed login (fire-and-forget) — wrong password
+			logAppEvent(databaseName, {
+				level: "warn",
+				category: "auth",
+				eventType: "app.user.signin_failed",
+				message: `Failed signin: wrong password for ${user.email} from ${ip}`,
+				userId: Number(user.id),
+				userEmail: user.email,
+			});
 			return withCors(NextResponse.json(
 				{ error: "Invalid email or password" },
 				{ status: 401 },

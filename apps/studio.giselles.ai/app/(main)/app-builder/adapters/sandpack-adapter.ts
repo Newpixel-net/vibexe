@@ -362,6 +362,7 @@ class AuthClient {
       );
       if (!popup) { reject(new Error("Failed to open popup")); return; }
       function onMsg(e) {
+        if (e.origin !== window.location.origin) return;
         if (!e.data || e.data.type !== "vibexe-oauth") return;
         cleanup();
         if (e.data.error) reject(new Error(e.data.error));

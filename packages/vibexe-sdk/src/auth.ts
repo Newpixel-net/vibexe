@@ -180,6 +180,7 @@ export class AuthClient {
 			}
 
 			const onMessage = (event: MessageEvent) => {
+				if (event.origin !== window.location.origin) return;
 				if (!event.data || event.data.type !== "vibexe-oauth") return;
 				cleanup();
 				if (event.data.error) {

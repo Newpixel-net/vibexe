@@ -85,15 +85,38 @@ export async function executeWebhook(
 	}
 
 	const body = JSON.stringify(payload);
+	// Limit payload size to 256 KB to prevent memory issues with very large records
+	if (body.length > 256 * 1024) {
+		return {
+			success: false,
+			durationMs: 0,
+			errorMessage: `Payload too large (${Math.round(body.length / 1024)} KB, max 256 KB)`,
+		};
+	}
 	const deliveryId = nanoid();
 	const timestampHeader = payload.timestamp;
+
+	// Block dangerous headers that could be set by user webhook configs
+	const BLOCKED_HEADERS = new Set([
+		"host", "transfer-encoding", "content-length", "connection",
+		"keep-alive", "upgrade", "proxy-authorization", "te",
+		"trailer", "expect", "cookie",
+	]);
+	const safeUserHeaders: Record<string, string> = {};
+	if (webhook.headers) {
+		for (const [k, v] of Object.entries(webhook.headers)) {
+			if (!BLOCKED_HEADERS.has(k.toLowerCase()) && !k.includes("\n") && !v.includes("\n")) {
+				safeUserHeaders[k] = v;
+			}
+		}
+	}
 
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
 		"X-Vibexe-Event": eventType,
 		"X-Vibexe-Delivery": deliveryId,
 		"X-Vibexe-Timestamp": timestampHeader,
-		...(webhook.headers || {}),
+		...safeUserHeaders,
 	};
 
 	// HMAC-SHA256 signing — includes timestamp to prevent replay attacks
