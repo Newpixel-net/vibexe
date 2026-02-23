@@ -59,7 +59,9 @@ export function fsStorageDriver(config: FsStorageDriverConfig): GiselleStorage {
 			const data = params.schema
 				? params.schema.parse(params.data)
 				: params.data;
-			await fs.writeFile(fullPath, JSON.stringify(data), "utf8");
+			const tmpPath = `${fullPath}.${Date.now()}.tmp`;
+			await fs.writeFile(tmpPath, JSON.stringify(data), "utf8");
+			await fs.rename(tmpPath, fullPath);
 		},
 
 		async getBlob(
@@ -109,7 +111,9 @@ export function fsStorageDriver(config: FsStorageDriverConfig): GiselleStorage {
 			const fullPath = join(config.root, path);
 			await ensureDir(fullPath);
 			const uint8Array = new Uint8Array(data);
-			await fs.writeFile(fullPath, uint8Array);
+			const tmpPath = `${fullPath}.${Date.now()}.tmp`;
+			await fs.writeFile(tmpPath, uint8Array);
+			await fs.rename(tmpPath, fullPath);
 		},
 
 		async copy(source: string, destination: string): Promise<void> {

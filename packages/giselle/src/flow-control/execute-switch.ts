@@ -59,8 +59,10 @@ export async function executeSwitch(
 		// If exactly one port has items, set activeOutputPort for branch skipping
 		if (activePorts.length === 1) {
 			node.activeOutputPort = activePorts[0];
+		} else if (activePorts.length > 1) {
+			// Multiple ports have items — use sentinel so DAG executor activates all
+			node.activeOutputPort = "__both__";
 		}
-		// else: multiple ports have items — leave activeOutputPort undefined so all branches execute
 
 		const outputs = new Map<string, unknown>();
 		outputs.set("matchedRule", activePorts[0] ?? null);

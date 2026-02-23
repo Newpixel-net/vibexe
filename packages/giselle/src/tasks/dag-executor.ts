@@ -568,33 +568,53 @@ export async function executeDag(
 
 		// For If nodes: activate only the matching branch, skip the other
 		if (contentType === "if" && completedNode.activeOutputPort) {
-			const activePort = completedNode.activeOutputPort; // "true" or "false"
-			for (const edge of outgoing) {
-				const port = edge.fromOutputPort ?? "";
-				if (port === activePort) {
-					// Activate this branch
+			const activePort = completedNode.activeOutputPort;
+			if (activePort === "__both__") {
+				// Both branches active — activate all downstream
+				for (const edge of outgoing) {
 					const downstream = dag.nodes.get(edge.toNodeId);
 					if (downstream && downstream.state === "pending") {
 						downstream.state = "waiting";
 					}
-				} else {
-					// Skip this branch
-					dag.skipBranch(edge.toNodeId, callbacks);
+				}
+			} else {
+				// Single branch — activate matching, skip others
+				for (const edge of outgoing) {
+					const port = edge.fromOutputPort ?? "";
+					if (port === activePort) {
+						const downstream = dag.nodes.get(edge.toNodeId);
+						if (downstream && downstream.state === "pending") {
+							downstream.state = "waiting";
+						}
+					} else {
+						dag.skipBranch(edge.toNodeId, callbacks);
+					}
 				}
 			}
 		}
 		// For Switch/Filter nodes: activate matching branch, skip others
 		else if ((contentType === "switch" || contentType === "filter") && completedNode.activeOutputPort) {
 			const activePort = completedNode.activeOutputPort;
-			for (const edge of outgoing) {
-				const port = edge.fromOutputPort ?? "";
-				if (port === activePort) {
+			if (activePort === "__both__") {
+				// Multiple ports active — activate all downstream
+				for (const edge of outgoing) {
 					const downstream = dag.nodes.get(edge.toNodeId);
 					if (downstream && downstream.state === "pending") {
 						downstream.state = "waiting";
 					}
-				} else {
-					dag.skipBranch(edge.toNodeId, callbacks);
+				}
+			} else {
+				// Single port — activate matching, skip others
+				for (const edge of outgoing) {
+					const port = edge.fromOutputPort ?? "";
+					if (port === activePort) {
+						const downstream = dag.nodes.get(edge.toNodeId);
+						if (downstream && downstream.state === "pending") {
+							downstream.state = "waiting";
+						}
+					} else {
+						dag.skipBranch(edge.toNodeId, callbacks);
+					}
 				}
 			}
 		}

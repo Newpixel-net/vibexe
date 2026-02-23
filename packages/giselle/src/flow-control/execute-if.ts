@@ -43,8 +43,10 @@ export async function executeIf(
 			node.activeOutputPort = "false";
 		} else if (falseItems.length > 0 && trueItems.length === 0) {
 			node.activeOutputPort = "false";
+		} else {
+			// Both branches have items — use sentinel so DAG executor activates both
+			node.activeOutputPort = "__both__";
 		}
-		// else: both have items — leave activeOutputPort undefined so both branches execute
 
 		return {
 			outputs: new Map([

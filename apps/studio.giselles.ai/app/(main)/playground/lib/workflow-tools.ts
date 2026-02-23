@@ -7,8 +7,10 @@ import {
 	ConnectionId,
 	InputId,
 	Workspace,
+	type NodeLike,
 	type WorkspaceId,
 } from "@giselles-ai/protocol";
+import { isSupportedConnection } from "@giselles-ai/react";
 import { tool } from "ai";
 import { z } from "zod";
 import { agents, db, workspaces } from "@/db";
@@ -610,6 +612,56 @@ export function createWorkflowTools() {
 						}
 					}
 
+					// Self-loop check
+					if (sourceNodeId === targetNodeId) {
+						return errResult("Cannot connect a node to itself.");
+					}
+
+					// Cycle detection (BFS)
+					const visited = new Set<string>();
+					const queue = [targetNodeId];
+					while (queue.length > 0) {
+						const current = queue.pop()!;
+						if (current === sourceNodeId) {
+							return errResult(
+								`Cycle detected: connecting ${sourceNode.name ?? sourceNodeId} → ${targetNode.name ?? targetNodeId} would create a loop.`,
+							);
+						}
+						if (visited.has(current)) continue;
+						visited.add(current);
+						for (const conn of workspace.connections) {
+							if (conn.outputNode.id === current) {
+								queue.push(conn.inputNode.id);
+							}
+						}
+					}
+
+					// Semantic validation (same rules as UI drag-to-connect)
+					try {
+						const validationResult = isSupportedConnection(
+							sourceNode as unknown as NodeLike,
+							targetNode as unknown as NodeLike,
+							{ existingConnections: workspace.connections as unknown as Connection[] },
+						);
+						if (!validationResult.canConnect) {
+							return errResult(`Invalid connection: ${validationResult.message}`);
+						}
+					} catch {
+						// If isSupportedConnection fails (e.g. missing fields on flow-control nodes), allow the connection
+					}
+
+					// Duplicate check (idempotent — return existing connection)
+					const existing = workspace.connections.find(
+						(c) =>
+							c.outputNode.id === sourceNodeId &&
+							c.outputId === sourceOutputId &&
+							c.inputNode.id === targetNodeId &&
+							c.inputId === actualInputId,
+					);
+					if (existing) {
+						return { success: true as const, connectionId: existing.id, inputId: actualInputId!, error: "" };
+					}
+
 					const connectionData = {
 						id: ConnectionId.generate(),
 						outputNode: {
@@ -854,12 +906,18 @@ export function createWorkflowTools() {
 					const workspace = await getWorkspaceCached(workspaceId);
 					const warnings: string[] = [];
 
-					// Check every textGeneration node has a non-empty prompt
+					// Check every textGeneration/contentGeneration node has a non-empty prompt
 					for (const node of workspace.nodes) {
 						if (node.content.type === "textGeneration") {
 							const content = node.content as { type: "textGeneration"; prompt?: string };
 							if (!content.prompt || content.prompt === "" || content.prompt === '{"type":"doc","content":[{"type":"paragraph"}]}') {
 								warnings.push(`EMPTY PROMPT: Node "${node.name ?? node.id}" (textGeneration) has no prompt set. Use set_prompt to fix this.`);
+							}
+						}
+						if (node.content.type === "contentGeneration") {
+							const content = node.content as { type: "contentGeneration"; prompt?: string };
+							if (!content.prompt || content.prompt === "" || content.prompt === '{"type":"doc","content":[{"type":"paragraph"}]}') {
+								warnings.push(`EMPTY PROMPT: Node "${node.name ?? node.id}" (contentGeneration) has no prompt. Use set_prompt.`);
 							}
 						}
 					}
@@ -884,6 +942,16 @@ export function createWorkflowTools() {
 						const hasIncoming = workspace.connections.some((c) => c.inputNode.id === node.id);
 						if (!hasOutgoing && !hasIncoming) {
 							warnings.push(`ORPHAN NODE: Node "${node.name ?? node.id}" has no connections at all. It will be ignored at runtime.`);
+						}
+					}
+
+					// Check for dead-end nodes (receive input but output goes nowhere)
+					for (const node of workspace.nodes) {
+						if (["end", "errorTrigger", "customVariables"].includes(node.content.type)) continue;
+						const hasIncoming = workspace.connections.some((c) => c.inputNode.id === node.id);
+						const hasOutgoing = workspace.connections.some((c) => c.outputNode.id === node.id);
+						if (hasIncoming && !hasOutgoing && node.content.type !== "end") {
+							warnings.push(`DEAD END: Node "${node.name ?? node.id}" receives input but output goes nowhere.`);
 						}
 					}
 
