@@ -21,21 +21,35 @@ import {
 const BLOCKED_HOSTS = new Set([
 	"localhost",
 	"127.0.0.1",
-	"[::1]",
+	"::1",
 	"0.0.0.0",
+	"::",
 	"metadata.google.internal",
 	"169.254.169.254", // AWS/GCP metadata endpoint
 ]);
 
 function isPrivateIP(hostname: string): boolean {
-	// IPv4 private ranges: 10.x, 172.16-31.x, 192.168.x
-	const parts = hostname.split(".").map(Number);
+	// Strip IPv6 brackets (URL.hostname returns ::1 without brackets, but be safe)
+	const host = hostname.replace(/^\[|\]$/g, "");
+
+	// IPv4 private ranges: 10.x, 172.16-31.x, 192.168.x, 127.x, 0.x
+	const parts = host.split(".").map(Number);
 	if (parts.length === 4 && parts.every((p) => !Number.isNaN(p))) {
 		if (parts[0] === 10) return true;
 		if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
 		if (parts[0] === 192 && parts[1] === 168) return true;
+		if (parts[0] === 127) return true;
 		if (parts[0] === 0) return true;
 	}
+
+	// IPv6 private ranges: loopback (::1), link-local (fe80::), ULA (fc00::/fd00::), mapped IPv4 (::ffff:)
+	const lower = host.toLowerCase();
+	if (lower === "::1" || lower === "::" ||
+		lower.startsWith("fe80") || lower.startsWith("fc00") ||
+		lower.startsWith("fd") || lower.startsWith("::ffff:")) {
+		return true;
+	}
+
 	return false;
 }
 
@@ -47,7 +61,8 @@ function createSandboxedFetch(): typeof globalThis.fetch {
 			throw new Error(`Blocked: fetch only supports http/https (got ${url.protocol})`);
 		}
 
-		if (BLOCKED_HOSTS.has(url.hostname) || isPrivateIP(url.hostname)) {
+		const host = url.hostname.replace(/^\[|\]$/g, "");
+		if (BLOCKED_HOSTS.has(url.hostname) || BLOCKED_HOSTS.has(host) || isPrivateIP(host)) {
 			throw new Error(`Blocked: cannot fetch internal/private address ${url.hostname}`);
 		}
 

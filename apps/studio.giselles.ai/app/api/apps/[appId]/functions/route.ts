@@ -139,7 +139,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			} else if (minuteField.startsWith("*/")) {
 				// "*/N ..." = every N minutes — must be >= 5
 				const interval = Number.parseInt(minuteField.slice(2), 10);
-				if (!Number.isNaN(interval) && interval < 5) {
+				if (Number.isNaN(interval) || interval < 1) {
+					return NextResponse.json(
+						{ error: `Invalid cron minute field: '${minuteField}'. Use */N where N is a positive integer (e.g. '*/5')` },
+						{ status: 400 },
+					);
+				}
+				if (interval < 5) {
 					tooFrequent = true;
 				}
 			} else if (minuteField.includes(",")) {

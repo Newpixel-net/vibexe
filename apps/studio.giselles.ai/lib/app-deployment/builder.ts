@@ -327,9 +327,26 @@ export async function buildApp(
 				cssContents.push(f.content);
 			} else if (isCodeFile(path)) {
 				// Rewrite @vibexe/sdk imports to use window global
-				const content = f.content.replace(
+				let content = f.content;
+				// Named: import { VibexeApp } from "@vibexe/sdk"
+				content = content.replace(
 					/import\s*\{[^}]*\}\s*from\s*["']@vibexe\/sdk["'];?/g,
 					"const { VibexeApp } = window;",
+				);
+				// Default: import VibexeApp from "@vibexe/sdk"
+				content = content.replace(
+					/import\s+(\w+)\s+from\s*["']@vibexe\/sdk["'];?/g,
+					"const $1 = window.VibexeApp;",
+				);
+				// Namespace: import * as sdk from "@vibexe/sdk"
+				content = content.replace(
+					/import\s*\*\s*as\s+(\w+)\s+from\s*["']@vibexe\/sdk["'];?/g,
+					"const $1 = { VibexeApp: window.VibexeApp };",
+				);
+				// Bare: import "@vibexe/sdk"
+				content = content.replace(
+					/import\s*["']@vibexe\/sdk["'];?/g,
+					"",
 				);
 				virtualFiles.set(path, content);
 			}
