@@ -112,6 +112,33 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
+		// Validate cron schedule for scheduled triggers
+		if (triggerType === "scheduled") {
+			const schedule = triggerConfig?.schedule;
+			if (!schedule || typeof schedule !== "string") {
+				return NextResponse.json(
+					{ error: "scheduled functions require triggerConfig.schedule (cron expression)" },
+					{ status: 400 },
+				);
+			}
+			// Basic cron validation: must have 5 fields (minute hour day month weekday)
+			const cronParts = schedule.trim().split(/\s+/);
+			if (cronParts.length !== 5) {
+				return NextResponse.json(
+					{ error: "Invalid cron expression: must have exactly 5 fields (minute hour day month weekday)" },
+					{ status: 400 },
+				);
+			}
+			// Minimum interval: reject every-second patterns and sub-minute frequencies
+			// Block "* * * * *" (every minute) — minimum allowed interval is every 5 minutes
+			if (cronParts[0] === "*" && cronParts[1] === "*") {
+				return NextResponse.json(
+					{ error: "Cron schedule too frequent: minimum interval is every 5 minutes (e.g. '*/5 * * * *')" },
+					{ status: 400 },
+				);
+			}
+		}
+
 		// Upsert: if function with same name exists, update it
 		const existing = await db.query.builderAppFunctions.findFirst({
 			where: and(

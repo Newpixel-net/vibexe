@@ -19,12 +19,21 @@ const BLOCKED_HOSTS = new Set([
 ]);
 
 function isPrivateIP(hostname: string): boolean {
-	const parts = hostname.split(".").map(Number);
+	const host = hostname.replace(/^\[|\]$/g, ""); // strip IPv6 brackets
+	const parts = host.split(".").map(Number);
 	if (parts.length === 4 && parts.every((p) => !Number.isNaN(p))) {
 		if (parts[0] === 10) return true;
 		if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
 		if (parts[0] === 192 && parts[1] === 168) return true;
 		if (parts[0] === 0) return true;
+		if (parts[0] === 127) return true;
+	}
+	// IPv6: loopback, link-local, mapped IPv4, ULA
+	const lower = host.toLowerCase();
+	if (lower === "::1" || lower === "::" ||
+		lower.startsWith("fe80") || lower.startsWith("fc00") ||
+		lower.startsWith("fd") || lower.startsWith("::ffff:")) {
+		return true;
 	}
 	return false;
 }
@@ -35,7 +44,8 @@ function isBlockedUrl(urlStr: string): string | null {
 		if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
 			return "Webhook URL must use http or https";
 		}
-		if (BLOCKED_HOSTS.has(parsed.hostname) || isPrivateIP(parsed.hostname)) {
+		const strippedHost = parsed.hostname.replace(/^\[|\]$/g, "");
+		if (BLOCKED_HOSTS.has(parsed.hostname) || BLOCKED_HOSTS.has(strippedHost) || isPrivateIP(parsed.hostname)) {
 			return "Webhook URL cannot target internal or private networks";
 		}
 	} catch {

@@ -55,14 +55,21 @@ export async function executeWebhook(
 			"localhost", "127.0.0.1", "[::1]", "0.0.0.0",
 			"metadata.google.internal", "169.254.169.254",
 		]);
-		const parts = parsed.hostname.split(".").map(Number);
-		const isPrivate = parts.length === 4 && parts.every((p) => !Number.isNaN(p)) && (
+		const host = parsed.hostname.replace(/^\[|\]$/g, ""); // strip IPv6 brackets
+		const parts = host.split(".").map(Number);
+		const isPrivateV4 = parts.length === 4 && parts.every((p) => !Number.isNaN(p)) && (
 			parts[0] === 10 ||
 			(parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
 			(parts[0] === 192 && parts[1] === 168) ||
-			parts[0] === 0
+			parts[0] === 0 ||
+			parts[0] === 127
 		);
-		if (BLOCKED_HOSTS.has(parsed.hostname) || isPrivate) {
+		// IPv6 checks: loopback (::1), link-local (fe80::), mapped IPv4 (::ffff:), ULA (fc00::/fd00::)
+		const lowerHost = host.toLowerCase();
+		const isPrivateV6 = lowerHost === "::1" || lowerHost === "::" ||
+			lowerHost.startsWith("fe80") || lowerHost.startsWith("fc00") ||
+			lowerHost.startsWith("fd") || lowerHost.startsWith("::ffff:");
+		if (BLOCKED_HOSTS.has(parsed.hostname) || BLOCKED_HOSTS.has(host) || isPrivateV4 || isPrivateV6) {
 			return {
 				success: false,
 				durationMs: 0,
@@ -113,6 +120,7 @@ export async function executeWebhook(
 			headers,
 			body,
 			signal: controller.signal,
+			redirect: "manual", // Prevent redirect-based SSRF to internal networks
 		});
 		clearTimeout(timeout);
 

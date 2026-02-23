@@ -92,10 +92,18 @@ function checkForDangerousCode(code: string): string | null {
 
 // ---- Execute ----
 
+/** Maximum function source size (100 KB) — prevents CPU exhaustion from huge esbuild transforms */
+const MAX_SOURCE_SIZE = 100 * 1024;
+
 export async function executeFunction(opts: ExecuteFunctionOpts): Promise<ExecuteFunctionResult> {
 	const startTime = Date.now();
 	const timeoutMs = Math.min(opts.timeoutMs ?? 10000, 30000);
 	const consoleLogs: string[] = [];
+
+	// 0. Source size check — reject oversized payloads before expensive transpilation
+	if (opts.source.length > MAX_SOURCE_SIZE) {
+		throw new Error(`Function source exceeds maximum size (${MAX_SOURCE_SIZE} bytes)`);
+	}
 
 	// 1. Transpile TS → JS
 	let jsCode: string;

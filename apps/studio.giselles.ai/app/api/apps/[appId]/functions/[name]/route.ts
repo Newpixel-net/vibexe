@@ -20,6 +20,13 @@ import { verifyApiKey } from "@/lib/app-database/api-keys";
 import { resolveAppUser } from "@/lib/app-database/rls";
 import { executeFunction, loadFunctionSource } from "@/lib/app-functions/runner";
 
+const CORS_HEADERS = {
+	"Access-Control-Allow-Origin": "*",
+	"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+	"Access-Control-Allow-Headers": "Content-Type, Authorization, X-Vibexe-Api-Key",
+	"Access-Control-Max-Age": "86400",
+} as const;
+
 interface RouteParams {
 	params: Promise<{ appId: string; name: string }>;
 }
@@ -74,12 +81,23 @@ async function resolveContext(appId: string, fnName: string, request: NextReques
 	return { app, appDb, fn, user };
 }
 
+function withCors(response: NextResponse): NextResponse {
+	for (const [key, value] of Object.entries(CORS_HEADERS)) {
+		response.headers.set(key, value);
+	}
+	return response;
+}
+
+export function OPTIONS() {
+	return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
 async function executeFn(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId, name: fnName } = await params;
 		const ctx = await resolveContext(appId, fnName, request);
 		if ("error" in ctx) {
-			return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+			return withCors(NextResponse.json({ error: ctx.error }, { status: ctx.status }));
 		}
 
 		// Load function source
@@ -141,11 +159,11 @@ async function executeFn(request: NextRequest, { params }: RouteParams) {
 			.where(eq(builderAppFunctions.dbId, ctx.fn.dbId))
 			.catch(() => {});
 
-		return NextResponse.json({
+		return withCors(NextResponse.json({
 			data: result.result,
 			logs: result.logs,
 			durationMs: result.durationMs,
-		});
+		}));
 	} catch (error) {
 		const errMsg = error instanceof Error ? error.message : "Function execution failed";
 
@@ -177,7 +195,7 @@ async function executeFn(request: NextRequest, { params }: RouteParams) {
 		} catch {}
 
 		console.error("[Functions API] Execute error:", error);
-		return NextResponse.json({ error: errMsg }, { status: 500 });
+		return withCors(NextResponse.json({ error: errMsg }, { status: 500 }));
 	}
 }
 

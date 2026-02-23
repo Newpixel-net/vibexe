@@ -45,8 +45,20 @@ function getBucket(): string {
 	return process.env.S3_STORAGE_BUCKET ?? "vibexe-storage";
 }
 
+function sanitizePath(path: string): string {
+	// Normalize and strip path traversal sequences
+	return path
+		.replace(/\\/g, "/")           // normalize backslashes
+		.replace(/\.{2,}\//g, "")       // strip ../
+		.replace(/\/\.{2,}/g, "")       // strip /..
+		.replace(/^\/+/, "")            // strip leading slashes
+		.replace(/\0/g, "");            // strip null bytes
+}
+
 function appKey(appId: string, path: string): string {
-	return `apps/${appId}/${path}`;
+	const safe = sanitizePath(path);
+	if (!safe) throw new Error("Invalid file path");
+	return `apps/${appId}/${safe}`;
 }
 
 async function streamToBuffer(stream: Readable): Promise<Buffer> {
@@ -154,8 +166,9 @@ export async function listFiles(
 	cursor?: string,
 ): Promise<ListResult> {
 	const bucket = getBucket();
-	const fullPrefix = prefix
-		? `apps/${appId}/${prefix}`
+	const safePrefix = prefix ? sanitizePath(prefix) : "";
+	const fullPrefix = safePrefix
+		? `apps/${appId}/${safePrefix}`
 		: `apps/${appId}/`;
 
 	// Exclude _transforms/ from listings
