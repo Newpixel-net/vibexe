@@ -10,11 +10,12 @@ import type {
 } from "@giselles-ai/protocol";
 import clsx from "clsx";
 import { PlayIcon, Search, Sparkles, Workflow } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import {
 	use,
 	useCallback,
+	useEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -202,7 +203,16 @@ export function Page({
 	const data = use(dataLoader);
 
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const [playgroundMode, setPlaygroundMode] = useState<"run" | "create">("run");
+
+	// Auto-switch to "create" mode when ?prompt= is present (dashboard → workflow flow)
+	useEffect(() => {
+		if (searchParams.get("prompt")) {
+			setPlaygroundMode("create");
+		}
+	}, [searchParams]);
+
 	const [runningAppId, setRunningAppId] = useState<AppId | undefined>();
 	const [isRunning, startTransition] = useTransition();
 	const [appSearchQuery, setAppSearchQuery] = useState("");

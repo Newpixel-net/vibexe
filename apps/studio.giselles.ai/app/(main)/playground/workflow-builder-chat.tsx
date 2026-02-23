@@ -5,6 +5,7 @@ import type { UIMessage } from "ai";
 import { DefaultChatTransport, isToolUIPart } from "ai";
 import clsx from "clsx";
 import { Loader2, RotateCcw, Send, Workflow as WorkflowIcon } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import {
 	useCallback,
 	useEffect,
@@ -163,6 +164,32 @@ export function WorkflowBuilderChat() {
 	});
 
 	const isLoading = status === "submitted" || status === "streaming";
+
+	// Auto-submit from ?prompt= query param (dashboard → workflow flow)
+	const searchParams = useSearchParams();
+	const autoSubmitFired = useRef(false);
+	useEffect(() => {
+		if (autoSubmitFired.current) return;
+		const promptParam = searchParams.get("prompt");
+		if (!promptParam) return;
+
+		const timer = setTimeout(() => {
+			if (autoSubmitFired.current) return;
+			autoSubmitFired.current = true;
+			const typeParam = searchParams.get("type");
+			const categoryParam = searchParams.get("category");
+			const prefix = typeParam === "workflow" && categoryParam
+				? `[Category: ${categoryParam}]\n\n` : "";
+			sendMessage({ text: prefix + promptParam });
+			const url = new URL(window.location.href);
+			url.searchParams.delete("prompt");
+			url.searchParams.delete("type");
+			url.searchParams.delete("category");
+			window.history.replaceState({}, "", url.pathname);
+		}, 800);
+
+		return () => clearTimeout(timer);
+	}, [searchParams, sendMessage]);
 
 	const chatMessages = useMemo(
 		() => messages.filter((m) => m.role === "user" || m.role === "assistant"),

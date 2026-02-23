@@ -460,10 +460,17 @@ export function ChatColumn({
 		const timer = setTimeout(() => {
 			if (autoSubmitFired.current) return;
 			autoSubmitFired.current = true;
-			sendMessage({ text: promptParam });
-			// Clean up URL (remove ?prompt=)
+			const typeParam = searchParams.get("type");
+			const categoryParam = searchParams.get("category");
+			const contextPrefix = typeParam && typeParam !== "app"
+				? `[Project type: ${typeParam}${categoryParam ? `, Category: ${categoryParam}` : ""}]\n\n`
+				: "";
+			sendMessage({ text: contextPrefix + promptParam });
+			// Clean up URL (remove query params)
 			const url = new URL(window.location.href);
 			url.searchParams.delete("prompt");
+			url.searchParams.delete("type");
+			url.searchParams.delete("category");
 			window.history.replaceState({}, "", url.pathname);
 		}, 800);
 

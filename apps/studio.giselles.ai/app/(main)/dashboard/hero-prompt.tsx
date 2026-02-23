@@ -9,6 +9,7 @@
  */
 
 import {
+	AlertCircle,
 	GitBranch,
 	Globe,
 	Layers,
@@ -20,6 +21,7 @@ import {
 import { useRouter } from "next/navigation";
 import {
 	useCallback,
+	useEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -42,10 +44,13 @@ const ICON_MAP: Record<string, React.ElementType> = {
 export function HeroPrompt() {
 	const router = useRouter();
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const measureRef = useRef<HTMLSpanElement>(null);
 	const [selectedType, setSelectedType] = useState("app");
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [prompt, setPrompt] = useState("");
 	const [isGenerating, setIsGenerating] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const [cursorOffset, setCursorOffset] = useState(0);
 
 	// Get relevant placeholders + categories based on selected type
 	const placeholders = useMemo(
@@ -59,39 +64,51 @@ export function HeroPrompt() {
 
 	const { text: typewriterText, showCursor } = useTypewriter(placeholders);
 
+	// Measure typewriter text width for cursor alignment
+	useEffect(() => {
+		if (measureRef.current) {
+			setCursorOffset(measureRef.current.offsetWidth);
+		}
+	}, [typewriterText]);
+
 	// Handle Generate click
 	const handleGenerate = useCallback(async () => {
 		const trimmed = prompt.trim();
 		if (!trimmed || isGenerating) return;
 
 		setIsGenerating(true);
+		setError(null);
 		try {
 			if (selectedType === "workflow") {
-				// Create workflow and redirect
 				const res = await fetch("/api/workspaces", { method: "POST" });
 				if (res.ok) {
 					const data = await res.json();
 					if (data.redirectPath) {
-						router.push(`${data.redirectPath}?prompt=${encodeURIComponent(trimmed)}`);
+						router.push(`${data.redirectPath}?prompt=${encodeURIComponent(trimmed)}&type=${selectedType}${selectedCategory ? `&category=${selectedCategory}` : ""}`);
+						// Safety: reset after 5s in case navigation stalls
+						setTimeout(() => setIsGenerating(false), 5000);
 						return;
 					}
 				}
+				setError("Failed to create workflow. Please try again.");
 			} else {
-				// Create app and redirect with prompt
 				const res = await fetch("/api/app-builder/apps", { method: "POST" });
 				if (res.ok) {
 					const data = await res.json();
 					if (data.redirectPath) {
-						router.push(`${data.redirectPath}?prompt=${encodeURIComponent(trimmed)}`);
+						router.push(`${data.redirectPath}?prompt=${encodeURIComponent(trimmed)}&type=${selectedType}${selectedCategory ? `&category=${selectedCategory}` : ""}`);
+						// Safety: reset after 5s in case navigation stalls
+						setTimeout(() => setIsGenerating(false), 5000);
 						return;
 					}
 				}
+				setError("Failed to create app. Please try again.");
 			}
 		} catch {
-			// fall through
+			setError("Network error. Please check your connection.");
 		}
 		setIsGenerating(false);
-	}, [prompt, selectedType, isGenerating, router]);
+	}, [prompt, selectedType, selectedCategory, isGenerating, router]);
 
 	// Handle Enter key (without Shift)
 	const handleKeyDown = useCallback(
@@ -108,6 +125,7 @@ export function HeroPrompt() {
 	const handleInput = useCallback(
 		(e: React.ChangeEvent<HTMLTextAreaElement>) => {
 			setPrompt(e.target.value);
+			setError(null);
 			const el = e.target;
 			el.style.height = "auto";
 			el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
@@ -161,7 +179,7 @@ export function HeroPrompt() {
 				</div>
 
 				{/* Project Type Pills */}
-				<div className="flex justify-center gap-2 mb-5 dash-animate-fade-up" style={{ animationDelay: "0.1s" }}>
+				<div className="flex justify-center gap-2 mb-5 flex-wrap dash-animate-fade-up" style={{ animationDelay: "0.1s" }}>
 					{PROJECT_TYPES.map((type) => {
 						const Icon = ICON_MAP[type.icon] ?? Layers;
 						const isActive = selectedType === type.id;
@@ -169,6 +187,7 @@ export function HeroPrompt() {
 							<button
 								key={type.id}
 								type="button"
+								aria-pressed={isActive}
 								onClick={() => {
 									setSelectedType(type.id);
 									setSelectedCategory(null);
@@ -200,6 +219,7 @@ export function HeroPrompt() {
 							<button
 								key={cat.id}
 								type="button"
+								aria-pressed={selectedCategory === cat.id}
 								onClick={() =>
 									setSelectedCategory(
 										selectedCategory === cat.id ? null : cat.id,
@@ -232,18 +252,37 @@ export function HeroPrompt() {
 							onChange={handleInput}
 							onKeyDown={handleKeyDown}
 							placeholder={typewriterText || "Describe your project..."}
+							aria-label="Describe your project"
+							maxLength={500}
 							rows={1}
 							className="w-full bg-transparent text-white/90 text-sm placeholder:text-white/20 px-5 py-4 pr-28 resize-none focus:outline-none min-h-[52px] max-h-[120px]"
 							style={{ fontFamily: "var(--font-sans)" }}
 						/>
 
+						{/* Hidden measurement span for cursor alignment */}
+						<span
+							ref={measureRef}
+							className="absolute left-5 top-4 pointer-events-none text-sm opacity-0"
+							style={{ fontFamily: "var(--font-sans)" }}
+							aria-hidden="true"
+						>
+							{typewriterText}
+						</span>
+
 						{/* Cursor overlay when empty */}
 						{!prompt && showCursor && (
 							<span
 								className="absolute left-5 top-4 pointer-events-none text-white/30 dash-animate-cursor"
-								style={{ marginLeft: `${typewriterText.length * 0.52}em` }}
+								style={{ marginLeft: `${cursorOffset}px` }}
 							>
 								|
+							</span>
+						)}
+
+						{/* Character counter near limit */}
+						{prompt.length > 400 && (
+							<span className="absolute right-3 bottom-1.5 text-[10px] text-white/20">
+								{prompt.length}/500
 							</span>
 						)}
 
@@ -272,6 +311,14 @@ export function HeroPrompt() {
 							Generate
 						</button>
 					</div>
+
+					{/* Error feedback */}
+					{error && (
+						<div className="flex items-center gap-2 mt-2 px-1">
+							<AlertCircle className="h-3.5 w-3.5 text-red-400 flex-shrink-0" />
+							<p className="text-xs text-red-400">{error}</p>
+						</div>
+					)}
 
 					{/* Hint */}
 					<p className="text-center text-white/15 text-[11px] mt-2.5">

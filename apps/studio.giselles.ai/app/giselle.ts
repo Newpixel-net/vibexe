@@ -32,20 +32,27 @@ import {
 } from "../lib/vector-stores/github";
 import type { generateContentJob } from "../trigger/generate-content-job";
 
-const hasS3Storage = !!(
-	process.env.S3_STORAGE_URL &&
-	process.env.S3_STORAGE_REGION &&
-	process.env.S3_STORAGE_ACCESS_KEY_ID &&
-	process.env.S3_STORAGE_SECRET_ACCESS_KEY
-);
+// Workspace storage: use S3 only if explicitly opted in via GISELLE_STORAGE_BACKEND=s3.
+// The S3_STORAGE_* env vars are shared with per-app storage (MinIO) but workspace data
+// lives on the filesystem by default. Setting GISELLE_STORAGE_BACKEND=s3 requires
+// S3_STORAGE_BUCKET to also be set for the correct bucket name.
+const useS3ForWorkspaces =
+	process.env.GISELLE_STORAGE_BACKEND === "s3" &&
+	!!(
+		process.env.S3_STORAGE_URL &&
+		process.env.S3_STORAGE_REGION &&
+		process.env.S3_STORAGE_ACCESS_KEY_ID &&
+		process.env.S3_STORAGE_SECRET_ACCESS_KEY &&
+		process.env.S3_STORAGE_BUCKET
+	);
 
-export const storage = hasS3Storage
+export const storage = useS3ForWorkspaces
 	? s3StorageDriver({
 			endpoint: process.env.S3_STORAGE_URL ?? "",
 			region: process.env.S3_STORAGE_REGION ?? "",
 			accessKeyId: process.env.S3_STORAGE_ACCESS_KEY_ID ?? "",
 			secretAccessKey: process.env.S3_STORAGE_SECRET_ACCESS_KEY ?? "",
-			bucket: "app",
+			bucket: process.env.S3_STORAGE_BUCKET ?? "",
 		})
 	: fsStorageDriver({
 			root: process.env.GISELLE_STORAGE_ROOT || ".storage",
