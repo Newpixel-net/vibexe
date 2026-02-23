@@ -80,17 +80,10 @@ export function HeroPrompt() {
 		setError(null);
 		try {
 			if (selectedType === "workflow") {
-				const res = await fetch("/api/workspaces", { method: "POST" });
-				if (res.ok) {
-					const data = await res.json();
-					if (data.redirectPath) {
-						router.push(`${data.redirectPath}?prompt=${encodeURIComponent(trimmed)}&type=${selectedType}${selectedCategory ? `&category=${selectedCategory}` : ""}`);
-						// Safety: reset after 5s in case navigation stalls
-						setTimeout(() => setIsGenerating(false), 5000);
-						return;
-					}
-				}
-				setError("Failed to create workflow. Please try again.");
+				// Redirect to the Playground AI builder — it creates its own workspace via create_workflow tool
+				router.push(`/playground?prompt=${encodeURIComponent(trimmed)}&type=${selectedType}${selectedCategory ? `&category=${selectedCategory}` : ""}`);
+				setTimeout(() => setIsGenerating(false), 5000);
+				return;
 			} else {
 				const res = await fetch("/api/app-builder/apps", { method: "POST" });
 				if (res.ok) {

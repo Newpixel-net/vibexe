@@ -26,6 +26,21 @@ export function createWorkflowTools() {
 	// sees nodes that were just added by add_node.
 	const wsCache = new Map<string, WorkspaceType>();
 
+	// Per-workspace sequential execution lock to prevent parallel tool calls
+	// from clobbering each other (e.g., two add_connection calls running
+	// concurrently would both read the same state and the second would
+	// overwrite the first's changes).
+	const wsLocks = new Map<string, Promise<void>>();
+
+	/** Acquire a per-workspace lock. Returns a release function. */
+	function acquireLock(workspaceId: string): Promise<() => void> {
+		const prev = wsLocks.get(workspaceId) ?? Promise.resolve();
+		let release: () => void;
+		const next = new Promise<void>((resolve) => { release = resolve; });
+		wsLocks.set(workspaceId, prev.then(() => next));
+		return prev.then(() => release!);
+	}
+
 	async function getWorkspaceCached(id: string): Promise<WorkspaceType> {
 		const cached = wsCache.get(id);
 		if (cached) return cached;
@@ -325,6 +340,7 @@ export function createWorkflowTools() {
 					error: msg,
 				});
 
+				const release = await acquireLock(workspaceId);
 				try {
 					const workspace = await getWorkspaceCached(workspaceId);
 
@@ -524,6 +540,8 @@ export function createWorkflowTools() {
 				} catch (error) {
 					console.error("add_node error:", error);
 					return errResult(`Failed to add node: ${String(error)}`);
+				} finally {
+					release();
 				}
 			},
 		}),
@@ -559,6 +577,9 @@ export function createWorkflowTools() {
 					error: msg,
 				});
 
+				// Acquire per-workspace lock to prevent parallel add_connection
+				// calls from clobbering each other's changes in wsCache
+				const release = await acquireLock(workspaceId);
 				try {
 					// Read from cache (instant, no S3 consistency issues)
 					const workspace = await getWorkspaceCached(workspaceId);
@@ -637,17 +658,33 @@ export function createWorkflowTools() {
 					}
 
 					// Semantic validation (same rules as UI drag-to-connect)
-					try {
-						const validationResult = isSupportedConnection(
-							sourceNode as unknown as NodeLike,
-							targetNode as unknown as NodeLike,
-							{ existingConnections: workspace.connections as unknown as Connection[] },
-						);
-						if (!validationResult.canConnect) {
-							return errResult(`Invalid connection: ${validationResult.message}`);
+					// Flow control nodes (if, switch, merge, loop, code, filter, etc.) are not
+					// known by isSupportedConnection, so we skip validation for them rather
+					// than silently swallowing all exceptions.
+					const FLOW_CONTROL_TYPES = new Set([
+						"if", "switch", "merge", "loop", "code", "filter",
+						"editFields", "sort", "wait", "errorTrigger", "aggregate",
+						"summarize", "limit", "removeDuplicates", "renameKeys",
+						"splitOut", "compareDatasets", "executeSubWorkflow",
+						"respondToWebhook", "customVariables", "dataTable", "formTrigger",
+					]);
+					const sourceIsFlowControl = FLOW_CONTROL_TYPES.has(sourceNode.content.type);
+					const targetIsFlowControl = FLOW_CONTROL_TYPES.has(targetNode.content.type);
+
+					if (!sourceIsFlowControl && !targetIsFlowControl) {
+						try {
+							const validationResult = isSupportedConnection(
+								sourceNode as unknown as NodeLike,
+								targetNode as unknown as NodeLike,
+								{ existingConnections: workspace.connections as unknown as Connection[] },
+							);
+							if (!validationResult.canConnect) {
+								return errResult(`Invalid connection: ${validationResult.message}`);
+							}
+						} catch (validationError) {
+							console.warn(`[add_connection] isSupportedConnection threw for ${sourceNode.content.type} → ${targetNode.content.type}:`, validationError);
+							// Allow the connection but log the issue
 						}
-					} catch {
-						// If isSupportedConnection fails (e.g. missing fields on flow-control nodes), allow the connection
 					}
 
 					// Duplicate check (idempotent — return existing connection)
@@ -699,6 +736,8 @@ export function createWorkflowTools() {
 					const errMsg = error instanceof Error ? `${error.message}\n${error.stack}` : String(error);
 					console.error(`[add_connection] CAUGHT ERROR: ${errMsg}`);
 					return errResult(`Failed to add connection: ${errMsg}`);
+				} finally {
+					release();
 				}
 			},
 		}),
@@ -720,6 +759,7 @@ export function createWorkflowTools() {
 					),
 			}),
 			execute: async ({ workspaceId, nodeId, prompt }) => {
+				const release = await acquireLock(workspaceId);
 				try {
 					const workspace = await getWorkspaceCached(workspaceId);
 					const node = workspace.nodes.find((n) => n.id === nodeId);
@@ -847,6 +887,8 @@ export function createWorkflowTools() {
 						success: false,
 						error: `Failed to set prompt: ${String(error)}`,
 					};
+				} finally {
+					release();
 				}
 			},
 		}),
@@ -935,9 +977,21 @@ export function createWorkflowTools() {
 						warnings.push(`MISSING END NODE: No End node found. Add one with add_node({ type: "end" }).`);
 					}
 
-					// Check for orphan nodes (no connections at all, except Start/End/ErrorTrigger/FormTrigger which may only have outgoing)
+					// Node types that legitimately have only outgoing (source-like)
+					const SOURCE_TYPES = new Set([
+						"appEntry", "end", "errorTrigger", "formTrigger",
+						"customVariables", "trigger", "dataTable",
+					]);
+
+					// Node types that legitimately have only incoming (terminal-like)
+					const TERMINAL_TYPES = new Set([
+						"end", "errorTrigger", "customVariables",
+						"respondToWebhook", "dataStore", "vectorStore",
+					]);
+
+					// Check for orphan nodes (no connections at all)
 					for (const node of workspace.nodes) {
-						if (node.content.type === "appEntry" || node.content.type === "end" || node.content.type === "errorTrigger" || node.content.type === "formTrigger" || node.content.type === "customVariables") continue;
+						if (SOURCE_TYPES.has(node.content.type)) continue;
 						const hasOutgoing = workspace.connections.some((c) => c.outputNode.id === node.id);
 						const hasIncoming = workspace.connections.some((c) => c.inputNode.id === node.id);
 						if (!hasOutgoing && !hasIncoming) {
@@ -947,10 +1001,10 @@ export function createWorkflowTools() {
 
 					// Check for dead-end nodes (receive input but output goes nowhere)
 					for (const node of workspace.nodes) {
-						if (["end", "errorTrigger", "customVariables"].includes(node.content.type)) continue;
+						if (TERMINAL_TYPES.has(node.content.type)) continue;
 						const hasIncoming = workspace.connections.some((c) => c.inputNode.id === node.id);
 						const hasOutgoing = workspace.connections.some((c) => c.outputNode.id === node.id);
-						if (hasIncoming && !hasOutgoing && node.content.type !== "end") {
+						if (hasIncoming && !hasOutgoing) {
 							warnings.push(`DEAD END: Node "${node.name ?? node.id}" receives input but output goes nowhere.`);
 						}
 					}
