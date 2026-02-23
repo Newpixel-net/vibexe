@@ -579,22 +579,31 @@ export function DataPanel({ appId, schema }: DataPanelProps) {
 
 		setImportProgress({ current: 0, total: mapped.length, errors: 0 });
 		let errors = 0;
+		const BATCH_SIZE = 100;
 
-		for (let i = 0; i < mapped.length; i++) {
+		// Send records in batches of 100 via the batch endpoint
+		for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
+			const chunk = mapped.slice(i, i + BATCH_SIZE);
 			try {
 				const res = await fetch(
-					`/api/apps/${appId}/data/${selectedEntity}`,
+					`/api/apps/${appId}/data/${selectedEntity}/batch`,
 					{
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify(mapped[i]),
+						body: JSON.stringify({ records: chunk }),
 					},
 				);
-				if (!res.ok) errors++;
+				if (!res.ok) {
+					errors += chunk.length;
+				}
 			} catch {
-				errors++;
+				errors += chunk.length;
 			}
-			setImportProgress({ current: i + 1, total: mapped.length, errors });
+			setImportProgress({
+				current: Math.min(i + BATCH_SIZE, mapped.length),
+				total: mapped.length,
+				errors,
+			});
 		}
 
 		// Done — refresh data

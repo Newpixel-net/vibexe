@@ -6,7 +6,8 @@
  * Streams data mutation events (created/updated/deleted) to connected clients
  * via Server-Sent Events. Auto-reconnect is handled by the browser's EventSource API.
  *
- * Auth: X-Vibexe-Api-Key header, builder session, or end-user Bearer token.
+ * Auth: X-Vibexe-Api-Key header, builder session, end-user Bearer token,
+ *       or query params ?token=xxx / ?apiKey=xxx (for EventSource which can't send headers).
  */
 
 import { eq } from "drizzle-orm";
@@ -66,9 +67,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		});
 	}
 
-	// Auth: API key, builder session, or end-user Bearer token
+	// Auth: API key, builder session, end-user Bearer token,
+	// or query params ?apiKey=xxx / ?token=xxx (EventSource can't send headers)
+	const url = new URL(request.url);
 	let authenticated = false;
-	const apiKey = request.headers.get("x-vibexe-api-key");
+
+	// 1. API key — header or query param
+	const apiKey = request.headers.get("x-vibexe-api-key") || url.searchParams.get("apiKey");
 	if (apiKey) {
 		authenticated = !!(await verifyApiKey(app.dbId, apiKey));
 		if (!authenticated) {
@@ -78,6 +83,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			});
 		}
 	}
+
+	// 2. Builder session (cookie-based)
 	if (!authenticated) {
 		try {
 			await verifyAppAccess(appId);
@@ -86,22 +93,40 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			// Not a builder session — check end-user auth
 		}
 	}
+
+	// 3. End-user Bearer token — header or ?token= query param
 	if (!authenticated) {
-		// End-user Bearer token auth — need database name to look up sessions
 		const authHeader = request.headers.get("authorization");
-		if (authHeader?.startsWith("Bearer ")) {
+		const headerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+		const queryToken = url.searchParams.get("token");
+		const bearerToken = headerToken || queryToken;
+
+		if (bearerToken) {
 			const appDb = await db.query.builderAppDatabases.findFirst({
 				where: eq(builderAppDatabases.appDbId, app.dbId),
 				columns: { databaseName: true },
 			});
 			if (appDb) {
-				const user = await resolveAppUser(appDb.databaseName, request);
-				if (user) authenticated = true;
+				// resolveAppUser reads from Authorization header, so for query param
+				// tokens we need to verify the session directly
+				if (queryToken && !headerToken) {
+					const { executeQuery } = await import("@/lib/app-database/pool-manager");
+					const sessions = await executeQuery<{ user_id: number }>(
+						appDb.databaseName,
+						`SELECT user_id FROM "_app_sessions" WHERE id = $1 AND expires_at > NOW() LIMIT 1`,
+						[queryToken],
+					);
+					if (sessions.length > 0) authenticated = true;
+				} else {
+					const user = await resolveAppUser(appDb.databaseName, request);
+					if (user) authenticated = true;
+				}
 			}
 		}
 	}
+
 	if (!authenticated) {
-		return new Response(JSON.stringify({ error: "Authentication required. Provide X-Vibexe-Api-Key header or Bearer token." }), {
+		return new Response(JSON.stringify({ error: "Authentication required. Provide X-Vibexe-Api-Key header, Bearer token, or ?token= query param." }), {
 			status: 401,
 			headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
 		});
@@ -117,8 +142,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 		});
 	}
 
-	// Parse entity filter from query string
-	const url = new URL(request.url);
+	// Parse entity filter from query string (url already parsed above for auth)
 	const entitiesParam = url.searchParams.get("entities");
 	const entityFilter = entitiesParam
 		? new Set(entitiesParam.split(",").map((e) => e.trim()).filter(Boolean))

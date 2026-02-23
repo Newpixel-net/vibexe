@@ -145,6 +145,33 @@ export async function executeQuery<T extends Record<string, unknown> = Record<st
 }
 
 /**
+ * Execute a callback within a database transaction.
+ * The callback receives a `query` function bound to a single client.
+ * Automatically commits on success or rolls back on error.
+ */
+export async function withTransaction<R>(
+	databaseName: string,
+	fn: (query: <T extends Record<string, unknown> = Record<string, unknown>>(sql: string, params?: unknown[]) => Promise<T[]>) => Promise<R>,
+): Promise<R> {
+	const pool = await getAppPool(databaseName);
+	const client = await pool.connect();
+	try {
+		await client.query("BEGIN");
+		const result = await fn(async <T extends Record<string, unknown>>(sql: string, params: unknown[] = []) => {
+			const res = await client.query(sql, params);
+			return res.rows as T[];
+		});
+		await client.query("COMMIT");
+		return result;
+	} catch (error) {
+		await client.query("ROLLBACK");
+		throw error;
+	} finally {
+		client.release();
+	}
+}
+
+/**
  * Close a specific app's pool (e.g., when deleting the app database).
  */
 export async function closePool(databaseName: string): Promise<void> {

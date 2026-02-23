@@ -198,6 +198,10 @@ export class DataClient {
 	/**
 	 * Subscribe to real-time data changes for an entity via SSE.
 	 * Returns an unsubscribe function that closes the connection.
+	 *
+	 * EventSource cannot send custom headers, so auth is passed via query params:
+	 * - API key → ?apiKey=xxx
+	 * - End-user token → ?token=xxx (retrieved from localStorage)
 	 */
 	subscribe<T = Record<string, unknown>>(
 		entity: string,
@@ -208,7 +212,17 @@ export class DataClient {
 		const callback = typeof optionsOrCallback === "function" ? optionsOrCallback : maybeCallback!;
 		const filter = options.filter;
 
-		const url = `${this.baseUrl}/data/subscribe?entities=${encodeURIComponent(entity)}`;
+		// Build URL with auth via query params (EventSource can't send headers)
+		const params = new URLSearchParams({ entities: entity });
+		const apiKey = this.headers["X-Vibexe-Api-Key"];
+		if (apiKey) {
+			params.set("apiKey", apiKey);
+		} else if (typeof localStorage !== "undefined") {
+			const token = localStorage.getItem("vibexe_session");
+			if (token) params.set("token", token);
+		}
+
+		const url = `${this.baseUrl}/data/subscribe?${params}`;
 		const es = new EventSource(url);
 
 		es.onmessage = (e) => {
@@ -235,6 +249,74 @@ export class DataClient {
 		return () => {
 			es.close();
 		};
+	}
+
+	/**
+	 * Bulk create multiple rows in a single request.
+	 * Uses a database transaction for atomicity.
+	 */
+	async createMany<T = Record<string, unknown>>(
+		entity: string,
+		records: Record<string, unknown>[],
+	): Promise<{ created: number; data: T[] }> {
+		const url = `${this.baseUrl}/data/${entity}/batch`;
+		const res = await fetch(url, {
+			method: "POST",
+			headers: { ...this.headers, "Content-Type": "application/json" },
+			body: JSON.stringify({ records }),
+		});
+
+		if (!res.ok) {
+			const err = await res.json().catch(() => ({}));
+			throw new Error(err.error || `Failed to batch create ${entity}: ${res.status}`);
+		}
+
+		return await res.json();
+	}
+
+	/**
+	 * Bulk update multiple rows in a single request.
+	 * Each item must include `id` and `data` with the fields to update.
+	 */
+	async updateMany<T = Record<string, unknown>>(
+		entity: string,
+		updates: Array<{ id: number | string; data: Record<string, unknown> }>,
+	): Promise<{ updated: number; errors: number; results: Array<{ id: number | string; success: boolean; data?: T; error?: string }> }> {
+		const url = `${this.baseUrl}/data/${entity}/batch`;
+		const res = await fetch(url, {
+			method: "PUT",
+			headers: { ...this.headers, "Content-Type": "application/json" },
+			body: JSON.stringify({ updates }),
+		});
+
+		if (!res.ok) {
+			const err = await res.json().catch(() => ({}));
+			throw new Error(err.error || `Failed to batch update ${entity}: ${res.status}`);
+		}
+
+		return await res.json();
+	}
+
+	/**
+	 * Bulk delete multiple rows by IDs in a single request.
+	 */
+	async deleteMany(
+		entity: string,
+		ids: (number | string)[],
+	): Promise<{ deleted: number }> {
+		const url = `${this.baseUrl}/data/${entity}/batch`;
+		const res = await fetch(url, {
+			method: "DELETE",
+			headers: { ...this.headers, "Content-Type": "application/json" },
+			body: JSON.stringify({ ids }),
+		});
+
+		if (!res.ok) {
+			const err = await res.json().catch(() => ({}));
+			throw new Error(err.error || `Failed to batch delete ${entity}: ${res.status}`);
+		}
+
+		return await res.json();
 	}
 
 	/**

@@ -238,11 +238,44 @@ class DataClient {
     if (!res.ok) throw new Error("Failed to delete " + entity + "/" + id);
   }
 
+  async createMany(entity, records) {
+    const res = await fetch(this.baseUrl + "/data/" + entity + "/batch", {
+      method: "POST",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ records }),
+    });
+    if (!res.ok) throw new Error("Failed to batch create " + entity);
+    return await res.json();
+  }
+
+  async updateMany(entity, updates) {
+    const res = await fetch(this.baseUrl + "/data/" + entity + "/batch", {
+      method: "PUT",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ updates }),
+    });
+    if (!res.ok) throw new Error("Failed to batch update " + entity);
+    return await res.json();
+  }
+
+  async deleteMany(entity, ids) {
+    const res = await fetch(this.baseUrl + "/data/" + entity + "/batch", {
+      method: "DELETE",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    if (!res.ok) throw new Error("Failed to batch delete " + entity);
+    return await res.json();
+  }
+
   subscribe(entity, optionsOrCallback, maybeCallback) {
     const options = typeof optionsOrCallback === "function" ? {} : optionsOrCallback;
     const callback = typeof optionsOrCallback === "function" ? optionsOrCallback : maybeCallback;
     const filter = options.filter;
-    const url = this.baseUrl + "/data/subscribe?entities=" + encodeURIComponent(entity);
+    var params = "entities=" + encodeURIComponent(entity);
+    var token = typeof localStorage !== "undefined" ? localStorage.getItem("vibexe_session") : null;
+    if (token) params += "&token=" + encodeURIComponent(token);
+    const url = this.baseUrl + "/data/subscribe?" + params;
     const es = new EventSource(url);
     es.onmessage = function(e) {
       try {

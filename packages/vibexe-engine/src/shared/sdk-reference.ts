@@ -46,6 +46,25 @@ await app.data.create("tasks", { title: "New", status: "active" }); // returns c
 await app.data.update("tasks", id, { status: "done" });             // returns updated item
 await app.data.delete("tasks", id);                                  // returns void
 
+// ─── Batch Operations ───
+// Bulk create (up to 500 records per call, atomic transaction)
+const batch = await app.data.createMany("tasks", [
+  { title: "Task 1", status: "active" },
+  { title: "Task 2", status: "active" },
+]);
+// batch = { created: 2, data: [{ id: 1, ... }, { id: 2, ... }] }
+
+// Bulk update (each item needs id + data)
+const updates = await app.data.updateMany("tasks", [
+  { id: 1, data: { status: "done" } },
+  { id: 2, data: { status: "done" } },
+]);
+// updates = { updated: 2, errors: 0, results: [...] }
+
+// Bulk delete by IDs
+const deleted = await app.data.deleteMany("tasks", [1, 2, 3]);
+// deleted = { deleted: 3 }
+
 // ─── Aggregation ───
 // Get grouped statistics without fetching all rows
 const stats = await app.data.aggregate("orders", {
