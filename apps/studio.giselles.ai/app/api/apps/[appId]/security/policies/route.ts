@@ -146,14 +146,50 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			);
 		}
 		if (customExpression) {
+			if (customExpression.length > 500) {
+				return NextResponse.json(
+					{ error: "Custom expression exceeds maximum length (500 chars)" },
+					{ status: 400 },
+				);
+			}
+			// Must match the runtime blocklist in lib/app-database/rls.ts
 			const dangerousPattern =
-				/(\b(DROP|DELETE|INSERT|UPDATE|TRUNCATE|ALTER|CREATE|EXEC|EXECUTE|UNION|INTO|GRANT|REVOKE|COPY|pg_|information_schema)\b|--|\/\*|;)/i;
+				/(\b(DROP|DELETE|INSERT|UPDATE|TRUNCATE|ALTER|CREATE|EXEC|EXECUTE|UNION|INTO|GRANT|REVOKE|COPY|CALL|SET|RESET|LOAD|IMPORT|RETURNING|pg_|information_schema|pg_catalog)\b|--|\/\*|\*\/|;|\\x[0-9a-f]|CHR\s*\()/i;
 			if (dangerousPattern.test(customExpression)) {
 				return NextResponse.json(
 					{ error: "Custom expression contains disallowed SQL keywords. Only comparison expressions with $userId/$userRole are allowed." },
 					{ status: 400 },
 				);
 			}
+			// Check balanced parentheses
+			let depth = 0;
+			let maxDepth = 0;
+			for (const ch of customExpression) {
+				if (ch === "(") { depth++; maxDepth = Math.max(maxDepth, depth); }
+				else if (ch === ")") { depth--; }
+				if (depth < 0) break;
+			}
+			if (depth !== 0) {
+				return NextResponse.json(
+					{ error: "Custom expression has unbalanced parentheses" },
+					{ status: 400 },
+				);
+			}
+			if (maxDepth > 5) {
+				return NextResponse.json(
+					{ error: "Custom expression has excessive nesting (max 5 levels)" },
+					{ status: 400 },
+				);
+			}
+		}
+
+		// Validate ownerField — must be a valid SQL identifier (letters, digits, underscores)
+		const safeOwnerField = ownerField || "user_id";
+		if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(safeOwnerField)) {
+			return NextResponse.json(
+				{ error: "ownerField must be a valid identifier (letters, digits, underscores only)" },
+				{ status: 400 },
+			);
 		}
 
 		const values = {
@@ -162,7 +198,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			readAccess: ra,
 			writeAccess: wa,
 			deleteAccess: da,
-			ownerField: ownerField || "user_id",
+			ownerField: safeOwnerField,
 			allowedRoles: allowedRoles ? JSON.stringify(allowedRoles) : null,
 			customExpression: customExpression || null,
 		};

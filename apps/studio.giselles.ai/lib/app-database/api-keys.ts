@@ -48,11 +48,12 @@ export async function verifyApiKey(
 ): Promise<typeof builderAppApiKeys.$inferSelect | null> {
 	const keyHash = hashKey(rawKey);
 
-	const keys = await db.query.builderAppApiKeys.findMany({
-		where: eq(builderAppApiKeys.appDbId, appDbId),
+	const match = await db.query.builderAppApiKeys.findFirst({
+		where: and(
+			eq(builderAppApiKeys.appDbId, appDbId),
+			eq(builderAppApiKeys.keyHash, keyHash),
+		),
 	});
-
-	const match = keys.find((k) => k.keyHash === keyHash);
 	if (!match) return null;
 
 	// Update last used timestamp

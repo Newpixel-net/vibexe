@@ -108,13 +108,13 @@ export async function executeWebhook(
 	const start = Date.now();
 	let result: ExecutionResult;
 
-	try {
-		const controller = new AbortController();
-		const timeout = setTimeout(
-			() => controller.abort(),
-			webhook.timeoutMs || 10_000,
-		);
+	const controller = new AbortController();
+	const timeout = setTimeout(
+		() => controller.abort(),
+		webhook.timeoutMs || 10_000,
+	);
 
+	try {
 		const res = await fetch(webhook.url, {
 			method: "POST",
 			headers,
@@ -122,7 +122,6 @@ export async function executeWebhook(
 			signal: controller.signal,
 			redirect: "manual", // Prevent redirect-based SSRF to internal networks
 		});
-		clearTimeout(timeout);
 
 		const durationMs = Date.now() - start;
 		const responseText = await res.text().catch(() => "");
@@ -142,6 +141,8 @@ export async function executeWebhook(
 			errorMessage:
 				err instanceof Error ? err.message : "Unknown fetch error",
 		};
+	} finally {
+		clearTimeout(timeout);
 	}
 
 	// Build safe payload for logging — strip any sensitive data from headers
@@ -150,10 +151,15 @@ export async function executeWebhook(
 		const maskedHeaders: Record<string, string> = {};
 		for (const [k, v] of Object.entries(webhook.headers)) {
 			const lower = k.toLowerCase();
-			maskedHeaders[k] =
-				lower === "authorization" || lower.includes("secret") || lower.includes("token")
-					? "••••••••"
-					: v;
+			const isSensitive =
+				lower === "authorization" ||
+				lower.includes("secret") ||
+				lower.includes("token") ||
+				lower.includes("api-key") ||
+				lower.includes("apikey") ||
+				lower.includes("password") ||
+				lower.includes("credential");
+			maskedHeaders[k] = isSensitive ? "••••••••" : v;
 		}
 		safePayload._request_headers = maskedHeaders;
 	}
