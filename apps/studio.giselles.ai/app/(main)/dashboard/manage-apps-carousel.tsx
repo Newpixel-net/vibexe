@@ -20,10 +20,14 @@ import {
 	HardDrive,
 	Layers,
 	Loader2,
+	Maximize2,
+	Monitor,
 	Pencil,
 	Power,
 	Rocket,
+	Smartphone,
 	Trash2,
+	X,
 	Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -143,6 +147,8 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 	const [iframeLoaded, setIframeLoaded] = useState(false);
 	const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
 	const [interactMode, setInteractMode] = useState(false);
+	const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
+	const [isFullscreen, setIsFullscreen] = useState(false);
 	const dropdownRef = useRef<HTMLDivElement>(null);
 
 	// Track share tokens for apps that need them generated client-side
@@ -189,6 +195,19 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 	useEffect(() => {
 		setInteractMode(false);
 	}, [currentIndex]);
+
+	// Close fullscreen on Escape
+	useEffect(() => {
+		if (!isFullscreen) return;
+		const handler = (e: KeyboardEvent) => {
+			if (e.key === "Escape") {
+				setIsFullscreen(false);
+				setInteractMode(false);
+			}
+		};
+		document.addEventListener("keydown", handler);
+		return () => document.removeEventListener("keydown", handler);
+	}, [isFullscreen]);
 
 	const goTo = useCallback(
 		(index: number, dir: "left" | "right") => {
@@ -341,9 +360,47 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 				{/* Expanded: full preview + info + actions */}
 				{isExpanded && (
 					<>
+						{/* Device toolbar */}
+						<div className="flex items-center gap-1 mt-3 mb-3">
+							<div className="flex items-center rounded-lg bg-white/[0.04] p-0.5">
+								<button
+									type="button"
+									onClick={() => setPreviewMode("desktop")}
+									className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] transition-colors ${
+										previewMode === "desktop"
+											? "bg-white/[0.1] text-white/70"
+											: "text-white/30 hover:text-white/50"
+									}`}
+								>
+									<Monitor className="h-3 w-3" />
+									Desktop
+								</button>
+								<button
+									type="button"
+									onClick={() => setPreviewMode("mobile")}
+									className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] transition-colors ${
+										previewMode === "mobile"
+											? "bg-white/[0.1] text-white/70"
+											: "text-white/30 hover:text-white/50"
+									}`}
+								>
+									<Smartphone className="h-3 w-3" />
+									Mobile
+								</button>
+							</div>
+							<button
+								type="button"
+								onClick={() => { setIsFullscreen(true); setInteractMode(true); }}
+								className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] text-white/30 hover:text-white/50 hover:bg-white/[0.06] transition-colors ml-1"
+							>
+								<Maximize2 className="h-3 w-3" />
+								Fullscreen
+							</button>
+						</div>
+
 						{/* Content: iframe + info */}
 						<div
-							className={`mt-4 flex flex-col md:flex-row gap-4 transition-all duration-200 ${
+							className={`flex flex-col md:flex-row gap-4 transition-all duration-200 ${
 								slideDir === "left"
 									? "opacity-0 translate-x-4"
 									: slideDir === "right"
@@ -353,75 +410,104 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 						>
 							{/* Iframe preview */}
 							<div className="flex-1 min-w-0">
-								<div className="relative aspect-[16/10] rounded-xl overflow-hidden bg-white/[0.02] border border-white/[0.06]">
-									{iframeSrc ? (
-										<>
-											{/* Shimmer loader */}
-											{!iframeLoaded && (
-												<div className="absolute inset-0 iframe-shimmer rounded-xl z-10" />
-											)}
-
-											{/* Interactive iframe */}
-											<iframe
-												src={iframeSrc}
-												title={`Preview: ${app.name}`}
-												className={`absolute inset-0 w-full h-full transition-opacity duration-300 ${
-													iframeLoaded ? "opacity-100" : "opacity-0"
-												} ${interactMode ? "" : "pointer-events-none"}`}
-												sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-												loading="lazy"
-												onLoad={() => setIframeLoaded(true)}
-											/>
-
-											{/* Status badge overlay */}
-											<div className="absolute top-2.5 left-2.5 z-20">
-												{isDeployed ? (
-													<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 backdrop-blur-sm text-[10px] font-medium text-emerald-400 border border-emerald-500/20">
-														<Globe className="h-2.5 w-2.5" />
-														LIVE
-													</span>
+								{/* Mobile mode: phone frame centered */}
+								{previewMode === "mobile" ? (
+									<div className="flex justify-center">
+										<div className="relative w-[375px] max-w-full rounded-[2rem] border-[3px] border-white/[0.12] bg-black/40 p-2 shadow-lg shadow-black/30">
+											{/* Phone notch */}
+											<div className="mx-auto mb-1.5 h-1.5 w-20 rounded-full bg-white/[0.08]" />
+											<div className="relative rounded-[1.25rem] overflow-hidden bg-white/[0.02]" style={{ aspectRatio: "375/667" }}>
+												{iframeSrc ? (
+													<>
+														{!iframeLoaded && <div className="absolute inset-0 iframe-shimmer rounded-xl z-10" />}
+														<iframe
+															src={iframeSrc}
+															title={`Preview: ${app.name}`}
+															className={`absolute inset-0 w-full h-full transition-opacity duration-300 ${iframeLoaded ? "opacity-100" : "opacity-0"}`}
+															sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+															loading="lazy"
+															onLoad={() => setIframeLoaded(true)}
+														/>
+													</>
+												) : enablingShare ? (
+													<div className="absolute inset-0 flex flex-col items-center justify-center">
+														<Loader2 className="h-5 w-5 text-blue-400/40 animate-spin mb-2" />
+														<span className="text-[10px] text-white/25">Loading...</span>
+													</div>
 												) : (
-													<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/20 backdrop-blur-sm text-[10px] font-medium text-blue-400 border border-blue-500/20">
-														<Eye className="h-2.5 w-2.5" />
-														PREVIEW
-													</span>
+													<div className="absolute inset-0 flex flex-col items-center justify-center">
+														<Ghost className="h-6 w-6 text-white/10 mb-1" />
+														<span className="text-[10px] text-white/20">No preview</span>
+													</div>
 												)}
 											</div>
-
-											{/* Click-to-interact overlay */}
-											{!interactMode && iframeLoaded && (
+											{/* Phone home bar */}
+											<div className="mx-auto mt-1.5 h-1 w-16 rounded-full bg-white/[0.08]" />
+										</div>
+									</div>
+								) : (
+									/* Desktop mode */
+									<div className="relative aspect-[16/10] rounded-xl overflow-hidden bg-white/[0.02] border border-white/[0.06]">
+										{iframeSrc ? (
+											<>
+												{!iframeLoaded && <div className="absolute inset-0 iframe-shimmer rounded-xl z-10" />}
+												<iframe
+													src={iframeSrc}
+													title={`Preview: ${app.name}`}
+													className={`absolute inset-0 w-full h-full transition-opacity duration-300 ${
+														iframeLoaded ? "opacity-100" : "opacity-0"
+													} ${interactMode ? "" : "pointer-events-none"}`}
+													sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+													loading="lazy"
+													onLoad={() => setIframeLoaded(true)}
+												/>
+												<div className="absolute top-2.5 left-2.5 z-20">
+													{isDeployed ? (
+														<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/20 backdrop-blur-sm text-[10px] font-medium text-emerald-400 border border-emerald-500/20">
+															<Globe className="h-2.5 w-2.5" />
+															LIVE
+														</span>
+													) : (
+														<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/20 backdrop-blur-sm text-[10px] font-medium text-blue-400 border border-blue-500/20">
+															<Eye className="h-2.5 w-2.5" />
+															PREVIEW
+														</span>
+													)}
+												</div>
+												{!interactMode && iframeLoaded && (
+													<button
+														type="button"
+														onClick={() => setInteractMode(true)}
+														className="absolute inset-0 z-10 flex items-center justify-center bg-transparent hover:bg-black/10 transition-colors group cursor-pointer"
+													>
+														<span className="px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm text-[11px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5">
+															<Eye className="h-3 w-3" />
+															Click to interact
+														</span>
+													</button>
+												)}
+											</>
+										) : enablingShare ? (
+											<div className="absolute inset-0 flex flex-col items-center justify-center">
+												<Loader2 className="h-6 w-6 text-blue-400/40 animate-spin mb-2" />
+												<span className="text-[11px] text-white/25">Loading preview...</span>
+											</div>
+										) : (
+											<div className="absolute inset-0 flex flex-col items-center justify-center">
+												<Ghost className="h-8 w-8 text-white/10 mb-2" />
+												<span className="text-xs text-white/20 mb-2">No preview available</span>
 												<button
 													type="button"
-													onClick={() => setInteractMode(true)}
-													className="absolute inset-0 z-10 flex items-center justify-center bg-transparent hover:bg-black/10 transition-colors group cursor-pointer"
+													onClick={() => router.push(`/app-builder/${app.id}`)}
+													className="text-[10px] text-blue-400/60 hover:text-blue-400 transition-colors flex items-center gap-1"
 												>
-													<span className="px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm text-[11px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5">
-														<Eye className="h-3 w-3" />
-														Click to interact
-													</span>
+													<Pencil className="h-3 w-3" />
+													Open in Builder
 												</button>
-											)}
-										</>
-									) : enablingShare ? (
-										<div className="absolute inset-0 flex flex-col items-center justify-center">
-											<Loader2 className="h-6 w-6 text-blue-400/40 animate-spin mb-2" />
-											<span className="text-[11px] text-white/25">Loading preview...</span>
-										</div>
-									) : (
-										<div className="absolute inset-0 flex flex-col items-center justify-center">
-											<Ghost className="h-8 w-8 text-white/10 mb-2" />
-											<span className="text-xs text-white/20 mb-2">No preview available</span>
-											<button
-												type="button"
-												onClick={() => router.push(`/app-builder/${app.id}`)}
-												className="text-[10px] text-blue-400/60 hover:text-blue-400 transition-colors flex items-center gap-1"
-											>
-												<Pencil className="h-3 w-3" />
-												Open in Builder
-											</button>
-										</div>
-									)}
-								</div>
+											</div>
+										)}
+									</div>
+								)}
 							</div>
 
 							{/* Info panel */}
@@ -523,6 +609,93 @@ export function ManageAppsCarousel({ apps }: ManageAppsCarouselProps) {
 					onConfirm={handleDelete}
 					onCancel={() => setDeleteConfirm(null)}
 				/>
+			)}
+
+			{/* Fullscreen preview modal */}
+			{isFullscreen && (
+				<div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col">
+					{/* Fullscreen header */}
+					<div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.08] flex-shrink-0">
+						<span className="text-sm font-medium text-white/60 truncate">{app.name}</span>
+						<div className="flex items-center gap-2">
+							{/* Device toggle inside fullscreen */}
+							<div className="flex items-center rounded-lg bg-white/[0.06] p-0.5">
+								<button
+									type="button"
+									onClick={() => setPreviewMode("desktop")}
+									className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] transition-colors ${
+										previewMode === "desktop"
+											? "bg-white/[0.12] text-white/70"
+											: "text-white/30 hover:text-white/50"
+									}`}
+								>
+									<Monitor className="h-3 w-3" />
+									Desktop
+								</button>
+								<button
+									type="button"
+									onClick={() => setPreviewMode("mobile")}
+									className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] transition-colors ${
+										previewMode === "mobile"
+											? "bg-white/[0.12] text-white/70"
+											: "text-white/30 hover:text-white/50"
+									}`}
+								>
+									<Smartphone className="h-3 w-3" />
+									Mobile
+								</button>
+							</div>
+							<button
+								type="button"
+								onClick={() => { setIsFullscreen(false); setInteractMode(false); }}
+								className="h-7 w-7 rounded-lg bg-white/[0.08] flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/[0.14] transition-colors"
+							>
+								<X className="h-4 w-4" />
+							</button>
+						</div>
+					</div>
+
+					{/* Fullscreen iframe */}
+					<div className="flex-1 flex items-center justify-center min-h-0 p-4">
+						{previewMode === "mobile" ? (
+							<div className="relative w-[375px] max-w-full h-full max-h-[780px] rounded-[2.5rem] border-[3px] border-white/[0.15] bg-black/50 p-2.5 shadow-2xl shadow-black/50">
+								<div className="mx-auto mb-2 h-1.5 w-20 rounded-full bg-white/[0.08]" />
+								<div className="relative rounded-[1.75rem] overflow-hidden bg-white/[0.02] h-[calc(100%-2rem)]">
+									{iframeSrc ? (
+										<iframe
+											src={iframeSrc}
+											title={`Fullscreen: ${app.name}`}
+											className="absolute inset-0 w-full h-full"
+											sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+										/>
+									) : (
+										<div className="absolute inset-0 flex flex-col items-center justify-center">
+											<Ghost className="h-8 w-8 text-white/10 mb-2" />
+											<span className="text-xs text-white/20">No preview</span>
+										</div>
+									)}
+								</div>
+								<div className="mx-auto mt-2 h-1 w-16 rounded-full bg-white/[0.08]" />
+							</div>
+						) : (
+							<div className="w-full h-full rounded-xl overflow-hidden border border-white/[0.08] bg-white/[0.02]">
+								{iframeSrc ? (
+									<iframe
+										src={iframeSrc}
+										title={`Fullscreen: ${app.name}`}
+										className="w-full h-full"
+										sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+									/>
+								) : (
+									<div className="w-full h-full flex flex-col items-center justify-center">
+										<Ghost className="h-10 w-10 text-white/10 mb-3" />
+										<span className="text-sm text-white/20">No preview available</span>
+									</div>
+								)}
+							</div>
+						)}
+					</div>
+				</div>
 			)}
 		</>
 	);
