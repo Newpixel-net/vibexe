@@ -1010,6 +1010,202 @@ export function createWorkflowTools() {
 			},
 		}),
 
+		configure_node: tool({
+			description:
+				"Configure a flow control node's settings. Use this AFTER add_node to set If conditions, Switch rules, Loop mode, Code scripts, Filter conditions, EditFields operations, or Sort keys. Only provide the fields relevant to the node type.",
+			inputSchema: z.object({
+				workspaceId: z.string().describe("The workspace ID"),
+				nodeId: z.string().describe("The node ID to configure"),
+				// If / Filter conditions
+				conditions: z
+					.object({
+						conditions: z.array(
+							z.object({
+								field: z.string().describe("Field path to evaluate, e.g. 'sentiment', 'user.age', 'status'"),
+								operator: z
+									.enum([
+										"equals", "notEquals", "contains", "notContains",
+										"greaterThan", "lessThan", "greaterThanOrEqual", "lessThanOrEqual",
+										"isEmpty", "isNotEmpty", "isTrue", "isFalse",
+										"regex", "startsWith", "endsWith",
+									])
+									.describe("Comparison operator"),
+								value: z.string().optional().describe("Comparison value (not needed for isEmpty/isNotEmpty/isTrue/isFalse)"),
+							}),
+						),
+						combineWith: z.enum(["and", "or"]).default("and").describe("How to combine multiple conditions"),
+					})
+					.optional()
+					.describe("Conditions for If or Filter nodes"),
+				// Switch rules
+				switchRules: z
+					.array(
+						z.object({
+							name: z.string().describe("Rule name, e.g. 'Positive', 'Negative', 'Neutral'"),
+							conditions: z.array(
+								z.object({
+									field: z.string(),
+									operator: z.enum([
+										"equals", "notEquals", "contains", "notContains",
+										"greaterThan", "lessThan", "greaterThanOrEqual", "lessThanOrEqual",
+										"isEmpty", "isNotEmpty", "isTrue", "isFalse",
+										"regex", "startsWith", "endsWith",
+									]),
+									value: z.string().optional(),
+								}),
+							),
+							combineWith: z.enum(["and", "or"]).default("and"),
+						}),
+					)
+					.optional()
+					.describe("Rules for Switch nodes (evaluated in order, first match wins)"),
+				// Loop config
+				loopMode: z
+					.enum(["forEach", "nTimes"])
+					.optional()
+					.describe("Loop mode: forEach iterates array items, nTimes repeats N times"),
+				maxIterations: z
+					.number()
+					.optional()
+					.describe("Max iterations safety limit (default 100)"),
+				nTimes: z
+					.number()
+					.optional()
+					.describe("Number of repetitions for nTimes mode"),
+				// Code node
+				code: z
+					.string()
+					.optional()
+					.describe("JavaScript code for Code nodes. Available: items (array), data (object), $input, $json, JSON, Math, Date. Must return a value."),
+				codeTimeout: z
+					.number()
+					.optional()
+					.describe("Code execution timeout in ms (default 10000)"),
+				// EditFields operations
+				fieldOperations: z
+					.array(
+						z.object({
+							operation: z.enum(["set", "remove", "rename"]).describe("Operation type"),
+							fieldName: z.string().describe("Target field name"),
+							value: z.string().optional().describe("Value for 'set' operation. Use {{field}} for interpolation."),
+							newFieldName: z.string().optional().describe("New name for 'rename' operation"),
+						}),
+					)
+					.optional()
+					.describe("Field operations for EditFields nodes"),
+				keepOnlySet: z
+					.boolean()
+					.optional()
+					.describe("EditFields: if true, output only explicitly set fields (drop all others)"),
+				// Sort keys
+				sortKeys: z
+					.array(
+						z.object({
+							field: z.string().describe("Field path to sort by"),
+							direction: z.enum(["asc", "desc"]).default("asc"),
+						}),
+					)
+					.optional()
+					.describe("Sort keys for Sort nodes (applied in order for multi-level sorting)"),
+			}),
+			execute: async (params) => {
+				const release = await acquireLock(params.workspaceId);
+				try {
+					const workspace = await getWorkspaceCached(params.workspaceId);
+					const node = workspace.nodes.find((n) => n.id === params.nodeId);
+					if (!node) {
+						return { success: false, error: `Node ${params.nodeId} not found` };
+					}
+
+					const content = node.content as Record<string, unknown>;
+					const nodeType = content.type as string;
+
+					switch (nodeType) {
+						case "if": {
+							if (!params.conditions) {
+								return { success: false, error: "If nodes require 'conditions' parameter" };
+							}
+							content.conditionGroup = {
+								conditions: params.conditions.conditions,
+								combineWith: params.conditions.combineWith ?? "and",
+							};
+							break;
+						}
+						case "switch": {
+							if (!params.switchRules) {
+								return { success: false, error: "Switch nodes require 'switchRules' parameter" };
+							}
+							content.rules = params.switchRules.map((rule, i) => ({
+								name: rule.name,
+								conditionGroup: {
+									conditions: rule.conditions,
+									combineWith: rule.combineWith ?? "and",
+								},
+								outputPortName: `rule_${i}`,
+							}));
+							content.mode = "rules";
+							content.hasFallback = true;
+							break;
+						}
+						case "loop": {
+							if (params.loopMode) content.mode = params.loopMode;
+							if (params.maxIterations !== undefined) content.maxIterations = params.maxIterations;
+							if (params.nTimes !== undefined) content.nTimes = params.nTimes;
+							break;
+						}
+						case "code": {
+							if (params.code) content.code = params.code;
+							if (params.codeTimeout !== undefined) content.timeout = params.codeTimeout;
+							content.language = "javascript";
+							break;
+						}
+						case "filter": {
+							if (!params.conditions) {
+								return { success: false, error: "Filter nodes require 'conditions' parameter" };
+							}
+							content.conditionGroup = {
+								conditions: params.conditions.conditions,
+								combineWith: params.conditions.combineWith ?? "and",
+							};
+							break;
+						}
+						case "editFields": {
+							if (params.fieldOperations) content.operations = params.fieldOperations;
+							if (params.keepOnlySet !== undefined) content.keepOnlySet = params.keepOnlySet;
+							break;
+						}
+						case "sort": {
+							if (!params.sortKeys) {
+								return { success: false, error: "Sort nodes require 'sortKeys' parameter" };
+							}
+							content.sortKeys = params.sortKeys;
+							break;
+						}
+						default:
+							return {
+								success: false,
+								error: `configure_node does not support node type "${nodeType}". Supported: if, switch, loop, code, filter, editFields, sort.`,
+							};
+					}
+
+					await saveWorkspaceCached(workspace);
+
+					return {
+						success: true,
+						nodeId: params.nodeId,
+						nodeType,
+						configured: Object.keys(params).filter((k) => k !== "workspaceId" && k !== "nodeId" && params[k as keyof typeof params] !== undefined),
+						error: "",
+					};
+				} catch (error) {
+					console.error("configure_node error:", error);
+					return { success: false, error: `Failed to configure node: ${String(error)}` };
+				} finally {
+					release();
+				}
+			},
+		}),
+
 		finalize_workflow: tool({
 			description:
 				"Mark the workflow as complete and return the link to open it in the editor. Validates that all textGeneration nodes have prompts, the End node has incoming connections, and no nodes are orphaned. Returns warnings if issues are found — fix them before finalizing.",
@@ -1097,6 +1293,31 @@ export function createWorkflowTools() {
 							const hasIncoming = workspace.connections.some((c) => c.inputNode.id === node.id);
 							if (!hasIncoming) {
 								warnings.push(`DISCONNECTED INTEGRATION: Node "${node.name ?? node.id}" (integration) has no incoming connections. Connect a processing node's output to it.`);
+							}
+						}
+					}
+
+					// Check flow control nodes are configured (not just defaults)
+					for (const node of workspace.nodes) {
+						const c = node.content as Record<string, unknown>;
+						const name = (node as { name?: string }).name ?? node.id;
+						if (c.type === "if" || c.type === "filter") {
+							const cg = c.conditionGroup as { conditions?: unknown[] } | undefined;
+							if (!cg?.conditions || cg.conditions.length === 0) {
+								warnings.push(`UNCONFIGURED: Node "${name}" (${c.type}) has no conditions set. Use configure_node to set conditions.`);
+							}
+						}
+						if (c.type === "switch") {
+							const rules = c.rules as Array<{ conditionGroup?: { conditions?: unknown[] } }> | undefined;
+							const hasEmptyRules = !rules || rules.every((r) => !r.conditionGroup?.conditions || r.conditionGroup.conditions.length === 0);
+							if (hasEmptyRules) {
+								warnings.push(`UNCONFIGURED: Node "${name}" (switch) has no rules configured. Use configure_node to set switchRules.`);
+							}
+						}
+						if (c.type === "sort") {
+							const keys = c.sortKeys as unknown[] | undefined;
+							if (!keys || keys.length === 0) {
+								warnings.push(`UNCONFIGURED: Node "${name}" (sort) has no sort keys. Use configure_node to set sortKeys.`);
 							}
 						}
 					}
