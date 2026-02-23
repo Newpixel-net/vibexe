@@ -2,7 +2,7 @@ import { randomInt } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, emailVerificationTokens } from "@/db";
 
-const TOKEN_LENGTH = 6;
+const TOKEN_LENGTH = 8;
 const TOKEN_EXPIRY_MINUTES = 60;
 
 function generateOtp(): string {

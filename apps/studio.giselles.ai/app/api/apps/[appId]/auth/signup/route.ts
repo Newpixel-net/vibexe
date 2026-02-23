@@ -117,7 +117,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		);
 		if (existing.length > 0) {
 			return withCors(NextResponse.json(
-				{ error: "Email already registered" },
+				{ error: "Unable to create account with this email" },
 				{ status: 409 },
 			));
 		}
