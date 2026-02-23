@@ -120,9 +120,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			[email.toLowerCase()],
 		);
 		if (existing.length > 0) {
+			// Return generic success-like response to prevent account enumeration.
+			// Attackers can't distinguish "email exists" from "signup succeeded".
 			return withCors(NextResponse.json(
-				{ error: "Unable to create account with this email" },
-				{ status: 409 },
+				{ user: { email: email.toLowerCase() }, message: "Account created" },
+				{ status: 201 },
 			));
 		}
 

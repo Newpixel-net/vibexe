@@ -187,12 +187,20 @@ export async function executeWebhook(
 		safePayload._request_headers = maskedHeaders;
 	}
 
+	// Cap logged payload to 32 KB to prevent database bloat
+	const MAX_LOG_PAYLOAD_BYTES = 32 * 1024;
+	let loggedPayload: Record<string, unknown> | string = safePayload;
+	const serialized = JSON.stringify(safePayload);
+	if (serialized.length > MAX_LOG_PAYLOAD_BYTES) {
+		loggedPayload = { _truncated: true, _originalSize: serialized.length, event: payload.event, app_id: payload.app_id };
+	}
+
 	// Log to database (fire-and-forget)
 	db.insert(builderAppWebhookLogs)
 		.values({
 			webhookDbId: webhook.dbId,
 			eventType,
-			payload: safePayload,
+			payload: loggedPayload,
 			responseStatus: result.status ?? null,
 			responseBody: result.responseBody ?? null,
 			attempt,

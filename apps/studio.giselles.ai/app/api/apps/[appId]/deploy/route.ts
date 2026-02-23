@@ -112,16 +112,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
 		// Reserved subdomains
 		const reserved = [
-			"www",
-			"api",
-			"app",
-			"admin",
-			"mail",
-			"ftp",
-			"staging",
-			"test",
-			"dev",
-			"vibexe",
+			"www", "api", "app", "admin", "mail", "ftp", "staging", "test", "dev",
+			"vibexe", "cdn", "assets", "static", "analytics", "docs", "help",
+			"support", "beta", "mobile", "m", "root", "public", "private",
+			"localhost", "demo", "preview", "build", "dist", "status", "auth",
+			"dashboard", "blog", "shop", "store", "ns1", "ns2", "mx", "smtp",
+			"pop", "imap", "webmail", "cpanel", "whm",
 		];
 		if (reserved.includes(subdomain)) {
 			return NextResponse.json(
