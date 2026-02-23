@@ -395,9 +395,6 @@ export function DashboardClient({ data }: DashboardClientProps) {
 			{/* Hero Prompt */}
 			<HeroPrompt />
 
-			{/* Manage Your Apps Carousel */}
-			<ManageAppsCarousel apps={allApps} />
-
 			{/* Stats Row 1 */}
 			<div
 				className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 dash-animate-fade-up"
@@ -453,6 +450,9 @@ export function DashboardClient({ data }: DashboardClientProps) {
 					comingSoon
 				/>
 			</div>
+
+			{/* Manage Your Apps Carousel */}
+			<ManageAppsCarousel apps={allApps} />
 
 			{/* Bento Grid — Apps (60%) + Workflows (40%) */}
 			<div
