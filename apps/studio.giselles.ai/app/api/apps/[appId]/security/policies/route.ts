@@ -124,13 +124,23 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			);
 		}
 
-		// Validate: if any access is "custom", customExpression must be non-empty
+		// Validate: if any access is "custom", customExpression must be non-empty and safe
 		const anyCustom = [ra, wa, da].includes("custom");
 		if (anyCustom && !customExpression) {
 			return NextResponse.json(
 				{ error: "customExpression is required when using custom access" },
 				{ status: 400 },
 			);
+		}
+		if (customExpression) {
+			const dangerousPattern =
+				/(\b(DROP|DELETE|INSERT|UPDATE|TRUNCATE|ALTER|CREATE|EXEC|EXECUTE|UNION|INTO|GRANT|REVOKE|COPY|pg_|information_schema)\b|--|\/\*|;)/i;
+			if (dangerousPattern.test(customExpression)) {
+				return NextResponse.json(
+					{ error: "Custom expression contains disallowed SQL keywords. Only comparison expressions with $userId/$userRole are allowed." },
+					{ status: 400 },
+				);
+			}
 		}
 
 		const values = {

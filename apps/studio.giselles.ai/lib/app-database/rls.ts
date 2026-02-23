@@ -171,6 +171,18 @@ export function enforceRLS(opts: EnforceOpts): RLSCheck {
 	if (accessLevel === "owner") {
 		const ownerField = policy.ownerField || "user_id";
 
+		// Sanitize ownerField — must be a valid SQL identifier (letters, digits, underscores)
+		if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(ownerField)) {
+			return {
+				allowed: false,
+				error: "Invalid ownerField identifier",
+				status: 400,
+				whereClauses: [],
+				whereParams: [],
+				autoFields: {},
+			};
+		}
+
 		// Warn if ownerField isn't in schema, but still enforce — the builder
 		// explicitly configured this field in the security policy, and the column
 		// may exist in the DB even if not in schema_json.
@@ -223,6 +235,20 @@ export function enforceRLS(opts: EnforceOpts): RLSCheck {
 		if (!expr) {
 			// No expression configured — fall back to authenticated
 			return { allowed: true, whereClauses: [], whereParams: [], autoFields: {} };
+		}
+
+		// Validate expression — reject dangerous SQL patterns
+		const dangerousPattern =
+			/(\b(DROP|DELETE|INSERT|UPDATE|TRUNCATE|ALTER|CREATE|EXEC|EXECUTE|UNION|INTO|GRANT|REVOKE|COPY|pg_|information_schema)\b|--|\/\*|;)/i;
+		if (dangerousPattern.test(expr)) {
+			return {
+				allowed: false,
+				error: "Custom expression contains disallowed SQL syntax",
+				status: 400,
+				whereClauses: [],
+				whereParams: [],
+				autoFields: {},
+			};
 		}
 
 		// Replace $userId and $userRole with parameterized values
