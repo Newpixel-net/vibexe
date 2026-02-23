@@ -29,12 +29,27 @@ function channelKey(appId: string): string {
 	return `data:${appId}`;
 }
 
+// Periodic leak detection — warn when approaching listener limit
+let lastLeakCheck = 0;
+const LEAK_CHECK_INTERVAL = 60_000; // 1 minute
+const LEAK_WARN_THRESHOLD = 800; // 80% of 1000 max
+
 /** Emit a data mutation event for an app. Fire-and-forget — never throws. */
 export function emitDataEvent(
 	appId: string,
 	event: Omit<DataChangeEvent, "timestamp">,
 ): void {
 	try {
+		// Periodic leak detection
+		const now = Date.now();
+		if (now - lastLeakCheck > LEAK_CHECK_INTERVAL) {
+			lastLeakCheck = now;
+			const total = getTotalListenerCount();
+			if (total > LEAK_WARN_THRESHOLD) {
+				console.warn(`[EventBus] High listener count: ${total}/1000. Possible leak.`);
+			}
+		}
+
 		emitter.emit(channelKey(appId), {
 			...event,
 			timestamp: new Date().toISOString(),

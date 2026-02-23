@@ -191,19 +191,24 @@ export async function duplicateApp(
 		})
 		.returning();
 
-	// Copy files
+	// Copy files, replacing hardcoded source appId with new appId
 	{
 		const files = await db.query.builderFiles.findMany({
 			where: eq(builderFiles.appDbId, original.dbId),
 		});
+		const sourceId = original.id;
 
 		for (const file of files) {
 			const fileId = `bldf_${nanoid()}` as BuilderFileId;
+			let content = file.content;
+			if (content && content.includes(sourceId)) {
+				content = content.replaceAll(sourceId, newId);
+			}
 			await db.insert(builderFiles).values({
 				id: fileId,
 				appDbId: newApp.dbId,
 				path: file.path,
-				content: file.content,
+				content,
 				language: file.language,
 			});
 		}

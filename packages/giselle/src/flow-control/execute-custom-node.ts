@@ -98,7 +98,9 @@ export async function executeCustomNode(
 	// Build properties from content
 	const properties: Record<string, unknown> = content.properties ?? {};
 
-	// Capture console output
+	// Capture console output (capped at 10 KB to prevent memory exhaustion)
+	const MAX_LOG_BYTES = 10 * 1024;
+	let logBytes = 0;
 	const logs: string[] = [];
 
 	// Build the execution context matching the SDK's ExecutionContext interface
@@ -165,7 +167,10 @@ export async function executeCustomNode(
 				};
 			},
 			log: (message: string) => {
-				logs.push(message);
+				if (logBytes < MAX_LOG_BYTES) {
+					logs.push(message);
+					logBytes += message.length;
+				}
 			},
 		},
 	};
@@ -189,21 +194,22 @@ export async function executeCustomNode(
 		isFinite: Number.isFinite,
 		console: {
 			log: (...args: unknown[]) => {
-				logs.push(
-					args
-						.map((a) => (typeof a === "string" ? a : JSON.stringify(a)))
-						.join(" "),
-				);
+				if (logBytes >= MAX_LOG_BYTES) return;
+				const line = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
+				logs.push(line);
+				logBytes += line.length;
 			},
 			warn: (...args: unknown[]) => {
-				logs.push(
-					`[WARN] ${args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ")}`,
-				);
+				if (logBytes >= MAX_LOG_BYTES) return;
+				const line = `[WARN] ${args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ")}`;
+				logs.push(line);
+				logBytes += line.length;
 			},
 			error: (...args: unknown[]) => {
-				logs.push(
-					`[ERROR] ${args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ")}`,
-				);
+				if (logBytes >= MAX_LOG_BYTES) return;
+				const line = `[ERROR] ${args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ")}`;
+				logs.push(line);
+				logBytes += line.length;
 			},
 		},
 		fetch: executionContext.helpers.httpRequest,

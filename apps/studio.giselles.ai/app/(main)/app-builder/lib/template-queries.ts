@@ -493,7 +493,17 @@ export async function rematerializeTemplate(
 		})
 		.returning();
 
-	// Copy files from snapshot
+	// Look up source app's string ID so we can replace hardcoded appId references
+	let sourceAppStringId: string | null = null;
+	if (template.sourceAppDbId) {
+		const sourceApp = await db.query.builderApps.findFirst({
+			where: eq(builderApps.dbId, template.sourceAppDbId),
+			columns: { id: true },
+		});
+		sourceAppStringId = sourceApp?.id ?? null;
+	}
+
+	// Copy files from snapshot, replacing hardcoded source appId with new appId
 	const filesSnapshot = template.filesSnapshot as Array<{
 		path: string;
 		content: string;
@@ -502,11 +512,15 @@ export async function rematerializeTemplate(
 
 	for (const file of filesSnapshot) {
 		const fileId = `bldf_${nanoid()}` as BuilderFileId;
+		let content = file.content;
+		if (sourceAppStringId && content.includes(sourceAppStringId)) {
+			content = content.replaceAll(sourceAppStringId, newId);
+		}
 		await db.insert(builderFiles).values({
 			id: fileId,
 			appDbId: newApp.dbId,
 			path: file.path,
-			content: file.content,
+			content,
 			language: file.language,
 		});
 	}
