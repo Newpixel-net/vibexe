@@ -65,13 +65,18 @@ export function BuilderLayout({
 	}, [app.id]);
 
 	// After generation ends, schedule delayed refreshes to catch async wiki files from syncWiki()
+	// syncWiki() saves 9 pages sequentially (each with DB queries), so later pages may take 10-15s
 	useEffect(() => {
 		if (prevGenerating.current && !isGenerating) {
-			const t1 = setTimeout(handleFilesChange, 3000);
-			const t2 = setTimeout(handleFilesChange, 6000);
+			const t1 = setTimeout(handleFilesChange, 2000);
+			const t2 = setTimeout(handleFilesChange, 5000);
+			const t3 = setTimeout(handleFilesChange, 10000);
+			const t4 = setTimeout(handleFilesChange, 16000);
 			return () => {
 				clearTimeout(t1);
 				clearTimeout(t2);
+				clearTimeout(t3);
+				clearTimeout(t4);
 			};
 		}
 		prevGenerating.current = isGenerating;

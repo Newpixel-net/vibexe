@@ -297,15 +297,20 @@ async function updateDeployment(appId: string): Promise<void> {
 			status: i.status,
 		}));
 
-		// Fetch environments
-		const envRows = await db.query.builderAppEnvironments.findMany({
-			where: eq(builderAppEnvironments.appDbId, app.dbId),
-		});
-		const environments = envRows.map((e) => ({
-			name: e.environment,
-			databaseName: e.databaseName,
-			status: e.status,
-		}));
+		// Fetch environments (table may not exist yet — best-effort)
+		let environments: { name: string; databaseName: string | null; status: string | null }[] = [];
+		try {
+			const envRows = await db.query.builderAppEnvironments.findMany({
+				where: eq(builderAppEnvironments.appDbId, app.dbId),
+			});
+			environments = envRows.map((e) => ({
+				name: e.environment,
+				databaseName: e.databaseName,
+				status: e.status,
+			}));
+		} catch {
+			// Table may not exist yet
+		}
 
 		const content = generateDeployment(deployment, storage, integrations, environments);
 		await saveFile(appId, "docs/DEPLOYMENT.md", content, "markdown");
