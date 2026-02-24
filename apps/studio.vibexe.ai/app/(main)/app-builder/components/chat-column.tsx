@@ -1244,18 +1244,6 @@ export function ChatColumn({
 								</div>
 							)}
 
-							{/* Agent activation card from slash command */}
-							{activationCard && AGENT_INFO[activationCard.agentId] && (
-								<AgentActivationCard
-									key={`activation-${activationCard.timestamp}`}
-									agentId={activationCard.agentId}
-									agentName={AGENT_INFO[activationCard.agentId].name}
-									modelTier={AGENT_INFO[activationCard.agentId].modelTier}
-									description={AGENT_INFO[activationCard.agentId].description}
-									onDeactivate={handleAgentDeactivate}
-								/>
-							)}
-
 							{/* PhaseTimeline INLINE after messages */}
 							{phaseTimeline.length > 0 && (
 								<div className="mt-2">
@@ -1332,6 +1320,18 @@ export function ChatColumn({
 										</div>
 									)}
 								</motion.div>
+							)}
+
+							{/* Agent activation card from slash command — always newest item */}
+							{activationCard && AGENT_INFO[activationCard.agentId] && (
+								<AgentActivationCard
+									key={`activation-${activationCard.timestamp}`}
+									agentId={activationCard.agentId}
+									agentName={AGENT_INFO[activationCard.agentId].name}
+									modelTier={AGENT_INFO[activationCard.agentId].modelTier}
+									description={AGENT_INFO[activationCard.agentId].description}
+									onDeactivate={handleAgentDeactivate}
+								/>
 							)}
 						</div>
 					)}
