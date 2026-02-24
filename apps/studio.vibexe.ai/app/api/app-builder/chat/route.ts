@@ -592,10 +592,22 @@ Reference DEVLOG.md for the history of changes made to this project.`);
 			runtimeAddenda.push(visualEditSystemAddendum);
 		}
 
-		// Combine: assembled agent prompt + runtime addenda
-		let systemPrompt = runtimeAddenda.length > 0
-			? `${assembledPrompt}\n\n${runtimeAddenda.join("\n\n")}`
-			: assembledPrompt;
+		// Combine: critical flow addenda FIRST (plan-first, execute-plan) + assembled agent prompt + other addenda
+		// Flow-control instructions must be at the TOP so the model sees them before the long agent prompt.
+		const flowAddenda: string[] = [];
+		const otherAddenda: string[] = [];
+		for (const a of runtimeAddenda) {
+			if (a.includes("PLAN FIRST") || a.includes("EXECUTE THE PLAN")) {
+				flowAddenda.push(a);
+			} else {
+				otherAddenda.push(a);
+			}
+		}
+		let systemPrompt = [
+			...flowAddenda,
+			assembledPrompt,
+			...otherAddenda,
+		].filter(Boolean).join("\n\n");
 
 		const allTools = createFileTools(appId);
 
