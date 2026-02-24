@@ -203,6 +203,106 @@ export class DataClient {
 	}
 
 	/**
+	 * List related child records via a reverse relation.
+	 * Example: listRelated("posts", 1, "comments") → all comments where post_id = 1
+	 */
+	async listRelated<T = Record<string, unknown>>(
+		entity: string,
+		id: number | string,
+		relation: string,
+		options: ListOptions = {},
+	): Promise<PaginatedResponse<T>> {
+		const params = new URLSearchParams();
+		if (options.page) params.set("page", String(options.page));
+		if (options.limit) params.set("limit", String(options.limit));
+		if (options.sort) params.set("sort", options.sort);
+		if (options.order) params.set("order", options.order);
+		if (options.filter) {
+			for (const [key, value] of Object.entries(options.filter)) {
+				if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+					for (const [op, opVal] of Object.entries(value as FilterOperator)) {
+						if (op === "in" && Array.isArray(opVal)) {
+							params.set(`filter[${key}][in]`, (opVal as (string | number)[]).join(","));
+						} else if (opVal !== undefined) {
+							params.set(`filter[${key}][${op}]`, String(opVal));
+						}
+					}
+				} else {
+					params.set(`filter[${key}]`, String(value));
+				}
+			}
+		}
+
+		const qs = params.toString();
+		const url = `${this.baseUrl}/data/${entity}/${id}/${relation}${qs ? `?${qs}` : ""}`;
+		const res = await fetch(url, { headers: this.headers });
+
+		if (!res.ok) {
+			const err = await res.json().catch(() => ({}));
+			throw new Error(err.error || `Failed to list ${entity}/${id}/${relation}: ${res.status}`);
+		}
+
+		return await res.json();
+	}
+
+	/**
+	 * Create a child record under a parent, auto-injecting the parent FK.
+	 * Example: createRelated("posts", 1, "comments", { text: "Great!" }) → comment with post_id = 1
+	 */
+	async createRelated<T = Record<string, unknown>>(
+		entity: string,
+		id: number | string,
+		relation: string,
+		data: Record<string, unknown>,
+	): Promise<T> {
+		const url = `${this.baseUrl}/data/${entity}/${id}/${relation}`;
+		const res = await fetch(url, {
+			method: "POST",
+			headers: { ...this.headers, "Content-Type": "application/json" },
+			body: JSON.stringify(data),
+		});
+
+		if (!res.ok) {
+			const err = await res.json().catch(() => ({}));
+			throw new Error(err.error || `Failed to create ${entity}/${id}/${relation}: ${res.status}`);
+		}
+
+		const json = await res.json();
+		return json.data;
+	}
+
+	/**
+	 * Delete a row with cascade impact information.
+	 * Use dryRun: true to preview what would be affected without deleting.
+	 */
+	async deleteWithInfo(
+		entity: string,
+		id: number | string,
+		options?: { dryRun?: boolean },
+	): Promise<{
+		deleted?: boolean;
+		dryRun?: boolean;
+		cascadeInfo?: Record<string, { count: number; action: string }>;
+		wouldAffect?: Record<string, { count: number; action: string }>;
+	}> {
+		const params = new URLSearchParams();
+		if (options?.dryRun) params.set("dryRun", "true");
+		const qs = params.toString();
+		const url = `${this.baseUrl}/data/${entity}/${id}${qs ? `?${qs}` : ""}`;
+		const res = await fetch(url, {
+			method: "DELETE",
+			headers: this.headers,
+		});
+
+		if (!res.ok) {
+			const err = await res.json().catch(() => ({}));
+			throw new Error(err.error || `Failed to delete ${entity}/${id}: ${res.status}`);
+		}
+
+		return await res.json();
+	}
+
+	/**
 	 * Subscribe to real-time data changes for an entity via SSE.
 	 * Returns an unsubscribe function that closes the connection.
 	 *

@@ -25,6 +25,8 @@ import {
 	qualifyWhereClause,
 	fetchOneToMany,
 	attachRelations,
+	fieldMatchesInclude,
+	findOneToManyForCreate,
 	IncludeError,
 	type IncludeSpec,
 } from "@/lib/app-database/relation-resolver";
@@ -256,7 +258,66 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			}
 		}
 
-		const hasJoins = includes.some((s) => s.strategy === "many-to-one");
+		// ─── Deep Filters (dot-notation on related fields) ──────────────
+		// Detect filter[author.name]=John style params and generate JOINs
+		const deepFilterJoins: string[] = [];
+		const deepFilterClauses: string[] = [];
+		const deepFilterParams: unknown[] = [];
+		// Track already-joined relations to avoid duplicate JOINs
+		const deepFilterAliasMap = new Map<string, string>();
+		let deepFilterAliasIdx = 0;
+
+		if (!ctx.isInternal) {
+			const schema = ctx.appDb.schemaJson as AppSchema;
+			const deepFilterRegex = /^filter\[(\w+)\.(\w+)\](?:\[(\w+)\])?$/;
+
+			for (const [key, value] of url.searchParams) {
+				const match = key.match(deepFilterRegex);
+				if (!match) continue;
+
+				const [, relationName, fieldName, operator] = match;
+
+				// Find the many-to-one relation field matching relationName
+				const entityDef = ctx.entity as import("@/lib/app-database/schema-types").EntityDefinition;
+				const relationField = entityDef.fields.find(
+					(f) =>
+						f.type === "relation" &&
+						f.relationType === "many-to-one" &&
+						f.relationTo &&
+						fieldMatchesInclude(f, relationName),
+				);
+
+				if (!relationField?.relationTo) continue;
+
+				const targetEntity = schema.entities.find((e) => e.name === relationField.relationTo);
+				if (!targetEntity) continue;
+
+				// Validate fieldName exists on target entity
+				const targetFields = new Set([
+					"id", "created_at", "updated_at",
+					...targetEntity.fields.map((f) => f.name),
+				]);
+				if (!targetFields.has(fieldName)) continue;
+
+				// Reuse alias if same relation already joined
+				let alias = deepFilterAliasMap.get(relationField.name);
+				if (!alias) {
+					alias = `__df${deepFilterAliasIdx++}`;
+					deepFilterAliasMap.set(relationField.name, alias);
+					deepFilterJoins.push(
+						`LEFT JOIN "${targetEntity.tableName}" ${alias} ON t."${relationField.name}" = ${alias}.id`,
+					);
+				}
+
+				const pIdx = deepFilterParams.length + 1; // placeholder; will be offset later
+				const sqlOp = operator ? (FILTER_OPERATORS[operator] ?? "=") : "=";
+				deepFilterClauses.push(`${alias}."${fieldName}" ${sqlOp} $__DF${pIdx}__`);
+				deepFilterParams.push(value);
+			}
+		}
+
+		const hasDeepFilters = deepFilterJoins.length > 0;
+		const hasJoins = includes.some((s) => s.strategy === "many-to-one") || hasDeepFilters;
 
 		// Build WHERE clause from advanced filter params
 		const parsed = parseAdvancedFilters(url.searchParams, ctx.entity.fields);
@@ -269,6 +330,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			: [...parsed.clauses];
 		const filterParams: unknown[] = [...parsed.params];
 		let paramIndex = parsed.paramCount + 1;
+
+		// Resolve deep filter parameter placeholders to real $N indices
+		for (const clause of deepFilterClauses) {
+			const resolved = clause.replace(
+				/\$__DF(\d+)__/g,
+				(_, n) => `$${paramIndex + Number.parseInt(n, 10) - 1}`,
+			);
+			filters.push(resolved);
+		}
+		filterParams.push(...deepFilterParams);
+		paramIndex += deepFilterParams.length;
 
 		// Full-text search: ?search=term
 		const searchTerm = url.searchParams.get("search");
@@ -361,8 +433,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 		if (hasJoins) {
 			const { selectExprs, joinClauses } = buildManyToOneJoins(includes);
+			// Append deep filter JOINs (separate aliases, don't conflict with include JOINs)
+			const allJoins = [...joinClauses, ...deepFilterJoins];
 			selectExpr = `t.*${selectExprs.length > 0 ? `, ${selectExprs.join(", ")}` : ""}`;
-			fromClause = `"${ctx.entity.tableName}" t ${joinClauses.join(" ")}`;
+			fromClause = `"${ctx.entity.tableName}" t ${allJoins.join(" ")}`;
 		} else {
 			const selectCols = ctx.isInternal
 				? getInternalSelectColumns(ctx.entity as import("@/lib/app-database/internal-tables").InternalTableDef)
@@ -371,9 +445,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 			fromClause = `"${ctx.entity.tableName}"`;
 		}
 
-		// Count total (use base table + WHERE, no JOINs needed for count)
+		// Count total (include deep filter JOINs when active, since WHERE references them)
 		const countFrom = hasJoins
-			? `"${ctx.entity.tableName}" t`
+			? `"${ctx.entity.tableName}" t ${deepFilterJoins.join(" ")}`
 			: `"${ctx.entity.tableName}"`;
 		const countResult = await executeQuery<{ count: string }>(
 			ctx.databaseName,
@@ -511,7 +585,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			if (hookResult.data) hookBody = hookResult.data;
 		}
 
-		// Filter to only known fields
+		// Separate nested arrays (one-to-many children) from flat fields
+		const nestedRelations = new Map<string, { targetEntity: import("@/lib/app-database/schema-types").EntityDefinition; fkColumn: string; children: Record<string, unknown>[] }>();
+		if (!ctx.isInternal) {
+			const schema = ctx.appDb.schemaJson as AppSchema;
+			const entityDef = ctx.entity as import("@/lib/app-database/schema-types").EntityDefinition;
+			for (const [key, value] of Object.entries(hookBody)) {
+				if (Array.isArray(value)) {
+					const relMatch = findOneToManyForCreate(schema, entityDef, key);
+					if (relMatch) {
+						nestedRelations.set(key, {
+							...relMatch,
+							children: value as Record<string, unknown>[],
+						});
+					}
+				}
+			}
+		}
+
+		// Filter to only known fields (skip nested array fields)
 		const fieldMap = new Map(ctx.entity.fields.map((f) => [f.name, f]));
 		const fields: string[] = [];
 		const values: unknown[] = [];
@@ -531,6 +623,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		for (const [key, value] of Object.entries(hookBody)) {
 			// Skip fields already set by RLS (prevent client from overriding owner)
 			if (key in rlsAutoFields) continue;
+			// Skip nested array fields (handled after parent INSERT)
+			if (nestedRelations.has(key)) continue;
 
 			const field = fieldMap.get(key);
 			if (field) {
@@ -554,26 +648,103 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 		const returningCols = ctx.isInternal
 			? getInternalSelectColumns(ctx.entity as import("@/lib/app-database/internal-tables").InternalTableDef)
 			: "*";
-		const rows = await executeQuery(
-			ctx.databaseName,
-			`INSERT INTO "${ctx.entity.tableName}" (${fields.join(", ")}) VALUES (${placeholders.join(", ")}) RETURNING ${returningCols}`,
-			values,
-		);
+
+		// If nested relations exist, wrap in a transaction
+		const hasNested = nestedRelations.size > 0;
+		if (hasNested) {
+			await executeQuery(ctx.databaseName, "BEGIN");
+		}
+
+		let parentRow: Record<string, unknown>;
+		const nestedResults = new Map<string, Record<string, unknown>[]>();
+
+		try {
+			const rows = await executeQuery(
+				ctx.databaseName,
+				`INSERT INTO "${ctx.entity.tableName}" (${fields.join(", ")}) VALUES (${placeholders.join(", ")}) RETURNING ${returningCols}`,
+				values,
+			);
+			parentRow = rows[0] as Record<string, unknown>;
+
+			// Insert nested children
+			if (hasNested) {
+				const parentId = parentRow.id as number;
+
+				for (const [relName, rel] of nestedRelations) {
+					const childFieldMap = new Map(rel.targetEntity.fields.map((f) => [f.name, f]));
+					const createdChildren: Record<string, unknown>[] = [];
+
+					for (const child of rel.children) {
+						if (!child || typeof child !== "object") continue;
+
+						const childFields: string[] = [`"${rel.fkColumn}"`];
+						const childValues: unknown[] = [parentId];
+						const childPlaceholders: string[] = ["$1"];
+						let childParamIdx = 2;
+
+						for (const [ck, cv] of Object.entries(child)) {
+							if (ck === rel.fkColumn) continue; // Already injected
+							const cf = childFieldMap.get(ck);
+							if (cf) {
+								const coerced = cv === "" && cf.type !== "text" ? null : cv;
+								childFields.push(`"${ck}"`);
+								childValues.push(coerced);
+								childPlaceholders.push(`$${childParamIdx}`);
+								childParamIdx++;
+							}
+						}
+
+						if (childFields.length > 0) {
+							const childRows = await executeQuery(
+								ctx.databaseName,
+								`INSERT INTO "${rel.targetEntity.tableName}" (${childFields.join(", ")}) VALUES (${childPlaceholders.join(", ")}) RETURNING *`,
+								childValues,
+							);
+							if (childRows[0]) {
+								createdChildren.push(childRows[0] as Record<string, unknown>);
+							}
+						}
+					}
+
+					nestedResults.set(relName, createdChildren);
+				}
+
+				await executeQuery(ctx.databaseName, "COMMIT");
+			}
+		} catch (err) {
+			if (hasNested) {
+				await executeQuery(ctx.databaseName, "ROLLBACK").catch(() => {});
+			}
+			throw err;
+		}
+
+		// Attach nested children to the response
+		const responseData = { ...parentRow };
+		for (const [relName, children] of nestedResults) {
+			responseData[relName] = children;
+		}
 
 		// Log the creation (fire-and-forget, don't await)
 		logAppEvent(ctx.databaseName, {
 			level: "info",
 			category: "entity",
 			eventType: "app.entity.create",
-			message: `Created row in ${entityName}`,
+			message: `Created row in ${entityName}${hasNested ? ` with ${nestedRelations.size} nested relations` : ""}`,
 			metadata: { entityName },
 		});
 
 		// Emit real-time event
-		emitDataEvent(appId, { entity: entityName, action: "created", record: rows[0] as Record<string, unknown> });
+		emitDataEvent(appId, { entity: entityName, action: "created", record: parentRow });
+
+		// Emit events for nested children too
+		for (const [, rel] of nestedRelations) {
+			for (const child of nestedResults.get(rel.targetEntity.tableName) ?? []) {
+				emitDataEvent(appId, { entity: rel.targetEntity.tableName, action: "created", record: child });
+			}
+		}
 
 		// Dispatch webhooks (fire-and-forget)
-		dispatchWebhooks(ctx.app.dbId, appId, "entity.created", entityName, rows[0]);
+		dispatchWebhooks(ctx.app.dbId, appId, "entity.created", entityName, parentRow);
 
 		// Run afterCreate hook (fire-and-forget)
 		if (!ctx.isInternal) {
@@ -583,12 +754,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 				appId,
 				entity: entityName,
 				hookType: "afterCreate",
-				data: rows[0] as Record<string, unknown>,
+				data: parentRow,
 				user: await resolveAppUser(ctx.databaseName, request).catch(() => null),
 			}).catch(() => {});
 		}
 
-		return NextResponse.json({ data: rows[0] }, { status: 201 });
+		return NextResponse.json({ data: responseData }, { status: 201 });
 	} catch (error) {
 		console.error("[Data API] POST error:", error);
 		return NextResponse.json(

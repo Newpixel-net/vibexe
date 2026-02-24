@@ -507,6 +507,52 @@ class DataClient {
     if (!res.ok) throw new Error("Failed to delete " + entity + "/" + id);
   }
 
+  async listRelated(entity, id, relation, options) {
+    options = options || {};
+    const params = new URLSearchParams();
+    if (options.page) params.set("page", String(options.page));
+    if (options.limit) params.set("limit", String(options.limit));
+    if (options.sort) params.set("sort", options.sort);
+    if (options.order) params.set("order", options.order);
+    if (options.filter) {
+      for (const [k, v] of Object.entries(options.filter)) {
+        if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+          for (const [op, opVal] of Object.entries(v)) {
+            if (op === "in" && Array.isArray(opVal)) params.set("filter[" + k + "][in]", opVal.join(","));
+            else if (opVal !== undefined) params.set("filter[" + k + "][" + op + "]", String(opVal));
+          }
+        } else params.set("filter[" + k + "]", String(v));
+      }
+    }
+    const qs = params.toString();
+    const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id + "/" + relation + (qs ? "?" + qs : ""), { headers: this.headers });
+    if (!res.ok) throw new Error("Failed to list " + entity + "/" + id + "/" + relation);
+    return await res.json();
+  }
+
+  async createRelated(entity, id, relation, data) {
+    const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id + "/" + relation, {
+      method: "POST",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to create " + entity + "/" + id + "/" + relation);
+    const json = await res.json();
+    return json.data;
+  }
+
+  async deleteWithInfo(entity, id, options) {
+    const params = new URLSearchParams();
+    if (options && options.dryRun) params.set("dryRun", "true");
+    const qs = params.toString();
+    const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id + (qs ? "?" + qs : ""), {
+      method: "DELETE",
+      headers: this.headers,
+    });
+    if (!res.ok) throw new Error("Failed to delete " + entity + "/" + id);
+    return await res.json();
+  }
+
   async createMany(entity, records) {
     const res = await fetch(this.baseUrl + "/data/" + entity + "/batch", {
       method: "POST",

@@ -25,6 +25,7 @@ import {
 	qualifyWhereClause,
 	fetchOneToMany,
 	attachRelations,
+	checkCascadeImpact,
 	IncludeError,
 	type IncludeSpec,
 } from "@/lib/app-database/relation-resolver";
@@ -427,6 +428,24 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 			return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
 		}
 
+		// Dry run mode — preview cascade impact without deleting
+		const url = new URL(request.url);
+		const dryRun = url.searchParams.get("dryRun") === "true";
+
+		if (dryRun && !ctx.isInternal) {
+			const schema = ctx.appDb.schemaJson as AppSchema;
+			const cascadeImpact = await checkCascadeImpact(
+				ctx.databaseName,
+				schema,
+				ctx.entity as import("@/lib/app-database/schema-types").EntityDefinition,
+				rowId,
+			);
+			return NextResponse.json({
+				dryRun: true,
+				wouldAffect: cascadeImpact,
+			});
+		}
+
 		// Run beforeDelete hook (can abort)
 		if (!ctx.isInternal) {
 			const existingRows = await executeQuery(
@@ -481,6 +500,18 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 			}
 		}
 
+		// Compute cascade impact before deleting (for non-internal entities)
+		let cascadeInfo: Record<string, { count: number; action: string }> = {};
+		if (!ctx.isInternal) {
+			const schema = ctx.appDb.schemaJson as AppSchema;
+			cascadeInfo = await checkCascadeImpact(
+				ctx.databaseName,
+				schema,
+				ctx.entity as import("@/lib/app-database/schema-types").EntityDefinition,
+				rowId,
+			);
+		}
+
 		const rows = await executeQuery(
 			ctx.databaseName,
 			`DELETE FROM "${ctx.entity.tableName}" WHERE ${whereClauses.join(" AND ")} RETURNING id`,
@@ -513,7 +544,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 			}).catch(() => {});
 		}
 
-		return NextResponse.json({ success: true, deleted: rowId });
+		return NextResponse.json({
+			success: true,
+			deleted: rowId,
+			...(Object.keys(cascadeInfo).length > 0 ? { cascadeInfo } : {}),
+		});
 	} catch (error) {
 		console.error("[Data API] DELETE error:", error);
 		return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -20,6 +20,8 @@ export interface EntityField {
 	relationTo?: string;
 	/** For relation fields: relationship type */
 	relationType?: "one-to-many" | "many-to-one";
+	/** For relation fields: FK delete behavior (default: "SET NULL") */
+	onDelete?: "CASCADE" | "SET NULL" | "RESTRICT";
 }
 
 /** Configuration for a single field in full-text search */

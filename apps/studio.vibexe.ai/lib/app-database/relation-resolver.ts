@@ -106,7 +106,7 @@ export function resolveIncludes(
  * - Field name "category_id" matches include "category"
  * - Also matches the relationTo entity name (case-insensitive table name)
  */
-function fieldMatchesInclude(field: EntityField, includeName: string): boolean {
+export function fieldMatchesInclude(field: EntityField, includeName: string): boolean {
 	// Direct match: field name without _id suffix
 	if (field.name === `${includeName}_id`) return true;
 	if (field.name === includeName) return true;
@@ -312,4 +312,105 @@ export class IncludeError extends Error {
 		super(message);
 		this.name = "IncludeError";
 	}
+}
+
+/**
+ * Find a one-to-many relation for nested create operations.
+ * Given a parent entity and a field name from the request body,
+ * returns the target entity and FK column if the field name
+ * corresponds to a one-to-many relation.
+ *
+ * Matches by:
+ * - Target entity table name (e.g., "comments" matches Comments entity)
+ * - Target entity name (case-insensitive)
+ */
+export function findOneToManyForCreate(
+	schema: AppSchema,
+	entity: EntityDefinition,
+	fieldName: string,
+): { targetEntity: EntityDefinition; fkColumn: string } | null {
+	// Try finding another entity whose tableName matches the field name
+	// and that has a FK pointing back to us
+	for (const other of schema.entities) {
+		if (other.name === entity.name) continue;
+		if (other.tableName !== fieldName) continue;
+
+		const fkField = other.fields.find(
+			(f) =>
+				f.type === "relation" &&
+				f.relationTo === entity.name &&
+				f.relationType === "many-to-one",
+		);
+
+		if (fkField) {
+			return { targetEntity: other, fkColumn: fkField.name };
+		}
+	}
+
+	// Also try: an explicit one-to-many field on the current entity
+	for (const field of entity.fields) {
+		if (
+			field.type === "relation" &&
+			field.relationType === "one-to-many" &&
+			field.relationTo
+		) {
+			const targetEntity = schema.entities.find(
+				(e) => e.name === field.relationTo,
+			);
+			if (targetEntity && targetEntity.tableName === fieldName) {
+				const reverseFk = targetEntity.fields.find(
+					(f) =>
+						f.type === "relation" &&
+						f.relationTo === entity.name &&
+						f.relationType === "many-to-one",
+				);
+				if (reverseFk) {
+					return { targetEntity, fkColumn: reverseFk.name };
+				}
+			}
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Check cascade impact before deleting a record.
+ * Finds all entities that have FK fields referencing the given entity
+ * and counts how many child rows would be affected.
+ *
+ * Returns a map of entity table names to { count, action }.
+ */
+export async function checkCascadeImpact(
+	databaseName: string,
+	schema: AppSchema,
+	entity: EntityDefinition,
+	recordId: number,
+): Promise<Record<string, { count: number; action: string }>> {
+	const impact: Record<string, { count: number; action: string }> = {};
+
+	for (const other of schema.entities) {
+		if (other.name === entity.name) continue;
+
+		for (const field of other.fields) {
+			if (
+				field.type === "relation" &&
+				field.relationTo === entity.name &&
+				field.relationType === "many-to-one"
+			) {
+				const countResult = await executeQuery<{ count: string }>(
+					databaseName,
+					`SELECT COUNT(*) as count FROM "${other.tableName}" WHERE "${field.name}" = $1`,
+					[recordId],
+				);
+				const count = Number.parseInt(countResult[0]?.count || "0", 10);
+				if (count > 0) {
+					const action = field.onDelete ?? "SET NULL";
+					impact[other.tableName] = { count, action };
+				}
+			}
+		}
+	}
+
+	return impact;
 }

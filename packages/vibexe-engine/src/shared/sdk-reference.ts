@@ -61,6 +61,53 @@ await app.data.create("tasks", { title: "New", status: "active" }); // returns c
 await app.data.update("tasks", id, { status: "done" });             // returns updated item
 await app.data.delete("tasks", id);                                  // returns void
 
+// ─── Nested Create (parent + children in one call, atomic transaction) ───
+const order = await app.data.create("orders", {
+  customer_name: "John",
+  total: 150,
+  order_items: [                    // ← matches child entity table name
+    { product_name: "Widget", qty: 2, price: 50 },
+    { product_name: "Gadget", qty: 1, price: 50 },
+  ],
+});
+// order = { id: 1, customer_name: "John", ..., order_items: [{ id: 1, order_id: 1, ... }, ...] }
+// Children are created in a transaction — if any child fails, everything rolls back.
+// The child entity must have a many-to-one FK pointing to the parent entity.
+
+// ─── Reverse Relation Routes (access children via parent) ───
+// List children: GET /data/{parent}/{id}/{children_table}
+const comments = await app.data.listRelated("posts", postId, "comments", {
+  sort: "created_at", order: "desc", limit: 50,
+});
+// comments = { data: [...], pagination: { page, limit, total, totalPages } }
+
+// Create child under parent (auto-injects FK)
+const comment = await app.data.createRelated("posts", postId, "comments", {
+  text: "Great post!", user_id: userId,
+});
+// comment = { id: 10, post_id: postId, text: "Great post!", ... }
+
+// ─── Deep Filtering (filter on related entity fields) ───
+// Filter posts by author name (dot-notation on relation fields)
+const result = await app.data.list("posts", {
+  filter: { "author.name": "John" },           // author is a many-to-one relation
+});
+// Generates: LEFT JOIN authors ON posts.author_id = authors.id WHERE authors.name = 'John'
+
+// Also supports filter operators on related fields
+const result2 = await app.data.list("orders", {
+  filter: { "customer.status": { ne: "banned" } },
+});
+
+// ─── Cascade Delete Warnings ───
+// Preview what would be affected before deleting
+const preview = await app.data.deleteWithInfo("authors", authorId, { dryRun: true });
+// preview = { dryRun: true, wouldAffect: { posts: { count: 5, action: "SET NULL" } } }
+
+// Delete with cascade info in response
+const result3 = await app.data.deleteWithInfo("authors", authorId);
+// result3 = { success: true, deleted: authorId, cascadeInfo: { posts: { count: 5, action: "SET NULL" } } }
+
 // ─── Batch Operations ───
 // Bulk create (up to 500 records per call, atomic transaction)
 const batch = await app.data.createMany("tasks", [
@@ -177,6 +224,17 @@ await app.storage.delete("avatars/photo.jpg");
 \`\`\`
 
 **Entity naming**: \`define_entities\` uses PascalCase names (e.g. "BlogPost"). SDK calls use the auto-generated snake_case table name: \`app.data.list("blog_posts")\`.
+
+### FK Cascade Options (define_entities)
+Relation fields support an optional \`onDelete\` property:
+- \`"SET NULL"\` (default) — child FK set to NULL when parent is deleted
+- \`"CASCADE"\` — child rows are deleted when parent is deleted
+- \`"RESTRICT"\` — parent deletion is blocked if children exist
+
+Example in define_entities:
+\`\`\`
+{ name: "order_id", type: "relation", relationTo: "Order", relationType: "many-to-one", onDelete: "CASCADE" }
+\`\`\`
 
 ### CRITICAL — Common Mistakes to Avoid
 | Wrong (agents used to teach this) | Correct |
@@ -446,15 +504,47 @@ const result = await app.data.list("posts", {
 });
 \`\`\`
 
-### Cascading Delete (manual)
+### Cascading Delete
 \`\`\`typescript
-const deleteProject = async (projectId: string) => {
-  // Delete children first
-  const result = await app.data.list("tasks", { filter: { project_id: projectId } });
-  await Promise.all(result.data.map(t => app.data.delete("tasks", t.id)));
-  // Then delete parent
+// Option 1: Use onDelete: "CASCADE" in define_entities (recommended for strict parent-child)
+// The DB automatically deletes children when parent is deleted.
+
+// Option 2: Preview cascade impact before deleting
+const preview = await app.data.deleteWithInfo("projects", projectId, { dryRun: true });
+// preview = { dryRun: true, wouldAffect: { tasks: { count: 12, action: "SET NULL" } } }
+if (confirm(\`This will affect \${preview.wouldAffect.tasks?.count ?? 0} tasks. Continue?\`)) {
   await app.data.delete("projects", projectId);
-};
+}
+
+// Option 3: Manual cascade (when you need custom cleanup logic)
+const result = await app.data.list("tasks", { filter: { project_id: projectId } });
+await Promise.all(result.data.map(t => app.data.delete("tasks", t.id)));
+await app.data.delete("projects", projectId);
+\`\`\`
+
+### Reverse Relation Routes
+\`\`\`typescript
+// List children via parent — cleaner than filtering
+const comments = await app.data.listRelated("posts", postId, "comments", {
+  sort: "created_at", order: "desc",
+});
+// Same as: app.data.list("comments", { filter: { post_id: postId } })
+// But more semantic and auto-validated against the schema.
+
+// Create child via parent — FK auto-injected
+const comment = await app.data.createRelated("posts", postId, "comments", {
+  text: "Nice post!",
+});
+// Equivalent to: app.data.create("comments", { text: "Nice post!", post_id: postId })
+\`\`\`
+
+### Deep Filtering (filter on related fields)
+\`\`\`typescript
+// Filter by related entity fields using dot-notation
+const result = await app.data.list("posts", {
+  filter: { "author.name": "John", status: "published" },
+});
+// Combines: JOIN on author relation + WHERE on both tables
 \`\`\`
 
 ### File Upload (profile picture)
@@ -520,6 +610,11 @@ export const mockApp = {
       Promise.resolve({ id, ...data })
     ),
     delete: vi.fn().mockResolvedValue(undefined),
+    deleteWithInfo: vi.fn().mockResolvedValue({ success: true, deleted: 1 }),
+    listRelated: vi.fn().mockResolvedValue({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } }),
+    createRelated: vi.fn().mockImplementation((entity, id, relation, data) =>
+      Promise.resolve({ id: "mock-id", ...data, created_at: new Date().toISOString() })
+    ),
     subscribe: vi.fn().mockReturnValue(() => {}), // returns unsubscribe function
     aggregate: vi.fn().mockResolvedValue({ data: [] }),
   },

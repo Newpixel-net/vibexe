@@ -167,7 +167,8 @@ function buildColumnDef(
 	if (field.type === "relation" && field.relationTo) {
 		const targetEntity = allEntities.find((e) => e.name === field.relationTo);
 		if (targetEntity) {
-			parts.push(`REFERENCES "${targetEntity.tableName}"(id) ON DELETE SET NULL`);
+			const onDelete = field.onDelete ?? "SET NULL";
+			parts.push(`REFERENCES "${targetEntity.tableName}"(id) ON DELETE ${onDelete}`);
 		}
 	}
 
