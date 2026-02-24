@@ -153,16 +153,30 @@ export function ReadmePanel({ files, isGenerating, streamingDoc }: ReadmePanelPr
 	if (effectiveDocFiles.length === 0) {
 		return (
 			<div className="flex-1 flex items-center justify-center text-muted-foreground">
-				<div className="text-center">
+				<div className="text-center max-w-md">
 					<FileText className={`h-12 w-12 mx-auto mb-4 opacity-50 ${isGenerating ? "animate-pulse" : ""}`} />
 					<p className="text-lg font-medium">
 						{isGenerating ? "Generating documentation..." : "No documentation yet"}
 					</p>
-					<p className="text-sm mt-1">
+					<p className="text-sm mt-2">
 						{isGenerating
 							? "Wiki pages will appear shortly..."
-							: "Documentation will appear here after code generation."}
+							: "Start building your app and the wiki will be auto-generated."}
 					</p>
+					{!isGenerating && (
+						<div className="mt-6 text-left bg-muted/50 rounded-lg p-4 text-xs space-y-1.5">
+							<p className="font-medium text-foreground text-sm mb-2">Your project wiki will include:</p>
+							<p><span className="text-orange-500 font-medium">README</span> — Project overview & features</p>
+							<p><span className="text-orange-500 font-medium">ARCHITECTURE</span> — File structure & component diagrams</p>
+							<p><span className="text-orange-500 font-medium">DATA-MODEL</span> — Entity schemas & ER diagram</p>
+							<p><span className="text-orange-500 font-medium">API-REFERENCE</span> — SDK methods used</p>
+							<p><span className="text-orange-500 font-medium">COMPONENTS</span> — Component catalog</p>
+							<p><span className="text-orange-500 font-medium">CHANGELOG</span> — Change history</p>
+							<p><span className="text-orange-500 font-medium">BACKEND</span> — Functions, hooks & scheduled jobs</p>
+							<p><span className="text-orange-500 font-medium">SECURITY</span> — Auth providers & access policies</p>
+							<p><span className="text-orange-500 font-medium">DEPLOYMENT</span> — Subdomain, storage & integrations</p>
+						</div>
+					)}
 				</div>
 			</div>
 		);

@@ -12,9 +12,22 @@
  * - Orange highlight for selected file
  */
 
-import { FileText } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText, Info } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+
+/** Description for each known wiki page */
+const WIKI_GUIDE: { file: string; desc: string }[] = [
+	{ file: "README.md", desc: "Project overview, features & tech stack" },
+	{ file: "ARCHITECTURE.md", desc: "File structure & component diagrams" },
+	{ file: "DATA-MODEL.md", desc: "Entity schemas, relations & ER diagram" },
+	{ file: "API-REFERENCE.md", desc: "SDK methods used across the app" },
+	{ file: "COMPONENTS.md", desc: "Component catalog with imports" },
+	{ file: "CHANGELOG.md", desc: "Timestamped change history" },
+	{ file: "BACKEND.md", desc: "Functions, hooks & scheduled jobs" },
+	{ file: "SECURITY.md", desc: "Auth providers & access policies" },
+	{ file: "DEPLOYMENT.md", desc: "Subdomain, storage & integrations" },
+];
 
 interface DocFileBrowserProps {
 	files: { id?: string; path: string; content: string | null }[];
@@ -127,6 +140,52 @@ export function DocFileBrowser({
 					</p>
 				)}
 			</div>
+		{/* Guide section */}
+			<WikiGuide />
+		</div>
+	);
+}
+
+/** Collapsible guide explaining the wiki pages */
+function WikiGuide() {
+	const [open, setOpen] = useState(false);
+
+	return (
+		<div className="border-t">
+			<button
+				type="button"
+				onClick={() => setOpen(!open)}
+				className="w-full flex items-center gap-1.5 px-4 py-2.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+			>
+				<Info className="h-3 w-3 flex-shrink-0" />
+				<span>How it works</span>
+				{open ? (
+					<ChevronDown className="h-3 w-3 ml-auto" />
+				) : (
+					<ChevronUp className="h-3 w-3 ml-auto" />
+				)}
+			</button>
+
+			{open && (
+				<div className="px-4 pb-3 space-y-2.5">
+					<p className="text-[11px] text-muted-foreground leading-relaxed">
+						Wiki pages are <strong>auto-generated</strong> after each code change and stay in sync with your app.
+					</p>
+
+					<div className="space-y-1">
+						{WIKI_GUIDE.map((item) => (
+							<div key={item.file} className="flex gap-1.5 text-[11px]">
+								<span className="text-orange-500 font-medium flex-shrink-0">{item.file.replace(".md", "")}</span>
+								<span className="text-muted-foreground">{item.desc}</span>
+							</div>
+						))}
+					</div>
+
+					<p className="text-[11px] text-muted-foreground leading-relaxed border-t pt-2">
+						Click any file to read it. Use the <strong>Table of Contents</strong> on the right to jump between sections.
+					</p>
+				</div>
+			)}
 		</div>
 	);
 }
