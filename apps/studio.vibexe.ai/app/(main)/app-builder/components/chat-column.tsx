@@ -1383,6 +1383,7 @@ export function ChatColumn({
 				onVoiceTranscript={handleVoiceTranscript}
 				onNewChat={handleNewChat}
 				mode={mode}
+				onInsertText={setInput}
 			/>
 
 			{/* History Modal */}

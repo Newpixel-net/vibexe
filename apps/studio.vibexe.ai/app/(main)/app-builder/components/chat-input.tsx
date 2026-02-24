@@ -25,6 +25,11 @@ import type { ModelCapabilities } from "../lib/model-resolver";
 import type { Attachment } from "../types/vibesdk";
 import { AttachmentPreview } from "./attachment-preview";
 import { ScreenshotEditor } from "./screenshot-editor";
+import {
+	SlashCommandMenu,
+	type SlashCommandMenuHandle,
+} from "./slash-command-menu";
+import type { SlashCommand } from "../lib/slash-commands";
 
 const MAX_WORDS = 4000;
 
@@ -63,10 +68,14 @@ export function ChatInput({
 }: ChatInputProps) {
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const slashMenuRef = useRef<SlashCommandMenuHandle>(null);
 	const [isDragging, setIsDragging] = useState(false);
 	const [isCapturing, setIsCapturing] = useState(false);
 	const [editingImage, setEditingImage] = useState<File | null>(null);
 	const [editingAttachmentId, setEditingAttachmentId] = useState<string | null>(null);
+	const [slashMenuOpen, setSlashMenuOpen] = useState(false);
+	const [slashQuery, setSlashQuery] = useState("");
+	const [slashStartIndex, setSlashStartIndex] = useState(-1);
 
 	useEffect(() => {
 		const textarea = textareaRef.current;
@@ -287,12 +296,64 @@ export function ChatInput({
 
 	const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
 		const newValue = e.target.value;
-		if (countWords(newValue) <= MAX_WORDS) {
-			onChange(newValue);
+		if (countWords(newValue) > MAX_WORDS) return;
+		onChange(newValue);
+
+		// Slash command detection — check if current word starts with /
+		const cursorPos = e.target.selectionStart;
+		let wordStart = cursorPos - 1;
+		while (wordStart >= 0 && !/\s/.test(newValue[wordStart])) {
+			wordStart--;
+		}
+		wordStart++; // move past the whitespace or to 0
+
+		const currentWord = newValue.slice(wordStart, cursorPos);
+		if (currentWord.startsWith("/")) {
+			setSlashMenuOpen(true);
+			setSlashQuery(currentWord.slice(1));
+			setSlashStartIndex(wordStart);
+		} else {
+			setSlashMenuOpen(false);
 		}
 	};
 
+	const handleSlashSelect = useCallback(
+		(command: SlashCommand) => {
+			// Replace /query with the command's insertText
+			const before = value.slice(0, slashStartIndex);
+			const after = value.slice(
+				slashStartIndex + slashQuery.length + 1, // +1 for the /
+			);
+			const newValue = before + command.insertText + after;
+			onChange(newValue);
+			setSlashMenuOpen(false);
+			setSlashQuery("");
+			setSlashStartIndex(-1);
+
+			// Set cursor after inserted text
+			const cursorPos = before.length + command.insertText.length;
+			requestAnimationFrame(() => {
+				const ta = textareaRef.current;
+				if (ta) {
+					ta.selectionStart = cursorPos;
+					ta.selectionEnd = cursorPos;
+					ta.focus();
+				}
+			});
+		},
+		[value, onChange, slashStartIndex, slashQuery],
+	);
+
 	const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+		// Forward keyboard events to slash menu when open
+		if (slashMenuOpen) {
+			if (["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) {
+				e.preventDefault();
+				slashMenuRef.current?.handleKeyDown(e.key);
+				return;
+			}
+		}
+
 		if (e.key === "Enter" && !e.shiftKey) {
 			e.preventDefault();
 			if ((value.trim() || attachments.length > 0) && !isLoading && !disabled) {
@@ -376,6 +437,16 @@ export function ChatInput({
 							Drop files here
 						</span>
 					</div>
+				)}
+
+				{/* Slash command menu — floats above input */}
+				{slashMenuOpen && (
+					<SlashCommandMenu
+						ref={slashMenuRef}
+						query={slashQuery}
+						onSelect={handleSlashSelect}
+						onClose={() => setSlashMenuOpen(false)}
+					/>
 				)}
 
 				<div className="space-y-2">

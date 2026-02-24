@@ -7,7 +7,7 @@
  * glass action buttons, and voice input.
  */
 
-import { Check, ChevronDown, MessageSquare, Plus, Settings } from "lucide-react";
+import { Check, ChevronDown, MessageSquare, Plus, Settings, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	DEFAULT_MODEL_ID,
@@ -15,6 +15,7 @@ import {
 } from "@/app/(main)/app-builder/lib/model-resolver";
 import { cn } from "@/lib/utils";
 import type { ChatMode } from "../types/vibesdk";
+import { CapabilitiesModal } from "./capabilities-modal";
 import { ChatSettingsPopover } from "./chat-settings-popover";
 import { VoiceInputButton } from "./voice-input-button";
 
@@ -27,6 +28,7 @@ interface ChatBottomBarProps {
 	mode?: ChatMode;
 	onVoiceTranscript?: (text: string) => void;
 	onNewChat?: () => void;
+	onInsertText?: (text: string) => void;
 }
 
 /**
@@ -155,9 +157,11 @@ export function ChatBottomBar({
 	mode = "generate",
 	onVoiceTranscript,
 	onNewChat,
+	onInsertText,
 }: ChatBottomBarProps) {
 	const isDiscussMode = mode === "discuss";
 	const [showSettings, setShowSettings] = useState(false);
+	const [showCapabilities, setShowCapabilities] = useState(false);
 
 	const glassIconBtn = cn(
 		"flex items-center justify-center h-8 w-8 rounded-lg transition-all duration-200",
@@ -204,6 +208,17 @@ export function ChatBottomBar({
 				<Plus className="h-4 w-4 shrink-0" />
 			</button>
 
+			{/* Capabilities */}
+			<button
+				type="button"
+				onClick={() => setShowCapabilities(true)}
+				className={glassIconBtn}
+				aria-label="AI capabilities"
+				title="AI capabilities"
+			>
+				<Sparkles className="h-4 w-4 shrink-0" />
+			</button>
+
 			{/* Discuss toggle — glass pill */}
 			<button
 				type="button"
@@ -227,6 +242,14 @@ export function ChatBottomBar({
 				onTranscript={onVoiceTranscript}
 				className={glassIconBtn}
 			/>
+
+			{/* Capabilities modal */}
+			{showCapabilities && (
+				<CapabilitiesModal
+					onClose={() => setShowCapabilities(false)}
+					onInsertText={onInsertText}
+				/>
+			)}
 		</div>
 	);
 }
