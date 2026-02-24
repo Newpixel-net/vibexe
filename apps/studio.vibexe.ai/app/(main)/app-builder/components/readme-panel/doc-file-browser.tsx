@@ -33,12 +33,22 @@ export function DocFileBrowser({
 	onSelect,
 	streamingPath,
 }: DocFileBrowserProps) {
-	// Filter to only show .md files
-	const docFiles = files.filter(
-		(f) =>
-			f.path.endsWith(".md") ||
-			f.path.toLowerCase().includes("readme"),
-	);
+	// Filter to only show .md files, pin README first
+	const docFiles = files
+		.filter(
+			(f) =>
+				f.path.endsWith(".md") ||
+				f.path.toLowerCase().includes("readme"),
+		)
+		.sort((a, b) => {
+			const aName = a.path.split("/").pop()?.toLowerCase() || "";
+			const bName = b.path.split("/").pop()?.toLowerCase() || "";
+			const aIsReadme = aName.startsWith("readme");
+			const bIsReadme = bName.startsWith("readme");
+			if (aIsReadme && !bIsReadme) return -1;
+			if (!aIsReadme && bIsReadme) return 1;
+			return aName.localeCompare(bName);
+		});
 
 	const fileCount = docFiles.length;
 	const fileLabel = fileCount === 1 ? "1 file" : `${fileCount} files`;
