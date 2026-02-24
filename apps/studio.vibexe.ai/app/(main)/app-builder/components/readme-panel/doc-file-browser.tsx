@@ -20,6 +20,7 @@ interface DocFileBrowserProps {
 	files: { id?: string; path: string; content: string | null }[];
 	selected: string;
 	onSelect: (path: string) => void;
+	streamingPath?: string;
 }
 
 /**
@@ -30,6 +31,7 @@ export function DocFileBrowser({
 	files,
 	selected,
 	onSelect,
+	streamingPath,
 }: DocFileBrowserProps) {
 	// Filter to only show .md files
 	const docFiles = files.filter(
@@ -75,6 +77,7 @@ export function DocFileBrowser({
 					const isSelected = file.path === selected;
 					const isWiki = file.path.startsWith("docs/");
 					const isNew = newPaths.has(file.path);
+					const isStreaming = file.path === streamingPath;
 
 					return (
 						<button
@@ -91,6 +94,9 @@ export function DocFileBrowser({
 						>
 							<FileText className="h-4 w-4 flex-shrink-0" />
 							<span className="truncate">{fileName}</span>
+							{isStreaming && (
+								<span className="flex-shrink-0 w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+							)}
 							{isWiki && (
 								<span className="ml-auto text-[10px] px-1 py-0.5 rounded bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 flex-shrink-0">
 									Wiki

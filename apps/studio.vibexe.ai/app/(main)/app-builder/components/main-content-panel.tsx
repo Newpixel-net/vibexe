@@ -37,6 +37,8 @@ export interface MainContentPanelProps {
 	onViewChange: (view: RightPanelView) => void;
 	/** Whether AI is currently generating code */
 	isGenerating?: boolean;
+	/** Streaming doc from in-progress create_file/update_file tool call */
+	streamingDoc?: { path: string; content: string } | null;
 }
 
 /**
@@ -58,6 +60,7 @@ export function MainContentPanel({
 	view,
 	onViewChange,
 	isGenerating,
+	streamingDoc,
 }: MainContentPanelProps) {
 	return (
 		<div className="flex-1 flex flex-col min-h-0 bg-white/[0.015] backdrop-blur-lg">
@@ -92,7 +95,7 @@ export function MainContentPanel({
 								onFileUpdate={onFileUpdate}
 							/>
 						)}
-						{view === "readme" && <ReadmePanel files={files} isGenerating={isGenerating} />}
+						{view === "readme" && <ReadmePanel files={files} isGenerating={isGenerating} streamingDoc={streamingDoc} />}
 						{view === "workflows" && <WorkflowsPanel appId={appId} />}
 					</motion.div>
 				</AnimatePresence>

@@ -85,6 +85,7 @@ interface ChatColumnProps {
 	onFileClick: (file: FileType) => void;
 	onAppNameChange?: (name: string) => void;
 	onGeneratingChange?: (isGenerating: boolean) => void;
+	onStreamingDoc?: (doc: { path: string; content: string } | null) => void;
 }
 
 // Generate unique ID (fallback if nanoid not available)
@@ -273,6 +274,7 @@ export function ChatColumn({
 	onFileClick,
 	onAppNameChange,
 	onGeneratingChange,
+	onStreamingDoc,
 }: ChatColumnProps) {
 	// Track if component has mounted (for hydration safety)
 	const [hasMounted, setHasMounted] = useState(false);
@@ -826,6 +828,37 @@ export function ChatColumn({
 			onFilesChange();
 		}
 	}, [chatMessages, onFilesChange]);
+
+	// Stream doc updates: detect running create_file/update_file for .md files
+	useEffect(() => {
+		if (!onStreamingDoc) return;
+		if (!isLoading) {
+			onStreamingDoc(null);
+			return;
+		}
+		if (chatMessages.length === 0) return;
+
+		const latestMessage = chatMessages[chatMessages.length - 1];
+		if (latestMessage?.role !== "assistant" || !latestMessage.toolEvents) return;
+
+		const fileToolNames = new Set(["create_file", "update_file", "createFile", "updateFile"]);
+
+		// Find the last running file tool that targets a .md file
+		for (let i = latestMessage.toolEvents.length - 1; i >= 0; i--) {
+			const event = latestMessage.toolEvents[i];
+			if (
+				event.status === "running" &&
+				fileToolNames.has(event.toolName) &&
+				typeof event.args?.path === "string" &&
+				event.args.path.endsWith(".md") &&
+				typeof event.args?.content === "string"
+			) {
+				onStreamingDoc({ path: event.args.path, content: event.args.content });
+				return;
+			}
+		}
+		onStreamingDoc(null);
+	}, [chatMessages, isLoading, onStreamingDoc]);
 
 	// Auto-scroll to bottom when messages change
 	useEffect(() => {

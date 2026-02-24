@@ -18,13 +18,14 @@ import { TableOfContents, useScrollSpy } from "./table-of-contents";
 export interface ReadmePanelProps {
 	files: { id: string; path: string; content: string | null }[];
 	isGenerating?: boolean;
+	streamingDoc?: { path: string; content: string } | null;
 }
 
 /**
  * Main Read me panel with 3-column documentation viewer.
  * Integrates file browser, markdown viewer, and table of contents.
  */
-export function ReadmePanel({ files, isGenerating }: ReadmePanelProps) {
+export function ReadmePanel({ files, isGenerating, streamingDoc }: ReadmePanelProps) {
 	// Filter to only documentation files (.md, readme)
 	// Sort: docs/ files first, then root .md files
 	const docFiles = useMemo(() => {
@@ -41,20 +42,34 @@ export function ReadmePanel({ files, isGenerating }: ReadmePanelProps) {
 		});
 	}, [files]);
 
+	// Merge streaming doc as synthetic entry when real file doesn't exist yet
+	const effectiveDocFiles = useMemo(() => {
+		if (!streamingDoc) return docFiles;
+		const exists = docFiles.some((f) => f.path === streamingDoc.path);
+		if (exists) return docFiles;
+		const synthetic = { id: `streaming-${streamingDoc.path}`, path: streamingDoc.path, content: streamingDoc.content };
+		return [...docFiles, synthetic].sort((a, b) => {
+			const aIsWiki = a.path.startsWith("docs/") ? 0 : 1;
+			const bIsWiki = b.path.startsWith("docs/") ? 0 : 1;
+			if (aIsWiki !== bIsWiki) return aIsWiki - bIsWiki;
+			return a.path.localeCompare(b.path);
+		});
+	}, [docFiles, streamingDoc]);
+
 	// Find default file: prefer docs/README.md > README.md > Blueprint.md > first doc
 	const defaultFile = useMemo(() => {
-		const docsReadme = docFiles.find((f) => f.path === "docs/README.md");
+		const docsReadme = effectiveDocFiles.find((f) => f.path === "docs/README.md");
 		if (docsReadme) return docsReadme.path;
-		const readme = docFiles.find(
+		const readme = effectiveDocFiles.find(
 			(f) =>
 				f.path.toLowerCase() === "readme.md" ||
 				f.path.toLowerCase().endsWith("/readme.md"),
 		);
 		if (readme) return readme.path;
-		const blueprint = docFiles.find((f) => f.path === "Blueprint.md");
+		const blueprint = effectiveDocFiles.find((f) => f.path === "Blueprint.md");
 		if (blueprint) return blueprint.path;
-		return docFiles[0]?.path || "";
-	}, [docFiles]);
+		return effectiveDocFiles[0]?.path || "";
+	}, [effectiveDocFiles]);
 
 	// Selected file state
 	const [selectedPath, setSelectedPath] = useState<string>(defaultFile);
@@ -63,23 +78,30 @@ export function ReadmePanel({ files, isGenerating }: ReadmePanelProps) {
 
 	// Update selected path when docFiles change and current selection is invalid
 	useEffect(() => {
-		if (selectedPath && !docFiles.find((f) => f.path === selectedPath)) {
+		if (selectedPath && !effectiveDocFiles.find((f) => f.path === selectedPath)) {
 			setSelectedPath(defaultFile);
 		}
-	}, [docFiles, selectedPath, defaultFile]);
+	}, [effectiveDocFiles, selectedPath, defaultFile]);
 
 	// Auto-select newest wiki file when new docs appear (unless user manually selected)
 	useEffect(() => {
-		if (docFiles.length > prevDocCount.current && !userHasSelected.current) {
-			const newWiki = docFiles.find(
+		if (effectiveDocFiles.length > prevDocCount.current && !userHasSelected.current) {
+			const newWiki = effectiveDocFiles.find(
 				(f) => f.path.startsWith("docs/") && f.path !== selectedPath,
 			);
 			if (newWiki) {
 				setSelectedPath(newWiki.path);
 			}
 		}
-		prevDocCount.current = docFiles.length;
-	}, [docFiles, selectedPath]);
+		prevDocCount.current = effectiveDocFiles.length;
+	}, [effectiveDocFiles, selectedPath]);
+
+	// Auto-select streaming doc path when it first appears (unless user manually selected)
+	useEffect(() => {
+		if (streamingDoc && !userHasSelected.current) {
+			setSelectedPath(streamingDoc.path);
+		}
+	}, [streamingDoc]);
 
 	// Headings extracted from markdown
 	const [headings, setHeadings] = useState<Heading[]>([]);
@@ -93,11 +115,14 @@ export function ReadmePanel({ files, isGenerating }: ReadmePanelProps) {
 	// Active heading from scroll spy
 	const activeId = useScrollSpy(contentRef, headingIds);
 
-	// Get content for selected file
+	// Get content for selected file — prefer streaming content when available
 	const selectedContent = useMemo(() => {
-		const file = docFiles.find((f) => f.path === selectedPath);
+		if (streamingDoc && selectedPath === streamingDoc.path) {
+			return streamingDoc.content;
+		}
+		const file = effectiveDocFiles.find((f) => f.path === selectedPath);
 		return file?.content || "";
-	}, [docFiles, selectedPath]);
+	}, [effectiveDocFiles, selectedPath, streamingDoc]);
 
 	// Handle file selection
 	const handleFileSelect = useCallback((path: string) => {
@@ -125,7 +150,7 @@ export function ReadmePanel({ files, isGenerating }: ReadmePanelProps) {
 	}, []);
 
 	// If no documentation files, show empty state
-	if (docFiles.length === 0) {
+	if (effectiveDocFiles.length === 0) {
 		return (
 			<div className="flex-1 flex items-center justify-center text-muted-foreground">
 				<div className="text-center">
@@ -148,9 +173,10 @@ export function ReadmePanel({ files, isGenerating }: ReadmePanelProps) {
 			{/* Left sidebar - File Browser (w-48) */}
 			<div className="w-48 flex-shrink-0 overflow-hidden">
 				<DocFileBrowser
-					files={docFiles}
+					files={effectiveDocFiles}
 					selected={selectedPath}
 					onSelect={handleFileSelect}
+					streamingPath={streamingDoc?.path}
 				/>
 			</div>
 

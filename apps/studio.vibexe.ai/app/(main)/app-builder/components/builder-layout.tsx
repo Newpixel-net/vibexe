@@ -36,6 +36,7 @@ export function BuilderLayout({
 	const [files, setFiles] = useState<AppFile[]>(initialFiles);
 	const [appName, setAppName] = useState(app.name);
 	const [isGenerating, setIsGenerating] = useState(false);
+	const [streamingDoc, setStreamingDoc] = useState<{ path: string; content: string } | null>(null);
 	const prevGenerating = useRef(false);
 
 	const handleFileClick = useCallback((file: FileType) => {
@@ -127,6 +128,7 @@ export function BuilderLayout({
 							onFileClick={handleFileClick}
 							onAppNameChange={setAppName}
 							onGeneratingChange={setIsGenerating}
+							onStreamingDoc={setStreamingDoc}
 						/>
 					</div>
 
@@ -141,6 +143,7 @@ export function BuilderLayout({
 							view={view}
 							onViewChange={setView}
 							isGenerating={isGenerating}
+							streamingDoc={streamingDoc}
 						/>
 					</div>
 				</div>
