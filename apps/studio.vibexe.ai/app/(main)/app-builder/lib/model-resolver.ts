@@ -38,6 +38,20 @@ const ANTHROPIC_CAPABILITIES: ModelCapabilities = {
 
 export const MODEL_OPTIONS: ModelOption[] = [
 	{
+		id: "kimi-k2-5",
+		name: "Kimi K2.5",
+		provider: "nvidia",
+		tier: "standard",
+		capabilities: {
+			vision: false,
+			documents: false,
+			maxFiles: 0,
+			maxFileSizeMB: 0,
+			supportedImageTypes: [],
+			supportedDocTypes: [],
+		},
+	},
+	{
 		id: "claude-sonnet-4-5",
 		name: "Claude Sonnet 4.5",
 		provider: "anthropic",
@@ -86,23 +100,9 @@ export const MODEL_OPTIONS: ModelOption[] = [
 			supportedDocTypes: [],
 		},
 	},
-	{
-		id: "kimi-k2-5",
-		name: "Kimi K2.5 (NVIDIA)",
-		provider: "nvidia",
-		tier: "standard",
-		capabilities: {
-			vision: false,
-			documents: false,
-			maxFiles: 0,
-			maxFileSizeMB: 0,
-			supportedImageTypes: [],
-			supportedDocTypes: [],
-		},
-	},
 ];
 
-export const DEFAULT_MODEL_ID = "claude-sonnet-4-5";
+export const DEFAULT_MODEL_ID = "kimi-k2-5";
 
 /**
  * Get capabilities for a model by ID.
