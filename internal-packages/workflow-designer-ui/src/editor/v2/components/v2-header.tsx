@@ -72,7 +72,7 @@ export function V2Header({
 				>
 					<VibexeIcon className="text-inverse w-[24px] h-[24px] group-hover:text-primary-100 transition-colors" />
 					<span className="text-inverse text-[13px] font-semibold group-hover:text-primary-100 transition-colors">
-						Studio
+						Vibexe
 					</span>
 				</Link>
 				<span className="text-inverse/20 text-[18px] font-[250] leading-none ml-[4px]">
