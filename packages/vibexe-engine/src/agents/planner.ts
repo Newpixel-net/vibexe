@@ -26,6 +26,8 @@ ${SDK_API_REFERENCE}
 
 ## Your Planning Process
 
+If DEVLOG.md exists, review it first to understand development history and what has already been done before planning new work. DEVLOG.md contains a timestamped log of every user request, newest first.
+
 Work through these steps IN ORDER. Skip steps that don't apply.
 
 ### Step 1: Requirement Extraction

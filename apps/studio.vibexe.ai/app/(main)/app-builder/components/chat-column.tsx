@@ -694,12 +694,20 @@ export function ChatColumn({
 		);
 	}, [chatMessages, isLoading]);
 
+	// Check if project has actual code files (not just Blueprint.md)
+	const hasCodeFiles = useMemo(() => {
+		return files.some((f) => {
+			const p = f.path || "";
+			return p.endsWith(".tsx") || p.endsWith(".ts") || p.endsWith(".jsx") || p.endsWith(".js");
+		});
+	}, [files]);
+
 	// Detect if we just completed a code generation (for showing Review button)
 	const showReviewButton = useMemo(() => {
 		if (isLoading || isReviewWithIssues) return false;
-		// Show review button when generation completed and we have files
-		return isGenerationComplete && files.length > 0;
-	}, [isLoading, isReviewWithIssues, isGenerationComplete, files.length]);
+		// Show review button when generation completed and we have code files
+		return isGenerationComplete && hasCodeFiles;
+	}, [isLoading, isReviewWithIssues, isGenerationComplete, hasCodeFiles]);
 
 	// Continuation analysis for returning users
 	// Triggers when: mounted, has files, and hasn't analyzed yet.
@@ -806,7 +814,7 @@ export function ChatColumn({
 				viewport.scrollTop = viewport.scrollHeight;
 			}
 		}
-	}, []);
+	}, [chatMessages.length, isLoading]);
 
 	// Convert File to data URL for AI SDK FileUIPart
 	const fileToDataUrl = useCallback((file: File): Promise<string> => {
@@ -1328,7 +1336,7 @@ export function ChatColumn({
 					)}
 
 					{/* Deploy banner (standalone when no review button shown) */}
-					{isGenerationComplete && mode === "generate" && !showReviewButton && (
+					{isGenerationComplete && mode === "generate" && !showReviewButton && hasCodeFiles && (
 						<div className="mt-4">
 							<DeployBanner />
 						</div>

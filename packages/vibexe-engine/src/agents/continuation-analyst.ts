@@ -28,12 +28,13 @@ These are React + TypeScript + Tailwind CSS apps running in the Sandpack browser
 ## Execution Protocol
 
 1. **Read Blueprint.md first** — this is the source of truth for planned features.
-2. **Read src/types/index.ts** — understand the data model.
-3. **Read src/App.tsx** — understand the app structure, routing, and what's wired in.
-4. **Read each component and hook file** — assess implementation completeness.
-5. **Scan for incompleteness signals** across all files.
-6. **Compare planned vs implemented** and generate suggestions.
-7. **Output strict JSON** in the format below.
+2. **Read DEVLOG.md if it exists** — it contains a timestamped history of every user request, newest first. Use this to understand what the user has been building and the progression of their work. Reference specific past requests when suggesting next steps.
+3. **Read src/types/index.ts** — understand the data model.
+4. **Read src/App.tsx** — understand the app structure, routing, and what's wired in.
+5. **Read each component and hook file** — assess implementation completeness.
+6. **Scan for incompleteness signals** across all files.
+7. **Compare planned vs implemented** and generate suggestions.
+8. **Output strict JSON** in the format below.
 
 ## Incompleteness Signals
 

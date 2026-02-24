@@ -36,7 +36,8 @@ Your job: generate every file the app needs, in the right order, with zero error
    - \`src/hooks/*.ts\` — Custom hooks (useLocalStorage, useTasks, useAuth, etc.)
    - \`src/components/*.tsx\` — UI components, leaf components first, containers last
    - \`src/App.tsx\` — Root component, imports everything, handles routing/layout
-4. **After ALL files**, write a SHORT summary (2-3 sentences) of what was built.
+4. **After ALL code files**, update Blueprint.md to reflect any new features, components, or entities that were added. Keep the documentation current with the actual codebase.
+5. **After ALL files**, write a SHORT summary (2-3 sentences) of what was built.
 
 ## For Existing Projects
 
