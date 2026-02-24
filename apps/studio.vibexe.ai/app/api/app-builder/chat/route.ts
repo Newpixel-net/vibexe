@@ -26,6 +26,7 @@ import {
 	getAppById,
 	getFileByPath,
 	getFilesForApp,
+	saveFile,
 } from "@/app/(main)/app-builder/lib/queries";
 import {
 	type SiteAnalysis,
@@ -39,6 +40,46 @@ import { resolveAllProviderApiKeys } from "@/lib/team-ai-provider-keys";
 // Initialize engine registries (runs once at module load)
 registerAgents(DEFAULT_AGENTS);
 registerSkills(DEFAULT_SKILLS);
+
+/**
+ * Append an entry to the project's DEVLOG.md (development memory).
+ * Programmatic — zero token cost, runs before every generation.
+ */
+async function appendToDevLog(appId: string, request: string, category: string) {
+	const now = new Date();
+	const timestamp =
+		now.toLocaleDateString("en-US", {
+			month: "short",
+			day: "numeric",
+			year: "numeric",
+		}) +
+		" \u00B7 " +
+		now.toLocaleTimeString("en-US", {
+			hour: "numeric",
+			minute: "2-digit",
+			hour12: true,
+		});
+
+	const sanitized = request.slice(0, 500).replace(/\n/g, " ");
+	const newEntry = `### ${timestamp} — ${category}\n> ${sanitized}\n\n---\n\n`;
+	const header = `# Development Log\n\n> Project memory — automatically tracks all changes. Agents reference this for context continuity.\n\n---\n\n`;
+
+	try {
+		const existing = await getFileByPath(appId, "DEVLOG.md");
+		if (existing?.content) {
+			// Prepend new entry after the header (first "---" line)
+			const lines = existing.content.split("\n");
+			const headerEnd = lines.findIndex((l, i) => i > 0 && l.startsWith("---")) + 1;
+			const before = lines.slice(0, headerEnd).join("\n");
+			const after = lines.slice(headerEnd).join("\n");
+			await saveFile(appId, "DEVLOG.md", before + "\n\n" + newEntry + after.trimStart(), "markdown");
+		} else {
+			await saveFile(appId, "DEVLOG.md", header + newEntry, "markdown");
+		}
+	} catch (e) {
+		console.error("[Chat API] DEVLOG append failed:", e);
+	}
+}
 
 /**
  * Build language-specific instructions for the AI system prompt.
@@ -273,13 +314,29 @@ export async function POST(request: Request) {
 			}
 		}
 
-		let enrichedFileContext = fileContext + blueprintContext;
+		// Inject DEVLOG.md for returning users (project memory / development history)
+		let devlogContext = "";
+		if (existingFiles.length > 0) {
+			try {
+				const devlog = await getFileByPath(appId, "DEVLOG.md");
+				if (devlog?.content) {
+					const truncated = devlog.content.length > 3000
+						? devlog.content.slice(0, 3000) + "\n... (older entries omitted)"
+						: devlog.content;
+					devlogContext = `\n\n## Development History (DEVLOG.md)\n\`\`\`markdown\n${truncated}\n\`\`\``;
+				}
+			} catch (_) {
+				// Best-effort
+			}
+		}
+
+		let enrichedFileContext = fileContext + blueprintContext + devlogContext;
 		let siteAnalysis: SiteAnalysis | null = null;
 		if (detectedUrls.length > 0) {
 			try {
 				siteAnalysis = await analyzeUrl(detectedUrls[0]);
 				if (siteAnalysis) {
-					enrichedFileContext = `${fileContext}\n\n${formatSiteAnalysis(siteAnalysis)}`;
+					enrichedFileContext = `${fileContext}\n\n${formatSiteAnalysis(siteAnalysis)}${blueprintContext}${devlogContext}`;
 					console.log(
 						`[Chat API] URL analysis complete: ${detectedUrls[0]} — lang=${siteAnalysis.language.code} (${siteAnalysis.language.direction}), ${siteAnalysis.fonts.length} fonts, ${siteAnalysis.colors.length} colors, ${siteAnalysis.layout.sections.length} sections`,
 					);
@@ -483,7 +540,25 @@ After creating ALL files, end with a short summary. If the app has auth, include
 		} else if (isReturningUser) {
 			// Normal existing project — edit/add files
 			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)
-This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE modifying them with \`update_file\`. Never blindly overwrite files without reading them first.`);
+This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE modifying them with \`update_file\`. Never blindly overwrite files without reading them first.
+Reference DEVLOG.md for the history of changes made to this project.`);
+		}
+
+		// Document this request in DEVLOG.md (project memory — zero token cost)
+		const devlogCategory = isNewProject
+			? "New Project"
+			: hasBlueprintOnly
+				? "Build Plan"
+				: isVisualEdit
+					? "Visual Edit"
+					: plan.intent.suggestedFlow === "fix"
+						? "Bug Fix"
+						: "Feature Update";
+		// Skip logging for review-code and non-generation modes (already handled above)
+		if (!isReviewCode) {
+			appendToDevLog(appId, userPrompt, devlogCategory).catch((e) =>
+				console.error("[Chat API] DEVLOG background write failed:", e),
+			);
 		}
 
 		// --- FIX FLOW: Inject existing file contents so the error resolver has full context ---
