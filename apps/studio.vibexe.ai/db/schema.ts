@@ -1317,6 +1317,10 @@ export const builderAppRelations = relations(builderApps, ({ one, many }) => ({
 	deployments: many(builderDeployments),
 	environments: many(builderAppEnvironments),
 	backups: many(builderAppBackups),
+	githubSync: one(builderAppGitHubSync, {
+		fields: [builderApps.dbId],
+		references: [builderAppGitHubSync.appDbId],
+	}),
 }));
 
 export type BuilderApp = typeof builderApps.$inferSelect;
@@ -2545,3 +2549,51 @@ export const builderAppBackupRelations = relations(
 
 export type BuilderAppBackup = typeof builderAppBackups.$inferSelect;
 export type NewBuilderAppBackup = typeof builderAppBackups.$inferInsert;
+
+// ====================================================================
+// BUILDER APP GITHUB SYNC (GitHub ↔ Vibexe File Sync)
+// ====================================================================
+
+/**
+ * Builder App GitHub Sync — connects a builder app to a GitHub repository
+ * for bidirectional file synchronization via Push/Pull.
+ */
+export const builderAppGitHubSync = pgTable(
+	"builder_app_github_sync",
+	{
+		id: text("id").notNull().unique(),
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.unique()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		repoOwner: text("repo_owner").notNull(),
+		repoName: text("repo_name").notNull(),
+		branch: text("branch").notNull().default("main"),
+		installationId: integer("installation_id"),
+		lastPushSha: text("last_push_sha"),
+		lastPullSha: text("last_pull_sha"),
+		autoSync: boolean("auto_sync").notNull().default(false),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		index("builder_app_github_sync_app_db_id_idx").on(table.appDbId),
+	],
+);
+
+export const builderAppGitHubSyncRelations = relations(
+	builderAppGitHubSync,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppGitHubSync.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);
+
+export type BuilderAppGitHubSync = typeof builderAppGitHubSync.$inferSelect;
+export type NewBuilderAppGitHubSync = typeof builderAppGitHubSync.$inferInsert;

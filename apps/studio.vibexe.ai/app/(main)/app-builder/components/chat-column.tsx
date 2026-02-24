@@ -75,6 +75,7 @@ import { ChatBottomBar } from "./chat-bottom-bar";
 import { ChatInput } from "./chat-input";
 import { AIMessage, UserMessage } from "./messages";
 import { PhaseTimeline } from "./phase-timeline";
+import { GitHubSyncBar } from "./github-sync-bar";
 import { ReviewVerdict } from "./review-verdict";
 
 interface ChatColumnProps {
@@ -1477,6 +1478,9 @@ export function ChatColumn({
 					onAgentActivate={handleAgentActivate}
 				/>
 			</div>
+
+			{/* GitHub sync bar */}
+			<GitHubSyncBar appId={appId} onFilesChange={onFilesChange} />
 
 			{/* Bottom action bar */}
 			<ChatBottomBar
