@@ -1,13 +1,13 @@
 /**
- * N8N Node Type -> Giselle Node Type Mapping
+ * N8N Node Type -> Vibexe Node Type Mapping
  *
  * Maps N8N node types to either:
- * - Giselle native V6 types (nativeIf, nativeCode, etc.)
- * - Giselle legacy types (textGeneration, trigger, etc.)
+ * - Vibexe native V6 types (nativeIf, nativeCode, etc.)
+ * - Vibexe legacy types (textGeneration, trigger, etc.)
  * - Integration nodes (backed by Activepieces pieces)
  */
 
-export type GiselleNodeMapping =
+export type VibexeNodeMapping =
 	| { type: "trigger"; subtype: "manual" }
 	| { type: "nativeTrigger"; provider: "schedule" | "webhook" }
 	| {
@@ -43,9 +43,9 @@ export type GiselleNodeMapping =
 	| { type: "end" };
 
 /**
- * Map an N8N node type to a Giselle node type.
+ * Map an N8N node type to a Vibexe node type.
  */
-export function mapN8NNodeType(n8nType: string): GiselleNodeMapping {
+export function mapN8NNodeType(n8nType: string): VibexeNodeMapping {
 	// Normalize the type
 	const type = n8nType.toLowerCase();
 
@@ -105,8 +105,8 @@ function extractPieceNameFromN8NType(n8nType: string): string | null {
 	return null;
 }
 
-// Exact N8N type -> Giselle mapping
-const EXACT_MAPPINGS: Record<string, GiselleNodeMapping> = {
+// Exact N8N type -> Vibexe mapping
+const EXACT_MAPPINGS: Record<string, VibexeNodeMapping> = {
 	// Triggers
 	"n8n-nodes-base.manualtrigger": { type: "trigger", subtype: "manual" },
 	"n8n-nodes-base.scheduletrigger": { type: "nativeTrigger", provider: "schedule" },
@@ -279,7 +279,7 @@ const EXACT_MAPPINGS: Record<string, GiselleNodeMapping> = {
 };
 
 // Pattern-based mappings
-const PATTERN_MAPPINGS: Array<[string, GiselleNodeMapping]> = [
+const PATTERN_MAPPINGS: Array<[string, VibexeNodeMapping]> = [
 	[
 		"trigger",
 		{ type: "trigger", subtype: "manual" },
@@ -325,7 +325,7 @@ const N8N_TO_PIECE_NAME: Record<string, string> = {
 	emailsend: "gmail",
 };
 
-// N8N credential type -> Giselle piece name (for credential hints)
+// N8N credential type -> Vibexe piece name (for credential hints)
 export const N8N_CREDENTIAL_TO_PIECE: Record<string, string> = {
 	slackOAuth2Api: "slack",
 	slackApi: "slack",

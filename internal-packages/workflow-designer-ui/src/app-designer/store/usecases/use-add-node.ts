@@ -1,4 +1,4 @@
-import type { NodeLike, NodeUIState } from "@giselles-ai/protocol";
+import type { NodeLike, NodeUIState } from "@vibexe-ai/protocol";
 import { useCallback } from "react";
 import { useUndoRedoActions, useWorkspaceActions } from "../hooks";
 import { useAutoConfigureAppEntryNode } from "./use-auto-configure-app-entry-node";

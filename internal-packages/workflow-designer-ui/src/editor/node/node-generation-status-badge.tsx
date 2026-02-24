@@ -1,4 +1,4 @@
-import type { NodeLike } from "@giselles-ai/protocol";
+import type { NodeLike } from "@vibexe-ai/protocol";
 import clsx from "clsx/lite";
 import { AlertCircleIcon, CheckIcon, ClockIcon, SquareIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";

@@ -3,7 +3,7 @@
  * Only exports static catalog data and type definitions.
  *
  * For server-only code (executePieceAction, loadPiece, inspectPiece, etc.),
- * import from "@giselles-ai/activepieces-adapter/server" instead.
+ * import from "@vibexe-ai/activepieces-adapter/server" instead.
  */
 
 export {

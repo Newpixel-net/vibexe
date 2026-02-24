@@ -1,6 +1,6 @@
-import { Button } from "@giselle-internal/ui/button";
-import { useToasts } from "@giselle-internal/ui/toast";
-import type { WebPage, WebPageNode, WorkspaceId } from "@giselles-ai/protocol";
+import { Button } from "@vibexe-internal/ui/button";
+import { useToasts } from "@vibexe-internal/ui/toast";
+import type { WebPage, WebPageNode, WorkspaceId } from "@vibexe-ai/protocol";
 import clsx from "clsx/lite";
 import { TrashIcon } from "lucide-react";
 import { Dialog } from "radix-ui";
@@ -13,7 +13,7 @@ import {
 	useRemoveWebPage,
 	useUpdateNodeData,
 } from "../../../app-designer";
-import { useGiselle } from "../../../app-designer/store/giselle-client-provider";
+import { useVibexe } from "../../../app-designer/store/vibexe-client-provider";
 import { NodePanelHeader } from "../ui/node-panel-header";
 import { Note } from "../ui/note";
 import { SettingLabel } from "../ui/setting-label";
@@ -28,7 +28,7 @@ function WebPageListItem({
 	onRemove: () => void;
 }) {
 	const [open, setOpen] = useState(false);
-	const client = useGiselle();
+	const client = useVibexe();
 	const { isLoading, data } = useSWR(
 		webpage.status !== "fetched"
 			? null
@@ -200,7 +200,7 @@ export function WebPageNodePropertiesPanel({ node }: { node: WebPageNode }) {
 			<NodePanelHeader
 				node={node}
 				onChangeName={(name) => updateNodeData(node, { name })}
-				docsUrl="https://docs.giselles.ai/en/glossary/webpage-node"
+				docsUrl="https://docs.vibexe.ai/en/glossary/webpage-node"
 				onDelete={() => deleteNode(node.id)}
 			/>
 			<div>

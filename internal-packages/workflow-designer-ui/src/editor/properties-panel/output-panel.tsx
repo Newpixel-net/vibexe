@@ -7,8 +7,8 @@ import type {
 	GenerationId,
 	NodeId,
 	OperationNode,
-} from "@giselles-ai/protocol";
-import { useNodeGenerations } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import { useNodeGenerations } from "@vibexe-ai/react";
 import {
 	ArrowDownIcon,
 	ArrowUpIcon,
@@ -27,7 +27,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { useAppDesignerStore, useUpdateNodeData } from "../../app-designer";
-import { useGiselle } from "../../app-designer/store/giselle-client-provider";
+import { useVibexe } from "../../app-designer/store/vibexe-client-provider";
 import { useDebugSessionStore } from "../debug-session-store";
 import { TextGenerationIcon } from "../../icons";
 import ClipboardButton from "../../ui/clipboard-button";
@@ -233,7 +233,7 @@ function MockDataSection({ node }: { node: OperationNode }) {
 
 /** Debug-mode generation fetcher — loads generation from a past task */
 function useDebugGeneration(nodeId: NodeId): Generation | undefined {
-	const client = useGiselle();
+	const client = useVibexe();
 	const debugSession = useDebugSessionStore((s) => s.debugSession);
 
 	// Find generation for this node in the debug session

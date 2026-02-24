@@ -1,10 +1,10 @@
-import type { Trigger, TriggerNode } from "@giselles-ai/protocol";
-import { useGiselle } from "@giselles-ai/react";
+import type { Trigger, TriggerNode } from "@vibexe-ai/protocol";
+import { useVibexe } from "@vibexe-ai/react";
 import { useCallback } from "react";
 import useSWR from "swr";
 
 export function useTrigger(node: TriggerNode) {
-	const client = useGiselle();
+	const client = useVibexe();
 	const { isLoading, data, mutate } = useSWR(
 		node.content.state.status === "unconfigured"
 			? null

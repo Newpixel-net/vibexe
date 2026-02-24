@@ -1,11 +1,11 @@
 ---
 name: add-model
-description: Add a new language model to the Giselle codebase. Use when the user wants to add, register, or integrate a new LLM model (OpenAI, Anthropic, Google) into the system.
+description: Add a new language model to the Vibexe codebase. Use when the user wants to add, register, or integrate a new LLM model (OpenAI, Anthropic, Google) into the system.
 ---
 
 # Add Language Model
 
-Add a new language model to the Giselle codebase with full system consistency.
+Add a new language model to the Vibexe codebase with full system consistency.
 
 ## Quick Start
 
@@ -52,7 +52,7 @@ Add pricing entry to the appropriate table. See [PRICING.md](PRICING.md).
 
 ### 4. AI SDK Transformation
 
-**File**: `packages/giselle/src/generations/v2/language-model/transform-giselle-to-ai-sdk.ts`
+**File**: `packages/vibexe/src/generations/v2/language-model/transform-vibexe-to-ai-sdk.ts`
 
 Add model ID to the switch case for the provider.
 

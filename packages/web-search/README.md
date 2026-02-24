@@ -1,4 +1,4 @@
-# @giselles-ai/web-search
+# @vibexe-ai/web-search
 
 A TypeScript library for scraping and extracting web page content as HTML and Markdown. It uses a self-made (fetch + Turndown) implementation.
 
@@ -9,7 +9,7 @@ A TypeScript library for scraping and extracting web page content as HTML and Ma
 
 ## Installation
 
-This package is intended for internal use within the Giselle monorepo. If you want to use it elsewhere, install dependencies:
+This package is intended for internal use within the Vibexe monorepo. If you want to use it elsewhere, install dependencies:
 
 ```sh
 pnpm install
@@ -22,7 +22,7 @@ pnpm install
 Create a web search tool using the self-made provider.
 
 ```ts
-import { webSearch } from "@giselles-ai/web-search";
+import { webSearch } from "@vibexe-ai/web-search";
 
 const tool = webSearch({ provider: "self-made" });
 

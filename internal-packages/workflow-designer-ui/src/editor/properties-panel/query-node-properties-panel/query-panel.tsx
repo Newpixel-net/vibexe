@@ -1,9 +1,9 @@
-import { isVectorStoreNode, type QueryNode } from "@giselles-ai/protocol";
+import { isVectorStoreNode, type QueryNode } from "@vibexe-ai/protocol";
 import {
 	useVectorStore,
 	type VectorStoreContextValue,
-} from "@giselles-ai/react";
-import { TextEditor } from "@giselles-ai/text-editor/react-internal";
+} from "@vibexe-ai/react";
+import { TextEditor } from "@vibexe-ai/text-editor/react-internal";
 import { DatabaseZapIcon, X } from "lucide-react";
 import { useMemo } from "react";
 import {

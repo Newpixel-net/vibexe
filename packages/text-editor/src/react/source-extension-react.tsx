@@ -1,6 +1,6 @@
-import { defaultName } from "@giselles-ai/node-registry";
-import { NodeLike } from "@giselles-ai/protocol";
-import { SourceExtension } from "@giselles-ai/text-editor-utils";
+import { defaultName } from "@vibexe-ai/node-registry";
+import { NodeLike } from "@vibexe-ai/protocol";
+import { SourceExtension } from "@vibexe-ai/text-editor-utils";
 import {
 	type NodeViewProps,
 	NodeViewWrapper,

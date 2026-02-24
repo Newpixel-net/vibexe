@@ -1,5 +1,5 @@
-import { Toggle } from "@giselle-internal/ui/toggle";
-import type { NodeId } from "@giselles-ai/protocol";
+import { Toggle } from "@vibexe-internal/ui/toggle";
+import type { NodeId } from "@vibexe-ai/protocol";
 import { InfoIcon, LoaderIcon } from "lucide-react";
 import { FieldWrapper } from "../ui/field-wrapper";
 import { InlineCodeEditor } from "../ui/inline-code-editor";

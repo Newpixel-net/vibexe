@@ -1,4 +1,4 @@
-import { isActionNode, isOperationNode, NodeId } from "@giselles-ai/protocol";
+import { isActionNode, isOperationNode, NodeId } from "@vibexe-ai/protocol";
 import { useCallback } from "react";
 import { useAppDesignerStoreApi } from "../app-designer-provider";
 import { useSyncAppConnectionStateIfNeeded } from "./use-sync-app-connection-state-if-needed";

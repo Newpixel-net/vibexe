@@ -1,6 +1,6 @@
 "use client";
 
-import type { Generation } from "@giselles-ai/protocol";
+import type { Generation } from "@vibexe-ai/protocol";
 import type { UIMessage } from "ai";
 import { ChevronRightIcon } from "lucide-react";
 import { Accordion } from "radix-ui";
@@ -436,9 +436,9 @@ export function GenerationView({ generation }: { generation: Generation }) {
 							style={{ height: `${THUMB_HEIGHT.sm}px` }}
 						>
 							{output.contents.map((content) => (
-								// Generated images are served by the Giselle HTTP handler.
+								// Generated images are served by the Vibexe HTTP handler.
 								// `content.pathname` is stored as `/generations/...`, so we prefix it here.
-								// This avoids putting transport details (basePath) on `GiselleClient`.
+								// This avoids putting transport details (basePath) on `VibexeClient`.
 								// If/when we move this endpoint, update the prefix accordingly.
 								<ImageCard
 									key={content.filename}
@@ -591,7 +591,7 @@ export function GenerationView({ generation }: { generation: Generation }) {
 							type="button"
 							onClick={async () => {
 								try {
-									const res = await fetch(`/api/giselle/generations/${generation.id}/review`, {
+									const res = await fetch(`/api/vibexe/generations/${generation.id}/review`, {
 										method: "POST",
 										headers: { "Content-Type": "application/json" },
 										body: JSON.stringify({ action: "approve" }),
@@ -609,7 +609,7 @@ export function GenerationView({ generation }: { generation: Generation }) {
 							type="button"
 							onClick={async () => {
 								try {
-									const res = await fetch(`/api/giselle/generations/${generation.id}/review`, {
+									const res = await fetch(`/api/vibexe/generations/${generation.id}/review`, {
 										method: "POST",
 										headers: { "Content-Type": "application/json" },
 										body: JSON.stringify({ action: "reject" }),

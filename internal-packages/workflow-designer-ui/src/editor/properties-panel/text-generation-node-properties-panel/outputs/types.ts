@@ -3,7 +3,7 @@ import type {
 	NodeBase,
 	NodeLike,
 	Output,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 
 export type ConnectedOutputWithDetails<T extends NodeBase = NodeLike> =
 	Output & {

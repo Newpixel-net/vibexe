@@ -1,4 +1,4 @@
-import { Input } from "@giselle-internal/ui/input";
+import { Input } from "@vibexe-internal/ui/input";
 import { X } from "lucide-react";
 import { useState } from "react";
 import { validateUrl } from "../../../lib/validate-url";

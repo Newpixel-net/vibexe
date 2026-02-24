@@ -1,4 +1,4 @@
-import { Button } from "@giselle-internal/ui/button";
+import { Button } from "@vibexe-internal/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -6,8 +6,8 @@ import {
 	DialogFooter,
 	DialogTitle,
 	DialogTrigger,
-} from "@giselle-internal/ui/dialog";
-import { EmptyState } from "@giselle-internal/ui/empty-state";
+} from "@vibexe-internal/ui/dialog";
+import { EmptyState } from "@vibexe-internal/ui/empty-state";
 import {
 	Table,
 	TableBody,
@@ -15,8 +15,8 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "@giselle-internal/ui/table";
-import type { SecretId } from "@giselles-ai/protocol";
+} from "@vibexe-internal/ui/table";
+import type { SecretId } from "@vibexe-ai/protocol";
 import clsx from "clsx/lite";
 import { PlusIcon, TrashIcon } from "lucide-react";
 import { useCallback, useState, useTransition } from "react";

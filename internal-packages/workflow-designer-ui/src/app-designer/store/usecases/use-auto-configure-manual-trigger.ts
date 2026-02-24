@@ -1,7 +1,7 @@
-import { isTriggerNode, type NodeLike } from "@giselles-ai/protocol";
+import { isTriggerNode, type NodeLike } from "@vibexe-ai/protocol";
 import { useCallback } from "react";
 import { useAppDesignerStoreApi } from "../app-designer-provider";
-import { useGiselle } from "../giselle-client-provider";
+import { useVibexe } from "../vibexe-client-provider";
 import { useUpdateNodeData } from "./use-update-node-data";
 
 /**
@@ -11,7 +11,7 @@ import { useUpdateNodeData } from "./use-update-node-data";
  * a simple workflow.
  */
 export function useAutoConfigureManualTrigger() {
-	const client = useGiselle();
+	const client = useVibexe();
 	const store = useAppDesignerStoreApi();
 	const updateNodeData = useUpdateNodeData();
 

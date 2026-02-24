@@ -1,19 +1,19 @@
 import type {
 	CreateTaskInputs,
 	TaskExecutorOptions,
-} from "@giselles-ai/giselle";
+} from "@vibexe-ai/vibexe";
 import {
 	isCancelledGeneration,
 	type NodeGenerationIndex,
 	type TaskId,
 	type WorkspaceId,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import { useCallback, useEffect, useRef } from "react";
 import useSWR from "swr";
 import { useShallow } from "zustand/shallow";
 import { useGenerationRunnerSystem } from "../generations";
 import { useGenerationStore } from "../generations/store";
-import { useGiselle } from "../use-giselle";
+import { useVibexe } from "../use-vibexe";
 import { useTaskStore } from "./store";
 
 type CreateAndStartTaskParams = Omit<
@@ -41,7 +41,7 @@ type CreateAndStartTaskParams = Omit<
 	};
 
 export function useTaskSystem(workspaceId: WorkspaceId) {
-	const client = useGiselle();
+	const client = useVibexe();
 	const { data, isLoading } = useSWR(
 		{ namespace: "get-workspace-inprogress-task", workspaceId },
 		({ workspaceId }) => client.getWorkspaceInprogressTask({ workspaceId }),

@@ -3,8 +3,8 @@
  * Each template configures an AI Agent node with a system prompt
  * and optional structured output schema.
  *
- * NOTE: This file lives in the UI package (not @giselles-ai/giselle)
- * because importing from giselle in client components would pull in
+ * NOTE: This file lives in the UI package (not @vibexe-ai/vibexe)
+ * because importing from vibexe in client components would pull in
  * the entire server-side bundle (MCP SDK, pg-format, etc.).
  */
 

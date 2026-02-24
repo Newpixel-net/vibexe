@@ -1,6 +1,6 @@
-import { defaultName } from "@giselles-ai/node-registry";
-import type { UIConnection } from "@giselles-ai/react";
-import { createSourceExtensionJSONContent } from "@giselles-ai/text-editor-utils";
+import { defaultName } from "@vibexe-ai/node-registry";
+import type { UIConnection } from "@vibexe-ai/react";
+import { createSourceExtensionJSONContent } from "@vibexe-ai/text-editor-utils";
 import { ReactRenderer } from "@tiptap/react";
 import type { SuggestionOptions } from "@tiptap/suggestion";
 import {

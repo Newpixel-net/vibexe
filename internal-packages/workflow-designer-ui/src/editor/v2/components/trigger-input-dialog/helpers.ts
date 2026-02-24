@@ -1,8 +1,8 @@
-import type { Trigger, TriggerNode } from "@giselles-ai/protocol";
+import type { Trigger, TriggerNode } from "@vibexe-ai/protocol";
 import {
 	githubEvents,
 	githubEventToInputFields,
-} from "@giselles-ai/trigger-registry";
+} from "@vibexe-ai/trigger-registry";
 
 export function buttonLabel(node: TriggerNode) {
 	switch (node.content.provider) {

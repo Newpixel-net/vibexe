@@ -1,8 +1,8 @@
 import {
 	PIECE_CATALOG,
 	isInstalledPiece,
-} from "@giselles-ai/activepieces-adapter";
-import type { ToolNodeNode } from "@giselles-ai/protocol";
+} from "@vibexe-ai/activepieces-adapter";
+import type { ToolNodeNode } from "@vibexe-ai/protocol";
 import { SearchIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import {

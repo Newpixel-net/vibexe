@@ -7,10 +7,10 @@
  * - Default mode: dry-run (prints summary without modifying files)
  *
  * Usage:
- *   node giselle/scripts/codemods/replace-text-black-600-20.mjs
- *   node giselle/scripts/codemods/replace-text-black-600-20.mjs --apply
- *   node giselle/scripts/codemods/replace-text-black-600-20.mjs --root . --apply
- *   node giselle/scripts/codemods/replace-text-black-600-20.mjs --ext ts,tsx,jsx,css --apply
+ *   node vibexe/scripts/codemods/replace-text-black-600-20.mjs
+ *   node vibexe/scripts/codemods/replace-text-black-600-20.mjs --apply
+ *   node vibexe/scripts/codemods/replace-text-black-600-20.mjs --root . --apply
+ *   node vibexe/scripts/codemods/replace-text-black-600-20.mjs --ext ts,tsx,jsx,css --apply
  *
  * Notes:
  * - This is a straightforward string replacement (global) for `text-black-600/20` -> `text-text/20`.
@@ -87,9 +87,9 @@ Options:
   -h, --help        Show this help
 
 Examples:
-  node giselle/scripts/codemods/replace-text-black-600-20.mjs
-  node giselle/scripts/codemods/replace-text-black-600-20.mjs --apply
-  node giselle/scripts/codemods/replace-text-black-600-20.mjs --root . --ext ts,tsx,jsx,css --apply
+  node vibexe/scripts/codemods/replace-text-black-600-20.mjs
+  node vibexe/scripts/codemods/replace-text-black-600-20.mjs --apply
+  node vibexe/scripts/codemods/replace-text-black-600-20.mjs --root . --ext ts,tsx,jsx,css --apply
 `);
 }
 

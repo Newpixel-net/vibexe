@@ -2,10 +2,10 @@ import {
 	ConfigureTriggerInput,
 	CreateAndStartTaskInputs,
 	CreateTaskInputs,
-	type Giselle,
+	type Vibexe,
 	type Patch,
 	StartTaskInputs,
-} from "@giselles-ai/giselle";
+} from "@vibexe-ai/vibexe";
 import {
 	DataStore,
 	DataStoreId,
@@ -24,93 +24,93 @@ import {
 	TriggerId,
 	Workspace,
 	WorkspaceId,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import * as z from "zod/v4";
 import { createHandler, withUsageLimitErrorHandler } from "./create-handler";
 import { JsonResponse } from "./json-response";
 
 export const jsonRoutes = {
-	createWorkspace: (giselle: Giselle) =>
+	createWorkspace: (vibexe: Vibexe) =>
 		createHandler({
 			handler: async () => {
-				const workspace = await giselle.createWorkspace();
+				const workspace = await vibexe.createWorkspace();
 				return JsonResponse.json(workspace);
 			},
 		}),
-	getWorkspace: (giselle: Giselle) =>
+	getWorkspace: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				workspaceId: WorkspaceId.schema,
 			}),
 			handler: async ({ input }) => {
-				const workspace = await giselle.getWorkspace(input.workspaceId);
+				const workspace = await vibexe.getWorkspace(input.workspaceId);
 				return JsonResponse.json(workspace);
 			},
 		}),
 
-	updateWorkspace: (giselle: Giselle) =>
+	updateWorkspace: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				workspace: Workspace,
 			}),
 			handler: async ({ input }) => {
-				const workspace = await giselle.updateWorkspace(input.workspace);
+				const workspace = await vibexe.updateWorkspace(input.workspace);
 				return JsonResponse.json(workspace);
 			},
 		}),
-	getLanguageModelProviders: (giselle: Giselle) =>
+	getLanguageModelProviders: (vibexe: Vibexe) =>
 		createHandler({
 			handler: () => {
-				const providers = giselle.getLanguageModelProviders();
+				const providers = vibexe.getLanguageModelProviders();
 				return JsonResponse.json(providers);
 			},
 		}),
-	getGeneration: (giselle: Giselle) =>
+	getGeneration: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				generationId: GenerationId.schema,
 			}),
 			handler: async ({ input }) => {
-				const generation = await giselle.getGeneration(input.generationId);
+				const generation = await vibexe.getGeneration(input.generationId);
 				return JsonResponse.json(generation);
 			},
 		}),
-	getNodeGenerations: (giselle: Giselle) =>
+	getNodeGenerations: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				origin: GenerationOrigin,
 				nodeId: NodeId.schema,
 			}),
 			handler: async ({ input }) => {
-				const generations = await giselle.getNodeGenerations(
+				const generations = await vibexe.getNodeGenerations(
 					input.origin,
 					input.nodeId,
 				);
 				return JsonResponse.json(generations);
 			},
 		}),
-	cancelGeneration: (giselle: Giselle) =>
+	cancelGeneration: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				generationId: GenerationId.schema,
 			}),
 			handler: async ({ input }) => {
-				const generation = await giselle.cancelGeneration(input.generationId);
+				const generation = await vibexe.cancelGeneration(input.generationId);
 				return JsonResponse.json(generation);
 			},
 		}),
-	removeFile: (giselle: Giselle) =>
+	removeFile: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				workspaceId: WorkspaceId.schema,
 				fileId: FileId.schema,
 			}),
 			handler: async ({ input }) => {
-				await giselle.removeFile(input.workspaceId, input.fileId);
+				await vibexe.removeFile(input.workspaceId, input.fileId);
 				return new Response(null, { status: 204 });
 			},
 		}),
-	copyFile: (giselle: Giselle) =>
+	copyFile: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				workspaceId: WorkspaceId.schema,
@@ -118,7 +118,7 @@ export const jsonRoutes = {
 				destinationFileId: FileId.schema,
 			}),
 			handler: async ({ input }) => {
-				await giselle.copyFile(
+				await vibexe.copyFile(
 					input.workspaceId,
 					input.sourceFileId,
 					input.destinationFileId,
@@ -127,85 +127,85 @@ export const jsonRoutes = {
 				return new Response(null, { status: 204 });
 			},
 		}),
-	generateImage: (giselle: Giselle) =>
+	generateImage: (vibexe: Vibexe) =>
 		withUsageLimitErrorHandler(
 			createHandler({
 				input: z.object({
 					generation: QueuedGeneration,
 				}),
 				handler: async ({ input, signal }) => {
-					await giselle.generateImage(input.generation, signal);
+					await vibexe.generateImage(input.generation, signal);
 					return new Response(null, { status: 204 });
 				},
 			}),
 		),
-	setGeneration: (giselle: Giselle) =>
+	setGeneration: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				generation: Generation,
 			}),
 			handler: async ({ input }) => {
-				await giselle.setGeneration(input.generation);
+				await vibexe.setGeneration(input.generation);
 				return new Response(null, { status: 204 });
 			},
 		}),
-	createSampleWorkspaces: (giselle: Giselle) =>
+	createSampleWorkspaces: (vibexe: Vibexe) =>
 		createHandler({
 			handler: async () => {
-				const workspaces = await giselle.createSampleWorkspaces();
+				const workspaces = await vibexe.createSampleWorkspaces();
 				return JsonResponse.json(workspaces);
 			},
 		}),
-	getGitHubRepositories: (giselle: Giselle) =>
+	getGitHubRepositories: (vibexe: Vibexe) =>
 		createHandler({
 			handler: async () => {
-				const repositories = await giselle.getGitHubRepositories();
+				const repositories = await vibexe.getGitHubRepositories();
 				return JsonResponse.json(repositories);
 			},
 		}),
-	encryptSecret: (giselle: Giselle) =>
+	encryptSecret: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({ plaintext: z.string() }),
 			handler: async ({ input }) => {
 				return JsonResponse.json({
-					encrypted: await giselle.encryptSecret(input.plaintext),
+					encrypted: await vibexe.encryptSecret(input.plaintext),
 				});
 			},
 		}),
-	resolveTrigger: (giselle: Giselle) =>
+	resolveTrigger: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				generation: QueuedGeneration,
 			}),
 			handler: async ({ input }) => {
 				return JsonResponse.json({
-					trigger: await giselle.resolveTrigger(input),
+					trigger: await vibexe.resolveTrigger(input),
 				});
 			},
 		}),
-	configureTrigger: (giselle: Giselle) =>
+	configureTrigger: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				trigger: ConfigureTriggerInput,
 			}),
 			handler: async ({ input }) => {
 				return JsonResponse.json({
-					triggerId: await giselle.configureTrigger(input),
+					triggerId: await vibexe.configureTrigger(input),
 				});
 			},
 		}),
-	getTrigger: (giselle: Giselle) =>
+	getTrigger: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				triggerId: TriggerId.schema,
 			}),
 			handler: async ({ input }) => {
 				return JsonResponse.json({
-					trigger: await giselle.getTrigger(input),
+					trigger: await vibexe.getTrigger(input),
 				});
 			},
 		}),
-	getGitHubRepositoryFullname: (giselle: Giselle) =>
+	getGitHubRepositoryFullname: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				repositoryNodeId: z.string(),
@@ -213,22 +213,22 @@ export const jsonRoutes = {
 			}),
 			handler: async ({ input }) => {
 				return JsonResponse.json({
-					fullname: await giselle.getGitHubRepositoryFullname(input),
+					fullname: await vibexe.getGitHubRepositoryFullname(input),
 				});
 			},
 		}),
-	setTrigger: (giselle: Giselle) =>
+	setTrigger: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				trigger: Trigger,
 			}),
 			handler: async ({ input }) => {
 				return JsonResponse.json({
-					triggerId: await giselle.setTrigger(input),
+					triggerId: await vibexe.setTrigger(input),
 				});
 			},
 		}),
-	reconfigureGitHubTrigger: (giselle: Giselle) =>
+	reconfigureGitHubTrigger: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				triggerId: TriggerId.schema,
@@ -238,76 +238,76 @@ export const jsonRoutes = {
 			}),
 			handler: async ({ input }) => {
 				return JsonResponse.json({
-					triggerId: await giselle.reconfigureGitHubTrigger(input),
+					triggerId: await vibexe.reconfigureGitHubTrigger(input),
 				});
 			},
 		}),
-	deleteTrigger: (giselle: Giselle) =>
+	deleteTrigger: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				triggerId: TriggerId.schema,
 			}),
 			handler: async ({ input }) => {
-				await giselle.deleteTrigger(input);
+				await vibexe.deleteTrigger(input);
 				return new Response(null, { status: 204 });
 			},
 		}),
-	executeAction: (giselle: Giselle) =>
+	executeAction: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				generation: QueuedGeneration,
 			}),
 			handler: async ({ input }) => {
-				await giselle.executeAction(input);
+				await vibexe.executeAction(input);
 				return new Response(null, { status: 204 });
 			},
 		}),
-	createAndStartTask: (giselle: Giselle) =>
+	createAndStartTask: (vibexe: Vibexe) =>
 		createHandler({
 			input: CreateAndStartTaskInputs.omit({ callbacks: true }),
 			handler: async ({ input }) => {
-				await giselle.createAndStartTask(input);
+				await vibexe.createAndStartTask(input);
 				return new Response(null, { status: 204 });
 			},
 		}),
-	startTask: (giselle: Giselle) =>
+	startTask: (vibexe: Vibexe) =>
 		createHandler({
 			input: StartTaskInputs,
 			handler: async ({ input }) => {
-				await giselle.startTask(input);
+				await vibexe.startTask(input);
 				return new Response(null, { status: 204 });
 			},
 		}),
-	executeQuery: (giselle: Giselle) =>
+	executeQuery: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				generation: QueuedGeneration,
 			}),
 			handler: async ({ input }) => {
-				await giselle.executeQuery(input.generation);
+				await vibexe.executeQuery(input.generation);
 				return new Response(null, { status: 204 });
 			},
 		}),
-	executeDataQuery: (giselle: Giselle) =>
+	executeDataQuery: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				generation: QueuedGeneration,
 			}),
 			handler: async ({ input }) => {
-				await giselle.executeDataQuery(input.generation);
+				await vibexe.executeDataQuery(input.generation);
 				return new Response(null, { status: 204 });
 			},
 		}),
-	addWebPage: (giselle: Giselle) =>
+	addWebPage: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				webpage: FetchingWebPage,
 				workspaceId: WorkspaceId.schema,
 			}),
 			handler: async ({ input }) =>
-				JsonResponse.json(await giselle.addWebPage(input)),
+				JsonResponse.json(await vibexe.addWebPage(input)),
 		}),
-	getFileText: (giselle: Giselle) =>
+	getFileText: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				workspaceId: WorkspaceId.schema,
@@ -315,13 +315,13 @@ export const jsonRoutes = {
 			}),
 			handler: async ({ input }) =>
 				JsonResponse.json({
-					text: await giselle.getFileText({
+					text: await vibexe.getFileText({
 						workspaceId: input.workspaceId,
 						fileId: input.fileId,
 					}),
 				}),
 		}),
-	addSecret: (giselle: Giselle) =>
+	addSecret: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				workspaceId: WorkspaceId.schema.optional(),
@@ -331,10 +331,10 @@ export const jsonRoutes = {
 			}),
 			handler: async ({ input }) =>
 				JsonResponse.json({
-					secret: await giselle.addSecret(input),
+					secret: await vibexe.addSecret(input),
 				}),
 		}),
-	getWorkspaceSecrets: (giselle: Giselle) =>
+	getWorkspaceSecrets: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				workspaceId: WorkspaceId.schema,
@@ -342,16 +342,16 @@ export const jsonRoutes = {
 			}),
 			handler: async ({ input }) =>
 				JsonResponse.json({
-					secrets: await giselle.getWorkspaceSecrets(input),
+					secrets: await vibexe.getWorkspaceSecrets(input),
 				}),
 		}),
-	createTask: (giselle: Giselle) =>
+	createTask: (vibexe: Vibexe) =>
 		createHandler({
 			input: CreateTaskInputs,
 			handler: async ({ input }) =>
-				JsonResponse.json(await giselle.createTask(input)),
+				JsonResponse.json(await vibexe.createTask(input)),
 		}),
-	patchTask: (giselle: Giselle) =>
+	patchTask: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				taskId: TaskId.schema,
@@ -359,36 +359,36 @@ export const jsonRoutes = {
 			}),
 			handler: async ({ input }) =>
 				JsonResponse.json({
-					task: await giselle.patchTask(input),
+					task: await vibexe.patchTask(input),
 				}),
 		}),
-	getWorkspaceTasks: (giselle: Giselle) =>
+	getWorkspaceTasks: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				workspaceId: WorkspaceId.schema,
 			}),
 			handler: async ({ input }) =>
 				JsonResponse.json({
-					tasks: await giselle.getWorkspaceTasks(input),
+					tasks: await vibexe.getWorkspaceTasks(input),
 				}),
 		}),
-	deleteSecret: (giselle: Giselle) =>
+	deleteSecret: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				secretId: SecretId.schema,
 			}),
 			handler: async ({ input }) => {
-				await giselle.deleteSecret(input);
+				await vibexe.deleteSecret(input);
 				return new Response(null, { status: 204 });
 			},
 		}),
-	streamTask: (giselle: Giselle) =>
+	streamTask: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				taskId: TaskId.schema,
 			}),
 			handler: ({ input }) => {
-				const stream = giselle.streamTask(input);
+				const stream = vibexe.streamTask(input);
 				return new Response(stream, {
 					headers: {
 						"Content-Type": "text/event-stream",
@@ -398,110 +398,110 @@ export const jsonRoutes = {
 				});
 			},
 		}),
-	generateContent: (giselle: Giselle) =>
+	generateContent: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				generation: RunningGeneration,
 			}),
 			handler: async ({ input }) => {
-				const runningGeneration = await giselle.generateContent({
+				const runningGeneration = await vibexe.generateContent({
 					...input,
 				});
 				return JsonResponse.json({ generation: runningGeneration });
 			},
 		}),
-	getGenerationMessageChunks: (giselle: Giselle) =>
+	getGenerationMessageChunks: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				generationId: GenerationId.schema,
 				startByte: z.number().optional(),
 			}),
 			handler: async ({ input, signal: abortSignal }) => {
-				const data = await giselle.getGenerationMessageChunks({
+				const data = await vibexe.getGenerationMessageChunks({
 					...input,
 					abortSignal,
 				});
 				return JsonResponse.json(data);
 			},
 		}),
-	startContentGeneration: (giselle: Giselle) =>
+	startContentGeneration: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				generation: Generation,
 			}),
 			handler: async ({ input }) => {
-				const runningGeneration = await giselle.startContentGeneration({
+				const runningGeneration = await vibexe.startContentGeneration({
 					...input,
 				});
 				return JsonResponse.json({ generation: runningGeneration });
 			},
 		}),
-	getWorkspaceInprogressTask: (giselle: Giselle) =>
+	getWorkspaceInprogressTask: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				workspaceId: WorkspaceId.schema,
 			}),
 			handler: async ({ input }) => {
-				const task = await giselle.getWorkspaceInprogressTask({
+				const task = await vibexe.getWorkspaceInprogressTask({
 					workspaceId: input.workspaceId,
 				});
 				return JsonResponse.json({ task });
 			},
 		}),
-	getTaskGenerationIndexes: (giselle: Giselle) =>
+	getTaskGenerationIndexes: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				taskId: TaskId.schema,
 			}),
 			handler: async ({ input }) => {
-				const result = await giselle.getTaskGenerationIndexes({
+				const result = await vibexe.getTaskGenerationIndexes({
 					taskId: input.taskId,
 				});
 				return JsonResponse.json(result);
 			},
 		}),
-	saveApp: (giselle: Giselle) =>
+	saveApp: (vibexe: Vibexe) =>
 		createHandler({
-			input: giselle.saveApp.inputSchema,
+			input: vibexe.saveApp.inputSchema,
 			handler: async ({ input }) => {
-				await giselle.saveApp(input);
+				await vibexe.saveApp(input);
 				return new Response(null, { status: 204 });
 			},
 		}),
-	deleteApp: (giselle: Giselle) =>
+	deleteApp: (vibexe: Vibexe) =>
 		createHandler({
-			input: giselle.deleteApp.inputSchema,
+			input: vibexe.deleteApp.inputSchema,
 			handler: async ({ input }) => {
-				await giselle.deleteApp(input);
+				await vibexe.deleteApp(input);
 				return new Response(null, { status: 204 });
 			},
 		}),
-	getApp: (giselle: Giselle) =>
+	getApp: (vibexe: Vibexe) =>
 		createHandler({
-			input: giselle.getApp.inputSchema,
+			input: vibexe.getApp.inputSchema,
 			handler: async ({ input }) => {
-				const app = await giselle.getApp(input);
+				const app = await vibexe.getApp(input);
 				return JsonResponse.json({ app });
 			},
 		}),
-	createDataStore: (giselle: Giselle) =>
+	createDataStore: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				provider: DataStore.shape.provider,
 				configuration: DataStore.shape.configuration,
 			}),
 			handler: async ({ input }) => {
-				const dataStore = await giselle.createDataStore(input);
+				const dataStore = await vibexe.createDataStore(input);
 				return JsonResponse.json({ dataStore });
 			},
 		}),
-	getDataStore: (giselle: Giselle) =>
+	getDataStore: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				dataStoreId: DataStoreId.schema,
 			}),
 			handler: async ({ input }) => {
-				const dataStore = await giselle.getDataStore(input);
+				const dataStore = await vibexe.getDataStore(input);
 				if (!dataStore) {
 					return JsonResponse.json(
 						{ error: `DataStore not found: ${input.dataStoreId}` },
@@ -511,24 +511,24 @@ export const jsonRoutes = {
 				return JsonResponse.json({ dataStore });
 			},
 		}),
-	updateDataStore: (giselle: Giselle) =>
+	updateDataStore: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				dataStoreId: DataStoreId.schema,
 				configuration: DataStore.shape.configuration,
 			}),
 			handler: async ({ input }) => {
-				const dataStore = await giselle.updateDataStore(input);
+				const dataStore = await vibexe.updateDataStore(input);
 				return JsonResponse.json({ dataStore });
 			},
 		}),
-	deleteDataStore: (giselle: Giselle) =>
+	deleteDataStore: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				dataStoreId: DataStoreId.schema,
 			}),
 			handler: async ({ input }) => {
-				const dataStore = await giselle.deleteDataStore(input);
+				const dataStore = await vibexe.deleteDataStore(input);
 				if (!dataStore) {
 					// For idempotent DELETE, treat not found as success
 					return new Response(null, { status: 204 });
@@ -551,7 +551,7 @@ export function isJsonRoutePath(path: string): path is JsonRoutePath {
 }
 
 export const formDataRoutes = {
-	uploadFile: (giselle: Giselle) =>
+	uploadFile: (vibexe: Vibexe) =>
 		createHandler({
 			input: z.object({
 				workspaceId: WorkspaceId.schema,
@@ -560,7 +560,7 @@ export const formDataRoutes = {
 				file: z.instanceof(File),
 			}),
 			handler: async ({ input }) => {
-				await giselle.uploadFile(
+				await vibexe.uploadFile(
 					input.file,
 					input.workspaceId,
 					input.fileId,

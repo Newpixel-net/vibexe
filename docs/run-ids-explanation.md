@@ -1,10 +1,10 @@
 # Run ID Types: `runId` vs `flowRunId`
 
-This document clarifies the distinction between two important identifier types in the Giselle system.
+This document clarifies the distinction between two important identifier types in the Vibexe system.
 
 ## Overview
 
-The Giselle system uses two distinct types of run identifiers that serve different purposes:
+The Vibexe system uses two distinct types of run identifiers that serve different purposes:
 
 - **`runId`** (prefix: `rn-`) - Execution context identifier
 - **`flowRunId`** (prefix: `flrn-`) - Flow instance identifier
@@ -24,9 +24,9 @@ The Giselle system uses two distinct types of run identifiers that serve differe
 
 ### Usage Locations:
 - Generation context tracking (`packages/data-type/src/generation/context.ts`)
-- Flow execution context (`packages/giselle-engine/src/core/flows/run-flow.ts`)
-- HTTP API validation (`packages/giselle-engine/src/http/router.ts`)
-- Stage page execution (`apps/studio.giselles.ai/app/stage/page.tsx`)
+- Flow execution context (`packages/vibexe-engine/src/core/flows/run-flow.ts`)
+- HTTP API validation (`packages/vibexe-engine/src/http/router.ts`)
+- Stage page execution (`apps/studio.vibexe.ai/app/stage/page.tsx`)
 
 ## `flowRunId` (Flow Instance)
 
@@ -43,10 +43,10 @@ The Giselle system uses two distinct types of run identifiers that serve differe
 - **UI Integration**: Used in React hooks for flow control
 
 ### Usage Locations:
-- Database schema (`apps/studio.giselles.ai/drizzle/schema.ts`)
-- Flow run objects (`packages/giselle-engine/src/core/flows/run/object.ts`)
-- Storage paths (`packages/giselle-engine/src/core/flows/run/paths.ts`)
-- API endpoints (`packages/giselle-engine/src/http/router.ts`)
+- Database schema (`apps/studio.vibexe.ai/drizzle/schema.ts`)
+- Flow run objects (`packages/vibexe-engine/src/core/flows/run/object.ts`)
+- Storage paths (`packages/vibexe-engine/src/core/flows/run/paths.ts`)
+- API endpoints (`packages/vibexe-engine/src/http/router.ts`)
 - UI hooks (`internal-packages/workflow-designer-ui/src/hooks/use-flow-controller.tsx`)
 
 ## Relationship

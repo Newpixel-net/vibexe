@@ -2,13 +2,13 @@
 
 ## Executive Summary
 
-Vibexe is built on top of the Giselle AI open-source platform. Currently, the platform has three overlapping features that create confusion:
+Vibexe is built on top of the Vibexe AI open-source platform. Currently, the platform has three overlapping features that create confusion:
 
 1. **App Builder** (our custom feature) - AI chat-driven app creation at `/app-builder`
-2. **Workspaces** (Giselle's core feature) - Visual node-based workflow/agent builder at `/workspaces`
-3. **"Create App" sidebar button** - Creates a Giselle workspace (NOT an App Builder app), causing confusion
+2. **Workspaces** (Vibexe's core feature) - Visual node-based workflow/agent builder at `/workspaces`
+3. **"Create App" sidebar button** - Creates a Vibexe workspace (NOT an App Builder app), causing confusion
 
-This plan reorganizes the entire platform to make **App Builder the primary feature**, uses **workspaces as organizational containers**, and repositions **Giselle's visual workflow builder as a secondary power-user tool** that enhances the App Builder.
+This plan reorganizes the entire platform to make **App Builder the primary feature**, uses **workspaces as organizational containers**, and repositions **Vibexe's visual workflow builder as a secondary power-user tool** that enhances the App Builder.
 
 ---
 
@@ -20,7 +20,7 @@ This plan reorganizes the entire platform to make **App Builder the primary feat
 vibexe.online (Next.js app)
 |
 +-- Sidebar (left navigation)
-|   +-- "Create App" button --> POST /api/workspaces --> creates Giselle workspace + agent record
+|   +-- "Create App" button --> POST /api/workspaces --> creates Vibexe workspace + agent record
 |   |                          --> redirects to /workspaces/{wrks-xxx} (React Flow canvas)
 |   |
 |   +-- Stage - Run Apps
@@ -50,7 +50,7 @@ vibexe.online (Next.js app)
 - **Auth**: Uses `getUser()` from `@/lib/auth/get-user`
 - **Current state**: Fully working, main feature
 
-#### 2. Giselle Workspaces (Original - `/workspaces`)
+#### 2. Vibexe Workspaces (Original - `/workspaces`)
 - **Database**: `workspaces` table (WorkspaceId: `wrks-xxx`) + `agents` table (AgentId: `agnt_xxx`)
 - **Interface**: React Flow visual canvas with draggable nodes (text generation, triggers, actions, vector stores)
 - **Node types**: Text Generation, GitHub Trigger, GitHub Action, Vector Store (GitHub/Document), App Entry
@@ -58,14 +58,14 @@ vibexe.online (Next.js app)
 - **Route**: `/workspaces` (list), `/workspaces/{wrks-xxx}` (React Flow canvas)
 - **Relations**:
   - `workspaces` 1:1 `agents` (agents table is deprecated, workspace table is the source of truth)
-  - `workspaces` 1:1 `apps` (Giselle's apps, not our builder_apps)
+  - `workspaces` 1:1 `apps` (Vibexe's apps, not our builder_apps)
   - `workspaces` -> `flow_triggers`, `acts` (execution history)
 - **Current state**: Working but confusing - terminology mismatch
 
 #### 3. Sidebar "Create App" Button
 - **File**: `app/(main)/ui/sidebar/create-app-button.tsx`
-- **What it does**: `POST /api/workspaces` -> creates a Giselle workspace + agent record -> redirects to `/workspaces/{wrks-xxx}`
-- **The problem**: Says "Create App" but creates a Giselle workspace/visual builder, NOT an App Builder app
+- **What it does**: `POST /api/workspaces` -> creates a Vibexe workspace + agent record -> redirects to `/workspaces/{wrks-xxx}`
+- **The problem**: Says "Create App" but creates a Vibexe workspace/visual builder, NOT an App Builder app
 - **Identical to**: The "New Workspace" button on the `/workspaces` page (`create-workspace-button.tsx`)
 
 ### Key Database Relationships
@@ -73,7 +73,7 @@ vibexe.online (Next.js app)
 ```
 teams
   |-- builder_apps (our apps)       --> builder_files, builder_chats, builder_versions
-  |-- workspaces (Giselle)          --> apps (Giselle's apps, linked to workflow nodes)
+  |-- workspaces (Vibexe)          --> apps (Vibexe's apps, linked to workflow nodes)
   |-- agents (deprecated)           --> linked to workspaces via workspaceId
   |-- flow_triggers                 --> linked to workspaces via sdkWorkspaceId
   |-- acts (execution history)      --> linked to workspaces via sdkWorkspaceId
@@ -83,7 +83,7 @@ teams
 
 1. **"Create App" button creates a workspace, not an app** - Users clicking "Create App" expect the App Builder, not the visual workflow canvas
 2. **Terminology confusion** - "Workspaces" page shows cards called "agents", code references "agents" table (deprecated), UI says "workspaces"
-3. **No connection between App Builder and Workspaces** - Builder apps (`builder_apps`) have no relationship to Giselle workspaces (`workspaces`)
+3. **No connection between App Builder and Workspaces** - Builder apps (`builder_apps`) have no relationship to Vibexe workspaces (`workspaces`)
 4. **Flat structure** - All builder apps belong to a team with no organizational hierarchy
 5. **Duplicate functionality** - "Create App" sidebar button and "New Workspace" page button do the exact same thing
 6. **Section labels don't match** - "Stage - Run Apps" contains the builder (which creates apps, not runs them), "Studio - Build Apps" contains workspaces (which is the visual builder)
@@ -106,10 +106,10 @@ Vibexe Platform
 |
 +-- Projects (replaces "Workspaces" as organizational layer)
 |   +-- Group related apps together
-|   +-- Optional: attach Giselle automations per project
+|   +-- Optional: attach Vibexe automations per project
 |
 +-- Automations (replaces "Workspaces" as the visual builder)
-|   +-- Giselle's visual workflow builder (power-user tool)
+|   +-- Vibexe's visual workflow builder (power-user tool)
 |   +-- Can be linked to App Builder apps for:
 |       +-- Auto-testing
 |       +-- Content generation pipelines
@@ -123,7 +123,7 @@ Vibexe Platform
 
 #### 1.1 Fix "Create App" Sidebar Button
 
-**Current**: Creates a Giselle workspace and redirects to React Flow canvas
+**Current**: Creates a Vibexe workspace and redirects to React Flow canvas
 **Change**: Redirect to `/app-builder` with auto-create behavior
 
 **File**: `app/(main)/ui/sidebar/create-app-button.tsx`
@@ -154,10 +154,10 @@ Manage:   (unchanged) Member, Usage, API keys, Team Settings
 ```
 
 Changes:
-- Remove "Stage - Run Apps" / "Studio - Build Apps" labels (too Giselle-specific)
+- Remove "Stage - Run Apps" / "Studio - Build Apps" labels (too Vibexe-specific)
 - Move "App Builder" to first position in "Build" section
 - Rename "Workspaces" -> "Workflows" (more accurate - these ARE visual workflow builders)
-- Remove "Playground" from sidebar or move to secondary position (it's a Giselle-specific testing interface)
+- Remove "Playground" from sidebar or move to secondary position (it's a Vibexe-specific testing interface)
 - Remove "Task History" or rename to "Execution History" under Automate section
 
 #### 1.3 Rename Workspaces Page
@@ -167,7 +167,7 @@ Changes:
 - Page heading: "Workspaces" -> "Workflows"
 - "New Workspace" button label -> "New Workflow"
 - Empty state text: "No workspaces yet" -> "No workflows yet"
-- Docs link: keep pointing to Giselle docs (useful reference)
+- Docs link: keep pointing to Vibexe docs (useful reference)
 
 **File**: `app/(main)/workspaces/page.tsx` (the AgentListV2Page)
 - No route change needed (URL stays `/workspaces` internally, can add redirect later)
@@ -226,14 +226,14 @@ Build:
   +-- App Builder (links to /app-builder - shows all apps/projects)
 
 Automate:
-  +-- Workflows (links to /workspaces - Giselle visual builder)
+  +-- Workflows (links to /workspaces - Vibexe visual builder)
   +-- Integration
   +-- Vector Stores
 ```
 
 ### Phase 3: Connect Workflows to App Builder
 
-**Goal**: Make Giselle's visual workflow builder useful for App Builder users by allowing workflows to be attached to builder apps.
+**Goal**: Make Vibexe's visual workflow builder useful for App Builder users by allowing workflows to be attached to builder apps.
 
 #### 3.1 Database: Link Workflows to Builder Apps
 
@@ -242,7 +242,7 @@ Automate:
 CREATE TABLE builder_app_workflows (
     db_id SERIAL PRIMARY KEY,
     builder_app_db_id INTEGER NOT NULL REFERENCES builder_apps(db_id) ON DELETE CASCADE,
-    workspace_id TEXT NOT NULL, -- Giselle workspace ID (wrks-xxx)
+    workspace_id TEXT NOT NULL, -- Vibexe workspace ID (wrks-xxx)
     purpose TEXT,               -- e.g., "testing", "content-pipeline", "ci-cd"
     created_at TIMESTAMP DEFAULT NOW() NOT NULL
 );
@@ -257,13 +257,13 @@ Create workflow templates that App Builder users can one-click attach:
 3. **GitHub Sync**: Pushes generated code to a GitHub repository
 4. **Scheduled Refresh**: Re-runs AI generation on a schedule to update app content
 
-These use Giselle's existing node system but are pre-configured for App Builder use cases.
+These use Vibexe's existing node system but are pre-configured for App Builder use cases.
 
 #### 3.3 UI: Workflow Tab in App Builder
 
 Add a "Workflows" tab in the App Builder interface (alongside Chat, Code, Preview):
 - Shows attached workflows
-- "Add Workflow" button to create or attach a Giselle workflow
+- "Add Workflow" button to create or attach a Vibexe workflow
 - Status indicators for active workflows
 - Quick-run button to trigger a workflow manually
 
@@ -332,7 +332,7 @@ Replace the current landing page with a dashboard showing:
 **Current behavior**:
 ```typescript
 const response = await fetch("/api/workspaces", { method: "POST" });
-// Creates Giselle workspace + agent record, redirects to /workspaces/{wrks-xxx}
+// Creates Vibexe workspace + agent record, redirects to /workspaces/{wrks-xxx}
 ```
 
 **New behavior**:
@@ -453,7 +453,7 @@ Update empty state:
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Breaking existing Giselle workspace functionality | Low | High | Route changes are additive (redirects, not removals). Internal logic unchanged. |
+| Breaking existing Vibexe workspace functionality | Low | High | Route changes are additive (redirects, not removals). Internal logic unchanged. |
 | User confusion during transition | Medium | Medium | Phase 1 is purely cosmetic (labels/buttons). No data migration needed. |
 | Database migration for projects | Low | Medium | New tables only, no changes to existing tables (except optional FK on builder_apps). |
 | Workflow-to-app linking complexity | Medium | Low | Phase 3 is optional and can be deferred. Core value is in Phase 1+2. |
@@ -463,7 +463,7 @@ Update empty state:
 ## Success Criteria
 
 After Phase 1:
-- "Create App" button creates a builder app (not a Giselle workspace)
+- "Create App" button creates a builder app (not a Vibexe workspace)
 - Sidebar clearly separates "Build" (App Builder) from "Automate" (Workflows)
 - No user sees "Create App" and ends up in the visual node editor by surprise
 
@@ -472,7 +472,7 @@ After Phase 2:
 - App Builder list shows apps grouped by project
 
 After Phase 3:
-- Giselle workflows can be attached to builder apps
+- Vibexe workflows can be attached to builder apps
 - At least 2 pre-built workflow templates are available
 
 After Phase 4:
@@ -497,7 +497,7 @@ After Phase 4:
 - `app/(main)/app-builder/types/vibesdk.ts` - Type definitions
 - `app/(main)/app-builder/lib/queries.ts` - Database queries for builder_apps
 
-### Workspaces (Giselle)
+### Workspaces (Vibexe)
 - `app/(main)/workspaces/page.tsx` - Workspace list (actually queries `agents` table)
 - `app/(main)/workspaces/layout.tsx` - Page layout with heading + "New Workspace" button
 - `app/(main)/workspaces/create-workspace-button.tsx` - "New Workspace" button
@@ -505,10 +505,10 @@ After Phase 4:
 - `app/(main)/workspaces/components/` - Agent card, search header, LLM provider icon
 - `app/api/workspaces/route.ts` - POST endpoint to create workspace + agent
 
-### Giselle Core
-- `app/giselle.ts` - NextGiselle initialization, callbacks, storage config
-- `packages/giselle/src/workspaces/` - Workspace CRUD (create, get, update, copy, delete)
-- `packages/giselle/src/` - Core Giselle SDK (types, protocol, workflow designer)
+### Vibexe Core
+- `app/vibexe.ts` - NextVibexe initialization, callbacks, storage config
+- `packages/vibexe/src/workspaces/` - Workspace CRUD (create, get, update, copy, delete)
+- `packages/vibexe/src/` - Core Vibexe SDK (types, protocol, workflow designer)
 
 ### Database Schema
 - `db/schema.ts` - All table definitions

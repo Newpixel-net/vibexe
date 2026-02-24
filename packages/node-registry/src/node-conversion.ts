@@ -4,16 +4,16 @@ import {
 	NvidiaLanguageModelId,
 	OpenAILanguageModelId,
 	XaiLanguageModelId,
-} from "@giselles-ai/language-model";
+} from "@vibexe-ai/language-model";
 import {
 	getEntry,
 	type LanguageModelId,
-} from "@giselles-ai/language-model-registry";
+} from "@vibexe-ai/language-model-registry";
 import {
 	type ContentGenerationNode,
 	SecretId,
 	type TextGenerationNode,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 
 // Legacy model IDs that are no longer in the current schema but may exist in stored data
 type LegacyAnthropicModelId =

@@ -1,5 +1,5 @@
-import { createEndNode } from "@giselles-ai/node-registry";
-import { isAppEntryNode, type Node } from "@giselles-ai/protocol";
+import { createEndNode } from "@vibexe-ai/node-registry";
+import { isAppEntryNode, type Node } from "@vibexe-ai/protocol";
 import { useMemo } from "react";
 import { CircleNode } from "../../node/circle-node";
 import { PillNode } from "../../node/pill-node";

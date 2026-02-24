@@ -3,17 +3,17 @@ import {
 	type Output,
 	OutputId,
 	type TriggerNode,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import {
 	githubEvents,
 	githubEventToInputFields,
-} from "@giselles-ai/trigger-registry";
+} from "@vibexe-ai/trigger-registry";
 import { useCallback, useTransition } from "react";
 import {
 	useAppDesignerStore,
 	useUpdateNodeData,
 } from "../../../../../../app-designer";
-import { useGiselle } from "../../../../../../app-designer/store/giselle-client-provider";
+import { useVibexe } from "../../../../../../app-designer/store/vibexe-client-provider";
 import type {
 	InputCallsignStep,
 	InputLabelsStep,
@@ -34,7 +34,7 @@ export const useTriggerConfiguration = ({
 }): UseTriggerConfigurationReturn => {
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
 	const updateNodeData = useUpdateNodeData();
-	const client = useGiselle();
+	const client = useVibexe();
 	const [isPending, startTransition] = useTransition();
 
 	const configureTrigger = useCallback(

@@ -1,8 +1,8 @@
 import {
 	getCatalogEntry,
 	getPieceCategoryColor,
-} from "@giselles-ai/activepieces-adapter";
-import type { NodeLike } from "@giselles-ai/protocol";
+} from "@vibexe-ai/activepieces-adapter";
+import type { NodeLike } from "@vibexe-ai/protocol";
 import {
 	isAiAgentNode,
 	isChatModelNode,
@@ -11,7 +11,7 @@ import {
 	isTextGenerationNode,
 	isTriggerNode,
 	isVectorStoreNode,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import clsx from "clsx/lite";
 import type { CSSProperties } from "react";
 import { useMemo } from "react";

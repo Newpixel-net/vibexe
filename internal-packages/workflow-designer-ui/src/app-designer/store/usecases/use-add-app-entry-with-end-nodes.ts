@@ -1,10 +1,10 @@
-import { createEndNode } from "@giselles-ai/node-registry";
+import { createEndNode } from "@vibexe-ai/node-registry";
 import {
 	isAppEntryNode,
 	isEndNode,
 	type NodeLike,
 	type NodeUIState,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import { useCallback } from "react";
 import { useAppDesignerStoreApi } from "../app-designer-provider";
 import { useAddNode } from "./use-add-node";

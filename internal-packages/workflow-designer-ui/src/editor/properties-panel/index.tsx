@@ -41,7 +41,7 @@ import {
 	isRespondToWebhookNode,
 	isCustomVariablesNode,
 	type OperationNode,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import clsx from "clsx/lite";
 import { useShallow } from "zustand/shallow";
 import {

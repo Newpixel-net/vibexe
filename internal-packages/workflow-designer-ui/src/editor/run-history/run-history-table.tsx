@@ -1,5 +1,5 @@
-import { Button } from "@giselle-internal/ui/button";
-import { EmptyState } from "@giselle-internal/ui/empty-state";
+import { Button } from "@vibexe-internal/ui/button";
+import { EmptyState } from "@vibexe-internal/ui/empty-state";
 import {
 	Table,
 	TableBody,
@@ -7,13 +7,13 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "@giselle-internal/ui/table";
-import type { Task } from "@giselles-ai/protocol";
+} from "@vibexe-internal/ui/table";
+import type { Task } from "@vibexe-ai/protocol";
 import { FilterIcon, LoaderIcon, RefreshCcwIcon, XIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { useAppDesignerStore } from "../../app-designer";
-import { useGiselle } from "../../app-designer/store/giselle-client-provider";
+import { useVibexe } from "../../app-designer/store/vibexe-client-provider";
 import { RunDetailView } from "./run-detail-view";
 
 function formatDateTime(timestamp: number): string {
@@ -35,7 +35,7 @@ export function RunHistoryTable({
 }: {
 	onDebug?: (task: Task) => void;
 } = {}) {
-	const client = useGiselle();
+	const client = useVibexe();
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
 	const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 	const [tagFilter, setTagFilter] = useState<string | null>(null);

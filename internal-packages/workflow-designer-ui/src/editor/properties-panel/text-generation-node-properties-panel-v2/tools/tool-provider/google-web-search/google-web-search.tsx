@@ -1,6 +1,6 @@
-import { Button } from "@giselle-internal/ui/button";
-import { Toggle } from "@giselle-internal/ui/toggle";
-import type { ContentGenerationNode } from "@giselles-ai/protocol";
+import { Button } from "@vibexe-internal/ui/button";
+import { Toggle } from "@vibexe-internal/ui/toggle";
+import type { ContentGenerationNode } from "@vibexe-ai/protocol";
 import { Settings2Icon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useUpdateNodeDataContent } from "../../../../../../app-designer";

@@ -1,5 +1,5 @@
 {
-	"name": "@giselles-ai/pseudo-tiktoken",
+	"name": "@vibexe-ai/pseudo-tiktoken",
 	"version": "0.0.0",
 	"private": true,
 	"main": "./dist/index.js",
@@ -23,7 +23,7 @@
 		}
 	},
 	"devDependencies": {
-		"@giselles-ai/tsconfig": "workspace:*",
+		"@vibexe-ai/tsconfig": "workspace:*",
 		"@types/node": "catalog:",
 		"tiktoken": "catalog:",
 		"tsup": "catalog:",

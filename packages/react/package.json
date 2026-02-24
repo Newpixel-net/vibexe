@@ -1,5 +1,5 @@
 {
-	"name": "@giselles-ai/react",
+	"name": "@vibexe-ai/react",
 	"version": "0.0.0",
 	"private": true,
 	"main": "./dist/index.js",
@@ -21,17 +21,17 @@
 		}
 	},
 	"devDependencies": {
-		"@giselles-ai/protocol": "workspace:*",
-		"@giselles-ai/tsconfig": "workspace:*",
+		"@vibexe-ai/protocol": "workspace:*",
+		"@vibexe-ai/tsconfig": "workspace:*",
 		"@types/react": "catalog:",
 		"tsup": "catalog:",
 		"vitest": "catalog:",
 		"zustand": "catalog:"
 	},
 	"dependencies": {
-		"@giselles-ai/giselle": "workspace:*",
-		"@giselles-ai/language-model": "workspace:^",
-		"@giselles-ai/stream": "workspace:*",
+		"@vibexe-ai/vibexe": "workspace:*",
+		"@vibexe-ai/language-model": "workspace:^",
+		"@vibexe-ai/stream": "workspace:*",
 		"ai": "catalog:",
 		"react": "catalog:",
 		"swr": "catalog:"

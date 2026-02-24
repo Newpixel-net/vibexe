@@ -1,4 +1,4 @@
-import { createIdGenerator } from "@giselles-ai/utils";
+import { createIdGenerator } from "@vibexe-ai/utils";
 import * as z from "zod/v4";
 import { WorkspaceId } from "../workspace/id";
 

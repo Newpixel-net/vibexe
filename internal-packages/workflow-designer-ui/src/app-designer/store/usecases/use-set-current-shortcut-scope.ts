@@ -1,4 +1,4 @@
-import type { ShortcutScope } from "@giselles-ai/protocol";
+import type { ShortcutScope } from "@vibexe-ai/protocol";
 import { useCallback } from "react";
 import { useUiActions } from "../hooks";
 

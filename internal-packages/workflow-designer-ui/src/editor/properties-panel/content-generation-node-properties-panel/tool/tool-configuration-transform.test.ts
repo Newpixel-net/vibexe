@@ -1,7 +1,7 @@
 import type {
 	LanguageModelTool,
 	LanguageModelToolConfigurationOption,
-} from "@giselles-ai/language-model-registry";
+} from "@vibexe-ai/language-model-registry";
 import { describe, expect, it } from "vitest";
 import {
 	applyDefaultValues,
@@ -14,7 +14,7 @@ function createMockTool(
 ): LanguageModelTool {
 	return {
 		name: "test-tool",
-		provider: "giselle",
+		provider: "vibexe",
 		title: "Test Tool",
 		configurationOptions,
 	};

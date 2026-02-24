@@ -11,9 +11,9 @@ import {
 import type {
 	BlobLike,
 	GetJsonParams,
-	GiselleStorage,
+	VibexeStorage,
 	SetJsonParams,
-} from "@giselles-ai/storage";
+} from "@vibexe-ai/storage";
 import type { z } from "zod/v4";
 
 export interface S3StorageDriverConfig {
@@ -40,7 +40,7 @@ async function streamToUint8Array(stream: Readable): Promise<Uint8Array> {
 
 export function s3StorageDriver(
 	config: S3StorageDriverConfig,
-): GiselleStorage {
+): VibexeStorage {
 	let _client: S3Client | null = null;
 	function getClient(): S3Client {
 		if (!_client) {

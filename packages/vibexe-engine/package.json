@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "@giselles-ai/vibexe-engine",
+  "name": "@vibexe-ai/vibexe-engine",
   "version": "0.1.0",
   "private": true,
   "type": "module",

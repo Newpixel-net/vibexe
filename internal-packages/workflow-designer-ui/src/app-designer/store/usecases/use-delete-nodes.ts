@@ -8,11 +8,11 @@ import {
 	NodeId,
 	type NodeLike,
 	type UIState,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import { useCallback } from "react";
 import { useConfirm } from "../../confirm";
 import { useAppDesignerStoreApi } from "../app-designer-provider";
-import { useGiselle } from "../giselle-client-provider";
+import { useVibexe } from "../vibexe-client-provider";
 import { useSyncAppConnectionStateIfNeeded } from "./use-sync-app-connection-state-if-needed";
 
 const SUB_NODE_TYPES = new Set(["chatModel", "toolNode", "memoryNode"]);
@@ -125,7 +125,7 @@ function computeNextStateForDelete(args: {
 }
 
 export function useDeleteNodes() {
-	const client = useGiselle();
+	const client = useVibexe();
 	const store = useAppDesignerStoreApi();
 	const syncAppConnectionStateIfNeeded = useSyncAppConnectionStateIfNeeded();
 	const confirm = useConfirm();

@@ -1,5 +1,5 @@
 {
-	"name": "@giselles-ai/protocol",
+	"name": "@vibexe-ai/protocol",
 	"version": "0.0.0",
 	"private": true,
 	"main": "./dist/index.js",
@@ -22,18 +22,18 @@
 		}
 	},
 	"devDependencies": {
-		"@giselles-ai/tsconfig": "workspace:*",
-		"@giselles-ai/utils": "workspace:*",
+		"@vibexe-ai/tsconfig": "workspace:*",
+		"@vibexe-ai/utils": "workspace:*",
 		"tsup": "catalog:",
 		"vitest": "catalog:"
 	},
 	"dependencies": {
 		"@ai-sdk/provider": "catalog:",
-		"@giselles-ai/action-registry": "workspace:*",
-		"@giselles-ai/data-store-registry": "workspace:*",
-		"@giselles-ai/language-model": "workspace:^",
-		"@giselles-ai/language-model-registry": "workspace:*",
-		"@giselles-ai/trigger-registry": "workspace:*",
+		"@vibexe-ai/action-registry": "workspace:*",
+		"@vibexe-ai/data-store-registry": "workspace:*",
+		"@vibexe-ai/language-model": "workspace:^",
+		"@vibexe-ai/language-model-registry": "workspace:*",
+		"@vibexe-ai/trigger-registry": "workspace:*",
 		"@octokit/webhooks": "catalog:",
 		"ai": "catalog:"
 	},

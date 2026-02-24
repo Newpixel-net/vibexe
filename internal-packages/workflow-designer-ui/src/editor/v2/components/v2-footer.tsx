@@ -101,7 +101,7 @@ export function V2Footer({
 						align="start"
 					>
 						<a
-							href="https://docs.giselles.ai/en/guides/introduction"
+							href="https://docs.vibexe.ai/en/guides/introduction"
 							target="_blank"
 							rel="noopener noreferrer"
 							className="text-xs text-inverse hover:text-icon-hover flex items-center gap-1"

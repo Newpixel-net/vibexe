@@ -3,21 +3,21 @@ import type { KnipConfig } from "knip";
 const config: KnipConfig = {
 	biome: false,
 	ignoreIssues: {
-		"apps/studio.giselles.ai/emails/**/*.tsx": ["duplicates"],
+		"apps/studio.vibexe.ai/emails/**/*.tsx": ["duplicates"],
 		// App builder is a new feature under development - ignore all issues
-		"apps/studio.giselles.ai/app/\\(main\\)/app-builder/**": [
+		"apps/studio.vibexe.ai/app/\\(main\\)/app-builder/**": [
 			"files",
 			"exports",
 			"types",
 		],
 		// Session management utilities exported for runtime use
-		"apps/studio.giselles.ai/lib/session-store.ts": ["exports", "types"],
+		"apps/studio.vibexe.ai/lib/session-store.ts": ["exports", "types"],
 		// Auth utilities exported for runtime use
-		"apps/studio.giselles.ai/lib/auth/get-user.ts": ["types"],
+		"apps/studio.vibexe.ai/lib/auth/get-user.ts": ["types"],
 		// UI components exported for composition
-		"apps/studio.giselles.ai/components/ui/scroll-area.tsx": ["exports"],
+		"apps/studio.vibexe.ai/components/ui/scroll-area.tsx": ["exports"],
 		// Utility functions exported for runtime use
-		"apps/studio.giselles.ai/lib/utils.ts": ["exports"],
+		"apps/studio.vibexe.ai/lib/utils.ts": ["exports"],
 	},
 	workspaces: {
 		"apps/playground": {
@@ -28,7 +28,7 @@ const config: KnipConfig = {
 				"pg",
 			],
 		},
-		"apps/studio.giselles.ai": {
+		"apps/studio.vibexe.ai": {
 			entry: ["emails/**/*.tsx"],
 			ignore: [
 				"scripts/**",
@@ -49,7 +49,7 @@ const config: KnipConfig = {
 				"@vercel/edge-config",
 			],
 		},
-		"apps/ui.giselles.ai": {
+		"apps/ui.vibexe.ai": {
 			ignoreDependencies: ["tailwindcss"],
 		},
 		"internal-packages/ui": {

@@ -18,7 +18,7 @@ We evaluated several alternatives:
 We chose Supabase Storage for the following reasons:
 1. Our current storage needs are simple - primarily JSON and BLOB persistence without requiring advanced features
 2. Supabase Storage is compatible with unstorage, which we're already using
-3. We're already using Supabase for authentication in studio.giselles.ai
+3. We're already using Supabase for authentication in studio.vibexe.ai
 
 ## Implementation
 

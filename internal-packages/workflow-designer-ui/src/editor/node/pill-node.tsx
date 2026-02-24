@@ -1,10 +1,10 @@
-import { defaultName } from "@giselles-ai/node-registry";
+import { defaultName } from "@vibexe-ai/node-registry";
 import type {
 	InputId,
 	NodeId,
 	NodeLike,
 	OutputId,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
 import clsx from "clsx/lite";
 import { PlusIcon } from "lucide-react";

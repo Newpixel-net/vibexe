@@ -1,4 +1,4 @@
-import { type Input, InputId, type NodeId } from "@giselles-ai/protocol";
+import { type Input, InputId, type NodeId } from "@vibexe-ai/protocol";
 import { useCallback } from "react";
 import { useAppDesignerStoreApi } from "../app-designer-provider";
 import { useWorkspaceActions } from "../hooks";

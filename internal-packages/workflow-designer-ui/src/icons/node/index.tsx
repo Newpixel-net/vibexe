@@ -1,5 +1,5 @@
-import { getCatalogEntry } from "@giselles-ai/activepieces-adapter";
-import { getImageGenerationModelProvider } from "@giselles-ai/language-model";
+import { getCatalogEntry } from "@vibexe-ai/activepieces-adapter";
+import { getImageGenerationModelProvider } from "@vibexe-ai/language-model";
 import {
 	isActionNode,
 	isAiAgentNode,
@@ -11,7 +11,7 @@ import {
 	isTriggerNode,
 	isVectorStoreNode,
 	type NodeLike,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import { BotIcon, BrainCircuitIcon, BrainIcon, CableIcon, ClockIcon, DatabaseZapIcon, FlagIcon, LinkIcon, MessageSquareIcon, PlayIcon, WrenchIcon, ZapIcon } from "lucide-react";
 import type { SVGProps } from "react";
 import { AnthropicIcon } from "../anthropic";

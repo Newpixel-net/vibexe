@@ -35,7 +35,7 @@ nvm --version
 ```
 ## Installing Node.js
 
-Giselle requires Node.js version 22.14.0 or later.
+Vibexe requires Node.js version 22.14.0 or later.
 
 1. Install the required Node.js version:
 
@@ -59,7 +59,7 @@ The output should show v22.14.0 or later.
 
 ## Setting up pnpm
 
-pnpm is a fast, disk space efficient package manager that's used by the Giselle project.
+pnpm is a fast, disk space efficient package manager that's used by the Vibexe project.
 
 1. Install pnpm using the recommended method:
 

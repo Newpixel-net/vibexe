@@ -1,10 +1,10 @@
-import { Toggle } from "@giselle-internal/ui/toggle";
-import { useToasts } from "@giselle-internal/ui/toast";
+import { Toggle } from "@vibexe-internal/ui/toggle";
+import { useToasts } from "@vibexe-internal/ui/toast";
 import {
 	getEntry,
 	type LanguageModelId,
 	type LanguageModelTier,
-} from "@giselles-ai/language-model-registry";
+} from "@vibexe-ai/language-model-registry";
 import {
 	type AiAgentNode,
 	type Connection,
@@ -12,8 +12,8 @@ import {
 	Node,
 	type NodeLike,
 	type OperationNode,
-} from "@giselles-ai/protocol";
-import { useNodeGenerations, useUsageLimits } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import { useNodeGenerations, useUsageLimits } from "@vibexe-ai/react";
 import { useCallback, useState } from "react";
 import {
 	useAppDesignerStore,

@@ -7,9 +7,9 @@ import {
 	isQueuedGeneration,
 	isTextGenerationNode,
 	type RunningGeneration,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import { useCallback, useEffect, useRef } from "react";
-import { useGiselle } from "../use-giselle";
+import { useVibexe } from "../use-vibexe";
 import { useGenerationRunnerSystem } from "./contexts/generation-runner-system";
 import { GenerateContentRunner } from "./generate-content-runner";
 
@@ -96,7 +96,7 @@ export function GenerationRunner({ generation }: { generation: Generation }) {
 
 function TextGenerationRunner({ generation }: { generation: Generation }) {
 	const { updateGenerationListener, addStopHandler } = useGenerationRunnerSystem();
-	const client = useGiselle();
+	const client = useVibexe();
 	const stopRef = useRef(false);
 
 	const handleStart = useCallback(
@@ -136,7 +136,7 @@ function ImageGenerationRunner({ generation }: { generation: Generation }) {
 		updateGenerationStatusToFailure,
 		addStopHandler,
 	} = useGenerationRunnerSystem();
-	const client = useGiselle();
+	const client = useVibexe();
 	const stopRequestedRef = useRef(false);
 
 	const stop = useCallback(() => {
@@ -206,7 +206,7 @@ function TriggerRunner({ generation }: { generation: Generation }) {
 		updateGenerationStatusToFailure,
 		addStopHandler,
 	} = useGenerationRunnerSystem();
-	const client = useGiselle();
+	const client = useVibexe();
 	const stop = () => {};
 	useOnce(() => {
 		if (!isQueuedGeneration(generation)) {
@@ -246,7 +246,7 @@ function ActionRunner({ generation }: { generation: Generation }) {
 		updateGenerationStatusToFailure,
 		addStopHandler,
 	} = useGenerationRunnerSystem();
-	const client = useGiselle();
+	const client = useVibexe();
 	const stop = () => {};
 	useOnce(() => {
 		if (!isQueuedGeneration(generation)) {
@@ -286,7 +286,7 @@ function QueryRunner({ generation }: { generation: Generation }) {
 		updateGenerationStatusToFailure,
 		addStopHandler,
 	} = useGenerationRunnerSystem();
-	const client = useGiselle();
+	const client = useVibexe();
 	const stop = () => {};
 	useOnce(() => {
 		if (!isQueuedGeneration(generation)) {
@@ -326,7 +326,7 @@ function IntegrationRunner({ generation }: { generation: Generation }) {
 		updateGenerationStatusToFailure,
 		addStopHandler,
 	} = useGenerationRunnerSystem();
-	const client = useGiselle();
+	const client = useVibexe();
 	const stop = () => {};
 	useOnce(() => {
 		if (!isQueuedGeneration(generation)) {
@@ -366,7 +366,7 @@ function DataQueryRunner({ generation }: { generation: Generation }) {
 		updateGenerationStatusToFailure,
 		addStopHandler,
 	} = useGenerationRunnerSystem();
-	const client = useGiselle();
+	const client = useVibexe();
 	const stop = () => {};
 	useOnce(() => {
 		if (!isQueuedGeneration(generation)) {

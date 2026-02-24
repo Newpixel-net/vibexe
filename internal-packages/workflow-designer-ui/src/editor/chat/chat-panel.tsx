@@ -61,9 +61,9 @@ export function ChatPanel() {
 	// Demo message patterns
 	const demoMessages = [
 		// Long message
-		"Thanks for your question! I'll help you with that. For more information about nodes, check out our documentation at https://docs.giselles.ai/en/glossary/node or visit our GitHub repository at https://github.com/giselles-ai/giselle for examples. You can also explore different node types, configure their settings, and connect them to build powerful workflows. Feel free to experiment with the visual editor and don't hesitate to ask if you need guidance!",
+		"Thanks for your question! I'll help you with that. For more information about nodes, check out our documentation at https://docs.vibexe.ai/en/glossary/node or visit our GitHub repository at https://github.com/Newpixel-net/vibexe for examples. You can also explore different node types, configure their settings, and connect them to build powerful workflows. Feel free to experiment with the visual editor and don't hesitate to ask if you need guidance!",
 		// Short message
-		"Got it! Check our docs at https://docs.giselles.ai/en/glossary/node for more info.",
+		"Got it! Check our docs at https://docs.vibexe.ai/en/glossary/node for more info.",
 		// Greeting message
 		"Hello! 👋 I'm here to help you with your workflow. What would you like to know about nodes and connections?",
 	];

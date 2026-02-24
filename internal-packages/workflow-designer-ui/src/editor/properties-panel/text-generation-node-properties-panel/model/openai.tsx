@@ -1,12 +1,12 @@
-import { Select } from "@giselle-internal/ui/select";
-import { Toggle } from "@giselle-internal/ui/toggle";
+import { Select } from "@vibexe-internal/ui/select";
+import { Toggle } from "@vibexe-internal/ui/toggle";
 import {
 	Capability,
 	hasCapability,
 	openaiLanguageModels,
-} from "@giselles-ai/language-model";
-import { OpenAILanguageModelData, type ToolSet } from "@giselles-ai/protocol";
-import { useUsageLimits } from "@giselles-ai/react";
+} from "@vibexe-ai/language-model";
+import { OpenAILanguageModelData, type ToolSet } from "@vibexe-ai/protocol";
+import { useUsageLimits } from "@vibexe-ai/react";
 import { useMemo } from "react";
 import { SettingRow } from "../../ui/setting-row";
 import {

@@ -1,6 +1,6 @@
-import { Node, type NodeId, type NodeLike, type OperationNode } from "@giselles-ai/protocol";
-import { isVectorStoreNode, isTriggerNode } from "@giselles-ai/protocol";
-import { useNodeGenerations } from "@giselles-ai/react";
+import { Node, type NodeId, type NodeLike, type OperationNode } from "@vibexe-ai/protocol";
+import { isVectorStoreNode, isTriggerNode } from "@vibexe-ai/protocol";
+import { useNodeGenerations } from "@vibexe-ai/react";
 import clsx from "clsx/lite";
 import { type CSSProperties, type ReactNode, useCallback } from "react";
 import { useAppDesignerStore, useWorkspaceActions } from "../../app-designer";

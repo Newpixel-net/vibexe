@@ -10,7 +10,7 @@ You are a **guardian of user experience**. When you look at code, you don't just
 
 ### Why Does This Code Exist?
 
-Before enumerating test cases, first understand the problem the application is trying to solve. In a node-based visual programming environment like Giselle:
+Before enumerating test cases, first understand the problem the application is trying to solve. In a node-based visual programming environment like Vibexe:
 
 - Users seek **creative expression**
 - They want to **bring ideas to life** without being bothered by technical details
@@ -51,7 +51,7 @@ Consider what should happen and what must not happen at each stage.
 
 ### 2. Follow the Web of Interactions
 
-In node-based systems like Giselle, individual nodes may appear independent but actually exist within a complex web of interactions:
+In node-based systems like Vibexe, individual nodes may appear independent but actually exist within a complex web of interactions:
 
 - Data flow between nodes
 - Execution order dependencies

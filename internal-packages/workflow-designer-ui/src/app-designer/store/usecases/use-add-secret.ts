@@ -1,9 +1,9 @@
 import { useCallback } from "react";
-import { useGiselle } from "../giselle-client-provider";
+import { useVibexe } from "../vibexe-client-provider";
 import { useAppDesignerStore } from "../hooks";
 
 export function useAddSecret() {
-	const client = useGiselle();
+	const client = useVibexe();
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
 
 	return useCallback(

@@ -54,7 +54,7 @@ N8N AI Agent has 3 bottom ports (Chat Model*, Memory, Tool) as separate canvas n
 - These don't carry data — they configure the parent node's behavior
 
 #### Step 5.3: AI Agent resolves sub-nodes at execution time
-**File**: `packages/giselle/src/operations/generate-content.ts` (or `execute-ai-agent.ts`)
+**File**: `packages/vibexe/src/operations/generate-content.ts` (or `execute-ai-agent.ts`)
 - When executing an AI Agent:
   1. Find connected Chat Model sub-node → use its provider/model configuration
   2. Find connected Memory sub-node → initialize conversation memory
@@ -87,7 +87,7 @@ N8N has 6 pre-built AI chains: Information Extractor, Sentiment Analysis, Summar
 These are NOT new node types — they are **prompt templates** that configure existing TextGeneration or AiAgent nodes with pre-built system prompts and structured output schemas.
 
 #### Step 6.1: Create chain template registry
-**New file**: `packages/giselle/src/chains/chain-templates.ts`
+**New file**: `packages/vibexe/src/chains/chain-templates.ts`
 
 ```typescript
 interface ChainTemplate {
@@ -137,8 +137,8 @@ N8N has full RAG pipeline: Embeddings nodes, Vector Store nodes, Q&A Chain. Vibe
 ### Current State
 - `VectorStoreNode` exists for GitHub repos and uploaded documents
 - `QueryNode` searches vector stores with embedding-based similarity
-- `packages/giselle/src/operations/execute-query.ts` handles query execution with `queryVectorStore()`
-- `@giselles-ai/rag` package exists for embedding metrics
+- `packages/vibexe/src/operations/execute-query.ts` handles query execution with `queryVectorStore()`
+- `@vibexe-ai/rag` package exists for embedding metrics
 - Missing: general-purpose embedding node, custom vector store support (Pinecone, Weaviate, etc.)
 
 ### Implementation Steps
@@ -189,7 +189,7 @@ N8N has an "Executions" tab showing all past runs with data, success/failure, ti
 - `V2HeaderTabs` has "Editor" | "Executions" | "Sharing" tabs
 - `V2Footer` has "Run History" button
 - Tasks are stored with full metadata: `Task` schema has `status`, `duration`, `usage`, `steps`, `createdAt`, `updatedAt`
-- Generation data (inputs, outputs, metrics) is stored in GiselleStorage
+- Generation data (inputs, outputs, metrics) is stored in VibexeStorage
 - NO execution history UI component exists
 
 ### Implementation Steps
@@ -228,9 +228,9 @@ When "Executions" tab is active:
 - Load task list from storage API
 
 #### Step 8.4: API for listing past executions
-**File**: `packages/giselle/src/tasks/` or `apps/studio.giselles.ai/app/api/giselle/`
+**File**: `packages/vibexe/src/tasks/` or `apps/studio.vibexe.ai/app/api/vibexe/`
 
-Endpoint: `GET /api/giselle/tasks?workspaceId=...&limit=50&offset=0`
+Endpoint: `GET /api/vibexe/tasks?workspaceId=...&limit=50&offset=0`
 Returns: List of Task objects with summary data (no full generation outputs — those load on demand)
 
 #### Step 8.5: Canvas execution indicators
@@ -269,7 +269,7 @@ Vibexe supports only one trigger per workflow. N8N allows multiple triggers ("Ad
 - When any trigger fires, the workflow executes from that trigger's branch
 
 #### Step 9.2: Trigger multiplexing in task creation
-**File**: `packages/giselle/src/tasks/create-task.ts`
+**File**: `packages/vibexe/src/tasks/create-task.ts`
 
 When creating a task:
 - `TaskStarter` already supports different trigger types
@@ -277,7 +277,7 @@ When creating a task:
 - Each trigger type registers independently (Schedule cron, Webhook URL, Chat widget)
 
 #### Step 9.3: Multiple trigger registration
-**Files**: `apps/studio.giselles.ai/app/api/cron/scheduled-workflows/`, webhook endpoint registration
+**Files**: `apps/studio.vibexe.ai/app/api/cron/scheduled-workflows/`, webhook endpoint registration
 
 - Each trigger node in the workflow gets its own registration
 - Schedule triggers: multiple cron entries in `scheduled_workflows` table

@@ -1,6 +1,6 @@
-import { Select } from "@giselle-internal/ui/select";
-import { DataStoreId, type DataStoreNode } from "@giselles-ai/protocol";
-import { useDataStore } from "@giselles-ai/react";
+import { Select } from "@vibexe-internal/ui/select";
+import { DataStoreId, type DataStoreNode } from "@vibexe-ai/protocol";
+import { useDataStore } from "@vibexe-ai/react";
 import Link from "next/link";
 import { useCallback } from "react";
 import { useDeleteNode, useUpdateNodeData } from "../../../app-designer";
@@ -24,7 +24,7 @@ export function DataStoreNodePropertiesPanel({
 			<NodePanelHeader
 				node={node}
 				onChangeName={(name) => updateNodeData(node, { name })}
-				docsUrl="https://docs.giselles.ai/en/glossary/data-store-node"
+				docsUrl="https://docs.vibexe.ai/en/glossary/data-store-node"
 				onDelete={() => deleteNode(node.id)}
 			/>
 			<PropertiesPanelContent>

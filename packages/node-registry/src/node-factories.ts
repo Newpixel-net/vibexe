@@ -1,10 +1,10 @@
-import type { ActionProvider } from "@giselles-ai/action-registry";
+import type { ActionProvider } from "@vibexe-ai/action-registry";
 import {
 	Capability,
 	hasCapability,
 	languageModels,
-} from "@giselles-ai/language-model";
-import { getEntry } from "@giselles-ai/language-model-registry";
+} from "@vibexe-ai/language-model";
+import { getEntry } from "@vibexe-ai/language-model-registry";
 import {
 	type ActionNode,
 	type AggregateNode,
@@ -114,11 +114,11 @@ import {
 	type VectorStoreContent,
 	type VectorStoreNode,
 	type WebPageNode,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import {
 	isJsonContent,
 	type JSONContent,
-} from "@giselles-ai/text-editor-utils";
+} from "@vibexe-ai/text-editor-utils";
 import {
 	actionNodeDefaultName,
 	defaultName,

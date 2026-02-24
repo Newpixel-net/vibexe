@@ -1,6 +1,6 @@
-import { useToasts } from "@giselle-internal/ui/toast";
-import type { ImageGenerationNode } from "@giselles-ai/protocol";
-import { useNodeGenerations } from "@giselles-ai/react";
+import { useToasts } from "@vibexe-internal/ui/toast";
+import type { ImageGenerationNode } from "@vibexe-ai/protocol";
+import { useNodeGenerations } from "@vibexe-ai/react";
 import { useCallback, useRef } from "react";
 import {
 	useAppDesignerStore,
@@ -88,7 +88,7 @@ export function ImageGenerationNodePropertiesPanel({
 			<NodePanelHeader
 				node={node}
 				onChangeName={(name) => updateNodeData(node, { name })}
-				docsUrl="https://docs.giselles.ai/en/glossary/image-node"
+				docsUrl="https://docs.vibexe.ai/en/glossary/image-node"
 				onDelete={() => deleteNode(node.id)}
 			/>
 

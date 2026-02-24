@@ -1,5 +1,5 @@
-import { useToasts } from "@giselle-internal/ui/toast";
-import type { FileData } from "@giselles-ai/protocol";
+import { useToasts } from "@vibexe-internal/ui/toast";
+import type { FileData } from "@vibexe-ai/protocol";
 import clsx from "clsx/lite";
 import {
 	ArrowUpFromLineIcon,

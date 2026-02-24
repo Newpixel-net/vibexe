@@ -1,20 +1,20 @@
-import { DropdownMenu } from "@giselle-internal/ui/dropdown-menu";
-import { Popover } from "@giselle-internal/ui/popover";
+import { DropdownMenu } from "@vibexe-internal/ui/dropdown-menu";
+import { Popover } from "@vibexe-internal/ui/popover";
 import {
 	getEntry,
 	type LanguageModelId,
 	type LanguageModelTool,
 	languageModelTools,
-} from "@giselles-ai/language-model-registry";
-import { defaultName } from "@giselles-ai/node-registry";
+} from "@vibexe-ai/language-model-registry";
+import { defaultName } from "@vibexe-ai/node-registry";
 import {
 	type CompletedGeneration,
 	type ContentGenerationNode,
 	type FailedGeneration,
 	type Generation,
 	Node,
-} from "@giselles-ai/protocol";
-import { useNodeGenerations } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import { useNodeGenerations } from "@vibexe-ai/react";
 import clsx from "clsx/lite";
 import { PlusIcon, Settings2Icon, XIcon } from "lucide-react";
 import { Tooltip as TooltipPrimitive } from "radix-ui";
@@ -153,9 +153,9 @@ export function ContentGenerationNodePropertiesPanel({
 
 		return [
 			{
-				groupId: "giselle",
+				groupId: "vibexe",
 				groupLabel: "Hosted",
-				items: makeItems("giselle"),
+				items: makeItems("vibexe"),
 			},
 			{
 				groupId: languageModel.providerId,
@@ -357,7 +357,7 @@ export function ContentGenerationNodePropertiesPanel({
 			<NodePanelHeader
 				node={node}
 				onChangeName={(name) => updateNodeData(node, { name })}
-				docsUrl="https://docs.giselles.ai/en/glossary/text-node"
+				docsUrl="https://docs.vibexe.ai/en/glossary/text-node"
 				onDelete={() => deleteNode(node.id)}
 			/>
 

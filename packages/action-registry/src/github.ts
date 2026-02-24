@@ -1,4 +1,4 @@
-import { titleCase } from "@giselles-ai/utils";
+import { titleCase } from "@vibexe-ai/utils";
 import * as z from "zod/v4";
 
 interface GitHubAction {

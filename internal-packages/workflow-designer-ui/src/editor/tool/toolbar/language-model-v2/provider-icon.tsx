@@ -1,7 +1,7 @@
 import {
 	getEntry,
 	type LanguageModelId,
-} from "@giselles-ai/language-model-registry";
+} from "@vibexe-ai/language-model-registry";
 import { AnthropicIcon, GoogleWhiteIcon, NvidiaIcon, OpenaiIcon, XaiIcon } from "../components";
 
 interface ProviderIconProps {

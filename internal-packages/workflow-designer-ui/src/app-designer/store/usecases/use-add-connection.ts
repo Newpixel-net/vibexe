@@ -4,7 +4,7 @@ import {
 	type InputId,
 	type NodeLike,
 	type OutputId,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import { useCallback } from "react";
 import { useAppDesignerStoreApi } from "../app-designer-provider";
 import { useUndoRedoActions, useWorkspaceActions } from "../hooks";

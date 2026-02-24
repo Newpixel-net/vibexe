@@ -4,13 +4,13 @@
 Implemented
 
 ## Context
-We need to implement a secure mechanism to manage sensitive information that users register with Giselle, such as Personal Access Tokens (PATs) and, in the future, API keys for LLM providers. This requires a Vault (Secrets Manager) implementation.
+We need to implement a secure mechanism to manage sensitive information that users register with Vibexe, such as Personal Access Tokens (PATs) and, in the future, API keys for LLM providers. This requires a Vault (Secrets Manager) implementation.
 
 ## Decision
 We have implemented a Vault system with the following design:
 
-1. The Vault functionality is implemented in `@giselles-ai/giselle-engine` via the `vault` module.
-2. It is specified as a configuration option for the GiselleEngine, with no default implementation.
+1. The Vault functionality is implemented in `@vibexe-ai/vibexe-engine` via the `vault` module.
+2. It is specified as a configuration option for the VibexeEngine, with no default implementation.
 3. The Vault provides encrypt and decrypt capabilities and supports multiple drivers through a common interface.
 
 The core implementation includes:
@@ -57,11 +57,11 @@ const supabaseVault = supabaseVaultDriver({
 });
 ```
 
-The Vault is specified when initializing the GiselleEngine:
+The Vault is specified when initializing the VibexeEngine:
 
 ```ts
-export const giselle = NextGiselleEngine({
-  basePath: "/api/giselle",
+export const vibexe = NextVibexeEngine({
+  basePath: "/api/vibexe",
   storage,
   vault: supabaseVault,
 });
@@ -72,14 +72,14 @@ Usage pattern:
 ```ts
 // Encrypt a secret (e.g., a GitHub PAT)
 const plaintext = "github_pat_abc123xyz";
-const encryptedSecret = await giselle.encryptSecret(plaintext);
+const encryptedSecret = await vibexe.encryptSecret(plaintext);
 
 // React
-const client = useGiselle()
+const client = useVibexe()
 const encryptedSecret = await client.encryptSecret({ plaintext })
 
 // Later, decrypt the secret when needed(sever only)
-const decryptedSecret = await giselle.decryptSecret(encryptedSecret);
+const decryptedSecret = await vibexe.decryptSecret(encryptedSecret);
 
 // Store only the encrypted reference in database
 const userSecrets = {
@@ -94,7 +94,7 @@ const userSecrets = {
 - Flexible driver-based architecture allows for different storage backends.
 - Separation of concerns with vault functionality contained in the engine.
 - Multiple implementation options (Supabase, WebCrypto) for different environments.
-- Simple API exposure through the GiselleEngine.
+- Simple API exposure through the VibexeEngine.
 - When using Supabase Vault driver:
   - Secrets are encrypted at rest using Authenticated Encryption with Associated Data (AEAD)
   - Secrets remain encrypted in backups and replication streams

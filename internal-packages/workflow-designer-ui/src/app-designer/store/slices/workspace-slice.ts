@@ -9,7 +9,7 @@ import {
 	type StickyNote,
 	type Viewport,
 	type Workspace,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import type { StateCreator } from "zustand";
 import type { AppDesignerStoreState } from "../app-designer-store";
 

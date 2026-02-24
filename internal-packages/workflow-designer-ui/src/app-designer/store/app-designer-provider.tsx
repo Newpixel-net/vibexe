@@ -1,8 +1,8 @@
 "use client";
 
-import type { LanguageModelProvider } from "@giselles-ai/language-model";
-import type { Workspace } from "@giselles-ai/protocol";
-import type { GiselleClient } from "@giselles-ai/react";
+import type { LanguageModelProvider } from "@vibexe-ai/language-model";
+import type { Workspace } from "@vibexe-ai/protocol";
+import type { VibexeClient } from "@vibexe-ai/react";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { AppConnectionStateSyncProvider } from "./app-connection-state-sync-provider";
@@ -10,7 +10,7 @@ import {
 	type AppDesignerStoreApi,
 	createAppDesignerStore,
 } from "./app-designer-store";
-import { GiselleClientProvider } from "./giselle-client-provider";
+import { VibexeClientProvider } from "./vibexe-client-provider";
 import { createAppDesignerPersistenceController } from "./persistence/controller";
 
 export const AppDesignerStoreContext =
@@ -18,7 +18,7 @@ export const AppDesignerStoreContext =
 
 type AppDesignerProviderProps = React.PropsWithChildren<{
 	initialWorkspace: Workspace;
-	giselleClient: GiselleClient;
+	vibexeClient: VibexeClient;
 	llmProviders: LanguageModelProvider[];
 	debounceMs?: number;
 	save: (payload: Workspace) => Promise<void>;
@@ -58,7 +58,7 @@ type AppDesignerProviderProps = React.PropsWithChildren<{
 export function AppDesignerProvider({
 	children,
 	initialWorkspace,
-	giselleClient,
+	vibexeClient,
 	llmProviders,
 	save,
 	saveBestEffort,
@@ -118,11 +118,11 @@ export function AppDesignerProvider({
 
 	return (
 		<AppDesignerStoreContext.Provider value={storeApi}>
-			<GiselleClientProvider value={giselleClient}>
+			<VibexeClientProvider value={vibexeClient}>
 				<AppConnectionStateSyncProvider>
 					{children}
 				</AppConnectionStateSyncProvider>
-			</GiselleClientProvider>
+			</VibexeClientProvider>
 		</AppDesignerStoreContext.Provider>
 	);
 }

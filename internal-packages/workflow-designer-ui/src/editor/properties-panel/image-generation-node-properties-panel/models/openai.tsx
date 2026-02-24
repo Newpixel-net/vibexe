@@ -1,11 +1,11 @@
-import { Select } from "@giselle-internal/ui/select";
+import { Select } from "@vibexe-internal/ui/select";
 import {
 	openaiImageBackground,
 	openaiImageModeration,
 	openaiImageQuality,
 	openaiImageSize,
-} from "@giselles-ai/language-model";
-import { OpenAIImageLanguageModelData } from "@giselles-ai/protocol";
+} from "@vibexe-ai/language-model";
+import { OpenAIImageLanguageModelData } from "@vibexe-ai/protocol";
 import { SettingRow } from "../../ui/setting-row";
 
 export function OpenAIImageModelPanel({

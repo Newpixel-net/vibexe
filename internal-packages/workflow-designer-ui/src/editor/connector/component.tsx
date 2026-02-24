@@ -1,6 +1,6 @@
-import { getPieceCategoryColor } from "@giselles-ai/activepieces-adapter";
-import type { NodeId } from "@giselles-ai/protocol";
-import { useNodeGenerations } from "@giselles-ai/react";
+import { getPieceCategoryColor } from "@vibexe-ai/activepieces-adapter";
+import type { NodeId } from "@vibexe-ai/protocol";
+import { useNodeGenerations } from "@vibexe-ai/react";
 import { BaseEdge, type EdgeProps, getBezierPath } from "@xyflow/react";
 import clsx from "clsx/lite";
 import type { PropsWithChildren } from "react";

@@ -2,7 +2,7 @@ import type * as z from "zod/v4";
 import type {
 	BlobLike,
 	GetJsonParams,
-	GiselleStorage,
+	VibexeStorage,
 	SetJsonParams,
 } from "./types";
 
@@ -13,7 +13,7 @@ export interface MemoryStorageDriverConfig {
 
 export function memoryStorageDriver(
 	config: MemoryStorageDriverConfig = {},
-): GiselleStorage {
+): VibexeStorage {
 	const jsonStore = new Map<string, unknown>(
 		Object.entries(config.initialJson ?? {}),
 	);

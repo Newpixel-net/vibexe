@@ -153,7 +153,7 @@ stateDiagram-v2
 ```mermaid
 sequenceDiagram
   participant UI as Panel (Installed)
-  participant S as Giselle Engine Client
+  participant S as Vibexe Engine Client
   participant Srv as Engine Server
 
   Note over UI,Srv: Initial Configuration

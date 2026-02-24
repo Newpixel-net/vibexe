@@ -1,5 +1,5 @@
 {
-	"name": "@giselles-ai/node-registry",
+	"name": "@vibexe-ai/node-registry",
 	"version": "0.0.0",
 	"private": true,
 	"main": "./dist/index.js",
@@ -20,16 +20,16 @@
 		}
 	},
 	"devDependencies": {
-		"@giselles-ai/tsconfig": "workspace:*",
+		"@vibexe-ai/tsconfig": "workspace:*",
 		"tsup": "catalog:",
 		"vitest": "catalog:"
 	},
 	"dependencies": {
-		"@giselles-ai/action-registry": "workspace:*",
-		"@giselles-ai/language-model": "workspace:*",
-		"@giselles-ai/language-model-registry": "workspace:*",
-		"@giselles-ai/protocol": "workspace:*",
-		"@giselles-ai/text-editor-utils": "workspace:*",
-		"@giselles-ai/trigger-registry": "workspace:*"
+		"@vibexe-ai/action-registry": "workspace:*",
+		"@vibexe-ai/language-model": "workspace:*",
+		"@vibexe-ai/language-model-registry": "workspace:*",
+		"@vibexe-ai/protocol": "workspace:*",
+		"@vibexe-ai/text-editor-utils": "workspace:*",
+		"@vibexe-ai/trigger-registry": "workspace:*"
 	}
 }

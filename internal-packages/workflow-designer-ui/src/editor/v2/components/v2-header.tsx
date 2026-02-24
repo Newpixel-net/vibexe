@@ -1,7 +1,7 @@
 "use client";
 
-import { DropdownMenu } from "@giselle-internal/ui/dropdown-menu";
-import { useFeatureFlag } from "@giselles-ai/react";
+import { DropdownMenu } from "@vibexe-internal/ui/dropdown-menu";
+import { useFeatureFlag } from "@vibexe-ai/react";
 import Avatar from "boring-avatars";
 import clsx from "clsx/lite";
 import { ChevronDownIcon, DownloadIcon, HistoryIcon, Redo2Icon, SaveIcon, Undo2Icon } from "lucide-react";
@@ -13,7 +13,7 @@ import {
 	useUndoRedoActions,
 	useUpdateWorkspaceName,
 } from "../../../app-designer";
-import { GiselleIcon } from "../../../icons";
+import { VibexeIcon } from "../../../icons";
 import { EditableText, type EditableTextRef } from "../../properties-panel/ui";
 import { PublishToggle } from "./publish-toggle";
 import { RunButton } from "./run-button";
@@ -70,7 +70,7 @@ export function V2Header({
 					className="flex items-center gap-[3px] group"
 					aria-label="Go to home"
 				>
-					<GiselleIcon className="text-inverse w-[24px] h-[24px] group-hover:text-primary-100 transition-colors" />
+					<VibexeIcon className="text-inverse w-[24px] h-[24px] group-hover:text-primary-100 transition-colors" />
 					<span className="text-inverse text-[13px] font-semibold group-hover:text-primary-100 transition-colors">
 						Studio
 					</span>

@@ -1,4 +1,4 @@
-import type { IntegrationNode } from "@giselles-ai/protocol";
+import type { IntegrationNode } from "@vibexe-ai/protocol";
 import {
 	AlertTriangleIcon,
 	CheckCircle2Icon,

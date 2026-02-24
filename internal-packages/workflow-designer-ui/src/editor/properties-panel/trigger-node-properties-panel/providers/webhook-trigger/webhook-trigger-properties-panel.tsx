@@ -1,7 +1,7 @@
 "use client";
 
-import type { TriggerNode } from "@giselles-ai/protocol";
-import { useTrigger } from "@giselles-ai/react";
+import type { TriggerNode } from "@vibexe-ai/protocol";
+import { useTrigger } from "@vibexe-ai/react";
 import {
 	CheckCircle2Icon,
 	CheckIcon,
@@ -15,7 +15,7 @@ import {
 	useUpdateNodeData,
 	useUpdateNodeDataContent,
 } from "../../../../../app-designer";
-import { useGiselle } from "../../../../../app-designer/store/giselle-client-provider";
+import { useVibexe } from "../../../../../app-designer/store/vibexe-client-provider";
 import { SpinnerIcon } from "../../../../../icons";
 import { WebhookLogs } from "./webhook-logs";
 
@@ -27,7 +27,7 @@ export function WebhookTriggerPropertiesPanel({
 	const updateNodeDataContent = useUpdateNodeDataContent();
 	const updateNodeData = useUpdateNodeData();
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
-	const client = useGiselle();
+	const client = useVibexe();
 	const { callbacks } = useTrigger();
 	const [copied, setCopied] = useState(false);
 	const [isPending, startTransition] = useTransition();

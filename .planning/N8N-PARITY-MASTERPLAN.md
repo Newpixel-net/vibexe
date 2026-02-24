@@ -302,10 +302,10 @@ git add -A && git commit -m "Wave N: <description>" && git push origin main
 
 # Server (WHM Terminal):
 source /home/vibexe/.nvm/nvm.sh && nvm use 24
-cd /opt/giselle
+cd /opt/vibexe
 git fetch vibexe && git reset --hard vibexe/main
-pnpm build-sdk && pnpm --filter studio.giselles.ai build
-pm2 flush giselle && pm2 restart giselle
+pnpm build-sdk && pnpm --filter studio.vibexe.ai build
+pm2 flush vibexe && pm2 restart vibexe
 
 # Verify: Open vibexe.online in browser, test wave features
 ```

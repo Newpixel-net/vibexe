@@ -7,10 +7,10 @@
  * - Default mode: dry-run (prints summary without modifying files)
  *
  * Usage:
- *   node giselle/scripts/codemods/replace-text-white-900-to-inverse.mjs
- *   node giselle/scripts/codemods/replace-text-white-900-to-inverse.mjs --apply
- *   node giselle/scripts/codemods/replace-text-white-900-to-inverse.mjs --root . --apply
- *   node giselle/scripts/codemods/replace-text-white-900-to-inverse.mjs --ext ts,tsx,jsx,css --apply
+ *   node vibexe/scripts/codemods/replace-text-white-900-to-inverse.mjs
+ *   node vibexe/scripts/codemods/replace-text-white-900-to-inverse.mjs --apply
+ *   node vibexe/scripts/codemods/replace-text-white-900-to-inverse.mjs --root . --apply
+ *   node vibexe/scripts/codemods/replace-text-white-900-to-inverse.mjs --ext ts,tsx,jsx,css --apply
  *
  * Notes:
  * - This is a straightforward string replacement (global) for `text-white-900` -> `text-inverse`.
@@ -87,9 +87,9 @@ Options:
   -h, --help        Show this help
 
 Examples:
-  node giselle/scripts/codemods/replace-text-white-900-to-inverse.mjs
-  node giselle/scripts/codemods/replace-text-white-900-to-inverse.mjs --apply
-  node giselle/scripts/codemods/replace-text-white-900-to-inverse.mjs --root . --ext ts,tsx,jsx,css --apply
+  node vibexe/scripts/codemods/replace-text-white-900-to-inverse.mjs
+  node vibexe/scripts/codemods/replace-text-white-900-to-inverse.mjs --apply
+  node vibexe/scripts/codemods/replace-text-white-900-to-inverse.mjs --root . --ext ts,tsx,jsx,css --apply
 `);
 }
 

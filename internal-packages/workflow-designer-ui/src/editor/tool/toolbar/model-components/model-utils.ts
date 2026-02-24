@@ -4,16 +4,16 @@ import {
 	hasTierAccess,
 	type LanguageModel,
 	type Tier,
-} from "@giselles-ai/language-model";
+} from "@vibexe-ai/language-model";
 import {
 	createImageGenerationNode,
 	createTextGenerationNode,
-} from "@giselles-ai/node-registry";
+} from "@vibexe-ai/node-registry";
 import {
 	isImageGenerationLanguageModelData,
 	isTextGenerationLanguageModelData,
 	type Node,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import type { AddNodeTool } from "../../types";
 
 export function filterModelsByCategory(

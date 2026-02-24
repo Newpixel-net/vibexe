@@ -2,9 +2,9 @@ import {
 	getEntry,
 	type LanguageModelId,
 	type LanguageModelTier,
-} from "@giselles-ai/language-model-registry";
-import type { ChatModelNode } from "@giselles-ai/protocol";
-import { useUsageLimits } from "@giselles-ai/react";
+} from "@vibexe-ai/language-model-registry";
+import type { ChatModelNode } from "@vibexe-ai/protocol";
+import { useUsageLimits } from "@vibexe-ai/react";
 import { useCallback, useMemo } from "react";
 import {
 	useDeleteNode,

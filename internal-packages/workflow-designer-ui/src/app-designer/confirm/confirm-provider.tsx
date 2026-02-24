@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@giselle-internal/ui/button";
+import { Button } from "@vibexe-internal/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -8,7 +8,7 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@giselle-internal/ui/dialog";
+} from "@vibexe-internal/ui/dialog";
 import {
 	createContext,
 	type PropsWithChildren,

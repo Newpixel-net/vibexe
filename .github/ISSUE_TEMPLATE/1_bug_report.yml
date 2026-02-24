@@ -8,9 +8,9 @@ body:
       label: Self Checks
       description: "To make sure we get to your issue in time, please check the following:"
       options:
-        - label: This is only for bug report, if you would like to ask a question, please head to [Discussions](https://github.com/giselles-ai/giselle/discussions/categories/q-a).
+        - label: This is only for bug report, if you would like to ask a question, please head to [Discussions](https://github.com/Newpixel-net/vibexe/discussions/categories/q-a).
           required: true
-        - label: I have searched for existing issues [search for existing issues](https://github.com/giselles-ai/giselle/issues), including closed ones.
+        - label: I have searched for existing issues [search for existing issues](https://github.com/Newpixel-net/vibexe/issues), including closed ones.
           required: true
 
   - type: dropdown

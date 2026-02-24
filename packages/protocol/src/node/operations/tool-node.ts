@@ -1,7 +1,7 @@
 import {
 	isLanguageModelToolName,
 	type LanguageModelToolName,
-} from "@giselles-ai/language-model-registry";
+} from "@vibexe-ai/language-model-registry";
 import * as z from "zod/v4";
 
 export const ToolNodeContent = z.object({

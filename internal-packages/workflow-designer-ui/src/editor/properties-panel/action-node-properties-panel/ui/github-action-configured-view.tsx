@@ -1,7 +1,7 @@
-import { Button } from "@giselle-internal/ui/button";
-import { DropdownMenu } from "@giselle-internal/ui/dropdown-menu";
-import { githubActions } from "@giselles-ai/action-registry";
-import { defaultName } from "@giselles-ai/node-registry";
+import { Button } from "@vibexe-internal/ui/button";
+import { DropdownMenu } from "@vibexe-internal/ui/dropdown-menu";
+import { githubActions } from "@vibexe-ai/action-registry";
+import { defaultName } from "@vibexe-ai/node-registry";
 import type {
 	ActionNode,
 	ConnectionId,
@@ -11,8 +11,8 @@ import type {
 	NodeId,
 	NodeLike,
 	OutputId,
-} from "@giselles-ai/protocol";
-import { isSupportedConnection } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import { isSupportedConnection } from "@vibexe-ai/react";
 import clsx from "clsx/lite";
 import { PlusIcon, TriangleAlert, XIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
@@ -23,7 +23,7 @@ import {
 	useRemoveConnectionAndInput,
 	useUpdateNodeData,
 } from "../../../../app-designer";
-import { useGiselle } from "../../../../app-designer/store/giselle-client-provider";
+import { useVibexe } from "../../../../app-designer/store/vibexe-client-provider";
 // Import icons to display next to Event Type
 import {
 	DiscussionCommentCreatedIcon,
@@ -107,7 +107,7 @@ export function GitHubActionConfiguredView({
 	handleClick: () => void;
 	isGenerating: boolean;
 }) {
-	const client = useGiselle();
+	const client = useVibexe();
 	const ui = useAppDesignerStore((s) => s.ui);
 	const removeConnectionAndInput = useRemoveConnectionAndInput();
 	const updateNodeData = useUpdateNodeData();

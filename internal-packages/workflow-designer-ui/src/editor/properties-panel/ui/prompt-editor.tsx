@@ -1,5 +1,5 @@
-import type { UIConnection } from "@giselles-ai/react";
-import { TextEditor } from "@giselles-ai/text-editor/react";
+import type { UIConnection } from "@vibexe-ai/react";
+import { TextEditor } from "@vibexe-ai/text-editor/react";
 import type { ReactNode } from "react";
 
 interface PromptEditorProps {

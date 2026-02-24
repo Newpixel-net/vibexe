@@ -1,4 +1,4 @@
-import type { GitHubActionId } from "@giselles-ai/action-registry";
+import type { GitHubActionId } from "@vibexe-ai/action-registry";
 import * as z from "zod/v4";
 
 const GitHubActionUnconfiguredState = z.object({

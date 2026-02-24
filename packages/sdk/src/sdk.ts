@@ -1,4 +1,4 @@
-import { App as AppSchema, type App as AppType } from "@giselles-ai/protocol";
+import { App as AppSchema, type App as AppType } from "@vibexe-ai/protocol";
 import {
 	ApiError,
 	ConfigurationError,
@@ -6,10 +6,10 @@ import {
 	UnsupportedFeatureError,
 } from "./errors";
 
-export type GiselleOptions = {
+export type VibexeOptions = {
 	/**
-	 * Base URL of the Studio instance (e.g. "https://studio.giselles.ai").
-	 * Defaults to "https://studio.giselles.ai".
+	 * Base URL of the Studio instance (e.g. "https://studio.vibexe.ai").
+	 * Defaults to "https://studio.vibexe.ai".
 	 */
 	baseUrl?: string;
 	/**
@@ -91,7 +91,7 @@ export type AppListResult = {
 	apps: AppListItem[];
 };
 
-const defaultBaseUrl = "https://studio.giselles.ai";
+const defaultBaseUrl = "https://studio.vibexe.ai";
 const defaultPollIntervalMs = 1000;
 const defaultTimeoutMs = 20 * 60 * 1000;
 const maxInlineFileDecodedBytes = 1024 * 1024 * 3;
@@ -307,7 +307,7 @@ function parseTaskResponseJson(json: unknown): AppTaskResult {
 	};
 }
 
-export default class Giselle {
+export default class Vibexe {
 	readonly apps: {
 		run: (args: AppRunArgs) => Promise<AppRunResult>;
 		runAndWait: (args: AppRunAndWaitArgs) => Promise<AppTaskResult>;
@@ -321,7 +321,7 @@ export default class Giselle {
 	readonly #baseUrl: string;
 	readonly #apiKey?: string;
 
-	constructor(options: GiselleOptions = {}) {
+	constructor(options: VibexeOptions = {}) {
 		this.#fetch = options.fetch ?? fetch;
 		this.#baseUrl = options.baseUrl ?? defaultBaseUrl;
 		this.#apiKey = options.apiKey;

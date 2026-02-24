@@ -1,14 +1,14 @@
-import { useToasts } from "@giselle-internal/ui/toast";
-import type { LanguageModelTier } from "@giselles-ai/language-model-registry";
-import { convertContentGenerationToTextGeneration } from "@giselles-ai/node-registry";
+import { useToasts } from "@vibexe-internal/ui/toast";
+import type { LanguageModelTier } from "@vibexe-ai/language-model-registry";
+import { convertContentGenerationToTextGeneration } from "@vibexe-ai/node-registry";
 import {
 	type Connection,
 	type ContentGenerationNode,
 	Node,
 	type NodeLike,
 	type OperationNode,
-} from "@giselles-ai/protocol";
-import { useNodeGenerations, useUsageLimits } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import { useNodeGenerations, useUsageLimits } from "@vibexe-ai/react";
 import { useCallback } from "react";
 import {
 	useAppDesignerStore,
@@ -142,7 +142,7 @@ export function TextGenerationNodePropertiesPanelV2({
 			<NodePanelHeader
 				node={node}
 				onChangeName={(name) => updateNodeData(node, { name })}
-				docsUrl="https://docs.giselles.ai/en/glossary/text-node"
+				docsUrl="https://docs.vibexe.ai/en/glossary/text-node"
 				onDelete={() => deleteNode(node.id)}
 			/>
 

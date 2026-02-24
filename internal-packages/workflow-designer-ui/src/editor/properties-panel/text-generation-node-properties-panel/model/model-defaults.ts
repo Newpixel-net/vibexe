@@ -5,7 +5,7 @@ import {
 	OpenAILanguageModelData,
 	XaiLanguageModelData,
 	type TextGenerationLanguageModelData,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 
 type Provider = "openai" | "anthropic" | "google" | "nvidia" | "xai";
 

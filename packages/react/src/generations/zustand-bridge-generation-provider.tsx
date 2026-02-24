@@ -14,11 +14,11 @@ import {
 	isRunningGeneration,
 	type QueuedGeneration,
 	type RunningGeneration,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import type { UIMessage } from "ai";
 import { useCallback, useMemo, useRef } from "react";
 import { useShallow } from "zustand/shallow";
-import { useGiselle } from "../use-giselle";
+import { useVibexe } from "../use-vibexe";
 import {
 	type CreateAndStartGenerationRunner,
 	type CreateGenerationRunner,
@@ -37,14 +37,14 @@ import { useGenerationStore } from "./store";
 
 export function ZustandBridgeGenerationProvider({
 	children,
-	generateTextApi = "/api/giselle/generateText",
+	generateTextApi = "/api/vibexe/generateText",
 	timeout = 1000 * 800,
 }: {
 	children: React.ReactNode;
 	generateTextApi?: string;
 	timeout?: number;
 }) {
-	const client = useGiselle();
+	const client = useVibexe();
 	const generations = useGenerationStore(useShallow((s) => s.generations));
 	const {
 		addGenerationRunnerStore,

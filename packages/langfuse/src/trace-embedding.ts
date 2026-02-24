@@ -1,5 +1,5 @@
-import { calculateEmbeddingDisplayCost } from "@giselles-ai/language-model";
-import type { EmbeddingMetrics } from "@giselles-ai/rag";
+import { calculateEmbeddingDisplayCost } from "@vibexe-ai/language-model";
+import type { EmbeddingMetrics } from "@vibexe-ai/rag";
 import { Langfuse } from "langfuse";
 
 function buildTags(args: {

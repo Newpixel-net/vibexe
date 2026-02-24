@@ -1,8 +1,8 @@
-import { Button } from "@giselle-internal/ui/button";
-import { EmptyState } from "@giselle-internal/ui/empty-state";
-import { Input } from "@giselle-internal/ui/input";
-import { Select } from "@giselle-internal/ui/select";
-import type { TextGenerationNode } from "@giselles-ai/protocol";
+import { Button } from "@vibexe-internal/ui/button";
+import { EmptyState } from "@vibexe-internal/ui/empty-state";
+import { Input } from "@vibexe-internal/ui/input";
+import { Select } from "@vibexe-internal/ui/select";
+import type { TextGenerationNode } from "@vibexe-ai/protocol";
 import { CheckIcon, PlusIcon, Settings2Icon, TrashIcon } from "lucide-react";
 import { Checkbox } from "radix-ui";
 import { useCallback, useState } from "react";

@@ -1,4 +1,4 @@
-import type { NodeId, NodeLike } from "@giselles-ai/protocol";
+import type { NodeId, NodeLike } from "@vibexe-ai/protocol";
 import { useCallback } from "react";
 import {
 	useAddNode,

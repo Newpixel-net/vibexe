@@ -1,5 +1,5 @@
-import type { GitHubIntegrationInstalledState } from "@giselles-ai/giselle";
-import { useIntegration } from "@giselles-ai/react";
+import type { GitHubIntegrationInstalledState } from "@vibexe-ai/vibexe";
+import { useIntegration } from "@vibexe-ai/react";
 import { Check, ChevronDown } from "lucide-react";
 import {
 	useCallback,

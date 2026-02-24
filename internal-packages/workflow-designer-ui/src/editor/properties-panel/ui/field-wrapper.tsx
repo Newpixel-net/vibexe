@@ -1,7 +1,7 @@
 "use client";
 
-import { defaultName } from "@giselles-ai/node-registry";
-import type { NodeId } from "@giselles-ai/protocol";
+import { defaultName } from "@vibexe-ai/node-registry";
+import type { NodeId } from "@vibexe-ai/protocol";
 import clsx from "clsx/lite";
 import { BracesIcon, CopyIcon, InfoIcon, RotateCcwIcon, TypeIcon } from "lucide-react";
 import {

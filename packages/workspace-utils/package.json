@@ -1,5 +1,5 @@
 {
-	"name": "@giselles-ai/workspace-utils",
+	"name": "@vibexe-ai/workspace-utils",
 	"version": "0.0.0",
 	"private": true,
 	"main": "./dist/index.js",
@@ -20,7 +20,7 @@
 		}
 	},
 	"devDependencies": {
-		"@giselles-ai/tsconfig": "workspace:*",
+		"@vibexe-ai/tsconfig": "workspace:*",
 		"tsup": "catalog:",
 		"vitest": "catalog:"
 	},
@@ -28,6 +28,6 @@
 		"zod": "catalog:"
 	},
 	"dependencies": {
-		"@giselles-ai/protocol": "workspace:*"
+		"@vibexe-ai/protocol": "workspace:*"
 	}
 }

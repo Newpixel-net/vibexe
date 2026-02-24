@@ -209,7 +209,7 @@ const result = await db.select().from(users).where(eq(users.id, userId));
 | `lib/auth/session-middleware.ts` | Session validation wrapper |
 | `lib/assert-workspace-access.ts` | Workspace-level access control |
 | `packages/vault/` | Secret encryption (AES-256-GCM) |
-| `packages/giselle/src/giselle.ts` | Engine entry — all AI operations |
+| `packages/vibexe/src/vibexe.ts` | Engine entry — all AI operations |
 | `app/api/` | All HTTP API routes |
 | `lib/app-deployment/builder.ts` | esbuild bundler for deployed apps |
 | `packages/activepieces-adapter/` | Integration execution layer |

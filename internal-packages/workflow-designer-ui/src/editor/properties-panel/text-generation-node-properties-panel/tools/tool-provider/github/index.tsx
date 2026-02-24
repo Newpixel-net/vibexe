@@ -1,9 +1,9 @@
-import { Button } from "@giselle-internal/ui/button";
-import { DocsLink } from "@giselle-internal/ui/docs-link";
-import { EmptyState } from "@giselle-internal/ui/empty-state";
-import { Input } from "@giselle-internal/ui/input";
-import { Select } from "@giselle-internal/ui/select";
-import type { TextGenerationNode } from "@giselles-ai/protocol";
+import { Button } from "@vibexe-internal/ui/button";
+import { DocsLink } from "@vibexe-internal/ui/docs-link";
+import { EmptyState } from "@vibexe-internal/ui/empty-state";
+import { Input } from "@vibexe-internal/ui/input";
+import { Select } from "@vibexe-internal/ui/select";
+import type { TextGenerationNode } from "@vibexe-ai/protocol";
 import {
 	CheckIcon,
 	MoveUpRightIcon,
@@ -551,7 +551,7 @@ function GitHubToolConfigurationDialogInternal({
 											</p>
 										</div>
 										<DocsLink
-											href={`https://docs.giselles.ai/en/glossary/github-tools#${encodeURIComponent(
+											href={`https://docs.vibexe.ai/en/glossary/github-tools#${encodeURIComponent(
 												tool.toLowerCase(),
 											)}`}
 											target="_blank"

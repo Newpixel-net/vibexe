@@ -1,0 +1,220 @@
+{
+  "name": "Create Video with Sora2 Pro and Upload to Youtube",
+  "nodes": [
+    {
+      "name": "When clicking 'Test workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [0, 300],
+      "parameters": {},
+      "typeVersion": 1
+    },
+    {
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [0, 600],
+      "parameters": { "rule": { "interval": [{ "field": "hours", "hoursInterval": 1 }] } },
+      "typeVersion": 1
+    },
+    {
+      "name": "Get new video",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [300, 300],
+      "parameters": {
+        "operation": "getAll",
+        "sheetName": "Sheet1",
+        "documentId": { "__rl": true, "value": "1abc123def" }
+      },
+      "typeVersion": 4
+    },
+    {
+      "name": "Set data",
+      "type": "n8n-nodes-base.set",
+      "position": [600, 300],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "name": "prompt", "value": "={{ $json.prompt }}" },
+            { "name": "style", "value": "={{ $json.style }}" }
+          ]
+        }
+      },
+      "typeVersion": 3
+    },
+    {
+      "name": "Create Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [900, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.sora2pro.com/v1/generations",
+        "body": "={{ JSON.stringify({ prompt: $json.prompt, style: $json.style }) }}"
+      },
+      "typeVersion": 4
+    },
+    {
+      "name": "Wait 60 sec.",
+      "type": "n8n-nodes-base.wait",
+      "position": [1200, 300],
+      "parameters": { "amount": 60, "unit": "seconds" },
+      "typeVersion": 1
+    },
+    {
+      "name": "Get status",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1500, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.sora2pro.com/v1/generations/{{ $('Create Video').item.json.id }}"
+      },
+      "typeVersion": 4
+    },
+    {
+      "name": "Completed?",
+      "type": "n8n-nodes-base.if",
+      "position": [1800, 300],
+      "parameters": {
+        "conditions": {
+          "string": [{ "value1": "={{ $json.status }}", "value2": "COMPLETED", "operation": "equal" }]
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "name": "Get Url Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2100, 200],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.download_url }}"
+      },
+      "typeVersion": 4
+    },
+    {
+      "name": "Generate title",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "position": [2400, 200],
+      "parameters": {
+        "modelId": { "__rl": true, "value": "gpt-5" },
+        "messages": {
+          "values": [
+            { "role": "system", "content": "You are a YouTube SEO expert. Generate an engaging, keyword-rich title for a video based on the provided description. Keep it under 100 characters." },
+            { "role": "user", "content": "=Generate a title for this video: {{ $('Set data').item.json.prompt }}" }
+          ]
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "name": "Get File Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2700, 200],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Get Url Video').item.json.url }}",
+        "responseFormat": "file"
+      },
+      "typeVersion": 4
+    },
+    {
+      "name": "Upload Video",
+      "type": "n8n-nodes-base.googleDrive",
+      "position": [3000, 100],
+      "parameters": {
+        "operation": "upload",
+        "folderId": { "__rl": true, "value": "folder123" },
+        "name": "={{ $('Generate title').item.json.text }}.mp4"
+      },
+      "typeVersion": 3
+    },
+    {
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [3000, 400],
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/upload/youtube/v3/videos",
+        "body": "={{ JSON.stringify({ snippet: { title: $('Generate title').item.json.text } }) }}"
+      },
+      "typeVersion": 4
+    },
+    {
+      "name": "Update result",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [3300, 100],
+      "parameters": {
+        "operation": "update",
+        "sheetName": "Sheet1",
+        "documentId": { "__rl": true, "value": "1abc123def" },
+        "columns": { "status": "uploaded", "drive_url": "={{ $json.webViewLink }}" }
+      },
+      "typeVersion": 4
+    },
+    {
+      "name": "Update Youtube URL",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [3300, 400],
+      "parameters": {
+        "operation": "update",
+        "sheetName": "Sheet1",
+        "documentId": { "__rl": true, "value": "1abc123def" },
+        "columns": { "youtube_url": "={{ $json.id }}" }
+      },
+      "typeVersion": 4
+    },
+    {
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [0, 0],
+      "parameters": { "content": "## STEP 1: Trigger\nThis workflow runs every hour or manually" },
+      "typeVersion": 1
+    },
+    {
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [500, 0],
+      "parameters": { "content": "## STEP 2: Get data from Google Sheets\nReads the next video to process" },
+      "typeVersion": 1
+    },
+    {
+      "name": "Sticky Note4",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [1000, 0],
+      "parameters": { "content": "## STEP 3: Generate Video\nSends prompt to Sora2 Pro API and waits for completion" },
+      "typeVersion": 1
+    },
+    {
+      "name": "Sticky Note5",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [2000, 0],
+      "parameters": { "content": "## STEP 4: Download & Upload\nDownloads the video and uploads to Google Drive + YouTube" },
+      "typeVersion": 1
+    },
+    {
+      "name": "Sticky Note6",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [3000, 0],
+      "parameters": { "content": "## STEP 5: Update Sheet\nRecords the Drive URL and YouTube URL back in the spreadsheet" },
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "When clicking 'Test workflow'": { "main": [[{ "node": "Get new video", "type": "main", "index": 0 }]] },
+    "Schedule Trigger": { "main": [[{ "node": "Get new video", "type": "main", "index": 0 }]] },
+    "Get new video": { "main": [[{ "node": "Set data", "type": "main", "index": 0 }]] },
+    "Set data": { "main": [[{ "node": "Create Video", "type": "main", "index": 0 }]] },
+    "Create Video": { "main": [[{ "node": "Wait 60 sec.", "type": "main", "index": 0 }]] },
+    "Wait 60 sec.": { "main": [[{ "node": "Get status", "type": "main", "index": 0 }]] },
+    "Get status": { "main": [[{ "node": "Completed?", "type": "main", "index": 0 }]] },
+    "Completed?": {
+      "main": [
+        [{ "node": "Get Url Video", "type": "main", "index": 0 }],
+        [{ "node": "Wait 60 sec.", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Url Video": { "main": [[{ "node": "Generate title", "type": "main", "index": 0 }]] },
+    "Generate title": { "main": [[{ "node": "Get File Video", "type": "main", "index": 0 }]] },
+    "Get File Video": { "main": [[{ "node": "Upload Video", "type": "main", "index": 0 }, { "node": "HTTP Request", "type": "main", "index": 0 }]] },
+    "Upload Video": { "main": [[{ "node": "Update result", "type": "main", "index": 0 }]] },
+    "HTTP Request": { "main": [[{ "node": "Update Youtube URL", "type": "main", "index": 0 }]] }
+  }
+}

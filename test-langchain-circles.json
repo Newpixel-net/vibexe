@@ -1,0 +1,144 @@
+{
+  "name": "LangChain Circle Test",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Analyze the following data and provide insights"
+      },
+      "id": "agent-1",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "options": {}
+      },
+      "id": "model-1",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [300, 500]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {}
+      },
+      "id": "model-2",
+      "name": "OpenAI Chat Model1",
+      "type": "@n8n/n8n-nodes-langchain.lmOpenAi",
+      "typeVersion": 1,
+      "position": [500, 500]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "jsonSchema": "{}"
+      },
+      "id": "parser-1",
+      "name": "Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1,
+      "position": [350, 650]
+    },
+    {
+      "parameters": {},
+      "id": "think-1",
+      "name": "Think",
+      "type": "@n8n/n8n-nodes-langchain.toolThink",
+      "typeVersion": 1,
+      "position": [550, 650]
+    },
+    {
+      "parameters": {
+        "model": "claude-sonnet-4-5-20250929",
+        "options": {}
+      },
+      "id": "model-3",
+      "name": "Anthropic Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1,
+      "position": [700, 500]
+    },
+    {
+      "parameters": {
+        "model": "gemini-2.0-flash",
+        "options": {}
+      },
+      "id": "model-4",
+      "name": "Google AI Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGenerativeAi",
+      "typeVersion": 1,
+      "position": [900, 500]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Summarize the content"
+      },
+      "id": "openai-standalone",
+      "name": "OpenAI Standalone",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [700, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          { "node": "AI Agent", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          { "node": "OpenAI Standalone", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          { "node": "AI Agent", "type": "ai_languageModel", "index": 0 }
+        ]
+      ]
+    },
+    "Parser": {
+      "ai_outputParser": [
+        [
+          { "node": "AI Agent", "type": "ai_outputParser", "index": 0 }
+        ]
+      ]
+    },
+    "Think": {
+      "ai_tool": [
+        [
+          { "node": "AI Agent", "type": "ai_tool", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-02-17T00:00:00.000Z",
+  "versionId": "test-1"
+}

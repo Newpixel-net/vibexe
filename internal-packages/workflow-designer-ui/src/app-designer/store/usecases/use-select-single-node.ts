@@ -1,4 +1,4 @@
-import type { NodeId } from "@giselles-ai/protocol";
+import type { NodeId } from "@vibexe-ai/protocol";
 import { useCallback } from "react";
 import { useAppDesignerStore, useWorkspaceActions } from "../hooks";
 

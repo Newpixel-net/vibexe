@@ -4,14 +4,14 @@ import {
 	type App as AppType,
 	isAppEntryNode,
 	type NodeLike,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import { useCallback } from "react";
 import { useAppDesignerStoreApi } from "../app-designer-provider";
-import { useGiselle } from "../giselle-client-provider";
+import { useVibexe } from "../vibexe-client-provider";
 import { useUpdateNodeData } from "./use-update-node-data";
 
 export function useAutoConfigureAppEntryNode() {
-	const client = useGiselle();
+	const client = useVibexe();
 	const store = useAppDesignerStoreApi();
 	const updateNodeData = useUpdateNodeData();
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { convertN8NToGiselle, type N8NWorkflow } from "./converter";
+import { convertN8NToVibexe, type N8NWorkflow } from "./converter";
 
 // ─── Test Fixtures ──────────────────────────────────────────────────────────
 
@@ -495,10 +495,10 @@ const fixture = {
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
-describe("convertN8NToGiselle", () => {
+describe("convertN8NToVibexe", () => {
 	describe("Phase 1: Node Type Mappings", () => {
 		it("should convert simple linear workflow", () => {
-			const result = convertN8NToGiselle(fixture.simpleLinear());
+			const result = convertN8NToVibexe(fixture.simpleLinear());
 			expect(result.name).toBe("Simple Linear");
 			expect(result.nodes).toHaveLength(3);
 			expect(result.connections).toHaveLength(2);
@@ -510,7 +510,7 @@ describe("convertN8NToGiselle", () => {
 		});
 
 		it("should convert all 7 new node types", () => {
-			const result = convertN8NToGiselle(fixture.allNewNodeTypes());
+			const result = convertN8NToVibexe(fixture.allNewNodeTypes());
 			const contentTypes = result.nodes.map((n) => (n.content as { type: string }).type);
 
 			expect(contentTypes).toContain("aggregate");
@@ -523,12 +523,12 @@ describe("convertN8NToGiselle", () => {
 		});
 
 		it("should set hasFlowControl for new node types", () => {
-			const result = convertN8NToGiselle(fixture.allNewNodeTypes());
+			const result = convertN8NToVibexe(fixture.allNewNodeTypes());
 			expect(result.hasFlowControl).toBe(true);
 		});
 
 		it("should extract aggregate operations", () => {
-			const result = convertN8NToGiselle(fixture.allNewNodeTypes());
+			const result = convertN8NToVibexe(fixture.allNewNodeTypes());
 			const agg = result.nodes.find((n) => (n.content as { type: string }).type === "aggregate");
 			expect(agg).toBeDefined();
 			const content = agg!.content as { operations: Array<{ field: string; operation: string }>; groupBy: string[] };
@@ -539,7 +539,7 @@ describe("convertN8NToGiselle", () => {
 		});
 
 		it("should extract limit config", () => {
-			const result = convertN8NToGiselle(fixture.allNewNodeTypes());
+			const result = convertN8NToVibexe(fixture.allNewNodeTypes());
 			const limit = result.nodes.find((n) => (n.content as { type: string }).type === "limit");
 			expect(limit).toBeDefined();
 			const content = limit!.content as { maxItems: number; keep: string };
@@ -548,7 +548,7 @@ describe("convertN8NToGiselle", () => {
 		});
 
 		it("should extract rename key mappings", () => {
-			const result = convertN8NToGiselle(fixture.allNewNodeTypes());
+			const result = convertN8NToVibexe(fixture.allNewNodeTypes());
 			const rename = result.nodes.find((n) => (n.content as { type: string }).type === "renameKeys");
 			expect(rename).toBeDefined();
 			const content = rename!.content as { mappings: Array<{ from: string; to: string }> };
@@ -558,7 +558,7 @@ describe("convertN8NToGiselle", () => {
 		});
 
 		it("should handle compareDatasets with multiple inputs/outputs", () => {
-			const result = convertN8NToGiselle(fixture.allNewNodeTypes());
+			const result = convertN8NToVibexe(fixture.allNewNodeTypes());
 			const compare = result.nodes.find((n) => (n.content as { type: string }).type === "compareDatasets");
 			expect(compare).toBeDefined();
 			expect(compare!.inputs).toHaveLength(2);
@@ -571,7 +571,7 @@ describe("convertN8NToGiselle", () => {
 
 	describe("Phase 1: Metadata Transfer", () => {
 		it("should transfer disabled flag", () => {
-			const result = convertN8NToGiselle(fixture.disabledAndPinned());
+			const result = convertN8NToVibexe(fixture.disabledAndPinned());
 			const disabled = result.nodes.find((n) => n.name === "Disabled Code");
 			const active = result.nodes.find((n) => n.name === "Active Code");
 			expect(disabled?.disabled).toBe(true);
@@ -579,21 +579,21 @@ describe("convertN8NToGiselle", () => {
 		});
 
 		it("should transfer pinned data", () => {
-			const result = convertN8NToGiselle(fixture.disabledAndPinned());
+			const result = convertN8NToVibexe(fixture.disabledAndPinned());
 			const active = result.nodes.find((n) => n.name === "Active Code");
 			expect(active?.pinnedData).toBeDefined();
 			expect(active?.pinnedData).toEqual([{ json: { test: "pinned value" } }]);
 		});
 
 		it("should track disabled nodes in importMeta", () => {
-			const result = convertN8NToGiselle(fixture.disabledAndPinned());
+			const result = convertN8NToVibexe(fixture.disabledAndPinned());
 			expect(result.importMeta?.disabledNodes).toBe(1);
 		});
 	});
 
 	describe("Phase 2: Credentials", () => {
 		it("should extract credential hints", () => {
-			const result = convertN8NToGiselle(fixture.credentials());
+			const result = convertN8NToVibexe(fixture.credentials());
 			const slack = result.nodes.find((n) => n.name === "Slack");
 			const gmail = result.nodes.find((n) => n.name === "Gmail");
 
@@ -607,20 +607,20 @@ describe("convertN8NToGiselle", () => {
 		});
 
 		it("should generate warnings for credentials", () => {
-			const result = convertN8NToGiselle(fixture.credentials());
+			const result = convertN8NToVibexe(fixture.credentials());
 			const credWarnings = result.warnings.filter((w) => w.nodeType === "credential");
 			expect(credWarnings.length).toBeGreaterThanOrEqual(2);
 		});
 
 		it("should count nodes needing credentials in importMeta", () => {
-			const result = convertN8NToGiselle(fixture.credentials());
+			const result = convertN8NToVibexe(fixture.credentials());
 			expect(result.importMeta?.nodesNeedingCredentials).toBe(2);
 		});
 	});
 
 	describe("Phase 2: Error Handling", () => {
 		it("should extract continueOnFail error config", () => {
-			const result = convertN8NToGiselle(fixture.errorHandling());
+			const result = convertN8NToVibexe(fixture.errorHandling());
 			const retryNode = result.nodes.find((n) => n.name === "Retry Node");
 			expect(retryNode?.errorConfig).toBeDefined();
 			expect(retryNode?.errorConfig?.onError).toBe("continueOnFail");
@@ -630,21 +630,21 @@ describe("convertN8NToGiselle", () => {
 		});
 
 		it("should map continueErrorOutput to routeToError", () => {
-			const result = convertN8NToGiselle(fixture.errorHandling());
+			const result = convertN8NToVibexe(fixture.errorHandling());
 			const continueNode = result.nodes.find((n) => n.name === "Continue Node");
 			expect(continueNode?.errorConfig?.onError).toBe("routeToError");
 		});
 
 		it("should not create errorConfig for default settings", () => {
-			const result = convertN8NToGiselle(fixture.simpleLinear());
+			const result = convertN8NToVibexe(fixture.simpleLinear());
 			const trigger = result.nodes.find((n) => n.name === "Manual Trigger");
 			expect(trigger?.errorConfig).toBeUndefined();
 		});
 	});
 
 	describe("Phase 3: Expressions", () => {
-		it("should translate N8N expressions to Giselle format", () => {
-			const result = convertN8NToGiselle(fixture.expressions());
+		it("should translate N8N expressions to Vibexe format", () => {
+			const result = convertN8NToVibexe(fixture.expressions());
 			const setNode = result.nodes.find((n) => n.name === "Set");
 			expect(setNode).toBeDefined();
 			const content = setNode!.content as { operations: Array<{ value: string }> };
@@ -663,14 +663,14 @@ describe("convertN8NToGiselle", () => {
 
 	describe("Phase 4: Triggers", () => {
 		it("should extract schedule config", () => {
-			const result = convertN8NToGiselle(fixture.triggers());
+			const result = convertN8NToVibexe(fixture.triggers());
 			expect(result.importMeta?.scheduleConfig).toBeDefined();
 			expect(result.importMeta?.scheduleConfig?.cronExpression).toBe("0 */6 * * *");
 			expect(result.importMeta?.scheduleConfig?.timezone).toBe("UTC");
 		});
 
 		it("should convert respondToWebhook to native node", () => {
-			const result = convertN8NToGiselle(fixture.respondToWebhook());
+			const result = convertN8NToVibexe(fixture.respondToWebhook());
 			const respond = result.nodes.find((n) => n.name === "Respond");
 			expect(respond).toBeDefined();
 			const content = respond!.content as { type: string; statusCode: number; headers: Record<string, string> };
@@ -682,7 +682,7 @@ describe("convertN8NToGiselle", () => {
 
 	describe("Phase 4: Branching", () => {
 		it("should convert If node with conditions", () => {
-			const result = convertN8NToGiselle(fixture.branching());
+			const result = convertN8NToVibexe(fixture.branching());
 			const ifNode = result.nodes.find((n) => (n.content as { type: string }).type === "if");
 			expect(ifNode).toBeDefined();
 			expect(ifNode!.outputs).toHaveLength(2);
@@ -691,7 +691,7 @@ describe("convertN8NToGiselle", () => {
 		});
 
 		it("should convert Switch node with rules", () => {
-			const result = convertN8NToGiselle(fixture.complexSwitch());
+			const result = convertN8NToVibexe(fixture.complexSwitch());
 			const switchNode = result.nodes.find((n) => (n.content as { type: string }).type === "switch");
 			expect(switchNode).toBeDefined();
 			// 4 rules + 1 fallback
@@ -701,7 +701,7 @@ describe("convertN8NToGiselle", () => {
 
 	describe("Phase 6: Cycle Conversion", () => {
 		it("should handle cycles in polling loop pattern", () => {
-			const result = convertN8NToGiselle(fixture.pollingLoop());
+			const result = convertN8NToVibexe(fixture.pollingLoop());
 			// The back-edge should be either converted to a Loop or stripped
 			const cycleWarnings = result.warnings.filter(
 				(w) => w.nodeType === "cycle" || w.nodeType === "connection",
@@ -710,11 +710,11 @@ describe("convertN8NToGiselle", () => {
 		});
 
 		it("should not crash on cycle workflows", () => {
-			expect(() => convertN8NToGiselle(fixture.pollingLoop())).not.toThrow();
+			expect(() => convertN8NToVibexe(fixture.pollingLoop())).not.toThrow();
 		});
 
 		it("should track cycles in importMeta", () => {
-			const result = convertN8NToGiselle(fixture.pollingLoop());
+			const result = convertN8NToVibexe(fixture.pollingLoop());
 			expect(result.importMeta).toBeDefined();
 			// cyclesConverted can be 0 (stripped) or 1 (converted)
 			expect(result.importMeta!.cyclesConverted).toBeGreaterThanOrEqual(0);
@@ -723,13 +723,13 @@ describe("convertN8NToGiselle", () => {
 
 	describe("Phase 7: Import Meta", () => {
 		it("should include importMeta in all conversions", () => {
-			const result = convertN8NToGiselle(fixture.simpleLinear());
+			const result = convertN8NToVibexe(fixture.simpleLinear());
 			expect(result.importMeta).toBeDefined();
 			expect(result.importMeta?.source).toBe("n8n");
 		});
 
 		it("should count credentials and cycles", () => {
-			const result = convertN8NToGiselle(fixture.credentials());
+			const result = convertN8NToVibexe(fixture.credentials());
 			expect(result.importMeta?.nodesNeedingCredentials).toBe(2);
 			expect(result.importMeta?.cyclesConverted).toBe(0);
 		});
@@ -737,7 +737,7 @@ describe("convertN8NToGiselle", () => {
 
 	describe("Layout: N8N Position Preservation", () => {
 		it("should preserve relative horizontal ordering from N8N positions", () => {
-			const result = convertN8NToGiselle(fixture.simpleLinear());
+			const result = convertN8NToVibexe(fixture.simpleLinear());
 			const positions = result.uiState?.nodePositions ?? {};
 			const trigger = result.nodes.find((n) => n.name === "Manual Trigger")!;
 			const code = result.nodes.find((n) => n.name === "Code")!;
@@ -753,7 +753,7 @@ describe("convertN8NToGiselle", () => {
 		});
 
 		it("should preserve vertical branching positions from N8N", () => {
-			const result = convertN8NToGiselle(fixture.branching());
+			const result = convertN8NToVibexe(fixture.branching());
 			const positions = result.uiState?.nodePositions ?? {};
 			const trueBranch = result.nodes.find((n) => n.name === "True Branch")!;
 			const falseBranch = result.nodes.find((n) => n.name === "False Branch")!;
@@ -790,7 +790,7 @@ describe("convertN8NToGiselle", () => {
 					Trigger: { main: [[{ node: "Step", type: "main", index: 0 }]] },
 				},
 			};
-			const result = convertN8NToGiselle(workflow);
+			const result = convertN8NToVibexe(workflow);
 
 			// Sticky notes should NOT be in nodes array
 			expect(result.nodes.find((n) => n.name === "Note")).toBeUndefined();
@@ -823,7 +823,7 @@ describe("convertN8NToGiselle", () => {
 				],
 				connections: {},
 			};
-			const result = convertN8NToGiselle(workflow);
+			const result = convertN8NToVibexe(workflow);
 			expect(result.stickyNotes).toHaveLength(8);
 			expect(result.stickyNotes[0].color).toBe("yellow");
 			expect(result.stickyNotes[1].color).toBe("orange");
@@ -836,7 +836,7 @@ describe("convertN8NToGiselle", () => {
 		});
 
 		it("should normalize positions so minimum is at (0,0)", () => {
-			const result = convertN8NToGiselle(fixture.simpleLinear());
+			const result = convertN8NToVibexe(fixture.simpleLinear());
 			const positions = result.uiState?.nodePositions ?? {};
 			const allX = Object.values(positions).map((p) => p.x);
 			const allY = Object.values(positions).map((p) => p.y);
@@ -864,7 +864,7 @@ describe("convertN8NToGiselle", () => {
 					Process: { main: [[{ node: "Upload", type: "main", index: 0 }, { node: "YouTube", type: "main", index: 0 }]] },
 				},
 			};
-			const result = convertN8NToGiselle(workflow);
+			const result = convertN8NToVibexe(workflow);
 			const positions = result.uiState?.nodePositions ?? {};
 			const manual = result.nodes.find((n) => n.name === "Manual")!;
 			const schedule = result.nodes.find((n) => n.name === "Schedule")!;
@@ -882,7 +882,7 @@ describe("convertN8NToGiselle", () => {
 		});
 
 		it("should position synthesized loop nodes near their neighbors", () => {
-			const result = convertN8NToGiselle(fixture.pollingLoop());
+			const result = convertN8NToVibexe(fixture.pollingLoop());
 			const positions = result.uiState?.nodePositions ?? {};
 
 			// All nodes should have positions

@@ -2,11 +2,11 @@ import type {
 	Generation,
 	GenerationOrigin,
 	NodeId,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import { useCallback, useEffect, useMemo } from "react";
 import useSWR from "swr";
 import { useShallow } from "zustand/shallow";
-import { useGiselle } from "../../use-giselle";
+import { useVibexe } from "../../use-vibexe";
 import { useGenerationRunnerSystem } from "../contexts";
 import { useGenerationStore } from "../store";
 
@@ -31,7 +31,7 @@ export function useNodeGenerations({
 		stopGenerationRunner: stopGenerationSystem,
 		addGenerationRunner,
 	} = useGenerationRunnerSystem();
-	const client = useGiselle();
+	const client = useVibexe();
 
 	/** @todo fetch on server */
 	const { data, isLoading } = useSWR(

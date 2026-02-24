@@ -8,7 +8,7 @@ body:
       label: Self Checks
       description: "To make sure we get to your issue in time, please check the following:"
       options:
-        - label: I have searched for existing issues [search for existing issues](https://github.com/giselles-ai/giselle/issues), including closed ones.
+        - label: I have searched for existing issues [search for existing issues](https://github.com/Newpixel-net/vibexe/issues), including closed ones.
           required: true
 
   - type: input

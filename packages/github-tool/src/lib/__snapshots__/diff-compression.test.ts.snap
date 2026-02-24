@@ -8224,10 +8224,10 @@ index 0000000..3721eb8
 `;
 
 exports[`diff compression > should match snapshot for PR #1118 at 5000 chars > pr-1118-compressed-5000.txt 1`] = `
-"diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts
+"diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts
 index c30cd0971..f7387a494 100644
---- a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts
+--- a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts
 @@ -1,41 +1,15 @@
 @@ -47,305 +21,37 @@ export async function GET(request: NextRequest) {
 ...
@@ -8299,11 +8299,11 @@ index 546518682..2c395976a 100644
 @@ -94,7 +83,7 @@ export class GitHubBlobLoader
 @@ -228,7 +217,7 @@ async function* traverseTree(
 ...
-diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
+diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
 new file mode 100644
 index 000000000..b5ad8bde7
 --- /dev/null
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
 @@ -0,0 +1,90 @@
 ...
 diff --git a/packages/rag2/src/factories/types.ts b/packages/rag2/src/factories/types.ts
@@ -8313,18 +8313,18 @@ index 299283d56..e8757a25c 100644
 @@ -1,7 +1,54 @@
 @@ -52,3 +99,39 @@ export interface QueryServiceConfig<
 ...
-diff --git a/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts b/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts
+diff --git a/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts b/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts
 index 59f2c2fb2..21602c8fb 100644
---- a/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts
-+++ b/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts
+--- a/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts
++++ b/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts
 @@ -9,10 +9,27 @@ import type {
 @@ -24,6 +41,31 @@ function createDatabaseConfig(): DatabaseConfig {
 ...
-diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/utils.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/utils.ts
+diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/utils.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/utils.ts
 new file mode 100644
 index 000000000..972c880fd
 --- /dev/null
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/utils.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/utils.ts
 @@ -0,0 +1,64 @@
 ...
 diff --git a/packages/rag2/src/factories/utils.ts b/packages/rag2/src/factories/utils.ts
@@ -8381,11 +8381,11 @@ index fcdf1b6f6..c7241003d 100644
 +++ b/packages/rag2/src/database/index.ts
 @@ -1,3 +1,6 @@
 ...
-diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/types.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/types.ts
+diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/types.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/types.ts
 new file mode 100644
 index 000000000..1b357b265
 --- /dev/null
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/types.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/types.ts
 @@ -0,0 +1,8 @@
 ...
 diff --git a/packages/github-tool/package.json b/packages/github-tool/package.json
@@ -8440,10 +8440,10 @@ diff --git a/packages/rag2/src/database/pgvector-registry.ts b/packages/rag2/src
 `;
 
 exports[`diff compression > should match snapshot for PR #1118 at 10000 chars > pr-1118-compressed-10000.txt 1`] = `
-"diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts
+"diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts
 index c30cd0971..f7387a494 100644
---- a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts
+--- a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts
 @@ -1,41 +1,15 @@
 @@ -47,305 +21,37 @@ export async function GET(request: NextRequest) {
 ...
@@ -8515,11 +8515,11 @@ index 546518682..2c395976a 100644
 @@ -94,7 +83,7 @@ export class GitHubBlobLoader
 @@ -228,7 +217,7 @@ async function* traverseTree(
 ...
-diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
+diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
 new file mode 100644
 index 000000000..b5ad8bde7
 --- /dev/null
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
 @@ -0,0 +1,90 @@
 ...
 diff --git a/packages/rag2/src/factories/types.ts b/packages/rag2/src/factories/types.ts
@@ -8529,18 +8529,18 @@ index 299283d56..e8757a25c 100644
 @@ -1,7 +1,54 @@
 @@ -52,3 +99,39 @@ export interface QueryServiceConfig<
 ...
-diff --git a/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts b/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts
+diff --git a/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts b/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts
 index 59f2c2fb2..21602c8fb 100644
---- a/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts
-+++ b/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts
+--- a/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts
++++ b/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts
 @@ -9,10 +9,27 @@ import type {
 @@ -24,6 +41,31 @@ function createDatabaseConfig(): DatabaseConfig {
 ...
-diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/utils.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/utils.ts
+diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/utils.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/utils.ts
 new file mode 100644
 index 000000000..972c880fd
 --- /dev/null
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/utils.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/utils.ts
 @@ -0,0 +1,64 @@
 ...
 diff --git a/packages/rag2/src/factories/utils.ts b/packages/rag2/src/factories/utils.ts
@@ -8597,11 +8597,11 @@ index fcdf1b6f6..c7241003d 100644
 +++ b/packages/rag2/src/database/index.ts
 @@ -1,3 +1,6 @@
 ...
-diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/types.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/types.ts
+diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/types.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/types.ts
 new file mode 100644
 index 000000000..1b357b265
 --- /dev/null
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/types.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/types.ts
 @@ -0,0 +1,8 @@
 ...
 diff --git a/packages/github-tool/package.json b/packages/github-tool/package.json
@@ -8656,10 +8656,10 @@ diff --git a/packages/rag2/src/database/pgvector-registry.ts b/packages/rag2/src
 `;
 
 exports[`diff compression > should match snapshot for PR #1118 at 15000 chars > pr-1118-compressed-15000.txt 1`] = `
-"diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts
+"diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts
 index c30cd0971..f7387a494 100644
---- a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts
+--- a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts
 @@ -1,41 +1,15 @@
 @@ -47,305 +21,37 @@ export async function GET(request: NextRequest) {
 -import {
@@ -8672,13 +8672,13 @@ index c30cd0971..f7387a494 100644
 -	type GitHubBlobMetadata,
 -	type GithubRepositoryParams,
 -	octokit,
--} from "@giselles-ai/github-tool";
+-} from "@vibexe-ai/github-tool";
 -import {
 -	type BaseEmbedding,
 -	type EmbeddingStore,
 -	ingest,
--} from "@giselles-ai/rag";
-+import { fetchDefaultBranchHead } from "@giselles-ai/github-tool";
+-} from "@vibexe-ai/rag";
++import { fetchDefaultBranchHead } from "@vibexe-ai/github-tool";
  import { captureException } from "@sentry/nextjs";
 ...
 diff --git a/packages/rag2/src/chunker/line-chunker.ts b/packages/rag2/src/chunker/line-chunker.ts
@@ -8814,11 +8814,11 @@ index 546518682..2c395976a 100644
 @@ -94,7 +83,7 @@ export class GitHubBlobLoader
 @@ -228,7 +217,7 @@ async function* traverseTree(
 ...
-diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
+diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
 new file mode 100644
 index 000000000..b5ad8bde7
 --- /dev/null
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
 @@ -0,0 +1,90 @@
 ...
 diff --git a/packages/rag2/src/factories/types.ts b/packages/rag2/src/factories/types.ts
@@ -8828,18 +8828,18 @@ index 299283d56..e8757a25c 100644
 @@ -1,7 +1,54 @@
 @@ -52,3 +99,39 @@ export interface QueryServiceConfig<
 ...
-diff --git a/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts b/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts
+diff --git a/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts b/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts
 index 59f2c2fb2..21602c8fb 100644
---- a/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts
-+++ b/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts
+--- a/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts
++++ b/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts
 @@ -9,10 +9,27 @@ import type {
 @@ -24,6 +41,31 @@ function createDatabaseConfig(): DatabaseConfig {
 ...
-diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/utils.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/utils.ts
+diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/utils.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/utils.ts
 new file mode 100644
 index 000000000..972c880fd
 --- /dev/null
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/utils.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/utils.ts
 @@ -0,0 +1,64 @@
 ...
 diff --git a/packages/rag2/src/factories/utils.ts b/packages/rag2/src/factories/utils.ts
@@ -8896,11 +8896,11 @@ index fcdf1b6f6..c7241003d 100644
 +++ b/packages/rag2/src/database/index.ts
 @@ -1,3 +1,6 @@
 ...
-diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/types.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/types.ts
+diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/types.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/types.ts
 new file mode 100644
 index 000000000..1b357b265
 --- /dev/null
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/types.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/types.ts
 @@ -0,0 +1,8 @@
 ...
 diff --git a/packages/github-tool/package.json b/packages/github-tool/package.json

@@ -5,9 +5,9 @@ import {
 	TimeoutError,
 	UnsupportedFeatureError,
 } from "./errors";
-import Giselle from "./sdk";
+import Vibexe from "./sdk";
 
-describe("Giselle SDK (public Runs API)", () => {
+describe("Vibexe SDK (public Runs API)", () => {
 	it("app.run() calls POST /api/apps/{appId}/run and returns taskId", async () => {
 		const fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
 			expect(url).toBe("https://example.com/api/apps/app-xxxxx/run");
@@ -24,7 +24,7 @@ describe("Giselle SDK (public Runs API)", () => {
 			});
 		});
 
-		const client = new Giselle({
+		const client = new Vibexe({
 			baseUrl: "https://example.com",
 			apiKey: "apk_test.secret",
 			fetch: fetchMock as unknown as typeof fetch,
@@ -52,7 +52,7 @@ describe("Giselle SDK (public Runs API)", () => {
 			});
 		});
 
-		const client = new Giselle({
+		const client = new Vibexe({
 			baseUrl: "https://example.com",
 			apiKey: "apk_test.secret",
 			fetch: fetchMock as unknown as typeof fetch,
@@ -90,7 +90,7 @@ describe("Giselle SDK (public Runs API)", () => {
 			});
 		});
 
-		const client = new Giselle({
+		const client = new Vibexe({
 			baseUrl: "https://example.com",
 			apiKey: "apk_test.secret",
 			fetch: fetchMock as unknown as typeof fetch,
@@ -120,7 +120,7 @@ describe("Giselle SDK (public Runs API)", () => {
 			});
 		});
 
-		const client = new Giselle({
+		const client = new Vibexe({
 			baseUrl: "https://example.com",
 			apiKey: "apk_test.secret",
 			fetch: fetchMock as unknown as typeof fetch,
@@ -139,7 +139,7 @@ describe("Giselle SDK (public Runs API)", () => {
 
 	it("app.run() rejects inline base64 file larger than 3MB (decoded)", async () => {
 		const fetchMock = vi.fn();
-		const client = new Giselle({
+		const client = new Vibexe({
 			baseUrl: "https://example.com",
 			apiKey: "apk_test.secret",
 			fetch: fetchMock as unknown as typeof fetch,
@@ -166,9 +166,9 @@ describe("Giselle SDK (public Runs API)", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
-	it("defaults baseUrl to https://studio.giselles.ai", async () => {
+	it("defaults baseUrl to https://studio.vibexe.ai", async () => {
 		const fetchMock = vi.fn((url: unknown) => {
-			expect(url).toBe("https://studio.giselles.ai/api/apps/app-xxxxx/run");
+			expect(url).toBe("https://studio.vibexe.ai/api/apps/app-xxxxx/run");
 			return Promise.resolve(
 				new Response(JSON.stringify({ taskId: "tsk_123" }), {
 					status: 200,
@@ -177,7 +177,7 @@ describe("Giselle SDK (public Runs API)", () => {
 			);
 		});
 
-		const client = new Giselle({
+		const client = new Vibexe({
 			apiKey: "apk_test.secret",
 			fetch: fetchMock as unknown as typeof fetch,
 		});
@@ -188,7 +188,7 @@ describe("Giselle SDK (public Runs API)", () => {
 	});
 
 	it("app.run() throws if apiKey is missing", async () => {
-		const client = new Giselle({
+		const client = new Vibexe({
 			baseUrl: "https://example.com",
 			fetch: vi.fn() as unknown as typeof fetch,
 		});
@@ -277,7 +277,7 @@ describe("Giselle SDK (public Runs API)", () => {
 			throw new Error(`Unexpected request: ${String(url)}`);
 		});
 
-		const client = new Giselle({
+		const client = new Vibexe({
 			baseUrl: "https://example.com",
 			apiKey: "apk_test.secret",
 			fetch: fetchMock as unknown as typeof fetch,
@@ -321,7 +321,7 @@ describe("Giselle SDK (public Runs API)", () => {
 			);
 		});
 
-		const client = new Giselle({
+		const client = new Vibexe({
 			baseUrl: "https://example.com",
 			apiKey: "apk_test.secret",
 			fetch: fetchMock as unknown as typeof fetch,
@@ -368,7 +368,7 @@ describe("Giselle SDK (public Runs API)", () => {
 			);
 		});
 
-		const client = new Giselle({
+		const client = new Vibexe({
 			baseUrl: "https://example.com",
 			apiKey: "apk_test.secret",
 			fetch: fetchMock as unknown as typeof fetch,
@@ -427,7 +427,7 @@ describe("Giselle SDK (public Runs API)", () => {
 			);
 		});
 
-		const client = new Giselle({
+		const client = new Vibexe({
 			baseUrl: "https://example.com",
 			apiKey: "apk_test.secret",
 			fetch: fetchMock as unknown as typeof fetch,
@@ -467,7 +467,7 @@ describe("Giselle SDK (public Runs API)", () => {
 			});
 		});
 
-		const client = new Giselle({
+		const client = new Vibexe({
 			baseUrl: "https://example.com",
 			apiKey: "apk_test.secret",
 			fetch: fetchMock as unknown as typeof fetch,
@@ -479,7 +479,7 @@ describe("Giselle SDK (public Runs API)", () => {
 	});
 
 	it("apps.list() throws if apiKey is missing", async () => {
-		const client = new Giselle({
+		const client = new Vibexe({
 			baseUrl: "https://example.com",
 			fetch: vi.fn() as unknown as typeof fetch,
 		});

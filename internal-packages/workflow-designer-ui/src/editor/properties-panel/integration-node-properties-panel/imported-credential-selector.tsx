@@ -1,4 +1,4 @@
-import type { IntegrationNode } from "@giselles-ai/protocol";
+import type { IntegrationNode } from "@vibexe-ai/protocol";
 import { AlertTriangleIcon } from "lucide-react";
 import { CredentialSelector } from "./credential-selector";
 import { usePieceInspect } from "./use-piece-action-props";

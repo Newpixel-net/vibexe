@@ -1,5 +1,5 @@
 {
-	"name": "@giselles-ai/s3-storage-driver",
+	"name": "@vibexe-ai/s3-storage-driver",
 	"version": "0.0.0",
 	"private": true,
 	"main": "./dist/index.js",
@@ -22,12 +22,12 @@
 		}
 	},
 	"devDependencies": {
-		"@giselles-ai/tsconfig": "workspace:^",
+		"@vibexe-ai/tsconfig": "workspace:^",
 		"tsup": "catalog:"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "catalog:",
-		"@giselles-ai/storage": "workspace:*"
+		"@vibexe-ai/storage": "workspace:*"
 	},
 	"peerDependencies": {
 		"zod": "catalog:"

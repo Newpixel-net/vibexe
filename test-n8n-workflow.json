@@ -1,0 +1,210 @@
+{
+  "name": "Properties Panel Test Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://jsonplaceholder.typicode.com/posts",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "http-1",
+      "name": "Fetch Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [340, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = items.slice(0, 5).map(item => ({\n  json: {\n    id: item.json.id,\n    title: item.json.title,\n    length: item.json.body.length,\n    isLong: item.json.body.length > 200\n  }\n}));\nreturn results;"
+      },
+      "id": "code-1",
+      "name": "Process Posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [580, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isLong }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-1",
+      "name": "Is Long Post?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [820, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "category",
+              "value": "long-form"
+            },
+            {
+              "name": "status",
+              "value": "needs-review"
+            }
+          ]
+        }
+      },
+      "id": "edit-1",
+      "name": "Tag Long Posts",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1060, 200]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "category",
+              "value": "brief"
+            },
+            {
+              "name": "status",
+              "value": "approved"
+            }
+          ]
+        }
+      },
+      "id": "edit-2",
+      "name": "Tag Short Posts",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1060, 420]
+    },
+    {
+      "parameters": {},
+      "id": "merge-1",
+      "name": "Combine Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "output": 0,
+              "conditions": {
+                "string": [
+                  {
+                    "value1": "={{ $json.category }}",
+                    "value2": "long-form"
+                  }
+                ]
+              }
+            },
+            {
+              "output": 1,
+              "conditions": {
+                "string": [
+                  {
+                    "value1": "={{ $json.category }}",
+                    "value2": "brief"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "id": "switch-1",
+      "name": "Route by Category",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [1540, 300]
+    },
+    {
+      "parameters": {
+        "fieldToSortBy": "title",
+        "sortOrder": "ascending"
+      },
+      "id": "sort-1",
+      "name": "Sort by Title",
+      "type": "n8n-nodes-base.sort",
+      "typeVersion": 1,
+      "position": [1780, 200]
+    },
+    {
+      "parameters": {
+        "fieldToFilterBy": "status",
+        "operation": "equal",
+        "valueToCompare": "approved"
+      },
+      "id": "filter-1",
+      "name": "Filter Approved",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [1780, 420]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [{ "node": "Fetch Posts", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch Posts": {
+      "main": [
+        [{ "node": "Process Posts", "type": "main", "index": 0 }]
+      ]
+    },
+    "Process Posts": {
+      "main": [
+        [{ "node": "Is Long Post?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Is Long Post?": {
+      "main": [
+        [{ "node": "Tag Long Posts", "type": "main", "index": 0 }],
+        [{ "node": "Tag Short Posts", "type": "main", "index": 0 }]
+      ]
+    },
+    "Tag Long Posts": {
+      "main": [
+        [{ "node": "Combine Results", "type": "main", "index": 0 }]
+      ]
+    },
+    "Tag Short Posts": {
+      "main": [
+        [{ "node": "Combine Results", "type": "main", "index": 1 }]
+      ]
+    },
+    "Combine Results": {
+      "main": [
+        [{ "node": "Route by Category", "type": "main", "index": 0 }]
+      ]
+    },
+    "Route by Category": {
+      "main": [
+        [{ "node": "Sort by Title", "type": "main", "index": 0 }],
+        [{ "node": "Filter Approved", "type": "main", "index": 0 }]
+      ]
+    }
+  }
+}

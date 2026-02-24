@@ -1,4 +1,4 @@
-# @giselles-ai/document-preprocessor
+# @vibexe-ai/document-preprocessor
 
 Utilities for turning raw document binaries into clean text and image payloads ready for RAG ingestion. Supports PDF, plain text, and Markdown formats with extensible APIs for future formats (PowerPoint, Excel, Word, …).
 
@@ -13,7 +13,7 @@ Utilities for turning raw document binaries into clean text and image payloads r
 
 ## Installation
 
-This package is published inside the monorepo under the `@giselles-ai/*` namespace. It relies on optional native bindings shipped with PDFium, so make sure your runtime matches the supported Node.js versions (>=18).
+This package is published inside the monorepo under the `@vibexe-ai/*` namespace. It relies on optional native bindings shipped with PDFium, so make sure your runtime matches the supported Node.js versions (>=18).
 
 ## Usage
 
@@ -21,7 +21,7 @@ This package is published inside the monorepo under the `@giselles-ai/*` namespa
 
 ```ts
 import { readFile } from "node:fs/promises";
-import { extractText } from "@giselles-ai/document-preprocessor";
+import { extractText } from "@vibexe-ai/document-preprocessor";
 
 const binary = await readFile("./document.md");
 const { text } = extractText(binary, {
@@ -36,7 +36,7 @@ console.log(text);
 ```ts
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { extractPdfText } from "@giselles-ai/document-preprocessor";
+import { extractPdfText } from "@vibexe-ai/document-preprocessor";
 
 const require = createRequire(import.meta.url);
 const pdfiumWasmBinary = await readFile(
@@ -61,7 +61,7 @@ for (const page of pages) {
 ```ts
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { renderPdfPageImages } from "@giselles-ai/document-preprocessor";
+import { renderPdfPageImages } from "@vibexe-ai/document-preprocessor";
 
 const require = createRequire(import.meta.url);
 const pdfiumWasmBinary = await readFile(
@@ -154,9 +154,9 @@ export interface PdfImageRenderResult {
 ## Development
 
 ```bash
-pnpm -F @giselles-ai/document-preprocessor test
-pnpm -F @giselles-ai/document-preprocessor check-types
-pnpm -F @giselles-ai/document-preprocessor build
+pnpm -F @vibexe-ai/document-preprocessor test
+pnpm -F @vibexe-ai/document-preprocessor check-types
+pnpm -F @vibexe-ai/document-preprocessor build
 ```
 
 Run Biome formatting after changes:

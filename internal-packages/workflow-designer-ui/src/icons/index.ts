@@ -12,7 +12,7 @@ export * from "./folder";
 export { GenerateImageIcon } from "./generate-image";
 export * from "./generate-text";
 export * from "./generated-content";
-export * from "./giselle-icon";
+export * from "./vibexe-icon";
 export * from "./github";
 export * from "./globe";
 export * from "./google";

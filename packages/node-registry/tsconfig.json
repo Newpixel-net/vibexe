@@ -1,5 +1,5 @@
 {
-	"extends": "@giselles-ai/tsconfig/node-library",
+	"extends": "@vibexe-ai/tsconfig/node-library",
 	"include": ["."],
 	"exclude": ["node_modules"]
 }

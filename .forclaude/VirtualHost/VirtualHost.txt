@@ -1,0 +1,67 @@
+
+
+<VirtualHost 66.29.156.89:81>
+  ServerName 66.29.156.89
+  DocumentRoot /home/siteuomulti/public_html
+  ServerAdmin webmaster@siteuo.com
+  UseCanonicalName Off
+
+  ## User siteuomulti # Needed for Cpanel::ApacheConf
+  <IfModule userdir_module>
+    <IfModule !mpm_itk.c>
+      <IfModule !ruid2_module>
+        <IfModule !mod_passenger.c>
+          UserDir disabled
+          UserDir enabled siteuomulti
+        </IfModule>
+      </IfModule>
+    </IfModule>
+  </IfModule>
+
+  # Enable backwards compatible Server Side Include expression parser for Apache versions >= 2.4.
+  # To selectively use the newer Apache 2.4 expression parser, disable SSILegacyExprParser in
+  # the user's .htaccess file.  For more information, please read:
+  #    http://httpd.apache.org/docs/2.4/mod/mod_include.html#ssilegacyexprparser
+  <IfModule include_module>
+    <Directory "/home/siteuomulti/public_html">
+      SSILegacyExprParser On
+    </Directory>
+  </IfModule>
+
+  <IfModule suphp_module>
+    suPHP_UserGroup siteuomulti siteuomulti
+  </IfModule>
+  <IfModule suexec_module>
+    <IfModule !mod_ruid2.c>
+      SuexecUserGroup siteuomulti siteuomulti
+    </IfModule>
+  </IfModule>
+  <IfModule ruid2_module>
+    RMode config
+    RUidGid siteuomulti siteuomulti
+  </IfModule>
+  <IfModule mpm_itk.c>
+    # For more information on MPM ITK, please read:
+    #   http://mpm-itk.sesse.net/
+    AssignUserID siteuomulti siteuomulti
+  </IfModule>
+  <IfModule mod_passenger.c>
+    PassengerUser siteuomulti
+    PassengerGroup siteuomulti
+  </IfModule>
+
+  <IfModule alias_module>
+    ScriptAlias /cgi-bin/ /home/siteuomulti/public_html/cgi-bin/
+  </IfModule>
+
+
+    # Global DCV Rewrite Exclude
+    <IfModule rewrite_module>
+        RewriteOptions Inherit
+    </IfModule>
+
+
+
+  # To customize this VirtualHost use an include file at the following location
+  # Include "/etc/apache2/conf.d/userdata/std/2_4/siteuomulti/wildcard_safe.siteuo.com/*.conf"
+</VirtualHost>

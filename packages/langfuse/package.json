@@ -1,5 +1,5 @@
 {
-	"name": "@giselles-ai/langfuse",
+	"name": "@vibexe-ai/langfuse",
 	"version": "0.0.0",
 	"private": true,
 	"main": "./dist/index.js",
@@ -19,15 +19,15 @@
 		}
 	},
 	"devDependencies": {
-		"@giselles-ai/tsconfig": "workspace:*",
+		"@vibexe-ai/tsconfig": "workspace:*",
 		"ai": "catalog:",
 		"tsup": "catalog:"
 	},
 	"dependencies": {
-		"@giselles-ai/language-model": "workspace:^",
-		"@giselles-ai/language-model-registry": "workspace:*",
-		"@giselles-ai/protocol": "workspace:^",
-		"@giselles-ai/rag": "workspace:^",
+		"@vibexe-ai/language-model": "workspace:^",
+		"@vibexe-ai/language-model-registry": "workspace:*",
+		"@vibexe-ai/protocol": "workspace:^",
+		"@vibexe-ai/rag": "workspace:^",
 		"langfuse": "catalog:"
 	}
 }

@@ -1,8 +1,8 @@
 import {
 	type DataStoreProvider,
 	isDataStoreProvider,
-} from "@giselles-ai/data-store-registry";
-import { createIdGenerator } from "@giselles-ai/utils";
+} from "@vibexe-ai/data-store-registry";
+import { createIdGenerator } from "@vibexe-ai/utils";
 import * as z from "zod/v4";
 
 export const DataStoreId = createIdGenerator("ds");

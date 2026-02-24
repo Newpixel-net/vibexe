@@ -7,8 +7,8 @@ import type {
 	TriggerNode,
 	VariableNode,
 	VectorStoreNode,
-} from "@giselles-ai/protocol";
-import type { UIConnection } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import type { UIConnection } from "@vibexe-ai/react";
 import { useMemo } from "react";
 import { useAppDesignerStore } from "../../../../app-designer";
 import type { ConnectedSource, DatastoreNode } from "./types";

@@ -1,4 +1,0 @@
-{
-	"extends": "@giselles-ai/tsconfig/react-library.json",
-	"include": ["."]
-}

@@ -62,7 +62,7 @@ export interface ListBlobsResult {
 
 type ListBlobs = (params?: ListBlobsParams) => Promise<ListBlobsResult>;
 
-export interface GiselleStorage {
+export interface VibexeStorage {
 	getJson: GetJson;
 	setJson: SetJson;
 	getBlob: GetBlob;

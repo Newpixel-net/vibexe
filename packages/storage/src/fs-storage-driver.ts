@@ -4,7 +4,7 @@ import type * as z from "zod/v4";
 import type {
 	BlobLike,
 	GetJsonParams,
-	GiselleStorage,
+	VibexeStorage,
 	SetJsonParams,
 } from "./types";
 
@@ -16,7 +16,7 @@ async function ensureDir(filePath: string): Promise<void> {
 	await fs.mkdir(dirname(filePath), { recursive: true });
 }
 
-export function fsStorageDriver(config: FsStorageDriverConfig): GiselleStorage {
+export function fsStorageDriver(config: FsStorageDriverConfig): VibexeStorage {
 	return {
 		async getJson<T extends z.ZodType>(
 			params: GetJsonParams<T>,

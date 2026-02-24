@@ -2,11 +2,11 @@
  * Symbol used for identifying React Error instances.
  * Enables checking if an error is an instance of ReactError across package versions.
  */
-const marker = "giselle.react.error";
+const marker = "vibexe.react.error";
 const symbol = Symbol.for(marker);
 
 /**
- * Custom error class for Giselle React related errors.
+ * Custom error class for Vibexe React related errors.
  * @extends Error
  */
 export class ReactError extends Error {

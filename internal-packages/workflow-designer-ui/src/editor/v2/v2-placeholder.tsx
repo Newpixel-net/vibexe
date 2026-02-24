@@ -1,6 +1,6 @@
 "use client";
 
-import { useFeatureFlag } from "@giselles-ai/react";
+import { useFeatureFlag } from "@vibexe-ai/react";
 import { AlertTriangleIcon, CheckIcon, InfoIcon, Loader2Icon, SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/shallow";

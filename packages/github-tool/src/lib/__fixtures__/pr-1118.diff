@@ -1,8 +1,8 @@
-diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
+diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
 new file mode 100644
 index 000000000..b5ad8bde7
 --- /dev/null
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts
 @@ -0,0 +1,90 @@
 +import { db, githubRepositoryIndex } from "@/drizzle";
 +import {
@@ -13,8 +13,8 @@ index 000000000..b5ad8bde7
 +	GitHubBlobLoader,
 +	type GitHubBlobLoaderParams,
 +	type GitHubBlobMetadata,
-+} from "@giselles-ai/github-tool";
-+import { createIngestPipeline } from "@giselles-ai/rag2";
++} from "@vibexe-ai/github-tool";
++import { createIngestPipeline } from "@vibexe-ai/rag2";
 +import type { Octokit } from "@octokit/core";
 +import { and, eq } from "drizzle-orm";
 +
@@ -94,10 +94,10 @@ index 000000000..b5ad8bde7
 +
 +	return repositoryIndex[0].dbId;
 +}
-diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts
+diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts
 index c30cd0971..f7387a494 100644
---- a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/route.ts
+--- a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/route.ts
 @@ -1,41 +1,15 @@
 -import {
 -	db,
@@ -109,13 +109,13 @@ index c30cd0971..f7387a494 100644
 -	type GitHubBlobMetadata,
 -	type GithubRepositoryParams,
 -	octokit,
--} from "@giselles-ai/github-tool";
+-} from "@vibexe-ai/github-tool";
 -import {
 -	type BaseEmbedding,
 -	type EmbeddingStore,
 -	ingest,
--} from "@giselles-ai/rag";
-+import { fetchDefaultBranchHead } from "@giselles-ai/github-tool";
+-} from "@vibexe-ai/rag";
++import { fetchDefaultBranchHead } from "@vibexe-ai/github-tool";
  import { captureException } from "@sentry/nextjs";
 -import { and, eq } from "drizzle-orm";
  import type { NextRequest } from "next/server";
@@ -476,11 +476,11 @@ index c30cd0971..f7387a494 100644
 -	}
 +	return new Response("ok", { status: 200 });
  }
-diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/types.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/types.ts
+diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/types.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/types.ts
 new file mode 100644
 index 000000000..1b357b265
 --- /dev/null
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/types.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/types.ts
 @@ -0,0 +1,8 @@
 +export type TargetGitHubRepository = {
 +	dbId: number;
@@ -490,14 +490,14 @@ index 000000000..1b357b265
 +	installationId: number;
 +	lastIngestedCommitSha: string | null;
 +};
-diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/utils.ts b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/utils.ts
+diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/utils.ts b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/utils.ts
 new file mode 100644
 index 000000000..972c880fd
 --- /dev/null
-+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/utils.ts
++++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/utils.ts
 @@ -0,0 +1,64 @@
 +import { db, githubRepositoryIndex } from "@/drizzle";
-+import { octokit } from "@giselles-ai/github-tool";
++import { octokit } from "@vibexe-ai/github-tool";
 +import { eq } from "drizzle-orm";
 +import type { TargetGitHubRepository } from "./types";
 +
@@ -560,20 +560,20 @@ index 000000000..972c880fd
 +		})
 +		.where(eq(githubRepositoryIndex.dbId, dbId));
 +}
-diff --git a/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts b/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts
+diff --git a/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts b/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts
 index 59f2c2fb2..21602c8fb 100644
---- a/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts
-+++ b/apps/studio.giselles.ai/lib/vector-stores/github-blob-stores.ts
+--- a/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts
++++ b/apps/studio.vibexe.ai/lib/vector-stores/github-blob-stores.ts
 @@ -9,10 +9,27 @@ import type {
  	GitHubQueryContext,
  	GitHubVectorStoreQueryService,
- } from "@giselles-ai/giselle-engine";
--import { type DatabaseConfig, createQueryService } from "@giselles-ai/rag2";
+ } from "@vibexe-ai/vibexe-engine";
+-import { type DatabaseConfig, createQueryService } from "@vibexe-ai/rag2";
 +import {
 +	type DatabaseConfig,
 +	createChunkStore,
 +	createQueryService,
-+} from "@giselles-ai/rag2";
++} from "@vibexe-ai/rag2";
  import { and, eq, getTableName } from "drizzle-orm";
  import { z } from "zod/v4";
  
@@ -632,8 +632,8 @@ index dc5ff847b..056bb95fb 100644
 @@ -30,6 +30,7 @@
  	},
  	"dependencies": {
- 		"@giselles-ai/rag": "workspace:*",
-+		"@giselles-ai/rag2": "workspace:*",
+ 		"@vibexe-ai/rag": "workspace:*",
++		"@vibexe-ai/rag2": "workspace:*",
  		"@octokit/auth-app": "catalog:",
  		"@octokit/core": "catalog:",
  		"@octokit/graphql": "catalog:",
@@ -642,12 +642,12 @@ index 546518682..2c395976a 100644
 --- a/packages/github-tool/src/blob-loader.ts
 +++ b/packages/github-tool/src/blob-loader.ts
 @@ -1,17 +1,30 @@
--import type { ContentLoader, LoaderResult } from "@giselles-ai/rag";
+-import type { ContentLoader, LoaderResult } from "@vibexe-ai/rag";
 +import type {
 +	Document,
 +	DocumentLoader,
 +	DocumentLoaderParams,
-+} from "@giselles-ai/rag2";
++} from "@vibexe-ai/rag2";
  import type { Octokit } from "@octokit/core";
  
  /**
@@ -775,7 +775,7 @@ index 32d183246..022caa0aa 100644
 +
  ## Installation
  
- This package is intended for internal use within the Giselle monorepo.
+ This package is intended for internal use within the Vibexe monorepo.
 @@ -66,6 +75,87 @@ results.forEach((result) => {
  });
  ```
@@ -789,7 +789,7 @@ index 32d183246..022caa0aa 100644
 +  createChunkStore,
 +  createIngestPipeline,
 +  type Document,
-+} from "@giselles-ai/rag2";
++} from "@vibexe-ai/rag2";
 +import { z } from "zod/v4";
 +
 +// Define schemas
@@ -2859,10 +2859,10 @@ index 82b06065e..54646f804 100644
 --- a/pnpm-lock.yaml
 +++ b/pnpm-lock.yaml
 @@ -1009,6 +1009,9 @@ importers:
-       '@giselles-ai/rag':
+       '@vibexe-ai/rag':
          specifier: workspace:*
          version: link:../rag
-+      '@giselles-ai/rag2':
++      '@vibexe-ai/rag2':
 +        specifier: workspace:*
 +        version: link:../rag2
        '@octokit/auth-app':

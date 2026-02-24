@@ -1,0 +1,91 @@
+import type { VibexeLogger } from "@vibexe-ai/logger";
+import type { NodeId } from "@vibexe-ai/protocol";
+import { Generation, NodeGenerationIndex } from "@vibexe-ai/protocol";
+import type { VibexeStorage } from "@vibexe-ai/storage";
+import {
+	generationPath,
+	getNodeGenerationIndexes,
+	nodeGenerationIndexPath,
+} from "../utils";
+import { updateTaskGenerationIndexes } from "./task-generation-index-queue";
+
+function upsertIndex(
+	current: NodeGenerationIndex[] | undefined,
+	incoming: NodeGenerationIndex,
+) {
+	if (!current) return [incoming];
+	const pos = current.findIndex((i) => i.id === incoming.id);
+	if (pos === -1) return [...current, incoming];
+	return [...current.slice(0, pos), incoming, ...current.slice(pos + 1)];
+}
+
+export async function internalSetGeneration(params: {
+	storage: VibexeStorage;
+	generation: Generation;
+	logger?: VibexeLogger;
+}) {
+	await params.storage.setJson({
+		path: generationPath(params.generation.id),
+		data: params.generation,
+		schema: Generation,
+	});
+
+	params.logger?.debug(
+		`Setting generation in storage: id=${params.generation.id}`,
+	);
+	const newIndex = toNodeGenerationIndex(params.generation);
+	const nodeId = params.generation.context.operationNode.id;
+
+	// Update nodeId-based index
+	const currentNodeIndexes = await getNodeGenerationIndexes({
+		storage: params.storage,
+		nodeId,
+	});
+	const nextNodeIndexes = upsertIndex(currentNodeIndexes, newIndex);
+	await writeNodeIndexes({
+		storage: params.storage,
+		nodeId,
+		indexes: nextNodeIndexes,
+	});
+
+	// Update taskId-based index when present
+	const taskId = params.generation.context.origin.taskId;
+	params.logger?.debug(`internalSetGeneration ---- ${taskId}`);
+	params.logger?.debug(JSON.stringify(newIndex, null, 2));
+	if (taskId !== undefined) {
+		updateTaskGenerationIndexes(params.storage, taskId, newIndex);
+	}
+}
+
+function toNodeGenerationIndex(generation: Generation): NodeGenerationIndex {
+	return {
+		id: generation.id,
+		nodeId: generation.context.operationNode.id,
+		status: generation.status,
+		createdAt: generation.createdAt,
+		queuedAt: "queuedAt" in generation ? generation.queuedAt : undefined,
+		startedAt: "startedAt" in generation ? generation.startedAt : undefined,
+		completedAt:
+			"completedAt" in generation ? generation.completedAt : undefined,
+		failedAt: "failedAt" in generation ? generation.failedAt : undefined,
+		cancelledAt:
+			"cancelledAt" in generation ? generation.cancelledAt : undefined,
+		awaitingReviewAt:
+			"awaitingReviewAt" in generation
+				? generation.awaitingReviewAt
+				: undefined,
+	};
+}
+
+async function writeNodeIndexes(args: {
+	storage: VibexeStorage;
+	nodeId: NodeId;
+	indexes: NodeGenerationIndex[];
+}) {
+	await args.storage.setJson({
+		path: nodeGenerationIndexPath(args.nodeId),
+		data: args.indexes,
+		schema: NodeGenerationIndex.array(),
+	});
+	return;
+}

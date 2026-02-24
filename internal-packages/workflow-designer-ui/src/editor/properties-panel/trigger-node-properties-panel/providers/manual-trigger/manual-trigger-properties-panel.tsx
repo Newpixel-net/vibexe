@@ -1,14 +1,14 @@
-import { Button } from "@giselle-internal/ui/button";
-import { Select } from "@giselle-internal/ui/select";
-import { Toggle } from "@giselle-internal/ui/toggle";
+import { Button } from "@vibexe-internal/ui/button";
+import { Select } from "@vibexe-internal/ui/select";
+import { Toggle } from "@vibexe-internal/ui/toggle";
 import {
 	ManualTriggerParameter,
 	ManualTriggerParameterId,
 	type Output,
 	OutputId,
 	type TriggerNode,
-} from "@giselles-ai/protocol";
-import { useFeatureFlag, useTrigger } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import { useFeatureFlag, useTrigger } from "@vibexe-ai/react";
 import { TrashIcon } from "lucide-react";
 import {
 	type FormEventHandler,
@@ -20,7 +20,7 @@ import {
 	useAppDesignerStore,
 	useUpdateNodeData,
 } from "../../../../../app-designer";
-import { useGiselle } from "../../../../../app-designer/store/giselle-client-provider";
+import { useVibexe } from "../../../../../app-designer/store/vibexe-client-provider";
 import { SpinnerIcon } from "../../../../../icons";
 import { SettingDetail, SettingLabel } from "../../../ui/setting-label";
 import { SettingRow } from "../../../ui/setting-row";
@@ -35,7 +35,7 @@ const TYPE_OPTIONS = [
 export function ManualTriggerPropertiesPanel({ node }: { node: TriggerNode }) {
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
 	const updateNodeData = useUpdateNodeData();
-	const client = useGiselle();
+	const client = useVibexe();
 	const [isPending, startTransition] = useTransition();
 	const [parameters, setParameters] = useState<ManualTriggerParameter[]>([]);
 	const [staged, setStaged] = useState(false);

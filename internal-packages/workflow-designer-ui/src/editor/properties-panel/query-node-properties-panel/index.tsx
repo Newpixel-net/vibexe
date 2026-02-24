@@ -1,10 +1,10 @@
-import { useToasts } from "@giselle-internal/ui/toast";
-import type { QueryNode } from "@giselles-ai/protocol";
-import { useNodeGenerations } from "@giselles-ai/react";
+import { useToasts } from "@vibexe-internal/ui/toast";
+import type { QueryNode } from "@vibexe-ai/protocol";
+import { useNodeGenerations } from "@vibexe-ai/react";
 import {
 	isJsonContent,
 	jsonContentToText,
-} from "@giselles-ai/text-editor-utils";
+} from "@vibexe-ai/text-editor-utils";
 import { useCallback, useMemo } from "react";
 import {
 	useAppDesignerStore,
@@ -88,7 +88,7 @@ export function QueryNodePropertiesPanel({ node }: { node: QueryNode }) {
 				onChangeName={(name) => {
 					updateNodeData(node, { name });
 				}}
-				docsUrl="https://docs.giselles.ai/en/glossary/vector-query-node"
+				docsUrl="https://docs.vibexe.ai/en/glossary/vector-query-node"
 				onDelete={() => deleteNode(node.id)}
 			/>
 			<PropertiesPanelContent>

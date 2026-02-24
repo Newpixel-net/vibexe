@@ -1,7 +1,7 @@
-import { Button } from "@giselle-internal/ui/button";
-import { useToasts } from "@giselle-internal/ui/toast";
-import type { ConnectionId, TriggerNode } from "@giselles-ai/protocol";
-import { useTaskSystem } from "@giselles-ai/react";
+import { Button } from "@vibexe-internal/ui/button";
+import { useToasts } from "@vibexe-internal/ui/toast";
+import type { ConnectionId, TriggerNode } from "@vibexe-ai/protocol";
+import { useTaskSystem } from "@vibexe-ai/react";
 import { clsx } from "clsx/lite";
 import { LoaderIcon, PlayIcon, XIcon } from "lucide-react";
 import { Dialog } from "radix-ui";

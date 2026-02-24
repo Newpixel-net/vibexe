@@ -1,7 +1,7 @@
 import { ReactError } from "./react-error";
 
 const name = "React_APICallError";
-const marker = `giselle.react.error.${name}`;
+const marker = `vibexe.react.error.${name}`;
 const symbol = Symbol.for(marker);
 
 export class APICallError extends ReactError {

@@ -1,4 +1,4 @@
-import { ConnectionId } from "@giselles-ai/protocol";
+import { ConnectionId } from "@vibexe-ai/protocol";
 import { useCallback } from "react";
 import { useWorkspaceActions } from "../hooks";
 

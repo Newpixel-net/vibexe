@@ -5,7 +5,7 @@ import {
 	OpenAILanguageModel,
 	PerplexityLanguageModel,
 	XaiLanguageModel,
-} from "@giselles-ai/language-model";
+} from "@vibexe-ai/language-model";
 import * as z from "zod/v4";
 import { SecretId } from "../../secret";
 

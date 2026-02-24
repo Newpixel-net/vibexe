@@ -1,6 +1,6 @@
 "use client";
 
-import type { NodeId } from "@giselles-ai/protocol";
+import type { NodeId } from "@vibexe-ai/protocol";
 import { PlusIcon, TrashIcon } from "lucide-react";
 import { useCallback } from "react";
 import { FieldWrapper } from "./field-wrapper";

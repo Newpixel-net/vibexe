@@ -1,4 +1,4 @@
-import type { Task } from "@giselles-ai/protocol";
+import type { Task } from "@vibexe-ai/protocol";
 import { create } from "zustand";
 
 export interface DebugSession {

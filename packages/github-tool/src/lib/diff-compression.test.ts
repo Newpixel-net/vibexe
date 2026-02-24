@@ -22,13 +22,13 @@ describe("diff compression", () => {
 		const compressed = compressLargeDiff(PR_1118_DIFF, 1500);
 
 		expect(compressed).toContain(
-			"diff --git a/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts",
+			"diff --git a/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts",
 		);
 		expect(compressed).toContain("new file mode 100644");
 		expect(compressed).toContain("index 000000000..b5ad8bde7");
 		expect(compressed).toContain("--- /dev/null");
 		expect(compressed).toContain(
-			"+++ b/apps/studio.giselles.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts",
+			"+++ b/apps/studio.vibexe.ai/app/api/vector-stores/github/ingest/ingest-github-repository.ts",
 		);
 	});
 

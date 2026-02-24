@@ -1,7 +1,7 @@
 "use client";
 
-import type { NodeId, OperationNode } from "@giselles-ai/protocol";
-import { isOperationNode } from "@giselles-ai/protocol";
+import type { NodeId, OperationNode } from "@vibexe-ai/protocol";
+import { isOperationNode } from "@vibexe-ai/protocol";
 import clsx from "clsx/lite";
 import {
 	CopyIcon,

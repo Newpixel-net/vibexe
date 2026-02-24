@@ -1,14 +1,14 @@
 "use client";
 
-import { GlassSurfaceLayers } from "@giselle-internal/ui/glass-surface";
+import { GlassSurfaceLayers } from "@vibexe-internal/ui/glass-surface";
 import {
 	createAppEntryNode,
 	createErrorTriggerNode,
 	createFormTriggerNode,
 	createTriggerNode,
-} from "@giselles-ai/node-registry";
-import type { TriggerContent } from "@giselles-ai/protocol";
-import { useFeatureFlag } from "@giselles-ai/react";
+} from "@vibexe-ai/node-registry";
+import type { TriggerContent } from "@vibexe-ai/protocol";
+import { useFeatureFlag } from "@vibexe-ai/react";
 import clsx from "clsx/lite";
 import {
 	AlertTriangleIcon,

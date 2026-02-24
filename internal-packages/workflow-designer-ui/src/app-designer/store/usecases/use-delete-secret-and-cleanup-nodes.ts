@@ -2,14 +2,14 @@ import {
 	isTextGenerationNode,
 	type SecretId,
 	type TextGenerationNode,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import { useCallback } from "react";
 import { useAppDesignerStoreApi } from "../app-designer-provider";
-import { useGiselle } from "../giselle-client-provider";
+import { useVibexe } from "../vibexe-client-provider";
 import { useUpdateNodeDataContent } from "./use-update-node-data-content";
 
 export function useDeleteSecretAndCleanupNodes() {
-	const client = useGiselle();
+	const client = useVibexe();
 	const store = useAppDesignerStoreApi();
 	const updateNodeDataContent = useUpdateNodeDataContent();
 

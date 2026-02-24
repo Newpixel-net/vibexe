@@ -1,6 +1,6 @@
 "use client";
 
-import type { Task } from "@giselles-ai/protocol";
+import type { Task } from "@vibexe-ai/protocol";
 import { CopyIcon, FilterIcon, SearchIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 

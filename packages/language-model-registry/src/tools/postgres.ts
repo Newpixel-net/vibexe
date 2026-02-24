@@ -22,7 +22,7 @@ export type PostgresTool = (typeof postgresTools)[number];
 export const postgres = defineLanguageModelTool({
 	name: "postgres",
 	title: "PostgreSQL",
-	provider: "giselle",
+	provider: "vibexe",
 	tools: postgresTools,
 	configurationOptions: {
 		secretId: {

@@ -1,4 +1,4 @@
-import type { MemoryNodeNode } from "@giselles-ai/protocol";
+import type { MemoryNodeNode } from "@vibexe-ai/protocol";
 import { useCallback } from "react";
 import {
 	useDeleteNode,

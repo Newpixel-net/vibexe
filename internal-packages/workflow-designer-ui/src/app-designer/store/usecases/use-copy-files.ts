@@ -6,15 +6,15 @@ import {
 	type FileNode,
 	isFileNode,
 	type PendingCopyFileData,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import { useCallback } from "react";
 import { useAppDesignerStoreApi } from "../app-designer-provider";
-import { useGiselle } from "../giselle-client-provider";
+import { useVibexe } from "../vibexe-client-provider";
 import { useAppDesignerStore } from "../hooks";
 import { useUpdateFileStatus } from "./use-update-file-status";
 
 export function useCopyFiles() {
-	const client = useGiselle();
+	const client = useVibexe();
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
 	const store = useAppDesignerStoreApi();
 	const updateFileStatus = useUpdateFileStatus();

@@ -33,10 +33,10 @@ jobs:
           key: playwright-browsers-${{ env.PLAYWRIGHT_VERSION }}
       - name: Install Playwright Browsers & OS deps
         shell: bash
-        run: pnpm --filter studio.giselles.ai exec playwright install --with-deps
+        run: pnpm --filter studio.vibexe.ai exec playwright install --with-deps
       - name: Run e2e tests
         run: pnpm test:e2e
-        working-directory: apps/studio.giselles.ai
+        working-directory: apps/studio.vibexe.ai
         env:
           PLAYWRIGHT_BASE_URL: ${{ github.event.inputs.PLAYWRIGHT_BASE_URL != '' && github.event.inputs.PLAYWRIGHT_BASE_URL || secrets.PLAYWRIGHT_BASE_URL }}
           PLAYWRIGHT_LOGIN_EMAIL: ${{ secrets.PLAYWRIGHT_LOGIN_EMAIL }}

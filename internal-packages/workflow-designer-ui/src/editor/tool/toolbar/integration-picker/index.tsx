@@ -8,12 +8,12 @@ import {
 	getPiecesByCategory,
 	searchPieces,
 	isInstalledPiece,
-} from "@giselles-ai/activepieces-adapter";
+} from "@vibexe-ai/activepieces-adapter";
 import {
 	createActionNode,
 	createIntegrationNode,
 	createTriggerNode,
-} from "@giselles-ai/node-registry";
+} from "@vibexe-ai/node-registry";
 import {
 	ArrowLeftIcon,
 	ChevronRightIcon,

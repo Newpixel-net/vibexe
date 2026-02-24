@@ -1,4 +1,4 @@
-# @giselles-ai/pseudo-tiktoken
+# @vibexe-ai/pseudo-tiktoken
 
 A lightweight TypeScript-only library for estimating token counts that approximately align with OpenAI's **tiktoken** (e.g., `gpt-4o-mini`).
 
@@ -14,14 +14,14 @@ This is a **pseudo-implementation** (hence the name) that provides approximate t
 
 ## Installation
 
-This package is intended for internal use within the Giselle monorepo.
+This package is intended for internal use within the Vibexe monorepo.
 
 ## Usage
 
 ### Basic Usage
 
 ```typescript
-import { countTokens } from "@giselles-ai/pseudo-tiktoken";
+import { countTokens } from "@vibexe-ai/pseudo-tiktoken";
 
 const text = "Hello, world! This is a test.";
 const tokenCount = countTokens(text);
@@ -31,7 +31,7 @@ console.log(`Token count: ${tokenCount}`);
 ### Tokenization (for debugging/visualization)
 
 ```typescript
-import { tokenize, type PseudoToken } from "@giselles-ai/pseudo-tiktoken";
+import { tokenize, type PseudoToken } from "@vibexe-ai/pseudo-tiktoken";
 
 const text = "Hello, world!";
 const tokens: PseudoToken[] = tokenize(text);

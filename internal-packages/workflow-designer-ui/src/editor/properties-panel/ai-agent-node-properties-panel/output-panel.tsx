@@ -3,8 +3,8 @@ import type {
 	FailedGeneration,
 	Generation,
 	NodeId,
-} from "@giselles-ai/protocol";
-import { useNodeGenerations } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import { useNodeGenerations } from "@vibexe-ai/react";
 import clsx from "clsx/lite";
 import { ArrowDownIcon, ArrowUpIcon, TimerIcon } from "lucide-react";
 import { useAppDesignerStore } from "../../../app-designer";

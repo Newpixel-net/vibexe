@@ -1,6 +1,6 @@
-import type { ConnectionId, NodeId } from "@giselles-ai/protocol";
-import { useTaskSystem } from "@giselles-ai/react";
-import { useToasts } from "@giselle-internal/ui/toast";
+import type { ConnectionId, NodeId } from "@vibexe-ai/protocol";
+import { useTaskSystem } from "@vibexe-ai/react";
+import { useToasts } from "@vibexe-internal/ui/toast";
 import { useCallback } from "react";
 import { useAppDesignerStore, useWorkspaceActions } from "../../app-designer";
 

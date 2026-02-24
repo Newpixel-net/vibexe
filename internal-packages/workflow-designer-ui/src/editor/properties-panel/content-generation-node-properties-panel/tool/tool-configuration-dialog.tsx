@@ -1,4 +1,4 @@
-import { Button } from "@giselle-internal/ui/button";
+import { Button } from "@vibexe-internal/ui/button";
 import {
 	Dialog,
 	DialogBody,
@@ -8,8 +8,8 @@ import {
 	type DialogSize,
 	DialogTitle,
 	DialogTrigger,
-} from "@giselle-internal/ui/dialog";
-import type { LanguageModelTool } from "@giselles-ai/language-model-registry";
+} from "@vibexe-internal/ui/dialog";
+import type { LanguageModelTool } from "@vibexe-ai/language-model-registry";
 import {
 	type ComponentProps,
 	type PropsWithChildren,
@@ -18,7 +18,7 @@ import {
 	useTransition,
 } from "react";
 import { useAppDesignerStore } from "../../../../app-designer";
-import { useGiselle } from "../../../../app-designer/store/giselle-client-provider";
+import { useVibexe } from "../../../../app-designer/store/vibexe-client-provider";
 import { useWorkspaceSecrets } from "../../../lib/use-workspace-secrets";
 import {
 	ToolConfigurationForm,
@@ -57,7 +57,7 @@ export function ToolConfigurationDialog({
 	const [config, setConfig] = useState<Record<string, unknown>>(
 		currentConfig ?? {},
 	);
-	const client = useGiselle();
+	const client = useVibexe();
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
 	const [isPending, startTransition] = useTransition();
 

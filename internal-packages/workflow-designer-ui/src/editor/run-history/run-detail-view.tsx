@@ -1,6 +1,6 @@
 "use client";
 
-import type { Generation, GenerationId, Task } from "@giselles-ai/protocol";
+import type { Generation, GenerationId, Task } from "@vibexe-ai/protocol";
 import {
 	ArrowDownIcon,
 	ArrowLeftIcon,
@@ -23,7 +23,7 @@ import {
 import { useCallback, useState } from "react";
 import { ExecutionLogsPanel } from "./execution-logs-panel";
 import useSWR from "swr";
-import { useGiselle } from "../../app-designer/store/giselle-client-provider";
+import { useVibexe } from "../../app-designer/store/vibexe-client-provider";
 import { GenerationView } from "../../ui/generation-view";
 
 function formatDuration(ms: number): string {
@@ -93,7 +93,7 @@ function StepDetailRow({
 	isLast: boolean;
 }) {
 	const [expanded, setExpanded] = useState(false);
-	const client = useGiselle();
+	const client = useVibexe();
 
 	const { data: generation, isLoading } = useSWR<Generation>(
 		expanded ? { namespace: "getGeneration", generationId: step.generationId } : null,
@@ -249,7 +249,7 @@ export function RunDetailView({
 	onDebug?: (task: Task) => void;
 }) {
 	const [activeTab, setActiveTab] = useState<"steps" | "logs">("steps");
-	const client = useGiselle();
+	const client = useVibexe();
 	const [retrying, setRetrying] = useState(false);
 	const [cancelling, setCancelling] = useState(false);
 	const [localTags, setLocalTags] = useState<string[]>(task.tags ?? []);

@@ -1,7 +1,7 @@
 "use client";
 
-import type { TriggerNode } from "@giselles-ai/protocol";
-import { useTrigger } from "@giselles-ai/react";
+import type { TriggerNode } from "@vibexe-ai/protocol";
+import { useTrigger } from "@vibexe-ai/react";
 import {
 	CheckIcon,
 	CopyIcon,
@@ -14,7 +14,7 @@ import {
 	useUpdateNodeData,
 	useUpdateNodeDataContent,
 } from "../../../../../app-designer";
-import { useGiselle } from "../../../../../app-designer/store/giselle-client-provider";
+import { useVibexe } from "../../../../../app-designer/store/vibexe-client-provider";
 import { SpinnerIcon } from "../../../../../icons";
 
 export function ChatTriggerPropertiesPanel({
@@ -25,7 +25,7 @@ export function ChatTriggerPropertiesPanel({
 	const updateNodeDataContent = useUpdateNodeDataContent();
 	const updateNodeData = useUpdateNodeData();
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
-	const client = useGiselle();
+	const client = useVibexe();
 	const { callbacks } = useTrigger();
 	const [isPending, startTransition] = useTransition();
 	const [copiedField, setCopiedField] = useState<string | null>(null);

@@ -1,5 +1,5 @@
 {
-	"name": "@giselles-ai/nextjs",
+	"name": "@vibexe-ai/nextjs",
 	"version": "0.0.0",
 	"private": true,
 	"main": "./dist/index.js",
@@ -23,17 +23,17 @@
 		"./internal": "./src/index.ts"
 	},
 	"devDependencies": {
-		"@giselles-ai/tsconfig": "workspace:*",
+		"@vibexe-ai/tsconfig": "workspace:*",
 		"@types/react": "catalog:",
 		"tsup": "catalog:",
 		"vitest": "catalog:",
 		"zustand": "catalog:"
 	},
 	"dependencies": {
-		"@giselles-ai/giselle": "workspace:*",
-		"@giselles-ai/github-tool": "workspace:^",
-		"@giselles-ai/http": "workspace:*",
-		"@giselles-ai/storage": "workspace:*",
+		"@vibexe-ai/vibexe": "workspace:*",
+		"@vibexe-ai/github-tool": "workspace:^",
+		"@vibexe-ai/http": "workspace:*",
+		"@vibexe-ai/storage": "workspace:*",
 		"next": "catalog:",
 		"react": "catalog:"
 	},

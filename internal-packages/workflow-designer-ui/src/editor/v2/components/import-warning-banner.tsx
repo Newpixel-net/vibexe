@@ -1,6 +1,6 @@
 "use client";
 
-import { getCatalogEntry } from "@giselles-ai/activepieces-adapter";
+import { getCatalogEntry } from "@vibexe-ai/activepieces-adapter";
 import { XIcon, AlertTriangleIcon, ChevronDownIcon, ChevronUpIcon, CheckCircle2Icon, CircleAlertIcon, ArrowRightIcon, PackageXIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppDesignerStore } from "../../../app-designer";

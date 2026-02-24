@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Guide to Edit Workspace Tour
 
-The workspace tour is a user onboarding experience that guides new users through the Giselle workspace interface. This guide will help you understand the structure and make modifications to the tour.
+The workspace tour is a user onboarding experience that guides new users through the Vibexe workspace interface. This guide will help you understand the structure and make modifications to the tour.
 
 ## File Structure
 
@@ -37,7 +37,7 @@ It contains:
    ```typescript
    export const tourSteps: TourStep[] = [
      {
-       title: "Welcome to Giselle",
+       title: "Welcome to Vibexe",
        content: "This platform helps you build and manage AI workflows easily.",
        placement: "bottom",
      },

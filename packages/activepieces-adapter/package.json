@@ -1,5 +1,5 @@
 {
-	"name": "@giselles-ai/activepieces-adapter",
+	"name": "@vibexe-ai/activepieces-adapter",
 	"version": "0.0.0",
 	"private": true,
 	"main": "./dist/index.js",
@@ -33,12 +33,12 @@
 		}
 	},
 	"devDependencies": {
-		"@giselles-ai/tsconfig": "workspace:*",
+		"@vibexe-ai/tsconfig": "workspace:*",
 		"tsup": "catalog:",
 		"vitest": "catalog:"
 	},
 	"dependencies": {
-		"@giselles-ai/protocol": "workspace:*",
+		"@vibexe-ai/protocol": "workspace:*",
 		"@activepieces/pieces-framework": "^0.25.2",
 		"@activepieces/pieces-common": "^0.11.5",
 		"@activepieces/shared": "^0.34.0",

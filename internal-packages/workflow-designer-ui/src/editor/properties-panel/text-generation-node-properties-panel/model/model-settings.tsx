@@ -6,7 +6,7 @@ import {
 	openaiLanguageModels,
 	xaiLanguageModels,
 	Tier,
-} from "@giselles-ai/language-model";
+} from "@vibexe-ai/language-model";
 import {
 	type AnthropicLanguageModelData,
 	type Connection,
@@ -15,8 +15,8 @@ import {
 	OutputId,
 	type TextGenerationContent,
 	type TextGenerationNode,
-} from "@giselles-ai/protocol";
-import { useUsageLimits } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import { useUsageLimits } from "@vibexe-ai/react";
 import { useCallback, useMemo } from "react";
 import { useShallow } from "zustand/shallow";
 import { useAppDesignerStore } from "../../../../app-designer";

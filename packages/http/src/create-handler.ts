@@ -1,4 +1,4 @@
-import { type GiselleContext, UsageLimitError } from "@giselles-ai/giselle";
+import { type VibexeContext, UsageLimitError } from "@vibexe-ai/vibexe";
 import type * as z from "zod/v4";
 
 /**
@@ -8,11 +8,11 @@ import type * as z from "zod/v4";
 type HandlerArgs<TSchema> = TSchema extends z.ZodObject
 	? {
 			input: z.infer<TSchema>;
-			context: GiselleContext;
+			context: VibexeContext;
 			signal?: AbortSignal;
 		}
 	: {
-			context: GiselleContext;
+			context: VibexeContext;
 			signal?: AbortSignal;
 		};
 
@@ -22,12 +22,12 @@ type HandlerArgs<TSchema> = TSchema extends z.ZodObject
 type HandlerInputArgs<TSchema> = TSchema extends z.ZodObject
 	? {
 			input: TSchema;
-			context: GiselleContext;
+			context: VibexeContext;
 			signal?: AbortSignal;
 		}
 	: {
 			input?: unknown;
-			context: GiselleContext;
+			context: VibexeContext;
 			signal?: AbortSignal;
 		};
 

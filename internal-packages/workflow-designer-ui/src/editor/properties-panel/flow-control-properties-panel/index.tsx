@@ -27,7 +27,7 @@ import {
 	type SummarizeNode,
 	type SwitchNode,
 	type WaitNode,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import { type ReactNode, useCallback } from "react";
 import {
 	useDeleteNode,

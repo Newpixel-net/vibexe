@@ -69,10 +69,10 @@ If the model has a completely new configuration option:
 
 1. Add the option to the registry schema in `packages/language-model-registry/src/{provider}.ts`
 2. Add UI controls in the provider's panel component
-3. Handle the option in `transform-giselle-to-ai-sdk.ts`
+3. Handle the option in `transform-vibexe-to-ai-sdk.ts`
 
 ## Notes
 
 - Update JSDoc comments when adding new model patterns
 - Keep conditions ordered from most specific to most general
-- Test UI renders correctly with `pnpm dev:studio.giselles.ai`
+- Test UI renders correctly with `pnpm dev:studio.vibexe.ai`

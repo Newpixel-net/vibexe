@@ -1,11 +1,11 @@
-import { Toggle } from "@giselle-internal/ui/toggle";
+import { Toggle } from "@vibexe-internal/ui/toggle";
 import {
 	anthropicLanguageModels,
 	Capability,
 	hasCapability,
-} from "@giselles-ai/language-model";
-import { AnthropicLanguageModelData } from "@giselles-ai/protocol";
-import { useUsageLimits } from "@giselles-ai/react";
+} from "@vibexe-ai/language-model";
+import { AnthropicLanguageModelData } from "@vibexe-ai/protocol";
+import { useUsageLimits } from "@vibexe-ai/react";
 import { useMemo } from "react";
 import { TemperatureSlider, TopPSlider } from "./shared-model-controls";
 

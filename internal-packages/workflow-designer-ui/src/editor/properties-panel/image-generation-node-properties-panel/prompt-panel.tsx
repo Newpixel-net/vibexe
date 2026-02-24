@@ -1,20 +1,20 @@
-import { useToasts } from "@giselle-internal/ui/toast";
+import { useToasts } from "@vibexe-internal/ui/toast";
 import {
 	falLanguageModels,
 	googleImageLanguageModels,
 	hasTierAccess,
 	openaiImageModels,
 	Tier,
-} from "@giselles-ai/language-model";
+} from "@vibexe-ai/language-model";
 import type {
 	ImageGenerationLanguageModelData,
 	ImageGenerationNode,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import {
 	isSupportedConnection,
 	useFeatureFlag,
 	useUsageLimits,
-} from "@giselles-ai/react";
+} from "@vibexe-ai/react";
 import { useCallback, useMemo } from "react";
 import {
 	useAppDesignerStore,

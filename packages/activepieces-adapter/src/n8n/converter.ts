@@ -1,5 +1,5 @@
 /**
- * N8N Workflow Converter: Converts N8N workflow JSON to Giselle workspace format.
+ * N8N Workflow Converter: Converts N8N workflow JSON to Vibexe workspace format.
  *
  * Supports native V6 flow-control nodes (If, Switch, Merge, Loop, Code, Filter,
  * EditFields, Sort, Wait) which trigger the DAG executor at runtime.
@@ -10,7 +10,7 @@ import {
 	InputId,
 	NodeId,
 	OutputId,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import {
 	type N8NConnections,
 	convertConnections,
@@ -43,7 +43,7 @@ export interface N8NNode {
 }
 
 // Sticky note data for native StickyNote rendering
-export interface GiselleStickyNoteData {
+export interface VibexeStickyNoteData {
 	id: string;
 	text: string;
 	color: "yellow" | "orange" | "red" | "blue" | "green" | "purple" | "gray";
@@ -51,12 +51,12 @@ export interface GiselleStickyNoteData {
 	size: { width: number; height: number };
 }
 
-// Giselle workspace types (simplified for conversion)
-export interface GiselleWorkspaceData {
+// Vibexe workspace types (simplified for conversion)
+export interface VibexeWorkspaceData {
 	name: string;
-	nodes: GiselleNodeData[];
-	connections: GiselleConnectionData[];
-	stickyNotes: GiselleStickyNoteData[];
+	nodes: VibexeNodeData[];
+	connections: VibexeConnectionData[];
+	stickyNotes: VibexeStickyNoteData[];
 	warnings: ConversionWarning[];
 	hasFlowControl: boolean;
 	importMeta?: {
@@ -72,7 +72,7 @@ export interface GiselleWorkspaceData {
 	};
 }
 
-export interface GiselleNodeData {
+export interface VibexeNodeData {
 	id: string;
 	type: "operation" | "variable";
 	name: string;
@@ -94,7 +94,7 @@ export interface GiselleNodeData {
 	};
 }
 
-export interface GiselleConnectionData {
+export interface VibexeConnectionData {
 	id: string;
 	outputNode: { id: string; type: string; content: { type: string } };
 	outputId: string;
@@ -118,14 +118,14 @@ const FLOW_CONTROL_TYPES = new Set([
 ]);
 
 /**
- * Convert an N8N workflow JSON to Giselle workspace data.
+ * Convert an N8N workflow JSON to Vibexe workspace data.
  */
-export function convertN8NToGiselle(
+export function convertN8NToVibexe(
 	n8nWorkflow: N8NWorkflow,
-): GiselleWorkspaceData {
+): VibexeWorkspaceData {
 	const warnings: ConversionWarning[] = [];
-	const giselleNodes: GiselleNodeData[] = [];
-	const stickyNotes: GiselleStickyNoteData[] = [];
+	const vibexeNodes: VibexeNodeData[] = [];
+	const stickyNotes: VibexeStickyNoteData[] = [];
 	const nodePositions: Record<string, { x: number; y: number }> = {};
 	const nodeIdMapping: Record<
 		string,
@@ -186,7 +186,7 @@ export function convertN8NToGiselle(
 			const nodeId = NodeId.generate();
 			const inputId = InputId.generate();
 			const outputId = OutputId.generate();
-			const placeholderNode: GiselleNodeData = {
+			const placeholderNode: VibexeNodeData = {
 				id: nodeId,
 				type: "operation",
 				name: `${n8nNode.name} (unsupported)`,
@@ -198,7 +198,7 @@ export function convertN8NToGiselle(
 				inputs: [{ id: inputId, label: "Input", accessor: "input" }],
 				outputs: [{ id: outputId, label: "Output", accessor: "output" }],
 			};
-			giselleNodes.push(placeholderNode);
+			vibexeNodes.push(placeholderNode);
 			disabledNodes++;
 			nodeIdMapping[n8nNode.name] = {
 				nodeId,
@@ -223,17 +223,17 @@ export function convertN8NToGiselle(
 			continue;
 		}
 
-		const giselleNode = createGiselleNode(n8nNode, mapping, nodeNameMap, warnings);
-		if (giselleNode) {
+		const vibexeNode = createVibexeNode(n8nNode, mapping, nodeNameMap, warnings);
+		if (vibexeNode) {
 			// Transfer disabled metadata
 			if (n8nNode.disabled) {
-				giselleNode.disabled = true;
+				vibexeNode.disabled = true;
 				disabledNodes++;
 			}
 
 			// Transfer pinned data from workflow-level pinData
 			if (n8nWorkflow.pinData?.[n8nNode.name] !== undefined) {
-				giselleNode.pinnedData = n8nWorkflow.pinData[n8nNode.name];
+				vibexeNode.pinnedData = n8nWorkflow.pinData[n8nNode.name];
 			}
 
 			// Extract credential hints (Phase 2)
@@ -241,14 +241,14 @@ export function convertN8NToGiselle(
 			if (n8nNode.credentials) {
 				const credHint = extractCredentialHint(n8nNode.credentials, n8nNode.name, warnings);
 				if (credHint) {
-					giselleNode.credentialHint = credHint;
+					vibexeNode.credentialHint = credHint;
 					nodesNeedingCredentials++;
 				}
 			}
-			if (!giselleNode.credentialHint) {
+			if (!vibexeNode.credentialHint) {
 				const fallbackHint = extractCredentialHintFromIssues(n8nNode);
 				if (fallbackHint) {
-					giselleNode.credentialHint = fallbackHint;
+					vibexeNode.credentialHint = fallbackHint;
 					nodesNeedingCredentials++;
 					warnings.push({
 						nodeType: "credential",
@@ -261,7 +261,7 @@ export function convertN8NToGiselle(
 			// Extract error handling config (Phase 2)
 			const errorConfig = extractErrorConfig(n8nNode);
 			if (errorConfig) {
-				giselleNode.errorConfig = errorConfig;
+				vibexeNode.errorConfig = errorConfig;
 			}
 
 			// Extract schedule config from schedule trigger (Phase 4)
@@ -269,23 +269,23 @@ export function convertN8NToGiselle(
 				scheduleConfig = extractScheduleConfig(n8nNode.parameters);
 			}
 
-			giselleNodes.push(giselleNode);
-			nodePositions[giselleNode.id] = {
+			vibexeNodes.push(vibexeNode);
+			nodePositions[vibexeNode.id] = {
 				x: n8nNode.position[0],
 				y: n8nNode.position[1],
 			};
 
-			const contentType = (giselleNode.content as { type: string }).type;
+			const contentType = (vibexeNode.content as { type: string }).type;
 			if (FLOW_CONTROL_TYPES.has(contentType)) {
 				hasFlowControl = true;
 			}
 
 			nodeIdMapping[n8nNode.name] = {
-				nodeId: giselleNode.id,
-				nodeType: giselleNode.type,
+				nodeId: vibexeNode.id,
+				nodeType: vibexeNode.type,
 				contentType,
-				outputIds: giselleNode.outputs.map((o) => o.id),
-				inputIds: giselleNode.inputs.map((i) => i.id),
+				outputIds: vibexeNode.outputs.map((o) => o.id),
+				inputIds: vibexeNode.inputs.map((i) => i.id),
 			};
 		}
 	}
@@ -300,7 +300,7 @@ export function convertN8NToGiselle(
 	// Phase 2b: Convert cycles to Loop+If patterns or strip back-edges
 	let { connections, cyclesConverted } = transformCyclesToLoops(
 		rawConnections,
-		giselleNodes,
+		vibexeNodes,
 		nodeIdMapping,
 		warnings,
 	);
@@ -312,7 +312,7 @@ export function convertN8NToGiselle(
 	for (const conn of connections) {
 		nodesWithIncoming.add(conn.inputNode.id);
 	}
-	for (const node of giselleNodes) {
+	for (const node of vibexeNodes) {
 		if (nodesWithIncoming.has(node.id)) continue;
 		const contentType = (node.content as { type: string }).type;
 		if (contentType === "trigger") continue;
@@ -336,7 +336,7 @@ export function convertN8NToGiselle(
 		connectedNodeIds.add(conn.inputNode.id);
 	}
 	const orphanNames: string[] = [];
-	for (const node of giselleNodes) {
+	for (const node of vibexeNodes) {
 		if (connectedNodeIds.has(node.id)) continue;
 		const contentType = (node.content as { type: string }).type;
 		if (contentType === "trigger") continue;
@@ -365,8 +365,8 @@ export function convertN8NToGiselle(
 					if (sourceMapping.contentType !== "chatModel") continue;
 
 					// Find the target aiAgent node and source chatModel node
-					const agentNode = giselleNodes.find((n) => n.id === targetMapping.nodeId);
-					const modelNode = giselleNodes.find((n) => n.id === sourceMapping.nodeId);
+					const agentNode = vibexeNodes.find((n) => n.id === targetMapping.nodeId);
+					const modelNode = vibexeNodes.find((n) => n.id === sourceMapping.nodeId);
 					if (!agentNode || !modelNode) continue;
 
 					// Copy model config from chatModel to aiAgent's inline model picker
@@ -413,7 +413,7 @@ export function convertN8NToGiselle(
 			const agentMapping = nodeIdMapping[currentTarget];
 			if (!agentMapping || agentMapping.contentType !== "aiAgent") continue;
 
-			const agentNode = giselleNodes.find(n => n.id === agentMapping.nodeId);
+			const agentNode = vibexeNodes.find(n => n.id === agentMapping.nodeId);
 			if (!agentNode) continue;
 
 			const n8nNode = n8nNodeByName.get(parserName);
@@ -469,7 +469,7 @@ export function convertN8NToGiselle(
 
 		// Get rendered width/height per node based on content type
 		function getNodeDimensions(nodeId: string): { w: number; h: number } {
-			const node = giselleNodes.find((n) => n.id === nodeId);
+			const node = vibexeNodes.find((n) => n.id === nodeId);
 			if (!node) return { w: 96, h: 96 };
 			const contentType = node.content.type as string;
 			switch (contentType) {
@@ -519,7 +519,7 @@ export function convertN8NToGiselle(
 
 	// Phase 3: Compute clean layout
 	const layoutPositions = computeLayout(
-		giselleNodes,
+		vibexeNodes,
 		connections,
 		nodePositions,
 	);
@@ -546,7 +546,7 @@ export function convertN8NToGiselle(
 
 	return {
 		name: n8nWorkflow.name ?? "Imported N8N Workflow",
-		nodes: giselleNodes,
+		nodes: vibexeNodes,
 		connections,
 		stickyNotes,
 		warnings,
@@ -565,12 +565,12 @@ export function convertN8NToGiselle(
 	};
 }
 
-function createGiselleNode(
+function createVibexeNode(
 	n8nNode: N8NNode,
 	mapping: Exclude<ReturnType<typeof mapN8NNodeType>, { type: "skip" } | { type: "unsupported" }>,
 	nodeNameMap: Map<string, string>,
 	warnings: ConversionWarning[],
-): GiselleNodeData | null {
+): VibexeNodeData | null {
 	switch (mapping.type) {
 		case "trigger":
 			return {
@@ -1188,7 +1188,7 @@ function createGiselleNode(
 		}
 
 		case "text":
-			// Sticky notes are now handled before createGiselleNode is called.
+			// Sticky notes are now handled before createVibexeNode is called.
 			// This case should not be reached but is kept for safety.
 			return null;
 
@@ -1215,7 +1215,7 @@ function createGiselleNode(
 
 // ─── N8N Operator Mapping ────────────────────────────────────────────────────
 
-/** Maps N8N condition operator strings to Giselle Condition operator enum values */
+/** Maps N8N condition operator strings to Vibexe Condition operator enum values */
 const N8N_OPERATOR_MAP: Record<string, string> = {
 	// String operators
 	equal: "equals",
@@ -1244,7 +1244,7 @@ const N8N_OPERATOR_MAP: Record<string, string> = {
 // ─── Parameter Conversion Helpers ────────────────────────────────────────────
 
 /**
- * Convert N8N If/Filter conditions to Giselle conditionGroup format.
+ * Convert N8N If/Filter conditions to Vibexe conditionGroup format.
  * Handles both N8N v1 format (params.conditions.string/number/boolean)
  * and v2 format (params.conditions array).
  */
@@ -1321,7 +1321,7 @@ function convertN8NConditions(
 }
 
 /**
- * Convert N8N Switch rules to Giselle switch rules format.
+ * Convert N8N Switch rules to Vibexe switch rules format.
  */
 function convertN8NSwitchRules(
 	params: Record<string, unknown>,
@@ -1469,7 +1469,7 @@ function extractWaitSeconds(
 }
 
 /**
- * Convert N8N Set node assignments to Giselle EditFields operations.
+ * Convert N8N Set node assignments to Vibexe EditFields operations.
  */
 function convertN8NSetToFieldOperations(
 	params: Record<string, unknown>,
@@ -1513,7 +1513,7 @@ function convertN8NSetToFieldOperations(
 }
 
 /**
- * Convert N8N Sort node fields to Giselle sortKeys.
+ * Convert N8N Sort node fields to Vibexe sortKeys.
  */
 function convertN8NSortKeys(
 	params: Record<string, unknown>,
@@ -1551,7 +1551,7 @@ function convertN8NSortKeys(
 
 /**
  * Wrap plain text into a TipTap JSON document string.
- * Giselle's TextEditor component expects content in TipTap JSON format,
+ * Vibexe's TextEditor component expects content in TipTap JSON format,
  * so we must convert plain text from N8N into this structure.
  */
 function plainTextToTipTapJson(text: string): string {
@@ -1623,11 +1623,11 @@ function extractTextFromN8NParams(params: Record<string, unknown>): string {
 }
 
 /**
- * Map N8N sticky note color (number 1-7) to Giselle color name.
+ * Map N8N sticky note color (number 1-7) to Vibexe color name.
  */
 function mapStickyNoteColor(
 	colorIndex: unknown,
-): GiselleStickyNoteData["color"] {
+): VibexeStickyNoteData["color"] {
 	const index = typeof colorIndex === "number" ? colorIndex : Number(colorIndex);
 	switch (index) {
 		case 1: return "yellow";
@@ -1678,7 +1678,7 @@ function preprocessN8NMarkdown(text: string): string {
  * Create a native StickyNote from an N8N sticky note node.
  * Uses N8N's raw position, size, content, and color.
  */
-function createStickyNote(n8nNode: N8NNode): GiselleStickyNoteData {
+function createStickyNote(n8nNode: N8NNode): VibexeStickyNoteData {
 	const rawText = (n8nNode.parameters.content as string) ?? "";
 	const text = preprocessN8NMarkdown(rawText);
 	const color = mapStickyNoteColor(n8nNode.parameters.color);
@@ -1934,11 +1934,11 @@ const MODEL_ID_ALIASES: Record<string, string> = {
 // ─── Expression System (Phase 3) ─────────────────────────────────────────────
 
 /**
- * Convert N8N expressions to Giselle format.
+ * Convert N8N expressions to Vibexe format.
  * Supports 15+ patterns with ordered regex pipeline (most specific first).
  * Returns { value, hadPartialTranslation } to track partial translations.
  */
-function convertN8NExpressionToGiselle(
+function convertN8NExpressionToVibexe(
 	value: string,
 	nodeNameMap: Map<string, string>,
 	warnings: ConversionWarning[],
@@ -2152,7 +2152,7 @@ function convertN8NExpressionToGiselle(
 /** Backward-compatible wrapper that calls the new expression system */
 function cleanN8NExpression(value: string): string {
 	if (!value) return value;
-	const result = convertN8NExpressionToGiselle(value, new Map(), []);
+	const result = convertN8NExpressionToVibexe(value, new Map(), []);
 	return result.value;
 }
 
@@ -2162,7 +2162,7 @@ function extractCredentialHint(
 	credentials: Record<string, unknown>,
 	nodeName: string,
 	warnings: ConversionWarning[],
-): GiselleNodeData["credentialHint"] | null {
+): VibexeNodeData["credentialHint"] | null {
 	for (const [credType, credRef] of Object.entries(credentials)) {
 		const credName = typeof credRef === "object" && credRef !== null
 			? String((credRef as Record<string, unknown>).name ?? credType)
@@ -2172,7 +2172,7 @@ function extractCredentialHint(
 		warnings.push({
 			nodeType: "credential",
 			nodeName,
-			message: `Credential '${credName}' (${credType}) must be reconfigured in Giselle${suggestedPiece ? ` — suggested piece: ${suggestedPiece}` : ""}`,
+			message: `Credential '${credName}' (${credType}) must be reconfigured in Vibexe${suggestedPiece ? ` — suggested piece: ${suggestedPiece}` : ""}`,
 		});
 
 		return {
@@ -2192,7 +2192,7 @@ function extractCredentialHint(
  */
 function extractCredentialHintFromIssues(
 	n8nNode: N8NNode,
-): GiselleNodeData["credentialHint"] | null {
+): VibexeNodeData["credentialHint"] | null {
 	// Check issues.credentials
 	if (n8nNode.issues?.credentials) {
 		for (const credType of Object.keys(n8nNode.issues.credentials)) {
@@ -2260,7 +2260,7 @@ function extractCredentialHintFromIssues(
 
 function extractErrorConfig(
 	n8nNode: N8NNode,
-): GiselleNodeData["errorConfig"] | null {
+): VibexeNodeData["errorConfig"] | null {
 	const params = n8nNode.parameters;
 	const onError = (params.onError as string) ?? n8nNode.onError ?? "stopWorkflow";
 	const retryOnFail = (params.retryOnFail as boolean) ?? n8nNode.retryOnFail ?? false;
@@ -2532,12 +2532,12 @@ function convertN8NParameters(
 }
 
 /**
- * Transform N8N polling cycles into Giselle Loop+If patterns, or remove back-edges
+ * Transform N8N polling cycles into Vibexe Loop+If patterns, or remove back-edges
  * with a warning for complex cycles that can't be automatically converted.
  *
  * Phase 6: Pragmatic cycle support — instead of rewriting the DAG executor for
  * arbitrary cycles, we convert common N8N polling loop patterns to equivalent
- * Giselle Loop nodes during import.
+ * Vibexe Loop nodes during import.
  *
  * Algorithm:
  * 1. Detect cycles via DFS
@@ -2549,11 +2549,11 @@ function convertN8NParameters(
  * 4. For unknown: strip back-edge with warning (graceful degradation)
  */
 function transformCyclesToLoops(
-	connections: GiselleConnectionData[],
-	nodes: GiselleNodeData[],
+	connections: VibexeConnectionData[],
+	nodes: VibexeNodeData[],
 	nodeIdMapping: Record<string, { nodeId: string; nodeType: string; contentType: string; outputIds: string[]; inputIds: string[] }>,
 	warnings: ConversionWarning[],
-): { connections: GiselleConnectionData[]; cyclesConverted: number } {
+): { connections: VibexeConnectionData[]; cyclesConverted: number } {
 	// Build adjacency list
 	const adj = new Map<string, Array<{ targetId: string; connIndex: number }>>();
 	for (let i = 0; i < connections.length; i++) {
@@ -2641,7 +2641,7 @@ function transformCyclesToLoops(
 		if (hasConditionNode && cycleBody.length >= 2 && cycleBody.length <= 10) {
 			// POLLING_LOOP or RETRY_LOOP — synthesize a Loop node in polling mode.
 			// Polling mode repeats the loop body until an If/Switch routes to an exit branch.
-			const loopNode: GiselleNodeData = {
+			const loopNode: VibexeNodeData = {
 				id: NodeId.generate(),
 				type: "operation",
 				name: `Loop (converted)`,
@@ -2765,12 +2765,12 @@ function traceCyclePath(
 /**
  * Compute layout by using N8N raw positions directly (1:1 mapping).
  * N8N coordinates have ~272px gaps between adjacent nodes, which works well
- * for Giselle's 96px card nodes (visible gap = 272 - 96 = 176px).
+ * for Vibexe's 96px card nodes (visible gap = 272 - 96 = 176px).
  * Falls back to topological layout only if raw positions are missing.
  */
 function computeLayout(
-	nodes: GiselleNodeData[],
-	connections: GiselleConnectionData[],
+	nodes: VibexeNodeData[],
+	connections: VibexeConnectionData[],
 	rawPositions: Record<string, { x: number; y: number }>,
 ): Record<string, { x: number; y: number }> {
 	// Use raw N8N positions directly — they preserve the author's 2D layout intent
@@ -2818,14 +2818,14 @@ function computeLayout(
 }
 
 /**
- * Topological sort layout with compact spacing matching Giselle's auto-arrange.
+ * Topological sort layout with compact spacing matching Vibexe's auto-arrange.
  * Uses Kahn's algorithm for layer assignment with Y-sort by raw N8N position
  * to preserve the author's vertical grouping intent.
  */
 function computeLayoutTopological(
-	flowNodes: GiselleNodeData[],
-	_stickyNodes: GiselleNodeData[],
-	connections: GiselleConnectionData[],
+	flowNodes: VibexeNodeData[],
+	_stickyNodes: VibexeNodeData[],
+	connections: VibexeConnectionData[],
 	rawPositions?: Record<string, { x: number; y: number }>,
 ): Record<string, { x: number; y: number }> {
 	const HORIZONTAL_GAP = 200;

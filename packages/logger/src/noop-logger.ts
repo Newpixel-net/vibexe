@@ -1,8 +1,8 @@
-import type { GiselleLogger } from "./types";
+import type { VibexeLogger } from "./types";
 
 const noop = (..._args: unknown[]): void => {};
 
-export const noopLogger: GiselleLogger = {
+export const noopLogger: VibexeLogger = {
 	info: noop,
 	warn: noop,
 	error: noop,

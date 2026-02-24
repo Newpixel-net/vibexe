@@ -1,12 +1,12 @@
-export class GiselleSdkError extends Error {
-	name = "GiselleSdkError";
+export class VibexeSdkError extends Error {
+	name = "VibexeSdkError";
 }
 
-export class ConfigurationError extends GiselleSdkError {
+export class ConfigurationError extends VibexeSdkError {
 	name = "ConfigurationError";
 }
 
-export class ApiError extends GiselleSdkError {
+export class ApiError extends VibexeSdkError {
 	name = "ApiError";
 
 	constructor(
@@ -18,14 +18,14 @@ export class ApiError extends GiselleSdkError {
 	}
 }
 
-export class UnsupportedFeatureError extends GiselleSdkError {
+export class UnsupportedFeatureError extends VibexeSdkError {
 	name = "UnsupportedFeatureError";
 }
 
-export class NotImplementedError extends GiselleSdkError {
+export class NotImplementedError extends VibexeSdkError {
 	name = "NotImplementedError";
 }
 
-export class TimeoutError extends GiselleSdkError {
+export class TimeoutError extends VibexeSdkError {
 	name = "TimeoutError";
 }

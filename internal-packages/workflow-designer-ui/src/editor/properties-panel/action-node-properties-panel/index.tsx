@@ -1,5 +1,5 @@
-import type { ActionNode, Node } from "@giselles-ai/protocol";
-import { useNodeGenerations } from "@giselles-ai/react";
+import type { ActionNode, Node } from "@vibexe-ai/protocol";
+import { useNodeGenerations } from "@vibexe-ai/react";
 import { useCallback } from "react";
 import {
 	useAppDesignerStore,
@@ -69,7 +69,7 @@ export function ActionNodePropertiesPanel({ node }: { node: ActionNode }) {
 			<NodePanelHeader
 				node={node}
 				onChangeName={(name) => updateNodeData(node, { name })}
-				docsUrl="https://docs.giselles.ai/en/glossary/action-node"
+				docsUrl="https://docs.vibexe.ai/en/glossary/action-node"
 				onDelete={() => deleteNode(node.id)}
 			/>
 			<PropertiesPanelContent>

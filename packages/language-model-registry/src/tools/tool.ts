@@ -125,7 +125,7 @@ export function hasSchema<T extends Tool>(
 	return "schema" in tool && tool.schema !== undefined;
 }
 
-export type LanguageModelToolProvider = "giselle" | LanguageModelProvider;
+export type LanguageModelToolProvider = "vibexe" | LanguageModelProvider;
 
 export interface LanguageModelToolWithoutTools<
 	TName extends string = string,

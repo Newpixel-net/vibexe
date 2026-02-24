@@ -1,13 +1,13 @@
 "use client";
 
-import { GlassSurfaceLayers } from "@giselle-internal/ui/glass-surface";
+import { GlassSurfaceLayers } from "@vibexe-internal/ui/glass-surface";
 import {
 	type PieceCatalogEntry,
 	getAllCategories,
 	getPiecesByCategory,
 	isInstalledPiece,
 	searchPieces,
-} from "@giselles-ai/activepieces-adapter";
+} from "@vibexe-ai/activepieces-adapter";
 import {
 	Capability,
 	hasCapability,
@@ -15,7 +15,7 @@ import {
 	type LanguageModel,
 	languageModels,
 	type Tier,
-} from "@giselles-ai/language-model";
+} from "@vibexe-ai/language-model";
 import { chainTemplates, type ChainTemplate } from "../../lib/chain-templates";
 import {
 	createAiAgentNode,
@@ -53,16 +53,16 @@ import {
 	createRenameKeysNode,
 	createSplitOutNode,
 	createCompareDatasetsNode,
-} from "@giselles-ai/node-registry";
+} from "@vibexe-ai/node-registry";
 import {
 	FileCategory,
 	isImageGenerationLanguageModelData,
 	isTextGenerationLanguageModelData,
 	type NodeId,
 	type NodeLike,
-} from "@giselles-ai/protocol";
-import { useFeatureFlag } from "@giselles-ai/react";
-import { useUsageLimits } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import { useFeatureFlag } from "@vibexe-ai/react";
+import { useUsageLimits } from "@vibexe-ai/react";
 import clsx from "clsx/lite";
 import {
 	ArrowUpDownIcon,

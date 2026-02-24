@@ -1,5 +1,5 @@
 /**
- * Connection Mapping: Converts N8N's name-based connections to Giselle's ID-based format.
+ * Connection Mapping: Converts N8N's name-based connections to Vibexe's ID-based format.
  */
 
 export interface N8NConnection {
@@ -14,7 +14,7 @@ export interface N8NConnections {
 	};
 }
 
-export interface GiselleConnection {
+export interface VibexeConnection {
 	id: string;
 	outputNode: { id: string; type: string; content: { type: string } };
 	outputId: string;
@@ -34,7 +34,7 @@ interface NodeIdMapping {
 }
 
 /**
- * Convert N8N connections to Giselle connections.
+ * Convert N8N connections to Vibexe connections.
  *
  * Uses a two-pass approach for sub-node connections:
  * - Pass 1: Create direct connections + build circleToAgent map for nested sub-nodes
@@ -44,8 +44,8 @@ export function convertConnections(
 	n8nConnections: N8NConnections,
 	nodeIdMapping: NodeIdMapping,
 	generateId: () => string,
-): GiselleConnection[] {
-	const connections: GiselleConnection[] = [];
+): VibexeConnection[] {
+	const connections: VibexeConnection[] = [];
 	const CIRCLE_TYPES = new Set(["chatModel", "toolNode", "memoryNode"]);
 
 	// Pass 1: Create direct connections + build circleToAgent map

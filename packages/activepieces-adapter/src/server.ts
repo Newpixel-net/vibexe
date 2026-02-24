@@ -3,8 +3,8 @@
  * These modules import @activepieces packages that use Node.js built-ins (fs, net, etc.)
  * and must NOT be imported from client components.
  *
- * Client code should import from "@giselles-ai/activepieces-adapter" (the main entry).
- * Server code should import from "@giselles-ai/activepieces-adapter/server".
+ * Client code should import from "@vibexe-ai/activepieces-adapter" (the main entry).
+ * Server code should import from "@vibexe-ai/activepieces-adapter/server".
  */
 
 export { executePieceAction } from "./execute-piece-action";

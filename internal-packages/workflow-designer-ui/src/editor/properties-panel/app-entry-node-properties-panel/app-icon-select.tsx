@@ -1,6 +1,6 @@
 "use client";
 
-import { Select, type SelectOption } from "@giselle-internal/ui/select";
+import { Select, type SelectOption } from "@vibexe-internal/ui/select";
 import {
 	Box,
 	Cable,

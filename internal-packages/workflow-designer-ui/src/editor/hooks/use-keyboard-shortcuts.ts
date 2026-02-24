@@ -1,12 +1,12 @@
-import { createAppEntryNode } from "@giselles-ai/node-registry";
+import { createAppEntryNode } from "@vibexe-ai/node-registry";
 import {
 	isAppEntryNode,
 	isEndNode,
 	isOperationNode,
 	type NodeLike,
 	type OperationNode,
-} from "@giselles-ai/protocol";
-import { useFeatureFlag } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import { useFeatureFlag } from "@vibexe-ai/react";
 import { useKeyPress } from "@xyflow/react";
 import { useCallback, useEffect, useRef } from "react";
 import {

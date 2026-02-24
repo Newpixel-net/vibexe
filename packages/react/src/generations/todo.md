@@ -2,4 +2,4 @@ The GenerationRunnerSystem in this folder uses React Context for state managemen
 
 Migrating to zustand all at once would involve changing many files and carry significant risk, so we'll use the Strangler Fig Pattern to migrate gradually. To do this, we'll create a bridge layer that implements the current Context API using a zustand store as the backend.
 
-You can reference packages/giselle/src/react/flow/zustand-bridge-provider.tsx and packages/giselle/src/react/flow/context.tsx in packages/giselle/src/react/flow as examples.
+You can reference packages/vibexe/src/react/flow/zustand-bridge-provider.tsx and packages/vibexe/src/react/flow/context.tsx in packages/vibexe/src/react/flow as examples.

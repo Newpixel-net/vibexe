@@ -1,7 +1,7 @@
 "use client";
 
-import type { TaskId } from "@giselles-ai/protocol";
-import { type StreamData, StreamEvent } from "@giselles-ai/stream";
+import type { TaskId } from "@vibexe-ai/protocol";
+import { type StreamData, StreamEvent } from "@vibexe-ai/stream";
 import { useEffect } from "react";
 
 export type StreamDataEventHandler = (data: StreamData) => void;
@@ -55,7 +55,7 @@ export function TaskStreamReader({
 			try {
 				// === FETCH PHASE ===
 				// Establish SSE connection to streaming endpoint
-				const apiResponse = await fetch(`/api/giselle/streamTask`, {
+				const apiResponse = await fetch(`/api/vibexe/streamTask`, {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",

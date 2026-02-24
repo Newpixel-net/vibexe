@@ -1,5 +1,5 @@
 {
-	"name": "@giselles-ai/text-editor-utils",
+	"name": "@vibexe-ai/text-editor-utils",
 	"version": "0.0.0",
 	"private": true,
 	"main": "./dist/index.js",
@@ -20,12 +20,12 @@
 		}
 	},
 	"devDependencies": {
-		"@giselles-ai/tsconfig": "workspace:*",
+		"@vibexe-ai/tsconfig": "workspace:*",
 		"@types/turndown": "catalog:",
 		"tsup": "catalog:"
 	},
 	"dependencies": {
-		"@giselles-ai/protocol": "workspace:*",
+		"@vibexe-ai/protocol": "workspace:*",
 		"@tiptap/core": "catalog:",
 		"@tiptap/react": "catalog:",
 		"@tiptap/html": "catalog:",

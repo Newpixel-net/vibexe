@@ -1,12 +1,12 @@
-# Giselle SDK
+# Vibexe SDK
 
-With `@giselles-ai/sdk`, you can run Apps created on `studio.giselles.ai` with an API similar to the OpenAI SDK.
+With `@vibexe-ai/sdk`, you can run Apps created on `studio.vibexe.ai` with an API similar to the OpenAI SDK.
 
 ```ts
-import Giselle from "@giselles-ai/sdk";
+import Vibexe from "@vibexe-ai/sdk";
 
-const client = new Giselle({
-  apiKey: process.env.GISELLE_API_KEY,
+const client = new Vibexe({
+  apiKey: process.env.VIBEXE_API_KEY,
 });
 
 const { taskId } = await client.apps.run({
@@ -20,7 +20,7 @@ console.log(taskId);
 ### Tasks
 
 - [x] Implement `client.apps.list` to call `GET /api/apps` and return `{ apps: App[] }` (see [README](../../packages/sdk/README.md))
-- [ ] In `studio.giselles.ai/tasks`, make it clear when a task execution originated from the public API (SDK).
+- [ ] In `studio.vibexe.ai/tasks`, make it clear when a task execution originated from the public API (SDK).
 
 ### Done
 

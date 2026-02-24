@@ -1,10 +1,10 @@
-import { Button } from "@giselle-internal/ui/button";
-import { Toggle } from "@giselle-internal/ui/toggle";
-import type { TriggerId, TriggerNode } from "@giselles-ai/protocol";
+import { Button } from "@vibexe-internal/ui/button";
+import { Toggle } from "@vibexe-internal/ui/toggle";
+import type { TriggerId, TriggerNode } from "@vibexe-ai/protocol";
 import {
 	type GitHubEventId,
 	githubEvents,
-} from "@giselles-ai/trigger-registry";
+} from "@vibexe-ai/trigger-registry";
 import clsx from "clsx/lite";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";

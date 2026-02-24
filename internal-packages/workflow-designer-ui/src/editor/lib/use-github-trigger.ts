@@ -1,10 +1,10 @@
-import type { Trigger, TriggerId } from "@giselles-ai/protocol";
-import { useGiselle } from "@giselles-ai/react";
+import type { Trigger, TriggerId } from "@vibexe-ai/protocol";
+import { useVibexe } from "@vibexe-ai/react";
 import { useCallback, useMemo } from "react";
 import useSWR from "swr";
 
 export function useGitHubTrigger(triggerId: TriggerId) {
-	const client = useGiselle();
+	const client = useVibexe();
 	const {
 		isLoading: isLoadingTriggerData,
 		data: trigger,

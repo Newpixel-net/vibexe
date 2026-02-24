@@ -1,7 +1,7 @@
-import type { Generation, RunningGeneration } from "@giselles-ai/protocol";
+import type { Generation, RunningGeneration } from "@vibexe-ai/protocol";
 import { createUIMessageStream, readUIMessageStream, type UIMessage } from "ai";
 import { type MutableRefObject, useCallback, useEffect, useRef } from "react";
-import { useGiselle } from "../use-giselle";
+import { useVibexe } from "../use-vibexe";
 import { useGenerationRunnerSystem } from "./contexts";
 import { useGenerationStore } from "./store";
 
@@ -69,7 +69,7 @@ export function GenerateContentRunner({
 	onError?: GenerateContentOnErrorCallback;
 	stopRef?: MutableRefObject<boolean>;
 }) {
-	const client = useGiselle();
+	const client = useVibexe();
 	const upsertMessage = useGenerationStore((s) => s.upsertMessage);
 	const updateGeneration = useGenerationStore((s) => s.updateGeneration);
 	const { updateGenerationStatusToComplete } = useGenerationRunnerSystem();

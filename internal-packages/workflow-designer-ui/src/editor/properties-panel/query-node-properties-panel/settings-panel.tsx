@@ -2,7 +2,7 @@ import {
 	DEFAULT_MAX_RESULTS,
 	DEFAULT_SIMILARITY_THRESHOLD,
 	type QueryNode,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import { useUpdateNodeDataContent } from "../../../app-designer";
 import { Slider } from "../../../ui/slider";
 

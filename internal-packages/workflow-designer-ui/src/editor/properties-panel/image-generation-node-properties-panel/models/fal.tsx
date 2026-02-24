@@ -1,6 +1,6 @@
-import { Select } from "@giselle-internal/ui/select";
-import { imageGenerationSizes } from "@giselles-ai/language-model";
-import { FalLanguageModelData } from "@giselles-ai/protocol";
+import { Select } from "@vibexe-internal/ui/select";
+import { imageGenerationSizes } from "@vibexe-ai/language-model";
+import { FalLanguageModelData } from "@vibexe-ai/protocol";
 import { Slider } from "../../../../ui/slider";
 import { SettingRow } from "../../ui/setting-row";
 

@@ -3,15 +3,15 @@ import {
 	githubActions,
 	githubActionToInputFields,
 	isGitHubActionId,
-} from "@giselles-ai/action-registry";
-import type { GitHubIntegrationInstallation } from "@giselles-ai/giselle";
+} from "@vibexe-ai/action-registry";
+import type { GitHubIntegrationInstallation } from "@vibexe-ai/vibexe";
 import {
 	type ActionNode,
 	type Input,
 	InputId,
 	OutputId,
-} from "@giselles-ai/protocol";
-import { useIntegration } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import { useIntegration } from "@vibexe-ai/react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useUpdateNodeData } from "../../../app-designer";
 import { GitHubIcon, SpinnerIcon } from "../../../icons";

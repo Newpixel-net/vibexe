@@ -1,4 +1,4 @@
-import type { LanguageModel } from "@giselles-ai/language-model";
+import type { LanguageModel } from "@vibexe-ai/language-model";
 import { useEffect, useState } from "react";
 
 export function useHoverState() {

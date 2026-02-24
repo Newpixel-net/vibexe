@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@giselle-internal/ui/button";
+import { Button } from "@vibexe-internal/ui/button";
 import {
 	type App,
 	type AppEntryNode,
@@ -8,8 +8,8 @@ import {
 	createUploadingFileData,
 	type GenerationContextInput,
 	type UploadedFileData,
-} from "@giselles-ai/protocol";
-import { useFeatureFlag, useGiselle } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import { useFeatureFlag, useVibexe } from "@vibexe-ai/react";
 import { clsx } from "clsx/lite";
 import {
 	LoaderIcon,
@@ -40,7 +40,7 @@ export function AppEntryInputDialog({
 	onClose?: () => void;
 	node: AppEntryNode;
 }) {
-	const client = useGiselle();
+	const client = useVibexe();
 	const { sdkAvailability } = useFeatureFlag();
 	const { isLoading, data } = useSWR(
 		node.content.status === "configured"
@@ -421,10 +421,10 @@ export function AppEntryInputDialog({
 
 function generateApiSampleCode(app: App): string {
 	return `\`\`\`typescript
-import Giselle from "@giselles-ai/sdk";
+import Vibexe from "@vibexe-ai/sdk";
 
-const client = new Giselle({
-  apiKey: process.env.GISELLE_API_KEY,
+const client = new Vibexe({
+  apiKey: process.env.VIBEXE_API_KEY,
 });
 
 const { taskId } = await client.apps.run({

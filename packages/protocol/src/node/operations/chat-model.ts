@@ -3,7 +3,7 @@ import {
 	isLanguageModelProvider,
 	type LanguageModelId,
 	type LanguageModelProvider,
-} from "@giselles-ai/language-model-registry";
+} from "@vibexe-ai/language-model-registry";
 import * as z from "zod/v4";
 
 export const ChatModelContent = z.object({

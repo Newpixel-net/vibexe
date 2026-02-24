@@ -1,4 +1,4 @@
-import { getPieceCategoryColor } from "@giselles-ai/activepieces-adapter";
+import { getPieceCategoryColor } from "@vibexe-ai/activepieces-adapter";
 import {
 	type CompletedGeneration,
 	type FailedGeneration,
@@ -7,8 +7,8 @@ import {
 	type OperationNode,
 	isCompletedGeneration,
 	isFailedGeneration,
-} from "@giselles-ai/protocol";
-import { useNodeGenerations } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import { useNodeGenerations } from "@vibexe-ai/react";
 import {
 	CheckCircle,
 	ChevronRightIcon,

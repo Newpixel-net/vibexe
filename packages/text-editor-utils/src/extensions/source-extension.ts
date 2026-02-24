@@ -1,4 +1,4 @@
-import type { NodeReference, OutputId } from "@giselles-ai/protocol";
+import type { NodeReference, OutputId } from "@vibexe-ai/protocol";
 import type { JSONContent } from "@tiptap/core";
 import { Node } from "@tiptap/core";
 

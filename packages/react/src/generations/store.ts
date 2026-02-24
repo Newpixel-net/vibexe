@@ -2,7 +2,7 @@ import {
 	type Generation,
 	type GenerationId,
 	isRunningGeneration,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import type { UIMessage } from "ai";
 import { create } from "zustand";
 

@@ -15,8 +15,8 @@ import type {
 	TriggerNode,
 	VariableNode,
 	WebPageNode,
-} from "@giselles-ai/protocol";
-import type { UIConnection } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import type { UIConnection } from "@vibexe-ai/react";
 import { useMemo } from "react";
 import { useAppDesignerStore } from "../../../../app-designer";
 

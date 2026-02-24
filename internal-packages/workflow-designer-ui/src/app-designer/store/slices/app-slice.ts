@@ -5,7 +5,7 @@ import {
 	isTriggerNode,
 	type NodeId,
 	type NodeLike,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import type { StateCreator } from "zustand";
 import type { AppDesignerStoreState } from "../app-designer-store";
 

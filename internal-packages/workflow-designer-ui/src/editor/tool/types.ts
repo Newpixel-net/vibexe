@@ -1,4 +1,4 @@
-import type { Node } from "@giselles-ai/protocol";
+import type { Node } from "@vibexe-ai/protocol";
 
 interface ToolBase {
 	category: string;

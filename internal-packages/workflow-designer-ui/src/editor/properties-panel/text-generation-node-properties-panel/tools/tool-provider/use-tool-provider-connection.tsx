@@ -2,14 +2,14 @@ import {
 	SecretId,
 	type TextGenerationNode,
 	type ToolSet,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import { useCallback, useMemo, useState, useTransition } from "react";
 import z from "zod/v4";
 import {
 	useAppDesignerStore,
 	useUpdateNodeDataContent,
 } from "../../../../../app-designer";
-import { useGiselle } from "../../../../../app-designer/store/giselle-client-provider";
+import { useVibexe } from "../../../../../app-designer/store/vibexe-client-provider";
 import { useWorkspaceSecrets } from "../../../../lib/use-workspace-secrets";
 
 export const ToolProviderSecretTypeValue = z.enum(["create", "select"]);
@@ -45,7 +45,7 @@ export function useToolProviderConnection<T extends keyof ToolSet>(config: {
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
 	const updateNodeDataContent = useUpdateNodeDataContent();
 	const { isLoading, data, mutate } = useWorkspaceSecrets(secretTags);
-	const client = useGiselle();
+	const client = useVibexe();
 	const [isPending, startTransition] = useTransition();
 
 	const isConfigured = useMemo(

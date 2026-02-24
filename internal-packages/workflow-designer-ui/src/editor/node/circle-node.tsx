@@ -1,9 +1,9 @@
-import { defaultName } from "@giselles-ai/node-registry";
+import { defaultName } from "@vibexe-ai/node-registry";
 import type {
 	NodeId,
 	NodeLike,
 	OutputId,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import type { NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import clsx from "clsx/lite";

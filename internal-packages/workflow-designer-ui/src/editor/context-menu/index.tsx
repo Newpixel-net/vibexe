@@ -1,7 +1,7 @@
-import { PopoverContent } from "@giselle-internal/ui/popover";
-import { useToasts } from "@giselle-internal/ui/toast";
-import type { NodeId, OperationNode } from "@giselles-ai/protocol";
-import { isOperationNode } from "@giselles-ai/protocol";
+import { PopoverContent } from "@vibexe-internal/ui/popover";
+import { useToasts } from "@vibexe-internal/ui/toast";
+import type { NodeId, OperationNode } from "@vibexe-ai/protocol";
+import { isOperationNode } from "@vibexe-ai/protocol";
 import clsx from "clsx/lite";
 import {
 	CheckSquareIcon,

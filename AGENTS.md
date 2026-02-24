@@ -1,4 +1,4 @@
-# AGENTS.md - Giselle Development Guide
+# AGENTS.md - Vibexe Development Guide
 
 ## Development Philosophy
 
@@ -17,7 +17,7 @@ Keep every implementation as small and obvious as possible.
 
 ## Project Overview
 
-Giselle is built to design and run AI workflows beyond prompt chains. Not a chat. Not a chain. A system you can run.
+Vibexe is built to design and run AI workflows beyond prompt chains. Not a chat. Not a chain. A system you can run.
 
 ### Key Features:
 
@@ -30,23 +30,23 @@ Giselle is built to design and run AI workflows beyond prompt chains. Not a chat
 
 ### Monorepo Structure
 
-Giselle uses a **Turborepo monorepo** with pnpm workspaces, organized into four main directories:
+Vibexe uses a **Turborepo monorepo** with pnpm workspaces, organized into four main directories:
 
 ```
 /workspace
 ├── apps/                    # Deployable applications
-│   ├── studio.giselles.ai/  # Giselle Cloud (production)
-│   └── ui.giselles.ai/      # UI component showcase
-├── packages/                # Published SDK packages (@giselles-ai/*)
-├── internal-packages/       # Internal shared packages (@giselle-internal/*)
+│   ├── studio.vibexe.ai/  # Vibexe Cloud (production)
+│   └── ui.vibexe.ai/      # UI component showcase
+├── packages/                # Published SDK packages (@vibexe-ai/*)
+├── internal-packages/       # Internal shared packages (@vibexe-internal/*)
 └── tools/                   # Development utilities
 ```
 
 ### Package Layers
 
-**SDK Packages (`packages/@giselles-ai/*`):**
+**SDK Packages (`packages/@vibexe-ai/*`):**
 - `protocol` — Core domain types and schemas (Workspace, Node, Task, Generation)
-- `giselle` — Engine implementation (tasks, generations, triggers, integrations)
+- `vibexe` — Engine implementation (tasks, generations, triggers, integrations)
 - `react` — React hooks and components for client integration
 - `nextjs` — Next.js integration with route handlers
 - `language-model` — Language model abstractions and cost calculations
@@ -54,7 +54,7 @@ Giselle uses a **Turborepo monorepo** with pnpm workspaces, organized into four 
 - `rag` — RAG pipeline (chunking, embedding, querying)
 - `github-tool` — GitHub integration utilities
 
-**Internal Packages (`internal-packages/@giselle-internal/*`):**
+**Internal Packages (`internal-packages/@vibexe-internal/*`):**
 - `workflow-designer-ui` — Visual workflow editor (React Flow-based)
 - `ui` — Shared UI components (Radix-based)
 
@@ -79,7 +79,7 @@ Giselle uses a **Turborepo monorepo** with pnpm workspaces, organized into four 
 ### Data Flow
 
 ```
-Workspace (JSON) → Protocol Types → Giselle Engine → Task Execution → Generation Output
+Workspace (JSON) → Protocol Types → Vibexe Engine → Task Execution → Generation Output
                                           ↓
                           Language Model Registry → AI Provider APIs
 ```
@@ -106,11 +106,11 @@ pnpm build-sdk      # Build SDK packages (required before running apps)
 
 ```sh
 # Development
-pnpm dev:studio.giselles.ai  # Start Giselle Cloud
+pnpm dev:studio.vibexe.ai  # Start Vibexe Cloud
 
 # Build
 pnpm build-sdk               # Build SDK packages
-pnpm -F studio.giselles.ai build  # Build Giselle Cloud
+pnpm -F studio.vibexe.ai build  # Build Vibexe Cloud
 
 # Quality Checks
 pnpm format                  # Format code with Biome
@@ -130,16 +130,16 @@ Run these commands in order:
 5. `pnpm test` — Run tests
 6. Update `.continuity/` per-branch ledger — Reflect the change immediately
 
-### API addition rule (Giselle ↔ HTTP)
+### API addition rule (Vibexe ↔ HTTP)
 
-When adding a new **public API** to `packages/giselle/src/giselle.ts`, also add the corresponding routing entry to `packages/http/src/router.ts` (typically `jsonRoutes.<name>` using `giselle.<name>.inputSchema`) so the API is reachable through the HTTP layer (e.g., via `NextGiselle`).
+When adding a new **public API** to `packages/vibexe/src/vibexe.ts`, also add the corresponding routing entry to `packages/http/src/router.ts` (typically `jsonRoutes.<name>` using `vibexe.<name>.inputSchema`) so the API is reachable through the HTTP layer (e.g., via `NextVibexe`).
 
 ### Testing
 
 ```sh
 pnpm test                           # Run all tests
-pnpm -F @giselles-ai/giselle test   # Run tests for a specific package
-cd packages/giselle && vitest       # Run tests in watch mode
+pnpm -F @vibexe-ai/vibexe test   # Run tests for a specific package
+cd packages/vibexe && vitest       # Run tests in watch mode
 vitest run src/tasks/run-task.test.ts  # Run a specific test file
 ```
 
@@ -248,7 +248,7 @@ TBD
 For cross-package error identification, use Symbol-based instance checking:
 
 ```typescript
-const marker = "giselle.react.error.APICallError";
+const marker = "vibexe.react.error.APICallError";
 const symbol = Symbol.for(marker);
 
 export class APICallError extends ReactError {
@@ -265,7 +265,7 @@ export class APICallError extends ReactError {
 Handle Zod validation errors at API boundaries:
 ```typescript
 try {
-  return await jsonRoutes[routerPath](giselle)({ input });
+  return await jsonRoutes[routerPath](vibexe)({ input });
 } catch (e) {
   if (e instanceof ZodError) {
     return new Response("Invalid request body", { status: 400 });
@@ -309,7 +309,7 @@ if (!config.vectorStoreQueryService) {
 
 Feature flags protect unreleased features, allowing safe merges to main and production deploys.
 
-**Step 1: Define the flag in `apps/studio.giselles.ai/flags.ts`**
+**Step 1: Define the flag in `apps/studio.vibexe.ai/flags.ts`**
 
 ```typescript
 export const myNewFeatureFlag = flag<boolean>({
@@ -336,7 +336,7 @@ export const myNewFeatureFlag = flag<boolean>({
 **Step 2: Use on server (Next.js server components, data loaders)**
 
 ```typescript
-// apps/studio.giselles.ai/app/workspaces/[workspaceId]/data-loader.ts
+// apps/studio.vibexe.ai/app/workspaces/[workspaceId]/data-loader.ts
 const myNewFeature = await myNewFeatureFlag();
 return {
   // ...
@@ -374,7 +374,7 @@ Add to `WorkspaceProvider` defaults:
 **Step 4: Use in React components**
 
 ```typescript
-import { useFeatureFlag } from "@giselles-ai/react";
+import { useFeatureFlag } from "@vibexe-ai/react";
 
 function MyComponent() {
   const { myNewFeature } = useFeatureFlag();

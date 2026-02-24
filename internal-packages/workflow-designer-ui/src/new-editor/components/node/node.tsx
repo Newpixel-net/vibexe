@@ -1,10 +1,10 @@
-import { defaultName } from "@giselles-ai/node-registry";
+import { defaultName } from "@vibexe-ai/node-registry";
 import {
 	isImageGenerationNode,
 	isTextGenerationNode,
 	NodeId,
 	type NodeLike,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import { Handle, Position, type NodeProps as RFNodeProps } from "@xyflow/react";
 import clsx from "clsx/lite";
 import { useMemo } from "react";

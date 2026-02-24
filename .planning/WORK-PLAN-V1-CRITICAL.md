@@ -30,9 +30,9 @@ After codebase exploration, the foundation is significantly more complete than e
 | Protocol schemas (10 node types) | COMPLETE | All Zod schemas in `packages/protocol/src/node/operations/` |
 | Properties panels (10 nodes) | COMPLETE | `FlowControlPropertiesPanel` dispatcher with all 10 sub-panels |
 | Node factories | COMPLETE | All nodes can be created on canvas |
-| DAG executor | EXISTS | `packages/giselle/src/tasks/dag-executor.ts` with `DagNode`, `DagNodeResult` types |
-| Flow control handlers | ALL 10 EXIST | `packages/giselle/src/flow-control/execute-*.ts` |
-| Expression evaluator | EXISTS | `packages/giselle/src/expressions/evaluate.ts` |
+| DAG executor | EXISTS | `packages/vibexe/src/tasks/dag-executor.ts` with `DagNode`, `DagNodeResult` types |
+| Flow control handlers | ALL 10 EXIST | `packages/vibexe/src/flow-control/execute-*.ts` |
+| Expression evaluator | EXISTS | `packages/vibexe/src/expressions/evaluate.ts` |
 | ErrorConfig | EXISTS | In `operation-node.ts` with retry, maxRetries, retryDelay, onError |
 | StructuredDataOutput | EXISTS | In `packages/protocol/src/generation/output.ts` |
 | Task DAG fields | EXISTS | `useDagExecution`, `dagNodeGenerationMap` on Task protocol |
@@ -69,7 +69,7 @@ UI "Run" button
 ### Implementation Steps
 
 #### Step 1.1: Wire DAG detection in create-task.ts
-**File**: `packages/giselle/src/tasks/create-task.ts`
+**File**: `packages/vibexe/src/tasks/create-task.ts`
 - Find where `buildLevels()` is called
 - Before building levels, scan nodes for flow control types: `if`, `switch`, `merge`, `loop`, `code`, `filter`, `editFields`, `sort`, `wait`, `errorTrigger`
 - If any found: set `task.useDagExecution = true`
@@ -77,7 +77,7 @@ UI "Run" button
 - Still call `buildLevels()` for backward compatibility, but mark the task for DAG execution
 
 #### Step 1.2: Add executeDag() to run-task.ts
-**File**: `packages/giselle/src/tasks/run-task.ts`
+**File**: `packages/vibexe/src/tasks/run-task.ts`
 - This file already imports all 10 `execute*` handlers
 - Add a branch: if `task.useDagExecution === true` → call `executeDag()`
 - `executeDag()` builds the DAG from task sequences/connections
@@ -87,7 +87,7 @@ UI "Run" button
   - Propagate outputs to downstream nodes via `DagNodeResult.outputs` Map
 
 #### Step 1.3: Connect DAG executor to generation system
-**File**: `packages/giselle/src/tasks/dag-executor.ts`
+**File**: `packages/vibexe/src/tasks/dag-executor.ts`
 - The DAG executor needs to:
   1. Resolve inputs for each node by collecting upstream `DagNodeResult.outputs`
   2. For generation nodes: create `GenerationContext` with resolved inputs, call existing `executeQuery`/`generateContent`/`executeIntegration`
@@ -96,14 +96,14 @@ UI "Run" button
   5. Fire ready nodes (event-driven, not level-based)
 
 #### Step 1.4: Handle branch skipping
-**File**: `packages/giselle/src/tasks/dag-executor.ts`
+**File**: `packages/vibexe/src/tasks/dag-executor.ts`
 - When If node evaluates to `true`: fire `true` branch, skip `false` branch
 - Skip means: mark node + all exclusive descendants as `skipped` state
 - "Exclusive descendants" = nodes reachable ONLY through the skipped branch, not through any active branch
 - Merge node with mode `chooseBranch`: waits for first active branch, ignores skipped branches
 
 #### Step 1.5: Structured data passthrough
-**File**: `packages/giselle/src/tasks/dag-executor.ts`
+**File**: `packages/vibexe/src/tasks/dag-executor.ts`
 - Flow control nodes output `StructuredDataOutput` (type: "structured-data")
 - The DAG executor stores outputs in a `Map<NodeId, Map<OutputPortName, unknown>>`
 - When a downstream node needs input, resolve `{{nodeId:outputId}}` from this map
@@ -113,10 +113,10 @@ UI "Run" button
 
 | File | Action | Lines Changed |
 |------|--------|---------------|
-| `packages/giselle/src/tasks/create-task.ts` | Modify | ~30 lines — DAG detection |
-| `packages/giselle/src/tasks/run-task.ts` | Modify | ~50 lines — executeDag branch |
-| `packages/giselle/src/tasks/dag-executor.ts` | Modify | ~200 lines — connect to generation system |
-| `packages/giselle/src/tasks/shared/task-execution-utils.ts` | Modify | ~20 lines — DAG state transitions |
+| `packages/vibexe/src/tasks/create-task.ts` | Modify | ~30 lines — DAG detection |
+| `packages/vibexe/src/tasks/run-task.ts` | Modify | ~50 lines — executeDag branch |
+| `packages/vibexe/src/tasks/dag-executor.ts` | Modify | ~200 lines — connect to generation system |
+| `packages/vibexe/src/tasks/shared/task-execution-utils.ts` | Modify | ~20 lines — DAG state transitions |
 
 ### Verification
 - Create workflow: TextGen → If (check for "positive") → true: Slack "thanks" / false: Slack "escalate"
@@ -131,7 +131,7 @@ UI "Run" button
 Code, Filter, EditFields, Sort nodes have schemas and UI panels but no execution wiring. They need to process structured data (arrays/objects) and output structured data.
 
 ### Current State
-- All 4 execution handlers exist in `packages/giselle/src/flow-control/`:
+- All 4 execution handlers exist in `packages/vibexe/src/flow-control/`:
   - `execute-code.ts` — runs JS in sandboxed context
   - `execute-filter.ts` — filters array items by conditions
   - `execute-edit-fields.ts` — set/remove/rename fields
@@ -142,13 +142,13 @@ Code, Filter, EditFields, Sort nodes have schemas and UI panels but no execution
 ### Implementation Steps
 
 #### Step 2.1: Wire data transform handlers into DAG executor
-**File**: `packages/giselle/src/tasks/dag-executor.ts`
+**File**: `packages/vibexe/src/tasks/dag-executor.ts`
 - In the node execution dispatcher, add cases for `code`, `filter`, `editFields`, `sort`
 - Each case: collect upstream outputs → call handler → store result in DAG output map
 - Data transform nodes always emit `StructuredDataOutput`
 
 #### Step 2.2: Code node sandboxing
-**File**: `packages/giselle/src/flow-control/execute-code.ts`
+**File**: `packages/vibexe/src/flow-control/execute-code.ts`
 - Verify the sandbox uses Node.js `vm` module (or `vm2` for better isolation)
 - Input: `items` variable (array from upstream), `data` object (merged upstream outputs)
 - Timeout: configurable per-node (default 10s from schema)
@@ -156,14 +156,14 @@ Code, Filter, EditFields, Sort nodes have schemas and UI panels but no execution
 - Return value becomes `StructuredDataOutput.data`
 
 #### Step 2.3: Filter node condition evaluation
-**File**: `packages/giselle/src/flow-control/execute-filter.ts`
+**File**: `packages/vibexe/src/flow-control/execute-filter.ts`
 - Uses `evaluateConditionGroup()` from `expressions/evaluate.ts` (same as If/Switch)
 - Input: array of items
 - For each item: evaluate condition group against item fields
 - Output: `{ kept: [...], discarded: [...] }` or just kept items based on output port
 
 #### Step 2.4: EditFields node field operations
-**File**: `packages/giselle/src/flow-control/execute-edit-fields.ts`
+**File**: `packages/vibexe/src/flow-control/execute-edit-fields.ts`
 - Input: object or array of objects
 - For each operation in `operations` array:
   - `set`: add/update field with value (support expression evaluation in value)
@@ -173,7 +173,7 @@ Code, Filter, EditFields, Sort nodes have schemas and UI panels but no execution
 - Output: modified data as `StructuredDataOutput`
 
 #### Step 2.5: Sort node multi-key sorting
-**File**: `packages/giselle/src/flow-control/execute-sort.ts`
+**File**: `packages/vibexe/src/flow-control/execute-sort.ts`
 - Input: array
 - Sort by `sortKeys` in order (primary, secondary, etc.)
 - Each key: `{ field, direction: "asc"|"desc" }`
@@ -184,11 +184,11 @@ Code, Filter, EditFields, Sort nodes have schemas and UI panels but no execution
 
 | File | Action | Lines Changed |
 |------|--------|---------------|
-| `packages/giselle/src/tasks/dag-executor.ts` | Modify | ~40 lines — data transform dispatch |
-| `packages/giselle/src/flow-control/execute-code.ts` | Verify/Fix | ~20 lines — sandbox + input resolution |
-| `packages/giselle/src/flow-control/execute-filter.ts` | Verify/Fix | ~10 lines — condition evaluation |
-| `packages/giselle/src/flow-control/execute-edit-fields.ts` | Verify/Fix | ~10 lines — field operations |
-| `packages/giselle/src/flow-control/execute-sort.ts` | Verify/Fix | ~10 lines — multi-key sort |
+| `packages/vibexe/src/tasks/dag-executor.ts` | Modify | ~40 lines — data transform dispatch |
+| `packages/vibexe/src/flow-control/execute-code.ts` | Verify/Fix | ~20 lines — sandbox + input resolution |
+| `packages/vibexe/src/flow-control/execute-filter.ts` | Verify/Fix | ~10 lines — condition evaluation |
+| `packages/vibexe/src/flow-control/execute-edit-fields.ts` | Verify/Fix | ~10 lines — field operations |
+| `packages/vibexe/src/flow-control/execute-sort.ts` | Verify/Fix | ~10 lines — multi-key sort |
 
 ### Verification
 - HTTP Integration → Filter (status=200) → EditFields (extract name) → Sort (by date) → Slack
@@ -207,7 +207,7 @@ Currently only `{{nodeId:outputId}}` references work, and only in TipTap prompt 
 - See expression previews
 
 ### Current State
-- `packages/giselle/src/expressions/evaluate.ts` exists with `evaluateConditionGroup()` used by If/Switch
+- `packages/vibexe/src/expressions/evaluate.ts` exists with `evaluateConditionGroup()` used by If/Switch
 - `{{nodeId:outputId}}` pattern resolution exists in `resolveQuery()`, `buildGenerationMessageForContentGeneration()`, and other resolvers
 - NO field-level access (`{{nodeId:outputId.field}}`)
 - NO system variables
@@ -216,7 +216,7 @@ Currently only `{{nodeId:outputId}}` references work, and only in TipTap prompt 
 ### Implementation Steps
 
 #### Step 3.1: Extend expression evaluator for field access
-**File**: `packages/giselle/src/expressions/evaluate.ts`
+**File**: `packages/vibexe/src/expressions/evaluate.ts`
 
 Add new expression syntax:
 ```
@@ -237,7 +237,7 @@ Implementation:
 - Safe navigation only — return `undefined` for missing paths, NO eval()
 
 #### Step 3.2: Wire expression resolution into DAG executor
-**File**: `packages/giselle/src/tasks/dag-executor.ts`
+**File**: `packages/vibexe/src/tasks/dag-executor.ts`
 
 When preparing inputs for a node:
 1. Collect all upstream outputs in a resolution context
@@ -247,8 +247,8 @@ When preparing inputs for a node:
 
 #### Step 3.3: Wire expression resolution into existing generation resolvers
 **Files**:
-- `packages/giselle/src/generations/utils.ts` — `buildGenerationMessageForContentGeneration()`
-- `packages/giselle/src/operations/execute-query.ts` — `resolveQuery()`
+- `packages/vibexe/src/generations/utils.ts` — `buildGenerationMessageForContentGeneration()`
+- `packages/vibexe/src/operations/execute-query.ts` — `resolveQuery()`
 - Other resolvers that handle `{{nodeId:outputId}}` pattern
 
 Extend the existing `{{nodeId:outputId}}` pattern matching:
@@ -303,10 +303,10 @@ When typing `{{` in expression mode:
 
 | File | Action | Lines Changed |
 |------|--------|---------------|
-| `packages/giselle/src/expressions/evaluate.ts` | Modify | ~80 lines — field access, system vars |
-| `packages/giselle/src/tasks/dag-executor.ts` | Modify | ~30 lines — expression resolution in DAG |
-| `packages/giselle/src/generations/utils.ts` | Modify | ~20 lines — field access in generation resolver |
-| `packages/giselle/src/operations/execute-query.ts` | Modify | ~15 lines — field access in query resolver |
+| `packages/vibexe/src/expressions/evaluate.ts` | Modify | ~80 lines — field access, system vars |
+| `packages/vibexe/src/tasks/dag-executor.ts` | Modify | ~30 lines — expression resolution in DAG |
+| `packages/vibexe/src/generations/utils.ts` | Modify | ~20 lines — field access in generation resolver |
+| `packages/vibexe/src/operations/execute-query.ts` | Modify | ~15 lines — field access in query resolver |
 | `expression-input.tsx` | **New** | ~150 lines |
 | `expression-autocomplete.tsx` | **New** | ~120 lines |
 | Flow control panel files (6 files) | Modify | ~20 lines each — replace inputs with ExpressionInput |
@@ -408,7 +408,7 @@ When user changes ErrorConfig in Settings tab:
 - This gets persisted and included in the generation context when the workflow runs
 
 #### Step 4.5: Implement retry logic in DAG executor
-**File**: `packages/giselle/src/tasks/dag-executor.ts`
+**File**: `packages/vibexe/src/tasks/dag-executor.ts`
 
 When a node fails:
 1. Check `errorConfig.retryOnFail`
@@ -419,7 +419,7 @@ When a node fails:
    - `"routeToError"`: Find connected ErrorTrigger node, fire it with error context
 
 #### Step 4.6: Connect ErrorTrigger node
-**File**: `packages/giselle/src/flow-control/execute-error-trigger.ts`
+**File**: `packages/vibexe/src/flow-control/execute-error-trigger.ts`
 
 Already implemented — receives `errorMessage`, `failedNodeId`, `failedNodeName`, `timestamp` from input data and outputs them. The DAG executor needs to route to this node when `onError === "routeToError"`.
 
@@ -429,7 +429,7 @@ Already implemented — receives `errorMessage`, `failedNodeId`, `failedNodeName
 |------|--------|---------------|
 | `node-settings-tab.tsx` | **New** | ~200 lines |
 | `properties-panel.tsx` | Modify | ~40 lines — tab switcher |
-| `packages/giselle/src/tasks/dag-executor.ts` | Modify | ~60 lines — retry + error routing |
+| `packages/vibexe/src/tasks/dag-executor.ts` | Modify | ~60 lines — retry + error routing |
 | ~15 properties panel files | Modify | ~10 lines each — integrate Settings tab |
 
 ### Verification

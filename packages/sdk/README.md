@@ -1,11 +1,11 @@
-# @giselles-ai/sdk
+# @vibexe-ai/sdk
 
-TypeScript SDK for running a Giselle App via the Studio public Runs API.
+TypeScript SDK for running a Vibexe App via the Studio public Runs API.
 
 ## Install
 
 ```sh
-npm i @giselles-ai/sdk
+npm i @vibexe-ai/sdk
 ```
 
 ## Environment
@@ -15,11 +15,11 @@ This SDK is intended for **server-side usage** (Node.js / server runtimes). Do n
 ## Usage
 
 ```ts
-import Giselle from "@giselles-ai/sdk";
+import Vibexe from "@vibexe-ai/sdk";
 
-const client = new Giselle({
+const client = new Vibexe({
   // Secret key token (format: "<apiKeyId>.<secret>")
-  apiKey: process.env.GISELLE_API_KEY,
+  apiKey: process.env.VIBEXE_API_KEY,
 });
 
 async function main() {
@@ -45,10 +45,10 @@ Assuming `receipt.pdf` exists in the current directory:
 ```ts
 import { File } from "node:buffer";
 import { readFile } from "node:fs/promises";
-import Giselle from "@giselles-ai/sdk";
+import Vibexe from "@vibexe-ai/sdk";
 
-const client = new Giselle({
-	apiKey: process.env.GISELLE_API_KEY,
+const client = new Vibexe({
+	apiKey: process.env.VIBEXE_API_KEY,
 });
 
 async function main() {
@@ -73,10 +73,10 @@ main()
 
 ## API
 
-### `new Giselle(options?)`
+### `new Vibexe(options?)`
 
 - `baseUrl?: string`
-  - Optional. Defaults to `https://studio.giselles.ai`.
+  - Optional. Defaults to `https://studio.vibexe.ai`.
 - `apiKey?: string`
   - Required. Sent as `Authorization: Bearer <token>`.
 - `fetch?: typeof fetch`

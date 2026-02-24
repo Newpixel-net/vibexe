@@ -1,7 +1,7 @@
-import { Button } from "@giselle-internal/ui/button";
-import { useToasts } from "@giselle-internal/ui/toast";
-import type { App, AppEntryNode } from "@giselles-ai/protocol";
-import { useGiselle } from "@giselles-ai/react";
+import { Button } from "@vibexe-internal/ui/button";
+import { useToasts } from "@vibexe-internal/ui/toast";
+import type { App, AppEntryNode } from "@vibexe-ai/protocol";
+import { useVibexe } from "@vibexe-ai/react";
 import { LoaderIcon } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import type { KeyedMutator } from "swr";
@@ -14,7 +14,7 @@ export function AppEntryConfiguredView({
 	app: App;
 	mutateApp: KeyedMutator<{ app: App }>;
 }) {
-	const client = useGiselle();
+	const client = useVibexe();
 
 	const [appDescription, setAppDescription] = useState(app.description);
 	const [isSavingDescription, setIsSavingDescription] = useState(false);

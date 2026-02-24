@@ -8,7 +8,7 @@ import {
 	isEndNode,
 	type NodeId,
 	type NodeLike,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import {
 	createContext,
 	useCallback,
@@ -17,7 +17,7 @@ import {
 	useRef,
 } from "react";
 import { useAppDesignerStoreApi } from "./app-designer-provider";
-import { useGiselle } from "./giselle-client-provider";
+import { useVibexe } from "./vibexe-client-provider";
 
 type LastSavedAppConnectionState = {
 	appId: AppId;
@@ -83,7 +83,7 @@ const AppConnectionStateSyncContext = createContext<(() => void) | null>(null);
 export function AppConnectionStateSyncProvider({
 	children,
 }: React.PropsWithChildren) {
-	const client = useGiselle();
+	const client = useVibexe();
 	const store = useAppDesignerStoreApi();
 
 	const lastSavedRef = useRef<LastSavedAppConnectionState | null>(null);

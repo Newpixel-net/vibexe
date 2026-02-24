@@ -573,7 +573,7 @@ type GitHubToolName = (typeof githubToolNames)[number];
 export const githubApi = defineLanguageModelTool({
 	name: "github-api",
 	title: "GitHub",
-	provider: "giselle",
+	provider: "vibexe",
 	tools: githubTools,
 	configurationOptions: {
 		secretId: {

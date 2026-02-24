@@ -6,7 +6,7 @@ As an open source product, we will only provide security patches for the latest 
 
 ## Bug Bounty Program
 
-Giselle does not currently operate a bug bounty program. We do not offer monetary rewards for vulnerability reports.
+Vibexe does not currently operate a bug bounty program. We do not offer monetary rewards for vulnerability reports.
 
 We appreciate responsible disclosure and will acknowledge contributors in our release notes (with permission), but submitting a report does not guarantee or imply any monetary compensation.
 
@@ -16,7 +16,7 @@ We appreciate responsible disclosure and will acknowledge contributors in our re
 
 If you discover a security vulnerability, please report it to us in the following manner:
 
-1. **Email us** at oss@giselles.ai. Please do not create a public GitHub issue.
+1. **Email us** at oss@vibexe.ai. Please do not create a public GitHub issue.
 2. Include as much detail as possible, including steps to reproduce the vulnerability, potential impact, and any other relevant information.
 3. We will acknowledge your email within 3 business days and work with you to understand the issue and address it promptly.
 
@@ -24,7 +24,7 @@ If you discover a security vulnerability, please report it to us in the followin
 
 Out team and community take security bugs in seriously. We appreciate your efforts to responsibly disclose your findings, and will make every effort to acknowledge your contributions.
 
-To report a security issue, please use the GitHub Security Advisory ["Report a Vulnerability"](https://github.com/giselles-ai/giselle/security/advisories/new) tab. **Do not open up a GitHub issue.**
+To report a security issue, please use the GitHub Security Advisory ["Report a Vulnerability"](https://github.com/Newpixel-net/vibexe/security/advisories/new) tab. **Do not open up a GitHub issue.**
 
 Our team will send a response indicating the next steps in handling your report. After the initial reply to your report, the security team will keep you informed of the progress towards a fix and full announcement, and may ask for additional information or guidance.
 
@@ -69,6 +69,6 @@ We kindly ask reporters to:
 
 ## Contact
 
-For any other security-related inquiries, please contact us at oss@giselles.ai.
+For any other security-related inquiries, please contact us at oss@vibexe.ai.
 
 Thank you for helping us keep our project secure!

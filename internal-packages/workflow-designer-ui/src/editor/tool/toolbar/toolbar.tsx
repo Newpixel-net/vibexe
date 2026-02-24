@@ -1,13 +1,13 @@
 "use client";
 
-import { GlassSurfaceLayers } from "@giselle-internal/ui/glass-surface";
+import { GlassSurfaceLayers } from "@vibexe-internal/ui/glass-surface";
 import {
 	Capability,
 	hasCapability,
 	type LanguageModel,
 	languageModels,
 	Tier,
-} from "@giselles-ai/language-model";
+} from "@vibexe-ai/language-model";
 import {
 	createAppEntryNode,
 	createCodeNode,
@@ -32,9 +32,9 @@ import {
 	createTriggerNode,
 	createWaitNode,
 	createWebPageNode,
-} from "@giselles-ai/node-registry";
-import { FileCategory } from "@giselles-ai/protocol";
-import { useFeatureFlag, useUsageLimits } from "@giselles-ai/react";
+} from "@vibexe-ai/node-registry";
+import { FileCategory } from "@vibexe-ai/protocol";
+import { useFeatureFlag, useUsageLimits } from "@vibexe-ai/react";
 import clsx from "clsx/lite";
 import {
 	CableIcon,

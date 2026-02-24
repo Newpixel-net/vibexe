@@ -1,7 +1,7 @@
 "use client";
 
-import { Toggle } from "@giselle-internal/ui/toggle";
-import type { NodeId } from "@giselles-ai/protocol";
+import { Toggle } from "@vibexe-internal/ui/toggle";
+import type { NodeId } from "@vibexe-ai/protocol";
 import { ChevronRightIcon, InfoIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FieldWrapper } from "../ui/field-wrapper";

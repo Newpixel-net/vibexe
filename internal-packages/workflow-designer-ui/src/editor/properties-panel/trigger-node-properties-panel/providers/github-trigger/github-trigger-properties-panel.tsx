@@ -1,16 +1,16 @@
-import type { GitHubIntegrationInstallation } from "@giselles-ai/giselle";
+import type { GitHubIntegrationInstallation } from "@vibexe-ai/vibexe";
 import {
 	type Output,
 	OutputId,
 	type TriggerId,
 	type TriggerNode,
-} from "@giselles-ai/protocol";
-import { useIntegration } from "@giselles-ai/react";
+} from "@vibexe-ai/protocol";
+import { useIntegration } from "@vibexe-ai/react";
 import {
 	type GitHubEventId,
 	githubEvents,
 	githubEventToInputFields,
-} from "@giselles-ai/trigger-registry";
+} from "@vibexe-ai/trigger-registry";
 import clsx from "clsx/lite";
 import { ChevronLeft, InfoIcon } from "lucide-react";
 import type { ReactNode } from "react";
@@ -28,7 +28,7 @@ import {
 	useAppDesignerStore,
 	useUpdateNodeData,
 } from "../../../../../app-designer";
-import { useGiselle } from "../../../../../app-designer/store/giselle-client-provider";
+import { useVibexe } from "../../../../../app-designer/store/vibexe-client-provider";
 import { Tooltip } from "../../../../../ui/tooltip";
 import { isPromptEmpty as isEmpty } from "../../../../lib/validate-prompt";
 import { GitHubInvalidCredential, SelectRepository } from "../../../ui";
@@ -334,7 +334,7 @@ export function Installed({
 		useTriggerConfiguration({
 			node,
 		});
-	const client = useGiselle();
+	const client = useVibexe();
 	const [isPending, startTransition] = useTransition();
 	const [eventId, setEventId] = useState<GitHubEventId>(
 		reconfigStep?.eventId ?? "github.issue.created",

@@ -6,8 +6,8 @@ import {
 	isEndNode,
 	isTriggerNode,
 	type NodeId,
-} from "@giselles-ai/protocol";
-import { createAppEntryNode, createChatModelNode, createToolNodeNode, createMemoryNodeNode } from "@giselles-ai/node-registry";
+} from "@vibexe-ai/protocol";
+import { createAppEntryNode, createChatModelNode, createToolNodeNode, createMemoryNodeNode } from "@vibexe-ai/node-registry";
 import {
 	type Connection,
 	type Edge,
@@ -26,8 +26,8 @@ import {
 	Panel as XYFlowPanel,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useToasts } from "@giselle-internal/ui/toast";
-import { isSupportedConnection } from "@giselles-ai/react";
+import { useToasts } from "@vibexe-internal/ui/toast";
+import { isSupportedConnection } from "@vibexe-ai/react";
 import clsx from "clsx/lite";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -556,7 +556,7 @@ function V2NodeCanvas() {
 				id: connection.id,
 				source: connection.outputNode.id,
 				target: connection.inputNode.id,
-				type: "giselleConnector",
+				type: "vibexeConnector",
 				selected,
 				data: { connection },
 				sourceHandle,
@@ -863,7 +863,7 @@ function V2NodeCanvas() {
 	return (
 		<ReactFlow
 			ref={reactFlowRef}
-			className="giselle-workflow-editor-v3"
+			className="vibexe-workflow-editor-v3"
 			colorMode="dark"
 			nodes={reactFlowNodes}
 			edges={edges}

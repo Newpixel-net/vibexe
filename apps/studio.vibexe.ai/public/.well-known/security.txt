@@ -1,0 +1,6 @@
+Contact: mailto:security@vibexe.ai
+Expires: 2027-01-15T23:59:59Z
+
+Preferred-Languages: en, ja
+Policy: https://github.com/Newpixel-net/vibexe/security/policy
+Canonical: https://studio.vibexe.ai/.well-known/security.txt

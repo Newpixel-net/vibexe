@@ -1,10 +1,10 @@
-import { useToasts } from "@giselle-internal/ui/toast";
-import type { DataQueryNode } from "@giselles-ai/protocol";
-import { useNodeGenerations } from "@giselles-ai/react";
+import { useToasts } from "@vibexe-internal/ui/toast";
+import type { DataQueryNode } from "@vibexe-ai/protocol";
+import { useNodeGenerations } from "@vibexe-ai/react";
 import {
 	isJsonContent,
 	jsonContentToText,
-} from "@giselles-ai/text-editor-utils";
+} from "@vibexe-ai/text-editor-utils";
 import { useCallback, useMemo } from "react";
 import {
 	useAppDesignerStore,
@@ -89,7 +89,7 @@ export function DataQueryNodePropertiesPanel({
 				onChangeName={(name) => {
 					updateNodeData(node, { name });
 				}}
-				docsUrl="https://docs.giselles.ai/en/glossary/data-query-node"
+				docsUrl="https://docs.vibexe.ai/en/glossary/data-query-node"
 				onDelete={() => deleteNode(node.id)}
 			/>
 			<PropertiesPanelContent>

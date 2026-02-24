@@ -1,4 +1,4 @@
-import { type ActionProvider, getEntry } from "@giselles-ai/action-registry";
+import { type ActionProvider, getEntry } from "@vibexe-ai/action-registry";
 import {
 	isActionNode,
 	isAiAgentNode,
@@ -17,11 +17,11 @@ import {
 	isVectorStoreNode,
 	type NodeLike,
 	type VectorStoreProvider,
-} from "@giselles-ai/protocol";
+} from "@vibexe-ai/protocol";
 import {
 	getEntry as getTriggerEntry,
 	type TriggerProvider,
-} from "@giselles-ai/trigger-registry";
+} from "@vibexe-ai/trigger-registry";
 
 export function triggerNodeDefaultName(triggerProvider: TriggerProvider) {
 	return getTriggerEntry(triggerProvider).label;

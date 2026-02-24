@@ -1,4 +1,4 @@
-import { useGiselle } from "@giselles-ai/react";
+import { useVibexe } from "@vibexe-ai/react";
 import useSWR from "swr";
 import { GitHubRepositoryBadge } from "./github-repository-badge";
 
@@ -15,7 +15,7 @@ export function GitHubRepositoryBadgeFromRepo({
 	installationId,
 	repositoryNodeId,
 }: GitHubRepositoryBadgeFromRepoProps) {
-	const client = useGiselle();
+	const client = useVibexe();
 	const { isLoading, data } = useSWR(
 		{
 			installationId,

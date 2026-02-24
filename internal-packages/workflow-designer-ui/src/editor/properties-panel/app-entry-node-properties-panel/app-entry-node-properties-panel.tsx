@@ -1,9 +1,9 @@
-import type { App, AppEntryNode } from "@giselles-ai/protocol";
+import type { App, AppEntryNode } from "@vibexe-ai/protocol";
 import clsx from "clsx/lite";
 import { useState } from "react";
 import useSWR from "swr";
 import { useDeleteNode, useUpdateNodeData } from "../../../app-designer";
-import { useGiselle } from "../../../app-designer/store/giselle-client-provider";
+import { useVibexe } from "../../../app-designer/store/vibexe-client-provider";
 import {
 	NodePanelHeader,
 	PropertiesPanelContent,
@@ -16,12 +16,12 @@ export function AppEntryNodePropertiesPanel({ node }: { node: AppEntryNode }) {
 	const deleteNode = useDeleteNode();
 	const [scrollMode] = useState<"limited" | "full">("full");
 
-	const giselle = useGiselle();
+	const vibexe = useVibexe();
 	const { data, isLoading, mutate } = useSWR(
 		node.content.status !== "configured"
 			? null
 			: { namespace: "getApp", appId: node.content.appId },
-		({ appId }: { appId: App["id"] }) => giselle.getApp({ appId }),
+		({ appId }: { appId: App["id"] }) => vibexe.getApp({ appId }),
 	);
 
 	return (
@@ -29,7 +29,7 @@ export function AppEntryNodePropertiesPanel({ node }: { node: AppEntryNode }) {
 			<NodePanelHeader
 				node={node}
 				onChangeName={(name) => updateNodeData(node, { name })}
-				docsUrl="https://docs.giselles.ai/en/glossary/start-end-nodes#start-node"
+				docsUrl="https://docs.vibexe.ai/en/glossary/start-end-nodes#start-node"
 				onDelete={() => deleteNode(node.id)}
 				readonly
 			/>

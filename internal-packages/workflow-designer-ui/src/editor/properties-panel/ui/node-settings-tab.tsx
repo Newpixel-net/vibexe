@@ -1,7 +1,7 @@
 "use client";
 
-import { Toggle } from "@giselle-internal/ui/toggle";
-import type { ErrorConfig, OperationNode } from "@giselles-ai/protocol";
+import { Toggle } from "@vibexe-internal/ui/toggle";
+import type { ErrorConfig, OperationNode } from "@vibexe-ai/protocol";
 import { useState } from "react";
 import { useUpdateNodeData } from "../../../app-designer";
 import { SearchableSelect } from "./searchable-select";

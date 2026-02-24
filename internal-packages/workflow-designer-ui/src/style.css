@@ -7,39 +7,39 @@
 	-webkit-mask-composite: destination-out;
 }
 
-.giselle-workflow-editor.react-flow {
+.vibexe-workflow-editor.react-flow {
 	background-color: transparent;
 }
 
-.giselle-workflow-editor-v3 .react-flow__pane {
+.vibexe-workflow-editor-v3 .react-flow__pane {
 	border: 0.5px solid rgba(235, 235, 235, 0.15);
 	box-shadow: inset 0 0 40px rgba(200, 200, 200, 0.15);
 }
 
-.giselle-workflow-editor .react-flow__pane {
+.vibexe-workflow-editor .react-flow__pane {
 	border: 0.5px solid rgba(235, 235, 235, 0.15);
 	border-radius: 16px;
 	box-shadow: inset 0 0 40px rgba(200, 200, 200, 0.15);
 }
 
-.giselle-workflow-editor .react-flow__pane.selection {
+.vibexe-workflow-editor .react-flow__pane.selection {
 	cursor: default;
 }
-.giselle-workflow-editor[data-floating-node="true"]
+.vibexe-workflow-editor[data-floating-node="true"]
 	.react-flow__pane.selection {
 	cursor: crosshair;
 }
-.giselle-workflow-editor .react-flow__node.selectable {
+.vibexe-workflow-editor .react-flow__node.selectable {
 	cursor: default;
 }
-.giselle-workflow-editor .react-flow__node.draggable.dragging {
+.vibexe-workflow-editor .react-flow__node.draggable.dragging {
 	cursor: default;
 }
-.giselle-workflow-editor .react-flow__edge.selectable {
+.vibexe-workflow-editor .react-flow__edge.selectable {
 	cursor: default;
 }
 
-/* for @giselles-ai/text-editor */
+/* for @vibexe-ai/text-editor */
 .tiptap p.is-editor-empty:first-child::before {
 	color: var(--color-text-muted);
 	content: attr(data-placeholder);

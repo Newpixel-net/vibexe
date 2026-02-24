@@ -4,5 +4,5 @@ import { Connector } from "./component";
 export * from "./component";
 
 export const edgeTypes: EdgeTypes = {
-	giselleConnector: Connector,
+	vibexeConnector: Connector,
 };

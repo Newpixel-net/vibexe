@@ -1,4 +1,4 @@
-import type { LanguageModelId } from "@giselles-ai/language-model-registry";
+import type { LanguageModelId } from "@vibexe-ai/language-model-registry";
 import { create } from "zustand";
 
 interface LanguageModelV2ToggleState {

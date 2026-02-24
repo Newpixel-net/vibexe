@@ -1,0 +1,63 @@
+{
+	"name": "@vibexe-ai/vibexe",
+	"version": "0.0.0",
+	"private": true,
+	"main": "./dist/index.js",
+	"module": "./dist/index.mjs",
+	"types": "./dist/index.d.ts",
+	"scripts": {
+		"build": "tsup",
+		"check-types": "tsc --noEmit",
+		"clean": "rm -rf .turbo dist next react node_modules",
+		"test": "vitest run",
+		"format": "biome check --write ."
+	},
+	"exports": {
+		"./package.json": "./package.json",
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.mjs",
+			"require": "./dist/index.js",
+			"default": "./dist/index.js"
+		}
+	},
+	"devDependencies": {
+		"@vibexe-ai/protocol": "workspace:*",
+		"@vibexe-ai/rag": "workspace:^",
+		"@vibexe-ai/tsconfig": "workspace:*",
+		"@types/pg": "catalog:",
+		"@zod/core": "0.11.6",
+		"tsup": "catalog:",
+		"vitest": "catalog:"
+	},
+	"dependencies": {
+		"@ai-sdk/anthropic": "catalog:",
+		"@ai-sdk/fal": "catalog:",
+		"@ai-sdk/gateway": "catalog:",
+		"@ai-sdk/google": "catalog:",
+		"@ai-sdk/openai": "catalog:",
+		"@ai-sdk/provider": "catalog:",
+		"@vibexe-ai/action-registry": "workspace:*",
+		"@vibexe-ai/activepieces-adapter": "workspace:*",
+		"@vibexe-ai/data-store-registry": "workspace:*",
+		"@vibexe-ai/github-tool": "workspace:^",
+		"@vibexe-ai/language-model": "workspace:^",
+		"@vibexe-ai/language-model-registry": "workspace:*",
+		"@vibexe-ai/logger": "workspace:*",
+		"@vibexe-ai/node-registry": "workspace:*",
+		"@vibexe-ai/storage": "workspace:*",
+		"@vibexe-ai/stream": "workspace:*",
+		"@vibexe-ai/text-editor-utils": "workspace:^",
+		"@vibexe-ai/trigger-registry": "workspace:*",
+		"@vibexe-ai/vault": "workspace:*",
+		"@vibexe-ai/web-search": "workspace:^",
+		"@vibexe-ai/workspace-utils": "workspace:*",
+		"@modelcontextprotocol/sdk": "^1.26.0",
+		"ai": "catalog:",
+		"openai": "catalog:",
+		"pg": "catalog:"
+	},
+	"peerDependencies": {
+		"zod": "catalog:"
+	}
+}

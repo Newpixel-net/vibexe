@@ -1,0 +1,43 @@
+Option B: "NPM Bridge" - Make Activepieces Packages Actually Work
+
+  Install real @activepieces/piece-* npm packages and build proper infrastructure.
+  ┌────────────────────────────────┬────────────────────────────────────────────┐
+  │              Pros              │                    Cons                    │
+  ├────────────────────────────────┼────────────────────────────────────────────┤
+  │ Unlocks 200+ integrations fast │ Massive bundle size (potentially 500MB+)   │
+  ├────────────────────────────────┼────────────────────────────────────────────┤
+  │ Battle-tested piece code       │ Many pieces will still break (bad context) │
+  ├────────────────────────────────┼────────────────────────────────────────────┤
+  │ Community-maintained           │ Need full OAuth2 flow server               │
+  └────────────────────────────────┴────────────────────────────────────────────┘
+  What's needed:
+  - Install ~50 key npm packages + @activepieces/pieces-common
+  - Build OAuth2 redirect handler (for Google, Slack, etc.)
+  - Implement real file storage adapter
+  - Build credential management UI
+  - Add token refresh logic
+
+  Timeline: ~3-4 weeks for infrastructure + 50 pieces
+  Result: 50-100 working integrations, varying quality
+
+  ---
+  Option C: "Universal HTTP + Templates" - The N8N Way
+
+  Build a powerful HTTP Request node with pre-configured API templates.
+  ┌───────────────────────────────────┬────────────────────────────────────┐
+  │               Pros                │                Cons                │
+  ├───────────────────────────────────┼────────────────────────────────────┤
+  │ Covers ANY API, infinite services │ Users need some API knowledge      │
+  ├───────────────────────────────────┼────────────────────────────────────┤
+  │ Tiny codebase, easy to maintain   │ Less polished than dedicated nodes │
+  ├───────────────────────────────────┼────────────────────────────────────┤
+  │ Templates are just JSON configs   │ No automatic triggers/webhooks     │
+  └───────────────────────────────────┴────────────────────────────────────┘
+  What it looks like:
+  - HTTP node with method, URL, headers, body, auth
+  - "Template Gallery" - pre-built configs: "Slack: Send Message", "Google Sheets: Append Row"
+  - Templates are JSON files anyone can contribute
+  - Auth types: API Key, Bearer Token, OAuth2, Basic
+
+  Timeline: ~1 week for HTTP node, then templates are quick to add
+  Result: Infinite coverage, good enough for 80% of use cases

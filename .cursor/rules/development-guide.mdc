@@ -3,14 +3,14 @@ description:
 globs: *.tsx,*.ts
 alwaysApply: false
 ---
-# Giselle Development Guide
+# Vibexe Development Guide
 
 ## Build, Test, and Lint Commands
 - Build all: `pnpm build`
 - Build specific packages: `pnpm build-sdk`, `pnpm build-data-type`
 - Type checking: `pnpm check-types`
 - Format code: `pnpm format`
-- Development: `pnpm dev` (playground), `pnpm dev:studio.giselles.ai` (studio)
+- Development: `pnpm dev` (playground), `pnpm dev:studio.vibexe.ai` (studio)
 - Run tests: `pnpm -F <package> test` or `cd <directory> && vitest`
 - Run specific test: `cd <directory> && vitest <file.test.ts>`
 - Lint: `cd <directory> && biome check --write .`

@@ -66,7 +66,7 @@ export function buildActionContext(args: ActionContextArgs) {
 				// Write binary data to a temp directory so piece actions can
 				// produce files (e.g. HTTP binary downloads) that flow through
 				// the node pipeline as file paths.
-				const dir = join(tmpdir(), "giselle-files");
+				const dir = join(tmpdir(), "vibexe-files");
 				await mkdir(dir, { recursive: true });
 				const filePath = join(dir, `${Date.now()}-${_args.fileName}`);
 				await writeFile(filePath, _args.data);
@@ -79,7 +79,7 @@ export function buildActionContext(args: ActionContextArgs) {
 			token: "",
 		},
 		run: {
-			id: `giselle-run-${Date.now()}`,
+			id: `vibexe-run-${Date.now()}`,
 			stop: () => {},
 			pause: () => {},
 		},

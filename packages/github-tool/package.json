@@ -1,5 +1,5 @@
 {
-	"name": "@giselles-ai/github-tool",
+	"name": "@vibexe-ai/github-tool",
 	"version": "0.0.0",
 	"private": true,
 	"main": "./dist/index.js",
@@ -23,14 +23,14 @@
 		}
 	},
 	"devDependencies": {
-		"@giselles-ai/tsconfig": "workspace:*",
+		"@vibexe-ai/tsconfig": "workspace:*",
 		"@octokit/openapi-types": "catalog:",
 		"@types/node": "catalog:",
 		"tsup": "catalog:",
 		"vitest": "catalog:"
 	},
 	"dependencies": {
-		"@giselles-ai/rag": "workspace:*",
+		"@vibexe-ai/rag": "workspace:*",
 		"@octokit/auth-app": "catalog:",
 		"@octokit/core": "catalog:",
 		"@octokit/request-error": "catalog:",

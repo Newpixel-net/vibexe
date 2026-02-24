@@ -1,9 +1,9 @@
 import useSWR from "swr";
 import { useAppDesignerStore } from "../../app-designer";
-import { useGiselle } from "../../app-designer/store/giselle-client-provider";
+import { useVibexe } from "../../app-designer/store/vibexe-client-provider";
 export function useWorkspaceSecrets(tags?: string[]) {
 	const workspaceId = useAppDesignerStore((s) => s.workspaceId);
-	const client = useGiselle();
+	const client = useVibexe();
 	return useSWR(
 		{
 			namespace: "get-workspace-secrets",

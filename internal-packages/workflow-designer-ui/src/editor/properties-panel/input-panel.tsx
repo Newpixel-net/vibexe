@@ -1,8 +1,8 @@
 "use client";
 
-import { defaultName } from "@giselles-ai/node-registry";
-import type { CompletedGeneration, NodeId } from "@giselles-ai/protocol";
-import { useNodeGenerations } from "@giselles-ai/react";
+import { defaultName } from "@vibexe-ai/node-registry";
+import type { CompletedGeneration, NodeId } from "@vibexe-ai/protocol";
+import { useNodeGenerations } from "@vibexe-ai/react";
 import {
 	ArrowRightIcon,
 	LinkIcon,
