@@ -20,8 +20,9 @@ import {
 	MoreHorizontal,
 	RotateCcw,
 	User,
+	Volume2,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeExternalLinks from "rehype-external-links";
 import remarkGfm from "remark-gfm";
@@ -35,6 +36,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { Attachment, ChatMessage, ToolEvent } from "../types/vibesdk";
 import { AttachmentLightbox } from "./attachment-lightbox";
+import { SpeakButton, speakText } from "./speak-button";
 
 interface MarkdownContentProps {
 	content: string;
@@ -579,6 +581,7 @@ interface AIMessageProps {
 	message: ChatMessage;
 	isLoading?: boolean;
 	aiName?: string;
+	autoPlayTTS?: boolean;
 	onRetry?: () => void;
 	onCopy?: () => void;
 }
@@ -590,6 +593,7 @@ export function AIMessage({
 	message,
 	isLoading,
 	aiName = "Vibexe",
+	autoPlayTTS,
 	onRetry,
 	onCopy,
 }: AIMessageProps) {
@@ -614,25 +618,32 @@ export function AIMessage({
 						)}
 					</div>
 					{!isLoading && message.content && (
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button variant="link" className="h-6 w-6 text-white/20 hover:text-white/60 transition-colors">
-									<MoreHorizontal className="h-4 w-4" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end" className="backdrop-blur-xl bg-[#1a1a2e]/95 border-white/[0.1]">
-								<DropdownMenuItem onClick={handleCopy}>
-									<Copy className="h-4 w-4 mr-2" />
-									Copy
-								</DropdownMenuItem>
-								{onRetry && (
-									<DropdownMenuItem onClick={onRetry}>
-										<RotateCcw className="h-4 w-4 mr-2" />
-										Retry
+						<div className="flex items-center gap-0.5">
+							<SpeakButton text={message.content} autoPlay={autoPlayTTS} />
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button variant="link" className="h-6 w-6 text-white/20 hover:text-white/60 transition-colors">
+										<MoreHorizontal className="h-4 w-4" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end" className="backdrop-blur-xl bg-[#1a1a2e]/95 border-white/[0.1]">
+									<DropdownMenuItem onClick={() => message.content && speakText(message.content)}>
+										<Volume2 className="h-4 w-4 mr-2" />
+										Read Aloud
 									</DropdownMenuItem>
-								)}
-							</DropdownMenuContent>
-						</DropdownMenu>
+									<DropdownMenuItem onClick={handleCopy}>
+										<Copy className="h-4 w-4 mr-2" />
+										Copy
+									</DropdownMenuItem>
+									{onRetry && (
+										<DropdownMenuItem onClick={onRetry}>
+											<RotateCcw className="h-4 w-4 mr-2" />
+											Retry
+										</DropdownMenuItem>
+									)}
+								</DropdownMenuContent>
+							</DropdownMenu>
+						</div>
 					)}
 				</div>
 				<div className="rounded-2xl px-4 py-3 bg-white/[0.03] backdrop-blur-sm border border-white/[0.08] shadow-[inset_1px_0_12px_rgba(20,184,166,0.06)]">
@@ -656,7 +667,31 @@ interface MessageListProps {
 	aiName?: string;
 }
 
+/** Check if message content matches the plan-created trigger phrases */
+function isTTSTrigger(content: string | undefined): boolean {
+	if (!content) return false;
+	const lower = content.toLowerCase();
+	return (
+		(lower.includes("plan created") || lower.includes("blueprint")) &&
+		(lower.includes("documents tab") || lower.includes("build it"))
+	);
+}
+
 export function MessageList({ messages, isLoading, aiName }: MessageListProps) {
+	const prevLoadingRef = useRef(isLoading);
+	const [autoPlayId, setAutoPlayId] = useState<string | null>(null);
+
+	// Detect when streaming finishes (isLoading transitions from true to false)
+	useEffect(() => {
+		if (prevLoadingRef.current && !isLoading && messages.length > 0) {
+			const last = messages[messages.length - 1];
+			if (last.role === "assistant" && isTTSTrigger(last.content)) {
+				setAutoPlayId(last.id);
+			}
+		}
+		prevLoadingRef.current = isLoading;
+	}, [isLoading, messages]);
+
 	return (
 		<div className="flex flex-col gap-5">
 			{messages.map((message, index) => {
@@ -670,6 +705,7 @@ export function MessageList({ messages, isLoading, aiName }: MessageListProps) {
 						message={message}
 						isLoading={isLoading && isLastMessage}
 						aiName={aiName}
+						autoPlayTTS={message.id === autoPlayId}
 					/>
 				);
 			})}
