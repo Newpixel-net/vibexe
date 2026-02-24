@@ -111,15 +111,280 @@ const TAILWIND_INDEX_HTML = buildIndexHtml();
 /**
  * Default App.tsx if no App file exists
  */
-const DEFAULT_APP = `export default function App() {
+const DEFAULT_APP = `import { useState, useEffect } from "react";
+
+const CODE_LINES = [
+  [{ t: 'export default ', c: 'kw' }, { t: 'function ', c: 'kw' }, { t: 'App', c: 'fn' }, { t: '() {', c: 'tx' }],
+  [{ t: '  ', c: 'tx' }, { t: 'return', c: 'kw' }, { t: ' (', c: 'tx' }],
+  [{ t: '    <', c: 'tx' }, { t: 'div', c: 'tg' }, { t: ' className=', c: 'tx' }, { t: '"app"', c: 'st' }, { t: '>', c: 'tx' }],
+  [{ t: '      <', c: 'tx' }, { t: 'h1', c: 'tg' }, { t: '>', c: 'tx' }, { t: 'Welcome', c: 'tx' }, { t: '</', c: 'tx' }, { t: 'h1', c: 'tg' }, { t: '>', c: 'tx' }],
+  [{ t: '    </', c: 'tx' }, { t: 'div', c: 'tg' }, { t: '>', c: 'tx' }],
+  [{ t: '  );', c: 'kw' }],
+  [{ t: '}', c: 'kw' }],
+];
+
+const WIREFRAMES = [
+  { id: 'nav',   x: 40,  y: 30,  w: 320, h: 28,  label: '<nav>',   delay: 0 },
+  { id: 'side',  x: 40,  y: 72,  w: 60,  h: 180, label: '<aside>', delay: 400 },
+  { id: 'hero',  x: 114, y: 72,  w: 246, h: 90,  label: '<hero>',  delay: 800 },
+  { id: 'card1', x: 114, y: 176, w: 117, h: 76,  label: '<card>',  delay: 1200 },
+  { id: 'card2', x: 243, y: 176, w: 117, h: 76,  label: '<card>',  delay: 1600 },
+];
+
+export default function App() {
+  const [phase, setPhase] = useState(0);
+  const [typedChars, setTypedChars] = useState(0);
+  const [particles] = useState(() =>
+    Array.from({ length: 12 }, (_, i) => ({
+      left: 8 + Math.random() * 84,
+      dur: 6 + Math.random() * 8,
+      delay: Math.random() * 6,
+      size: 2 + Math.random() * 2,
+    }))
+  );
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase(1), 4200);
+    const t2 = setTimeout(() => setPhase(2), 9500);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
+  useEffect(() => {
+    if (phase !== 1) return;
+    var total = 0;
+    for (var li = 0; li < CODE_LINES.length; li++) {
+      for (var si = 0; si < CODE_LINES[li].length; si++) {
+        total += CODE_LINES[li][si].t.length;
+      }
+      total += 1;
+    }
+    var i = 0;
+    var iv = setInterval(function() {
+      i++;
+      setTypedChars(i);
+      if (i >= total) clearInterval(iv);
+    }, 35);
+    return function() { clearInterval(iv); };
+  }, [phase]);
+
+  var renderCode = function() {
+    var count = 0;
+    var result = [];
+    for (var li = 0; li < CODE_LINES.length; li++) {
+      var line = CODE_LINES[li];
+      var lineSpans = [];
+      for (var si = 0; si < line.length; si++) {
+        var seg = line[si];
+        var visible = '';
+        for (var ci = 0; ci < seg.t.length; ci++) {
+          count++;
+          if (count <= typedChars) visible += seg.t[ci];
+        }
+        if (visible) {
+          lineSpans.push(<span key={si} className={"code-" + seg.c}>{visible}</span>);
+        }
+      }
+      count++;
+      if (lineSpans.length > 0) {
+        result.push(<div key={li} style={{ minHeight: '1.7em' }}>{lineSpans}</div>);
+      } else if (count <= typedChars) {
+        result.push(<div key={li} style={{ minHeight: '1.7em' }} />);
+      }
+    }
+    return result;
+  };
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-8">
-      <h1 className="text-3xl font-bold text-gray-800 mb-4">
-        Hello from Sandpack!
-      </h1>
-      <p className="text-gray-600">
-        Generate some code to see it here.
-      </p>
+    <div style={{
+      width: '100vw', height: '100vh', background: '#0A0A1A',
+      overflow: 'hidden', position: 'relative', fontFamily: 'system-ui, sans-serif',
+    }}>
+      <style>{\`
+        @keyframes drawIn {
+          from { stroke-dashoffset: 1000; opacity: 0; }
+          to   { stroke-dashoffset: 0; opacity: 1; }
+        }
+        @keyframes labelIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut {
+          from { opacity: 1; transform: scale(1); }
+          to   { opacity: 0; transform: scale(0.92); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
+        }
+        @keyframes float {
+          0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+          10%  { opacity: 0.6; transform: translateY(90vh) scale(1); }
+          90%  { opacity: 0.3; }
+          100% { transform: translateY(-10vh) scale(0.5); opacity: 0; }
+        }
+        @keyframes glowPulse {
+          0%, 100% { filter: drop-shadow(0 0 6px rgba(124,58,237,0.4)); }
+          50%      { filter: drop-shadow(0 0 16px rgba(124,58,237,0.8)); }
+        }
+        @keyframes vFadeIn {
+          from { opacity: 0; transform: scale(0.8); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        .dot-grid {
+          background-image: radial-gradient(circle, rgba(124,58,237,0.12) 1px, transparent 1px);
+          background-size: 24px 24px;
+        }
+        .code-kw { color: #A78BFA; }
+        .code-fn { color: #67E8F9; }
+        .code-tg { color: #38BDF8; }
+        .code-st { color: #34D399; }
+        .code-tx { color: #CBD5E1; }
+        .cursor-blink { animation: blink 0.8s step-end infinite; }
+      \`}</style>
+
+      {/* Dot grid background */}
+      <div className="dot-grid" style={{
+        position: 'absolute', inset: 0, opacity: phase === 2 ? 0.3 : 0.6,
+        transition: 'opacity 1s',
+      }} />
+
+      {/* Act 1: Blueprint Wireframes */}
+      {phase <= 1 && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          animation: phase === 1 ? 'fadeOut 0.8s ease-in forwards' : undefined,
+        }}>
+          <svg viewBox="0 0 400 290" style={{
+            width: '70%', maxWidth: 560, animation: 'glowPulse 3s ease-in-out infinite',
+          }}>
+            {WIREFRAMES.map(w => (
+              <g key={w.id}>
+                <rect
+                  x={w.x} y={w.y} width={w.w} height={w.h}
+                  rx={4} fill="none" stroke="#7C3AED" strokeWidth={1.5}
+                  strokeDasharray="1000" strokeDashoffset="1000"
+                  style={{
+                    animation: \`drawIn 1s ease-out \${w.delay}ms forwards\`,
+                  }}
+                />
+                {/* Inner detail lines for hero */}
+                {w.id === 'hero' && (
+                  <>
+                    <line x1={w.x+16} y1={w.y+20} x2={w.x+w.w-16} y2={w.y+20}
+                      stroke="#4F46E5" strokeWidth={1} opacity={0}
+                      style={{ animation: \`drawIn 0.6s ease-out \${w.delay+400}ms forwards\` }} />
+                    <line x1={w.x+16} y1={w.y+34} x2={w.x+w.w-60} y2={w.y+34}
+                      stroke="#4F46E5" strokeWidth={1} opacity={0}
+                      style={{ animation: \`drawIn 0.6s ease-out \${w.delay+550}ms forwards\` }} />
+                    <rect x={w.x+16} y={w.y+52} width={80} height={22} rx={4}
+                      fill="none" stroke="#4F46E5" strokeWidth={1} opacity={0}
+                      style={{ animation: \`drawIn 0.6s ease-out \${w.delay+700}ms forwards\` }} />
+                  </>
+                )}
+                {/* Label */}
+                <text
+                  x={w.x + w.w + 6} y={w.y + 14}
+                  fill="#7C3AED" fontSize={9} fontFamily="monospace" opacity={0}
+                  style={{ animation: \`labelIn 0.4s ease-out \${w.delay + 600}ms forwards\` }}
+                >{w.label}</text>
+              </g>
+            ))}
+          </svg>
+        </div>
+      )}
+
+      {/* Act 2: Living Code */}
+      {phase === 1 && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          animation: 'fadeIn 0.8s ease-out 0.6s both',
+        }}>
+          <div style={{
+            background: 'rgba(15,15,35,0.85)', border: '1px solid rgba(124,58,237,0.3)',
+            borderRadius: 12, padding: '28px 32px', maxWidth: 520, width: '80%',
+            boxShadow: '0 0 40px rgba(124,58,237,0.15)',
+          }}>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#EF4444' }} />
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B' }} />
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#22C55E' }} />
+              <span style={{ color: '#64748B', fontSize: 11, marginLeft: 8, fontFamily: 'monospace' }}>App.tsx</span>
+            </div>
+            <pre style={{
+              fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace",
+              fontSize: 14, lineHeight: 1.7, margin: 0, minHeight: 180,
+            }}>
+              {renderCode()}
+              <span className="cursor-blink" style={{
+                display: 'inline-block', width: 2, height: 16,
+                background: '#7C3AED', verticalAlign: 'text-bottom', marginLeft: 1,
+              }} />
+            </pre>
+          </div>
+        </div>
+      )}
+
+      {/* Act 3: Finale */}
+      {phase === 2 && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          animation: 'fadeIn 1.2s ease-out both',
+        }}>
+          {/* Gradient glow */}
+          <div style={{
+            position: 'absolute', width: 320, height: 320, borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(124,58,237,0.2) 0%, rgba(79,70,229,0.08) 50%, transparent 70%)',
+            filter: 'blur(40px)', pointerEvents: 'none',
+          }} />
+
+          {/* V Logo */}
+          <svg width="80" height="80" viewBox="0 0 80 80" style={{
+            animation: 'vFadeIn 1s ease-out both', marginBottom: 28,
+          }}>
+            <defs>
+              <linearGradient id="vg" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#7C3AED" />
+                <stop offset="100%" stopColor="#4F46E5" />
+              </linearGradient>
+            </defs>
+            <path d="M20 18 L40 62 L60 18" fill="none" stroke="url(#vg)"
+              strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+
+          <p style={{
+            color: '#E2E8F0', fontSize: 20, fontWeight: 600,
+            letterSpacing: '-0.01em', textAlign: 'center',
+            animation: 'fadeIn 1s ease-out 0.4s both', margin: 0,
+          }}>
+            Your app starts with a single prompt
+          </p>
+          <p style={{
+            color: '#64748B', fontSize: 14, marginTop: 12,
+            animation: 'fadeIn 1s ease-out 0.8s both',
+          }}>
+            Describe what you want to build
+          </p>
+        </div>
+      )}
+
+      {/* Floating particles (finale only) */}
+      {phase === 2 && particles.map((p, i) => (
+        <div key={i} style={{
+          position: 'absolute', left: p.left + '%', bottom: 0,
+          width: p.size, height: p.size, borderRadius: '50%',
+          background: 'rgba(124,58,237,0.5)',
+          animation: \`float \${p.dur}s ease-in-out \${p.delay}s infinite\`,
+          pointerEvents: 'none',
+        }} />
+      ))}
     </div>
   );
 }
