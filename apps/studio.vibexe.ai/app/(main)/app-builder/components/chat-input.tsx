@@ -50,6 +50,8 @@ interface ChatInputProps {
 	attachments?: Attachment[];
 	onAttachmentsChange?: (attachments: Attachment[]) => void;
 	modelCapabilities?: ModelCapabilities;
+	/** Called when an agent-type slash command is selected */
+	onAgentActivate?: (agentId: string) => void;
 }
 
 export function ChatInput({
@@ -65,6 +67,7 @@ export function ChatInput({
 	attachments = [],
 	onAttachmentsChange,
 	modelCapabilities,
+	onAgentActivate,
 }: ChatInputProps) {
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -319,7 +322,22 @@ export function ChatInput({
 
 	const handleSlashSelect = useCallback(
 		(command: SlashCommand) => {
-			// Replace /query with the command's insertText
+			// Agent-type commands activate the agent directly
+			if (command.type === "agent" && command.agentId && onAgentActivate) {
+				// Clear the /query from input
+				const before = value.slice(0, slashStartIndex);
+				const after = value.slice(
+					slashStartIndex + slashQuery.length + 1,
+				);
+				onChange((before + after).trim());
+				setSlashMenuOpen(false);
+				setSlashQuery("");
+				setSlashStartIndex(-1);
+				onAgentActivate(command.agentId);
+				return;
+			}
+
+			// Prompt-type commands insert text into the input
 			const before = value.slice(0, slashStartIndex);
 			const after = value.slice(
 				slashStartIndex + slashQuery.length + 1, // +1 for the /
@@ -341,7 +359,7 @@ export function ChatInput({
 				}
 			});
 		},
-		[value, onChange, slashStartIndex, slashQuery],
+		[value, onChange, slashStartIndex, slashQuery, onAgentActivate],
 	);
 
 	const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {

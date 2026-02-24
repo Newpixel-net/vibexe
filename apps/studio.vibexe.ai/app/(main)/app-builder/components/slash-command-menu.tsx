@@ -209,6 +209,11 @@ export const SlashCommandMenu = forwardRef<
 										<span className="text-xs font-medium truncate">
 											{cmd.label}
 										</span>
+										{cmd.type === "agent" && (
+											<span className="text-[9px] px-1 py-0.5 rounded bg-violet-500/[0.12] text-violet-300/70 font-medium leading-none">
+												Agent
+											</span>
+										)}
 									</div>
 									<p className="text-[11px] text-white/35 truncate">
 										{cmd.description}

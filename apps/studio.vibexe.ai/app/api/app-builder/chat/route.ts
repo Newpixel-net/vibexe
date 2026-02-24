@@ -6,9 +6,12 @@ import {
 	ALL_FLOWS,
 	DEFAULT_AGENTS,
 	DEFAULT_SKILLS,
+	assemblePrompt,
 	executeOrchestration,
+	getAgent,
 	registerAgents,
 	registerSkills,
+	resolveSkills,
 } from "@vibexe-ai/vibexe-engine";
 import type { UIMessage } from "ai";
 import {
@@ -148,12 +151,14 @@ export async function POST(request: Request) {
 			chatId,
 			mode = "generate",
 			modelId,
+			activeAgentId,
 		} = body as {
 			messages: UIMessage[];
 			appId: string;
 			chatId?: string;
 			mode?: "generate" | "discussion" | "continue";
 			modelId?: string;
+			activeAgentId?: string;
 		};
 
 		if (!appId) {
@@ -431,11 +436,14 @@ If any issues need fixing, end with exactly: '---\\n*Click **Fix Issues** below 
 			});
 		}
 
-		// Run orchestration engine
+		// --- PINNED AGENT MODE: bypass orchestration when a user has activated a specific agent ---
+		let pinnedAgent = activeAgentId ? getAgent(activeAgentId) : undefined;
+
+		// Run orchestration engine (skipped for display-only data when pinned agent is set)
 		const plan = executeOrchestration(userPrompt, ALL_FLOWS, enrichedFileContext);
 
 		// Find the developer agent (the one that actually writes files)
-		const developerAgent = plan.agents.find((a) => !a.readOnly);
+		const developerAgent = pinnedAgent || plan.agents.find((a) => !a.readOnly);
 
 		// Detect backend type (native vs Supabase)
 		const backendType = await getAppBackendType(appId);
@@ -453,10 +461,24 @@ If any issues need fixing, end with exactly: '---\\n*Click **Fix Issues** below 
 		const isReturningUser = existingFiles.length > 0;
 
 		// Get the assembled prompt for the primary agent (developer or single-agent flow)
-		const primaryAgent = developerAgent || plan.agents[0];
-		let assembledPrompt = primaryAgent
-			? plan.agentPrompts.get(primaryAgent.id) || ""
-			: "";
+		const primaryAgent = pinnedAgent || developerAgent || plan.agents[0];
+		let assembledPrompt = "";
+		if (pinnedAgent) {
+			// Directly assemble prompt for the pinned agent (bypass orchestration routing)
+			const skills = resolveSkills(pinnedAgent, plan.intent.techStack || []);
+			assembledPrompt = assemblePrompt(
+				pinnedAgent,
+				skills,
+				enrichedFileContext,
+				userPrompt,
+				plan.intent.complexity,
+			);
+			console.log(`[Chat API] Pinned agent: ${pinnedAgent.id}, skills=${skills.map(s => s.id).join(",")}`);
+		} else {
+			assembledPrompt = primaryAgent
+				? plan.agentPrompts.get(primaryAgent.id) || ""
+				: "";
+		}
 
 		// Inject the actual appId into SDK examples (agent prompt has "..." placeholder)
 		assembledPrompt = assembledPrompt.replace(
@@ -651,7 +673,7 @@ Reference DEVLOG.md for the history of changes made to this project.`);
 
 		const upstreamCount = plan.agents.filter((a) => a.readOnly).length;
 		console.log(
-			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, chained=${upstreamCount}, model=${modelId || primaryAgent?.modelTier || "default"}, maxSteps=${maxSteps}${isPlanOnly ? ", mode=plan-only" : hasBlueprintOnly ? ", mode=execute-plan" : ""}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,
+			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, chained=${upstreamCount}, model=${modelId || primaryAgent?.modelTier || "default"}, maxSteps=${maxSteps}${pinnedAgent ? `, pinned=${pinnedAgent.id}` : ""}${isPlanOnly ? ", mode=plan-only" : hasBlueprintOnly ? ", mode=execute-plan" : ""}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,
 		);
 
 		// Use streamText directly with toUIMessageStreamResponse for proper multi-step support.

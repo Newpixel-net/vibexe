@@ -14,6 +14,7 @@ import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
 import {
 	ArrowRight,
+	Bot,
 	CheckCircle2,
 	Clock,
 	Compass,
@@ -64,6 +65,7 @@ import type {
 	PhaseTimelineItem,
 	ProjectStage,
 } from "../types/vibesdk";
+import { AGENT_INFO } from "../lib/slash-commands";
 import {
 	AgentActivityCard,
 	OrchestrationHeader,
@@ -296,6 +298,9 @@ export function ChatColumn({
 		new Set(),
 	);
 
+	// Pinned agent — activated via slash command, persists until switched
+	const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
+
 	// Continuation agent state for returning users
 	const [continuationSuggestions, setContinuationSuggestions] = useState<ContinuationSuggestion[]>([]);
 	const [continuationLoading, setContinuationLoading] = useState(false);
@@ -382,9 +387,10 @@ export function ChatColumn({
 					chatId,
 					mode,
 					modelId: selectedModelId,
+					...(activeAgentId ? { activeAgentId } : {}),
 				},
 			}),
-		[appId, chatId, mode, selectedModelId],
+		[appId, chatId, mode, selectedModelId, activeAgentId],
 	);
 
 	// useChat hook for AI interaction
@@ -885,6 +891,8 @@ export function ChatColumn({
 		setActiveAgentIds(new Set());
 		setCompletedAgentIds(new Set());
 		processedEventCount.current = 0;
+		// Reset pinned agent
+		setActiveAgentId(null);
 		// Reset continuation state so it re-analyzes on next empty chat
 		setContinuationSuggestions([]);
 		continuationAnalyzed.current = false;
@@ -892,6 +900,16 @@ export function ChatColumn({
 		setIsReturningUser(false);
 		setWelcomeDismissed(false);
 	}, [appId, setMessages]);
+
+	// Agent activation via slash command
+	const handleAgentActivate = useCallback((agentId: string) => {
+		setActiveAgentId(agentId);
+	}, []);
+
+	// Deactivate pinned agent (return to auto-orchestration)
+	const handleAgentDeactivate = useCallback(() => {
+		setActiveAgentId(null);
+	}, []);
 
 	// Discuss mode toggle
 	const handleDiscussToggle = useCallback(() => {
@@ -1358,6 +1376,27 @@ export function ChatColumn({
 				</div>
 			)}
 
+			{/* Active agent banner — pinned agent indicator */}
+			{activeAgentId && AGENT_INFO[activeAgentId] && (
+				<div className="px-4 py-2 flex items-center gap-2 bg-violet-500/[0.04] border-t border-violet-500/[0.1]">
+					<div className="flex-shrink-0 w-5 h-5 rounded bg-violet-500/[0.12] flex items-center justify-center">
+						<Bot className="h-3 w-3 text-violet-400" />
+					</div>
+					<span className="text-xs font-medium text-violet-300/80">
+						{AGENT_INFO[activeAgentId].name}
+					</span>
+					<span className="text-xs text-white/30">active</span>
+					<div className="flex-1" />
+					<button
+						type="button"
+						onClick={handleAgentDeactivate}
+						className="text-xs text-white/30 hover:text-white/60 px-2 py-0.5 rounded hover:bg-white/[0.06] transition-colors"
+					>
+						Switch to Auto
+					</button>
+				</div>
+			)}
+
 			{/* Input area — glass */}
 			<div className="border-t border-white/[0.06] p-4">
 				<ChatInput
@@ -1370,6 +1409,7 @@ export function ChatColumn({
 					attachments={attachments}
 					onAttachmentsChange={setAttachments}
 					modelCapabilities={getModelCapabilities(selectedModelId)}
+					onAgentActivate={handleAgentActivate}
 				/>
 			</div>
 
