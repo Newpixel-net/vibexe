@@ -203,7 +203,7 @@ export async function ensureAppDatabase(appDbId: number) {
  * Build a connection string for an app database.
  * Reuses host/port/credentials from the platform POSTGRES_URL.
  */
-function buildAppConnectionString(databaseName: string): string {
+export function buildAppConnectionString(databaseName: string): string {
 	const baseUrl = process.env.POSTGRES_URL ?? "";
 	try {
 		const url = new URL(baseUrl);

@@ -1315,6 +1315,8 @@ export const builderAppRelations = relations(builderApps, ({ one, many }) => ({
 	}),
 	apiKeys: many(builderAppApiKeys),
 	deployments: many(builderDeployments),
+	environments: many(builderAppEnvironments),
+	backups: many(builderAppBackups),
 }));
 
 export type BuilderApp = typeof builderApps.$inferSelect;
@@ -2447,3 +2449,99 @@ export const builderAppSecretRelations = relations(
 		}),
 	}),
 );
+
+// ====================================================================
+// BUILDER APP ENVIRONMENTS (Multi-Environment Databases)
+// ====================================================================
+
+/**
+ * Builder App Environments — tracks staging/production databases per app.
+ * The existing builderAppDatabases row is implicitly the development environment.
+ * This table stores additional environments (staging, production) each with their own database.
+ */
+export const builderAppEnvironments = pgTable(
+	"builder_app_environments",
+	{
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		environment: text("environment").notNull(), // 'staging' | 'production'
+		databaseName: text("database_name").notNull().unique(),
+		schemaJson: jsonb("schema_json").default({}),
+		schemaVersion: integer("schema_version").default(0),
+		status: text("status").notNull().default("pending"), // pending | provisioning | active | error
+		promotedAt: timestamp("promoted_at", { withTimezone: true }),
+		promotedFrom: text("promoted_from"), // 'development' | 'staging'
+		deploymentSubdomain: text("deployment_subdomain"),
+		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		unique("builder_app_environments_app_env_unique").on(table.appDbId, table.environment),
+		index("builder_app_environments_app_db_id_idx").on(table.appDbId),
+	],
+);
+
+export const builderAppEnvironmentRelations = relations(
+	builderAppEnvironments,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppEnvironments.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);
+
+export type BuilderAppEnvironment = typeof builderAppEnvironments.$inferSelect;
+export type NewBuilderAppEnvironment = typeof builderAppEnvironments.$inferInsert;
+
+// ====================================================================
+// BUILDER APP BACKUPS (Automated Database Backups)
+// ====================================================================
+
+/**
+ * Builder App Backups — tracks database backup snapshots stored in S3/MinIO.
+ * Supports scheduled, manual, pre-deploy, and pre-promote backup types.
+ */
+export const builderAppBackups = pgTable(
+	"builder_app_backups",
+	{
+		dbId: serial("db_id").primaryKey(),
+		appDbId: integer("app_db_id")
+			.notNull()
+			.references(() => builderApps.dbId, { onDelete: "cascade" }),
+		environment: text("environment").notNull().default("development"),
+		databaseName: text("database_name").notNull(),
+		backupType: text("backup_type").notNull(), // 'scheduled' | 'manual' | 'pre-deploy' | 'pre-promote'
+		s3Key: text("s3_key").notNull(),
+		sizeBytes: integer("size_bytes").default(0),
+		status: text("status").notNull().default("pending"), // pending | in_progress | completed | failed
+		error: text("error"),
+		startedAt: timestamp("started_at", { withTimezone: true }),
+		completedAt: timestamp("completed_at", { withTimezone: true }),
+		expiresAt: timestamp("expires_at", { withTimezone: true }), // null = never expires
+		metadata: jsonb("metadata").default({}),
+		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("builder_app_backups_app_env_idx").on(table.appDbId, table.environment),
+		index("builder_app_backups_expires_idx").on(table.expiresAt),
+	],
+);
+
+export const builderAppBackupRelations = relations(
+	builderAppBackups,
+	({ one }) => ({
+		app: one(builderApps, {
+			fields: [builderAppBackups.appDbId],
+			references: [builderApps.dbId],
+		}),
+	}),
+);
+
+export type BuilderAppBackup = typeof builderAppBackups.$inferSelect;
+export type NewBuilderAppBackup = typeof builderAppBackups.$inferInsert;

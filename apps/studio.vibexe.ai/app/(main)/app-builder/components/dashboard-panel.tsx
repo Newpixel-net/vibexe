@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import { AgentsPanel } from "./agents-panel";
 import { AnalyticsPanel } from "./analytics-panel";
+import { BackupsPanel } from "./backups-panel";
 import { ApiDocsPanel } from "./api-docs-panel";
 import { AuthenticationPanel } from "./authentication-panel";
 import { BackendSettings } from "./backend-settings";
@@ -21,6 +22,7 @@ import { CodePanel } from "./code-panel";
 import { type DashboardSection, DashboardSidebar } from "./dashboard-sidebar";
 import { DataBrowser } from "./data-browser";
 import { DomainsPanel } from "./domains-panel";
+import { EnvironmentsPanel } from "./environments-panel";
 import { IntegrationsPanel } from "./integrations-panel";
 import { JobsPanel } from "./jobs-panel";
 import { LogsPanel } from "./logs-panel";
@@ -104,6 +106,10 @@ export function DashboardPanel({
 				return <DataBrowser appId={appId} schema={schema} />;
 			case "storage":
 				return <StoragePanel appId={appId} />;
+			case "environments":
+				return <EnvironmentsPanel appId={appId} />;
+			case "backups":
+				return <BackupsPanel appId={appId} />;
 			case "users":
 				return <UsersPanel appId={appId} />;
 			case "agents":

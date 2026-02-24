@@ -63,6 +63,28 @@ export async function diffAndApplySchema(
 	newSchema: AppSchema,
 	appDatabaseDbId: number,
 ): Promise<{ newTables: string[]; newColumns: string[] }> {
+	// Fire-and-forget pre-deploy backup before any schema change
+	try {
+		const { createBackup } = await import("@/lib/app-backups/backup-manager");
+		// Look up appDbId from the database record
+		const dbRow = await db.query.builderAppDatabases.findFirst({
+			where: eq(builderAppDatabases.dbId, appDatabaseDbId),
+			columns: { appDbId: true },
+		});
+		if (dbRow) {
+			createBackup({
+				appDbId: dbRow.appDbId,
+				databaseName,
+				environment: "development",
+				backupType: "pre-deploy",
+			}).catch((err) =>
+				console.error(`[Pre-Deploy Backup] Failed for ${databaseName}:`, err),
+			);
+		}
+	} catch (err) {
+		console.error("[Pre-Deploy Backup] Setup error:", err);
+	}
+
 	const oldEntities = new Map(
 		(oldSchema?.entities ?? []).map((e) => [e.tableName, e]),
 	);
@@ -97,6 +119,41 @@ export async function diffAndApplySchema(
 
 	// Create auth tables if not yet present
 	await createAuthTables(databaseName);
+
+	// Record migration if there were actual changes
+	if (newTables.length > 0 || newColumns.length > 0) {
+		try {
+			const upSqlStatements = generateUpSql(newTables, newColumns, newSchema);
+			const downSqlStatements = generateDownSql(newTables, newColumns);
+			const description = generateMigrationDescription(newTables, newColumns);
+
+			// Get next version number
+			const versionResult = await executeQuery<{ max_version: number | null }>(
+				databaseName,
+				`SELECT MAX(version) as max_version FROM _app_migrations`,
+			).catch(() => [{ max_version: null }]); // Table may not exist yet
+			const nextVersion = (versionResult[0]?.max_version ?? 0) + 1;
+
+			await executeQuery(
+				databaseName,
+				`INSERT INTO _app_migrations (version, description, up_sql, down_sql, schema_before, schema_after)
+				 VALUES ($1, $2, $3, $4, $5, $6)`,
+				[
+					nextVersion,
+					description,
+					upSqlStatements,
+					downSqlStatements,
+					JSON.stringify(oldSchema ?? {}),
+					JSON.stringify(newSchema),
+				],
+			).catch((err) => {
+				console.error(`[Migration Tracking] Failed to record migration for ${databaseName}:`, err);
+			});
+		} catch (err) {
+			// Non-critical — don't fail the schema apply if migration tracking fails
+			console.error("[Migration Tracking] Error:", err);
+		}
+	}
 
 	// Update stored schema
 	await db
@@ -485,4 +542,149 @@ async function createAuthTables(databaseName: string): Promise<void> {
 			created_at TIMESTAMPTZ DEFAULT NOW()
 		)`,
 	);
+
+	// Schema migration history table
+	await executeQuery(
+		databaseName,
+		`CREATE TABLE IF NOT EXISTS _app_migrations (
+			id SERIAL PRIMARY KEY,
+			version INTEGER NOT NULL,
+			description TEXT NOT NULL,
+			up_sql TEXT NOT NULL,
+			down_sql TEXT,
+			schema_before JSONB,
+			schema_after JSONB NOT NULL,
+			applied_at TIMESTAMPTZ DEFAULT NOW(),
+			rolled_back_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		)`,
+	);
+}
+
+// ─── Migration Tracking Helpers ──────────────────────────────────────────────
+
+/**
+ * Generate the up SQL (forward migration) from the changes detected.
+ */
+function generateUpSql(
+	newTables: string[],
+	newColumns: string[],
+	schema: AppSchema,
+): string {
+	const statements: string[] = [];
+	const entityMap = new Map(schema.entities.map((e) => [e.tableName, e]));
+
+	for (const tableName of newTables) {
+		const entity = entityMap.get(tableName);
+		if (entity) {
+			statements.push(buildCreateTableSql(entity, schema.entities));
+		}
+	}
+
+	for (const col of newColumns) {
+		const [tableName, fieldName] = col.split(".");
+		const entity = entityMap.get(tableName);
+		const field = entity?.fields.find((f) => f.name === fieldName);
+		if (entity && field) {
+			statements.push(buildAddColumnSql(tableName, field, schema.entities));
+		}
+	}
+
+	return statements.join(";\n");
+}
+
+/**
+ * Generate the down SQL (reverse migration) to undo the changes.
+ */
+function generateDownSql(
+	newTables: string[],
+	newColumns: string[],
+): string {
+	const statements: string[] = [];
+
+	// Reverse order: drop columns first, then tables
+	for (const col of newColumns) {
+		const [tableName, fieldName] = col.split(".");
+		if (SAFE_IDENTIFIER.test(tableName) && SAFE_IDENTIFIER.test(fieldName)) {
+			statements.push(`ALTER TABLE "${tableName}" DROP COLUMN IF EXISTS "${fieldName}"`);
+		}
+	}
+
+	for (const tableName of newTables) {
+		if (SAFE_IDENTIFIER.test(tableName)) {
+			statements.push(`DROP TABLE IF EXISTS "${tableName}" CASCADE`);
+		}
+	}
+
+	return statements.join(";\n");
+}
+
+/**
+ * Generate a human-readable migration description.
+ */
+function generateMigrationDescription(
+	newTables: string[],
+	newColumns: string[],
+): string {
+	const parts: string[] = [];
+	if (newTables.length > 0) {
+		parts.push(`Added ${newTables.length === 1 ? "table" : "tables"}: ${newTables.join(", ")}`);
+	}
+	if (newColumns.length > 0) {
+		parts.push(`Added ${newColumns.length === 1 ? "column" : "columns"}: ${newColumns.join(", ")}`);
+	}
+	return parts.join("; ") || "No changes";
+}
+
+/**
+ * Rollback a specific migration by executing its down_sql.
+ *
+ * @param databaseName - The app database name
+ * @param migrationId - The _app_migrations.id to rollback
+ */
+export async function rollbackMigration(
+	databaseName: string,
+	migrationId: number,
+): Promise<{ version: number; description: string }> {
+	// Load migration record
+	const rows = await executeQuery<{
+		id: number;
+		version: number;
+		description: string;
+		down_sql: string | null;
+		schema_before: unknown;
+		rolled_back_at: string | null;
+	}>(
+		databaseName,
+		`SELECT id, version, description, down_sql, schema_before, rolled_back_at
+		 FROM _app_migrations WHERE id = $1`,
+		[migrationId],
+	);
+
+	if (rows.length === 0) {
+		throw new Error(`Migration ${migrationId} not found`);
+	}
+
+	const migration = rows[0];
+	if (migration.rolled_back_at) {
+		throw new Error(`Migration ${migrationId} has already been rolled back`);
+	}
+	if (!migration.down_sql) {
+		throw new Error(`Migration ${migrationId} has no down_sql — cannot rollback`);
+	}
+
+	// Execute each down_sql statement
+	const statements = migration.down_sql.split(";\n").filter((s) => s.trim());
+	for (const stmt of statements) {
+		await executeQuery(databaseName, stmt);
+	}
+
+	// Mark as rolled back
+	await executeQuery(
+		databaseName,
+		`UPDATE _app_migrations SET rolled_back_at = NOW() WHERE id = $1`,
+		[migrationId],
+	);
+
+	return { version: migration.version, description: migration.description };
 }

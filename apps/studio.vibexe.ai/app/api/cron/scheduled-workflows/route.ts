@@ -492,6 +492,80 @@ export async function GET(request: NextRequest) {
 			console.error("[Scheduled Jobs] Sweep error:", e);
 		}
 
+		// --- Sweep: Automated Database Backups ---
+		let backupsCreated = 0;
+		let backupsCleaned = 0;
+		try {
+			const { createBackup, cleanupExpiredBackups, getLastBackupTime } = await import("@/lib/app-backups/backup-manager");
+			const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+			// Back up all active app development databases
+			const appDbs = await db
+				.select({
+					dbId: builderAppDatabases.dbId,
+					appDbId: builderAppDatabases.appDbId,
+					databaseName: builderAppDatabases.databaseName,
+				})
+				.from(builderAppDatabases)
+				.where(eq(builderAppDatabases.status, "active"));
+
+			for (const appDb of appDbs) {
+				try {
+					const lastBackup = await getLastBackupTime(appDb.appDbId, "development");
+					if (lastBackup && Date.now() - lastBackup.getTime() < BACKUP_INTERVAL_MS) {
+						continue; // Already backed up recently
+					}
+					await createBackup({
+						appDbId: appDb.appDbId,
+						databaseName: appDb.databaseName,
+						environment: "development",
+						backupType: "scheduled",
+					});
+					backupsCreated++;
+				} catch (err) {
+					console.error(`[Backup Sweep] Error backing up ${appDb.databaseName}:`, err);
+				}
+			}
+
+			// Back up staging/production environment databases
+			const { builderAppEnvironments: envTable } = await import("@/db/schema");
+			const envDbs = await db
+				.select({
+					dbId: envTable.dbId,
+					appDbId: envTable.appDbId,
+					databaseName: envTable.databaseName,
+					environment: envTable.environment,
+				})
+				.from(envTable)
+				.where(eq(envTable.status, "active"));
+
+			for (const envDb of envDbs) {
+				try {
+					const lastBackup = await getLastBackupTime(envDb.appDbId, envDb.environment);
+					if (lastBackup && Date.now() - lastBackup.getTime() < BACKUP_INTERVAL_MS) {
+						continue;
+					}
+					await createBackup({
+						appDbId: envDb.appDbId,
+						databaseName: envDb.databaseName,
+						environment: envDb.environment,
+						backupType: "scheduled",
+					});
+					backupsCreated++;
+				} catch (err) {
+					console.error(`[Backup Sweep] Error backing up env ${envDb.databaseName}:`, err);
+				}
+			}
+
+			// Clean up expired backups
+			backupsCleaned = await cleanupExpiredBackups();
+			if (backupsCreated > 0 || backupsCleaned > 0) {
+				console.log(`[Backup Sweep] Created ${backupsCreated} backups, cleaned ${backupsCleaned} expired`);
+			}
+		} catch (e) {
+			console.error("[Backup Sweep] Error:", e);
+		}
+
 		return Response.json({
 			triggered: results.filter((r) => r.status === "triggered").length,
 			errors: results.filter((r) => r.status === "error").length,
@@ -501,6 +575,8 @@ export async function GET(request: NextRequest) {
 			jobsTriggered,
 			jobsErrors,
 			sessionsDeleted,
+			backupsCreated,
+			backupsCleaned,
 			results,
 		});
 	} catch (err) {

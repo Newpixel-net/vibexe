@@ -162,6 +162,24 @@ async function resolveContext(appId: string, entityName: string, request: NextRe
 		return { error: "App database not available", status: 503 } as const;
 	}
 
+	// Environment-aware database resolution
+	const env = request.nextUrl.searchParams.get("_env") || "development";
+	let databaseName = appDb.databaseName;
+	let schema = appDb.schemaJson as AppSchema | null;
+
+	if (env !== "development") {
+		try {
+			const { resolveDatabase, getEnvironmentDatabase } = await import("@/lib/app-database/environment-manager");
+			databaseName = await resolveDatabase(app.dbId, env);
+			const envDb = await getEnvironmentDatabase(app.dbId, env);
+			if (envDb?.schemaJson) {
+				schema = envDb.schemaJson as AppSchema;
+			}
+		} catch {
+			return { error: `Environment '${env}' not available`, status: 503 } as const;
+		}
+	}
+
 	// Check API key once
 	let apiKeyValid = false;
 	const apiKey = request.headers.get("x-vibexe-api-key");
@@ -192,14 +210,13 @@ async function resolveContext(appId: string, entityName: string, request: NextRe
 			app,
 			appDb,
 			entity: internalTable,
-			databaseName: appDb.databaseName,
+			databaseName,
 			apiKeyValid,
 			isInternal: true as const,
 		};
 	}
 
 	// Validate entity exists in schema
-	const schema = appDb.schemaJson as AppSchema | null;
 	if (!schema?.entities?.length) {
 		return { error: "No entities defined", status: 404 } as const;
 	}
@@ -216,7 +233,7 @@ async function resolveContext(appId: string, entityName: string, request: NextRe
 		app,
 		appDb,
 		entity,
-		databaseName: appDb.databaseName,
+		databaseName,
 		apiKeyValid,
 		isInternal: false as const,
 	};

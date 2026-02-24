@@ -99,6 +99,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
 		const body = await request.json().catch(() => ({}));
 		const subdomain = body.subdomain?.toLowerCase()?.trim();
+		const environment = body.environment || "development"; // 'development' | 'staging' | 'production'
 
 		if (!subdomain || !isValidSubdomain(subdomain)) {
 			return NextResponse.json(
@@ -172,8 +173,46 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			deploymentDbId = row.dbId;
 		}
 
+		// Ensure environment DB exists if deploying to staging/production
+		if (environment !== "development") {
+			try {
+				const { createEnvironmentDatabase } = await import("@/lib/app-database/environment-manager");
+				await createEnvironmentDatabase(app.dbId, environment as "staging" | "production");
+			} catch (envErr) {
+				console.error(`[Deploy] Failed to ensure ${environment} environment:`, envErr);
+			}
+
+			// Pre-deploy backup (fire-and-forget)
+			try {
+				const { createBackup } = await import("@/lib/app-backups/backup-manager");
+				const { resolveDatabase } = await import("@/lib/app-database/environment-manager");
+				const dbName = await resolveDatabase(app.dbId, environment);
+				createBackup({
+					appDbId: app.dbId,
+					databaseName: dbName,
+					environment,
+					backupType: "pre-deploy",
+				}).catch(() => {});
+			} catch {}
+
+			// Track deployment subdomain on environment
+			try {
+				const { builderAppEnvironments } = await import("@/db/schema");
+				const { and: andOp, eq: eqOp } = await import("drizzle-orm");
+				await db
+					.update(builderAppEnvironments)
+					.set({ deploymentSubdomain: subdomain })
+					.where(
+						andOp(
+							eqOp(builderAppEnvironments.appDbId, app.dbId),
+							eqOp(builderAppEnvironments.environment, environment),
+						),
+					);
+			} catch {}
+		}
+
 		// Run build (async but we wait for it — builds are fast with esbuild)
-		const result = await buildApp(appId, subdomain);
+		const result = await buildApp(appId, subdomain, environment);
 
 		if (result.success) {
 			await db

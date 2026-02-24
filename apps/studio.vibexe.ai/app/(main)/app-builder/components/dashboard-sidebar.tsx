@@ -10,12 +10,14 @@
 
 import type { LucideIcon } from "lucide-react";
 import {
+	Archive,
 	BarChart3,
 	Bot,
 	ChevronDown,
 	Code2,
 	Database,
 	FileText,
+	GitBranch,
 	Globe,
 	HardDrive,
 	Home,
@@ -40,6 +42,8 @@ export type DashboardSection =
 	| "users"
 	| "data"
 	| "storage"
+	| "environments"
+	| "backups"
 	| "analytics"
 	| "domains"
 	| "integrations"
@@ -69,6 +73,8 @@ const navItems: NavItem[] = [
 	{ id: "users", label: "Users", icon: Users },
 	{ id: "data", label: "Data", icon: Database },
 	{ id: "storage", label: "Storage", icon: HardDrive },
+	{ id: "environments", label: "Environments", icon: GitBranch },
+	{ id: "backups", label: "Backups", icon: Archive },
 	{ id: "analytics", label: "Analytics", icon: BarChart3 },
 	{ id: "domains", label: "Domains", icon: Globe },
 	{ id: "integrations", label: "Integrations", icon: Puzzle },

@@ -62,12 +62,16 @@ function generateIndexHtml(appName: string, hasCss: boolean): string {
 </html>`;
 }
 
-function generateSdkSource(appId: string): string {
+function generateSdkSource(appId: string, environment?: string): string {
 	// Validate appId format — must match bldr_xxx pattern (no special chars)
 	if (!/^bldr_[a-zA-Z0-9_-]+$/.test(appId)) {
 		throw new Error(`Invalid appId format: ${appId.slice(0, 50)}`);
 	}
-	return `(function(g){
+	// For staging/production, inject a global env var that the SDK uses
+	const envBootstrap = environment && environment !== "development"
+		? `window.__VIBEXE_ENV__="${environment}";\n`
+		: "";
+	return `${envBootstrap}(function(g){
 class DataClient{constructor(b,h){this.b=b;this.h=h}
 async list(e,o){o=o||{};var p=new URLSearchParams();if(o.page)p.set("page",String(o.page));if(o.limit)p.set("limit",String(o.limit));if(o.sort)p.set("sort",o.sort);if(o.order)p.set("order",o.order);if(o.filter){for(var k in o.filter){var v=o.filter[k];if(v!==null&&typeof v==="object"&&!Array.isArray(v)){for(var op in v){if(op==="in"&&Array.isArray(v[op]))p.set("filter["+k+"][in]",v[op].join(","));else if(v[op]!==undefined)p.set("filter["+k+"]["+op+"]",String(v[op]))}}else p.set("filter["+k+"]",String(v))}}if(o.search)p.set("search",o.search);if(o.include&&o.include.length)p.set("include",o.include.join(","));var q=p.toString();var r=await fetch(this.b+"/data/"+e+(q?"?"+q:""),{headers:this.h});if(!r.ok){var err=await r.json().catch(function(){return{}});throw new Error(err.error||"Failed")}return await r.json()}
 async aggregate(e,o){o=o||{};var p=new URLSearchParams();if(o.group)p.set("group",o.group);if(o.count)p.set("count","true");if(o.sum)p.set("sum",o.sum);if(o.avg)p.set("avg",o.avg);if(o.min)p.set("min",o.min);if(o.max)p.set("max",o.max);if(o.filter){for(var k in o.filter){var v=o.filter[k];if(v!==null&&typeof v==="object"&&!Array.isArray(v)){for(var op in v){if(op==="in"&&Array.isArray(v[op]))p.set("filter["+k+"][in]",v[op].join(","));else if(v[op]!==undefined)p.set("filter["+k+"]["+op+"]",String(v[op]))}}else p.set("filter["+k+"]",String(v))}}var q=p.toString();var r=await fetch(this.b+"/data/"+e+"/aggregate"+(q?"?"+q:""),{headers:this.h});if(!r.ok){var err=await r.json().catch(function(){return{}});throw new Error(err.error||"Aggregate failed")}return await r.json()}
@@ -123,7 +127,7 @@ async create(c){var r=await fetch(this.b+"/webhooks",{method:"POST",headers:Obje
 async list(){var r=await fetch(this.b+"/webhooks",{headers:this.h});if(!r.ok)throw new Error("Failed to list webhooks");return await r.json()}
 async delete(id){var r=await fetch(this.b+"/webhooks",{method:"DELETE",headers:Object.assign({},this.h,{"Content-Type":"application/json"}),body:JSON.stringify({webhookDbId:id})});if(!r.ok)throw new Error("Failed to delete webhook")}
 }
-class VibexeApp{constructor(c){this.appId=c.appId;var base=(c.baseUrl||g.location.protocol+"//vibexe.online")+"/api/apps/"+c.appId;var h={};if(c.apiKey)h["X-Vibexe-Api-Key"]=c.apiKey;this.data=new DataClient(base,h);this.auth=new AuthClient(base,h);this.functions=new FunctionsClient(base,h);this.jobs=new JobsClient(base,h);this.storage=new StorageClient(base,h);this.webhooks=new WebhooksClient(base,h)}}
+class VibexeApp{constructor(c){this.appId=c.appId;var env=c.environment||(typeof g!=="undefined"&&g.__VIBEXE_ENV__)||null;var base=(c.baseUrl||g.location.protocol+"//vibexe.online")+"/api/apps/"+c.appId;var h={};if(c.apiKey)h["X-Vibexe-Api-Key"]=c.apiKey;this._env=env;this.data=new DataClient(base,h);this.auth=new AuthClient(base,h);this.functions=new FunctionsClient(base,h);this.jobs=new JobsClient(base,h);this.storage=new StorageClient(base,h);this.webhooks=new WebhooksClient(base,h)}}
 g.VibexeApp=VibexeApp;
 })(typeof globalThis!=="undefined"?globalThis:window);
 `;
@@ -315,6 +319,7 @@ export interface BuildResult {
 export async function buildApp(
 	appId: string,
 	subdomain: string,
+	environment?: string,
 ): Promise<BuildResult> {
 	const logs: string[] = [];
 	const log = (msg: string) =>
@@ -495,7 +500,7 @@ export async function buildApp(
 
 		await writeFile(
 			join(outputDir, "vibexe-sdk.js"),
-			generateSdkSource(appId),
+			generateSdkSource(appId, environment),
 			"utf-8",
 		);
 		outFiles.push("vibexe-sdk.js");
