@@ -46,6 +46,10 @@ export function DocFileBrowser({
 	// Track previously-seen file paths for new-file animation
 	const seenPaths = useRef<Set<string>>(new Set(docFiles.map((f) => f.path)));
 	const [newPaths, setNewPaths] = useState<Set<string>>(new Set());
+	const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	// Stable key so effect only runs when actual paths change
+	const pathsKey = docFiles.map((f) => f.path).join("\n");
 
 	useEffect(() => {
 		const fresh = new Set<string>();
@@ -57,10 +61,11 @@ export function DocFileBrowser({
 		}
 		if (fresh.size > 0) {
 			setNewPaths(fresh);
-			const timer = setTimeout(() => setNewPaths(new Set()), 2000);
-			return () => clearTimeout(timer);
+			if (clearTimer.current) clearTimeout(clearTimer.current);
+			clearTimer.current = setTimeout(() => setNewPaths(new Set()), 2000);
 		}
-	}, [docFiles]);
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [pathsKey]);
 
 	return (
 		<div className="flex flex-col h-full border-r bg-background">
@@ -89,7 +94,7 @@ export function DocFileBrowser({
 								isSelected
 									? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
 									: "text-muted-foreground hover:bg-muted hover:text-foreground",
-								isNew && "animate-pulse bg-blue-50 dark:bg-blue-900/20",
+								isNew && !isSelected && "animate-pulse bg-blue-50 dark:bg-blue-900/20",
 							)}
 						>
 							<FileText className="h-4 w-4 flex-shrink-0" />
