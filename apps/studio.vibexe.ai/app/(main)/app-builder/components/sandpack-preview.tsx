@@ -638,74 +638,9 @@ export function SandpackPreview({
 								</div>
 							)}
 
-							{/* Generating overlay — aurora glass */}
-							{isGenerating && (
-								<div className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden bg-[#0a0a14]/80 backdrop-blur-xl">
-									{/* Aurora blobs */}
-									<div
-										className="absolute top-[15%] left-[20%] w-[280px] h-[280px] rounded-full opacity-[0.07] pointer-events-none"
-										style={{
-											background: "radial-gradient(circle, hsl(219, 90%, 52%) 0%, transparent 70%)",
-											filter: "blur(80px)",
-											animation: "gen-blob-drift-1 16s ease-in-out infinite",
-										}}
-									/>
-									<div
-										className="absolute bottom-[10%] right-[15%] w-[240px] h-[240px] rounded-full opacity-[0.06] pointer-events-none"
-										style={{
-											background: "radial-gradient(circle, hsl(178, 94%, 49%) 0%, transparent 70%)",
-											filter: "blur(80px)",
-											animation: "gen-blob-drift-2 20s ease-in-out infinite",
-										}}
-									/>
-
-									{/* Main card */}
-									<div className="relative flex flex-col items-center gap-5 p-8 rounded-3xl bg-white/[0.04] border border-white/[0.08] backdrop-blur-2xl shadow-[0_0_60px_rgba(59,130,246,0.06)]">
-										{/* Orbital spinner */}
-										<div className="relative w-16 h-16">
-											{/* Pulse ring */}
-											<div
-												className="absolute inset-0 rounded-full border border-blue-500/20"
-												style={{ animation: "gen-pulse-ring 2.5s ease-out infinite" }}
-											/>
-											{/* Outer orbit */}
-											<div
-												className="absolute inset-0"
-												style={{ animation: "gen-orbit 3s linear infinite" }}
-											>
-												<div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
-											</div>
-											{/* Inner orbit (reverse) */}
-											<div
-												className="absolute inset-2"
-												style={{ animation: "gen-orbit-reverse 2s linear infinite" }}
-											>
-												<div className="absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(6,182,212,0.5)]" />
-											</div>
-											{/* Center dot */}
-											<div
-												className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white/30"
-												style={{ animation: "gen-breathe 2s ease-in-out infinite" }}
-											/>
-										</div>
-
-										{/* Gradient text */}
-										<p
-											className="text-sm font-medium tracking-wide"
-											style={{
-												backgroundImage: "linear-gradient(135deg, hsl(219, 90%, 72%), hsl(178, 94%, 60%), hsl(219, 90%, 72%))",
-												backgroundSize: "200% 200%",
-												WebkitBackgroundClip: "text",
-												WebkitTextFillColor: "transparent",
-												backgroundClip: "text",
-												animation: "gen-text-gradient 4s ease infinite",
-											}}
-										>
-											Generating app...
-										</p>
-									</div>
-								</div>
-							)}
+							{/* No overlay during generation — the splash animation plays
+								inside Sandpack naturally (DEFAULT_APP), then the user sees
+								the real app being built live as files stream in. */}
 
 							{/* Refresh button overlay */}
 							<div className="absolute top-2 right-2">
