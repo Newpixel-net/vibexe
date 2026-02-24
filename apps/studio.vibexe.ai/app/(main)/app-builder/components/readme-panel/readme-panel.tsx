@@ -17,13 +17,14 @@ import { TableOfContents, useScrollSpy } from "./table-of-contents";
 
 export interface ReadmePanelProps {
 	files: { id: string; path: string; content: string | null }[];
+	isGenerating?: boolean;
 }
 
 /**
  * Main Read me panel with 3-column documentation viewer.
  * Integrates file browser, markdown viewer, and table of contents.
  */
-export function ReadmePanel({ files }: ReadmePanelProps) {
+export function ReadmePanel({ files, isGenerating }: ReadmePanelProps) {
 	// Filter to only documentation files (.md, readme)
 	// Sort: docs/ files first, then root .md files
 	const docFiles = useMemo(() => {
@@ -57,6 +58,8 @@ export function ReadmePanel({ files }: ReadmePanelProps) {
 
 	// Selected file state
 	const [selectedPath, setSelectedPath] = useState<string>(defaultFile);
+	const userHasSelected = useRef(false);
+	const prevDocCount = useRef(docFiles.length);
 
 	// Update selected path when docFiles change and current selection is invalid
 	useEffect(() => {
@@ -64,6 +67,19 @@ export function ReadmePanel({ files }: ReadmePanelProps) {
 			setSelectedPath(defaultFile);
 		}
 	}, [docFiles, selectedPath, defaultFile]);
+
+	// Auto-select newest wiki file when new docs appear (unless user manually selected)
+	useEffect(() => {
+		if (docFiles.length > prevDocCount.current && !userHasSelected.current) {
+			const newWiki = docFiles.find(
+				(f) => f.path.startsWith("docs/") && f.path !== selectedPath,
+			);
+			if (newWiki) {
+				setSelectedPath(newWiki.path);
+			}
+		}
+		prevDocCount.current = docFiles.length;
+	}, [docFiles, selectedPath]);
 
 	// Headings extracted from markdown
 	const [headings, setHeadings] = useState<Heading[]>([]);
@@ -85,6 +101,7 @@ export function ReadmePanel({ files }: ReadmePanelProps) {
 
 	// Handle file selection
 	const handleFileSelect = useCallback((path: string) => {
+		userHasSelected.current = true;
 		setSelectedPath(path);
 		setHeadings([]); // Reset headings when file changes
 	}, []);
@@ -112,10 +129,14 @@ export function ReadmePanel({ files }: ReadmePanelProps) {
 		return (
 			<div className="flex-1 flex items-center justify-center text-muted-foreground">
 				<div className="text-center">
-					<FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-					<p className="text-lg font-medium">No documentation yet</p>
+					<FileText className={`h-12 w-12 mx-auto mb-4 opacity-50 ${isGenerating ? "animate-pulse" : ""}`} />
+					<p className="text-lg font-medium">
+						{isGenerating ? "Generating documentation..." : "No documentation yet"}
+					</p>
 					<p className="text-sm mt-1">
-						Documentation will appear here after code generation.
+						{isGenerating
+							? "Wiki pages will appear shortly..."
+							: "Documentation will appear here after code generation."}
 					</p>
 				</div>
 			</div>

@@ -92,7 +92,7 @@ export function MainContentPanel({
 								onFileUpdate={onFileUpdate}
 							/>
 						)}
-						{view === "readme" && <ReadmePanel files={files} />}
+						{view === "readme" && <ReadmePanel files={files} isGenerating={isGenerating} />}
 						{view === "workflows" && <WorkflowsPanel appId={appId} />}
 					</motion.div>
 				</AnimatePresence>

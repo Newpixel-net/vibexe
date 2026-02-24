@@ -9,7 +9,7 @@
  */
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import type { FileType } from "../types/vibesdk";
 import { VisualEditProvider } from "../lib/visual-edit-context";
@@ -36,6 +36,7 @@ export function BuilderLayout({
 	const [files, setFiles] = useState<AppFile[]>(initialFiles);
 	const [appName, setAppName] = useState(app.name);
 	const [isGenerating, setIsGenerating] = useState(false);
+	const prevGenerating = useRef(false);
 
 	const handleFileClick = useCallback((file: FileType) => {
 		setSelectedFileId(file.id);
@@ -61,6 +62,19 @@ export function BuilderLayout({
 			// Silently fail
 		}
 	}, [app.id]);
+
+	// After generation ends, schedule delayed refreshes to catch async wiki files from syncWiki()
+	useEffect(() => {
+		if (prevGenerating.current && !isGenerating) {
+			const t1 = setTimeout(handleFilesChange, 3000);
+			const t2 = setTimeout(handleFilesChange, 6000);
+			return () => {
+				clearTimeout(t1);
+				clearTimeout(t2);
+			};
+		}
+		prevGenerating.current = isGenerating;
+	}, [isGenerating, handleFilesChange]);
 
 	return (
 		<VisualEditProvider>

@@ -13,6 +13,7 @@
  */
 
 import { FileText } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface DocFileBrowserProps {
@@ -40,6 +41,25 @@ export function DocFileBrowser({
 	const fileCount = docFiles.length;
 	const fileLabel = fileCount === 1 ? "1 file" : `${fileCount} files`;
 
+	// Track previously-seen file paths for new-file animation
+	const seenPaths = useRef<Set<string>>(new Set(docFiles.map((f) => f.path)));
+	const [newPaths, setNewPaths] = useState<Set<string>>(new Set());
+
+	useEffect(() => {
+		const fresh = new Set<string>();
+		for (const f of docFiles) {
+			if (!seenPaths.current.has(f.path)) {
+				fresh.add(f.path);
+				seenPaths.current.add(f.path);
+			}
+		}
+		if (fresh.size > 0) {
+			setNewPaths(fresh);
+			const timer = setTimeout(() => setNewPaths(new Set()), 2000);
+			return () => clearTimeout(timer);
+		}
+	}, [docFiles]);
+
 	return (
 		<div className="flex flex-col h-full border-r bg-background">
 			{/* Header */}
@@ -54,6 +74,7 @@ export function DocFileBrowser({
 					const fileName = file.path.split("/").pop() || file.path;
 					const isSelected = file.path === selected;
 					const isWiki = file.path.startsWith("docs/");
+					const isNew = newPaths.has(file.path);
 
 					return (
 						<button
@@ -61,10 +82,11 @@ export function DocFileBrowser({
 							key={file.path}
 							onClick={() => onSelect(file.path)}
 							className={cn(
-								"w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left transition-colors",
+								"w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left transition-all duration-300",
 								isSelected
 									? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
 									: "text-muted-foreground hover:bg-muted hover:text-foreground",
+								isNew && "animate-pulse bg-blue-50 dark:bg-blue-900/20",
 							)}
 						>
 							<FileText className="h-4 w-4 flex-shrink-0" />
