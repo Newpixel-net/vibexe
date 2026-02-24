@@ -9,9 +9,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+	Archive,
 	ArrowRight,
 	Check,
 	Globe,
+	Info,
 	Loader2,
 	Plus,
 	RefreshCw,
@@ -51,6 +53,7 @@ export function EnvironmentsPanel({ appId }: EnvironmentsPanelProps) {
 	const [creating, setCreating] = useState<string | null>(null);
 	const [diff, setDiff] = useState<SchemaDiff | null>(null);
 	const [showDiffModal, setShowDiffModal] = useState<{ from: string; to: string } | null>(null);
+	const [showGuide, setShowGuide] = useState(false);
 
 	const fetchEnvironments = useCallback(async () => {
 		try {
@@ -151,14 +154,74 @@ export function EnvironmentsPanel({ appId }: EnvironmentsPanelProps) {
 						Manage dev, staging, and production databases independently
 					</p>
 				</div>
-				<button
-					type="button"
-					onClick={fetchEnvironments}
-					className="p-2 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-white/70 transition"
-				>
-					<RefreshCw className="h-4 w-4" />
-				</button>
+				<div className="flex items-center gap-1">
+					<button
+						type="button"
+						onClick={() => setShowGuide((v) => !v)}
+						className={`p-2 rounded-lg transition ${showGuide ? "bg-violet-500/20 text-violet-400" : "hover:bg-white/[0.06] text-white/40 hover:text-white/70"}`}
+						title="How environments work"
+					>
+						<Info className="h-4 w-4" />
+					</button>
+					<button
+						type="button"
+						onClick={fetchEnvironments}
+						className="p-2 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-white/70 transition"
+					>
+						<RefreshCw className="h-4 w-4" />
+					</button>
+				</div>
 			</div>
+
+			{/* How It Works Guide */}
+			{showGuide && (
+				<div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.03] p-4 space-y-3">
+					<div className="flex items-start justify-between">
+						<h3 className="text-sm font-medium text-violet-400">How Environments Work</h3>
+						<button
+							type="button"
+							onClick={() => setShowGuide(false)}
+							className="text-white/30 hover:text-white/60 text-xs"
+						>
+							Hide
+						</button>
+					</div>
+					<div className="grid grid-cols-3 gap-3 text-xs">
+						<div className="space-y-1">
+							<div className="font-medium text-blue-400">Development</div>
+							<p className="text-white/40 leading-relaxed">
+								Your working database. All schema changes from the builder are applied here first. This is where you build and test your app.
+							</p>
+						</div>
+						<div className="space-y-1">
+							<div className="font-medium text-violet-400">Staging</div>
+							<p className="text-white/40 leading-relaxed">
+								A copy of your app for testing before going live. Promote your dev schema here to verify everything works correctly with real data.
+							</p>
+						</div>
+						<div className="space-y-1">
+							<div className="font-medium text-amber-400">Production</div>
+							<p className="text-white/40 leading-relaxed">
+								Your live database serving real users. Only promote here from staging after thorough testing. Each environment has its own separate database.
+							</p>
+						</div>
+					</div>
+					<div className="border-t border-white/[0.06] pt-3 space-y-2 text-xs text-white/40">
+						<div className="flex items-start gap-2">
+							<ArrowRight className="h-3.5 w-3.5 text-violet-400 mt-0.5 shrink-0" />
+							<span><strong className="text-white/60">Promote</strong> copies the database schema (tables and columns) from one environment to the next. Your data stays separate in each environment.</span>
+						</div>
+						<div className="flex items-start gap-2">
+							<Check className="h-3.5 w-3.5 text-emerald-400 mt-0.5 shrink-0" />
+							<span><strong className="text-white/60">Schema Diff</strong> is shown before each promotion so you can review exactly what tables and columns will be added or changed.</span>
+						</div>
+						<div className="flex items-start gap-2">
+							<Archive className="h-3.5 w-3.5 text-amber-400 mt-0.5 shrink-0" />
+							<span><strong className="text-white/60">Auto-Backup</strong> is created automatically before every promotion, so you can always roll back if something goes wrong.</span>
+						</div>
+					</div>
+				</div>
+			)}
 
 			{/* Environment Cards */}
 			<div className="grid grid-cols-3 gap-4">
