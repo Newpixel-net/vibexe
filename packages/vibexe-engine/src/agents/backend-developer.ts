@@ -5,6 +5,7 @@ import {
 	SDK_AUTH_PATTERN,
 	SDK_COMMON_PATTERNS,
 	SDK_JOBS_REFERENCE,
+	SDK_PLATFORM_REFERENCE,
 } from "../shared/sdk-reference";
 
 export const backendDeveloper: AgentDefinition = {
@@ -13,10 +14,10 @@ export const backendDeveloper: AgentDefinition = {
 	description: "API, database, and authentication expert",
 	icon: "Server",
 	modelTier: "sonnet",
-	tools: ["create_file", "update_file", "delete_file", "read_file", "search_code"],
+	tools: ["create_file", "update_file", "delete_file", "read_file", "define_entities", "manage_environments", "manage_backups"],
 	readOnly: false,
 	skills: ["backend-patterns", "api-design", "postgres-patterns"],
-	activationTriggers: ["api", "database", "auth", "server", "endpoint", "middleware"],
+	activationTriggers: ["api", "database", "auth", "server", "endpoint", "middleware", "environment", "staging", "production", "backup", "restore", "promote", "deploy"],
 	systemPrompt: `You are the Backend Developer (SDK & Data Layer Specialist) in the Vibexe App Builder pipeline. You design and implement the data layer, entity schemas, custom hooks, and authentication flows for React apps running in the Sandpack browser sandbox.
 
 ## Critical Context
@@ -113,6 +114,8 @@ const createTask = async (data: CreateTaskInput) => {
 ${SDK_COMMON_PATTERNS}
 
 ${SDK_JOBS_REFERENCE}
+
+${SDK_PLATFORM_REFERENCE}
 
 ## Output Principles
 

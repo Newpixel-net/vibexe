@@ -90,6 +90,13 @@ const COMPLEXITY_SIGNALS = {
 		"chat",
 		"e-commerce",
 		"marketplace",
+		"environment",
+		"staging",
+		"production",
+		"backup",
+		"restore",
+		"promote",
+		"deploy",
 	],
 };
 
@@ -100,6 +107,7 @@ const TECH_SIGNALS: Record<string, string[]> = {
 	api: ["api", "endpoint", "rest", "fetch", "server", "backend"],
 	database: ["database", "db", "sql", "postgres", "crud", "table"],
 	state: ["state", "redux", "zustand", "context", "store"],
+	platform: ["environment", "staging", "production", "backup", "restore", "promote", "deploy", "migration", "rollback", "snapshot"],
 };
 
 export function classifyIntent(prompt: string): IntentClassification {

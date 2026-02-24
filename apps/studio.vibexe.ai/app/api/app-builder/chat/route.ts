@@ -668,7 +668,7 @@ Reference DEVLOG.md for the history of changes made to this project.`);
 			toolChoice: "auto",
 			onStepFinish: ({ toolCalls, finishReason, usage }) => {
 				stepCount++;
-				const fileToolNames = ["create_file", "update_file", "delete_file", "define_entities", "read_file"];
+				const fileToolNames = ["create_file", "update_file", "delete_file", "define_entities", "read_file", "manage_environments", "manage_backups"];
 				const fileCallsInStep = (toolCalls || []).filter(
 					(tc) => fileToolNames.includes(tc.toolName),
 				).length;

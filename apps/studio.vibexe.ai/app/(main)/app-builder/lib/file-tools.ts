@@ -10,7 +10,7 @@ import { eq } from "drizzle-orm";
 import { tool } from "ai";
 import { z } from "zod";
 import { db } from "@/db";
-import { type BuilderAppId, builderApps } from "@/db/schema";
+import { type BuilderAppId, builderApps, builderAppDatabases } from "@/db/schema";
 import {
 	ensureAppDatabase,
 	entityToTableName,
@@ -294,6 +294,270 @@ export function createFileTools(appId: string) {
 					return {
 						success: false,
 						error: `Backend unavailable: ${error instanceof Error ? error.message : String(error)}. IMPORTANT: Continue building the app using create_file with localStorage for data persistence instead. Do NOT retry define_entities.`,
+					};
+				}
+			},
+		}),
+
+		manage_environments: tool({
+			description:
+				"Manage multi-environment databases (development/staging/production) for the app. Use this to create environments, promote schemas between environments, preview schema diffs, or list existing environments.",
+			inputSchema: z.object({
+				action: z
+					.enum(["list", "create", "promote", "diff", "delete"])
+					.describe(
+						'Action to perform: "list" shows all environments, "create" provisions a new staging/production database, "promote" copies schema from one env to another, "diff" previews schema differences, "delete" removes an environment',
+					),
+				environment: z
+					.enum(["staging", "production"])
+					.optional()
+					.describe('Target environment for create/delete actions'),
+				fromEnvironment: z
+					.string()
+					.optional()
+					.describe('Source environment for promote/diff (e.g., "development")'),
+				toEnvironment: z
+					.string()
+					.optional()
+					.describe('Target environment for promote/diff (e.g., "staging")'),
+			}),
+			execute: async ({ action, environment, fromEnvironment, toEnvironment }) => {
+				try {
+					const app = await db.query.builderApps.findFirst({
+						where: eq(builderApps.id, appId as BuilderAppId),
+						columns: { dbId: true },
+					});
+					if (!app) return { success: false, error: `App not found: ${appId}` };
+
+					const appDb = await db.query.builderAppDatabases.findFirst({
+						where: eq(builderAppDatabases.appDbId, app.dbId),
+					});
+					if (!appDb) return { success: false, error: "No database found for this app" };
+
+					switch (action) {
+						case "list": {
+							const { listEnvironments } = await import("@/lib/app-database/environment-manager");
+							const environments = await listEnvironments(appDb.appDbId);
+							return {
+								success: true,
+								action: "listed",
+								environments: environments.map((e) => ({
+									environment: e.environment,
+									databaseName: e.databaseName,
+									status: e.status,
+									schemaVersion: e.schemaVersion,
+									promotedAt: e.promotedAt,
+									promotedFrom: e.promotedFrom,
+								})),
+							};
+						}
+						case "create": {
+							if (!environment) return { success: false, error: 'Must specify "environment" (staging or production)' };
+							const { createEnvironmentDatabase } = await import("@/lib/app-database/environment-manager");
+							const result = await createEnvironmentDatabase(appDb.appDbId, environment);
+							return {
+								success: true,
+								action: "created",
+								environment,
+								databaseName: result.databaseName,
+								message: `${environment} environment created successfully. Use promote to copy your schema.`,
+							};
+						}
+						case "promote": {
+							if (!fromEnvironment || !toEnvironment) {
+								return { success: false, error: 'Must specify "fromEnvironment" and "toEnvironment"' };
+							}
+							const { promoteEnvironment } = await import("@/lib/app-database/environment-manager");
+							const result = await promoteEnvironment(appDb.appDbId, fromEnvironment, toEnvironment);
+							return {
+								success: true,
+								action: "promoted",
+								from: fromEnvironment,
+								to: toEnvironment,
+								newTables: result.newTables,
+								newColumns: result.newColumns,
+								message: `Schema promoted from ${fromEnvironment} to ${toEnvironment}. A pre-promote backup was created automatically.`,
+							};
+						}
+						case "diff": {
+							if (!fromEnvironment || !toEnvironment) {
+								return { success: false, error: 'Must specify "fromEnvironment" and "toEnvironment"' };
+							}
+							const { listEnvironments, diffSchemas } = await import("@/lib/app-database/environment-manager");
+							const envs = await listEnvironments(appDb.appDbId);
+							const fromEnv = envs.find((e) => e.environment === fromEnvironment);
+							const toEnv = envs.find((e) => e.environment === toEnvironment);
+							if (!fromEnv) return { success: false, error: `Environment "${fromEnvironment}" not found` };
+							if (!toEnv) return { success: false, error: `Environment "${toEnvironment}" not found` };
+							const diff = diffSchemas(fromEnv.schemaJson, toEnv.schemaJson);
+							const hasChanges = diff.newTables.length > 0 || diff.newColumns.length > 0 || diff.removedTables.length > 0 || diff.removedColumns.length > 0;
+							return {
+								success: true,
+								action: "diff",
+								from: fromEnvironment,
+								to: toEnvironment,
+								hasChanges,
+								newTables: diff.newTables.map((t) => t.name),
+								newColumns: diff.newColumns.map((c) => `${c.table}.${c.field.name}`),
+								removedTables: diff.removedTables,
+								removedColumns: diff.removedColumns.map((c) => `${c.table}.${c.field}`),
+							};
+						}
+						case "delete": {
+							if (!environment) return { success: false, error: 'Must specify "environment" to delete' };
+							const { deleteEnvironmentDatabase } = await import("@/lib/app-database/environment-manager");
+							await deleteEnvironmentDatabase(appDb.appDbId, environment);
+							return {
+								success: true,
+								action: "deleted",
+								environment,
+								message: `${environment} environment deleted successfully.`,
+							};
+						}
+						default:
+							return { success: false, error: `Unknown action: ${action}` };
+					}
+				} catch (error) {
+					console.error("manage_environments error:", error);
+					return {
+						success: false,
+						error: `Environment operation failed: ${error instanceof Error ? error.message : String(error)}`,
+					};
+				}
+			},
+		}),
+
+		manage_backups: tool({
+			description:
+				"Manage database backups for the app. Use this to create manual backups, list existing backups, restore from a backup, or delete old backups. Backups use pg_dump and are stored in S3.",
+			inputSchema: z.object({
+				action: z
+					.enum(["list", "create", "restore", "delete"])
+					.describe(
+						'Action to perform: "list" shows all backups, "create" triggers a manual backup, "restore" restores from a backup, "delete" removes a backup',
+					),
+				environment: z
+					.string()
+					.optional()
+					.describe('Environment to filter/create backups for (default: "development")'),
+				backupId: z
+					.number()
+					.optional()
+					.describe("Backup ID for restore/delete actions"),
+			}),
+			execute: async ({ action, environment, backupId }) => {
+				try {
+					const app = await db.query.builderApps.findFirst({
+						where: eq(builderApps.id, appId as BuilderAppId),
+						columns: { dbId: true },
+					});
+					if (!app) return { success: false, error: `App not found: ${appId}` };
+
+					const appDb = await db.query.builderAppDatabases.findFirst({
+						where: eq(builderAppDatabases.appDbId, app.dbId),
+					});
+					if (!appDb) return { success: false, error: "No database found for this app" };
+
+					switch (action) {
+						case "list": {
+							const { builderAppBackups } = await import("@/db/schema");
+							const { eq: eqOp, and, desc } = await import("drizzle-orm");
+							let query = db
+								.select()
+								.from(builderAppBackups)
+								.where(eqOp(builderAppBackups.appDbId, appDb.appDbId))
+								.orderBy(desc(builderAppBackups.createdAt))
+								.limit(20);
+							const backups = await query;
+							return {
+								success: true,
+								action: "listed",
+								backups: backups.map((b) => ({
+									id: b.dbId,
+									environment: b.environment,
+									backupType: b.backupType,
+									sizeBytes: b.sizeBytes,
+									status: b.status,
+									createdAt: b.createdAt,
+									expiresAt: b.expiresAt,
+								})),
+							};
+						}
+						case "create": {
+							const env = environment || "development";
+							const { resolveDatabase } = await import("@/lib/app-database/environment-manager");
+							let dbName: string;
+							try {
+								dbName = await resolveDatabase(appDb.appDbId, env);
+							} catch {
+								dbName = appDb.databaseName;
+							}
+							const { createBackup } = await import("@/lib/app-backups/backup-manager");
+							const result = await createBackup({
+								appDbId: appDb.appDbId,
+								databaseName: dbName,
+								environment: env,
+								backupType: "manual",
+							});
+							return {
+								success: true,
+								action: "created",
+								environment: env,
+								backupId: result.backupDbId,
+								sizeBytes: result.sizeBytes,
+								message: `Manual backup created for ${env} environment (${(result.sizeBytes / 1024).toFixed(1)} KB). Retained for 30 days.`,
+							};
+						}
+						case "restore": {
+							if (!backupId) return { success: false, error: 'Must specify "backupId" to restore' };
+							const env = environment || "development";
+							const { resolveDatabase } = await import("@/lib/app-database/environment-manager");
+							let dbName: string;
+							try {
+								dbName = await resolveDatabase(appDb.appDbId, env);
+							} catch {
+								dbName = appDb.databaseName;
+							}
+							// Create a safety backup before restoring
+							const { createBackup, restoreBackup } = await import("@/lib/app-backups/backup-manager");
+							try {
+								await createBackup({
+									appDbId: appDb.appDbId,
+									databaseName: dbName,
+									environment: env,
+									backupType: "pre-deploy",
+								});
+							} catch (e) {
+								console.error("[Restore] Pre-restore backup failed:", e);
+							}
+							await restoreBackup({ backupDbId: backupId, targetDatabaseName: dbName });
+							return {
+								success: true,
+								action: "restored",
+								backupId,
+								targetDatabase: dbName,
+								message: `Database restored from backup #${backupId}. A safety backup was created before restoring.`,
+							};
+						}
+						case "delete": {
+							if (!backupId) return { success: false, error: 'Must specify "backupId" to delete' };
+							const { deleteBackup } = await import("@/lib/app-backups/backup-manager");
+							await deleteBackup(backupId);
+							return {
+								success: true,
+								action: "deleted",
+								backupId,
+								message: `Backup #${backupId} deleted from S3 and database.`,
+							};
+						}
+						default:
+							return { success: false, error: `Unknown action: ${action}` };
+					}
+				} catch (error) {
+					console.error("manage_backups error:", error);
+					return {
+						success: false,
+						error: `Backup operation failed: ${error instanceof Error ? error.message : String(error)}`,
 					};
 				}
 			},

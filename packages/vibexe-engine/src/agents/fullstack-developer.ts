@@ -2,6 +2,7 @@ import type { AgentDefinition } from "../types";
 import {
 	SDK_API_REFERENCE,
 	SDK_HOOK_PATTERN,
+	SDK_PLATFORM_REFERENCE,
 } from "../shared/sdk-reference";
 
 export const fullstackDeveloper: AgentDefinition = {
@@ -17,6 +18,8 @@ export const fullstackDeveloper: AgentDefinition = {
 		"delete_file",
 		"read_file",
 		"define_entities",
+		"manage_environments",
+		"manage_backups",
 	],
 	readOnly: false,
 	skills: ["frontend-patterns", "coding-standards"],
@@ -134,6 +137,8 @@ ${SDK_HOOK_PATTERN}
 8. **Creating too few files** — A dashboard app needs 10-15+ files, not 3
 9. **Stopping after Blueprint.md** — Blueprint is just documentation; keep creating ALL code files
 10. **Missing key prop** — Always set \`key\` on elements rendered inside \`.map()\`
+
+${SDK_PLATFORM_REFERENCE}
 
 ## Internationalization
 

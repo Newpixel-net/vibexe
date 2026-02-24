@@ -697,6 +697,9 @@ export const mockApp = {
 };
 \`\`\`
 
+**Note:** Environment and backup management (\`manage_environments\`, \`manage_backups\`) are platform-level tools called by the AI directly — they are NOT part of the SDK. The SDK (\`@vibexe/sdk\`) is for end-user app code. Platform tools are for infrastructure management.
+
+
 **Important**: \`list()\` mock returns \`{ data: [], pagination: {...} }\` — NOT a plain array. \`signUp\`/\`signIn\` mocks return \`{ user: {...}, token: "..." }\` — NOT a user object directly.
 `;
 
@@ -806,6 +809,92 @@ const job = await app.jobs.create({
   cronExpression: "0 9 * * *",  // 9 AM daily
 });
 \`\`\`
+`;
+
+/** Platform management reference — environments and backups */
+export const SDK_PLATFORM_REFERENCE = `
+## Platform Management — Environments & Backups
+
+You have access to two platform management tools: \`manage_environments\` and \`manage_backups\`.
+These tools manage the app's infrastructure — database environments and backup/restore operations.
+
+### Multi-Environment Databases
+
+Each app starts with a **development** database. You can create **staging** and **production** databases, then promote schemas between them safely.
+
+**Environment workflow:**
+1. Development (always exists) — where the builder makes changes
+2. Staging — test environment, created on demand
+3. Production — live user-facing environment
+
+#### Tool: manage_environments
+
+| Action | Parameters | Description |
+|--------|-----------|-------------|
+| \`list\` | — | List all environments with status, schema version, last promoted |
+| \`create\` | \`environment\`: "staging" or "production" | Provision a new database for the environment |
+| \`promote\` | \`fromEnvironment\`, \`toEnvironment\` | Copy schema from source to target (e.g., dev → staging). Auto-creates backup before promoting. |
+| \`diff\` | \`fromEnvironment\`, \`toEnvironment\` | Preview what would change if promoted (new tables, new columns, removed items) |
+| \`delete\` | \`environment\` | Drop the environment database (cannot delete development) |
+
+**Examples:**
+\`\`\`
+// List all environments
+manage_environments({ action: "list" })
+
+// Create staging environment
+manage_environments({ action: "create", environment: "staging" })
+
+// Preview what would change
+manage_environments({ action: "diff", fromEnvironment: "development", toEnvironment: "staging" })
+
+// Promote development schema to staging
+manage_environments({ action: "promote", fromEnvironment: "development", toEnvironment: "staging" })
+
+// Then promote staging to production
+manage_environments({ action: "promote", fromEnvironment: "staging", toEnvironment: "production" })
+\`\`\`
+
+### Database Backups
+
+Backups are automated daily and before every schema change. You can also create manual backups and restore from any backup.
+
+**Backup types:**
+- \`scheduled\` — automatic daily backups (every 24 hours)
+- \`manual\` — created on demand by the user or AI
+- \`pre-deploy\` — auto-created before schema changes
+- \`pre-promote\` — auto-created before environment promotion
+
+#### Tool: manage_backups
+
+| Action | Parameters | Description |
+|--------|-----------|-------------|
+| \`list\` | \`environment?\` | List recent backups, optionally filtered by environment |
+| \`create\` | \`environment?\` (default: "development") | Create a manual backup now |
+| \`restore\` | \`backupId\`, \`environment?\` | Restore database from a backup. Creates a safety backup first. |
+| \`delete\` | \`backupId\` | Delete a specific backup |
+
+**Examples:**
+\`\`\`
+// List all backups
+manage_backups({ action: "list" })
+
+// Create a manual backup before risky changes
+manage_backups({ action: "create", environment: "development" })
+
+// Restore from a specific backup
+manage_backups({ action: "restore", backupId: 42 })
+\`\`\`
+
+### When to Use These Tools
+
+- User says "create a staging environment" → \`manage_environments({ action: "create", environment: "staging" })\`
+- User says "push my changes to staging" or "promote to staging" → \`manage_environments({ action: "promote", fromEnvironment: "development", toEnvironment: "staging" })\`
+- User says "back up my database" → \`manage_backups({ action: "create" })\`
+- User says "restore my database" → First \`manage_backups({ action: "list" })\` to show available backups, then confirm which to restore
+- User says "what would change if I promote?" → \`manage_environments({ action: "diff", fromEnvironment: "development", toEnvironment: "staging" })\`
+- User says "deploy to production" → \`manage_environments({ action: "promote", fromEnvironment: "staging", toEnvironment: "production" })\`
+- User says "show my environments" → \`manage_environments({ action: "list" })\`
 `;
 
 /** Backend function file conventions for AI agents */
