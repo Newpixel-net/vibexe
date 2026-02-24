@@ -67,6 +67,7 @@ import type {
 } from "../types/vibesdk";
 import { AGENT_INFO } from "../lib/slash-commands";
 import {
+	AgentActivationCard,
 	AgentActivityCard,
 	OrchestrationHeader,
 } from "./agent-activity-card";
@@ -300,6 +301,11 @@ export function ChatColumn({
 
 	// Pinned agent — activated via slash command, persists until switched
 	const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
+	// Activation card shown in timeline when agent is activated via slash command
+	const [activationCard, setActivationCard] = useState<{
+		agentId: string;
+		timestamp: number;
+	} | null>(null);
 
 	// Continuation agent state for returning users
 	const [continuationSuggestions, setContinuationSuggestions] = useState<ContinuationSuggestion[]>([]);
@@ -615,13 +621,24 @@ export function ChatColumn({
 			const startIds = events
 				.filter((e) => e.type === "agent-start" && e.agentId)
 				.map((e) => e.agentId!);
-			setActiveAgentIds(new Set(startIds));
+			if (isLoading) {
+				// Live streaming — mark agents as active (show spinner)
+				setActiveAgentIds(new Set(startIds));
+			} else {
+				// Restored from DB — mark agents as completed (show checkmark, no spinner)
+				setActiveAgentIds(new Set());
+				setCompletedAgentIds(new Set(startIds));
+			}
 		}
-	}, [messages]);
+	}, [messages, isLoading]);
 
 	// Update thinking state when loading
 	useEffect(() => {
 		setIsThinking(isLoading && mode === "generate");
+		// Clear activation card once streaming starts — real agent card takes over
+		if (isLoading) {
+			setActivationCard(null);
+		}
 	}, [isLoading, mode]);
 
 	// Finalize all phases, agents, and project stages when streaming finishes
@@ -893,6 +910,7 @@ export function ChatColumn({
 		processedEventCount.current = 0;
 		// Reset pinned agent
 		setActiveAgentId(null);
+		setActivationCard(null);
 		// Reset continuation state so it re-analyzes on next empty chat
 		setContinuationSuggestions([]);
 		continuationAnalyzed.current = false;
@@ -904,11 +922,13 @@ export function ChatColumn({
 	// Agent activation via slash command
 	const handleAgentActivate = useCallback((agentId: string) => {
 		setActiveAgentId(agentId);
+		setActivationCard({ agentId, timestamp: Date.now() });
 	}, []);
 
 	// Deactivate pinned agent (return to auto-orchestration)
 	const handleAgentDeactivate = useCallback(() => {
 		setActiveAgentId(null);
+		setActivationCard(null);
 	}, []);
 
 	// Discuss mode toggle
@@ -1224,6 +1244,18 @@ export function ChatColumn({
 								</div>
 							)}
 
+							{/* Agent activation card from slash command */}
+							{activationCard && AGENT_INFO[activationCard.agentId] && (
+								<AgentActivationCard
+									key={`activation-${activationCard.timestamp}`}
+									agentId={activationCard.agentId}
+									agentName={AGENT_INFO[activationCard.agentId].name}
+									modelTier={AGENT_INFO[activationCard.agentId].modelTier}
+									description={AGENT_INFO[activationCard.agentId].description}
+									onDeactivate={handleAgentDeactivate}
+								/>
+							)}
+
 							{/* PhaseTimeline INLINE after messages */}
 							{phaseTimeline.length > 0 && (
 								<div className="mt-2">
@@ -1376,21 +1408,21 @@ export function ChatColumn({
 				</div>
 			)}
 
-			{/* Active agent banner — pinned agent indicator */}
-			{activeAgentId && AGENT_INFO[activeAgentId] && (
-				<div className="px-4 py-2 flex items-center gap-2 bg-violet-500/[0.04] border-t border-violet-500/[0.1]">
-					<div className="flex-shrink-0 w-5 h-5 rounded bg-violet-500/[0.12] flex items-center justify-center">
-						<Bot className="h-3 w-3 text-violet-400" />
+			{/* Active agent indicator — compact bar when activation card has scrolled away */}
+			{activeAgentId && AGENT_INFO[activeAgentId] && !activationCard && (
+				<div className="px-4 py-1.5 flex items-center gap-2 bg-violet-500/[0.04] border-t border-violet-500/[0.1]">
+					<div className="flex-shrink-0 w-4 h-4 rounded bg-violet-500/[0.12] flex items-center justify-center">
+						<Bot className="h-2.5 w-2.5 text-violet-400" />
 					</div>
-					<span className="text-xs font-medium text-violet-300/80">
+					<span className="text-[11px] font-medium text-violet-300/80">
 						{AGENT_INFO[activeAgentId].name}
 					</span>
-					<span className="text-xs text-white/30">active</span>
+					<span className="text-[11px] text-white/25">active</span>
 					<div className="flex-1" />
 					<button
 						type="button"
 						onClick={handleAgentDeactivate}
-						className="text-xs text-white/30 hover:text-white/60 px-2 py-0.5 rounded hover:bg-white/[0.06] transition-colors"
+						className="text-[11px] text-white/25 hover:text-white/60 px-2 py-0.5 rounded hover:bg-white/[0.06] transition-colors"
 					>
 						Switch to Auto
 					</button>

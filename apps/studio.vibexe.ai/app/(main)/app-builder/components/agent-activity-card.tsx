@@ -5,6 +5,9 @@
  *
  * Rendered inline in the chat timeline when an agent activates.
  * Shows agent name, model tier, read-only status, and loaded skills.
+ *
+ * AgentActivationCard — Shown when a user activates an agent via slash command.
+ * Displays the agent card with "activated" status and awaiting prompt message.
  */
 
 import { AnimatePresence, motion } from "framer-motion";
@@ -12,6 +15,7 @@ import {
 	Bot,
 	Brain,
 	Check,
+	CircleDot,
 	Code2,
 	Eye,
 	FileCode,
@@ -41,6 +45,98 @@ const AGENT_ICONS: Record<string, React.ReactNode> = {
 	"doc-updater": <FileCode className="h-4 w-4" />,
 	"refactor-cleaner": <Wrench className="h-4 w-4" />,
 	"e2e-runner": <TestTube2 className="h-4 w-4" />,
+};
+
+/** Per-agent accent colors for activation cards and active states */
+export const AGENT_COLORS: Record<
+	string,
+	{ border: string; bg: string; accent: string; iconBg: string }
+> = {
+	planner: {
+		border: "border-amber-500/[0.2]",
+		bg: "bg-amber-500/[0.04]",
+		accent: "text-amber-400",
+		iconBg: "bg-amber-500/[0.12]",
+	},
+	architect: {
+		border: "border-cyan-500/[0.2]",
+		bg: "bg-cyan-500/[0.04]",
+		accent: "text-cyan-400",
+		iconBg: "bg-cyan-500/[0.12]",
+	},
+	"fullstack-developer": {
+		border: "border-violet-500/[0.2]",
+		bg: "bg-violet-500/[0.04]",
+		accent: "text-violet-400",
+		iconBg: "bg-violet-500/[0.12]",
+	},
+	"frontend-developer": {
+		border: "border-pink-500/[0.2]",
+		bg: "bg-pink-500/[0.04]",
+		accent: "text-pink-400",
+		iconBg: "bg-pink-500/[0.12]",
+	},
+	"backend-developer": {
+		border: "border-orange-500/[0.2]",
+		bg: "bg-orange-500/[0.04]",
+		accent: "text-orange-400",
+		iconBg: "bg-orange-500/[0.12]",
+	},
+	"code-reviewer": {
+		border: "border-teal-500/[0.2]",
+		bg: "bg-teal-500/[0.04]",
+		accent: "text-teal-400",
+		iconBg: "bg-teal-500/[0.12]",
+	},
+	"security-reviewer": {
+		border: "border-red-500/[0.2]",
+		bg: "bg-red-500/[0.04]",
+		accent: "text-red-400",
+		iconBg: "bg-red-500/[0.12]",
+	},
+	"build-error-resolver": {
+		border: "border-yellow-500/[0.2]",
+		bg: "bg-yellow-500/[0.04]",
+		accent: "text-yellow-400",
+		iconBg: "bg-yellow-500/[0.12]",
+	},
+	"tdd-guide": {
+		border: "border-emerald-500/[0.2]",
+		bg: "bg-emerald-500/[0.04]",
+		accent: "text-emerald-400",
+		iconBg: "bg-emerald-500/[0.12]",
+	},
+	"ui-designer": {
+		border: "border-fuchsia-500/[0.2]",
+		bg: "bg-fuchsia-500/[0.04]",
+		accent: "text-fuchsia-400",
+		iconBg: "bg-fuchsia-500/[0.12]",
+	},
+	"doc-updater": {
+		border: "border-blue-500/[0.2]",
+		bg: "bg-blue-500/[0.04]",
+		accent: "text-blue-400",
+		iconBg: "bg-blue-500/[0.12]",
+	},
+	"refactor-cleaner": {
+		border: "border-lime-500/[0.2]",
+		bg: "bg-lime-500/[0.04]",
+		accent: "text-lime-400",
+		iconBg: "bg-lime-500/[0.12]",
+	},
+	"e2e-runner": {
+		border: "border-indigo-500/[0.2]",
+		bg: "bg-indigo-500/[0.04]",
+		accent: "text-indigo-400",
+		iconBg: "bg-indigo-500/[0.12]",
+	},
+};
+
+const DEFAULT_AGENT_COLOR = {
+	border: "border-violet-500/[0.2]",
+	bg: "bg-violet-500/[0.04]",
+	accent: "text-violet-400",
+	iconBg: "bg-violet-500/[0.12]",
 };
 
 const TIER_COLORS: Record<string, { bg: string; text: string; label: string }> =
@@ -77,6 +173,7 @@ export function AgentActivityCard({
 	const icon = AGENT_ICONS[event.agentId || ""] || (
 		<Bot className="h-4 w-4" />
 	);
+	const colors = AGENT_COLORS[event.agentId || ""] || DEFAULT_AGENT_COLOR;
 
 	return (
 		<motion.div
@@ -86,7 +183,7 @@ export function AgentActivityCard({
 			className={cn(
 				"rounded-2xl border overflow-hidden backdrop-blur-sm",
 				isActive
-					? "border-violet-500/[0.2] bg-violet-500/[0.04]"
+					? `${colors.border} ${colors.bg}`
 					: isComplete
 						? "border-white/[0.08] bg-white/[0.04]"
 						: "border-white/[0.06] bg-white/[0.02]",
@@ -97,8 +194,8 @@ export function AgentActivityCard({
 				<div className="flex items-center gap-2">
 					<div
 						className={cn(
-							"flex-shrink-0 p-1 rounded",
-							isActive ? "text-primary" : "text-muted-foreground",
+							"flex-shrink-0 p-1.5 rounded-lg",
+							isActive ? `${colors.iconBg} ${colors.accent}` : "text-muted-foreground",
 						)}
 					>
 						{icon}
@@ -136,10 +233,10 @@ export function AgentActivityCard({
 									animate={{ scale: 1 }}
 									exit={{ scale: 0 }}
 								>
-									<Loader className="h-3.5 w-3.5 animate-spin text-primary" />
+									<Loader className={cn("h-3.5 w-3.5 animate-spin", colors.accent)} />
 								</motion.div>
 							)}
-							{isComplete && (
+							{isComplete && !isActive && (
 								<motion.div
 									key="complete"
 									initial={{ scale: 0 }}
@@ -167,10 +264,116 @@ export function AgentActivityCard({
 					<motion.div
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
-						className="text-xs text-muted-foreground mt-1.5 ml-7"
+						className={cn("text-xs mt-1.5 ml-7", colors.accent, "opacity-70")}
 					>
 						{event.readOnly ? "Analyzing..." : "Generating code..."}
 					</motion.div>
+				)}
+			</div>
+		</motion.div>
+	);
+}
+
+/**
+ * AgentActivationCard — Shown in the chat timeline when a user
+ * activates an agent via slash command (e.g. /backend, /frontend).
+ * Displays agent icon, name, tier, description, and "ready" status.
+ */
+interface AgentActivationCardProps {
+	agentId: string;
+	agentName: string;
+	modelTier: string;
+	description: string;
+	onDeactivate?: () => void;
+}
+
+export function AgentActivationCard({
+	agentId,
+	agentName,
+	modelTier,
+	description,
+	onDeactivate,
+}: AgentActivationCardProps) {
+	const tier = TIER_COLORS[modelTier] || TIER_COLORS.sonnet;
+	const icon = AGENT_ICONS[agentId] || <Bot className="h-4 w-4" />;
+	const colors = AGENT_COLORS[agentId] || DEFAULT_AGENT_COLOR;
+
+	return (
+		<motion.div
+			initial={{ opacity: 0, y: 12, scale: 0.97 }}
+			animate={{ opacity: 1, y: 0, scale: 1 }}
+			transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+			className={cn(
+				"rounded-2xl border overflow-hidden backdrop-blur-sm",
+				colors.border,
+				colors.bg,
+			)}
+		>
+			<div className="px-4 py-3">
+				{/* Header: icon + name + tier + ready dot */}
+				<div className="flex items-center gap-2.5">
+					<div
+						className={cn(
+							"flex-shrink-0 p-2 rounded-xl",
+							colors.iconBg,
+							colors.accent,
+						)}
+					>
+						{icon}
+					</div>
+					<div className="flex-1 min-w-0">
+						<div className="flex items-center gap-2">
+							<span className="text-sm font-semibold text-foreground">
+								{agentName}
+							</span>
+							<span
+								className={cn(
+									"text-xs font-medium px-1.5 py-0.5 rounded",
+									tier.bg,
+									tier.text,
+								)}
+							>
+								{tier.label}
+							</span>
+						</div>
+						<p className="text-xs text-muted-foreground mt-0.5 truncate">
+							{description}
+						</p>
+					</div>
+
+					{/* Ready pulse indicator */}
+					<div className="flex-shrink-0 relative">
+						<span className={cn("absolute inset-0 rounded-full animate-ping opacity-30", colors.accent.replace("text-", "bg-"))} style={{ animationDuration: "2s" }} />
+						<CircleDot className={cn("h-4 w-4 relative", colors.accent)} />
+					</div>
+				</div>
+
+				{/* Activation message */}
+				<motion.div
+					initial={{ opacity: 0 }}
+					animate={{ opacity: 1 }}
+					transition={{ delay: 0.15 }}
+					className="mt-3 ml-[42px]"
+				>
+					<p className={cn("text-xs font-medium", colors.accent)}>
+						Activated &mdash; ready for your instructions
+					</p>
+					<p className="text-[11px] text-muted-foreground mt-1">
+						Type your request below. This agent will handle all messages until you switch.
+					</p>
+				</motion.div>
+
+				{/* Switch to Auto button */}
+				{onDeactivate && (
+					<div className="mt-2.5 ml-[42px]">
+						<button
+							type="button"
+							onClick={onDeactivate}
+							className="text-xs text-white/30 hover:text-white/60 px-2.5 py-1 rounded-lg hover:bg-white/[0.06] border border-white/[0.06] hover:border-white/[0.1] transition-all duration-200"
+						>
+							Switch to Auto
+						</button>
+					</div>
 				)}
 			</div>
 		</motion.div>
