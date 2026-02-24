@@ -25,22 +25,34 @@ export interface ReadmePanelProps {
  */
 export function ReadmePanel({ files }: ReadmePanelProps) {
 	// Filter to only documentation files (.md, readme)
+	// Sort: docs/ files first, then root .md files
 	const docFiles = useMemo(() => {
-		return files.filter(
+		const mdFiles = files.filter(
 			(f) =>
 				f.path.endsWith(".md") ||
 				f.path.toLowerCase().includes("readme"),
 		);
+		return mdFiles.sort((a, b) => {
+			const aIsWiki = a.path.startsWith("docs/") ? 0 : 1;
+			const bIsWiki = b.path.startsWith("docs/") ? 0 : 1;
+			if (aIsWiki !== bIsWiki) return aIsWiki - bIsWiki;
+			return a.path.localeCompare(b.path);
+		});
 	}, [files]);
 
-	// Find default file (prefer README.md)
+	// Find default file: prefer docs/README.md > README.md > Blueprint.md > first doc
 	const defaultFile = useMemo(() => {
+		const docsReadme = docFiles.find((f) => f.path === "docs/README.md");
+		if (docsReadme) return docsReadme.path;
 		const readme = docFiles.find(
 			(f) =>
 				f.path.toLowerCase() === "readme.md" ||
 				f.path.toLowerCase().endsWith("/readme.md"),
 		);
-		return readme?.path || docFiles[0]?.path || "";
+		if (readme) return readme.path;
+		const blueprint = docFiles.find((f) => f.path === "Blueprint.md");
+		if (blueprint) return blueprint.path;
+		return docFiles[0]?.path || "";
 	}, [docFiles]);
 
 	// Selected file state

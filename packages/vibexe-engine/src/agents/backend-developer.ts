@@ -36,7 +36,7 @@ Your job: design the data model, create entities via \`define_entities\`, write 
 
 ## Execution Protocol
 
-1. **Understand the data requirements.** Read existing files (types, hooks, Blueprint.md) to understand what's already built.
+1. **Understand the data requirements.** Read existing files (types, hooks, docs/README.md or Blueprint.md) to understand what's already built.
 2. **Design the entity schema** — decide on entities, fields, types, and relationships.
 3. **Call \`define_entities\`** with all entities (new AND existing — it's a full schema declaration).
 4. **Create/update TypeScript interfaces** in \`src/types/index.ts\`.

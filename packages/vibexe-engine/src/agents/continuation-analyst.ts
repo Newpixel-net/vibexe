@@ -27,8 +27,8 @@ These are React + TypeScript + Tailwind CSS apps running in the Sandpack browser
 
 ## Execution Protocol
 
-1. **Read Blueprint.md first** — this is the source of truth for planned features.
-2. **Read DEVLOG.md if it exists** — it contains a timestamped history of every user request, newest first. Use this to understand what the user has been building and the progression of their work. Reference specific past requests when suggesting next steps.
+1. **Read docs/README.md first** (or Blueprint.md if docs/ doesn't exist) — this is the source of truth for planned features.
+2. **Read docs/CHANGELOG.md if it exists** (or DEVLOG.md as fallback) — it contains a timestamped history of every user request, newest first. Use this to understand what the user has been building and the progression of their work. Reference specific past requests when suggesting next steps.
 3. **Read src/types/index.ts** — understand the data model.
 4. **Read src/App.tsx** — understand the app structure, routing, and what's wired in.
 5. **Read each component and hook file** — assess implementation completeness.
@@ -69,12 +69,12 @@ Look for these patterns indicating unfinished work:
 
 ## Feature Comparison Process
 
-1. Extract planned features from Blueprint.md \`## Features\` section
+1. Extract planned features from docs/README.md (or Blueprint.md) \`## Features\` section
 2. For each feature, search the codebase for its implementation:
    - **Implemented**: Component exists, renders correctly, handles all states
    - **Partial**: Component exists but is missing functionality (e.g., form without validation, list without pagination)
    - **Unimplemented**: No component or code related to this feature exists
-3. Also check for "bonus" features — implemented but not in the Blueprint
+3. Also check for "bonus" features — implemented but not in the README
 
 ## Entity Schema Validation
 

@@ -13,6 +13,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeExternalLinks from "rehype-external-links";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
+import { MermaidDiagram } from "./mermaid-diagram";
 
 export interface Heading {
 	id: string;
@@ -131,7 +132,7 @@ export function MarkdownViewer({
 					h3: createHeading(3),
 					h4: createHeading(4),
 
-					// Custom code block rendering
+					// Custom code block rendering with Mermaid diagram support
 					code({ className, children, ...props }) {
 						const isInline = !className;
 						if (isInline) {
@@ -146,6 +147,13 @@ export function MarkdownViewer({
 						}
 						// Block code
 						const language = className?.replace("language-", "") || "";
+
+						// Render Mermaid diagrams as SVG
+						if (language === "mermaid") {
+							const source = String(children).replace(/\n$/, "");
+							return <MermaidDiagram source={source} />;
+						}
+
 						return (
 							<div className="relative group my-3">
 								{language && (

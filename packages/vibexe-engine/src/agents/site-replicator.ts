@@ -69,7 +69,7 @@ export const FONTS = {
 \`\`\`
 
 ### Step 3: Create Files (dependencies first)
-1. **Blueprint.md** — Reference analysis + design decisions
+1. **docs/README.md** — Reference analysis + design decisions
 2. **src/types/index.ts** — NavItem, Section, etc.
 3. **src/utils/constants.ts** — Colors, fonts, sizing from Step 2
 4. **src/hooks/*** — useMousePosition, useScrollPosition (if needed)

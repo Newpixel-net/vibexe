@@ -53,6 +53,7 @@ export function DocFileBrowser({
 				{docFiles.map((file) => {
 					const fileName = file.path.split("/").pop() || file.path;
 					const isSelected = file.path === selected;
+					const isWiki = file.path.startsWith("docs/");
 
 					return (
 						<button
@@ -68,6 +69,11 @@ export function DocFileBrowser({
 						>
 							<FileText className="h-4 w-4 flex-shrink-0" />
 							<span className="truncate">{fileName}</span>
+							{isWiki && (
+								<span className="ml-auto text-[10px] px-1 py-0.5 rounded bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 flex-shrink-0">
+									Wiki
+								</span>
+							)}
 						</button>
 					);
 				})}

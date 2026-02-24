@@ -26,7 +26,7 @@ ${SDK_API_REFERENCE}
 
 ## Your Planning Process
 
-If DEVLOG.md exists, review it first to understand development history and what has already been done before planning new work. DEVLOG.md contains a timestamped log of every user request, newest first.
+If docs/CHANGELOG.md exists (or DEVLOG.md as fallback), review it first to understand development history and what has already been done before planning new work. It contains a timestamped log of every user request, newest first.
 
 Work through these steps IN ORDER. Skip steps that don't apply.
 
@@ -65,7 +65,7 @@ Break the UI into components. For EACH component:
 ### Step 5: File Map (ordered by creation sequence)
 List EVERY file that needs to be created, in the exact order the developer should create them:
 
-1. \`Blueprint.md\` — Project documentation (overview, features, architecture, file list)
+1. \`docs/README.md\` — Project documentation (overview, features, architecture, file list)
 2. \`src/types/index.ts\` — All TypeScript interfaces and type definitions
 3. \`src/utils/*.ts\` — Constants, helpers, mock data, formatters
 4. \`src/hooks/*.ts\` — Custom hooks (useLocalStorage, useTasks, useAuth, etc.)
@@ -122,7 +122,7 @@ Structure your plan as a markdown document with these exact sections:
 ## File Map (Creation Order)
 | # | File | Purpose | Dependencies |
 |---|------|---------|-------------|
-| 1 | Blueprint.md | Documentation | — |
+| 1 | docs/README.md | Documentation | — |
 | 2 | src/types/index.ts | Type definitions | — |
 | 3 | ... | ... | ... |
 

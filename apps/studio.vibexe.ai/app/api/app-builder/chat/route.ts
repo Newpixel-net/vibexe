@@ -29,7 +29,6 @@ import {
 	getAppById,
 	getFileByPath,
 	getFilesForApp,
-	saveFile,
 } from "@/app/(main)/app-builder/lib/queries";
 import {
 	type SiteAnalysis,
@@ -39,50 +38,14 @@ import {
 import { getUser } from "@/lib/auth/get-user";
 import { getSupabaseConfig, getAppBackendType } from "@/lib/app-database/supabase-connect";
 import { resolveAllProviderApiKeys } from "@/lib/team-ai-provider-keys";
+import { syncWiki } from "@/lib/wiki/wiki-sync";
+import { buildWikiContext } from "@/lib/wiki/context-selector";
 
 // Initialize engine registries (runs once at module load)
 registerAgents(DEFAULT_AGENTS);
 registerSkills(DEFAULT_SKILLS);
 
-/**
- * Append an entry to the project's DEVLOG.md (development memory).
- * Programmatic — zero token cost, runs before every generation.
- */
-async function appendToDevLog(appId: string, request: string, category: string) {
-	const now = new Date();
-	const timestamp =
-		now.toLocaleDateString("en-US", {
-			month: "short",
-			day: "numeric",
-			year: "numeric",
-		}) +
-		" \u00B7 " +
-		now.toLocaleTimeString("en-US", {
-			hour: "numeric",
-			minute: "2-digit",
-			hour12: true,
-		});
-
-	const sanitized = request.slice(0, 500).replace(/\n/g, " ");
-	const newEntry = `### ${timestamp} — ${category}\n> ${sanitized}\n\n---\n\n`;
-	const header = `# Development Log\n\n> Project memory — automatically tracks all changes. Agents reference this for context continuity.\n\n---\n\n`;
-
-	try {
-		const existing = await getFileByPath(appId, "DEVLOG.md");
-		if (existing?.content) {
-			// Prepend new entry after the header (first "---" line)
-			const lines = existing.content.split("\n");
-			const headerEnd = lines.findIndex((l, i) => i > 0 && l.startsWith("---")) + 1;
-			const before = lines.slice(0, headerEnd).join("\n");
-			const after = lines.slice(headerEnd).join("\n");
-			await saveFile(appId, "DEVLOG.md", before + "\n\n" + newEntry + after.trimStart(), "markdown");
-		} else {
-			await saveFile(appId, "DEVLOG.md", header + newEntry, "markdown");
-		}
-	} catch (e) {
-		console.error("[Chat API] DEVLOG append failed:", e);
-	}
-}
+// appendToDevLog removed — replaced by syncWiki() from lib/wiki/wiki-sync.ts
 
 /**
  * Build language-specific instructions for the AI system prompt.
@@ -222,9 +185,10 @@ export async function POST(request: Request) {
 			let projectContext = fileContext;
 			if (existingFiles.length > 0) {
 				try {
-					const blueprint = await getFileByPath(appId, "Blueprint.md");
-					if (blueprint?.content) {
-						projectContext += `\n\n## Blueprint.md\n\`\`\`markdown\n${blueprint.content.slice(0, 6000)}\n\`\`\``;
+					// Use wiki context for continuation analyst
+					const continueWiki = await buildWikiContext(appId, "continuation-analyst");
+					if (continueWiki) {
+						projectContext += continueWiki;
 					}
 					const appTsx = await getFileByPath(appId, "src/App.tsx");
 					if (appTsx?.content) {
@@ -303,45 +267,26 @@ export async function POST(request: Request) {
 		const URL_REGEX = /https?:\/\/[^\s"'<>]+/gi;
 		const detectedUrls = userPrompt.match(URL_REGEX) || [];
 
-		// Inject Blueprint.md content for returning users (gives AI full project context)
-		let blueprintContext = "";
+		// Inject wiki context for returning users — agent-specific pages with per-page budgets
+		// Replaces the old fixed Blueprint.md (4K) + DEVLOG.md (3K) injection
+		let wikiContext = "";
 		if (existingFiles.length > 0) {
 			try {
-				const blueprint = await getFileByPath(appId, "Blueprint.md");
-				if (blueprint?.content) {
-					const truncated = blueprint.content.length > 4000
-						? `${blueprint.content.slice(0, 4000)}\n... (truncated)`
-						: blueprint.content;
-					blueprintContext = `\n\n## Blueprint (Project Documentation)\n\`\`\`markdown\n${truncated}\n\`\`\``;
-				}
+				// Determine which agent will run (best guess before orchestration)
+				const guessAgentId = activeAgentId || "fullstack-developer";
+				wikiContext = await buildWikiContext(appId, guessAgentId);
 			} catch (_) {
-				// Blueprint read is best-effort
+				// Wiki context is best-effort
 			}
 		}
 
-		// Inject DEVLOG.md for returning users (project memory / development history)
-		let devlogContext = "";
-		if (existingFiles.length > 0) {
-			try {
-				const devlog = await getFileByPath(appId, "DEVLOG.md");
-				if (devlog?.content) {
-					const truncated = devlog.content.length > 3000
-						? devlog.content.slice(0, 3000) + "\n... (older entries omitted)"
-						: devlog.content;
-					devlogContext = `\n\n## Development History (DEVLOG.md)\n\`\`\`markdown\n${truncated}\n\`\`\``;
-				}
-			} catch (_) {
-				// Best-effort
-			}
-		}
-
-		let enrichedFileContext = fileContext + blueprintContext + devlogContext;
+		let enrichedFileContext = fileContext + wikiContext;
 		let siteAnalysis: SiteAnalysis | null = null;
 		if (detectedUrls.length > 0) {
 			try {
 				siteAnalysis = await analyzeUrl(detectedUrls[0]);
 				if (siteAnalysis) {
-					enrichedFileContext = `${fileContext}\n\n${formatSiteAnalysis(siteAnalysis)}${blueprintContext}${devlogContext}`;
+					enrichedFileContext = `${fileContext}\n\n${formatSiteAnalysis(siteAnalysis)}${wikiContext}`;
 					console.log(
 						`[Chat API] URL analysis complete: ${detectedUrls[0]} — lang=${siteAnalysis.language.code} (${siteAnalysis.language.direction}), ${siteAnalysis.fonts.length} fonts, ${siteAnalysis.colors.length} colors, ${siteAnalysis.layout.sections.length} sections`,
 					);
@@ -506,8 +451,8 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 
 		// --- Plan-then-Execute Logic ---
 		// Detect project state to implement two-phase generation:
-		// Phase 1 (new project): Create ONLY Blueprint.md, stop, let user review
-		// Phase 2 (user says "build it"): Execute the plan from Blueprint.md
+		// Phase 1 (new project): Create ONLY docs/README.md, stop, let user review
+		// Phase 2 (user says "build it"): Execute the plan from docs/README.md
 		const hasCodeFiles = existingFiles.some(
 			(f) =>
 				f.path.endsWith(".tsx") ||
@@ -515,17 +460,19 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				f.path.endsWith(".jsx") ||
 				f.path.endsWith(".js"),
 		);
-		const hasBlueprintOnly =
+		const hasPlanOnly =
 			existingFiles.length > 0 &&
-			existingFiles.some((f) => f.path === "Blueprint.md") &&
+			existingFiles.some(
+				(f) => f.path === "docs/README.md" || f.path === "Blueprint.md",
+			) &&
 			!hasCodeFiles;
 		const isNewProject = existingFiles.length === 0;
 
 		if (isNewProject && !isVisualEdit) {
-			// Phase 1: Plan only — create Blueprint.md and stop
-			runtimeAddenda.push(`## ⚠️ PLAN FIRST (MANDATORY)
+			// Phase 1: Plan only — create docs/README.md and stop
+			runtimeAddenda.push(`## PLAN FIRST (MANDATORY)
 
-Create ONLY \`Blueprint.md\` with a comprehensive project plan. Include:
+Create ONLY \`docs/README.md\` with a comprehensive project plan. Include:
 - **Overview**: What the app does, who it's for
 - **Features**: Numbered list with acceptance criteria (F1, F2, F3...)
 - **Data Model**: Entity schemas with fields, types, relationships
@@ -535,23 +482,23 @@ Create ONLY \`Blueprint.md\` with a comprehensive project plan. Include:
 - **UX Flows**: Primary user journeys, empty/loading/error states
 - **Getting Started**: If the app uses auth, include: "Sign up with any email and password (8+ characters) to create your first account. There are no default credentials — every user registers through the app."
 
-Make Blueprint.md thorough and detailed — this is the plan the user will review.
+Make docs/README.md thorough and detailed — this is the plan the user will review.
 
-After creating Blueprint.md, **STOP**. Do NOT create any code files (.ts, .tsx, .js, .jsx).
+After creating docs/README.md, **STOP**. Do NOT create any code files (.ts, .tsx, .js, .jsx).
 
 End your response with:
-"📋 **Project plan created!** Review it in the **Documents tab**, then say **'build it'** when you're ready for me to generate the code."
+"Project plan created! Review it in the **Documents tab**, then say **'build it'** when you're ready for me to generate the code."
 
-CRITICAL: Only create Blueprint.md. No other files.`);
-		} else if (hasBlueprintOnly) {
-			// Phase 2: Execute the plan — Blueprint.md exists, no code yet
+CRITICAL: Only create docs/README.md. No other files.`);
+		} else if (hasPlanOnly) {
+			// Phase 2: Execute the plan — docs/README.md (or Blueprint.md) exists, no code yet
 			runtimeAddenda.push(`## EXECUTE THE PLAN
 
-The user has reviewed the Blueprint.md plan (available in the Documents tab). Now execute it:
-1. Read Blueprint.md to understand the full plan
+The user has reviewed the project plan (available in the Documents tab as docs/README.md). Now execute it:
+1. Read docs/README.md (or Blueprint.md if that exists instead) to understand the full plan
 2. **CRITICAL: Create src/App.tsx FIRST** — this is the entry point that Sandpack needs to render the preview. Import all main page/layout components. Without App.tsx the preview will be blank.
 3. Then create ALL remaining code files following the plan's File Map
-4. Do NOT recreate or modify Blueprint.md — it's already done
+4. Do NOT recreate or modify docs/README.md — it's already done
 5. Use define_entities to register data entities if the plan includes a Data Model section
 6. **Auth UX**: If the app has auth, the Login/Register page MUST default to showing the **Sign Up** form (not Sign In), since new apps have zero users. Include a toggle to switch between Sign Up and Sign In.
 
@@ -563,25 +510,19 @@ After creating ALL files, end with a short summary. If the app has auth, include
 			// Normal existing project — edit/add files
 			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)
 This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE modifying them with \`update_file\`. Never blindly overwrite files without reading them first.
-Reference DEVLOG.md for the history of changes made to this project.`);
+Reference the Project Wiki (docs/ folder) for architecture, data model, and change history.`);
 		}
 
-		// Document this request in DEVLOG.md (project memory — zero token cost)
-		const devlogCategory = isNewProject
+		// Document this request in wiki (project memory — zero token cost)
+		const wikiCategory = isNewProject
 			? "New Project"
-			: hasBlueprintOnly
+			: hasPlanOnly
 				? "Build Plan"
 				: isVisualEdit
 					? "Visual Edit"
 					: plan.intent.suggestedFlow === "fix"
 						? "Bug Fix"
 						: "Feature Update";
-		// Skip logging for review-code and non-generation modes (already handled above)
-		if (!isReviewCode) {
-			appendToDevLog(appId, userPrompt, devlogCategory).catch((e) =>
-				console.error("[Chat API] DEVLOG background write failed:", e),
-			);
-		}
 
 		// --- FIX FLOW: Inject existing file contents so the error resolver has full context ---
 		if (plan.intent.suggestedFlow === "fix" && existingFiles.length > 0) {
@@ -656,9 +597,9 @@ Reference DEVLOG.md for the history of changes made to this project.`);
 		const isFix = plan.intent.suggestedFlow === "fix";
 		const isPlanOnly = isNewProject && !isVisualEdit;
 		const maxSteps = isPlanOnly
-			? 5 // Plan-only: just Blueprint.md creation
-			: hasBlueprintOnly
-				? 100 // Execute-plan: full project build from Blueprint needs many steps
+			? 5 // Plan-only: just docs/README.md creation
+			: hasPlanOnly
+				? 100 // Execute-plan: full project build from plan needs many steps
 				: isVisualEdit
 					? 10
 					: isFix
@@ -673,7 +614,7 @@ Reference DEVLOG.md for the history of changes made to this project.`);
 
 		const upstreamCount = plan.agents.filter((a) => a.readOnly).length;
 		console.log(
-			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, chained=${upstreamCount}, model=${modelId || primaryAgent?.modelTier || "default"}, maxSteps=${maxSteps}${pinnedAgent ? `, pinned=${pinnedAgent.id}` : ""}${isPlanOnly ? ", mode=plan-only" : hasBlueprintOnly ? ", mode=execute-plan" : ""}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,
+			`[Chat API] Orchestration: complexity=${plan.intent.complexity}, flow=${plan.intent.suggestedFlow}, agents=${plan.agents.map((a) => a.id).join("->")}, chained=${upstreamCount}, model=${modelId || primaryAgent?.modelTier || "default"}, maxSteps=${maxSteps}${pinnedAgent ? `, pinned=${pinnedAgent.id}` : ""}${isPlanOnly ? ", mode=plan-only" : hasPlanOnly ? ", mode=execute-plan" : ""}${detectedUrls.length > 0 ? `, url=${detectedUrls[0]}` : ""}`,
 		);
 
 		// Use streamText directly with toUIMessageStreamResponse for proper multi-step support.
@@ -681,6 +622,8 @@ Reference DEVLOG.md for the history of changes made to this project.`);
 		// gets finishReason=tool-calls (wants to continue) but the stream closes after step 1.
 		let stepCount = 0;
 		let totalFileCalls = 0;
+		const filesChanged: string[] = [];
+		const entitiesChanged: string[] = [];
 		const result = streamText({
 			model,
 			system: systemPrompt,
@@ -695,6 +638,20 @@ Reference DEVLOG.md for the history of changes made to this project.`);
 					(tc) => fileToolNames.includes(tc.toolName),
 				).length;
 				totalFileCalls += fileCallsInStep;
+
+				// Track changed files and entities for wiki sync
+				for (const tc of toolCalls || []) {
+					const args = (tc as Record<string, unknown>).args as Record<string, unknown> | undefined;
+					if ((tc.toolName === "create_file" || tc.toolName === "update_file") && args && typeof args.path === "string") {
+						filesChanged.push(args.path);
+					}
+					if (tc.toolName === "define_entities" && args && Array.isArray(args.entities)) {
+						for (const ent of args.entities as { name: string }[]) {
+							if (ent.name) entitiesChanged.push(ent.name);
+						}
+					}
+				}
+
 				const toolNames = (toolCalls || []).map((tc) => tc.toolName).join(",") || "text-only";
 				console.log(
 					`[Chat API] Step ${stepCount}: tools=${toolNames}, files=${totalFileCalls}, tokens=${usage?.totalTokens || 0}, finish=${finishReason}`,
@@ -704,6 +661,18 @@ Reference DEVLOG.md for the history of changes made to this project.`);
 				console.log(
 					`[Chat API] Stream finished - Chat: ${chatId || "new"}, steps=${stepCount}, files=${totalFileCalls}, maxSteps=${maxSteps}, finishReason=${event.finishReason}`,
 				);
+
+				// Sync wiki pages (fire-and-forget, zero token cost)
+				if (!isReviewCode && totalFileCalls > 0) {
+					syncWiki(appId, {
+						category: wikiCategory,
+						userPrompt,
+						filesChanged,
+						entitiesChanged: entitiesChanged.length > 0 ? entitiesChanged : undefined,
+					}).catch((e) =>
+						console.error("[Chat API] Wiki sync failed:", e),
+					);
+				}
 			},
 		});
 

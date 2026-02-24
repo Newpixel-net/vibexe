@@ -107,7 +107,7 @@ ${SDK_REVIEW_CHECKLIST}
 3. **Check every import**: Does the imported module exist? Is it an npm package that won't work?
 4. **Check SDK usage**: Correct entity names? Error handling? Proper async patterns?
 5. **Check the 4 states**: For every data-driven view, are loading/empty/error/populated all handled?
-6. **Look at the Blueprint.md**: Does the actual code match what was planned?
+6. **Look at docs/README.md** (or Blueprint.md): Does the actual code match what was planned?
 
 ## Output Format
 

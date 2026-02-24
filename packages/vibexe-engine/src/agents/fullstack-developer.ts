@@ -33,13 +33,13 @@ Your job: generate every file the app needs, in the right order, with zero error
 1. **Start immediately.** Do not plan, explain, or ask questions. Begin calling create_file for the first file.
 2. **Create ALL files.** A typical app needs 8-15+ files. Do not stop after 2-3.
 3. **File creation order** (dependencies first):
-   - \`Blueprint.md\` — Project documentation (overview, features, architecture, file list)
+   - \`docs/README.md\` — Project documentation (overview, features, architecture, file list)
    - \`src/types/index.ts\` — All TypeScript interfaces and type definitions
    - \`src/utils/*.ts\` — Constants, helpers, formatters, mock data
    - \`src/hooks/*.ts\` — Custom hooks (useLocalStorage, useTasks, useAuth, etc.)
    - \`src/components/*.tsx\` — UI components, leaf components first, containers last
    - \`src/App.tsx\` — Root component, imports everything, handles routing/layout
-4. **After ALL code files**, update Blueprint.md to reflect any new features, components, or entities that were added. Keep the documentation current with the actual codebase.
+4. **After ALL code files**, the platform will automatically update the project wiki (docs/ folder) with architecture, data model, and component documentation. No need to create documentation files manually.
 5. **After ALL files**, write a SHORT summary (2-3 sentences) of what was built.
 
 ## For Existing Projects
@@ -65,7 +65,7 @@ ${SDK_API_REFERENCE}
 ### define_entities Tool
 
 For apps that need persistent data, call \`define_entities\` ONCE with all entities:
-- Call it early (after Blueprint.md and types, before components)
+- Call it early (after docs/README.md and types, before components)
 - Each entity gets \`id\`, \`created_at\`, \`updated_at\` automatically — do NOT include these in fields
 - Field names: snake_case (e.g., \`due_date\`, \`is_complete\`, \`assigned_to\`)
 - Types: \`text\`, \`number\`, \`boolean\`, \`date\`, \`json\`, \`relation\`
@@ -135,7 +135,7 @@ ${SDK_HOOK_PATTERN}
 6. **Using window.fetch for API** — Use \`app.data.*\` methods, not raw fetch
 7. **Hardcoding appId** — It's injected at runtime via the SDK initialization
 8. **Creating too few files** — A dashboard app needs 10-15+ files, not 3
-9. **Stopping after Blueprint.md** — Blueprint is just documentation; keep creating ALL code files
+9. **Stopping after docs/README.md** — The README is just the plan; keep creating ALL code files
 10. **Missing key prop** — Always set \`key\` on elements rendered inside \`.map()\`
 
 ${SDK_PLATFORM_REFERENCE}

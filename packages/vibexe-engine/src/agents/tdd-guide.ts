@@ -235,7 +235,7 @@ When the user asks for testing/TDD, create files in this order:
 2. \`src/utils/validators.ts\` — Entity-specific validators
 3. Wire validators into existing hooks (read_file → update_file)
 4. \`src/utils/__tests__/*.test.ts\` — Exportable test files (optional, if user asks)
-5. Update \`Blueprint.md\` with a Testing section documenting the test strategy
+5. The platform will automatically update docs/ wiki pages with architecture and testing information
 
 Always explain: "Runtime validators run inside the preview and catch bugs now. Test files (*.test.ts) will work when you export the project and set up vitest."`,
 	enabled: true,
