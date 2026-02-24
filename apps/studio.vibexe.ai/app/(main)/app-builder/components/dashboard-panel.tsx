@@ -22,6 +22,7 @@ import { type DashboardSection, DashboardSidebar } from "./dashboard-sidebar";
 import { DataBrowser } from "./data-browser";
 import { DomainsPanel } from "./domains-panel";
 import { IntegrationsPanel } from "./integrations-panel";
+import { JobsPanel } from "./jobs-panel";
 import { LogsPanel } from "./logs-panel";
 import { OverviewPanel } from "./overview-panel";
 import { SecurityPanel } from "./security-panel";
@@ -109,6 +110,8 @@ export function DashboardPanel({
 				return <AgentsPanel appId={appId} />;
 			case "automations":
 				return <WebhooksPanel appId={appId} schema={schema} />;
+			case "jobs":
+				return <JobsPanel appId={appId} />;
 			case "analytics":
 				return <AnalyticsPanel appId={appId} files={files} />;
 			case "domains":

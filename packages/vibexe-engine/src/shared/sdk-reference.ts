@@ -189,6 +189,34 @@ const result = await app.functions.invoke("calculatePrice", { items: [...] });
 // Sends POST to /api/apps/{appId}/functions/{name}
 // Returns whatever the function returns
 
+// ─── Background Jobs (Scheduled Tasks) ───
+// Create a recurring job that runs a registered function on a cron schedule
+const job = await app.jobs.create({
+  name: "daily-cleanup",
+  functionName: "dailyCleanup",       // must be a registered function
+  cronExpression: "0 2 * * *",        // 2 AM daily (min interval: 5 min)
+  timezone: "UTC",
+  description: "Clean up expired sessions",
+  retryPolicy: { maxRetries: 3, initialDelayMs: 5000, maxDelayMs: 300000, backoffMultiplier: 2 },
+  timeoutMs: 30000,
+});
+
+const { data: jobs, pagination } = await app.jobs.list({ page: 1, limit: 20 });
+const jobDetail = await app.jobs.get(jobId);  // includes recentRuns array
+await app.jobs.update(jobId, { enabled: false });
+await app.jobs.delete(jobId);
+
+// Manual trigger — run job immediately bypassing schedule
+const run = await app.jobs.trigger(jobId);
+// run = { status: "completed"|"failed"|"retrying", durationMs, runId }
+
+// Run history
+const { data: runs } = await app.jobs.runs(jobId, { page: 1, status: "failed" });
+
+// Dead letter queue — jobs that exhausted all retries
+const { data: dlq } = await app.jobs.dlq();
+await app.jobs.acknowledgeDlq(dlqId);
+
 // ─── Webhooks ───
 // Create a webhook to be notified when events happen
 const webhook = await app.webhooks.create({
@@ -650,6 +678,17 @@ export const mockApp = {
   functions: {
     invoke: vi.fn().mockResolvedValue(null),
   },
+  jobs: {
+    create: vi.fn().mockResolvedValue({ id: 1, name: "test-job", function_name: "testFn", cron_expression: "*/5 * * * *", enabled: true }),
+    list: vi.fn().mockResolvedValue({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } }),
+    get: vi.fn().mockResolvedValue({ id: 1, name: "test-job", recentRuns: [] }),
+    update: vi.fn().mockResolvedValue({ id: 1, enabled: false }),
+    delete: vi.fn().mockResolvedValue(undefined),
+    trigger: vi.fn().mockResolvedValue({ status: "completed", durationMs: 100, runId: 1 }),
+    runs: vi.fn().mockResolvedValue({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } }),
+    dlq: vi.fn().mockResolvedValue({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } }),
+    acknowledgeDlq: vi.fn().mockResolvedValue(undefined),
+  },
   webhooks: {
     create: vi.fn().mockResolvedValue({ dbId: 1, url: "https://example.com/webhook", events: ["entity.created:tasks"], enabled: true }),
     list: vi.fn().mockResolvedValue({ webhooks: [] }),
@@ -700,6 +739,72 @@ async function validateAuthFlow(): Promise<FlowResult> {
 
   return { flow: "Authentication", steps };
 }
+\`\`\`
+`;
+
+/** Background jobs API reference for agents */
+export const SDK_JOBS_REFERENCE = `
+## Background Jobs — Scheduled Task Management
+
+Jobs run registered functions on a cron schedule with automatic retry and dead letter queue.
+
+### Creating a Job
+\`\`\`typescript
+const job = await app.jobs.create({
+  name: "daily-cleanup",          // unique name per app
+  functionName: "dailyCleanup",   // must match a registered function name
+  cronExpression: "0 2 * * *",    // standard 5-field cron (min: */5 * * * *)
+  timezone: "UTC",                // optional, default UTC
+  description: "Clean expired sessions",
+  retryPolicy: {
+    maxRetries: 3,                // default 3
+    initialDelayMs: 5000,         // default 5s
+    maxDelayMs: 300000,           // default 5min
+    backoffMultiplier: 2,         // default 2 (exponential)
+  },
+  timeoutMs: 30000,               // max 30000
+});
+\`\`\`
+
+### Job Lifecycle
+1. Job created with \`next_run_at\` calculated from cron expression
+2. Central cron (every minute) picks up due jobs, executes function in sandbox
+3. On failure: retries with exponential backoff (delay = initialDelayMs * multiplier^attempt)
+4. After maxRetries exhausted: writes to Dead Letter Queue (_app_job_dlq)
+5. DLQ entries can be acknowledged via dashboard or SDK
+
+### SDK Methods
+\`\`\`
+app.jobs.create(input)           — Create/upsert a scheduled job
+app.jobs.list({ page, limit })   — List jobs (paginated)
+app.jobs.get(jobId)              — Get job details + recent runs
+app.jobs.update(jobId, data)     — Update job config
+app.jobs.delete(jobId)           — Delete job + all runs
+app.jobs.trigger(jobId)          — Run immediately (bypasses schedule)
+app.jobs.runs(jobId, opts)       — Run history (paginated, filterable by status)
+app.jobs.dlq({ page })           — List dead letter queue entries
+app.jobs.acknowledgeDlq(dlqId)  — Mark DLQ entry as handled
+\`\`\`
+
+### Example: Daily Report Job
+\`\`\`typescript
+// 1. Register the function
+// functions/dailyReport.ts
+export default async function(ctx) {
+  const { data: [totals] } = await ctx.db.query(
+    'SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL \\'1 day\\') as today FROM "orders"'
+  );
+  console.log("Daily report:", totals);
+  // Could also call ctx.fetch to post to Slack/email
+  return totals;
+}
+
+// 2. Create the job via SDK
+const job = await app.jobs.create({
+  name: "daily-report",
+  functionName: "dailyReport",
+  cronExpression: "0 9 * * *",  // 9 AM daily
+});
 \`\`\`
 `;
 

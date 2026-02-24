@@ -420,4 +420,69 @@ async function createAuthTables(databaseName: string): Promise<void> {
 		databaseName,
 		`CREATE INDEX IF NOT EXISTS _app_logs_level_idx ON _app_logs(level)`,
 	);
+
+	// Background jobs tables for scheduled task management
+	await executeQuery(
+		databaseName,
+		`CREATE TABLE IF NOT EXISTS _app_scheduled_jobs (
+			id SERIAL PRIMARY KEY,
+			name TEXT NOT NULL UNIQUE,
+			description TEXT DEFAULT '',
+			function_name TEXT NOT NULL,
+			cron_expression TEXT NOT NULL,
+			timezone TEXT DEFAULT 'UTC',
+			enabled BOOLEAN DEFAULT true,
+			retry_policy JSONB DEFAULT '{"maxRetries":3,"initialDelayMs":5000,"maxDelayMs":300000,"backoffMultiplier":2}',
+			timeout_ms INTEGER DEFAULT 30000,
+			last_run_at TIMESTAMPTZ,
+			next_run_at TIMESTAMPTZ,
+			run_count INTEGER DEFAULT 0,
+			error_count INTEGER DEFAULT 0,
+			created_at TIMESTAMPTZ DEFAULT NOW(),
+			updated_at TIMESTAMPTZ DEFAULT NOW()
+		)`,
+	);
+
+	await executeQuery(
+		databaseName,
+		`CREATE TABLE IF NOT EXISTS _app_job_runs (
+			id SERIAL PRIMARY KEY,
+			job_id INTEGER REFERENCES _app_scheduled_jobs(id) ON DELETE CASCADE,
+			status TEXT NOT NULL DEFAULT 'pending',
+			started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			completed_at TIMESTAMPTZ,
+			duration_ms INTEGER,
+			result JSONB,
+			error TEXT,
+			logs TEXT,
+			attempt INTEGER DEFAULT 1,
+			manual BOOLEAN DEFAULT false,
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		)`,
+	);
+
+	await executeQuery(
+		databaseName,
+		`CREATE INDEX IF NOT EXISTS idx_job_runs_job_id ON _app_job_runs(job_id)`,
+	);
+
+	await executeQuery(
+		databaseName,
+		`CREATE INDEX IF NOT EXISTS idx_job_runs_status ON _app_job_runs(status)`,
+	);
+
+	await executeQuery(
+		databaseName,
+		`CREATE TABLE IF NOT EXISTS _app_job_dlq (
+			id SERIAL PRIMARY KEY,
+			job_id INTEGER REFERENCES _app_scheduled_jobs(id) ON DELETE SET NULL,
+			job_name TEXT NOT NULL,
+			error TEXT NOT NULL,
+			last_attempt_at TIMESTAMPTZ NOT NULL,
+			attempts INTEGER NOT NULL,
+			payload JSONB,
+			acknowledged BOOLEAN DEFAULT false,
+			created_at TIMESTAMPTZ DEFAULT NOW()
+		)`,
+	);
 }

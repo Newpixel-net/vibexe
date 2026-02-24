@@ -23,6 +23,7 @@ import {
 	Puzzle,
 	Settings,
 	Shield,
+	Timer,
 	Users,
 	Webhook,
 } from "lucide-react";
@@ -46,6 +47,7 @@ export type DashboardSection =
 	| "code"
 	| "agents"
 	| "automations"
+	| "jobs"
 	| "logs"
 	| "api"
 	| "settings"
@@ -74,6 +76,7 @@ const navItems: NavItem[] = [
 	{ id: "code", label: "Code", icon: Code2 },
 	{ id: "agents", label: "Agents", icon: Bot },
 	{ id: "automations", label: "Webhooks", icon: Webhook },
+	{ id: "jobs", label: "Jobs", icon: Timer },
 	{ id: "logs", label: "Logs", icon: FileText },
 	{ id: "api", label: "API", icon: Key },
 	{

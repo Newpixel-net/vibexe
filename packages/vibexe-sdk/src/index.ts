@@ -20,6 +20,7 @@
 import { AuthClient } from "./auth";
 import { DataClient } from "./data";
 import { FunctionsClient } from "./functions";
+import { JobsClient } from "./jobs";
 import { StorageClient } from "./storage";
 import { WebhooksClient } from "./webhooks";
 
@@ -36,6 +37,7 @@ export class VibexeApp {
 	public readonly data: DataClient;
 	public readonly auth: AuthClient;
 	public readonly functions: FunctionsClient;
+	public readonly jobs: JobsClient;
 	public readonly storage: StorageClient;
 	public readonly webhooks: WebhooksClient;
 	public readonly appId: string;
@@ -56,6 +58,7 @@ export class VibexeApp {
 		this.data = new DataClient(baseUrl, headers);
 		this.auth = new AuthClient(baseUrl, headers);
 		this.functions = new FunctionsClient(baseUrl, headers);
+		this.jobs = new JobsClient(baseUrl, headers);
 		this.storage = new StorageClient(baseUrl, headers);
 		this.webhooks = new WebhooksClient(baseUrl, headers);
 	}
@@ -65,4 +68,5 @@ export class VibexeApp {
 export type { ListOptions, PaginatedResponse, DataChangeEvent, SubscribeOptions } from "./data";
 export type { AppUser, AuthResponse } from "./auth";
 export type { FileInfo, UploadResult, ListFilesResult, ImageTransformOptions } from "./storage";
+export type { Job, JobRun, DlqEntry, CreateJobInput, UpdateJobInput, RetryPolicy } from "./jobs";
 export type { Webhook, WebhookConfig } from "./webhooks";

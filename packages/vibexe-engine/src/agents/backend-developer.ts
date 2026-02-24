@@ -4,6 +4,7 @@ import {
 	SDK_HOOK_PATTERN,
 	SDK_AUTH_PATTERN,
 	SDK_COMMON_PATTERNS,
+	SDK_JOBS_REFERENCE,
 } from "../shared/sdk-reference";
 
 export const backendDeveloper: AgentDefinition = {
@@ -110,6 +111,8 @@ const createTask = async (data: CreateTaskInput) => {
 \`\`\`
 
 ${SDK_COMMON_PATTERNS}
+
+${SDK_JOBS_REFERENCE}
 
 ## Output Principles
 

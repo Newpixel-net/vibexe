@@ -6,6 +6,7 @@ import { agents, scheduledWorkflows, builderAppFunctions, builderAppDatabases, b
 import { vibexe } from "@/app/vibexe";
 import { and, eq, isNotNull, isNull, lte } from "drizzle-orm";
 import { executeFunction, loadFunctionSource } from "@/lib/app-functions/runner";
+import { runJobWithRetries, parseRetryPolicy, type ScheduledJob } from "@/lib/app-functions/job-runner";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -324,12 +325,181 @@ export async function GET(request: NextRequest) {
 			console.error("[Session Cleanup] Error:", e);
 		}
 
+		// --- Sweep: Scheduled App Jobs (per-app DB) ---
+		let jobsTriggered = 0;
+		let jobsErrors = 0;
+		try {
+			const jobAppDbs = await db
+				.select({
+					databaseName: builderAppDatabases.databaseName,
+					appDbId: builderAppDatabases.appDbId,
+				})
+				.from(builderAppDatabases)
+				.where(eq(builderAppDatabases.status, "active"));
+
+			const { executeQuery: execQ } = await import("@/lib/app-database/pool-manager");
+
+			for (const appDb of jobAppDbs) {
+				try {
+					// Find due jobs in this app's DB
+					const dueJobs = await execQ<{
+						id: number;
+						name: string;
+						function_name: string;
+						cron_expression: string;
+						timezone: string;
+						retry_policy: unknown;
+						timeout_ms: number;
+						next_run_at: string;
+					}>(
+						appDb.databaseName,
+						`SELECT id, name, function_name, cron_expression, timezone,
+						        retry_policy, timeout_ms, next_run_at
+						 FROM _app_scheduled_jobs
+						 WHERE enabled = true AND next_run_at <= NOW()`,
+					);
+
+					if (dueJobs.length === 0) continue;
+
+					// Resolve appId for this appDbId
+					const appRow = await db.query.builderApps.findFirst({
+						where: eq(builderApps.dbId, appDb.appDbId),
+						columns: { id: true },
+					});
+					if (!appRow) continue;
+
+					for (const dueJob of dueJobs) {
+						try {
+							// Optimistic lock: claim job by updating next_run_at
+							const nextRun = calculateNextRun(dueJob.cron_expression, dueJob.timezone ?? "UTC");
+							const claimed = await execQ<{ id: number }>(
+								appDb.databaseName,
+								`UPDATE _app_scheduled_jobs
+								 SET last_run_at = NOW(), next_run_at = $1, updated_at = NOW()
+								 WHERE id = $2 AND next_run_at <= NOW()
+								 RETURNING id`,
+								[nextRun.toISOString(), dueJob.id],
+							);
+							if (claimed.length === 0) continue; // Another cron claimed it
+
+							const retryPolicy = parseRetryPolicy(dueJob.retry_policy);
+							const job: ScheduledJob = {
+								id: dueJob.id,
+								name: dueJob.name,
+								functionName: dueJob.function_name,
+								timeoutMs: dueJob.timeout_ms ?? 30000,
+								retryPolicy,
+							};
+
+							const result = await runJobWithRetries({
+								appId: appRow.id,
+								appDbId: appDb.appDbId,
+								databaseName: appDb.databaseName,
+								job,
+							});
+
+							if (result.status === "completed") {
+								jobsTriggered++;
+							} else {
+								jobsErrors++;
+							}
+
+							console.log(
+								`[Scheduled Job] ${result.status}: ${dueJob.name} (app=${appRow.id}, duration=${result.durationMs}ms)`,
+							);
+						} catch (jobErr) {
+							jobsErrors++;
+							console.error(`[Scheduled Job] Error running ${dueJob.name}:`, jobErr);
+						}
+					}
+
+					// Also pick up pending retry runs that are due
+					try {
+						const pendingRetries = await execQ<{
+							id: number;
+							job_id: number;
+							attempt: number;
+						}>(
+							appDb.databaseName,
+							`SELECT r.id, r.job_id, r.attempt
+							 FROM _app_job_runs r
+							 INNER JOIN _app_scheduled_jobs j ON j.id = r.job_id
+							 WHERE r.status = 'pending'
+							   AND r.started_at <= NOW()
+							   AND j.enabled = true
+							 LIMIT 10`,
+						);
+
+						for (const retry of pendingRetries) {
+							try {
+								// Mark as running
+								await execQ(
+									appDb.databaseName,
+									`UPDATE _app_job_runs SET status = 'running' WHERE id = $1`,
+									[retry.id],
+								);
+
+								// Get job details
+								const jobRows = await execQ<{
+									id: number;
+									name: string;
+									function_name: string;
+									timeout_ms: number;
+									retry_policy: unknown;
+								}>(
+									appDb.databaseName,
+									`SELECT id, name, function_name, timeout_ms, retry_policy
+									 FROM _app_scheduled_jobs WHERE id = $1`,
+									[retry.job_id],
+								);
+								if (jobRows.length === 0) continue;
+
+								const jr = jobRows[0];
+								const retryPolicy = parseRetryPolicy(jr.retry_policy);
+
+								const appRow2 = await db.query.builderApps.findFirst({
+									where: eq(builderApps.dbId, appDb.appDbId),
+									columns: { id: true },
+								});
+								if (!appRow2) continue;
+
+								const job: ScheduledJob = {
+									id: jr.id,
+									name: jr.name,
+									functionName: jr.function_name,
+									timeoutMs: jr.timeout_ms ?? 30000,
+									retryPolicy,
+								};
+
+								await runJobWithRetries({
+									appId: appRow2.id,
+									appDbId: appDb.appDbId,
+									databaseName: appDb.databaseName,
+									job,
+								});
+							} catch {
+								// Skip individual retry failures
+							}
+						}
+					} catch {
+						// Retry sweep is best-effort
+					}
+				} catch {
+					// Table may not exist yet in this app database — skip
+				}
+			}
+		} catch (e) {
+			console.error("[Scheduled Jobs] Sweep error:", e);
+		}
+
 		return Response.json({
 			triggered: results.filter((r) => r.status === "triggered").length,
 			errors: results.filter((r) => r.status === "error").length,
 			cleanedUp,
 			functionsTriggered,
 			functionsErrors,
+			jobsTriggered,
+			jobsErrors,
 			sessionsDeleted,
 			results,
 		});

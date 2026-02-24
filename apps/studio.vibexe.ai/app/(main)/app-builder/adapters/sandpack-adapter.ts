@@ -786,6 +786,90 @@ class StorageClient {
   }
 }
 
+class JobsClient {
+  constructor(baseUrl, headers) {
+    this.baseUrl = baseUrl;
+    this.headers = headers;
+  }
+
+  async create(job) {
+    const res = await fetch(this.baseUrl + "/jobs", {
+      method: "POST",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: JSON.stringify(job),
+    });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || "Failed to create job"); }
+    return (await res.json()).data;
+  }
+
+  async list(options) {
+    var p = new URLSearchParams();
+    if (options && options.page) p.set("page", String(options.page));
+    if (options && options.limit) p.set("limit", String(options.limit));
+    var qs = p.toString();
+    const res = await fetch(this.baseUrl + "/jobs" + (qs ? "?" + qs : ""), { headers: this.headers });
+    if (!res.ok) throw new Error("Failed to list jobs");
+    return await res.json();
+  }
+
+  async get(jobId) {
+    const res = await fetch(this.baseUrl + "/jobs/" + jobId, { headers: this.headers });
+    if (!res.ok) throw new Error("Job not found");
+    return (await res.json()).data;
+  }
+
+  async update(jobId, data) {
+    const res = await fetch(this.baseUrl + "/jobs/" + jobId, {
+      method: "PUT",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || "Failed to update job"); }
+    return (await res.json()).data;
+  }
+
+  async delete(jobId) {
+    const res = await fetch(this.baseUrl + "/jobs/" + jobId, { method: "DELETE", headers: this.headers });
+    if (!res.ok) throw new Error("Failed to delete job");
+  }
+
+  async trigger(jobId) {
+    const res = await fetch(this.baseUrl + "/jobs/" + jobId + "/trigger", { method: "POST", headers: this.headers });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || "Failed to trigger job"); }
+    return (await res.json()).data;
+  }
+
+  async runs(jobId, options) {
+    var p = new URLSearchParams();
+    if (options && options.page) p.set("page", String(options.page));
+    if (options && options.limit) p.set("limit", String(options.limit));
+    if (options && options.status) p.set("status", options.status);
+    var qs = p.toString();
+    const res = await fetch(this.baseUrl + "/jobs/" + jobId + "/runs" + (qs ? "?" + qs : ""), { headers: this.headers });
+    if (!res.ok) throw new Error("Failed to list job runs");
+    return await res.json();
+  }
+
+  async dlq(options) {
+    var p = new URLSearchParams();
+    if (options && options.page) p.set("page", String(options.page));
+    if (options && options.all) p.set("all", "true");
+    var qs = p.toString();
+    const res = await fetch(this.baseUrl + "/jobs/dlq" + (qs ? "?" + qs : ""), { headers: this.headers });
+    if (!res.ok) throw new Error("Failed to list DLQ");
+    return await res.json();
+  }
+
+  async acknowledgeDlq(dlqId) {
+    const res = await fetch(this.baseUrl + "/jobs/dlq", {
+      method: "POST",
+      headers: { ...this.headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ dlqId }),
+    });
+    if (!res.ok) throw new Error("Failed to acknowledge DLQ entry");
+  }
+}
+
 class WebhooksClient {
   constructor(baseUrl, headers) {
     this.baseUrl = baseUrl;
@@ -832,6 +916,7 @@ export class VibexeApp {
     this.data = new DataClient(base, headers);
     this.auth = new AuthClient(base, headers);
     this.functions = new FunctionsClient(base, headers);
+    this.jobs = new JobsClient(base, headers);
     this.storage = new StorageClient(base, headers);
     this.webhooks = new WebhooksClient(base, headers);
   }

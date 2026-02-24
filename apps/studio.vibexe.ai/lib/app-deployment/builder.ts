@@ -107,12 +107,23 @@ async list(p,o){var q=new URLSearchParams();if(p)q.set("prefix",p);if(o&&o.limit
 async delete(p){var r=await fetch(this.b+"/storage/"+p,{method:"DELETE",headers:this._ah()});if(!r.ok)throw new Error("Delete failed")}
 getUrl(p,t){var u=this.b+"/storage/"+p;if(t){var q=new URLSearchParams();if(t.width)q.set("width",String(t.width));if(t.height)q.set("height",String(t.height));if(t.format)q.set("format",t.format);if(t.quality)q.set("quality",String(t.quality));var s=q.toString();if(s)u+="?"+s}return u}
 }
+class JobsClient{constructor(b,h){this.b=b;this.h=h}
+async create(j){var r=await fetch(this.b+"/jobs",{method:"POST",headers:Object.assign({},this.h,{"Content-Type":"application/json"}),body:JSON.stringify(j)});if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.error||"Failed to create job")}return(await r.json()).data}
+async list(o){var p=new URLSearchParams();if(o&&o.page)p.set("page",String(o.page));if(o&&o.limit)p.set("limit",String(o.limit));var s=p.toString();var r=await fetch(this.b+"/jobs"+(s?"?"+s:""),{headers:this.h});if(!r.ok)throw new Error("Failed to list jobs");return await r.json()}
+async get(id){var r=await fetch(this.b+"/jobs/"+id,{headers:this.h});if(!r.ok)throw new Error("Job not found");return(await r.json()).data}
+async update(id,d){var r=await fetch(this.b+"/jobs/"+id,{method:"PUT",headers:Object.assign({},this.h,{"Content-Type":"application/json"}),body:JSON.stringify(d)});if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.error||"Failed to update job")}return(await r.json()).data}
+async delete(id){var r=await fetch(this.b+"/jobs/"+id,{method:"DELETE",headers:this.h});if(!r.ok)throw new Error("Failed to delete job")}
+async trigger(id){var r=await fetch(this.b+"/jobs/"+id+"/trigger",{method:"POST",headers:this.h});if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.error||"Failed to trigger job")}return(await r.json()).data}
+async runs(id,o){var p=new URLSearchParams();if(o&&o.page)p.set("page",String(o.page));if(o&&o.limit)p.set("limit",String(o.limit));if(o&&o.status)p.set("status",o.status);var s=p.toString();var r=await fetch(this.b+"/jobs/"+id+"/runs"+(s?"?"+s:""),{headers:this.h});if(!r.ok)throw new Error("Failed to list runs");return await r.json()}
+async dlq(o){var p=new URLSearchParams();if(o&&o.page)p.set("page",String(o.page));if(o&&o.all)p.set("all","true");var s=p.toString();var r=await fetch(this.b+"/jobs/dlq"+(s?"?"+s:""),{headers:this.h});if(!r.ok)throw new Error("Failed to list DLQ");return await r.json()}
+async acknowledgeDlq(id){var r=await fetch(this.b+"/jobs/dlq",{method:"POST",headers:Object.assign({},this.h,{"Content-Type":"application/json"}),body:JSON.stringify({dlqId:id})});if(!r.ok)throw new Error("Failed to acknowledge DLQ")}
+}
 class WebhooksClient{constructor(b,h){this.b=b;this.h=h}
 async create(c){var r=await fetch(this.b+"/webhooks",{method:"POST",headers:Object.assign({},this.h,{"Content-Type":"application/json"}),body:JSON.stringify(c)});if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.error||"Failed to create webhook")}return(await r.json()).webhook}
 async list(){var r=await fetch(this.b+"/webhooks",{headers:this.h});if(!r.ok)throw new Error("Failed to list webhooks");return await r.json()}
 async delete(id){var r=await fetch(this.b+"/webhooks",{method:"DELETE",headers:Object.assign({},this.h,{"Content-Type":"application/json"}),body:JSON.stringify({webhookDbId:id})});if(!r.ok)throw new Error("Failed to delete webhook")}
 }
-class VibexeApp{constructor(c){this.appId=c.appId;var base=(c.baseUrl||g.location.protocol+"//vibexe.online")+"/api/apps/"+c.appId;var h={};if(c.apiKey)h["X-Vibexe-Api-Key"]=c.apiKey;this.data=new DataClient(base,h);this.auth=new AuthClient(base,h);this.functions=new FunctionsClient(base,h);this.storage=new StorageClient(base,h);this.webhooks=new WebhooksClient(base,h)}}
+class VibexeApp{constructor(c){this.appId=c.appId;var base=(c.baseUrl||g.location.protocol+"//vibexe.online")+"/api/apps/"+c.appId;var h={};if(c.apiKey)h["X-Vibexe-Api-Key"]=c.apiKey;this.data=new DataClient(base,h);this.auth=new AuthClient(base,h);this.functions=new FunctionsClient(base,h);this.jobs=new JobsClient(base,h);this.storage=new StorageClient(base,h);this.webhooks=new WebhooksClient(base,h)}}
 g.VibexeApp=VibexeApp;
 })(typeof globalThis!=="undefined"?globalThis:window);
 `;
