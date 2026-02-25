@@ -11,6 +11,7 @@ import {
 	DialogTitle,
 } from "@vibexe-internal/ui/dialog";
 import {
+	Camera,
 	ChevronDown,
 	ChevronRight,
 	Clock,
@@ -30,6 +31,7 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
+import { CaptureScreenshotDialog } from "./capture-screenshot-dialog";
 import { TemplateGallery } from "./template-gallery";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -175,6 +177,7 @@ function AppCard({
 	const router = useRouter();
 	const [deleteOpen, setDeleteOpen] = useState(false);
 	const [duplicateOpen, setDuplicateOpen] = useState(false);
+	const [captureOpen, setCaptureOpen] = useState(false);
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [isDeletePending, startDeleteTransition] = useTransition();
 	const [isDuplicatePending, startDuplicateTransition] = useTransition();
@@ -538,6 +541,19 @@ function AppCard({
 								<CopyIcon className="size-3.5" />
 								Duplicate
 							</button>
+							<button
+								type="button"
+								onClick={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									setMenuOpen(false);
+									setCaptureOpen(true);
+								}}
+								className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-white/70 hover:bg-white/[0.08] hover:text-white/90 transition-colors"
+							>
+								<Camera className="size-3.5" />
+								Capture Screenshot
+							</button>
 							{/* Move to... */}
 							<div className="relative">
 								<button
@@ -676,6 +692,14 @@ function AppCard({
 						</DialogFooter>
 					</DialogContent>
 				</Dialog>
+
+				{/* Capture Screenshot Dialog */}
+				<CaptureScreenshotDialog
+					appId={app.id}
+					open={captureOpen}
+					onOpenChange={setCaptureOpen}
+					onCaptured={() => router.refresh()}
+				/>
 			</>
 		);
 	}
