@@ -319,6 +319,10 @@ export function ChatInput({
 	// Editor save — add annotated file as attachment (or replace existing)
 	const handleEditorSave = useCallback(
 		(file: File) => {
+			// Always close editor, even if we can't add the attachment
+			setEditingImage(null);
+			setEditingAttachmentId(null);
+
 			if (!onAttachmentsChange) return;
 
 			const url = URL.createObjectURL(file);
@@ -345,9 +349,6 @@ export function ChatInput({
 					onAttachmentsChange([...attachments, newAttachment]);
 				}
 			}
-
-			setEditingImage(null);
-			setEditingAttachmentId(null);
 		},
 		[attachments, onAttachmentsChange, modelCapabilities, editingAttachmentId],
 	);
