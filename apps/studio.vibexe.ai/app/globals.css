@@ -628,20 +628,46 @@
 }
 
 
-/* GitHub Sync green glow for incoming changes indicator */
-@keyframes github-sync-glow {
+/* GitHub Sync — radio-wave ripple rings expanding from the green dot */
+@keyframes github-sync-ripple {
+	0% {
+		transform: scale(1);
+		opacity: 0.6;
+	}
+	100% {
+		transform: scale(4);
+		opacity: 0;
+	}
+}
+
+@keyframes github-sync-dot-breathe {
 	0%, 100% {
-		box-shadow: 0 0 4px rgba(52, 211, 153, 0.4), 0 0 8px rgba(52, 211, 153, 0.2);
+		opacity: 1;
+		box-shadow: 0 0 3px rgba(52, 211, 153, 0.5);
 	}
 	50% {
-		box-shadow: 0 0 8px rgba(52, 211, 153, 0.6), 0 0 16px rgba(52, 211, 153, 0.3);
+		opacity: 0.85;
+		box-shadow: 0 0 6px rgba(52, 211, 153, 0.8);
 	}
 }
 
 @layer utilities {
-	.animate-github-sync-glow {
-		animation: github-sync-glow 2s ease-in-out infinite;
+	.github-sync-dot {
+		animation: github-sync-dot-breathe 2s ease-in-out infinite;
 	}
+
+	.github-sync-ripple {
+		position: absolute;
+		inset: 0;
+		border-radius: 9999px;
+		border: 1px solid rgba(52, 211, 153, 0.5);
+		animation: github-sync-ripple 2.4s ease-out infinite;
+		pointer-events: none;
+	}
+
+	.github-sync-ripple-1 { animation-delay: 0s; }
+	.github-sync-ripple-2 { animation-delay: 0.8s; }
+	.github-sync-ripple-3 { animation-delay: 1.6s; }
 
 	.dash-animate-fade-up {
 		animation: dash-fade-up 0.5s ease-out both;

@@ -73,7 +73,12 @@ export function GitHubChangesCard({
 				{/* Header */}
 				<div className="flex items-center justify-between px-3.5 py-2.5 border-b border-white/[0.06]">
 					<div className="flex items-center gap-2">
-						<span className="w-2 h-2 rounded-full bg-emerald-400 animate-github-sync-glow" />
+						<span className="relative inline-flex items-center justify-center w-4 h-4 shrink-0">
+							<span className="absolute w-2 h-2 rounded-full bg-emerald-400 github-sync-dot" />
+							<span className="github-sync-ripple github-sync-ripple-1" />
+							<span className="github-sync-ripple github-sync-ripple-2" />
+							<span className="github-sync-ripple github-sync-ripple-3" />
+						</span>
 						<span className="text-[12px] font-medium text-white/80">
 							{commitCount} new commit{commitCount !== 1 ? "s" : ""}
 						</span>

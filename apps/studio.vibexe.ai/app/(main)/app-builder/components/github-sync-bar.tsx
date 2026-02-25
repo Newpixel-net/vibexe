@@ -322,7 +322,12 @@ export function GitHubSyncBar({ appId, onFilesChange }: GitHubSyncBarProps) {
 							Pull
 							{status.hasRemoteChanges && (
 								<>
-									<span className="w-2 h-2 rounded-full bg-emerald-400 animate-github-sync-glow" />
+									<span className="relative inline-flex items-center justify-center w-4 h-4 shrink-0">
+										<span className="absolute w-2 h-2 rounded-full bg-emerald-400 github-sync-dot" />
+										<span className="github-sync-ripple github-sync-ripple-1" />
+										<span className="github-sync-ripple github-sync-ripple-2" />
+										<span className="github-sync-ripple github-sync-ripple-3" />
+									</span>
 									{(status.commitCount ?? 0) > 0 && (
 										<span className="text-[10px] text-emerald-400/80 font-medium tabular-nums">
 											{status.commitCount}
