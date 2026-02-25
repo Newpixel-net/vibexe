@@ -172,11 +172,27 @@ export function ChatInput({
 		setIsCapturing(true);
 
 		try {
-			// Snapshot viewport size BEFORE the permission dialog opens
-			// (dialog may resize/reflow the page)
 			const dpr = window.devicePixelRatio || 1;
-			const vpW = Math.round(window.innerWidth * dpr);
-			const vpH = Math.round(window.innerHeight * dpr);
+
+			// Find the preview iframe BEFORE the permission dialog opens
+			// (so we measure its position before any reflow).
+			// Captures only the app preview — not the whole browser tab.
+			const previewIframe = document.querySelector(
+				".sandpack-container .sp-preview iframe, .sp-preview iframe, iframe[sandbox]",
+			) as HTMLIFrameElement | null;
+
+			let cropRect: { x: number; y: number; w: number; h: number } | null = null;
+			if (previewIframe) {
+				const r = previewIframe.getBoundingClientRect();
+				if (r.width > 50 && r.height > 50) {
+					cropRect = {
+						x: Math.round(r.left * dpr),
+						y: Math.round(r.top * dpr),
+						w: Math.round(r.width * dpr),
+						h: Math.round(r.height * dpr),
+					};
+				}
+			}
 
 			const stream = await navigator.mediaDevices.getDisplayMedia({
 				video: { displaySurface: "browser" } as MediaTrackConstraints,
@@ -199,7 +215,6 @@ export function ChatInput({
 
 						// Wait for several decoded frames so the tab fully
 						// repaints after the permission dialog is dismissed.
-						// The first 1-2 frames are often partial/white.
 						const waitFrame = (): Promise<void> =>
 							new Promise<void>((r) => {
 								if ("requestVideoFrameCallback" in video) {
@@ -209,27 +224,39 @@ export function ChatInput({
 									setTimeout(r, 80);
 								}
 							});
-						// Skip 3 frames to get a fully-composited capture
 						await waitFrame();
 						await waitFrame();
 						await waitFrame();
 
 						clearTimeout(timeout);
 
-						// Crop to viewport dimensions — getDisplayMedia may
-						// return a frame larger than the visible area, causing
-						// white space at the edges.
-						const srcW = Math.min(video.videoWidth, vpW);
-						const srcH = Math.min(video.videoHeight, vpH);
-						canvas.width = srcW;
-						canvas.height = srcH;
 						const ctx = canvas.getContext("2d");
-						if (ctx) {
-							ctx.drawImage(
-								video,
-								0, 0, srcW, srcH, // source rect (top-left crop)
-								0, 0, srcW, srcH, // dest rect
-							);
+						if (cropRect) {
+							// Crop to just the preview iframe area
+							canvas.width = cropRect.w;
+							canvas.height = cropRect.h;
+							if (ctx) {
+								ctx.drawImage(
+									video,
+									cropRect.x, cropRect.y, cropRect.w, cropRect.h,
+									0, 0, cropRect.w, cropRect.h,
+								);
+							}
+						} else {
+							// Fallback: full viewport (no preview iframe found)
+							const vpW = Math.round(window.innerWidth * dpr);
+							const vpH = Math.round(window.innerHeight * dpr);
+							const srcW = Math.min(video.videoWidth, vpW);
+							const srcH = Math.min(video.videoHeight, vpH);
+							canvas.width = srcW;
+							canvas.height = srcH;
+							if (ctx) {
+								ctx.drawImage(
+									video,
+									0, 0, srcW, srcH,
+									0, 0, srcW, srcH,
+								);
+							}
 						}
 						resolve();
 					} catch (err) {
