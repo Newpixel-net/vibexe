@@ -61,6 +61,15 @@ export function createDefaultModelData(
 					searchGrounding: false,
 				},
 			});
+		case "fireworks":
+			return FireworksLanguageModelData.parse({
+				provider: "fireworks",
+				id: "accounts/fireworks/models/kimi-k2p5",
+				configurations: {
+					temperature: 0.7,
+					topP: 1.0,
+				},
+			});
 		case "nvidia":
 			return NvidiaLanguageModelData.parse({
 				provider: "nvidia",

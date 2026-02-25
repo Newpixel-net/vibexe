@@ -1,8 +1,10 @@
 import {
 	anthropicLanguageModels,
+	fireworksLanguageModels,
 	googleLanguageModels,
 	hasTierAccess,
 	type LanguageModel,
+	nvidiaLanguageModels,
 	openaiLanguageModels,
 	xaiLanguageModels,
 	Tier,
@@ -10,7 +12,9 @@ import {
 import {
 	type AnthropicLanguageModelData,
 	type Connection,
+	type FireworksLanguageModelData,
 	GoogleLanguageModelData,
+	type NvidiaLanguageModelData,
 	type OpenAILanguageModelData,
 	OutputId,
 	type TextGenerationContent,
@@ -27,6 +31,7 @@ import { AnthropicModelPanel } from "./anthropic";
 import { GoogleModelPanel } from "./google";
 import { createDefaultModelData, updateModelId } from "./model-defaults";
 import { OpenAIModelPanel } from "./openai";
+import { TemperatureSlider, TopPSlider } from "./shared-model-controls";
 
 function useModelGroups(userTier: Tier) {
 	return useMemo(() => {
@@ -64,6 +69,16 @@ function useModelGroups(userTier: Tier) {
 				provider: "xai",
 				label: "xAI",
 				models: toModelPickerModels(xaiLanguageModels),
+			},
+			{
+				provider: "fireworks",
+				label: "Fireworks",
+				models: toModelPickerModels(fireworksLanguageModels),
+			},
+			{
+				provider: "nvidia",
+				label: "NVIDIA",
+				models: toModelPickerModels(nvidiaLanguageModels),
 			},
 		];
 	}, [userTier]);
@@ -218,7 +233,7 @@ export function ModelSettings({
 	const handleSelect = useCallback(
 		(provider: string, id: string) => {
 			const next = createDefaultModelData(
-				provider as "openai" | "anthropic" | "google" | "xai",
+				provider as "openai" | "anthropic" | "google" | "fireworks" | "nvidia" | "xai",
 			);
 			const updated = updateModelId(next, id);
 			onTextGenerationContentChange({ llm: updated });
@@ -275,6 +290,42 @@ export function ModelSettings({
 							onTextGenerationContentChange({ llm: value })
 						}
 					/>
+				)}
+				{node.content.llm.provider === "fireworks" && (
+					<>
+						<TemperatureSlider
+							modelData={node.content.llm as FireworksLanguageModelData}
+							onModelChange={(value) =>
+								onTextGenerationContentChange({ llm: value })
+							}
+							parseModelData={(d) => d}
+						/>
+						<TopPSlider
+							modelData={node.content.llm as FireworksLanguageModelData}
+							onModelChange={(value) =>
+								onTextGenerationContentChange({ llm: value })
+							}
+							parseModelData={(d) => d}
+						/>
+					</>
+				)}
+				{node.content.llm.provider === "nvidia" && (
+					<>
+						<TemperatureSlider
+							modelData={node.content.llm as NvidiaLanguageModelData}
+							onModelChange={(value) =>
+								onTextGenerationContentChange({ llm: value })
+							}
+							parseModelData={(d) => d}
+						/>
+						<TopPSlider
+							modelData={node.content.llm as NvidiaLanguageModelData}
+							onModelChange={(value) =>
+								onTextGenerationContentChange({ llm: value })
+							}
+							parseModelData={(d) => d}
+						/>
+					</>
 				)}
 			</div>
 		</>

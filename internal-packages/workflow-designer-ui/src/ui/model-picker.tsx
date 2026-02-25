@@ -158,7 +158,11 @@ export function ModelPicker({
 															? "Google"
 															: p === "xai"
 																? "xAI"
-																: p;
+																: p === "fireworks"
+																	? "Fireworks"
+																	: p === "nvidia"
+																		? "NVIDIA"
+																		: p;
 										return (
 											<button
 												key={p}
