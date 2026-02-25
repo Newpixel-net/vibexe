@@ -305,6 +305,8 @@ export function ScreenshotEditor({
 	// ── Crop overlay rendering ──────────────────────────────────
 
 	const initCrop = useCallback(() => {
+		// Don't init crop before image has loaded (dimensions still 0)
+		if (effectiveW < 1 || effectiveH < 1) return;
 		const margin = Math.min(effectiveW, effectiveH) * 0.1;
 		setCropRect({
 			x: margin,
@@ -315,10 +317,12 @@ export function ScreenshotEditor({
 	}, [effectiveW, effectiveH]);
 
 	useEffect(() => {
-		if (activeTool === "crop" && !cropRect) {
-			initCrop();
-		}
-		if (activeTool !== "crop") {
+		if (activeTool === "crop") {
+			// Init or re-init crop if missing or zero-sized (from pre-load init)
+			if (!cropRect || (cropRect.w < 1 && cropRect.h < 1)) {
+				initCrop();
+			}
+		} else {
 			setCropRect(null);
 		}
 	}, [activeTool, cropRect, initCrop]);
@@ -607,7 +611,7 @@ export function ScreenshotEditor({
 			let saveH = effectiveH;
 			let saveCrop = cropApplied;
 
-			if (cropRect && activeTool === "crop") {
+			if (cropRect && activeTool === "crop" && cropRect.w > 0 && cropRect.h > 0) {
 				saveCrop = {
 					x: (cropApplied?.x ?? 0) + cropRect.x,
 					y: (cropApplied?.y ?? 0) + cropRect.y,
@@ -618,8 +622,20 @@ export function ScreenshotEditor({
 				saveH = saveCrop.h;
 			}
 
-			if (!imgElement || saveW < 1 || saveH < 1) {
-				console.error("[ScreenshotEditor] Invalid state:", saveW, saveH);
+			if (!imgElement) {
+				console.error("[ScreenshotEditor] No image element");
+				return;
+			}
+
+			// Fallback to natural image dimensions if state hasn't settled
+			if (saveW < 1 || saveH < 1) {
+				saveW = imgElement.naturalWidth;
+				saveH = imgElement.naturalHeight;
+				saveCrop = null;
+			}
+
+			if (saveW < 1 || saveH < 1) {
+				console.error("[ScreenshotEditor] Invalid dimensions:", saveW, saveH);
 				return;
 			}
 
