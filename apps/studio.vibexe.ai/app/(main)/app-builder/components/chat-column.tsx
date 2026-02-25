@@ -582,10 +582,29 @@ export function ChatColumn({
 	// Persist messages to localStorage + debounced DB save
 	useEffect(() => {
 		if (hasMounted && messages.length > 0) {
-			localStorage.setItem(
-				getMessagesStorageKey(appId),
-				JSON.stringify(messages),
-			);
+			// Strip base64 image data before localStorage save to avoid QuotaExceededError
+			// (screenshots as data URLs can be 1-5MB, exceeding ~5MB localStorage quota)
+			try {
+				const lightweight = messages.map((m) => {
+					if (!m.experimental_attachments?.length) return m;
+					return {
+						...m,
+						experimental_attachments: m.experimental_attachments.map(
+							(a: Record<string, unknown>) =>
+								typeof a.url === "string" &&
+								(a.url as string).startsWith("data:")
+									? { ...a, url: `stripped:${a.name || "file"}` }
+									: a,
+						),
+					};
+				});
+				localStorage.setItem(
+					getMessagesStorageKey(appId),
+					JSON.stringify(lightweight),
+				);
+			} catch {
+				// QuotaExceededError — localStorage full, skip caching (DB save is primary)
+			}
 			// Debounce DB save (3s)
 			if (dbSaveTimer.current) clearTimeout(dbSaveTimer.current);
 			dbSaveTimer.current = setTimeout(() => saveToDb(messages), 3000);
