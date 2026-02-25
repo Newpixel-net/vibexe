@@ -22,6 +22,7 @@ function _TextGenerationNodeIcon({
 			return <GoogleWhiteIcon {...props} />;
 		case "perplexity":
 			return <PerplexityIcon {...props} />;
+		case "fireworks":
 		case "nvidia":
 			return <NvidiaIcon {...props} />;
 		case "xai":

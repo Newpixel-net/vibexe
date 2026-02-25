@@ -114,6 +114,7 @@ export function NodeIcon({
 								return <GoogleWhiteIcon {...props} data-content-type-icon />;
 							}
 							return <GoogleIcon {...props} data-content-type-icon />;
+						case "fireworks":
 						case "nvidia":
 							return <NvidiaIcon {...props} data-content-type-icon />;
 						case "xai":
@@ -143,6 +144,7 @@ export function NodeIcon({
 								return <GoogleWhiteIcon {...props} data-content-type-icon />;
 							}
 							return <GoogleIcon {...props} data-content-type-icon />;
+						case "fireworks":
 						case "nvidia":
 							return <NvidiaIcon {...props} data-content-type-icon />;
 						case "perplexity":
