@@ -38,8 +38,22 @@ const ANTHROPIC_CAPABILITIES: ModelCapabilities = {
 
 export const MODEL_OPTIONS: ModelOption[] = [
 	{
+		id: "kimi-k2-5-fireworks",
+		name: "Kimi K2.5 (Fireworks)",
+		provider: "fireworks",
+		tier: "standard",
+		capabilities: {
+			vision: true,
+			documents: false,
+			maxFiles: 5,
+			maxFileSizeMB: 5,
+			supportedImageTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+			supportedDocTypes: [],
+		},
+	},
+	{
 		id: "kimi-k2-5",
-		name: "Kimi K2.5",
+		name: "Kimi K2.5 (NVIDIA)",
 		provider: "nvidia",
 		tier: "standard",
 		capabilities: {
@@ -102,7 +116,7 @@ export const MODEL_OPTIONS: ModelOption[] = [
 	},
 ];
 
-export const DEFAULT_MODEL_ID = "kimi-k2-5";
+export const DEFAULT_MODEL_ID = "kimi-k2-5-fireworks";
 
 /**
  * Get capabilities for a model by ID.
@@ -157,6 +171,14 @@ function createModelMap(
 				apiKey: apiKeys?.xai ?? process.env.XAI_API_KEY ?? "",
 			});
 			return xai("grok-4-1-fast-reasoning");
+		},
+		"kimi-k2-5-fireworks": () => {
+			const fireworks = createOpenAI({
+				baseURL: "https://api.fireworks.ai/inference/v1",
+				apiKey: apiKeys?.fireworks ?? process.env.FIREWORKS_API_KEY ?? "",
+			});
+			// Fireworks only supports Chat Completions API, not Responses API
+			return fireworks.chat("accounts/fireworks/models/kimi-k2p5");
 		},
 		"kimi-k2-5": () => {
 			const nvidia = createOpenAI({
