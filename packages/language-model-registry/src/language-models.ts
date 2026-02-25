@@ -1,4 +1,5 @@
 import { anthropic } from "./anthropic";
+import { fireworks } from "./fireworks";
 import { google } from "./google";
 import { nvidia } from "./nvidia";
 import { openai } from "./openai";
@@ -8,6 +9,7 @@ export const languageModels = [
 	...Object.values(openai),
 	...Object.values(anthropic),
 	...Object.values(google),
+	...Object.values(fireworks),
 	...Object.values(nvidia),
 	...Object.values(xai),
 ];

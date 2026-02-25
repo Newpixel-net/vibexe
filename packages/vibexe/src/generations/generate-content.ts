@@ -80,6 +80,13 @@ function getXaiProvider(explicitKey?: string) {
 	});
 }
 
+function getFireworksProvider(explicitKey?: string) {
+	return createOpenAI({
+		apiKey: explicitKey ?? process.env.FIREWORKS_API_KEY ?? "",
+		baseURL: "https://api.fireworks.ai/inference/v1",
+	});
+}
+
 function getNvidiaProvider(explicitKey?: string) {
 	return createOpenAI({
 		apiKey: explicitKey ?? process.env.NVIDIA_API_KEY ?? "",
@@ -651,6 +658,8 @@ function generationModel(
 			return google(toGoogleApiModelId(languageModel.id));
 		case "perplexity":
 			return getPerplexityProvider(apiKeys?.perplexity)(languageModel.id);
+		case "fireworks":
+			return getFireworksProvider(apiKeys?.fireworks).chat(languageModel.id);
 		case "nvidia":
 			return getNvidiaProvider(apiKeys?.nvidia).chat(languageModel.id);
 		case "xai":
@@ -687,6 +696,8 @@ function resolveModel(modelId: string, apiKeys?: Record<string, string>) {
 			return google(toGoogleApiModelId(model));
 		case "perplexity":
 			return getPerplexityProvider(apiKeys?.perplexity)(model);
+		case "fireworks":
+			return getFireworksProvider(apiKeys?.fireworks).chat(model);
 		case "nvidia":
 			return getNvidiaProvider(apiKeys?.nvidia).chat(model);
 		case "xai":

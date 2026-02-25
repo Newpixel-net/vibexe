@@ -51,6 +51,14 @@ export const AI_PROVIDERS = [
 		description:
 			"Powers Kimi K2.5 and other models via NVIDIA NIM API",
 	},
+	{
+		id: "fireworks",
+		name: "Fireworks AI (Kimi)",
+		envVar: "FIREWORKS_API_KEY",
+		placeholder: "fw-...",
+		description:
+			"Fast Kimi K2.5 inference via Fireworks AI platform",
+	},
 ] as const;
 
 export type ProviderId = (typeof AI_PROVIDERS)[number]["id"];
@@ -62,6 +70,7 @@ const ENV_VAR_MAP: Record<ProviderId, string> = {
 	perplexity: "PERPLEXITY_API_KEY",
 	xai: "XAI_API_KEY",
 	nvidia: "NVIDIA_API_KEY",
+	fireworks: "FIREWORKS_API_KEY",
 };
 
 export function redactKey(key: string): string {

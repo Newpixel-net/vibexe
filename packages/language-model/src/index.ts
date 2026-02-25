@@ -32,6 +32,10 @@ import {
 	models as nvidiaLanguageModels,
 } from "./nvidia";
 import {
+	LanguageModel as FireworksLanguageModel,
+	models as fireworksLanguageModels,
+} from "./fireworks";
+import {
 	LanguageModel as XaiLanguageModel,
 	models as xaiLanguageModels,
 } from "./xai";
@@ -55,6 +59,7 @@ export { createUsageCalculator } from "./usage-factory";
 
 export const LanguageModel = z.union([
 	AnthropicLanguageModel,
+	FireworksLanguageModel,
 	GoogleLanguageModel,
 	GoogleImageLanguageModel,
 	NvidiaLanguageModel,
@@ -70,6 +75,7 @@ export const languageModels = [
 	...googleLanguageModels,
 	...googleImageLanguageModels,
 	...anthropicLanguageModels,
+	...fireworksLanguageModels,
 	...nvidiaLanguageModels,
 	...openaiLanguageModels,
 	...openaiImageLanguageModels,
@@ -80,6 +86,7 @@ export const languageModels = [
 
 export {
 	AnthropicLanguageModel,
+	FireworksLanguageModel,
 	GoogleLanguageModel,
 	GoogleImageLanguageModel,
 	NvidiaLanguageModel,
@@ -89,6 +96,7 @@ export {
 	XaiLanguageModel,
 	FalLanguageModel,
 	anthropicLanguageModels,
+	fireworksLanguageModels,
 	googleLanguageModels,
 	googleImageLanguageModels,
 	nvidiaLanguageModels,
@@ -100,6 +108,7 @@ export {
 
 export const LanguageModelProviders = z.enum([
 	AnthropicLanguageModel.shape.provider.value,
+	FireworksLanguageModel.shape.provider.value,
 	GoogleLanguageModel.shape.provider.value,
 	GoogleImageLanguageModel.shape.provider.value,
 	NvidiaLanguageModel.shape.provider.value,
@@ -112,6 +121,7 @@ export const LanguageModelProviders = z.enum([
 export type LanguageModelProvider = z.infer<typeof LanguageModelProviders>;
 
 export { AnthropicLanguageModelId } from "./anthropic";
+export { FireworksLanguageModelId } from "./fireworks";
 export { GoogleLanguageModelId } from "./google";
 export { NvidiaLanguageModelId } from "./nvidia";
 export { OpenAILanguageModelId } from "./openai";

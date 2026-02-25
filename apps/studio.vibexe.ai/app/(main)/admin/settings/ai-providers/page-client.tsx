@@ -17,6 +17,7 @@ import {
 	Search,
 	Sparkles,
 	Trash2,
+	Zap,
 } from "lucide-react";
 import { useState, useTransition } from "react";
 import {
@@ -46,6 +47,7 @@ const PROVIDER_ICONS: Record<string, React.ReactNode> = {
 	openai: <Sparkles className="size-6" />,
 	google: <Globe className="size-6" />,
 	perplexity: <Search className="size-6" />,
+	fireworks: <Zap className="size-6" />,
 };
 
 function ProviderCard({

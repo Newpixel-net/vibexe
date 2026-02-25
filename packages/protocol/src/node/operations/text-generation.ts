@@ -1,5 +1,6 @@
 import {
 	AnthropicLanguageModel,
+	FireworksLanguageModel,
 	GoogleLanguageModel,
 	NvidiaLanguageModel,
 	OpenAILanguageModel,
@@ -39,6 +40,15 @@ export type PerplexityLanguageModelData = z.infer<
 	typeof PerplexityLanguageModelData
 >;
 
+export const FireworksLanguageModelData = FireworksLanguageModel.pick({
+	provider: true,
+	id: true,
+	configurations: true,
+});
+export type FireworksLanguageModelData = z.infer<
+	typeof FireworksLanguageModelData
+>;
+
 export const NvidiaLanguageModelData = NvidiaLanguageModel.pick({
 	provider: true,
 	id: true,
@@ -55,6 +65,7 @@ export type XaiLanguageModelData = z.infer<typeof XaiLanguageModelData>;
 
 export const TextGenerationLanguageModelProvider = z.enum([
 	AnthropicLanguageModelData.shape.provider.value,
+	FireworksLanguageModelData.shape.provider.value,
 	GoogleLanguageModelData.shape.provider.value,
 	NvidiaLanguageModelData.shape.provider.value,
 	OpenAILanguageModelData.shape.provider.value,
@@ -69,6 +80,7 @@ export const TextGenerationLanguageModelData = z.discriminatedUnion(
 	"provider",
 	[
 		AnthropicLanguageModelData,
+		FireworksLanguageModelData,
 		GoogleLanguageModelData,
 		NvidiaLanguageModelData,
 		OpenAILanguageModelData,

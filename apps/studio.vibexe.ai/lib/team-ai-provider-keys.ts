@@ -20,6 +20,7 @@ const ENV_VAR_MAP: Record<ProviderId, string> = {
 	perplexity: "PERPLEXITY_API_KEY",
 	xai: "XAI_API_KEY",
 	nvidia: "NVIDIA_API_KEY",
+	fireworks: "FIREWORKS_API_KEY",
 };
 
 export { AI_PROVIDERS };

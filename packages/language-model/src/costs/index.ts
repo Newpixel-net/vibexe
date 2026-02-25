@@ -34,6 +34,7 @@ export function createDisplayCostCalculator(provider: string): CostCalculator {
 		case "google":
 			return new GoogleCostCalculator();
 		case "xai":
+		case "fireworks":
 		case "nvidia":
 		case "perplexity":
 			// Known providers without detailed pricing tables — use default calculator silently

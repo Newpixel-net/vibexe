@@ -302,6 +302,7 @@ async function buildGenerationMessageForTextGeneration({
 				);
 				switch (llmProvider) {
 					case "anthropic":
+					case "fireworks":
 					case "nvidia":
 					case "openai":
 					case "perplexity":
@@ -1170,6 +1171,7 @@ async function buildGenerationMessageForContentGeneration({
 				);
 				switch (llmProvider) {
 					case "anthropic":
+					case "fireworks":
 					case "nvidia":
 					case "openai":
 					case "xai":

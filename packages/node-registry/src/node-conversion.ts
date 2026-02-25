@@ -1,5 +1,6 @@
 import {
 	AnthropicLanguageModelId,
+	FireworksLanguageModelId,
 	GoogleLanguageModelId,
 	NvidiaLanguageModelId,
 	OpenAILanguageModelId,
@@ -296,6 +297,16 @@ export function convertContentGenerationToTextGeneration(
 					frequencyPenalty: 0.0,
 					textVerbosity: "medium",
 					reasoningEffort: "medium",
+				},
+			};
+			break;
+		case "fireworks":
+			llm = {
+				provider: "fireworks",
+				id: FireworksLanguageModelId.parse(languageModelId),
+				configurations: {
+					temperature: 0.7,
+					topP: 1.0,
 				},
 			};
 			break;

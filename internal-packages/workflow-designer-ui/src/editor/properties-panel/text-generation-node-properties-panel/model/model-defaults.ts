@@ -1,5 +1,6 @@
 import {
 	AnthropicLanguageModelData,
+	FireworksLanguageModelData,
 	GoogleLanguageModelData,
 	NvidiaLanguageModelData,
 	OpenAILanguageModelData,
@@ -7,7 +8,7 @@ import {
 	type TextGenerationLanguageModelData,
 } from "@vibexe-ai/protocol";
 
-type Provider = "openai" | "anthropic" | "google" | "nvidia" | "xai";
+type Provider = "openai" | "anthropic" | "google" | "fireworks" | "nvidia" | "xai";
 
 /**
  * Returns the default reasoningEffort for the given OpenAI model.
@@ -110,6 +111,11 @@ export function updateModelId(
 			});
 		case "google":
 			return GoogleLanguageModelData.parse({
+				...currentModel,
+				id: newModelId,
+			});
+		case "fireworks":
+			return FireworksLanguageModelData.parse({
 				...currentModel,
 				id: newModelId,
 			});

@@ -481,7 +481,7 @@ export const githubWebhookCallbacks = {
 export const vibexe = NextVibexe({
 	basePath: "/api/vibexe",
 	storage,
-	llmProviders: ["openai", "anthropic", "google", "nvidia", "xai"],
+	llmProviders: ["openai", "anthropic", "google", "fireworks", "nvidia", "xai"],
 	apiSecretScrypt: {
 		params: {
 			n: parseEnvNumber(process.env.VIBEXE_API_SECRET_SCRYPT_N, 16384),
