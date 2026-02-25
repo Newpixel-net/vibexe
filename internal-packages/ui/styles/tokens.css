@@ -88,8 +88,8 @@
 	--color-node-web-page-secondary: hsl(178, 95%, 25%);
 	--color-node-generation-primary: hsl(219, 90%, 52%);
 	--color-node-generation-secondary: hsl(219, 98%, 23%);
-	--color-node-trigger-primary: hsl(220, 65%, 55%);
-	--color-node-trigger-secondary: hsl(220, 65%, 35%);
+	--color-node-trigger-primary: hsl(220, 15%, 50%);
+	--color-node-trigger-secondary: hsl(220, 15%, 50%);
 	--color-node-action-primary: hsl(275, 96%, 44%);
 	--color-node-action-secondary: hsl(275, 91%, 26%);
 	--color-node-integration-primary: hsl(160, 84%, 39%);
