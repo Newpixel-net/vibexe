@@ -605,63 +605,19 @@ export function ScreenshotEditor({
 
 	const handleSave = useCallback(async () => {
 		try {
-			// Auto-apply pending crop if user hasn't clicked "Apply Crop"
-			// This handles the common flow: draw crop → click Attach directly
-			let saveW = effectiveW;
-			let saveH = effectiveH;
-			let saveCrop = cropApplied;
-
-			if (cropRect && activeTool === "crop" && cropRect.w > 0 && cropRect.h > 0) {
-				saveCrop = {
-					x: (cropApplied?.x ?? 0) + cropRect.x,
-					y: (cropApplied?.y ?? 0) + cropRect.y,
-					w: cropRect.w,
-					h: cropRect.h,
-				};
-				saveW = saveCrop.w;
-				saveH = saveCrop.h;
-			}
-
-			if (!imgElement) {
-				console.error("[ScreenshotEditor] No image element");
-				return;
-			}
-
-			// Fallback to natural image dimensions if state hasn't settled
-			if (saveW < 1 || saveH < 1) {
-				saveW = imgElement.naturalWidth;
-				saveH = imgElement.naturalHeight;
-				saveCrop = null;
-			}
-
-			if (saveW < 1 || saveH < 1) {
-				console.error("[ScreenshotEditor] Invalid dimensions:", saveW, saveH);
-				return;
-			}
+			const baseCanvas = baseCanvasRef.current;
+			const annoCanvas = annoCanvasRef.current;
+			if (!baseCanvas || !annoCanvas) return;
 
 			// Compose onto offscreen canvas at original resolution
 			const outCanvas = document.createElement("canvas");
-			outCanvas.width = saveW;
-			outCanvas.height = saveH;
+			outCanvas.width = effectiveW;
+			outCanvas.height = effectiveH;
 			const ctx = outCanvas.getContext("2d");
 			if (!ctx) return;
 
-			// Draw base image (with crop if any)
-			if (saveCrop) {
-				ctx.drawImage(
-					imgElement,
-					saveCrop.x, saveCrop.y, saveCrop.w, saveCrop.h,
-					0, 0, saveCrop.w, saveCrop.h,
-				);
-			} else {
-				ctx.drawImage(imgElement, 0, 0);
-			}
-
-			// Draw annotations on top (only if dimensions match existing anno canvas)
-			const annoCanvas = annoCanvasRef.current;
-			if (annoCanvas && annoCanvas.width === saveW && annoCanvas.height === saveH) {
-				ctx.drawImage(annoCanvas, 0, 0);
-			}
+			ctx.drawImage(baseCanvas, 0, 0);
+			ctx.drawImage(annoCanvas, 0, 0);
 
 			// Try toBlob first, fall back to toDataURL if it returns null
 			let blob = await new Promise<Blob | null>((resolve) =>
@@ -686,7 +642,7 @@ export function ScreenshotEditor({
 		} catch (err) {
 			console.error("[ScreenshotEditor] Save failed:", err);
 		}
-	}, [effectiveW, effectiveH, onSave, cropRect, cropApplied, activeTool, imgElement]);
+	}, [effectiveW, effectiveH, onSave]);
 
 	// ── Keyboard shortcuts ──────────────────────────────────────
 
