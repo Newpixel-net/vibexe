@@ -1,8 +1,6 @@
 import { createId } from "@paralleldrive/cuid2";
 import { nodeFactories } from "@vibexe-ai/node-registry";
 import {
-	App,
-	AppId,
 	Connection,
 	ConnectionId,
 	InputId,
@@ -166,12 +164,12 @@ export function createWorkflowTools() {
 					};
 				}
 
-				// Validate appEntry exists
-				if (!plan.nodes.some((n) => n.type === "appEntry")) {
+				// Validate trigger (schedule) entry node exists
+				if (!plan.nodes.some((n) => n.type === "trigger")) {
 					return {
 						success: false,
 						plan,
-						message: "Plan is missing a Start (appEntry) node. Every workflow must have a Start node.",
+						message: "Plan is missing a Schedule Trigger node. Every workflow must have a trigger node as its entry point.",
 					};
 				}
 
@@ -323,7 +321,7 @@ export function createWorkflowTools() {
 						"LLM model ID (required for textGeneration and imageGeneration)",
 					),
 				triggerProvider: z
-					.enum(["github", "manual"])
+					.enum(["github", "manual", "schedule"])
 					.optional()
 					.describe("Trigger provider (required for trigger nodes)"),
 				actionProvider: z
@@ -459,7 +457,7 @@ export function createWorkflowTools() {
 							break;
 						}
 						case "trigger": {
-							const provider = triggerProvider ?? "github";
+							const provider = triggerProvider ?? "schedule";
 							node = nodeFactories.create("trigger", provider as Parameters<typeof nodeFactories.create<"trigger">>[1]);
 							break;
 						}
@@ -553,36 +551,6 @@ export function createWorkflowTools() {
 					};
 
 					await saveWorkspaceCached(workspace);
-
-					// Auto-configure appEntry nodes so the Run dialog works
-					if (type === "appEntry" && node.content.type === "appEntry" && node.content.status === "unconfigured") {
-						try {
-							const draftApp = node.content.draftApp;
-							const appId = AppId.generate();
-							const appLike = {
-								id: appId,
-								version: "v1" as const,
-								state: "disconnected" as const,
-								description: draftApp.description ?? "",
-								parameters: draftApp.parameters,
-								entryNodeId: node.id,
-								workspaceId: workspaceId as WorkspaceId,
-							};
-							const parseResult = App.safeParse(appLike);
-							if (parseResult.success) {
-								await vibexe.saveApp({ app: parseResult.data });
-								// Update node content to configured
-								(node.content as Record<string, unknown>).status = "configured";
-								(node.content as Record<string, unknown>).appId = appId;
-								delete (node.content as Record<string, unknown>).draftApp;
-								await saveWorkspaceCached(workspace);
-							} else {
-								console.error("[add_node] App.safeParse failed:", JSON.stringify(parseResult.error));
-							}
-						} catch (configError) {
-							console.error("Auto-configure appEntry warning:", configError);
-						}
-					}
 
 					return {
 						success: true as const,
@@ -1226,10 +1194,10 @@ export function createWorkflowTools() {
 					const workspace = await getWorkspaceCached(workspaceId);
 					const warnings: string[] = [];
 
-					// Check Start (appEntry) node exists
-					const startNode = workspace.nodes.find((n) => n.content.type === "appEntry");
-					if (!startNode) {
-						warnings.push(`MISSING START NODE: No Start (appEntry) node found. Add one with add_node({ type: "appEntry" }).`);
+					// Check trigger (schedule) entry node exists
+					const triggerNode = workspace.nodes.find((n) => n.content.type === "trigger");
+					if (!triggerNode) {
+						warnings.push(`MISSING TRIGGER NODE: No Schedule Trigger node found. Add one with add_node({ type: "trigger", triggerProvider: "schedule" }).`);
 					}
 
 					// Check every textGeneration/contentGeneration node has a non-empty prompt
