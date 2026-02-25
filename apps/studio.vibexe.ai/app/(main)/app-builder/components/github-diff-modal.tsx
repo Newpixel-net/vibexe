@@ -4,7 +4,7 @@
  * GitHub Diff Modal — Shows added/modified/deleted files before pulling.
  */
 
-import { FilePlus2, FileEdit, FileX2, Loader2, X } from "lucide-react";
+import { FilePlus2, FileEdit, FileX2, Settings2, Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface DiffData {
@@ -12,6 +12,7 @@ interface DiffData {
 	added: string[];
 	modified: string[];
 	deleted: string[];
+	platformChanged?: string[];
 	totalChanges: number;
 }
 
@@ -107,10 +108,35 @@ export function GitHubDiffModal({
 										{diff.deleted.length} deleted
 									</span>
 								)}
-								{diff.totalChanges === 0 && (
+								{diff.totalChanges === 0 && (!diff.platformChanged || diff.platformChanged.length === 0) && (
 									<span className="text-white/40">No changes detected</span>
 								)}
 							</div>
+
+							{/* Platform files changed (CLAUDE.md, .vibexe/, .github/) */}
+							{diff.totalChanges === 0 && diff.platformChanged && diff.platformChanged.length > 0 && (
+								<div>
+									<h3 className="text-xs font-medium text-blue-400/60 uppercase tracking-wider mb-2">
+										Platform Files Updated
+									</h3>
+									<div className="space-y-1">
+										{diff.platformChanged.map((path) => (
+											<div
+												key={path}
+												className="flex items-center gap-2 px-2.5 py-1.5 rounded bg-blue-500/5 border border-blue-500/10"
+											>
+												<Settings2 size={12} className="text-blue-400/50 shrink-0" />
+												<span className="text-[12px] text-blue-400/70 truncate">
+													{path}
+												</span>
+											</div>
+										))}
+									</div>
+									<p className="text-[11px] text-white/25 mt-1.5">
+										These are auto-generated config files. Pulling will sync your local state.
+									</p>
+								</div>
+							)}
 
 							{/* Added files */}
 							{diff.added.length > 0 && (
@@ -197,7 +223,7 @@ export function GitHubDiffModal({
 					<button
 						type="button"
 						onClick={onPull}
-						disabled={loading || diff?.totalChanges === 0}
+						disabled={loading || (diff?.totalChanges === 0 && (!diff?.platformChanged || diff.platformChanged.length === 0))}
 						className="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 					>
 						Pull All Changes

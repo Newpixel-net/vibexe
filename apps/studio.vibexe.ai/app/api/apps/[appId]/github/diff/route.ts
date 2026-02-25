@@ -109,10 +109,20 @@ export async function GET(_request: Request, { params }: RouteParams) {
 		const localFiles = await getFilesForApp(appId);
 		const localPathSet = new Set(localFiles.map((f) => f.path));
 
+		// Also get the full tree (including excluded files) for platform file detection
+		const allRemoteFiles = treeRes.data.tree.filter(
+			(item) => item.type === "blob" && item.path,
+		);
+		const allRemotePathSet = new Set(allRemoteFiles.map((f) => f.path!));
+		const allRemoteShaMap = new Map(
+			allRemoteFiles.map((f) => [f.path!, f.sha!]),
+		);
+
 		// Compute diff
 		const added: string[] = [];
 		const modified: string[] = [];
 		const deleted: string[] = [];
+		const platformChanged: string[] = [];
 
 		// Files in GitHub but not locally → added (will be created on pull)
 		for (const remotePath of remotePathSet) {
@@ -139,11 +149,27 @@ export async function GET(_request: Request, { params }: RouteParams) {
 			}
 		}
 
+		// Detect platform file changes (excluded files that differ)
+		for (const item of allRemoteFiles) {
+			if (!item.path || !isExcluded(item.path)) continue;
+			// Platform file exists in remote — check if it's new or changed
+			const localFile = localFiles.find((f) => f.path === item.path);
+			if (!localFile) {
+				platformChanged.push(item.path);
+			} else if (localFile.content != null) {
+				const localSha = gitBlobSha(localFile.content);
+				if (localSha !== item.sha) {
+					platformChanged.push(item.path);
+				}
+			}
+		}
+
 		return NextResponse.json({
 			latestSha,
 			added,
 			modified,
 			deleted,
+			platformChanged,
 			totalChanges: added.length + modified.length + deleted.length,
 		});
 	} catch (error) {
