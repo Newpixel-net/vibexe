@@ -61,10 +61,25 @@ export function createAppDesignerPersistenceController(args: {
 		timer = null;
 	};
 
+	let savedTimer: ReturnType<typeof setTimeout> | null = null;
+
+	const emitStatus = (status: "idle" | "dirty" | "saving" | "saved") => {
+		if (typeof window !== "undefined") {
+			window.dispatchEvent(
+				new CustomEvent("save-status", { detail: status }),
+			);
+		}
+	};
+
 	const setDirty = (v: boolean) => {
 		dirty = v;
-		// If the store has isDirty or similar, it's OK to reflect it here
-		// store.getState()._setDirty?.(v);
+		if (v) {
+			if (savedTimer) {
+				clearTimeout(savedTimer);
+				savedTimer = null;
+			}
+			emitStatus("dirty");
+		}
 	};
 
 	const doSave = async (_reason: FlushReason) => {
@@ -80,6 +95,7 @@ export function createAppDesignerPersistenceController(args: {
 
 		const payload = selectPersistedWorkspace(store.getState());
 		hasChangesSinceSaveStarted = false;
+		emitStatus("saving");
 
 		inFlight = (async () => {
 			try {
@@ -88,6 +104,12 @@ export function createAppDesignerPersistenceController(args: {
 				// Otherwise, keep dirty=true so the queued save persists the latest snapshot.
 				if (!hasChangesSinceSaveStarted) {
 					setDirty(false);
+					emitStatus("saved");
+					// Show "Saved" for 2s then fade to idle
+					savedTimer = setTimeout(() => {
+						emitStatus("idle");
+						savedTimer = null;
+					}, 2000);
 				}
 			} finally {
 				inFlight = null;
@@ -135,6 +157,7 @@ export function createAppDesignerPersistenceController(args: {
 		isDirty: () => dirty,
 		dispose: () => {
 			clearTimer();
+			if (savedTimer) clearTimeout(savedTimer);
 			unsubscribe();
 		},
 		flushBestEffort,

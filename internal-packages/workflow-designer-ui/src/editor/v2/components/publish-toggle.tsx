@@ -48,7 +48,12 @@ export function PublishToggle() {
 		}
 	}, [workspaceId, apiUrl, isPublished, isLoading]);
 
-	if (!isTriggerFlowMode) return null;
+	// Listen for Shift+P keyboard shortcut
+	useEffect(() => {
+		const handler = () => handleToggle();
+		window.addEventListener("toggle-publish", handler);
+		return () => window.removeEventListener("toggle-publish", handler);
+	}, [handleToggle]);
 
 	return (
 		<button

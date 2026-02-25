@@ -113,6 +113,15 @@ export function AppDesignerProvider({
 		return () => window.removeEventListener("beforeunload", onBeforeUnload);
 	}, [persistence]);
 
+	// Listen for "save-workflow" events (Ctrl+S shortcut) → flush immediately
+	useEffect(() => {
+		const handler = () => {
+			void persistence.flush("saveNow");
+		};
+		window.addEventListener("save-workflow", handler);
+		return () => window.removeEventListener("save-workflow", handler);
+	}, [persistence]);
+
 	// Provider unmount cleanup
 	useEffect(() => () => persistence.dispose(), [persistence]);
 

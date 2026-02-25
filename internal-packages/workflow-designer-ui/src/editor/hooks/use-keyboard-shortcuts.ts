@@ -293,6 +293,53 @@ export function useKeyboardShortcuts(
 		isCanvasFocused,
 	);
 
+	// Tab — open node picker (What Happens Next panel for selected node)
+	useKeyAction(
+		"Tab",
+		useCallback(() => {
+			if (isEditingText()) return;
+			const selectedNode = nodes.find((n) => n.selected);
+			if (selectedNode) {
+				window.dispatchEvent(
+					new CustomEvent("what-happens-next", {
+						detail: { sourceNodeId: selectedNode.id },
+					}),
+				);
+			}
+		}, [nodes]),
+		isCanvasFocused,
+	);
+
+	// Shift+P — toggle publish
+	useKeyAction(
+		"Shift+p",
+		useCallback(() => {
+			if (isEditingText()) return;
+			window.dispatchEvent(new CustomEvent("toggle-publish"));
+		}, []),
+		isCanvasFocused,
+	);
+
+	// Ctrl+Enter — execute workflow (dispatch to run button)
+	useKeyAction(
+		["Meta+Enter", "Control+Enter"],
+		useCallback(() => {
+			window.dispatchEvent(new CustomEvent("execute-workflow"));
+		}, []),
+		isCanvasFocused,
+		{ inputShortcutPolicy: "modifierOnly", preventDefault: true },
+	);
+
+	// Ctrl+S — save workflow (prevent browser save dialog)
+	useKeyAction(
+		["Meta+s", "Control+s"],
+		useCallback(() => {
+			window.dispatchEvent(new CustomEvent("save-workflow"));
+		}, []),
+		isCanvasFocused,
+		{ inputShortcutPolicy: "modifierOnly", preventDefault: true },
+	);
+
 	// Return handler for preventing browser default shortcuts
 	const handleKeyDown = useCallback(
 		(event: React.KeyboardEvent) => {

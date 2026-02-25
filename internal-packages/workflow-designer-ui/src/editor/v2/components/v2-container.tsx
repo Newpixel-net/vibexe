@@ -963,6 +963,9 @@ function V2NodeCanvas() {
 			<ContextMenu
 				{...menu}
 				onClose={() => setMenu(null)}
+				onExecute={() => {
+					executeToHere(menu.id);
+				}}
 				onExecuteToHere={() => {
 					executeToHere(menu.id);
 				}}
@@ -1468,7 +1471,12 @@ export function V2Container({ leftPanel, onLeftPanelClose }: V2ContainerProps) {
 									["D", "Toggle disable"],
 									["P", "Toggle pin data"],
 									["Enter", "Open properties"],
+									["Tab", "Open node picker"],
 									["Shift+S", "Add sticky note"],
+									["Shift+P", "Toggle publish"],
+									["Ctrl+Enter", "Execute workflow"],
+									["Ctrl+S", "Save workflow"],
+									["Ctrl+K", "Command palette"],
 									["Escape", "Cancel / deselect"],
 									["?", "Show this overlay"],
 								].map(([key, desc]) => (

@@ -4,10 +4,10 @@ import { DropdownMenu } from "@vibexe-internal/ui/dropdown-menu";
 import { useFeatureFlag } from "@vibexe-ai/react";
 import Avatar from "boring-avatars";
 import clsx from "clsx/lite";
-import { ChevronDownIcon, DownloadIcon, HistoryIcon, Redo2Icon, SaveIcon, Undo2Icon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, DownloadIcon, HistoryIcon, LoaderIcon, Redo2Icon, SaveIcon, Undo2Icon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	useAppDesignerStore,
 	useUndoRedoActions,
@@ -47,6 +47,16 @@ export function V2Header({
 		canUndo: s.canUndo,
 		canRedo: s.canRedo,
 	}));
+
+	// Save status from persistence controller
+	const [saveStatus, setSaveStatus] = useState<"idle" | "dirty" | "saving" | "saved">("idle");
+	useEffect(() => {
+		const handler = (e: Event) => {
+			setSaveStatus((e as CustomEvent).detail);
+		};
+		window.addEventListener("save-status", handler);
+		return () => window.removeEventListener("save-status", handler);
+	}, []);
 
 	const handleUpdateName = async (value?: string) => {
 		if (!value) return;
@@ -257,6 +267,25 @@ export function V2Header({
 						<Redo2Icon className="w-4 h-4" />
 					</button>
 				</div>
+				{saveStatus !== "idle" && (
+					<div className="flex items-center gap-1 text-[11px] text-inverse/40 mr-1 transition-opacity">
+						{saveStatus === "saving" && (
+							<>
+								<LoaderIcon className="w-3 h-3 animate-spin" />
+								<span>Saving...</span>
+							</>
+						)}
+						{saveStatus === "saved" && (
+							<>
+								<CheckIcon className="w-3 h-3 text-green-400" />
+								<span className="text-green-400">Saved</span>
+							</>
+						)}
+						{saveStatus === "dirty" && (
+							<span className="text-amber-400/60">Unsaved</span>
+						)}
+					</div>
+				)}
 				<PublishToggle />
 				<RunButton />
 			</div>

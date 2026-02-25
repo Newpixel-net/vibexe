@@ -28,7 +28,7 @@ import {
 import { useTaskSystem } from "@vibexe-ai/react";
 import clsx from "clsx/lite";
 import { PlayIcon, UngroupIcon } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppEntryInputDialog } from "../../../app/app-entry-input-dialog";
 import {
 	useAppDesignerStore,
@@ -495,6 +495,17 @@ export function RunButton() {
 		[createAndStartTask, toast],
 	);
 
+	// Listen for "execute-workflow" event from Ctrl+Enter shortcut
+	const runButtonRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const handler = () => {
+			const btn = runButtonRef.current?.querySelector("button");
+			if (btn) btn.click();
+		};
+		window.addEventListener("execute-workflow", handler);
+		return () => window.removeEventListener("execute-workflow", handler);
+	}, []);
+
 	// No runnable items
 	if (totalRuns === 0) {
 		return null;
@@ -503,24 +514,32 @@ export function RunButton() {
 	// Single trigger node
 	if (totalRuns === 1 && starterRuns.length === 1) {
 		return (
-			<SingleStarterRunButton
-				starterRun={starterRuns[0]}
-				onCreateAndStartTaskSubmit={handleCreateAndStartTaskSubmit}
-			/>
+			<div ref={runButtonRef}>
+				<SingleStarterRunButton
+					starterRun={starterRuns[0]}
+					onCreateAndStartTaskSubmit={handleCreateAndStartTaskSubmit}
+				/>
+			</div>
 		);
 	}
 
 	// Single node group
 	if (totalRuns === 1 && nodeGroupRuns.length === 1) {
-		return <SingleNodeGroupRunButton nodeGroupRun={nodeGroupRuns[0]} />;
+		return (
+			<div ref={runButtonRef}>
+				<SingleNodeGroupRunButton nodeGroupRun={nodeGroupRuns[0]} />
+			</div>
+		);
 	}
 
 	// Multiple options
 	return (
-		<MultipleRunsDropdown
-			starterRuns={starterRuns}
-			nodeGroupRuns={nodeGroupRuns}
-			onCreateAndStartTaskSubmit={handleCreateAndStartTaskSubmit}
-		/>
+		<div ref={runButtonRef}>
+			<MultipleRunsDropdown
+				starterRuns={starterRuns}
+				nodeGroupRuns={nodeGroupRuns}
+				onCreateAndStartTaskSubmit={handleCreateAndStartTaskSubmit}
+			/>
+		</div>
 	);
 }

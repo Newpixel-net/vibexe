@@ -13,6 +13,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { TemplateGallery } from "./template-gallery";
 import {
 	WorkflowPlanPreview,
 	type WorkflowPlan,
@@ -415,7 +416,7 @@ export function WorkflowBuilderChat() {
 						</div>
 					</div>
 
-					{/* Suggestions for empty state */}
+					{/* Quick suggestions for empty state */}
 					{chatMessages.length === 0 && (
 						<div className="mt-4 flex flex-wrap gap-2 justify-center">
 							{suggestions.map((suggestion) => (
@@ -435,6 +436,17 @@ export function WorkflowBuilderChat() {
 						</div>
 					)}
 				</div>
+
+				{/* Template Gallery — shown in empty state */}
+				{chatMessages.length === 0 && (
+					<div className="w-full max-w-[960px] mx-auto pb-8 pt-4">
+						<TemplateGallery
+							onSelectTemplate={(prompt) => {
+								sendMessage({ text: prompt });
+							}}
+						/>
+					</div>
+				)}
 			</div>
 		</div>
 	);
