@@ -267,15 +267,23 @@ function CollapsibleMarkdownContent({
 /**
  * Tool event status indicator — glass chip style.
  */
-function ToolStatusIndicator({ event }: { event: ToolEvent }) {
+function ToolStatusIndicator({ event, isActiveGeneration }: { event: ToolEvent; isActiveGeneration?: boolean }) {
+	// If event shows "running" but no active generation → stale/interrupted
+	const effectiveStatus =
+		(event.status === "running" || event.status === "pending") && !isActiveGeneration
+			? "interrupted"
+			: event.status;
+
 	const getStatusIcon = () => {
-		switch (event.status) {
+		switch (effectiveStatus) {
 			case "completed":
 				return <CheckCircle2 className="size-3 text-teal-400" />;
 			case "running":
 				return (
 					<Loader2 className="size-3 text-white/40 animate-spin" />
 				);
+			case "interrupted":
+				return <AlertCircle className="size-3 text-amber-400/70" />;
 			case "error":
 				return <AlertCircle className="size-3 text-red-400" />;
 			default:
@@ -284,16 +292,17 @@ function ToolStatusIndicator({ event }: { event: ToolEvent }) {
 	};
 
 	const getToolLabel = () => {
+		const past = effectiveStatus === "interrupted" || effectiveStatus === "completed";
 		switch (event.toolName) {
 			case "createFile":
 			case "create_file":
-				return `Creating ${(event.args as { path?: string }).path || "file"}`;
+				return `${past ? "Created" : "Creating"} ${(event.args as { path?: string }).path || "file"}`;
 			case "updateFile":
 			case "update_file":
-				return `Updating ${(event.args as { path?: string }).path || "file"}`;
+				return `${past ? "Updated" : "Updating"} ${(event.args as { path?: string }).path || "file"}`;
 			case "deleteFile":
 			case "delete_file":
-				return `Deleting ${(event.args as { path?: string }).path || "file"}`;
+				return `${past ? "Deleted" : "Deleting"} ${(event.args as { path?: string }).path || "file"}`;
 			default:
 				return event.toolName;
 		}
@@ -311,22 +320,26 @@ function ToolStatusIndicator({ event }: { event: ToolEvent }) {
 /**
  * Collapsed summary for tool events — glass chip style.
  */
-function ToolEventsSummary({ events }: { events: ToolEvent[] }) {
+function ToolEventsSummary({ events, isActiveGeneration }: { events: ToolEvent[]; isActiveGeneration?: boolean }) {
 	const [expanded, setExpanded] = useState(false);
 
 	if (events.length <= 2) {
 		return (
 			<>
 				{events.map((event) => (
-					<ToolStatusIndicator key={event.id} event={event} />
+					<ToolStatusIndicator key={event.id} event={event} isActiveGeneration={isActiveGeneration} />
 				))}
 			</>
 		);
 	}
 
-	const isStreaming = events.some(
+	const hasRunningEvents = events.some(
 		(e) => e.status === "running" || e.status === "pending",
 	);
+	// Only show the spinning progress UI when the generation is ACTUALLY running.
+	// If events have "running" status but the generation is NOT active, it means
+	// the stream was interrupted (page reload, connection lost, timeout).
+	const isActivelyStreaming = hasRunningEvents && !!isActiveGeneration;
 	const completed = events.filter((e) => e.status === "completed").length;
 
 	const counts: Record<string, number> = {};
@@ -340,7 +353,7 @@ function ToolEventsSummary({ events }: { events: ToolEvent[] }) {
 	);
 	const summaryText = summaryParts.join(", ");
 
-	if (isStreaming) {
+	if (isActivelyStreaming) {
 		const pct = events.length > 0 ? (completed / events.length) * 100 : 0;
 		return (
 			<div className="rounded-xl bg-white/[0.04] border border-white/[0.08] px-3 py-2 my-1">
@@ -361,6 +374,9 @@ function ToolEventsSummary({ events }: { events: ToolEvent[] }) {
 		);
 	}
 
+	// Stale/interrupted state: events have "running" status but no active generation
+	const wasInterrupted = hasRunningEvents && !isActiveGeneration;
+
 	return (
 		<div className="rounded-xl bg-white/[0.04] border border-white/[0.08] my-1">
 			<button
@@ -369,8 +385,16 @@ function ToolEventsSummary({ events }: { events: ToolEvent[] }) {
 				onClick={() => setExpanded(!expanded)}
 			>
 				<FileCode className="size-3.5" />
-				<CheckCircle2 className="size-3 text-teal-400" />
-				<span className="flex-1 text-left">{summaryText}</span>
+				{wasInterrupted ? (
+					<AlertCircle className="size-3 text-amber-400/70" />
+				) : (
+					<CheckCircle2 className="size-3 text-teal-400" />
+				)}
+				<span className="flex-1 text-left">
+					{wasInterrupted
+						? `Worked on files (${completed} of ${events.length} completed)`
+						: summaryText}
+				</span>
 				<ChevronDown
 					className={cn(
 						"size-3.5 transition-transform",
@@ -385,7 +409,13 @@ function ToolEventsSummary({ events }: { events: ToolEvent[] }) {
 							key={event.id}
 							className="flex items-center gap-2 text-xs text-white/40 py-0.5"
 						>
-							<CheckCircle2 className="size-2.5 text-teal-400" />
+							{event.status === "completed" ? (
+								<CheckCircle2 className="size-2.5 text-teal-400" />
+							) : event.status === "error" ? (
+								<AlertCircle className="size-2.5 text-red-400" />
+							) : (
+								<AlertCircle className="size-2.5 text-amber-400/50" />
+							)}
 							<span>{(event.args as { path?: string }).path || event.toolName}</span>
 						</div>
 					))}
@@ -648,7 +678,7 @@ export function AIMessage({
 				</div>
 				<div className="rounded-2xl px-4 py-3 bg-white/[0.03] backdrop-blur-sm border border-white/[0.08] shadow-[inset_1px_0_12px_rgba(20,184,166,0.06)]">
 					{message.toolEvents && message.toolEvents.length > 0 && (
-						<ToolEventsSummary events={message.toolEvents} />
+						<ToolEventsSummary events={message.toolEvents} isActiveGeneration={isLoading} />
 					)}
 					{message.content ? (
 						<CollapsibleMarkdownContent content={message.content} />
