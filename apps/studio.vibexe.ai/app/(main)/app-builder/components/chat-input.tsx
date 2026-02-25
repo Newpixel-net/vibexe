@@ -172,28 +172,6 @@ export function ChatInput({
 		setIsCapturing(true);
 
 		try {
-			const dpr = window.devicePixelRatio || 1;
-
-			// Find the preview iframe BEFORE the permission dialog opens
-			// (so we measure its position before any reflow).
-			// Captures only the app preview — not the whole browser tab.
-			const previewIframe = document.querySelector(
-				".sandpack-container .sp-preview iframe, .sp-preview iframe, iframe[sandbox]",
-			) as HTMLIFrameElement | null;
-
-			let cropRect: { x: number; y: number; w: number; h: number } | null = null;
-			if (previewIframe) {
-				const r = previewIframe.getBoundingClientRect();
-				if (r.width > 50 && r.height > 50) {
-					cropRect = {
-						x: Math.round(r.left * dpr),
-						y: Math.round(r.top * dpr),
-						w: Math.round(r.width * dpr),
-						h: Math.round(r.height * dpr),
-					};
-				}
-			}
-
 			const stream = await navigator.mediaDevices.getDisplayMedia({
 				video: { displaySurface: "browser" } as MediaTrackConstraints,
 				audio: false,
@@ -229,6 +207,27 @@ export function ChatInput({
 						await waitFrame();
 
 						clearTimeout(timeout);
+
+						// Measure the preview iframe NOW (after frames settle)
+						// so any layout shift from Chrome's sharing banner is
+						// already reflected in the bounding rect.
+						const dpr = window.devicePixelRatio || 1;
+						const previewIframe = document.querySelector(
+							".sandpack-container .sp-preview iframe, .sp-preview iframe, iframe[sandbox]",
+						) as HTMLIFrameElement | null;
+
+						let cropRect: { x: number; y: number; w: number; h: number } | null = null;
+						if (previewIframe) {
+							const r = previewIframe.getBoundingClientRect();
+							if (r.width > 50 && r.height > 50) {
+								cropRect = {
+									x: Math.round(r.left * dpr),
+									y: Math.round(r.top * dpr),
+									w: Math.round(r.width * dpr),
+									h: Math.round(r.height * dpr),
+								};
+							}
+						}
 
 						const ctx = canvas.getContext("2d");
 						if (cropRect) {
