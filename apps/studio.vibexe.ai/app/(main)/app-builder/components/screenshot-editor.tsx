@@ -188,7 +188,8 @@ export function ScreenshotEditor({
 		const maxW = containerRect.width;
 		const maxH = containerRect.height;
 
-		const s = Math.min(maxW / cw, maxH / ch, 1);
+		// Fit image to viewport — allow scaling up for small captures
+		const s = Math.min(maxW / cw, maxH / ch);
 		setScale(s);
 		setOffset({
 			x: (maxW - cw * s) / 2,
@@ -206,7 +207,7 @@ export function ScreenshotEditor({
 		const containerRect = containerRef.current.getBoundingClientRect();
 		const maxW = containerRect.width;
 		const maxH = containerRect.height;
-		const s = Math.min(maxW / effectiveW, maxH / effectiveH, 1);
+		const s = Math.min(maxW / effectiveW, maxH / effectiveH);
 		setScale(s);
 		setOffset({
 			x: (maxW - effectiveW * s) / 2,

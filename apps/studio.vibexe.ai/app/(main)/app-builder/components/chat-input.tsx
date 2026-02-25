@@ -180,29 +180,53 @@ export function ChatInput({
 				preferCurrentTab: true,
 			});
 
-			// Grab a single frame from the video track
-			const track = stream.getVideoTracks()[0];
 			const canvas = document.createElement("canvas");
 			const video = document.createElement("video");
 			video.srcObject = stream;
 			video.muted = true;
 
-			await new Promise<void>((resolve) => {
-				video.onloadedmetadata = () => {
-					video.play();
-					// Small delay ensures the frame is rendered
-					requestAnimationFrame(() => {
+			await new Promise<void>((resolve, reject) => {
+				const timeout = setTimeout(() => reject(new Error("Capture timeout")), 5000);
+
+				video.onloadedmetadata = async () => {
+					try {
+						await video.play();
+
+						// Wait for an actual decoded frame before grabbing
+						await new Promise<void>((frameResolve) => {
+							if ("requestVideoFrameCallback" in video) {
+								// Chrome 83+ — fires only when a real frame is ready
+								(video as HTMLVideoElement & { requestVideoFrameCallback: (cb: () => void) => void })
+									.requestVideoFrameCallback(() => frameResolve());
+							} else {
+								// Fallback: wait 200ms for frame decode
+								setTimeout(frameResolve, 200);
+							}
+						});
+
+						clearTimeout(timeout);
 						canvas.width = video.videoWidth;
 						canvas.height = video.videoHeight;
 						const ctx = canvas.getContext("2d");
 						if (ctx) ctx.drawImage(video, 0, 0);
 						resolve();
-					});
+					} catch (err) {
+						clearTimeout(timeout);
+						reject(err);
+					}
+				};
+
+				video.onerror = () => {
+					clearTimeout(timeout);
+					reject(new Error("Video capture failed"));
 				};
 			});
 
 			// Stop all tracks immediately
 			for (const t of stream.getTracks()) t.stop();
+
+			// Validate capture — reject blank/tiny captures
+			if (canvas.width < 10 || canvas.height < 10) return;
 
 			// Convert canvas to File and open in editor
 			const blob = await new Promise<Blob | null>((resolve) =>
