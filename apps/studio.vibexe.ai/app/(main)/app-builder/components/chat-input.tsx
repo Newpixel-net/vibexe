@@ -172,7 +172,12 @@ export function ChatInput({
 		setIsCapturing(true);
 
 		try {
-			// Use getDisplayMedia to capture the screen
+			// Snapshot viewport size BEFORE the permission dialog opens
+			// (dialog may resize/reflow the page)
+			const dpr = window.devicePixelRatio || 1;
+			const vpW = Math.round(window.innerWidth * dpr);
+			const vpH = Math.round(window.innerHeight * dpr);
+
 			const stream = await navigator.mediaDevices.getDisplayMedia({
 				video: { displaySurface: "browser" } as MediaTrackConstraints,
 				audio: false,
@@ -192,23 +197,40 @@ export function ChatInput({
 					try {
 						await video.play();
 
-						// Wait for an actual decoded frame before grabbing
-						await new Promise<void>((frameResolve) => {
-							if ("requestVideoFrameCallback" in video) {
-								// Chrome 83+ — fires only when a real frame is ready
-								(video as HTMLVideoElement & { requestVideoFrameCallback: (cb: () => void) => void })
-									.requestVideoFrameCallback(() => frameResolve());
-							} else {
-								// Fallback: wait 200ms for frame decode
-								setTimeout(frameResolve, 200);
-							}
-						});
+						// Wait for several decoded frames so the tab fully
+						// repaints after the permission dialog is dismissed.
+						// The first 1-2 frames are often partial/white.
+						const waitFrame = (): Promise<void> =>
+							new Promise<void>((r) => {
+								if ("requestVideoFrameCallback" in video) {
+									(video as HTMLVideoElement & { requestVideoFrameCallback: (cb: () => void) => void })
+										.requestVideoFrameCallback(() => r());
+								} else {
+									setTimeout(r, 80);
+								}
+							});
+						// Skip 3 frames to get a fully-composited capture
+						await waitFrame();
+						await waitFrame();
+						await waitFrame();
 
 						clearTimeout(timeout);
-						canvas.width = video.videoWidth;
-						canvas.height = video.videoHeight;
+
+						// Crop to viewport dimensions — getDisplayMedia may
+						// return a frame larger than the visible area, causing
+						// white space at the edges.
+						const srcW = Math.min(video.videoWidth, vpW);
+						const srcH = Math.min(video.videoHeight, vpH);
+						canvas.width = srcW;
+						canvas.height = srcH;
 						const ctx = canvas.getContext("2d");
-						if (ctx) ctx.drawImage(video, 0, 0);
+						if (ctx) {
+							ctx.drawImage(
+								video,
+								0, 0, srcW, srcH, // source rect (top-left crop)
+								0, 0, srcW, srcH, // dest rect
+							);
+						}
 						resolve();
 					} catch (err) {
 						clearTimeout(timeout);
