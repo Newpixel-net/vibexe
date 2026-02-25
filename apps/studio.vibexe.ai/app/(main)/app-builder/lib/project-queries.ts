@@ -1,12 +1,21 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "@/db";
 import {
+	type BuilderApp,
 	type BuilderAppId,
 	type BuilderProjectId,
 	builderApps,
+	builderAppDatabases,
+	builderFiles,
 	builderProjects,
 } from "@/db/schema";
+
+export type EnrichedBuilderApp = BuilderApp & {
+	project: { id: string; name: string } | null;
+	fileCount: number;
+	entityCount: number;
+};
 
 export async function getProjectsForTeam(teamDbId: number) {
 	return await db.query.builderProjects.findMany({
@@ -97,10 +106,45 @@ export async function getAppsForTeamGrouped(teamDbId: number) {
 		}),
 	]);
 
-	const projectApps = new Map<number, typeof apps>();
-	const unorganizedApps: typeof apps = [];
+	// Batch-fetch file counts and entity counts for enriched cards
+	const appDbIds = apps.map((a) => a.dbId);
+	let fileCountMap = new Map<number, number>();
+	let entityCountMap = new Map<number, number>();
 
-	for (const app of apps) {
+	if (appDbIds.length > 0) {
+		const [fileCounts, entityCounts] = await Promise.all([
+			db
+				.select({
+					appDbId: builderFiles.appDbId,
+					count: sql<number>`count(*)::int`,
+				})
+				.from(builderFiles)
+				.where(inArray(builderFiles.appDbId, appDbIds))
+				.groupBy(builderFiles.appDbId),
+			db
+				.select({
+					appDbId: builderAppDatabases.appDbId,
+					count: sql<number>`coalesce(jsonb_array_length(${builderAppDatabases.schemaJson}->'entities'), 0)::int`,
+				})
+				.from(builderAppDatabases)
+				.where(inArray(builderAppDatabases.appDbId, appDbIds)),
+		]);
+
+		fileCountMap = new Map(fileCounts.map((r) => [r.appDbId, r.count]));
+		entityCountMap = new Map(entityCounts.map((r) => [r.appDbId, r.count]));
+	}
+
+	// Enrich apps with counts
+	const enrichedApps: EnrichedBuilderApp[] = apps.map((app) => ({
+		...app,
+		fileCount: fileCountMap.get(app.dbId) ?? 0,
+		entityCount: entityCountMap.get(app.dbId) ?? 0,
+	}));
+
+	const projectApps = new Map<number, EnrichedBuilderApp[]>();
+	const unorganizedApps: EnrichedBuilderApp[] = [];
+
+	for (const app of enrichedApps) {
 		if (app.projectDbId) {
 			const existing = projectApps.get(app.projectDbId) || [];
 			existing.push(app);

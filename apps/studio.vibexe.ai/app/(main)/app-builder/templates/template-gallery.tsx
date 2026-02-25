@@ -5,6 +5,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+	PreviewImage,
+	PREVIEW_CONTAINER_HEIGHT,
+	injectPreviewScrollKeyframes,
+} from "../components/app-preview-image";
+import {
 	ArrowRightIcon,
 	ChevronRightIcon,
 	DatabaseIcon,
@@ -282,71 +287,8 @@ export function TemplateGallery({
 }
 
 // ============================================================================
-// Preview Image with auto-scroll for tall captures
-// ============================================================================
-
-function TemplatePreviewImage({
-	src,
-	alt,
-	containerHeight,
-}: {
-	src: string;
-	alt: string;
-	containerHeight: number;
-}) {
-	const imgRef = useRef<HTMLImageElement>(null);
-	const [isTall, setIsTall] = useState(false);
-	const [animDuration, setAnimDuration] = useState(6);
-
-	const handleLoad = useCallback(() => {
-		const img = imgRef.current;
-		if (!img) return;
-		// Calculate display height relative to container width
-		const displayWidth = 400; // preview popup width
-		const displayHeight = (img.naturalHeight / img.naturalWidth) * displayWidth;
-		if (displayHeight > containerHeight * 1.3) {
-			setIsTall(true);
-			const scrollDistance = displayHeight - containerHeight;
-			// 50px per second, clamp between 4-15s
-			const dur = Math.max(4, Math.min(15, scrollDistance / 50));
-			setAnimDuration(dur);
-		}
-	}, [containerHeight]);
-
-	if (isTall) {
-		return (
-			<div className="w-full" style={{ height: containerHeight, overflow: "hidden" }}>
-				<img
-					ref={imgRef}
-					src={src}
-					alt={alt}
-					onLoad={handleLoad}
-					className="w-full"
-					style={{
-						animation: `previewAutoScroll ${animDuration}s ease-in-out 0.5s infinite alternate`,
-					}}
-				/>
-			</div>
-		);
-	}
-
-	return (
-		<img
-			ref={imgRef}
-			src={src}
-			alt={alt}
-			onLoad={handleLoad}
-			className="w-full object-cover"
-			style={{ height: containerHeight }}
-		/>
-	);
-}
-
-// ============================================================================
 // Template Card with Hover Preview
 // ============================================================================
-
-const PREVIEW_CONTAINER_HEIGHT = 300;
 
 function TemplateCard({
 	template: t,
@@ -559,7 +501,7 @@ function TemplateCard({
 									className="overflow-hidden bg-black/20"
 									style={{ height: PREVIEW_CONTAINER_HEIGHT }}
 								>
-									<TemplatePreviewImage
+									<PreviewImage
 										src={previewImageUrl}
 										alt={t.name}
 										containerHeight={PREVIEW_CONTAINER_HEIGHT}
@@ -582,17 +524,4 @@ function TemplateCard({
 }
 
 // Inject auto-scroll keyframes into the document (once)
-if (typeof document !== "undefined") {
-	const styleId = "vibexe-preview-scroll-keyframes";
-	if (!document.getElementById(styleId)) {
-		const style = document.createElement("style");
-		style.id = styleId;
-		style.textContent = `
-			@keyframes previewAutoScroll {
-				0% { transform: translateY(0); }
-				100% { transform: translateY(calc(-100% + ${PREVIEW_CONTAINER_HEIGHT}px)); }
-			}
-		`;
-		document.head.appendChild(style);
-	}
-}
+injectPreviewScrollKeyframes();

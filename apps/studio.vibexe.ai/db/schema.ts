@@ -1275,6 +1275,8 @@ export const builderApps = pgTable(
 		),
 		name: text("name").notNull(),
 		description: text("description"),
+		thumbnailUrl: text("thumbnail_url"),
+		fullpageUrl: text("fullpage_url"),
 		shareToken: text("share_token"),
 		visibility: text("visibility").notNull().default("public"),
 		requireLogin: boolean("require_login").notNull().default(false),

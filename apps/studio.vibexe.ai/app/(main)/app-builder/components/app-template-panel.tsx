@@ -258,18 +258,30 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 		[appId],
 	);
 
-	// Save both thumbnailUrl + fullpageUrl + screenshots to template
+	// Save both thumbnailUrl + fullpageUrl + screenshots to template AND sync back to app
 	const saveImageUrls = useCallback(
 		async (thumbUrl: string | null, fpUrl: string | null, shots?: TemplateScreenshot[]) => {
 			const body: Record<string, unknown> = {};
 			if (thumbUrl !== undefined) body.thumbnailUrl = thumbUrl;
 			if (fpUrl !== undefined) body.fullpageUrl = fpUrl;
 			if (shots !== undefined) body.screenshots = shots;
+			// Save to template
 			await fetch(`/api/apps/${appId}/template`, {
 				method: "PUT",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body),
 			});
+			// Sync screenshots back to the app (for app card thumbnails)
+			if (thumbUrl !== undefined || fpUrl !== undefined) {
+				fetch(`/api/apps/${appId}/screenshot`, {
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						...(thumbUrl !== undefined && { thumbnailUrl: thumbUrl }),
+						...(fpUrl !== undefined && { fullpageUrl: fpUrl }),
+					}),
+				}).catch(() => {}); // fire-and-forget
+			}
 		},
 		[appId],
 	);

@@ -46,7 +46,7 @@ export async function publishTemplate(
 ) {
 	const app = await db.query.builderApps.findFirst({
 		where: eq(builderApps.id, appId as BuilderAppId),
-		columns: { dbId: true, visibility: true, requireLogin: true },
+		columns: { dbId: true, visibility: true, requireLogin: true, thumbnailUrl: true, fullpageUrl: true },
 	});
 	if (!app) throw new Error(`App not found: ${appId}`);
 
@@ -101,6 +101,9 @@ export async function publishTemplate(
 			visibility: metadata.visibility ?? "public",
 			fileCount: files.length,
 			entityCount,
+			// Inherit screenshots from source app if available
+			thumbnailUrl: app.thumbnailUrl ?? null,
+			fullpageUrl: app.fullpageUrl ?? null,
 		})
 		.returning();
 
