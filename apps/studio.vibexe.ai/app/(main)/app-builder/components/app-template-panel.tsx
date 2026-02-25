@@ -22,6 +22,7 @@ import {
 	Loader2,
 	RefreshCw,
 	Rocket,
+	Sparkles,
 	Trash2,
 	X,
 } from "lucide-react";
@@ -54,6 +55,7 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 	const [saving, setSaving] = useState(false);
 	const [refreshing, setRefreshing] = useState(false);
 	const [confirmUnpublish, setConfirmUnpublish] = useState(false);
+	const [autoFilling, setAutoFilling] = useState(false);
 
 	// Form fields (used for both publish and edit)
 	const [name, setName] = useState("");
@@ -86,6 +88,26 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 	useEffect(() => {
 		fetchTemplate();
 	}, [fetchTemplate]);
+
+	const handleAutoFill = useCallback(async () => {
+		setAutoFilling(true);
+		try {
+			const res = await fetch(`/api/apps/${appId}/template/auto-fill`, {
+				method: "POST",
+			});
+			const data = await res.json();
+			if (data.success) {
+				setName(data.name ?? "");
+				setDescription(data.description ?? "");
+				setCategory(data.category ?? "Other");
+				setTagsInput((data.tags ?? []).join(", "));
+			}
+		} catch {
+			// Silently fail — user can fill manually
+		} finally {
+			setAutoFilling(false);
+		}
+	}, [appId]);
 
 	const handlePublish = useCallback(async () => {
 		if (!name.trim()) return;
@@ -213,19 +235,45 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 				{state === "not-published" ? (
 					/* ---- PUBLISH FORM ---- */
 					<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-6 space-y-5">
-						<div className="flex items-center gap-3 mb-2">
-							<div className="h-10 w-10 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center">
-								<Rocket className="h-5 w-5 text-white/40" />
+						<div className="flex items-center justify-between mb-2">
+							<div className="flex items-center gap-3">
+								<div className="h-10 w-10 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center">
+									<Rocket className="h-5 w-5 text-white/40" />
+								</div>
+								<div>
+									<h2 className="text-lg font-semibold text-white/90">
+										Publish as Template
+									</h2>
+									<p className="text-xs text-white/40">
+										Your app's files and schema will be snapshotted.
+									</p>
+								</div>
 							</div>
-							<div>
-								<h2 className="text-lg font-semibold text-white/90">
-									Publish as Template
-								</h2>
-								<p className="text-xs text-white/40">
-									Your app's files and schema will be snapshotted.
-								</p>
-							</div>
+							<button
+								type="button"
+								onClick={handleAutoFill}
+								disabled={autoFilling}
+								className="px-3 py-2 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 text-amber-300/90 text-xs font-medium hover:from-amber-500/30 hover:to-orange-500/30 transition-all disabled:opacity-50 flex items-center gap-1.5"
+								title="Uses xAI Grok 4.1 Fast to analyze your app and suggest template details"
+							>
+								{autoFilling ? (
+									<>
+										<Loader2 className="h-3.5 w-3.5 animate-spin" />
+										Analyzing...
+									</>
+								) : (
+									<>
+										<Sparkles className="h-3.5 w-3.5" />
+										Auto-Fill with AI
+									</>
+								)}
+							</button>
 						</div>
+
+						{/* AI model notice */}
+						<p className="text-[10px] text-white/20 -mt-3 text-right">
+							Powered by xAI Grok 4.1 Fast
+						</p>
 
 						{/* Name */}
 						<div>
@@ -382,10 +430,26 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 								<h2 className="text-lg font-semibold text-white/90">
 									Template Settings
 								</h2>
-								<span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">
-									<span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-									Published
-								</span>
+								<div className="flex items-center gap-2">
+									<button
+										type="button"
+										onClick={handleAutoFill}
+										disabled={autoFilling}
+										className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 text-amber-300/90 text-[11px] font-medium hover:from-amber-500/30 hover:to-orange-500/30 transition-all disabled:opacity-50 flex items-center gap-1.5"
+										title="Uses xAI Grok 4.1 Fast to analyze your app and suggest template details"
+									>
+										{autoFilling ? (
+											<Loader2 className="h-3 w-3 animate-spin" />
+										) : (
+											<Sparkles className="h-3 w-3" />
+										)}
+										AI Fill
+									</button>
+									<span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">
+										<span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+										Published
+									</span>
+								</div>
 							</div>
 
 							{/* Name */}

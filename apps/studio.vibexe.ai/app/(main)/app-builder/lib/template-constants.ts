@@ -13,6 +13,7 @@ export const TEMPLATE_CATEGORIES = [
 	"Social",
 	"Content Management",
 	"Education",
+	"Health & Fitness",
 	"Analytics",
 	"Communication",
 	"Utility",
