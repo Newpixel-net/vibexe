@@ -392,33 +392,50 @@ export function getVisualEditBridgeScript(): string {
           var script = document.createElement('script');
           script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
           script.onload = function() {
-            // Scroll to bottom then back to top to trigger lazy-loaded content
-            window.scrollTo(0, document.body.scrollHeight);
-            setTimeout(function() {
-              window.scrollTo(0, 0);
+            // Wait for body to have real content height (Tailwind CDN needs time to process)
+            var attempts = 0;
+            var maxAttempts = 20; // 20 * 500ms = 10s max
+            function waitForContent() {
+              attempts++;
+              var h = document.body.scrollHeight;
+              if (h > 200 || attempts >= maxAttempts) {
+                doCapture();
+              } else {
+                setTimeout(waitForContent, 500);
+              }
+            }
+            function doCapture() {
+              // Scroll to bottom then back to top to trigger lazy-loaded content
+              window.scrollTo(0, document.body.scrollHeight);
               setTimeout(function() {
-                // Cap full-page height at 5000px to prevent memory issues
-                var fullHeight = Math.min(document.body.scrollHeight, 5000);
-                html2canvas(document.body, {
-                  useCORS: true,
-                  scale: 1,
-                  width: 1280,
-                  windowWidth: 1280,
-                  height: fullHeight,
-                  windowHeight: fullHeight
-                }).then(function(canvas) {
-                  var dataUrl = canvas.toDataURL('image/png');
-                  window.parent.postMessage({
-                    type: 'vibexe-capture-result',
-                    dataUrl: dataUrl,
-                    fullWidth: canvas.width,
-                    fullHeight: canvas.height
-                  }, '*');
-                }).catch(function(err) {
-                  window.parent.postMessage({ type: 'vibexe-capture-error', error: err.message || 'Capture failed' }, '*');
-                });
-              }, 300);
-            }, 300);
+                window.scrollTo(0, 0);
+                setTimeout(function() {
+                  // Cap full-page height at 5000px to prevent memory issues
+                  var fullHeight = Math.min(document.body.scrollHeight, 5000);
+                  // Ensure minimum capture height of 720px (viewport)
+                  if (fullHeight < 720) fullHeight = 720;
+                  html2canvas(document.body, {
+                    useCORS: true,
+                    scale: 1,
+                    width: 1280,
+                    windowWidth: 1280,
+                    height: fullHeight,
+                    windowHeight: fullHeight
+                  }).then(function(canvas) {
+                    var dataUrl = canvas.toDataURL('image/png');
+                    window.parent.postMessage({
+                      type: 'vibexe-capture-result',
+                      dataUrl: dataUrl,
+                      fullWidth: canvas.width,
+                      fullHeight: canvas.height
+                    }, '*');
+                  }).catch(function(err) {
+                    window.parent.postMessage({ type: 'vibexe-capture-error', error: err.message || 'Capture failed' }, '*');
+                  });
+                }, 500);
+              }, 500);
+            }
+            waitForContent();
           };
           script.onerror = function() {
             window.parent.postMessage({ type: 'vibexe-capture-error', error: 'Failed to load html2canvas' }, '*');

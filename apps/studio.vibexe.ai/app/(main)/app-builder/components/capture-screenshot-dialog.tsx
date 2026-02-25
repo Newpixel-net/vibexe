@@ -110,12 +110,12 @@ export function CaptureScreenshotDialog({
 		const onMessage = (e: MessageEvent) => {
 			if (cancelled || abortRef.current) return;
 			if (e.data?.type === "vibexe-app-ready" && !captureTriggeredRef.current) {
-				// App has rendered — wait 2s for CSS/animations/fonts to settle
+				// App has rendered — wait 4s for Tailwind CDN processing + animations
 				settleTimer = setTimeout(() => {
 					if (!cancelled && !abortRef.current) {
 						triggerCapture();
 					}
-				}, 2000);
+				}, 4000);
 			}
 		};
 
@@ -390,12 +390,13 @@ export function CaptureScreenshotDialog({
 				<div
 					className="capture-dialog-sandpack fixed"
 					style={{
-						left: "-9999px",
 						top: 0,
+						left: 0,
 						width: "1280px",
 						height: "720px",
-						opacity: 0,
+						zIndex: -1,
 						pointerEvents: "none",
+						clipPath: "inset(0 0 0 0)",
 					}}
 				>
 					<SandpackProvider
