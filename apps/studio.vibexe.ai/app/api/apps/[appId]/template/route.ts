@@ -134,6 +134,8 @@ export async function PUT(request: Request, { params }: RouteParams) {
 			featured: body.featured,
 			status: body.status,
 			thumbnailUrl: body.thumbnailUrl,
+			fullpageUrl: body.fullpageUrl,
+			screenshots: body.screenshots,
 		});
 
 		return NextResponse.json({ success: true, template: updated });

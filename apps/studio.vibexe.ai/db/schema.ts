@@ -2272,6 +2272,14 @@ export const builderSuggestionTemplates = pgTable(
 // BUILDER APP TEMPLATES (Publishable, cloneable app templates)
 // ====================================================================
 
+export interface TemplateScreenshot {
+	url: string;
+	order: number;
+	width: number;
+	height: number;
+	isMain: boolean;
+}
+
 export const builderAppTemplates = pgTable(
 	"builder_app_templates",
 	{
@@ -2295,6 +2303,8 @@ export const builderAppTemplates = pgTable(
 			.notNull()
 			.default(sql`'{}'::text[]`),
 		thumbnailUrl: text("thumbnail_url"),
+		fullpageUrl: text("fullpage_url"),
+		screenshots: jsonb("screenshots").$type<TemplateScreenshot[]>().default([]),
 		filesSnapshot: jsonb("files_snapshot").notNull(),
 		schemaSnapshot: jsonb("schema_snapshot"),
 		appConfig: jsonb("app_config").default({}),

@@ -1,7 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import {
 	ArrowRightIcon,
 	ChevronRightIcon,
@@ -24,6 +26,14 @@ import {
 	normalizeCategory,
 } from "../lib/template-constants";
 
+interface TemplateScreenshot {
+	url: string;
+	order: number;
+	width: number;
+	height: number;
+	isMain: boolean;
+}
+
 interface GalleryTemplate {
 	dbId: number;
 	id: string;
@@ -40,6 +50,8 @@ interface GalleryTemplate {
 	authorUserDbId: number | null;
 	createdAt: Date;
 	thumbnailUrl: string | null;
+	fullpageUrl: string | null;
+	screenshots: TemplateScreenshot[] | null;
 }
 
 interface TemplateGalleryProps {
@@ -270,8 +282,71 @@ export function TemplateGallery({
 }
 
 // ============================================================================
-// Template Card
+// Preview Image with auto-scroll for tall captures
 // ============================================================================
+
+function TemplatePreviewImage({
+	src,
+	alt,
+	containerHeight,
+}: {
+	src: string;
+	alt: string;
+	containerHeight: number;
+}) {
+	const imgRef = useRef<HTMLImageElement>(null);
+	const [isTall, setIsTall] = useState(false);
+	const [animDuration, setAnimDuration] = useState(6);
+
+	const handleLoad = useCallback(() => {
+		const img = imgRef.current;
+		if (!img) return;
+		// Calculate display height relative to container width
+		const displayWidth = 400; // preview popup width
+		const displayHeight = (img.naturalHeight / img.naturalWidth) * displayWidth;
+		if (displayHeight > containerHeight * 1.3) {
+			setIsTall(true);
+			const scrollDistance = displayHeight - containerHeight;
+			// 50px per second, clamp between 4-15s
+			const dur = Math.max(4, Math.min(15, scrollDistance / 50));
+			setAnimDuration(dur);
+		}
+	}, [containerHeight]);
+
+	if (isTall) {
+		return (
+			<div className="w-full" style={{ height: containerHeight, overflow: "hidden" }}>
+				<img
+					ref={imgRef}
+					src={src}
+					alt={alt}
+					onLoad={handleLoad}
+					className="w-full"
+					style={{
+						animation: `previewAutoScroll ${animDuration}s ease-in-out 0.5s infinite alternate`,
+					}}
+				/>
+			</div>
+		);
+	}
+
+	return (
+		<img
+			ref={imgRef}
+			src={src}
+			alt={alt}
+			onLoad={handleLoad}
+			className="w-full object-cover"
+			style={{ height: containerHeight }}
+		/>
+	);
+}
+
+// ============================================================================
+// Template Card with Hover Preview
+// ============================================================================
+
+const PREVIEW_CONTAINER_HEIGHT = 300;
 
 function TemplateCard({
 	template: t,
@@ -285,11 +360,88 @@ function TemplateCard({
 	const gradient = getCategoryGradient(t.category);
 	const displayLabel = getCategoryDisplayLabel(t.category);
 
+	// Hover preview state
+	const [previewVisible, setPreviewVisible] = useState(false);
+	const [previewPos, setPreviewPos] = useState({ top: 0, left: 0 });
+	const cardRef = useRef<HTMLDivElement>(null);
+	const enterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	// The image to show in hover preview: fullpageUrl > thumbnailUrl
+	const previewImageUrl = t.fullpageUrl || t.thumbnailUrl;
+
+	const showPreview = useCallback(() => {
+		if (!cardRef.current || !previewImageUrl) return;
+		const rect = cardRef.current.getBoundingClientRect();
+		const previewWidth = 400;
+		const padding = 16;
+
+		// Prefer placing to the right of the card
+		let left = rect.right + padding;
+		// If not enough space on right, place on left
+		if (left + previewWidth > window.innerWidth - padding) {
+			left = rect.left - previewWidth - padding;
+		}
+		// Clamp left
+		left = Math.max(padding, Math.min(left, window.innerWidth - previewWidth - padding));
+
+		// Vertical: align top of preview with top of card, but don't overflow bottom
+		let top = rect.top;
+		const previewApproxHeight = PREVIEW_CONTAINER_HEIGHT + 80; // image + caption
+		if (top + previewApproxHeight > window.innerHeight - padding) {
+			top = window.innerHeight - previewApproxHeight - padding;
+		}
+		top = Math.max(padding, top);
+
+		setPreviewPos({ top, left });
+		setPreviewVisible(true);
+	}, [previewImageUrl]);
+
+	const handleThumbEnter = useCallback(() => {
+		if (exitTimerRef.current) {
+			clearTimeout(exitTimerRef.current);
+			exitTimerRef.current = null;
+		}
+		enterTimerRef.current = setTimeout(showPreview, 300);
+	}, [showPreview]);
+
+	const handleThumbLeave = useCallback(() => {
+		if (enterTimerRef.current) {
+			clearTimeout(enterTimerRef.current);
+			enterTimerRef.current = null;
+		}
+		exitTimerRef.current = setTimeout(() => setPreviewVisible(false), 200);
+	}, []);
+
+	const handlePreviewEnter = useCallback(() => {
+		if (exitTimerRef.current) {
+			clearTimeout(exitTimerRef.current);
+			exitTimerRef.current = null;
+		}
+	}, []);
+
+	const handlePreviewLeave = useCallback(() => {
+		exitTimerRef.current = setTimeout(() => setPreviewVisible(false), 200);
+	}, []);
+
+	// Cleanup timers
+	useEffect(() => {
+		return () => {
+			if (enterTimerRef.current) clearTimeout(enterTimerRef.current);
+			if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+		};
+	}, []);
+
 	return (
-		<div className="group relative bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden hover:border-white/20 hover:bg-white/[0.05] transition-all duration-200">
+		<div
+			ref={cardRef}
+			className="group relative bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden hover:border-white/20 hover:bg-white/[0.05] transition-all duration-200"
+		>
 			{/* Category gradient header / Thumbnail */}
 			<div
 				className={`h-28 relative flex items-center justify-center overflow-hidden ${t.thumbnailUrl ? "" : `bg-gradient-to-br ${gradient}`}`}
+				onMouseEnter={previewImageUrl ? handleThumbEnter : undefined}
+				onMouseLeave={previewImageUrl ? handleThumbLeave : undefined}
 			>
 				{t.thumbnailUrl ? (
 					<>
@@ -386,6 +538,61 @@ function TemplateCard({
 					)}
 				</button>
 			</div>
+
+			{/* Hover Preview Portal */}
+			{typeof document !== "undefined" &&
+				createPortal(
+					<AnimatePresence>
+						{previewVisible && previewImageUrl && (
+							<motion.div
+								initial={{ opacity: 0, scale: 0.95 }}
+								animate={{ opacity: 1, scale: 1 }}
+								exit={{ opacity: 0, scale: 0.95 }}
+								transition={{ duration: 0.15 }}
+								className="fixed z-50 w-[400px] rounded-2xl overflow-hidden border border-white/15 bg-[#0d0d1a]/95 backdrop-blur-xl shadow-2xl shadow-black/50"
+								style={{ top: previewPos.top, left: previewPos.left }}
+								onMouseEnter={handlePreviewEnter}
+								onMouseLeave={handlePreviewLeave}
+							>
+								{/* Preview Image */}
+								<div
+									className="overflow-hidden bg-black/20"
+									style={{ height: PREVIEW_CONTAINER_HEIGHT }}
+								>
+									<TemplatePreviewImage
+										src={previewImageUrl}
+										alt={t.name}
+										containerHeight={PREVIEW_CONTAINER_HEIGHT}
+									/>
+								</div>
+								{/* Caption */}
+								<div className="px-4 py-3 border-t border-white/[0.06]">
+									<p className="text-sm font-medium text-white/80 truncate">{t.name}</p>
+									{t.description && (
+										<p className="text-[11px] text-white/35 mt-0.5 line-clamp-2">{t.description}</p>
+									)}
+								</div>
+							</motion.div>
+						)}
+					</AnimatePresence>,
+					document.body,
+				)}
 		</div>
 	);
+}
+
+// Inject auto-scroll keyframes into the document (once)
+if (typeof document !== "undefined") {
+	const styleId = "vibexe-preview-scroll-keyframes";
+	if (!document.getElementById(styleId)) {
+		const style = document.createElement("style");
+		style.id = styleId;
+		style.textContent = `
+			@keyframes previewAutoScroll {
+				0% { transform: translateY(0); }
+				100% { transform: translateY(calc(-100% + ${PREVIEW_CONTAINER_HEIGHT}px)); }
+			}
+		`;
+		document.head.appendChild(style);
+	}
 }

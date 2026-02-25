@@ -352,19 +352,33 @@ export function getVisualEditBridgeScript(): string {
           var script = document.createElement('script');
           script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
           script.onload = function() {
-            html2canvas(document.body, {
-              useCORS: true,
-              scale: 1,
-              width: 1280,
-              height: 720,
-              windowWidth: 1280,
-              windowHeight: 720
-            }).then(function(canvas) {
-              var dataUrl = canvas.toDataURL('image/png');
-              window.parent.postMessage({ type: 'vibexe-capture-result', dataUrl: dataUrl }, '*');
-            }).catch(function(err) {
-              window.parent.postMessage({ type: 'vibexe-capture-error', error: err.message || 'Capture failed' }, '*');
-            });
+            // Scroll to bottom then back to top to trigger lazy-loaded content
+            window.scrollTo(0, document.body.scrollHeight);
+            setTimeout(function() {
+              window.scrollTo(0, 0);
+              setTimeout(function() {
+                // Cap full-page height at 5000px to prevent memory issues
+                var fullHeight = Math.min(document.body.scrollHeight, 5000);
+                html2canvas(document.body, {
+                  useCORS: true,
+                  scale: 1,
+                  width: 1280,
+                  windowWidth: 1280,
+                  height: fullHeight,
+                  windowHeight: fullHeight
+                }).then(function(canvas) {
+                  var dataUrl = canvas.toDataURL('image/png');
+                  window.parent.postMessage({
+                    type: 'vibexe-capture-result',
+                    dataUrl: dataUrl,
+                    fullWidth: canvas.width,
+                    fullHeight: canvas.height
+                  }, '*');
+                }).catch(function(err) {
+                  window.parent.postMessage({ type: 'vibexe-capture-error', error: err.message || 'Capture failed' }, '*');
+                });
+              }, 300);
+            }, 300);
           };
           script.onerror = function() {
             window.parent.postMessage({ type: 'vibexe-capture-error', error: 'Failed to load html2canvas' }, '*');

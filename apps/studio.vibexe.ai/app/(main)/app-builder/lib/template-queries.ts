@@ -12,6 +12,7 @@ import {
 	type BuilderAppId,
 	type BuilderAppTemplateId,
 	type BuilderFileId,
+	type TemplateScreenshot,
 	builderAppDatabases,
 	builderApps,
 	builderAppTemplates,
@@ -117,6 +118,8 @@ export async function updateTemplate(
 		featured?: boolean;
 		status?: string;
 		thumbnailUrl?: string;
+		fullpageUrl?: string;
+		screenshots?: TemplateScreenshot[];
 	},
 ) {
 	const updateData: Record<string, unknown> = {};
@@ -129,6 +132,8 @@ export async function updateTemplate(
 	if (data.status !== undefined) updateData.status = data.status;
 	if (data.thumbnailUrl !== undefined)
 		updateData.thumbnailUrl = data.thumbnailUrl;
+	if (data.fullpageUrl !== undefined) updateData.fullpageUrl = data.fullpageUrl;
+	if (data.screenshots !== undefined) updateData.screenshots = data.screenshots;
 
 	if (Object.keys(updateData).length === 0) return null;
 
@@ -296,6 +301,8 @@ export async function listTemplates(filters: {
 			authorUserDbId: builderAppTemplates.authorUserDbId,
 			createdAt: builderAppTemplates.createdAt,
 			thumbnailUrl: builderAppTemplates.thumbnailUrl,
+			fullpageUrl: builderAppTemplates.fullpageUrl,
+			screenshots: builderAppTemplates.screenshots,
 		})
 		.from(builderAppTemplates)
 		.where(whereClause)

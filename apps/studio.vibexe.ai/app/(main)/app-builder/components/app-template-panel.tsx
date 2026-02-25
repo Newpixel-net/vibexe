@@ -5,6 +5,7 @@
  *
  * Allows users to publish their app as a reusable template,
  * update metadata, refresh snapshots, and unpublish.
+ * Supports full-page capture, crop dialog, and multiple screenshots.
  */
 
 import {
@@ -21,10 +22,13 @@ import {
 	Camera,
 	FileCode2,
 	ImageIcon,
+	Images,
 	Loader2,
+	Plus,
 	RefreshCw,
 	Rocket,
 	Sparkles,
+	Star,
 	Trash2,
 	Upload,
 	X,
@@ -35,6 +39,15 @@ import {
 	MAIN_CATEGORIES,
 	parseCategory,
 } from "../lib/template-constants";
+import { ThumbnailCropDialog } from "./thumbnail-crop-dialog";
+
+interface TemplateScreenshot {
+	url: string;
+	order: number;
+	width: number;
+	height: number;
+	isMain: boolean;
+}
 
 interface AppTemplatePanelProps {
 	appId: string;
@@ -53,6 +66,8 @@ interface TemplateData {
 	createdAt: string;
 	updatedAt: string;
 	thumbnailUrl: string | null;
+	fullpageUrl: string | null;
+	screenshots: TemplateScreenshot[] | null;
 }
 
 type PanelState = "loading" | "not-published" | "published";
@@ -65,7 +80,18 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 	const [confirmUnpublish, setConfirmUnpublish] = useState(false);
 	const [autoFilling, setAutoFilling] = useState(false);
 	const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+	const [fullpageUrl, setFullpageUrl] = useState<string | null>(null);
+	const [screenshots, setScreenshots] = useState<TemplateScreenshot[]>([]);
 	const [capturing, setCapturing] = useState(false);
+
+	// Crop dialog state
+	const [showCropDialog, setShowCropDialog] = useState(false);
+	const [pendingCaptureDataUrl, setPendingCaptureDataUrl] = useState<string | null>(null);
+	const [pendingCaptureSize, setPendingCaptureSize] = useState({ w: 0, h: 0 });
+
+	// Capture choice dialog state (Main vs Additional)
+	const [captureDialogOpen, setCaptureDialogOpen] = useState(false);
+	const [pendingThumbnailBlob, setPendingThumbnailBlob] = useState<Blob | null>(null);
 
 	// Form fields (used for both publish and edit)
 	const [name, setName] = useState("");
@@ -111,6 +137,8 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 				setTagsInput((t.tags ?? []).join(", "));
 				setVisibility(t.visibility);
 				setThumbnailUrl(t.thumbnailUrl ?? null);
+				setFullpageUrl(t.fullpageUrl ?? null);
+				setScreenshots(t.screenshots ?? []);
 				setState("published");
 			} else {
 				setState("not-published");
@@ -146,6 +174,7 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 		}
 	}, [appId, setCategoryFromStored]);
 
+	// Resize full-page image to thumbnail by cropping from top at 16:9
 	const resizeToThumbnail = useCallback(
 		(dataUrl: string): Promise<Blob> => {
 			return new Promise((resolve, reject) => {
@@ -156,7 +185,13 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 					canvas.height = 450;
 					const ctx = canvas.getContext("2d");
 					if (!ctx) return reject(new Error("No canvas context"));
-					ctx.drawImage(img, 0, 0, 800, 450);
+					// Crop from top of source at 16:9 aspect ratio
+					const srcW = img.naturalWidth;
+					const srcH = Math.min(
+						Math.round(img.naturalWidth / (800 / 450)),
+						img.naturalHeight,
+					);
+					ctx.drawImage(img, 0, 0, srcW, srcH, 0, 0, 800, 450);
 					canvas.toBlob(
 						(blob) => (blob ? resolve(blob) : reject(new Error("toBlob failed"))),
 						"image/png",
@@ -180,17 +215,115 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 			});
 			if (!uploadRes.ok) throw new Error("Upload failed");
 			const uploadData = await uploadRes.json();
-			const url = uploadData.url || `/api/apps/${appId}/storage/_template-thumbnail.png`;
-			// Update template metadata with thumbnailUrl
-			await fetch(`/api/apps/${appId}/template`, {
-				method: "PUT",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ thumbnailUrl: url }),
-			});
-			setThumbnailUrl(url);
+			return uploadData.url || `/api/apps/${appId}/storage/_template-thumbnail.png`;
 		},
 		[appId],
 	);
+
+	const uploadFullpage = useCallback(
+		async (dataUrl: string) => {
+			// Convert data URL to blob
+			const res = await fetch(dataUrl);
+			const blob = await res.blob();
+			const formData = new FormData();
+			formData.append("file", new File([blob], "_template-fullpage.png", { type: "image/png" }));
+			formData.append("path", "_template-fullpage.png");
+			const uploadRes = await fetch(`/api/apps/${appId}/storage`, {
+				method: "POST",
+				body: formData,
+			});
+			if (!uploadRes.ok) throw new Error("Fullpage upload failed");
+			const uploadData = await uploadRes.json();
+			return uploadData.url || `/api/apps/${appId}/storage/_template-fullpage.png`;
+		},
+		[appId],
+	);
+
+	const uploadScreenshot = useCallback(
+		async (dataUrl: string, index: number) => {
+			const res = await fetch(dataUrl);
+			const blob = await res.blob();
+			const fileName = `_template-screenshot-${index}.png`;
+			const formData = new FormData();
+			formData.append("file", new File([blob], fileName, { type: "image/png" }));
+			formData.append("path", fileName);
+			const uploadRes = await fetch(`/api/apps/${appId}/storage`, {
+				method: "POST",
+				body: formData,
+			});
+			if (!uploadRes.ok) throw new Error("Screenshot upload failed");
+			const uploadData = await uploadRes.json();
+			return uploadData.url || `/api/apps/${appId}/storage/${fileName}`;
+		},
+		[appId],
+	);
+
+	// Save both thumbnailUrl + fullpageUrl + screenshots to template
+	const saveImageUrls = useCallback(
+		async (thumbUrl: string | null, fpUrl: string | null, shots?: TemplateScreenshot[]) => {
+			const body: Record<string, unknown> = {};
+			if (thumbUrl !== undefined) body.thumbnailUrl = thumbUrl;
+			if (fpUrl !== undefined) body.fullpageUrl = fpUrl;
+			if (shots !== undefined) body.screenshots = shots;
+			await fetch(`/api/apps/${appId}/template`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(body),
+			});
+		},
+		[appId],
+	);
+
+	// After crop/skip completes — upload both images as main thumbnail
+	const finishCaptureAsMain = useCallback(
+		async (thumbnailBlob: Blob) => {
+			if (!pendingCaptureDataUrl) return;
+			setCapturing(true);
+			try {
+				// Upload thumbnail
+				const thumbUrl = await uploadThumbnail(thumbnailBlob);
+				// Upload fullpage
+				const fpUrl = await uploadFullpage(pendingCaptureDataUrl);
+				// Save both URLs to template
+				await saveImageUrls(thumbUrl, fpUrl);
+				setThumbnailUrl(thumbUrl);
+				setFullpageUrl(fpUrl);
+			} catch {
+				// silently fail
+			} finally {
+				setCapturing(false);
+				setPendingCaptureDataUrl(null);
+				setPendingThumbnailBlob(null);
+			}
+		},
+		[pendingCaptureDataUrl, uploadThumbnail, uploadFullpage, saveImageUrls],
+	);
+
+	// Add capture as additional screenshot
+	const finishCaptureAsScreenshot = useCallback(async () => {
+		if (!pendingCaptureDataUrl) return;
+		setCapturing(true);
+		try {
+			const nextIndex = screenshots.length;
+			const url = await uploadScreenshot(pendingCaptureDataUrl, nextIndex);
+			const newShot: TemplateScreenshot = {
+				url,
+				order: nextIndex,
+				width: pendingCaptureSize.w,
+				height: pendingCaptureSize.h,
+				isMain: false,
+			};
+			const updated = [...screenshots, newShot];
+			await saveImageUrls(thumbnailUrl, fullpageUrl, updated);
+			setScreenshots(updated);
+		} catch {
+			// silently fail
+		} finally {
+			setCapturing(false);
+			setPendingCaptureDataUrl(null);
+			setCaptureDialogOpen(false);
+		}
+	}, [pendingCaptureDataUrl, pendingCaptureSize, screenshots, thumbnailUrl, fullpageUrl, uploadScreenshot, saveImageUrls]);
 
 	const handleCapture = useCallback(async () => {
 		const iframe = document.querySelector("iframe.sp-preview-iframe") as HTMLIFrameElement | null;
@@ -211,7 +344,8 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 			previewContainer.style.left = "-9999px";
 			previewContainer.style.top = "0";
 			previewContainer.style.width = "1280px";
-			previewContainer.style.height = "720px";
+			previewContainer.style.height = "auto";
+			previewContainer.style.minHeight = "720px";
 		}
 
 		// Wait a tick for the layout to recalculate
@@ -225,6 +359,7 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 				previewContainer.style.top = "";
 				previewContainer.style.width = "";
 				previewContainer.style.height = "";
+				previewContainer.style.minHeight = "";
 			}
 		};
 		const cleanup = () => {
@@ -235,14 +370,12 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 		const handler = async (e: MessageEvent) => {
 			if (e.data?.type === "vibexe-capture-result") {
 				window.removeEventListener("message", handler);
-				try {
-					const blob = await resizeToThumbnail(e.data.dataUrl);
-					await uploadThumbnail(blob);
-				} catch {
-					// silently fail
-				} finally {
-					cleanup();
-				}
+				restoreVisibility();
+				// Store the raw capture and show crop dialog
+				setPendingCaptureDataUrl(e.data.dataUrl);
+				setPendingCaptureSize({ w: e.data.fullWidth || 1280, h: e.data.fullHeight || 720 });
+				setCapturing(false);
+				setShowCropDialog(true);
 			} else if (e.data?.type === "vibexe-capture-error") {
 				window.removeEventListener("message", handler);
 				cleanup();
@@ -255,7 +388,57 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 			window.removeEventListener("message", handler);
 			cleanup();
 		}, 15000);
-	}, [resizeToThumbnail, uploadThumbnail]);
+	}, []);
+
+	// Crop dialog callbacks
+	const handleCropConfirm = useCallback(
+		(blob: Blob) => {
+			setShowCropDialog(false);
+			setPendingThumbnailBlob(blob);
+			// If no screenshots exist yet, go straight to setting as main
+			if (screenshots.length === 0) {
+				finishCaptureAsMain(blob);
+			} else {
+				setCaptureDialogOpen(true);
+			}
+		},
+		[screenshots.length, finishCaptureAsMain],
+	);
+
+	const handleCropSkip = useCallback(async () => {
+		setShowCropDialog(false);
+		if (!pendingCaptureDataUrl) return;
+		try {
+			const blob = await resizeToThumbnail(pendingCaptureDataUrl);
+			setPendingThumbnailBlob(blob);
+			if (screenshots.length === 0) {
+				finishCaptureAsMain(blob);
+			} else {
+				setCaptureDialogOpen(true);
+			}
+		} catch {
+			setPendingCaptureDataUrl(null);
+		}
+	}, [pendingCaptureDataUrl, resizeToThumbnail, screenshots.length, finishCaptureAsMain]);
+
+	const handleCropCancel = useCallback(() => {
+		setShowCropDialog(false);
+		setPendingCaptureDataUrl(null);
+	}, []);
+
+	// Capture dialog: Set as Main
+	const handleCaptureSetMain = useCallback(() => {
+		setCaptureDialogOpen(false);
+		if (pendingThumbnailBlob) {
+			finishCaptureAsMain(pendingThumbnailBlob);
+		}
+	}, [pendingThumbnailBlob, finishCaptureAsMain]);
+
+	// Capture dialog: Add as Screenshot
+	const handleCaptureAddScreenshot = useCallback(() => {
+		setCaptureDialogOpen(false);
+		finishCaptureAsScreenshot();
+	}, [finishCaptureAsScreenshot]);
 
 	const handleUploadThumbnail = useCallback(
 		async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -271,7 +454,9 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 					reader.readAsDataURL(file);
 				});
 				const blob = await resizeToThumbnail(dataUrl);
-				await uploadThumbnail(blob);
+				const thumbUrl = await uploadThumbnail(blob);
+				await saveImageUrls(thumbUrl, fullpageUrl);
+				setThumbnailUrl(thumbUrl);
 			} catch {
 				// silently fail
 			} finally {
@@ -279,21 +464,53 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 				e.target.value = "";
 			}
 		},
-		[resizeToThumbnail, uploadThumbnail],
+		[resizeToThumbnail, uploadThumbnail, saveImageUrls, fullpageUrl],
 	);
 
 	const handleRemoveThumbnail = useCallback(async () => {
 		try {
-			await fetch(`/api/apps/${appId}/template`, {
-				method: "PUT",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ thumbnailUrl: null }),
-			});
+			await saveImageUrls(null, null);
 			setThumbnailUrl(null);
+			setFullpageUrl(null);
 		} catch {
 			// silently fail
 		}
-	}, [appId]);
+	}, [saveImageUrls]);
+
+	// Screenshot management
+	const handleSetScreenshotAsMain = useCallback(
+		async (idx: number) => {
+			const shot = screenshots[idx];
+			if (!shot) return;
+			setCapturing(true);
+			try {
+				// The screenshot URL becomes the new fullpage, crop from top for thumbnail
+				const blob = await resizeToThumbnail(shot.url);
+				const thumbUrl = await uploadThumbnail(blob);
+				const updated = screenshots.map((s, i) => ({ ...s, isMain: i === idx }));
+				await saveImageUrls(thumbUrl, shot.url, updated);
+				setThumbnailUrl(thumbUrl);
+				setFullpageUrl(shot.url);
+				setScreenshots(updated);
+			} catch {
+				// silently fail
+			} finally {
+				setCapturing(false);
+			}
+		},
+		[screenshots, resizeToThumbnail, uploadThumbnail, saveImageUrls],
+	);
+
+	const handleRemoveScreenshot = useCallback(
+		async (idx: number) => {
+			const updated = screenshots
+				.filter((_, i) => i !== idx)
+				.map((s, i) => ({ ...s, order: i }));
+			await saveImageUrls(thumbnailUrl, fullpageUrl, updated);
+			setScreenshots(updated);
+		},
+		[screenshots, thumbnailUrl, fullpageUrl, saveImageUrls],
+	);
 
 	const handlePublish = useCallback(async () => {
 		if (!name.trim()) return;
@@ -668,6 +885,12 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 									</span>
 								</div>
 							)}
+							{fullpageUrl && (
+								<p className="text-[11px] text-emerald-400/60 flex items-center gap-1.5">
+									<Images className="h-3 w-3" />
+									Full-page preview captured
+								</p>
+							)}
 							<div className="flex gap-2">
 								<button
 									type="button"
@@ -698,6 +921,71 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 									/>
 								</label>
 							</div>
+						</div>
+
+						{/* Screenshots Gallery */}
+						<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-6 space-y-4">
+							<div className="flex items-center justify-between">
+								<h2 className="text-sm font-semibold text-white/70">
+									Screenshots ({screenshots.length})
+								</h2>
+								<button
+									type="button"
+									onClick={handleCapture}
+									disabled={capturing}
+									className="px-2.5 py-1.5 rounded-lg bg-white/[0.06] border border-white/[0.08] text-white/50 text-[11px] font-medium hover:bg-white/[0.1] transition-colors disabled:opacity-50 flex items-center gap-1"
+								>
+									<Plus className="h-3 w-3" />
+									Add
+								</button>
+							</div>
+							{screenshots.length === 0 ? (
+								<div className="py-6 text-center">
+									<Images className="h-6 w-6 text-white/10 mx-auto mb-2" />
+									<p className="text-xs text-white/25">
+										No additional screenshots yet. Capture or set as main above.
+									</p>
+								</div>
+							) : (
+								<div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+									{screenshots.map((shot, idx) => (
+										<div
+											key={shot.url}
+											className="relative flex-shrink-0 w-48 rounded-xl overflow-hidden border border-white/[0.08] group/shot"
+										>
+											<img
+												src={shot.url}
+												alt={`Screenshot ${idx + 1}`}
+												className="w-full aspect-video object-cover"
+											/>
+											{shot.isMain && (
+												<div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-violet-500/80 backdrop-blur-sm text-[9px] font-semibold text-white flex items-center gap-0.5">
+													<Star className="h-2.5 w-2.5 fill-current" />
+													Main
+												</div>
+											)}
+											<div className="absolute inset-0 bg-black/0 group-hover/shot:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover/shot:opacity-100">
+												{!shot.isMain && (
+													<button
+														type="button"
+														onClick={() => handleSetScreenshotAsMain(idx)}
+														className="px-2 py-1 rounded-md bg-white/20 backdrop-blur-sm text-[10px] font-medium text-white hover:bg-white/30 transition-colors"
+													>
+														Set Main
+													</button>
+												)}
+												<button
+													type="button"
+													onClick={() => handleRemoveScreenshot(idx)}
+													className="p-1 rounded-md bg-red-500/30 backdrop-blur-sm text-white hover:bg-red-500/50 transition-colors"
+												>
+													<Trash2 className="h-3 w-3" />
+												</button>
+											</div>
+										</div>
+									))}
+								</div>
+							)}
 						</div>
 
 						{/* Edit Form */}
@@ -883,9 +1171,67 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 								</DialogFooter>
 							</DialogContent>
 						</Dialog>
+
+						{/* Capture Choice Dialog (Main vs Screenshot) */}
+						<Dialog open={captureDialogOpen} onOpenChange={setCaptureDialogOpen}>
+							<DialogContent>
+								<DialogHeader>
+									<DialogTitle className="font-sans text-[18px] font-medium tracking-tight text-white/90">
+										Save Capture As
+									</DialogTitle>
+									<DialogDescription className="font-geist mt-1 text-[13px] text-white/40">
+										Choose how to use this captured image.
+									</DialogDescription>
+								</DialogHeader>
+								<DialogBody>
+									<div className="flex gap-3 mt-4">
+										<button
+											type="button"
+											onClick={handleCaptureSetMain}
+											className="flex-1 px-4 py-4 rounded-xl bg-white/[0.06] border border-white/[0.08] hover:bg-white/[0.1] transition-colors text-center"
+										>
+											<ImageIcon className="h-6 w-6 text-violet-400 mx-auto mb-2" />
+											<p className="text-sm font-medium text-white/80">Set as Main Thumbnail</p>
+											<p className="text-[11px] text-white/30 mt-1">Replaces current thumbnail + full-page</p>
+										</button>
+										<button
+											type="button"
+											onClick={handleCaptureAddScreenshot}
+											className="flex-1 px-4 py-4 rounded-xl bg-white/[0.06] border border-white/[0.08] hover:bg-white/[0.1] transition-colors text-center"
+										>
+											<Plus className="h-6 w-6 text-cyan-400 mx-auto mb-2" />
+											<p className="text-sm font-medium text-white/80">Add as Screenshot</p>
+											<p className="text-[11px] text-white/30 mt-1">Adds to the screenshot gallery</p>
+										</button>
+									</div>
+								</DialogBody>
+								<DialogFooter>
+									<button
+										type="button"
+										onClick={() => {
+											setCaptureDialogOpen(false);
+											setPendingCaptureDataUrl(null);
+										}}
+										className="px-4 py-2 rounded-lg text-sm text-white/50 hover:text-white/70 transition-colors"
+									>
+										Cancel
+									</button>
+								</DialogFooter>
+							</DialogContent>
+						</Dialog>
 					</>
 				)}
 			</div>
+
+			{/* Crop Dialog (fullscreen overlay) */}
+			{showCropDialog && pendingCaptureDataUrl && (
+				<ThumbnailCropDialog
+					imageDataUrl={pendingCaptureDataUrl}
+					onCrop={handleCropConfirm}
+					onSkip={handleCropSkip}
+					onCancel={handleCropCancel}
+				/>
+			)}
 		</div>
 	);
 }
