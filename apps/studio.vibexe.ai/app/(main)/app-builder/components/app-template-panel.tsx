@@ -194,7 +194,10 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 
 	const handleCapture = useCallback(async () => {
 		const iframe = document.querySelector("iframe.sp-preview-iframe") as HTMLIFrameElement | null;
-		if (!iframe?.contentWindow) return;
+		if (!iframe?.contentWindow) {
+			alert("Preview not loaded yet. Please visit the Preview tab first, then try again.");
+			return;
+		}
 		setCapturing(true);
 		const cleanup = () => setCapturing(false);
 

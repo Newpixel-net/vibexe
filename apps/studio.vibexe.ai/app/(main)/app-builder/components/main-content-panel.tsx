@@ -66,39 +66,46 @@ export function MainContentPanel({
 		<div className="flex-1 flex flex-col min-h-0 bg-white/[0.015] backdrop-blur-lg">
 			<RightPanelTabs view={view} onViewChange={onViewChange} />
 
-			<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-				<AnimatePresence mode="wait">
-					<motion.div
-						key={view}
-						initial={{ opacity: 0, x: 10 }}
-						animate={{ opacity: 1, x: 0 }}
-						exit={{ opacity: 0, x: -10 }}
-						transition={{ duration: 0.15, ease: "easeOut" }}
-						className="flex-1 flex flex-col min-h-0"
-					>
-						{view === "preview" && (
-							<SandpackPreview
-								appId={appId}
-								files={files}
-								isGenerating={isGenerating}
-								onFileUpdate={onFileUpdate}
-								onViewChange={onViewChange}
-								onFileSelect={(id) => onFileSelect(id)}
-							/>
-						)}
-						{view === "code" && (
-							<DashboardPanel
-								appId={appId}
-								files={files}
-								selectedFileId={selectedFileId}
-								onFileSelect={onFileSelect}
-								onFileUpdate={onFileUpdate}
-							/>
-						)}
-						{view === "readme" && <ReadmePanel files={files} isGenerating={isGenerating} streamingDoc={streamingDoc} />}
-						{view === "workflows" && <WorkflowsPanel appId={appId} />}
-					</motion.div>
-				</AnimatePresence>
+			<div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+				{/* SandpackPreview always mounted (hidden when not active) so iframe stays in DOM for thumbnail capture */}
+				<div
+					className="flex-1 flex flex-col min-h-0"
+					style={{ display: view === "preview" ? "flex" : "none" }}
+				>
+					<SandpackPreview
+						appId={appId}
+						files={files}
+						isGenerating={isGenerating}
+						onFileUpdate={onFileUpdate}
+						onViewChange={onViewChange}
+						onFileSelect={(id) => onFileSelect(id)}
+					/>
+				</div>
+
+				{view !== "preview" && (
+					<AnimatePresence mode="wait">
+						<motion.div
+							key={view}
+							initial={{ opacity: 0, x: 10 }}
+							animate={{ opacity: 1, x: 0 }}
+							exit={{ opacity: 0, x: -10 }}
+							transition={{ duration: 0.15, ease: "easeOut" }}
+							className="flex-1 flex flex-col min-h-0"
+						>
+							{view === "code" && (
+								<DashboardPanel
+									appId={appId}
+									files={files}
+									selectedFileId={selectedFileId}
+									onFileSelect={onFileSelect}
+									onFileUpdate={onFileUpdate}
+								/>
+							)}
+							{view === "readme" && <ReadmePanel files={files} isGenerating={isGenerating} streamingDoc={streamingDoc} />}
+							{view === "workflows" && <WorkflowsPanel appId={appId} />}
+						</motion.div>
+					</AnimatePresence>
+				)}
 			</div>
 		</div>
 	);
