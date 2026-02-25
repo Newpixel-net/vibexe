@@ -87,10 +87,6 @@ function buildIndexHtml(langConfig?: SandpackLanguageConfig): string {
         }
       }
     </script>
-    <style>
-      /* Dark background while loading to prevent white flash */
-      html, body { background: #0a0a1a; }
-    </style>
     <style type="text/tailwindcss">
       @layer base {
         body {

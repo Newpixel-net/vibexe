@@ -97,52 +97,42 @@ export function CaptureScreenshotDialog({
 		};
 	}, [open, appId]);
 
-	// Step 2: Poll for iframe content to be rendered, then wait 1.5s extra for animations
+	// Step 2: Listen for "vibexe-app-ready" from bridge script inside iframe
+	// The bridge runs inside the Sandpack iframe (same origin as the app)
+	// and observes #root for content, posting vibexe-app-ready when rendered.
 	useEffect(() => {
 		if (phase !== "compiling" || !files) return;
 		captureTriggeredRef.current = false;
 
 		let cancelled = false;
-		let pollTimer: ReturnType<typeof setInterval>;
-		let readyTimer: ReturnType<typeof setTimeout>;
+		let settleTimer: ReturnType<typeof setTimeout>;
 
-		const checkReady = () => {
+		const onMessage = (e: MessageEvent) => {
 			if (cancelled || abortRef.current) return;
-			try {
-				const iframe = document.querySelector(
-					".capture-dialog-sandpack iframe.sp-preview-iframe",
-				) as HTMLIFrameElement | null;
-				if (!iframe?.contentWindow?.document?.body) return;
-				const body = iframe.contentWindow.document.body;
-				const root = body.querySelector("#root");
-				// Check if React has mounted content (root has children beyond empty)
-				if (root && root.children.length > 0 && root.innerHTML.length > 100) {
-					clearInterval(pollTimer);
-					// Wait 1.5s more for CSS/animations to settle
-					readyTimer = setTimeout(() => {
-						if (!cancelled && !abortRef.current) {
-							triggerCapture();
-						}
-					}, 1500);
-				}
-			} catch {
-				// Cross-origin access may fail, fall back to timer
+			if (e.data?.type === "vibexe-app-ready" && !captureTriggeredRef.current) {
+				// App has rendered — wait 2s for CSS/animations/fonts to settle
+				settleTimer = setTimeout(() => {
+					if (!cancelled && !abortRef.current) {
+						triggerCapture();
+					}
+				}, 2000);
 			}
 		};
 
-		// Start polling every 500ms, with a hard fallback at 8s
-		pollTimer = setInterval(checkReady, 500);
+		window.addEventListener("message", onMessage);
+
+		// Hard fallback: if bridge never fires (e.g. app has no #root content),
+		// capture after 12s anyway
 		const fallback = setTimeout(() => {
 			if (!cancelled && !abortRef.current && !captureTriggeredRef.current) {
-				clearInterval(pollTimer);
 				triggerCapture();
 			}
-		}, 8000);
+		}, 12000);
 
 		return () => {
 			cancelled = true;
-			clearInterval(pollTimer);
-			clearTimeout(readyTimer);
+			window.removeEventListener("message", onMessage);
+			clearTimeout(settleTimer);
 			clearTimeout(fallback);
 		};
 	}, [phase, files]);

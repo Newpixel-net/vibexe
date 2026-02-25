@@ -330,6 +330,46 @@ export function getVisualEditBridgeScript(): string {
     } catch(e) {}
   }
 
+  // App readiness observer — watches #root for content and notifies parent
+  (function observeReady() {
+    var notified = false;
+    function checkRoot() {
+      if (notified) return;
+      var root = document.getElementById('root');
+      if (root && root.children.length > 0 && root.innerHTML.length > 50) {
+        notified = true;
+        window.parent.postMessage({ type: 'vibexe-app-ready' }, '*');
+      }
+    }
+    // Check immediately in case content already rendered
+    checkRoot();
+    // Observe DOM mutations on #root
+    var readyObs = new MutationObserver(function() { checkRoot(); });
+    var root = document.getElementById('root');
+    if (root) {
+      readyObs.observe(root, { childList: true, subtree: true });
+    } else {
+      // #root not yet in DOM, wait for it
+      var bodyObs = new MutationObserver(function() {
+        var r = document.getElementById('root');
+        if (r) {
+          bodyObs.disconnect();
+          checkRoot();
+          readyObs.observe(r, { childList: true, subtree: true });
+        }
+      });
+      if (document.body) bodyObs.observe(document.body, { childList: true });
+      else document.addEventListener('DOMContentLoaded', function() {
+        var r = document.getElementById('root');
+        if (r) { checkRoot(); readyObs.observe(r, { childList: true, subtree: true }); }
+      });
+    }
+    // Hard fallback: notify after 10s regardless
+    setTimeout(function() {
+      if (!notified) { notified = true; window.parent.postMessage({ type: 'vibexe-app-ready' }, '*'); }
+    }, 10000);
+  })();
+
   window.addEventListener('message', function(e) {
     var d = e.data;
     if (!d || !d.type) return;
