@@ -165,6 +165,7 @@ The Schedule Trigger is ALWAYS the first node. The End node is ALWAYS the last n
 
     **E-commerce & Payments:**
     - "stripe" — create_customer, create_invoice, create_payment_link, create_subscription, search_customer, create_refund (19 actions)
+    - "paypal" — create-order, capture-order, get-order, authorize-order, create-plan, list-plans, create-subscription, get-subscription, cancel-subscription, suspend-subscription, create-invoice, send-invoice, list-invoices, get-invoice, create-payout, get-payout-batch, get-payout-item, list-disputes, get-dispute, accept-dispute, create-product, list-products (22 actions)
     - "shopify" — create_product, create_order, get_products, update_product, create_customer, get_customer (27 actions)
 
     **Social Media:**

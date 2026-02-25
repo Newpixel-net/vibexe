@@ -6,6 +6,31 @@
  * Falls back to the generic Activepieces loader for unhandled pieces.
  */
 
+import {
+	createOrder,
+	captureOrder,
+	getOrder,
+	authorizeOrder,
+	createPlan,
+	listPlans,
+	createSubscription,
+	getSubscription,
+	cancelSubscription,
+	suspendSubscription,
+	createInvoice,
+	sendInvoice,
+	listInvoices,
+	getInvoice,
+	createPayout,
+	getPayoutBatch,
+	getPayoutItem,
+	listDisputes,
+	getDispute,
+	acceptDispute,
+	createProduct,
+	listProducts,
+} from "./built-in/paypal";
+
 function decodeHtmlEntities(text: string): string {
 	return text
 		.replace(/&amp;/g, "&")
@@ -205,6 +230,30 @@ type BuiltInAction = (
 const BUILT_IN_ACTIONS: Record<string, Record<string, BuiltInAction>> = {
 	youtube: {
 		"fetch-video-info": youtubeFetchVideoInfo,
+	},
+	paypal: {
+		"create-order": createOrder,
+		"capture-order": captureOrder,
+		"get-order": getOrder,
+		"authorize-order": authorizeOrder,
+		"create-plan": createPlan,
+		"list-plans": listPlans,
+		"create-subscription": createSubscription,
+		"get-subscription": getSubscription,
+		"cancel-subscription": cancelSubscription,
+		"suspend-subscription": suspendSubscription,
+		"create-invoice": createInvoice,
+		"send-invoice": sendInvoice,
+		"list-invoices": listInvoices,
+		"get-invoice": getInvoice,
+		"create-payout": createPayout,
+		"get-payout-batch": getPayoutBatch,
+		"get-payout-item": getPayoutItem,
+		"list-disputes": listDisputes,
+		"get-dispute": getDispute,
+		"accept-dispute": acceptDispute,
+		"create-product": createProduct,
+		"list-products": listProducts,
 	},
 };
 
