@@ -199,7 +199,38 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 			return;
 		}
 		setCapturing(true);
-		const cleanup = () => setCapturing(false);
+
+		// The Sandpack preview container is hidden (display:none) when Dashboard tab is active.
+		// html2canvas crashes on hidden elements (0-size causes non-finite gradient values).
+		// Temporarily make it visible off-screen for the capture, then re-hide.
+		const previewContainer = iframe.closest("[style*='display']") as HTMLElement | null;
+		const wasHidden = previewContainer && previewContainer.style.display === "none";
+		if (wasHidden && previewContainer) {
+			previewContainer.style.display = "flex";
+			previewContainer.style.position = "fixed";
+			previewContainer.style.left = "-9999px";
+			previewContainer.style.top = "0";
+			previewContainer.style.width = "1280px";
+			previewContainer.style.height = "720px";
+		}
+
+		// Wait a tick for the layout to recalculate
+		await new Promise((r) => setTimeout(r, 500));
+
+		const restoreVisibility = () => {
+			if (wasHidden && previewContainer) {
+				previewContainer.style.display = "none";
+				previewContainer.style.position = "";
+				previewContainer.style.left = "";
+				previewContainer.style.top = "";
+				previewContainer.style.width = "";
+				previewContainer.style.height = "";
+			}
+		};
+		const cleanup = () => {
+			restoreVisibility();
+			setCapturing(false);
+		};
 
 		const handler = async (e: MessageEvent) => {
 			if (e.data?.type === "vibexe-capture-result") {
