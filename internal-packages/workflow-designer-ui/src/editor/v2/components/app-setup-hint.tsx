@@ -28,7 +28,7 @@ export function AppSetupHint() {
 					<div className="flex items-center gap-[8px]">
 						<InfoIcon className="size-[16px]" />
 						<p className="text-[14px] font-medium">
-							Create an app by connecting nodes from Start to End.
+							Create an app by connecting nodes from Schedule Trigger to End.
 						</p>
 					</div>
 				</motion.div>
