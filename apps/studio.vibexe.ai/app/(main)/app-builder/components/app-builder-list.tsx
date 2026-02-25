@@ -44,16 +44,10 @@ import {
 	useTransition,
 } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "framer-motion";
 import type { BuilderProject } from "@/db/schema";
 import type { EnrichedBuilderApp } from "../lib/project-queries";
 import { SearchHeader } from "../../workflows/components/search-header";
 import { Button } from "../../settings/components/button";
-import {
-	PreviewImage,
-	PREVIEW_CONTAINER_HEIGHT,
-	injectPreviewScrollKeyframes,
-} from "./app-preview-image";
 
 // ============================================================================
 // Types
@@ -183,16 +177,8 @@ function AppCard({
 	const [isDuplicatePending, startDuplicateTransition] = useTransition();
 	const [moveMenuOpen, setMoveMenuOpen] = useState(false);
 	const [isMovePending, startMoveTransition] = useTransition();
-	const cardRef = useRef<HTMLDivElement>(null);
 	const menuBtnRef = useRef<HTMLButtonElement>(null);
 	const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
-
-	// Hover preview state
-	const [previewVisible, setPreviewVisible] = useState(false);
-	const [previewPos, setPreviewPos] = useState({ top: 0, left: 0 });
-	const enterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const previewImageUrl = app.fullpageUrl || app.thumbnailUrl;
 
 	const handleDelete = useCallback(() => {
 		startDeleteTransition(async () => {
@@ -250,52 +236,6 @@ function AppCard({
 		},
 		[app.id, router],
 	);
-
-	// Preview hover handlers
-	const showPreview = useCallback(() => {
-		if (!cardRef.current || !previewImageUrl) return;
-		const rect = cardRef.current.getBoundingClientRect();
-		const previewWidth = 400;
-		const padding = 16;
-		let left = rect.right + padding;
-		if (left + previewWidth > window.innerWidth - padding) {
-			left = rect.left - previewWidth - padding;
-		}
-		left = Math.max(padding, Math.min(left, window.innerWidth - previewWidth - padding));
-		let top = rect.top;
-		const previewApproxHeight = PREVIEW_CONTAINER_HEIGHT + 80;
-		if (top + previewApproxHeight > window.innerHeight - padding) {
-			top = window.innerHeight - previewApproxHeight - padding;
-		}
-		top = Math.max(padding, top);
-		setPreviewPos({ top, left });
-		setPreviewVisible(true);
-	}, [previewImageUrl]);
-
-	const handleThumbEnter = useCallback(() => {
-		if (exitTimerRef.current) { clearTimeout(exitTimerRef.current); exitTimerRef.current = null; }
-		enterTimerRef.current = setTimeout(showPreview, 300);
-	}, [showPreview]);
-
-	const handleThumbLeave = useCallback(() => {
-		if (enterTimerRef.current) { clearTimeout(enterTimerRef.current); enterTimerRef.current = null; }
-		exitTimerRef.current = setTimeout(() => setPreviewVisible(false), 200);
-	}, []);
-
-	const handlePreviewEnter = useCallback(() => {
-		if (exitTimerRef.current) { clearTimeout(exitTimerRef.current); exitTimerRef.current = null; }
-	}, []);
-
-	const handlePreviewLeave = useCallback(() => {
-		exitTimerRef.current = setTimeout(() => setPreviewVisible(false), 200);
-	}, []);
-
-	useEffect(() => {
-		return () => {
-			if (enterTimerRef.current) clearTimeout(enterTimerRef.current);
-			if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
-		};
-	}, []);
 
 	const gradient = getAppGradient(app.name || "Untitled");
 
@@ -377,15 +317,12 @@ function AppCard({
 	return (
 		<>
 			<div
-				ref={cardRef}
 				className="group relative border border-white/[0.08] rounded-2xl overflow-hidden hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.03] transition-all duration-200 cursor-pointer"
 			>
 				<Link href={`/app-builder/${app.id}`} prefetch={false} className="block">
 					{/* Thumbnail header */}
 					<div
 						className={`h-36 relative overflow-hidden ${app.thumbnailUrl ? "" : `bg-gradient-to-br ${gradient}`}`}
-						onMouseEnter={previewImageUrl ? handleThumbEnter : undefined}
-						onMouseLeave={previewImageUrl ? handleThumbLeave : undefined}
 					>
 						{app.thumbnailUrl ? (
 							<>
@@ -457,47 +394,6 @@ function AppCard({
 				</div>
 				{renderMenuAndDialogs()}
 			</div>
-
-			{/* Hover Preview Portal */}
-			{typeof document !== "undefined" &&
-				createPortal(
-					<AnimatePresence>
-						{previewVisible && previewImageUrl && (
-							<motion.div
-								initial={{ opacity: 0, scale: 0.95 }}
-								animate={{ opacity: 1, scale: 1 }}
-								exit={{ opacity: 0, scale: 0.95 }}
-								transition={{ duration: 0.15 }}
-								className="fixed z-50 w-[400px] rounded-2xl overflow-hidden border border-white/15 bg-[#0d0d1a]/95 backdrop-blur-xl shadow-2xl shadow-black/50"
-								style={{ top: previewPos.top, left: previewPos.left }}
-								onMouseEnter={handlePreviewEnter}
-								onMouseLeave={handlePreviewLeave}
-							>
-								<div
-									className="overflow-hidden bg-black/20"
-									style={{ height: PREVIEW_CONTAINER_HEIGHT }}
-								>
-									<PreviewImage
-										src={previewImageUrl}
-										alt={app.name || "App preview"}
-										containerHeight={PREVIEW_CONTAINER_HEIGHT}
-									/>
-								</div>
-								<div className="px-4 py-3 border-t border-white/[0.06]">
-									<p className="text-sm font-medium text-white/80 truncate">
-										{app.name || "Untitled App"}
-									</p>
-									{app.description && (
-										<p className="text-[11px] text-white/35 mt-0.5 line-clamp-2">
-											{app.description}
-										</p>
-									)}
-								</div>
-							</motion.div>
-						)}
-					</AnimatePresence>,
-					document.body,
-				)}
 		</>
 	);
 
@@ -954,11 +850,6 @@ export function AppBuilderList({
 	useEffect(() => {
 		localStorage.setItem("vibexe-app-builder-view", viewMode);
 	}, [viewMode]);
-
-	// Inject preview scroll keyframes
-	useEffect(() => {
-		injectPreviewScrollKeyframes();
-	}, []);
 
 	const allApps = useMemo(() => {
 		const projectApps = projects.flatMap((p) => p.apps);
