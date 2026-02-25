@@ -97,17 +97,54 @@ export function CaptureScreenshotDialog({
 		};
 	}, [open, appId]);
 
-	// Step 2: After Sandpack compiles (~4s), trigger capture
+	// Step 2: Poll for iframe content to be rendered, then wait 1.5s extra for animations
 	useEffect(() => {
 		if (phase !== "compiling" || !files) return;
 		captureTriggeredRef.current = false;
 
-		const timer = setTimeout(() => {
-			if (abortRef.current) return;
-			triggerCapture();
-		}, 4500);
+		let cancelled = false;
+		let pollTimer: ReturnType<typeof setInterval>;
+		let readyTimer: ReturnType<typeof setTimeout>;
 
-		return () => clearTimeout(timer);
+		const checkReady = () => {
+			if (cancelled || abortRef.current) return;
+			try {
+				const iframe = document.querySelector(
+					".capture-dialog-sandpack iframe.sp-preview-iframe",
+				) as HTMLIFrameElement | null;
+				if (!iframe?.contentWindow?.document?.body) return;
+				const body = iframe.contentWindow.document.body;
+				const root = body.querySelector("#root");
+				// Check if React has mounted content (root has children beyond empty)
+				if (root && root.children.length > 0 && root.innerHTML.length > 100) {
+					clearInterval(pollTimer);
+					// Wait 1.5s more for CSS/animations to settle
+					readyTimer = setTimeout(() => {
+						if (!cancelled && !abortRef.current) {
+							triggerCapture();
+						}
+					}, 1500);
+				}
+			} catch {
+				// Cross-origin access may fail, fall back to timer
+			}
+		};
+
+		// Start polling every 500ms, with a hard fallback at 8s
+		pollTimer = setInterval(checkReady, 500);
+		const fallback = setTimeout(() => {
+			if (!cancelled && !abortRef.current && !captureTriggeredRef.current) {
+				clearInterval(pollTimer);
+				triggerCapture();
+			}
+		}, 8000);
+
+		return () => {
+			cancelled = true;
+			clearInterval(pollTimer);
+			clearTimeout(readyTimer);
+			clearTimeout(fallback);
+		};
 	}, [phase, files]);
 
 	const triggerCapture = useCallback(() => {
