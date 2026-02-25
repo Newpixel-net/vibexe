@@ -401,6 +401,13 @@ class DataClient {
     this.headers = headers;
   }
 
+  _authHeaders() {
+    var h = Object.assign({}, this.headers);
+    var t = typeof window !== "undefined" ? localStorage.getItem("vibexe_session") : null;
+    if (t) h["Authorization"] = "Bearer " + t;
+    return h;
+  }
+
   async list(entity, options = {}) {
     const params = new URLSearchParams();
     if (options.page) params.set("page", String(options.page));
@@ -426,7 +433,7 @@ class DataClient {
     if (options.include && options.include.length) params.set("include", options.include.join(","));
     const qs = params.toString();
     const url = this.baseUrl + "/data/" + entity + (qs ? "?" + qs : "");
-    const res = await fetch(url, { headers: this.headers });
+    const res = await fetch(url, { headers: this._authHeaders() });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || "Failed to list " + entity);
@@ -459,7 +466,7 @@ class DataClient {
     }
     const qs = params.toString();
     const url = this.baseUrl + "/data/" + entity + "/aggregate" + (qs ? "?" + qs : "");
-    const res = await fetch(url, { headers: this.headers });
+    const res = await fetch(url, { headers: this._authHeaders() });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || "Failed to aggregate " + entity);
@@ -471,7 +478,7 @@ class DataClient {
     const params = new URLSearchParams();
     if (options && options.include && options.include.length) params.set("include", options.include.join(","));
     const qs = params.toString();
-    const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id + (qs ? "?" + qs : ""), { headers: this.headers });
+    const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id + (qs ? "?" + qs : ""), { headers: this._authHeaders() });
     if (!res.ok) throw new Error("Failed to get " + entity + "/" + id);
     const json = await res.json();
     return json.data;
@@ -480,7 +487,7 @@ class DataClient {
   async create(entity, data) {
     const res = await fetch(this.baseUrl + "/data/" + entity, {
       method: "POST",
-      headers: { ...this.headers, "Content-Type": "application/json" },
+      headers: { ...this._authHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error("Failed to create " + entity);
@@ -491,7 +498,7 @@ class DataClient {
   async update(entity, id, data) {
     const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id, {
       method: "PUT",
-      headers: { ...this.headers, "Content-Type": "application/json" },
+      headers: { ...this._authHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error("Failed to update " + entity + "/" + id);
@@ -502,7 +509,7 @@ class DataClient {
   async delete(entity, id) {
     const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id, {
       method: "DELETE",
-      headers: this.headers,
+      headers: this._authHeaders(),
     });
     if (!res.ok) throw new Error("Failed to delete " + entity + "/" + id);
   }
@@ -525,7 +532,7 @@ class DataClient {
       }
     }
     const qs = params.toString();
-    const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id + "/" + relation + (qs ? "?" + qs : ""), { headers: this.headers });
+    const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id + "/" + relation + (qs ? "?" + qs : ""), { headers: this._authHeaders() });
     if (!res.ok) throw new Error("Failed to list " + entity + "/" + id + "/" + relation);
     return await res.json();
   }
@@ -533,7 +540,7 @@ class DataClient {
   async createRelated(entity, id, relation, data) {
     const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id + "/" + relation, {
       method: "POST",
-      headers: { ...this.headers, "Content-Type": "application/json" },
+      headers: { ...this._authHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error("Failed to create " + entity + "/" + id + "/" + relation);
@@ -547,7 +554,7 @@ class DataClient {
     const qs = params.toString();
     const res = await fetch(this.baseUrl + "/data/" + entity + "/" + id + (qs ? "?" + qs : ""), {
       method: "DELETE",
-      headers: this.headers,
+      headers: this._authHeaders(),
     });
     if (!res.ok) throw new Error("Failed to delete " + entity + "/" + id);
     return await res.json();
@@ -556,7 +563,7 @@ class DataClient {
   async createMany(entity, records) {
     const res = await fetch(this.baseUrl + "/data/" + entity + "/batch", {
       method: "POST",
-      headers: { ...this.headers, "Content-Type": "application/json" },
+      headers: { ...this._authHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ records }),
     });
     if (!res.ok) throw new Error("Failed to batch create " + entity);
@@ -566,7 +573,7 @@ class DataClient {
   async updateMany(entity, updates) {
     const res = await fetch(this.baseUrl + "/data/" + entity + "/batch", {
       method: "PUT",
-      headers: { ...this.headers, "Content-Type": "application/json" },
+      headers: { ...this._authHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ updates }),
     });
     if (!res.ok) throw new Error("Failed to batch update " + entity);
@@ -576,7 +583,7 @@ class DataClient {
   async deleteMany(entity, ids) {
     const res = await fetch(this.baseUrl + "/data/" + entity + "/batch", {
       method: "DELETE",
-      headers: { ...this.headers, "Content-Type": "application/json" },
+      headers: { ...this._authHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ ids }),
     });
     if (!res.ok) throw new Error("Failed to batch delete " + entity);
