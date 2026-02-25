@@ -288,7 +288,7 @@ export default function App() {
                 )}
                 {/* Label */}
                 <text
-                  x={w.x + w.w + 6} y={w.y + 14}
+                  x={w.x + 6} y={w.y + 14}
                   fill="#7C3AED" fontSize={9} fontFamily="monospace" opacity={0}
                   style={{ animation: \`labelIn 0.4s ease-out \${w.delay + 600}ms forwards\` }}
                 >{w.label}</text>
