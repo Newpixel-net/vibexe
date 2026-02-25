@@ -1,10 +1,10 @@
 import type { NextRequest } from "next/server";
 import { db } from "@/db";
 import { workflowTemplates } from "@/db/schema";
-import { getUser } from "@/lib/auth/get-user";
-import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
+
+const CRON_SECRET = process.env.CRON_SECRET ?? "";
 
 const SEED_TEMPLATES = [
 	// AI & ML
@@ -233,9 +233,15 @@ const SEED_TEMPLATES = [
  * Only works if the table is empty (prevents duplicates).
  * Requires admin user.
  */
-export async function POST(_request: NextRequest) {
+export async function POST(request: NextRequest) {
 	try {
-		const user = await getUser();
+		// Auth via CRON_SECRET header or query param
+		const secret =
+			request.headers.get("x-cron-secret") ??
+			request.nextUrl.searchParams.get("secret");
+		if (!CRON_SECRET || secret !== CRON_SECRET) {
+			return Response.json({ error: "Unauthorized" }, { status: 401 });
+		}
 
 		// Check if templates already exist
 		const existing = await db
@@ -261,7 +267,6 @@ export async function POST(_request: NextRequest) {
 					tags: t.tags,
 					snapshot: { type: "ai-prompt", prompt: `${t.name}: ${t.description}` },
 					isPublic: true,
-					authorDbId: user.dbId,
 				})),
 			)
 			.returning({ dbId: workflowTemplates.dbId });
