@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import {
 	ArrowRightIcon,
+	ChevronRightIcon,
 	DatabaseIcon,
 	FileIcon,
 	LayoutTemplateIcon,
@@ -12,6 +13,16 @@ import {
 	StarIcon,
 	UsersIcon,
 } from "lucide-react";
+import {
+	type CategoryGroup,
+	TEMPLATE_CATEGORY_TREE,
+	MAIN_CATEGORIES,
+	getMainCategory,
+	getSubcategory,
+	getCategoryGradient,
+	getCategoryDisplayLabel,
+	normalizeCategory,
+} from "../lib/template-constants";
 
 interface GalleryTemplate {
 	dbId: number;
@@ -43,8 +54,15 @@ export function TemplateGallery({
 }: TemplateGalleryProps) {
 	const router = useRouter();
 	const [search, setSearch] = useState("");
-	const [categoryFilter, setCategoryFilter] = useState("");
+	const [mainCategoryFilter, setMainCategoryFilter] = useState("");
+	const [subCategoryFilter, setSubCategoryFilter] = useState("");
 	const [cloning, setCloning] = useState<string | null>(null);
+
+	// Get subcategories for selected main category
+	const activeSubcategories = useMemo(() => {
+		if (!mainCategoryFilter) return [];
+		return TEMPLATE_CATEGORY_TREE[mainCategoryFilter]?.subcategories ?? [];
+	}, [mainCategoryFilter]);
 
 	const filtered = useMemo(() => {
 		return templates.filter((t) => {
@@ -54,10 +72,18 @@ export function TemplateGallery({
 				const descMatch = t.description?.toLowerCase().includes(q);
 				if (!nameMatch && !descMatch) return false;
 			}
-			if (categoryFilter && t.category !== categoryFilter) return false;
+			if (mainCategoryFilter) {
+				const normalized = normalizeCategory(t.category);
+				const tMain = getMainCategory(normalized);
+				if (tMain !== mainCategoryFilter) return false;
+				if (subCategoryFilter) {
+					const tSub = getSubcategory(normalized);
+					if (tSub !== subCategoryFilter) return false;
+				}
+			}
 			return true;
 		});
-	}, [templates, search, categoryFilter]);
+	}, [templates, search, mainCategoryFilter, subCategoryFilter]);
 
 	const handleUseTemplate = useCallback(
 		async (t: GalleryTemplate) => {
@@ -106,8 +132,8 @@ export function TemplateGallery({
 				</div>
 			</div>
 
-			{/* Filters */}
-			<div className="px-8 pb-6">
+			{/* Search + Main Category Filters */}
+			<div className="px-8 pb-3">
 				<div className="flex items-center gap-3">
 					<div className="relative flex-1 max-w-md">
 						<SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-white/30" />
@@ -119,37 +145,82 @@ export function TemplateGallery({
 							className="w-full bg-white/[0.04] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-blue-500/40 focus:bg-white/[0.06] transition-all"
 						/>
 					</div>
-					<div className="flex items-center gap-2">
+					<div className="flex items-center gap-2 flex-wrap">
 						<button
 							type="button"
-							onClick={() => setCategoryFilter("")}
+							onClick={() => {
+								setMainCategoryFilter("");
+								setSubCategoryFilter("");
+							}}
 							className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-all ${
-								!categoryFilter
+								!mainCategoryFilter
 									? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
 									: "bg-white/[0.04] text-white/50 border border-white/10 hover:bg-white/[0.08] hover:text-white/70"
 							}`}
 						>
 							All
 						</button>
-						{categories.map((c) => (
+						{MAIN_CATEGORIES.map((cat) => (
 							<button
-								key={c}
+								key={cat}
 								type="button"
-								onClick={() =>
-									setCategoryFilter(categoryFilter === c ? "" : c)
-								}
+								onClick={() => {
+									if (mainCategoryFilter === cat) {
+										setMainCategoryFilter("");
+										setSubCategoryFilter("");
+									} else {
+										setMainCategoryFilter(cat);
+										setSubCategoryFilter("");
+									}
+								}}
 								className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
-									categoryFilter === c
+									mainCategoryFilter === cat
 										? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
 										: "bg-white/[0.04] text-white/50 border border-white/10 hover:bg-white/[0.08] hover:text-white/70"
 								}`}
 							>
-								{c}
+								{cat}
 							</button>
 						))}
 					</div>
 				</div>
 			</div>
+
+			{/* Subcategory Filter Row (shown when a main category is selected) */}
+			{mainCategoryFilter && activeSubcategories.length > 0 && (
+				<div className="px-8 pb-4">
+					<div className="flex items-center gap-2 flex-wrap">
+						<ChevronRightIcon className="size-3.5 text-white/20 mr-1" />
+						<button
+							type="button"
+							onClick={() => setSubCategoryFilter("")}
+							className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+								!subCategoryFilter
+									? "bg-white/[0.1] text-white/80 border border-white/15"
+									: "bg-white/[0.03] text-white/40 border border-white/[0.06] hover:bg-white/[0.06] hover:text-white/60"
+							}`}
+						>
+							All {mainCategoryFilter}
+						</button>
+						{activeSubcategories.map((sub) => (
+							<button
+								key={sub}
+								type="button"
+								onClick={() =>
+									setSubCategoryFilter(subCategoryFilter === sub ? "" : sub)
+								}
+								className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+									subCategoryFilter === sub
+										? "bg-white/[0.1] text-white/80 border border-white/15"
+										: "bg-white/[0.03] text-white/40 border border-white/[0.06] hover:bg-white/[0.06] hover:text-white/60"
+								}`}
+							>
+								{sub}
+							</button>
+						))}
+					</div>
+				</div>
+			)}
 
 			{/* Template Grid */}
 			<div className="px-8 pb-8">
@@ -210,21 +281,8 @@ function TemplateCard({
 	isCloning: boolean;
 	onUse: () => void;
 }) {
-	// Pick a gradient based on category
-	const gradients: Record<string, string> = {
-		"Project Management": "from-blue-500/10 to-cyan-500/10",
-		"E-Commerce": "from-emerald-500/10 to-green-500/10",
-		Dashboard: "from-purple-500/10 to-pink-500/10",
-		CRM: "from-orange-500/10 to-amber-500/10",
-		Social: "from-pink-500/10 to-rose-500/10",
-		"Content Management": "from-teal-500/10 to-cyan-500/10",
-		Education: "from-indigo-500/10 to-blue-500/10",
-		Analytics: "from-violet-500/10 to-purple-500/10",
-		Communication: "from-sky-500/10 to-blue-500/10",
-		Utility: "from-gray-500/10 to-slate-500/10",
-		Other: "from-gray-500/10 to-slate-500/10",
-	};
-	const gradient = gradients[t.category] || gradients.Other;
+	const gradient = getCategoryGradient(t.category);
+	const displayLabel = getCategoryDisplayLabel(t.category);
 
 	return (
 		<div className="group relative bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden hover:border-white/20 hover:bg-white/[0.05] transition-all duration-200">
@@ -243,7 +301,7 @@ function TemplateCard({
 				)}
 				<div className="absolute bottom-3 left-4">
 					<span className="px-2.5 py-1 rounded-lg bg-black/30 backdrop-blur-sm text-[11px] font-medium text-white/80">
-						{t.category}
+						{displayLabel}
 					</span>
 				</div>
 			</div>

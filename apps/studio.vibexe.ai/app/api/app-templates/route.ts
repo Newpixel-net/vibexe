@@ -5,10 +5,12 @@
  */
 
 import { NextResponse } from "next/server";
+import { listTemplates } from "@/app/(main)/app-builder/lib/template-queries";
 import {
-	listTemplates,
-	TEMPLATE_CATEGORIES,
-} from "@/app/(main)/app-builder/lib/template-queries";
+	MAIN_CATEGORIES,
+	ALL_CATEGORY_PATHS,
+	TEMPLATE_CATEGORY_TREE,
+} from "@/app/(main)/app-builder/lib/template-constants";
 
 export async function GET(request: Request) {
 	try {
@@ -37,7 +39,9 @@ export async function GET(request: Request) {
 		return NextResponse.json({
 			templates,
 			total,
-			categories: TEMPLATE_CATEGORIES,
+			categories: MAIN_CATEGORIES,
+			allCategoryPaths: ALL_CATEGORY_PATHS,
+			categoryTree: TEMPLATE_CATEGORY_TREE,
 		});
 	} catch (error) {
 		console.error("[Template Gallery] List error:", error);

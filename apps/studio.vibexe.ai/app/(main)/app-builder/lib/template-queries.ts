@@ -19,8 +19,13 @@ import {
 	users,
 } from "@/db/schema";
 
-export { TEMPLATE_CATEGORIES } from "./template-constants";
-export type { TemplateCategory } from "./template-constants";
+export {
+	TEMPLATE_CATEGORIES,
+	MAIN_CATEGORIES,
+	ALL_CATEGORY_PATHS,
+	TEMPLATE_CATEGORY_TREE,
+} from "./template-constants";
+export type { TemplateCategory, CategoryGroup } from "./template-constants";
 
 // ============================================================================
 // Publish / Update / Delete

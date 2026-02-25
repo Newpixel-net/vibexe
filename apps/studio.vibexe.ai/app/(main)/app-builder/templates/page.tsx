@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { teamMemberships } from "@/db/schema";
 import { getUser } from "@/lib/auth/get-user";
 import { listTemplates } from "../lib/template-queries";
-import { TEMPLATE_CATEGORIES } from "../lib/template-constants";
+import { MAIN_CATEGORIES } from "../lib/template-constants";
 import { TemplateGallery } from "./template-gallery";
 
 export default async function TemplatesPage() {
@@ -25,7 +25,7 @@ export default async function TemplatesPage() {
 	return (
 		<TemplateGallery
 			templates={templates}
-			categories={[...TEMPLATE_CATEGORIES]}
+			categories={[...MAIN_CATEGORIES]}
 			totalCount={total}
 		/>
 	);

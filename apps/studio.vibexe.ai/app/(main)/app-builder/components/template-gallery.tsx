@@ -16,6 +16,8 @@ import {
 	DialogTitle,
 } from "@vibexe-internal/ui/dialog";
 import {
+	ChevronDown,
+	ChevronRight,
 	FileCode2,
 	Loader2,
 	Plus,
@@ -25,6 +27,14 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import {
+	TEMPLATE_CATEGORY_TREE,
+	MAIN_CATEGORIES,
+	getMainCategory,
+	getSubcategory,
+	getCategoryDisplayLabel,
+	normalizeCategory,
+} from "../lib/template-constants";
 
 interface TemplateItem {
 	id: string;
@@ -43,20 +53,6 @@ interface TemplateGalleryProps {
 	createAppAction: () => Promise<void>;
 }
 
-const CATEGORY_ICONS: Record<string, string> = {
-	"Project Management": "clipboard-list",
-	"E-Commerce": "shopping-cart",
-	Dashboard: "layout-dashboard",
-	CRM: "users",
-	Social: "message-circle",
-	"Content Management": "file-text",
-	Education: "book-open",
-	Analytics: "bar-chart-2",
-	Communication: "mail",
-	Utility: "wrench",
-	Other: "box",
-};
-
 export function TemplateGallery({
 	open,
 	onOpenChange,
@@ -64,10 +60,11 @@ export function TemplateGallery({
 }: TemplateGalleryProps) {
 	const router = useRouter();
 	const [templates, setTemplates] = useState<TemplateItem[]>([]);
-	const [categories, setCategories] = useState<string[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [search, setSearch] = useState("");
-	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+	const [selectedMain, setSelectedMain] = useState<string | null>(null);
+	const [selectedSub, setSelectedSub] = useState<string | null>(null);
+	const [expandedMain, setExpandedMain] = useState<string | null>(null);
 	const [cloning, setCloning] = useState<string | null>(null);
 	const [isCreating, startCreating] = useTransition();
 
@@ -75,20 +72,18 @@ export function TemplateGallery({
 		setLoading(true);
 		try {
 			const params = new URLSearchParams();
-			if (selectedCategory) params.set("category", selectedCategory);
 			if (search.trim()) params.set("search", search.trim());
 			params.set("limit", "50");
 
 			const res = await fetch(`/api/app-templates?${params}`);
 			const data = await res.json();
 			setTemplates(data.templates ?? []);
-			setCategories(data.categories ?? []);
 		} catch {
 			setTemplates([]);
 		} finally {
 			setLoading(false);
 		}
-	}, [selectedCategory, search]);
+	}, [search]);
 
 	useEffect(() => {
 		if (open) fetchTemplates();
@@ -100,6 +95,21 @@ export function TemplateGallery({
 		const timer = setTimeout(() => setSearch(searchInput), 300);
 		return () => clearTimeout(timer);
 	}, [searchInput]);
+
+	// Filter templates by selected category
+	const filteredTemplates = useMemo(() => {
+		return templates.filter((t) => {
+			if (!selectedMain) return true;
+			const normalized = normalizeCategory(t.category);
+			const tMain = getMainCategory(normalized);
+			if (tMain !== selectedMain) return false;
+			if (selectedSub) {
+				const tSub = getSubcategory(normalized);
+				if (tSub !== selectedSub) return false;
+			}
+			return true;
+		});
+	}, [templates, selectedMain, selectedSub]);
 
 	const handleStartFromScratch = useCallback(() => {
 		startCreating(async () => {
@@ -128,14 +138,6 @@ export function TemplateGallery({
 		},
 		[router, onOpenChange],
 	);
-
-	// Filter categories that have templates
-	const availableCategories = useMemo(() => {
-		const templateCategories = new Set(templates.map((t) => t.category));
-		return categories.filter(
-			(c) => !selectedCategory || templateCategories.has(c),
-		);
-	}, [categories, templates, selectedCategory]);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -166,37 +168,88 @@ export function TemplateGallery({
 					</div>
 
 					<div className="flex gap-4 min-h-[380px]">
-						{/* Category Sidebar */}
-						<div className="w-[160px] flex-shrink-0 space-y-1">
+						{/* Category Sidebar — Collapsible Tree */}
+						<div className="w-[180px] flex-shrink-0 space-y-0.5 overflow-y-auto max-h-[400px] pr-1">
+							{/* All button */}
 							<button
 								type="button"
-								onClick={() => setSelectedCategory(null)}
+								onClick={() => {
+									setSelectedMain(null);
+									setSelectedSub(null);
+									setExpandedMain(null);
+								}}
 								className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors ${
-									!selectedCategory
+									!selectedMain
 										? "bg-white/[0.1] text-white/90 font-medium"
 										: "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
 								}`}
 							>
 								All
 							</button>
-							{categories.map((cat) => (
-								<button
-									key={cat}
-									type="button"
-									onClick={() =>
-										setSelectedCategory(
-											selectedCategory === cat ? null : cat,
-										)
-									}
-									className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors ${
-										selectedCategory === cat
-											? "bg-white/[0.1] text-white/90 font-medium"
-											: "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
-									}`}
-								>
-									{cat}
-								</button>
-							))}
+
+							{MAIN_CATEGORIES.map((main) => {
+								const isExpanded = expandedMain === main;
+								const isSelected = selectedMain === main;
+								const subs =
+									TEMPLATE_CATEGORY_TREE[main]?.subcategories ?? [];
+
+								return (
+									<div key={main}>
+										<button
+											type="button"
+											onClick={() => {
+												if (isExpanded) {
+													setExpandedMain(null);
+													if (isSelected) {
+														setSelectedMain(null);
+														setSelectedSub(null);
+													}
+												} else {
+													setExpandedMain(main);
+													setSelectedMain(main);
+													setSelectedSub(null);
+												}
+											}}
+											className={`w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center gap-1.5 ${
+												isSelected && !selectedSub
+													? "bg-white/[0.1] text-white/90 font-medium"
+													: "text-white/50 hover:text-white/70 hover:bg-white/[0.04]"
+											}`}
+										>
+											{isExpanded ? (
+												<ChevronDown className="h-3 w-3 flex-shrink-0" />
+											) : (
+												<ChevronRight className="h-3 w-3 flex-shrink-0" />
+											)}
+											<span className="truncate">{main}</span>
+										</button>
+
+										{isExpanded && (
+											<div className="ml-4 mt-0.5 space-y-0.5">
+												{subs.map((sub) => (
+													<button
+														key={sub}
+														type="button"
+														onClick={() => {
+															setSelectedMain(main);
+															setSelectedSub(
+																selectedSub === sub ? null : sub,
+															);
+														}}
+														className={`w-full text-left px-2.5 py-1 rounded-md text-xs transition-colors truncate ${
+															selectedSub === sub
+																? "bg-white/[0.1] text-white/80 font-medium"
+																: "text-white/40 hover:text-white/60 hover:bg-white/[0.04]"
+														}`}
+													>
+														{sub}
+													</button>
+												))}
+											</div>
+										)}
+									</div>
+								);
+							})}
 						</div>
 
 						{/* Template Grid */}
@@ -229,14 +282,16 @@ export function TemplateGallery({
 								<div className="flex items-center justify-center py-12">
 									<Loader2 className="h-6 w-6 animate-spin text-white/30" />
 								</div>
-							) : templates.length === 0 ? (
+							) : filteredTemplates.length === 0 ? (
 								<div className="text-center py-12 text-white/30 text-sm">
 									{search.trim()
 										? "No templates match your search"
-										: "No templates available yet"}
+										: selectedMain
+											? `No templates in ${selectedMain}${selectedSub ? ` > ${selectedSub}` : ""}`
+											: "No templates available yet"}
 								</div>
 							) : (
-								templates.map((t) => (
+								filteredTemplates.map((t) => (
 									<div
 										key={t.id}
 										className="flex items-start gap-4 p-4 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.04] transition-all group"
@@ -270,7 +325,7 @@ export function TemplateGallery({
 															</span>
 														)}
 														<span className="text-xs text-white/15 px-1.5 py-0.5 rounded bg-white/[0.04]">
-															{t.category}
+															{getCategoryDisplayLabel(t.category)}
 														</span>
 													</div>
 												</div>

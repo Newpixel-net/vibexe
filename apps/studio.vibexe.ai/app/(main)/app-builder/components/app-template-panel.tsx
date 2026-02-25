@@ -26,8 +26,12 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { TEMPLATE_CATEGORIES } from "../lib/template-constants";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+	TEMPLATE_CATEGORY_TREE,
+	MAIN_CATEGORIES,
+	parseCategory,
+} from "../lib/template-constants";
 
 interface AppTemplatePanelProps {
 	appId: string;
@@ -60,9 +64,33 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 	// Form fields (used for both publish and edit)
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
-	const [category, setCategory] = useState("Other");
+	const [mainCategory, setMainCategory] = useState("Other");
+	const [subCategory, setSubCategory] = useState("");
 	const [tagsInput, setTagsInput] = useState("");
 	const [visibility, setVisibility] = useState("public");
+
+	// Derived: subcategories for selected main category
+	const subcategories = useMemo(() => {
+		return TEMPLATE_CATEGORY_TREE[mainCategory]?.subcategories ?? [];
+	}, [mainCategory]);
+
+	// Composed category string for DB storage
+	const category = useMemo(() => {
+		if (!subCategory) return mainCategory;
+		return `${mainCategory} > ${subCategory}`;
+	}, [mainCategory, subCategory]);
+
+	// Set category from a stored "Main > Sub" string
+	const setCategoryFromStored = useCallback((stored: string) => {
+		const [main, sub] = parseCategory(stored);
+		if (TEMPLATE_CATEGORY_TREE[main]) {
+			setMainCategory(main);
+			setSubCategory(sub);
+		} else {
+			setMainCategory("Other");
+			setSubCategory(sub || main);
+		}
+	}, []);
 
 	const fetchTemplate = useCallback(async () => {
 		try {
@@ -73,7 +101,7 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 				setTemplate(t);
 				setName(t.name);
 				setDescription(t.description ?? "");
-				setCategory(t.category);
+				setCategoryFromStored(t.category);
 				setTagsInput((t.tags ?? []).join(", "));
 				setVisibility(t.visibility);
 				setState("published");
@@ -83,7 +111,7 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 		} catch {
 			setState("not-published");
 		}
-	}, [appId]);
+	}, [appId, setCategoryFromStored]);
 
 	useEffect(() => {
 		fetchTemplate();
@@ -99,7 +127,9 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 			if (data.success) {
 				setName(data.name ?? "");
 				setDescription(data.description ?? "");
-				setCategory(data.category ?? "Other");
+				if (data.category) {
+					setCategoryFromStored(data.category);
+				}
 				setTagsInput((data.tags ?? []).join(", "));
 			}
 		} catch {
@@ -107,7 +137,7 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 		} finally {
 			setAutoFilling(false);
 		}
-	}, [appId]);
+	}, [appId, setCategoryFromStored]);
 
 	const handlePublish = useCallback(async () => {
 		if (!name.trim()) return;
@@ -187,7 +217,8 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 				setTemplate(null);
 				setName("");
 				setDescription("");
-				setCategory("Other");
+				setMainCategory("Other");
+				setSubCategory("");
 				setTagsInput("");
 				setVisibility("public");
 				setState("not-published");
@@ -218,6 +249,49 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 			</div>
 		);
 	}
+
+	// Shared category selector JSX
+	const categorySelector = (
+		<div className="grid grid-cols-2 gap-3">
+			<div>
+				<label className="block text-sm font-medium text-white/60 mb-1.5">
+					Category
+				</label>
+				<select
+					value={mainCategory}
+					onChange={(e) => {
+						setMainCategory(e.target.value);
+						const subs =
+							TEMPLATE_CATEGORY_TREE[e.target.value]?.subcategories ?? [];
+						setSubCategory(subs[0] ?? "");
+					}}
+					className="w-full px-3 py-2 rounded-lg bg-white/[0.06] border border-white/[0.08] text-white/90 text-sm focus:outline-none focus:border-white/20"
+				>
+					{MAIN_CATEGORIES.map((cat) => (
+						<option key={cat} value={cat} className="bg-[#1a1a2e]">
+							{cat}
+						</option>
+					))}
+				</select>
+			</div>
+			<div>
+				<label className="block text-sm font-medium text-white/60 mb-1.5">
+					Subcategory
+				</label>
+				<select
+					value={subCategory}
+					onChange={(e) => setSubCategory(e.target.value)}
+					className="w-full px-3 py-2 rounded-lg bg-white/[0.06] border border-white/[0.08] text-white/90 text-sm focus:outline-none focus:border-white/20"
+				>
+					{subcategories.map((sub) => (
+						<option key={sub} value={sub} className="bg-[#1a1a2e]">
+							{sub}
+						</option>
+					))}
+				</select>
+			</div>
+		</div>
+	);
 
 	return (
 		<div className="flex-1 overflow-y-auto p-6">
@@ -303,23 +377,8 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 							/>
 						</div>
 
-						{/* Category */}
-						<div>
-							<label className="block text-sm font-medium text-white/60 mb-1.5">
-								Category
-							</label>
-							<select
-								value={category}
-								onChange={(e) => setCategory(e.target.value)}
-								className="w-full px-3 py-2 rounded-lg bg-white/[0.06] border border-white/[0.08] text-white/90 text-sm focus:outline-none focus:border-white/20"
-							>
-								{TEMPLATE_CATEGORIES.map((cat) => (
-									<option key={cat} value={cat} className="bg-[#1a1a2e]">
-										{cat}
-									</option>
-								))}
-							</select>
-						</div>
+						{/* Category (cascading) */}
+						{categorySelector}
 
 						{/* Tags */}
 						<div>
@@ -478,23 +537,8 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 								/>
 							</div>
 
-							{/* Category */}
-							<div>
-								<label className="block text-sm font-medium text-white/60 mb-1.5">
-									Category
-								</label>
-								<select
-									value={category}
-									onChange={(e) => setCategory(e.target.value)}
-									className="w-full px-3 py-2 rounded-lg bg-white/[0.06] border border-white/[0.08] text-white/90 text-sm focus:outline-none focus:border-white/20"
-								>
-									{TEMPLATE_CATEGORIES.map((cat) => (
-										<option key={cat} value={cat} className="bg-[#1a1a2e]">
-											{cat}
-										</option>
-									))}
-								</select>
-							</div>
+							{/* Category (cascading) */}
+							{categorySelector}
 
 							{/* Tags */}
 							<div>

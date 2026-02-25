@@ -17,7 +17,10 @@ import { generateText } from "ai";
 import { db } from "@/db";
 import { type BuilderAppId, builderAppDatabases, builderApps, builderFiles } from "@/db/schema";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
-import { TEMPLATE_CATEGORIES } from "@/app/(main)/app-builder/lib/template-constants";
+import {
+	TEMPLATE_CATEGORY_TREE,
+	ALL_CATEGORY_PATHS,
+} from "@/app/(main)/app-builder/lib/template-constants";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -67,7 +70,13 @@ export async function POST(_request: Request, { params }: RouteParams) {
 			? `\nDatabase Schema:\n${JSON.stringify(schemaJson, null, 2).slice(0, 3000)}`
 			: "";
 
-		const categories = TEMPLATE_CATEGORIES.join(", ");
+		// Build a compact category reference for the AI
+		const categoryReference = Object.entries(TEMPLATE_CATEGORY_TREE)
+			.map(
+				([main, group]) =>
+					`${main}: ${group.subcategories.join(", ")}`,
+			)
+			.join("\n");
 
 		const prompt = `You are analyzing a web application to generate template metadata for a template gallery.
 
@@ -78,10 +87,13 @@ ${schemaStr}
 Source Files:
 ${fileSummary}
 
+Available categories (format: "Main Category > Subcategory"):
+${categoryReference}
+
 Based on this app, generate the following template metadata as JSON:
 1. "name": A clear, descriptive template name (e.g., "Habit Tracker with Analytics", "Project Management Dashboard")
 2. "description": A compelling 2-3 sentence description of what the template includes and what users can do with it. Mention key features.
-3. "category": Pick the BEST matching category from: ${categories}
+3. "category": Pick the BEST matching category using the format "Main Category > Subcategory" from the list above. MUST use exact names from the list.
 4. "tags": An array of 4-6 relevant lowercase tags (e.g., ["habits", "tracker", "health", "productivity", "analytics"])
 
 Respond with ONLY valid JSON, no markdown fencing, no explanation.`;
@@ -121,13 +133,16 @@ Respond with ONLY valid JSON, no markdown fencing, no explanation.`;
 			);
 		}
 
-		// Validate category is in our list
-		if (
-			!TEMPLATE_CATEGORIES.includes(
-				metadata.category as (typeof TEMPLATE_CATEGORIES)[number],
-			)
-		) {
-			metadata.category = "Other";
+		// Validate category is in our hierarchical list
+		if (!ALL_CATEGORY_PATHS.includes(metadata.category)) {
+			// Try to find a close match by checking if the subcategory part exists
+			const subPart = metadata.category.includes(" > ")
+				? metadata.category.split(" > ")[1]
+				: metadata.category;
+			const match = ALL_CATEGORY_PATHS.find((p) =>
+				p.toLowerCase().includes(subPart.toLowerCase()),
+			);
+			metadata.category = match ?? "Other > General";
 		}
 
 		return NextResponse.json({

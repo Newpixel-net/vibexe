@@ -16,6 +16,12 @@ import {
 	DatabaseIcon,
 	UsersIcon,
 } from "lucide-react";
+import type { CategoryGroup } from "@/app/(main)/app-builder/lib/template-constants";
+import {
+	getMainCategory,
+	getCategoryDisplayLabel,
+	normalizeCategory,
+} from "@/app/(main)/app-builder/lib/template-constants";
 
 interface AdminTemplate {
 	dbId: number;
@@ -43,6 +49,8 @@ interface AdminTemplate {
 interface TemplatesAdminClientProps {
 	templates: AdminTemplate[];
 	categories: string[];
+	mainCategories: string[];
+	categoryTree: Record<string, CategoryGroup>;
 }
 
 type EditModalData = {
@@ -59,6 +67,8 @@ type EditModalData = {
 export function TemplatesAdminClient({
 	templates: initialTemplates,
 	categories,
+	mainCategories,
+	categoryTree,
 }: TemplatesAdminClientProps) {
 	const router = useRouter();
 	const [templates, setTemplates] = useState(initialTemplates);
@@ -76,7 +86,16 @@ export function TemplatesAdminClient({
 				const descMatch = t.description?.toLowerCase().includes(q);
 				if (!nameMatch && !descMatch) return false;
 			}
-			if (categoryFilter && t.category !== categoryFilter) return false;
+			if (categoryFilter) {
+				// Support filtering by main category or full "Main > Sub" path
+				const normalized = normalizeCategory(t.category);
+				const tMain = getMainCategory(normalized);
+				if (categoryFilter.includes(" > ")) {
+					if (normalized !== categoryFilter) return false;
+				} else {
+					if (tMain !== categoryFilter) return false;
+				}
+			}
 			if (visibilityFilter && t.visibility !== visibilityFilter) return false;
 			return true;
 		});
@@ -331,10 +350,15 @@ export function TemplatesAdminClient({
 					className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30"
 				>
 					<option value="">All Categories</option>
-					{categories.map((c) => (
-						<option key={c} value={c}>
-							{c}
-						</option>
+					{mainCategories.map((main) => (
+						<optgroup key={main} label={main}>
+							<option value={main}>All {main}</option>
+							{(categoryTree[main]?.subcategories ?? []).map((sub) => (
+								<option key={`${main}>${sub}`} value={`${main} > ${sub}`}>
+									{sub}
+								</option>
+							))}
+						</optgroup>
 					))}
 				</select>
 				<select
@@ -392,6 +416,8 @@ export function TemplatesAdminClient({
 				<EditMetadataModal
 					data={editModal}
 					categories={categories}
+					mainCategories={mainCategories}
+					categoryTree={categoryTree}
 					onChange={setEditModal}
 					onSave={handleSaveMetadata}
 					onClose={() => setEditModal(null)}
@@ -462,7 +488,7 @@ function TemplateCard({
 						{t.visibility}
 					</span>
 					<span className="px-2 py-0.5 rounded-full bg-white/10 text-white/60 text-xs">
-						{t.category}
+						{getCategoryDisplayLabel(t.category)}
 					</span>
 				</div>
 			</div>
@@ -593,6 +619,8 @@ function ActionButton({
 function EditMetadataModal({
 	data,
 	categories,
+	mainCategories,
+	categoryTree,
 	onChange,
 	onSave,
 	onClose,
@@ -600,6 +628,8 @@ function EditMetadataModal({
 }: {
 	data: NonNullable<EditModalData>;
 	categories: string[];
+	mainCategories: string[];
+	categoryTree: Record<string, CategoryGroup>;
 	onChange: (data: NonNullable<EditModalData>) => void;
 	onSave: () => void;
 	onClose: () => void;
@@ -649,10 +679,17 @@ function EditMetadataModal({
 							onChange={(e) => onChange({ ...data, category: e.target.value })}
 							className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30"
 						>
-							{categories.map((c) => (
-								<option key={c} value={c}>
-									{c}
-								</option>
+							{mainCategories.map((main) => (
+								<optgroup key={main} label={main}>
+									{(categoryTree[main]?.subcategories ?? []).map((sub) => (
+										<option
+											key={`${main}>${sub}`}
+											value={`${main} > ${sub}`}
+										>
+											{sub}
+										</option>
+									))}
+								</optgroup>
 							))}
 						</select>
 					</div>

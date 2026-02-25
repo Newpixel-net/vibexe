@@ -3,7 +3,11 @@ import { db } from "@/db";
 import { teamMemberships } from "@/db/schema";
 import { getUser } from "@/lib/auth/get-user";
 import { listTeamTemplatesAdmin } from "@/app/(main)/app-builder/lib/template-queries";
-import { TEMPLATE_CATEGORIES } from "@/app/(main)/app-builder/lib/template-constants";
+import {
+	ALL_CATEGORY_PATHS,
+	MAIN_CATEGORIES,
+	TEMPLATE_CATEGORY_TREE,
+} from "@/app/(main)/app-builder/lib/template-constants";
 import { TemplatesAdminClient } from "./templates-admin-client";
 
 export default async function AdminTemplatesPage() {
@@ -30,7 +34,9 @@ export default async function AdminTemplatesPage() {
 	return (
 		<TemplatesAdminClient
 			templates={templates}
-			categories={[...TEMPLATE_CATEGORIES]}
+			categories={[...ALL_CATEGORY_PATHS]}
+			mainCategories={[...MAIN_CATEGORIES]}
+			categoryTree={TEMPLATE_CATEGORY_TREE}
 		/>
 	);
 }
