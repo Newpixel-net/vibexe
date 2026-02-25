@@ -39,6 +39,7 @@ interface GalleryTemplate {
 	entityCount: number;
 	authorUserDbId: number | null;
 	createdAt: Date;
+	thumbnailUrl: string | null;
 }
 
 interface TemplateGalleryProps {
@@ -286,11 +287,22 @@ function TemplateCard({
 
 	return (
 		<div className="group relative bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden hover:border-white/20 hover:bg-white/[0.05] transition-all duration-200">
-			{/* Category gradient header */}
+			{/* Category gradient header / Thumbnail */}
 			<div
-				className={`h-28 bg-gradient-to-br ${gradient} flex items-center justify-center relative`}
+				className={`h-28 relative flex items-center justify-center overflow-hidden ${t.thumbnailUrl ? "" : `bg-gradient-to-br ${gradient}`}`}
 			>
-				<LayoutTemplateIcon className="size-10 text-white/10" />
+				{t.thumbnailUrl ? (
+					<>
+						<img
+							src={t.thumbnailUrl}
+							alt={t.name}
+							className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+						/>
+						<div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+					</>
+				) : (
+					<LayoutTemplateIcon className="size-10 text-white/10" />
+				)}
 				{t.featured && (
 					<div className="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/20 backdrop-blur-sm border border-amber-500/20">
 						<StarIcon className="size-3 fill-amber-400 text-amber-400" />

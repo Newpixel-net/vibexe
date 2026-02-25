@@ -18,12 +18,15 @@ import {
 	DialogTitle,
 } from "@vibexe-internal/ui/dialog";
 import {
+	Camera,
 	FileCode2,
+	ImageIcon,
 	Loader2,
 	RefreshCw,
 	Rocket,
 	Sparkles,
 	Trash2,
+	Upload,
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -49,6 +52,7 @@ interface TemplateData {
 	entityCount: number;
 	createdAt: string;
 	updatedAt: string;
+	thumbnailUrl: string | null;
 }
 
 type PanelState = "loading" | "not-published" | "published";
@@ -60,6 +64,8 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 	const [refreshing, setRefreshing] = useState(false);
 	const [confirmUnpublish, setConfirmUnpublish] = useState(false);
 	const [autoFilling, setAutoFilling] = useState(false);
+	const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+	const [capturing, setCapturing] = useState(false);
 
 	// Form fields (used for both publish and edit)
 	const [name, setName] = useState("");
@@ -104,6 +110,7 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 				setCategoryFromStored(t.category);
 				setTagsInput((t.tags ?? []).join(", "));
 				setVisibility(t.visibility);
+				setThumbnailUrl(t.thumbnailUrl ?? null);
 				setState("published");
 			} else {
 				setState("not-published");
@@ -138,6 +145,121 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 			setAutoFilling(false);
 		}
 	}, [appId, setCategoryFromStored]);
+
+	const resizeToThumbnail = useCallback(
+		(dataUrl: string): Promise<Blob> => {
+			return new Promise((resolve, reject) => {
+				const img = new Image();
+				img.onload = () => {
+					const canvas = document.createElement("canvas");
+					canvas.width = 800;
+					canvas.height = 450;
+					const ctx = canvas.getContext("2d");
+					if (!ctx) return reject(new Error("No canvas context"));
+					ctx.drawImage(img, 0, 0, 800, 450);
+					canvas.toBlob(
+						(blob) => (blob ? resolve(blob) : reject(new Error("toBlob failed"))),
+						"image/png",
+					);
+				};
+				img.onerror = () => reject(new Error("Failed to load image"));
+				img.src = dataUrl;
+			});
+		},
+		[],
+	);
+
+	const uploadThumbnail = useCallback(
+		async (blob: Blob) => {
+			const formData = new FormData();
+			formData.append("file", new File([blob], "_template-thumbnail.png", { type: "image/png" }));
+			formData.append("path", "_template-thumbnail.png");
+			const uploadRes = await fetch(`/api/apps/${appId}/storage`, {
+				method: "POST",
+				body: formData,
+			});
+			if (!uploadRes.ok) throw new Error("Upload failed");
+			const uploadData = await uploadRes.json();
+			const url = uploadData.url || `/api/apps/${appId}/storage/_template-thumbnail.png`;
+			// Update template metadata with thumbnailUrl
+			await fetch(`/api/apps/${appId}/template`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ thumbnailUrl: url }),
+			});
+			setThumbnailUrl(url);
+		},
+		[appId],
+	);
+
+	const handleCapture = useCallback(async () => {
+		const iframe = document.querySelector("iframe.sp-preview-iframe") as HTMLIFrameElement | null;
+		if (!iframe?.contentWindow) return;
+		setCapturing(true);
+		const cleanup = () => setCapturing(false);
+
+		const handler = async (e: MessageEvent) => {
+			if (e.data?.type === "vibexe-capture-result") {
+				window.removeEventListener("message", handler);
+				try {
+					const blob = await resizeToThumbnail(e.data.dataUrl);
+					await uploadThumbnail(blob);
+				} catch {
+					// silently fail
+				} finally {
+					cleanup();
+				}
+			} else if (e.data?.type === "vibexe-capture-error") {
+				window.removeEventListener("message", handler);
+				cleanup();
+			}
+		};
+		window.addEventListener("message", handler);
+		iframe.contentWindow.postMessage({ type: "vibexe-capture" }, "*");
+		// Safety timeout
+		setTimeout(() => {
+			window.removeEventListener("message", handler);
+			cleanup();
+		}, 15000);
+	}, [resizeToThumbnail, uploadThumbnail]);
+
+	const handleUploadThumbnail = useCallback(
+		async (e: React.ChangeEvent<HTMLInputElement>) => {
+			const file = e.target.files?.[0];
+			if (!file) return;
+			setCapturing(true);
+			try {
+				// Read as dataURL, resize, then upload
+				const dataUrl = await new Promise<string>((resolve, reject) => {
+					const reader = new FileReader();
+					reader.onload = () => resolve(reader.result as string);
+					reader.onerror = reject;
+					reader.readAsDataURL(file);
+				});
+				const blob = await resizeToThumbnail(dataUrl);
+				await uploadThumbnail(blob);
+			} catch {
+				// silently fail
+			} finally {
+				setCapturing(false);
+				e.target.value = "";
+			}
+		},
+		[resizeToThumbnail, uploadThumbnail],
+	);
+
+	const handleRemoveThumbnail = useCallback(async () => {
+		try {
+			await fetch(`/api/apps/${appId}/template`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ thumbnailUrl: null }),
+			});
+			setThumbnailUrl(null);
+		} catch {
+			// silently fail
+		}
+	}, [appId]);
 
 	const handlePublish = useCallback(async () => {
 		if (!name.trim()) return;
@@ -482,6 +604,67 @@ export function AppTemplatePanel({ appId }: AppTemplatePanelProps) {
 								))}
 							</div>
 						)}
+
+						{/* Thumbnail */}
+						<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-6 space-y-4">
+							<h2 className="text-sm font-semibold text-white/70">
+								Thumbnail
+							</h2>
+							{thumbnailUrl ? (
+								<div className="relative rounded-xl overflow-hidden border border-white/[0.08]">
+									<img
+										src={thumbnailUrl}
+										alt="Template thumbnail"
+										className="w-full aspect-video object-cover"
+									/>
+									<button
+										type="button"
+										onClick={handleRemoveThumbnail}
+										className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/70 transition-colors"
+										title="Remove thumbnail"
+									>
+										<X className="h-3.5 w-3.5" />
+									</button>
+								</div>
+							) : (
+								<div className="w-full aspect-video rounded-xl border border-dashed border-white/[0.12] bg-white/[0.02] flex flex-col items-center justify-center gap-2">
+									<ImageIcon className="h-8 w-8 text-white/15" />
+									<span className="text-xs text-white/25">
+										No thumbnail yet
+									</span>
+								</div>
+							)}
+							<div className="flex gap-2">
+								<button
+									type="button"
+									onClick={handleCapture}
+									disabled={capturing}
+									className="flex-1 px-3 py-2 rounded-lg bg-white/[0.06] border border-white/[0.08] text-white/70 text-xs font-medium hover:bg-white/[0.1] transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+								>
+									{capturing ? (
+										<>
+											<Loader2 className="h-3.5 w-3.5 animate-spin" />
+											Capturing...
+										</>
+									) : (
+										<>
+											<Camera className="h-3.5 w-3.5" />
+											Capture from Preview
+										</>
+									)}
+								</button>
+								<label className="px-3 py-2 rounded-lg bg-white/[0.06] border border-white/[0.08] text-white/70 text-xs font-medium hover:bg-white/[0.1] transition-colors cursor-pointer flex items-center gap-1.5">
+									<Upload className="h-3.5 w-3.5" />
+									Upload
+									<input
+										type="file"
+										accept="image/*"
+										onChange={handleUploadThumbnail}
+										className="hidden"
+									/>
+								</label>
+							</div>
+						</div>
 
 						{/* Edit Form */}
 						<div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-sm p-6 space-y-5">

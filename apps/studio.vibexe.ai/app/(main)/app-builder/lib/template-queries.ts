@@ -295,6 +295,7 @@ export async function listTemplates(filters: {
 			entityCount: builderAppTemplates.entityCount,
 			authorUserDbId: builderAppTemplates.authorUserDbId,
 			createdAt: builderAppTemplates.createdAt,
+			thumbnailUrl: builderAppTemplates.thumbnailUrl,
 		})
 		.from(builderAppTemplates)
 		.where(whereClause)

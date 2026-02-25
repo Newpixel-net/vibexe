@@ -45,6 +45,7 @@ interface TemplateItem {
 	useCount: number;
 	fileCount: number;
 	entityCount: number;
+	thumbnailUrl: string | null;
 }
 
 interface TemplateGalleryProps {
@@ -296,8 +297,16 @@ export function TemplateGallery({
 										key={t.id}
 										className="flex items-start gap-4 p-4 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.04] transition-all group"
 									>
-										<div className="h-11 w-11 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center flex-shrink-0">
-											<FileCode2 className="h-5 w-5 text-white/40" />
+										<div className="h-11 w-11 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center flex-shrink-0 overflow-hidden">
+											{t.thumbnailUrl ? (
+												<img
+													src={t.thumbnailUrl}
+													alt={t.name}
+													className="h-full w-full object-cover"
+												/>
+											) : (
+												<FileCode2 className="h-5 w-5 text-white/40" />
+											)}
 										</div>
 										<div className="flex-1 min-w-0">
 											<div className="flex items-start justify-between gap-2">

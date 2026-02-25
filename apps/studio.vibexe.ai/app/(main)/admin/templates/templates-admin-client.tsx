@@ -465,9 +465,18 @@ function TemplateCard({
 				t.status === "archived" ? "opacity-60" : ""
 			}`}
 		>
-			{/* Top row: name + badges */}
+			{/* Top row: thumbnail + name + badges */}
 			<div className="flex items-start justify-between gap-4 mb-2">
-				<div className="flex items-center gap-2 min-w-0">
+				<div className="flex items-center gap-3 min-w-0">
+					{t.thumbnailUrl ? (
+						<div className="h-10 w-16 rounded-md overflow-hidden border border-white/10 flex-shrink-0">
+							<img
+								src={t.thumbnailUrl}
+								alt={t.name}
+								className="h-full w-full object-cover"
+							/>
+						</div>
+					) : null}
 					<h3 className="text-base font-semibold text-white truncate">
 						{t.name}
 					</h3>

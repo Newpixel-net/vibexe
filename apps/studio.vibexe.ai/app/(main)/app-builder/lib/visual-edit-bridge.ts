@@ -347,6 +347,31 @@ export function getVisualEditBridgeScript(): string {
       case 'visual-edit-dropdown-state':
         dropdownOpen = !!d.open;
         break;
+      case 'vibexe-capture':
+        (function() {
+          var script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+          script.onload = function() {
+            html2canvas(document.body, {
+              useCORS: true,
+              scale: 1,
+              width: 1280,
+              height: 720,
+              windowWidth: 1280,
+              windowHeight: 720
+            }).then(function(canvas) {
+              var dataUrl = canvas.toDataURL('image/png');
+              window.parent.postMessage({ type: 'vibexe-capture-result', dataUrl: dataUrl }, '*');
+            }).catch(function(err) {
+              window.parent.postMessage({ type: 'vibexe-capture-error', error: err.message || 'Capture failed' }, '*');
+            });
+          };
+          script.onerror = function() {
+            window.parent.postMessage({ type: 'vibexe-capture-error', error: 'Failed to load html2canvas' }, '*');
+          };
+          document.head.appendChild(script);
+        })();
+        break;
     }
   });
 })();
