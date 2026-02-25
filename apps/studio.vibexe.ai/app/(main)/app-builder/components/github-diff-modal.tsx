@@ -198,7 +198,7 @@ export function GitHubDiffModal({
 						type="button"
 						onClick={onPull}
 						disabled={loading || diff?.totalChanges === 0}
-						className="px-4 py-2 text-sm bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						className="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 					>
 						Pull All Changes
 					</button>

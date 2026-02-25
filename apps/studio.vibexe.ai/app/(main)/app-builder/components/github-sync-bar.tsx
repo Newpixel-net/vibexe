@@ -16,13 +16,29 @@ import {
 	Settings,
 	Unplug,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GitHubRepoPicker } from "./github-repo-picker";
 import { GitHubDiffModal } from "./github-diff-modal";
+import { GitHubChangesCard } from "./github-changes-card";
 
 interface GitHubSyncBarProps {
 	appId: string;
 	onFilesChange?: () => void;
+}
+
+interface CommitInfo {
+	sha: string;
+	message: string;
+	authorName: string;
+	authorAvatar: string;
+	date: string;
+}
+
+interface ChangedFiles {
+	added: number;
+	modified: number;
+	removed: number;
+	total: number;
 }
 
 interface SyncStatus {
@@ -35,6 +51,9 @@ interface SyncStatus {
 	hasRemoteChanges?: boolean;
 	lastSynced?: string | null;
 	error?: string;
+	recentCommits?: CommitInfo[];
+	commitCount?: number;
+	changedFiles?: ChangedFiles;
 }
 
 export function GitHubSyncBar({ appId, onFilesChange }: GitHubSyncBarProps) {
@@ -47,6 +66,10 @@ export function GitHubSyncBar({ appId, onFilesChange }: GitHubSyncBarProps) {
 	const [showSettings, setShowSettings] = useState(false);
 	const [pushResult, setPushResult] = useState<string | null>(null);
 	const [pullResult, setPullResult] = useState<string | null>(null);
+	const [showChangesCard, setShowChangesCard] = useState(false);
+
+	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const fetchStatus = useCallback(async () => {
 		try {
@@ -65,6 +88,55 @@ export function GitHubSyncBar({ appId, onFilesChange }: GitHubSyncBarProps) {
 	useEffect(() => {
 		fetchStatus();
 	}, [fetchStatus]);
+
+	// Auto-poll every 45s when connected
+	useEffect(() => {
+		if (!status?.connected) return;
+		const interval = setInterval(fetchStatus, 45000);
+		return () => clearInterval(interval);
+	}, [status?.connected, fetchStatus]);
+
+	// Hover-intent handlers for changes card
+	const handlePullAreaEnter = useCallback(() => {
+		if (leaveTimeoutRef.current) {
+			clearTimeout(leaveTimeoutRef.current);
+			leaveTimeoutRef.current = null;
+		}
+		hoverTimeoutRef.current = setTimeout(() => {
+			setShowChangesCard(true);
+		}, 300);
+	}, []);
+
+	const handlePullAreaLeave = useCallback(() => {
+		if (hoverTimeoutRef.current) {
+			clearTimeout(hoverTimeoutRef.current);
+			hoverTimeoutRef.current = null;
+		}
+		leaveTimeoutRef.current = setTimeout(() => {
+			setShowChangesCard(false);
+		}, 200);
+	}, []);
+
+	const handleCardEnter = useCallback(() => {
+		if (leaveTimeoutRef.current) {
+			clearTimeout(leaveTimeoutRef.current);
+			leaveTimeoutRef.current = null;
+		}
+	}, []);
+
+	const handleCardLeave = useCallback(() => {
+		leaveTimeoutRef.current = setTimeout(() => {
+			setShowChangesCard(false);
+		}, 200);
+	}, []);
+
+	// Cleanup timeouts on unmount
+	useEffect(() => {
+		return () => {
+			if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+			if (leaveTimeoutRef.current) clearTimeout(leaveTimeoutRef.current);
+		};
+	}, []);
 
 	const handlePush = async () => {
 		setPushing(true);
@@ -93,6 +165,7 @@ export function GitHubSyncBar({ appId, onFilesChange }: GitHubSyncBarProps) {
 	const handlePull = async () => {
 		setPulling(true);
 		setPullResult(null);
+		setShowChangesCard(false);
 		try {
 			const res = await fetch(`/api/apps/${appId}/github/pull`, {
 				method: "POST",
@@ -199,28 +272,66 @@ export function GitHubSyncBar({ appId, onFilesChange }: GitHubSyncBarProps) {
 						Push
 					</button>
 
-					<button
-						type="button"
-						onClick={
-							status.hasRemoteChanges ? () => setShowDiff(true) : handlePull
+					<div
+						className="relative flex-1"
+						onMouseEnter={
+							status.hasRemoteChanges ? handlePullAreaEnter : undefined
 						}
-						disabled={pushing || pulling}
-						className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[12px] rounded-md border transition-all disabled:opacity-40 ${
-							status.hasRemoteChanges
-								? "text-violet-300 bg-violet-500/10 hover:bg-violet-500/20 border-violet-500/30 hover:border-violet-500/40"
-								: "text-white/60 hover:text-white/80 bg-white/[0.03] hover:bg-white/[0.06] border-white/[0.08] hover:border-white/[0.12]"
-						}`}
+						onMouseLeave={
+							status.hasRemoteChanges ? handlePullAreaLeave : undefined
+						}
 					>
-						{pulling ? (
-							<Loader2 size={12} className="animate-spin" />
-						) : (
-							<ArrowDownToLine size={12} />
-						)}
-						Pull
-						{status.hasRemoteChanges && (
-							<span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
-						)}
-					</button>
+						{/* Hover card */}
+						{showChangesCard &&
+							status.hasRemoteChanges &&
+							status.recentCommits &&
+							status.recentCommits.length > 0 && (
+								<GitHubChangesCard
+									repoFullName={status.repoFullName!}
+									branch={status.branch!}
+									commitCount={status.commitCount ?? 0}
+									recentCommits={status.recentCommits}
+									changedFiles={status.changedFiles}
+									onMouseEnter={handleCardEnter}
+									onMouseLeave={handleCardLeave}
+								/>
+							)}
+
+						<button
+							type="button"
+							onClick={() => {
+								setShowChangesCard(false);
+								if (status.hasRemoteChanges) {
+									setShowDiff(true);
+								} else {
+									handlePull();
+								}
+							}}
+							disabled={pushing || pulling}
+							className={`w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-[12px] rounded-md border transition-all disabled:opacity-40 ${
+								status.hasRemoteChanges
+									? "text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 hover:border-emerald-500/40"
+									: "text-white/60 hover:text-white/80 bg-white/[0.03] hover:bg-white/[0.06] border-white/[0.08] hover:border-white/[0.12]"
+							}`}
+						>
+							{pulling ? (
+								<Loader2 size={12} className="animate-spin" />
+							) : (
+								<ArrowDownToLine size={12} />
+							)}
+							Pull
+							{status.hasRemoteChanges && (
+								<>
+									<span className="w-2 h-2 rounded-full bg-emerald-400 animate-github-sync-glow" />
+									{(status.commitCount ?? 0) > 0 && (
+										<span className="text-[10px] text-emerald-400/80 font-medium tabular-nums">
+											{status.commitCount}
+										</span>
+									)}
+								</>
+							)}
+						</button>
+					</div>
 				</div>
 
 				{/* Status messages */}

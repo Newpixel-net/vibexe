@@ -628,7 +628,21 @@
 }
 
 
+/* GitHub Sync green glow for incoming changes indicator */
+@keyframes github-sync-glow {
+	0%, 100% {
+		box-shadow: 0 0 4px rgba(52, 211, 153, 0.4), 0 0 8px rgba(52, 211, 153, 0.2);
+	}
+	50% {
+		box-shadow: 0 0 8px rgba(52, 211, 153, 0.6), 0 0 16px rgba(52, 211, 153, 0.3);
+	}
+}
+
 @layer utilities {
+	.animate-github-sync-glow {
+		animation: github-sync-glow 2s ease-in-out infinite;
+	}
+
 	.dash-animate-fade-up {
 		animation: dash-fade-up 0.5s ease-out both;
 	}

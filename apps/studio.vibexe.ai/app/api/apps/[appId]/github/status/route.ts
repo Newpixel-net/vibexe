@@ -74,11 +74,88 @@ export async function GET(_request: Request, { params }: RouteParams) {
 			);
 
 			const latestSha = refRes.data.object.sha;
-			const hasRemoteChanges = config.lastPullSha
-				? latestSha !== config.lastPullSha
-				: config.lastPushSha
-					? latestSha !== config.lastPushSha
-					: false;
+			const baseSha = config.lastPullSha ?? config.lastPushSha;
+			const hasRemoteChanges = baseSha
+				? latestSha !== baseSha
+				: false;
+
+			// Fetch commit details when remote has changes
+			let recentCommits: {
+				sha: string;
+				message: string;
+				authorName: string;
+				authorAvatar: string;
+				date: string;
+			}[] = [];
+			let commitCount = 0;
+			let changedFiles: {
+				added: number;
+				modified: number;
+				removed: number;
+				total: number;
+			} | undefined;
+
+			if (hasRemoteChanges) {
+				try {
+					if (baseSha) {
+						// Use Compare API for detailed diff
+						const compareRes = await octokit.request(
+							"GET /repos/{owner}/{repo}/compare/{basehead}",
+							{
+								owner: config.repoOwner,
+								repo: config.repoName,
+								basehead: `${baseSha}...${latestSha}`,
+							},
+						);
+						const cmp = compareRes.data;
+						commitCount = cmp.ahead_by;
+						recentCommits = (cmp.commits ?? [])
+							.slice(-5)
+							.reverse()
+							.map((c: any) => ({
+								sha: c.sha.slice(0, 7),
+								message: c.commit.message.split("\n")[0],
+								authorName:
+									c.author?.login ?? c.commit.author?.name ?? "unknown",
+								authorAvatar: c.author?.avatar_url ?? "",
+								date: c.commit.author?.date ?? "",
+							}));
+						const files = cmp.files ?? [];
+						changedFiles = {
+							added: files.filter((f: any) => f.status === "added").length,
+							modified: files.filter(
+								(f: any) =>
+									f.status === "modified" || f.status === "renamed",
+							).length,
+							removed: files.filter((f: any) => f.status === "removed")
+								.length,
+							total: files.length,
+						};
+					} else {
+						// No base SHA — fetch recent commits as fallback
+						const commitsRes = await octokit.request(
+							"GET /repos/{owner}/{repo}/commits",
+							{
+								owner: config.repoOwner,
+								repo: config.repoName,
+								sha: config.branch,
+								per_page: 5,
+							},
+						);
+						commitCount = commitsRes.data.length;
+						recentCommits = commitsRes.data.map((c: any) => ({
+							sha: c.sha.slice(0, 7),
+							message: c.commit.message.split("\n")[0],
+							authorName:
+								c.author?.login ?? c.commit.author?.name ?? "unknown",
+							authorAvatar: c.author?.avatar_url ?? "",
+							date: c.commit.author?.date ?? "",
+						}));
+					}
+				} catch {
+					// Graceful degradation — still return hasRemoteChanges: true
+				}
+			}
 
 			return NextResponse.json({
 				connected: true,
@@ -89,6 +166,11 @@ export async function GET(_request: Request, { params }: RouteParams) {
 				latestSha,
 				hasRemoteChanges,
 				lastSynced: config.updatedAt,
+				...(hasRemoteChanges && {
+					recentCommits,
+					commitCount,
+					changedFiles,
+				}),
 			});
 		} catch {
 			// Repo or branch might not exist yet (first push)
