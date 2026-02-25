@@ -40,7 +40,10 @@ export async function POST(request: Request, { params }: RouteParams) {
 			// No body or invalid JSON — use default message
 		}
 
-		const apiOrigin = new URL(request.url).origin;
+		// Prefer NEXT_PUBLIC_SITE_URL (correct public URL) over request.url origin
+		// (which may be localhost:3000 behind a reverse proxy)
+		const apiOrigin =
+			process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
 
 		const result = await pushToGitHub({
 			appId,

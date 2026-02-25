@@ -5,6 +5,7 @@
  * Returns lists of added, modified, and deleted files.
  */
 
+import { createHash } from "node:crypto";
 import { Octokit } from "@octokit/core";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -17,6 +18,16 @@ import {
 import { getOauthCredential } from "@/services/accounts/oauth-credentials";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 import { getFilesForApp } from "@/app/(main)/app-builder/lib/queries";
+
+/** Compute the same blob SHA that Git uses: SHA1("blob <size>\0<content>") */
+function gitBlobSha(content: string): string {
+	const buf = Buffer.from(content, "utf-8");
+	const header = `blob ${buf.length}\0`;
+	return createHash("sha1")
+		.update(header)
+		.update(buf)
+		.digest("hex");
+}
 
 /** Files to exclude from diff comparison */
 const EXCLUDED_PATHS = new Set([
@@ -110,24 +121,19 @@ export async function GET(_request: Request, { params }: RouteParams) {
 			}
 		}
 
-		// Files in both — check if sha changed (rough comparison via tree sha)
-		// For accurate comparison, we'd need to compare content, but tree sha changes are a good proxy
+		// Files in both — compare per-file blob SHAs for accurate diff
 		for (const localFile of localFiles) {
 			if (isExcluded(localFile.path)) continue;
 			if (remotePathSet.has(localFile.path)) {
-				// File exists in both — mark as potentially modified
-				// (We can't easily compare content without fetching each file,
-				// so we mark it as modified if the commit is newer than last pull)
+				// File exists in both — compare blob SHA to detect actual content changes
 				const remoteSha = remoteShaMap.get(localFile.path);
-				if (remoteSha) {
-					// If we have a lastPullSha and it differs from latest, this file may be modified
-					if (config.lastPullSha && config.lastPullSha !== latestSha) {
-						modified.push(localFile.path);
-					} else if (!config.lastPullSha && config.lastPushSha !== latestSha) {
+				if (remoteSha && localFile.content != null) {
+					const localSha = gitBlobSha(localFile.content);
+					if (localSha !== remoteSha) {
 						modified.push(localFile.path);
 					}
 				}
-			} else if (!isExcluded(localFile.path)) {
+			} else {
 				// File exists locally but not in GitHub → deleted (will be removed on pull with deleteOrphans)
 				deleted.push(localFile.path);
 			}
