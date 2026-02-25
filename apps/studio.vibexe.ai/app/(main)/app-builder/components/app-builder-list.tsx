@@ -440,8 +440,8 @@ function AppCard({
 						<MoreHorizontal className="size-4" />
 					</button>
 				</div>
+				{renderMenuAndDialogs()}
 			</div>
-			{renderMenuAndDialogs()}
 
 			{/* Hover Preview Portal */}
 			{typeof document !== "undefined" &&
