@@ -389,58 +389,83 @@ export function getVisualEditBridgeScript(): string {
         break;
       case 'vibexe-capture':
         (function() {
-          var script = document.createElement('script');
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-          script.onload = function() {
-            // Wait for body to have real content height (Tailwind CDN needs time to process)
-            var attempts = 0;
-            var maxAttempts = 20; // 20 * 500ms = 10s max
-            function waitForContent() {
-              attempts++;
-              var h = document.body.scrollHeight;
-              if (h > 200 || attempts >= maxAttempts) {
-                doCapture();
-              } else {
-                setTimeout(waitForContent, 500);
+          // Step 1: Force minimum dimensions on html/body/root BEFORE capture
+          // This ensures content has proper layout even if Tailwind CDN hasn't processed
+          var captureStyle = document.createElement('style');
+          captureStyle.textContent = 'html, body { min-height: 720px !important; min-width: 1280px !important; } #root { min-height: 720px !important; }';
+          document.head.appendChild(captureStyle);
+          document.body.style.minHeight = '720px';
+          document.documentElement.style.minHeight = '720px';
+          var rootEl = document.getElementById('root');
+          if (rootEl) rootEl.style.minHeight = '720px';
+
+          // Step 2: Load html2canvas after a brief reflow delay
+          setTimeout(function() {
+            var script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            script.onload = function() {
+              // Wait for body to have real content height (Tailwind CDN needs time)
+              var attempts = 0;
+              var maxAttempts = 20; // 20 * 500ms = 10s max
+              function waitForContent() {
+                attempts++;
+                var h = document.body.scrollHeight;
+                if (h > 200 || attempts >= maxAttempts) {
+                  doCapture();
+                } else {
+                  setTimeout(waitForContent, 500);
+                }
               }
-            }
-            function doCapture() {
-              // Scroll to bottom then back to top to trigger lazy-loaded content
-              window.scrollTo(0, document.body.scrollHeight);
-              setTimeout(function() {
-                window.scrollTo(0, 0);
+              function doCapture() {
+                // Scroll to bottom then back to top to trigger lazy-loaded content
+                window.scrollTo(0, document.body.scrollHeight);
                 setTimeout(function() {
-                  // Cap full-page height at 5000px to prevent memory issues
-                  var fullHeight = Math.min(document.body.scrollHeight, 5000);
-                  // Ensure minimum capture height of 720px (viewport)
-                  if (fullHeight < 720) fullHeight = 720;
-                  html2canvas(document.body, {
-                    useCORS: true,
-                    scale: 1,
-                    width: 1280,
-                    windowWidth: 1280,
-                    height: fullHeight,
-                    windowHeight: fullHeight
-                  }).then(function(canvas) {
-                    var dataUrl = canvas.toDataURL('image/png');
-                    window.parent.postMessage({
-                      type: 'vibexe-capture-result',
-                      dataUrl: dataUrl,
-                      fullWidth: canvas.width,
-                      fullHeight: canvas.height
-                    }, '*');
-                  }).catch(function(err) {
-                    window.parent.postMessage({ type: 'vibexe-capture-error', error: err.message || 'Capture failed' }, '*');
-                  });
+                  window.scrollTo(0, 0);
+                  setTimeout(function() {
+                    var fullHeight = Math.max(document.body.scrollHeight, 720);
+                    fullHeight = Math.min(fullHeight, 5000);
+                    html2canvas(document.body, {
+                      useCORS: true,
+                      scale: 1,
+                      width: 1280,
+                      windowWidth: 1280,
+                      height: fullHeight,
+                      windowHeight: fullHeight,
+                      backgroundColor: '#ffffff'
+                    }).then(function(canvas) {
+                      // Ensure minimum 1280x720 output canvas
+                      var finalCanvas = canvas;
+                      if (canvas.width < 1280 || canvas.height < 720) {
+                        finalCanvas = document.createElement('canvas');
+                        finalCanvas.width = Math.max(canvas.width, 1280);
+                        finalCanvas.height = Math.max(canvas.height, 720);
+                        var ctx = finalCanvas.getContext('2d');
+                        if (ctx) {
+                          ctx.fillStyle = '#ffffff';
+                          ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+                          ctx.drawImage(canvas, 0, 0);
+                        }
+                      }
+                      var dataUrl = finalCanvas.toDataURL('image/png');
+                      window.parent.postMessage({
+                        type: 'vibexe-capture-result',
+                        dataUrl: dataUrl,
+                        fullWidth: finalCanvas.width,
+                        fullHeight: finalCanvas.height
+                      }, '*');
+                    }).catch(function(err) {
+                      window.parent.postMessage({ type: 'vibexe-capture-error', error: err.message || 'Capture failed' }, '*');
+                    });
+                  }, 500);
                 }, 500);
-              }, 500);
-            }
-            waitForContent();
-          };
-          script.onerror = function() {
-            window.parent.postMessage({ type: 'vibexe-capture-error', error: 'Failed to load html2canvas' }, '*');
-          };
-          document.head.appendChild(script);
+              }
+              waitForContent();
+            };
+            script.onerror = function() {
+              window.parent.postMessage({ type: 'vibexe-capture-error', error: 'Failed to load html2canvas' }, '*');
+            };
+            document.head.appendChild(script);
+          }, 300);
         })();
         break;
     }

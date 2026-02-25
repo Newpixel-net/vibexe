@@ -400,7 +400,7 @@ export function CaptureScreenshotDialog({
 					}}
 				>
 					<SandpackProvider
-						template="react"
+						template="react-ts"
 						files={sandpackFiles}
 						customSetup={{ dependencies }}
 						options={{
