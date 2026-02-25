@@ -181,6 +181,8 @@ function AppCard({
 	const [moveMenuOpen, setMoveMenuOpen] = useState(false);
 	const [isMovePending, startMoveTransition] = useTransition();
 	const cardRef = useRef<HTMLDivElement>(null);
+	const menuBtnRef = useRef<HTMLButtonElement>(null);
+	const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
 
 	// Hover preview state
 	const [previewVisible, setPreviewVisible] = useState(false);
@@ -346,10 +348,15 @@ function AppCard({
 					{/* Actions */}
 					<div className="flex-shrink-0 relative" onClick={(e) => e.preventDefault()}>
 						<button
+							ref={menuBtnRef}
 							type="button"
 							onClick={(e) => {
 								e.preventDefault();
 								e.stopPropagation();
+								if (!menuOpen && menuBtnRef.current) {
+									const r = menuBtnRef.current.getBoundingClientRect();
+									setMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+								}
 								setMenuOpen(!menuOpen);
 							}}
 							className="p-1.5 rounded-lg text-white/30 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
@@ -429,10 +436,15 @@ function AppCard({
 				{/* 3-dot menu (hover reveal) */}
 				<div className="absolute top-2.5 right-2.5 z-10">
 					<button
+						ref={menuBtnRef}
 						type="button"
 						onClick={(e) => {
 							e.preventDefault();
 							e.stopPropagation();
+							if (!menuOpen && menuBtnRef.current) {
+								const r = menuBtnRef.current.getBoundingClientRect();
+								setMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+							}
 							setMenuOpen(!menuOpen);
 						}}
 						className="p-1.5 rounded-lg bg-black/30 backdrop-blur-sm text-white/60 opacity-0 group-hover:opacity-100 hover:text-white hover:bg-black/50 transition-all"
@@ -490,11 +502,11 @@ function AppCard({
 	function renderMenuAndDialogs() {
 		return (
 			<>
-				{/* Dropdown menu */}
-				{menuOpen && (
+				{/* Dropdown menu — portal to escape overflow:hidden */}
+				{menuOpen && typeof document !== "undefined" && createPortal(
 					<>
 						<div
-							className="fixed inset-0 z-30"
+							className="fixed inset-0 z-[9998]"
 							onClick={() => {
 								setMenuOpen(false);
 								setMoveMenuOpen(false);
@@ -502,8 +514,8 @@ function AppCard({
 							onKeyDown={() => {}}
 						/>
 						<div
-							className="absolute right-2.5 top-10 z-40 bg-[#1a1a2e] border border-white/15 rounded-xl shadow-xl shadow-black/40 py-1.5 min-w-[180px]"
-							style={viewMode === "list" ? { right: 12, top: "100%" } : undefined}
+							className="fixed z-[9999] bg-[#1a1a2e] border border-white/15 rounded-xl shadow-xl shadow-black/40 py-1.5 min-w-[180px]"
+							style={{ top: menuPos.top, right: menuPos.right }}
 						>
 							<Link
 								href={`/app-builder/${app.id}`}
@@ -591,7 +603,8 @@ function AppCard({
 								Delete
 							</button>
 						</div>
-					</>
+					</>,
+					document.body,
 				)}
 
 				{/* Delete Dialog */}
