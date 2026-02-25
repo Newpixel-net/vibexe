@@ -86,6 +86,8 @@ function convertTextGenerationLanguageModelIdToContentGenerationLanguageModelId(
 			return "xai/grok-2-vision-1212";
 		case "moonshotai/kimi-k2.5":
 			return "nvidia/moonshotai/kimi-k2.5";
+		case "accounts/fireworks/models/kimi-k2p5":
+			return "fireworks/accounts/fireworks/models/kimi-k2p5";
 		case "sonar":
 		case "sonar-pro":
 			// fallback to gpt-5-nano
@@ -156,6 +158,8 @@ function convertContentGenerationLanguageModelIdToTextGenerationLanguageModelId(
 			return "grok-2-vision-1212";
 		case "nvidia/moonshotai/kimi-k2.5":
 			return "moonshotai/kimi-k2.5";
+		case "fireworks/accounts/fireworks/models/kimi-k2p5":
+			return "accounts/fireworks/models/kimi-k2p5";
 		default: {
 			const _exhaustiveCheck: never = from;
 			throw new Error(`Unknown language model id: ${_exhaustiveCheck}`);
