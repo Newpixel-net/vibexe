@@ -325,6 +325,7 @@ export function ChatColumn({
 }: ChatColumnProps) {
 	// Track if component has mounted (for hydration safety)
 	const [hasMounted, setHasMounted] = useState(false);
+	const searchParams = useSearchParams();
 
 	// Chat state with localStorage persistence
 	const [chatId, setChatId] = useState<string>(generateId);
@@ -558,7 +559,6 @@ export function ChatColumn({
 	const isLoading = status === "submitted" || status === "streaming";
 
 	// Auto-submit from ?prompt= query param (dashboard → builder flow)
-	const searchParams = useSearchParams();
 	const autoSubmitFired = useRef(false);
 	useEffect(() => {
 		if (autoSubmitFired.current) return;
