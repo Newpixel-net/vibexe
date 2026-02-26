@@ -571,6 +571,19 @@
 		animation: glow-pulse 2s ease-in-out infinite;
 	}
 
+	/* Hero chat card — Emergent-style dark input container */
+	.hero-chat-card {
+		background: rgba(30, 30, 31, 0.8);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 1rem;
+		transition: border-color 0.2s, box-shadow 0.2s;
+	}
+
+	.hero-chat-card:focus-within {
+		border-color: rgba(255, 255, 255, 0.14);
+		box-shadow: 0 0 32px rgba(59, 130, 246, 0.06), 0 4px 24px rgba(0, 0, 0, 0.3);
+	}
+
 	/* Aurora blob base styles */
 	.aurora-blob {
 		position: absolute;

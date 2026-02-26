@@ -1,22 +1,24 @@
 "use client";
 
 /**
- * HeroPrompt Component
+ * HeroPrompt Component — Emergent-style
  *
- * The centerpiece of the dashboard — a "Describe it. Deploy it." hero section
- * with project type pills, category tags, typewriter placeholder, and
- * a gradient Generate button that creates an app and redirects to the builder.
+ * Dark card container with multi-line textarea, typewriter placeholder,
+ * and rich bottom toolbar (Attach, GitHub, Model Picker, Visibility,
+ * Advanced Controls, Voice, Submit).
  */
 
 import {
 	AlertCircle,
-	GitBranch,
+	ArrowUp,
+	Github,
 	Globe,
 	Layers,
-	LayoutDashboard,
 	Loader2,
-	Sparkles,
-	Zap,
+	Mic,
+	Paperclip,
+	SlidersHorizontal,
+	Smartphone,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -26,50 +28,51 @@ import {
 	useRef,
 	useState,
 } from "react";
-import {
-	PROJECT_TYPES,
-	getCategoriesForType,
-	getPlaceholdersForType,
-} from "./prompt-data";
+import { PROJECT_TYPES, getPlaceholdersForType } from "./prompt-data";
 import { useTypewriter } from "./use-typewriter";
+import { ModelPicker } from "./model-picker";
+import { VisibilityToggle, type Visibility } from "./visibility-toggle";
+import { AdvancedControls } from "./advanced-controls";
+import { GitHubImportModal } from "./github-import-modal";
 
 const ICON_MAP: Record<string, React.ElementType> = {
 	Layers,
-	GitBranch,
+	Smartphone,
 	Globe,
-	Zap,
-	LayoutDashboard,
 };
 
-export function HeroPrompt() {
+interface HeroPromptProps {
+	onTypeChange?: (typeId: string) => void;
+}
+
+export function HeroPrompt({ onTypeChange }: HeroPromptProps) {
 	const router = useRouter();
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
-	const measureRef = useRef<HTMLSpanElement>(null);
 	const [selectedType, setSelectedType] = useState("app");
-	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [prompt, setPrompt] = useState("");
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [cursorOffset, setCursorOffset] = useState(0);
+	const [modelId, setModelId] = useState("claude-sonnet-4-5");
+	const [visibility, setVisibility] = useState<Visibility>("public");
+	const [advancedOpen, setAdvancedOpen] = useState(false);
+	const [githubOpen, setGithubOpen] = useState(false);
 
-	// Get relevant placeholders + categories based on selected type
+	// Get relevant placeholders based on selected type
 	const placeholders = useMemo(
 		() => getPlaceholdersForType(selectedType),
 		[selectedType],
 	);
-	const categories = useMemo(
-		() => getCategoriesForType(selectedType),
-		[selectedType],
+
+	const { text: typewriterText } = useTypewriter(placeholders);
+
+	// Handle tab change
+	const handleTypeChange = useCallback(
+		(typeId: string) => {
+			setSelectedType(typeId);
+			onTypeChange?.(typeId);
+		},
+		[onTypeChange],
 	);
-
-	const { text: typewriterText, showCursor } = useTypewriter(placeholders);
-
-	// Measure typewriter text width for cursor alignment
-	useEffect(() => {
-		if (measureRef.current) {
-			setCursorOffset(measureRef.current.offsetWidth);
-		}
-	}, [typewriterText]);
 
 	// Handle Generate click
 	const handleGenerate = useCallback(async () => {
@@ -80,28 +83,29 @@ export function HeroPrompt() {
 		setError(null);
 		try {
 			if (selectedType === "workflow") {
-				// Redirect to the Playground AI builder — it creates its own workspace via create_workflow tool
-				router.push(`/playground?prompt=${encodeURIComponent(trimmed)}&type=${selectedType}${selectedCategory ? `&category=${selectedCategory}` : ""}`);
+				router.push(
+					`/playground?prompt=${encodeURIComponent(trimmed)}&type=${selectedType}`,
+				);
 				setTimeout(() => setIsGenerating(false), 5000);
 				return;
-			} else {
-				const res = await fetch("/api/app-builder/apps", { method: "POST" });
-				if (res.ok) {
-					const data = await res.json();
-					if (data.redirectPath) {
-						router.push(`${data.redirectPath}?prompt=${encodeURIComponent(trimmed)}&type=${selectedType}${selectedCategory ? `&category=${selectedCategory}` : ""}`);
-						// Safety: reset after 5s in case navigation stalls
-						setTimeout(() => setIsGenerating(false), 5000);
-						return;
-					}
-				}
-				setError("Failed to create app. Please try again.");
 			}
+			const res = await fetch("/api/app-builder/apps", { method: "POST" });
+			if (res.ok) {
+				const data = await res.json();
+				if (data.redirectPath) {
+					router.push(
+						`${data.redirectPath}?prompt=${encodeURIComponent(trimmed)}&type=${selectedType}`,
+					);
+					setTimeout(() => setIsGenerating(false), 5000);
+					return;
+				}
+			}
+			setError("Failed to create app. Please try again.");
 		} catch {
 			setError("Network error. Please check your connection.");
 		}
 		setIsGenerating(false);
-	}, [prompt, selectedType, selectedCategory, isGenerating, router]);
+	}, [prompt, selectedType, isGenerating, router]);
 
 	// Handle Enter key (without Shift)
 	const handleKeyDown = useCallback(
@@ -121,124 +125,58 @@ export function HeroPrompt() {
 			setError(null);
 			const el = e.target;
 			el.style.height = "auto";
-			el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+			el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
 		},
 		[],
 	);
 
+	// Toast for coming-soon features
+	const showComingSoon = useCallback(() => {
+		setError("Coming soon!");
+		setTimeout(() => setError(null), 2000);
+	}, []);
+
 	return (
-		<section className="relative overflow-hidden rounded-2xl mb-8">
-			{/* Background aurora blobs */}
-			<div className="absolute inset-0 overflow-hidden pointer-events-none">
-				<div
-					className="aurora-blob opacity-[0.07]"
-					style={{
-						background: "radial-gradient(circle, hsl(219, 90%, 52%) 0%, transparent 70%)",
-						top: "-200px",
-						left: "-100px",
-						animation: "aurora-drift-1 20s ease-in-out infinite",
-					}}
-				/>
-				<div
-					className="aurora-blob opacity-[0.05]"
-					style={{
-						background: "radial-gradient(circle, hsl(178, 94%, 49%) 0%, transparent 70%)",
-						bottom: "-250px",
-						right: "-150px",
-						width: "500px",
-						height: "500px",
-						animation: "aurora-drift-2 25s ease-in-out infinite",
-					}}
-				/>
+		<div className="max-w-3xl mx-auto">
+			{/* Project Type Tabs */}
+			<div
+				className="flex justify-center gap-2 mb-5 dash-animate-fade-up"
+				style={{ animationDelay: "0.1s" }}
+			>
+				{PROJECT_TYPES.map((type) => {
+					const Icon = ICON_MAP[type.icon] ?? Layers;
+					const isActive = selectedType === type.id;
+					return (
+						<button
+							key={type.id}
+							type="button"
+							aria-pressed={isActive}
+							onClick={() => handleTypeChange(type.id)}
+							className={`
+								flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium
+								transition-all duration-200
+								${
+									isActive
+										? "text-white/90 bg-white/[0.08] border border-white/[0.12] shadow-[0_0_16px_rgba(59,130,246,0.08)]"
+										: "text-white/35 border border-transparent hover:text-white/55 hover:bg-white/[0.04]"
+								}
+							`}
+						>
+							<Icon className="h-4 w-4" />
+							{type.label}
+						</button>
+					);
+				})}
 			</div>
 
-			{/* Content */}
-			<div className="relative z-10 px-8 pt-12 pb-10">
-				{/* Heading */}
-				<div className="text-center mb-8 dash-animate-fade-up">
-					<h1
-						className="text-[38px] font-bold tracking-tight leading-tight dash-animate-gradient bg-clip-text text-transparent"
-						style={{
-							backgroundImage:
-								"linear-gradient(135deg, hsl(219, 90%, 72%), hsl(178, 94%, 60%), hsl(219, 90%, 72%))",
-							backgroundSize: "200% 200%",
-						}}
-					>
-						Describe it. Deploy it.
-					</h1>
-					<p className="text-white/40 text-[15px] mt-2.5 max-w-lg mx-auto">
-						Tell us what you want to build — AI handles the rest
-					</p>
-				</div>
-
-				{/* Project Type Pills */}
-				<div className="flex justify-center gap-2 mb-5 flex-wrap dash-animate-fade-up" style={{ animationDelay: "0.1s" }}>
-					{PROJECT_TYPES.map((type) => {
-						const Icon = ICON_MAP[type.icon] ?? Layers;
-						const isActive = selectedType === type.id;
-						return (
-							<button
-								key={type.id}
-								type="button"
-								aria-pressed={isActive}
-								onClick={() => {
-									setSelectedType(type.id);
-									setSelectedCategory(null);
-								}}
-								className={`
-									relative flex items-center gap-2 px-4 py-2 rounded-full text-[13px] font-medium
-									transition-all duration-200
-									${
-										isActive
-											? "text-white/90 bg-white/[0.1] border border-white/[0.15] shadow-[0_0_12px_rgba(59,130,246,0.12)]"
-											: "text-white/40 border border-transparent hover:text-white/60 hover:bg-white/[0.04]"
-									}
-								`}
-							>
-								<Icon className="h-4 w-4" />
-								{type.label}
-							</button>
-						);
-					})}
-				</div>
-
-				{/* Category Tags */}
-				{categories.length > 0 && (
-					<div
-						className="flex justify-center gap-1.5 mb-6 flex-wrap max-w-xl mx-auto dash-animate-fade-up"
-						style={{ animationDelay: "0.15s" }}
-					>
-						{categories.map((cat) => (
-							<button
-								key={cat.id}
-								type="button"
-								aria-pressed={selectedCategory === cat.id}
-								onClick={() =>
-									setSelectedCategory(
-										selectedCategory === cat.id ? null : cat.id,
-									)
-								}
-								className={`
-									px-2.5 py-0.5 rounded-md text-[11px] transition-all duration-150
-									${
-										selectedCategory === cat.id
-											? "bg-white/[0.1] text-white/70 border border-white/[0.12]"
-											: "text-white/25 hover:text-white/40 hover:bg-white/[0.03] border border-transparent"
-									}
-								`}
-							>
-								{cat.label}
-							</button>
-						))}
-					</div>
-				)}
-
-				{/* Prompt Input */}
-				<div
-					className="max-w-3xl mx-auto dash-animate-fade-up"
-					style={{ animationDelay: "0.2s" }}
-				>
-					<div className="relative glass-input group">
+			{/* Chat Input Card */}
+			<div
+				className="dash-animate-fade-up"
+				style={{ animationDelay: "0.15s" }}
+			>
+				<div className="hero-chat-card group">
+					{/* Textarea */}
+					<div className="px-5 pt-4 pb-2">
 						<textarea
 							ref={textareaRef}
 							value={prompt}
@@ -246,79 +184,123 @@ export function HeroPrompt() {
 							onKeyDown={handleKeyDown}
 							placeholder={typewriterText || "Describe your project..."}
 							aria-label="Describe your project"
-							maxLength={500}
-							rows={1}
-							className="w-full bg-transparent text-white/90 text-[15px] placeholder:text-white/20 px-6 py-5 pr-32 resize-none focus:outline-none min-h-[58px] max-h-[140px]"
+							maxLength={2000}
+							rows={3}
+							className="w-full bg-transparent text-white/90 text-[15px] placeholder:text-white/20 resize-none focus:outline-none min-h-[80px] max-h-[200px] leading-relaxed"
 							style={{ fontFamily: "var(--font-sans)" }}
 						/>
-
-						{/* Hidden measurement span for cursor alignment */}
-						<span
-							ref={measureRef}
-							className="absolute left-6 top-5 pointer-events-none text-[15px] opacity-0"
-							style={{ fontFamily: "var(--font-sans)" }}
-							aria-hidden="true"
-						>
-							{typewriterText}
-						</span>
-
-						{/* Cursor overlay when empty */}
-						{!prompt && showCursor && (
-							<span
-								className="absolute left-6 top-5 pointer-events-none text-white/30 dash-animate-cursor"
-								style={{ marginLeft: `${cursorOffset}px` }}
-							>
-								|
-							</span>
-						)}
-
-						{/* Character counter near limit */}
-						{prompt.length > 400 && (
-							<span className="absolute right-3 bottom-1.5 text-[10px] text-white/20">
-								{prompt.length}/500
-							</span>
-						)}
-
-						{/* Generate Button */}
-						<button
-							type="button"
-							onClick={handleGenerate}
-							disabled={!prompt.trim() || isGenerating}
-							className={`
-								absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-2
-								px-5 py-2.5 rounded-lg text-sm font-semibold
-								transition-all duration-200
-								${
-									prompt.trim()
-										? "bg-gradient-to-r from-blue-500 to-cyan-400 text-white shadow-[0_0_16px_rgba(59,130,246,0.25)] hover:shadow-[0_0_24px_rgba(59,130,246,0.35)]"
-										: "bg-white/[0.06] text-white/20 cursor-not-allowed"
-								}
-								disabled:opacity-50
-							`}
-						>
-							{isGenerating ? (
-								<Loader2 className="h-3.5 w-3.5 animate-spin" />
-							) : (
-								<Sparkles className="h-3.5 w-3.5" />
-							)}
-							Generate
-						</button>
 					</div>
 
-					{/* Error feedback */}
-					{error && (
-						<div className="flex items-center gap-2 mt-2 px-1">
-							<AlertCircle className="h-3.5 w-3.5 text-red-400 flex-shrink-0" />
-							<p className="text-xs text-red-400">{error}</p>
-						</div>
-					)}
+					{/* Bottom Toolbar */}
+					<div className="flex items-center justify-between px-3 py-2.5 border-t border-white/[0.06]">
+						{/* Left tools */}
+						<div className="flex items-center gap-0.5">
+							{/* Attach */}
+							<button
+								type="button"
+								onClick={showComingSoon}
+								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] text-white/35 hover:text-white/55 hover:bg-white/[0.06] transition-all"
+								title="Attach files"
+							>
+								<Paperclip className="h-3.5 w-3.5" />
+							</button>
 
-					{/* Hint */}
-					<p className="text-center text-white/15 text-[11px] mt-2.5">
-						Press Enter to generate &middot; Shift+Enter for new line
-					</p>
+							{/* GitHub */}
+							<button
+								type="button"
+								onClick={() => setGithubOpen(true)}
+								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] text-white/35 hover:text-white/55 hover:bg-white/[0.06] transition-all"
+								title="Import from GitHub"
+							>
+								<Github className="h-3.5 w-3.5" />
+							</button>
+
+							{/* Divider */}
+							<div className="h-4 w-px bg-white/[0.06] mx-1" />
+
+							{/* Model Picker */}
+							<ModelPicker value={modelId} onChange={setModelId} />
+						</div>
+
+						{/* Right tools */}
+						<div className="flex items-center gap-0.5">
+							{/* Visibility */}
+							<VisibilityToggle value={visibility} onChange={setVisibility} />
+
+							{/* Advanced Controls */}
+							<button
+								type="button"
+								onClick={() => setAdvancedOpen(!advancedOpen)}
+								className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] transition-all ${
+									advancedOpen
+										? "text-white/70 bg-white/[0.08]"
+										: "text-white/35 hover:text-white/55 hover:bg-white/[0.06]"
+								}`}
+								title="Advanced controls"
+							>
+								<SlidersHorizontal className="h-3.5 w-3.5" />
+							</button>
+
+							{/* Voice Input */}
+							<button
+								type="button"
+								onClick={showComingSoon}
+								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] text-white/35 hover:text-white/55 hover:bg-white/[0.06] transition-all"
+								title="Voice input"
+							>
+								<Mic className="h-3.5 w-3.5" />
+							</button>
+
+							{/* Submit */}
+							<button
+								type="button"
+								onClick={handleGenerate}
+								disabled={!prompt.trim() || isGenerating}
+								className={`
+									h-8 w-8 rounded-full flex items-center justify-center ml-1
+									transition-all duration-200
+									${
+										prompt.trim()
+											? "bg-white text-black hover:bg-white/90 shadow-[0_0_16px_rgba(255,255,255,0.15)]"
+											: "bg-white/[0.08] text-white/25 cursor-not-allowed"
+									}
+									disabled:opacity-50
+								`}
+							>
+								{isGenerating ? (
+									<Loader2 className="h-4 w-4 animate-spin" />
+								) : (
+									<ArrowUp className="h-4 w-4" />
+								)}
+							</button>
+						</div>
+					</div>
 				</div>
+
+				{/* Advanced Controls Panel */}
+				<AdvancedControls
+					isOpen={advancedOpen}
+					onClose={() => setAdvancedOpen(false)}
+					modelId={modelId}
+					onModelChange={setModelId}
+				/>
+
+				{/* Error / Toast feedback */}
+				{error && (
+					<div className="flex items-center justify-center gap-2 mt-3">
+						<AlertCircle className="h-3.5 w-3.5 text-red-400/70 flex-shrink-0" />
+						<p className="text-xs text-red-400/70">{error}</p>
+					</div>
+				)}
+
+				{/* Hint */}
+				<p className="text-center text-white/15 text-[11px] mt-3">
+					Press Enter to generate &middot; Shift+Enter for new line
+				</p>
 			</div>
-		</section>
+
+			{/* GitHub Import Modal */}
+			<GitHubImportModal isOpen={githubOpen} onClose={() => setGithubOpen(false)} />
+		</div>
 	);
 }
