@@ -64,6 +64,39 @@ const PIECE_AUTH_OVERRIDES: Record<string, PieceAuthInfo> = {
 		description:
 			"Get a YouTube Data API key from Google Cloud Console",
 	},
+	paypal: {
+		type: "CUSTOM_AUTH",
+		displayName: "PayPal Credentials",
+		description: "Enter your PayPal API credentials from developer.paypal.com",
+		props: {
+			clientId: {
+				name: "clientId",
+				displayName: "Client ID",
+				description: "PayPal application Client ID",
+				type: "SHORT_TEXT",
+				required: true,
+			},
+			clientSecret: {
+				name: "clientSecret",
+				displayName: "Client Secret",
+				description: "PayPal application Client Secret",
+				type: "SHORT_TEXT",
+				required: true,
+			},
+			environment: {
+				name: "environment",
+				displayName: "Environment",
+				description: "Use Sandbox for testing or Live for production",
+				type: "STATIC_DROPDOWN",
+				required: true,
+				defaultValue: "sandbox",
+				options: [
+					{ label: "Sandbox", value: "sandbox" },
+					{ label: "Live", value: "live" },
+				],
+			},
+		},
+	},
 };
 
 // ─── Field visibility overrides ────────────────────────
