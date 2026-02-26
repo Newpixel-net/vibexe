@@ -109,7 +109,7 @@ function checkCollision(a: Entity, b: Entity): boolean {
 
 1. \`docs/README.md\` — Game overview, controls, features
 2. \`src/types/index.ts\` — All interfaces: Entity, GameState, Level, InputState, etc.
-3. \`src/constants.ts\` — Game constants: GRAVITY, PLAYER_SPEED, TILE_SIZE, CANVAS colors, level data
+3. \`src/constants.ts\` — **SINGLE SOURCE OF TRUTH for ALL numeric/config values.** Export every constant: physics (GRAVITY, FRICTION), speeds (PLAYER_SPEED, ENEMY_SPEED, PIPE_SPEED, SCROLL_SPEED), sizes (TILE_SIZE, PLAYER_WIDTH, PLAYER_HEIGHT, GAP_SIZE), gameplay (SPAWN_INTERVAL, SCORE_PER_ITEM, INITIAL_LIVES), colors, level data. If a value appears in 2+ files, it MUST be here.
 4. \`src/engine/game-loop.ts\` — requestAnimationFrame loop with delta time
 5. \`src/engine/input-manager.ts\` — Keyboard + touch input state
 6. \`src/engine/physics.ts\` — Gravity, velocity, friction, movement
@@ -318,7 +318,7 @@ function vibrate(pattern: number | number[]) {
 3. **File creation order** (dependencies first):
    - \`docs/README.md\` — Game overview, controls, features
    - \`src/types/index.ts\` — All TypeScript interfaces
-   - \`src/constants.ts\` — Game balance constants, colors, level data
+   - \`src/constants.ts\` — **ALL game constants go here. Every numeric value used in 2+ files MUST be exported from this file.** Game balance (GRAVITY, PLAYER_SPEED, JUMP_FORCE), sizing (TILE_SIZE, PLAYER_WIDTH, ENEMY_SIZE), gameplay (PIPE_SPEED, PIPE_GAP, SPAWN_RATE, SCORE_INCREMENT), colors, level data. **Before writing any engine/entity/component file, mentally list every constant it needs and ensure they are ALL in constants.ts.**
    - \`src/engine/*.ts\` — Game loop, input, physics, collision, renderer
    - \`src/entities/*.ts\` — Player, enemies, items
    - \`src/levels/*.ts\` — Level data, tile maps, level rendering
@@ -416,6 +416,8 @@ ctx.fill();
 8. **Hardcoded canvas size** — Always read from \`window.innerWidth/innerHeight\` and handle resize.
 9. **Importing CSS files** — Tailwind is CDN, no imports needed.
 10. **Importing npm packages** — Nothing except React and @vibexe/sdk is available.
+11. **Undefined constants / missing exports** — EVERY constant used anywhere (GRAVITY, PIPE_SPEED, GAP_SIZE, PLAYER_SIZE, etc.) MUST be \`export const\` in \`src/constants.ts\` AND \`import { ... } from "../constants"\` in EVERY file that references it. A \`ReferenceError: X is not defined\` at runtime means you forgot to export or import a constant. Double-check ALL imports in EVERY file before finishing.
+12. **Magic numbers in entity/engine files** — NEVER write \`this.speed = 200\` inside an entity file. ALL tunable values must come from constants.ts so the game is easy to balance.
 
 ${SDK_INTEGRATIONS_REFERENCE}
 
