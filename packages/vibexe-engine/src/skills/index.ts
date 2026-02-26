@@ -12,6 +12,7 @@ import { tddWorkflow } from "./tdd-workflow";
 import { verificationLoop } from "./verification-loop";
 import { continuationAnalysis } from "./continuation-analysis";
 import { visualReplication } from "./visual-replication";
+import { mobileDesignReplication } from "./mobile-design-replication";
 
 export const DEFAULT_SKILLS: SkillDefinition[] = [
 	codingStandards,
@@ -25,6 +26,7 @@ export const DEFAULT_SKILLS: SkillDefinition[] = [
 	dockerPatterns,
 	verificationLoop,
 	visualReplication,
+	mobileDesignReplication,
 	animationPatterns,
 	continuationAnalysis,
 ];

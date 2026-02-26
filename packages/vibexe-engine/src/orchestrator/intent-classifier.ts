@@ -166,8 +166,17 @@ export function classifyIntent(prompt: string): IntentClassification {
 	let suggestedFlow: string;
 	let type: string;
 
-	// Priority 1: URL replication
-	if (detectedUrls.length > 0) {
+	// Priority 1a: App Store URL -> mobile flow (clone app)
+	const APP_STORE_REGEX = /(?:apps\.apple\.com|play\.google\.com\/store\/apps)/i;
+	const hasAppStoreUrl = detectedUrls.some((u) => APP_STORE_REGEX.test(u));
+
+	if (hasAppStoreUrl) {
+		suggestedFlow = "mobile";
+		complexity = "complex";
+		type = "app-store-clone";
+	}
+	// Priority 1b: Regular URL replication
+	else if (detectedUrls.length > 0) {
 		suggestedFlow = "replicate";
 		complexity = "complex";
 		type = "website-replication";

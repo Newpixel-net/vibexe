@@ -35,6 +35,12 @@ import {
 	analyzeUrl,
 	formatSiteAnalysis,
 } from "@/app/(main)/app-builder/lib/url-analyzer";
+import {
+	type AppStoreAnalysis,
+	isAppStoreUrl,
+	analyzeAppStoreUrl,
+	formatAppStoreAnalysis,
+} from "@/app/(main)/app-builder/lib/app-store-analyzer";
 import { getUser } from "@/lib/auth/get-user";
 import { getSupabaseConfig, getAppBackendType } from "@/lib/app-database/supabase-connect";
 import { resolveAllProviderApiKeys } from "@/lib/team-ai-provider-keys";
@@ -157,6 +163,7 @@ export async function POST(request: Request) {
 		if (fileParts.length > 0) {
 			console.log(`[Chat API] ${fileParts.length} file attachment(s) included`);
 		}
+		const hasDesignImages = fileParts.length > 0;
 
 		// Get existing files for context
 		const existingFiles = await getFilesForApp(appId);
@@ -282,17 +289,34 @@ export async function POST(request: Request) {
 
 		let enrichedFileContext = fileContext + wikiContext;
 		let siteAnalysis: SiteAnalysis | null = null;
+		let appStoreAnalysis: AppStoreAnalysis | null = null;
 		if (detectedUrls.length > 0) {
-			try {
-				siteAnalysis = await analyzeUrl(detectedUrls[0]);
-				if (siteAnalysis) {
-					enrichedFileContext = `${fileContext}\n\n${formatSiteAnalysis(siteAnalysis)}${wikiContext}`;
-					console.log(
-						`[Chat API] URL analysis complete: ${detectedUrls[0]} — lang=${siteAnalysis.language.code} (${siteAnalysis.language.direction}), ${siteAnalysis.fonts.length} fonts, ${siteAnalysis.colors.length} colors, ${siteAnalysis.layout.sections.length} sections`,
-					);
+			// Check if any URL is an App Store / Google Play link
+			const appStoreUrlMatch = detectedUrls.find((u) => isAppStoreUrl(u));
+			if (appStoreUrlMatch) {
+				try {
+					appStoreAnalysis = await analyzeAppStoreUrl(appStoreUrlMatch);
+					if (appStoreAnalysis) {
+						enrichedFileContext = `${fileContext}\n\n${formatAppStoreAnalysis(appStoreAnalysis)}${wikiContext}`;
+						console.log(
+							`[Chat API] App Store analysis: ${appStoreAnalysis.appName} (${appStoreAnalysis.platform}), ${appStoreAnalysis.screenshotUrls.length} screenshots`,
+						);
+					}
+				} catch (error) {
+					console.error("[Chat API] App Store analysis failed:", error);
 				}
-			} catch (error) {
-				console.error("[Chat API] URL analysis failed:", error);
+			} else {
+				try {
+					siteAnalysis = await analyzeUrl(detectedUrls[0]);
+					if (siteAnalysis) {
+						enrichedFileContext = `${fileContext}\n\n${formatSiteAnalysis(siteAnalysis)}${wikiContext}`;
+						console.log(
+							`[Chat API] URL analysis complete: ${detectedUrls[0]} — lang=${siteAnalysis.language.code} (${siteAnalysis.language.direction}), ${siteAnalysis.fonts.length} fonts, ${siteAnalysis.colors.length} colors, ${siteAnalysis.layout.sections.length} sections`,
+						);
+					}
+				} catch (error) {
+					console.error("[Chat API] URL analysis failed:", error);
+				}
 			}
 		}
 
@@ -553,6 +577,43 @@ Reference the Project Wiki (docs/ folder) for architecture, data model, and chan
 		// Visual edit mode addendum
 		if (visualEditSystemAddendum) {
 			runtimeAddenda.push(visualEditSystemAddendum);
+		}
+
+		// Design Analysis mode — when user attaches screenshot/mockup images
+		if (hasDesignImages && !isVisualEdit && !isReviewCode) {
+			runtimeAddenda.push(`## DESIGN ANALYSIS MODE (images attached)
+
+The user has attached design images (screenshots, mockups, or wireframes). You MUST follow this workflow:
+
+1. **Analyze each image** before writing any code:
+   - Identify the color palette (primary, secondary, background, accent colors)
+   - Identify the navigation pattern (bottom tabs, drawer, stack)
+   - Catalog the typography (heading styles, body text, font weights)
+   - List all visible UI components (cards, lists, buttons, inputs, modals)
+   - Note the layout structure (spacing, padding, border-radius patterns)
+   - Identify any special elements (gradients, shadows, illustrations, animations)
+
+2. **Plan the component tree** based on what you see in the images
+
+3. **Build UI-first**: Create the visual shell matching the design BEFORE adding any functionality
+   - Use arbitrary Tailwind values to match exact colors: bg-[#hex] text-[#hex]
+   - Create a design tokens file with all extracted values
+   - Visual accuracy is the #1 priority — match the design precisely
+
+4. **Then wire up functionality**: Add state, data, and interactions after the UI matches`);
+		}
+
+		// App Store clone addendum — when App Store listing was analyzed
+		if (appStoreAnalysis) {
+			runtimeAddenda.push(`## APP STORE CLONE MODE
+
+An App Store listing has been analyzed and injected into the project context above. Follow this workflow:
+
+1. **Study the listing**: Read the app name ("${appStoreAnalysis.appName}"), description, features, and screenshot URLs
+2. **Create docs/README.md** with a clone plan: map each listed feature to a technical implementation
+3. **Match the visual design** from the screenshots: recreate the color scheme, layout, and component styles
+4. **Implement all listed features** in priority order (core features first, settings/preferences last)
+5. **Build as a mobile-first PWA** with bottom tab navigation matching the original app's structure`);
 		}
 
 		// Combine: critical flow addenda FIRST (plan-first, execute-plan) + assembled agent prompt + other addenda
