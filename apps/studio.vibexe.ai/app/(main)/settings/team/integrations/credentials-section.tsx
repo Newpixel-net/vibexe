@@ -611,6 +611,11 @@ function AddCredentialModal({
 	const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 	const modalRef = useRef<HTMLDivElement>(null);
 
+	// Custom auth dynamic fields
+	const [customFields, setCustomFields] = useState<Record<string, string>>({});
+	const [authSchema, setAuthSchema] = useState<{ props: Record<string, { name: string; displayName: string; description: string; type: string; required: boolean; defaultValue?: unknown; options?: { label: string; value: unknown }[] }> } | null>(null);
+	const [schemaLoading, setSchemaLoading] = useState(false);
+
 	// OAuth2 status
 	const [oauthStatus, setOauthStatus] = useState<{
 		available: boolean;
@@ -619,6 +624,41 @@ function AddCredentialModal({
 	} | null>(null);
 	const [oauthChecking, setOauthChecking] = useState(isOAuth2Piece);
 	const [oauthConnecting, setOauthConnecting] = useState(false);
+
+	// Fetch auth schema for custom auth pieces
+	useEffect(() => {
+		if (authType !== "custom") return;
+		let cancelled = false;
+		setSchemaLoading(true);
+
+		(async () => {
+			try {
+				const res = await fetch(`/api/integrations/pieces/${encodeURIComponent(piece.name)}`);
+				if (!cancelled && res.ok) {
+					const data = await res.json() as { auth?: { props?: Record<string, { name: string; displayName: string; description: string; type: string; required: boolean; defaultValue?: unknown; options?: { label: string; value: unknown }[] }> } };
+					if (data.auth?.props && Object.keys(data.auth.props).length > 0) {
+						setAuthSchema({ props: data.auth.props });
+						// Initialize default values
+						const defaults: Record<string, string> = {};
+						for (const [key, prop] of Object.entries(data.auth.props)) {
+							if (prop.defaultValue !== undefined && prop.defaultValue !== null) {
+								defaults[key] = String(prop.defaultValue);
+							}
+						}
+						if (Object.keys(defaults).length > 0) {
+							setCustomFields(defaults);
+						}
+					}
+				}
+			} catch {
+				// Fall through to generic form
+			} finally {
+				if (!cancelled) setSchemaLoading(false);
+			}
+		})();
+
+		return () => { cancelled = true; };
+	}, [authType, piece.name]);
 
 	// Check OAuth2 availability for this piece
 	useEffect(() => {
@@ -731,6 +771,13 @@ function AddCredentialModal({
 				case "basic":
 					config.username = username;
 					config.password = apiKey;
+					break;
+				case "custom":
+					if (authSchema) {
+						Object.assign(config, customFields);
+					} else {
+						config.apiKey = apiKey;
+					}
 					break;
 				default:
 					config.apiKey = apiKey;
@@ -1094,6 +1141,114 @@ function AddCredentialModal({
 										</div>
 									)}
 
+									{/* Dynamic fields for custom auth */}
+									{authType === "custom" && schemaLoading && (
+										<div className="flex items-center gap-2 py-3 text-white/40 text-sm">
+											<div className="size-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
+											Loading fields...
+										</div>
+									)}
+									{authType === "custom" && authSchema && !schemaLoading && (
+										<div className="flex flex-col gap-3">
+											{Object.entries(authSchema.props).map(([key, prop]) => {
+												const isSensitive = /secret|password|token|key/i.test(key) || /secret|password|token|key/i.test(prop.displayName);
+
+												if (prop.type === "CHECKBOX") {
+													return (
+														<div key={key} className="flex items-center gap-2">
+															<input
+																id={`custom-${key}`}
+																type="checkbox"
+																checked={customFields[key] === "true"}
+																onChange={(e) => setCustomFields((prev) => ({ ...prev, [key]: e.target.checked ? "true" : "false" }))}
+																className="size-4 rounded border border-white/20 bg-white/5 accent-violet-500"
+															/>
+															<label htmlFor={`custom-${key}`} className="text-xs text-white/50">
+																{prop.displayName}
+																{prop.required && <span className="text-red-400 ml-0.5">*</span>}
+															</label>
+															{prop.description && (
+																<span className="text-[10px] text-white/25 ml-1">{prop.description}</span>
+															)}
+														</div>
+													);
+												}
+
+												if (prop.type === "STATIC_DROPDOWN" && prop.options) {
+													return (
+														<div key={key} className="flex flex-col gap-1.5">
+															<label htmlFor={`custom-${key}`} className="text-xs text-white/50">
+																{prop.displayName}
+																{prop.required && <span className="text-red-400 ml-0.5">*</span>}
+															</label>
+															{prop.description && (
+																<p className="text-[10px] text-white/25 -mt-0.5">{prop.description}</p>
+															)}
+															<select
+																id={`custom-${key}`}
+																value={customFields[key] ?? ""}
+																onChange={(e) => setCustomFields((prev) => ({ ...prev, [key]: e.target.value }))}
+																className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white outline-none focus:border-white/25"
+															>
+																<option value="">Select...</option>
+																{prop.options.map((opt) => (
+																	<option key={String(opt.value)} value={String(opt.value)}>
+																		{opt.label}
+																	</option>
+																))}
+															</select>
+														</div>
+													);
+												}
+
+												if (prop.type === "NUMBER") {
+													return (
+														<div key={key} className="flex flex-col gap-1.5">
+															<label htmlFor={`custom-${key}`} className="text-xs text-white/50">
+																{prop.displayName}
+																{prop.required && <span className="text-red-400 ml-0.5">*</span>}
+															</label>
+															{prop.description && (
+																<p className="text-[10px] text-white/25 -mt-0.5">{prop.description}</p>
+															)}
+															<input
+																id={`custom-${key}`}
+																type="number"
+																value={customFields[key] ?? ""}
+																onChange={(e) => setCustomFields((prev) => ({ ...prev, [key]: e.target.value }))}
+																placeholder={prop.displayName}
+																className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-white/25"
+															/>
+														</div>
+													);
+												}
+
+												// Default: text/password field
+												return (
+													<div key={key} className="flex flex-col gap-1.5">
+														<label htmlFor={`custom-${key}`} className="text-xs text-white/50">
+															{prop.displayName}
+															{prop.required && <span className="text-red-400 ml-0.5">*</span>}
+														</label>
+														{prop.description && (
+															<p className="text-[10px] text-white/25 -mt-0.5">{prop.description}</p>
+														)}
+														<input
+															id={`custom-${key}`}
+															type={isSensitive ? "password" : "text"}
+															value={customFields[key] ?? ""}
+															onChange={(e) => setCustomFields((prev) => ({ ...prev, [key]: e.target.value }))}
+															placeholder={`Enter ${prop.displayName.toLowerCase()}`}
+															className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-white/25"
+														/>
+													</div>
+												);
+											})}
+										</div>
+									)}
+
+									{/* Generic API Key / Password field (hidden for custom auth with schema) */}
+									{!(authType === "custom" && authSchema) && (
 									<div className="flex flex-col gap-1.5">
 										<label
 											htmlFor="cred-key"
@@ -1112,6 +1267,7 @@ function AddCredentialModal({
 											autoFocus={!isOAuth2Piece && authType !== "basic"}
 										/>
 									</div>
+									)}
 
 									{error && (
 										<p className="text-sm text-red-400" role="alert">
@@ -1129,7 +1285,9 @@ function AddCredentialModal({
 										</button>
 										<button
 											type="submit"
-											disabled={isSubmitting || !apiKey}
+											disabled={isSubmitting || (authType === "custom" && authSchema
+												? Object.entries(authSchema.props).some(([k, p]) => p.required && !customFields[k])
+												: !apiKey)}
 											className="px-4 py-2 text-sm rounded-lg bg-primary-900 text-white hover:bg-primary-800 transition-colors disabled:opacity-40"
 										>
 											{isSubmitting ? "Saving..." : "Save Credential"}

@@ -9,8 +9,12 @@
 
 import {
 	Check,
+	CheckCircle2,
+	ChevronDown,
 	ExternalLink,
+	KeyRound,
 	Link,
+	LinkIcon,
 	Loader2,
 	Puzzle,
 	Search,
@@ -18,7 +22,7 @@ import {
 	Webhook,
 	X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface IntegrationsPanelProps {
 	appId: string;
@@ -58,6 +62,7 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 	const [connected, setConnected] = useState<ConnectedIntegration[]>([]);
 	const [connectedLoading, setConnectedLoading] = useState(true);
 	const [connectingPiece, setConnectingPiece] = useState<string | null>(null);
+	const [modalPiece, setModalPiece] = useState<PieceEntry | null>(null);
 
 	// Fetch piece catalog
 	useEffect(() => {
@@ -103,21 +108,27 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 
 	const handleConnect = useCallback(
 		async (piece: PieceEntry) => {
-			setConnectingPiece(piece.name);
-			try {
-				await fetch(`/api/apps/${appId}/integrations`, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						pieceName: piece.name,
-						displayName: piece.displayName,
-					}),
-				});
-				fetchConnected();
-			} catch {
-				// Ignore
+			// No auth — instant add without modal
+			if (piece.authType === "none") {
+				setConnectingPiece(piece.name);
+				try {
+					await fetch(`/api/apps/${appId}/integrations`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							pieceName: piece.name,
+							displayName: piece.displayName,
+						}),
+					});
+					fetchConnected();
+				} catch {
+					// Ignore
+				}
+				setConnectingPiece(null);
+				return;
 			}
-			setConnectingPiece(null);
+			// Auth required — open modal
+			setModalPiece(piece);
 		},
 		[appId, fetchConnected],
 	);
@@ -455,6 +466,569 @@ export function IntegrationsPanel({ appId }: IntegrationsPanelProps) {
 						</div>
 					</>
 				)}
+			</div>
+
+			{/* Connect Modal */}
+			{modalPiece && (
+				<ConnectModal
+					piece={modalPiece}
+					appId={appId}
+					onClose={() => setModalPiece(null)}
+					onSuccess={() => {
+						setModalPiece(null);
+						fetchConnected();
+					}}
+				/>
+			)}
+		</div>
+	);
+}
+
+// ─── API Key Setup Links ────────────────────────────────
+
+const API_KEY_LINKS: Record<string, { url: string; label: string }> = {
+	openai: { url: "https://platform.openai.com/api-keys", label: "Get API key from OpenAI" },
+	anthropic: { url: "https://console.anthropic.com/settings/keys", label: "Get API key from Anthropic" },
+	"google-gemini": { url: "https://aistudio.google.com/apikey", label: "Get API key from Google AI Studio" },
+	stripe: { url: "https://dashboard.stripe.com/apikeys", label: "Get API key from Stripe" },
+	sendgrid: { url: "https://app.sendgrid.com/settings/api_keys", label: "Get API key from SendGrid" },
+	discord: { url: "https://discord.com/developers/applications", label: "Get Bot Token from Discord" },
+	twilio: { url: "https://console.twilio.com/", label: "Get credentials from Twilio" },
+	"telegram-bot": { url: "https://t.me/BotFather", label: "Get Bot Token from BotFather" },
+};
+
+// ─── Auth Schema Types ──────────────────────────────────
+
+interface AuthPropInfo {
+	name: string;
+	displayName: string;
+	description: string;
+	type: string;
+	required: boolean;
+	defaultValue?: unknown;
+	options?: { label: string; value: unknown }[];
+}
+
+interface AccountCredential {
+	dbId: number;
+	pieceName: string;
+	displayName: string;
+	authType: string;
+	createdAt: string;
+}
+
+// ─── ConnectModal Component ─────────────────────────────
+
+function ConnectModal({
+	piece,
+	appId,
+	onClose,
+	onSuccess,
+}: {
+	piece: PieceEntry;
+	appId: string;
+	onClose: () => void;
+	onSuccess: () => void;
+}) {
+	const modalRef = useRef<HTMLDivElement>(null);
+	const [mode, setMode] = useState<"select" | "new">("select");
+	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+
+	// Account credentials for this piece
+	const [accountCreds, setAccountCreds] = useState<AccountCredential[]>([]);
+	const [credsLoading, setCredsLoading] = useState(true);
+	const [selectedCredId, setSelectedCredId] = useState<number | null>(null);
+
+	// Auth schema for new credential form
+	const [authSchema, setAuthSchema] = useState<Record<string, AuthPropInfo> | null>(null);
+	const [schemaLoading, setSchemaLoading] = useState(false);
+	const [fields, setFields] = useState<Record<string, string>>({});
+
+	// OAuth status
+	const isOAuth2 = piece.authType === "oauth2";
+	const [oauthStatus, setOauthStatus] = useState<{ available: boolean; provider?: string; reason?: string } | null>(null);
+	const [oauthChecking, setOauthChecking] = useState(isOAuth2);
+	const [oauthConnecting, setOauthConnecting] = useState(false);
+
+	// Fetch account credentials for this piece
+	useEffect(() => {
+		let cancelled = false;
+		(async () => {
+			try {
+				const res = await fetch(`/api/integrations/credentials?pieceName=${encodeURIComponent(piece.name)}`);
+				if (!cancelled && res.ok) {
+					const data = await res.json() as { credentials: AccountCredential[] };
+					setAccountCreds(data.credentials || []);
+					if (data.credentials?.length > 0) {
+						setSelectedCredId(data.credentials[0].dbId);
+					} else {
+						setMode("new");
+					}
+				}
+			} catch {
+				if (!cancelled) setMode("new");
+			} finally {
+				if (!cancelled) setCredsLoading(false);
+			}
+		})();
+		return () => { cancelled = true; };
+	}, [piece.name]);
+
+	// Fetch auth schema for new credential form
+	useEffect(() => {
+		if (mode !== "new") return;
+		let cancelled = false;
+		setSchemaLoading(true);
+
+		(async () => {
+			try {
+				const res = await fetch(`/api/integrations/pieces/${encodeURIComponent(piece.name)}`);
+				if (!cancelled && res.ok) {
+					const data = await res.json() as { auth?: { props?: Record<string, AuthPropInfo> } };
+					if (data.auth?.props && Object.keys(data.auth.props).length > 0) {
+						setAuthSchema(data.auth.props);
+						const defaults: Record<string, string> = {};
+						for (const [key, prop] of Object.entries(data.auth.props)) {
+							if (prop.defaultValue !== undefined && prop.defaultValue !== null) {
+								defaults[key] = String(prop.defaultValue);
+							}
+						}
+						if (Object.keys(defaults).length > 0) setFields(defaults);
+					}
+				}
+			} catch {
+				// Fall through to generic form
+			} finally {
+				if (!cancelled) setSchemaLoading(false);
+			}
+		})();
+
+		return () => { cancelled = true; };
+	}, [mode, piece.name]);
+
+	// Check OAuth2 availability
+	useEffect(() => {
+		if (!isOAuth2) return;
+		let cancelled = false;
+
+		(async () => {
+			try {
+				const res = await fetch(`/api/integrations/oauth2/status?pieceName=${encodeURIComponent(piece.name)}`);
+				if (!cancelled && res.ok) {
+					const data = await res.json() as { available: boolean; provider?: string; reason?: string };
+					setOauthStatus(data);
+				}
+			} catch {
+				if (!cancelled) setOauthStatus({ available: false, reason: "Failed to check OAuth status" });
+			} finally {
+				if (!cancelled) setOauthChecking(false);
+			}
+		})();
+
+		return () => { cancelled = true; };
+	}, [isOAuth2, piece.name]);
+
+	// Close on outside click / Escape
+	useEffect(() => {
+		function handleClick(e: MouseEvent) {
+			if (modalRef.current && !modalRef.current.contains(e.target as Node)) onClose();
+		}
+		function handleKey(e: KeyboardEvent) {
+			if (e.key === "Escape") onClose();
+		}
+		document.addEventListener("mousedown", handleClick);
+		document.addEventListener("keydown", handleKey);
+		return () => {
+			document.removeEventListener("mousedown", handleClick);
+			document.removeEventListener("keydown", handleKey);
+		};
+	}, [onClose]);
+
+	// Submit: use account credential
+	const handleUseAccountCred = async () => {
+		if (!selectedCredId) return;
+		setIsSubmitting(true);
+		setError(null);
+		try {
+			await fetch(`/api/apps/${appId}/integrations`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					pieceName: piece.name,
+					displayName: piece.displayName,
+				}),
+			});
+			onSuccess();
+		} catch {
+			setError("Failed to connect integration");
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
+	// Submit: new per-app credential
+	const handleSubmitNewCred = async (e: React.FormEvent) => {
+		e.preventDefault();
+		setIsSubmitting(true);
+		setError(null);
+
+		try {
+			const config: Record<string, unknown> = {};
+			const authType = piece.authType;
+
+			if (authSchema && Object.keys(authSchema).length > 0) {
+				Object.assign(config, fields);
+			} else if (authType === "basic") {
+				config.username = fields.username || "";
+				config.password = fields.password || "";
+			} else {
+				config.apiKey = fields.apiKey || "";
+			}
+
+			await fetch(`/api/apps/${appId}/integrations`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					pieceName: piece.name,
+					displayName: piece.displayName,
+					credentials: JSON.stringify(config),
+				}),
+			});
+			onSuccess();
+		} catch {
+			setError("Failed to save credentials");
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
+	// OAuth connect
+	const handleOAuthConnect = () => {
+		setOauthConnecting(true);
+		setError(null);
+		const popup = window.open(
+			`/api/integrations/oauth2/authorize?pieceName=${encodeURIComponent(piece.name)}`,
+			"oauth2-connect",
+			"width=600,height=700,left=200,top=100,popup=yes",
+		);
+		if (!popup) {
+			setError("Popup blocked. Please allow popups.");
+			setOauthConnecting(false);
+			return;
+		}
+		const timer = setInterval(() => {
+			if (popup.closed) {
+				clearInterval(timer);
+				setOauthConnecting(false);
+				// After OAuth, also connect to this app
+				fetch(`/api/apps/${appId}/integrations`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ pieceName: piece.name, displayName: piece.displayName }),
+				}).then(() => onSuccess()).catch(() => onSuccess());
+			}
+		}, 500);
+	};
+
+	const isCustomOrMultiField = piece.authType === "custom" || piece.authType === "basic";
+	const hasRequiredFieldsMissing = authSchema
+		? Object.entries(authSchema).some(([k, p]) => p.required && !fields[k])
+		: !isCustomOrMultiField
+			? !fields.apiKey
+			: piece.authType === "basic"
+				? !fields.username || !fields.password
+				: !fields.apiKey;
+
+	return (
+		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+			<div ref={modalRef} className="w-full max-w-md mx-4 rounded-xl bg-[rgb(20,17,32)] border border-white/10 shadow-2xl">
+				{/* Header */}
+				<div className="flex items-center gap-3 p-5 border-b border-white/[0.06]">
+					<div className="h-10 w-10 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center overflow-hidden">
+						{piece.logoUrl ? (
+							<img src={piece.logoUrl} alt="" className="h-6 w-6 object-contain" />
+						) : (
+							<Puzzle className="h-5 w-5 text-white/40" />
+						)}
+					</div>
+					<div className="flex-1 min-w-0">
+						<div className="text-base font-medium text-white truncate">
+							Connect {piece.displayName}
+						</div>
+						<div className="text-xs text-white/40 mt-0.5">
+							{piece.authType === "oauth2" ? "OAuth" : piece.authType === "api_key" ? "API Key" : piece.authType} authentication
+						</div>
+					</div>
+					<button type="button" onClick={onClose} className="p-1 text-white/40 hover:text-white transition-colors">
+						<X className="h-4 w-4" />
+					</button>
+				</div>
+
+				<div className="p-5 flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
+					{credsLoading ? (
+						<div className="flex items-center justify-center gap-2 py-6 text-white/40">
+							<Loader2 className="h-4 w-4 animate-spin" />
+							<span className="text-sm">Checking credentials...</span>
+						</div>
+					) : (
+						<>
+							{/* Account credential option */}
+							{accountCreds.length > 0 && (
+								<div className="flex flex-col gap-3">
+									<p className="text-xs font-medium text-white/50 uppercase tracking-wider">Use account credential</p>
+									{accountCreds.map((cred) => (
+										<button
+											key={cred.dbId}
+											type="button"
+											onClick={() => { setSelectedCredId(cred.dbId); setMode("select"); }}
+											className={`flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+												mode === "select" && selectedCredId === cred.dbId
+													? "border-emerald-500/30 bg-emerald-500/[0.06]"
+													: "border-white/[0.08] bg-white/[0.02] hover:border-white/15"
+											}`}
+										>
+											<CheckCircle2 className={`h-4 w-4 shrink-0 ${
+												mode === "select" && selectedCredId === cred.dbId ? "text-emerald-400" : "text-white/20"
+											}`} />
+											<div className="flex-1 min-w-0">
+												<p className="text-sm text-white/90">{cred.displayName}</p>
+												<p className="text-[10px] text-white/40">{cred.authType} &middot; Added {new Date(cred.createdAt).toLocaleDateString()}</p>
+											</div>
+										</button>
+									))}
+
+									{mode === "select" && (
+										<button
+											type="button"
+											onClick={handleUseAccountCred}
+											disabled={isSubmitting || !selectedCredId}
+											className="w-full px-4 py-2.5 text-sm font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-500 transition-colors disabled:opacity-40"
+										>
+											{isSubmitting ? "Connecting..." : "Connect with account credential"}
+										</button>
+									)}
+
+									{/* Separator */}
+									<div className="flex items-center gap-3 py-1">
+										<div className="flex-1 h-px bg-white/[0.08]" />
+										<span className="text-[11px] text-white/30 uppercase tracking-wider">or enter new</span>
+										<div className="flex-1 h-px bg-white/[0.08]" />
+									</div>
+								</div>
+							)}
+
+							{/* New credential toggle */}
+							{accountCreds.length > 0 && mode !== "new" && (
+								<button
+									type="button"
+									onClick={() => setMode("new")}
+									className="flex items-center gap-2 text-xs text-white/40 hover:text-white/60 transition-colors"
+								>
+									<KeyRound className="h-3 w-3" />
+									Enter new credentials for this app
+									<ChevronDown className="h-3 w-3" />
+								</button>
+							)}
+
+							{/* New credential form */}
+							{mode === "new" && (
+								<>
+									{/* OAuth2 option */}
+									{isOAuth2 && (
+										<>
+											{oauthChecking ? (
+												<div className="flex items-center gap-2 py-3 text-white/40 text-sm">
+													<Loader2 className="h-4 w-4 animate-spin" />
+													Checking OAuth...
+												</div>
+											) : oauthStatus?.available ? (
+												<div className="flex flex-col gap-2">
+													<button
+														type="button"
+														onClick={handleOAuthConnect}
+														disabled={oauthConnecting}
+														className="flex items-center justify-center gap-2 w-full px-4 py-3 text-sm font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-500 transition-colors disabled:opacity-60"
+													>
+														{oauthConnecting ? (
+															<><Loader2 className="h-4 w-4 animate-spin" /> Connecting...</>
+														) : (
+															<><LinkIcon className="h-4 w-4" /> Connect with {piece.displayName}</>
+														)}
+													</button>
+													<div className="flex items-center gap-3 py-1">
+														<div className="flex-1 h-px bg-white/[0.08]" />
+														<span className="text-[10px] text-white/25">or paste token</span>
+														<div className="flex-1 h-px bg-white/[0.08]" />
+													</div>
+												</div>
+											) : (
+												<div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+													<p className="text-xs text-amber-300">OAuth not configured</p>
+													<p className="text-[10px] text-white/40 mt-1">{oauthStatus?.reason || "Enter a token manually below."}</p>
+												</div>
+											)}
+										</>
+									)}
+
+									{/* API key help link */}
+									{API_KEY_LINKS[piece.name] && (
+										<a
+											href={API_KEY_LINKS[piece.name].url}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="flex items-center gap-2 p-2.5 rounded-lg bg-blue-500/[0.06] border border-blue-500/15 hover:border-blue-500/30 transition-colors text-xs text-blue-300"
+										>
+											<ExternalLink className="h-3.5 w-3.5 shrink-0" />
+											{API_KEY_LINKS[piece.name].label}
+										</a>
+									)}
+
+									{schemaLoading ? (
+										<div className="flex items-center gap-2 py-3 text-white/40 text-sm">
+											<Loader2 className="h-4 w-4 animate-spin" />
+											Loading fields...
+										</div>
+									) : (
+										<form onSubmit={handleSubmitNewCred} className="flex flex-col gap-3">
+											{/* Dynamic auth schema fields */}
+											{authSchema && Object.keys(authSchema).length > 0 ? (
+												Object.entries(authSchema).map(([key, prop]) => {
+													const isSensitive = /secret|password|token|key/i.test(key) || /secret|password|token|key/i.test(prop.displayName);
+
+													if (prop.type === "CHECKBOX") {
+														return (
+															<div key={key} className="flex items-center gap-2">
+																<input
+																	id={`field-${key}`}
+																	type="checkbox"
+																	checked={fields[key] === "true"}
+																	onChange={(e) => setFields((prev) => ({ ...prev, [key]: e.target.checked ? "true" : "false" }))}
+																	className="size-4 rounded border border-white/20 bg-white/5 accent-violet-500"
+																/>
+																<label htmlFor={`field-${key}`} className="text-xs text-white/50">
+																	{prop.displayName}
+																	{prop.required && <span className="text-red-400 ml-0.5">*</span>}
+																</label>
+															</div>
+														);
+													}
+
+													if (prop.type === "STATIC_DROPDOWN" && prop.options) {
+														return (
+															<div key={key} className="flex flex-col gap-1.5">
+																<label htmlFor={`field-${key}`} className="text-xs text-white/50">
+																	{prop.displayName}
+																	{prop.required && <span className="text-red-400 ml-0.5">*</span>}
+																</label>
+																<select
+																	id={`field-${key}`}
+																	value={fields[key] ?? ""}
+																	onChange={(e) => setFields((prev) => ({ ...prev, [key]: e.target.value }))}
+																	className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white outline-none focus:border-white/25"
+																>
+																	<option value="">Select...</option>
+																	{prop.options.map((opt) => (
+																		<option key={String(opt.value)} value={String(opt.value)}>{opt.label}</option>
+																	))}
+																</select>
+															</div>
+														);
+													}
+
+													return (
+														<div key={key} className="flex flex-col gap-1.5">
+															<label htmlFor={`field-${key}`} className="text-xs text-white/50">
+																{prop.displayName}
+																{prop.required && <span className="text-red-400 ml-0.5">*</span>}
+															</label>
+															{prop.description && (
+																<p className="text-[10px] text-white/25 -mt-0.5">{prop.description}</p>
+															)}
+															<input
+																id={`field-${key}`}
+																type={isSensitive ? "password" : prop.type === "NUMBER" ? "number" : "text"}
+																value={fields[key] ?? ""}
+																onChange={(e) => setFields((prev) => ({ ...prev, [key]: e.target.value }))}
+																placeholder={`Enter ${prop.displayName.toLowerCase()}`}
+																className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-white/25"
+															/>
+														</div>
+													);
+												})
+											) : piece.authType === "basic" ? (
+												<>
+													<div className="flex flex-col gap-1.5">
+														<label htmlFor="field-username" className="text-xs text-white/50">Username<span className="text-red-400 ml-0.5">*</span></label>
+														<input
+															id="field-username"
+															type="text"
+															value={fields.username ?? ""}
+															onChange={(e) => setFields((prev) => ({ ...prev, username: e.target.value }))}
+															placeholder="Enter username"
+															className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-white/25"
+															autoFocus
+														/>
+													</div>
+													<div className="flex flex-col gap-1.5">
+														<label htmlFor="field-password" className="text-xs text-white/50">Password<span className="text-red-400 ml-0.5">*</span></label>
+														<input
+															id="field-password"
+															type="password"
+															value={fields.password ?? ""}
+															onChange={(e) => setFields((prev) => ({ ...prev, password: e.target.value }))}
+															placeholder="Enter password"
+															className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-white/25"
+														/>
+													</div>
+												</>
+											) : (
+												<div className="flex flex-col gap-1.5">
+													<label htmlFor="field-apiKey" className="text-xs text-white/50">API Key / Token<span className="text-red-400 ml-0.5">*</span></label>
+													<input
+														id="field-apiKey"
+														type="password"
+														value={fields.apiKey ?? ""}
+														onChange={(e) => setFields((prev) => ({ ...prev, apiKey: e.target.value }))}
+														placeholder="Enter your API key or token"
+														className="px-3 py-2 text-sm rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-white/30 outline-none focus:border-white/25"
+														autoFocus
+													/>
+												</div>
+											)}
+
+											{error && (
+												<p className="text-sm text-red-400">{error}</p>
+											)}
+
+											<div className="flex gap-2 justify-end pt-1">
+												<button
+													type="button"
+													onClick={onClose}
+													className="px-4 py-2 text-sm rounded-lg text-white/50 hover:text-white transition-colors"
+												>
+													Cancel
+												</button>
+												<button
+													type="submit"
+													disabled={isSubmitting || hasRequiredFieldsMissing}
+													className="px-4 py-2 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-500 transition-colors disabled:opacity-40"
+												>
+													{isSubmitting ? "Saving..." : "Connect & Save"}
+												</button>
+											</div>
+										</form>
+									)}
+								</>
+							)}
+
+							{/* Error for account credential flow */}
+							{mode === "select" && error && (
+								<p className="text-sm text-red-400">{error}</p>
+							)}
+						</>
+					)}
+				</div>
 			</div>
 		</div>
 	);
