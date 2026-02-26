@@ -749,12 +749,11 @@
 		inset: 0;
 		border-radius: inherit;
 		border: calc(var(--beam-border-width, 1.5) * 1px) solid transparent;
-		mask: linear-gradient(transparent, transparent), linear-gradient(white, white);
-		mask-clip: padding-box, border-box;
-		mask-composite: intersect;
-		-webkit-mask: linear-gradient(transparent, transparent), linear-gradient(white, white);
-		-webkit-mask-clip: padding-box, border-box;
-		-webkit-mask-composite: source-in;
+		/* Embed clip values in shorthand to avoid reset; !important on composite */
+		-webkit-mask: linear-gradient(transparent, transparent) padding-box, linear-gradient(white, white) border-box;
+		-webkit-mask-composite: source-in !important;
+		mask: linear-gradient(transparent, transparent) padding-box, linear-gradient(white, white) border-box;
+		mask-composite: intersect !important;
 	}
 
 	.border-beam::after {
