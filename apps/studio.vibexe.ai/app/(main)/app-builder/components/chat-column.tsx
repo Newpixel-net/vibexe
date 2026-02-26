@@ -426,15 +426,25 @@ export function ChatColumn({
 		}
 	}, [appId, chatId, hasMounted]);
 
-	// Load model selection from localStorage after mount
+	// Load model selection: URL param (from dashboard) > localStorage > default
 	useEffect(() => {
-		if (hasMounted) {
-			const stored = localStorage.getItem(getModelStorageKey(appId));
-			if (stored) {
-				setSelectedModelId(stored);
-			}
+		if (!hasMounted) return;
+		// Dashboard passes ?model= when user picks a model before generating
+		const modelParam = searchParams.get("model");
+		if (modelParam) {
+			setSelectedModelId(modelParam);
+			localStorage.setItem(getModelStorageKey(appId), modelParam);
+			// Clean up URL param
+			const url = new URL(window.location.href);
+			url.searchParams.delete("model");
+			window.history.replaceState({}, "", url.pathname + url.search);
+			return;
 		}
-	}, [appId, hasMounted]);
+		const stored = localStorage.getItem(getModelStorageKey(appId));
+		if (stored) {
+			setSelectedModelId(stored);
+		}
+	}, [appId, hasMounted, searchParams]);
 
 	// Persist model selection to localStorage
 	const handleModelChange = useCallback(
@@ -570,6 +580,7 @@ export function ChatColumn({
 			url.searchParams.delete("prompt");
 			url.searchParams.delete("type");
 			url.searchParams.delete("category");
+			url.searchParams.delete("model");
 			window.history.replaceState({}, "", url.pathname);
 		}, 800);
 

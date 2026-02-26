@@ -1,7 +1,17 @@
 "use client";
 
+/**
+ * Dashboard Model Picker — uses the same real models from model-resolver.ts
+ * that the app-builder chat uses, with nice dashboard-specific styling.
+ */
+
 import { ChevronDown, Check, Sparkles, Zap } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	MODEL_OPTIONS as REAL_MODELS,
+	DEFAULT_MODEL_ID,
+	type ModelOption as ResolverModelOption,
+} from "@/app/(main)/app-builder/lib/model-resolver";
 
 export interface ModelOption {
 	id: string;
@@ -14,54 +24,58 @@ export interface ModelOption {
 	isDefault?: boolean;
 }
 
-const DEFAULT_MODELS: ModelOption[] = [
-	{
-		id: "claude-sonnet-4-5",
-		name: "Claude 4.5 Sonnet",
-		provider: "Anthropic",
-		description: "Best for most tasks",
-		contextWindow: "200K",
-		isDefault: true,
-	},
-	{
-		id: "claude-opus-4-6",
-		name: "Claude 4.6 Opus",
-		provider: "Anthropic",
-		description: "Most capable, complex reasoning",
-		contextWindow: "200K",
-		isPro: true,
-	},
-	{
-		id: "gpt-5-3-codex",
-		name: "GPT 5.3 Codex",
-		provider: "OpenAI",
-		description: "Optimized for code generation",
-		contextWindow: "128K",
-	},
-	{
-		id: "gemini-3-pro",
-		name: "Gemini 3 Pro",
-		provider: "Google",
-		description: "Multimodal with large context",
-		contextWindow: "1M",
-	},
-	{
-		id: "grok-4-fast",
-		name: "Grok 4 Fast",
-		provider: "xAI",
-		description: "Fast inference, real-time data",
-		contextWindow: "128K",
-		isFast: true,
-	},
-];
+/** Map real model-resolver models to dashboard display format */
+const PROVIDER_LABELS: Record<string, string> = {
+	fireworks: "Fireworks",
+	nvidia: "NVIDIA",
+	anthropic: "Anthropic",
+	openai: "OpenAI",
+	xai: "xAI",
+};
 
 const PROVIDER_COLORS: Record<string, string> = {
+	Fireworks: "#FF6B35",
+	NVIDIA: "#76B900",
 	Anthropic: "#D97706",
 	OpenAI: "#10B981",
-	Google: "#3B82F6",
 	xAI: "#EF4444",
-	NVIDIA: "#76B900",
 };
+
+const MODEL_DESCRIPTIONS: Record<string, string> = {
+	"kimi-k2-5-fireworks": "Fast, great for most tasks",
+	"kimi-k2-5": "NVIDIA-hosted, strong reasoning",
+	"claude-sonnet-4-5": "Best balance of speed & quality",
+	"claude-opus-4-6": "Most capable, complex reasoning",
+	"claude-haiku-4-5": "Ultra-fast, lightweight tasks",
+	"gpt-4o": "Multimodal with vision & documents",
+	"grok-4-1-fast": "Fast inference with real-time data",
+};
+
+const MODEL_CONTEXT: Record<string, string> = {
+	"kimi-k2-5-fireworks": "128K",
+	"kimi-k2-5": "128K",
+	"claude-sonnet-4-5": "200K",
+	"claude-opus-4-6": "200K",
+	"claude-haiku-4-5": "200K",
+	"gpt-4o": "128K",
+	"grok-4-1-fast": "128K",
+};
+
+function toDisplayModel(m: ResolverModelOption): ModelOption {
+	const providerLabel = PROVIDER_LABELS[m.provider] ?? m.provider;
+	return {
+		id: m.id,
+		name: m.name,
+		provider: providerLabel,
+		description: MODEL_DESCRIPTIONS[m.id] ?? "",
+		contextWindow: MODEL_CONTEXT[m.id] ?? "128K",
+		isPro: m.tier === "opus",
+		isFast: m.tier === "haiku" || m.id === "grok-4-1-fast" || m.id === "kimi-k2-5-fireworks",
+		isDefault: m.id === DEFAULT_MODEL_ID,
+	};
+}
+
+const DEFAULT_MODELS: ModelOption[] = REAL_MODELS.map(toDisplayModel);
 
 interface ModelPickerProps {
 	value?: string;
@@ -76,6 +90,11 @@ export function ModelPicker({ value, onChange, models }: ModelPickerProps) {
 		value ?? available.find((m) => m.isDefault)?.id ?? available[0]?.id ?? "",
 	);
 	const ref = useRef<HTMLDivElement>(null);
+
+	// Sync external value changes
+	useEffect(() => {
+		if (value && value !== selected) setSelected(value);
+	}, [value]);
 
 	const selectedModel = available.find((m) => m.id === selected) ?? available[0];
 

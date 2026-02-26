@@ -36,6 +36,7 @@ import { ModelPicker } from "./model-picker";
 import { VisibilityToggle, type Visibility } from "./visibility-toggle";
 import { AdvancedControls } from "./advanced-controls";
 import { GitHubImportModal } from "./github-import-modal";
+import { DEFAULT_MODEL_ID } from "@/app/(main)/app-builder/lib/model-resolver";
 
 const ICON_MAP: Record<string, React.ElementType> = {
 	Layers,
@@ -53,7 +54,7 @@ export function HeroPrompt() {
 	const [prompt, setPrompt] = useState("");
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [modelId, setModelId] = useState("claude-sonnet-4-5");
+	const [modelId, setModelId] = useState(DEFAULT_MODEL_ID);
 	const [visibility, setVisibility] = useState<Visibility>("public");
 	const [advancedOpen, setAdvancedOpen] = useState(false);
 	const [githubOpen, setGithubOpen] = useState(false);
@@ -91,8 +92,9 @@ export function HeroPrompt() {
 			if (res.ok) {
 				const data = await res.json();
 				if (data.redirectPath) {
+					const modelParam = modelId && modelId !== DEFAULT_MODEL_ID ? `&model=${modelId}` : "";
 					router.push(
-						`${data.redirectPath}?prompt=${encodeURIComponent(trimmed)}&type=${selectedType}`,
+						`${data.redirectPath}?prompt=${encodeURIComponent(trimmed)}&type=${selectedType}${modelParam}`,
 					);
 					setTimeout(() => setIsGenerating(false), 5000);
 					return;
