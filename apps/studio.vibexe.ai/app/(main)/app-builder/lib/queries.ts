@@ -78,6 +78,7 @@ export async function createApp(
 	userDbId: number,
 	name: string,
 	description?: string,
+	visibility?: string,
 ) {
 	const id = `bldr_${nanoid()}` as BuilderAppId;
 
@@ -89,6 +90,7 @@ export async function createApp(
 			createdByUserDbId: userDbId,
 			name,
 			description,
+			...(visibility ? { visibility } : {}),
 		})
 		.returning();
 

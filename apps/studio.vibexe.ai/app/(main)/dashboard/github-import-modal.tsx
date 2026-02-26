@@ -29,22 +29,23 @@ export function GitHubImportModal({ isOpen, onClose }: GitHubImportModalProps) {
 				return;
 			}
 
+			const owner = match[1];
+			const repo = match[2].replace(/\.git$/, "");
+
 			const res = await fetch("/api/app-builder/apps", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					githubImport: {
-						owner: match[1],
-						repo: match[2].replace(/\.git$/, ""),
-						branch,
-					},
+					githubImport: { owner, repo, branch },
 				}),
 			});
 
 			if (res.ok) {
 				const data = await res.json();
 				if (data.redirectPath) {
-					window.location.href = data.redirectPath;
+					// Navigate to app-builder with an import context prompt
+					const importPrompt = `[Imported from GitHub: ${owner}/${repo} (branch: ${branch})]\n\nAnalyze the imported codebase and help me understand and improve it. What does this project do, and what are the next steps?`;
+					window.location.href = `${data.redirectPath}?prompt=${encodeURIComponent(importPrompt)}`;
 					return;
 				}
 			}

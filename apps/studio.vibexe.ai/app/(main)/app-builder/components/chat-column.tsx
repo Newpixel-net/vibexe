@@ -571,9 +571,21 @@ export function ChatColumn({
 			autoSubmitFired.current = true;
 			const typeParam = searchParams.get("type");
 			const categoryParam = searchParams.get("category");
-			const contextPrefix = typeParam && typeParam !== "app"
-				? `[Project type: ${typeParam}${categoryParam ? `, Category: ${categoryParam}` : ""}]\n\n`
-				: "";
+			const templateParam = searchParams.get("template");
+			const TEMPLATE_LABELS: Record<string, string> = {
+				nextjs: "Next.js + TypeScript",
+				"react-vite": "React + Vite",
+				"node-express": "Node.js + Express",
+				static: "Static HTML/CSS/JS",
+			};
+			const parts: string[] = [];
+			if (typeParam && typeParam !== "app") {
+				parts.push(`Project type: ${typeParam}${categoryParam ? `, Category: ${categoryParam}` : ""}`);
+			}
+			if (templateParam && templateParam !== "default" && TEMPLATE_LABELS[templateParam]) {
+				parts.push(`Framework: ${TEMPLATE_LABELS[templateParam]}`);
+			}
+			const contextPrefix = parts.length > 0 ? `[${parts.join(", ")}]\n\n` : "";
 			sendMessage({ text: contextPrefix + promptParam });
 			// Clean up URL (remove query params)
 			const url = new URL(window.location.href);
@@ -581,6 +593,7 @@ export function ChatColumn({
 			url.searchParams.delete("type");
 			url.searchParams.delete("category");
 			url.searchParams.delete("model");
+			url.searchParams.delete("template");
 			window.history.replaceState({}, "", url.pathname);
 		}, 800);
 

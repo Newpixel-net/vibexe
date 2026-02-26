@@ -10,6 +10,8 @@ interface AdvancedControlsProps {
 	onClose: () => void;
 	modelId?: string;
 	onModelChange?: (id: string) => void;
+	template?: string;
+	onTemplateChange?: (id: string) => void;
 }
 
 const TEMPLATE_OPTIONS = [
@@ -25,9 +27,12 @@ export function AdvancedControls({
 	onClose,
 	modelId,
 	onModelChange,
+	template: externalTemplate,
+	onTemplateChange,
 }: AdvancedControlsProps) {
 	const [mcpOpen, setMcpOpen] = useState(false);
-	const [template, setTemplate] = useState("default");
+	const template = externalTemplate ?? "default";
+	const setTemplate = onTemplateChange ?? (() => {});
 	const [budget, setBudget] = useState(25);
 	const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false);
 

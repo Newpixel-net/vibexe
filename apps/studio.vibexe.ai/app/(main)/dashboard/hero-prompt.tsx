@@ -58,6 +58,7 @@ export function HeroPrompt() {
 	const [visibility, setVisibility] = useState<Visibility>("public");
 	const [advancedOpen, setAdvancedOpen] = useState(false);
 	const [githubOpen, setGithubOpen] = useState(false);
+	const [template, setTemplate] = useState("default");
 
 	// Get relevant placeholders based on selected type
 	const placeholders = useMemo(
@@ -88,13 +89,20 @@ export function HeroPrompt() {
 				setTimeout(() => setIsGenerating(false), 5000);
 				return;
 			}
-			const res = await fetch("/api/app-builder/apps", { method: "POST" });
+			const res = await fetch("/api/app-builder/apps", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					visibility,
+				}),
+			});
 			if (res.ok) {
 				const data = await res.json();
 				if (data.redirectPath) {
 					const modelParam = modelId && modelId !== DEFAULT_MODEL_ID ? `&model=${modelId}` : "";
+					const templateParam = template && template !== "default" ? `&template=${template}` : "";
 					router.push(
-						`${data.redirectPath}?prompt=${encodeURIComponent(trimmed)}&type=${selectedType}${modelParam}`,
+						`${data.redirectPath}?prompt=${encodeURIComponent(trimmed)}&type=${selectedType}${modelParam}${templateParam}`,
 					);
 					setTimeout(() => setIsGenerating(false), 5000);
 					return;
@@ -105,7 +113,7 @@ export function HeroPrompt() {
 			setError("Network error. Please check your connection.");
 		}
 		setIsGenerating(false);
-	}, [prompt, selectedType, isGenerating, router]);
+	}, [prompt, selectedType, isGenerating, router, visibility, modelId, template]);
 
 	// Handle Enter key (without Shift)
 	const handleKeyDown = useCallback(
@@ -338,6 +346,8 @@ export function HeroPrompt() {
 					onClose={() => setAdvancedOpen(false)}
 					modelId={modelId}
 					onModelChange={setModelId}
+					template={template}
+					onTemplateChange={setTemplate}
 				/>
 
 				{/* Error / Toast feedback */}
