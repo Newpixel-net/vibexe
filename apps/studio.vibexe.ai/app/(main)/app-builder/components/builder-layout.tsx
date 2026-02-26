@@ -35,9 +35,10 @@ export function BuilderLayout({
 	const searchParams = useSearchParams();
 	// Capture previewMode in state so it persists even after chat-column.tsx
 	// strips URL params via window.history.replaceState() (800ms after mount)
-	const [previewMode] = useState<PreviewMode>(
-		() => searchParams.get("type") === "mobile" ? "mobile-frame" : "browser",
-	);
+	const [previewMode] = useState<PreviewMode>(() => {
+		const t = searchParams.get("type") ?? "";
+		return (t === "mobile" || t === "game-mobile") ? "mobile-frame" : "browser";
+	});
 	const [projectType] = useState<string>(
 		() => searchParams.get("type") ?? "app",
 	);

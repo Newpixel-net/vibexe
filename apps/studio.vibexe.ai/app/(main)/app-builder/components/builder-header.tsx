@@ -15,6 +15,7 @@ const MODE_CONFIG: Record<string, { label: string; icon: typeof Layers; color: s
 	app: { label: "Full Stack App", icon: Layers, color: "violet" },
 	mobile: { label: "Mobile App", icon: Smartphone, color: "cyan" },
 	game: { label: "Game", icon: Gamepad2, color: "emerald" },
+	"game-mobile": { label: "Mobile Game", icon: Gamepad2, color: "teal" },
 	website: { label: "Website", icon: Monitor, color: "blue" },
 	landing: { label: "Landing Page", icon: PanelTop, color: "amber" },
 	funnel: { label: "Marketing Funnel", icon: Filter, color: "rose" },
@@ -27,6 +28,7 @@ const COLOR_CLASSES: Record<string, string> = {
 	amber: "text-amber-400 bg-amber-500/10 border-amber-500/20",
 	emerald: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
 	rose: "text-rose-400 bg-rose-500/10 border-rose-500/20",
+	teal: "text-teal-400 bg-teal-500/10 border-teal-500/20",
 };
 
 interface BuilderHeaderProps {

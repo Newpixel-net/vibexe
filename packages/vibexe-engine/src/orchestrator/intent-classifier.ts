@@ -111,6 +111,22 @@ function isGameIntent(lower: string): boolean {
 	return GAME_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
+/** Keywords that indicate MOBILE game intent (subset of game) */
+const MOBILE_GAME_KEYWORDS = [
+	"mobile game", "phone game", "tap game", "tap-to-fly",
+	"idle game", "clicker game", "swipe game", "one thumb",
+	"portrait game", "touch game",
+	"[project type: game, platform: mobile",
+	"[project type: game-mobile",
+];
+
+function isMobileGameIntent(lower: string): boolean {
+	return isGameIntent(lower) && (
+		MOBILE_GAME_KEYWORDS.some((kw) => lower.includes(kw)) ||
+		lower.includes("mobile")
+	);
+}
+
 /** Keywords that indicate mobile app intent (routes to MOBILE_FLOW) */
 const MOBILE_KEYWORDS = [
 	"mobile",
@@ -246,7 +262,7 @@ export function classifyIntent(prompt: string): IntentClassification {
 	else if (isGameIntent(lower)) {
 		suggestedFlow = "game";
 		complexity = hasComplexSignals >= 2 ? "complex" : "medium";
-		type = "game";
+		type = isMobileGameIntent(lower) ? "game-mobile" : "game";
 	}
 	// Priority 3.5: Mobile app intent
 	else if (isMobileIntent(lower)) {

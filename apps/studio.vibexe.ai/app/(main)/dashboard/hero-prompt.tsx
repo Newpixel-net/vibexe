@@ -11,6 +11,7 @@ import {
 	AlertCircle,
 	ArrowRight,
 	Filter,
+	Gamepad2,
 	Github,
 	Globe,
 	Layers,
@@ -45,6 +46,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
 	Monitor,
 	PanelTop,
 	Filter,
+	Gamepad2,
 };
 
 export function HeroPrompt() {

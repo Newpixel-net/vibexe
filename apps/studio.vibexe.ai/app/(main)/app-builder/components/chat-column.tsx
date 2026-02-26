@@ -630,7 +630,8 @@ export function ChatColumn({
 			};
 			const parts: string[] = [];
 			if (typeParam && typeParam !== "app") {
-				parts.push(`Project type: ${typeParam}${categoryParam ? `, Category: ${categoryParam}` : ""}`);
+				const displayType = typeParam === "game-mobile" ? "game, platform: mobile" : typeParam;
+				parts.push(`Project type: ${displayType}${categoryParam ? `, Category: ${categoryParam}` : ""}`);
 			}
 			if (templateParam && templateParam !== "default" && TEMPLATE_LABELS[templateParam]) {
 				parts.push(`Framework: ${TEMPLATE_LABELS[templateParam]}`);
