@@ -168,13 +168,33 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			: undefined;
 
 		// Execute the integration action
-		const result = await executePieceAction({
-			pieceName,
-			actionName: action,
-			pieceVersion: "latest",
-			properties: properties ?? {},
-			auth: auth ?? {},
-		});
+		let result: unknown;
+		try {
+			result = await executePieceAction({
+				pieceName,
+				actionName: action,
+				pieceVersion: "latest",
+				properties: properties ?? {},
+				auth: auth ?? {},
+			});
+		} catch (execError) {
+			// Integration execution failed (e.g. upstream API returned 401/403/500)
+			// Return as 422 with the error details so the client can display them
+			const errMsg =
+				execError instanceof Error
+					? execError.message
+					: "Integration execution failed";
+			console.error(
+				`[Integrations API] ${pieceName}/${action} failed:`,
+				errMsg,
+			);
+			return withCors(
+				NextResponse.json(
+					{ error: errMsg, piece: pieceName, action },
+					{ status: 422 },
+				),
+			);
+		}
 
 		return withCors(NextResponse.json({ data: result }));
 	} catch (error) {
