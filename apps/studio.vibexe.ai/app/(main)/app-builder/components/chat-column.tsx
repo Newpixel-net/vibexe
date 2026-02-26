@@ -16,6 +16,7 @@ import {
 	AlertTriangle,
 	ArrowRight,
 	Bot,
+	Brain,
 	CheckCircle2,
 	Clock,
 	Compass,
@@ -76,6 +77,7 @@ import {
 } from "./agent-activity-card";
 import { ChatBottomBar } from "./chat-bottom-bar";
 import { ChatInput } from "./chat-input";
+import { getSettingsKey, DEFAULT_SETTINGS, type ChatSettings } from "./chat-settings-popover";
 import { AIMessage, UserMessage } from "./messages";
 import { PhaseTimeline } from "./phase-timeline";
 import { GitHubSyncBar } from "./github-sync-bar";
@@ -387,6 +389,15 @@ export function ChatColumn({
 	// Source URL extracted from history (the domain the website was copied from)
 	const [sourceUrl, setSourceUrl] = useState<string | null>(null);
 
+	// Deep Thinking: auto-review & auto-fix after build
+	const [deepThinking, setDeepThinking] = useState(false);
+	const [deepThinkingStatus, setDeepThinkingStatus] = useState<
+		null | "reviewing" | "fixing" | "approved" | "complete"
+	>(null);
+	const autoReviewTriggeredRef = useRef(false);
+	const autoFixTriggeredRef = useRef(false);
+	const deepThinkingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
 	// Ref for scroll area (needed by PhaseTimeline)
 	const scrollRef = useRef<HTMLDivElement>(null);
 	// Track if we've loaded messages from localStorage (prevent duplicate loads)
@@ -452,6 +463,45 @@ export function ChatColumn({
 		(modelId: string) => {
 			setSelectedModelId(modelId);
 			localStorage.setItem(getModelStorageKey(appId), modelId);
+		},
+		[appId],
+	);
+
+	// Load deepThinking from per-app settings (same key as ChatSettingsPopover)
+	useEffect(() => {
+		if (!hasMounted) return;
+		try {
+			const stored = localStorage.getItem(getSettingsKey(appId));
+			if (stored) {
+				const settings: ChatSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+				setDeepThinking(settings.deepThinking);
+			}
+		} catch {
+			// ignore
+		}
+	}, [appId, hasMounted]);
+
+	// Handle deep thinking toggle
+	const handleDeepThinkingChange = useCallback(
+		(value: boolean) => {
+			setDeepThinking(value);
+			// Persist to same settings key used by ChatSettingsPopover
+			try {
+				const stored = localStorage.getItem(getSettingsKey(appId));
+				const settings: ChatSettings = stored
+					? { ...DEFAULT_SETTINGS, ...JSON.parse(stored) }
+					: { ...DEFAULT_SETTINGS };
+				settings.deepThinking = value;
+				localStorage.setItem(getSettingsKey(appId), JSON.stringify(settings));
+			} catch {
+				// ignore
+			}
+			// Cancel pending timers when disabling
+			if (!value && deepThinkingTimerRef.current) {
+				clearTimeout(deepThinkingTimerRef.current);
+				deepThinkingTimerRef.current = null;
+				setDeepThinkingStatus(null);
+			}
 		},
 		[appId],
 	);
@@ -862,9 +912,96 @@ export function ChatColumn({
 	// Detect if we just completed a code generation (for showing Review button)
 	const showReviewButton = useMemo(() => {
 		if (isLoading || isReviewWithIssues) return false;
+		// Hide manual review when deep thinking is handling it
+		if (deepThinking && (autoReviewTriggeredRef.current || deepThinkingStatus)) return false;
 		// Show review button when generation completed and we have code files
 		return isGenerationComplete && hasCodeFiles;
-	}, [isLoading, isReviewWithIssues, isGenerationComplete, hasCodeFiles]);
+	}, [isLoading, isReviewWithIssues, isGenerationComplete, hasCodeFiles, deepThinking, deepThinkingStatus]);
+
+	// Detect if last assistant message is a clean review (APPROVE/PASS, no issues)
+	const isReviewApproved = useMemo(() => {
+		if (isLoading || chatMessages.length === 0) return false;
+		const lastAssistant = [...chatMessages].reverse().find((m) => m.role === "assistant");
+		if (!lastAssistant?.content) return false;
+		const text = lastAssistant.content;
+		return (
+			text.includes("APPROVE") &&
+			(text.includes("PASS") || text.includes("pass")) &&
+			!text.includes("WARNING") &&
+			!text.includes("BLOCK") &&
+			!text.includes("FAIL")
+		);
+	}, [chatMessages, isLoading]);
+
+	// --- Deep Thinking: Auto-review trigger ---
+	// After build completes, auto-send [REVIEW CODE] if deep thinking is ON
+	useEffect(() => {
+		if (
+			!deepThinking ||
+			isLoading ||
+			!isGenerationComplete ||
+			!hasCodeFiles ||
+			mode !== "generate" ||
+			autoReviewTriggeredRef.current ||
+			phaseTimeline.length === 0
+		) return;
+
+		// Don't trigger if the last user message was already a review/fix command
+		const lastUser = [...chatMessages].reverse().find((m) => m.role === "user");
+		if (lastUser?.content) {
+			const userText = lastUser.content;
+			if (userText.includes("[REVIEW CODE]") || userText.includes("[AUTO-FIX]")) return;
+		}
+
+		// Don't trigger if review already completed
+		if (isReviewApproved || isReviewWithIssues) return;
+
+		autoReviewTriggeredRef.current = true;
+		deepThinkingTimerRef.current = setTimeout(() => {
+			setDeepThinkingStatus("reviewing");
+			sendMessage({ text: "[REVIEW CODE] Review all generated files for code quality, correctness, and security issues." });
+		}, 1500);
+
+		return () => {
+			if (deepThinkingTimerRef.current) {
+				clearTimeout(deepThinkingTimerRef.current);
+			}
+		};
+	}, [deepThinking, isLoading, isGenerationComplete, hasCodeFiles, mode, phaseTimeline.length, chatMessages, isReviewApproved, isReviewWithIssues, sendMessage]);
+
+	// --- Deep Thinking: Auto-fix trigger ---
+	// After review finds issues, auto-send [AUTO-FIX]
+	useEffect(() => {
+		if (
+			!deepThinking ||
+			isLoading ||
+			!isReviewWithIssues ||
+			autoFixTriggeredRef.current
+		) return;
+
+		autoFixTriggeredRef.current = true;
+		deepThinkingTimerRef.current = setTimeout(() => {
+			setDeepThinkingStatus("fixing");
+			sendMessage({ text: "[AUTO-FIX] Fix all the issues identified in the code review above. Read each affected file, apply the recommended fixes, and ensure the app builds without errors." });
+		}, 1500);
+
+		return () => {
+			if (deepThinkingTimerRef.current) {
+				clearTimeout(deepThinkingTimerRef.current);
+			}
+		};
+	}, [deepThinking, isLoading, isReviewWithIssues, sendMessage]);
+
+	// --- Deep Thinking: Status completion detection ---
+	useEffect(() => {
+		if (!deepThinking || !deepThinkingStatus) return;
+
+		if (deepThinkingStatus === "reviewing" && !isLoading && isReviewApproved) {
+			setDeepThinkingStatus("approved");
+		} else if (deepThinkingStatus === "fixing" && !isLoading) {
+			setDeepThinkingStatus("complete");
+		}
+	}, [deepThinking, deepThinkingStatus, isLoading, isReviewApproved]);
 
 	// Continuation analysis for returning users
 	// Triggers when: mounted, has files, and hasn't analyzed yet.
@@ -1022,6 +1159,14 @@ export function ChatColumn({
 			lastUserMessageRef.current = input;
 			// Clear any previous error context
 			setErrorContext(null);
+			// Reset deep thinking state when user manually sends a message
+			autoReviewTriggeredRef.current = false;
+			autoFixTriggeredRef.current = false;
+			setDeepThinkingStatus(null);
+			if (deepThinkingTimerRef.current) {
+				clearTimeout(deepThinkingTimerRef.current);
+				deepThinkingTimerRef.current = null;
+			}
 
 			if (attachments.length > 0) {
 				// Convert File objects to FileUIPart data URLs
@@ -1088,6 +1233,14 @@ export function ChatColumn({
 		// Reset returning user state
 		setIsReturningUser(false);
 		setWelcomeDismissed(false);
+		// Reset deep thinking state
+		autoReviewTriggeredRef.current = false;
+		autoFixTriggeredRef.current = false;
+		setDeepThinkingStatus(null);
+		if (deepThinkingTimerRef.current) {
+			clearTimeout(deepThinkingTimerRef.current);
+			deepThinkingTimerRef.current = null;
+		}
 	}, [appId, setMessages]);
 
 	// Agent activation via slash command
@@ -1156,6 +1309,33 @@ export function ChatColumn({
 	const handleFixIssues = useCallback(() => {
 		sendMessage({ text: "[AUTO-FIX] Fix all the issues identified in the code review above. Read each affected file, apply the recommended fixes, and ensure the app builds without errors." });
 	}, [sendMessage]);
+
+	// Deep Thinking status indicator component
+	const DeepThinkingIndicator = useMemo(() => {
+		if (!deepThinking || !deepThinkingStatus) return null;
+
+		const configs = {
+			reviewing: { icon: <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />, text: "Deep Thinking: Reviewing code...", color: "cyan" },
+			fixing: { icon: <Loader2 className="h-4 w-4 animate-spin text-amber-400" />, text: "Deep Thinking: Fixing issues...", color: "amber" },
+			approved: { icon: <CheckCircle2 className="h-4 w-4 text-emerald-400" />, text: "Deep Thinking: All checks passed!", color: "emerald" },
+			complete: { icon: <CheckCircle2 className="h-4 w-4 text-emerald-400" />, text: "Deep Thinking: Issues fixed", color: "emerald" },
+		};
+		const cfg = configs[deepThinkingStatus];
+		const borderColor = cfg.color === "cyan" ? "border-cyan-500/[0.2]" : cfg.color === "amber" ? "border-amber-500/[0.2]" : "border-emerald-500/[0.2]";
+		const bgColor = cfg.color === "cyan" ? "bg-cyan-500/[0.06]" : cfg.color === "amber" ? "bg-amber-500/[0.06]" : "bg-emerald-500/[0.06]";
+
+		return (
+			<div className={`mt-4 mx-1 flex items-center gap-3 p-3 rounded-2xl ${bgColor} backdrop-blur-sm border ${borderColor}`}>
+				<div className="flex-shrink-0 w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center">
+					{cfg.icon}
+				</div>
+				<div className="flex items-center gap-2">
+					<Brain className="h-3.5 w-3.5 text-cyan-400/60" />
+					<span className="text-sm font-medium text-white/80">{cfg.text}</span>
+				</div>
+			</div>
+		);
+	}, [deepThinking, deepThinkingStatus]);
 
 	// Load and show history modal
 	const handleShowHistory = useCallback(async () => {
@@ -1520,7 +1700,10 @@ export function ChatColumn({
 						</div>
 					)}
 
-					{/* Review button after generation completes */}
+					{/* Deep Thinking status indicator */}
+					{DeepThinkingIndicator}
+
+					{/* Review button after generation completes (hidden when deep thinking handles it) */}
 					{showReviewButton && (
 						<div className="mt-4 mx-1 space-y-2">
 							<DeployBanner />
@@ -1545,8 +1728,8 @@ export function ChatColumn({
 						</div>
 					)}
 
-					{/* Fix Issues button after review finds problems */}
-					{isReviewWithIssues && !isLoading && (
+					{/* Fix Issues button after review finds problems (hidden when deep thinking auto-fixes) */}
+					{isReviewWithIssues && !isLoading && !(deepThinking && autoFixTriggeredRef.current) && (
 						<div className="mt-4 mx-1">
 							<motion.button
 								type="button"
@@ -1569,8 +1752,15 @@ export function ChatColumn({
 						</div>
 					)}
 
-					{/* Deploy banner (standalone when no review button shown) */}
-					{isGenerationComplete && mode === "generate" && !showReviewButton && hasCodeFiles && (
+					{/* Deploy banner — shown after deep thinking completes (approved/complete) */}
+					{deepThinking && (deepThinkingStatus === "approved" || deepThinkingStatus === "complete") && hasCodeFiles && (
+						<div className="mt-4">
+							<DeployBanner />
+						</div>
+					)}
+
+					{/* Deploy banner (standalone when no review button shown and no deep thinking) */}
+					{isGenerationComplete && mode === "generate" && !showReviewButton && hasCodeFiles && !deepThinking && (
 						<div className="mt-4">
 							<DeployBanner />
 						</div>
@@ -1696,6 +1886,8 @@ export function ChatColumn({
 				onNewChat={handleNewChat}
 				mode={mode}
 				onInsertText={setInput}
+				deepThinking={deepThinking}
+				onDeepThinkingChange={handleDeepThinkingChange}
 			/>
 
 			{/* History Modal */}

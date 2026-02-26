@@ -7,7 +7,7 @@
  * glass action buttons, and voice input.
  */
 
-import { Check, ChevronDown, MessageSquare, Plus, Settings, Sparkles } from "lucide-react";
+import { Brain, Check, ChevronDown, MessageSquare, Plus, Settings, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	DEFAULT_MODEL_ID,
@@ -29,6 +29,8 @@ interface ChatBottomBarProps {
 	onVoiceTranscript?: (text: string) => void;
 	onNewChat?: () => void;
 	onInsertText?: (text: string) => void;
+	deepThinking?: boolean;
+	onDeepThinkingChange?: (value: boolean) => void;
 }
 
 /**
@@ -158,6 +160,8 @@ export function ChatBottomBar({
 	onVoiceTranscript,
 	onNewChat,
 	onInsertText,
+	deepThinking,
+	onDeepThinkingChange,
 }: ChatBottomBarProps) {
 	const isDiscussMode = mode === "discuss";
 	const [showSettings, setShowSettings] = useState(false);
@@ -232,6 +236,22 @@ export function ChatBottomBar({
 			>
 				<MessageSquare className="h-4 w-4 shrink-0" />
 				<span>{isDiscussMode ? "Discussing" : "Discuss"}</span>
+			</button>
+
+			{/* Deep Thinking toggle — glass pill */}
+			<button
+				type="button"
+				onClick={() => onDeepThinkingChange?.(!deepThinking)}
+				className={cn(
+					"flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-200",
+					deepThinking
+						? "bg-cyan-500/[0.12] text-cyan-300 border border-cyan-500/[0.2]"
+						: "text-white/40 hover:text-white/70 hover:bg-white/[0.06]",
+				)}
+				title="Auto-review and auto-fix after build"
+			>
+				<Brain className="h-4 w-4 shrink-0" />
+				<span>{deepThinking ? "Deep Thinking" : "Deep Think"}</span>
 			</button>
 
 			{/* Spacer */}

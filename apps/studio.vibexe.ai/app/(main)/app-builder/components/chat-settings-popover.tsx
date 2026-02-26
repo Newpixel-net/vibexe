@@ -19,14 +19,16 @@ interface ChatSettingsPopoverProps {
 }
 
 /** localStorage key for per-app settings */
-const getSettingsKey = (appId: string) => `vibexe-builder-settings-${appId}`;
+export const getSettingsKey = (appId: string) => `vibexe-builder-settings-${appId}`;
 
-interface ChatSettings {
+export interface ChatSettings {
 	autoNameApps: boolean;
+	deepThinking: boolean;
 }
 
-const DEFAULT_SETTINGS: ChatSettings = {
+export const DEFAULT_SETTINGS: ChatSettings = {
 	autoNameApps: true,
+	deepThinking: false,
 };
 
 export function ChatSettingsPopover({ modelId, appId, onClose }: ChatSettingsPopoverProps) {
@@ -136,6 +138,22 @@ export function ChatSettingsPopover({ modelId, appId, onClose }: ChatSettingsPop
 						{settings.autoNameApps && <Check className="h-3 w-3" />}
 					</button>
 					<span className="text-xs">Auto-name apps</span>
+				</label>
+				<label className="flex items-center gap-2 cursor-pointer mt-1.5">
+					<button
+						type="button"
+						onClick={() => updateSettings({ deepThinking: !settings.deepThinking })}
+						className={cn(
+							"h-4 w-4 rounded border flex items-center justify-center transition-colors",
+							settings.deepThinking
+								? "bg-cyan-500 border-cyan-500 text-white"
+								: "border-muted-foreground",
+						)}
+					>
+						{settings.deepThinking && <Check className="h-3 w-3" />}
+					</button>
+					<span className="text-xs">Deep Thinking</span>
+					<span className="text-[10px] text-muted-foreground">auto-review</span>
 				</label>
 			</div>
 		</div>
