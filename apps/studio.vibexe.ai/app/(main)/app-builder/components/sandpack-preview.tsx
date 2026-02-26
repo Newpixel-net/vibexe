@@ -368,6 +368,28 @@ export function SandpackPreview({
 		lineNumber: number;
 	} | null>(null);
 
+	// Phone frame scaling for mobile-frame mode — scale to fit available height
+	const mobileContainerRef = useRef<HTMLDivElement>(null);
+	const [phoneScale, setPhoneScale] = useState(0.75);
+
+	useEffect(() => {
+		if (!isMobileFrame) return;
+		const container = mobileContainerRef.current;
+		if (!container) return;
+
+		const PHONE_FULL_HEIGHT = 850;
+		const update = () => {
+			const h = container.clientHeight;
+			if (h > 0) {
+				setPhoneScale(Math.min(1, (h - 16) / PHONE_FULL_HEIGHT));
+			}
+		};
+		update();
+		const observer = new ResizeObserver(update);
+		observer.observe(container);
+		return () => observer.disconnect();
+	}, [isMobileFrame]);
+
 	// View in Code callback for the toolbar
 	const handleViewInCode = useCallback(
 		(fileId: string, filePath: string, lineNumber: number) => {
@@ -602,10 +624,13 @@ export function SandpackPreview({
 			</div>
 
 			{/* Sandpack container - fills remaining space */}
-			<div className={`sandpack-container flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/20 p-2 ${isMobileFrame ? "overflow-y-auto" : ""}`}>
+			<div className="sandpack-container flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/20 p-2">
 				{isMobileFrame ? (
-					/* Mobile frame mode: phone frame + publish panel */
-					<div className="flex flex-col items-center py-4">
+					/* Mobile frame mode: phone frame (left) + publish panel (right) */
+					<div ref={mobileContainerRef} className="flex items-center justify-center gap-6 w-full h-full">
+						{/* Scaled phone wrapper */}
+						<div className="flex-shrink-0 relative" style={{ width: Math.round(407 * phoneScale), height: Math.round(850 * phoneScale) }}>
+							<div style={{ transform: `scale(${phoneScale})`, transformOrigin: "top left" }}>
 						<PhoneFrame>
 							<div
 								ref={iframeContainerRef}
@@ -674,8 +699,12 @@ export function SandpackPreview({
 								)}
 							</div>
 						</PhoneFrame>
+							</div>
+						</div>
 
-						<MobilePublishPanel appId={appId} />
+						<div className="flex-shrink-0 self-center">
+							<MobilePublishPanel appId={appId} />
+						</div>
 					</div>
 				) : (
 					/* Standard browser mode */
