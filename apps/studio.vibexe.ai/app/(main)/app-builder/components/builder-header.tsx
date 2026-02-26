@@ -7,16 +7,17 @@
  * and gradient accent buttons.
  */
 
-import { ArrowLeft, Check, Copy, Filter, Layers, Link, Loader2, Monitor, PanelTop, Smartphone, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, Copy, Filter, Gamepad2, Layers, Link, Loader2, Monitor, PanelTop, Smartphone, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 const MODE_CONFIG: Record<string, { label: string; icon: typeof Layers; color: string }> = {
 	app: { label: "Full Stack App", icon: Layers, color: "violet" },
 	mobile: { label: "Mobile App", icon: Smartphone, color: "cyan" },
+	game: { label: "Game", icon: Gamepad2, color: "emerald" },
 	website: { label: "Website", icon: Monitor, color: "blue" },
 	landing: { label: "Landing Page", icon: PanelTop, color: "amber" },
-	funnel: { label: "Marketing Funnel", icon: Filter, color: "emerald" },
+	funnel: { label: "Marketing Funnel", icon: Filter, color: "rose" },
 };
 
 const COLOR_CLASSES: Record<string, string> = {
@@ -25,6 +26,7 @@ const COLOR_CLASSES: Record<string, string> = {
 	blue: "text-blue-400 bg-blue-500/10 border-blue-500/20",
 	amber: "text-amber-400 bg-amber-500/10 border-amber-500/20",
 	emerald: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+	rose: "text-rose-400 bg-rose-500/10 border-rose-500/20",
 };
 
 interface BuilderHeaderProps {

@@ -68,6 +68,18 @@ export const MOBILE_FLOW: OrchestrationFlow = {
 	],
 };
 
+export const GAME_FLOW: OrchestrationFlow = {
+	id: "game",
+	name: "Game Development Flow",
+	description: "architect -> planner -> game-developer -> code-reviewer",
+	steps: [
+		{ agentId: "architect", order: 1, required: true },
+		{ agentId: "planner", order: 2, required: true },
+		{ agentId: "game-developer", order: 3, required: true },
+		{ agentId: "code-reviewer", order: 4, required: false },
+	],
+};
+
 export const ALL_FLOWS: OrchestrationFlow[] = [
 	FEATURE_FLOW,
 	QUICK_FLOW,
@@ -76,4 +88,5 @@ export const ALL_FLOWS: OrchestrationFlow[] = [
 	REPLICATE_FLOW,
 	CONTINUE_FLOW,
 	MOBILE_FLOW,
+	GAME_FLOW,
 ];

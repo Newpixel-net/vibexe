@@ -64,6 +64,53 @@ const REFACTOR_KEYWORDS = [
 	"reduce duplication",
 ];
 
+/** Keywords that indicate game intent (routes to GAME_FLOW) — checked BEFORE mobile */
+const GAME_KEYWORDS = [
+	"game",
+	"platformer",
+	"arcade",
+	"puzzle game",
+	"shooter",
+	"rpg",
+	"tower defense",
+	"endless runner",
+	"racing game",
+	"card game",
+	"board game",
+	"snake",
+	"tetris",
+	"pong",
+	"breakout",
+	"mario",
+	"pac-man",
+	"pacman",
+	"flappy",
+	"space invaders",
+	"asteroids",
+	"2048",
+	"minesweeper",
+	"chess",
+	"checkers",
+	"tic-tac-toe",
+	"memory game",
+	"match-3",
+	"side-scroller",
+	"top-down",
+	"turn-based",
+	"high score",
+	"power-up",
+	"boss fight",
+	"level design",
+	"game over",
+	"game loop",
+	"collision detection",
+	"[project type: game",
+];
+
+function isGameIntent(lower: string): boolean {
+	return GAME_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 /** Keywords that indicate mobile app intent (routes to MOBILE_FLOW) */
 const MOBILE_KEYWORDS = [
 	"mobile",
@@ -125,6 +172,7 @@ const TECH_SIGNALS: Record<string, string[]> = {
 	state: ["state", "redux", "zustand", "context", "store"],
 	platform: ["environment", "staging", "production", "backup", "restore", "promote", "deploy", "migration", "rollback", "snapshot"],
 	mobile: ["mobile", "ios", "android", "phone", "pwa", "native", "app store"],
+	game: ["game", "platformer", "arcade", "canvas", "sprite", "physics", "collision", "game loop"],
 };
 
 export function classifyIntent(prompt: string): IntentClassification {
@@ -193,6 +241,12 @@ export function classifyIntent(prompt: string): IntentClassification {
 		suggestedFlow = "refactor";
 		complexity = hasComplexSignals >= 2 ? "complex" : "medium";
 		type = "refactoring";
+	}
+	// Priority 3.25: Game intent (BEFORE mobile — games requested via Mobile tab should route to GAME_FLOW)
+	else if (isGameIntent(lower)) {
+		suggestedFlow = "game";
+		complexity = hasComplexSignals >= 2 ? "complex" : "medium";
+		type = "game";
 	}
 	// Priority 3.5: Mobile app intent
 	else if (isMobileIntent(lower)) {
