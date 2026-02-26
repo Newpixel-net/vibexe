@@ -627,7 +627,7 @@ function AddCredentialModal({
 
 	// Fetch auth schema for custom auth pieces
 	useEffect(() => {
-		if (authType !== "custom") return;
+		if (authType === "none" || authType === "oauth2") return;
 		let cancelled = false;
 		setSchemaLoading(true);
 
@@ -761,26 +761,24 @@ function AddCredentialModal({
 
 		try {
 			const config: Record<string, unknown> = {};
-			switch (authType) {
-				case "secret_text":
-					config.apiKey = apiKey;
-					break;
-				case "oauth2":
-					config.accessToken = apiKey;
-					break;
-				case "basic":
-					config.username = username;
-					config.password = apiKey;
-					break;
-				case "custom":
-					if (authSchema) {
-						Object.assign(config, customFields);
-					} else {
+			if (authSchema) {
+				// Dynamic fields from inspector API — works for any auth type
+				Object.assign(config, customFields);
+			} else {
+				switch (authType) {
+					case "secret_text":
 						config.apiKey = apiKey;
-					}
-					break;
-				default:
-					config.apiKey = apiKey;
+						break;
+					case "oauth2":
+						config.accessToken = apiKey;
+						break;
+					case "basic":
+						config.username = username;
+						config.password = apiKey;
+						break;
+					default:
+						config.apiKey = apiKey;
+				}
 			}
 
 			const response = await fetch("/api/integrations/credentials", {
@@ -1115,13 +1113,13 @@ function AddCredentialModal({
 										<div className="flex items-center gap-2">
 											<span className="text-xs text-white/40">Auth type:</span>
 											<span className="px-2 py-0.5 text-[11px] rounded-full bg-white/5 text-white/50 border border-white/[0.06]">
-												{authType === "basic" ? "Basic Auth (Username + Password)" : authType === "custom" ? "Custom" : "API Key / Token"}
+												{authSchema ? (authType === "basic" ? "Basic Auth" : "Custom Auth") : authType === "basic" ? "Basic Auth (Username + Password)" : "API Key / Token"}
 											</span>
 										</div>
 									)}
 
 									{/* Username field for basic auth */}
-									{authType === "basic" && (
+									{authType === "basic" && !authSchema && (
 										<div className="flex flex-col gap-1.5">
 											<label
 												htmlFor="cred-username"
@@ -1142,13 +1140,13 @@ function AddCredentialModal({
 									)}
 
 									{/* Dynamic fields for custom auth */}
-									{authType === "custom" && schemaLoading && (
+									{schemaLoading && (
 										<div className="flex items-center gap-2 py-3 text-white/40 text-sm">
 											<div className="size-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
 											Loading fields...
 										</div>
 									)}
-									{authType === "custom" && authSchema && !schemaLoading && (
+									{authSchema && !schemaLoading && (
 										<div className="flex flex-col gap-3">
 											{Object.entries(authSchema.props).map(([key, prop]) => {
 												const isSensitive = /secret|password|token|key/i.test(key) || /secret|password|token|key/i.test(prop.displayName);
@@ -1248,7 +1246,7 @@ function AddCredentialModal({
 									)}
 
 									{/* Generic API Key / Password field (hidden for custom auth with schema) */}
-									{!(authType === "custom" && authSchema) && (
+									{!authSchema && (
 									<div className="flex flex-col gap-1.5">
 										<label
 											htmlFor="cred-key"
@@ -1285,7 +1283,7 @@ function AddCredentialModal({
 										</button>
 										<button
 											type="submit"
-											disabled={isSubmitting || (authType === "custom" && authSchema
+											disabled={isSubmitting || (authSchema
 												? Object.entries(authSchema.props).some(([k, p]) => p.required && !customFields[k])
 												: !apiKey)}
 											className="px-4 py-2 text-sm rounded-lg bg-primary-900 text-white hover:bg-primary-800 transition-colors disabled:opacity-40"
