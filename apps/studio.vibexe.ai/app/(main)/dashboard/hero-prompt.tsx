@@ -138,13 +138,29 @@ export function HeroPrompt({ recentApps = [] }: HeroPromptProps) {
 	return (
 		<section className="mb-8">
 			<div className="max-w-3xl mx-auto">
+				{/* Caption — gradient heading + subtitle */}
+				<div className="text-center mb-8 dash-animate-fade-up">
+					<h1
+						className="text-[38px] font-bold tracking-tight leading-tight dash-animate-gradient bg-clip-text text-transparent"
+						style={{
+							backgroundImage: "linear-gradient(135deg, hsl(219, 90%, 72%), hsl(178, 94%, 60%), hsl(219, 90%, 72%))",
+							backgroundSize: "200% 200%",
+						}}
+					>
+						Describe it. Deploy it.
+					</h1>
+					<p className="text-white/40 text-[15px] mt-2.5 max-w-lg mx-auto">
+						Tell us what you want to build — AI handles the rest
+					</p>
+				</div>
+
 				{/* ============================================================ */}
 				{/* CONNECTED TABS + CARD                                        */}
 				{/* ============================================================ */}
 				<div className="dash-animate-fade-up" style={{ animationDelay: "0.05s" }}>
-					{/* Tab row — tabs sit flush on top of the card */}
-					<div className="flex items-end">
-						{PROJECT_TYPES.map((type) => {
+					{/* Tab row — segmented control style, connected to card below */}
+					<div className="flex items-stretch rounded-t-2xl overflow-hidden border border-b-0 border-white/[0.08] bg-[rgba(20,20,24,0.6)]">
+						{PROJECT_TYPES.map((type, idx) => {
 							const Icon = ICON_MAP[type.icon] ?? Layers;
 							const isActive = selectedType === type.id;
 							return (
@@ -154,27 +170,35 @@ export function HeroPrompt({ recentApps = [] }: HeroPromptProps) {
 									aria-pressed={isActive}
 									onClick={() => setSelectedType(type.id)}
 									className={`
-										flex items-center gap-2.5 px-6 py-3 text-[14px] font-medium
-										transition-all duration-200 relative
+										flex-1 flex items-center justify-center gap-2.5 px-5 py-3.5 text-[14px] font-medium
+										transition-all duration-300 relative
+										${idx > 0 ? "border-l border-white/[0.06]" : ""}
 										${
 											isActive
-												? "bg-[rgba(28,28,32,0.9)] text-white/90 rounded-t-xl border-t border-l border-r border-white/[0.08] z-10"
-												: "text-white/35 hover:text-white/55 border-b border-white/[0.08]"
+												? "bg-[rgba(28,28,32,0.95)] text-white/95"
+												: "text-white/35 hover:text-white/60 hover:bg-white/[0.03]"
 										}
 									`}
-									style={isActive ? { marginBottom: "-1px" } : undefined}
 								>
-									<Icon className="h-4 w-4" />
+									<Icon className={`h-4 w-4 transition-all duration-300 ${isActive ? "text-cyan-400/80" : ""}`} />
 									{type.label}
+									{/* Active indicator — glowing accent line at bottom */}
+									{isActive && (
+										<span
+											className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full"
+											style={{
+												background: "linear-gradient(90deg, transparent, hsl(178, 80%, 55%), transparent)",
+												boxShadow: "0 0 8px hsl(178, 80%, 55%, 0.4)",
+											}}
+										/>
+									)}
 								</button>
 							);
 						})}
-						{/* Fill remaining space with bottom border */}
-						<div className="flex-1 border-b border-white/[0.08]" />
 					</div>
 
-					{/* Card body — connects to active tab above */}
-					<div className="bg-[rgba(28,28,32,0.9)] border border-white/[0.08] border-t-0 rounded-b-xl rounded-tr-xl">
+					{/* Card body — connects seamlessly to tab row above */}
+					<div className="bg-[rgba(28,28,32,0.95)] border border-white/[0.08] border-t-0 rounded-b-2xl">
 						{/* Textarea */}
 						<div className="px-5 pt-4 pb-2">
 							<textarea
