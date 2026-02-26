@@ -743,24 +743,24 @@ export function getAllPieceNames(): string[] {
 	return PIECE_CATALOG.map((e) => e.name);
 }
 
-/** Get all unique categories */
+/** Get all unique categories (from installed pieces only) */
 export function getAllCategories(): PieceCategory[] {
 	return [
-		...new Set(PIECE_CATALOG.map((e) => e.category)),
+		...new Set(INSTALLED_CATALOG.map((e) => e.category)),
 	].sort() as PieceCategory[];
 }
 
-/** Get pieces filtered by category */
+/** Get installed pieces filtered by category */
 export function getPiecesByCategory(
 	category: PieceCategory,
 ): PieceCatalogEntry[] {
-	return PIECE_CATALOG.filter((e) => e.category === category);
+	return INSTALLED_CATALOG.filter((e) => e.category === category);
 }
 
-/** Search pieces by name/displayName */
+/** Search installed pieces by name/displayName */
 export function searchPieces(query: string): PieceCatalogEntry[] {
 	const q = query.toLowerCase();
-	return PIECE_CATALOG.filter(
+	return INSTALLED_CATALOG.filter(
 		(e) =>
 			e.name.includes(q) ||
 			e.displayName.toLowerCase().includes(q) ||
@@ -1409,6 +1409,14 @@ export const INSTALLED_PIECES = new Set([
 export function isInstalledPiece(pieceName: string): boolean {
 	return INSTALLED_PIECES.has(pieceName);
 }
+
+/** Catalog filtered to only pieces with NPM packages installed */
+export const INSTALLED_CATALOG = PIECE_CATALOG.filter((p) =>
+	INSTALLED_PIECES.has(p.name),
+);
+
+/** Total number of installed (usable) pieces */
+export const TOTAL_INSTALLED = INSTALLED_CATALOG.length;
 
 // ─── Per-category colors for integration nodes ─────────
 

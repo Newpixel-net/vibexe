@@ -3,7 +3,7 @@ import {
 	loadPiece,
 	getPieceMetadata,
 } from "@vibexe-ai/activepieces-adapter/server";
-import { isInstalledPiece, PIECE_CATALOG } from "@vibexe-ai/activepieces-adapter";
+import { isInstalledPiece, INSTALLED_CATALOG } from "@vibexe-ai/activepieces-adapter";
 
 /**
  * GET /api/integrations/triggers
@@ -51,15 +51,13 @@ export async function GET(request: NextRequest) {
 			triggers: Array<{ name: string; displayName: string; description: string }>;
 		}> = [];
 
-		for (const [name, entry] of Object.entries(PIECE_CATALOG)) {
-			if (!isInstalledPiece(name)) continue;
-
+		for (const entry of INSTALLED_CATALOG) {
 			try {
-				const piece = await loadPiece(name);
+				const piece = await loadPiece(entry.name);
 				const metadata = getPieceMetadata(piece);
 				if (metadata && Object.keys(metadata.triggers).length > 0) {
 					piecesWithTriggers.push({
-						piece: name,
+						piece: entry.name,
 						displayName: metadata.displayName,
 						triggerCount: Object.keys(metadata.triggers).length,
 						triggers: Object.values(metadata.triggers),

@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import {
-	PIECE_CATALOG,
+	INSTALLED_CATALOG,
 	getAllCategories,
-	TOTAL_PIECES,
+	TOTAL_INSTALLED,
 } from "@vibexe-ai/activepieces-adapter";
 
 export async function GET() {
 	return NextResponse.json({
-		pieces: PIECE_CATALOG,
+		pieces: INSTALLED_CATALOG,
 		categories: getAllCategories(),
-		total: TOTAL_PIECES,
+		total: TOTAL_INSTALLED,
 	});
 }

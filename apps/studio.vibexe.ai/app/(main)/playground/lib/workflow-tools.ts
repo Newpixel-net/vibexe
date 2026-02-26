@@ -480,6 +480,11 @@ export function createWorkflowTools() {
 							if (!pieceName || !actionName) {
 								return errResult("pieceName and actionName are required for integration nodes");
 							}
+							// Validate piece is installed
+							const { isInstalledPiece } = await import("@vibexe-ai/activepieces-adapter");
+							if (!isInstalledPiece(pieceName)) {
+								return errResult(`Piece "${pieceName}" is not available. Use lookup_piece_actions to find available pieces.`);
+							}
 							// Resolve real piece version if not explicitly provided
 							let resolvedVersion = pieceVersion ?? "0.0.0";
 							if (!pieceVersion) {

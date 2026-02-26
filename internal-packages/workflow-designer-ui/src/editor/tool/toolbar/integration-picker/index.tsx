@@ -3,11 +3,10 @@
 import {
 	type PieceCatalogEntry,
 	type PieceCategory,
-	PIECE_CATALOG,
+	TOTAL_INSTALLED,
 	getAllCategories,
 	getPiecesByCategory,
 	searchPieces,
-	isInstalledPiece,
 } from "@vibexe-ai/activepieces-adapter";
 import {
 	createActionNode,
@@ -52,13 +51,7 @@ export function IntegrationPicker() {
 
 	const searchResults = useMemo(() => {
 		if (!searchQuery.trim()) return null;
-		const results = searchPieces(searchQuery);
-		// Sort installed pieces to top
-		return [...results].sort((a, b) => {
-			const aInstalled = isInstalledPiece(a.name) ? 0 : 1;
-			const bInstalled = isInstalledPiece(b.name) ? 0 : 1;
-			return aInstalled - bInstalled;
-		});
+		return searchPieces(searchQuery);
 	}, [searchQuery]);
 
 	// Fetch actions when viewing a specific piece
@@ -87,19 +80,6 @@ export function IntegrationPicker() {
 					pieceName: piece.name,
 					actionName: action.name,
 					pieceVersion: version,
-				}),
-			),
-		);
-	};
-
-	const handleSelectPieceDefault = (piece: PieceCatalogEntry) => {
-		// Fallback: create with first action name or piece name as action
-		setSelectedTool(
-			addNodeTool(
-				createIntegrationNode({
-					pieceName: piece.name,
-					actionName: piece.name,
-					pieceVersion: pieceVersion ?? "0.0.1",
 				}),
 			),
 		);
@@ -139,7 +119,7 @@ export function IntegrationPicker() {
 					)}
 					<p className="text-[14px] font-medium text-inverse">{title}</p>
 					<span className="text-[11px] text-[#505D7B] ml-auto">
-						{PIECE_CATALOG.length}+ integrations
+						{TOTAL_INSTALLED}+ integrations
 					</span>
 				</div>
 				{view.level !== "actions" && (
@@ -261,15 +241,9 @@ export function IntegrationPicker() {
 	const renderPieces = () => {
 		if (view.level !== "pieces") return null;
 		const pieces = getPiecesByCategory(view.category);
-		// Sort installed pieces to top
-		const sorted = [...pieces].sort((a, b) => {
-			const aInstalled = isInstalledPiece(a.name) ? 0 : 1;
-			const bInstalled = isInstalledPiece(b.name) ? 0 : 1;
-			return aInstalled - bInstalled;
-		});
 		return (
 			<div className="flex flex-col gap-[2px]">
-				{sorted.map((piece) => (
+				{pieces.map((piece) => (
 					<PieceRow
 						key={piece.name}
 						piece={piece}
@@ -302,7 +276,7 @@ export function IntegrationPicker() {
 					{actionsError ? (
 						<>
 							<p className="text-[12px] text-[#E5534B]">
-								This piece is not available on this server.
+								Failed to load piece actions.
 							</p>
 							<p className="text-[11px] text-[#505D7B]">
 								{actionsError}
@@ -313,25 +287,6 @@ export function IntegrationPicker() {
 							No actions found for this piece.
 						</p>
 					)}
-					<button
-						type="button"
-						className="flex items-center gap-[8px] rounded-[6px] px-[8px] py-[6px] hover:bg-[rgba(222,233,242,0.10)] w-full text-left"
-						onClick={() => handleSelectPieceDefault(piece)}
-					>
-						<PieceIcon
-							logoUrl={piece.logoUrl}
-							displayName={piece.displayName}
-							className="size-[20px] shrink-0"
-						/>
-						<div className="flex-1 min-w-0">
-							<p className="text-[13px] text-inverse">
-								Add {piece.displayName} Node
-							</p>
-							<p className="text-[11px] text-[#505D7B] truncate">
-								Add as generic integration node
-							</p>
-						</div>
-					</button>
 				</div>
 			);
 		}
@@ -401,13 +356,10 @@ function PieceRow({
 	showCategory?: boolean;
 	onClick: () => void;
 }) {
-	const installed = isInstalledPiece(piece.name);
 	return (
 		<button
 			type="button"
-			className={`flex items-center gap-[8px] rounded-[6px] px-[8px] py-[6px] hover:bg-[rgba(222,233,242,0.10)] w-full text-left ${
-				!installed ? "opacity-60" : ""
-			}`}
+			className="flex items-center gap-[8px] rounded-[6px] px-[8px] py-[6px] hover:bg-[rgba(222,233,242,0.10)] w-full text-left"
 			onClick={onClick}
 		>
 			<PieceIcon
@@ -416,16 +368,9 @@ function PieceRow({
 				className="size-[20px] shrink-0"
 			/>
 			<div className="flex-1 min-w-0">
-				<div className="flex items-center gap-[4px]">
-					<p className="text-[13px] text-inverse truncate">
-						{piece.displayName}
-					</p>
-					{installed && (
-						<span className="text-[9px] px-[4px] py-[1px] rounded-[3px] bg-[rgba(16,185,129,0.15)] text-[#10B981] font-medium shrink-0">
-							Active
-						</span>
-					)}
-				</div>
+				<p className="text-[13px] text-inverse truncate">
+					{piece.displayName}
+				</p>
 				<p className="text-[11px] text-[#505D7B] truncate">
 					{showCategory ? piece.category : piece.description}
 				</p>

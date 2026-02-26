@@ -8,6 +8,8 @@
 
 export {
 	PIECE_CATALOG,
+	INSTALLED_CATALOG,
+	TOTAL_INSTALLED,
 	getCatalogEntry,
 	getAllPieceNames,
 	getAllCategories,
