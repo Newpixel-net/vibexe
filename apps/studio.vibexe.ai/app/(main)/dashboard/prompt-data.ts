@@ -1,8 +1,8 @@
 /**
  * Dashboard Hero Prompt Data
  *
- * Project types and typewriter placeholder prompts for the hero prompt input.
- * Reduced to 3 main types matching Emergent-style UX.
+ * Project types, categories, and typewriter placeholder prompts
+ * for the hero prompt input on the dashboard.
  */
 
 export interface ProjectType {
@@ -12,7 +12,13 @@ export interface ProjectType {
 	placeholders: string[];
 }
 
-/** Visible tabs on the dashboard hero */
+export interface CategoryTag {
+	id: string;
+	label: string;
+	forTypes: string[]; // which project types this category applies to
+}
+
+/** Visible tabs on the dashboard hero — 3 types matching Emergent-style */
 export const PROJECT_TYPES: ProjectType[] = [
 	{
 		id: "app",
@@ -86,14 +92,26 @@ export const HIDDEN_TYPES: ProjectType[] = [
 /** All types combined (for lookup by ID) */
 export const ALL_TYPES: ProjectType[] = [...PROJECT_TYPES, ...HIDDEN_TYPES];
 
+export const CATEGORY_TAGS: CategoryTag[] = [
+	{ id: "saas", label: "SaaS", forTypes: ["app", "landing"] },
+	{ id: "ecommerce", label: "E-Commerce", forTypes: ["app", "landing"] },
+	{ id: "productivity", label: "Productivity", forTypes: ["app", "dashboard"] },
+	{ id: "social", label: "Social", forTypes: ["app"] },
+	{ id: "ai-ml", label: "AI / ML", forTypes: ["app", "workflow", "api"] },
+	{ id: "automation", label: "Automation", forTypes: ["workflow", "api"] },
+	{ id: "analytics", label: "Analytics", forTypes: ["dashboard", "workflow"] },
+	{ id: "marketing", label: "Marketing", forTypes: ["landing", "workflow"] },
+	{ id: "education", label: "Education", forTypes: ["app", "landing"] },
+	{ id: "healthcare", label: "Healthcare", forTypes: ["app", "dashboard"] },
+	{ id: "fintech", label: "Fintech", forTypes: ["app", "dashboard", "api"] },
+	{ id: "content", label: "Content", forTypes: ["app", "workflow", "landing"] },
+];
+
 export function getPlaceholdersForType(typeId: string): string[] {
 	const type = ALL_TYPES.find((t) => t.id === typeId);
 	return type?.placeholders ?? PROJECT_TYPES[0].placeholders;
 }
 
-/** Recent project suggestions per tab type */
-export const RECENT_PROJECT_SUGGESTIONS: Record<string, string[]> = {
-	app: ["Task Manager", "CRM Dashboard", "E-Commerce Store", "Chat App"],
-	mobile: ["Flappy Bird", "Recipe Generator", "Habit Tracker", "Fitness App"],
-	landing: ["Consult Plus", "Elite Footwear", "Smart Course", "SaaS Launch"],
-};
+export function getCategoriesForType(typeId: string): CategoryTag[] {
+	return CATEGORY_TAGS.filter((c) => c.forTypes.includes(typeId));
+}
