@@ -7,19 +7,28 @@
  * Auth: X-Vibexe-Api-Key header, builder session, or Bearer token.
  */
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import {
 	type BuilderAppId,
 	builderApps,
 	builderAppDatabases,
+	builderAppIntegrations,
 } from "@/db/schema";
-import { isInstalledPiece } from "@vibexe-ai/activepieces-adapter";
-import { executePieceAction } from "@vibexe-ai/activepieces-adapter/server";
+import {
+	isInstalledPiece,
+	getCatalogEntry,
+} from "@vibexe-ai/activepieces-adapter";
+import {
+	executePieceAction,
+	resolveAuth,
+} from "@vibexe-ai/activepieces-adapter/server";
+import type { AuthType } from "@vibexe-ai/activepieces-adapter";
 import { verifyApiKey } from "@/lib/app-database/api-keys";
 import { resolveAppUser } from "@/lib/app-database/rls";
 import { getCredentialForPiece } from "@/services/integrations/credential-store";
+import { decryptToken } from "@/lib/token-encryption";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
 
 const CORS_HEADERS = {
@@ -161,11 +170,50 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
-		// Resolve credentials for this piece (if any exist for the team)
-		const credential = await getCredentialForPiece(app.teamDbId, pieceName);
-		const auth = credential
-			? { authType: credential.authType, config: credential.config }
-			: undefined;
+		// Resolve credentials: app-level first (Dashboard > Integrations), then team-level
+		let resolvedAuth: unknown = undefined;
+
+		// 1. Check app-level credentials (from builder_app_integrations)
+		const appIntegration = await db.query.builderAppIntegrations.findFirst({
+			where: and(
+				eq(builderAppIntegrations.appDbId, app.dbId),
+				eq(builderAppIntegrations.pieceName, pieceName),
+			),
+		});
+
+		if (appIntegration?.encryptedCredentials) {
+			try {
+				const config = JSON.parse(
+					decryptToken(appIntegration.encryptedCredentials),
+				);
+				// Map catalog auth type to resolver auth type
+				const catalogAuth = getCatalogEntry(pieceName)?.authType;
+				const authType: AuthType =
+					catalogAuth === "api_key"
+						? "secret_text"
+						: (catalogAuth as AuthType) ?? "custom";
+				resolvedAuth = resolveAuth({ authType, config });
+			} catch (err) {
+				console.warn(
+					`[Integrations API] Failed to decrypt app-level credential for ${pieceName}:`,
+					err,
+				);
+			}
+		}
+
+		// 2. Fallback: team-level credentials (from integration_credentials)
+		if (resolvedAuth === undefined || resolvedAuth === null) {
+			const credential = await getCredentialForPiece(
+				app.teamDbId,
+				pieceName,
+			);
+			if (credential) {
+				resolvedAuth = resolveAuth({
+					authType: credential.authType as AuthType,
+					config: credential.config,
+				});
+			}
+		}
 
 		// Execute the integration action
 		let result: unknown;
@@ -175,7 +223,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 				actionName: action,
 				pieceVersion: "latest",
 				properties: properties ?? {},
-				auth: auth ?? {},
+				auth: resolvedAuth ?? {},
 			});
 		} catch (execError) {
 			// Integration execution failed (e.g. upstream API returned 401/403/500)
