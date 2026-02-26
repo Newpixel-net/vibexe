@@ -168,6 +168,9 @@ export const PIECE_CATALOG: PieceCatalogEntry[] = [
 	p("denser-ai", "Denser AI", "AI & ML", "custom"),
 	p("docsbot", "DocsBot", "AI & ML", "api_key"),
 	p("customgpt", "CustomGPT", "AI & ML", "api_key"),
+	p("agent", "Agent", "AI & ML", "none"),
+	p("dumpling-ai", "Dumpling AI", "AI & ML", "api_key"),
+	p("dust", "Dust", "AI & ML", "custom"),
 
 	// ─── Communication ─────────────────────────────────────
 	p("slack", "Slack", "Communication", "oauth2"),
@@ -208,7 +211,8 @@ export const PIECE_CATALOG: PieceCatalogEntry[] = [
 	p("open-phone", "OpenPhone", "Communication", "api_key"),
 	p("voipstudio", "VoIPStudio", "Communication", "api_key"),
 	p("krisp-call", "Krisp Call", "Communication", "custom"),
-	p("call-rounded", "Call Rounded", "Communication", "api_key"),
+	p("rounded-studio", "Call Rounded", "Communication", "api_key"),
+	p("aircall", "Aircall", "Communication", "basic"),
 	p("autocalls", "AutoCalls", "Communication", "api_key"),
 	p("gotify", "Gotify", "Communication", "custom"),
 	p("ntfy", "Ntfy", "Communication", "custom"),
@@ -246,6 +250,11 @@ export const PIECE_CATALOG: PieceCatalogEntry[] = [
 	p("vtiger", "Vtiger", "CRM & Sales", "custom"),
 	p("lofty", "Lofty", "CRM & Sales", "api_key"),
 	p("fireberry", "Fireberry", "CRM & Sales", "api_key"),
+	p("blackbaud", "Blackbaud", "CRM & Sales", "oauth2"),
+	p("bloomerang", "Bloomerang", "CRM & Sales", "api_key"),
+	p("linka", "Linka", "CRM & Sales", "custom"),
+	p("qwilr", "Qwilr", "CRM & Sales", "api_key"),
+	p("salsa", "Salsa", "CRM & Sales", "api_key"),
 
 	// ─── Project Management ────────────────────────────────
 	p("asana", "Asana", "Project Management", "oauth2"),
@@ -315,6 +324,8 @@ export const PIECE_CATALOG: PieceCatalogEntry[] = [
 	p("mailercheck", "MailerCheck", "Email & Marketing", "api_key"),
 	p("smoove", "Smoove", "Email & Marketing", "api_key"),
 	p("woodpecker", "Woodpecker", "Email & Marketing", "api_key"),
+	p("mautic", "Mautic", "Email & Marketing", "custom"),
+	p("plausible", "Plausible", "Email & Marketing", "api_key"),
 
 	// ─── Google Workspace ──────────────────────────────────
 	p("google-sheets", "Google Sheets", "Google Workspace", "none"),
@@ -426,6 +437,7 @@ export const PIECE_CATALOG: PieceCatalogEntry[] = [
 	p("zeplin", "Zeplin", "Developer Tools", "api_key"),
 	p("backblaze", "Backblaze", "Developer Tools", "custom"),
 	p("hashi-corp-vault", "HashiCorp Vault", "Developer Tools", "custom"),
+	p("eth-name-service", "Ethereum Name Service", "Developer Tools", "api_key"),
 	p("metabase", "Metabase", "Developer Tools", "custom"),
 	p("tableau", "Tableau", "Developer Tools", "custom"),
 
@@ -456,6 +468,8 @@ export const PIECE_CATALOG: PieceCatalogEntry[] = [
 	p("queue", "Queue", "Productivity", "none"),
 	p("todos", "Todos", "Productivity", "none"),
 	p("time-ops", "Time Ops", "Productivity", "api_key"),
+	p("mycase-piece", "MyCase", "Productivity", "oauth2"),
+	p("ninox", "Ninox", "Productivity", "api_key"),
 
 	// ─── Finance & Accounting ──────────────────────────────
 	p("quickbooks", "QuickBooks", "Finance & Accounting", "oauth2"),
@@ -472,6 +486,8 @@ export const PIECE_CATALOG: PieceCatalogEntry[] = [
 	p("netsuite", "NetSuite", "Finance & Accounting", "custom"),
 	p("splitwise", "Splitwise", "Finance & Accounting", "api_key"),
 	p("sap-ariba", "SAP Ariba", "Finance & Accounting", "custom"),
+	p("binance", "Binance", "Finance & Accounting", "none"),
+	p("checkout", "Checkout.com", "Finance & Accounting", "api_key"),
 
 	// ─── Cloud Storage ─────────────────────────────────────
 	p("dropbox", "Dropbox", "Cloud Storage", "oauth2"),
@@ -509,6 +525,7 @@ export const PIECE_CATALOG: PieceCatalogEntry[] = [
 	p("feathery", "Feathery", "Forms & Surveys", "api_key"),
 	p("videoask", "VideoAsk", "Forms & Surveys", "oauth2"),
 	p("paperform", "Paperform", "Forms & Surveys", "api_key"),
+	p("gravityforms", "Gravity Forms", "Forms & Surveys", "none"),
 
 	// ─── CMS & Website ─────────────────────────────────────
 	p("wordpress", "WordPress", "CMS & Website", "custom"),
@@ -536,6 +553,7 @@ export const PIECE_CATALOG: PieceCatalogEntry[] = [
 	p("parser-expert", "Parser Expert", "Documents & Signatures", "api_key"),
 	p("pdf-co", "PDF.co", "Documents & Signatures", "api_key"),
 	p("pdfmonkey", "PDFMonkey", "Documents & Signatures", "api_key"),
+	p("apitemplate-io", "APITemplate.io", "Documents & Signatures", "custom"),
 
 	// ─── Automation & Utilities ────────────────────────────
 	p("activepieces", "Activepieces", "Automation & Utilities", "custom"),
@@ -591,7 +609,7 @@ export const PIECE_CATALOG: PieceCatalogEntry[] = [
 	p("motion", "Motion", "Automation & Utilities", "api_key"),
 	p("motiontools", "MotionTools", "Automation & Utilities", "api_key"),
 	p("onfleet", "Onfleet", "Automation & Utilities", "api_key"),
-	p("presenton", "Presenton", "Automation & Utilities", "api_key"),
+	p("presentation", "Presenton", "Automation & Utilities", "api_key"),
 	p("respaid", "Respaid", "Automation & Utilities", "api_key"),
 	p("saastic", "Saastic", "Automation & Utilities", "api_key"),
 	p("seek-table", "Seek Table", "Automation & Utilities", "api_key"),
@@ -703,6 +721,7 @@ export const PIECE_CATALOG: PieceCatalogEntry[] = [
 	p("avoma", "Avoma", "Automation & Utilities", "api_key"),
 	p("baremetrics", "Baremetrics", "Automation & Utilities", "none"),
 	p("aminos", "Aminos", "Automation & Utilities", "custom"),
+	p("activity", "Activity", "Automation & Utilities", "none"),
 ].sort((a, b) => a.displayName.localeCompare(b.displayName));
 
 // ─── Lookup helpers ────────────────────────────────────
@@ -1384,8 +1403,6 @@ export const INSTALLED_PIECES = new Set([
 	"qwilr",
 	"rounded-studio",
 	"salsa",
-	"posthog",
-	"qdrant",
 ]);
 
 /** Check if a piece has an NPM package installed */
