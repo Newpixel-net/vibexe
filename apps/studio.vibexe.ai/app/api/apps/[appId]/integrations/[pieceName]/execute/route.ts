@@ -1,0 +1,190 @@
+/**
+ * Integration Execution API
+ *
+ * POST /api/apps/{appId}/integrations/{pieceName}/execute
+ *   — Execute an Activepieces integration action
+ *
+ * Auth: X-Vibexe-Api-Key header, builder session, or Bearer token.
+ */
+
+import { eq } from "drizzle-orm";
+import { type NextRequest, NextResponse } from "next/server";
+import { db } from "@/db";
+import {
+	type BuilderAppId,
+	builderApps,
+	builderAppDatabases,
+} from "@/db/schema";
+import { isInstalledPiece } from "@vibexe-ai/activepieces-adapter";
+import { executePieceAction } from "@vibexe-ai/activepieces-adapter/server";
+import { verifyApiKey } from "@/lib/app-database/api-keys";
+import { resolveAppUser } from "@/lib/app-database/rls";
+import { getCredentialForPiece } from "@/services/integrations/credential-store";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limiter";
+
+const CORS_HEADERS = {
+	"Access-Control-Allow-Origin": "*",
+	"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+	"Access-Control-Allow-Headers":
+		"Content-Type, Authorization, X-Vibexe-Api-Key",
+	"Access-Control-Max-Age": "86400",
+} as const;
+
+interface RouteParams {
+	params: Promise<{ appId: string; pieceName: string }>;
+}
+
+function withCors(response: NextResponse): NextResponse {
+	for (const [key, value] of Object.entries(CORS_HEADERS)) {
+		response.headers.set(key, value);
+	}
+	return response;
+}
+
+export function OPTIONS() {
+	return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
+export async function POST(request: NextRequest, { params }: RouteParams) {
+	try {
+		const { appId, pieceName } = await params;
+
+		// Rate limit: 30 integration executions per IP per minute
+		const ip = getClientIp(request);
+		const rateCheck = checkRateLimit(
+			"integration-exec",
+			`${appId}:${ip}`,
+			30,
+			60 * 1000,
+		);
+		if (!rateCheck.allowed) {
+			return withCors(
+				NextResponse.json(
+					{ error: "Too many requests. Please try again later." },
+					{
+						status: 429,
+						headers: {
+							"Retry-After": String(
+								Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000),
+							),
+						},
+					},
+				),
+			);
+		}
+
+		// Validate piece is installed
+		if (!isInstalledPiece(pieceName)) {
+			return withCors(
+				NextResponse.json(
+					{ error: `Integration "${pieceName}" is not available` },
+					{ status: 404 },
+				),
+			);
+		}
+
+		// Verify app exists
+		const app = await db.query.builderApps.findFirst({
+			where: eq(builderApps.id, appId as BuilderAppId),
+			columns: { dbId: true, teamDbId: true },
+		});
+		if (!app) {
+			return withCors(
+				NextResponse.json({ error: "App not found" }, { status: 404 }),
+			);
+		}
+
+		// Verify app database is active
+		const appDb = await db.query.builderAppDatabases.findFirst({
+			where: eq(builderAppDatabases.appDbId, app.dbId),
+		});
+		if (!appDb || appDb.status !== "active") {
+			return withCors(
+				NextResponse.json(
+					{ error: "App database not available" },
+					{ status: 503 },
+				),
+			);
+		}
+
+		// Three-layer auth: API key → Builder session → App user Bearer token
+		const apiKey = request.headers.get("x-vibexe-api-key");
+		if (apiKey) {
+			const valid = await verifyApiKey(app.dbId, apiKey);
+			if (!valid) {
+				return withCors(
+					NextResponse.json({ error: "Invalid API key" }, { status: 401 }),
+				);
+			}
+		} else {
+			let isBuilder = false;
+			try {
+				const { verifyAppAccess } = await import(
+					"@/lib/auth/verify-app-access"
+				);
+				await verifyAppAccess(appId);
+				isBuilder = true;
+			} catch {
+				// Not a builder session
+			}
+
+			if (!isBuilder) {
+				const user = await resolveAppUser(appDb.databaseName, request);
+				if (!user) {
+					return withCors(
+						NextResponse.json(
+							{ error: "Authentication required" },
+							{ status: 401 },
+						),
+					);
+				}
+			}
+		}
+
+		// Parse request body
+		let body: { action?: string; properties?: Record<string, unknown> };
+		try {
+			body = await request.json();
+		} catch {
+			return withCors(
+				NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }),
+			);
+		}
+
+		const { action, properties } = body;
+		if (!action || typeof action !== "string") {
+			return withCors(
+				NextResponse.json(
+					{ error: 'Missing required field: "action"' },
+					{ status: 400 },
+				),
+			);
+		}
+
+		// Resolve credentials for this piece (if any exist for the team)
+		const credential = await getCredentialForPiece(app.teamDbId, pieceName);
+		const auth = credential
+			? { authType: credential.authType, config: credential.config }
+			: undefined;
+
+		// Execute the integration action
+		const result = await executePieceAction({
+			pieceName,
+			actionName: action,
+			pieceVersion: "latest",
+			properties: properties ?? {},
+			auth: auth ?? {},
+		});
+
+		return withCors(NextResponse.json({ data: result }));
+	} catch (error) {
+		const errMsg =
+			error instanceof Error
+				? error.message
+				: "Integration execution failed";
+		console.error("[Integrations API] Execute error:", error);
+		return withCors(
+			NextResponse.json({ error: errMsg }, { status: 500 }),
+		);
+	}
+}

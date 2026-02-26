@@ -2,6 +2,7 @@ import type { AgentDefinition } from "../types";
 import {
 	SDK_API_REFERENCE,
 	SDK_HOOK_PATTERN,
+	SDK_INTEGRATIONS_REFERENCE,
 	SDK_PLATFORM_REFERENCE,
 } from "../shared/sdk-reference";
 
@@ -137,6 +138,8 @@ ${SDK_HOOK_PATTERN}
 8. **Creating too few files** — A dashboard app needs 10-15+ files, not 3
 9. **Stopping after docs/README.md** — The README is just the plan; keep creating ALL code files
 10. **Missing key prop** — Always set \`key\` on elements rendered inside \`.map()\`
+
+${SDK_INTEGRATIONS_REFERENCE}
 
 ${SDK_PLATFORM_REFERENCE}
 

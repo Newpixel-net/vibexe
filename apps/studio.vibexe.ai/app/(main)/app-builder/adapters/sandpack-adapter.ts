@@ -732,6 +732,33 @@ class FunctionsClient {
   }
 }
 
+class IntegrationsClient {
+  constructor(baseUrl, headers) {
+    this.baseUrl = baseUrl;
+    this.headers = headers;
+  }
+
+  _ah() {
+    var h = Object.assign({}, this.headers);
+    var t = typeof window !== "undefined" ? localStorage.getItem("vibexe_session") : null;
+    if (t) h["Authorization"] = "Bearer " + t;
+    return h;
+  }
+
+  async execute(piece, action, props) {
+    var r = await fetch(this.baseUrl + "/integrations/" + encodeURIComponent(piece) + "/execute", {
+      method: "POST",
+      headers: Object.assign({}, this._ah(), { "Content-Type": "application/json" }),
+      body: JSON.stringify({ action: action, properties: props || {} }),
+    });
+    if (!r.ok) {
+      var e = await r.json().catch(function() { return {}; });
+      throw new Error(e.error || "Integration failed: " + r.status);
+    }
+    return (await r.json()).data;
+  }
+}
+
 class StorageClient {
   constructor(baseUrl, headers) {
     this.baseUrl = baseUrl;
@@ -923,6 +950,7 @@ export class VibexeApp {
     this.data = new DataClient(base, headers);
     this.auth = new AuthClient(base, headers);
     this.functions = new FunctionsClient(base, headers);
+    this.integrations = new IntegrationsClient(base, headers);
     this.jobs = new JobsClient(base, headers);
     this.storage = new StorageClient(base, headers);
     this.webhooks = new WebhooksClient(base, headers);

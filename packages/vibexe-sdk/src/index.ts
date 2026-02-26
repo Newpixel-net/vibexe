@@ -20,6 +20,7 @@
 import { AuthClient } from "./auth";
 import { DataClient } from "./data";
 import { FunctionsClient } from "./functions";
+import { IntegrationsClient } from "./integrations";
 import { JobsClient } from "./jobs";
 import { StorageClient } from "./storage";
 import { WebhooksClient } from "./webhooks";
@@ -37,6 +38,7 @@ export class VibexeApp {
 	public readonly data: DataClient;
 	public readonly auth: AuthClient;
 	public readonly functions: FunctionsClient;
+	public readonly integrations: IntegrationsClient;
 	public readonly jobs: JobsClient;
 	public readonly storage: StorageClient;
 	public readonly webhooks: WebhooksClient;
@@ -58,6 +60,7 @@ export class VibexeApp {
 		this.data = new DataClient(baseUrl, headers);
 		this.auth = new AuthClient(baseUrl, headers);
 		this.functions = new FunctionsClient(baseUrl, headers);
+		this.integrations = new IntegrationsClient(baseUrl, headers);
 		this.jobs = new JobsClient(baseUrl, headers);
 		this.storage = new StorageClient(baseUrl, headers);
 		this.webhooks = new WebhooksClient(baseUrl, headers);

@@ -4,6 +4,7 @@ import {
 	SDK_HOOK_PATTERN,
 	SDK_AUTH_PATTERN,
 	SDK_COMMON_PATTERNS,
+	SDK_INTEGRATIONS_REFERENCE,
 	SDK_JOBS_REFERENCE,
 	SDK_PLATFORM_REFERENCE,
 } from "../shared/sdk-reference";
@@ -112,6 +113,8 @@ const createTask = async (data: CreateTaskInput) => {
 \`\`\`
 
 ${SDK_COMMON_PATTERNS}
+
+${SDK_INTEGRATIONS_REFERENCE}
 
 ${SDK_JOBS_REFERENCE}
 

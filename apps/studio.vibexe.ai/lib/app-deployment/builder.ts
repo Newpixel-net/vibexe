@@ -104,6 +104,10 @@ _c(){this.t=null;if(typeof window!=="undefined")localStorage.removeItem("vibexe_
 class FunctionsClient{constructor(b,h){this.b=b;this.h=h}
 async invoke(n,d){var r=await fetch(this.b+"/functions/"+encodeURIComponent(n),{method:"POST",headers:Object.assign({},this.h,{"Content-Type":"application/json"}),body:d!==undefined?JSON.stringify(d):undefined});if(!r.ok){var err=await r.json().catch(function(){return{}});throw new Error(err.error||"Function failed")}return(await r.json()).data}
 }
+class IntegrationsClient{constructor(b,h){this.b=b;this.h=h}
+_ah(){var h=Object.assign({},this.h);var t=typeof window!=="undefined"?localStorage.getItem("vibexe_session"):null;if(t)h["Authorization"]="Bearer "+t;return h}
+async execute(p,a,props){var r=await fetch(this.b+"/integrations/"+encodeURIComponent(p)+"/execute",{method:"POST",headers:Object.assign({},this._ah(),{"Content-Type":"application/json"}),body:JSON.stringify({action:a,properties:props||{}})});if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.error||"Integration failed")}return(await r.json()).data}
+}
 class StorageClient{constructor(b,h){this.b=b;this.h=h}
 _ah(){var h=Object.assign({},this.h);var t=typeof window!=="undefined"?localStorage.getItem("vibexe_session"):null;if(t)h["Authorization"]="Bearer "+t;return h}
 async upload(f,p){var fd=new FormData();fd.append("file",f);if(p)fd.append("path",p);var h=this._ah();delete h["Content-Type"];var r=await fetch(this.b+"/storage",{method:"POST",headers:h,body:fd});if(!r.ok){var e=await r.json().catch(function(){return{}});throw new Error(e.error||"Upload failed")}return await r.json()}
@@ -128,7 +132,7 @@ async create(c){var r=await fetch(this.b+"/webhooks",{method:"POST",headers:Obje
 async list(){var r=await fetch(this.b+"/webhooks",{headers:this.h});if(!r.ok)throw new Error("Failed to list webhooks");return await r.json()}
 async delete(id){var r=await fetch(this.b+"/webhooks",{method:"DELETE",headers:Object.assign({},this.h,{"Content-Type":"application/json"}),body:JSON.stringify({webhookDbId:id})});if(!r.ok)throw new Error("Failed to delete webhook")}
 }
-class VibexeApp{constructor(c){this.appId=c.appId;var env=c.environment||(typeof g!=="undefined"&&g.__VIBEXE_ENV__)||null;var base=(c.baseUrl||g.location.protocol+"//vibexe.online")+"/api/apps/"+c.appId;var h={};if(c.apiKey)h["X-Vibexe-Api-Key"]=c.apiKey;this._env=env;this.data=new DataClient(base,h);this.auth=new AuthClient(base,h);this.functions=new FunctionsClient(base,h);this.jobs=new JobsClient(base,h);this.storage=new StorageClient(base,h);this.webhooks=new WebhooksClient(base,h)}}
+class VibexeApp{constructor(c){this.appId=c.appId;var env=c.environment||(typeof g!=="undefined"&&g.__VIBEXE_ENV__)||null;var base=(c.baseUrl||g.location.protocol+"//vibexe.online")+"/api/apps/"+c.appId;var h={};if(c.apiKey)h["X-Vibexe-Api-Key"]=c.apiKey;this._env=env;this.data=new DataClient(base,h);this.auth=new AuthClient(base,h);this.functions=new FunctionsClient(base,h);this.integrations=new IntegrationsClient(base,h);this.jobs=new JobsClient(base,h);this.storage=new StorageClient(base,h);this.webhooks=new WebhooksClient(base,h)}}
 g.VibexeApp=VibexeApp;
 })(typeof globalThis!=="undefined"?globalThis:window);
 `;

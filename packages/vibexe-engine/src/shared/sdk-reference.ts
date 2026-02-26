@@ -678,6 +678,9 @@ export const mockApp = {
   functions: {
     invoke: vi.fn().mockResolvedValue(null),
   },
+  integrations: {
+    execute: vi.fn().mockResolvedValue(null),
+  },
   jobs: {
     create: vi.fn().mockResolvedValue({ id: 1, name: "test-job", function_name: "testFn", cron_expression: "*/5 * * * *", enabled: true }),
     list: vi.fn().mockResolvedValue({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } }),
@@ -895,6 +898,69 @@ manage_backups({ action: "restore", backupId: 42 })
 - User says "what would change if I promote?" → \`manage_environments({ action: "diff", fromEnvironment: "development", toEnvironment: "staging" })\`
 - User says "deploy to production" → \`manage_environments({ action: "promote", fromEnvironment: "staging", toEnvironment: "production" })\`
 - User says "show my environments" → \`manage_environments({ action: "list" })\`
+`;
+
+/** Integrations API reference for AI agents */
+export const SDK_INTEGRATIONS_REFERENCE = `
+## Integrations API (600+ Activepieces Integrations)
+
+\`\`\`typescript
+// Execute any installed integration action
+const result = await app.integrations.execute("slack", "send_message", {
+  channel: "#general",
+  text: "Hello from Vibexe!"
+});
+
+// Gmail
+await app.integrations.execute("gmail", "send_email", {
+  to: ["user@example.com"],
+  subject: "Welcome",
+  body: "<h1>Hello</h1>"
+});
+
+// HTTP (generic API calls)
+await app.integrations.execute("http", "send_request", {
+  method: "POST",
+  url: "https://api.example.com/data",
+  headers: { Authorization: "Bearer token" },
+  body: { key: "value" }
+});
+
+// Discord
+await app.integrations.execute("discord", "send_message_webhook", {
+  webhook_url: "https://discord.com/api/webhooks/...",
+  content: "Hello from Vibexe!"
+});
+
+// Google Sheets
+const rows = await app.integrations.execute("google-sheets", "read_rows", {
+  spreadsheet_id: "1abc...",
+  sheet_name: "Sheet1"
+});
+\`\`\`
+
+### Common Integrations
+- **Communication**: slack, gmail, discord, telegram, microsoft-teams, twilio
+- **CRM**: hubspot, salesforce, pipedrive, zoho-crm
+- **Project Management**: notion, asana, trello, linear, jira-cloud
+- **Payments**: stripe, paypal
+- **Storage**: google-drive, dropbox, onedrive, google-sheets, airtable
+- **AI**: openai, anthropic
+- **HTTP**: http (generic REST calls)
+
+### Pattern
+\`\`\`typescript
+app.integrations.execute(pieceName, actionName, properties)
+\`\`\`
+- \`pieceName\`: The integration name (e.g. "slack", "gmail", "http")
+- \`actionName\`: The specific action (e.g. "send_message", "send_email")
+- \`properties\`: Action-specific parameters object
+- Returns the action result (shape varies by integration)
+
+### CRITICAL — Use integrations for external services
+Do NOT use \`fetch()\` for services that have integration pieces (Slack, Gmail, Stripe, etc.).
+Use \`app.integrations.execute()\` instead — it handles authentication and OAuth automatically.
+Only use \`fetch()\` or the \`http\` integration for APIs that don't have a dedicated piece.
 `;
 
 /** Backend function file conventions for AI agents */

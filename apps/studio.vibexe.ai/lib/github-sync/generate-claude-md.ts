@@ -122,6 +122,35 @@ const url = app.storage.getUrl(path, transforms?);      // Get URL
 const result = await app.functions.invoke("functionName", data);
 \`\`\`
 
+### Integrations API (600+ services)
+\`\`\`typescript
+// Execute any Activepieces integration
+const result = await app.integrations.execute(pieceName, actionName, properties);
+
+// Examples:
+await app.integrations.execute("slack", "send_message", {
+  channel: "#general", text: "Hello!"
+});
+await app.integrations.execute("gmail", "send_email", {
+  to: ["user@example.com"], subject: "Hi", body: "Hello"
+});
+await app.integrations.execute("http", "send_request", {
+  method: "POST", url: "https://api.example.com/data",
+  headers: { Authorization: "Bearer token" }, body: { key: "value" }
+});
+\`\`\`
+
+**Popular integrations by category:**
+- Communication: slack, gmail, discord, telegram, twilio, microsoft-teams
+- CRM: hubspot, salesforce, pipedrive, zoho-crm
+- Project Management: notion, asana, trello, linear, jira-cloud
+- Data: google-sheets, airtable, google-drive, dropbox
+- Payments: stripe, paypal
+- AI: openai, anthropic
+- Generic: http (any REST API)
+
+Use \`app.integrations.execute(piece, action, props)\` for all external service calls.
+
 ### Jobs
 \`\`\`typescript
 await app.jobs.create({ name, cronExpression, functionName });
@@ -143,6 +172,7 @@ ${dataModelSection}
 5. Entry point is \`App.tsx\` default export
 6. Do not use \`fetch()\` for data — always use the SDK methods
 7. The \`.vibexe/\` directory contains platform config — do not modify
+8. Use \`app.integrations.execute()\` for external service calls (Slack, Gmail, etc.) — do NOT use \`fetch()\` for services that have integration pieces
 
 ## Syncing Changes
 After making changes, commit and push to this branch.
