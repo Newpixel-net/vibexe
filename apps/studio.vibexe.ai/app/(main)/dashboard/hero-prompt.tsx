@@ -3,24 +3,26 @@
 /**
  * HeroPrompt Component — Emergent-style chat input
  *
- * Connected tabs sitting on top of a dark card, multi-line textarea,
- * rich bottom toolbar, and recent project pills below.
+ * Connected tabs (mods) sitting on top of a dark card, multi-line textarea,
+ * rich bottom toolbar, and template suggestion pills below.
  */
 
 import {
 	AlertCircle,
 	ArrowRight,
+	Filter,
 	Github,
 	Globe,
 	Layers,
 	Loader2,
 	Mic,
+	Monitor,
+	PanelTop,
 	Paperclip,
 	SlidersHorizontal,
 	Smartphone,
 	Sparkles,
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
 	useCallback,
@@ -28,8 +30,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import type { EnhancedApp } from "@/lib/dashboard/get-dashboard-data";
-import { PROJECT_TYPES, getPlaceholdersForType } from "./prompt-data";
+import { PROJECT_TYPES, getPlaceholdersForType, getSuggestionsForType } from "./prompt-data";
 import { useTypewriter } from "./use-typewriter";
 import { ModelPicker } from "./model-picker";
 import { VisibilityToggle, type Visibility } from "./visibility-toggle";
@@ -40,13 +41,12 @@ const ICON_MAP: Record<string, React.ElementType> = {
 	Layers,
 	Smartphone,
 	Globe,
+	Monitor,
+	PanelTop,
+	Filter,
 };
 
-interface HeroPromptProps {
-	recentApps?: EnhancedApp[];
-}
-
-export function HeroPrompt({ recentApps = [] }: HeroPromptProps) {
+export function HeroPrompt() {
 	const router = useRouter();
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const [selectedType, setSelectedType] = useState("app");
@@ -61,6 +61,12 @@ export function HeroPrompt({ recentApps = [] }: HeroPromptProps) {
 	// Get relevant placeholders based on selected type
 	const placeholders = useMemo(
 		() => getPlaceholdersForType(selectedType),
+		[selectedType],
+	);
+
+	// Get suggestion pills for selected type
+	const suggestions = useMemo(
+		() => getSuggestionsForType(selectedType),
 		[selectedType],
 	);
 
@@ -122,18 +128,26 @@ export function HeroPrompt({ recentApps = [] }: HeroPromptProps) {
 		[],
 	);
 
+	// Handle suggestion pill click — populate prompt and focus
+	const handleSuggestionClick = useCallback((suggestionPrompt: string) => {
+		setPrompt(suggestionPrompt);
+		if (textareaRef.current) {
+			textareaRef.current.focus();
+			textareaRef.current.style.height = "auto";
+			// Allow DOM to update, then resize
+			requestAnimationFrame(() => {
+				if (textareaRef.current) {
+					textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+				}
+			});
+		}
+	}, []);
+
 	// Toast for coming-soon features
 	const showComingSoon = useCallback(() => {
 		setError("Coming soon!");
 		setTimeout(() => setError(null), 2000);
 	}, []);
-
-	// Check if app was created within last 24 hours
-	const isNew = (createdAt: string) => {
-		return Date.now() - new Date(createdAt).getTime() < 24 * 60 * 60 * 1000;
-	};
-
-	const visibleApps = recentApps.slice(0, 4);
 
 	return (
 		<section className="mb-8">
@@ -155,11 +169,11 @@ export function HeroPrompt({ recentApps = [] }: HeroPromptProps) {
 				</div>
 
 				{/* ============================================================ */}
-				{/* CONNECTED TABS + CARD                                        */}
+				{/* CONNECTED TABS (MODS) + CARD                                 */}
 				{/* ============================================================ */}
 				<div className="dash-animate-fade-up relative rounded-2xl" style={{ animationDelay: "0.05s" }}>
-					{/* Tab row — segmented control style, connected to card below */}
-					<div className="flex items-stretch rounded-t-2xl overflow-hidden border border-b-0 border-white/[0.08] bg-[rgba(20,20,24,0.6)]">
+					{/* Tab row — scrollable horizontally, connected to card below */}
+					<div className="flex items-stretch rounded-t-2xl overflow-x-auto overflow-y-hidden border border-b-0 border-white/[0.08] bg-[rgba(20,20,24,0.6)] scrollbar-hide">
 						{PROJECT_TYPES.map((type, idx) => {
 							const Icon = ICON_MAP[type.icon] ?? Layers;
 							const isActive = selectedType === type.id;
@@ -170,8 +184,8 @@ export function HeroPrompt({ recentApps = [] }: HeroPromptProps) {
 									aria-pressed={isActive}
 									onClick={() => setSelectedType(type.id)}
 									className={`
-										flex-1 flex items-center justify-center gap-2.5 px-5 py-3.5 text-[14px] font-medium
-										transition-all duration-300 relative
+										flex-shrink-0 flex items-center justify-center gap-2 px-4 py-3.5 text-[13px] font-medium
+										transition-all duration-300 relative whitespace-nowrap
 										${idx > 0 ? "border-l border-white/[0.06]" : ""}
 										${
 											isActive
@@ -180,7 +194,7 @@ export function HeroPrompt({ recentApps = [] }: HeroPromptProps) {
 										}
 									`}
 								>
-									<Icon className={`h-4 w-4 transition-all duration-300 ${isActive ? "text-cyan-400/80" : ""}`} />
+									<Icon className={`h-3.5 w-3.5 transition-all duration-300 ${isActive ? "text-cyan-400/80" : ""}`} />
 									{type.label}
 									{/* Active indicator — glowing accent line at bottom */}
 									{isActive && (
@@ -337,26 +351,21 @@ export function HeroPrompt({ recentApps = [] }: HeroPromptProps) {
 					Press Enter to generate &middot; Shift+Enter for new line
 				</p>
 
-				{/* Recent Projects Pills */}
-				{visibleApps.length > 0 && (
+				{/* Template Suggestion Pills — change based on selected tab/mod */}
+				{suggestions.length > 0 && (
 					<div className="flex items-center gap-2 flex-wrap justify-center mt-5 dash-animate-fade-up" style={{ animationDelay: "0.15s" }}>
-						{visibleApps.map((app) => {
+						{suggestions.slice(0, 5).map((suggestion) => {
 							const TypeIcon = ICON_MAP[PROJECT_TYPES.find((t) => t.id === selectedType)?.icon ?? "Layers"] ?? Layers;
 							return (
-								<Link
-									key={app.id}
-									href={`/app-builder/${app.id}`}
+								<button
+									key={suggestion.label}
+									type="button"
+									onClick={() => handleSuggestionClick(suggestion.prompt)}
 									className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-white/[0.04] border border-white/[0.06] text-[13px] text-white/50 hover:text-white/70 hover:bg-white/[0.08] hover:border-white/[0.1] transition-all group"
 								>
-									<TypeIcon className="h-3.5 w-3.5 text-white/25 group-hover:text-white/40 transition-colors" />
-									<span className="truncate max-w-[140px]">{app.name}</span>
-									{isNew(app.createdAt) && (
-										<span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-400">
-											<Sparkles className="h-2 w-2" />
-											New
-										</span>
-									)}
-								</Link>
+									<TypeIcon className="h-3.5 w-3.5 text-white/25 group-hover:text-cyan-400/60 transition-colors" />
+									<span className="truncate max-w-[160px]">{suggestion.label}</span>
+								</button>
 							);
 						})}
 					</div>

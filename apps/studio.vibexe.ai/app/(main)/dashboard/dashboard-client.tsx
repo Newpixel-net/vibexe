@@ -514,7 +514,7 @@ export function DashboardClient({ data }: DashboardClientProps) {
 			</div>
 
 			{/* Hero Prompt — only this section is Emergent-style */}
-			<HeroPrompt recentApps={recentApps} />
+			<HeroPrompt />
 
 			{/* Stats Row 1 */}
 			<div
