@@ -7,16 +7,33 @@
  * and gradient accent buttons.
  */
 
-import { ArrowLeft, Check, Copy, Link, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, Copy, Filter, Layers, Link, Loader2, Monitor, PanelTop, Smartphone, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+
+const MODE_CONFIG: Record<string, { label: string; icon: typeof Layers; color: string }> = {
+	app: { label: "Full Stack App", icon: Layers, color: "violet" },
+	mobile: { label: "Mobile App", icon: Smartphone, color: "cyan" },
+	website: { label: "Website", icon: Monitor, color: "blue" },
+	landing: { label: "Landing Page", icon: PanelTop, color: "amber" },
+	funnel: { label: "Marketing Funnel", icon: Filter, color: "emerald" },
+};
+
+const COLOR_CLASSES: Record<string, string> = {
+	violet: "text-violet-400 bg-violet-500/10 border-violet-500/20",
+	cyan: "text-cyan-400 bg-cyan-500/10 border-cyan-500/20",
+	blue: "text-blue-400 bg-blue-500/10 border-blue-500/20",
+	amber: "text-amber-400 bg-amber-500/10 border-amber-500/20",
+	emerald: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+};
 
 interface BuilderHeaderProps {
 	appId: string;
 	appName: string;
+	projectType?: string;
 }
 
-export function BuilderHeader({ appId, appName }: BuilderHeaderProps) {
+export function BuilderHeader({ appId, appName, projectType }: BuilderHeaderProps) {
 	const router = useRouter();
 	const [shareUrl, setShareUrl] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
@@ -72,14 +89,25 @@ export function BuilderHeader({ appId, appName }: BuilderHeaderProps) {
 				<span className="sr-only">Back to Apps</span>
 			</button>
 
-			{/* App name with subtle glow */}
-			<div className="flex-1 min-w-0">
+			{/* App name + mode badge */}
+			<div className="flex-1 min-w-0 flex items-center gap-3">
 				<h1
 					className="text-base font-semibold text-white/90 truncate"
 					style={{ textShadow: "0 0 20px rgba(124,58,237,0.15)" }}
 				>
 					{appName}
 				</h1>
+				{(() => {
+					const mode = MODE_CONFIG[projectType ?? "app"] ?? MODE_CONFIG.app;
+					const Icon = mode.icon;
+					const colors = COLOR_CLASSES[mode.color];
+					return (
+						<div className={`flex items-center gap-1.5 h-7 px-2.5 rounded-lg border text-[11px] font-medium whitespace-nowrap ${colors}`}>
+							<Icon className="w-3.5 h-3.5" />
+							{mode.label}
+						</div>
+					);
+				})()}
 			</div>
 
 			{/* Action buttons */}

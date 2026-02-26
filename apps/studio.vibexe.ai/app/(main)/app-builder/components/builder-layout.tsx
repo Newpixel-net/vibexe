@@ -38,6 +38,9 @@ export function BuilderLayout({
 	const [previewMode] = useState<PreviewMode>(
 		() => searchParams.get("type") === "mobile" ? "mobile-frame" : "browser",
 	);
+	const [projectType] = useState<string>(
+		() => searchParams.get("type") ?? "app",
+	);
 	const [view, setView] = useState<ViewType>("preview");
 	const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
 	const [files, setFiles] = useState<AppFile[]>(initialFiles);
@@ -126,7 +129,7 @@ export function BuilderLayout({
 			{/* Content — above aurora */}
 			<div className="relative z-10 flex flex-col h-full">
 				{/* Glass header */}
-				<BuilderHeader appId={app.id} appName={appName} />
+				<BuilderHeader appId={app.id} appName={appName} projectType={projectType} />
 
 				{/* Content area — 2-column layout */}
 				<div className="flex-1 flex min-h-0">
