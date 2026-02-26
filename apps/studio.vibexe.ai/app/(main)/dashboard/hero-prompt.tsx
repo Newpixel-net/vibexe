@@ -49,6 +49,20 @@ const ICON_MAP: Record<string, React.ElementType> = {
 	Gamepad2,
 };
 
+/** Game type IDs grouped under the "Games" parent tab */
+const GAME_TYPE_IDS = new Set(["game", "game-mobile"]);
+const isGameType = (id: string) => GAME_TYPE_IDS.has(id);
+
+/** Main tab items — "Games" is a parent tab for desktop + mobile game sub-types */
+const TAB_ITEMS: { id: string; label: string; icon: string; isParent?: boolean }[] = [
+	{ id: "app", label: "Full Stack App", icon: "Layers" },
+	{ id: "mobile", label: "Mobile App", icon: "Smartphone" },
+	{ id: "games", label: "Games", icon: "Gamepad2", isParent: true },
+	{ id: "website", label: "Website", icon: "Monitor" },
+	{ id: "landing", label: "Landing Page", icon: "PanelTop" },
+	{ id: "funnel", label: "Marketing Funnel", icon: "Filter" },
+];
+
 export function HeroPrompt() {
 	const router = useRouter();
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -186,15 +200,23 @@ export function HeroPrompt() {
 				<div className="dash-animate-fade-up relative rounded-2xl" style={{ animationDelay: "0.05s" }}>
 					{/* Tab row — scrollable horizontally, connected to card below */}
 					<div className="flex items-stretch rounded-t-2xl overflow-x-auto overflow-y-hidden border border-b-0 border-white/[0.08] bg-[rgba(20,20,24,0.6)] scrollbar-hide">
-						{PROJECT_TYPES.map((type, idx) => {
-							const Icon = ICON_MAP[type.icon] ?? Layers;
-							const isActive = selectedType === type.id;
+						{TAB_ITEMS.map((tab, idx) => {
+							const Icon = ICON_MAP[tab.icon] ?? Layers;
+							const isActive = tab.isParent
+								? isGameType(selectedType)
+								: selectedType === tab.id;
 							return (
 								<button
-									key={type.id}
+									key={tab.id}
 									type="button"
 									aria-pressed={isActive}
-									onClick={() => setSelectedType(type.id)}
+									onClick={() => {
+										if (tab.isParent) {
+											if (!isGameType(selectedType)) setSelectedType("game");
+										} else {
+											setSelectedType(tab.id);
+										}
+									}}
 									className={`
 										flex-shrink-0 flex items-center justify-center gap-2 px-4 py-3.5 text-[13px] font-medium
 										transition-all duration-300 relative whitespace-nowrap
@@ -207,7 +229,7 @@ export function HeroPrompt() {
 									`}
 								>
 									<Icon className={`h-3.5 w-3.5 transition-all duration-300 ${isActive ? "text-cyan-400/80" : ""}`} />
-									{type.label}
+									{tab.label}
 									{/* Active indicator — glowing accent line at bottom */}
 									{isActive && (
 										<span
@@ -225,6 +247,37 @@ export function HeroPrompt() {
 
 					{/* Card body — connects seamlessly to tab row above */}
 					<div className="bg-[rgba(28,28,32,0.95)] border border-white/[0.08] border-t-0 rounded-b-2xl">
+						{/* Game sub-selector — segmented control for Desktop / Mobile */}
+						{isGameType(selectedType) && (
+							<div className="flex items-center justify-center px-5 pt-3.5 pb-0.5">
+								<div className="inline-flex items-center rounded-lg bg-white/[0.04] border border-white/[0.06] p-0.5 gap-0.5">
+									<button
+										type="button"
+										onClick={() => setSelectedType("game")}
+										className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[12px] font-medium transition-all duration-200 ${
+											selectedType === "game"
+												? "bg-white/[0.1] text-white/90 shadow-sm"
+												: "text-white/40 hover:text-white/60"
+										}`}
+									>
+										<Monitor className="h-3 w-3" />
+										Desktop
+									</button>
+									<button
+										type="button"
+										onClick={() => setSelectedType("game-mobile")}
+										className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[12px] font-medium transition-all duration-200 ${
+											selectedType === "game-mobile"
+												? "bg-white/[0.1] text-white/90 shadow-sm"
+												: "text-white/40 hover:text-white/60"
+										}`}
+									>
+										<Smartphone className="h-3 w-3" />
+										Mobile
+									</button>
+								</div>
+							</div>
+						)}
 						{/* Textarea */}
 						<div className="px-5 pt-4 pb-2">
 							<textarea
