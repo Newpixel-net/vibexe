@@ -959,7 +959,7 @@ export function ChatColumn({
 		autoReviewTriggeredRef.current = true;
 		deepThinkingTimerRef.current = setTimeout(() => {
 			setDeepThinkingStatus("reviewing");
-			sendMessage({ text: "[REVIEW CODE] Review all generated files for code quality, correctness, and security issues." });
+			sendMessage({ text: "[REVIEW CODE] Check ONLY for runtime errors and build-breaking issues (crashed components, missing imports, undefined variables, infinite loops, blank screens). SKIP code style, accessibility, TypeScript strictness, Tailwind consistency, and performance nitpicks. If the app renders and runs without errors, verdict is APPROVE." });
 		}, 1500);
 
 		return () => {
@@ -982,7 +982,7 @@ export function ChatColumn({
 		autoFixTriggeredRef.current = true;
 		deepThinkingTimerRef.current = setTimeout(() => {
 			setDeepThinkingStatus("fixing");
-			sendMessage({ text: "[AUTO-FIX] Fix all the issues identified in the code review above. Read each affected file, apply the recommended fixes, and ensure the app builds without errors." });
+			sendMessage({ text: "[AUTO-FIX] Fix ONLY the critical runtime errors identified above. Make surgical single-line or small-block patches — do NOT rewrite entire files. Read each affected file first, change only the broken lines, and preserve all existing working code. If a file works, do not touch it." });
 		}, 1500);
 
 		return () => {
