@@ -33,8 +33,11 @@ export function BuilderLayout({
 }: BuilderLayoutProps) {
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const type = searchParams.get("type");
-	const previewMode: PreviewMode = type === "mobile" ? "mobile-frame" : "browser";
+	// Capture previewMode in state so it persists even after chat-column.tsx
+	// strips URL params via window.history.replaceState() (800ms after mount)
+	const [previewMode] = useState<PreviewMode>(
+		() => searchParams.get("type") === "mobile" ? "mobile-frame" : "browser",
+	);
 	const [view, setView] = useState<ViewType>("preview");
 	const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
 	const [files, setFiles] = useState<AppFile[]>(initialFiles);
