@@ -21,7 +21,7 @@ import {
 	useState,
 } from "react";
 import { cn } from "@/lib/utils";
-import type { ModelCapabilities } from "../lib/model-resolver";
+import type { ModelCapabilities } from "../lib/model-options";
 import type { Attachment } from "../types/vibesdk";
 import { AttachmentPreview } from "./attachment-preview";
 import { ScreenshotEditor } from "./screenshot-editor";

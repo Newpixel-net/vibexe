@@ -1,132 +1,25 @@
 /**
- * Model Resolver for App Builder
+ * Model Resolver — Server-only AI SDK provider resolution
  *
  * Maps model ID strings to AI SDK provider instances.
- * Supports Anthropic Claude (default), OpenAI, xAI Grok, and NVIDIA NIM (Kimi K2.5).
- * Supports BYOK (Bring Your Own Key) via optional apiKeys parameter.
+ * This file imports @ai-sdk/* packages and MUST NOT be imported
+ * by "use client" components. Client components should import
+ * from model-options.ts instead.
  */
 
 import { createAnthropic, anthropic } from "@ai-sdk/anthropic";
 import { createOpenAI, openai } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
+import { DEFAULT_MODEL_ID, MODEL_OPTIONS } from "./model-options";
 
-export interface ModelCapabilities {
-	vision: boolean;
-	documents: boolean;
-	maxFiles: number;
-	maxFileSizeMB: number;
-	supportedImageTypes: string[];
-	supportedDocTypes: string[];
-}
-
-export interface ModelOption {
-	id: string;
-	name: string;
-	provider: string;
-	tier: "opus" | "sonnet" | "haiku" | "standard";
-	capabilities: ModelCapabilities;
-}
-
-const ANTHROPIC_CAPABILITIES: ModelCapabilities = {
-	vision: true,
-	documents: true,
-	maxFiles: 20,
-	maxFileSizeMB: 5,
-	supportedImageTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
-	supportedDocTypes: ["application/pdf"],
-};
-
-export const MODEL_OPTIONS: ModelOption[] = [
-	{
-		id: "kimi-k2-5-fireworks",
-		name: "Kimi K2.5 (Fireworks)",
-		provider: "fireworks",
-		tier: "standard",
-		capabilities: {
-			vision: true,
-			documents: false,
-			maxFiles: 5,
-			maxFileSizeMB: 5,
-			supportedImageTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
-			supportedDocTypes: [],
-		},
-	},
-	{
-		id: "kimi-k2-5",
-		name: "Kimi K2.5 (NVIDIA)",
-		provider: "nvidia",
-		tier: "standard",
-		capabilities: {
-			vision: true,
-			documents: false,
-			maxFiles: 5,
-			maxFileSizeMB: 5,
-			supportedImageTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
-			supportedDocTypes: [],
-		},
-	},
-	{
-		id: "claude-sonnet-4-5",
-		name: "Claude Sonnet 4.5",
-		provider: "anthropic",
-		tier: "sonnet",
-		capabilities: ANTHROPIC_CAPABILITIES,
-	},
-	{
-		id: "claude-opus-4-6",
-		name: "Claude Opus 4.6",
-		provider: "anthropic",
-		tier: "opus",
-		capabilities: ANTHROPIC_CAPABILITIES,
-	},
-	{
-		id: "claude-haiku-4-5",
-		name: "Claude Haiku 4.5",
-		provider: "anthropic",
-		tier: "haiku",
-		capabilities: ANTHROPIC_CAPABILITIES,
-	},
-	{
-		id: "gpt-4o",
-		name: "GPT-4o",
-		provider: "openai",
-		tier: "standard",
-		capabilities: {
-			vision: true,
-			documents: true,
-			maxFiles: 10,
-			maxFileSizeMB: 20,
-			supportedImageTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
-			supportedDocTypes: ["application/pdf"],
-		},
-	},
-	{
-		id: "grok-4-1-fast",
-		name: "Grok 4.1 Fast",
-		provider: "xai",
-		tier: "standard",
-		capabilities: {
-			vision: true,
-			documents: false,
-			maxFiles: 1,
-			maxFileSizeMB: 10,
-			supportedImageTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
-			supportedDocTypes: [],
-		},
-	},
-];
-
-export const DEFAULT_MODEL_ID = "kimi-k2-5-fireworks";
-
-/**
- * Get capabilities for a model by ID.
- * Falls back to default model capabilities if ID is unknown.
- */
-export function getModelCapabilities(modelId?: string): ModelCapabilities {
-	const id = modelId || DEFAULT_MODEL_ID;
-	const model = MODEL_OPTIONS.find((m) => m.id === id);
-	return model?.capabilities ?? MODEL_OPTIONS[0].capabilities;
-}
+// Re-export client-safe types/constants for server-side consumers
+export {
+	DEFAULT_MODEL_ID,
+	MODEL_OPTIONS,
+	getModelCapabilities,
+	type ModelCapabilities,
+	type ModelOption,
+} from "./model-options";
 
 /** Optional BYOK keys map: { anthropic: "sk-...", openai: "sk-...", xai: "xai-..." } */
 export type ByokApiKeys = Record<string, string>;
@@ -192,10 +85,6 @@ function createModelMap(
 }
 
 // Default model map (no BYOK — uses process.env)
-// Lazy-initialized to avoid running AI SDK provider code at module load time.
-// This module is imported by "use client" components (chat-column.tsx) which only
-// need DEFAULT_MODEL_ID / getModelCapabilities. Eager init triggers a TDZ error
-// because @ai-sdk/* packages aren't safe to instantiate in client bundles.
 let _defaultModelMap: ReturnType<typeof createModelMap> | null = null;
 function getDefaultModelMap() {
 	if (!_defaultModelMap) _defaultModelMap = createModelMap();
@@ -204,10 +93,7 @@ function getDefaultModelMap() {
 
 /**
  * Resolve a model ID string to an AI SDK LanguageModel instance.
- * Falls back to Claude Sonnet 4.5 if the model ID is unknown.
- *
- * @param modelId - The model identifier (e.g. "claude-sonnet-4-5")
- * @param apiKeys - Optional BYOK keys. If provided, creates provider with explicit apiKey.
+ * Falls back to default model if the model ID is unknown.
  */
 export function resolveModel(
 	modelId?: string,
@@ -242,7 +128,6 @@ export function resolveModelByTier(
 
 /**
  * Fallback chain: when a model fails, try these alternatives in order.
- * Same-provider alternatives first, then cross-provider.
  */
 const FALLBACK_CHAIN: Record<string, string[]> = {
 	"kimi-k2-5-fireworks": ["kimi-k2-5", "claude-sonnet-4-5"],
@@ -256,7 +141,6 @@ const FALLBACK_CHAIN: Record<string, string[]> = {
 
 /**
  * Get the ordered fallback chain for a model.
- * Returns model IDs to try if the primary model fails.
  */
 export function getFallbackChain(modelId: string): string[] {
 	return FALLBACK_CHAIN[modelId] || ["claude-sonnet-4-5"];
@@ -274,12 +158,10 @@ export function validateModelConfig(
 	const model = MODEL_OPTIONS.find((m) => m.id === id);
 	if (!model) return `Unknown model: ${id}`;
 
-	// Check if the provider has an API key configured
 	const provider = model.provider;
 	const byokKey = apiKeys?.[provider];
-	if (byokKey) return null; // BYOK key present — valid
+	if (byokKey) return null;
 
-	// Check environment variables for each provider
 	const envKeyMap: Record<string, string> = {
 		anthropic: "ANTHROPIC_API_KEY",
 		openai: "OPENAI_API_KEY",

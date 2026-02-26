@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	DEFAULT_MODEL_ID,
 	MODEL_OPTIONS,
-} from "@/app/(main)/app-builder/lib/model-resolver";
+} from "@/app/(main)/app-builder/lib/model-options";
 import { cn } from "@/lib/utils";
 import type { ChatMode } from "../types/vibesdk";
 import { CapabilitiesModal } from "./capabilities-modal";

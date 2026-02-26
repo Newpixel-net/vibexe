@@ -59,7 +59,7 @@ import {
 	updatePhaseWithFile,
 	updateProjectStage,
 } from "../adapters/phase-adapter";
-import { DEFAULT_MODEL_ID, getModelCapabilities } from "../lib/model-resolver";
+import { DEFAULT_MODEL_ID, getModelCapabilities } from "../lib/model-options";
 import type {
 	AgentEvent,
 	Attachment,

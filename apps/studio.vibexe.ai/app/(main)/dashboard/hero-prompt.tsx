@@ -36,7 +36,7 @@ import { ModelPicker } from "./model-picker";
 import { VisibilityToggle, type Visibility } from "./visibility-toggle";
 import { AdvancedControls } from "./advanced-controls";
 import { GitHubImportModal } from "./github-import-modal";
-import { DEFAULT_MODEL_ID } from "@/app/(main)/app-builder/lib/model-resolver";
+import { DEFAULT_MODEL_ID } from "@/app/(main)/app-builder/lib/model-options";
 
 const ICON_MAP: Record<string, React.ElementType> = {
 	Layers,

@@ -11,7 +11,7 @@ import {
 	MODEL_OPTIONS as REAL_MODELS,
 	DEFAULT_MODEL_ID,
 	type ModelOption as ResolverModelOption,
-} from "@/app/(main)/app-builder/lib/model-resolver";
+} from "@/app/(main)/app-builder/lib/model-options";
 
 export interface ModelOption {
 	id: string;

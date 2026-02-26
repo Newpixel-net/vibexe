@@ -10,7 +10,7 @@
 import { Check, FileText, Image as ImageIcon, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { type ModelCapabilities, getModelCapabilities } from "../lib/model-resolver";
+import { type ModelCapabilities, getModelCapabilities } from "../lib/model-options";
 
 interface ChatSettingsPopoverProps {
 	modelId: string;
