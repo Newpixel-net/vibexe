@@ -56,6 +56,18 @@ export const CONTINUE_FLOW: OrchestrationFlow = {
 	steps: [{ agentId: "continuation-analyst", order: 1, required: true }],
 };
 
+export const MOBILE_FLOW: OrchestrationFlow = {
+	id: "mobile",
+	name: "Mobile App Flow",
+	description: "architect -> planner -> mobile-app-developer -> code-reviewer",
+	steps: [
+		{ agentId: "architect", order: 1, required: true },
+		{ agentId: "planner", order: 2, required: true },
+		{ agentId: "mobile-app-developer", order: 3, required: true },
+		{ agentId: "code-reviewer", order: 4, required: false },
+	],
+};
+
 export const ALL_FLOWS: OrchestrationFlow[] = [
 	FEATURE_FLOW,
 	QUICK_FLOW,
@@ -63,4 +75,5 @@ export const ALL_FLOWS: OrchestrationFlow[] = [
 	REFACTOR_FLOW,
 	REPLICATE_FLOW,
 	CONTINUE_FLOW,
+	MOBILE_FLOW,
 ];

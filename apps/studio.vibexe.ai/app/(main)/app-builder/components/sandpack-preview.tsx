@@ -28,6 +28,8 @@ import {
 	Tablet,
 	X,
 } from "lucide-react";
+import { MobilePublishPanel } from "./mobile-publish-panel";
+import { PhoneFrame } from "./phone-frame";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import { useVisualEdit } from "../lib/visual-edit-context";
@@ -49,6 +51,8 @@ const DEVICE_SIZES: Record<DeviceSize, { width: number; label: string }> = {
 	mobile: { width: 375, label: "Mobile" },
 };
 
+export type PreviewMode = "browser" | "mobile-frame";
+
 interface SandpackPreviewProps {
 	appId: string;
 	files: AppFile[];
@@ -56,6 +60,7 @@ interface SandpackPreviewProps {
 	onFileUpdate?: (fileId: string, content: string) => void;
 	onViewChange?: (view: RightPanelView) => void;
 	onFileSelect?: (fileId: string) => void;
+	previewMode?: PreviewMode;
 }
 
 /**
@@ -348,8 +353,10 @@ export function SandpackPreview({
 	onFileUpdate,
 	onViewChange,
 	onFileSelect,
+	previewMode = "browser",
 }: SandpackPreviewProps) {
-	const [device, setDevice] = useState<DeviceSize>("desktop");
+	const isMobileFrame = previewMode === "mobile-frame";
+	const [device, setDevice] = useState<DeviceSize>(isMobileFrame ? "mobile" : "desktop");
 	const [showConsole, setShowConsole] = useState(false);
 	const visualEdit = useVisualEdit();
 	const iframeContainerRef = useRef<HTMLDivElement>(null);
@@ -522,33 +529,41 @@ export function SandpackPreview({
 			<div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b border-white/[0.06] bg-white/[0.03]">
 				{/* Glass device toggles */}
 				<div className="flex items-center gap-1">
-					{(Object.keys(DEVICE_SIZES) as DeviceSize[]).map((size) => {
-						const Icon =
-							size === "desktop"
-								? Monitor
-								: size === "tablet"
-									? Tablet
-									: Smartphone;
-						const isActive = device === size;
-						return (
-							<button
-								type="button"
-								key={size}
-								onClick={() => setDevice(size)}
-								className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-xl transition-all duration-200 ${
-									isActive
-										? "bg-white/[0.08] text-white/90 border border-white/[0.12]"
-										: "text-white/40 hover:bg-white/[0.04] hover:text-white/70"
-								}`}
-								title={DEVICE_SIZES[size].label}
-							>
-								<Icon className="w-3.5 h-3.5" />
-								<span className="hidden sm:inline">
-									{DEVICE_SIZES[size].label}
-								</span>
-							</button>
-						);
-					})}
+					{isMobileFrame ? (
+						/* Mobile-frame mode: show only mobile indicator */
+						<div className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-xl bg-white/[0.08] text-white/90 border border-white/[0.12]">
+							<Smartphone className="w-3.5 h-3.5" />
+							<span className="hidden sm:inline">Mobile</span>
+						</div>
+					) : (
+						(Object.keys(DEVICE_SIZES) as DeviceSize[]).map((size) => {
+							const Icon =
+								size === "desktop"
+									? Monitor
+									: size === "tablet"
+										? Tablet
+										: Smartphone;
+							const isActive = device === size;
+							return (
+								<button
+									type="button"
+									key={size}
+									onClick={() => setDevice(size)}
+									className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-xl transition-all duration-200 ${
+										isActive
+											? "bg-white/[0.08] text-white/90 border border-white/[0.12]"
+											: "text-white/40 hover:bg-white/[0.04] hover:text-white/70"
+									}`}
+									title={DEVICE_SIZES[size].label}
+								>
+									<Icon className="w-3.5 h-3.5" />
+									<span className="hidden sm:inline">
+										{DEVICE_SIZES[size].label}
+									</span>
+								</button>
+							);
+						})
+					)}
 				</div>
 
 				{/* Visual Edit toggle + Preview link + Actions */}
@@ -587,90 +602,163 @@ export function SandpackPreview({
 			</div>
 
 			{/* Sandpack container - fills remaining space */}
-			<div className="sandpack-container flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/20 p-2">
-				<div
-					ref={iframeContainerRef}
-					className="bg-background rounded-lg shadow-lg overflow-hidden flex-1 min-h-0 transition-all duration-200 mx-auto relative"
-					style={{
-						width: device === "desktop" ? "100%" : previewWidth,
-						maxWidth: "100%",
-					}}
-				>
-					<SandpackProvider
-						template="react-ts"
-						files={sandpackFiles}
-						customSetup={{
-							dependencies,
-						}}
-						options={{
-							autorun: true,
-							autoReload: true,
-							recompileMode: "delayed",
-							recompileDelay: 300,
-							externalResources,
-						}}
-						theme="auto"
-					>
-						<SandpackFileSync files={sandpackFiles} />
-						<div className="relative w-full h-full flex flex-col">
-							{/* Preview pane - takes all space minus console */}
-							<div className={`flex-1 min-h-0 ${showConsole ? "" : "h-full"}`}>
-								<SandpackPreviewPane
-									showNavigator={false}
-									showRefreshButton={false}
-									showOpenInCodeSandbox={false}
-									style={{
-										height: "100%",
-										width: "100%",
+			<div className={`sandpack-container flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/20 p-2 ${isMobileFrame ? "overflow-y-auto" : ""}`}>
+				{isMobileFrame ? (
+					/* Mobile frame mode: phone frame + publish panel */
+					<div className="flex flex-col items-center py-4">
+						<PhoneFrame>
+							<div
+								ref={iframeContainerRef}
+								className="relative w-full h-full"
+							>
+								<SandpackProvider
+									template="react-ts"
+									files={sandpackFiles}
+									customSetup={{
+										dependencies,
 									}}
-								/>
-							</div>
+									options={{
+										autorun: true,
+										autoReload: true,
+										recompileMode: "delayed",
+										recompileDelay: 300,
+										externalResources,
+									}}
+									theme="auto"
+								>
+									<SandpackFileSync files={sandpackFiles} />
+									<div className="relative w-full h-full flex flex-col">
+										<div className={`flex-1 min-h-0 ${showConsole ? "" : "h-full"}`}>
+											<SandpackPreviewPane
+												showNavigator={false}
+												showRefreshButton={false}
+												showOpenInCodeSandbox={false}
+												style={{
+													height: "100%",
+													width: "100%",
+												}}
+											/>
+										</div>
+										{showConsole && (
+											<div className="h-32 flex-shrink-0 border-t border-border bg-background">
+												<SandpackConsole
+													showHeader={false}
+													style={{ height: "100%" }}
+												/>
+											</div>
+										)}
+										<div className="absolute top-2 right-2">
+											<RefreshButton />
+										</div>
+									</div>
+								</SandpackProvider>
 
-							{/* Console panel (collapsible) */}
-							{showConsole && (
-								<div className="h-40 flex-shrink-0 border-t border-border bg-background">
-									<SandpackConsole
-										showHeader={false}
+								{visualEdit.enabled && visualEdit.selectedElement && (
+									<VisualEditToolbar
+										iframeBounds={iframeBounds}
+										files={files}
+										onFileUpdate={onFileUpdate || (() => {})}
+										onViewChange={onViewChange || (() => {})}
+										onFileSelect={onFileSelect || (() => {})}
+										onViewInCode={handleViewInCode}
+									/>
+								)}
+
+								{codeViewer && (
+									<CodeViewerOverlay
+										filePath={codeViewer.filePath}
+										content={codeViewer.content}
+										lineNumber={codeViewer.lineNumber}
+										onClose={() => setCodeViewer(null)}
+									/>
+								)}
+							</div>
+						</PhoneFrame>
+
+						<MobilePublishPanel appId={appId} />
+					</div>
+				) : (
+					/* Standard browser mode */
+					<div
+						ref={iframeContainerRef}
+						className="bg-background rounded-lg shadow-lg overflow-hidden flex-1 min-h-0 transition-all duration-200 mx-auto relative"
+						style={{
+							width: device === "desktop" ? "100%" : previewWidth,
+							maxWidth: "100%",
+						}}
+					>
+						<SandpackProvider
+							template="react-ts"
+							files={sandpackFiles}
+							customSetup={{
+								dependencies,
+							}}
+							options={{
+								autorun: true,
+								autoReload: true,
+								recompileMode: "delayed",
+								recompileDelay: 300,
+								externalResources,
+							}}
+							theme="auto"
+						>
+							<SandpackFileSync files={sandpackFiles} />
+							<div className="relative w-full h-full flex flex-col">
+								{/* Preview pane - takes all space minus console */}
+								<div className={`flex-1 min-h-0 ${showConsole ? "" : "h-full"}`}>
+									<SandpackPreviewPane
+										showNavigator={false}
+										showRefreshButton={false}
+										showOpenInCodeSandbox={false}
 										style={{
 											height: "100%",
+											width: "100%",
 										}}
 									/>
 								</div>
-							)}
 
-							{/* No overlay during generation — the splash animation plays
-								inside Sandpack naturally (DEFAULT_APP), then the user sees
-								the real app being built live as files stream in. */}
+								{/* Console panel (collapsible) */}
+								{showConsole && (
+									<div className="h-40 flex-shrink-0 border-t border-border bg-background">
+										<SandpackConsole
+											showHeader={false}
+											style={{
+												height: "100%",
+											}}
+										/>
+									</div>
+								)}
 
-							{/* Refresh button overlay */}
-							<div className="absolute top-2 right-2">
-								<RefreshButton />
+								{/* Refresh button overlay */}
+								<div className="absolute top-2 right-2">
+									<RefreshButton />
+								</div>
 							</div>
-						</div>
-					</SandpackProvider>
+						</SandpackProvider>
 
-					{/* Visual Edit Toolbar (floating overlay) */}
-					{visualEdit.enabled && visualEdit.selectedElement && (
-						<VisualEditToolbar
-							iframeBounds={iframeBounds}
-							files={files}
-							onFileUpdate={onFileUpdate || (() => {})}
-							onViewChange={onViewChange || (() => {})}
-							onFileSelect={onFileSelect || (() => {})}
-							onViewInCode={handleViewInCode}
-						/>
-					)}
+						{/* Visual Edit Toolbar (floating overlay) */}
+						{visualEdit.enabled && visualEdit.selectedElement && (
+							<VisualEditToolbar
+								iframeBounds={iframeBounds}
+								files={files}
+								onFileUpdate={onFileUpdate || (() => {})}
+								onViewChange={onViewChange || (() => {})}
+								onFileSelect={onFileSelect || (() => {})}
+								onViewInCode={handleViewInCode}
+							/>
+						)}
 
-					{/* Code Viewer Overlay */}
-					{codeViewer && (
-						<CodeViewerOverlay
-							filePath={codeViewer.filePath}
-							content={codeViewer.content}
-							lineNumber={codeViewer.lineNumber}
-							onClose={() => setCodeViewer(null)}
-						/>
-					)}
-				</div>
+						{/* Code Viewer Overlay */}
+						{codeViewer && (
+							<CodeViewerOverlay
+								filePath={codeViewer.filePath}
+								content={codeViewer.content}
+								lineNumber={codeViewer.lineNumber}
+								onClose={() => setCodeViewer(null)}
+							/>
+						)}
+					</div>
+				)}
 			</div>
 		</div>
 	);

@@ -14,7 +14,7 @@ import type { AppFile } from "../adapters/file-adapter";
 import { DashboardPanel } from "./dashboard-panel";
 import { ReadmePanel } from "./readme-panel";
 import { RightPanelTabs, type RightPanelView } from "./right-panel-tabs";
-import { SandpackPreview } from "./sandpack-preview";
+import { SandpackPreview, type PreviewMode } from "./sandpack-preview";
 import { WorkflowsPanel } from "./workflows-panel";
 
 // Re-export RightPanelView as ViewType for backward compatibility
@@ -39,6 +39,8 @@ export interface MainContentPanelProps {
 	isGenerating?: boolean;
 	/** Streaming doc from in-progress create_file/update_file tool call */
 	streamingDoc?: { path: string; content: string } | null;
+	/** Preview display mode: browser (default) or mobile-frame (iPhone wrapper) */
+	previewMode?: PreviewMode;
 }
 
 /**
@@ -61,6 +63,7 @@ export function MainContentPanel({
 	onViewChange,
 	isGenerating,
 	streamingDoc,
+	previewMode,
 }: MainContentPanelProps) {
 	return (
 		<div className="flex-1 flex flex-col min-h-0 bg-white/[0.015] backdrop-blur-lg">
@@ -79,6 +82,7 @@ export function MainContentPanel({
 						onFileUpdate={onFileUpdate}
 						onViewChange={onViewChange}
 						onFileSelect={(id) => onFileSelect(id)}
+						previewMode={previewMode}
 					/>
 				</div>
 

@@ -8,11 +8,12 @@
  * LeftNavBar removed — actions merged into chat header/bottom bar.
  */
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import type { FileType } from "../types/vibesdk";
 import { VisualEditProvider } from "../lib/visual-edit-context";
+import type { PreviewMode } from "./sandpack-preview";
 import { BuilderHeader } from "./builder-header";
 import { ChatColumn } from "./chat-column";
 import { MainContentPanel, type ViewType } from "./main-content-panel";
@@ -31,6 +32,9 @@ export function BuilderLayout({
 	files: initialFiles,
 }: BuilderLayoutProps) {
 	const router = useRouter();
+	const searchParams = useSearchParams();
+	const type = searchParams.get("type");
+	const previewMode: PreviewMode = type === "mobile" ? "mobile-frame" : "browser";
 	const [view, setView] = useState<ViewType>("preview");
 	const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
 	const [files, setFiles] = useState<AppFile[]>(initialFiles);
@@ -149,6 +153,7 @@ export function BuilderLayout({
 							onViewChange={setView}
 							isGenerating={isGenerating}
 							streamingDoc={streamingDoc}
+							previewMode={previewMode}
 						/>
 					</div>
 				</div>

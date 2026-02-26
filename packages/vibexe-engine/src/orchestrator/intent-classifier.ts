@@ -64,6 +64,22 @@ const REFACTOR_KEYWORDS = [
 	"reduce duplication",
 ];
 
+/** Keywords that indicate mobile app intent (routes to MOBILE_FLOW) */
+const MOBILE_KEYWORDS = [
+	"mobile",
+	"ios",
+	"android",
+	"phone app",
+	"native app",
+	"mobile app",
+	"pwa",
+	"[project type: mobile",
+];
+
+function isMobileIntent(lower: string): boolean {
+	return MOBILE_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 const COMPLEXITY_SIGNALS = {
 	simple: [
 		"counter",
@@ -108,6 +124,7 @@ const TECH_SIGNALS: Record<string, string[]> = {
 	database: ["database", "db", "sql", "postgres", "crud", "table"],
 	state: ["state", "redux", "zustand", "context", "store"],
 	platform: ["environment", "staging", "production", "backup", "restore", "promote", "deploy", "migration", "rollback", "snapshot"],
+	mobile: ["mobile", "ios", "android", "phone", "pwa", "native", "app store"],
 };
 
 export function classifyIntent(prompt: string): IntentClassification {
@@ -167,6 +184,12 @@ export function classifyIntent(prompt: string): IntentClassification {
 		suggestedFlow = "refactor";
 		complexity = hasComplexSignals >= 2 ? "complex" : "medium";
 		type = "refactoring";
+	}
+	// Priority 3.5: Mobile app intent
+	else if (isMobileIntent(lower)) {
+		suggestedFlow = "mobile";
+		complexity = hasComplexSignals >= 2 ? "complex" : "medium";
+		type = "mobile-app";
 	}
 	// Priority 4: Normal feature/quick flow based on complexity
 	else if (hasComplexSignals >= 2 || words.length > 30) {

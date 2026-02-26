@@ -1155,9 +1155,21 @@ export default function App() {
 export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLanguageConfig, apiOrigin?: string, appId?: string): SandpackFiles {
 	const sandpackFiles: SandpackFiles = {};
 
-	// Always include custom index.html with Tailwind support + language/RTL
+	// Check if files include a manifest.json (PWA)
+	const hasManifest = files.some((f) => f.path === "manifest.json" || f.path.endsWith("/manifest.json"));
+
+	// Always include custom index.html with Tailwind support + language/RTL + PWA meta if manifest
+	let indexHtml = langConfig ? buildIndexHtml(langConfig) : TAILWIND_INDEX_HTML;
+	if (hasManifest) {
+		// Inject PWA meta tags before </head>
+		const pwaMeta = `    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.json" />`;
+		indexHtml = indexHtml.replace("</head>", `${pwaMeta}\n  </head>`);
+	}
 	sandpackFiles["/public/index.html"] = {
-		code: langConfig ? buildIndexHtml(langConfig) : TAILWIND_INDEX_HTML,
+		code: indexHtml,
 		hidden: true,
 	};
 

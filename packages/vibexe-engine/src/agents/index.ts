@@ -13,6 +13,7 @@ import { securityReviewer } from "./security-reviewer";
 import { tddGuide } from "./tdd-guide";
 import { uiDesigner } from "./ui-designer";
 import { continuationAnalyst } from "./continuation-analyst";
+import { mobileAppDeveloper } from "./mobile-app-developer";
 import { siteReplicator } from "./site-replicator";
 
 export const DEFAULT_AGENTS: AgentDefinition[] = [
@@ -25,6 +26,7 @@ export const DEFAULT_AGENTS: AgentDefinition[] = [
 	frontendDeveloper,
 	backendDeveloper,
 	fullstackDeveloper,
+	mobileAppDeveloper,
 	uiDesigner,
 	docUpdater,
 	refactorCleaner,
