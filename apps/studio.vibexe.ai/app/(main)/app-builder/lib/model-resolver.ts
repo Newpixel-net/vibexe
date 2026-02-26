@@ -192,7 +192,15 @@ function createModelMap(
 }
 
 // Default model map (no BYOK — uses process.env)
-const defaultModelMap = createModelMap();
+// Lazy-initialized to avoid running AI SDK provider code at module load time.
+// This module is imported by "use client" components (chat-column.tsx) which only
+// need DEFAULT_MODEL_ID / getModelCapabilities. Eager init triggers a TDZ error
+// because @ai-sdk/* packages aren't safe to instantiate in client bundles.
+let _defaultModelMap: ReturnType<typeof createModelMap> | null = null;
+function getDefaultModelMap() {
+	if (!_defaultModelMap) _defaultModelMap = createModelMap();
+	return _defaultModelMap;
+}
 
 /**
  * Resolve a model ID string to an AI SDK LanguageModel instance.
@@ -206,7 +214,7 @@ export function resolveModel(
 	apiKeys?: ByokApiKeys,
 ): LanguageModel {
 	const id = modelId || DEFAULT_MODEL_ID;
-	const map = apiKeys ? createModelMap(apiKeys) : defaultModelMap;
+	const map = apiKeys ? createModelMap(apiKeys) : getDefaultModelMap();
 	const factory = map[id];
 	if (factory) {
 		return factory();
@@ -221,7 +229,7 @@ export function resolveModelByTier(
 	tier: "opus" | "sonnet" | "haiku",
 	apiKeys?: ByokApiKeys,
 ): LanguageModel {
-	const map = apiKeys ? createModelMap(apiKeys) : defaultModelMap;
+	const map = apiKeys ? createModelMap(apiKeys) : getDefaultModelMap();
 	switch (tier) {
 		case "opus":
 			return map["claude-opus-4-6"]();
