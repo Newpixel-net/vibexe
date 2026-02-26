@@ -132,7 +132,12 @@ await app.integrations.execute("slack", "send_message", {
   channel: "#general", text: "Hello!"
 });
 await app.integrations.execute("gmail", "send_email", {
-  to: ["user@example.com"], subject: "Hi", body: "Hello"
+  receiver: ["user@example.com"], subject: "Hi",
+  body_type: "plain_text", body: "Hello"
+});
+await app.integrations.execute("sendgrid", "send_email", {
+  to: ["user@example.com"], from: "sender@example.com",
+  subject: "Hi", content_type: "text", content: "Hello"
 });
 await app.integrations.execute("http", "send_request", {
   method: "POST", url: "https://api.example.com/data",
@@ -140,11 +145,15 @@ await app.integrations.execute("http", "send_request", {
 });
 \`\`\`
 
+**IMPORTANT**: Each piece has its own property names. For example, Gmail uses \`receiver\` while SendGrid uses \`to\`.
+Use the Vibexe Dashboard > Integrations to see available pieces and their schemas.
+
 **Popular integrations by category:**
 - Communication: slack, gmail, discord, telegram, twilio, microsoft-teams
 - CRM: hubspot, salesforce, pipedrive, zoho-crm
 - Project Management: notion, asana, trello, linear, jira-cloud
 - Data: google-sheets, airtable, google-drive, dropbox
+- Email: sendgrid, mailchimp
 - Payments: stripe, paypal
 - AI: openai, anthropic
 - Generic: http (any REST API)

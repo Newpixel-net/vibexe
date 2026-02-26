@@ -904,6 +904,17 @@ manage_backups({ action: "restore", backupId: 42 })
 export const SDK_INTEGRATIONS_REFERENCE = `
 ## Integrations API (600+ Activepieces Integrations)
 
+### CRITICAL — Always look up properties first!
+Before writing ANY \`app.integrations.execute()\` call, you MUST call \`lookup_integration_props\` to discover
+the exact property names. Each piece has its own property schema — guessing will cause runtime errors.
+
+\`\`\`
+// Step 1: Call lookup_integration_props({ pieceName: "sendgrid", actionName: "send_email" })
+// Step 2: Read the returned properties list
+// Step 3: Write code using the exact property names from the response
+\`\`\`
+
+### Example (after looking up properties)
 \`\`\`typescript
 // Execute any installed integration action
 const result = await app.integrations.execute("slack", "send_message", {
@@ -911,11 +922,21 @@ const result = await app.integrations.execute("slack", "send_message", {
   text: "Hello from Vibexe!"
 });
 
-// Gmail
+// Gmail — note: uses "receiver" not "to", "body" not "content"
 await app.integrations.execute("gmail", "send_email", {
-  to: ["user@example.com"],
+  receiver: ["user@example.com"],
   subject: "Welcome",
+  body_type: "html",
   body: "<h1>Hello</h1>"
+});
+
+// SendGrid — note: uses "content" not "body", requires "content_type"
+await app.integrations.execute("sendgrid", "send_email", {
+  to: ["user@example.com"],
+  from: "sender@example.com",
+  subject: "Welcome",
+  content_type: "html",
+  content: "<h1>Hello</h1>"
 });
 
 // HTTP (generic API calls)
@@ -924,18 +945,6 @@ await app.integrations.execute("http", "send_request", {
   url: "https://api.example.com/data",
   headers: { Authorization: "Bearer token" },
   body: { key: "value" }
-});
-
-// Discord
-await app.integrations.execute("discord", "send_message_webhook", {
-  webhook_url: "https://discord.com/api/webhooks/...",
-  content: "Hello from Vibexe!"
-});
-
-// Google Sheets
-const rows = await app.integrations.execute("google-sheets", "read_rows", {
-  spreadsheet_id: "1abc...",
-  sheet_name: "Sheet1"
 });
 \`\`\`
 
@@ -946,6 +955,7 @@ const rows = await app.integrations.execute("google-sheets", "read_rows", {
 - **Payments**: stripe, paypal
 - **Storage**: google-drive, dropbox, onedrive, google-sheets, airtable
 - **AI**: openai, anthropic
+- **Email**: sendgrid, mailchimp, smtp
 - **HTTP**: http (generic REST calls)
 
 ### Pattern
@@ -954,13 +964,21 @@ app.integrations.execute(pieceName, actionName, properties)
 \`\`\`
 - \`pieceName\`: The integration name (e.g. "slack", "gmail", "http")
 - \`actionName\`: The specific action (e.g. "send_message", "send_email")
-- \`properties\`: Action-specific parameters object
+- \`properties\`: Action-specific parameters — ALWAYS use lookup_integration_props to get exact names
 - Returns the action result (shape varies by integration)
 
 ### CRITICAL — Use integrations for external services
 Do NOT use \`fetch()\` for services that have integration pieces (Slack, Gmail, Stripe, etc.).
 Use \`app.integrations.execute()\` instead — it handles authentication and OAuth automatically.
 Only use \`fetch()\` or the \`http\` integration for APIs that don't have a dedicated piece.
+
+### lookup_integration_props Tool
+When the user's app needs integrations, call this tool to discover:
+1. Available actions for a piece: \`lookup_integration_props({ pieceName: "slack" })\`
+2. Exact property schema for an action: \`lookup_integration_props({ pieceName: "slack", actionName: "send_message" })\`
+The response includes property names, types, required flags, and descriptions.
+NEVER guess property names — different pieces use different names for similar concepts
+(e.g. Gmail uses "receiver" while SendGrid uses "to" for recipients).
 `;
 
 /** Backend function file conventions for AI agents */

@@ -21,6 +21,7 @@ export const fullstackDeveloper: AgentDefinition = {
 		"define_entities",
 		"manage_environments",
 		"manage_backups",
+		"lookup_integration_props",
 	],
 	readOnly: false,
 	skills: ["frontend-patterns", "coding-standards"],

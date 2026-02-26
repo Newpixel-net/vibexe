@@ -20,7 +20,8 @@ export type AgentTool =
 	| "search_code"
 	| "define_entities"
 	| "manage_environments"
-	| "manage_backups";
+	| "manage_backups"
+	| "lookup_integration_props";
 
 export interface SkillDefinition {
 	id: string;

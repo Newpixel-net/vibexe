@@ -427,6 +427,87 @@ export function createFileTools(appId: string) {
 			},
 		}),
 
+		lookup_integration_props: tool({
+			description:
+				"Look up available actions and their property schemas for an Activepieces integration piece. Call this BEFORE writing code that uses app.integrations.execute() to discover the exact property names an action expects. Without this, you will guess wrong property names and the integration will fail at runtime.",
+			inputSchema: z.object({
+				pieceName: z
+					.string()
+					.describe(
+						'The piece name to look up (e.g. "slack", "sendgrid", "gmail", "hubspot")',
+					),
+				actionName: z
+					.string()
+					.optional()
+					.describe(
+						'Optional: specific action to get detailed properties for (e.g. "send_message", "send_email"). If omitted, returns all actions with their properties.',
+					),
+			}),
+			execute: async ({ pieceName, actionName }) => {
+				try {
+					const { inspectPiece } = await import(
+						"@vibexe-ai/activepieces-adapter/server"
+					);
+					const info = await inspectPiece(pieceName);
+
+					if (actionName) {
+						// Return detailed props for a specific action
+						const action = info.actions.find((a) => a.name === actionName);
+						if (!action) {
+							return {
+								success: false,
+								pieceName,
+								error: `Action "${actionName}" not found. Available actions: ${info.actions.map((a) => a.name).join(", ")}`,
+							};
+						}
+						return {
+							success: true,
+							pieceName: info.name,
+							displayName: info.displayName,
+							action: action.name,
+							actionDisplayName: action.displayName,
+							description: action.description,
+							requireAuth: action.requireAuth,
+							properties: Object.values(action.props).map((p) => ({
+								name: p.name,
+								displayName: p.displayName,
+								description: p.description,
+								type: p.type,
+								required: p.required,
+								defaultValue: p.defaultValue,
+								options: p.options,
+							})),
+						};
+					}
+
+					// Return all actions with their properties
+					return {
+						success: true,
+						pieceName: info.name,
+						displayName: info.displayName,
+						authType: info.auth?.type ?? "none",
+						actions: info.actions.map((a) => ({
+							name: a.name,
+							displayName: a.displayName,
+							description: a.description,
+							properties: Object.values(a.props).map((p) => ({
+								name: p.name,
+								type: p.type,
+								required: p.required,
+								description: p.description,
+							})),
+						})),
+					};
+				} catch (error) {
+					return {
+						success: false,
+						pieceName,
+						error: `Failed to look up piece "${pieceName}": ${String(error)}`,
+					};
+				}
+			},
+		}),
+
 		manage_backups: tool({
 			description:
 				"Manage database backups for the app. Use this to create manual backups, list existing backups, restore from a backup, or delete old backups. Backups use pg_dump and are stored in S3.",

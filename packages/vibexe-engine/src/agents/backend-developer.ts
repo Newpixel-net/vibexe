@@ -15,7 +15,7 @@ export const backendDeveloper: AgentDefinition = {
 	description: "API, database, and authentication expert",
 	icon: "Server",
 	modelTier: "sonnet",
-	tools: ["create_file", "update_file", "delete_file", "read_file", "define_entities", "manage_environments", "manage_backups"],
+	tools: ["create_file", "update_file", "delete_file", "read_file", "define_entities", "manage_environments", "manage_backups", "lookup_integration_props"],
 	readOnly: false,
 	skills: ["backend-patterns", "api-design", "postgres-patterns"],
 	activationTriggers: ["api", "database", "auth", "server", "endpoint", "middleware", "environment", "staging", "production", "backup", "restore", "promote", "deploy"],
