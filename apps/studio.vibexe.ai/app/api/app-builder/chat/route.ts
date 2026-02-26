@@ -24,6 +24,8 @@ import {
 	type ByokApiKeys,
 	resolveModel,
 	resolveModelByTier,
+	getFallbackChain,
+	validateModelConfig,
 } from "@/app/(main)/app-builder/lib/model-resolver";
 import {
 	getAppById,
@@ -647,12 +649,37 @@ An App Store listing has been analyzed and injected into the project context abo
 		const modelMessages = await convertToModelMessages(messages);
 		const byok = hasByok ? byokKeys : undefined;
 
-		// Use user-selected model if provided, otherwise use the primary agent's tier
-		const model = modelId
-			? resolveModel(modelId, byok)
-			: developerAgent
-				? resolveModelByTier(developerAgent.modelTier, byok)
-				: resolveModel(undefined, byok);
+		// Determine effective model ID for resolution and fallback
+		const tierMap: Record<string, string> = { opus: "claude-opus-4-6", sonnet: "claude-sonnet-4-5", haiku: "claude-haiku-4-5" };
+		let effectiveModelId = modelId
+			|| (developerAgent ? tierMap[developerAgent.modelTier] : undefined)
+			|| undefined;
+
+		// Pre-flight: validate API key before starting generation
+		const configError = validateModelConfig(effectiveModelId, byok);
+		if (configError) {
+			// Try fallback chain if primary model has no API key
+			const fallbacks = getFallbackChain(effectiveModelId || "kimi-k2-5-fireworks");
+			let fallbackId: string | null = null;
+			for (const fb of fallbacks) {
+				if (!validateModelConfig(fb, byok)) {
+					fallbackId = fb;
+					break;
+				}
+			}
+			if (!fallbackId) {
+				console.error(`[Chat API] Pre-flight failed: ${configError}, no valid fallback`);
+				return new Response(JSON.stringify({ error: configError }), {
+					status: 400,
+					headers: { "Content-Type": "application/json" },
+				});
+			}
+			console.log(`[Chat API] Pre-flight: ${effectiveModelId} unavailable (${configError}), falling back to ${fallbackId}`);
+			effectiveModelId = fallbackId;
+		}
+
+		// Resolve to AI SDK model instance (uses fallback if pre-flight switched it)
+		const model = resolveModel(effectiveModelId, byok);
 
 		const isReplication = plan.intent.suggestedFlow === "replicate";
 		const isFix = plan.intent.suggestedFlow === "fix";
@@ -685,6 +712,7 @@ An App Store listing has been analyzed and injected into the project context abo
 		let totalFileCalls = 0;
 		const filesChanged: string[] = [];
 		const entitiesChanged: string[] = [];
+		let generationError: unknown = null;
 		const result = streamText({
 			model,
 			system: systemPrompt,
@@ -692,6 +720,13 @@ An App Store listing has been analyzed and injected into the project context abo
 			tools,
 			stopWhen: stepCountIs(maxSteps),
 			toolChoice: "auto",
+			onError: ({ error }) => {
+				generationError = error;
+				const errMsg = error instanceof Error ? error.message : String(error);
+				console.error(
+					`[Chat API] Stream error - model=${modelId || "default"}, steps=${stepCount}, files=${totalFileCalls}: ${errMsg}`,
+				);
+			},
 			onStepFinish: ({ toolCalls, finishReason, usage }) => {
 				stepCount++;
 				const fileToolNames = ["create_file", "update_file", "delete_file", "define_entities", "read_file", "manage_environments", "manage_backups"];
@@ -720,11 +755,12 @@ An App Store listing has been analyzed and injected into the project context abo
 			},
 			onFinish: (event) => {
 				console.log(
-					`[Chat API] Stream finished - Chat: ${chatId || "new"}, steps=${stepCount}, files=${totalFileCalls}, maxSteps=${maxSteps}, finishReason=${event.finishReason}`,
+					`[Chat API] Stream finished - Chat: ${chatId || "new"}, steps=${stepCount}, files=${totalFileCalls}, maxSteps=${maxSteps}, finishReason=${event.finishReason}${generationError ? ", hadError=true" : ""}`,
 				);
 
 				// Sync wiki pages (fire-and-forget, zero token cost)
-				if (!isReviewCode && totalFileCalls > 0) {
+				// Skip wiki sync if the stream errored mid-generation (would create misleading docs)
+				if (!isReviewCode && totalFileCalls > 0 && !generationError) {
 					syncWiki(appId, {
 						category: wikiCategory,
 						userPrompt,
@@ -732,6 +768,10 @@ An App Store listing has been analyzed and injected into the project context abo
 						entitiesChanged: entitiesChanged.length > 0 ? entitiesChanged : undefined,
 					}).catch((e) =>
 						console.error("[Chat API] Wiki sync failed:", e),
+					);
+				} else if (generationError && totalFileCalls > 0) {
+					console.log(
+						`[Chat API] Skipping wiki sync — stream errored after ${totalFileCalls} file operations`,
 					);
 				}
 			},
@@ -742,9 +782,29 @@ An App Store listing has been analyzed and injected into the project context abo
 			sendRoundtrips: true,
 		});
 	} catch (error) {
-		console.error("[Chat API] Error:", error);
-		return new Response(JSON.stringify({ error: "Internal server error" }), {
-			status: 500,
+		const errMsg = error instanceof Error ? error.message : String(error);
+		console.error("[Chat API] Error:", errMsg);
+
+		// Parse provider-specific HTTP status codes for actionable messages
+		const lc = errMsg.toLowerCase();
+		let userMessage = errMsg;
+		let status = 500;
+		if (lc.includes("402") || lc.includes("payment") || lc.includes("credit") || lc.includes("quota") || lc.includes("insufficient")) {
+			userMessage = "AI provider credits exhausted. Please switch to a different model.";
+			status = 402;
+		} else if (lc.includes("429") || lc.includes("rate limit") || lc.includes("too many")) {
+			userMessage = "Rate limited by AI provider. Please wait a moment and try again.";
+			status = 429;
+		} else if (lc.includes("401") || lc.includes("unauthorized") || lc.includes("api key")) {
+			userMessage = "Invalid API key for this provider. Check your settings.";
+			status = 401;
+		} else if (lc.includes("503") || lc.includes("unavailable") || lc.includes("overloaded")) {
+			userMessage = "AI provider temporarily unavailable. Try again or switch models.";
+			status = 503;
+		}
+
+		return new Response(JSON.stringify({ error: userMessage }), {
+			status,
 			headers: { "Content-Type": "application/json" },
 		});
 	}

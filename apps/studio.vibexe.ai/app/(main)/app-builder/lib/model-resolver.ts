@@ -231,3 +231,59 @@ export function resolveModelByTier(
 			return map["claude-haiku-4-5"]();
 	}
 }
+
+/**
+ * Fallback chain: when a model fails, try these alternatives in order.
+ * Same-provider alternatives first, then cross-provider.
+ */
+const FALLBACK_CHAIN: Record<string, string[]> = {
+	"kimi-k2-5-fireworks": ["kimi-k2-5", "claude-sonnet-4-5"],
+	"kimi-k2-5": ["kimi-k2-5-fireworks", "claude-sonnet-4-5"],
+	"claude-sonnet-4-5": ["claude-opus-4-6", "gpt-4o"],
+	"claude-opus-4-6": ["claude-sonnet-4-5", "gpt-4o"],
+	"claude-haiku-4-5": ["claude-sonnet-4-5", "kimi-k2-5-fireworks"],
+	"gpt-4o": ["claude-sonnet-4-5", "kimi-k2-5-fireworks"],
+	"grok-4-1-fast": ["claude-sonnet-4-5", "gpt-4o"],
+};
+
+/**
+ * Get the ordered fallback chain for a model.
+ * Returns model IDs to try if the primary model fails.
+ */
+export function getFallbackChain(modelId: string): string[] {
+	return FALLBACK_CHAIN[modelId] || ["claude-sonnet-4-5"];
+}
+
+/**
+ * Pre-flight validation: check that the resolved model has a valid API key.
+ * Returns null if valid, or an error message string if invalid.
+ */
+export function validateModelConfig(
+	modelId?: string,
+	apiKeys?: ByokApiKeys,
+): string | null {
+	const id = modelId || DEFAULT_MODEL_ID;
+	const model = MODEL_OPTIONS.find((m) => m.id === id);
+	if (!model) return `Unknown model: ${id}`;
+
+	// Check if the provider has an API key configured
+	const provider = model.provider;
+	const byokKey = apiKeys?.[provider];
+	if (byokKey) return null; // BYOK key present — valid
+
+	// Check environment variables for each provider
+	const envKeyMap: Record<string, string> = {
+		anthropic: "ANTHROPIC_API_KEY",
+		openai: "OPENAI_API_KEY",
+		fireworks: "FIREWORKS_API_KEY",
+		nvidia: "NVIDIA_API_KEY",
+		xai: "XAI_API_KEY",
+	};
+
+	const envVar = envKeyMap[provider];
+	if (envVar && !process.env[envVar]) {
+		return `No API key configured for ${model.name}. Set ${envVar} or use a different model.`;
+	}
+
+	return null;
+}

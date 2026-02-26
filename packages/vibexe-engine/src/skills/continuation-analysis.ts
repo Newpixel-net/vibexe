@@ -16,6 +16,14 @@ export const continuationAnalysis: SkillDefinition = {
 	],
 	content: `## Continuation Analysis Framework
 
+### Interrupted Build Detection (check FIRST)
+Before analyzing features, check if the build was interrupted mid-generation:
+- **Missing src/App.tsx**: Build was interrupted very early — suggest "Resume building the app from scratch"
+- **README/Blueprint exists but < 3 code files (.tsx/.ts)**: Plan was created but code generation failed
+- **README lists N files in "File Map" but only M exist (M < N*0.5)**: Build interrupted halfway
+- **Multiple markdown docs but few code files**: Wiki sync ran on partial build
+- If interrupted, the TOP suggestion must be: "Resume building — continue creating the remaining files"
+
 ### Blueprint Analysis
 1. Parse Blueprint.md for the planned feature list
 2. Each feature under "## Features" is a planned deliverable
@@ -32,6 +40,7 @@ Look for these indicators of incomplete work:
 
 ### Suggestion Prioritization
 Generate suggestions in this priority order:
+0. **Interrupted** — Build was cut short, resume generation (highest priority)
 1. **Broken** — Code that throws errors or doesn't render
 2. **Incomplete** — Features started but not finished (partial implementations)
 3. **Missing** — Planned features with zero implementation

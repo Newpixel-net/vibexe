@@ -13,6 +13,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
 import {
+	AlertTriangle,
 	ArrowRight,
 	Bot,
 	CheckCircle2,
@@ -26,6 +27,7 @@ import {
 	MessageSquare,
 	MoreHorizontal,
 	Plus,
+	RefreshCw,
 	Rocket,
 	RotateCcw,
 	Shield,
@@ -52,6 +54,7 @@ import {
 	createDefaultProjectStages,
 	createPhaseFromToolEvent,
 	markAllPhasesComplete,
+	markAllPhasesError,
 	type ToolStreamEvent,
 	updatePhaseWithFile,
 	updateProjectStage,
@@ -176,6 +179,8 @@ interface AnalyzeResponse {
 	todoItems?: string[];
 	plannedFeatures?: string[];
 	appName?: string;
+	buildInterrupted?: boolean;
+	codeFileCount?: number;
 	suggestions?: { id: number; label: string; prompt: string; icon: string; category: string }[];
 }
 
@@ -267,6 +272,47 @@ function generateAppName(message: string): string {
 	return name || "My App";
 }
 
+/** Parse AI provider errors into actionable user-facing messages */
+function parseGenerationError(
+	message: string,
+	modelId: string,
+): { userMessage: string; provider: string; code: string; canRetry: boolean } {
+	const lc = message.toLowerCase();
+	// Detect provider from model ID
+	const providerMap: Record<string, string> = {
+		"kimi-k2-5-fireworks": "Fireworks AI",
+		"kimi-k2-5": "NVIDIA NIM",
+		"claude-sonnet-4-5": "Anthropic",
+		"claude-opus-4-6": "Anthropic",
+		"claude-haiku-4-5": "Anthropic",
+		"gpt-4o": "OpenAI",
+		"grok-4-1-fast": "xAI",
+	};
+	const provider = providerMap[modelId] || "AI provider";
+
+	// Parse HTTP status codes from error messages
+	if (lc.includes("402") || lc.includes("payment") || lc.includes("insufficient") || lc.includes("credit") || lc.includes("quota")) {
+		return { userMessage: `${provider} credits exhausted. Switch to a different model to continue.`, provider, code: "402", canRetry: false };
+	}
+	if (lc.includes("429") || lc.includes("rate limit") || lc.includes("too many")) {
+		return { userMessage: `${provider} rate limited. Wait a moment and try again.`, provider, code: "429", canRetry: true };
+	}
+	if (lc.includes("401") || lc.includes("unauthorized") || lc.includes("invalid.*key") || lc.includes("api key")) {
+		return { userMessage: `Invalid API key for ${provider}. Check your provider settings.`, provider, code: "401", canRetry: false };
+	}
+	if (lc.includes("503") || lc.includes("service unavailable") || lc.includes("overloaded")) {
+		return { userMessage: `${provider} is temporarily unavailable. Try again or switch models.`, provider, code: "503", canRetry: true };
+	}
+	if (lc.includes("timeout") || lc.includes("timed out") || lc.includes("econnreset") || lc.includes("econnrefused")) {
+		return { userMessage: `Connection to ${provider} lost. Check your internet and try again.`, provider, code: "timeout", canRetry: true };
+	}
+	if (lc.includes("failed to fetch") || lc.includes("network") || lc.includes("fetch")) {
+		return { userMessage: `Could not reach ${provider}. Check your connection or try a different model.`, provider, code: "network", canRetry: true };
+	}
+	// Generic fallback
+	return { userMessage: `Generation stopped: ${provider} returned an error.`, provider, code: "unknown", canRetry: true };
+}
+
 export function ChatColumn({
 	appId,
 	appName,
@@ -295,6 +341,18 @@ export function ChatColumn({
 	const [phaseTimeline, setPhaseTimeline] = useState<PhaseTimelineItem[]>([]);
 	const [isThinking, setIsThinking] = useState(false);
 
+	// Error context for actionable error card
+	const [errorContext, setErrorContext] = useState<{
+		message: string;
+		provider?: string;
+		code?: string;
+		filesCompleted: number;
+		filesTotal: number;
+		canRetry: boolean;
+	} | null>(null);
+	// Track last user message for retry
+	const lastUserMessageRef = useRef<string>("");
+
 	// Agent events from orchestration data stream
 	const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([]);
 	const [activeAgentIds, setActiveAgentIds] = useState<Set<string>>(new Set());
@@ -314,6 +372,7 @@ export function ChatColumn({
 	const [continuationSuggestions, setContinuationSuggestions] = useState<ContinuationSuggestion[]>([]);
 	const [continuationLoading, setContinuationLoading] = useState(false);
 	const continuationAnalyzed = useRef(false);
+	const [buildInterrupted, setBuildInterrupted] = useState(false);
 
 	// Returning user detection: true when messages were loaded from DB/localStorage
 	const [isReturningUser, setIsReturningUser] = useState(false);
@@ -455,9 +514,34 @@ export function ChatColumn({
 			onFilesChange();
 			setIsThinking(false);
 		},
-		onError: (error) => {
-			console.error("Chat error:", error);
+		onError: (err) => {
+			console.error("Chat error:", err);
 			setIsThinking(false);
+
+			// Parse provider error for actionable context
+			const msg = err?.message || "Unknown error";
+			const parsed = parseGenerationError(msg, selectedModelId);
+
+			// Mark all generating phases as error (not completed)
+			setPhaseTimeline((prev) => {
+				if (prev.length === 0) return prev;
+				const completed = prev.reduce((n, p) => n + p.files.filter(f => f.status === "completed").length, 0);
+				const total = prev.reduce((n, p) => n + p.files.length, 0);
+				setErrorContext({
+					message: parsed.userMessage,
+					provider: parsed.provider,
+					code: parsed.code,
+					filesCompleted: completed,
+					filesTotal: total,
+					canRetry: parsed.canRetry,
+				});
+				return markAllPhasesError(prev);
+			});
+
+			// Mark project stages as error
+			setProjectStages((stages) =>
+				updateProjectStage(stages, "code", "completed"),
+			);
 		},
 	});
 
@@ -667,9 +751,13 @@ export function ChatColumn({
 	const wasLoadingRef = useRef(false);
 	useEffect(() => {
 		if (wasLoadingRef.current && !isLoading) {
-			// Streaming just ended - mark all generating phases/files as completed
+			// Streaming just ended — mark generating phases as complete.
+			// Skip if onError already marked them as error (errorContext is set).
 			setPhaseTimeline((prev) => {
 				if (prev.length === 0) return prev;
+				// If phases are already marked error by onError handler, don't override
+				const hasErrorPhases = prev.some((p) => p.status === "error");
+				if (hasErrorPhases) return prev;
 				return markAllPhasesComplete(prev);
 			});
 			// Mark all project stages as completed
@@ -771,6 +859,7 @@ export function ChatColumn({
 				.then((data: AnalyzeResponse | null) => {
 					if (data?.hasProject) {
 						setContinuationSuggestions(buildContinuationSuggestions(data));
+						if (data.buildInterrupted) setBuildInterrupted(true);
 					}
 				})
 				.catch(() => {})
@@ -905,6 +994,11 @@ export function ChatColumn({
 	// Submit handler — sends text + file attachments via AI SDK
 	const onSubmit = useCallback(async () => {
 		if (input.trim() || attachments.length > 0) {
+			// Track last user message for retry-on-error
+			lastUserMessageRef.current = input;
+			// Clear any previous error context
+			setErrorContext(null);
+
 			if (attachments.length > 0) {
 				// Convert File objects to FileUIPart data URLs
 				const fileUIParts = await Promise.all(
@@ -1331,24 +1425,37 @@ export function ChatColumn({
 										<X className="h-3.5 w-3.5" />
 									</button>
 									<div className="flex items-start gap-3 mb-3">
-										<div className="flex-shrink-0 w-9 h-9 rounded-xl bg-teal-500/[0.12] border border-teal-500/[0.15] flex items-center justify-center">
-											<Compass className="h-5 w-5 text-teal-400/70" />
+										<div className={`flex-shrink-0 w-9 h-9 rounded-xl ${buildInterrupted ? "bg-amber-500/[0.12] border-amber-500/[0.15]" : "bg-teal-500/[0.12] border-teal-500/[0.15]"} border flex items-center justify-center`}>
+											{buildInterrupted ? (
+												<AlertTriangle className="h-5 w-5 text-amber-400/70" />
+											) : (
+												<Compass className="h-5 w-5 text-teal-400/70" />
+											)}
 										</div>
 										<div className="flex-1 min-w-0">
 											<h4 className="text-sm font-semibold bg-gradient-to-r from-teal-400 via-cyan-400 to-violet-400 bg-clip-text text-transparent">
-												Welcome back
+												{buildInterrupted ? "Build interrupted" : "Welcome back"}
 											</h4>
 											<p className="text-xs text-white/40 mt-0.5">
-												{appName !== "Untitled App" ? appName : "Your project"}
-												{sourceUrl ? (
+												{buildInterrupted ? (
 													<>
-														{" "}
-														<a href={`https://${sourceUrl}`} target="_blank" rel="noopener noreferrer" className="text-violet-400/70 hover:text-violet-300 transition-colors">
-															({sourceUrl})
-														</a>
+														<span className="text-amber-400/70">Generation was interrupted.</span>
+														{" "}Your saved files are safe. Resume to complete the build:
 													</>
-												) : null}
-												{" "}&mdash; {files.length} files. Pick up where you left off:
+												) : (
+													<>
+														{appName !== "Untitled App" ? appName : "Your project"}
+														{sourceUrl ? (
+															<>
+																{" "}
+																<a href={`https://${sourceUrl}`} target="_blank" rel="noopener noreferrer" className="text-violet-400/70 hover:text-violet-300 transition-colors">
+																	({sourceUrl})
+																</a>
+															</>
+														) : null}
+														{" "}&mdash; {files.length} files. Pick up where you left off:
+													</>
+												)}
 											</p>
 										</div>
 									</div>
@@ -1447,8 +1554,61 @@ export function ChatColumn({
 				</div>
 			</ScrollArea>
 
-			{/* Error display — glass */}
-			{error && (
+			{/* Error display — actionable card */}
+			{error && errorContext && (
+				<div className="px-4 py-3 bg-red-500/[0.06] border-t border-red-500/[0.12]">
+					<div className="flex items-start gap-3">
+						<div className="flex-shrink-0 mt-0.5 w-8 h-8 rounded-lg bg-red-500/[0.12] flex items-center justify-center">
+							<AlertTriangle className="h-4 w-4 text-red-400" />
+						</div>
+						<div className="flex-1 min-w-0">
+							<p className="text-sm font-medium text-red-400">{errorContext.message}</p>
+							{errorContext.filesTotal > 0 && (
+								<p className="text-xs text-white/40 mt-0.5">
+									{errorContext.filesCompleted} of {errorContext.filesTotal} files saved before error
+								</p>
+							)}
+						</div>
+						<button
+							type="button"
+							onClick={() => { setErrorContext(null); }}
+							className="flex-shrink-0 p-1 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
+						>
+							<X className="h-3.5 w-3.5" />
+						</button>
+					</div>
+					<div className="flex items-center gap-2 mt-2.5 ml-11">
+						{errorContext.canRetry && (
+							<button
+								type="button"
+								onClick={() => {
+									setErrorContext(null);
+									if (lastUserMessageRef.current) {
+										sendMessage({ text: lastUserMessageRef.current });
+									}
+								}}
+								className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/[0.08] border border-white/[0.1] text-white/70 hover:bg-white/[0.12] hover:text-white/90 transition-all"
+							>
+								<RefreshCw className="h-3 w-3" />
+								Retry
+							</button>
+						)}
+						<button
+							type="button"
+							onClick={() => {
+								setErrorContext(null);
+								setInput("continue building from where you stopped");
+							}}
+							className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-white/[0.08] border border-white/[0.1] text-white/70 hover:bg-white/[0.12] hover:text-white/90 transition-all"
+						>
+							<ArrowRight className="h-3 w-3" />
+							Resume
+						</button>
+					</div>
+				</div>
+			)}
+			{/* Fallback: simple error display when no error context parsed */}
+			{error && !errorContext && (
 				<div className="px-4 py-2 text-sm text-red-400 bg-red-500/[0.06] border-t border-red-500/[0.1]">
 					Error: {error.message}
 				</div>

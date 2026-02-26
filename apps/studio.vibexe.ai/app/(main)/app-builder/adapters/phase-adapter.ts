@@ -364,6 +364,33 @@ export function markAllPhasesComplete(
 }
 
 /**
+ * Mark all generating phases as errored (interrupted).
+ * Called when the AI stream fails mid-generation.
+ * Files already completed stay completed; only "generating" files become "error".
+ */
+export function markAllPhasesError(
+	phases: PhaseTimelineItem[],
+): PhaseTimelineItem[] {
+	return phases.map((phase) => {
+		if (phase.status === "completed" || phase.status === "error") return phase;
+
+		const updatedFiles = phase.files.map((file) => ({
+			...file,
+			status:
+				file.status === "generating"
+					? ("error" as const)
+					: file.status,
+		}));
+
+		return {
+			...phase,
+			files: updatedFiles,
+			status: "error",
+		};
+	});
+}
+
+/**
  * Calculate overall progress from phases
  */
 export function calculateProgress(phases: PhaseTimelineItem[]): {

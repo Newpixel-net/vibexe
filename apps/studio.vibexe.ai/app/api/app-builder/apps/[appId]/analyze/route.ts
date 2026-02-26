@@ -142,6 +142,34 @@ export async function GET(
 	).length;
 	const filePaths = files.map((f) => f.path);
 
+	// Interrupted build detection:
+	// Count code files vs docs to detect if generation was cut short
+	const codeFiles = files.filter((f) =>
+		/\.(tsx?|jsx?|json)$/.test(f.path) && !f.path.startsWith("docs/"),
+	);
+	const docFiles = files.filter((f) =>
+		f.path.endsWith(".md") || f.path.startsWith("docs/"),
+	);
+	const hasReadme = files.some((f) => f.path === "docs/README.md" || f.path === "README.md");
+
+	// Heuristic: has README/Blueprint with file plan, but very few code files
+	let buildInterrupted = false;
+	if (hasReadme && !hasAppTsx && codeFiles.length < 3) {
+		buildInterrupted = true; // Plan exists but root component missing
+	} else if (hasBlueprint && codeFiles.length < 3 && docFiles.length > 3) {
+		buildInterrupted = true; // Many docs (wiki) but few code files
+	} else if (hasReadme && codeFiles.length > 0) {
+		// Check if README mentions a File Map with more files than exist
+		const readme = files.find((f) => f.path === "docs/README.md");
+		if (readme?.content) {
+			const fileMapMatch = readme.content.match(/(?:file\s*map|files?|structure)/i);
+			const plannedPaths = readme.content.match(/`[^`]*\.(tsx?|jsx?|json)`/g);
+			if (fileMapMatch && plannedPaths && plannedPaths.length > codeFiles.length * 2) {
+				buildInterrupted = true;
+			}
+		}
+	}
+
 	// Match suggestion templates
 	let suggestions: { id: number; label: string; prompt: string; icon: string; category: string }[] = [];
 	try {
@@ -171,6 +199,17 @@ export async function GET(
 		console.error("[Analyze] Suggestion matching error:", e);
 	}
 
+	// If build was interrupted, inject top-priority "Resume" suggestion
+	if (buildInterrupted) {
+		suggestions.unshift({
+			id: -1,
+			label: "Resume building — continue creating remaining files",
+			prompt: "Read docs/README.md to understand the full plan, then continue building all remaining code files. Start with src/App.tsx if it doesn't exist, then create all components, hooks, and utilities listed in the plan.",
+			icon: "zap",
+			category: "interrupted",
+		});
+	}
+
 	return Response.json({
 		hasProject: true,
 		fileCount: files.length,
@@ -183,6 +222,8 @@ export async function GET(
 		todoItems: todoItems.slice(0, 5),
 		plannedFeatures: plannedFeatures.slice(0, 10),
 		appName: app.name,
+		buildInterrupted,
+		codeFileCount: codeFiles.length,
 		suggestions,
 	});
 }
