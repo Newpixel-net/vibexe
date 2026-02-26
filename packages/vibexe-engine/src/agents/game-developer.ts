@@ -162,6 +162,142 @@ function checkCollision(a: Entity, b: Entity): boolean {
 - Score = distance traveled
 - Increasing speed over time
 
+## Mobile Game Patterns
+
+When the user requests a "mobile game", "phone game", or includes mobile-related keywords, apply these mobile-specific patterns ON TOP of the core game architecture:
+
+### Portrait-First Canvas
+- Mobile games are played on a TALL, NARROW screen (portrait orientation)
+- Design for 375x812 viewport (iPhone standard) — canvas height > canvas width
+- Use \`const GAME_WIDTH = Math.min(window.innerWidth, 500); const GAME_HEIGHT = window.innerHeight;\`
+- Center the canvas if the browser window is wider than 500px (desktop fallback)
+- All game elements must scale relative to \`GAME_WIDTH\` — never hardcode pixel positions
+
+### Touch-First Controls (PRIMARY, not secondary)
+For mobile games, touch is the ONLY input. Keyboard is the fallback.
+
+**Tap**: Simple touch-and-release. Use for: jump, shoot, select, place.
+\`\`\`typescript
+canvas.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const x = touch.clientX - rect.left;
+  const y = touch.clientY - rect.top;
+  handleTap(x, y);
+});
+\`\`\`
+
+**Swipe Detection**: Track touch start/end to determine direction + velocity.
+\`\`\`typescript
+let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
+canvas.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  touchStartTime = Date.now();
+});
+canvas.addEventListener("touchend", (e) => {
+  e.preventDefault();
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  const dt = Date.now() - touchStartTime;
+  if (Math.abs(dx) > 30 || Math.abs(dy) > 30) { // swipe threshold
+    if (Math.abs(dx) > Math.abs(dy)) {
+      handleSwipe(dx > 0 ? "right" : "left");
+    } else {
+      handleSwipe(dy > 0 ? "down" : "up");
+    }
+  } else if (dt < 300) {
+    handleTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+  }
+});
+\`\`\`
+
+**Drag/Slide**: Continuous touch tracking. Use for: aim, steer, draw, position.
+\`\`\`typescript
+canvas.addEventListener("touchmove", (e) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  handleDrag(touch.clientX, touch.clientY);
+});
+\`\`\`
+
+### Mobile Game Genres
+
+**Tap-to-Fly / Flappy Style**: Tap anywhere to flap/boost. Gravity pulls down. Dodge obstacles.
+- Single mechanic: tap = impulse upward. That's it.
+- Obstacles scroll from right to left, gaps to fly through
+- Score = obstacles passed
+
+**Vertical Endless Runner**: Player runs upward/forward, obstacles come from top.
+- Swipe left/right to switch lanes, or tilt (use touch drag)
+- Procedurally generated obstacles with increasing speed
+- Portrait orientation is ESSENTIAL
+
+**Swipe Puzzle (2048, Threes)**: Swipe in 4 directions to move tiles.
+- Grid fits portrait screen, large tiles with readable numbers
+- Smooth slide animations (lerp between grid positions)
+- Score and best score displayed above grid
+
+**Idle / Clicker / Tapper**: Tap to earn resources, buy upgrades.
+- Large central tap target (fills 40%+ of screen)
+- Upgrade buttons in scrollable list below
+- Numbers with abbreviations (1.5K, 2.3M, 4.7B)
+- Offline progress calculation on return
+
+**Tap Timing / Rhythm**: Tap targets that approach from edges.
+- Elements flow toward a "hit zone" — tap at the right moment
+- Score based on timing accuracy (perfect/great/good/miss)
+
+### Bottom Thumb Zone
+- On mobile, the bottom 25% of the screen is the natural thumb reach zone
+- Place ALL interactive controls (buttons, D-pad, tap areas) in the bottom quarter
+- Game action happens in the top 75% — the viewing area
+- Score/HUD goes at the very top (status bar area)
+\`\`\`
+┌─────────────────┐
+│  Score: 1250 ⭐  │ <- HUD (top, read-only)
+│                 │
+│   Game World    │ <- Main game area (top 75%)
+│   (view only)   │
+│                 │
+├─────────────────┤
+│  ← ● →    🔴   │ <- Controls (bottom 25%, thumb zone)
+└─────────────────┘
+\`\`\`
+
+### Safe Areas
+- Add \`padding-top: env(safe-area-inset-top)\` for notch devices
+- Add \`padding-bottom: env(safe-area-inset-bottom)\` for home indicator
+- The GameCanvas React component should wrap canvas in a container with these insets
+- Alternatively, offset canvas drawing by safe area values
+
+### Mobile Performance
+- Limit particle effects to <50 particles on mobile
+- Use simpler shapes (rectangles over complex paths)
+- Avoid \`ctx.shadow*\` properties (expensive on mobile GPUs)
+- Target 60fps but gracefully degrade — skip frames rather than stutter
+- Use \`will-change: transform\` on the canvas element CSS
+
+### Haptic Feedback
+\`\`\`typescript
+function vibrate(pattern: number | number[]) {
+  if (navigator.vibrate) navigator.vibrate(pattern);
+}
+// Short buzz on collect item: vibrate(50)
+// Double buzz on hit: vibrate([50, 50, 50])
+// Long buzz on game over: vibrate(200)
+\`\`\`
+
+### Mobile Game UX Essentials
+- **One-hand playable**: Design so the game can be played with just the thumb
+- **Session length**: Mobile games have short sessions (30s-3min). Quick restart on game over.
+- **Instant start**: Minimal title screen — tap anywhere to begin. No complex menus.
+- **Visual feedback**: Every tap/swipe should produce immediate visual feedback (flash, scale, particle)
+- **High score persistence**: Always save to localStorage. Show "NEW HIGH SCORE!" celebration.
+- **Pause on blur**: Auto-pause when tab/app loses focus (\`document.addEventListener("visibilitychange", ...)\`)
+
 ## Critical Quality Rules
 
 1. **Every game MUST have**: Title screen with game name + "Press Enter / Tap to Start" -> playable gameplay with score display -> game over screen with final score + "Play Again"
