@@ -179,18 +179,36 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			});
 		} catch (execError) {
 			// Integration execution failed (e.g. upstream API returned 401/403/500)
-			// Return as 422 with the error details so the client can display them
-			const errMsg =
+			const rawMsg =
 				execError instanceof Error
 					? execError.message
 					: "Integration execution failed";
+
+			// Parse the error to extract a human-readable message
+			// Pieces often throw JSON like: {"response":{"status":401,"body":{"errors":[{"message":"..."}]}},...}
+			let friendlyMsg = rawMsg;
+			try {
+				const parsed = JSON.parse(rawMsg);
+				if (parsed?.response?.body?.errors?.[0]?.message) {
+					friendlyMsg = `${pieceName} error: ${parsed.response.body.errors[0].message}`;
+				} else if (parsed?.response?.body?.message) {
+					friendlyMsg = `${pieceName} error: ${parsed.response.body.message}`;
+				} else if (parsed?.response?.body?.error) {
+					friendlyMsg = `${pieceName} error: ${parsed.response.body.error}`;
+				} else if (parsed?.message) {
+					friendlyMsg = `${pieceName} error: ${parsed.message}`;
+				}
+			} catch {
+				// Not JSON — use raw message as-is
+			}
+
 			console.error(
 				`[Integrations API] ${pieceName}/${action} failed:`,
-				errMsg,
+				rawMsg,
 			);
 			return withCors(
 				NextResponse.json(
-					{ error: errMsg, piece: pieceName, action },
+					{ error: friendlyMsg, piece: pieceName, action },
 					{ status: 422 },
 				),
 			);
