@@ -157,7 +157,7 @@ export function HeroPrompt({ recentApps = [] }: HeroPromptProps) {
 				{/* ============================================================ */}
 				{/* CONNECTED TABS + CARD                                        */}
 				{/* ============================================================ */}
-				<div className="dash-animate-fade-up" style={{ animationDelay: "0.05s" }}>
+				<div className="dash-animate-fade-up relative rounded-2xl" style={{ animationDelay: "0.05s" }}>
 					{/* Tab row — segmented control style, connected to card below */}
 					<div className="flex items-stretch rounded-t-2xl overflow-hidden border border-b-0 border-white/[0.08] bg-[rgba(20,20,24,0.6)]">
 						{PROJECT_TYPES.map((type, idx) => {
@@ -300,6 +300,20 @@ export function HeroPrompt({ recentApps = [] }: HeroPromptProps) {
 							</div>
 						</div>
 					</div>
+
+					{/* Border beam animation */}
+					<div
+						className="border-beam z-10"
+						style={{
+							'--beam-size': 150,
+							'--beam-duration': 12,
+							'--beam-anchor': 90,
+							'--beam-border-width': 1.5,
+							'--beam-color-from': '#80FFF9',
+							'--beam-color-to': 'transparent',
+							'--beam-delay': -9,
+						} as React.CSSProperties}
+					/>
 				</div>
 
 				{/* Advanced Controls Panel */}

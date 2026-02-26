@@ -640,6 +640,10 @@
 	100% { transform: scale(1); opacity: 1; }
 }
 
+/* Border beam — rotating gradient light traveling along container border */
+@keyframes border-beam {
+	100% { offset-distance: 100%; }
+}
 
 /* GitHub Sync — radio-wave ripple rings expanding from the green dot */
 @keyframes github-sync-ripple {
@@ -736,5 +740,38 @@
 	}
 	.workspace-scroll:hover::-webkit-scrollbar-thumb {
 		background: rgba(255, 255, 255, 0.12);
+	}
+
+	/* Border beam — animated light that travels along a container's border */
+	.border-beam {
+		pointer-events: none;
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		border: calc(var(--beam-border-width, 1.5) * 1px) solid transparent;
+		mask: linear-gradient(transparent, transparent), linear-gradient(white, white);
+		mask-clip: padding-box, border-box;
+		mask-composite: intersect;
+		-webkit-mask: linear-gradient(transparent, transparent), linear-gradient(white, white);
+		-webkit-mask-clip: padding-box, border-box;
+		-webkit-mask-composite: source-in;
+	}
+
+	.border-beam::after {
+		content: "";
+		position: absolute;
+		aspect-ratio: 1;
+		width: calc(var(--beam-size, 150) * 1px);
+		background: linear-gradient(
+			to left,
+			var(--beam-color-from, #80FFF9),
+			var(--beam-color-to, transparent),
+			transparent
+		);
+		offset-path: rect(0 auto auto 0 round calc(var(--beam-size, 150) * 1px));
+		offset-anchor: calc(var(--beam-anchor, 90) * 1%) 50%;
+		offset-rotate: auto 0deg;
+		animation: border-beam calc(var(--beam-duration, 12) * 1s) infinite linear;
+		animation-delay: calc(var(--beam-delay, 0) * 1s);
 	}
 }
