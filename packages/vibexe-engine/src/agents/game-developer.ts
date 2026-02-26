@@ -120,7 +120,7 @@ function checkCollision(a: Entity, b: Entity): boolean {
 11. \`src/entities/items.ts\` — Collectibles, power-ups, projectiles
 12. \`src/levels/level-data.ts\` — Tile maps as 2D arrays, level definitions
 13. \`src/levels/level-renderer.ts\` — Tile map rendering, camera/scroll
-14. \`src/components/GameCanvas.tsx\` — React component wrapping canvas + game loop init
+14. \`src/components/GameCanvas.tsx\` — Single useRef for ALL game state, useEffect([]) starts loop, handlers mutate ref. ZERO useState for game variables.
 15. \`src/components/GameUI.tsx\` — Score display, pause button, game-over overlay (React/Tailwind)
 16. \`src/App.tsx\` — Root component composing GameCanvas + GameUI
 
@@ -356,14 +356,86 @@ For games that need persistent data (high scores, player profiles, saved games),
 - Each entity gets \`id\`, \`created_at\`, \`updated_at\` automatically — do NOT include these in fields
 - Most games do NOT need persistent data — use \`localStorage\` for high scores
 
-### When NOT to Use the SDK
+### React + Canvas Integration (MANDATORY — prevents infinite render loops)
 
-Most games should use React state + localStorage only. The SDK is for games that need:
-- Online leaderboards (multi-user high scores)
-- User accounts / saved progress across devices
-- Multiplayer features
+CRITICAL: Game state and the Canvas game loop are INCOMPATIBLE with React re-renders.
+Using useState for game variables causes "Maximum update depth exceeded" errors.
 
-Simple single-player games should use \`useState\` + \`localStorage\` for high scores.
+#### The CORRECT Pattern — single useRef for all game state:
+\`\`\`typescript
+import React, { useRef, useEffect, useCallback } from "react";
+
+export function GameCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const gameRef = useRef({
+    state: "menu" as "menu" | "playing" | "paused" | "gameover",
+    score: 0,
+    highScore: parseInt(localStorage.getItem("highScore") || "0"),
+    player: { x: 0, y: 0, vy: 0, width: 40, height: 40 },
+    enemies: [] as Array<{ x: number; y: number; w: number; h: number; active: boolean }>,
+    frameId: 0,
+  });
+
+  useEffect(() => {
+    const canvas = canvasRef.current!;
+    const ctx = canvas.getContext("2d")!;
+    let lastTime = 0;
+
+    function loop(timestamp: number) {
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+      lastTime = timestamp;
+      const g = gameRef.current;
+      if (g.state === "playing") update(g, dt);
+      render(ctx, g, canvas.width, canvas.height);
+      g.frameId = requestAnimationFrame(loop);
+    }
+
+    gameRef.current.frameId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(gameRef.current.frameId);
+  }, []);
+
+  const handleTap = useCallback(() => {
+    const g = gameRef.current;
+    if (g.state === "menu") g.state = "playing";
+    else if (g.state === "playing") g.player.vy = -JUMP_FORCE;
+    else if (g.state === "gameover") { resetGame(g); g.state = "playing"; }
+  }, []);
+
+  return <canvas ref={canvasRef} onTouchStart={handleTap} onClick={handleTap}
+    style={{ display: "block", touchAction: "none" }} />;
+}
+\`\`\`
+
+#### FORBIDDEN — causes "Maximum update depth exceeded":
+\`\`\`typescript
+// NEVER for game variables:
+const [score, setScore] = useState(0);
+const [playerY, setPlayerY] = useState(0);
+const [enemies, setEnemies] = useState([]);
+
+// setState inside RAF = infinite loop:
+useEffect(() => {
+  function loop() {
+    setScore(s => s + 1);    // triggers re-render -> re-runs effect
+    setPlayerY(y => y + vy); // triggers re-render -> infinite loop
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+}, []);
+\`\`\`
+
+#### Rules:
+1. ALL game variables (score, lives, position, velocity, enemies, coins, state) -> ONE useRef object
+2. Game loop MUTATES the ref directly — NEVER calls setState
+3. useState ONLY for React UI outside canvas (settings modal, sound toggle)
+4. useEffect with [] runs ONCE — starts loop, returns cancelAnimationFrame cleanup
+5. Event handlers use useCallback, modify ref directly
+6. High scores -> localStorage, NOT useState
+7. Canvas style={{ touchAction: "none" }} prevents scroll/zoom
+8. Cap deltaTime: Math.min(dt, 0.05) prevents physics explosion on tab-switch
+
+When NOT to use the SDK: Most games should use useRef + localStorage only.
+The SDK is for online leaderboards, user accounts, or multiplayer.
 
 ${SDK_HOOK_PATTERN}
 
@@ -418,6 +490,7 @@ ctx.fill();
 10. **Importing npm packages** — Nothing except React and @vibexe/sdk is available.
 11. **Undefined constants / missing exports** — EVERY constant used anywhere (GRAVITY, PIPE_SPEED, GAP_SIZE, PLAYER_SIZE, etc.) MUST be \`export const\` in \`src/constants.ts\` AND \`import { ... } from "../constants"\` in EVERY file that references it. A \`ReferenceError: X is not defined\` at runtime means you forgot to export or import a constant. Double-check ALL imports in EVERY file before finishing.
 12. **Magic numbers in entity/engine files** — NEVER write \`this.speed = 200\` inside an entity file. ALL tunable values must come from constants.ts so the game is easy to balance.
+13. **useState for game state** — NEVER use useState for score, position, velocity, enemies, or any variable updated per frame. Use a single useRef object. useState triggers React re-renders — inside requestAnimationFrame this causes "Maximum update depth exceeded" and freezes the game.
 
 ${SDK_INTEGRATIONS_REFERENCE}
 

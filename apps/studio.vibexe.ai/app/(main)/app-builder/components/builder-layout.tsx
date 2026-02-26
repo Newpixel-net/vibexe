@@ -23,6 +23,7 @@ interface BuilderLayoutProps {
 	app: {
 		id: string;
 		name: string;
+		projectType?: string;
 	};
 	files: AppFile[];
 }
@@ -36,11 +37,11 @@ export function BuilderLayout({
 	// Capture previewMode in state so it persists even after chat-column.tsx
 	// strips URL params via window.history.replaceState() (800ms after mount)
 	const [previewMode] = useState<PreviewMode>(() => {
-		const t = searchParams.get("type") ?? "";
+		const t = searchParams.get("type") ?? app.projectType ?? "app";
 		return (t === "mobile" || t === "game-mobile") ? "mobile-frame" : "browser";
 	});
 	const [projectType] = useState<string>(
-		() => searchParams.get("type") ?? "app",
+		() => searchParams.get("type") ?? app.projectType ?? "app",
 	);
 	const [view, setView] = useState<ViewType>("preview");
 	const [selectedFileId, setSelectedFileId] = useState<string | null>(null);

@@ -76,7 +76,7 @@ export const GAME_FLOW: OrchestrationFlow = {
 		{ agentId: "architect", order: 1, required: true },
 		{ agentId: "planner", order: 2, required: true },
 		{ agentId: "game-developer", order: 3, required: true },
-		{ agentId: "code-reviewer", order: 4, required: false },
+		{ agentId: "code-reviewer", order: 4, required: true },
 	],
 };
 

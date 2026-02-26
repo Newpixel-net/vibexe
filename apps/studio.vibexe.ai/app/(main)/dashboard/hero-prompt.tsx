@@ -110,6 +110,7 @@ export function HeroPrompt() {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					visibility,
+					type: selectedType,
 				}),
 			});
 			if (res.ok) {

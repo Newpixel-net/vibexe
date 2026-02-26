@@ -12,6 +12,7 @@ interface PageClientProps {
 	app: {
 		id: string;
 		name: string;
+		projectType?: string;
 	};
 	files: AppFile[];
 }

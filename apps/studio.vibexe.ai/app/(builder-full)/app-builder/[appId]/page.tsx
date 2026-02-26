@@ -30,6 +30,7 @@ export default async function AppBuilderAppPage({ params }: Props) {
 	const appData = {
 		id: app.id,
 		name: app.name,
+		projectType: app.projectType ?? "app",
 	};
 
 	const fileData = files.map((f) => ({

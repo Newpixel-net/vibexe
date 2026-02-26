@@ -79,6 +79,7 @@ export async function createApp(
 	name: string,
 	description?: string,
 	visibility?: string,
+	projectType?: string,
 ) {
 	const id = `bldr_${nanoid()}` as BuilderAppId;
 
@@ -91,6 +92,7 @@ export async function createApp(
 			name,
 			description,
 			...(visibility ? { visibility } : {}),
+			...(projectType ? { projectType } : {}),
 		})
 		.returning();
 

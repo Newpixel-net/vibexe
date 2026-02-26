@@ -27,11 +27,15 @@ export async function POST(request: Request) {
 
 	// Read optional body params (dashboard sends these)
 	let visibility: string | undefined;
+	let projectType: string | undefined;
 	let githubImport: { owner: string; repo: string; branch: string } | undefined;
 	try {
 		const body = await request.json();
 		if (body.visibility === "public" || body.visibility === "private") {
 			visibility = body.visibility;
+		}
+		if (body.type && typeof body.type === "string") {
+			projectType = body.type;
 		}
 		if (body.githubImport?.owner && body.githubImport?.repo) {
 			githubImport = body.githubImport;
@@ -46,6 +50,7 @@ export async function POST(request: Request) {
 		"Untitled App",
 		undefined,
 		visibility,
+		projectType,
 	);
 
 	// Handle GitHub import: fetch repo files and save them

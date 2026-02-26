@@ -1279,6 +1279,7 @@ export const builderApps = pgTable(
 		fullpageUrl: text("fullpage_url"),
 		shareToken: text("share_token"),
 		visibility: text("visibility").notNull().default("public"),
+		projectType: text("project_type").notNull().default("app"),
 		requireLogin: boolean("require_login").notNull().default(false),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at")
