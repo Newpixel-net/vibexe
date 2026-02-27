@@ -390,17 +390,22 @@ export function SandpackPreview({
 			const cw = container.clientWidth;
 			const ch = container.clientHeight;
 			if (cw > 0 && ch > 0) {
-				// Scale to fit portrait dimensions in container — same scale used for both orientations.
 				const availW = cw - 48;
 				const availH = ch - 16;
-				setPhoneScale(Math.min(1, availW / frameNativeW, availH / frameNativeH));
+				if (isLandscape) {
+					// Landscape: visual width = frameNativeH, visual height = frameNativeW (swapped)
+					setPhoneScale(Math.min(1, availW / frameNativeH, availH / frameNativeW));
+				} else {
+					// Portrait: visual matches native dimensions
+					setPhoneScale(Math.min(1, availW / frameNativeW, availH / frameNativeH));
+				}
 			}
 		};
 		update();
 		const observer = new ResizeObserver(update);
 		observer.observe(container);
 		return () => observer.disconnect();
-	}, [isMobileFrame, frameNativeW, frameNativeH]);
+	}, [isMobileFrame, isLandscape, frameNativeW, frameNativeH]);
 
 	// View in Code callback for the toolbar
 	const handleViewInCode = useCallback(
@@ -658,8 +663,8 @@ export function SandpackPreview({
 					/* Mobile frame mode: phone frame (left) + publish panel (right) */
 					<div className="flex items-center justify-center gap-6 w-full h-full">
 						<div ref={mobileContainerRef} className="flex-1 min-w-0 flex items-center justify-center h-full">
-						{/* Scaled phone wrapper — portrait-sized layout, overflow-visible only for landscape */}
-						<div className={`flex-shrink-0 relative flex items-center justify-center ${isLandscape ? "overflow-visible" : "overflow-hidden"}`} style={{ width: Math.round(frameNativeW * phoneScale), height: Math.round(frameNativeH * phoneScale) }}>
+						{/* Scaled phone wrapper — sized to visual footprint (swapped for landscape) */}
+						<div className={`flex-shrink-0 relative flex items-center justify-center ${isLandscape ? "overflow-visible" : "overflow-hidden"}`} style={{ width: Math.round((isLandscape ? frameNativeH : frameNativeW) * phoneScale), height: Math.round((isLandscape ? frameNativeW : frameNativeH) * phoneScale) }}>
 							<div style={{ width: frameNativeW, height: frameNativeH, transform: `scale(${phoneScale})${isLandscape ? " rotate(-90deg)" : ""}`, transformOrigin: "center center" }}>
 						<PhoneFrame>
 							<div

@@ -160,17 +160,22 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 			const cw = container.clientWidth;
 			const ch = container.clientHeight;
 			if (cw > 0 && ch > 0) {
-				// Scale to fit portrait dimensions — same scale used for both orientations.
 				const availW = cw - 48;
 				const availH = ch - 32;
-				setPhoneScale(Math.min(1, availW / frameNativeW, availH / frameNativeH));
+				if (isLandscape) {
+					// Landscape: visual width = frameNativeH, visual height = frameNativeW (swapped)
+					setPhoneScale(Math.min(1, availW / frameNativeH, availH / frameNativeW));
+				} else {
+					// Portrait: visual matches native dimensions
+					setPhoneScale(Math.min(1, availW / frameNativeW, availH / frameNativeH));
+				}
 			}
 		};
 		update();
 		const observer = new ResizeObserver(update);
 		observer.observe(container);
 		return () => observer.disconnect();
-	}, [showPhoneFrame, frameNativeW, frameNativeH]);
+	}, [showPhoneFrame, isLandscape, frameNativeW, frameNativeH]);
 
 	const sandpackElement = (
 		<SandpackProvider
@@ -265,8 +270,8 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 					<div
 						className={`preview-phone-container flex-shrink-0 relative flex items-center justify-center ${isLandscape ? "overflow-visible" : "overflow-hidden"}`}
 						style={{
-							width: Math.round(frameNativeW * phoneScale),
-							height: Math.round(frameNativeH * phoneScale),
+							width: Math.round((isLandscape ? frameNativeH : frameNativeW) * phoneScale),
+							height: Math.round((isLandscape ? frameNativeW : frameNativeH) * phoneScale),
 						}}
 					>
 						<div style={{
