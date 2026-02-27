@@ -36,7 +36,7 @@ export async function GET(
 
 	// Security: reject path traversal
 	if (segments.some((s) => s === ".." || s.includes("\0"))) {
-		return NextResponse.json({ error: "Invalid path" }, { status: 400 });
+		return NextResponse.json({ error: "Invalid path" }, { status: 400, headers: CORS_HEADERS });
 	}
 
 	const filePath = path.join(MEDIA_BASE, ...segments);
@@ -44,13 +44,13 @@ export async function GET(
 	// Security: verify resolved path is inside MEDIA_BASE
 	const resolved = path.resolve(filePath);
 	if (!resolved.startsWith(MEDIA_BASE)) {
-		return NextResponse.json({ error: "Invalid path" }, { status: 400 });
+		return NextResponse.json({ error: "Invalid path" }, { status: 400, headers: CORS_HEADERS });
 	}
 
 	try {
 		const fileStat = await stat(resolved);
 		if (!fileStat.isFile()) {
-			return NextResponse.json({ error: "Not found" }, { status: 404 });
+			return NextResponse.json({ error: "Not found" }, { status: 404, headers: CORS_HEADERS });
 		}
 
 		const ext = path.extname(resolved).toLowerCase();
@@ -67,6 +67,6 @@ export async function GET(
 			},
 		});
 	} catch {
-		return NextResponse.json({ error: "Not found" }, { status: 404 });
+		return NextResponse.json({ error: "Not found" }, { status: 404, headers: CORS_HEADERS });
 	}
 }
