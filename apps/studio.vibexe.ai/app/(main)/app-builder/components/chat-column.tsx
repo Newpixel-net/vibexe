@@ -1131,26 +1131,27 @@ export function ChatColumn({
 		onStreamingDoc(null);
 	}, [chatMessages, isLoading, onStreamingDoc]);
 
-	// Auto-scroll to bottom when messages change
-	useEffect(() => {
-		const scrollToBottom = () => {
-			if (scrollRef.current) {
-				const viewport = scrollRef.current.querySelector(
-					"[data-slot='scroll-area-viewport']",
-				);
-				if (viewport) {
-					viewport.scrollTop = viewport.scrollHeight;
-				}
+	// Auto-scroll to bottom when messages or bottom-of-chat content changes
+	const scrollToBottom = useCallback(() => {
+		if (scrollRef.current) {
+			const viewport = scrollRef.current.querySelector(
+				"[data-slot='scroll-area-viewport']",
+			);
+			if (viewport) {
+				viewport.scrollTop = viewport.scrollHeight;
 			}
-		};
-		// Immediate scroll + deferred scroll after DOM paint to catch async-rendered content
+		}
+	}, []);
+
+	useEffect(() => {
+		// Multi-pass scroll: immediate, after paint, and delayed for animated content
 		scrollToBottom();
 		requestAnimationFrame(() => {
 			scrollToBottom();
-			// Second pass after images/content settle
-			setTimeout(scrollToBottom, 100);
+			setTimeout(scrollToBottom, 150);
+			setTimeout(scrollToBottom, 400);
 		});
-	}, [chatMessages.length, isLoading]);
+	}, [chatMessages.length, isLoading, isReturningUser, continuationSuggestions.length, continuationLoading, scrollToBottom]);
 
 	// Convert File to data URL for AI SDK FileUIPart
 	const fileToDataUrl = useCallback((file: File): Promise<string> => {
