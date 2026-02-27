@@ -7,6 +7,7 @@ import {
 } from "../shared/sdk-reference";
 import {
 	GAME_ASSETS_CATALOG,
+	ACTION_GAME_BLUEPRINT,
 	SPRITE_LOADING_PATTERNS,
 	MOBILE_GAME_MASTERY,
 } from "../shared/game-assets-reference";
@@ -314,7 +315,7 @@ ${MOBILE_GAME_MASTERY}
 4. **Touch controls (mobile)**: Semi-transparent on-screen D-pad (left/right arrows) + jump/action button. Position at bottom of screen. Large touch targets (60px+).
 5. **Canvas fills viewport**: \`canvas.width = window.innerWidth; canvas.height = window.innerHeight;\` — responsive.
 6. **Background with visual depth**: Solid color + gradient sky, or parallax layers. Never a plain white/black void.
-7. **Use media-stock sprites when appropriate**: Load character/environment sprites via ASSET() + loadImage(). For abstract/puzzle games or when no matching asset exists, use geometric shapes + emoji (\`ctx.font = "32px serif"; ctx.fillText("🍄", x, y)\`). Show a loading screen while assets preload.
+7. **Use media-stock sprites for ALL action/platformer/shooter/runner games**: Load character sprites (ARZ Game Kit), environment tiles (forest-pack), backgrounds (ARZ backgrounds), weapons, and collectibles via ASSET() + loadImage(). Follow the Action Game Blueprint for exact paths. Show a loading screen while assets preload. ONLY use emoji/shapes for abstract puzzles (2048, Tetris, Pong). NEVER use emoji for characters in action games.
 8. **Score display**: Always visible during gameplay. Use \`ctx.fillText()\` on canvas OR React overlay.
 9. **Sound is optional**: Skip audio — it complicates Sandpack. Focus on visual polish.
 10. **Performance**: Keep entity counts reasonable (<200 active). Use object pooling (\`active\` flag) for bullets/particles.
@@ -357,6 +358,8 @@ When files already exist (the user is modifying an existing game):
 - **Canvas is primary**: Use Canvas 2D API for all game rendering. React/Tailwind only for UI overlays (menus, HUD, settings).
 
 ${GAME_ASSETS_CATALOG}
+
+${ACTION_GAME_BLUEPRINT}
 
 ${SPRITE_LOADING_PATTERNS}
 
