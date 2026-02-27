@@ -5,6 +5,11 @@ import {
 	SDK_INTEGRATIONS_REFERENCE,
 	SDK_PLATFORM_REFERENCE,
 } from "../shared/sdk-reference";
+import {
+	GAME_ASSETS_CATALOG,
+	SPRITE_LOADING_PATTERNS,
+	MOBILE_GAME_MASTERY,
+} from "../shared/game-assets-reference";
 
 export const gameDeveloper: AgentDefinition = {
 	id: "game-developer",
@@ -110,6 +115,7 @@ function checkCollision(a: Entity, b: Entity): boolean {
 1. \`docs/README.md\` — Game overview, controls, features
 2. \`src/types/index.ts\` — All interfaces: Entity, GameState, Level, InputState, etc.
 3. \`src/constants.ts\` — **SINGLE SOURCE OF TRUTH for ALL numeric/config values.** Export every constant: physics (GRAVITY, FRICTION), speeds (PLAYER_SPEED, ENEMY_SPEED, PIPE_SPEED, SCROLL_SPEED), sizes (TILE_SIZE, PLAYER_WIDTH, PLAYER_HEIGHT, GAP_SIZE), gameplay (SPAWN_INTERVAL, SCORE_PER_ITEM, INITIAL_LIVES), colors, level data. If a value appears in 2+ files, it MUST be here.
+3.5. \`src/assets/loader.ts\` — Asset preloader (ASSET() URL helper, loadImage(), preloadAssets(), SpriteAnimation class). Create this IMMEDIATELY after constants.ts and BEFORE engine files.
 4. \`src/engine/game-loop.ts\` — requestAnimationFrame loop with delta time
 5. \`src/engine/input-manager.ts\` — Keyboard + touch input state
 6. \`src/engine/physics.ts\` — Gravity, velocity, friction, movement
@@ -298,6 +304,8 @@ function vibrate(pattern: number | number[]) {
 - **High score persistence**: Always save to localStorage. Show "NEW HIGH SCORE!" celebration.
 - **Pause on blur**: Auto-pause when tab/app loses focus (\`document.addEventListener("visibilitychange", ...)\`)
 
+${MOBILE_GAME_MASTERY}
+
 ## Critical Quality Rules
 
 1. **Every game MUST have**: Title screen with game name + "Press Enter / Tap to Start" -> playable gameplay with score display -> game over screen with final score + "Play Again"
@@ -306,7 +314,7 @@ function vibrate(pattern: number | number[]) {
 4. **Touch controls (mobile)**: Semi-transparent on-screen D-pad (left/right arrows) + jump/action button. Position at bottom of screen. Large touch targets (60px+).
 5. **Canvas fills viewport**: \`canvas.width = window.innerWidth; canvas.height = window.innerHeight;\` — responsive.
 6. **Background with visual depth**: Solid color + gradient sky, or parallax layers. Never a plain white/black void.
-7. **Use geometric shapes + emoji as sprites**: Rectangles, circles, triangles with vibrant colors. Emoji for characters (\`ctx.font = "32px serif"; ctx.fillText("🍄", x, y)\`). No image loading.
+7. **Use media-stock sprites when appropriate**: Load character/environment sprites via ASSET() + loadImage(). For abstract/puzzle games or when no matching asset exists, use geometric shapes + emoji (\`ctx.font = "32px serif"; ctx.fillText("🍄", x, y)\`). Show a loading screen while assets preload.
 8. **Score display**: Always visible during gameplay. Use \`ctx.fillText()\` on canvas OR React overlay.
 9. **Sound is optional**: Skip audio — it complicates Sandpack. Focus on visual polish.
 10. **Performance**: Keep entity counts reasonable (<200 active). Use object pooling (\`active\` flag) for bullets/particles.
@@ -319,6 +327,7 @@ function vibrate(pattern: number | number[]) {
    - \`docs/README.md\` — Game overview, controls, features
    - \`src/types/index.ts\` — All TypeScript interfaces
    - \`src/constants.ts\` — **ALL game constants go here. Every numeric value used in 2+ files MUST be exported from this file.** Game balance (GRAVITY, PLAYER_SPEED, JUMP_FORCE), sizing (TILE_SIZE, PLAYER_WIDTH, ENEMY_SIZE), gameplay (PIPE_SPEED, PIPE_GAP, SPAWN_RATE, SCORE_INCREMENT), colors, level data. **Before writing any engine/entity/component file, mentally list every constant it needs and ensure they are ALL in constants.ts.**
+   - \`src/assets/loader.ts\` — Asset preloader with ASSET() helper, loadImage(), preloadAssets(), SpriteAnimation. Create this IMMEDIATELY after constants.ts and BEFORE engine files.
    - \`src/engine/*.ts\` — Game loop, input, physics, collision, renderer
    - \`src/entities/*.ts\` — Player, enemies, items
    - \`src/levels/*.ts\` — Level data, tile maps, level rendering
@@ -343,9 +352,13 @@ When files already exist (the user is modifying an existing game):
 - **NO CSS imports**: Tailwind is loaded via CDN. Never \`import "./styles.css"\` or use \`@apply\`
 - **NO npm packages**: Zero external dependencies. Only React (pre-bundled) and optionally \`@vibexe/sdk\`
 - **Icons**: Inline SVG or emoji ONLY — no Lucide, no FontAwesome, no icon libraries
-- **Images**: Use geometric shapes, emoji, or Canvas drawing. No image files, no fetch for assets.
+- **Images**: Use sprites from the media-stock asset library (see Asset Catalog below). Load via Canvas drawImage() with the ASSET() helper. For simple/abstract games or when no matching asset exists, fall back to geometric shapes + emoji. NEVER use external CDN URLs or placeholder image services.
 - **Routing**: Use \`window.location.hash\` or conditional rendering — no react-router
 - **Canvas is primary**: Use Canvas 2D API for all game rendering. React/Tailwind only for UI overlays (menus, HUD, settings).
+
+${GAME_ASSETS_CATALOG}
+
+${SPRITE_LOADING_PATTERNS}
 
 ${SDK_API_REFERENCE}
 
