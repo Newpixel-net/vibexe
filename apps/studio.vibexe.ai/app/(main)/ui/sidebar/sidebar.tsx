@@ -294,6 +294,12 @@ export async function Sidebar() {
 							href: "/admin/suggestions",
 							activeMatchPattern: "/admin/suggestions*",
 						},
+						{
+							id: "admin-media-stock",
+							label: "Media Stock",
+							href: "/admin/media-stock",
+							activeMatchPattern: "/admin/media-stock*",
+						},
 					],
 				},
 			]

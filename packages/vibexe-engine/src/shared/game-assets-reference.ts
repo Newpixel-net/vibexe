@@ -11,6 +11,27 @@
 export const GAME_ASSETS_REFERENCE = `
 ## MANDATORY Asset System — READ BEFORE GENERATING ANY CODE
 
+### CHARACTER SELECTION — Match user request to database
+BEFORE generating any game, scan this character catalog and pick the BEST matching pack:
+- "ninja" → characters/heroes/ninja/ (static PNG — use as single-frame character)
+- "robot" / "sci-fi" → characters/arz-game-kit/ROBOTS/ (12 robots with full animation frames)
+- "zombie" → characters/arz-game-kit/ZOMBIES/ (11 zombies) or characters/enemies/zombie-sprite/
+- "alien" / "space" → characters/arz-game-kit/ALIENS/ (10 aliens with full animation frames)
+- "platformer" / "adventure" → characters/heroes/kenney-platformer-characters/PNG/ (5 characters with pose PNGs)
+- "pixel art" → characters/heroes/kenney-pixel-platformer/Tiles/Characters/
+- "shooter" / "run and gun" → characters/heroes/red-bot/PNG's/ (16-frame run, 20-frame jump, shoot combos)
+- "boy" / "scout" / "explorer" → characters/heroes/boy-scout/png/ (8-frame run, attack, climb, die)
+- "girl" / "boy and girl" → characters/heroes/girl-boy/ (Boy-Character/, Girl-Character/)
+- "swordsman" / "warrior" → characters/heroes/burly-man/BURLY-MAN_1_swordsman/
+- "RPG" / "fantasy" / "golem" → characters/carecter-collection/Golem_2/PNG/
+- "reaper" / "dark" → characters/carecter-collection/Reaper_Man_3/PNG/
+- "monster" → characters/carecter-collection/add 2 monsters201911/
+- "cockroach" / "bug" → characters/enemies/cockroach/
+- "octopus" / "sea" → characters/enemies/octopus/
+- "mouse" / "animal" → characters/animals/mouse/
+ONLY use the default robot1 if NO character pack matches the user's request.
+NEVER use emoji or colored shapes when a matching sprite pack exists above.
+
 ### RULES:
 1. Copy the code blocks below VERBATIM. Do NOT simplify, shorten, or "clean up" any paths.
 2. NEVER invent CDN domains or external URLs. The ASSET() function below is the ONLY way to load assets.
@@ -163,6 +184,157 @@ export const CHEST_IMG = "items/collectibles/treasure/chest1_128.png";
 export const CHEST_OPEN_IMG = "items/collectibles/treasure/openchest1_128.png";
 \`\`\`
 
+// ===== RED-BOT (shooter/run-and-gun hero) =====
+export const REDBOT_RUN_FRAMES = [
+  "characters/heroes/red-bot/PNG's/r_run_1.png",
+  "characters/heroes/red-bot/PNG's/r_run_2.png",
+  "characters/heroes/red-bot/PNG's/r_run_3.png",
+  "characters/heroes/red-bot/PNG's/r_run_4.png",
+  "characters/heroes/red-bot/PNG's/r_run_5.png",
+  "characters/heroes/red-bot/PNG's/r_run_6.png",
+  "characters/heroes/red-bot/PNG's/r_run_7.png",
+  "characters/heroes/red-bot/PNG's/r_run_8.png",
+];
+export const REDBOT_JUMP_FRAMES = [
+  "characters/heroes/red-bot/PNG's/r_jump_1.png",
+  "characters/heroes/red-bot/PNG's/r_jump_4.png",
+  "characters/heroes/red-bot/PNG's/r_jump_8.png",
+  "characters/heroes/red-bot/PNG's/r_jump_12.png",
+  "characters/heroes/red-bot/PNG's/r_jump_16.png",
+  "characters/heroes/red-bot/PNG's/r_jump_20.png",
+];
+export const REDBOT_DEATH_FRAMES = [
+  "characters/heroes/red-bot/PNG's/r_death_1.png",
+  "characters/heroes/red-bot/PNG's/r_death_4.png",
+  "characters/heroes/red-bot/PNG's/r_death_8.png",
+  "characters/heroes/red-bot/PNG's/r_death_12.png",
+  "characters/heroes/red-bot/PNG's/r_death_16.png",
+];
+export const REDBOT_IDLE_FRAMES = [
+  "characters/heroes/red-bot/PNG's/r_idle_1.png",
+  "characters/heroes/red-bot/PNG's/r_idle_5.png",
+  "characters/heroes/red-bot/PNG's/r_idle_10.png",
+  "characters/heroes/red-bot/PNG's/r_idle_15.png",
+  "characters/heroes/red-bot/PNG's/r_idle_20.png",
+];
+export const REDBOT_SLIDE_FRAMES = [
+  "characters/heroes/red-bot/PNG's/r_slide_1.png",
+  "characters/heroes/red-bot/PNG's/r_slide_3.png",
+  "characters/heroes/red-bot/PNG's/r_slide_5.png",
+  "characters/heroes/red-bot/PNG's/r_slide_7.png",
+  "characters/heroes/red-bot/PNG's/r_slide_10.png",
+];
+export const REDBOT_SHOOT_IMG = "characters/heroes/red-bot/PNG's/r_stand_shoot.png";
+export const REDBOT_RUN_SHOOT_FRAMES = [
+  "characters/heroes/red-bot/PNG's/r_run_shoot_1.png",
+  "characters/heroes/red-bot/PNG's/r_run_shoot_4.png",
+  "characters/heroes/red-bot/PNG's/r_run_shoot_8.png",
+  "characters/heroes/red-bot/PNG's/r_run_shoot_12.png",
+  "characters/heroes/red-bot/PNG's/r_run_shoot_16.png",
+];
+
+// ===== BOY-SCOUT (adventure/explorer hero) =====
+export const SCOUT_RUN_FRAMES = [
+  "characters/heroes/boy-scout/png/run-0001.png",
+  "characters/heroes/boy-scout/png/run-0002.png",
+  "characters/heroes/boy-scout/png/run-0003.png",
+  "characters/heroes/boy-scout/png/run-0004.png",
+  "characters/heroes/boy-scout/png/run-0005.png",
+  "characters/heroes/boy-scout/png/run-0006.png",
+  "characters/heroes/boy-scout/png/run-0007.png",
+  "characters/heroes/boy-scout/png/run-0008.png",
+];
+export const SCOUT_WALK_FRAMES = [
+  "characters/heroes/boy-scout/png/walk-0001.png",
+  "characters/heroes/boy-scout/png/walk-0002.png",
+  "characters/heroes/boy-scout/png/walk-0003.png",
+  "characters/heroes/boy-scout/png/walk-0004.png",
+  "characters/heroes/boy-scout/png/walk-0005.png",
+  "characters/heroes/boy-scout/png/walk-0006.png",
+  "characters/heroes/boy-scout/png/walk-0007.png",
+  "characters/heroes/boy-scout/png/walk-0008.png",
+];
+export const SCOUT_ATTACK_FRAMES = [
+  "characters/heroes/boy-scout/png/attack-0001.png",
+  "characters/heroes/boy-scout/png/attack-0002.png",
+  "characters/heroes/boy-scout/png/attack-0003.png",
+  "characters/heroes/boy-scout/png/attack-0004.png",
+];
+export const SCOUT_DIE_FRAMES = [
+  "characters/heroes/boy-scout/png/die-0001.png",
+  "characters/heroes/boy-scout/png/die-0002.png",
+  "characters/heroes/boy-scout/png/die-0003.png",
+  "characters/heroes/boy-scout/png/die-0004.png",
+];
+export const SCOUT_CLIMB_FRAMES = [
+  "characters/heroes/boy-scout/png/climb-0001.png",
+  "characters/heroes/boy-scout/png/climb-0002.png",
+  "characters/heroes/boy-scout/png/climb-0003.png",
+  "characters/heroes/boy-scout/png/climb-0004.png",
+  "characters/heroes/boy-scout/png/climb-0005.png",
+  "characters/heroes/boy-scout/png/climb-0006.png",
+];
+export const SCOUT_IDLE_IMG = "characters/heroes/boy-scout/png/idle.png";
+export const SCOUT_JUMP_IMG = "characters/heroes/boy-scout/png/jump.png";
+export const SCOUT_HURT_IMG = "characters/heroes/boy-scout/png/hurt.png";
+export const SCOUT_SLIDE_IMG = "characters/heroes/boy-scout/png/slide.png";
+
+// ===== NINJA (static character — use as single-frame) =====
+export const NINJA_IMG = "characters/heroes/ninja/Ninja Postac.png";
+
+// ===== KENNEY PLATFORMER CHARACTERS (single-frame poses) =====
+// Player
+export const KENNEY_PLAYER_IDLE = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_idle.png";
+export const KENNEY_PLAYER_WALK1 = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_walk1.png";
+export const KENNEY_PLAYER_WALK2 = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_walk2.png";
+export const KENNEY_PLAYER_JUMP = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_jump.png";
+export const KENNEY_PLAYER_FALL = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_fall.png";
+export const KENNEY_PLAYER_DUCK = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_duck.png";
+export const KENNEY_PLAYER_STAND = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_stand.png";
+export const KENNEY_PLAYER_HURT = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_hurt.png";
+// Adventurer
+export const KENNEY_ADVENTURER_TILESHEET = "characters/heroes/kenney-platformer-characters/PNG/Adventurer/adventurer_tilesheet.png";
+// Soldier
+export const KENNEY_SOLDIER_TILESHEET = "characters/heroes/kenney-platformer-characters/PNG/Soldier/soldier_tilesheet.png";
+// Female
+export const KENNEY_FEMALE_TILESHEET = "characters/heroes/kenney-platformer-characters/PNG/Female/female_tilesheet.png";
+// Zombie
+export const KENNEY_ZOMBIE_TILESHEET = "characters/heroes/kenney-platformer-characters/PNG/Zombie/zombie_tilesheet.png";
+\`\`\`
+
+---
+
+### FULL CHARACTER CATALOG — Choose the best match for the user's game
+
+| Pack | Base Path | Type | Animations Available |
+|------|-----------|------|----------------------|
+| ARZ Robots (12 chars) | characters/arz-game-kit/ROBOTS/robot{1-12}/ | Frame sequence | attack, climb, crouch, die, hit, jump, run, walk |
+| ARZ Aliens (10 chars) | characters/arz-game-kit/ALIENS/alien{1-10}/ | Frame sequence | attack, die, run |
+| ARZ Zombies (11 chars) | characters/arz-game-kit/ZOMBIES/zombie{1-11}/ | Frame sequence | attack, die, walk |
+| Red-Bot | characters/heroes/red-bot/PNG's/ | Frame sequence | run(16), jump(20), idle(20), death(16), slide(10), hit(3), shoot, run_shoot(16) |
+| Boy-Scout | characters/heroes/boy-scout/png/ | Frame sequence | run(8), walk(8), attack(4), die(4), climb(6), idle, jump, hurt, slide |
+| Ninja | characters/heroes/ninja/ | Static PNG | Single image (Ninja Postac.png) |
+| Kenney Player | characters/heroes/kenney-platformer-characters/PNG/Player/Poses/ | Single-frame poses | idle, walk1, walk2, jump, fall, duck, stand, hurt, climb1, climb2, kick, slide, action1, action2 |
+| Kenney Adventurer | characters/heroes/kenney-platformer-characters/PNG/Adventurer/Poses/ | Single-frame poses | Same pose set as Player |
+| Kenney Soldier | characters/heroes/kenney-platformer-characters/PNG/Soldier/Poses/ | Single-frame poses | Same pose set as Player |
+| Kenney Female | characters/heroes/kenney-platformer-characters/PNG/Female/Poses/ | Single-frame poses | Same pose set as Player |
+| Kenney Zombie | characters/heroes/kenney-platformer-characters/PNG/Zombie/Poses/ | Single-frame poses | Same pose set as Player |
+| Girl-Boy | characters/heroes/girl-boy/ | Subdirs | Boy-Character/, Girl-Character/ |
+| Burly-Man Swordsman | characters/heroes/burly-man/BURLY-MAN_1_swordsman/ | Sprite | Swordsman character |
+| Unnamed Hero | characters/heroes/unnamed-hero/ | Sprite | Generic hero |
+| Golem | characters/carecter-collection/Golem_2/PNG/ | Sprite sheet | Fantasy golem enemy |
+| Reaper Man | characters/carecter-collection/Reaper_Man_3/PNG/ | Sprite sheet | Dark reaper character |
+| Zombie Sprite | characters/enemies/zombie-sprite/ | Sprite | Alternative zombie |
+| Cockroach | characters/enemies/cockroach/ | Sprite | Bug enemy |
+| Octopus | characters/enemies/octopus/ | Sprite | Sea enemy |
+| Mouse | characters/animals/mouse/ | Sprite | Animal character |
+
+**Priority order for choosing characters:**
+1. If user specifies a character type, pick the matching pack from the table above
+2. For animated games (platformers, shooters, runners), prefer packs with frame sequences (ARZ, Red-Bot, Boy-Scout)
+3. For simple/casual games, Kenney single-frame poses work fine (alternate walk1/walk2 for movement)
+4. Fall back to robot1 (ARZ) ONLY if nothing else matches
+
 ---
 
 ### Step 3: Use assets in GameCanvas — pattern
@@ -203,9 +375,17 @@ ctx.drawImage(crystalImg, cx - cameraX, cy, 32, 32);                      // col
 
 ### Additional Characters (for variety — change the number)
 \`\`\`
+// ARZ Game Kit — change N for different skins
 robot2, robot3 ... robot12 → characters/arz-game-kit/ROBOTS/robot{N}/run/robot{N}-run0.png
 alien2, alien3 ... alien10  → characters/arz-game-kit/ALIENS/alien{N}/run/alien{N}-run0.png
 zombie2, zombie3 ... zombie11 → characters/arz-game-kit/ZOMBIES/zombie{N}/walk/zombie{N}-walk0.png
+
+// Hero packs — use these for protagonist characters
+Red-Bot (shooter)    → characters/heroes/red-bot/PNG's/r_run_1.png (16 run frames, 20 jump frames)
+Boy-Scout (explorer) → characters/heroes/boy-scout/png/run-0001.png (8 run frames, 4 attack frames)
+Ninja (static)       → characters/heroes/ninja/Ninja Postac.png (single PNG — no animation)
+Kenney Player        → characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_walk1.png
+Kenney Adventurer    → characters/heroes/kenney-platformer-characters/PNG/Adventurer/Poses/adventurer_walk1.png
 \`\`\`
 
 ### Additional Environments
