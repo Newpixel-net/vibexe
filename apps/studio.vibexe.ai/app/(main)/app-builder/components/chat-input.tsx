@@ -684,7 +684,20 @@ export function ChatInput({
 					)}
 
 					{/* Glass pill input — textarea + inline toolbar row */}
-					<div className="glass-input relative rounded-2xl p-3 pb-0">
+					<div className="glass-input relative rounded-2xl p-3 pb-0 overflow-hidden">
+						{/* Border beam animation */}
+						<div
+							className="border-beam z-10"
+							style={{
+								'--beam-size': 150,
+								'--beam-duration': 12,
+								'--beam-anchor': 90,
+								'--beam-border-width': 1.5,
+								'--beam-color-from': '#80FFF9',
+								'--beam-color-to': 'transparent',
+								'--beam-delay': -9,
+							} as React.CSSProperties}
+						/>
 						<textarea
 							ref={textareaRef}
 							value={value}
