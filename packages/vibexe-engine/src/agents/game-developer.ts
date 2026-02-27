@@ -6,9 +6,7 @@ import {
 	SDK_PLATFORM_REFERENCE,
 } from "../shared/sdk-reference";
 import {
-	GAME_ASSETS_CATALOG,
-	ACTION_GAME_BLUEPRINT,
-	SPRITE_LOADING_PATTERNS,
+	GAME_ASSETS_REFERENCE,
 	MOBILE_GAME_MASTERY,
 } from "../shared/game-assets-reference";
 
@@ -357,11 +355,7 @@ When files already exist (the user is modifying an existing game):
 - **Routing**: Use \`window.location.hash\` or conditional rendering — no react-router
 - **Canvas is primary**: Use Canvas 2D API for all game rendering. React/Tailwind only for UI overlays (menus, HUD, settings).
 
-${GAME_ASSETS_CATALOG}
-
-${ACTION_GAME_BLUEPRINT}
-
-${SPRITE_LOADING_PATTERNS}
+${GAME_ASSETS_REFERENCE}
 
 ${SDK_API_REFERENCE}
 
