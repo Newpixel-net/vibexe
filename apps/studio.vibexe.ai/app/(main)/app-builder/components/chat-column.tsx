@@ -27,6 +27,7 @@ import {
 	Loader2,
 	MessageSquare,
 	MoreHorizontal,
+	Paintbrush,
 	Plus,
 	RefreshCw,
 	Rocket,
@@ -392,8 +393,10 @@ export function ChatColumn({
 	// Deep Thinking: auto-review & auto-fix after build
 	const [deepThinking, setDeepThinking] = useState(false);
 	const [deepThinkingStatus, setDeepThinkingStatus] = useState<
-		null | "reviewing" | "fixing" | "approved" | "complete"
+		null | "visual-reviewing" | "visual-fixing" | "reviewing" | "fixing" | "approved" | "complete"
 	>(null);
+	const autoVisualReviewTriggeredRef = useRef(false);
+	const autoVisualFixTriggeredRef = useRef(false);
 	const autoReviewTriggeredRef = useRef(false);
 	const autoFixTriggeredRef = useRef(false);
 	const deepThinkingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -916,7 +919,7 @@ export function ChatColumn({
 	const showReviewButton = useMemo(() => {
 		if (isLoading || isReviewWithIssues) return false;
 		// Hide manual review when deep thinking is handling it
-		if (deepThinking && (autoReviewTriggeredRef.current || deepThinkingStatus)) return false;
+		if (deepThinking && (autoVisualReviewTriggeredRef.current || autoReviewTriggeredRef.current || deepThinkingStatus)) return false;
 		// Show review button when generation completed and we have code files
 		return isGenerationComplete && hasCodeFiles;
 	}, [isLoading, isReviewWithIssues, isGenerationComplete, hasCodeFiles, deepThinking, deepThinkingStatus]);
@@ -936,8 +939,113 @@ export function ChatColumn({
 		);
 	}, [chatMessages, isLoading]);
 
-	// --- Deep Thinking: Auto-review trigger ---
-	// After build completes, auto-send [REVIEW CODE] if deep thinking is ON
+	// --- Detect visual review verdict in last assistant message ---
+	const isVisualReviewWithIssues = useMemo(() => {
+		if (isLoading || chatMessages.length === 0) return false;
+		const lastAssistant = [...chatMessages].reverse().find((m) => m.role === "assistant");
+		if (!lastAssistant?.content) return false;
+		const text = lastAssistant.content;
+		return (
+			text.includes("## Visual Verdict") &&
+			(text.includes("WARNING") || text.includes("BLOCK")) &&
+			!text.includes("## Combined Verdict")
+		);
+	}, [chatMessages, isLoading]);
+
+	const isVisualReviewApproved = useMemo(() => {
+		if (isLoading || chatMessages.length === 0) return false;
+		const lastAssistant = [...chatMessages].reverse().find((m) => m.role === "assistant");
+		if (!lastAssistant?.content) return false;
+		const text = lastAssistant.content;
+		return (
+			text.includes("## Visual Verdict") &&
+			text.includes("APPROVE") &&
+			!text.includes("## Combined Verdict")
+		);
+	}, [chatMessages, isLoading]);
+
+	// --- Deep Thinking: Visual Review trigger (runs FIRST, before code review) ---
+	useEffect(() => {
+		if (
+			!deepThinking ||
+			isLoading ||
+			!isGenerationComplete ||
+			!hasCodeFiles ||
+			mode !== "generate" ||
+			autoVisualReviewTriggeredRef.current ||
+			phaseTimeline.length === 0 ||
+			deepThinkingStatus !== null
+		) return;
+
+		// Don't trigger if the last user message was already a review/fix command
+		const lastUser = [...chatMessages].reverse().find((m) => m.role === "user");
+		if (lastUser?.content) {
+			const userText = lastUser.content;
+			if (userText.includes("[REVIEW CODE]") || userText.includes("[AUTO-FIX]") || userText.includes("[VISUAL")) return;
+		}
+
+		// Don't trigger if review already completed
+		if (isReviewApproved || isReviewWithIssues) return;
+
+		autoVisualReviewTriggeredRef.current = true;
+
+		// Wait 3s for preview to render (Tailwind CDN + animations)
+		deepThinkingTimerRef.current = setTimeout(async () => {
+			setDeepThinkingStatus("visual-reviewing");
+
+			const dataUrl = await capturePreviewScreenshot();
+			if (!dataUrl) {
+				// Screenshot failed — skip visual review, go straight to code review
+				setDeepThinkingStatus(null);
+				autoVisualReviewTriggeredRef.current = false;
+				return;
+			}
+
+			const fileUIPart = {
+				type: "file" as const,
+				mediaType: "image/png" as const,
+				filename: "preview-screenshot.png",
+				url: dataUrl,
+			};
+
+			sendMessage({
+				text: "[VISUAL REVIEW] Analyze this screenshot of the running app preview. Check for visual bugs, layout issues, blank screens, missing content, and UI problems. Provide structured feedback.",
+				files: [fileUIPart],
+			});
+		}, 3000);
+
+		return () => {
+			if (deepThinkingTimerRef.current) {
+				clearTimeout(deepThinkingTimerRef.current);
+			}
+		};
+	}, [deepThinking, isLoading, isGenerationComplete, hasCodeFiles, mode, phaseTimeline.length, chatMessages, isReviewApproved, isReviewWithIssues, deepThinkingStatus, sendMessage, capturePreviewScreenshot]);
+
+	// --- Deep Thinking: Visual Fix trigger (after visual review finds issues) ---
+	useEffect(() => {
+		if (
+			!deepThinking ||
+			isLoading ||
+			!isVisualReviewWithIssues ||
+			autoVisualFixTriggeredRef.current
+		) return;
+
+		autoVisualFixTriggeredRef.current = true;
+		deepThinkingTimerRef.current = setTimeout(() => {
+			setDeepThinkingStatus("visual-fixing");
+			sendMessage({
+				text: "[VISUAL FIX] Fix the visual issues identified in the review above. Focus on CSS/layout changes — adjust sizing, positioning, colors, and spacing. Fix blank screens by ensuring components render content. Do NOT rewrite entire files.",
+			});
+		}, 1500);
+
+		return () => {
+			if (deepThinkingTimerRef.current) {
+				clearTimeout(deepThinkingTimerRef.current);
+			}
+		};
+	}, [deepThinking, isLoading, isVisualReviewWithIssues, sendMessage]);
+
+	// --- Deep Thinking: Auto-review trigger (code review — runs AFTER visual review) ---
 	useEffect(() => {
 		if (
 			!deepThinking ||
@@ -949,6 +1057,22 @@ export function ChatColumn({
 			phaseTimeline.length === 0
 		) return;
 
+		// Wait for visual review to complete before starting code review
+		if (autoVisualReviewTriggeredRef.current) {
+			// Visual review was triggered — only proceed if it resolved
+			if (deepThinkingStatus !== null && deepThinkingStatus !== "visual-fixing") {
+				// Still in visual review/fix — wait
+				if (deepThinkingStatus === "visual-reviewing") return;
+			}
+			// Visual fix just completed (isLoading went false after visual-fixing) — now do code review
+			if (deepThinkingStatus === "visual-fixing") {
+				// visual-fixing completed, proceed to code review below
+			} else if (!isVisualReviewApproved && !isVisualReviewWithIssues) {
+				// Visual review still streaming
+				return;
+			}
+		}
+
 		// Don't trigger if the last user message was already a review/fix command
 		const lastUser = [...chatMessages].reverse().find((m) => m.role === "user");
 		if (lastUser?.content) {
@@ -956,7 +1080,7 @@ export function ChatColumn({
 			if (userText.includes("[REVIEW CODE]") || userText.includes("[AUTO-FIX]")) return;
 		}
 
-		// Don't trigger if review already completed
+		// Don't trigger if code review already completed
 		if (isReviewApproved || isReviewWithIssues) return;
 
 		autoReviewTriggeredRef.current = true;
@@ -970,10 +1094,9 @@ export function ChatColumn({
 				clearTimeout(deepThinkingTimerRef.current);
 			}
 		};
-	}, [deepThinking, isLoading, isGenerationComplete, hasCodeFiles, mode, phaseTimeline.length, chatMessages, isReviewApproved, isReviewWithIssues, sendMessage]);
+	}, [deepThinking, isLoading, isGenerationComplete, hasCodeFiles, mode, phaseTimeline.length, chatMessages, isReviewApproved, isReviewWithIssues, isVisualReviewApproved, isVisualReviewWithIssues, deepThinkingStatus, sendMessage]);
 
-	// --- Deep Thinking: Auto-fix trigger ---
-	// After review finds issues, auto-send [AUTO-FIX]
+	// --- Deep Thinking: Auto-fix trigger (code fix) ---
 	useEffect(() => {
 		if (
 			!deepThinking ||
@@ -999,12 +1122,16 @@ export function ChatColumn({
 	useEffect(() => {
 		if (!deepThinking || !deepThinkingStatus) return;
 
-		if (deepThinkingStatus === "reviewing" && !isLoading && isReviewApproved) {
+		if (deepThinkingStatus === "visual-reviewing" && !isLoading && (isVisualReviewApproved || isVisualReviewWithIssues)) {
+			// Visual review done — visual-fix or code review will pick up next
+		} else if (deepThinkingStatus === "visual-fixing" && !isLoading) {
+			// Visual fix done — code review trigger will activate
+		} else if (deepThinkingStatus === "reviewing" && !isLoading && isReviewApproved) {
 			setDeepThinkingStatus("approved");
 		} else if (deepThinkingStatus === "fixing" && !isLoading) {
 			setDeepThinkingStatus("complete");
 		}
-	}, [deepThinking, deepThinkingStatus, isLoading, isReviewApproved]);
+	}, [deepThinking, deepThinkingStatus, isLoading, isReviewApproved, isVisualReviewApproved, isVisualReviewWithIssues]);
 
 	// Continuation analysis for returning users
 	// Triggers when: mounted, has files, and hasn't analyzed yet.
@@ -1184,6 +1311,8 @@ export function ChatColumn({
 			// Clear any previous error context
 			setErrorContext(null);
 			// Reset deep thinking state when user manually sends a message
+			autoVisualReviewTriggeredRef.current = false;
+			autoVisualFixTriggeredRef.current = false;
 			autoReviewTriggeredRef.current = false;
 			autoFixTriggeredRef.current = false;
 			setDeepThinkingStatus(null);
@@ -1258,6 +1387,8 @@ export function ChatColumn({
 		setIsReturningUser(false);
 		setWelcomeDismissed(false);
 		// Reset deep thinking state
+		autoVisualReviewTriggeredRef.current = false;
+		autoVisualFixTriggeredRef.current = false;
 		autoReviewTriggeredRef.current = false;
 		autoFixTriggeredRef.current = false;
 		setDeepThinkingStatus(null);
@@ -1266,6 +1397,40 @@ export function ChatColumn({
 			deepThinkingTimerRef.current = null;
 		}
 	}, [appId, setMessages]);
+
+	// Programmatic screenshot capture — uses the bridge script already loaded in Sandpack iframe
+	const capturePreviewScreenshot = useCallback((): Promise<string | null> => {
+		return new Promise((resolve) => {
+			const iframe = document.querySelector(
+				".sp-preview iframe, .sp-preview-iframe"
+			) as HTMLIFrameElement | null;
+
+			if (!iframe?.contentWindow) {
+				resolve(null);
+				return;
+			}
+
+			const timeout = setTimeout(() => {
+				window.removeEventListener("message", handler);
+				resolve(null);
+			}, 10000);
+
+			const handler = (e: MessageEvent) => {
+				if (e.data?.type === "vibexe-capture-result") {
+					window.removeEventListener("message", handler);
+					clearTimeout(timeout);
+					resolve(e.data.dataUrl as string);
+				} else if (e.data?.type === "vibexe-capture-error") {
+					window.removeEventListener("message", handler);
+					clearTimeout(timeout);
+					resolve(null);
+				}
+			};
+
+			window.addEventListener("message", handler);
+			iframe.contentWindow.postMessage({ type: "vibexe-capture" }, "*");
+		});
+	}, []);
 
 	// Agent activation via slash command
 	const handleAgentActivate = useCallback((agentId: string) => {
@@ -1339,14 +1504,16 @@ export function ChatColumn({
 		if (!deepThinking || !deepThinkingStatus) return null;
 
 		const configs = {
+			"visual-reviewing": { icon: <Loader2 className="h-4 w-4 animate-spin text-purple-400" />, text: "Deep Thinking: Analyzing preview...", color: "purple" },
+			"visual-fixing": { icon: <Paintbrush className="h-4 w-4 text-purple-400" />, text: "Deep Thinking: Fixing visual issues...", color: "purple" },
 			reviewing: { icon: <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />, text: "Deep Thinking: Reviewing code...", color: "cyan" },
 			fixing: { icon: <Loader2 className="h-4 w-4 animate-spin text-amber-400" />, text: "Deep Thinking: Fixing issues...", color: "amber" },
 			approved: { icon: <CheckCircle2 className="h-4 w-4 text-emerald-400" />, text: "Deep Thinking: All checks passed!", color: "emerald" },
 			complete: { icon: <CheckCircle2 className="h-4 w-4 text-emerald-400" />, text: "Deep Thinking: Issues fixed", color: "emerald" },
 		};
 		const cfg = configs[deepThinkingStatus];
-		const borderColor = cfg.color === "cyan" ? "border-cyan-500/[0.2]" : cfg.color === "amber" ? "border-amber-500/[0.2]" : "border-emerald-500/[0.2]";
-		const bgColor = cfg.color === "cyan" ? "bg-cyan-500/[0.06]" : cfg.color === "amber" ? "bg-amber-500/[0.06]" : "bg-emerald-500/[0.06]";
+		const borderColor = cfg.color === "purple" ? "border-purple-500/[0.2]" : cfg.color === "cyan" ? "border-cyan-500/[0.2]" : cfg.color === "amber" ? "border-amber-500/[0.2]" : "border-emerald-500/[0.2]";
+		const bgColor = cfg.color === "purple" ? "bg-purple-500/[0.06]" : cfg.color === "cyan" ? "bg-cyan-500/[0.06]" : cfg.color === "amber" ? "bg-amber-500/[0.06]" : "bg-emerald-500/[0.06]";
 
 		return (
 			<div className={`mt-4 mx-1 flex items-center gap-3 p-3 rounded-2xl ${bgColor} backdrop-blur-sm border ${borderColor}`}>

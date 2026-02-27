@@ -389,6 +389,23 @@ export function getVisualEditBridgeScript(): string {
         break;
       case 'vibexe-capture':
         (function() {
+          // Check for Canvas game first — html2canvas cannot capture WebGL/Canvas2D content
+          var gameCanvas = document.querySelector('canvas');
+          if (gameCanvas && gameCanvas.width > 200 && gameCanvas.height > 200) {
+            try {
+              var canvasDataUrl = gameCanvas.toDataURL('image/png');
+              window.parent.postMessage({
+                type: 'vibexe-capture-result',
+                dataUrl: canvasDataUrl,
+                fullWidth: gameCanvas.width,
+                fullHeight: gameCanvas.height
+              }, '*');
+              return;
+            } catch (e) {
+              // Canvas tainted (cross-origin) — fall through to html2canvas
+            }
+          }
+
           // Step 1: Force minimum dimensions on html/body/root BEFORE capture
           // This ensures content has proper layout even if Tailwind CDN hasn't processed
           var captureStyle = document.createElement('style');

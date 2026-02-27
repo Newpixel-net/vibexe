@@ -105,6 +105,103 @@ Help the user:
 You are in discussion mode - you cannot create or modify files directly.
 When the user is ready to generate code, they should switch to generation mode.`;
 
+// --- Visual Review helpers ---
+
+function detectProjectType(filePaths: string, allContent: string): "game-mobile" | "game" | "mobile-app" | "webapp" {
+	const hasCanvas = allContent.includes("canvas") && (allContent.includes("requestanimationframe") || allContent.includes("getcontext"));
+	const hasGameKeywords = filePaths.includes("game") || allContent.includes("sprite") || allContent.includes("score") || allContent.includes("gameloop") || allContent.includes("game over");
+	const hasTouchControls = allContent.includes("touchstart") || allContent.includes("touch-action") || allContent.includes("ontouchstart");
+	const hasMobileKeywords = allContent.includes("9:16") || allContent.includes("mobile") || allContent.includes("portrait") || filePaths.includes("mobile");
+
+	if ((hasCanvas || hasGameKeywords) && (hasTouchControls || hasMobileKeywords)) {
+		return "game-mobile";
+	}
+	if (hasCanvas || hasGameKeywords) {
+		return "game";
+	}
+	if (hasTouchControls || hasMobileKeywords) {
+		return "mobile-app";
+	}
+	return "webapp";
+}
+
+function buildVisualReviewPrompt(projectType: string, fileContext: string): string {
+	const baseIntro = `You are a visual QA reviewer with vision capabilities. You will receive a screenshot of a running app preview along with its source code. Analyze BOTH the screenshot and the code to identify visual issues.`;
+
+	const typeSpecificChecks: Record<string, string> = {
+		"game-mobile": `
+## Game (Mobile) — Visual Checks:
+1. **Canvas rendering** — Is the game visible or is it a blank/black screen?
+2. **Portrait orientation** — Does the game fill 9:16 aspect ratio properly? Is content cut off or letterboxed?
+3. **Sprite/asset loading** — Are characters and environments visible (not broken image icons or empty rectangles)?
+4. **Touch controls** — Are on-screen D-pad/buttons visible in the bottom 25% of screen?
+5. **HUD** — Is score/lives/level info visible at the top?
+6. **Loading state** — Is the user stuck on a loading screen or "Loading..." text?
+7. **Game Over on start** — Is the game immediately showing Game Over without gameplay?
+8. **Overflow** — Is any content overflowing the viewport boundaries?`,
+
+		"game": `
+## Game (Desktop) — Visual Checks:
+1. **Canvas rendering** — Is the game visible or is it a blank/black screen?
+2. **Aspect ratio** — Does the game fill the viewport properly (16:9 or responsive)?
+3. **Sprite/asset loading** — Are characters, environments, and UI elements visible?
+4. **Controls info** — Are keyboard control hints shown to the player?
+5. **HUD** — Is score/lives/level info visible?
+6. **Loading state** — Is the user stuck on a loading screen?
+7. **Game Over on start** — Is the game immediately showing Game Over without gameplay?`,
+
+		"mobile-app": `
+## Mobile App — Visual Checks:
+1. **Content rendering** — Is the main content visible or is the screen blank/empty?
+2. **Layout** — Is the layout appropriate for mobile (no horizontal overflow)?
+3. **Navigation** — Is the navigation accessible (bottom tabs, hamburger menu, or sidebar)?
+4. **Touch targets** — Are buttons and interactive elements large enough (min 44px)?
+5. **Text readability** — Is text legible (not too small, proper contrast)?
+6. **Safe areas** — Is content not hidden behind status bar or bottom indicators?
+7. **Scrolling** — Is content that needs scrolling properly scrollable?`,
+
+		"webapp": `
+## Web App — Visual Checks:
+1. **Content rendering** — Is the main content visible or is the screen blank/white?
+2. **Layout** — Is the page layout structured properly (header, main content, footer)?
+3. **Navigation** — Is the navigation bar/menu visible and functional-looking?
+4. **Forms** — Are form elements (inputs, buttons) visible and properly styled?
+5. **Typography** — Is text readable with proper hierarchy (headings, body)?
+6. **Spacing** — Are elements properly spaced (not overlapping, not cramped)?
+7. **Colors** — Are colors applied correctly (not default browser styles)?
+8. **Responsive** — Does the content adapt to the viewport width?`,
+	};
+
+	const checks = typeSpecificChecks[projectType] || typeSpecificChecks["webapp"];
+
+	return `${baseIntro}
+${checks}
+
+## Source Code
+${fileContext}
+
+## Instructions
+1. Analyze the screenshot carefully — describe what you see
+2. Cross-reference with the source code to identify root causes
+3. List each visual issue with severity (CRITICAL/WARNING/INFO)
+4. For each issue, suggest the specific fix (which file, what CSS/code change)
+
+End with:
+## Visual Verdict
+- **Visual Quality**: APPROVE / WARNING / BLOCK
+- **Issues Found**: [count]
+- **Summary**: [1-sentence summary]
+
+Rules:
+- APPROVE = the app looks functional, content is visible, layout is reasonable
+- WARNING = minor visual issues but the app is usable
+- BLOCK = blank screen, completely broken layout, missing critical content, or game not rendering
+
+If verdict is WARNING or BLOCK, end with exactly:
+---
+*Click **Fix Issues** below to auto-fix these visual problems.*`;
+}
+
 export async function POST(request: Request) {
 	try {
 		const user = await getUser();
@@ -343,6 +440,85 @@ The user is using Visual Edit mode. They selected a specific element in the live
 - Be precise: match the element by its tag, classes, and text content.
 - Make the exact change requested and nothing else.
 - Respond concisely — no need for lengthy explanations for visual edits.`;
+		}
+
+		// --- VISUAL REVIEW handler ---
+		// Deep Think visual review: analyze screenshot + code files with task-specific prompts
+		const isVisualReview = userPrompt.startsWith("[VISUAL REVIEW]");
+		if (isVisualReview) {
+			const allFiles = await getFilesForApp(appId);
+			const fileContents: string[] = [];
+			for (const f of allFiles.slice(0, 15)) {
+				try {
+					const file = await getFileByPath(appId, f.path);
+					if (file?.content) {
+						const truncated = file.content.length > 4000
+							? `${file.content.slice(0, 4000)}\n... (truncated)`
+							: file.content;
+						fileContents.push(`## ${f.path}\n\`\`\`\n${truncated}\n\`\`\``);
+					}
+				} catch (_) {}
+			}
+
+			const allContent = fileContents.join("\n").toLowerCase();
+			const filePaths = allFiles.map((f) => f.path.toLowerCase()).join("\n");
+			const projectType = detectProjectType(filePaths, allContent);
+			const visualPrompt = buildVisualReviewPrompt(projectType, fileContents.join("\n\n"));
+
+			const visualByok = hasByok ? byokKeys : undefined;
+			const visualModel = modelId
+				? resolveModel(modelId, visualByok)
+				: resolveModelByTier("sonnet", visualByok);
+
+			console.log(`[Chat API] Visual Review: ${allFiles.length} files, projectType=${projectType}`);
+
+			const visualResult = streamText({
+				model: visualModel,
+				system: visualPrompt,
+				messages: await convertToModelMessages(messages),
+				maxSteps: 1,
+			});
+
+			return visualResult.toUIMessageStreamResponse({ originalMessages: messages });
+		}
+
+		// --- VISUAL FIX handler ---
+		// Deep Think visual fix: apply CSS/layout fixes for visual issues found in review
+		const isVisualFix = userPrompt.startsWith("[VISUAL FIX]");
+		if (isVisualFix) {
+			const fileTools = createFileTools(appId);
+			const visualFixByok = hasByok ? byokKeys : undefined;
+			const visualFixModel = modelId
+				? resolveModel(modelId, visualFixByok)
+				: resolveModelByTier("sonnet", visualFixByok);
+
+			console.log("[Chat API] Visual Fix mode");
+
+			const visualFixResult = streamText({
+				model: visualFixModel,
+				system: `You are a UI/CSS specialist fixing visual issues in a web application.
+The previous message contains a visual review with specific issues found in the live preview screenshot.
+
+Rules:
+- Use read_file to inspect each file before modifying it
+- Use update_file with MINIMAL surgical changes — only fix the visual issues mentioned
+- Focus on CSS: sizing, positioning, colors, spacing, overflow, visibility
+- For blank screens: ensure the main component renders visible content
+- For layout overflow: fix width/height constraints, add overflow-hidden where needed
+- For missing content: check conditional rendering, ensure data is displayed
+- Do NOT refactor or restructure code — only fix the visual problems
+- Do NOT add new features or change functionality
+- After fixes, briefly summarize what you changed`,
+				messages: await convertToModelMessages(messages),
+				tools: fileTools,
+				stopWhen: stepCountIs(15),
+				toolChoice: "auto",
+			});
+
+			return visualFixResult.toUIMessageStreamResponse({
+				originalMessages: messages,
+				sendRoundtrips: true,
+			});
 		}
 
 		// --- REVIEW CODE handler ---
