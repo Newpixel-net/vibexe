@@ -11,7 +11,11 @@
 export const GAME_ASSETS_REFERENCE = `
 ## MANDATORY Asset System — READ BEFORE GENERATING ANY CODE
 
-### RULE: Copy the code blocks below VERBATIM. Do NOT simplify, shorten, or "clean up" any paths.
+### RULES:
+1. Copy the code blocks below VERBATIM. Do NOT simplify, shorten, or "clean up" any paths.
+2. NEVER invent CDN domains or external URLs. The ASSET() function below is the ONLY way to load assets.
+3. NEVER use URLs like "https://media.vibexe.com/...", "https://cdn.vibexe.com/...", or ANY external image service.
+4. ALL assets are loaded through the ASSET() helper which reads window.__VIBEXE_API_ORIGIN__ (auto-injected at runtime).
 
 ---
 
