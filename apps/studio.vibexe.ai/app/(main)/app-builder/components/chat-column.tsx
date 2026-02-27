@@ -38,7 +38,7 @@ import {
 	Zap,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -400,6 +400,8 @@ export function ChatColumn({
 
 	// Ref for scroll area (needed by PhaseTimeline)
 	const scrollRef = useRef<HTMLDivElement>(null);
+	// Anchor element at the bottom of chat for reliable scrollIntoView
+	const bottomAnchorRef = useRef<HTMLDivElement>(null);
 	// Track if we've loaded messages from localStorage (prevent duplicate loads)
 	const hasLoadedMessages = useRef(false);
 
@@ -1133,6 +1135,12 @@ export function ChatColumn({
 
 	// Auto-scroll to bottom when messages or bottom-of-chat content changes
 	const scrollToBottom = useCallback(() => {
+		// Primary: scrollIntoView on bottom anchor (most reliable across browsers)
+		if (bottomAnchorRef.current) {
+			bottomAnchorRef.current.scrollIntoView({ block: "end", behavior: "instant" as ScrollBehavior });
+			return;
+		}
+		// Fallback: manual scrollTop
 		if (scrollRef.current) {
 			const viewport = scrollRef.current.querySelector(
 				"[data-slot='scroll-area-viewport']",
@@ -1143,15 +1151,20 @@ export function ChatColumn({
 		}
 	}, []);
 
-	useEffect(() => {
-		// Multi-pass scroll: immediate, after paint, and delayed for animated content
+	// useLayoutEffect fires synchronously after DOM mutations, before browser paint —
+	// this ensures scroll position is set before the user sees the page
+	useLayoutEffect(() => {
 		scrollToBottom();
-		requestAnimationFrame(() => {
-			scrollToBottom();
-			setTimeout(scrollToBottom, 150);
-			setTimeout(scrollToBottom, 400);
-		});
 	}, [chatMessages.length, isLoading, isReturningUser, continuationSuggestions.length, continuationLoading, scrollToBottom]);
+
+	// Delayed passes for animated content (framer-motion Welcome back banner, etc.)
+	useEffect(() => {
+		const t1 = setTimeout(scrollToBottom, 50);
+		const t2 = setTimeout(scrollToBottom, 200);
+		const t3 = setTimeout(scrollToBottom, 500);
+		const t4 = setTimeout(scrollToBottom, 1000);
+		return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+	}, [chatMessages.length, isReturningUser, continuationSuggestions.length, scrollToBottom]);
 
 	// Convert File to data URL for AI SDK FileUIPart
 	const fileToDataUrl = useCallback((file: File): Promise<string> => {
@@ -1776,6 +1789,9 @@ export function ChatColumn({
 							<DeployBanner />
 						</div>
 					)}
+
+					{/* Invisible anchor at bottom — scrollIntoView target */}
+					<div ref={bottomAnchorRef} aria-hidden="true" />
 				</div>
 			</ScrollArea>
 
