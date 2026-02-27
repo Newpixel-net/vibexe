@@ -1189,7 +1189,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 
 	if (codeFiles.length === 0) {
 		sandpackFiles["/App.tsx"] = { code: DEFAULT_APP };
-		sandpackFiles["/index.js"] = {
+		sandpackFiles["/index.tsx"] = {
 			code: generateEntryPoint("./App", []),
 			hidden: true,
 		};
@@ -1246,7 +1246,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			const importPath = importName.startsWith("/")
 				? `.${importName}`
 				: `./${importName}`;
-			sandpackFiles["/index.js"] = {
+			sandpackFiles["/index.tsx"] = {
 				code: generateEntryPoint(importPath, contextProviders),
 				hidden: true,
 			};
@@ -1255,12 +1255,12 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			// that imports the most likely main component
 			const generatedApp = generateAppFromComponents(sandpackFiles, contextProviders);
 			sandpackFiles["/App.tsx"] = { code: generatedApp };
-			sandpackFiles["/index.js"] = {
+			sandpackFiles["/index.tsx"] = {
 				code: generateEntryPoint("./App", contextProviders),
 				hidden: true,
 			};
 		} else {
-			sandpackFiles["/index.js"] = {
+			sandpackFiles["/index.tsx"] = {
 				code: generateEntryPoint("./App", []),
 				hidden: true,
 			};
