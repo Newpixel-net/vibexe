@@ -1319,6 +1319,25 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		};
 	}
 
+	// Prepend runtime globals to the entry point so they're set before any app code runs.
+	// This ensures window.__VIBEXE_API_ORIGIN__ is available for games (ASSET() helper)
+	// and SDK apps alike, regardless of whether @vibexe/sdk is imported.
+	if (apiOrigin || appId) {
+		let globals = "// Runtime globals injected by Vibexe\n";
+		if (apiOrigin) globals += `window.__VIBEXE_API_ORIGIN__ = ${JSON.stringify(apiOrigin)};\n`;
+		if (appId) globals += `window.__VIBEXE_APP_ID__ = ${JSON.stringify(appId)};\n`;
+		globals += "\n";
+		const entryKey = ["/index.js", "/index.jsx", "/index.ts", "/index.tsx"].find(
+			(k) => sandpackFiles[k],
+		);
+		if (entryKey) {
+			sandpackFiles[entryKey] = {
+				...sandpackFiles[entryKey],
+				code: globals + (sandpackFiles[entryKey].code || ""),
+			};
+		}
+	}
+
 	return sandpackFiles;
 }
 
