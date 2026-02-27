@@ -15,9 +15,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 		return { title: "Not Found" };
 	}
 
+	const cleanName = result.app.name.replace(/^\[.*?\]\s*/g, "").trim() || result.app.name;
 	return {
-		title: `${result.app.name} — Preview`,
-		description: result.app.description || `Live preview of ${result.app.name}`,
+		title: `${cleanName} — Preview`,
+		description: result.app.description || `Live preview of ${cleanName}`,
 	};
 }
 
@@ -38,6 +39,7 @@ export default async function PreviewPage({ params }: Props) {
 		<PreviewClient
 			appName={result.app.name}
 			appId={result.app.id}
+			projectType={result.app.projectType}
 			files={files}
 		/>
 	);
