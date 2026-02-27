@@ -7,36 +7,44 @@
  * IMPORTANT: Every path below has been VERIFIED on the live server. Do NOT guess or invent paths.
  */
 
-// Single combined export — this is the FIRST thing in the game developer's asset section
 export const GAME_ASSETS_REFERENCE = `
-## MANDATORY Asset System — READ BEFORE GENERATING ANY CODE
+## MANDATORY: Sprite-Based Asset Loading for Action Games
 
-### CHARACTER SELECTION — Match user request to database
-BEFORE generating any game, scan this character catalog and pick the BEST matching pack:
-- "ninja" → characters/heroes/ninja/ (static PNG — use as single-frame character)
-- "robot" / "sci-fi" → characters/arz-game-kit/ROBOTS/ (12 robots with full animation frames)
-- "zombie" → characters/arz-game-kit/ZOMBIES/ (11 zombies) or characters/enemies/zombie-sprite/
-- "alien" / "space" → characters/arz-game-kit/ALIENS/ (10 aliens with full animation frames)
-- "platformer" / "adventure" → characters/heroes/kenney-platformer-characters/PNG/ (5 characters with pose PNGs)
+### FORBIDDEN — NEVER generate these in action/platformer/shooter/runner games:
+\`\`\`
+NEVER: data:image/svg+xml;base64,...         (inline SVG data URIs for sprites)
+NEVER: data:image/png;base64,...             (inline base64 images for characters)
+NEVER: ctx.fillRect() for player/enemy       (colored rectangles for characters)
+NEVER: ctx.fillText("emoji", x, y)           (emoji for characters in action games)
+NEVER: "https://cdn.example.com/sprite.png"  (external CDN URLs)
+\`\`\`
+If you catch yourself writing ANY of these for a character, enemy, or background — STOP. Delete it. Use the ASSET() + loadImage() pattern below instead.
+
+### REQUIRED — Every action game MUST have these 3 files:
+1. \`src/assets/loader.ts\` — ASSET() helper + loadImage + SpriteAnimation (Step 1)
+2. \`src/constants.ts\` — Sprite paths as exported string arrays (Step 2)
+3. \`src/components/GameCanvas.tsx\` — Calls loadFrames() in useEffect, renders with ctx.drawImage (Step 3)
+
+### CHARACTER SELECTION — Pick the BEST match for the user's request:
+- "robot" / "sci-fi" / "red robot" → Use DEFAULT SET (ARZ robot1)
+- "shooter" / "run and gun" / "red-bot" → Use RED-BOT SET
+- "platformer" / "adventure" → Use KENNEY SET
+- "boy" / "scout" / "explorer" → Use BOY-SCOUT SET
+- "ninja" → Use NINJA SET (static single-frame)
+- "zombie" → DEFAULT SET zombie enemies
+- "alien" / "space" → DEFAULT SET alien enemies
 - "pixel art" → characters/heroes/kenney-pixel-platformer/Tiles/Characters/
-- "shooter" / "run and gun" → characters/heroes/red-bot/PNG's/ (16-frame run, 20-frame jump, shoot combos)
-- "boy" / "scout" / "explorer" → characters/heroes/boy-scout/png/ (8-frame run, attack, climb, die)
-- "girl" / "boy and girl" → characters/heroes/girl-boy/ (Boy-Character/, Girl-Character/)
+- "girl" / "boy and girl" → characters/heroes/girl-boy/
 - "swordsman" / "warrior" → characters/heroes/burly-man/BURLY-MAN_1_swordsman/
 - "RPG" / "fantasy" / "golem" → characters/carecter-collection/Golem_2/PNG/
 - "reaper" / "dark" → characters/carecter-collection/Reaper_Man_3/PNG/
-- "monster" → characters/carecter-collection/add 2 monsters201911/
-- "cockroach" / "bug" → characters/enemies/cockroach/
-- "octopus" / "sea" → characters/enemies/octopus/
-- "mouse" / "animal" → characters/animals/mouse/
-ONLY use the default robot1 if NO character pack matches the user's request.
-NEVER use emoji or colored shapes when a matching sprite pack exists above.
+ONLY use default robot1 if NO pack matches. NEVER use emoji/shapes when sprites exist.
 
 ### RULES:
-1. Copy the code blocks below VERBATIM. Do NOT simplify, shorten, or "clean up" any paths.
-2. NEVER invent CDN domains or external URLs. The ASSET() function below is the ONLY way to load assets.
-3. NEVER use URLs like "https://media.vibexe.com/...", "https://cdn.vibexe.com/...", or ANY external image service.
-4. ALL assets are loaded through the ASSET() helper which reads window.__VIBEXE_API_ORIGIN__ (auto-injected at runtime).
+1. Copy code blocks below VERBATIM. Do NOT simplify or modify paths.
+2. ASSET() is the ONLY way to load images. It reads window.__VIBEXE_API_ORIGIN__ (auto-injected).
+3. NEVER invent CDN domains or external URLs.
+4. Use CONSISTENT export names (PLAYER_RUN_FRAMES, PLAYER_JUMP_FRAMES, etc.) regardless of character set.
 
 ---
 
@@ -54,7 +62,7 @@ export function loadImage(path: string): Promise<HTMLImageElement> {
     img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = () => {
-      console.warn("Asset failed to load:", path);
+      console.warn("Asset failed:", path);
       const fallback = new Image(1, 1);
       fallback.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
       resolve(fallback);
@@ -89,14 +97,35 @@ export class SpriteAnimation {
 
 ---
 
-### Step 2: Create src/constants.ts asset paths — COPY EXACTLY
+### Step 2: Add asset paths to src/constants.ts
 
-**WARNING: These paths are VERIFIED on the live server. Do NOT modify them. Do NOT add PNG/, HD/, PartsHD/, or ANY other subdirectory. The paths below are the EXACT directory structure.**
+Pick ONE character set matching the user's game, then ALSO copy the environment + items block.
 
+**ENVIRONMENT + ITEMS (always include these):**
 \`\`\`typescript
-// src/constants.ts — ASSET PATHS — COPY VERBATIM, DO NOT MODIFY
+// ===== ENVIRONMENT =====
+export const BACKGROUND = "environments/backgrounds/arz-backgrounds/1920x1080/BG alien 1.jpg";
+export const BACKGROUND_FOREST = "environments/backgrounds/arz-backgrounds/1920x1080/BG forest 1.jpg";
+export const BACKGROUND_SPACE = "environments/backgrounds/arz-backgrounds/1920x1080/BG space 1.jpg";
+export const PLATFORM_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Platform/Platform_1.png";
+export const PLATFORM_SMALL = "environments/tilesets/forest-pack/300_DPI PNG/Platform/Platform_sml_1.png";
+export const GROUND_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Grounds/Ground_Wall.png";
+export const CLIFF_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Grounds/Cliff.png";
+export const TREE_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Tree/Tree_1.png";
+export const TREE_BIG_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Tree/Tree_Big_1.png";
+export const GRASS_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Grass/Ground_Grass.png";
+export const CLOUD_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Clouds/Cloud_1.png";
+// ===== ITEMS =====
+export const WEAPON_IMG = "items/weapons/arz-weapons/Weapon_1.png";
+export const WEAPON_FIRE_IMG = "items/weapons/arz-weapons/Weapon_1-Fire.png";
+export const CRYSTAL_IMG = "items/collectibles/treasure/crystal01.png";
+export const CHEST_IMG = "items/collectibles/treasure/chest1_128.png";
+export const CHEST_OPEN_IMG = "items/collectibles/treasure/openchest1_128.png";
+\`\`\`
 
-// ===== PLAYER (Robot) =====
+**DEFAULT CHARACTER SET — Robot hero + Zombie/Alien enemies:**
+\`\`\`typescript
+// ===== PLAYER (ARZ Robot) =====
 export const PLAYER_RUN_FRAMES = [
   "characters/arz-game-kit/ROBOTS/robot1/run/robot1-run0.png",
   "characters/arz-game-kit/ROBOTS/robot1/run/robot1-run7.png",
@@ -125,7 +154,6 @@ export const PLAYER_DIE_FRAMES = [
   "characters/arz-game-kit/ROBOTS/robot1/die/robot1-die5.png",
   "characters/arz-game-kit/ROBOTS/robot1/die/robot1-die10.png",
 ];
-
 // ===== ENEMIES =====
 export const ZOMBIE_WALK_FRAMES = [
   "characters/arz-game-kit/ZOMBIES/zombie1/walk/zombie1-walk0.png",
@@ -163,29 +191,12 @@ export const ALIEN_DIE_FRAMES = [
   "characters/arz-game-kit/ALIENS/alien1/die/alien1-die5.png",
   "characters/arz-game-kit/ALIENS/alien1/die/alien1-die10.png",
 ];
-
-// ===== ENVIRONMENT =====
-export const BACKGROUND = "environments/backgrounds/arz-backgrounds/1920x1080/BG alien 1.jpg";
-export const BACKGROUND_2 = "environments/backgrounds/arz-backgrounds/1920x1080/BG space 1.jpg";
-export const PLATFORM_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Platform/Platform_1.png";
-export const PLATFORM_SMALL = "environments/tilesets/forest-pack/300_DPI PNG/Platform/Platform_sml_1.png";
-export const GROUND_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Grounds/Ground_Wall.png";
-export const CLIFF_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Grounds/Cliff.png";
-export const TREE_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Tree/Tree_1.png";
-export const TREE_BIG_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Tree/Tree_Big_1.png";
-export const GRASS_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Grass/Ground_Grass.png";
-export const CLOUD_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Clouds/Cloud_1.png";
-
-// ===== ITEMS =====
-export const WEAPON_IMG = "items/weapons/arz-weapons/Weapon_1.png";
-export const WEAPON_FIRE_IMG = "items/weapons/arz-weapons/Weapon_1-Fire.png";
-export const CRYSTAL_IMG = "items/collectibles/treasure/crystal01.png";
-export const CHEST_IMG = "items/collectibles/treasure/chest1_128.png";
-export const CHEST_OPEN_IMG = "items/collectibles/treasure/openchest1_128.png";
 \`\`\`
 
-// ===== RED-BOT (shooter/run-and-gun hero) =====
-export const REDBOT_RUN_FRAMES = [
+**RED-BOT CHARACTER SET — Use for "red bot", "shooter", "run and gun", "red robot":**
+\`\`\`typescript
+// ===== PLAYER (Red-Bot — shooter hero, 16-frame run) =====
+export const PLAYER_RUN_FRAMES = [
   "characters/heroes/red-bot/PNG's/r_run_1.png",
   "characters/heroes/red-bot/PNG's/r_run_2.png",
   "characters/heroes/red-bot/PNG's/r_run_3.png",
@@ -195,7 +206,7 @@ export const REDBOT_RUN_FRAMES = [
   "characters/heroes/red-bot/PNG's/r_run_7.png",
   "characters/heroes/red-bot/PNG's/r_run_8.png",
 ];
-export const REDBOT_JUMP_FRAMES = [
+export const PLAYER_JUMP_FRAMES = [
   "characters/heroes/red-bot/PNG's/r_jump_1.png",
   "characters/heroes/red-bot/PNG's/r_jump_4.png",
   "characters/heroes/red-bot/PNG's/r_jump_8.png",
@@ -203,38 +214,41 @@ export const REDBOT_JUMP_FRAMES = [
   "characters/heroes/red-bot/PNG's/r_jump_16.png",
   "characters/heroes/red-bot/PNG's/r_jump_20.png",
 ];
-export const REDBOT_DEATH_FRAMES = [
+export const PLAYER_DIE_FRAMES = [
   "characters/heroes/red-bot/PNG's/r_death_1.png",
   "characters/heroes/red-bot/PNG's/r_death_4.png",
   "characters/heroes/red-bot/PNG's/r_death_8.png",
   "characters/heroes/red-bot/PNG's/r_death_12.png",
   "characters/heroes/red-bot/PNG's/r_death_16.png",
 ];
-export const REDBOT_IDLE_FRAMES = [
+export const PLAYER_IDLE_FRAMES = [
   "characters/heroes/red-bot/PNG's/r_idle_1.png",
   "characters/heroes/red-bot/PNG's/r_idle_5.png",
   "characters/heroes/red-bot/PNG's/r_idle_10.png",
   "characters/heroes/red-bot/PNG's/r_idle_15.png",
   "characters/heroes/red-bot/PNG's/r_idle_20.png",
 ];
-export const REDBOT_SLIDE_FRAMES = [
+export const PLAYER_SLIDE_FRAMES = [
   "characters/heroes/red-bot/PNG's/r_slide_1.png",
   "characters/heroes/red-bot/PNG's/r_slide_3.png",
   "characters/heroes/red-bot/PNG's/r_slide_5.png",
   "characters/heroes/red-bot/PNG's/r_slide_7.png",
   "characters/heroes/red-bot/PNG's/r_slide_10.png",
 ];
-export const REDBOT_SHOOT_IMG = "characters/heroes/red-bot/PNG's/r_stand_shoot.png";
-export const REDBOT_RUN_SHOOT_FRAMES = [
+export const PLAYER_SHOOT_IMG = "characters/heroes/red-bot/PNG's/r_stand_shoot.png";
+export const PLAYER_RUN_SHOOT_FRAMES = [
   "characters/heroes/red-bot/PNG's/r_run_shoot_1.png",
   "characters/heroes/red-bot/PNG's/r_run_shoot_4.png",
   "characters/heroes/red-bot/PNG's/r_run_shoot_8.png",
   "characters/heroes/red-bot/PNG's/r_run_shoot_12.png",
   "characters/heroes/red-bot/PNG's/r_run_shoot_16.png",
 ];
+\`\`\`
 
-// ===== BOY-SCOUT (adventure/explorer hero) =====
-export const SCOUT_RUN_FRAMES = [
+**BOY-SCOUT CHARACTER SET — Use for "boy", "scout", "explorer":**
+\`\`\`typescript
+// ===== PLAYER (Boy-Scout — explorer, 8-frame run) =====
+export const PLAYER_RUN_FRAMES = [
   "characters/heroes/boy-scout/png/run-0001.png",
   "characters/heroes/boy-scout/png/run-0002.png",
   "characters/heroes/boy-scout/png/run-0003.png",
@@ -244,161 +258,164 @@ export const SCOUT_RUN_FRAMES = [
   "characters/heroes/boy-scout/png/run-0007.png",
   "characters/heroes/boy-scout/png/run-0008.png",
 ];
-export const SCOUT_WALK_FRAMES = [
-  "characters/heroes/boy-scout/png/walk-0001.png",
-  "characters/heroes/boy-scout/png/walk-0002.png",
-  "characters/heroes/boy-scout/png/walk-0003.png",
-  "characters/heroes/boy-scout/png/walk-0004.png",
-  "characters/heroes/boy-scout/png/walk-0005.png",
-  "characters/heroes/boy-scout/png/walk-0006.png",
-  "characters/heroes/boy-scout/png/walk-0007.png",
-  "characters/heroes/boy-scout/png/walk-0008.png",
-];
-export const SCOUT_ATTACK_FRAMES = [
+export const PLAYER_ATTACK_FRAMES = [
   "characters/heroes/boy-scout/png/attack-0001.png",
   "characters/heroes/boy-scout/png/attack-0002.png",
   "characters/heroes/boy-scout/png/attack-0003.png",
   "characters/heroes/boy-scout/png/attack-0004.png",
 ];
-export const SCOUT_DIE_FRAMES = [
+export const PLAYER_DIE_FRAMES = [
   "characters/heroes/boy-scout/png/die-0001.png",
   "characters/heroes/boy-scout/png/die-0002.png",
   "characters/heroes/boy-scout/png/die-0003.png",
   "characters/heroes/boy-scout/png/die-0004.png",
 ];
-export const SCOUT_CLIMB_FRAMES = [
-  "characters/heroes/boy-scout/png/climb-0001.png",
-  "characters/heroes/boy-scout/png/climb-0002.png",
-  "characters/heroes/boy-scout/png/climb-0003.png",
-  "characters/heroes/boy-scout/png/climb-0004.png",
-  "characters/heroes/boy-scout/png/climb-0005.png",
-  "characters/heroes/boy-scout/png/climb-0006.png",
+export const PLAYER_IDLE_IMG = "characters/heroes/boy-scout/png/idle.png";
+export const PLAYER_JUMP_IMG = "characters/heroes/boy-scout/png/jump.png";
+\`\`\`
+
+**KENNEY CHARACTER SET — Use for "platformer", generic adventure:**
+\`\`\`typescript
+// ===== PLAYER (Kenney — classic platformer, alternate walk1/walk2 for animation) =====
+export const PLAYER_IDLE_IMG = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_idle.png";
+export const PLAYER_RUN_FRAMES = [
+  "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_walk1.png",
+  "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_walk2.png",
 ];
-export const SCOUT_IDLE_IMG = "characters/heroes/boy-scout/png/idle.png";
-export const SCOUT_JUMP_IMG = "characters/heroes/boy-scout/png/jump.png";
-export const SCOUT_HURT_IMG = "characters/heroes/boy-scout/png/hurt.png";
-export const SCOUT_SLIDE_IMG = "characters/heroes/boy-scout/png/slide.png";
+export const PLAYER_JUMP_IMG = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_jump.png";
+export const PLAYER_DUCK_IMG = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_duck.png";
+export const ZOMBIE_WALK_FRAMES = [
+  "characters/heroes/kenney-platformer-characters/PNG/Zombie/Poses/zombie_walk1.png",
+  "characters/heroes/kenney-platformer-characters/PNG/Zombie/Poses/zombie_walk2.png",
+];
+\`\`\`
 
-// ===== NINJA (static character — use as single-frame) =====
-export const NINJA_IMG = "characters/heroes/ninja/Ninja Postac.png";
-
-// ===== KENNEY PLATFORMER CHARACTERS (single-frame poses) =====
-// Player
-export const KENNEY_PLAYER_IDLE = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_idle.png";
-export const KENNEY_PLAYER_WALK1 = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_walk1.png";
-export const KENNEY_PLAYER_WALK2 = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_walk2.png";
-export const KENNEY_PLAYER_JUMP = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_jump.png";
-export const KENNEY_PLAYER_FALL = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_fall.png";
-export const KENNEY_PLAYER_DUCK = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_duck.png";
-export const KENNEY_PLAYER_STAND = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_stand.png";
-export const KENNEY_PLAYER_HURT = "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_hurt.png";
-// Adventurer
-export const KENNEY_ADVENTURER_TILESHEET = "characters/heroes/kenney-platformer-characters/PNG/Adventurer/adventurer_tilesheet.png";
-// Soldier
-export const KENNEY_SOLDIER_TILESHEET = "characters/heroes/kenney-platformer-characters/PNG/Soldier/soldier_tilesheet.png";
-// Female
-export const KENNEY_FEMALE_TILESHEET = "characters/heroes/kenney-platformer-characters/PNG/Female/female_tilesheet.png";
-// Zombie
-export const KENNEY_ZOMBIE_TILESHEET = "characters/heroes/kenney-platformer-characters/PNG/Zombie/zombie_tilesheet.png";
+**NINJA CHARACTER SET — Static single frame:**
+\`\`\`typescript
+export const PLAYER_IMG = "characters/heroes/ninja/Ninja Postac.png";
 \`\`\`
 
 ---
 
-### FULL CHARACTER CATALOG — Choose the best match for the user's game
+### Step 3: Wire up asset loading in GameCanvas.tsx — COMPLETE PATTERN
 
-| Pack | Base Path | Type | Animations Available |
-|------|-----------|------|----------------------|
-| ARZ Robots (12 chars) | characters/arz-game-kit/ROBOTS/robot{1-12}/ | Frame sequence | attack, climb, crouch, die, hit, jump, run, walk |
-| ARZ Aliens (10 chars) | characters/arz-game-kit/ALIENS/alien{1-10}/ | Frame sequence | attack, die, run |
-| ARZ Zombies (11 chars) | characters/arz-game-kit/ZOMBIES/zombie{1-11}/ | Frame sequence | attack, die, walk |
-| Red-Bot | characters/heroes/red-bot/PNG's/ | Frame sequence | run(16), jump(20), idle(20), death(16), slide(10), hit(3), shoot, run_shoot(16) |
-| Boy-Scout | characters/heroes/boy-scout/png/ | Frame sequence | run(8), walk(8), attack(4), die(4), climb(6), idle, jump, hurt, slide |
-| Ninja | characters/heroes/ninja/ | Static PNG | Single image (Ninja Postac.png) |
-| Kenney Player | characters/heroes/kenney-platformer-characters/PNG/Player/Poses/ | Single-frame poses | idle, walk1, walk2, jump, fall, duck, stand, hurt, climb1, climb2, kick, slide, action1, action2 |
-| Kenney Adventurer | characters/heroes/kenney-platformer-characters/PNG/Adventurer/Poses/ | Single-frame poses | Same pose set as Player |
-| Kenney Soldier | characters/heroes/kenney-platformer-characters/PNG/Soldier/Poses/ | Single-frame poses | Same pose set as Player |
-| Kenney Female | characters/heroes/kenney-platformer-characters/PNG/Female/Poses/ | Single-frame poses | Same pose set as Player |
-| Kenney Zombie | characters/heroes/kenney-platformer-characters/PNG/Zombie/Poses/ | Single-frame poses | Same pose set as Player |
-| Girl-Boy | characters/heroes/girl-boy/ | Subdirs | Boy-Character/, Girl-Character/ |
-| Burly-Man Swordsman | characters/heroes/burly-man/BURLY-MAN_1_swordsman/ | Sprite | Swordsman character |
-| Unnamed Hero | characters/heroes/unnamed-hero/ | Sprite | Generic hero |
-| Golem | characters/carecter-collection/Golem_2/PNG/ | Sprite sheet | Fantasy golem enemy |
-| Reaper Man | characters/carecter-collection/Reaper_Man_3/PNG/ | Sprite sheet | Dark reaper character |
-| Zombie Sprite | characters/enemies/zombie-sprite/ | Sprite | Alternative zombie |
-| Cockroach | characters/enemies/cockroach/ | Sprite | Bug enemy |
-| Octopus | characters/enemies/octopus/ | Sprite | Sea enemy |
-| Mouse | characters/animals/mouse/ | Sprite | Animal character |
+This is the EXACT pattern your GameCanvas.tsx must follow. Adapt the specific constants to match the character set you chose above.
 
-**Priority order for choosing characters:**
-1. If user specifies a character type, pick the matching pack from the table above
-2. For animated games (platformers, shooters, runners), prefer packs with frame sequences (ARZ, Red-Bot, Boy-Scout)
-3. For simple/casual games, Kenney single-frame poses work fine (alternate walk1/walk2 for movement)
-4. Fall back to robot1 (ARZ) ONLY if nothing else matches
-
----
-
-### Step 3: Use assets in GameCanvas — pattern
 \`\`\`typescript
+import React, { useRef, useEffect } from "react";
 import { loadImage, loadFrames, SpriteAnimation } from "../assets/loader";
 import * as C from "../constants";
 
-// In useEffect async init:
-const bgImg = await loadImage(C.BACKGROUND);
-const platformImg = await loadImage(C.PLATFORM_IMG);
-const groundImg = await loadImage(C.GROUND_IMG);
-const weaponImg = await loadImage(C.WEAPON_IMG);
-const crystalImg = await loadImage(C.CRYSTAL_IMG);
+interface GameAssets {
+  bg: HTMLImageElement;
+  platform: HTMLImageElement;
+  ground: HTMLImageElement;
+  crystal: HTMLImageElement;
+  playerRun: SpriteAnimation;
+  playerJump: SpriteAnimation;
+  zombieWalk: SpriteAnimation;
+}
 
-const playerRunFrames = await loadFrames(C.PLAYER_RUN_FRAMES);
-const playerAttackFrames = await loadFrames(C.PLAYER_ATTACK_FRAMES);
-const playerJumpFrames = await loadFrames(C.PLAYER_JUMP_FRAMES);
-const zombieWalkFrames = await loadFrames(C.ZOMBIE_WALK_FRAMES);
-const alienRunFrames = await loadFrames(C.ALIEN_RUN_FRAMES);
+async function preloadAllAssets(): Promise<GameAssets> {
+  const [bg, platform, ground, crystal, runImgs, jumpImgs, zombieImgs] =
+    await Promise.all([
+      loadImage(C.BACKGROUND),
+      loadImage(C.PLATFORM_IMG),
+      loadImage(C.GROUND_IMG),
+      loadImage(C.CRYSTAL_IMG),
+      loadFrames(C.PLAYER_RUN_FRAMES),
+      loadFrames(C.PLAYER_JUMP_FRAMES),
+      loadFrames(C.ZOMBIE_WALK_FRAMES),
+    ]);
+  return {
+    bg, platform, ground, crystal,
+    playerRun: new SpriteAnimation(runImgs, 16),
+    playerJump: new SpriteAnimation(jumpImgs, 12),
+    zombieWalk: new SpriteAnimation(zombieImgs, 10),
+  };
+}
 
-const playerRun = new SpriteAnimation(playerRunFrames, 16);
-const playerAttack = new SpriteAnimation(playerAttackFrames, 12);
-const zombieWalk = new SpriteAnimation(zombieWalkFrames, 10);
-const alienRun = new SpriteAnimation(alienRunFrames, 12);
+export function GameCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const gameRef = useRef<any>({ state: "loading", assets: null });
 
-// In render loop:
-ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);                  // background
-ctx.drawImage(platformImg, platX - cameraX, platY, 200, 40);              // platform
-playerRun.update(dt);
-if (facingRight) playerRun.draw(ctx, px, py, 64, 64);                     // player
-else playerRun.drawFlipped(ctx, px, py, 64, 64);
-zombieWalk.update(dt);
-zombieWalk.draw(ctx, ex - cameraX, ey, 64, 64);                           // enemy
-ctx.drawImage(crystalImg, cx - cameraX, cy, 32, 32);                      // collectible
+  useEffect(() => {
+    const canvas = canvasRef.current!;
+    const ctx = canvas.getContext("2d")!;
+    let lastTime = 0;
+
+    // Show loading screen, then preload all sprites
+    ctx.fillStyle = "#111";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#fff";
+    ctx.font = "20px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Loading assets...", canvas.width / 2, canvas.height / 2);
+
+    preloadAllAssets().then((assets) => {
+      const g = gameRef.current;
+      g.assets = assets;
+      g.state = "menu"; // assets loaded, show menu
+
+      function loop(timestamp: number) {
+        const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+        lastTime = timestamp;
+        update(g, dt);
+        render(ctx, g, canvas.width, canvas.height);
+        g.frameId = requestAnimationFrame(loop);
+      }
+      g.frameId = requestAnimationFrame(loop);
+    });
+
+    return () => cancelAnimationFrame(gameRef.current.frameId);
+  }, []);
+
+  return <canvas ref={canvasRef} style={{ display: "block", touchAction: "none" }} />;
+}
+
+// In your render function — use ctx.drawImage, NEVER ctx.fillRect for characters:
+function render(ctx: CanvasRenderingContext2D, g: any, w: number, h: number) {
+  const a = g.assets as GameAssets;
+  if (!a) return;
+  ctx.drawImage(a.bg, 0, 0, w, h);                                    // background
+  ctx.drawImage(a.platform, platX - camX, platY, 200, 40);            // platform tile
+  a.playerRun.update(g.dt);
+  if (g.player.facingRight) a.playerRun.draw(ctx, g.player.x, g.player.y, 64, 64);
+  else a.playerRun.drawFlipped(ctx, g.player.x, g.player.y, 64, 64); // flipped sprite
+  a.zombieWalk.update(g.dt);
+  a.zombieWalk.draw(ctx, enemy.x - camX, enemy.y, 64, 64);           // enemy sprite
+  ctx.drawImage(a.crystal, coinX - camX, coinY, 32, 32);              // collectible
+}
 \`\`\`
 
 ---
 
-### Additional Characters (for variety — change the number)
-\`\`\`
-// ARZ Game Kit — change N for different skins
-robot2, robot3 ... robot12 → characters/arz-game-kit/ROBOTS/robot{N}/run/robot{N}-run0.png
-alien2, alien3 ... alien10  → characters/arz-game-kit/ALIENS/alien{N}/run/alien{N}-run0.png
-zombie2, zombie3 ... zombie11 → characters/arz-game-kit/ZOMBIES/zombie{N}/walk/zombie{N}-walk0.png
+### FULL CHARACTER CATALOG
 
-// Hero packs — use these for protagonist characters
-Red-Bot (shooter)    → characters/heroes/red-bot/PNG's/r_run_1.png (16 run frames, 20 jump frames)
-Boy-Scout (explorer) → characters/heroes/boy-scout/png/run-0001.png (8 run frames, 4 attack frames)
-Ninja (static)       → characters/heroes/ninja/Ninja Postac.png (single PNG — no animation)
-Kenney Player        → characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_walk1.png
-Kenney Adventurer    → characters/heroes/kenney-platformer-characters/PNG/Adventurer/Poses/adventurer_walk1.png
-\`\`\`
+| Pack | Base Path | Type | Animations |
+|------|-----------|------|------------|
+| ARZ Robots (12) | characters/arz-game-kit/ROBOTS/robot{1-12}/ | Frame seq | attack, climb, crouch, die, hit, jump, run, walk |
+| ARZ Aliens (10) | characters/arz-game-kit/ALIENS/alien{1-10}/ | Frame seq | attack, die, run |
+| ARZ Zombies (11) | characters/arz-game-kit/ZOMBIES/zombie{1-11}/ | Frame seq | attack, die, walk |
+| Red-Bot | characters/heroes/red-bot/PNG's/ | Frame seq | run(16), jump(20), idle(20), death(16), slide(10), shoot, run_shoot(16) |
+| Boy-Scout | characters/heroes/boy-scout/png/ | Frame seq | run(8), walk(8), attack(4), die(4), climb(6), idle, jump |
+| Ninja | characters/heroes/ninja/ | Static | Single PNG |
+| Kenney Player | characters/heroes/kenney-platformer-characters/PNG/Player/Poses/ | Poses | idle, walk1/2, jump, fall, duck, stand, hurt |
+| Kenney Zombie | characters/heroes/kenney-platformer-characters/PNG/Zombie/Poses/ | Poses | Same set |
+| Girl-Boy | characters/heroes/girl-boy/ | Subdirs | Boy-Character/, Girl-Character/ |
+| Burly-Man | characters/heroes/burly-man/BURLY-MAN_1_swordsman/ | Sprite | Swordsman |
+| Golem | characters/carecter-collection/Golem_2/PNG/ | Sheet | Fantasy golem |
+| Reaper Man | characters/carecter-collection/Reaper_Man_3/PNG/ | Sheet | Dark reaper |
 
-### Additional Environments
+### Additional Environment Assets
 - Desert parallax: \`environments/parallax/desert/9 Background.png\`, \`5 Mountains.png\`, \`1 Layer1.png\`
 - More backgrounds: \`environments/backgrounds/arz-backgrounds/1920x1080/BG space 1.jpg\` through \`BG space 5.jpg\`
 - More platforms: \`Platform_2.png\`, \`Platform_3.png\`, \`Platform_End.png\`, \`Platform_Slope.png\`
-- More trees: \`Tree_2.png\`, \`Tree_3.png\`, \`Tree_Big_2.png\`
 - Shrubs: \`environments/tilesets/forest-pack/300_DPI PNG/Shrubs/Shrub_1.png\` through \`Shrub_5.png\`
 
 ### When to Use Sprites vs Shapes
-- **ALWAYS use sprites**: action games, platformers, shooters, RPGs, runners
-- **Use shapes/emoji ONLY for**: abstract puzzles (2048, Tetris), card games, Pong/Breakout
-- For action games: NEVER use emoji for characters. ALWAYS use the sprite paths above.
+- **ALWAYS use sprites**: action games, platformers, shooters, RPGs, runners — use ASSET() + loadImage()
+- **Shapes/emoji ONLY for**: abstract puzzles (2048, Tetris), card games, Pong/Breakout
 `;
 
 export const MOBILE_GAME_MASTERY = `

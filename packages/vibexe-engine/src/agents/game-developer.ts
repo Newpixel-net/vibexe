@@ -313,7 +313,7 @@ ${MOBILE_GAME_MASTERY}
 4. **Touch controls (mobile)**: Semi-transparent on-screen D-pad (left/right arrows) + jump/action button. Position at bottom of screen. Large touch targets (60px+).
 5. **Canvas fills viewport**: NEVER use fixed CANVAS_WIDTH/CANVAS_HEIGHT constants. ALWAYS use \`canvas.width = window.innerWidth; canvas.height = window.innerHeight;\` and recalculate on resize. For mobile games, use \`Math.min(window.innerWidth, 500)\` for width and \`window.innerHeight\` for full portrait height. All positions and sizes must be relative to canvas dimensions, not hardcoded pixel values.
 6. **Background with visual depth**: Solid color + gradient sky, or parallax layers. Never a plain white/black void.
-7. **Use media-stock sprites for ALL action/platformer/shooter/runner games**: Load character sprites (ARZ Game Kit), environment tiles (forest-pack), backgrounds (ARZ backgrounds), weapons, and collectibles via ASSET() + loadImage(). Follow the Action Game Blueprint for exact paths. Show a loading screen while assets preload. ONLY use emoji/shapes for abstract puzzles (2048, Tetris, Pong). NEVER use emoji for characters in action games.
+7. **MANDATORY sprite loading for action games**: Your constants.ts MUST export real media-stock paths (strings starting with "characters/" or "environments/"), NOT inline SVGs or base64 data URIs. Load them via ASSET() + loadImage() + SpriteAnimation from loader.ts. Show a loading screen while preloading. If your constants.ts contains "data:image/" or any inline base64 strings, DELETE IT and recreate with correct paths from the Asset Catalog. ONLY use shapes/emoji for abstract puzzles (2048, Tetris, Pong).
 8. **Score display**: Always visible during gameplay. Use \`ctx.fillText()\` on canvas OR React overlay.
 9. **Sound is optional**: Skip audio — it complicates Sandpack. Focus on visual polish.
 10. **Performance**: Keep entity counts reasonable (<200 active). Use object pooling (\`active\` flag) for bullets/particles.
@@ -325,8 +325,8 @@ ${MOBILE_GAME_MASTERY}
 3. **File creation order** (dependencies first):
    - \`docs/README.md\` — Game overview, controls, features
    - \`src/types/index.ts\` — All TypeScript interfaces
-   - \`src/constants.ts\` — **ALL game constants go here. Every numeric value used in 2+ files MUST be exported from this file.** Game balance (GRAVITY, PLAYER_SPEED, JUMP_FORCE), sizing (TILE_SIZE, PLAYER_WIDTH, ENEMY_SIZE), gameplay (PIPE_SPEED, PIPE_GAP, SPAWN_RATE, SCORE_INCREMENT), colors, level data. **Before writing any engine/entity/component file, mentally list every constant it needs and ensure they are ALL in constants.ts.**
-   - \`src/assets/loader.ts\` — Asset preloader with ASSET() helper, loadImage(), preloadAssets(), SpriteAnimation. Create this IMMEDIATELY after constants.ts and BEFORE engine files.
+   - \`src/constants.ts\` — **ALL game constants AND sprite asset paths go here.** Export every constant: physics (GRAVITY, PLAYER_SPEED, JUMP_FORCE), sizing (TILE_SIZE, PLAYER_WIDTH), gameplay (SPAWN_RATE, SCORE_INCREMENT), AND sprite paths (PLAYER_RUN_FRAMES, ZOMBIE_WALK_FRAMES, BACKGROUND, PLATFORM_IMG, etc.). **Sprite paths MUST be real media-stock paths like "characters/arz-game-kit/..." — NEVER inline SVGs or data URIs.**
+   - \`src/assets/loader.ts\` — Asset preloader with ASSET() helper, loadImage(), loadFrames(), SpriteAnimation class. COPY EXACTLY from the Asset Catalog. Create IMMEDIATELY after constants.ts.
    - \`src/engine/*.ts\` — Game loop, input, physics, collision, renderer
    - \`src/entities/*.ts\` — Player, enemies, items
    - \`src/levels/*.ts\` — Level data, tile maps, level rendering
@@ -350,12 +350,14 @@ When files already exist (the user is modifying an existing game):
 - **Framework**: React 18 + TypeScript + Tailwind CSS (CDN preloaded)
 - **NO CSS imports**: Tailwind is loaded via CDN. Never \`import "./styles.css"\` or use \`@apply\`
 - **NO npm packages**: Zero external dependencies. Only React (pre-bundled) and optionally \`@vibexe/sdk\`
-- **Icons**: Inline SVG or emoji ONLY — no Lucide, no FontAwesome, no icon libraries
-- **Images**: Use sprites from the media-stock asset library (see Asset Catalog below). Load via Canvas drawImage() with the ASSET() helper. For simple/abstract games or when no matching asset exists, fall back to geometric shapes + emoji. NEVER use external CDN URLs or placeholder image services.
+- **UI Icons**: Inline SVG or emoji for UI icons (buttons, indicators) ONLY — no Lucide, no FontAwesome, no icon libraries
+- **Game Sprites**: For action/platformer/shooter/runner games, ALWAYS use the media-stock asset library via ASSET() + loadImage() (see Asset Catalog below). Characters, enemies, platforms, and backgrounds MUST be loaded as sprites — NEVER use inline SVGs, colored rectangles, or emoji for game characters. For abstract puzzles (2048, Tetris), shapes/emoji are acceptable. NEVER use external CDN URLs.
 - **Routing**: Use \`window.location.hash\` or conditional rendering — no react-router
 - **Canvas is primary**: Use Canvas 2D API for all game rendering. React/Tailwind only for UI overlays (menus, HUD, settings).
 
 ${GAME_ASSETS_REFERENCE}
+
+**ASSET SELF-CHECK**: After writing constants.ts and loader.ts, verify: (1) constants.ts exports arrays of strings like "characters/arz-game-kit/..." or "environments/tilesets/..." — NOT "data:image/svg+xml" or inline base64, (2) loader.ts has the ASSET() function with window.__VIBEXE_API_ORIGIN__, (3) GameCanvas.tsx calls loadFrames()/loadImage() with imported constants and uses ctx.drawImage() — NOT ctx.fillRect() for characters. If any check fails, delete the wrong file and recreate it correctly.
 
 ${SDK_API_REFERENCE}
 
@@ -468,9 +470,9 @@ ctx.fillStyle = "white";
 ctx.textAlign = "center";
 ctx.fillText("Score: 100", canvas.width / 2, 30);
 
-// Emoji sprites
+// Emoji (ONLY for abstract/puzzle games like 2048, Tetris — NEVER for action game characters)
 ctx.font = "32px serif";
-ctx.fillText("🏃", playerX, playerY);
+ctx.fillText("🧩", tileX, tileY);
 
 // Gradients (sky)
 const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
