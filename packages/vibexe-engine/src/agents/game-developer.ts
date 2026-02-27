@@ -1,14 +1,5 @@
 import type { AgentDefinition } from "../types";
-import {
-	SDK_API_REFERENCE,
-	SDK_HOOK_PATTERN,
-	SDK_INTEGRATIONS_REFERENCE,
-	SDK_PLATFORM_REFERENCE,
-} from "../shared/sdk-reference";
-import {
-	GAME_ASSETS_REFERENCE,
-	MOBILE_GAME_MASTERY,
-} from "../shared/game-assets-reference";
+import { GAME_ASSETS_REFERENCE } from "../shared/game-assets-reference";
 
 export const gameDeveloper: AgentDefinition = {
 	id: "game-developer",
@@ -303,15 +294,13 @@ function vibrate(pattern: number | number[]) {
 - **High score persistence**: Always save to localStorage. Show "NEW HIGH SCORE!" celebration.
 - **Pause on blur**: Auto-pause when tab/app loses focus (\`document.addEventListener("visibilitychange", ...)\`)
 
-${MOBILE_GAME_MASTERY}
-
 ## Critical Quality Rules
 
 1. **Every game MUST have**: Title screen with game name + "Press Enter / Tap to Start" -> playable gameplay with score display -> game over screen with final score + "Play Again"
 2. **Levels MUST have REAL content**: A platformer needs 50+ tiles of interesting terrain, NOT a flat line. Include varied heights, gaps, moving platforms, enemies, items. If the level is boring, the game is broken.
 3. **Player MUST be visible and controllable from frame 1**: No "loading" screens that never end. No invisible player. No unresponsive controls.
 4. **Touch controls (mobile)**: Semi-transparent on-screen D-pad (left/right arrows) + jump/action button. Position at bottom of screen. Large touch targets (60px+).
-5. **Canvas fills viewport**: NEVER use fixed CANVAS_WIDTH/CANVAS_HEIGHT constants. ALWAYS use \`canvas.width = window.innerWidth; canvas.height = window.innerHeight;\` and recalculate on resize. For mobile games, use \`Math.min(window.innerWidth, 500)\` for width and \`window.innerHeight\` for full portrait height. All positions and sizes must be relative to canvas dimensions, not hardcoded pixel values.
+5. **Canvas fills viewport**: Use \`canvas.width = Math.min(window.innerWidth, 500); canvas.height = window.innerHeight;\` and recalculate on resize. Center the canvas if the browser is wider than 500px. All positions and sizes must be relative to canvas dimensions, not hardcoded pixel values.
 6. **Background with visual depth**: Solid color + gradient sky, or parallax layers. Never a plain white/black void.
 7. **MANDATORY sprite loading for action games**: Your constants.ts MUST export real media-stock paths (strings starting with "characters/" or "environments/"), NOT inline SVGs or base64 data URIs. Load them via ASSET() + loadImage() + SpriteAnimation from loader.ts. Show a loading screen while preloading. If your constants.ts contains "data:image/" or any inline base64 strings, DELETE IT and recreate with correct paths from the Asset Catalog. ONLY use shapes/emoji for abstract puzzles (2048, Tetris, Pong).
 8. **Score display**: Always visible during gameplay. Use \`ctx.fillText()\` on canvas OR React overlay.
@@ -358,8 +347,6 @@ When files already exist (the user is modifying an existing game):
 ${GAME_ASSETS_REFERENCE}
 
 **ASSET SELF-CHECK**: After writing constants.ts and loader.ts, verify: (1) constants.ts exports arrays of strings like "characters/arz-game-kit/..." or "environments/tilesets/..." — NOT "data:image/svg+xml" or inline base64, (2) loader.ts has the ASSET() function with window.__VIBEXE_API_ORIGIN__, (3) GameCanvas.tsx calls loadFrames()/loadImage() with imported constants and uses ctx.drawImage() — NOT ctx.fillRect() for characters. If any check fails, delete the wrong file and recreate it correctly.
-
-${SDK_API_REFERENCE}
 
 ### define_entities Tool
 
@@ -449,8 +436,6 @@ useEffect(() => {
 When NOT to use the SDK: Most games should use useRef + localStorage only.
 The SDK is for online leaderboards, user accounts, or multiplayer.
 
-${SDK_HOOK_PATTERN}
-
 ## Canvas Drawing Cheat Sheet
 
 \`\`\`typescript
@@ -503,10 +488,6 @@ ctx.fill();
 11. **Undefined constants / missing exports** — EVERY constant used anywhere (GRAVITY, PIPE_SPEED, GAP_SIZE, PLAYER_SIZE, etc.) MUST be \`export const\` in \`src/constants.ts\` AND \`import { ... } from "../constants"\` in EVERY file that references it. A \`ReferenceError: X is not defined\` at runtime means you forgot to export or import a constant. Double-check ALL imports in EVERY file before finishing.
 12. **Magic numbers in entity/engine files** — NEVER write \`this.speed = 200\` inside an entity file. ALL tunable values must come from constants.ts so the game is easy to balance.
 13. **useState for game state** — NEVER use useState for score, position, velocity, enemies, or any variable updated per frame. Use a single useRef object. useState triggers React re-renders — inside requestAnimationFrame this causes "Maximum update depth exceeded" and freezes the game.
-
-${SDK_INTEGRATIONS_REFERENCE}
-
-${SDK_PLATFORM_REFERENCE}
 
 ## Internationalization
 
