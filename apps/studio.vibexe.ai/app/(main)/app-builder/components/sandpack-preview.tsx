@@ -656,9 +656,10 @@ export function SandpackPreview({
 			<div className="sandpack-container flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/20 p-2">
 				{isMobileFrame ? (
 					/* Mobile frame mode: phone frame (left) + publish panel (right) */
-					<div ref={mobileContainerRef} className="flex items-center justify-center gap-6 w-full h-full">
-						{/* Scaled phone wrapper — always portrait-sized layout, rotation is visual only */}
-						<div className="flex-shrink-0 relative flex items-center justify-center overflow-visible" style={{ width: Math.round(frameNativeW * phoneScale), height: Math.round(frameNativeH * phoneScale) }}>
+					<div className="flex items-center justify-center gap-6 w-full h-full">
+						<div ref={mobileContainerRef} className="flex-1 min-w-0 flex items-center justify-center h-full">
+						{/* Scaled phone wrapper — portrait-sized layout, overflow-visible only for landscape */}
+						<div className={`flex-shrink-0 relative flex items-center justify-center ${isLandscape ? "overflow-visible" : "overflow-hidden"}`} style={{ width: Math.round(frameNativeW * phoneScale), height: Math.round(frameNativeH * phoneScale) }}>
 							<div style={{ width: frameNativeW, height: frameNativeH, transform: `scale(${phoneScale})${isLandscape ? " rotate(-90deg)" : ""}`, transformOrigin: "center center" }}>
 						<PhoneFrame>
 							<div
@@ -729,6 +730,7 @@ export function SandpackPreview({
 							</div>
 						</PhoneFrame>
 							</div>
+						</div>
 						</div>
 
 						<div className="flex-shrink-0 self-center">

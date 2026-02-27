@@ -263,7 +263,7 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 					}}
 				>
 					<div
-						className="preview-phone-container flex-shrink-0 relative flex items-center justify-center overflow-visible"
+						className={`preview-phone-container flex-shrink-0 relative flex items-center justify-center ${isLandscape ? "overflow-visible" : "overflow-hidden"}`}
 						style={{
 							width: Math.round(frameNativeW * phoneScale),
 							height: Math.round(frameNativeH * phoneScale),
