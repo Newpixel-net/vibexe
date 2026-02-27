@@ -199,6 +199,16 @@ const nextConfig: NextConfig = {
 					{ key: "Access-Control-Max-Age", value: "86400" },
 				],
 			},
+			{
+				// CORS for media-stock assets — loaded from Sandpack iframe via Image() with crossOrigin
+				source: "/api/app-builder/media-stock/:path*",
+				headers: [
+					{ key: "Access-Control-Allow-Origin", value: "*" },
+					{ key: "Access-Control-Allow-Methods", value: "GET, OPTIONS" },
+					{ key: "Access-Control-Allow-Headers", value: "Content-Type" },
+					{ key: "Access-Control-Max-Age", value: "86400" },
+				],
+			},
 		];
 	},
 	typescript: {

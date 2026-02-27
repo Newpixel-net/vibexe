@@ -14,6 +14,7 @@ import {
 	SandpackPreview as SandpackPreviewPane,
 	SandpackProvider,
 	useSandpack,
+	useSandpackNavigation,
 } from "@codesandbox/sandpack-react";
 import {
 	Check,
@@ -67,12 +68,12 @@ interface SandpackPreviewProps {
  * Refresh button that triggers Sandpack refresh
  */
 function RefreshButton() {
-	const { sandpack } = useSandpack();
+	const { refresh } = useSandpackNavigation();
 
 	return (
 		<button
 			type="button"
-			onClick={() => sandpack.runSandpack()}
+			onClick={() => refresh()}
 			className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors bg-background/80 backdrop-blur-sm"
 			title="Refresh preview"
 		>

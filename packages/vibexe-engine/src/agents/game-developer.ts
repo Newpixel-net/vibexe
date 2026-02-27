@@ -311,7 +311,7 @@ ${MOBILE_GAME_MASTERY}
 2. **Levels MUST have REAL content**: A platformer needs 50+ tiles of interesting terrain, NOT a flat line. Include varied heights, gaps, moving platforms, enemies, items. If the level is boring, the game is broken.
 3. **Player MUST be visible and controllable from frame 1**: No "loading" screens that never end. No invisible player. No unresponsive controls.
 4. **Touch controls (mobile)**: Semi-transparent on-screen D-pad (left/right arrows) + jump/action button. Position at bottom of screen. Large touch targets (60px+).
-5. **Canvas fills viewport**: \`canvas.width = window.innerWidth; canvas.height = window.innerHeight;\` — responsive.
+5. **Canvas fills viewport**: NEVER use fixed CANVAS_WIDTH/CANVAS_HEIGHT constants. ALWAYS use \`canvas.width = window.innerWidth; canvas.height = window.innerHeight;\` and recalculate on resize. For mobile games, use \`Math.min(window.innerWidth, 500)\` for width and \`window.innerHeight\` for full portrait height. All positions and sizes must be relative to canvas dimensions, not hardcoded pixel values.
 6. **Background with visual depth**: Solid color + gradient sky, or parallax layers. Never a plain white/black void.
 7. **Use media-stock sprites for ALL action/platformer/shooter/runner games**: Load character sprites (ARZ Game Kit), environment tiles (forest-pack), backgrounds (ARZ backgrounds), weapons, and collectibles via ASSET() + loadImage(). Follow the Action Game Blueprint for exact paths. Show a loading screen while assets preload. ONLY use emoji/shapes for abstract puzzles (2048, Tetris, Pong). NEVER use emoji for characters in action games.
 8. **Score display**: Always visible during gameplay. Use \`ctx.fillText()\` on canvas OR React overlay.
