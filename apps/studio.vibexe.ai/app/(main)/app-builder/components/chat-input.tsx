@@ -7,7 +7,7 @@
  * Auto-resizing textarea with Enter to submit.
  */
 
-import { Camera, Image as ImageIcon, Loader2, Send, Square } from "lucide-react";
+import { Brain, Camera, Check, ChevronDown, Image as ImageIcon, Loader2, MessageSquare, Send, Square } from "lucide-react";
 import {
 	type ChangeEvent,
 	type ClipboardEvent,
@@ -22,9 +22,14 @@ import {
 } from "react";
 import { cn } from "@/lib/utils";
 import type { ModelCapabilities } from "../lib/model-options";
+import {
+	MODEL_OPTIONS,
+} from "@/app/(main)/app-builder/lib/model-options";
+import type { ChatMode } from "../types/vibesdk";
 import type { Attachment } from "../types/vibesdk";
 import { AttachmentPreview } from "./attachment-preview";
 import { ScreenshotEditor } from "./screenshot-editor";
+import { VoiceInputButton } from "./voice-input-button";
 import {
 	SlashCommandMenu,
 	type SlashCommandMenuHandle,
@@ -35,6 +40,117 @@ const MAX_WORDS = 4000;
 
 function countWords(text: string): number {
 	return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+/**
+ * Custom glass model picker dropdown (inline in chat input).
+ */
+function ModelPicker({
+	selectedModelId,
+	onModelChange,
+}: {
+	selectedModelId: string;
+	onModelChange: (modelId: string) => void;
+}) {
+	const [isOpen, setIsOpen] = useState(false);
+	const [focusIndex, setFocusIndex] = useState(-1);
+	const containerRef = useRef<HTMLDivElement>(null);
+
+	const selectedModel = MODEL_OPTIONS.find((m) => m.id === selectedModelId) || MODEL_OPTIONS[0];
+
+	useEffect(() => {
+		if (!isOpen) return;
+		const handleClick = (e: MouseEvent) => {
+			if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+				setIsOpen(false);
+			}
+		};
+		document.addEventListener("mousedown", handleClick);
+		return () => document.removeEventListener("mousedown", handleClick);
+	}, [isOpen]);
+
+	const handleKeyDown = useCallback(
+		(e: React.KeyboardEvent) => {
+			if (!isOpen) {
+				if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+					e.preventDefault();
+					setIsOpen(true);
+					setFocusIndex(MODEL_OPTIONS.findIndex((m) => m.id === selectedModelId));
+				}
+				return;
+			}
+			switch (e.key) {
+				case "Escape":
+					e.preventDefault();
+					setIsOpen(false);
+					break;
+				case "ArrowDown":
+					e.preventDefault();
+					setFocusIndex((prev) => Math.min(prev + 1, MODEL_OPTIONS.length - 1));
+					break;
+				case "ArrowUp":
+					e.preventDefault();
+					setFocusIndex((prev) => Math.max(prev - 1, 0));
+					break;
+				case "Enter":
+				case " ":
+					e.preventDefault();
+					if (focusIndex >= 0 && focusIndex < MODEL_OPTIONS.length) {
+						onModelChange(MODEL_OPTIONS[focusIndex].id);
+						setIsOpen(false);
+					}
+					break;
+			}
+		},
+		[isOpen, focusIndex, selectedModelId, onModelChange],
+	);
+
+	return (
+		<div ref={containerRef} className="relative">
+			<button
+				type="button"
+				onClick={() => setIsOpen(!isOpen)}
+				onKeyDown={handleKeyDown}
+				className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/[0.06] border border-white/[0.1] text-[11px] font-medium text-white/60 hover:bg-white/[0.1] hover:text-white/80 transition-all duration-200"
+				aria-haspopup="listbox"
+				aria-expanded={isOpen}
+			>
+				{selectedModel.name}
+				<ChevronDown className={cn("h-2.5 w-2.5 transition-transform duration-200", isOpen && "rotate-180")} />
+			</button>
+			{isOpen && (
+				<div
+					className="absolute bottom-full mb-1 left-0 min-w-[200px] rounded-xl backdrop-blur-xl bg-[#1a1a2e]/95 border border-white/[0.1] shadow-xl overflow-hidden z-50"
+					role="listbox"
+				>
+					{MODEL_OPTIONS.map((opt, index) => (
+						<button
+							key={opt.id}
+							type="button"
+							role="option"
+							aria-selected={opt.id === selectedModelId}
+							onClick={() => {
+								onModelChange(opt.id);
+								setIsOpen(false);
+							}}
+							className={cn(
+								"flex items-center justify-between w-full px-3 py-2 text-xs transition-colors",
+								focusIndex === index && "bg-white/[0.06]",
+								opt.id === selectedModelId
+									? "text-white/90"
+									: "text-white/50 hover:text-white/70 hover:bg-white/[0.04]",
+							)}
+						>
+							<span className="font-medium">{opt.name}</span>
+							{opt.id === selectedModelId && (
+								<Check className="h-3 w-3 text-violet-400" />
+							)}
+						</button>
+					))}
+				</div>
+			)}
+		</div>
+	);
 }
 
 interface ChatInputProps {
@@ -52,6 +168,14 @@ interface ChatInputProps {
 	modelCapabilities?: ModelCapabilities;
 	/** Called when an agent-type slash command is selected */
 	onAgentActivate?: (agentId: string) => void;
+	selectedModelId?: string;
+	onModelChange?: (modelId: string) => void;
+	mode?: ChatMode;
+	onDiscussToggle?: () => void;
+	deepThinking?: boolean;
+	onDeepThinkingChange?: (value: boolean) => void;
+	onVoiceTranscript?: (text: string) => void;
+	appId?: string;
 }
 
 export function ChatInput({
@@ -68,6 +192,14 @@ export function ChatInput({
 	onAttachmentsChange,
 	modelCapabilities,
 	onAgentActivate,
+	selectedModelId,
+	onModelChange,
+	mode = "generate",
+	onDiscussToggle,
+	deepThinking,
+	onDeepThinkingChange,
+	onVoiceTranscript,
+	appId,
 }: ChatInputProps) {
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -551,8 +683,8 @@ export function ChatInput({
 						/>
 					)}
 
-					{/* Glass pill input — large textarea with floating buttons */}
-					<div className="glass-input relative rounded-2xl p-3 pb-11">
+					{/* Glass pill input — textarea + inline toolbar row */}
+					<div className="glass-input relative rounded-2xl p-3 pb-0">
 						<textarea
 							ref={textareaRef}
 							value={value}
@@ -570,64 +702,123 @@ export function ChatInput({
 							)}
 						/>
 
-						{/* Bottom-right action buttons */}
-						<div className="absolute bottom-2.5 right-3 flex items-center gap-1.5">
-							{/* Image button — glass icon */}
-							<button
-								type="button"
-								className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.08] transition-all duration-200 disabled:opacity-50"
-								onClick={handleImageClick}
-								disabled={isDisabled}
-								title="Attach files"
-							>
-								<ImageIcon className="h-4 w-4" />
-							</button>
-
-							{/* Screenshot button — camera icon */}
-							<button
-								type="button"
-								className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.08] transition-all duration-200 disabled:opacity-50"
-								onClick={handleScreenshot}
-								disabled={isDisabled || isCapturing}
-								title="Take screenshot"
-							>
-								{isCapturing ? (
-									<Loader2 className="h-4 w-4 animate-spin" />
-								) : (
-									<Camera className="h-4 w-4" />
+												{/* Bottom toolbar row — inside the pill */}
+						<div className="flex items-center gap-1.5 px-0.5 py-2 border-t border-white/[0.04]">
+							{/* Left group: Model picker + Discuss + Deep Think */}
+							<div className="flex items-center gap-1.5">
+								{selectedModelId && onModelChange && (
+									<ModelPicker
+										selectedModelId={selectedModelId}
+										onModelChange={onModelChange}
+									/>
 								)}
-							</button>
 
-							{/* Stop button — glass red */}
-							{isGenerating && onStop && (
+								{/* Discuss toggle pill */}
+								{onDiscussToggle && (
+									<button
+										type="button"
+										onClick={onDiscussToggle}
+										className={cn(
+											"flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all duration-200",
+											mode === "discuss"
+												? "bg-violet-500/[0.12] text-violet-300 border border-violet-500/[0.2]"
+												: "text-white/40 hover:text-white/60 hover:bg-white/[0.06]",
+										)}
+									>
+										<MessageSquare className="h-3 w-3 shrink-0" />
+										<span>{mode === "discuss" ? "Discussing" : "Discuss"}</span>
+									</button>
+								)}
+
+								{/* Deep Think toggle pill */}
+								{onDeepThinkingChange && (
+									<button
+										type="button"
+										onClick={() => onDeepThinkingChange(!deepThinking)}
+										className={cn(
+											"flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all duration-200",
+											deepThinking
+												? "bg-cyan-500/[0.12] text-cyan-300 border border-cyan-500/[0.2]"
+												: "text-white/40 hover:text-white/60 hover:bg-white/[0.06]",
+										)}
+										title="Auto-review and auto-fix after build"
+									>
+										<Brain className="h-3 w-3 shrink-0" />
+										<span>{deepThinking ? "Deep Thinking" : "Deep Think"}</span>
+									</button>
+								)}
+							</div>
+
+							{/* Spacer */}
+							<div className="flex-1" />
+
+							{/* Right group: Image, Screenshot, Voice, Stop, Send */}
+							<div className="flex items-center gap-1">
+								{/* Image button */}
 								<button
 									type="button"
-									className="flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-lg bg-red-500/[0.1] border border-red-500/[0.2] text-red-400 hover:bg-red-500/[0.15] transition-all duration-200"
-									onClick={onStop}
-									title="Stop generation"
+									className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.08] transition-all duration-200 disabled:opacity-50"
+									onClick={handleImageClick}
+									disabled={isDisabled}
+									title="Attach files"
 								>
-									<Square className="h-4 w-4 fill-current" />
+									<ImageIcon className="h-3.5 w-3.5" />
 								</button>
-							)}
 
-							{/* Send button — gradient */}
-							<button
-								type="submit"
-								disabled={!canSubmit}
-								className={cn(
-									"flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl transition-all duration-200 disabled:opacity-30",
-									canSubmit
-										? "bg-gradient-to-r from-violet-500 to-cyan-500 text-white hover:scale-105 shadow-[0_0_12px_rgba(124,58,237,0.2)]"
-										: "text-white/30",
+								{/* Screenshot button */}
+								<button
+									type="button"
+									className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.08] transition-all duration-200 disabled:opacity-50"
+									onClick={handleScreenshot}
+									disabled={isDisabled || isCapturing}
+									title="Take screenshot"
+								>
+									{isCapturing ? (
+										<Loader2 className="h-3.5 w-3.5 animate-spin" />
+									) : (
+										<Camera className="h-3.5 w-3.5" />
+									)}
+								</button>
+
+								{/* Voice input button */}
+								{onVoiceTranscript && (
+									<VoiceInputButton
+										onTranscript={onVoiceTranscript}
+										className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.08] transition-all duration-200"
+									/>
 								)}
-							>
-								{isLoading ? (
-									<Loader2 className="h-4 w-4 animate-spin" />
-								) : (
-									<Send className="h-4 w-4" />
+
+								{/* Stop button */}
+								{isGenerating && onStop && (
+									<button
+										type="button"
+										className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg bg-red-500/[0.1] border border-red-500/[0.2] text-red-400 hover:bg-red-500/[0.15] transition-all duration-200"
+										onClick={onStop}
+										title="Stop generation"
+									>
+										<Square className="h-3.5 w-3.5 fill-current" />
+									</button>
 								)}
-								<span className="sr-only">Send message</span>
-							</button>
+
+								{/* Send button */}
+								<button
+									type="submit"
+									disabled={!canSubmit}
+									className={cn(
+										"flex-shrink-0 h-8 w-8 flex items-center justify-center rounded-xl transition-all duration-200 disabled:opacity-30",
+										canSubmit
+											? "bg-gradient-to-r from-violet-500 to-cyan-500 text-white hover:scale-105 shadow-[0_0_12px_rgba(124,58,237,0.2)]"
+											: "text-white/30",
+									)}
+								>
+									{isLoading ? (
+										<Loader2 className="h-4 w-4 animate-spin" />
+									) : (
+										<Send className="h-4 w-4" />
+									)}
+									<span className="sr-only">Send message</span>
+								</button>
+							</div>
 						</div>
 					</div>
 				</div>

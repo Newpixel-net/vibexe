@@ -1870,6 +1870,14 @@ export function ChatColumn({
 					onAttachmentsChange={setAttachments}
 					modelCapabilities={getModelCapabilities(selectedModelId)}
 					onAgentActivate={handleAgentActivate}
+					selectedModelId={selectedModelId}
+					onModelChange={handleModelChange}
+					mode={mode}
+					onDiscussToggle={handleDiscussToggle}
+					deepThinking={deepThinking}
+					onDeepThinkingChange={handleDeepThinkingChange}
+					onVoiceTranscript={handleVoiceTranscript}
+					appId={appId}
 				/>
 			</div>
 
@@ -1880,15 +1888,7 @@ export function ChatColumn({
 			<ChatBottomBar
 				appId={appId}
 				selectedModelId={selectedModelId}
-				onModelChange={handleModelChange}
-				onPlus={handlePlus}
-				onDiscuss={handleDiscussToggle}
-				onVoiceTranscript={handleVoiceTranscript}
-				onNewChat={handleNewChat}
-				mode={mode}
 				onInsertText={setInput}
-				deepThinking={deepThinking}
-				onDeepThinkingChange={handleDeepThinkingChange}
 			/>
 
 			{/* History Modal */}

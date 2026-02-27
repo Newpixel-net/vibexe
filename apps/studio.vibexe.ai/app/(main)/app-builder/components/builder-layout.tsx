@@ -136,7 +136,7 @@ export function BuilderLayout({
 				{/* Content area — 2-column layout */}
 				<div className="flex-1 flex min-h-0">
 					{/* Chat Column — 520px, glass panel */}
-					<div className="flex flex-col w-[520px] min-w-[400px] border-r border-white/[0.06] backdrop-blur-xl bg-white/[0.02]">
+					<div className="flex flex-col w-[560px] min-w-[420px] border-r border-white/[0.06] backdrop-blur-xl bg-white/[0.02]">
 						<ChatColumn
 							appId={app.id}
 							appName={appName}
