@@ -31,7 +31,7 @@ import {
 	X,
 } from "lucide-react";
 import { MobilePublishPanel } from "./mobile-publish-panel";
-import { PHONE, PhoneFrame } from "./phone-frame";
+import { PHONE_FRAME, PhoneFrame } from "./phone-frame";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import { useVisualEdit } from "../lib/visual-edit-context";
@@ -374,12 +374,14 @@ export function SandpackPreview({
 	const [isLandscape, setIsLandscape] = useState(false);
 	const toggleRotation = useCallback(() => setIsLandscape((v) => !v), []);
 
-	// Phone frame scaling for mobile-frame mode — scale to fit available width and height
+	// Phone frame scaling — same physical device always, CSS rotate for landscape
 	const mobileContainerRef = useRef<HTMLDivElement>(null);
 	const [phoneScale, setPhoneScale] = useState(0.75);
-	const frameDims = isLandscape ? PHONE.landscape : PHONE.portrait;
-	const frameOuterW = frameDims.bezelW + 6;
-	const frameOuterH = frameDims.bezelH + 12;
+	// The phone frame is always portrait; in landscape the rotated frame swaps effective w/h
+	const frameNativeW = PHONE_FRAME.bezelW + 6;
+	const frameNativeH = PHONE_FRAME.bezelH + 12;
+	const frameEffectiveW = isLandscape ? frameNativeH : frameNativeW;
+	const frameEffectiveH = isLandscape ? frameNativeW : frameNativeH;
 
 	useEffect(() => {
 		if (!isMobileFrame) return;
@@ -390,8 +392,8 @@ export function SandpackPreview({
 			const cw = container.clientWidth;
 			const ch = container.clientHeight;
 			if (cw > 0 && ch > 0) {
-				const scaleW = (cw - 48) / frameOuterW;
-				const scaleH = (ch - 16) / frameOuterH;
+				const scaleW = (cw - 48) / frameEffectiveW;
+				const scaleH = (ch - 16) / frameEffectiveH;
 				setPhoneScale(Math.min(1, scaleW, scaleH));
 			}
 		};
@@ -399,7 +401,7 @@ export function SandpackPreview({
 		const observer = new ResizeObserver(update);
 		observer.observe(container);
 		return () => observer.disconnect();
-	}, [isMobileFrame, frameOuterW, frameOuterH]);
+	}, [isMobileFrame, frameEffectiveW, frameEffectiveH]);
 
 	// View in Code callback for the toolbar
 	const handleViewInCode = useCallback(
@@ -657,9 +659,9 @@ export function SandpackPreview({
 					/* Mobile frame mode: phone frame (left) + publish panel (right) */
 					<div ref={mobileContainerRef} className="flex items-center justify-center gap-6 w-full h-full">
 						{/* Scaled phone wrapper */}
-						<div className="flex-shrink-0 relative" style={{ width: Math.round(frameOuterW * phoneScale), height: Math.round(frameOuterH * phoneScale) }}>
-							<div style={{ transform: `scale(${phoneScale})`, transformOrigin: "top left" }}>
-						<PhoneFrame landscape={isLandscape}>
+						<div className="flex-shrink-0 relative flex items-center justify-center" style={{ width: Math.round(frameEffectiveW * phoneScale), height: Math.round(frameEffectiveH * phoneScale) }}>
+							<div style={{ width: frameNativeW, height: frameNativeH, transform: `scale(${phoneScale})${isLandscape ? " rotate(-90deg)" : ""}`, transformOrigin: "center center" }}>
+						<PhoneFrame>
 							<div
 								ref={iframeContainerRef}
 								className="relative w-full h-full"

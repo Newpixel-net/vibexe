@@ -49,7 +49,15 @@ const phoneFrameStyles = `
   .preview-phone-container .sp-preview iframe { height: 100% !important; }
 `;
 
-/** Status bar icons — shared between portrait and landscape */
+/** iPhone 17 Max frame dimensions (CSS px, portrait) — same as phone-frame.tsx */
+const PHONE_FRAME = {
+	bezelW: 407,
+	bezelH: 862,
+	screenW: 383,
+	screenH: 838,
+} as const;
+
+/** Status bar icons */
 function StatusBarIcons() {
 	return (
 		<div className="flex items-center gap-1.5">
@@ -74,71 +82,37 @@ function StatusBarIcons() {
 	);
 }
 
-/** Phone frame dimensions */
-const PHONE = {
-	portrait: { bezelW: 401, bezelH: 838, screenW: 375, screenH: 812 },
-	landscape: { bezelW: 838, bezelH: 401, screenW: 812, screenH: 375 },
-} as const;
-
 /**
- * Inline PhoneFrame for preview page.
- * Supports portrait (9:16) and landscape (16:9) orientations.
+ * Inline PhoneFrame — always portrait. Parent handles rotation via CSS transform.
  */
-function PreviewPhoneFrame({ children, landscape = false }: { children: React.ReactNode; landscape?: boolean }) {
-	const d = landscape ? PHONE.landscape : PHONE.portrait;
-
+function PreviewPhoneFrame({ children }: { children: React.ReactNode }) {
 	return (
 		<div className="flex flex-col items-center">
 			<div
-				className="relative bg-[#1a1a1a] rounded-[44px] p-3 shadow-2xl shadow-black/50"
-				style={{ width: d.bezelW, minHeight: d.bezelH }}
+				className="relative bg-[#1a1a1a] rounded-[48px] p-3 shadow-2xl shadow-black/50"
+				style={{ width: PHONE_FRAME.bezelW, minHeight: PHONE_FRAME.bezelH }}
 			>
-				<div className="absolute inset-[11px] rounded-[36px] ring-1 ring-white/[0.08] pointer-events-none z-20" />
-				<div className="relative bg-black rounded-[36px] overflow-hidden" style={{ width: d.screenW, height: d.screenH }}>
+				<div className="absolute inset-[11px] rounded-[40px] ring-1 ring-white/[0.08] pointer-events-none z-20" />
+				<div
+					className="relative bg-black rounded-[40px] overflow-hidden"
+					style={{ width: PHONE_FRAME.screenW, height: PHONE_FRAME.screenH }}
+				>
 					{/* Status bar */}
 					<div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-6 pt-3 pb-1 bg-gradient-to-b from-black/60 to-transparent">
 						<span className="text-white text-xs font-semibold tracking-tight" style={{ fontSize: 13 }}>
 							9:41
 						</span>
-						{/* Dynamic Island — narrower in landscape */}
-						<div
-							className="absolute top-3 left-1/2 -translate-x-1/2 bg-black rounded-full z-20"
-							style={{ width: landscape ? 90 : 120, height: landscape ? 28 : 34 }}
-						/>
+						<div className="absolute top-3 left-1/2 -translate-x-1/2 w-[126px] h-[37px] bg-black rounded-full z-20" />
 						<StatusBarIcons />
 					</div>
-					{/* Content */}
 					<div className="w-full h-full">{children}</div>
-					{/* Home indicator — wider bar in landscape */}
-					<div
-						className="absolute bottom-2 left-1/2 -translate-x-1/2 h-[5px] bg-white/30 rounded-full z-10"
-						style={{ width: landscape ? 180 : 134 }}
-					/>
+					<div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-[134px] h-[5px] bg-white/30 rounded-full z-10" />
 				</div>
-				{/* Side buttons — repositioned for landscape */}
-				{landscape ? (
-					<>
-						{/* Power button — top edge in landscape */}
-						<div className="absolute -top-[3px] left-[140px] h-[3px] w-[80px] bg-[#2a2a2a] rounded-t-sm" />
-						{/* Volume up — bottom edge */}
-						<div className="absolute -bottom-[3px] left-[120px] h-[3px] w-[30px] bg-[#2a2a2a] rounded-b-sm" />
-						{/* Volume down — bottom edge */}
-						<div className="absolute -bottom-[3px] left-[160px] h-[3px] w-[30px] bg-[#2a2a2a] rounded-b-sm" />
-						{/* Silent switch — bottom edge */}
-						<div className="absolute -bottom-[3px] left-[80px] h-[3px] w-[16px] bg-[#2a2a2a] rounded-b-sm" />
-					</>
-				) : (
-					<>
-						{/* Power button — right */}
-						<div className="absolute top-[140px] -right-[3px] w-[3px] h-[80px] bg-[#2a2a2a] rounded-r-sm" />
-						{/* Volume up — left */}
-						<div className="absolute top-[120px] -left-[3px] w-[3px] h-[30px] bg-[#2a2a2a] rounded-l-sm" />
-						{/* Volume down — left */}
-						<div className="absolute top-[160px] -left-[3px] w-[3px] h-[30px] bg-[#2a2a2a] rounded-l-sm" />
-						{/* Silent switch — left */}
-						<div className="absolute top-[80px] -left-[3px] w-[3px] h-[16px] bg-[#2a2a2a] rounded-l-sm" />
-					</>
-				)}
+				{/* Side buttons */}
+				<div className="absolute top-[140px] -right-[3px] w-[3px] h-[80px] bg-[#2a2a2a] rounded-r-sm" />
+				<div className="absolute top-[120px] -left-[3px] w-[3px] h-[30px] bg-[#2a2a2a] rounded-l-sm" />
+				<div className="absolute top-[160px] -left-[3px] w-[3px] h-[30px] bg-[#2a2a2a] rounded-l-sm" />
+				<div className="absolute top-[80px] -left-[3px] w-[3px] h-[16px] bg-[#2a2a2a] rounded-l-sm" />
 			</div>
 		</div>
 	);
@@ -172,12 +146,15 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 	// Show phone frame only for mobile projects on desktop viewports (not on actual phones)
 	const showPhoneFrame = isMobile && !isSmallViewport && !isFullscreen;
 
-	// Phone frame scale-to-fit — handles both portrait and landscape dimensions
+	// Phone frame scale-to-fit — same physical device, CSS rotate for landscape
 	const phoneContainerRef = useRef<HTMLDivElement>(null);
 	const [phoneScale, setPhoneScale] = useState(0.75);
-	const frameDims = isLandscape ? PHONE.landscape : PHONE.portrait;
-	const frameOuterW = frameDims.bezelW + 6; // bezel + padding
-	const frameOuterH = frameDims.bezelH + 12;
+	const frameNativeW = PHONE_FRAME.bezelW + 6;
+	const frameNativeH = PHONE_FRAME.bezelH + 12;
+	// After rotation, effective dimensions swap
+	const frameEffectiveW = isLandscape ? frameNativeH : frameNativeW;
+	const frameEffectiveH = isLandscape ? frameNativeW : frameNativeH;
+
 	useEffect(() => {
 		if (!showPhoneFrame) return;
 		const container = phoneContainerRef.current;
@@ -186,9 +163,8 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 			const cw = container.clientWidth;
 			const ch = container.clientHeight;
 			if (cw > 0 && ch > 0) {
-				// Scale to fit both width and height with some margin
-				const scaleW = (cw - 48) / frameOuterW;
-				const scaleH = (ch - 32) / frameOuterH;
+				const scaleW = (cw - 48) / frameEffectiveW;
+				const scaleH = (ch - 32) / frameEffectiveH;
 				setPhoneScale(Math.min(1, scaleW, scaleH));
 			}
 		};
@@ -196,7 +172,7 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 		const observer = new ResizeObserver(update);
 		observer.observe(container);
 		return () => observer.disconnect();
-	}, [showPhoneFrame, frameOuterW, frameOuterH]);
+	}, [showPhoneFrame, frameEffectiveW, frameEffectiveH]);
 
 	const sandpackElement = (
 		<SandpackProvider
@@ -289,14 +265,19 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 					}}
 				>
 					<div
-						className="preview-phone-container flex-shrink-0 relative"
+						className="preview-phone-container flex-shrink-0 relative flex items-center justify-center"
 						style={{
-							width: Math.round(frameOuterW * phoneScale),
-							height: Math.round(frameOuterH * phoneScale),
+							width: Math.round(frameEffectiveW * phoneScale),
+							height: Math.round(frameEffectiveH * phoneScale),
 						}}
 					>
-						<div style={{ transform: `scale(${phoneScale})`, transformOrigin: "top left" }}>
-							<PreviewPhoneFrame landscape={isLandscape}>
+						<div style={{
+							width: frameNativeW,
+							height: frameNativeH,
+							transform: `scale(${phoneScale})${isLandscape ? " rotate(-90deg)" : ""}`,
+							transformOrigin: "center center",
+						}}>
+							<PreviewPhoneFrame>
 								{sandpackElement}
 							</PreviewPhoneFrame>
 						</div>
