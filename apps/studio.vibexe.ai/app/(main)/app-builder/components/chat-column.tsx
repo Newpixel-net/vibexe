@@ -1133,14 +1133,23 @@ export function ChatColumn({
 
 	// Auto-scroll to bottom when messages change
 	useEffect(() => {
-		if (scrollRef.current) {
-			const viewport = scrollRef.current.querySelector(
-				"[data-slot='scroll-area-viewport']",
-			);
-			if (viewport) {
-				viewport.scrollTop = viewport.scrollHeight;
+		const scrollToBottom = () => {
+			if (scrollRef.current) {
+				const viewport = scrollRef.current.querySelector(
+					"[data-slot='scroll-area-viewport']",
+				);
+				if (viewport) {
+					viewport.scrollTop = viewport.scrollHeight;
+				}
 			}
-		}
+		};
+		// Immediate scroll + deferred scroll after DOM paint to catch async-rendered content
+		scrollToBottom();
+		requestAnimationFrame(() => {
+			scrollToBottom();
+			// Second pass after images/content settle
+			setTimeout(scrollToBottom, 100);
+		});
 	}, [chatMessages.length, isLoading]);
 
 	// Convert File to data URL for AI SDK FileUIPart
