@@ -4,7 +4,7 @@ import {
 	SandpackPreview as SandpackPreviewPane,
 	SandpackProvider,
 } from "@codesandbox/sandpack-react";
-import { Maximize2, Minimize2, Smartphone } from "lucide-react";
+import { Maximize2, Minimize2, RotateCw, Smartphone } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "@/app/(main)/app-builder/adapters/file-adapter";
 import {
@@ -49,55 +49,96 @@ const phoneFrameStyles = `
   .preview-phone-container .sp-preview iframe { height: 100% !important; }
 `;
 
+/** Status bar icons — shared between portrait and landscape */
+function StatusBarIcons() {
+	return (
+		<div className="flex items-center gap-1.5">
+			<svg width="16" height="12" viewBox="0 0 16 12" className="text-white">
+				<rect x="0" y="8" width="3" height="4" rx="0.5" fill="currentColor" />
+				<rect x="4.5" y="5" width="3" height="7" rx="0.5" fill="currentColor" />
+				<rect x="9" y="2" width="3" height="10" rx="0.5" fill="currentColor" />
+				<rect x="13" y="0" width="3" height="12" rx="0.5" fill="currentColor" />
+			</svg>
+			<svg width="14" height="12" viewBox="0 0 14 12" className="text-white">
+				<path d="M7 10.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z" fill="currentColor" transform="translate(0,-2)" />
+				<path d="M3.5 8.5a5 5 0 017 0" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" transform="translate(0,-2)" />
+				<path d="M1 5.5a9 9 0 0112 0" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" transform="translate(0,-2)" />
+			</svg>
+			<div className="flex items-center gap-0.5">
+				<div className="w-[22px] h-[11px] rounded-[3px] border border-white/80 flex items-center p-[1.5px]">
+					<div className="flex-1 h-full bg-white rounded-[1.5px]" />
+				</div>
+				<div className="w-[1.5px] h-[4px] bg-white/80 rounded-r-sm" />
+			</div>
+		</div>
+	);
+}
+
+/** Phone frame dimensions */
+const PHONE = {
+	portrait: { bezelW: 401, bezelH: 838, screenW: 375, screenH: 812 },
+	landscape: { bezelW: 838, bezelH: 401, screenW: 812, screenH: 375 },
+} as const;
+
 /**
- * Inline PhoneFrame for preview page — avoids importing from app-builder components
- * which may pull in client-only dependencies that break the preview route.
+ * Inline PhoneFrame for preview page.
+ * Supports portrait (9:16) and landscape (16:9) orientations.
  */
-function PreviewPhoneFrame({ children }: { children: React.ReactNode }) {
+function PreviewPhoneFrame({ children, landscape = false }: { children: React.ReactNode; landscape?: boolean }) {
+	const d = landscape ? PHONE.landscape : PHONE.portrait;
+
 	return (
 		<div className="flex flex-col items-center">
 			<div
 				className="relative bg-[#1a1a1a] rounded-[44px] p-3 shadow-2xl shadow-black/50"
-				style={{ width: 401, minHeight: 838 }}
+				style={{ width: d.bezelW, minHeight: d.bezelH }}
 			>
 				<div className="absolute inset-[11px] rounded-[36px] ring-1 ring-white/[0.08] pointer-events-none z-20" />
-				<div className="relative bg-black rounded-[36px] overflow-hidden" style={{ width: 375, height: 812 }}>
+				<div className="relative bg-black rounded-[36px] overflow-hidden" style={{ width: d.screenW, height: d.screenH }}>
 					{/* Status bar */}
 					<div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-6 pt-3 pb-1 bg-gradient-to-b from-black/60 to-transparent">
 						<span className="text-white text-xs font-semibold tracking-tight" style={{ fontSize: 13 }}>
 							9:41
 						</span>
-						<div className="absolute top-3 left-1/2 -translate-x-1/2 w-[120px] h-[34px] bg-black rounded-full z-20" />
-						<div className="flex items-center gap-1.5">
-							<svg width="16" height="12" viewBox="0 0 16 12" className="text-white">
-								<rect x="0" y="8" width="3" height="4" rx="0.5" fill="currentColor" />
-								<rect x="4.5" y="5" width="3" height="7" rx="0.5" fill="currentColor" />
-								<rect x="9" y="2" width="3" height="10" rx="0.5" fill="currentColor" />
-								<rect x="13" y="0" width="3" height="12" rx="0.5" fill="currentColor" />
-							</svg>
-							<svg width="14" height="12" viewBox="0 0 14 12" className="text-white">
-								<path d="M7 10.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z" fill="currentColor" transform="translate(0,-2)" />
-								<path d="M3.5 8.5a5 5 0 017 0" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" transform="translate(0,-2)" />
-								<path d="M1 5.5a9 9 0 0112 0" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" transform="translate(0,-2)" />
-							</svg>
-							<div className="flex items-center gap-0.5">
-								<div className="w-[22px] h-[11px] rounded-[3px] border border-white/80 flex items-center p-[1.5px]">
-									<div className="flex-1 h-full bg-white rounded-[1.5px]" />
-								</div>
-								<div className="w-[1.5px] h-[4px] bg-white/80 rounded-r-sm" />
-							</div>
-						</div>
+						{/* Dynamic Island — narrower in landscape */}
+						<div
+							className="absolute top-3 left-1/2 -translate-x-1/2 bg-black rounded-full z-20"
+							style={{ width: landscape ? 90 : 120, height: landscape ? 28 : 34 }}
+						/>
+						<StatusBarIcons />
 					</div>
 					{/* Content */}
 					<div className="w-full h-full">{children}</div>
-					{/* Home indicator */}
-					<div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-[134px] h-[5px] bg-white/30 rounded-full z-10" />
+					{/* Home indicator — wider bar in landscape */}
+					<div
+						className="absolute bottom-2 left-1/2 -translate-x-1/2 h-[5px] bg-white/30 rounded-full z-10"
+						style={{ width: landscape ? 180 : 134 }}
+					/>
 				</div>
-				{/* Side buttons */}
-				<div className="absolute top-[140px] -right-[3px] w-[3px] h-[80px] bg-[#2a2a2a] rounded-r-sm" />
-				<div className="absolute top-[120px] -left-[3px] w-[3px] h-[30px] bg-[#2a2a2a] rounded-l-sm" />
-				<div className="absolute top-[160px] -left-[3px] w-[3px] h-[30px] bg-[#2a2a2a] rounded-l-sm" />
-				<div className="absolute top-[80px] -left-[3px] w-[3px] h-[16px] bg-[#2a2a2a] rounded-l-sm" />
+				{/* Side buttons — repositioned for landscape */}
+				{landscape ? (
+					<>
+						{/* Power button — top edge in landscape */}
+						<div className="absolute -top-[3px] left-[140px] h-[3px] w-[80px] bg-[#2a2a2a] rounded-t-sm" />
+						{/* Volume up — bottom edge */}
+						<div className="absolute -bottom-[3px] left-[120px] h-[3px] w-[30px] bg-[#2a2a2a] rounded-b-sm" />
+						{/* Volume down — bottom edge */}
+						<div className="absolute -bottom-[3px] left-[160px] h-[3px] w-[30px] bg-[#2a2a2a] rounded-b-sm" />
+						{/* Silent switch — bottom edge */}
+						<div className="absolute -bottom-[3px] left-[80px] h-[3px] w-[16px] bg-[#2a2a2a] rounded-b-sm" />
+					</>
+				) : (
+					<>
+						{/* Power button — right */}
+						<div className="absolute top-[140px] -right-[3px] w-[3px] h-[80px] bg-[#2a2a2a] rounded-r-sm" />
+						{/* Volume up — left */}
+						<div className="absolute top-[120px] -left-[3px] w-[3px] h-[30px] bg-[#2a2a2a] rounded-l-sm" />
+						{/* Volume down — left */}
+						<div className="absolute top-[160px] -left-[3px] w-[3px] h-[30px] bg-[#2a2a2a] rounded-l-sm" />
+						{/* Silent switch — left */}
+						<div className="absolute top-[80px] -left-[3px] w-[3px] h-[16px] bg-[#2a2a2a] rounded-l-sm" />
+					</>
+				)}
 			</div>
 		</div>
 	);
@@ -124,28 +165,38 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 	const [isFullscreen, setIsFullscreen] = useState(false);
 	const toggleFullscreen = useCallback(() => setIsFullscreen((v) => !v), []);
 
+	// Landscape/portrait rotation toggle
+	const [isLandscape, setIsLandscape] = useState(false);
+	const toggleRotation = useCallback(() => setIsLandscape((v) => !v), []);
+
 	// Show phone frame only for mobile projects on desktop viewports (not on actual phones)
 	const showPhoneFrame = isMobile && !isSmallViewport && !isFullscreen;
 
-	// Phone frame scale-to-fit
+	// Phone frame scale-to-fit — handles both portrait and landscape dimensions
 	const phoneContainerRef = useRef<HTMLDivElement>(null);
 	const [phoneScale, setPhoneScale] = useState(0.75);
+	const frameDims = isLandscape ? PHONE.landscape : PHONE.portrait;
+	const frameOuterW = frameDims.bezelW + 6; // bezel + padding
+	const frameOuterH = frameDims.bezelH + 12;
 	useEffect(() => {
 		if (!showPhoneFrame) return;
 		const container = phoneContainerRef.current;
 		if (!container) return;
-		const PHONE_FULL_HEIGHT = 850;
 		const update = () => {
-			const h = container.clientHeight;
-			if (h > 0) {
-				setPhoneScale(Math.min(1, (h - 32) / PHONE_FULL_HEIGHT));
+			const cw = container.clientWidth;
+			const ch = container.clientHeight;
+			if (cw > 0 && ch > 0) {
+				// Scale to fit both width and height with some margin
+				const scaleW = (cw - 48) / frameOuterW;
+				const scaleH = (ch - 32) / frameOuterH;
+				setPhoneScale(Math.min(1, scaleW, scaleH));
 			}
 		};
 		update();
 		const observer = new ResizeObserver(update);
 		observer.observe(container);
 		return () => observer.disconnect();
-	}, [showPhoneFrame]);
+	}, [showPhoneFrame, frameOuterW, frameOuterH]);
 
 	const sandpackElement = (
 		<SandpackProvider
@@ -182,7 +233,25 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 						{displayName}
 					</span>
 				</div>
-				<div className="flex items-center gap-3">
+				<div className="flex items-center gap-2">
+					{/* Rotate toggle — shown when phone frame is visible */}
+					{showPhoneFrame && (
+						<button
+							type="button"
+							onClick={toggleRotation}
+							className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded-lg transition-colors ${
+								isLandscape
+									? "text-white/80 bg-white/[0.08]"
+									: "text-white/40 hover:text-white/80 hover:bg-white/[0.06]"
+							}`}
+							title={isLandscape ? "Portrait (9:16)" : "Landscape (16:9)"}
+						>
+							<RotateCw className="w-3.5 h-3.5" />
+							<span className="hidden sm:inline">
+								{isLandscape ? "Portrait" : "Landscape"}
+							</span>
+						</button>
+					)}
 					{/* Fullscreen toggle — shown for mobile projects on desktop */}
 					{isMobile && !isSmallViewport && (
 						<button
@@ -222,12 +291,12 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 					<div
 						className="preview-phone-container flex-shrink-0 relative"
 						style={{
-							width: Math.round(407 * phoneScale),
-							height: Math.round(850 * phoneScale),
+							width: Math.round(frameOuterW * phoneScale),
+							height: Math.round(frameOuterH * phoneScale),
 						}}
 					>
 						<div style={{ transform: `scale(${phoneScale})`, transformOrigin: "top left" }}>
-							<PreviewPhoneFrame>
+							<PreviewPhoneFrame landscape={isLandscape}>
 								{sandpackElement}
 							</PreviewPhoneFrame>
 						</div>
