@@ -377,11 +377,9 @@ export function SandpackPreview({
 	// Phone frame scaling — same physical device always, CSS rotate for landscape
 	const mobileContainerRef = useRef<HTMLDivElement>(null);
 	const [phoneScale, setPhoneScale] = useState(0.75);
-	// The phone frame is always portrait; in landscape the rotated frame swaps effective w/h
+	// The phone frame is always portrait native dimensions
 	const frameNativeW = PHONE_FRAME.bezelW + 6;
 	const frameNativeH = PHONE_FRAME.bezelH + 12;
-	const frameEffectiveW = isLandscape ? frameNativeH : frameNativeW;
-	const frameEffectiveH = isLandscape ? frameNativeW : frameNativeH;
 
 	useEffect(() => {
 		if (!isMobileFrame) return;
@@ -392,16 +390,19 @@ export function SandpackPreview({
 			const cw = container.clientWidth;
 			const ch = container.clientHeight;
 			if (cw > 0 && ch > 0) {
-				const scaleW = (cw - 48) / frameEffectiveW;
-				const scaleH = (ch - 16) / frameEffectiveH;
-				setPhoneScale(Math.min(1, scaleW, scaleH));
+				// Unified scale: must fit the phone in BOTH orientations at the same size.
+				// The long axis (frameNativeH) must fit in both width and height of container.
+				const maxDim = frameNativeH; // longest side of the phone
+				const availW = cw - 48;
+				const availH = ch - 16;
+				setPhoneScale(Math.min(1, availW / maxDim, availH / maxDim));
 			}
 		};
 		update();
 		const observer = new ResizeObserver(update);
 		observer.observe(container);
 		return () => observer.disconnect();
-	}, [isMobileFrame, frameEffectiveW, frameEffectiveH]);
+	}, [isMobileFrame, frameNativeH]);
 
 	// View in Code callback for the toolbar
 	const handleViewInCode = useCallback(
@@ -658,8 +659,8 @@ export function SandpackPreview({
 				{isMobileFrame ? (
 					/* Mobile frame mode: phone frame (left) + publish panel (right) */
 					<div ref={mobileContainerRef} className="flex items-center justify-center gap-6 w-full h-full">
-						{/* Scaled phone wrapper */}
-						<div className="flex-shrink-0 relative flex items-center justify-center" style={{ width: Math.round(frameEffectiveW * phoneScale), height: Math.round(frameEffectiveH * phoneScale) }}>
+						{/* Scaled phone wrapper — fixed square container so size never changes between orientations */}
+						<div className="flex-shrink-0 relative flex items-center justify-center" style={{ width: Math.round(frameNativeH * phoneScale), height: Math.round(frameNativeH * phoneScale) }}>
 							<div style={{ width: frameNativeW, height: frameNativeH, transform: `scale(${phoneScale})${isLandscape ? " rotate(-90deg)" : ""}`, transformOrigin: "center center" }}>
 						<PhoneFrame>
 							<div

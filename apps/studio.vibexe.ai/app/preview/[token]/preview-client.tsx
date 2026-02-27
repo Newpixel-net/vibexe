@@ -151,9 +151,6 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 	const [phoneScale, setPhoneScale] = useState(0.75);
 	const frameNativeW = PHONE_FRAME.bezelW + 6;
 	const frameNativeH = PHONE_FRAME.bezelH + 12;
-	// After rotation, effective dimensions swap
-	const frameEffectiveW = isLandscape ? frameNativeH : frameNativeW;
-	const frameEffectiveH = isLandscape ? frameNativeW : frameNativeH;
 
 	useEffect(() => {
 		if (!showPhoneFrame) return;
@@ -163,16 +160,19 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 			const cw = container.clientWidth;
 			const ch = container.clientHeight;
 			if (cw > 0 && ch > 0) {
-				const scaleW = (cw - 48) / frameEffectiveW;
-				const scaleH = (ch - 32) / frameEffectiveH;
-				setPhoneScale(Math.min(1, scaleW, scaleH));
+				// Unified scale: phone must fit in both orientations at the same size.
+				// The long axis (frameNativeH) must fit in both width and height.
+				const maxDim = frameNativeH;
+				const availW = cw - 48;
+				const availH = ch - 32;
+				setPhoneScale(Math.min(1, availW / maxDim, availH / maxDim));
 			}
 		};
 		update();
 		const observer = new ResizeObserver(update);
 		observer.observe(container);
 		return () => observer.disconnect();
-	}, [showPhoneFrame, frameEffectiveW, frameEffectiveH]);
+	}, [showPhoneFrame, frameNativeH]);
 
 	const sandpackElement = (
 		<SandpackProvider
@@ -267,8 +267,8 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 					<div
 						className="preview-phone-container flex-shrink-0 relative flex items-center justify-center"
 						style={{
-							width: Math.round(frameEffectiveW * phoneScale),
-							height: Math.round(frameEffectiveH * phoneScale),
+							width: Math.round(frameNativeH * phoneScale),
+							height: Math.round(frameNativeH * phoneScale),
 						}}
 					>
 						<div style={{
