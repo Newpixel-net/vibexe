@@ -964,6 +964,41 @@ export function ChatColumn({
 		);
 	}, [chatMessages, isLoading]);
 
+	// Programmatic screenshot capture — uses the bridge script already loaded in Sandpack iframe
+	// MUST be declared before the visual review useEffect that references it in its dependency array
+	const capturePreviewScreenshot = useCallback((): Promise<string | null> => {
+		return new Promise((resolve) => {
+			const iframe = document.querySelector(
+				".sp-preview iframe, .sp-preview-iframe"
+			) as HTMLIFrameElement | null;
+
+			if (!iframe?.contentWindow) {
+				resolve(null);
+				return;
+			}
+
+			const timeout = setTimeout(() => {
+				window.removeEventListener("message", handler);
+				resolve(null);
+			}, 10000);
+
+			const handler = (e: MessageEvent) => {
+				if (e.data?.type === "vibexe-capture-result") {
+					window.removeEventListener("message", handler);
+					clearTimeout(timeout);
+					resolve(e.data.dataUrl as string);
+				} else if (e.data?.type === "vibexe-capture-error") {
+					window.removeEventListener("message", handler);
+					clearTimeout(timeout);
+					resolve(null);
+				}
+			};
+
+			window.addEventListener("message", handler);
+			iframe.contentWindow.postMessage({ type: "vibexe-capture" }, "*");
+		});
+	}, []);
+
 	// --- Deep Thinking: Visual Review trigger (runs FIRST, before code review) ---
 	useEffect(() => {
 		if (
@@ -1398,39 +1433,6 @@ export function ChatColumn({
 		}
 	}, [appId, setMessages]);
 
-	// Programmatic screenshot capture — uses the bridge script already loaded in Sandpack iframe
-	const capturePreviewScreenshot = useCallback((): Promise<string | null> => {
-		return new Promise((resolve) => {
-			const iframe = document.querySelector(
-				".sp-preview iframe, .sp-preview-iframe"
-			) as HTMLIFrameElement | null;
-
-			if (!iframe?.contentWindow) {
-				resolve(null);
-				return;
-			}
-
-			const timeout = setTimeout(() => {
-				window.removeEventListener("message", handler);
-				resolve(null);
-			}, 10000);
-
-			const handler = (e: MessageEvent) => {
-				if (e.data?.type === "vibexe-capture-result") {
-					window.removeEventListener("message", handler);
-					clearTimeout(timeout);
-					resolve(e.data.dataUrl as string);
-				} else if (e.data?.type === "vibexe-capture-error") {
-					window.removeEventListener("message", handler);
-					clearTimeout(timeout);
-					resolve(null);
-				}
-			};
-
-			window.addEventListener("message", handler);
-			iframe.contentWindow.postMessage({ type: "vibexe-capture" }, "*");
-		});
-	}, []);
 
 	// Agent activation via slash command
 	const handleAgentActivate = useCallback((agentId: string) => {
