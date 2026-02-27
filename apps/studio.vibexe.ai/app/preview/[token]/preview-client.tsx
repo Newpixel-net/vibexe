@@ -160,19 +160,17 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 			const cw = container.clientWidth;
 			const ch = container.clientHeight;
 			if (cw > 0 && ch > 0) {
-				// Unified scale: phone must fit in both orientations at the same size.
-				// The long axis (frameNativeH) must fit in both width and height.
-				const maxDim = frameNativeH;
+				// Scale to fit portrait dimensions — same scale used for both orientations.
 				const availW = cw - 48;
 				const availH = ch - 32;
-				setPhoneScale(Math.min(1, availW / maxDim, availH / maxDim));
+				setPhoneScale(Math.min(1, availW / frameNativeW, availH / frameNativeH));
 			}
 		};
 		update();
 		const observer = new ResizeObserver(update);
 		observer.observe(container);
 		return () => observer.disconnect();
-	}, [showPhoneFrame, frameNativeH]);
+	}, [showPhoneFrame, frameNativeW, frameNativeH]);
 
 	const sandpackElement = (
 		<SandpackProvider
@@ -265,9 +263,9 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 					}}
 				>
 					<div
-						className="preview-phone-container flex-shrink-0 relative flex items-center justify-center"
+						className="preview-phone-container flex-shrink-0 relative flex items-center justify-center overflow-visible"
 						style={{
-							width: Math.round(frameNativeH * phoneScale),
+							width: Math.round(frameNativeW * phoneScale),
 							height: Math.round(frameNativeH * phoneScale),
 						}}
 					>

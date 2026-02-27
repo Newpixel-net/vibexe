@@ -390,19 +390,17 @@ export function SandpackPreview({
 			const cw = container.clientWidth;
 			const ch = container.clientHeight;
 			if (cw > 0 && ch > 0) {
-				// Unified scale: must fit the phone in BOTH orientations at the same size.
-				// The long axis (frameNativeH) must fit in both width and height of container.
-				const maxDim = frameNativeH; // longest side of the phone
+				// Scale to fit portrait dimensions in container — same scale used for both orientations.
 				const availW = cw - 48;
 				const availH = ch - 16;
-				setPhoneScale(Math.min(1, availW / maxDim, availH / maxDim));
+				setPhoneScale(Math.min(1, availW / frameNativeW, availH / frameNativeH));
 			}
 		};
 		update();
 		const observer = new ResizeObserver(update);
 		observer.observe(container);
 		return () => observer.disconnect();
-	}, [isMobileFrame, frameNativeH]);
+	}, [isMobileFrame, frameNativeW, frameNativeH]);
 
 	// View in Code callback for the toolbar
 	const handleViewInCode = useCallback(
@@ -659,8 +657,8 @@ export function SandpackPreview({
 				{isMobileFrame ? (
 					/* Mobile frame mode: phone frame (left) + publish panel (right) */
 					<div ref={mobileContainerRef} className="flex items-center justify-center gap-6 w-full h-full">
-						{/* Scaled phone wrapper — fixed square container so size never changes between orientations */}
-						<div className="flex-shrink-0 relative flex items-center justify-center" style={{ width: Math.round(frameNativeH * phoneScale), height: Math.round(frameNativeH * phoneScale) }}>
+						{/* Scaled phone wrapper — always portrait-sized layout, rotation is visual only */}
+						<div className="flex-shrink-0 relative flex items-center justify-center overflow-visible" style={{ width: Math.round(frameNativeW * phoneScale), height: Math.round(frameNativeH * phoneScale) }}>
 							<div style={{ width: frameNativeW, height: frameNativeH, transform: `scale(${phoneScale})${isLandscape ? " rotate(-90deg)" : ""}`, transformOrigin: "center center" }}>
 						<PhoneFrame>
 							<div
