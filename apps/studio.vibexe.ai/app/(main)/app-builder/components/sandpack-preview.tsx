@@ -25,12 +25,13 @@ import {
 	Monitor,
 	MousePointer2,
 	RefreshCw,
+	RotateCw,
 	Smartphone,
 	Tablet,
 	X,
 } from "lucide-react";
 import { MobilePublishPanel } from "./mobile-publish-panel";
-import { PhoneFrame } from "./phone-frame";
+import { PHONE, PhoneFrame } from "./phone-frame";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import { useVisualEdit } from "../lib/visual-edit-context";
@@ -369,27 +370,36 @@ export function SandpackPreview({
 		lineNumber: number;
 	} | null>(null);
 
-	// Phone frame scaling for mobile-frame mode — scale to fit available height
+	// Landscape/portrait rotation toggle for mobile-frame mode
+	const [isLandscape, setIsLandscape] = useState(false);
+	const toggleRotation = useCallback(() => setIsLandscape((v) => !v), []);
+
+	// Phone frame scaling for mobile-frame mode — scale to fit available width and height
 	const mobileContainerRef = useRef<HTMLDivElement>(null);
 	const [phoneScale, setPhoneScale] = useState(0.75);
+	const frameDims = isLandscape ? PHONE.landscape : PHONE.portrait;
+	const frameOuterW = frameDims.bezelW + 6;
+	const frameOuterH = frameDims.bezelH + 12;
 
 	useEffect(() => {
 		if (!isMobileFrame) return;
 		const container = mobileContainerRef.current;
 		if (!container) return;
 
-		const PHONE_FULL_HEIGHT = 850;
 		const update = () => {
-			const h = container.clientHeight;
-			if (h > 0) {
-				setPhoneScale(Math.min(1, (h - 16) / PHONE_FULL_HEIGHT));
+			const cw = container.clientWidth;
+			const ch = container.clientHeight;
+			if (cw > 0 && ch > 0) {
+				const scaleW = (cw - 48) / frameOuterW;
+				const scaleH = (ch - 16) / frameOuterH;
+				setPhoneScale(Math.min(1, scaleW, scaleH));
 			}
 		};
 		update();
 		const observer = new ResizeObserver(update);
 		observer.observe(container);
 		return () => observer.disconnect();
-	}, [isMobileFrame]);
+	}, [isMobileFrame, frameOuterW, frameOuterH]);
 
 	// View in Code callback for the toolbar
 	const handleViewInCode = useCallback(
@@ -553,10 +563,27 @@ export function SandpackPreview({
 				{/* Glass device toggles */}
 				<div className="flex items-center gap-1">
 					{isMobileFrame ? (
-						/* Mobile-frame mode: show only mobile indicator */
-						<div className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-xl bg-white/[0.08] text-white/90 border border-white/[0.12]">
-							<Smartphone className="w-3.5 h-3.5" />
-							<span className="hidden sm:inline">Mobile</span>
+						/* Mobile-frame mode: mobile indicator + rotate button */
+						<div className="flex items-center gap-1.5">
+							<div className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-xl bg-white/[0.08] text-white/90 border border-white/[0.12]">
+								<Smartphone className="w-3.5 h-3.5" />
+								<span className="hidden sm:inline">Mobile</span>
+							</div>
+							<button
+								type="button"
+								onClick={toggleRotation}
+								className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-xl transition-all duration-200 ${
+									isLandscape
+										? "bg-white/[0.08] text-white/90 border border-white/[0.12]"
+										: "text-white/40 hover:bg-white/[0.04] hover:text-white/70"
+								}`}
+								title={isLandscape ? "Portrait (9:16)" : "Landscape (16:9)"}
+							>
+								<RotateCw className="w-3.5 h-3.5" />
+								<span className="hidden sm:inline">
+									{isLandscape ? "Portrait" : "Landscape"}
+								</span>
+							</button>
 						</div>
 					) : (
 						(Object.keys(DEVICE_SIZES) as DeviceSize[]).map((size) => {
@@ -630,9 +657,9 @@ export function SandpackPreview({
 					/* Mobile frame mode: phone frame (left) + publish panel (right) */
 					<div ref={mobileContainerRef} className="flex items-center justify-center gap-6 w-full h-full">
 						{/* Scaled phone wrapper */}
-						<div className="flex-shrink-0 relative" style={{ width: Math.round(407 * phoneScale), height: Math.round(850 * phoneScale) }}>
+						<div className="flex-shrink-0 relative" style={{ width: Math.round(frameOuterW * phoneScale), height: Math.round(frameOuterH * phoneScale) }}>
 							<div style={{ transform: `scale(${phoneScale})`, transformOrigin: "top left" }}>
-						<PhoneFrame>
+						<PhoneFrame landscape={isLandscape}>
 							<div
 								ref={iframeContainerRef}
 								className="relative w-full h-full"
