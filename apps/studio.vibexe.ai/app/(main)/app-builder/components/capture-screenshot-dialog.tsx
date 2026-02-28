@@ -272,6 +272,9 @@ export function CaptureScreenshotDialog({
 		...(typeof window !== "undefined"
 			? [`${window.location.origin}/api/app-builder/bridge`]
 			: []),
+		...(dependencies.phaser
+			? ["https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"]
+			: []),
 	];
 
 	return (

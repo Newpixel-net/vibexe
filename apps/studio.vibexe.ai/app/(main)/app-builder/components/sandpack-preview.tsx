@@ -547,13 +547,17 @@ export function SandpackPreview({
 	const dependencies = useMemo(() => extractDependencies(files), [files]);
 
 	// Visual Edit bridge loaded as external script (bypasses Sandpack's bundler)
+	// Phaser CDN loaded when game projects use it (Sandpack's bundler can't handle the 4MB package)
 	const externalResources = useMemo(() => {
 		const resources = ["https://cdn.tailwindcss.com"];
 		if (typeof window !== "undefined") {
 			resources.push(`${window.location.origin}/api/app-builder/bridge`);
 		}
+		if (dependencies.phaser) {
+			resources.push("https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js");
+		}
 		return resources;
-	}, []);
+	}, [dependencies]);
 
 	// Calculate preview width based on device
 	const previewWidth = DEVICE_SIZES[device].width;

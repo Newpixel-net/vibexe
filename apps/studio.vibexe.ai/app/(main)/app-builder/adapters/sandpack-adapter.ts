@@ -1319,6 +1319,23 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		};
 	}
 
+	// Inject Phaser shim if any file imports it.
+	// Phaser is loaded via CDN (externalResources) because Sandpack's bundler can't handle the 4MB package.
+	// This shim makes `import Phaser from 'phaser'` resolve to the CDN-loaded window.Phaser global.
+	const usesPhaser = files.some(
+		(f) => f.content && (f.content.includes("from 'phaser'") || f.content.includes('from "phaser"')),
+	);
+	if (usesPhaser) {
+		sandpackFiles["/node_modules/phaser/package.json"] = {
+			code: JSON.stringify({ name: "phaser", version: "3.90.0", main: "index.js" }),
+			hidden: true,
+		};
+		sandpackFiles["/node_modules/phaser/index.js"] = {
+			code: "module.exports = window.Phaser;",
+			hidden: true,
+		};
+	}
+
 	// Prepend runtime globals to ALL entry point files so they're set before any app code runs.
 	// Sandpack prefers .tsx > .ts > .jsx > .js, so we must inject into every variant that exists.
 	if (apiOrigin || appId) {
