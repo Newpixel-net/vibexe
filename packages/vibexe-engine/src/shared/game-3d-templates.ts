@@ -499,7 +499,7 @@ export function createKeyboardState(): {
 }
 
 // ===== CANNON.js Physics Helpers =====
-// cannon-es loaded via sync XHR shim triggered by `import 'cannon-es'` above.
+// cannon-es loaded via sync XHR shim triggered by the import statement above.
 
 /**
  * Creates a Cannon.js physics world with sensible defaults.
