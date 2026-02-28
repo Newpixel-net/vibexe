@@ -6,6 +6,7 @@ import {
 	ALL_FLOWS,
 	DEFAULT_AGENTS,
 	DEFAULT_SKILLS,
+	GAME_ASSETS_REFERENCE,
 	GAME_TEMPLATE_FILES,
 	assemblePrompt,
 	executeOrchestration,
@@ -735,17 +736,25 @@ Start immediately with file creation. Do not re-explain the plan.
 After creating ALL files, end with a short summary. If the app has auth, include:
 "To get started, **sign up** with any email and password (8+ characters) to create your first account."`);
 
-			// Notify agent about pre-created template files
+			// Notify agent about pre-created template files + game assets catalog
 			if (injectedFiles.length > 0) {
-				runtimeAddenda.push(`## Pre-Created Infrastructure Files
+				runtimeAddenda.push(`## MANDATORY: Pre-Created Infrastructure Files
 
 The following files have been pre-created by the platform and already exist in the project:
 ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 
-**Rules for these files:**
-- Do NOT recreate, overwrite, or modify them — they contain correct, tested code
-- Just \`import\` from them as needed (e.g. \`import { loadImage, SpriteAnimation } from "../assets/loader"\`)
-- Skip these files in your file creation sequence — they are already done`);
+**MANDATORY RULES — violation will break the game:**
+- Do NOT recreate, overwrite, or modify these files — they contain correct, tested code
+- You MUST \`import\` from them. Example: \`import { loadImage, loadFrames, SpriteAnimation } from "../assets/loader";\`
+- You MUST \`import * as C from "../constants";\` and use the exported asset path constants (PLAYER_RUN_FRAMES, BACKGROUND_FOREST, etc.)
+- Skip these files in your file creation sequence — they are already done
+- In your GameCanvas or main game file, preload ALL assets using \`loadImage()\` and \`loadFrames()\` from the loader before starting the game loop`);
+			}
+
+			// Inject full game assets reference (sprite catalog + FORBIDDEN rules)
+			// so the fullstack-developer agent knows about real sprites
+			if (isGameProject) {
+				runtimeAddenda.push(GAME_ASSETS_REFERENCE);
 			}
 		} else if (isReturningUser) {
 			// Normal existing project — edit/add files
