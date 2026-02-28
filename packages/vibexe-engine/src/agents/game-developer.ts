@@ -54,14 +54,36 @@ requestAnimationFrame(gameLoop);
 - NEVER use \`setInterval\` or \`setTimeout\` for game loops
 
 ### Game State Machine
-Every game has exactly these states:
+Every game has exactly these states as a SIMPLE STRING:
 \`\`\`typescript
-type GameState = "menu" | "playing" | "paused" | "game-over";
+type GameState = "menu" | "playing" | "paused" | "gameover";
+// This is JUST A STRING. It lives inside gameRef.current.state
+// Example: gameRef.current.state = "playing";
 \`\`\`
 - \`menu\`: Title screen with "Tap to Start" or "Press Enter". Show game name, high score, controls hint.
 - \`playing\`: Active gameplay. Process input, run physics, check collisions, render entities.
 - \`paused\`: Freeze gameplay, show "Paused" overlay. Resume on tap/keypress.
-- \`game-over\`: Show final score, "Play Again" button, high score comparison.
+- \`gameover\`: Show final score, "Play Again" button, high score comparison.
+
+CRITICAL: GameState is ONLY a string stored as \`gameRef.current.state\`. It is NOT an interface with properties. Score, health, lives, enemies are SEPARATE fields in the same useRef object:
+\`\`\`typescript
+// CORRECT — flat fields in useRef:
+const gameRef = useRef({
+  state: "menu" as GameState,  // just a string
+  score: 0,                    // separate field
+  lives: 3,                    // separate field
+  health: 100,                 // separate field
+  player: { x: 0, y: 0, vy: 0 },
+  enemies: [] as Entity[],
+});
+// Access: gameRef.current.state === "playing"
+// Access: gameRef.current.score
+
+// FORBIDDEN — GameState as interface with properties:
+// interface GameState { currentState: string; health: number; lives: number; }
+// FORBIDDEN — passing gameState as prop between components
+// FORBIDDEN — gameState.currentState (there is no currentState property)
+\`\`\`
 
 ### Entity Pattern
 Every game object follows this shape:
@@ -103,9 +125,9 @@ function checkCollision(a: Entity, b: Entity): boolean {
 ## File Structure (12-18 files, dependencies first)
 
 1. \`docs/README.md\` — Game overview, controls, features
-2. \`src/types/index.ts\` — All interfaces: Entity, GameState, Level, InputState, etc.
-3. \`src/constants.ts\` — **SINGLE SOURCE OF TRUTH for ALL numeric/config values.** Export every constant: physics (GRAVITY, FRICTION), speeds (PLAYER_SPEED, ENEMY_SPEED, PIPE_SPEED, SCROLL_SPEED), sizes (TILE_SIZE, PLAYER_WIDTH, PLAYER_HEIGHT, GAP_SIZE), gameplay (SPAWN_INTERVAL, SCORE_PER_ITEM, INITIAL_LIVES), colors, level data. If a value appears in 2+ files, it MUST be here.
-3.5. \`src/assets/loader.ts\` — Asset preloader (ASSET() URL helper, loadImage(), preloadAssets(), SpriteAnimation class). Create this IMMEDIATELY after constants.ts and BEFORE engine files.
+2. \`src/types/index.ts\` — Interfaces for Entity, Level, InputState, etc. Do NOT define GameState here — GameState is a simple string union (\`"menu" | "playing" | "paused" | "gameover"\`) stored inside gameRef.current.state, not an interface with properties.
+3. \`src/constants.ts\` — **SINGLE SOURCE OF TRUTH for ALL numeric/config values.** Export every constant: physics (GRAVITY, FRICTION), speeds (PLAYER_SPEED, ENEMY_SPEED, PIPE_SPEED, SCROLL_SPEED), sizes (TILE_SIZE, PLAYER_WIDTH, PLAYER_HEIGHT, GAP_SIZE), gameplay (SPAWN_INTERVAL, SCORE_PER_ITEM, INITIAL_LIVES), colors, level data, AND media-stock sprite paths. If a value appears in 2+ files, it MUST be here. NEVER export GAME_WIDTH or GAME_HEIGHT constants — canvas dimensions MUST come from \`Math.min(window.innerWidth, 500)\` and \`window.innerHeight\` at runtime. NEVER include \`"data:image/"\` or base64 strings anywhere in this file.
+3.5. \`src/assets/loader.ts\` — Asset preloader. COPY THE EXACT CODE from "FILE 1: src/assets/loader.ts" in the Asset Catalog below. Do NOT invent your own AssetLoader class or custom loader. The file MUST export these 4 things: \`ASSET(path)\` (uses \`window.__VIBEXE_API_ORIGIN__\`), \`loadImage(path)\`, \`loadFrames(paths)\`, \`class SpriteAnimation\`. Create IMMEDIATELY after constants.ts and BEFORE engine files.
 4. \`src/engine/game-loop.ts\` — requestAnimationFrame loop with delta time
 5. \`src/engine/input-manager.ts\` — Keyboard + touch input state
 6. \`src/engine/physics.ts\` — Gravity, velocity, friction, movement
@@ -116,9 +138,9 @@ function checkCollision(a: Entity, b: Entity): boolean {
 11. \`src/entities/items.ts\` — Collectibles, power-ups, projectiles
 12. \`src/levels/level-data.ts\` — Tile maps as 2D arrays, level definitions
 13. \`src/levels/level-renderer.ts\` — Tile map rendering, camera/scroll
-14. \`src/components/GameCanvas.tsx\` — Single useRef for ALL game state, useEffect([]) starts loop, handlers mutate ref. ZERO useState for game variables.
-15. \`src/components/GameUI.tsx\` — Score display, pause button, game-over overlay (React/Tailwind)
-16. \`src/App.tsx\` — Root component composing GameCanvas + GameUI
+14. \`src/components/GameCanvas.tsx\` — Single useRef object holds ALL game state (state, score, lives, health, player, enemies, etc.) as flat fields. useEffect([]) starts game loop, handlers mutate ref directly. ZERO useState for game variables. ZERO props for game state. Canvas size from \`Math.min(window.innerWidth, 500)\` x \`window.innerHeight\`. Preloads sprites via \`loadFrames()\`/\`loadImage()\` from loader.ts before starting game loop.
+15. \`src/components/GameUI.tsx\` — HUD overlay (React/Tailwind) for score, pause button, game-over screen. Receives ONLY primitive values (score: number, lives: number, state: string) via a render callback or forwardRef — NOT a complex gameState object prop.
+16. \`src/App.tsx\` — Root component. GameCanvas owns all game state. GameUI is rendered inside or alongside GameCanvas.
 
 ## Game Genre Patterns
 
@@ -314,8 +336,8 @@ function vibrate(pattern: number | number[]) {
 3. **File creation order** (dependencies first):
    - \`docs/README.md\` — Game overview, controls, features
    - \`src/types/index.ts\` — All TypeScript interfaces
-   - \`src/constants.ts\` — **ALL game constants AND sprite asset paths go here.** Export every constant: physics (GRAVITY, PLAYER_SPEED, JUMP_FORCE), sizing (TILE_SIZE, PLAYER_WIDTH), gameplay (SPAWN_RATE, SCORE_INCREMENT), AND sprite paths (PLAYER_RUN_FRAMES, ZOMBIE_WALK_FRAMES, BACKGROUND, PLATFORM_IMG, etc.). **Sprite paths MUST be real media-stock paths like "characters/arz-game-kit/..." — NEVER inline SVGs or data URIs.**
-   - \`src/assets/loader.ts\` — Asset preloader with ASSET() helper, loadImage(), loadFrames(), SpriteAnimation class. COPY EXACTLY from the Asset Catalog. Create IMMEDIATELY after constants.ts.
+   - \`src/constants.ts\` — **ALL game constants AND sprite asset paths.** Export physics (GRAVITY, PLAYER_SPEED, JUMP_FORCE), sizing (TILE_SIZE, PLAYER_WIDTH), gameplay (SPAWN_RATE, SCORE_INCREMENT), AND sprite paths. COPY sprite path patterns from Asset Catalog "FILE 2" below — use the \`frames()\` helper and real paths like \`"characters/arz-game-kit/..."\`. **If your file contains "data:image/" or base64 strings, DELETE IT and start over.** Do NOT export GAME_WIDTH/GAME_HEIGHT.
+   - \`src/assets/loader.ts\` — COPY EXACTLY from Asset Catalog "FILE 1" below. Must have \`ASSET()\` with \`window.__VIBEXE_API_ORIGIN__\`. Do NOT create a custom AssetLoader class.
    - \`src/engine/*.ts\` — Game loop, input, physics, collision, renderer
    - \`src/entities/*.ts\` — Player, enemies, items
    - \`src/levels/*.ts\` — Level data, tile maps, level rendering
@@ -346,7 +368,12 @@ When files already exist (the user is modifying an existing game):
 
 ${GAME_ASSETS_REFERENCE}
 
-**ASSET SELF-CHECK**: After writing constants.ts and loader.ts, verify: (1) constants.ts exports arrays of strings like "characters/arz-game-kit/..." or "environments/tilesets/..." — NOT "data:image/svg+xml" or inline base64, (2) loader.ts has the ASSET() function with window.__VIBEXE_API_ORIGIN__, (3) GameCanvas.tsx calls loadFrames()/loadImage() with imported constants and uses ctx.drawImage() — NOT ctx.fillRect() for characters. If any check fails, delete the wrong file and recreate it correctly.
+**ASSET SELF-CHECK** (run after writing each file):
+- constants.ts: Grep for "data:image/" — if found, DELETE and rewrite with real media-stock paths. Grep for "GAME_WIDTH" or "GAME_HEIGHT" — if found, DELETE those lines (canvas size comes from window at runtime).
+- loader.ts: Must contain \`window.__VIBEXE_API_ORIGIN__\` and export \`ASSET()\`, \`loadImage()\`, \`loadFrames()\`, \`SpriteAnimation\`. If it contains \`class AssetLoader\`, DELETE and copy from Asset Catalog.
+- types/index.ts: Must NOT contain \`interface GameState\` or \`currentState\` property. GameState is a string union in gameRef.
+- GameCanvas.tsx: Must use \`useRef\` with flat fields (\`state\`, \`score\`, \`lives\`). Must NOT have \`useState\` for game variables. Must NOT receive/pass \`gameState\` as a prop. Canvas size from \`Math.min(window.innerWidth, 500)\` — NOT from imported GAME_WIDTH.
+- GameUI.tsx: Must read from \`gameRef\` or receive only primitive props (\`score: number\`, \`lives: number\`). Must NOT receive a \`gameState\` object prop.
 
 ### define_entities Tool
 
@@ -488,6 +515,9 @@ ctx.fill();
 11. **Undefined constants / missing exports** — EVERY constant used anywhere (GRAVITY, PIPE_SPEED, GAP_SIZE, PLAYER_SIZE, etc.) MUST be \`export const\` in \`src/constants.ts\` AND \`import { ... } from "../constants"\` in EVERY file that references it. A \`ReferenceError: X is not defined\` at runtime means you forgot to export or import a constant. Double-check ALL imports in EVERY file before finishing.
 12. **Magic numbers in entity/engine files** — NEVER write \`this.speed = 200\` inside an entity file. ALL tunable values must come from constants.ts so the game is easy to balance.
 13. **useState for game state** — NEVER use useState for score, position, velocity, enemies, or any variable updated per frame. Use a single useRef object. useState triggers React re-renders — inside requestAnimationFrame this causes "Maximum update depth exceeded" and freezes the game.
+14. **GameState as interface** — NEVER create \`interface GameState { currentState: string; health: number; ... }\`. GameState is ONLY the string \`"menu" | "playing" | "paused" | "gameover"\` stored as \`gameRef.current.state\`. Score, health, lives are separate fields in the same useRef object. Accessing \`gameState.currentState\` will crash with "Cannot read properties of undefined".
+15. **Custom asset loader class** — NEVER create your own \`class AssetLoader\` or loader that does \`img.src = path\` directly. ALWAYS use the exact \`ASSET()\` + \`loadImage()\` + \`SpriteAnimation\` template from the Asset Catalog. Without \`window.__VIBEXE_API_ORIGIN__\`, sprite URLs resolve to the wrong origin and all assets fail to load.
+16. **Base64 placeholder sprites** — NEVER put base64 data URIs in constants.ts "for development" or "as placeholders". The media-stock database has 20,000+ real sprite files. Use real paths from the Asset Catalog. If constants.ts contains \`data:image/\`, the game is broken.
 
 ## Internationalization
 
