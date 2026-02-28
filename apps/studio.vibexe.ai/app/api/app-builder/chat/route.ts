@@ -319,11 +319,11 @@ export async function POST(request: Request) {
 			const readOnlyTools = createFileTools(appId);
 			const modelMessages = await convertToModelMessages(messages);
 			const byok = hasByok ? byokKeys : undefined;
-			// Agent's modelTier takes priority over user selection (same as generate mode)
-			const model = continueAgent
-				? resolveModelByTier(continueAgent.modelTier, byok)
-				: modelId
-					? resolveModel(modelId, byok)
+			// User selection wins, agent tier is fallback
+			const model = modelId
+				? resolveModel(modelId, byok)
+				: continueAgent
+					? resolveModelByTier(continueAgent.modelTier, byok)
 					: resolveModel(undefined, byok);
 
 			console.log(`[Chat API] Continue mode: ${existingFiles.length} files, agent=${continueAgent?.id || "fallback"}, model=${modelId || continueAgent?.modelTier || "default"}`);
@@ -826,13 +826,10 @@ An App Store listing has been analyzed and injected into the project context abo
 		const modelMessages = await convertToModelMessages(messages);
 		const byok = hasByok ? byokKeys : undefined;
 
-		// Determine effective model ID for resolution and fallback
-		// Agent's modelTier takes priority over user selection during code generation.
-		// The agent author chose the tier for a reason (e.g. game-developer needs opus for
-		// complex instruction-following with asset catalogs). User's model applies as fallback.
+		// Determine effective model ID: user selection wins, agent tier is fallback
 		const tierMap: Record<string, string> = { opus: "claude-opus-4-6", sonnet: "claude-sonnet-4-5", haiku: "claude-haiku-4-5" };
-		let effectiveModelId = (developerAgent ? tierMap[developerAgent.modelTier] : undefined)
-			|| modelId
+		let effectiveModelId = modelId
+			|| (developerAgent ? tierMap[developerAgent.modelTier] : undefined)
 			|| undefined;
 
 		// Pre-flight: validate API key before starting generation
