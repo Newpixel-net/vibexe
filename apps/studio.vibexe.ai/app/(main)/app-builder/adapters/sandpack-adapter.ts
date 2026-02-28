@@ -1434,7 +1434,41 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				"    (0, eval)(xhr2.responseText);",
 				"  }",
 				"}",
+				"// Also load OrbitControls addon",
+				"if (window.THREE && !window.THREE.OrbitControls) {",
+				"  var xhr3 = new XMLHttpRequest();",
+				"  xhr3.open('GET', 'https://cdn.jsdelivr.net/npm/three@0.162.0/examples/js/controls/OrbitControls.js', false);",
+				"  xhr3.send();",
+				"  if (xhr3.status === 200) { (0, eval)(xhr3.responseText); }",
+				"}",
 				"module.exports = window.THREE;",
+			].join("\n"),
+			hidden: true,
+		};
+	}
+
+	// Inject cannon-es shim if any file imports it.
+	// cannon-es has no UMD build — only CJS. We wrap the CJS source with a fake module object,
+	// eval it, and assign module.exports to window.CANNON.
+	const usesCannon = files.some(
+		(f) => f.content && (f.content.includes("cannon-es") || f.content.includes("CANNON")),
+	);
+	if (usesCannon) {
+		sandpackFiles["/node_modules/cannon-es/package.json"] = {
+			code: JSON.stringify({ name: "cannon-es", version: "0.20.0", main: "index.js" }),
+			hidden: true,
+		};
+		sandpackFiles["/node_modules/cannon-es/index.js"] = {
+			code: [
+				"// cannon-es shim: synchronously load CJS bundle and expose as window.CANNON.",
+				"if (typeof window.CANNON === 'undefined') {",
+				"  var m = { exports: {} }, e = m.exports;",
+				"  var xhr = new XMLHttpRequest();",
+				"  xhr.open('GET', 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.cjs.js', false);",
+				"  xhr.send();",
+				"  if (xhr.status === 200) { (new Function('module','exports',xhr.responseText))(m,e); window.CANNON = m.exports; }",
+				"}",
+				"module.exports = window.CANNON;",
 			].join("\n"),
 			hidden: true,
 		};

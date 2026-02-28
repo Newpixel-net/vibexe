@@ -497,6 +497,243 @@ export function createKeyboardState(): {
     },
   };
 }
+
+// ===== CANNON.js Physics Helpers =====
+// cannon-es is loaded via CDN shim (like Three.js). Access via window.CANNON.
+
+const CANNON = (window as any).CANNON;
+
+/**
+ * Creates a Cannon.js physics world with sensible defaults.
+ * Returns the world instance for use in your game loop.
+ *
+ * Usage:
+ *   const world = createPhysicsWorld();
+ *   // In update(): world.step(1/60, delta, 3);
+ */
+export function createPhysicsWorld(gravity: number = -20): any {
+  if (!CANNON) {
+    console.warn("cannon-es not loaded — add it to package.json dependencies");
+    return null;
+  }
+  const world = new CANNON.World();
+  world.gravity.set(0, gravity, 0);
+  world.broadphase = new CANNON.NaiveBroadphase();
+  world.solver.iterations = 10;
+  // Default contact material (medium friction, slight bounce)
+  const defaultMat = new CANNON.Material("default");
+  const defaultContact = new CANNON.ContactMaterial(defaultMat, defaultMat, {
+    friction: 0.4,
+    restitution: 0.2,
+  });
+  world.addContactMaterial(defaultContact);
+  world.defaultContactMaterial = defaultContact;
+  return world;
+}
+
+/**
+ * Creates a Cannon.js rigid body.
+ * shape: "box" | "sphere" | "plane"
+ * mass: 0 = static (platforms, ground), >0 = dynamic (player, enemies)
+ * position: {x, y, z}
+ * size: for box={x,y,z half-extents}, for sphere=radius (default 0.5)
+ */
+export function createPhysicsBody(
+  shape: "box" | "sphere" | "plane",
+  mass: number,
+  position: { x: number; y: number; z: number },
+  size?: { x: number; y: number; z: number } | number,
+): any {
+  if (!CANNON) return null;
+  let cannonShape: any;
+  if (shape === "box") {
+    const s = (typeof size === "object" && size) ? size : { x: 0.5, y: 0.5, z: 0.5 };
+    cannonShape = new CANNON.Box(new CANNON.Vec3(s.x, s.y, s.z));
+  } else if (shape === "sphere") {
+    const r = (typeof size === "number") ? size : 0.5;
+    cannonShape = new CANNON.Sphere(r);
+  } else {
+    // Infinite ground plane facing up
+    cannonShape = new CANNON.Plane();
+  }
+  const body = new CANNON.Body({ mass, shape: cannonShape });
+  body.position.set(position.x, position.y, position.z);
+  if (shape === "plane") {
+    // Rotate plane to face upward (default is Z-up)
+    body.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+  }
+  return body;
+}
+
+/**
+ * Creates a contact material with custom friction and restitution.
+ */
+export function createContactMaterial(
+  world: any,
+  friction: number = 0.4,
+  restitution: number = 0.3,
+): any {
+  if (!CANNON || !world) return null;
+  const mat = new CANNON.Material();
+  const contact = new CANNON.ContactMaterial(mat, mat, { friction, restitution });
+  world.addContactMaterial(contact);
+  return { material: mat, contactMaterial: contact };
+}
+
+/**
+ * Syncs a Three.js mesh position/rotation to its Cannon.js body.
+ * Call this in update() after world.step().
+ */
+export function syncMeshToBody(mesh: any, body: any): void {
+  if (!mesh || !body) return;
+  mesh.position.copy(body.position);
+  mesh.quaternion.copy(body.quaternion);
+}
+
+/**
+ * Batch sync all mesh-body pairs. Convenience for update() loops.
+ *
+ * Usage:
+ *   const pairs = [{ mesh: playerMesh, body: playerBody }, ...];
+ *   // In update(): syncBodiesToMeshes(pairs);
+ */
+export function syncBodiesToMeshes(pairs: Array<{ mesh: any; body: any }>): void {
+  for (const { mesh, body } of pairs) {
+    syncMeshToBody(mesh, body);
+  }
+}
+
+/**
+ * Creates an infinite static ground plane body at y=0.
+ */
+export function createPhysicsGround(world: any): any {
+  if (!CANNON || !world) return null;
+  const body = createPhysicsBody("plane", 0, { x: 0, y: 0, z: 0 });
+  world.addBody(body);
+  return body;
+}
+
+// ===== Raycasting Helpers =====
+
+/**
+ * Sets up click-to-interact raycasting.
+ * When the user clicks on one of the target objects, the callback fires
+ * with the intersected object and the intersection point.
+ *
+ * Returns a cleanup function to remove the event listener.
+ *
+ * Usage:
+ *   const cleanup = onClickObject(camera, container, [building1, building2], (obj, point) => {
+ *     console.log("Clicked", obj.name, "at", point);
+ *   });
+ */
+export function onClickObject(
+  camera: any,
+  container: HTMLElement,
+  objects: any[],
+  callback: (object: any, point: any) => void,
+): () => void {
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+
+  const handler = (event: MouseEvent) => {
+    const rect = container.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(objects, true);
+    if (intersects.length > 0) {
+      // Find the root object from our target list
+      let hit = intersects[0].object;
+      while (hit.parent && !objects.includes(hit)) {
+        hit = hit.parent;
+      }
+      callback(hit, intersects[0].point);
+    }
+  };
+
+  container.addEventListener("click", handler);
+  return () => container.removeEventListener("click", handler);
+}
+
+// ===== Animation Mixer Helper =====
+
+/**
+ * Creates an animation player for a GLTF model with animation clips.
+ * Returns controls to play/stop named animations and an update() to call each frame.
+ *
+ * Usage:
+ *   const gltf = await new Promise((res, rej) => {
+ *     new THREE.GLTFLoader().load(url, res, undefined, rej);
+ *   });
+ *   const anim = createAnimationPlayer(gltf.scene, gltf.animations);
+ *   anim.play("Walk");
+ *   // In update(): anim.update(delta);
+ */
+export function createAnimationPlayer(
+  model: any,
+  clips: any[],
+): {
+  mixer: any;
+  play: (name: string, crossFade?: number) => void;
+  stop: () => void;
+  update: (delta: number) => void;
+} {
+  const mixer = new THREE.AnimationMixer(model);
+  let currentAction: any = null;
+
+  return {
+    mixer,
+    play(name: string, crossFade: number = 0.3) {
+      const clip = clips.find((c: any) => c.name === name);
+      if (!clip) return;
+      const action = mixer.clipAction(clip);
+      if (currentAction && currentAction !== action) {
+        currentAction.fadeOut(crossFade);
+      }
+      action.reset().fadeIn(crossFade).play();
+      currentAction = action;
+    },
+    stop() {
+      if (currentAction) {
+        currentAction.fadeOut(0.2);
+        currentAction = null;
+      }
+    },
+    update(delta: number) {
+      mixer.update(delta);
+    },
+  };
+}
+
+// ===== OrbitControls Helper =====
+
+/**
+ * Creates OrbitControls for camera interaction (rotate, zoom, pan).
+ * Best for: city builders, exploration games, isometric views.
+ *
+ * Usage:
+ *   const controls = createOrbitControls(camera, renderer.domElement);
+ *   // In update(): controls.update();
+ *   // In cleanup(): controls.dispose();
+ */
+export function createOrbitControls(
+  camera: any,
+  domElement: HTMLElement,
+): any {
+  if (!THREE.OrbitControls) {
+    console.warn("OrbitControls not loaded — ensure Three.js addons are included");
+    return { update() {}, dispose() {} };
+  }
+  const controls = new THREE.OrbitControls(camera, domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 5;
+  controls.maxDistance = 100;
+  controls.maxPolarAngle = Math.PI / 2.1; // Prevent going below ground
+  controls.target.set(0, 0, 0);
+  return controls;
+}
 `,
 	},
 
@@ -508,7 +745,8 @@ export function createKeyboardState(): {
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "three": "^0.162.0"
+    "three": "^0.162.0",
+    "cannon-es": "^0.20.0"
   }
 }
 `,

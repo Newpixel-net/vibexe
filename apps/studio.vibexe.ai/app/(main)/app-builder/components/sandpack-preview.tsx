@@ -559,6 +559,7 @@ export function SandpackPreview({
 		if (dependencies.three) {
 			resources.push("https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.min.js");
 			resources.push("https://cdn.jsdelivr.net/npm/three@0.162.0/examples/js/loaders/GLTFLoader.js");
+			resources.push("https://cdn.jsdelivr.net/npm/three@0.162.0/examples/js/controls/OrbitControls.js");
 		}
 		return resources;
 	}, [dependencies]);
