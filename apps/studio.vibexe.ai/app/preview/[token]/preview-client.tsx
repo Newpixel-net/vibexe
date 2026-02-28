@@ -199,9 +199,6 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 								"https://cdn.jsdelivr.net/npm/three@0.162.0/examples/js/controls/OrbitControls.js",
 							]
 						: []),
-					...(dependencies["cannon-es"]
-						? ["https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.cjs.js"]
-						: []),
 				],
 			}}
 			theme="auto"
