@@ -745,10 +745,10 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 
 **MANDATORY RULES — violation will break the game:**
 - Do NOT recreate, overwrite, or modify these files — they contain correct, tested code
-- You MUST \`import\` from them. Example: \`import { loadImage, loadFrames, SpriteAnimation } from "../assets/loader";\`
-- You MUST \`import * as C from "../constants";\` and use the exported asset path constants (PLAYER_RUN_FRAMES, BACKGROUND_FOREST, etc.)
+- You MUST \`import\` from them. Example: \`import { preloadAssets, createAnimations } from "../config/assets";\` and \`import { assetUrl } from "../utils/media-stock";\`
 - Skip these files in your file creation sequence — they are already done
-- In your GameCanvas or main game file, preload ALL assets using \`loadImage()\` and \`loadFrames()\` from the loader before starting the game loop`);
+- In your BootScene, call \`preloadAssets(this)\` in \`preload()\` and \`createAnimations(this)\` in \`create()\` — this loads all standard sprites and registers all standard animations
+- The package.json already includes \`"phaser": "^3.90.0"\` — do NOT recreate it`);
 			}
 
 			// Inject full game assets reference (sprite catalog + FORBIDDEN rules)

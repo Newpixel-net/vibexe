@@ -10,181 +10,133 @@
 export const GAME_ASSETS_REFERENCE = `
 ## Asset Catalog — 20,000+ REAL Sprites Available via API
 
-**CRITICAL FACT**: The Vibexe platform hosts 20,454 real game sprite files (PNG/JPG) on the server. They are served via the API endpoint \`/api/app-builder/media-stock/{path}\`. This API IS accessible from Sandpack previews because \`window.__VIBEXE_API_ORIGIN__\` is injected at runtime by the platform, resolving to the correct server origin (e.g. \`https://vibexe.online\`). The ASSET() function below constructs the full URL automatically.
+**CRITICAL FACT**: The Vibexe platform hosts 20,454 real game sprite files (PNG/JPG) on the server. They are served via \`/api/app-builder/media-stock/{path}\`. The \`assetUrl()\` helper in the pre-created \`src/utils/media-stock.ts\` constructs full URLs using \`window.__VIBEXE_API_ORIGIN__\` (injected at runtime by the platform). The pre-created \`src/config/assets.ts\` provides \`preloadAssets(scene)\` and \`createAnimations(scene)\` that handle all standard asset loading automatically.
 
-**You NEVER need base64 data URIs, DiceBear avatars, external CDN URLs, or placeholder shapes for characters/environments/items.** Real sprites always load correctly via the ASSET() helper.
+**You NEVER need base64 data URIs, DiceBear avatars, external CDN URLs, or placeholder shapes for characters/environments/items.** Real sprites always load correctly via the pre-created helpers.
 
 ABSOLUTELY FORBIDDEN in action/platformer/shooter/runner games:
 - \`data:image/svg+xml\` or \`data:image/png;base64,...\` for ANY game asset
 - \`https://api.dicebear.com\` or ANY external URL
-- \`ctx.fillRect()\` colored rectangles for characters/enemies
-- Emoji via \`ctx.fillText("🤖", x, y)\` for characters
-- Custom \`class AssetLoader\` or any loader that doesn't use ASSET()
+- Colored rectangles / \`fillRect()\` for characters/enemies
+- Emoji for characters (e.g. \`"🤖"\` as a sprite)
+- Custom asset loader classes — ALWAYS use the pre-created \`assetUrl()\` + \`preloadAssets()\`
 - GIF files (none exist — ALL assets are PNG or JPG)
 - Comments like "using placeholders since..." — sprites ARE accessible, USE THEM
 
-### CHARACTER SELECTION — Match user request to database FIRST
-Before writing constants.ts, determine which character pack to use:
-- User says "ninja" → use \`characters/heroes/ninja/Ninja Postac.png\`
-- User says "robot" → use \`characters/arz-game-kit/ROBOTS/robot1/\` (animated frames)
+### CHARACTER SELECTION — Match user request to character pack FIRST
+Before writing scenes, determine which character pack to use:
+- User says "ninja" → use \`characters/heroes/ninja/Ninja Postac.png\` (single image)
+- User says "robot" → use \`characters/arz-game-kit/ROBOTS/robot1/\` (animated frames — DEFAULT)
 - User says "zombie" → use \`characters/arz-game-kit/ZOMBIES/zombie1/\` (animated frames)
 - User says "alien" → use \`characters/arz-game-kit/ALIENS/alien1/\` (animated frames)
 - User says "platformer" → use \`characters/heroes/kenney-platformer-characters/PNG/Player/Poses/\`
 - User says "pixel" → use \`characters/heroes/kenney-pixel-platformer/\`
 - User says "shooter" → use \`characters/heroes/red-bot/PNG's/\`
 - No specific request → default to robot1 (has the most animation frames)
-For single-image characters (ninja, kenney), use \`loadImage()\` and \`ctx.drawImage()\` directly.
-For multi-frame characters (robot, zombie, alien, red-bot), use \`loadFrames()\` + \`SpriteAnimation\`.
+For single-image characters, load in BootScene: \`this.load.image('player', assetUrl('characters/heroes/ninja/Ninja Postac.png'))\`
+For multi-frame characters, use the pre-created \`preloadAssets()\` + \`createAnimations()\`.
 
-### FILE 1: src/assets/loader.ts — PRE-CREATED by the platform (do NOT recreate or modify)
+### PRE-CREATED FILE 1: src/utils/media-stock.ts (do NOT recreate or modify)
+Exports:
+- \`assetUrl(path)\` — Builds full URL using \`window.__VIBEXE_API_ORIGIN__\` + \`/api/app-builder/media-stock/\` + encoded path
 
-This file is automatically injected into the project before you start generating code. It already exists — just import from it.
+### PRE-CREATED FILE 2: src/config/assets.ts (do NOT recreate or modify)
+Exports:
+- \`preloadAssets(scene: Phaser.Scene)\` — Loads ALL standard assets (backgrounds, platforms, character frames, items) into Phaser's texture cache. Call in BootScene \`preload()\`.
+- \`createAnimations(scene: Phaser.Scene)\` — Creates all standard animations: \`player-run\`, \`player-attack\`, \`player-jump\`, \`player-die\`, \`zombie-walk\`, \`zombie-attack\`, \`zombie-die\`, \`alien-run\`, \`alien-attack\`, \`alien-die\`. Call in BootScene \`create()\`.
+- Frame constants: \`ROBOT_RUN\`, \`ROBOT_ATTACK\`, \`ROBOT_JUMP\`, \`ROBOT_DIE\`, \`ZOMBIE_WALK\`, \`ZOMBIE_ATTACK\`, \`ZOMBIE_DIE\`, \`ALIEN_RUN\`, \`ALIEN_ATTACK\`, \`ALIEN_DIE\`
+- \`STATIC_ASSETS\` array: \`bg-forest\`, \`bg-space\`, \`bg-alien\`, \`platform\`, \`platform-small\`, \`ground\`, \`tree\`, \`grass\`, \`cloud\`, \`crystal\`, \`chest\`, \`weapon\`
 
-**Exports:**
-- \`ASSET(path)\` — Builds full URL using \`window.__VIBEXE_API_ORIGIN__\` + \`/api/app-builder/media-stock/\` + encoded path
-- \`loadImage(path)\` — Returns \`Promise<HTMLImageElement>\`, falls back to 1x1 transparent pixel on error
-- \`loadFrames(paths)\` — Returns \`Promise<HTMLImageElement[]>\`, loads multiple frames in parallel
-- \`class SpriteAnimation\` — Manages frame-based animation with \`update(dt)\`, \`draw(ctx,x,y,w,h)\`, \`drawFlipped(ctx,x,y,w,h)\`
+### PRE-CREATED FILE 3: package.json (do NOT recreate or modify)
+Contains \`"phaser": "^3.90.0"\` — Sandpack installs it automatically via extractDependencies().
 
-**Usage:**
+### Usage in BootScene (the CORRECT pattern):
 \`\`\`typescript
-import { loadImage, loadFrames, SpriteAnimation } from "../assets/loader";
-import * as C from "../constants";
+import Phaser from "phaser";
+import { preloadAssets, createAnimations } from "../config/assets";
 
-const bg = await loadImage(C.BACKGROUND_FOREST);
-const runFrames = await loadFrames(C.PLAYER_RUN_FRAMES);
-const playerRun = new SpriteAnimation(runFrames, 16);
-// In game loop: playerRun.update(dt); playerRun.draw(ctx, x, y, 64, 64);
+export class BootScene extends Phaser.Scene {
+  constructor() { super("Boot"); }
+
+  preload() {
+    // Show loading bar
+    const bar = this.add.rectangle(this.scale.width / 2, this.scale.height / 2, 300, 30, 0x444444);
+    const fill = this.add.rectangle(this.scale.width / 2 - 148, this.scale.height / 2, 4, 26, 0x00ff00).setOrigin(0, 0.5);
+    this.load.on("progress", (v: number) => { fill.width = 296 * v; });
+
+    preloadAssets(this); // Loads ALL standard assets in one call
+  }
+
+  create() {
+    createAnimations(this); // Registers all standard animations
+    this.scene.start("Menu");
+  }
+}
 \`\`\`
 
-### FILE 2: src/constants.ts — Asset paths (add your game constants too)
-
-Use .map() to generate frame arrays from base paths. Frame numbers are EXACT — do not change them.
-
+### Usage in GameScene (sprites + physics):
 \`\`\`typescript
-// ===== ASSET HELPER (generates frame path arrays) =====
-const frames = (base: string, prefix: string, nums: number[]) =>
-  nums.map(n => \`\${base}/\${prefix}\${n}.png\`);
+// In create():
+const player = this.physics.add.sprite(100, 400, "run/robot1-run0");
+player.play("player-run"); // Animation registered by createAnimations()
+player.setCollideWorldBounds(true);
 
-// ===== PLAYER (Robot) =====
-const R1 = "characters/arz-game-kit/ROBOTS/robot1";
-export const PLAYER_RUN_FRAMES = frames(R1, "run/robot1-run", [0,7,14,21,28,35,42,49]);
-export const PLAYER_ATTACK_FRAMES = frames(R1, "attack/robot1-attack", [0,5,10,15,20]);
-export const PLAYER_JUMP_FRAMES = frames(R1, "jump/robot1-jump", [0,5,10,15]);
-export const PLAYER_DIE_FRAMES = frames(R1, "die/robot1-die", [0,5,10]);
+const bg = this.add.image(0, 0, "bg-forest").setOrigin(0, 0);
 
-// ===== ENEMIES =====
-const Z1 = "characters/arz-game-kit/ZOMBIES/zombie1";
-export const ZOMBIE_WALK_FRAMES = frames(Z1, "walk/zombie1-walk", [0,7,14,21]);
-export const ZOMBIE_ATTACK_FRAMES = frames(Z1, "attack/zombie1-attack", [0,5,10,15]);
-export const ZOMBIE_DIE_FRAMES = frames(Z1, "die/zombie1-die", [0,5,10]);
+const platforms = this.physics.add.staticGroup();
+platforms.create(400, 568, "ground").setScale(2).refreshBody();
+platforms.create(300, 400, "platform");
 
-const A1 = "characters/arz-game-kit/ALIENS/alien1";
-export const ALIEN_RUN_FRAMES = frames(A1, "run/alien1-run", [0,8,16,24,32,40]);
-export const ALIEN_ATTACK_FRAMES = frames(A1, "attack/alien1-attack", [0,5,10,15]);
-export const ALIEN_DIE_FRAMES = frames(A1, "die/alien1-die", [0,5,10]);
+this.physics.add.collider(player, platforms);
 
-// ===== ENVIRONMENT =====
-export const BACKGROUND_FOREST = "environments/backgrounds/arz-backgrounds/1920x1080/BG forest 1.jpg";
-export const BACKGROUND_SPACE = "environments/backgrounds/arz-backgrounds/1920x1080/BG space 1.jpg";
-export const BACKGROUND_ALIEN = "environments/backgrounds/arz-backgrounds/1920x1080/BG alien 1.jpg";
-export const PLATFORM_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Platform/Platform_1.png";
-export const PLATFORM_SMALL = "environments/tilesets/forest-pack/300_DPI PNG/Platform/Platform_sml_1.png";
-export const GROUND_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Grounds/Ground_Wall.png";
-export const TREE_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Tree/Tree_1.png";
-export const GRASS_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Grass/Ground_Grass.png";
-export const CLOUD_IMG = "environments/tilesets/forest-pack/300_DPI PNG/Clouds/Cloud_1.png";
-
-// ===== ITEMS =====
-export const CRYSTAL_IMG = "items/collectibles/treasure/crystal01.png";
-export const CHEST_IMG = "items/collectibles/treasure/chest1_128.png";
-export const WEAPON_IMG = "items/weapons/arz-weapons/Weapon_1.png";
-
-// ===== YOUR GAME CONSTANTS GO HERE =====
-// export const GRAVITY = 1800;
-// export const PLAYER_SPEED = 300;
-// etc.
+const crystals = this.physics.add.group();
+crystals.create(250, 300, "crystal");
+this.physics.add.overlap(player, crystals, (_, c) => {
+  (c as Phaser.GameObjects.Sprite).destroy();
+  this.score++;
+});
 \`\`\`
 
-### FILE 3: GameCanvas.tsx — Asset preloading pattern
-
-In your GameCanvas useEffect, preload ALL assets before starting the game loop:
-
+### Loading CUSTOM assets beyond the standard set:
 \`\`\`typescript
-import { loadImage, loadFrames, SpriteAnimation } from "../assets/loader";
-import * as C from "../constants";
+import { assetUrl } from "../utils/media-stock";
 
-interface GameAssets {
-  bg: HTMLImageElement;
-  platform: HTMLImageElement;
-  ground: HTMLImageElement;
-  crystal: HTMLImageElement;
-  playerRun: SpriteAnimation;
-  playerJump: SpriteAnimation;
-  playerAttack: SpriteAnimation;
-  zombieWalk: SpriteAnimation;
-  alienRun: SpriteAnimation;
-}
-
-async function preloadAllAssets(): Promise<GameAssets> {
-  const [bg, platform, ground, crystal, pRun, pJump, pAtk, zWalk, aRun] = await Promise.all([
-    loadImage(C.BACKGROUND_FOREST),
-    loadImage(C.PLATFORM_IMG),
-    loadImage(C.GROUND_IMG),
-    loadImage(C.CRYSTAL_IMG),
-    loadFrames(C.PLAYER_RUN_FRAMES),
-    loadFrames(C.PLAYER_JUMP_FRAMES),
-    loadFrames(C.PLAYER_ATTACK_FRAMES),
-    loadFrames(C.ZOMBIE_WALK_FRAMES),
-    loadFrames(C.ALIEN_RUN_FRAMES),
-  ]);
-  return {
-    bg, platform, ground, crystal,
-    playerRun: new SpriteAnimation(pRun, 16),
-    playerJump: new SpriteAnimation(pJump, 12),
-    playerAttack: new SpriteAnimation(pAtk, 12),
-    zombieWalk: new SpriteAnimation(zWalk, 10),
-    alienRun: new SpriteAnimation(aRun, 12),
-  };
-}
-
-// In useEffect:
-// 1. Show "Loading..." text on canvas
-// 2. Call preloadAllAssets().then(assets => { ... start game loop ... })
-// 3. In render(): use assets.playerRun.draw(ctx, x, y, 64, 64) — NEVER ctx.fillRect for characters
-// 4. Call animation.update(dt) each frame before drawing
+// In preload():
+this.load.image("ninja", assetUrl("characters/heroes/ninja/Ninja Postac.png"));
+this.load.image("red-bot-run1", assetUrl("characters/heroes/red-bot/PNG's/r_run_1.png"));
+// ... then use: this.add.sprite(x, y, "ninja")
 \`\`\`
 
 ### All available character packs (with exact file paths):
 
-**Multi-frame animated characters** (use loadFrames + SpriteAnimation):
-- Robot (default): \`characters/arz-game-kit/ROBOTS/robot1/\` — run, attack, jump, die frames (see FILE 2 above)
-- Zombie: \`characters/arz-game-kit/ZOMBIES/zombie1/\` — walk, attack, die frames (see FILE 2 above)
-- Alien: \`characters/arz-game-kit/ALIENS/alien1/\` — run, attack, die frames (see FILE 2 above)
+**Multi-frame animated characters** (pre-registered via preloadAssets + createAnimations):
+- Robot (default): \`characters/arz-game-kit/ROBOTS/robot1/\` — run (8 frames), attack (5), jump (4), die (3)
+- Zombie: \`characters/arz-game-kit/ZOMBIES/zombie1/\` — walk (4 frames), attack (4), die (3)
+- Alien: \`characters/arz-game-kit/ALIENS/alien1/\` — run (6 frames), attack (4), die (3)
+
+**Single-image characters** (load manually with assetUrl in BootScene preload):
 - Red Bot: \`characters/heroes/red-bot/PNG's/r_run_1.png\` through r_run_8.png, r_jump_1.png through r_jump_20.png
 - Boy Scout: \`characters/heroes/boy-scout/png/run-0001.png\` through run-0008.png
-
-**Single-image characters** (use loadImage + ctx.drawImage directly):
 - Ninja: \`characters/heroes/ninja/Ninja Postac.png\` — single high-res sprite
 - Kenney Platformer: \`characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_walk1.png\`, player_walk2.png, player_jump.png, player_idle.png
 
-**Backgrounds** (use loadImage):
+**Backgrounds** (pre-loaded as bg-forest, bg-space, bg-alien):
 - Forest: \`environments/backgrounds/arz-backgrounds/1920x1080/BG forest 1.jpg\`
 - Space: \`environments/backgrounds/arz-backgrounds/1920x1080/BG space 1.jpg\`
 - Alien world: \`environments/backgrounds/arz-backgrounds/1920x1080/BG alien 1.jpg\`
 
-**Environment tiles** (use loadImage):
+**Environment tiles** (pre-loaded as platform, ground, tree, cloud, grass):
 - Platform: \`environments/tilesets/forest-pack/300_DPI PNG/Platform/Platform_1.png\`
 - Ground: \`environments/tilesets/forest-pack/300_DPI PNG/Grounds/Ground_Wall.png\`
 - Tree: \`environments/tilesets/forest-pack/300_DPI PNG/Tree/Tree_1.png\`
 - Cloud: \`environments/tilesets/forest-pack/300_DPI PNG/Clouds/Cloud_1.png\`
 
-**Items** (use loadImage):
+**Items** (pre-loaded as crystal, chest, weapon):
 - Crystal: \`items/collectibles/treasure/crystal01.png\`
 - Chest: \`items/collectibles/treasure/chest1_128.png\`
 - Weapon: \`items/weapons/arz-weapons/Weapon_1.png\`
 
 ### Sprites vs Shapes rule:
-- Action/platformer/shooter/runner → ALWAYS use ASSET() + loadImage() with real paths above
+- Action/platformer/shooter/runner → ALWAYS use preloadAssets() + createAnimations() with real sprites
 - Abstract puzzles (2048, Tetris, Minesweeper, Pong) → shapes/emoji OK
 `;
