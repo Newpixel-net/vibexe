@@ -375,7 +375,22 @@ src/components/Game3D.tsx           — PRE-CREATED (React wrapper with loading 
 src/App.tsx                        — PRE-CREATED (imports GameScene3D). Do NOT recreate or override.
 \`\`\`
 
-CRITICAL: Do NOT create BootScene, MenuScene, LoadingScene, or any other scene files. Game3D.tsx already handles: loading screen with progress bar, menu overlay with "TAP TO START", and clean restart. You ONLY need to create GameScene3D.ts with the game logic.
+CRITICAL: Do NOT create BootScene3D.ts, MenuScene3D.ts, LoadingScene3D.ts, or any other scene files besides GameScene3D.ts. Game3D.tsx already handles: loading screen with progress bar, menu overlay with "TAP TO START", and clean restart. You ONLY create GameScene3D.ts.
+
+**AVAILABLE HELPERS FROM assets-3d.ts (COMPLETE LIST — no other functions exist):**
+\`initRenderer\`, \`initScene\`, \`initCamera\`, \`loadGLTF\`, \`createGround3D\`, \`createSkyGradient\`, \`checkCollision\`, \`checkBoxCollision\`, \`createHUD\`, \`createKeyboardState\`, \`SCALES_3D\`, \`createPhysicsWorld\`, \`createPhysicsBody\`, \`createPhysicsGround\`, \`syncBodiesToMeshes\`, \`onClickObject\`, \`createAnimationPlayer\`, \`createOrbitControls\`, \`createTouchJoystick\`, \`createTapDetector\`, \`createSwipeDetector\`.
+Do NOT call \`getLoadedModel\`, \`cacheModel\`, \`getModel\`, or ANY function not in this list — they do not exist and will crash.
+
+**Reusing models (load once, clone many):**
+\`\`\`typescript
+// Load a model ONCE, then clone() for each instance
+const platformTemplate = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1.gltf"));
+for (const pos of platformPositions) {
+  const p = platformTemplate.clone();
+  p.position.set(pos[0], pos[1], pos[2]);
+  scene.add(p);
+}
+\`\`\`
 
 Optional extra files for complex games:
 - \`src/objects/Player.ts\` — Player class with movement, animation, state
@@ -605,24 +620,22 @@ export const GameScene = {
       physicsPairs[0].mesh = player;
     }).catch(() => { /* keep box fallback */ });
 
-    // 5. PLATFORMS — visual mesh + static physics body
+    // 5. PLATFORMS — load ONCE, clone for each. Static physics body per platform.
     const platformPositions = [
       [0, 0.5, -5], [3, 1, -8], [-3, 1.5, -11],
       [0, 2, -14], [4, 2.5, -17], [-2, 3, -20],
       [2, 3.5, -23], [0, 4, -26],
     ];
+    let platformTemplate: any;
+    try {
+      platformTemplate = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1.gltf"));
+      platformTemplate.scale.setScalar(SCALES_3D.platform);
+    } catch { platformTemplate = null; }
+
     for (const [px, py, pz] of platformPositions) {
-      let platMesh: any;
-      try {
-        platMesh = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1.gltf"));
-        platMesh.scale.setScalar(SCALES_3D.platform);
-      } catch {
-        platMesh = new THREE.Mesh(
-          new THREE.BoxGeometry(4, 1, 4),
-          new THREE.MeshStandardMaterial({ color: 0x88aa44 }),
-        );
-        platMesh.receiveShadow = true;
-      }
+      const platMesh = platformTemplate
+        ? platformTemplate.clone()
+        : (() => { const m = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 4), new THREE.MeshStandardMaterial({ color: 0x88aa44 })); m.receiveShadow = true; return m; })();
       platMesh.position.set(px, py, pz);
       scene.add(platMesh);
 
@@ -632,27 +645,24 @@ export const GameScene = {
       platforms.push({ mesh: platMesh, body: platBody });
     }
 
-    // 6. COLLECTIBLES (no physics — just visual + distance check)
+    // 6. COLLECTIBLES — load ONCE, clone for each (no physics — distance check)
     const collectiblePositions = [
       [0, 1.5, -5], [3, 2, -8], [-3, 2.5, -11],
       [0, 3, -14], [4, 3.5, -17], [-2, 4, -20],
     ];
+    let gemTemplate: any;
+    try {
+      gemTemplate = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/crystal.gltf"));
+      gemTemplate.scale.setScalar(SCALES_3D.collectible);
+    } catch { gemTemplate = null; }
+
     for (const [cx, cy, cz] of collectiblePositions) {
-      try {
-        const gem = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/crystal.gltf"));
-        gem.scale.setScalar(SCALES_3D.collectible);
-        gem.position.set(cx, cy, cz);
-        scene.add(gem);
-        collectibles.push({ mesh: gem, collected: false });
-      } catch {
-        const sphere = new THREE.Mesh(
-          new THREE.SphereGeometry(0.3, 8, 8),
-          new THREE.MeshStandardMaterial({ color: 0xffff00, emissive: 0xffff00, emissiveIntensity: 0.3 }),
-        );
-        sphere.position.set(cx, cy, cz);
-        scene.add(sphere);
-        collectibles.push({ mesh: sphere, collected: false });
-      }
+      const gem = gemTemplate
+        ? gemTemplate.clone()
+        : (() => { const s = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), new THREE.MeshStandardMaterial({ color: 0xffff00, emissive: 0xffff00, emissiveIntensity: 0.3 })); return s; })();
+      gem.position.set(cx, cy, cz);
+      scene.add(gem);
+      collectibles.push({ mesh: gem, collected: false });
     }
 
     // 7. CAMERA position
@@ -890,6 +900,7 @@ ${GAME_3D_ASSETS_REFERENCE}
 20. **CRITICAL: Using a class instead of plain object** — GameScene MUST be \`export const GameScene = { init(), update(), cleanup() }\`. Do NOT use \`class GameScene\` — it causes TypeScript syntax errors with mixed arrow/method syntax and breaks the Game3D.tsx interface.
 21. **Creating BootScene/MenuScene/LoadingScene** — Game3D.tsx already provides loading screen + menu overlay + restart. Do NOT create separate scene files for these.
 22. **Overriding App.tsx** — App.tsx is PRE-CREATED and imports GameScene3D correctly. Do NOT recreate or override it.
+23. **CRITICAL: Calling non-existent helper functions** — ONLY use functions listed in the AVAILABLE HELPERS section above. Functions like \`getLoadedModel\`, \`cacheModel\`, \`getModel\`, \`cloneModel\` do NOT exist. To reuse models: \`const template = await loadGLTF(...); const clone = template.clone();\`.
 
 ## Internationalization
 
