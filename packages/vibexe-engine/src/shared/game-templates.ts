@@ -57,13 +57,17 @@ export const ALIEN_RUN    = fr(A1, "run/alien1-run",       [0,7,14,21,28,35,42,4
 export const ALIEN_ATTACK = fr(A1, "attack/alien1-attack", [0,5,10,15,20,25,30]);
 export const ALIEN_DIE    = fr(A1, "die/alien1-die",       [0,3,6,9,12,15,18]);
 
-// ===== STATIC IMAGE KEYS =====
-export const STATIC_ASSETS: { key: string; path: string }[] = [
+// ===== MENU BACKGROUNDS (for menu/UI scenes only — NOT gameplay) =====
+export const MENU_BACKGROUNDS: { key: string; path: string }[] = [
   { key: "bg-nature",      path: "environments/backgrounds/my-back/multiple-level-game-background-8001_imgs_8001_1.png" },
   { key: "bg-jungle",      path: "environments/backgrounds/my-back/feat_jungle3.jpg" },
   { key: "bg-cartoon",     path: "environments/backgrounds/my-back/game-background-png-6.png" },
   { key: "bg-dark-forest", path: "environments/backgrounds/my-back/forest-game-background-8298_imgs_8298.jpg" },
   { key: "bg-space",       path: "environments/backgrounds/arz-backgrounds/1920x1080/BG space 1.jpg" },
+];
+
+// ===== STATIC IMAGE KEYS (tiles, items) =====
+export const STATIC_ASSETS: { key: string; path: string }[] = [
   { key: "platform",       path: "environments/tilesets/forest-pack/300_DPI PNG/Platform/Platform_1.png" },
   { key: "platform-small", path: "environments/tilesets/forest-pack/300_DPI PNG/Platform/Platform_sml_1.png" },
   { key: "ground",         path: "environments/tilesets/forest-pack/300_DPI PNG/Grounds/Ground_Wall.png" },
@@ -87,7 +91,11 @@ const ALL_FRAME_SETS = [
  * Each frame becomes a separate texture key in the Phaser cache.
  */
 export function preloadAssets(scene: Phaser.Scene): void {
-  // Static images
+  // Menu backgrounds
+  for (const { key, path } of MENU_BACKGROUNDS) {
+    scene.load.image(key, assetUrl(path));
+  }
+  // Static images (tiles, items)
   for (const { key, path } of STATIC_ASSETS) {
     scene.load.image(key, assetUrl(path));
   }
@@ -120,6 +128,90 @@ export const SCALES = {
   chest: 0.3,          // Chest: 128x128 -> ~38x38
   weapon: 0.06,        // Weapon: 921x305 -> ~55x18
 };
+
+// ===== PARALLAX ENVIRONMENT PACKS =====
+// Each pack has multiple layers that stack to create depth.
+// Layers scroll at different speeds — furthest layers slowest.
+interface EnvLayer { key: string; path: string; speed: number; }
+interface EnvPack { name: string; layers: EnvLayer[]; }
+
+export const ENVIRONMENTS: Record<string, EnvPack> = {
+  "nature": {
+    name: "Green Valley",
+    layers: [
+      { key: "env-n-bg",      path: "environments/parallax/scrolling-backgrounds/4/_11_background.png", speed: 0 },
+      { key: "env-n-dclouds", path: "environments/parallax/scrolling-backgrounds/4/_10_distant_clouds.png", speed: 0.03 },
+      { key: "env-n-dclouds1",path: "environments/parallax/scrolling-backgrounds/4/_09_distant_clouds1.png", speed: 0.06 },
+      { key: "env-n-clouds",  path: "environments/parallax/scrolling-backgrounds/4/_08_clouds.png", speed: 0.1 },
+      { key: "env-n-hclouds", path: "environments/parallax/scrolling-backgrounds/4/_07_huge_clouds.png", speed: 0.15 },
+      { key: "env-n-hill2",   path: "environments/parallax/scrolling-backgrounds/4/_06_hill2.png", speed: 0.25 },
+      { key: "env-n-hill1",   path: "environments/parallax/scrolling-backgrounds/4/_05_hill1.png", speed: 0.35 },
+      { key: "env-n-bushes",  path: "environments/parallax/scrolling-backgrounds/4/_04_bushes.png", speed: 0.45 },
+      { key: "env-n-dtrees",  path: "environments/parallax/scrolling-backgrounds/4/_03_distant_trees.png", speed: 0.55 },
+      { key: "env-n-trees",   path: "environments/parallax/scrolling-backgrounds/4/_02_trees and bushes.png", speed: 0.7 },
+      { key: "env-n-ground",  path: "environments/parallax/scrolling-backgrounds/4/_01_ground.png", speed: 0.85 },
+    ],
+  },
+  "forest": {
+    name: "Deep Forest",
+    layers: [
+      { key: "env-f-8", path: "environments/parallax/scrolling-backgrounds/1/PNG/1_game_background/layers/8.png", speed: 0 },
+      { key: "env-f-7", path: "environments/parallax/scrolling-backgrounds/1/PNG/1_game_background/layers/7.png", speed: 0.07 },
+      { key: "env-f-6", path: "environments/parallax/scrolling-backgrounds/1/PNG/1_game_background/layers/6.png", speed: 0.15 },
+      { key: "env-f-5", path: "environments/parallax/scrolling-backgrounds/1/PNG/1_game_background/layers/5.png", speed: 0.25 },
+      { key: "env-f-4", path: "environments/parallax/scrolling-backgrounds/1/PNG/1_game_background/layers/4.png", speed: 0.38 },
+      { key: "env-f-3", path: "environments/parallax/scrolling-backgrounds/1/PNG/1_game_background/layers/3.png", speed: 0.52 },
+      { key: "env-f-2", path: "environments/parallax/scrolling-backgrounds/1/PNG/1_game_background/layers/2.png", speed: 0.68 },
+      { key: "env-f-1", path: "environments/parallax/scrolling-backgrounds/1/PNG/1_game_background/layers/1.png", speed: 0.82 },
+    ],
+  },
+  "dark": {
+    name: "Dark World",
+    layers: [
+      { key: "env-d-6", path: "environments/parallax/scrolling-backgrounds/1/PNG/3_game_background/layers/6.png", speed: 0 },
+      { key: "env-d-5", path: "environments/parallax/scrolling-backgrounds/1/PNG/3_game_background/layers/5.png", speed: 0.12 },
+      { key: "env-d-4", path: "environments/parallax/scrolling-backgrounds/1/PNG/3_game_background/layers/4.png", speed: 0.28 },
+      { key: "env-d-3", path: "environments/parallax/scrolling-backgrounds/1/PNG/3_game_background/layers/3.png", speed: 0.45 },
+      { key: "env-d-2", path: "environments/parallax/scrolling-backgrounds/1/PNG/3_game_background/layers/2.png", speed: 0.65 },
+      { key: "env-d-1", path: "environments/parallax/scrolling-backgrounds/1/PNG/3_game_background/layers/1.png", speed: 0.82 },
+    ],
+  },
+  "mountains": {
+    name: "Mountain Range",
+    layers: [
+      { key: "env-m-9", path: "environments/parallax/scrolling-backgrounds/2/PNG/3_game_background/layers/9.png", speed: 0 },
+      { key: "env-m-8", path: "environments/parallax/scrolling-backgrounds/2/PNG/3_game_background/layers/8.png", speed: 0.06 },
+      { key: "env-m-7", path: "environments/parallax/scrolling-backgrounds/2/PNG/3_game_background/layers/7.png", speed: 0.12 },
+      { key: "env-m-6", path: "environments/parallax/scrolling-backgrounds/2/PNG/3_game_background/layers/6.png", speed: 0.2 },
+      { key: "env-m-5", path: "environments/parallax/scrolling-backgrounds/2/PNG/3_game_background/layers/5.png", speed: 0.3 },
+      { key: "env-m-4", path: "environments/parallax/scrolling-backgrounds/2/PNG/3_game_background/layers/4.png", speed: 0.42 },
+      { key: "env-m-3", path: "environments/parallax/scrolling-backgrounds/2/PNG/3_game_background/layers/3.png", speed: 0.55 },
+      { key: "env-m-2", path: "environments/parallax/scrolling-backgrounds/2/PNG/3_game_background/layers/2.png", speed: 0.7 },
+      { key: "env-m-1", path: "environments/parallax/scrolling-backgrounds/2/PNG/3_game_background/layers/1.png", speed: 0.85 },
+    ],
+  },
+  "simple": {
+    name: "Simple Landscape",
+    layers: [
+      { key: "env-s-4", path: "environments/parallax/scrolling-backgrounds/3/png/4.png", speed: 0 },
+      { key: "env-s-3", path: "environments/parallax/scrolling-backgrounds/3/png/3.png", speed: 0.2 },
+      { key: "env-s-2", path: "environments/parallax/scrolling-backgrounds/3/png/2.png", speed: 0.5 },
+      { key: "env-s-1", path: "environments/parallax/scrolling-backgrounds/3/png/1.png", speed: 0.8 },
+    ],
+  },
+};
+
+/**
+ * Loads all layers for a parallax environment.
+ * Call in BootScene.preload() BEFORE setupParallaxEnvironment() in create().
+ */
+export function preloadEnvironment(scene: Phaser.Scene, envId: string): void {
+  const pack = ENVIRONMENTS[envId];
+  if (!pack) return;
+  for (const layer of pack.layers) {
+    scene.load.image(layer.key, assetUrl(layer.path));
+  }
+}
 
 /**
  * Set up an infinite-scrolling parallax background using tileSprite.
@@ -174,6 +266,65 @@ export function setupBackground(
   });
 
   return bg;
+}
+
+/**
+ * Creates a multi-layer parallax environment in GameScene.
+ * Each layer is a tileSprite that scrolls at a different speed relative
+ * to the camera, creating professional depth/parallax effect.
+ *
+ * Call in GameScene.create() BEFORE adding game objects.
+ * Requires preloadEnvironment() to have been called in BootScene.preload().
+ */
+export function setupParallaxEnvironment(
+  scene: Phaser.Scene,
+  envId: string,
+): Phaser.GameObjects.TileSprite[] {
+  const pack = ENVIRONMENTS[envId];
+  if (!pack) return [];
+
+  const w = scene.scale.width;
+  const h = scene.scale.height;
+  const sprites: Phaser.GameObjects.TileSprite[] = [];
+
+  for (let i = 0; i < pack.layers.length; i++) {
+    const layer = pack.layers[i];
+    const bg = scene.add.tileSprite(w / 2, h / 2, w, h, layer.key);
+    bg.setDepth(-100 + i);
+    bg.setScrollFactor(0);
+
+    const tex = scene.textures.get(layer.key).getSourceImage();
+    const s = h / tex.height;
+    bg.tileScaleX = s;
+    bg.tileScaleY = s;
+
+    if (layer.speed > 0) {
+      let prevCamX = scene.cameras.main.scrollX;
+      scene.events.on("update", () => {
+        const camX = scene.cameras.main.scrollX;
+        const delta = camX - prevCamX;
+        if (delta !== 0) {
+          bg.tilePositionX += (delta * layer.speed) / s;
+          prevCamX = camX;
+        }
+      });
+    }
+
+    sprites.push(bg);
+  }
+
+  scene.scale.on("resize", (gameSize: Phaser.Structs.Size) => {
+    for (const bg of sprites) {
+      bg.setPosition(gameSize.width / 2, gameSize.height / 2);
+      bg.setSize(gameSize.width, gameSize.height);
+      const tex = scene.textures.get(bg.texture.key).getSourceImage();
+      const newS = gameSize.height / tex.height;
+      bg.tileScaleX = newS;
+      bg.tileScaleY = newS;
+    }
+  });
+
+  return sprites;
 }
 
 /**

@@ -10,7 +10,7 @@
 export const GAME_ASSETS_REFERENCE = `
 ## Asset Catalog — 20,000+ REAL Sprites Available via API
 
-**CRITICAL FACT**: The Vibexe platform hosts 20,454 real game sprite files (PNG/JPG) on the server. They are served via \`/api/app-builder/media-stock/{path}\`. The \`assetUrl()\` helper in the pre-created \`src/utils/media-stock.ts\` constructs full URLs using \`window.__VIBEXE_API_ORIGIN__\` (injected at runtime by the platform). The pre-created \`src/config/assets.ts\` provides \`preloadAssets(scene)\`, \`createAnimations(scene)\`, \`setupBackground(scene)\`, and \`SCALES\` that handle all standard asset loading and sizing automatically.
+**CRITICAL FACT**: The Vibexe platform hosts 20,454 real game sprite files (PNG/JPG) on the server. They are served via \`/api/app-builder/media-stock/{path}\`. The \`assetUrl()\` helper in the pre-created \`src/utils/media-stock.ts\` constructs full URLs using \`window.__VIBEXE_API_ORIGIN__\` (injected at runtime by the platform). The pre-created \`src/config/assets.ts\` provides \`preloadAssets(scene)\`, \`preloadEnvironment(scene, envId)\`, \`setupParallaxEnvironment(scene, envId)\`, \`setupBackground(scene)\`, \`createAnimations(scene)\`, and \`SCALES\` that handle all standard asset loading and sizing automatically.
 
 **You NEVER need base64 data URIs, DiceBear avatars, external CDN URLs, or placeholder shapes for characters/environments/items.** Real sprites always load correctly via the pre-created helpers.
 
@@ -20,25 +20,25 @@ export const GAME_ASSETS_REFERENCE = `
 Mixing assets from different themes creates ugly, incoherent visuals and is FORBIDDEN.**
 
 **THEME 1: Nature Adventure (DEFAULT — for robots, general platformers, runners)**
-- Background: \`"bg-nature"\` (beautiful green hills/mountains landscape) or \`"bg-jungle"\` (bright jungle)
+- Environment: \`setupParallaxEnvironment(this, "nature")\` — 11-layer valley with hills, trees, clouds (professional depth!)
 - Character: robot1 (animated: player-run, player-attack, player-jump, player-die)
 - Platforms: \`"platform"\`, \`"platform-small"\`, \`"ground"\`, \`"grass"\` (forest-pack green tiles)
 - Decoration: \`"tree"\`, \`"cloud"\` (forest-pack nature elements)
 - Collectibles: \`"crystal"\`, \`"chest"\`
-- Mood: Bright, colorful, adventurous. Green platforms on nature background.
+- Mood: Bright, colorful, adventurous. Green platforms on multi-layer nature parallax.
 - Use when: user says "robot", "platformer", "runner", "adventure", or gives no specific theme
 
-**THEME 2: Dark Forest (for zombies, horror, survival)**
-- Background: \`"bg-dark-forest"\` (dark magical forest with glowing blue trees)
+**THEME 2: Dark World (for zombies, horror, survival)**
+- Environment: \`setupParallaxEnvironment(this, "dark")\` — 6-layer dark atmospheric environment
 - Character: zombie1 (animated: zombie-walk, zombie-attack, zombie-die) as ENEMY. For player, use robot1.
 - Platforms: \`"platform"\`, \`"ground"\` (forest-pack tiles — they work in dark themes too)
-- Decoration: \`"tree"\` (silhouette against dark BG). NO \`"cloud"\` (dark forest = no sky visible).
+- Decoration: \`"tree"\` (silhouette against dark BG). NO \`"cloud"\` (dark world = no sky visible).
 - Collectibles: \`"chest"\`
 - Mood: Dark, mysterious, tense. Muted colors.
 - Use when: user says "zombie", "horror", "dark", "survival", "spooky"
 
 **THEME 3: Space Mission (for aliens, sci-fi, shooters)**
-- Background: \`"bg-space"\` (deep space with asteroids)
+- Background: \`setupBackground(this, "bg-space")\` — single-layer deep space (no parallax pack for space)
 - Character: alien1 (animated: alien-run, alien-attack, alien-die) as ENEMY. For player, use robot1.
 - Platforms: DO NOT use forest tiles in space! Create colored rectangles: \`this.add.rectangle(x, y, w, h, 0x4444aa)\` as platforms
 - Decoration: NO trees, NO grass, NO clouds in space. Use small colored circles as stars.
@@ -47,7 +47,7 @@ Mixing assets from different themes creates ugly, incoherent visuals and is FORB
 - Use when: user says "space", "alien", "sci-fi", "shooter", "galaxy"
 
 **THEME 4: Cartoon World (for kids, casual, cute games)**
-- Background: \`"bg-cartoon"\` (bright sky, green bushes, cheerful colors)
+- Environment: \`setupParallaxEnvironment(this, "simple")\` — 4-layer clean landscape
 - Character: robot1 or any character
 - Platforms: \`"platform"\`, \`"grass"\` (bright green tiles match cartoon BG perfectly)
 - Decoration: \`"tree"\`, \`"cloud"\` (cheerful nature)
@@ -55,11 +55,46 @@ Mixing assets from different themes creates ugly, incoherent visuals and is FORB
 - Mood: Bright, clean, kid-friendly. Maximum color saturation.
 - Use when: user says "kids", "casual", "cute", "cartoon", "simple", "colorful"
 
+**THEME 5: Mountain Range (for epic adventures, climbing, exploration)**
+- Environment: \`setupParallaxEnvironment(this, "mountains")\` — 9-layer mountain range with depth
+- Character: robot1 or any character
+- Platforms: \`"platform"\`, \`"ground"\`, \`"grass"\` (forest-pack tiles on mountain backdrop)
+- Decoration: \`"tree"\`, \`"cloud"\` (natural mountain elements)
+- Collectibles: \`"crystal"\`, \`"chest"\`
+- Mood: Epic, vast, atmospheric. Layered mountains create impressive depth.
+- Use when: user says "mountain", "climbing", "epic", "exploration", "hiking"
+
+**THEME 6: Deep Forest (for nature, stealth, mystery)**
+- Environment: \`setupParallaxEnvironment(this, "forest")\` — 8-layer dense forest with canopy
+- Character: robot1 or any character
+- Platforms: \`"platform"\`, \`"ground"\`, \`"grass"\` (forest-pack tiles fit perfectly)
+- Decoration: \`"tree"\` (layered forest depth). \`"cloud"\` only if sky is visible above canopy.
+- Collectibles: \`"crystal"\`, \`"chest"\`
+- Mood: Lush, green, mysterious. Layers of trees create immersive depth.
+- Use when: user says "forest", "jungle", "nature", "stealth", "mystery"
+
 **FORBIDDEN cross-theme combinations:**
 - Forest/grass tiles on space background
 - Trees/clouds in space scenes
 - Dark horror background with bright cartoon character
-- \`"bg-nature"\` with zombies as main character (use \`"bg-dark-forest"\` instead)
+- Nature parallax environment with zombies as main character (use \`"dark"\` environment instead)
+
+### 🌄 PARALLAX ENVIRONMENTS — Multi-Layer Depth (PREFERRED for gameplay)
+
+**For GameScene (gameplay)**, ALWAYS use \`setupParallaxEnvironment()\` — it creates 4-11 stacked tileSprite layers scrolling at graduated speeds, producing professional depth in 2D games. Each layer scrolls faster as it gets closer to the camera.
+
+**Available environments:**
+| ID | Name | Layers | Description |
+|----|------|--------|-------------|
+| \`"nature"\` | Green Valley | 11 layers | Hills, trees, clouds, bushes — full depth (DEFAULT) |
+| \`"forest"\` | Deep Forest | 8 layers | Dense forest canopy with light filtering through |
+| \`"dark"\` | Dark World | 6 layers | Atmospheric dark environment for horror/survival |
+| \`"mountains"\` | Mountain Range | 9 layers | Epic mountain vista with distant peaks and clouds |
+| \`"simple"\` | Simple Landscape | 4 layers | Clean, minimal landscape for casual/cartoon games |
+
+**For MenuScene / GameOverScene**, use \`setupBackground(this, bgKey, 0)\` — single static image, no parallax needed for menus.
+
+**How parallax works**: Far layers (sky, distant mountains) scroll slowly. Near layers (bushes, ground) scroll fast. This creates a real sense of depth as the player moves through the world. No update() code needed — it tracks camera movement automatically.
 
 ### ⚠️ MANDATORY: Asset Scaling — ALL assets are HIGH-RESOLUTION
 
@@ -72,7 +107,7 @@ All media-stock assets are high-resolution (300 DPI, HD quality). A mobile game 
 | Robot character frames | 995×677 | ~90×61 | SCALES.player = 0.09 |
 | Zombie character frames | 861×886 | ~69×71 | SCALES.zombie = 0.08 |
 | Alien character frames | 819×630 | ~74×57 | SCALES.alien = 0.09 |
-| Background images | 1920×1080 | infinite parallax scroll, fills height | setupBackground() |
+| Parallax environments | Multi-layer | 4-11 layers of depth | setupParallaxEnvironment() |
 | Platform tile | 2100×550 | ~210×55 | SCALES.platform = 0.1 |
 | Small platform | 1200×500 | ~120×50 | SCALES.platformSmall = 0.1 |
 | Ground wall | 2050×1200 | ~164×96 | SCALES.ground = 0.08 |
@@ -83,7 +118,7 @@ All media-stock assets are high-resolution (300 DPI, HD quality). A mobile game 
 | Chest | 128×128 | ~38×38 | SCALES.chest = 0.3 |
 | Weapon | 921×305 | ~55×18 | SCALES.weapon = 0.06 |
 
-**The pre-created \`assets.ts\` exports \`SCALES\` and \`setupBackground()\` — you MUST use them.**
+**The pre-created \`assets.ts\` exports \`SCALES\`, \`setupParallaxEnvironment()\`, and \`setupBackground()\` — you MUST use them.**
 
 ABSOLUTELY FORBIDDEN in action/platformer/shooter/runner games:
 - \`data:image/svg+xml\` or \`data:image/png;base64,...\` for ANY game asset
@@ -116,10 +151,13 @@ Exports:
 ### PRE-CREATED FILE 2: src/config/assets.ts (do NOT recreate or modify)
 Exports:
 - \`SCALES\` — Scale factors for every asset category. Use: \`sprite.setScale(SCALES.player)\`
-- \`setupBackground(scene, key?, parallaxSpeed?)\` — Creates an infinite-scrolling parallax background (tileSprite). Scales to fill viewport height, tiles infinitely in X, and auto-scrolls as camera follows the player. Default key is \`"bg-nature"\`, default parallaxSpeed is 0.3. For menus/static scenes, pass parallaxSpeed=0. No update() code needed. Call in create() BEFORE other objects.
-- \`preloadAssets(scene: Phaser.Scene)\` — Loads ALL standard assets into Phaser's texture cache. Call in BootScene \`preload()\`.
-- \`createAnimations(scene: Phaser.Scene)\` — Creates all standard animations: \`player-run\`, \`player-attack\`, \`player-jump\`, \`player-die\`, \`zombie-walk\`, \`zombie-attack\`, \`zombie-die\`, \`alien-run\`, \`alien-attack\`, \`alien-die\`. Call in BootScene \`create()\`.
-- Available backgrounds: \`"bg-nature"\` (green landscape, DEFAULT), \`"bg-jungle"\` (bright jungle), \`"bg-cartoon"\` (cheerful), \`"bg-dark-forest"\` (dark magical), \`"bg-space"\` (deep space)
+- \`ENVIRONMENTS\` — Registry of parallax environment packs (\`"nature"\`, \`"forest"\`, \`"dark"\`, \`"mountains"\`, \`"simple"\`)
+- \`MENU_BACKGROUNDS\` — Static background images for menu/UI scenes only
+- \`preloadAssets(scene)\` — Loads menu backgrounds, tiles, items, character frames. Call in BootScene \`preload()\`.
+- \`preloadEnvironment(scene, envId)\` — Loads all parallax layers for a chosen environment. Call in BootScene \`preload()\` alongside \`preloadAssets()\`.
+- \`setupParallaxEnvironment(scene, envId)\` — Creates multi-layer parallax environment in GameScene. Each layer scrolls at a different speed for professional depth. Call in GameScene \`create()\` BEFORE adding game objects.
+- \`setupBackground(scene, key?, parallaxSpeed?)\` — Creates a single-image scrolling background. Use for MenuScene/GameOverScene (pass parallaxSpeed=0 for static). Also for Space theme (no parallax pack). Call in create() BEFORE other objects.
+- \`createAnimations(scene)\` — Creates all standard animations: \`player-run\`, \`player-attack\`, \`player-jump\`, \`player-die\`, \`zombie-walk\`, \`zombie-attack\`, \`zombie-die\`, \`alien-run\`, \`alien-attack\`, \`alien-die\`. Call in BootScene \`create()\`.
 
 ### PRE-CREATED FILE 3: package.json (do NOT recreate or modify)
 Contains \`"phaser": "^3.90.0"\` — Sandpack installs it automatically via extractDependencies().
@@ -151,7 +189,7 @@ export default function App() {
 ### Usage in BootScene (the CORRECT pattern):
 \`\`\`typescript
 import Phaser from "phaser";
-import { preloadAssets, createAnimations } from "../config/assets";
+import { preloadAssets, preloadEnvironment, createAnimations } from "../config/assets";
 
 export class BootScene extends Phaser.Scene {
   constructor() { super("Boot"); }
@@ -162,7 +200,8 @@ export class BootScene extends Phaser.Scene {
     const fill = this.add.rectangle(this.scale.width / 2 - 148, this.scale.height / 2, 4, 26, 0x00ff00).setOrigin(0, 0.5);
     this.load.on("progress", (v: number) => { fill.width = 296 * v; });
 
-    preloadAssets(this); // Loads ALL standard assets in one call
+    preloadAssets(this);                // Characters, platforms, items, menu BGs
+    preloadEnvironment(this, "nature"); // Parallax layers for chosen environment
   }
 
   create() {
@@ -174,13 +213,13 @@ export class BootScene extends Phaser.Scene {
 
 ### Usage in GameScene — CORRECT scaling pattern (MANDATORY):
 \`\`\`typescript
-import { SCALES, setupBackground } from "../config/assets";
+import { SCALES, setupParallaxEnvironment } from "../config/assets";
 
 // In create():
 
-// 1. Background — pick from your art theme, NEVER raw this.add.image() for BG
-setupBackground(this, "bg-nature"); // Infinite parallax scroll, auto-follows camera
-// For menu scenes use: setupBackground(this, "bg-nature", 0); // static, no scroll
+// 1. Environment — multi-layer parallax for gameplay (NOT setupBackground!)
+setupParallaxEnvironment(this, "nature"); // 11-layer depth, auto-scrolls with camera
+// For Space theme ONLY: setupBackground(this, "bg-space");
 
 // 2. Player — ALWAYS apply SCALES.player
 this.player = this.physics.add.sprite(100, this.scale.height - 150, "run/robot1-run0");
@@ -213,6 +252,14 @@ const cloud = this.add.image(200, 80, "cloud").setScale(SCALES.cloud);
 this.physics.add.collider(this.player, platforms);
 \`\`\`
 
+### Usage in MenuScene — static background for menus:
+\`\`\`typescript
+import { setupBackground } from "../config/assets";
+
+// In create():
+setupBackground(this, "bg-nature", 0); // Static single-image for menus (no parallax scroll)
+\`\`\`
+
 ### Loading CUSTOM assets beyond the standard set:
 \`\`\`typescript
 import { assetUrl } from "../utils/media-stock";
@@ -239,12 +286,19 @@ ninja.setDisplaySize(80, 80); // Or setScale() — NEVER use at raw size
 - Ninja: \`characters/heroes/ninja/Ninja Postac.png\` — single high-res sprite
 - Kenney Platformer: \`characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_walk1.png\`, player_walk2.png, player_jump.png, player_idle.png
 
-**Backgrounds** (pre-loaded, use with setupBackground()):
-- \`"bg-nature"\` — Beautiful green hills, mountains, sunset sky. **DEFAULT for most games.**
-- \`"bg-jungle"\` — Bright colorful jungle with platform-style scenery. Great for platformers.
-- \`"bg-cartoon"\` — Cheerful sky with green bushes, clean vector art. Great for kids/casual.
-- \`"bg-dark-forest"\` — Dark magical forest with glowing blue trees. Great for horror/zombie.
-- \`"bg-space"\` — Deep space with asteroids. For sci-fi/space games only.
+**Parallax Environments** (for GameScene — use preloadEnvironment + setupParallaxEnvironment):
+- \`"nature"\` — 11-layer Green Valley: sky, clouds, hills, trees, ground. **DEFAULT for most games.**
+- \`"forest"\` — 8-layer Deep Forest: dense canopy, filtered light. Great for nature/stealth.
+- \`"dark"\` — 6-layer Dark World: atmospheric darkness. Great for horror/zombie.
+- \`"mountains"\` — 9-layer Mountain Range: epic distant peaks. Great for adventure/exploration.
+- \`"simple"\` — 4-layer Simple Landscape: clean and minimal. Great for kids/casual.
+
+**Menu Backgrounds** (for MenuScene/GameOverScene — use setupBackground with parallaxSpeed=0):
+- \`"bg-nature"\` — Beautiful green hills, mountains, sunset sky. **DEFAULT.**
+- \`"bg-jungle"\` — Bright colorful jungle. Great for platformers.
+- \`"bg-cartoon"\` — Cheerful sky with green bushes. Great for kids/casual.
+- \`"bg-dark-forest"\` — Dark magical forest. Great for horror/zombie.
+- \`"bg-space"\` — Deep space with asteroids. For sci-fi/space games (also used as GameScene BG for space theme).
 
 **Environment tiles** (pre-loaded as platform, ground, tree, cloud, grass). Raw: 800-3000px wide.
 - Platform: \`environments/tilesets/forest-pack/300_DPI PNG/Platform/Platform_1.png\` (2100×550)
