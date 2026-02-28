@@ -6,6 +6,8 @@ import {
 	ALL_FLOWS,
 	DEFAULT_AGENTS,
 	DEFAULT_SKILLS,
+	GAME_3D_ASSETS_REFERENCE,
+	GAME_3D_TEMPLATE_FILES,
 	GAME_ASSETS_REFERENCE,
 	GAME_TEMPLATE_FILES,
 	assemblePrompt,
@@ -690,17 +692,31 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			"auto-run", "forward run", "running game", "dodge and run",
 			"vertical runner", "top-down runner", "3-lane",
 		];
+		// --- Detect 3D game from keywords ---
+		const GAME_3D_KEYWORDS = [
+			"3d game", "3d platformer", "three.js", "3d world", "3d city",
+			"first-person game", "first person game", "isometric game", "3d model",
+			"gltf", "kaykit", "3d character", "3d environment", "low-poly 3d",
+			"3d survival", "3d builder", "city builder 3d", "3d exploration",
+		];
+		let isGame3d = false;
+
 		let gameSubType: "platformer" | "runner" = "platformer"; // default
 		if (isGameProject) {
 			const allMessages = messages.map((m: UIMessage) => (typeof m.content === "string" ? m.content : "").toLowerCase()).join(" ");
 			const searchText = userPrompt.toLowerCase() + " " + allMessages;
-			if (RUNNER_KEYWORDS.some(kw => searchText.includes(kw))) {
+			if (GAME_3D_KEYWORDS.some(kw => searchText.includes(kw))) {
+				isGame3d = true;
+				console.log(`[Chat API] 3D game detected`);
+			} else if (RUNNER_KEYWORDS.some(kw => searchText.includes(kw))) {
 				gameSubType = "runner";
 			}
 		}
 		if (isGameProject) {
 			const existingPaths = new Set(existingFiles.map((f) => f.path));
-			for (const tpl of GAME_TEMPLATE_FILES) {
+			// Use 3D templates for 3D games, 2D templates for everything else
+			const templateFiles = isGame3d ? GAME_3D_TEMPLATE_FILES : GAME_TEMPLATE_FILES;
+			for (const tpl of templateFiles) {
 				if (existingPaths.has(tpl.path)) {
 					console.log(`[Chat API] Template skip (exists): ${tpl.path}`);
 					continue;
@@ -765,7 +781,23 @@ Reference the Project Wiki (docs/ folder) for architecture, data model, and chan
 		// Runs for ALL game project phases so the agent always knows about
 		// pre-created files and available sprites.
 		if (injectedFiles.length > 0) {
-			runtimeAddenda.push(`## MANDATORY: Pre-Created Infrastructure Files
+			if (isGame3d) {
+				runtimeAddenda.push(`## MANDATORY: Pre-Created Infrastructure Files (3D)
+
+The following files have been pre-created by the platform and already exist in the project:
+${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
+
+**MANDATORY RULES — violation will break the game:**
+- Do NOT recreate, overwrite, or modify these files — they contain correct, tested code
+- You MUST \`import\` from them: \`import { loadGLTF, SCALES_3D, createGround3D, createSkyGradient, checkCollision, createHUD, createKeyboardState } from "../config/assets-3d";\` and \`import { modelUrl } from "../utils/media-stock-3d";\`
+- **Game3D.tsx is PRE-CREATED** — do NOT create Game3D.tsx or any React-Three.js wrapper. Just import it in App.tsx: \`import Game3D from "./components/Game3D";\`
+- **App.tsx pattern**: \`export default function App() { return <Game3D gameScene={GameScene} />; }\`
+- Access Three.js via global: \`const THREE = (window as any).THREE;\` — do NOT import from "three"
+- Use \`loadGLTF(modelUrl(packId, filename))\` to load 3D models from the catalog
+- Apply \`SCALES_3D.xxx\` to all models — KayKit models are ~1 unit, Unity FBX are 100x oversized
+- The package.json already includes \`"three": "^0.162.0"\` — do NOT recreate it`);
+			} else {
+				runtimeAddenda.push(`## MANDATORY: Pre-Created Infrastructure Files
 
 The following files have been pre-created by the platform and already exist in the project:
 ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
@@ -781,16 +813,24 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 - Apply \`SCALES.player\` / \`SCALES.zombie\` / \`SCALES.platform\` / etc. to EVERY sprite — raw assets are 800-3000px
 - For static physics bodies (platforms, ground), call \`.refreshBody()\` AFTER \`.setScale()\`
 - The package.json already includes \`"phaser": "^3.90.0"\` — do NOT recreate it`);
+			}
 		}
 		if (isGameProject) {
-			runtimeAddenda.push(GAME_ASSETS_REFERENCE);
-			// Inject game sub-type marker so the AI agent uses the correct helper set
-			if (gameSubType === "runner") {
-				runtimeAddenda.push(`## GAME SUB-TYPE: RUNNER
+			if (isGame3d) {
+				// 3D game — inject 3D asset catalog
+				runtimeAddenda.push(GAME_3D_ASSETS_REFERENCE);
+				console.log(`[Chat API] Injected 3D assets reference`);
+			} else {
+				// 2D game — inject 2D asset catalog
+				runtimeAddenda.push(GAME_ASSETS_REFERENCE);
+				// Inject game sub-type marker so the AI agent uses the correct helper set
+				if (gameSubType === "runner") {
+					runtimeAddenda.push(`## GAME SUB-TYPE: RUNNER
 You MUST follow the runner patterns below. Use createRoad(), createRunnerPlayer(), spawnObstacle(), spawnCollectible().
 Do NOT use platformer helpers (createPlayer, createGround, setupParallaxEnvironment) for runner games.
 Do NOT enable gravity — runner games are top-down perspective with tween-based movement.`);
-				console.log(`[Chat API] Game sub-type detected: runner`);
+					console.log(`[Chat API] Game sub-type detected: runner`);
+				}
 			}
 		}
 

@@ -1402,6 +1402,44 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		};
 	}
 
+	// Inject Three.js shim if any file imports it.
+	// Same pattern as Phaser: synchronously fetch + eval CDN bundle via XMLHttpRequest.
+	const usesThree = files.some(
+		(f) => f.content && (f.content.includes("from 'three'") || f.content.includes('from "three"') || f.content.includes("(window as any).THREE")),
+	);
+	if (usesThree) {
+		sandpackFiles["/node_modules/three/package.json"] = {
+			code: JSON.stringify({ name: "three", version: "0.162.0", main: "index.js" }),
+			hidden: true,
+		};
+		sandpackFiles["/node_modules/three/index.js"] = {
+			code: [
+				"// Three.js shim: synchronously load Three.js CDN if not already available.",
+				"// Sandpack's bundler evaluates this module BEFORE externalResources scripts load,",
+				"// so we must fetch+eval Three.js ourselves to guarantee window.THREE exists.",
+				"if (typeof window.THREE === 'undefined') {",
+				"  var xhr = new XMLHttpRequest();",
+				"  xhr.open('GET', 'https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.min.js', false);",
+				"  xhr.send();",
+				"  if (xhr.status === 200) {",
+				"    (0, eval)(xhr.responseText);",
+				"  }",
+				"}",
+				"// Also load GLTFLoader addon",
+				"if (window.THREE && !window.THREE.GLTFLoader) {",
+				"  var xhr2 = new XMLHttpRequest();",
+				"  xhr2.open('GET', 'https://cdn.jsdelivr.net/npm/three@0.162.0/examples/js/loaders/GLTFLoader.js', false);",
+				"  xhr2.send();",
+				"  if (xhr2.status === 200) {",
+				"    (0, eval)(xhr2.responseText);",
+				"  }",
+				"}",
+				"module.exports = window.THREE;",
+			].join("\n"),
+			hidden: true,
+		};
+	}
+
 	// Prepend runtime globals to ALL entry point files so they're set before any app code runs.
 	// Sandpack prefers .tsx > .ts > .jsx > .js, so we must inject into every variant that exists.
 	if (apiOrigin || appId) {

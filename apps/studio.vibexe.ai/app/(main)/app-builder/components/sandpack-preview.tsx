@@ -556,6 +556,10 @@ export function SandpackPreview({
 		if (dependencies.phaser) {
 			resources.push("https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js");
 		}
+		if (dependencies.three) {
+			resources.push("https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.min.js");
+			resources.push("https://cdn.jsdelivr.net/npm/three@0.162.0/examples/js/loaders/GLTFLoader.js");
+		}
 		return resources;
 	}, [dependencies]);
 

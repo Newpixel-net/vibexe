@@ -68,6 +68,7 @@ export { isContinuationIntent } from "./orchestrator/intent-classifier";
 // Templates
 export { GAME_TEMPLATE_FILES } from "./shared/game-templates";
 export type { TemplateFile } from "./shared/game-templates";
+export { GAME_3D_TEMPLATE_FILES } from "./shared/game-3d-templates";
 
 // Game assets reference (sprite catalog for runtime injection)
 export { GAME_ASSETS_REFERENCE } from "./shared/game-assets-reference";
