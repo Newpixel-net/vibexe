@@ -1215,7 +1215,7 @@ export function showGameOver(
 		path: "src/App.tsx",
 		language: "typescript",
 		content: `import Game3D from "./components/Game3D";
-import { GameScene } from "./scenes/GameScene";
+import { GameScene } from "./scenes/GameScene3D";
 
 export default function App() {
   return <Game3D gameScene={GameScene} />;

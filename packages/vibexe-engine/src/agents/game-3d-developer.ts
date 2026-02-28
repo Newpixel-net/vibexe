@@ -369,13 +369,13 @@ package.json                       — PRE-CREATED. Do NOT recreate.
 src/utils/media-stock-3d.ts        — PRE-CREATED (modelUrl helper). Do NOT recreate.
 src/config/assets-3d.ts            — PRE-CREATED (helpers: initRenderer, initScene, initCamera, loadGLTF, createGround3D, createSkyGradient, checkCollision, checkBoxCollision, createHUD, createKeyboardState, SCALES_3D, createPhysicsWorld, createPhysicsBody, createPhysicsGround, syncBodiesToMeshes, onClickObject, createAnimationPlayer, createOrbitControls, createTouchJoystick, createTapDetector, createSwipeDetector). Do NOT recreate.
 src/config/constants.ts            — ALL game constants. MUST define EVERY constant before importing it.
-src/scenes/GameScene.ts            — EXACT filename. Do NOT rename to GameScene3D.ts or anything else. App.tsx imports "./scenes/GameScene".
+src/scenes/GameScene3D.ts          — Main game scene. The ONLY file you create in scenes/.
 src/scenes/GameOverScene3D.ts      — PRE-CREATED (HTML overlay). Do NOT recreate.
 src/components/Game3D.tsx           — PRE-CREATED (React wrapper with loading screen + menu overlay). Do NOT recreate.
-src/App.tsx                        — PRE-CREATED (default entry). Do NOT recreate or override.
+src/App.tsx                        — PRE-CREATED (imports GameScene3D). Do NOT recreate or override.
 \`\`\`
 
-CRITICAL: Do NOT create BootScene, MenuScene, LoadingScene, or any other scene files. Game3D.tsx already handles: loading screen with progress bar, menu overlay with "TAP TO START", and clean restart. You ONLY need to create GameScene.ts with the game logic.
+CRITICAL: Do NOT create BootScene, MenuScene, LoadingScene, or any other scene files. Game3D.tsx already handles: loading screen with progress bar, menu overlay with "TAP TO START", and clean restart. You ONLY need to create GameScene3D.ts with the game logic.
 
 Optional extra files for complex games:
 - \`src/objects/Player.ts\` — Player class with movement, animation, state
@@ -384,7 +384,7 @@ Optional extra files for complex games:
 
 ## Reference constants.ts — Define ALL Constants Here
 
-CRITICAL: Every constant used in GameScene.ts MUST be defined in constants.ts FIRST. If you reference a name like \`CAMERA_LOOK_AHEAD\` or \`ENEMY_SPEED\`, it MUST exist as an export in constants.ts. Undefined constants cause instant crash.
+CRITICAL: Every constant used in GameScene3D.ts MUST be defined in constants.ts FIRST. If you reference a name like \`CAMERA_LOOK_AHEAD\` or \`ENEMY_SPEED\`, it MUST exist as an export in constants.ts. Undefined constants cause instant crash.
 
 \`\`\`typescript
 // src/config/constants.ts — COMPLETE example
@@ -419,7 +419,7 @@ React owns the DOM container. Three.js owns the WebGL canvas. They do NOT share 
 **Usage in App.tsx (the ONLY correct pattern):**
 \`\`\`typescript
 import Game3D from "./components/Game3D";
-import { GameScene } from "./scenes/GameScene";
+import { GameScene } from "./scenes/GameScene3D";
 
 export default function App() {
   return <Game3D gameScene={GameScene} />;
@@ -436,7 +436,7 @@ CRITICAL rules:
 
 ## GameScene Export Pattern
 
-Your GameScene.ts must export a named object matching this interface:
+Your GameScene3D.ts must export a named object matching this interface:
 \`\`\`typescript
 export const GameScene = {
   init(scene: any, camera: any, renderer: any, container: HTMLDivElement, onProgress?: (p: number) => void) {
@@ -834,14 +834,14 @@ Do NOT \`import * as THREE from "three"\` or \`import CANNON from "cannon-es"\` 
 ## Execution Protocol
 
 1. **Select Art Pack FIRST.** Based on user's request, pick KayKit (default). Write the choice in constants.ts.
-2. **constants.ts MUST define EVERY constant.** Before writing GameScene.ts, ensure constants.ts exports ALL values you will reference: PLAYER_SPEED, JUMP_FORCE, GRAVITY, WORLD_SIZE, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y, plus any game-specific constants. Using an undefined constant crashes the game instantly.
+2. **constants.ts MUST define EVERY constant.** Before writing GameScene3D.ts, ensure constants.ts exports ALL values you will reference: PLAYER_SPEED, JUMP_FORCE, GRAVITY, WORLD_SIZE, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y, plus any game-specific constants. Using an undefined constant crashes the game instantly.
 3. **Start immediately.** Do not plan, explain, or ask questions. Begin calling create_file.
 4. **Create ALL files.** A typical 3D game needs 5-8 files. Do not stop after 2-3.
 5. **File creation order** (dependencies first):
    - \`docs/README.md\` — Game overview, controls, features
-   - \`src/config/constants.ts\` — ALL game constants (MUST be complete before GameScene.ts)
+   - \`src/config/constants.ts\` — ALL game constants (MUST be complete before GameScene3D.ts)
    - SKIP pre-created files: \`package.json\`, \`src/utils/media-stock-3d.ts\`, \`src/config/assets-3d.ts\`, \`src/components/Game3D.tsx\`, \`src/scenes/GameOverScene3D.ts\`, \`src/App.tsx\`
-   - \`src/scenes/GameScene.ts\` — EXACT filename. Main gameplay (the most important file). Do NOT name it GameScene3D.ts.
+   - \`src/scenes/GameScene3D.ts\` — Main game scene (the most important file).
    - Do NOT create BootScene, MenuScene, LoadingScene, or any other scene files.
    - Optional: \`src/objects/Player.ts\`, \`src/objects/Enemy.ts\`, etc.
 6. **After ALL code files**, write a SHORT summary (2-3 sentences) of what was built.
@@ -876,20 +876,20 @@ ${GAME_3D_ASSETS_REFERENCE}
 6. **Mixing incompatible art styles** — Stick to KayKit packs for consistent cartoon low-poly look.
 7. **Not disposing resources** — In cleanup(), dispose geometries and materials to prevent memory leaks.
 8. **Using 2D Phaser patterns** — This is 3D. No Phaser scenes, no Arcade physics, no sprite sheets.
+9. **Forgetting shadows** — Set \`castShadow = true\` on meshes, \`receiveShadow = true\` on ground.
+10. **Not handling async model loading** — \`loadGLTF()\` is async. Use await or provide box fallbacks.
+11. **Hard-coding positions** — Use constants from constants.ts. Make levels configurable.
+12. **Missing game over condition** — Always check for fall-off-world, zero lives, or win condition.
+13. **No camera follow** — Camera MUST follow player with smooth lerp. Static camera = unplayable.
+14. **Missing keyboard cleanup** — Always call \`keyboard.destroy()\` in cleanup() to remove event listeners.
 15. **Forgetting world.step()** — Must call \`world.step(1/60, delta, 3)\` every frame BEFORE syncBodiesToMeshes.
 16. **Physics body without matching mesh** — Every dynamic physics body needs a visual mesh synced to it.
 17. **Using OrbitControls with platformer** — Platformers use camera follow (lerp). OrbitControls is for city builders.
 18. **Forgetting anim.update(delta)** — AnimationMixer must be updated every frame or animations freeze.
-9. **Forgetting shadows** — Set \`castShadow = true\` on meshes, \`receiveShadow = true\` on ground.
-10. **Not handling async model loading** — \`loadGLTF()\` is async. Use await or provide box fallbacks.
-11. **Hard-coding positions** — Use constants from constants.ts. Make levels configurable.
 19. **CRITICAL: Using undefined constants** — If you reference ANY constant name (CAMERA_LOOK_AHEAD, ENEMY_SPEED, PLATFORM_GAP, etc.), it MUST be defined with \`export const\` in constants.ts. NEVER use a constant name without defining it first. This is the #1 cause of game crashes.
-20. **CRITICAL: Renaming GameScene.ts** — The file MUST be \`src/scenes/GameScene.ts\` (NOT GameScene3D.ts, NOT MainScene.ts). App.tsx imports \`"./scenes/GameScene"\`. Wrong filename = instant crash.
-21. **Creating BootScene/MenuScene/LoadingScene** — Game3D.tsx already provides loading screen + menu overlay + restart. Do NOT create separate scene files for these — it duplicates template functionality and breaks the scene flow.
-22. **Overriding App.tsx** — App.tsx is PRE-CREATED and imports GameScene correctly. Do NOT recreate or override it.
-12. **Missing game over condition** — Always check for fall-off-world, zero lives, or win condition.
-13. **No camera follow** — Camera MUST follow player with smooth lerp. Static camera = unplayable.
-14. **Missing keyboard cleanup** — Always call \`keyboard.destroy()\` in cleanup() to remove event listeners.
+20. **CRITICAL: Using a class instead of plain object** — GameScene MUST be \`export const GameScene = { init(), update(), cleanup() }\`. Do NOT use \`class GameScene\` — it causes TypeScript syntax errors with mixed arrow/method syntax and breaks the Game3D.tsx interface.
+21. **Creating BootScene/MenuScene/LoadingScene** — Game3D.tsx already provides loading screen + menu overlay + restart. Do NOT create separate scene files for these.
+22. **Overriding App.tsx** — App.tsx is PRE-CREATED and imports GameScene3D correctly. Do NOT recreate or override it.
 
 ## Internationalization
 
