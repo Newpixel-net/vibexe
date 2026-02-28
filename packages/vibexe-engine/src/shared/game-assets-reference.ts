@@ -8,16 +8,35 @@
  */
 
 export const GAME_ASSETS_REFERENCE = `
-## Asset Loading — MANDATORY for action/platformer/shooter/runner games
+## Asset Catalog — 20,000+ REAL Sprites Available via API
 
-FORBIDDEN in action games:
-- data:image/svg+xml or data:image/png base64 URIs for characters
-- ctx.fillRect() colored rectangles for characters/enemies
-- Emoji for characters: ctx.fillText("🤖", x, y)
-- External CDN URLs
-- GIF files (none exist in database — ALL assets are PNG or JPG)
+**CRITICAL FACT**: The Vibexe platform hosts 20,454 real game sprite files (PNG/JPG) on the server. They are served via the API endpoint \`/api/app-builder/media-stock/{path}\`. This API IS accessible from Sandpack previews because \`window.__VIBEXE_API_ORIGIN__\` is injected at runtime by the platform, resolving to the correct server origin (e.g. \`https://vibexe.online\`). The ASSET() function below constructs the full URL automatically.
 
-### FILE 1: src/assets/loader.ts — Create this EXACTLY as shown
+**You NEVER need base64 data URIs, DiceBear avatars, external CDN URLs, or placeholder shapes for characters/environments/items.** Real sprites always load correctly via the ASSET() helper.
+
+ABSOLUTELY FORBIDDEN in action/platformer/shooter/runner games:
+- \`data:image/svg+xml\` or \`data:image/png;base64,...\` for ANY game asset
+- \`https://api.dicebear.com\` or ANY external URL
+- \`ctx.fillRect()\` colored rectangles for characters/enemies
+- Emoji via \`ctx.fillText("🤖", x, y)\` for characters
+- Custom \`class AssetLoader\` or any loader that doesn't use ASSET()
+- GIF files (none exist — ALL assets are PNG or JPG)
+- Comments like "using placeholders since..." — sprites ARE accessible, USE THEM
+
+### CHARACTER SELECTION — Match user request to database FIRST
+Before writing constants.ts, determine which character pack to use:
+- User says "ninja" → use \`characters/heroes/ninja/Ninja Postac.png\`
+- User says "robot" → use \`characters/arz-game-kit/ROBOTS/robot1/\` (animated frames)
+- User says "zombie" → use \`characters/arz-game-kit/ZOMBIES/zombie1/\` (animated frames)
+- User says "alien" → use \`characters/arz-game-kit/ALIENS/alien1/\` (animated frames)
+- User says "platformer" → use \`characters/heroes/kenney-platformer-characters/PNG/Player/Poses/\`
+- User says "pixel" → use \`characters/heroes/kenney-pixel-platformer/\`
+- User says "shooter" → use \`characters/heroes/red-bot/PNG's/\`
+- No specific request → default to robot1 (has the most animation frames)
+For single-image characters (ninja, kenney), use \`loadImage()\` and \`ctx.drawImage()\` directly.
+For multi-frame characters (robot, zombie, alien, red-bot), use \`loadFrames()\` + \`SpriteAnimation\`.
+
+### FILE 1: src/assets/loader.ts — COPY THIS VERBATIM (do NOT modify or rewrite)
 \`\`\`typescript
 export function ASSET(path: string): string {
   const origin = (window as any).__VIBEXE_API_ORIGIN__ || "";
@@ -160,13 +179,36 @@ async function preloadAllAssets(): Promise<GameAssets> {
 // 4. Call animation.update(dt) each frame before drawing
 \`\`\`
 
-### Alternative character packs (use ONLY when user explicitly asks):
-- "ninja" → single image: "characters/heroes/ninja/Ninja Postac.png"
-- "kenney platformer" → "characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_walk1.png", player_walk2.png, player_jump.png, player_idle.png
-- "red-bot shooter" → "characters/heroes/red-bot/PNG's/r_run_1.png" through r_run_8.png, r_jump_1.png through r_jump_20.png
-- "boy scout" → "characters/heroes/boy-scout/png/run-0001.png" through run-0008.png
+### All available character packs (with exact file paths):
+
+**Multi-frame animated characters** (use loadFrames + SpriteAnimation):
+- Robot (default): \`characters/arz-game-kit/ROBOTS/robot1/\` — run, attack, jump, die frames (see FILE 2 above)
+- Zombie: \`characters/arz-game-kit/ZOMBIES/zombie1/\` — walk, attack, die frames (see FILE 2 above)
+- Alien: \`characters/arz-game-kit/ALIENS/alien1/\` — run, attack, die frames (see FILE 2 above)
+- Red Bot: \`characters/heroes/red-bot/PNG's/r_run_1.png\` through r_run_8.png, r_jump_1.png through r_jump_20.png
+- Boy Scout: \`characters/heroes/boy-scout/png/run-0001.png\` through run-0008.png
+
+**Single-image characters** (use loadImage + ctx.drawImage directly):
+- Ninja: \`characters/heroes/ninja/Ninja Postac.png\` — single high-res sprite
+- Kenney Platformer: \`characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_walk1.png\`, player_walk2.png, player_jump.png, player_idle.png
+
+**Backgrounds** (use loadImage):
+- Forest: \`environments/backgrounds/arz-backgrounds/1920x1080/BG forest 1.jpg\`
+- Space: \`environments/backgrounds/arz-backgrounds/1920x1080/BG space 1.jpg\`
+- Alien world: \`environments/backgrounds/arz-backgrounds/1920x1080/BG alien 1.jpg\`
+
+**Environment tiles** (use loadImage):
+- Platform: \`environments/tilesets/forest-pack/300_DPI PNG/Platform/Platform_1.png\`
+- Ground: \`environments/tilesets/forest-pack/300_DPI PNG/Grounds/Ground_Wall.png\`
+- Tree: \`environments/tilesets/forest-pack/300_DPI PNG/Tree/Tree_1.png\`
+- Cloud: \`environments/tilesets/forest-pack/300_DPI PNG/Clouds/Cloud_1.png\`
+
+**Items** (use loadImage):
+- Crystal: \`items/collectibles/treasure/crystal01.png\`
+- Chest: \`items/collectibles/treasure/chest1_128.png\`
+- Weapon: \`items/weapons/arz-weapons/Weapon_1.png\`
 
 ### Sprites vs Shapes rule:
-- Action/platformer/shooter/runner → ALWAYS use sprites via ASSET() + loadImage()
+- Action/platformer/shooter/runner → ALWAYS use ASSET() + loadImage() with real paths above
 - Abstract puzzles (2048, Tetris, Minesweeper, Pong) → shapes/emoji OK
 `;
