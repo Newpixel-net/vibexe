@@ -97,6 +97,45 @@ export function preloadAssets(scene: Phaser.Scene): void {
   }
 }
 
+// ===== SCALE FACTORS (MANDATORY — all assets are high-res 300 DPI) =====
+// A mobile game viewport is ~500x700px. Raw assets are 800-3000px wide.
+// EVERY sprite MUST use setScale(SCALES.xxx) or setDisplaySize(w, h).
+// Without scaling, a single sprite fills the entire screen.
+export const SCALES = {
+  // Characters (~70-90px tall after scaling)
+  player: 0.09,        // Robot frames: 995x677 -> ~90x61
+  zombie: 0.08,        // Zombie frames: 861x886 -> ~69x71
+  alien: 0.09,         // Alien frames: 819x630 -> ~74x57
+  // Environment
+  platform: 0.1,       // Platform: 2100x550 -> ~210x55
+  platformSmall: 0.1,  // Small platform: 1200x500 -> ~120x50
+  ground: 0.08,        // Ground wall: 2050x1200 -> ~164x96
+  tree: 0.08,          // Tree: 800x1750 -> ~64x140
+  grass: 0.1,          // Grass: 2150x450 -> ~215x45
+  cloud: 0.06,         // Cloud: 3000x400 -> ~180x24
+  // Items (128x128 originals — only moderate scaling needed)
+  crystal: 0.3,        // Crystal: 128x128 -> ~38x38
+  chest: 0.3,          // Chest: 128x128 -> ~38x38
+  weapon: 0.06,        // Weapon: 921x305 -> ~55x18
+};
+
+/**
+ * Set up a background image to fill the game viewport.
+ * Call in create() BEFORE adding other game objects.
+ * For scrolling worlds, use a parallax approach or tiled backgrounds instead.
+ */
+export function setupBackground(
+  scene: Phaser.Scene,
+  key = "bg-forest",
+  scrollFactor = 0,
+): Phaser.GameObjects.Image {
+  const bg = scene.add.image(scene.scale.width / 2, scene.scale.height / 2, key);
+  bg.setDisplaySize(scene.scale.width, scene.scale.height);
+  bg.setScrollFactor(scrollFactor);
+  bg.setDepth(-10);
+  return bg;
+}
+
 /**
  * Call in your BootScene.create() (after preload completes) to register
  * all standard animations. Then use sprite.play('player-run') anywhere.

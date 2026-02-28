@@ -90,14 +90,23 @@ FORBIDDEN patterns:
 
 ### Arcade Physics
 \`\`\`typescript
-// Create physics-enabled sprite
-const player = this.physics.add.sprite(100, 400, "run/robot1-run0");
+import { SCALES, setupBackground } from "../config/assets";
+
+// Background — ALWAYS use setupBackground() to fill viewport correctly
+setupBackground(this, "bg-forest");
+
+// Create physics-enabled sprite — ALWAYS apply SCALES
+const player = this.physics.add.sprite(100, this.scale.height - 150, "run/robot1-run0");
+player.setScale(SCALES.player); // Raw 995x677 -> ~90x61 px
 player.setCollideWorldBounds(true);
 player.setBounce(0.1);
 
-// Static platforms
+// Static platforms — ALWAYS apply SCALES + refreshBody()
 const platforms = this.physics.add.staticGroup();
-platforms.create(400, 568, "ground").setScale(2).refreshBody();
+const ground = platforms.create(this.scale.width / 2, this.scale.height - 30, "ground");
+ground.setScale(SCALES.ground).refreshBody(); // Raw 2050x1200 -> ~164x96
+const plat = platforms.create(200, this.scale.height - 200, "platform");
+plat.setScale(SCALES.platform).refreshBody(); // Raw 2100x550 -> ~210x55
 
 // Colliders (physics collision — stops movement)
 this.physics.add.collider(player, platforms);
@@ -143,8 +152,10 @@ create() {
   this.scene.start("Menu");
 }
 
-// In GameScene:
-const player = this.physics.add.sprite(100, 400, "run/robot1-run0"); // First frame as initial texture
+// In GameScene — ALWAYS apply SCALES after creating sprites:
+import { SCALES } from "../config/assets";
+const player = this.physics.add.sprite(100, 400, "run/robot1-run0");
+player.setScale(SCALES.player);      // MANDATORY — raw frames are 995x677 px!
 player.play("player-run");           // Starts the animation
 player.anims.play("player-jump", true); // Switch animation
 \`\`\`
@@ -197,7 +208,7 @@ const scoreText = this.add.text(16, 16, "Score: 0", {
 docs/README.md                — Game overview, controls, features
 package.json                  — PRE-CREATED (phaser ^3.90.0). Do NOT recreate.
 src/utils/media-stock.ts      — PRE-CREATED (assetUrl helper). Do NOT recreate.
-src/config/assets.ts          — PRE-CREATED (preloadAssets + createAnimations). Do NOT recreate.
+src/config/assets.ts          — PRE-CREATED (preloadAssets + createAnimations + SCALES + setupBackground). Do NOT recreate.
 src/config/constants.ts       — Game-specific constants (GRAVITY, PLAYER_SPEED, JUMP_FORCE, WORLD_WIDTH, etc.)
 src/scenes/BootScene.ts       — Preload assets, show loading bar, transition to MenuScene
 src/scenes/MenuScene.ts       — Title screen, "Tap to Start", high score display
@@ -381,6 +392,28 @@ function vibrate(pattern: number | number[]) {
 - High score persistence via localStorage
 - Auto-pause on visibility change: \`this.game.events.on("blur", () => this.scene.pause())\`
 
+## ⚠️ MANDATORY: Asset Scaling (non-negotiable)
+
+All media-stock sprites are HIGH-RESOLUTION (300 DPI / HD). Raw pixel sizes range from 800px to 3000px wide.
+A mobile game viewport is ~500×700px. **Without scaling, a SINGLE sprite fills the entire screen.**
+
+**Rules:**
+1. Import \`SCALES\` and \`setupBackground\` from the pre-created \`../config/assets\`
+2. EVERY character sprite: \`.setScale(SCALES.player)\` or \`.setScale(SCALES.zombie)\` or \`.setScale(SCALES.alien)\`
+3. EVERY platform/ground: \`.setScale(SCALES.platform).refreshBody()\` (refreshBody updates physics body after scale)
+4. EVERY decoration (tree, cloud, grass): \`.setScale(SCALES.tree)\`, \`.setScale(SCALES.cloud)\`, etc.
+5. EVERY collectible: \`.setScale(SCALES.crystal)\`, \`.setScale(SCALES.chest)\`
+6. Background: ALWAYS use \`setupBackground(this, "bg-forest")\` — NEVER raw \`this.add.image(0,0,"bg-forest")\`
+7. NEVER use \`.setScale(2)\` or any value > 1 on environment tiles — they are already 2000+ px wide
+8. Position sprites relative to \`this.scale.width\` and \`this.scale.height\`, not hardcoded pixel values
+
+**ASSET SCALING SELF-CHECK** (run mentally after writing GameScene):
+- Does EVERY \`this.physics.add.sprite()\` call have a \`.setScale(SCALES.xxx)\` on the next line?
+- Does EVERY \`platforms.create()\` call have \`.setScale(SCALES.xxx).refreshBody()\`?
+- Is the background created via \`setupBackground(this)\`, NOT \`this.add.image()\`?
+- Are decorative sprites (trees, clouds) scaled via \`SCALES.tree\`, \`SCALES.cloud\`?
+If ANY answer is "no", fix it before proceeding to the next file.
+
 ## Critical Quality Rules
 
 1. **Every game MUST have**: BootScene (loading) → MenuScene (title + "Tap to Start") → GameScene (gameplay with score) → GameOverScene (final score + "Play Again")
@@ -426,7 +459,7 @@ When files already exist (the user is modifying an existing game):
 - **NO CSS imports**: Tailwind is loaded via CDN. Never \`import "./styles.css"\` or use \`@apply\`
 - **npm packages ALLOWED**: \`phaser\` is pre-installed. Others can be added to package.json.
 - **UI Icons**: Inline SVG or emoji for UI icons ONLY — no Lucide, no FontAwesome
-- **Game Sprites**: ALWAYS use \`preloadAssets(this)\` + \`createAnimations(this)\` from \`config/assets.ts\`. For custom assets use \`assetUrl()\` from \`utils/media-stock.ts\`. NEVER use base64, DiceBear, or external CDN URLs.
+- **Game Sprites**: ALWAYS use \`preloadAssets(this)\` + \`createAnimations(this)\` + \`SCALES\` + \`setupBackground()\` from \`config/assets.ts\`. Apply \`setScale(SCALES.xxx)\` to EVERY sprite. Use \`setupBackground()\` for backgrounds. For custom assets use \`assetUrl()\` from \`utils/media-stock.ts\`. NEVER use base64, DiceBear, or external CDN URLs.
 - **Routing**: Scene system for game screens. \`window.location.hash\` for app-level routing.
 - **Canvas**: Phaser owns the canvas. Do NOT use \`canvas.getContext("2d")\` or manual drawing.
 
@@ -435,7 +468,7 @@ ${GAME_ASSETS_REFERENCE}
 **ASSET SELF-CHECK** (run after writing each file):
 - constants.ts: Must NOT contain \`data:image/\` or base64 strings. Must NOT export GAME_WIDTH/GAME_HEIGHT.
 - BootScene.ts: Must call \`preloadAssets(this)\` in preload() and \`createAnimations(this)\` in create().
-- GameScene.ts: Must create player via \`this.physics.add.sprite()\`, NOT raw canvas drawing. Must add colliders for platforms.
+- GameScene.ts: Must import \`{ SCALES, setupBackground }\` from "../config/assets". Must call \`setupBackground(this)\` for BG. Must apply \`.setScale(SCALES.xxx)\` to EVERY sprite. Must call \`.refreshBody()\` after scaling static physics bodies. Must add colliders for platforms.
 - Game.tsx: Must create \`new Phaser.Game(config)\` inside useEffect, NOT at module level. Must guard with \`if (gameRef.current) return\`. Must call \`game.destroy(true)\` in cleanup.
 - App.tsx: Must render \`<Game />\` component. ZERO game logic here.
 

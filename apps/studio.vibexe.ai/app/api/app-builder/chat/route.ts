@@ -745,9 +745,12 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 
 **MANDATORY RULES — violation will break the game:**
 - Do NOT recreate, overwrite, or modify these files — they contain correct, tested code
-- You MUST \`import\` from them. Example: \`import { preloadAssets, createAnimations } from "../config/assets";\` and \`import { assetUrl } from "../utils/media-stock";\`
+- You MUST \`import\` from them: \`import { preloadAssets, createAnimations, SCALES, setupBackground } from "../config/assets";\` and \`import { assetUrl } from "../utils/media-stock";\`
 - Skip these files in your file creation sequence — they are already done
-- In your BootScene, call \`preloadAssets(this)\` in \`preload()\` and \`createAnimations(this)\` in \`create()\` — this loads all standard sprites and registers all standard animations
+- In your BootScene, call \`preloadAssets(this)\` in \`preload()\` and \`createAnimations(this)\` in \`create()\`
+- In your GameScene, call \`setupBackground(this, "bg-forest")\` for the background — NEVER use raw \`this.add.image()\` for backgrounds
+- Apply \`SCALES.player\` / \`SCALES.zombie\` / \`SCALES.platform\` / etc. to EVERY sprite — raw assets are 800-3000px and will fill the entire screen without scaling
+- For static physics bodies (platforms, ground), call \`.refreshBody()\` AFTER \`.setScale()\`
 - The package.json already includes \`"phaser": "^3.90.0"\` — do NOT recreate it`);
 			}
 
