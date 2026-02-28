@@ -71,3 +71,7 @@ export type { TemplateFile } from "./shared/game-templates";
 
 // Game assets reference (sprite catalog for runtime injection)
 export { GAME_ASSETS_REFERENCE } from "./shared/game-assets-reference";
+
+// 3D game assets reference (3D model catalog for runtime injection)
+export { GAME_3D_ASSETS_REFERENCE, PACKS_3D } from "./shared/game-assets-reference-3d";
+export type { AssetPack3D } from "./shared/game-assets-reference-3d";
