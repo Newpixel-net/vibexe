@@ -6,6 +6,7 @@ import {
 	ALL_FLOWS,
 	DEFAULT_AGENTS,
 	DEFAULT_SKILLS,
+	GAME_TEMPLATE_FILES,
 	assemblePrompt,
 	executeOrchestration,
 	getAgent,
@@ -31,6 +32,7 @@ import {
 	getAppById,
 	getFileByPath,
 	getFilesForApp,
+	saveFile,
 } from "@/app/(main)/app-builder/lib/queries";
 import {
 	type SiteAnalysis,
@@ -695,6 +697,26 @@ End your response with:
 CRITICAL: Only create docs/README.md. No other files.`);
 		} else if (hasPlanOnly) {
 			// Phase 2: Execute the plan — docs/README.md (or Blueprint.md) exists, no code yet
+
+			// --- Game template injection: pre-create infrastructure files ---
+			const injectedFiles: string[] = [];
+			if (developerAgent?.id === "game-developer") {
+				const existingPaths = new Set(existingFiles.map((f) => f.path));
+				for (const tpl of GAME_TEMPLATE_FILES) {
+					if (existingPaths.has(tpl.path)) {
+						console.log(`[Chat API] Template skip (exists): ${tpl.path}`);
+						continue;
+					}
+					try {
+						await saveFile(appId, tpl.path, tpl.content, tpl.language);
+						injectedFiles.push(tpl.path);
+						console.log(`[Chat API] Template injection: ${tpl.path}`);
+					} catch (e) {
+						console.error(`[Chat API] Template injection failed for ${tpl.path}:`, e);
+					}
+				}
+			}
+
 			runtimeAddenda.push(`## EXECUTE THE PLAN
 
 The user has reviewed the project plan (available in the Documents tab as docs/README.md). Now execute it:
@@ -709,6 +731,19 @@ Start immediately with file creation. Do not re-explain the plan.
 
 After creating ALL files, end with a short summary. If the app has auth, include:
 "To get started, **sign up** with any email and password (8+ characters) to create your first account."`);
+
+			// Notify agent about pre-created template files
+			if (injectedFiles.length > 0) {
+				runtimeAddenda.push(`## Pre-Created Infrastructure Files
+
+The following files have been pre-created by the platform and already exist in the project:
+${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
+
+**Rules for these files:**
+- Do NOT recreate, overwrite, or modify them — they contain correct, tested code
+- Just \`import\` from them as needed (e.g. \`import { loadImage, SpriteAnimation } from "../assets/loader"\`)
+- Skip these files in your file creation sequence — they are already done`);
+			}
 		} else if (isReturningUser) {
 			// Normal existing project — edit/add files
 			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)

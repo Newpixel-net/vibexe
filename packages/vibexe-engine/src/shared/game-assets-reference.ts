@@ -36,49 +36,25 @@ Before writing constants.ts, determine which character pack to use:
 For single-image characters (ninja, kenney), use \`loadImage()\` and \`ctx.drawImage()\` directly.
 For multi-frame characters (robot, zombie, alien, red-bot), use \`loadFrames()\` + \`SpriteAnimation\`.
 
-### FILE 1: src/assets/loader.ts — COPY THIS VERBATIM (do NOT modify or rewrite)
+### FILE 1: src/assets/loader.ts — PRE-CREATED by the platform (do NOT recreate or modify)
+
+This file is automatically injected into the project before you start generating code. It already exists — just import from it.
+
+**Exports:**
+- \`ASSET(path)\` — Builds full URL using \`window.__VIBEXE_API_ORIGIN__\` + \`/api/app-builder/media-stock/\` + encoded path
+- \`loadImage(path)\` — Returns \`Promise<HTMLImageElement>\`, falls back to 1x1 transparent pixel on error
+- \`loadFrames(paths)\` — Returns \`Promise<HTMLImageElement[]>\`, loads multiple frames in parallel
+- \`class SpriteAnimation\` — Manages frame-based animation with \`update(dt)\`, \`draw(ctx,x,y,w,h)\`, \`drawFlipped(ctx,x,y,w,h)\`
+
+**Usage:**
 \`\`\`typescript
-export function ASSET(path: string): string {
-  const origin = (window as any).__VIBEXE_API_ORIGIN__ || "";
-  return \`\${origin}/api/app-builder/media-stock/\${encodeURI(path)}\`;
-}
+import { loadImage, loadFrames, SpriteAnimation } from "../assets/loader";
+import * as C from "../constants";
 
-export function loadImage(path: string): Promise<HTMLImageElement> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () => {
-      console.warn("Asset failed:", path);
-      const fb = new Image(1, 1);
-      fb.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-      resolve(fb);
-    };
-    img.src = ASSET(path);
-  });
-}
-
-export async function loadFrames(paths: string[]): Promise<HTMLImageElement[]> {
-  return Promise.all(paths.map(p => loadImage(p)));
-}
-
-export class SpriteAnimation {
-  frames: HTMLImageElement[];
-  fps: number;
-  currentFrame = 0;
-  elapsed = 0;
-  constructor(frames: HTMLImageElement[], fps = 12) { this.frames = frames; this.fps = fps; }
-  update(dt: number) {
-    this.elapsed += dt;
-    if (this.elapsed >= 1 / this.fps) { this.elapsed -= 1 / this.fps; this.currentFrame = (this.currentFrame + 1) % this.frames.length; }
-  }
-  draw(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
-    if (this.frames.length > 0) ctx.drawImage(this.frames[this.currentFrame], x, y, w, h);
-  }
-  drawFlipped(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
-    if (this.frames.length > 0) { ctx.save(); ctx.translate(x + w, y); ctx.scale(-1, 1); ctx.drawImage(this.frames[this.currentFrame], 0, 0, w, h); ctx.restore(); }
-  }
-}
+const bg = await loadImage(C.BACKGROUND_FOREST);
+const runFrames = await loadFrames(C.PLAYER_RUN_FRAMES);
+const playerRun = new SpriteAnimation(runFrames, 16);
+// In game loop: playerRun.update(dt); playerRun.draw(ctx, x, y, 64, 64);
 \`\`\`
 
 ### FILE 2: src/constants.ts — Asset paths (add your game constants too)

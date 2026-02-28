@@ -127,7 +127,7 @@ function checkCollision(a: Entity, b: Entity): boolean {
 1. \`docs/README.md\` — Game overview, controls, features
 2. \`src/types/index.ts\` — Interfaces for Entity, Level, InputState, etc. Do NOT define GameState here — GameState is a simple string union (\`"menu" | "playing" | "paused" | "gameover"\`) stored inside gameRef.current.state, not an interface with properties.
 3. \`src/constants.ts\` — **SINGLE SOURCE OF TRUTH for ALL numeric/config values.** Export every constant: physics (GRAVITY, FRICTION), speeds (PLAYER_SPEED, ENEMY_SPEED, PIPE_SPEED, SCROLL_SPEED), sizes (TILE_SIZE, PLAYER_WIDTH, PLAYER_HEIGHT, GAP_SIZE), gameplay (SPAWN_INTERVAL, SCORE_PER_ITEM, INITIAL_LIVES), colors, level data, AND media-stock sprite paths. If a value appears in 2+ files, it MUST be here. NEVER export GAME_WIDTH or GAME_HEIGHT constants — canvas dimensions MUST come from \`Math.min(window.innerWidth, 500)\` and \`window.innerHeight\` at runtime. NEVER include \`"data:image/"\` or base64 strings anywhere in this file.
-3.5. \`src/assets/loader.ts\` — Asset preloader. COPY THE EXACT CODE from "FILE 1: src/assets/loader.ts" in the Asset Catalog below. Do NOT invent your own AssetLoader class or custom loader. The file MUST export these 4 things: \`ASSET(path)\` (uses \`window.__VIBEXE_API_ORIGIN__\`), \`loadImage(path)\`, \`loadFrames(paths)\`, \`class SpriteAnimation\`. Create IMMEDIATELY after constants.ts and BEFORE engine files.
+3.5. \`src/assets/loader.ts\` — PRE-CREATED by the platform. Do NOT recreate, modify, or overwrite this file. It already exists in the project with the correct ASSET(), loadImage(), loadFrames(), and SpriteAnimation exports. Just import from it.
 4. \`src/engine/game-loop.ts\` — requestAnimationFrame loop with delta time
 5. \`src/engine/input-manager.ts\` — Keyboard + touch input state
 6. \`src/engine/physics.ts\` — Gravity, velocity, friction, movement
@@ -337,7 +337,7 @@ function vibrate(pattern: number | number[]) {
    - \`docs/README.md\` — Game overview, controls, features
    - \`src/types/index.ts\` — All TypeScript interfaces
    - \`src/constants.ts\` — **ALL game constants AND sprite asset paths.** Export physics (GRAVITY, PLAYER_SPEED, JUMP_FORCE), sizing (TILE_SIZE, PLAYER_WIDTH), gameplay (SPAWN_RATE, SCORE_INCREMENT), AND sprite paths. COPY sprite path patterns from Asset Catalog "FILE 2" below — use the \`frames()\` helper and real paths like \`"characters/arz-game-kit/..."\`. **If your file contains "data:image/" or base64 strings, DELETE IT and start over.** Do NOT export GAME_WIDTH/GAME_HEIGHT.
-   - \`src/assets/loader.ts\` — COPY EXACTLY from Asset Catalog "FILE 1" below. Must have \`ASSET()\` with \`window.__VIBEXE_API_ORIGIN__\`. Do NOT create a custom AssetLoader class.
+   - \`src/assets/loader.ts\` — ALREADY EXISTS (pre-created by the platform). Do NOT recreate or overwrite. Just import from it: \`import { loadImage, loadFrames, SpriteAnimation } from "../assets/loader"\`.
    - \`src/engine/*.ts\` — Game loop, input, physics, collision, renderer
    - \`src/entities/*.ts\` — Player, enemies, items
    - \`src/levels/*.ts\` — Level data, tile maps, level rendering
@@ -370,7 +370,7 @@ ${GAME_ASSETS_REFERENCE}
 
 **ASSET SELF-CHECK** (run after writing each file):
 - constants.ts: Grep for "data:image/" — if found, DELETE and rewrite with real media-stock paths. Grep for "GAME_WIDTH" or "GAME_HEIGHT" — if found, DELETE those lines (canvas size comes from window at runtime).
-- loader.ts: Must contain \`window.__VIBEXE_API_ORIGIN__\` and export \`ASSET()\`, \`loadImage()\`, \`loadFrames()\`, \`SpriteAnimation\`. If it contains \`class AssetLoader\`, DELETE and copy from Asset Catalog.
+- loader.ts: PRE-CREATED by the platform. If you accidentally created a second version or overwrote it, DELETE yours — the platform's version is the correct one. It exports \`ASSET()\`, \`loadImage()\`, \`loadFrames()\`, \`SpriteAnimation\`.
 - types/index.ts: Must NOT contain \`interface GameState\` or \`currentState\` property. GameState is a string union in gameRef.
 - GameCanvas.tsx: Must use \`useRef\` with flat fields (\`state\`, \`score\`, \`lives\`). Must NOT have \`useState\` for game variables. Must NOT receive/pass \`gameState\` as a prop. Canvas size from \`Math.min(window.innerWidth, 500)\` — NOT from imported GAME_WIDTH.
 - GameUI.tsx: Must read from \`gameRef\` or receive only primitive props (\`score: number\`, \`lives: number\`). Must NOT receive a \`gameState\` object prop.

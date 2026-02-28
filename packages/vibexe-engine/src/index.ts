@@ -64,3 +64,7 @@ export {
 
 // Intent helpers
 export { isContinuationIntent } from "./orchestrator/intent-classifier";
+
+// Templates
+export { GAME_TEMPLATE_FILES } from "./shared/game-templates";
+export type { TemplateFile } from "./shared/game-templates";
