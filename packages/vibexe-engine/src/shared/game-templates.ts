@@ -287,6 +287,10 @@ export function setupParallaxEnvironment(
   const h = scene.scale.height;
   const sprites: Phaser.GameObjects.TileSprite[] = [];
 
+  // Portrait viewports zoom in to crop excess sky from landscape parallax images
+  const isPortrait = h > w * 1.2;
+  const zoomFactor = isPortrait ? 1.4 : 1.0;
+
   for (let i = 0; i < pack.layers.length; i++) {
     const layer = pack.layers[i];
     const bg = scene.add.tileSprite(w / 2, h / 2, w, h, layer.key);
@@ -294,18 +298,32 @@ export function setupParallaxEnvironment(
     bg.setScrollFactor(0);
 
     const tex = scene.textures.get(layer.key).getSourceImage();
-    const s = h / tex.height;
+    const s = (h / tex.height) * zoomFactor;
     bg.tileScaleX = s;
     bg.tileScaleY = s;
 
+    // Bottom-align: show ground/trees area, crop sky from top
+    if (isPortrait) {
+      const visibleTexH = h / s;
+      bg.tilePositionY = tex.height - visibleTexH;
+    }
+
     if (layer.speed > 0) {
       let prevCamX = scene.cameras.main.scrollX;
+      let prevCamY = scene.cameras.main.scrollY;
+      const baseY = bg.tilePositionY;
       scene.events.on("update", () => {
         const camX = scene.cameras.main.scrollX;
-        const delta = camX - prevCamX;
-        if (delta !== 0) {
-          bg.tilePositionX += (delta * layer.speed) / s;
+        const camY = scene.cameras.main.scrollY;
+        const dx = camX - prevCamX;
+        const dy = camY - prevCamY;
+        if (dx !== 0) {
+          bg.tilePositionX += (dx * layer.speed) / s;
           prevCamX = camX;
+        }
+        if (dy !== 0) {
+          bg.tilePositionY = baseY + (camY * layer.speed * 0.5) / s;
+          prevCamY = camY;
         }
       });
     }
@@ -314,13 +332,19 @@ export function setupParallaxEnvironment(
   }
 
   scene.scale.on("resize", (gameSize: Phaser.Structs.Size) => {
+    const newPortrait = gameSize.height > gameSize.width * 1.2;
+    const newZoom = newPortrait ? 1.4 : 1.0;
     for (const bg of sprites) {
       bg.setPosition(gameSize.width / 2, gameSize.height / 2);
       bg.setSize(gameSize.width, gameSize.height);
       const tex = scene.textures.get(bg.texture.key).getSourceImage();
-      const newS = gameSize.height / tex.height;
+      const newS = (gameSize.height / tex.height) * newZoom;
       bg.tileScaleX = newS;
       bg.tileScaleY = newS;
+      if (newPortrait) {
+        const visTexH = gameSize.height / newS;
+        bg.tilePositionY = tex.height - visTexH;
+      }
     }
   });
 
