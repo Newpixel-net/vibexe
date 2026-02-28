@@ -34,8 +34,11 @@ export function modelUrl(packId: string, filename: string): string {
 		language: "typescript",
 		content: `import { modelUrl } from "../utils/media-stock-3d";
 
-// ===== THREE.js reference (loaded via CDN shim) =====
-const THREE = (window as any).THREE;
+// ===== THREE.js + CANNON references (lazy-init for CDN timing) =====
+// CDN shim may not be ready at import time. _e() re-resolves from window.
+let THREE = (window as any).THREE;
+let CANNON = (window as any).CANNON;
+function _e() { if (!THREE) THREE = (window as any).THREE; if (!CANNON) CANNON = (window as any).CANNON; }
 
 // ===== SCALE PRESETS for KayKit models =====
 // KayKit GLTF models are small by default (~1 unit). These scales work well
@@ -75,6 +78,7 @@ export const SCALES_3D = {
  * Handles window resize automatically.
  */
 export function initRenderer(container: HTMLDivElement): typeof THREE.WebGLRenderer {
+  _e();
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -100,6 +104,7 @@ export function initRenderer(container: HTMLDivElement): typeof THREE.WebGLRende
  * - Directional light (sun) with shadows
  */
 export function initScene(): typeof THREE.Scene {
+  _e();
   const scene = new THREE.Scene();
 
   // Ambient fill light
@@ -134,6 +139,7 @@ export function initCamera(
   near: number = 0.1,
   far: number = 1000,
 ): typeof THREE.PerspectiveCamera {
+  _e();
   const aspect = container.clientWidth / container.clientHeight;
   const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
   camera.position.set(0, 8, 15);
@@ -160,6 +166,7 @@ export function initCamera(
  *   scene.add(model);
  */
 export async function loadGLTF(url: string): Promise<any> {
+  _e();
   // Use THREE.GLTFLoader if available (loaded via CDN addons), otherwise use inline fetch+parse
   if (THREE.GLTFLoader) {
     return new Promise((resolve, reject) => {
@@ -358,6 +365,7 @@ export function createSkyGradient(
   topColor: number = 0x87CEEB,
   bottomColor: number = 0xE0F0FF,
 ): void {
+  _e();
   scene.background = new THREE.Color(topColor);
   // Hemisphere light for ambient sky color
   const hemi = new THREE.HemisphereLight(topColor, bottomColor, 0.4);
@@ -374,6 +382,7 @@ export function createGround3D(
   size: number = 100,
   color: number = 0x4a8f4a,
 ): any {
+  _e();
   const geometry = new THREE.PlaneGeometry(size, size);
   const material = new THREE.MeshStandardMaterial({
     color,
@@ -495,9 +504,7 @@ export function createKeyboardState(): {
 }
 
 // ===== CANNON.js Physics Helpers =====
-// cannon-es is loaded via CDN shim (like Three.js). Access via window.CANNON.
-
-const CANNON = (window as any).CANNON;
+// cannon-es loaded via CDN shim. CANNON resolved lazily by _e() above.
 
 /**
  * Creates a Cannon.js physics world with sensible defaults.
@@ -508,6 +515,7 @@ const CANNON = (window as any).CANNON;
  *   // In update(): world.step(1/60, delta, 3);
  */
 export function createPhysicsWorld(gravity: number = -20): any {
+  _e();
   if (!CANNON) {
     console.warn("cannon-es not loaded — add it to package.json dependencies");
     return null;
@@ -540,6 +548,7 @@ export function createPhysicsBody(
   position: { x: number; y: number; z: number },
   size?: { x: number; y: number; z: number } | number,
 ): any {
+  _e();
   if (!CANNON) return null;
   let cannonShape: any;
   if (shape === "box") {
@@ -569,6 +578,7 @@ export function createContactMaterial(
   friction: number = 0.4,
   restitution: number = 0.3,
 ): any {
+  _e();
   if (!CANNON || !world) return null;
   const mat = new CANNON.Material();
   const contact = new CANNON.ContactMaterial(mat, mat, { friction, restitution });
@@ -603,6 +613,7 @@ export function syncBodiesToMeshes(pairs: Array<{ mesh: any; body: any }>): void
  * Creates an infinite static ground plane body at y=0.
  */
 export function createPhysicsGround(world: any): any {
+  _e();
   if (!CANNON || !world) return null;
   const body = createPhysicsBody("plane", 0, { x: 0, y: 0, z: 0 });
   world.addBody(body);
@@ -629,6 +640,7 @@ export function onClickObject(
   objects: any[],
   callback: (object: any, point: any) => void,
 ): () => void {
+  _e();
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
 
@@ -675,6 +687,7 @@ export function createAnimationPlayer(
   stop: () => void;
   update: (delta: number) => void;
 } {
+  _e();
   const mixer = new THREE.AnimationMixer(model);
   let currentAction: any = null;
 
@@ -717,6 +730,7 @@ export function createOrbitControls(
   camera: any,
   domElement: HTMLElement,
 ): any {
+  _e();
   if (!THREE.OrbitControls) {
     console.warn("OrbitControls not loaded — ensure Three.js addons are included");
     return { update() {}, dispose() {} };
@@ -904,8 +918,6 @@ export function createSwipeDetector(
 		language: "typescript",
 		content: `import { useEffect, useRef } from "react";
 
-const THREE = (window as any).THREE;
-
 interface GameSceneInterface {
   init(scene: any, camera: any, renderer: any, container: HTMLDivElement, onProgress?: (p: number) => void): void | Promise<void>;
   update(delta: number): void;
@@ -1007,25 +1019,14 @@ export default function Game3D({ gameScene, bgColor = "#87CEEB", cameraFov = 60 
     const container = containerRef.current;
     let animFrameId = 0;
     let disposed = false;
+    let renderer: any = null;
+    let camera: any = null;
+    let scene: any = null;
+    let clock: any = null;
 
-    // Create renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    container.appendChild(renderer.domElement);
-
-    // Create camera
-    const aspect = container.clientWidth / container.clientHeight;
-    const camera = new THREE.PerspectiveCamera(cameraFov, aspect, 0.1, 1000);
-    camera.position.set(0, 8, 15);
-    camera.lookAt(0, 2, 0);
-
-    // Handle resize
+    // Hoist handlers (null-safe — libs load async)
     const onResize = () => {
-      if (disposed) return;
+      if (disposed || !renderer || !camera) return;
       const w = container.clientWidth;
       const h = container.clientHeight;
       camera.aspect = w / h;
@@ -1034,16 +1035,12 @@ export default function Game3D({ gameScene, bgColor = "#87CEEB", cameraFov = 60 
     };
     window.addEventListener("resize", onResize);
 
-    // Pause/resume on visibility change
-    const clock = new THREE.Clock();
     const onVisChange = () => {
+      if (!clock) return;
       if (document.hidden) clock.stop();
       else clock.start();
     };
     document.addEventListener("visibilitychange", onVisChange);
-
-    // ===== Scene lifecycle =====
-    let scene: any;
 
     function disposeScene() {
       cancelAnimationFrame(animFrameId);
@@ -1058,74 +1055,90 @@ export default function Game3D({ gameScene, bgColor = "#87CEEB", cameraFov = 60 
         });
         while (scene.children.length > 0) scene.remove(scene.children[0]);
       }
-      // Remove non-canvas overlay children
       Array.from(container.children).forEach((c) => {
-        if (c !== renderer.domElement) c.remove();
+        if (c !== renderer?.domElement) c.remove();
       });
     }
 
-    async function initAndRun() {
+    // Async boot — wait for Three.js CDN shim before initializing
+    (async () => {
+      while (!(window as any).THREE && !disposed) {
+        await new Promise(r => setTimeout(r, 50));
+      }
       if (disposed) return;
+      const THREE = (window as any).THREE;
 
-      // Fresh scene
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(bgColor);
+      // Create renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      container.appendChild(renderer.domElement);
 
-      // Loading overlay
-      const loading = createLoadingOverlay(container);
+      // Create camera
+      const aspect = container.clientWidth / container.clientHeight;
+      camera = new THREE.PerspectiveCamera(cameraFov, aspect, 0.1, 1000);
+      camera.position.set(0, 8, 15);
+      camera.lookAt(0, 2, 0);
 
-      // Inject restart function
-      (container as any).__restartGame = () => {
-        disposeScene();
-        clock.stop();
-        clock.start();
-        initAndRun();
-      };
+      clock = new THREE.Clock();
 
-      // Init game scene with progress callback
-      await gameScene.init(scene, camera, renderer, container, (p: number) => {
-        loading.setProgress(p);
-      });
-
-      if (disposed) return;
-      loading.setProgress(1);
-
-      // Render one frame so menu has a background
-      renderer.render(scene, camera);
-
-      // Remove loading, show menu
-      loading.remove();
-
-      await new Promise<void>((resolve) => {
-        if (disposed) { resolve(); return; }
-        createMenuOverlay(container, resolve);
-      });
-
-      if (disposed) return;
-
-      // Start game loop
-      clock.start();
-      const animate = () => {
+      async function initAndRun() {
         if (disposed) return;
-        animFrameId = requestAnimationFrame(animate);
-        const delta = clock.getDelta();
-        gameScene.update(delta);
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(bgColor);
+
+        const loading = createLoadingOverlay(container);
+
+        (container as any).__restartGame = () => {
+          disposeScene();
+          clock.stop();
+          clock.start();
+          initAndRun();
+        };
+
+        await gameScene.init(scene, camera, renderer, container, (p: number) => {
+          loading.setProgress(p);
+        });
+
+        if (disposed) return;
+        loading.setProgress(1);
         renderer.render(scene, camera);
-      };
-      animate();
-    }
+        loading.remove();
 
-    initAndRun();
+        await new Promise<void>((resolve) => {
+          if (disposed) { resolve(); return; }
+          createMenuOverlay(container, resolve);
+        });
 
-    // Cleanup on unmount
+        if (disposed) return;
+
+        clock.start();
+        const animate = () => {
+          if (disposed) return;
+          animFrameId = requestAnimationFrame(animate);
+          const delta = clock.getDelta();
+          gameScene.update(delta);
+          renderer.render(scene, camera);
+        };
+        animate();
+      }
+
+      initAndRun();
+    })();
+
     return () => {
       disposed = true;
       disposeScene();
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisChange);
-      renderer.dispose();
-      if (renderer.domElement.parentNode) {
-        renderer.domElement.parentNode.removeChild(renderer.domElement);
+      if (renderer) {
+        renderer.dispose();
+        if (renderer.domElement.parentNode) {
+          renderer.domElement.parentNode.removeChild(renderer.domElement);
+        }
       }
     };
   }, []);
