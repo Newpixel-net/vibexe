@@ -32,13 +32,14 @@ export function modelUrl(packId: string, filename: string): string {
 	{
 		path: "src/config/assets-3d.ts",
 		language: "typescript",
-		content: `import { modelUrl } from "../utils/media-stock-3d";
+		content: `import 'three';
+import 'cannon-es';
+import { modelUrl } from "../utils/media-stock-3d";
 
-// ===== THREE.js + CANNON references (lazy-init for CDN timing) =====
-// CDN shim may not be ready at import time. _e() re-resolves from window.
-let THREE = (window as any).THREE;
-let CANNON = (window as any).CANNON;
-function _e() { if (!THREE) THREE = (window as any).THREE; if (!CANNON) CANNON = (window as any).CANNON; }
+// ===== THREE.js + CANNON references =====
+// The imports above trigger sync XHR shims that load THREE/CANNON into window.
+const THREE = (window as any).THREE;
+const CANNON = (window as any).CANNON;
 
 // ===== SCALE PRESETS for KayKit models =====
 // KayKit GLTF models are small by default (~1 unit). These scales work well
@@ -78,7 +79,6 @@ export const SCALES_3D = {
  * Handles window resize automatically.
  */
 export function initRenderer(container: HTMLDivElement): typeof THREE.WebGLRenderer {
-  _e();
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -104,7 +104,6 @@ export function initRenderer(container: HTMLDivElement): typeof THREE.WebGLRende
  * - Directional light (sun) with shadows
  */
 export function initScene(): typeof THREE.Scene {
-  _e();
   const scene = new THREE.Scene();
 
   // Ambient fill light
@@ -139,7 +138,6 @@ export function initCamera(
   near: number = 0.1,
   far: number = 1000,
 ): typeof THREE.PerspectiveCamera {
-  _e();
   const aspect = container.clientWidth / container.clientHeight;
   const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
   camera.position.set(0, 8, 15);
@@ -166,7 +164,6 @@ export function initCamera(
  *   scene.add(model);
  */
 export async function loadGLTF(url: string): Promise<any> {
-  _e();
   // Use THREE.GLTFLoader if available (loaded via CDN addons), otherwise use inline fetch+parse
   if (THREE.GLTFLoader) {
     return new Promise((resolve, reject) => {
@@ -365,7 +362,6 @@ export function createSkyGradient(
   topColor: number = 0x87CEEB,
   bottomColor: number = 0xE0F0FF,
 ): void {
-  _e();
   scene.background = new THREE.Color(topColor);
   // Hemisphere light for ambient sky color
   const hemi = new THREE.HemisphereLight(topColor, bottomColor, 0.4);
@@ -382,7 +378,6 @@ export function createGround3D(
   size: number = 100,
   color: number = 0x4a8f4a,
 ): any {
-  _e();
   const geometry = new THREE.PlaneGeometry(size, size);
   const material = new THREE.MeshStandardMaterial({
     color,
@@ -504,7 +499,7 @@ export function createKeyboardState(): {
 }
 
 // ===== CANNON.js Physics Helpers =====
-// cannon-es loaded via CDN shim. CANNON resolved lazily by _e() above.
+// cannon-es loaded via sync XHR shim triggered by `import 'cannon-es'` above.
 
 /**
  * Creates a Cannon.js physics world with sensible defaults.
@@ -515,7 +510,6 @@ export function createKeyboardState(): {
  *   // In update(): world.step(1/60, delta, 3);
  */
 export function createPhysicsWorld(gravity: number = -20): any {
-  _e();
   if (!CANNON) {
     console.warn("cannon-es not loaded — add it to package.json dependencies");
     return null;
@@ -548,7 +542,6 @@ export function createPhysicsBody(
   position: { x: number; y: number; z: number },
   size?: { x: number; y: number; z: number } | number,
 ): any {
-  _e();
   if (!CANNON) return null;
   let cannonShape: any;
   if (shape === "box") {
@@ -578,7 +571,6 @@ export function createContactMaterial(
   friction: number = 0.4,
   restitution: number = 0.3,
 ): any {
-  _e();
   if (!CANNON || !world) return null;
   const mat = new CANNON.Material();
   const contact = new CANNON.ContactMaterial(mat, mat, { friction, restitution });
@@ -613,7 +605,6 @@ export function syncBodiesToMeshes(pairs: Array<{ mesh: any; body: any }>): void
  * Creates an infinite static ground plane body at y=0.
  */
 export function createPhysicsGround(world: any): any {
-  _e();
   if (!CANNON || !world) return null;
   const body = createPhysicsBody("plane", 0, { x: 0, y: 0, z: 0 });
   world.addBody(body);
@@ -640,7 +631,6 @@ export function onClickObject(
   objects: any[],
   callback: (object: any, point: any) => void,
 ): () => void {
-  _e();
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
 
@@ -687,7 +677,6 @@ export function createAnimationPlayer(
   stop: () => void;
   update: (delta: number) => void;
 } {
-  _e();
   const mixer = new THREE.AnimationMixer(model);
   let currentAction: any = null;
 
@@ -730,7 +719,6 @@ export function createOrbitControls(
   camera: any,
   domElement: HTMLElement,
 ): any {
-  _e();
   if (!THREE.OrbitControls) {
     console.warn("OrbitControls not loaded — ensure Three.js addons are included");
     return { update() {}, dispose() {} };

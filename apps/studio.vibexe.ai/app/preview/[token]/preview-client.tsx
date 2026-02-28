@@ -192,6 +192,16 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 					...(dependencies.phaser
 						? ["https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"]
 						: []),
+					...(dependencies.three
+						? [
+								"https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.min.js",
+								"https://cdn.jsdelivr.net/npm/three@0.162.0/examples/js/loaders/GLTFLoader.js",
+								"https://cdn.jsdelivr.net/npm/three@0.162.0/examples/js/controls/OrbitControls.js",
+							]
+						: []),
+					...(dependencies["cannon-es"]
+						? ["https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.cjs.js"]
+						: []),
 				],
 			}}
 			theme="auto"
