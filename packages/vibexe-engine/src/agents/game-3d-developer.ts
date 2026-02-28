@@ -369,11 +369,13 @@ package.json                       — PRE-CREATED. Do NOT recreate.
 src/utils/media-stock-3d.ts        — PRE-CREATED (modelUrl helper). Do NOT recreate.
 src/config/assets-3d.ts            — PRE-CREATED (helpers: initRenderer, initScene, initCamera, loadGLTF, createGround3D, createSkyGradient, checkCollision, checkBoxCollision, createHUD, createKeyboardState, SCALES_3D, createPhysicsWorld, createPhysicsBody, createPhysicsGround, syncBodiesToMeshes, onClickObject, createAnimationPlayer, createOrbitControls, createTouchJoystick, createTapDetector, createSwipeDetector). Do NOT recreate.
 src/config/constants.ts            — ALL game constants. MUST define EVERY constant before importing it.
-src/scenes/GameScene.ts            — Main gameplay: model loading, physics, input, collisions, scoring
+src/scenes/GameScene.ts            — EXACT filename. Do NOT rename to GameScene3D.ts or anything else. App.tsx imports "./scenes/GameScene".
 src/scenes/GameOverScene3D.ts      — PRE-CREATED (HTML overlay). Do NOT recreate.
-src/components/Game3D.tsx           — PRE-CREATED (React wrapper). Do NOT recreate.
-src/App.tsx                        — PRE-CREATED (default entry). Override if needed.
+src/components/Game3D.tsx           — PRE-CREATED (React wrapper with loading screen + menu overlay). Do NOT recreate.
+src/App.tsx                        — PRE-CREATED (default entry). Do NOT recreate or override.
 \`\`\`
+
+CRITICAL: Do NOT create BootScene, MenuScene, LoadingScene, or any other scene files. Game3D.tsx already handles: loading screen with progress bar, menu overlay with "TAP TO START", and clean restart. You ONLY need to create GameScene.ts with the game logic.
 
 Optional extra files for complex games:
 - \`src/objects/Player.ts\` — Player class with movement, animation, state
@@ -838,9 +840,9 @@ Do NOT \`import * as THREE from "three"\` or \`import CANNON from "cannon-es"\` 
 5. **File creation order** (dependencies first):
    - \`docs/README.md\` — Game overview, controls, features
    - \`src/config/constants.ts\` — ALL game constants (MUST be complete before GameScene.ts)
-   - SKIP pre-created files: \`package.json\`, \`src/utils/media-stock-3d.ts\`, \`src/config/assets-3d.ts\`, \`src/components/Game3D.tsx\`, \`src/scenes/GameOverScene3D.ts\`
-   - \`src/scenes/GameScene.ts\` — Main gameplay (the most important file)
-   - \`src/App.tsx\` — Override if needed (usually just the default is fine)
+   - SKIP pre-created files: \`package.json\`, \`src/utils/media-stock-3d.ts\`, \`src/config/assets-3d.ts\`, \`src/components/Game3D.tsx\`, \`src/scenes/GameOverScene3D.ts\`, \`src/App.tsx\`
+   - \`src/scenes/GameScene.ts\` — EXACT filename. Main gameplay (the most important file). Do NOT name it GameScene3D.ts.
+   - Do NOT create BootScene, MenuScene, LoadingScene, or any other scene files.
    - Optional: \`src/objects/Player.ts\`, \`src/objects/Enemy.ts\`, etc.
 6. **After ALL code files**, write a SHORT summary (2-3 sentences) of what was built.
 
@@ -882,6 +884,9 @@ ${GAME_3D_ASSETS_REFERENCE}
 10. **Not handling async model loading** — \`loadGLTF()\` is async. Use await or provide box fallbacks.
 11. **Hard-coding positions** — Use constants from constants.ts. Make levels configurable.
 19. **CRITICAL: Using undefined constants** — If you reference ANY constant name (CAMERA_LOOK_AHEAD, ENEMY_SPEED, PLATFORM_GAP, etc.), it MUST be defined with \`export const\` in constants.ts. NEVER use a constant name without defining it first. This is the #1 cause of game crashes.
+20. **CRITICAL: Renaming GameScene.ts** — The file MUST be \`src/scenes/GameScene.ts\` (NOT GameScene3D.ts, NOT MainScene.ts). App.tsx imports \`"./scenes/GameScene"\`. Wrong filename = instant crash.
+21. **Creating BootScene/MenuScene/LoadingScene** — Game3D.tsx already provides loading screen + menu overlay + restart. Do NOT create separate scene files for these — it duplicates template functionality and breaks the scene flow.
+22. **Overriding App.tsx** — App.tsx is PRE-CREATED and imports GameScene correctly. Do NOT recreate or override it.
 12. **Missing game over condition** — Always check for fall-off-world, zero lives, or win condition.
 13. **No camera follow** — Camera MUST follow player with smooth lerp. Static camera = unplayable.
 14. **Missing keyboard cleanup** — Always call \`keyboard.destroy()\` in cleanup() to remove event listeners.
