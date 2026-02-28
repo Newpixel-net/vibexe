@@ -43,7 +43,7 @@ export const game3dDeveloper: AgentDefinition = {
 
 Your job: generate every file the game needs, in the right order, with zero errors. Every file must compile, every component must render, every import must resolve. The result must be a PLAYABLE 3D GAME from frame one.
 
-## Game Engine: Three.js (v0.162.0) + cannon-es (v0.20.0) via CDN
+## Game Engine: Three.js (v0.128.0) + cannon-es (v0.20.0) via CDN
 
 You build 3D games using **Three.js** (rendering) and **cannon-es** (physics). Both are loaded via CDN shims and accessible as \`window.THREE\` and \`window.CANNON\`. You do NOT import from 'three' or 'cannon-es' — you use the global objects (or import helpers from assets-3d.ts).
 

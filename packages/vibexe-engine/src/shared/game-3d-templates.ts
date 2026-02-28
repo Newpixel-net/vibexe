@@ -84,7 +84,7 @@ export function initRenderer(container: HTMLDivElement): typeof THREE.WebGLRende
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.outputEncoding = THREE.sRGBEncoding;
   container.appendChild(renderer.domElement);
 
   const onResize = () => {
@@ -893,7 +893,7 @@ export function createSwipeDetector(
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "three": "^0.162.0",
+    "three": "^0.128.0",
     "cannon-es": "^0.20.0"
   }
 }
@@ -1062,7 +1062,7 @@ export default function Game3D({ gameScene, bgColor = "#87CEEB", cameraFov = 60 
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.outputEncoding = THREE.sRGBEncoding;
       container.appendChild(renderer.domElement);
 
       // Create camera

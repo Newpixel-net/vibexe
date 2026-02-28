@@ -1409,7 +1409,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 	);
 	if (usesThree) {
 		sandpackFiles["/node_modules/three/package.json"] = {
-			code: JSON.stringify({ name: "three", version: "0.162.0", main: "index.js" }),
+			code: JSON.stringify({ name: "three", version: "0.128.0", main: "index.js" }),
 			hidden: true,
 		};
 		sandpackFiles["/node_modules/three/index.js"] = {
@@ -1419,7 +1419,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				"// so we must fetch+eval Three.js ourselves to guarantee window.THREE exists.",
 				"if (typeof window.THREE === 'undefined') {",
 				"  var xhr = new XMLHttpRequest();",
-				"  xhr.open('GET', 'https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.min.js', false);",
+				"  xhr.open('GET', 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js', false);",
 				"  xhr.send();",
 				"  if (xhr.status === 200) {",
 				"    (0, eval)(xhr.responseText);",
@@ -1428,7 +1428,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				"// Also load GLTFLoader addon",
 				"if (window.THREE && !window.THREE.GLTFLoader) {",
 				"  var xhr2 = new XMLHttpRequest();",
-				"  xhr2.open('GET', 'https://cdn.jsdelivr.net/npm/three@0.162.0/examples/js/loaders/GLTFLoader.js', false);",
+				"  xhr2.open('GET', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js', false);",
 				"  xhr2.send();",
 				"  if (xhr2.status === 200) {",
 				"    (0, eval)(xhr2.responseText);",
@@ -1437,7 +1437,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				"// Also load OrbitControls addon",
 				"if (window.THREE && !window.THREE.OrbitControls) {",
 				"  var xhr3 = new XMLHttpRequest();",
-				"  xhr3.open('GET', 'https://cdn.jsdelivr.net/npm/three@0.162.0/examples/js/controls/OrbitControls.js', false);",
+				"  xhr3.open('GET', 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js', false);",
 				"  xhr3.send();",
 				"  if (xhr3.status === 200) { (0, eval)(xhr3.responseText); }",
 				"}",

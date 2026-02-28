@@ -194,9 +194,9 @@ export function PreviewClient({ appName, appId, projectType, files }: PreviewCli
 						: []),
 					...(dependencies.three
 						? [
-								"https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.min.js",
-								"https://cdn.jsdelivr.net/npm/three@0.162.0/examples/js/loaders/GLTFLoader.js",
-								"https://cdn.jsdelivr.net/npm/three@0.162.0/examples/js/controls/OrbitControls.js",
+								"https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js",
+								"https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js",
+								"https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js",
 							]
 						: []),
 				],
