@@ -1320,31 +1320,34 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 	}
 
 	// Inject Phaser shim if any file imports it.
-	// Phaser is loaded via CDN as a blocking <script> in <head> of index.html (injected above).
-	// This shim makes `import Phaser from 'phaser'` resolve to the CDN-loaded window.Phaser global.
-	// IMPORTANT: The CDN script MUST be a blocking <head> script so window.Phaser is available
-	// before the bundler evaluates modules (class X extends Phaser.Scene needs it at definition time).
+	// Sandpack's bundler evaluates modules via its own transpiler, NOT through HTML script loading.
+	// So externalResources and <head> scripts don't help — the bundler can evaluate the shim
+	// BEFORE the CDN script has loaded. The fix: the shim itself synchronously fetches and evals
+	// the Phaser CDN bundle via XMLHttpRequest, guaranteeing window.Phaser is set before returning.
+	// This blocks the main thread briefly (~1-3s for the 4MB file) but only happens once per session.
 	const usesPhaser = files.some(
 		(f) => f.content && (f.content.includes("from 'phaser'") || f.content.includes('from "phaser"')),
 	);
 	if (usesPhaser) {
-		// Inject Phaser CDN as a blocking script directly in index.html <head>.
-		// This is more reliable than externalResources because blocking <head> scripts
-		// MUST complete before body scripts (including Sandpack's bundled module code).
-		const phaserCdnTag = '    <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>';
-		const currentHtml = (sandpackFiles["/public/index.html"] as SandpackFile)?.code || "";
-		if (currentHtml && !currentHtml.includes("phaser.min.js")) {
-			sandpackFiles["/public/index.html"] = {
-				code: currentHtml.replace("</head>", `${phaserCdnTag}\n  </head>`),
-				hidden: true,
-			};
-		}
 		sandpackFiles["/node_modules/phaser/package.json"] = {
 			code: JSON.stringify({ name: "phaser", version: "3.90.0", main: "index.js" }),
 			hidden: true,
 		};
 		sandpackFiles["/node_modules/phaser/index.js"] = {
-			code: "module.exports = window.Phaser;",
+			code: [
+				"// Phaser shim: synchronously load Phaser CDN if not already available.",
+				"// Sandpack's bundler evaluates this module BEFORE externalResources scripts load,",
+				"// so we must fetch+eval Phaser ourselves to guarantee window.Phaser exists.",
+				"if (typeof window.Phaser === 'undefined') {",
+				"  var xhr = new XMLHttpRequest();",
+				"  xhr.open('GET', 'https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js', false);",
+				"  xhr.send();",
+				"  if (xhr.status === 200) {",
+				"    (0, eval)(xhr.responseText);",
+				"  }",
+				"}",
+				"module.exports = window.Phaser;",
+			].join("\n"),
 			hidden: true,
 		};
 	}
