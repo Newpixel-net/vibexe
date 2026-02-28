@@ -122,30 +122,57 @@ export const SCALES = {
 };
 
 /**
- * Set up a background image with cover-fit (like CSS object-fit: cover).
- * Fills the viewport without distortion — excess edges are cropped.
- * Handles viewport resize (device rotation) automatically.
+ * Set up an infinite-scrolling parallax background using tileSprite.
+ * The background tiles horizontally and scrolls automatically as the
+ * camera follows the player — no update() code needed by the caller.
+ *
+ * - Scaled to fill viewport height (no distortion, no gaps)
+ * - Tiles infinitely in X direction (loops seamlessly)
+ * - Auto-parallax: scrolls at parallaxSpeed relative to camera movement
+ * - For menu/static scenes: pass parallaxSpeed=0 (static, no scrolling)
+ * - Handles viewport resize (device rotation) automatically
+ *
  * Call in create() BEFORE adding other game objects.
  */
 export function setupBackground(
   scene: Phaser.Scene,
   key = "bg-nature",
-  scrollFactor = 0,
-): Phaser.GameObjects.Image {
-  const bg = scene.add.image(scene.scale.width / 2, scene.scale.height / 2, key);
-  // Cover-fit: fill viewport without distortion, crop excess edges
-  const scaleX = scene.scale.width / bg.width;
-  const scaleY = scene.scale.height / bg.height;
-  bg.setScale(Math.max(scaleX, scaleY));
-  bg.setScrollFactor(scrollFactor);
+  parallaxSpeed = 0.3,
+): Phaser.GameObjects.TileSprite {
+  const w = scene.scale.width;
+  const h = scene.scale.height;
+  const bg = scene.add.tileSprite(w / 2, h / 2, w, h, key);
   bg.setDepth(-10);
+  bg.setScrollFactor(0); // Fixed to camera — we scroll tilePosition instead
+
+  // Scale texture to fill viewport height, maintain aspect ratio
+  const tex = scene.textures.get(key).getSourceImage();
+  const s = h / tex.height;
+  bg.tileScaleX = s;
+  bg.tileScaleY = s;
+
+  // Auto-parallax: scroll background with camera movement
+  if (parallaxSpeed > 0) {
+    let prevCamX = scene.cameras.main.scrollX;
+    scene.events.on("update", () => {
+      const camX = scene.cameras.main.scrollX;
+      const delta = camX - prevCamX;
+      if (delta !== 0) {
+        bg.tilePositionX += (delta * parallaxSpeed) / s;
+        prevCamX = camX;
+      }
+    });
+  }
+
   // Re-fit on viewport resize
   scene.scale.on("resize", (gameSize: Phaser.Structs.Size) => {
     bg.setPosition(gameSize.width / 2, gameSize.height / 2);
-    const sx = gameSize.width / bg.width;
-    const sy = gameSize.height / bg.height;
-    bg.setScale(Math.max(sx, sy));
+    bg.setSize(gameSize.width, gameSize.height);
+    const newS = gameSize.height / tex.height;
+    bg.tileScaleX = newS;
+    bg.tileScaleY = newS;
   });
+
   return bg;
 }
 

@@ -72,7 +72,7 @@ All media-stock assets are high-resolution (300 DPI, HD quality). A mobile game 
 | Robot character frames | 995×677 | ~90×61 | SCALES.player = 0.09 |
 | Zombie character frames | 861×886 | ~69×71 | SCALES.zombie = 0.08 |
 | Alien character frames | 819×630 | ~74×57 | SCALES.alien = 0.09 |
-| Background images | 1920×1080 | cover-fit viewport (no distortion) | setupBackground() |
+| Background images | 1920×1080 | infinite parallax scroll, fills height | setupBackground() |
 | Platform tile | 2100×550 | ~210×55 | SCALES.platform = 0.1 |
 | Small platform | 1200×500 | ~120×50 | SCALES.platformSmall = 0.1 |
 | Ground wall | 2050×1200 | ~164×96 | SCALES.ground = 0.08 |
@@ -116,7 +116,7 @@ Exports:
 ### PRE-CREATED FILE 2: src/config/assets.ts (do NOT recreate or modify)
 Exports:
 - \`SCALES\` — Scale factors for every asset category. Use: \`sprite.setScale(SCALES.player)\`
-- \`setupBackground(scene, key?, scrollFactor?)\` — Creates background image with cover-fit (no distortion, crops excess). Auto-resizes on viewport change. Default key is \`"bg-nature"\`. Call in create() BEFORE other objects.
+- \`setupBackground(scene, key?, parallaxSpeed?)\` — Creates an infinite-scrolling parallax background (tileSprite). Scales to fill viewport height, tiles infinitely in X, and auto-scrolls as camera follows the player. Default key is \`"bg-nature"\`, default parallaxSpeed is 0.3. For menus/static scenes, pass parallaxSpeed=0. No update() code needed. Call in create() BEFORE other objects.
 - \`preloadAssets(scene: Phaser.Scene)\` — Loads ALL standard assets into Phaser's texture cache. Call in BootScene \`preload()\`.
 - \`createAnimations(scene: Phaser.Scene)\` — Creates all standard animations: \`player-run\`, \`player-attack\`, \`player-jump\`, \`player-die\`, \`zombie-walk\`, \`zombie-attack\`, \`zombie-die\`, \`alien-run\`, \`alien-attack\`, \`alien-die\`. Call in BootScene \`create()\`.
 - Available backgrounds: \`"bg-nature"\` (green landscape, DEFAULT), \`"bg-jungle"\` (bright jungle), \`"bg-cartoon"\` (cheerful), \`"bg-dark-forest"\` (dark magical), \`"bg-space"\` (deep space)
@@ -179,7 +179,8 @@ import { SCALES, setupBackground } from "../config/assets";
 // In create():
 
 // 1. Background — pick from your art theme, NEVER raw this.add.image() for BG
-setupBackground(this, "bg-nature"); // Fills viewport, depth -10, fixed to camera
+setupBackground(this, "bg-nature"); // Infinite parallax scroll, auto-follows camera
+// For menu scenes use: setupBackground(this, "bg-nature", 0); // static, no scroll
 
 // 2. Player — ALWAYS apply SCALES.player
 this.player = this.physics.add.sprite(100, this.scale.height - 150, "run/robot1-run0");
