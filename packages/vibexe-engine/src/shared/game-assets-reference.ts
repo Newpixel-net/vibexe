@@ -14,6 +14,53 @@ export const GAME_ASSETS_REFERENCE = `
 
 **You NEVER need base64 data URIs, DiceBear avatars, external CDN URLs, or placeholder shapes for characters/environments/items.** Real sprites always load correctly via the pre-created helpers.
 
+### 🎨 ART THEMES — Pick ONE, Use ALL Its Assets (MANDATORY)
+
+**CRITICAL: Every game MUST use ONE art theme. ALL assets MUST come from the same theme.
+Mixing assets from different themes creates ugly, incoherent visuals and is FORBIDDEN.**
+
+**THEME 1: Nature Adventure (DEFAULT — for robots, general platformers, runners)**
+- Background: \`"bg-nature"\` (beautiful green hills/mountains landscape) or \`"bg-jungle"\` (bright jungle)
+- Character: robot1 (animated: player-run, player-attack, player-jump, player-die)
+- Platforms: \`"platform"\`, \`"platform-small"\`, \`"ground"\`, \`"grass"\` (forest-pack green tiles)
+- Decoration: \`"tree"\`, \`"cloud"\` (forest-pack nature elements)
+- Collectibles: \`"crystal"\`, \`"chest"\`
+- Mood: Bright, colorful, adventurous. Green platforms on nature background.
+- Use when: user says "robot", "platformer", "runner", "adventure", or gives no specific theme
+
+**THEME 2: Dark Forest (for zombies, horror, survival)**
+- Background: \`"bg-dark-forest"\` (dark magical forest with glowing blue trees)
+- Character: zombie1 (animated: zombie-walk, zombie-attack, zombie-die) as ENEMY. For player, use robot1.
+- Platforms: \`"platform"\`, \`"ground"\` (forest-pack tiles — they work in dark themes too)
+- Decoration: \`"tree"\` (silhouette against dark BG). NO \`"cloud"\` (dark forest = no sky visible).
+- Collectibles: \`"chest"\`
+- Mood: Dark, mysterious, tense. Muted colors.
+- Use when: user says "zombie", "horror", "dark", "survival", "spooky"
+
+**THEME 3: Space Mission (for aliens, sci-fi, shooters)**
+- Background: \`"bg-space"\` (deep space with asteroids)
+- Character: alien1 (animated: alien-run, alien-attack, alien-die) as ENEMY. For player, use robot1.
+- Platforms: DO NOT use forest tiles in space! Create colored rectangles: \`this.add.rectangle(x, y, w, h, 0x4444aa)\` as platforms
+- Decoration: NO trees, NO grass, NO clouds in space. Use small colored circles as stars.
+- Collectibles: \`"crystal"\` (looks like energy crystals in space)
+- Mood: Dark background, glowing elements, sci-fi. Blues and purples.
+- Use when: user says "space", "alien", "sci-fi", "shooter", "galaxy"
+
+**THEME 4: Cartoon World (for kids, casual, cute games)**
+- Background: \`"bg-cartoon"\` (bright sky, green bushes, cheerful colors)
+- Character: robot1 or any character
+- Platforms: \`"platform"\`, \`"grass"\` (bright green tiles match cartoon BG perfectly)
+- Decoration: \`"tree"\`, \`"cloud"\` (cheerful nature)
+- Collectibles: \`"crystal"\`, \`"chest"\`
+- Mood: Bright, clean, kid-friendly. Maximum color saturation.
+- Use when: user says "kids", "casual", "cute", "cartoon", "simple", "colorful"
+
+**FORBIDDEN cross-theme combinations:**
+- Forest/grass tiles on space background
+- Trees/clouds in space scenes
+- Dark horror background with bright cartoon character
+- \`"bg-nature"\` with zombies as main character (use \`"bg-dark-forest"\` instead)
+
 ### ⚠️ MANDATORY: Asset Scaling — ALL assets are HIGH-RESOLUTION
 
 All media-stock assets are high-resolution (300 DPI, HD quality). A mobile game viewport is ~500×700px.
@@ -41,7 +88,7 @@ All media-stock assets are high-resolution (300 DPI, HD quality). A mobile game 
 ABSOLUTELY FORBIDDEN in action/platformer/shooter/runner games:
 - \`data:image/svg+xml\` or \`data:image/png;base64,...\` for ANY game asset
 - \`https://api.dicebear.com\` or ANY external URL
-- Colored rectangles / \`fillRect()\` for characters/enemies
+- Colored rectangles / \`fillRect()\` for characters/enemies (OK for platforms in Space theme ONLY)
 - Emoji for characters (e.g. \`"🤖"\` as a sprite)
 - Custom asset loader classes — ALWAYS use the pre-created \`assetUrl()\` + \`preloadAssets()\`
 - GIF files (none exist — ALL assets are PNG or JPG)
@@ -69,14 +116,37 @@ Exports:
 ### PRE-CREATED FILE 2: src/config/assets.ts (do NOT recreate or modify)
 Exports:
 - \`SCALES\` — Scale factors for every asset category. Use: \`sprite.setScale(SCALES.player)\`
-- \`setupBackground(scene, key?, scrollFactor?)\` — Creates background image sized to fill viewport. Call in create() BEFORE other objects.
+- \`setupBackground(scene, key?, scrollFactor?)\` — Creates background image sized to fill viewport. Default key is \`"bg-nature"\`. Call in create() BEFORE other objects.
 - \`preloadAssets(scene: Phaser.Scene)\` — Loads ALL standard assets into Phaser's texture cache. Call in BootScene \`preload()\`.
 - \`createAnimations(scene: Phaser.Scene)\` — Creates all standard animations: \`player-run\`, \`player-attack\`, \`player-jump\`, \`player-die\`, \`zombie-walk\`, \`zombie-attack\`, \`zombie-die\`, \`alien-run\`, \`alien-attack\`, \`alien-die\`. Call in BootScene \`create()\`.
-- Frame constants: \`ROBOT_RUN\`, \`ROBOT_ATTACK\`, \`ROBOT_JUMP\`, \`ROBOT_DIE\`, \`ZOMBIE_WALK\`, \`ZOMBIE_ATTACK\`, \`ZOMBIE_DIE\`, \`ALIEN_RUN\`, \`ALIEN_ATTACK\`, \`ALIEN_DIE\`
-- \`STATIC_ASSETS\` array: \`bg-forest\`, \`bg-space\`, \`bg-alien\`, \`platform\`, \`platform-small\`, \`ground\`, \`tree\`, \`grass\`, \`cloud\`, \`crystal\`, \`chest\`, \`weapon\`
+- Available backgrounds: \`"bg-nature"\` (green landscape, DEFAULT), \`"bg-jungle"\` (bright jungle), \`"bg-cartoon"\` (cheerful), \`"bg-dark-forest"\` (dark magical), \`"bg-space"\` (deep space)
 
 ### PRE-CREATED FILE 3: package.json (do NOT recreate or modify)
 Contains \`"phaser": "^3.90.0"\` — Sandpack installs it automatically via extractDependencies().
+
+### PRE-CREATED FILE 4: src/components/Game.tsx (do NOT recreate or modify)
+React wrapper that creates and manages the Phaser.Game instance. Handles:
+- Game creation in useEffect with double-init guard
+- Proper cleanup on unmount (game.destroy)
+- Visibility change pause/resume (mobile tab switching)
+- Touch action prevention on container
+
+**Usage in App.tsx (the ONLY correct pattern):**
+\`\`\`typescript
+import Game from "./components/Game";
+import { BootScene } from "./scenes/BootScene";
+import { MenuScene } from "./scenes/MenuScene";
+import { GameScene } from "./scenes/GameScene";
+import { GameOverScene } from "./scenes/GameOverScene";
+
+export default function App() {
+  return <Game scenes={[BootScene, MenuScene, GameScene, GameOverScene]} />;
+}
+\`\`\`
+
+**CRITICAL: Do NOT create your own Game.tsx or GameCanvas.tsx or PhaserGame.tsx.**
+**Do NOT add onStateChange, handleVisibilityChange, or any custom React callbacks.**
+**The pre-created Game.tsx handles everything. Just pass your scenes array.**
 
 ### Usage in BootScene (the CORRECT pattern):
 \`\`\`typescript
@@ -108,14 +178,14 @@ import { SCALES, setupBackground } from "../config/assets";
 
 // In create():
 
-// 1. Background — ALWAYS use setupBackground(), NEVER raw this.add.image() for BG
-setupBackground(this, "bg-forest"); // Fills viewport, depth -10, fixed to camera
+// 1. Background — pick from your art theme, NEVER raw this.add.image() for BG
+setupBackground(this, "bg-nature"); // Fills viewport, depth -10, fixed to camera
 
 // 2. Player — ALWAYS apply SCALES.player
-const player = this.physics.add.sprite(100, this.scale.height - 150, "run/robot1-run0");
-player.setScale(SCALES.player); // 995x677 -> ~90x61 px
-player.play("player-run");
-player.setCollideWorldBounds(true);
+this.player = this.physics.add.sprite(100, this.scale.height - 150, "run/robot1-run0");
+this.player.setScale(SCALES.player); // 995x677 -> ~90x61 px
+this.player.play("player-run");
+this.player.setCollideWorldBounds(true);
 
 // 3. Platforms — ALWAYS apply SCALES.platform + refreshBody()
 const platforms = this.physics.add.staticGroup();
@@ -138,8 +208,8 @@ crystal.setScale(SCALES.crystal); // 128x128 -> ~38x38
 const tree = this.add.image(150, this.scale.height - 200, "tree").setScale(SCALES.tree);
 const cloud = this.add.image(200, 80, "cloud").setScale(SCALES.cloud);
 
-// 7. Colliders
-this.physics.add.collider(player, platforms);
+// 7. Colliders — MANDATORY or player falls through floor!
+this.physics.add.collider(this.player, platforms);
 \`\`\`
 
 ### Loading CUSTOM assets beyond the standard set:
@@ -168,10 +238,12 @@ ninja.setDisplaySize(80, 80); // Or setScale() — NEVER use at raw size
 - Ninja: \`characters/heroes/ninja/Ninja Postac.png\` — single high-res sprite
 - Kenney Platformer: \`characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_walk1.png\`, player_walk2.png, player_jump.png, player_idle.png
 
-**Backgrounds** (pre-loaded as bg-forest, bg-space, bg-alien). Raw: 1920×1080 px.
-- Forest/Apocalyptic: \`environments/backgrounds/arz-backgrounds/1920x1080/BG apocalyptic 1.jpg\`
-- Space: \`environments/backgrounds/arz-backgrounds/1920x1080/BG space 1.jpg\`
-- Alien world: \`environments/backgrounds/arz-backgrounds/1920x1080/BG alien 1.jpg\`
+**Backgrounds** (pre-loaded, use with setupBackground()):
+- \`"bg-nature"\` — Beautiful green hills, mountains, sunset sky. **DEFAULT for most games.**
+- \`"bg-jungle"\` — Bright colorful jungle with platform-style scenery. Great for platformers.
+- \`"bg-cartoon"\` — Cheerful sky with green bushes, clean vector art. Great for kids/casual.
+- \`"bg-dark-forest"\` — Dark magical forest with glowing blue trees. Great for horror/zombie.
+- \`"bg-space"\` — Deep space with asteroids. For sci-fi/space games only.
 
 **Environment tiles** (pre-loaded as platform, ground, tree, cloud, grass). Raw: 800-3000px wide.
 - Platform: \`environments/tilesets/forest-pack/300_DPI PNG/Platform/Platform_1.png\` (2100×550)

@@ -59,9 +59,11 @@ export const ALIEN_DIE    = fr(A1, "die/alien1-die",       [0,3,6,9,12,15,18]);
 
 // ===== STATIC IMAGE KEYS =====
 export const STATIC_ASSETS: { key: string; path: string }[] = [
-  { key: "bg-forest",      path: "environments/backgrounds/arz-backgrounds/1920x1080/BG apocalyptic 1.jpg" },
+  { key: "bg-nature",      path: "environments/backgrounds/my-back/multiple-level-game-background-8001_imgs_8001_1.png" },
+  { key: "bg-jungle",      path: "environments/backgrounds/my-back/feat_jungle3.jpg" },
+  { key: "bg-cartoon",     path: "environments/backgrounds/my-back/game-background-png-6.png" },
+  { key: "bg-dark-forest", path: "environments/backgrounds/my-back/forest-game-background-8298_imgs_8298.jpg" },
   { key: "bg-space",       path: "environments/backgrounds/arz-backgrounds/1920x1080/BG space 1.jpg" },
-  { key: "bg-alien",       path: "environments/backgrounds/arz-backgrounds/1920x1080/BG alien 1.jpg" },
   { key: "platform",       path: "environments/tilesets/forest-pack/300_DPI PNG/Platform/Platform_1.png" },
   { key: "platform-small", path: "environments/tilesets/forest-pack/300_DPI PNG/Platform/Platform_sml_1.png" },
   { key: "ground",         path: "environments/tilesets/forest-pack/300_DPI PNG/Grounds/Ground_Wall.png" },
@@ -126,7 +128,7 @@ export const SCALES = {
  */
 export function setupBackground(
   scene: Phaser.Scene,
-  key = "bg-forest",
+  key = "bg-nature",
   scrollFactor = 0,
 ): Phaser.GameObjects.Image {
   const bg = scene.add.image(scene.scale.width / 2, scene.scale.height / 2, key);
@@ -181,6 +183,84 @@ export function createAnimations(scene: Phaser.Scene): void {
     "react-dom": "^18.2.0",
     "phaser": "^3.90.0"
   }
+}
+`,
+	},
+
+	// ---------- Template 4: React wrapper for Phaser (eliminates AI-generated bugs) ----------
+	{
+		path: "src/components/Game.tsx",
+		language: "typescript",
+		content: `import { useEffect, useRef } from "react";
+import Phaser from "phaser";
+
+interface GameProps {
+  scenes: (typeof Phaser.Scene | Phaser.Types.Scenes.SettingsConfig | Phaser.Types.Scenes.CreateSceneFromObjectConfig | Function)[];
+  gravityY?: number;
+  bgColor?: string;
+}
+
+/**
+ * React wrapper for Phaser 3. Creates and destroys the game instance.
+ * The AI should NOT modify this file — import and use it in App.tsx.
+ *
+ * Usage in App.tsx:
+ *   import Game from "./components/Game";
+ *   import { BootScene } from "./scenes/BootScene";
+ *   import { MenuScene } from "./scenes/MenuScene";
+ *   import { GameScene } from "./scenes/GameScene";
+ *   import { GameOverScene } from "./scenes/GameOverScene";
+ *   export default function App() {
+ *     return <Game scenes={[BootScene, MenuScene, GameScene, GameOverScene]} />;
+ *   }
+ */
+export default function Game({ scenes, gravityY = 800, bgColor = "#1a1a2e" }: GameProps) {
+  const gameRef = useRef<Phaser.Game | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (gameRef.current || !containerRef.current) return;
+
+    const config: Phaser.Types.Core.GameConfig = {
+      type: Phaser.AUTO,
+      width: Math.min(window.innerWidth, 500),
+      height: window.innerHeight,
+      parent: containerRef.current,
+      backgroundColor: bgColor,
+      physics: {
+        default: "arcade",
+        arcade: { gravity: { x: 0, y: gravityY }, debug: false },
+      },
+      scale: {
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+      },
+      scene: scenes,
+    };
+
+    gameRef.current = new Phaser.Game(config);
+
+    // Pause/resume on visibility change (mobile tab switch)
+    const onVisChange = () => {
+      if (!gameRef.current) return;
+      if (document.hidden) gameRef.current.scene.scenes.forEach(s => { if (s.scene.isActive()) s.scene.pause(); });
+      else gameRef.current.scene.scenes.forEach(s => { if (s.scene.isPaused()) s.scene.resume(); });
+    };
+    document.addEventListener("visibilitychange", onVisChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisChange);
+      gameRef.current?.destroy(true);
+      gameRef.current = null;
+    };
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ width: "100vw", height: "100vh", touchAction: "none", overflow: "hidden" }}
+    />
+  );
 }
 `,
 	},

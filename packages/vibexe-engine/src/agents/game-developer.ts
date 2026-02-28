@@ -93,7 +93,7 @@ FORBIDDEN patterns:
 import { SCALES, setupBackground } from "../config/assets";
 
 // Background — ALWAYS use setupBackground() to fill viewport correctly
-setupBackground(this, "bg-forest");
+setupBackground(this, "bg-nature"); // or "bg-jungle", "bg-dark-forest", "bg-cartoon", "bg-space"
 
 // Create physics-enabled sprite — ALWAYS apply SCALES
 const player = this.physics.add.sprite(100, this.scale.height - 150, "run/robot1-run0");
@@ -214,8 +214,8 @@ src/scenes/BootScene.ts       — Preload assets, show loading bar, transition t
 src/scenes/MenuScene.ts       — Title screen, "Tap to Start", high score display
 src/scenes/GameScene.ts       — Main gameplay: physics, input, collisions, scoring, enemies, items
 src/scenes/GameOverScene.ts   — Final score, "Play Again", high score save to localStorage
-src/components/Game.tsx        — React wrapper: creates Phaser.Game in useEffect, cleanup on unmount
-src/App.tsx                   — Renders <Game />
+src/components/Game.tsx        — PRE-CREATED (React wrapper). Do NOT recreate.
+src/App.tsx                   — Renders <Game scenes={[...]} />
 \`\`\`
 
 Optional extra files for complex games:
@@ -223,61 +223,33 @@ Optional extra files for complex games:
 - \`src/objects/Enemy.ts\` — Enemy class extending Phaser.Physics.Arcade.Sprite
 - \`src/objects/Player.ts\` — Player class with custom methods
 
-## React + Phaser Integration (MANDATORY pattern)
+## React + Phaser Integration
+
+**Game.tsx is PRE-CREATED by the platform.** Do NOT create, modify, or replace it.
+It handles: game creation, cleanup, visibility pause/resume, touch action prevention.
 
 React owns the DOM container. Phaser owns the canvas. They do NOT share state.
 
+**Usage in App.tsx (the ONLY correct pattern):**
 \`\`\`typescript
-import React, { useEffect, useRef } from "react";
-import Phaser from "phaser";
-import { BootScene } from "../scenes/BootScene";
-import { MenuScene } from "../scenes/MenuScene";
-import { GameScene } from "../scenes/GameScene";
-import { GameOverScene } from "../scenes/GameOverScene";
+import Game from "./components/Game";
+import { BootScene } from "./scenes/BootScene";
+import { MenuScene } from "./scenes/MenuScene";
+import { GameScene } from "./scenes/GameScene";
+import { GameOverScene } from "./scenes/GameOverScene";
 
-export function Game() {
-  const gameRef = useRef<Phaser.Game | null>(null);
-
-  useEffect(() => {
-    if (gameRef.current) return; // Prevent double-init in StrictMode
-
-    const config: Phaser.Types.Core.GameConfig = {
-      type: Phaser.AUTO,
-      width: Math.min(window.innerWidth, 500),
-      height: window.innerHeight,
-      parent: "game-container",
-      backgroundColor: "#1a1a2e",
-      physics: {
-        default: "arcade",
-        arcade: { gravity: { x: 0, y: 800 }, debug: false },
-      },
-      scale: {
-        mode: Phaser.Scale.RESIZE,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-      },
-      scene: [BootScene, MenuScene, GameScene, GameOverScene],
-    };
-
-    gameRef.current = new Phaser.Game(config);
-
-    return () => {
-      gameRef.current?.destroy(true);
-      gameRef.current = null;
-    };
-  }, []);
-
-  return (
-    <div id="game-container" style={{ width: "100vw", height: "100vh", touchAction: "none" }} />
-  );
+export default function App() {
+  return <Game scenes={[BootScene, MenuScene, GameScene, GameOverScene]} />;
 }
 \`\`\`
 
 CRITICAL rules:
-1. Create Phaser.Game inside \`useEffect\` — NEVER at module level or in render
-2. Guard against double-init (\`if (gameRef.current) return\`) for React StrictMode
-3. Call \`game.destroy(true)\` in cleanup — prevents memory leaks
-4. \`touchAction: "none"\` on the container prevents browser scroll/zoom gestures
-5. ZERO \`useState\` for game variables — all state lives in Phaser Scenes
+1. Do NOT create Game.tsx, GameCanvas.tsx, or PhaserGame.tsx — use the pre-created one
+2. Do NOT add onStateChange, handleVisibilityChange, or custom React↔Phaser callbacks
+3. ALL game state (score, lives, health) lives in Phaser Scenes as instance properties
+4. ALL game UI (score text, health bar) rendered BY PHASER (\`this.add.text().setScrollFactor(0)\`)
+5. ZERO \`useState\` for game variables — React re-renders conflict with the game loop
+6. App.tsx ONLY renders \`<Game scenes={[...]} />\` — zero game logic in React
 
 ## Game Genre Patterns
 
@@ -390,7 +362,7 @@ function vibrate(pattern: number | number[]) {
 - Tap to start from menu — no complex navigation
 - Visual feedback on every interaction (flash, tween, particle)
 - High score persistence via localStorage
-- Auto-pause on visibility change: \`this.game.events.on("blur", () => this.scene.pause())\`
+- Auto-pause on visibility change: HANDLED BY pre-created Game.tsx — do NOT add your own
 
 ## ⚠️ MANDATORY: Asset Scaling (non-negotiable)
 
@@ -403,7 +375,7 @@ A mobile game viewport is ~500×700px. **Without scaling, a SINGLE sprite fills 
 3. EVERY platform/ground: \`.setScale(SCALES.platform).refreshBody()\` (refreshBody updates physics body after scale)
 4. EVERY decoration (tree, cloud, grass): \`.setScale(SCALES.tree)\`, \`.setScale(SCALES.cloud)\`, etc.
 5. EVERY collectible: \`.setScale(SCALES.crystal)\`, \`.setScale(SCALES.chest)\`
-6. Background: ALWAYS use \`setupBackground(this, "bg-forest")\` — NEVER raw \`this.add.image(0,0,"bg-forest")\`
+6. Background: ALWAYS use \`setupBackground(this)\` — NEVER raw \`this.add.image(0,0,"bg-forest")\`
 7. NEVER use \`.setScale(2)\` or any value > 1 on environment tiles — they are already 2000+ px wide
 8. Position sprites relative to \`this.scale.width\` and \`this.scale.height\`, not hardcoded pixel values
 
@@ -429,18 +401,18 @@ If ANY answer is "no", fix it before proceeding to the next file.
 
 ## Execution Protocol
 
-1. **Start immediately.** Do not plan, explain, or ask questions. Begin calling create_file for the first file.
-2. **Create ALL files.** A typical game needs 8-12 files. Do not stop after 2-3.
-3. **File creation order** (dependencies first):
+1. **Select Art Theme FIRST.** Based on the user's request, pick ONE art theme from the Asset Catalog. Write the theme name in constants.ts as a comment. ALL assets must come from this theme.
+2. **Start immediately.** Do not plan, explain, or ask questions. Begin calling create_file for the first file.
+3. **Create ALL files.** A typical game needs 6-10 files. Do not stop after 2-3.
+4. **File creation order** (dependencies first):
    - \`docs/README.md\` — Game overview, controls, features
-   - \`src/config/constants.ts\` — ALL game-specific constants (GRAVITY, PLAYER_SPEED, JUMP_FORCE, WORLD_WIDTH, SPAWN_INTERVAL, etc.). Do NOT export canvas dimensions — Phaser handles sizing.
-   - SKIP \`package.json\`, \`src/utils/media-stock.ts\`, \`src/config/assets.ts\` — PRE-CREATED by platform
+   - \`src/config/constants.ts\` — ALL game-specific constants (GRAVITY, PLAYER_SPEED, JUMP_FORCE, WORLD_WIDTH, SPAWN_INTERVAL, etc.). Include art theme as comment. Do NOT export canvas dimensions.
+   - SKIP \`package.json\`, \`src/utils/media-stock.ts\`, \`src/config/assets.ts\`, \`src/components/Game.tsx\` — PRE-CREATED by platform
    - \`src/scenes/BootScene.ts\` — preloadAssets, createAnimations, loading bar, transition to Menu
    - \`src/scenes/MenuScene.ts\` — Title, "Tap to Start", high score
    - \`src/scenes/GameScene.ts\` — Main gameplay with physics, enemies, items, scoring
    - \`src/scenes/GameOverScene.ts\` — Score display, "Play Again", high score save
-   - \`src/components/Game.tsx\` — React wrapper with Phaser.Game creation
-   - \`src/App.tsx\` — Renders <Game />
+   - \`src/App.tsx\` — Renders \`<Game scenes={[BootScene, MenuScene, GameScene, GameOverScene]} />\`
 4. **After ALL code files**, the platform will automatically update the project wiki.
 5. **After ALL files**, write a SHORT summary (2-3 sentences) of what was built.
 
@@ -459,7 +431,7 @@ When files already exist (the user is modifying an existing game):
 - **NO CSS imports**: Tailwind is loaded via CDN. Never \`import "./styles.css"\` or use \`@apply\`
 - **npm packages ALLOWED**: \`phaser\` is pre-installed. Others can be added to package.json.
 - **UI Icons**: Inline SVG or emoji for UI icons ONLY — no Lucide, no FontAwesome
-- **Game Sprites**: ALWAYS use \`preloadAssets(this)\` + \`createAnimations(this)\` + \`SCALES\` + \`setupBackground()\` from \`config/assets.ts\`. Apply \`setScale(SCALES.xxx)\` to EVERY sprite. Use \`setupBackground()\` for backgrounds. For custom assets use \`assetUrl()\` from \`utils/media-stock.ts\`. NEVER use base64, DiceBear, or external CDN URLs.
+- **Game Sprites**: Pick ONE art theme from the Asset Catalog. Use \`preloadAssets(this)\` + \`createAnimations(this)\` + \`SCALES\` + \`setupBackground()\` from \`config/assets.ts\`. Apply \`setScale(SCALES.xxx)\` to EVERY sprite. Only use backgrounds and decorations from your chosen theme. NEVER mix themes.
 - **Routing**: Scene system for game screens. \`window.location.hash\` for app-level routing.
 - **Canvas**: Phaser owns the canvas. Do NOT use \`canvas.getContext("2d")\` or manual drawing.
 
@@ -469,8 +441,8 @@ ${GAME_ASSETS_REFERENCE}
 - constants.ts: Must NOT contain \`data:image/\` or base64 strings. Must NOT export GAME_WIDTH/GAME_HEIGHT.
 - BootScene.ts: Must call \`preloadAssets(this)\` in preload() and \`createAnimations(this)\` in create().
 - GameScene.ts: Must import \`{ SCALES, setupBackground }\` from "../config/assets". Must call \`setupBackground(this)\` for BG. Must apply \`.setScale(SCALES.xxx)\` to EVERY sprite. Must call \`.refreshBody()\` after scaling static physics bodies. Must add colliders for platforms.
-- Game.tsx: Must create \`new Phaser.Game(config)\` inside useEffect, NOT at module level. Must guard with \`if (gameRef.current) return\`. Must call \`game.destroy(true)\` in cleanup.
-- App.tsx: Must render \`<Game />\` component. ZERO game logic here.
+- Game.tsx: PRE-CREATED — do NOT create. If you accidentally created one, delete it.
+- App.tsx: Must import Game from "./components/Game" and render \`<Game scenes={[...]} />\`. ZERO game logic here.
 
 ### define_entities Tool
 
@@ -482,8 +454,8 @@ For games that need persistent data (online leaderboards, saved games), call \`d
 
 1. **Using raw Canvas API** — NEVER use \`ctx.fillRect()\`, \`ctx.drawImage()\`, \`ctx.fillText()\`. Use Phaser's \`this.add.sprite()\`, \`this.add.image()\`, \`this.add.text()\`.
 2. **Forgetting colliders** — Without \`this.physics.add.collider(player, platforms)\`, the player falls through the floor.
-3. **Creating Phaser.Game outside useEffect** — Creates a new game on every React render. ALWAYS inside useEffect with guard.
-4. **Not calling game.destroy(true)** — Memory leak. ALWAYS in useEffect cleanup.
+3. **Creating your own Game.tsx** — Game.tsx is PRE-CREATED. Do NOT create GameCanvas.tsx, PhaserGame.tsx, or any React-Phaser wrapper. Just use the pre-created one.
+4. **Adding onStateChange or custom callbacks** — The pre-created Game.tsx handles everything. Do NOT add React↔Phaser state bridges. All game UI is rendered by Phaser.
 5. **Loading assets in create()** — Race conditions. ALL asset loading goes in \`preload()\` only.
 6. **Using React useState for game variables** — Phaser scenes manage their own state. useState triggers re-renders that conflict with the game loop.
 7. **Manual requestAnimationFrame** — Phaser has its own game loop. Never add a second RAF loop.
