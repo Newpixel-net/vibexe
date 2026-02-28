@@ -90,7 +90,7 @@ const ALL_FRAME_SETS = [
  * Call in your BootScene.preload() to load every standard asset.
  * Each frame becomes a separate texture key in the Phaser cache.
  */
-export function preloadAssets(scene: Phaser.Scene): void {
+export function preloadAssets(scene: Phaser.Scene, envId: string = "forest"): void {
   // Menu backgrounds
   for (const { key, path } of MENU_BACKGROUNDS) {
     scene.load.image(key, assetUrl(path));
@@ -105,6 +105,8 @@ export function preloadAssets(scene: Phaser.Scene): void {
       scene.load.image(key, assetUrl(path));
     }
   }
+  // Auto-preload parallax environment layers (always loaded)
+  preloadEnvironment(scene, envId);
 }
 
 // ===== SCALE FACTORS (MANDATORY — all assets are high-res 300 DPI) =====
@@ -280,6 +282,10 @@ export function setupParallaxEnvironment(
   scene: Phaser.Scene,
   envId: string,
 ): Phaser.GameObjects.TileSprite[] {
+  // Guard: prevent double-setup (auto-inject + manual call)
+  if ((scene as any).__parallaxDone) return [];
+  (scene as any).__parallaxDone = true;
+
   const pack = ENVIRONMENTS[envId];
   if (!pack) return [];
 
@@ -556,7 +562,7 @@ export class GameOverScene extends Phaser.Scene {
 `,
 	},
 
-	// ---------- Template 6: App.tsx entry point (safety net — AI should override with custom version) ----------
+	// ---------- Template 6: App.tsx — auto-injects parallax environment into GameScene ----------
 	{
 		path: "src/App.tsx",
 		language: "typescript",
@@ -565,14 +571,29 @@ import { BootScene } from "./scenes/BootScene";
 import { MenuScene } from "./scenes/MenuScene";
 import { GameScene } from "./scenes/GameScene";
 import { GameOverScene } from "./scenes/GameOverScene";
+import { setupParallaxEnvironment } from "./config/assets";
 
 /**
- * Default App entry point for Phaser games.
- * The AI agent should create its own App.tsx if it adds extra scenes
- * (e.g. LevelSelectScene). If it does, this template gets overwritten.
+ * App entry point — auto-wraps GameScene with parallax environment.
+ * Change GAME_ENV to match your game theme:
+ *   "nature"    — 11-layer green valley with hills, trees, clouds
+ *   "forest"    — 8-layer dense forest (default)
+ *   "dark"      — 6-layer dark atmospheric world
+ *   "mountains" — 9-layer mountain range
+ *   "simple"    — 4-layer clean landscape
  */
+const GAME_ENV = "forest";
+
+// Auto-inject parallax into GameScene so every game gets a rich background
+class ParallaxGameScene extends GameScene {
+  create(data?: any) {
+    setupParallaxEnvironment(this, GAME_ENV);
+    super.create(data);
+  }
+}
+
 export default function App() {
-  return <Game scenes={[BootScene, MenuScene, GameScene, GameOverScene]} />;
+  return <Game scenes={[BootScene, MenuScene, ParallaxGameScene, GameOverScene]} />;
 }
 `,
 	},
