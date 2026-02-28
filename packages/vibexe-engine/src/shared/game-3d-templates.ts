@@ -72,6 +72,12 @@ export const SCALES_3D = {
   wood: 0.5,
 };
 
+// ===== Common Game Constants =====
+export const TOUCH_DEADZONE = 0.15;   // Joystick deadzone (0-1 range)
+export const GRAVITY_3D = -20;         // Default gravity for cannon-es
+export const JUMP_FORCE = 8;           // Default jump velocity
+export const MOVE_SPEED = 5;           // Default movement speed
+
 // ===== Renderer =====
 
 /**

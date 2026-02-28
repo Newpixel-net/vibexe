@@ -378,8 +378,10 @@ src/App.tsx                        — PRE-CREATED (imports GameScene3D). Do NOT
 CRITICAL: Do NOT create BootScene3D.ts, MenuScene3D.ts, LoadingScene3D.ts, or any other scene files besides GameScene3D.ts. Game3D.tsx already handles: loading screen with progress bar, menu overlay with "TAP TO START", and clean restart. You ONLY create GameScene3D.ts.
 
 **AVAILABLE HELPERS FROM assets-3d.ts (COMPLETE LIST — no other functions exist):**
-\`initRenderer\`, \`initScene\`, \`initCamera\`, \`loadGLTF\`, \`createGround3D\`, \`createSkyGradient\`, \`checkCollision\`, \`checkBoxCollision\`, \`createHUD\`, \`createKeyboardState\`, \`SCALES_3D\`, \`createPhysicsWorld\`, \`createPhysicsBody\`, \`createPhysicsGround\`, \`syncBodiesToMeshes\`, \`onClickObject\`, \`createAnimationPlayer\`, \`createOrbitControls\`, \`createTouchJoystick\`, \`createTapDetector\`, \`createSwipeDetector\`.
+**Functions:** \`initRenderer\`, \`initScene\`, \`initCamera\`, \`loadGLTF\`, \`createGround3D\`, \`createSkyGradient\`, \`checkCollision\`, \`checkBoxCollision\`, \`createHUD\`, \`createKeyboardState\`, \`createPhysicsWorld\`, \`createPhysicsBody\`, \`createPhysicsGround\`, \`syncBodiesToMeshes\`, \`onClickObject\`, \`createAnimationPlayer\`, \`createOrbitControls\`, \`createTouchJoystick\`, \`createTapDetector\`, \`createSwipeDetector\`.
+**Constants:** \`SCALES_3D\`, \`TOUCH_DEADZONE\` (0.15), \`GRAVITY_3D\` (-20), \`JUMP_FORCE\` (8), \`MOVE_SPEED\` (5).
 Do NOT call \`getLoadedModel\`, \`cacheModel\`, \`getModel\`, or ANY function not in this list — they do not exist and will crash.
+ALWAYS import constants/helpers you use: \`import { loadGLTF, SCALES_3D, TOUCH_DEADZONE, createTouchJoystick } from "../config/assets-3d";\`
 
 **Reusing models (load once, clone many):**
 \`\`\`typescript
@@ -399,15 +401,18 @@ Optional extra files for complex games:
 
 ## Reference constants.ts — Define ALL Constants Here
 
-CRITICAL: Every constant used in GameScene3D.ts MUST be defined in constants.ts FIRST. If you reference a name like \`CAMERA_LOOK_AHEAD\` or \`ENEMY_SPEED\`, it MUST exist as an export in constants.ts. Undefined constants cause instant crash.
+CRITICAL: Every constant used in GameScene3D.ts MUST be either imported from assets-3d.ts OR defined in constants.ts. If you reference ANY name that isn't imported or defined, the game crashes.
 
+**Already available from assets-3d.ts** (import these, do NOT redefine):
+\`SCALES_3D\`, \`TOUCH_DEADZONE\`, \`GRAVITY_3D\`, \`JUMP_FORCE\`, \`MOVE_SPEED\`
+
+**Define YOUR game-specific constants in constants.ts:**
 \`\`\`typescript
-// src/config/constants.ts — COMPLETE example
+// src/config/constants.ts — game-specific constants only
+// DO NOT redefine GRAVITY_3D, JUMP_FORCE, MOVE_SPEED, TOUCH_DEADZONE — import from assets-3d.ts
 
 // Player
 export const PLAYER_SPEED = 8;
-export const JUMP_FORCE = 12;
-export const GRAVITY = -20;
 
 // World
 export const WORLD_SIZE = 100;
@@ -511,23 +516,29 @@ This is a COMPLETE working 3D Platformer GameScene. Use this as your structural 
 Adapt mechanics to the user's request, but keep the same structure and patterns.
 
 \`\`\`typescript
-import { loadGLTF } from "../config/assets-3d";
-import { modelUrl } from "../utils/media-stock-3d";
 import {
+  loadGLTF,
   SCALES_3D,
+  TOUCH_DEADZONE,
+  GRAVITY_3D,
+  JUMP_FORCE,
+  MOVE_SPEED,
   createGround3D,
   createSkyGradient,
   checkCollision,
   createHUD,
   createKeyboardState,
+  createTouchJoystick,
+  createTapDetector,
   createPhysicsWorld,
   createPhysicsBody,
   createPhysicsGround,
   syncBodiesToMeshes,
 } from "../config/assets-3d";
+import { modelUrl } from "../utils/media-stock-3d";
 import { showGameOver } from "../scenes/GameOverScene3D";
 import {
-  PLAYER_SPEED, JUMP_FORCE, GRAVITY, WORLD_SIZE,
+  PLAYER_SPEED, WORLD_SIZE,
   CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y,
 } from "../config/constants";
 
@@ -550,6 +561,8 @@ let container: HTMLDivElement;
 let world: any;
 let hud: ReturnType<typeof createHUD>;
 let keyboard: ReturnType<typeof createKeyboardState>;
+let joystick: ReturnType<typeof createTouchJoystick>;
+let tapDetector: (() => void) | null = null;
 const platforms: any[] = [];
 const collectibles: any[] = [];
 const physicsPairs: Array<{ mesh: any; body: any }> = [];
@@ -575,7 +588,7 @@ export const GameScene = {
     physicsPairs.length = 0;
 
     // 1. PHYSICS WORLD
-    world = createPhysicsWorld(GRAVITY);
+    world = createPhysicsWorld(GRAVITY_3D);
     createPhysicsGround(world);
 
     // 2. SKY
@@ -669,8 +682,15 @@ export const GameScene = {
     camera.position.set(0, 8, 15);
     camera.lookAt(0, 2, 0);
 
-    // 8. INPUT
+    // 8. INPUT — keyboard + touch (mobile)
     keyboard = createKeyboardState();
+    joystick = createTouchJoystick(container);   // Left thumb pad for movement
+    tapDetector = createTapDetector(container, (_x, _y, _isLeft) => {
+      if (!_isLeft && canJump) { // Tap right half to jump
+        playerBody.velocity.set(playerBody.velocity.x, JUMP_FORCE, playerBody.velocity.z);
+        canJump = false;
+      }
+    });
 
     // 9. HUD
     hud = createHUD(container);
@@ -681,12 +701,18 @@ export const GameScene = {
   update(delta: number) {
     if (gameOver || !player || !world) return;
 
-    // === Movement via physics forces ===
+    // === Movement via physics forces (keyboard + touch joystick) ===
     const MOVE_FORCE = PLAYER_SPEED * 10;
-    const moveX = ((keyboard.keys.ArrowRight || keyboard.keys.KeyD) ? 1 : 0) -
-                  ((keyboard.keys.ArrowLeft || keyboard.keys.KeyA) ? 1 : 0);
-    const moveZ = ((keyboard.keys.ArrowUp || keyboard.keys.KeyW) ? 1 : 0) -
-                  ((keyboard.keys.ArrowDown || keyboard.keys.KeyS) ? 1 : 0);
+    let moveX = ((keyboard.keys.ArrowRight || keyboard.keys.KeyD) ? 1 : 0) -
+                ((keyboard.keys.ArrowLeft || keyboard.keys.KeyA) ? 1 : 0);
+    let moveZ = ((keyboard.keys.ArrowUp || keyboard.keys.KeyW) ? 1 : 0) -
+                ((keyboard.keys.ArrowDown || keyboard.keys.KeyS) ? 1 : 0);
+
+    // Touch joystick (overrides keyboard if active)
+    if (joystick && joystick.active) {
+      if (Math.abs(joystick.x) > TOUCH_DEADZONE) moveX = joystick.x;
+      if (Math.abs(joystick.y) > TOUCH_DEADZONE) moveZ = joystick.y;
+    }
 
     if (moveX !== 0 || moveZ !== 0) {
       const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
@@ -755,6 +781,8 @@ export const GameScene = {
 
   cleanup() {
     keyboard?.destroy();
+    joystick?.destroy();
+    if (tapDetector) tapDetector();
     hud?.destroy();
   },
 };
@@ -764,7 +792,7 @@ export const GameScene = {
 1. GameScene is a plain object with \`init()\`, \`update(delta)\`, \`cleanup()\` — NOT a class, NOT a React component.
 2. State lives in module-level variables (score, lives, gameOver) — NOT React useState.
 3. \`loadGLTF(modelUrl(pack, file))\` for 3D models — with box fallback if loading fails.
-4. \`createKeyboardState()\` for input — check \`keys.ArrowLeft\`, \`keys.Space\`, etc. in update().
+4. \`createKeyboardState()\` + \`createTouchJoystick()\` + \`createTapDetector()\` for input — ALWAYS add BOTH keyboard and touch for mobile support. Check joystick.active + TOUCH_DEADZONE in update().
 5. **Physics**: \`createPhysicsWorld()\` + \`createPhysicsBody()\` + \`world.step()\` + \`syncBodiesToMeshes()\`.
 6. Player body = sphere (mass=5), platforms = static boxes (mass=0). Jump via \`playerBody.velocity.y = JUMP_FORCE\`.
 7. Ground contact detection: \`playerBody.addEventListener("collide", ...)\` checks normal.y for jump reset.
@@ -784,11 +812,22 @@ export const GameScene = {
 
 All 3D models use the **KayKit cartoon low-poly** style. GLTF format, web-native.
 - 4 packs: platformer (370 models), city-builder (41), resource-bits (76), skeletons (17)
-- Color variants: Each base model has 5 versions (neutral + _blue, _green, _red, _yellow)
+- Color variants: Each platformer model has 5 versions (neutral + _blue, _green, _red, _yellow)
 - Load with: \`loadGLTF(modelUrl(pack, file))\`
-- Path pattern: \`modelUrl("kaykit-platformer", "Assets/gltf/{name}.gltf")\`
-- Stylized tools pack (3 OBJ models: axe, pickaxe, hammer) can be mixed with KayKit
+- **GLTF path**: \`modelUrl("kaykit-platformer", "Assets/gltf/{name}.gltf")\` — platformer, city-builder, resource-bits
+- **GLB path**: \`modelUrl("kaykit-skeletons", "{name}.glb")\` — skeletons are GLB (NOT .gltf!)
 - Use KayKit consistently — all packs share the same aesthetic
+
+**MANDATORY: Use at least 3-5 models from the catalog** for platforms, collectibles, environment, and interactive objects.
+Available platformer models include: platform_4x4x1, platform_6x6x1, coin, gem, crystal, star, heart, tree, bush, rock, mushroom, spike, spring, flag, castle_tower, arch, bridge, column, pillar, door, gate, stairs. Check the 3D asset reference below for the full list.
+Example platformer with real models:
+\`\`\`typescript
+const platform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1.gltf"));
+const gem = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/gem.gltf"));
+const tree = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/tree.gltf"));
+const spike = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/spike.gltf"));
+const coin = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/coin.gltf"));
+\`\`\`
 
 ## Mobile / Touch Controls
 
@@ -844,7 +883,7 @@ Do NOT \`import * as THREE from "three"\` or \`import CANNON from "cannon-es"\` 
 ## Execution Protocol
 
 1. **Select Art Pack FIRST.** Based on user's request, pick KayKit (default). Write the choice in constants.ts.
-2. **constants.ts MUST define EVERY constant.** Before writing GameScene3D.ts, ensure constants.ts exports ALL values you will reference: PLAYER_SPEED, JUMP_FORCE, GRAVITY, WORLD_SIZE, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y, plus any game-specific constants. Using an undefined constant crashes the game instantly.
+2. **constants.ts MUST define game-specific constants.** Import \`TOUCH_DEADZONE\`, \`GRAVITY_3D\`, \`JUMP_FORCE\`, \`MOVE_SPEED\`, \`SCALES_3D\` from assets-3d.ts. Define PLAYER_SPEED, WORLD_SIZE, CAMERA_OFFSET_Y/Z/LERP/LOOK_Y and any game-specific constants in constants.ts. Using an undefined constant crashes the game instantly.
 3. **Start immediately.** Do not plan, explain, or ask questions. Begin calling create_file.
 4. **Create ALL files.** A typical 3D game needs 5-8 files. Do not stop after 2-3.
 5. **File creation order** (dependencies first):
@@ -896,7 +935,7 @@ ${GAME_3D_ASSETS_REFERENCE}
 16. **Physics body without matching mesh** — Every dynamic physics body needs a visual mesh synced to it.
 17. **Using OrbitControls with platformer** — Platformers use camera follow (lerp). OrbitControls is for city builders.
 18. **Forgetting anim.update(delta)** — AnimationMixer must be updated every frame or animations freeze.
-19. **CRITICAL: Using undefined constants** — If you reference ANY constant name (CAMERA_LOOK_AHEAD, ENEMY_SPEED, PLATFORM_GAP, etc.), it MUST be defined with \`export const\` in constants.ts. NEVER use a constant name without defining it first. This is the #1 cause of game crashes.
+19. **CRITICAL: Using undefined constants** — If you reference ANY constant name, it MUST be either imported from assets-3d.ts (\`TOUCH_DEADZONE\`, \`GRAVITY_3D\`, \`JUMP_FORCE\`, \`MOVE_SPEED\`, \`SCALES_3D\`) or defined in constants.ts. NEVER use a constant name without importing or defining it. This is the #1 cause of game crashes.
 20. **CRITICAL: Using a class instead of plain object** — GameScene MUST be \`export const GameScene = { init(), update(), cleanup() }\`. Do NOT use \`class GameScene\` — it causes TypeScript syntax errors with mixed arrow/method syntax and breaks the Game3D.tsx interface.
 21. **Creating BootScene/MenuScene/LoadingScene** — Game3D.tsx already provides loading screen + menu overlay + restart. Do NOT create separate scene files for these.
 22. **Overriding App.tsx** — App.tsx is PRE-CREATED and imports GameScene3D correctly. Do NOT recreate or override it.
