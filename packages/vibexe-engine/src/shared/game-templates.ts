@@ -389,6 +389,66 @@ export function createAnimations(scene: Phaser.Scene): void {
   anim("alien-attack", ALIEN_ATTACK, 12, 0);
   anim("alien-die",    ALIEN_DIE,    10, 0);
 }
+
+// ===== HELPER: Create a fully configured player sprite =====
+// Handles: correct texture, scale, physics body sizing, bounce, world bounds, initial animation.
+// The AI just calls createPlayer() instead of manually setting up 6+ lines of boilerplate.
+export function createPlayer(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  type: "robot" | "zombie" | "alien" = "robot"
+): Phaser.Types.Physics.Arcade.SpriteWithDynamicBody {
+  const cfg = {
+    robot:  { frame: ROBOT_RUN[0].key,   scale: SCALES.player, anim: "player-run" },
+    zombie: { frame: ZOMBIE_WALK[0].key,  scale: SCALES.zombie, anim: "zombie-walk" },
+    alien:  { frame: ALIEN_RUN[0].key,    scale: SCALES.alien,  anim: "alien-run" },
+  }[type];
+
+  const sprite = scene.physics.add.sprite(x, y, cfg.frame);
+  sprite.setScale(cfg.scale);
+  sprite.setBounce(0.1);
+  sprite.setCollideWorldBounds(true);
+
+  // Tighten physics body to match visual character shape (not full frame)
+  const body = sprite.body as Phaser.Physics.Arcade.Body;
+  body.setSize(sprite.width * 0.6, sprite.height * 0.8);
+  body.setOffset(sprite.width * 0.2, sprite.height * 0.2);
+
+  sprite.play(cfg.anim);
+  return sprite;
+}
+
+// ===== HELPER: Create ground platform spanning full world width =====
+// Handles: world bounds, camera bounds, grass tile repetition, static physics.
+// Returns the staticGroup so AI can add colliders: physics.add.collider(player, ground)
+export function createGround(
+  scene: Phaser.Scene,
+  worldWidth: number = 5000,
+): Phaser.Physics.Arcade.StaticGroup {
+  const h = scene.scale.height;
+
+  // Set world and camera bounds
+  scene.physics.world.setBounds(0, 0, worldWidth, h);
+  scene.cameras.main.setBounds(0, 0, worldWidth, h);
+
+  const group = scene.physics.add.staticGroup();
+
+  // Calculate grass tile dimensions after scaling
+  const tex = scene.textures.get("grass").getSourceImage();
+  const tileW = tex.width * SCALES.grass;   // ~215px
+  const tileH = tex.height * SCALES.grass;  // ~45px
+  const groundY = h - tileH / 2;            // Bottom-aligned
+  const count = Math.ceil(worldWidth / tileW) + 1;
+
+  for (let i = 0; i < count; i++) {
+    const x = i * tileW + tileW / 2;
+    const tile = group.create(x, groundY, "grass") as Phaser.Physics.Arcade.Sprite;
+    tile.setScale(SCALES.grass).refreshBody();
+  }
+
+  return group;
+}
 `,
 	},
 
@@ -461,17 +521,24 @@ export default function Game({ scenes, gravityY = 800, bgColor = "#1a1a2e" }: Ga
     gameRef.current = new Phaser.Game(config);
 
     // === AUTO-INJECT PARALLAX ENVIRONMENT INTO GAME SCENE ===
-    // After Phaser boots, hook into the "Game" scene's create event.
     // Parallax layers use depth -100..-89 so they render behind all game objects.
+    // Uses requestAnimationFrame retry to handle scene registration race condition.
     const injectParallax = () => {
-      const gs = gameRef.current?.scene.getScene("Game");
-      if (!gs) return;
-      gs.events.on("create", () => {
-        setupParallaxEnvironment(gs, "forest");
-      });
-      gs.events.on("shutdown", () => {
-        (gs as any).__parallaxDone = false;
-      });
+      let retries = 0;
+      const tryInject = () => {
+        const gs = gameRef.current?.scene.getScene("Game");
+        if (!gs) {
+          if (retries++ < 120) requestAnimationFrame(tryInject);
+          return;
+        }
+        gs.events.on("create", () => {
+          setupParallaxEnvironment(gs, "forest");
+        });
+        gs.events.on("shutdown", () => {
+          (gs as any).__parallaxDone = false;
+        });
+      };
+      tryInject();
     };
     if (gameRef.current.isBooted) injectParallax();
     else gameRef.current.events.once("boot", injectParallax);

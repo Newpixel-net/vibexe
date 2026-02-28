@@ -90,29 +90,27 @@ FORBIDDEN patterns:
 
 ### Arcade Physics
 \`\`\`typescript
-import { SCALES, setupParallaxEnvironment } from "../config/assets";
+import { SCALES, setupParallaxEnvironment, createPlayer, createGround } from "../config/assets";
 
-// Gameplay — multi-layer parallax environment (4-11 layers of depth)
+// 1. Parallax environment (4-11 layers of depth)
 setupParallaxEnvironment(this, "nature"); // or "forest", "dark", "mountains", "simple"
-// For Space theme ONLY: import { setupBackground } and use setupBackground(this, "bg-space");
 
-// Create physics-enabled sprite — ALWAYS apply SCALES
-const player = this.physics.add.sprite(100, this.scale.height - 150, "run/robot1-run0");
-player.setScale(SCALES.player); // Raw 995x677 -> ~90x61 px
-player.setCollideWorldBounds(true);
-player.setBounce(0.1);
+// 2. Ground — spans full world width, sets world/camera bounds automatically
+const ground = createGround(this, WORLD_WIDTH); // Returns StaticGroup of grass tiles
 
-// Static platforms — ALWAYS apply SCALES + refreshBody()
+// 3. Player — correct scale, physics body, bounce, animations
+const player = createPlayer(this, 100, this.scale.height - 100, "robot");
+
+// 4. Elevated platforms — ALWAYS apply SCALES + refreshBody()
 const platforms = this.physics.add.staticGroup();
-const ground = platforms.create(this.scale.width / 2, this.scale.height - 30, "ground");
-ground.setScale(SCALES.ground).refreshBody(); // Raw 2050x1200 -> ~164x96
 const plat = platforms.create(200, this.scale.height - 200, "platform");
 plat.setScale(SCALES.platform).refreshBody(); // Raw 2100x550 -> ~210x55
 
-// Colliders (physics collision — stops movement)
+// 5. Colliders — player/enemies vs BOTH ground AND platforms
+this.physics.add.collider(player, ground);
 this.physics.add.collider(player, platforms);
 
-// Overlaps (trigger detection — no physics resolution)
+// 6. Overlaps (trigger detection — no physics resolution)
 this.physics.add.overlap(player, coins, this.collectCoin, undefined, this);
 \`\`\`
 
@@ -212,7 +210,7 @@ const scoreText = this.add.text(16, 16, "Score: 0", {
 docs/README.md                — Game overview, controls, features
 package.json                  — PRE-CREATED. Do NOT recreate.
 src/utils/media-stock.ts      — PRE-CREATED (assetUrl helper). Do NOT recreate.
-src/config/assets.ts          — PRE-CREATED (preloadAssets + preloadEnvironment + createAnimations + SCALES + setupParallaxEnvironment + setupBackground). Do NOT recreate.
+src/config/assets.ts          — PRE-CREATED (preloadAssets + preloadEnvironment + createAnimations + SCALES + setupParallaxEnvironment + setupBackground + createPlayer + createGround). Do NOT recreate.
 src/config/constants.ts       — Game-specific constants (GRAVITY, PLAYER_SPEED, JUMP_FORCE, WORLD_WIDTH, etc.)
 src/scenes/BootScene.ts       — Preload assets, show loading bar, transition to MenuScene
 src/scenes/MenuScene.ts       — Title screen, "Tap to Start", high score display
@@ -294,7 +292,7 @@ mechanics to the user's request, but keep the same structure and patterns.
 
 \`\`\`typescript
 import Phaser from "phaser";
-import { SCALES, setupParallaxEnvironment } from "../config/assets";
+import { SCALES, setupParallaxEnvironment, createPlayer, createGround } from "../config/assets";
 import { PLAYER_SPEED, JUMP_FORCE, WORLD_WIDTH, SPAWN_INTERVAL } from "../config/constants";
 
 export class GameScene extends Phaser.Scene {
@@ -304,6 +302,7 @@ export class GameScene extends Phaser.Scene {
 
   // === Game Objects ===
   private player!: Phaser.Physics.Arcade.Sprite;
+  private ground!: Phaser.Physics.Arcade.StaticGroup;
   private platforms!: Phaser.Physics.Arcade.StaticGroup;
   private enemies!: Phaser.Physics.Arcade.Group;
   private coins!: Phaser.Physics.Arcade.Group;
@@ -323,17 +322,14 @@ export class GameScene extends Phaser.Scene {
     const W = this.scale.width;
     const H = this.scale.height;
 
-    // 1. PARALLAX — must be FIRST
+    // 1. PARALLAX — must be FIRST (auto-injected by Game.tsx too, but calling here is safe — guard prevents double-setup)
     setupParallaxEnvironment(this, "forest"); // pick env matching theme
 
-    // 2. PLATFORMS — ground + elevated
+    // 2. GROUND — createGround() handles world bounds, camera bounds, grass tiles spanning full width
+    this.ground = createGround(this, WORLD_WIDTH);
+
+    // 3. ELEVATED PLATFORMS
     this.platforms = this.physics.add.staticGroup();
-    // Full-width ground — MUST exist under player spawn point
-    for (let i = 0; i < Math.ceil(WORLD_WIDTH / 160); i++) {
-      this.platforms.create(80 + i * 160, H - 30, "ground")
-        .setScale(SCALES.ground).refreshBody();
-    }
-    // Elevated platforms
     const platXY = [
       [200, H - 180], [450, H - 280], [700, H - 200],
       [950, H - 320], [1200, H - 180], [1500, H - 260],
@@ -343,32 +339,29 @@ export class GameScene extends Phaser.Scene {
         .setScale(SCALES.platform).refreshBody();
     }
 
-    // 3. PLAYER — spawn ON the ground (not mid-air)
-    this.player = this.physics.add.sprite(100, H - 150, "run/robot1-run0");
-    this.player.setScale(SCALES.player);
-    this.player.setCollideWorldBounds(true);
-    this.player.setBounce(0.1);
-    this.player.play("player-run");
+    // 4. PLAYER — createPlayer() handles scale, physics body, bounce, animations
+    this.player = createPlayer(this, 100, H - 100, "robot");
 
-    // 4. GROUPS — enemies and collectibles
+    // 5. GROUPS — enemies and collectibles
     this.enemies = this.physics.add.group();
     this.coins = this.physics.add.group();
     for (const [px, py] of platXY) {
       const c = this.coins.create(px, py - 60, "crystal") as Phaser.Physics.Arcade.Sprite;
       c.setScale(SCALES.crystal);
       (c.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
-      // NOTE: setAllowGravity is on body, NOT on sprite!
     }
 
-    // 5. COLLIDERS — all groups vs platforms
+    // 6. COLLIDERS — player/enemies vs BOTH ground AND platforms
+    this.physics.add.collider(this.player, this.ground);
     this.physics.add.collider(this.player, this.platforms);
+    this.physics.add.collider(this.enemies, this.ground);
     this.physics.add.collider(this.enemies, this.platforms);
 
-    // 6. OVERLAPS — triggers
+    // 7. OVERLAPS — triggers
     this.physics.add.overlap(this.player, this.coins, this.collectCoin, undefined, this);
     this.physics.add.overlap(this.player, this.enemies, this.hitEnemy, undefined, this);
 
-    // 7. INPUT
+    // 8. INPUT
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
       if (this.gameOver) return;
@@ -378,17 +371,15 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    // 8. CAMERA
+    // 9. CAMERA — follows player (bounds already set by createGround)
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
-    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, H);
-    this.physics.world.setBounds(0, 0, WORLD_WIDTH, H);
 
-    // 9. HUD
+    // 10. HUD
     this.scoreText = this.add.text(16, 16, "Score: 0", {
       fontSize: "24px", color: "#fff", fontFamily: "sans-serif",
     }).setScrollFactor(0).setDepth(100);
 
-    // 10. SPAWNING
+    // 11. SPAWNING
     this.time.addEvent({ delay: SPAWN_INTERVAL, callback: () => this.spawnEnemy(), loop: true });
   }
 
@@ -473,15 +464,17 @@ export class GameScene extends Phaser.Scene {
 \`\`\`
 
 **KEY PATTERNS from this reference** (apply to ALL action games):
-1. \`gameOver\` flag — checked in update() AND spawn methods. Without this, player keeps moving after death.
-2. \`body.touching.down || body.blocked.down\` — the CORRECT ground check. NOT \`body.onFloor()\`.
-3. Animation switching in update() — switch based on velocity + ground state EVERY frame. Never just set-and-forget.
-4. \`(sprite.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)\` — gravity toggle is on BODY, not sprite.
-5. Colliders for ALL groups vs platforms — without this, enemies/items fall through the floor.
-6. State reset in create() — \`this.score = 0; this.gameOver = false;\` for scene restart support.
-7. Enemy cleanup in update() — destroy sprites that go off-screen to prevent memory leaks.
-8. Stomp detection: \`pb.velocity.y > 0 && p.y < e.y - 20\` — player must be falling AND above enemy.
-9. HUD at depth 100 with setScrollFactor(0) — stays visible above all game objects.
+1. \`createGround(this, WORLD_WIDTH)\` — creates grass ground spanning full width + sets world/camera bounds. ALWAYS use this helper.
+2. \`createPlayer(this, x, y, "robot")\` — creates player with correct scale, physics body, animations. ALWAYS use this helper.
+3. \`gameOver\` flag — checked in update() AND spawn methods. Without this, player keeps moving after death.
+4. \`body.touching.down || body.blocked.down\` — the CORRECT ground check. NOT \`body.onFloor()\`.
+5. Animation switching in update() — switch based on velocity + ground state EVERY frame. Never just set-and-forget.
+6. \`(sprite.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)\` — gravity toggle is on BODY, not sprite.
+7. Colliders for ALL groups vs BOTH ground AND platforms — \`collider(player, ground)\` + \`collider(player, platforms)\` + \`collider(enemies, ground)\` + \`collider(enemies, platforms)\`.
+8. State reset in create() — \`this.score = 0; this.gameOver = false;\` for scene restart support.
+9. Enemy cleanup in update() — destroy sprites that go off-screen to prevent memory leaks.
+10. Stomp detection: \`pb.velocity.y > 0 && p.y < e.y - 20\` — player must be falling AND above enemy.
+11. HUD at depth 100 with setScrollFactor(0) — stays visible above all game objects.
 
 ## Mobile Game Patterns
 
@@ -571,8 +564,9 @@ All media-stock sprites are HIGH-RESOLUTION (300 DPI / HD). Raw pixel sizes rang
 A mobile game viewport is ~500×700px. **Without scaling, a SINGLE sprite fills the entire screen.**
 
 **Rules:**
-1. Import \`SCALES\` and \`setupParallaxEnvironment\` from the pre-created \`../config/assets\`
-2. EVERY character sprite: \`.setScale(SCALES.player)\` or \`.setScale(SCALES.zombie)\` or \`.setScale(SCALES.alien)\`
+1. Import \`SCALES\`, \`setupParallaxEnvironment\`, \`createPlayer\`, \`createGround\` from the pre-created \`../config/assets\`
+2. ALWAYS use \`createPlayer(this, x, y, type)\` to create the player — it handles scale, physics body, bounce, animations automatically
+3. ALWAYS use \`createGround(this, WORLD_WIDTH)\` to create the ground — it handles grass tiles, world bounds, camera bounds automatically
 3. EVERY platform/ground: \`.setScale(SCALES.platform).refreshBody()\` (refreshBody updates physics body after scale)
 4. EVERY decoration (tree, cloud, grass): \`.setScale(SCALES.tree)\`, \`.setScale(SCALES.cloud)\`, etc.
 5. EVERY collectible: \`.setScale(SCALES.crystal)\`, \`.setScale(SCALES.chest)\`
@@ -582,10 +576,13 @@ A mobile game viewport is ~500×700px. **Without scaling, a SINGLE sprite fills 
 9. Position sprites relative to \`this.scale.width\` and \`this.scale.height\`, not hardcoded pixel values
 
 **ASSET SCALING SELF-CHECK** (run mentally after writing GameScene):
-- Does EVERY \`this.physics.add.sprite()\` call have a \`.setScale(SCALES.xxx)\` on the next line?
-- Does EVERY \`platforms.create()\` call have \`.setScale(SCALES.xxx).refreshBody()\`?
+- Did you use \`createPlayer(this, x, y, type)\` to create the player? If not, REPLACE with createPlayer().
+- Did you use \`createGround(this, WORLD_WIDTH)\` to create the ground? If not, REPLACE with createGround().
+- Did you add colliders for player vs BOTH ground AND platforms? (\`collider(player, ground)\` + \`collider(player, platforms)\`)
+- Did you add colliders for enemies vs BOTH ground AND platforms?
 - GameScene: Is the environment created via \`setupParallaxEnvironment(this, envId)\`? (Space theme: \`setupBackground(this, "bg-space")\`)
 - MenuScene/GameOverScene: Is the background created via \`setupBackground(this, bgKey, 0)\`?
+- Does EVERY elevated platform have \`.setScale(SCALES.platform).refreshBody()\`?
 - Are decorative sprites (trees, clouds) scaled via \`SCALES.tree\`, \`SCALES.cloud\`?
 If ANY answer is "no", fix it before proceeding to the next file.
 
@@ -593,7 +590,7 @@ If ANY answer is "no", fix it before proceeding to the next file.
 
 1. **Every game MUST have 4 scenes**: BootScene → MenuScene → GameScene → GameOverScene. All 4 are PRE-CREATED or have templates. You MUST create BootScene.ts, MenuScene.ts, and GameScene.ts. GameOverScene.ts and App.tsx are pre-created but you SHOULD override them with themed versions.
 2. **Levels MUST have REAL content**: A platformer needs 50+ tiles of terrain, varied heights, gaps, enemies, items. A flat ground line is NOT a game.
-3. **Player MUST be visible and controllable from frame 1**: Spawn the player ON a solid platform, not in mid-air or over a gap. No stuck loading screens. No invisible sprites.
+3. **Player MUST be created via \`createPlayer(this, x, y, type)\`**: This helper handles scale, physics body, bounce, world bounds, and initial animation automatically. NEVER create the player manually with \`physics.add.sprite()\` — that causes wrong scale, wrong body size, and missing animations.
 4. **Touch controls ALWAYS included**: Phaser's Pointer API works for both mouse and touch. Add virtual buttons for actions.
 5. **Canvas fills viewport**: Phaser handles this via the config + RESIZE scale mode. Do NOT manually size canvas.
 6. **GameScene MUST use setupParallaxEnvironment()**: This is THE MOST IMPORTANT visual feature. Call \`setupParallaxEnvironment(this, envId)\` as the FIRST line in GameScene.create(). This creates 4-11 layers of multi-layer parallax depth that scroll at different speeds as the player moves. The environment is what makes the game look professional. WITHOUT this call, gameplay has a blank dark background.
@@ -601,7 +598,7 @@ If ANY answer is "no", fix it before proceeding to the next file.
 8. **Score display**: \`this.add.text().setScrollFactor(0)\` for camera-fixed HUD.
 9. **Sound is optional**: Skip audio — focus on visual polish and gameplay.
 10. **Performance**: Keep entity counts reasonable (<200 active). Destroy off-screen objects in update().
-11. **Player must survive initial spawn**: Ensure a ground platform exists under the player spawn point. The game must be playable for at least 10+ seconds of normal gameplay before any death is possible.
+11. **Ground MUST be created via \`createGround(this, WORLD_WIDTH)\`**: This helper creates grass tiles spanning the full world width, sets world bounds, and sets camera bounds. NEVER create ground manually — manual ground often has gaps, wrong positioning, or missing bounds.
 12. **GameScene MUST have a working update() method**: The update() method handles: keyboard input (setVelocityX/Y), animation switching (run/jump/idle every frame), gameOver guard (return early if dead), and off-screen cleanup. See the Complete GameScene Reference above. A GameScene without update() means NO player movement.
 13. **State reset in create()**: Always set \`this.score = 0; this.gameOver = false;\` at the top of create() so scene restart works correctly.
 14. **Colliders for ALL physics groups**: Player vs platforms, enemies vs platforms, items vs platforms. Missing any collider = objects falling through floor.
@@ -617,7 +614,7 @@ If ANY answer is "no", fix it before proceeding to the next file.
    - SKIP \`package.json\`, \`src/utils/media-stock.ts\`, \`src/config/assets.ts\`, \`src/components/Game.tsx\` — PRE-CREATED by platform, do NOT recreate
    - \`src/scenes/BootScene.ts\` — preloadAssets + preloadEnvironment, createAnimations, loading bar, transition to Menu
    - \`src/scenes/MenuScene.ts\` — Title, "Tap to Start", high score. Use \`setupBackground(this, bgKey, 0)\` for static BG.
-   - \`src/scenes/GameScene.ts\` — Main gameplay. MUST call \`setupParallaxEnvironment(this, envId)\` FIRST in create(), then add platforms, player, enemies, items. Player MUST spawn ON a platform (not in mid-air).
+   - \`src/scenes/GameScene.ts\` — Main gameplay. MUST call: (1) \`setupParallaxEnvironment(this, envId)\` FIRST, (2) \`createGround(this, WORLD_WIDTH)\` for ground + bounds, (3) \`createPlayer(this, x, y)\` for player. Then add elevated platforms, enemies, items.
    - \`src/scenes/GameOverScene.ts\` — PRE-CREATED with default dark overlay. Override with your themed version (theme BG, custom colors, etc.)
    - \`src/App.tsx\` — PRE-CREATED with standard 4-scene setup. Override if you add extra scenes (LevelSelectScene, etc.)
 4. **After ALL code files**, the platform will automatically update the project wiki.
@@ -638,7 +635,7 @@ When files already exist (the user is modifying an existing game):
 - **NO CSS imports**: Tailwind is loaded via CDN. Never \`import "./styles.css"\` or use \`@apply\`
 - **npm packages ALLOWED**: \`phaser\` is pre-installed. Others can be added to package.json.
 - **UI Icons**: Inline SVG or emoji for UI icons ONLY — no Lucide, no FontAwesome
-- **Game Sprites**: Pick ONE art theme from the Asset Catalog. Use \`preloadAssets(this)\` + \`preloadEnvironment(this, envId)\` + \`createAnimations(this)\` + \`SCALES\` + \`setupParallaxEnvironment()\` from \`config/assets.ts\`. Apply \`setScale(SCALES.xxx)\` to EVERY sprite. Only use environments and decorations from your chosen theme. NEVER mix themes.
+- **Game Sprites**: Pick ONE art theme from the Asset Catalog. Use \`preloadAssets(this)\` + \`preloadEnvironment(this, envId)\` + \`createAnimations(this)\` + \`createPlayer()\` + \`createGround()\` + \`SCALES\` + \`setupParallaxEnvironment()\` from \`config/assets.ts\`. Apply \`setScale(SCALES.xxx)\` to EVERY sprite. Only use environments and decorations from your chosen theme. NEVER mix themes.
 - **Routing**: Scene system for game screens. \`window.location.hash\` for app-level routing.
 - **Canvas**: Phaser owns the canvas. Do NOT use \`canvas.getContext("2d")\` or manual drawing.
 
@@ -647,7 +644,7 @@ ${GAME_ASSETS_REFERENCE}
 **ASSET SELF-CHECK** (run after writing each file):
 - constants.ts: Must NOT contain \`data:image/\` or base64 strings. Must NOT export GAME_WIDTH/GAME_HEIGHT. Must include environment ID as comment (e.g. \`// Environment: "forest"\`).
 - BootScene.ts: Must call \`preloadAssets(this)\` AND \`preloadEnvironment(this, envId)\` in preload(), and \`createAnimations(this)\` in create().
-- GameScene.ts: CRITICAL — Must import \`{ SCALES, setupParallaxEnvironment }\` from "../config/assets". Must call \`setupParallaxEnvironment(this, envId)\` as THE FIRST THING in create() (before platforms, player, enemies). Must apply \`.setScale(SCALES.xxx)\` to EVERY sprite. Must call \`.refreshBody()\` after scaling static physics bodies. Must add colliders for ALL groups vs platforms. Player MUST spawn ON a platform. MUST have update() method with: keyboard input, animation switching every frame (run/jump/idle based on velocity+ground), gameOver guard. MUST have gameOver flag set in hit callback. MUST reset score/gameOver in create() for restart support. See Complete GameScene Reference in prompt.
+- GameScene.ts: CRITICAL — Must import \`{ SCALES, setupParallaxEnvironment, createPlayer, createGround }\` from "../config/assets". Must call \`setupParallaxEnvironment(this, envId)\` FIRST in create(). Must use \`createGround(this, WORLD_WIDTH)\` for ground (NOT manual ground creation). Must use \`createPlayer(this, x, y, type)\` for player (NOT manual sprite creation). Must add colliders for player/enemies vs BOTH ground AND platforms. MUST have update() method with: keyboard input, animation switching every frame (run/jump/idle), gameOver guard. MUST have gameOver flag. MUST reset score/gameOver in create().
 - MenuScene.ts: Use \`setupBackground(this, bgKey, 0)\` for static single-image background.
 - GameOverScene.ts: PRE-CREATED with default dark overlay. Override with themed version (import setupBackground, add theme BG).
 - Game.tsx: PRE-CREATED — do NOT create. If you accidentally created one, delete it.
@@ -673,7 +670,7 @@ For games that need persistent data (online leaderboards, saved games), call \`d
 10. **Importing CSS files** — Tailwind is CDN, no imports needed.
 11. **Missing constants exports** — Every value used in 2+ files (speeds, sizes, spawn rates) MUST be in \`config/constants.ts\`.
 12. **Using setupBackground in GameScene** — \`setupBackground()\` is for MenuScene/GameOverScene ONLY (single static image). GameScene MUST use \`setupParallaxEnvironment(this, envId)\` for multi-layer parallax depth. Without this, gameplay has a blank dark background.
-13. **Player spawning over void** — Player MUST spawn on a solid platform. Place a ground platform at the bottom spanning the full world width, then add elevated platforms on top.
+13. **Manual player/ground creation** — NEVER use \`this.physics.add.sprite()\` for the player or manually loop to create ground tiles. Use \`createPlayer(this, x, y, type)\` and \`createGround(this, WORLD_WIDTH)\` — these helpers guarantee correct scale, physics body, bounds, and positioning every time.
 14. **\`sprite.setAllowGravity()\` — WRONG API** — \`setAllowGravity\` is on the BODY, not the sprite. Correct: \`(sprite.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)\`. Calling it on the sprite crashes the game.
 15. **Missing update() method** — GameScene MUST have an \`update()\` method with: input handling (keyboard velocity), animation switching (run/jump/idle based on velocity+ground), gameOver guard, and off-screen enemy cleanup. Without update(), the player cannot move.
 16. **No gameOver flag** — After the player dies, ALL input and spawning must stop. Set \`this.gameOver = true\` in the hit callback and check it at the top of \`update()\` and in spawn methods. Without this, the player keeps moving after death.

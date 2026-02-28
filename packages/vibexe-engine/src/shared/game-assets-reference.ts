@@ -10,7 +10,7 @@
 export const GAME_ASSETS_REFERENCE = `
 ## Asset Catalog — 20,000+ REAL Sprites Available via API
 
-**CRITICAL FACT**: The Vibexe platform hosts 20,454 real game sprite files (PNG/JPG) on the server. They are served via \`/api/app-builder/media-stock/{path}\`. The \`assetUrl()\` helper in the pre-created \`src/utils/media-stock.ts\` constructs full URLs using \`window.__VIBEXE_API_ORIGIN__\` (injected at runtime by the platform). The pre-created \`src/config/assets.ts\` provides \`preloadAssets(scene)\`, \`preloadEnvironment(scene, envId)\`, \`setupParallaxEnvironment(scene, envId)\`, \`setupBackground(scene)\`, \`createAnimations(scene)\`, and \`SCALES\` that handle all standard asset loading and sizing automatically.
+**CRITICAL FACT**: The Vibexe platform hosts 20,454 real game sprite files (PNG/JPG) on the server. They are served via \`/api/app-builder/media-stock/{path}\`. The \`assetUrl()\` helper in the pre-created \`src/utils/media-stock.ts\` constructs full URLs using \`window.__VIBEXE_API_ORIGIN__\` (injected at runtime by the platform). The pre-created \`src/config/assets.ts\` provides \`preloadAssets(scene)\`, \`preloadEnvironment(scene, envId)\`, \`setupParallaxEnvironment(scene, envId)\`, \`setupBackground(scene)\`, \`createAnimations(scene)\`, \`createPlayer(scene, x, y, type)\`, \`createGround(scene, worldWidth)\`, and \`SCALES\` that handle all standard asset loading, sizing, player setup, and ground creation automatically.
 
 **You NEVER need base64 data URIs, DiceBear avatars, external CDN URLs, or placeholder shapes for characters/environments/items.** Real sprites always load correctly via the pre-created helpers.
 
@@ -118,7 +118,7 @@ All media-stock assets are high-resolution (300 DPI, HD quality). A mobile game 
 | Chest | 128×128 | ~38×38 | SCALES.chest = 0.3 |
 | Weapon | 921×305 | ~55×18 | SCALES.weapon = 0.06 |
 
-**The pre-created \`assets.ts\` exports \`SCALES\`, \`setupParallaxEnvironment()\`, and \`setupBackground()\` — you MUST use them.**
+**The pre-created \`assets.ts\` exports \`SCALES\`, \`setupParallaxEnvironment()\`, \`setupBackground()\`, \`createPlayer()\`, and \`createGround()\` — you MUST use them.**
 
 ABSOLUTELY FORBIDDEN in action/platformer/shooter/runner games:
 - \`data:image/svg+xml\` or \`data:image/png;base64,...\` for ANY game asset
@@ -158,6 +158,8 @@ Exports:
 - \`setupParallaxEnvironment(scene, envId)\` — Creates multi-layer parallax environment in GameScene. Each layer scrolls at a different speed for professional depth. Call in GameScene \`create()\` BEFORE adding game objects.
 - \`setupBackground(scene, key?, parallaxSpeed?)\` — Creates a single-image scrolling background. Use for MenuScene/GameOverScene (pass parallaxSpeed=0 for static). Also for Space theme (no parallax pack). Call in create() BEFORE other objects.
 - \`createAnimations(scene)\` — Creates all standard animations: \`player-run\`, \`player-attack\`, \`player-jump\`, \`player-die\`, \`zombie-walk\`, \`zombie-attack\`, \`zombie-die\`, \`alien-run\`, \`alien-attack\`, \`alien-die\`. Call in BootScene \`create()\`.
+- \`createPlayer(scene, x, y, type?)\` — **MANDATORY for player creation.** Creates a fully configured player sprite with correct texture, scale, physics body sizing, bounce, world bounds collision, and initial animation. Type: \`"robot"\` (default), \`"zombie"\`, or \`"alien"\`. Returns the sprite. NEVER create the player manually.
+- \`createGround(scene, worldWidth?)\` — **MANDATORY for ground creation.** Creates grass tile ground spanning full world width at the bottom of the screen. Also sets world bounds and camera bounds. Returns a StaticGroup — add colliders: \`physics.add.collider(player, ground)\`. Default worldWidth=5000. NEVER create ground manually.
 
 ### PRE-CREATED FILE 3: package.json (do NOT recreate or modify)
 Contains \`"phaser": "^3.90.0"\` — Sandpack installs it automatically via extractDependencies().
@@ -220,45 +222,44 @@ export class BootScene extends Phaser.Scene {
 }
 \`\`\`
 
-### Usage in GameScene — CORRECT scaling pattern (MANDATORY):
+### Usage in GameScene — CORRECT pattern (MANDATORY):
 \`\`\`typescript
-import { SCALES, setupParallaxEnvironment } from "../config/assets";
+import { SCALES, setupParallaxEnvironment, createPlayer, createGround } from "../config/assets";
+import { WORLD_WIDTH } from "../config/constants";
 
 // In create():
 
 // 1. Environment — multi-layer parallax for gameplay (NOT setupBackground!)
 setupParallaxEnvironment(this, "nature"); // 11-layer depth, auto-scrolls with camera
-// For Space theme ONLY: setupBackground(this, "bg-space");
 
-// 2. Player — ALWAYS apply SCALES.player
-this.player = this.physics.add.sprite(100, this.scale.height - 150, "run/robot1-run0");
-this.player.setScale(SCALES.player); // 995x677 -> ~90x61 px
-this.player.play("player-run");
-this.player.setCollideWorldBounds(true);
+// 2. Ground — createGround handles grass tiles, world bounds, camera bounds
+const ground = createGround(this, WORLD_WIDTH);
 
-// 3. Platforms — ALWAYS apply SCALES.platform + refreshBody()
+// 3. Player — createPlayer handles scale, physics body, bounce, animations
+this.player = createPlayer(this, 100, this.scale.height - 100, "robot");
+
+// 4. Elevated platforms — ALWAYS apply SCALES.platform + refreshBody()
 const platforms = this.physics.add.staticGroup();
-const ground = platforms.create(this.scale.width / 2, this.scale.height - 30, "ground");
-ground.setScale(SCALES.ground).refreshBody(); // 2050x1200 -> ~164x96
-
 const plat1 = platforms.create(200, this.scale.height - 200, "platform");
 plat1.setScale(SCALES.platform).refreshBody(); // 2100x550 -> ~210x55
 
-// 4. Enemies — ALWAYS apply SCALES.zombie or SCALES.alien
+// 5. Enemies — ALWAYS apply SCALES.zombie or SCALES.alien
 const zombie = this.physics.add.sprite(400, 300, "walk/zombie1-walk0");
 zombie.setScale(SCALES.zombie); // 861x886 -> ~69x71
 zombie.play("zombie-walk");
 
-// 5. Collectibles — ALWAYS apply SCALES.crystal
+// 6. Collectibles — ALWAYS apply SCALES.crystal
 const crystal = this.physics.add.sprite(300, 350, "crystal");
 crystal.setScale(SCALES.crystal); // 128x128 -> ~38x38
 
-// 6. Decoration — ALWAYS apply SCALES for trees, clouds, grass
-const tree = this.add.image(150, this.scale.height - 200, "tree").setScale(SCALES.tree);
-const cloud = this.add.image(200, 80, "cloud").setScale(SCALES.cloud);
-
-// 7. Colliders — MANDATORY or player falls through floor!
+// 7. Colliders — player/enemies vs BOTH ground AND platforms
+this.physics.add.collider(this.player, ground);
 this.physics.add.collider(this.player, platforms);
+this.physics.add.collider(enemies, ground);
+this.physics.add.collider(enemies, platforms);
+
+// 8. Camera follows player (bounds already set by createGround)
+this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 \`\`\`
 
 ### Usage in MenuScene — static background for menus:
