@@ -122,9 +122,10 @@ export const SCALES = {
 };
 
 /**
- * Set up a background image to fill the game viewport.
+ * Set up a background image with cover-fit (like CSS object-fit: cover).
+ * Fills the viewport without distortion — excess edges are cropped.
+ * Handles viewport resize (device rotation) automatically.
  * Call in create() BEFORE adding other game objects.
- * For scrolling worlds, use a parallax approach or tiled backgrounds instead.
  */
 export function setupBackground(
   scene: Phaser.Scene,
@@ -132,9 +133,19 @@ export function setupBackground(
   scrollFactor = 0,
 ): Phaser.GameObjects.Image {
   const bg = scene.add.image(scene.scale.width / 2, scene.scale.height / 2, key);
-  bg.setDisplaySize(scene.scale.width, scene.scale.height);
+  // Cover-fit: fill viewport without distortion, crop excess edges
+  const scaleX = scene.scale.width / bg.width;
+  const scaleY = scene.scale.height / bg.height;
+  bg.setScale(Math.max(scaleX, scaleY));
   bg.setScrollFactor(scrollFactor);
   bg.setDepth(-10);
+  // Re-fit on viewport resize
+  scene.scale.on("resize", (gameSize: Phaser.Structs.Size) => {
+    bg.setPosition(gameSize.width / 2, gameSize.height / 2);
+    const sx = gameSize.width / bg.width;
+    const sy = gameSize.height / bg.height;
+    bg.setScale(Math.max(sx, sy));
+  });
   return bg;
 }
 
