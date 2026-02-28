@@ -110,9 +110,9 @@ this.load.image("red-bot-run1", assetUrl("characters/heroes/red-bot/PNG's/r_run_
 ### All available character packs (with exact file paths):
 
 **Multi-frame animated characters** (pre-registered via preloadAssets + createAnimations):
-- Robot (default): \`characters/arz-game-kit/ROBOTS/robot1/\` — run (8 frames), attack (5), jump (4), die (3)
-- Zombie: \`characters/arz-game-kit/ZOMBIES/zombie1/\` — walk (4 frames), attack (4), die (3)
-- Alien: \`characters/arz-game-kit/ALIENS/alien1/\` — run (6 frames), attack (4), die (3)
+- Robot (default): \`characters/arz-game-kit/ROBOTS/robot1/\` — run (13 frames), attack (11), jump (13), die (9)
+- Zombie: \`characters/arz-game-kit/ZOMBIES/zombie1/\` — walk (9 frames subsampled), attack (9), die (7 subsampled)
+- Alien: \`characters/arz-game-kit/ALIENS/alien1/\` — run (8 frames subsampled), attack (7 subsampled), die (7 subsampled)
 
 **Single-image characters** (load manually with assetUrl in BootScene preload):
 - Red Bot: \`characters/heroes/red-bot/PNG's/r_run_1.png\` through r_run_8.png, r_jump_1.png through r_jump_20.png
@@ -121,7 +121,7 @@ this.load.image("red-bot-run1", assetUrl("characters/heroes/red-bot/PNG's/r_run_
 - Kenney Platformer: \`characters/heroes/kenney-platformer-characters/PNG/Player/Poses/player_walk1.png\`, player_walk2.png, player_jump.png, player_idle.png
 
 **Backgrounds** (pre-loaded as bg-forest, bg-space, bg-alien):
-- Forest: \`environments/backgrounds/arz-backgrounds/1920x1080/BG forest 1.jpg\`
+- Forest/Apocalyptic: \`environments/backgrounds/arz-backgrounds/1920x1080/BG apocalyptic 1.jpg\`
 - Space: \`environments/backgrounds/arz-backgrounds/1920x1080/BG space 1.jpg\`
 - Alien world: \`environments/backgrounds/arz-backgrounds/1920x1080/BG alien 1.jpg\`
 

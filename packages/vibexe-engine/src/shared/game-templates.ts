@@ -40,26 +40,26 @@ export function assetUrl(path: string): string {
 const fr = (base: string, prefix: string, nums: number[]) =>
   nums.map(n => ({ key: \`\${prefix}\${n}\`, path: \`\${base}/\${prefix}\${n}.png\` }));
 
-// ===== CHARACTER FRAMES =====
+// ===== CHARACTER FRAMES (verified against actual server files) =====
 const R1 = "characters/arz-game-kit/ROBOTS/robot1";
-export const ROBOT_RUN    = fr(R1, "run/robot1-run",       [0,7,14,21,28,35,42,49]);
-export const ROBOT_ATTACK = fr(R1, "attack/robot1-attack", [0,5,10,15,20]);
-export const ROBOT_JUMP   = fr(R1, "jump/robot1-jump",     [0,5,10,15]);
-export const ROBOT_DIE    = fr(R1, "die/robot1-die",       [0,5,10]);
+export const ROBOT_RUN    = fr(R1, "run/robot1-run",       [0,1,2,3,4,5,6,7,8,9,10,11,12]);
+export const ROBOT_ATTACK = fr(R1, "attack/robot1-attack", [0,1,2,3,4,5,6,7,8,9,10]);
+export const ROBOT_JUMP   = fr(R1, "jump/robot1-jump",     [0,1,2,3,4,5,6,7,8,9,10,11,12]);
+export const ROBOT_DIE    = fr(R1, "die/robot1-die",       [0,1,2,3,4,5,6,7,8]);
 
 const Z1 = "characters/arz-game-kit/ZOMBIES/zombie1";
-export const ZOMBIE_WALK   = fr(Z1, "walk/zombie1-walk",     [0,7,14,21]);
-export const ZOMBIE_ATTACK = fr(Z1, "attack/zombie1-attack", [0,5,10,15]);
-export const ZOMBIE_DIE    = fr(Z1, "die/zombie1-die",       [0,5,10]);
+export const ZOMBIE_WALK   = fr(Z1, "walk/zombie1-walk",     [0,2,4,6,8,10,12,14,16]);
+export const ZOMBIE_ATTACK = fr(Z1, "attack/zombie1-attack", [0,1,2,3,4,5,6,7,8]);
+export const ZOMBIE_DIE    = fr(Z1, "die/zombie1-die",       [0,2,4,6,8,10,12]);
 
 const A1 = "characters/arz-game-kit/ALIENS/alien1";
-export const ALIEN_RUN    = fr(A1, "run/alien1-run",       [0,8,16,24,32,40]);
-export const ALIEN_ATTACK = fr(A1, "attack/alien1-attack", [0,5,10,15]);
-export const ALIEN_DIE    = fr(A1, "die/alien1-die",       [0,5,10]);
+export const ALIEN_RUN    = fr(A1, "run/alien1-run",       [0,7,14,21,28,35,42,49]);
+export const ALIEN_ATTACK = fr(A1, "attack/alien1-attack", [0,5,10,15,20,25,30]);
+export const ALIEN_DIE    = fr(A1, "die/alien1-die",       [0,3,6,9,12,15,18]);
 
 // ===== STATIC IMAGE KEYS =====
 export const STATIC_ASSETS: { key: string; path: string }[] = [
-  { key: "bg-forest",      path: "environments/backgrounds/arz-backgrounds/1920x1080/BG forest 1.jpg" },
+  { key: "bg-forest",      path: "environments/backgrounds/arz-backgrounds/1920x1080/BG apocalyptic 1.jpg" },
   { key: "bg-space",       path: "environments/backgrounds/arz-backgrounds/1920x1080/BG space 1.jpg" },
   { key: "bg-alien",       path: "environments/backgrounds/arz-backgrounds/1920x1080/BG alien 1.jpg" },
   { key: "platform",       path: "environments/tilesets/forest-pack/300_DPI PNG/Platform/Platform_1.png" },
