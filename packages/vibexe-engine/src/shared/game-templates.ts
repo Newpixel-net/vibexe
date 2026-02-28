@@ -477,4 +477,103 @@ export default function Game({ scenes, gravityY = 800, bgColor = "#1a1a2e" }: Ga
 }
 `,
 	},
+
+	// ---------- Template 5: GameOverScene (safety net — AI should override with custom version) ----------
+	{
+		path: "src/scenes/GameOverScene.ts",
+		language: "typescript",
+		content: `import Phaser from "phaser";
+
+/**
+ * Default GameOverScene — always exists so the game never crashes
+ * when transitioning from GameScene to "GameOver".
+ * The AI agent should create its own version with theme-specific
+ * background and styling. If it does, this template gets overwritten.
+ */
+export class GameOverScene extends Phaser.Scene {
+  constructor() { super("GameOver"); }
+
+  create(data: { score?: number }) {
+    const w = this.scale.width;
+    const h = this.scale.height;
+    const score = data?.score ?? 0;
+
+    // Dark overlay
+    this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0.75);
+
+    // Title
+    this.add.text(w / 2, h * 0.3, "GAME OVER", {
+      fontSize: "48px",
+      color: "#ff4444",
+      fontFamily: "sans-serif",
+      fontStyle: "bold",
+    }).setOrigin(0.5);
+
+    // Score
+    this.add.text(w / 2, h * 0.45, "Score: " + score, {
+      fontSize: "32px",
+      color: "#ffffff",
+      fontFamily: "sans-serif",
+    }).setOrigin(0.5);
+
+    // High score
+    const hsKey = "vibexe-highscore";
+    const prev = parseInt(localStorage.getItem(hsKey) || "0", 10);
+    const best = Math.max(score, prev);
+    localStorage.setItem(hsKey, String(best));
+
+    if (best > prev && score > 0) {
+      this.add.text(w / 2, h * 0.55, "NEW BEST!", {
+        fontSize: "24px", color: "#ffdd44", fontFamily: "sans-serif", fontStyle: "bold",
+      }).setOrigin(0.5);
+    } else {
+      this.add.text(w / 2, h * 0.55, "Best: " + best, {
+        fontSize: "24px", color: "#aaaaaa", fontFamily: "sans-serif",
+      }).setOrigin(0.5);
+    }
+
+    // Play again button
+    const btn = this.add.text(w / 2, h * 0.72, "TAP TO PLAY AGAIN", {
+      fontSize: "28px",
+      color: "#00ff88",
+      fontFamily: "sans-serif",
+      fontStyle: "bold",
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    // Pulse animation on button
+    this.tweens.add({
+      targets: btn, alpha: 0.5, duration: 800,
+      yoyo: true, repeat: -1, ease: "Sine.easeInOut",
+    });
+
+    // Restart on tap (with short delay to prevent accidental restart)
+    this.time.delayedCall(400, () => {
+      btn.on("pointerdown", () => this.scene.start("Menu"));
+      this.input.on("pointerdown", () => this.scene.start("Menu"));
+    });
+  }
+}
+`,
+	},
+
+	// ---------- Template 6: App.tsx entry point (safety net — AI should override with custom version) ----------
+	{
+		path: "src/App.tsx",
+		language: "typescript",
+		content: `import Game from "./components/Game";
+import { BootScene } from "./scenes/BootScene";
+import { MenuScene } from "./scenes/MenuScene";
+import { GameScene } from "./scenes/GameScene";
+import { GameOverScene } from "./scenes/GameOverScene";
+
+/**
+ * Default App entry point for Phaser games.
+ * The AI agent should create its own App.tsx if it adds extra scenes
+ * (e.g. LevelSelectScene). If it does, this template gets overwritten.
+ */
+export default function App() {
+  return <Game scenes={[BootScene, MenuScene, GameScene, GameOverScene]} />;
+}
+`,
+	},
 ];

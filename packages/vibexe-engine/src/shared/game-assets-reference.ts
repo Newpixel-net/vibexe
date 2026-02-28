@@ -79,9 +79,9 @@ Mixing assets from different themes creates ugly, incoherent visuals and is FORB
 - Dark horror background with bright cartoon character
 - Nature parallax environment with zombies as main character (use \`"dark"\` environment instead)
 
-### 🌄 PARALLAX ENVIRONMENTS — Multi-Layer Depth (PREFERRED for gameplay)
+### 🌄 PARALLAX ENVIRONMENTS — Multi-Layer Depth (MANDATORY for gameplay)
 
-**For GameScene (gameplay)**, ALWAYS use \`setupParallaxEnvironment()\` — it creates 4-11 stacked tileSprite layers scrolling at graduated speeds, producing professional depth in 2D games. Each layer scrolls faster as it gets closer to the camera.
+**For GameScene (gameplay)**, ALWAYS call \`setupParallaxEnvironment(this, envId)\` as the FIRST line in GameScene.create(). This is NON-NEGOTIABLE — without it, gameplay has a blank dark background and looks broken. It creates 4-11 stacked tileSprite layers scrolling at graduated speeds, producing professional depth in 2D games. Each layer scrolls faster as it gets closer to the camera.
 
 **Available environments:**
 | ID | Name | Layers | Description |
@@ -169,6 +169,19 @@ React wrapper that creates and manages the Phaser.Game instance. Handles:
 - Visibility change pause/resume (mobile tab switching)
 - Touch action prevention on container
 
+**CRITICAL: Do NOT create your own Game.tsx or GameCanvas.tsx or PhaserGame.tsx.**
+**Do NOT add onStateChange, handleVisibilityChange, or any custom React callbacks.**
+**The pre-created Game.tsx handles everything. Just pass your scenes array.**
+
+### PRE-CREATED FILE 5: src/scenes/GameOverScene.ts (override with themed version)
+Default GameOverScene with dark overlay, score, high score, and "Tap to Play Again".
+This ensures the game NEVER crashes when transitioning to "GameOver" scene.
+**You SHOULD override this** with your own version that matches your art theme (e.g., use setupBackground with theme BG, custom colors, styled text).
+
+### PRE-CREATED FILE 6: src/App.tsx (override if adding extra scenes)
+Default entry point that renders \`<Game scenes={[BootScene, MenuScene, GameScene, GameOverScene]} />\`.
+**You SHOULD override this** if your game has additional scenes (e.g., LevelSelectScene).
+
 **Usage in App.tsx (the ONLY correct pattern):**
 \`\`\`typescript
 import Game from "./components/Game";
@@ -181,10 +194,6 @@ export default function App() {
   return <Game scenes={[BootScene, MenuScene, GameScene, GameOverScene]} />;
 }
 \`\`\`
-
-**CRITICAL: Do NOT create your own Game.tsx or GameCanvas.tsx or PhaserGame.tsx.**
-**Do NOT add onStateChange, handleVisibilityChange, or any custom React callbacks.**
-**The pre-created Game.tsx handles everything. Just pass your scenes array.**
 
 ### Usage in BootScene (the CORRECT pattern):
 \`\`\`typescript

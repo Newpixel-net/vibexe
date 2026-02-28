@@ -210,16 +210,16 @@ const scoreText = this.add.text(16, 16, "Score: 0", {
 
 \`\`\`
 docs/README.md                — Game overview, controls, features
-package.json                  — PRE-CREATED (phaser ^3.90.0). Do NOT recreate.
+package.json                  — PRE-CREATED. Do NOT recreate.
 src/utils/media-stock.ts      — PRE-CREATED (assetUrl helper). Do NOT recreate.
 src/config/assets.ts          — PRE-CREATED (preloadAssets + preloadEnvironment + createAnimations + SCALES + setupParallaxEnvironment + setupBackground). Do NOT recreate.
 src/config/constants.ts       — Game-specific constants (GRAVITY, PLAYER_SPEED, JUMP_FORCE, WORLD_WIDTH, etc.)
 src/scenes/BootScene.ts       — Preload assets, show loading bar, transition to MenuScene
 src/scenes/MenuScene.ts       — Title screen, "Tap to Start", high score display
 src/scenes/GameScene.ts       — Main gameplay: physics, input, collisions, scoring, enemies, items
-src/scenes/GameOverScene.ts   — Final score, "Play Again", high score save to localStorage
+src/scenes/GameOverScene.ts   — PRE-CREATED (default score+restart). Override with your own themed version.
 src/components/Game.tsx        — PRE-CREATED (React wrapper). Do NOT recreate.
-src/App.tsx                   — Renders <Game scenes={[...]} />
+src/App.tsx                   — PRE-CREATED (default 4-scene entry). Override if adding extra scenes.
 \`\`\`
 
 Optional extra files for complex games:
@@ -394,16 +394,17 @@ If ANY answer is "no", fix it before proceeding to the next file.
 
 ## Critical Quality Rules
 
-1. **Every game MUST have**: BootScene (loading) → MenuScene (title + "Tap to Start") → GameScene (gameplay with score) → GameOverScene (final score + "Play Again")
+1. **Every game MUST have 4 scenes**: BootScene → MenuScene → GameScene → GameOverScene. All 4 are PRE-CREATED or have templates. You MUST create BootScene.ts, MenuScene.ts, and GameScene.ts. GameOverScene.ts and App.tsx are pre-created but you SHOULD override them with themed versions.
 2. **Levels MUST have REAL content**: A platformer needs 50+ tiles of terrain, varied heights, gaps, enemies, items. A flat ground line is NOT a game.
-3. **Player MUST be visible and controllable from frame 1**: No stuck loading screens. No invisible sprites.
+3. **Player MUST be visible and controllable from frame 1**: Spawn the player ON a solid platform, not in mid-air or over a gap. No stuck loading screens. No invisible sprites.
 4. **Touch controls ALWAYS included**: Phaser's Pointer API works for both mouse and touch. Add virtual buttons for actions.
 5. **Canvas fills viewport**: Phaser handles this via the config + RESIZE scale mode. Do NOT manually size canvas.
-6. **Background with visual depth**: Use \`setupParallaxEnvironment(this, envId)\` for gameplay scenes — multi-layer parallax creates professional depth automatically.
-7. **MANDATORY sprite loading**: Use \`preloadAssets(this)\` + \`preloadEnvironment(this, envId)\` from the pre-created \`config/assets.ts\`. NEVER use base64, DiceBear, or placeholder rectangles for action game characters.
+6. **GameScene MUST use setupParallaxEnvironment()**: This is THE MOST IMPORTANT visual feature. Call \`setupParallaxEnvironment(this, envId)\` as the FIRST line in GameScene.create(). This creates 4-11 layers of multi-layer parallax depth that scroll at different speeds as the player moves. The environment is what makes the game look professional. WITHOUT this call, gameplay has a blank dark background.
+7. **MANDATORY sprite loading**: Use \`preloadAssets(this)\` + \`preloadEnvironment(this, envId)\` in BootScene.preload(). NEVER use base64, DiceBear, or placeholder rectangles for action game characters.
 8. **Score display**: \`this.add.text().setScrollFactor(0)\` for camera-fixed HUD.
 9. **Sound is optional**: Skip audio — focus on visual polish and gameplay.
 10. **Performance**: Keep entity counts reasonable (<200 active). Destroy off-screen objects.
+11. **Player must survive initial spawn**: Ensure a ground platform exists under the player spawn point. The game must be playable for at least 10+ seconds of normal gameplay before any death is possible.
 
 ## Execution Protocol
 
@@ -412,13 +413,13 @@ If ANY answer is "no", fix it before proceeding to the next file.
 3. **Create ALL files.** A typical game needs 6-10 files. Do not stop after 2-3.
 4. **File creation order** (dependencies first):
    - \`docs/README.md\` — Game overview, controls, features
-   - \`src/config/constants.ts\` — ALL game-specific constants (GRAVITY, PLAYER_SPEED, JUMP_FORCE, WORLD_WIDTH, SPAWN_INTERVAL, etc.). Include art theme as comment. Do NOT export canvas dimensions.
-   - SKIP \`package.json\`, \`src/utils/media-stock.ts\`, \`src/config/assets.ts\`, \`src/components/Game.tsx\` — PRE-CREATED by platform
-   - \`src/scenes/BootScene.ts\` — preloadAssets, createAnimations, loading bar, transition to Menu
-   - \`src/scenes/MenuScene.ts\` — Title, "Tap to Start", high score
-   - \`src/scenes/GameScene.ts\` — Main gameplay with physics, enemies, items, scoring
-   - \`src/scenes/GameOverScene.ts\` — Score display, "Play Again", high score save
-   - \`src/App.tsx\` — Renders \`<Game scenes={[BootScene, MenuScene, GameScene, GameOverScene]} />\`
+   - \`src/config/constants.ts\` — ALL game-specific constants (GRAVITY, PLAYER_SPEED, JUMP_FORCE, WORLD_WIDTH, SPAWN_INTERVAL, etc.). Include art theme and environment ID as comments.
+   - SKIP \`package.json\`, \`src/utils/media-stock.ts\`, \`src/config/assets.ts\`, \`src/components/Game.tsx\` — PRE-CREATED by platform, do NOT recreate
+   - \`src/scenes/BootScene.ts\` — preloadAssets + preloadEnvironment, createAnimations, loading bar, transition to Menu
+   - \`src/scenes/MenuScene.ts\` — Title, "Tap to Start", high score. Use \`setupBackground(this, bgKey, 0)\` for static BG.
+   - \`src/scenes/GameScene.ts\` — Main gameplay. MUST call \`setupParallaxEnvironment(this, envId)\` FIRST in create(), then add platforms, player, enemies, items. Player MUST spawn ON a platform (not in mid-air).
+   - \`src/scenes/GameOverScene.ts\` — PRE-CREATED with default dark overlay. Override with your themed version (theme BG, custom colors, etc.)
+   - \`src/App.tsx\` — PRE-CREATED with standard 4-scene setup. Override if you add extra scenes (LevelSelectScene, etc.)
 4. **After ALL code files**, the platform will automatically update the project wiki.
 5. **After ALL files**, write a SHORT summary (2-3 sentences) of what was built.
 
@@ -444,12 +445,13 @@ When files already exist (the user is modifying an existing game):
 ${GAME_ASSETS_REFERENCE}
 
 **ASSET SELF-CHECK** (run after writing each file):
-- constants.ts: Must NOT contain \`data:image/\` or base64 strings. Must NOT export GAME_WIDTH/GAME_HEIGHT.
+- constants.ts: Must NOT contain \`data:image/\` or base64 strings. Must NOT export GAME_WIDTH/GAME_HEIGHT. Must include environment ID as comment (e.g. \`// Environment: "forest"\`).
 - BootScene.ts: Must call \`preloadAssets(this)\` AND \`preloadEnvironment(this, envId)\` in preload(), and \`createAnimations(this)\` in create().
-- GameScene.ts: Must import \`{ SCALES, setupParallaxEnvironment }\` from "../config/assets". Must call \`setupParallaxEnvironment(this, envId)\` for environment (NOT setupBackground — that's for menus only). Must apply \`.setScale(SCALES.xxx)\` to EVERY sprite. Must call \`.refreshBody()\` after scaling static physics bodies. Must add colliders for platforms.
-- MenuScene.ts / GameOverScene.ts: Use \`setupBackground(this, bgKey, 0)\` for static single-image background.
+- GameScene.ts: CRITICAL — Must import \`{ SCALES, setupParallaxEnvironment }\` from "../config/assets". Must call \`setupParallaxEnvironment(this, envId)\` as THE FIRST THING in create() (before platforms, player, enemies). This creates the multi-layer parallax background with 4-11 layers of depth. NOT setupBackground — that's for menus only. Must apply \`.setScale(SCALES.xxx)\` to EVERY sprite. Must call \`.refreshBody()\` after scaling static physics bodies. Must add colliders for platforms. Player MUST spawn ON a platform (not falling into void).
+- MenuScene.ts: Use \`setupBackground(this, bgKey, 0)\` for static single-image background.
+- GameOverScene.ts: PRE-CREATED with default dark overlay. Override with themed version (import setupBackground, add theme BG).
 - Game.tsx: PRE-CREATED — do NOT create. If you accidentally created one, delete it.
-- App.tsx: Must import Game from "./components/Game" and render \`<Game scenes={[...]} />\`. ZERO game logic here.
+- App.tsx: PRE-CREATED with standard 4-scene setup. Override if adding extra scenes.
 
 ### define_entities Tool
 
@@ -470,6 +472,8 @@ For games that need persistent data (online leaderboards, saved games), call \`d
 9. **Not setting world bounds** — Camera and physics default to screen size. For larger worlds: \`this.physics.world.setBounds()\` + \`this.cameras.main.setBounds()\`.
 10. **Importing CSS files** — Tailwind is CDN, no imports needed.
 11. **Missing constants exports** — Every value used in 2+ files (speeds, sizes, spawn rates) MUST be in \`config/constants.ts\`.
+12. **Using setupBackground in GameScene** — \`setupBackground()\` is for MenuScene/GameOverScene ONLY (single static image). GameScene MUST use \`setupParallaxEnvironment(this, envId)\` for multi-layer parallax depth. Without this, gameplay has a blank dark background.
+13. **Player spawning over void** — Player MUST spawn on a solid platform. Place a ground platform at the bottom spanning the full world width, then add elevated platforms on top.
 
 ## Internationalization
 
