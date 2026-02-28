@@ -128,12 +128,14 @@ const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
 camera.position.set(0, 10, 15);
 camera.lookAt(0, 0, 0);
 
-// Camera follow player
+// Camera follow player — ALWAYS use constants from constants.ts
+import { CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y } from "../config/constants";
+
 function updateCamera(playerPos) {
   camera.position.x = playerPos.x;
-  camera.position.z = playerPos.z + 12;
-  camera.position.y = playerPos.y + 8;
-  camera.lookAt(playerPos.x, playerPos.y + 2, playerPos.z);
+  camera.position.z = playerPos.z + CAMERA_OFFSET_Z;
+  camera.position.y = playerPos.y + CAMERA_OFFSET_Y;
+  camera.lookAt(playerPos.x, playerPos.y + CAMERA_LOOK_Y, playerPos.z);
 }
 \`\`\`
 
@@ -296,16 +298,18 @@ const cleanupClick = onClickObject(camera, container, [building1, building2, gro
 
 ### Camera Controls
 
-**Third-person follow (default for platformers)** — smooth lerp:
+**Third-person follow (default for platformers)** — smooth lerp with constants:
 \`\`\`typescript
+import { CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y } from "../config/constants";
+
 // In update(delta):
 const targetX = player.position.x;
-const targetZ = player.position.z + 12;
-const targetY = player.position.y + 8;
-camera.position.x += (targetX - camera.position.x) * 3 * delta;
-camera.position.z += (targetZ - camera.position.z) * 3 * delta;
-camera.position.y += (targetY - camera.position.y) * 3 * delta;
-camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+const targetZ = player.position.z + CAMERA_OFFSET_Z;
+const targetY = player.position.y + CAMERA_OFFSET_Y;
+camera.position.x += (targetX - camera.position.x) * CAMERA_LERP * delta;
+camera.position.z += (targetZ - camera.position.z) * CAMERA_LERP * delta;
+camera.position.y += (targetY - camera.position.y) * CAMERA_LERP * delta;
+camera.lookAt(player.position.x, player.position.y + CAMERA_LOOK_Y, player.position.z);
 \`\`\`
 
 **OrbitControls (city builders, exploration)** — mouse rotate/zoom/pan:
@@ -364,7 +368,7 @@ docs/README.md                     — Game overview, controls, features
 package.json                       — PRE-CREATED. Do NOT recreate.
 src/utils/media-stock-3d.ts        — PRE-CREATED (modelUrl helper). Do NOT recreate.
 src/config/assets-3d.ts            — PRE-CREATED (helpers: initRenderer, initScene, initCamera, loadGLTF, createGround3D, createSkyGradient, checkCollision, checkBoxCollision, createHUD, createKeyboardState, SCALES_3D, createPhysicsWorld, createPhysicsBody, createPhysicsGround, syncBodiesToMeshes, onClickObject, createAnimationPlayer, createOrbitControls, createTouchJoystick, createTapDetector, createSwipeDetector). Do NOT recreate.
-src/config/constants.ts            — Game-specific constants (PLAYER_SPEED, JUMP_FORCE, GRAVITY, WORLD_SIZE, etc.)
+src/config/constants.ts            — ALL game constants. MUST define EVERY constant before importing it.
 src/scenes/GameScene.ts            — Main gameplay: model loading, physics, input, collisions, scoring
 src/scenes/GameOverScene3D.ts      — PRE-CREATED (HTML overlay). Do NOT recreate.
 src/components/Game3D.tsx           — PRE-CREATED (React wrapper). Do NOT recreate.
@@ -375,6 +379,33 @@ Optional extra files for complex games:
 - \`src/objects/Player.ts\` — Player class with movement, animation, state
 - \`src/objects/Enemy.ts\` — Enemy class with AI patrol
 - \`src/utils/level-builder.ts\` — Procedural level generation
+
+## Reference constants.ts — Define ALL Constants Here
+
+CRITICAL: Every constant used in GameScene.ts MUST be defined in constants.ts FIRST. If you reference a name like \`CAMERA_LOOK_AHEAD\` or \`ENEMY_SPEED\`, it MUST exist as an export in constants.ts. Undefined constants cause instant crash.
+
+\`\`\`typescript
+// src/config/constants.ts — COMPLETE example
+
+// Player
+export const PLAYER_SPEED = 8;
+export const JUMP_FORCE = 12;
+export const GRAVITY = -20;
+
+// World
+export const WORLD_SIZE = 100;
+
+// Camera follow (third-person) — REQUIRED for platformers
+export const CAMERA_OFFSET_Y = 8;   // Height above player
+export const CAMERA_OFFSET_Z = 12;  // Distance behind player
+export const CAMERA_LERP = 3;       // Smoothing speed
+export const CAMERA_LOOK_Y = 1;     // Look-at Y offset above player
+
+// Add more as needed for your game:
+// export const ENEMY_SPEED = 4;
+// export const SPAWN_INTERVAL = 3;
+// export const PLATFORM_GAP = 5;
+\`\`\`
 
 ## React + Three.js Integration
 
@@ -478,7 +509,10 @@ import {
   syncBodiesToMeshes,
 } from "../config/assets-3d";
 import { showGameOver } from "../scenes/GameOverScene3D";
-import { PLAYER_SPEED, JUMP_FORCE, GRAVITY, WORLD_SIZE } from "../config/constants";
+import {
+  PLAYER_SPEED, JUMP_FORCE, GRAVITY, WORLD_SIZE,
+  CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y,
+} from "../config/constants";
 
 const THREE = (window as any).THREE;
 const CANNON = (window as any).CANNON;
@@ -697,14 +731,14 @@ export const GameScene = {
       playerBody.velocity.set(0, 0, 0);
     }
 
-    // === Camera follow ===
+    // === Camera follow (ALWAYS use constants — NEVER hardcode offsets) ===
     const targetX = player.position.x;
-    const targetZ = player.position.z + 12;
-    const targetY = player.position.y + 8;
-    camera.position.x += (targetX - camera.position.x) * 3 * delta;
-    camera.position.z += (targetZ - camera.position.z) * 3 * delta;
-    camera.position.y += (targetY - camera.position.y) * 3 * delta;
-    camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+    const targetZ = player.position.z + CAMERA_OFFSET_Z;
+    const targetY = player.position.y + CAMERA_OFFSET_Y;
+    camera.position.x += (targetX - camera.position.x) * CAMERA_LERP * delta;
+    camera.position.z += (targetZ - camera.position.z) * CAMERA_LERP * delta;
+    camera.position.y += (targetY - camera.position.y) * CAMERA_LERP * delta;
+    camera.lookAt(player.position.x, player.position.y + CAMERA_LOOK_Y, player.position.z);
   },
 
   cleanup() {
@@ -723,7 +757,7 @@ export const GameScene = {
 6. Player body = sphere (mass=5), platforms = static boxes (mass=0). Jump via \`playerBody.velocity.y = JUMP_FORCE\`.
 7. Ground contact detection: \`playerBody.addEventListener("collide", ...)\` checks normal.y for jump reset.
 8. \`checkCollision(a, b, threshold)\` for collectible pickup — distance-based (no physics body needed).
-9. Camera follows player with lerp: \`camera.position.x += (target - current) * speed * delta;\`
+9. Camera follows player with lerp using CAMERA_OFFSET_Y/Z, CAMERA_LERP, CAMERA_LOOK_Y constants — NEVER hardcode camera offsets.
 10. \`createHUD(container)\` for score/lives — HTML overlay, NOT 3D text.
 11. \`showGameOver(container, score, restartFn)\` — HTML overlay, restart via Game3D.tsx (no page reload).
 12. State reset at top of init(): \`score = 0; lives = 3; gameOver = false;\` for restart support.
@@ -797,17 +831,18 @@ Do NOT \`import * as THREE from "three"\` or \`import CANNON from "cannon-es"\` 
 
 ## Execution Protocol
 
-1. **Select Art Pack FIRST.** Based on user's request, pick KayKit (default) or Unity family. Write the choice in constants.ts.
-2. **Start immediately.** Do not plan, explain, or ask questions. Begin calling create_file.
-3. **Create ALL files.** A typical 3D game needs 5-8 files. Do not stop after 2-3.
-4. **File creation order** (dependencies first):
+1. **Select Art Pack FIRST.** Based on user's request, pick KayKit (default). Write the choice in constants.ts.
+2. **constants.ts MUST define EVERY constant.** Before writing GameScene.ts, ensure constants.ts exports ALL values you will reference: PLAYER_SPEED, JUMP_FORCE, GRAVITY, WORLD_SIZE, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y, plus any game-specific constants. Using an undefined constant crashes the game instantly.
+3. **Start immediately.** Do not plan, explain, or ask questions. Begin calling create_file.
+4. **Create ALL files.** A typical 3D game needs 5-8 files. Do not stop after 2-3.
+5. **File creation order** (dependencies first):
    - \`docs/README.md\` — Game overview, controls, features
-   - \`src/config/constants.ts\` — ALL game-specific constants
+   - \`src/config/constants.ts\` — ALL game constants (MUST be complete before GameScene.ts)
    - SKIP pre-created files: \`package.json\`, \`src/utils/media-stock-3d.ts\`, \`src/config/assets-3d.ts\`, \`src/components/Game3D.tsx\`, \`src/scenes/GameOverScene3D.ts\`
    - \`src/scenes/GameScene.ts\` — Main gameplay (the most important file)
    - \`src/App.tsx\` — Override if needed (usually just the default is fine)
    - Optional: \`src/objects/Player.ts\`, \`src/objects/Enemy.ts\`, etc.
-5. **After ALL code files**, write a SHORT summary (2-3 sentences) of what was built.
+6. **After ALL code files**, write a SHORT summary (2-3 sentences) of what was built.
 
 ## For Existing Projects
 
@@ -846,6 +881,7 @@ ${GAME_3D_ASSETS_REFERENCE}
 9. **Forgetting shadows** — Set \`castShadow = true\` on meshes, \`receiveShadow = true\` on ground.
 10. **Not handling async model loading** — \`loadGLTF()\` is async. Use await or provide box fallbacks.
 11. **Hard-coding positions** — Use constants from constants.ts. Make levels configurable.
+19. **CRITICAL: Using undefined constants** — If you reference ANY constant name (CAMERA_LOOK_AHEAD, ENEMY_SPEED, PLATFORM_GAP, etc.), it MUST be defined with \`export const\` in constants.ts. NEVER use a constant name without defining it first. This is the #1 cause of game crashes.
 12. **Missing game over condition** — Always check for fall-off-world, zero lives, or win condition.
 13. **No camera follow** — Camera MUST follow player with smooth lerp. Static camera = unplayable.
 14. **Missing keyboard cleanup** — Always call \`keyboard.destroy()\` in cleanup() to remove event listeners.
