@@ -286,6 +286,203 @@ CRITICAL rules:
 - Score = distance or time survived
 - Increasing difficulty: speed ramps up over time
 
+## ★ Complete GameScene Reference — COPY THIS PATTERN
+
+This is a COMPLETE working GameScene with ALL required gameplay systems. Use this as your
+structural reference for ANY action game (platformer, runner, shooter). Adapt the specific
+mechanics to the user's request, but keep the same structure and patterns.
+
+\`\`\`typescript
+import Phaser from "phaser";
+import { SCALES, setupParallaxEnvironment } from "../config/assets";
+import { PLAYER_SPEED, JUMP_FORCE, WORLD_WIDTH, SPAWN_INTERVAL } from "../config/constants";
+
+export class GameScene extends Phaser.Scene {
+  // === State (scene properties, NOT React state) ===
+  private score = 0;
+  private gameOver = false;
+
+  // === Game Objects ===
+  private player!: Phaser.Physics.Arcade.Sprite;
+  private platforms!: Phaser.Physics.Arcade.StaticGroup;
+  private enemies!: Phaser.Physics.Arcade.Group;
+  private coins!: Phaser.Physics.Arcade.Group;
+
+  // === Input ===
+  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+
+  // === HUD ===
+  private scoreText!: Phaser.GameObjects.Text;
+
+  constructor() { super("Game"); }
+
+  create() {
+    // Reset state on scene restart
+    this.score = 0;
+    this.gameOver = false;
+    const W = this.scale.width;
+    const H = this.scale.height;
+
+    // 1. PARALLAX — must be FIRST
+    setupParallaxEnvironment(this, "forest"); // pick env matching theme
+
+    // 2. PLATFORMS — ground + elevated
+    this.platforms = this.physics.add.staticGroup();
+    // Full-width ground — MUST exist under player spawn point
+    for (let i = 0; i < Math.ceil(WORLD_WIDTH / 160); i++) {
+      this.platforms.create(80 + i * 160, H - 30, "ground")
+        .setScale(SCALES.ground).refreshBody();
+    }
+    // Elevated platforms
+    const platXY = [
+      [200, H - 180], [450, H - 280], [700, H - 200],
+      [950, H - 320], [1200, H - 180], [1500, H - 260],
+    ];
+    for (const [px, py] of platXY) {
+      this.platforms.create(px, py, "platform")
+        .setScale(SCALES.platform).refreshBody();
+    }
+
+    // 3. PLAYER — spawn ON the ground (not mid-air)
+    this.player = this.physics.add.sprite(100, H - 150, "run/robot1-run0");
+    this.player.setScale(SCALES.player);
+    this.player.setCollideWorldBounds(true);
+    this.player.setBounce(0.1);
+    this.player.play("player-run");
+
+    // 4. GROUPS — enemies and collectibles
+    this.enemies = this.physics.add.group();
+    this.coins = this.physics.add.group();
+    for (const [px, py] of platXY) {
+      const c = this.coins.create(px, py - 60, "crystal") as Phaser.Physics.Arcade.Sprite;
+      c.setScale(SCALES.crystal);
+      (c.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+      // NOTE: setAllowGravity is on body, NOT on sprite!
+    }
+
+    // 5. COLLIDERS — all groups vs platforms
+    this.physics.add.collider(this.player, this.platforms);
+    this.physics.add.collider(this.enemies, this.platforms);
+
+    // 6. OVERLAPS — triggers
+    this.physics.add.overlap(this.player, this.coins, this.collectCoin, undefined, this);
+    this.physics.add.overlap(this.player, this.enemies, this.hitEnemy, undefined, this);
+
+    // 7. INPUT
+    this.cursors = this.input.keyboard!.createCursorKeys();
+    this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
+      if (this.gameOver) return;
+      const body = this.player.body as Phaser.Physics.Arcade.Body;
+      if (p.x < W * 0.4 && (body.touching.down || body.blocked.down)) {
+        this.player.setVelocityY(JUMP_FORCE); // JUMP_FORCE must be negative, e.g. -500
+      }
+    });
+
+    // 8. CAMERA
+    this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, H);
+    this.physics.world.setBounds(0, 0, WORLD_WIDTH, H);
+
+    // 9. HUD
+    this.scoreText = this.add.text(16, 16, "Score: 0", {
+      fontSize: "24px", color: "#fff", fontFamily: "sans-serif",
+    }).setScrollFactor(0).setDepth(100);
+
+    // 10. SPAWNING
+    this.time.addEvent({ delay: SPAWN_INTERVAL, callback: () => this.spawnEnemy(), loop: true });
+  }
+
+  update() {
+    if (this.gameOver) return; // CRITICAL — stop all input after death
+
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    const onGround = body.touching.down || body.blocked.down;
+
+    // === Keyboard movement ===
+    if (this.cursors.left.isDown) {
+      this.player.setVelocityX(-PLAYER_SPEED);
+      this.player.setFlipX(true);
+    } else if (this.cursors.right.isDown) {
+      this.player.setVelocityX(PLAYER_SPEED);
+      this.player.setFlipX(false);
+    } else {
+      this.player.setVelocityX(0);
+    }
+    if ((this.cursors.up.isDown || this.cursors.space?.isDown) && onGround) {
+      this.player.setVelocityY(JUMP_FORCE);
+    }
+
+    // === Animation switching (MUST be in update, not create) ===
+    if (!onGround) {
+      this.player.anims.play("player-jump", true);
+    } else if (body.velocity.x !== 0) {
+      this.player.anims.play("player-run", true);
+    } else {
+      this.player.anims.stop();
+      this.player.setTexture("run/robot1-run0");
+    }
+
+    // === Enemy cleanup — destroy off-screen ===
+    this.enemies.getChildren().forEach((obj) => {
+      const e = obj as Phaser.Physics.Arcade.Sprite;
+      if (e.x < this.cameras.main.scrollX - 200 || e.y > this.scale.height + 100) {
+        e.destroy();
+      }
+    });
+  }
+
+  private spawnEnemy() {
+    if (this.gameOver) return;
+    const x = this.cameras.main.scrollX + this.scale.width + 100;
+    const y = this.scale.height - 150;
+    const e = this.enemies.create(x, y, "walk/zombie1-walk0") as Phaser.Physics.Arcade.Sprite;
+    e.setScale(SCALES.zombie);
+    e.play("zombie-walk");
+    e.setVelocityX(-100); // Walk left toward player
+  }
+
+  private collectCoin(_p: Phaser.GameObjects.GameObject, coin: Phaser.GameObjects.GameObject) {
+    (coin as Phaser.Physics.Arcade.Sprite).destroy();
+    this.score += 10;
+    this.scoreText.setText(\`Score: \${this.score}\`);
+  }
+
+  private hitEnemy(player: Phaser.GameObjects.GameObject, enemy: Phaser.GameObjects.GameObject) {
+    const p = player as Phaser.Physics.Arcade.Sprite;
+    const e = enemy as Phaser.Physics.Arcade.Sprite;
+    const pb = p.body as Phaser.Physics.Arcade.Body;
+
+    // Stomp: player falling onto enemy from above
+    if (pb.velocity.y > 0 && p.y < e.y - 20) {
+      e.destroy();
+      this.score += 25;
+      this.scoreText.setText(\`Score: \${this.score}\`);
+      p.setVelocityY(-300); // Bounce after stomp
+    } else {
+      // Hit — game over
+      this.gameOver = true;
+      this.player.setTint(0xff0000);
+      this.player.anims.play("player-die", true);
+      this.player.setVelocityX(0);
+      this.time.delayedCall(800, () => {
+        this.scene.start("GameOver", { score: this.score });
+      });
+    }
+  }
+}
+\`\`\`
+
+**KEY PATTERNS from this reference** (apply to ALL action games):
+1. \`gameOver\` flag — checked in update() AND spawn methods. Without this, player keeps moving after death.
+2. \`body.touching.down || body.blocked.down\` — the CORRECT ground check. NOT \`body.onFloor()\`.
+3. Animation switching in update() — switch based on velocity + ground state EVERY frame. Never just set-and-forget.
+4. \`(sprite.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)\` — gravity toggle is on BODY, not sprite.
+5. Colliders for ALL groups vs platforms — without this, enemies/items fall through the floor.
+6. State reset in create() — \`this.score = 0; this.gameOver = false;\` for scene restart support.
+7. Enemy cleanup in update() — destroy sprites that go off-screen to prevent memory leaks.
+8. Stomp detection: \`pb.velocity.y > 0 && p.y < e.y - 20\` — player must be falling AND above enemy.
+9. HUD at depth 100 with setScrollFactor(0) — stays visible above all game objects.
+
 ## Mobile Game Patterns
 
 ### Portrait-First
@@ -403,8 +600,11 @@ If ANY answer is "no", fix it before proceeding to the next file.
 7. **MANDATORY sprite loading**: Use \`preloadAssets(this)\` + \`preloadEnvironment(this, envId)\` in BootScene.preload(). NEVER use base64, DiceBear, or placeholder rectangles for action game characters.
 8. **Score display**: \`this.add.text().setScrollFactor(0)\` for camera-fixed HUD.
 9. **Sound is optional**: Skip audio — focus on visual polish and gameplay.
-10. **Performance**: Keep entity counts reasonable (<200 active). Destroy off-screen objects.
+10. **Performance**: Keep entity counts reasonable (<200 active). Destroy off-screen objects in update().
 11. **Player must survive initial spawn**: Ensure a ground platform exists under the player spawn point. The game must be playable for at least 10+ seconds of normal gameplay before any death is possible.
+12. **GameScene MUST have a working update() method**: The update() method handles: keyboard input (setVelocityX/Y), animation switching (run/jump/idle every frame), gameOver guard (return early if dead), and off-screen cleanup. See the Complete GameScene Reference above. A GameScene without update() means NO player movement.
+13. **State reset in create()**: Always set \`this.score = 0; this.gameOver = false;\` at the top of create() so scene restart works correctly.
+14. **Colliders for ALL physics groups**: Player vs platforms, enemies vs platforms, items vs platforms. Missing any collider = objects falling through floor.
 
 ## Execution Protocol
 
@@ -447,7 +647,7 @@ ${GAME_ASSETS_REFERENCE}
 **ASSET SELF-CHECK** (run after writing each file):
 - constants.ts: Must NOT contain \`data:image/\` or base64 strings. Must NOT export GAME_WIDTH/GAME_HEIGHT. Must include environment ID as comment (e.g. \`// Environment: "forest"\`).
 - BootScene.ts: Must call \`preloadAssets(this)\` AND \`preloadEnvironment(this, envId)\` in preload(), and \`createAnimations(this)\` in create().
-- GameScene.ts: CRITICAL — Must import \`{ SCALES, setupParallaxEnvironment }\` from "../config/assets". Must call \`setupParallaxEnvironment(this, envId)\` as THE FIRST THING in create() (before platforms, player, enemies). This creates the multi-layer parallax background with 4-11 layers of depth. NOT setupBackground — that's for menus only. Must apply \`.setScale(SCALES.xxx)\` to EVERY sprite. Must call \`.refreshBody()\` after scaling static physics bodies. Must add colliders for platforms. Player MUST spawn ON a platform (not falling into void).
+- GameScene.ts: CRITICAL — Must import \`{ SCALES, setupParallaxEnvironment }\` from "../config/assets". Must call \`setupParallaxEnvironment(this, envId)\` as THE FIRST THING in create() (before platforms, player, enemies). Must apply \`.setScale(SCALES.xxx)\` to EVERY sprite. Must call \`.refreshBody()\` after scaling static physics bodies. Must add colliders for ALL groups vs platforms. Player MUST spawn ON a platform. MUST have update() method with: keyboard input, animation switching every frame (run/jump/idle based on velocity+ground), gameOver guard. MUST have gameOver flag set in hit callback. MUST reset score/gameOver in create() for restart support. See Complete GameScene Reference in prompt.
 - MenuScene.ts: Use \`setupBackground(this, bgKey, 0)\` for static single-image background.
 - GameOverScene.ts: PRE-CREATED with default dark overlay. Override with themed version (import setupBackground, add theme BG).
 - Game.tsx: PRE-CREATED — do NOT create. If you accidentally created one, delete it.
@@ -462,7 +662,7 @@ For games that need persistent data (online leaderboards, saved games), call \`d
 ## Common Mistakes to Avoid
 
 1. **Using raw Canvas API** — NEVER use \`ctx.fillRect()\`, \`ctx.drawImage()\`, \`ctx.fillText()\`. Use Phaser's \`this.add.sprite()\`, \`this.add.image()\`, \`this.add.text()\`.
-2. **Forgetting colliders** — Without \`this.physics.add.collider(player, platforms)\`, the player falls through the floor.
+2. **Forgetting colliders** — Without \`this.physics.add.collider(player, platforms)\`, the player falls through the floor. Add colliders for ALL physics groups (enemies, items) vs platforms.
 3. **Creating your own Game.tsx** — Game.tsx is PRE-CREATED. Do NOT create GameCanvas.tsx, PhaserGame.tsx, or any React-Phaser wrapper. Just use the pre-created one.
 4. **Adding onStateChange or custom callbacks** — The pre-created Game.tsx handles everything. Do NOT add React↔Phaser state bridges. All game UI is rendered by Phaser.
 5. **Loading assets in create()** — Race conditions. ALL asset loading goes in \`preload()\` only.
@@ -474,6 +674,12 @@ For games that need persistent data (online leaderboards, saved games), call \`d
 11. **Missing constants exports** — Every value used in 2+ files (speeds, sizes, spawn rates) MUST be in \`config/constants.ts\`.
 12. **Using setupBackground in GameScene** — \`setupBackground()\` is for MenuScene/GameOverScene ONLY (single static image). GameScene MUST use \`setupParallaxEnvironment(this, envId)\` for multi-layer parallax depth. Without this, gameplay has a blank dark background.
 13. **Player spawning over void** — Player MUST spawn on a solid platform. Place a ground platform at the bottom spanning the full world width, then add elevated platforms on top.
+14. **\`sprite.setAllowGravity()\` — WRONG API** — \`setAllowGravity\` is on the BODY, not the sprite. Correct: \`(sprite.body as Phaser.Physics.Arcade.Body).setAllowGravity(false)\`. Calling it on the sprite crashes the game.
+15. **Missing update() method** — GameScene MUST have an \`update()\` method with: input handling (keyboard velocity), animation switching (run/jump/idle based on velocity+ground), gameOver guard, and off-screen enemy cleanup. Without update(), the player cannot move.
+16. **No gameOver flag** — After the player dies, ALL input and spawning must stop. Set \`this.gameOver = true\` in the hit callback and check it at the top of \`update()\` and in spawn methods. Without this, the player keeps moving after death.
+17. **Animation set-and-forget** — Animations must be switched EVERY FRAME in update() based on current state: jumping (not on ground) → \`player-jump\`, moving (velocity.x !== 0) → \`player-run\`, idle → stop anim. Never just call \`play()\` once in create().
+18. **Missing enemy collider vs platforms** — Without \`this.physics.add.collider(enemies, platforms)\`, enemies fall through the ground into the void.
+19. **Wrong ground check** — Use \`body.touching.down || body.blocked.down\`. Do NOT use \`body.onFloor()\` (unreliable with scaled sprites).
 
 ## Internationalization
 
