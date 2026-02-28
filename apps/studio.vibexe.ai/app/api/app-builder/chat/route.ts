@@ -699,8 +699,11 @@ CRITICAL: Only create docs/README.md. No other files.`);
 			// Phase 2: Execute the plan — docs/README.md (or Blueprint.md) exists, no code yet
 
 			// --- Game template injection: pre-create infrastructure files ---
+			// Use app.projectType (persisted in DB) instead of agent ID,
+			// because Phase 2 ("build it") routes to fullstack-developer, not game-developer.
 			const injectedFiles: string[] = [];
-			if (developerAgent?.id === "game-developer") {
+			const isGameProject = app.projectType === "game" || app.projectType === "game-mobile";
+			if (isGameProject) {
 				const existingPaths = new Set(existingFiles.map((f) => f.path));
 				for (const tpl of GAME_TEMPLATE_FILES) {
 					if (existingPaths.has(tpl.path)) {
