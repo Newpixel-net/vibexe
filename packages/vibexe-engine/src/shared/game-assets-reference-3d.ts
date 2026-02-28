@@ -4,22 +4,21 @@
  * Injected into 3D game agent prompt. Edit HERE to update all 3D game generation.
  * Assets served from: /opt/vibexe/media-stock/games-3d/ via /api/app-builder/media-stock-3d/
  *
- * 8 packs, 1,272 files, 286 MB total. Organized 2026-02-28.
+ * 5 packs, 1,047 files, 44 MB total. Organized 2026-02-28.
  *
- * CRITICAL: Two art style families that must NEVER be mixed:
- *  - KayKit (cartoon low-poly) — GLTF format, web-ready
- *  - Unity 3D Game Kit (realistic dark fantasy) — FBX format, needs FBXLoader
+ * All packs use KayKit cartoon low-poly style (GLTF, web-ready).
+ * Stylized tools (OBJ) can be mixed with KayKit.
  */
 
 // ============================================================================
-// ART STYLE FAMILIES — NEVER MIX BETWEEN FAMILIES
+// ART STYLE — KayKit cartoon low-poly (GLTF) + Stylized (OBJ)
 // ============================================================================
 
 export interface AssetPack3D {
   id: string;
   name: string;
-  family: "kaykit" | "unity" | "stylized";
-  format: "gltf" | "glb" | "fbx" | "obj";
+  family: "kaykit" | "stylized";
+  format: "gltf" | "glb" | "obj";
   fileCount: number;
   sizeMB: number;
   serverPath: string;
@@ -162,89 +161,6 @@ export const PACKS_3D: AssetPack3D[] = [
     },
   },
 
-  // ---- UNITY FAMILY (Realistic Dark Fantasy, FBX, Needs FBXLoader) ----
-  {
-    id: "unity-gamekit-characters",
-    name: "Unity 3D Game Kit Characters",
-    family: "unity",
-    format: "fbx",
-    fileCount: 92,
-    sizeMB: 156,
-    serverPath: "unity-gamekit-characters",
-    description: "5 rigged characters with 17+ animations each (FBX). Realistic dark fantasy style. Each character has separate FBX files for animations (@ActionName suffix).",
-    categories: {
-      characters: ["Grenadier", "Gunner", "Pistol", "Spitter", "Staff"],
-      animations: [
-        "@CloseRangeAttack", "@Death", "@Hit", "@Idle",
-        "@MeleeAttack", "@RangeAttack", "@RangeAttack2",
-        "@TurnLeft45", "@TurnLeft90", "@TurnLeft135", "@TurnLeft180",
-        "@TurnRight45", "@TurnRight90", "@TurnRight135", "@TurnRight180",
-        "@Walk", "@WalkFast",
-      ],
-    },
-  },
-  {
-    id: "unity-gamekit-environment",
-    name: "Unity 3D Game Kit Environment",
-    family: "unity",
-    format: "fbx",
-    fileCount: 62,
-    sizeMB: 56,
-    serverPath: "unity-gamekit-environment",
-    description: "62 environment FBX models. Cliffs, rocks, vegetation in 3 sizes (Large/Medium/Small). Realistic dark fantasy terrain.",
-    categories: {
-      cliffs: [
-        "CliffBig01", "CliffBig02", "CliffBig03",
-        "CliffEdge01", "CliffEdge02", "CliffEdge03", "CliffEdge04",
-      ],
-      rocks: [
-        "RockChunk01",
-        "RockFloating01", "RockFloating02", "RockFloating03", "RockFloating04",
-        "RockLedge01", "RockLedge02", "RockSwamp01",
-        "SmallRock01", "SmallRock02", "SmallRock03",
-      ],
-      terrain: ["Ridge01", "Ridge02", "GroundCover01", "GroundCover02"],
-      vegetation: [
-        "VegetationLarge01", "VegetationLarge02", "VegetationLarge03",
-        "VegetationLarge04", "VegetationLarge05", "VegetationLarge06",
-        "VegetationMedium01", "VegetationMedium02", "VegetationMedium03",
-        "VegetationMedium04", "VegetationMedium05",
-        "VegetationSmall01", "VegetationSmall02", "VegetationSmall03",
-        "VegetationSmall04", "VegetationSmall05", "VegetationSmall06", "VegetationSmall07",
-      ],
-      plants: [
-        "Fungus", "FungusClump",
-        "HangingMoss01", "HangingMoss02", "HangingMoss03",
-        "HangingVine", "HangingVine2",
-      ],
-    },
-  },
-  {
-    id: "unity-gamekit-props",
-    name: "Unity 3D Game Kit Props",
-    family: "unity",
-    format: "fbx",
-    fileCount: 71,
-    sizeMB: 32,
-    serverPath: "unity-gamekit-props",
-    description: "52 FBX prop models + 19 PNG textures. Walls, stairs, switches for dungeon/castle environments. Realistic dark fantasy.",
-    categories: {
-      stairs: [
-        "StairsNarrow01", "StairsNarrowBroken01",
-        "StairsWide01", "StairsWideBroken01",
-      ],
-      walls: [
-        "WallCorner02", "WallCorner01Broken", "WallCornerBig01Broken",
-        "WallCornerL01", "WallCornerR01",
-        "WallHuge01", "WallHuge02",
-        "WallLong01", "WallLong01Broken", "WallLong02", "WallLong02Broken",
-        "WallShort01", "WallShort02",
-        "WallTallCorner01", "WallTallLong01", "WallTallShort01",
-      ],
-      interactive: ["SwitchStanding", "WeaponPedestal"],
-    },
-  },
-
   // ---- STYLIZED (Standalone, OBJ format) ----
   {
     id: "stylized-tools",
@@ -266,27 +182,17 @@ export const PACKS_3D: AssetPack3D[] = [
 // ============================================================================
 
 export const GAME_3D_ASSETS_REFERENCE = `
-## 3D Asset Catalog — 1,272 Models in 8 Packs (286 MB)
+## 3D Asset Catalog — 507 Models in 5 Packs (44 MB)
 
 **Server path**: \`/opt/vibexe/media-stock/games-3d/{pack-id}/\`
 **API endpoint**: \`/api/app-builder/media-stock-3d/{pack-id}/{filename}\`
 
-### CRITICAL: Art Style Families — NEVER MIX
+### Art Style: KayKit Cartoon Low-Poly (GLTF)
 
-There are TWO distinct art families. Mixing them creates ugly, incoherent visuals.
-
-**Family 1: KayKit (Cartoon Low-Poly)** — 4 packs, GLTF format, web-ready for Three.js
-- Bright colors, simple geometry, consistent low-poly aesthetic
-- Load with: \`GLTFLoader\` (native Three.js)
-- Use for: casual games, platformers, kids games, city builders, survival/crafting
-
-**Family 2: Unity 3D Game Kit (Realistic Dark Fantasy)** — 3 packs, FBX format
-- Dark, detailed, realistic textures and models
-- Load with: \`FBXLoader\` (from three/examples)
-- Use for: RPGs, dungeon crawlers, dark adventure games
-
-**Family 3: Stylized (Standalone)** — 1 pack, OBJ format
-- 3 hand-painted tools, can mix with KayKit if needed
+All packs share the same bright, cartoon low-poly aesthetic. Consistent look guaranteed.
+- Load with: \`loadGLTF()\` from assets-3d.ts (GLTF, web-native)
+- Use for: platformers, city builders, survival/crafting, kids games, casual 3D
+- Stylized tools (OBJ, 3 models) can be mixed with KayKit
 
 ### KAYKIT PLATFORMER — 370 GLTF Models (17 MB)
 Pack: \`kaykit-platformer\` | Style: Cartoon low-poly
@@ -339,83 +245,43 @@ Pack: \`kaykit-skeletons\` | Style: Cartoon low-poly (same family)
 **Shields (4 GLTF):** Skeleton_Shield_Large_A/B, Skeleton_Shield_Small_A/B
 **Texture:** skeleton_texture.png
 
-### UNITY CHARACTERS — 91 FBX (156 MB)
-Pack: \`unity-gamekit-characters\` | Style: Realistic dark fantasy
-
-**5 Characters:** Grenadier, Gunner, Pistol, Spitter, Staff
-Each character has a base mesh FBX + ~17 animation FBX files with @ActionName suffix:
-@CloseRangeAttack, @Death, @Hit, @Idle, @MeleeAttack, @RangeAttack, @RangeAttack2,
-@TurnLeft45/90/135/180, @TurnRight45/90/135/180, @Walk, @WalkFast
-Also includes: @SpitterSpit (Spitter-specific)
-
-### UNITY ENVIRONMENT — 62 FBX (56 MB)
-Pack: \`unity-gamekit-environment\` | Style: Realistic dark fantasy
-
-**Cliffs (7):** CliffBig01-03, CliffEdge01-04
-**Rocks (11):** RockChunk01, RockFloating01-04, RockLedge01-02, RockSwamp01, SmallRock01-03
-**Terrain (4):** Ridge01-02, GroundCover01-02
-**Vegetation Large (6+):** VegetationLarge01-06 (with _02 variants)
-**Vegetation Medium (5+):** VegetationMedium01-05 (with _02 variants)
-**Vegetation Small (7+):** VegetationSmall01-07 (with _02/_03 variants)
-**Plants (7):** Fungus, FungusClump, HangingMoss01-03, HangingVine, HangingVine2
-
-### UNITY PROPS — 52 FBX + 19 PNG (32 MB)
-Pack: \`unity-gamekit-props\` | Style: Realistic dark fantasy
-
-**Stairs (4):** StairsNarrow01, StairsNarrowBroken01, StairsWide01, StairsWideBroken01
-**Walls (16):** WallCorner02, WallCorner01Broken, WallCornerBig01Broken, WallCornerL01/R01, WallHuge01-02, WallLong01/01Broken/02/02Broken, WallShort01-02, WallTallCorner01/Long01/Short01
-**Interactive (2):** SwitchStanding, WeaponPedestal
-
 ### STYLIZED TOOLS — 3 OBJ (0.2 MB)
 Pack: \`stylized-tools\` | Style: Hand-painted cartoon
 
 **Tools (3):** axe, pickaxe, hammer
 Can mix with KayKit family for crafting/survival games.
 
-### Loading 3D Assets in Three.js
+### Loading 3D Assets
+
+Use the \`loadGLTF()\` helper from assets-3d.ts (already pre-created):
 
 \`\`\`typescript
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
-import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
-import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader";
+import { loadGLTF, SCALES_3D } from "../config/assets-3d";
+import { modelUrl } from "../utils/media-stock-3d";
 
-const API_BASE = window.__VIBEXE_API_ORIGIN__ + "/api/app-builder/media-stock-3d";
-
-// KayKit (GLTF) — web-native, preferred
-const gltfLoader = new GLTFLoader();
-gltfLoader.load(\`\${API_BASE}/kaykit-platformer/Assets/gltf/platform_4x4x1.gltf\`, (gltf) => {
-  scene.add(gltf.scene);
-});
+// KayKit GLTF model
+const platform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1.gltf"));
+platform.scale.setScalar(SCALES_3D.platform);
+scene.add(platform);
 
 // KayKit Skeletons (GLB — self-contained, includes textures)
-gltfLoader.load(\`\${API_BASE}/kaykit-skeletons/Skeleton_Warrior.glb\`, (gltf) => {
-  scene.add(gltf.scene);
-});
-
-// Unity (FBX) — needs FBXLoader
-const fbxLoader = new FBXLoader();
-fbxLoader.load(\`\${API_BASE}/unity-gamekit-characters/Grenadier.fbx\`, (fbx) => {
-  fbx.scale.set(0.01, 0.01, 0.01); // FBX models are often oversized
-  scene.add(fbx);
-});
+const warrior = await loadGLTF(modelUrl("kaykit-skeletons", "Skeleton_Warrior.glb"));
+warrior.scale.setScalar(SCALES_3D.skeleton);
+scene.add(warrior);
 \`\`\`
 
 ### Art Style Selection Guide
 
-| User Request | Recommended Pack(s) | Family |
-|-------------|---------------------|--------|
-| "platformer", "3D platformer" | kaykit-platformer | KayKit |
-| "city builder", "town sim" | kaykit-city-builder | KayKit |
-| "survival", "crafting" | kaykit-resource-bits + kaykit-platformer | KayKit |
-| "skeleton enemies", "undead" | kaykit-skeletons + kaykit-platformer | KayKit |
-| "RPG", "dungeon" | unity-characters + unity-props + unity-environment | Unity |
-| "dark fantasy", "horror 3D" | unity-characters + unity-environment | Unity |
-| "kids 3D game", "casual 3D" | kaykit-platformer | KayKit |
-| Default / unspecified | kaykit-platformer | KayKit |
+| User Request | Recommended Pack(s) |
+|-------------|---------------------|
+| "platformer", "3D platformer" | kaykit-platformer |
+| "city builder", "town sim" | kaykit-city-builder |
+| "survival", "crafting" | kaykit-resource-bits + kaykit-platformer |
+| "skeleton enemies", "undead" | kaykit-skeletons + kaykit-platformer |
+| "RPG", "adventure" | kaykit-skeletons + kaykit-platformer |
+| "kids 3D game", "casual 3D" | kaykit-platformer |
+| Default / unspecified | kaykit-platformer |
 
-### FORBIDDEN Combinations
-- KayKit platformer platforms + Unity dark fantasy characters (art style clash)
-- Unity realistic walls + KayKit cartoon buildings (completely different aesthetics)
-- Unity FBX props mixed into a KayKit GLTF scene (different lighting/material models)
-- Stylized tools with Unity dark fantasy (style mismatch)
+All packs share the same KayKit cartoon low-poly aesthetic — safe to combine any KayKit packs.
+Stylized tools (axe, pickaxe, hammer) can be added to any KayKit scene.
 `;

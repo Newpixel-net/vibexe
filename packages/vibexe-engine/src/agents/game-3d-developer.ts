@@ -52,7 +52,7 @@ Both are pre-installed via \`package.json\` (which the platform injects automati
 ## Architecture — GameScene Pattern
 
 Unlike Phaser's multi-scene system, 3D games use a single **GameScene object** with two methods:
-- \`init(scene, camera, renderer, container)\` — Set up the 3D world, load models, create lights, set up input
+- \`init(scene, camera, renderer, container, onProgress?)\` — Set up the 3D world, load models, create lights, set up input. Call \`onProgress(0-1)\` during loading.
 - \`update(delta)\` — Called every frame. Handle movement, AI, collisions, scoring. \`delta\` is in SECONDS.
 - \`cleanup()\` — Optional. Clean up event listeners, dispose geometries/materials.
 
@@ -353,10 +353,8 @@ hud.setLives(3);
 \`\`\`typescript
 import { showGameOver } from "../scenes/GameOverScene3D";
 
-showGameOver(container, score, () => {
-  // Restart logic — clean up and re-init
-  location.reload(); // simplest restart
-});
+// restartFn is injected by Game3D.tsx — calls clean restart (no page reload)
+showGameOver(container, score, restartFn);
 \`\`\`
 
 ## File Structure (6-10 files, dependencies first)
@@ -365,7 +363,7 @@ showGameOver(container, score, () => {
 docs/README.md                     — Game overview, controls, features
 package.json                       — PRE-CREATED. Do NOT recreate.
 src/utils/media-stock-3d.ts        — PRE-CREATED (modelUrl helper). Do NOT recreate.
-src/config/assets-3d.ts            — PRE-CREATED (helpers: initRenderer, initScene, initCamera, loadGLTF, createGround3D, createSkyGradient, checkCollision, checkBoxCollision, createHUD, createKeyboardState, SCALES_3D, createPhysicsWorld, createPhysicsBody, createPhysicsGround, syncBodiesToMeshes, onClickObject, createAnimationPlayer, createOrbitControls). Do NOT recreate.
+src/config/assets-3d.ts            — PRE-CREATED (helpers: initRenderer, initScene, initCamera, loadGLTF, createGround3D, createSkyGradient, checkCollision, checkBoxCollision, createHUD, createKeyboardState, SCALES_3D, createPhysicsWorld, createPhysicsBody, createPhysicsGround, syncBodiesToMeshes, onClickObject, createAnimationPlayer, createOrbitControls, createTouchJoystick, createTapDetector, createSwipeDetector). Do NOT recreate.
 src/config/constants.ts            — Game-specific constants (PLAYER_SPEED, JUMP_FORCE, GRAVITY, WORLD_SIZE, etc.)
 src/scenes/GameScene.ts            — Main gameplay: model loading, physics, input, collisions, scoring
 src/scenes/GameOverScene3D.ts      — PRE-CREATED (HTML overlay). Do NOT recreate.
@@ -408,8 +406,10 @@ CRITICAL rules:
 Your GameScene.ts must export a named object matching this interface:
 \`\`\`typescript
 export const GameScene = {
-  init(scene: any, camera: any, renderer: any, container: HTMLDivElement) {
+  init(scene: any, camera: any, renderer: any, container: HTMLDivElement, onProgress?: (p: number) => void) {
     // Set up world, load models, create input, etc.
+    // Call onProgress(0.0 to 1.0) during model loading if provided
+    // container.__restartGame is available — pass it to showGameOver as the restart callback
   },
   update(delta: number) {
     // Movement, physics, collisions, scoring
@@ -419,6 +419,17 @@ export const GameScene = {
   },
 };
 \`\`\`
+
+## Scene Flow (handled by Game3D.tsx — automatic)
+
+Game3D.tsx provides these screens automatically — you do NOT create them:
+1. **Loading screen** — dark overlay + progress bar. Shown during \`init()\`. If you call \`onProgress()\`, the bar updates.
+2. **Menu screen** — "TAP TO START" overlay after loading completes. Shows high score from localStorage.
+3. **Game loop** — Starts only after player taps menu.
+4. **Game Over** — Your code calls \`showGameOver(container, score, container.__restartGame)\`.
+5. **Restart** — Game3D.tsx disposes the scene, re-runs init(), shows menu again. No page reload.
+
+You just implement \`init()\` and \`update()\`. The rest is automatic.
 
 ## 3D Game Genre Patterns
 
@@ -445,14 +456,6 @@ export const GameScene = {
 - Combine with platformer pack for environment
 - Inventory system (HTML overlay)
 - Resource gathering via proximity + click
-
-### Dungeon / Dark Fantasy
-- Unity Game Kit packs (ONLY for dark/realistic themes)
-- FBX format — scale 0.01x (models are oversized)
-- **Animation**: \`createAnimationPlayer(model, clips)\` for Walk, Attack, Idle animations
-- Dark lighting, point lights for torches
-- **Physics**: cannon-es for character movement + collision with walls
-- Wall/prop placement for dungeon layout
 
 ## \u2605 Complete GameScene Reference — COPY THIS PATTERN
 
@@ -485,6 +488,7 @@ let score = 0;
 let lives = 3;
 let gameOver = false;
 let canJump = true;
+let restartFn: () => void;
 
 // === Objects ===
 let player: any;
@@ -505,10 +509,12 @@ export const GameScene = {
     _camera: any,
     _renderer: any,
     _container: HTMLDivElement,
+    onProgress?: (p: number) => void,
   ) {
     scene = _scene;
     camera = _camera;
     container = _container;
+    restartFn = container.__restartGame || (() => { location.reload(); });
     score = 0;
     lives = 3;
     gameOver = false;
@@ -683,7 +689,7 @@ export const GameScene = {
       hud.setLives(lives);
       if (lives <= 0) {
         gameOver = true;
-        showGameOver(container, score, () => { location.reload(); });
+        showGameOver(container, score, restartFn);
         return;
       }
       // Respawn
@@ -719,81 +725,63 @@ export const GameScene = {
 8. \`checkCollision(a, b, threshold)\` for collectible pickup — distance-based (no physics body needed).
 9. Camera follows player with lerp: \`camera.position.x += (target - current) * speed * delta;\`
 10. \`createHUD(container)\` for score/lives — HTML overlay, NOT 3D text.
-11. \`showGameOver(container, score, onRestart)\` — HTML overlay with restart button.
+11. \`showGameOver(container, score, restartFn)\` — HTML overlay, restart via Game3D.tsx (no page reload).
 12. State reset at top of init(): \`score = 0; lives = 3; gameOver = false;\` for restart support.
+18. \`restartFn = container.__restartGame\` — Game3D.tsx injects a clean restart function. Always use it.
 13. Fall-off-world detection: if body.y < -10, lose a life or game over.
 14. Collectible spin: \`mesh.rotation.y += speed * delta\` in update() for visual feedback.
 15. \`async init()\` — model loading is async, use \`await loadGLTF()\` or fire-and-forget.
 16. For city builders: use \`createOrbitControls()\` + \`onClickObject()\` instead of follow camera.
 17. For animated models: use \`createAnimationPlayer()\` and call \`anim.update(delta)\` every frame.
 
-## Art Style Families — CRITICAL RULES
+## Art Style — KayKit Cartoon Low-Poly (GLTF)
 
-### KayKit (Cartoon Low-Poly) — DEFAULT, PREFERRED
-- GLTF format — loads natively with \`loadGLTF()\`
-- Bright colors, simple geometry, consistent aesthetic
+All 3D models use the **KayKit cartoon low-poly** style. GLTF format, web-native.
 - 4 packs: platformer (370 models), city-builder (41), resource-bits (76), skeletons (17)
 - Color variants: Each base model has 5 versions (neutral + _blue, _green, _red, _yellow)
-- Use for: casual games, platformers, kids games, city builders, survival/crafting
-- Path: \`modelUrl("kaykit-platformer", "Assets/gltf/{name}.gltf")\`
-
-### Unity 3D Game Kit (Realistic Dark Fantasy) — SECONDARY
-- FBX format — needs \`SCALES_3D.unityCharacter\` (0.01x — models are 100x oversized)
-- Dark, detailed, realistic textures
-- 3 packs: characters (91 FBX), environment (62), props (52)
-- Use for: RPGs, dungeon crawlers, dark adventure games
-- Path: \`modelUrl("unity-gamekit-characters", "Grenadier.fbx")\`
-- NOTE: FBX loading requires additional loader. For MVP, prefer KayKit GLTF.
-
-### NEVER MIX FAMILIES
-- KayKit cartoon platforms + Unity realistic characters = UGLY
-- Unity dark walls + KayKit bright buildings = INCOHERENT
-- Always stay within ONE art family for the entire game
+- Load with: \`loadGLTF(modelUrl(pack, file))\`
+- Path pattern: \`modelUrl("kaykit-platformer", "Assets/gltf/{name}.gltf")\`
+- Stylized tools pack (3 OBJ models: axe, pickaxe, hammer) can be mixed with KayKit
+- Use KayKit consistently — all packs share the same aesthetic
 
 ## Mobile / Touch Controls
 
+Use the pre-created touch helpers from assets-3d.ts:
+
 \`\`\`typescript
-// Touch joystick (virtual)
-let touchStartX = 0, touchStartY = 0;
-let touchMoveX = 0, touchMoveY = 0;
-let isTouching = false;
+import { createTouchJoystick, createTapDetector, createSwipeDetector } from "../config/assets-3d";
 
-container.addEventListener("touchstart", (e) => {
-  const t = e.touches[0];
-  touchStartX = t.clientX;
-  touchStartY = t.clientY;
-  isTouching = true;
-  e.preventDefault();
-});
-
-container.addEventListener("touchmove", (e) => {
-  if (!isTouching) return;
-  const t = e.touches[0];
-  touchMoveX = (t.clientX - touchStartX) / 50; // normalized
-  touchMoveY = (t.clientY - touchStartY) / 50;
-  e.preventDefault();
-});
-
-container.addEventListener("touchend", () => {
-  isTouching = false;
-  touchMoveX = 0;
-  touchMoveY = 0;
-});
-
-// In update(): use touchMoveX/Y as input instead of keyboard
-if (isTouching) {
-  player.position.x += touchMoveX * PLAYER_SPEED * delta;
-  player.position.z += touchMoveY * PLAYER_SPEED * delta;
-}
-
-// Tap to jump
-container.addEventListener("touchstart", (e) => {
-  if (e.touches.length === 2 && canJump) { // two-finger tap = jump
-    velocityY = JUMP_FORCE;
+// === Platformer pattern: joystick + tap-to-jump ===
+const joystick = createTouchJoystick(container);
+const cleanupTap = createTapDetector(container, (x, y, isLeft) => {
+  // Right-half tap = jump
+  if (!isLeft && canJump) {
+    playerBody.velocity.y = JUMP_FORCE;
     canJump = false;
   }
 });
+
+// In update():
+if (joystick.active) {
+  playerBody.applyForce(new CANNON.Vec3(joystick.x * MOVE_FORCE, 0, -joystick.y * MOVE_FORCE));
+}
+
+// In cleanup():
+joystick.destroy();
+cleanupTap();
+
+// === Runner pattern: swipe left/right ===
+const cleanupSwipe = createSwipeDetector(container, (dir) => {
+  if (dir === "left" && lane > 0) lane--;
+  if (dir === "right" && lane < 2) lane++;
+});
+// In cleanup(): cleanupSwipe();
 \`\`\`
+
+**Touch helpers available in assets-3d.ts:**
+- \`createTouchJoystick(container)\` — visible circular thumb pad (bottom-left). Returns \`{ x, y, active, destroy }\`. x/y range: -1 to 1.
+- \`createTapDetector(container, onTap)\` — full-screen tap with left/right split. \`onTap(x, y, isLeft)\`. Returns cleanup function.
+- \`createSwipeDetector(container, onSwipe, threshold?)\` — 4-directional swipe ("left"|"right"|"up"|"down"). Returns cleanup function.
 
 ## \u26a0\ufe0f MANDATORY: Using THREE and CANNON Globals
 
@@ -847,8 +835,8 @@ ${GAME_3D_ASSETS_REFERENCE}
 2. **Using @react-three/fiber** — Too heavy, doesn't work in Sandpack. Use raw Three.js.
 3. **Creating Game3D.tsx** — PRE-CREATED. Do NOT create any React-Three.js wrapper.
 4. **Using React useState for game state** — Score, lives, positions live in the GameScene module, not React.
-5. **Forgetting to scale FBX models** — Unity FBX are 100x oversized. Always use \`SCALES_3D.unityCharacter\` (0.01).
-6. **Mixing KayKit + Unity art** — NEVER. Pick one family and stick with it.
+5. **Using wrong scale** — Check SCALES_3D constants for correct model scale per type.
+6. **Mixing incompatible art styles** — Stick to KayKit packs for consistent cartoon low-poly look.
 7. **Not disposing resources** — In cleanup(), dispose geometries and materials to prevent memory leaks.
 8. **Using 2D Phaser patterns** — This is 3D. No Phaser scenes, no Arcade physics, no sprite sheets.
 15. **Forgetting world.step()** — Must call \`world.step(1/60, delta, 3)\` every frame BEFORE syncBodiesToMeshes.

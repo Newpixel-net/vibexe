@@ -66,10 +66,6 @@ export const SCALES_3D = {
   barrel: 0.5,
   ore: 0.4,
   wood: 0.5,
-  // Unity FBX (these are oversized — scale DOWN)
-  unityCharacter: 0.01,
-  unityEnvironment: 0.01,
-  unityProp: 0.01,
 };
 
 // ===== Renderer =====
@@ -734,6 +730,156 @@ export function createOrbitControls(
   controls.target.set(0, 0, 0);
   return controls;
 }
+
+// ===== Touch Helpers =====
+
+/**
+ * Creates a visible virtual joystick (bottom-left, 120px diameter).
+ * Returns { x, y, active, destroy }. x/y range: -1 to 1.
+ */
+export function createTouchJoystick(container: HTMLElement): {
+  x: number; y: number; active: boolean; destroy: () => void;
+} {
+  const state = { x: 0, y: 0, active: false, destroy: () => {} };
+  const SIZE = 120;
+  const HALF = SIZE / 2;
+
+  // Base circle
+  const base = document.createElement("div");
+  base.style.cssText = \`position:absolute;bottom:24px;left:24px;width:\${SIZE}px;height:\${SIZE}px;border-radius:50%;background:rgba(255,255,255,0.15);border:2px solid rgba(255,255,255,0.3);z-index:50;touch-action:none;pointer-events:auto;\`;
+
+  // Thumb
+  const thumb = document.createElement("div");
+  thumb.style.cssText = \`position:absolute;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.5);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;transition:background 0.1s;\`;
+  base.appendChild(thumb);
+  container.appendChild(base);
+
+  let startX = 0, startY = 0;
+
+  function onPointerDown(e: PointerEvent) {
+    e.preventDefault();
+    base.setPointerCapture(e.pointerId);
+    const rect = base.getBoundingClientRect();
+    startX = rect.left + HALF;
+    startY = rect.top + HALF;
+    state.active = true;
+    thumb.style.background = "rgba(255,255,255,0.7)";
+  }
+
+  function onPointerMove(e: PointerEvent) {
+    if (!state.active) return;
+    let dx = e.clientX - startX;
+    let dy = e.clientY - startY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > HALF) { dx = (dx / dist) * HALF; dy = (dy / dist) * HALF; }
+    state.x = dx / HALF;
+    state.y = -dy / HALF; // Invert Y so up = positive
+    thumb.style.transform = \`translate(calc(-50% + \${dx}px), calc(-50% + \${dy}px))\`;
+  }
+
+  function onPointerUp() {
+    state.active = false;
+    state.x = 0;
+    state.y = 0;
+    thumb.style.transform = "translate(-50%,-50%)";
+    thumb.style.background = "rgba(255,255,255,0.5)";
+  }
+
+  base.addEventListener("pointerdown", onPointerDown);
+  base.addEventListener("pointermove", onPointerMove);
+  base.addEventListener("pointerup", onPointerUp);
+  base.addEventListener("pointercancel", onPointerUp);
+
+  state.destroy = () => {
+    base.removeEventListener("pointerdown", onPointerDown);
+    base.removeEventListener("pointermove", onPointerMove);
+    base.removeEventListener("pointerup", onPointerUp);
+    base.removeEventListener("pointercancel", onPointerUp);
+    base.remove();
+  };
+
+  return state;
+}
+
+/**
+ * Detects taps on the container with left/right half split.
+ * onTap(x, y, isLeft) — isLeft=true if tap was on the left half.
+ * Returns cleanup function.
+ */
+export function createTapDetector(
+  container: HTMLElement,
+  onTap: (x: number, y: number, isLeft: boolean) => void,
+): () => void {
+  let startTime = 0;
+  let startX = 0;
+  let startY = 0;
+
+  function onDown(e: PointerEvent) {
+    startTime = Date.now();
+    startX = e.clientX;
+    startY = e.clientY;
+  }
+
+  function onUp(e: PointerEvent) {
+    const dt = Date.now() - startTime;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    // Tap = short press + small movement
+    if (dt < 300 && Math.abs(dx) < 20 && Math.abs(dy) < 20) {
+      const rect = container.getBoundingClientRect();
+      const isLeft = e.clientX < rect.left + rect.width / 2;
+      onTap(e.clientX, e.clientY, isLeft);
+    }
+  }
+
+  container.addEventListener("pointerdown", onDown);
+  container.addEventListener("pointerup", onUp);
+
+  return () => {
+    container.removeEventListener("pointerdown", onDown);
+    container.removeEventListener("pointerup", onUp);
+  };
+}
+
+/**
+ * Detects 4-directional swipes on the container.
+ * onSwipe("left" | "right" | "up" | "down").
+ * Returns cleanup function.
+ */
+export function createSwipeDetector(
+  container: HTMLElement,
+  onSwipe: (direction: "left" | "right" | "up" | "down") => void,
+  threshold: number = 30,
+): () => void {
+  let startX = 0;
+  let startY = 0;
+
+  function onDown(e: PointerEvent) {
+    startX = e.clientX;
+    startY = e.clientY;
+  }
+
+  function onUp(e: PointerEvent) {
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    if (absDx < threshold && absDy < threshold) return;
+    if (absDx > absDy) {
+      onSwipe(dx > 0 ? "right" : "left");
+    } else {
+      onSwipe(dy > 0 ? "down" : "up");
+    }
+  }
+
+  container.addEventListener("pointerdown", onDown);
+  container.addEventListener("pointerup", onUp);
+
+  return () => {
+    container.removeEventListener("pointerdown", onDown);
+    container.removeEventListener("pointerup", onUp);
+  };
+}
 `,
 	},
 
@@ -761,7 +907,7 @@ export function createOrbitControls(
 const THREE = (window as any).THREE;
 
 interface GameSceneInterface {
-  init(scene: any, camera: any, renderer: any, container: HTMLDivElement): void | Promise<void>;
+  init(scene: any, camera: any, renderer: any, container: HTMLDivElement, onProgress?: (p: number) => void): void | Promise<void>;
   update(delta: number): void;
   cleanup?(): void;
 }
@@ -772,23 +918,83 @@ interface Game3DProps {
   cameraFov?: number;
 }
 
+// ===== Overlay Helpers =====
+
+function createLoadingOverlay(container: HTMLDivElement) {
+  const overlay = document.createElement("div");
+  overlay.style.cssText = "position:absolute;top:0;left:0;right:0;bottom:0;background:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;font-family:sans-serif;color:#fff;transition:opacity 0.4s;";
+
+  const label = document.createElement("div");
+  label.style.cssText = "font-size:18px;margin-bottom:16px;opacity:0.7;";
+  label.textContent = "Loading...";
+
+  const barBg = document.createElement("div");
+  barBg.style.cssText = "width:220px;height:6px;background:#333;border-radius:3px;overflow:hidden;";
+
+  const barFill = document.createElement("div");
+  barFill.style.cssText = "width:10%;height:100%;background:#00ff88;border-radius:3px;transition:width 0.2s;";
+  barBg.appendChild(barFill);
+
+  overlay.appendChild(label);
+  overlay.appendChild(barBg);
+  container.appendChild(overlay);
+
+  return {
+    setProgress(p: number) { barFill.style.width = Math.max(10, Math.min(100, p * 100)) + "%"; },
+    remove() { overlay.style.opacity = "0"; setTimeout(() => overlay.remove(), 400); },
+  };
+}
+
+function createMenuOverlay(container: HTMLDivElement, onStart: () => void) {
+  const overlay = document.createElement("div");
+  overlay.style.cssText = "position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:150;font-family:sans-serif;color:#fff;";
+
+  const hsKey = "vibexe-3d-highscore";
+  const best = parseInt(localStorage.getItem(hsKey) || "0", 10);
+
+  const title = document.createElement("div");
+  title.style.cssText = "font-size:36px;font-weight:bold;margin-bottom:12px;text-shadow:0 2px 8px rgba(0,0,0,0.5);";
+  title.textContent = "\\u{1F3AE}";
+
+  const hs = document.createElement("div");
+  hs.style.cssText = "font-size:16px;color:#aaa;margin-bottom:32px;";
+  hs.textContent = best > 0 ? "Best: " + best : "";
+
+  const btn = document.createElement("div");
+  btn.style.cssText = "font-size:22px;font-weight:bold;color:#00ff88;cursor:pointer;animation:pulse3d 1.2s ease-in-out infinite;pointer-events:none;";
+  btn.textContent = "TAP TO START";
+
+  // Pulse animation
+  const style = document.createElement("style");
+  style.textContent = "@keyframes pulse3d{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.6;transform:scale(1.05)}}";
+  overlay.appendChild(style);
+
+  overlay.appendChild(title);
+  overlay.appendChild(hs);
+  overlay.appendChild(btn);
+  container.appendChild(overlay);
+
+  // Enable click after 400ms delay
+  setTimeout(() => {
+    btn.style.pointerEvents = "auto";
+    overlay.style.cursor = "pointer";
+    const handler = () => {
+      overlay.removeEventListener("click", handler);
+      overlay.style.opacity = "0";
+      overlay.style.transition = "opacity 0.3s";
+      setTimeout(() => { overlay.remove(); onStart(); }, 300);
+    };
+    overlay.addEventListener("click", handler);
+  }, 400);
+
+  return { remove() { overlay.remove(); } };
+}
+
 /**
  * React wrapper for Three.js 3D games.
- * Creates renderer, camera, scene and runs the game loop.
+ * Handles: renderer, camera, scene, game loop, loading screen, menu, restart.
  *
  * The AI should NOT modify this file — import and use it in App.tsx.
- *
- * Usage in App.tsx:
- *   import Game3D from "./components/Game3D";
- *   import { GameScene } from "./scenes/GameScene";
- *   export default function App() {
- *     return <Game3D gameScene={GameScene} />;
- *   }
- *
- * Your GameScene must export an object with:
- *   init(scene, camera, renderer, container) — set up the 3D world
- *   update(delta) — called every frame, delta in seconds
- *   cleanup() — optional, called on unmount
  */
 export default function Game3D({ gameScene, bgColor = "#87CEEB", cameraFov = 60 }: Game3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -817,10 +1023,6 @@ export default function Game3D({ gameScene, bgColor = "#87CEEB", cameraFov = 60 
     camera.position.set(0, 8, 15);
     camera.lookAt(0, 2, 0);
 
-    // Create scene
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(bgColor);
-
     // Handle resize
     const onResize = () => {
       if (disposed) return;
@@ -832,12 +1034,77 @@ export default function Game3D({ gameScene, bgColor = "#87CEEB", cameraFov = 60 
     };
     window.addEventListener("resize", onResize);
 
-    // Initialize game scene
+    // Pause/resume on visibility change
     const clock = new THREE.Clock();
-    const startGame = async () => {
-      await gameScene.init(scene, camera, renderer, container);
+    const onVisChange = () => {
+      if (document.hidden) clock.stop();
+      else clock.start();
+    };
+    document.addEventListener("visibilitychange", onVisChange);
 
-      // Game loop
+    // ===== Scene lifecycle =====
+    let scene: any;
+
+    function disposeScene() {
+      cancelAnimationFrame(animFrameId);
+      gameScene.cleanup?.();
+      if (scene) {
+        scene.traverse((obj: any) => {
+          if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) {
+            if (Array.isArray(obj.material)) obj.material.forEach((m: any) => m.dispose());
+            else obj.material.dispose();
+          }
+        });
+        while (scene.children.length > 0) scene.remove(scene.children[0]);
+      }
+      // Remove non-canvas overlay children
+      Array.from(container.children).forEach((c) => {
+        if (c !== renderer.domElement) c.remove();
+      });
+    }
+
+    async function initAndRun() {
+      if (disposed) return;
+
+      // Fresh scene
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(bgColor);
+
+      // Loading overlay
+      const loading = createLoadingOverlay(container);
+
+      // Inject restart function
+      (container as any).__restartGame = () => {
+        disposeScene();
+        clock.stop();
+        clock.start();
+        initAndRun();
+      };
+
+      // Init game scene with progress callback
+      await gameScene.init(scene, camera, renderer, container, (p: number) => {
+        loading.setProgress(p);
+      });
+
+      if (disposed) return;
+      loading.setProgress(1);
+
+      // Render one frame so menu has a background
+      renderer.render(scene, camera);
+
+      // Remove loading, show menu
+      loading.remove();
+
+      await new Promise<void>((resolve) => {
+        if (disposed) { resolve(); return; }
+        createMenuOverlay(container, resolve);
+      });
+
+      if (disposed) return;
+
+      // Start game loop
+      clock.start();
       const animate = () => {
         if (disposed) return;
         animFrameId = requestAnimationFrame(animate);
@@ -846,23 +1113,16 @@ export default function Game3D({ gameScene, bgColor = "#87CEEB", cameraFov = 60 
         renderer.render(scene, camera);
       };
       animate();
-    };
-    startGame();
+    }
 
-    // Pause/resume on visibility change
-    const onVisChange = () => {
-      if (document.hidden) clock.stop();
-      else clock.start();
-    };
-    document.addEventListener("visibilitychange", onVisChange);
+    initAndRun();
 
-    // Cleanup
+    // Cleanup on unmount
     return () => {
       disposed = true;
-      cancelAnimationFrame(animFrameId);
+      disposeScene();
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisChange);
-      gameScene.cleanup?.();
       renderer.dispose();
       if (renderer.domElement.parentNode) {
         renderer.domElement.parentNode.removeChild(renderer.domElement);
