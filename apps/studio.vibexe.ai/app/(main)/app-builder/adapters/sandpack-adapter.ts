@@ -1057,6 +1057,56 @@ function extractProviderName(content: string): string | null {
 }
 
 /**
+ * Detect Phaser game projects and auto-generate an App.tsx that wires up scenes.
+ * If /components/Game.tsx exists AND /scenes/*Scene.ts files exist, it generates
+ * the correct App.tsx that imports all scenes and passes them to <Game />.
+ * Returns null if the project isn't a game.
+ */
+function tryGenerateGameApp(sandpackFiles: SandpackFiles): string | null {
+	// Check for the pre-created Game.tsx wrapper
+	const hasGame = Object.keys(sandpackFiles).some(
+		(p) => p === "/components/Game.tsx" || p === "/components/Game.jsx",
+	);
+	if (!hasGame) return null;
+
+	// Find all scene files (e.g. /scenes/BootScene.ts, /scenes/GameScene.ts)
+	const scenePaths = Object.keys(sandpackFiles)
+		.filter((p) => /^\/scenes\/\w+Scene\.tsx?$/.test(p))
+		.sort((a, b) => {
+			// Boot first, then Menu, then Game, then GameOver, then alphabetical
+			const order = ["Boot", "Menu", "Game", "GameOver"];
+			const aName = a.match(/\/(\w+)Scene/)?.[1] || "";
+			const bName = b.match(/\/(\w+)Scene/)?.[1] || "";
+			const aIdx = order.indexOf(aName);
+			const bIdx = order.indexOf(bName);
+			if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+			if (aIdx !== -1) return -1;
+			if (bIdx !== -1) return 1;
+			return a.localeCompare(b);
+		});
+
+	if (scenePaths.length === 0) return null;
+
+	// Build imports and scene array
+	const imports: string[] = ['import Game from "./components/Game";'];
+	const sceneNames: string[] = [];
+	for (const p of scenePaths) {
+		const name = p.match(/\/(\w+Scene)/)?.[1];
+		if (!name) continue;
+		const importPath = p.replace(/\.tsx?$/, "");
+		imports.push(`import { ${name} } from ".${importPath}";`);
+		sceneNames.push(name);
+	}
+
+	return `${imports.join("\n")}
+
+export default function App() {
+  return <Game scenes={[${sceneNames.join(", ")}]} />;
+}
+`;
+}
+
+/**
  * Auto-generate an App.tsx when component files exist but no App entry point was created.
  * Searches for the most likely "main" component (DashboardLayout, HomePage, MainLayout, etc.)
  * and creates a minimal App.tsx that renders it.
@@ -1251,9 +1301,9 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				hidden: true,
 			};
 		} else if (codeFiles.length > 3) {
-			// No App file but we have component files — auto-generate an App.tsx
-			// that imports the most likely main component
-			const generatedApp = generateAppFromComponents(sandpackFiles, contextProviders);
+			// Try game-specific auto-generation first (Game.tsx + Scene files)
+			const gameApp = tryGenerateGameApp(sandpackFiles);
+			const generatedApp = gameApp ?? generateAppFromComponents(sandpackFiles, contextProviders);
 			sandpackFiles["/App.tsx"] = { code: generatedApp };
 			sandpackFiles["/index.tsx"] = {
 				code: generateEntryPoint("./App", contextProviders),
