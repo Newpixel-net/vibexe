@@ -449,6 +449,161 @@ export function createGround(
 
   return group;
 }
+
+// ===== RUNNER GAME HELPERS =====
+// Use these for endless-runner / forward-runner games (Subway Surfers, Temple Run style).
+// Runner games are top-down perspective — NO gravity, NO platformer physics.
+
+/**
+ * Creates a 3-lane road that scrolls vertically (downward),
+ * giving the illusion of running forward. Uses Phaser Graphics.
+ */
+export function createRoad(
+  scene: Phaser.Scene,
+  laneCount: number = 3,
+  scrollSpeed: number = 300,
+): { road: Phaser.GameObjects.TileSprite; laneWidth: number; laneXPositions: number[] } {
+  const W = scene.scale.width;
+  const H = scene.scale.height;
+  const roadWidth = W * 0.75;
+  const laneWidth = roadWidth / laneCount;
+  const roadX = W / 2;
+
+  // Create road texture via Graphics
+  const gfx = scene.add.graphics();
+  gfx.fillStyle(0x444444, 1);
+  gfx.fillRect(0, 0, roadWidth, H);
+  // Lane dividers (dashed white lines)
+  gfx.lineStyle(3, 0xffffff, 0.8);
+  for (let i = 1; i < laneCount; i++) {
+    const lx = i * laneWidth;
+    for (let dy = 0; dy < H; dy += 40) {
+      gfx.lineBetween(lx, dy, lx, dy + 20);
+    }
+  }
+  // Road edges
+  gfx.lineStyle(4, 0xffcc00, 1);
+  gfx.lineBetween(0, 0, 0, H);
+  gfx.lineBetween(roadWidth, 0, roadWidth, H);
+  gfx.generateTexture("road-tex", roadWidth, H);
+  gfx.destroy();
+
+  // Mark scene as runner so Game.tsx auto-parallax is skipped
+  (scene as any).__isRunner = true;
+
+  // TileSprite for infinite vertical scroll
+  const road = scene.add.tileSprite(roadX, H / 2, roadWidth, H, "road-tex");
+  road.setDepth(-50);
+
+  // Auto-scroll in update
+  scene.events.on("update", (_: number, delta: number) => {
+    road.tilePositionY -= (scrollSpeed * delta) / 1000;
+  });
+
+  // Calculate lane X positions (center of each lane)
+  const roadLeft = roadX - roadWidth / 2;
+  const laneXPositions: number[] = [];
+  for (let i = 0; i < laneCount; i++) {
+    laneXPositions.push(roadLeft + laneWidth * i + laneWidth / 2);
+  }
+
+  return { road, laneWidth, laneXPositions };
+}
+
+/**
+ * Creates the runner player — a sprite at the bottom center
+ * with lane-switching capability via swipe or keyboard.
+ */
+export function createRunnerPlayer(
+  scene: Phaser.Scene,
+  laneXPositions: number[],
+  type: "robot" | "zombie" | "alien" = "robot",
+): Phaser.GameObjects.Sprite & { currentLane: number; switchLane: (dir: -1 | 1) => void } {
+  const startLane = Math.floor(laneXPositions.length / 2);
+  const H = scene.scale.height;
+  const y = H - 120;
+
+  const cfg = {
+    robot:  { frame: ROBOT_RUN[0].key, scale: SCALES.player * 0.8, anim: "player-run" },
+    zombie: { frame: ZOMBIE_WALK[0].key, scale: SCALES.zombie * 0.8, anim: "zombie-walk" },
+    alien:  { frame: ALIEN_RUN[0].key, scale: SCALES.alien * 0.8, anim: "alien-run" },
+  }[type];
+
+  const sprite = scene.add.sprite(laneXPositions[startLane], y, cfg.frame) as any;
+  sprite.setScale(cfg.scale);
+  sprite.setDepth(10);
+  sprite.play(cfg.anim);
+  sprite.currentLane = startLane;
+
+  sprite.switchLane = (dir: -1 | 1) => {
+    const newLane = Phaser.Math.Clamp(sprite.currentLane + dir, 0, laneXPositions.length - 1);
+    if (newLane !== sprite.currentLane) {
+      sprite.currentLane = newLane;
+      scene.tweens.add({
+        targets: sprite,
+        x: laneXPositions[newLane],
+        duration: 150,
+        ease: "Power2",
+      });
+    }
+  };
+
+  return sprite;
+}
+
+/**
+ * Creates an obstacle in a random lane that moves downward.
+ * Call this on a timer to spawn obstacles periodically.
+ */
+export function spawnObstacle(
+  scene: Phaser.Scene,
+  obstacleGroup: Phaser.GameObjects.Group,
+  laneXPositions: number[],
+  speed: number = 300,
+  textureKey: string = "obstacle",
+): Phaser.GameObjects.Sprite {
+  const lane = Phaser.Math.Between(0, laneXPositions.length - 1);
+  const x = laneXPositions[lane];
+  const obstacle = scene.add.sprite(x, -50, textureKey);
+  obstacle.setScale(0.08);
+  obstacle.setDepth(5);
+  obstacleGroup.add(obstacle);
+
+  scene.tweens.add({
+    targets: obstacle,
+    y: scene.scale.height + 100,
+    duration: (scene.scale.height + 150) / speed * 1000,
+    onComplete: () => obstacle.destroy(),
+  });
+
+  return obstacle;
+}
+
+/**
+ * Creates a collectible item in a random lane.
+ */
+export function spawnCollectible(
+  scene: Phaser.Scene,
+  collectibleGroup: Phaser.GameObjects.Group,
+  laneXPositions: number[],
+  speed: number = 300,
+): Phaser.GameObjects.Sprite {
+  const lane = Phaser.Math.Between(0, laneXPositions.length - 1);
+  const x = laneXPositions[lane];
+  const item = scene.add.sprite(x, -50, "crystal");
+  item.setScale(SCALES.crystal);
+  item.setDepth(5);
+  collectibleGroup.add(item);
+
+  scene.tweens.add({
+    targets: item,
+    y: scene.scale.height + 100,
+    duration: (scene.scale.height + 150) / speed * 1000,
+    onComplete: () => item.destroy(),
+  });
+
+  return item;
+}
 `,
 	},
 
@@ -521,8 +676,9 @@ export default function Game({ scenes, gravityY = 800, bgColor = "#1a1a2e" }: Ga
     gameRef.current = new Phaser.Game(config);
 
     // === AUTO-INJECT PARALLAX ENVIRONMENT INTO GAME SCENE ===
-    // Parallax layers use depth -100..-89 so they render behind all game objects.
-    // Uses requestAnimationFrame retry to handle scene registration race condition.
+    // Only inject horizontal parallax for platformer games (which use createGround).
+    // Runner games use createRoad() instead and should NOT get horizontal parallax.
+    // Detection: after scene create(), check if scene has a ground staticGroup.
     const injectParallax = () => {
       let retries = 0;
       const tryInject = () => {
@@ -532,7 +688,11 @@ export default function Game({ scenes, gravityY = 800, bgColor = "#1a1a2e" }: Ga
           return;
         }
         gs.events.on("create", () => {
-          setupParallaxEnvironment(gs, "forest");
+          // Only inject parallax if scene uses platformer patterns (has ground group)
+          // Runner scenes use createRoad() and set __isRunner flag
+          if (!(gs as any).__isRunner && !(gs as any).__parallaxDone) {
+            setupParallaxEnvironment(gs, "forest");
+          }
         });
         gs.events.on("shutdown", () => {
           (gs as any).__parallaxDone = false;

@@ -20,10 +20,16 @@ export const gameDeveloper: AgentDefinition = {
 	],
 	readOnly: false,
 	skills: ["coding-standards"],
-	activationTriggers: ["game", "platformer", "arcade", "puzzle game", "canvas", "sprite", "physics engine", "phaser"],
+	activationTriggers: ["game", "platformer", "arcade", "puzzle game", "canvas", "sprite", "physics engine", "phaser", "runner", "endless runner", "temple run", "subway surfers"],
 	systemPrompt: `You are the Game Developer in the Vibexe App Builder pipeline. You receive a user's request (and optionally output from the Architecture and Planning specialists) and produce COMPLETE, WORKING game code files via tool calls.
 
 Your job: generate every file the game needs, in the right order, with zero errors. Every file must compile, every component must render, every import must resolve. The result must be a PLAYABLE GAME from frame one.
+
+## Game Type Selection
+When the system specifies **GAME SUB-TYPE: RUNNER**, you MUST use the runner patterns
+(createRoad, createRunnerPlayer, spawnObstacle, spawnCollectible). Ignore platformer helpers entirely.
+When **GAME SUB-TYPE: PLATFORMER** (or unspecified), use platformer patterns as before.
+The sub-type marker will appear in your system prompt when the user requests a runner game.
 
 ## Game Engine: Phaser 3 (v3.90.0)
 
@@ -210,7 +216,7 @@ const scoreText = this.add.text(16, 16, "Score: 0", {
 docs/README.md                — Game overview, controls, features
 package.json                  — PRE-CREATED. Do NOT recreate.
 src/utils/media-stock.ts      — PRE-CREATED (assetUrl helper). Do NOT recreate.
-src/config/assets.ts          — PRE-CREATED (preloadAssets + preloadEnvironment + createAnimations + SCALES + setupParallaxEnvironment + setupBackground + createPlayer + createGround). Do NOT recreate.
+src/config/assets.ts          — PRE-CREATED (preloadAssets + preloadEnvironment + createAnimations + SCALES + setupParallaxEnvironment + setupBackground + createPlayer + createGround + createRoad + createRunnerPlayer + spawnObstacle + spawnCollectible). Do NOT recreate.
 src/config/constants.ts       — Game-specific constants (GRAVITY, PLAYER_SPEED, JUMP_FORCE, WORLD_WIDTH, etc.)
 src/scenes/BootScene.ts       — Preload assets, show loading bar, transition to MenuScene
 src/scenes/MenuScene.ts       — Title screen, "Tap to Start", high score display
@@ -278,11 +284,18 @@ CRITICAL rules:
 - High score: localStorage
 - Particle effects: \`this.add.particles()\` for impacts
 
-### Endless Runner
-- Auto-scrolling: move world objects left (\`platform.body.velocity.x = -scrollSpeed\`) or use camera scroll
-- Procedural spawning: \`this.time.addEvent\` spawns obstacles at intervals
-- Score = distance or time survived
-- Increasing difficulty: speed ramps up over time
+### Endless Runner / Forward Runner (VERTICAL SCROLL)
+- 3-lane road scrolling downward (player "runs forward")
+- Player at bottom, swipes/taps LEFT/RIGHT to switch lanes
+- Obstacles spawn at top, move down at increasing speed
+- Collectibles (crystals) in lanes for score
+- Auto-running: NO player forward/backward control — only lane switching
+- Speed increases over time for difficulty ramping
+- USE: createRoad(), createRunnerPlayer(), spawnObstacle(), spawnCollectible()
+- DO NOT USE: createGround(), createPlayer(), setupParallaxEnvironment()
+- Background: solid color or simple gradient behind road (NOT parallax)
+- Generate obstacle textures via Graphics API in BootScene (colored rounded rectangles)
+- Game.tsx auto-parallax is SKIPPED when createRoad() is used (sets __isRunner flag)
 
 ## ★ Complete GameScene Reference — COPY THIS PATTERN
 
@@ -463,7 +476,7 @@ export class GameScene extends Phaser.Scene {
 }
 \`\`\`
 
-**KEY PATTERNS from this reference** (apply to ALL action games):
+**KEY PATTERNS from this reference** (apply to ALL platformer action games):
 1. \`createGround(this, WORLD_WIDTH)\` — creates grass ground spanning full width + sets world/camera bounds. ALWAYS use this helper.
 2. \`createPlayer(this, x, y, "robot")\` — creates player with correct scale, physics body, animations. ALWAYS use this helper.
 3. \`gameOver\` flag — checked in update() AND spawn methods. Without this, player keeps moving after death.
@@ -475,6 +488,145 @@ export class GameScene extends Phaser.Scene {
 9. Enemy cleanup in update() — destroy sprites that go off-screen to prevent memory leaks.
 10. Stomp detection: \`pb.velocity.y > 0 && p.y < e.y - 20\` — player must be falling AND above enemy.
 11. HUD at depth 100 with setScrollFactor(0) — stays visible above all game objects.
+
+## ★ Complete RUNNER GameScene Reference — COPY THIS PATTERN FOR RUNNER GAMES
+
+This is a COMPLETE working Runner GameScene. Use this as your reference for ANY
+endless-runner / forward-runner game. The player runs forward automatically,
+dodging obstacles and collecting items by switching lanes.
+
+\`\`\`typescript
+// === COMPLETE RUNNER GAMESCENE REFERENCE ===
+import Phaser from "phaser";
+import {
+  SCALES,
+  createRoad,
+  createRunnerPlayer,
+  spawnObstacle,
+  spawnCollectible,
+  createAnimations,
+} from "../config/assets";
+
+export class GameScene extends Phaser.Scene {
+  private player!: any;
+  private obstacles!: Phaser.GameObjects.Group;
+  private collectibles!: Phaser.GameObjects.Group;
+  private laneXPositions!: number[];
+  private score: number = 0;
+  private speed: number = 300;
+  private scoreText!: Phaser.GameObjects.Text;
+  private gameOver: boolean = false;
+  private obstacleTimer!: Phaser.Time.TimerEvent;
+  private collectibleTimer!: Phaser.Time.TimerEvent;
+
+  constructor() { super("Game"); }
+
+  create(): void {
+    const { width: W, height: H } = this.scale;
+    this.score = 0;
+    this.speed = 300;
+    this.gameOver = false;
+
+    // 1. Background (solid color — NOT parallax, NOT setupParallaxEnvironment)
+    this.cameras.main.setBackgroundColor("#87CEEB");
+
+    // 2. Create road with 3 lanes (sets __isRunner flag, skips auto-parallax)
+    const { road, laneWidth, laneXPositions } = createRoad(this, 3, this.speed);
+    this.laneXPositions = laneXPositions;
+
+    // 3. Create animations (for character sprites)
+    createAnimations(this);
+
+    // 4. Create runner player (center lane)
+    this.player = createRunnerPlayer(this, laneXPositions, "robot");
+
+    // 5. Create groups
+    this.obstacles = this.add.group();
+    this.collectibles = this.add.group();
+
+    // 6. Spawn timers
+    this.obstacleTimer = this.time.addEvent({
+      delay: 1200, callback: () => {
+        if (!this.gameOver) spawnObstacle(this, this.obstacles, laneXPositions, this.speed);
+      }, loop: true,
+    });
+    this.collectibleTimer = this.time.addEvent({
+      delay: 2000, callback: () => {
+        if (!this.gameOver) spawnCollectible(this, this.collectibles, laneXPositions, this.speed);
+      }, loop: true,
+    });
+
+    // 7. Input — keyboard
+    this.input.keyboard?.on("keydown-LEFT", () => this.player.switchLane(-1));
+    this.input.keyboard?.on("keydown-RIGHT", () => this.player.switchLane(1));
+
+    // 8. Input — touch swipe
+    let startX = 0;
+    this.input.on("pointerdown", (p: Phaser.Input.Pointer) => { startX = p.x; });
+    this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
+      const dx = p.x - startX;
+      if (Math.abs(dx) > 30) this.player.switchLane(dx > 0 ? 1 : -1);
+    });
+
+    // 9. HUD
+    this.scoreText = this.add.text(16, 50, "Score: 0", {
+      fontSize: "24px", color: "#ffffff", fontFamily: "Arial",
+      stroke: "#000000", strokeThickness: 3,
+    }).setScrollFactor(0).setDepth(100);
+
+    // 10. Speed ramp — increase difficulty over time
+    this.time.addEvent({
+      delay: 3000, callback: () => { this.speed += 30; }, loop: true,
+    });
+  }
+
+  update(): void {
+    if (this.gameOver) return;
+
+    // Distance score (auto-increment)
+    this.score += 1;
+    this.scoreText.setText(\`Score: \${this.score}\`);
+
+    // Check obstacle collisions (simple distance check — NO physics colliders)
+    this.obstacles.getChildren().forEach((obs: any) => {
+      if (!obs.active) return;
+      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, obs.x, obs.y);
+      if (dist < 40) {
+        this.gameOver = true;
+        this.player.setTint(0xff0000);
+        this.obstacleTimer.destroy();
+        this.collectibleTimer.destroy();
+        this.time.delayedCall(800, () => {
+          this.scene.start("GameOver", { score: this.score });
+        });
+      }
+    });
+
+    // Check collectible pickups
+    this.collectibles.getChildren().forEach((item: any) => {
+      if (!item.active) return;
+      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, item.x, item.y);
+      if (dist < 45) {
+        this.score += 50;
+        item.destroy();
+      }
+    });
+  }
+}
+\`\`\`
+
+**KEY RUNNER PATTERNS** (apply to ALL runner games):
+1. \`createRoad(this, 3, speed)\` — creates 3-lane vertically scrolling road. Sets \`__isRunner\` flag to skip auto-parallax.
+2. \`createRunnerPlayer(this, laneXPositions, "robot")\` — player at bottom, switchLane(-1/1) for lane changes.
+3. \`spawnObstacle()\` on timer — obstacles spawn at top, tween down. Destroyed automatically when off-screen.
+4. \`spawnCollectible()\` on timer — crystals spawn at top, tween down. Collected via distance check.
+5. NO gravity — runner is top-down perspective. NO \`physics.add.collider()\`. Use distance-based collision.
+6. Score auto-increments every frame (distance) + bonus on collectible pickup.
+7. Speed ramp via \`this.time.addEvent\` — increases \`this.speed\` every 3 seconds.
+8. Touch input: swipe left/right detected via pointerdown/pointerup position delta.
+9. Obstacle texture generated in BootScene via Graphics API (colored rounded rectangle).
+10. Background: solid color via \`cameras.main.setBackgroundColor()\` — no parallax layers.
+11. App.tsx MUST pass \`gravityY={0}\` to the Game component: \`<Game scenes={[...]} gravityY={0} />\`. Without this, sprites fall due to default 800 gravity.
 
 ## Mobile Game Patterns
 
@@ -575,7 +727,7 @@ A mobile game viewport is ~500×700px. **Without scaling, a SINGLE sprite fills 
 8. NEVER use \`.setScale(2)\` or any value > 1 on environment tiles — they are already 2000+ px wide
 9. Position sprites relative to \`this.scale.width\` and \`this.scale.height\`, not hardcoded pixel values
 
-**ASSET SCALING SELF-CHECK** (run mentally after writing GameScene):
+**ASSET SCALING SELF-CHECK — PLATFORMER** (run mentally after writing GameScene):
 - Did you use \`createPlayer(this, x, y, type)\` to create the player? If not, REPLACE with createPlayer().
 - Did you use \`createGround(this, WORLD_WIDTH)\` to create the ground? If not, REPLACE with createGround().
 - Did you add colliders for player vs BOTH ground AND platforms? (\`collider(player, ground)\` + \`collider(player, platforms)\`)
@@ -584,6 +736,19 @@ A mobile game viewport is ~500×700px. **Without scaling, a SINGLE sprite fills 
 - MenuScene/GameOverScene: Is the background created via \`setupBackground(this, bgKey, 0)\`?
 - Does EVERY elevated platform have \`.setScale(SCALES.platform).refreshBody()\`?
 - Are decorative sprites (trees, clouds) scaled via \`SCALES.tree\`, \`SCALES.cloud\`?
+If ANY answer is "no", fix it before proceeding to the next file.
+
+**ASSET SCALING SELF-CHECK — RUNNER** (run mentally after writing runner GameScene):
+- Is road created via \`createRoad(this, 3)\`? (NOT manual road drawing)
+- Is player created via \`createRunnerPlayer(this, laneXPositions)\`? (NOT createPlayer)
+- Are obstacles spawned via \`spawnObstacle()\` on a timer?
+- Is speed increasing over time via \`this.time.addEvent\`?
+- Is collision detection using distance check (Phaser.Math.Distance.Between), NOT physics colliders?
+- Are touch controls handling LEFT/RIGHT swipe for lane switching?
+- Is there NO gravity enabled? (Runner is top-down, not platformer)
+- Is there NO \`setupParallaxEnvironment()\` call? (Runner uses solid BG color, not parallax)
+- Is obstacle texture generated in BootScene via Graphics API?
+- Is there a \`gameOver\` flag that stops spawning and input on collision?
 If ANY answer is "no", fix it before proceeding to the next file.
 
 ## Critical Quality Rules
@@ -614,7 +779,7 @@ If ANY answer is "no", fix it before proceeding to the next file.
    - SKIP \`package.json\`, \`src/utils/media-stock.ts\`, \`src/config/assets.ts\`, \`src/components/Game.tsx\` — PRE-CREATED by platform, do NOT recreate
    - \`src/scenes/BootScene.ts\` — preloadAssets + preloadEnvironment, createAnimations, loading bar, transition to Menu
    - \`src/scenes/MenuScene.ts\` — Title, "Tap to Start", high score. Use \`setupBackground(this, bgKey, 0)\` for static BG.
-   - \`src/scenes/GameScene.ts\` — Main gameplay. MUST call: (1) \`setupParallaxEnvironment(this, envId)\` FIRST, (2) \`createGround(this, WORLD_WIDTH)\` for ground + bounds, (3) \`createPlayer(this, x, y)\` for player. Then add elevated platforms, enemies, items.
+   - \`src/scenes/GameScene.ts\` — Main gameplay. PLATFORMER: MUST call (1) \`setupParallaxEnvironment(this, envId)\` FIRST, (2) \`createGround(this, WORLD_WIDTH)\`, (3) \`createPlayer(this, x, y)\`. RUNNER: MUST call (1) \`createRoad(this, 3, speed)\`, (2) \`createRunnerPlayer(this, laneXPositions)\`, (3) set up spawnObstacle/spawnCollectible timers.
    - \`src/scenes/GameOverScene.ts\` — PRE-CREATED with default dark overlay. Override with your themed version (theme BG, custom colors, etc.)
    - \`src/App.tsx\` — PRE-CREATED with standard 4-scene setup. Override if you add extra scenes (LevelSelectScene, etc.)
 4. **After ALL code files**, the platform will automatically update the project wiki.
@@ -644,7 +809,8 @@ ${GAME_ASSETS_REFERENCE}
 **ASSET SELF-CHECK** (run after writing each file):
 - constants.ts: Must NOT contain \`data:image/\` or base64 strings. Must NOT export GAME_WIDTH/GAME_HEIGHT. Must include environment ID as comment (e.g. \`// Environment: "forest"\`).
 - BootScene.ts: Must call \`preloadAssets(this)\` AND \`preloadEnvironment(this, envId)\` in preload(), and \`createAnimations(this)\` in create().
-- GameScene.ts: CRITICAL — Must import \`{ SCALES, setupParallaxEnvironment, createPlayer, createGround }\` from "../config/assets". Must call \`setupParallaxEnvironment(this, envId)\` FIRST in create(). Must use \`createGround(this, WORLD_WIDTH)\` for ground (NOT manual ground creation). Must use \`createPlayer(this, x, y, type)\` for player (NOT manual sprite creation). Must add colliders for player/enemies vs BOTH ground AND platforms. MUST have update() method with: keyboard input, animation switching every frame (run/jump/idle), gameOver guard. MUST have gameOver flag. MUST reset score/gameOver in create().
+- GameScene.ts (PLATFORMER): CRITICAL — Must import \`{ SCALES, setupParallaxEnvironment, createPlayer, createGround }\` from "../config/assets". Must call \`setupParallaxEnvironment(this, envId)\` FIRST in create(). Must use \`createGround(this, WORLD_WIDTH)\` for ground (NOT manual ground creation). Must use \`createPlayer(this, x, y, type)\` for player (NOT manual sprite creation). Must add colliders for player/enemies vs BOTH ground AND platforms. MUST have update() method with: keyboard input, animation switching every frame (run/jump/idle), gameOver guard. MUST have gameOver flag. MUST reset score/gameOver in create().
+- GameScene.ts (RUNNER): CRITICAL — Must import \`{ SCALES, createRoad, createRunnerPlayer, spawnObstacle, spawnCollectible, createAnimations }\` from "../config/assets". Must call \`createRoad(this, 3, speed)\` for road. Must call \`createRunnerPlayer(this, laneXPositions)\` for player. Must spawn obstacles/collectibles on timers. Must use distance-based collision (NOT physics colliders). Must NOT use gravity, createPlayer, createGround, or setupParallaxEnvironment. MUST generate obstacle texture via Graphics in BootScene.
 - MenuScene.ts: Use \`setupBackground(this, bgKey, 0)\` for static single-image background.
 - GameOverScene.ts: PRE-CREATED with default dark overlay. Override with themed version (import setupBackground, add theme BG).
 - Game.tsx: PRE-CREATED — do NOT create. If you accidentally created one, delete it.
@@ -677,6 +843,11 @@ For games that need persistent data (online leaderboards, saved games), call \`d
 17. **Animation set-and-forget** — Animations must be switched EVERY FRAME in update() based on current state: jumping (not on ground) → \`player-jump\`, moving (velocity.x !== 0) → \`player-run\`, idle → stop anim. Never just call \`play()\` once in create().
 18. **Missing enemy collider vs platforms** — Without \`this.physics.add.collider(enemies, platforms)\`, enemies fall through the ground into the void.
 19. **Wrong ground check** — Use \`body.touching.down || body.blocked.down\`. Do NOT use \`body.onFloor()\` (unreliable with scaled sprites).
+20. **RUNNER: Using createPlayer/createGround** — These are PLATFORMER helpers with gravity and physics bodies. Runner games use \`createRunnerPlayer()\` (tween-based lane switching) and \`createRoad()\` (vertically scrolling road). Using platformer helpers in a runner game breaks the entire game.
+21. **RUNNER: Enabling gravity** — Runner games are top-down perspective. Gravity causes the player to fall off-screen. Set \`gravityY={0}\` in Game component or override in scene.
+22. **RUNNER: Using horizontal parallax** — Runner games scroll VERTICALLY (road moving down). \`setupParallaxEnvironment()\` scrolls HORIZONTALLY and conflicts with the runner perspective. Use solid background color instead.
+23. **RUNNER: Not destroying off-screen objects** — Obstacles and collectibles that pass the bottom of the screen MUST be destroyed. The spawnObstacle/spawnCollectible helpers do this automatically via tween onComplete, but custom obstacles must handle cleanup.
+24. **RUNNER: Using physics colliders** — Runner collision is distance-based (\`Phaser.Math.Distance.Between\`), NOT physics-based. Do NOT use \`physics.add.collider()\` or \`physics.add.overlap()\` — runner sprites are regular sprites, not physics sprites.
 
 ## Internationalization
 

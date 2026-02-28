@@ -324,4 +324,40 @@ ninja.setDisplaySize(80, 80); // Or setScale() — NEVER use at raw size
 ### Sprites vs Shapes rule:
 - Action/platformer/shooter/runner → ALWAYS use preloadAssets() + createAnimations() + SCALES with real sprites
 - Abstract puzzles (2048, Tetris, Minesweeper, Pong) → shapes/emoji OK
+
+## RUNNER GAME ASSETS
+
+### Road & Environment
+- Road is generated via \`createRoad()\` — Phaser Graphics API, no texture file needed
+- Background: use solid color gradient (\`cameras.main.setBackgroundColor("#87CEEB")\`) or simple static BG (\`setupBackground(this, "bg-nature", 0)\`)
+- Road has auto-generated lane dividers (white dashed) and edges (yellow solid)
+- Do NOT use parallax environments for runner games — the road scrolls vertically
+
+### Characters (same sprites, used differently)
+- Robot1: player character (side-view sprite works — rotated perception from speed). Created via \`createRunnerPlayer()\`.
+- Zombie1: can appear as obstacle or enemy on road
+- Alien1: can appear as obstacle or enemy
+
+### Obstacles
+- Generate obstacle textures via Phaser Graphics API in BootScene:
+\`\`\`typescript
+// In BootScene.create() — generate obstacle texture
+const gfx = this.add.graphics();
+gfx.fillStyle(0xff4444, 1);
+gfx.fillRoundedRect(0, 0, 60, 60, 8);
+gfx.generateTexture("obstacle", 60, 60);
+gfx.destroy();
+\`\`\`
+- Or use platform tiles / tree sprites as road obstacles (scaled to fit lane width)
+- Key: obstacles must be smaller than lane width
+
+### Collectibles
+- Crystal (128x128) at SCALES.crystal — primary collectible
+- Chest (128x128) at SCALES.chest — rare/bonus item
+
+### Runner-Specific Exports from assets.ts (PRE-CREATED — do NOT recreate)
+- \`createRoad(scene, laneCount?, scrollSpeed?)\` — **MANDATORY for runner games.** Creates vertically scrolling road with lane dividers. Returns \`{ road, laneWidth, laneXPositions }\`. Sets \`__isRunner\` flag to skip auto-parallax.
+- \`createRunnerPlayer(scene, laneXPositions, type?)\` — **MANDATORY for runner games.** Creates player sprite at bottom center with \`switchLane(-1|1)\` method for lane changes. Type: "robot" (default), "zombie", "alien".
+- \`spawnObstacle(scene, group, laneXPositions, speed?, texture?)\` — Spawns obstacle in random lane, tweens downward, auto-destroys when off-screen.
+- \`spawnCollectible(scene, group, laneXPositions, speed?)\` — Spawns crystal in random lane, tweens downward, auto-destroys when off-screen.
 `;

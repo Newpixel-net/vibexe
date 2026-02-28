@@ -682,6 +682,22 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 		// already exist when code generation starts.
 		const injectedFiles: string[] = [];
 		const isGameProject = app.projectType === "game" || app.projectType === "game-mobile";
+
+		// --- Detect game sub-type from user prompt + conversation history ---
+		const RUNNER_KEYWORDS = [
+			"runner", "run forward", "endless run", "dodge obstacles",
+			"subway surfers", "temple run", "lane", "endless runner",
+			"auto-run", "forward run", "running game", "dodge and run",
+			"vertical runner", "top-down runner", "3-lane",
+		];
+		let gameSubType: "platformer" | "runner" = "platformer"; // default
+		if (isGameProject) {
+			const allMessages = messages.map((m: UIMessage) => (typeof m.content === "string" ? m.content : "").toLowerCase()).join(" ");
+			const searchText = userPrompt.toLowerCase() + " " + allMessages;
+			if (RUNNER_KEYWORDS.some(kw => searchText.includes(kw))) {
+				gameSubType = "runner";
+			}
+		}
 		if (isGameProject) {
 			const existingPaths = new Set(existingFiles.map((f) => f.path));
 			for (const tpl of GAME_TEMPLATE_FILES) {
@@ -768,6 +784,14 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 		}
 		if (isGameProject) {
 			runtimeAddenda.push(GAME_ASSETS_REFERENCE);
+			// Inject game sub-type marker so the AI agent uses the correct helper set
+			if (gameSubType === "runner") {
+				runtimeAddenda.push(`## GAME SUB-TYPE: RUNNER
+You MUST follow the runner patterns below. Use createRoad(), createRunnerPlayer(), spawnObstacle(), spawnCollectible().
+Do NOT use platformer helpers (createPlayer, createGround, setupParallaxEnvironment) for runner games.
+Do NOT enable gravity — runner games are top-down perspective with tween-based movement.`);
+				console.log(`[Chat API] Game sub-type detected: runner`);
+			}
 		}
 
 		// Document this request in wiki (project memory — zero token cost)
