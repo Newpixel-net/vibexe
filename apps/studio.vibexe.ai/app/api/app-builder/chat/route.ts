@@ -674,6 +674,31 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			!hasCodeFiles;
 		const isNewProject = existingFiles.length === 0;
 
+		// --- Game template injection: pre-create infrastructure files ---
+		// Runs for ALL game project requests (Phase 1, Phase 2, or edits).
+		// The existingPaths check prevents duplicate injection on subsequent calls.
+		// Must happen BEFORE phase branching because some models build everything
+		// in one shot (ignoring the "plan only" instruction), so templates must
+		// already exist when code generation starts.
+		const injectedFiles: string[] = [];
+		const isGameProject = app.projectType === "game" || app.projectType === "game-mobile";
+		if (isGameProject) {
+			const existingPaths = new Set(existingFiles.map((f) => f.path));
+			for (const tpl of GAME_TEMPLATE_FILES) {
+				if (existingPaths.has(tpl.path)) {
+					console.log(`[Chat API] Template skip (exists): ${tpl.path}`);
+					continue;
+				}
+				try {
+					await saveFile(appId, tpl.path, tpl.content, tpl.language);
+					injectedFiles.push(tpl.path);
+					console.log(`[Chat API] Template injection: ${tpl.path}`);
+				} catch (e) {
+					console.error(`[Chat API] Template injection failed for ${tpl.path}:`, e);
+				}
+			}
+		}
+
 		if (isNewProject && !isVisualEdit) {
 			// Phase 1: Plan only — create docs/README.md and stop
 			runtimeAddenda.push(`## PLAN FIRST (MANDATORY)
@@ -699,28 +724,6 @@ CRITICAL: Only create docs/README.md. No other files.`);
 		} else if (hasPlanOnly) {
 			// Phase 2: Execute the plan — docs/README.md (or Blueprint.md) exists, no code yet
 
-			// --- Game template injection: pre-create infrastructure files ---
-			// Use app.projectType (persisted in DB) instead of agent ID,
-			// because Phase 2 ("build it") routes to fullstack-developer, not game-developer.
-			const injectedFiles: string[] = [];
-			const isGameProject = app.projectType === "game" || app.projectType === "game-mobile";
-			if (isGameProject) {
-				const existingPaths = new Set(existingFiles.map((f) => f.path));
-				for (const tpl of GAME_TEMPLATE_FILES) {
-					if (existingPaths.has(tpl.path)) {
-						console.log(`[Chat API] Template skip (exists): ${tpl.path}`);
-						continue;
-					}
-					try {
-						await saveFile(appId, tpl.path, tpl.content, tpl.language);
-						injectedFiles.push(tpl.path);
-						console.log(`[Chat API] Template injection: ${tpl.path}`);
-					} catch (e) {
-						console.error(`[Chat API] Template injection failed for ${tpl.path}:`, e);
-					}
-				}
-			}
-
 			runtimeAddenda.push(`## EXECUTE THE PLAN
 
 The user has reviewed the project plan (available in the Documents tab as docs/README.md). Now execute it:
@@ -735,10 +738,18 @@ Start immediately with file creation. Do not re-explain the plan.
 
 After creating ALL files, end with a short summary. If the app has auth, include:
 "To get started, **sign up** with any email and password (8+ characters) to create your first account."`);
+		} else if (isReturningUser) {
+			// Normal existing project — edit/add files
+			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)
+This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE modifying them with \`update_file\`. Never blindly overwrite files without reading them first.
+Reference the Project Wiki (docs/ folder) for architecture, data model, and change history.`);
+		}
 
-			// Notify agent about pre-created template files + game assets catalog
-			if (injectedFiles.length > 0) {
-				runtimeAddenda.push(`## MANDATORY: Pre-Created Infrastructure Files
+		// --- Game project addenda: template notification + sprite catalog ---
+		// Runs for ALL game project phases so the agent always knows about
+		// pre-created files and available sprites.
+		if (injectedFiles.length > 0) {
+			runtimeAddenda.push(`## MANDATORY: Pre-Created Infrastructure Files
 
 The following files have been pre-created by the platform and already exist in the project:
 ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
@@ -754,18 +765,9 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 - Apply \`SCALES.player\` / \`SCALES.zombie\` / \`SCALES.platform\` / etc. to EVERY sprite — raw assets are 800-3000px
 - For static physics bodies (platforms, ground), call \`.refreshBody()\` AFTER \`.setScale()\`
 - The package.json already includes \`"phaser": "^3.90.0"\` — do NOT recreate it`);
-			}
-
-			// Inject full game assets reference (sprite catalog + FORBIDDEN rules)
-			// so the fullstack-developer agent knows about real sprites
-			if (isGameProject) {
-				runtimeAddenda.push(GAME_ASSETS_REFERENCE);
-			}
-		} else if (isReturningUser) {
-			// Normal existing project — edit/add files
-			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)
-This is an EXISTING project. Use \`read_file\` to inspect existing files BEFORE modifying them with \`update_file\`. Never blindly overwrite files without reading them first.
-Reference the Project Wiki (docs/ folder) for architecture, data model, and change history.`);
+		}
+		if (isGameProject) {
+			runtimeAddenda.push(GAME_ASSETS_REFERENCE);
 		}
 
 		// Document this request in wiki (project memory — zero token cost)
