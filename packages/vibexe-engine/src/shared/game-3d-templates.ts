@@ -1299,7 +1299,8 @@ export async function createAnimatedCharacter3D(
   stop: () => void;
   size: { x: number; y: number; z: number };
 }> {
-  const targetHeight = opts.targetHeight ?? SCALES_3D.animatedCharacter; // default from unified scale system
+  // ALWAYS use SCALES_3D — ignore opts.targetHeight (AI passes huge values like 1.8 causing 100x+ scale)
+  const targetHeight = SCALES_3D.animatedCharacter;
   const loader = new THREE.GLTFLoader();
 
   const gltf: any = await new Promise((resolve, reject) => {
@@ -1390,9 +1391,18 @@ export async function createAnimatedCharacter3D(
     console.log("[3D] Geometry size (no bones):", corrSize.x.toFixed(3), corrSize.y.toFixed(3), corrSize.z.toFixed(3));
   }
 
-  const autoScale = targetHeight / measuredHeight;
+  // Cap autoScale at 8 — SkinnedMesh bone deformation expands models ~10x beyond bind-pose geometry.
+  // Without cap, bind-pose 0.017 units → autoScale 88 → rendered 10-15 units (massive).
+  // With cap of 8: bind-pose 0.017 * 8 * ~10x bone expansion → rendered ~1.4 units (proportional).
+  const MAX_AUTO_SCALE = 8;
+  const rawAutoScale = targetHeight / measuredHeight;
+  const autoScale = Math.min(rawAutoScale, MAX_AUTO_SCALE);
   inner.scale.setScalar(autoScale);
-  console.log("[3D] Auto-scale:", autoScale.toFixed(3), "(" + measuredHeight.toFixed(3) + " → " + targetHeight + " units)");
+  if (rawAutoScale > MAX_AUTO_SCALE) {
+    console.log("[3D] Auto-scale CAPPED:", autoScale.toFixed(3), "(raw was " + rawAutoScale.toFixed(1) + ", capped at " + MAX_AUTO_SCALE + ")");
+  } else {
+    console.log("[3D] Auto-scale:", autoScale.toFixed(3), "(" + measuredHeight.toFixed(3) + " → " + targetHeight + " units)");
+  }
 
   // --- Pivot correction AFTER scaling ---
   // For bone-deformed models, use the bone-measured minY for feet placement
