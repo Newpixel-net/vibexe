@@ -1540,4 +1540,16 @@ export default function App() {
 }
 `,
 	},
+
+	// ---------- Template 7: Sandbox config — disable infinite loop protection ----------
+	{
+		path: "sandbox.config.json",
+		language: "json",
+		content: `{
+  "infiniteLoopProtection": false,
+  "hardReloadOnChange": false,
+  "view": "browser"
+}
+`,
+	},
 ];
