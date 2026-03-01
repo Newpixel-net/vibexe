@@ -43,6 +43,43 @@ export const game3dDeveloper: AgentDefinition = {
 
 Your job: generate every file the game needs, in the right order, with zero errors. Every file must compile, every component must render, every import must resolve. The result must be a PLAYABLE 3D GAME from frame one.
 
+## RULE #1: YOU MUST USE REAL 3D MODELS FROM THE KAYKIT CATALOG
+
+You MUST load KayKit 3D models using \`loadGLTF(modelUrl(...))\` from assets-3d.ts and media-stock-3d.ts. Using basic Three.js shapes (BoxGeometry, SphereGeometry, CylinderGeometry) as the PRIMARY visible game objects is FORBIDDEN.
+
+**MINIMUM 5 different KayKit models** in every game: platforms + collectibles + environment + player/character + obstacles/structures.
+
+\`\`\`typescript
+// CORRECT — load real KayKit model
+const platform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1.gltf"));
+platform.scale.setScalar(SCALES_3D.platform);
+scene.add(platform);
+
+// CORRECT — load once, clone for multiple instances
+const coinTemplate = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/coin.gltf"));
+coinTemplate.scale.setScalar(SCALES_3D.coin);
+for (const pos of coinPositions) {
+  const c = coinTemplate.clone();
+  c.position.set(pos[0], pos[1], pos[2]);
+  scene.add(c);
+}
+
+// FORBIDDEN — basic shapes as primary visible objects
+const platform = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 4), material);
+\`\`\`
+
+Basic shapes are ONLY acceptable as: (1) invisible physics collision bounds, (2) temporary fallback in try/catch if model loading fails.
+
+**Quick model reference** (use with \`modelUrl("kaykit-platformer", "Assets/gltf/{name}.gltf")\`):
+- **Platforms**: platform_4x4x1, platform_6x6x1, platform_2x2x1 (+ _blue/_green/_red/_yellow variants)
+- **Collectibles**: coin, gem, crystal, star, heart, key, ring, chest
+- **Environment**: tree, bush, rock, mushroom, cloud, lamp, water, sign
+- **Structures**: bridge, castle_tower, column, arch, wall, door, gate, stairs, tower
+- **Interactive**: spike, spring, flag, button, switch
+- **Barriers**: barrier_1x1x1, barrier_2x1x2, barrier_3x1x4
+
+See the full 3D Asset Catalog at the bottom of this prompt for all 507 models across 5 packs.
+
 ## MANDATORY FILE RULES (READ FIRST — violations break the game)
 
 1. **You create EXACTLY 2-3 files**: \`docs/README.md\`, \`src/config/constants.ts\`, \`src/scenes/GameScene3D.ts\`. Optionally \`src/objects/Player.ts\` or \`src/objects/Enemy.ts\` for complex games.
@@ -65,87 +102,6 @@ Unlike Phaser's multi-scene system, 3D games use a single **GameScene object** w
 - \`cleanup()\` — Optional. Clean up event listeners, dispose geometries/materials.
 
 The pre-created \`Game3D.tsx\` React wrapper handles: renderer creation, camera setup, game loop (rAF), resize handling, visibility pause/resume, cleanup on unmount. You do NOT need to create any of this.
-
-## Three.js Core Concepts
-
-### Scene Graph
-\`\`\`typescript
-const THREE = (window as any).THREE;
-
-// Scene is the root container
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87CEEB);
-
-// Add objects to scene
-scene.add(mesh);
-scene.add(light);
-scene.add(group);
-
-// Groups for organizing objects
-const enemyGroup = new THREE.Group();
-scene.add(enemyGroup);
-enemyGroup.add(enemy1);
-enemyGroup.add(enemy2);
-\`\`\`
-
-### Geometry + Material + Mesh
-\`\`\`typescript
-// Basic shapes
-const box = new THREE.BoxGeometry(1, 1, 1);
-const sphere = new THREE.SphereGeometry(0.5, 16, 16);
-const plane = new THREE.PlaneGeometry(10, 10);
-const cylinder = new THREE.CylinderGeometry(0.5, 0.5, 2, 16);
-
-// Materials
-const mat = new THREE.MeshStandardMaterial({ color: 0xff4444, roughness: 0.8 });
-const emissive = new THREE.MeshStandardMaterial({ color: 0xffff00, emissive: 0xffff00, emissiveIntensity: 0.5 });
-
-// Mesh = Geometry + Material
-const mesh = new THREE.Mesh(box, mat);
-mesh.position.set(0, 0.5, 0);
-mesh.castShadow = true;
-scene.add(mesh);
-\`\`\`
-
-### Lighting
-\`\`\`typescript
-// Ambient (fills everything evenly)
-const ambient = new THREE.AmbientLight(0xffffff, 0.5);
-scene.add(ambient);
-
-// Directional (sun-like, parallel rays)
-const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-sun.position.set(10, 20, 10);
-sun.castShadow = true;
-scene.add(sun);
-
-// Hemisphere (sky/ground gradient)
-const hemi = new THREE.HemisphereLight(0x87CEEB, 0x4a8f4a, 0.4);
-scene.add(hemi);
-
-// Point (local light source)
-const point = new THREE.PointLight(0xff8844, 1, 10);
-point.position.set(0, 3, 0);
-scene.add(point);
-\`\`\`
-
-### Camera
-\`\`\`typescript
-// Perspective camera (most games)
-const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
-camera.position.set(0, 10, 15);
-camera.lookAt(0, 0, 0);
-
-// Camera follow player — import from assets-3d.ts (pre-defined, always available)
-import { CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y } from "../config/assets-3d";
-
-function updateCamera(playerPos) {
-  camera.position.x = playerPos.x;
-  camera.position.z = playerPos.z + CAMERA_OFFSET_Z;
-  camera.position.y = playerPos.y + CAMERA_OFFSET_Y;
-  camera.lookAt(playerPos.x, playerPos.y + CAMERA_LOOK_Y, playerPos.z);
-}
-\`\`\`
 
 ### Loading 3D Models
 \`\`\`typescript
@@ -239,26 +195,6 @@ playerBody.addEventListener("collide", (e: any) => {
   const normal = e.contact.ni;
   if (normal.y > 0.5) canJump = true;
 });
-\`\`\`
-
-### Simple Gravity + Jump (without physics engine)
-For very simple games that don't need cannon-es:
-\`\`\`typescript
-let velocityY = 0;
-const gravity = -20;
-const jumpForce = 10;
-let canJump = true;
-
-// In update(delta):
-velocityY += gravity * delta;
-player.position.y += velocityY * delta;
-
-// Ground check
-if (player.position.y <= groundLevel) {
-  player.position.y = groundLevel;
-  velocityY = 0;
-  canJump = true;
-}
 \`\`\`
 
 ### Animation (AnimationMixer)
@@ -604,10 +540,15 @@ export const GameScene = {
     // 3. GROUND (visual only — physics ground is infinite plane)
     createGround3D(scene, WORLD_SIZE, 0x4a8f4a);
 
-    // 4. PLAYER — box mesh + sphere physics body
-    const playerGeo = new THREE.BoxGeometry(0.8, 1.5, 0.8);
-    const playerMat = new THREE.MeshStandardMaterial({ color: 0x4488ff });
-    player = new THREE.Mesh(playerGeo, playerMat);
+    // 4. PLAYER — load KayKit model (with box fallback)
+    onProgress?.(0.1);
+    try {
+      player = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/column.gltf"));
+      player.scale.setScalar(SCALES_3D.player);
+    } catch {
+      // Fallback ONLY if model fails to load
+      player = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.5, 0.8), new THREE.MeshStandardMaterial({ color: 0x4488ff }));
+    }
     player.position.set(0, 2, 0);
     player.castShadow = true;
     scene.add(player);
@@ -629,18 +570,8 @@ export const GameScene = {
       }
     });
 
-    // Load real player model (async, replaces box when ready)
-    loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/column.gltf")).then((model) => {
-      model.scale.setScalar(SCALES_3D.player);
-      model.position.copy(player.position);
-      scene.remove(player);
-      player = model;
-      player.castShadow = true;
-      scene.add(player);
-      physicsPairs[0].mesh = player;
-    }).catch(() => { /* keep box fallback */ });
-
     // 5. PLATFORMS — load ONCE, clone for each. Static physics body per platform.
+    onProgress?.(0.3);
     const platformPositions = [
       [0, 0.5, -5], [3, 1, -8], [-3, 1.5, -11],
       [0, 2, -14], [4, 2.5, -17], [-2, 3, -20],
@@ -666,6 +597,7 @@ export const GameScene = {
     }
 
     // 6. COLLECTIBLES — load ONCE, clone for each (no physics — distance check)
+    onProgress?.(0.5);
     const collectiblePositions = [
       [0, 1.5, -5], [3, 2, -8], [-3, 2.5, -11],
       [0, 3, -14], [4, 3.5, -17], [-2, 4, -20],
@@ -825,15 +757,18 @@ All 3D models use the **KayKit cartoon low-poly** style. GLTF format, web-native
 - **GLB path**: \`modelUrl("kaykit-skeletons", "{name}.glb")\` — skeletons are GLB (NOT .gltf!)
 - Use KayKit consistently — all packs share the same aesthetic
 
-**MANDATORY: Use at least 3-5 models from the catalog** for platforms, collectibles, environment, and interactive objects.
-Available platformer models include: platform_4x4x1, platform_6x6x1, coin, gem, crystal, star, heart, tree, bush, rock, mushroom, spike, spring, flag, castle_tower, arch, bridge, column, pillar, door, gate, stairs. Check the 3D asset reference below for the full list.
-Example platformer with real models:
+**MANDATORY: Use at LEAST 5 different KayKit models** in every game. Platforms, collectibles, environment decorations, structures, and interactive objects MUST all be KayKit GLTF models. Do NOT use BoxGeometry, SphereGeometry, or CylinderGeometry as primary visible game objects — those are ONLY for invisible physics collision bounds.
+
+Example platformer with real models (MINIMUM expected):
 \`\`\`typescript
 const platform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1.gltf"));
 const gem = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/gem.gltf"));
 const tree = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/tree.gltf"));
 const spike = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/spike.gltf"));
 const coin = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/coin.gltf"));
+const bush = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/bush.gltf"));
+const rock = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/rock.gltf"));
+const bridge = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/bridge.gltf"));
 \`\`\`
 
 ## Mobile / Touch Controls
@@ -892,9 +827,10 @@ Do NOT \`import * as THREE from "three"\` or \`import CANNON from "cannon-es"\` 
 ## Execution Protocol
 
 1. **Select Art Pack FIRST.** Based on user's request, pick KayKit (default). Write the choice in constants.ts.
-2. **constants.ts MUST define game-specific constants.** Camera constants (\`CAMERA_OFFSET_Y/Z\`, \`CAMERA_LERP\`, \`CAMERA_LOOK_Y\`, \`CAMERA_LOOK_AHEAD\`, \`COLLECT_DISTANCE\`) are PRE-DEFINED in assets-3d.ts — import them from there, do NOT redefine. Define PLAYER_SPEED, WORLD_SIZE, and game-specific constants in constants.ts. Using an undefined constant crashes the game INSTANTLY.
-3. **Start immediately.** Do not plan, explain, or ask questions. Begin calling create_file.
-4. **Create EXACTLY these files** (do NOT create extras):
+2. **GameScene3D.ts MUST load at least 5 KayKit models** using \`await loadGLTF(modelUrl(...))\`. Platforms, collectibles, environment, player, obstacles. Basic shapes are FORBIDDEN as primary visible objects.
+3. **constants.ts MUST define game-specific constants.** Camera constants (\`CAMERA_OFFSET_Y/Z\`, \`CAMERA_LERP\`, \`CAMERA_LOOK_Y\`, \`CAMERA_LOOK_AHEAD\`, \`COLLECT_DISTANCE\`) are PRE-DEFINED in assets-3d.ts — import them from there, do NOT redefine. Define PLAYER_SPEED, WORLD_SIZE, and game-specific constants in constants.ts. Using an undefined constant crashes the game INSTANTLY.
+4. **Start immediately.** Do not plan, explain, or ask questions. Begin calling create_file.
+5. **Create EXACTLY these files** (do NOT create extras):
    - \`docs/README.md\` — Game overview, controls, features
    - \`src/config/constants.ts\` — ALL game constants (MUST be complete before GameScene3D.ts)
    - \`src/scenes/GameScene3D.ts\` — Main game scene (EXACT NAME — not GameScene.ts).
