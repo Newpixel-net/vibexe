@@ -1248,8 +1248,25 @@ export function showGameOver(
 		content: `import Game3D from "./components/Game3D";
 import GameSceneDefault, * as GameSceneModule from "./scenes/GameScene3D";
 
-// Handle both: export const GameScene = {...} AND export default {...}
-const GameScene = (GameSceneModule as any).GameScene || GameSceneDefault;
+// Resolve GameScene from ANY export pattern the AI might use:
+// export const GameScene = {...}, export class GameScene3D, export default {...}, etc.
+function resolveGameScene() {
+  const m = GameSceneModule as any;
+  // Try common names first
+  const byName = m.GameScene || m.GameScene3D || m.gameScene;
+  if (byName) return byName;
+  if (GameSceneDefault) return GameSceneDefault;
+  // Fallback: scan all exports for anything with init()
+  for (const key of Object.keys(m)) {
+    const v = m[key];
+    if (!v || key === "__esModule") continue;
+    if (typeof v === "object" && typeof v.init === "function") return v;
+    if (typeof v === "function" && v.prototype && typeof v.prototype.init === "function") return v;
+  }
+  return null;
+}
+
+const GameScene = resolveGameScene();
 
 export default function App() {
   return <Game3D gameScene={GameScene} />;
