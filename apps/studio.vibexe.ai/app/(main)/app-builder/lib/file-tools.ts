@@ -31,6 +31,8 @@ export interface FileToolsOptions {
 	forbiddenPatterns?: RegExp[];
 	/** Path rewrites: e.g. { "src/scenes/GameScene.ts": "src/scenes/GameScene3D.ts" } */
 	pathRewrites?: Map<string, string>;
+	/** If set, ONLY files matching at least one pattern can be created/updated */
+	allowedPathPatterns?: RegExp[];
 }
 
 /**
@@ -46,6 +48,7 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 	const protectedPaths = options?.protectedPaths ?? new Set<string>();
 	const forbiddenPatterns = options?.forbiddenPatterns ?? [];
 	const pathRewrites = options?.pathRewrites ?? new Map<string, string>();
+	const allowedPathPatterns = options?.allowedPathPatterns ?? [];
 
 	/** Rewrite path if a mapping exists (e.g. GameScene.ts → GameScene3D.ts) */
 	function rewritePath(filePath: string): string {
@@ -67,6 +70,14 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 			if (pattern.test(filePath)) {
 				console.log(`[FileTools] BLOCKED forbidden pattern: ${filePath}`);
 				return `File "${filePath}" is not allowed. Game3D.tsx already provides loading screen, menu overlay, and restart. Only create GameScene3D.ts as your scene file.`;
+			}
+		}
+		// Allowlist: if set, only matching paths can be created
+		if (allowedPathPatterns.length > 0) {
+			const isAllowed = allowedPathPatterns.some((p) => p.test(filePath));
+			if (!isAllowed) {
+				console.log(`[FileTools] BLOCKED by allowlist: ${filePath}`);
+				return `File "${filePath}" is not in the allowed file list. Only create: src/scenes/GameScene3D.ts, src/config/constants.ts, and docs/README.md. Put ALL game logic in GameScene3D.ts.`;
 			}
 		}
 		return null;

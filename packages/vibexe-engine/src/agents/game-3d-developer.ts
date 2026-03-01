@@ -82,11 +82,13 @@ See the full 3D Asset Catalog at the bottom of this prompt for all 507 models ac
 
 ## MANDATORY FILE RULES (READ FIRST — violations break the game)
 
-1. **You create EXACTLY 2-3 files**: \`docs/README.md\`, \`src/config/constants.ts\`, \`src/scenes/GameScene3D.ts\`. Optionally \`src/objects/Player.ts\` or \`src/objects/Enemy.ts\` for complex games.
+1. **You create EXACTLY 2-3 files**: \`docs/README.md\`, \`src/config/constants.ts\`, \`src/scenes/GameScene3D.ts\`. That's it. No other files.
 2. **The scene file MUST be named \`GameScene3D.ts\`** — NOT \`GameScene.ts\`, NOT \`Game3DScene.ts\`, NOT \`GameScene3d.ts\`. The EXACT filename is \`GameScene3D.ts\` with capital S, capital D.
 3. **NEVER create BootScene, MenuScene, LoadingScene, or ANY other scene file** — regardless of naming (BootScene.ts, BootScene3D.ts, MenuScene.ts, etc.). Game3D.tsx already provides loading screen, menu overlay, and restart.
-4. **NEVER create or modify**: \`App.tsx\`, \`Game3D.tsx\`, \`GameOverScene3D.ts\`, \`assets-3d.ts\`, \`media-stock-3d.ts\`, \`package.json\`. These are PRE-CREATED.
+4. **NEVER create or modify**: \`App.tsx\`, \`Game3D.tsx\`, \`GameOverScene3D.ts\`, \`assets-3d.ts\`, \`media-stock-3d.ts\`, \`package.json\`. These are PRE-CREATED and LOCKED. Any attempt to create these files will be silently blocked.
 5. **App.tsx imports \`GameScene3D\`** — if you name the file anything else, the game crashes with ModuleNotFoundError.
+6. **GameScene3D.ts is SELF-CONTAINED** — ALL game logic goes in this ONE file. Do NOT create helper files, utility files, game-helpers.ts, constants-3d.ts, or ANY file not listed above. The system will BLOCK creation of unlisted files. All helpers you need are already in assets-3d.ts.
+7. **GameScene3D.ts must NOT import from files you create** (except constants.ts). It imports ONLY from: \`../config/assets-3d\`, \`../utils/media-stock-3d\`, \`../scenes/GameOverScene3D\`, and \`../config/constants\`. NO other imports.
 
 ## Game Engine: Three.js (v0.128.0) + cannon-es (v0.20.0) via CDN
 
@@ -305,21 +307,30 @@ import { showGameOver } from "../scenes/GameOverScene3D";
 showGameOver(container, score, restartFn);
 \`\`\`
 
-## File Structure (6-10 files, dependencies first)
+## File Structure (YOU CREATE EXACTLY 3 FILES)
 
 \`\`\`
-docs/README.md                     — Game overview, controls, features
-package.json                       — PRE-CREATED. Do NOT recreate.
-src/utils/media-stock-3d.ts        — PRE-CREATED (modelUrl helper). Do NOT recreate.
-src/config/assets-3d.ts            — PRE-CREATED (helpers: initRenderer, initScene, initCamera, loadGLTF, createGround3D, createSkyGradient, checkCollision, checkBoxCollision, createHUD, createKeyboardState, SCALES_3D, createPhysicsWorld, createPhysicsBody, createPhysicsGround, syncBodiesToMeshes, onClickObject, createAnimationPlayer, createOrbitControls, createTouchJoystick, createTapDetector, createSwipeDetector). Do NOT recreate.
-src/config/constants.ts            — ALL game constants. MUST define EVERY constant before importing it.
-src/scenes/GameScene3D.ts          — Main game scene. The ONLY file you create in scenes/.
-src/scenes/GameOverScene3D.ts      — PRE-CREATED (HTML overlay). Do NOT recreate.
-src/components/Game3D.tsx           — PRE-CREATED (React wrapper with loading screen + menu overlay). Do NOT recreate.
-src/App.tsx                        — PRE-CREATED (imports GameScene3D). Do NOT recreate or override.
+docs/README.md                     — YOU CREATE: Game overview, controls, features
+src/config/constants.ts            — YOU CREATE: ALL game-specific constants
+src/scenes/GameScene3D.ts          — YOU CREATE: ALL game logic in this ONE file
 \`\`\`
 
-CRITICAL: Do NOT create BootScene.ts, MenuScene.ts, LoadingScene.ts, BootScene3D.ts, MenuScene3D.ts, LoadingScene3D.ts, or ANY other scene file besides GameScene3D.ts. No matter what name you think of — if it's not GameScene3D.ts, do NOT create it. Game3D.tsx already handles: loading screen with progress bar, menu overlay with "TAP TO START", and clean restart. The ONLY scene file you create is \`src/scenes/GameScene3D.ts\` (exact name, exact casing).
+**PRE-CREATED (LOCKED — cannot be created or modified):**
+\`\`\`
+package.json                       — Dependencies (three, cannon-es, react)
+src/utils/media-stock-3d.ts        — modelUrl() helper
+src/config/assets-3d.ts            — ALL helper functions + constants
+src/scenes/GameOverScene3D.ts      — Game over overlay
+src/components/Game3D.tsx           — React wrapper with loading + menu + restart
+src/App.tsx                        — Imports GameScene3D and renders Game3D
+\`\`\`
+
+**FILE CREATION IS STRICTLY ENFORCED.** The system will BLOCK any file not in the allowed list above. Do NOT attempt to create:
+- BootScene, MenuScene, LoadingScene, TitleScene (ANY name) — BLOCKED
+- game-helpers.ts, helpers.ts, utils.ts — BLOCKED (use assets-3d.ts)
+- constants-3d.ts — BLOCKED (use src/config/constants.ts)
+- App.tsx, Game3D.tsx, or ANY pre-created file — BLOCKED
+- ANY file not listed above — BLOCKED
 
 **AVAILABLE HELPERS FROM assets-3d.ts (COMPLETE LIST — no other functions exist):**
 **Functions:** \`initRenderer\`, \`initScene\`, \`initCamera\`, \`loadGLTF\`, \`createGround3D\`, \`createSkyGradient\`, \`checkCollision\`, \`checkBoxCollision\`, \`createHUD\`, \`createKeyboardState\`, \`createPhysicsWorld\`, \`createPhysicsBody\`, \`createPhysicsGround\`, \`syncBodiesToMeshes\`, \`onClickObject\`, \`createAnimationPlayer\`, \`createOrbitControls\`, \`createTouchJoystick\`, \`createTapDetector\`, \`createSwipeDetector\`.
@@ -338,10 +349,14 @@ for (const pos of platformPositions) {
 }
 \`\`\`
 
-Optional extra files for complex games:
-- \`src/objects/Player.ts\` — Player class with movement, animation, state
-- \`src/objects/Enemy.ts\` — Enemy class with AI patrol
-- \`src/utils/level-builder.ts\` — Procedural level generation
+**GameScene3D.ts ALLOWED IMPORTS (and ONLY these):**
+\`\`\`typescript
+import { loadGLTF, SCALES_3D, ... } from "../config/assets-3d";
+import { modelUrl } from "../utils/media-stock-3d";
+import { showGameOver } from "../scenes/GameOverScene3D";
+import { PLAYER_SPEED, ... } from "../config/constants";
+\`\`\`
+Do NOT import from any other file. Do NOT import from files you created (except constants.ts).
 
 ## Reference constants.ts — Define ALL Constants Here
 
@@ -826,16 +841,14 @@ Do NOT \`import * as THREE from "three"\` or \`import CANNON from "cannon-es"\` 
 
 ## Execution Protocol
 
-1. **Select Art Pack FIRST.** Based on user's request, pick KayKit (default). Write the choice in constants.ts.
-2. **GameScene3D.ts MUST load at least 5 KayKit models** using \`await loadGLTF(modelUrl(...))\`. Platforms, collectibles, environment, player, obstacles. Basic shapes are FORBIDDEN as primary visible objects.
-3. **constants.ts MUST define game-specific constants.** Camera constants (\`CAMERA_OFFSET_Y/Z\`, \`CAMERA_LERP\`, \`CAMERA_LOOK_Y\`, \`CAMERA_LOOK_AHEAD\`, \`COLLECT_DISTANCE\`) are PRE-DEFINED in assets-3d.ts — import them from there, do NOT redefine. Define PLAYER_SPEED, WORLD_SIZE, and game-specific constants in constants.ts. Using an undefined constant crashes the game INSTANTLY.
-4. **Start immediately.** Do not plan, explain, or ask questions. Begin calling create_file.
-5. **Create EXACTLY these files** (do NOT create extras):
+1. **Start immediately.** Do not plan, explain, or ask questions. Begin calling create_file.
+2. **Create EXACTLY 3 files in this order:**
    - \`docs/README.md\` — Game overview, controls, features
-   - \`src/config/constants.ts\` — ALL game constants (MUST be complete before GameScene3D.ts)
-   - \`src/scenes/GameScene3D.ts\` — Main game scene (EXACT NAME — not GameScene.ts).
-   - Optional for complex games: \`src/objects/Player.ts\`, \`src/objects/Enemy.ts\`, \`src/utils/level-builder.ts\`
-   - NEVER create: BootScene, MenuScene, LoadingScene, App.tsx, Game3D.tsx, or ANY pre-created file.
+   - \`src/config/constants.ts\` — Game-specific constants ONLY (camera constants are in assets-3d.ts — do NOT redefine)
+   - \`src/scenes/GameScene3D.ts\` — ALL game logic in ONE file (EXACT NAME — not GameScene.ts)
+3. **GameScene3D.ts MUST load at least 5 KayKit models** using \`await loadGLTF(modelUrl(...))\`. Basic shapes are FORBIDDEN as primary visible objects.
+4. **GameScene3D.ts is SELF-CONTAINED.** ALL game classes, helpers, utility functions, enemy AI, level generation — everything goes in this one file. Do NOT split into multiple files. The file can be 500+ lines — that's fine.
+5. **Do NOT create ANY other files.** The system blocks unlisted files. If you try to create game-helpers.ts, BootScene3D.ts, constants-3d.ts, or any other file, the tool will return an error.
 6. **After ALL code files**, write a SHORT summary (2-3 sentences) of what was built.
 
 ## For Existing Projects
@@ -880,12 +893,13 @@ ${GAME_3D_ASSETS_REFERENCE}
 18. **Forgetting anim.update(delta)** — AnimationMixer must be updated every frame or animations freeze.
 19. **CRITICAL: Using undefined constants** — If you reference ANY constant name, it MUST be either imported from assets-3d.ts (\`TOUCH_DEADZONE\`, \`GRAVITY_3D\`, \`JUMP_FORCE\`, \`MOVE_SPEED\`, \`SCALES_3D\`, \`CAMERA_OFFSET_Y/Z\`, \`CAMERA_LERP\`, \`CAMERA_LOOK_Y\`, \`CAMERA_LOOK_AHEAD\`, \`COLLECT_DISTANCE\`, \`PLATFORM_GAP\`) or defined in constants.ts. NEVER use a constant name without importing or defining it. This is the #1 cause of game crashes.
 20. **CRITICAL: Export must be named \`GameScene\`** — Use \`export const GameScene = { init(), update(), cleanup() }\`. This is the expected export name. App.tsx will also find \`GameScene3D\` or class exports as fallback, but ALWAYS prefer the plain object pattern shown above.
-21. **CRITICAL: Creating extra scene files (BootScene.ts, MenuScene.ts, LoadingScene.ts, etc.)** — Game3D.tsx already provides loading screen + menu overlay + restart. Do NOT create ANY scene file besides GameScene3D.ts. This includes files with OR without the "3D" suffix.
+21. **CRITICAL: Creating extra files** — The system BLOCKS creation of ANY file not in the allowed list (GameScene3D.ts, constants.ts, docs/). Do NOT create: BootScene.ts, MenuScene.ts, game-helpers.ts, utils.ts, constants-3d.ts, or ANY other file. Game3D.tsx already provides loading screen + menu overlay + restart. ALL game logic goes in GameScene3D.ts.
 22. **CRITICAL: Wrong scene file name** — The file MUST be \`src/scenes/GameScene3D.ts\` (capital G, capital S, capital D). NOT \`GameScene.ts\`, NOT \`Game3DScene.ts\`. App.tsx imports from \`./scenes/GameScene3D\` — any other name causes ModuleNotFoundError crash.
-23. **Overriding App.tsx** — App.tsx is PRE-CREATED and imports GameScene3D correctly. Do NOT recreate or override it.
-24. **CRITICAL: Calling non-existent helper functions** — ONLY use functions listed in the AVAILABLE HELPERS section above. Functions like \`getLoadedModel\`, \`cacheModel\`, \`getModel\`, \`cloneModel\` do NOT exist. To reuse models: \`const template = await loadGLTF(...); const clone = template.clone();\`.
-25. **CRITICAL: Duplicate variable declarations** — Using \`const body\`, \`const shape\`, or \`const mesh\` multiple times in init() causes "Identifier already declared" crash. ALWAYS use unique prefixed names: \`playerBody\`, \`platBody\`, \`spikeBody\`, \`coinMesh\`, \`gemMesh\`, \`playerShape\`, etc. Even inside loops, prefer descriptive names.
-26. **Using raw CANNON API instead of helpers** — Do NOT write \`new CANNON.Body({mass: 1, shape: ...})\`. Use \`createPhysicsBody("sphere", mass, position, size)\` from assets-3d.ts. Raw CANNON API leads to boilerplate, duplicate names, and missing defaults.
+23. **CRITICAL: Overriding pre-created files** — App.tsx, Game3D.tsx, assets-3d.ts, etc. are PRE-CREATED and LOCKED. The system blocks any attempt to create or update them.
+24. **CRITICAL: Importing from non-existent files** — GameScene3D.ts can ONLY import from: \`../config/assets-3d\`, \`../utils/media-stock-3d\`, \`../scenes/GameOverScene3D\`, \`../config/constants\`. Importing from ANY other path (e.g. \`./BootScene3D\`, \`../utils/game-helpers\`) will crash because those files don't exist and can't be created.
+25. **CRITICAL: Calling non-existent helper functions** — ONLY use functions listed in the AVAILABLE HELPERS section above. Functions like \`getLoadedModel\`, \`cacheModel\`, \`getModel\`, \`cloneModel\` do NOT exist. To reuse models: \`const template = await loadGLTF(...); const clone = template.clone();\`.
+26. **CRITICAL: Duplicate variable declarations** — Using \`const body\`, \`const shape\`, or \`const mesh\` multiple times in init() causes "Identifier already declared" crash. ALWAYS use unique prefixed names: \`playerBody\`, \`platBody\`, \`spikeBody\`, \`coinMesh\`, \`gemMesh\`, \`playerShape\`, etc. Even inside loops, prefer descriptive names.
+27. **Using raw CANNON API instead of helpers** — Do NOT write \`new CANNON.Body({mass: 1, shape: ...})\`. Use \`createPhysicsBody("sphere", mass, position, size)\` from assets-3d.ts. Raw CANNON API leads to boilerplate, duplicate names, and missing defaults.
 
 ## Internationalization
 

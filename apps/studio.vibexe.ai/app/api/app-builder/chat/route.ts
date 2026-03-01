@@ -961,7 +961,7 @@ An App Store listing has been analyzed and injected into the project context abo
 					// 2D: Block BootScene, MenuScene, LoadingScene
 					/(?:^|\/)(?:Boot|Menu|Loading|Title|Splash|Intro)Scene\.ts$/i,
 				];
-			// Path rewrites: AI consistently creates GameScene.ts instead of GameScene3D.ts
+			// Path rewrites: AI consistently creates wrong filenames
 			const pathRewrites = isGame3d
 				? new Map([
 					["src/scenes/GameScene.ts", "src/scenes/GameScene3D.ts"],
@@ -970,10 +970,26 @@ An App Store listing has been analyzed and injected into the project context abo
 					["src/scenes/GameOverScene.ts", "src/scenes/GameOverScene3D.ts"],
 					["src/scenes/GameOver.ts", "src/scenes/GameOverScene3D.ts"],
 					["src/scenes/GameOverScene3d.ts", "src/scenes/GameOverScene3D.ts"],
+					// AI creates constants at wrong paths
+					["src/config/constants-3d.ts", "src/config/constants.ts"],
+					["src/constants.ts", "src/config/constants.ts"],
+					["src/scenes/constants.ts", "src/config/constants.ts"],
+					["src/game-config.ts", "src/config/constants.ts"],
+					["constants.ts", "src/config/constants.ts"],
 				])
 				: new Map<string, string>();
-			fileToolsOptions = { protectedPaths, forbiddenPatterns, pathRewrites };
-			console.log(`[Chat API] File filter active: ${protectedPaths.size} protected, ${forbiddenPatterns.length} forbidden, ${pathRewrites.size} rewrites`);
+			// 3D games: allowlist — AI can ONLY create these files (everything else is blocked)
+			const allowedPathPatterns: RegExp[] = isGame3d
+				? [
+					/^docs\//, // Any doc file
+					/^src\/config\/constants\.ts$/, // Game constants
+					/^src\/scenes\/GameScene3D\.ts$/, // Main scene (the ONLY scene)
+					/^src\/objects\//, // Optional: Player.ts, Enemy.ts
+					/^src\/utils\/level-builder\.ts$/, // Optional: level generation
+				]
+				: [];
+			fileToolsOptions = { protectedPaths, forbiddenPatterns, pathRewrites, allowedPathPatterns };
+			console.log(`[Chat API] File filter active: ${protectedPaths.size} protected, ${forbiddenPatterns.length} forbidden, ${pathRewrites.size} rewrites, ${allowedPathPatterns.length} allowed patterns`);
 		}
 		const allTools = createFileTools(appId, fileToolsOptions);
 
