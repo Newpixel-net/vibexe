@@ -500,6 +500,7 @@ export function createHUD(container: HTMLDivElement): {
   livesEl: HTMLDivElement;
   setScore: (score: number) => void;
   setLives: (lives: number) => void;
+  update: (data: any) => void;
   destroy: () => void;
 } {
   const wrapper = document.createElement("div");
@@ -517,12 +518,24 @@ export function createHUD(container: HTMLDivElement): {
   wrapper.appendChild(livesEl);
   container.appendChild(wrapper);
 
+  const setScore = (score: number) => { scoreEl.textContent = \`Score: \${score}\`; };
+  const setLives = (lives: number) => { livesEl.textContent = "\\u2764 ".repeat(lives).trim(); };
+
   return {
     wrapper,
     scoreEl,
     livesEl,
-    setScore: (score: number) => { scoreEl.textContent = \`Score: \${score}\`; },
-    setLives: (lives: number) => { livesEl.textContent = "\\u2764 ".repeat(lives).trim(); },
+    setScore,
+    setLives,
+    // Flexible update: accepts object {score?, lives?} or positional (score, lives)
+    update: (data: any) => {
+      if (data && typeof data === "object") {
+        if (data.score !== undefined) setScore(data.score);
+        if (data.lives !== undefined) setLives(data.lives);
+      } else if (typeof data === "number") {
+        setScore(data);
+      }
+    },
     destroy: () => { wrapper.remove(); },
   };
 }
