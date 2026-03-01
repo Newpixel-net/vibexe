@@ -411,14 +411,21 @@ CRITICAL rules:
 5. App.tsx ONLY renders \`<Game3D gameScene={GameScene} />\` — zero game logic in React
 6. Do NOT use @react-three/fiber or react-three-fiber — too heavy for Sandpack
 
-## GameScene Export Pattern
+## GameScene Export Pattern — MUST FOLLOW EXACTLY
+
+**CRITICAL: Game3D.tsx calls \`gameScene.init(scene, camera, renderer, container, onProgress)\` with exactly these 5 arguments. If your init() signature doesn't match, the game CRASHES immediately.**
 
 Your GameScene3D.ts MUST use this exact export pattern (named export, NOT export default):
 \`\`\`typescript
 export const GameScene = {
   init(scene: any, camera: any, renderer: any, container: HTMLDivElement, onProgress?: (p: number) => void) {
-    // Set up world, load models, create input, etc.
-    // Call onProgress(0.0 to 1.0) during model loading if provided
+    // scene = THREE.Scene (already created by Game3D.tsx)
+    // camera = THREE.PerspectiveCamera (already created by Game3D.tsx)
+    // renderer = THREE.WebGLRenderer (already created by Game3D.tsx)
+    // container = HTMLDivElement (the DOM container)
+    // onProgress = optional callback for loading bar (0.0 to 1.0)
+    //
+    // Use scene.add(mesh), scene.background = ..., etc.
     // container.__restartGame is available — pass it to showGameOver as the restart callback
   },
   update(delta: number) {
@@ -429,6 +436,8 @@ export const GameScene = {
   },
 };
 \`\`\`
+
+**DO NOT use a class pattern. DO NOT write \`class GameScene3D { this.scene = ...; init(loadedAssets) {...} }\`. The init() RECEIVES scene/camera/renderer as arguments — it does NOT create them.**
 
 ## Scene Flow (handled by Game3D.tsx — automatic)
 
@@ -896,7 +905,8 @@ ${GAME_3D_ASSETS_REFERENCE}
 17. **Using OrbitControls with platformer** — Platformers use camera follow (lerp). OrbitControls is for city builders.
 18. **Forgetting anim.update(delta)** — AnimationMixer must be updated every frame or animations freeze.
 19. **CRITICAL: Using undefined constants** — If you reference ANY constant name, it MUST be either imported from assets-3d.ts (\`TOUCH_DEADZONE\`, \`GRAVITY_3D\`, \`JUMP_FORCE\`, \`MOVE_SPEED\`, \`SCALES_3D\`, \`CAMERA_OFFSET_Y/Z\`, \`CAMERA_LERP\`, \`CAMERA_LOOK_Y\`, \`CAMERA_LOOK_AHEAD\`, \`COLLECT_DISTANCE\`, \`PLATFORM_GAP\`) or defined in constants.ts. NEVER use a constant name without importing or defining it. This is the #1 cause of game crashes.
-20. **CRITICAL: Export must be named \`GameScene\`** — Use \`export const GameScene = { init(), update(), cleanup() }\`. This is the expected export name. App.tsx will also find \`GameScene3D\` or class exports as fallback, but ALWAYS prefer the plain object pattern shown above.
+20. **FATAL: Wrong init() signature** — \`init()\` MUST accept exactly \`(scene, camera, renderer, container, onProgress?)\`. Game3D.tsx passes these 5 arguments. Writing \`init(loadedAssets)\` or \`init()\` with no args or \`init(config)\` CRASHES THE GAME because \`scene\` becomes undefined. DO NOT use a class with \`this.scene\` — use the plain object pattern where scene is the first argument.
+21. **CRITICAL: Export must be named \`GameScene\`** — Use \`export const GameScene = { init(scene, camera, renderer, container, onProgress?), update(delta), cleanup() }\`. This is the expected export name. App.tsx will also find \`GameScene3D\` or class exports as fallback, but ALWAYS prefer the plain object pattern shown above.
 21. **CRITICAL: Creating extra files** — The system BLOCKS creation of ANY file not in the allowed list (GameScene3D.ts, constants.ts, docs/). Do NOT create: BootScene.ts, MenuScene.ts, game-helpers.ts, utils.ts, constants-3d.ts, or ANY other file. Game3D.tsx already provides loading screen + menu overlay + restart. ALL game logic goes in GameScene3D.ts.
 22. **CRITICAL: Wrong scene file name** — The file MUST be \`src/scenes/GameScene3D.ts\` (capital G, capital S, capital D). NOT \`GameScene.ts\`, NOT \`Game3DScene.ts\`. App.tsx imports from \`./scenes/GameScene3D\` — any other name causes ModuleNotFoundError crash.
 23. **CRITICAL: Overriding pre-created files** — App.tsx, Game3D.tsx, assets-3d.ts, etc. are PRE-CREATED and LOCKED. The system blocks any attempt to create or update them.
