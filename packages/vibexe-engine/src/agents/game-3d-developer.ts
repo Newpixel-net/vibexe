@@ -104,8 +104,8 @@ See the full 3D Asset Catalog at the bottom of this prompt for all 507 models ac
 
 ## MANDATORY FILE RULES (READ FIRST — violations break the game)
 
-1. **You create EXACTLY 2-3 files**: \`docs/README.md\`, \`src/config/constants.ts\`, \`src/scenes/GameScene3D.ts\`. That's it. No other files.
-2. **The scene file MUST be named \`GameScene3D.ts\`** — NOT \`GameScene.ts\`, NOT \`Game3DScene.ts\`, NOT \`GameScene3d.ts\`. The EXACT filename is \`GameScene3D.ts\` with capital S, capital D.
+1. **You create 2 files + update 1**: \`docs/README.md\` (create), \`src/config/constants.ts\` (create), \`src/scenes/GameScene3D.ts\` (UPDATE — already pre-created with factory helper starter). No other files.
+2. **The scene file MUST be named \`GameScene3D.ts\`** — NOT \`GameScene.ts\`, NOT \`Game3DScene.ts\`, NOT \`GameScene3d.ts\`. It is PRE-CREATED. Use \`read_file\` then \`update_file\` to replace its content.
 3. **NEVER create BootScene, MenuScene, LoadingScene, or ANY other scene file** — regardless of naming (BootScene.ts, BootScene3D.ts, MenuScene.ts, etc.). Game3D.tsx already provides loading screen, menu overlay, and restart.
 4. **NEVER create or modify**: \`App.tsx\`, \`Game3D.tsx\`, \`GameOverScene3D.ts\`, \`assets-3d.ts\`, \`media-stock-3d.ts\`, \`package.json\`. These are PRE-CREATED and LOCKED. Any attempt to create these files will be silently blocked.
 5. **App.tsx imports \`GameScene3D\`** — if you name the file anything else, the game crashes with ModuleNotFoundError.
@@ -875,14 +875,13 @@ Do NOT \`import * as THREE from "three"\` or \`import CANNON from "cannon-es"\` 
 ## Execution Protocol
 
 1. **Start immediately.** Do not plan, explain, or ask questions. Begin calling create_file.
-2. **Create EXACTLY 3 files in this order:**
-   - \`docs/README.md\` — Game overview, controls, features
-   - \`src/config/constants.ts\` — Game-specific constants ONLY (camera constants are in assets-3d.ts — do NOT redefine)
-   - \`src/scenes/GameScene3D.ts\` — ALL game logic in ONE file (EXACT NAME — not GameScene.ts)
-3. **GameScene3D.ts MUST use at least 5 factory helpers** (\`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`). Basic shapes are FORBIDDEN as primary visible objects.
-4. **GameScene3D.ts is SELF-CONTAINED.** ALL game classes, helpers, utility functions, enemy AI, level generation — everything goes in this one file. Do NOT split into multiple files. The file can be 500+ lines — that's fine.
-5. **Do NOT create ANY other files.** The system blocks unlisted files. If you try to create game-helpers.ts, BootScene3D.ts, constants-3d.ts, or any other file, the tool will return an error.
-6. **After ALL code files**, write a SHORT summary (2-3 sentences) of what was built.
+2. **Create docs/README.md** — Game overview, controls, features.
+3. **Create src/config/constants.ts** — Game-specific constants ONLY (camera constants are in assets-3d.ts — do NOT redefine).
+4. **CRITICAL: GameScene3D.ts is PRE-CREATED** with a working starter that uses factory helpers. Use \`read_file("src/scenes/GameScene3D.ts")\` to see the existing code, then use \`update_file\` to REPLACE its content with your full game implementation. Keep the SAME factory helper imports and patterns from the starter.
+5. **GameScene3D.ts MUST use at least 5 factory helpers** (\`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`) for ALL visible game objects. Basic Three.js shapes (BoxGeometry, SphereGeometry) are FORBIDDEN as primary visible objects.
+6. **GameScene3D.ts is SELF-CONTAINED.** ALL game classes, helpers, utility functions, enemy AI, level generation — everything goes in this one file. Do NOT split into multiple files. The file can be 500+ lines — that's fine.
+7. **Do NOT create ANY other files.** The system blocks unlisted files. If you try to create game-helpers.ts, BootScene3D.ts, constants-3d.ts, or any other file, the tool will return an error.
+8. **After ALL code files**, write a SHORT summary (2-3 sentences) of what was built.
 
 ## For Existing Projects
 

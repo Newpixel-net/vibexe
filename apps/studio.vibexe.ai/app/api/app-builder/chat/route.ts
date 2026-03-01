@@ -7,6 +7,7 @@ import {
 	DEFAULT_AGENTS,
 	DEFAULT_SKILLS,
 	GAME_3D_ASSETS_REFERENCE,
+	GAME_3D_SCENE_STARTER,
 	GAME_3D_TEMPLATE_FILES,
 	GAME_ASSETS_REFERENCE,
 	GAME_TEMPLATE_FILES,
@@ -746,6 +747,17 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 					console.error(`[Chat API] Template injection failed for ${tpl.path}:`, e);
 				}
 			}
+
+			// 3D games: inject GameScene3D.ts STARTER with factory helper pattern
+			// NOT in GAME_3D_TEMPLATE_FILES to avoid protectedPaths blocking AI updates
+			if (isGame3d && !existingPaths.has("src/scenes/GameScene3D.ts")) {
+				try {
+					await saveFile(appId, "src/scenes/GameScene3D.ts", GAME_3D_SCENE_STARTER, "typescript");
+					console.log(`[Chat API] 3D scene starter injected: src/scenes/GameScene3D.ts`);
+				} catch (e) {
+					console.error(`[Chat API] 3D scene starter injection failed:`, e);
+				}
+			}
 		}
 
 		if (isNewProject && !isVisualEdit) {
@@ -787,6 +799,22 @@ Start immediately with file creation. Do not re-explain the plan.
 
 After creating ALL files, end with a short summary. If the app has auth, include:
 "To get started, **sign up** with any email and password (8+ characters) to create your first account."`);
+
+			// 3D game "build" phase: tell AI that GameScene3D.ts is pre-created with factory helpers
+			if (isGame3d) {
+				runtimeAddenda.push(`## CRITICAL: 3D Game — Factory Helper Pattern
+
+**\`src/scenes/GameScene3D.ts\` is PRE-CREATED** with a working starter that uses factory helpers (createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D). These load real KayKit GLTF 3D models.
+
+**You MUST follow this workflow:**
+1. Use \`read_file("src/scenes/GameScene3D.ts")\` FIRST to see the existing factory helper pattern
+2. Use \`update_file\` to REPLACE the content with your full game implementation
+3. Your replacement MUST use the SAME factory helpers — \`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`
+4. Do NOT use raw \`new THREE.BoxGeometry()\`, \`new THREE.SphereGeometry()\`, or \`new THREE.CylinderGeometry()\` for visible game objects — use factory helpers instead
+5. Factory helpers handle GLTF model loading, URL construction, caching, scaling, and fallbacks automatically
+
+**MINIMUM**: Your GameScene3D.ts must call at least 5 different factory helpers. Every platform, collectible, player, barrier, and decoration MUST use the corresponding factory.`);
+			}
 		} else if (isReturningUser) {
 			// Normal existing project — edit/add files
 			runtimeAddenda.push(`## Existing Project (${existingFiles.length} files)
@@ -806,12 +834,12 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 
 **MANDATORY RULES — violation will break the game:**
 - Do NOT recreate, overwrite, or modify these files — they contain correct, tested code
-- You MUST \`import\` from them: \`import { loadGLTF, SCALES_3D, createGround3D, createSkyGradient, checkCollision, createHUD, createKeyboardState } from "../config/assets-3d";\` and \`import { modelUrl } from "../utils/media-stock-3d";\`
+- You MUST \`import\` from them: \`import { createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, createPhysicsBody, syncBodiesToMeshes, createKeyboardState, createGround3D, createSkyGradient, createHUD, loadGLTF, SCALES_3D } from "../config/assets-3d";\` and \`import { modelUrl } from "../utils/media-stock-3d";\`
 - **Game3D.tsx is PRE-CREATED** — do NOT create Game3D.tsx or any React-Three.js wrapper. Just import it in App.tsx: \`import Game3D from "./components/Game3D";\`
 - **App.tsx pattern**: \`export default function App() { return <Game3D gameScene={GameScene} />; }\`
 - Access Three.js via global: \`const THREE = (window as any).THREE;\` — do NOT import from "three"
-- Use \`loadGLTF(modelUrl(packId, filename))\` to load 3D models from the catalog
-- Apply \`SCALES_3D.xxx\` to all models — KayKit models are ~1 unit, Unity FBX are 100x oversized
+- **Use factory helpers** (\`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`) for ALL visible game objects — they load real KayKit GLTF models
+- Use \`loadGLTF(modelUrl(packId, filename))\` ONLY for advanced packs (city-builder, resource-bits, skeletons)
 - The package.json already includes \`"three": "^0.162.0"\` — do NOT recreate it`);
 			} else {
 				runtimeAddenda.push(`## MANDATORY: Pre-Created Infrastructure Files

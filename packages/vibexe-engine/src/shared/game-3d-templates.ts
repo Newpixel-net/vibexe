@@ -1553,3 +1553,162 @@ export default function App() {
 `,
 	},
 ];
+
+/**
+ * GameScene3D.ts STARTER TEMPLATE — Pre-created for new 3D game projects.
+ *
+ * This starter uses ALL 5 factory helpers so the AI sees the pattern and
+ * continues it when customizing the game. The AI uses `update_file` to
+ * replace the content while keeping the factory helper import pattern.
+ *
+ * NOT included in GAME_3D_TEMPLATE_FILES to avoid protectedPaths blocking.
+ * Injected separately in route.ts.
+ */
+export const GAME_3D_SCENE_STARTER = `/**
+ * 3D Game Scene — CUSTOMIZE THIS FILE for your game!
+ *
+ * ALL game objects MUST use factory helpers from assets-3d.ts:
+ *   createPlatform3D, createCollectible3D, createPlayer3D,
+ *   createBarrier3D, createDecoration3D
+ * These load real KayKit GLTF 3D models with correct URLs and caching.
+ * Do NOT use raw THREE.BoxGeometry or THREE.SphereGeometry for visible objects.
+ */
+import {
+  createPlatform3D, createCollectible3D, createPlayer3D,
+  createBarrier3D, createDecoration3D,
+  createPhysicsBody, syncBodiesToMeshes, createKeyboardState,
+  createGround3D, createSkyGradient, createHUD,
+  CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y,
+  COLLECT_DISTANCE, JUMP_FORCE, loadGLTF, SCALES_3D,
+} from "../config/assets-3d";
+import { modelUrl } from "../utils/media-stock-3d";
+
+const THREE = (window as any).THREE;
+const CANNON = (window as any).CANNON;
+
+// ===== Game State =====
+let player: any, playerBody: any, world: any;
+let hud: any, keys: any, destroyKb: () => void;
+const platforms: { mesh: any; body: any }[] = [];
+const items: { mesh: any; collected: boolean }[] = [];
+let score = 0;
+
+export const GameScene = {
+  world: null as any,
+
+  async init(scene: any, camera: any, renderer: any, container: HTMLDivElement, onProgress?: (p: number) => void) {
+    world = this.world;
+
+    // Sky gradient + ground plane
+    createSkyGradient(scene, 0x87CEEB, 0xE0F0FF);
+    createGround3D(scene, world, { color: 0x88BB66, size: 100 });
+    onProgress?.(0.1);
+
+    // ===== PLATFORMS — createPlatform3D loads KayKit GLTF models =====
+    const platPositions: [number, number, number][] = [
+      [0, 0.5, 0], [5, 1, -6], [-4, 1.5, -12], [3, 2, -18], [-2, 2.5, -24],
+      [6, 3, -30], [0, 3.5, -36],
+    ];
+    const colors = ["blue", "green", "red", "yellow"] as const;
+    for (let i = 0; i < platPositions.length; i++) {
+      const [x, y, z] = platPositions[i];
+      const { mesh, size } = await createPlatform3D(scene, x, y, z, {
+        variant: "4x4x1", color: colors[i % 4],
+      });
+      const body = createPhysicsBody("box", 0, { x, y, z }, size);
+      world.addBody(body);
+      platforms.push({ mesh, body });
+    }
+    onProgress?.(0.3);
+
+    // ===== PLAYER — createPlayer3D loads KayKit character model =====
+    const { mesh: pm, size: ps } = await createPlayer3D(scene, 0, 3, 0, { color: "blue" });
+    player = pm;
+    playerBody = createPhysicsBody("sphere", 5, { x: 0, y: 3, z: 0 }, ps.x);
+    world.addBody(playerBody);
+    onProgress?.(0.5);
+
+    // ===== COLLECTIBLES — createCollectible3D loads KayKit diamond/star models =====
+    const itemTypes = ["diamond", "star", "heart"] as const;
+    for (let i = 0; i < platPositions.length - 2; i++) {
+      const [x, , z] = platPositions[i + 1];
+      const { mesh } = await createCollectible3D(scene, x, 3 + i * 0.5, z, {
+        type: itemTypes[i % 3], color: "yellow",
+      });
+      items.push({ mesh, collected: false });
+    }
+    onProgress?.(0.7);
+
+    // ===== BARRIERS — createBarrier3D loads KayKit wall models =====
+    await createBarrier3D(scene, 2, 1, -9, { variant: "2x1x4", color: "red" });
+    await createBarrier3D(scene, -3, 2, -21, { variant: "3x1x2", color: "red" });
+    onProgress?.(0.8);
+
+    // ===== DECORATIONS — createDecoration3D loads KayKit pillars/structures =====
+    await createDecoration3D(scene, -8, 0, -5, { type: "pillar_2x2x4" });
+    await createDecoration3D(scene, 10, 0, -20, { type: "structure_A" });
+    onProgress?.(0.9);
+
+    // HUD + keyboard
+    hud = createHUD(container);
+    hud.update({ score: 0 });
+    const kb = createKeyboardState();
+    keys = kb.keys;
+    destroyKb = kb.destroy;
+
+    // Jump detection
+    playerBody.addEventListener("collide", (e: any) => {
+      if (e.contact.ni.y > 0.5) (playerBody as any).__canJump = true;
+    });
+    onProgress?.(1);
+  },
+
+  update(delta: number) {
+    if (!player || !world) return;
+    world.step(1 / 60, delta, 3);
+
+    // Player movement (arrow keys + WASD)
+    const F = 50;
+    if (keys.ArrowLeft || keys.KeyA) playerBody.applyForce(new CANNON.Vec3(-F, 0, 0));
+    if (keys.ArrowRight || keys.KeyD) playerBody.applyForce(new CANNON.Vec3(F, 0, 0));
+    if (keys.ArrowUp || keys.KeyW) playerBody.applyForce(new CANNON.Vec3(0, 0, -F));
+    if (keys.ArrowDown || keys.KeyS) playerBody.applyForce(new CANNON.Vec3(0, 0, F));
+    if (keys.Space && (playerBody as any).__canJump) {
+      playerBody.velocity.y = JUMP_FORCE;
+      (playerBody as any).__canJump = false;
+    }
+
+    // Sync physics → meshes
+    player.position.copy(playerBody.position);
+    player.quaternion.copy(playerBody.quaternion);
+    syncBodiesToMeshes(platforms);
+
+    // Camera follow
+    camera.position.x += (player.position.x - camera.position.x) * CAMERA_LERP * delta;
+    camera.position.y += (player.position.y + CAMERA_OFFSET_Y - camera.position.y) * CAMERA_LERP * delta;
+    camera.position.z += (player.position.z + CAMERA_OFFSET_Z - camera.position.z) * CAMERA_LERP * delta;
+    camera.lookAt(player.position.x, player.position.y + CAMERA_LOOK_Y, player.position.z);
+
+    // Collect items
+    for (const c of items) {
+      if (!c.collected && player.position.distanceTo(c.mesh.position) < COLLECT_DISTANCE) {
+        c.collected = true;
+        c.mesh.visible = false;
+        score++;
+        hud.update({ score });
+      }
+      if (!c.collected) c.mesh.rotation.y += delta * 2;
+    }
+
+    // Fall off world = reset
+    if (player.position.y < -10) {
+      playerBody.position.set(0, 5, 0);
+      playerBody.velocity.set(0, 0, 0);
+    }
+  },
+
+  cleanup() {
+    destroyKb?.();
+  },
+};
+`;
