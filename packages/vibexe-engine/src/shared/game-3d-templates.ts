@@ -934,7 +934,7 @@ interface GameSceneInterface {
 }
 
 interface Game3DProps {
-  gameScene: GameSceneInterface;
+  gameScene: GameSceneInterface | (new () => GameSceneInterface) | any;
   bgColor?: string;
   cameraFov?: number;
 }
@@ -1017,7 +1017,9 @@ function createMenuOverlay(container: HTMLDivElement, onStart: () => void) {
  *
  * The AI should NOT modify this file — import and use it in App.tsx.
  */
-export default function Game3D({ gameScene, bgColor = "#87CEEB", cameraFov = 60 }: Game3DProps) {
+export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", cameraFov = 60 }: Game3DProps) {
+  // Normalize: AI may export a class instead of a plain object — handle both
+  const gameScene: GameSceneInterface = typeof rawScene === 'function' ? new (rawScene as any)() : rawScene;
   const containerRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef(false);
 

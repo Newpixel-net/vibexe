@@ -950,6 +950,9 @@ An App Store listing has been analyzed and injected into the project context abo
 					["src/scenes/GameScene.ts", "src/scenes/GameScene3D.ts"],
 					["src/scenes/Game3DScene.ts", "src/scenes/GameScene3D.ts"],
 					["src/scenes/GameScene3d.ts", "src/scenes/GameScene3D.ts"],
+					["src/scenes/GameOverScene.ts", "src/scenes/GameOverScene3D.ts"],
+					["src/scenes/GameOver.ts", "src/scenes/GameOverScene3D.ts"],
+					["src/scenes/GameOverScene3d.ts", "src/scenes/GameOverScene3D.ts"],
 				])
 				: new Map<string, string>();
 			fileToolsOptions = { protectedPaths, forbiddenPatterns, pathRewrites };
