@@ -176,20 +176,16 @@ if (keys.Space && canJump) { velocityY = jumpForce; canJump = false; }
 
 cannon-es provides real rigid body physics: gravity, collision response, friction, bounce.
 Use it for platformers (player body + platform bodies) and any game needing realistic physics.
+**The physics world is AUTO-CREATED by Game3D.tsx** with gravity (-20) and a ground plane. Access via \`this.world\` in init().
 
 \`\`\`typescript
 import {
-  createPhysicsWorld,
   createPhysicsBody,
-  createPhysicsGround,
   syncBodiesToMeshes,
 } from "../config/assets-3d";
 
-// 1. Create physics world (once in init)
-const world = createPhysicsWorld(-20); // gravity = -20
-
-// 2. Create ground (static, mass=0)
-createPhysicsGround(world);
+// 1. Get physics world (auto-created by Game3D.tsx — NEVER create your own)
+const world = this.world; // Already has gravity + ground plane
 
 // 3. Create player body (dynamic, mass=5)
 const playerBody = createPhysicsBody("sphere", 5, { x: 0, y: 5, z: 0 }, 0.5);
@@ -483,7 +479,7 @@ You just implement \`init()\` and \`update()\`. The rest is automatic.
 ## 3D Game Genre Patterns
 
 ### 3D Platformer (Super Mario 3D, Crash Bandicoot)
-- **Physics**: \`createPhysicsWorld()\` + player sphere body + static platform box bodies
+- **Physics**: \`world = this.world\` (auto-created) + player sphere body + static platform box bodies
 - Platforms at various heights — use KayKit platform models with matching physics boxes
 - Jump via \`playerBody.velocity.y = JUMP_FORCE\` when \`canJump\` (set by collision event)
 - Movement via \`playerBody.applyForce()\` + velocity clamping for responsive controls
@@ -588,9 +584,8 @@ export const GameScene = {
     collectibles.length = 0;
     physicsPairs.length = 0;
 
-    // 1. PHYSICS WORLD
-    world = createPhysicsWorld(GRAVITY_3D);
-    createPhysicsGround(world);
+    // 1. PHYSICS WORLD — auto-created by Game3D.tsx, ready to use
+    world = this.world; // Injected by Game3D.tsx with gravity + ground already set up
 
     // 2. SKY
     createSkyGradient(scene, 0x87CEEB, 0xE0F0FF);
@@ -762,7 +757,7 @@ export const GameScene = {
 2. State lives in module-level variables (score, lives, gameOver) — NOT React useState.
 3. **USE FACTORY HELPERS** for all standard objects: \`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`. Each returns \`{mesh, size}\` — size plugs directly into \`createPhysicsBody()\`. Models are cached internally.
 4. \`createKeyboardState()\` + \`createTouchJoystick()\` + \`createTapDetector()\` for input — ALWAYS add BOTH keyboard and touch for mobile support. Check joystick.active + TOUCH_DEADZONE in update().
-5. **Physics**: \`createPhysicsWorld()\` + \`createPhysicsBody()\` + \`world.step()\` + \`syncBodiesToMeshes()\`.
+5. **Physics**: \`this.world\` is auto-created by Game3D.tsx (gravity + ground included). Just do \`world = this.world;\` in init(). Use \`createPhysicsBody()\` + \`world.addBody()\` + \`world.step(1/60, delta, 3)\` + \`syncBodiesToMeshes()\`. NEVER call \`new CANNON.World()\` or \`createPhysicsWorld()\` — the world is ready to use.
 6. Player body = sphere (mass=5), platforms = static boxes (mass=0). Jump via \`playerBody.velocity.y = JUMP_FORCE\`. Factory \`size\` gives correct half-extents.
 7. Ground contact detection: \`playerBody.addEventListener("collide", ...)\` checks normal.y for jump reset.
 8. \`checkCollision(a, b, threshold)\` for collectible pickup — distance-based (no physics body needed).
@@ -854,7 +849,9 @@ const CANNON = (window as any).CANNON;
 
 Do NOT \`import * as THREE from "three"\` or \`import CANNON from "cannon-es"\` — Sandpack's bundler uses CDN shims that return window.THREE / window.CANNON.
 
-**ALWAYS use helpers from assets-3d.ts** (\`createPhysicsWorld\`, \`createPhysicsBody\`, \`createPhysicsGround\`) instead of raw \`new CANNON.Body()\` / \`new CANNON.World()\`. The helpers handle setup and defaults correctly. Raw CANNON API leads to duplicate variable names and crashes.
+**PHYSICS WORLD IS AUTO-CREATED**: Game3D.tsx creates a physics world with gravity and ground plane BEFORE init() runs. Access it via \`this.world\` (or the \`world\` arg). NEVER call \`new CANNON.World()\`, \`createPhysicsWorld()\`, or write a \`setupPhysics()\` method — the world is READY. Just add bodies: \`this.world.addBody(body)\`.
+
+**Use helpers from assets-3d.ts** (\`createPhysicsBody\`, \`syncBodiesToMeshes\`) instead of raw \`new CANNON.Body()\`. All helpers + THREE + CANNON are also available as globals (window.createPhysicsBody, window.THREE, window.CANNON) so they work even without imports.
 
 **VARIABLE NAMING RULE**: Never reuse \`const body\`, \`const shape\`, or \`const mesh\` in the same scope. Use descriptive prefixes: \`playerBody\`, \`platBody\`, \`spikeBody\`, \`coinMesh\`, \`gemMesh\`, \`playerMesh\`. Duplicate \`const\` declarations crash the game at compile time.
 
@@ -919,7 +916,7 @@ ${GAME_3D_ASSETS_REFERENCE}
 24. **CRITICAL: Importing from non-existent files** — GameScene3D.ts can ONLY import from: \`../config/assets-3d\`, \`../utils/media-stock-3d\`, \`../scenes/GameOverScene3D\`, \`../config/constants\`. Importing from ANY other path (e.g. \`./BootScene3D\`, \`../utils/game-helpers\`) will crash because those files don't exist and can't be created.
 25. **CRITICAL: Calling non-existent helper functions** — ONLY use functions listed in the AVAILABLE HELPERS section above. Functions like \`getLoadedModel\`, \`cacheModel\`, \`getModel\`, \`cloneModel\` do NOT exist. Factory helpers (\`createPlatform3D\` etc.) cache models internally — just call them in a loop for multiple instances.
 26. **CRITICAL: Duplicate variable declarations** — Using \`const body\`, \`const shape\`, or \`const mesh\` multiple times in init() causes "Identifier already declared" crash. ALWAYS use unique prefixed names: \`playerBody\`, \`platBody\`, \`spikeBody\`, \`coinMesh\`, \`gemMesh\`, \`playerShape\`, etc. Even inside loops, prefer descriptive names.
-27. **Using raw CANNON API instead of helpers** — Do NOT write \`new CANNON.Body({mass: 1, shape: ...})\`. Use \`createPhysicsBody("sphere", mass, position, size)\` from assets-3d.ts. Raw CANNON API leads to boilerplate, duplicate names, and missing defaults.
+27. **CRITICAL: Creating your own physics world** — NEVER write \`new CANNON.World()\`, \`createPhysicsWorld()\`, or a \`setupPhysics()\` method. The physics world is AUTO-CREATED by Game3D.tsx and injected as \`this.world\`. Just do \`const world = this.world;\` in init(). Use \`createPhysicsBody("sphere", mass, pos, size)\` + \`world.addBody(body)\` for adding objects. Raw \`new CANNON.Body()\` also works but prefer helpers.
 28. **CRITICAL: Using THREE.CapsuleGeometry** — CapsuleGeometry does NOT exist in Three.js r128 (added in r138). Use \`THREE.CylinderGeometry\` or \`THREE.SphereGeometry\` instead. For player/character shapes: use a CylinderGeometry with hemisphere ends, or just a SphereGeometry for physics + a GLTF model for visuals.
 29. **Using r152+ Three.js APIs** — We use r128. Do NOT use: \`CapsuleGeometry\`, \`outputColorSpace\`, \`SRGBColorSpace\`, \`ColorManagement\`, \`BatchedMesh\`. Use r128 equivalents: \`outputEncoding = THREE.sRGBEncoding\`, etc.
 30. **Using raw loadGLTF for standard objects** — Do NOT manually construct \`loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/blue/platform_4x4x1_blue.gltf"))\` for platforms, collectibles, players, barriers, or decorations. USE the factory helpers: \`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`. They handle URL construction, caching, scaling, positioning, fallbacks, and return \`{mesh, size}\` for physics. Raw \`loadGLTF\` is only for advanced packs (city-builder, resource-bits, skeletons).

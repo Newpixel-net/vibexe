@@ -117,6 +117,12 @@ Object.assign(window, {
   CAMERA_LOOK_AHEAD, CAMERA_DISTANCE, CAMERA_HEIGHT, CAMERA_SMOOTH,
   COLLECT_DISTANCE, PLATFORM_GAP,
   createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D,
+  createPhysicsWorld, createPhysicsBody, createPhysicsGround, syncBodiesToMeshes, createContactMaterial,
+  createGround3D, createSkyGradient, checkCollision, checkBoxCollision, createHUD,
+  createKeyboardState, createTouchJoystick, createTapDetector, createSwipeDetector,
+  createAnimationPlayer, createOrbitControls, onClickObject,
+  loadGLTF, modelUrl, initRenderer, initScene, initCamera,
+  THREE, CANNON,
 });
 
 // ===== Renderer =====
@@ -1347,13 +1353,18 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           initAndRun();
         };
 
-        // Inject scene/camera/renderer as properties on gameScene so BOTH patterns work:
+        // Inject scene/camera/renderer/world as properties on gameScene so BOTH patterns work:
         // Pattern A (correct): init(scene, camera, renderer, container, onProgress) — uses args
         // Pattern B (AI class): init() with this.scene/this.camera — uses injected props
         (gameScene as any).scene = scene;
         (gameScene as any).camera = camera;
         (gameScene as any).renderer = renderer;
         (gameScene as any).container = container;
+
+        // Auto-create physics world — always available as gameScene.world / this.world
+        const world = createPhysicsWorld(GRAVITY_3D);
+        if (world) createPhysicsGround(world);
+        (gameScene as any).world = world;
 
         await gameScene.init(scene, camera, renderer, container, (p: number) => {
           loading.setProgress(p);
