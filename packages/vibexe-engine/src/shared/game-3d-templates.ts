@@ -1290,7 +1290,7 @@ export async function createDecoration3D(
  */
 export async function createAnimatedCharacter3D(
   scene: any, x: number, y: number, z: number,
-  opts: { url: string; scale?: number; rotation?: number; targetHeight?: number },
+  opts: { url: string; rotation?: number; targetHeight?: number },
 ): Promise<{
   mesh: any;
   mixer: any;
@@ -1337,7 +1337,7 @@ export async function createAnimatedCharacter3D(
   const corrSize = new THREE.Vector3();
   corrBox.getSize(corrSize);
   const actualHeight = corrSize.y || 1;
-  const autoScale = (opts.scale != null) ? opts.scale : (targetHeight / actualHeight);
+  const autoScale = targetHeight / actualHeight;
   inner.scale.setScalar(autoScale);
   console.log("[3D] Auto-scale:", autoScale.toFixed(3), "(" + actualHeight.toFixed(2) + " → " + targetHeight + " units)");
 
