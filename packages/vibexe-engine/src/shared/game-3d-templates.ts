@@ -1330,24 +1330,81 @@ export async function createAnimatedCharacter3D(
     console.log("[3D] Auto-upright: rotated -90° on X (Z-up model detected)");
   }
 
-  // --- Auto-scale: scale inner directly (NOT the Group wrapper) ---
+  // --- Measure ACTUAL rendered size using boneTransform (SkinnedMesh) ---
+  // Box3.setFromObject only measures bind-pose geometry (can be 0.02 units for a
+  // model whose bones expand it to 2+ units at render time). We MUST account for
+  // bone deformation or the autoScale will be wildly too large.
   inner.updateMatrixWorld(true);
-  const corrBox = new THREE.Box3().setFromObject(inner);
-  const corrSize = new THREE.Vector3();
-  corrBox.getSize(corrSize);
-  const actualHeight = corrSize.y || 1;
-  const autoScale = targetHeight / actualHeight;
-  inner.scale.setScalar(autoScale);
-  console.log("[3D] Auto-scale:", autoScale.toFixed(3), "(" + actualHeight.toFixed(2) + " → " + targetHeight + " units)");
+  let measuredHeight = 0;
+  let measuredMinY = Infinity;
+  let measuredMaxY = -Infinity;
+  let usedBoneTransform = false;
 
-  // --- Pivot correction AFTER scaling (offsets are in world-sized coordinates) ---
+  // Play first animation frame so bones are in a real pose (not flat bind pose)
+  const tempClips = gltf.animations || [];
+  if (tempClips.length > 0) {
+    const tempMixer = new THREE.AnimationMixer(inner);
+    tempMixer.clipAction(tempClips[0]).play();
+    tempMixer.update(0);
+  }
+
+  inner.traverse((child: any) => {
+    if (usedBoneTransform) return;
+    if (child.isSkinnedMesh && child.skeleton && typeof child.boneTransform === "function") {
+      try {
+        child.skeleton.update();
+        const posCount = child.geometry.attributes.position.count;
+        const step = Math.max(1, Math.floor(posCount / 200));
+        const v4 = new THREE.Vector4();
+        let minY = Infinity, maxY = -Infinity;
+        let minX = Infinity, maxX = -Infinity;
+        let minZ = Infinity, maxZ = -Infinity;
+        for (let i = 0; i < posCount; i += step) {
+          child.boneTransform(i, v4);
+          if (v4.y < minY) minY = v4.y;
+          if (v4.y > maxY) maxY = v4.y;
+          if (v4.x < minX) minX = v4.x;
+          if (v4.x > maxX) maxX = v4.x;
+          if (v4.z < minZ) minZ = v4.z;
+          if (v4.z > maxZ) maxZ = v4.z;
+        }
+        const boneH = maxY - minY;
+        if (boneH > 0.001) {
+          measuredHeight = boneH;
+          measuredMinY = minY;
+          measuredMaxY = maxY;
+          usedBoneTransform = true;
+          console.log("[3D] Bone-deformed size:", (maxX-minX).toFixed(3), boneH.toFixed(3), (maxZ-minZ).toFixed(3));
+        }
+      } catch (e) { /* boneTransform not available in this Three.js version */ }
+    }
+  });
+
+  // Fallback: use geometry bounding box (for non-skinned models)
+  if (!usedBoneTransform) {
+    const corrBox = new THREE.Box3().setFromObject(inner);
+    const corrSize = new THREE.Vector3();
+    corrBox.getSize(corrSize);
+    measuredHeight = corrSize.y || 1;
+    measuredMinY = corrBox.min.y;
+    console.log("[3D] Geometry size (no bones):", corrSize.x.toFixed(3), corrSize.y.toFixed(3), corrSize.z.toFixed(3));
+  }
+
+  const autoScale = targetHeight / measuredHeight;
+  inner.scale.setScalar(autoScale);
+  console.log("[3D] Auto-scale:", autoScale.toFixed(3), "(" + measuredHeight.toFixed(3) + " → " + targetHeight + " units)");
+
+  // --- Pivot correction AFTER scaling ---
+  // For bone-deformed models, use the bone-measured minY for feet placement
   inner.updateMatrixWorld(true);
+  const scaledMinY = measuredMinY * autoScale;
   const pivotBox = new THREE.Box3().setFromObject(inner);
   const pivotCenter = new THREE.Vector3();
   pivotBox.getCenter(pivotCenter);
   const pivot = new THREE.Group();
   pivot.add(inner);
-  pivot.position.set(-pivotCenter.x, -pivotBox.min.y, -pivotCenter.z);
+  // Use bone-measured minY (feet) for Y offset, geometry center for XZ
+  pivot.position.set(-pivotCenter.x, -scaledMinY, -pivotCenter.z);
 
   // Wrapper Group: world position only, scale stays at 1
   const mesh = new THREE.Group();
@@ -1356,13 +1413,9 @@ export async function createAnimatedCharacter3D(
   if (opts.rotation !== undefined) mesh.rotation.y = opts.rotation;
   scene.add(mesh);
 
-  // Compute final size for physics
-  mesh.updateMatrixWorld(true);
-  const physBox = new THREE.Box3().setFromObject(mesh);
-  const physSize = new THREE.Vector3();
-  physBox.getSize(physSize);
-  const halfExtents = { x: physSize.x / 2, y: physSize.y / 2, z: physSize.z / 2 };
-  console.log("[3D] Character final size:", physSize.x.toFixed(2), physSize.y.toFixed(2), physSize.z.toFixed(2));
+  // Physics half-extents based on target height
+  const halfExtents = { x: targetHeight * 0.3, y: targetHeight / 2, z: targetHeight * 0.3 };
+  console.log("[3D] Character final: targetH=" + targetHeight + ", autoScale=" + autoScale.toFixed(3) + ", boneDeformed=" + usedBoneTransform);
 
   // --- Strip root motion + scale tracks from animation clips ---
   const allClips = gltf.animations || [];
