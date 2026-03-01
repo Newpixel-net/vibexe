@@ -56,6 +56,21 @@ if (THREE && !THREE.SRGBColorSpace) {
   THREE.LinearSRGBColorSpace = "srgb-linear";
 }
 
+// ===== NaN-tolerant Quaternion patch =====
+// AI-generated code often passes NaN/undefined values to rotation APIs,
+// which crashes THREE.Quaternion.setFromEuler in the game loop. Instead of
+// crashing the entire update(), silently skip bad rotations so the rest of
+// the AI's code (animation switching, scoring, etc.) still executes.
+if (THREE?.Quaternion?.prototype?.setFromEuler) {
+  const _origSetFromEuler = THREE.Quaternion.prototype.setFromEuler;
+  THREE.Quaternion.prototype.setFromEuler = function(euler: any, update?: boolean) {
+    if (euler && (isNaN(euler.x) || isNaN(euler.y) || isNaN(euler.z))) {
+      return this; // Skip bad rotation silently
+    }
+    return _origSetFromEuler.call(this, euler, update);
+  };
+}
+
 // ===== SCALE PRESETS for KayKit models =====
 // KayKit GLTF models are small by default (~1 unit). These scales work well
 // for a typical game camera at distance 10-20.
@@ -68,7 +83,7 @@ export const SCALES_3D = {
   player: 0.8,
   enemy: 0.8,
   skeleton: 1.0,
-  animatedCharacter: 2.0, // targetHeight for createAnimatedCharacter3D (world units)
+  animatedCharacter: 4.0, // targetHeight for createAnimatedCharacter3D (world units)
   // Collectibles
   collectible: 0.5,
   coin: 0.4,
@@ -1417,6 +1432,10 @@ export async function createAnimatedCharacter3D(
     mixer.stopAllAction();
     _currentAction = null;
   }
+
+  // Auto-play idle so the character is always animating from the start.
+  // AI code can switch to "walk"/"run" later via character.play("walk").
+  play("idle");
 
   return { mesh, mixer, clips: clipNames, play, stop, size: halfExtents };
 }
