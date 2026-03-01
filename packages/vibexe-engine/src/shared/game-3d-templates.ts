@@ -1619,6 +1619,8 @@ export function createCharacterController3D(
   let state = "idle";
   let isAttacking = false;
   let attackTimer = 0;
+  let stateTimer = 0; // How long we've been in current state
+  const MIN_STATE_HOLD = 0.15; // Minimum seconds before allowing state change (prevents flicker)
   // Track mesh position for direct-movement detection (AI may move mesh without physics)
   let lastMeshX = character.mesh.position.x;
   let lastMeshZ = character.mesh.position.z;
@@ -1674,24 +1676,29 @@ export function createCharacterController3D(
       else return; // Don't switch animations during attack
     }
 
+    stateTimer += delta;
+
     // Check if grounded
     const isGrounded = (physicsBody as any).__canJump !== false;
     const isRising = physicsBody.velocity.y > 2;
 
-    // State machine
+    // State machine with hysteresis — use lower thresholds to LEAVE a state
+    // This prevents flickering when speed oscillates around a boundary
     let newState = state;
     if (!isGrounded && isRising) {
       newState = "jump";
-    } else if (hSpeed > RUN_SPEED) {
+    } else if (state === "run" ? hSpeed > RUN_SPEED * 0.6 : hSpeed > RUN_SPEED) {
       newState = "run";
-    } else if (hSpeed > WALK_SPEED) {
+    } else if (state === "walk" ? hSpeed > WALK_SPEED * 0.3 : hSpeed > WALK_SPEED) {
       newState = "walk";
     } else {
       newState = "idle";
     }
 
-    if (newState !== state) {
+    // Only allow state change after minimum hold time (jump always allowed)
+    if (newState !== state && (stateTimer >= MIN_STATE_HOLD || newState === "jump")) {
       state = newState;
+      stateTimer = 0;
       if (state === "jump") {
         character.play(jumpAnim, { loop: false, crossfade: 0.15 });
       } else if (state === "run") {
