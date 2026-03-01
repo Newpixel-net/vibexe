@@ -1654,6 +1654,7 @@ const THREE = (window as any).THREE;
 const CANNON = (window as any).CANNON;
 
 // ===== Game State =====
+let scene: any, camera: any, renderer: any;
 let player: any, playerBody: any, world: any;
 let hud: any, keys: any, destroyKb: () => void;
 const platforms: { mesh: any; body: any }[] = [];
@@ -1663,7 +1664,8 @@ let score = 0;
 export const GameScene = {
   world: null as any,
 
-  async init(scene: any, camera: any, renderer: any, container: HTMLDivElement, onProgress?: (p: number) => void) {
+  async init(_scene: any, _camera: any, _renderer: any, container: HTMLDivElement, onProgress?: (p: number) => void) {
+    scene = _scene; camera = _camera; renderer = _renderer;
     world = this.world;
 
     // Sky gradient + ground plane

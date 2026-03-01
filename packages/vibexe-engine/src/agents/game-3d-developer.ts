@@ -447,25 +447,31 @@ CRITICAL rules:
 
 Your GameScene3D.ts MUST use this exact export pattern (named export, NOT export default):
 \`\`\`typescript
+// MODULE-LEVEL variables — accessible from ALL methods (init, update, cleanup)
+let scene: any, camera: any, renderer: any;
+let player: any, playerBody: any, world: any;
+let hud: any, keys: any, destroyKb: () => void;
+let score = 0;
+
 export const GameScene = {
-  init(scene: any, camera: any, renderer: any, container: HTMLDivElement, onProgress?: (p: number) => void) {
-    // scene = THREE.Scene (already created by Game3D.tsx)
-    // camera = THREE.PerspectiveCamera (already created by Game3D.tsx)
-    // renderer = THREE.WebGLRenderer (already created by Game3D.tsx)
-    // container = HTMLDivElement (the DOM container)
-    // onProgress = optional callback for loading bar (0.0 to 1.0)
-    //
-    // Use scene.add(mesh), scene.background = ..., etc.
-    // container.__restartGame is available — pass it to showGameOver as the restart callback
+  world: null as any,
+  async init(_scene: any, _camera: any, _renderer: any, container: HTMLDivElement, onProgress?: (p: number) => void) {
+    // FIRST LINE: Store args in module-level variables so update() can access them
+    scene = _scene; camera = _camera; renderer = _renderer;
+    world = this.world;
+    // Now use scene, camera, renderer freely in init() AND update()
   },
   update(delta: number) {
-    // Movement, physics, collisions, scoring
+    // camera, scene, player etc. are all module-level — accessible here
+    camera.position.lerp(targetPos, CAMERA_LERP * delta);
   },
   cleanup() {
-    // Remove event listeners, dispose resources
+    destroyKb?.();
   },
 };
 \`\`\`
+
+**CRITICAL SCOPING RULE: \`scene\`, \`camera\`, \`renderer\` are passed as ARGUMENTS to init() but update() is a SEPARATE method that cannot access init()'s parameters. You MUST store them in module-level variables (declared BEFORE the GameScene object) and reference those in update(). Forgetting this causes "camera is not defined" crashes.**
 
 **DO NOT use a class pattern. DO NOT write \`class GameScene3D { this.scene = ...; init(loadedAssets) {...} }\`. The init() RECEIVES scene/camera/renderer as arguments — it does NOT create them.**
 
@@ -937,6 +943,7 @@ ${GAME_3D_ASSETS_REFERENCE}
 29. **Using r152+ Three.js APIs** — We use r128. Do NOT use: \`CapsuleGeometry\`, \`outputColorSpace\`, \`SRGBColorSpace\`, \`ColorManagement\`, \`BatchedMesh\`. Use r128 equivalents: \`outputEncoding = THREE.sRGBEncoding\`, etc.
 30. **CRITICAL: Sandpack infinite loop protection** — Sandpack counts ALL loop iterations across ALL frames. A game running at 60fps with \`for\` loops in \`update()\` will exceed 100K iterations and CRASH. The sandbox.config.json is pre-created to disable this, but if it's missing, add it: \`{ "infiniteLoopProtection": false }\`. Also keep cleanup loops SHORT — use \`Array.filter()\` instead of reverse \`for\` loops when possible.
 31. **Using raw loadGLTF for standard objects** — Do NOT manually construct \`loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/blue/platform_4x4x1_blue.gltf"))\` for platforms, collectibles, players, barriers, or decorations. USE the factory helpers: \`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`. They handle URL construction, caching, scaling, positioning, fallbacks, and return \`{mesh, size}\` for physics. Raw \`loadGLTF\` is only for advanced packs (city-builder, resource-bits, skeletons).
+32. **FATAL: "camera is not defined" in update()** — The #1 crash. \`init()\` and \`update()\` are SEPARATE methods on an object literal — they do NOT share a closure. If you declare \`camera\` as a parameter of \`init()\`, it is NOT accessible in \`update()\`. You MUST declare \`let scene: any, camera: any, renderer: any;\` at the MODULE LEVEL (before \`export const GameScene\`) and assign them at the top of \`init()\`: \`scene = _scene; camera = _camera; renderer = _renderer;\`. Same applies to ALL variables shared between init() and update(): player, world, hud, keys, score, etc.
 
 ## Internationalization
 
