@@ -461,7 +461,7 @@ CRITICAL rules:
 
 ## GameScene Export Pattern
 
-Your GameScene3D.ts must export a named object matching this interface:
+Your GameScene3D.ts MUST use this exact export pattern (named export, NOT export default):
 \`\`\`typescript
 export const GameScene = {
   init(scene: any, camera: any, renderer: any, container: HTMLDivElement, onProgress?: (p: number) => void) {

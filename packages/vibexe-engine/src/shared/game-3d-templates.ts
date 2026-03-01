@@ -1098,6 +1098,14 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
 
       async function initAndRun() {
         if (disposed) return;
+        if (!gameScene || typeof gameScene.init !== 'function') {
+          console.error('[Game3D] gameScene is invalid — check GameScene3D.ts exports:', gameScene);
+          const err = document.createElement('div');
+          err.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ff6b6b;font:16px/1.4 sans-serif;text-align:center;padding:20px;background:#111';
+          err.textContent = 'Error: GameScene failed to load. Check console.';
+          container.appendChild(err);
+          return;
+        }
         scene = new THREE.Scene();
         scene.background = new THREE.Color(bgColor);
 
@@ -1238,7 +1246,10 @@ export function showGameOver(
 		path: "src/App.tsx",
 		language: "typescript",
 		content: `import Game3D from "./components/Game3D";
-import { GameScene } from "./scenes/GameScene3D";
+import GameSceneDefault, * as GameSceneModule from "./scenes/GameScene3D";
+
+// Handle both: export const GameScene = {...} AND export default {...}
+const GameScene = (GameSceneModule as any).GameScene || GameSceneDefault;
 
 export default function App() {
   return <Game3D gameScene={GameScene} />;
