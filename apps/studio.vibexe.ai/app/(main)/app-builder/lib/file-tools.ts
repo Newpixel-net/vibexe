@@ -29,6 +29,8 @@ export interface FileToolsOptions {
 	protectedPaths?: Set<string>;
 	/** Regex patterns for files that should never be created */
 	forbiddenPatterns?: RegExp[];
+	/** Path rewrites: e.g. { "src/scenes/GameScene.ts": "src/scenes/GameScene3D.ts" } */
+	pathRewrites?: Map<string, string>;
 }
 
 /**
@@ -43,14 +45,27 @@ export interface FileToolsOptions {
 export function createFileTools(appId: string, options?: FileToolsOptions) {
 	const protectedPaths = options?.protectedPaths ?? new Set<string>();
 	const forbiddenPatterns = options?.forbiddenPatterns ?? [];
+	const pathRewrites = options?.pathRewrites ?? new Map<string, string>();
+
+	/** Rewrite path if a mapping exists (e.g. GameScene.ts → GameScene3D.ts) */
+	function rewritePath(filePath: string): string {
+		const rewritten = pathRewrites.get(filePath);
+		if (rewritten) {
+			console.log(`[FileTools] Path rewrite: ${filePath} → ${rewritten}`);
+			return rewritten;
+		}
+		return filePath;
+	}
 
 	/** Check if a path is forbidden — returns rejection message or null */
 	function checkForbidden(filePath: string): string | null {
 		if (protectedPaths.has(filePath)) {
+			console.log(`[FileTools] BLOCKED protected path: ${filePath}`);
 			return `File "${filePath}" is a pre-created template and cannot be overwritten. Import from it instead.`;
 		}
 		for (const pattern of forbiddenPatterns) {
 			if (pattern.test(filePath)) {
+				console.log(`[FileTools] BLOCKED forbidden pattern: ${filePath}`);
 				return `File "${filePath}" is not allowed. Game3D.tsx already provides loading screen, menu overlay, and restart. Only create GameScene3D.ts as your scene file.`;
 			}
 		}
@@ -83,10 +98,10 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 						"Programming language for syntax highlighting (auto-detected if not provided)",
 					),
 			}),
-			execute: async ({ path, content, language }) => {
+			execute: async ({ path: rawPath, content, language }) => {
+				const path = rewritePath(rawPath);
 				const blocked = checkForbidden(path);
 				if (blocked) {
-					console.log(`[FileTools] Blocked create_file: ${path}`);
 					return { success: false, action: "created", path, error: blocked };
 				}
 				try {
@@ -116,10 +131,10 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 						"The new complete file content (replaces entire file contents)",
 					),
 			}),
-			execute: async ({ path, content }) => {
+			execute: async ({ path: rawPath, content }) => {
+				const path = rewritePath(rawPath);
 				const blocked = checkForbidden(path);
 				if (blocked) {
-					console.log(`[FileTools] Blocked update_file: ${path}`);
 					return { success: false, action: "updated", path, error: blocked };
 				}
 				try {

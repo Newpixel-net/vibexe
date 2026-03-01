@@ -944,8 +944,16 @@ An App Store listing has been analyzed and injected into the project context abo
 					// 2D: Block BootScene, MenuScene, LoadingScene
 					/(?:^|\/)(?:Boot|Menu|Loading|Title|Splash|Intro)Scene\.ts$/i,
 				];
-			fileToolsOptions = { protectedPaths, forbiddenPatterns };
-			console.log(`[Chat API] File filter active: ${protectedPaths.size} protected, ${forbiddenPatterns.length} forbidden patterns`);
+			// Path rewrites: AI consistently creates GameScene.ts instead of GameScene3D.ts
+			const pathRewrites = isGame3d
+				? new Map([
+					["src/scenes/GameScene.ts", "src/scenes/GameScene3D.ts"],
+					["src/scenes/Game3DScene.ts", "src/scenes/GameScene3D.ts"],
+					["src/scenes/GameScene3d.ts", "src/scenes/GameScene3D.ts"],
+				])
+				: new Map<string, string>();
+			fileToolsOptions = { protectedPaths, forbiddenPatterns, pathRewrites };
+			console.log(`[Chat API] File filter active: ${protectedPaths.size} protected, ${forbiddenPatterns.length} forbidden, ${pathRewrites.size} rewrites`);
 		}
 		const allTools = createFileTools(appId, fileToolsOptions);
 
