@@ -1439,7 +1439,25 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         // Auto-create physics world — always available as gameScene.world / this.world
         const world = createPhysicsWorld(GRAVITY_3D);
         if (world) createPhysicsGround(world);
-        (gameScene as any).world = world;
+
+        // Resilient world property: AI code often overwrites this.world with {} or null
+        // during init(), then calls this.world.gravity.set() which crashes.
+        // Use defineProperty so only actual CANNON.World objects (with .step) are accepted.
+        let __pw = world;
+        try {
+          Object.defineProperty(gameScene, 'world', {
+            get() { return __pw; },
+            set(val: any) {
+              if (val && typeof val.step === 'function') __pw = val;
+              // Silently discard plain objects, null, undefined
+            },
+            configurable: true,
+            enumerable: true,
+          });
+        } catch {
+          // Fallback if defineProperty fails (frozen object, etc.)
+          (gameScene as any).world = world;
+        }
 
         await gameScene.init(scene, camera, renderer, container, (p: number) => {
           loading.setProgress(p);
@@ -1670,7 +1688,7 @@ export const GameScene = {
 
     // Sky gradient + ground plane
     createSkyGradient(scene, 0x87CEEB, 0xE0F0FF);
-    createGround3D(scene, world, { color: 0x88BB66, size: 100 });
+    createGround3D(scene, 100, 0x88BB66);
     onProgress?.(0.1);
 
     // ===== PLATFORMS — createPlatform3D loads KayKit GLTF models =====
@@ -1685,7 +1703,7 @@ export const GameScene = {
         variant: "4x4x1", color: colors[i % 4],
       });
       const body = createPhysicsBody("box", 0, { x, y, z }, size);
-      world.addBody(body);
+      if (world && body) world.addBody(body);
       platforms.push({ mesh, body });
     }
     onProgress?.(0.3);
@@ -1694,7 +1712,7 @@ export const GameScene = {
     const { mesh: pm, size: ps } = await createPlayer3D(scene, 0, 3, 0, { color: "blue" });
     player = pm;
     playerBody = createPhysicsBody("sphere", 5, { x: 0, y: 3, z: 0 }, ps.x);
-    world.addBody(playerBody);
+    if (world && playerBody) world.addBody(playerBody);
     onProgress?.(0.5);
 
     // ===== COLLECTIBLES — createCollectible3D loads KayKit diamond/star models =====
