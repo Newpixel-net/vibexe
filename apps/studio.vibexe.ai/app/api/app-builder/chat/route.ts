@@ -703,13 +703,30 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 
 		let gameSubType: "platformer" | "runner" = "platformer"; // default
 		if (isGameProject) {
-			const allMessages = messages.map((m: UIMessage) => (typeof m.content === "string" ? m.content : "").toLowerCase()).join(" ");
+			// Extract text from all messages — handle both string content AND parts array (AI SDK v5)
+			const allMessages = messages.map((m: UIMessage) => {
+				if (typeof m.content === "string" && m.content.length > 0) return m.content;
+				// AI SDK v5: content may be empty, text lives in parts[].text
+				const parts = (m as Record<string, unknown>).parts;
+				if (Array.isArray(parts)) {
+					return parts
+						.filter((p: Record<string, unknown>) => p.type === "text" && typeof p.text === "string")
+						.map((p: Record<string, unknown>) => p.text)
+						.join(" ");
+				}
+				return typeof m.content === "string" ? m.content : "";
+			}).map(s => (s as string).toLowerCase()).join(" ");
 			const searchText = userPrompt.toLowerCase() + " " + allMessages;
 			if (GAME_3D_KEYWORDS.some(kw => searchText.includes(kw))) {
 				isGame3d = true;
-				console.log(`[Chat API] 3D game detected`);
+				console.log(`[Chat API] 3D game detected (keywords)`);
 			} else if (RUNNER_KEYWORDS.some(kw => searchText.includes(kw))) {
 				gameSubType = "runner";
+			}
+			// Fallback: if 3D templates already exist in DB (injected on a previous call), force 3D mode
+			if (!isGame3d && existingFiles.some(f => f.path === "src/components/Game3D.tsx")) {
+				isGame3d = true;
+				console.log(`[Chat API] 3D game detected (existing Game3D.tsx template)`);
 			}
 		}
 		if (isGameProject) {
