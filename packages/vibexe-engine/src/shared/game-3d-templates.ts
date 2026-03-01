@@ -1143,6 +1143,14 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           initAndRun();
         };
 
+        // Inject scene/camera/renderer as properties on gameScene so BOTH patterns work:
+        // Pattern A (correct): init(scene, camera, renderer, container, onProgress) — uses args
+        // Pattern B (AI class): init() with this.scene/this.camera — uses injected props
+        (gameScene as any).scene = scene;
+        (gameScene as any).camera = camera;
+        (gameScene as any).renderer = renderer;
+        (gameScene as any).container = container;
+
         await gameScene.init(scene, camera, renderer, container, (p: number) => {
           loading.setProgress(p);
         });
