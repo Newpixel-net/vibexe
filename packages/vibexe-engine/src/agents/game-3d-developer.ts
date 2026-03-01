@@ -900,6 +900,8 @@ ${GAME_3D_ASSETS_REFERENCE}
 25. **CRITICAL: Calling non-existent helper functions** — ONLY use functions listed in the AVAILABLE HELPERS section above. Functions like \`getLoadedModel\`, \`cacheModel\`, \`getModel\`, \`cloneModel\` do NOT exist. To reuse models: \`const template = await loadGLTF(...); const clone = template.clone();\`.
 26. **CRITICAL: Duplicate variable declarations** — Using \`const body\`, \`const shape\`, or \`const mesh\` multiple times in init() causes "Identifier already declared" crash. ALWAYS use unique prefixed names: \`playerBody\`, \`platBody\`, \`spikeBody\`, \`coinMesh\`, \`gemMesh\`, \`playerShape\`, etc. Even inside loops, prefer descriptive names.
 27. **Using raw CANNON API instead of helpers** — Do NOT write \`new CANNON.Body({mass: 1, shape: ...})\`. Use \`createPhysicsBody("sphere", mass, position, size)\` from assets-3d.ts. Raw CANNON API leads to boilerplate, duplicate names, and missing defaults.
+28. **CRITICAL: Using THREE.CapsuleGeometry** — CapsuleGeometry does NOT exist in Three.js r128 (added in r138). Use \`THREE.CylinderGeometry\` or \`THREE.SphereGeometry\` instead. For player/character shapes: use a CylinderGeometry with hemisphere ends, or just a SphereGeometry for physics + a GLTF model for visuals.
+29. **Using r152+ Three.js APIs** — We use r128. Do NOT use: \`CapsuleGeometry\`, \`outputColorSpace\`, \`SRGBColorSpace\`, \`ColorManagement\`, \`BatchedMesh\`. Use r128 equivalents: \`outputEncoding = THREE.sRGBEncoding\`, etc.
 
 ## Internationalization
 
