@@ -694,12 +694,12 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			"vertical runner", "top-down runner", "3-lane",
 		];
 		// --- Detect 3D game from keywords ---
+		// NOTE: "3d" standalone is safe because this check only runs when isGameProject=true
 		const GAME_3D_KEYWORDS = [
-			"3d game", "3d platformer", "three.js", "3d world", "3d city",
-			"first-person game", "first person game", "isometric game", "3d model",
-			"gltf", "kaykit", "3d character", "3d environment", "low-poly 3d",
-			"3d survival", "3d builder", "city builder 3d", "3d exploration",
-			"3d action", "meshy", "createanimatedcharacter3d", "createplatform3d",
+			"3d", // Standalone — catches "3d warrior", "3d racing", any "3d ..." variant
+			"three.js", "first-person game", "first person game", "isometric game",
+			"gltf", "kaykit", "low-poly 3d",
+			"meshy", "createanimatedcharacter3d", "createplatform3d",
 			"createplayer3d", "animated warrior", "animated character",
 		];
 		// --- Detect animated character requests (warrior, fighter, etc.) ---
