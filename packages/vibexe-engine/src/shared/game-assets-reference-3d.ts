@@ -185,7 +185,7 @@ export const GAME_3D_ASSETS_REFERENCE = `
 ## 3D Asset Catalog — 507 Models in 5 Packs (44 MB)
 
 **Server path**: \`/opt/vibexe/media-stock/games-3d/{pack-id}/\`
-**API endpoint**: \`/api/app-builder/media-stock-3d/{pack-id}/{filename}\`
+**API endpoint**: \`/api/app-builder/media-stock-3d/{pack-id}/{path-to-file}\`
 
 ### Art Style: KayKit Cartoon Low-Poly (GLTF)
 
@@ -196,8 +196,9 @@ All packs share the same bright, cartoon low-poly aesthetic. Consistent look gua
 
 ### KAYKIT PLATFORMER — 370 GLTF Models (17 MB)
 Pack: \`kaykit-platformer\` | Style: Cartoon low-poly
-Color variants: Each base model has 5 versions (neutral + _blue, _green, _red, _yellow)
-Example: \`platform_4x4x1.gltf\`, \`platform_4x4x1_blue.gltf\`, \`platform_4x4x1_red.gltf\`
+Color variants: Each base model has 5 versions in **color subdirectories** (neutral, blue, green, red, yellow)
+Path pattern: \`Assets/gltf/{color}/{name}_{color}.gltf\` — neutral has no suffix: \`Assets/gltf/neutral/{name}.gltf\`
+Example: \`Assets/gltf/neutral/platform_4x4x1.gltf\`, \`Assets/gltf/blue/platform_4x4x1_blue.gltf\`, \`Assets/gltf/red/platform_4x4x1_red.gltf\`
 
 **Platforms (22 base × 5 colors = 110):**
 Sizes: 2x2, 4x2, 4x4, 6x2, 6x6 in heights x1, x2, x4
@@ -260,9 +261,12 @@ import { loadGLTF, SCALES_3D } from "../config/assets-3d";
 import { modelUrl } from "../utils/media-stock-3d";
 
 // KayKit GLTF model
-const platform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1.gltf"));
+const platform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/platform_4x4x1.gltf"));
 platform.scale.setScalar(SCALES_3D.platform);
 scene.add(platform);
+
+// Blue color variant — note the color subdirectory + suffix
+const bluePlatform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/blue/platform_4x4x1_blue.gltf"));
 
 // KayKit Skeletons (GLB — self-contained, includes textures)
 const warrior = await loadGLTF(modelUrl("kaykit-skeletons", "Skeleton_Warrior.glb"));

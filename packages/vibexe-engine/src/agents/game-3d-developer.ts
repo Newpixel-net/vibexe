@@ -51,12 +51,12 @@ You MUST load KayKit 3D models using \`loadGLTF(modelUrl(...))\` from assets-3d.
 
 \`\`\`typescript
 // CORRECT — load real KayKit model
-const platform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1.gltf"));
+const platform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/platform_4x4x1.gltf"));
 platform.scale.setScalar(SCALES_3D.platform);
 scene.add(platform);
 
 // CORRECT — load once, clone for multiple instances
-const coinTemplate = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/coin.gltf"));
+const coinTemplate = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/coin.gltf"));
 coinTemplate.scale.setScalar(SCALES_3D.coin);
 for (const pos of coinPositions) {
   const c = coinTemplate.clone();
@@ -70,8 +70,9 @@ const platform = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 4), material);
 
 Basic shapes are ONLY acceptable as: (1) invisible physics collision bounds, (2) temporary fallback in try/catch if model loading fails.
 
-**Quick model reference** (use with \`modelUrl("kaykit-platformer", "Assets/gltf/{name}.gltf")\`):
-- **Platforms**: platform_4x4x1, platform_6x6x1, platform_2x2x1 (+ _blue/_green/_red/_yellow variants)
+**Quick model reference** (use with \`modelUrl("kaykit-platformer", "Assets/gltf/neutral/{name}.gltf")\`):
+Color variants use color subdirectory + suffix: \`Assets/gltf/blue/{name}_blue.gltf\`, \`Assets/gltf/red/{name}_red.gltf\`, etc.
+- **Platforms**: platform_4x4x1, platform_6x6x1, platform_2x2x1 (+ blue/green/red/yellow color subdirs)
 - **Collectibles**: coin, gem, crystal, star, heart, key, ring, chest
 - **Environment**: tree, bush, rock, mushroom, cloud, lamp, water, sign
 - **Structures**: bridge, castle_tower, column, arch, wall, door, gate, stairs, tower
@@ -112,18 +113,18 @@ import { modelUrl } from "../utils/media-stock-3d";
 import { SCALES_3D } from "../config/assets-3d";
 
 // Load KayKit GLTF model
-const platform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1.gltf"));
+const platform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/platform_4x4x1.gltf"));
 platform.scale.setScalar(SCALES_3D.platform);
 platform.position.set(0, 0, 0);
 scene.add(platform);
 
 // Load with color variant
-const redPlatform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1_red.gltf"));
+const redPlatform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/red/platform_4x4x1_red.gltf"));
 redPlatform.scale.setScalar(SCALES_3D.platform);
 scene.add(redPlatform);
 
 // Load collectible
-const coin = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/coin.gltf"));
+const coin = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/coin.gltf"));
 coin.scale.setScalar(SCALES_3D.collectible);
 scene.add(coin);
 \`\`\`
@@ -341,7 +342,7 @@ ALWAYS import constants/helpers you use: \`import { loadGLTF, SCALES_3D, TOUCH_D
 **Reusing models (load once, clone many):**
 \`\`\`typescript
 // Load a model ONCE, then clone() for each instance
-const platformTemplate = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1.gltf"));
+const platformTemplate = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/platform_4x4x1.gltf"));
 for (const pos of platformPositions) {
   const p = platformTemplate.clone();
   p.position.set(pos[0], pos[1], pos[2]);
@@ -558,7 +559,7 @@ export const GameScene = {
     // 4. PLAYER — load KayKit model (with box fallback)
     onProgress?.(0.1);
     try {
-      player = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/column.gltf"));
+      player = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/column.gltf"));
       player.scale.setScalar(SCALES_3D.player);
     } catch {
       // Fallback ONLY if model fails to load
@@ -594,7 +595,7 @@ export const GameScene = {
     ];
     let platformTemplate: any;
     try {
-      platformTemplate = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1.gltf"));
+      platformTemplate = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/platform_4x4x1.gltf"));
       platformTemplate.scale.setScalar(SCALES_3D.platform);
     } catch { platformTemplate = null; }
 
@@ -619,7 +620,7 @@ export const GameScene = {
     ];
     let gemTemplate: any;
     try {
-      gemTemplate = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/crystal.gltf"));
+      gemTemplate = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/crystal.gltf"));
       gemTemplate.scale.setScalar(SCALES_3D.collectible);
     } catch { gemTemplate = null; }
 
@@ -766,24 +767,27 @@ export const GameScene = {
 
 All 3D models use the **KayKit cartoon low-poly** style. GLTF format, web-native.
 - 4 packs: platformer (370 models), city-builder (41), resource-bits (76), skeletons (17)
-- Color variants: Each platformer model has 5 versions (neutral + _blue, _green, _red, _yellow)
+- Color variants: Platformer models have 5 color subdirectories (neutral, blue, green, red, yellow)
 - Load with: \`loadGLTF(modelUrl(pack, file))\`
-- **GLTF path**: \`modelUrl("kaykit-platformer", "Assets/gltf/{name}.gltf")\` — platformer, city-builder, resource-bits
-- **GLB path**: \`modelUrl("kaykit-skeletons", "{name}.glb")\` — skeletons are GLB (NOT .gltf!)
+- **Platformer GLTF**: \`modelUrl("kaykit-platformer", "Assets/gltf/neutral/{name}.gltf")\` — neutral color
+- **Platformer color variant**: \`modelUrl("kaykit-platformer", "Assets/gltf/blue/{name}_blue.gltf")\` — color subdir + suffix
+- **City-builder GLTF**: \`modelUrl("kaykit-city-builder", "Assets/gltf/{name}.gltf")\` — flat, no color subdirs
+- **Resource-bits GLTF**: \`modelUrl("kaykit-resource-bits", "Assets/gltf/{Name}.gltf")\` — CamelCase, no color subdirs
+- **Skeletons GLB**: \`modelUrl("kaykit-skeletons", "{Name}.glb")\` — root level, GLB format (NOT .gltf!)
 - Use KayKit consistently — all packs share the same aesthetic
 
 **MANDATORY: Use at LEAST 5 different KayKit models** in every game. Platforms, collectibles, environment decorations, structures, and interactive objects MUST all be KayKit GLTF models. Do NOT use BoxGeometry, SphereGeometry, or CylinderGeometry as primary visible game objects — those are ONLY for invisible physics collision bounds.
 
 Example platformer with real models (MINIMUM expected):
 \`\`\`typescript
-const platform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1.gltf"));
-const gem = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/gem.gltf"));
-const tree = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/tree.gltf"));
-const spike = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/spike.gltf"));
-const coin = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/coin.gltf"));
-const bush = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/bush.gltf"));
-const rock = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/rock.gltf"));
-const bridge = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/bridge.gltf"));
+const platform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/platform_4x4x1.gltf"));
+const gem = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/gem.gltf"));
+const tree = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/tree.gltf"));
+const spike = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/spike.gltf"));
+const coin = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/coin.gltf"));
+const bush = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/bush.gltf"));
+const rock = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/rock.gltf"));
+const bridge = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/bridge.gltf"));
 \`\`\`
 
 ## Mobile / Touch Controls
