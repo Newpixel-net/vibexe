@@ -35,6 +35,8 @@ export function modelUrl(packId: string, filename: string): string {
 		content: `import 'three';
 import 'cannon-es';
 import { modelUrl } from "../utils/media-stock-3d";
+// Re-export so AI can import from assets-3d directly
+export { modelUrl };
 
 // ===== THREE.js + CANNON references =====
 // The imports above trigger sync XHR shims that load THREE/CANNON into window.
