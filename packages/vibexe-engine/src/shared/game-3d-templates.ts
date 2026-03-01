@@ -1330,29 +1330,34 @@ export async function createAnimatedCharacter3D(
     console.log("[3D] Auto-upright: rotated -90° on X (Z-up model detected)");
   }
 
-  // --- Auto-scale to target height ---
-  // Re-measure after rotation correction (need to update matrix first)
+  // --- Auto-scale calculation (do NOT scale inner — scale the Group wrapper instead) ---
+  // Measure after rotation correction
   inner.updateMatrixWorld(true);
   const corrBox = new THREE.Box3().setFromObject(inner);
   const corrSize = new THREE.Vector3();
   corrBox.getSize(corrSize);
   const actualHeight = corrSize.y || 1;
   const autoScale = targetHeight / actualHeight;
-  inner.scale.setScalar(autoScale);
+  // IMPORTANT: inner stays at its natural tiny scale. The Group magnifies it.
+  // This prevents animation root motion from being amplified 100x+.
   console.log("[3D] Auto-scale:", autoScale.toFixed(3), "(" + actualHeight.toFixed(2) + " → " + targetHeight + " units)");
 
-  // --- Pivot correction: center horizontally, feet at y=0 ---
+  // --- Pivot correction at original model scale (on a separate pivot Group) ---
+  // Using a pivot Group means animations can never override the feet-at-origin offset.
   inner.updateMatrixWorld(true);
-  const finalBox = new THREE.Box3().setFromObject(inner);
-  const center = new THREE.Vector3();
-  finalBox.getCenter(center);
-  // Shift so feet (bottom of bbox) are at local y=0 and horizontally centered
-  inner.position.set(-center.x, -finalBox.min.y, -center.z);
+  const pivotBox = new THREE.Box3().setFromObject(inner);
+  const pivotCenter = new THREE.Vector3();
+  pivotBox.getCenter(pivotCenter);
+  const pivot = new THREE.Group();
+  pivot.add(inner);
+  // Shift so feet (bottom of bbox) at y=0, centered horizontally
+  pivot.position.set(-pivotCenter.x, -pivotBox.min.y, -pivotCenter.z);
 
-  // Wrap in container Group so world position/rotation are clean
+  // Wrapper Group: world position + scale (magnifies the tiny model to game-world size)
   const mesh = new THREE.Group();
-  mesh.add(inner);
+  mesh.add(pivot);
   mesh.position.set(x, y, z);
+  mesh.scale.setScalar(autoScale);
   if (opts.rotation !== undefined) mesh.rotation.y = opts.rotation;
   scene.add(mesh);
 
@@ -1364,13 +1369,43 @@ export async function createAnimatedCharacter3D(
   const halfExtents = { x: physSize.x / 2, y: physSize.y / 2, z: physSize.z / 2 };
   console.log("[3D] Character final size:", physSize.x.toFixed(2), physSize.y.toFixed(2), physSize.z.toFixed(2));
 
-  // Animation setup — mixer targets inner (gltf.scene with bones), not the wrapper Group
+  // --- Strip root motion from animation clips ---
+  // Animations may contain position tracks on the scene root or root bone (Hips)
+  // that physically translate the character. In a game, physics/game code handles movement,
+  // so we lock these XZ values to prevent animation-driven displacement.
+  const allClips = gltf.animations || [];
+  for (const clip of allClips) {
+    for (let ti = clip.tracks.length - 1; ti >= 0; ti--) {
+      const track = clip.tracks[ti];
+      if (!track.name.endsWith(".position")) continue;
+      const nodePath = track.name.replace(".position", "");
+      const depth = nodePath === "" ? 0 : nodePath.split("/").length;
+      if (depth === 0) {
+        // Scene root .position — remove entirely (no reason to animate scene root)
+        clip.tracks.splice(ti, 1);
+      } else if (depth <= 2) {
+        // Root bone or armature (e.g., "Armature.position", "Armature/Hips.position")
+        // Lock XZ to first frame, keep Y for hip bobbing
+        if (track.values && track.values.length >= 3) {
+          const firstX = track.values[0];
+          const firstZ = track.values[2];
+          for (let j = 0; j < track.values.length; j += 3) {
+            track.values[j] = firstX;
+            track.values[j + 2] = firstZ;
+          }
+        }
+      }
+      // Deeper bones (depth > 2) — don't touch, legitimate animation data
+    }
+  }
+
+  // Animation setup — mixer targets inner (gltf.scene at original scale)
   const mixer = new THREE.AnimationMixer(inner);
   _activeMixers3D.push(mixer);
 
   const clipMap: Record<string, any> = {};
   const clipNames: string[] = [];
-  for (const clip of (gltf.animations || [])) {
+  for (const clip of allClips) {
     clipMap[clip.name] = clip;
     clipNames.push(clip.name);
   }

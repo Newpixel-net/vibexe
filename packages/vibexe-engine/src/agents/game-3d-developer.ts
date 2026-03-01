@@ -106,7 +106,7 @@ Raw \`loadGLTF(modelUrl(...))\` is only for advanced packs (city-builder, resour
 |---|---|
 | \`createAnimatedCharacter3D(scene, x, y, z, {url, targetHeight?, rotation?})\` | \`{mesh, mixer, clips, play, stop, size}\` |
 
-The helper auto-normalizes ANY GLB model: detects Z-up orientation (rotates to Y-up), auto-scales to \`targetHeight\` (default SCALES_3D.animatedCharacter = 1.0 unit), centers pivot at feet. Size is proportional to all other game objects via SCALES_3D. You do NOT need to manually set scale or rotation — just provide the URL.
+The helper auto-normalizes ANY GLB model: detects Z-up orientation (rotates to Y-up), auto-scales to \`targetHeight\` (default SCALES_3D.animatedCharacter = 1.5 units), centers pivot at feet, and strips root motion from animations so physics/game code controls all movement. You do NOT need to manually set scale or rotation — just provide the URL.
 
 When the user wants a warrior, fighter, or realistic animated character as the PLAYER, use \`createAnimatedCharacter3D\` instead of \`createPlayer3D\`:
 
@@ -114,9 +114,11 @@ When the user wants a warrior, fighter, or realistic animated character as the P
 import { createAnimatedCharacter3D } from "../config/assets-3d";
 import { modelUrl } from "../utils/media-stock-3d";
 
-const warrior = await createAnimatedCharacter3D(scene, 0, 0, 0, {
+// IMPORTANT: Place character ABOVE the first platform (y=3 or higher) so physics
+// doesn't launch it. The character will fall onto the platform naturally.
+const warrior = await createAnimatedCharacter3D(scene, 0, 3, 0, {
   url: modelUrl("meshy-characters", "Warrior_figure_Animations.glb"),
-  // Auto-scales to 2 units tall, auto-detects orientation. No manual scale needed.
+  // Auto-scales to 1.5 units tall. No manual scale needed.
 });
 warrior.play("idle"); // Start idle animation
 
@@ -127,8 +129,8 @@ else warrior.play("idle", { crossfade: 0.3 });
 // Jump (play once, then return to idle)
 warrior.play("jump", { loop: false });
 
-// Physics: use warrior.size for body half-extents
-const body = createPhysicsBody("box", 5, {x:0, y:0, z:0}, warrior.size);
+// Physics: use warrior.size for body half-extents. Place body at SAME position as character.
+const body = createPhysicsBody("box", 5, {x:0, y:3, z:0}, warrior.size);
 \`\`\`
 
 Animation names support fuzzy matching: "idle" → "Idle 5", "run" → "Running", "walk" → "Walking", "jump" → "Jump Over Obstacle 2", "attack" → "High Kick", "die" → "Dead", "hit" → "Hit Reaction 1".
@@ -398,7 +400,7 @@ src/App.tsx                        — Imports GameScene3D and renders Game3D
 
 **AVAILABLE HELPERS FROM assets-3d.ts (COMPLETE LIST — no other functions exist):**
 **Factory Helpers (USE THESE FIRST):** \`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\` — each returns \`{ mesh, size }\`. Size = half-extents for \`createPhysicsBody()\`.
-**Animated Characters:** \`createAnimatedCharacter3D(scene, x, y, z, { url, targetHeight?, rotation? })\` — loads GLB with skeletal animations, auto-normalizes orientation (Z-up → Y-up), auto-scales to targetHeight (default 1.5 units, proportional to all game objects), centers pivot at feet. Returns \`{ mesh, mixer, clips, play, stop, size }\`. Call \`play("idle")\` to start animation (fuzzy-matches clip names). Mixer auto-updates each frame. There is NO scale parameter — auto-scaling always applies based on targetHeight.
+**Animated Characters:** \`createAnimatedCharacter3D(scene, x, y, z, { url, targetHeight?, rotation? })\` — loads GLB with skeletal animations, auto-normalizes orientation (Z-up → Y-up), auto-scales to targetHeight (default 1.5 units), centers pivot at feet, strips root motion so game code controls all movement. Returns \`{ mesh, mixer, clips, play, stop, size }\`. Call \`play("idle")\` to start animation (fuzzy-matches clip names). Mixer auto-updates each frame. IMPORTANT: Place character ABOVE platform (y=3+) so physics settles it naturally. Create physics body at SAME position.
 **3D Text Labels:** \`createText3D("Score: 0", { x, y, z }, { size?, color?, stroke? })\` — canvas-rendered sprite for text. Returns \`{ sprite, update }\`. Call \`scene.add(sprite)\` to display. Call \`update("Score: 100")\` to change text.
 **Other Functions:** \`initRenderer\`, \`initScene\`, \`initCamera\`, \`loadGLTF\`, \`createGround3D\`, \`createSkyGradient\`, \`checkCollision\`, \`checkBoxCollision\`, \`createHUD\`, \`createKeyboardState\`, \`createPhysicsWorld\`, \`createPhysicsBody\`, \`createPhysicsGround\`, \`syncBodiesToMeshes\`, \`onClickObject\`, \`createAnimationPlayer\`, \`createOrbitControls\`, \`createTouchJoystick\`, \`createTapDetector\`, \`createSwipeDetector\`.
 **Constants:** \`SCALES_3D\`, \`TOUCH_DEADZONE\` (0.15), \`GRAVITY_3D\` (-20), \`JUMP_FORCE\` (8), \`MOVE_SPEED\` (5).
