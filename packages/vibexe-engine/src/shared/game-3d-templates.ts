@@ -41,6 +41,21 @@ import { modelUrl } from "../utils/media-stock-3d";
 const THREE = (window as any).THREE;
 const CANNON = (window as any).CANNON;
 
+// ===== r128 Compatibility Polyfills =====
+// CapsuleGeometry doesn't exist in r128 (added r138). Polyfill so AI code doesn't crash.
+if (THREE && !THREE.CapsuleGeometry) {
+  THREE.CapsuleGeometry = class CapsuleGeometry extends THREE.CylinderGeometry {
+    constructor(radius = 0.5, length = 1, capSegs = 8, radialSegs = 16) {
+      super(radius, radius, length, radialSegs, 1, false);
+    }
+  };
+}
+// SRGBColorSpace / outputColorSpace don't exist in r128 (added r152). Polyfill.
+if (THREE && !THREE.SRGBColorSpace) {
+  THREE.SRGBColorSpace = "srgb";
+  THREE.LinearSRGBColorSpace = "srgb-linear";
+}
+
 // ===== SCALE PRESETS for KayKit models =====
 // KayKit GLTF models are small by default (~1 unit). These scales work well
 // for a typical game camera at distance 10-20.
