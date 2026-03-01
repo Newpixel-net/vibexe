@@ -979,6 +979,7 @@ async function _loadOrClone(url: string): Promise<any> {
     return _modelCache3D.get(url)!.clone();
   }
   const model = await loadGLTF(url);
+  console.log("[3D] Loaded GLTF:", url);
   _modelCache3D.set(url, model);
   return model.clone();
 }
@@ -1088,7 +1089,8 @@ export async function createPlatform3D(
     const url = _colorModelUrl(\`platform_\${variant}\`, color);
     mesh = await _loadOrClone(url);
     mesh.scale.setScalar(scale);
-  } catch {
+  } catch (err) {
+    console.warn("[3D] createPlatform3D fallback — failed to load:", \`platform_\${variant}_\${color}\`, err);
     mesh = _fallbackBox(dims.w * scale, dims.h * scale, dims.d * scale, 0x4488cc);
   }
   mesh.position.set(x, y, z);
@@ -1118,7 +1120,8 @@ export async function createCollectible3D(
     const url = _colorModelUrl(type, color);
     mesh = await _loadOrClone(url);
     mesh.scale.setScalar(scale);
-  } catch {
+  } catch (err) {
+    console.warn("[3D] createCollectible3D fallback — failed to load:", \`\${type}_\${color}\`, err);
     mesh = _fallbackBox(scale, scale, scale, 0xffdd44);
     mesh.material.emissive = new THREE.Color(0xffdd44);
     mesh.material.emissiveIntensity = 0.3;
@@ -1152,7 +1155,8 @@ export async function createPlayer3D(
     const url = opts?.neutral ? _neutralModelUrl(model) : _colorModelUrl(model, color);
     mesh = await _loadOrClone(url);
     mesh.scale.setScalar(scale);
-  } catch {
+  } catch (err) {
+    console.warn("[3D] createPlayer3D fallback — failed to load:", \`\${model}_\${color}\`, err);
     mesh = _fallbackBox(scale, scale * 1.5, scale, 0x4488ff);
   }
   mesh.position.set(x, y, z);
@@ -1186,7 +1190,8 @@ export async function createBarrier3D(
       : _colorModelUrl(\`barrier_\${variant}\`, color);
     mesh = await _loadOrClone(url);
     mesh.scale.setScalar(scale);
-  } catch {
+  } catch (err) {
+    console.warn("[3D] createBarrier3D fallback — failed to load:", \`barrier_\${variant}\`, err);
     mesh = _fallbackBox(dims.w * scale, dims.h * scale, dims.d * scale, 0x996633);
   }
   mesh.position.set(x, y, z);
@@ -1218,7 +1223,8 @@ export async function createDecoration3D(
     const url = neutral ? _neutralModelUrl(type) : _colorModelUrl(type, color);
     mesh = await _loadOrClone(url);
     mesh.scale.setScalar(scale);
-  } catch {
+  } catch (err) {
+    console.warn("[3D] createDecoration3D fallback — failed to load:", type, err);
     mesh = _fallbackBox(scale * 2, scale * 4, scale * 2, 0x888888);
   }
   mesh.position.set(x, y, z);
