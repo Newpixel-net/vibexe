@@ -702,19 +702,7 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			"meshy", "createanimatedcharacter3d", "createplatform3d",
 			"createplayer3d", "animated warrior", "animated character",
 		];
-		// --- Detect animated character requests (warrior, fighter, etc.) ---
-		const CHARACTER_KEYWORDS = [
-			"warrior", "fighter", "knight", "barbarian", "hero character",
-			"animated character", "animated player", "character animation",
-			"sword fight", "combat game", "hack and slash", "melee",
-			"action hero", "third person character", "humanoid character",
-			"walk animation", "run animation", "idle animation",
-			"skeletal animation", "animated model", "glb character",
-			"meshy character", "3d character model",
-		];
 		let isGame3d = false;
-		let hasAnimatedCharacter = false;
-
 		let gameSubType: "platformer" | "runner" = "platformer"; // default
 		if (isGameProject) {
 			// Extract text from all messages — handle both string content AND parts array (AI SDK v5)
@@ -734,10 +722,6 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			if (GAME_3D_KEYWORDS.some(kw => searchText.includes(kw))) {
 				isGame3d = true;
 				console.log(`[Chat API] 3D game detected (keywords)`);
-			}
-			if (isGame3d && CHARACTER_KEYWORDS.some(kw => searchText.includes(kw))) {
-				hasAnimatedCharacter = true;
-				console.log(`[Chat API] Animated character detected (keywords)`);
 			}
 			if (!isGame3d && RUNNER_KEYWORDS.some(kw => searchText.includes(kw))) {
 				gameSubType = "runner";
@@ -770,16 +754,7 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			// NOT in GAME_3D_TEMPLATE_FILES to avoid protectedPaths blocking AI updates
 			if (isGame3d && !existingPaths.has("src/scenes/GameScene3D.ts")) {
 				try {
-					let sceneStarter = GAME_3D_SCENE_STARTER;
-					// When animated character detected, swap createPlayer3D → createAnimatedCharacter3D
-					if (hasAnimatedCharacter) {
-						sceneStarter = sceneStarter
-							.replace(
-								`// ===== PLAYER — createPlayer3D loads KayKit character model =====\n    const { mesh: pm, size: ps } = await createPlayer3D(scene, 0, 3, 0, { color: "blue" });\n    player = pm;\n    playerBody = createPhysicsBody("sphere", 5, { x: 0, y: 3, z: 0 }, ps.x);`,
-								`// ===== PLAYER — Animated Warrior with skeletal animations =====\n    const warrior = await createAnimatedCharacter3D(scene, 0, 3, 0, {\n      url: modelUrl("meshy-characters", "Warrior_figure_Animations.glb"),\n    });\n    player = warrior.mesh;\n    warrior.play("idle"); // Start with idle animation\n    // Switch animations: warrior.play("run"), warrior.play("jump", { loop: false })\n    playerBody = createPhysicsBody("box", 5, { x: 0, y: 3, z: 0 }, warrior.size);`,
-							);
-						console.log(`[Chat API] 3D scene starter: swapped to animated warrior character`);
-					}
+					const sceneStarter = GAME_3D_SCENE_STARTER;
 					await saveFile(appId, "src/scenes/GameScene3D.ts", sceneStarter, "typescript");
 					console.log(`[Chat API] 3D scene starter injected: src/scenes/GameScene3D.ts`);
 				} catch (e) {
@@ -844,36 +819,6 @@ After creating ALL files, end with a short summary. If the app has auth, include
 
 **MINIMUM**: Your GameScene3D.ts must call at least 5 different factory helpers. Every platform, collectible, player, barrier, and decoration MUST use the corresponding factory.`);
 
-				// When animated character detected, add MANDATORY override
-				if (hasAnimatedCharacter) {
-					runtimeAddenda.push(`## MANDATORY: Animated Warrior Character
-
-**DO NOT use \`createPlayer3D\` for the player.** The user wants an animated character.
-
-**USE \`createAnimatedCharacter3D\` for the PLAYER CHARACTER:**
-\`\`\`typescript
-const warrior = await createAnimatedCharacter3D(scene, 0, 3, 0, {
-  url: modelUrl("meshy-characters", "Warrior_figure_Animations.glb"),
-});
-player = warrior.mesh;
-warrior.play("idle");
-const playerBody = createPhysicsBody("box", 5, { x: 0, y: 3, z: 0 }, warrior.size);
-\`\`\`
-
-**Animation switching (REQUIRED):**
-- Idle: \`warrior.play("idle")\`
-- Running: \`warrior.play("run", { crossfade: 0.3 })\`
-- Walking: \`warrior.play("walk", { crossfade: 0.3 })\`
-- Jumping: \`warrior.play("jump", { loop: false })\`
-- Attacking: \`warrior.play("attack")\`
-- Hit reaction: \`warrior.play("hit", { loop: false })\`
-- Death: \`warrior.play("die", { loop: false })\`
-
-Switch animations based on player input (arrow keys → run, space → jump, standing still → idle).
-The warrior mesh is ~1 unit tall (matches SCALES_3D system). Animations auto-update each frame — just call \`warrior.play()\`.
-
-**The starter template already uses createAnimatedCharacter3D.** Keep it. Do NOT replace with createPlayer3D.`);
-				}
 			}
 		} else if (isReturningUser) {
 			// Normal existing project — edit/add files
