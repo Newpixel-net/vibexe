@@ -8,6 +8,7 @@ import {
 	DEFAULT_SKILLS,
 	GAME_3D_ASSETS_REFERENCE,
 	GAME_3D_SCENE_STARTER,
+	GAME_3D_SCENE_STARTER_CHARACTER,
 	GAME_3D_TEMPLATE_FILES,
 	GAME_ASSETS_REFERENCE,
 	GAME_TEMPLATE_FILES,
@@ -703,7 +704,14 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			"createplayer3d", "animated warrior", "animated character",
 		];
 		let isGame3d = false;
+		let hasAnimatedCharacter = false;
 		let gameSubType: "platformer" | "runner" = "platformer"; // default
+		const CHARACTER_KEYWORDS = [
+			"warrior", "fighter", "knight", "soldier", "hero character",
+			"animated character", "animated player", "3d character",
+			"skeleton warrior", "character animation", "humanoid",
+			"swordsman", "gladiator", "samurai", "ninja character",
+		];
 		if (isGameProject) {
 			// Extract text from all messages — handle both string content AND parts array (AI SDK v5)
 			const allMessages = messages.map((m: UIMessage) => {
@@ -725,6 +733,11 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			}
 			if (!isGame3d && RUNNER_KEYWORDS.some(kw => searchText.includes(kw))) {
 				gameSubType = "runner";
+			}
+			// Detect animated character keywords (warrior, knight, etc.)
+			if (isGame3d && CHARACTER_KEYWORDS.some(kw => searchText.includes(kw))) {
+				hasAnimatedCharacter = true;
+				console.log(`[Chat API] Animated character detected (keywords)`);
 			}
 			// Fallback: if 3D templates already exist in DB (injected on a previous call), force 3D mode
 			if (!isGame3d && existingFiles.some(f => f.path === "src/components/Game3D.tsx")) {
@@ -754,9 +767,9 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			// NOT in GAME_3D_TEMPLATE_FILES to avoid protectedPaths blocking AI updates
 			if (isGame3d && !existingPaths.has("src/scenes/GameScene3D.ts")) {
 				try {
-					const sceneStarter = GAME_3D_SCENE_STARTER;
+					const sceneStarter = hasAnimatedCharacter ? GAME_3D_SCENE_STARTER_CHARACTER : GAME_3D_SCENE_STARTER;
 					await saveFile(appId, "src/scenes/GameScene3D.ts", sceneStarter, "typescript");
-					console.log(`[Chat API] 3D scene starter injected: src/scenes/GameScene3D.ts`);
+					console.log(`[Chat API] 3D scene starter injected: src/scenes/GameScene3D.ts (character=${hasAnimatedCharacter})`);
 				} catch (e) {
 					console.error(`[Chat API] 3D scene starter injection failed:`, e);
 				}
@@ -807,7 +820,7 @@ After creating ALL files, end with a short summary. If the app has auth, include
 			if (isGame3d) {
 				runtimeAddenda.push(`## CRITICAL: 3D Game — Factory Helper Pattern
 
-**\`src/scenes/GameScene3D.ts\` is PRE-CREATED** with a working starter that uses factory helpers (createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, createAnimatedCharacter3D, createText3D). These load real GLTF 3D models.
+**\`src/scenes/GameScene3D.ts\` is PRE-CREATED** with a working starter that uses factory helpers (createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, createAnimatedCharacter3D, createCharacterController3D, createText3D). These load real GLTF 3D models.
 
 **You MUST follow this workflow:**
 1. Use \`read_file("src/scenes/GameScene3D.ts")\` FIRST to see the existing factory helper pattern
@@ -816,6 +829,7 @@ After creating ALL files, end with a short summary. If the app has auth, include
 4. Do NOT use raw \`new THREE.BoxGeometry()\`, \`new THREE.SphereGeometry()\`, or \`new THREE.CylinderGeometry()\` for visible game objects — use factory helpers instead
 5. Factory helpers handle GLTF model loading, URL construction, caching, scaling, and fallbacks automatically
 6. For animated characters (meshy-characters pack), use \`createAnimatedCharacter3D(scene, x, y, z, { url: modelUrl("meshy-characters", "Warrior_figure_Animations.glb") })\` — returns \`{mesh, mixer, clips, play, stop, size}\`
+7. For animated characters, ALWAYS use \`createCharacterController3D(character, physicsBody)\` to manage animation states. Call \`controller.update(delta)\` in update(). The controller auto-switches idle/walk/run/jump/attack based on physics velocity.
 
 **MINIMUM**: Your GameScene3D.ts must call at least 5 different factory helpers. Every platform, collectible, player, barrier, and decoration MUST use the corresponding factory.`);
 
@@ -839,13 +853,13 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 
 **MANDATORY RULES — violation will break the game:**
 - Do NOT recreate, overwrite, or modify these files — they contain correct, tested code
-- You MUST \`import\` from them: \`import { createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, createAnimatedCharacter3D, createText3D, createPhysicsBody, syncBodiesToMeshes, createKeyboardState, createGround3D, createSkyGradient, createHUD, loadGLTF, SCALES_3D } from "../config/assets-3d";\` and \`import { modelUrl } from "../utils/media-stock-3d";\`
+- You MUST \`import\` from them: \`import { createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, createAnimatedCharacter3D, createCharacterController3D, createText3D, createPhysicsBody, syncBodiesToMeshes, createKeyboardState, createGround3D, createSkyGradient, createHUD, loadGLTF, SCALES_3D } from "../config/assets-3d";\` and \`import { modelUrl } from "../utils/media-stock-3d";\`
 - **Game3D.tsx is PRE-CREATED** — do NOT create Game3D.tsx or any React-Three.js wrapper. Just import it in App.tsx: \`import Game3D from "./components/Game3D";\`
 - **App.tsx pattern**: \`export default function App() { return <Game3D gameScene={GameScene} />; }\`
 - Access Three.js via global: \`const THREE = (window as any).THREE;\` — do NOT import from "three"
-- **Use factory helpers** (\`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`, \`createAnimatedCharacter3D\`, \`createText3D\`) for ALL visible game objects — they load real GLTF models
+- **Use factory helpers** (\`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`, \`createAnimatedCharacter3D\`, \`createCharacterController3D\`, \`createText3D\`) for ALL visible game objects — they load real GLTF models
 - \`createText3D("Score: 0", {x, y, z}, {size, color, stroke})\` for 3D text labels — returns \`{sprite, update}\`. Call \`scene.add(sprite)\` or pass scene as first arg
-- For animated characters from meshy-characters pack, use \`createAnimatedCharacter3D\` which returns \`{mesh, mixer, clips, play, stop, size}\` — animations auto-update in render loop
+- For animated characters from meshy-characters pack, use \`createAnimatedCharacter3D\` which returns \`{mesh, mixer, clips, play, stop, size}\` — animations auto-update in render loop. Use \`createCharacterController3D(character, physicsBody)\` for automatic animation state management (idle/walk/run/jump/attack)
 - Use \`loadGLTF(modelUrl(packId, filename))\` ONLY for advanced packs (city-builder, resource-bits, skeletons)
 - The package.json already includes \`"three": "^0.162.0"\` — do NOT recreate it`);
 			} else {

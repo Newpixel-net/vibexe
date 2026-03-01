@@ -79,7 +79,7 @@ const platform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/blue/
 Basic shapes are ONLY acceptable as: (1) invisible physics collision bounds, (2) inside factory fallbacks (automatic).
 Raw \`loadGLTF(modelUrl(...))\` is only for advanced packs (city-builder, resource-bits, skeletons) that don't have factory helpers.
 
-**5 Factory Helpers (from assets-3d.ts):**
+**5 Factory Helpers + Controller (from assets-3d.ts):**
 
 | Function | Default | Returns |
 |---|---|---|
@@ -135,6 +135,29 @@ const body = createPhysicsBody("box", 5, {x:0, y:3, z:0}, warrior.size);
 
 Animation names support fuzzy matching: "idle" → "Idle 5", "run" → "Running", "walk" → "Walking", "jump" → "Jump Over Obstacle 2", "attack" → "High Kick", "die" → "Dead", "hit" → "Hit Reaction 1".
 Animations are auto-updated each frame — no manual mixer.update() needed.
+The \`play()\` method is idempotent — safe to call every frame. If the same animation is already playing, it does nothing (no reset to frame 0).
+
+**Character Controller Helper (from assets-3d.ts):**
+
+| Function | Returns |
+|---|---|
+| \`createCharacterController3D(character, physicsBody, opts?)\` | \`{update, attack, jump, state}\` |
+
+The controller auto-manages animation states (idle/walk/run/jump/attack) based on physics velocity. It also syncs mesh position to physics body and smoothly faces the character in the movement direction.
+
+\`\`\`typescript
+const warrior = await createAnimatedCharacter3D(scene, 0, 3, 0, {
+  url: modelUrl("meshy-characters", "Warrior_figure_Animations.glb"),
+});
+const playerBody = createPhysicsBody("box", 5, {x:0, y:3, z:0}, warrior.size);
+const controller = createCharacterController3D(warrior, playerBody);
+
+// In update(): just call controller.update(delta) — handles everything
+// Attack button: controller.attack();
+// Jump: apply physics impulse + controller.jump();
+\`\`\`
+
+Options: \`{ walkSpeed?: 0.5, runSpeed?: 5, idleAnim?: "idle", walkAnim?: "walk", runAnim?: "run", jumpAnim?: "jump", attackAnim?: "attack" }\`
 
 See the full 3D Asset Catalog at the bottom of this prompt for all 507+ models across 6 packs.
 
@@ -983,6 +1006,7 @@ ${GAME_3D_ASSETS_REFERENCE}
 31. **Using raw loadGLTF for standard objects** — Do NOT manually construct \`loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/blue/platform_4x4x1_blue.gltf"))\` for platforms, collectibles, players, barriers, or decorations. USE the factory helpers: \`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`. They handle URL construction, caching, scaling, positioning, fallbacks, and return \`{mesh, size}\` for physics. Raw \`loadGLTF\` is only for advanced packs (city-builder, resource-bits, skeletons).
 32. **FATAL: "camera is not defined" in update()** — The #1 crash. \`init()\` and \`update()\` are SEPARATE methods on an object literal — they do NOT share a closure. If you declare \`camera\` as a parameter of \`init()\`, it is NOT accessible in \`update()\`. You MUST declare \`let scene: any, camera: any, renderer: any;\` at the MODULE LEVEL (before \`export const GameScene\`) and assign them at the top of \`init()\`: \`scene = _scene; camera = _camera; renderer = _renderer;\`. Same applies to ALL variables shared between init() and update(): player, world, hud, keys, score, etc.
 33. **FATAL: Duplicate import declarations** — NEVER add a second \`import { ... } from "../config/assets-3d"\` statement anywhere in the file. ALL imports from assets-3d MUST be in the SINGLE import block at the TOP of the file (lines 1-5). Adding an import at the bottom of the file causes "Duplicate declaration" crash in Sandpack's Babel transpiler. If you need an additional function, add it to the existing top import — do NOT create a new import statement.
+34. **Manually switching animations every frame** — Do NOT call \`character.play("walk")\` inside update() without a state check. While \`play()\` is now idempotent, the BEST approach for animated characters is to use \`createCharacterController3D(character, physicsBody)\` — it handles all animation state transitions automatically based on physics velocity. Just call \`controller.update(delta)\` each frame.
 
 ## Internationalization
 

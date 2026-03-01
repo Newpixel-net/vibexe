@@ -85,7 +85,7 @@ export const SCALES_3D = {
   player: 0.8,
   enemy: 0.8,
   skeleton: 1.0,
-  animatedCharacter: 0.15, // targetHeight for createAnimatedCharacter3D (world units) — bone deformation expands ~10x at render
+  animatedCharacter: 0.15, // targetHeight for createAnimatedCharacter3D (world units) — bone deformation expands ~100x at render
   // Collectibles
   collectible: 0.5,
   coin: 0.4,
@@ -149,7 +149,7 @@ Object.assign(window, {
   CAMERA_LOOK_AHEAD, CAMERA_DISTANCE, CAMERA_HEIGHT, CAMERA_SMOOTH,
   COLLECT_DISTANCE, PLATFORM_GAP, Scene3D,
   createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D,
-  createAnimatedCharacter3D, createText3D,
+  createAnimatedCharacter3D, createCharacterController3D, createText3D,
   createPhysicsWorld, createPhysicsBody, createPhysicsGround, syncBodiesToMeshes, createContactMaterial,
   createGround3D, createSkyGradient, checkCollision, checkBoxCollision, createHUD,
   createKeyboardState, createTouchJoystick, createTapDetector, createSwipeDetector,
@@ -1507,6 +1507,11 @@ export async function createAnimatedCharacter3D(
     const clip = findClip(name);
     if (!clip) return;
     const action = mixer.clipAction(clip);
+
+    // IDEMPOTENT: If same animation is already playing, do nothing.
+    // This makes play() safe to call every frame (e.g. in update loop).
+    if (_currentAction === action && action.isRunning()) return;
+
     const loop = playOpts?.loop !== false; // default true
     action.loop = loop ? THREE.LoopRepeat : THREE.LoopOnce;
     if (!loop) action.clampWhenFinished = true;
@@ -1531,6 +1536,124 @@ export async function createAnimatedCharacter3D(
   play("idle");
 
   return { mesh, mixer, clips: clipNames, play, stop, size: halfExtents };
+}
+
+// ===== CHARACTER CONTROLLER =====
+// Automatically manages animation states based on physics velocity.
+// Handles idle/walk/run/jump/attack transitions + facing direction.
+
+/**
+ * Creates a character controller that auto-switches animations based on physics velocity.
+ * Call controller.update(delta) every frame — it syncs mesh position, faces movement direction,
+ * and transitions between idle/walk/run/jump/attack automatically.
+ *
+ * Usage:
+ *   const warrior = await createAnimatedCharacter3D(scene, 0, 3, 0, { url: ... });
+ *   const playerBody = createPhysicsBody("box", 5, {x:0, y:3, z:0}, warrior.size);
+ *   const controller = createCharacterController3D(warrior, playerBody);
+ *   // In update(): controller.update(delta);
+ *   // Attack button: controller.attack();
+ *   // Jump button: controller.jump();
+ */
+export function createCharacterController3D(
+  character: { mesh: any; play: Function; stop: Function; clips: string[] },
+  physicsBody: any,
+  opts?: {
+    walkSpeed?: number;
+    runSpeed?: number;
+    jumpAnim?: string;
+    attackAnim?: string;
+    idleAnim?: string;
+    walkAnim?: string;
+    runAnim?: string;
+  }
+): {
+  update: (delta: number) => void;
+  attack: () => void;
+  jump: () => void;
+  readonly state: string;
+} {
+  const WALK_SPEED = opts?.walkSpeed ?? 0.5;
+  const RUN_SPEED = opts?.runSpeed ?? 5;
+  const idleAnim = opts?.idleAnim ?? "idle";
+  const walkAnim = opts?.walkAnim ?? "walk";
+  const runAnim = opts?.runAnim ?? "run";
+  const jumpAnim = opts?.jumpAnim ?? "jump";
+  const attackAnim = opts?.attackAnim ?? "attack";
+
+  let state = "idle";
+  let isAttacking = false;
+  let attackTimer = 0;
+
+  function update(delta: number) {
+    // Sync mesh position to physics body
+    character.mesh.position.copy(physicsBody.position);
+
+    // Measure horizontal velocity
+    const vx = physicsBody.velocity.x;
+    const vz = physicsBody.velocity.z;
+    const hSpeed = Math.sqrt(vx * vx + vz * vz);
+
+    // Face movement direction (smooth rotation)
+    if (hSpeed > 0.3) {
+      const targetAngle = Math.atan2(vx, vz);
+      let current = character.mesh.rotation.y;
+      let diff = targetAngle - current;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      character.mesh.rotation.y += diff * Math.min(1, delta * 10);
+    }
+
+    // Attack cooldown
+    if (isAttacking) {
+      attackTimer -= delta;
+      if (attackTimer <= 0) isAttacking = false;
+      else return; // Don't switch animations during attack
+    }
+
+    // Check if grounded
+    const isGrounded = (physicsBody as any).__canJump !== false;
+    const isRising = physicsBody.velocity.y > 2;
+
+    // State machine
+    let newState = state;
+    if (!isGrounded && isRising) {
+      newState = "jump";
+    } else if (hSpeed > RUN_SPEED) {
+      newState = "run";
+    } else if (hSpeed > WALK_SPEED) {
+      newState = "walk";
+    } else {
+      newState = "idle";
+    }
+
+    if (newState !== state) {
+      state = newState;
+      if (state === "jump") {
+        character.play(jumpAnim, { loop: false, crossfade: 0.15 });
+      } else if (state === "run") {
+        character.play(runAnim, { crossfade: 0.2 });
+      } else if (state === "walk") {
+        character.play(walkAnim, { crossfade: 0.2 });
+      } else {
+        character.play(idleAnim, { crossfade: 0.3 });
+      }
+    }
+  }
+
+  function attack() {
+    if (isAttacking) return;
+    isAttacking = true;
+    attackTimer = 1.0;
+    character.play(attackAnim, { loop: false, crossfade: 0.1 });
+  }
+
+  function jump() {
+    state = "jump";
+    character.play(jumpAnim, { loop: false, crossfade: 0.15 });
+  }
+
+  return { update, attack, jump, get state() { return state; } };
 }
 
 // ===== TEXT SPRITE FACTORY =====
@@ -2171,6 +2294,168 @@ export const GameScene = {
     // Sync physics → meshes
     player.position.copy(playerBody.position);
     player.quaternion.copy(playerBody.quaternion);
+    syncBodiesToMeshes(platforms);
+
+    // Camera follow
+    camera.position.x += (player.position.x - camera.position.x) * CAMERA_LERP * delta;
+    camera.position.y += (player.position.y + CAMERA_OFFSET_Y - camera.position.y) * CAMERA_LERP * delta;
+    camera.position.z += (player.position.z + CAMERA_OFFSET_Z - camera.position.z) * CAMERA_LERP * delta;
+    camera.lookAt(player.position.x, player.position.y + CAMERA_LOOK_Y, player.position.z);
+
+    // Collect items
+    for (const c of items) {
+      if (!c.collected && player.position.distanceTo(c.mesh.position) < COLLECT_DISTANCE) {
+        c.collected = true;
+        c.mesh.visible = false;
+        score++;
+        hud.update({ score });
+      }
+      if (!c.collected) c.mesh.rotation.y += delta * 2;
+    }
+
+    // Fall off world = reset
+    if (player.position.y < -10) {
+      playerBody.position.set(0, 5, 0);
+      playerBody.velocity.set(0, 0, 0);
+    }
+  },
+
+  cleanup() {
+    destroyKb?.();
+  },
+};
+`;
+
+/**
+ * Character-aware variant of GAME_3D_SCENE_STARTER.
+ * Uses createAnimatedCharacter3D + createCharacterController3D instead of createPlayer3D.
+ * Injected when warrior/knight/fighter keywords are detected.
+ */
+export const GAME_3D_SCENE_STARTER_CHARACTER = `/**
+ * 3D Game Scene — CUSTOMIZE THIS FILE for your game!
+ *
+ * Uses animated character (warrior) with createCharacterController3D
+ * for automatic animation state management (idle/walk/run/jump/attack).
+ */
+import {
+  createPlatform3D, createCollectible3D,
+  createBarrier3D, createDecoration3D, createAnimatedCharacter3D,
+  createCharacterController3D, createText3D,
+  createPhysicsBody, syncBodiesToMeshes, createKeyboardState,
+  createGround3D, createSkyGradient, createHUD,
+  CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y,
+  COLLECT_DISTANCE, JUMP_FORCE, loadGLTF, SCALES_3D,
+} from "../config/assets-3d";
+import { modelUrl } from "../utils/media-stock-3d";
+
+const THREE = (window as any).THREE;
+const CANNON = (window as any).CANNON;
+
+// ===== Game State =====
+let scene: any, camera: any, renderer: any;
+let player: any, playerBody: any, world: any;
+let controller: any;
+let hud: any, keys: any, destroyKb: () => void;
+const platforms: { mesh: any; body: any }[] = [];
+const items: { mesh: any; collected: boolean }[] = [];
+let score = 0;
+
+export const GameScene = {
+  world: null as any,
+
+  async init(_scene: any, _camera: any, _renderer: any, container: HTMLDivElement, onProgress?: (p: number) => void) {
+    scene = _scene; camera = _camera; renderer = _renderer;
+    world = this.world;
+
+    // Sky gradient + ground plane
+    createSkyGradient(scene, 0x87CEEB, 0xE0F0FF);
+    createGround3D(scene, 100, 0x88BB66);
+    onProgress?.(0.1);
+
+    // ===== PLATFORMS =====
+    const platPositions: [number, number, number][] = [
+      [0, 0.5, 0], [5, 1, -6], [-4, 1.5, -12], [3, 2, -18], [-2, 2.5, -24],
+      [6, 3, -30], [0, 3.5, -36],
+    ];
+    const colors = ["blue", "green", "red", "yellow"] as const;
+    for (let i = 0; i < platPositions.length; i++) {
+      const [x, y, z] = platPositions[i];
+      const { mesh, size } = await createPlatform3D(scene, x, y, z, {
+        variant: "4x4x1", color: colors[i % 4],
+      });
+      const body = createPhysicsBody("box", 0, { x, y, z }, size);
+      if (world && body) world.addBody(body);
+      platforms.push({ mesh, body });
+    }
+    onProgress?.(0.3);
+
+    // ===== ANIMATED CHARACTER (warrior) =====
+    const warrior = await createAnimatedCharacter3D(scene, 0, 3, 0, {
+      url: modelUrl("meshy-characters", "Warrior_figure_Animations.glb"),
+    });
+    player = warrior.mesh;
+    playerBody = createPhysicsBody("box", 5, { x: 0, y: 3, z: 0 }, warrior.size);
+    if (world && playerBody) world.addBody(playerBody);
+
+    // Character controller — auto-manages idle/walk/run/jump/attack animations
+    controller = createCharacterController3D(warrior, playerBody);
+    onProgress?.(0.5);
+
+    // ===== COLLECTIBLES =====
+    const itemTypes = ["diamond", "star", "heart"] as const;
+    for (let i = 0; i < platPositions.length - 2; i++) {
+      const [x, , z] = platPositions[i + 1];
+      const { mesh } = await createCollectible3D(scene, x, 3 + i * 0.5, z, {
+        type: itemTypes[i % 3], color: "yellow",
+      });
+      items.push({ mesh, collected: false });
+    }
+    onProgress?.(0.7);
+
+    // ===== BARRIERS =====
+    await createBarrier3D(scene, 2, 1, -9, { variant: "2x1x4", color: "red" });
+    await createBarrier3D(scene, -3, 2, -21, { variant: "3x1x2", color: "red" });
+    onProgress?.(0.8);
+
+    // ===== DECORATIONS =====
+    await createDecoration3D(scene, -8, 0, -5, { type: "pillar_2x2x4" });
+    await createDecoration3D(scene, 10, 0, -20, { type: "structure_A" });
+    onProgress?.(0.9);
+
+    // HUD + keyboard
+    hud = createHUD(container);
+    hud.update({ score: 0 });
+    const kb = createKeyboardState();
+    keys = kb.keys;
+    destroyKb = kb.destroy;
+
+    // Jump detection
+    playerBody.addEventListener("collide", (e: any) => {
+      if (e.contact.ni.y > 0.5) (playerBody as any).__canJump = true;
+    });
+    onProgress?.(1);
+  },
+
+  update(delta: number) {
+    if (!player || !world) return;
+    world.step(1 / 60, delta, 3);
+
+    // Player movement (arrow keys + WASD)
+    const F = 50;
+    if (keys.ArrowLeft || keys.KeyA) playerBody.applyForce(new CANNON.Vec3(-F, 0, 0));
+    if (keys.ArrowRight || keys.KeyD) playerBody.applyForce(new CANNON.Vec3(F, 0, 0));
+    if (keys.ArrowUp || keys.KeyW) playerBody.applyForce(new CANNON.Vec3(0, 0, -F));
+    if (keys.ArrowDown || keys.KeyS) playerBody.applyForce(new CANNON.Vec3(0, 0, F));
+    if (keys.Space && (playerBody as any).__canJump) {
+      playerBody.velocity.y = JUMP_FORCE;
+      (playerBody as any).__canJump = false;
+      controller.jump();
+    }
+
+    // Controller handles: mesh sync, facing direction, animation states
+    controller.update(delta);
+
+    // Sync platforms
     syncBodiesToMeshes(platforms);
 
     // Camera follow
