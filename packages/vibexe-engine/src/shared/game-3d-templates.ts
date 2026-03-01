@@ -1330,38 +1330,33 @@ export async function createAnimatedCharacter3D(
     console.log("[3D] Auto-upright: rotated -90° on X (Z-up model detected)");
   }
 
-  // --- Auto-scale calculation (do NOT scale inner — scale the Group wrapper instead) ---
-  // Measure after rotation correction
+  // --- Auto-scale: scale inner directly (NOT the Group wrapper) ---
   inner.updateMatrixWorld(true);
   const corrBox = new THREE.Box3().setFromObject(inner);
   const corrSize = new THREE.Vector3();
   corrBox.getSize(corrSize);
   const actualHeight = corrSize.y || 1;
   const autoScale = targetHeight / actualHeight;
-  // IMPORTANT: inner stays at its natural tiny scale. The Group magnifies it.
-  // This prevents animation root motion from being amplified 100x+.
+  inner.scale.setScalar(autoScale);
   console.log("[3D] Auto-scale:", autoScale.toFixed(3), "(" + actualHeight.toFixed(2) + " → " + targetHeight + " units)");
 
-  // --- Pivot correction at original model scale (on a separate pivot Group) ---
-  // Using a pivot Group means animations can never override the feet-at-origin offset.
+  // --- Pivot correction AFTER scaling (offsets are in world-sized coordinates) ---
   inner.updateMatrixWorld(true);
   const pivotBox = new THREE.Box3().setFromObject(inner);
   const pivotCenter = new THREE.Vector3();
   pivotBox.getCenter(pivotCenter);
   const pivot = new THREE.Group();
   pivot.add(inner);
-  // Shift so feet (bottom of bbox) at y=0, centered horizontally
   pivot.position.set(-pivotCenter.x, -pivotBox.min.y, -pivotCenter.z);
 
-  // Wrapper Group: world position + scale (magnifies the tiny model to game-world size)
+  // Wrapper Group: world position only, scale stays at 1
   const mesh = new THREE.Group();
   mesh.add(pivot);
   mesh.position.set(x, y, z);
-  mesh.scale.setScalar(autoScale);
   if (opts.rotation !== undefined) mesh.rotation.y = opts.rotation;
   scene.add(mesh);
 
-  // Compute bounding box for physics AFTER all corrections
+  // Compute final size for physics
   mesh.updateMatrixWorld(true);
   const physBox = new THREE.Box3().setFromObject(mesh);
   const physSize = new THREE.Vector3();
@@ -1369,23 +1364,22 @@ export async function createAnimatedCharacter3D(
   const halfExtents = { x: physSize.x / 2, y: physSize.y / 2, z: physSize.z / 2 };
   console.log("[3D] Character final size:", physSize.x.toFixed(2), physSize.y.toFixed(2), physSize.z.toFixed(2));
 
-  // --- Strip root motion from animation clips ---
-  // Animations may contain position tracks on the scene root or root bone (Hips)
-  // that physically translate the character. In a game, physics/game code handles movement,
-  // so we lock these XZ values to prevent animation-driven displacement.
+  // --- Strip root motion + scale tracks from animation clips ---
   const allClips = gltf.animations || [];
   for (const clip of allClips) {
     for (let ti = clip.tracks.length - 1; ti >= 0; ti--) {
       const track = clip.tracks[ti];
-      if (!track.name.endsWith(".position")) continue;
-      const nodePath = track.name.replace(".position", "");
+      const isPos = track.name.endsWith(".position");
+      const isScale = track.name.endsWith(".scale");
+      if (!isPos && !isScale) continue;
+      const suffix = isPos ? ".position" : ".scale";
+      const nodePath = track.name.replace(suffix, "");
       const depth = nodePath === "" ? 0 : nodePath.split("/").length;
       if (depth === 0) {
-        // Scene root .position — remove entirely (no reason to animate scene root)
+        // Scene root — remove entirely (prevents overriding our autoScale or position)
         clip.tracks.splice(ti, 1);
-      } else if (depth <= 2) {
-        // Root bone or armature (e.g., "Armature.position", "Armature/Hips.position")
-        // Lock XZ to first frame, keep Y for hip bobbing
+      } else if (isPos && depth <= 2) {
+        // Root bone position: lock XZ, keep Y for hip bobbing
         if (track.values && track.values.length >= 3) {
           const firstX = track.values[0];
           const firstZ = track.values[2];
@@ -1395,7 +1389,6 @@ export async function createAnimatedCharacter3D(
           }
         }
       }
-      // Deeper bones (depth > 2) — don't touch, legitimate animation data
     }
   }
 
