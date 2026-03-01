@@ -85,7 +85,7 @@ export const SCALES_3D = {
   player: 0.8,
   enemy: 0.8,
   skeleton: 1.0,
-  animatedCharacter: 4.0, // targetHeight for createAnimatedCharacter3D (world units)
+  animatedCharacter: 1.5, // targetHeight for createAnimatedCharacter3D (world units)
   // Collectibles
   collectible: 0.5,
   coin: 0.4,
