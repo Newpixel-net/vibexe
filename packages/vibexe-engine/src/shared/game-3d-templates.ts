@@ -217,6 +217,9 @@ export function initCamera(
  *   scene.add(model);
  */
 export async function loadGLTF(url: string): Promise<any> {
+  // Auto-correct invalid model names (e.g. platform_8x4x1 → platform_4x4x1)
+  url = _autoCorrectModelUrl(url);
+
   // Use THREE.GLTFLoader if available (loaded via CDN addons), otherwise use inline fetch+parse
   if (THREE.GLTFLoader) {
     return new Promise((resolve, reject) => {
@@ -957,6 +960,7 @@ export function createSwipeDetector(
 const _modelCache3D: Map<string, any> = new Map();
 
 async function _loadOrClone(url: string): Promise<any> {
+  url = _autoCorrectModelUrl(url); // Normalize URL before cache lookup
   if (_modelCache3D.has(url)) {
     return _modelCache3D.get(url)!.clone();
   }
@@ -983,8 +987,47 @@ function _fallbackBox(w: number, h: number, d: number, color: number): any {
 }
 
 // Valid pre-manufactured KayKit model variants (DO NOT add custom ones — they won't exist on disk)
-const _VALID_PLATFORMS = ["1x1x1","2x2x1","2x2x2","2x2x4","3x3x1","4x2x1","4x2x2","4x2x4","4x4x1","4x4x2","4x4x4","6x2x1","6x2x2","6x2x4","6x6x1","6x6x2","6x6x4"];
+const _VALID_PLATFORMS = ["1x1x1","2x2x1","2x2x2","2x2x4","4x2x1","4x2x2","4x2x4","4x4x1","4x4x2","4x4x4","6x2x1","6x2x2","6x2x4","6x6x1","6x6x2","6x6x4"];
 const _VALID_BARRIERS = ["1x1x1","1x1x2","1x1x4","2x1x1","2x1x2","2x1x4","3x1x1","3x1x2","3x1x4","4x1x1","4x1x2","4x1x4"];
+
+/**
+ * Auto-correct invalid platform/barrier variant names in kaykit-platformer URLs.
+ * Belt-and-suspenders safety net: even if AI bypasses factory helpers and constructs
+ * URLs manually with arbitrary dimensions (e.g. "platform_8x4x1_red.gltf"), this
+ * function snaps them to the nearest valid model file that actually exists on disk.
+ */
+function _autoCorrectModelUrl(url: string): string {
+  const idx = url.indexOf("kaykit-platformer/Assets/gltf/");
+  if (idx < 0) return url;
+
+  const afterPack = url.substring(idx + "kaykit-platformer/Assets/gltf/".length);
+  const parts = afterPack.split("/");
+  if (parts.length !== 2) return url;
+
+  const color = parts[0];
+  const filename = parts[1]; // e.g. "platform_8x4x1_red.gltf"
+  if (color === "neutral") return url; // neutral paths don't have color suffix
+
+  const suffix = \`_\${color}.gltf\`;
+  if (!filename.endsWith(suffix)) return url;
+  const baseName = filename.slice(0, -suffix.length); // e.g. "platform_8x4x1"
+
+  if (baseName.startsWith("platform_")) {
+    const variant = baseName.slice("platform_".length);
+    const snapped = _snapVariant(variant, _VALID_PLATFORMS);
+    if (snapped !== variant) {
+      return url.substring(0, url.lastIndexOf("/") + 1) + \`platform_\${snapped}_\${color}.gltf\`;
+    }
+  } else if (baseName.startsWith("barrier_")) {
+    const variant = baseName.slice("barrier_".length);
+    const snapped = _snapVariant(variant, _VALID_BARRIERS);
+    if (snapped !== variant) {
+      return url.substring(0, url.lastIndexOf("/") + 1) + \`barrier_\${snapped}_\${color}.gltf\`;
+    }
+  }
+
+  return url;
+}
 
 function _snapVariant(variant: string, validList: string[]): string {
   if (validList.includes(variant)) return variant;
