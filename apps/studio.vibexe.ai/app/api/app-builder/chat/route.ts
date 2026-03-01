@@ -23,7 +23,7 @@ import {
 	stepCountIs,
 	streamText,
 } from "ai";
-import { createFileTools } from "@/app/(main)/app-builder/lib/file-tools";
+import { createFileTools, type FileToolsOptions } from "@/app/(main)/app-builder/lib/file-tools";
 import {
 	type ByokApiKeys,
 	resolveModel,
@@ -930,7 +930,24 @@ An App Store listing has been analyzed and injected into the project context abo
 			...otherAddenda,
 		].filter(Boolean).join("\n\n");
 
-		const allTools = createFileTools(appId);
+		// Build file creation filter options for game projects
+		let fileToolsOptions: FileToolsOptions | undefined;
+		if (isGameProject) {
+			const templateFiles = isGame3d ? GAME_3D_TEMPLATE_FILES : GAME_TEMPLATE_FILES;
+			const protectedPaths = new Set(templateFiles.map((t) => t.path));
+			const forbiddenPatterns: RegExp[] = isGame3d
+				? [
+					// 3D: Block BootScene, MenuScene, LoadingScene (with or without 3D suffix)
+					/(?:^|\/)(?:Boot|Menu|Loading|Title|Splash|Intro)Scene(?:3D)?\.ts$/i,
+				]
+				: [
+					// 2D: Block BootScene, MenuScene, LoadingScene
+					/(?:^|\/)(?:Boot|Menu|Loading|Title|Splash|Intro)Scene\.ts$/i,
+				];
+			fileToolsOptions = { protectedPaths, forbiddenPatterns };
+			console.log(`[Chat API] File filter active: ${protectedPaths.size} protected, ${forbiddenPatterns.length} forbidden patterns`);
+		}
+		const allTools = createFileTools(appId, fileToolsOptions);
 
 		// Agent-specific tool filtering: only pass tools the primary agent is allowed to use
 		const agentToolIds = primaryAgent?.tools || [];

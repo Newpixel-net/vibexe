@@ -20,14 +20,43 @@ import { applySchema, diffAndApplySchema } from "@/lib/app-database/schema-execu
 import { deleteFile, getFileByPath, saveFile } from "./queries";
 
 /**
+ * Options for file creation filtering.
+ * Used to prevent AI agents from overwriting pre-created templates
+ * or creating forbidden files (e.g. BootScene, MenuScene).
+ */
+export interface FileToolsOptions {
+	/** Paths that already exist as pre-created templates — silently skip overwrites */
+	protectedPaths?: Set<string>;
+	/** Regex patterns for files that should never be created */
+	forbiddenPatterns?: RegExp[];
+}
+
+/**
  * Create file operation tools for AI SDK.
  * These tools allow the AI to create, update, and delete files
  * during the app generation process.
  *
  * @param appId - The builder app ID (bldr_xxx) to scope operations to
+ * @param options - Optional filtering to protect templates and block forbidden files
  * @returns Object containing createFile, updateFile, deleteFile tools
  */
-export function createFileTools(appId: string) {
+export function createFileTools(appId: string, options?: FileToolsOptions) {
+	const protectedPaths = options?.protectedPaths ?? new Set<string>();
+	const forbiddenPatterns = options?.forbiddenPatterns ?? [];
+
+	/** Check if a path is forbidden — returns rejection message or null */
+	function checkForbidden(filePath: string): string | null {
+		if (protectedPaths.has(filePath)) {
+			return `File "${filePath}" is a pre-created template and cannot be overwritten. Import from it instead.`;
+		}
+		for (const pattern of forbiddenPatterns) {
+			if (pattern.test(filePath)) {
+				return `File "${filePath}" is not allowed. Game3D.tsx already provides loading screen, menu overlay, and restart. Only create GameScene3D.ts as your scene file.`;
+			}
+		}
+		return null;
+	}
+
 	return {
 		create_file: tool({
 			description:
@@ -55,6 +84,11 @@ export function createFileTools(appId: string) {
 					),
 			}),
 			execute: async ({ path, content, language }) => {
+				const blocked = checkForbidden(path);
+				if (blocked) {
+					console.log(`[FileTools] Blocked create_file: ${path}`);
+					return { success: false, action: "created", path, error: blocked };
+				}
 				try {
 					const lang = language || inferLanguage(path);
 					const file = await saveFile(appId, path, content, lang);
@@ -83,6 +117,11 @@ export function createFileTools(appId: string) {
 					),
 			}),
 			execute: async ({ path, content }) => {
+				const blocked = checkForbidden(path);
+				if (blocked) {
+					console.log(`[FileTools] Blocked update_file: ${path}`);
+					return { success: false, action: "updated", path, error: blocked };
+				}
 				try {
 					const lang = inferLanguage(path);
 					const file = await saveFile(appId, path, content, lang);
