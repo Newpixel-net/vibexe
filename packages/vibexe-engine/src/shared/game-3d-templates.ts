@@ -68,6 +68,7 @@ export const SCALES_3D = {
   player: 0.8,
   enemy: 0.8,
   skeleton: 1.0,
+  animatedCharacter: 1.0, // targetHeight for createAnimatedCharacter3D (world units)
   // Collectibles
   collectible: 0.5,
   coin: 0.4,
@@ -1281,7 +1282,7 @@ export async function createAnimatedCharacter3D(
   stop: () => void;
   size: { x: number; y: number; z: number };
 }> {
-  const targetHeight = opts.targetHeight ?? 2.0; // default 2 world units tall
+  const targetHeight = opts.targetHeight ?? SCALES_3D.animatedCharacter; // default from unified scale system
   const loader = new THREE.GLTFLoader();
 
   const gltf: any = await new Promise((resolve, reject) => {

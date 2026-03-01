@@ -870,7 +870,7 @@ const playerBody = createPhysicsBody("box", 5, { x: 0, y: 3, z: 0 }, warrior.siz
 - Death: \`warrior.play("die", { loop: false })\`
 
 Switch animations based on player input (arrow keys → run, space → jump, standing still → idle).
-The warrior mesh is ~2 units tall. Animations auto-update each frame — just call \`warrior.play()\`.
+The warrior mesh is ~1 unit tall (matches SCALES_3D system). Animations auto-update each frame — just call \`warrior.play()\`.
 
 **The starter template already uses createAnimatedCharacter3D.** Keep it. Do NOT replace with createPlayer3D.`);
 				}

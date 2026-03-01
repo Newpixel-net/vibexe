@@ -106,7 +106,7 @@ Raw \`loadGLTF(modelUrl(...))\` is only for advanced packs (city-builder, resour
 |---|---|
 | \`createAnimatedCharacter3D(scene, x, y, z, {url, targetHeight?, rotation?})\` | \`{mesh, mixer, clips, play, stop, size}\` |
 
-The helper auto-normalizes ANY GLB model: detects Z-up orientation (rotates to Y-up), auto-scales to \`targetHeight\` (default 2 units), centers pivot at feet. You do NOT need to manually set scale or rotation — just provide the URL.
+The helper auto-normalizes ANY GLB model: detects Z-up orientation (rotates to Y-up), auto-scales to \`targetHeight\` (default SCALES_3D.animatedCharacter = 1.0 unit), centers pivot at feet. Size is proportional to all other game objects via SCALES_3D. You do NOT need to manually set scale or rotation — just provide the URL.
 
 When the user wants a warrior, fighter, or realistic animated character as the PLAYER, use \`createAnimatedCharacter3D\` instead of \`createPlayer3D\`:
 
@@ -398,7 +398,7 @@ src/App.tsx                        — Imports GameScene3D and renders Game3D
 
 **AVAILABLE HELPERS FROM assets-3d.ts (COMPLETE LIST — no other functions exist):**
 **Factory Helpers (USE THESE FIRST):** \`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\` — each returns \`{ mesh, size }\`. Size = half-extents for \`createPhysicsBody()\`.
-**Animated Characters:** \`createAnimatedCharacter3D(scene, x, y, z, { url, targetHeight? })\` — loads GLB with skeletal animations, auto-normalizes orientation (Z-up → Y-up), auto-scales to targetHeight (default 2 units), centers pivot at feet. Returns \`{ mesh, mixer, clips, play, stop, size }\`. Call \`play("idle")\` to start animation (fuzzy-matches clip names). Mixer auto-updates each frame. Do NOT set manual scale — auto-scaling handles it.
+**Animated Characters:** \`createAnimatedCharacter3D(scene, x, y, z, { url, targetHeight? })\` — loads GLB with skeletal animations, auto-normalizes orientation (Z-up → Y-up), auto-scales to targetHeight (default SCALES_3D.animatedCharacter = 1.0 unit, proportional to all game objects), centers pivot at feet. Returns \`{ mesh, mixer, clips, play, stop, size }\`. Call \`play("idle")\` to start animation (fuzzy-matches clip names). Mixer auto-updates each frame. Do NOT set manual scale — auto-scaling handles it.
 **3D Text Labels:** \`createText3D("Score: 0", { x, y, z }, { size?, color?, stroke? })\` — canvas-rendered sprite for text. Returns \`{ sprite, update }\`. Call \`scene.add(sprite)\` to display. Call \`update("Score: 100")\` to change text.
 **Other Functions:** \`initRenderer\`, \`initScene\`, \`initCamera\`, \`loadGLTF\`, \`createGround3D\`, \`createSkyGradient\`, \`checkCollision\`, \`checkBoxCollision\`, \`createHUD\`, \`createKeyboardState\`, \`createPhysicsWorld\`, \`createPhysicsBody\`, \`createPhysicsGround\`, \`syncBodiesToMeshes\`, \`onClickObject\`, \`createAnimationPlayer\`, \`createOrbitControls\`, \`createTouchJoystick\`, \`createTapDetector\`, \`createSwipeDetector\`.
 **Constants:** \`SCALES_3D\`, \`TOUCH_DEADZONE\` (0.15), \`GRAVITY_3D\` (-20), \`JUMP_FORCE\` (8), \`MOVE_SPEED\` (5).
