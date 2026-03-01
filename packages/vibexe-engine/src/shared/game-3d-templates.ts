@@ -68,7 +68,7 @@ export const SCALES_3D = {
   player: 0.8,
   enemy: 0.8,
   skeleton: 1.0,
-  animatedCharacter: 1.0, // targetHeight for createAnimatedCharacter3D (world units)
+  animatedCharacter: 2.0, // targetHeight for createAnimatedCharacter3D (world units)
   // Collectibles
   collectible: 0.5,
   coin: 0.4,
@@ -1771,7 +1771,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           const delta = clock.getDelta();
           // Auto-update all animation mixers (from createAnimatedCharacter3D)
           (window as any)._updateAllMixers3D?.(delta);
-          gameScene.update(delta);
+          try { gameScene.update(delta); } catch (_e) { /* AI code error — keep rendering */ }
           renderer.render(scene, camera);
         };
         animate();
