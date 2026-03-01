@@ -143,7 +143,7 @@ The \`play()\` method is idempotent — safe to call every frame. If the same an
 |---|---|
 | \`createCharacterController3D(character, physicsBody, opts?)\` | \`{update, attack, jump, state}\` |
 
-The controller auto-manages animation states (idle/walk/run/jump/attack) based on physics velocity. It also syncs mesh position to physics body and smoothly faces the character in the movement direction.
+The controller auto-manages animation states (idle/walk/run/jump/attack) based on physics velocity OR direct mesh movement. It syncs mesh position, smoothly faces the character in movement direction, and is **auto-updated by Game3D.tsx** every frame — you don't need to call \`controller.update(delta)\` yourself (though it's safe to do so). Set \`playerBody.linearDamping = 0.9\` and \`playerBody.fixedRotation = true\` for best results.
 
 \`\`\`typescript
 const warrior = await createAnimatedCharacter3D(scene, 0, 3, 0, {
@@ -252,6 +252,8 @@ const world = this.world; // Already has gravity + ground plane
 
 // 3. Create player body (dynamic, mass=5)
 const playerBody = createPhysicsBody("sphere", 5, { x: 0, y: 5, z: 0 }, 0.5);
+playerBody.linearDamping = 0.9;  // Stop quickly when no input
+playerBody.fixedRotation = true; // Controller handles facing
 world.addBody(playerBody);
 
 // 4. Create platform bodies (static, mass=0)
@@ -275,10 +277,15 @@ playerBody.velocity.set(
   playerBody.velocity.z
 );
 
-// 8. Player movement:
-const MOVE_FORCE = 50;
-if (keys.ArrowRight) playerBody.applyForce(new CANNON.Vec3(MOVE_FORCE, 0, 0));
-if (keys.ArrowLeft) playerBody.applyForce(new CANNON.Vec3(-MOVE_FORCE, 0, 0));
+// 8. Player movement — USE VELOCITY, NOT FORCE (responsive, no sliding):
+const SPEED = 5;
+const vx = ((keys.ArrowRight || keys.KeyD) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA) ? 1 : 0);
+const vz = ((keys.ArrowDown || keys.KeyS) ? 1 : 0) - ((keys.ArrowUp || keys.KeyW) ? 1 : 0);
+if (vx || vz) {
+  const len = Math.sqrt(vx * vx + vz * vz);
+  playerBody.velocity.x = (vx / len) * SPEED;
+  playerBody.velocity.z = (vz / len) * SPEED;
+}
 
 // 9. Detect ground contact for jump:
 playerBody.addEventListener("collide", (e: any) => {
@@ -553,7 +560,7 @@ You just implement \`init()\` and \`update()\`. The rest is automatic.
 - **Physics**: \`world = this.world\` (auto-created) + player sphere body + static platform box bodies
 - Platforms at various heights — use KayKit platform models with matching physics boxes
 - Jump via \`playerBody.velocity.y = JUMP_FORCE\` when \`canJump\` (set by collision event)
-- Movement via \`playerBody.applyForce()\` + velocity clamping for responsive controls
+- Movement via \`playerBody.velocity.x = speed\` (NOT applyForce — force is sluggish and causes sliding)
 - Collectibles floating above platforms — distance check only (no physics body needed)
 - Enemies: simple patrol AI (move back and forth on platform)
 - Camera: follows player with lerp for smooth movement
@@ -683,7 +690,7 @@ export const GameScene = {
     player = playerMesh;
 
     playerBody = createPhysicsBody("sphere", 5, { x: 0, y: 2, z: 0 }, playerSize.x);
-    playerBody.linearDamping = 0.3; // Slight friction to prevent sliding
+    playerBody.linearDamping = 0.9; // Stop quickly when no input (prevents sliding)
     playerBody.angularDamping = 1.0; // Prevent rolling
     playerBody.fixedRotation = true; // No tumbling
     world.addBody(playerBody);
@@ -749,8 +756,7 @@ export const GameScene = {
   update(delta: number) {
     if (gameOver || !player || !world) return;
 
-    // === Movement via physics forces (keyboard + touch joystick) ===
-    const MOVE_FORCE = PLAYER_SPEED * 10;
+    // === Movement via VELOCITY (instant, responsive, no sliding) ===
     let moveX = ((keyboard.keys.ArrowRight || keyboard.keys.KeyD) ? 1 : 0) -
                 ((keyboard.keys.ArrowLeft || keyboard.keys.KeyA) ? 1 : 0);
     let moveZ = ((keyboard.keys.ArrowUp || keyboard.keys.KeyW) ? 1 : 0) -
@@ -764,19 +770,8 @@ export const GameScene = {
 
     if (moveX !== 0 || moveZ !== 0) {
       const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
-      playerBody.applyForce(
-        new CANNON.Vec3((moveX / len) * MOVE_FORCE, 0, -(moveZ / len) * MOVE_FORCE),
-      );
-    }
-
-    // Clamp horizontal velocity
-    const maxSpeed = PLAYER_SPEED;
-    const vx = playerBody.velocity.x;
-    const vz = playerBody.velocity.z;
-    const hSpeed = Math.sqrt(vx * vx + vz * vz);
-    if (hSpeed > maxSpeed) {
-      playerBody.velocity.x = (vx / hSpeed) * maxSpeed;
-      playerBody.velocity.z = (vz / hSpeed) * maxSpeed;
+      playerBody.velocity.x = (moveX / len) * PLAYER_SPEED;
+      playerBody.velocity.z = -(moveZ / len) * PLAYER_SPEED;
     }
 
     // === Jump ===
@@ -903,7 +898,8 @@ const cleanupTap = createTapDetector(container, (x, y, isLeft) => {
 
 // In update():
 if (joystick.active) {
-  playerBody.applyForce(new CANNON.Vec3(joystick.x * MOVE_FORCE, 0, -joystick.y * MOVE_FORCE));
+  playerBody.velocity.x = joystick.x * PLAYER_SPEED;
+  playerBody.velocity.z = -joystick.y * PLAYER_SPEED;
 }
 
 // In cleanup():
@@ -1006,7 +1002,9 @@ ${GAME_3D_ASSETS_REFERENCE}
 31. **Using raw loadGLTF for standard objects** — Do NOT manually construct \`loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/blue/platform_4x4x1_blue.gltf"))\` for platforms, collectibles, players, barriers, or decorations. USE the factory helpers: \`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`. They handle URL construction, caching, scaling, positioning, fallbacks, and return \`{mesh, size}\` for physics. Raw \`loadGLTF\` is only for advanced packs (city-builder, resource-bits, skeletons).
 32. **FATAL: "camera is not defined" in update()** — The #1 crash. \`init()\` and \`update()\` are SEPARATE methods on an object literal — they do NOT share a closure. If you declare \`camera\` as a parameter of \`init()\`, it is NOT accessible in \`update()\`. You MUST declare \`let scene: any, camera: any, renderer: any;\` at the MODULE LEVEL (before \`export const GameScene\`) and assign them at the top of \`init()\`: \`scene = _scene; camera = _camera; renderer = _renderer;\`. Same applies to ALL variables shared between init() and update(): player, world, hud, keys, score, etc.
 33. **FATAL: Duplicate import declarations** — NEVER add a second \`import { ... } from "../config/assets-3d"\` statement anywhere in the file. ALL imports from assets-3d MUST be in the SINGLE import block at the TOP of the file (lines 1-5). Adding an import at the bottom of the file causes "Duplicate declaration" crash in Sandpack's Babel transpiler. If you need an additional function, add it to the existing top import — do NOT create a new import statement.
-34. **Manually switching animations every frame** — Do NOT call \`character.play("walk")\` inside update() without a state check. While \`play()\` is now idempotent, the BEST approach for animated characters is to use \`createCharacterController3D(character, physicsBody)\` — it handles all animation state transitions automatically based on physics velocity. Just call \`controller.update(delta)\` each frame.
+34. **Manually switching animations every frame** — Do NOT call \`character.play("walk")\` inside update() without a state check. While \`play()\` is now idempotent, the BEST approach for animated characters is to use \`createCharacterController3D(character, physicsBody)\` — it handles all animation state transitions automatically based on physics velocity. The controller is auto-updated by Game3D.tsx — you don't even need to call \`controller.update(delta)\` yourself (though it's fine if you do).
+35. **Using applyForce() for player movement** — NEVER use \`playerBody.applyForce()\` for player characters. Force-based movement is sluggish (takes frames to build velocity) and causes infinite sliding (character keeps moving after releasing keys). Use VELOCITY instead: \`playerBody.velocity.x = speed\`. Set \`playerBody.linearDamping = 0.9\` to auto-stop. Also set \`playerBody.fixedRotation = true\` so physics doesn't spin the character. The character controller handles facing direction separately.
+36. **Moving mesh directly instead of physics body** — If you have a physics body, ALWAYS move via \`playerBody.velocity.x = speed\`, NOT \`mesh.position.x += speed * delta\`. Direct mesh movement bypasses physics (no collisions) and the character controller uses physics velocity for animation states. The controller CAN detect mesh movement as fallback, but physics velocity is preferred.
 
 ## Internationalization
 

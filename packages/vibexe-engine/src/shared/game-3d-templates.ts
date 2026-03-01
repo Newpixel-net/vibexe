@@ -994,6 +994,16 @@ function _updateAllMixers3D(delta: number) {
 }
 (window as any)._updateAllMixers3D = _updateAllMixers3D;
 
+// Auto-update character controllers — Game3D.tsx calls this every frame.
+// Even if the AI forgets to call controller.update(delta) in its update loop,
+// the framework still handles animation state transitions automatically.
+const _activeControllers3D: Array<{ update: (delta: number) => void }> = [];
+function _updateAllControllers3D(delta: number) {
+  for (const ctrl of _activeControllers3D) ctrl.update(delta);
+}
+(window as any)._activeControllers3D = _activeControllers3D;
+(window as any)._updateAllControllers3D = _updateAllControllers3D;
+
 // ===== 3D FACTORY HELPERS — Force GLTF model loading =====
 // These make it EASIER to use real KayKit models than to write raw geometry.
 // Each factory: build URL → load GLTF (cached) → scale → position → add to scene → return {mesh, size}.
@@ -1584,24 +1594,52 @@ export function createCharacterController3D(
   let state = "idle";
   let isAttacking = false;
   let attackTimer = 0;
+  // Track mesh position for direct-movement detection (AI may move mesh without physics)
+  let lastMeshX = character.mesh.position.x;
+  let lastMeshZ = character.mesh.position.z;
+  // Frame guard: prevent double-update if AI also calls controller.update()
+  let _lastUpdateMs = 0;
 
   function update(delta: number) {
-    // Sync mesh position to physics body
-    character.mesh.position.copy(physicsBody.position);
+    if (delta <= 0) return;
+    const now = performance.now();
+    if (now - _lastUpdateMs < 4) return; // Already updated this frame (16ms frame = 4ms threshold)
+    _lastUpdateMs = now;
 
-    // Measure horizontal velocity
-    const vx = physicsBody.velocity.x;
-    const vz = physicsBody.velocity.z;
-    const hSpeed = Math.sqrt(vx * vx + vz * vz);
+    // Sync mesh position to physics body (only if physics body moved)
+    const physVx = physicsBody.velocity.x;
+    const physVz = physicsBody.velocity.z;
+    const physSpeed = Math.sqrt(physVx * physVx + physVz * physVz);
+
+    if (physSpeed > 0.05) {
+      // Physics body is moving — sync mesh to it
+      character.mesh.position.copy(physicsBody.position);
+    }
+    // If physics velocity is near-zero, AI may be moving mesh directly — let it
+
+    // Detect movement from EITHER physics velocity OR direct mesh movement
+    const meshDx = character.mesh.position.x - lastMeshX;
+    const meshDz = character.mesh.position.z - lastMeshZ;
+    const meshSpeed = Math.sqrt(meshDx * meshDx + meshDz * meshDz) / Math.max(delta, 0.001);
+    lastMeshX = character.mesh.position.x;
+    lastMeshZ = character.mesh.position.z;
+
+    // Use whichever speed is higher — handles both physics and direct-movement patterns
+    const hSpeed = Math.max(physSpeed, meshSpeed);
 
     // Face movement direction (smooth rotation)
     if (hSpeed > 0.3) {
-      const targetAngle = Math.atan2(vx, vz);
-      let current = character.mesh.rotation.y;
-      let diff = targetAngle - current;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      character.mesh.rotation.y += diff * Math.min(1, delta * 10);
+      // Prefer physics velocity direction, fallback to mesh delta direction
+      const dirX = physSpeed > 0.3 ? physVx : meshDx;
+      const dirZ = physSpeed > 0.3 ? physVz : meshDz;
+      if (Math.abs(dirX) > 0.01 || Math.abs(dirZ) > 0.01) {
+        const targetAngle = Math.atan2(dirX, dirZ);
+        let current = character.mesh.rotation.y;
+        let diff = targetAngle - current;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        character.mesh.rotation.y += diff * Math.min(1, delta * 10);
+      }
     }
 
     // Attack cooldown
@@ -1652,6 +1690,10 @@ export function createCharacterController3D(
     state = "jump";
     character.play(jumpAnim, { loop: false, crossfade: 0.15 });
   }
+
+  // Auto-register for framework-level updates — Game3D.tsx calls _updateAllControllers3D
+  // every frame, so animations work even if AI forgets controller.update() in its update loop.
+  _activeControllers3D.push({ update });
 
   return { update, attack, jump, get state() { return state; } };
 }
@@ -2007,6 +2049,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           // Auto-update all animation mixers (from createAnimatedCharacter3D)
           (window as any)._updateAllMixers3D?.(delta);
           try { gameScene.update(delta); } catch (_e) { /* AI code error — keep rendering */ }
+          // Auto-update character controllers AFTER gameScene.update() — this reads
+          // the velocity/position set by AI code and auto-switches idle/walk/run/jump.
+          // Works as safety net even if AI doesn't call controller.update() itself.
+          (window as any)._updateAllControllers3D?.(delta);
           renderer.render(scene, camera);
         };
         animate();
@@ -2238,6 +2284,11 @@ export const GameScene = {
     const { mesh: pm, size: ps } = await createPlayer3D(scene, 0, 3, 0, { color: "blue" });
     player = pm;
     playerBody = createPhysicsBody("sphere", 5, { x: 0, y: 3, z: 0 }, ps.x);
+    if (playerBody) {
+      playerBody.linearDamping = 0.9;
+      playerBody.angularDamping = 1.0;
+      playerBody.fixedRotation = true;
+    }
     if (world && playerBody) world.addBody(playerBody);
     onProgress?.(0.5);
 
@@ -2280,12 +2331,15 @@ export const GameScene = {
     if (!player || !world) return;
     world.step(1 / 60, delta, 3);
 
-    // Player movement (arrow keys + WASD)
-    const F = 50;
-    if (keys.ArrowLeft || keys.KeyA) playerBody.applyForce(new CANNON.Vec3(-F, 0, 0));
-    if (keys.ArrowRight || keys.KeyD) playerBody.applyForce(new CANNON.Vec3(F, 0, 0));
-    if (keys.ArrowUp || keys.KeyW) playerBody.applyForce(new CANNON.Vec3(0, 0, -F));
-    if (keys.ArrowDown || keys.KeyS) playerBody.applyForce(new CANNON.Vec3(0, 0, F));
+    // Player movement — VELOCITY-BASED (instant, responsive, no sliding)
+    const SPEED = 5;
+    const vx = ((keys.ArrowRight || keys.KeyD) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA) ? 1 : 0);
+    const vz = ((keys.ArrowDown || keys.KeyS) ? 1 : 0) - ((keys.ArrowUp || keys.KeyW) ? 1 : 0);
+    if (vx !== 0 || vz !== 0) {
+      const len = Math.sqrt(vx * vx + vz * vz);
+      playerBody.velocity.x = (vx / len) * SPEED;
+      playerBody.velocity.z = (vz / len) * SPEED;
+    }
     if (keys.Space && (playerBody as any).__canJump) {
       playerBody.velocity.y = JUMP_FORCE;
       (playerBody as any).__canJump = false;
@@ -2395,6 +2449,11 @@ export const GameScene = {
     });
     player = warrior.mesh;
     playerBody = createPhysicsBody("box", 5, { x: 0, y: 3, z: 0 }, warrior.size);
+    if (playerBody) {
+      playerBody.linearDamping = 0.9; // Stop quickly when no input (prevents infinite sliding)
+      playerBody.angularDamping = 1.0; // Prevent unwanted rotation
+      playerBody.fixedRotation = true; // Controller handles facing direction
+    }
     if (world && playerBody) world.addBody(playerBody);
 
     // Character controller — auto-manages idle/walk/run/jump/attack animations
@@ -2440,12 +2499,17 @@ export const GameScene = {
     if (!player || !world) return;
     world.step(1 / 60, delta, 3);
 
-    // Player movement (arrow keys + WASD)
-    const F = 50;
-    if (keys.ArrowLeft || keys.KeyA) playerBody.applyForce(new CANNON.Vec3(-F, 0, 0));
-    if (keys.ArrowRight || keys.KeyD) playerBody.applyForce(new CANNON.Vec3(F, 0, 0));
-    if (keys.ArrowUp || keys.KeyW) playerBody.applyForce(new CANNON.Vec3(0, 0, -F));
-    if (keys.ArrowDown || keys.KeyS) playerBody.applyForce(new CANNON.Vec3(0, 0, F));
+    // Player movement — VELOCITY-BASED for instant, responsive walking
+    // (Force-based movement is sluggish and causes sliding)
+    const SPEED = 5;
+    const vx = ((keys.ArrowRight || keys.KeyD) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA) ? 1 : 0);
+    const vz = ((keys.ArrowDown || keys.KeyS) ? 1 : 0) - ((keys.ArrowUp || keys.KeyW) ? 1 : 0);
+    if (vx !== 0 || vz !== 0) {
+      // Normalize diagonal movement
+      const len = Math.sqrt(vx * vx + vz * vz);
+      playerBody.velocity.x = (vx / len) * SPEED;
+      playerBody.velocity.z = (vz / len) * SPEED;
+    }
     if (keys.Space && (playerBody as any).__canJump) {
       playerBody.velocity.y = JUMP_FORCE;
       (playerBody as any).__canJump = false;

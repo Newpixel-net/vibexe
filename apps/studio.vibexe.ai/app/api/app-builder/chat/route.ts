@@ -829,7 +829,8 @@ After creating ALL files, end with a short summary. If the app has auth, include
 4. Do NOT use raw \`new THREE.BoxGeometry()\`, \`new THREE.SphereGeometry()\`, or \`new THREE.CylinderGeometry()\` for visible game objects — use factory helpers instead
 5. Factory helpers handle GLTF model loading, URL construction, caching, scaling, and fallbacks automatically
 6. For animated characters (meshy-characters pack), use \`createAnimatedCharacter3D(scene, x, y, z, { url: modelUrl("meshy-characters", "Warrior_figure_Animations.glb") })\` — returns \`{mesh, mixer, clips, play, stop, size}\`
-7. For animated characters, ALWAYS use \`createCharacterController3D(character, physicsBody)\` to manage animation states. Call \`controller.update(delta)\` in update(). The controller auto-switches idle/walk/run/jump/attack based on physics velocity.
+7. For animated characters, ALWAYS use \`createCharacterController3D(character, physicsBody)\` to manage animation states. The controller is AUTO-UPDATED by Game3D.tsx — you do NOT need to call \`controller.update(delta)\` yourself. It auto-switches idle/walk/run/jump/attack.
+8. ALWAYS use VELOCITY for player movement: \`playerBody.velocity.x = speed\`. NEVER use \`playerBody.applyForce()\` — force is sluggish and causes infinite sliding. Set \`playerBody.linearDamping = 0.9\` and \`playerBody.fixedRotation = true\` on the player body after creating it.
 
 **MINIMUM**: Your GameScene3D.ts must call at least 5 different factory helpers. Every platform, collectible, player, barrier, and decoration MUST use the corresponding factory.`);
 
@@ -859,7 +860,8 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 - Access Three.js via global: \`const THREE = (window as any).THREE;\` — do NOT import from "three"
 - **Use factory helpers** (\`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`, \`createAnimatedCharacter3D\`, \`createCharacterController3D\`, \`createText3D\`) for ALL visible game objects — they load real GLTF models
 - \`createText3D("Score: 0", {x, y, z}, {size, color, stroke})\` for 3D text labels — returns \`{sprite, update}\`. Call \`scene.add(sprite)\` or pass scene as first arg
-- For animated characters from meshy-characters pack, use \`createAnimatedCharacter3D\` which returns \`{mesh, mixer, clips, play, stop, size}\` — animations auto-update in render loop. Use \`createCharacterController3D(character, physicsBody)\` for automatic animation state management (idle/walk/run/jump/attack)
+- For animated characters from meshy-characters pack, use \`createAnimatedCharacter3D\` which returns \`{mesh, mixer, clips, play, stop, size}\` — animations auto-update in render loop. Use \`createCharacterController3D(character, physicsBody)\` for automatic animation state management (idle/walk/run/jump/attack) — the controller is AUTO-UPDATED by Game3D.tsx
+- **MOVEMENT**: ALWAYS use \`playerBody.velocity.x = speed\` for player movement, NEVER \`playerBody.applyForce()\`. Set \`playerBody.linearDamping = 0.9\` and \`playerBody.fixedRotation = true\` on player body
 - Use \`loadGLTF(modelUrl(packId, filename))\` ONLY for advanced packs (city-builder, resource-bits, skeletons)
 - The package.json already includes \`"three": "^0.162.0"\` — do NOT recreate it`);
 			} else {
