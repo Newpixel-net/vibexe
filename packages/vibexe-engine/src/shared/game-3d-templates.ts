@@ -1272,7 +1272,7 @@ export async function createDecoration3D(
  */
 export async function createAnimatedCharacter3D(
   scene: any, x: number, y: number, z: number,
-  opts: { url: string; scale?: number; rotation?: number },
+  opts: { url: string; scale?: number; rotation?: number; targetHeight?: number },
 ): Promise<{
   mesh: any;
   mixer: any;
@@ -1281,7 +1281,7 @@ export async function createAnimatedCharacter3D(
   stop: () => void;
   size: { x: number; y: number; z: number };
 }> {
-  const scale = opts.scale || 1.0;
+  const targetHeight = opts.targetHeight ?? 2.0; // default 2 world units tall
   const loader = new THREE.GLTFLoader();
 
   const gltf: any = await new Promise((resolve, reject) => {
@@ -1289,26 +1289,65 @@ export async function createAnimatedCharacter3D(
   });
   console.log("[3D] Loaded animated GLB:", opts.url, "clips:", gltf.animations?.length || 0);
 
-  const mesh = gltf.scene;
-  mesh.scale.setScalar(scale);
-  mesh.position.set(x, y, z);
-  if (opts.rotation !== undefined) mesh.rotation.y = opts.rotation;
-  mesh.traverse((child: any) => {
+  const inner = gltf.scene;
+  inner.traverse((child: any) => {
     if (child.isMesh) {
       child.castShadow = true;
       child.receiveShadow = true;
     }
   });
+
+  // --- Auto-upright detection ---
+  // Measure raw bounding box before any transforms
+  const rawBox = new THREE.Box3().setFromObject(inner);
+  const rawSize = new THREE.Vector3();
+  rawBox.getSize(rawSize);
+  console.log("[3D] Raw model size:", rawSize.x.toFixed(2), rawSize.y.toFixed(2), rawSize.z.toFixed(2));
+
+  // If the model is "lying flat" (Y is the smallest axis and X or Z is taller),
+  // it was exported Z-up. Rotate -90° on X to stand it upright.
+  const maxHoriz = Math.max(rawSize.x, rawSize.z);
+  if (rawSize.y < maxHoriz * 0.5) {
+    inner.rotation.x = -Math.PI / 2;
+    console.log("[3D] Auto-upright: rotated -90° on X (Z-up model detected)");
+  }
+
+  // --- Auto-scale to target height ---
+  // Re-measure after rotation correction (need to update matrix first)
+  inner.updateMatrixWorld(true);
+  const corrBox = new THREE.Box3().setFromObject(inner);
+  const corrSize = new THREE.Vector3();
+  corrBox.getSize(corrSize);
+  const actualHeight = corrSize.y || 1;
+  const autoScale = (opts.scale != null) ? opts.scale : (targetHeight / actualHeight);
+  inner.scale.setScalar(autoScale);
+  console.log("[3D] Auto-scale:", autoScale.toFixed(3), "(" + actualHeight.toFixed(2) + " → " + targetHeight + " units)");
+
+  // --- Pivot correction: center horizontally, feet at y=0 ---
+  inner.updateMatrixWorld(true);
+  const finalBox = new THREE.Box3().setFromObject(inner);
+  const center = new THREE.Vector3();
+  finalBox.getCenter(center);
+  // Shift so feet (bottom of bbox) are at local y=0 and horizontally centered
+  inner.position.set(-center.x, -finalBox.min.y, -center.z);
+
+  // Wrap in container Group so world position/rotation are clean
+  const mesh = new THREE.Group();
+  mesh.add(inner);
+  mesh.position.set(x, y, z);
+  if (opts.rotation !== undefined) mesh.rotation.y = opts.rotation;
   scene.add(mesh);
 
-  // Compute bounding box for physics
-  const box = new THREE.Box3().setFromObject(mesh);
-  const sz = new THREE.Vector3();
-  box.getSize(sz);
-  const halfExtents = { x: sz.x / 2, y: sz.y / 2, z: sz.z / 2 };
+  // Compute bounding box for physics AFTER all corrections
+  mesh.updateMatrixWorld(true);
+  const physBox = new THREE.Box3().setFromObject(mesh);
+  const physSize = new THREE.Vector3();
+  physBox.getSize(physSize);
+  const halfExtents = { x: physSize.x / 2, y: physSize.y / 2, z: physSize.z / 2 };
+  console.log("[3D] Character final size:", physSize.x.toFixed(2), physSize.y.toFixed(2), physSize.z.toFixed(2));
 
-  // Animation setup
-  const mixer = new THREE.AnimationMixer(mesh);
+  // Animation setup — mixer targets inner (gltf.scene with bones), not the wrapper Group
+  const mixer = new THREE.AnimationMixer(inner);
   _activeMixers3D.push(mixer);
 
   const clipMap: Record<string, any> = {};

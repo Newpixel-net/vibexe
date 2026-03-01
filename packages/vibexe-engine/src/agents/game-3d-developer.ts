@@ -104,7 +104,9 @@ Raw \`loadGLTF(modelUrl(...))\` is only for advanced packs (city-builder, resour
 
 | Function | Returns |
 |---|---|
-| \`createAnimatedCharacter3D(scene, x, y, z, {url, scale?, rotation?})\` | \`{mesh, mixer, clips, play, stop, size}\` |
+| \`createAnimatedCharacter3D(scene, x, y, z, {url, targetHeight?, rotation?})\` | \`{mesh, mixer, clips, play, stop, size}\` |
+
+The helper auto-normalizes ANY GLB model: detects Z-up orientation (rotates to Y-up), auto-scales to \`targetHeight\` (default 2 units), centers pivot at feet. You do NOT need to manually set scale or rotation — just provide the URL.
 
 When the user wants a warrior, fighter, or realistic animated character as the PLAYER, use \`createAnimatedCharacter3D\` instead of \`createPlayer3D\`:
 
@@ -114,7 +116,7 @@ import { modelUrl } from "../utils/media-stock-3d";
 
 const warrior = await createAnimatedCharacter3D(scene, 0, 0, 0, {
   url: modelUrl("meshy-characters", "Warrior_figure_Animations.glb"),
-  scale: 1.0,
+  // Auto-scales to 2 units tall, auto-detects orientation. No manual scale needed.
 });
 warrior.play("idle"); // Start idle animation
 
@@ -396,7 +398,7 @@ src/App.tsx                        — Imports GameScene3D and renders Game3D
 
 **AVAILABLE HELPERS FROM assets-3d.ts (COMPLETE LIST — no other functions exist):**
 **Factory Helpers (USE THESE FIRST):** \`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\` — each returns \`{ mesh, size }\`. Size = half-extents for \`createPhysicsBody()\`.
-**Animated Characters:** \`createAnimatedCharacter3D(scene, x, y, z, { url })\` — loads GLB with skeletal animations, returns \`{ mesh, mixer, clips, play, stop, size }\`. Call \`play("idle")\` to start animation (fuzzy-matches clip names). Mixer auto-updates each frame.
+**Animated Characters:** \`createAnimatedCharacter3D(scene, x, y, z, { url, targetHeight? })\` — loads GLB with skeletal animations, auto-normalizes orientation (Z-up → Y-up), auto-scales to targetHeight (default 2 units), centers pivot at feet. Returns \`{ mesh, mixer, clips, play, stop, size }\`. Call \`play("idle")\` to start animation (fuzzy-matches clip names). Mixer auto-updates each frame. Do NOT set manual scale — auto-scaling handles it.
 **3D Text Labels:** \`createText3D("Score: 0", { x, y, z }, { size?, color?, stroke? })\` — canvas-rendered sprite for text. Returns \`{ sprite, update }\`. Call \`scene.add(sprite)\` to display. Call \`update("Score: 100")\` to change text.
 **Other Functions:** \`initRenderer\`, \`initScene\`, \`initCamera\`, \`loadGLTF\`, \`createGround3D\`, \`createSkyGradient\`, \`checkCollision\`, \`checkBoxCollision\`, \`createHUD\`, \`createKeyboardState\`, \`createPhysicsWorld\`, \`createPhysicsBody\`, \`createPhysicsGround\`, \`syncBodiesToMeshes\`, \`onClickObject\`, \`createAnimationPlayer\`, \`createOrbitControls\`, \`createTouchJoystick\`, \`createTapDetector\`, \`createSwipeDetector\`.
 **Constants:** \`SCALES_3D\`, \`TOUCH_DEADZONE\` (0.15), \`GRAVITY_3D\` (-20), \`JUMP_FORCE\` (8), \`MOVE_SPEED\` (5).
