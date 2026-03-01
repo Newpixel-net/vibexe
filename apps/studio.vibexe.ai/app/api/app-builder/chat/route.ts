@@ -954,8 +954,8 @@ An App Store listing has been analyzed and injected into the project context abo
 			const protectedPaths = new Set(templateFiles.map((t) => t.path));
 			const forbiddenPatterns: RegExp[] = isGame3d
 				? [
-					// 3D: Block Title/Splash/Intro scenes (Boot/Menu/Loading allowed as helper files)
-					/(?:^|\/)(?:Title|Splash|Intro)Scene(?:3D)?\.ts$/i,
+					// 3D: Block ALL helper scenes — Game3D.tsx provides loading/menu/restart
+					/(?:^|\/)(?:Boot|Menu|Loading|Title|Splash|Intro|Main)Scene(?:3D)?\.ts$/i,
 				]
 				: [
 					// 2D: Block BootScene, MenuScene, LoadingScene
@@ -968,8 +968,6 @@ An App Store listing has been analyzed and injected into the project context abo
 					["src/scenes/GameScene.ts", "src/scenes/GameScene3D.ts"],
 					["src/scenes/Game3DScene.ts", "src/scenes/GameScene3D.ts"],
 					["src/scenes/GameScene3d.ts", "src/scenes/GameScene3D.ts"],
-					// Note: BootScene/MenuScene/LoadingScene are allowed as helper files
-					// (AI creates multi-scene architectures that import from each other)
 					// GameOver name corrections
 					["src/scenes/GameOverScene.ts", "src/scenes/GameOverScene3D.ts"],
 					["src/scenes/GameOver.ts", "src/scenes/GameOverScene3D.ts"],
@@ -987,8 +985,7 @@ An App Store listing has been analyzed and injected into the project context abo
 				? [
 					/^docs\//, // Any doc file
 					/^src\/config\/constants\.ts$/, // Game constants
-					/^src\/scenes\/GameScene3D\.ts$/, // Main scene
-					/^src\/scenes\/(?:Boot|Menu|Loading|Main)Scene(?:3D)?\.ts$/i, // Helper scenes (AI multi-scene architecture)
+					/^src\/scenes\/GameScene3D\.ts$/, // Main scene (ONLY scene AI should create)
 					/^src\/objects\//, // Optional: Player.ts, Enemy.ts
 					/^src\/utils\/level-builder\.ts$/, // Optional: level generation
 				]
@@ -1118,26 +1115,6 @@ An App Store listing has been analyzed and injected into the project context abo
 				console.log(
 					`[Chat API] Stream finished - Chat: ${chatId || "new"}, steps=${stepCount}, files=${totalFileCalls}, maxSteps=${maxSteps}, finishReason=${event.finishReason}${generationError ? ", hadError=true" : ""}`,
 				);
-
-				// 3D game post-processing: if AI created helper scenes (BootScene, MainScene)
-				// but NOT GameScene3D.ts, create a re-export shim so App.tsx's import works
-				if (isGame3d && totalFileCalls > 0 && !generationError) {
-					const hasGameScene3D = filesChanged.some((f) => f.endsWith("GameScene3D.ts"));
-					if (!hasGameScene3D) {
-						const helperScenes = ["BootScene", "MainScene", "LoadingScene", "MenuScene"];
-						const createdHelper = helperScenes.find((name) =>
-							filesChanged.some((f) => f.includes(name)),
-						);
-						if (createdHelper) {
-							const shimContent = `// Auto-generated shim — AI created ${createdHelper}.ts instead of GameScene3D.ts\nexport * from "./${createdHelper}";\nexport { default } from "./${createdHelper}";\n`;
-							saveFile(appId, "src/scenes/GameScene3D.ts", shimContent, "typescript").then(() => {
-								console.log(`[Chat API] Created GameScene3D.ts shim → re-exports from ${createdHelper}.ts`);
-							}).catch((e) => {
-								console.error(`[Chat API] Failed to create GameScene3D shim:`, e);
-							});
-						}
-					}
-				}
 
 				// Sync wiki pages (fire-and-forget, zero token cost)
 				// Skip wiki sync if the stream errored mid-generation (would create misleading docs)

@@ -69,7 +69,7 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 		for (const pattern of forbiddenPatterns) {
 			if (pattern.test(filePath)) {
 				console.log(`[FileTools] BLOCKED forbidden pattern: ${filePath}`);
-				return `File "${filePath}" is not allowed. Game3D.tsx already provides loading screen, menu overlay, and restart. Create GameScene3D.ts as your main scene. Helper scenes (BootScene, MenuScene, LoadingScene) are allowed.`;
+				return `File "${filePath}" is BLOCKED. Do NOT create BootScene, MenuScene, or LoadingScene — Game3D.tsx already provides loading/menu/restart. Put ALL game logic in src/scenes/GameScene3D.ts. Only import from: ../config/assets-3d, ../utils/media-stock-3d, ../scenes/GameOverScene3D, ../config/constants.`;
 			}
 		}
 		// Allowlist: if set, only matching paths can be created
@@ -77,7 +77,7 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 			const isAllowed = allowedPathPatterns.some((p) => p.test(filePath));
 			if (!isAllowed) {
 				console.log(`[FileTools] BLOCKED by allowlist: ${filePath}`);
-				return `File "${filePath}" is not in the allowed file list. Allowed: src/scenes/GameScene3D.ts, src/scenes/BootScene.ts, src/scenes/MenuScene.ts, src/config/constants.ts, src/objects/*.ts, and docs/. Put game logic in GameScene3D.ts.`;
+				return `File "${filePath}" is not allowed. Only create: src/scenes/GameScene3D.ts, src/config/constants.ts, docs/*.md, src/objects/*.ts, src/utils/level-builder.ts. Put ALL game logic in GameScene3D.ts.`;
 			}
 		}
 		return null;
