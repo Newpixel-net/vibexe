@@ -1012,13 +1012,23 @@ An App Store listing has been analyzed and injected into the project context abo
 			const allowedPathPatterns: RegExp[] = isGame3d
 				? [
 					/^docs\//, // Any doc file
-					/^src\/config\/constants\.ts$/, // Game constants
+					/^src\/config\/constants(?:-3d)?\.ts$/, // Game constants (+ re-export shim)
 					/^src\/scenes\/GameScene3D\.ts$/, // Main scene (ONLY scene AI should create)
 					/^src\/objects\//, // Optional: Player.ts, Enemy.ts
 					/^src\/utils\/level-builder\.ts$/, // Optional: level generation
 				]
 				: [];
-			fileToolsOptions = { protectedPaths, forbiddenPatterns, pathRewrites, allowedPathPatterns };
+			// Import path rewrites: fix import references that don't match path-rewritten filenames
+			const importRewrites: [RegExp, string][] = isGame3d
+				? [
+					// AI writes import from "constants-3d" but file is rewritten to "constants"
+					[/from\s+"\.\.\/config\/constants-3d"/g, 'from "../config/constants"'],
+					[/from\s+'\.\.\/config\/constants-3d'/g, "from '../config/constants'"],
+					[/from\s+"\.\/constants-3d"/g, 'from "./constants"'],
+					[/from\s+'\.\/constants-3d'/g, "from './constants'"],
+				]
+				: [];
+			fileToolsOptions = { protectedPaths, forbiddenPatterns, pathRewrites, allowedPathPatterns, importRewrites };
 			console.log(`[Chat API] File filter active: ${protectedPaths.size} protected, ${forbiddenPatterns.length} forbidden, ${pathRewrites.size} rewrites, ${allowedPathPatterns.length} allowed patterns`);
 		}
 		const allTools = createFileTools(appId, fileToolsOptions);

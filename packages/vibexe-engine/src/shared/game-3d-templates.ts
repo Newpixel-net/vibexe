@@ -1552,6 +1552,17 @@ export default function App() {
 }
 `,
 	},
+
+	// ---------- Template 8: Re-export shim for constants-3d → constants ----------
+	// AI consistently creates "constants-3d.ts" which gets path-rewritten to "constants.ts".
+	// But AI's GameScene3D.ts imports from "../config/constants-3d" — this shim bridges the gap.
+	{
+		path: "src/config/constants-3d.ts",
+		language: "typescript",
+		content: `// Re-export shim: AI imports from "constants-3d" but the canonical file is "constants.ts"
+export * from "./constants";
+`,
+	},
 ];
 
 /**

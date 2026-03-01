@@ -33,6 +33,8 @@ export interface FileToolsOptions {
 	pathRewrites?: Map<string, string>;
 	/** If set, ONLY files matching at least one pattern can be created/updated */
 	allowedPathPatterns?: RegExp[];
+	/** Import path rewrites applied to file CONTENT (fix import/from mismatches after path rewrites) */
+	importRewrites?: [RegExp, string][];
 }
 
 /**
@@ -49,6 +51,7 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 	const forbiddenPatterns = options?.forbiddenPatterns ?? [];
 	const pathRewrites = options?.pathRewrites ?? new Map<string, string>();
 	const allowedPathPatterns = options?.allowedPathPatterns ?? [];
+	const importRewrites = options?.importRewrites ?? [];
 
 	/** Rewrite path if a mapping exists (e.g. GameScene.ts → GameScene3D.ts) */
 	function rewritePath(filePath: string): string {
@@ -58,6 +61,16 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 			return rewritten;
 		}
 		return filePath;
+	}
+
+	/** Fix known import path mismatches in file content */
+	function rewriteImports(content: string): string {
+		if (importRewrites.length === 0) return content;
+		let result = content;
+		for (const [pattern, replacement] of importRewrites) {
+			result = result.replace(pattern, replacement);
+		}
+		return result;
 	}
 
 	/** Check if a path is forbidden — returns rejection message or null */
@@ -109,8 +122,9 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 						"Programming language for syntax highlighting (auto-detected if not provided)",
 					),
 			}),
-			execute: async ({ path: rawPath, content, language }) => {
+			execute: async ({ path: rawPath, content: rawContent, language }) => {
 				const path = rewritePath(rawPath);
+				const content = rewriteImports(rawContent);
 				const blocked = checkForbidden(path);
 				if (blocked) {
 					return { success: false, action: "created", path, error: blocked };
@@ -142,8 +156,9 @@ export function createFileTools(appId: string, options?: FileToolsOptions) {
 						"The new complete file content (replaces entire file contents)",
 					),
 			}),
-			execute: async ({ path: rawPath, content }) => {
+			execute: async ({ path: rawPath, content: rawContent }) => {
 				const path = rewritePath(rawPath);
+				const content = rewriteImports(rawContent);
 				const blocked = checkForbidden(path);
 				if (blocked) {
 					return { success: false, action: "updated", path, error: blocked };
