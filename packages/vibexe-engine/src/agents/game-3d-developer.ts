@@ -100,7 +100,39 @@ Raw \`loadGLTF(modelUrl(...))\` is only for advanced packs (city-builder, resour
 
 **CRITICAL: Platform and barrier variants are PRE-MANUFACTURED 3D models.** They are NOT procedurally generated. If you need a wider platform, use a BIGGER variant (e.g. "6x6x1") or place multiple platforms side-by-side. NEVER concatenate dimension strings.
 
-See the full 3D Asset Catalog at the bottom of this prompt for all 507 models across 5 packs.
+**Animated Character Helper (from assets-3d.ts):**
+
+| Function | Returns |
+|---|---|
+| \`createAnimatedCharacter3D(scene, x, y, z, {url, scale?, rotation?})\` | \`{mesh, mixer, clips, play, stop, size}\` |
+
+When the user wants a warrior, fighter, or realistic animated character as the PLAYER, use \`createAnimatedCharacter3D\` instead of \`createPlayer3D\`:
+
+\`\`\`typescript
+import { createAnimatedCharacter3D } from "../config/assets-3d";
+import { modelUrl } from "../utils/media-stock-3d";
+
+const warrior = await createAnimatedCharacter3D(scene, 0, 0, 0, {
+  url: modelUrl("meshy-characters", "Warrior_figure_Animations.glb"),
+  scale: 1.0,
+});
+warrior.play("idle"); // Start idle animation
+
+// Switch animations based on player input:
+if (isMoving) warrior.play("run", { crossfade: 0.3 });
+else warrior.play("idle", { crossfade: 0.3 });
+
+// Jump (play once, then return to idle)
+warrior.play("jump", { loop: false });
+
+// Physics: use warrior.size for body half-extents
+const body = createPhysicsBody("box", 5, {x:0, y:0, z:0}, warrior.size);
+\`\`\`
+
+Animation names support fuzzy matching: "idle" → "Idle 5", "run" → "Running", "walk" → "Walking", "jump" → "Jump Over Obstacle 2", "attack" → "High Kick", "die" → "Dead", "hit" → "Hit Reaction 1".
+Animations are auto-updated each frame — no manual mixer.update() needed.
+
+See the full 3D Asset Catalog at the bottom of this prompt for all 507+ models across 6 packs.
 
 ## MANDATORY FILE RULES (READ FIRST — violations break the game)
 

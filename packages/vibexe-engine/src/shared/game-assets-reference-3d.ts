@@ -17,7 +17,7 @@
 export interface AssetPack3D {
   id: string;
   name: string;
-  family: "kaykit" | "stylized";
+  family: "kaykit" | "stylized" | "meshy";
   format: "gltf" | "glb" | "obj";
   fileCount: number;
   sizeMB: number;
@@ -243,6 +243,22 @@ export const PACKS_3D: AssetPack3D[] = [
       tools: ["axe01", "pickaxe01", "hammer01"],
     },
   },
+
+  // ---- MESHY CHARACTERS (Animated, GLB, Skeletal) ----
+  {
+    id: "meshy-characters",
+    name: "Meshy Animated Characters",
+    family: "meshy",
+    format: "glb",
+    fileCount: 1,
+    sizeMB: 12,
+    serverPath: "meshy-characters",
+    description:
+      "Animated character models from Meshy.ai with embedded skeletal animations (idle, run, walk, jump, attack, death). GLB format with textures baked in. Use createAnimatedCharacter3D() to load.",
+    categories: {
+      warriors: ["Warrior_figure_Animations"],
+    },
+  },
 ];
 
 // ============================================================================
@@ -250,7 +266,7 @@ export const PACKS_3D: AssetPack3D[] = [
 // ============================================================================
 
 export const GAME_3D_ASSETS_REFERENCE = `
-## 3D Asset Catalog — 5 Packs (44 MB)
+## 3D Asset Catalog — 6 Packs (56 MB)
 
 **API endpoint**: \`/api/app-builder/media-stock-3d/{pack-id}/{path-to-file}\`
 
@@ -419,6 +435,49 @@ scene.add(warrior);
 4. **Skeletons**: \`{name}.gltf\` or \`{name}.glb\` (at root)
 5. **Stylized tools**: \`{name}.obj\` (at root)
 
+### MESHY ANIMATED CHARACTERS — Skeletal Animations (12 MB)
+Pack: \`meshy-characters\`
+Format: GLB (single file with mesh + textures + animations)
+**MUST use \`createAnimatedCharacter3D()\`** — NOT loadGLTF.
+
+**Warrior** — Muscular barbarian warrior with 10 animation clips:
+File: \`Warrior_figure_Animations.glb\`
+Animations: "360 Power Spin Jump", "Dead", "High Kick", "Hit Reaction 1", "Idle 5", "Jump Over Obstacle 2", "Left Short Hook from Guard", "Running", "Walk Forward While Shooting", "Walking"
+
+\`\`\`typescript
+import { createAnimatedCharacter3D } from "../config/assets-3d";
+import { modelUrl } from "../utils/media-stock-3d";
+
+// Load animated character
+const warrior = await createAnimatedCharacter3D(scene, 0, 0, 0, {
+  url: modelUrl("meshy-characters", "Warrior_figure_Animations.glb"),
+  scale: 1.0,
+});
+
+// Play animations (fuzzy match — "idle" finds "Idle 5", "run" finds "Running")
+warrior.play("idle");                              // idle animation
+warrior.play("run", { crossfade: 0.3 });           // smooth transition to running
+warrior.play("walk");                              // walking
+warrior.play("jump", { loop: false });             // jump (plays once)
+warrior.play("attack");                            // High Kick
+warrior.play("hit", { loop: false });              // hit reaction
+warrior.play("die", { loop: false });              // death animation
+
+// Access all clip names
+console.log(warrior.clips); // ["Idle 5", "Running", "Walking", ...]
+
+// Physics body
+const body = createPhysicsBody("box", 5, {x:0, y:0, z:0}, warrior.size);
+world.addBody(body);
+
+// Move character — update mesh position from physics each frame
+warrior.mesh.position.copy(body.position);
+\`\`\`
+
+Animations are **auto-updated** — no need to call mixer.update(). Just call \`warrior.play("run")\` and the animation transitions smoothly.
+
+---
+
 ### Art Style Selection Guide
 
 | User Request | Recommended Pack(s) |
@@ -428,6 +487,8 @@ scene.add(warrior);
 | "survival", "crafting" | kaykit-resource-bits + kaykit-platformer |
 | "skeleton enemies", "undead" | kaykit-skeletons + kaykit-platformer |
 | "RPG", "adventure" | kaykit-skeletons + kaykit-platformer |
+| "warrior", "fighter", "animated character" | meshy-characters + kaykit-platformer |
+| "action game", "combat", "hack and slash" | meshy-characters + kaykit-platformer |
 | "kids 3D game", "casual 3D" | kaykit-platformer |
 | Default / unspecified | kaykit-platformer |
 

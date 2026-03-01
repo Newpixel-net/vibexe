@@ -966,6 +966,15 @@ export function createSwipeDetector(
   };
 }
 
+// ===== ANIMATION MIXER AUTO-UPDATE =====
+// All animation mixers created by createAnimatedCharacter3D are tracked here.
+// Game3D.tsx calls _updateAllMixers3D(delta) every frame — AI never needs to worry about it.
+const _activeMixers3D: any[] = [];
+function _updateAllMixers3D(delta: number) {
+  for (const m of _activeMixers3D) m.update(delta);
+}
+(window as any)._updateAllMixers3D = _updateAllMixers3D;
+
 // ===== 3D FACTORY HELPERS — Force GLTF model loading =====
 // These make it EASIER to use real KayKit models than to write raw geometry.
 // Each factory: build URL → load GLTF (cached) → scale → position → add to scene → return {mesh, size}.
@@ -1232,6 +1241,143 @@ export async function createDecoration3D(
   mesh.receiveShadow = true;
   scene.add(mesh);
   return { mesh, size: { x: scale, y: scale * 2, z: scale } };
+}
+
+// ===== ANIMATED CHARACTER FACTORY =====
+// Loads a GLB model WITH skeletal animations (from Meshy.ai or similar).
+// Returns mesh + play(clipName) function for animation control.
+// Mixers are auto-updated by Game3D.tsx — no manual mixer.update() needed.
+
+/**
+ * Creates an animated 3D character (e.g., Meshy.ai warrior) at (x, y, z).
+ * The GLB must contain embedded animation clips.
+ *
+ * Returns:
+ *   mesh   — the loaded THREE.Group
+ *   mixer  — THREE.AnimationMixer (auto-updated each frame)
+ *   clips  — array of animation clip names found in the GLB
+ *   play   — play("idle") starts that clip; fuzzy-matches by keyword
+ *   stop   — stop all animations
+ *   size   — bounding-box half-extents for physics
+ *
+ * Usage:
+ *   const char = await createAnimatedCharacter3D(scene, 0, 0, 0, {
+ *     url: modelUrl("meshy-characters", "Warrior_figure_Animations.glb"),
+ *   });
+ *   char.play("idle");               // start idle animation
+ *   // later:
+ *   char.play("running", { crossfade: 0.3 }); // smooth transition to run
+ *   console.log(char.clips);          // ["Idle 5", "Running", "Walking", ...]
+ */
+export async function createAnimatedCharacter3D(
+  scene: any, x: number, y: number, z: number,
+  opts: { url: string; scale?: number; rotation?: number },
+): Promise<{
+  mesh: any;
+  mixer: any;
+  clips: string[];
+  play: (name: string, opts?: { loop?: boolean; crossfade?: number }) => void;
+  stop: () => void;
+  size: { x: number; y: number; z: number };
+}> {
+  const scale = opts.scale || 1.0;
+  const loader = new THREE.GLTFLoader();
+
+  const gltf: any = await new Promise((resolve, reject) => {
+    loader.load(opts.url, resolve, undefined, reject);
+  });
+  console.log("[3D] Loaded animated GLB:", opts.url, "clips:", gltf.animations?.length || 0);
+
+  const mesh = gltf.scene;
+  mesh.scale.setScalar(scale);
+  mesh.position.set(x, y, z);
+  if (opts.rotation !== undefined) mesh.rotation.y = opts.rotation;
+  mesh.traverse((child: any) => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+  scene.add(mesh);
+
+  // Compute bounding box for physics
+  const box = new THREE.Box3().setFromObject(mesh);
+  const sz = new THREE.Vector3();
+  box.getSize(sz);
+  const halfExtents = { x: sz.x / 2, y: sz.y / 2, z: sz.z / 2 };
+
+  // Animation setup
+  const mixer = new THREE.AnimationMixer(mesh);
+  _activeMixers3D.push(mixer);
+
+  const clipMap: Record<string, any> = {};
+  const clipNames: string[] = [];
+  for (const clip of (gltf.animations || [])) {
+    clipMap[clip.name] = clip;
+    clipNames.push(clip.name);
+  }
+  console.log("[3D] Animation clips:", clipNames);
+
+  let _currentAction: any = null;
+
+  function findClip(name: string): any {
+    // 1. Exact match
+    if (clipMap[name]) return clipMap[name];
+    // 2. Case-insensitive exact
+    const lower = name.toLowerCase();
+    for (const cn of clipNames) {
+      if (cn.toLowerCase() === lower) return clipMap[cn];
+    }
+    // 3. Keyword partial match (e.g., "idle" matches "Idle 5")
+    for (const cn of clipNames) {
+      if (cn.toLowerCase().includes(lower)) return clipMap[cn];
+    }
+    // 4. Common aliases
+    const aliases: Record<string, string[]> = {
+      idle: ["idle"],
+      run: ["running", "run"],
+      walk: ["walking", "walk"],
+      jump: ["jump"],
+      attack: ["kick", "hook", "punch", "slash", "spin", "attack"],
+      die: ["dead", "death", "die"],
+      hit: ["hit", "reaction", "damage"],
+    };
+    const aliasKeys = aliases[lower];
+    if (aliasKeys) {
+      for (const kw of aliasKeys) {
+        for (const cn of clipNames) {
+          if (cn.toLowerCase().includes(kw)) return clipMap[cn];
+        }
+      }
+    }
+    console.warn("[3D] Animation clip not found:", name, "Available:", clipNames);
+    return null;
+  }
+
+  function play(name: string, playOpts?: { loop?: boolean; crossfade?: number }) {
+    const clip = findClip(name);
+    if (!clip) return;
+    const action = mixer.clipAction(clip);
+    const loop = playOpts?.loop !== false; // default true
+    action.loop = loop ? THREE.LoopRepeat : THREE.LoopOnce;
+    if (!loop) action.clampWhenFinished = true;
+
+    if (_currentAction && _currentAction !== action) {
+      const fade = playOpts?.crossfade ?? 0.25;
+      action.reset().fadeIn(fade).play();
+      _currentAction.fadeOut(fade);
+    } else {
+      action.reset().play();
+    }
+    _currentAction = action;
+  }
+
+  function stop() {
+    mixer.stopAllAction();
+    _currentAction = null;
+  }
+
+  return { mesh, mixer, clips: clipNames, play, stop, size: halfExtents };
 }
 `,
 	},
@@ -1500,6 +1646,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           if (disposed) return;
           animFrameId = requestAnimationFrame(animate);
           const delta = clock.getDelta();
+          // Auto-update all animation mixers (from createAnimatedCharacter3D)
+          (window as any)._updateAllMixers3D?.(delta);
           gameScene.update(delta);
           renderer.render(scene, camera);
         };
@@ -1680,7 +1828,7 @@ export const GAME_3D_SCENE_STARTER = `/**
  */
 import {
   createPlatform3D, createCollectible3D, createPlayer3D,
-  createBarrier3D, createDecoration3D,
+  createBarrier3D, createDecoration3D, createAnimatedCharacter3D,
   createPhysicsBody, syncBodiesToMeshes, createKeyboardState,
   createGround3D, createSkyGradient, createHUD,
   CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y,
