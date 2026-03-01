@@ -878,7 +878,9 @@ const CANNON = (window as any).CANNON;
 
 Do NOT \`import * as THREE from "three"\` or \`import CANNON from "cannon-es"\` — Sandpack's bundler uses CDN shims that return window.THREE / window.CANNON.
 
-**PREFER using helpers from assets-3d.ts** (\`createPhysicsWorld\`, \`createPhysicsBody\`, etc.) instead of raw CANNON API — the helpers handle setup and defaults correctly.
+**ALWAYS use helpers from assets-3d.ts** (\`createPhysicsWorld\`, \`createPhysicsBody\`, \`createPhysicsGround\`) instead of raw \`new CANNON.Body()\` / \`new CANNON.World()\`. The helpers handle setup and defaults correctly. Raw CANNON API leads to duplicate variable names and crashes.
+
+**VARIABLE NAMING RULE**: Never reuse \`const body\`, \`const shape\`, or \`const mesh\` in the same scope. Use descriptive prefixes: \`playerBody\`, \`platBody\`, \`spikeBody\`, \`coinMesh\`, \`gemMesh\`, \`playerMesh\`. Duplicate \`const\` declarations crash the game at compile time.
 
 ## Execution Protocol
 
@@ -940,6 +942,8 @@ ${GAME_3D_ASSETS_REFERENCE}
 21. **Creating BootScene/MenuScene/LoadingScene** — Game3D.tsx already provides loading screen + menu overlay + restart. Do NOT create separate scene files for these.
 22. **Overriding App.tsx** — App.tsx is PRE-CREATED and imports GameScene3D correctly. Do NOT recreate or override it.
 23. **CRITICAL: Calling non-existent helper functions** — ONLY use functions listed in the AVAILABLE HELPERS section above. Functions like \`getLoadedModel\`, \`cacheModel\`, \`getModel\`, \`cloneModel\` do NOT exist. To reuse models: \`const template = await loadGLTF(...); const clone = template.clone();\`.
+24. **CRITICAL: Duplicate variable declarations** — Using \`const body\`, \`const shape\`, or \`const mesh\` multiple times in init() causes "Identifier already declared" crash. ALWAYS use unique prefixed names: \`playerBody\`, \`platBody\`, \`spikeBody\`, \`coinMesh\`, \`gemMesh\`, \`playerShape\`, etc. Even inside loops, prefer descriptive names.
+25. **Using raw CANNON API instead of helpers** — Do NOT write \`new CANNON.Body({mass: 1, shape: ...})\`. Use \`createPhysicsBody("sphere", mass, position, size)\` from assets-3d.ts. Raw CANNON API leads to boilerplate, duplicate names, and missing defaults.
 
 ## Internationalization
 
