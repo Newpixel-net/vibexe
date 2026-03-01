@@ -355,24 +355,55 @@ Example: \`axe01.obj\`
 
 ---
 
-### Loading 3D Assets
+### Loading 3D Assets — USE FACTORY HELPERS (Recommended)
 
-Use the \`loadGLTF()\` helper from assets-3d.ts (already pre-created):
+**Factory helpers** handle URL construction, caching, scaling, positioning, and fallbacks automatically.
+Import from assets-3d.ts (already pre-created):
+
+\`\`\`typescript
+import {
+  createPlatform3D, createCollectible3D, createPlayer3D,
+  createBarrier3D, createDecoration3D, createPhysicsBody,
+} from "../config/assets-3d";
+
+// Platform — returns { mesh, size } where size = physics half-extents
+const { mesh: plat, size: platSize } = await createPlatform3D(scene, 0, 1, -5);
+const platBody = createPhysicsBody("box", 0, { x: 0, y: 1, z: -5 }, platSize);
+world.addBody(platBody);
+
+// Different color + size
+const { mesh: redPlat } = await createPlatform3D(scene, 5, 2, -10, { variant: "6x6x1", color: "red" });
+
+// Collectible (diamond, star, heart, ball)
+const { mesh: gem } = await createCollectible3D(scene, 3, 2, -8, { type: "star", color: "yellow" });
+
+// Player character
+const { mesh: player, size: playerSize } = await createPlayer3D(scene, 0, 2, 0);
+const playerBody = createPhysicsBody("sphere", 5, { x: 0, y: 2, z: 0 }, playerSize.x);
+
+// Barrier / wall
+const { mesh: wall, size: wallSize } = await createBarrier3D(scene, -5, 0.5, -10, { variant: "3x1x4" });
+
+// Decoration (pillar, floor, structure — neutral by default)
+const { mesh: pillar } = await createDecoration3D(scene, -3, 0, -8, { type: "pillar_2x2x4" });
+const { mesh: floor } = await createDecoration3D(scene, 0, 0, 0, { type: "floor_wood_4x4" });
+\`\`\`
+
+**Factory functions available:** \`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`.
+All return \`{ mesh, size }\`. Models are cached internally — creating 20 platforms loads the GLTF only once.
+
+### Advanced: Raw loadGLTF (for city-builder, resource-bits, skeletons)
+
+For packs without factory helpers, use \`loadGLTF(modelUrl(...))\` directly:
 
 \`\`\`typescript
 import { loadGLTF, SCALES_3D } from "../config/assets-3d";
 import { modelUrl } from "../utils/media-stock-3d";
 
-// Platformer color model — MUST use color subdirectory + color suffix
-const platform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/blue/platform_4x4x1_blue.gltf"));
-platform.scale.setScalar(SCALES_3D.platform);
-scene.add(platform);
-
-// Platformer neutral model — neutral subdirectory, NO suffix
-const pillar = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/neutral/pillar_2x2x4.gltf"));
-
-// City builder / Resource bits — Assets/gltf/ subdirectory
+// City builder — Assets/gltf/{name}.gltf
 const building = await loadGLTF(modelUrl("kaykit-city-builder", "Assets/gltf/building_A.gltf"));
+
+// Resource bits — Assets/gltf/{Name}.gltf (PascalCase)
 const gold = await loadGLTF(modelUrl("kaykit-resource-bits", "Assets/gltf/Gold_Bar.gltf"));
 
 // Skeletons — files at pack root (GLB includes textures)

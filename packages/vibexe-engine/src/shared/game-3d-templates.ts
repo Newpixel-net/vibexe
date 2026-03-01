@@ -116,6 +116,7 @@ Object.assign(window, {
   CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y,
   CAMERA_LOOK_AHEAD, CAMERA_DISTANCE, CAMERA_HEIGHT, CAMERA_SMOOTH,
   COLLECT_DISTANCE, PLATFORM_GAP,
+  createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D,
 });
 
 // ===== Renderer =====
@@ -927,6 +928,209 @@ export function createSwipeDetector(
     container.removeEventListener("pointerdown", onDown);
     container.removeEventListener("pointerup", onUp);
   };
+}
+
+// ===== 3D FACTORY HELPERS — Force GLTF model loading =====
+// These make it EASIER to use real KayKit models than to write raw geometry.
+// Each factory: build URL → load GLTF (cached) → scale → position → add to scene → return {mesh, size}.
+// "size" = half-extents that plug directly into createPhysicsBody("box", mass, pos, size).
+
+const _modelCache3D: Map<string, any> = new Map();
+
+async function _loadOrClone(url: string): Promise<any> {
+  if (_modelCache3D.has(url)) {
+    return _modelCache3D.get(url)!.clone();
+  }
+  const model = await loadGLTF(url);
+  _modelCache3D.set(url, model);
+  return model.clone();
+}
+
+function _colorModelUrl(name: string, color: string): string {
+  return modelUrl("kaykit-platformer", \`Assets/gltf/\${color}/\${name}_\${color}.gltf\`);
+}
+
+function _neutralModelUrl(name: string): string {
+  return modelUrl("kaykit-platformer", \`Assets/gltf/neutral/\${name}.gltf\`);
+}
+
+function _fallbackBox(w: number, h: number, d: number, color: number): any {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.7 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+// Parse "4x4x1" → {w:4, d:4, h:1}. Naming convention: WxDxH
+function _parseDims(variant: string): { w: number; d: number; h: number } {
+  const parts = variant.split("x").map(Number);
+  return { w: parts[0] || 4, d: parts[1] || 4, h: parts[2] || 1 };
+}
+
+/**
+ * Creates a KayKit platform tile at (x, y, z).
+ * Returns { mesh, size } — size = half-extents for createPhysicsBody().
+ *
+ * Usage:
+ *   const { mesh, size } = await createPlatform3D(scene, 0, 1, -5);
+ *   const body = createPhysicsBody("box", 0, {x:0, y:1, z:-5}, size);
+ *   world.addBody(body);
+ */
+export async function createPlatform3D(
+  scene: any, x: number, y: number, z: number,
+  opts?: { variant?: string; color?: string; scale?: number },
+): Promise<{ mesh: any; size: { x: number; y: number; z: number } }> {
+  const variant = opts?.variant || "4x4x1";
+  const color = opts?.color || "blue";
+  const scale = opts?.scale || SCALES_3D.platform;
+  const dims = _parseDims(variant);
+  const halfExtents = { x: (dims.w * scale) / 2, y: (dims.h * scale) / 2, z: (dims.d * scale) / 2 };
+
+  let mesh: any;
+  try {
+    const url = _colorModelUrl(\`platform_\${variant}\`, color);
+    mesh = await _loadOrClone(url);
+    mesh.scale.setScalar(scale);
+  } catch {
+    mesh = _fallbackBox(dims.w * scale, dims.h * scale, dims.d * scale, 0x4488cc);
+  }
+  mesh.position.set(x, y, z);
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return { mesh, size: halfExtents };
+}
+
+/**
+ * Creates a KayKit collectible (diamond, star, heart, ball) at (x, y, z).
+ * Returns { mesh, size } for optional collision distance.
+ *
+ * Usage:
+ *   const { mesh } = await createCollectible3D(scene, 3, 2, -8, { type: "star" });
+ */
+export async function createCollectible3D(
+  scene: any, x: number, y: number, z: number,
+  opts?: { type?: string; color?: string; scale?: number },
+): Promise<{ mesh: any; size: { x: number; y: number; z: number } }> {
+  const type = opts?.type || "diamond";
+  const color = opts?.color || "blue";
+  const scale = opts?.scale || SCALES_3D.collectible;
+  const halfSize = scale * 0.5;
+
+  let mesh: any;
+  try {
+    const url = _colorModelUrl(type, color);
+    mesh = await _loadOrClone(url);
+    mesh.scale.setScalar(scale);
+  } catch {
+    mesh = _fallbackBox(scale, scale, scale, 0xffdd44);
+    mesh.material.emissive = new THREE.Color(0xffdd44);
+    mesh.material.emissiveIntensity = 0.3;
+  }
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  scene.add(mesh);
+  return { mesh, size: { x: halfSize, y: halfSize, z: halfSize } };
+}
+
+/**
+ * Creates a KayKit player/character model at (x, y, z).
+ * Default: "ball" (blue) — a good all-purpose player visual.
+ * Returns { mesh, size } for physics body sizing.
+ *
+ * Usage:
+ *   const { mesh, size } = await createPlayer3D(scene, 0, 2, 0);
+ *   const body = createPhysicsBody("sphere", 5, {x:0, y:2, z:0}, size.x);
+ */
+export async function createPlayer3D(
+  scene: any, x: number, y: number, z: number,
+  opts?: { model?: string; color?: string; scale?: number; neutral?: boolean },
+): Promise<{ mesh: any; size: { x: number; y: number; z: number } }> {
+  const model = opts?.model || "ball";
+  const color = opts?.color || "blue";
+  const scale = opts?.scale || SCALES_3D.player;
+  const halfSize = scale * 0.6;
+
+  let mesh: any;
+  try {
+    const url = opts?.neutral ? _neutralModelUrl(model) : _colorModelUrl(model, color);
+    mesh = await _loadOrClone(url);
+    mesh.scale.setScalar(scale);
+  } catch {
+    mesh = _fallbackBox(scale, scale * 1.5, scale, 0x4488ff);
+  }
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  scene.add(mesh);
+  return { mesh, size: { x: halfSize, y: halfSize, z: halfSize } };
+}
+
+/**
+ * Creates a KayKit barrier/wall at (x, y, z).
+ * Returns { mesh, size } for physics body.
+ *
+ * Usage:
+ *   const { mesh, size } = await createBarrier3D(scene, 5, 0.5, -10, { variant: "3x1x4" });
+ */
+export async function createBarrier3D(
+  scene: any, x: number, y: number, z: number,
+  opts?: { variant?: string; color?: string; scale?: number; neutral?: boolean },
+): Promise<{ mesh: any; size: { x: number; y: number; z: number } }> {
+  const variant = opts?.variant || "2x1x2";
+  const color = opts?.color || "blue";
+  const scale = opts?.scale || 1.0;
+  const neutral = opts?.neutral ?? false;
+  const dims = _parseDims(variant);
+  const halfExtents = { x: (dims.w * scale) / 2, y: (dims.h * scale) / 2, z: (dims.d * scale) / 2 };
+
+  let mesh: any;
+  try {
+    const url = neutral
+      ? _neutralModelUrl(\`barrier_\${variant}\`)
+      : _colorModelUrl(\`barrier_\${variant}\`, color);
+    mesh = await _loadOrClone(url);
+    mesh.scale.setScalar(scale);
+  } catch {
+    mesh = _fallbackBox(dims.w * scale, dims.h * scale, dims.d * scale, 0x996633);
+  }
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return { mesh, size: halfExtents };
+}
+
+/**
+ * Creates a KayKit decoration (pillar, floor, structure, sign, spring, etc.) at (x, y, z).
+ * Neutral by default (most decorations are neutral-only).
+ *
+ * Usage:
+ *   const { mesh } = await createDecoration3D(scene, -5, 0, -8, { type: "pillar_2x2x4" });
+ *   const { mesh } = await createDecoration3D(scene, 3, 0, -12, { type: "structure_A" });
+ */
+export async function createDecoration3D(
+  scene: any, x: number, y: number, z: number,
+  opts?: { type?: string; color?: string; scale?: number; neutral?: boolean },
+): Promise<{ mesh: any; size: { x: number; y: number; z: number } }> {
+  const type = opts?.type || "pillar_2x2x4";
+  const color = opts?.color || "blue";
+  const scale = opts?.scale || 1.0;
+  const neutral = opts?.neutral ?? true;
+
+  let mesh: any;
+  try {
+    const url = neutral ? _neutralModelUrl(type) : _colorModelUrl(type, color);
+    mesh = await _loadOrClone(url);
+    mesh.scale.setScalar(scale);
+  } catch {
+    mesh = _fallbackBox(scale * 2, scale * 4, scale * 2, 0x888888);
+  }
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return { mesh, size: { x: scale, y: scale * 2, z: scale } };
 }
 `,
 	},
