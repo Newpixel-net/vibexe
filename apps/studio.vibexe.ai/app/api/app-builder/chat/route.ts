@@ -699,6 +699,8 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			"first-person game", "first person game", "isometric game", "3d model",
 			"gltf", "kaykit", "3d character", "3d environment", "low-poly 3d",
 			"3d survival", "3d builder", "city builder 3d", "3d exploration",
+			"3d action", "meshy", "createanimatedcharacter3d", "createplatform3d",
+			"createplayer3d", "animated warrior", "animated character",
 		];
 		let isGame3d = false;
 
@@ -804,14 +806,15 @@ After creating ALL files, end with a short summary. If the app has auth, include
 			if (isGame3d) {
 				runtimeAddenda.push(`## CRITICAL: 3D Game — Factory Helper Pattern
 
-**\`src/scenes/GameScene3D.ts\` is PRE-CREATED** with a working starter that uses factory helpers (createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D). These load real KayKit GLTF 3D models.
+**\`src/scenes/GameScene3D.ts\` is PRE-CREATED** with a working starter that uses factory helpers (createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, createAnimatedCharacter3D). These load real GLTF 3D models.
 
 **You MUST follow this workflow:**
 1. Use \`read_file("src/scenes/GameScene3D.ts")\` FIRST to see the existing factory helper pattern
 2. Use \`update_file\` to REPLACE the content with your full game implementation
-3. Your replacement MUST use the SAME factory helpers — \`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`
+3. Your replacement MUST use the SAME factory helpers — \`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`, and \`createAnimatedCharacter3D\` for animated characters
 4. Do NOT use raw \`new THREE.BoxGeometry()\`, \`new THREE.SphereGeometry()\`, or \`new THREE.CylinderGeometry()\` for visible game objects — use factory helpers instead
 5. Factory helpers handle GLTF model loading, URL construction, caching, scaling, and fallbacks automatically
+6. For animated characters (meshy-characters pack), use \`createAnimatedCharacter3D(scene, x, y, z, { url: modelUrl("meshy-characters", "Warrior_figure_Animations.glb") })\` — returns \`{mesh, mixer, clips, play, stop, size}\`
 
 **MINIMUM**: Your GameScene3D.ts must call at least 5 different factory helpers. Every platform, collectible, player, barrier, and decoration MUST use the corresponding factory.`);
 			}
@@ -834,11 +837,12 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 
 **MANDATORY RULES — violation will break the game:**
 - Do NOT recreate, overwrite, or modify these files — they contain correct, tested code
-- You MUST \`import\` from them: \`import { createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, createPhysicsBody, syncBodiesToMeshes, createKeyboardState, createGround3D, createSkyGradient, createHUD, loadGLTF, SCALES_3D } from "../config/assets-3d";\` and \`import { modelUrl } from "../utils/media-stock-3d";\`
+- You MUST \`import\` from them: \`import { createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, createAnimatedCharacter3D, createPhysicsBody, syncBodiesToMeshes, createKeyboardState, createGround3D, createSkyGradient, createHUD, loadGLTF, SCALES_3D } from "../config/assets-3d";\` and \`import { modelUrl } from "../utils/media-stock-3d";\`
 - **Game3D.tsx is PRE-CREATED** — do NOT create Game3D.tsx or any React-Three.js wrapper. Just import it in App.tsx: \`import Game3D from "./components/Game3D";\`
 - **App.tsx pattern**: \`export default function App() { return <Game3D gameScene={GameScene} />; }\`
 - Access Three.js via global: \`const THREE = (window as any).THREE;\` — do NOT import from "three"
-- **Use factory helpers** (\`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`) for ALL visible game objects — they load real KayKit GLTF models
+- **Use factory helpers** (\`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\`, \`createAnimatedCharacter3D\`) for ALL visible game objects — they load real GLTF models
+- For animated characters from meshy-characters pack, use \`createAnimatedCharacter3D\` which returns \`{mesh, mixer, clips, play, stop, size}\` — animations auto-update in render loop
 - Use \`loadGLTF(modelUrl(packId, filename))\` ONLY for advanced packs (city-builder, resource-bits, skeletons)
 - The package.json already includes \`"three": "^0.162.0"\` — do NOT recreate it`);
 			} else {
