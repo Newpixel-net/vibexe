@@ -108,6 +108,20 @@ export const CAMERA_SMOOTH = 0.1;
 export const COLLECT_DISTANCE = 1.5;   // Distance to pick up collectibles
 export const PLATFORM_GAP = 4;         // Default gap between platforms
 
+// ===== Scene3D base class =====
+// AI agents frequently write "extends Scene3D" when creating game scenes.
+// This provides the base class so that pattern works without errors.
+// Methods are called by Game3D.tsx: init() on mount, update(dt) per frame, cleanup() on unmount.
+export class Scene3D {
+  scene: any;
+  camera: any;
+  renderer: any;
+  world: any;
+  init() {}
+  update(_dt: number) {}
+  cleanup() {}
+}
+
 // ===== Globals — prevent "undefined" crashes when AI forgets to import =====
 // AI models frequently use these constants without importing them.
 // Assigning to window makes them available as globals in the Sandpack env.
@@ -115,7 +129,7 @@ Object.assign(window, {
   SCALES_3D, TOUCH_DEADZONE, GRAVITY_3D, JUMP_FORCE, MOVE_SPEED,
   CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y,
   CAMERA_LOOK_AHEAD, CAMERA_DISTANCE, CAMERA_HEIGHT, CAMERA_SMOOTH,
-  COLLECT_DISTANCE, PLATFORM_GAP,
+  COLLECT_DISTANCE, PLATFORM_GAP, Scene3D,
   createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D,
   createPhysicsWorld, createPhysicsBody, createPhysicsGround, syncBodiesToMeshes, createContactMaterial,
   createGround3D, createSkyGradient, checkCollision, checkBoxCollision, createHUD,
