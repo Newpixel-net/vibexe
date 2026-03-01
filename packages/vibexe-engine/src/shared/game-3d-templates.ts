@@ -1391,10 +1391,10 @@ export async function createAnimatedCharacter3D(
     console.log("[3D] Geometry size (no bones):", corrSize.x.toFixed(3), corrSize.y.toFixed(3), corrSize.z.toFixed(3));
   }
 
-  // Cap autoScale at 8 — SkinnedMesh bone deformation expands models ~10x beyond bind-pose geometry.
-  // Without cap, bind-pose 0.017 units → autoScale 88 → rendered 10-15 units (massive).
-  // With cap of 8: bind-pose 0.017 * 8 * ~10x bone expansion → rendered ~1.4 units (proportional).
-  const MAX_AUTO_SCALE = 8;
+  // Cap autoScale at 1 — SkinnedMesh bone deformation expands models ~100x beyond bind-pose geometry.
+  // Warrior GLB: bind-pose 0.017 units, bones expand to ~1.7 units at render.
+  // With cap of 1: 0.017 * 1 * ~100x bone expansion → rendered ~1.7 units (proportional to 4x4x1 platforms).
+  const MAX_AUTO_SCALE = 1;
   const rawAutoScale = targetHeight / measuredHeight;
   const autoScale = Math.min(rawAutoScale, MAX_AUTO_SCALE);
   inner.scale.setScalar(autoScale);
