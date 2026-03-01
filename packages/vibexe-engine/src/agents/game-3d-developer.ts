@@ -136,8 +136,8 @@ const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
 camera.position.set(0, 10, 15);
 camera.lookAt(0, 0, 0);
 
-// Camera follow player — ALWAYS use constants from constants.ts
-import { CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y } from "../config/constants";
+// Camera follow player — import from assets-3d.ts (pre-defined, always available)
+import { CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y } from "../config/assets-3d";
 
 function updateCamera(playerPos) {
   camera.position.x = playerPos.x;
@@ -306,9 +306,9 @@ const cleanupClick = onClickObject(camera, container, [building1, building2, gro
 
 ### Camera Controls
 
-**Third-person follow (default for platformers)** — smooth lerp with constants:
+**Third-person follow (default for platformers)** — smooth lerp with constants from assets-3d.ts:
 \`\`\`typescript
-import { CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y } from "../config/constants";
+import { CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y } from "../config/assets-3d";
 
 // In update(delta):
 const targetX = player.position.x;
@@ -409,15 +409,19 @@ Optional extra files for complex games:
 
 ## Reference constants.ts — Define ALL Constants Here
 
-CRITICAL: Every constant used in GameScene3D.ts MUST be either imported from assets-3d.ts OR defined in constants.ts. If you reference ANY name that isn't imported or defined, the game crashes.
+CRITICAL: Every constant used in GameScene3D.ts MUST be either imported from assets-3d.ts OR defined in constants.ts. If you reference ANY name that isn't imported or defined, the game crashes INSTANTLY.
 
 **Already available from assets-3d.ts** (import these, do NOT redefine):
-\`SCALES_3D\`, \`TOUCH_DEADZONE\`, \`GRAVITY_3D\`, \`JUMP_FORCE\`, \`MOVE_SPEED\`
+\`SCALES_3D\`, \`TOUCH_DEADZONE\`, \`GRAVITY_3D\`, \`JUMP_FORCE\`, \`MOVE_SPEED\`,
+\`CAMERA_OFFSET_Y\`, \`CAMERA_OFFSET_Z\`, \`CAMERA_LERP\`, \`CAMERA_LOOK_Y\`,
+\`CAMERA_LOOK_AHEAD\`, \`CAMERA_DISTANCE\`, \`CAMERA_HEIGHT\`, \`CAMERA_SMOOTH\`,
+\`COLLECT_DISTANCE\`, \`PLATFORM_GAP\`
 
 **Define YOUR game-specific constants in constants.ts:**
 \`\`\`typescript
 // src/config/constants.ts — game-specific constants only
-// DO NOT redefine GRAVITY_3D, JUMP_FORCE, MOVE_SPEED, TOUCH_DEADZONE — import from assets-3d.ts
+// Camera constants are in assets-3d.ts — import them, do NOT redefine
+// import { CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y } from "./assets-3d";
 
 // Player
 export const PLAYER_SPEED = 8;
@@ -425,16 +429,9 @@ export const PLAYER_SPEED = 8;
 // World
 export const WORLD_SIZE = 100;
 
-// Camera follow (third-person) — REQUIRED for platformers
-export const CAMERA_OFFSET_Y = 8;   // Height above player
-export const CAMERA_OFFSET_Z = 12;  // Distance behind player
-export const CAMERA_LERP = 3;       // Smoothing speed
-export const CAMERA_LOOK_Y = 1;     // Look-at Y offset above player
-
 // Add more as needed for your game:
 // export const ENEMY_SPEED = 4;
 // export const SPAWN_INTERVAL = 3;
-// export const PLATFORM_GAP = 5;
 \`\`\`
 
 ## React + Three.js Integration
@@ -531,6 +528,11 @@ import {
   GRAVITY_3D,
   JUMP_FORCE,
   MOVE_SPEED,
+  CAMERA_OFFSET_Y,
+  CAMERA_OFFSET_Z,
+  CAMERA_LERP,
+  CAMERA_LOOK_Y,
+  COLLECT_DISTANCE,
   createGround3D,
   createSkyGradient,
   checkCollision,
@@ -545,10 +547,7 @@ import {
 } from "../config/assets-3d";
 import { modelUrl } from "../utils/media-stock-3d";
 import { showGameOver } from "../scenes/GameOverScene3D";
-import {
-  PLAYER_SPEED, WORLD_SIZE,
-  CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y,
-} from "../config/constants";
+import { PLAYER_SPEED, WORLD_SIZE } from "../config/constants";
 
 const THREE = (window as any).THREE;
 const CANNON = (window as any).CANNON;
@@ -805,7 +804,7 @@ export const GameScene = {
 6. Player body = sphere (mass=5), platforms = static boxes (mass=0). Jump via \`playerBody.velocity.y = JUMP_FORCE\`.
 7. Ground contact detection: \`playerBody.addEventListener("collide", ...)\` checks normal.y for jump reset.
 8. \`checkCollision(a, b, threshold)\` for collectible pickup — distance-based (no physics body needed).
-9. Camera follows player with lerp using CAMERA_OFFSET_Y/Z, CAMERA_LERP, CAMERA_LOOK_Y constants — NEVER hardcode camera offsets.
+9. Camera follows player with lerp using CAMERA_OFFSET_Y/Z, CAMERA_LERP, CAMERA_LOOK_Y from assets-3d.ts — NEVER hardcode camera offsets, NEVER define your own camera constants.
 10. \`createHUD(container)\` for score/lives — HTML overlay, NOT 3D text.
 11. \`showGameOver(container, score, restartFn)\` — HTML overlay, restart via Game3D.tsx (no page reload).
 12. State reset at top of init(): \`score = 0; lives = 3; gameOver = false;\` for restart support.
@@ -893,7 +892,7 @@ Do NOT \`import * as THREE from "three"\` or \`import CANNON from "cannon-es"\` 
 ## Execution Protocol
 
 1. **Select Art Pack FIRST.** Based on user's request, pick KayKit (default). Write the choice in constants.ts.
-2. **constants.ts MUST define game-specific constants.** Import \`TOUCH_DEADZONE\`, \`GRAVITY_3D\`, \`JUMP_FORCE\`, \`MOVE_SPEED\`, \`SCALES_3D\` from assets-3d.ts. Define PLAYER_SPEED, WORLD_SIZE, CAMERA_OFFSET_Y/Z/LERP/LOOK_Y and any game-specific constants in constants.ts. Using an undefined constant crashes the game instantly.
+2. **constants.ts MUST define game-specific constants.** Camera constants (\`CAMERA_OFFSET_Y/Z\`, \`CAMERA_LERP\`, \`CAMERA_LOOK_Y\`, \`CAMERA_LOOK_AHEAD\`, \`COLLECT_DISTANCE\`) are PRE-DEFINED in assets-3d.ts — import them from there, do NOT redefine. Define PLAYER_SPEED, WORLD_SIZE, and game-specific constants in constants.ts. Using an undefined constant crashes the game INSTANTLY.
 3. **Start immediately.** Do not plan, explain, or ask questions. Begin calling create_file.
 4. **Create EXACTLY these files** (do NOT create extras):
    - \`docs/README.md\` — Game overview, controls, features
@@ -943,7 +942,7 @@ ${GAME_3D_ASSETS_REFERENCE}
 16. **Physics body without matching mesh** — Every dynamic physics body needs a visual mesh synced to it.
 17. **Using OrbitControls with platformer** — Platformers use camera follow (lerp). OrbitControls is for city builders.
 18. **Forgetting anim.update(delta)** — AnimationMixer must be updated every frame or animations freeze.
-19. **CRITICAL: Using undefined constants** — If you reference ANY constant name, it MUST be either imported from assets-3d.ts (\`TOUCH_DEADZONE\`, \`GRAVITY_3D\`, \`JUMP_FORCE\`, \`MOVE_SPEED\`, \`SCALES_3D\`) or defined in constants.ts. NEVER use a constant name without importing or defining it. This is the #1 cause of game crashes.
+19. **CRITICAL: Using undefined constants** — If you reference ANY constant name, it MUST be either imported from assets-3d.ts (\`TOUCH_DEADZONE\`, \`GRAVITY_3D\`, \`JUMP_FORCE\`, \`MOVE_SPEED\`, \`SCALES_3D\`, \`CAMERA_OFFSET_Y/Z\`, \`CAMERA_LERP\`, \`CAMERA_LOOK_Y\`, \`CAMERA_LOOK_AHEAD\`, \`COLLECT_DISTANCE\`, \`PLATFORM_GAP\`) or defined in constants.ts. NEVER use a constant name without importing or defining it. This is the #1 cause of game crashes.
 20. **CRITICAL: Using a class instead of plain object** — GameScene MUST be \`export const GameScene = { init(), update(), cleanup() }\`. Do NOT use \`class GameScene\` — it causes TypeScript syntax errors with mixed arrow/method syntax and breaks the Game3D.tsx interface.
 21. **CRITICAL: Creating extra scene files (BootScene.ts, MenuScene.ts, LoadingScene.ts, etc.)** — Game3D.tsx already provides loading screen + menu overlay + restart. Do NOT create ANY scene file besides GameScene3D.ts. This includes files with OR without the "3D" suffix.
 22. **CRITICAL: Wrong scene file name** — The file MUST be \`src/scenes/GameScene3D.ts\` (capital G, capital S, capital D). NOT \`GameScene.ts\`, NOT \`Game3DScene.ts\`. App.tsx imports from \`./scenes/GameScene3D\` — any other name causes ModuleNotFoundError crash.

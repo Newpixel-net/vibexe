@@ -78,6 +78,21 @@ export const GRAVITY_3D = -20;         // Default gravity for cannon-es
 export const JUMP_FORCE = 8;           // Default jump velocity
 export const MOVE_SPEED = 5;           // Default movement speed
 
+// Camera follow constants (3rd-person platformer defaults)
+export const CAMERA_OFFSET_Y = 8;      // Height above player
+export const CAMERA_OFFSET_Z = 12;     // Distance behind player
+export const CAMERA_LERP = 3;          // Smoothing speed (higher = faster)
+export const CAMERA_LOOK_Y = 1;        // Look-at Y offset above player
+// Common AI aliases — prevent "undefined" crashes
+export const CAMERA_LOOK_AHEAD = 5;    // Forward offset for camera look target
+export const CAMERA_DISTANCE = CAMERA_OFFSET_Z;
+export const CAMERA_HEIGHT = CAMERA_OFFSET_Y;
+export const CAMERA_SMOOTH = 0.1;
+
+// Collision / pickup distances
+export const COLLECT_DISTANCE = 1.5;   // Distance to pick up collectibles
+export const PLATFORM_GAP = 4;         // Default gap between platforms
+
 // ===== Renderer =====
 
 /**
