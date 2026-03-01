@@ -1479,6 +1479,33 @@ export async function createAnimatedCharacter3D(
 
   let _currentAction: any = null;
 
+  // Scored partial keyword match — prefers:
+  //   3: clip name starts with keyword ("walk" → "Walking" over "Walk_Forward_While_Shooting")
+  //   2: keyword at word boundary ("jump" → "Jump_Over_Obstacle" over "360_Power_Spin_Jump")
+  //   1: keyword anywhere in name
+  // Among same priority, shortest clip name wins.
+  function _bestPartial(keyword: string): any {
+    let best: string | null = null;
+    let bestPri = 0;
+    let bestLen = Infinity;
+    for (const cn of clipNames) {
+      const cl = cn.toLowerCase();
+      if (!cl.includes(keyword)) continue;
+      let pri: number;
+      if (cl.startsWith(keyword)) {
+        pri = 3;
+      } else if (cl.includes("_" + keyword) || cl.includes(" " + keyword)) {
+        pri = 2;
+      } else {
+        pri = 1;
+      }
+      if (pri > bestPri || (pri === bestPri && cn.length < bestLen)) {
+        best = cn; bestPri = pri; bestLen = cn.length;
+      }
+    }
+    return best ? clipMap[best] : null;
+  }
+
   function findClip(name: string): any {
     // 1. Exact match
     if (clipMap[name]) return clipMap[name];
@@ -1487,26 +1514,24 @@ export async function createAnimatedCharacter3D(
     for (const cn of clipNames) {
       if (cn.toLowerCase() === lower) return clipMap[cn];
     }
-    // 3. Keyword partial match (e.g., "idle" matches "Idle 5")
-    for (const cn of clipNames) {
-      if (cn.toLowerCase().includes(lower)) return clipMap[cn];
-    }
-    // 4. Common aliases
+    // 3. Best scored partial match
+    const partial = _bestPartial(lower);
+    if (partial) return partial;
+    // 4. Common aliases (scored)
     const aliases: Record<string, string[]> = {
       idle: ["idle"],
       run: ["running", "run"],
       walk: ["walking", "walk"],
-      jump: ["jump"],
-      attack: ["kick", "hook", "punch", "slash", "spin", "attack"],
+      jump: ["jump", "leap"],
+      attack: ["slash", "attack", "kick", "hook", "punch", "spin"],
       die: ["dead", "death", "die"],
       hit: ["hit", "reaction", "damage"],
     };
     const aliasKeys = aliases[lower];
     if (aliasKeys) {
       for (const kw of aliasKeys) {
-        for (const cn of clipNames) {
-          if (cn.toLowerCase().includes(kw)) return clipMap[cn];
-        }
+        const m = _bestPartial(kw);
+        if (m) return m;
       }
     }
     console.warn("[3D] Animation clip not found:", name, "Available:", clipNames);
