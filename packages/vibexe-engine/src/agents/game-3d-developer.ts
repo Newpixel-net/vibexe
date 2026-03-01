@@ -89,12 +89,16 @@ Raw \`loadGLTF(modelUrl(...))\` is only for advanced packs (city-builder, resour
 | \`createBarrier3D(scene, x, y, z, opts?)\` | variant="2x1x2", color="blue" | \`{mesh, size}\` |
 | \`createDecoration3D(scene, x, y, z, opts?)\` | type="pillar_2x2x4", neutral=true | \`{mesh, size}\` |
 
-**Options for each factory:**
-- \`createPlatform3D\`: \`{ variant?: "4x4x1"|"6x6x1"|"2x2x1"|..., color?: "blue"|"green"|"red"|"yellow", scale?: number }\`
+**Options for each factory (ONLY these values are valid — do NOT invent new ones):**
+- \`createPlatform3D\`: \`{ variant?: "1x1x1"|"2x2x1"|"2x2x2"|"2x2x4"|"3x3x1"|"4x2x1"|"4x2x2"|"4x2x4"|"4x4x1"|"4x4x2"|"4x4x4"|"6x2x1"|"6x2x2"|"6x2x4"|"6x6x1"|"6x6x2"|"6x6x4", color?: "blue"|"green"|"red"|"yellow", scale?: number }\`
+  ONLY 16 platform sizes exist. NEVER generate custom dimensions like "8x4x1" or "5.5x3x1" — they will 404.
 - \`createCollectible3D\`: \`{ type?: "diamond"|"star"|"heart"|"ball", color?, scale? }\`
-- \`createPlayer3D\`: \`{ model?: "ball"|"diamond"|"heart", color?, scale?, neutral?: boolean }\`
-- \`createBarrier3D\`: \`{ variant?: "2x1x2"|"3x1x4"|"1x1x1"|..., color?, scale?, neutral?: boolean }\`
-- \`createDecoration3D\`: \`{ type?: "pillar_2x2x4"|"structure_A"|"floor_wood_4x4"|..., color?, scale?, neutral?: boolean }\`
+- \`createPlayer3D\`: \`{ model?: "ball"|"diamond"|"heart"|"star", color?, scale?, neutral?: boolean }\`
+- \`createBarrier3D\`: \`{ variant?: "1x1x1"|"1x1x2"|"1x1x4"|"2x1x1"|"2x1x2"|"2x1x4"|"3x1x1"|"3x1x2"|"3x1x4"|"4x1x1"|"4x1x2"|"4x1x4", color?, scale?, neutral?: boolean }\`
+  ONLY 12 barrier sizes exist. NEVER generate custom dimensions.
+- \`createDecoration3D\`: \`{ type?: "pillar_2x2x4"|"structure_A"|"floor_wood_4x4"|"sign", color?, scale?, neutral?: boolean }\`
+
+**CRITICAL: Platform and barrier variants are PRE-MANUFACTURED 3D models.** They are NOT procedurally generated. If you need a wider platform, use a BIGGER variant (e.g. "6x6x1") or place multiple platforms side-by-side. NEVER concatenate dimension strings.
 
 See the full 3D Asset Catalog at the bottom of this prompt for all 507 models across 5 packs.
 
@@ -494,6 +498,19 @@ You just implement \`init()\` and \`update()\`. The rest is automatic.
 - Grid-based placement: snap clicked point to grid, place building model
 - KayKit city-builder pack: buildings, roads, vehicles, street props
 - No physics needed (buildings are static), no gravity
+
+### 3D Endless Runner (Temple Run, Subway Surfers)
+- **Camera**: Behind player looking forward. Position: \`camera.position.set(player.x, player.y + 4, player.z + 10)\`, lookAt player
+- **Auto-movement**: Player moves forward automatically at increasing speed (\`player.z -= speed * delta\`)
+- **Platforms**: Spawn segments ahead using \`createPlatform3D(scene, x, y, z, { variant: "6x6x1", color })\` — place end-to-end along Z axis
+- **Platform recycling**: When platform.z > camera.z + 20, reposition to front: \`platform.z = frontZ - gapSize\`
+- **Barriers**: \`createBarrier3D(scene, x, y, z, { variant: "4x1x2" })\` on platforms — player must jump over
+- **Collectibles**: \`createCollectible3D(scene, x, y+1.5, z, { type: "diamond" })\` floating above platforms
+- **Physics**: \`world = this.world\` (auto-created) + player body moves on Z axis + static platform box bodies
+- **Jump**: \`playerBody.velocity.y = JUMP_FORCE\` when grounded (collision event sets canJump)
+- **Lane switching**: 3 lanes (x = -3, 0, +3). Swipe/arrow keys move player between lanes with tween
+- **Difficulty**: Increase speed, reduce gaps, add more barriers over time
+- **Skeleton characters**: Load via raw \`loadGLTF(modelUrl("kaykit-skeletons", "Skeleton_Warrior.glb"))\` — skeletons don't have factory helpers
 
 ### Survival / Crafting
 - Third-person camera

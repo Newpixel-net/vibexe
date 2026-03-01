@@ -969,6 +969,25 @@ function _fallbackBox(w: number, h: number, d: number, color: number): any {
   return mesh;
 }
 
+// Valid pre-manufactured KayKit model variants (DO NOT add custom ones — they won't exist on disk)
+const _VALID_PLATFORMS = ["1x1x1","2x2x1","2x2x2","2x2x4","3x3x1","4x2x1","4x2x2","4x2x4","4x4x1","4x4x2","4x4x4","6x2x1","6x2x2","6x2x4","6x6x1","6x6x2","6x6x4"];
+const _VALID_BARRIERS = ["1x1x1","1x1x2","1x1x4","2x1x1","2x1x2","2x1x4","3x1x1","3x1x2","3x1x4","4x1x1","4x1x2","4x1x4"];
+
+function _snapVariant(variant: string, validList: string[]): string {
+  if (validList.includes(variant)) return variant;
+  // Parse requested dims and find closest valid variant by total volume
+  const rp = variant.split("x").map(Number);
+  const rVol = (rp[0]||4) * (rp[1]||4) * (rp[2]||1);
+  let best = validList[0], bestDiff = Infinity;
+  for (const v of validList) {
+    const vp = v.split("x").map(Number);
+    const diff = Math.abs(vp[0]*vp[1]*vp[2] - rVol);
+    if (diff < bestDiff) { bestDiff = diff; best = v; }
+  }
+  console.warn(\`[3D] Invalid variant "\${variant}" → snapped to "\${best}"\`);
+  return best;
+}
+
 // Parse "4x4x1" → {w:4, d:4, h:1}. Naming convention: WxDxH
 function _parseDims(variant: string): { w: number; d: number; h: number } {
   const parts = variant.split("x").map(Number);
@@ -988,7 +1007,7 @@ export async function createPlatform3D(
   scene: any, x: number, y: number, z: number,
   opts?: { variant?: string; color?: string; scale?: number },
 ): Promise<{ mesh: any; size: { x: number; y: number; z: number } }> {
-  const variant = opts?.variant || "4x4x1";
+  const variant = _snapVariant(opts?.variant || "4x4x1", _VALID_PLATFORMS);
   const color = opts?.color || "blue";
   const scale = opts?.scale || SCALES_3D.platform;
   const dims = _parseDims(variant);
@@ -1083,7 +1102,7 @@ export async function createBarrier3D(
   scene: any, x: number, y: number, z: number,
   opts?: { variant?: string; color?: string; scale?: number; neutral?: boolean },
 ): Promise<{ mesh: any; size: { x: number; y: number; z: number } }> {
-  const variant = opts?.variant || "2x1x2";
+  const variant = _snapVariant(opts?.variant || "2x1x2", _VALID_BARRIERS);
   const color = opts?.color || "blue";
   const scale = opts?.scale || 1.0;
   const neutral = opts?.neutral ?? false;
