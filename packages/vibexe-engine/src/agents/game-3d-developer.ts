@@ -396,10 +396,12 @@ src/App.tsx                        — Imports GameScene3D and renders Game3D
 
 **AVAILABLE HELPERS FROM assets-3d.ts (COMPLETE LIST — no other functions exist):**
 **Factory Helpers (USE THESE FIRST):** \`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\` — each returns \`{ mesh, size }\`. Size = half-extents for \`createPhysicsBody()\`.
+**Animated Characters:** \`createAnimatedCharacter3D(scene, x, y, z, { url })\` — loads GLB with skeletal animations, returns \`{ mesh, mixer, clips, play, stop, size }\`. Call \`play("idle")\` to start animation (fuzzy-matches clip names). Mixer auto-updates each frame.
+**3D Text Labels:** \`createText3D("Score: 0", { x, y, z }, { size?, color?, stroke? })\` — canvas-rendered sprite for text. Returns \`{ sprite, update }\`. Call \`scene.add(sprite)\` to display. Call \`update("Score: 100")\` to change text.
 **Other Functions:** \`initRenderer\`, \`initScene\`, \`initCamera\`, \`loadGLTF\`, \`createGround3D\`, \`createSkyGradient\`, \`checkCollision\`, \`checkBoxCollision\`, \`createHUD\`, \`createKeyboardState\`, \`createPhysicsWorld\`, \`createPhysicsBody\`, \`createPhysicsGround\`, \`syncBodiesToMeshes\`, \`onClickObject\`, \`createAnimationPlayer\`, \`createOrbitControls\`, \`createTouchJoystick\`, \`createTapDetector\`, \`createSwipeDetector\`.
 **Constants:** \`SCALES_3D\`, \`TOUCH_DEADZONE\` (0.15), \`GRAVITY_3D\` (-20), \`JUMP_FORCE\` (8), \`MOVE_SPEED\` (5).
 Do NOT call \`getLoadedModel\`, \`cacheModel\`, \`getModel\`, or ANY function not in this list — they do not exist and will crash.
-ALWAYS import constants/helpers you use: \`import { createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, SCALES_3D, createTouchJoystick } from "../config/assets-3d";\`
+ALWAYS import constants/helpers you use: \`import { createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, createAnimatedCharacter3D, createText3D, SCALES_3D, createTouchJoystick } from "../config/assets-3d";\`
 
 **Reusing models (factories cache internally — just call them in a loop):**
 \`\`\`typescript

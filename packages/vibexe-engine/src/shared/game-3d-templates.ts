@@ -131,6 +131,7 @@ Object.assign(window, {
   CAMERA_LOOK_AHEAD, CAMERA_DISTANCE, CAMERA_HEIGHT, CAMERA_SMOOTH,
   COLLECT_DISTANCE, PLATFORM_GAP, Scene3D,
   createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D,
+  createAnimatedCharacter3D, createText3D,
   createPhysicsWorld, createPhysicsBody, createPhysicsGround, syncBodiesToMeshes, createContactMaterial,
   createGround3D, createSkyGradient, checkCollision, checkBoxCollision, createHUD,
   createKeyboardState, createTouchJoystick, createTapDetector, createSwipeDetector,
@@ -1379,6 +1380,88 @@ export async function createAnimatedCharacter3D(
 
   return { mesh, mixer, clips: clipNames, play, stop, size: halfExtents };
 }
+
+// ===== TEXT SPRITE FACTORY =====
+// Creates a 3D text label in world space using canvas-rendered sprites.
+// Great for score displays, floating labels, health bars, etc.
+
+/**
+ * Creates a 3D text label at (x, y, z) using a canvas-rendered sprite.
+ * Returns { sprite, update } — call update("new text") to change it.
+ *
+ * Usage:
+ *   const scoreLabel = createText3D("Score: 0", { x: -8, y: 6, z: -10 });
+ *   scene.add(scoreLabel.sprite);
+ *   // later: scoreLabel.update("Score: 100");
+ *
+ * Also accepts scene as first arg (both patterns work):
+ *   const label = createText3D(scene, "Hello", { x: 0, y: 5, z: 0 });
+ */
+export function createText3D(
+  textOrScene: string | any,
+  posOrText?: any,
+  optsOrPos?: any,
+  maybeOpts?: any,
+): { sprite: any; update: (newText: string) => void } {
+  let sceneRef: any = null;
+  let text: string;
+  let position: { x: number; y: number; z: number };
+  let opts: any;
+
+  if (typeof textOrScene === "string") {
+    text = textOrScene;
+    position = posOrText || { x: 0, y: 0, z: 0 };
+    opts = optsOrPos || {};
+  } else {
+    sceneRef = textOrScene;
+    text = posOrText || "";
+    position = optsOrPos || { x: 0, y: 0, z: 0 };
+    opts = maybeOpts || {};
+  }
+
+  const size = opts.size || 1;
+  const rawColor = opts.color;
+  const colorStr = rawColor !== undefined
+    ? (typeof rawColor === "number" ? "#" + rawColor.toString(16).padStart(6, "0") : String(rawColor))
+    : "#ffffff";
+  const stroke = opts.stroke ?? false;
+  const font = opts.font || "Bold 64px Arial";
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d")!;
+  canvas.width = 512;
+  canvas.height = 128;
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(material);
+  sprite.position.set(position.x, position.y, position.z);
+  sprite.scale.set(size * 4, size, 1);
+  sprite.renderOrder = 999;
+
+  function render(t: string) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = font;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    if (stroke) {
+      ctx.strokeStyle = "#000000";
+      ctx.lineWidth = 6;
+      ctx.strokeText(t, canvas.width / 2, canvas.height / 2);
+    }
+    ctx.fillStyle = colorStr;
+    ctx.fillText(t, canvas.width / 2, canvas.height / 2);
+    texture.needsUpdate = true;
+  }
+
+  render(text);
+  if (sceneRef) sceneRef.add(sprite);
+
+  return {
+    sprite,
+    update(newText: string) { render(newText); },
+  };
+}
 `,
 	},
 
@@ -1822,14 +1905,14 @@ export const GAME_3D_SCENE_STARTER = `/**
  *
  * ALL game objects MUST use factory helpers from assets-3d.ts:
  *   createPlatform3D, createCollectible3D, createPlayer3D,
- *   createBarrier3D, createDecoration3D
+ *   createBarrier3D, createDecoration3D, createText3D
  * These load real KayKit GLTF 3D models with correct URLs and caching.
  * Do NOT use raw THREE.BoxGeometry or THREE.SphereGeometry for visible objects.
  */
 import {
   createPlatform3D, createCollectible3D, createPlayer3D,
   createBarrier3D, createDecoration3D, createAnimatedCharacter3D,
-  createPhysicsBody, syncBodiesToMeshes, createKeyboardState,
+  createText3D, createPhysicsBody, syncBodiesToMeshes, createKeyboardState,
   createGround3D, createSkyGradient, createHUD,
   CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y,
   COLLECT_DISTANCE, JUMP_FORCE, loadGLTF, SCALES_3D,
