@@ -630,6 +630,19 @@ export function getVisualEditBridgeScript(): string {
   function deselectObject() {
     if (boxHelper && editor) { editor.scene.remove(boxHelper); if (boxHelper.dispose) boxHelper.dispose(); boxHelper = null; }
     if (transformControls && editor) { transformControls.detach(); editor.scene.remove(transformControls); transformControls.dispose(); transformControls = null; }
+    // Sweep: remove ALL stale __editor_ objects (handles duplicates from embedded bridge)
+    if (editor && editor.scene) {
+      var stale = [];
+      for (var i = 0; i < editor.scene.children.length; i++) {
+        var c = editor.scene.children[i];
+        if (c.name && c.name.indexOf("__editor_") === 0) stale.push(c);
+      }
+      for (var j = 0; j < stale.length; j++) {
+        if (stale[j].detach) stale[j].detach();
+        editor.scene.remove(stale[j]);
+        if (stale[j].dispose) stale[j].dispose();
+      }
+    }
     selectedObj = null;
     window.parent.postMessage({ type: "game-editor-object-deselected" }, "*");
   }
