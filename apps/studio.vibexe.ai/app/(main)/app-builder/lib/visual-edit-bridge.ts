@@ -873,13 +873,15 @@ export function getVisualEditBridgeScript(): string {
     // Debounce: batch rapid changes (e.g. during drag) into one update
     if (persistTimer) clearTimeout(persistTimer);
     persistTimer = setTimeout(function() {
-      window.parent.postMessage({
+      var msg = {
         type: "game-editor-persist-transform",
         name: obj.name,
         position: { x: +obj.position.x.toFixed(3), y: +obj.position.y.toFixed(3), z: +obj.position.z.toFixed(3) },
         rotation: { x: +(obj.rotation.x * 180 / Math.PI).toFixed(1), y: +(obj.rotation.y * 180 / Math.PI).toFixed(1), z: +(obj.rotation.z * 180 / Math.PI).toFixed(1) },
         scale: { x: +obj.scale.x.toFixed(3), y: +obj.scale.y.toFixed(3), z: +obj.scale.z.toFixed(3) }
-      }, "*");
+      };
+      console.log("[GameEditorBridge] persistTransform:", obj.name, "pos:", msg.position);
+      window.parent.postMessage(msg, "*");
     }, 300);
   }
 

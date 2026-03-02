@@ -353,9 +353,10 @@ function CodeViewerOverlay({
 }
 
 /**
- * Update transform values in GameScene3D.ts source code.
- * Finds the object by name, then locates nearby .position.set() / .rotation.set() / .scale.set() calls
- * and replaces the arguments with the new values.
+ * Persist transform overrides to GameScene3D.ts source code.
+ * Appends/updates a SCENE_EDITOR_OVERRIDES block at end of file.
+ * This wraps GameScene.init to apply position/rotation/scale overrides
+ * after the original init completes (so all factory-created objects exist).
  */
 function updateTransformInSource(
 	code: string,
@@ -364,70 +365,70 @@ function updateTransformInSource(
 	rot: { x: number; y: number; z: number },
 	scl: { x: number; y: number; z: number },
 ): string {
-	const lines = code.split("\n");
-	// Step 1: Find the line that assigns this object name
-	// Patterns: varName.name = "objectName" or varName.mesh.name = "objectName"
-	const namePattern = new RegExp(
-		`(\\w+)(?:\\.mesh)?\\.name\\s*=\\s*["'\`]${objectName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'\`]`,
+	const MARKER_START = "// SCENE_EDITOR_OVERRIDES_START";
+	const MARKER_END = "// SCENE_EDITOR_OVERRIDES_END";
+	const DATA_MARKER = "// SCENE_EDITOR_OVERRIDES_DATA:";
+
+	// Parse existing overrides from data marker if present
+	let overrides: Record<string, { p: number[]; r: number[]; s: number[] }> =
+		{};
+	const dataMatch = code.match(
+		new RegExp(
+			DATA_MARKER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*(.+)",
+		),
 	);
-	let varName: string | null = null;
-	let nameLineIdx = -1;
-	for (let i = 0; i < lines.length; i++) {
-		const m = lines[i].match(namePattern);
-		if (m) {
-			varName = m[1];
-			nameLineIdx = i;
-			break;
-		}
+	if (dataMatch) {
+		try {
+			overrides = JSON.parse(dataMatch[1]);
+		} catch {}
 	}
-	if (!varName || nameLineIdx < 0) return code; // Can't find object — return unchanged
 
-	// Step 2: Search within ±30 lines for .position.set(), .rotation.set(), .scale.set()
-	const searchStart = Math.max(0, nameLineIdx - 30);
-	const searchEnd = Math.min(lines.length - 1, nameLineIdx + 30);
+	// Strip existing overrides block
+	const startIdx = code.indexOf(MARKER_START);
+	const endIdx = code.indexOf(MARKER_END);
+	if (startIdx !== -1 && endIdx !== -1) {
+		code =
+			code.substring(0, startIdx).trimEnd() +
+			"\n" +
+			code.substring(endIdx + MARKER_END.length).trimStart();
+	}
 
-	const fmt = (n: number) => {
-		const s = n.toFixed(3);
-		// Remove trailing zeros but keep at least one decimal
-		return s.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+	// Convert rotation from degrees to radians
+	const rx = +((rot.x * Math.PI) / 180).toFixed(4);
+	const ry = +((rot.y * Math.PI) / 180).toFixed(4);
+	const rz = +((rot.z * Math.PI) / 180).toFixed(4);
+
+	// Merge new transform
+	overrides[objectName] = {
+		p: [+pos.x.toFixed(3), +pos.y.toFixed(3), +pos.z.toFixed(3)],
+		r: [rx, ry, rz],
+		s: [+scl.x.toFixed(3), +scl.y.toFixed(3), +scl.z.toFixed(3)],
 	};
 
-	// Patterns: varName.position.set(...) or varName.mesh.position.set(...)
-	const posPattern = new RegExp(
-		`(${varName}(?:\\.mesh)?\\.position\\.set\\()([^)]+)(\\))`,
-	);
-	const rotPattern = new RegExp(
-		`(${varName}(?:\\.mesh)?\\.rotation\\.set\\()([^)]+)(\\))`,
-	);
-	const sclPattern = new RegExp(
-		`(${varName}(?:\\.mesh)?\\.scale\\.set\\()([^)]+)(\\))`,
-	);
+	const json = JSON.stringify(overrides);
+	const block = `${MARKER_START}
+${DATA_MARKER} ${json}
+(function() {
+  var _origInit = GameScene.init;
+  GameScene.init = async function() {
+    await _origInit.apply(this, arguments);
+    var _s = arguments[0];
+    var _o = ${json};
+    Object.keys(_o).forEach(function(name) {
+      _s.traverse(function(c: any) {
+        if (c.name === name) {
+          var o = _o[name];
+          if (o.p) c.position.set(o.p[0], o.p[1], o.p[2]);
+          if (o.r) c.rotation.set(o.r[0], o.r[1], o.r[2]);
+          if (o.s) c.scale.set(o.s[0], o.s[1], o.s[2]);
+        }
+      });
+    });
+  };
+})();
+${MARKER_END}`;
 
-	for (let i = searchStart; i <= searchEnd; i++) {
-		// Position
-		if (posPattern.test(lines[i])) {
-			lines[i] = lines[i].replace(
-				posPattern,
-				`$1${fmt(pos.x)}, ${fmt(pos.y)}, ${fmt(pos.z)}$3`,
-			);
-		}
-		// Rotation (convert degrees back to radians for source code — use Math.PI notation if close to common angles, otherwise raw radians)
-		if (rotPattern.test(lines[i])) {
-			const rx = ((rot.x * Math.PI) / 180).toFixed(4);
-			const ry = ((rot.y * Math.PI) / 180).toFixed(4);
-			const rz = ((rot.z * Math.PI) / 180).toFixed(4);
-			lines[i] = lines[i].replace(rotPattern, `$1${rx}, ${ry}, ${rz}$3`);
-		}
-		// Scale
-		if (sclPattern.test(lines[i])) {
-			lines[i] = lines[i].replace(
-				sclPattern,
-				`$1${fmt(scl.x)}, ${fmt(scl.y)}, ${fmt(scl.z)}$3`,
-			);
-		}
-	}
-
-	return lines.join("\n");
+	return code.trimEnd() + "\n" + block + "\n";
 }
 
 /**
@@ -453,6 +454,11 @@ export function SandpackPreview({
 	const iframeContainerRef = useRef<HTMLDivElement>(null);
 	const iframeRef = useRef<HTMLIFrameElement | null>(null);
 	const [iframeBounds, setIframeBounds] = useState<DOMRect | null>(null);
+	// Refs for stable access inside message handler (avoids stale closure)
+	const filesRef = useRef(files);
+	filesRef.current = files;
+	const onFileUpdateRef = useRef(onFileUpdate);
+	onFileUpdateRef.current = onFileUpdate;
 	const [codeViewer, setCodeViewer] = useState<{
 		filePath: string;
 		content: string;
@@ -607,20 +613,28 @@ export function SandpackPreview({
 				gameEditor.setSnapEnabled(!!data.snap);
 			} else if (data.type === "game-editor-object-duplicated") {
 				gameEditor.requestSceneTree();
-			} else if (data.type === "game-editor-persist-transform" && onFileUpdate) {
+			} else if (data.type === "game-editor-persist-transform") {
 				// Persist transform changes to source code (GameScene3D.ts)
+				const currentFiles = filesRef.current;
+				const currentOnFileUpdate = onFileUpdateRef.current;
+				if (!currentOnFileUpdate) return;
 				const objName = data.name as string;
 				const pos = data.position as { x: number; y: number; z: number };
 				const rot = data.rotation as { x: number; y: number; z: number };
 				const scl = data.scale as { x: number; y: number; z: number };
 				if (!objName) return;
 				// Find GameScene3D.ts file
-				const sceneFile = files.find((f) => f.path?.includes("GameScene3D"));
-				if (!sceneFile?.content) return;
+				const sceneFile = currentFiles.find((f) => f.path?.includes("GameScene3D"));
+				if (!sceneFile?.content) {
+					console.warn("[GameEditor] Cannot persist: GameScene3D.ts not found in files", currentFiles.length);
+					return;
+				}
 				const updated = updateTransformInSource(sceneFile.content, objName, pos, rot, scl);
 				if (updated !== sceneFile.content) {
-					console.log("[GameEditor] Persisting transform for:", objName);
-					onFileUpdate(sceneFile.id, updated);
+					console.log("[GameEditor] Persisting transform for:", objName, "pos:", pos);
+					currentOnFileUpdate(sceneFile.id, updated);
+				} else {
+					console.warn("[GameEditor] No change after updateTransformInSource for:", objName);
 				}
 			}
 		};
@@ -801,7 +815,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=12`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=13`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);
