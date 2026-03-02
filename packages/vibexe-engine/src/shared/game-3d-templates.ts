@@ -3313,6 +3313,23 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         // Runs in same context as game — no external script / IIFE issues.
         // Handles: postMessage, raycaster selection, TransformControls, scene tree serialization.
         {
+          // Strip non-serializable values (functions, Three.js objects) from userData for postMessage
+          function _safeUserData(ud: any): any {
+            if (!ud || typeof ud !== "object") return {};
+            const safe: any = {};
+            for (const k of Object.keys(ud)) {
+              const v = ud[k];
+              if (typeof v === "function") continue;
+              if (v && typeof v === "object") {
+                if (v.isObject3D || v.isBufferGeometry || v.isMaterial || v instanceof HTMLElement) continue;
+                try { JSON.stringify(v); safe[k] = v; } catch { continue; }
+              } else {
+                safe[k] = v;
+              }
+            }
+            return safe;
+          }
+
           let _bridgeActive = false;
           let _raycaster: any = null;
           let _mouse: any = null;
@@ -3367,7 +3384,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               },
               scale: { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z },
               visible: obj.visible !== false,
-              userData: obj.userData || {},
+              userData: _safeUserData(obj.userData),
               children,
               _isMesh: !!obj.isMesh,
               _isLight: !!obj.isLight,
@@ -3404,7 +3421,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               scale: { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z },
               visible: obj.visible !== false,
               castShadow: !!obj.castShadow,
-              userData: obj.userData || {},
+              userData: _safeUserData(obj.userData),
               _materialColor: matColor,
             }, "*");
           }
