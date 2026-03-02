@@ -41,6 +41,13 @@ export interface SelectedSceneObject {
 	_materialColor?: string;
 }
 
+export interface PrefabDefinition {
+	factory: string;
+	args: Record<string, any>;
+	displayName: string;
+	category: string;
+}
+
 interface GameEditorContextValue {
 	enabled: boolean;
 	sceneTree: SceneNode | null;
@@ -49,6 +56,13 @@ interface GameEditorContextValue {
 	snapEnabled: boolean;
 	isDirty: boolean;
 	isSaving: boolean;
+	// Animation editor
+	animationClips: string[];
+	currentAnimClip: string | null;
+	animationMap: Record<string, string> | null;
+	// Palette
+	isPaletteOpen: boolean;
+	activePrefab: PrefabDefinition | null;
 	toggleEditor: () => void;
 	setEnabled: (v: boolean) => void;
 	setGizmoMode: (mode: GizmoMode) => void;
@@ -69,6 +83,14 @@ interface GameEditorContextValue {
 	setIsSaving: (v: boolean) => void;
 	saveScene: () => Promise<void>;
 	setSaveHandler: (handler: () => Promise<void>) => void;
+	// Animation editor
+	getAnimations: (uuid: string) => void;
+	playAnimation: (uuid: string, clipName: string) => void;
+	setAnimationClips: (clips: string[], current: string | null, map: Record<string, string> | null) => void;
+	// Palette
+	togglePalette: () => void;
+	setActivePrefab: (prefab: PrefabDefinition | null) => void;
+	spawnObject: (factory: string, position: { x: number; y: number; z: number }, args?: Record<string, any>) => void;
 }
 
 const GameEditorContext = createContext<GameEditorContextValue | null>(null);
@@ -81,6 +103,11 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [snapEnabled, setSnapEnabledState] = useState(false);
 	const [isDirty, setIsDirty] = useState(false);
 	const [isSaving, setIsSaving] = useState(false);
+	const [animationClips, setAnimationClipsState] = useState<string[]>([]);
+	const [currentAnimClip, setCurrentAnimClip] = useState<string | null>(null);
+	const [animationMap, setAnimationMapState] = useState<Record<string, string> | null>(null);
+	const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+	const [activePrefab, setActivePrefabState] = useState<PrefabDefinition | null>(null);
 	const saveHandlerRef = useRef<(() => Promise<void>) | null>(null);
 	const iframeRef = useRef<React.RefObject<HTMLIFrameElement | null> | null>(null);
 
@@ -189,6 +216,36 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		saveHandlerRef.current = handler;
 	}, []);
 
+	// Animation editor actions
+	const getAnimations = useCallback((uuid: string) => {
+		sendToIframe({ type: "game-editor-get-animations", uuid });
+	}, [sendToIframe]);
+
+	const playAnimation = useCallback((uuid: string, clipName: string) => {
+		sendToIframe({ type: "game-editor-play-animation", uuid, clipName });
+	}, [sendToIframe]);
+
+	const setAnimationClips = useCallback((clips: string[], current: string | null, map: Record<string, string> | null) => {
+		setAnimationClipsState(clips);
+		setCurrentAnimClip(current);
+		setAnimationMapState(map);
+	}, []);
+
+	// Palette actions
+	const togglePalette = useCallback(() => {
+		setIsPaletteOpen((prev) => !prev);
+	}, []);
+
+	const setActivePrefab = useCallback((prefab: PrefabDefinition | null) => {
+		setActivePrefabState(prefab);
+		sendToIframe({ type: "game-editor-set-spawn-mode", active: !!prefab });
+	}, [sendToIframe]);
+
+	const spawnObject = useCallback((factory: string, position: { x: number; y: number; z: number }, args?: Record<string, any>) => {
+		sendToIframe({ type: "game-editor-spawn-object", factory, position, args });
+		setIsDirty(true);
+	}, [sendToIframe]);
+
 	const saveScene = useCallback(async () => {
 		if (!saveHandlerRef.current) return;
 		setIsSaving(true);
@@ -224,6 +281,11 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				snapEnabled,
 				isDirty,
 				isSaving,
+				animationClips,
+				currentAnimClip,
+				animationMap,
+				isPaletteOpen,
+				activePrefab,
 				toggleEditor,
 				setEnabled,
 				setGizmoMode,
@@ -244,6 +306,12 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				setIsSaving,
 				saveScene,
 				setSaveHandler,
+				getAnimations,
+				playAnimation,
+				setAnimationClips,
+				togglePalette,
+				setActivePrefab,
+				spawnObject,
 			}}
 		>
 			{children}

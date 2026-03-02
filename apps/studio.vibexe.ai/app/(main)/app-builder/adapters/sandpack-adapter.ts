@@ -1445,6 +1445,35 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			].join("\n"),
 			hidden: true,
 		};
+		// Also load Three.js post-processing addons (EffectComposer, UnrealBloomPass, etc.)
+		// These extend window.THREE with post-processing classes.
+		sandpackFiles["/node_modules/three-postprocessing-shim/package.json"] = {
+			code: JSON.stringify({ name: "three-postprocessing-shim", version: "1.0.0", main: "index.js" }),
+			hidden: true,
+		};
+		sandpackFiles["/node_modules/three-postprocessing-shim/index.js"] = {
+			code: [
+				"// Post-processing shim: load Three.js r128 post-processing addons",
+				"if (window.THREE && !window.THREE.EffectComposer) {",
+				"  var urls = [",
+				"    'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js',",
+				"    'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/Pass.js',",
+				"    'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js',",
+				"    'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js',",
+				"    'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js',",
+				"    'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js',",
+				"    'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js',",
+				"  ];",
+				"  for (var i = 0; i < urls.length; i++) {",
+				"    var xhr = new XMLHttpRequest();",
+				"    xhr.open('GET', urls[i], false);",
+				"    xhr.send();",
+				"    if (xhr.status === 200) { (0, eval)(xhr.responseText); }",
+				"  }",
+				"}",
+			].join("\n"),
+			hidden: true,
+		};
 	}
 
 	// Inject cannon-es shim if any file imports it.

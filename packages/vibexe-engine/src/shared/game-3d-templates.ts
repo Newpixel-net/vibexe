@@ -157,6 +157,18 @@ Object.assign(window, {
   createKeyboardState, createTouchJoystick, createTapDetector, createSwipeDetector,
   createAnimationPlayer, createOrbitControls, onClickObject,
   loadGLTF, modelUrl, initRenderer, initScene, initCamera,
+  // Animation Registry
+  createAnimationMap,
+  // Audio System
+  soundUrl, createAudioManager, playSound, playMusic, playSpatial3D,
+  // Post-Processing
+  createPostProcessing, addFogEffect, setToneMapping, POST_PROCESSING_PRESETS,
+  // Particles & VFX
+  createParticleEmitter, createTrailRenderer, PARTICLE_PRESETS,
+  // Physics Triggers & Constraints
+  createTriggerZone, createHingeConstraint, createSpringConstraint,
+  createLockConstraint, createPointConstraint, createCompoundBody,
+  setCollisionGroups, COLLISION_GROUPS,
   THREE, CANNON,
 });
 
@@ -1024,6 +1036,76 @@ function _updateAllControllers3D(delta: number) {
 (window as any)._activeControllers3D = _activeControllers3D;
 (window as any)._updateAllControllers3D = _updateAllControllers3D;
 
+// ===== PARTICLE SYSTEM AUTO-UPDATE =====
+const _activeParticles3D: any[] = [];
+function _updateAllParticles3D(delta: number) {
+  for (let i = _activeParticles3D.length - 1; i >= 0; i--) {
+    const p = _activeParticles3D[i];
+    if (p._destroyed) { _activeParticles3D.splice(i, 1); continue; }
+    p.update(delta);
+  }
+}
+(window as any)._activeParticles3D = _activeParticles3D;
+(window as any)._updateAllParticles3D = _updateAllParticles3D;
+
+// ===== TRIGGER & SPRING AUTO-UPDATE =====
+const _activeTriggers3D: any[] = [];
+function _updateAllTriggers3D() {
+  for (const t of _activeTriggers3D) if (!t._destroyed) t.check();
+}
+(window as any)._activeTriggers3D = _activeTriggers3D;
+(window as any)._updateAllTriggers3D = _updateAllTriggers3D;
+
+const _activeSprings3D: any[] = [];
+function _updateAllSprings3D() {
+  for (const s of _activeSprings3D) if (!s._destroyed) s.applyForce();
+}
+(window as any)._activeSprings3D = _activeSprings3D;
+(window as any)._updateAllSprings3D = _updateAllSprings3D;
+
+// ===== KNOWN ANIMATION MAPS =====
+// Hardcoded clip name mappings for hosted GLB models.
+// AI calls play("idle") → the map resolves to the actual clip name "Idle_5".
+const _KNOWN_ANIMATION_MAPS: Record<string, Record<string, string>> = {
+  "Warrior_figure_Animations.glb": {
+    idle: "Idle_5", run: "Running", walk: "Walking",
+    jump: "Jump_Over_Obstacle_2", attack: "High_Kick",
+    die: "Dead", hit: "Hit_Reaction_1",
+    kick: "High_Kick", spin: "360_Power_Spin_Jump",
+    hook: "Left_Short_Hook_from_Guard",
+    shoot_walk: "Walk_Forward_While_Shooting",
+  },
+};
+(window as any)._KNOWN_ANIMATION_MAPS = _KNOWN_ANIMATION_MAPS;
+
+// ===== AUDIO SINGLETON =====
+let _audioCtx: AudioContext | null = null;
+let _masterGain: GainNode | null = null;
+let _musicGain: GainNode | null = null;
+let _sfxGain: GainNode | null = null;
+const _audioCache: Map<string, AudioBuffer> = new Map();
+let _currentMusic: { el: HTMLAudioElement; fadeTimer?: any } | null = null;
+const _sfxPool: Map<string, number> = new Map(); // URL → active instance count
+
+function _getAudioContext(): AudioContext {
+  if (!_audioCtx) {
+    _audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    _masterGain = _audioCtx.createGain();
+    _masterGain.gain.value = 0.8;
+    _masterGain.connect(_audioCtx.destination);
+    _musicGain = _audioCtx.createGain();
+    _musicGain.gain.value = 0.5;
+    _musicGain.connect(_masterGain);
+    _sfxGain = _audioCtx.createGain();
+    _sfxGain.gain.value = 1.0;
+    _sfxGain.connect(_masterGain);
+  }
+  if (_audioCtx.state === "suspended") _audioCtx.resume();
+  return _audioCtx;
+}
+(window as any)._getAudioContext = _getAudioContext;
+(window as any)._audioCtx = null; // Updated after first call
+
 // ===== 3D FACTORY HELPERS — Force GLTF model loading =====
 // These make it EASIER to use real KayKit models than to write raw geometry.
 // Each factory: build URL → load GLTF (cached) → scale → position → add to scene → return {mesh, size}.
@@ -1614,6 +1696,21 @@ export async function createAnimatedCharacter3D(
   // AI code can switch to "walk"/"run" later via character.play("walk").
   play("idle");
 
+  // Store animation data on mesh.userData for editor access
+  mesh.userData.__clipNames = clipNames;
+  mesh.userData.__play = play;
+  mesh.userData.__stop = stop;
+  mesh.userData.__currentClip = () => _currentAction?.getClip()?.name || null;
+
+  // Auto-apply known animation map if URL matches a hosted model
+  for (const [urlPattern, map] of Object.entries(_KNOWN_ANIMATION_MAPS)) {
+    if (opts.url.includes(urlPattern)) {
+      mesh.userData.__animMap = map;
+      console.log("[3D] Auto-applied animation map for:", urlPattern);
+      break;
+    }
+  }
+
   return { mesh, mixer, clips: clipNames, play, stop, size: halfExtents };
 }
 
@@ -1855,6 +1952,812 @@ export function createText3D(
     update(newText: string) { render(newText); },
   };
 }
+
+// ===== ANIMATION MAP SYSTEM =====
+// Auto-classifies animation clips by name and duration heuristics.
+
+function _classifyClips(clips: any[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const clip of clips) {
+    const name = clip.name.toLowerCase();
+    const dur = clip.duration;
+    const isLoop = clip.loop !== undefined ? clip.loop : true;
+    if (name.includes("idle") || (dur > 2 && isLoop && !name.includes("walk") && !name.includes("run"))) {
+      if (!map.idle) map.idle = clip.name;
+    }
+    if (name.includes("walk") || name.includes("walking")) {
+      if (!map.walk) map.walk = clip.name;
+    }
+    if (name.includes("run") || name.includes("running") || name.includes("sprint")) {
+      if (!map.run) map.run = clip.name;
+    }
+    if (name.includes("jump") || name.includes("leap")) {
+      if (!map.jump) map.jump = clip.name;
+    }
+    if (name.includes("attack") || name.includes("slash") || name.includes("kick") || name.includes("punch") || name.includes("hit") && dur < 1.5) {
+      if (!map.attack) map.attack = clip.name;
+    }
+    if (name.includes("dead") || name.includes("death") || name.includes("die")) {
+      if (!map.die) map.die = clip.name;
+    }
+    if (name.includes("damage") || name.includes("hurt") || (name.includes("hit") && name.includes("react"))) {
+      if (!map.hit) map.hit = clip.name;
+    }
+  }
+  return map;
+}
+
+/**
+ * Creates an animation map for a character, enabling friendly name lookups.
+ * If no explicit mappings provided, auto-classifies clips by name heuristics.
+ *
+ * Usage:
+ *   const warrior = await createAnimatedCharacter3D(scene, 0, 0, 0, { url: ... });
+ *   const animMap = createAnimationMap(warrior);          // auto-classify
+ *   const animMap = createAnimationMap(warrior, { idle: "Idle_5", run: "Running" }); // explicit
+ *   warrior.play(animMap.idle);  // plays the mapped clip
+ */
+export function createAnimationMap(
+  character: { mesh: any; clips: string[]; play: Function },
+  mappings?: Record<string, string>,
+): Record<string, string> {
+  const map = mappings || _classifyClips(
+    character.clips.map((name: string) => ({ name, duration: 1, loop: true }))
+  );
+  character.mesh.userData.__animMap = map;
+  return map;
+}
+
+// ===== AUDIO SYSTEM =====
+// Web Audio API-based sound system with SFX pooling, BGM crossfade, and 3D spatial audio.
+
+/**
+ * Builds a URL for a media-stock audio file.
+ * Usage: soundUrl("collect") → "https://vibexe.online/api/app-builder/media-stock-audio/collect.mp3"
+ */
+export function soundUrl(name: string): string {
+  const origin = (window as any).__VIBEXE_API_ORIGIN__ || "";
+  const ext = name.includes(".") ? "" : ".mp3";
+  return \`\${origin}/api/app-builder/media-stock-audio/\${name}\${ext}\`;
+}
+
+/**
+ * Creates an audio manager for global volume control.
+ * Usage:
+ *   const audio = createAudioManager();
+ *   audio.setMasterVolume(0.5);
+ *   audio.mute();
+ */
+export function createAudioManager(): {
+  setMasterVolume: (v: number) => void;
+  setMusicVolume: (v: number) => void;
+  setSfxVolume: (v: number) => void;
+  mute: () => void;
+  unmute: () => void;
+  toggleMute: () => void;
+  resume: () => void;
+} {
+  _getAudioContext();
+  let _muted = false;
+  let _prevMaster = 0.8;
+  return {
+    setMasterVolume(v: number) { if (_masterGain) _masterGain.gain.value = v; },
+    setMusicVolume(v: number) { if (_musicGain) _musicGain.gain.value = v; },
+    setSfxVolume(v: number) { if (_sfxGain) _sfxGain.gain.value = v; },
+    mute() { _muted = true; if (_masterGain) { _prevMaster = _masterGain.gain.value; _masterGain.gain.value = 0; } },
+    unmute() { _muted = false; if (_masterGain) _masterGain.gain.value = _prevMaster; },
+    toggleMute() { if (_muted) this.unmute(); else this.mute(); },
+    resume() { if (_audioCtx?.state === "suspended") _audioCtx.resume(); },
+  };
+}
+
+/**
+ * Plays a one-shot sound effect via Web Audio API.
+ * Caches decoded audio. Pools instances per URL.
+ *
+ * Usage:
+ *   playSound(soundUrl("collect"), { volume: 0.8 });
+ *   playSound(soundUrl("jump"));
+ *   const sfx = playSound(soundUrl("explosion"), { pitch: 0.8, rate: 1.2 });
+ *   sfx.stop();
+ */
+export async function playSound(
+  url: string,
+  opts?: { volume?: number; pitch?: number; rate?: number; maxInstances?: number; pan?: number },
+): Promise<{ stop: () => void }> {
+  const ctx = _getAudioContext();
+  const maxInst = opts?.maxInstances ?? 5;
+  const currentCount = _sfxPool.get(url) || 0;
+  if (currentCount >= maxInst) return { stop() {} };
+
+  let buffer = _audioCache.get(url);
+  if (!buffer) {
+    try {
+      const resp = await fetch(url);
+      const arrayBuf = await resp.arrayBuffer();
+      buffer = await ctx.decodeAudioData(arrayBuf);
+      _audioCache.set(url, buffer);
+    } catch (e) {
+      console.warn("[Audio] Failed to load:", url, e);
+      return { stop() {} };
+    }
+  }
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.playbackRate.value = opts?.rate ?? 1.0;
+  if (opts?.pitch) source.detune.value = (opts.pitch - 1) * 100;
+
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = opts?.volume ?? 1.0;
+
+  if (opts?.pan !== undefined) {
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = opts.pan;
+    source.connect(gainNode).connect(panner).connect(_sfxGain!);
+  } else {
+    source.connect(gainNode).connect(_sfxGain!);
+  }
+
+  _sfxPool.set(url, currentCount + 1);
+  source.onended = () => {
+    _sfxPool.set(url, Math.max(0, (_sfxPool.get(url) || 1) - 1));
+  };
+  source.start(0);
+
+  return {
+    stop() { try { source.stop(); } catch {} },
+  };
+}
+
+/**
+ * Plays background music via HTMLAudioElement (better for long tracks).
+ * Supports looping and crossfade between tracks.
+ *
+ * Usage:
+ *   const music = playMusic(soundUrl("theme-adventure"), { loop: true, fadeIn: 1 });
+ *   // later: switch tracks
+ *   const music2 = playMusic(soundUrl("theme-action"), { crossfadeDuration: 2 });
+ *   music.stop();
+ */
+export function playMusic(
+  url: string,
+  opts?: { volume?: number; loop?: boolean; fadeIn?: number; crossfadeDuration?: number },
+): { stop: () => void; pause: () => void; resume: () => void; setVolume: (v: number) => void } {
+  _getAudioContext();
+  const vol = opts?.volume ?? 0.5;
+  const loop = opts?.loop !== false;
+  const fadeIn = opts?.fadeIn ?? 0;
+  const crossfade = opts?.crossfadeDuration ?? 1.0;
+
+  // Crossfade out old music
+  if (_currentMusic) {
+    const old = _currentMusic;
+    const startVol = old.el.volume;
+    let t = 0;
+    clearInterval(old.fadeTimer);
+    old.fadeTimer = setInterval(() => {
+      t += 50;
+      const progress = Math.min(1, t / (crossfade * 1000));
+      old.el.volume = startVol * (1 - progress);
+      if (progress >= 1) {
+        clearInterval(old.fadeTimer);
+        old.el.pause();
+        old.el.src = "";
+      }
+    }, 50);
+  }
+
+  const el = new Audio(url);
+  el.loop = loop;
+  el.volume = fadeIn > 0 ? 0 : vol;
+  el.play().catch(() => {});
+
+  const entry = { el, fadeTimer: undefined as any };
+  _currentMusic = entry;
+
+  if (fadeIn > 0) {
+    let t = 0;
+    entry.fadeTimer = setInterval(() => {
+      t += 50;
+      el.volume = Math.min(vol, (t / (fadeIn * 1000)) * vol);
+      if (el.volume >= vol) clearInterval(entry.fadeTimer);
+    }, 50);
+  }
+
+  return {
+    stop() { el.pause(); el.src = ""; if (_currentMusic === entry) _currentMusic = null; },
+    pause() { el.pause(); },
+    resume() { el.play().catch(() => {}); },
+    setVolume(v: number) { el.volume = v; },
+  };
+}
+
+/**
+ * Plays 3D positional audio using PannerNode (HRTF).
+ * Sound attenuates with distance from the listener (camera).
+ *
+ * Usage:
+ *   const fire = playSpatial3D(soundUrl("fire"), { x: 5, y: 1, z: -3 }, { loop: true });
+ *   fire.setPosition(newX, newY, newZ);
+ *   fire.attachTo(torchMesh); // auto-updates position each frame
+ */
+export async function playSpatial3D(
+  url: string,
+  position: { x: number; y: number; z: number },
+  opts?: { volume?: number; loop?: boolean; refDistance?: number; maxDistance?: number; rolloff?: number },
+): Promise<{ stop: () => void; setPosition: (x: number, y: number, z: number) => void; attachTo: (mesh: any) => void }> {
+  const ctx = _getAudioContext();
+
+  let buffer = _audioCache.get(url);
+  if (!buffer) {
+    try {
+      const resp = await fetch(url);
+      buffer = await ctx.decodeAudioData(await resp.arrayBuffer());
+      _audioCache.set(url, buffer);
+    } catch (e) {
+      console.warn("[Audio] Spatial load failed:", url, e);
+      return { stop() {}, setPosition() {}, attachTo() {} };
+    }
+  }
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.loop = opts?.loop ?? false;
+
+  const panner = ctx.createPanner();
+  panner.panningModel = "HRTF";
+  panner.distanceModel = "inverse";
+  panner.refDistance = opts?.refDistance ?? 1;
+  panner.maxDistance = opts?.maxDistance ?? 50;
+  panner.rolloffFactor = opts?.rolloff ?? 1;
+  panner.setPosition(position.x, position.y, position.z);
+
+  const gain = ctx.createGain();
+  gain.gain.value = opts?.volume ?? 1;
+
+  source.connect(gain).connect(panner).connect(_sfxGain!);
+  source.start(0);
+
+  let _attachedMesh: any = null;
+
+  // Update listener position from camera each frame (if attached)
+  const _updateSpatial = () => {
+    if (_attachedMesh) {
+      panner.setPosition(_attachedMesh.position.x, _attachedMesh.position.y, _attachedMesh.position.z);
+    }
+    const cam = (window as any).__vibexe_camera__;
+    if (cam && ctx.listener.setPosition) {
+      ctx.listener.setPosition(cam.position.x, cam.position.y, cam.position.z);
+    }
+  };
+
+  return {
+    stop() { try { source.stop(); } catch {} },
+    setPosition(x: number, y: number, z: number) { panner.setPosition(x, y, z); },
+    attachTo(mesh: any) { _attachedMesh = mesh; },
+  };
+}
+
+// ===== POST-PROCESSING =====
+
+const POST_PROCESSING_PRESETS: Record<string, any> = {
+  cinematic: { bloom: { strength: 0.4, radius: 0.4, threshold: 0.85 }, fog: { color: 0x88aacc, near: 20, far: 80 }, toneMapping: "ACESFilmic", exposure: 1.0 },
+  vibrant: { bloom: { strength: 0.8, radius: 0.5, threshold: 0.6 }, toneMapping: "ACESFilmic", exposure: 1.2 },
+  dark: { bloom: { strength: 0.3, radius: 0.3, threshold: 0.9 }, fog: { color: 0x111122, near: 5, far: 40 }, toneMapping: "Cineon", exposure: 0.7 },
+  neon: { bloom: { strength: 1.5, radius: 0.6, threshold: 0.4 }, fog: { color: 0x050510, near: 10, far: 60 }, toneMapping: "ACESFilmic", exposure: 0.9 },
+  natural: { bloom: { strength: 0.2, radius: 0.3, threshold: 0.9 }, fog: { color: 0xccddee, near: 30, far: 100 }, toneMapping: "Linear", exposure: 1.0 },
+};
+
+/**
+ * Creates post-processing pipeline with EffectComposer.
+ * Stores on window.__vibexe_composer__ — Game3D.tsx auto-uses it for rendering.
+ *
+ * Usage:
+ *   const pp = createPostProcessing(renderer, scene, camera, "cinematic");
+ *   // or custom:
+ *   const pp = createPostProcessing(renderer, scene, camera);
+ *   pp.addBloom({ strength: 1.0 });
+ *   pp.addFog({ color: 0x000000, near: 5, far: 30 });
+ */
+export function createPostProcessing(
+  renderer: any, scene: any, camera: any,
+  preset?: string,
+): { composer: any; addBloom: (opts?: any) => void; addFog: (opts?: any) => void; setPreset: (name: string) => void; destroy: () => void } | null {
+  if (!THREE.EffectComposer) {
+    console.warn("[PostFX] EffectComposer not loaded — post-processing unavailable");
+    return null;
+  }
+
+  const composer = new THREE.EffectComposer(renderer);
+  const renderPass = new THREE.RenderPass(scene, camera);
+  composer.addPass(renderPass);
+  (window as any).__vibexe_composer__ = composer;
+
+  let _bloomPass: any = null;
+
+  function addBloom(opts?: { strength?: number; radius?: number; threshold?: number }) {
+    if (!THREE.UnrealBloomPass) return;
+    if (_bloomPass) composer.removePass(_bloomPass);
+    const res = new THREE.Vector2(renderer.domElement.width, renderer.domElement.height);
+    _bloomPass = new THREE.UnrealBloomPass(res, opts?.strength ?? 0.5, opts?.radius ?? 0.4, opts?.threshold ?? 0.85);
+    composer.addPass(_bloomPass);
+  }
+
+  function addFog(opts?: { color?: number; near?: number; far?: number }) {
+    scene.fog = new THREE.Fog(opts?.color ?? 0x88aacc, opts?.near ?? 20, opts?.far ?? 80);
+  }
+
+  function setToneMappingInternal(type: string, exposure: number) {
+    const map: Record<string, number> = { Linear: 1, Reinhard: 2, Cineon: 3, ACESFilmic: 4 };
+    renderer.toneMapping = map[type] ?? 1;
+    renderer.toneMappingExposure = exposure;
+  }
+
+  function setPreset(name: string) {
+    const p = POST_PROCESSING_PRESETS[name];
+    if (!p) { console.warn("[PostFX] Unknown preset:", name); return; }
+    if (p.bloom) addBloom(p.bloom);
+    if (p.fog) addFog(p.fog);
+    if (p.toneMapping) setToneMappingInternal(p.toneMapping, p.exposure ?? 1);
+  }
+
+  // Apply preset if given
+  if (preset) setPreset(preset);
+
+  return {
+    composer,
+    addBloom,
+    addFog,
+    setPreset,
+    destroy() {
+      (window as any).__vibexe_composer__ = null;
+      composer.dispose?.();
+    },
+  };
+}
+
+/**
+ * Shortcut: set scene fog.
+ */
+export function addFogEffect(scene: any, opts?: { color?: number; near?: number; far?: number }) {
+  scene.fog = new THREE.Fog(opts?.color ?? 0x88aacc, opts?.near ?? 20, opts?.far ?? 80);
+}
+
+/**
+ * Shortcut: set renderer tone mapping.
+ */
+export function setToneMapping(renderer: any, type?: string, exposure?: number) {
+  const map: Record<string, number> = { Linear: 1, Reinhard: 2, Cineon: 3, ACESFilmic: 4 };
+  renderer.toneMapping = map[type || "ACESFilmic"] ?? 4;
+  renderer.toneMappingExposure = exposure ?? 1.0;
+}
+
+// ===== PARTICLE & VFX SYSTEM =====
+
+const PARTICLE_PRESETS: Record<string, any> = {
+  explosion:  { count: 50, mode: "burst", speed: 8, spread: 1, gravity: -10, life: 0.8, colors: [0xff6600, 0xff3300, 0xffaa00], sizeStart: 0.3, sizeEnd: 0 },
+  sparkle:    { count: 20, mode: "burst", speed: 3, spread: 0.5, gravity: 0, life: 0.6, colors: [0xffff00, 0xffffff, 0xffdd44], sizeStart: 0.15, sizeEnd: 0 },
+  dust:       { count: 15, mode: "burst", speed: 2, spread: 0.3, gravity: -3, life: 0.5, colors: [0x996633, 0xccaa66], sizeStart: 0.2, sizeEnd: 0.05 },
+  fire:       { count: 30, mode: "continuous", emitRate: 20, speed: 3, spread: 0.2, gravity: 2, life: 1.0, colors: [0xff4400, 0xff6600, 0xffaa00], sizeStart: 0.25, sizeEnd: 0 },
+  smoke:      { count: 20, mode: "continuous", emitRate: 10, speed: 1.5, spread: 0.3, gravity: 1, life: 2.0, colors: [0x666666, 0x888888, 0x444444], sizeStart: 0.2, sizeEnd: 0.5 },
+  rain:       { count: 200, mode: "continuous", emitRate: 100, speed: 15, spread: 20, gravity: 0, life: 1.5, colors: [0x6688cc], sizeStart: 0.05, sizeEnd: 0.05, direction: { x: 0, y: -1, z: 0 } },
+  snow:       { count: 150, mode: "continuous", emitRate: 30, speed: 2, spread: 15, gravity: 0, life: 4.0, colors: [0xffffff, 0xeeeeff], sizeStart: 0.1, sizeEnd: 0.08, direction: { x: 0, y: -1, z: 0 } },
+  confetti:   { count: 80, mode: "burst", speed: 6, spread: 1, gravity: -5, life: 2.0, colors: [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff], sizeStart: 0.15, sizeEnd: 0.1 },
+};
+
+/**
+ * Creates a particle emitter at a position.
+ * Supports preset names or custom configuration.
+ *
+ * Usage:
+ *   // Sparkle burst on collect
+ *   const sparks = createParticleEmitter(scene, { x: 3, y: 2, z: -5 }, "sparkle");
+ *
+ *   // Continuous fire on torch
+ *   const fire = createParticleEmitter(scene, { x: 0, y: 1, z: 0 }, "fire");
+ *   fire.stop(); // stop emitting (existing particles fade out)
+ *   fire.destroy(); // remove immediately
+ */
+export function createParticleEmitter(
+  scene: any,
+  position: { x: number; y: number; z: number },
+  presetOrConfig: string | any,
+): { emit: () => void; stop: () => void; destroy: () => void; setPosition: (x: number, y: number, z: number) => void; isAlive: () => boolean } {
+  const config = typeof presetOrConfig === "string"
+    ? { ...(PARTICLE_PRESETS[presetOrConfig] || PARTICLE_PRESETS.sparkle) }
+    : presetOrConfig;
+
+  const MAX = config.count || 50;
+  const positions = new Float32Array(MAX * 3);
+  const velocities = new Float32Array(MAX * 3);
+  const ages = new Float32Array(MAX);
+  const lifetimes = new Float32Array(MAX);
+  const sizes = new Float32Array(MAX);
+  const colorArr = new Float32Array(MAX * 3);
+  const colors = config.colors || [0xffffff];
+  const sizeStart = config.sizeStart ?? 0.2;
+  const sizeEnd = config.sizeEnd ?? 0;
+  const speed = config.speed ?? 5;
+  const spread = config.spread ?? 1;
+  const gravity = config.gravity ?? 0;
+  const life = config.life ?? 1;
+  const dir = config.direction || null;
+
+  let activeCount = 0;
+  let _emitting = true;
+  let _alive = true;
+  let _destroyed = false;
+  let _emitAccum = 0;
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
+  geometry.setAttribute("color", new THREE.BufferAttribute(colorArr, 3));
+
+  const material = new THREE.PointsMaterial({
+    size: sizeStart,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.8,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
+
+  const points = new THREE.Points(geometry, material);
+  points.name = "ParticleEmitter";
+  points.frustumCulled = false;
+  scene.add(points);
+
+  function _spawnOne(idx: number) {
+    const i3 = idx * 3;
+    positions[i3] = position.x + (Math.random() - 0.5) * spread * 0.5;
+    positions[i3 + 1] = position.y + (Math.random() - 0.5) * spread * 0.5;
+    positions[i3 + 2] = position.z + (Math.random() - 0.5) * spread * 0.5;
+
+    if (dir) {
+      velocities[i3] = dir.x * speed + (Math.random() - 0.5) * spread;
+      velocities[i3 + 1] = dir.y * speed + (Math.random() - 0.5) * spread * 0.3;
+      velocities[i3 + 2] = dir.z * speed + (Math.random() - 0.5) * spread;
+    } else {
+      velocities[i3] = (Math.random() - 0.5) * speed;
+      velocities[i3 + 1] = Math.random() * speed;
+      velocities[i3 + 2] = (Math.random() - 0.5) * speed;
+    }
+
+    ages[idx] = 0;
+    lifetimes[idx] = life * (0.7 + Math.random() * 0.6);
+    sizes[idx] = sizeStart;
+
+    const c = new THREE.Color(colors[Math.floor(Math.random() * colors.length)]);
+    colorArr[i3] = c.r;
+    colorArr[i3 + 1] = c.g;
+    colorArr[i3 + 2] = c.b;
+  }
+
+  // Burst mode: spawn all at once
+  if (config.mode === "burst") {
+    for (let i = 0; i < MAX; i++) _spawnOne(i);
+    activeCount = MAX;
+  }
+
+  const emitter = {
+    _destroyed: false,
+    update(delta: number) {
+      if (_destroyed) return;
+
+      // Continuous mode: emit at rate
+      if (config.mode === "continuous" && _emitting) {
+        _emitAccum += delta * (config.emitRate || 20);
+        while (_emitAccum >= 1 && activeCount < MAX) {
+          _spawnOne(activeCount);
+          activeCount++;
+          _emitAccum -= 1;
+        }
+      }
+
+      // Update all particles
+      let alive = false;
+      for (let i = 0; i < activeCount; i++) {
+        ages[i] += delta;
+        if (ages[i] >= lifetimes[i]) {
+          sizes[i] = 0;
+          continue;
+        }
+        alive = true;
+        const t = ages[i] / lifetimes[i];
+        sizes[i] = sizeStart + (sizeEnd - sizeStart) * t;
+
+        const i3 = i * 3;
+        velocities[i3 + 1] += gravity * delta;
+        positions[i3] += velocities[i3] * delta;
+        positions[i3 + 1] += velocities[i3 + 1] * delta;
+        positions[i3 + 2] += velocities[i3 + 2] * delta;
+
+        // Fade alpha
+        const alpha = 1 - t;
+        colorArr[i3] *= (0.98 + alpha * 0.02);
+        colorArr[i3 + 1] *= (0.98 + alpha * 0.02);
+        colorArr[i3 + 2] *= (0.98 + alpha * 0.02);
+      }
+
+      geometry.attributes.position.needsUpdate = true;
+      geometry.attributes.aSize.needsUpdate = true;
+      geometry.attributes.color.needsUpdate = true;
+      material.size = sizeStart; // Points material applies uniform size; individual sizes via shader
+
+      if (!alive && !_emitting) {
+        _alive = false;
+      }
+    },
+    isAlive() { return _alive; },
+    emit() { _emitting = true; },
+    stop() { _emitting = false; },
+    destroy() {
+      _destroyed = true;
+      _alive = false;
+      emitter._destroyed = true;
+      scene.remove(points);
+      geometry.dispose();
+      material.dispose();
+    },
+    setPosition(x: number, y: number, z: number) {
+      position = { x, y, z };
+    },
+  };
+
+  _activeParticles3D.push(emitter);
+  return emitter;
+}
+
+/**
+ * Creates a trail renderer that follows a mesh.
+ * Renders as a fading ribbon behind the moving object.
+ *
+ * Usage:
+ *   const trail = createTrailRenderer(projectileMesh, scene, { color: 0xff4400, width: 0.3, length: 20 });
+ *   // In update: trail is auto-updated
+ *   trail.destroy(); // cleanup
+ */
+export function createTrailRenderer(
+  mesh: any,
+  scene: any,
+  opts?: { color?: number; width?: number; length?: number; fade?: boolean },
+): { destroy: () => void; setColor: (c: number) => void; setWidth: (w: number) => void } {
+  const LENGTH = opts?.length ?? 20;
+  const color = new THREE.Color(opts?.color ?? 0x00ff88);
+  let width = opts?.width ?? 0.2;
+
+  const positions = new Float32Array(LENGTH * 3);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6, linewidth: 2 });
+  const line = new THREE.Line(geometry, material);
+  line.frustumCulled = false;
+  line.name = "TrailRenderer";
+  scene.add(line);
+
+  let _destroyed = false;
+
+  const trailObj = {
+    _destroyed: false,
+    update(_delta: number) {
+      if (_destroyed) return;
+      // Shift positions back
+      for (let i = LENGTH - 1; i > 0; i--) {
+        positions[i * 3] = positions[(i - 1) * 3];
+        positions[i * 3 + 1] = positions[(i - 1) * 3 + 1];
+        positions[i * 3 + 2] = positions[(i - 1) * 3 + 2];
+      }
+      // Set head to current mesh position
+      positions[0] = mesh.position.x;
+      positions[1] = mesh.position.y;
+      positions[2] = mesh.position.z;
+      geometry.attributes.position.needsUpdate = true;
+    },
+    isAlive() { return !_destroyed; },
+    destroy() { _destroyed = true; trailObj._destroyed = true; scene.remove(line); geometry.dispose(); material.dispose(); },
+    setColor(c: number) { material.color.set(c); },
+    setWidth(w: number) { width = w; },
+  };
+
+  _activeParticles3D.push(trailObj);
+  return trailObj;
+}
+
+// ===== PHYSICS TRIGGERS, SENSORS & CONSTRAINTS =====
+
+/** Collision group bitmasks for filtering. */
+export const COLLISION_GROUPS = { PLAYER: 1, ENEMY: 2, PLATFORM: 4, TRIGGER: 8, PROJECTILE: 16, ALL: -1 };
+
+/**
+ * Creates an invisible trigger zone that fires callbacks on enter/exit/stay.
+ * The body has collisionResponse=false — it detects overlap without blocking.
+ *
+ * Usage:
+ *   const trigger = createTriggerZone(world, { x: 5, y: 1, z: -3 }, { x: 2, y: 2, z: 2 }, {
+ *     onEnter: (body) => console.log("Entered!", body),
+ *     onExit: (body) => console.log("Exited!", body),
+ *   });
+ */
+export function createTriggerZone(
+  world: any,
+  position: { x: number; y: number; z: number },
+  size: { x: number; y: number; z: number },
+  callbacks: { onEnter?: (body: any) => void; onExit?: (body: any) => void; onStay?: (body: any) => void },
+): { body: any; destroy: () => void } {
+  if (!CANNON) { return { body: null, destroy() {} }; }
+
+  const shape = new CANNON.Box(new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2));
+  const body = new CANNON.Body({ mass: 0, shape, isTrigger: true });
+  body.position.set(position.x, position.y, position.z);
+  body.collisionResponse = false;
+  world.addBody(body);
+
+  const _inside: Set<any> = new Set();
+  let _destroyed = false;
+
+  const trigger = {
+    body,
+    _destroyed: false,
+    check() {
+      if (_destroyed) return;
+      const currentInside: Set<any> = new Set();
+      // Check all bodies in world for overlap
+      for (const other of world.bodies) {
+        if (other === body || other.mass < 0) continue;
+        const dx = Math.abs(other.position.x - body.position.x);
+        const dy = Math.abs(other.position.y - body.position.y);
+        const dz = Math.abs(other.position.z - body.position.z);
+        if (dx < size.x / 2 && dy < size.y / 2 && dz < size.z / 2) {
+          currentInside.add(other);
+          if (!_inside.has(other)) {
+            callbacks.onEnter?.(other);
+          } else {
+            callbacks.onStay?.(other);
+          }
+        }
+      }
+      // Check exits
+      for (const prev of _inside) {
+        if (!currentInside.has(prev)) {
+          callbacks.onExit?.(prev);
+        }
+      }
+      _inside.clear();
+      for (const c of currentInside) _inside.add(c);
+    },
+    destroy() { _destroyed = true; trigger._destroyed = true; world.removeBody(body); },
+  };
+
+  _activeTriggers3D.push(trigger);
+  return trigger;
+}
+
+/**
+ * Creates a hinge constraint between two bodies (e.g., a door).
+ */
+export function createHingeConstraint(
+  bodyA: any, bodyB: any,
+  pivotA: { x: number; y: number; z: number },
+  pivotB: { x: number; y: number; z: number },
+  axisA?: { x: number; y: number; z: number },
+  axisB?: { x: number; y: number; z: number },
+): { constraint: any; setMotorSpeed: (speed: number) => void; enableMotor: () => void; disableMotor: () => void; setLimits: (low: number, high: number) => void } | null {
+  if (!CANNON) return null;
+  const axis1 = axisA || { x: 0, y: 1, z: 0 };
+  const axis2 = axisB || { x: 0, y: 1, z: 0 };
+  const c = new CANNON.HingeConstraint(bodyA, bodyB, {
+    pivotA: new CANNON.Vec3(pivotA.x, pivotA.y, pivotA.z),
+    pivotB: new CANNON.Vec3(pivotB.x, pivotB.y, pivotB.z),
+    axisA: new CANNON.Vec3(axis1.x, axis1.y, axis1.z),
+    axisB: new CANNON.Vec3(axis2.x, axis2.y, axis2.z),
+  });
+  bodyA.world?.addConstraint(c);
+  return {
+    constraint: c,
+    setMotorSpeed(speed: number) { c.setMotorSpeed(speed); },
+    enableMotor() { c.enableMotor(); },
+    disableMotor() { c.disableMotor(); },
+    setLimits(low: number, high: number) { c.setLimits?.(low, high); },
+  };
+}
+
+/**
+ * Creates a spring constraint between two bodies (e.g., bouncy bridge).
+ * Auto-registered for per-frame force application.
+ */
+export function createSpringConstraint(
+  bodyA: any, bodyB: any,
+  opts?: { stiffness?: number; damping?: number; restLength?: number;
+    localAnchorA?: { x: number; y: number; z: number }; localAnchorB?: { x: number; y: number; z: number } },
+): { spring: any; destroy: () => void } | null {
+  if (!CANNON) return null;
+  const spring = new CANNON.Spring(bodyA, bodyB, {
+    stiffness: opts?.stiffness ?? 100,
+    damping: opts?.damping ?? 5,
+    restLength: opts?.restLength ?? 1,
+    localAnchorA: opts?.localAnchorA ? new CANNON.Vec3(opts.localAnchorA.x, opts.localAnchorA.y, opts.localAnchorA.z) : undefined,
+    localAnchorB: opts?.localAnchorB ? new CANNON.Vec3(opts.localAnchorB.x, opts.localAnchorB.y, opts.localAnchorB.z) : undefined,
+  });
+  let _destroyed = false;
+  const s = {
+    spring,
+    _destroyed: false,
+    applyForce() { if (!_destroyed) spring.applyForce(); },
+    destroy() { _destroyed = true; s._destroyed = true; },
+  };
+  _activeSprings3D.push(s);
+  return s;
+}
+
+/**
+ * Creates a lock constraint (rigid attachment) between two bodies.
+ */
+export function createLockConstraint(bodyA: any, bodyB: any): { constraint: any; unlock: () => void } | null {
+  if (!CANNON) return null;
+  const c = new CANNON.LockConstraint(bodyA, bodyB);
+  bodyA.world?.addConstraint(c);
+  return {
+    constraint: c,
+    unlock() { bodyA.world?.removeConstraint(c); },
+  };
+}
+
+/**
+ * Creates a point-to-point (ball joint) constraint between two bodies.
+ */
+export function createPointConstraint(
+  bodyA: any, bodyB: any,
+  pivotA: { x: number; y: number; z: number },
+  pivotB: { x: number; y: number; z: number },
+): { constraint: any; destroy: () => void } | null {
+  if (!CANNON) return null;
+  const c = new CANNON.PointToPointConstraint(
+    bodyA, new CANNON.Vec3(pivotA.x, pivotA.y, pivotA.z),
+    bodyB, new CANNON.Vec3(pivotB.x, pivotB.y, pivotB.z),
+  );
+  bodyA.world?.addConstraint(c);
+  return {
+    constraint: c,
+    destroy() { bodyA.world?.removeConstraint(c); },
+  };
+}
+
+/**
+ * Creates a compound (multi-shape) physics body.
+ */
+export function createCompoundBody(
+  mass: number,
+  position: { x: number; y: number; z: number },
+  shapes: Array<{ type: "box" | "sphere"; size: any; offset: { x: number; y: number; z: number }; rotation?: { x: number; y: number; z: number } }>,
+): any {
+  if (!CANNON) return null;
+  const body = new CANNON.Body({ mass });
+  body.position.set(position.x, position.y, position.z);
+  for (const s of shapes) {
+    let shape: any;
+    if (s.type === "box") {
+      const sz = typeof s.size === "number" ? { x: s.size, y: s.size, z: s.size } : s.size;
+      shape = new CANNON.Box(new CANNON.Vec3(sz.x, sz.y, sz.z));
+    } else {
+      shape = new CANNON.Sphere(typeof s.size === "number" ? s.size : 0.5);
+    }
+    const offset = new CANNON.Vec3(s.offset.x, s.offset.y, s.offset.z);
+    const orient = s.rotation ? new CANNON.Quaternion().setFromEuler(s.rotation.x, s.rotation.y, s.rotation.z) : undefined;
+    body.addShape(shape, offset, orient);
+  }
+  return body;
+}
+
+/**
+ * Sets collision group and mask on a physics body for filtering.
+ */
+export function setCollisionGroups(body: any, group: number, mask: number): void {
+  if (!body) return;
+  body.collisionFilterGroup = group;
+  body.collisionFilterMask = mask;
+}
 `,
 	},
 
@@ -2018,6 +2921,14 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         });
         while (scene.children.length > 0) scene.remove(scene.children[0]);
       }
+      // Stop all music on restart
+      try {
+        const __cm = (window as any)._currentMusic;
+        if (__cm?.el) { __cm.el.pause(); __cm.el.src = ""; }
+      } catch {}
+      // Clean up post-processing composer
+      try { (window as any).__vibexe_composer__?.dispose?.(); } catch {}
+      delete (window as any).__vibexe_composer__;
       // Clear scene + world from window so restart creates fresh ones
       // (renderer/camera persist across restarts)
       delete (window as any).__vibexe_scene__;
@@ -2170,7 +3081,11 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
 
         await new Promise<void>((resolve) => {
           if (disposed) { resolve(); return; }
-          createMenuOverlay(container, resolve);
+          createMenuOverlay(container, () => {
+            // Resume AudioContext on user interaction (autoplay policy)
+            try { (window as any)._audioCtx?.resume(); (window as any)._getAudioContext?.(); } catch {}
+            resolve();
+          });
         });
 
         if (disposed) return;
@@ -2430,7 +3345,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             _editorAnimId = requestAnimationFrame(_editorLoop);
             if (editor.orbitControls) editor.orbitControls.update();
             if (_boxHelper && _selectedObj) _boxHelper.update();
-            renderer.render(scene, camera);
+            const __ec = (window as any).__vibexe_composer__;
+            if (__ec) { __ec.render(); } else { renderer.render(scene, camera); }
           }
 
           // ---- Activate / Deactivate ----
@@ -2511,6 +3427,62 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 }
                 break;
               case "game-editor-request-tree": _sendSceneTree(); break;
+              case "game-editor-get-animations":
+                if (d.uuid) {
+                  const animObj = _findByUuid(scene, d.uuid);
+                  if (animObj?.userData?.__clipNames) {
+                    window.parent.postMessage({
+                      type: "game-editor-animation-clips",
+                      uuid: d.uuid,
+                      clips: animObj.userData.__clipNames,
+                      currentClip: animObj.userData.__currentClip?.() || null,
+                      animMap: animObj.userData.__animMap || null,
+                    }, "*");
+                  }
+                }
+                break;
+              case "game-editor-play-animation":
+                if (d.uuid && d.clipName) {
+                  const animTarget = _findByUuid(scene, d.uuid);
+                  if (animTarget?.userData?.__play) {
+                    animTarget.userData.__play(d.clipName);
+                  }
+                }
+                break;
+              case "game-editor-spawn-object":
+                if (d.factory && d.position) {
+                  const _fns: Record<string, Function> = {
+                    createPlatform3D, createCollectible3D, createPlayer3D,
+                    createBarrier3D, createDecoration3D,
+                  };
+                  const fn = _fns[d.factory] || (window as any)[d.factory];
+                  if (fn) {
+                    try {
+                      const result = await fn(scene, d.position.x, d.position.y, d.position.z, d.args || {});
+                      if (result?.mesh) {
+                        result.mesh.userData.__spawned = true;
+                        _sendSceneTree();
+                        window.parent.postMessage({
+                          type: "game-editor-object-spawned",
+                          uuid: result.mesh.uuid,
+                          name: result.mesh.name,
+                        }, "*");
+                        _selectObject(result.mesh);
+                      }
+                    } catch (spawnErr) {
+                      console.warn("[Editor] Spawn failed:", spawnErr);
+                    }
+                  }
+                }
+                break;
+              case "game-editor-set-spawn-mode":
+                // Toggle spawn cursor mode
+                if (d.active) {
+                  renderer.domElement.style.cursor = "crosshair";
+                } else {
+                  renderer.domElement.style.cursor = "";
+                }
+                break;
             }
           });
 
@@ -2527,7 +3499,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           // In editor mode, skip game logic — only render
           if (__editorMode) {
             if (__editorOrbitControls) __editorOrbitControls.update();
-            renderer.render(scene, camera);
+            const __ec2 = (window as any).__vibexe_composer__;
+            if (__ec2) { __ec2.render(); } else { renderer.render(scene, camera); }
             return;
           }
 
@@ -2539,7 +3512,27 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           // the velocity/position set by AI code and auto-switches idle/walk/run/jump.
           // Works as safety net even if AI doesn't call controller.update() itself.
           (window as any)._updateAllControllers3D?.(delta);
-          renderer.render(scene, camera);
+          // Auto-update particles, triggers, springs
+          (window as any)._updateAllParticles3D?.(delta);
+          (window as any)._updateAllTriggers3D?.();
+          (window as any)._updateAllSprings3D?.();
+          // Update spatial audio listener position from camera
+          try {
+            const __ac = (window as any)._audioCtx;
+            if (__ac && __ac.listener && camera) {
+              if (__ac.listener.positionX) {
+                __ac.listener.positionX.value = camera.position.x;
+                __ac.listener.positionY.value = camera.position.y;
+                __ac.listener.positionZ.value = camera.position.z;
+              } else if (__ac.listener.setPosition) {
+                __ac.listener.setPosition(camera.position.x, camera.position.y, camera.position.z);
+              }
+            }
+          } catch {}
+          // Render via post-processing composer if available, else standard render
+          const __composer = (window as any).__vibexe_composer__;
+          if (__composer) { __composer.render(delta); }
+          else { renderer.render(scene, camera); }
         };
         animate();
       }

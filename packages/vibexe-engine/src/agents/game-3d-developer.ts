@@ -430,12 +430,42 @@ src/App.tsx                        — Imports GameScene3D and renders Game3D
 
 **AVAILABLE HELPERS FROM assets-3d.ts (COMPLETE LIST — no other functions exist):**
 **Factory Helpers (USE THESE FIRST):** \`createPlatform3D\`, \`createCollectible3D\`, \`createPlayer3D\`, \`createBarrier3D\`, \`createDecoration3D\` — each returns \`{ mesh, size }\`. Size = half-extents for \`createPhysicsBody()\`.
-**Animated Characters:** \`createAnimatedCharacter3D(scene, x, y, z, { url, targetHeight?, rotation? })\` — loads GLB with skeletal animations, auto-normalizes orientation (Z-up → Y-up), auto-scales to targetHeight (default 1.5 units), centers pivot at feet, strips root motion so game code controls all movement. Returns \`{ mesh, mixer, clips, play, stop, size }\`. Call \`play("idle")\` to start animation (fuzzy-matches clip names). Mixer auto-updates each frame. IMPORTANT: Place character ABOVE platform (y=3+) so physics settles it naturally. Create physics body at SAME position.
+**Animated Characters:** \`createAnimatedCharacter3D(scene, x, y, z, { url, targetHeight?, rotation? })\` — loads GLB with skeletal animations, auto-normalizes orientation (Z-up → Y-up), auto-scales to targetHeight (default 1.5 units), centers pivot at feet, strips root motion so game code controls all movement. Returns \`{ mesh, mixer, clips, play, stop, size }\`. Call \`play("idle")\` to start animation (fuzzy-matches clip names). Mixer auto-updates each frame. Known models (Warrior) have auto-mapped clips: play("idle") → "Idle_5", play("run") → "Running", etc. IMPORTANT: Place character ABOVE platform (y=3+) so physics settles it naturally. Create physics body at SAME position.
+**Animation Registry:** \`createAnimationMap(character, mappings?)\` — creates named animation map for a character. Auto-classifies clips by name/duration if no explicit mappings. Returns \`Record<string, string>\` mapping friendly names to actual clip names.
 **3D Text Labels:** \`createText3D("Score: 0", { x, y, z }, { size?, color?, stroke? })\` — canvas-rendered sprite for text. Returns \`{ sprite, update }\`. Call \`scene.add(sprite)\` to display. Call \`update("Score: 100")\` to change text.
+**Audio System:**
+- \`soundUrl(name)\` — builds URL for hosted audio: \`soundUrl("collect")\` → full API URL
+- \`createAudioManager()\` — returns \`{ setMasterVolume, setMusicVolume, setSfxVolume, mute, unmute, toggleMute, resume }\`
+- \`playSound(url, opts?)\` — one-shot SFX. opts: \`{ volume?, pitch?, rate?, maxInstances?, pan? }\`. Returns \`{ stop }\`.
+  Example: \`playSound(soundUrl("collect"), { volume: 0.8 })\`
+- \`playMusic(url, opts?)\` — BGM via HTMLAudioElement. opts: \`{ volume?, loop?, fadeIn?, crossfadeDuration? }\`. Returns \`{ stop, pause, resume, setVolume }\`.
+  Example: \`const bgm = playMusic(soundUrl("theme-adventure"), { loop: true, fadeIn: 1 })\`
+- \`playSpatial3D(url, position, opts?)\` — 3D positional audio. opts: \`{ volume?, loop?, refDistance?, maxDistance?, rolloff? }\`. Returns \`{ stop, setPosition, attachTo }\`.
+  Example: \`const fire = await playSpatial3D(soundUrl("fire"), { x: 5, y: 1, z: -3 }, { loop: true })\`
+**Post-Processing:**
+- \`createPostProcessing(renderer, scene, camera, preset?)\` — creates EffectComposer pipeline. Presets: "cinematic", "vibrant", "dark", "neon", "natural". Returns \`{ composer, addBloom, addFog, setPreset, destroy }\`. Auto-used by Game3D.tsx for rendering.
+  Example: \`createPostProcessing(renderer, scene, camera, "cinematic")\`
+- \`addFogEffect(scene, { color?, near?, far? })\` — shortcut for scene fog
+- \`setToneMapping(renderer, type?, exposure?)\` — types: "Linear", "Reinhard", "Cineon", "ACESFilmic"
+**Particles & VFX:**
+- \`createParticleEmitter(scene, position, presetOrConfig)\` — spawns particles. Presets: "explosion", "sparkle", "dust", "fire", "smoke", "rain", "snow", "confetti". Returns \`{ emit, stop, destroy, setPosition, isAlive }\`. Auto-updated each frame.
+  Example: \`createParticleEmitter(scene, { x: 3, y: 1, z: -5 }, "sparkle")\` (one-shot burst on collect)
+  Example: \`createParticleEmitter(scene, { x: 0, y: 0, z: 0 }, "fire")\` (continuous fire on torch)
+- \`createTrailRenderer(mesh, scene, opts?)\` — ribbon trail behind a moving mesh. opts: \`{ color?, width?, length?, fade? }\`. Returns \`{ destroy, setColor, setWidth }\`.
+**Physics Triggers & Constraints:**
+- \`createTriggerZone(world, position, size, { onEnter?, onExit?, onStay? })\` — invisible trigger zone. Callbacks fire when bodies enter/exit/stay. Returns \`{ body, destroy }\`.
+  Example: \`createTriggerZone(world, { x: 5, y: 1, z: -3 }, { x: 4, y: 4, z: 4 }, { onEnter: (b) => console.log("entered!") })\`
+- \`createHingeConstraint(bodyA, bodyB, pivotA, pivotB, axisA?, axisB?)\` — door/gate hinge. Returns \`{ constraint, setMotorSpeed, enableMotor, disableMotor, setLimits }\`
+- \`createSpringConstraint(bodyA, bodyB, opts?)\` — bouncy connection. opts: \`{ stiffness?, damping?, restLength? }\`. Auto-updated.
+- \`createLockConstraint(bodyA, bodyB)\` — rigid attachment. Returns \`{ constraint, unlock }\`
+- \`createPointConstraint(bodyA, bodyB, pivotA, pivotB)\` — ball joint
+- \`createCompoundBody(mass, position, shapes[])\` — multi-shape body. shapes: \`[{ type, size, offset, rotation? }]\`
+- \`setCollisionGroups(body, group, mask)\` — collision filtering
+- \`COLLISION_GROUPS\` — predefined groups: \`{ PLAYER: 1, ENEMY: 2, PLATFORM: 4, TRIGGER: 8, PROJECTILE: 16, ALL: -1 }\`
 **Other Functions:** \`initRenderer\`, \`initScene\`, \`initCamera\`, \`loadGLTF\`, \`createGround3D\`, \`createSkyGradient\`, \`checkCollision\`, \`checkBoxCollision\`, \`createHUD\`, \`createKeyboardState\`, \`createPhysicsWorld\`, \`createPhysicsBody\`, \`createPhysicsGround\`, \`syncBodiesToMeshes\`, \`onClickObject\`, \`createAnimationPlayer\`, \`createOrbitControls\`, \`createTouchJoystick\`, \`createTapDetector\`, \`createSwipeDetector\`.
-**Constants:** \`SCALES_3D\`, \`TOUCH_DEADZONE\` (0.15), \`GRAVITY_3D\` (-20), \`JUMP_FORCE\` (8), \`MOVE_SPEED\` (5).
+**Constants:** \`SCALES_3D\`, \`TOUCH_DEADZONE\` (0.15), \`GRAVITY_3D\` (-20), \`JUMP_FORCE\` (8), \`MOVE_SPEED\` (5), \`COLLISION_GROUPS\`, \`PARTICLE_PRESETS\`, \`POST_PROCESSING_PRESETS\`.
 Do NOT call \`getLoadedModel\`, \`cacheModel\`, \`getModel\`, or ANY function not in this list — they do not exist and will crash.
-ALWAYS import constants/helpers you use: \`import { createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, createAnimatedCharacter3D, createText3D, SCALES_3D, createTouchJoystick } from "../config/assets-3d";\`
+ALWAYS import constants/helpers you use: \`import { createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, createAnimatedCharacter3D, createText3D, playSound, soundUrl, createParticleEmitter, createTriggerZone, createPostProcessing, SCALES_3D, COLLISION_GROUPS } from "../config/assets-3d";\`
 
 **Reusing models (factories cache internally — just call them in a loop):**
 \`\`\`typescript

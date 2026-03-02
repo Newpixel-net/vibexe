@@ -5,11 +5,12 @@
  * Overlaid on the right side of the viewport when editor is active.
  */
 
-import { Copy, Eye, EyeOff, Focus, Trash2 } from "lucide-react";
-import { useCallback } from "react";
+import { Copy, Eye, EyeOff, Focus, Package, Play, Trash2 } from "lucide-react";
+import { useCallback, useEffect } from "react";
 import { DragNumberInput } from "./drag-number-input";
 import { SceneTreeNode } from "./scene-tree-node";
 import { useGameEditor } from "../lib/game-editor-context";
+import { GameEditorPalette } from "./game-editor-palette";
 
 export function GameEditorPanel() {
 	const {
@@ -20,7 +21,20 @@ export function GameEditorPanel() {
 		deleteObject,
 		focusSelected,
 		duplicateSelected,
+		animationClips,
+		currentAnimClip,
+		getAnimations,
+		playAnimation,
+		isPaletteOpen,
+		togglePalette,
 	} = useGameEditor();
+
+	// Auto-fetch animation clips when an AnimatedCharacter is selected
+	useEffect(() => {
+		if (selectedObject?.userData?.vibexeType === "AnimatedCharacter" && selectedObject.uuid) {
+			getAnimations(selectedObject.uuid);
+		}
+	}, [selectedObject?.uuid, selectedObject?.userData?.vibexeType, getAnimations]);
 
 	const handleTreeSelect = useCallback(
 		(uuid: string) => {
@@ -46,8 +60,18 @@ export function GameEditorPanel() {
 		<div data-game-editor-panel className="absolute top-0 right-0 bottom-0 w-[260px] bg-[#0f0f1a]/95 backdrop-blur-xl border-l border-white/[0.08] flex flex-col z-30 overflow-hidden">
 			{/* Scene Hierarchy */}
 			<div className="flex-shrink-0 border-b border-white/[0.08]">
-				<div className="px-3 py-2 text-[11px] font-semibold text-white/40 uppercase tracking-wider">
-					Scene Hierarchy
+				<div className="flex items-center justify-between px-3 py-2">
+					<span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">
+						Scene Hierarchy
+					</span>
+					<button
+						type="button"
+						onClick={togglePalette}
+						className={`p-1 rounded transition-colors ${isPaletteOpen ? "bg-emerald-500/20 text-emerald-400" : "text-white/30 hover:text-white/60 hover:bg-white/[0.06]"}`}
+						title="Object Palette"
+					>
+						<Package className="w-3.5 h-3.5" />
+					</button>
 				</div>
 				<div className="max-h-[40%] overflow-y-auto px-1 pb-2 scrollbar-thin">
 					{sceneTree ? (
@@ -64,6 +88,13 @@ export function GameEditorPanel() {
 					)}
 				</div>
 			</div>
+
+			{/* Palette */}
+			{isPaletteOpen && (
+				<div className="flex-shrink-0 border-b border-white/[0.08]">
+					<GameEditorPalette />
+				</div>
+			)}
 
 			{/* Inspector */}
 			<div className="flex-1 overflow-y-auto scrollbar-thin">
@@ -193,6 +224,29 @@ export function GameEditorPanel() {
 									</div>
 								)}
 							</div>
+						)}
+
+						{/* Animation Clips (for AnimatedCharacter) */}
+						{animationClips.length > 0 && (
+							<Section title="Animations">
+								<div className="space-y-0.5 max-h-[120px] overflow-y-auto scrollbar-thin">
+									{animationClips.map((clip) => (
+										<button
+											key={clip}
+											type="button"
+											onClick={() => selectedObject && playAnimation(selectedObject.uuid, clip)}
+											className={`w-full flex items-center gap-1.5 px-2 py-1 text-[10px] rounded transition-colors text-left ${
+												currentAnimClip === clip
+													? "bg-emerald-500/20 text-emerald-400"
+													: "text-white/50 hover:bg-white/[0.06] hover:text-white/70"
+											}`}
+										>
+											<Play className="w-2.5 h-2.5 flex-shrink-0" />
+											<span className="truncate">{clip}</span>
+										</button>
+									))}
+								</div>
+							</Section>
 						)}
 
 						{/* Color */}

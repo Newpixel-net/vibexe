@@ -709,6 +709,11 @@ export function SandpackPreview({
 				gameEditor.requestSceneTree();
 			} else if (data.type === "game-editor-scene-dirty") {
 				gameEditor.setDirty(true);
+			} else if (data.type === "game-editor-animation-clips") {
+				gameEditor.setAnimationClips(data.clips || [], data.currentClip, data.animMap);
+			} else if (data.type === "game-editor-object-spawned") {
+				gameEditor.requestSceneTree();
+				gameEditor.setDirty(true);
 			} else if (data.type === "game-editor-all-transforms") {
 				// Resolve pending save-all-transforms promise
 				if (allTransformsResolverRef.current) {
@@ -920,10 +925,18 @@ export function SandpackPreview({
 			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js");
 			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js");
 			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js");
+			// Post-processing addons (EffectComposer, UnrealBloomPass)
+			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js");
+			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/Pass.js");
+			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js");
+			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js");
+			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js");
+			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js");
+			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js");
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=22`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=23`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);
