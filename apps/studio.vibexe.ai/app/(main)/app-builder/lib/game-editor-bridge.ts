@@ -50,6 +50,25 @@ export function getGameEditorBridgeScript(): string {
     }, 50);
   }
 
+  // Strip non-serializable values (functions, Three.js objects) from userData for postMessage
+  function safeUserData(ud) {
+    if (!ud || typeof ud !== "object") return {};
+    var safe = {};
+    var keys = Object.keys(ud);
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      var v = ud[k];
+      if (typeof v === "function") continue;
+      if (v && typeof v === "object") {
+        if (v.isObject3D || v.isBufferGeometry || v.isMaterial || v instanceof HTMLElement) continue;
+        try { JSON.stringify(v); safe[k] = v; } catch(e) { continue; }
+      } else {
+        safe[k] = v;
+      }
+    }
+    return safe;
+  }
+
   // ===== Scene Serializer =====
   function serializeNode(obj) {
     if (!obj) return null;
@@ -94,7 +113,7 @@ export function getGameEditorBridgeScript(): string {
       },
       scale: { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z },
       visible: obj.visible !== false,
-      userData: obj.userData || {},
+      userData: safeUserData(obj.userData),
       children: children,
       _isMesh: !!obj.isMesh,
       _isLight: !!obj.isLight,
@@ -132,7 +151,7 @@ export function getGameEditorBridgeScript(): string {
       scale: { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z },
       visible: obj.visible !== false,
       castShadow: !!obj.castShadow,
-      userData: obj.userData || {},
+      userData: safeUserData(obj.userData),
       _materialColor: matColor
     }, "*");
   }

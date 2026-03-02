@@ -3265,21 +3265,13 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         renderer.render(scene, camera);
         loading.remove();
 
-        await new Promise<void>((resolve) => {
-          if (disposed) { resolve(); return; }
-          createMenuOverlay(container, () => {
-            // Resume AudioContext on user interaction (autoplay policy)
-            try { (window as any)._audioCtx?.resume(); (window as any)._getAudioContext?.(); } catch {}
-            resolve();
-          });
-        });
-
-        if (disposed) return;
-
         // ===== Scene Editor Integration =====
         // Expose hooks for the game editor bridge to pause/resume and control camera.
+        // MUST be set BEFORE menu overlay so Scene Editor can activate without waiting for tap.
         let __editorMode = false;
         let __editorOrbitControls: any = null;
+        let __menuOverlay: { remove(): void } | null = null;
+        let __menuResolve: (() => void) | null = null;
 
         (window as any).__vibexe_editor__ = {
           scene, camera, renderer,
@@ -3290,6 +3282,12 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           pause() {
             __editorMode = true;
             clock.stop();
+            // Auto-dismiss menu overlay if still showing
+            if (__menuOverlay) {
+              __menuOverlay.remove();
+              __menuOverlay = null;
+              if (__menuResolve) { __menuResolve(); __menuResolve = null; }
+            }
             if (THREE.OrbitControls) {
               __editorOrbitControls = new THREE.OrbitControls(camera, renderer.domElement);
               __editorOrbitControls.enableDamping = true;
@@ -3308,6 +3306,21 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             clock.start();
           },
         };
+
+        // Show menu overlay — but editor pause() can dismiss it
+        await new Promise<void>((resolve) => {
+          if (disposed) { resolve(); return; }
+          __menuResolve = resolve;
+          __menuOverlay = createMenuOverlay(container, () => {
+            // Resume AudioContext on user interaction (autoplay policy)
+            try { (window as any)._audioCtx?.resume(); (window as any)._getAudioContext?.(); } catch {}
+            __menuOverlay = null;
+            __menuResolve = null;
+            resolve();
+          });
+        });
+
+        if (disposed) return;
 
         // ===== Embedded Scene Editor Bridge =====
         // Runs in same context as game — no external script / IIFE issues.

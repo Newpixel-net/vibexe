@@ -542,6 +542,25 @@ export function getVisualEditBridgeScript(): string {
     return p && (p.width >= 50 || p.height >= 50);
   }
 
+  // Strip non-serializable values from userData for postMessage
+  function safeUserData(ud) {
+    if (!ud || typeof ud !== "object") return {};
+    var safe = {};
+    var keys = Object.keys(ud);
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      var v = ud[k];
+      if (typeof v === "function") continue;
+      if (v && typeof v === "object") {
+        if (v.isObject3D || v.isBufferGeometry || v.isMaterial || v instanceof HTMLElement) continue;
+        try { JSON.stringify(v); safe[k] = v; } catch(e) { continue; }
+      } else {
+        safe[k] = v;
+      }
+    }
+    return safe;
+  }
+
   // ---- Scene Serializer ----
   function serializeNode(obj) {
     if (!obj) return null;
@@ -575,7 +594,7 @@ export function getVisualEditBridgeScript(): string {
       position: { x: obj.position.x, y: obj.position.y, z: obj.position.z },
       rotation: { x: obj.rotation.x*180/Math.PI, y: obj.rotation.y*180/Math.PI, z: obj.rotation.z*180/Math.PI },
       scale: { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z },
-      visible: obj.visible !== false, userData: obj.userData || {}, children: children,
+      visible: obj.visible !== false, userData: safeUserData(obj.userData), children: children,
       _isMesh: !!obj.isMesh, _isLight: !!obj.isLight, _isGroup: !!obj.isGroup, _materialColor: matColor
     };
   }
@@ -598,7 +617,7 @@ export function getVisualEditBridgeScript(): string {
       rotation: { x: obj.rotation.x*180/Math.PI, y: obj.rotation.y*180/Math.PI, z: obj.rotation.z*180/Math.PI },
       scale: { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z },
       visible: obj.visible !== false, castShadow: !!obj.castShadow,
-      userData: obj.userData || {}, _materialColor: matColor
+      userData: safeUserData(obj.userData), _materialColor: matColor
     }, "*");
   }
 
