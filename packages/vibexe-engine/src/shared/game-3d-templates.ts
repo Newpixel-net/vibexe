@@ -2116,6 +2116,53 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           loading.setProgress(p);
         });
 
+        // Apply scene editor transform overrides (saved via Save Scene button)
+        // Data is set as window.__SCENE_OVERRIDES__ in GameScene3D.ts override block
+        const __scOv = (window as any).__SCENE_OVERRIDES__;
+        if (__scOv && typeof __scOv === 'object' && Object.keys(__scOv).length > 0) {
+          const __facPfx = ["Platform_","Collectible_","Barrier_","Decoration_","Player_","Character_","Object_"];
+          const __isFac = (n: string) => n ? __facPfx.some(p => n.startsWith(p)) : false;
+          const __applied = new Set<string>();
+          const __tryApply = () => {
+            let rem = 0;
+            for (const [name, o] of Object.entries(__scOv as Record<string, any>)) {
+              if (__applied.has(name)) continue;
+              let t: any = null;
+              if (name.startsWith("UnnamedGroup_")) {
+                const gi = parseInt(name.replace("UnnamedGroup_", ""), 10);
+                let gc = 0;
+                for (const ch of scene.children) {
+                  if ((ch as any).type === "Group" && (ch as any).children?.length > 0 && !__isFac((ch as any).name || "")) {
+                    if (gc === gi) { t = ch; break; }
+                    gc++;
+                  }
+                }
+              } else {
+                scene.traverse((c: any) => { if (!t && c.name === name) t = c; });
+              }
+              if (t) {
+                if (o.p) t.position.set(o.p[0], o.p[1], o.p[2]);
+                if (o.r) t.rotation.set(o.r[0], o.r[1], o.r[2]);
+                if (o.s) t.scale.set(o.s[0], o.s[1], o.s[2]);
+                __applied.add(name);
+                console.log("[SCENE_EDITOR] Applied:", name);
+              } else { rem++; }
+            }
+            return rem === 0;
+          };
+          if (!__tryApply()) {
+            let __att = 0;
+            const __iv = setInterval(() => {
+              if (disposed) { clearInterval(__iv); return; }
+              __att++;
+              if (__tryApply() || __att > 100) {
+                clearInterval(__iv);
+                if (__att > 1) console.log("[SCENE_EDITOR] Override polling done after", __att, "polls");
+              }
+            }, 300);
+          }
+        }
+
         if (disposed) return;
         loading.setProgress(1);
         renderer.render(scene, camera);

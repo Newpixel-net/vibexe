@@ -406,64 +406,58 @@ function updateTransformInSource(
 	};
 
 	const json = JSON.stringify(overrides);
+	// Self-applying override: polls window.__vibexe_scene__ (set by Game3D.tsx)
+	// No monkey-patching — works across Sandpack hot-reloads reliably
 	const block = `${MARKER_START}
 ${DATA_MARKER} ${json}
-(function() {
-  var _origInit = GameScene.init;
-  GameScene.init = async function() {
-    await _origInit.apply(this, arguments);
-    var _s = arguments[0];
-    var _o = ${json};
-    var _keys = Object.keys(_o);
+if (typeof window !== 'undefined') {
+  window.__SCENE_OVERRIDES__ = ${json};
+  (function() {
+    var _ov = ${json};
     var _applied = {};
-    var _facPfx = ["Platform_","Collectible_","Barrier_","Decoration_","Player_","Character_","Object_"];
-    function _isFac(n) { if(!n) return false; for(var i=0;i<_facPfx.length;i++) if(n.indexOf(_facPfx[i])===0) return true; return false; }
-    function _tryApply() {
-      var _rem = 0;
-      _keys.forEach(function(name) {
-        if (_applied[name]) return;
-        var o = _o[name];
-        var target = null;
-        if (name.indexOf("UnnamedGroup_") === 0) {
-          var gIdx = parseInt(name.replace("UnnamedGroup_",""),10);
-          var gCount = 0;
-          for (var ci=0; ci<_s.children.length; ci++) {
-            var ch = _s.children[ci];
-            if (ch.type==="Group" && ch.children && ch.children.length>0 && !_isFac(ch.name)) {
-              if (gCount===gIdx) { target=ch; break; }
-              gCount++;
+    var _lastScene = null;
+    var _fp = ["Platform_","Collectible_","Barrier_","Decoration_","Player_","Character_","Object_"];
+    function _isF(n) { if(!n) return false; for(var i=0;i<_fp.length;i++) if(n.indexOf(_fp[i])===0) return true; return false; }
+    function _try() {
+      var s = window.__vibexe_scene__;
+      if (!s || !s.children) return false;
+      if (s !== _lastScene) { _applied = {}; _lastScene = s; }
+      var keys = Object.keys(_ov), rem = 0;
+      for (var ki=0; ki<keys.length; ki++) {
+        var name = keys[ki];
+        if (_applied[name]) continue;
+        var o = _ov[name], t = null;
+        if (name.indexOf("UnnamedGroup_")===0) {
+          var gi = parseInt(name.replace("UnnamedGroup_",""),10), gc = 0;
+          for (var ci=0; ci<s.children.length; ci++) {
+            var ch = s.children[ci];
+            if (ch.type==="Group" && ch.children && ch.children.length>0 && !_isF(ch.name||"")) {
+              if (gc===gi) { t=ch; break; } gc++;
             }
           }
         } else {
-          _s.traverse(function(c) { if(!target && c.name===name) target=c; });
+          s.traverse(function(c) { if(!t && c.name===name) t=c; });
         }
-        if (target) {
-          if (o.p) {
-            target.position.set(o.p[0],o.p[1],o.p[2]);
-            var _pa=[];
-            if(typeof platforms!=='undefined') _pa.push(platforms);
-            if(typeof collectibles!=='undefined') _pa.push(collectibles);
-            if(typeof barriers!=='undefined') _pa.push(barriers);
-            for(var a=0;a<_pa.length;a++) for(var i=0;i<_pa[a].length;i++)
-              if(_pa[a][i].mesh===target&&_pa[a][i].body) _pa[a][i].body.position.set(o.p[0],o.p[1],o.p[2]);
-          }
-          if (o.r) target.rotation.set(o.r[0],o.r[1],o.r[2]);
-          if (o.s) target.scale.set(o.s[0],o.s[1],o.s[2]);
+        if (t) {
+          if (o.p) t.position.set(o.p[0],o.p[1],o.p[2]);
+          if (o.r) t.rotation.set(o.r[0],o.r[1],o.r[2]);
+          if (o.s) t.scale.set(o.s[0],o.s[1],o.s[2]);
           _applied[name] = true;
           console.log("[SCENE_EDITOR] Applied: "+name);
-        } else { _rem++; }
-      });
-      return _rem===0;
+        } else { rem++; }
+      }
+      return rem===0;
     }
-    if (!_tryApply()) {
-      var _att=0;
-      var _iv=setInterval(function(){
-        _att++;
-        if(_tryApply()||_att>100){clearInterval(_iv);console.log("[SCENE_EDITOR] Done after "+_att+" polls");}
-      },300);
-    }
-  };
-})();
+    var _att=0;
+    var _iv = setInterval(function() {
+      _att++;
+      if (_try() || _att>200) {
+        clearInterval(_iv);
+        if (_att>1) console.log("[SCENE_EDITOR] Done after "+_att+" polls");
+      }
+    }, 300);
+  })();
+}
 ${MARKER_END}`;
 
 	return code.trimEnd() + "\n" + block + "\n";
@@ -929,7 +923,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=21`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=22`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);
