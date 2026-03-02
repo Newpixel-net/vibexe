@@ -41,6 +41,8 @@ export interface MainContentPanelProps {
 	streamingDoc?: { path: string; content: string } | null;
 	/** Preview display mode: browser (default) or mobile-frame (iPhone wrapper) */
 	previewMode?: PreviewMode;
+	/** Project type (app, game, game-mobile, mobile, etc.) */
+	projectType?: string;
 }
 
 /**
@@ -64,6 +66,7 @@ export function MainContentPanel({
 	isGenerating,
 	streamingDoc,
 	previewMode,
+	projectType,
 }: MainContentPanelProps) {
 	return (
 		<div className="flex-1 flex flex-col min-h-0 bg-white/[0.015] backdrop-blur-lg">
@@ -83,6 +86,7 @@ export function MainContentPanel({
 						onViewChange={onViewChange}
 						onFileSelect={(id) => onFileSelect(id)}
 						previewMode={previewMode}
+						projectType={projectType}
 					/>
 				</div>
 

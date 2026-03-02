@@ -22,10 +22,14 @@ import {
 	ChevronUp,
 	Copy,
 	ExternalLink,
+	Gamepad2,
 	Monitor,
 	MousePointer2,
+	Move,
 	RefreshCw,
+	RotateCcw,
 	RotateCw,
+	Scaling,
 	Smartphone,
 	Tablet,
 	X,
@@ -35,6 +39,8 @@ import { PHONE_FRAME, PhoneFrame } from "./phone-frame";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import { useVisualEdit } from "../lib/visual-edit-context";
+import { useGameEditor, type GizmoMode } from "../lib/game-editor-context";
+import { GameEditorPanel } from "./game-editor-panel";
 import type { RightPanelView } from "./right-panel-tabs";
 import { VisualEditToolbar } from "./visual-edit-toolbar";
 import {
@@ -63,6 +69,7 @@ interface SandpackPreviewProps {
 	onViewChange?: (view: RightPanelView) => void;
 	onFileSelect?: (fileId: string) => void;
 	previewMode?: PreviewMode;
+	projectType?: string;
 }
 
 /**
@@ -356,11 +363,13 @@ export function SandpackPreview({
 	onViewChange,
 	onFileSelect,
 	previewMode = "browser",
+	projectType = "app",
 }: SandpackPreviewProps) {
 	const isMobileFrame = previewMode === "mobile-frame";
 	const [device, setDevice] = useState<DeviceSize>(isMobileFrame ? "mobile" : "desktop");
 	const [showConsole, setShowConsole] = useState(false);
 	const visualEdit = useVisualEdit();
+	const gameEditor = useGameEditor();
 	const iframeContainerRef = useRef<HTMLDivElement>(null);
 	const iframeRef = useRef<HTMLIFrameElement | null>(null);
 	const [iframeBounds, setIframeBounds] = useState<DOMRect | null>(null);
@@ -369,6 +378,9 @@ export function SandpackPreview({
 		content: string;
 		lineNumber: number;
 	} | null>(null);
+
+	// Detect game mode
+	const isGameMode = projectType === "game" || projectType === "game-mobile";
 
 	// Landscape/portrait rotation toggle for mobile-frame mode
 	const [isLandscape, setIsLandscape] = useState(false);
@@ -428,6 +440,7 @@ export function SandpackPreview({
 			if (iframe && iframe !== iframeRef.current) {
 				iframeRef.current = iframe;
 				visualEdit.setIframeRef(iframeRef as React.RefObject<HTMLIFrameElement | null>);
+				gameEditor.setIframeRef(iframeRef as React.RefObject<HTMLIFrameElement | null>);
 			}
 		};
 		findIframe();
@@ -435,7 +448,7 @@ export function SandpackPreview({
 		const observer = new MutationObserver(findIframe);
 		observer.observe(container, { childList: true, subtree: true });
 		return () => observer.disconnect();
-	}, [visualEdit.setIframeRef]);
+	}, [visualEdit.setIframeRef, gameEditor.setIframeRef]);
 
 	// Update iframe bounds when selection changes or window resizes
 	useEffect(() => {
@@ -480,10 +493,31 @@ export function SandpackPreview({
 			} else if (data.type === "visual-edit-deselect") {
 				visualEdit.deselectElement();
 			}
+			// Game editor messages
+			else if (data.type === "game-editor-scene-tree") {
+				gameEditor.updateSceneTree(data.tree);
+			} else if (data.type === "game-editor-object-selected") {
+				gameEditor.updateSelectedObject({
+					uuid: data.uuid,
+					name: data.name,
+					type: data.type,
+					position: data.position,
+					rotation: data.rotation,
+					scale: data.scale,
+					visible: data.visible,
+					castShadow: data.castShadow,
+					userData: data.userData,
+					_materialColor: data._materialColor,
+				});
+			} else if (data.type === "game-editor-object-deselected") {
+				gameEditor.updateSelectedObject(null);
+			} else if (data.type === "game-editor-gizmo-mode") {
+				gameEditor.setGizmoMode(data.mode as GizmoMode);
+			}
 		};
 		window.addEventListener("message", handler);
 		return () => window.removeEventListener("message", handler);
-	}, [visualEdit]);
+	}, [visualEdit, gameEditor]);
 
 	// Keyboard shortcuts for visual edit
 	useEffect(() => {
@@ -560,9 +594,14 @@ export function SandpackPreview({
 			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js");
 			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js");
 			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js");
+			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js");
+		}
+		// Game editor bridge script — pauses game, enables raycaster + gizmo selection
+		if (isGameMode && dependencies.three && typeof window !== "undefined") {
+			resources.push(`${window.location.origin}/api/app-builder/game-editor-bridge`);
 		}
 		return resources;
-	}, [dependencies]);
+	}, [dependencies, isGameMode]);
 
 	// Calculate preview width based on device
 	const previewWidth = DEVICE_SIZES[device].width;
@@ -631,21 +670,63 @@ export function SandpackPreview({
 					)}
 				</div>
 
-				{/* Visual Edit toggle + Preview link + Actions */}
+				{/* Visual Edit / Scene Editor toggle + Preview link + Actions */}
 				<div className="flex items-center gap-2">
-					<button
-						type="button"
-						onClick={visualEdit.toggleVisualEdit}
-						className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-xl transition-all duration-200 ${
-							visualEdit.enabled
-								? "bg-violet-500/[0.15] text-violet-300 border border-violet-500/[0.25]"
-								: "text-white/40 hover:bg-white/[0.04] hover:text-white/70"
-						}`}
-						title={visualEdit.enabled ? "Disable Visual Edit (V)" : "Enable Visual Edit (V)"}
-					>
-						<MousePointer2 className="w-3.5 h-3.5" />
-						<span className="hidden sm:inline">Visual Edit</span>
-					</button>
+					{isGameMode && dependencies.three ? (
+						<>
+							<button
+								type="button"
+								onClick={gameEditor.toggleEditor}
+								className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-xl transition-all duration-200 ${
+									gameEditor.enabled
+										? "bg-emerald-500/[0.15] text-emerald-300 border border-emerald-500/[0.25]"
+										: "text-white/40 hover:bg-white/[0.04] hover:text-white/70"
+								}`}
+								title={gameEditor.enabled ? "Exit Scene Editor" : "Scene Editor"}
+							>
+								<Gamepad2 className="w-3.5 h-3.5" />
+								<span className="hidden sm:inline">Scene Editor</span>
+							</button>
+							{gameEditor.enabled && (
+								<div className="flex items-center gap-0.5 border-l border-white/[0.08] pl-2">
+									{([
+										{ mode: "translate" as const, icon: Move, label: "Move (W)", key: "W" },
+										{ mode: "rotate" as const, icon: RotateCcw, label: "Rotate (E)", key: "E" },
+										{ mode: "scale" as const, icon: Scaling, label: "Scale (R)", key: "R" },
+									]).map(({ mode, icon: Icon, label, key }) => (
+										<button
+											key={mode}
+											type="button"
+											onClick={() => gameEditor.setGizmoMode(mode)}
+											className={`flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-lg transition-all duration-150 ${
+												gameEditor.gizmoMode === mode
+													? "bg-emerald-500/[0.15] text-emerald-300"
+													: "text-white/35 hover:bg-white/[0.04] hover:text-white/60"
+											}`}
+											title={label}
+										>
+											<Icon className="w-3.5 h-3.5" />
+											<span className="hidden lg:inline">{key}</span>
+										</button>
+									))}
+								</div>
+							)}
+						</>
+					) : (
+						<button
+							type="button"
+							onClick={visualEdit.toggleVisualEdit}
+							className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-xl transition-all duration-200 ${
+								visualEdit.enabled
+									? "bg-violet-500/[0.15] text-violet-300 border border-violet-500/[0.25]"
+									: "text-white/40 hover:bg-white/[0.04] hover:text-white/70"
+							}`}
+							title={visualEdit.enabled ? "Disable Visual Edit (V)" : "Enable Visual Edit (V)"}
+						>
+							<MousePointer2 className="w-3.5 h-3.5" />
+							<span className="hidden sm:inline">Visual Edit</span>
+						</button>
+					)}
 					<PreviewLink appId={appId} />
 					<button
 						type="button"
@@ -830,6 +911,11 @@ export function SandpackPreview({
 								lineNumber={codeViewer.lineNumber}
 								onClose={() => setCodeViewer(null)}
 							/>
+						)}
+
+						{/* Game Editor Panel (overlaid on right side) */}
+						{gameEditor.enabled && isGameMode && (
+							<GameEditorPanel />
 						)}
 					</div>
 				)}

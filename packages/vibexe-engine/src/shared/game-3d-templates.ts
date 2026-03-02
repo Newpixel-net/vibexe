@@ -194,10 +194,12 @@ export function initScene(): typeof THREE.Scene {
 
   // Ambient fill light
   const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+  ambient.name = "AmbientLight";
   scene.add(ambient);
 
   // Directional sun light with shadows
   const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+  sun.name = "DirectionalLight";
   sun.position.set(10, 20, 10);
   sun.castShadow = true;
   sun.shadow.mapSize.width = 1024;
@@ -1133,6 +1135,10 @@ export async function createPlatform3D(
   }
   mesh.position.set(x, y, z);
   mesh.receiveShadow = true;
+  mesh.name = \`Platform_\${variant}_\${color}\`;
+  mesh.userData.vibexeType = "platform";
+  mesh.userData.vibexeFactory = "createPlatform3D";
+  mesh.userData.vibexeArgs = { x, y, z, variant, color, scale };
   scene.add(mesh);
   return { mesh, size: halfExtents };
 }
@@ -1166,6 +1172,10 @@ export async function createCollectible3D(
   }
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
+  mesh.name = \`Collectible_\${type}_\${color}\`;
+  mesh.userData.vibexeType = "collectible";
+  mesh.userData.vibexeFactory = "createCollectible3D";
+  mesh.userData.vibexeArgs = { x, y, z, type, color, scale };
   scene.add(mesh);
   return { mesh, size: { x: halfSize, y: halfSize, z: halfSize } };
 }
@@ -1199,6 +1209,10 @@ export async function createPlayer3D(
   }
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
+  mesh.name = \`Player_\${model}_\${color}\`;
+  mesh.userData.vibexeType = "player";
+  mesh.userData.vibexeFactory = "createPlayer3D";
+  mesh.userData.vibexeArgs = { x, y, z, model, color, scale };
   scene.add(mesh);
   return { mesh, size: { x: halfSize, y: halfSize, z: halfSize } };
 }
@@ -1235,6 +1249,10 @@ export async function createBarrier3D(
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  mesh.name = \`Barrier_\${variant}_\${color}\`;
+  mesh.userData.vibexeType = "barrier";
+  mesh.userData.vibexeFactory = "createBarrier3D";
+  mesh.userData.vibexeArgs = { x, y, z, variant, color, scale };
   scene.add(mesh);
   return { mesh, size: halfExtents };
 }
@@ -1268,6 +1286,10 @@ export async function createDecoration3D(
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  mesh.name = \`Decoration_\${type}\`;
+  mesh.userData.vibexeType = "decoration";
+  mesh.userData.vibexeFactory = "createDecoration3D";
+  mesh.userData.vibexeArgs = { x, y, z, type, color, scale };
   scene.add(mesh);
   return { mesh, size: { x: scale, y: scale * 2, z: scale } };
 }
@@ -2073,10 +2095,51 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
 
         if (disposed) return;
 
+        // ===== Scene Editor Integration =====
+        // Expose hooks for the game editor bridge to pause/resume and control camera.
+        let __editorMode = false;
+        let __editorOrbitControls: any = null;
+
+        (window as any).__vibexe_editor__ = {
+          scene, camera, renderer,
+          get world() { return (gameScene as any).world; },
+          gameScene,
+          get isEditing() { return __editorMode; },
+          orbitControls: null as any,
+          pause() {
+            __editorMode = true;
+            clock.stop();
+            if (THREE.OrbitControls) {
+              __editorOrbitControls = new THREE.OrbitControls(camera, renderer.domElement);
+              __editorOrbitControls.enableDamping = true;
+              __editorOrbitControls.dampingFactor = 0.08;
+              __editorOrbitControls.target.set(0, 2, 0);
+              (window as any).__vibexe_editor__.orbitControls = __editorOrbitControls;
+            }
+          },
+          resume() {
+            __editorMode = false;
+            if (__editorOrbitControls) {
+              __editorOrbitControls.dispose();
+              __editorOrbitControls = null;
+              (window as any).__vibexe_editor__.orbitControls = null;
+            }
+            clock.start();
+          },
+        };
+
         clock.start();
         const animate = () => {
           if (disposed) return;
           animFrameId = requestAnimationFrame(animate);
+
+          // In editor mode, skip game logic — only render
+          if (__editorMode) {
+            if (__editorOrbitControls) __editorOrbitControls.update();
+            renderer.render(scene, camera);
+            return;
+          }
+
           const delta = clock.getDelta();
           // Auto-update all animation mixers (from createAnimatedCharacter3D)
           (window as any)._updateAllMixers3D?.(delta);
