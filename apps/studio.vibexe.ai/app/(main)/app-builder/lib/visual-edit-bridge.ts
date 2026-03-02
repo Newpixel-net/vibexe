@@ -491,10 +491,9 @@ export function getVisualEditBridgeScript(): string {
 
 // ===== Game Editor Bridge =====
 // Second IIFE — handles 3D scene editing (raycaster, TransformControls, scene tree).
-// Only activates when THREE.js is available and game-editor-enable is received.
+// Polls for THREE.js availability (handles async CDN loading order).
 (function() {
-  if (!window.THREE) return; // Not a 3D game — skip entirely
-
+  function initBridge() {
   var active = false;
   var raycaster = null;
   var mouse = null;
@@ -767,6 +766,23 @@ export function getVisualEditBridgeScript(): string {
       case "game-editor-request-tree": sendSceneTree(); break;
     }
   });
+  } // end initBridge
+
+  // Poll for THREE.js availability — handles async CDN loading order
+  if (window.THREE) {
+    initBridge();
+  } else {
+    var threeAttempts = 0;
+    var threeTimer = setInterval(function() {
+      if (window.THREE) {
+        clearInterval(threeTimer);
+        initBridge();
+      } else if (++threeAttempts > 100) {
+        clearInterval(threeTimer);
+        // Not a 3D game — skip
+      }
+    }, 50);
+  }
 })();
 `;
 }
