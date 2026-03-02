@@ -502,6 +502,15 @@ export function getVisualEditBridgeScript(): string {
   var transformControls = null;
   var editor = null;
   var editorAnimId = 0;
+  var lastClickTime = 0;
+  var lastClickUuid = "";
+  var isDragging = false;
+  var dragPlane = null;
+  var dragOffset = null;
+  var dragStartPos = null;
+  var undoStack = [];
+  var gridSnap = false;
+  var gridHelper = null;
 
   // Notify parent that game editor bridge is ready
   try {
@@ -604,6 +613,24 @@ export function getVisualEditBridgeScript(): string {
       transformControls.attach(obj);
       transformControls.addEventListener("dragging-changed", function(e) {
         if (editor.orbitControls) editor.orbitControls.enabled = !e.value;
+        if (e.value && selectedObj) {
+          transformControls.__undoPos = { x: selectedObj.position.x, y: selectedObj.position.y, z: selectedObj.position.z };
+          transformControls.__undoRot = { x: selectedObj.rotation.x, y: selectedObj.rotation.y, z: selectedObj.rotation.z };
+          transformControls.__undoScl = { x: selectedObj.scale.x, y: selectedObj.scale.y, z: selectedObj.scale.z };
+        } else if (!e.value && selectedObj && transformControls.__undoPos) {
+          pushUndo({ type: "transform", uuid: selectedObj.uuid,
+            oldPos: transformControls.__undoPos, oldRot: transformControls.__undoRot, oldScl: transformControls.__undoScl,
+            newPos: { x: selectedObj.position.x, y: selectedObj.position.y, z: selectedObj.position.z },
+            newRot: { x: selectedObj.rotation.x, y: selectedObj.rotation.y, z: selectedObj.rotation.z },
+            newScl: { x: selectedObj.scale.x, y: selectedObj.scale.y, z: selectedObj.scale.z }
+          });
+          if (gridSnap) {
+            selectedObj.position.x = snapToGrid(selectedObj.position.x);
+            selectedObj.position.z = snapToGrid(selectedObj.position.z);
+            sendSelectedObject(selectedObj);
+            if (boxHelper) boxHelper.update();
+          }
+        }
       });
       transformControls.addEventListener("objectChange", function() {
         if (selectedObj) { sendSelectedObject(selectedObj); if (boxHelper) boxHelper.update(); }
@@ -627,34 +654,230 @@ export function getVisualEditBridgeScript(): string {
     return cur;
   }
 
-  // ---- Click + Keyboard ----
-  function onCanvasClick(e) {
-    if (!active || !editor) return;
-    if (transformControls && transformControls.dragging) return;
+  // ---- Undo Stack ----
+  function pushUndo(entry) {
+    undoStack.push(entry);
+    if (undoStack.length > 50) undoStack.shift();
+  }
+
+  function applyUndo() {
+    if (undoStack.length === 0) return;
+    var entry = undoStack.pop();
+    if (!editor) return;
+    if (entry.type === "transform") {
+      var obj = findByUuid(editor.scene, entry.uuid);
+      if (obj) {
+        obj.position.set(entry.oldPos.x, entry.oldPos.y, entry.oldPos.z);
+        obj.rotation.set(entry.oldRot.x, entry.oldRot.y, entry.oldRot.z);
+        obj.scale.set(entry.oldScl.x, entry.oldScl.y, entry.oldScl.z);
+        if (selectedObj && selectedObj.uuid === entry.uuid) { sendSelectedObject(obj); if (boxHelper) boxHelper.update(); }
+      }
+    } else if (entry.type === "delete") {
+      editor.scene.add(entry.object);
+      sendSceneTree();
+    } else if (entry.type === "duplicate") {
+      var dup = findByUuid(editor.scene, entry.uuid);
+      if (dup) { editor.scene.remove(dup); deselectObject(); sendSceneTree(); }
+    } else if (entry.type === "property") {
+      var obj2 = findByUuid(editor.scene, entry.uuid);
+      if (obj2) { updateProperty(entry.uuid, entry.property, entry.oldValue); undoStack.pop(); }
+    }
+  }
+
+  // ---- Grid Snap ----
+  function snapToGrid(v) { return Math.round(v * 2) / 2; }
+
+  function toggleGridHelper() {
+    gridSnap = !gridSnap;
+    if (!editor) return;
+    var THREE = window.THREE;
+    if (gridSnap && !gridHelper) {
+      gridHelper = new THREE.GridHelper(100, 200, 0x444466, 0x333344);
+      gridHelper.name = "__editor_grid__";
+      gridHelper.material.transparent = true;
+      gridHelper.material.opacity = 0.3;
+      editor.scene.add(gridHelper);
+    } else if (!gridSnap && gridHelper) {
+      editor.scene.remove(gridHelper);
+      if (gridHelper.dispose) gridHelper.dispose();
+      gridHelper = null;
+    }
+    window.parent.postMessage({ type: "game-editor-snap-changed", snap: gridSnap }, "*");
+  }
+
+  // ---- Focus Camera ----
+  function focusSelected() {
+    if (!selectedObj || !editor || !editor.orbitControls) return;
+    var THREE = window.THREE;
+    var box = new THREE.Box3().setFromObject(selectedObj);
+    var center = new THREE.Vector3();
+    box.getCenter(center);
+    var size = new THREE.Vector3();
+    box.getSize(size);
+    var maxDim = Math.max(size.x, size.y, size.z, 1);
+    var dist = maxDim * 2.5;
+    var cam = editor.camera;
+    var dir = new THREE.Vector3().subVectors(cam.position, editor.orbitControls.target).normalize();
+    var targetPos = center.clone().add(dir.multiplyScalar(dist));
+    // Animate camera smoothly
+    var startPos = cam.position.clone();
+    var startTarget = editor.orbitControls.target.clone();
+    var t = 0;
+    function animFocus() {
+      t += 0.08;
+      if (t >= 1) t = 1;
+      var ease = t * (2 - t); // ease-out
+      cam.position.lerpVectors(startPos, targetPos, ease);
+      editor.orbitControls.target.lerpVectors(startTarget, center, ease);
+      editor.orbitControls.update();
+      if (t < 1) requestAnimationFrame(animFocus);
+    }
+    animFocus();
+  }
+
+  // ---- Duplicate ----
+  function duplicateSelected() {
+    if (!selectedObj || !editor) return;
+    var clone = selectedObj.clone(true);
+    clone.position.x += 1;
+    clone.traverse(function(c) { c.uuid = window.THREE.MathUtils.generateUUID(); });
+    editor.scene.add(clone);
+    pushUndo({ type: "duplicate", uuid: clone.uuid });
+    selectObject(clone);
+    sendSceneTree();
+    window.parent.postMessage({ type: "game-editor-object-duplicated", uuid: clone.uuid }, "*");
+  }
+
+  // ---- XZ Plane Drag ----
+  function startXZDrag(obj, clientX, clientY) {
+    if (!editor) return;
+    var THREE = window.THREE;
+    isDragging = true;
+    dragStartPos = { x: obj.position.x, y: obj.position.y, z: obj.position.z };
+    dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -obj.position.y);
+    // Calculate offset so object doesn't jump to cursor
+    var rect = editor.renderer.domElement.getBoundingClientRect();
+    var mx = ((clientX - rect.left) / rect.width) * 2 - 1;
+    var my = -((clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(new THREE.Vector2(mx, my), editor.camera);
+    var intersection = new THREE.Vector3();
+    raycaster.ray.intersectPlane(dragPlane, intersection);
+    if (intersection) {
+      dragOffset = new THREE.Vector3().subVectors(obj.position, intersection);
+    } else {
+      dragOffset = new THREE.Vector3();
+    }
+    if (editor.orbitControls) editor.orbitControls.enabled = false;
+  }
+
+  function doXZDrag(clientX, clientY) {
+    if (!isDragging || !selectedObj || !editor || !dragPlane) return;
     var THREE = window.THREE;
     var rect = editor.renderer.domElement.getBoundingClientRect();
-    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    var mx = ((clientX - rect.left) / rect.width) * 2 - 1;
+    var my = -((clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(new THREE.Vector2(mx, my), editor.camera);
+    var intersection = new THREE.Vector3();
+    raycaster.ray.intersectPlane(dragPlane, intersection);
+    if (intersection) {
+      var newX = intersection.x + dragOffset.x;
+      var newZ = intersection.z + dragOffset.z;
+      if (gridSnap) { newX = snapToGrid(newX); newZ = snapToGrid(newZ); }
+      selectedObj.position.x = newX;
+      selectedObj.position.z = newZ;
+      sendSelectedObject(selectedObj);
+      if (boxHelper) boxHelper.update();
+    }
+  }
+
+  function endXZDrag() {
+    if (!isDragging || !selectedObj) { isDragging = false; return; }
+    isDragging = false;
+    if (editor && editor.orbitControls) editor.orbitControls.enabled = true;
+    if (dragStartPos) {
+      pushUndo({ type: "transform", uuid: selectedObj.uuid,
+        oldPos: dragStartPos, oldRot: { x: selectedObj.rotation.x, y: selectedObj.rotation.y, z: selectedObj.rotation.z }, oldScl: { x: selectedObj.scale.x, y: selectedObj.scale.y, z: selectedObj.scale.z },
+        newPos: { x: selectedObj.position.x, y: selectedObj.position.y, z: selectedObj.position.z },
+        newRot: { x: selectedObj.rotation.x, y: selectedObj.rotation.y, z: selectedObj.rotation.z },
+        newScl: { x: selectedObj.scale.x, y: selectedObj.scale.y, z: selectedObj.scale.z }
+      });
+    }
+    dragPlane = null; dragOffset = null; dragStartPos = null;
+    sendSceneTree();
+  }
+
+  // ---- Raycast helper ----
+  function raycastMeshes(clientX, clientY) {
+    if (!editor) return null;
+    var THREE = window.THREE;
+    var rect = editor.renderer.domElement.getBoundingClientRect();
+    mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(mouse, editor.camera);
     var meshes = [];
     editor.scene.traverse(function(child) {
-      if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && !(child.name||"").indexOf("__editor_") === 0) {
+      if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && (child.name||"").indexOf("__editor_") !== 0) {
         meshes.push(child);
       }
     });
     var intersects = raycaster.intersectObjects(meshes, false);
     if (intersects.length > 0) {
-      var target = findSceneParent(intersects[0].object);
-      if (target && target !== editor.scene) selectObject(target);
+      return findSceneParent(intersects[0].object);
+    }
+    return null;
+  }
+
+  // ---- Click + Drag + Keyboard ----
+  function onCanvasMouseDown(e) {
+    if (!active || !editor) return;
+    if (e.button !== 0) return; // left click only
+    if (transformControls && transformControls.dragging) return;
+    var target = raycastMeshes(e.clientX, e.clientY);
+    if (target && target !== editor.scene) {
+      var now = Date.now();
+      var isDoubleClick = (now - lastClickTime < 300) && (lastClickUuid === target.uuid);
+      lastClickTime = now;
+      lastClickUuid = target.uuid;
+      if (isDoubleClick) {
+        // Double-click: select + start XZ drag
+        selectObject(target);
+        startXZDrag(target, e.clientX, e.clientY);
+      } else if (selectedObj && selectedObj.uuid === target.uuid) {
+        // Click on already-selected object: start XZ drag
+        startXZDrag(selectedObj, e.clientX, e.clientY);
+      } else {
+        // Single click on new object: just select
+        selectObject(target);
+      }
     } else {
+      lastClickTime = 0;
+      lastClickUuid = "";
       deselectObject();
     }
+  }
+
+  function onCanvasMouseMove(e) {
+    if (!active || !isDragging) return;
+    doXZDrag(e.clientX, e.clientY);
+  }
+
+  function onCanvasMouseUp(e) {
+    if (!active) return;
+    if (isDragging) endXZDrag();
   }
 
   function onKeyDown(e) {
     if (!active) return;
     var tag = (e.target || {}).tagName;
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    // Ctrl+Z — Undo
+    if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+      applyUndo(); e.preventDefault(); return;
+    }
+    // Ctrl+D — Duplicate
+    if ((e.ctrlKey || e.metaKey) && (e.key === "d" || e.key === "D")) {
+      duplicateSelected(); e.preventDefault(); return;
+    }
     switch (e.key) {
       case "w": case "W":
         if (transformControls) transformControls.setMode("translate");
@@ -668,11 +891,19 @@ export function getVisualEditBridgeScript(): string {
         if (transformControls) transformControls.setMode("scale");
         window.parent.postMessage({ type: "game-editor-gizmo-mode", mode: "scale" }, "*");
         e.preventDefault(); break;
-      case "Escape": deselectObject(); e.preventDefault(); break;
+      case "f": case "F":
+        focusSelected(); e.preventDefault(); break;
+      case "g": case "G":
+        toggleGridHelper(); e.preventDefault(); break;
+      case "Escape":
+        if (isDragging) { endXZDrag(); } else { deselectObject(); }
+        e.preventDefault(); break;
       case "Delete": case "Backspace":
         if (selectedObj && editor) {
-          var uuid = selectedObj.uuid;
-          editor.scene.remove(selectedObj);
+          var delObj = selectedObj;
+          var uuid = delObj.uuid;
+          pushUndo({ type: "delete", uuid: uuid, object: delObj });
+          editor.scene.remove(delObj);
           deselectObject(); sendSceneTree();
           window.parent.postMessage({ type: "game-editor-object-deleted", uuid: uuid }, "*");
         }
@@ -699,7 +930,9 @@ export function getVisualEditBridgeScript(): string {
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
       editor.pause();
-      editor.renderer.domElement.addEventListener("click", onCanvasClick);
+      editor.renderer.domElement.addEventListener("mousedown", onCanvasMouseDown);
+      window.addEventListener("mousemove", onCanvasMouseMove, true);
+      window.addEventListener("mouseup", onCanvasMouseUp, true);
       window.addEventListener("keydown", onKeyDown, true);
       editorLoop();
       setTimeout(function() {
@@ -714,19 +947,41 @@ export function getVisualEditBridgeScript(): string {
     active = false;
     cancelAnimationFrame(editorAnimId);
     deselectObject();
+    if (isDragging) endXZDrag();
+    if (gridHelper && editor) { editor.scene.remove(gridHelper); if (gridHelper.dispose) gridHelper.dispose(); gridHelper = null; }
+    gridSnap = false;
+    undoStack = [];
     if (editor) {
-      editor.renderer.domElement.removeEventListener("click", onCanvasClick);
+      editor.renderer.domElement.removeEventListener("mousedown", onCanvasMouseDown);
       editor.resume();
     }
+    window.removeEventListener("mousemove", onCanvasMouseMove, true);
+    window.removeEventListener("mouseup", onCanvasMouseUp, true);
     window.removeEventListener("keydown", onKeyDown, true);
     raycaster = null; mouse = null; editor = null;
   }
 
   // ---- Property Updates ----
-  function updateProperty(uuid, property, value) {
+  function updateProperty(uuid, property, value, skipUndo) {
     if (!editor) return;
     var obj = findByUuid(editor.scene, uuid);
     if (!obj) return;
+    if (!skipUndo) {
+      var oldVal = null;
+      switch (property) {
+        case "position.x": oldVal = obj.position.x; break;
+        case "position.y": oldVal = obj.position.y; break;
+        case "position.z": oldVal = obj.position.z; break;
+        case "rotation.x": oldVal = obj.rotation.x * 180 / Math.PI; break;
+        case "rotation.y": oldVal = obj.rotation.y * 180 / Math.PI; break;
+        case "rotation.z": oldVal = obj.rotation.z * 180 / Math.PI; break;
+        case "scale.x": oldVal = obj.scale.x; break;
+        case "scale.y": oldVal = obj.scale.y; break;
+        case "scale.z": oldVal = obj.scale.z; break;
+        case "visible": oldVal = obj.visible; break;
+      }
+      if (oldVal !== null) pushUndo({ type: "property", uuid: uuid, property: property, oldValue: oldVal, newValue: value });
+    }
     switch (property) {
       case "position.x": obj.position.x = Number(value); break;
       case "position.y": obj.position.y = Number(value); break;
@@ -764,6 +1019,10 @@ export function getVisualEditBridgeScript(): string {
           if (toDelete) { if (selectedObj && selectedObj.uuid === d.uuid) deselectObject(); editor.scene.remove(toDelete); sendSceneTree(); }
         } break;
       case "game-editor-request-tree": sendSceneTree(); break;
+      case "game-editor-focus": focusSelected(); break;
+      case "game-editor-duplicate": duplicateSelected(); break;
+      case "game-editor-undo": applyUndo(); break;
+      case "game-editor-toggle-snap": toggleGridHelper(); break;
     }
   });
   } // end initBridge

@@ -46,6 +46,7 @@ interface GameEditorContextValue {
 	sceneTree: SceneNode | null;
 	selectedObject: SelectedSceneObject | null;
 	gizmoMode: GizmoMode;
+	snapEnabled: boolean;
 	toggleEditor: () => void;
 	setEnabled: (v: boolean) => void;
 	setGizmoMode: (mode: GizmoMode) => void;
@@ -57,6 +58,11 @@ interface GameEditorContextValue {
 	deleteObject: (uuid: string) => void;
 	requestSceneTree: () => void;
 	setIframeRef: (ref: React.RefObject<HTMLIFrameElement | null>) => void;
+	focusSelected: () => void;
+	duplicateSelected: () => void;
+	undoAction: () => void;
+	toggleSnap: () => void;
+	setSnapEnabled: (v: boolean) => void;
 }
 
 const GameEditorContext = createContext<GameEditorContextValue | null>(null);
@@ -66,6 +72,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [sceneTree, setSceneTree] = useState<SceneNode | null>(null);
 	const [selectedObject, setSelectedObject] = useState<SelectedSceneObject | null>(null);
 	const [gizmoMode, setGizmoModeState] = useState<GizmoMode>("translate");
+	const [snapEnabled, setSnapEnabledState] = useState(false);
 	const iframeRef = useRef<React.RefObject<HTMLIFrameElement | null> | null>(null);
 
 	const sendToIframe = useCallback((msg: any) => {
@@ -147,6 +154,26 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		sendToIframe({ type: "game-editor-request-tree" });
 	}, [sendToIframe]);
 
+	const focusSelected = useCallback(() => {
+		sendToIframe({ type: "game-editor-focus" });
+	}, [sendToIframe]);
+
+	const duplicateSelected = useCallback(() => {
+		sendToIframe({ type: "game-editor-duplicate" });
+	}, [sendToIframe]);
+
+	const undoAction = useCallback(() => {
+		sendToIframe({ type: "game-editor-undo" });
+	}, [sendToIframe]);
+
+	const toggleSnap = useCallback(() => {
+		sendToIframe({ type: "game-editor-toggle-snap" });
+	}, [sendToIframe]);
+
+	const setSnapEnabled = useCallback((v: boolean) => {
+		setSnapEnabledState(v);
+	}, []);
+
 	const setIframeRefCb = useCallback((ref: React.RefObject<HTMLIFrameElement | null>) => {
 		iframeRef.current = ref;
 	}, []);
@@ -158,6 +185,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				sceneTree,
 				selectedObject,
 				gizmoMode,
+				snapEnabled,
 				toggleEditor,
 				setEnabled,
 				setGizmoMode,
@@ -169,6 +197,11 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				deleteObject,
 				requestSceneTree,
 				setIframeRef: setIframeRefCb,
+				focusSelected,
+				duplicateSelected,
+				undoAction,
+				toggleSnap,
+				setSnapEnabled,
 			}}
 		>
 			{children}

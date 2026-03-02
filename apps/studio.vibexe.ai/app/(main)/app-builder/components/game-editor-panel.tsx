@@ -5,7 +5,7 @@
  * Overlaid on the right side of the viewport when editor is active.
  */
 
-import { Eye, EyeOff, Trash2 } from "lucide-react";
+import { Copy, Eye, EyeOff, Focus, Trash2 } from "lucide-react";
 import { useCallback } from "react";
 import { DragNumberInput } from "./drag-number-input";
 import { SceneTreeNode } from "./scene-tree-node";
@@ -18,6 +18,8 @@ export function GameEditorPanel() {
 		selectObjectByUuid,
 		updateProperty,
 		deleteObject,
+		focusSelected,
+		duplicateSelected,
 	} = useGameEditor();
 
 	const handleTreeSelect = useCallback(
@@ -207,11 +209,33 @@ export function GameEditorPanel() {
 							</div>
 						)}
 
+						{/* Actions */}
+						<div className="flex gap-1.5 mt-1">
+							<button
+								type="button"
+								onClick={focusSelected}
+								className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] text-white/50 bg-white/[0.04] hover:bg-white/[0.08] rounded transition-colors"
+								title="Focus camera (F)"
+							>
+								<Focus className="w-3 h-3" />
+								Focus
+							</button>
+							<button
+								type="button"
+								onClick={duplicateSelected}
+								className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] text-white/50 bg-white/[0.04] hover:bg-white/[0.08] rounded transition-colors"
+								title="Duplicate (Ctrl+D)"
+							>
+								<Copy className="w-3 h-3" />
+								Duplicate
+							</button>
+						</div>
+
 						{/* Delete */}
 						<button
 							type="button"
 							onClick={handleDelete}
-							className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] text-red-400 bg-red-500/[0.08] hover:bg-red-500/[0.15] rounded transition-colors mt-2"
+							className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] text-red-400 bg-red-500/[0.08] hover:bg-red-500/[0.15] rounded transition-colors mt-1"
 						>
 							<Trash2 className="w-3 h-3" />
 							Delete Object

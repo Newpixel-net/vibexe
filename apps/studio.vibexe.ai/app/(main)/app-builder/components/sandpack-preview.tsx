@@ -23,6 +23,7 @@ import {
 	Copy,
 	ExternalLink,
 	Gamepad2,
+	Grid3X3,
 	Monitor,
 	MousePointer2,
 	Move,
@@ -32,6 +33,7 @@ import {
 	Scaling,
 	Smartphone,
 	Tablet,
+	Undo2,
 	X,
 } from "lucide-react";
 import { MobilePublishPanel } from "./mobile-publish-panel";
@@ -523,6 +525,10 @@ export function SandpackPreview({
 				gameEditor.updateSelectedObject(null);
 			} else if (data.type === "game-editor-gizmo-mode") {
 				gameEditor.setGizmoMode(data.mode as GizmoMode);
+			} else if (data.type === "game-editor-snap-changed") {
+				gameEditor.setSnapEnabled(!!data.snap);
+			} else if (data.type === "game-editor-object-duplicated") {
+				gameEditor.requestSceneTree();
 			}
 		};
 		window.addEventListener("message", handler);
@@ -605,7 +611,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=4`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=5`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);
@@ -716,6 +722,26 @@ export function SandpackPreview({
 											<span className="hidden lg:inline">{key}</span>
 										</button>
 									))}
+									<button
+										type="button"
+										onClick={gameEditor.toggleSnap}
+										className={`flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-lg transition-all duration-150 ${
+											gameEditor.snapEnabled
+												? "bg-amber-500/[0.15] text-amber-300"
+												: "text-white/35 hover:bg-white/[0.04] hover:text-white/60"
+										}`}
+										title="Grid Snap (G)"
+									>
+										<Grid3X3 className="w-3.5 h-3.5" />
+									</button>
+									<button
+										type="button"
+										onClick={gameEditor.undoAction}
+										className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-lg text-white/35 hover:bg-white/[0.04] hover:text-white/60 transition-all duration-150"
+										title="Undo (Ctrl+Z)"
+									>
+										<Undo2 className="w-3.5 h-3.5" />
+									</button>
 								</div>
 							)}
 						</>
