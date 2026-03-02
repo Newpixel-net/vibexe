@@ -494,7 +494,17 @@ export function SandpackPreview({
 				visualEdit.deselectElement();
 			}
 			// Game editor messages
-			else if (data.type === "game-editor-scene-tree") {
+			else if (data.type === "game-editor-bridge-loaded") {
+				console.log("[GameEditor] Bridge loaded in iframe, editor enabled:", gameEditor.enabled);
+				// If editor is already enabled (user clicked before bridge loaded), re-send enable
+				if (gameEditor.enabled) {
+					const iframe = iframeRef.current;
+					if (iframe?.contentWindow) {
+						console.log("[GameEditor] Re-sending game-editor-enable to bridge");
+						iframe.contentWindow.postMessage({ type: "game-editor-enable" }, "*");
+					}
+				}
+			} else if (data.type === "game-editor-scene-tree") {
 				gameEditor.updateSceneTree(data.tree);
 			} else if (data.type === "game-editor-object-selected") {
 				gameEditor.updateSelectedObject({

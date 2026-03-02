@@ -71,14 +71,29 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const sendToIframe = useCallback((msg: any) => {
 		const iframe = iframeRef.current?.current;
 		if (iframe?.contentWindow) {
+			console.log("[GameEditor] Sending to iframe:", msg.type);
 			iframe.contentWindow.postMessage(msg, "*");
+		} else {
+			console.warn("[GameEditor] No iframe contentWindow available for:", msg.type, "iframeRef.current:", !!iframeRef.current, "current:", !!iframeRef.current?.current);
 		}
 	}, []);
 
 	const toggleEditor = useCallback(() => {
 		setEnabledState((prev) => {
 			const next = !prev;
-			sendToIframe({ type: next ? "game-editor-enable" : "game-editor-disable" });
+			const msg = { type: next ? "game-editor-enable" : "game-editor-disable" };
+			sendToIframe(msg);
+			// Fallback: also try sending via any iframe in the preview container
+			// This handles cases where iframeRef chain breaks
+			try {
+				const iframes = document.querySelectorAll(".sandpack-container iframe");
+				for (const iframe of iframes) {
+					const f = iframe as HTMLIFrameElement;
+					if (f.contentWindow) {
+						f.contentWindow.postMessage(msg, "*");
+					}
+				}
+			} catch { /* ignore */ }
 			if (!next) {
 				setSelectedObject(null);
 				setSceneTree(null);
@@ -89,7 +104,16 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 
 	const setEnabled = useCallback((v: boolean) => {
 		setEnabledState(v);
-		sendToIframe({ type: v ? "game-editor-enable" : "game-editor-disable" });
+		const msg = { type: v ? "game-editor-enable" : "game-editor-disable" };
+		sendToIframe(msg);
+		// Fallback: also try via DOM query
+		try {
+			const iframes = document.querySelectorAll(".sandpack-container iframe");
+			for (const iframe of iframes) {
+				const f = iframe as HTMLIFrameElement;
+				if (f.contentWindow) f.contentWindow.postMessage(msg, "*");
+			}
+		} catch { /* ignore */ }
 		if (!v) {
 			setSelectedObject(null);
 			setSceneTree(null);

@@ -10,6 +10,8 @@
 export function getGameEditorBridgeScript(): string {
 	return `
 (function() {
+  console.log("[GameEditorBridge] Script loaded");
+
   var active = false;
   var raycaster = null;
   var mouse = null;
@@ -17,17 +19,33 @@ export function getGameEditorBridgeScript(): string {
   var boxHelper = null;
   var transformControls = null;
   var editor = null;
+  var pendingEnable = false;
+
+  // Notify parent that bridge is ready
+  try {
+    window.parent.postMessage({ type: "game-editor-bridge-loaded" }, "*");
+  } catch(e) {
+    console.warn("[GameEditorBridge] Failed to notify parent:", e);
+  }
 
   // Wait for __vibexe_editor__ to appear (Game3D.tsx exposes it after init)
   function waitForEditor(cb) {
+    // Check immediately first
+    if (window.__vibexe_editor__) {
+      console.log("[GameEditorBridge] __vibexe_editor__ found immediately");
+      cb(window.__vibexe_editor__);
+      return;
+    }
+    console.log("[GameEditorBridge] Polling for __vibexe_editor__...");
     var attempts = 0;
     var timer = setInterval(function() {
       if (window.__vibexe_editor__) {
         clearInterval(timer);
+        console.log("[GameEditorBridge] __vibexe_editor__ found after " + attempts + " attempts");
         cb(window.__vibexe_editor__);
       } else if (++attempts > 200) { // 10s timeout
         clearInterval(timer);
-        console.warn("[GameEditor] Timed out waiting for __vibexe_editor__");
+        console.warn("[GameEditorBridge] Timed out waiting for __vibexe_editor__");
       }
     }, 50);
   }
@@ -290,16 +308,22 @@ export function getGameEditorBridgeScript(): string {
 
   // ===== Activate / Deactivate =====
   function activate() {
-    if (active) return;
+    if (active) {
+      console.log("[GameEditorBridge] Already active, skipping activate");
+      return;
+    }
+    console.log("[GameEditorBridge] activate() called");
     waitForEditor(function(ed) {
       editor = ed;
       active = true;
+      pendingEnable = false;
 
       var THREE = window.THREE;
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
 
       // Pause game loop
+      console.log("[GameEditorBridge] Pausing game...");
       editor.pause();
 
       // Attach listeners
@@ -311,6 +335,7 @@ export function getGameEditorBridgeScript(): string {
 
       // Send scene tree to parent
       setTimeout(function() {
+        console.log("[GameEditorBridge] Sending scene tree to parent");
         sendSceneTree();
         window.parent.postMessage({ type: "game-editor-ready" }, "*");
       }, 100);
@@ -366,6 +391,11 @@ export function getGameEditorBridgeScript(): string {
   window.addEventListener("message", function(e) {
     var d = e.data;
     if (!d || !d.type) return;
+
+    // Log game-editor messages for debugging
+    if (typeof d.type === "string" && d.type.indexOf("game-editor") === 0) {
+      console.log("[GameEditorBridge] Received message:", d.type);
+    }
 
     switch (d.type) {
       case "game-editor-enable":
