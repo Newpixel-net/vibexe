@@ -3866,8 +3866,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           // In editor mode, skip game logic — only render
           if (__editorMode) {
             if (__editorOrbitControls) __editorOrbitControls.update();
+            const __ed = clock.getDelta();
             const __ec2 = (window as any).__vibexe_composer__;
-            if (__ec2) { __ec2.render(); } else { renderer.render(scene, camera); }
+            if (__ec2) { __ec2.render(__ed); } else { renderer.render(scene, camera); }
             return;
           }
 
