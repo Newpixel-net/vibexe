@@ -852,36 +852,55 @@ export function getVisualEditBridgeScript(): string {
     return bestObj;
   }
 
+  // ---- Debug overlay ----
+  var debugEl = null;
+  function showDebug(msg) {
+    console.log("[GameEditorBridge] " + msg);
+    if (!debugEl) {
+      debugEl = document.createElement("div");
+      debugEl.style.cssText = "position:fixed;top:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.85);color:#0f0;font:11px monospace;padding:4px 8px;border-radius:4px;pointer-events:none;max-width:90%;white-space:pre-wrap;";
+      document.body.appendChild(debugEl);
+    }
+    debugEl.textContent = msg;
+    // Auto-hide after 5s
+    clearTimeout(debugEl._t);
+    debugEl._t = setTimeout(function() { if (debugEl) debugEl.textContent = ""; }, 5000);
+  }
+
   // ---- Click + Drag + Keyboard ----
-  function onCanvasMouseDown(e) {
-    if (!active || !editor) return;
-    if (e.button !== 0) return; // left click only
-    // Only process clicks that land within the renderer canvas area
+  function handleClick(clientX, clientY, source) {
+    showDebug("Click from " + source + " at (" + Math.round(clientX) + ", " + Math.round(clientY) + ") active=" + active + " editor=" + !!editor);
+    if (!active || !editor) { showDebug("SKIP: active=" + active + " editor=" + !!editor); return; }
+    if (transformControls && transformControls.dragging) { showDebug("SKIP: gizmo dragging"); return; }
     var rect = editor.renderer.domElement.getBoundingClientRect();
-    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
-    if (transformControls && transformControls.dragging) return;
-    var target = raycastMeshes(e.clientX, e.clientY);
+    showDebug("Canvas rect: " + Math.round(rect.left) + "," + Math.round(rect.top) + " " + Math.round(rect.width) + "x" + Math.round(rect.height) + " | Click: " + Math.round(clientX) + "," + Math.round(clientY));
+    var target = raycastMeshes(clientX, clientY);
     if (target && target !== editor.scene) {
+      showDebug("HIT: " + (target.name || target.type) + " (uuid=" + target.uuid.slice(0,8) + ")");
       var now = Date.now();
       var isDoubleClick = (now - lastClickTime < 300) && (lastClickUuid === target.uuid);
       lastClickTime = now;
       lastClickUuid = target.uuid;
       if (isDoubleClick) {
-        // Double-click: select + start XZ drag
         selectObject(target);
-        startXZDrag(target, e.clientX, e.clientY);
+        startXZDrag(target, clientX, clientY);
       } else if (selectedObj && selectedObj.uuid === target.uuid) {
-        // Click on already-selected object: start XZ drag
-        startXZDrag(selectedObj, e.clientX, e.clientY);
+        startXZDrag(selectedObj, clientX, clientY);
       } else {
-        // Single click on new object: just select
         selectObject(target);
       }
     } else {
+      showDebug("MISS: no object at (" + Math.round(clientX) + "," + Math.round(clientY) + ") meshCount=" + (editor.scene ? editor.scene.children.length : 0));
       lastClickTime = 0;
       lastClickUuid = "";
       deselectObject();
     }
+  }
+
+  function onCanvasMouseDown(e) {
+    if (!active || !editor) return;
+    if (e.button !== 0) return;
+    handleClick(e.clientX, e.clientY, "mousedown-capture");
   }
 
   function onCanvasMouseMove(e) {
@@ -958,16 +977,38 @@ export function getVisualEditBridgeScript(): string {
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
       editor.pause();
-      // Use window capture for mousedown so HUD overlay elements don't block clicks
+      showDebug("Bridge ACTIVATED. Canvas: " + editor.renderer.domElement.tagName + " " + editor.renderer.domElement.width + "x" + editor.renderer.domElement.height);
+      // Register click handlers: window capture + canvas direct + pointerdown backup
       window.addEventListener("mousedown", onCanvasMouseDown, true);
       window.addEventListener("mousemove", onCanvasMouseMove, true);
       window.addEventListener("mouseup", onCanvasMouseUp, true);
       window.addEventListener("keydown", onKeyDown, true);
+      // Also listen directly on the canvas element (belt and suspenders)
+      editor.renderer.domElement.addEventListener("pointerdown", function(e) {
+        if (!active || !editor) return;
+        if (e.button !== 0) return;
+        showDebug("pointerdown on canvas: " + e.clientX + "," + e.clientY);
+        handleClick(e.clientX, e.clientY, "canvas-pointerdown");
+      }, false);
+      // Also listen on document.body for clicks (catches clicks on HUD overlays)
+      document.body.addEventListener("mousedown", function(e) {
+        if (!active || !editor) return;
+        if (e.button !== 0) return;
+        showDebug("body-mousedown: " + e.clientX + "," + e.clientY + " target=" + (e.target||{}).tagName + " class=" + ((e.target||{}).className||"").toString().slice(0,30));
+        // Only forward to handleClick if not already handled (check if target is canvas or its parent)
+        if (e.target !== editor.renderer.domElement) {
+          handleClick(e.clientX, e.clientY, "body-mousedown");
+        }
+      }, true);
       // Hide game HUD elements so they don't intercept pointer events
-      var hudEls = document.querySelectorAll("[style*='position']");
-      for (var hi = 0; hi < hudEls.length; hi++) {
-        var hel = hudEls[hi];
-        if (hel !== editor.renderer.domElement && hel !== editor.renderer.domElement.parentElement) {
+      // Match both inline styles AND common CSS class patterns
+      var allEls = document.querySelectorAll("div, span, p, h1, h2, h3, button");
+      for (var hi = 0; hi < allEls.length; hi++) {
+        var hel = allEls[hi];
+        if (hel === editor.renderer.domElement || hel === editor.renderer.domElement.parentElement) continue;
+        if (hel === debugEl) continue;
+        var cs = window.getComputedStyle(hel);
+        if (cs.position === "absolute" || cs.position === "fixed") {
           hel.style.pointerEvents = "none";
           hel.setAttribute("data-editor-hidden", "1");
         }
