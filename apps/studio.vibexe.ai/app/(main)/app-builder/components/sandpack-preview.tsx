@@ -414,11 +414,24 @@ ${DATA_MARKER} ${json}
     await _origInit.apply(this, arguments);
     var _s = arguments[0];
     var _o = ${json};
+    var _physArrays = [];
+    if (typeof platforms !== 'undefined') _physArrays.push(platforms);
+    if (typeof collectibles !== 'undefined') _physArrays.push(collectibles);
+    if (typeof barriers !== 'undefined') _physArrays.push(barriers);
     Object.keys(_o).forEach(function(name) {
-      _s.traverse(function(c: any) {
+      _s.traverse(function(c) {
         if (c.name === name) {
           var o = _o[name];
-          if (o.p) c.position.set(o.p[0], o.p[1], o.p[2]);
+          if (o.p) {
+            c.position.set(o.p[0], o.p[1], o.p[2]);
+            for (var a = 0; a < _physArrays.length; a++) {
+              for (var i = 0; i < _physArrays[a].length; i++) {
+                if (_physArrays[a][i].mesh === c && _physArrays[a][i].body) {
+                  _physArrays[a][i].body.position.set(o.p[0], o.p[1], o.p[2]);
+                }
+              }
+            }
+          }
           if (o.r) c.rotation.set(o.r[0], o.r[1], o.r[2]);
           if (o.s) c.scale.set(o.s[0], o.s[1], o.s[2]);
         }
@@ -815,7 +828,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=13`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=14`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);
