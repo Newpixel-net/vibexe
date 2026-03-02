@@ -874,7 +874,7 @@ export function getVisualEditBridgeScript(): string {
     if (!obj.name) {
       if (obj.userData && obj.userData.vibexeFactory) {
         obj.name = (obj.userData.vibexeFactory === "animatedCharacter" ? "Character_" : "Object_") + obj.uuid.slice(0, 8);
-      } else if (obj.type === "Group" && obj.children && obj.children.length > 0) {
+      } else if (obj.type === "Group" && obj.children && obj.children.length > 0 && editor && obj.parent === editor.scene) {
         obj.name = "Group_" + obj.uuid.slice(0, 8);
       }
       if (obj.name) console.log("[GameEditorBridge] Auto-named:", obj.name);
@@ -1220,15 +1220,17 @@ export function getVisualEditBridgeScript(): string {
         onKeyDown(fakeEvent);
         break;
       case "game-editor-collect-all-transforms":
-        // Collect transforms of all named game objects for batch save
+        // Collect transforms of ONLY factory-created game objects for batch save
+        // CRITICAL: Must NOT collect bones, GLTF internals, gizmo parts, or generic "Scene" objects
         if (!editor || !editor.scene) break;
         var allTransforms = {};
+        var _factoryPrefixes = ["Platform_", "Collectible_", "Barrier_", "Decoration_", "Player_", "Character_", "Group_", "Object_"];
         editor.scene.traverse(function(child) {
           // Auto-name unnamed objects (supports pre-fix games without vibexeFactory metadata)
           if (!child.name) {
             if (child.userData && child.userData.vibexeFactory) {
               child.name = (child.userData.vibexeFactory === "animatedCharacter" ? "Character_" : "Object_") + child.uuid.slice(0, 8);
-            } else if (child.type === "Group" && child.children && child.children.length > 0) {
+            } else if (child.type === "Group" && child.children && child.children.length > 0 && child.parent === editor.scene) {
               child.name = "Group_" + child.uuid.slice(0, 8);
             }
           }
@@ -1238,6 +1240,12 @@ export function getVisualEditBridgeScript(): string {
           if (isGroundPlane(child)) return;
           // Skip infrastructure: lights, cameras, helpers
           if (child.isLight || child.isCamera || child.type === "BoxHelper") return;
+          // WHITELIST: Only collect objects with factory-created name prefixes
+          var isFactory = false;
+          for (var pi = 0; pi < _factoryPrefixes.length; pi++) {
+            if (child.name.indexOf(_factoryPrefixes[pi]) === 0) { isFactory = true; break; }
+          }
+          if (!isFactory) return;
           allTransforms[child.name] = {
             position: { x: +child.position.x.toFixed(3), y: +child.position.y.toFixed(3), z: +child.position.z.toFixed(3) },
             rotation: { x: +(child.rotation.x * 180 / Math.PI).toFixed(1), y: +(child.rotation.y * 180 / Math.PI).toFixed(1), z: +(child.rotation.z * 180 / Math.PI).toFixed(1) },
