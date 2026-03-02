@@ -7,7 +7,8 @@
  * and gradient accent buttons.
  */
 
-import { ArrowLeft, Check, Copy, Filter, Gamepad2, Layers, Link, Loader2, Monitor, PanelTop, Smartphone, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, Copy, Filter, Gamepad2, Layers, Link, Loader2, Monitor, PanelTop, Save, Smartphone, Sparkles } from "lucide-react";
+import { useGameEditor } from "../lib/game-editor-context";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -39,6 +40,7 @@ interface BuilderHeaderProps {
 
 export function BuilderHeader({ appId, appName, projectType }: BuilderHeaderProps) {
 	const router = useRouter();
+	const gameEditor = useGameEditor();
 	const [shareUrl, setShareUrl] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [copied, setCopied] = useState(false);
@@ -154,13 +156,35 @@ export function BuilderHeader({ appId, appName, projectType }: BuilderHeaderProp
 						Share
 					</button>
 				)}
-				<button
-					type="button"
-					className="h-9 px-4 text-xs font-medium rounded-xl bg-gradient-to-r from-violet-500/80 to-cyan-500/80 hover:from-violet-500 hover:to-cyan-500 text-white flex items-center gap-1.5 transition-all duration-200 shadow-[0_0_16px_rgba(124,58,237,0.15)]"
-				>
-					<Sparkles className="h-4 w-4" />
-					Upgrade
-				</button>
+				{gameEditor.enabled ? (
+					<button
+						type="button"
+						disabled={gameEditor.isSaving || !gameEditor.isDirty}
+						onClick={() => gameEditor.saveScene()}
+						className={`h-9 px-4 text-xs font-medium rounded-xl flex items-center gap-1.5 transition-all duration-200 ${
+							gameEditor.isSaving
+								? "bg-gradient-to-r from-emerald-600/60 to-green-600/60 text-white/80 cursor-wait"
+								: gameEditor.isDirty
+									? "bg-gradient-to-r from-emerald-500/80 to-green-500/80 hover:from-emerald-500 hover:to-green-500 text-white shadow-[0_0_16px_rgba(16,185,129,0.2)] cursor-pointer"
+									: "bg-white/[0.06] border border-white/[0.08] text-white/40 cursor-default"
+						}`}
+					>
+						{gameEditor.isSaving ? (
+							<Loader2 className="h-4 w-4 animate-spin" />
+						) : (
+							<Save className="h-4 w-4" />
+						)}
+						{gameEditor.isSaving ? "Saving..." : gameEditor.isDirty ? "Save Scene" : "Saved"}
+					</button>
+				) : (
+					<button
+						type="button"
+						className="h-9 px-4 text-xs font-medium rounded-xl bg-gradient-to-r from-violet-500/80 to-cyan-500/80 hover:from-violet-500 hover:to-cyan-500 text-white flex items-center gap-1.5 transition-all duration-200 shadow-[0_0_16px_rgba(124,58,237,0.15)]"
+					>
+						<Sparkles className="h-4 w-4" />
+						Upgrade
+					</button>
+				)}
 			</div>
 		</div>
 	);

@@ -6,7 +6,7 @@
  * Communicates with the Sandpack iframe via postMessage.
  */
 
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 // ===== Types =====
 
@@ -47,6 +47,8 @@ interface GameEditorContextValue {
 	selectedObject: SelectedSceneObject | null;
 	gizmoMode: GizmoMode;
 	snapEnabled: boolean;
+	isDirty: boolean;
+	isSaving: boolean;
 	toggleEditor: () => void;
 	setEnabled: (v: boolean) => void;
 	setGizmoMode: (mode: GizmoMode) => void;
@@ -63,6 +65,10 @@ interface GameEditorContextValue {
 	undoAction: () => void;
 	toggleSnap: () => void;
 	setSnapEnabled: (v: boolean) => void;
+	setDirty: (v: boolean) => void;
+	setIsSaving: (v: boolean) => void;
+	saveScene: () => Promise<void>;
+	setSaveHandler: (handler: () => Promise<void>) => void;
 }
 
 const GameEditorContext = createContext<GameEditorContextValue | null>(null);
@@ -73,6 +79,9 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [selectedObject, setSelectedObject] = useState<SelectedSceneObject | null>(null);
 	const [gizmoMode, setGizmoModeState] = useState<GizmoMode>("translate");
 	const [snapEnabled, setSnapEnabledState] = useState(false);
+	const [isDirty, setIsDirty] = useState(false);
+	const [isSaving, setIsSaving] = useState(false);
+	const saveHandlerRef = useRef<(() => Promise<void>) | null>(null);
 	const iframeRef = useRef<React.RefObject<HTMLIFrameElement | null> | null>(null);
 
 	const sendToIframe = useCallback((msg: any) => {
@@ -174,6 +183,33 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		setSnapEnabledState(v);
 	}, []);
 
+	const setDirty = useCallback((v: boolean) => setIsDirty(v), []);
+
+	const setSaveHandler = useCallback((handler: () => Promise<void>) => {
+		saveHandlerRef.current = handler;
+	}, []);
+
+	const saveScene = useCallback(async () => {
+		if (!saveHandlerRef.current) return;
+		setIsSaving(true);
+		try {
+			await saveHandlerRef.current();
+			setIsDirty(false);
+		} catch (err) {
+			console.error("[GameEditor] Save failed:", err);
+		} finally {
+			setIsSaving(false);
+		}
+	}, []);
+
+	// Reset dirty state when editor is disabled
+	useEffect(() => {
+		if (!enabled) {
+			setIsDirty(false);
+			setIsSaving(false);
+		}
+	}, [enabled]);
+
 	const setIframeRefCb = useCallback((ref: React.RefObject<HTMLIFrameElement | null>) => {
 		iframeRef.current = ref;
 	}, []);
@@ -186,6 +222,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				selectedObject,
 				gizmoMode,
 				snapEnabled,
+				isDirty,
+				isSaving,
 				toggleEditor,
 				setEnabled,
 				setGizmoMode,
@@ -202,6 +240,10 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				undoAction,
 				toggleSnap,
 				setSnapEnabled,
+				setDirty,
+				setIsSaving,
+				saveScene,
+				setSaveHandler,
 			}}
 		>
 			{children}

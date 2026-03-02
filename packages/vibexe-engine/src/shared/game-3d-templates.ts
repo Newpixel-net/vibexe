@@ -1468,6 +1468,10 @@ export async function createAnimatedCharacter3D(
 
   // Wrapper Group: world position only, scale stays at 1
   const mesh = new THREE.Group();
+  const urlParts = opts.url.split("/");
+  const fileName = urlParts[urlParts.length - 1].replace(/\.(glb|gltf)$/i, "");
+  mesh.name = "Character_" + fileName;
+  mesh.userData = { vibexeType: "AnimatedCharacter", vibexeFactory: "animatedCharacter" };
   mesh.add(pivot);
   mesh.position.set(x, y, z);
   if (opts.rotation !== undefined) mesh.rotation.y = opts.rotation;

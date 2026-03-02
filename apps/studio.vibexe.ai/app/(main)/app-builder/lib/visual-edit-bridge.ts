@@ -870,6 +870,8 @@ export function getVisualEditBridgeScript(): string {
   var persistTimer = null;
   function persistTransform(obj) {
     if (!obj || !obj.name) return;
+    // Notify parent that scene has unsaved changes
+    window.parent.postMessage({ type: "game-editor-scene-dirty" }, "*");
     // Debounce: batch rapid changes (e.g. during drag) into one update
     if (persistTimer) clearTimeout(persistTimer);
     persistTimer = setTimeout(function() {
@@ -1206,6 +1208,26 @@ export function getVisualEditBridgeScript(): string {
         // Simulate keydown event for the bridge's onKeyDown handler
         var fakeEvent = { key: d.key, ctrlKey: !!d.ctrlKey, metaKey: !!d.metaKey, target: { tagName: "BODY" }, preventDefault: function() {} };
         onKeyDown(fakeEvent);
+        break;
+      case "game-editor-collect-all-transforms":
+        // Collect transforms of all named game objects for batch save
+        if (!editor || !editor.scene) break;
+        var allTransforms = {};
+        editor.scene.traverse(function(child) {
+          if (!child.name) return;
+          if (child.name.indexOf("__editor_") === 0) return;
+          if (child.type === "GridHelper") return;
+          if (isGroundPlane(child)) return;
+          // Skip infrastructure: lights, cameras, helpers
+          if (child.isLight || child.isCamera || child.type === "BoxHelper") return;
+          allTransforms[child.name] = {
+            position: { x: +child.position.x.toFixed(3), y: +child.position.y.toFixed(3), z: +child.position.z.toFixed(3) },
+            rotation: { x: +(child.rotation.x * 180 / Math.PI).toFixed(1), y: +(child.rotation.y * 180 / Math.PI).toFixed(1), z: +(child.rotation.z * 180 / Math.PI).toFixed(1) },
+            scale: { x: +child.scale.x.toFixed(3), y: +child.scale.y.toFixed(3), z: +child.scale.z.toFixed(3) }
+          };
+        });
+        console.log("[GameEditorBridge] Collected transforms:", Object.keys(allTransforms).length, "objects");
+        window.parent.postMessage({ type: "game-editor-all-transforms", transforms: allTransforms }, "*");
         break;
     }
   });

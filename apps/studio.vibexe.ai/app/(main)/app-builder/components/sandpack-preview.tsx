@@ -481,6 +481,68 @@ export function SandpackPreview({
 	// Detect game mode
 	const isGameMode = projectType === "game" || projectType === "game-mobile";
 
+	// Save-all-transforms resolver for batch save
+	const allTransformsResolverRef = useRef<((transforms: Record<string, any>) => void) | null>(null);
+
+	// Register save handler with game editor context
+	useEffect(() => {
+		if (!isGameMode) return;
+		const saveAllTransforms = async () => {
+			const iframe = iframeRef.current;
+			if (!iframe?.contentWindow) {
+				console.warn("[GameEditor] No iframe for save");
+				return;
+			}
+			// Request all transforms from bridge
+			iframe.contentWindow.postMessage({ type: "game-editor-collect-all-transforms" }, "*");
+			// Wait for response
+			const transforms = await new Promise<Record<string, any>>((resolve) => {
+				allTransformsResolverRef.current = resolve;
+				setTimeout(() => {
+					if (allTransformsResolverRef.current === resolve) {
+						allTransformsResolverRef.current = null;
+						resolve({});
+					}
+				}, 3000);
+			});
+			const names = Object.keys(transforms);
+			if (names.length === 0) {
+				console.log("[GameEditor] No transforms to save");
+				return;
+			}
+			console.log("[GameEditor] Saving all transforms:", names.length, "objects");
+			// Find GameScene3D.ts
+			const currentFiles = filesRef.current;
+			const currentOnFileUpdate = onFileUpdateRef.current;
+			const sceneFile = currentFiles.find((f) => f.path?.includes("GameScene3D"));
+			if (!sceneFile?.content || !currentOnFileUpdate) {
+				console.warn("[GameEditor] Cannot save: GameScene3D.ts not found");
+				return;
+			}
+			// Apply all transforms to source code
+			let code = sceneFile.content;
+			for (const name of names) {
+				const t = transforms[name];
+				code = updateTransformInSource(code, name, t.position, t.rotation, t.scale);
+			}
+			if (code !== sceneFile.content) {
+				currentOnFileUpdate(sceneFile.id, code);
+				// Save to DB
+				try {
+					await fetch(`/api/app-builder/apps/${appId}/files`, {
+						method: "PUT",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ path: sceneFile.path, content: code }),
+					});
+					console.log("[GameEditor] DB save complete for", names.length, "objects");
+				} catch (err) {
+					console.warn("[GameEditor] DB save failed:", err);
+				}
+			}
+		};
+		gameEditor.setSaveHandler(saveAllTransforms);
+	}, [isGameMode, appId, gameEditor.setSaveHandler]);
+
 	// Landscape/portrait rotation toggle for mobile-frame mode
 	const [isLandscape, setIsLandscape] = useState(false);
 	const toggleRotation = useCallback(() => setIsLandscape((v) => !v), []);
@@ -626,6 +688,14 @@ export function SandpackPreview({
 				gameEditor.setSnapEnabled(!!data.snap);
 			} else if (data.type === "game-editor-object-duplicated") {
 				gameEditor.requestSceneTree();
+			} else if (data.type === "game-editor-scene-dirty") {
+				gameEditor.setDirty(true);
+			} else if (data.type === "game-editor-all-transforms") {
+				// Resolve pending save-all-transforms promise
+				if (allTransformsResolverRef.current) {
+					allTransformsResolverRef.current(data.transforms || {});
+					allTransformsResolverRef.current = null;
+				}
 			} else if (data.type === "game-editor-persist-transform") {
 				// Persist transform changes to source code (GameScene3D.ts)
 				const currentFiles = filesRef.current;
@@ -834,7 +904,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=15`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=16`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);
