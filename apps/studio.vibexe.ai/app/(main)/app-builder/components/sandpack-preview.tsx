@@ -353,6 +353,84 @@ function CodeViewerOverlay({
 }
 
 /**
+ * Update transform values in GameScene3D.ts source code.
+ * Finds the object by name, then locates nearby .position.set() / .rotation.set() / .scale.set() calls
+ * and replaces the arguments with the new values.
+ */
+function updateTransformInSource(
+	code: string,
+	objectName: string,
+	pos: { x: number; y: number; z: number },
+	rot: { x: number; y: number; z: number },
+	scl: { x: number; y: number; z: number },
+): string {
+	const lines = code.split("\n");
+	// Step 1: Find the line that assigns this object name
+	// Patterns: varName.name = "objectName" or varName.mesh.name = "objectName"
+	const namePattern = new RegExp(
+		`(\\w+)(?:\\.mesh)?\\.name\\s*=\\s*["'\`]${objectName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'\`]`,
+	);
+	let varName: string | null = null;
+	let nameLineIdx = -1;
+	for (let i = 0; i < lines.length; i++) {
+		const m = lines[i].match(namePattern);
+		if (m) {
+			varName = m[1];
+			nameLineIdx = i;
+			break;
+		}
+	}
+	if (!varName || nameLineIdx < 0) return code; // Can't find object — return unchanged
+
+	// Step 2: Search within ±30 lines for .position.set(), .rotation.set(), .scale.set()
+	const searchStart = Math.max(0, nameLineIdx - 30);
+	const searchEnd = Math.min(lines.length - 1, nameLineIdx + 30);
+
+	const fmt = (n: number) => {
+		const s = n.toFixed(3);
+		// Remove trailing zeros but keep at least one decimal
+		return s.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+	};
+
+	// Patterns: varName.position.set(...) or varName.mesh.position.set(...)
+	const posPattern = new RegExp(
+		`(${varName}(?:\\.mesh)?\\.position\\.set\\()([^)]+)(\\))`,
+	);
+	const rotPattern = new RegExp(
+		`(${varName}(?:\\.mesh)?\\.rotation\\.set\\()([^)]+)(\\))`,
+	);
+	const sclPattern = new RegExp(
+		`(${varName}(?:\\.mesh)?\\.scale\\.set\\()([^)]+)(\\))`,
+	);
+
+	for (let i = searchStart; i <= searchEnd; i++) {
+		// Position
+		if (posPattern.test(lines[i])) {
+			lines[i] = lines[i].replace(
+				posPattern,
+				`$1${fmt(pos.x)}, ${fmt(pos.y)}, ${fmt(pos.z)}$3`,
+			);
+		}
+		// Rotation (convert degrees back to radians for source code — use Math.PI notation if close to common angles, otherwise raw radians)
+		if (rotPattern.test(lines[i])) {
+			const rx = ((rot.x * Math.PI) / 180).toFixed(4);
+			const ry = ((rot.y * Math.PI) / 180).toFixed(4);
+			const rz = ((rot.z * Math.PI) / 180).toFixed(4);
+			lines[i] = lines[i].replace(rotPattern, `$1${rx}, ${ry}, ${rz}$3`);
+		}
+		// Scale
+		if (sclPattern.test(lines[i])) {
+			lines[i] = lines[i].replace(
+				sclPattern,
+				`$1${fmt(scl.x)}, ${fmt(scl.y)}, ${fmt(scl.z)}$3`,
+			);
+		}
+	}
+
+	return lines.join("\n");
+}
+
+/**
  * Main preview component with responsive toggles and console.
  * No key on SandpackProvider - SandpackFileSync handles incremental
  * updates so the preview iframe stays alive during streaming.
@@ -529,6 +607,21 @@ export function SandpackPreview({
 				gameEditor.setSnapEnabled(!!data.snap);
 			} else if (data.type === "game-editor-object-duplicated") {
 				gameEditor.requestSceneTree();
+			} else if (data.type === "game-editor-persist-transform" && onFileUpdate) {
+				// Persist transform changes to source code (GameScene3D.ts)
+				const objName = data.name as string;
+				const pos = data.position as { x: number; y: number; z: number };
+				const rot = data.rotation as { x: number; y: number; z: number };
+				const scl = data.scale as { x: number; y: number; z: number };
+				if (!objName) return;
+				// Find GameScene3D.ts file
+				const sceneFile = files.find((f) => f.path?.includes("GameScene3D"));
+				if (!sceneFile?.content) return;
+				const updated = updateTransformInSource(sceneFile.content, objName, pos, rot, scl);
+				if (updated !== sceneFile.content) {
+					console.log("[GameEditor] Persisting transform for:", objName);
+					onFileUpdate(sceneFile.id, updated);
+				}
 			}
 		};
 		window.addEventListener("message", handler);
@@ -708,7 +801,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=11`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=12`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);

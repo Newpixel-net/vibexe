@@ -641,6 +641,7 @@ export function getVisualEditBridgeScript(): string {
             sendSelectedObject(selectedObj);
             if (boxHelper) boxHelper.update();
           }
+          persistTransform(selectedObj);
         }
       });
       transformControls.addEventListener("objectChange", function() {
@@ -814,6 +815,7 @@ export function getVisualEditBridgeScript(): string {
       });
     }
     dragPlane = null; dragOffset = null; dragStartPos = null;
+    persistTransform(selectedObj);
     sendSceneTree();
   }
 
@@ -864,6 +866,23 @@ export function getVisualEditBridgeScript(): string {
     return bestObj;
   }
 
+  // ---- Persist transforms to source code ----
+  var persistTimer = null;
+  function persistTransform(obj) {
+    if (!obj || !obj.name) return;
+    // Debounce: batch rapid changes (e.g. during drag) into one update
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = setTimeout(function() {
+      window.parent.postMessage({
+        type: "game-editor-persist-transform",
+        name: obj.name,
+        position: { x: +obj.position.x.toFixed(3), y: +obj.position.y.toFixed(3), z: +obj.position.z.toFixed(3) },
+        rotation: { x: +(obj.rotation.x * 180 / Math.PI).toFixed(1), y: +(obj.rotation.y * 180 / Math.PI).toFixed(1), z: +(obj.rotation.z * 180 / Math.PI).toFixed(1) },
+        scale: { x: +obj.scale.x.toFixed(3), y: +obj.scale.y.toFixed(3), z: +obj.scale.z.toFixed(3) }
+      }, "*");
+    }, 300);
+  }
+
   // ---- Debug overlay ----
   // debugEl removed — showDebug now console-only
   function showDebug(msg) {
@@ -879,7 +898,7 @@ export function getVisualEditBridgeScript(): string {
     lastHandleClickTime = now;
     showDebug("Click from " + source + " at (" + Math.round(clientX) + ", " + Math.round(clientY) + ")");
     if (!active || !editor) { showDebug("SKIP: active=" + active + " editor=" + !!editor); return; }
-    if (transformControls && transformControls.dragging) { showDebug("SKIP: gizmo dragging"); return; }
+    if (transformControls && (transformControls.dragging || transformControls.axis)) { showDebug("SKIP: gizmo active (dragging=" + transformControls.dragging + " axis=" + transformControls.axis + ")"); return; }
     var rect = editor.renderer.domElement.getBoundingClientRect();
     showDebug("Canvas rect: " + Math.round(rect.left) + "," + Math.round(rect.top) + " " + Math.round(rect.width) + "x" + Math.round(rect.height) + " | Click: " + Math.round(clientX) + "," + Math.round(clientY));
     var target = raycastMeshes(clientX, clientY);
@@ -894,6 +913,14 @@ export function getVisualEditBridgeScript(): string {
       var isDoubleClick = (now - lastClickTime < 300) && (lastClickUuid === target.uuid);
       lastClickTime = now;
       lastClickUuid = target.uuid;
+      // If clicking the already-selected object, don't destroy and recreate gizmo
+      if (selectedObj && target.uuid === selectedObj.uuid) {
+        if (isDoubleClick) {
+          startXZDrag(target, clientX, clientY);
+        }
+        showDebug("SAME: already selected, keeping gizmo");
+        return;
+      }
       if (isDoubleClick) {
         selectObject(target);
         startXZDrag(target, clientX, clientY);
@@ -1111,6 +1138,10 @@ export function getVisualEditBridgeScript(): string {
     }
     if (boxHelper && selectedObj && selectedObj.uuid === uuid) boxHelper.update();
     sendSelectedObject(obj); sendSceneTree();
+    // Persist transform/property changes to source code
+    if (property.indexOf("position") === 0 || property.indexOf("rotation") === 0 || property.indexOf("scale") === 0) {
+      persistTransform(obj);
+    }
   }
 
   // ---- PostMessage Handler ----
@@ -1144,14 +1175,16 @@ export function getVisualEditBridgeScript(): string {
         setTimeout(function() {
           if (!active || !editor) return;
           var cx = d.clientX, cy = d.clientY;
-          if (transformControls && transformControls.dragging) return;
+          if (transformControls && (transformControls.dragging || transformControls.axis)) return;
           var target = raycastMeshes(cx, cy);
           if (target && target !== editor.scene) {
+            if (selectedObj && target.uuid === selectedObj.uuid) {
+              if (d.isDoubleClick) startXZDrag(selectedObj, cx, cy);
+              return; // Already selected — keep gizmo
+            }
             if (d.isDoubleClick) {
               selectObject(target);
               startXZDrag(target, cx, cy);
-            } else if (selectedObj && selectedObj.uuid === target.uuid) {
-              startXZDrag(selectedObj, cx, cy);
             } else {
               selectObject(target);
             }
