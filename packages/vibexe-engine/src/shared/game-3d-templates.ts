@@ -162,13 +162,13 @@ Object.assign(window, {
   // Audio System
   soundUrl, createAudioManager, playSound, playMusic, playSpatial3D, preloadSounds,
   // Post-Processing
-  createPostProcessing, addFogEffect, setToneMapping, POST_PROCESSING_PRESETS,
+  createPostProcessing, addFogEffect, setToneMapping,
   // Particles & VFX
-  createParticleEmitter, createTrailRenderer, PARTICLE_PRESETS,
+  createParticleEmitter, createTrailRenderer,
   // Physics Triggers & Constraints
   createTriggerZone, createHingeConstraint, createSpringConstraint,
   createLockConstraint, createPointConstraint, createCompoundBody,
-  setCollisionGroups, COLLISION_GROUPS,
+  setCollisionGroups,
   THREE, CANNON,
 });
 
@@ -2332,6 +2332,7 @@ const POST_PROCESSING_PRESETS: Record<string, any> = {
   neon: { bloom: { strength: 1.5, radius: 0.6, threshold: 0.4 }, fog: { color: 0x050510, near: 10, far: 60 }, toneMapping: "ACESFilmic", exposure: 0.9 },
   natural: { bloom: { strength: 0.2, radius: 0.3, threshold: 0.9 }, fog: { color: 0xccddee, near: 30, far: 100 }, toneMapping: "Linear", exposure: 1.0 },
 };
+(window as any).POST_PROCESSING_PRESETS = POST_PROCESSING_PRESETS;
 
 /**
  * Creates post-processing pipeline with EffectComposer.
@@ -2429,6 +2430,7 @@ const PARTICLE_PRESETS: Record<string, any> = {
   snow:       { count: 150, mode: "continuous", emitRate: 30, speed: 2, spread: 15, gravity: 0, life: 4.0, colors: [0xffffff, 0xeeeeff], sizeStart: 0.1, sizeEnd: 0.08, direction: { x: 0, y: -1, z: 0 } },
   confetti:   { count: 80, mode: "burst", speed: 6, spread: 1, gravity: -5, life: 2.0, colors: [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff], sizeStart: 0.15, sizeEnd: 0.1 },
 };
+(window as any).PARTICLE_PRESETS = PARTICLE_PRESETS;
 
 /**
  * Creates a particle emitter at a position.
@@ -2749,6 +2751,7 @@ export function createTrailRenderer(
 
 /** Collision group bitmasks for filtering. */
 export const COLLISION_GROUPS = { PLAYER: 1, ENEMY: 2, PLATFORM: 4, TRIGGER: 8, PROJECTILE: 16, ALL: -1 };
+(window as any).COLLISION_GROUPS = COLLISION_GROUPS;
 
 /**
  * Creates an invisible trigger zone that fires callbacks on enter/exit/stay.
