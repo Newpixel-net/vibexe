@@ -238,7 +238,12 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 
 	const setActivePrefab = useCallback((prefab: PrefabDefinition | null) => {
 		setActivePrefabState(prefab);
-		sendToIframe({ type: "game-editor-set-spawn-mode", active: !!prefab });
+		sendToIframe({
+			type: "game-editor-set-spawn-mode",
+			active: !!prefab,
+			factory: prefab?.factory ?? null,
+			args: prefab?.args ?? null,
+		});
 	}, [sendToIframe]);
 
 	const spawnObject = useCallback((factory: string, position: { x: number; y: number; z: number }, args?: Record<string, any>) => {

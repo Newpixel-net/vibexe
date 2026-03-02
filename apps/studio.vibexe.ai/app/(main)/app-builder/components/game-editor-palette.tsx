@@ -61,6 +61,24 @@ const PALETTE_CATEGORIES: {
 			{ factory: "createPlayer3D", args: { model: "star", color: "red" }, displayName: "Player Star", category: "Characters" },
 		],
 	},
+	{
+		label: "City",
+		items: [
+			{ factory: "createDecoration3D", args: { type: "building_A", _pack: "kaykit-city-builder", _path: "Assets/gltf/building_A.gltf" }, displayName: "Building A", category: "City" },
+			{ factory: "createDecoration3D", args: { type: "building_C", _pack: "kaykit-city-builder", _path: "Assets/gltf/building_C.gltf" }, displayName: "Building C", category: "City" },
+			{ factory: "createDecoration3D", args: { type: "car_sedan", _pack: "kaykit-city-builder", _path: "Assets/gltf/car_sedan.gltf" }, displayName: "Car Sedan", category: "City" },
+			{ factory: "createDecoration3D", args: { type: "streetlight", _pack: "kaykit-city-builder", _path: "Assets/gltf/streetlight.gltf" }, displayName: "Streetlight", category: "City" },
+		],
+	},
+	{
+		label: "Resources",
+		items: [
+			{ factory: "createDecoration3D", args: { type: "Gold_Bar", _pack: "kaykit-resource-bits", _path: "Assets/gltf/Gold_Bar.gltf" }, displayName: "Gold Bar", category: "Resources" },
+			{ factory: "createDecoration3D", args: { type: "Iron_Bar", _pack: "kaykit-resource-bits", _path: "Assets/gltf/Iron_Bar.gltf" }, displayName: "Iron Bar", category: "Resources" },
+			{ factory: "createDecoration3D", args: { type: "Wood_Log_A", _pack: "kaykit-resource-bits", _path: "Assets/gltf/Wood_Log_A.gltf" }, displayName: "Wood Log", category: "Resources" },
+			{ factory: "createDecoration3D", args: { type: "Fuel_A_Barrel", _pack: "kaykit-resource-bits", _path: "Assets/gltf/Fuel_A_Barrel.gltf" }, displayName: "Fuel Barrel", category: "Resources" },
+		],
+	},
 ];
 
 const COLOR_MAP: Record<string, string> = {
@@ -68,6 +86,8 @@ const COLOR_MAP: Record<string, string> = {
 	green: "#22c55e",
 	red: "#ef4444",
 	yellow: "#eab308",
+	// City/Resource items don't have a color arg — show neutral
+	undefined: "#888888",
 };
 
 export function GameEditorPalette() {

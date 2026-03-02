@@ -698,6 +698,24 @@ export function getVisualEditBridgeScript(): string {
       console.warn("[GameEditorBridge] TransformControls NOT available — gizmo disabled");
     }
     sendSelectedObject(obj);
+    // Post-creation sweep: remove duplicate __editor_ objects from embedded bridge
+    // Both bridges handle the same postMessage; embedded bridge may create duplicates.
+    // setTimeout(0) runs after all synchronous message handlers have processed.
+    var myBox = boxHelper;
+    var myTC = transformControls;
+    setTimeout(function() {
+      if (!editor || !editor.scene) return;
+      var dupes = [];
+      for (var si = 0; si < editor.scene.children.length; si++) {
+        var sc = editor.scene.children[si];
+        if (sc.name && sc.name.indexOf("__editor_") === 0 && sc !== myBox && sc !== myTC) dupes.push(sc);
+      }
+      for (var di = 0; di < dupes.length; di++) {
+        if (dupes[di].detach) dupes[di].detach();
+        editor.scene.remove(dupes[di]);
+        if (dupes[di].dispose) dupes[di].dispose();
+      }
+    }, 0);
   }
 
   function findByUuid(obj, uuid) {
