@@ -865,18 +865,9 @@ export function getVisualEditBridgeScript(): string {
   }
 
   // ---- Debug overlay ----
-  var debugEl = null;
+  // debugEl removed — showDebug now console-only
   function showDebug(msg) {
     console.log("[GameEditorBridge] " + msg);
-    if (!debugEl) {
-      debugEl = document.createElement("div");
-      debugEl.style.cssText = "position:fixed;top:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.85);color:#0f0;font:11px monospace;padding:4px 8px;border-radius:4px;pointer-events:none;max-width:90%;white-space:pre-wrap;";
-      document.body.appendChild(debugEl);
-    }
-    debugEl.textContent = msg;
-    // Auto-hide after 5s
-    clearTimeout(debugEl._t);
-    debugEl._t = setTimeout(function() { if (debugEl) debugEl.textContent = ""; }, 5000);
   }
 
   // ---- Click + Drag + Keyboard ----
@@ -1039,7 +1030,7 @@ export function getVisualEditBridgeScript(): string {
       for (var hi = 0; hi < allEls.length; hi++) {
         var hel = allEls[hi];
         if (hel === editor.renderer.domElement || hel === editor.renderer.domElement.parentElement) continue;
-        if (hel === debugEl) continue;
+        // (debugEl check removed — no visual overlay)
         var cs = window.getComputedStyle(hel);
         if (cs.position === "absolute" || cs.position === "fixed") {
           hel.style.pointerEvents = "none";
