@@ -130,11 +130,13 @@ export const PLATFORM_GAP = 4;         // Default gap between platforms
 // AI agents frequently write "extends Scene3D" when creating game scenes.
 // This provides the base class so that pattern works without errors.
 // Methods are called by Game3D.tsx: init() on mount, update(dt) per frame, cleanup() on unmount.
+// Properties (scene, camera, renderer, world, container) are injected by Game3D.tsx BEFORE init().
 export class Scene3D {
   scene: any;
   camera: any;
   renderer: any;
   world: any;
+  container: any;
   init() {}
   update(_dt: number) {}
   cleanup() {}
@@ -162,9 +164,14 @@ Object.assign(window, {
 
 /**
  * Creates a WebGLRenderer sized to fill the container.
- * Handles window resize automatically.
+ * IDEMPOTENT: If Game3D.tsx already created a renderer (stored on window.__vibexe_renderer__),
+ * returns that instead of creating a duplicate. This prevents AI code from creating
+ * a second canvas when it calls initRenderer() in its init() method.
  */
 export function initRenderer(container: HTMLDivElement): typeof THREE.WebGLRenderer {
+  // Return existing renderer if Game3D.tsx already created one
+  if ((window as any).__vibexe_renderer__) return (window as any).__vibexe_renderer__;
+
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -188,8 +195,12 @@ export function initRenderer(container: HTMLDivElement): typeof THREE.WebGLRende
  * Creates a Scene with default lighting:
  * - Ambient light (soft fill)
  * - Directional light (sun) with shadows
+ * IDEMPOTENT: Returns existing scene from Game3D.tsx if available.
  */
 export function initScene(): typeof THREE.Scene {
+  // Return existing scene if Game3D.tsx already created one
+  if ((window as any).__vibexe_scene__) return (window as any).__vibexe_scene__;
+
   const scene = new THREE.Scene();
 
   // Ambient fill light
@@ -219,6 +230,7 @@ export function initScene(): typeof THREE.Scene {
 
 /**
  * Creates a PerspectiveCamera that auto-updates aspect ratio on resize.
+ * IDEMPOTENT: Returns existing camera from Game3D.tsx if available.
  */
 export function initCamera(
   container: HTMLDivElement,
@@ -226,6 +238,9 @@ export function initCamera(
   near: number = 0.1,
   far: number = 1000,
 ): typeof THREE.PerspectiveCamera {
+  // Return existing camera if Game3D.tsx already created one
+  if ((window as any).__vibexe_camera__) return (window as any).__vibexe_camera__;
+
   const aspect = container.clientWidth / container.clientHeight;
   const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
   camera.position.set(0, 8, 15);
@@ -614,6 +629,9 @@ export function createKeyboardState(): {
  *   // In update(): world.step(1/60, delta, 3);
  */
 export function createPhysicsWorld(gravity: number = -20): any {
+  // IDEMPOTENT: Return existing world if Game3D.tsx already created one
+  if ((window as any).__vibexe_world__) return (window as any).__vibexe_world__;
+
   if (!CANNON) {
     console.warn("cannon-es not loaded — add it to package.json dependencies");
     return null;
@@ -1996,6 +2014,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         });
         while (scene.children.length > 0) scene.remove(scene.children[0]);
       }
+      // Clear scene + world from window so restart creates fresh ones
+      // (renderer/camera persist across restarts)
+      delete (window as any).__vibexe_scene__;
+      delete (window as any).__vibexe_world__;
       Array.from(container.children).forEach((c) => {
         if (c !== renderer?.domElement) c.remove();
       });
@@ -2009,7 +2031,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       if (disposed) return;
       const THREE = (window as any).THREE;
 
-      // Create renderer
+      // Create renderer + store on window so idempotent helpers return it
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(container.clientWidth, container.clientHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -2017,12 +2039,14 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputEncoding = THREE.sRGBEncoding;
       container.appendChild(renderer.domElement);
+      (window as any).__vibexe_renderer__ = renderer;
 
-      // Create camera
+      // Create camera + store on window
       const aspect = container.clientWidth / container.clientHeight;
       camera = new THREE.PerspectiveCamera(cameraFov, aspect, 0.1, 1000);
       camera.position.set(0, 8, 15);
       camera.lookAt(0, 2, 0);
+      (window as any).__vibexe_camera__ = camera;
 
       clock = new THREE.Clock();
 
@@ -2038,6 +2062,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         }
         scene = new THREE.Scene();
         scene.background = new THREE.Color(bgColor);
+        (window as any).__vibexe_scene__ = scene;
 
         const loading = createLoadingOverlay(container);
 
@@ -2057,8 +2082,12 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         (gameScene as any).container = container;
 
         // Auto-create physics world — always available as gameScene.world / this.world
+        // Store on window so idempotent createPhysicsWorld() returns it
         const world = createPhysicsWorld(GRAVITY_3D);
-        if (world) createPhysicsGround(world);
+        if (world) {
+          createPhysicsGround(world);
+          (window as any).__vibexe_world__ = world;
+        }
 
         // Resilient world property: AI code often overwrites this.world with {} or null
         // during init(), then calls this.world.gravity.set() which crashes.
@@ -2161,6 +2190,12 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       disposeScene();
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", onVisChange);
+      // Clean up window references so idempotent helpers create fresh on next mount
+      delete (window as any).__vibexe_renderer__;
+      delete (window as any).__vibexe_scene__;
+      delete (window as any).__vibexe_camera__;
+      delete (window as any).__vibexe_world__;
+      delete (window as any).__vibexe_editor__;
       if (renderer) {
         renderer.dispose();
         if (renderer.domElement.parentNode) {
