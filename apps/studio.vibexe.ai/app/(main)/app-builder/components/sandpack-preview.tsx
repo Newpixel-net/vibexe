@@ -414,40 +414,54 @@ ${DATA_MARKER} ${json}
     await _origInit.apply(this, arguments);
     var _s = arguments[0];
     var _o = ${json};
-    var _physArrays = [];
-    if (typeof platforms !== 'undefined') _physArrays.push(platforms);
-    if (typeof collectibles !== 'undefined') _physArrays.push(collectibles);
-    if (typeof barriers !== 'undefined') _physArrays.push(barriers);
-    Object.keys(_o).forEach(function(name) {
-      var o = _o[name];
-      // Group_childN: match by child index (name not yet assigned at init time)
-      if (name.indexOf("Group_child") === 0) {
-        var idx = parseInt(name.replace("Group_child", ""), 10);
-        if (!isNaN(idx) && _s.children && _s.children[idx]) {
-          var gc = _s.children[idx];
-          if (o.p) gc.position.set(o.p[0], o.p[1], o.p[2]);
-          if (o.r) gc.rotation.set(o.r[0], o.r[1], o.r[2]);
-          if (o.s) gc.scale.set(o.s[0], o.s[1], o.s[2]);
-        }
-        return;
-      }
-      _s.traverse(function(c) {
-        if (c.name === name) {
-          if (o.p) {
-            c.position.set(o.p[0], o.p[1], o.p[2]);
-            for (var a = 0; a < _physArrays.length; a++) {
-              for (var i = 0; i < _physArrays[a].length; i++) {
-                if (_physArrays[a][i].mesh === c && _physArrays[a][i].body) {
-                  _physArrays[a][i].body.position.set(o.p[0], o.p[1], o.p[2]);
-                }
-              }
+    var _keys = Object.keys(_o);
+    var _applied = {};
+    var _facPfx = ["Platform_","Collectible_","Barrier_","Decoration_","Player_","Character_","Object_"];
+    function _isFac(n) { if(!n) return false; for(var i=0;i<_facPfx.length;i++) if(n.indexOf(_facPfx[i])===0) return true; return false; }
+    function _tryApply() {
+      var _rem = 0;
+      _keys.forEach(function(name) {
+        if (_applied[name]) return;
+        var o = _o[name];
+        var target = null;
+        if (name.indexOf("UnnamedGroup_") === 0) {
+          var gIdx = parseInt(name.replace("UnnamedGroup_",""),10);
+          var gCount = 0;
+          for (var ci=0; ci<_s.children.length; ci++) {
+            var ch = _s.children[ci];
+            if (ch.type==="Group" && ch.children && ch.children.length>0 && !_isFac(ch.name)) {
+              if (gCount===gIdx) { target=ch; break; }
+              gCount++;
             }
           }
-          if (o.r) c.rotation.set(o.r[0], o.r[1], o.r[2]);
-          if (o.s) c.scale.set(o.s[0], o.s[1], o.s[2]);
+        } else {
+          _s.traverse(function(c) { if(!target && c.name===name) target=c; });
         }
+        if (target) {
+          if (o.p) {
+            target.position.set(o.p[0],o.p[1],o.p[2]);
+            var _pa=[];
+            if(typeof platforms!=='undefined') _pa.push(platforms);
+            if(typeof collectibles!=='undefined') _pa.push(collectibles);
+            if(typeof barriers!=='undefined') _pa.push(barriers);
+            for(var a=0;a<_pa.length;a++) for(var i=0;i<_pa[a].length;i++)
+              if(_pa[a][i].mesh===target&&_pa[a][i].body) _pa[a][i].body.position.set(o.p[0],o.p[1],o.p[2]);
+          }
+          if (o.r) target.rotation.set(o.r[0],o.r[1],o.r[2]);
+          if (o.s) target.scale.set(o.s[0],o.s[1],o.s[2]);
+          _applied[name] = true;
+          console.log("[SCENE_EDITOR] Applied: "+name);
+        } else { _rem++; }
       });
-    });
+      return _rem===0;
+    }
+    if (!_tryApply()) {
+      var _att=0;
+      var _iv=setInterval(function(){
+        _att++;
+        if(_tryApply()||_att>100){clearInterval(_iv);console.log("[SCENE_EDITOR] Done after "+_att+" polls");}
+      },300);
+    }
   };
 })();
 ${MARKER_END}`;
@@ -915,7 +929,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=20`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=21`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);

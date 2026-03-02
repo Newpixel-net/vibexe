@@ -875,12 +875,14 @@ export function getVisualEditBridgeScript(): string {
       if (obj.userData && obj.userData.vibexeFactory) {
         obj.name = (obj.userData.vibexeFactory === "animatedCharacter" ? "Character_" : "Object_") + obj.uuid.slice(0, 8);
       } else if (obj.type === "Group" && obj.children && obj.children.length > 0 && editor && obj.parent === editor.scene) {
-        // Use stable child index (not UUID) so name persists across reloads
-        var _ci = -1;
+        // Count unnamed Groups before this one (stable even if children order varies)
+        var _ugCount = 0;
         for (var _i = 0; _i < editor.scene.children.length; _i++) {
-          if (editor.scene.children[_i] === obj) { _ci = _i; break; }
+          var _ch = editor.scene.children[_i];
+          if (_ch === obj) break;
+          if (!_ch.name && _ch.type === "Group" && _ch.children && _ch.children.length > 0) _ugCount++;
         }
-        obj.name = "Group_child" + _ci;
+        obj.name = "UnnamedGroup_" + _ugCount;
       }
       if (obj.name) console.log("[GameEditorBridge] Auto-named:", obj.name);
     }
@@ -1229,19 +1231,21 @@ export function getVisualEditBridgeScript(): string {
         // CRITICAL: Must NOT collect bones, GLTF internals, gizmo parts, or generic "Scene" objects
         if (!editor || !editor.scene) break;
         var allTransforms = {};
-        var _factoryPrefixes = ["Platform_", "Collectible_", "Barrier_", "Decoration_", "Player_", "Character_", "Group_", "Object_"];
+        var _factoryPrefixes = ["Platform_", "Collectible_", "Barrier_", "Decoration_", "Player_", "Character_", "UnnamedGroup_", "Object_"];
         editor.scene.traverse(function(child) {
           // Auto-name unnamed objects (supports pre-fix games without vibexeFactory metadata)
           if (!child.name) {
             if (child.userData && child.userData.vibexeFactory) {
               child.name = (child.userData.vibexeFactory === "animatedCharacter" ? "Character_" : "Object_") + child.uuid.slice(0, 8);
             } else if (child.type === "Group" && child.children && child.children.length > 0 && child.parent === editor.scene) {
-              // Use stable child index (not UUID) so name persists across reloads
-              var _ci2 = -1;
+              // Count unnamed Groups before this one (stable even if children order varies)
+              var _ugCount2 = 0;
               for (var _i2 = 0; _i2 < editor.scene.children.length; _i2++) {
-                if (editor.scene.children[_i2] === child) { _ci2 = _i2; break; }
+                var _ch2 = editor.scene.children[_i2];
+                if (_ch2 === child) break;
+                if (!_ch2.name && _ch2.type === "Group" && _ch2.children && _ch2.children.length > 0) _ugCount2++;
               }
-              child.name = "Group_child" + _ci2;
+              child.name = "UnnamedGroup_" + _ugCount2;
             }
           }
           if (!child.name) return;
