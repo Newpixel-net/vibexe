@@ -3457,6 +3457,14 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           }
 
           function _selectObject(obj: any) {
+            // When external bridge exists, DON'T create gizmo — let external bridge handle it.
+            // Just track selection for spawn and notify parent.
+            const _hasExt = !!(window as any).__vibexeExternalBridge;
+            if (_hasExt) {
+              _selectedObj = obj;
+              if (obj) _sendSelectedObject(obj);
+              return;
+            }
             _deselectObject();
             if (!obj) return;
             _selectedObj = obj;
@@ -3510,6 +3518,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           // ---- Click + Keyboard ----
           function _onCanvasClick(e: MouseEvent) {
             if (!_bridgeActive) return;
+            // Dynamic check: if external bridge loaded, only handle spawn clicks
+            const _hasExt = !!(window as any).__vibexeExternalBridge;
+            if (_hasExt && !_spawnMode) return;
             if (_transformControls && _transformControls.dragging) return;
             const rect = renderer.domElement.getBoundingClientRect();
             _mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -3592,6 +3603,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
 
           function _onKeyDown(e: KeyboardEvent) {
             if (!_bridgeActive) return;
+            if ((window as any).__vibexeExternalBridge) return; // External bridge handles keyboard
             const tag = (e.target as HTMLElement)?.tagName;
             if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
             switch (e.key) {
@@ -3624,6 +3636,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           // ---- Editor Loop ----
           function _editorLoop() {
             if (!_bridgeActive) return;
+            // External bridge has its own render loop — don't double-render
+            if ((window as any).__vibexeExternalBridge) return;
             _editorAnimId = requestAnimationFrame(_editorLoop);
             if (editor.orbitControls) editor.orbitControls.update();
             if (_boxHelper && _selectedObj) _boxHelper.update();
@@ -3635,22 +3649,16 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           function _activateBridge() {
             if (_bridgeActive) return;
             _bridgeActive = true;
-            const hasExtBridge = !!(window as any).__vibexeExternalBridge;
             editor.pause();
-            if (!hasExtBridge) {
-              // No external bridge — embedded handles everything
-              _raycaster = new THREE.Raycaster();
-              _mouse = new THREE.Vector2();
-              renderer.domElement.addEventListener("click", _onCanvasClick);
-              window.addEventListener("keydown", _onKeyDown, true);
-            } else {
-              // External bridge handles selection/keyboard/gizmos.
-              // Embedded only handles spawn clicks.
-              _raycaster = new THREE.Raycaster();
-              _mouse = new THREE.Vector2();
-            }
-            _editorLoop();
-            if (!hasExtBridge) {
+            _raycaster = new THREE.Raycaster();
+            _mouse = new THREE.Vector2();
+            // Always register click handler (needed for spawn mode).
+            // Dynamic checks inside _onCanvasClick/_onKeyDown skip selection when external bridge is active.
+            renderer.domElement.addEventListener("click", _onCanvasClick);
+            window.addEventListener("keydown", _onKeyDown, true);
+            _editorLoop(); // Dynamic check inside will skip if external bridge loaded
+            // Only send ready/tree if no external bridge (it sends its own)
+            if (!(window as any).__vibexeExternalBridge) {
               setTimeout(() => {
                 _sendSceneTree();
                 window.parent.postMessage({ type: "game-editor-ready" }, "*");
@@ -3662,12 +3670,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             if (!_bridgeActive) return;
             _bridgeActive = false;
             cancelAnimationFrame(_editorAnimId);
-            const hasExtBridge = !!(window as any).__vibexeExternalBridge;
-            if (!hasExtBridge) {
-              _deselectObject();
-              renderer.domElement.removeEventListener("click", _onCanvasClick);
-              window.removeEventListener("keydown", _onKeyDown, true);
-            }
+            _deselectObject();
+            renderer.domElement.removeEventListener("click", _onCanvasClick);
+            window.removeEventListener("keydown", _onKeyDown, true);
             // Reset spawn mode
             _spawnMode = false;
             _spawnFactory = null;

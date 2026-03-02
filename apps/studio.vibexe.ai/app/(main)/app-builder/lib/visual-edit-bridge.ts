@@ -511,6 +511,8 @@ export function getVisualEditBridgeScript(): string {
   var undoStack = [];
   var gridSnap = false;
   var gridHelper = null;
+  var canvasPointerDownHandler = null;
+  var bodyMouseDownHandler = null;
 
   // Signal that external bridge is loaded — embedded bridge (game-3d-templates.ts) defers to us
   window.__vibexeExternalBridge = true;
@@ -1084,14 +1086,16 @@ export function getVisualEditBridgeScript(): string {
       window.addEventListener("mouseup", onCanvasMouseUp, true);
       window.addEventListener("keydown", onKeyDown, true);
       // Also listen directly on the canvas element (belt and suspenders)
-      editor.renderer.domElement.addEventListener("pointerdown", function(e) {
+      // Store reference so we can remove on deactivate (prevents handler accumulation)
+      canvasPointerDownHandler = function(e) {
         if (!active || !editor) return;
         if (e.button !== 0) return;
         showDebug("pointerdown on canvas: " + e.clientX + "," + e.clientY);
         handleClick(e.clientX, e.clientY, "canvas-pointerdown");
-      }, false);
+      };
+      editor.renderer.domElement.addEventListener("pointerdown", canvasPointerDownHandler, false);
       // Also listen on document.body for clicks (catches clicks on HUD overlays)
-      document.body.addEventListener("mousedown", function(e) {
+      bodyMouseDownHandler = function(e) {
         if (!active || !editor) return;
         if (e.button !== 0) return;
         showDebug("body-mousedown: " + e.clientX + "," + e.clientY + " target=" + (e.target||{}).tagName + " class=" + ((e.target||{}).className||"").toString().slice(0,30));
@@ -1099,7 +1103,8 @@ export function getVisualEditBridgeScript(): string {
         if (e.target !== editor.renderer.domElement) {
           handleClick(e.clientX, e.clientY, "body-mousedown");
         }
-      }, true);
+      };
+      document.body.addEventListener("mousedown", bodyMouseDownHandler, true);
       // Hide game HUD elements so they don't intercept pointer events
       // Match both inline styles AND common CSS class patterns
       var allEls = document.querySelectorAll("div, span, p, h1, h2, h3, button");
@@ -1148,6 +1153,15 @@ export function getVisualEditBridgeScript(): string {
     window.removeEventListener("mousemove", onCanvasMouseMove, true);
     window.removeEventListener("mouseup", onCanvasMouseUp, true);
     window.removeEventListener("keydown", onKeyDown, true);
+    // Remove stored anonymous handlers (prevents accumulation on toggle)
+    if (canvasPointerDownHandler && editor) {
+      editor.renderer.domElement.removeEventListener("pointerdown", canvasPointerDownHandler, false);
+    }
+    if (bodyMouseDownHandler) {
+      document.body.removeEventListener("mousedown", bodyMouseDownHandler, true);
+    }
+    canvasPointerDownHandler = null;
+    bodyMouseDownHandler = null;
     raycaster = null; mouse = null; editor = null;
   }
 
