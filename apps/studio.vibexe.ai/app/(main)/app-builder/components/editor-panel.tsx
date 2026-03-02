@@ -191,7 +191,7 @@ export function EditorPanel({
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
-					fileId: selectedFile.id,
+					path: selectedFile.path,
 					content: localContent,
 				}),
 			});

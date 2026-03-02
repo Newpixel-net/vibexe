@@ -650,7 +650,7 @@ export function SandpackPreview({
 					fetch(`/api/app-builder/apps/${appId}/files`, {
 						method: "PUT",
 						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ fileId: sceneFile.id, content: updated }),
+						body: JSON.stringify({ path: sceneFile.path, content: updated }),
 					}).catch((err) => console.warn("[GameEditor] DB save failed:", err));
 				} else {
 					console.warn("[GameEditor] No change after updateTransformInSource for:", objName);
