@@ -419,9 +419,20 @@ ${DATA_MARKER} ${json}
     if (typeof collectibles !== 'undefined') _physArrays.push(collectibles);
     if (typeof barriers !== 'undefined') _physArrays.push(barriers);
     Object.keys(_o).forEach(function(name) {
+      var o = _o[name];
+      // Group_childN: match by child index (name not yet assigned at init time)
+      if (name.indexOf("Group_child") === 0) {
+        var idx = parseInt(name.replace("Group_child", ""), 10);
+        if (!isNaN(idx) && _s.children && _s.children[idx]) {
+          var gc = _s.children[idx];
+          if (o.p) gc.position.set(o.p[0], o.p[1], o.p[2]);
+          if (o.r) gc.rotation.set(o.r[0], o.r[1], o.r[2]);
+          if (o.s) gc.scale.set(o.s[0], o.s[1], o.s[2]);
+        }
+        return;
+      }
       _s.traverse(function(c) {
         if (c.name === name) {
-          var o = _o[name];
           if (o.p) {
             c.position.set(o.p[0], o.p[1], o.p[2]);
             for (var a = 0; a < _physArrays.length; a++) {
