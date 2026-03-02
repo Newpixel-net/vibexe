@@ -559,6 +559,103 @@ export function SandpackPreview({
 		return () => window.removeEventListener("keydown", handler);
 	}, [visualEdit]);
 
+	// Forward keyboard shortcuts to bridge when game editor is active
+	useEffect(() => {
+		if (!gameEditor.enabled) return;
+		const handler = (e: KeyboardEvent) => {
+			const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+			if (tag === "input" || tag === "textarea" || tag === "select") return;
+			const iframe = iframeRef.current;
+			if (!iframe?.contentWindow) return;
+			// Forward relevant keys
+			const key = e.key.toLowerCase();
+			const forwarded = ["f", "g", "w", "e", "r", "escape", "delete", "backspace"].includes(key)
+				|| ((e.ctrlKey || e.metaKey) && (key === "z" || key === "d"));
+			if (forwarded) {
+				iframe.contentWindow.postMessage({
+					type: "game-editor-viewport-keydown",
+					key: e.key,
+					ctrlKey: e.ctrlKey,
+					metaKey: e.metaKey,
+				}, "*");
+				e.preventDefault();
+			}
+		};
+		window.addEventListener("keydown", handler);
+		return () => window.removeEventListener("keydown", handler);
+	}, [gameEditor.enabled]);
+
+	// Forward mouse events from parent page to Sandpack iframe via postMessage
+	// This is needed because native mouse events don't reliably propagate into cross-origin iframes
+	useEffect(() => {
+		if (!gameEditor.enabled) return;
+		let lastClickTime = 0;
+		let dragging = false;
+
+		const getIframeCoords = (e: MouseEvent) => {
+			const iframe = iframeRef.current;
+			if (!iframe) return null;
+			const rect = iframe.getBoundingClientRect();
+			return { iframe, rect, x: e.clientX - rect.left, y: e.clientY - rect.top };
+		};
+
+		const handleMouseDown = (e: MouseEvent) => {
+			if (e.button !== 0) return;
+			const info = getIframeCoords(e);
+			if (!info) return;
+			const { iframe, rect } = info;
+			// Only forward clicks that land on the iframe area
+			if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
+			// Don't forward if clicking on the game editor panel (overlaid on right side)
+			const target = e.target as HTMLElement;
+			if (target.closest("[data-game-editor-panel]")) return;
+
+			const now = Date.now();
+			const isDoubleClick = (now - lastClickTime) < 300;
+			lastClickTime = now;
+			dragging = true;
+
+			iframe.contentWindow?.postMessage({
+				type: "game-editor-viewport-click",
+				clientX: info.x,
+				clientY: info.y,
+				isDoubleClick,
+			}, "*");
+		};
+
+		const handleMouseMove = (e: MouseEvent) => {
+			if (!dragging) return;
+			const info = getIframeCoords(e);
+			if (!info) return;
+			info.iframe.contentWindow?.postMessage({
+				type: "game-editor-viewport-mousemove",
+				clientX: info.x,
+				clientY: info.y,
+			}, "*");
+		};
+
+		const handleMouseUp = (e: MouseEvent) => {
+			if (!dragging) return;
+			dragging = false;
+			const info = getIframeCoords(e);
+			if (!info) return;
+			info.iframe.contentWindow?.postMessage({
+				type: "game-editor-viewport-mouseup",
+				clientX: info.x,
+				clientY: info.y,
+			}, "*");
+		};
+
+		window.addEventListener("mousedown", handleMouseDown, true);
+		window.addEventListener("mousemove", handleMouseMove, true);
+		window.addEventListener("mouseup", handleMouseUp, true);
+		return () => {
+			window.removeEventListener("mousedown", handleMouseDown, true);
+			window.removeEventListener("mousemove", handleMouseMove, true);
+			window.removeEventListener("mouseup", handleMouseUp, true);
+		};
+	}, [gameEditor.enabled]);
+
 	// Detect language from generated files (Blueprint.md or App.tsx may contain lang hints)
 	const langConfig = useMemo((): SandpackLanguageConfig | undefined => {
 		for (const f of files) {
@@ -611,7 +708,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=6`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=7`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);

@@ -1067,6 +1067,41 @@ export function getVisualEditBridgeScript(): string {
       case "game-editor-duplicate": duplicateSelected(); break;
       case "game-editor-undo": applyUndo(); break;
       case "game-editor-toggle-snap": toggleGridHelper(); break;
+      case "game-editor-viewport-click":
+        // Click forwarded from parent page — handles cross-origin iframe event routing
+        if (!active) { activateBridge(); }
+        // Wait a tick for activation, then process click
+        setTimeout(function() {
+          if (!active || !editor) return;
+          var cx = d.clientX, cy = d.clientY;
+          if (transformControls && transformControls.dragging) return;
+          var target = raycastMeshes(cx, cy);
+          if (target && target !== editor.scene) {
+            if (d.isDoubleClick) {
+              selectObject(target);
+              startXZDrag(target, cx, cy);
+            } else if (selectedObj && selectedObj.uuid === target.uuid) {
+              startXZDrag(selectedObj, cx, cy);
+            } else {
+              selectObject(target);
+            }
+          } else {
+            deselectObject();
+          }
+        }, active ? 0 : 500);
+        break;
+      case "game-editor-viewport-mousemove":
+        if (active && isDragging) { doXZDrag(d.clientX, d.clientY); }
+        break;
+      case "game-editor-viewport-mouseup":
+        if (active && isDragging) { endXZDrag(); }
+        break;
+      case "game-editor-viewport-keydown":
+        if (!active) break;
+        // Simulate keydown event for the bridge's onKeyDown handler
+        var fakeEvent = { key: d.key, ctrlKey: !!d.ctrlKey, metaKey: !!d.metaKey, target: { tagName: "BODY" }, preventDefault: function() {} };
+        onKeyDown(fakeEvent);
+        break;
     }
   });
   } // end initBridge

@@ -43,7 +43,7 @@ export function GameEditorPanel() {
 	}, [selectedObject, deleteObject]);
 
 	return (
-		<div className="absolute top-0 right-0 bottom-0 w-[260px] bg-[#0f0f1a]/95 backdrop-blur-xl border-l border-white/[0.08] flex flex-col z-30 overflow-hidden">
+		<div data-game-editor-panel className="absolute top-0 right-0 bottom-0 w-[260px] bg-[#0f0f1a]/95 backdrop-blur-xl border-l border-white/[0.08] flex flex-col z-30 overflow-hidden">
 			{/* Scene Hierarchy */}
 			<div className="flex-shrink-0 border-b border-white/[0.08]">
 				<div className="px-3 py-2 text-[11px] font-semibold text-white/40 uppercase tracking-wider">
