@@ -160,7 +160,7 @@ Object.assign(window, {
   // Animation Registry
   createAnimationMap,
   // Audio System
-  soundUrl, createAudioManager, playSound, playMusic, playSpatial3D,
+  soundUrl, createAudioManager, playSound, playMusic, playSpatial3D, preloadSounds,
   // Post-Processing
   createPostProcessing, addFogEffect, setToneMapping, POST_PROCESSING_PRESETS,
   // Particles & VFX
@@ -1063,6 +1063,19 @@ function _updateAllSprings3D() {
 (window as any)._activeSprings3D = _activeSprings3D;
 (window as any)._updateAllSprings3D = _updateAllSprings3D;
 
+// ===== SPATIAL AUDIO AUTO-UPDATE =====
+// Tracks all playSpatial3D() instances with attachTo() — updates panner position each frame.
+const _activeSpatial3D: any[] = [];
+function _updateAllSpatial3D() {
+  for (let i = _activeSpatial3D.length - 1; i >= 0; i--) {
+    const s = _activeSpatial3D[i];
+    if (s._destroyed) { _activeSpatial3D.splice(i, 1); continue; }
+    s._update();
+  }
+}
+(window as any)._activeSpatial3D = _activeSpatial3D;
+(window as any)._updateAllSpatial3D = _updateAllSpatial3D;
+
 // ===== KNOWN ANIMATION MAPS =====
 // Hardcoded clip name mappings for hosted GLB models.
 // AI calls play("idle") → the map resolves to the actual clip name "Idle_5".
@@ -1075,6 +1088,11 @@ const _KNOWN_ANIMATION_MAPS: Record<string, Record<string, string>> = {
     hook: "Left_Short_Hook_from_Guard",
     shoot_walk: "Walk_Forward_While_Shooting",
   },
+  // KayKit Skeleton characters — common clip aliases
+  "Skeleton_Mage.glb": { idle: "Idle", walk: "Walking", run: "Running", attack: "Attack", die: "Death", hit: "Hit" },
+  "Skeleton_Minion.glb": { idle: "Idle", walk: "Walking", run: "Running", attack: "Attack", die: "Death", hit: "Hit" },
+  "Skeleton_Rogue.glb": { idle: "Idle", walk: "Walking", run: "Running", attack: "Attack", die: "Death", hit: "Hit" },
+  "Skeleton_Warrior.glb": { idle: "Idle", walk: "Walking", run: "Running", attack: "Attack", die: "Death", hit: "Hit" },
 };
 (window as any)._KNOWN_ANIMATION_MAPS = _KNOWN_ANIMATION_MAPS;
 
@@ -1099,6 +1117,17 @@ function _getAudioContext(): AudioContext {
     _sfxGain = _audioCtx.createGain();
     _sfxGain.gain.value = 1.0;
     _sfxGain.connect(_masterGain);
+    // Set initial listener orientation so spatial audio works immediately
+    // (forward: -Z, up: +Y — matches Three.js default camera orientation)
+    try {
+      const L = _audioCtx.listener;
+      if (L.forwardX) {
+        L.forwardX.value = 0; L.forwardY.value = 0; L.forwardZ.value = -1;
+        L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0;
+      } else if (L.setOrientation) {
+        L.setOrientation(0, 0, -1, 0, 1, 0);
+      }
+    } catch {}
   }
   if (_audioCtx.state === "suspended") _audioCtx.resume();
   return _audioCtx;
@@ -1364,19 +1393,30 @@ export async function createBarrier3D(
  * Usage:
  *   const { mesh } = await createDecoration3D(scene, -5, 0, -8, { type: "pillar_2x2x4" });
  *   const { mesh } = await createDecoration3D(scene, 3, 0, -12, { type: "structure_A" });
+ *   // Multi-pack (city-builder, resource-bits):
+ *   const { mesh } = await createDecoration3D(scene, 0, 0, 0, { type: "building_A", _pack: "kaykit-city-builder", _path: "Assets/gltf/building_A.gltf" });
  */
 export async function createDecoration3D(
   scene: any, x: number, y: number, z: number,
-  opts?: { type?: string; color?: string; scale?: number; neutral?: boolean },
+  opts?: { type?: string; color?: string; scale?: number; neutral?: boolean; _pack?: string; _path?: string },
 ): Promise<{ mesh: any; size: { x: number; y: number; z: number } }> {
   const type = opts?.type || "pillar_2x2x4";
   const color = opts?.color || "blue";
   const scale = opts?.scale || 1.0;
   const neutral = opts?.neutral ?? true;
+  const _pack = opts?._pack;
+  const _path = opts?._path;
 
   let mesh: any;
   try {
-    const url = neutral ? _neutralModelUrl(type) : _colorModelUrl(type, color);
+    let url: string;
+    if (_pack && _path) {
+      // Multi-pack: use explicit pack + path (city-builder, resource-bits, etc.)
+      url = modelUrl(_pack, _path);
+    } else {
+      // Default: kaykit-platformer neutral/color paths
+      url = neutral ? _neutralModelUrl(type) : _colorModelUrl(type, color);
+    }
     mesh = await _loadOrClone(url);
     mesh.scale.setScalar(scale);
   } catch (err) {
@@ -1389,7 +1429,7 @@ export async function createDecoration3D(
   mesh.name = \`Decoration_\${type}\`;
   mesh.userData.vibexeType = "decoration";
   mesh.userData.vibexeFactory = "createDecoration3D";
-  mesh.userData.vibexeArgs = { x, y, z, type, color, scale };
+  mesh.userData.vibexeArgs = { x, y, z, type, color, scale, ...(_pack ? { _pack } : {}), ...(_path ? { _path } : {}) };
   scene.add(mesh);
   return { mesh, size: { x: scale, y: scale * 2, z: scale } };
 }
@@ -1703,11 +1743,21 @@ export async function createAnimatedCharacter3D(
   mesh.userData.__currentClip = () => _currentAction?.getClip()?.name || null;
 
   // Auto-apply known animation map if URL matches a hosted model
+  let _mapApplied = false;
   for (const [urlPattern, map] of Object.entries(_KNOWN_ANIMATION_MAPS)) {
     if (opts.url.includes(urlPattern)) {
       mesh.userData.__animMap = map;
       console.log("[3D] Auto-applied animation map for:", urlPattern);
+      _mapApplied = true;
       break;
+    }
+  }
+  // No known map found — auto-classify clips by name/duration heuristics
+  if (!_mapApplied && allClips.length > 0) {
+    const autoMap = _classifyClips(allClips);
+    if (Object.keys(autoMap).length > 0) {
+      mesh.userData.__animMap = autoMap;
+      console.log("[3D] Auto-classified animation map:", autoMap);
     }
   }
 
@@ -2017,8 +2067,30 @@ export function createAnimationMap(
  */
 export function soundUrl(name: string): string {
   const origin = (window as any).__VIBEXE_API_ORIGIN__ || "";
-  const ext = name.includes(".") ? "" : ".mp3";
+  const ext = name.includes(".") ? "" : ".ogg";
   return \`\${origin}/api/app-builder/media-stock-audio/\${name}\${ext}\`;
+}
+
+/**
+ * Preloads multiple sound effects into the audio cache for instant playback.
+ * Call in init() for frequently used SFX to avoid frame stutter on first play.
+ *
+ * Usage:
+ *   await preloadSounds([soundUrl("collect"), soundUrl("jump"), soundUrl("explosion")]);
+ */
+export async function preloadSounds(urls: string[]): Promise<void> {
+  const ctx = _getAudioContext();
+  await Promise.all(urls.map(async (url) => {
+    if (_audioCache.has(url)) return;
+    try {
+      const resp = await fetch(url);
+      const arrayBuf = await resp.arrayBuffer();
+      const buffer = await ctx.decodeAudioData(arrayBuf);
+      _audioCache.set(url, buffer);
+    } catch (e) {
+      console.warn("[Audio] Preload failed:", url, e);
+    }
+  }));
 }
 
 /**
@@ -2130,22 +2202,32 @@ export function playMusic(
   const fadeIn = opts?.fadeIn ?? 0;
   const crossfade = opts?.crossfadeDuration ?? 1.0;
 
+  // rAF-based fade helper for smooth frame-synced volume transitions
+  function _rafFade(
+    el2: HTMLAudioElement, fromVol: number, toVol: number, duration: number, onDone?: () => void
+  ): number {
+    const startTime = performance.now();
+    let rafId = 0;
+    function tick() {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(1, elapsed / (duration * 1000));
+      try { el2.volume = fromVol + (toVol - fromVol) * progress; } catch {}
+      if (progress < 1) { rafId = requestAnimationFrame(tick); }
+      else { onDone?.(); }
+    }
+    rafId = requestAnimationFrame(tick);
+    return rafId;
+  }
+
   // Crossfade out old music
   if (_currentMusic) {
     const old = _currentMusic;
     const startVol = old.el.volume;
-    let t = 0;
-    clearInterval(old.fadeTimer);
-    old.fadeTimer = setInterval(() => {
-      t += 50;
-      const progress = Math.min(1, t / (crossfade * 1000));
-      old.el.volume = startVol * (1 - progress);
-      if (progress >= 1) {
-        clearInterval(old.fadeTimer);
-        old.el.pause();
-        old.el.src = "";
-      }
-    }, 50);
+    if (old.fadeTimer) cancelAnimationFrame(old.fadeTimer);
+    old.fadeTimer = _rafFade(old.el, startVol, 0, crossfade, () => {
+      old.el.pause();
+      old.el.src = "";
+    });
   }
 
   const el = new Audio(url);
@@ -2153,16 +2235,11 @@ export function playMusic(
   el.volume = fadeIn > 0 ? 0 : vol;
   el.play().catch(() => {});
 
-  const entry = { el, fadeTimer: undefined as any };
+  const entry = { el, fadeTimer: 0 as any };
   _currentMusic = entry;
 
   if (fadeIn > 0) {
-    let t = 0;
-    entry.fadeTimer = setInterval(() => {
-      t += 50;
-      el.volume = Math.min(vol, (t / (fadeIn * 1000)) * vol);
-      if (el.volume >= vol) clearInterval(entry.fadeTimer);
-    }, 50);
+    entry.fadeTimer = _rafFade(el, 0, vol, fadeIn);
   }
 
   return {
@@ -2220,20 +2297,27 @@ export async function playSpatial3D(
   source.start(0);
 
   let _attachedMesh: any = null;
+  let _stopped = false;
 
-  // Update listener position from camera each frame (if attached)
-  const _updateSpatial = () => {
-    if (_attachedMesh) {
-      panner.setPosition(_attachedMesh.position.x, _attachedMesh.position.y, _attachedMesh.position.z);
-    }
-    const cam = (window as any).__vibexe_camera__;
-    if (cam && ctx.listener.setPosition) {
-      ctx.listener.setPosition(cam.position.x, cam.position.y, cam.position.z);
-    }
+  const spatialEntry = {
+    _destroyed: false,
+    _update() {
+      if (_attachedMesh && _attachedMesh.position) {
+        panner.setPosition(_attachedMesh.position.x, _attachedMesh.position.y, _attachedMesh.position.z);
+      }
+    },
   };
+  _activeSpatial3D.push(spatialEntry);
+
+  source.onended = () => { spatialEntry._destroyed = true; _stopped = true; };
 
   return {
-    stop() { try { source.stop(); } catch {} },
+    stop() {
+      if (_stopped) return;
+      _stopped = true;
+      spatialEntry._destroyed = true;
+      try { source.stop(); } catch {}
+    },
     setPosition(x: number, y: number, z: number) { panner.setPosition(x, y, z); },
     attachTo(mesh: any) { _attachedMesh = mesh; },
   };
@@ -2277,7 +2361,7 @@ export function createPostProcessing(
   let _bloomPass: any = null;
 
   function addBloom(opts?: { strength?: number; radius?: number; threshold?: number }) {
-    if (!THREE.UnrealBloomPass) return;
+    if (!THREE.UnrealBloomPass) { console.warn("[PostFX] UnrealBloomPass not loaded — bloom unavailable"); return; }
     if (_bloomPass) composer.removePass(_bloomPass);
     const res = new THREE.Vector2(renderer.domElement.width, renderer.domElement.height);
     _bloomPass = new THREE.UnrealBloomPass(res, opts?.strength ?? 0.5, opts?.radius ?? 0.4, opts?.threshold ?? 0.85);
@@ -2298,7 +2382,7 @@ export function createPostProcessing(
     const p = POST_PROCESSING_PRESETS[name];
     if (!p) { console.warn("[PostFX] Unknown preset:", name); return; }
     if (p.bloom) addBloom(p.bloom);
-    if (p.fog) addFog(p.fog);
+    if (p.fog) addFog(p.fog); else scene.fog = null;
     if (p.toneMapping) setToneMappingInternal(p.toneMapping, p.exposure ?? 1);
   }
 
@@ -2390,18 +2474,43 @@ export function createParticleEmitter(
   let _destroyed = false;
   let _emitAccum = 0;
 
+  const alphas = new Float32Array(MAX).fill(1);
+
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
+  geometry.setAttribute("aAlpha", new THREE.BufferAttribute(alphas, 1));
   geometry.setAttribute("color", new THREE.BufferAttribute(colorArr, 3));
 
-  const material = new THREE.PointsMaterial({
-    size: sizeStart,
-    vertexColors: true,
+  // Custom ShaderMaterial for per-vertex size + alpha (PointsMaterial has uniform size only)
+  const material = new THREE.ShaderMaterial({
     transparent: true,
-    opacity: 0.8,
     depthWrite: false,
-    sizeAttenuation: true,
+    vertexShader: [
+      "attribute float aSize;",
+      "attribute float aAlpha;",
+      "varying vec3 vColor;",
+      "varying float vAlpha;",
+      "void main() {",
+      "  vColor = color;",
+      "  vAlpha = aAlpha;",
+      "  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);",
+      "  gl_PointSize = aSize * (300.0 / length(mvPosition.xyz));",
+      "  gl_PointSize = max(gl_PointSize, 1.0);",
+      "  gl_Position = projectionMatrix * mvPosition;",
+      "}",
+    ].join("\\n"),
+    fragmentShader: [
+      "varying vec3 vColor;",
+      "varying float vAlpha;",
+      "void main() {",
+      "  float d = length(gl_PointCoord - vec2(0.5));",
+      "  if (d > 0.5) discard;",
+      "  float edgeFade = 1.0 - smoothstep(0.3, 0.5, d);",
+      "  gl_FragColor = vec4(vColor, vAlpha * edgeFade);",
+      "}",
+    ].join("\\n"),
+    vertexColors: true,
   });
 
   const points = new THREE.Points(geometry, material);
@@ -2467,24 +2576,19 @@ export function createParticleEmitter(
         alive = true;
         const t = ages[i] / lifetimes[i];
         sizes[i] = sizeStart + (sizeEnd - sizeStart) * t;
+        alphas[i] = 1.0 - t; // Smooth fade from 1→0 over lifetime
 
         const i3 = i * 3;
         velocities[i3 + 1] += gravity * delta;
         positions[i3] += velocities[i3] * delta;
         positions[i3 + 1] += velocities[i3 + 1] * delta;
         positions[i3 + 2] += velocities[i3 + 2] * delta;
-
-        // Fade alpha
-        const alpha = 1 - t;
-        colorArr[i3] *= (0.98 + alpha * 0.02);
-        colorArr[i3 + 1] *= (0.98 + alpha * 0.02);
-        colorArr[i3 + 2] *= (0.98 + alpha * 0.02);
       }
 
       geometry.attributes.position.needsUpdate = true;
       geometry.attributes.aSize.needsUpdate = true;
+      geometry.attributes.aAlpha.needsUpdate = true;
       geometry.attributes.color.needsUpdate = true;
-      material.size = sizeStart; // Points material applies uniform size; individual sizes via shader
 
       if (!alive && !_emitting) {
         _alive = false;
@@ -2528,14 +2632,96 @@ export function createTrailRenderer(
   const color = new THREE.Color(opts?.color ?? 0x00ff88);
   let width = opts?.width ?? 0.2;
 
-  const positions = new Float32Array(LENGTH * 3);
+  // Store trail centerline points (most recent first)
+  const trail: { x: number; y: number; z: number }[] = [];
+
+  // Quad-based ribbon: 2 vertices per segment, (LENGTH-1) quads → (LENGTH-1)*6 indices
+  const vertCount = LENGTH * 2;
+  const positions = new Float32Array(vertCount * 3);
+  const alphas = new Float32Array(vertCount);
+  const indices: number[] = [];
+  for (let i = 0; i < LENGTH - 1; i++) {
+    const a = i * 2, b = a + 1, c = a + 2, d = a + 3;
+    indices.push(a, c, b, b, c, d);
+  }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6, linewidth: 2 });
-  const line = new THREE.Line(geometry, material);
-  line.frustumCulled = false;
-  line.name = "TrailRenderer";
-  scene.add(line);
+  geometry.setAttribute("aAlpha", new THREE.BufferAttribute(alphas, 1));
+  geometry.setIndex(indices);
+
+  const material = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    uniforms: { uColor: { value: color } },
+    vertexShader: [
+      "attribute float aAlpha;",
+      "varying float vAlpha;",
+      "void main() {",
+      "  vAlpha = aAlpha;",
+      "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
+      "}",
+    ].join("\\n"),
+    fragmentShader: [
+      "uniform vec3 uColor;",
+      "varying float vAlpha;",
+      "void main() {",
+      "  gl_FragColor = vec4(uColor, vAlpha * 0.6);",
+      "}",
+    ].join("\\n"),
+  });
+  const ribbonMesh = new THREE.Mesh(geometry, material);
+  ribbonMesh.frustumCulled = false;
+  ribbonMesh.name = "TrailRenderer";
+  scene.add(ribbonMesh);
+
+  // Temp vectors for perpendicular calculation
+  const _dir = new THREE.Vector3();
+  const _perp = new THREE.Vector3();
+  const _up = new THREE.Vector3(0, 1, 0);
+
+  function _rebuildRibbon() {
+    for (let i = 0; i < LENGTH; i++) {
+      const alpha = 1.0 - (i / (LENGTH - 1));
+      alphas[i * 2] = alpha;
+      alphas[i * 2 + 1] = alpha;
+
+      if (i >= trail.length) {
+        // Not enough points yet — collapse to zero
+        const last = trail.length > 0 ? trail[trail.length - 1] : { x: 0, y: 0, z: 0 };
+        const vi = i * 2 * 3;
+        positions[vi] = last.x; positions[vi + 1] = last.y; positions[vi + 2] = last.z;
+        positions[vi + 3] = last.x; positions[vi + 4] = last.y; positions[vi + 5] = last.z;
+        continue;
+      }
+
+      const p = trail[i];
+      // Compute perpendicular direction for width offset
+      if (i < trail.length - 1) {
+        _dir.set(trail[i + 1].x - p.x, trail[i + 1].y - p.y, trail[i + 1].z - p.z);
+      } else if (i > 0) {
+        _dir.set(p.x - trail[i - 1].x, p.y - trail[i - 1].y, p.z - trail[i - 1].z);
+      } else {
+        _dir.set(0, 0, 1);
+      }
+      if (_dir.lengthSq() < 0.0001) _dir.set(0, 0, 1);
+      _dir.normalize();
+      _perp.crossVectors(_dir, _up);
+      if (_perp.lengthSq() < 0.0001) _perp.crossVectors(_dir, new THREE.Vector3(1, 0, 0));
+      _perp.normalize();
+
+      const hw = width * 0.5; // half-width
+      const vi = i * 2 * 3;
+      positions[vi]     = p.x + _perp.x * hw;
+      positions[vi + 1] = p.y + _perp.y * hw;
+      positions[vi + 2] = p.z + _perp.z * hw;
+      positions[vi + 3] = p.x - _perp.x * hw;
+      positions[vi + 4] = p.y - _perp.y * hw;
+      positions[vi + 5] = p.z - _perp.z * hw;
+    }
+    geometry.attributes.position.needsUpdate = true;
+    geometry.attributes.aAlpha.needsUpdate = true;
+  }
 
   let _destroyed = false;
 
@@ -2543,21 +2729,15 @@ export function createTrailRenderer(
     _destroyed: false,
     update(_delta: number) {
       if (_destroyed) return;
-      // Shift positions back
-      for (let i = LENGTH - 1; i > 0; i--) {
-        positions[i * 3] = positions[(i - 1) * 3];
-        positions[i * 3 + 1] = positions[(i - 1) * 3 + 1];
-        positions[i * 3 + 2] = positions[(i - 1) * 3 + 2];
-      }
-      // Set head to current mesh position
-      positions[0] = mesh.position.x;
-      positions[1] = mesh.position.y;
-      positions[2] = mesh.position.z;
-      geometry.attributes.position.needsUpdate = true;
+      const pos = mesh.position;
+      // Add current position at head
+      trail.unshift({ x: pos.x, y: pos.y, z: pos.z });
+      if (trail.length > LENGTH) trail.length = LENGTH;
+      _rebuildRibbon();
     },
     isAlive() { return !_destroyed; },
-    destroy() { _destroyed = true; trailObj._destroyed = true; scene.remove(line); geometry.dispose(); material.dispose(); },
-    setColor(c: number) { material.color.set(c); },
+    destroy() { _destroyed = true; trailObj._destroyed = true; scene.remove(ribbonMesh); geometry.dispose(); material.dispose(); },
+    setColor(c: number) { material.uniforms.uColor.value.set(c); },
     setWidth(w: number) { width = w; },
   };
 
@@ -2586,7 +2766,7 @@ export function createTriggerZone(
   size: { x: number; y: number; z: number },
   callbacks: { onEnter?: (body: any) => void; onExit?: (body: any) => void; onStay?: (body: any) => void },
 ): { body: any; destroy: () => void } {
-  if (!CANNON) { return { body: null, destroy() {} }; }
+  if (!CANNON || !world?.bodies) { return { body: null, destroy() {} }; }
 
   const shape = new CANNON.Box(new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2));
   const body = new CANNON.Body({ mass: 0, shape, isTrigger: true });
@@ -2898,6 +3078,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      // Resize post-processing composer so bloom/effects stay sharp
+      const __comp = (window as any).__vibexe_composer__;
+      if (__comp) __comp.setSize(w, h);
     };
     window.addEventListener("resize", onResize);
 
@@ -3134,6 +3317,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           let _boxHelper: any = null;
           let _transformControls: any = null;
           let _editorAnimId = 0;
+          // Spawn mode state — set by palette selection
+          let _spawnMode = false;
+          let _spawnFactory: string | null = null;
+          let _spawnArgs: Record<string, any> = {};
 
           const editor = (window as any).__vibexe_editor__;
 
@@ -3290,6 +3477,58 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             _mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
             _mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
             _raycaster.setFromCamera(_mouse, camera);
+
+            // --- Spawn mode: raycast to find spawn position, then create object ---
+            if (_spawnMode && _spawnFactory) {
+              const allMeshes: any[] = [];
+              scene.traverse((child: any) => {
+                if (child.isMesh && child !== _boxHelper &&
+                    child.type !== "TransformControlsGizmo" &&
+                    child.type !== "TransformControlsPlane" &&
+                    !child.name.startsWith("__editor_")) {
+                  allMeshes.push(child);
+                }
+              });
+              const spawnHits = _raycaster.intersectObjects(allMeshes, false);
+              let spawnPos = { x: 0, y: 2, z: 0 };
+              if (spawnHits.length > 0) {
+                const pt = spawnHits[0].point;
+                spawnPos = { x: pt.x, y: pt.y + 0.5, z: pt.z };
+              } else {
+                // No intersection — project click 10 units from camera
+                const dir = new THREE.Vector3(_mouse.x, _mouse.y, 0.5).unproject(camera).sub(camera.position).normalize();
+                const projPt = camera.position.clone().add(dir.multiplyScalar(10));
+                spawnPos = { x: projPt.x, y: Math.max(0.5, projPt.y), z: projPt.z };
+              }
+              // Spawn via the same handler as palette double-click
+              const _fns2: Record<string, Function> = {
+                createPlatform3D, createCollectible3D, createPlayer3D,
+                createBarrier3D, createDecoration3D,
+              };
+              const fn2 = _fns2[_spawnFactory] || (window as any)[_spawnFactory];
+              if (fn2) {
+                (async () => {
+                  try {
+                    const result = await fn2(scene, spawnPos.x, spawnPos.y, spawnPos.z, _spawnArgs);
+                    if (result?.mesh) {
+                      result.mesh.userData.__spawned = true;
+                      _sendSceneTree();
+                      window.parent.postMessage({
+                        type: "game-editor-object-spawned",
+                        uuid: result.mesh.uuid,
+                        name: result.mesh.name,
+                      }, "*");
+                      _selectObject(result.mesh);
+                    }
+                  } catch (spawnErr) {
+                    console.warn("[Editor] Click-spawn failed:", spawnErr);
+                  }
+                })();
+              }
+              return; // Don't fall through to selection
+            }
+
+            // --- Normal mode: select object ---
             const meshes: any[] = [];
             scene.traverse((child: any) => {
               if (child.isMesh && child !== _boxHelper &&
@@ -3457,29 +3696,80 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   };
                   const fn = _fns[d.factory] || (window as any)[d.factory];
                   if (fn) {
-                    try {
-                      const result = await fn(scene, d.position.x, d.position.y, d.position.z, d.args || {});
-                      if (result?.mesh) {
-                        result.mesh.userData.__spawned = true;
-                        _sendSceneTree();
-                        window.parent.postMessage({
-                          type: "game-editor-object-spawned",
-                          uuid: result.mesh.uuid,
-                          name: result.mesh.name,
-                        }, "*");
-                        _selectObject(result.mesh);
+                    (async () => {
+                      try {
+                        const result = await fn(scene, d.position.x, d.position.y, d.position.z, d.args || {});
+                        if (result?.mesh) {
+                          result.mesh.userData.__spawned = true;
+                          _sendSceneTree();
+                          window.parent.postMessage({
+                            type: "game-editor-object-spawned",
+                            uuid: result.mesh.uuid,
+                            name: result.mesh.name,
+                          }, "*");
+                          _selectObject(result.mesh);
+                        }
+                      } catch (spawnErr) {
+                        console.warn("[Editor] Spawn failed:", spawnErr);
                       }
-                    } catch (spawnErr) {
-                      console.warn("[Editor] Spawn failed:", spawnErr);
-                    }
+                    })();
                   }
                 }
                 break;
+              case "game-editor-get-spawned-objects": {
+                // Collect all spawned objects for persistence across restart
+                const spawned: any[] = [];
+                scene.traverse((child: any) => {
+                  if (child.userData?.__spawned && child.userData?.vibexeFactory) {
+                    spawned.push({
+                      factory: child.userData.vibexeFactory,
+                      args: child.userData.vibexeArgs || {},
+                      position: { x: child.position.x, y: child.position.y, z: child.position.z },
+                      rotation: { x: child.rotation.x, y: child.rotation.y, z: child.rotation.z },
+                      scale: { x: child.scale.x, y: child.scale.y, z: child.scale.z },
+                    });
+                  }
+                });
+                window.parent.postMessage({ type: "game-editor-spawned-objects", objects: spawned }, "*");
+                break;
+              }
+              case "game-editor-restore-spawned-objects": {
+                // Recreate spawned objects from saved data
+                const toRestore = d.objects || [];
+                const _fnsRestore: Record<string, Function> = {
+                  createPlatform3D, createCollectible3D, createPlayer3D,
+                  createBarrier3D, createDecoration3D,
+                };
+                (async () => {
+                  for (const obj of toRestore) {
+                    const fn = _fnsRestore[obj.factory] || (window as any)[obj.factory];
+                    if (!fn) continue;
+                    try {
+                      const pos = obj.args || {};
+                      const result = await fn(scene, obj.position.x, obj.position.y, obj.position.z, pos);
+                      if (result?.mesh) {
+                        result.mesh.userData.__spawned = true;
+                        if (obj.rotation) result.mesh.rotation.set(obj.rotation.x, obj.rotation.y, obj.rotation.z);
+                        if (obj.scale) result.mesh.scale.set(obj.scale.x, obj.scale.y, obj.scale.z);
+                      }
+                    } catch (restoreErr) {
+                      console.warn("[Editor] Restore failed:", obj.factory, restoreErr);
+                    }
+                  }
+                  _sendSceneTree();
+                })();
+                break;
+              }
               case "game-editor-set-spawn-mode":
-                // Toggle spawn cursor mode
-                if (d.active) {
+                // Toggle spawn cursor mode + store factory/args for click-to-spawn
+                _spawnMode = !!d.active;
+                if (d.active && d.factory) {
+                  _spawnFactory = d.factory;
+                  _spawnArgs = d.args || {};
                   renderer.domElement.style.cursor = "crosshair";
                 } else {
+                  _spawnFactory = null;
+                  _spawnArgs = {};
                   renderer.domElement.style.cursor = "";
                 }
                 break;
@@ -3516,7 +3806,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           (window as any)._updateAllParticles3D?.(delta);
           (window as any)._updateAllTriggers3D?.();
           (window as any)._updateAllSprings3D?.();
-          // Update spatial audio listener position from camera
+          // Update spatial audio: attached sounds follow meshes
+          (window as any)._updateAllSpatial3D?.();
+          // Update spatial audio listener position + orientation from camera
           try {
             const __ac = (window as any)._audioCtx;
             if (__ac && __ac.listener && camera) {
@@ -3526,6 +3818,19 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 __ac.listener.positionZ.value = camera.position.z;
               } else if (__ac.listener.setPosition) {
                 __ac.listener.setPosition(camera.position.x, camera.position.y, camera.position.z);
+              }
+              // Listener orientation from camera quaternion (fixes panning on camera rotate)
+              const __fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+              const __up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+              if (__ac.listener.forwardX) {
+                __ac.listener.forwardX.value = __fwd.x;
+                __ac.listener.forwardY.value = __fwd.y;
+                __ac.listener.forwardZ.value = __fwd.z;
+                __ac.listener.upX.value = __up.x;
+                __ac.listener.upY.value = __up.y;
+                __ac.listener.upZ.value = __up.z;
+              } else if (__ac.listener.setOrientation) {
+                __ac.listener.setOrientation(__fwd.x, __fwd.y, __fwd.z, __up.x, __up.y, __up.z);
               }
             }
           } catch {}

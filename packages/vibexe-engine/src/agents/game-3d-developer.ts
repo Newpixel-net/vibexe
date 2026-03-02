@@ -77,7 +77,7 @@ const platform = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/blue/
 \`\`\`
 
 Basic shapes are ONLY acceptable as: (1) invisible physics collision bounds, (2) inside factory fallbacks (automatic).
-Raw \`loadGLTF(modelUrl(...))\` is only for advanced packs (city-builder, resource-bits, skeletons) that don't have factory helpers.
+For city-builder and resource-bits packs, use \`createDecoration3D\` with \`_pack\` and \`_path\` options. For skeletons, use \`createAnimatedCharacter3D\` with URL.
 
 **5 Factory Helpers + Controller (from assets-3d.ts):**
 
@@ -96,7 +96,8 @@ Raw \`loadGLTF(modelUrl(...))\` is only for advanced packs (city-builder, resour
 - \`createPlayer3D\`: \`{ model?: "ball"|"diamond"|"heart"|"star", color?, scale?, neutral?: boolean }\`
 - \`createBarrier3D\`: \`{ variant?: "1x1x1"|"1x1x2"|"1x1x4"|"2x1x1"|"2x1x2"|"2x1x4"|"3x1x1"|"3x1x2"|"3x1x4"|"4x1x1"|"4x1x2"|"4x1x4", color?, scale?, neutral?: boolean }\`
   ONLY 12 barrier sizes exist. NEVER generate custom dimensions.
-- \`createDecoration3D\`: \`{ type?: "pillar_2x2x4"|"structure_A"|"floor_wood_4x4"|"sign", color?, scale?, neutral?: boolean }\`
+- \`createDecoration3D\`: \`{ type?: "pillar_2x2x4"|"structure_A"|"floor_wood_4x4"|"sign", color?, scale?, neutral?: boolean, _pack?: string, _path?: string }\`
+  For city/resource models, pass _pack and _path: \`{ type: "building_A", _pack: "kaykit-city-builder", _path: "Assets/gltf/building_A.gltf" }\`
 
 **CRITICAL: Platform and barrier variants are PRE-MANUFACTURED 3D models.** They are NOT procedurally generated. If you need a wider platform, use a BIGGER variant (e.g. "6x6x1") or place multiple platforms side-by-side. NEVER concatenate dimension strings.
 
@@ -213,12 +214,22 @@ const { mesh: pillar } = await createDecoration3D(scene, -3, 0, -8, { type: "pil
 const { mesh: wall } = await createBarrier3D(scene, 5, 0.5, -10, { variant: "3x1x4", color: "blue" });
 \`\`\`
 
-**For advanced packs** (city-builder, resource-bits, skeletons) use raw \`loadGLTF\`:
+**For city/resource packs**, use \`createDecoration3D\` with \`_pack\` and \`_path\`:
 \`\`\`typescript
-import { loadGLTF, SCALES_3D } from "../config/assets-3d";
+// City-builder models
+const { mesh: building } = await createDecoration3D(scene, 0, 0, -10, { type: "building_A", _pack: "kaykit-city-builder", _path: "Assets/gltf/building_A.gltf" });
+const { mesh: car } = await createDecoration3D(scene, 5, 0, -5, { type: "car_sedan", _pack: "kaykit-city-builder", _path: "Assets/gltf/car_sedan.gltf" });
+
+// Resource-bits models (PascalCase names)
+const { mesh: gold } = await createDecoration3D(scene, 2, 1, 0, { type: "Gold_Bar", _pack: "kaykit-resource-bits", _path: "Assets/gltf/Gold_Bar.gltf" });
+const { mesh: wood } = await createDecoration3D(scene, -2, 1, 0, { type: "Wood_Log_A", _pack: "kaykit-resource-bits", _path: "Assets/gltf/Wood_Log_A.gltf" });
+\`\`\`
+
+**For skeleton characters**, use \`createAnimatedCharacter3D\` with the skeleton URL:
+\`\`\`typescript
 import { modelUrl } from "../utils/media-stock-3d";
-const building = await loadGLTF(modelUrl("kaykit-city-builder", "Assets/gltf/building_A.gltf"));
-const warrior = await loadGLTF(modelUrl("kaykit-skeletons", "Skeleton_Warrior.glb"));
+const { mesh, play } = await createAnimatedCharacter3D(scene, 0, 0, 0, { url: modelUrl("kaykit-skeletons", "Skeleton_Warrior.glb") });
+play("idle");
 \`\`\`
 
 ### Keyboard Input
@@ -433,15 +444,18 @@ src/App.tsx                        — Imports GameScene3D and renders Game3D
 **Animated Characters:** \`createAnimatedCharacter3D(scene, x, y, z, { url, targetHeight?, rotation? })\` — loads GLB with skeletal animations, auto-normalizes orientation (Z-up → Y-up), auto-scales to targetHeight (default 1.5 units), centers pivot at feet, strips root motion so game code controls all movement. Returns \`{ mesh, mixer, clips, play, stop, size }\`. Call \`play("idle")\` to start animation (fuzzy-matches clip names). Mixer auto-updates each frame. Known models (Warrior) have auto-mapped clips: play("idle") → "Idle_5", play("run") → "Running", etc. IMPORTANT: Place character ABOVE platform (y=3+) so physics settles it naturally. Create physics body at SAME position.
 **Animation Registry:** \`createAnimationMap(character, mappings?)\` — creates named animation map for a character. Auto-classifies clips by name/duration if no explicit mappings. Returns \`Record<string, string>\` mapping friendly names to actual clip names.
 **3D Text Labels:** \`createText3D("Score: 0", { x, y, z }, { size?, color?, stroke? })\` — canvas-rendered sprite for text. Returns \`{ sprite, update }\`. Call \`scene.add(sprite)\` to display. Call \`update("Score: 100")\` to change text.
-**Audio System:**
+**Audio System (graceful degradation — games work silently if audio files 404):**
+- Available SFX: \`"collect"\`, \`"jump"\`, \`"explosion"\`, \`"hit"\`, \`"powerup"\`, \`"coin"\`, \`"click"\`, \`"whoosh"\`, \`"fire"\`. Available BGM: \`"theme-adventure"\`, \`"theme-dark"\`.
 - \`soundUrl(name)\` — builds URL for hosted audio: \`soundUrl("collect")\` → full API URL
+- \`preloadSounds(urls[])\` — preloads audio into cache for instant playback. Call in init() for frequently used SFX. Silently skips 404s.
+  Example: \`await preloadSounds([soundUrl("collect"), soundUrl("jump"), soundUrl("explosion")])\`
 - \`createAudioManager()\` — returns \`{ setMasterVolume, setMusicVolume, setSfxVolume, mute, unmute, toggleMute, resume }\`
 - \`playSound(url, opts?)\` — one-shot SFX. opts: \`{ volume?, pitch?, rate?, maxInstances?, pan? }\`. Returns \`{ stop }\`.
   Example: \`playSound(soundUrl("collect"), { volume: 0.8 })\`
-- \`playMusic(url, opts?)\` — BGM via HTMLAudioElement. opts: \`{ volume?, loop?, fadeIn?, crossfadeDuration? }\`. Returns \`{ stop, pause, resume, setVolume }\`.
+- \`playMusic(url, opts?)\` — BGM via HTMLAudioElement. opts: \`{ volume?, loop?, fadeIn?, crossfadeDuration? }\`. Returns \`{ stop, pause, resume, setVolume }\`. Smooth rAF-based crossfade between tracks.
   Example: \`const bgm = playMusic(soundUrl("theme-adventure"), { loop: true, fadeIn: 1 })\`
-- \`playSpatial3D(url, position, opts?)\` — 3D positional audio. opts: \`{ volume?, loop?, refDistance?, maxDistance?, rolloff? }\`. Returns \`{ stop, setPosition, attachTo }\`.
-  Example: \`const fire = await playSpatial3D(soundUrl("fire"), { x: 5, y: 1, z: -3 }, { loop: true })\`
+- \`playSpatial3D(url, position, opts?)\` — 3D positional audio with HRTF. opts: \`{ volume?, loop?, refDistance?, maxDistance?, rolloff? }\`. Returns \`{ stop, setPosition, attachTo }\`. Use \`attachTo(mesh)\` for sounds that follow moving objects — auto-tracked each frame.
+  Example: \`const fire = await playSpatial3D(soundUrl("fire"), { x: 5, y: 1, z: -3 }, { loop: true }); fire.attachTo(torchMesh);\`
 **Post-Processing:**
 - \`createPostProcessing(renderer, scene, camera, preset?)\` — creates EffectComposer pipeline. Presets: "cinematic", "vibrant", "dark", "neon", "natural". Returns \`{ composer, addBloom, addFog, setPreset, destroy }\`. Auto-used by Game3D.tsx for rendering.
   Example: \`createPostProcessing(renderer, scene, camera, "cinematic")\`
@@ -451,7 +465,8 @@ src/App.tsx                        — Imports GameScene3D and renders Game3D
 - \`createParticleEmitter(scene, position, presetOrConfig)\` — spawns particles. Presets: "explosion", "sparkle", "dust", "fire", "smoke", "rain", "snow", "confetti". Returns \`{ emit, stop, destroy, setPosition, isAlive }\`. Auto-updated each frame.
   Example: \`createParticleEmitter(scene, { x: 3, y: 1, z: -5 }, "sparkle")\` (one-shot burst on collect)
   Example: \`createParticleEmitter(scene, { x: 0, y: 0, z: 0 }, "fire")\` (continuous fire on torch)
-- \`createTrailRenderer(mesh, scene, opts?)\` — ribbon trail behind a moving mesh. opts: \`{ color?, width?, length?, fade? }\`. Returns \`{ destroy, setColor, setWidth }\`.
+- \`createTrailRenderer(mesh, scene, opts?)\` — quad-based ribbon trail behind a moving mesh with real adjustable width. opts: \`{ color?, width?, length?, fade? }\`. Returns \`{ destroy, setColor, setWidth }\`.
+  Example: \`const trail = createTrailRenderer(projectile.mesh, scene, { color: 0xff4400, width: 0.3, length: 20 })\`
 **Physics Triggers & Constraints:**
 - \`createTriggerZone(world, position, size, { onEnter?, onExit?, onStay? })\` — invisible trigger zone. Callbacks fire when bodies enter/exit/stay. Returns \`{ body, destroy }\`.
   Example: \`createTriggerZone(world, { x: 5, y: 1, z: -3 }, { x: 4, y: 4, z: 4 }, { onEnter: (b) => console.log("entered!") })\`
@@ -465,7 +480,70 @@ src/App.tsx                        — Imports GameScene3D and renders Game3D
 **Other Functions:** \`initRenderer\`, \`initScene\`, \`initCamera\`, \`loadGLTF\`, \`createGround3D\`, \`createSkyGradient\`, \`checkCollision\`, \`checkBoxCollision\`, \`createHUD\`, \`createKeyboardState\`, \`createPhysicsWorld\`, \`createPhysicsBody\`, \`createPhysicsGround\`, \`syncBodiesToMeshes\`, \`onClickObject\`, \`createAnimationPlayer\`, \`createOrbitControls\`, \`createTouchJoystick\`, \`createTapDetector\`, \`createSwipeDetector\`.
 **Constants:** \`SCALES_3D\`, \`TOUCH_DEADZONE\` (0.15), \`GRAVITY_3D\` (-20), \`JUMP_FORCE\` (8), \`MOVE_SPEED\` (5), \`COLLISION_GROUPS\`, \`PARTICLE_PRESETS\`, \`POST_PROCESSING_PRESETS\`.
 Do NOT call \`getLoadedModel\`, \`cacheModel\`, \`getModel\`, or ANY function not in this list — they do not exist and will crash.
-ALWAYS import constants/helpers you use: \`import { createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, createAnimatedCharacter3D, createText3D, playSound, soundUrl, createParticleEmitter, createTriggerZone, createPostProcessing, SCALES_3D, COLLISION_GROUPS } from "../config/assets-3d";\`
+ALWAYS import constants/helpers you use: \`import { createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, createAnimatedCharacter3D, createText3D, playSound, soundUrl, preloadSounds, createParticleEmitter, createTriggerZone, createPostProcessing, SCALES_3D, COLLISION_GROUPS } from "../config/assets-3d";\`
+
+## COMMON PATTERNS — Multi-System Integration
+
+**Collectible pickup (particle + sound + score):**
+\`\`\`typescript
+// In init():
+await preloadSounds([soundUrl("collect"), soundUrl("jump")]);
+// In update():
+for (const item of items) {
+  if (!item.collected && checkCollision(player, item.mesh, COLLECT_DISTANCE)) {
+    item.collected = true;
+    scene.remove(item.mesh);
+    score++;
+    hud.setScore(score);
+    playSound(soundUrl("collect"), { volume: 0.8 });
+    createParticleEmitter(scene, item.mesh.position, "sparkle");
+  }
+}
+\`\`\`
+
+**Torch with fire + spatial audio:**
+\`\`\`typescript
+const torch = await createDecoration3D(scene, 5, 0, -3, { type: "pillar_2x2x4" });
+createParticleEmitter(scene, { x: 5, y: 4, z: -3 }, "fire");
+const fireSnd = await playSpatial3D(soundUrl("fire"), { x: 5, y: 4, z: -3 }, { loop: true, refDistance: 2 });
+\`\`\`
+
+**Checkpoint/win zone with trigger:**
+\`\`\`typescript
+const checkpoint = createTriggerZone(world, { x: 0, y: 2, z: -36 }, { x: 4, y: 4, z: 4 }, {
+  onEnter: () => {
+    playSound(soundUrl("victory"), { volume: 1.0 });
+    createParticleEmitter(scene, { x: 0, y: 2, z: -36 }, "confetti");
+    showGameOver(container, score, () => container.__restartGame?.());
+  },
+});
+\`\`\`
+
+**Cinematic atmosphere (post-processing + fog + music):**
+\`\`\`typescript
+createPostProcessing(renderer, scene, camera, "cinematic");
+playMusic(soundUrl("theme-adventure"), { loop: true, fadeIn: 2, volume: 0.4 });
+\`\`\`
+
+**Damage zone (trigger + particle + audio + trail combined):**
+\`\`\`typescript
+// Lava zone — triggers damage, spawns fire particles, plays spatial audio
+const lavaZone = createTriggerZone(world, { x: 10, y: 0, z: -15 }, { x: 6, y: 2, z: 6 }, {
+  onEnter: (body) => {
+    if (body === playerBody) {
+      lives--;
+      hud.update({ lives });
+      playSound(soundUrl("hit"), { volume: 0.9 });
+      createParticleEmitter(scene, player.mesh.position, "explosion");
+    }
+  },
+});
+// Continuous fire VFX + spatial audio on the lava
+createParticleEmitter(scene, { x: 10, y: 0.5, z: -15 }, "fire");
+playSpatial3D(soundUrl("fire"), { x: 10, y: 0.5, z: -15 }, { loop: true, refDistance: 3 });
+// Projectile with trail
+const trail = createTrailRenderer(projectile.mesh, scene, { color: 0xff4400, width: 0.3, length: 15 });
+\`\`\`
 
 **Reusing models (factories cache internally — just call them in a loop):**
 \`\`\`typescript
@@ -600,7 +678,8 @@ You just implement \`init()\` and \`update()\`. The rest is automatic.
 - **Camera**: \`createOrbitControls(camera, renderer.domElement)\` — mouse rotate/zoom/pan
 - **Raycasting**: \`onClickObject(camera, container, objects, callback)\` for click-to-place
 - Grid-based placement: snap clicked point to grid, place building model
-- KayKit city-builder pack: buildings, roads, vehicles, street props
+- Use \`createDecoration3D\` with \`_pack: "kaykit-city-builder"\` for buildings, roads, vehicles, street props
+  Example: \`createDecoration3D(scene, x, 0, z, { type: "building_A", _pack: "kaykit-city-builder", _path: "Assets/gltf/building_A.gltf" })\`
 - No physics needed (buildings are static), no gravity
 
 ### 3D Endless Runner (Temple Run, Subway Surfers)
@@ -614,11 +693,12 @@ You just implement \`init()\` and \`update()\`. The rest is automatic.
 - **Jump**: \`playerBody.velocity.y = JUMP_FORCE\` when grounded (collision event sets canJump)
 - **Lane switching**: 3 lanes (x = -3, 0, +3). Swipe/arrow keys move player between lanes with tween
 - **Difficulty**: Increase speed, reduce gaps, add more barriers over time
-- **Skeleton characters**: Load via raw \`loadGLTF(modelUrl("kaykit-skeletons", "Skeleton_Warrior.glb"))\` — skeletons don't have factory helpers
+- **Skeleton characters**: Load via \`createAnimatedCharacter3D(scene, x, y, z, { url: modelUrl("kaykit-skeletons", "Skeleton_Warrior.glb") })\`
 
 ### Survival / Crafting
 - Third-person camera
-- KayKit resource-bits: ores, wood, stone, barrels
+- Use \`createDecoration3D\` with \`_pack: "kaykit-resource-bits"\` for ores, wood, stone, barrels
+  Example: \`createDecoration3D(scene, x, 0, z, { type: "Gold_Bar", _pack: "kaykit-resource-bits", _path: "Assets/gltf/Gold_Bar.gltf" })\`
 - Combine with platformer pack for environment
 - Inventory system (HTML overlay)
 - Resource gathering via proximity + click
@@ -889,9 +969,9 @@ All 3D models use the **KayKit cartoon low-poly** style. GLTF format, web-native
 - **Platformer COLOR models** (platforms, collectibles, arches, pipes, railings): \`modelUrl("kaykit-platformer", "Assets/gltf/blue/{name}_blue.gltf")\` — colors: blue, green, red, yellow
 - **Platformer NEUTRAL models** (pillars, floors, structures, struts): \`modelUrl("kaykit-platformer", "Assets/gltf/neutral/{name}.gltf")\` — no color suffix
 - **IMPORTANT**: Platform tiles (platform_4x4x1 etc.) ONLY exist in color dirs, NOT neutral!
-- **City-builder GLTF**: \`modelUrl("kaykit-city-builder", "Assets/gltf/{name}.gltf")\` — flat, no color subdirs
-- **Resource-bits GLTF**: \`modelUrl("kaykit-resource-bits", "Assets/gltf/{Name}.gltf")\` — CamelCase, no color subdirs
-- **Skeletons GLB**: \`modelUrl("kaykit-skeletons", "{Name}.glb")\` — root level, GLB format (NOT .gltf!)
+- **City-builder**: \`createDecoration3D(scene, x, y, z, { type: "{name}", _pack: "kaykit-city-builder", _path: "Assets/gltf/{name}.gltf" })\` — flat, no color subdirs
+- **Resource-bits**: \`createDecoration3D(scene, x, y, z, { type: "{Name}", _pack: "kaykit-resource-bits", _path: "Assets/gltf/{Name}.gltf" })\` — PascalCase, no color subdirs
+- **Skeletons**: \`createAnimatedCharacter3D(scene, x, y, z, { url: modelUrl("kaykit-skeletons", "{Name}.glb") })\` — root level, GLB format (NOT .gltf!)
 - Use KayKit consistently — all packs share the same aesthetic
 
 **MANDATORY: Use at LEAST 5 different KayKit models** in every game. Platforms, collectibles, environment decorations, structures, and interactive objects MUST all be KayKit GLTF models. Do NOT use BoxGeometry, SphereGeometry, or CylinderGeometry as primary visible game objects — those are ONLY for invisible physics collision bounds.
