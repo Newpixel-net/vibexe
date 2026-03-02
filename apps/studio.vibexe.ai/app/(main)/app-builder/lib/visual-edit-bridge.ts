@@ -869,7 +869,13 @@ export function getVisualEditBridgeScript(): string {
   // ---- Persist transforms to source code ----
   var persistTimer = null;
   function persistTransform(obj) {
-    if (!obj || !obj.name) return;
+    if (!obj) return;
+    // Auto-name unnamed objects that have vibexe factory metadata (fixes existing games pre-name-fix)
+    if (!obj.name && obj.userData && obj.userData.vibexeFactory) {
+      obj.name = (obj.userData.vibexeFactory === "animatedCharacter" ? "Character_" : "Object_") + obj.uuid.slice(0, 8);
+      console.log("[GameEditorBridge] Auto-named:", obj.name);
+    }
+    if (!obj.name) return;
     // Notify parent that scene has unsaved changes
     window.parent.postMessage({ type: "game-editor-scene-dirty" }, "*");
     // Debounce: batch rapid changes (e.g. during drag) into one update
@@ -1214,6 +1220,10 @@ export function getVisualEditBridgeScript(): string {
         if (!editor || !editor.scene) break;
         var allTransforms = {};
         editor.scene.traverse(function(child) {
+          // Auto-name unnamed objects with vibexe factory metadata
+          if (!child.name && child.userData && child.userData.vibexeFactory) {
+            child.name = (child.userData.vibexeFactory === "animatedCharacter" ? "Character_" : "Object_") + child.uuid.slice(0, 8);
+          }
           if (!child.name) return;
           if (child.name.indexOf("__editor_") === 0) return;
           if (child.type === "GridHelper") return;
