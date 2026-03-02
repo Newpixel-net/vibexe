@@ -814,6 +814,7 @@ export function getVisualEditBridgeScript(): string {
     mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(mouse, editor.camera);
+    // Pass 1: standard mesh raycasting (works for static Mesh objects)
     var meshes = [];
     editor.scene.traverse(function(child) {
       if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && (child.name||"").indexOf("__editor_") !== 0) {
@@ -824,13 +825,40 @@ export function getVisualEditBridgeScript(): string {
     if (intersects.length > 0) {
       return findSceneParent(intersects[0].object);
     }
-    return null;
+    // Pass 2: bounding box fallback (catches SkinnedMesh, animated characters, Groups)
+    var bestDist = Infinity;
+    var bestObj = null;
+    for (var i = 0; i < editor.scene.children.length; i++) {
+      var child = editor.scene.children[i];
+      if (!child.visible) continue;
+      if ((child.name || "").indexOf("__editor_") === 0) continue;
+      if (child === boxHelper || child === transformControls) continue;
+      if (child.isLight || child.type === "HemisphereLight" || child.type === "AmbientLight" || child.type === "DirectionalLight") continue;
+      if (child.type === "GridHelper") continue;
+      var box = new THREE.Box3().setFromObject(child);
+      if (box.isEmpty()) continue;
+      // Expand tiny boxes (SkinnedMesh bind-pose) to a minimum clickable size
+      var sz = new THREE.Vector3(); box.getSize(sz);
+      if (sz.x < 0.5 || sz.y < 0.5 || sz.z < 0.5) {
+        var ctr = new THREE.Vector3(); box.getCenter(ctr);
+        box.setFromCenterAndSize(ctr, new THREE.Vector3(Math.max(sz.x, 1.5), Math.max(sz.y, 1.5), Math.max(sz.z, 1.5)));
+      }
+      var pt = new THREE.Vector3();
+      if (raycaster.ray.intersectBox(box, pt)) {
+        var dist = pt.distanceTo(raycaster.ray.origin);
+        if (dist < bestDist) { bestDist = dist; bestObj = child; }
+      }
+    }
+    return bestObj;
   }
 
   // ---- Click + Drag + Keyboard ----
   function onCanvasMouseDown(e) {
     if (!active || !editor) return;
     if (e.button !== 0) return; // left click only
+    // Only process clicks that land within the renderer canvas area
+    var rect = editor.renderer.domElement.getBoundingClientRect();
+    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
     if (transformControls && transformControls.dragging) return;
     var target = raycastMeshes(e.clientX, e.clientY);
     if (target && target !== editor.scene) {
@@ -930,10 +958,20 @@ export function getVisualEditBridgeScript(): string {
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
       editor.pause();
-      editor.renderer.domElement.addEventListener("mousedown", onCanvasMouseDown);
+      // Use window capture for mousedown so HUD overlay elements don't block clicks
+      window.addEventListener("mousedown", onCanvasMouseDown, true);
       window.addEventListener("mousemove", onCanvasMouseMove, true);
       window.addEventListener("mouseup", onCanvasMouseUp, true);
       window.addEventListener("keydown", onKeyDown, true);
+      // Hide game HUD elements so they don't intercept pointer events
+      var hudEls = document.querySelectorAll("[style*='position']");
+      for (var hi = 0; hi < hudEls.length; hi++) {
+        var hel = hudEls[hi];
+        if (hel !== editor.renderer.domElement && hel !== editor.renderer.domElement.parentElement) {
+          hel.style.pointerEvents = "none";
+          hel.setAttribute("data-editor-hidden", "1");
+        }
+      }
       editorLoop();
       setTimeout(function() {
         sendSceneTree();
@@ -951,10 +989,16 @@ export function getVisualEditBridgeScript(): string {
     if (gridHelper && editor) { editor.scene.remove(gridHelper); if (gridHelper.dispose) gridHelper.dispose(); gridHelper = null; }
     gridSnap = false;
     undoStack = [];
+    // Restore game HUD pointer events
+    var hiddenEls = document.querySelectorAll("[data-editor-hidden]");
+    for (var ri = 0; ri < hiddenEls.length; ri++) {
+      hiddenEls[ri].style.pointerEvents = "";
+      hiddenEls[ri].removeAttribute("data-editor-hidden");
+    }
     if (editor) {
-      editor.renderer.domElement.removeEventListener("mousedown", onCanvasMouseDown);
       editor.resume();
     }
+    window.removeEventListener("mousedown", onCanvasMouseDown, true);
     window.removeEventListener("mousemove", onCanvasMouseMove, true);
     window.removeEventListener("mouseup", onCanvasMouseUp, true);
     window.removeEventListener("keydown", onKeyDown, true);
