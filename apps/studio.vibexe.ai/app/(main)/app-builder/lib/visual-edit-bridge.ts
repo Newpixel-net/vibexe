@@ -870,10 +870,14 @@ export function getVisualEditBridgeScript(): string {
   var persistTimer = null;
   function persistTransform(obj) {
     if (!obj) return;
-    // Auto-name unnamed objects that have vibexe factory metadata (fixes existing games pre-name-fix)
-    if (!obj.name && obj.userData && obj.userData.vibexeFactory) {
-      obj.name = (obj.userData.vibexeFactory === "animatedCharacter" ? "Character_" : "Object_") + obj.uuid.slice(0, 8);
-      console.log("[GameEditorBridge] Auto-named:", obj.name);
+    // Auto-name unnamed objects (fixes existing games generated before name-fix)
+    if (!obj.name) {
+      if (obj.userData && obj.userData.vibexeFactory) {
+        obj.name = (obj.userData.vibexeFactory === "animatedCharacter" ? "Character_" : "Object_") + obj.uuid.slice(0, 8);
+      } else if (obj.type === "Group" && obj.children && obj.children.length > 0) {
+        obj.name = "Group_" + obj.uuid.slice(0, 8);
+      }
+      if (obj.name) console.log("[GameEditorBridge] Auto-named:", obj.name);
     }
     if (!obj.name) return;
     // Notify parent that scene has unsaved changes
@@ -1220,9 +1224,13 @@ export function getVisualEditBridgeScript(): string {
         if (!editor || !editor.scene) break;
         var allTransforms = {};
         editor.scene.traverse(function(child) {
-          // Auto-name unnamed objects with vibexe factory metadata
-          if (!child.name && child.userData && child.userData.vibexeFactory) {
-            child.name = (child.userData.vibexeFactory === "animatedCharacter" ? "Character_" : "Object_") + child.uuid.slice(0, 8);
+          // Auto-name unnamed objects (supports pre-fix games without vibexeFactory metadata)
+          if (!child.name) {
+            if (child.userData && child.userData.vibexeFactory) {
+              child.name = (child.userData.vibexeFactory === "animatedCharacter" ? "Character_" : "Object_") + child.uuid.slice(0, 8);
+            } else if (child.type === "Group" && child.children && child.children.length > 0) {
+              child.name = "Group_" + child.uuid.slice(0, 8);
+            }
           }
           if (!child.name) return;
           if (child.name.indexOf("__editor_") === 0) return;
