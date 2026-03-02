@@ -488,5 +488,285 @@ export function getVisualEditBridgeScript(): string {
     }
   });
 })();
+
+// ===== Game Editor Bridge =====
+// Second IIFE — handles 3D scene editing (raycaster, TransformControls, scene tree).
+// Only activates when THREE.js is available and game-editor-enable is received.
+(function() {
+  if (!window.THREE) return; // Not a 3D game — skip entirely
+
+  var active = false;
+  var raycaster = null;
+  var mouse = null;
+  var selectedObj = null;
+  var boxHelper = null;
+  var transformControls = null;
+  var editor = null;
+  var editorAnimId = 0;
+
+  // Notify parent that game editor bridge is ready
+  try {
+    window.parent.postMessage({ type: "game-editor-bridge-loaded" }, "*");
+  } catch(e) {}
+
+  // Wait for __vibexe_editor__ to appear (Game3D.tsx exposes it after menu dismiss)
+  function waitForEditor(cb) {
+    if (window.__vibexe_editor__) { cb(window.__vibexe_editor__); return; }
+    var attempts = 0;
+    var timer = setInterval(function() {
+      if (window.__vibexe_editor__) {
+        clearInterval(timer);
+        cb(window.__vibexe_editor__);
+      } else if (++attempts > 200) {
+        clearInterval(timer);
+        console.warn("[GameEditorBridge] Timed out waiting for __vibexe_editor__");
+      }
+    }, 50);
+  }
+
+  // ---- Scene Serializer ----
+  function serializeNode(obj) {
+    if (!obj) return null;
+    var children = [];
+    if (obj.children) {
+      for (var i = 0; i < obj.children.length; i++) {
+        var child = obj.children[i];
+        if (child === boxHelper || child === transformControls) continue;
+        if (child.type === "BoxHelper" || child.type === "TransformControlsGizmo" || child.type === "TransformControlsPlane") continue;
+        if (child.isTransformControls) continue;
+        var s = serializeNode(child);
+        if (s) children.push(s);
+      }
+    }
+    var matColor = null;
+    if (obj.material && obj.material.color) {
+      try { matColor = "#" + obj.material.color.getHexString(); } catch(e) {}
+    }
+    if (!matColor && obj.isGroup && obj.children) {
+      for (var j = 0; j < obj.children.length; j++) {
+        var c = obj.children[j];
+        if (c.material && c.material.color) {
+          try { matColor = "#" + c.material.color.getHexString(); } catch(e) {}
+          break;
+        }
+      }
+    }
+    return {
+      uuid: obj.uuid, name: obj.name || obj.type, type: obj.type || "Object3D",
+      position: { x: obj.position.x, y: obj.position.y, z: obj.position.z },
+      rotation: { x: obj.rotation.x*180/Math.PI, y: obj.rotation.y*180/Math.PI, z: obj.rotation.z*180/Math.PI },
+      scale: { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z },
+      visible: obj.visible !== false, userData: obj.userData || {}, children: children,
+      _isMesh: !!obj.isMesh, _isLight: !!obj.isLight, _isGroup: !!obj.isGroup, _materialColor: matColor
+    };
+  }
+
+  function sendSceneTree() {
+    if (!editor || !editor.scene) return;
+    window.parent.postMessage({ type: "game-editor-scene-tree", tree: serializeNode(editor.scene) }, "*");
+  }
+
+  function sendSelectedObject(obj) {
+    if (!obj) { window.parent.postMessage({ type: "game-editor-object-deselected" }, "*"); return; }
+    var matColor = null;
+    if (obj.material && obj.material.color) {
+      try { matColor = "#" + obj.material.color.getHexString(); } catch(e) {}
+    }
+    window.parent.postMessage({
+      type: "game-editor-object-selected", uuid: obj.uuid, name: obj.name || obj.type,
+      objType: obj.userData && obj.userData.vibexeType || obj.type,
+      position: { x: obj.position.x, y: obj.position.y, z: obj.position.z },
+      rotation: { x: obj.rotation.x*180/Math.PI, y: obj.rotation.y*180/Math.PI, z: obj.rotation.z*180/Math.PI },
+      scale: { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z },
+      visible: obj.visible !== false, castShadow: !!obj.castShadow,
+      userData: obj.userData || {}, _materialColor: matColor
+    }, "*");
+  }
+
+  // ---- Selection ----
+  function deselectObject() {
+    if (boxHelper && editor) { editor.scene.remove(boxHelper); if (boxHelper.dispose) boxHelper.dispose(); boxHelper = null; }
+    if (transformControls && editor) { transformControls.detach(); editor.scene.remove(transformControls); transformControls.dispose(); transformControls = null; }
+    selectedObj = null;
+    window.parent.postMessage({ type: "game-editor-object-deselected" }, "*");
+  }
+
+  function selectObject(obj) {
+    deselectObject();
+    if (!obj || !editor) return;
+    selectedObj = obj;
+    var THREE = window.THREE;
+    boxHelper = new THREE.BoxHelper(obj, 0x00ff88);
+    boxHelper.name = "__editor_box_helper__";
+    editor.scene.add(boxHelper);
+    if (THREE.TransformControls) {
+      transformControls = new THREE.TransformControls(editor.camera, editor.renderer.domElement);
+      transformControls.name = "__editor_transform_controls__";
+      transformControls.attach(obj);
+      transformControls.addEventListener("dragging-changed", function(e) {
+        if (editor.orbitControls) editor.orbitControls.enabled = !e.value;
+      });
+      transformControls.addEventListener("objectChange", function() {
+        if (selectedObj) { sendSelectedObject(selectedObj); if (boxHelper) boxHelper.update(); }
+      });
+      editor.scene.add(transformControls);
+    }
+    sendSelectedObject(obj);
+  }
+
+  function findByUuid(obj, uuid) {
+    if (!obj) return null;
+    if (obj.uuid === uuid) return obj;
+    if (obj.children) { for (var i = 0; i < obj.children.length; i++) { var f = findByUuid(obj.children[i], uuid); if (f) return f; } }
+    return null;
+  }
+
+  function findSceneParent(obj) {
+    if (!obj || !editor) return obj;
+    var cur = obj;
+    while (cur.parent && cur.parent !== editor.scene) cur = cur.parent;
+    return cur;
+  }
+
+  // ---- Click + Keyboard ----
+  function onCanvasClick(e) {
+    if (!active || !editor) return;
+    if (transformControls && transformControls.dragging) return;
+    var THREE = window.THREE;
+    var rect = editor.renderer.domElement.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, editor.camera);
+    var meshes = [];
+    editor.scene.traverse(function(child) {
+      if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && !(child.name||"").indexOf("__editor_") === 0) {
+        meshes.push(child);
+      }
+    });
+    var intersects = raycaster.intersectObjects(meshes, false);
+    if (intersects.length > 0) {
+      var target = findSceneParent(intersects[0].object);
+      if (target && target !== editor.scene) selectObject(target);
+    } else {
+      deselectObject();
+    }
+  }
+
+  function onKeyDown(e) {
+    if (!active) return;
+    var tag = (e.target || {}).tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    switch (e.key) {
+      case "w": case "W":
+        if (transformControls) transformControls.setMode("translate");
+        window.parent.postMessage({ type: "game-editor-gizmo-mode", mode: "translate" }, "*");
+        e.preventDefault(); break;
+      case "e": case "E":
+        if (transformControls) transformControls.setMode("rotate");
+        window.parent.postMessage({ type: "game-editor-gizmo-mode", mode: "rotate" }, "*");
+        e.preventDefault(); break;
+      case "r": case "R":
+        if (transformControls) transformControls.setMode("scale");
+        window.parent.postMessage({ type: "game-editor-gizmo-mode", mode: "scale" }, "*");
+        e.preventDefault(); break;
+      case "Escape": deselectObject(); e.preventDefault(); break;
+      case "Delete": case "Backspace":
+        if (selectedObj && editor) {
+          var uuid = selectedObj.uuid;
+          editor.scene.remove(selectedObj);
+          deselectObject(); sendSceneTree();
+          window.parent.postMessage({ type: "game-editor-object-deleted", uuid: uuid }, "*");
+        }
+        e.preventDefault(); break;
+    }
+  }
+
+  // ---- Editor Loop ----
+  function editorLoop() {
+    if (!active || !editor) return;
+    editorAnimId = requestAnimationFrame(editorLoop);
+    if (editor.orbitControls) editor.orbitControls.update();
+    if (boxHelper && selectedObj) boxHelper.update();
+    editor.renderer.render(editor.scene, editor.camera);
+  }
+
+  // ---- Activate / Deactivate ----
+  function activateBridge() {
+    if (active) return;
+    waitForEditor(function(ed) {
+      editor = ed;
+      active = true;
+      var THREE = window.THREE;
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+      editor.pause();
+      editor.renderer.domElement.addEventListener("click", onCanvasClick);
+      window.addEventListener("keydown", onKeyDown, true);
+      editorLoop();
+      setTimeout(function() {
+        sendSceneTree();
+        window.parent.postMessage({ type: "game-editor-ready" }, "*");
+      }, 100);
+    });
+  }
+
+  function deactivateBridge() {
+    if (!active) return;
+    active = false;
+    cancelAnimationFrame(editorAnimId);
+    deselectObject();
+    if (editor) {
+      editor.renderer.domElement.removeEventListener("click", onCanvasClick);
+      editor.resume();
+    }
+    window.removeEventListener("keydown", onKeyDown, true);
+    raycaster = null; mouse = null; editor = null;
+  }
+
+  // ---- Property Updates ----
+  function updateProperty(uuid, property, value) {
+    if (!editor) return;
+    var obj = findByUuid(editor.scene, uuid);
+    if (!obj) return;
+    switch (property) {
+      case "position.x": obj.position.x = Number(value); break;
+      case "position.y": obj.position.y = Number(value); break;
+      case "position.z": obj.position.z = Number(value); break;
+      case "rotation.x": obj.rotation.x = Number(value) * Math.PI / 180; break;
+      case "rotation.y": obj.rotation.y = Number(value) * Math.PI / 180; break;
+      case "rotation.z": obj.rotation.z = Number(value) * Math.PI / 180; break;
+      case "scale.x": obj.scale.x = Number(value); break;
+      case "scale.y": obj.scale.y = Number(value); break;
+      case "scale.z": obj.scale.z = Number(value); break;
+      case "visible": obj.visible = !!value; break;
+      case "name": obj.name = String(value); break;
+    }
+    if (boxHelper && selectedObj && selectedObj.uuid === uuid) boxHelper.update();
+    sendSelectedObject(obj); sendSceneTree();
+  }
+
+  // ---- PostMessage Handler ----
+  window.addEventListener("message", function(e) {
+    var d = e.data;
+    if (!d || !d.type) return;
+    switch (d.type) {
+      case "game-editor-enable": activateBridge(); break;
+      case "game-editor-disable": deactivateBridge(); break;
+      case "game-editor-set-mode":
+        if (transformControls && d.mode) transformControls.setMode(d.mode); break;
+      case "game-editor-select-by-uuid":
+        if (editor && d.uuid) { var obj = findByUuid(editor.scene, d.uuid); if (obj) selectObject(obj); } break;
+      case "game-editor-deselect": deselectObject(); break;
+      case "game-editor-update-property":
+        if (d.uuid && d.property !== undefined) updateProperty(d.uuid, d.property, d.value); break;
+      case "game-editor-delete-object":
+        if (editor && d.uuid) {
+          var toDelete = findByUuid(editor.scene, d.uuid);
+          if (toDelete) { if (selectedObj && selectedObj.uuid === d.uuid) deselectObject(); editor.scene.remove(toDelete); sendSceneTree(); }
+        } break;
+      case "game-editor-request-tree": sendSceneTree(); break;
+    }
+  });
+})();
 `;
 }
