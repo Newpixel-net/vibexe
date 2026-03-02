@@ -868,13 +868,21 @@ export function getVisualEditBridgeScript(): string {
   }
 
   // ---- Click + Drag + Keyboard ----
+  var lastHandleClickTime = 0;
   function handleClick(clientX, clientY, source) {
-    showDebug("Click from " + source + " at (" + Math.round(clientX) + ", " + Math.round(clientY) + ") active=" + active + " editor=" + !!editor);
+    // Dedup: multiple listeners fire for same physical click — ignore if < 50ms apart
+    var now = Date.now();
+    if (now - lastHandleClickTime < 50) return;
+    lastHandleClickTime = now;
+    showDebug("Click from " + source + " at (" + Math.round(clientX) + ", " + Math.round(clientY) + ")");
     if (!active || !editor) { showDebug("SKIP: active=" + active + " editor=" + !!editor); return; }
     if (transformControls && transformControls.dragging) { showDebug("SKIP: gizmo dragging"); return; }
     var rect = editor.renderer.domElement.getBoundingClientRect();
     showDebug("Canvas rect: " + Math.round(rect.left) + "," + Math.round(rect.top) + " " + Math.round(rect.width) + "x" + Math.round(rect.height) + " | Click: " + Math.round(clientX) + "," + Math.round(clientY));
     var target = raycastMeshes(clientX, clientY);
+    // Skip editor objects (gizmo, box helper, grid)
+    if (target && (target.name || "").indexOf("__editor_") === 0) target = null;
+    if (target === boxHelper || target === transformControls) target = null;
     if (target && target !== editor.scene) {
       showDebug("HIT: " + (target.name || target.type) + " (uuid=" + target.uuid.slice(0,8) + ")");
       var now = Date.now();
@@ -884,8 +892,6 @@ export function getVisualEditBridgeScript(): string {
       if (isDoubleClick) {
         selectObject(target);
         startXZDrag(target, clientX, clientY);
-      } else if (selectedObj && selectedObj.uuid === target.uuid) {
-        startXZDrag(selectedObj, clientX, clientY);
       } else {
         selectObject(target);
       }
