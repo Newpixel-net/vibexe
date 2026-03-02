@@ -38,9 +38,11 @@ export function GameEditorPanel() {
 
 	const handleTreeSelect = useCallback(
 		(uuid: string) => {
+			// Never allow selecting the scene root — causes TransformControls infinite recursion
+			if (sceneTree && uuid === sceneTree.uuid) return;
 			selectObjectByUuid(uuid);
 		},
-		[selectObjectByUuid],
+		[selectObjectByUuid, sceneTree],
 	);
 
 	const handlePropertyChange = useCallback(

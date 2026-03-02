@@ -635,17 +635,23 @@ export function getVisualEditBridgeScript(): string {
   }
 
   function selectObject(obj) {
-    deselectObject();
     if (!obj || !editor) return;
-    // Never attach TransformControls to the scene root — causes infinite recursion
-    if (obj === editor.scene) { showDebug("SKIP: cannot select scene root"); return; }
+    // Never attach TransformControls to the scene root — causes infinite recursion in updateMatrixWorld
+    // Triple-check: reference equality, type check, AND parent check (scene root has no parent)
+    if (obj === editor.scene || obj.type === "Scene" || !obj.parent) {
+      showDebug("SKIP: cannot select scene root (type=" + obj.type + " parent=" + !!obj.parent + ")");
+      return;
+    }
+    deselectObject();
     selectedObj = obj;
     var THREE = window.THREE;
     boxHelper = new THREE.BoxHelper(obj, 0x00ff88);
     boxHelper.name = "__editor_box_helper__";
     editor.scene.add(boxHelper);
     if (THREE.TransformControls) {
-      console.log("[GameEditorBridge] TransformControls available, creating gizmo");
+      // Final safety: never attach to scene root
+      if (obj === editor.scene || obj.type === "Scene") { showDebug("ABORT: refusing to attach TC to scene"); return; }
+      console.log("[GameEditorBridge] TransformControls available, creating gizmo for: " + (obj.name || obj.type));
       transformControls = new THREE.TransformControls(editor.camera, editor.renderer.domElement);
       transformControls.name = "__editor_transform_controls__";
       transformControls.attach(obj);
@@ -1054,7 +1060,13 @@ export function getVisualEditBridgeScript(): string {
     editorAnimId = requestAnimationFrame(editorLoop);
     if (editor.orbitControls) editor.orbitControls.update();
     if (boxHelper && selectedObj) boxHelper.update();
-    editor.renderer.render(editor.scene, editor.camera);
+    try {
+      editor.renderer.render(editor.scene, editor.camera);
+    } catch (e) {
+      // Prevent cascading crashes (e.g., TransformControls infinite recursion)
+      console.error("[GameEditorBridge] Render error — cleaning up:", e.message);
+      deselectObject();
+    }
   }
 
   // ---- Activate / Deactivate ----
@@ -1219,7 +1231,11 @@ export function getVisualEditBridgeScript(): string {
       case "game-editor-set-mode":
         if (transformControls && d.mode) transformControls.setMode(d.mode); break;
       case "game-editor-select-by-uuid":
-        if (editor && d.uuid) { var obj = findByUuid(editor.scene, d.uuid); if (obj) selectObject(obj); } break;
+        if (editor && d.uuid) {
+          var obj = findByUuid(editor.scene, d.uuid);
+          // Skip scene root at handler level too (defense in depth)
+          if (obj && obj !== editor.scene && obj.type !== "Scene") selectObject(obj);
+        } break;
       case "game-editor-deselect": deselectObject(); break;
       case "game-editor-update-property":
         if (d.uuid && d.property !== undefined) updateProperty(d.uuid, d.property, d.value); break;
