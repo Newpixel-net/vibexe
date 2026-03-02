@@ -646,6 +646,12 @@ export function SandpackPreview({
 				if (updated !== sceneFile.content) {
 					console.log("[GameEditor] Persisting transform for:", objName, "pos:", pos);
 					currentOnFileUpdate(sceneFile.id, updated);
+					// Also save to database so changes survive page refresh
+					fetch(`/api/app-builder/apps/${appId}/files`, {
+						method: "PUT",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ fileId: sceneFile.id, content: updated }),
+					}).catch((err) => console.warn("[GameEditor] DB save failed:", err));
 				} else {
 					console.warn("[GameEditor] No change after updateTransformInSource for:", objName);
 				}
@@ -828,7 +834,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=14`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=15`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);
