@@ -875,7 +875,12 @@ export function getVisualEditBridgeScript(): string {
       if (obj.userData && obj.userData.vibexeFactory) {
         obj.name = (obj.userData.vibexeFactory === "animatedCharacter" ? "Character_" : "Object_") + obj.uuid.slice(0, 8);
       } else if (obj.type === "Group" && obj.children && obj.children.length > 0 && editor && obj.parent === editor.scene) {
-        obj.name = "Group_" + obj.uuid.slice(0, 8);
+        // Use stable child index (not UUID) so name persists across reloads
+        var _ci = -1;
+        for (var _i = 0; _i < editor.scene.children.length; _i++) {
+          if (editor.scene.children[_i] === obj) { _ci = _i; break; }
+        }
+        obj.name = "Group_child" + _ci;
       }
       if (obj.name) console.log("[GameEditorBridge] Auto-named:", obj.name);
     }
@@ -1231,7 +1236,12 @@ export function getVisualEditBridgeScript(): string {
             if (child.userData && child.userData.vibexeFactory) {
               child.name = (child.userData.vibexeFactory === "animatedCharacter" ? "Character_" : "Object_") + child.uuid.slice(0, 8);
             } else if (child.type === "Group" && child.children && child.children.length > 0 && child.parent === editor.scene) {
-              child.name = "Group_" + child.uuid.slice(0, 8);
+              // Use stable child index (not UUID) so name persists across reloads
+              var _ci2 = -1;
+              for (var _i2 = 0; _i2 < editor.scene.children.length; _i2++) {
+                if (editor.scene.children[_i2] === child) { _ci2 = _i2; break; }
+              }
+              child.name = "Group_child" + _ci2;
             }
           }
           if (!child.name) return;
