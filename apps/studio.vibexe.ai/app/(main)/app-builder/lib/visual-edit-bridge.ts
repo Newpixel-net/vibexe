@@ -532,9 +532,20 @@ export function getVisualEditBridgeScript(): string {
     }, 50);
   }
 
+  // ---- Ground plane detection ----
+  // Game3D.tsx creates a large invisible-ish PlaneGeometry for physics. Skip it from raycasting + tree.
+  function isGroundPlane(obj) {
+    if (!obj || !obj.isMesh || obj.name) return false;
+    var geo = obj.geometry;
+    if (!geo || geo.type !== "PlaneGeometry") return false;
+    var p = geo.parameters;
+    return p && (p.width >= 50 || p.height >= 50);
+  }
+
   // ---- Scene Serializer ----
   function serializeNode(obj) {
     if (!obj) return null;
+    if (isGroundPlane(obj)) return null;
     var children = [];
     if (obj.children) {
       for (var i = 0; i < obj.children.length; i++) {
@@ -817,7 +828,7 @@ export function getVisualEditBridgeScript(): string {
     // Pass 1: standard mesh raycasting (works for static Mesh objects)
     var meshes = [];
     editor.scene.traverse(function(child) {
-      if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && (child.name||"").indexOf("__editor_") !== 0) {
+      if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && (child.name||"").indexOf("__editor_") !== 0 && !isGroundPlane(child)) {
         meshes.push(child);
       }
     });
@@ -835,6 +846,7 @@ export function getVisualEditBridgeScript(): string {
       if (child === boxHelper || child === transformControls) continue;
       if (child.isLight || child.type === "HemisphereLight" || child.type === "AmbientLight" || child.type === "DirectionalLight") continue;
       if (child.type === "GridHelper") continue;
+      if (isGroundPlane(child)) continue;
       var box = new THREE.Box3().setFromObject(child);
       if (box.isEmpty()) continue;
       // Expand tiny boxes (SkinnedMesh bind-pose) to a minimum clickable size
@@ -883,6 +895,8 @@ export function getVisualEditBridgeScript(): string {
     // Skip editor objects (gizmo, box helper, grid)
     if (target && (target.name || "").indexOf("__editor_") === 0) target = null;
     if (target === boxHelper || target === transformControls) target = null;
+    // Also skip unnamed infrastructure meshes (e.g. ground plane remnants)
+    if (target && !target.name && target.isMesh && !target.userData?.vibexeType && !target.userData?.vibexeFactory) target = null;
     if (target && target !== editor.scene) {
       showDebug("HIT: " + (target.name || target.type) + " (uuid=" + target.uuid.slice(0,8) + ")");
       var now = Date.now();
@@ -896,7 +910,9 @@ export function getVisualEditBridgeScript(): string {
         selectObject(target);
       }
     } else {
-      showDebug("MISS: no object at (" + Math.round(clientX) + "," + Math.round(clientY) + ") meshCount=" + (editor.scene ? editor.scene.children.length : 0));
+      var gameObjCount = 0;
+      if (editor.scene) { for (var ci = 0; ci < editor.scene.children.length; ci++) { var cc = editor.scene.children[ci]; if (cc.name && cc.name.indexOf("__editor_") !== 0 && !isGroundPlane(cc)) gameObjCount++; } }
+      showDebug("MISS: no object at (" + Math.round(clientX) + "," + Math.round(clientY) + ") gameObjects=" + gameObjCount);
       lastClickTime = 0;
       lastClickUuid = "";
       deselectObject();
@@ -983,6 +999,17 @@ export function getVisualEditBridgeScript(): string {
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
       editor.pause();
+      // Create OrbitControls for camera movement in editor mode
+      if (THREE.OrbitControls && !editor.orbitControls) {
+        editor.orbitControls = new THREE.OrbitControls(editor.camera, editor.renderer.domElement);
+        editor.orbitControls._vibexeEditorCreated = true;
+        editor.orbitControls.enableDamping = true;
+        editor.orbitControls.dampingFactor = 0.12;
+        editor.orbitControls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+        // Look at center of scene initially
+        editor.orbitControls.target.set(0, 2, 0);
+        editor.orbitControls.update();
+      }
       showDebug("Bridge ACTIVATED. Canvas: " + editor.renderer.domElement.tagName + " " + editor.renderer.domElement.width + "x" + editor.renderer.domElement.height);
       // Register click handlers: window capture + canvas direct + pointerdown backup
       window.addEventListener("mousedown", onCanvasMouseDown, true);
@@ -1034,6 +1061,11 @@ export function getVisualEditBridgeScript(): string {
     deselectObject();
     if (isDragging) endXZDrag();
     if (gridHelper && editor) { editor.scene.remove(gridHelper); if (gridHelper.dispose) gridHelper.dispose(); gridHelper = null; }
+    // Dispose editor-created OrbitControls
+    if (editor && editor.orbitControls && editor.orbitControls._vibexeEditorCreated) {
+      editor.orbitControls.dispose();
+      editor.orbitControls = null;
+    }
     gridSnap = false;
     undoStack = [];
     // Restore game HUD pointer events
