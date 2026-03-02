@@ -2157,6 +2157,317 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           },
         };
 
+        // ===== Embedded Scene Editor Bridge =====
+        // Runs in same context as game — no external script / IIFE issues.
+        // Handles: postMessage, raycaster selection, TransformControls, scene tree serialization.
+        {
+          let _bridgeActive = false;
+          let _raycaster: any = null;
+          let _mouse: any = null;
+          let _selectedObj: any = null;
+          let _boxHelper: any = null;
+          let _transformControls: any = null;
+          let _editorAnimId = 0;
+
+          const editor = (window as any).__vibexe_editor__;
+
+          // ---- Scene Serializer ----
+          function _serializeNode(obj: any): any {
+            if (!obj) return null;
+            const children: any[] = [];
+            if (obj.children) {
+              for (let i = 0; i < obj.children.length; i++) {
+                const child = obj.children[i];
+                if (child === _boxHelper) continue;
+                if (child === _transformControls) continue;
+                if (child.type === "BoxHelper" || child.type === "TransformControlsGizmo" || child.type === "TransformControlsPlane") continue;
+                if (child.isTransformControls) continue;
+                const s = _serializeNode(child);
+                if (s) children.push(s);
+              }
+            }
+            let matColor: string | null = null;
+            if (obj.material && obj.material.color) {
+              try { matColor = "#" + obj.material.color.getHexString(); } catch {}
+            }
+            if (!matColor && obj.isGroup && obj.children) {
+              for (let j = 0; j < obj.children.length; j++) {
+                const c = obj.children[j];
+                if (c.material && c.material.color) {
+                  try { matColor = "#" + c.material.color.getHexString(); } catch {}
+                  break;
+                }
+              }
+            }
+            return {
+              uuid: obj.uuid,
+              name: obj.name || obj.type,
+              type: obj.type || "Object3D",
+              position: { x: obj.position.x, y: obj.position.y, z: obj.position.z },
+              rotation: {
+                x: obj.rotation.x * 180 / Math.PI,
+                y: obj.rotation.y * 180 / Math.PI,
+                z: obj.rotation.z * 180 / Math.PI,
+              },
+              scale: { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z },
+              visible: obj.visible !== false,
+              userData: obj.userData || {},
+              children,
+              _isMesh: !!obj.isMesh,
+              _isLight: !!obj.isLight,
+              _isGroup: !!obj.isGroup,
+              _materialColor: matColor,
+            };
+          }
+
+          function _sendSceneTree() {
+            const tree = _serializeNode(scene);
+            window.parent.postMessage({ type: "game-editor-scene-tree", tree }, "*");
+          }
+
+          function _sendSelectedObject(obj: any) {
+            if (!obj) {
+              window.parent.postMessage({ type: "game-editor-object-deselected" }, "*");
+              return;
+            }
+            let matColor: string | null = null;
+            if (obj.material && obj.material.color) {
+              try { matColor = "#" + obj.material.color.getHexString(); } catch {}
+            }
+            window.parent.postMessage({
+              type: "game-editor-object-selected",
+              uuid: obj.uuid,
+              name: obj.name || obj.type,
+              objType: obj.userData?.vibexeType || obj.type,
+              position: { x: obj.position.x, y: obj.position.y, z: obj.position.z },
+              rotation: {
+                x: obj.rotation.x * 180 / Math.PI,
+                y: obj.rotation.y * 180 / Math.PI,
+                z: obj.rotation.z * 180 / Math.PI,
+              },
+              scale: { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z },
+              visible: obj.visible !== false,
+              castShadow: !!obj.castShadow,
+              userData: obj.userData || {},
+              _materialColor: matColor,
+            }, "*");
+          }
+
+          // ---- Selection ----
+          function _deselectObject() {
+            if (_boxHelper) {
+              scene.remove(_boxHelper);
+              if (_boxHelper.dispose) _boxHelper.dispose();
+              _boxHelper = null;
+            }
+            if (_transformControls) {
+              _transformControls.detach();
+              scene.remove(_transformControls);
+              _transformControls.dispose();
+              _transformControls = null;
+            }
+            _selectedObj = null;
+            window.parent.postMessage({ type: "game-editor-object-deselected" }, "*");
+          }
+
+          function _selectObject(obj: any) {
+            _deselectObject();
+            if (!obj) return;
+            _selectedObj = obj;
+
+            _boxHelper = new THREE.BoxHelper(obj, 0x00ff88);
+            _boxHelper.name = "__editor_box_helper__";
+            scene.add(_boxHelper);
+
+            if (THREE.TransformControls) {
+              _transformControls = new THREE.TransformControls(camera, renderer.domElement);
+              _transformControls.name = "__editor_transform_controls__";
+              _transformControls.attach(obj);
+              _transformControls.addEventListener("dragging-changed", (e: any) => {
+                if (editor.orbitControls) editor.orbitControls.enabled = !e.value;
+              });
+              _transformControls.addEventListener("objectChange", () => {
+                if (_selectedObj) {
+                  _sendSelectedObject(_selectedObj);
+                  if (_boxHelper) _boxHelper.update();
+                }
+              });
+              scene.add(_transformControls);
+            }
+            _sendSelectedObject(obj);
+          }
+
+          function _findByUuid(obj: any, uuid: string): any {
+            if (!obj) return null;
+            if (obj.uuid === uuid) return obj;
+            if (obj.children) {
+              for (let i = 0; i < obj.children.length; i++) {
+                const found = _findByUuid(obj.children[i], uuid);
+                if (found) return found;
+              }
+            }
+            return null;
+          }
+
+          function _findSceneParent(obj: any): any {
+            if (!obj) return obj;
+            let current = obj;
+            while (current.parent && current.parent !== scene) current = current.parent;
+            return current;
+          }
+
+          // ---- Click + Keyboard ----
+          function _onCanvasClick(e: MouseEvent) {
+            if (!_bridgeActive) return;
+            if (_transformControls && _transformControls.dragging) return;
+            const rect = renderer.domElement.getBoundingClientRect();
+            _mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            _mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            _raycaster.setFromCamera(_mouse, camera);
+            const meshes: any[] = [];
+            scene.traverse((child: any) => {
+              if (child.isMesh && child !== _boxHelper &&
+                  child.type !== "TransformControlsGizmo" &&
+                  child.type !== "TransformControlsPlane" &&
+                  !child.name.startsWith("__editor_")) {
+                meshes.push(child);
+              }
+            });
+            const intersects = _raycaster.intersectObjects(meshes, false);
+            if (intersects.length > 0) {
+              const target = _findSceneParent(intersects[0].object);
+              if (target && target !== scene) _selectObject(target);
+            } else {
+              _deselectObject();
+            }
+          }
+
+          function _onKeyDown(e: KeyboardEvent) {
+            if (!_bridgeActive) return;
+            const tag = (e.target as HTMLElement)?.tagName;
+            if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+            switch (e.key) {
+              case "w": case "W":
+                if (_transformControls) _transformControls.setMode("translate");
+                window.parent.postMessage({ type: "game-editor-gizmo-mode", mode: "translate" }, "*");
+                e.preventDefault(); break;
+              case "e": case "E":
+                if (_transformControls) _transformControls.setMode("rotate");
+                window.parent.postMessage({ type: "game-editor-gizmo-mode", mode: "rotate" }, "*");
+                e.preventDefault(); break;
+              case "r": case "R":
+                if (_transformControls) _transformControls.setMode("scale");
+                window.parent.postMessage({ type: "game-editor-gizmo-mode", mode: "scale" }, "*");
+                e.preventDefault(); break;
+              case "Escape":
+                _deselectObject(); e.preventDefault(); break;
+              case "Delete": case "Backspace":
+                if (_selectedObj) {
+                  const uuid = _selectedObj.uuid;
+                  scene.remove(_selectedObj);
+                  _deselectObject();
+                  _sendSceneTree();
+                  window.parent.postMessage({ type: "game-editor-object-deleted", uuid }, "*");
+                }
+                e.preventDefault(); break;
+            }
+          }
+
+          // ---- Editor Loop ----
+          function _editorLoop() {
+            if (!_bridgeActive) return;
+            _editorAnimId = requestAnimationFrame(_editorLoop);
+            if (editor.orbitControls) editor.orbitControls.update();
+            if (_boxHelper && _selectedObj) _boxHelper.update();
+            renderer.render(scene, camera);
+          }
+
+          // ---- Activate / Deactivate ----
+          function _activateBridge() {
+            if (_bridgeActive) return;
+            _bridgeActive = true;
+            _raycaster = new THREE.Raycaster();
+            _mouse = new THREE.Vector2();
+            editor.pause();
+            renderer.domElement.addEventListener("click", _onCanvasClick);
+            window.addEventListener("keydown", _onKeyDown, true);
+            _editorLoop();
+            setTimeout(() => {
+              _sendSceneTree();
+              window.parent.postMessage({ type: "game-editor-ready" }, "*");
+            }, 100);
+          }
+
+          function _deactivateBridge() {
+            if (!_bridgeActive) return;
+            _bridgeActive = false;
+            cancelAnimationFrame(_editorAnimId);
+            _deselectObject();
+            renderer.domElement.removeEventListener("click", _onCanvasClick);
+            window.removeEventListener("keydown", _onKeyDown, true);
+            editor.resume();
+            _raycaster = null;
+            _mouse = null;
+          }
+
+          // ---- Property Updates ----
+          function _updateProperty(uuid: string, property: string, value: any) {
+            const obj = _findByUuid(scene, uuid);
+            if (!obj) return;
+            switch (property) {
+              case "position.x": obj.position.x = Number(value); break;
+              case "position.y": obj.position.y = Number(value); break;
+              case "position.z": obj.position.z = Number(value); break;
+              case "rotation.x": obj.rotation.x = Number(value) * Math.PI / 180; break;
+              case "rotation.y": obj.rotation.y = Number(value) * Math.PI / 180; break;
+              case "rotation.z": obj.rotation.z = Number(value) * Math.PI / 180; break;
+              case "scale.x": obj.scale.x = Number(value); break;
+              case "scale.y": obj.scale.y = Number(value); break;
+              case "scale.z": obj.scale.z = Number(value); break;
+              case "visible": obj.visible = !!value; break;
+              case "name": obj.name = String(value); break;
+            }
+            if (_boxHelper && _selectedObj && _selectedObj.uuid === uuid) _boxHelper.update();
+            _sendSelectedObject(obj);
+            _sendSceneTree();
+          }
+
+          // ---- PostMessage Handler ----
+          window.addEventListener("message", (e: MessageEvent) => {
+            const d = e.data;
+            if (!d || !d.type) return;
+            switch (d.type) {
+              case "game-editor-enable": _activateBridge(); break;
+              case "game-editor-disable": _deactivateBridge(); break;
+              case "game-editor-set-mode":
+                if (_transformControls && d.mode) _transformControls.setMode(d.mode);
+                break;
+              case "game-editor-select-by-uuid":
+                if (d.uuid) { const obj = _findByUuid(scene, d.uuid); if (obj) _selectObject(obj); }
+                break;
+              case "game-editor-deselect": _deselectObject(); break;
+              case "game-editor-update-property":
+                if (d.uuid && d.property !== undefined) _updateProperty(d.uuid, d.property, d.value);
+                break;
+              case "game-editor-delete-object":
+                if (d.uuid) {
+                  const toDelete = _findByUuid(scene, d.uuid);
+                  if (toDelete) {
+                    if (_selectedObj && _selectedObj.uuid === d.uuid) _deselectObject();
+                    scene.remove(toDelete);
+                    _sendSceneTree();
+                  }
+                }
+                break;
+              case "game-editor-request-tree": _sendSceneTree(); break;
+            }
+          });
+
+          // Notify parent that bridge is ready to receive commands
+          try { window.parent.postMessage({ type: "game-editor-bridge-loaded" }, "*"); } catch {}
+        }
+        // ===== End Scene Editor Bridge =====
+
         clock.start();
         const animate = () => {
           if (disposed) return;

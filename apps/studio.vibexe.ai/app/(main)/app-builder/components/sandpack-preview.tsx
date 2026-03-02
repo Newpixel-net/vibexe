@@ -510,7 +510,7 @@ export function SandpackPreview({
 				gameEditor.updateSelectedObject({
 					uuid: data.uuid,
 					name: data.name,
-					type: data.type,
+					type: data.objType || data.type,
 					position: data.position,
 					rotation: data.rotation,
 					scale: data.scale,
@@ -606,10 +606,8 @@ export function SandpackPreview({
 			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js");
 			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js");
 		}
-		// Game editor bridge script — pauses game, enables raycaster + gizmo selection
-		if (isGameMode && dependencies.three && typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/game-editor-bridge`);
-		}
+		// Game editor bridge is now embedded directly in Game3D.tsx template
+		// (no external script needed — runs in same context as game engine)
 		return resources;
 	}, [dependencies, isGameMode]);
 
