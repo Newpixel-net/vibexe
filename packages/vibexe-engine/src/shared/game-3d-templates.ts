@@ -3457,6 +3457,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           }
 
           function _selectObject(obj: any) {
+            // Never attach TransformControls to the scene root — causes infinite recursion
+            if (obj === scene) return;
             // When external bridge exists, DON'T create gizmo — let external bridge handle it.
             // Just track selection for spawn and notify parent.
             const _hasExt = !!(window as any).__vibexeExternalBridge;

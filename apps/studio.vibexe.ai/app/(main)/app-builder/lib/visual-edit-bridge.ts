@@ -637,6 +637,8 @@ export function getVisualEditBridgeScript(): string {
   function selectObject(obj) {
     deselectObject();
     if (!obj || !editor) return;
+    // Never attach TransformControls to the scene root — causes infinite recursion
+    if (obj === editor.scene) { showDebug("SKIP: cannot select scene root"); return; }
     selectedObj = obj;
     var THREE = window.THREE;
     boxHelper = new THREE.BoxHelper(obj, 0x00ff88);
