@@ -595,7 +595,7 @@ export function SandpackPreview({
 	const externalResources = useMemo(() => {
 		const resources = ["https://cdn.tailwindcss.com"];
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=3`);
 		}
 		if (dependencies.phaser) {
 			resources.push("https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js");
