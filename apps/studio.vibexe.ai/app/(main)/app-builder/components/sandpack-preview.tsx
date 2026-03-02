@@ -502,6 +502,8 @@ export function SandpackPreview({
 
 	// Save-all-transforms resolver for batch save
 	const allTransformsResolverRef = useRef<((transforms: Record<string, any>) => void) | null>(null);
+	// Spawned objects persistence — saved before restart, restored after
+	const spawnedObjectsRef = useRef<any[]>([]);
 
 	// Register save handler with game editor context
 	useEffect(() => {
@@ -676,13 +678,20 @@ export function SandpackPreview({
 			// Game editor messages
 			else if (data.type === "game-editor-bridge-loaded") {
 				console.log("[GameEditor] Bridge loaded in iframe, editor enabled:", gameEditor.enabled);
+				const iframe = iframeRef.current;
 				// If editor is already enabled (user clicked before bridge loaded), re-send enable
-				if (gameEditor.enabled) {
-					const iframe = iframeRef.current;
-					if (iframe?.contentWindow) {
-						console.log("[GameEditor] Re-sending game-editor-enable to bridge");
-						iframe.contentWindow.postMessage({ type: "game-editor-enable" }, "*");
-					}
+				if (gameEditor.enabled && iframe?.contentWindow) {
+					console.log("[GameEditor] Re-sending game-editor-enable to bridge");
+					iframe.contentWindow.postMessage({ type: "game-editor-enable" }, "*");
+				}
+				// Restore spawned objects from previous session (if any)
+				if (spawnedObjectsRef.current.length > 0 && iframe?.contentWindow) {
+					const objectsToRestore = [...spawnedObjectsRef.current];
+					console.log("[GameEditor] Restoring", objectsToRestore.length, "spawned objects after reload");
+					// Delay to let game scene fully initialize
+					setTimeout(() => {
+						iframe.contentWindow?.postMessage({ type: "game-editor-restore-spawned-objects", objects: objectsToRestore }, "*");
+					}, 500);
 				}
 			} else if (data.type === "game-editor-scene-tree") {
 				gameEditor.updateSceneTree(data.tree);
@@ -714,6 +723,14 @@ export function SandpackPreview({
 			} else if (data.type === "game-editor-object-spawned") {
 				gameEditor.requestSceneTree();
 				gameEditor.setDirty(true);
+				// Collect all spawned objects so we can restore them after refresh
+				const iframe = iframeRef.current;
+				if (iframe?.contentWindow) {
+					iframe.contentWindow.postMessage({ type: "game-editor-get-spawned-objects" }, "*");
+				}
+			} else if (data.type === "game-editor-spawned-objects") {
+				// Store spawned objects for restoration after restart
+				spawnedObjectsRef.current = data.objects || [];
 			} else if (data.type === "game-editor-all-transforms") {
 				// Resolve pending save-all-transforms promise
 				if (allTransformsResolverRef.current) {
@@ -936,7 +953,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=23`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=24`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);

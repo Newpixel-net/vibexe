@@ -3465,8 +3465,11 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             _boxHelper.name = "__editor_box_helper__";
             scene.add(_boxHelper);
 
-            if (THREE.TransformControls) {
-              _transformControls = new THREE.TransformControls(camera, renderer.domElement);
+            // TransformControls must be loaded via sync XHR shim (sandpack-adapter.ts)
+            // or externalResources CDN script. Check both captured ref and window.THREE.
+            const TC = THREE.TransformControls || (window as any).THREE?.TransformControls;
+            if (TC) {
+              _transformControls = new TC(camera, renderer.domElement);
               _transformControls.name = "__editor_transform_controls__";
               _transformControls.attach(obj);
               _transformControls.addEventListener("dragging-changed", (e: any) => {
@@ -3479,6 +3482,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 }
               });
               scene.add(_transformControls);
+            } else {
+              console.warn("[Editor] TransformControls not available — gizmo disabled. Ensure CDN loaded.");
             }
             _sendSelectedObject(obj);
           }
@@ -3551,6 +3556,11 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                         uuid: result.mesh.uuid,
                         name: result.mesh.name,
                       }, "*");
+                      // Auto-reset spawn mode after successful spawn
+                      _spawnMode = false;
+                      _spawnFactory = null;
+                      _spawnArgs = {};
+                      renderer.domElement.style.cursor = "";
                       _selectObject(result.mesh);
                     }
                   } catch (spawnErr) {
@@ -3625,25 +3635,44 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           function _activateBridge() {
             if (_bridgeActive) return;
             _bridgeActive = true;
-            _raycaster = new THREE.Raycaster();
-            _mouse = new THREE.Vector2();
+            const hasExtBridge = !!(window as any).__vibexeExternalBridge;
             editor.pause();
-            renderer.domElement.addEventListener("click", _onCanvasClick);
-            window.addEventListener("keydown", _onKeyDown, true);
+            if (!hasExtBridge) {
+              // No external bridge — embedded handles everything
+              _raycaster = new THREE.Raycaster();
+              _mouse = new THREE.Vector2();
+              renderer.domElement.addEventListener("click", _onCanvasClick);
+              window.addEventListener("keydown", _onKeyDown, true);
+            } else {
+              // External bridge handles selection/keyboard/gizmos.
+              // Embedded only handles spawn clicks.
+              _raycaster = new THREE.Raycaster();
+              _mouse = new THREE.Vector2();
+            }
             _editorLoop();
-            setTimeout(() => {
-              _sendSceneTree();
-              window.parent.postMessage({ type: "game-editor-ready" }, "*");
-            }, 100);
+            if (!hasExtBridge) {
+              setTimeout(() => {
+                _sendSceneTree();
+                window.parent.postMessage({ type: "game-editor-ready" }, "*");
+              }, 100);
+            }
           }
 
           function _deactivateBridge() {
             if (!_bridgeActive) return;
             _bridgeActive = false;
             cancelAnimationFrame(_editorAnimId);
-            _deselectObject();
-            renderer.domElement.removeEventListener("click", _onCanvasClick);
-            window.removeEventListener("keydown", _onKeyDown, true);
+            const hasExtBridge = !!(window as any).__vibexeExternalBridge;
+            if (!hasExtBridge) {
+              _deselectObject();
+              renderer.domElement.removeEventListener("click", _onCanvasClick);
+              window.removeEventListener("keydown", _onKeyDown, true);
+            }
+            // Reset spawn mode
+            _spawnMode = false;
+            _spawnFactory = null;
+            _spawnArgs = {};
+            renderer.domElement.style.cursor = "";
             editor.resume();
             _raycaster = null;
             _mouse = null;
@@ -3675,21 +3704,25 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           window.addEventListener("message", (e: MessageEvent) => {
             const d = e.data;
             if (!d || !d.type) return;
+            const _extBridge = !!(window as any).__vibexeExternalBridge;
             switch (d.type) {
               case "game-editor-enable": _activateBridge(); break;
               case "game-editor-disable": _deactivateBridge(); break;
+              // Selection/gizmo/property/delete/tree — deferred to external bridge when present
               case "game-editor-set-mode":
-                if (_transformControls && d.mode) _transformControls.setMode(d.mode);
+                if (!_extBridge && _transformControls && d.mode) _transformControls.setMode(d.mode);
                 break;
               case "game-editor-select-by-uuid":
-                if (d.uuid) { const obj = _findByUuid(scene, d.uuid); if (obj) _selectObject(obj); }
+                if (!_extBridge && d.uuid) { const obj = _findByUuid(scene, d.uuid); if (obj) _selectObject(obj); }
                 break;
-              case "game-editor-deselect": _deselectObject(); break;
+              case "game-editor-deselect":
+                if (!_extBridge) _deselectObject();
+                break;
               case "game-editor-update-property":
-                if (d.uuid && d.property !== undefined) _updateProperty(d.uuid, d.property, d.value);
+                if (!_extBridge && d.uuid && d.property !== undefined) _updateProperty(d.uuid, d.property, d.value);
                 break;
               case "game-editor-delete-object":
-                if (d.uuid) {
+                if (!_extBridge && d.uuid) {
                   const toDelete = _findByUuid(scene, d.uuid);
                   if (toDelete) {
                     if (_selectedObj && _selectedObj.uuid === d.uuid) _deselectObject();
@@ -3698,7 +3731,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   }
                 }
                 break;
-              case "game-editor-request-tree": _sendSceneTree(); break;
+              case "game-editor-request-tree":
+                if (!_extBridge) _sendSceneTree();
+                break;
               case "game-editor-get-animations":
                 if (d.uuid) {
                   const animObj = _findByUuid(scene, d.uuid);
@@ -3809,8 +3844,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             }
           });
 
-          // Notify parent that bridge is ready to receive commands
-          try { window.parent.postMessage({ type: "game-editor-bridge-loaded" }, "*"); } catch {}
+          // Notify parent that embedded bridge is ready (external bridge sends its own notification)
+          if (!(window as any).__vibexeExternalBridge) {
+            try { window.parent.postMessage({ type: "game-editor-bridge-loaded" }, "*"); } catch {}
+          }
         }
         // ===== End Scene Editor Bridge =====
 

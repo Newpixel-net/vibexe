@@ -512,6 +512,9 @@ export function getVisualEditBridgeScript(): string {
   var gridSnap = false;
   var gridHelper = null;
 
+  // Signal that external bridge is loaded — embedded bridge (game-3d-templates.ts) defers to us
+  window.__vibexeExternalBridge = true;
+
   // Notify parent that game editor bridge is ready
   try {
     window.parent.postMessage({ type: "game-editor-bridge-loaded" }, "*");
@@ -638,6 +641,7 @@ export function getVisualEditBridgeScript(): string {
     boxHelper.name = "__editor_box_helper__";
     editor.scene.add(boxHelper);
     if (THREE.TransformControls) {
+      console.log("[GameEditorBridge] TransformControls available, creating gizmo");
       transformControls = new THREE.TransformControls(editor.camera, editor.renderer.domElement);
       transformControls.name = "__editor_transform_controls__";
       transformControls.attach(obj);
@@ -667,6 +671,8 @@ export function getVisualEditBridgeScript(): string {
         if (selectedObj) { sendSelectedObject(selectedObj); if (boxHelper) boxHelper.update(); }
       });
       editor.scene.add(transformControls);
+    } else {
+      console.warn("[GameEditorBridge] TransformControls NOT available — gizmo disabled");
     }
     sendSelectedObject(obj);
   }
@@ -1048,11 +1054,14 @@ export function getVisualEditBridgeScript(): string {
   }
 
   // ---- Activate / Deactivate ----
+  var pendingActivate = false;
   function activateBridge() {
-    if (active) return;
+    if (active || pendingActivate) return;
+    pendingActivate = true;
     waitForEditor(function(ed) {
       editor = ed;
       active = true;
+      pendingActivate = false;
       var THREE = window.THREE;
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
