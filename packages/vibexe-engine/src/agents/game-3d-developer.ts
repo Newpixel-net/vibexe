@@ -445,7 +445,7 @@ src/App.tsx                        — Imports GameScene3D and renders Game3D
 **Animation Registry:** \`createAnimationMap(character, mappings?)\` — creates named animation map for a character. Auto-classifies clips by name/duration if no explicit mappings. Returns \`Record<string, string>\` mapping friendly names to actual clip names.
 **3D Text Labels:** \`createText3D("Score: 0", { x, y, z }, { size?, color?, stroke? })\` — canvas-rendered sprite for text. Returns \`{ sprite, update }\`. Call \`scene.add(sprite)\` to display. Call \`update("Score: 100")\` to change text.
 **Audio System (graceful degradation — games work silently if audio files 404):**
-- Available SFX: \`"collect"\`, \`"jump"\`, \`"explosion"\`, \`"hit"\`, \`"powerup"\`, \`"coin"\`, \`"click"\`, \`"whoosh"\`, \`"fire"\`. Available BGM: \`"theme-adventure"\`, \`"theme-dark"\`.
+- Available SFX: \`"collect"\`, \`"jump"\`, \`"explosion"\`, \`"hit"\`, \`"powerup"\`, \`"coin"\`, \`"click"\`, \`"whoosh"\`, \`"fire"\`, \`"footstep"\`, \`"zap"\`, \`"levelup"\`, \`"sword"\`. Available BGM: \`"theme-adventure"\`, \`"theme-dark"\`.
 - \`soundUrl(name)\` — builds URL for hosted audio: \`soundUrl("collect")\` → full API URL
 - \`preloadSounds(urls[])\` — preloads audio into cache for instant playback. Call in init() for frequently used SFX. Silently skips 404s.
   Example: \`await preloadSounds([soundUrl("collect"), soundUrl("jump"), soundUrl("explosion")])\`
