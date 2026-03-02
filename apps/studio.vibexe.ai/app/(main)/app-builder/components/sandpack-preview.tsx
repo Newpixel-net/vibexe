@@ -1125,7 +1125,7 @@ export function SandpackPreview({
 			</div>
 
 			{/* Sandpack container - fills remaining space */}
-			<div className="sandpack-container flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/20 p-2">
+			<div className="sandpack-container relative flex-1 flex flex-col min-h-0 overflow-hidden bg-muted/20 p-2">
 				{isMobileFrame ? (
 					/* Mobile frame mode: phone frame (left) + publish panel (right) */
 					<div className="flex items-center justify-center gap-6 w-full h-full">
@@ -1290,11 +1290,12 @@ export function SandpackPreview({
 							/>
 						)}
 
-						{/* Game Editor Panel (overlaid on right side) */}
-						{gameEditor.enabled && isGameMode && (
-							<GameEditorPanel />
-						)}
 					</div>
+				)}
+
+				{/* Game Editor Panel (overlaid on right side — works in both mobile + desktop mode) */}
+				{gameEditor.enabled && isGameMode && (
+					<GameEditorPanel />
 				)}
 			</div>
 		</div>
