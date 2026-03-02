@@ -5,8 +5,8 @@
  * Overlaid on the right side of the viewport when editor is active.
  */
 
-import { Copy, Eye, EyeOff, Focus, Package, Play, Trash2 } from "lucide-react";
-import { useCallback, useEffect } from "react";
+import { Copy, Eye, EyeOff, Focus, Package, Pause, Play, Square, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef } from "react";
 import { DragNumberInput } from "./drag-number-input";
 import { SceneTreeNode } from "./scene-tree-node";
 import { useGameEditor } from "../lib/game-editor-context";
@@ -23,11 +23,21 @@ export function GameEditorPanel() {
 		duplicateSelected,
 		animationClips,
 		currentAnimClip,
+		animClipDurations,
+		animPlaybackState,
+		animCurrentTime,
+		animClipDuration,
 		getAnimations,
 		playAnimation,
+		pauseAnimation,
+		resumeAnimation,
+		stopAnimation,
+		seekAnimation,
 		isPaletteOpen,
 		togglePalette,
 	} = useGameEditor();
+
+	const progressBarRef = useRef<HTMLDivElement>(null);
 
 	// Auto-fetch animation clips when an AnimatedCharacter is selected
 	useEffect(() => {
@@ -57,6 +67,15 @@ export function GameEditorPanel() {
 		if (!selectedObject) return;
 		deleteObject(selectedObject.uuid);
 	}, [selectedObject, deleteObject]);
+
+	const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+		if (!selectedObject || !animClipDuration) return;
+		const rect = e.currentTarget.getBoundingClientRect();
+		const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+		seekAnimation(selectedObject.uuid, ratio * animClipDuration);
+	}, [selectedObject, animClipDuration, seekAnimation]);
+
+	const fmtTime = (s: number) => s.toFixed(1) + "s";
 
 	return (
 		<div data-game-editor-panel className="absolute top-0 right-0 bottom-0 w-[260px] bg-[#0f0f1a]/95 backdrop-blur-xl border-l border-white/[0.08] flex flex-col z-30 overflow-hidden">
@@ -228,26 +247,96 @@ export function GameEditorPanel() {
 							</div>
 						)}
 
-						{/* Animation Clips (for AnimatedCharacter) */}
+						{/* Animation Player (for AnimatedCharacter) */}
 						{animationClips.length > 0 && (
 							<Section title="Animations">
-								<div className="space-y-0.5 max-h-[120px] overflow-y-auto scrollbar-thin">
-									{animationClips.map((clip) => (
-										<button
-											key={clip}
-											type="button"
-											onClick={() => selectedObject && playAnimation(selectedObject.uuid, clip)}
-											className={`w-full flex items-center gap-1.5 px-2 py-1 text-[10px] rounded transition-colors text-left ${
-												currentAnimClip === clip
-													? "bg-emerald-500/20 text-emerald-400"
-													: "text-white/50 hover:bg-white/[0.06] hover:text-white/70"
-											}`}
-										>
-											<Play className="w-2.5 h-2.5 flex-shrink-0" />
-											<span className="truncate">{clip}</span>
-										</button>
-									))}
+								<div className="space-y-0.5 max-h-[140px] overflow-y-auto scrollbar-thin">
+									{animationClips.map((clip) => {
+										const isActive = currentAnimClip === clip;
+										const dur = animClipDurations[clip];
+										return (
+											<button
+												key={clip}
+												type="button"
+												onClick={() => selectedObject && playAnimation(selectedObject.uuid, clip)}
+												className={`group w-full flex items-center gap-1.5 px-2 py-1 text-[10px] rounded transition-colors text-left ${
+													isActive
+														? "bg-emerald-500/20 text-emerald-400"
+														: "text-white/50 hover:bg-white/[0.06] hover:text-white/70"
+												}`}
+											>
+												{isActive ? (
+													animPlaybackState === "paused" ? (
+														<Pause className="w-2.5 h-2.5 flex-shrink-0 text-amber-400" />
+													) : (
+														<span className="relative flex h-2.5 w-2.5 flex-shrink-0">
+															<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+															<span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+														</span>
+													)
+												) : (
+													<Play className="w-2.5 h-2.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+												)}
+												<span className="truncate flex-1">{clip}</span>
+												{dur != null && (
+													<span className="text-[9px] text-white/25 flex-shrink-0 tabular-nums">{dur.toFixed(1)}s</span>
+												)}
+											</button>
+										);
+									})}
 								</div>
+
+								{/* Transport controls — visible when a clip is active */}
+								{currentAnimClip && animPlaybackState !== "stopped" && selectedObject && (
+									<div className="mt-1.5 space-y-1">
+										<div className="flex items-center gap-1">
+											{animPlaybackState === "playing" ? (
+												<button
+													type="button"
+													onClick={() => pauseAnimation(selectedObject.uuid)}
+													className="p-1 rounded bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 transition-colors"
+													title="Pause"
+												>
+													<Pause className="w-3 h-3" />
+												</button>
+											) : (
+												<button
+													type="button"
+													onClick={() => resumeAnimation(selectedObject.uuid)}
+													className="p-1 rounded bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors"
+													title="Resume"
+												>
+													<Play className="w-3 h-3" />
+												</button>
+											)}
+											<button
+												type="button"
+												onClick={() => stopAnimation(selectedObject.uuid)}
+												className="p-1 rounded bg-white/[0.06] text-white/40 hover:bg-white/[0.12] hover:text-white/60 transition-colors"
+												title="Stop"
+											>
+												<Square className="w-3 h-3" />
+											</button>
+											<span className="ml-auto text-[9px] text-white/30 tabular-nums">
+												{fmtTime(animCurrentTime)} / {fmtTime(animClipDuration)}
+											</span>
+										</div>
+										{/* Progress bar */}
+										<div
+											ref={progressBarRef}
+											onClick={handleSeek}
+											className="h-1.5 bg-white/[0.08] rounded-full cursor-pointer overflow-hidden group"
+											title="Click to seek"
+										>
+											<div
+												className={`h-full rounded-full transition-[width] duration-100 ${
+													animPlaybackState === "paused" ? "bg-amber-400/60" : "bg-emerald-400/60"
+												}`}
+												style={{ width: animClipDuration > 0 ? `${(animCurrentTime / animClipDuration) * 100}%` : "0%" }}
+											/>
+										</div>
+									</div>
+								)}
 							</Section>
 						)}
 

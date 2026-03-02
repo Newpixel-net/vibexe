@@ -160,7 +160,7 @@ Object.assign(window, {
   // Animation Registry
   createAnimationMap,
   // Audio System
-  soundUrl, createAudioManager, playSound, playMusic, playSpatial3D, preloadSounds,
+  soundUrl, createAudioManager, playSound, playMusic, playSpatial3D, preloadSounds, muteMusic, unmuteMusic,
   // Post-Processing
   createPostProcessing, addFogEffect, setToneMapping,
   // Particles & VFX
@@ -1103,6 +1103,22 @@ let _musicGain: GainNode | null = null;
 let _sfxGain: GainNode | null = null;
 const _audioCache: Map<string, AudioBuffer> = new Map();
 let _currentMusic: { el: HTMLAudioElement; fadeTimer?: any } | null = null;
+let _musicMutedVol = 0; // saved volume before mute
+
+/** Mute the currently-playing BGM (if any). Safe to call when nothing is playing. */
+export function muteMusic(): void {
+  if (_currentMusic) {
+    _musicMutedVol = _currentMusic.el.volume;
+    _currentMusic.el.volume = 0;
+  }
+}
+/** Unmute the BGM, restoring its previous volume. */
+export function unmuteMusic(): void {
+  if (_currentMusic) {
+    _currentMusic.el.volume = _musicMutedVol || 0.5;
+  }
+}
+
 const _sfxPool: Map<string, number> = new Map(); // URL → active instance count
 
 function _getAudioContext(): AudioContext {
@@ -1741,6 +1757,20 @@ export async function createAnimatedCharacter3D(
   mesh.userData.__play = play;
   mesh.userData.__stop = stop;
   mesh.userData.__currentClip = () => _currentAction?.getClip()?.name || null;
+  mesh.userData.__pause = () => { if (_currentAction) _currentAction.paused = true; };
+  mesh.userData.__resume = () => { if (_currentAction) _currentAction.paused = false; };
+  mesh.userData.__getTime = () => ({
+    time: _currentAction?.time ?? 0,
+    duration: _currentAction?.getClip()?.duration ?? 0,
+    clipName: _currentAction?.getClip()?.name ?? null,
+    paused: _currentAction?.paused ?? false,
+  });
+  mesh.userData.__setTime = (t: number) => {
+    if (_currentAction) { _currentAction.time = t; mixer.update(0); }
+  };
+  mesh.userData.__clipDurations = Object.fromEntries(
+    allClips.map((c: any) => [c.name, c.duration])
+  );
 
   // Auto-apply known animation map if URL matches a hosted model
   let _mapApplied = false;
@@ -3270,6 +3300,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         // MUST be set BEFORE menu overlay so Scene Editor can activate without waiting for tap.
         let __editorMode = false;
         let __editorOrbitControls: any = null;
+        let __editorLastTime = 0;
+        let __animProgressInterval: any = null;
         let __menuOverlay: { remove(): void } | null = null;
         let __menuResolve: (() => void) | null = null;
 
@@ -3282,6 +3314,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           pause() {
             __editorMode = true;
             clock.stop();
+            __editorLastTime = 0;
+            // Mute BGM in editor mode
+            muteMusic();
             // Auto-dismiss menu overlay if still showing
             if (__menuOverlay) {
               __menuOverlay.remove();
@@ -3303,6 +3338,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               __editorOrbitControls = null;
               (window as any).__vibexe_editor__.orbitControls = null;
             }
+            // Restore BGM when leaving editor mode
+            unmuteMusic();
             clock.start();
           },
         };
@@ -3671,6 +3708,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           function _deactivateBridge() {
             if (!_bridgeActive) return;
             _bridgeActive = false;
+            if (__animProgressInterval) { clearInterval(__animProgressInterval); __animProgressInterval = null; }
             cancelAnimationFrame(_editorAnimId);
             _deselectObject();
             renderer.domElement.removeEventListener("click", _onCanvasClick);
@@ -3751,6 +3789,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                       clips: animObj.userData.__clipNames,
                       currentClip: animObj.userData.__currentClip?.() || null,
                       animMap: animObj.userData.__animMap || null,
+                      clipDurations: animObj.userData.__clipDurations || {},
                     }, "*");
                   }
                 }
@@ -3760,7 +3799,40 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   const animTarget = _findByUuid(scene, d.uuid);
                   if (animTarget?.userData?.__play) {
                     animTarget.userData.__play(d.clipName);
+                    // Start streaming progress back to parent
+                    if (__animProgressInterval) clearInterval(__animProgressInterval);
+                    __animProgressInterval = setInterval(() => {
+                      if (!animTarget?.userData?.__getTime) { clearInterval(__animProgressInterval); __animProgressInterval = null; return; }
+                      const info = animTarget.userData.__getTime();
+                      try { window.parent.postMessage({ type: "game-editor-animation-progress", uuid: d.uuid, ...info }, "*"); } catch {}
+                    }, 100);
                   }
+                }
+                break;
+              case "game-editor-pause-animation":
+                if (d.uuid) {
+                  const pauseTarget = _findByUuid(scene, d.uuid);
+                  pauseTarget?.userData?.__pause?.();
+                }
+                break;
+              case "game-editor-resume-animation":
+                if (d.uuid) {
+                  const resumeTarget = _findByUuid(scene, d.uuid);
+                  resumeTarget?.userData?.__resume?.();
+                }
+                break;
+              case "game-editor-stop-animation":
+                if (d.uuid) {
+                  const stopTarget = _findByUuid(scene, d.uuid);
+                  stopTarget?.userData?.__stop?.();
+                  if (__animProgressInterval) { clearInterval(__animProgressInterval); __animProgressInterval = null; }
+                  try { window.parent.postMessage({ type: "game-editor-animation-progress", uuid: d.uuid, time: 0, duration: 0, clipName: null, paused: false }, "*"); } catch {}
+                }
+                break;
+              case "game-editor-seek-animation":
+                if (d.uuid && typeof d.time === "number") {
+                  const seekTarget = _findByUuid(scene, d.uuid);
+                  seekTarget?.userData?.__setTime?.(d.time);
                 }
                 break;
               case "game-editor-spawn-object":
@@ -3863,10 +3935,14 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           if (disposed) return;
           animFrameId = requestAnimationFrame(animate);
 
-          // In editor mode, skip game logic — only render
+          // In editor mode, skip game logic — only render + tick animation mixers for preview
           if (__editorMode) {
             if (__editorOrbitControls) __editorOrbitControls.update();
-            const __ed = clock.getDelta();
+            const __now = performance.now();
+            const __ed = __editorLastTime ? (__now - __editorLastTime) / 1000 : 0;
+            __editorLastTime = __now;
+            // Tick animation mixers so animations preview in editor
+            (window as any)._updateAllMixers3D?.(__ed);
             const __ec2 = (window as any).__vibexe_composer__;
             if (__ec2) { __ec2.render(__ed); } else { renderer.render(scene, camera); }
             return;

@@ -60,6 +60,10 @@ interface GameEditorContextValue {
 	animationClips: string[];
 	currentAnimClip: string | null;
 	animationMap: Record<string, string> | null;
+	animClipDurations: Record<string, number>;
+	animPlaybackState: "stopped" | "playing" | "paused";
+	animCurrentTime: number;
+	animClipDuration: number;
 	// Palette
 	isPaletteOpen: boolean;
 	activePrefab: PrefabDefinition | null;
@@ -86,7 +90,12 @@ interface GameEditorContextValue {
 	// Animation editor
 	getAnimations: (uuid: string) => void;
 	playAnimation: (uuid: string, clipName: string) => void;
-	setAnimationClips: (clips: string[], current: string | null, map: Record<string, string> | null) => void;
+	pauseAnimation: (uuid: string) => void;
+	resumeAnimation: (uuid: string) => void;
+	stopAnimation: (uuid: string) => void;
+	seekAnimation: (uuid: string, time: number) => void;
+	setAnimationClips: (clips: string[], current: string | null, map: Record<string, string> | null, durations?: Record<string, number>) => void;
+	updateAnimProgress: (time: number, duration: number, clipName: string | null, paused: boolean) => void;
 	// Palette
 	togglePalette: () => void;
 	setActivePrefab: (prefab: PrefabDefinition | null) => void;
@@ -106,6 +115,10 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [animationClips, setAnimationClipsState] = useState<string[]>([]);
 	const [currentAnimClip, setCurrentAnimClip] = useState<string | null>(null);
 	const [animationMap, setAnimationMapState] = useState<Record<string, string> | null>(null);
+	const [animClipDurations, setAnimClipDurations] = useState<Record<string, number>>({});
+	const [animPlaybackState, setAnimPlaybackState] = useState<"stopped" | "playing" | "paused">("stopped");
+	const [animCurrentTime, setAnimCurrentTime] = useState(0);
+	const [animClipDuration, setAnimClipDuration] = useState(0);
 	const [isPaletteOpen, setIsPaletteOpen] = useState(false);
 	const [activePrefab, setActivePrefabState] = useState<PrefabDefinition | null>(null);
 	const saveHandlerRef = useRef<(() => Promise<void>) | null>(null);
@@ -175,6 +188,13 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const deselectObject = useCallback(() => {
 		setSelectedObject(null);
 		sendToIframe({ type: "game-editor-deselect" });
+		// Reset animation state
+		setAnimationClipsState([]);
+		setCurrentAnimClip(null);
+		setAnimPlaybackState("stopped");
+		setAnimCurrentTime(0);
+		setAnimClipDuration(0);
+		setAnimClipDurations({});
 	}, [sendToIframe]);
 
 	const updateProperty = useCallback((uuid: string, property: string, value: any) => {
@@ -223,12 +243,44 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 
 	const playAnimation = useCallback((uuid: string, clipName: string) => {
 		sendToIframe({ type: "game-editor-play-animation", uuid, clipName });
+		setCurrentAnimClip(clipName);
+		setAnimPlaybackState("playing");
 	}, [sendToIframe]);
 
-	const setAnimationClips = useCallback((clips: string[], current: string | null, map: Record<string, string> | null) => {
+	const pauseAnimation = useCallback((uuid: string) => {
+		sendToIframe({ type: "game-editor-pause-animation", uuid });
+		setAnimPlaybackState("paused");
+	}, [sendToIframe]);
+
+	const resumeAnimation = useCallback((uuid: string) => {
+		sendToIframe({ type: "game-editor-resume-animation", uuid });
+		setAnimPlaybackState("playing");
+	}, [sendToIframe]);
+
+	const stopAnimation = useCallback((uuid: string) => {
+		sendToIframe({ type: "game-editor-stop-animation", uuid });
+		setAnimPlaybackState("stopped");
+		setCurrentAnimClip(null);
+		setAnimCurrentTime(0);
+		setAnimClipDuration(0);
+	}, [sendToIframe]);
+
+	const seekAnimation = useCallback((uuid: string, time: number) => {
+		sendToIframe({ type: "game-editor-seek-animation", uuid, time });
+	}, [sendToIframe]);
+
+	const updateAnimProgress = useCallback((time: number, duration: number, clipName: string | null, paused: boolean) => {
+		setAnimCurrentTime(time);
+		setAnimClipDuration(duration);
+		if (clipName) setCurrentAnimClip(clipName);
+		setAnimPlaybackState(paused ? "paused" : duration > 0 ? "playing" : "stopped");
+	}, []);
+
+	const setAnimationClips = useCallback((clips: string[], current: string | null, map: Record<string, string> | null, durations?: Record<string, number>) => {
 		setAnimationClipsState(clips);
 		setCurrentAnimClip(current);
 		setAnimationMapState(map);
+		if (durations) setAnimClipDurations(durations);
 	}, []);
 
 	// Palette actions
@@ -289,6 +341,10 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				animationClips,
 				currentAnimClip,
 				animationMap,
+				animClipDurations,
+				animPlaybackState,
+				animCurrentTime,
+				animClipDuration,
 				isPaletteOpen,
 				activePrefab,
 				toggleEditor,
@@ -313,7 +369,12 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				setSaveHandler,
 				getAnimations,
 				playAnimation,
+				pauseAnimation,
+				resumeAnimation,
+				stopAnimation,
+				seekAnimation,
 				setAnimationClips,
+				updateAnimProgress,
 				togglePalette,
 				setActivePrefab,
 				spawnObject,

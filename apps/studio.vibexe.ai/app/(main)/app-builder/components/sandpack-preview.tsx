@@ -719,7 +719,9 @@ export function SandpackPreview({
 			} else if (data.type === "game-editor-scene-dirty") {
 				gameEditor.setDirty(true);
 			} else if (data.type === "game-editor-animation-clips") {
-				gameEditor.setAnimationClips(data.clips || [], data.currentClip, data.animMap);
+				gameEditor.setAnimationClips(data.clips || [], data.currentClip, data.animMap, data.clipDurations);
+			} else if (data.type === "game-editor-animation-progress") {
+				gameEditor.updateAnimProgress(data.time ?? 0, data.duration ?? 0, data.clipName ?? null, data.paused ?? false);
 			} else if (data.type === "game-editor-object-spawned") {
 				gameEditor.requestSceneTree();
 				gameEditor.setDirty(true);
