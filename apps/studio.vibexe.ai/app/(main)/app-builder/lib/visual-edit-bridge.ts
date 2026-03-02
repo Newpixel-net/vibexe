@@ -1091,6 +1091,15 @@ export function getVisualEditBridgeScript(): string {
     editorAnimId = requestAnimationFrame(editorLoop);
     if (editor.orbitControls) editor.orbitControls.update();
     if (boxHelper && selectedObj) boxHelper.update();
+    // Per-frame sweep: remove duplicate __editor_ objects (old Game3D.tsx templates lack _hasExt guard)
+    if (editor.scene) {
+      var dupes = [];
+      for (var ei = 0; ei < editor.scene.children.length; ei++) {
+        var ec = editor.scene.children[ei];
+        if (ec.name && ec.name.indexOf("__editor_") === 0 && ec !== boxHelper && ec !== transformControls && ec !== gridHelper) dupes.push(ec);
+      }
+      for (var di = 0; di < dupes.length; di++) { if (dupes[di].detach) dupes[di].detach(); editor.scene.remove(dupes[di]); if (dupes[di].dispose) dupes[di].dispose(); }
+    }
     try {
       editor.renderer.render(editor.scene, editor.camera);
     } catch (e) {
