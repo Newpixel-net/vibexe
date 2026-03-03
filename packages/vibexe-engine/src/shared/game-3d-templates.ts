@@ -1723,6 +1723,7 @@ export async function createAnimatedCharacter3D(
   function play(name: string, playOpts?: { loop?: boolean; crossfade?: number }) {
     const clip = findClip(name);
     if (!clip) return;
+    console.log("[3D] play() requested:", name, "→ found clip:", clip.name, "duration:", clip.duration?.toFixed(2));
     const action = mixer.clipAction(clip);
 
     // IDEMPOTENT: If same animation is already playing, do nothing.
@@ -3797,6 +3798,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               case "game-editor-play-animation":
                 if (d.uuid && d.clipName) {
                   const animTarget = _findByUuid(scene, d.uuid);
+                  console.log("[GameEditorBridge] play-animation requested:", d.clipName, "target:", animTarget?.name, "has __play:", !!animTarget?.userData?.__play);
                   if (animTarget?.userData?.__play) {
                     animTarget.userData.__play(d.clipName);
                     // Start streaming progress back to parent
