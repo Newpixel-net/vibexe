@@ -5060,8 +5060,8 @@ const PLAYER_SPEED = 6;
 const BULLET_SPEED = 20;
 const BULLET_POOL_SIZE = 40;
 const FIRE_RATE = 0.25;
-const CAM_HEIGHT = 25;
-const CAM_BACK = 5;
+const CAM_HEIGHT = 18;
+const CAM_BACK = 8;
 const ENEMY_SHIFT = 0.12;
 const SHAKE_DECAY = 8;
 const SPAWN_MIN_DIST = 8;
@@ -5311,10 +5311,14 @@ async function generateShooterArena(onProgress?: (p: number) => void) {
     return Math.abs(gx - midX) <= 0.5 || Math.abs(gz - midZ) <= 0.5;
   }
 
-  // === Complete tile catalogs (ALL models per theme) ===
+  // === Complete tile catalogs (ALL models per theme, verified from server inventory) ===
+  // world_2 is missing Ground_Half and Border_4; everything else identical
+  const isWorld1 = theme === "world_1";
   const GROUNDS = [\`\${prefix}_Ground_1.glb\`];
-  const GROUND_HALF = [\`\${prefix}_Ground_Half.glb\`];
-  const BORDERS = [\`\${prefix}_Border_1.glb\`, \`\${prefix}_Border_2.glb\`, \`\${prefix}_Border_3.glb\`, \`\${prefix}_Border_4.glb\`];
+  const GROUND_HALF = isWorld1 ? [\`\${prefix}_Ground_Half.glb\`] : [];
+  const BORDERS = isWorld1
+    ? [\`\${prefix}_Border_1.glb\`, \`\${prefix}_Border_2.glb\`, \`\${prefix}_Border_3.glb\`, \`\${prefix}_Border_4.glb\`]
+    : [\`\${prefix}_Border_1.glb\`, \`\${prefix}_Border_2.glb\`, \`\${prefix}_Border_3.glb\`];
   const BORDER_CORNER = \`\${prefix}_Border_Corner.glb\`;
   const BORDER_EXIT = \`\${prefix}_Border_Exit.glb\`;
   const BORDER_HALF = \`\${prefix}_Border_Half.glb\`;
@@ -5332,7 +5336,7 @@ async function generateShooterArena(onProgress?: (p: number) => void) {
   for (let gx = 0; gx < GRID_SIZE; gx++) {
     for (let gz = 0; gz < GRID_SIZE; gz++) {
       const [wx, wz] = g2w(gx, gz);
-      const gFile = (rng() > 0.92) ? pick(GROUND_HALF) : pick(GROUNDS);
+      const gFile = (GROUND_HALF.length > 0 && rng() > 0.92) ? pick(GROUND_HALF) : pick(GROUNDS);
       const mesh = await loadModel(\`environment/\${theme}/\${gFile}\`);
       scaleToTile(mesh, TILE_SIZE, TILE_SIZE);
       mesh.position.set(wx, 0, wz);
