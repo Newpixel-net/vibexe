@@ -5051,22 +5051,27 @@ const _cache = new Map<string, any>();
 async function loadModel(subpath: string, cloneMats = false): Promise<any> {
   const url = modelUrl(PACK, subpath);
   let mesh: any;
-  if (_cache.has(url)) {
-    mesh = _cache.get(url)!.clone();
-  } else {
-    const original = await loadGLTF(url);
-    console.log("[3D] Loaded GLTF:", subpath);
-    _cache.set(url, original);
-    mesh = original.clone();
+  try {
+    if (_cache.has(url)) {
+      mesh = _cache.get(url)!.clone();
+    } else {
+      const original = await loadGLTF(url);
+      console.log("[3D] Loaded GLTF:", subpath);
+      _cache.set(url, original);
+      mesh = original.clone();
+    }
+    if (cloneMats) {
+      mesh.traverse((c: any) => {
+        if (c.material) {
+          c.material = Array.isArray(c.material) ? c.material.map((m: any) => m.clone()) : c.material.clone();
+        }
+      });
+    }
+    return mesh;
+  } catch (e) {
+    console.warn("[3D] Failed to load:", subpath, e);
+    return new THREE.Group();
   }
-  if (cloneMats) {
-    mesh.traverse((c: any) => {
-      if (c.material) {
-        c.material = Array.isArray(c.material) ? c.material.map((m: any) => m.clone()) : c.material.clone();
-      }
-    });
-  }
-  return mesh;
 }
 
 function scaleToHeight(mesh: any, targetH: number) {
@@ -5137,7 +5142,7 @@ async function generateShooterArena(onProgress?: (p: number) => void) {
   onProgress?.(0.15);
 
   // --- Step 2: BORDERS ---
-  const borderNames = [\`\${prefix}_Border_1.glb\`, \`\${prefix}_Border_2.glb\`, \`\${prefix}_Border_3.glb\`, \`\${prefix}_Border_4.glb\`];
+  const borderNames = [\`\${prefix}_Border_1.glb\`, \`\${prefix}_Border_2.glb\`, \`\${prefix}_Border_3.glb\`];
   const edgeOff = ARENA_HALF + TILE_SIZE * 0.4;
   for (let i = 0; i < GRID_SIZE; i++) {
     const pos = (i - GRID_SIZE / 2 + 0.5) * TILE_SIZE;
