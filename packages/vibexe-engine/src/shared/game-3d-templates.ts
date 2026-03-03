@@ -5048,57 +5048,57 @@ function mulberry32(seed: number) {
 
 // ===== Model Color Palette =====
 // GLB exports from Unity have grey baseColorFactor (0.4-0.5). Colors must be assigned.
-// VIBRANT, oversaturated source colors — ACES tone mapping compresses these into
-// pleasant cartoon range. Low-saturation inputs become grey mud under ACES.
+// No tone mapping = what you set is what you get. Use natural vibrant colors.
 const MODEL_COLORS: Record<string, number> = {
-  // Players — bright saturated blue (hero color, must pop)
-  'characters/player/Main_Char_01': 0x2288FF,
-  'characters/player/Main_Char_02': 0x1166EE,
-  'characters/player/Main_Char_03': 0x44AAFF,
-  // Enemies — vivid, high-saturation, each type distinct
-  'characters/enemies/Normal': 0xFFFFFF,
-  'characters/enemies/Skinny': 0xFFBB66,
-  'characters/enemies/Mine': 0x778899,
-  'characters/enemies/Pistolman': 0xFF9900,
-  'characters/enemies/RifleMan': 0xFF2222,
-  'characters/enemies/CowBoy': 0xFF7700,
-  'characters/enemies/Bomber': 0xFF4400,
-  'characters/enemies/Grenader': 0x22DD22,
-  'characters/enemies/ShotgunMan': 0xEE1111,
-  'characters/enemies/MeeleMan': 0xBB33EE,
-  'characters/enemies/Sniper': 0x11BB33,
-  'characters/enemies/Boss_Bomber': 0xFF1100,
-  'characters/enemies/Old_Boss': 0xDD0000,
-  'characters/enemies/Sniper_Boss': 0x118822,
-  // Environment world_1 — bright golden ground + CONTRASTING dark blocks/borders
-  'environment/world_1/1_Ground': 0xFFD466,
-  'environment/world_1/1_Border': 0x6B3010,
-  'environment/world_1/1_Block': 0x8B5A2B,
-  'environment/world_1/1_Wall': 0x4A2508,
-  // Environment world_2 — warm golden sand + contrasting elements
-  'environment/world_2/2_Ground': 0xF0C850,
-  'environment/world_2/2_Border': 0x5A2510,
-  'environment/world_2/2_Block': 0x7A4B20,
-  'environment/world_2/2_Wall': 0x3C1A05,
-  // Weapons — distinct colored metals
-  'weapons/Shotgun': 0xAAAAAAA,
-  'weapons/Minigun': 0x8888AA,
-  'weapons/Grenade_launcher': 0x88AA44,
-  'weapons/Teslagun': 0x33BBEE,
-  // Collectibles — neon-bright reward colors
-  'misc/Coin': 0xFFEE00,
-  'misc/Ring': 0x00EEFF,
-  'misc/Chest': 0xFFBB11,
-  // Particles — vivid
-  'particles/Bullet': 0xFFFF33,
-  'particles/heal_plus': 0x33FF33,
-  'particles/Shield_capsule': 0x33BBFF,
-  'particles/Light_ring': 0xFFFF88,
+  // Players — bright blue (hero color)
+  'characters/player/Main_Char_01': 0x3388FF,
+  'characters/player/Main_Char_02': 0x2266DD,
+  'characters/player/Main_Char_03': 0x55AAFF,
+  // Enemies — distinct per type
+  'characters/enemies/Normal': 0xDDDDDD,
+  'characters/enemies/Skinny': 0xEEAA55,
+  'characters/enemies/Mine': 0x667788,
+  'characters/enemies/Pistolman': 0xEE8800,
+  'characters/enemies/RifleMan': 0xDD3333,
+  'characters/enemies/CowBoy': 0xCC6600,
+  'characters/enemies/Bomber': 0xDD4400,
+  'characters/enemies/Grenader': 0x33BB33,
+  'characters/enemies/ShotgunMan': 0xCC2222,
+  'characters/enemies/MeeleMan': 0x9933CC,
+  'characters/enemies/Sniper': 0x22AA44,
+  'characters/enemies/Boss_Bomber': 0xDD1100,
+  'characters/enemies/Old_Boss': 0xBB0000,
+  'characters/enemies/Sniper_Boss': 0x117722,
+  // Environment world_1 — warm golden ground + dark brown blocks for contrast
+  'environment/world_1/1_Ground': 0xDDB844,
+  'environment/world_1/1_Border': 0x5A2810,
+  'environment/world_1/1_Block': 0x6B4020,
+  'environment/world_1/1_Wall': 0x3A1A08,
+  // Environment world_2 — slightly different warm palette
+  'environment/world_2/2_Ground': 0xCCAA38,
+  'environment/world_2/2_Border': 0x4A1E0C,
+  'environment/world_2/2_Block': 0x5A3518,
+  'environment/world_2/2_Wall': 0x2E1405,
+  // Weapons — metallic tones
+  'weapons/Shotgun': 0x999999,
+  'weapons/Minigun': 0x777799,
+  'weapons/Grenade_launcher': 0x779933,
+  'weapons/Teslagun': 0x2299BB,
+  // Collectibles — bright reward colors
+  'misc/Coin': 0xFFDD00,
+  'misc/Ring': 0x00CCDD,
+  'misc/Chest': 0xDDA011,
+  // Particles
+  'particles/Bullet': 0xEEEE22,
+  'particles/heal_plus': 0x22DD22,
+  'particles/Shield_capsule': 0x2299DD,
+  'particles/Light_ring': 0xDDDD66,
 };
-// Emissive strengths — higher values fight ACES desaturation
-const CHAR_EMISSIVE_STRENGTH = 0.5;
-const COLLECTIBLE_EMISSIVE = 0.6;
-const ENV_EMISSIVE = 0.1;
+// Emissive: very subtle glow on characters/collectibles. Zero on environment.
+// Without tone mapping, even small emissive values are clearly visible.
+const CHAR_EMISSIVE_STRENGTH = 0.08;
+const COLLECTIBLE_EMISSIVE = 0.15;
+const ENV_EMISSIVE = 0;
 
 function findModelColor(subpath: string): number | null {
   // Exact match first, then prefix match (longest prefix wins)
@@ -5373,26 +5373,27 @@ export const GameScene = {
     world = this.world;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.ReinhardToneMapping;
-    renderer.toneMappingExposure = 2.0;
+    // NO tone mapping — Phong materials don't need HDR→LDR compression.
+    // Tone mapping (ACES/Reinhard) kills contrast and desaturates cartoon colors.
+    renderer.toneMapping = THREE.NoToneMapping;
 
     // Remove default Game3D.tsx lights (we need custom lighting for top-down shooter)
     const defaultLights = scene.children.filter((c: any) => c.isLight);
     defaultLights.forEach((l: any) => scene.remove(l));
 
-    // Bright warm sky background — cartoon style
-    scene.background = new THREE.Color(0x77BBDD);
+    // Clean sky blue background
+    scene.background = new THREE.Color(0x6CB4D9);
 
-    // Hemisphere: warm sky + warm ground — oversaturated inputs for ACES
-    const hemi = new THREE.HemisphereLight(0xFFFFFF, 0xFFDDBB, 0.65);
+    // Simple cartoon lighting: hemisphere fill + one directional sun.
+    // Low ambient = dark shadows = high contrast = readable scene.
+    const hemi = new THREE.HemisphereLight(0xEEF4FF, 0x886633, 0.4);
     scene.add(hemi);
 
-    // Warm ambient prevents shadows going pure-black
-    const shooterAmbient = new THREE.AmbientLight(0xFFF8EE, 0.25);
+    const shooterAmbient = new THREE.AmbientLight(0xFFFFFF, 0.2);
     scene.add(shooterAmbient);
 
-    // Main sun light — strong directional for crisp top-down shadows
-    const shooterSun = new THREE.DirectionalLight(0xFFFFEE, 1.0);
+    // Main sun — moderate intensity, crisp shadows
+    const shooterSun = new THREE.DirectionalLight(0xFFF8EE, 0.7);
     shooterSun.position.set(8, 40, -8);
     shooterSun.castShadow = true;
     shooterSun.shadow.mapSize.width = 2048;
@@ -5406,15 +5407,10 @@ export const GameScene = {
     shooterSun.shadow.bias = -0.001;
     scene.add(shooterSun);
 
-    // Fill from opposite side — softens shadows, adds warmth
-    const fillLight = new THREE.DirectionalLight(0xFFEECC, 0.3);
-    fillLight.position.set(-10, 25, 10);
-    scene.add(fillLight);
-
-    // Base ground plane beneath tile arena (warm golden sand)
+    // Base ground plane beneath tile arena
     const basePlane = new THREE.Mesh(
       new THREE.PlaneGeometry(ARENA_HALF * 3, ARENA_HALF * 3),
-      new THREE.MeshPhongMaterial({ color: 0xD4A84A, shininess: 3, specular: new THREE.Color(0x111111) })
+      new THREE.MeshPhongMaterial({ color: 0xC49535, shininess: 3, specular: new THREE.Color(0x111111) })
     );
     basePlane.rotation.x = -Math.PI / 2;
     basePlane.position.y = -0.05;
