@@ -5355,8 +5355,9 @@ const ENEMY_TIERS = [
   { tier: 4, minWave: 7, models: ["RifleMan_ELITE.glb", "Pistolman_Elite.glb", "ShotgunMan_ELITE.glb", "MeeleMan_Elite.glb", "Sniper_Elite.glb"], hp: 90, speed: 3.0, damage: 2 },
 ];
 const BOSS_MODELS = ["Boss_Bomber.glb", "Old_Boss.glb", "Sniper_Boss.glb"];
-// Only rigged models (with embedded animations). Main_Char_*_(without_rig).glb are static meshes.
-const PLAYER_MODELS = ["Character_01.glb", "Character_02.glb", "Character_03.glb"];
+// Use non-rigged static mesh models — rigged Character_*.glb have SkinnedMesh with 0 clips,
+// which breaks when cloned in Three.js r128 (shared skeleton → bones not in scene → invisible).
+const PLAYER_MODELS = ["Main_Char_01_(without_rig).glb", "Main_Char_02_(without_rig).glb", "Main_Char_03_(without_rig).glb"];
 
 // ===== Game State =====
 let scene: any, camera: any, renderer: any, container: HTMLDivElement;
