@@ -1030,6 +1030,7 @@ function _updateAllMixers3D(delta: number) {
   for (const m of _activeMixers3D) m.update(delta);
 }
 (window as any)._updateAllMixers3D = _updateAllMixers3D;
+(window as any)._activeMixers3D = _activeMixers3D;
 
 // Auto-update character controllers — Game3D.tsx calls this every frame.
 // Even if the AI forgets to call controller.update(delta) in its update loop,
@@ -5205,24 +5206,97 @@ async function loadModel(subpath: string, cloneMats = false): Promise<any> {
     const isCharacter = subpath.startsWith('characters/');
 
     if (!isCharacter && _cache.has(url)) {
-      // Non-character: clone from cache (regular Mesh, safe to clone)
       mesh = _cache.get(url)!.clone();
+    } else if (isCharacter) {
+      // Characters: load full GLTF (not loadGLTF which strips .animations)
+      const gltf: any = await new Promise((resolve, reject) => {
+        const loader = new THREE.GLTFLoader();
+        loader.load(url, resolve, undefined, reject);
+      });
+      mesh = gltf.scene;
+      const rawClips = gltf.animations || [];
+      console.log("[3D] Loaded character:", subpath, "clips:", rawClips.length,
+        rawClips.length > 0 ? rawClips.map((c: any) => c.name).join(", ") : "(static)");
+      const tint = findModelColor(subpath);
+      _convertMaterials(mesh, subpath, tint);
+
+      // Set up AnimationMixer if model has embedded animations
+      if (rawClips.length > 0) {
+        // Strip root motion on known root bones (prevents character sliding)
+        const ROOT_BONES = new Set(["hips","root","mixamorig:hips","mixamorigHips","pelvis","rootnode","hip","bip001"]);
+        for (const clip of rawClips) {
+          for (let ti = clip.tracks.length - 1; ti >= 0; ti--) {
+            const track = clip.tracks[ti];
+            const parts = track.name.split(".");
+            const nodePath = parts.slice(0, -1).join(".");
+            const prop = parts[parts.length - 1];
+            if (prop === "scale") { clip.tracks.splice(ti, 1); continue; }
+            if (prop === "position" && ROOT_BONES.has(nodePath.toLowerCase())) {
+              if (track.values && track.values.length >= 3) {
+                const firstX = track.values[0], firstZ = track.values[2];
+                for (let j = 0; j < track.values.length; j += 3) {
+                  track.values[j] = firstX;
+                  track.values[j + 2] = firstZ;
+                }
+              }
+            }
+          }
+        }
+
+        const mixer = new THREE.AnimationMixer(mesh);
+        const mixersArr = (window as any)._activeMixers3D;
+        if (mixersArr) mixersArr.push(mixer);
+
+        // Build clip map with scored matching
+        const clipMap: Record<string, any> = {};
+        const clipNames: string[] = [];
+        for (const clip of rawClips) {
+          clipMap[clip.name] = mixer.clipAction(clip);
+          clipNames.push(clip.name);
+        }
+
+        let currentAction: any = null;
+        function findClip(keyword: string): any {
+          const kw = keyword.toLowerCase();
+          let best: string | null = null, bestPri = 0, bestLen = Infinity;
+          for (const cn of clipNames) {
+            const cl = cn.toLowerCase();
+            if (!cl.includes(kw)) continue;
+            const pri = cl.startsWith(kw) ? 3 : (cl.includes("_" + kw) || cl.includes(" " + kw)) ? 2 : 1;
+            if (pri > bestPri || (pri === bestPri && cn.length < bestLen)) {
+              best = cn; bestPri = pri; bestLen = cn.length;
+            }
+          }
+          return best ? clipMap[best] : null;
+        }
+
+        function play(name: string) {
+          const action = findClip(name);
+          if (!action) return;
+          if (currentAction === action && action.isRunning()) return; // idempotent
+          action.setLoop(THREE.LoopRepeat, Infinity);
+          if (currentAction) {
+            action.reset().play();
+            currentAction.crossFadeTo(action, 0.2, true);
+          } else {
+            action.reset().play();
+          }
+          currentAction = action;
+        }
+
+        mesh.userData.__play = play;
+        mesh.userData.__clips = clipNames;
+        mesh.userData.__mixer = mixer;
+        play("idle"); // auto-play idle on load
+      }
     } else {
-      // Load fresh GLTF
+      // Non-character: load + cache normally
       const original = await loadGLTF(url);
       console.log("[3D] Loaded GLTF:", subpath);
       const tint = findModelColor(subpath);
       _convertMaterials(original, subpath, tint);
-
-      if (isCharacter) {
-        // Character models may have SkinnedMesh — clone() breaks skeleton binding
-        // in Three.js r128 (cloned mesh references original bones, not cloned ones).
-        // Return original directly. Browser HTTP cache handles network efficiency.
-        mesh = original;
-      } else {
-        _cache.set(url, original);
-        mesh = original.clone();
-      }
+      _cache.set(url, original);
+      mesh = original.clone();
     }
     if (cloneMats) {
       mesh.traverse((c: any) => {
@@ -5275,15 +5349,14 @@ const ENEMY_TIERS = [
   { tier: 4, minWave: 7, models: ["RifleMan_ELITE.glb", "Pistolman_Elite.glb", "ShotgunMan_ELITE.glb", "MeeleMan_Elite.glb", "Sniper_Elite.glb"], hp: 90, speed: 3.0, damage: 2 },
 ];
 const BOSS_MODELS = ["Boss_Bomber.glb", "Old_Boss.glb", "Sniper_Boss.glb"];
-// Use Character_0X.glb (WITH rigs) instead of Main_Char_*_(without_rig).glb
-const PLAYER_MODELS = [
-  "Character_01.glb", "Character_02.glb", "Character_03.glb",
-  "Main_Char_01_(without_rig).glb", "Main_Char_02_(without_rig).glb", "Main_Char_03_(without_rig).glb",
-];
+// Only rigged models (with embedded animations). Main_Char_*_(without_rig).glb are static meshes.
+const PLAYER_MODELS = ["Character_01.glb", "Character_02.glb", "Character_03.glb"];
 
 // ===== Game State =====
 let scene: any, camera: any, renderer: any, container: HTMLDivElement;
 let playerMesh: any, playerBody: any, world: any;
+let playerPlay: ((name: string) => void) | null = null;
+let playerAnimState = "idle";
 let hud: any, keys: any, destroyKb: () => void, destroyJoystick: () => void;
 let score = 0, wave = 0, lives = 5, gameOver = false;
 let lastFireTime = 0, gameTime = 0, shakeIntensity = 0, difficulty = 1;
@@ -5291,7 +5364,7 @@ let joyX = 0, joyZ = 0;
 let arenaSpawnPoints: { x: number; z: number }[] = [];
 
 const bullets: { mesh: any; vel: any; active: boolean; damage: number }[] = [];
-const enemies: { mesh: any; body: any; hp: number; maxHp: number; state: string; stateTime: number; speed: number; damage: number; isBoss: boolean; flashTimer: number }[] = [];
+const enemies: { mesh: any; body: any; hp: number; maxHp: number; state: string; stateTime: number; speed: number; damage: number; isBoss: boolean; flashTimer: number; play?: (name: string) => void }[] = [];
 const collectibles: { mesh: any; collected: boolean; type: string }[] = [];
 const floatingTexts: { sprite: any; vel: number; life: number }[] = [];
 
@@ -5657,6 +5730,13 @@ export const GameScene = {
       console.log("[3D] Player after scale:", psz2.x.toFixed(2), psz2.y.toFixed(2), psz2.z.toFixed(2),
         "| scale:", playerMesh.scale.x.toFixed(4));
     }
+    // Store animation controller from loadModel
+    playerPlay = playerMesh.userData.__play || null;
+    playerAnimState = "idle";
+    if (playerPlay) {
+      console.log("[3D] Player animations:", playerMesh.userData.__clips?.join(", ") || "none");
+    }
+
     playerBody = createPhysicsBody("box", 5, { x: 0, y: 1.25, z: 0 }, { x: 0.5, y: 1.25, z: 0.5 });
     if (playerBody) { playerBody.linearDamping = 0.95; playerBody.fixedRotation = true; }
     if (world && playerBody) world.addBody(playerBody);
@@ -5767,6 +5847,9 @@ export const GameScene = {
       playerBody.velocity.x = (mx / len) * PLAYER_SPEED;
       playerBody.velocity.z = (mz / len) * PLAYER_SPEED;
       playerMesh.rotation.y = Math.atan2(mx, mz);
+      if (playerPlay && playerAnimState !== "run") { playerPlay("run"); playerAnimState = "run"; }
+    } else {
+      if (playerPlay && playerAnimState !== "idle") { playerPlay("idle"); playerAnimState = "idle"; }
     }
     const clamp = ARENA_HALF - 1;
     playerBody.position.x = Math.max(-clamp, Math.min(clamp, playerBody.position.x));
@@ -5813,9 +5896,19 @@ export const GameScene = {
       const dist = playerMesh.position.distanceTo(e.mesh.position);
       const dir = new THREE.Vector3().subVectors(playerMesh.position, e.mesh.position).normalize();
 
+      const prevState = e.state;
       if (e.hp / e.maxHp < 0.2 && e.state !== "flee") { e.state = "flee"; e.stateTime = 0; }
       else if (dist < 8 && e.state !== "flee" && e.state !== "attack") { e.state = "attack"; e.stateTime = 0; }
       else if (dist < 20 && e.state === "idle") { e.state = "follow"; e.stateTime = 0; }
+
+      // Switch animation on state change
+      if (e.play && e.state !== prevState) {
+        switch (e.state) {
+          case "idle": e.play("idle"); break;
+          case "follow": case "flee": e.play("run"); break;
+          case "attack": e.play("attack"); break;
+        }
+      }
 
       switch (e.state) {
         case "idle":
@@ -5936,6 +6029,13 @@ function damageEnemy(enemy: any, dmg: number, bulletVel: any) {
     score += enemy.isBoss ? 500 : 100;
     try { playSound(soundUrl("squad-shooter/sfx/explosion")); } catch(e) {}
     createParticleEmitter(scene, enemy.mesh.position.x, 1, enemy.mesh.position.z, { preset: "explosion", count: 15, lifetime: 0.5 });
+    // Remove mixer from auto-update array to prevent memory leak
+    const mixer = enemy.mesh.userData.__mixer;
+    if (mixer) {
+      mixer.stopAllAction();
+      const arr = (window as any)._activeMixers3D;
+      if (arr) { const idx = arr.indexOf(mixer); if (idx >= 0) arr.splice(idx, 1); }
+    }
     scene.remove(enemy.mesh);
     if (enemy.body && world) world.removeBody(enemy.body);
   }
@@ -6001,6 +6101,7 @@ async function spawnWave() {
         state: "idle", stateTime: 0,
         speed, damage: dmg,
         isBoss: isThisBoss, flashTimer: 0,
+        play: mesh.userData.__play || undefined,
       });
     } catch (e) { console.warn("[3D] Enemy load failed:", e); }
   }
