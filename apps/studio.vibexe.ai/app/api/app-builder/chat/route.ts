@@ -9,6 +9,7 @@ import {
 	GAME_3D_ASSETS_REFERENCE,
 	GAME_3D_SCENE_STARTER,
 	GAME_3D_SCENE_STARTER_CHARACTER,
+	GAME_3D_SCENE_STARTER_RUNNER,
 	GAME_3D_TEMPLATE_FILES,
 	GAME_ASSETS_REFERENCE,
 	GAME_TEMPLATE_FILES,
@@ -705,7 +706,13 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 		];
 		let isGame3d = false;
 		let hasAnimatedCharacter = false;
+		let isRunner3d = false;
 		let gameSubType: "platformer" | "runner" = "platformer"; // default
+		const RUNNER_3D_KEYWORDS = [
+			"3d runner", "endless runner 3d", "temple run 3d", "subway surfers 3d",
+			"3d lane", "runner 3d", "3d endless", "3d dodge runner",
+			"auto-run 3d", "3d endless runner", "subway surfers",
+		];
 		const CHARACTER_KEYWORDS = [
 			"warrior", "fighter", "knight", "soldier", "hero character",
 			"animated character", "animated player", "3d character",
@@ -739,6 +746,11 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				hasAnimatedCharacter = true;
 				console.log(`[Chat API] Animated character detected (keywords)`);
 			}
+			// Detect 3D runner keywords (temple run, subway surfers, endless runner 3d, etc.)
+			if (isGame3d && RUNNER_3D_KEYWORDS.some(kw => searchText.includes(kw))) {
+				isRunner3d = true;
+				console.log(`[Chat API] 3D runner detected (keywords)`);
+			}
 			// Fallback: if 3D templates already exist in DB (injected on a previous call), force 3D mode
 			if (!isGame3d && existingFiles.some(f => f.path === "src/components/Game3D.tsx")) {
 				isGame3d = true;
@@ -767,9 +779,13 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			// NOT in GAME_3D_TEMPLATE_FILES to avoid protectedPaths blocking AI updates
 			if (isGame3d && !existingPaths.has("src/scenes/GameScene3D.ts")) {
 				try {
-					const sceneStarter = hasAnimatedCharacter ? GAME_3D_SCENE_STARTER_CHARACTER : GAME_3D_SCENE_STARTER;
+					const sceneStarter = isRunner3d
+						? GAME_3D_SCENE_STARTER_RUNNER
+						: hasAnimatedCharacter
+							? GAME_3D_SCENE_STARTER_CHARACTER
+							: GAME_3D_SCENE_STARTER;
 					await saveFile(appId, "src/scenes/GameScene3D.ts", sceneStarter, "typescript");
-					console.log(`[Chat API] 3D scene starter injected: src/scenes/GameScene3D.ts (character=${hasAnimatedCharacter})`);
+					console.log(`[Chat API] 3D scene starter injected: src/scenes/GameScene3D.ts (runner=${isRunner3d}, character=${hasAnimatedCharacter})`);
 				} catch (e) {
 					console.error(`[Chat API] 3D scene starter injection failed:`, e);
 				}
@@ -907,6 +923,28 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 						console.log(`[Chat API] Injected animation overrides for ${Object.keys(allOverrides).length} models`);
 					}
 				} catch { /* no overrides file */ }
+				// Inject 3D runner addendum (mandatory runner patterns)
+				if (isRunner3d) {
+					runtimeAddenda.push(`## GAME SUB-TYPE: 3D ENDLESS RUNNER
+
+**MANDATORY runner patterns — violation will break the game:**
+- Player moves forward AUTOMATICALLY at increasing speed (\`playerBody.velocity.z = -speed\`)
+- Do NOT add WASD/arrow forward movement — forward is automatic
+- 3-lane system: left (x=-3), center (x=0), right (x=3) — tween between lanes
+- Arrow Left/Right or Swipe = switch lanes. Arrow Up/Space = jump
+- Spawn platform segments ahead on -Z axis, recycle segments behind camera
+- Barriers spawn on random lanes — player must jump over or switch lane to avoid
+- Collectibles float in lanes where no barrier exists
+- Camera follows BEHIND player at fixed offset (x=playerX*0.5, y=player.y+4, z=player.z+10)
+- Distance-based scoring: \`distance += speed * delta; score = Math.floor(distance)\`
+- Speed ramps up over time: \`speed = Math.min(MAX_SPEED, speed + SPEED_RAMP * delta)\`
+- Lives system: barrier hit = lose 1 life + brief invulnerability
+- Game over when lives reach 0 — show overlay with score/distance and restart button
+- Use createSwipeDetector for mobile touch controls
+- Use playSound(soundUrl("collect")) for pickup SFX, soundUrl("hit") for damage
+- Use createParticleEmitter with preset "sparkle" for collect, "explosion" for crash`);
+					console.log(`[Chat API] 3D runner addendum injected`);
+				}
 			} else {
 				// 2D game — inject 2D asset catalog
 				runtimeAddenda.push(GAME_ASSETS_REFERENCE);

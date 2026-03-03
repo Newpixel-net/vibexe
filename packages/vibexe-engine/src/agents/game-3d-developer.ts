@@ -683,17 +683,33 @@ You just implement \`init()\` and \`update()\`. The rest is automatic.
 - No physics needed (buildings are static), no gravity
 
 ### 3D Endless Runner (Temple Run, Subway Surfers)
-- **Camera**: Behind player looking forward. Position: \`camera.position.set(player.x, player.y + 4, player.z + 10)\`, lookAt player
-- **Auto-movement**: Player moves forward automatically at increasing speed (\`player.z -= speed * delta\`)
-- **Platforms**: Spawn segments ahead using \`createPlatform3D(scene, x, y, z, { variant: "6x6x1", color })\` — place end-to-end along Z axis
-- **Platform recycling**: When platform.z > camera.z + 20, reposition to front: \`platform.z = frontZ - gapSize\`
-- **Barriers**: \`createBarrier3D(scene, x, y, z, { variant: "4x1x2" })\` on platforms — player must jump over
-- **Collectibles**: \`createCollectible3D(scene, x, y+1.5, z, { type: "diamond" })\` floating above platforms
-- **Physics**: \`world = this.world\` (auto-created) + player body moves on Z axis + static platform box bodies
-- **Jump**: \`playerBody.velocity.y = JUMP_FORCE\` when grounded (collision event sets canJump)
-- **Lane switching**: 3 lanes (x = -3, 0, +3). Swipe/arrow keys move player between lanes with tween
-- **Difficulty**: Increase speed, reduce gaps, add more barriers over time
-- **Skeleton characters**: Load via \`createAnimatedCharacter3D(scene, x, y, z, { url: modelUrl("kaykit-skeletons", "Skeleton_Warrior.glb") })\`
+
+**MANDATORY patterns — these define the runner genre:**
+- Auto-forward: \`playerBody.velocity.z = -speed\` every frame. Player NEVER controls forward movement
+- 3-lane system: \`LANE_X = [-3, 0, 3]\`. Arrow Left/Right or swipe = switch lanes
+- Segment recycling: spawn platform segments ahead on -Z, remove when behind camera + RECYCLE_Z_BEHIND
+
+**FORBIDDEN patterns:**
+- No WASD/arrow forward movement — forward is AUTOMATIC
+- No free-roam camera — camera is LOCKED behind player
+- No manual camera controls (OrbitControls, etc.)
+- No platformer-style exploration — player runs in one direction only
+
+- **Camera**: Behind player, fixed offset. \`camera.position.set(playerX * 0.5, playerY + 4, playerZ + 10)\`, lookAt player
+- **Auto-movement**: \`playerBody.velocity.z = -speed\` each frame. Speed ramps: \`speed = Math.min(MAX_SPEED, speed + SPEED_RAMP * delta)\`
+- **Platforms**: Spawn segments using \`createPlatform3D(scene, x, -0.5, z, { variant: "4x4x1", color })\` — 3 tiles per row (left/center/right)
+- **Platform recycling**: When \`seg.z > playerZ + RECYCLE_Z_BEHIND\`, remove all objects in segment and call \`spawnSegment(false)\`
+- **Barriers**: \`createBarrier3D(scene, LANE_X[lane], 0.5, z, { variant: "2x1x2", color: "red" })\` — random lanes
+- **Collectibles**: \`createCollectible3D(scene, LANE_X[lane], 1.5, z, { type: "diamond" })\` — only in lanes without barriers
+- **Physics**: \`world = this.world\` (auto-created). Player body mass=5, fixedRotation=true. Platform bodies mass=0
+- **Jump**: \`playerBody.velocity.y = JUMP_VELOCITY\` when \`__canJump\` (set by collision event)
+- **Lane switching**: Tween via lerp: \`playerBody.position.x += (targetX - currentX) * 0.15 * (delta * 60)\`. 200ms cooldown
+- **Difficulty**: Increase speed, increase BARRIER_CHANCE, add more obstacle types over distance
+- **Lives**: 3 lives. Barrier hit = -1 life + invulnerability (flash effect). Game over at 0 lives
+- **Audio**: \`playSound(soundUrl("collect"))\` on pickup, \`soundUrl("hit")\` on damage, \`playMusic(soundUrl("theme-adventure"))\` for BGM
+- **Particles**: \`createParticleEmitter(scene, x, y, z, { preset: "sparkle" })\` on collect, \`{ preset: "explosion" }\` on crash
+- **Touch**: \`createSwipeDetector(container, callback)\` — left/right = lane switch, up = jump
+- **Skeleton characters**: \`createAnimatedCharacter3D(scene, 0, 0.5, 0, { url: modelUrl("kaykit-skeletons", "Skeleton_Warrior.glb"), targetHeight: 1.8 })\`
 
 ### Survival / Crafting
 - Third-person camera

@@ -4501,3 +4501,481 @@ export const GameScene = {
   },
 };
 `;
+
+// =============================================================================
+// 3D ENDLESS RUNNER SCENE STARTER
+// Temple Run / Subway Surfers style — auto-forward, 3-lane, segment recycling
+// =============================================================================
+export const GAME_3D_SCENE_STARTER_RUNNER = `/**
+ * 3D Endless Runner — Auto-forward, 3-lane dodging, segment recycling
+ *
+ * ALL game objects MUST use factory helpers from assets-3d.ts.
+ * Do NOT use raw THREE.BoxGeometry or THREE.SphereGeometry for visible objects.
+ */
+import {
+  createPlatform3D, createCollectible3D,
+  createBarrier3D, createDecoration3D, createAnimatedCharacter3D,
+  createCharacterController3D, createText3D,
+  createPhysicsBody, syncBodiesToMeshes, createKeyboardState,
+  createGround3D, createSkyGradient, createHUD,
+  createSwipeDetector, playSound, playMusic, soundUrl,
+  createParticleEmitter,
+  COLLECT_DISTANCE, JUMP_FORCE, loadGLTF, SCALES_3D,
+} from "../config/assets-3d";
+import { modelUrl } from "../utils/media-stock-3d";
+
+const THREE = (window as any).THREE;
+const CANNON = (window as any).CANNON;
+
+// ===== Runner Constants =====
+const LANE_X = [-3, 0, 3];          // 3 lane positions
+const LANE_SWITCH_SPEED = 0.15;     // Tween lerp factor per frame
+const INITIAL_SPEED = 8;            // Starting forward speed
+const MAX_SPEED = 25;               // Cap speed
+const SPEED_RAMP = 0.15;            // Speed increase per second
+const SEGMENT_LENGTH = 12;          // Z length of each platform segment
+const SEGMENT_COUNT = 8;            // Segments visible ahead
+const SPAWN_Z_AHEAD = SEGMENT_COUNT * SEGMENT_LENGTH;
+const RECYCLE_Z_BEHIND = 20;        // Recycle when this far behind camera
+const BARRIER_CHANCE = 0.35;        // Chance per segment per lane
+const COLLECTIBLE_CHANCE = 0.4;     // Chance per segment per lane
+const MAX_LIVES = 3;
+const INVULN_TIME = 1.5;            // Seconds of invulnerability after hit
+const JUMP_VELOCITY = 10;           // Runner jump force
+
+// ===== Game State =====
+let scene: any, camera: any, renderer: any;
+let player: any, playerBody: any, world: any;
+let controller: any;
+let hud: any, keys: any, destroyKb: () => void;
+let destroySwipe: () => void;
+
+let currentLane = 1;       // 0=left, 1=center, 2=right
+let targetX = 0;           // Target X for lane tween
+let speed = INITIAL_SPEED;
+let distance = 0;
+let score = 0;
+let lives = MAX_LIVES;
+let invulnTimer = 0;
+let gameOver = false;
+let gameStarted = false;
+
+// Segment pool
+interface Segment {
+  platforms: { mesh: any; body: any }[];
+  barriers: { mesh: any; body: any; lane: number }[];
+  collectibles: { mesh: any; collected: boolean; lane: number }[];
+  decorations: any[];
+  z: number;
+}
+const segments: Segment[] = [];
+let nextSegmentZ = 0;
+
+export const GameScene = {
+  world: null as any,
+
+  async init(s: any, c: any, r: any) {
+    scene = s; camera = c; renderer = r;
+    world = this.world;
+
+    // Sky
+    createSkyGradient(scene, "#87CEEB", "#E0F7FF");
+
+    // Ground (visual only — physics segments handle collision)
+    const groundGeo = new THREE.PlaneGeometry(20, 2000);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x3a7d44, roughness: 0.8 });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.set(0, -0.05, -900);
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Lane markers (subtle lines)
+    for (const lx of [-1.5, 1.5]) {
+      const lineGeo = new THREE.PlaneGeometry(0.05, 2000);
+      const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, opacity: 0.2, transparent: true });
+      const line = new THREE.Mesh(lineGeo, lineMat);
+      line.rotation.x = -Math.PI / 2;
+      line.position.set(lx, 0.01, -900);
+      scene.add(line);
+    }
+
+    // Animated warrior character
+    const characterResult = await createAnimatedCharacter3D(scene, 0, 0.5, 0, {
+      url: modelUrl("kaykit-skeletons", "Skeleton_Warrior.glb"),
+      targetHeight: 1.8,
+    });
+    player = characterResult.mesh;
+
+    // Physics body for player
+    playerBody = createPhysicsBody(world, 0, 1.5, 0, {
+      mass: 5,
+      shape: "box",
+      halfExtents: { x: 0.4, y: 0.8, z: 0.4 },
+      fixedRotation: true,
+      linearDamping: 0.1,
+    });
+    playerBody.angularDamping = 1;
+
+    // Ground detection
+    playerBody.addEventListener("collide", (e: any) => {
+      if (e.contact && e.contact.ni) {
+        const ny = e.contact.ni.y;
+        if (Math.abs(ny) > 0.5) {
+          (playerBody as any).__canJump = true;
+        }
+      }
+    });
+    (playerBody as any).__canJump = true;
+
+    // Character controller for animation states
+    controller = createCharacterController3D(characterResult, playerBody, {
+      walkSpeed: 1,
+      runSpeed: 4,
+    });
+
+    // Camera setup — behind and above player
+    camera.position.set(0, 6, 12);
+    camera.lookAt(0, 1, 0);
+
+    // Keyboard
+    const kb = createKeyboardState();
+    keys = kb.keys;
+    destroyKb = kb.destroy;
+
+    // Touch swipe
+    const container = renderer.domElement.parentElement || renderer.domElement;
+    destroySwipe = createSwipeDetector(container, (dir) => {
+      if (gameOver) return;
+      if (!gameStarted) { gameStarted = true; }
+      if (dir === "left" && currentLane > 0) {
+        currentLane--;
+        targetX = LANE_X[currentLane];
+      } else if (dir === "right" && currentLane < 2) {
+        currentLane++;
+        targetX = LANE_X[currentLane];
+      } else if (dir === "up") {
+        tryJump();
+      }
+    });
+
+    // HUD
+    hud = createHUD(container);
+    hud.update({ score: 0, lives: MAX_LIVES, custom: "Distance: 0m | Swipe or press arrows to start" });
+
+    // Spawn initial segments
+    nextSegmentZ = 0;
+    for (let i = 0; i < SEGMENT_COUNT; i++) {
+      await spawnSegment(i < 3);
+    }
+
+    // Music
+    playMusic(soundUrl("theme-adventure"), { loop: true, volume: 0.3, fadeIn: 2 });
+
+    // Force run animation
+    characterResult.play("running");
+  },
+
+  update(delta: number) {
+    if (gameOver) return;
+    if (!gameStarted) {
+      if (keys.ArrowLeft || keys.ArrowRight || keys.ArrowUp || keys.Space ||
+          keys.KeyA || keys.KeyD || keys.KeyW) {
+        gameStarted = true;
+      }
+      controller.update(delta);
+      return;
+    }
+
+    // Physics step
+    world.step(1 / 60, delta, 3);
+
+    // Speed ramp
+    speed = Math.min(MAX_SPEED, speed + SPEED_RAMP * delta);
+
+    // Auto-forward movement (negative Z = forward)
+    playerBody.velocity.z = -speed;
+
+    // Lane switching — keyboard (with cooldown)
+    if (keys.ArrowLeft || keys.KeyA) {
+      if (currentLane > 0 && !(playerBody as any).__laneSwitching) {
+        currentLane--;
+        targetX = LANE_X[currentLane];
+        (playerBody as any).__laneSwitching = true;
+        setTimeout(() => { (playerBody as any).__laneSwitching = false; }, 200);
+      }
+    }
+    if (keys.ArrowRight || keys.KeyD) {
+      if (currentLane < 2 && !(playerBody as any).__laneSwitching) {
+        currentLane++;
+        targetX = LANE_X[currentLane];
+        (playerBody as any).__laneSwitching = true;
+        setTimeout(() => { (playerBody as any).__laneSwitching = false; }, 200);
+      }
+    }
+
+    // Jump
+    if (keys.ArrowUp || keys.KeyW || keys.Space) {
+      tryJump();
+    }
+
+    // Tween X position toward target lane
+    const currentX = playerBody.position.x;
+    const dx = targetX - currentX;
+    if (Math.abs(dx) > 0.05) {
+      playerBody.position.x += dx * LANE_SWITCH_SPEED * (delta * 60);
+      playerBody.velocity.x = 0;
+    } else {
+      playerBody.position.x = targetX;
+      playerBody.velocity.x = 0;
+    }
+
+    // Update controller (syncs mesh + animations)
+    controller.update(delta);
+
+    // Distance scoring
+    distance += speed * delta;
+    score = Math.floor(distance);
+
+    // Invulnerability timer
+    if (invulnTimer > 0) {
+      invulnTimer -= delta;
+      player.visible = Math.floor(invulnTimer * 10) % 2 === 0;
+    } else {
+      player.visible = true;
+    }
+
+    // Check barrier collisions
+    for (const seg of segments) {
+      for (const b of seg.barriers) {
+        const bPos = b.mesh.position;
+        const pPos = player.position;
+        const dz = Math.abs(pPos.z - bPos.z);
+        const dxB = Math.abs(pPos.x - bPos.x);
+        if (dz < 1.2 && dxB < 1.0 && pPos.y < bPos.y + 1.5 && invulnTimer <= 0) {
+          hitBarrier();
+        }
+      }
+
+      // Check collectible pickups
+      for (const c of seg.collectibles) {
+        if (c.collected) continue;
+        const cPos = c.mesh.position;
+        const pPos = player.position;
+        const dist = Math.sqrt(
+          (pPos.x - cPos.x) ** 2 + (pPos.y - cPos.y) ** 2 + (pPos.z - cPos.z) ** 2
+        );
+        if (dist < COLLECT_DISTANCE) {
+          c.collected = true;
+          c.mesh.visible = false;
+          score += 50;
+          playSound(soundUrl("collect"), { volume: 0.6 });
+          createParticleEmitter(scene, cPos.x, cPos.y, cPos.z, { preset: "sparkle", count: 15, duration: 0.5 });
+        }
+      }
+    }
+
+    // Recycle segments behind camera
+    recycleSegments();
+
+    // Spin collectibles
+    for (const seg of segments) {
+      for (const c of seg.collectibles) {
+        if (!c.collected) c.mesh.rotation.y += delta * 3;
+      }
+    }
+
+    // Camera follow — behind and above
+    const camTargetX = player.position.x * 0.5;
+    const camTargetY = player.position.y + 4;
+    const camTargetZ = player.position.z + 10;
+    camera.position.x += (camTargetX - camera.position.x) * 3 * delta;
+    camera.position.y += (camTargetY - camera.position.y) * 3 * delta;
+    camera.position.z += (camTargetZ - camera.position.z) * 5 * delta;
+    camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+
+    // HUD update
+    hud.update({ score, lives, custom: \\\`Distance: \\\${Math.floor(distance)}m | Speed: \\\${speed.toFixed(1)}\\\` });
+
+    // Fall off edge = lose life
+    if (player.position.y < -5) {
+      lives--;
+      if (lives <= 0) {
+        triggerGameOver();
+      } else {
+        respawnPlayer();
+      }
+    }
+  },
+
+  cleanup() {
+    destroyKb?.();
+    destroySwipe?.();
+  },
+};
+
+// ===== Helper Functions =====
+
+function tryJump() {
+  if ((playerBody as any).__canJump && !gameOver) {
+    playerBody.velocity.y = JUMP_VELOCITY;
+    (playerBody as any).__canJump = false;
+    playSound(soundUrl("jump"), { volume: 0.4 });
+    controller.jump();
+  }
+}
+
+function hitBarrier() {
+  lives--;
+  invulnTimer = INVULN_TIME;
+  playSound(soundUrl("hit"), { volume: 0.7 });
+  createParticleEmitter(scene, player.position.x, player.position.y + 1, player.position.z, {
+    preset: "explosion", count: 20, duration: 0.6,
+  });
+  speed = Math.max(INITIAL_SPEED, speed * 0.7);
+  if (lives <= 0) {
+    triggerGameOver();
+  }
+  hud.update({ score, lives, custom: \\\`Distance: \\\${Math.floor(distance)}m\\\` });
+}
+
+function triggerGameOver() {
+  gameOver = true;
+  playerBody.velocity.set(0, 0, 0);
+
+  const container = renderer.domElement.parentElement || renderer.domElement;
+  const overlay = document.createElement("div");
+  overlay.style.cssText = "position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);z-index:100;color:white;font-family:sans-serif;";
+  overlay.innerHTML = \\\`
+    <h1 style="font-size:48px;margin:0;">GAME OVER</h1>
+    <p style="font-size:24px;">Distance: \\\${Math.floor(distance)}m</p>
+    <p style="font-size:24px;">Score: \\\${score}</p>
+    <button id="runner-restart" style="margin-top:20px;padding:12px 32px;font-size:20px;background:#4CAF50;color:white;border:none;border-radius:8px;cursor:pointer;">Play Again</button>
+  \\\`;
+  container.appendChild(overlay);
+  const btn = overlay.querySelector("#runner-restart");
+  if (btn) btn.addEventListener("click", () => { overlay.remove(); restartGame(); });
+
+  playSound(soundUrl("explosion"), { volume: 0.5 });
+}
+
+function restartGame() {
+  for (const seg of segments) {
+    for (const p of seg.platforms) { scene.remove(p.mesh); world.removeBody(p.body); }
+    for (const b of seg.barriers) { scene.remove(b.mesh); if (b.body) world.removeBody(b.body); }
+    for (const c of seg.collectibles) { scene.remove(c.mesh); }
+    for (const d of seg.decorations) { scene.remove(d); }
+  }
+  segments.length = 0;
+
+  currentLane = 1;
+  targetX = 0;
+  speed = INITIAL_SPEED;
+  distance = 0;
+  score = 0;
+  lives = MAX_LIVES;
+  invulnTimer = 0;
+  gameOver = false;
+  gameStarted = true;
+  nextSegmentZ = 0;
+
+  playerBody.position.set(0, 1.5, 0);
+  playerBody.velocity.set(0, 0, 0);
+  (playerBody as any).__canJump = true;
+
+  for (let i = 0; i < SEGMENT_COUNT; i++) {
+    spawnSegment(i < 3);
+  }
+
+  hud.update({ score: 0, lives: MAX_LIVES, custom: "Distance: 0m" });
+}
+
+function respawnPlayer() {
+  playerBody.position.set(LANE_X[currentLane], 2, playerBody.position.z + 3);
+  playerBody.velocity.set(0, 0, -speed);
+  (playerBody as any).__canJump = true;
+  invulnTimer = INVULN_TIME;
+}
+
+async function spawnSegment(safe: boolean = false) {
+  const z = nextSegmentZ;
+  nextSegmentZ -= SEGMENT_LENGTH;
+
+  const seg: Segment = { platforms: [], barriers: [], collectibles: [], decorations: [], z };
+
+  // Ground platform segment (wide, flat)
+  for (let lx = -1; lx <= 1; lx++) {
+    const { mesh, size } = await createPlatform3D(scene, lx * 4, -0.5, z - SEGMENT_LENGTH / 2, {
+      variant: "4x4x1",
+      color: lx === 0 ? "blue" : "green",
+    });
+    const body = createPhysicsBody(world, lx * 4, -0.5, z - SEGMENT_LENGTH / 2, {
+      mass: 0,
+      shape: "box",
+      halfExtents: size,
+    });
+    seg.platforms.push({ mesh, body });
+  }
+
+  if (!safe) {
+    // Random barriers in lanes
+    for (let lane = 0; lane < 3; lane++) {
+      if (Math.random() < BARRIER_CHANCE) {
+        const bx = LANE_X[lane];
+        const bz = z - SEGMENT_LENGTH * (0.3 + Math.random() * 0.4);
+        const { mesh, size } = await createBarrier3D(scene, bx, 0.5, bz, {
+          variant: "2x1x2",
+          color: "red",
+        });
+        const body = createPhysicsBody(world, bx, 0.5, bz, {
+          mass: 0,
+          shape: "box",
+          halfExtents: size,
+        });
+        seg.barriers.push({ mesh, body, lane });
+      }
+    }
+
+    // Collectibles in lanes without barriers
+    const barrierLanes = new Set(seg.barriers.map(b => b.lane));
+    for (let lane = 0; lane < 3; lane++) {
+      if (!barrierLanes.has(lane) && Math.random() < COLLECTIBLE_CHANCE) {
+        const cx = LANE_X[lane];
+        const cz = z - SEGMENT_LENGTH * (0.3 + Math.random() * 0.4);
+        const { mesh } = await createCollectible3D(scene, cx, 1.5, cz, {
+          type: ["diamond", "star", "heart"][Math.floor(Math.random() * 3)] as any,
+          color: "yellow",
+        });
+        seg.collectibles.push({ mesh, collected: false, lane });
+      }
+    }
+  }
+
+  // Side decorations
+  if (Math.random() < 0.5) {
+    const side = Math.random() < 0.5 ? -7 : 7;
+    const { mesh } = await createDecoration3D(scene, side, 0, z - SEGMENT_LENGTH / 2, {
+      type: "pillar_2x2x4",
+      color: "green",
+    });
+    seg.decorations.push(mesh);
+  }
+
+  segments.push(seg);
+}
+
+function recycleSegments() {
+  const playerZ = player.position.z;
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const seg = segments[i];
+    if (seg.z > playerZ + RECYCLE_Z_BEHIND) {
+      for (const p of seg.platforms) { scene.remove(p.mesh); world.removeBody(p.body); }
+      for (const b of seg.barriers) { scene.remove(b.mesh); if (b.body) world.removeBody(b.body); }
+      for (const c of seg.collectibles) { scene.remove(c.mesh); }
+      for (const d of seg.decorations) { scene.remove(d); }
+      segments.splice(i, 1);
+      spawnSegment(false);
+    }
+  }
+}
+`;
