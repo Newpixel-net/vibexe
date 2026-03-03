@@ -5053,15 +5053,15 @@ const CANNON = (window as any).CANNON;
 
 // ===== Constants =====
 const PACK = "squad-shooter";
-const GRID_SIZE = 8;
+const GRID_SIZE = 10;
 const TILE_SIZE = 4;
 const ARENA_HALF = (GRID_SIZE * TILE_SIZE) / 2;
 const PLAYER_SPEED = 6;
 const BULLET_SPEED = 20;
 const BULLET_POOL_SIZE = 40;
 const FIRE_RATE = 0.25;
-const CAM_HEIGHT = 16;
-const CAM_BACK = 14;
+const CAM_HEIGHT = 20;
+const CAM_BACK = 16;
 const ENEMY_SHIFT = 0.12;
 const SHAKE_DECAY = 8;
 const SPAWN_MIN_DIST = 8;
@@ -5296,10 +5296,9 @@ const collectibles: { mesh: any; collected: boolean; type: string }[] = [];
 const floatingTexts: { sprite: any; vel: number; life: number }[] = [];
 
 // ===== Arena Generator =====
-// Mathematically precise grid-based system. Each cell = TILE_SIZE × TILE_SIZE.
-// Multi-cell objects (1x2, 2x2) occupy exact grid positions — no collisions possible.
-// Zone-based placement: outer ring = dense cover, middle = moderate, center 3x3 = player spawn.
-// Cross-shaped walkways through center always kept clear for movement.
+// Grid-based system: each cell = TILE_SIZE × TILE_SIZE on a GRID_SIZE × GRID_SIZE grid.
+// Quadrant-balanced: arena divided into 4 quadrants, each gets ~equal cover pieces.
+// Spacing rule: blocks avoid adjacency (prevents clumping), center 2x2 reserved for player.
 async function generateShooterArena(onProgress?: (p: number) => void) {
   const seed = Date.now();
   const rng = mulberry32(seed);
@@ -5319,13 +5318,19 @@ async function generateShooterArena(onProgress?: (p: number) => void) {
     return gx >= 0 && gx < GRID_SIZE && gz >= 0 && gz < GRID_SIZE && grid[gx][gz] === 0;
   }
   function inCenter(gx: number, gz: number): boolean {
-    return Math.abs(gx - (GRID_SIZE - 1) / 2) <= 1.5 && Math.abs(gz - (GRID_SIZE - 1) / 2) <= 1.5;
+    // Small 2x2 exclusion zone for player spawn only
+    return Math.abs(gx - (GRID_SIZE - 1) / 2) <= 1.0 && Math.abs(gz - (GRID_SIZE - 1) / 2) <= 1.0;
   }
-  function isPathCell(gx: number, gz: number): boolean {
-    // Cross-shaped paths through center for guaranteed movement corridors
-    const midX = (GRID_SIZE - 1) / 2;
-    const midZ = (GRID_SIZE - 1) / 2;
-    return Math.abs(gx - midX) <= 0.5 || Math.abs(gz - midZ) <= 0.5;
+  function quadrant(gx: number, gz: number): number {
+    const mid = GRID_SIZE / 2;
+    return (gx < mid ? 0 : 1) + (gz < mid ? 0 : 2);
+  }
+  function hasAdjacentBlock(gx: number, gz: number): boolean {
+    for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = gx + dx, nz = gz + dz;
+      if (nx >= 0 && nx < GRID_SIZE && nz >= 0 && nz < GRID_SIZE && grid[nx][nz] !== 0) return true;
+    }
+    return false;
   }
 
   // === Complete tile catalogs (ALL models per theme, verified from server inventory) ===
@@ -5412,55 +5417,53 @@ async function generateShooterArena(onProgress?: (p: number) => void) {
   }
   onProgress?.(0.22);
 
-  // --- Step 3: COVER blocks — zone-based mathematical placement ---
-  // Zone classification: outer ring (1 from edge), middle, center (reserved)
-  const outerCells: [number, number][] = [];
-  const middleCells: [number, number][] = [];
+  // --- Step 3: COVER blocks — quadrant-balanced placement ---
+  // Collect all placeable interior cells (not edge row, not center)
+  // Group by quadrant to guarantee even distribution across arena
+  const quadCells: [number, number][][] = [[], [], [], []]; // 4 quadrants
   for (let gx = 1; gx < GRID_SIZE - 1; gx++) {
     for (let gz = 1; gz < GRID_SIZE - 1; gz++) {
       if (inCenter(gx, gz)) continue;
-      if (isPathCell(gx, gz)) continue;
-      const dEdge = Math.min(gx, gz, GRID_SIZE - 1 - gx, GRID_SIZE - 1 - gz);
-      if (dEdge <= 2) outerCells.push([gx, gz]);
-      else middleCells.push([gx, gz]);
+      quadCells[quadrant(gx, gz)].push([gx, gz]);
     }
   }
-  // Shuffle for randomness
-  for (const arr of [outerCells, middleCells]) {
-    for (let i = arr.length - 1; i > 0; i--) {
+  // Shuffle each quadrant independently
+  for (const qc of quadCells) {
+    for (let i = qc.length - 1; i > 0; i--) {
       const j = Math.floor(rng() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
+      [qc[i], qc[j]] = [qc[j], qc[i]];
     }
   }
 
-  // 3a: Place 1-2 large 2x2 blocks (anchor pieces in outer zone)
-  let placed2x2 = 0;
-  for (let a = 0; a < outerCells.length && placed2x2 < 2; a++) {
-    const [gx, gz] = outerCells[a];
-    if (cellFree(gx, gz) && cellFree(gx+1, gz) && cellFree(gx, gz+1) && cellFree(gx+1, gz+1)
-      && !inCenter(gx+1, gz) && !inCenter(gx, gz+1) && !inCenter(gx+1, gz+1)) {
-      grid[gx][gz] = 1; grid[gx+1][gz] = 3; grid[gx][gz+1] = 3; grid[gx+1][gz+1] = 3;
-      const [wx, wz] = g2w(gx, gz);
-      const cx = wx + TILE_SIZE * 0.5, cz = wz + TILE_SIZE * 0.5;
-      const m = await loadModel(\`environment/\${theme}/\${BLOCK_2x2}\`);
-      scaleToTile(m, TILE_SIZE * 1.8, TILE_SIZE * 1.8);
-      m.position.set(cx, 0, cz); m.rotation.y = rng() * Math.PI * 2;
-      enableShadows(m, true, true); scene.add(m);
-      addStaticBody(cx, cz, TILE_SIZE * 1.5, TILE_SIZE * 1.5);
-      placed2x2++;
+  // 3a: Place 1 large 2x2 block per quadrant pair (2 total, diagonal quadrants)
+  const q2x2Pairs = rng() > 0.5 ? [[0, 3], [1, 2]] : [[0, 1], [2, 3]];
+  for (const qIdx of [q2x2Pairs[0][0], q2x2Pairs[1][0]]) {
+    for (const [gx, gz] of quadCells[qIdx]) {
+      if (cellFree(gx, gz) && cellFree(gx+1, gz) && cellFree(gx, gz+1) && cellFree(gx+1, gz+1)
+        && !inCenter(gx+1, gz) && !inCenter(gx, gz+1) && !inCenter(gx+1, gz+1)) {
+        grid[gx][gz] = 1; grid[gx+1][gz] = 3; grid[gx][gz+1] = 3; grid[gx+1][gz+1] = 3;
+        const [wx, wz] = g2w(gx, gz);
+        const cx = wx + TILE_SIZE * 0.5, cz = wz + TILE_SIZE * 0.5;
+        const m = await loadModel(\`environment/\${theme}/\${BLOCK_2x2}\`);
+        scaleToTile(m, TILE_SIZE * 1.8, TILE_SIZE * 1.8);
+        m.position.set(cx, 0, cz); m.rotation.y = rng() * Math.PI * 2;
+        enableShadows(m, true, true); scene.add(m);
+        addStaticBody(cx, cz, TILE_SIZE * 1.5, TILE_SIZE * 1.5);
+        break; // one per target quadrant
+      }
     }
   }
 
-  // 3b: Place 3-5 wide 1x2 blocks (directional cover)
-  let placed1x2 = 0;
-  const target1x2 = 3 + Math.floor(rng() * 3);
-  for (const pool of [outerCells, middleCells]) {
-    for (const [gx, gz] of pool) {
-      if (placed1x2 >= target1x2) break;
+  // 3b: Place 1-2 wide 1x2 blocks per quadrant (4-8 total)
+  for (let qi = 0; qi < 4; qi++) {
+    const target1x2 = 1 + Math.floor(rng() * 2);
+    let placed = 0;
+    for (const [gx, gz] of quadCells[qi]) {
+      if (placed >= target1x2) break;
       if (!cellFree(gx, gz)) continue;
       const horiz = rng() > 0.5;
       const gx2 = horiz ? gx + 1 : gx, gz2 = horiz ? gz : gz + 1;
-      if (!cellFree(gx2, gz2) || inCenter(gx2, gz2) || isPathCell(gx2, gz2)) continue;
+      if (!cellFree(gx2, gz2) || inCenter(gx2, gz2)) continue;
       grid[gx][gz] = 1; grid[gx2][gz2] = 3;
       const [wx1, wz1] = g2w(gx, gz);
       const [wx2, wz2] = g2w(gx2, gz2);
@@ -5473,18 +5476,19 @@ async function generateShooterArena(onProgress?: (p: number) => void) {
       if (!horiz) m.rotation.y = Math.PI / 2;
       enableShadows(m, true, true); scene.add(m);
       addStaticBody(cx, cz, horiz ? TILE_SIZE * 1.5 : TILE_SIZE * 0.7, horiz ? TILE_SIZE * 0.7 : TILE_SIZE * 1.5);
-      placed1x2++;
+      placed++;
     }
   }
 
-  // 3c: Fill remaining cells with 1x1 blocks (~25% outer, ~15% middle)
-  const targetOuter = Math.floor(outerCells.length * 0.25);
-  const targetMiddle = Math.floor(middleCells.length * 0.15);
-  for (const [pool, target] of [[outerCells, targetOuter], [middleCells, targetMiddle]] as [[number,number][], number][]) {
+  // 3c: Fill each quadrant with 1x1 blocks (~25% of available cells, with spacing)
+  for (let qi = 0; qi < 4; qi++) {
+    const target = Math.max(3, Math.floor(quadCells[qi].length * 0.25));
     let placed = 0;
-    for (const [gx, gz] of pool) {
+    for (const [gx, gz] of quadCells[qi]) {
       if (placed >= target) break;
       if (!cellFree(gx, gz)) continue;
+      // Spacing: skip if adjacent to another block (prevents clumping)
+      if (hasAdjacentBlock(gx, gz) && rng() > 0.35) continue;
       grid[gx][gz] = 1;
       const [wx, wz] = g2w(gx, gz);
       const isHalf = rng() > 0.55;
@@ -5499,59 +5503,59 @@ async function generateShooterArena(onProgress?: (p: number) => void) {
   }
   onProgress?.(0.28);
 
-  // --- Step 4: WALLS — 2-4 structures (L-shapes, lines, pillars) ---
-  const wallTarget = 2 + Math.floor(rng() * 3);
-  let wallsPlaced = 0;
-  const wallPool = [...outerCells, ...middleCells].filter(([gx, gz]) => cellFree(gx, gz));
-  for (let i = wallPool.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [wallPool[i], wallPool[j]] = [wallPool[j], wallPool[i]];
-  }
-  for (let w = 0; w < wallPool.length && wallsPlaced < wallTarget; w++) {
-    const [gx, gz] = wallPool[w];
-    if (!cellFree(gx, gz)) continue;
-    // Try L-shape (wall_corner + two wall_1x1)
-    const makeL = rng() > 0.5 && cellFree(gx+1, gz) && cellFree(gx, gz+1)
-      && !inCenter(gx+1, gz) && !inCenter(gx, gz+1) && !isPathCell(gx+1, gz) && !isPathCell(gx, gz+1);
-    if (makeL) {
-      grid[gx][gz] = 2; grid[gx+1][gz] = 2; grid[gx][gz+1] = 2;
-      const [wx, wz] = g2w(gx, gz);
-      const co = await loadModel(\`environment/\${theme}/\${WALL_CORNER}\`);
-      scaleToTile(co, TILE_SIZE * 0.8, TILE_SIZE * 0.8);
-      co.position.set(wx, 0, wz); co.rotation.y = [0, Math.PI/2, Math.PI, -Math.PI/2][Math.floor(rng()*4)];
-      enableShadows(co, true, false); scene.add(co);
-      addStaticBody(wx, wz, TILE_SIZE * 0.6, TILE_SIZE * 0.6);
-      for (const [dx, dz] of [[1,0],[0,1]]) {
-        const [ewx, ewz] = g2w(gx + dx, gz + dz);
-        const ew = await loadModel(\`environment/\${theme}/\${WALL_1x1}\`);
-        scaleToTile(ew, TILE_SIZE * 0.8, TILE_SIZE * 0.8);
-        ew.position.set(ewx, 0, ewz); enableShadows(ew, true, false); scene.add(ew);
-        addStaticBody(ewx, ewz, TILE_SIZE * 0.6, TILE_SIZE * 0.6);
-      }
-      wallsPlaced++;
-    } else {
-      // Simple wall_1x1 or wall_1x2
-      grid[gx][gz] = 2;
-      const [wx, wz] = g2w(gx, gz);
-      const long = rng() > 0.5 && cellFree(gx+1, gz) && !inCenter(gx+1, gz) && !isPathCell(gx+1, gz);
-      if (long) grid[gx+1][gz] = 2;
-      const wallFile = long ? WALL_1x2 : WALL_1x1;
-      const wm = await loadModel(\`environment/\${theme}/\${wallFile}\`);
-      const wallRot = rng() > 0.5 ? 0 : Math.PI / 2;
-      if (long) {
-        const [wx2] = g2w(gx+1, gz);
-        const mx = (wx + wx2) / 2;
-        scaleToTile(wm, TILE_SIZE * 1.8, TILE_SIZE * 0.8);
-        wm.position.set(mx, 0, wz); wm.rotation.y = wallRot;
-        enableShadows(wm, true, false); scene.add(wm);
-        addStaticBody(mx, wz, TILE_SIZE * 1.5, TILE_SIZE * 0.6);
-      } else {
-        scaleToTile(wm, TILE_SIZE * 0.8, TILE_SIZE * 0.8);
-        wm.position.set(wx, 0, wz); wm.rotation.y = wallRot;
-        enableShadows(wm, true, false); scene.add(wm);
+  // --- Step 4: WALLS — 1 per quadrant (4 total, mix of L-shapes and lines) ---
+  for (let qi = 0; qi < 4; qi++) {
+    const wallCandidates = quadCells[qi].filter(([gx, gz]) => cellFree(gx, gz));
+    for (let i = wallCandidates.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [wallCandidates[i], wallCandidates[j]] = [wallCandidates[j], wallCandidates[i]];
+    }
+    let wallPlaced = false;
+    for (const [gx, gz] of wallCandidates) {
+      if (wallPlaced) break;
+      if (!cellFree(gx, gz)) continue;
+      // Try L-shape
+      const makeL = rng() > 0.4 && cellFree(gx+1, gz) && cellFree(gx, gz+1)
+        && !inCenter(gx+1, gz) && !inCenter(gx, gz+1);
+      if (makeL) {
+        grid[gx][gz] = 2; grid[gx+1][gz] = 2; grid[gx][gz+1] = 2;
+        const [wx, wz] = g2w(gx, gz);
+        const co = await loadModel(\`environment/\${theme}/\${WALL_CORNER}\`);
+        scaleToTile(co, TILE_SIZE * 0.8, TILE_SIZE * 0.8);
+        co.position.set(wx, 0, wz); co.rotation.y = [0, Math.PI/2, Math.PI, -Math.PI/2][Math.floor(rng()*4)];
+        enableShadows(co, true, false); scene.add(co);
         addStaticBody(wx, wz, TILE_SIZE * 0.6, TILE_SIZE * 0.6);
+        for (const [dx, dz] of [[1,0],[0,1]]) {
+          const [ewx, ewz] = g2w(gx + dx, gz + dz);
+          const ew = await loadModel(\`environment/\${theme}/\${WALL_1x1}\`);
+          scaleToTile(ew, TILE_SIZE * 0.8, TILE_SIZE * 0.8);
+          ew.position.set(ewx, 0, ewz); enableShadows(ew, true, false); scene.add(ew);
+          addStaticBody(ewx, ewz, TILE_SIZE * 0.6, TILE_SIZE * 0.6);
+        }
+        wallPlaced = true;
+      } else {
+        grid[gx][gz] = 2;
+        const [wx, wz] = g2w(gx, gz);
+        const long = rng() > 0.5 && cellFree(gx+1, gz) && !inCenter(gx+1, gz);
+        if (long) grid[gx+1][gz] = 2;
+        const wallFile = long ? WALL_1x2 : WALL_1x1;
+        const wm = await loadModel(\`environment/\${theme}/\${wallFile}\`);
+        const wallRot = rng() > 0.5 ? 0 : Math.PI / 2;
+        if (long) {
+          const [wx2] = g2w(gx+1, gz);
+          const mx = (wx + wx2) / 2;
+          scaleToTile(wm, TILE_SIZE * 1.8, TILE_SIZE * 0.8);
+          wm.position.set(mx, 0, wz); wm.rotation.y = wallRot;
+          enableShadows(wm, true, false); scene.add(wm);
+          addStaticBody(mx, wz, TILE_SIZE * 1.5, TILE_SIZE * 0.6);
+        } else {
+          scaleToTile(wm, TILE_SIZE * 0.8, TILE_SIZE * 0.8);
+          wm.position.set(wx, 0, wz); wm.rotation.y = wallRot;
+          enableShadows(wm, true, false); scene.add(wm);
+          addStaticBody(wx, wz, TILE_SIZE * 0.6, TILE_SIZE * 0.6);
+        }
+        wallPlaced = true;
       }
-      wallsPlaced++;
     }
   }
   onProgress?.(0.3);
