@@ -1122,15 +1122,20 @@ export function getVisualEditBridgeScript(): string {
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
       editor.pause();
-      // Create OrbitControls for camera movement in editor mode
-      if (THREE.OrbitControls && !editor.orbitControls) {
-        editor.orbitControls = new THREE.OrbitControls(editor.camera, editor.renderer.domElement);
-        editor.orbitControls._vibexeEditorCreated = true;
-        editor.orbitControls.enableDamping = true;
-        editor.orbitControls.dampingFactor = 0.12;
+      // Create or fix OrbitControls for editor mode
+      if (THREE.OrbitControls) {
+        if (!editor.orbitControls) {
+          editor.orbitControls = new THREE.OrbitControls(editor.camera, editor.renderer.domElement);
+          editor.orbitControls._vibexeEditorCreated = true;
+          editor.orbitControls.enableDamping = true;
+          editor.orbitControls.dampingFactor = 0.12;
+          // Compute orbit target from camera's look direction
+          var camDir = new THREE.Vector3();
+          editor.camera.getWorldDirection(camDir);
+          editor.orbitControls.target.copy(editor.camera.position).addScaledVector(camDir, 10);
+        }
+        // ALWAYS enforce correct editor mouseButtons (pause() may have set defaults)
         editor.orbitControls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
-        // Look at center of scene initially
-        editor.orbitControls.target.set(0, 2, 0);
         editor.orbitControls.update();
       }
       showDebug("Bridge ACTIVATED. Canvas: " + editor.renderer.domElement.tagName + " " + editor.renderer.domElement.width + "x" + editor.renderer.domElement.height);

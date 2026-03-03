@@ -3333,7 +3333,14 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               __editorOrbitControls = new THREE.OrbitControls(camera, renderer.domElement);
               __editorOrbitControls.enableDamping = true;
               __editorOrbitControls.dampingFactor = 0.08;
-              __editorOrbitControls.target.set(0, 2, 0);
+              // Editor mouse: LEFT=selection/gizmo (null), MIDDLE=dolly, RIGHT=rotate
+              __editorOrbitControls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+              // Compute orbit target from camera's current look direction (not hardcoded)
+              // This ensures reasonable orbit radius regardless of where gameplay left the camera
+              var __camDir = new THREE.Vector3();
+              camera.getWorldDirection(__camDir);
+              __editorOrbitControls.target.copy(camera.position).addScaledVector(__camDir, 10);
+              __editorOrbitControls.update();
               (window as any).__vibexe_editor__.orbitControls = __editorOrbitControls;
             }
           },
