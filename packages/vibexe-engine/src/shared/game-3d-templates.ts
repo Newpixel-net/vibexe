@@ -4994,3 +4994,435 @@ function recycleSegments() {
   }
 }
 `;
+
+// =============================================================================
+// 3D TOP-DOWN SHOOTER SCENE STARTER
+// Squad Shooter / Archero style — top-down camera, wave enemies, bullet pool
+// =============================================================================
+export const GAME_3D_SCENE_STARTER_SHOOTER = `/**
+ * 3D Top-Down Shooter — Wave-based enemies, bullet pooling, FSM AI, hit feedback
+ *
+ * ALL game objects MUST use factory helpers from assets-3d.ts.
+ * Do NOT use raw THREE.BoxGeometry or THREE.SphereGeometry for visible objects.
+ * Uses squad-shooter asset pack for characters, enemies, weapons, and world tiles.
+ */
+import {
+  createPlatform3D, createCollectible3D, createPlayer3D,
+  createBarrier3D, createDecoration3D, createText3D,
+  createPhysicsBody, syncBodiesToMeshes, createKeyboardState,
+  createGround3D, createSkyGradient, createHUD,
+  createTouchJoystick, createTapDetector,
+  COLLECT_DISTANCE, loadGLTF, SCALES_3D,
+  playSound, playMusic, soundUrl,
+  createParticleEmitter,
+} from "../config/assets-3d";
+import { modelUrl } from "../utils/media-stock-3d";
+
+const THREE = (window as any).THREE;
+const CANNON = (window as any).CANNON;
+
+// ===== Shooter Constants =====
+const ARENA_SIZE = 30;
+const PLAYER_SPEED = 6;
+const BULLET_SPEED = 20;
+const BULLET_POOL_SIZE = 30;
+const ENEMY_SPEED_BASE = 2;
+const FOLLOW_RANGE = 20;
+const ATTACK_RANGE = 8;
+const FLEE_HP_RATIO = 0.2;
+const FIRE_RATE = 0.25;     // seconds between shots
+const CAM_HEIGHT = 18;
+const CAM_BACK = 12;
+const ENEMY_SHIFT = 0.12;   // camera shifts toward enemies
+const SHAKE_DECAY = 8;      // camera shake decay speed
+const SPAWN_MIN_DIST = 8;   // min distance from player for spawns
+
+// ===== Game State =====
+let scene: any, camera: any, renderer: any, container: HTMLDivElement;
+let playerMesh: any, playerBody: any, world: any;
+let hud: any, keys: any, destroyKb: () => void, destroyJoystick: () => void;
+
+let score = 0;
+let wave = 0;
+let lives = 5;
+let gameOver = false;
+let lastFireTime = 0;
+let gameTime = 0;
+let shakeIntensity = 0;
+let difficulty = 1;
+
+// Object pools
+const bullets: { mesh: any; vel: any; active: boolean; damage: number }[] = [];
+const enemies: { mesh: any; body: any; hp: number; maxHp: number; state: string; stateTime: number; speed: number; damage: number; isBoss: boolean; flashTimer: number }[] = [];
+const collectibles: { mesh: any; collected: boolean }[] = [];
+const floatingTexts: { sprite: any; vel: number; life: number }[] = [];
+
+// Joystick input
+let joyX = 0, joyZ = 0;
+
+export const GameScene = {
+  world: null as any,
+
+  async init(_scene: any, _camera: any, _renderer: any, _container: HTMLDivElement, onProgress?: (p: number) => void) {
+    scene = _scene; camera = _camera; renderer = _renderer; container = _container;
+    world = this.world;
+
+    // Sky + ground
+    createSkyGradient(scene, 0x1a1a2e, 0x16213e);
+    createGround3D(scene, ARENA_SIZE * 2, 0x2a3a4a);
+    onProgress?.(0.1);
+
+    // ===== ARENA WALLS using barriers =====
+    const wallPositions: [number, number, number, number][] = [
+      [0, 0, -ARENA_SIZE, 0], [0, 0, ARENA_SIZE, 0],
+      [-ARENA_SIZE, 0, 0, Math.PI / 2], [ARENA_SIZE, 0, 0, Math.PI / 2],
+    ];
+    for (const [x, y, z, rot] of wallPositions) {
+      for (let i = -3; i <= 3; i++) {
+        const wx = rot === 0 ? x + i * 4 : x;
+        const wz = rot !== 0 ? z + i * 4 : z;
+        const { mesh } = await createBarrier3D(scene, wx, 0, wz, { variant: "2x1x4", color: "red" });
+        if (mesh && rot) mesh.rotation.y = rot;
+      }
+    }
+    onProgress?.(0.2);
+
+    // ===== ARENA DECORATIONS =====
+    const decTypes = ["pillar_2x2x4", "structure_A"] as const;
+    const decPositions = [[-10, 0, -10], [10, 0, 10], [-10, 0, 10], [10, 0, -10]];
+    for (let i = 0; i < decPositions.length; i++) {
+      const [x, y, z] = decPositions[i];
+      await createDecoration3D(scene, x, y, z, { type: decTypes[i % 2] });
+    }
+    onProgress?.(0.3);
+
+    // ===== PLAYER =====
+    const p = await createPlayer3D(scene, 0, 0.5, 0, {});
+    playerMesh = p.mesh;
+    playerBody = createPhysicsBody("box", 5, { x: 0, y: 0.5, z: 0 }, p.size);
+    if (playerBody) {
+      playerBody.linearDamping = 0.95;
+      playerBody.fixedRotation = true;
+    }
+    if (world && playerBody) world.addBody(playerBody);
+    onProgress?.(0.4);
+
+    // ===== BULLET POOL =====
+    for (let i = 0; i < BULLET_POOL_SIZE; i++) {
+      const geo = new THREE.SphereGeometry(0.15, 6, 6);
+      const mat = new THREE.MeshStandardMaterial({ color: 0xffff00, emissive: 0xffaa00, emissiveIntensity: 0.8 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.visible = false;
+      scene.add(mesh);
+      bullets.push({ mesh, vel: new THREE.Vector3(), active: false, damage: 10 });
+    }
+    onProgress?.(0.5);
+
+    // ===== COLLECTIBLES scattered in arena =====
+    const itemTypes = ["diamond", "star", "heart"] as const;
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const r = 8 + Math.random() * 10;
+      const x = Math.cos(angle) * r;
+      const z = Math.sin(angle) * r;
+      const { mesh } = await createCollectible3D(scene, x, 0.8, z, { type: itemTypes[i % 3], color: "yellow" });
+      collectibles.push({ mesh, collected: false });
+    }
+    onProgress?.(0.7);
+
+    // ===== HUD =====
+    hud = createHUD(container);
+    hud.update({ score: 0, custom: \`Wave: 0 | HP: \${lives}\` });
+
+    // ===== CONTROLS =====
+    const kb = createKeyboardState();
+    keys = kb.keys;
+    destroyKb = kb.destroy;
+
+    // Touch joystick for mobile
+    const joy = createTouchJoystick(container, (dx: number, dy: number) => { joyX = dx; joyZ = dy; });
+    destroyJoystick = joy.destroy;
+
+    // Click/tap to shoot toward pointer
+    container.addEventListener("pointerdown", onShoot);
+
+    // Top-down camera
+    camera.position.set(0, CAM_HEIGHT, CAM_BACK);
+    camera.lookAt(0, 0, 0);
+
+    // Start music
+    try { playMusic(soundUrl("squad-shooter/music/menu_music")); } catch(e) {}
+
+    // Start first wave
+    spawnWave();
+    onProgress?.(1);
+  },
+
+  update(delta: number) {
+    if (!playerMesh || !world || gameOver) return;
+    gameTime += delta;
+    world.step(1 / 60, delta, 3);
+
+    // === Player movement ===
+    let mx = ((keys.ArrowRight || keys.KeyD) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA) ? 1 : 0);
+    let mz = ((keys.ArrowDown || keys.KeyS) ? 1 : 0) - ((keys.ArrowUp || keys.KeyW) ? 1 : 0);
+    mx += joyX; mz += joyZ;
+    if (Math.abs(mx) > 0.1 || Math.abs(mz) > 0.1) {
+      const len = Math.sqrt(mx * mx + mz * mz);
+      playerBody.velocity.x = (mx / len) * PLAYER_SPEED;
+      playerBody.velocity.z = (mz / len) * PLAYER_SPEED;
+      playerMesh.rotation.y = Math.atan2(mx, mz);
+    }
+
+    // Sync player mesh to physics body
+    playerMesh.position.copy(playerBody.position);
+
+    // Keep player in arena
+    playerBody.position.x = Math.max(-ARENA_SIZE + 2, Math.min(ARENA_SIZE - 2, playerBody.position.x));
+    playerBody.position.z = Math.max(-ARENA_SIZE + 2, Math.min(ARENA_SIZE - 2, playerBody.position.z));
+
+    // === Auto-fire at nearest enemy ===
+    if (gameTime - lastFireTime > FIRE_RATE && enemies.length > 0) {
+      let nearest: any = null, nearDist = Infinity;
+      for (const e of enemies) {
+        if (e.hp <= 0) continue;
+        const d = playerMesh.position.distanceTo(e.mesh.position);
+        if (d < nearDist && d < ATTACK_RANGE * 3) { nearDist = d; nearest = e; }
+      }
+      if (nearest) {
+        fireBullet(playerMesh.position, nearest.mesh.position);
+        lastFireTime = gameTime;
+      }
+    }
+
+    // === Update bullets ===
+    for (const b of bullets) {
+      if (!b.active) continue;
+      b.mesh.position.add(b.vel.clone().multiplyScalar(delta));
+      if (Math.abs(b.mesh.position.x) > ARENA_SIZE + 5 || Math.abs(b.mesh.position.z) > ARENA_SIZE + 5) {
+        b.active = false; b.mesh.visible = false; continue;
+      }
+      for (const e of enemies) {
+        if (e.hp <= 0) continue;
+        if (b.mesh.position.distanceTo(e.mesh.position) < 1.5) {
+          b.active = false; b.mesh.visible = false;
+          damageEnemy(e, b.damage, b.vel);
+          break;
+        }
+      }
+    }
+
+    // === Update enemies (FSM) ===
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const e = enemies[i];
+      if (e.hp <= 0) continue;
+      e.stateTime += delta;
+      if (e.flashTimer > 0) {
+        e.flashTimer -= delta;
+        if (e.flashTimer <= 0) {
+          e.mesh.traverse((child: any) => { if (child.material) child.material.emissive?.set(0x000000); });
+        }
+      }
+
+      const dist = playerMesh.position.distanceTo(e.mesh.position);
+      const dir = new THREE.Vector3().subVectors(playerMesh.position, e.mesh.position).normalize();
+
+      // FSM transitions
+      if (e.hp / e.maxHp < FLEE_HP_RATIO && e.state !== "flee") {
+        e.state = "flee"; e.stateTime = 0;
+      } else if (dist < ATTACK_RANGE && e.state !== "flee" && e.state !== "attack") {
+        e.state = "attack"; e.stateTime = 0;
+      } else if (dist < FOLLOW_RANGE && e.state === "idle") {
+        e.state = "follow"; e.stateTime = 0;
+      }
+
+      // FSM execute
+      switch (e.state) {
+        case "idle":
+          if (e.stateTime > 2) {
+            e.stateTime = 0;
+            const angle = Math.random() * Math.PI * 2;
+            if (e.body) { e.body.velocity.x = Math.cos(angle) * e.speed * 0.5; e.body.velocity.z = Math.sin(angle) * e.speed * 0.5; }
+          }
+          break;
+        case "follow":
+          if (e.body) { e.body.velocity.x = dir.x * e.speed; e.body.velocity.z = dir.z * e.speed; }
+          e.mesh.lookAt(playerMesh.position.x, e.mesh.position.y, playerMesh.position.z);
+          break;
+        case "attack":
+          if (e.body) { e.body.velocity.x = dir.x * e.speed * 1.5; e.body.velocity.z = dir.z * e.speed * 1.5; }
+          e.mesh.lookAt(playerMesh.position.x, e.mesh.position.y, playerMesh.position.z);
+          if (dist < 1.8 && e.stateTime > 0.5) {
+            hitPlayer(e.damage);
+            e.stateTime = 0;
+          }
+          if (dist > ATTACK_RANGE * 1.5) { e.state = "follow"; e.stateTime = 0; }
+          break;
+        case "flee":
+          if (e.body) { e.body.velocity.x = -dir.x * e.speed; e.body.velocity.z = -dir.z * e.speed; }
+          break;
+      }
+      if (e.body) { e.mesh.position.copy(e.body.position); }
+    }
+
+    // Wave clear check
+    const aliveCount = enemies.filter(e => e.hp > 0).length;
+    if (aliveCount === 0 && enemies.length > 0) {
+      enemies.length = 0;
+      setTimeout(() => { if (!gameOver) spawnWave(); }, 2000);
+    }
+
+    // === Camera: follow player with enemy shift + shake ===
+    let camTargetX = playerMesh.position.x;
+    let camTargetZ = playerMesh.position.z + CAM_BACK;
+    let nearestAlive: any = null, nearAlive = Infinity;
+    for (const e of enemies) {
+      if (e.hp <= 0) continue;
+      const d = playerMesh.position.distanceTo(e.mesh.position);
+      if (d < nearAlive) { nearAlive = d; nearestAlive = e; }
+    }
+    if (nearestAlive) {
+      camTargetX += (nearestAlive.mesh.position.x - playerMesh.position.x) * ENEMY_SHIFT;
+      camTargetZ += (nearestAlive.mesh.position.z - playerMesh.position.z) * ENEMY_SHIFT;
+    }
+    camera.position.x += (camTargetX - camera.position.x) * 3 * delta;
+    camera.position.y += (CAM_HEIGHT - camera.position.y) * 3 * delta;
+    camera.position.z += (camTargetZ - camera.position.z) * 3 * delta;
+    if (shakeIntensity > 0.01) {
+      camera.position.x += (Math.random() - 0.5) * shakeIntensity;
+      camera.position.z += (Math.random() - 0.5) * shakeIntensity;
+      shakeIntensity *= Math.exp(-SHAKE_DECAY * delta);
+    }
+    camera.lookAt(playerMesh.position.x, 0, playerMesh.position.z);
+
+    // === Collectibles ===
+    for (const c of collectibles) {
+      if (!c.collected && playerMesh.position.distanceTo(c.mesh.position) < COLLECT_DISTANCE) {
+        c.collected = true; c.mesh.visible = false;
+        score += 50;
+        try { playSound(soundUrl("collect")); } catch(e) {}
+        createParticleEmitter(scene, c.mesh.position.x, c.mesh.position.y, c.mesh.position.z, { preset: "sparkle" });
+      }
+      if (!c.collected) c.mesh.rotation.y += delta * 2;
+    }
+
+    // === Floating damage texts ===
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+      const ft = floatingTexts[i];
+      ft.life -= delta;
+      ft.sprite.position.y += ft.vel * delta;
+      if (ft.sprite.material) ft.sprite.material.opacity = Math.max(0, ft.life);
+      if (ft.life <= 0) { scene.remove(ft.sprite); floatingTexts.splice(i, 1); }
+    }
+
+    hud.update({ score, custom: \`Wave: \${wave} | HP: \${lives}\` });
+  },
+
+  cleanup() {
+    destroyKb?.();
+    destroyJoystick?.();
+    container?.removeEventListener("pointerdown", onShoot);
+  },
+};
+
+// ===== HELPER FUNCTIONS =====
+
+function fireBullet(from: any, toward: any) {
+  const b = bullets.find(b => !b.active);
+  if (!b) return;
+  b.active = true;
+  b.mesh.visible = true;
+  b.mesh.position.copy(from);
+  b.mesh.position.y = 1;
+  const dir = new THREE.Vector3().subVectors(toward, from).normalize();
+  b.vel.set(dir.x * BULLET_SPEED, 0, dir.z * BULLET_SPEED);
+  try { playSound(soundUrl("squad-shooter/sfx/gun_shot")); } catch(e) {}
+}
+
+function damageEnemy(enemy: any, dmg: number, bulletVel: any) {
+  enemy.hp -= dmg;
+  shakeIntensity = 0.3;
+  enemy.flashTimer = 0.15;
+  enemy.mesh.traverse((child: any) => { if (child.material) child.material.emissive?.set(0xffffff); });
+  if (enemy.body && bulletVel) {
+    const kb = bulletVel.clone().normalize().multiplyScalar(3);
+    enemy.body.velocity.x += kb.x;
+    enemy.body.velocity.z += kb.z;
+  }
+  const { sprite } = createText3D(\`-\${dmg}\`, { x: enemy.mesh.position.x, y: enemy.mesh.position.y + 2, z: enemy.mesh.position.z }, { color: "#ff4444", size: 0.6 });
+  if (sprite) {
+    if (sprite.material) sprite.material.transparent = true;
+    floatingTexts.push({ sprite, vel: 2, life: 0.8 });
+  }
+  try { playSound(soundUrl("hit")); } catch(e) {}
+  createParticleEmitter(scene, enemy.mesh.position.x, enemy.mesh.position.y + 0.5, enemy.mesh.position.z, { preset: "explosion", count: 6, lifetime: 0.3 });
+
+  if (enemy.hp <= 0) {
+    score += enemy.isBoss ? 500 : 100;
+    try { playSound(soundUrl("explosion")); } catch(e) {}
+    createParticleEmitter(scene, enemy.mesh.position.x, 1, enemy.mesh.position.z, { preset: "explosion", count: 15, lifetime: 0.5 });
+    scene.remove(enemy.mesh);
+    if (enemy.body && world) world.removeBody(enemy.body);
+  }
+}
+
+function hitPlayer(dmg: number) {
+  lives -= 1;
+  shakeIntensity = 0.5;
+  try { playSound(soundUrl("hit")); } catch(e) {}
+  if (playerMesh) {
+    playerMesh.traverse((c: any) => { if (c.material) c.material.emissive?.set(0xff0000); });
+    setTimeout(() => { playerMesh.traverse((c: any) => { if (c.material) c.material.emissive?.set(0x000000); }); }, 150);
+  }
+  if (lives <= 0) {
+    gameOver = true;
+    import("../scenes/GameOverScene3D").then(m => m.showGameOver(container, score, () => { window.location.reload(); }));
+  }
+}
+
+function onShoot(e: PointerEvent) {
+  if (gameOver || !playerMesh) return;
+}
+
+async function spawnWave() {
+  wave++;
+  difficulty = 1 + (wave - 1) * 0.15;
+  const baseCount = 3 + wave * 2;
+  const isBossWave = wave % 5 === 0;
+
+  for (let i = 0; i < baseCount; i++) {
+    const angle = (i / baseCount) * Math.PI * 2 + Math.random() * 0.5;
+    const r = SPAWN_MIN_DIST + Math.random() * 10;
+    const sx = playerMesh.position.x + Math.cos(angle) * r;
+    const sz = playerMesh.position.z + Math.sin(angle) * r;
+    const cx = Math.max(-ARENA_SIZE + 3, Math.min(ARENA_SIZE - 3, sx));
+    const cz = Math.max(-ARENA_SIZE + 3, Math.min(ARENA_SIZE - 3, sz));
+
+    const isThisBoss = isBossWave && i === 0;
+    const colors = ["blue", "green", "red", "yellow"] as const;
+    const { mesh, size } = await createBarrier3D(scene, cx, 0.5, cz, {
+      variant: isThisBoss ? "3x1x2" : "2x1x2", color: isThisBoss ? "red" : colors[i % 4],
+    });
+    if (isThisBoss) mesh.scale.multiplyScalar(1.5);
+
+    const body = createPhysicsBody("box", 3, { x: cx, y: 0.5, z: cz }, size);
+    if (body) {
+      body.linearDamping = 0.9;
+      body.fixedRotation = true;
+    }
+    if (world && body) world.addBody(body);
+
+    enemies.push({
+      mesh, body,
+      hp: isThisBoss ? 200 * difficulty : 30 * difficulty,
+      maxHp: isThisBoss ? 200 * difficulty : 30 * difficulty,
+      state: "idle", stateTime: 0,
+      speed: (ENEMY_SPEED_BASE + wave * 0.3) * (isThisBoss ? 0.7 : 1),
+      damage: isThisBoss ? 2 : 1,
+      isBoss: isThisBoss,
+      flashTimer: 0,
+    });
+  }
+  hud.update({ score, custom: \`Wave: \${wave} | HP: \${lives}\` });
+}
+`;

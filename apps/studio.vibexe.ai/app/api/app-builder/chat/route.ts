@@ -10,6 +10,7 @@ import {
 	GAME_3D_SCENE_STARTER,
 	GAME_3D_SCENE_STARTER_CHARACTER,
 	GAME_3D_SCENE_STARTER_RUNNER,
+	GAME_3D_SCENE_STARTER_SHOOTER,
 	GAME_3D_TEMPLATE_FILES,
 	GAME_ASSETS_REFERENCE,
 	GAME_TEMPLATE_FILES,
@@ -791,13 +792,15 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			// NOT in GAME_3D_TEMPLATE_FILES to avoid protectedPaths blocking AI updates
 			if (isGame3d && !existingPaths.has("src/scenes/GameScene3D.ts")) {
 				try {
-					const sceneStarter = isRunner3d
-						? GAME_3D_SCENE_STARTER_RUNNER
-						: hasAnimatedCharacter
-							? GAME_3D_SCENE_STARTER_CHARACTER
-							: GAME_3D_SCENE_STARTER;
+					const sceneStarter = isShooter3d
+						? GAME_3D_SCENE_STARTER_SHOOTER
+						: isRunner3d
+							? GAME_3D_SCENE_STARTER_RUNNER
+							: hasAnimatedCharacter
+								? GAME_3D_SCENE_STARTER_CHARACTER
+								: GAME_3D_SCENE_STARTER;
 					await saveFile(appId, "src/scenes/GameScene3D.ts", sceneStarter, "typescript");
-					console.log(`[Chat API] 3D scene starter injected: src/scenes/GameScene3D.ts (runner=${isRunner3d}, character=${hasAnimatedCharacter})`);
+					console.log(`[Chat API] 3D scene starter injected: src/scenes/GameScene3D.ts (shooter=${isShooter3d}, runner=${isRunner3d}, character=${hasAnimatedCharacter})`);
 				} catch (e) {
 					console.error(`[Chat API] 3D scene starter injection failed:`, e);
 				}
