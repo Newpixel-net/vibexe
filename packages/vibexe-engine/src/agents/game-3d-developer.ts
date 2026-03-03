@@ -719,6 +719,88 @@ You just implement \`init()\` and \`update()\`. The rest is automatic.
 - Inventory system (HTML overlay)
 - Resource gathering via proximity + click
 
+### 3D Top-Down Shooter (Squad Shooter, Archero, Brawl Stars)
+
+**MANDATORY patterns — these define the top-down shooter genre:**
+- Top-down or isometric camera: camera.position.set(playerX, 15, playerZ + 10), lookAt player
+- Joystick movement (left stick) + auto-aim or tap-to-shoot (right side)
+- Wave-based or room-based enemy spawning
+- Use \`squad-shooter\` asset pack for characters, enemies, weapons, world tiles
+
+**FORBIDDEN patterns:**
+- No first-person camera — camera stays above/behind
+- No manual camera rotation — camera follows player automatically
+- No platformer-style jumping — movement is horizontal plane only
+
+**Architecture — Finite State Machine (FSM):**
+- Each enemy type has states: Idle → Patrol → Follow → Attack → Flee → Dead
+- Per-frame evaluation: check transitions BEFORE executing current state logic
+- State interface: \`{ enter(), execute(delta), exit(), transitions: Array<{condition, target}> }\`
+- Example enemy FSM: if playerDist < FOLLOW_RANGE → Follow; if playerDist < ATTACK_RANGE → Attack; if hp < FLEE_HP → Flee
+\`\`\`
+// Minimal FSM pattern
+const states = { idle: {...}, patrol: {...}, follow: {...}, attack: {...} };
+let currentState = "idle";
+function updateFSM(enemy, delta) {
+  const state = states[currentState];
+  for (const t of state.transitions) {
+    if (t.condition(enemy)) { state.exit?.(enemy); currentState = t.target; states[currentState].enter?.(enemy); break; }
+  }
+  states[currentState].execute(enemy, delta);
+}
+\`\`\`
+
+**Architecture — Weapon System:**
+- Abstract weapon interface: \`{ damage, fireRate, range, bulletSpeed, bulletCount, spread }\`
+- Weapon types: Pistol (single, fast), Shotgun (5 bullets, wide spread), Minigun (rapid, low damage), Grenade (AoE, slow), Tesla (chain, medium)
+- Bullet pooling: pre-create 50 bullet meshes, reuse via \`pool.get()\` / \`pool.release()\`
+- Fire cooldown: \`if (time - lastFire < 1/fireRate) return;\`
+- Load weapon models: \`loadGLTF(modelUrl("squad-shooter", "weapons/Shotgun.glb"))\`
+
+**Architecture — Camera System:**
+- Base offset: camera follows player at fixed height + angle
+- Enemy shift: when enemies nearby, camera offsets toward them slightly (lerp 0.1)
+- Screen shake on hit: random offset ±0.3 for 200ms, decay exponentially
+- Zoom on boss: camera.fov lerps to 45 during boss fights, back to 60 after
+\`\`\`
+// Camera with enemy-shift
+const CAM_HEIGHT = 15, CAM_BACK = 10, ENEMY_SHIFT = 0.15;
+function updateCamera(player, nearestEnemy, delta) {
+  let tx = player.x, tz = player.z + CAM_BACK;
+  if (nearestEnemy) { tx += (nearestEnemy.x - player.x) * ENEMY_SHIFT; tz += (nearestEnemy.z - player.z) * ENEMY_SHIFT; }
+  camera.position.lerp(new THREE.Vector3(tx, CAM_HEIGHT, tz), 3 * delta);
+  camera.lookAt(player.x, 0, player.z);
+}
+\`\`\`
+
+**Architecture — Dynamic Difficulty:**
+- Power gap = playerPower - baselinePower (based on weapon tier + upgrades + level)
+- Difficulty tiers: Easy (gap > 5), Normal (gap 2-5), Medium (gap -2 to 2), Hard (gap < -2)
+- Scale per tier: enemyHP multiplier (0.7/1.0/1.3/1.6), spawnRate multiplier (0.8/1.0/1.2/1.5), enemyDamage multiplier
+- Recalculate every wave/room transition, NOT every frame
+
+**Architecture — Hit Feedback Stack (apply ALL on hit):**
+1. Camera shake: random offset ±intensity, decay over 200ms
+2. Mesh flash: \`enemy.material.emissive.set(0xffffff)\`, reset after 100ms
+3. Floating damage text: \`createText3D("-15", hitPos, { color: "#ff4444", size: 0.8 })\`, animate upward + fade
+4. Knockback: push enemy body away from bullet direction, velocity *= knockbackForce
+5. SFX: \`playSound(soundUrl("hit"))\` on every hit, \`playSound(soundUrl("explosion"))\` on kill
+6. Particle burst: \`createParticleEmitter(scene, x, y, z, { preset: "explosion", count: 8, lifetime: 0.3 })\`
+
+**Architecture — Room/Wave System:**
+- Wave mode: enemies spawn in waves. Wave N = baseCount + N * 2 enemies. 3-second break between waves.
+- Room mode: player enters trigger zone → doors close → enemies spawn → clear all → doors open → proceed
+- Boss every 5 waves/rooms: larger model, HP bar overlay, special attack patterns
+- Spawn positions: random within arena bounds, minimum distance from player (>5 units)
+
+**Assets — Squad Shooter Pack:**
+- Player characters: \`loadGLTF(modelUrl("squad-shooter", "characters/player/Character_01.glb"))\` (6 variants)
+- Enemies: \`modelUrl("squad-shooter", "characters/enemies/Bomber_1.glb")\` — 22 enemy models including Boss_Bomber, Kamikaze, Boss_Kamikaze
+- Weapons: Grenade_launcher, Minigun, Shotgun, Teslagun (+ Elite/Huge variants)
+- World tiles: world_1 (25 tiles, green theme) and world_2 (23 tiles, desert theme) — Block, Ground, Wall, Corner pieces
+- Collectibles: Coin, Ring, Chest, Chest_RV
+- Audio: 24 OGG files at \`soundUrl("squad-shooter/sfx/coin_pickup")\`, \`soundUrl("squad-shooter/sfx/gun_shot")\`, \`soundUrl("squad-shooter/music/menu_music")\`
+
 ## \u2605 Complete GameScene Reference — COPY THIS PATTERN
 
 This is a COMPLETE working 3D Platformer GameScene. Use this as your structural reference.

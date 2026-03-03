@@ -707,7 +707,14 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 		let isGame3d = false;
 		let hasAnimatedCharacter = false;
 		let isRunner3d = false;
+		let isShooter3d = false;
 		let gameSubType: "platformer" | "runner" = "platformer"; // default
+		const SHOOTER_3D_KEYWORDS = [
+			"3d shooter", "top down shooter", "top-down shooter", "squad shooter",
+			"archero", "brawl stars", "3d shoot", "shoot em up 3d", "bullet hell 3d",
+			"wave shooter", "arena shooter", "twin stick", "twin-stick",
+			"zombie shooter", "survival shooter", "horde shooter",
+		];
 		const RUNNER_3D_KEYWORDS = [
 			"3d runner", "endless runner 3d", "temple run 3d", "subway surfers 3d",
 			"3d lane", "runner 3d", "3d endless", "3d dodge runner",
@@ -750,6 +757,11 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 			if (isGame3d && RUNNER_3D_KEYWORDS.some(kw => searchText.includes(kw))) {
 				isRunner3d = true;
 				console.log(`[Chat API] 3D runner detected (keywords)`);
+			}
+			// Detect 3D shooter keywords (squad shooter, archero, top-down shooter, etc.)
+			if (isGame3d && SHOOTER_3D_KEYWORDS.some(kw => searchText.includes(kw))) {
+				isShooter3d = true;
+				console.log(`[Chat API] 3D shooter detected (keywords)`);
 			}
 			// Fallback: if 3D templates already exist in DB (injected on a previous call), force 3D mode
 			if (!isGame3d && existingFiles.some(f => f.path === "src/components/Game3D.tsx")) {
@@ -944,6 +956,29 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 - Use playSound(soundUrl("collect")) for pickup SFX, soundUrl("hit") for damage
 - Use createParticleEmitter with preset "sparkle" for collect, "explosion" for crash`);
 					console.log(`[Chat API] 3D runner addendum injected`);
+				}
+				// Inject 3D shooter addendum (mandatory shooter patterns)
+				if (isShooter3d) {
+					runtimeAddenda.push(`## GAME SUB-TYPE: 3D TOP-DOWN SHOOTER
+
+**MANDATORY shooter patterns — violation will break the game:**
+- Top-down or isometric camera at fixed height (y=15, z=player.z+10), NO first-person
+- Camera follows player automatically — NO manual camera rotation/OrbitControls
+- Movement is horizontal plane ONLY (XZ) — NO platformer-style jumping
+- Joystick for movement (createTouchJoystick) + tap/swipe for shooting direction
+- Enemy FSM: each enemy must have states (Idle/Patrol/Follow/Attack/Flee/Dead) with per-frame transition checks
+- Wave-based spawning: Wave N = baseCount + N*2 enemies, 3s break between waves
+- Bullet pooling: pre-create bullet meshes, reuse with pool.get()/pool.release()
+- Hit feedback stack on EVERY hit: camera shake + mesh flash + floating damage text + knockback + SFX + particle burst
+- Use \`squad-shooter\` asset pack: modelUrl("squad-shooter", "characters/player/Character_01.glb") for player
+- Enemy models: modelUrl("squad-shooter", "characters/enemies/Bomber_1.glb") — 22 variants available
+- Weapon models: modelUrl("squad-shooter", "weapons/Shotgun.glb") — Grenade_launcher, Minigun, Shotgun, Teslagun
+- World tiles: modelUrl("squad-shooter", "environment/world_1/1_Block_1x1_Big.glb") for arena floor/walls
+- Collectibles: modelUrl("squad-shooter", "misc/Coin.glb"), modelUrl("squad-shooter", "misc/Chest.glb")
+- Audio: soundUrl("squad-shooter/sfx/gun_shot") for shooting, soundUrl("squad-shooter/sfx/coin_pickup") for collect
+- Dynamic difficulty: scale enemyHP/spawnRate based on player power gap every wave
+- Boss every 5 waves: larger model (Boss_Bomber/Boss_Kamikaze), HP bar, special attacks`);
+					console.log(`[Chat API] 3D shooter addendum injected`);
 				}
 			} else {
 				// 2D game — inject 2D asset catalog
