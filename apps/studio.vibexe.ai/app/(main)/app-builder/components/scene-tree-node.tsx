@@ -12,7 +12,6 @@ import {
 	ChevronDown,
 	ChevronRight,
 	Circle,
-	Diamond,
 	Eye,
 	EyeOff,
 	Lightbulb,
@@ -83,39 +82,7 @@ export function SceneTreeNode({
 	const isSelected = node.uuid === selectedUuid;
 	const rowRef = useRef<HTMLDivElement>(null);
 
-	// Auto-expand when search filter is active and node matches
-	useEffect(() => {
-		if (searchFilter && hasChildren && nodeMatchesSearch(node, searchFilter)) {
-			setExpanded(true);
-		}
-	}, [searchFilter, hasChildren, node]);
-
-	// Auto-scroll to selected node when selection changes from viewport click
-	useEffect(() => {
-		if (isSelected && rowRef.current) {
-			rowRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
-		}
-	}, [isSelected]);
-
-	// Skip editor helpers, particles, trails
-	if (
-		node.name.startsWith("__editor_") ||
-		node.name.startsWith("__particle_") ||
-		node.name.startsWith("__trail_") ||
-		node.type === "BoxHelper" ||
-		node.type === "TransformControlsGizmo" ||
-		node.type === "TransformControlsPlane" ||
-		node.type === "GridHelper" ||
-		node.type === "Points"
-	) {
-		return null;
-	}
-
-	// Filter by search — hide non-matching nodes (unless they have matching children)
-	if (searchFilter && !nodeMatchesSearch(node, searchFilter)) {
-		return null;
-	}
-
+	// ALL hooks MUST be called before any conditional returns (Rules of Hooks)
 	const handleClick = useCallback(() => {
 		onSelect(node.uuid);
 	}, [node.uuid, onSelect]);
@@ -139,6 +106,40 @@ export function SceneTreeNode({
 		},
 		[node.uuid, onToggleVisibility],
 	);
+
+	// Auto-expand when search filter is active and node matches
+	useEffect(() => {
+		if (searchFilter && hasChildren && nodeMatchesSearch(node, searchFilter)) {
+			setExpanded(true);
+		}
+	}, [searchFilter, hasChildren, node]);
+
+	// Auto-scroll to selected node when selection changes from viewport click
+	useEffect(() => {
+		if (isSelected && rowRef.current) {
+			rowRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
+		}
+	}, [isSelected]);
+
+	// Skip editor helpers, particles, trails
+	const nodeName = node.name || "";
+	if (
+		nodeName.startsWith("__editor_") ||
+		nodeName.startsWith("__particle_") ||
+		nodeName.startsWith("__trail_") ||
+		node.type === "BoxHelper" ||
+		node.type === "TransformControlsGizmo" ||
+		node.type === "TransformControlsPlane" ||
+		node.type === "GridHelper" ||
+		node.type === "Points"
+	) {
+		return null;
+	}
+
+	// Filter by search — hide non-matching nodes (unless they have matching children)
+	if (searchFilter && !nodeMatchesSearch(node, searchFilter)) {
+		return null;
+	}
 
 	// Compute display name
 	let displayName = node.name || node.type;
