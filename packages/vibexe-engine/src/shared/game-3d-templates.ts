@@ -5251,22 +5251,26 @@ export const GameScene = {
     world = this.world;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
+    renderer.toneMapping = THREE.ReinhardToneMapping;
+    renderer.toneMappingExposure = 1.8;
 
     // Remove default Game3D.tsx lights (we need custom lighting for top-down shooter)
     const defaultLights = scene.children.filter((c: any) => c.isLight);
     defaultLights.forEach((l: any) => scene.remove(l));
 
-    // Bright stylized sky (matching Unity Squad Shooter aesthetic)
-    createSkyGradient(scene, 0x87CEEB, 0xE8D5B7);
+    // Sky background (no HemisphereLight from createSkyGradient — we use our own warm lighting)
+    scene.background = new THREE.Color(0x87CEEB);
 
-    // Balanced lighting: ambient + sun + fill (total ~2.2 intensity)
-    const shooterAmbient = new THREE.AmbientLight(0xffffff, 0.55);
+    // Warm hemisphere: golden sky + warm ground for vibrant cartoon look
+    const hemi = new THREE.HemisphereLight(0xffffcc, 0xdeb887, 0.6);
+    scene.add(hemi);
+
+    // Warm ambient for base visibility
+    const shooterAmbient = new THREE.AmbientLight(0xfff5e6, 0.4);
     scene.add(shooterAmbient);
 
-    // Main sun from above-right for top-down view
-    const shooterSun = new THREE.DirectionalLight(0xfff8e7, 1.0);
+    // Strong warm sun from above-right for top-down view
+    const shooterSun = new THREE.DirectionalLight(0xfff0d0, 1.2);
     shooterSun.position.set(5, 40, -5);
     shooterSun.castShadow = true;
     shooterSun.shadow.mapSize.width = 2048;
@@ -5279,8 +5283,8 @@ export const GameScene = {
     shooterSun.shadow.camera.bottom = -ARENA_HALF;
     scene.add(shooterSun);
 
-    // Soft fill from opposite side
-    const fillLight = new THREE.DirectionalLight(0xC5D8FF, 0.25);
+    // Warm fill from opposite side
+    const fillLight = new THREE.DirectionalLight(0xffe8d0, 0.35);
     fillLight.position.set(-10, 25, 10);
     scene.add(fillLight);
 
