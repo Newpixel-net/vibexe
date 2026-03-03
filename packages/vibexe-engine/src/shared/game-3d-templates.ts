@@ -5205,10 +5205,11 @@ async function loadModel(subpath: string, cloneMats = false): Promise<any> {
   try {
     const isCharacter = subpath.startsWith('characters/');
 
-    if (!isCharacter && _cache.has(url)) {
+    if (_cache.has(url)) {
+      // Cache hit — clone (safe for static Mesh, NOT for SkinnedMesh)
       mesh = _cache.get(url)!.clone();
     } else if (isCharacter) {
-      // Characters: load full GLTF (not loadGLTF which strips .animations)
+      // Characters: load full GLTF to check for animations
       const gltf: any = await new Promise((resolve, reject) => {
         const loader = new THREE.GLTFLoader();
         loader.load(url, resolve, undefined, reject);
@@ -5220,8 +5221,9 @@ async function loadModel(subpath: string, cloneMats = false): Promise<any> {
       const tint = findModelColor(subpath);
       _convertMaterials(mesh, subpath, tint);
 
-      // Set up AnimationMixer if model has embedded animations
       if (rawClips.length > 0) {
+        // Animated/rigged model — DO NOT cache (SkinnedMesh clone breaks skeleton).
+        // Each instance gets its own AnimationMixer.
         // Strip root motion on known root bones (prevents character sliding)
         const ROOT_BONES = new Set(["hips","root","mixamorig:hips","mixamorigHips","pelvis","rootnode","hip","bip001"]);
         for (const clip of rawClips) {
@@ -5288,6 +5290,10 @@ async function loadModel(subpath: string, cloneMats = false): Promise<any> {
         mesh.userData.__clips = clipNames;
         mesh.userData.__mixer = mixer;
         play("idle"); // auto-play idle on load
+      } else {
+        // Static character model (enemies) — safe to cache + clone
+        _cache.set(url, mesh);
+        mesh = mesh.clone();
       }
     } else {
       // Non-character: load + cache normally
@@ -5857,13 +5863,16 @@ export const GameScene = {
     playerBody.position.z = Math.max(-clamp, Math.min(clamp, playerBody.position.z));
     playerMesh.position.set(playerBody.position.x, 0, playerBody.position.z);
 
-    // === Procedural player animation (bob + tilt) ===
-    if (isMoving) {
-      playerMesh.position.y = Math.sin(gameTime * 12) * 0.15; // bounce while moving
-      playerMesh.rotation.x = Math.sin(gameTime * 6) * 0.06; // subtle forward tilt
-    } else {
-      playerMesh.position.y = Math.sin(gameTime * 2) * 0.05; // idle breathing
-      playerMesh.rotation.x = 0;
+    // === Procedural player animation (bob + tilt) — only for static meshes ===
+    if (!playerPlay) {
+      // No AnimationMixer → use procedural bob/tilt
+      if (isMoving) {
+        playerMesh.position.y = Math.sin(gameTime * 12) * 0.15;
+        playerMesh.rotation.x = Math.sin(gameTime * 6) * 0.06;
+      } else {
+        playerMesh.position.y = Math.sin(gameTime * 2) * 0.05;
+        playerMesh.rotation.x = 0;
+      }
     }
 
     // === Auto-fire at nearest enemy ===
@@ -5944,25 +5953,33 @@ export const GameScene = {
       }
       if (e.body) e.mesh.position.set(e.body.position.x, 0, e.body.position.z);
 
-      // === Procedural enemy animation ===
-      const t = gameTime + i * 1.7; // offset per enemy so they don't sync
-      switch (e.state) {
-        case "idle":
-          e.mesh.position.y = Math.sin(t * 2) * 0.04; // gentle breathing
-          e.mesh.rotation.x = 0;
-          break;
-        case "follow": case "flee":
-          e.mesh.position.y = Math.abs(Math.sin(t * 10)) * 0.2; // hop while moving
-          e.mesh.rotation.x = 0.1; // lean forward
-          break;
-        case "attack": {
-          e.mesh.position.y = Math.abs(Math.sin(t * 14)) * 0.25; // aggressive hop
-          const baseS = e.mesh.userData.__baseScale || 1;
-          const atkPulse = 1 + Math.sin(e.stateTime * 8) * 0.08;
-          const s = baseS * atkPulse;
-          e.mesh.scale.set(s, s, s);
-          e.mesh.rotation.x = 0.15;
-          break;
+      // === Procedural enemy animation — only for static (non-animated) meshes ===
+      if (!e.play) {
+        const t = gameTime + i * 1.7; // offset per enemy so they don't sync
+        switch (e.state) {
+          case "idle":
+            e.mesh.position.y = Math.sin(t * 2) * 0.04;
+            e.mesh.rotation.x = 0;
+            break;
+          case "follow": case "flee":
+            e.mesh.position.y = Math.abs(Math.sin(t * 10)) * 0.2;
+            e.mesh.rotation.x = 0.1;
+            break;
+          case "attack": {
+            e.mesh.position.y = Math.abs(Math.sin(t * 14)) * 0.25;
+            const baseS = e.mesh.userData.__baseScale || 1;
+            const atkPulse = 1 + Math.sin(e.stateTime * 8) * 0.08;
+            const s = baseS * atkPulse;
+            e.mesh.scale.set(s, s, s);
+            e.mesh.rotation.x = 0.15;
+            break;
+          }
+        }
+      } else {
+        // Animated model: reset scale if it was ever modified by attack pulse
+        const baseS = e.mesh.userData.__baseScale;
+        if (baseS && e.state !== "attack") {
+          e.mesh.scale.set(baseS, baseS, baseS);
         }
       }
     }
