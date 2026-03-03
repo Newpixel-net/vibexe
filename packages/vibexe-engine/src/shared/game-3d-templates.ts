@@ -5003,7 +5003,7 @@ function recycleSegments() {
 export const GAME_3D_SCENE_STARTER_SHOOTER = `/**
  * 3D Top-Down Shooter — Procedural arena, wave-based enemies, FSM AI, hit feedback
  *
- * Uses squad-shooter-gltf asset pack for all characters, enemies, weapons, and world tiles.
+ * Uses squad-shooter asset pack for all characters, enemies, weapons, and world tiles.
  * Arena is procedurally generated each game using seeded RNG.
  * Do NOT use kaykit factory helpers — load squad-shooter GLBs directly via loadGLTF.
  */
@@ -5019,7 +5019,7 @@ const THREE = (window as any).THREE;
 const CANNON = (window as any).CANNON;
 
 // ===== Constants =====
-const PACK = "squad-shooter-gltf";
+const PACK = "squad-shooter";
 const GRID_SIZE = 8;
 const TILE_SIZE = 4;
 const ARENA_HALF = (GRID_SIZE * TILE_SIZE) / 2;

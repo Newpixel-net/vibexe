@@ -725,7 +725,7 @@ You just implement \`init()\` and \`update()\`. The rest is automatic.
 - Top-down camera: camera.position.set(playerX, 20, playerZ + 14), lookAt player
 - Joystick movement (left stick) + auto-aim (auto-fire at nearest enemy)
 - Wave-based enemy spawning with tiered difficulty
-- Use \`squad-shooter-gltf\` asset pack for ALL characters, enemies, weapons, world tiles
+- Use \`squad-shooter\` asset pack for ALL characters, enemies, weapons, world tiles
 - Arena is procedurally generated via \`generateShooterArena()\` — creates tile-based floor, border walls, cover blocks
 - Do NOT use kaykit factory helpers (createPlayer3D, createBarrier3D, etc.) — load GLBs directly
 
@@ -733,7 +733,7 @@ You just implement \`init()\` and \`update()\`. The rest is automatic.
 - No first-person camera — camera stays above/behind
 - No manual camera rotation — camera follows player automatically
 - No platformer-style jumping — movement is horizontal plane only
-- No kaykit-platformer models — use ONLY squad-shooter-gltf models
+- No kaykit-platformer models — use ONLY squad-shooter models
 
 **Architecture — Procedural Arena:**
 - \`generateShooterArena()\` creates a grid-based arena using seeded RNG (mulberry32)
@@ -748,7 +748,7 @@ You just implement \`init()\` and \`update()\`. The rest is automatic.
 - \`loadModel(subpath, cloneMats?)\` caches originals, returns clones. Set \`cloneMats=true\` for enemies/player (material flash)
 - \`scaleToHeight(mesh, targetH)\` auto-scales by bounding box height
 - \`scaleToTile(mesh, targetX, targetZ)\` auto-scales to fit tile footprint
-- All models: \`modelUrl("squad-shooter-gltf", "path/to/model.glb")\`
+- All models: \`modelUrl("squad-shooter", "path/to/model.glb")\`
 
 **Architecture — Enemy Tiers:**
 | Tier | Min Wave | Models | HP | Speed | Damage |
@@ -778,20 +778,20 @@ You just implement \`init()\` and \`update()\`. The rest is automatic.
 5. SFX: \`playSound(soundUrl("squad-shooter/sfx/enemy_hit_1"))\` on hit, \`soundUrl("squad-shooter/sfx/explosion")\` on kill
 6. Particle burst: \`createParticleEmitter(scene, x, y, z, { preset: "explosion", count: 6 })\`
 
-**Assets — Squad Shooter Pack (squad-shooter-gltf):**
-- Player: \`modelUrl("squad-shooter-gltf", "characters/player/Main_Char_01_(without_rig).glb")\` — 3 skins (01/02/03)
+**Assets — Squad Shooter Pack (squad-shooter):**
+- Player: \`modelUrl("squad-shooter", "characters/player/Main_Char_01_(without_rig).glb")\` — 3 skins (01/02/03)
 - Also rigged: \`Character_01/02/03.glb\` (with animations)
-- Enemies (22 models): \`modelUrl("squad-shooter-gltf", "characters/enemies/Bomber_1.glb")\`
+- Enemies (22 models): \`modelUrl("squad-shooter", "characters/enemies/Bomber_1.glb")\`
   Full list: Normal, Skinny, Mine, Pistolman_1, RifleMan, CowBoy_1, Bomber_1, Grenader, ShotgunMan_1, MeeleMan, Sniper_1, Bomber_Elite, RifleMan_ELITE, Pistolman_Elite, ShotgunMan_ELITE, CowBoy_ELITE, MeeleMan_Elite, Grenader_ELITE, Sniper_Elite, Boss_Bomber, Old_Boss, Sniper_Boss
-- Weapons (4): \`modelUrl("squad-shooter-gltf", "weapons/Shotgun.glb")\` — Shotgun, Minigun, Grenade_launcher, Teslagun
-- World tiles: \`modelUrl("squad-shooter-gltf", "environment/world_1/1_Ground_1.glb")\`
+- Weapons (4): \`modelUrl("squad-shooter", "weapons/Shotgun.glb")\` — Shotgun, Minigun, Grenade_launcher, Teslagun
+- World tiles: \`modelUrl("squad-shooter", "environment/world_1/1_Ground_1.glb")\`
   Ground: \`{prefix}_Ground_1.glb\`, \`{prefix}_Ground_Half.glb\`
   Borders: \`{prefix}_Border_1/2/3/4.glb\`, \`{prefix}_Border_Corner.glb\`, \`{prefix}_Border_Exit.glb\`, \`{prefix}_Border_Half.glb\`
   Blocks: \`{prefix}_Block_1x1_Big/Medium/Small.glb\`, \`{prefix}_Block_1x1_Big_Half.glb\`, \`{prefix}_Block_1x2_Big/Medium/Small.glb\`
   Walls: \`{prefix}_Wall_1x1.glb\`, \`{prefix}_Wall_1x2.glb\`, \`{prefix}_Wall_corner.glb\`
   (prefix = "1" for world_1, "2" for world_2)
-- Collectibles: \`modelUrl("squad-shooter-gltf", "misc/Coin.glb")\` — Coin, Ring, Chest, Chest_RV
-- Particles: \`modelUrl("squad-shooter-gltf", "particles/Bullet.glb")\` — Bullet, Light_ring, Shield_capsule, heal_plus, Smoke_custom, Sphere_custom
+- Collectibles: \`modelUrl("squad-shooter", "misc/Coin.glb")\` — Coin, Ring, Chest, Chest_RV
+- Particles: \`modelUrl("squad-shooter", "particles/Bullet.glb")\` — Bullet, Light_ring, Shield_capsule, heal_plus, Smoke_custom, Sphere_custom
 - Audio: SFX: \`soundUrl("squad-shooter/sfx/shot")\`, \`soundUrl("squad-shooter/sfx/coin_pickup")\`, \`soundUrl("squad-shooter/sfx/enemy_hit_1")\`, \`soundUrl("squad-shooter/sfx/explosion")\`, \`soundUrl("squad-shooter/sfx/player_hit")\`, \`soundUrl("squad-shooter/sfx/boss_scream")\`, \`soundUrl("squad-shooter/sfx/upgrade")\`. Music: \`soundUrl("squad-shooter/music/menu_music")\`, \`soundUrl("squad-shooter/music/game_music")\`
 
 ## \u2605 Complete GameScene Reference — COPY THIS PATTERN
