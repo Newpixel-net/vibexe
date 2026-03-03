@@ -5057,14 +5057,20 @@ async function loadModel(subpath: string, cloneMats = false): Promise<any> {
     } else {
       const original = await loadGLTF(url);
       console.log("[3D] Loaded GLTF:", subpath);
-      // Fix PBR materials: cap metalness to prevent grey look without envMap
+      // Fix PBR materials for cartoon/stylized look
       original.traverse((c: any) => {
         if (c.isMesh && c.material) {
           const mats = Array.isArray(c.material) ? c.material : [c.material];
           mats.forEach((mat: any) => {
+            // Cap metalness — Unity exports often set metalness=1.0 which looks grey without envMap
             if (mat.metalness !== undefined) {
-              mat.metalness = Math.min(mat.metalness, 0.15);
-              mat.roughness = Math.max(mat.roughness, 0.4);
+              mat.metalness = Math.min(mat.metalness, 0.1);
+              mat.roughness = Math.max(mat.roughness, 0.5);
+            }
+            // Enable vertex colors if geometry has them (common in Unity stylized models)
+            if (c.geometry && c.geometry.attributes && c.geometry.attributes.color) {
+              mat.vertexColors = true;
+              mat.needsUpdate = true;
             }
           });
         }
@@ -5299,6 +5305,24 @@ export const GameScene = {
     const fillLight = new THREE.DirectionalLight(0xffe8d0, 0.35);
     fillLight.position.set(-10, 25, 10);
     scene.add(fillLight);
+
+    // Generate PMREM environment map — PBR materials NEED this to show colors properly.
+    // Without an environment, MeshStandardMaterial's indirect lighting is zero → everything grey.
+    try {
+      const pmremGen = new THREE.PMREMGenerator(renderer);
+      pmremGen.compileEquirectangularShader();
+      const envScene = new THREE.Scene();
+      envScene.background = new THREE.Color(0xCCDDEE);
+      envScene.add(new THREE.HemisphereLight(0xffffff, 0x8B7355, 1.0));
+      const envDirLight = new THREE.DirectionalLight(0xfff0d0, 0.8);
+      envDirLight.position.set(5, 10, 5);
+      envScene.add(envDirLight);
+      const envRT = pmremGen.fromScene(envScene, 0);
+      scene.environment = envRT.texture;
+      pmremGen.dispose();
+    } catch (e) {
+      console.warn("[3D] PMREMGenerator failed, PBR may look flat:", e);
+    }
 
     // Base ground plane beneath tile arena (shadow catcher + visual foundation)
     const basePlane = new THREE.Mesh(
