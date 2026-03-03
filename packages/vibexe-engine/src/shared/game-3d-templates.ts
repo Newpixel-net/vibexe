@@ -5057,22 +5057,36 @@ async function loadModel(subpath: string, cloneMats = false): Promise<any> {
     } else {
       const original = await loadGLTF(url);
       console.log("[3D] Loaded GLTF:", subpath);
-      // Fix PBR materials for cartoon/stylized look
+      // Convert PBR (MeshStandardMaterial) → MeshPhongMaterial for cartoon look.
+      // PBR needs environment maps to show colors; Phong works with direct lights only.
       original.traverse((c: any) => {
         if (c.isMesh && c.material) {
-          const mats = Array.isArray(c.material) ? c.material : [c.material];
-          mats.forEach((mat: any) => {
-            // Cap metalness — Unity exports often set metalness=1.0 which looks grey without envMap
-            if (mat.metalness !== undefined) {
-              mat.metalness = Math.min(mat.metalness, 0.1);
-              mat.roughness = Math.max(mat.roughness, 0.5);
-            }
-            // Enable vertex colors if geometry has them (common in Unity stylized models)
-            if (c.geometry && c.geometry.attributes && c.geometry.attributes.color) {
-              mat.vertexColors = true;
-              mat.needsUpdate = true;
-            }
-          });
+          const convertMat = (mat: any) => {
+            if (!mat.isMeshStandardMaterial) return mat;
+            const hasVertexColors = !!(c.geometry && c.geometry.attributes && c.geometry.attributes.color);
+            const phong = new THREE.MeshPhongMaterial({
+              color: mat.color ? mat.color.clone() : new THREE.Color(0xffffff),
+              map: mat.map || null,
+              emissive: mat.emissive ? mat.emissive.clone() : new THREE.Color(0x000000),
+              emissiveMap: mat.emissiveMap || null,
+              normalMap: mat.normalMap || null,
+              opacity: mat.opacity !== undefined ? mat.opacity : 1,
+              transparent: !!mat.transparent,
+              side: mat.side !== undefined ? mat.side : THREE.FrontSide,
+              vertexColors: hasVertexColors,
+              skinning: !!mat.skinning,
+              specular: new THREE.Color(0x222222),
+              shininess: 15,
+            });
+            if (mat.alphaMap) phong.alphaMap = mat.alphaMap;
+            if (mat.alphaTest) phong.alphaTest = mat.alphaTest;
+            return phong;
+          };
+          if (Array.isArray(c.material)) {
+            c.material = c.material.map(convertMat);
+          } else {
+            c.material = convertMat(c.material);
+          }
         }
       });
       _cache.set(url, original);
@@ -5269,8 +5283,7 @@ export const GameScene = {
     world = this.world;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.ReinhardToneMapping;
-    renderer.toneMappingExposure = 1.8;
+    renderer.toneMapping = THREE.NoToneMapping;
 
     // Remove default Game3D.tsx lights (we need custom lighting for top-down shooter)
     const defaultLights = scene.children.filter((c: any) => c.isLight);
@@ -5306,28 +5319,10 @@ export const GameScene = {
     fillLight.position.set(-10, 25, 10);
     scene.add(fillLight);
 
-    // Generate PMREM environment map — PBR materials NEED this to show colors properly.
-    // Without an environment, MeshStandardMaterial's indirect lighting is zero → everything grey.
-    try {
-      const pmremGen = new THREE.PMREMGenerator(renderer);
-      pmremGen.compileEquirectangularShader();
-      const envScene = new THREE.Scene();
-      envScene.background = new THREE.Color(0xCCDDEE);
-      envScene.add(new THREE.HemisphereLight(0xffffff, 0x8B7355, 1.0));
-      const envDirLight = new THREE.DirectionalLight(0xfff0d0, 0.8);
-      envDirLight.position.set(5, 10, 5);
-      envScene.add(envDirLight);
-      const envRT = pmremGen.fromScene(envScene, 0);
-      scene.environment = envRT.texture;
-      pmremGen.dispose();
-    } catch (e) {
-      console.warn("[3D] PMREMGenerator failed, PBR may look flat:", e);
-    }
-
     // Base ground plane beneath tile arena (shadow catcher + visual foundation)
     const basePlane = new THREE.Mesh(
       new THREE.PlaneGeometry(ARENA_HALF * 3, ARENA_HALF * 3),
-      new THREE.MeshStandardMaterial({ color: 0x8B7355, roughness: 0.9 })
+      new THREE.MeshPhongMaterial({ color: 0x8B7355, shininess: 5 })
     );
     basePlane.rotation.x = -Math.PI / 2;
     basePlane.position.y = -0.05;
