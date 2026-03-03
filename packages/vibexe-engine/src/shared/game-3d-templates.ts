@@ -5027,14 +5027,14 @@ const PLAYER_SPEED = 6;
 const BULLET_SPEED = 20;
 const BULLET_POOL_SIZE = 40;
 const FIRE_RATE = 0.25;
-const CAM_HEIGHT = 20;
-const CAM_BACK = 14;
+const CAM_HEIGHT = 25;
+const CAM_BACK = 5;
 const ENEMY_SHIFT = 0.12;
 const SHAKE_DECAY = 8;
 const SPAWN_MIN_DIST = 8;
-const PLAYER_HEIGHT = 1.5;
-const ENEMY_HEIGHT = 1.3;
-const BOSS_HEIGHT = 2.2;
+const PLAYER_HEIGHT = 2.5;
+const ENEMY_HEIGHT = 2.0;
+const BOSS_HEIGHT = 3.5;
 
 // ===== Seeded PRNG (mulberry32) =====
 function mulberry32(seed: number) {
@@ -5078,6 +5078,12 @@ function scaleToHeight(mesh: any, targetH: number) {
   const box = new THREE.Box3().setFromObject(mesh);
   const sz = new THREE.Vector3(); box.getSize(sz);
   if (sz.y > 0.001) mesh.scale.multiplyScalar(targetH / sz.y);
+}
+
+function enableShadows(mesh: any, cast = true, receive = false) {
+  mesh.traverse((c: any) => {
+    if (c.isMesh) { c.castShadow = cast; c.receiveShadow = receive; }
+  });
 }
 
 function scaleToTile(mesh: any, targetX: number, targetZ: number) {
@@ -5136,6 +5142,7 @@ async function generateShooterArena(onProgress?: (p: number) => void) {
       const mesh = await loadModel(\`environment/\${theme}/\${prefix}_Ground_1.glb\`);
       scaleToTile(mesh, TILE_SIZE, TILE_SIZE);
       mesh.position.set(wx, 0, wz);
+      enableShadows(mesh, false, true);
       scene.add(mesh);
     }
   }
@@ -5194,6 +5201,7 @@ async function generateShooterArena(onProgress?: (p: number) => void) {
     const mesh = await loadModel(\`environment/\${theme}/\${mn}\`);
     scaleToTile(mesh, TILE_SIZE * 0.85, TILE_SIZE * 0.85);
     mesh.position.set(wx, 0, wz); mesh.rotation.y = rng() * Math.PI * 2;
+    enableShadows(mesh, true, true);
     scene.add(mesh);
     addStaticBody(wx, wz, TILE_SIZE * 0.7, TILE_SIZE * 0.7);
   }
@@ -5241,8 +5249,45 @@ export const GameScene = {
   async init(_scene: any, _camera: any, _renderer: any, _container: HTMLDivElement, onProgress?: (p: number) => void) {
     scene = _scene; camera = _camera; renderer = _renderer; container = _container;
     world = this.world;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    createSkyGradient(scene, 0x1a1a2e, 0x16213e);
+    // Bright stylized sky (matching Unity Squad Shooter aesthetic)
+    createSkyGradient(scene, 0x87CEEB, 0xE8D5B7);
+
+    // Strong directional sun from above for top-down visibility
+    const shooterSun = new THREE.DirectionalLight(0xfff8e7, 1.2);
+    shooterSun.position.set(5, 40, -5);
+    shooterSun.castShadow = true;
+    shooterSun.shadow.mapSize.width = 2048;
+    shooterSun.shadow.mapSize.height = 2048;
+    shooterSun.shadow.camera.near = 0.5;
+    shooterSun.shadow.camera.far = 80;
+    shooterSun.shadow.camera.left = -ARENA_HALF;
+    shooterSun.shadow.camera.right = ARENA_HALF;
+    shooterSun.shadow.camera.top = ARENA_HALF;
+    shooterSun.shadow.camera.bottom = -ARENA_HALF;
+    scene.add(shooterSun);
+
+    // Fill light from opposite side to reduce harsh shadows
+    const fillLight = new THREE.DirectionalLight(0xC5D8FF, 0.5);
+    fillLight.position.set(-10, 25, 10);
+    scene.add(fillLight);
+
+    // Boost ambient for overall brightness
+    const boostAmbient = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(boostAmbient);
+
+    // Base ground plane beneath tile arena (shadow catcher + visual foundation)
+    const basePlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(ARENA_HALF * 3, ARENA_HALF * 3),
+      new THREE.MeshStandardMaterial({ color: 0x8B7355, roughness: 0.9 })
+    );
+    basePlane.rotation.x = -Math.PI / 2;
+    basePlane.position.y = -0.05;
+    basePlane.receiveShadow = true;
+    scene.add(basePlane);
+
     onProgress?.(0.05);
 
     // Procedural arena
@@ -5252,9 +5297,10 @@ export const GameScene = {
     const pm = PLAYER_MODELS[Math.floor(Math.random() * PLAYER_MODELS.length)];
     playerMesh = await loadModel(\`characters/player/\${pm}\`, true);
     scaleToHeight(playerMesh, PLAYER_HEIGHT);
+    enableShadows(playerMesh, true, false);
     playerMesh.position.set(0, 0, 0);
     scene.add(playerMesh);
-    playerBody = createPhysicsBody("box", 5, { x: 0, y: 0.75, z: 0 }, { x: 0.4, y: 0.75, z: 0.4 });
+    playerBody = createPhysicsBody("box", 5, { x: 0, y: 1.25, z: 0 }, { x: 0.5, y: 1.25, z: 0.5 });
     if (playerBody) { playerBody.linearDamping = 0.95; playerBody.fixedRotation = true; }
     if (world && playerBody) world.addBody(playerBody);
     onProgress?.(0.4);
@@ -5263,7 +5309,7 @@ export const GameScene = {
     let bulletTemplate: any = null;
     try {
       bulletTemplate = await loadModel("particles/Bullet.glb");
-      scaleToHeight(bulletTemplate, 0.2);
+      scaleToHeight(bulletTemplate, 0.35);
     } catch (e) { bulletTemplate = null; }
     for (let i = 0; i < BULLET_POOL_SIZE; i++) {
       let mesh: any;
@@ -5296,8 +5342,8 @@ export const GameScene = {
       const ci = collectDefs[i % collectDefs.length];
       try {
         const mesh = await loadModel(ci.path);
-        scaleToHeight(mesh, 0.6);
-        mesh.position.set(cPositions[i].x, 0.8, cPositions[i].z);
+        scaleToHeight(mesh, 1.0);
+        mesh.position.set(cPositions[i].x, 1.2, cPositions[i].z);
         scene.add(mesh);
         collectibles.push({ mesh, collected: false, type: ci.type });
       } catch (e) { console.warn("[3D] collectible load failed:", ci.path); }
@@ -5320,8 +5366,8 @@ export const GameScene = {
       const wi = weaponDefs[i % weaponDefs.length];
       try {
         const mesh = await loadModel(wi.path);
-        scaleToHeight(mesh, 0.8);
-        mesh.position.set(wPositions[i].x, 1.2, wPositions[i].z);
+        scaleToHeight(mesh, 1.2);
+        mesh.position.set(wPositions[i].x, 1.5, wPositions[i].z);
         scene.add(mesh);
         collectibles.push({ mesh, collected: false, type: "weapon_" + wi.name });
       } catch (e) { console.warn("[3D] weapon load failed:", wi.path); }
@@ -5330,7 +5376,7 @@ export const GameScene = {
 
     // ===== HUD =====
     hud = createHUD(container);
-    hud.update({ score: 0, custom: \`Wave: 0 | HP: \${lives}\` });
+    hud.update({ score: 0, lives, custom: \`Wave: 1\` });
 
     // ===== CONTROLS =====
     const kb = createKeyboardState(); keys = kb.keys; destroyKb = kb.destroy;
@@ -5365,10 +5411,10 @@ export const GameScene = {
       playerBody.velocity.z = (mz / len) * PLAYER_SPEED;
       playerMesh.rotation.y = Math.atan2(mx, mz);
     }
-    playerMesh.position.set(playerBody.position.x, 0, playerBody.position.z);
     const clamp = ARENA_HALF - 1;
     playerBody.position.x = Math.max(-clamp, Math.min(clamp, playerBody.position.x));
     playerBody.position.z = Math.max(-clamp, Math.min(clamp, playerBody.position.z));
+    playerMesh.position.set(playerBody.position.x, 0, playerBody.position.z);
 
     // === Auto-fire at nearest enemy ===
     if (gameTime - lastFireTime > FIRE_RATE && enemies.length > 0) {
@@ -5390,7 +5436,7 @@ export const GameScene = {
       }
       for (const e of enemies) {
         if (e.hp <= 0) continue;
-        if (b.mesh.position.distanceTo(e.mesh.position) < 1.5) {
+        if (b.mesh.position.distanceTo(e.mesh.position) < 2.0) {
           b.active = false; b.mesh.visible = false;
           damageEnemy(e, b.damage, b.vel);
           break;
@@ -5429,7 +5475,7 @@ export const GameScene = {
         case "attack":
           if (e.body) { e.body.velocity.x = dir.x * e.speed * 1.5; e.body.velocity.z = dir.z * e.speed * 1.5; }
           e.mesh.lookAt(playerMesh.position.x, e.mesh.position.y, playerMesh.position.z);
-          if (dist < 1.8 && e.stateTime > 0.5) { hitPlayer(e.damage); e.stateTime = 0; }
+          if (dist < 2.5 && e.stateTime > 0.5) { hitPlayer(e.damage); e.stateTime = 0; }
           if (dist > 12) { e.state = "follow"; e.stateTime = 0; }
           break;
         case "flee":
@@ -5458,9 +5504,9 @@ export const GameScene = {
       camTX += (nearE.mesh.position.x - playerMesh.position.x) * ENEMY_SHIFT;
       camTZ += (nearE.mesh.position.z - playerMesh.position.z) * ENEMY_SHIFT;
     }
-    camera.position.x += (camTX - camera.position.x) * 3 * delta;
-    camera.position.y += (CAM_HEIGHT - camera.position.y) * 3 * delta;
-    camera.position.z += (camTZ - camera.position.z) * 3 * delta;
+    camera.position.x += (camTX - camera.position.x) * 5 * delta;
+    camera.position.y += (CAM_HEIGHT - camera.position.y) * 5 * delta;
+    camera.position.z += (camTZ - camera.position.z) * 5 * delta;
     if (shakeIntensity > 0.01) {
       camera.position.x += (Math.random() - 0.5) * shakeIntensity;
       camera.position.z += (Math.random() - 0.5) * shakeIntensity;
@@ -5494,7 +5540,7 @@ export const GameScene = {
       if (ft.life <= 0) { scene.remove(ft.sprite); floatingTexts.splice(i, 1); }
     }
 
-    hud.update({ score, custom: \`Wave: \${wave} | HP: \${lives}\` });
+    hud.update({ score, lives, custom: \`Wave: \${wave}\` });
   },
 
   cleanup() {
@@ -5587,8 +5633,9 @@ async function spawnWave() {
       }
 
       mesh.position.set(sx, 0, sz);
+      enableShadows(mesh, true, false);
       scene.add(mesh);
-      const body = createPhysicsBody("box", 3, { x: sx, y: 0.65, z: sz }, { x: 0.4, y: 0.65, z: 0.4 });
+      const body = createPhysicsBody("box", 3, { x: sx, y: 1.0, z: sz }, { x: 0.5, y: 1.0, z: 0.5 });
       if (body) { body.linearDamping = 0.9; body.fixedRotation = true; }
       if (world && body) world.addBody(body);
 
