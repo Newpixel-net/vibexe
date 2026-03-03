@@ -150,7 +150,7 @@ export function GameEditorPanel() {
 						<Package className="w-3.5 h-3.5" />
 					</button>
 				</div>
-				<div className="max-h-[40%] overflow-y-auto px-1 pb-2 scrollbar-thin">
+				<div className="max-h-[40vh] overflow-y-auto px-1 pb-2 scrollbar-thin">
 					{sceneTree ? (
 						<SceneTreeNode
 							node={sceneTree}
@@ -213,7 +213,7 @@ export function GameEditorPanel() {
 						</Section>
 
 						{/* Rotation */}
-						<Section title="Rotation">
+						<Section title="Rotation °">
 							<div className="flex gap-1.5">
 								<DragNumberInput
 									label="X"

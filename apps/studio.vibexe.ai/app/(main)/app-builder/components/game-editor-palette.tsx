@@ -7,7 +7,7 @@
  */
 
 import { Search } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useGameEditor, type PrefabDefinition } from "../lib/game-editor-context";
 
 // Palette categories with factory mappings
@@ -103,6 +103,13 @@ export function GameEditorPalette() {
 			items: cat.items.filter((item) => item.displayName.toLowerCase().includes(q)),
 		})).filter((cat) => cat.items.length > 0);
 	}, [search]);
+
+	// Reset tab index when search changes and current tab would be out of bounds
+	useEffect(() => {
+		if (activeTab >= filteredCategories.length) {
+			setActiveTab(0);
+		}
+	}, [filteredCategories.length, activeTab]);
 
 	const handleSelect = useCallback(
 		(prefab: PrefabDefinition) => {

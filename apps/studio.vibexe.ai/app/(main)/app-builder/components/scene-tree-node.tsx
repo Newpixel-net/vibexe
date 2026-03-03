@@ -5,18 +5,23 @@
  * Shows type icon, name, color dot, expand/collapse for groups.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	Box,
 	ChevronDown,
 	ChevronRight,
 	Circle,
+	Diamond,
 	Eye,
 	EyeOff,
 	Lightbulb,
 	Folder,
 	Camera,
 	Video,
+	Shield,
+	TreePine,
+	User,
+	Star,
 } from "lucide-react";
 import type { SceneNode } from "../lib/game-editor-context";
 
@@ -33,6 +38,16 @@ function getIcon(node: SceneNode) {
 	if (node.type === "PerspectiveCamera" || node.type === "OrthographicCamera")
 		return <Camera className="w-3 h-3 text-blue-400" />;
 	if (node.type === "Scene") return <Video className="w-3 h-3 text-green-400" />;
+
+	// Vibexe factory-based icons
+	const factory = node.userData?.vibexeFactory;
+	if (factory === "createCollectible3D") return <Star className="w-3 h-3 text-yellow-400" />;
+	if (factory === "createBarrier3D") return <Shield className="w-3 h-3 text-red-400" />;
+	if (factory === "createDecoration3D") return <TreePine className="w-3 h-3 text-emerald-400" />;
+	if (factory === "createPlayer3D") return <User className="w-3 h-3 text-violet-400" />;
+	if (factory === "createAnimatedCharacter3D") return <User className="w-3 h-3 text-amber-400" />;
+	if (factory === "createPlatform3D") return <Box className="w-3 h-3 text-blue-400" />;
+
 	if (node._isMesh) return <Box className="w-3 h-3 text-cyan-400" />;
 	if (node._isGroup || node.children.length > 0)
 		return <Folder className="w-3 h-3 text-orange-300" />;
@@ -49,6 +64,14 @@ export function SceneTreeNode({
 	const [expanded, setExpanded] = useState(depth < 1);
 	const hasChildren = node.children.length > 0;
 	const isSelected = node.uuid === selectedUuid;
+	const rowRef = useRef<HTMLDivElement>(null);
+
+	// Auto-scroll to selected node when selection changes from viewport click
+	useEffect(() => {
+		if (isSelected && rowRef.current) {
+			rowRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
+		}
+	}, [isSelected]);
 
 	// Skip editor helpers, particles, trails
 	if (
@@ -89,6 +112,7 @@ export function SceneTreeNode({
 	return (
 		<div>
 			<div
+				ref={rowRef}
 				className={`flex items-center gap-1 px-1 py-[3px] cursor-pointer rounded-sm transition-colors ${
 					isSelected
 						? "bg-violet-500/20 text-violet-200"
