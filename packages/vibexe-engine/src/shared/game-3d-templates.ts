@@ -5095,7 +5095,7 @@ const MODEL_COLORS: Record<string, number> = {
   'particles/Light_ring': 0xFFFFAA,
 };
 // Emissive tint strength for characters — makes them pop against environment
-const CHAR_EMISSIVE_STRENGTH = 0.15;
+const CHAR_EMISSIVE_STRENGTH = 0.25;
 
 function findModelColor(subpath: string): number | null {
   // Exact match first, then prefix match (longest prefix wins)
@@ -5126,6 +5126,7 @@ async function loadModel(subpath: string, cloneMats = false): Promise<any> {
       // Convert PBR → MeshPhongMaterial + apply color tint for grey GLB models.
       // Characters get emissive tint to pop against environment (like Unity reference).
       const isCharacter = subpath.startsWith('characters/');
+      const isCollectible = subpath.startsWith('misc/') || subpath.startsWith('particles/');
       original.traverse((c: any) => {
         if (c.isMesh && c.material) {
           const convertMat = (mat: any) => {
@@ -5133,9 +5134,9 @@ async function loadModel(subpath: string, cloneMats = false): Promise<any> {
             const hasVertexColors = !!(c.geometry && c.geometry.attributes && c.geometry.attributes.color);
             const hasTexture = !!mat.map;
             const baseColor = hasTexture ? new THREE.Color(0xffffff) : (tint !== null ? new THREE.Color(tint) : (mat.color ? mat.color.clone() : new THREE.Color(0xffffff)));
-            // Characters get a subtle emissive glow so they stand out
-            const emissiveColor = isCharacter && tint !== null
-              ? new THREE.Color(tint).multiplyScalar(CHAR_EMISSIVE_STRENGTH)
+            // Characters + collectibles get emissive glow so they pop against the environment
+            const emissiveColor = (isCharacter || isCollectible) && tint !== null
+              ? new THREE.Color(tint).multiplyScalar(isCollectible ? 0.35 : CHAR_EMISSIVE_STRENGTH)
               : (mat.emissive ? mat.emissive.clone() : new THREE.Color(0x000000));
             const phong = new THREE.MeshPhongMaterial({
               color: baseColor,
@@ -5198,6 +5199,14 @@ function scaleToTile(mesh: any, targetX: number, targetZ: number) {
     const s = Math.min(targetX / sz.x, targetZ / sz.z);
     mesh.scale.multiplyScalar(s);
   }
+}
+
+// Scale to fit within maxSize on the LARGEST dimension (prevents flat objects like rings from becoming enormous)
+function scaleToFit(mesh: any, maxSize: number) {
+  const box = new THREE.Box3().setFromObject(mesh);
+  const sz = new THREE.Vector3(); box.getSize(sz);
+  const biggest = Math.max(sz.x, sz.y, sz.z);
+  if (biggest > 0.001) mesh.scale.multiplyScalar(maxSize / biggest);
 }
 
 // ===== Enemy Tiers =====
@@ -5356,7 +5365,8 @@ export const GameScene = {
     world = this.world;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.NoToneMapping;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
 
     // Remove default Game3D.tsx lights (we need custom lighting for top-down shooter)
     const defaultLights = scene.children.filter((c: any) => c.isLight);
@@ -5365,16 +5375,16 @@ export const GameScene = {
     // Bright sky background — matches Unity Squad Shooter warm cartoon style
     scene.background = new THREE.Color(0x99DDFF);
 
-    // Strong hemisphere: bright warm sky + warm ground fill for vibrant cartoon look
-    const hemi = new THREE.HemisphereLight(0xffffff, 0xFFE8CC, 0.8);
+    // Hemisphere: warm sky + warm ground. Reduced to prevent Phong overexposure.
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xFFE8CC, 0.45);
     scene.add(hemi);
 
-    // Bright ambient for strong base visibility — no dark areas
-    const shooterAmbient = new THREE.AmbientLight(0xffffff, 0.5);
+    // Low ambient prevents pure-black shadows without washing out colors
+    const shooterAmbient = new THREE.AmbientLight(0xffffff, 0.15);
     scene.add(shooterAmbient);
 
-    // Strong warm sun from above-right for top-down view
-    const shooterSun = new THREE.DirectionalLight(0xffffff, 1.0);
+    // Main sun light — strong directional for crisp top-down shadows
+    const shooterSun = new THREE.DirectionalLight(0xffffff, 0.9);
     shooterSun.position.set(8, 40, -8);
     shooterSun.castShadow = true;
     shooterSun.shadow.mapSize.width = 2048;
@@ -5388,8 +5398,8 @@ export const GameScene = {
     shooterSun.shadow.bias = -0.001;
     scene.add(shooterSun);
 
-    // Warm fill from opposite side — reduces harsh shadows
-    const fillLight = new THREE.DirectionalLight(0xFFEEDD, 0.5);
+    // Subtle fill from opposite side — softens shadows without blowing highlights
+    const fillLight = new THREE.DirectionalLight(0xFFEEDD, 0.25);
     fillLight.position.set(-10, 25, 10);
     scene.add(fillLight);
 
@@ -5457,7 +5467,7 @@ export const GameScene = {
       const ci = collectDefs[i % collectDefs.length];
       try {
         const mesh = await loadModel(ci.path);
-        scaleToHeight(mesh, 0.5);
+        scaleToFit(mesh, 1.0);
         mesh.position.set(cPositions[i].x, 0.6, cPositions[i].z);
         scene.add(mesh);
         collectibles.push({ mesh, collected: false, type: ci.type });
@@ -5481,7 +5491,7 @@ export const GameScene = {
       const wi = weaponDefs[i % weaponDefs.length];
       try {
         const mesh = await loadModel(wi.path);
-        scaleToHeight(mesh, 0.6);
+        scaleToFit(mesh, 1.2);
         mesh.position.set(wPositions[i].x, 0.8, wPositions[i].z);
         scene.add(mesh);
         collectibles.push({ mesh, collected: false, type: "weapon_" + wi.name });
