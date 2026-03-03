@@ -5057,6 +5057,18 @@ async function loadModel(subpath: string, cloneMats = false): Promise<any> {
     } else {
       const original = await loadGLTF(url);
       console.log("[3D] Loaded GLTF:", subpath);
+      // Fix PBR materials: cap metalness to prevent grey look without envMap
+      original.traverse((c: any) => {
+        if (c.isMesh && c.material) {
+          const mats = Array.isArray(c.material) ? c.material : [c.material];
+          mats.forEach((mat: any) => {
+            if (mat.metalness !== undefined) {
+              mat.metalness = Math.min(mat.metalness, 0.15);
+              mat.roughness = Math.max(mat.roughness, 0.4);
+            }
+          });
+        }
+      });
       _cache.set(url, original);
       mesh = original.clone();
     }
