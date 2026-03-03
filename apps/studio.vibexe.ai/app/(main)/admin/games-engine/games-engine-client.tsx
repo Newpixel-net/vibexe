@@ -632,11 +632,11 @@ function OverviewTab({ onNavigate }: { onNavigate: (tab: Tab) => void }) {
 
 	const stats = [
 		{ icon: "🎮", label: "Engines", value: ENGINES.length, sub: "Three.js + Phaser", tab: "genres" as Tab },
-		{ icon: "🎯", label: "Genres", value: GENRES.length, sub: "2 per engine", tab: "genres" as Tab },
+		{ icon: "🎯", label: "Genres", value: GENRES.length, sub: "3 3D + 2 2D", tab: "genres" as Tab },
 		{ icon: "🏭", label: "Factory Helpers", value: FACTORIES.length, sub: "8 3D + 6 2D", tab: "factories" as Tab },
 		{ icon: "📦", label: "3D Models", value: total3DModels.toLocaleString(), sub: `${PACKS_3D.length} packs`, tab: "assets" as Tab },
 		{ icon: "🎨", label: "2D Sprites", value: "20,454", sub: "6 themes", tab: "assets" as Tab },
-		{ icon: "🔊", label: "Audio Files", value: 15, sub: "13 SFX + 2 BGM", tab: "starters" as Tab },
+		{ icon: "🔊", label: "Audio Files", value: 39, sub: "35 SFX + 4 BGM", tab: "starters" as Tab },
 	];
 
 	return (

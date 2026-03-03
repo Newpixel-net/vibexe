@@ -17,7 +17,7 @@
 export interface AssetPack3D {
   id: string;
   name: string;
-  family: "kaykit" | "stylized" | "meshy";
+  family: "kaykit" | "stylized" | "meshy" | "squad-shooter";
   format: "gltf" | "glb" | "obj";
   fileCount: number;
   sizeMB: number;
@@ -259,6 +259,78 @@ export const PACKS_3D: AssetPack3D[] = [
       warriors: ["Warrior_figure_Animations"],
     },
   },
+
+  // ---- SQUAD SHOOTER (Stylized 3D Shooter Kit, GLB from Unity FBX) ----
+  {
+    id: "squad-shooter",
+    name: "Squad Shooter Asset Kit",
+    family: "squad-shooter",
+    format: "glb",
+    fileCount: 96,
+    sizeMB: 6.6,
+    serverPath: "squad-shooter",
+    description:
+      "96 GLB models from a professional Unity shooter template. Characters (skinned meshes with mixamo rigs), weapons, environment tiles (2 world themes), VFX meshes, collectibles. Stylized low-poly with vibrant colors. Path: {category}/{name}.glb",
+    categories: {
+      // Player characters (7) — rigged skinned meshes
+      player: [
+        "Character_01", "Character_02", "Character_03",
+        "Main_Char_01_(without_rig)", "Main_Char_02_(without_rig)", "Main_Char_03_(without_rig)",
+        "Pedestal",
+      ],
+      // Enemy characters (22) — rigged with mixamo skeletons
+      enemies: [
+        "Bomber_1", "Bomber_Elite",
+        "Boss_Bomber", "Old_Boss",
+        "CowBoy_1", "CowBoy_ELITE",
+        "Grenader", "Grenader_ELITE",
+        "MeeleMan", "MeeleMan_Elite",
+        "Mine",
+        "Normal", "Skinny",
+        "Pistolman_1", "Pistolman_Elite",
+        "RifleMan", "RifleMan_ELITE",
+        "ShotgunMan_1", "ShotgunMan_ELITE",
+        "Sniper_1", "Sniper_Boss", "Sniper_Elite",
+      ],
+      // Weapons (6)
+      weapons: [
+        "Grenade_launcher", "Minigun", "Shotgun", "Teslagun",
+        "minigun_shell", "shotgun_bullet",
+      ],
+      // World 1 environment tiles (25) — desert/canyon theme
+      world_1: [
+        "1_Block_1x1_Big", "1_Block_1x1_Big_Half",
+        "1_Block_1x1_Medium", "1_Block_1x1_Medium_Half",
+        "1_Block_1x1_Small", "1_Block_1x1_Small_Half",
+        "1_Block_1x2_Big", "1_Block_1x2_Big_Half",
+        "1_Block_1x2_Medium", "1_Block_1x2_Medium_Half",
+        "1_Block_1x2_Small", "1_Block_2x2_Big_Half",
+        "1_Border_1", "1_Border_2", "1_Border_3", "1_Border_4",
+        "1_Border_Corner", "1_Border_Exit", "1_Border_Half", "1_Border_Quarter",
+        "1_Ground_1", "1_Ground_Half",
+        "1_Wall_1x1", "1_Wall_1x2", "1_Wall_corner",
+      ],
+      // World 2 environment tiles (23) — industrial/tech theme
+      world_2: [
+        "2_Block_1x1_Big", "2_Block_1x1_Big_Half",
+        "2_Block_1x1_Medium", "2_Block_1x1_Medium_Half",
+        "2_Block_1x1_Small", "2_Block_1x1_Small_Half",
+        "2_Block_1x2_Big", "2_Block_1x2_Big_Half",
+        "2_Block_1x2_Medium", "2_Block_1x2_Medium_Half",
+        "2_Block_1x2_Small", "2_Block_2x2_Big_Half",
+        "2_Border_1", "2_Border_2", "2_Border_3",
+        "2_Border_Corner", "2_Border_Exit", "2_Border_Half", "2_Border_Quarter",
+        "2_Ground_1",
+        "2_Wall_1x1", "2_Wall_1x2", "2_Wall_corner",
+      ],
+      // Collectibles & misc (4)
+      misc: ["Coin", "Ring", "Chest", "Chest_RV"],
+      // VFX meshes (7) — for particle systems
+      particles: ["Bullet", "Light_ring", "Quad_custom", "Shield_capsule", "Smoke_custom", "Sphere_custom", "heal_plus"],
+      // Chest animations (2)
+      animations: ["A_Chest_Open", "A_Chest_Shaking"],
+    },
+  },
 ];
 
 // ============================================================================
@@ -266,7 +338,7 @@ export const PACKS_3D: AssetPack3D[] = [
 // ============================================================================
 
 export const GAME_3D_ASSETS_REFERENCE = `
-## 3D Asset Catalog — 6 Packs (56 MB)
+## 3D Asset Catalog — 7 Packs (63 MB)
 
 **API endpoint**: \`/api/app-builder/media-stock-3d/{pack-id}/{path-to-file}\`
 
@@ -490,7 +562,45 @@ Animations are **auto-updated** — no need to call mixer.update(). Just call \`
 | "warrior", "fighter", "animated character" | meshy-characters + kaykit-platformer |
 | "action game", "combat", "hack and slash" | meshy-characters + kaykit-platformer |
 | "kids 3D game", "casual 3D" | kaykit-platformer |
+| "shooter", "squad shooter", "3D shooter" | squad-shooter |
+| "endless runner", "temple run" | kaykit-platformer + squad-shooter (coins, enemies) |
 | Default / unspecified | kaykit-platformer |
 
-All packs share the same KayKit cartoon low-poly aesthetic — safe to combine any KayKit packs.
+All KayKit packs share the same cartoon low-poly aesthetic — safe to combine. Squad Shooter has its own stylized look (vibrant, low-poly characters with mixamo rigs).
+
+---
+
+### SQUAD SHOOTER KIT — 96 GLB Models (6.6 MB)
+Pack: \`squad-shooter\`
+Path: \`{category}/{name}.glb\`
+Example: \`characters/player/Character_01.glb\`, \`weapons/Minigun.glb\`
+
+**Player Characters (7):** Character_01, Character_02, Character_03, Main_Char_01_(without_rig), Main_Char_02_(without_rig), Main_Char_03_(without_rig), Pedestal
+**Enemy Characters (22):** Bomber_1, Bomber_Elite, Boss_Bomber, Old_Boss, CowBoy_1, CowBoy_ELITE, Grenader, Grenader_ELITE, MeeleMan, MeeleMan_Elite, Mine, Normal, Skinny, Pistolman_1, Pistolman_Elite, RifleMan, RifleMan_ELITE, ShotgunMan_1, ShotgunMan_ELITE, Sniper_1, Sniper_Boss, Sniper_Elite
+**Weapons (6):** Grenade_launcher, Minigun, Shotgun, Teslagun, minigun_shell, shotgun_bullet
+**World 1 Tiles (25):** 1_Block_*, 1_Border_*, 1_Ground_*, 1_Wall_* (desert/canyon theme)
+**World 2 Tiles (23):** 2_Block_*, 2_Border_*, 2_Ground_*, 2_Wall_* (industrial/tech theme)
+**Collectibles (4):** Coin, Ring, Chest, Chest_RV
+**VFX Meshes (7):** Bullet, Light_ring, Quad_custom, Shield_capsule, Smoke_custom, Sphere_custom, heal_plus
+
+\`\`\`typescript
+// Load Squad Shooter models with loadGLTF
+const coin = await loadGLTF(modelUrl("squad-shooter", "misc/Coin.glb"));
+const enemy = await loadGLTF(modelUrl("squad-shooter", "characters/enemies/Boss_Bomber.glb"));
+const gun = await loadGLTF(modelUrl("squad-shooter", "weapons/Minigun.glb"));
+const tile = await loadGLTF(modelUrl("squad-shooter", "environment/world_1/1_Ground_1.glb"));
+\`\`\`
+
+---
+
+### Squad Shooter Audio — 24 OGG Files (2.9 MB)
+Path: \`/api/app-builder/media-stock-audio/squad-shooter/{sfx|music}/{name}.ogg\`
+
+**Music (2):** game_music, menu_music
+**SFX (22):** boss_scream, chest_open, coin_appear, coin_pickup, door, enemy_hit_1, enemy_hit_2, explosion, jump_landing, level_complete, pick_up_1, player_hit, punch_1, shot, shot_lava, shot_minigun, shot_shotgun, shot_sniper, shot_tesla, ui_button_1, upgrade, woosh_1
+
+\`\`\`typescript
+playSound(soundUrl("squad-shooter/sfx/coin_pickup")); // SFX
+playMusic(soundUrl("squad-shooter/music/game_music")); // BGM
+\`\`\`
 `;
