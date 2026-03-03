@@ -64,6 +64,9 @@ interface GameEditorContextValue {
 	animPlaybackState: "stopped" | "playing" | "paused";
 	animCurrentTime: number;
 	animClipDuration: number;
+	// Animation name overrides (originalName → displayName)
+	animClipOverrides: Record<string, string>;
+	animModelId: string | null;
 	// Palette
 	isPaletteOpen: boolean;
 	activePrefab: PrefabDefinition | null;
@@ -96,6 +99,8 @@ interface GameEditorContextValue {
 	seekAnimation: (uuid: string, time: number) => void;
 	setAnimationClips: (clips: string[], current: string | null, map: Record<string, string> | null, durations?: Record<string, number>) => void;
 	updateAnimProgress: (time: number, duration: number, clipName: string | null, paused: boolean) => void;
+	renameAnimClip: (originalName: string, newDisplayName: string) => void;
+	fetchAnimOverrides: (modelId: string) => void;
 	// Palette
 	togglePalette: () => void;
 	setActivePrefab: (prefab: PrefabDefinition | null) => void;
@@ -121,6 +126,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [animClipDuration, setAnimClipDuration] = useState(0);
 	const [isPaletteOpen, setIsPaletteOpen] = useState(false);
 	const [activePrefab, setActivePrefabState] = useState<PrefabDefinition | null>(null);
+	const [animClipOverrides, setAnimClipOverrides] = useState<Record<string, string>>({});
+	const [animModelId, setAnimModelId] = useState<string | null>(null);
 	const saveHandlerRef = useRef<(() => Promise<void>) | null>(null);
 	const iframeRef = useRef<React.RefObject<HTMLIFrameElement | null> | null>(null);
 
@@ -195,6 +202,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		setAnimCurrentTime(0);
 		setAnimClipDuration(0);
 		setAnimClipDurations({});
+		setAnimClipOverrides({});
+		setAnimModelId(null);
 	}, [sendToIframe]);
 
 	const updateProperty = useCallback((uuid: string, property: string, value: any) => {
@@ -283,6 +292,37 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		if (durations) setAnimClipDurations(durations);
 	}, []);
 
+	// Fetch overrides when selected object changes (AnimatedCharacter)
+	const fetchAnimOverrides = useCallback((modelId: string) => {
+		setAnimModelId(modelId);
+		fetch(`/api/app-builder/animation-overrides?model=${encodeURIComponent(modelId)}`)
+			.then((r) => r.json())
+			.then((data) => {
+				setAnimClipOverrides(data.overrides || {});
+			})
+			.catch(() => setAnimClipOverrides({}));
+	}, []);
+
+	// Rename a clip: save override locally + persist to API
+	const renameAnimClip = useCallback((originalName: string, newDisplayName: string) => {
+		if (!animModelId) return;
+		setAnimClipOverrides((prev) => {
+			const next = { ...prev };
+			if (newDisplayName === originalName || !newDisplayName.trim()) {
+				delete next[originalName];
+			} else {
+				next[originalName] = newDisplayName.trim();
+			}
+			// Persist to server
+			fetch("/api/app-builder/animation-overrides", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ model: animModelId, overrides: next }),
+			}).catch(() => { /* silent */ });
+			return next;
+		});
+	}, [animModelId]);
+
 	// Palette actions
 	const togglePalette = useCallback(() => {
 		setIsPaletteOpen((prev) => !prev);
@@ -345,6 +385,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				animPlaybackState,
 				animCurrentTime,
 				animClipDuration,
+				animClipOverrides,
+				animModelId,
 				isPaletteOpen,
 				activePrefab,
 				toggleEditor,
@@ -375,6 +417,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				seekAnimation,
 				setAnimationClips,
 				updateAnimProgress,
+				renameAnimClip,
+				fetchAnimOverrides,
 				togglePalette,
 				setActivePrefab,
 				spawnObject,

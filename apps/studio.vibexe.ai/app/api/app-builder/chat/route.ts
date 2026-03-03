@@ -888,6 +888,25 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 				// 3D game — inject 3D asset catalog
 				runtimeAddenda.push(GAME_3D_ASSETS_REFERENCE);
 				console.log(`[Chat API] Injected 3D assets reference`);
+				// Inject animation name overrides (user-corrected clip names)
+				try {
+					const { readFile } = await import("node:fs/promises");
+					const overridesRaw = await readFile("/opt/vibexe/data/animation-overrides.json", "utf-8").catch(() => "{}");
+					const allOverrides = JSON.parse(overridesRaw);
+					if (Object.keys(allOverrides).length > 0) {
+						let overrideDoc = "## ANIMATION NAME CORRECTIONS\nThe following models have user-verified clip name corrections. The original clip names in the GLB file don't match the actual visual animation. Use the CORRECTED names when referring to animations in code comments and documentation, but use the ORIGINAL clip names in code (e.g., `character.play(\"ORIGINAL_NAME\")`):\n\n";
+						for (const [model, overrides] of Object.entries(allOverrides)) {
+							const map = overrides as Record<string, string>;
+							overrideDoc += `**${model}:**\n`;
+							for (const [original, corrected] of Object.entries(map)) {
+								overrideDoc += `- Clip "${original}" actually shows: "${corrected}"\n`;
+							}
+							overrideDoc += "\n";
+						}
+						runtimeAddenda.push(overrideDoc);
+						console.log(`[Chat API] Injected animation overrides for ${Object.keys(allOverrides).length} models`);
+					}
+				} catch { /* no overrides file */ }
 			} else {
 				// 2D game — inject 2D asset catalog
 				runtimeAddenda.push(GAME_ASSETS_REFERENCE);

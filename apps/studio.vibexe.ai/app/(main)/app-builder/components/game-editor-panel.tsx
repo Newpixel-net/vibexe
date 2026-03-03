@@ -5,8 +5,8 @@
  * Overlaid on the right side of the viewport when editor is active.
  */
 
-import { Copy, Eye, EyeOff, Focus, Package, Pause, Play, Square, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useRef } from "react";
+import { Check, Copy, Eye, EyeOff, Focus, Package, Pause, Pencil, Play, Square, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DragNumberInput } from "./drag-number-input";
 import { SceneTreeNode } from "./scene-tree-node";
 import { useGameEditor } from "../lib/game-editor-context";
@@ -27,24 +27,70 @@ export function GameEditorPanel() {
 		animPlaybackState,
 		animCurrentTime,
 		animClipDuration,
+		animClipOverrides,
 		getAnimations,
 		playAnimation,
 		pauseAnimation,
 		resumeAnimation,
 		stopAnimation,
 		seekAnimation,
+		renameAnimClip,
+		fetchAnimOverrides,
 		isPaletteOpen,
 		togglePalette,
 	} = useGameEditor();
 
 	const progressBarRef = useRef<HTMLDivElement>(null);
+	const [editingClip, setEditingClip] = useState<string | null>(null);
+	const [editValue, setEditValue] = useState("");
+	const editInputRef = useRef<HTMLInputElement>(null);
 
 	// Auto-fetch animation clips when an AnimatedCharacter is selected
 	useEffect(() => {
 		if (selectedObject?.userData?.vibexeType === "AnimatedCharacter" && selectedObject.uuid) {
 			getAnimations(selectedObject.uuid);
+			// Extract model ID from mesh name: "Character_Warrior_figure_Animations" → "Warrior_figure_Animations"
+			const name = selectedObject.name || "";
+			const modelId = name.startsWith("Character_") ? name.slice(10) : name;
+			if (modelId) fetchAnimOverrides(modelId);
 		}
-	}, [selectedObject?.uuid, selectedObject?.userData?.vibexeType, getAnimations]);
+	}, [selectedObject?.uuid, selectedObject?.userData?.vibexeType, selectedObject?.name, getAnimations, fetchAnimOverrides]);
+
+	// Focus edit input when editing starts
+	useEffect(() => {
+		if (editingClip && editInputRef.current) {
+			editInputRef.current.focus();
+			editInputRef.current.select();
+		}
+	}, [editingClip]);
+
+	// Helper: get display name for a clip (apply override)
+	const getDisplayName = useCallback((originalName: string) => {
+		return animClipOverrides[originalName] || originalName;
+	}, [animClipOverrides]);
+
+	// Helper: get original clip name from what might be a display name
+	const getOriginalName = useCallback((clipName: string) => {
+		// animationClips always stores original names
+		return clipName;
+	}, []);
+
+	const handleStartRename = useCallback((originalClip: string, e: React.MouseEvent) => {
+		e.stopPropagation();
+		setEditingClip(originalClip);
+		setEditValue(animClipOverrides[originalClip] || originalClip);
+	}, [animClipOverrides]);
+
+	const handleConfirmRename = useCallback(() => {
+		if (editingClip && editValue.trim()) {
+			renameAnimClip(editingClip, editValue.trim());
+		}
+		setEditingClip(null);
+	}, [editingClip, editValue, renameAnimClip]);
+
+	const handleCancelRename = useCallback(() => {
+		setEditingClip(null);
+	}, []);
 
 	const handleTreeSelect = useCallback(
 		(uuid: string) => {
@@ -250,38 +296,87 @@ export function GameEditorPanel() {
 						{/* Animation Player (for AnimatedCharacter) */}
 						{animationClips.length > 0 && (
 							<Section title="Animations">
-								<div className="space-y-0.5 max-h-[140px] overflow-y-auto scrollbar-thin">
+								<div className="space-y-0.5 max-h-[180px] overflow-y-auto scrollbar-thin">
 									{animationClips.map((clip) => {
 										const isActive = currentAnimClip === clip;
 										const dur = animClipDurations[clip];
+										const displayName = getDisplayName(clip);
+										const isEditing = editingClip === clip;
+										const isRenamed = !!animClipOverrides[clip];
+
+										if (isEditing) {
+											return (
+												<div key={clip} className="flex items-center gap-1 px-1.5 py-0.5">
+													<input
+														ref={editInputRef}
+														type="text"
+														value={editValue}
+														onChange={(e) => setEditValue(e.target.value)}
+														onKeyDown={(e) => {
+															if (e.key === "Enter") handleConfirmRename();
+															if (e.key === "Escape") handleCancelRename();
+														}}
+														className="flex-1 min-w-0 px-1.5 py-0.5 text-[10px] bg-white/[0.1] border border-white/20 rounded text-white/90 outline-none focus:border-emerald-500/50"
+													/>
+													<button
+														type="button"
+														onClick={handleConfirmRename}
+														className="p-0.5 rounded text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+														title="Save"
+													>
+														<Check className="w-3 h-3" />
+													</button>
+													<button
+														type="button"
+														onClick={handleCancelRename}
+														className="p-0.5 rounded text-white/30 hover:bg-white/[0.08] transition-colors"
+														title="Cancel"
+													>
+														<X className="w-3 h-3" />
+													</button>
+												</div>
+											);
+										}
+
 										return (
-											<button
-												key={clip}
-												type="button"
-												onClick={() => selectedObject && playAnimation(selectedObject.uuid, clip)}
-												className={`group w-full flex items-center gap-1.5 px-2 py-1 text-[10px] rounded transition-colors text-left ${
-													isActive
-														? "bg-emerald-500/20 text-emerald-400"
-														: "text-white/50 hover:bg-white/[0.06] hover:text-white/70"
-												}`}
-											>
-												{isActive ? (
-													animPlaybackState === "paused" ? (
-														<Pause className="w-2.5 h-2.5 flex-shrink-0 text-amber-400" />
+											<div key={clip} className="group/clip flex items-center">
+												<button
+													type="button"
+													onClick={() => selectedObject && playAnimation(selectedObject.uuid, clip)}
+													className={`flex-1 flex items-center gap-1.5 px-2 py-1 text-[10px] rounded-l transition-colors text-left ${
+														isActive
+															? "bg-emerald-500/20 text-emerald-400"
+															: "text-white/50 hover:bg-white/[0.06] hover:text-white/70"
+													}`}
+												>
+													{isActive ? (
+														animPlaybackState === "paused" ? (
+															<Pause className="w-2.5 h-2.5 flex-shrink-0 text-amber-400" />
+														) : (
+															<span className="relative flex h-2.5 w-2.5 flex-shrink-0">
+																<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+																<span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+															</span>
+														)
 													) : (
-														<span className="relative flex h-2.5 w-2.5 flex-shrink-0">
-															<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-															<span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-														</span>
-													)
-												) : (
-													<Play className="w-2.5 h-2.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-												)}
-												<span className="truncate flex-1">{clip}</span>
-												{dur != null && (
-													<span className="text-[9px] text-white/25 flex-shrink-0 tabular-nums">{dur.toFixed(1)}s</span>
-												)}
-											</button>
+														<Play className="w-2.5 h-2.5 flex-shrink-0 opacity-0 group-hover/clip:opacity-100 transition-opacity" />
+													)}
+													<span className={`truncate flex-1 ${isRenamed ? "italic" : ""}`} title={isRenamed ? `Original: ${clip}` : undefined}>
+														{displayName}
+													</span>
+													{dur != null && (
+														<span className="text-[9px] text-white/25 flex-shrink-0 tabular-nums">{dur.toFixed(1)}s</span>
+													)}
+												</button>
+												<button
+													type="button"
+													onClick={(e) => handleStartRename(clip, e)}
+													className="p-1 rounded-r text-white/0 group-hover/clip:text-white/30 hover:!text-white/60 hover:bg-white/[0.06] transition-colors"
+													title="Rename clip"
+												>
+													<Pencil className="w-2.5 h-2.5" />
+												</button>
+											</div>
 										);
 									})}
 								</div>
