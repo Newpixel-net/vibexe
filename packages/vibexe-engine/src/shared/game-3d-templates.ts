@@ -5842,7 +5842,8 @@ export const GameScene = {
     let mx = ((keys.ArrowRight || keys.KeyD) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA) ? 1 : 0);
     let mz = ((keys.ArrowDown || keys.KeyS) ? 1 : 0) - ((keys.ArrowUp || keys.KeyW) ? 1 : 0);
     mx += joyX; mz += joyZ;
-    if (Math.abs(mx) > 0.1 || Math.abs(mz) > 0.1) {
+    const isMoving = Math.abs(mx) > 0.1 || Math.abs(mz) > 0.1;
+    if (isMoving) {
       const len = Math.sqrt(mx * mx + mz * mz);
       playerBody.velocity.x = (mx / len) * PLAYER_SPEED;
       playerBody.velocity.z = (mz / len) * PLAYER_SPEED;
@@ -5855,6 +5856,15 @@ export const GameScene = {
     playerBody.position.x = Math.max(-clamp, Math.min(clamp, playerBody.position.x));
     playerBody.position.z = Math.max(-clamp, Math.min(clamp, playerBody.position.z));
     playerMesh.position.set(playerBody.position.x, 0, playerBody.position.z);
+
+    // === Procedural player animation (bob + tilt) ===
+    if (isMoving) {
+      playerMesh.position.y = Math.sin(gameTime * 12) * 0.15; // bounce while moving
+      playerMesh.rotation.x = Math.sin(gameTime * 6) * 0.06; // subtle forward tilt
+    } else {
+      playerMesh.position.y = Math.sin(gameTime * 2) * 0.05; // idle breathing
+      playerMesh.rotation.x = 0;
+    }
 
     // === Auto-fire at nearest enemy ===
     if (gameTime - lastFireTime > FIRE_RATE && enemies.length > 0) {
@@ -5933,6 +5943,28 @@ export const GameScene = {
           break;
       }
       if (e.body) e.mesh.position.set(e.body.position.x, 0, e.body.position.z);
+
+      // === Procedural enemy animation ===
+      const t = gameTime + i * 1.7; // offset per enemy so they don't sync
+      switch (e.state) {
+        case "idle":
+          e.mesh.position.y = Math.sin(t * 2) * 0.04; // gentle breathing
+          e.mesh.rotation.x = 0;
+          break;
+        case "follow": case "flee":
+          e.mesh.position.y = Math.abs(Math.sin(t * 10)) * 0.2; // hop while moving
+          e.mesh.rotation.x = 0.1; // lean forward
+          break;
+        case "attack": {
+          e.mesh.position.y = Math.abs(Math.sin(t * 14)) * 0.25; // aggressive hop
+          const baseS = e.mesh.userData.__baseScale || 1;
+          const atkPulse = 1 + Math.sin(e.stateTime * 8) * 0.08;
+          const s = baseS * atkPulse;
+          e.mesh.scale.set(s, s, s);
+          e.mesh.rotation.x = 0.15;
+          break;
+        }
+      }
     }
 
     // Wave clear
@@ -6089,6 +6121,8 @@ async function spawnWave() {
         hp = tier.hp * difficulty; speed = tier.speed + wave * 0.1; dmg = tier.damage;
       }
 
+      // Save base scale for procedural animations
+      mesh.userData.__baseScale = mesh.scale.x;
       mesh.position.set(sx, 0, sz);
       enableShadows(mesh, true, false);
       scene.add(mesh);
