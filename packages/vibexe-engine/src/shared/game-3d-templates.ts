@@ -5152,63 +5152,77 @@ function findModelColor(subpath: string): number | null {
 
 // ===== GLTF Cache =====
 const _cache = new Map<string, any>();
+
+// Convert materials from PBR (MeshStandardMaterial) to MeshPhongMaterial + apply color tint
+function _convertMaterials(root: any, subpath: string, tint: number | null) {
+  const isCharacter = subpath.startsWith('characters/');
+  const isCollectible = subpath.startsWith('misc/') || subpath.startsWith('particles/');
+  const isEnvironment = subpath.startsWith('environment/');
+  root.traverse((c: any) => {
+    if (c.isMesh && c.material) {
+      const convertMat = (mat: any) => {
+        if (!mat.isMeshStandardMaterial) return mat;
+        const hasVertexColors = !!(c.geometry && c.geometry.attributes && c.geometry.attributes.color);
+        const hasTexture = !!mat.map;
+        const baseColor = hasTexture ? new THREE.Color(0xffffff) : (tint !== null ? new THREE.Color(tint) : (mat.color ? mat.color.clone() : new THREE.Color(0xffffff)));
+        let emissiveColor = new THREE.Color(0x000000);
+        if (tint !== null) {
+          if (isCollectible) emissiveColor = new THREE.Color(tint).multiplyScalar(COLLECTIBLE_EMISSIVE);
+          else if (isCharacter) emissiveColor = new THREE.Color(tint).multiplyScalar(CHAR_EMISSIVE_STRENGTH);
+          else if (isEnvironment) emissiveColor = new THREE.Color(tint).multiplyScalar(ENV_EMISSIVE);
+        }
+        const phong = new THREE.MeshPhongMaterial({
+          color: baseColor,
+          map: mat.map || null,
+          emissive: emissiveColor,
+          emissiveMap: mat.emissiveMap || null,
+          normalMap: mat.normalMap || null,
+          opacity: mat.opacity !== undefined ? mat.opacity : 1,
+          transparent: !!mat.transparent,
+          side: mat.side !== undefined ? mat.side : THREE.FrontSide,
+          vertexColors: hasVertexColors,
+          skinning: !!mat.skinning,
+          specular: new THREE.Color(0x111111),
+          shininess: 8,
+        });
+        if (mat.alphaMap) phong.alphaMap = mat.alphaMap;
+        if (mat.alphaTest) phong.alphaTest = mat.alphaTest;
+        return phong;
+      };
+      if (Array.isArray(c.material)) {
+        c.material = c.material.map(convertMat);
+      } else {
+        c.material = convertMat(c.material);
+      }
+    }
+  });
+}
+
 async function loadModel(subpath: string, cloneMats = false): Promise<any> {
   const url = modelUrl(PACK, subpath);
   let mesh: any;
   try {
-    if (_cache.has(url)) {
+    const isCharacter = subpath.startsWith('characters/');
+
+    if (!isCharacter && _cache.has(url)) {
+      // Non-character: clone from cache (regular Mesh, safe to clone)
       mesh = _cache.get(url)!.clone();
     } else {
+      // Load fresh GLTF
       const original = await loadGLTF(url);
       console.log("[3D] Loaded GLTF:", subpath);
       const tint = findModelColor(subpath);
-      // Convert PBR → MeshPhongMaterial + apply color tint for grey GLB models.
-      // Characters get emissive tint to pop against environment (like Unity reference).
-      const isCharacter = subpath.startsWith('characters/');
-      const isCollectible = subpath.startsWith('misc/') || subpath.startsWith('particles/');
-      const isEnvironment = subpath.startsWith('environment/');
-      original.traverse((c: any) => {
-        if (c.isMesh && c.material) {
-          const convertMat = (mat: any) => {
-            if (!mat.isMeshStandardMaterial) return mat;
-            const hasVertexColors = !!(c.geometry && c.geometry.attributes && c.geometry.attributes.color);
-            const hasTexture = !!mat.map;
-            const baseColor = hasTexture ? new THREE.Color(0xffffff) : (tint !== null ? new THREE.Color(tint) : (mat.color ? mat.color.clone() : new THREE.Color(0xffffff)));
-            // Emissive by category — fights ACES desaturation, makes colors read true
-            let emissiveColor = new THREE.Color(0x000000);
-            if (tint !== null) {
-              if (isCollectible) emissiveColor = new THREE.Color(tint).multiplyScalar(COLLECTIBLE_EMISSIVE);
-              else if (isCharacter) emissiveColor = new THREE.Color(tint).multiplyScalar(CHAR_EMISSIVE_STRENGTH);
-              else if (isEnvironment) emissiveColor = new THREE.Color(tint).multiplyScalar(ENV_EMISSIVE);
-            }
-            // Flat cartoon look: minimal specular, low shininess
-            const phong = new THREE.MeshPhongMaterial({
-              color: baseColor,
-              map: mat.map || null,
-              emissive: emissiveColor,
-              emissiveMap: mat.emissiveMap || null,
-              normalMap: mat.normalMap || null,
-              opacity: mat.opacity !== undefined ? mat.opacity : 1,
-              transparent: !!mat.transparent,
-              side: mat.side !== undefined ? mat.side : THREE.FrontSide,
-              vertexColors: hasVertexColors,
-              skinning: !!mat.skinning,
-              specular: new THREE.Color(0x111111),
-              shininess: 8,
-            });
-            if (mat.alphaMap) phong.alphaMap = mat.alphaMap;
-            if (mat.alphaTest) phong.alphaTest = mat.alphaTest;
-            return phong;
-          };
-          if (Array.isArray(c.material)) {
-            c.material = c.material.map(convertMat);
-          } else {
-            c.material = convertMat(c.material);
-          }
-        }
-      });
-      _cache.set(url, original);
-      mesh = original.clone();
+      _convertMaterials(original, subpath, tint);
+
+      if (isCharacter) {
+        // Character models may have SkinnedMesh — clone() breaks skeleton binding
+        // in Three.js r128 (cloned mesh references original bones, not cloned ones).
+        // Return original directly. Browser HTTP cache handles network efficiency.
+        mesh = original;
+      } else {
+        _cache.set(url, original);
+        mesh = original.clone();
+      }
     }
     if (cloneMats) {
       mesh.traverse((c: any) => {
@@ -5262,7 +5276,10 @@ const ENEMY_TIERS = [
 ];
 const BOSS_MODELS = ["Boss_Bomber.glb", "Old_Boss.glb", "Sniper_Boss.glb"];
 // Use Character_0X.glb (WITH rigs) instead of Main_Char_*_(without_rig).glb
-const PLAYER_MODELS = ["Character_01.glb", "Character_02.glb", "Character_03.glb"];
+const PLAYER_MODELS = [
+  "Character_01.glb", "Character_02.glb", "Character_03.glb",
+  "Main_Char_01_(without_rig).glb", "Main_Char_02_(without_rig).glb", "Main_Char_03_(without_rig).glb",
+];
 
 // ===== Game State =====
 let scene: any, camera: any, renderer: any, container: HTMLDivElement;
@@ -5617,10 +5634,25 @@ export const GameScene = {
     // ===== PLAYER =====
     const pm = PLAYER_MODELS[Math.floor(Math.random() * PLAYER_MODELS.length)];
     playerMesh = await loadModel(\`characters/player/\${pm}\`, true);
+    // Diagnostic: verify player mesh loaded correctly
+    {
+      const pbox = new THREE.Box3().setFromObject(playerMesh);
+      const psz = new THREE.Vector3(); pbox.getSize(psz);
+      let meshCount = 0, skinnedCount = 0;
+      playerMesh.traverse((c: any) => { if (c.isMesh) meshCount++; if (c.isSkinnedMesh) skinnedCount++; });
+      console.log("[3D] Player model:", pm, "| meshes:", meshCount, "skinned:", skinnedCount,
+        "| raw size:", psz.x.toFixed(3), psz.y.toFixed(3), psz.z.toFixed(3));
+    }
     scaleToHeight(playerMesh, PLAYER_HEIGHT);
     enableShadows(playerMesh, true, false);
     playerMesh.position.set(0, 0, 0);
     scene.add(playerMesh);
+    {
+      const pbox2 = new THREE.Box3().setFromObject(playerMesh);
+      const psz2 = new THREE.Vector3(); pbox2.getSize(psz2);
+      console.log("[3D] Player after scale:", psz2.x.toFixed(2), psz2.y.toFixed(2), psz2.z.toFixed(2),
+        "| scale:", playerMesh.scale.x.toFixed(4));
+    }
     playerBody = createPhysicsBody("box", 5, { x: 0, y: 1.25, z: 0 }, { x: 0.5, y: 1.25, z: 0.5 });
     if (playerBody) { playerBody.linearDamping = 0.95; playerBody.fixedRotation = true; }
     if (world && playerBody) world.addBody(playerBody);
