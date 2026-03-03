@@ -629,6 +629,16 @@ export function getVisualEditBridgeScript(): string {
     if (obj.material && obj.material.color) {
       try { matColor = "#" + obj.material.color.getHexString(); } catch(e) {}
     }
+    // Fallback: check child meshes for color (Groups like platforms/characters)
+    if (!matColor && obj.isGroup && obj.children) {
+      for (var ci = 0; ci < obj.children.length; ci++) {
+        var cc = obj.children[ci];
+        if (cc.material && cc.material.color) {
+          try { matColor = "#" + cc.material.color.getHexString(); } catch(e) {}
+          break;
+        }
+      }
+    }
     window.parent.postMessage({
       type: "game-editor-object-selected", uuid: obj.uuid, name: obj.name || obj.type,
       objType: obj.userData && obj.userData.vibexeType || obj.type,
@@ -772,7 +782,7 @@ export function getVisualEditBridgeScript(): string {
       if (dup) { editor.scene.remove(dup); deselectObject(); sendSceneTree(); }
     } else if (entry.type === "property") {
       var obj2 = findByUuid(editor.scene, entry.uuid);
-      if (obj2) { updateProperty(entry.uuid, entry.property, entry.oldValue); undoStack.pop(); }
+      if (obj2) { updateProperty(entry.uuid, entry.property, entry.oldValue, true); }
     }
   }
 
@@ -922,6 +932,8 @@ export function getVisualEditBridgeScript(): string {
     var clone = selectedObj.clone(true);
     clone.position.x += 1;
     clone.traverse(function(c) { c.uuid = window.THREE.MathUtils.generateUUID(); });
+    // Give clone a unique name so persistTransform doesn't conflict with the original
+    if (clone.name) { clone.name = clone.name + "_copy"; }
     editor.scene.add(clone);
     pushUndo({ type: "duplicate", uuid: clone.uuid });
     selectObject(clone);
@@ -1507,7 +1519,11 @@ export function getVisualEditBridgeScript(): string {
       case "game-editor-delete-object":
         if (editor && d.uuid) {
           var toDelete = findByUuid(editor.scene, d.uuid);
-          if (toDelete) { if (selectedObj && selectedObj.uuid === d.uuid) deselectObject(); editor.scene.remove(toDelete); sendSceneTree(); }
+          if (toDelete) {
+            pushUndo({ type: "delete", uuid: d.uuid, object: toDelete });
+            if (selectedObj && selectedObj.uuid === d.uuid) deselectObject();
+            editor.scene.remove(toDelete); sendSceneTree();
+          }
         } break;
       case "game-editor-request-tree": sendSceneTree(); break;
       case "game-editor-focus": focusSelected(); break;

@@ -45,7 +45,7 @@ function getIcon(node: SceneNode) {
 	if (factory === "createBarrier3D") return <Shield className="w-3 h-3 text-red-400" />;
 	if (factory === "createDecoration3D") return <TreePine className="w-3 h-3 text-emerald-400" />;
 	if (factory === "createPlayer3D") return <User className="w-3 h-3 text-violet-400" />;
-	if (factory === "createAnimatedCharacter3D") return <User className="w-3 h-3 text-amber-400" />;
+	if (factory === "createAnimatedCharacter3D" || factory === "animatedCharacter") return <User className="w-3 h-3 text-amber-400" />;
 	if (factory === "createPlatform3D") return <Box className="w-3 h-3 text-blue-400" />;
 
 	if (node._isMesh) return <Box className="w-3 h-3 text-cyan-400" />;
