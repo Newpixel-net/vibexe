@@ -5032,9 +5032,9 @@ const CAM_BACK = 5;
 const ENEMY_SHIFT = 0.12;
 const SHAKE_DECAY = 8;
 const SPAWN_MIN_DIST = 8;
-const PLAYER_HEIGHT = 2.5;
-const ENEMY_HEIGHT = 2.0;
-const BOSS_HEIGHT = 3.5;
+const PLAYER_HEIGHT = 3.5;
+const ENEMY_HEIGHT = 2.8;
+const BOSS_HEIGHT = 4.5;
 
 // ===== Seeded PRNG (mulberry32) =====
 function mulberry32(seed: number) {
@@ -5070,16 +5070,16 @@ const MODEL_COLORS: Record<string, number> = {
   'characters/enemies/Boss_Bomber': 0xFF1100,
   'characters/enemies/Old_Boss': 0xDD0000,
   'characters/enemies/Sniper_Boss': 0x118822,
-  // Environment world_1 — rich golden ground + dark earthy borders (HIGH CONTRAST)
+  // Environment world_1 — bright golden ground + CONTRASTING dark blocks/borders
   'environment/world_1/1_Ground': 0xFFD466,
-  'environment/world_1/1_Border': 0x7B3B10,
-  'environment/world_1/1_Block': 0xE89828,
-  'environment/world_1/1_Wall': 0x5C2D0A,
-  // Environment world_2 — warm golden sand + deep terracotta borders
+  'environment/world_1/1_Border': 0x6B3010,
+  'environment/world_1/1_Block': 0x8B5A2B,
+  'environment/world_1/1_Wall': 0x4A2508,
+  // Environment world_2 — warm golden sand + contrasting elements
   'environment/world_2/2_Ground': 0xF0C850,
-  'environment/world_2/2_Border': 0x6A2A15,
-  'environment/world_2/2_Block': 0xD48820,
-  'environment/world_2/2_Wall': 0x4C2008,
+  'environment/world_2/2_Border': 0x5A2510,
+  'environment/world_2/2_Block': 0x7A4B20,
+  'environment/world_2/2_Wall': 0x3C1A05,
   // Weapons — distinct colored metals
   'weapons/Shotgun': 0xAAAAAAA,
   'weapons/Minigun': 0x8888AA,
@@ -5096,9 +5096,9 @@ const MODEL_COLORS: Record<string, number> = {
   'particles/Light_ring': 0xFFFF88,
 };
 // Emissive strengths — higher values fight ACES desaturation
-const CHAR_EMISSIVE_STRENGTH = 0.4;
-const COLLECTIBLE_EMISSIVE = 0.5;
-const ENV_EMISSIVE = 0.08;
+const CHAR_EMISSIVE_STRENGTH = 0.5;
+const COLLECTIBLE_EMISSIVE = 0.6;
+const ENV_EMISSIVE = 0.1;
 
 function findModelColor(subpath: string): number | null {
   // Exact match first, then prefix match (longest prefix wins)
@@ -5373,8 +5373,8 @@ export const GameScene = {
     world = this.world;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.6;
+    renderer.toneMapping = THREE.ReinhardToneMapping;
+    renderer.toneMappingExposure = 2.0;
 
     // Remove default Game3D.tsx lights (we need custom lighting for top-down shooter)
     const defaultLights = scene.children.filter((c: any) => c.isLight);
