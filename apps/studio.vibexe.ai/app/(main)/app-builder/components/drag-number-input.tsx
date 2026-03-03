@@ -25,6 +25,7 @@ export function DragNumberInput({
 	onChange,
 	color = "#888",
 }: DragNumberInputProps) {
+	const safeValue = Number.isFinite(value) ? value : 0;
 	const [isEditing, setIsEditing] = useState(false);
 	const [editValue, setEditValue] = useState("");
 	const isDragging = useRef(false);
@@ -37,10 +38,10 @@ export function DragNumberInput({
 			e.preventDefault();
 			isDragging.current = true;
 			startX.current = e.clientX;
-			startValue.current = value;
+			startValue.current = safeValue;
 			(e.target as HTMLElement).setPointerCapture(e.pointerId);
 		},
-		[value, isEditing],
+		[safeValue, isEditing],
 	);
 
 	const handlePointerMove = useCallback(
@@ -59,8 +60,8 @@ export function DragNumberInput({
 
 	const handleDoubleClick = useCallback(() => {
 		setIsEditing(true);
-		setEditValue(value.toFixed(precision));
-	}, [value, precision]);
+		setEditValue(safeValue.toFixed(precision));
+	}, [safeValue, precision]);
 
 	const commitEdit = useCallback(() => {
 		setIsEditing(false);
@@ -108,7 +109,7 @@ export function DragNumberInput({
 					onPointerUp={handlePointerUp}
 					onDoubleClick={handleDoubleClick}
 				>
-					{value.toFixed(precision)}
+					{safeValue.toFixed(precision)}
 				</div>
 			)}
 		</div>

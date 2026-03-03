@@ -714,6 +714,10 @@ export function SandpackPreview({
 				gameEditor.setGizmoMode(data.mode as GizmoMode);
 			} else if (data.type === "game-editor-snap-changed") {
 				gameEditor.setSnapEnabled(!!data.snap);
+			} else if (data.type === "game-editor-gizmo-space") {
+				// Sync gizmo space state from bridge
+			} else if (data.type === "game-editor-undo-redo-state") {
+				gameEditor.setUndoRedoState(!!data.canUndo, !!data.canRedo);
 			} else if (data.type === "game-editor-object-duplicated") {
 				gameEditor.requestSceneTree();
 			} else if (data.type === "game-editor-scene-dirty") {
@@ -722,6 +726,9 @@ export function SandpackPreview({
 				gameEditor.setAnimationClips(data.clips || [], data.currentClip, data.animMap, data.clipDurations);
 			} else if (data.type === "game-editor-animation-progress") {
 				gameEditor.updateAnimProgress(data.time ?? 0, data.duration ?? 0, data.clipName ?? null, data.paused ?? false);
+			} else if (data.type === "game-editor-do-spawn") {
+				// Spawn mode: bridge raycast found a position, forward spawn to iframe
+				gameEditor.spawnObject(data.factory, data.position, data.args);
 			} else if (data.type === "game-editor-object-spawned") {
 				gameEditor.requestSceneTree();
 				gameEditor.setDirty(true);
@@ -955,7 +962,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=34`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=35`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);

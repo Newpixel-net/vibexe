@@ -70,6 +70,11 @@ interface GameEditorContextValue {
 	// Palette
 	isPaletteOpen: boolean;
 	activePrefab: PrefabDefinition | null;
+	// Scene editor extended state
+	gizmoSpace: "world" | "local";
+	hierarchySearch: string;
+	canUndo: boolean;
+	canRedo: boolean;
 	toggleEditor: () => void;
 	setEnabled: (v: boolean) => void;
 	setGizmoMode: (mode: GizmoMode) => void;
@@ -106,6 +111,13 @@ interface GameEditorContextValue {
 	togglePalette: () => void;
 	setActivePrefab: (prefab: PrefabDefinition | null) => void;
 	spawnObject: (factory: string, position: { x: number; y: number; z: number }, args?: Record<string, any>) => void;
+	// Scene editor extended actions
+	redoAction: () => void;
+	renameObject: (uuid: string, name: string) => void;
+	toggleVisibility: (uuid: string) => void;
+	toggleGizmoSpace: () => void;
+	setHierarchySearch: (search: string) => void;
+	setUndoRedoState: (canUndo: boolean, canRedo: boolean) => void;
 }
 
 const GameEditorContext = createContext<GameEditorContextValue | null>(null);
@@ -129,6 +141,10 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [activePrefab, setActivePrefabState] = useState<PrefabDefinition | null>(null);
 	const [animClipOverrides, setAnimClipOverrides] = useState<Record<string, string>>({});
 	const [animModelId, setAnimModelId] = useState<string | null>(null);
+	const [gizmoSpace, setGizmoSpaceState] = useState<"world" | "local">("world");
+	const [hierarchySearch, setHierarchySearchState] = useState("");
+	const [canUndo, setCanUndo] = useState(false);
+	const [canRedo, setCanRedo] = useState(false);
 	const saveHandlerRef = useRef<(() => Promise<void>) | null>(null);
 	const iframeRef = useRef<React.RefObject<HTMLIFrameElement | null> | null>(null);
 
@@ -348,6 +364,32 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		setIsDirty(true);
 	}, [sendToIframe]);
 
+	// Scene editor extended actions
+	const redoAction = useCallback(() => {
+		sendToIframe({ type: "game-editor-redo" });
+	}, [sendToIframe]);
+
+	const renameObject = useCallback((uuid: string, name: string) => {
+		sendToIframe({ type: "game-editor-rename-object", uuid, name });
+	}, [sendToIframe]);
+
+	const toggleVisibility = useCallback((uuid: string) => {
+		sendToIframe({ type: "game-editor-toggle-visibility", uuid });
+	}, [sendToIframe]);
+
+	const toggleGizmoSpace = useCallback(() => {
+		sendToIframe({ type: "game-editor-toggle-space" });
+	}, [sendToIframe]);
+
+	const setHierarchySearch = useCallback((search: string) => {
+		setHierarchySearchState(search);
+	}, []);
+
+	const setUndoRedoState = useCallback((undo: boolean, redo: boolean) => {
+		setCanUndo(undo);
+		setCanRedo(redo);
+	}, []);
+
 	const saveScene = useCallback(async () => {
 		if (!saveHandlerRef.current) return;
 		setIsSaving(true);
@@ -394,6 +436,10 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				animModelId,
 				isPaletteOpen,
 				activePrefab,
+				gizmoSpace,
+				hierarchySearch,
+				canUndo,
+				canRedo,
 				toggleEditor,
 				setEnabled,
 				setGizmoMode,
@@ -428,6 +474,12 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				togglePalette,
 				setActivePrefab,
 				spawnObject,
+				redoAction,
+				renameObject,
+				toggleVisibility,
+				toggleGizmoSpace,
+				setHierarchySearch,
+				setUndoRedoState,
 			}}
 		>
 			{children}

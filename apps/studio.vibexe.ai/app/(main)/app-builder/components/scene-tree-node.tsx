@@ -3,6 +3,7 @@
 /**
  * SceneTreeNode — Recursive collapsible tree node for scene hierarchy.
  * Shows type icon, name, color dot, expand/collapse for groups.
+ * Visibility toggle via eye icon click.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -31,6 +32,8 @@ interface SceneTreeNodeProps {
 	selectedUuid: string | null;
 	onSelect: (uuid: string) => void;
 	onDoubleClick?: (uuid: string) => void;
+	onToggleVisibility?: (uuid: string) => void;
+	searchFilter?: string;
 }
 
 function getIcon(node: SceneNode) {
@@ -54,17 +57,38 @@ function getIcon(node: SceneNode) {
 	return <Circle className="w-2.5 h-2.5 text-white/30" />;
 }
 
+// Check if node or any descendant matches a search filter
+function nodeMatchesSearch(node: SceneNode, filter: string): boolean {
+	const name = (node.name || node.type).toLowerCase();
+	if (name.includes(filter)) return true;
+	if (node.children) {
+		for (const child of node.children) {
+			if (nodeMatchesSearch(child, filter)) return true;
+		}
+	}
+	return false;
+}
+
 export function SceneTreeNode({
 	node,
 	depth,
 	selectedUuid,
 	onSelect,
 	onDoubleClick,
+	onToggleVisibility,
+	searchFilter,
 }: SceneTreeNodeProps) {
 	const [expanded, setExpanded] = useState(depth < 1);
 	const hasChildren = node.children.length > 0;
 	const isSelected = node.uuid === selectedUuid;
 	const rowRef = useRef<HTMLDivElement>(null);
+
+	// Auto-expand when search filter is active and node matches
+	useEffect(() => {
+		if (searchFilter && hasChildren && nodeMatchesSearch(node, searchFilter)) {
+			setExpanded(true);
+		}
+	}, [searchFilter, hasChildren, node]);
 
 	// Auto-scroll to selected node when selection changes from viewport click
 	useEffect(() => {
@@ -87,6 +111,11 @@ export function SceneTreeNode({
 		return null;
 	}
 
+	// Filter by search — hide non-matching nodes (unless they have matching children)
+	if (searchFilter && !nodeMatchesSearch(node, searchFilter)) {
+		return null;
+	}
+
 	const handleClick = useCallback(() => {
 		onSelect(node.uuid);
 	}, [node.uuid, onSelect]);
@@ -103,6 +132,14 @@ export function SceneTreeNode({
 		[],
 	);
 
+	const handleVisibilityToggle = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			onToggleVisibility?.(node.uuid);
+		},
+		[node.uuid, onToggleVisibility],
+	);
+
 	// Compute display name
 	let displayName = node.name || node.type;
 	if (node.userData?.vibexeType) {
@@ -113,7 +150,7 @@ export function SceneTreeNode({
 		<div>
 			<div
 				ref={rowRef}
-				className={`flex items-center gap-1 px-1 py-[3px] cursor-pointer rounded-sm transition-colors ${
+				className={`group/node flex items-center gap-1 px-1 py-[3px] cursor-pointer rounded-sm transition-colors ${
 					isSelected
 						? "bg-violet-500/20 text-violet-200"
 						: "hover:bg-white/[0.06] text-white/60 hover:text-white/80"
@@ -150,9 +187,19 @@ export function SceneTreeNode({
 					/>
 				)}
 
-				{/* Visibility */}
-				{!node.visible && (
-					<EyeOff className="w-2.5 h-2.5 text-white/20 flex-shrink-0" />
+				{/* Visibility toggle — always show if hidden, show on hover if visible */}
+				{onToggleVisibility && (
+					<span
+						className="flex-shrink-0 cursor-pointer"
+						onClick={handleVisibilityToggle}
+						title={node.visible ? "Hide" : "Show"}
+					>
+						{node.visible ? (
+							<Eye className="w-2.5 h-2.5 text-white/0 group-hover/node:text-white/20 hover:!text-white/50 transition-colors" />
+						) : (
+							<EyeOff className="w-2.5 h-2.5 text-white/30 hover:text-white/50 transition-colors" />
+						)}
+					</span>
 				)}
 			</div>
 
@@ -167,6 +214,8 @@ export function SceneTreeNode({
 							selectedUuid={selectedUuid}
 							onSelect={onSelect}
 							onDoubleClick={onDoubleClick}
+							onToggleVisibility={onToggleVisibility}
+							searchFilter={searchFilter}
 						/>
 					))}
 				</div>

@@ -509,7 +509,11 @@ export function getVisualEditBridgeScript(): string {
   var dragOffset = null;
   var dragStartPos = null;
   var undoStack = [];
+  var redoStack = [];
   var gridSnap = false;
+  var gridSnapIncrement = 0.5;
+  var rotationSnapDeg = 15;
+  var gizmoSpace = "world";
   var gridHelper = null;
   var canvasPointerDownHandler = null;
   var bodyMouseDownHandler = null;
@@ -707,7 +711,13 @@ export function getVisualEditBridgeScript(): string {
           });
           if (gridSnap) {
             selectedObj.position.x = snapToGrid(selectedObj.position.x);
+            selectedObj.position.y = snapToGrid(selectedObj.position.y);
             selectedObj.position.z = snapToGrid(selectedObj.position.z);
+            if (transformControls.getMode && transformControls.getMode() === "rotate") {
+              selectedObj.rotation.x = snapRotation(selectedObj.rotation.x);
+              selectedObj.rotation.y = snapRotation(selectedObj.rotation.y);
+              selectedObj.rotation.z = snapRotation(selectedObj.rotation.z);
+            }
             sendSelectedObject(selectedObj);
             if (boxHelper) boxHelper.update();
           }
@@ -756,10 +766,11 @@ export function getVisualEditBridgeScript(): string {
     return cur;
   }
 
-  // ---- Undo Stack ----
+  // ---- Undo / Redo Stack ----
   function pushUndo(entry) {
     undoStack.push(entry);
     if (undoStack.length > 50) undoStack.shift();
+    redoStack.length = 0; // New action clears redo history
   }
 
   function applyUndo() {
@@ -773,21 +784,74 @@ export function getVisualEditBridgeScript(): string {
         obj.rotation.set(entry.oldRot.x, entry.oldRot.y, entry.oldRot.z);
         obj.scale.set(entry.oldScl.x, entry.oldScl.y, entry.oldScl.z);
         if (selectedObj && selectedObj.uuid === entry.uuid) { sendSelectedObject(obj); if (boxHelper) boxHelper.update(); }
+        redoStack.push({ type: "transform", uuid: entry.uuid,
+          oldPos: entry.newPos, oldRot: entry.newRot, oldScl: entry.newScl,
+          newPos: entry.oldPos, newRot: entry.oldRot, newScl: entry.oldScl });
       }
     } else if (entry.type === "delete") {
       editor.scene.add(entry.object);
       sendSceneTree();
+      redoStack.push({ type: "delete-reverse", uuid: entry.uuid, object: entry.object });
     } else if (entry.type === "duplicate") {
       var dup = findByUuid(editor.scene, entry.uuid);
-      if (dup) { editor.scene.remove(dup); deselectObject(); sendSceneTree(); }
+      if (dup) { editor.scene.remove(dup); deselectObject(); sendSceneTree(); redoStack.push({ type: "duplicate-reverse", uuid: entry.uuid, object: dup }); }
     } else if (entry.type === "property") {
       var obj2 = findByUuid(editor.scene, entry.uuid);
-      if (obj2) { updateProperty(entry.uuid, entry.property, entry.oldValue, true); }
+      if (obj2) {
+        var curVal = null;
+        switch(entry.property) {
+          case "name": curVal = obj2.name; break;
+          case "visible": curVal = obj2.visible; break;
+          default:
+            if (entry.property.indexOf("position") === 0) curVal = entry.newValue;
+            else if (entry.property.indexOf("rotation") === 0) curVal = entry.newValue;
+            else if (entry.property.indexOf("scale") === 0) curVal = entry.newValue;
+            else curVal = entry.newValue;
+        }
+        updateProperty(entry.uuid, entry.property, entry.oldValue, true);
+        redoStack.push({ type: "property", uuid: entry.uuid, property: entry.property, oldValue: entry.oldValue, newValue: curVal });
+      }
     }
+    window.parent.postMessage({ type: "game-editor-undo-redo-state", canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 }, "*");
+  }
+
+  function applyRedo() {
+    if (redoStack.length === 0) return;
+    var entry = redoStack.pop();
+    if (!editor) return;
+    if (entry.type === "transform") {
+      var obj = findByUuid(editor.scene, entry.uuid);
+      if (obj) {
+        obj.position.set(entry.oldPos.x, entry.oldPos.y, entry.oldPos.z);
+        obj.rotation.set(entry.oldRot.x, entry.oldRot.y, entry.oldRot.z);
+        obj.scale.set(entry.oldScl.x, entry.oldScl.y, entry.oldScl.z);
+        if (selectedObj && selectedObj.uuid === entry.uuid) { sendSelectedObject(obj); if (boxHelper) boxHelper.update(); }
+        undoStack.push({ type: "transform", uuid: entry.uuid,
+          oldPos: entry.newPos, oldRot: entry.newRot, oldScl: entry.newScl,
+          newPos: entry.oldPos, newRot: entry.oldRot, newScl: entry.oldScl });
+      }
+    } else if (entry.type === "delete-reverse") {
+      editor.scene.remove(entry.object);
+      if (selectedObj && selectedObj.uuid === entry.uuid) deselectObject();
+      sendSceneTree();
+      undoStack.push({ type: "delete", uuid: entry.uuid, object: entry.object });
+    } else if (entry.type === "duplicate-reverse") {
+      editor.scene.add(entry.object);
+      sendSceneTree();
+      undoStack.push({ type: "duplicate", uuid: entry.uuid });
+    } else if (entry.type === "property") {
+      var obj2 = findByUuid(editor.scene, entry.uuid);
+      if (obj2) {
+        updateProperty(entry.uuid, entry.property, entry.newValue, true);
+        undoStack.push({ type: "property", uuid: entry.uuid, property: entry.property, oldValue: entry.oldValue, newValue: entry.newValue });
+      }
+    }
+    window.parent.postMessage({ type: "game-editor-undo-redo-state", canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 }, "*");
   }
 
   // ---- Grid Snap ----
-  function snapToGrid(v) { return Math.round(v * 2) / 2; }
+  function snapToGrid(v) { return Math.round(v / gridSnapIncrement) * gridSnapIncrement; }
+  function snapRotation(rad) { var deg = rad * 180 / Math.PI; return Math.round(deg / rotationSnapDeg) * rotationSnapDeg * Math.PI / 180; }
 
   function toggleGridHelper() {
     gridSnap = !gridSnap;
@@ -1173,6 +1237,13 @@ export function getVisualEditBridgeScript(): string {
       e.preventDefault();
       return;
     }
+    // Ctrl+Shift+Z or Ctrl+Y — Redo
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "z") {
+      applyRedo(); e.preventDefault(); return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === "y" || e.key === "Y")) {
+      applyRedo(); e.preventDefault(); return;
+    }
     // Ctrl+Z — Undo
     if ((e.ctrlKey || e.metaKey) && e.key === "z") {
       applyUndo(); e.preventDefault(); return;
@@ -1194,12 +1265,28 @@ export function getVisualEditBridgeScript(): string {
         if (transformControls) transformControls.setMode("scale");
         window.parent.postMessage({ type: "game-editor-gizmo-mode", mode: "scale" }, "*");
         e.preventDefault(); break;
+      case "x": case "X":
+        // Toggle local/world gizmo space (Unity-style)
+        gizmoSpace = gizmoSpace === "world" ? "local" : "world";
+        if (transformControls && transformControls.setSpace) transformControls.setSpace(gizmoSpace);
+        window.parent.postMessage({ type: "game-editor-gizmo-space", space: gizmoSpace }, "*");
+        e.preventDefault(); break;
       case "f": case "F":
         focusSelected(); e.preventDefault(); break;
       case "g": case "G":
         toggleGridHelper(); e.preventDefault(); break;
       case "Escape":
         if (flyMode) { exitFlyMode(); }
+        else if (transformControls && transformControls.dragging) {
+          // Cancel active gizmo drag — restore to pre-drag position
+          if (selectedObj && transformControls.__undoPos) {
+            selectedObj.position.set(transformControls.__undoPos.x, transformControls.__undoPos.y, transformControls.__undoPos.z);
+            selectedObj.rotation.set(transformControls.__undoRot.x, transformControls.__undoRot.y, transformControls.__undoRot.z);
+            selectedObj.scale.set(transformControls.__undoScl.x, transformControls.__undoScl.y, transformControls.__undoScl.z);
+            sendSelectedObject(selectedObj);
+            if (boxHelper) boxHelper.update();
+          }
+        }
         else if (isDragging) { endXZDrag(); }
         else { deselectObject(); }
         e.preventDefault(); break;
@@ -1247,7 +1334,13 @@ export function getVisualEditBridgeScript(): string {
       for (var di = 0; di < dupes.length; di++) { if (dupes[di].detach) dupes[di].detach(); editor.scene.remove(dupes[di]); if (dupes[di].dispose) dupes[di].dispose(); }
     }
     try {
-      editor.renderer.render(editor.scene, editor.camera);
+      // Use EffectComposer when available (preserves post-processing in editor mode)
+      var composer = window.__vibexe_composer__;
+      if (composer && composer.render) {
+        composer.render();
+      } else {
+        editor.renderer.render(editor.scene, editor.camera);
+      }
     } catch (e) {
       // Prevent cascading crashes (e.g., TransformControls infinite recursion)
       console.error("[GameEditorBridge] Render error — cleaning up:", e.message);
@@ -1529,7 +1622,32 @@ export function getVisualEditBridgeScript(): string {
       case "game-editor-focus": focusSelected(); break;
       case "game-editor-duplicate": duplicateSelected(); break;
       case "game-editor-undo": applyUndo(); break;
+      case "game-editor-redo": applyRedo(); break;
       case "game-editor-toggle-snap": toggleGridHelper(); break;
+      case "game-editor-toggle-space":
+        gizmoSpace = gizmoSpace === "world" ? "local" : "world";
+        if (transformControls && transformControls.setSpace) transformControls.setSpace(gizmoSpace);
+        window.parent.postMessage({ type: "game-editor-gizmo-space", space: gizmoSpace }, "*");
+        break;
+      case "game-editor-rename-object":
+        if (editor && d.uuid && d.name !== undefined) {
+          var rnObj = findByUuid(editor.scene, d.uuid);
+          if (rnObj) { updateProperty(d.uuid, "name", d.name); }
+        } break;
+      case "game-editor-toggle-visibility":
+        if (editor && d.uuid) {
+          var visObj = findByUuid(editor.scene, d.uuid);
+          if (visObj) { updateProperty(d.uuid, "visible", !visObj.visible); }
+        } break;
+      case "game-editor-set-snap-settings":
+        if (typeof d.gridIncrement === "number") gridSnapIncrement = d.gridIncrement;
+        if (typeof d.rotationDeg === "number") rotationSnapDeg = d.rotationDeg;
+        break;
+      case "game-editor-set-spawn-mode":
+        window.__vibexe_spawn_mode__ = !!d.active;
+        window.__vibexe_spawn_factory__ = d.factory || null;
+        window.__vibexe_spawn_args__ = d.args || null;
+        break;
       // Select + Focus (hierarchy double-click)
       case "game-editor-select-and-focus":
         if (editor && d.uuid) {
@@ -1573,6 +1691,25 @@ export function getVisualEditBridgeScript(): string {
         // Wait a tick for activation, then process click
         setTimeout(function() {
           if (!active || !editor) return;
+          // If spawn mode is active, spawn object at click position instead of selecting
+          if (window.__vibexe_spawn_mode__ && window.__vibexe_spawn_factory__) {
+            var THREE2 = window.THREE;
+            var rect2 = editor.renderer.domElement.getBoundingClientRect();
+            var mx2 = ((d.clientX - rect2.left) / rect2.width) * 2 - 1;
+            var my2 = -((d.clientY - rect2.top) / rect2.height) * 2 + 1;
+            raycaster.setFromCamera(new THREE2.Vector2(mx2, my2), editor.camera);
+            var hits2 = raycaster.intersectObjects(editor.scene.children, true);
+            var spawnPos = { x: 0, y: 2, z: 0 };
+            for (var hi = 0; hi < hits2.length; hi++) {
+              var ho = hits2[hi].object;
+              if (ho.name && ho.name.indexOf("__editor_") === 0) continue;
+              if (ho.isTransformControls) continue;
+              spawnPos = { x: +hits2[hi].point.x.toFixed(2), y: +(hits2[hi].point.y + 0.5).toFixed(2), z: +hits2[hi].point.z.toFixed(2) };
+              break;
+            }
+            window.parent.postMessage({ type: "game-editor-do-spawn", factory: window.__vibexe_spawn_factory__, args: window.__vibexe_spawn_args__ || {}, position: spawnPos }, "*");
+            return;
+          }
           var cx = d.clientX, cy = d.clientY;
           if (transformControls && (transformControls.dragging || transformControls.axis)) return;
           var target = raycastMeshes(cx, cy);
@@ -1638,7 +1775,12 @@ export function getVisualEditBridgeScript(): string {
             if (child.name.indexOf(_factoryPrefixes[pi]) === 0) { isFactory = true; break; }
           }
           if (!isFactory) return;
-          allTransforms[child.name] = {
+          // Deduplicate names: append uuid suffix if name already used
+          var saveName = child.name;
+          if (allTransforms[saveName]) {
+            saveName = child.name + "_" + child.uuid.slice(0, 6);
+          }
+          allTransforms[saveName] = {
             position: { x: +child.position.x.toFixed(3), y: +child.position.y.toFixed(3), z: +child.position.z.toFixed(3) },
             rotation: { x: +(child.rotation.x * 180 / Math.PI).toFixed(1), y: +(child.rotation.y * 180 / Math.PI).toFixed(1), z: +(child.rotation.z * 180 / Math.PI).toFixed(1) },
             scale: { x: +child.scale.x.toFixed(3), y: +child.scale.y.toFixed(3), z: +child.scale.z.toFixed(3) }

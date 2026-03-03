@@ -5,7 +5,7 @@
  * Overlaid on the right side of the viewport when editor is active.
  */
 
-import { Check, Copy, Eye, EyeOff, Focus, Package, Pause, Pencil, Play, Square, Trash2, X } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, Focus, Package, Pause, Pencil, Play, Search, Square, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DragNumberInput } from "./drag-number-input";
 import { SceneTreeNode } from "./scene-tree-node";
@@ -39,12 +39,19 @@ export function GameEditorPanel() {
 		fetchAnimOverrides,
 		isPaletteOpen,
 		togglePalette,
+		renameObject,
+		toggleVisibility,
+		hierarchySearch,
+		setHierarchySearch,
 	} = useGameEditor();
 
 	const progressBarRef = useRef<HTMLDivElement>(null);
 	const [editingClip, setEditingClip] = useState<string | null>(null);
 	const [editValue, setEditValue] = useState("");
 	const editInputRef = useRef<HTMLInputElement>(null);
+	const [editingName, setEditingName] = useState(false);
+	const [nameValue, setNameValue] = useState("");
+	const nameInputRef = useRef<HTMLInputElement>(null);
 
 	// Auto-fetch animation clips when an AnimatedCharacter is selected
 	useEffect(() => {
@@ -124,6 +131,40 @@ export function GameEditorPanel() {
 		deleteObject(selectedObject.uuid);
 	}, [selectedObject, deleteObject]);
 
+	// Name editing
+	const handleStartNameEdit = useCallback(() => {
+		if (!selectedObject) return;
+		setEditingName(true);
+		setNameValue(selectedObject.name || "");
+	}, [selectedObject]);
+
+	const handleConfirmNameEdit = useCallback(() => {
+		if (selectedObject && nameValue.trim()) {
+			renameObject(selectedObject.uuid, nameValue.trim());
+		}
+		setEditingName(false);
+	}, [selectedObject, nameValue, renameObject]);
+
+	useEffect(() => {
+		if (editingName && nameInputRef.current) {
+			nameInputRef.current.focus();
+			nameInputRef.current.select();
+		}
+	}, [editingName]);
+
+	// Reset name editing when selection changes
+	useEffect(() => {
+		setEditingName(false);
+	}, [selectedObject?.uuid]);
+
+	// Hierarchy visibility toggle
+	const handleToggleVisibility = useCallback(
+		(uuid: string) => {
+			toggleVisibility(uuid);
+		},
+		[toggleVisibility],
+	);
+
 	const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
 		if (!selectedObject || !animClipDuration) return;
 		const rect = e.currentTarget.getBoundingClientRect();
@@ -150,6 +191,24 @@ export function GameEditorPanel() {
 						<Package className="w-3.5 h-3.5" />
 					</button>
 				</div>
+				{/* Hierarchy Search */}
+				<div className="px-2 pb-1">
+					<div className="flex items-center gap-1.5 px-2 py-1 bg-white/[0.04] rounded">
+						<Search className="w-3 h-3 text-white/20 flex-shrink-0" />
+						<input
+							type="text"
+							value={hierarchySearch}
+							onChange={(e) => setHierarchySearch(e.target.value)}
+							placeholder="Filter hierarchy..."
+							className="flex-1 bg-transparent text-[10px] text-white/70 placeholder:text-white/20 outline-none"
+						/>
+						{hierarchySearch && (
+							<button type="button" onClick={() => setHierarchySearch("")} className="text-white/20 hover:text-white/50">
+								<X className="w-2.5 h-2.5" />
+							</button>
+						)}
+					</div>
+				</div>
 				<div className="max-h-[40vh] overflow-y-auto px-1 pb-2 scrollbar-thin">
 					{sceneTree ? (
 						<SceneTreeNode
@@ -158,6 +217,8 @@ export function GameEditorPanel() {
 							selectedUuid={selectedObject?.uuid || null}
 							onSelect={handleTreeSelect}
 							onDoubleClick={handleTreeDoubleClick}
+							onToggleVisibility={handleToggleVisibility}
+							searchFilter={hierarchySearch ? hierarchySearch.toLowerCase() : undefined}
 						/>
 					) : (
 						<div className="px-3 py-4 text-[11px] text-white/30 text-center">
@@ -178,11 +239,35 @@ export function GameEditorPanel() {
 			<div className="flex-1 overflow-y-auto scrollbar-thin">
 				{selectedObject ? (
 					<div className="p-3 space-y-3">
-						{/* Header */}
+						{/* Header — editable name */}
 						<div>
-							<div className="text-[13px] font-medium text-white/90 truncate">
-								{selectedObject.name}
-							</div>
+							{editingName ? (
+								<div className="flex items-center gap-1">
+									<input
+										ref={nameInputRef}
+										type="text"
+										value={nameValue}
+										onChange={(e) => setNameValue(e.target.value)}
+										onKeyDown={(e) => {
+											if (e.key === "Enter") handleConfirmNameEdit();
+											if (e.key === "Escape") setEditingName(false);
+										}}
+										onBlur={handleConfirmNameEdit}
+										className="flex-1 min-w-0 px-1.5 py-0.5 text-[13px] font-medium bg-white/[0.1] border border-white/20 rounded text-white/90 outline-none focus:border-violet-400"
+									/>
+								</div>
+							) : (
+								<div
+									className="group/name flex items-center gap-1 cursor-pointer"
+									onClick={handleStartNameEdit}
+									title="Click to rename"
+								>
+									<div className="text-[13px] font-medium text-white/90 truncate flex-1">
+										{selectedObject.name}
+									</div>
+									<Pencil className="w-2.5 h-2.5 text-white/0 group-hover/name:text-white/30 flex-shrink-0 transition-colors" />
+								</div>
+							)}
 							<div className="text-[10px] text-white/30">
 								{selectedObject.userData?.vibexeType || selectedObject.type}
 							</div>
