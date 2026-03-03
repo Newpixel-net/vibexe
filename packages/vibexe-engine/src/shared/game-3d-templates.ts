@@ -5300,7 +5300,7 @@ export const GameScene = {
       if (!c.collected && playerMesh.position.distanceTo(c.mesh.position) < COLLECT_DISTANCE) {
         c.collected = true; c.mesh.visible = false;
         score += 50;
-        try { playSound(soundUrl("collect")); } catch(e) {}
+        try { playSound(soundUrl("squad-shooter/sfx/coin_pickup")); } catch(e) {}
         createParticleEmitter(scene, c.mesh.position.x, c.mesh.position.y, c.mesh.position.z, { preset: "sparkle" });
       }
       if (!c.collected) c.mesh.rotation.y += delta * 2;
@@ -5336,7 +5336,7 @@ function fireBullet(from: any, toward: any) {
   b.mesh.position.y = 1;
   const dir = new THREE.Vector3().subVectors(toward, from).normalize();
   b.vel.set(dir.x * BULLET_SPEED, 0, dir.z * BULLET_SPEED);
-  try { playSound(soundUrl("squad-shooter/sfx/gun_shot")); } catch(e) {}
+  try { playSound(soundUrl("squad-shooter/sfx/shot")); } catch(e) {}
 }
 
 function damageEnemy(enemy: any, dmg: number, bulletVel: any) {
@@ -5354,12 +5354,12 @@ function damageEnemy(enemy: any, dmg: number, bulletVel: any) {
     if (sprite.material) sprite.material.transparent = true;
     floatingTexts.push({ sprite, vel: 2, life: 0.8 });
   }
-  try { playSound(soundUrl("hit")); } catch(e) {}
+  try { playSound(soundUrl("squad-shooter/sfx/enemy_hit_1")); } catch(e) {}
   createParticleEmitter(scene, enemy.mesh.position.x, enemy.mesh.position.y + 0.5, enemy.mesh.position.z, { preset: "explosion", count: 6, lifetime: 0.3 });
 
   if (enemy.hp <= 0) {
     score += enemy.isBoss ? 500 : 100;
-    try { playSound(soundUrl("explosion")); } catch(e) {}
+    try { playSound(soundUrl("squad-shooter/sfx/explosion")); } catch(e) {}
     createParticleEmitter(scene, enemy.mesh.position.x, 1, enemy.mesh.position.z, { preset: "explosion", count: 15, lifetime: 0.5 });
     scene.remove(enemy.mesh);
     if (enemy.body && world) world.removeBody(enemy.body);
@@ -5369,7 +5369,7 @@ function damageEnemy(enemy: any, dmg: number, bulletVel: any) {
 function hitPlayer(dmg: number) {
   lives -= 1;
   shakeIntensity = 0.5;
-  try { playSound(soundUrl("hit")); } catch(e) {}
+  try { playSound(soundUrl("squad-shooter/sfx/player_hit")); } catch(e) {}
   if (playerMesh) {
     playerMesh.traverse((c: any) => { if (c.material) c.material.emissive?.set(0xff0000); });
     setTimeout(() => { playerMesh.traverse((c: any) => { if (c.material) c.material.emissive?.set(0x000000); }); }, 150);

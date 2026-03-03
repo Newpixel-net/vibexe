@@ -978,7 +978,7 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 - Weapon models: modelUrl("squad-shooter", "weapons/Shotgun.glb") — Grenade_launcher, Minigun, Shotgun, Teslagun
 - World tiles: modelUrl("squad-shooter", "environment/world_1/1_Block_1x1_Big.glb") for arena floor/walls
 - Collectibles: modelUrl("squad-shooter", "misc/Coin.glb"), modelUrl("squad-shooter", "misc/Chest.glb")
-- Audio: soundUrl("squad-shooter/sfx/gun_shot") for shooting, soundUrl("squad-shooter/sfx/coin_pickup") for collect
+- Audio: soundUrl("squad-shooter/sfx/shot") for shooting, soundUrl("squad-shooter/sfx/coin_pickup") for collect, soundUrl("squad-shooter/sfx/enemy_hit_1") for enemy hit, soundUrl("squad-shooter/sfx/explosion") for kills, soundUrl("squad-shooter/sfx/player_hit") for player damage, soundUrl("squad-shooter/music/menu_music") for BGM
 - Dynamic difficulty: scale enemyHP/spawnRate based on player power gap every wave
 - Boss every 5 waves: larger model (Boss_Bomber/Boss_Kamikaze), HP bar, special attacks`);
 					console.log(`[Chat API] 3D shooter addendum injected`);

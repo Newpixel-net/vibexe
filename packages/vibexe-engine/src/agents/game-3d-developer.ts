@@ -799,7 +799,7 @@ function updateCamera(player, nearestEnemy, delta) {
 - Weapons: Grenade_launcher, Minigun, Shotgun, Teslagun (+ Elite/Huge variants)
 - World tiles: world_1 (25 tiles, green theme) and world_2 (23 tiles, desert theme) — Block, Ground, Wall, Corner pieces
 - Collectibles: Coin, Ring, Chest, Chest_RV
-- Audio: 24 OGG files at \`soundUrl("squad-shooter/sfx/coin_pickup")\`, \`soundUrl("squad-shooter/sfx/gun_shot")\`, \`soundUrl("squad-shooter/music/menu_music")\`
+- Audio: 24 OGG files — SFX: \`soundUrl("squad-shooter/sfx/shot")\`, \`soundUrl("squad-shooter/sfx/coin_pickup")\`, \`soundUrl("squad-shooter/sfx/enemy_hit_1")\`, \`soundUrl("squad-shooter/sfx/explosion")\`, \`soundUrl("squad-shooter/sfx/player_hit")\`, \`soundUrl("squad-shooter/sfx/boss_scream")\`, \`soundUrl("squad-shooter/sfx/upgrade")\`. Music: \`soundUrl("squad-shooter/music/menu_music")\`, \`soundUrl("squad-shooter/music/game_music")\`
 
 ## \u2605 Complete GameScene Reference — COPY THIS PATTERN
 
