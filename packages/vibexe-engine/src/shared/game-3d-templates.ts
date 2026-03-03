@@ -190,6 +190,7 @@ export function initRenderer(container: HTMLDivElement): typeof THREE.WebGLRende
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.NoToneMapping;
   container.appendChild(renderer.domElement);
 
   const onResize = () => {
@@ -215,15 +216,18 @@ export function initScene(): typeof THREE.Scene {
 
   const scene = new THREE.Scene();
 
-  // Ambient fill light
-  const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+  // Balanced default lighting — total ~1.0 for clean Phong/cartoon rendering.
+  const hemi = new THREE.HemisphereLight(0xEEF4FF, 0x886644, 0.35);
+  hemi.name = "HemisphereLight";
+  scene.add(hemi);
+
+  const ambient = new THREE.AmbientLight(0xFFFFFF, 0.15);
   ambient.name = "AmbientLight";
   scene.add(ambient);
 
-  // Directional sun light with shadows
-  const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+  const sun = new THREE.DirectionalLight(0xFFF8EE, 0.55);
   sun.name = "DirectionalLight";
-  sun.position.set(10, 20, 10);
+  sun.position.set(8, 20, 10);
   sun.castShadow = true;
   sun.shadow.mapSize.width = 1024;
   sun.shadow.mapSize.height = 1024;
@@ -233,6 +237,7 @@ export function initScene(): typeof THREE.Scene {
   sun.shadow.camera.right = 20;
   sun.shadow.camera.top = 20;
   sun.shadow.camera.bottom = -20;
+  sun.shadow.bias = -0.001;
   scene.add(sun);
 
   return scene;
@@ -3178,6 +3183,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputEncoding = THREE.sRGBEncoding;
+      // NoToneMapping by default — Phong/Lambert materials already output LDR values.
+      // Tone mapping (ACES/Reinhard) crushes contrast and desaturates cartoon colors.
+      // Games that need HDR can enable tone mapping via createPostProcessing().
+      renderer.toneMapping = THREE.NoToneMapping;
       container.appendChild(renderer.domElement);
       (window as any).__vibexe_renderer__ = renderer;
 
@@ -3203,6 +3212,30 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         scene = new THREE.Scene();
         scene.background = new THREE.Color(bgColor);
         (window as any).__vibexe_scene__ = scene;
+
+        // Engine-wide default lighting — balanced for cartoon/Phong materials.
+        // Total light budget ~1.0 so colors render faithfully without clipping.
+        // Games can remove/replace these in their init() if needed.
+        const _defHemi = new THREE.HemisphereLight(0xEEF4FF, 0x886644, 0.35);
+        _defHemi.name = '__default_hemi__';
+        scene.add(_defHemi);
+        const _defAmbient = new THREE.AmbientLight(0xFFFFFF, 0.15);
+        _defAmbient.name = '__default_ambient__';
+        scene.add(_defAmbient);
+        const _defSun = new THREE.DirectionalLight(0xFFF8EE, 0.55);
+        _defSun.name = '__default_sun__';
+        _defSun.position.set(8, 20, 10);
+        _defSun.castShadow = true;
+        _defSun.shadow.mapSize.width = 1024;
+        _defSun.shadow.mapSize.height = 1024;
+        _defSun.shadow.camera.near = 0.5;
+        _defSun.shadow.camera.far = 50;
+        _defSun.shadow.camera.left = -20;
+        _defSun.shadow.camera.right = 20;
+        _defSun.shadow.camera.top = 20;
+        _defSun.shadow.camera.bottom = -20;
+        _defSun.shadow.bias = -0.001;
+        scene.add(_defSun);
 
         const loading = createLoadingOverlay(container);
 
@@ -5050,7 +5083,10 @@ function mulberry32(seed: number) {
 // GLB exports from Unity have grey baseColorFactor (0.4-0.5). Colors must be assigned.
 // No tone mapping = what you set is what you get. Use natural vibrant colors.
 const MODEL_COLORS: Record<string, number> = {
-  // Players — bright blue (hero color)
+  // Players — bright blue (hero color). Both rigged and non-rigged variants.
+  'characters/player/Character_01': 0x3388FF,
+  'characters/player/Character_02': 0x2266DD,
+  'characters/player/Character_03': 0x55AAFF,
   'characters/player/Main_Char_01': 0x3388FF,
   'characters/player/Main_Char_02': 0x2266DD,
   'characters/player/Main_Char_03': 0x55AAFF,
@@ -5069,13 +5105,13 @@ const MODEL_COLORS: Record<string, number> = {
   'characters/enemies/Boss_Bomber': 0xDD1100,
   'characters/enemies/Old_Boss': 0xBB0000,
   'characters/enemies/Sniper_Boss': 0x117722,
-  // Environment world_1 — warm golden ground + dark brown blocks for contrast
-  'environment/world_1/1_Ground': 0xDDB844,
+  // Environment world_1 — warm sand ground + dark brown blocks for contrast
+  'environment/world_1/1_Ground': 0xC4A858,
   'environment/world_1/1_Border': 0x5A2810,
   'environment/world_1/1_Block': 0x6B4020,
   'environment/world_1/1_Wall': 0x3A1A08,
-  // Environment world_2 — slightly different warm palette
-  'environment/world_2/2_Ground': 0xCCAA38,
+  // Environment world_2 — slightly cooler sand palette
+  'environment/world_2/2_Ground': 0xB89E4C,
   'environment/world_2/2_Border': 0x4A1E0C,
   'environment/world_2/2_Block': 0x5A3518,
   'environment/world_2/2_Wall': 0x2E1405,
@@ -5222,10 +5258,11 @@ const ENEMY_TIERS = [
   { tier: 1, minWave: 1, models: ["Normal.glb", "Skinny.glb", "Mine.glb"], hp: 25, speed: 1.8, damage: 1 },
   { tier: 2, minWave: 3, models: ["Pistolman_1.glb", "RifleMan.glb", "CowBoy_1.glb"], hp: 45, speed: 2.2, damage: 1 },
   { tier: 3, minWave: 5, models: ["Bomber_1.glb", "Grenader.glb", "ShotgunMan_1.glb", "MeeleMan.glb"], hp: 65, speed: 2.6, damage: 2 },
-  { tier: 4, minWave: 7, models: ["Bomber_Elite.glb", "RifleMan_ELITE.glb", "Pistolman_Elite.glb", "ShotgunMan_ELITE.glb", "CowBoy_ELITE.glb", "MeeleMan_Elite.glb", "Grenader_ELITE.glb", "Sniper_Elite.glb"], hp: 90, speed: 3.0, damage: 2 },
+  { tier: 4, minWave: 7, models: ["RifleMan_ELITE.glb", "Pistolman_Elite.glb", "ShotgunMan_ELITE.glb", "MeeleMan_Elite.glb", "Sniper_Elite.glb"], hp: 90, speed: 3.0, damage: 2 },
 ];
 const BOSS_MODELS = ["Boss_Bomber.glb", "Old_Boss.glb", "Sniper_Boss.glb"];
-const PLAYER_MODELS = ["Main_Char_01_(without_rig).glb", "Main_Char_02_(without_rig).glb", "Main_Char_03_(without_rig).glb"];
+// Use Character_0X.glb (WITH rigs) instead of Main_Char_*_(without_rig).glb
+const PLAYER_MODELS = ["Character_01.glb", "Character_02.glb", "Character_03.glb"];
 
 // ===== Game State =====
 let scene: any, camera: any, renderer: any, container: HTMLDivElement;
@@ -5242,6 +5279,10 @@ const collectibles: { mesh: any; collected: boolean; type: string }[] = [];
 const floatingTexts: { sprite: any; vel: number; life: number }[] = [];
 
 // ===== Arena Generator =====
+// Mathematically precise grid-based system. Each cell = TILE_SIZE × TILE_SIZE.
+// Multi-cell objects (1x2, 2x2) occupy exact grid positions — no collisions possible.
+// Zone-based placement: outer ring = dense cover, middle = moderate, center 3x3 = player spawn.
+// Cross-shaped walkways through center always kept clear for movement.
 async function generateShooterArena(onProgress?: (p: number) => void) {
   const seed = Date.now();
   const rng = mulberry32(seed);
@@ -5249,109 +5290,256 @@ async function generateShooterArena(onProgress?: (p: number) => void) {
   const prefix = theme === "world_2" ? "2" : "1";
   arenaSpawnPoints = [];
 
+  // Grid: 0=walkable, 1=1x1block, 2=wall, 3=multi-cell-secondary
   const grid: number[][] = [];
   for (let i = 0; i < GRID_SIZE; i++) grid.push(new Array(GRID_SIZE).fill(0));
 
-  function gridToWorld(gx: number, gz: number): [number, number] {
+  function g2w(gx: number, gz: number): [number, number] {
     return [(gx - GRID_SIZE / 2 + 0.5) * TILE_SIZE, (gz - GRID_SIZE / 2 + 0.5) * TILE_SIZE];
   }
+  function pick<T>(arr: T[]): T { return arr[Math.floor(rng() * arr.length)]; }
+  function cellFree(gx: number, gz: number): boolean {
+    return gx >= 0 && gx < GRID_SIZE && gz >= 0 && gz < GRID_SIZE && grid[gx][gz] === 0;
+  }
+  function inCenter(gx: number, gz: number): boolean {
+    return Math.abs(gx - (GRID_SIZE - 1) / 2) <= 1.5 && Math.abs(gz - (GRID_SIZE - 1) / 2) <= 1.5;
+  }
+  function isPathCell(gx: number, gz: number): boolean {
+    // Cross-shaped paths through center for guaranteed movement corridors
+    const midX = (GRID_SIZE - 1) / 2;
+    const midZ = (GRID_SIZE - 1) / 2;
+    return Math.abs(gx - midX) <= 0.5 || Math.abs(gz - midZ) <= 0.5;
+  }
 
-  // --- Step 1: GROUND ---
+  // === Complete tile catalogs (ALL models per theme) ===
+  const GROUNDS = [\`\${prefix}_Ground_1.glb\`];
+  const GROUND_HALF = [\`\${prefix}_Ground_Half.glb\`];
+  const BORDERS = [\`\${prefix}_Border_1.glb\`, \`\${prefix}_Border_2.glb\`, \`\${prefix}_Border_3.glb\`, \`\${prefix}_Border_4.glb\`];
+  const BORDER_CORNER = \`\${prefix}_Border_Corner.glb\`;
+  const BORDER_EXIT = \`\${prefix}_Border_Exit.glb\`;
+  const BORDER_HALF = \`\${prefix}_Border_Half.glb\`;
+  const BORDER_QUARTER = \`\${prefix}_Border_Quarter.glb\`;
+  const BLOCKS_1x1 = [\`\${prefix}_Block_1x1_Big.glb\`, \`\${prefix}_Block_1x1_Medium.glb\`, \`\${prefix}_Block_1x1_Small.glb\`];
+  const BLOCKS_1x1_HALF = [\`\${prefix}_Block_1x1_Big_Half.glb\`, \`\${prefix}_Block_1x1_Medium_Half.glb\`, \`\${prefix}_Block_1x1_Small_Half.glb\`];
+  const BLOCKS_1x2 = [\`\${prefix}_Block_1x2_Big.glb\`, \`\${prefix}_Block_1x2_Medium.glb\`, \`\${prefix}_Block_1x2_Small.glb\`];
+  const BLOCKS_1x2_HALF = [\`\${prefix}_Block_1x2_Big_Half.glb\`, \`\${prefix}_Block_1x2_Medium_Half.glb\`];
+  const BLOCK_2x2 = \`\${prefix}_Block_2x2_Big_Half.glb\`;
+  const WALL_1x1 = \`\${prefix}_Wall_1x1.glb\`;
+  const WALL_1x2 = \`\${prefix}_Wall_1x2.glb\`;
+  const WALL_CORNER = \`\${prefix}_Wall_corner.glb\`;
+
+  // --- Step 1: GROUND tiles (full grid + occasional Ground_Half for variety) ---
   for (let gx = 0; gx < GRID_SIZE; gx++) {
     for (let gz = 0; gz < GRID_SIZE; gz++) {
-      grid[gx][gz] = 1;
-      const [wx, wz] = gridToWorld(gx, gz);
-      const mesh = await loadModel(\`environment/\${theme}/\${prefix}_Ground_1.glb\`);
+      const [wx, wz] = g2w(gx, gz);
+      const gFile = (rng() > 0.92) ? pick(GROUND_HALF) : pick(GROUNDS);
+      const mesh = await loadModel(\`environment/\${theme}/\${gFile}\`);
       scaleToTile(mesh, TILE_SIZE, TILE_SIZE);
       mesh.position.set(wx, 0, wz);
       enableShadows(mesh, false, true);
       scene.add(mesh);
     }
   }
-  onProgress?.(0.15);
+  onProgress?.(0.12);
 
-  // --- Step 2: BORDERS ---
-  const borderNames = [\`\${prefix}_Border_1.glb\`, \`\${prefix}_Border_2.glb\`, \`\${prefix}_Border_3.glb\`];
+  // --- Step 2: BORDERS (all 4 variants + corners + exits + half/quarter accents) ---
   const edgeOff = ARENA_HALF + TILE_SIZE * 0.4;
+  // 1-2 random exits for visual interest
+  const exitSet = new Set<string>();
+  for (let e = 0; e < 1 + Math.floor(rng() * 2); e++) {
+    exitSet.add(\`\${Math.floor(rng() * 4)}_\${1 + Math.floor(rng() * (GRID_SIZE - 2))}\`);
+  }
   for (let i = 0; i < GRID_SIZE; i++) {
     const pos = (i - GRID_SIZE / 2 + 0.5) * TILE_SIZE;
-    const bn = await loadModel(\`environment/\${theme}/\${borderNames[Math.floor(rng() * borderNames.length)]}\`);
-    scaleToTile(bn, TILE_SIZE, TILE_SIZE); bn.position.set(pos, 0, -edgeOff); bn.rotation.y = Math.PI;
-    scene.add(bn); addStaticBody(pos, -edgeOff, TILE_SIZE, 2);
-    const bs = await loadModel(\`environment/\${theme}/\${borderNames[Math.floor(rng() * borderNames.length)]}\`);
-    scaleToTile(bs, TILE_SIZE, TILE_SIZE); bs.position.set(pos, 0, edgeOff);
-    scene.add(bs); addStaticBody(pos, edgeOff, TILE_SIZE, 2);
-    const bw = await loadModel(\`environment/\${theme}/\${borderNames[Math.floor(rng() * borderNames.length)]}\`);
-    scaleToTile(bw, TILE_SIZE, TILE_SIZE); bw.position.set(-edgeOff, 0, pos); bw.rotation.y = -Math.PI / 2;
-    scene.add(bw); addStaticBody(-edgeOff, pos, 2, TILE_SIZE);
-    const be = await loadModel(\`environment/\${theme}/\${borderNames[Math.floor(rng() * borderNames.length)]}\`);
-    scaleToTile(be, TILE_SIZE, TILE_SIZE); be.position.set(edgeOff, 0, pos); be.rotation.y = Math.PI / 2;
-    scene.add(be); addStaticBody(edgeOff, pos, 2, TILE_SIZE);
-  }
-  for (const [sx, sz, rot] of [[-1,-1,0], [-1,1,-0.5], [1,-1,0.5], [1,1,1]] as [number,number,number][]) {
-    const cm = await loadModel(\`environment/\${theme}/\${prefix}_Border_Corner.glb\`);
-    scaleToTile(cm, TILE_SIZE, TILE_SIZE);
-    cm.position.set(sx * edgeOff, 0, sz * edgeOff); cm.rotation.y = rot * Math.PI;
-    scene.add(cm);
-  }
-  onProgress?.(0.25);
-
-  // --- Step 3: COVER blocks ---
-  const coverModels = [
-    \`\${prefix}_Block_1x1_Big.glb\`, \`\${prefix}_Block_1x1_Medium.glb\`, \`\${prefix}_Block_1x1_Small.glb\`,
-    \`\${prefix}_Block_1x2_Big.glb\`, \`\${prefix}_Block_1x2_Medium.glb\`,
-  ];
-  const cells: [number, number][] = [];
-  for (let gx = 1; gx < GRID_SIZE - 1; gx++) {
-    for (let gz = 1; gz < GRID_SIZE - 1; gz++) {
-      const cx = Math.abs(gx - GRID_SIZE / 2 + 0.5);
-      const cz = Math.abs(gz - GRID_SIZE / 2 + 0.5);
-      if (cx < 1.5 && cz < 1.5) continue;
-      cells.push([gx, gz]);
+    for (const [side, x, z, rot] of [
+      [0, pos, -edgeOff, Math.PI], [1, pos, edgeOff, 0],
+      [2, -edgeOff, pos, -Math.PI / 2], [3, edgeOff, pos, Math.PI / 2],
+    ] as [number, number, number, number][]) {
+      const isExit = exitSet.has(\`\${side}_\${i}\`);
+      const borderFile = isExit ? BORDER_EXIT : pick(BORDERS);
+      const bm = await loadModel(\`environment/\${theme}/\${borderFile}\`);
+      scaleToTile(bm, TILE_SIZE, TILE_SIZE);
+      bm.position.set(x, 0, z); bm.rotation.y = rot;
+      enableShadows(bm, true, false); scene.add(bm);
+      if (!isExit) {
+        const isNS = side <= 1;
+        addStaticBody(x, z, isNS ? TILE_SIZE : 2, isNS ? 2 : TILE_SIZE);
+      }
     }
   }
-  for (let i = cells.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [cells[i], cells[j]] = [cells[j], cells[i]];
+  // 4 corners
+  for (const [sx, sz, rot] of [[-1,-1,0], [-1,1,-0.5], [1,-1,0.5], [1,1,1]] as [number,number,number][]) {
+    const cm = await loadModel(\`environment/\${theme}/\${BORDER_CORNER}\`);
+    scaleToTile(cm, TILE_SIZE, TILE_SIZE);
+    cm.position.set(sx * edgeOff, 0, sz * edgeOff); cm.rotation.y = rot * Math.PI;
+    enableShadows(cm, true, false); scene.add(cm);
   }
-  const coverCount = Math.floor(cells.length * 0.2);
-  for (let i = 0; i < coverCount; i++) {
-    const [gx, gz] = cells[i];
-    grid[gx][gz] = 2;
-    const [wx, wz] = gridToWorld(gx, gz);
-    const mn = coverModels[Math.floor(rng() * coverModels.length)];
-    const mesh = await loadModel(\`environment/\${theme}/\${mn}\`);
-    scaleToTile(mesh, TILE_SIZE * 0.85, TILE_SIZE * 0.85);
-    mesh.position.set(wx, 0, wz); mesh.rotation.y = rng() * Math.PI * 2;
-    enableShadows(mesh, true, true);
-    scene.add(mesh);
-    addStaticBody(wx, wz, TILE_SIZE * 0.7, TILE_SIZE * 0.7);
+  // Border_Half and Border_Quarter accent pieces at corners
+  for (const [sx, sz, rot] of [[-1,-1,Math.PI], [1,-1,Math.PI/2], [-1,1,-Math.PI/2], [1,1,0]] as [number,number,number][]) {
+    if (rng() > 0.4) {
+      const hb = await loadModel(\`environment/\${theme}/\${BORDER_HALF}\`);
+      scaleToTile(hb, TILE_SIZE * 0.5, TILE_SIZE);
+      hb.position.set(sx * (edgeOff + TILE_SIZE * 0.25), 0, sz * (edgeOff + TILE_SIZE * 0.25));
+      hb.rotation.y = rot; enableShadows(hb, true, false); scene.add(hb);
+    }
+    if (rng() > 0.5) {
+      const qb = await loadModel(\`environment/\${theme}/\${BORDER_QUARTER}\`);
+      scaleToTile(qb, TILE_SIZE * 0.3, TILE_SIZE * 0.3);
+      qb.position.set(sx * (edgeOff - TILE_SIZE * 0.15), 0, sz * (edgeOff - TILE_SIZE * 0.15));
+      qb.rotation.y = rot; enableShadows(qb, true, false); scene.add(qb);
+    }
+  }
+  onProgress?.(0.22);
+
+  // --- Step 3: COVER blocks — zone-based mathematical placement ---
+  // Zone classification: outer ring (1 from edge), middle, center (reserved)
+  const outerCells: [number, number][] = [];
+  const middleCells: [number, number][] = [];
+  for (let gx = 1; gx < GRID_SIZE - 1; gx++) {
+    for (let gz = 1; gz < GRID_SIZE - 1; gz++) {
+      if (inCenter(gx, gz)) continue;
+      if (isPathCell(gx, gz)) continue;
+      const dEdge = Math.min(gx, gz, GRID_SIZE - 1 - gx, GRID_SIZE - 1 - gz);
+      if (dEdge <= 2) outerCells.push([gx, gz]);
+      else middleCells.push([gx, gz]);
+    }
+  }
+  // Shuffle for randomness
+  for (const arr of [outerCells, middleCells]) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
   }
 
-  // --- Step 4: WALLS ---
-  const wallCount = 2 + Math.floor(rng() * 2);
-  for (let w = 0; w < wallCount; w++) {
-    const idx = coverCount + w;
-    if (idx >= cells.length) break;
-    const [gx, gz] = cells[idx];
-    if (grid[gx][gz] !== 1) continue;
-    grid[gx][gz] = 2;
-    const [wx, wz] = gridToWorld(gx, gz);
-    const isLong = rng() > 0.5;
-    const wn = isLong ? \`\${prefix}_Wall_1x2.glb\` : \`\${prefix}_Wall_1x1.glb\`;
-    const mesh = await loadModel(\`environment/\${theme}/\${wn}\`);
-    scaleToTile(mesh, isLong ? TILE_SIZE * 1.5 : TILE_SIZE * 0.8, TILE_SIZE * 0.8);
-    mesh.position.set(wx, 0, wz); mesh.rotation.y = rng() > 0.5 ? 0 : Math.PI / 2;
-    scene.add(mesh);
-    addStaticBody(wx, wz, isLong ? TILE_SIZE * 1.2 : TILE_SIZE * 0.7, TILE_SIZE * 0.7);
+  // 3a: Place 1-2 large 2x2 blocks (anchor pieces in outer zone)
+  let placed2x2 = 0;
+  for (let a = 0; a < outerCells.length && placed2x2 < 2; a++) {
+    const [gx, gz] = outerCells[a];
+    if (cellFree(gx, gz) && cellFree(gx+1, gz) && cellFree(gx, gz+1) && cellFree(gx+1, gz+1)
+      && !inCenter(gx+1, gz) && !inCenter(gx, gz+1) && !inCenter(gx+1, gz+1)) {
+      grid[gx][gz] = 1; grid[gx+1][gz] = 3; grid[gx][gz+1] = 3; grid[gx+1][gz+1] = 3;
+      const [wx, wz] = g2w(gx, gz);
+      const cx = wx + TILE_SIZE * 0.5, cz = wz + TILE_SIZE * 0.5;
+      const m = await loadModel(\`environment/\${theme}/\${BLOCK_2x2}\`);
+      scaleToTile(m, TILE_SIZE * 1.8, TILE_SIZE * 1.8);
+      m.position.set(cx, 0, cz); m.rotation.y = rng() * Math.PI * 2;
+      enableShadows(m, true, true); scene.add(m);
+      addStaticBody(cx, cz, TILE_SIZE * 1.5, TILE_SIZE * 1.5);
+      placed2x2++;
+    }
+  }
+
+  // 3b: Place 3-5 wide 1x2 blocks (directional cover)
+  let placed1x2 = 0;
+  const target1x2 = 3 + Math.floor(rng() * 3);
+  for (const pool of [outerCells, middleCells]) {
+    for (const [gx, gz] of pool) {
+      if (placed1x2 >= target1x2) break;
+      if (!cellFree(gx, gz)) continue;
+      const horiz = rng() > 0.5;
+      const gx2 = horiz ? gx + 1 : gx, gz2 = horiz ? gz : gz + 1;
+      if (!cellFree(gx2, gz2) || inCenter(gx2, gz2) || isPathCell(gx2, gz2)) continue;
+      grid[gx][gz] = 1; grid[gx2][gz2] = 3;
+      const [wx1, wz1] = g2w(gx, gz);
+      const [wx2, wz2] = g2w(gx2, gz2);
+      const cx = (wx1 + wx2) / 2, cz = (wz1 + wz2) / 2;
+      const isHalf = rng() > 0.6;
+      const bf = pick(isHalf ? BLOCKS_1x2_HALF : BLOCKS_1x2);
+      const m = await loadModel(\`environment/\${theme}/\${bf}\`);
+      scaleToTile(m, horiz ? TILE_SIZE * 1.8 : TILE_SIZE * 0.85, horiz ? TILE_SIZE * 0.85 : TILE_SIZE * 1.8);
+      m.position.set(cx, 0, cz);
+      if (!horiz) m.rotation.y = Math.PI / 2;
+      enableShadows(m, true, true); scene.add(m);
+      addStaticBody(cx, cz, horiz ? TILE_SIZE * 1.5 : TILE_SIZE * 0.7, horiz ? TILE_SIZE * 0.7 : TILE_SIZE * 1.5);
+      placed1x2++;
+    }
+  }
+
+  // 3c: Fill remaining cells with 1x1 blocks (~25% outer, ~15% middle)
+  const targetOuter = Math.floor(outerCells.length * 0.25);
+  const targetMiddle = Math.floor(middleCells.length * 0.15);
+  for (const [pool, target] of [[outerCells, targetOuter], [middleCells, targetMiddle]] as [[number,number][], number][]) {
+    let placed = 0;
+    for (const [gx, gz] of pool) {
+      if (placed >= target) break;
+      if (!cellFree(gx, gz)) continue;
+      grid[gx][gz] = 1;
+      const [wx, wz] = g2w(gx, gz);
+      const isHalf = rng() > 0.55;
+      const bf = pick(isHalf ? BLOCKS_1x1_HALF : BLOCKS_1x1);
+      const m = await loadModel(\`environment/\${theme}/\${bf}\`);
+      scaleToTile(m, TILE_SIZE * 0.85, TILE_SIZE * 0.85);
+      m.position.set(wx, 0, wz); m.rotation.y = rng() * Math.PI * 2;
+      enableShadows(m, true, true); scene.add(m);
+      addStaticBody(wx, wz, TILE_SIZE * 0.7, TILE_SIZE * 0.7);
+      placed++;
+    }
+  }
+  onProgress?.(0.28);
+
+  // --- Step 4: WALLS — 2-4 structures (L-shapes, lines, pillars) ---
+  const wallTarget = 2 + Math.floor(rng() * 3);
+  let wallsPlaced = 0;
+  const wallPool = [...outerCells, ...middleCells].filter(([gx, gz]) => cellFree(gx, gz));
+  for (let i = wallPool.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [wallPool[i], wallPool[j]] = [wallPool[j], wallPool[i]];
+  }
+  for (let w = 0; w < wallPool.length && wallsPlaced < wallTarget; w++) {
+    const [gx, gz] = wallPool[w];
+    if (!cellFree(gx, gz)) continue;
+    // Try L-shape (wall_corner + two wall_1x1)
+    const makeL = rng() > 0.5 && cellFree(gx+1, gz) && cellFree(gx, gz+1)
+      && !inCenter(gx+1, gz) && !inCenter(gx, gz+1) && !isPathCell(gx+1, gz) && !isPathCell(gx, gz+1);
+    if (makeL) {
+      grid[gx][gz] = 2; grid[gx+1][gz] = 2; grid[gx][gz+1] = 2;
+      const [wx, wz] = g2w(gx, gz);
+      const co = await loadModel(\`environment/\${theme}/\${WALL_CORNER}\`);
+      scaleToTile(co, TILE_SIZE * 0.8, TILE_SIZE * 0.8);
+      co.position.set(wx, 0, wz); co.rotation.y = [0, Math.PI/2, Math.PI, -Math.PI/2][Math.floor(rng()*4)];
+      enableShadows(co, true, false); scene.add(co);
+      addStaticBody(wx, wz, TILE_SIZE * 0.6, TILE_SIZE * 0.6);
+      for (const [dx, dz] of [[1,0],[0,1]]) {
+        const [ewx, ewz] = g2w(gx + dx, gz + dz);
+        const ew = await loadModel(\`environment/\${theme}/\${WALL_1x1}\`);
+        scaleToTile(ew, TILE_SIZE * 0.8, TILE_SIZE * 0.8);
+        ew.position.set(ewx, 0, ewz); enableShadows(ew, true, false); scene.add(ew);
+        addStaticBody(ewx, ewz, TILE_SIZE * 0.6, TILE_SIZE * 0.6);
+      }
+      wallsPlaced++;
+    } else {
+      // Simple wall_1x1 or wall_1x2
+      grid[gx][gz] = 2;
+      const [wx, wz] = g2w(gx, gz);
+      const long = rng() > 0.5 && cellFree(gx+1, gz) && !inCenter(gx+1, gz) && !isPathCell(gx+1, gz);
+      if (long) grid[gx+1][gz] = 2;
+      const wallFile = long ? WALL_1x2 : WALL_1x1;
+      const wm = await loadModel(\`environment/\${theme}/\${wallFile}\`);
+      const wallRot = rng() > 0.5 ? 0 : Math.PI / 2;
+      if (long) {
+        const [wx2] = g2w(gx+1, gz);
+        const mx = (wx + wx2) / 2;
+        scaleToTile(wm, TILE_SIZE * 1.8, TILE_SIZE * 0.8);
+        wm.position.set(mx, 0, wz); wm.rotation.y = wallRot;
+        enableShadows(wm, true, false); scene.add(wm);
+        addStaticBody(mx, wz, TILE_SIZE * 1.5, TILE_SIZE * 0.6);
+      } else {
+        scaleToTile(wm, TILE_SIZE * 0.8, TILE_SIZE * 0.8);
+        wm.position.set(wx, 0, wz); wm.rotation.y = wallRot;
+        enableShadows(wm, true, false); scene.add(wm);
+        addStaticBody(wx, wz, TILE_SIZE * 0.6, TILE_SIZE * 0.6);
+      }
+      wallsPlaced++;
+    }
   }
   onProgress?.(0.3);
 
-  // --- Step 5: Spawn points ---
+  // --- Step 5: Spawn points — all walkable (grid=0) cells away from player ---
   for (let gx = 0; gx < GRID_SIZE; gx++) {
     for (let gz = 0; gz < GRID_SIZE; gz++) {
-      if (grid[gx][gz] !== 1) continue;
-      const [wx, wz] = gridToWorld(gx, gz);
+      if (grid[gx][gz] !== 0) continue;
+      const [wx, wz] = g2w(gx, gz);
       const d = Math.sqrt(wx * wx + wz * wz);
       if (d > SPAWN_MIN_DIST) arenaSpawnPoints.push({ x: wx, z: wz });
     }
@@ -5384,16 +5572,16 @@ export const GameScene = {
     // Clean sky blue background
     scene.background = new THREE.Color(0x6CB4D9);
 
-    // Simple cartoon lighting: hemisphere fill + one directional sun.
-    // Low ambient = dark shadows = high contrast = readable scene.
-    const hemi = new THREE.HemisphereLight(0xEEF4FF, 0x886633, 0.4);
+    // Cartoon lighting: hemisphere fill + one directional sun.
+    // Total ~1.0 (hemi 0.35 + ambient 0.15 + sun 0.5) — no color clipping with NoToneMapping.
+    const hemi = new THREE.HemisphereLight(0xEEF4FF, 0x886633, 0.35);
     scene.add(hemi);
 
-    const shooterAmbient = new THREE.AmbientLight(0xFFFFFF, 0.2);
+    const shooterAmbient = new THREE.AmbientLight(0xFFFFFF, 0.15);
     scene.add(shooterAmbient);
 
     // Main sun — moderate intensity, crisp shadows
-    const shooterSun = new THREE.DirectionalLight(0xFFF8EE, 0.7);
+    const shooterSun = new THREE.DirectionalLight(0xFFF8EE, 0.5);
     shooterSun.position.set(8, 40, -8);
     shooterSun.castShadow = true;
     shooterSun.shadow.mapSize.width = 2048;
@@ -5410,7 +5598,7 @@ export const GameScene = {
     // Base ground plane beneath tile arena
     const basePlane = new THREE.Mesh(
       new THREE.PlaneGeometry(ARENA_HALF * 3, ARENA_HALF * 3),
-      new THREE.MeshPhongMaterial({ color: 0xC49535, shininess: 3, specular: new THREE.Color(0x111111) })
+      new THREE.MeshPhongMaterial({ color: 0xA88030, shininess: 3, specular: new THREE.Color(0x111111) })
     );
     basePlane.rotation.x = -Math.PI / 2;
     basePlane.position.y = -0.05;
