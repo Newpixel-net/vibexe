@@ -1125,15 +1125,14 @@ export function getVisualEditBridgeScript(): string {
       // Fix OrbitControls for editor mode — must use deferred override because
       // the embedded bridge in Game3D.tsx also handles game-editor-activate and
       // calls pause() which creates OrbitControls with default mouseButtons.
-      // We override after a delay to ensure ALL message handlers have run.
+      // Unity-style: LEFT=select/gizmo, MIDDLE=pan, RIGHT=orbit, scroll=zoom
       function fixOrbitControls() {
         if (!editor || !editor.orbitControls) return;
         var oc = editor.orbitControls;
-        oc.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
-        // Compute orbit target from camera's look direction (not hardcoded 0,2,0)
-        var camDir = new THREE.Vector3();
-        editor.camera.getWorldDirection(camDir);
-        oc.target.copy(editor.camera.position).addScaledVector(camDir, 10);
+        oc.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
+        oc.screenSpacePanning = true;
+        // Target at scene center ground level — stable orbit point for any scene type
+        oc.target.set(0, 1, 0);
         oc.update();
       }
       // Immediate fix attempt
