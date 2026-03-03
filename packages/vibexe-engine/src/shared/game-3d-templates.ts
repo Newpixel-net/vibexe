@@ -5251,12 +5251,22 @@ export const GameScene = {
     world = this.world;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
+
+    // Remove default Game3D.tsx lights (we need custom lighting for top-down shooter)
+    const defaultLights = scene.children.filter((c: any) => c.isLight);
+    defaultLights.forEach((l: any) => scene.remove(l));
 
     // Bright stylized sky (matching Unity Squad Shooter aesthetic)
     createSkyGradient(scene, 0x87CEEB, 0xE8D5B7);
 
-    // Strong directional sun from above for top-down visibility
-    const shooterSun = new THREE.DirectionalLight(0xfff8e7, 1.2);
+    // Balanced lighting: ambient + sun + fill (total ~2.2 intensity)
+    const shooterAmbient = new THREE.AmbientLight(0xffffff, 0.55);
+    scene.add(shooterAmbient);
+
+    // Main sun from above-right for top-down view
+    const shooterSun = new THREE.DirectionalLight(0xfff8e7, 1.0);
     shooterSun.position.set(5, 40, -5);
     shooterSun.castShadow = true;
     shooterSun.shadow.mapSize.width = 2048;
@@ -5269,14 +5279,10 @@ export const GameScene = {
     shooterSun.shadow.camera.bottom = -ARENA_HALF;
     scene.add(shooterSun);
 
-    // Fill light from opposite side to reduce harsh shadows
-    const fillLight = new THREE.DirectionalLight(0xC5D8FF, 0.5);
+    // Soft fill from opposite side
+    const fillLight = new THREE.DirectionalLight(0xC5D8FF, 0.25);
     fillLight.position.set(-10, 25, 10);
     scene.add(fillLight);
-
-    // Boost ambient for overall brightness
-    const boostAmbient = new THREE.AmbientLight(0xffffff, 0.4);
-    scene.add(boostAmbient);
 
     // Base ground plane beneath tile arena (shadow catcher + visual foundation)
     const basePlane = new THREE.Mesh(
