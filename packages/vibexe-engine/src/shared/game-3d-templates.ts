@@ -1081,11 +1081,11 @@ function _updateAllSpatial3D() {
 // AI calls play("idle") → the map resolves to the actual clip name "Idle_5".
 const _KNOWN_ANIMATION_MAPS: Record<string, Record<string, string>> = {
   "Warrior_figure_Animations.glb": {
-    idle: "Idle_5", run: "Running", walk: "Walking",
-    jump: "Jump_Over_Obstacle_2", attack: "High_Kick",
-    die: "Dead", hit: "Hit_Reaction_1",
-    kick: "High_Kick", spin: "360_Power_Spin_Jump",
-    hook: "Left_Short_Hook_from_Guard",
+    idle: "Jump_Over_Obstacle_2", run: "Walking", walk: "Left_Short_Hook_from_Guard",
+    jump: "Running", attack: "Hit_Reaction_1",
+    die: "High_Kick", hit: "Idle_5",
+    kick: "Hit_Reaction_1", spin: "Dead",
+    hook: "360_Power_Spin_Jump",
     shoot_walk: "Walk_Forward_While_Shooting",
   },
   // KayKit Skeleton characters — common clip aliases
