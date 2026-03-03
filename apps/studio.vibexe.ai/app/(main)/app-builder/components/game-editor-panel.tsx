@@ -20,6 +20,7 @@ export function GameEditorPanel() {
 		updateProperty,
 		deleteObject,
 		focusSelected,
+		selectAndFocus,
 		duplicateSelected,
 		animationClips,
 		currentAnimClip,
@@ -101,6 +102,15 @@ export function GameEditorPanel() {
 		[selectObjectByUuid, sceneTree],
 	);
 
+	// Double-click in hierarchy = select + frame selected (Unity-style)
+	const handleTreeDoubleClick = useCallback(
+		(uuid: string) => {
+			if (sceneTree && uuid === sceneTree.uuid) return;
+			selectAndFocus(uuid);
+		},
+		[selectAndFocus, sceneTree],
+	);
+
 	const handlePropertyChange = useCallback(
 		(property: string, value: any) => {
 			if (!selectedObject) return;
@@ -147,6 +157,7 @@ export function GameEditorPanel() {
 							depth={0}
 							selectedUuid={selectedObject?.uuid || null}
 							onSelect={handleTreeSelect}
+							onDoubleClick={handleTreeDoubleClick}
 						/>
 					) : (
 						<div className="px-3 py-4 text-[11px] text-white/30 text-center">

@@ -513,6 +513,17 @@ export function getVisualEditBridgeScript(): string {
   var gridHelper = null;
   var canvasPointerDownHandler = null;
   var bodyMouseDownHandler = null;
+  // Flythrough mode (right-click hold + WASD, Unity-style)
+  var flyMode = false;
+  var flyKeys = {};
+  var flyRMBDown = false;
+  var flyLastMouse = null;
+  var flyMouseMoveHandler = null;
+  var flyRMBDownHandler = null;
+  var flyRMBUpHandler = null;
+  var flyKeyUpHandler = null;
+  var flyWheelHandler = null;
+  var flyContextMenuHandler = null;
 
   // Signal that external bridge is loaded — embedded bridge (game-3d-templates.ts) defers to us
   window.__vibexeExternalBridge = true;
@@ -813,6 +824,95 @@ export function getVisualEditBridgeScript(): string {
     animFocus();
   }
 
+  // ---- Flythrough Mode (Unity-style: RMB hold + WASD) ----
+  function enterFlyMode() {
+    if (flyMode) return;
+    flyMode = true;
+    if (editor && editor.orbitControls) editor.orbitControls.enabled = false;
+    showDebug("FLY MODE: ON");
+  }
+
+  function exitFlyMode() {
+    if (!flyMode) return;
+    flyMode = false;
+    if (editor && editor.orbitControls) {
+      editor.orbitControls.enabled = true;
+      // Update orbit target to where camera is now looking
+      var THREE = window.THREE;
+      var dir = new THREE.Vector3();
+      editor.camera.getWorldDirection(dir);
+      editor.orbitControls.target.copy(editor.camera.position).add(dir.multiplyScalar(10));
+      editor.orbitControls.update();
+    }
+    showDebug("FLY MODE: OFF");
+  }
+
+  function updateFlyMovement() {
+    if (!flyMode || !editor) return;
+    var speed = 0.2;  // Units per frame (~12 units/sec at 60fps)
+    if (flyKeys["ShiftLeft"] || flyKeys["ShiftRight"]) speed *= 3;
+    // Scroll wheel adjusts speed in fly mode (tracked via flyKeys.__scrollSpeed)
+    if (flyKeys.__scrollSpeed) speed *= flyKeys.__scrollSpeed;
+    if (flyKeys["KeyW"]) editor.camera.translateZ(-speed);
+    if (flyKeys["KeyS"]) editor.camera.translateZ(speed);
+    if (flyKeys["KeyA"]) editor.camera.translateX(-speed);
+    if (flyKeys["KeyD"]) editor.camera.translateX(speed);
+    if (flyKeys["KeyQ"]) editor.camera.translateY(-speed);
+    if (flyKeys["KeyE"]) editor.camera.translateY(speed);
+  }
+
+  // ---- Arrow Key Panning ----
+  function panCamera(dx, dy, dz, fast) {
+    if (!editor) return;
+    var speed = fast ? 2 : 0.5;
+    var THREE = window.THREE;
+    var right = new THREE.Vector3();
+    var forward = new THREE.Vector3();
+    editor.camera.getWorldDirection(forward);
+    right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+    forward.y = 0; forward.normalize();
+    var move = new THREE.Vector3();
+    move.addScaledVector(right, dx * speed);
+    move.y += dy * speed;
+    move.addScaledVector(forward, -dz * speed);
+    editor.camera.position.add(move);
+    if (editor.orbitControls) {
+      editor.orbitControls.target.add(move);
+      editor.orbitControls.update();
+    }
+  }
+
+  // ---- Animation Helpers (for AnimatedCharacter objects) ----
+  function handleGetAnimations(uuid) {
+    if (!editor) return;
+    var obj = findByUuid(editor.scene, uuid);
+    if (obj && obj.userData && obj.userData.__clipNames) {
+      window.parent.postMessage({
+        type: "game-editor-animation-clips",
+        uuid: uuid,
+        clips: obj.userData.__clipNames,
+        currentClip: typeof obj.userData.__currentClip === "function" ? obj.userData.__currentClip() : (obj.userData.__currentClip || null),
+        animMap: obj.userData.__animMap || null,
+        clipDurations: obj.userData.__clipDurations || {},
+      }, "*");
+    }
+  }
+
+  var __animProgressInterval = null;
+  function handlePlayAnimation(uuid, clipName) {
+    if (!editor) return;
+    var obj = findByUuid(editor.scene, uuid);
+    if (obj && obj.userData && obj.userData.__play) {
+      obj.userData.__play(clipName);
+      if (__animProgressInterval) clearInterval(__animProgressInterval);
+      __animProgressInterval = setInterval(function() {
+        if (!obj || !obj.userData || !obj.userData.__getTime) { clearInterval(__animProgressInterval); __animProgressInterval = null; return; }
+        var info = obj.userData.__getTime();
+        try { window.parent.postMessage({ type: "game-editor-animation-progress", uuid: uuid, time: info.time, duration: info.duration, clipName: info.clipName, paused: info.paused }, "*"); } catch(e) {}
+      }, 100);
+    }
+  }
+
   // ---- Duplicate ----
   function duplicateSelected() {
     if (!selectedObj || !editor) return;
@@ -1044,6 +1144,20 @@ export function getVisualEditBridgeScript(): string {
     if (!active) return;
     var tag = (e.target || {}).tagName;
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    // Track key state for flythrough
+    flyKeys[e.code] = true;
+    // If RMB is held and a movement key is pressed, enter fly mode
+    var isMoveKey = e.code === "KeyW" || e.code === "KeyA" || e.code === "KeyS" || e.code === "KeyD" || e.code === "KeyQ" || e.code === "KeyE";
+    if (flyRMBDown && isMoveKey) {
+      enterFlyMode();
+      e.preventDefault();
+      return;
+    }
+    // In fly mode, skip gizmo switching (WASD used for movement)
+    if (flyMode && isMoveKey) {
+      e.preventDefault();
+      return;
+    }
     // Ctrl+Z — Undo
     if ((e.ctrlKey || e.metaKey) && e.key === "z") {
       applyUndo(); e.preventDefault(); return;
@@ -1070,7 +1184,9 @@ export function getVisualEditBridgeScript(): string {
       case "g": case "G":
         toggleGridHelper(); e.preventDefault(); break;
       case "Escape":
-        if (isDragging) { endXZDrag(); } else { deselectObject(); }
+        if (flyMode) { exitFlyMode(); }
+        else if (isDragging) { endXZDrag(); }
+        else { deselectObject(); }
         e.preventDefault(); break;
       case "Delete": case "Backspace":
         if (selectedObj && editor) {
@@ -1082,6 +1198,20 @@ export function getVisualEditBridgeScript(): string {
           window.parent.postMessage({ type: "game-editor-object-deleted", uuid: uuid }, "*");
         }
         e.preventDefault(); break;
+      // Arrow keys — pan camera (Shift = faster)
+      case "ArrowUp": panCamera(0, 0, -1, e.shiftKey); e.preventDefault(); break;
+      case "ArrowDown": panCamera(0, 0, 1, e.shiftKey); e.preventDefault(); break;
+      case "ArrowLeft": panCamera(-1, 0, 0, e.shiftKey); e.preventDefault(); break;
+      case "ArrowRight": panCamera(1, 0, 0, e.shiftKey); e.preventDefault(); break;
+    }
+  }
+
+  function onKeyUp(e) {
+    delete flyKeys[e.code];
+    // Exit fly mode if no movement keys held and RMB released
+    if (flyMode) {
+      var anyMoveKey = flyKeys["KeyW"] || flyKeys["KeyA"] || flyKeys["KeyS"] || flyKeys["KeyD"] || flyKeys["KeyQ"] || flyKeys["KeyE"];
+      if (!anyMoveKey) exitFlyMode();
     }
   }
 
@@ -1089,7 +1219,8 @@ export function getVisualEditBridgeScript(): string {
   function editorLoop() {
     if (!active || !editor) return;
     editorAnimId = requestAnimationFrame(editorLoop);
-    if (editor.orbitControls) editor.orbitControls.update();
+    updateFlyMovement();
+    if (editor.orbitControls && !flyMode) editor.orbitControls.update();
     if (boxHelper && selectedObj) boxHelper.update();
     // Per-frame sweep: remove duplicate __editor_ objects (old Game3D.tsx templates lack _hasExt guard)
     if (editor.scene) {
@@ -1131,6 +1262,11 @@ export function getVisualEditBridgeScript(): string {
         var oc = editor.orbitControls;
         oc.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
         oc.screenSpacePanning = true;
+        // No distance limits — allow infinite zoom for long maps
+        oc.minDistance = 0.1;
+        oc.maxDistance = 100000;
+        // Faster default zoom speed
+        oc.zoomSpeed = 2.0;
         // Target at scene center ground level — stable orbit point for any scene type
         oc.target.set(0, 1, 0);
         oc.update();
@@ -1149,6 +1285,63 @@ export function getVisualEditBridgeScript(): string {
       setTimeout(fixOrbitControls, 50);
       setTimeout(fixOrbitControls, 200);
       showDebug("Bridge ACTIVATED. Canvas: " + editor.renderer.domElement.tagName + " " + editor.renderer.domElement.width + "x" + editor.renderer.domElement.height);
+      // Prevent right-click context menu on canvas (for flythrough mode)
+      flyContextMenuHandler = function(e) { if (active) e.preventDefault(); };
+      editor.renderer.domElement.addEventListener("contextmenu", flyContextMenuHandler);
+      // Flythrough: track right mouse button
+      flyRMBDownHandler = function(e) {
+        if (!active || !editor || e.button !== 2) return;
+        flyRMBDown = true;
+        flyLastMouse = { x: e.clientX, y: e.clientY };
+      };
+      flyRMBUpHandler = function(e) {
+        if (e.button !== 2) return;
+        flyRMBDown = false;
+        flyLastMouse = null;
+        if (flyMode) exitFlyMode();
+      };
+      flyMouseMoveHandler = function(e) {
+        if (!flyMode || !flyLastMouse || !editor) return;
+        var dx = e.clientX - flyLastMouse.x;
+        var dy = e.clientY - flyLastMouse.y;
+        flyLastMouse = { x: e.clientX, y: e.clientY };
+        // Rotate camera (look around) — yaw+pitch with Euler YXZ order
+        editor.camera.rotation.order = "YXZ";
+        editor.camera.rotation.y -= dx * 0.003;
+        editor.camera.rotation.x -= dy * 0.003;
+        editor.camera.rotation.x = Math.max(-1.5, Math.min(1.5, editor.camera.rotation.x));
+      };
+      window.addEventListener("mousedown", flyRMBDownHandler, true);
+      window.addEventListener("mouseup", flyRMBUpHandler, true);
+      window.addEventListener("mousemove", flyMouseMoveHandler, true);
+      // Ctrl/Shift + Scroll = faster zoom (5x speed boost)
+      flyWheelHandler = function(e) {
+        if (!active || !editor || !editor.orbitControls) return;
+        if (flyMode) {
+          // In fly mode, scroll adjusts movement speed
+          flyKeys.__scrollSpeed = Math.max(0.2, Math.min(10, (flyKeys.__scrollSpeed || 1) + (e.deltaY > 0 ? -0.3 : 0.3)));
+          e.preventDefault();
+          return;
+        }
+        if (e.ctrlKey || e.shiftKey) {
+          // Speed boost: directly move camera along view direction
+          e.preventDefault();
+          e.stopPropagation();
+          var THREE = window.THREE;
+          var dir = new THREE.Vector3();
+          editor.camera.getWorldDirection(dir);
+          var boost = e.deltaY > 0 ? -3 : 3;
+          editor.camera.position.addScaledVector(dir, boost);
+          if (editor.orbitControls) {
+            editor.orbitControls.target.addScaledVector(dir, boost);
+            editor.orbitControls.update();
+          }
+        }
+      };
+      editor.renderer.domElement.addEventListener("wheel", flyWheelHandler, { capture: true, passive: false });
+      // Key up handler (for flythrough key release)
+      flyKeyUpHandler = function(e) { if (active) onKeyUp(e); };
+      window.addEventListener("keyup", flyKeyUpHandler, true);
       // Register click handlers: window capture + canvas direct + pointerdown backup
       window.addEventListener("mousedown", onCanvasMouseDown, true);
       window.addEventListener("mousemove", onCanvasMouseMove, true);
@@ -1199,6 +1392,11 @@ export function getVisualEditBridgeScript(): string {
     if (!active) return;
     active = false;
     cancelAnimationFrame(editorAnimId);
+    // Exit fly mode if active
+    if (flyMode) exitFlyMode();
+    flyMode = false; flyKeys = {}; flyRMBDown = false; flyLastMouse = null;
+    // Clean up animation progress interval
+    if (__animProgressInterval) { clearInterval(__animProgressInterval); __animProgressInterval = null; }
     deselectObject();
     if (isDragging) endXZDrag();
     if (gridHelper && editor) { editor.scene.remove(gridHelper); if (gridHelper.dispose) gridHelper.dispose(); gridHelper = null; }
@@ -1222,6 +1420,15 @@ export function getVisualEditBridgeScript(): string {
     window.removeEventListener("mousemove", onCanvasMouseMove, true);
     window.removeEventListener("mouseup", onCanvasMouseUp, true);
     window.removeEventListener("keydown", onKeyDown, true);
+    // Remove flythrough handlers
+    if (flyRMBDownHandler) window.removeEventListener("mousedown", flyRMBDownHandler, true);
+    if (flyRMBUpHandler) window.removeEventListener("mouseup", flyRMBUpHandler, true);
+    if (flyMouseMoveHandler) window.removeEventListener("mousemove", flyMouseMoveHandler, true);
+    if (flyKeyUpHandler) window.removeEventListener("keyup", flyKeyUpHandler, true);
+    if (flyContextMenuHandler && editor) editor.renderer.domElement.removeEventListener("contextmenu", flyContextMenuHandler);
+    if (flyWheelHandler && editor) editor.renderer.domElement.removeEventListener("wheel", flyWheelHandler, { capture: true });
+    flyRMBDownHandler = null; flyRMBUpHandler = null; flyMouseMoveHandler = null;
+    flyKeyUpHandler = null; flyWheelHandler = null; flyContextMenuHandler = null;
     // Remove stored anonymous handlers (prevents accumulation on toggle)
     if (canvasPointerDownHandler && editor) {
       editor.renderer.domElement.removeEventListener("pointerdown", canvasPointerDownHandler, false);
@@ -1304,6 +1511,43 @@ export function getVisualEditBridgeScript(): string {
       case "game-editor-duplicate": duplicateSelected(); break;
       case "game-editor-undo": applyUndo(); break;
       case "game-editor-toggle-snap": toggleGridHelper(); break;
+      // Select + Focus (hierarchy double-click)
+      case "game-editor-select-and-focus":
+        if (editor && d.uuid) {
+          var focusObj = findByUuid(editor.scene, d.uuid);
+          if (focusObj && focusObj !== editor.scene && focusObj.type !== "Scene") {
+            selectObject(focusObj);
+            // Small delay to let selection propagate before focus animation
+            setTimeout(function() { focusSelected(); }, 50);
+          }
+        } break;
+      // Animation handlers (redundant with embedded bridge for reliability)
+      case "game-editor-get-animations":
+        if (d.uuid) handleGetAnimations(d.uuid); break;
+      case "game-editor-play-animation":
+        if (d.uuid && d.clipName) handlePlayAnimation(d.uuid, d.clipName); break;
+      case "game-editor-pause-animation":
+        if (editor && d.uuid) {
+          var pauseObj = findByUuid(editor.scene, d.uuid);
+          if (pauseObj && pauseObj.userData && pauseObj.userData.__pause) pauseObj.userData.__pause();
+        } break;
+      case "game-editor-resume-animation":
+        if (editor && d.uuid) {
+          var resumeObj = findByUuid(editor.scene, d.uuid);
+          if (resumeObj && resumeObj.userData && resumeObj.userData.__resume) resumeObj.userData.__resume();
+        } break;
+      case "game-editor-stop-animation":
+        if (editor && d.uuid) {
+          var stopObj = findByUuid(editor.scene, d.uuid);
+          if (stopObj && stopObj.userData && stopObj.userData.__stop) stopObj.userData.__stop();
+          if (__animProgressInterval) { clearInterval(__animProgressInterval); __animProgressInterval = null; }
+          try { window.parent.postMessage({ type: "game-editor-animation-progress", uuid: d.uuid, time: 0, duration: 0, clipName: null, paused: false }, "*"); } catch(e) {}
+        } break;
+      case "game-editor-seek-animation":
+        if (editor && d.uuid && typeof d.time === "number") {
+          var seekObj = findByUuid(editor.scene, d.uuid);
+          if (seekObj && seekObj.userData && seekObj.userData.__setTime) seekObj.userData.__setTime(d.time);
+        } break;
       case "game-editor-viewport-click":
         // Click forwarded from parent page — handles cross-origin iframe event routing
         if (!active) { activateBridge(); }

@@ -82,6 +82,7 @@ interface GameEditorContextValue {
 	requestSceneTree: () => void;
 	setIframeRef: (ref: React.RefObject<HTMLIFrameElement | null>) => void;
 	focusSelected: () => void;
+	selectAndFocus: (uuid: string) => void;
 	duplicateSelected: () => void;
 	undoAction: () => void;
 	toggleSnap: () => void;
@@ -221,6 +222,10 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 
 	const focusSelected = useCallback(() => {
 		sendToIframe({ type: "game-editor-focus" });
+	}, [sendToIframe]);
+
+	const selectAndFocus = useCallback((uuid: string) => {
+		sendToIframe({ type: "game-editor-select-and-focus", uuid });
 	}, [sendToIframe]);
 
 	const duplicateSelected = useCallback(() => {
@@ -401,6 +406,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				requestSceneTree,
 				setIframeRef: setIframeRefCb,
 				focusSelected,
+				selectAndFocus,
 				duplicateSelected,
 				undoAction,
 				toggleSnap,

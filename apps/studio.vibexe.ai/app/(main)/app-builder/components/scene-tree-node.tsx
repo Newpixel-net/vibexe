@@ -25,6 +25,7 @@ interface SceneTreeNodeProps {
 	depth: number;
 	selectedUuid: string | null;
 	onSelect: (uuid: string) => void;
+	onDoubleClick?: (uuid: string) => void;
 }
 
 function getIcon(node: SceneNode) {
@@ -43,6 +44,7 @@ export function SceneTreeNode({
 	depth,
 	selectedUuid,
 	onSelect,
+	onDoubleClick,
 }: SceneTreeNodeProps) {
 	const [expanded, setExpanded] = useState(depth < 1);
 	const hasChildren = node.children.length > 0;
@@ -62,6 +64,10 @@ export function SceneTreeNode({
 	const handleClick = useCallback(() => {
 		onSelect(node.uuid);
 	}, [node.uuid, onSelect]);
+
+	const handleDoubleClick = useCallback(() => {
+		onDoubleClick?.(node.uuid);
+	}, [node.uuid, onDoubleClick]);
 
 	const handleToggle = useCallback(
 		(e: React.MouseEvent) => {
@@ -87,6 +93,7 @@ export function SceneTreeNode({
 				}`}
 				style={{ paddingLeft: depth * 12 + 4 }}
 				onClick={handleClick}
+				onDoubleClick={handleDoubleClick}
 			>
 				{/* Expand toggle */}
 				<span
@@ -132,6 +139,7 @@ export function SceneTreeNode({
 							depth={depth + 1}
 							selectedUuid={selectedUuid}
 							onSelect={onSelect}
+							onDoubleClick={onDoubleClick}
 						/>
 					))}
 				</div>
