@@ -95,6 +95,7 @@ export function DashboardClient({ stats }: { stats: DashboardStats }) {
 					{ label: "OAuth Apps", href: "/admin/settings/oauth-apps" },
 					{ label: "Suggestions", href: "/admin/suggestions" },
 					{ label: "Engine", href: "/admin/engine" },
+				{ label: "Games Engine", href: "/admin/games-engine" },
 				].map((link) => (
 					<a
 						key={link.href}
