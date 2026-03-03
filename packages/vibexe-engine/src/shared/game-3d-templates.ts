@@ -1620,6 +1620,13 @@ export async function createAnimatedCharacter3D(
   console.log("[3D] Character final: targetH=" + targetHeight + ", autoScale=" + autoScale.toFixed(3) + ", boneDeformed=" + usedBoneTransform);
 
   // --- Strip root motion + scale tracks from animation clips ---
+  // Only lock XZ position on the actual root bone (Hips), NOT all bones.
+  // Three.js r128 GLTFLoader uses bare node names ("Hips.position", not "Armature/Hips.position"),
+  // so depth-based detection fails — all bones appear at depth 1.
+  const _ROOT_BONE_NAMES = new Set([
+    "hips", "root", "mixamorig:hips", "mixamorigHips", "mixamorig_hips",
+    "pelvis", "rootnode", "root_bone", "bip001", "bip01", "hip",
+  ]);
   const allClips = gltf.animations || [];
   for (const clip of allClips) {
     for (let ti = clip.tracks.length - 1; ti >= 0; ti--) {
@@ -1629,11 +1636,10 @@ export async function createAnimatedCharacter3D(
       if (!isPos && !isScale) continue;
       const suffix = isPos ? ".position" : ".scale";
       const nodePath = track.name.replace(suffix, "");
-      const depth = nodePath === "" ? 0 : nodePath.split("/").length;
-      if (depth === 0) {
+      if (nodePath === "") {
         // Scene root — remove entirely (prevents overriding our autoScale or position)
         clip.tracks.splice(ti, 1);
-      } else if (isPos && depth <= 2) {
+      } else if (isPos && _ROOT_BONE_NAMES.has(nodePath.toLowerCase())) {
         // Root bone position: lock XZ, keep Y for hip bobbing
         if (track.values && track.values.length >= 3) {
           const firstX = track.values[0];
@@ -1723,7 +1729,6 @@ export async function createAnimatedCharacter3D(
   function play(name: string, playOpts?: { loop?: boolean; crossfade?: number }) {
     const clip = findClip(name);
     if (!clip) return;
-    console.log("[3D] play() requested:", name, "→ found clip:", clip.name, "duration:", clip.duration?.toFixed(2));
     const action = mixer.clipAction(clip);
 
     // IDEMPOTENT: If same animation is already playing, do nothing.
@@ -3798,7 +3803,6 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               case "game-editor-play-animation":
                 if (d.uuid && d.clipName) {
                   const animTarget = _findByUuid(scene, d.uuid);
-                  console.log("[GameEditorBridge] play-animation requested:", d.clipName, "target:", animTarget?.name, "has __play:", !!animTarget?.userData?.__play);
                   if (animTarget?.userData?.__play) {
                     animTarget.userData.__play(d.clipName);
                     // Start streaming progress back to parent
