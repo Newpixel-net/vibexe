@@ -722,84 +722,77 @@ You just implement \`init()\` and \`update()\`. The rest is automatic.
 ### 3D Top-Down Shooter (Squad Shooter, Archero, Brawl Stars)
 
 **MANDATORY patterns — these define the top-down shooter genre:**
-- Top-down or isometric camera: camera.position.set(playerX, 15, playerZ + 10), lookAt player
-- Joystick movement (left stick) + auto-aim or tap-to-shoot (right side)
-- Wave-based or room-based enemy spawning
-- Use \`squad-shooter\` asset pack for characters, enemies, weapons, world tiles
+- Top-down camera: camera.position.set(playerX, 20, playerZ + 14), lookAt player
+- Joystick movement (left stick) + auto-aim (auto-fire at nearest enemy)
+- Wave-based enemy spawning with tiered difficulty
+- Use \`squad-shooter-gltf\` asset pack for ALL characters, enemies, weapons, world tiles
+- Arena is procedurally generated via \`generateShooterArena()\` — creates tile-based floor, border walls, cover blocks
+- Do NOT use kaykit factory helpers (createPlayer3D, createBarrier3D, etc.) — load GLBs directly
 
 **FORBIDDEN patterns:**
 - No first-person camera — camera stays above/behind
 - No manual camera rotation — camera follows player automatically
 - No platformer-style jumping — movement is horizontal plane only
+- No kaykit-platformer models — use ONLY squad-shooter-gltf models
 
-**Architecture — Finite State Machine (FSM):**
-- Each enemy type has states: Idle → Patrol → Follow → Attack → Flee → Dead
-- Per-frame evaluation: check transitions BEFORE executing current state logic
-- State interface: \`{ enter(), execute(delta), exit(), transitions: Array<{condition, target}> }\`
-- Example enemy FSM: if playerDist < FOLLOW_RANGE → Follow; if playerDist < ATTACK_RANGE → Attack; if hp < FLEE_HP → Flee
-\`\`\`
-// Minimal FSM pattern
-const states = { idle: {...}, patrol: {...}, follow: {...}, attack: {...} };
-let currentState = "idle";
-function updateFSM(enemy, delta) {
-  const state = states[currentState];
-  for (const t of state.transitions) {
-    if (t.condition(enemy)) { state.exit?.(enemy); currentState = t.target; states[currentState].enter?.(enemy); break; }
-  }
-  states[currentState].execute(enemy, delta);
-}
-\`\`\`
+**Architecture — Procedural Arena:**
+- \`generateShooterArena()\` creates a grid-based arena using seeded RNG (mulberry32)
+- Ground: 8x8 grid of \`Ground_1.glb\` tiles (4 units each = 32x32 arena)
+- Borders: \`Border_1/2/3/4.glb\` + \`Border_Corner.glb\` around perimeter with physics bodies
+- Cover: ~20% of interior cells filled with \`Block_1x1_Big/Medium/Small.glb\`, \`Block_1x2_Big/Medium.glb\`
+- Walls: 2-4 interior \`Wall_1x1.glb\` / \`Wall_1x2.glb\` segments
+- Themes: world_1 (green) or world_2 (desert) — chosen randomly. Prefix "1_" or "2_"
+- Spawn points: walkable cells >8 units from center for enemy spawning
 
-**Architecture — Weapon System:**
-- Abstract weapon interface: \`{ damage, fireRate, range, bulletSpeed, bulletCount, spread }\`
-- Weapon types: Pistol (single, fast), Shotgun (5 bullets, wide spread), Minigun (rapid, low damage), Grenade (AoE, slow), Tesla (chain, medium)
-- Bullet pooling: pre-create 50 bullet meshes, reuse via \`pool.get()\` / \`pool.release()\`
-- Fire cooldown: \`if (time - lastFire < 1/fireRate) return;\`
-- Load weapon models: \`loadGLTF(modelUrl("squad-shooter", "weapons/Shotgun.glb"))\`
+**Architecture — GLTF Loading:**
+- \`loadModel(subpath, cloneMats?)\` caches originals, returns clones. Set \`cloneMats=true\` for enemies/player (material flash)
+- \`scaleToHeight(mesh, targetH)\` auto-scales by bounding box height
+- \`scaleToTile(mesh, targetX, targetZ)\` auto-scales to fit tile footprint
+- All models: \`modelUrl("squad-shooter-gltf", "path/to/model.glb")\`
+
+**Architecture — Enemy Tiers:**
+| Tier | Min Wave | Models | HP | Speed | Damage |
+|------|----------|--------|-----|-------|--------|
+| 1 | 1 | Normal, Skinny, Mine | 25 | 1.8 | 1 |
+| 2 | 3 | Pistolman_1, RifleMan, CowBoy_1 | 45 | 2.2 | 1 |
+| 3 | 5 | Bomber_1, Grenader, ShotgunMan_1, MeeleMan | 65 | 2.6 | 2 |
+| 4 | 7 | Bomber_Elite, RifleMan_ELITE, Pistolman_Elite, ShotgunMan_ELITE, CowBoy_ELITE, MeeleMan_Elite, Grenader_ELITE, Sniper_Elite | 90 | 3.0 | 2 |
+| Boss | Every 5 | Boss_Bomber, Old_Boss, Sniper_Boss | 200 | 1.5 | 3 |
+
+**Architecture — FSM AI:**
+- Each enemy: states Idle → Follow → Attack → Flee
+- Transitions: dist < 20 → Follow; dist < 8 → Attack; hp/maxHp < 0.2 → Flee
+- Attack: melee (dist < 1.8 = hit player, 0.5s cooldown)
+- Boss scream SFX on boss spawn
 
 **Architecture — Camera System:**
-- Base offset: camera follows player at fixed height + angle
-- Enemy shift: when enemies nearby, camera offsets toward them slightly (lerp 0.1)
-- Screen shake on hit: random offset ±0.3 for 200ms, decay exponentially
-- Zoom on boss: camera.fov lerps to 45 during boss fights, back to 60 after
-\`\`\`
-// Camera with enemy-shift
-const CAM_HEIGHT = 15, CAM_BACK = 10, ENEMY_SHIFT = 0.15;
-function updateCamera(player, nearestEnemy, delta) {
-  let tx = player.x, tz = player.z + CAM_BACK;
-  if (nearestEnemy) { tx += (nearestEnemy.x - player.x) * ENEMY_SHIFT; tz += (nearestEnemy.z - player.z) * ENEMY_SHIFT; }
-  camera.position.lerp(new THREE.Vector3(tx, CAM_HEIGHT, tz), 3 * delta);
-  camera.lookAt(player.x, 0, player.z);
-}
-\`\`\`
-
-**Architecture — Dynamic Difficulty:**
-- Power gap = playerPower - baselinePower (based on weapon tier + upgrades + level)
-- Difficulty tiers: Easy (gap > 5), Normal (gap 2-5), Medium (gap -2 to 2), Hard (gap < -2)
-- Scale per tier: enemyHP multiplier (0.7/1.0/1.3/1.6), spawnRate multiplier (0.8/1.0/1.2/1.5), enemyDamage multiplier
-- Recalculate every wave/room transition, NOT every frame
+- CAM_HEIGHT = 20, CAM_BACK = 14, ENEMY_SHIFT = 0.12
+- Lerp toward nearest enemy for anticipation
+- Screen shake on hit (decay 8/s)
 
 **Architecture — Hit Feedback Stack (apply ALL on hit):**
 1. Camera shake: random offset ±intensity, decay over 200ms
-2. Mesh flash: \`enemy.material.emissive.set(0xffffff)\`, reset after 100ms
-3. Floating damage text: \`createText3D("-15", hitPos, { color: "#ff4444", size: 0.8 })\`, animate upward + fade
-4. Knockback: push enemy body away from bullet direction, velocity *= knockbackForce
-5. SFX: \`playSound(soundUrl("hit"))\` on every hit, \`playSound(soundUrl("explosion"))\` on kill
-6. Particle burst: \`createParticleEmitter(scene, x, y, z, { preset: "explosion", count: 8, lifetime: 0.3 })\`
+2. Mesh flash: \`enemy.material.emissive.set(0xffffff)\`, reset after 150ms
+3. Floating damage text: \`createText3D("-15", hitPos, { color: "#ff4444", size: 0.6 })\`, animate upward + fade
+4. Knockback: push enemy body away from bullet direction
+5. SFX: \`playSound(soundUrl("squad-shooter/sfx/enemy_hit_1"))\` on hit, \`soundUrl("squad-shooter/sfx/explosion")\` on kill
+6. Particle burst: \`createParticleEmitter(scene, x, y, z, { preset: "explosion", count: 6 })\`
 
-**Architecture — Room/Wave System:**
-- Wave mode: enemies spawn in waves. Wave N = baseCount + N * 2 enemies. 3-second break between waves.
-- Room mode: player enters trigger zone → doors close → enemies spawn → clear all → doors open → proceed
-- Boss every 5 waves/rooms: larger model, HP bar overlay, special attack patterns
-- Spawn positions: random within arena bounds, minimum distance from player (>5 units)
-
-**Assets — Squad Shooter Pack:**
-- Player characters: \`loadGLTF(modelUrl("squad-shooter", "characters/player/Character_01.glb"))\` (6 variants)
-- Enemies: \`modelUrl("squad-shooter", "characters/enemies/Bomber_1.glb")\` — 22 enemy models including Boss_Bomber, Kamikaze, Boss_Kamikaze
-- Weapons: Grenade_launcher, Minigun, Shotgun, Teslagun (+ Elite/Huge variants)
-- World tiles: world_1 (25 tiles, green theme) and world_2 (23 tiles, desert theme) — Block, Ground, Wall, Corner pieces
-- Collectibles: Coin, Ring, Chest, Chest_RV
-- Audio: 24 OGG files — SFX: \`soundUrl("squad-shooter/sfx/shot")\`, \`soundUrl("squad-shooter/sfx/coin_pickup")\`, \`soundUrl("squad-shooter/sfx/enemy_hit_1")\`, \`soundUrl("squad-shooter/sfx/explosion")\`, \`soundUrl("squad-shooter/sfx/player_hit")\`, \`soundUrl("squad-shooter/sfx/boss_scream")\`, \`soundUrl("squad-shooter/sfx/upgrade")\`. Music: \`soundUrl("squad-shooter/music/menu_music")\`, \`soundUrl("squad-shooter/music/game_music")\`
+**Assets — Squad Shooter Pack (squad-shooter-gltf):**
+- Player: \`modelUrl("squad-shooter-gltf", "characters/player/Main_Char_01_(without_rig).glb")\` — 3 skins (01/02/03)
+- Also rigged: \`Character_01/02/03.glb\` (with animations)
+- Enemies (22 models): \`modelUrl("squad-shooter-gltf", "characters/enemies/Bomber_1.glb")\`
+  Full list: Normal, Skinny, Mine, Pistolman_1, RifleMan, CowBoy_1, Bomber_1, Grenader, ShotgunMan_1, MeeleMan, Sniper_1, Bomber_Elite, RifleMan_ELITE, Pistolman_Elite, ShotgunMan_ELITE, CowBoy_ELITE, MeeleMan_Elite, Grenader_ELITE, Sniper_Elite, Boss_Bomber, Old_Boss, Sniper_Boss
+- Weapons (4): \`modelUrl("squad-shooter-gltf", "weapons/Shotgun.glb")\` — Shotgun, Minigun, Grenade_launcher, Teslagun
+- World tiles: \`modelUrl("squad-shooter-gltf", "environment/world_1/1_Ground_1.glb")\`
+  Ground: \`{prefix}_Ground_1.glb\`, \`{prefix}_Ground_Half.glb\`
+  Borders: \`{prefix}_Border_1/2/3/4.glb\`, \`{prefix}_Border_Corner.glb\`, \`{prefix}_Border_Exit.glb\`, \`{prefix}_Border_Half.glb\`
+  Blocks: \`{prefix}_Block_1x1_Big/Medium/Small.glb\`, \`{prefix}_Block_1x1_Big_Half.glb\`, \`{prefix}_Block_1x2_Big/Medium/Small.glb\`
+  Walls: \`{prefix}_Wall_1x1.glb\`, \`{prefix}_Wall_1x2.glb\`, \`{prefix}_Wall_corner.glb\`
+  (prefix = "1" for world_1, "2" for world_2)
+- Collectibles: \`modelUrl("squad-shooter-gltf", "misc/Coin.glb")\` — Coin, Ring, Chest, Chest_RV
+- Particles: \`modelUrl("squad-shooter-gltf", "particles/Bullet.glb")\` — Bullet, Light_ring, Shield_capsule, heal_plus, Smoke_custom, Sphere_custom
+- Audio: SFX: \`soundUrl("squad-shooter/sfx/shot")\`, \`soundUrl("squad-shooter/sfx/coin_pickup")\`, \`soundUrl("squad-shooter/sfx/enemy_hit_1")\`, \`soundUrl("squad-shooter/sfx/explosion")\`, \`soundUrl("squad-shooter/sfx/player_hit")\`, \`soundUrl("squad-shooter/sfx/boss_scream")\`, \`soundUrl("squad-shooter/sfx/upgrade")\`. Music: \`soundUrl("squad-shooter/music/menu_music")\`, \`soundUrl("squad-shooter/music/game_music")\`
 
 ## \u2605 Complete GameScene Reference — COPY THIS PATTERN
 

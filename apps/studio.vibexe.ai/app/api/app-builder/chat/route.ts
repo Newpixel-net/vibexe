@@ -973,14 +973,16 @@ ${injectedFiles.map((f) => `- \`${f}\``).join("\n")}
 - Wave-based spawning: Wave N = baseCount + N*2 enemies, 3s break between waves
 - Bullet pooling: pre-create bullet meshes, reuse with pool.get()/pool.release()
 - Hit feedback stack on EVERY hit: camera shake + mesh flash + floating damage text + knockback + SFX + particle burst
-- Use \`squad-shooter\` asset pack: modelUrl("squad-shooter", "characters/player/Character_01.glb") for player
-- Enemy models: modelUrl("squad-shooter", "characters/enemies/Bomber_1.glb") — 22 variants available
-- Weapon models: modelUrl("squad-shooter", "weapons/Shotgun.glb") — Grenade_launcher, Minigun, Shotgun, Teslagun
-- World tiles: modelUrl("squad-shooter", "environment/world_1/1_Block_1x1_Big.glb") for arena floor/walls
-- Collectibles: modelUrl("squad-shooter", "misc/Coin.glb"), modelUrl("squad-shooter", "misc/Chest.glb")
-- Audio: soundUrl("squad-shooter/sfx/shot") for shooting, soundUrl("squad-shooter/sfx/coin_pickup") for collect, soundUrl("squad-shooter/sfx/enemy_hit_1") for enemy hit, soundUrl("squad-shooter/sfx/explosion") for kills, soundUrl("squad-shooter/sfx/player_hit") for player damage, soundUrl("squad-shooter/music/menu_music") for BGM
-- Dynamic difficulty: scale enemyHP/spawnRate based on player power gap every wave
-- Boss every 5 waves: larger model (Boss_Bomber/Boss_Kamikaze), HP bar, special attacks`);
+- Use \`squad-shooter-gltf\` asset pack: modelUrl("squad-shooter-gltf", "characters/player/Main_Char_01_(without_rig).glb") for player (3 skins)
+- Do NOT use kaykit factory helpers (createPlayer3D, createBarrier3D) — load squad-shooter GLBs directly via loadGLTF/loadModel
+- Arena: generateShooterArena() creates procedural tile-based arena with Ground, Border, Block, Wall GLBs
+- Enemy models: modelUrl("squad-shooter-gltf", "characters/enemies/Bomber_1.glb") — 22 variants in 4 tiers + 3 bosses
+- Weapon pickups: modelUrl("squad-shooter-gltf", "weapons/Shotgun.glb") — Shotgun, Minigun, Grenade_launcher, Teslagun
+- World tiles: modelUrl("squad-shooter-gltf", "environment/world_1/1_Ground_1.glb"), Border_1/2/3/4, Block_1x1_Big/Medium/Small, Wall_1x1/1x2
+- Collectibles: modelUrl("squad-shooter-gltf", "misc/Coin.glb"), Ring.glb, Chest.glb
+- Bullets: modelUrl("squad-shooter-gltf", "particles/Bullet.glb") for bullet mesh pool
+- Audio: soundUrl("squad-shooter/sfx/shot"), soundUrl("squad-shooter/sfx/coin_pickup"), soundUrl("squad-shooter/sfx/enemy_hit_1"), soundUrl("squad-shooter/sfx/explosion"), soundUrl("squad-shooter/sfx/player_hit"), soundUrl("squad-shooter/sfx/boss_scream"), soundUrl("squad-shooter/sfx/upgrade"). Music: soundUrl("squad-shooter/music/game_music")
+- Enemy tiers: Tier 1 (wave 1+): Normal/Skinny/Mine. Tier 2 (wave 3+): Pistolman/RifleMan/CowBoy. Tier 3 (wave 5+): Bomber/Grenader/ShotgunMan/MeeleMan. Tier 4 (wave 7+): Elite variants. Boss every 5 waves: Boss_Bomber/Old_Boss/Sniper_Boss`);
 					console.log(`[Chat API] 3D shooter addendum injected`);
 				}
 			} else {
