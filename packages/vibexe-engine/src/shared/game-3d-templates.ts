@@ -4610,14 +4610,13 @@ export const GameScene = {
     player.scale.set(3, 3, 3);
 
     // Physics body for player
-    playerBody = createPhysicsBody(world, 0, 1.5, 0, {
-      mass: 5,
-      shape: "box",
-      halfExtents: { x: 0.4, y: 0.8, z: 0.4 },
-      fixedRotation: true,
-      linearDamping: 0.1,
-    });
-    playerBody.angularDamping = 1;
+    playerBody = createPhysicsBody("box", 5, { x: 0, y: 1.5, z: 0 }, { x: 0.4, y: 0.8, z: 0.4 });
+    if (playerBody) {
+      playerBody.fixedRotation = true;
+      playerBody.linearDamping = 0.1;
+      playerBody.angularDamping = 1;
+    }
+    if (world && playerBody) world.addBody(playerBody);
 
     // Ground detection
     playerBody.addEventListener("collide", (e: any) => {
@@ -4919,11 +4918,8 @@ async function spawnSegment(safe: boolean = false) {
       variant: "4x4x1",
       color: lx === 0 ? "blue" : "green",
     });
-    const body = createPhysicsBody(world, lx * 4, -0.5, z - SEGMENT_LENGTH / 2, {
-      mass: 0,
-      shape: "box",
-      halfExtents: size,
-    });
+    const body = createPhysicsBody("box", 0, { x: lx * 4, y: -0.5, z: z - SEGMENT_LENGTH / 2 }, size);
+    if (world && body) world.addBody(body);
     seg.platforms.push({ mesh, body });
   }
 
@@ -4937,11 +4933,8 @@ async function spawnSegment(safe: boolean = false) {
           variant: "2x1x2",
           color: "red",
         });
-        const body = createPhysicsBody(world, bx, 0.5, bz, {
-          mass: 0,
-          shape: "box",
-          halfExtents: size,
-        });
+        const body = createPhysicsBody("box", 0, { x: bx, y: 0.5, z: bz }, size);
+        if (world && body) world.addBody(body);
         seg.barriers.push({ mesh, body, lane });
       }
     }
