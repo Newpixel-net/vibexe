@@ -5366,21 +5366,21 @@ export const GameScene = {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.0;
+    renderer.toneMappingExposure = 1.4;
 
     // Remove default Game3D.tsx lights (we need custom lighting for top-down shooter)
     const defaultLights = scene.children.filter((c: any) => c.isLight);
     defaultLights.forEach((l: any) => scene.remove(l));
 
     // Bright sky background — matches Unity Squad Shooter warm cartoon style
-    scene.background = new THREE.Color(0x99DDFF);
+    scene.background = new THREE.Color(0x88CCEE);
 
-    // Hemisphere: warm sky + warm ground. Reduced to prevent Phong overexposure.
-    const hemi = new THREE.HemisphereLight(0xffffff, 0xFFE8CC, 0.45);
+    // Hemisphere: warm sky + warm ground for soft ambient fill
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xFFE8CC, 0.55);
     scene.add(hemi);
 
     // Low ambient prevents pure-black shadows without washing out colors
-    const shooterAmbient = new THREE.AmbientLight(0xffffff, 0.15);
+    const shooterAmbient = new THREE.AmbientLight(0xffffff, 0.2);
     scene.add(shooterAmbient);
 
     // Main sun light — strong directional for crisp top-down shadows
