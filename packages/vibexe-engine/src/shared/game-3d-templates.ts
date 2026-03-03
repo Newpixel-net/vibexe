@@ -4795,7 +4795,7 @@ export const GameScene = {
     camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
 
     // HUD update
-    hud.update({ score, lives, custom: \\\`Distance: \\\${Math.floor(distance)}m | Speed: \\\${speed.toFixed(1)}\\\` });
+    hud.update({ score, lives, custom: \`Distance: \${Math.floor(distance)}m | Speed: \${speed.toFixed(1)}\` });
 
     // Fall off edge = lose life
     if (player.position.y < -5) {
@@ -4836,7 +4836,7 @@ function hitBarrier() {
   if (lives <= 0) {
     triggerGameOver();
   }
-  hud.update({ score, lives, custom: \\\`Distance: \\\${Math.floor(distance)}m\\\` });
+  hud.update({ score, lives, custom: \`Distance: \${Math.floor(distance)}m\` });
 }
 
 function triggerGameOver() {
@@ -4846,12 +4846,12 @@ function triggerGameOver() {
   const container = renderer.domElement.parentElement || renderer.domElement;
   const overlay = document.createElement("div");
   overlay.style.cssText = "position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);z-index:100;color:white;font-family:sans-serif;";
-  overlay.innerHTML = \\\`
+  overlay.innerHTML = \`
     <h1 style="font-size:48px;margin:0;">GAME OVER</h1>
-    <p style="font-size:24px;">Distance: \\\${Math.floor(distance)}m</p>
-    <p style="font-size:24px;">Score: \\\${score}</p>
+    <p style="font-size:24px;">Distance: \${Math.floor(distance)}m</p>
+    <p style="font-size:24px;">Score: \${score}</p>
     <button id="runner-restart" style="margin-top:20px;padding:12px 32px;font-size:20px;background:#4CAF50;color:white;border:none;border-radius:8px;cursor:pointer;">Play Again</button>
-  \\\`;
+  \`;
   container.appendChild(overlay);
   const btn = overlay.querySelector("#runner-restart");
   if (btn) btn.addEventListener("click", () => { overlay.remove(); restartGame(); });
