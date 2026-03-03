@@ -5046,6 +5046,68 @@ function mulberry32(seed: number) {
   };
 }
 
+// ===== Model Color Palette =====
+// GLB exports from Unity have grey baseColorFactor (0.4-0.5). Colors must be assigned.
+const MODEL_COLORS: Record<string, number> = {
+  // Players — blue/teal tones
+  'characters/player/Main_Char_01': 0x3399CC,
+  'characters/player/Main_Char_02': 0x4488BB,
+  'characters/player/Main_Char_03': 0x2277AA,
+  // Enemies — warm/hostile tones by tier
+  'characters/enemies/Normal': 0xCC5544,
+  'characters/enemies/Skinny': 0xBB6633,
+  'characters/enemies/Mine': 0x555555,
+  'characters/enemies/Pistolman': 0xDD7733,
+  'characters/enemies/RifleMan': 0xBB3333,
+  'characters/enemies/CowBoy': 0x996633,
+  'characters/enemies/Bomber': 0xFF6622,
+  'characters/enemies/Grenader': 0x448844,
+  'characters/enemies/ShotgunMan': 0xAA3333,
+  'characters/enemies/MeeleMan': 0x884488,
+  'characters/enemies/Sniper': 0x446644,
+  'characters/enemies/Boss_Bomber': 0xAA2200,
+  'characters/enemies/Old_Boss': 0x881111,
+  'characters/enemies/Sniper_Boss': 0x335533,
+  // Environment world_1 — earthy greens and browns
+  'environment/world_1/1_Ground': 0x7A9A4A,
+  'environment/world_1/1_Border': 0x8B7D3C,
+  'environment/world_1/1_Block': 0xA89070,
+  'environment/world_1/1_Wall': 0x7E6454,
+  // Environment world_2 — sandy/desert tones
+  'environment/world_2/2_Ground': 0xB8A472,
+  'environment/world_2/2_Border': 0x9B8B5C,
+  'environment/world_2/2_Block': 0xC4A882,
+  'environment/world_2/2_Wall': 0x8E7E5E,
+  // Weapons — metallic/dark tones
+  'weapons/Shotgun': 0x666666,
+  'weapons/Minigun': 0x555555,
+  'weapons/Grenade_launcher': 0x556B2F,
+  'weapons/Teslagun': 0x336699,
+  // Collectibles — bright reward colors
+  'misc/Coin': 0xFFD700,
+  'misc/Ring': 0x22CCCC,
+  'misc/Chest': 0xCC8833,
+  // Particles
+  'particles/Bullet': 0xFFFF44,
+  'particles/heal_plus': 0x44FF44,
+  'particles/Shield_capsule': 0x4488FF,
+  'particles/Light_ring': 0xFFFF88,
+};
+
+function findModelColor(subpath: string): number | null {
+  // Exact match first, then prefix match (longest prefix wins)
+  if (MODEL_COLORS[subpath] !== undefined) return MODEL_COLORS[subpath];
+  // Remove .glb extension for matching
+  const clean = subpath.replace(/\.glb$/i, '');
+  if (MODEL_COLORS[clean] !== undefined) return MODEL_COLORS[clean];
+  // Prefix match — find longest matching key
+  let best: string | null = null;
+  for (const key of Object.keys(MODEL_COLORS)) {
+    if (clean.startsWith(key) && (!best || key.length > best.length)) best = key;
+  }
+  return best ? MODEL_COLORS[best] : null;
+}
+
 // ===== GLTF Cache =====
 const _cache = new Map<string, any>();
 async function loadModel(subpath: string, cloneMats = false): Promise<any> {
@@ -5057,15 +5119,16 @@ async function loadModel(subpath: string, cloneMats = false): Promise<any> {
     } else {
       const original = await loadGLTF(url);
       console.log("[3D] Loaded GLTF:", subpath);
-      // Convert PBR (MeshStandardMaterial) → MeshPhongMaterial for cartoon look.
-      // PBR needs environment maps to show colors; Phong works with direct lights only.
+      const tint = findModelColor(subpath);
+      // Convert PBR → MeshPhongMaterial + apply color tint for grey GLB models.
       original.traverse((c: any) => {
         if (c.isMesh && c.material) {
           const convertMat = (mat: any) => {
             if (!mat.isMeshStandardMaterial) return mat;
             const hasVertexColors = !!(c.geometry && c.geometry.attributes && c.geometry.attributes.color);
+            const hasTexture = !!mat.map;
             const phong = new THREE.MeshPhongMaterial({
-              color: mat.color ? mat.color.clone() : new THREE.Color(0xffffff),
+              color: hasTexture ? new THREE.Color(0xffffff) : (tint !== null ? new THREE.Color(tint) : (mat.color ? mat.color.clone() : new THREE.Color(0xffffff))),
               map: mat.map || null,
               emissive: mat.emissive ? mat.emissive.clone() : new THREE.Color(0x000000),
               emissiveMap: mat.emissiveMap || null,
@@ -5075,8 +5138,8 @@ async function loadModel(subpath: string, cloneMats = false): Promise<any> {
               side: mat.side !== undefined ? mat.side : THREE.FrontSide,
               vertexColors: hasVertexColors,
               skinning: !!mat.skinning,
-              specular: new THREE.Color(0x222222),
-              shininess: 15,
+              specular: new THREE.Color(0x333333),
+              shininess: 20,
             });
             if (mat.alphaMap) phong.alphaMap = mat.alphaMap;
             if (mat.alphaTest) phong.alphaTest = mat.alphaTest;
