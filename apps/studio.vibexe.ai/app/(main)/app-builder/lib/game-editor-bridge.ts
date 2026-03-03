@@ -81,6 +81,9 @@ export function getGameEditorBridgeScript(): string {
         if (child === transformControls) continue;
         if (child.type === "BoxHelper" || child.type === "TransformControlsGizmo" || child.type === "TransformControlsPlane") continue;
         if (child.isTransformControls) continue;
+        // Skip particles, trails, and Points objects (VFX internals)
+        if (child.type === "Points") continue;
+        if (child.name && (child.name.indexOf("__particle_") === 0 || child.name.indexOf("__trail_") === 0)) continue;
         var serialized = serializeNode(child);
         if (serialized) children.push(serialized);
       }

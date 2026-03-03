@@ -1043,6 +1043,8 @@ function _updateAllParticles3D(delta: number) {
     const p = _activeParticles3D[i];
     if (p._destroyed) { _activeParticles3D.splice(i, 1); continue; }
     p.update(delta);
+    // Auto-destroy dead emitters to prevent ghost objects in scene tree
+    if (!p.isAlive() && !p._destroyed) { p.destroy(); _activeParticles3D.splice(i, 1); }
   }
 }
 (window as any)._activeParticles3D = _activeParticles3D;
@@ -2552,7 +2554,7 @@ export function createParticleEmitter(
   });
 
   const points = new THREE.Points(geometry, material);
-  points.name = "ParticleEmitter";
+  points.name = "__particle_emitter";
   points.frustumCulled = false;
   scene.add(points);
 
@@ -2582,10 +2584,11 @@ export function createParticleEmitter(
     colorArr[i3 + 2] = c.b;
   }
 
-  // Burst mode: spawn all at once
+  // Burst mode: spawn all at once, then stop emitting so it can auto-die
   if (config.mode === "burst") {
     for (let i = 0; i < MAX; i++) _spawnOne(i);
     activeCount = MAX;
+    _emitting = false;
   }
 
   const emitter = {
@@ -2710,7 +2713,7 @@ export function createTrailRenderer(
   });
   const ribbonMesh = new THREE.Mesh(geometry, material);
   ribbonMesh.frustumCulled = false;
-  ribbonMesh.name = "TrailRenderer";
+  ribbonMesh.name = "__trail_renderer";
   scene.add(ribbonMesh);
 
   // Temp vectors for perpendicular calculation
@@ -3415,6 +3418,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 if (child === _transformControls) continue;
                 if (child.type === "BoxHelper" || child.type === "TransformControlsGizmo" || child.type === "TransformControlsPlane") continue;
                 if (child.isTransformControls) continue;
+                // Skip particles, trails, and Points objects (VFX internals)
+                if (child.type === "Points") continue;
+                if (child.name && (child.name.indexOf("__particle_") === 0 || child.name.indexOf("__trail_") === 0)) continue;
                 const s = _serializeNode(child);
                 if (s) children.push(s);
               }
@@ -3637,7 +3643,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               if (child.isMesh && child !== _boxHelper &&
                   child.type !== "TransformControlsGizmo" &&
                   child.type !== "TransformControlsPlane" &&
-                  !child.name.startsWith("__editor_")) {
+                  !child.name.startsWith("__editor_") &&
+                  !child.name.startsWith("__particle_") &&
+                  !child.name.startsWith("__trail_")) {
                 meshes.push(child);
               }
             });

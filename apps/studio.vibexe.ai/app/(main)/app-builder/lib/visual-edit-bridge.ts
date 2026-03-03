@@ -588,6 +588,9 @@ export function getVisualEditBridgeScript(): string {
         if (child === boxHelper || child === transformControls) continue;
         if (child.type === "BoxHelper" || child.type === "TransformControlsGizmo" || child.type === "TransformControlsPlane") continue;
         if (child.isTransformControls) continue;
+        // Skip particles, trails, and Points objects (VFX internals)
+        if (child.type === "Points") continue;
+        if (child.name && (child.name.indexOf("__particle_") === 0 || child.name.indexOf("__trail_") === 0)) continue;
         var s = serializeNode(child);
         if (s) children.push(s);
       }
@@ -996,7 +999,7 @@ export function getVisualEditBridgeScript(): string {
     // Pass 1: standard mesh raycasting (works for static Mesh objects)
     var meshes = [];
     editor.scene.traverse(function(child) {
-      if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && (child.name||"").indexOf("__editor_") !== 0 && !isGroundPlane(child)) {
+      if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && (child.name||"").indexOf("__editor_") !== 0 && (child.name||"").indexOf("__particle_") !== 0 && (child.name||"").indexOf("__trail_") !== 0 && !isGroundPlane(child)) {
         meshes.push(child);
       }
     });

@@ -50,13 +50,16 @@ export function SceneTreeNode({
 	const hasChildren = node.children.length > 0;
 	const isSelected = node.uuid === selectedUuid;
 
-	// Skip editor helpers
+	// Skip editor helpers, particles, trails
 	if (
 		node.name.startsWith("__editor_") ||
+		node.name.startsWith("__particle_") ||
+		node.name.startsWith("__trail_") ||
 		node.type === "BoxHelper" ||
 		node.type === "TransformControlsGizmo" ||
 		node.type === "TransformControlsPlane" ||
-		node.type === "GridHelper"
+		node.type === "GridHelper" ||
+		node.type === "Points"
 	) {
 		return null;
 	}
