@@ -955,7 +955,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=30`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=31`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);

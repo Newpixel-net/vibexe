@@ -1122,22 +1122,33 @@ export function getVisualEditBridgeScript(): string {
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
       editor.pause();
-      // Create or fix OrbitControls for editor mode
+      // Fix OrbitControls for editor mode — must use deferred override because
+      // the embedded bridge in Game3D.tsx also handles game-editor-activate and
+      // calls pause() which creates OrbitControls with default mouseButtons.
+      // We override after a delay to ensure ALL message handlers have run.
+      function fixOrbitControls() {
+        if (!editor || !editor.orbitControls) return;
+        var oc = editor.orbitControls;
+        oc.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+        // Compute orbit target from camera's look direction (not hardcoded 0,2,0)
+        var camDir = new THREE.Vector3();
+        editor.camera.getWorldDirection(camDir);
+        oc.target.copy(editor.camera.position).addScaledVector(camDir, 10);
+        oc.update();
+      }
+      // Immediate fix attempt
       if (THREE.OrbitControls) {
         if (!editor.orbitControls) {
           editor.orbitControls = new THREE.OrbitControls(editor.camera, editor.renderer.domElement);
           editor.orbitControls._vibexeEditorCreated = true;
           editor.orbitControls.enableDamping = true;
           editor.orbitControls.dampingFactor = 0.12;
-          // Compute orbit target from camera's look direction
-          var camDir = new THREE.Vector3();
-          editor.camera.getWorldDirection(camDir);
-          editor.orbitControls.target.copy(editor.camera.position).addScaledVector(camDir, 10);
         }
-        // ALWAYS enforce correct editor mouseButtons (pause() may have set defaults)
-        editor.orbitControls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
-        editor.orbitControls.update();
+        fixOrbitControls();
       }
+      // Deferred fix — catches embedded bridge's pause() overwriting our settings
+      setTimeout(fixOrbitControls, 50);
+      setTimeout(fixOrbitControls, 200);
       showDebug("Bridge ACTIVATED. Canvas: " + editor.renderer.domElement.tagName + " " + editor.renderer.domElement.width + "x" + editor.renderer.domElement.height);
       // Register click handlers: window capture + canvas direct + pointerdown backup
       window.addEventListener("mousedown", onCanvasMouseDown, true);
