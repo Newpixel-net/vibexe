@@ -443,7 +443,7 @@ Music path: \`audio/music/{filename}\`
 \`\`\`typescript
 // Audio — use soundUrl() with platformer-project prefix
 playSound(soundUrl("platformer-project/sfx/jump_0.wav"));
-playSound(soundUrl("platformer-project/sfx/coin01.aif"));
+playSound(soundUrl("platformer-project/sfx/coin01.wav"));
 playMusic(soundUrl("platformer-project/music/8bit_bossa.wav"), { loop: true });
 \`\`\`
 

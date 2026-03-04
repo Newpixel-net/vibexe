@@ -2189,6 +2189,15 @@ function _classifyClips(clips: any[]): Record<string, string> {
       if (!map.hit) map.hit = clip.name;
     }
   }
+  // Prefer exact matches over compound names (e.g. "Idle" over "ClimbIdle")
+  for (const clip of clips) {
+    const n = clip.name.toLowerCase();
+    if (n === "idle" && map.idle && map.idle.toLowerCase() !== "idle") map.idle = clip.name;
+    if (n === "walk" && map.walk && map.walk.toLowerCase() !== "walk") map.walk = clip.name;
+    if (n === "run" && map.run && map.run.toLowerCase() !== "run") map.run = clip.name;
+    if (n === "jump" && map.jump && map.jump.toLowerCase() !== "jump") map.jump = clip.name;
+    if (n === "die" && map.die && map.die.toLowerCase() !== "die") map.die = clip.name;
+  }
   return map;
 }
 
@@ -4382,7 +4391,7 @@ export const GameScene = {
     // Preload audio
     await preloadSounds([
       soundUrl("platformer-project/sfx/jump_0.wav"),
-      soundUrl("platformer-project/sfx/coin01.aif"),
+      soundUrl("platformer-project/sfx/coin01.wav"),
     ]);
 
     // ===== PLATFORMS — Platformer Project GLB models =====
@@ -4510,7 +4519,7 @@ export const GameScene = {
         c.mesh.visible = false;
         score++;
         hud.update({ score });
-        playSound(soundUrl("platformer-project/sfx/coin01.aif"), { volume: 0.7 });
+        playSound(soundUrl("platformer-project/sfx/coin01.wav"), { volume: 0.7 });
       }
       if (!c.collected) c.mesh.rotation.y += delta * 2;
     }

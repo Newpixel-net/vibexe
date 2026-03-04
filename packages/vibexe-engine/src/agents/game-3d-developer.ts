@@ -739,7 +739,7 @@ You just implement \`init()\` and \`update()\`. The rest is automatic.
 - **Collectibles**: \`createCollectible3D\` with types: coin, star, heart, disc
 - **Hazards**: \`createBarrier3D\` with types: spikes, spikes_panel, flamethrower, log
 - **Enemies**: Slime via \`createAnimatedCharacter3D(scene, x, y, z, { url: modelUrl("platformer-project", "characters/Slime.glb") })\` — patrol AI with spotRange=5, viewRange=8
-- **Audio**: \`playSound(soundUrl("platformer-project/sfx/jump_0.wav"))\`, \`soundUrl("platformer-project/sfx/coin01.aif")\`, \`soundUrl("platformer-project/sfx/hurt_0.wav")\`
+- **Audio**: \`playSound(soundUrl("platformer-project/sfx/jump_0.wav"))\`, \`soundUrl("platformer-project/sfx/coin01.wav")\`, \`soundUrl("platformer-project/sfx/hurt_0.wav")\`
 - Camera: follows player with lerp for smooth movement
 - MUST use Platformer Project pack for platforms, collectibles, hazards, decorations
 
@@ -775,7 +775,7 @@ You just implement \`init()\` and \`update()\`. The rest is automatic.
 - **Lane switching**: Tween via lerp: \`playerBody.position.x += (targetX - currentX) * 0.15 * (delta * 60)\`. 200ms cooldown
 - **Difficulty**: Increase speed, increase BARRIER_CHANCE, add more obstacle types over distance
 - **Lives**: 3 lives. Barrier hit = -1 life + invulnerability (flash effect). Game over at 0 lives
-- **Audio**: \`playSound(soundUrl("platformer-project/sfx/coin01.aif"))\` on pickup, \`soundUrl("platformer-project/sfx/hurt_0.wav")\` on damage, \`playMusic(soundUrl("platformer-project/music/8bit_bossa.wav"))\` for BGM
+- **Audio**: \`playSound(soundUrl("platformer-project/sfx/coin01.wav"))\` on pickup, \`soundUrl("platformer-project/sfx/hurt_0.wav")\` on damage, \`playMusic(soundUrl("platformer-project/music/8bit_bossa.wav"))\` for BGM
 - **Particles**: \`createParticleEmitter(scene, x, y, z, { preset: "sparkle" })\` on collect, \`{ preset: "explosion" }\` on crash
 - **Touch**: \`createSwipeDetector(container, callback)\` — left/right = lane switch, up = jump
 - **Animated player**: \`createAnimatedCharacter3D(scene, 0, 0.5, 0)\` — Lily with run/jump/fall animations
@@ -1100,7 +1100,7 @@ export const GameScene = {
         scene.remove(c.mesh);
         score += 10;
         hud.setScore(score);
-        playSound(soundUrl("platformer-project/sfx/coin01.aif"));
+        playSound(soundUrl("platformer-project/sfx/coin01.wav"));
       }
     }
 
@@ -1147,7 +1147,7 @@ export const GameScene = {
 7. **Coyote time + Jump buffer**: Track timers. Jump triggers when EITHER is active. Makes jumps feel responsive.
 8. **Variable jump height**: If Space released and velocity > MIN_JUMP_FORCE, clamp to MIN_JUMP_FORCE.
 9. **Physics**: \`this.world\` auto-created by Game3D.tsx. NEVER call \`new CANNON.World()\`.
-10. **Audio**: \`playSound(soundUrl("platformer-project/sfx/jump_0.wav"))\`, \`soundUrl("platformer-project/sfx/coin01.aif")\`, \`playMusic(soundUrl("platformer-project/music/8bit_bossa.wav"))\`.
+10. **Audio**: \`playSound(soundUrl("platformer-project/sfx/jump_0.wav"))\`, \`soundUrl("platformer-project/sfx/coin01.wav")\`, \`playMusic(soundUrl("platformer-project/music/8bit_bossa.wav"))\`.
 11. \`checkCollision(a, b, threshold)\` for collectible pickup — distance-based.
 12. Camera follows player with lerp using CAMERA_OFFSET_Y/Z, CAMERA_LERP, CAMERA_LOOK_Y from assets-3d.ts.
 13. \`createHUD(container)\` for score/lives, \`showGameOver(container, score, restartFn)\` for game over.
