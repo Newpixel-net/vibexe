@@ -5291,9 +5291,18 @@ async function loadModel(subpath: string, cloneMats = false): Promise<any> {
         mesh.userData.__mixer = mixer;
         play("idle"); // auto-play idle on load
       } else {
-        // Static character model (enemies) — safe to cache + clone
-        _cache.set(url, mesh);
-        mesh = mesh.clone();
+        // Check if mesh has SkinnedMesh — if so, DO NOT cache/clone
+        // (Three.js r128 clone() on SkinnedMesh shares skeleton → invisible)
+        let hasSkinned = false;
+        mesh.traverse((c: any) => { if (c.isSkinnedMesh) hasSkinned = true; });
+        if (hasSkinned) {
+          console.log("[3D] SkinnedMesh detected (0 clips), skipping cache:", subpath);
+          // Don't cache — each load gets fresh instance
+        } else {
+          // Static character model (enemies without skinning) — safe to cache + clone
+          _cache.set(url, mesh);
+          mesh = mesh.clone();
+        }
       }
     } else {
       // Non-character: load + cache normally
