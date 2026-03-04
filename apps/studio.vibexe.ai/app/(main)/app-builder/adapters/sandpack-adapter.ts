@@ -1615,11 +1615,35 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 						(_, prefix, x, y, z) =>
 							`${prefix}{ x: __gs_rt.player?.spawnX ?? ${x.trim()}, y: __gs_rt.player?.spawnY ?? ${y.trim()}, z: __gs_rt.player?.spawnZ ?? ${z.trim()} }`,
 					);
-					if (typeof sf === "string") {
-						sandpackFiles[sceneKey] = code;
-					} else {
-						(sandpackFiles[sceneKey] as SandpackFile).code = code;
+				}
+				// Also patch SCENE_EDITOR_OVERRIDES — update Character_/Player_ positions to match settings
+				// AND inject player skip logic so override loop doesn't fight settings
+				const settingsPlayer = JSON.parse(settingsFile!.content).player;
+				if (settingsPlayer && code.includes("SCENE_EDITOR_OVERRIDES_DATA:")) {
+					const dataMatch = code.match(/SCENE_EDITOR_OVERRIDES_DATA:\s*(.+)/);
+					if (dataMatch) {
+						try {
+							const ov = JSON.parse(dataMatch[1]);
+							for (const key of Object.keys(ov)) {
+								if (key.startsWith("Character_") || key.startsWith("Player_")) {
+									if (ov[key].p) {
+										if (settingsPlayer.spawnX !== undefined) ov[key].p[0] = settingsPlayer.spawnX;
+										if (settingsPlayer.spawnY !== undefined) ov[key].p[1] = settingsPlayer.spawnY;
+										if (settingsPlayer.spawnZ !== undefined) ov[key].p[2] = settingsPlayer.spawnZ;
+									}
+								}
+							}
+							const newJson = JSON.stringify(ov);
+							const oldJson = dataMatch[1].trim();
+							// Replace all 3 occurrences of the old JSON (data marker, __SCENE_OVERRIDES__, _ov)
+							code = code.split(oldJson).join(newJson);
+						} catch { /* invalid override JSON — skip */ }
 					}
+				}
+				if (typeof sf === "string") {
+					sandpackFiles[sceneKey] = code;
+				} else {
+					(sandpackFiles[sceneKey] as SandpackFile).code = code;
 				}
 			}
 

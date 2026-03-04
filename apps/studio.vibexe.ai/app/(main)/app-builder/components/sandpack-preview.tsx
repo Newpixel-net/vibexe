@@ -471,9 +471,11 @@ if (typeof window !== 'undefined') {
       var s = window.__vibexe_scene__;
       if (!s || !s.children) { requestAnimationFrame(_apply); return; }
       if (s !== _lastScene) { _cache={}; _bodies={}; _logged={}; _lastScene=s; }
+      var _gsPlayer = window.__VIBEXE_GAME_SETTINGS__ && window.__VIBEXE_GAME_SETTINGS__.player;
       var keys = Object.keys(_ov);
       for (var ki=0; ki<keys.length; ki++) {
         var name = keys[ki];
+        if (_gsPlayer && (name.indexOf("Character_")===0 || name.indexOf("Player_")===0)) continue;
         var o = _ov[name];
         var t = _find(s, name);
         if (!t) continue;
