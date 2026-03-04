@@ -105,18 +105,21 @@ export const SCALES_3D = {
   wood: 0.5,
 };
 
+// ===== Game Settings (injected via window.__VIBEXE_GAME_SETTINGS__) =====
+const __gs: any = typeof window !== 'undefined' ? (window as any).__VIBEXE_GAME_SETTINGS__ || {} : {};
+
 // ===== Common Game Constants (Platformer Project physics) =====
 export const TOUCH_DEADZONE = 0.15;   // Joystick deadzone (0-1 range)
-export const GRAVITY_3D = -38;         // Ascending gravity (Platformer Project: 38)
-export const FALL_GRAVITY = -65;       // Descending gravity (heavier for snappy arcs)
-export const JUMP_FORCE = 17;          // Max jump height (hold Space)
+export const GRAVITY_3D = __gs.physics?.gravity ?? -38;
+export const FALL_GRAVITY = __gs.physics?.fallGravity ?? -65;
+export const JUMP_FORCE = __gs.physics?.jumpForce ?? 17;
 export const MIN_JUMP_FORCE = 10;      // Min jump height (tap Space)
-export const MOVE_SPEED = 6;           // Ground top speed
-export const RUN_SPEED = 7.5;          // Running top speed (hold Shift)
+export const MOVE_SPEED = __gs.physics?.moveSpeed ?? 6;
+export const RUN_SPEED = __gs.physics?.runSpeed ?? 7.5;
 export const ACCELERATION = 13;        // Ground acceleration
 export const AIR_ACCELERATION = 32;    // Air acceleration (faster than ground!)
-export const FRICTION = 28;            // Ground friction (deceleration)
-export const COYOTE_TIME = 0.15;       // Seconds after leaving edge you can still jump
+export const FRICTION = __gs.physics?.friction ?? 28;
+export const COYOTE_TIME = __gs.physics?.coyoteTime ?? 0.15;
 export const JUMP_BUFFER = 0.15;       // Seconds before landing a jump press is remembered
 export const DASH_FORCE = 25;          // Dash velocity
 export const DASH_DURATION = 0.3;      // Dash duration in seconds
@@ -131,12 +134,12 @@ export const STOMP_FORCE = -20;        // Stomp downward force (additive per fra
 export const AIR_DIVE_FORCE = 16;      // Air dive forward force
 
 // Camera follow constants (3rd-person platformer defaults)
-export const CAMERA_OFFSET_Y = 8;      // Height above player
-export const CAMERA_OFFSET_Z = 12;     // Distance behind player
-export const CAMERA_LERP = 3;          // Smoothing speed (higher = faster)
-export const CAMERA_LOOK_Y = 1;        // Look-at Y offset above player
+export const CAMERA_OFFSET_Y = __gs.camera?.offsetY ?? 8;
+export const CAMERA_OFFSET_Z = __gs.camera?.offsetZ ?? 12;
+export const CAMERA_LERP = __gs.camera?.lerp ?? 3;
+export const CAMERA_LOOK_Y = __gs.camera?.lookY ?? 1;
 // Common AI aliases — prevent "undefined" crashes
-export const CAMERA_LOOK_AHEAD = 5;    // Forward offset for camera look target
+export const CAMERA_LOOK_AHEAD = __gs.camera?.lookAhead ?? 5;
 export const CAMERA_DISTANCE = CAMERA_OFFSET_Z;
 export const CAMERA_HEIGHT = CAMERA_OFFSET_Y;
 export const CAMERA_SMOOTH = 0.1;
@@ -3381,9 +3384,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       container.appendChild(renderer.domElement);
       (window as any).__vibexe_renderer__ = renderer;
 
-      // Create camera + store on window
+      // Create camera + store on window (game settings override FOV)
+      const __gs = (window as any).__VIBEXE_GAME_SETTINGS__ || {};
       const aspect = container.clientWidth / container.clientHeight;
-      camera = new THREE.PerspectiveCamera(cameraFov, aspect, 0.1, 1000);
+      camera = new THREE.PerspectiveCamera(__gs.camera?.fov ?? cameraFov, aspect, 0.1, 1000);
       camera.position.set(0, 8, 15);
       camera.lookAt(0, 2, 0);
       (window as any).__vibexe_camera__ = camera;
@@ -3401,19 +3405,29 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           return;
         }
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(bgColor);
+        const __envBg = __gs.environment?.backgroundColor;
+        scene.background = new THREE.Color(__envBg || bgColor);
         (window as any).__vibexe_scene__ = scene;
+
+        // Optional fog from game settings
+        if (__gs.environment?.fogEnabled) {
+          scene.fog = new THREE.Fog(
+            __envBg || bgColor,
+            __gs.environment?.fogNear ?? 30,
+            __gs.environment?.fogFar ?? 100
+          );
+        }
 
         // Engine-wide default lighting — balanced for cartoon/Phong materials.
         // Total light budget ~1.0 so colors render faithfully without clipping.
         // Games can remove/replace these in their init() if needed.
-        const _defHemi = new THREE.HemisphereLight(0xEEF4FF, 0x886644, 0.35);
+        const _defHemi = new THREE.HemisphereLight(0xEEF4FF, 0x886644, __gs.environment?.hemisphereIntensity ?? 0.35);
         _defHemi.name = '__default_hemi__';
         scene.add(_defHemi);
-        const _defAmbient = new THREE.AmbientLight(0xFFFFFF, 0.15);
+        const _defAmbient = new THREE.AmbientLight(0xFFFFFF, __gs.environment?.ambientLightIntensity ?? 0.15);
         _defAmbient.name = '__default_ambient__';
         scene.add(_defAmbient);
-        const _defSun = new THREE.DirectionalLight(0xFFF8EE, 0.55);
+        const _defSun = new THREE.DirectionalLight(0xFFF8EE, __gs.environment?.sunLightIntensity ?? 0.55);
         _defSun.name = '__default_sun__';
         _defSun.position.set(8, 20, 10);
         _defSun.castShadow = true;
@@ -3447,7 +3461,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
 
         // Auto-create physics world — always available as gameScene.world / this.world
         // Store on window so idempotent createPhysicsWorld() returns it
-        const world = createPhysicsWorld(GRAVITY_3D);
+        const world = createPhysicsWorld(__gs.physics?.gravity ?? GRAVITY_3D);
         if (world) {
           createPhysicsGround(world);
           (window as any).__vibexe_world__ = world;
@@ -4558,11 +4572,15 @@ export const GameScene = {
     onProgress?.(0.3);
 
     // ===== PLAYER — Lily animated character =====
-    const lilyResult = await createAnimatedCharacter3D(scene, 0, 3, 0, {
+    const __gs = (window as any).__VIBEXE_GAME_SETTINGS__ || {};
+    const spawnX = __gs.player?.spawnX ?? 0;
+    const spawnY = __gs.player?.spawnY ?? 3;
+    const spawnZ = __gs.player?.spawnZ ?? 0;
+    const lilyResult = await createAnimatedCharacter3D(scene, spawnX, spawnY, spawnZ, {
       url: modelUrl("platformer-project", "characters/Lily.glb"),
     });
     lily = lilyResult;
-    playerBody = createPhysicsBody("box", 5, { x: 0, y: 3, z: 0 }, lily.size);
+    playerBody = createPhysicsBody("box", 5, { x: spawnX, y: spawnY, z: spawnZ }, lily.size);
     if (playerBody) {
       playerBody.linearDamping = 0.9;
       playerBody.angularDamping = 1.0;
@@ -4671,9 +4689,13 @@ export const GameScene = {
       if (!c.collected) c.mesh.rotation.y += delta * 2;
     }
 
-    // Fall off world = reset
+    // Fall off world = reset to respawn point
     if (lily.mesh.position.y < -10) {
-      playerBody.position.set(0, 5, 0);
+      playerBody.position.set(
+        __gs.player?.respawnX ?? 0,
+        __gs.player?.respawnY ?? 5,
+        __gs.player?.respawnZ ?? 0
+      );
       playerBody.velocity.set(0, 0, 0);
     }
   },
@@ -4717,11 +4739,12 @@ import { modelUrl } from "../utils/media-stock-3d";
 const THREE = (window as any).THREE;
 const CANNON = (window as any).CANNON;
 
-// ===== Runner Constants =====
+// ===== Runner Constants (overridable via game settings) =====
+const __gsR = (window as any).__VIBEXE_GAME_SETTINGS__ || {};
 const LANE_X = [-3, 0, 3];          // 3 lane positions
 const LANE_SWITCH_SPEED = 0.15;     // Tween lerp factor per frame
-const INITIAL_SPEED = 8;            // Starting forward speed
-const MAX_SPEED = 25;               // Cap speed
+const INITIAL_SPEED = __gsR.runner?.initialSpeed ?? 8;
+const MAX_SPEED = __gsR.runner?.maxSpeed ?? 25;
 const SPEED_RAMP = 0.15;            // Speed increase per second
 const SEGMENT_LENGTH = 12;          // Z length of each platform segment
 const SEGMENT_COUNT = 8;            // Segments visible ahead
@@ -4729,9 +4752,9 @@ const SPAWN_Z_AHEAD = SEGMENT_COUNT * SEGMENT_LENGTH;
 const RECYCLE_Z_BEHIND = 20;        // Recycle when this far behind camera
 const BARRIER_CHANCE = 0.35;        // Chance per segment per lane
 const COLLECTIBLE_CHANCE = 0.4;     // Chance per segment per lane
-const MAX_LIVES = 3;
+const MAX_LIVES = __gsR.runner?.maxLives ?? __gsR.player?.startingLives ?? 3;
 const INVULN_TIME = 1.5;            // Seconds of invulnerability after hit
-const JUMP_VELOCITY = 10;           // Runner jump force
+const JUMP_VELOCITY = __gsR.runner?.jumpVelocity ?? 10;
 
 // ===== Game State =====
 let scene: any, camera: any, renderer: any;
@@ -5198,17 +5221,18 @@ import { modelUrl } from "../utils/media-stock-3d";
 const THREE = (window as any).THREE;
 const CANNON = (window as any).CANNON;
 
-// ===== Constants =====
+// ===== Constants (overridable via game settings) =====
+const __gsS = (window as any).__VIBEXE_GAME_SETTINGS__ || {};
 const PACK = "squad-shooter";
 const GRID_SIZE = 10;
 const TILE_SIZE = 4;
 const ARENA_HALF = (GRID_SIZE * TILE_SIZE) / 2;
-const PLAYER_SPEED = 6;
-const BULLET_SPEED = 20;
+const PLAYER_SPEED = __gsS.shooter?.playerSpeed ?? 6;
+const BULLET_SPEED = __gsS.shooter?.bulletSpeed ?? 20;
 const BULLET_POOL_SIZE = 40;
-const FIRE_RATE = 0.25;
-const CAM_HEIGHT = 20;
-const CAM_BACK = 16;
+const FIRE_RATE = __gsS.shooter?.fireRate ?? 0.25;
+const CAM_HEIGHT = __gsS.shooter?.camHeight ?? 20;
+const CAM_BACK = __gsS.shooter?.camBack ?? 16;
 const ENEMY_SHIFT = 0.12;
 const SHAKE_DECAY = 8;
 const SPAWN_MIN_DIST = 8;

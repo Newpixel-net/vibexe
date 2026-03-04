@@ -5,7 +5,7 @@
  * Overlaid on the right side of the viewport when editor is active.
  */
 
-import { Check, Copy, Eye, EyeOff, Focus, Package, Pause, Pencil, Play, Search, Square, Trash2, X } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, Focus, Package, Pause, Pencil, Play, Search, Settings, Square, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DragNumberInput } from "./drag-number-input";
 import { SceneTreeNode } from "./scene-tree-node";
@@ -39,6 +39,8 @@ export function GameEditorPanel() {
 		fetchAnimOverrides,
 		isPaletteOpen,
 		togglePalette,
+		isSettingsOpen,
+		toggleSettings,
 		renameObject,
 		toggleVisibility,
 		hierarchySearch,
@@ -182,14 +184,24 @@ export function GameEditorPanel() {
 					<span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">
 						Scene Hierarchy
 					</span>
-					<button
-						type="button"
-						onClick={togglePalette}
-						className={`p-1 rounded transition-colors ${isPaletteOpen ? "bg-emerald-500/20 text-emerald-400" : "text-white/30 hover:text-white/60 hover:bg-white/[0.06]"}`}
-						title="Object Palette"
-					>
-						<Package className="w-3.5 h-3.5" />
-					</button>
+					<div className="flex items-center gap-0.5">
+						<button
+							type="button"
+							onClick={toggleSettings}
+							className={`p-1 rounded transition-colors ${isSettingsOpen ? "bg-violet-500/20 text-violet-400" : "text-white/30 hover:text-white/60 hover:bg-white/[0.06]"}`}
+							title="Game Settings"
+						>
+							<Settings className="w-3.5 h-3.5" />
+						</button>
+						<button
+							type="button"
+							onClick={togglePalette}
+							className={`p-1 rounded transition-colors ${isPaletteOpen ? "bg-emerald-500/20 text-emerald-400" : "text-white/30 hover:text-white/60 hover:bg-white/[0.06]"}`}
+							title="Object Palette"
+						>
+							<Package className="w-3.5 h-3.5" />
+						</button>
+					</div>
 				</div>
 				{/* Hierarchy Search */}
 				<div className="px-2 pb-1">

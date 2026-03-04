@@ -1218,11 +1218,19 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
     <link rel="manifest" href="/manifest.json" />`;
 		indexHtml = indexHtml.replace("</head>", `${pwaMeta}\n  </head>`);
 	}
-	// Inject runtime globals (API origin, app ID) into index.html for ALL projects.
+	// Inject runtime globals (API origin, app ID, game settings) into index.html for ALL projects.
 	// Games use window.__VIBEXE_API_ORIGIN__ in the ASSET() helper; SDK apps use it too.
 	let runtimeGlobals = "";
 	if (apiOrigin) runtimeGlobals += `window.__VIBEXE_API_ORIGIN__ = ${JSON.stringify(apiOrigin)};\n`;
 	if (appId) runtimeGlobals += `window.__VIBEXE_APP_ID__ = ${JSON.stringify(appId)};\n`;
+	// Inject game settings from __game-settings.json virtual file
+	const settingsFile = files.find((f) => f.path === "src/__game-settings.json" || f.path === "__game-settings.json");
+	if (settingsFile?.content) {
+		try {
+			const settingsObj = JSON.parse(settingsFile.content);
+			runtimeGlobals += `window.__VIBEXE_GAME_SETTINGS__ = ${JSON.stringify(settingsObj)};\n`;
+		} catch { /* invalid JSON — skip */ }
+	}
 	if (runtimeGlobals) {
 		indexHtml = indexHtml.replace(
 			"<div id=\"root\">",

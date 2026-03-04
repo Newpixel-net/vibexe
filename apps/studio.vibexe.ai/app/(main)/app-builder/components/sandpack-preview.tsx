@@ -43,6 +43,7 @@ import type { AppFile } from "../adapters/file-adapter";
 import { useVisualEdit } from "../lib/visual-edit-context";
 import { useGameEditor, type GizmoMode } from "../lib/game-editor-context";
 import { GameEditorPanel } from "./game-editor-panel";
+import { GameSettingsPanel } from "./game-settings-panel";
 import type { RightPanelView } from "./right-panel-tabs";
 import { VisualEditToolbar } from "./visual-edit-toolbar";
 import {
@@ -603,6 +604,51 @@ export function SandpackPreview({
 		};
 		gameEditor.setSaveHandler(saveAllTransforms);
 	}, [isGameMode, appId, gameEditor.setSaveHandler]);
+
+	// Load game settings from files on mount
+	useEffect(() => {
+		if (!isGameMode) return;
+		const settingsFile = files.find((f) => f.path === "src/__game-settings.json" || f.path === "__game-settings.json");
+		if (settingsFile?.content) {
+			try {
+				gameEditor.setGameSettings(JSON.parse(settingsFile.content));
+			} catch { /* invalid JSON */ }
+		}
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isGameMode]); // Only on mount — don't re-run on every files change
+
+	// Save game settings to DB + trigger Sandpack refresh
+	const handleSaveSettings = useCallback(async (settings: import("../lib/game-editor-context").GameSettings) => {
+		const content = JSON.stringify(settings, null, 2);
+		const currentOnFileUpdate = onFileUpdateRef.current;
+		// Find or create the settings file
+		const existingFile = filesRef.current.find((f) => f.path === "src/__game-settings.json" || f.path === "__game-settings.json");
+		const filePath = existingFile?.path || "src/__game-settings.json";
+		// Save to DB
+		try {
+			await fetch(`/api/app-builder/apps/${appId}/files`, {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ path: filePath, content }),
+			});
+		} catch (err) {
+			console.warn("[GameSettings] DB save failed:", err);
+		}
+		// Update Sandpack files to trigger re-render
+		if (currentOnFileUpdate && existingFile) {
+			currentOnFileUpdate(existingFile.id, content);
+		}
+		// Refresh iframe so settings take effect (module re-evaluates window global)
+		try {
+			const iframes = document.querySelectorAll(".sandpack-container iframe");
+			for (const iframe of iframes) {
+				const f = iframe as HTMLIFrameElement;
+				if (f.contentWindow) {
+					f.contentWindow.postMessage({ type: "refresh" }, "*");
+				}
+			}
+		} catch { /* ignore */ }
+	}, [appId]);
 
 	// Landscape/portrait rotation toggle for mobile-frame mode
 	const [isLandscape, setIsLandscape] = useState(false);
@@ -1340,9 +1386,18 @@ export function SandpackPreview({
 					</div>
 				)}
 
-				{/* Game Editor Panel (overlaid on right side — works in both mobile + desktop mode) */}
+				{/* Game Editor Panel / Settings Panel (overlaid on right side — mutually exclusive) */}
 				{gameEditor.enabled && isGameMode && (
-					<GameEditorPanel />
+					gameEditor.isSettingsOpen ? (
+						<GameSettingsPanel
+							settings={gameEditor.gameSettings}
+							onChange={gameEditor.updateGameSettings}
+							onSave={handleSaveSettings}
+							onClose={gameEditor.toggleSettings}
+						/>
+					) : (
+						<GameEditorPanel />
+					)
 				)}
 			</div>
 		</div>

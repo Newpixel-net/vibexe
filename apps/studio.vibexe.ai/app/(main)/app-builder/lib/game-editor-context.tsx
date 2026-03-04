@@ -48,6 +48,40 @@ export interface PrefabDefinition {
 	category: string;
 }
 
+// ===== Game Settings =====
+export interface GameSettings {
+	version?: number;
+	player?: {
+		spawnX?: number; spawnY?: number; spawnZ?: number;
+		startingLives?: number;
+		respawnX?: number; respawnY?: number; respawnZ?: number;
+	};
+	physics?: {
+		gravity?: number; fallGravity?: number;
+		jumpForce?: number; moveSpeed?: number; runSpeed?: number;
+		friction?: number; coyoteTime?: number;
+	};
+	camera?: {
+		offsetY?: number; offsetZ?: number; fov?: number;
+		lerp?: number; lookAhead?: number; lookY?: number;
+	};
+	environment?: {
+		backgroundColor?: string;
+		ambientLightIntensity?: number;
+		sunLightIntensity?: number;
+		hemisphereIntensity?: number;
+		fogEnabled?: boolean; fogNear?: number; fogFar?: number;
+	};
+}
+
+export const DEFAULT_GAME_SETTINGS: GameSettings = {
+	version: 1,
+	player: { spawnX: 0, spawnY: 3, spawnZ: 0, startingLives: 3, respawnX: 0, respawnY: 5, respawnZ: 0 },
+	physics: { gravity: -38, fallGravity: -65, jumpForce: 17, moveSpeed: 6, runSpeed: 7.5, friction: 28, coyoteTime: 0.15 },
+	camera: { offsetY: 8, offsetZ: 12, fov: 60, lerp: 3, lookAhead: 5, lookY: 1 },
+	environment: { backgroundColor: "#87CEEB", ambientLightIntensity: 0.15, sunLightIntensity: 0.55, hemisphereIntensity: 0.35, fogEnabled: false, fogNear: 30, fogFar: 100 },
+};
+
 interface GameEditorContextValue {
 	enabled: boolean;
 	sceneTree: SceneNode | null;
@@ -70,6 +104,12 @@ interface GameEditorContextValue {
 	// Palette
 	isPaletteOpen: boolean;
 	activePrefab: PrefabDefinition | null;
+	// Game Settings
+	gameSettings: GameSettings;
+	isSettingsOpen: boolean;
+	toggleSettings: () => void;
+	updateGameSettings: (patch: Partial<GameSettings>) => void;
+	setGameSettings: (settings: GameSettings) => void;
 	// Scene editor extended state
 	gizmoSpace: "world" | "local";
 	hierarchySearch: string;
@@ -139,6 +179,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [animClipDuration, setAnimClipDuration] = useState(0);
 	const [isPaletteOpen, setIsPaletteOpen] = useState(false);
 	const [activePrefab, setActivePrefabState] = useState<PrefabDefinition | null>(null);
+	const [gameSettings, setGameSettingsState] = useState<GameSettings>({ ...DEFAULT_GAME_SETTINGS });
+	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 	const [animClipOverrides, setAnimClipOverrides] = useState<Record<string, string>>({});
 	const [animModelId, setAnimModelId] = useState<string | null>(null);
 	const [gizmoSpace, setGizmoSpaceState] = useState<"world" | "local">("world");
@@ -344,6 +386,29 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		});
 	}, [animModelId]);
 
+	// Game Settings actions
+	const toggleSettings = useCallback(() => {
+		setIsSettingsOpen((prev) => !prev);
+	}, []);
+
+	const updateGameSettings = useCallback((patch: Partial<GameSettings>) => {
+		setGameSettingsState((prev) => {
+			const next = { ...prev };
+			for (const [key, val] of Object.entries(patch)) {
+				if (val && typeof val === "object" && !Array.isArray(val)) {
+					(next as any)[key] = { ...(prev as any)[key], ...val };
+				} else {
+					(next as any)[key] = val;
+				}
+			}
+			return next;
+		});
+	}, []);
+
+	const setGameSettings = useCallback((settings: GameSettings) => {
+		setGameSettingsState(settings);
+	}, []);
+
 	// Palette actions
 	const togglePalette = useCallback(() => {
 		setIsPaletteOpen((prev) => !prev);
@@ -436,6 +501,11 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				animModelId,
 				isPaletteOpen,
 				activePrefab,
+				gameSettings,
+				isSettingsOpen,
+				toggleSettings,
+				updateGameSettings,
+				setGameSettings,
 				gizmoSpace,
 				hierarchySearch,
 				canUndo,
