@@ -1638,10 +1638,11 @@ export async function createAnimatedCharacter3D(
     console.log("[3D] Auto-upright: rotated -90° on X (Z-up model detected)");
   }
 
-  // --- Unity export Root bone fix ---
+  // --- Unity export Root bone fix (detection only) ---
   // Unity GLTF exports often bake a 180° Z rotation into the Root bone (handedness conversion).
   // Combined with Hips at -90° X, this causes the character to render face-down.
-  // Detect this pattern and apply a compensating 180° X rotation.
+  // We detect here but apply the rotation AFTER pivot correction so measurements stay correct.
+  let _needsUnityRootFix = false;
   if (inner.rotation.x === 0) {
     let _unityRootBone: any = null;
     inner.traverse((child: any) => {
@@ -1653,8 +1654,8 @@ export async function createAnimatedCharacter3D(
       const qz = Math.abs(_unityRootBone.quaternion.z);
       const qw = Math.abs(_unityRootBone.quaternion.w);
       if (qz > 0.95 && qw < 0.1) {
-        inner.rotation.x = Math.PI;
-        console.log("[3D] Unity Root bone fix: applied 180° X rotation (Root bone has 180° Z)");
+        _needsUnityRootFix = true;
+        console.log("[3D] Unity Root bone fix: detected Root bone 180° Z (will apply after pivot)");
       }
     }
   }
@@ -1753,6 +1754,15 @@ export async function createAnimatedCharacter3D(
   mesh.add(pivot);
   mesh.position.set(x, y, z);
   if (opts.rotation !== undefined) mesh.rotation.y = opts.rotation;
+
+  // --- Apply deferred Unity Root bone fix ---
+  // Applied AFTER pivot correction so measurements used the un-rotated geometry.
+  // The 180° X on inner counteracts the Root bone's 180° Z that makes the character face-down.
+  if (_needsUnityRootFix) {
+    inner.rotation.x = Math.PI;
+    console.log("[3D] Unity Root bone fix: applied 180° X rotation to inner (after pivot)");
+  }
+
   scene.add(mesh);
 
   // Physics half-extents based on target height
