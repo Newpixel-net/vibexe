@@ -1205,14 +1205,6 @@ export default function App() {
 export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLanguageConfig, apiOrigin?: string, appId?: string): SandpackFiles {
 	const sandpackFiles: SandpackFiles = {};
 
-	// DIAGNOSTIC: Check settings file in files array
-	const _settingsCheck = files.filter((f) => f.path.includes("game-settings"));
-	if (_settingsCheck.length > 0) {
-		console.warn("[SETTINGS_DIAG] Found settings files:", _settingsCheck.map((f) => ({ path: f.path, hasContent: !!f.content, contentLen: f.content?.length })));
-	} else {
-		console.warn("[SETTINGS_DIAG] No settings file found. File paths:", files.map((f) => f.path));
-	}
-
 	// Check if files include a manifest.json (PWA)
 	const hasManifest = files.some((f) => f.path === "manifest.json" || f.path.endsWith("/manifest.json"));
 
@@ -1237,57 +1229,6 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		try {
 			const settingsObj = JSON.parse(settingsFile.content);
 			runtimeGlobals += `window.__VIBEXE_GAME_SETTINGS__ = ${JSON.stringify(settingsObj)};\n`;
-			// Use Object.defineProperty with getter/setter to lock constants BEFORE assets-3d.ts runs.
-			// When assets-3d.ts does Object.assign(window, {GRAVITY_3D: -38}),
-			// the no-op setter silently ignores the write, preserving our value.
-			// Getter/setter pattern works in strict mode (TypeScript modules).
-			runtimeGlobals += `(function(){
-  var gs = window.__VIBEXE_GAME_SETTINGS__;
-  var ov = {};
-  if(gs.physics){
-    if(gs.physics.gravity!==undefined) ov.GRAVITY_3D=gs.physics.gravity;
-    if(gs.physics.fallGravity!==undefined) ov.FALL_GRAVITY=gs.physics.fallGravity;
-    if(gs.physics.jumpForce!==undefined) ov.JUMP_FORCE=gs.physics.jumpForce;
-    if(gs.physics.moveSpeed!==undefined) ov.MOVE_SPEED=gs.physics.moveSpeed;
-    if(gs.physics.runSpeed!==undefined) ov.RUN_SPEED=gs.physics.runSpeed;
-    if(gs.physics.friction!==undefined) ov.FRICTION=gs.physics.friction;
-    if(gs.physics.coyoteTime!==undefined) ov.COYOTE_TIME=gs.physics.coyoteTime;
-  }
-  if(gs.camera){
-    if(gs.camera.offsetY!==undefined){ov.CAMERA_OFFSET_Y=gs.camera.offsetY;ov.CAMERA_HEIGHT=gs.camera.offsetY;}
-    if(gs.camera.offsetZ!==undefined){ov.CAMERA_OFFSET_Z=gs.camera.offsetZ;ov.CAMERA_DISTANCE=gs.camera.offsetZ;}
-    if(gs.camera.lerp!==undefined) ov.CAMERA_LERP=gs.camera.lerp;
-    if(gs.camera.lookAhead!==undefined) ov.CAMERA_LOOK_AHEAD=gs.camera.lookAhead;
-    if(gs.camera.lookY!==undefined) ov.CAMERA_LOOK_Y=gs.camera.lookY;
-  }
-  Object.keys(ov).forEach(function(k){
-    var v=ov[k];
-    Object.defineProperty(window,k,{get:function(){return v;},set:function(){},configurable:true});
-  });
-  // Spawn override: intercept createAnimatedCharacter3D + createPhysicsBody first calls
-  if(gs.player&&(gs.player.spawnX!==undefined||gs.player.spawnY!==undefined||gs.player.spawnZ!==undefined)){
-    var sx=gs.player.spawnX,sy=gs.player.spawnY,sz=gs.player.spawnZ;
-    var _origCAC,_origCPB,_cacDone=false,_cpbArmed=false;
-    Object.defineProperty(window,'createAnimatedCharacter3D',{
-      get:function(){if(!_origCAC)return undefined;if(_cacDone)return _origCAC;return function(sc,x,y,z,o){
-        _cacDone=true;_cpbArmed=true;
-        return _origCAC(sc,sx!==undefined?sx:x,sy!==undefined?sy:y,sz!==undefined?sz:z,o);
-      };},
-      set:function(v){_origCAC=v;},configurable:true
-    });
-    Object.defineProperty(window,'createPhysicsBody',{
-      get:function(){if(!_origCPB)return undefined;if(!_cpbArmed)return _origCPB;return function(sh,ma,po,si,op){
-        _cpbArmed=false;
-        if(po&&typeof po==='object'){
-          po={x:sx!==undefined?sx:(po.x||0),y:sy!==undefined?sy:(po.y||0),z:sz!==undefined?sz:(po.z||0)};
-        }
-        return _origCPB(sh,ma,po,si,op);
-      };},
-      set:function(v){_origCPB=v;},configurable:true
-    });
-  }
-  console.log("[3D] Game Settings injected:",JSON.stringify(gs));
-})();\n`;
 		} catch { /* invalid JSON — skip */ }
 	}
 	if (runtimeGlobals) {
@@ -1595,6 +1536,123 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				};
 			}
 		}
+	}
+
+	// Post-process: Patch 3D game source code to read from __VIBEXE_GAME_SETTINGS__.
+	// Existing games have hardcoded values saved in DB. The window global IS injected via
+	// <script> tag above, but ES module imports bypass window globals. Fix: rewrite the
+	// actual module source code so exported constants and spawn calls read from the global.
+	if (settingsFile?.content) {
+		try {
+			JSON.parse(settingsFile.content); // validate JSON
+
+			// 1. Patch assets-3d.ts — replace hardcoded constants with settings-backed values
+			const assetsKey = Object.keys(sandpackFiles).find((p) => p.endsWith("/assets-3d.ts"));
+			if (assetsKey) {
+				const af = sandpackFiles[assetsKey];
+				let code = typeof af === "string" ? af : af.code;
+				if (!code.includes("__VIBEXE_GAME_SETTINGS__")) {
+					// Add __gs declaration before first exported const
+					code = code.replace(
+						/^(export\s+const\s+)/m,
+						"const __gs: any = (window as any).__VIBEXE_GAME_SETTINGS__ || {};\n$1",
+					);
+					// Map constant names to settings paths
+					const constMap: [string, string][] = [
+						["GRAVITY_3D", "__gs.physics?.gravity"],
+						["FALL_GRAVITY", "__gs.physics?.fallGravity"],
+						["JUMP_FORCE", "__gs.physics?.jumpForce"],
+						["MOVE_SPEED", "__gs.physics?.moveSpeed"],
+						["RUN_SPEED", "__gs.physics?.runSpeed"],
+						["FRICTION", "__gs.physics?.friction"],
+						["COYOTE_TIME", "__gs.physics?.coyoteTime"],
+						["CAMERA_OFFSET_Y", "__gs.camera?.offsetY"],
+						["CAMERA_OFFSET_Z", "__gs.camera?.offsetZ"],
+						["CAMERA_HEIGHT", "__gs.camera?.offsetY"],
+						["CAMERA_DISTANCE", "__gs.camera?.offsetZ"],
+						["CAMERA_LERP", "__gs.camera?.lerp"],
+						["CAMERA_LOOK_AHEAD", "__gs.camera?.lookAhead"],
+						["CAMERA_LOOK_Y", "__gs.camera?.lookY"],
+					];
+					for (const [name, gsPath] of constMap) {
+						const re = new RegExp(`(export\\s+const\\s+${name}\\s*=\\s*)([^;]+)(;)`);
+						const m = code.match(re);
+						if (m && !m[2].includes("__gs")) {
+							code = code.replace(re, `$1${gsPath} ?? $2$3`);
+						}
+					}
+					if (typeof af === "string") {
+						sandpackFiles[assetsKey] = code;
+					} else {
+						(sandpackFiles[assetsKey] as SandpackFile).code = code;
+					}
+				}
+			}
+
+			// 2. Patch GameScene3D.ts — inject spawn position from settings
+			const sceneKey = Object.keys(sandpackFiles).find((p) => p.endsWith("GameScene3D.ts"));
+			if (sceneKey) {
+				const sf = sandpackFiles[sceneKey];
+				let code = typeof sf === "string" ? sf : sf.code;
+				if (!code.includes("__VIBEXE_GAME_SETTINGS__")) {
+					// Add __gs after last import (find last `from "..."` or `from '...'` line)
+					const lastFrom = Math.max(code.lastIndexOf('from "'), code.lastIndexOf("from '"));
+					const insertAt = lastFrom >= 0 ? code.indexOf("\n", lastFrom) : -1;
+					if (insertAt >= 0) {
+						code = `${code.slice(0, insertAt + 1)}const __gs_rt: any = (window as any).__VIBEXE_GAME_SETTINGS__ || {};\n${code.slice(insertAt + 1)}`;
+					} else {
+						code = `const __gs_rt: any = (window as any).__VIBEXE_GAME_SETTINGS__ || {};\n${code}`;
+					}
+					// Replace first createAnimatedCharacter3D spawn position
+					code = code.replace(
+						/(createAnimatedCharacter3D\s*\(\s*scene\s*,\s*)([^,]+)(\s*,\s*)([^,]+)(\s*,\s*)([^,]+)(\s*,)/,
+						(_, p1, x, p2, y, p3, z, p4) =>
+							`${p1}__gs_rt.player?.spawnX ?? ${x.trim()}${p2}__gs_rt.player?.spawnY ?? ${y.trim()}${p3}__gs_rt.player?.spawnZ ?? ${z.trim()}${p4}`,
+					);
+					// Replace first createPhysicsBody position object
+					code = code.replace(
+						/(createPhysicsBody\s*\([^,]+,\s*[^,]+,\s*)\{\s*x:\s*([^,]+),\s*y:\s*([^,]+),\s*z:\s*([^}]+)\}/,
+						(_, prefix, x, y, z) =>
+							`${prefix}{ x: __gs_rt.player?.spawnX ?? ${x.trim()}, y: __gs_rt.player?.spawnY ?? ${y.trim()}, z: __gs_rt.player?.spawnZ ?? ${z.trim()} }`,
+					);
+					if (typeof sf === "string") {
+						sandpackFiles[sceneKey] = code;
+					} else {
+						(sandpackFiles[sceneKey] as SandpackFile).code = code;
+					}
+				}
+			}
+
+			// 3. Patch Game3D.tsx — inject environment settings (background, lighting, fog, camera FOV)
+			const game3dKey = Object.keys(sandpackFiles).find((p) => p.endsWith("Game3D.tsx"));
+			if (game3dKey) {
+				const gf = sandpackFiles[game3dKey];
+				let code = typeof gf === "string" ? gf : gf.code;
+				if (!code.includes("__VIBEXE_GAME_SETTINGS__")) {
+					// Add __gs after last import
+					const lastFrom = Math.max(code.lastIndexOf('from "'), code.lastIndexOf("from '"));
+					const insertAt = lastFrom >= 0 ? code.indexOf("\n", lastFrom) : -1;
+					if (insertAt >= 0) {
+						code = `${code.slice(0, insertAt + 1)}const __gs_env: any = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).environment || {};\nconst __gs_cam: any = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).camera || {};\n${code.slice(insertAt + 1)}`;
+					}
+					// Patch background color: 0x87CEEB or similar hex → settings-backed
+					code = code.replace(
+						/(\.setClearColor\s*\(\s*)(0x[0-9a-fA-F]+)/,
+						`$1parseInt((__gs_env.backgroundColor || "#87CEEB").replace("#",""), 16)`,
+					);
+					// Patch camera FOV if hardcoded
+					code = code.replace(
+						/(PerspectiveCamera\s*\(\s*)(\d+)/,
+						`$1(__gs_cam.fov ?? $2)`,
+					);
+				}
+				if (typeof gf === "string") {
+					sandpackFiles[game3dKey] = code;
+				} else {
+					(sandpackFiles[game3dKey] as SandpackFile).code = code;
+				}
+			}
+		} catch { /* invalid settings JSON — skip all patching */ }
 	}
 
 	return sandpackFiles;
