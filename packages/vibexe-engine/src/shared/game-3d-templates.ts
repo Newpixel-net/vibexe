@@ -763,6 +763,7 @@ export function createContactMaterial(
  */
 export function syncMeshToBody(mesh: any, body: any): void {
   if (!mesh || !body) return;
+  mesh.userData.__physicsBody = body;
   mesh.position.copy(body.position);
   mesh.quaternion.copy(body.quaternion);
 }
@@ -2018,6 +2019,11 @@ export function createCharacterController3D(
   jump: () => void;
   readonly state: string;
 } {
+  // Store physics body reference on mesh for Scene Editor overrides
+  if (character.mesh && physicsBody) {
+    character.mesh.userData.__physicsBody = physicsBody;
+  }
+
   const WALK_SPEED = opts?.walkSpeed ?? 0.5;
   const RUN_SPEED = opts?.runSpeed ?? 5;
   const idleAnim = opts?.idleAnim ?? "idle";
@@ -4546,6 +4552,7 @@ export const GameScene = {
       });
       const body = createPhysicsBody("box", 0, { x, y, z }, size);
       if (world && body) world.addBody(body);
+      if (mesh && body) mesh.userData.__physicsBody = body;
       platforms.push({ mesh, body });
     }
     onProgress?.(0.3);
@@ -4562,6 +4569,7 @@ export const GameScene = {
       playerBody.fixedRotation = true;
     }
     if (world && playerBody) world.addBody(playerBody);
+    if (lily.mesh && playerBody) lily.mesh.userData.__physicsBody = playerBody;
     lilyController = createCharacterController3D(lilyResult, playerBody);
     onProgress?.(0.5);
 
@@ -5102,6 +5110,7 @@ async function spawnSegment(safe: boolean = false) {
     });
     const body = createPhysicsBody("box", 0, { x: lx * 4, y: -0.5, z: z - SEGMENT_LENGTH / 2 }, size);
     if (world && body) world.addBody(body);
+    if (mesh && body) mesh.userData.__physicsBody = body;
     seg.platforms.push({ mesh, body });
   }
 
@@ -5117,6 +5126,7 @@ async function spawnSegment(safe: boolean = false) {
         });
         const body = createPhysicsBody("box", 0, { x: bx, y: 0.5, z: bz }, size);
         if (world && body) world.addBody(body);
+        if (mesh && body) mesh.userData.__physicsBody = body;
         seg.barriers.push({ mesh, body, lane });
       }
     }

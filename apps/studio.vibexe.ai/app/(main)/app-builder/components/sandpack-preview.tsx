@@ -443,11 +443,16 @@ if (typeof window !== 'undefined') {
           s.traverse(function(c) { if(!t && c.name===name) t=c; });
         }
         if (t) {
-          if (o.p) t.position.set(o.p[0],o.p[1],o.p[2]);
+          var _hasBody = false;
+          if (o.p) {
+            t.position.set(o.p[0],o.p[1],o.p[2]);
+            var pb = t.userData && t.userData.__physicsBody;
+            if (pb && pb.position) { pb.position.set(o.p[0],o.p[1],o.p[2]); pb.velocity.set(0,0,0); _hasBody=true; }
+          }
           if (o.r) t.rotation.set(o.r[0],o.r[1],o.r[2]);
           if (o.s) t.scale.set(o.s[0],o.s[1],o.s[2]);
           _applied[name] = true;
-          console.log("[SCENE_EDITOR] Applied: "+name);
+          console.log("[SCENE_EDITOR] Applied: "+name+(_hasBody?" +body":""));
         } else { rem++; }
       }
       return rem===0;
