@@ -1526,33 +1526,38 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		let globals = "// Runtime globals injected by Vibexe\n";
 		if (apiOrigin) globals += `(window as any).__VIBEXE_API_ORIGIN__ = ${JSON.stringify(apiOrigin)};\n`;
 		if (appId) globals += `(window as any).__VIBEXE_APP_ID__ = ${JSON.stringify(appId)};\n`;
-		// Inject game settings global + runtime override for environment/camera
+		// Inject game settings global + runtime override for environment/physics/camera
 		if (settingsFile?.content) {
 			try {
 				const so = JSON.parse(settingsFile.content);
 				globals += `(window as any).__VIBEXE_GAME_SETTINGS__ = ${JSON.stringify(so)};\n`;
-				// Runtime override: apply environment/camera settings AFTER scene initializes.
-				// Works for ALL games (old templates without __gs reads AND new templates).
-				const env = so.environment;
-				const cam = so.camera;
-				if (env || cam) {
+				// Runtime override: apply settings AFTER scene initializes (async via setInterval).
+				// Handles environment (bg, fog, lights), physics gravity, and camera FOV.
+				// Physics constants & camera offsets are also handled by inline patching (Step 2 below),
+				// but gravity override via world.gravity.y provides a runtime fallback.
+				if (so.environment || so.camera || so.physics) {
 					globals += [
 						"(function(){",
-						"var _gs=(window as any).__VIBEXE_GAME_SETTINGS__||{};",
+						`var _gs=${JSON.stringify(so)};`,
 						"var _n=0;",
 						"var _t=setInterval(function(){",
 						"_n++;",
 						"var T=(window as any).THREE;var s=(window as any).__vibexe_scene__;var c=(window as any).__vibexe_camera__;",
-						"if(!T||!s){if(_n%50===0)console.warn('[GS-OVERRIDE] Waiting... THREE=',!!T,'scene=',!!s,'poll=',_n);return;}",
+						"if(!T||!s){if(_n%50===0)console.warn('[GS] Waiting... poll=',_n);return;}",
 						"clearInterval(_t);",
-						"console.warn('[GS-OVERRIDE] Scene found after',_n,'polls. Applying env settings...');",
+						"console.warn('[GS] Applied after',_n,'polls');",
+						// Environment
 						"var e=_gs.environment||{};",
-						"if(e.backgroundColor){try{s.background=new T.Color(e.backgroundColor);console.warn('[GS-OVERRIDE] BG set to',e.backgroundColor)}catch(x){console.warn('[GS-OVERRIDE] BG error',x)}}",
-						"if(e.fogEnabled){try{s.fog=new T.Fog(e.backgroundColor||'#87CEEB',e.fogNear||30,e.fogFar||100);console.warn('[GS-OVERRIDE] Fog enabled')}catch(x){}}",
-						"var amb=s.getObjectByName('__default_ambient__');if(amb&&e.ambientLightIntensity!=null){amb.intensity=e.ambientLightIntensity;console.warn('[GS-OVERRIDE] Ambient=',e.ambientLightIntensity)}",
-						"var sun=s.getObjectByName('__default_sun__');if(sun&&e.sunLightIntensity!=null){sun.intensity=e.sunLightIntensity;console.warn('[GS-OVERRIDE] Sun=',e.sunLightIntensity)}",
-						"var hemi=s.getObjectByName('__default_hemi__');if(hemi&&e.hemisphereIntensity!=null){hemi.intensity=e.hemisphereIntensity;console.warn('[GS-OVERRIDE] Hemi=',e.hemisphereIntensity)}",
-						"if(c&&_gs.camera){if(_gs.camera.fov!=null){c.fov=_gs.camera.fov;c.updateProjectionMatrix();console.warn('[GS-OVERRIDE] FOV=',_gs.camera.fov)}}",
+						"if(e.backgroundColor){try{s.background=new T.Color(e.backgroundColor)}catch(x){}}",
+						"if(e.fogEnabled){try{s.fog=new T.Fog(e.backgroundColor||'#87CEEB',e.fogNear||30,e.fogFar||100)}catch(x){}}",
+						"var amb=s.getObjectByName('__default_ambient__');if(amb&&e.ambientLightIntensity!=null)amb.intensity=e.ambientLightIntensity;",
+						"var sun=s.getObjectByName('__default_sun__');if(sun&&e.sunLightIntensity!=null)sun.intensity=e.sunLightIntensity;",
+						"var hemi=s.getObjectByName('__default_hemi__');if(hemi&&e.hemisphereIntensity!=null)hemi.intensity=e.hemisphereIntensity;",
+						// Camera FOV
+						"if(c&&_gs.camera&&_gs.camera.fov!=null){c.fov=_gs.camera.fov;c.updateProjectionMatrix()}",
+						// Physics gravity — override CANNON.World.gravity at runtime
+						"var w=(window as any).__vibexe_world__;",
+						"if(w&&_gs.physics&&_gs.physics.gravity!=null){try{w.gravity.set(0,_gs.physics.gravity,0);console.warn('[GS] Gravity=',_gs.physics.gravity)}catch(x){}}",
 						"},100)})();\n",
 					].join("");
 				}
@@ -1569,106 +1574,98 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		}
 	}
 
-	// Post-process: Patch 3D game source code to read from __VIBEXE_GAME_SETTINGS__.
-	// Existing games have hardcoded values saved in DB. The window global IS injected via
-	// <script> tag above, but ES module imports bypass window globals. Fix: rewrite the
-	// actual module source code so exported constants and spawn calls read from the global.
+	// Post-process: Patch 3D game source code with INLINE settings values.
+	// IMPORTANT: Sandpack's bundler hoists imports, so window globals set in the entry point
+	// are NOT available when imported modules evaluate. We must inline actual literal values
+	// directly into the source code instead of reading from window.__VIBEXE_GAME_SETTINGS__.
 	if (settingsFile?.content) {
 		try {
-			JSON.parse(settingsFile.content); // validate JSON
+			const gsObj = JSON.parse(settingsFile.content);
 
-			// 1. Patch assets-3d.ts — replace hardcoded constants with settings-backed values
+			// 1. Patch assets-3d.ts — replace hardcoded constants with actual settings values
 			const assetsKey = Object.keys(sandpackFiles).find((p) => p.endsWith("/assets-3d.ts"));
 			if (assetsKey) {
 				const af = sandpackFiles[assetsKey];
 				let code = typeof af === "string" ? af : af.code;
-				if (!code.includes("__VIBEXE_GAME_SETTINGS__")) {
-					// Add __gs declaration before first exported const
-					code = code.replace(
-						/^(export\s+const\s+)/m,
-						"const __gs: any = (window as any).__VIBEXE_GAME_SETTINGS__ || {};\nconsole.warn('[GS-PATCH] assets-3d __gs=', JSON.stringify(__gs));\n$1",
-					);
-					// Map constant names to settings paths
-					const constMap: [string, string][] = [
-						["GRAVITY_3D", "__gs.physics?.gravity"],
-						["FALL_GRAVITY", "__gs.physics?.fallGravity"],
-						["JUMP_FORCE", "__gs.physics?.jumpForce"],
-						["MOVE_SPEED", "__gs.physics?.moveSpeed"],
-						["RUN_SPEED", "__gs.physics?.runSpeed"],
-						["FRICTION", "__gs.physics?.friction"],
-						["COYOTE_TIME", "__gs.physics?.coyoteTime"],
-						["CAMERA_OFFSET_Y", "__gs.camera?.offsetY"],
-						["CAMERA_OFFSET_Z", "__gs.camera?.offsetZ"],
-						["CAMERA_HEIGHT", "__gs.camera?.offsetY"],
-						["CAMERA_DISTANCE", "__gs.camera?.offsetZ"],
-						["CAMERA_LERP", "__gs.camera?.lerp"],
-						["CAMERA_LOOK_AHEAD", "__gs.camera?.lookAhead"],
-						["CAMERA_LOOK_Y", "__gs.camera?.lookY"],
-					];
-					for (const [name, gsPath] of constMap) {
-						const re = new RegExp(`(export\\s+const\\s+${name}\\s*=\\s*)([^;]+)(;)`);
-						const m = code.match(re);
-						if (m && !m[2].includes("__gs")) {
-							code = code.replace(re, `$1${gsPath} ?? $2$3`);
-						}
+				// Map: [constantName, settingsPath, value]
+				const constMap: [string, number | undefined][] = [
+					["GRAVITY_3D", gsObj.physics?.gravity],
+					["FALL_GRAVITY", gsObj.physics?.fallGravity],
+					["JUMP_FORCE", gsObj.physics?.jumpForce],
+					["MOVE_SPEED", gsObj.physics?.moveSpeed],
+					["RUN_SPEED", gsObj.physics?.runSpeed],
+					["FRICTION", gsObj.physics?.friction],
+					["COYOTE_TIME", gsObj.physics?.coyoteTime],
+					["CAMERA_OFFSET_Y", gsObj.camera?.offsetY],
+					["CAMERA_OFFSET_Z", gsObj.camera?.offsetZ],
+					["CAMERA_HEIGHT", gsObj.camera?.offsetY],
+					["CAMERA_DISTANCE", gsObj.camera?.offsetZ],
+					["CAMERA_LERP", gsObj.camera?.lerp],
+					["CAMERA_LOOK_AHEAD", gsObj.camera?.lookAhead],
+					["CAMERA_LOOK_Y", gsObj.camera?.lookY],
+				];
+				let patchCount = 0;
+				for (const [name, value] of constMap) {
+					if (value == null) continue; // only patch if setting has a value
+					const re = new RegExp(`(export\\s+const\\s+${name}\\s*=\\s*)([^;]+)(;)`);
+					const m = code.match(re);
+					if (m) {
+						code = code.replace(re, `$1${value}$3`);
+						patchCount++;
 					}
+				}
+				if (patchCount > 0) {
 					if (typeof af === "string") {
 						sandpackFiles[assetsKey] = code;
 					} else {
 						(sandpackFiles[assetsKey] as SandpackFile).code = code;
 					}
+					console.log(`[convertToSandpackFiles] Patched ${patchCount} constants in assets-3d.ts`);
 				}
 			}
 
-			// 2. Patch GameScene3D.ts — inject spawn position from settings
+			// 2. Patch GameScene3D.ts — inline spawn position values from settings
 			const sceneKey = Object.keys(sandpackFiles).find((p) => p.endsWith("GameScene3D.ts"));
 			if (sceneKey) {
 				const sf = sandpackFiles[sceneKey];
 				let code = typeof sf === "string" ? sf : sf.code;
-				if (!code.includes("__VIBEXE_GAME_SETTINGS__")) {
-					// Add __gs after last import (find last `from "..."` or `from '...'` line)
-					const lastFrom = Math.max(code.lastIndexOf('from "'), code.lastIndexOf("from '"));
-					const insertAt = lastFrom >= 0 ? code.indexOf("\n", lastFrom) : -1;
-					if (insertAt >= 0) {
-						code = `${code.slice(0, insertAt + 1)}const __gs_rt: any = (window as any).__VIBEXE_GAME_SETTINGS__ || {};\n${code.slice(insertAt + 1)}`;
-					} else {
-						code = `const __gs_rt: any = (window as any).__VIBEXE_GAME_SETTINGS__ || {};\n${code}`;
+				const sp = gsObj.player;
+				if (sp) {
+					// Replace createAnimatedCharacter3D spawn args with literal values
+					if (sp.spawnX != null || sp.spawnY != null || sp.spawnZ != null) {
+						code = code.replace(
+							/(createAnimatedCharacter3D\s*\(\s*scene\s*,\s*)([^,]+)(\s*,\s*)([^,]+)(\s*,\s*)([^,]+)(\s*,)/,
+							(_, p1, x, p2, y, p3, z, p4) =>
+								`${p1}${sp.spawnX ?? x.trim()}${p2}${sp.spawnY ?? y.trim()}${p3}${sp.spawnZ ?? z.trim()}${p4}`,
+						);
+						// Replace createPhysicsBody position object
+						code = code.replace(
+							/(createPhysicsBody\s*\([^,]+,\s*[^,]+,\s*)\{\s*x:\s*([^,]+),\s*y:\s*([^,]+),\s*z:\s*([^}]+)\}/,
+							(_, prefix, x, y, z) =>
+								`${prefix}{ x: ${sp.spawnX ?? x.trim()}, y: ${sp.spawnY ?? y.trim()}, z: ${sp.spawnZ ?? z.trim()} }`,
+						);
 					}
-					// Replace first createAnimatedCharacter3D spawn position
-					code = code.replace(
-						/(createAnimatedCharacter3D\s*\(\s*scene\s*,\s*)([^,]+)(\s*,\s*)([^,]+)(\s*,\s*)([^,]+)(\s*,)/,
-						(_, p1, x, p2, y, p3, z, p4) =>
-							`${p1}__gs_rt.player?.spawnX ?? ${x.trim()}${p2}__gs_rt.player?.spawnY ?? ${y.trim()}${p3}__gs_rt.player?.spawnZ ?? ${z.trim()}${p4}`,
-					);
-					// Replace first createPhysicsBody position object
-					code = code.replace(
-						/(createPhysicsBody\s*\([^,]+,\s*[^,]+,\s*)\{\s*x:\s*([^,]+),\s*y:\s*([^,]+),\s*z:\s*([^}]+)\}/,
-						(_, prefix, x, y, z) =>
-							`${prefix}{ x: __gs_rt.player?.spawnX ?? ${x.trim()}, y: __gs_rt.player?.spawnY ?? ${y.trim()}, z: __gs_rt.player?.spawnZ ?? ${z.trim()} }`,
-					);
-				}
-				// Also patch SCENE_EDITOR_OVERRIDES — update Character_/Player_ positions to match settings
-				// AND inject player skip logic so override loop doesn't fight settings
-				const settingsPlayer = JSON.parse(settingsFile!.content).player;
-				if (settingsPlayer && code.includes("SCENE_EDITOR_OVERRIDES_DATA:")) {
-					const dataMatch = code.match(/SCENE_EDITOR_OVERRIDES_DATA:\s*(.+)/);
-					if (dataMatch) {
-						try {
-							const ov = JSON.parse(dataMatch[1]);
-							for (const key of Object.keys(ov)) {
-								if (key.startsWith("Character_") || key.startsWith("Player_")) {
-									if (ov[key].p) {
-										if (settingsPlayer.spawnX !== undefined) ov[key].p[0] = settingsPlayer.spawnX;
-										if (settingsPlayer.spawnY !== undefined) ov[key].p[1] = settingsPlayer.spawnY;
-										if (settingsPlayer.spawnZ !== undefined) ov[key].p[2] = settingsPlayer.spawnZ;
+
+					// Also patch SCENE_EDITOR_OVERRIDES — update Character_/Player_ positions
+					if (code.includes("SCENE_EDITOR_OVERRIDES_DATA:")) {
+						const dataMatch = code.match(/SCENE_EDITOR_OVERRIDES_DATA:\s*(.+)/);
+						if (dataMatch) {
+							try {
+								const ov = JSON.parse(dataMatch[1]);
+								for (const key of Object.keys(ov)) {
+									if (key.startsWith("Character_") || key.startsWith("Player_")) {
+										if (ov[key].p) {
+											if (sp.spawnX !== undefined) ov[key].p[0] = sp.spawnX;
+											if (sp.spawnY !== undefined) ov[key].p[1] = sp.spawnY;
+											if (sp.spawnZ !== undefined) ov[key].p[2] = sp.spawnZ;
+										}
 									}
 								}
-							}
-							const newJson = JSON.stringify(ov);
-							const oldJson = dataMatch[1].trim();
-							// Replace all 3 occurrences of the old JSON (data marker, __SCENE_OVERRIDES__, _ov)
-							code = code.split(oldJson).join(newJson);
-						} catch { /* invalid override JSON — skip */ }
+								const newJson = JSON.stringify(ov);
+								const oldJson = dataMatch[1].trim();
+								code = code.split(oldJson).join(newJson);
+							} catch { /* invalid override JSON — skip */ }
+						}
 					}
 				}
 				if (typeof sf === "string") {
@@ -1678,8 +1675,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				}
 			}
 
-			// 3. Game3D.tsx environment patching removed — runtime override in index.html handles
-			// ALL environment settings (background, lighting, fog, camera FOV) for both old and new games.
+			// 3. Environment settings handled by runtime override in entry point (async setInterval)
 		} catch { /* invalid settings JSON — skip all patching */ }
 	}
 
