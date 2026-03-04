@@ -434,6 +434,7 @@ if (typeof window !== 'undefined') {
       return null;
     }
     function _try() {
+      if (window.__vibexe_editor__) return false;
       var s = window.__vibexe_scene__;
       if (!s || !s.children) return false;
       if (s !== _lastScene) { _applied = {}; _lastScene = s; }
@@ -472,12 +473,16 @@ if (typeof window !== 'undefined') {
       return rem===0;
     }
     var _done = false;
-    setInterval(function() {
-      var s = window.__vibexe_scene__;
-      if (!s || !s.children) { _done = false; return; }
-      if (s !== _lastScene) { _done = false; }
+    var _polls = 0;
+    var _iv = setInterval(function() {
       if (_done) return;
-      if (_try()) { _done = true; console.log("[SCENE_EDITOR] All overrides applied"); }
+      if (window.__vibexe_editor__) return;
+      var s = window.__vibexe_scene__;
+      if (!s || !s.children) return;
+      if (s !== _lastScene) { _done = false; _polls = 0; }
+      _polls++;
+      if (_try()) { _done = true; clearInterval(_iv); console.log("[SCENE_EDITOR] All overrides applied after "+_polls+" polls"); }
+      else if (_polls > 100) { _done = true; clearInterval(_iv); console.log("[SCENE_EDITOR] Override polling stopped after "+_polls+" polls (some objects not found)"); }
     }, 300);
   })();
 }
@@ -569,6 +574,7 @@ export function SandpackPreview({
 				const t = transforms[name];
 				code = updateTransformInSource(code, name, t.position, t.rotation, t.scale);
 			}
+			console.log("[GameEditor] Save comparison: changed=", code !== sceneFile.content, "origLen=", sceneFile.content.length, "newLen=", code.length);
 			if (code !== sceneFile.content) {
 				currentOnFileUpdate(sceneFile.id, code);
 				// Save to DB
