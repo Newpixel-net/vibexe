@@ -1762,6 +1762,28 @@ export async function createAnimatedCharacter3D(
   // (PI would only flip face-down→face-up, still horizontal. -PI/2 rotates to vertical.)
   if (_needsUnityRootFix) {
     inner.rotation.x = -Math.PI / 2;
+    // Recalculate pivot Y so feet touch ground after rotation.
+    // The original pivot was calculated for face-down bind-pose; after -90° X rotation
+    // the character stands upright but feet may float above the mesh origin.
+    inner.updateMatrixWorld(true);
+    pivot.updateMatrixWorld(true);
+    mesh.updateMatrixWorld(true);
+    const _footBoneNames = new Set(["foot_l", "foot_r", "toes_l", "toes_r", "leftfoot", "rightfoot", "lefttoebase", "righttoebase"]);
+    let _lowestFootY = Infinity;
+    const _wp = new THREE.Vector3();
+    inner.traverse((child: any) => {
+      if (child.isBone && _footBoneNames.has(child.name.toLowerCase())) {
+        child.getWorldPosition(_wp);
+        if (_wp.y < _lowestFootY) _lowestFootY = _wp.y;
+      }
+    });
+    if (_lowestFootY !== Infinity) {
+      const _feetOffset = _lowestFootY - mesh.position.y;
+      if (Math.abs(_feetOffset) > 0.01) {
+        pivot.position.y -= _feetOffset;
+        console.log("[3D] Unity Root bone fix: pivot Y adjusted by " + (-_feetOffset).toFixed(4) + " to ground feet (feet were " + _feetOffset.toFixed(4) + " above ground)");
+      }
+    }
     console.log("[3D] Unity Root bone fix: applied -90° X rotation to inner (after pivot)");
   }
 
@@ -1769,6 +1791,15 @@ export async function createAnimatedCharacter3D(
 
   // Physics half-extents based on target height
   const halfExtents = { x: targetHeight * 0.3, y: targetHeight / 2, z: targetHeight * 0.3 };
+
+  // Store correct character bounds for editor BoxHelper override.
+  // SkinnedMesh bind-pose geometry gives wrong Box3 — editor needs these manual bounds.
+  mesh.userData.__characterBounds = {
+    halfX: halfExtents.x,
+    halfZ: halfExtents.z,
+    height: targetHeight,
+  };
+
   console.log("[3D] Character final: targetH=" + targetHeight + ", autoScale=" + autoScale.toFixed(3) + ", boneDeformed=" + usedBoneTransform);
 
   // --- Strip root motion + scale tracks from animation clips ---
@@ -3713,6 +3744,31 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
 
             _boxHelper = new THREE.BoxHelper(obj, 0x00ff88);
             _boxHelper.name = "__editor_box_helper__";
+            // Override BoxHelper.update for animated characters — SkinnedMesh bind-pose gives wrong Box3
+            if (obj.userData?.vibexeType === "AnimatedCharacter" && obj.userData.__characterBounds) {
+              const _cb = obj.userData.__characterBounds;
+              const _bObj = obj;
+              _boxHelper.update = function() {
+                const wp = new THREE.Vector3();
+                _bObj.getWorldPosition(wp);
+                const hx = _cb.halfX, hz = _cb.halfZ, h = _cb.height;
+                const pos = this.geometry.attributes.position;
+                if (!pos) return;
+                const a = pos.array;
+                // 8 vertices matching Three.js BoxHelper layout
+                a[0]=wp.x+hx; a[1]=wp.y+h; a[2]=wp.z+hz;
+                a[3]=wp.x-hx; a[4]=wp.y+h; a[5]=wp.z+hz;
+                a[6]=wp.x-hx; a[7]=wp.y;   a[8]=wp.z+hz;
+                a[9]=wp.x+hx; a[10]=wp.y;  a[11]=wp.z+hz;
+                a[12]=wp.x+hx;a[13]=wp.y+h;a[14]=wp.z-hz;
+                a[15]=wp.x-hx;a[16]=wp.y+h;a[17]=wp.z-hz;
+                a[18]=wp.x-hx;a[19]=wp.y;  a[20]=wp.z-hz;
+                a[21]=wp.x+hx;a[22]=wp.y;  a[23]=wp.z-hz;
+                pos.needsUpdate = true;
+                this.geometry.computeBoundingSphere();
+              };
+              _boxHelper.update();
+            }
             scene.add(_boxHelper);
 
             // TransformControls must be loaded via sync XHR shim (sandpack-adapter.ts)

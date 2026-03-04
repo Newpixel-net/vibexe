@@ -688,6 +688,30 @@ export function getVisualEditBridgeScript(): string {
     var THREE = window.THREE;
     boxHelper = new THREE.BoxHelper(obj, 0x00ff88);
     boxHelper.name = "__editor_box_helper__";
+    // Override for animated characters — SkinnedMesh bind-pose gives wrong Box3
+    if (obj.userData && obj.userData.vibexeType === "AnimatedCharacter" && obj.userData.__characterBounds) {
+      var _cb = obj.userData.__characterBounds;
+      var _bObj = obj;
+      boxHelper.update = function() {
+        var wp = new THREE.Vector3();
+        _bObj.getWorldPosition(wp);
+        var hx = _cb.halfX, hz = _cb.halfZ, h = _cb.height;
+        var pos = this.geometry.attributes.position;
+        if (!pos) return;
+        var a = pos.array;
+        a[0]=wp.x+hx; a[1]=wp.y+h; a[2]=wp.z+hz;
+        a[3]=wp.x-hx; a[4]=wp.y+h; a[5]=wp.z+hz;
+        a[6]=wp.x-hx; a[7]=wp.y;   a[8]=wp.z+hz;
+        a[9]=wp.x+hx; a[10]=wp.y;  a[11]=wp.z+hz;
+        a[12]=wp.x+hx;a[13]=wp.y+h;a[14]=wp.z-hz;
+        a[15]=wp.x-hx;a[16]=wp.y+h;a[17]=wp.z-hz;
+        a[18]=wp.x-hx;a[19]=wp.y;  a[20]=wp.z-hz;
+        a[21]=wp.x+hx;a[22]=wp.y;  a[23]=wp.z-hz;
+        pos.needsUpdate = true;
+        this.geometry.computeBoundingSphere();
+      };
+      boxHelper.update();
+    }
     editor.scene.add(boxHelper);
     if (THREE.TransformControls) {
       // Final safety: never attach to scene root
