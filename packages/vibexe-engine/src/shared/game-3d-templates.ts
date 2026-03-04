@@ -23,7 +23,7 @@ export const GAME_3D_TEMPLATE_FILES: TemplateFile[] = [
  */
 export function modelUrl(packId: string, filename: string): string {
   const origin = (window as any).__VIBEXE_API_ORIGIN__ || "";
-  return \`\${origin}/api/app-builder/media-stock-3d/\${packId}/\${encodeURI(filename)}?v=2\`;
+  return \`\${origin}/api/app-builder/media-stock-3d/\${packId}/\${encodeURI(filename)}\`;
 }
 `,
 	},
@@ -5200,7 +5200,10 @@ function _convertMaterials(root: any, subpath: string, tint: number | null) {
 }
 
 async function loadModel(subpath: string, cloneMats = false): Promise<any> {
-  const url = modelUrl(PACK, subpath);
+  // Cache buster for character GLBs — Sandpack CDN caches aggressively
+  const baseUrl = modelUrl(PACK, subpath);
+  const sep = baseUrl.includes('?') ? '&' : '?';
+  const url = subpath.startsWith('characters/player/') ? baseUrl + sep + '_cb=2' : baseUrl;
   let mesh: any;
   try {
     const isCharacter = subpath.startsWith('characters/');
