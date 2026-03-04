@@ -1223,42 +1223,11 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 	let runtimeGlobals = "";
 	if (apiOrigin) runtimeGlobals += `window.__VIBEXE_API_ORIGIN__ = ${JSON.stringify(apiOrigin)};\n`;
 	if (appId) runtimeGlobals += `window.__VIBEXE_APP_ID__ = ${JSON.stringify(appId)};\n`;
-	// Inject game settings from __game-settings.json virtual file
+	// Find game settings file (used by entry point injection + post-process patching below)
 	const settingsFile = files.find((f) => f.path === "src/__game-settings.json" || f.path === "__game-settings.json");
-	console.log("[convertToSandpackFiles] settingsFile found:", !!settingsFile, "path:", settingsFile?.path, "contentLen:", settingsFile?.content?.length);
-	if (settingsFile?.content) {
-		try {
-			const settingsObj = JSON.parse(settingsFile.content);
-			runtimeGlobals += `window.__VIBEXE_GAME_SETTINGS__ = ${JSON.stringify(settingsObj)};\n`;
-			// Runtime override: apply environment/camera settings AFTER scene initializes.
-			// Works for ALL games (old templates without __gs reads AND new templates).
-			// Waits for window.__vibexe_scene__ (set by Game3D.tsx) then applies settings.
-			const env = settingsObj.environment;
-			const cam = settingsObj.camera;
-			if (env || cam) {
-				runtimeGlobals += [
-					"(function(){",
-					"console.warn('[GS-OVERRIDE] Script loaded. env=',JSON.stringify(window.__VIBEXE_GAME_SETTINGS__?.environment));",
-					"var _gs=window.__VIBEXE_GAME_SETTINGS__||{};",
-					"var _n=0;",
-					"var _t=setInterval(function(){",
-					"_n++;",
-					"var T=window.THREE;var s=window.__vibexe_scene__;var c=window.__vibexe_camera__;",
-					"if(!T||!s){if(_n%50===0)console.warn('[GS-OVERRIDE] Waiting... THREE=',!!T,'scene=',!!s,'poll=',_n);return;}",
-					"clearInterval(_t);",
-					"console.warn('[GS-OVERRIDE] Scene found after',_n,'polls. Applying env settings...');",
-					"var e=_gs.environment||{};",
-					"if(e.backgroundColor){try{s.background=new T.Color(e.backgroundColor);console.warn('[GS-OVERRIDE] BG set to',e.backgroundColor)}catch(x){console.warn('[GS-OVERRIDE] BG error',x)}}",
-					"if(e.fogEnabled){try{s.fog=new T.Fog(e.backgroundColor||'#87CEEB',e.fogNear||30,e.fogFar||100);console.warn('[GS-OVERRIDE] Fog enabled')}catch(x){}}",
-					"var amb=s.getObjectByName('__default_ambient__');if(amb&&e.ambientLightIntensity!=null){amb.intensity=e.ambientLightIntensity;console.warn('[GS-OVERRIDE] Ambient=',e.ambientLightIntensity)}",
-					"var sun=s.getObjectByName('__default_sun__');if(sun&&e.sunLightIntensity!=null){sun.intensity=e.sunLightIntensity;console.warn('[GS-OVERRIDE] Sun=',e.sunLightIntensity)}",
-					"var hemi=s.getObjectByName('__default_hemi__');if(hemi&&e.hemisphereIntensity!=null){hemi.intensity=e.hemisphereIntensity;console.warn('[GS-OVERRIDE] Hemi=',e.hemisphereIntensity)}",
-					"if(c&&_gs.camera){if(_gs.camera.fov!=null){c.fov=_gs.camera.fov;c.updateProjectionMatrix();console.warn('[GS-OVERRIDE] FOV=',_gs.camera.fov)}}",
-					"},100)})();\n",
-				].join("");
-			}
-		} catch { /* invalid JSON — skip */ }
-	}
+	// NOTE: Game settings injection moved to entry point prepend block below.
+	// Sandpack does NOT execute inline <script> tags in index.html <body>.
+	// runtimeGlobals only contains apiOrigin/appId for non-game apps now.
 	if (runtimeGlobals) {
 		indexHtml = indexHtml.replace(
 			"<div id=\"root\">",
@@ -1551,10 +1520,44 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 
 	// Prepend runtime globals to ALL entry point files so they're set before any app code runs.
 	// Sandpack prefers .tsx > .ts > .jsx > .js, so we must inject into every variant that exists.
-	if (apiOrigin || appId) {
+	// NOTE: Sandpack does NOT execute inline <script> tags in index.html <body>.
+	// All runtime globals MUST go here (entry point prepend) to actually execute.
+	{
 		let globals = "// Runtime globals injected by Vibexe\n";
 		if (apiOrigin) globals += `(window as any).__VIBEXE_API_ORIGIN__ = ${JSON.stringify(apiOrigin)};\n`;
 		if (appId) globals += `(window as any).__VIBEXE_APP_ID__ = ${JSON.stringify(appId)};\n`;
+		// Inject game settings global + runtime override for environment/camera
+		if (settingsFile?.content) {
+			try {
+				const so = JSON.parse(settingsFile.content);
+				globals += `(window as any).__VIBEXE_GAME_SETTINGS__ = ${JSON.stringify(so)};\n`;
+				// Runtime override: apply environment/camera settings AFTER scene initializes.
+				// Works for ALL games (old templates without __gs reads AND new templates).
+				const env = so.environment;
+				const cam = so.camera;
+				if (env || cam) {
+					globals += [
+						"(function(){",
+						"var _gs=(window as any).__VIBEXE_GAME_SETTINGS__||{};",
+						"var _n=0;",
+						"var _t=setInterval(function(){",
+						"_n++;",
+						"var T=(window as any).THREE;var s=(window as any).__vibexe_scene__;var c=(window as any).__vibexe_camera__;",
+						"if(!T||!s){if(_n%50===0)console.warn('[GS-OVERRIDE] Waiting... THREE=',!!T,'scene=',!!s,'poll=',_n);return;}",
+						"clearInterval(_t);",
+						"console.warn('[GS-OVERRIDE] Scene found after',_n,'polls. Applying env settings...');",
+						"var e=_gs.environment||{};",
+						"if(e.backgroundColor){try{s.background=new T.Color(e.backgroundColor);console.warn('[GS-OVERRIDE] BG set to',e.backgroundColor)}catch(x){console.warn('[GS-OVERRIDE] BG error',x)}}",
+						"if(e.fogEnabled){try{s.fog=new T.Fog(e.backgroundColor||'#87CEEB',e.fogNear||30,e.fogFar||100);console.warn('[GS-OVERRIDE] Fog enabled')}catch(x){}}",
+						"var amb=s.getObjectByName('__default_ambient__');if(amb&&e.ambientLightIntensity!=null){amb.intensity=e.ambientLightIntensity;console.warn('[GS-OVERRIDE] Ambient=',e.ambientLightIntensity)}",
+						"var sun=s.getObjectByName('__default_sun__');if(sun&&e.sunLightIntensity!=null){sun.intensity=e.sunLightIntensity;console.warn('[GS-OVERRIDE] Sun=',e.sunLightIntensity)}",
+						"var hemi=s.getObjectByName('__default_hemi__');if(hemi&&e.hemisphereIntensity!=null){hemi.intensity=e.hemisphereIntensity;console.warn('[GS-OVERRIDE] Hemi=',e.hemisphereIntensity)}",
+						"if(c&&_gs.camera){if(_gs.camera.fov!=null){c.fov=_gs.camera.fov;c.updateProjectionMatrix();console.warn('[GS-OVERRIDE] FOV=',_gs.camera.fov)}}",
+						"},100)})();\n",
+					].join("");
+				}
+			} catch { /* invalid JSON */ }
+		}
 		globals += "\n";
 		for (const entryKey of ["/index.js", "/index.jsx", "/index.ts", "/index.tsx"]) {
 			if (sandpackFiles[entryKey]) {
