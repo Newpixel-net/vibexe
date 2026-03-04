@@ -5200,10 +5200,7 @@ function _convertMaterials(root: any, subpath: string, tint: number | null) {
 }
 
 async function loadModel(subpath: string, cloneMats = false): Promise<any> {
-  // Cache buster for character GLBs — Sandpack CDN caches aggressively
-  const baseUrl = modelUrl(PACK, subpath);
-  const sep = baseUrl.includes('?') ? '&' : '?';
-  const url = subpath.startsWith('characters/player/') ? baseUrl + sep + '_cb=2' : baseUrl;
+  const url = modelUrl(PACK, subpath);
   let mesh: any;
   try {
     const isCharacter = subpath.startsWith('characters/');
