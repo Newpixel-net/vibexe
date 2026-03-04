@@ -5,7 +5,7 @@
  * Shares the 260px right sidebar with the scene editor panel.
  */
 
-import { Camera, RotateCcw, Sun, User, X, Zap } from "lucide-react";
+import { Camera, Crosshair, RotateCcw, Sun, User, X, Zap } from "lucide-react";
 import { useCallback, useState } from "react";
 import { DragNumberInput } from "./drag-number-input";
 import { DEFAULT_GAME_SETTINGS, type GameSettings } from "../lib/game-editor-context";
@@ -17,6 +17,10 @@ interface GameSettingsPanelProps {
 	onChange: (settings: GameSettings) => void;
 	onSave: (settings: GameSettings) => void;
 	onClose: () => void;
+	pickSpawnActive?: boolean;
+	pickRespawnActive?: boolean;
+	onTogglePickSpawn?: () => void;
+	onTogglePickRespawn?: () => void;
 }
 
 function deepMerge(target: any, patch: any): any {
@@ -31,7 +35,7 @@ function deepMerge(target: any, patch: any): any {
 	return result;
 }
 
-export function GameSettingsPanel({ settings, onChange, onSave, onClose }: GameSettingsPanelProps) {
+export function GameSettingsPanel({ settings, onChange, onSave, onClose, pickSpawnActive, pickRespawnActive, onTogglePickSpawn, onTogglePickRespawn }: GameSettingsPanelProps) {
 	const [activeTab, setActiveTab] = useState<SettingsTab>("player");
 
 	const update = useCallback((section: string, field: string, value: any) => {
@@ -104,12 +108,56 @@ export function GameSettingsPanel({ settings, onChange, onSave, onClose }: GameS
 			<div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-2">
 				{activeTab === "player" && (
 					<>
-						<SectionLabel>Spawn Position</SectionLabel>
+						<div className="flex items-center justify-between">
+							<SectionLabel>Spawn Position</SectionLabel>
+							{onTogglePickSpawn && (
+								<button
+									type="button"
+									onClick={onTogglePickSpawn}
+									className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ${
+										pickSpawnActive
+											? "bg-violet-500/20 text-violet-300 border border-violet-400/40"
+											: "text-white/30 hover:text-white/50 hover:bg-white/[0.06] border border-transparent"
+									}`}
+									title={pickSpawnActive ? "Stop picking — click to disable" : "Pick from scene — drag player to set spawn"}
+								>
+									<Crosshair className="w-3 h-3" />
+									{pickSpawnActive ? "Picking..." : "Pick"}
+								</button>
+							)}
+						</div>
+						{pickSpawnActive && (
+							<div className="text-[9px] text-violet-300/70 -mt-1 mb-1">
+								Drag the player character to set spawn position
+							</div>
+						)}
 						<DragNumberInput label="X" value={settings.player?.spawnX ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "spawnX", v)} color="#e74c4c" />
 						<DragNumberInput label="Y" value={settings.player?.spawnY ?? 3} step={0.5} precision={1} onChange={(v) => update("player", "spawnY", v)} color="#4ce74c" />
 						<DragNumberInput label="Z" value={settings.player?.spawnZ ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "spawnZ", v)} color="#4c7ce7" />
 
-						<SectionLabel>Respawn Position</SectionLabel>
+						<div className="flex items-center justify-between">
+							<SectionLabel>Respawn Position</SectionLabel>
+							{onTogglePickRespawn && (
+								<button
+									type="button"
+									onClick={onTogglePickRespawn}
+									className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ${
+										pickRespawnActive
+											? "bg-violet-500/20 text-violet-300 border border-violet-400/40"
+											: "text-white/30 hover:text-white/50 hover:bg-white/[0.06] border border-transparent"
+									}`}
+									title={pickRespawnActive ? "Stop picking — click to disable" : "Pick from scene — drag player to set respawn"}
+								>
+									<Crosshair className="w-3 h-3" />
+									{pickRespawnActive ? "Picking..." : "Pick"}
+								</button>
+							)}
+						</div>
+						{pickRespawnActive && (
+							<div className="text-[9px] text-violet-300/70 -mt-1 mb-1">
+								Drag the player character to set respawn position
+							</div>
+						)}
 						<DragNumberInput label="X" value={settings.player?.respawnX ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "respawnX", v)} color="#e74c4c" />
 						<DragNumberInput label="Y" value={settings.player?.respawnY ?? 5} step={0.5} precision={1} onChange={(v) => update("player", "respawnY", v)} color="#4ce74c" />
 						<DragNumberInput label="Z" value={settings.player?.respawnZ ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "respawnZ", v)} color="#4c7ce7" />

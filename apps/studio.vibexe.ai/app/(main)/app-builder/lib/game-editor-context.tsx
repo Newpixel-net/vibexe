@@ -110,6 +110,11 @@ interface GameEditorContextValue {
 	toggleSettings: () => void;
 	updateGameSettings: (patch: Partial<GameSettings>) => void;
 	setGameSettings: (settings: GameSettings) => void;
+	// Pick-from-scene mode for spawn/respawn position
+	pickSpawnActive: boolean;
+	pickRespawnActive: boolean;
+	togglePickSpawn: () => void;
+	togglePickRespawn: () => void;
 	// Scene editor extended state
 	gizmoSpace: "world" | "local";
 	hierarchySearch: string;
@@ -181,6 +186,10 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [activePrefab, setActivePrefabState] = useState<PrefabDefinition | null>(null);
 	const [gameSettings, setGameSettingsState] = useState<GameSettings>({ ...DEFAULT_GAME_SETTINGS });
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+	const [pickSpawnActive, setPickSpawnActive] = useState(false);
+	const [pickRespawnActive, setPickRespawnActive] = useState(false);
+	const pickSpawnRef = useRef(false);
+	const pickRespawnRef = useRef(false);
 	const [animClipOverrides, setAnimClipOverrides] = useState<Record<string, string>>({});
 	const [animModelId, setAnimModelId] = useState<string | null>(null);
 	const [gizmoSpace, setGizmoSpaceState] = useState<"world" | "local">("world");
@@ -391,6 +400,24 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		setIsSettingsOpen((prev) => !prev);
 	}, []);
 
+	const togglePickSpawn = useCallback(() => {
+		setPickSpawnActive((prev) => {
+			const next = !prev;
+			pickSpawnRef.current = next;
+			if (next) { setPickRespawnActive(false); pickRespawnRef.current = false; }
+			return next;
+		});
+	}, []);
+
+	const togglePickRespawn = useCallback(() => {
+		setPickRespawnActive((prev) => {
+			const next = !prev;
+			pickRespawnRef.current = next;
+			if (next) { setPickSpawnActive(false); pickSpawnRef.current = false; }
+			return next;
+		});
+	}, []);
+
 	const updateGameSettings = useCallback((patch: Partial<GameSettings>) => {
 		setGameSettingsState((prev) => {
 			const next = { ...prev };
@@ -401,8 +428,9 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 					(next as any)[key] = val;
 				}
 			}
-			// Live-sync player spawn position to iframe
-			if (patch.player) {
+			// Live-sync player spawn position to iframe (but not during pick mode —
+			// in pick mode the player is already being dragged by the user)
+			if (patch.player && !pickSpawnRef.current && !pickRespawnRef.current) {
 				const p = patch.player as Record<string, unknown>;
 				if (p.spawnX !== undefined || p.spawnY !== undefined || p.spawnZ !== undefined) {
 					sendToIframe({
@@ -480,11 +508,15 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		}
 	}, []);
 
-	// Reset dirty state when editor is disabled
+	// Reset dirty state and pick modes when editor is disabled
 	useEffect(() => {
 		if (!enabled) {
 			setIsDirty(false);
 			setIsSaving(false);
+			setPickSpawnActive(false);
+			setPickRespawnActive(false);
+			pickSpawnRef.current = false;
+			pickRespawnRef.current = false;
 		}
 	}, [enabled]);
 
@@ -518,6 +550,10 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				toggleSettings,
 				updateGameSettings,
 				setGameSettings,
+				pickSpawnActive,
+				pickRespawnActive,
+				togglePickSpawn,
+				togglePickRespawn,
 				gizmoSpace,
 				hierarchySearch,
 				canUndo,

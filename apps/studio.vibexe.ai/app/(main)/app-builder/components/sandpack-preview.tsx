@@ -563,6 +563,8 @@ export function SandpackPreview({
 
 	// Track whether scene transforms were modified during editor session
 	const sceneModifiedDuringEditRef = useRef(false);
+	// Accumulate scene file edits during editor mode (avoids Sandpack hot-reload loop)
+	const pendingSceneContentRef = useRef<string | null>(null);
 
 	// Save-all-transforms resolver for batch save
 	const allTransformsResolverRef = useRef<((transforms: Record<string, any>) => void) | null>(null);
@@ -596,25 +598,25 @@ export function SandpackPreview({
 				return;
 			}
 			console.log("[GameEditor] Saving all transforms:", names.length, "objects");
-			// Find GameScene3D.ts
+			// Find GameScene3D.ts — use pending content if already modified during this session
 			const currentFiles = filesRef.current;
 			const currentOnFileUpdate = onFileUpdateRef.current;
 			const sceneFile = currentFiles.find((f) => f.path?.includes("GameScene3D"));
-			if (!sceneFile?.content || !currentOnFileUpdate) {
+			if (!sceneFile?.content) {
 				console.warn("[GameEditor] Cannot save: GameScene3D.ts not found");
 				return;
 			}
-			// Apply all transforms to source code
-			let code = sceneFile.content;
+			// Apply all transforms to source code (start from pending content if available)
+			let code = pendingSceneContentRef.current ?? sceneFile.content;
 			for (const name of names) {
 				const t = transforms[name];
 				code = updateTransformInSource(code, name, t.position, t.rotation, t.scale);
 			}
-			// Debug: uncomment to check save comparison
-			// console.log("[GameEditor] Save comparison: changed=", code !== sceneFile.content);
-			if (code !== sceneFile.content) {
-				currentOnFileUpdate(sceneFile.id, code);
-				// Save to DB
+			const baseContent = pendingSceneContentRef.current ?? sceneFile.content;
+			if (code !== baseContent) {
+				pendingSceneContentRef.current = code;
+				sceneModifiedDuringEditRef.current = true;
+				// Save to DB only — no Sandpack file update during editor mode
 				try {
 					await fetch(`/api/app-builder/apps/${appId}/files`, {
 						method: "PUT",
@@ -878,33 +880,47 @@ export function SandpackPreview({
 				}
 			} else if (data.type === "game-editor-persist-transform") {
 				// Persist transform changes to source code (GameScene3D.ts)
+				// IMPORTANT: Do NOT call currentOnFileUpdate() here — it triggers Sandpack
+				// hot-reload which restarts the game and resets all object positions.
+				// Instead, accumulate changes in memory + save to DB only.
+				// The editor-exit refresh mechanism applies changes from DB.
 				const currentFiles = filesRef.current;
-				const currentOnFileUpdate = onFileUpdateRef.current;
-				if (!currentOnFileUpdate) return;
 				const objName = data.name as string;
 				const pos = data.position as { x: number; y: number; z: number };
 				const rot = data.rotation as { x: number; y: number; z: number };
 				const scl = data.scale as { x: number; y: number; z: number };
 				if (!objName) return;
-				// Find GameScene3D.ts file
+				// Find GameScene3D.ts file — use pending content if we've already modified it
 				const sceneFile = currentFiles.find((f) => f.path?.includes("GameScene3D"));
 				if (!sceneFile?.content) {
 					console.warn("[GameEditor] Cannot persist: GameScene3D.ts not found in files", currentFiles.length);
 					return;
 				}
-				const updated = updateTransformInSource(sceneFile.content, objName, pos, rot, scl);
-				if (updated !== sceneFile.content) {
+				const baseContent = pendingSceneContentRef.current ?? sceneFile.content;
+				const updated = updateTransformInSource(baseContent, objName, pos, rot, scl);
+				if (updated !== baseContent) {
 					console.log("[GameEditor] Persisting transform for:", objName, "pos:", pos);
 					sceneModifiedDuringEditRef.current = true;
-					currentOnFileUpdate(sceneFile.id, updated);
-					// Also save to database so changes survive page refresh
+					pendingSceneContentRef.current = updated;
+					// Save to database so changes survive page refresh (no Sandpack update)
 					fetch(`/api/app-builder/apps/${appId}/files`, {
 						method: "PUT",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ path: sceneFile.path, content: updated }),
 					}).catch((err) => console.warn("[GameEditor] DB save failed:", err));
-				} else {
-					console.warn("[GameEditor] No change after updateTransformInSource for:", objName);
+				}
+			} else if (data.type === "game-editor-player-position-update") {
+				// Live-sync player position to Game Settings panel (pick-from-scene)
+				const pos = data.position as { x: number; y: number; z: number };
+				if (!pos) return;
+				if (gameEditor.pickSpawnActive) {
+					gameEditor.updateGameSettings({
+						player: { spawnX: pos.x, spawnY: pos.y, spawnZ: pos.z }
+					});
+				} else if (gameEditor.pickRespawnActive) {
+					gameEditor.updateGameSettings({
+						player: { respawnX: pos.x, respawnY: pos.y, respawnZ: pos.z }
+					});
 				}
 			}
 		};
@@ -912,16 +928,26 @@ export function SandpackPreview({
 		return () => window.removeEventListener("message", handler);
 	}, [visualEdit, gameEditor]);
 
-	// When exiting Scene Editor after transforms were modified, refresh Sandpack
-	// so the game reloads with SCENE_EDITOR_OVERRIDES applied from source code.
+	// When exiting Scene Editor after transforms were modified, flush pending
+	// content to Sandpack and refresh so the game reloads with overrides applied.
 	const prevEditorEnabledRef = useRef(false);
 	useEffect(() => {
 		const wasEnabled = prevEditorEnabledRef.current;
 		prevEditorEnabledRef.current = gameEditor.enabled;
 		if (wasEnabled && !gameEditor.enabled && sceneModifiedDuringEditRef.current) {
-			console.log("[GameEditor] Scene modified during edit session — refreshing preview to apply overrides");
+			console.log("[GameEditor] Scene modified during edit session — flushing to Sandpack & refreshing");
 			sceneModifiedDuringEditRef.current = false;
-			// Delay to let SandpackFileSync process the last file update
+			// Flush accumulated scene edits to Sandpack files before refresh
+			const pendingContent = pendingSceneContentRef.current;
+			if (pendingContent) {
+				const currentOnFileUpdate = onFileUpdateRef.current;
+				const sceneFile = filesRef.current.find((f) => f.path?.includes("GameScene3D"));
+				if (currentOnFileUpdate && sceneFile) {
+					currentOnFileUpdate(sceneFile.id, pendingContent);
+				}
+				pendingSceneContentRef.current = null;
+			}
+			// Delay to let SandpackFileSync process the file update
 			setTimeout(() => { sandpackRefreshRef.current?.(); }, 400);
 		}
 	}, [gameEditor.enabled]);
@@ -1455,6 +1481,10 @@ export function SandpackPreview({
 							onChange={gameEditor.updateGameSettings}
 							onSave={handleSaveSettings}
 							onClose={gameEditor.toggleSettings}
+							pickSpawnActive={gameEditor.pickSpawnActive}
+							pickRespawnActive={gameEditor.pickRespawnActive}
+							onTogglePickSpawn={gameEditor.togglePickSpawn}
+							onTogglePickRespawn={gameEditor.togglePickRespawn}
 						/>
 					) : (
 						<GameEditorPanel />

@@ -750,7 +750,12 @@ export function getVisualEditBridgeScript(): string {
         }
       });
       transformControls.addEventListener("objectChange", function() {
-        if (selectedObj) { sendSelectedObject(selectedObj); if (boxHelper) boxHelper.update(); }
+        if (selectedObj) {
+          sendSelectedObject(selectedObj);
+          if (boxHelper) boxHelper.update();
+          // Live-sync player position to Game Settings panel
+          sendPlayerPositionUpdate(selectedObj);
+        }
       });
       editor.scene.add(transformControls);
     } else {
@@ -1069,6 +1074,8 @@ export function getVisualEditBridgeScript(): string {
       selectedObj.position.z = newZ;
       sendSelectedObject(selectedObj);
       if (boxHelper) boxHelper.update();
+      // Live-sync player position during XZ drag
+      sendPlayerPositionUpdate(selectedObj);
     }
   }
 
@@ -1172,6 +1179,24 @@ export function getVisualEditBridgeScript(): string {
       console.log("[GameEditorBridge] persistTransform:", obj.name, "pos:", msg.position);
       window.parent.postMessage(msg, "*");
     }, 300);
+  }
+
+  // ---- Player character detection ----
+  function isPlayerCharacter(obj) {
+    if (!obj) return false;
+    var ud = obj.userData || {};
+    return ud.__isPlayerCharacter
+      || ud.vibexeType === "player"
+      || (ud.vibexeType === "AnimatedCharacter" && obj.name && (obj.name.indexOf("Character_") === 0 || obj.name.indexOf("Player_") === 0));
+  }
+
+  // Send live player position to parent (for "pick from scene" in Game Settings panel)
+  function sendPlayerPositionUpdate(obj) {
+    if (!obj || !isPlayerCharacter(obj)) return;
+    window.parent.postMessage({
+      type: "game-editor-player-position-update",
+      position: { x: +obj.position.x.toFixed(3), y: +obj.position.y.toFixed(3), z: +obj.position.z.toFixed(3) }
+    }, "*");
   }
 
   // ---- Debug overlay ----
@@ -1525,6 +1550,8 @@ export function getVisualEditBridgeScript(): string {
     if (!active) return;
     active = false;
     cancelAnimationFrame(editorAnimId);
+    // Clear pending persistTransform timer to prevent stale messages after deactivation
+    if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
     // Exit fly mode if active
     if (flyMode) exitFlyMode();
     flyMode = false; flyKeys = {}; flyRMBDown = false; flyLastMouse = null;
