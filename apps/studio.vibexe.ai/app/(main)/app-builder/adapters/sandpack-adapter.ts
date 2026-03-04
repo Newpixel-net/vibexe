@@ -1229,6 +1229,57 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		try {
 			const settingsObj = JSON.parse(settingsFile.content);
 			runtimeGlobals += `window.__VIBEXE_GAME_SETTINGS__ = ${JSON.stringify(settingsObj)};\n`;
+			// Use Object.defineProperty with getter/setter to lock constants BEFORE assets-3d.ts runs.
+			// When assets-3d.ts does Object.assign(window, {GRAVITY_3D: -38}),
+			// the no-op setter silently ignores the write, preserving our value.
+			// Getter/setter pattern works in strict mode (TypeScript modules).
+			runtimeGlobals += `(function(){
+  var gs = window.__VIBEXE_GAME_SETTINGS__;
+  var ov = {};
+  if(gs.physics){
+    if(gs.physics.gravity!==undefined) ov.GRAVITY_3D=gs.physics.gravity;
+    if(gs.physics.fallGravity!==undefined) ov.FALL_GRAVITY=gs.physics.fallGravity;
+    if(gs.physics.jumpForce!==undefined) ov.JUMP_FORCE=gs.physics.jumpForce;
+    if(gs.physics.moveSpeed!==undefined) ov.MOVE_SPEED=gs.physics.moveSpeed;
+    if(gs.physics.runSpeed!==undefined) ov.RUN_SPEED=gs.physics.runSpeed;
+    if(gs.physics.friction!==undefined) ov.FRICTION=gs.physics.friction;
+    if(gs.physics.coyoteTime!==undefined) ov.COYOTE_TIME=gs.physics.coyoteTime;
+  }
+  if(gs.camera){
+    if(gs.camera.offsetY!==undefined){ov.CAMERA_OFFSET_Y=gs.camera.offsetY;ov.CAMERA_HEIGHT=gs.camera.offsetY;}
+    if(gs.camera.offsetZ!==undefined){ov.CAMERA_OFFSET_Z=gs.camera.offsetZ;ov.CAMERA_DISTANCE=gs.camera.offsetZ;}
+    if(gs.camera.lerp!==undefined) ov.CAMERA_LERP=gs.camera.lerp;
+    if(gs.camera.lookAhead!==undefined) ov.CAMERA_LOOK_AHEAD=gs.camera.lookAhead;
+    if(gs.camera.lookY!==undefined) ov.CAMERA_LOOK_Y=gs.camera.lookY;
+  }
+  Object.keys(ov).forEach(function(k){
+    var v=ov[k];
+    Object.defineProperty(window,k,{get:function(){return v;},set:function(){},configurable:true});
+  });
+  // Spawn override: intercept createAnimatedCharacter3D + createPhysicsBody first calls
+  if(gs.player&&(gs.player.spawnX!==undefined||gs.player.spawnY!==undefined||gs.player.spawnZ!==undefined)){
+    var sx=gs.player.spawnX,sy=gs.player.spawnY,sz=gs.player.spawnZ;
+    var _origCAC,_origCPB,_cacDone=false,_cpbArmed=false;
+    Object.defineProperty(window,'createAnimatedCharacter3D',{
+      get:function(){if(!_origCAC)return undefined;if(_cacDone)return _origCAC;return function(sc,x,y,z,o){
+        _cacDone=true;_cpbArmed=true;
+        return _origCAC(sc,sx!==undefined?sx:x,sy!==undefined?sy:y,sz!==undefined?sz:z,o);
+      };},
+      set:function(v){_origCAC=v;},configurable:true
+    });
+    Object.defineProperty(window,'createPhysicsBody',{
+      get:function(){if(!_origCPB)return undefined;if(!_cpbArmed)return _origCPB;return function(sh,ma,po,si,op){
+        _cpbArmed=false;
+        if(po&&typeof po==='object'){
+          po={x:sx!==undefined?sx:(po.x||0),y:sy!==undefined?sy:(po.y||0),z:sz!==undefined?sz:(po.z||0)};
+        }
+        return _origCPB(sh,ma,po,si,op);
+      };},
+      set:function(v){_origCPB=v;},configurable:true
+    });
+  }
+  console.log("[3D] Game Settings injected:",JSON.stringify(gs));
+})();\n`;
 		} catch { /* invalid JSON — skip */ }
 	}
 	if (runtimeGlobals) {
