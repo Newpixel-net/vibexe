@@ -414,32 +414,11 @@ if (typeof window !== 'undefined') {
   window.__SCENE_OVERRIDES__ = ${json};
   (function() {
     var _ov = ${json};
-    var _cache = {};
-    var _bodies = {};
+    var _applied = {};
     var _lastScene = null;
-    var _frame = 0;
-    var _MAX = 180;
     var _fp = ["Platform_","Collectible_","Barrier_","Decoration_","Player_","Character_","Object_"];
     function _isF(n) { if(!n) return false; for(var i=0;i<_fp.length;i++) if(n.indexOf(_fp[i])===0) return true; return false; }
-    function _find(s, name) {
-      var t = null;
-      if (name.indexOf("UnnamedGroup_")===0) {
-        var gi = parseInt(name.replace("UnnamedGroup_",""),10), gc = 0;
-        for (var ci=0; ci<s.children.length; ci++) {
-          var ch = s.children[ci];
-          if (ch.type==="Group" && ch.children && ch.children.length>0 && !_isF(ch.name||"")) {
-            if (gc===gi) { t=ch; break; } gc++;
-          }
-        }
-      } else if (name.indexOf("#")!==-1) {
-        var _parts = name.split("#"), _base = _parts[0], _ni = parseInt(_parts[1],10), _nc = 0;
-        s.traverse(function(c) { if(!t && c.name===_base) { if(_nc===_ni) { t=c; } _nc++; } });
-      } else {
-        s.traverse(function(c) { if(!t && c.name===name) t=c; });
-      }
-      return t;
-    }
-    function _findBody(mesh, name) {
+    function _findBody(mesh) {
       var pb = mesh.userData && mesh.userData.__physicsBody;
       if (pb && pb.position) return pb;
       var w = window.__vibexe_world__;
@@ -454,31 +433,52 @@ if (typeof window !== 'undefined') {
       }
       return null;
     }
-    function _apply() {
+    function _try() {
       var s = window.__vibexe_scene__;
-      if (!s || !s.children) { requestAnimationFrame(_apply); return; }
-      if (s !== _lastScene) { _cache = {}; _bodies = {}; _frame = 0; _lastScene = s; }
-      var keys = Object.keys(_ov), allFound = true;
+      if (!s || !s.children) return false;
+      if (s !== _lastScene) { _applied = {}; _lastScene = s; }
+      var keys = Object.keys(_ov), rem = 0;
       for (var ki=0; ki<keys.length; ki++) {
-        var name = keys[ki], o = _ov[name];
-        var t = _cache[name];
-        if (!t) { t = _find(s, name); if (t) _cache[name] = t; }
-        if (!t) { allFound = false; continue; }
-        if (o.p) {
-          if (!_bodies[name]) { var pb = _findBody(t, name); if (pb) _bodies[name] = pb; }
-          var body = _bodies[name];
-          if (body && body.position) { body.position.set(o.p[0],o.p[1],o.p[2]); if(body.velocity) body.velocity.set(0,0,0); }
-          t.position.set(o.p[0],o.p[1],o.p[2]);
+        var name = keys[ki];
+        if (_applied[name]) continue;
+        var o = _ov[name], t = null;
+        if (name.indexOf("UnnamedGroup_")===0) {
+          var gi = parseInt(name.replace("UnnamedGroup_",""),10), gc = 0;
+          for (var ci=0; ci<s.children.length; ci++) {
+            var ch = s.children[ci];
+            if (ch.type==="Group" && ch.children && ch.children.length>0 && !_isF(ch.name||"")) {
+              if (gc===gi) { t=ch; break; } gc++;
+            }
+          }
+        } else if (name.indexOf("#")!==-1) {
+          var _parts = name.split("#"), _base = _parts[0], _ni = parseInt(_parts[1],10), _nc = 0;
+          s.traverse(function(c) { if(!t && c.name===_base) { if(_nc===_ni) { t=c; } _nc++; } });
+        } else {
+          s.traverse(function(c) { if(!t && c.name===name) t=c; });
         }
-        if (o.r) t.rotation.set(o.r[0],o.r[1],o.r[2]);
-        if (o.s) t.scale.set(o.s[0],o.s[1],o.s[2]);
+        if (t) {
+          var _hasBody = false;
+          if (o.p) {
+            var pb = _findBody(t);
+            t.position.set(o.p[0],o.p[1],o.p[2]);
+            if (pb) { pb.position.set(o.p[0],o.p[1],o.p[2]); if(pb.velocity) pb.velocity.set(0,0,0); _hasBody=true; }
+          }
+          if (o.r) t.rotation.set(o.r[0],o.r[1],o.r[2]);
+          if (o.s) t.scale.set(o.s[0],o.s[1],o.s[2]);
+          _applied[name] = true;
+          console.log("[SCENE_EDITOR] Applied: "+name+(_hasBody?" +body":""));
+        } else { rem++; }
       }
-      _frame++;
-      if (_frame === 1) console.log("[SCENE_EDITOR] Override rAF started, "+keys.length+" objects"+(Object.keys(_bodies).length>0?" ("+Object.keys(_bodies).length+" bodies)":""));
-      if (_frame < _MAX || !allFound) { requestAnimationFrame(_apply); }
-      else { console.log("[SCENE_EDITOR] Overrides done after "+_frame+" frames, "+Object.keys(_bodies).length+" bodies teleported"); }
+      return rem===0;
     }
-    requestAnimationFrame(_apply);
+    var _done = false;
+    setInterval(function() {
+      var s = window.__vibexe_scene__;
+      if (!s || !s.children) { _done = false; return; }
+      if (s !== _lastScene) { _done = false; }
+      if (_done) return;
+      if (_try()) { _done = true; console.log("[SCENE_EDITOR] All overrides applied"); }
+    }, 300);
   })();
 }
 ${MARKER_END}`;
