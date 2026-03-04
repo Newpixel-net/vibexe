@@ -1652,23 +1652,36 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 
 					// Patch respawn position variable declarations
 					if (sp.respawnX != null || sp.respawnY != null || sp.respawnZ != null) {
-						// Replace: const respawnX = __gs.player?.respawnX ?? 0;
-						if (sp.respawnX != null) {
-							code = code.replace(
-								/(const respawnX\s*=\s*)([^;]+)(;)/,
-								`$1${sp.respawnX}$3`,
-							);
+						let respawnPatched = false;
+						// Try patching variable declarations first (new template)
+						if (code.includes("const respawnX")) {
+							if (sp.respawnX != null) {
+								code = code.replace(
+									/(const respawnX\s*=\s*)([^;]+)(;)/,
+									`$1${sp.respawnX}$3`,
+								);
+							}
+							if (sp.respawnY != null) {
+								code = code.replace(
+									/(const respawnY\s*=\s*)([^;]+)(;)/,
+									`$1${sp.respawnY}$3`,
+								);
+							}
+							if (sp.respawnZ != null) {
+								code = code.replace(
+									/(const respawnZ\s*=\s*)([^;]+)(;)/,
+									`$1${sp.respawnZ}$3`,
+								);
+							}
+							respawnPatched = true;
 						}
-						if (sp.respawnY != null) {
+						// Fallback for old projects: patch hardcoded .position.set(X,Y,Z) in respawn block
+						// Pattern: .position.set(X, Y, Z); followed by .velocity.set(0, 0, 0);
+						if (!respawnPatched) {
 							code = code.replace(
-								/(const respawnY\s*=\s*)([^;]+)(;)/,
-								`$1${sp.respawnY}$3`,
-							);
-						}
-						if (sp.respawnZ != null) {
-							code = code.replace(
-								/(const respawnZ\s*=\s*)([^;]+)(;)/,
-								`$1${sp.respawnZ}$3`,
+								/(\.position\.set\s*\(\s*)([^,]+)(\s*,\s*)([^,]+)(\s*,\s*)([^)]+)(\s*\)\s*;\s*\n[^;]*\.velocity\.set\s*\(\s*0\s*,\s*0\s*,\s*0\s*\))/,
+								(_, pre, x, s1, y, s2, z, post) =>
+									`${pre}${sp.respawnX ?? x.trim()}${s1}${sp.respawnY ?? y.trim()}${s2}${sp.respawnZ ?? z.trim()}${post}`,
 							);
 						}
 					}

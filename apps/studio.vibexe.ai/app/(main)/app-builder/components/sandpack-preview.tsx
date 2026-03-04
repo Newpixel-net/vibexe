@@ -821,7 +821,12 @@ export function SandpackPreview({
 					_materialColor: data._materialColor,
 				});
 				// Live-sync player character position to Game Settings spawn
-				if (data.userData?.__isPlayerCharacter && data.position) {
+				const isPlayer = data.userData?.__isPlayerCharacter
+					|| data.userData?.vibexeType === "player"
+					|| data.userData?.vibexeType === "AnimatedCharacter"
+					|| data.name?.startsWith("Character_")
+					|| data.name?.startsWith("Player_");
+				if (isPlayer && data.position) {
 					gameEditor.updateGameSettings({
 						player: {
 							spawnX: Math.round(data.position.x * 100) / 100,
