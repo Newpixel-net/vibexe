@@ -1205,6 +1205,14 @@ export default function App() {
 export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLanguageConfig, apiOrigin?: string, appId?: string): SandpackFiles {
 	const sandpackFiles: SandpackFiles = {};
 
+	// DIAGNOSTIC: Check settings file in files array
+	const _settingsCheck = files.filter((f) => f.path.includes("game-settings"));
+	if (_settingsCheck.length > 0) {
+		console.warn("[SETTINGS_DIAG] Found settings files:", _settingsCheck.map((f) => ({ path: f.path, hasContent: !!f.content, contentLen: f.content?.length })));
+	} else {
+		console.warn("[SETTINGS_DIAG] No settings file found. File paths:", files.map((f) => f.path));
+	}
+
 	// Check if files include a manifest.json (PWA)
 	const hasManifest = files.some((f) => f.path === "manifest.json" || f.path.endsWith("/manifest.json"));
 
