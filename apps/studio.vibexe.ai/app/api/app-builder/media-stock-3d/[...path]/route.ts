@@ -17,6 +17,15 @@ const CONTENT_TYPES: Record<string, string> = {
 	".jpg": "image/jpeg",
 	".jpeg": "image/jpeg",
 	".tga": "application/octet-stream",
+	// Audio (Platformer Project SFX/Music)
+	".wav": "audio/wav",
+	".aif": "audio/aiff",
+	".aiff": "audio/aiff",
+	".ogg": "audio/ogg",
+	".mp3": "audio/mpeg",
+	// Fonts
+	".ttf": "font/ttf",
+	".otf": "font/otf",
 	// Metadata
 	".json": "application/json",
 };

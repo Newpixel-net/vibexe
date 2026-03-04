@@ -12,6 +12,8 @@ const CONTENT_TYPES: Record<string, string> = {
 	".webm": "audio/webm",
 	".flac": "audio/flac",
 	".aac": "audio/aac",
+	".aif": "audio/aiff",
+	".aiff": "audio/aiff",
 };
 
 const CORS_HEADERS = {

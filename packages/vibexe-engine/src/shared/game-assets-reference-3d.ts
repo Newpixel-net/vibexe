@@ -17,7 +17,7 @@
 export interface AssetPack3D {
   id: string;
   name: string;
-  family: "kaykit" | "stylized" | "meshy" | "squad-shooter";
+  family: "kaykit" | "stylized" | "meshy" | "squad-shooter" | "platformer-project";
   format: "gltf" | "glb" | "obj";
   fileCount: number;
   sizeMB: number;
@@ -331,6 +331,35 @@ export const PACKS_3D: AssetPack3D[] = [
       animations: ["A_Chest_Open", "A_Chest_Shaking"],
     },
   },
+
+  // ---- PLATFORMER PROJECT (Professional 3D Platformer Kit, GLB from Unity FBX) ----
+  {
+    id: "platformer-project",
+    name: "Platformer Project 3D Kit",
+    family: "platformer-project",
+    format: "glb",
+    fileCount: 26,
+    sizeMB: 15,
+    serverPath: "platformer-project",
+    description:
+      "26 GLB models from PLAYER TWO's professional Unity platformer template. 2 animated characters (Lily with 30 animations, Slime enemy with 3), 24 static objects. 57 SFX + 1 BGM audio. Cartoon 3D style with embedded textures. Path: characters/{name}.glb or objects/{name}.glb",
+    categories: {
+      // Characters (2) — skinned meshes with baked skeletal animations
+      characters: ["Lily", "Slime"],
+      // Platforms (6)
+      platforms: ["grid_platform", "long_platform", "bouncing_platform", "round_block", "halfpipe_in", "halfpipe_out"],
+      // Collectibles (4)
+      collectibles: ["coin", "star", "heart", "disc"],
+      // Hazards (4)
+      hazards: ["spikes", "spikes_panel", "flamethrower", "log"],
+      // Interactive (4)
+      interactive: ["item_box", "checkpoint", "button_panel", "end_panel"],
+      // Decorations (4)
+      decorations: ["sign", "garden", "dice", "sphere"],
+      // Special (2)
+      special: ["glider", "lilyhead"],
+    },
+  },
 ];
 
 // ============================================================================
@@ -338,19 +367,89 @@ export const PACKS_3D: AssetPack3D[] = [
 // ============================================================================
 
 export const GAME_3D_ASSETS_REFERENCE = `
-## 3D Asset Catalog — 7 Packs (63 MB)
+## 3D Asset Catalog — 8 Packs (78 MB)
 
 **API endpoint**: \`/api/app-builder/media-stock-3d/{pack-id}/{path-to-file}\`
+**Audio endpoint**: \`/api/app-builder/media-stock-3d/platformer-project/audio/{sfx|music}/{filename}\`
 
-### Art Style: KayKit Cartoon Low-Poly (GLTF)
+### DEFAULT Platformer Pack: Platformer Project 3D Kit
 
-All packs share the same bright, cartoon low-poly aesthetic. Consistent look guaranteed.
-- Load with: \`loadGLTF()\` from assets-3d.ts (GLTF, web-native)
-- Use for: platformers, city builders, survival/crafting, kids games, casual 3D
+The **platformer-project** pack is the DEFAULT for all 3D platformer games. It features:
+- **Lily**: Professional animated character with 30 skeletal animations (idle, walk, run, jump, fall, dash, spin, backflip, glide, wall drag, stomp, swim, and more)
+- **Slime**: Enemy with 3 animations (idle, walk, die)
+- **24 game objects**: Platforms, collectibles, hazards, interactive objects, decorations
+- **57 SFX + 1 BGM**: Professional audio (jumps, footsteps, attacks, collects, music)
+- Use factory helpers (\`createPlatform3D\`, \`createCollectible3D\`, etc.) — they load platformer-project models by default
 
 ---
 
-### KAYKIT PLATFORMER — 370 GLTF Models (17 MB)
+### PLATFORMER PROJECT — 26 GLB Models + 58 Audio Files (15 MB)
+Pack: \`platformer-project\`
+
+#### Characters (animated GLB with skeletal animations)
+Path: \`characters/{name}.glb\`
+
+**Lily** (player character) — 30 animation clips:
+File: \`characters/Lily.glb\`
+Animations: Idle, Walking, Running, Jump, Fall, Land, Crouch_Start, Crouch_Idle, Crouch_Walk, Crawl, Slide, Spin, Dash, Backflip, Glide, Wall_Drag, Wall_Jump, Stomp_Start, Stomp_Land, Air_Dive, Pole_Climb, Pole_Climb_Idle, Ledge_Hang, Ledge_Climb, Rail_Grind, Swim, Swim_Idle, Hurt, Die, Pick_Up
+
+**Slime** (enemy) — 3 animation clips:
+File: \`characters/Slime.glb\`
+Animations: Idle, Walk, Die
+
+#### Objects (static GLB with embedded textures)
+Path: \`objects/{name}.glb\`
+
+**Platforms (6):** grid_platform, long_platform, bouncing_platform, round_block, halfpipe_in, halfpipe_out
+**Collectibles (4):** coin, star, heart, disc
+**Hazards (4):** spikes, spikes_panel, flamethrower, log
+**Interactive (4):** item_box, checkpoint, button_panel, end_panel
+**Decorations (4):** sign, garden, dice, sphere
+**Special (2):** glider, lilyhead
+
+\`\`\`typescript
+// Characters — use createAnimatedCharacter3D (NOT createPlayer3D)
+const lily = await createAnimatedCharacter3D(scene, 0, 3, 0, {
+  url: modelUrl("platformer-project", "characters/Lily.glb"),
+});
+lily.play("idle"); // 30 clips with fuzzy matching
+
+const slime = await createAnimatedCharacter3D(scene, 5, 1, -10, {
+  url: modelUrl("platformer-project", "characters/Slime.glb"),
+});
+slime.play("walk");
+
+// Objects — use factory helpers (they default to platformer-project pack)
+const { mesh } = await createPlatform3D(scene, 0, 1, -5);  // grid_platform
+const { mesh: star } = await createCollectible3D(scene, 3, 2, -8, { type: "star" });
+const { mesh: spike } = await createBarrier3D(scene, 5, 0.5, -10, { type: "spikes" });
+const { mesh: checkpoint } = await createDecoration3D(scene, 0, 0, -20, { type: "checkpoint" });
+\`\`\`
+
+#### Audio (57 SFX + 1 BGM)
+SFX path: \`audio/sfx/{filename}\`
+Music path: \`audio/music/{filename}\`
+
+**Jump SFX (5):** jump_0 through jump_4
+**Footstep SFX (12):** footstep_grass_0/1/2, footstep_metal_0/1/2, footstep_regular_0/1/2, footstep_wood_0/1/2
+**Attack SFX (5):** attack_0 through attack_4
+**Hurt SFX (5):** hurt_0 through hurt_4
+**Lift/Maneuver (10):** lift_0 through lift_4, maneuver_0 through maneuver_4
+**Action SFX:** dash, spin, short_spin, stomp, air_dive, spring, bouncy_item, break, squish, throw, pick, teleport
+**Environment:** rail_grind, start_rail_grind, open_glider, close_glider, mud_splash_0/1, water_splash_0/1
+**Musical SFX:** Coin01, Alarm, Downer01, FX01, FX02, Rise01-07, Upper01
+**Music (1):** "8bit Bossa" (BGM)
+
+\`\`\`typescript
+// Audio — use soundUrl() with platformer-project prefix
+playSound(soundUrl("platformer-project/sfx/jump_0.wav"));
+playSound(soundUrl("platformer-project/sfx/coin01.aif"));
+playMusic(soundUrl("platformer-project/music/8bit_bossa.wav"), { loop: true });
+\`\`\`
+
+---
+
+### KAYKIT PLATFORMER — 370 GLTF Models (17 MB) [LEGACY — use platformer-project instead]
 Pack: \`kaykit-platformer\`
 
 **IMPORTANT: Two different path patterns exist!**
@@ -554,19 +653,19 @@ Animations are **auto-updated** — no need to call mixer.update(). Just call \`
 
 | User Request | Recommended Pack(s) |
 |-------------|---------------------|
-| "platformer", "3D platformer" | kaykit-platformer |
+| "platformer", "3D platformer" | **platformer-project** (Lily + objects) |
 | "city builder", "town sim" | kaykit-city-builder |
-| "survival", "crafting" | kaykit-resource-bits + kaykit-platformer |
-| "skeleton enemies", "undead" | kaykit-skeletons + kaykit-platformer |
-| "RPG", "adventure" | kaykit-skeletons + kaykit-platformer |
-| "warrior", "fighter", "animated character" | meshy-characters + kaykit-platformer |
-| "action game", "combat", "hack and slash" | meshy-characters + kaykit-platformer |
-| "kids 3D game", "casual 3D" | kaykit-platformer |
+| "survival", "crafting" | kaykit-resource-bits + platformer-project |
+| "skeleton enemies", "undead" | kaykit-skeletons + platformer-project |
+| "RPG", "adventure" | platformer-project (Lily) + kaykit-skeletons |
+| "warrior", "fighter", "animated character" | platformer-project (Lily has 30 combat/movement anims) |
+| "action game", "combat", "hack and slash" | platformer-project (Lily) + meshy-characters |
+| "kids 3D game", "casual 3D" | platformer-project |
 | "shooter", "squad shooter", "3D shooter" | squad-shooter |
-| "endless runner", "temple run" | kaykit-platformer + squad-shooter (coins, enemies) |
-| Default / unspecified | kaykit-platformer |
+| "endless runner", "temple run" | platformer-project (Lily running) |
+| Default / unspecified | **platformer-project** |
 
-All KayKit packs share the same cartoon low-poly aesthetic — safe to combine. Squad Shooter has its own stylized look (vibrant, low-poly characters with mixamo rigs).
+Platformer Project is the default for all non-shooter 3D games. Lily has professional-quality animations for every movement state. KayKit city-builder/resource-bits/skeletons are still available for specialized games.
 
 ---
 

@@ -19,7 +19,7 @@ export const GAME_3D_TEMPLATE_FILES: TemplateFile[] = [
  * Builds a full URL for a 3D media-stock game asset.
  * Uses the platform-injected origin so it works inside Sandpack previews.
  *
- * Example: modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1.gltf")
+ * Example: modelUrl("platformer-project", "objects/grid_platform.glb")
  */
 export function modelUrl(packId: string, filename: string): string {
   const origin = (window as any).__VIBEXE_API_ORIGIN__ || "";
@@ -73,43 +73,62 @@ if (THREE?.Quaternion?.prototype?.setFromEuler) {
   };
 }
 
-// ===== SCALE PRESETS for KayKit models =====
-// KayKit GLTF models are small by default (~1 unit). These scales work well
-// for a typical game camera at distance 10-20.
+// ===== SCALE PRESETS for Platformer Project + KayKit models =====
+// Platformer Project GLB models from Unity — already world-scale (~1-4 units).
+// KayKit GLTF models are small by default (~1 unit).
 export const SCALES_3D = {
-  // Platforms
+  // Platforms (Platformer Project)
   platform: 1.0,
   platformLarge: 1.5,
   platformSmall: 0.7,
-  // Characters
-  player: 0.8,
-  enemy: 0.8,
-  skeleton: 1.0,
-  animatedCharacter: 0.15, // targetHeight for createAnimatedCharacter3D (world units) — bone deformation expands ~100x at render
-  // Collectibles
-  collectible: 0.5,
-  coin: 0.4,
+  // Characters (Platformer Project)
+  player: 1.0,          // Lily GLB — already correct scale from Unity export
+  enemy: 1.0,           // Slime GLB — already correct scale
+  skeleton: 1.0,        // KayKit skeleton
+  animatedCharacter: 1.5, // targetHeight for createAnimatedCharacter3D (world units)
+  // Collectibles (Platformer Project)
+  collectible: 1.0,
+  coin: 1.0,
   gem: 0.5,
   // Environment
   tree: 1.2,
   bush: 0.6,
   rock: 0.8,
   cloud: 1.5,
-  // Buildings (city builder)
+  // Buildings (city builder — KayKit)
   building: 1.0,
   vehicle: 0.6,
   road: 1.0,
-  // Resources
+  // Resources (KayKit)
   barrel: 0.5,
   ore: 0.4,
   wood: 0.5,
 };
 
-// ===== Common Game Constants =====
+// ===== Common Game Constants (Platformer Project physics) =====
 export const TOUCH_DEADZONE = 0.15;   // Joystick deadzone (0-1 range)
-export const GRAVITY_3D = -20;         // Default gravity for cannon-es
-export const JUMP_FORCE = 8;           // Default jump velocity
-export const MOVE_SPEED = 5;           // Default movement speed
+export const GRAVITY_3D = -38;         // Ascending gravity (Platformer Project: 38)
+export const FALL_GRAVITY = -65;       // Descending gravity (heavier for snappy arcs)
+export const JUMP_FORCE = 17;          // Max jump height (hold Space)
+export const MIN_JUMP_FORCE = 10;      // Min jump height (tap Space)
+export const MOVE_SPEED = 6;           // Ground top speed
+export const RUN_SPEED = 7.5;          // Running top speed (hold Shift)
+export const ACCELERATION = 13;        // Ground acceleration
+export const AIR_ACCELERATION = 32;    // Air acceleration (faster than ground!)
+export const FRICTION = 28;            // Ground friction (deceleration)
+export const COYOTE_TIME = 0.15;       // Seconds after leaving edge you can still jump
+export const JUMP_BUFFER = 0.15;       // Seconds before landing a jump press is remembered
+export const DASH_FORCE = 25;          // Dash velocity
+export const DASH_DURATION = 0.3;      // Dash duration in seconds
+export const SPIN_DURATION = 0.5;      // Spin attack duration
+export const BACKFLIP_JUMP = 23;       // Backflip jump height (35% higher than normal)
+export const GLIDE_GRAVITY = -10;      // Gliding gravity (very light)
+export const GLIDE_MAX_FALL = -2;      // Max fall speed while gliding
+export const WALL_DRAG_GRAVITY = -12;  // Wall slide gravity
+export const WALL_JUMP_HEIGHT = 15;    // Wall jump vertical force
+export const WALL_JUMP_DISTANCE = 8;   // Wall jump horizontal push
+export const STOMP_FORCE = -20;        // Stomp downward force (additive per frame)
+export const AIR_DIVE_FORCE = 16;      // Air dive forward force
 
 // Camera follow constants (3rd-person platformer defaults)
 export const CAMERA_OFFSET_Y = 8;      // Height above player
@@ -125,6 +144,20 @@ export const CAMERA_SMOOTH = 0.1;
 // Collision / pickup distances
 export const COLLECT_DISTANCE = 1.5;   // Distance to pick up collectibles
 export const PLATFORM_GAP = 4;         // Default gap between platforms
+
+// Enemy constants (Platformer Project: Slime)
+export const ENEMY_GRAVITY = -35;      // Enemy gravity
+export const ENEMY_SPOT_RANGE = 5;     // Range to detect player
+export const ENEMY_VIEW_RANGE = 8;     // Extended view range
+export const ENEMY_FOLLOW_SPEED = 4;   // Follow top speed
+export const ENEMY_PATROL_SPEED = 2;   // Waypoint patrol speed
+export const ENEMY_CONTACT_DAMAGE = 1; // Contact damage
+
+// Platform mechanics
+export const MOVING_PLATFORM_SPEED = 3;   // Moving platform speed
+export const FALLING_PLATFORM_DELAY = 2;  // Seconds before falling
+export const FALLING_PLATFORM_RESET = 5;  // Seconds before respawning
+export const SPRING_FORCE = 25;            // Spring/bouncing platform force
 
 // ===== Scene3D base class =====
 // AI agents frequently write "extends Scene3D" when creating game scenes.
@@ -146,10 +179,17 @@ export class Scene3D {
 // AI models frequently use these constants without importing them.
 // Assigning to window makes them available as globals in the Sandpack env.
 Object.assign(window, {
-  SCALES_3D, TOUCH_DEADZONE, GRAVITY_3D, JUMP_FORCE, MOVE_SPEED,
+  SCALES_3D, TOUCH_DEADZONE, GRAVITY_3D, FALL_GRAVITY, JUMP_FORCE, MIN_JUMP_FORCE, MOVE_SPEED, RUN_SPEED,
+  ACCELERATION, AIR_ACCELERATION, FRICTION, COYOTE_TIME, JUMP_BUFFER,
+  DASH_FORCE, DASH_DURATION, SPIN_DURATION, BACKFLIP_JUMP,
+  GLIDE_GRAVITY, GLIDE_MAX_FALL, WALL_DRAG_GRAVITY, WALL_JUMP_HEIGHT, WALL_JUMP_DISTANCE,
+  STOMP_FORCE, AIR_DIVE_FORCE,
   CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y,
   CAMERA_LOOK_AHEAD, CAMERA_DISTANCE, CAMERA_HEIGHT, CAMERA_SMOOTH,
-  COLLECT_DISTANCE, PLATFORM_GAP, Scene3D,
+  COLLECT_DISTANCE, PLATFORM_GAP,
+  ENEMY_GRAVITY, ENEMY_SPOT_RANGE, ENEMY_VIEW_RANGE, ENEMY_FOLLOW_SPEED, ENEMY_PATROL_SPEED, ENEMY_CONTACT_DAMAGE,
+  MOVING_PLATFORM_SPEED, FALLING_PLATFORM_DELAY, FALLING_PLATFORM_RESET, SPRING_FORCE,
+  Scene3D,
   createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D,
   createAnimatedCharacter3D, createCharacterController3D, createText3D,
   createPhysicsWorld, createPhysicsBody, createPhysicsGround, syncBodiesToMeshes, createContactMaterial,
@@ -280,7 +320,7 @@ export function initCamera(
  * Uses Three.js GLTFLoader bundled inline to avoid Sandpack module resolution issues.
  *
  * Usage:
- *   const model = await loadGLTF(modelUrl("kaykit-platformer", "Assets/gltf/platform_4x4x1.gltf"));
+ *   const model = await loadGLTF(modelUrl("platformer-project", "objects/grid_platform.glb"));
  *   scene.add(model);
  */
 export async function loadGLTF(url: string): Promise<any> {
@@ -1159,15 +1199,14 @@ function _getAudioContext(): AudioContext {
 (window as any)._getAudioContext = _getAudioContext;
 (window as any)._audioCtx = null; // Updated after first call
 
-// ===== 3D FACTORY HELPERS — Force GLTF model loading =====
-// These make it EASIER to use real KayKit models than to write raw geometry.
+// ===== 3D FACTORY HELPERS — Load Platformer Project GLB models =====
+// These load real Platformer Project GLB models automatically.
 // Each factory: build URL → load GLTF (cached) → scale → position → add to scene → return {mesh, size}.
 // "size" = half-extents that plug directly into createPhysicsBody("box", mass, pos, size).
 
 const _modelCache3D: Map<string, any> = new Map();
 
 async function _loadOrClone(url: string): Promise<any> {
-  url = _autoCorrectModelUrl(url); // Normalize URL before cache lookup
   if (_modelCache3D.has(url)) {
     return _modelCache3D.get(url)!.clone();
   }
@@ -1177,6 +1216,12 @@ async function _loadOrClone(url: string): Promise<any> {
   return model.clone();
 }
 
+// Platformer Project model URL builder
+function _ppModelUrl(subpath: string): string {
+  return modelUrl("platformer-project", subpath);
+}
+
+// KayKit model URL builders (kept for city-builder, resource-bits, skeletons)
 function _colorModelUrl(name: string, color: string): string {
   return modelUrl("kaykit-platformer", \`Assets/gltf/\${color}/\${name}_\${color}.gltf\`);
 }
@@ -1194,17 +1239,67 @@ function _fallbackBox(w: number, h: number, d: number, color: number): any {
   return mesh;
 }
 
-// Valid pre-manufactured KayKit model variants (DO NOT add custom ones — they won't exist on disk)
-const _VALID_PLATFORMS = ["1x1x1","2x2x1","2x2x2","2x2x4","4x2x1","4x2x2","4x2x4","4x4x1","4x4x2","4x4x4","6x2x1","6x2x2","6x2x4","6x6x1","6x6x2","6x6x4"];
-const _VALID_BARRIERS = ["1x1x1","1x1x2","1x1x4","2x1x1","2x1x2","2x1x4","3x1x1","3x1x2","3x1x4","4x1x1","4x1x2","4x1x4"];
+// ===== Platformer Project model name mappings =====
+// Each factory maps a type name to a GLB subpath in the platformer-project pack.
+const _PP_PLATFORMS: Record<string, string> = {
+  "grid": "objects/grid_platform.glb",
+  "grid_platform": "objects/grid_platform.glb",
+  "long": "objects/long_platform.glb",
+  "long_platform": "objects/long_platform.glb",
+  "bouncing": "objects/bouncing_platform.glb",
+  "bouncing_platform": "objects/bouncing_platform.glb",
+  "round_block": "objects/round_block.glb",
+  "halfpipe_in": "objects/halfpipe_in.glb",
+  "halfpipe_out": "objects/halfpipe_out.glb",
+};
+
+const _PP_COLLECTIBLES: Record<string, string> = {
+  "coin": "objects/coin.glb",
+  "star": "objects/star.glb",
+  "heart": "objects/heart.glb",
+  "disc": "objects/disc.glb",
+  "diamond": "objects/star.glb", // backward compat alias
+};
+
+const _PP_HAZARDS: Record<string, string> = {
+  "spikes": "objects/spikes.glb",
+  "spikes_panel": "objects/spikes_panel.glb",
+  "flamethrower": "objects/flamethrower.glb",
+  "log": "objects/log.glb",
+};
+
+const _PP_DECORATIONS: Record<string, string> = {
+  "sign": "objects/sign.glb",
+  "garden": "objects/garden.glb",
+  "dice": "objects/dice.glb",
+  "sphere": "objects/sphere.glb",
+  "checkpoint": "objects/checkpoint.glb",
+  "end_panel": "objects/end_panel.glb",
+  "item_box": "objects/item_box.glb",
+  "button_panel": "objects/button_panel.glb",
+  "glider": "objects/glider.glb",
+  "lilyhead": "objects/lilyhead.glb",
+};
+
+// Size estimates for platformer-project models (half-extents for physics)
+const _PP_PLATFORM_SIZES: Record<string, { x: number; y: number; z: number }> = {
+  "grid": { x: 2, y: 0.25, z: 2 },
+  "grid_platform": { x: 2, y: 0.25, z: 2 },
+  "long": { x: 4, y: 0.25, z: 1 },
+  "long_platform": { x: 4, y: 0.25, z: 1 },
+  "bouncing": { x: 1.5, y: 0.3, z: 1.5 },
+  "bouncing_platform": { x: 1.5, y: 0.3, z: 1.5 },
+  "round_block": { x: 1, y: 1, z: 1 },
+  "halfpipe_in": { x: 2, y: 1, z: 2 },
+  "halfpipe_out": { x: 2, y: 1, z: 2 },
+};
 
 /**
- * Auto-correct invalid platform/barrier variant names in kaykit-platformer URLs.
- * Belt-and-suspenders safety net: even if AI bypasses factory helpers and constructs
- * URLs manually with arbitrary dimensions (e.g. "platform_8x4x1_red.gltf"), this
- * function snaps them to the nearest valid model file that actually exists on disk.
+ * Auto-correct invalid model URLs. For kaykit-platformer, snaps dimension variants.
+ * Platformer-project models don't need correction (named models, not dimensions).
  */
 function _autoCorrectModelUrl(url: string): string {
+  // Only KayKit platformer needs dimension snapping
   const idx = url.indexOf("kaykit-platformer/Assets/gltf/");
   if (idx < 0) return url;
 
@@ -1213,53 +1308,51 @@ function _autoCorrectModelUrl(url: string): string {
   if (parts.length !== 2) return url;
 
   const color = parts[0];
-  const filename = parts[1]; // e.g. "platform_8x4x1_red.gltf"
-  if (color === "neutral") return url; // neutral paths don't have color suffix
+  const filename = parts[1];
+  if (color === "neutral") return url;
 
   const suffix = \`_\${color}.gltf\`;
   if (!filename.endsWith(suffix)) return url;
-  const baseName = filename.slice(0, -suffix.length); // e.g. "platform_8x4x1"
+  const baseName = filename.slice(0, -suffix.length);
+
+  const _VALID_PLATFORMS = ["1x1x1","2x2x1","2x2x2","2x2x4","4x2x1","4x2x2","4x2x4","4x4x1","4x4x2","4x4x4","6x2x1","6x2x2","6x2x4","6x6x1","6x6x2","6x6x4"];
+  const _VALID_BARRIERS = ["1x1x1","1x1x2","1x1x4","2x1x1","2x1x2","2x1x4","3x1x1","3x1x2","3x1x4","4x1x1","4x1x2","4x1x4"];
 
   if (baseName.startsWith("platform_")) {
     const variant = baseName.slice("platform_".length);
-    const snapped = _snapVariant(variant, _VALID_PLATFORMS);
-    if (snapped !== variant) {
-      return url.substring(0, url.lastIndexOf("/") + 1) + \`platform_\${snapped}_\${color}.gltf\`;
+    if (!_VALID_PLATFORMS.includes(variant)) {
+      const rp = variant.split("x").map(Number);
+      const rVol = (rp[0]||4) * (rp[1]||4) * (rp[2]||1);
+      let best = _VALID_PLATFORMS[0], bestDiff = Infinity;
+      for (const v of _VALID_PLATFORMS) {
+        const vp = v.split("x").map(Number);
+        const diff = Math.abs(vp[0]*vp[1]*vp[2] - rVol);
+        if (diff < bestDiff) { bestDiff = diff; best = v; }
+      }
+      console.warn(\`[3D] Invalid variant "\${variant}" → snapped to "\${best}"\`);
+      return url.substring(0, url.lastIndexOf("/") + 1) + \`platform_\${best}_\${color}.gltf\`;
     }
   } else if (baseName.startsWith("barrier_")) {
     const variant = baseName.slice("barrier_".length);
-    const snapped = _snapVariant(variant, _VALID_BARRIERS);
-    if (snapped !== variant) {
-      return url.substring(0, url.lastIndexOf("/") + 1) + \`barrier_\${snapped}_\${color}.gltf\`;
+    if (!_VALID_BARRIERS.includes(variant)) {
+      const rp = variant.split("x").map(Number);
+      const rVol = (rp[0]||4) * (rp[1]||4) * (rp[2]||1);
+      let best = _VALID_BARRIERS[0], bestDiff = Infinity;
+      for (const v of _VALID_BARRIERS) {
+        const vp = v.split("x").map(Number);
+        const diff = Math.abs(vp[0]*vp[1]*vp[2] - rVol);
+        if (diff < bestDiff) { bestDiff = diff; best = v; }
+      }
+      console.warn(\`[3D] Invalid variant "\${variant}" → snapped to "\${best}"\`);
+      return url.substring(0, url.lastIndexOf("/") + 1) + \`barrier_\${best}_\${color}.gltf\`;
     }
   }
 
   return url;
 }
 
-function _snapVariant(variant: string, validList: string[]): string {
-  if (validList.includes(variant)) return variant;
-  // Parse requested dims and find closest valid variant by total volume
-  const rp = variant.split("x").map(Number);
-  const rVol = (rp[0]||4) * (rp[1]||4) * (rp[2]||1);
-  let best = validList[0], bestDiff = Infinity;
-  for (const v of validList) {
-    const vp = v.split("x").map(Number);
-    const diff = Math.abs(vp[0]*vp[1]*vp[2] - rVol);
-    if (diff < bestDiff) { bestDiff = diff; best = v; }
-  }
-  console.warn(\`[3D] Invalid variant "\${variant}" → snapped to "\${best}"\`);
-  return best;
-}
-
-// Parse "4x4x1" → {w:4, d:4, h:1}. Naming convention: WxDxH
-function _parseDims(variant: string): { w: number; d: number; h: number } {
-  const parts = variant.split("x").map(Number);
-  return { w: parts[0] || 4, d: parts[1] || 4, h: parts[2] || 1 };
-}
-
 /**
- * Creates a KayKit platform tile at (x, y, z).
+ * Creates a platform at (x, y, z) using Platformer Project GLB models.
  * Returns { mesh, size } — size = half-extents for createPhysicsBody().
  *
  * Usage:
@@ -1269,73 +1362,84 @@ function _parseDims(variant: string): { w: number; d: number; h: number } {
  */
 export async function createPlatform3D(
   scene: any, x: number, y: number, z: number,
-  opts?: { variant?: string; color?: string; scale?: number },
+  opts?: { type?: string; variant?: string; color?: string; scale?: number; _pack?: string; _path?: string },
 ): Promise<{ mesh: any; size: { x: number; y: number; z: number } }> {
-  const variant = _snapVariant(opts?.variant || "4x4x1", _VALID_PLATFORMS);
-  const color = opts?.color || "blue";
+  const type = opts?.type || opts?.variant || "grid";
   const scale = opts?.scale || SCALES_3D.platform;
-  const dims = _parseDims(variant);
-  const halfExtents = { x: (dims.w * scale) / 2, y: (dims.h * scale) / 2, z: (dims.d * scale) / 2 };
+  const typeKey = type.replace(/_platform$/, ""); // normalize "grid_platform" → "grid"
+  const halfExtents = _PP_PLATFORM_SIZES[type] || _PP_PLATFORM_SIZES[typeKey] || { x: 2, y: 0.25, z: 2 };
+  const scaledSize = { x: halfExtents.x * scale, y: halfExtents.y * scale, z: halfExtents.z * scale };
 
   let mesh: any;
   try {
-    const url = _colorModelUrl(\`platform_\${variant}\`, color);
+    let url: string;
+    if (opts?._pack && opts?._path) {
+      url = modelUrl(opts._pack, opts._path);
+    } else {
+      const subpath = _PP_PLATFORMS[type] || _PP_PLATFORMS[typeKey] || _PP_PLATFORMS["grid"];
+      url = _ppModelUrl(subpath);
+    }
     mesh = await _loadOrClone(url);
     mesh.scale.setScalar(scale);
   } catch (err) {
-    console.warn("[3D] createPlatform3D fallback — failed to load:", \`platform_\${variant}_\${color}\`, err);
-    mesh = _fallbackBox(dims.w * scale, dims.h * scale, dims.d * scale, 0x4488cc);
+    console.warn("[3D] createPlatform3D fallback — failed to load:", type, err);
+    mesh = _fallbackBox(scaledSize.x * 2, scaledSize.y * 2, scaledSize.z * 2, 0x4488cc);
   }
   mesh.position.set(x, y, z);
   mesh.receiveShadow = true;
-  mesh.name = \`Platform_\${variant}_\${color}\`;
+  mesh.name = \`Platform_\${type}\`;
   mesh.userData.vibexeType = "platform";
   mesh.userData.vibexeFactory = "createPlatform3D";
-  mesh.userData.vibexeArgs = { x, y, z, variant, color, scale };
+  mesh.userData.vibexeArgs = { x, y, z, type, scale };
   scene.add(mesh);
-  return { mesh, size: halfExtents };
+  return { mesh, size: scaledSize };
 }
 
 /**
- * Creates a KayKit collectible (diamond, star, heart, ball) at (x, y, z).
- * Returns { mesh, size } for optional collision distance.
+ * Creates a collectible (coin, star, heart, disc) at (x, y, z).
+ * Returns { mesh, size } for collision distance.
  *
  * Usage:
  *   const { mesh } = await createCollectible3D(scene, 3, 2, -8, { type: "star" });
  */
 export async function createCollectible3D(
   scene: any, x: number, y: number, z: number,
-  opts?: { type?: string; color?: string; scale?: number },
+  opts?: { type?: string; color?: string; scale?: number; _pack?: string; _path?: string },
 ): Promise<{ mesh: any; size: { x: number; y: number; z: number } }> {
-  const type = opts?.type || "diamond";
-  const color = opts?.color || "blue";
+  const type = opts?.type || "coin";
   const scale = opts?.scale || SCALES_3D.collectible;
   const halfSize = scale * 0.5;
 
   let mesh: any;
   try {
-    const url = _colorModelUrl(type, color);
+    let url: string;
+    if (opts?._pack && opts?._path) {
+      url = modelUrl(opts._pack, opts._path);
+    } else {
+      const subpath = _PP_COLLECTIBLES[type] || _PP_COLLECTIBLES["coin"];
+      url = _ppModelUrl(subpath);
+    }
     mesh = await _loadOrClone(url);
     mesh.scale.setScalar(scale);
   } catch (err) {
-    console.warn("[3D] createCollectible3D fallback — failed to load:", \`\${type}_\${color}\`, err);
+    console.warn("[3D] createCollectible3D fallback — failed to load:", type, err);
     mesh = _fallbackBox(scale, scale, scale, 0xffdd44);
     mesh.material.emissive = new THREE.Color(0xffdd44);
     mesh.material.emissiveIntensity = 0.3;
   }
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
-  mesh.name = \`Collectible_\${type}_\${color}\`;
+  mesh.name = \`Collectible_\${type}\`;
   mesh.userData.vibexeType = "collectible";
   mesh.userData.vibexeFactory = "createCollectible3D";
-  mesh.userData.vibexeArgs = { x, y, z, type, color, scale };
+  mesh.userData.vibexeArgs = { x, y, z, type, scale };
   scene.add(mesh);
   return { mesh, size: { x: halfSize, y: halfSize, z: halfSize } };
 }
 
 /**
- * Creates a KayKit player/character model at (x, y, z).
- * Default: "ball" (blue) — a good all-purpose player visual.
+ * Creates a simple player model at (x, y, z).
+ * For animated Lily character, use createAnimatedCharacter3D instead.
  * Returns { mesh, size } for physics body sizing.
  *
  * Usage:
@@ -1344,90 +1448,96 @@ export async function createCollectible3D(
  */
 export async function createPlayer3D(
   scene: any, x: number, y: number, z: number,
-  opts?: { model?: string; color?: string; scale?: number; neutral?: boolean },
+  opts?: { model?: string; color?: string; scale?: number; neutral?: boolean; _pack?: string; _path?: string },
 ): Promise<{ mesh: any; size: { x: number; y: number; z: number } }> {
-  const model = opts?.model || "ball";
-  const color = opts?.color || "blue";
+  const model = opts?.model || "sphere";
   const scale = opts?.scale || SCALES_3D.player;
   const halfSize = scale * 0.6;
 
   let mesh: any;
   try {
-    const url = opts?.neutral ? _neutralModelUrl(model) : _colorModelUrl(model, color);
+    let url: string;
+    if (opts?._pack && opts?._path) {
+      url = modelUrl(opts._pack, opts._path);
+    } else {
+      // Try platformer-project objects first, then KayKit fallback
+      const ppPath = model === "sphere" ? "objects/sphere.glb"
+        : model === "lilyhead" ? "objects/lilyhead.glb"
+        : \`objects/\${model}.glb\`;
+      url = _ppModelUrl(ppPath);
+    }
     mesh = await _loadOrClone(url);
     mesh.scale.setScalar(scale);
   } catch (err) {
-    console.warn("[3D] createPlayer3D fallback — failed to load:", \`\${model}_\${color}\`, err);
+    console.warn("[3D] createPlayer3D fallback — failed to load:", model, err);
     mesh = _fallbackBox(scale, scale * 1.5, scale, 0x4488ff);
   }
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
-  mesh.name = \`Player_\${model}_\${color}\`;
+  mesh.name = \`Player_\${model}\`;
   mesh.userData.vibexeType = "player";
   mesh.userData.vibexeFactory = "createPlayer3D";
-  mesh.userData.vibexeArgs = { x, y, z, model, color, scale };
+  mesh.userData.vibexeArgs = { x, y, z, model, scale };
   scene.add(mesh);
   return { mesh, size: { x: halfSize, y: halfSize, z: halfSize } };
 }
 
 /**
- * Creates a KayKit barrier/wall at (x, y, z).
+ * Creates a hazard/barrier at (x, y, z) using Platformer Project models.
  * Returns { mesh, size } for physics body.
  *
  * Usage:
- *   const { mesh, size } = await createBarrier3D(scene, 5, 0.5, -10, { variant: "3x1x4" });
+ *   const { mesh, size } = await createBarrier3D(scene, 5, 0.5, -10, { type: "spikes" });
  */
 export async function createBarrier3D(
   scene: any, x: number, y: number, z: number,
-  opts?: { variant?: string; color?: string; scale?: number; neutral?: boolean },
+  opts?: { type?: string; variant?: string; color?: string; scale?: number; neutral?: boolean; _pack?: string; _path?: string },
 ): Promise<{ mesh: any; size: { x: number; y: number; z: number } }> {
-  const variant = _snapVariant(opts?.variant || "2x1x2", _VALID_BARRIERS);
-  const color = opts?.color || "blue";
+  const type = opts?.type || opts?.variant || "spikes";
   const scale = opts?.scale || 1.0;
-  const neutral = opts?.neutral ?? false;
-  const dims = _parseDims(variant);
-  const halfExtents = { x: (dims.w * scale) / 2, y: (dims.h * scale) / 2, z: (dims.d * scale) / 2 };
+  const halfExtents = { x: scale, y: scale * 0.5, z: scale };
 
   let mesh: any;
   try {
-    const url = neutral
-      ? _neutralModelUrl(\`barrier_\${variant}\`)
-      : _colorModelUrl(\`barrier_\${variant}\`, color);
+    let url: string;
+    if (opts?._pack && opts?._path) {
+      url = modelUrl(opts._pack, opts._path);
+    } else {
+      const subpath = _PP_HAZARDS[type] || _PP_HAZARDS["spikes"];
+      url = _ppModelUrl(subpath);
+    }
     mesh = await _loadOrClone(url);
     mesh.scale.setScalar(scale);
   } catch (err) {
-    console.warn("[3D] createBarrier3D fallback — failed to load:", \`barrier_\${variant}\`, err);
-    mesh = _fallbackBox(dims.w * scale, dims.h * scale, dims.d * scale, 0x996633);
+    console.warn("[3D] createBarrier3D fallback — failed to load:", type, err);
+    mesh = _fallbackBox(scale * 2, scale, scale * 2, 0xcc4444);
   }
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
-  mesh.name = \`Barrier_\${variant}_\${color}\`;
+  mesh.name = \`Barrier_\${type}\`;
   mesh.userData.vibexeType = "barrier";
   mesh.userData.vibexeFactory = "createBarrier3D";
-  mesh.userData.vibexeArgs = { x, y, z, variant, color, scale };
+  mesh.userData.vibexeArgs = { x, y, z, type, scale };
   scene.add(mesh);
   return { mesh, size: halfExtents };
 }
 
 /**
- * Creates a KayKit decoration (pillar, floor, structure, sign, spring, etc.) at (x, y, z).
- * Neutral by default (most decorations are neutral-only).
+ * Creates a decoration/interactive object at (x, y, z).
+ * Uses Platformer Project models by default. For KayKit city-builder/resource-bits,
+ * use _pack and _path options.
  *
  * Usage:
- *   const { mesh } = await createDecoration3D(scene, -5, 0, -8, { type: "pillar_2x2x4" });
- *   const { mesh } = await createDecoration3D(scene, 3, 0, -12, { type: "structure_A" });
- *   // Multi-pack (city-builder, resource-bits):
+ *   const { mesh } = await createDecoration3D(scene, -5, 0, -8, { type: "checkpoint" });
  *   const { mesh } = await createDecoration3D(scene, 0, 0, 0, { type: "building_A", _pack: "kaykit-city-builder", _path: "Assets/gltf/building_A.gltf" });
  */
 export async function createDecoration3D(
   scene: any, x: number, y: number, z: number,
   opts?: { type?: string; color?: string; scale?: number; neutral?: boolean; _pack?: string; _path?: string },
 ): Promise<{ mesh: any; size: { x: number; y: number; z: number } }> {
-  const type = opts?.type || "pillar_2x2x4";
-  const color = opts?.color || "blue";
+  const type = opts?.type || "sign";
   const scale = opts?.scale || 1.0;
-  const neutral = opts?.neutral ?? true;
   const _pack = opts?._pack;
   const _path = opts?._path;
 
@@ -1438,8 +1548,9 @@ export async function createDecoration3D(
       // Multi-pack: use explicit pack + path (city-builder, resource-bits, etc.)
       url = modelUrl(_pack, _path);
     } else {
-      // Default: kaykit-platformer neutral/color paths
-      url = neutral ? _neutralModelUrl(type) : _colorModelUrl(type, color);
+      // Default: platformer-project objects
+      const subpath = _PP_DECORATIONS[type] || \`objects/\${type}.glb\`;
+      url = _ppModelUrl(subpath);
     }
     mesh = await _loadOrClone(url);
     mesh.scale.setScalar(scale);
@@ -1453,7 +1564,7 @@ export async function createDecoration3D(
   mesh.name = \`Decoration_\${type}\`;
   mesh.userData.vibexeType = "decoration";
   mesh.userData.vibexeFactory = "createDecoration3D";
-  mesh.userData.vibexeArgs = { x, y, z, type, color, scale, ...(_pack ? { _pack } : {}), ...(_path ? { _path } : {}) };
+  mesh.userData.vibexeArgs = { x, y, z, type, scale, ...(_pack ? { _pack } : {}), ...(_path ? { _path } : {}) };
   scene.add(mesh);
   return { mesh, size: { x: scale, y: scale * 2, z: scale } };
 }
@@ -4218,21 +4329,23 @@ export * from "./constants";
  * Injected separately in route.ts.
  */
 export const GAME_3D_SCENE_STARTER = `/**
- * 3D Game Scene — CUSTOMIZE THIS FILE for your game!
+ * 3D Platformer Scene — Platformer Project Kit
  *
- * ALL game objects MUST use factory helpers from assets-3d.ts:
- *   createPlatform3D, createCollectible3D, createPlayer3D,
- *   createBarrier3D, createDecoration3D, createText3D
- * These load real KayKit GLTF 3D models with correct URLs and caching.
- * Do NOT use raw THREE.BoxGeometry or THREE.SphereGeometry for visible objects.
+ * Uses Lily (animated character) as player with createAnimatedCharacter3D.
+ * ALL objects use factory helpers — they load Platformer Project GLB models.
+ * Professional mechanics: asymmetric gravity, coyote time, variable jump.
  */
 import {
-  createPlatform3D, createCollectible3D, createPlayer3D,
+  createPlatform3D, createCollectible3D,
   createBarrier3D, createDecoration3D, createAnimatedCharacter3D,
-  createText3D, createPhysicsBody, syncBodiesToMeshes, createKeyboardState,
+  createCharacterController3D, createText3D,
+  createPhysicsBody, syncBodiesToMeshes, createKeyboardState,
   createGround3D, createSkyGradient, createHUD,
+  playSound, soundUrl, preloadSounds,
   CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y,
-  COLLECT_DISTANCE, JUMP_FORCE, loadGLTF, SCALES_3D,
+  COLLECT_DISTANCE, JUMP_FORCE, COYOTE_TIME, JUMP_BUFFER,
+  FALL_GRAVITY, GRAVITY_3D, MOVE_SPEED,
+  loadGLTF, SCALES_3D,
 } from "../config/assets-3d";
 import { modelUrl } from "../utils/media-stock-3d";
 
@@ -4241,11 +4354,13 @@ const CANNON = (window as any).CANNON;
 
 // ===== Game State =====
 let scene: any, camera: any, renderer: any;
-let player: any, playerBody: any, world: any;
+let lily: any, lilyController: any, playerBody: any, world: any;
 let hud: any, keys: any, destroyKb: () => void;
 const platforms: { mesh: any; body: any }[] = [];
 const items: { mesh: any; collected: boolean }[] = [];
 let score = 0;
+let coyoteTimer = 0;  // Time since last grounded
+let jumpBufferTimer = 0; // Time since jump was pressed
 
 export const GameScene = {
   world: null as any,
@@ -4253,22 +4368,33 @@ export const GameScene = {
   async init(_scene: any, _camera: any, _renderer: any, container: HTMLDivElement, onProgress?: (p: number) => void) {
     scene = _scene; camera = _camera; renderer = _renderer;
     world = this.world;
+    score = 0;
+    coyoteTimer = 0;
+    jumpBufferTimer = 0;
+    platforms.length = 0;
+    items.length = 0;
 
     // Sky gradient + ground plane
     createSkyGradient(scene, 0x87CEEB, 0xE0F0FF);
     createGround3D(scene, 100, 0x88BB66);
     onProgress?.(0.1);
 
-    // ===== PLATFORMS — createPlatform3D loads KayKit GLTF models =====
+    // Preload audio
+    await preloadSounds([
+      soundUrl("platformer-project/sfx/jump_0.wav"),
+      soundUrl("platformer-project/sfx/coin01.aif"),
+    ]);
+
+    // ===== PLATFORMS — Platformer Project GLB models =====
     const platPositions: [number, number, number][] = [
       [0, 0.5, 0], [5, 1, -6], [-4, 1.5, -12], [3, 2, -18], [-2, 2.5, -24],
       [6, 3, -30], [0, 3.5, -36],
     ];
-    const colors = ["blue", "green", "red", "yellow"] as const;
+    const platTypes = ["grid", "long", "grid", "bouncing", "grid", "long", "grid"];
     for (let i = 0; i < platPositions.length; i++) {
       const [x, y, z] = platPositions[i];
       const { mesh, size } = await createPlatform3D(scene, x, y, z, {
-        variant: "4x4x1", color: colors[i % 4],
+        type: platTypes[i % platTypes.length],
       });
       const body = createPhysicsBody("box", 0, { x, y, z }, size);
       if (world && body) world.addBody(body);
@@ -4276,37 +4402,40 @@ export const GameScene = {
     }
     onProgress?.(0.3);
 
-    // ===== PLAYER — createPlayer3D loads KayKit character model =====
-    const { mesh: pm, size: ps } = await createPlayer3D(scene, 0, 3, 0, { color: "blue" });
-    player = pm;
-    playerBody = createPhysicsBody("sphere", 5, { x: 0, y: 3, z: 0 }, ps.x);
+    // ===== PLAYER — Lily animated character =====
+    const lilyResult = await createAnimatedCharacter3D(scene, 0, 3, 0, {
+      url: modelUrl("platformer-project", "characters/Lily.glb"),
+    });
+    lily = lilyResult;
+    playerBody = createPhysicsBody("box", 5, { x: 0, y: 3, z: 0 }, lily.size);
     if (playerBody) {
       playerBody.linearDamping = 0.9;
       playerBody.angularDamping = 1.0;
       playerBody.fixedRotation = true;
     }
     if (world && playerBody) world.addBody(playerBody);
+    lilyController = createCharacterController3D(lilyResult, playerBody);
     onProgress?.(0.5);
 
-    // ===== COLLECTIBLES — createCollectible3D loads KayKit diamond/star models =====
-    const itemTypes = ["diamond", "star", "heart"] as const;
+    // ===== COLLECTIBLES — coins, stars, hearts =====
+    const itemTypes = ["coin", "star", "heart"] as const;
     for (let i = 0; i < platPositions.length - 2; i++) {
       const [x, , z] = platPositions[i + 1];
       const { mesh } = await createCollectible3D(scene, x, 3 + i * 0.5, z, {
-        type: itemTypes[i % 3], color: "yellow",
+        type: itemTypes[i % 3],
       });
       items.push({ mesh, collected: false });
     }
     onProgress?.(0.7);
 
-    // ===== BARRIERS — createBarrier3D loads KayKit wall models =====
-    await createBarrier3D(scene, 2, 1, -9, { variant: "2x1x4", color: "red" });
-    await createBarrier3D(scene, -3, 2, -21, { variant: "3x1x2", color: "red" });
+    // ===== HAZARDS — spikes =====
+    await createBarrier3D(scene, 2, 1, -9, { type: "spikes" });
+    await createBarrier3D(scene, -3, 2, -21, { type: "spikes_panel" });
     onProgress?.(0.8);
 
-    // ===== DECORATIONS — createDecoration3D loads KayKit pillars/structures =====
-    await createDecoration3D(scene, -8, 0, -5, { type: "pillar_2x2x4" });
-    await createDecoration3D(scene, 10, 0, -20, { type: "structure_A" });
+    // ===== DECORATIONS — signs, garden =====
+    await createDecoration3D(scene, -8, 0, -5, { type: "sign" });
+    await createDecoration3D(scene, 10, 0, -20, { type: "garden" });
     onProgress?.(0.9);
 
     // HUD + keyboard
@@ -4318,53 +4447,76 @@ export const GameScene = {
 
     // Jump detection
     playerBody.addEventListener("collide", (e: any) => {
-      if (e.contact.ni.y > 0.5) (playerBody as any).__canJump = true;
+      if (e.contact.ni.y > 0.5) {
+        (playerBody as any).__canJump = true;
+        coyoteTimer = 0;
+      }
     });
     onProgress?.(1);
   },
 
   update(delta: number) {
-    if (!player || !world) return;
+    if (!lily || !world) return;
+
+    // Asymmetric gravity: lighter going up, heavier falling
+    const vy = playerBody.velocity.y;
+    world.gravity.set(0, vy > 0 ? GRAVITY_3D : FALL_GRAVITY, 0);
     world.step(1 / 60, delta, 3);
 
-    // Player movement — VELOCITY-BASED (instant, responsive, no sliding)
-    const SPEED = 5;
+    // Coyote time + jump buffer
+    if ((playerBody as any).__canJump) {
+      coyoteTimer = 0;
+    } else {
+      coyoteTimer += delta;
+    }
+    if (jumpBufferTimer > 0) jumpBufferTimer -= delta;
+
+    // Player movement — VELOCITY-BASED
     const vx = ((keys.ArrowRight || keys.KeyD) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA) ? 1 : 0);
     const vz = ((keys.ArrowDown || keys.KeyS) ? 1 : 0) - ((keys.ArrowUp || keys.KeyW) ? 1 : 0);
     if (vx !== 0 || vz !== 0) {
       const len = Math.sqrt(vx * vx + vz * vz);
-      playerBody.velocity.x = (vx / len) * SPEED;
-      playerBody.velocity.z = (vz / len) * SPEED;
+      playerBody.velocity.x = (vx / len) * MOVE_SPEED;
+      playerBody.velocity.z = (vz / len) * MOVE_SPEED;
     }
-    if (keys.Space && (playerBody as any).__canJump) {
+
+    // Jump with coyote time + jump buffer
+    if (keys.Space) {
+      jumpBufferTimer = JUMP_BUFFER;
+    }
+    const canJump = (playerBody as any).__canJump || coyoteTimer < COYOTE_TIME;
+    if (jumpBufferTimer > 0 && canJump) {
       playerBody.velocity.y = JUMP_FORCE;
       (playerBody as any).__canJump = false;
+      coyoteTimer = COYOTE_TIME; // Consume coyote time
+      jumpBufferTimer = 0;
+      playSound(soundUrl("platformer-project/sfx/jump_0.wav"), { volume: 0.6 });
     }
 
     // Sync physics → meshes
-    player.position.copy(playerBody.position);
-    player.quaternion.copy(playerBody.quaternion);
+    lily.mesh.position.copy(playerBody.position);
     syncBodiesToMeshes(platforms);
 
     // Camera follow
-    camera.position.x += (player.position.x - camera.position.x) * CAMERA_LERP * delta;
-    camera.position.y += (player.position.y + CAMERA_OFFSET_Y - camera.position.y) * CAMERA_LERP * delta;
-    camera.position.z += (player.position.z + CAMERA_OFFSET_Z - camera.position.z) * CAMERA_LERP * delta;
-    camera.lookAt(player.position.x, player.position.y + CAMERA_LOOK_Y, player.position.z);
+    camera.position.x += (lily.mesh.position.x - camera.position.x) * CAMERA_LERP * delta;
+    camera.position.y += (lily.mesh.position.y + CAMERA_OFFSET_Y - camera.position.y) * CAMERA_LERP * delta;
+    camera.position.z += (lily.mesh.position.z + CAMERA_OFFSET_Z - camera.position.z) * CAMERA_LERP * delta;
+    camera.lookAt(lily.mesh.position.x, lily.mesh.position.y + CAMERA_LOOK_Y, lily.mesh.position.z);
 
     // Collect items
     for (const c of items) {
-      if (!c.collected && player.position.distanceTo(c.mesh.position) < COLLECT_DISTANCE) {
+      if (!c.collected && lily.mesh.position.distanceTo(c.mesh.position) < COLLECT_DISTANCE) {
         c.collected = true;
         c.mesh.visible = false;
         score++;
         hud.update({ score });
+        playSound(soundUrl("platformer-project/sfx/coin01.aif"), { volume: 0.7 });
       }
       if (!c.collected) c.mesh.rotation.y += delta * 2;
     }
 
     // Fall off world = reset
-    if (player.position.y < -10) {
+    if (lily.mesh.position.y < -10) {
       playerBody.position.set(0, 5, 0);
       playerBody.velocity.set(0, 0, 0);
     }
@@ -4378,175 +4530,11 @@ export const GameScene = {
 
 /**
  * Character-aware variant of GAME_3D_SCENE_STARTER.
- * Uses createAnimatedCharacter3D + createCharacterController3D instead of createPlayer3D.
- * Injected when warrior/knight/fighter keywords are detected.
+ * Now uses Lily by default (same as main starter since Platformer Project).
+ * This variant is used when warrior/knight/fighter/character keywords are detected.
+ * Identical to GAME_3D_SCENE_STARTER since Lily is the default player.
  */
-export const GAME_3D_SCENE_STARTER_CHARACTER = `/**
- * 3D Game Scene — CUSTOMIZE THIS FILE for your game!
- *
- * Uses animated character (warrior) with createCharacterController3D
- * for automatic animation state management (idle/walk/run/jump/attack).
- */
-import {
-  createPlatform3D, createCollectible3D,
-  createBarrier3D, createDecoration3D, createAnimatedCharacter3D,
-  createCharacterController3D, createText3D,
-  createPhysicsBody, syncBodiesToMeshes, createKeyboardState,
-  createGround3D, createSkyGradient, createHUD,
-  CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y,
-  COLLECT_DISTANCE, JUMP_FORCE, loadGLTF, SCALES_3D,
-} from "../config/assets-3d";
-import { modelUrl } from "../utils/media-stock-3d";
-
-const THREE = (window as any).THREE;
-const CANNON = (window as any).CANNON;
-
-// ===== Game State =====
-let scene: any, camera: any, renderer: any;
-let player: any, playerBody: any, world: any;
-let controller: any;
-let hud: any, keys: any, destroyKb: () => void;
-const platforms: { mesh: any; body: any }[] = [];
-const items: { mesh: any; collected: boolean }[] = [];
-let score = 0;
-
-export const GameScene = {
-  world: null as any,
-
-  async init(_scene: any, _camera: any, _renderer: any, container: HTMLDivElement, onProgress?: (p: number) => void) {
-    scene = _scene; camera = _camera; renderer = _renderer;
-    world = this.world;
-
-    // Sky gradient + ground plane
-    createSkyGradient(scene, 0x87CEEB, 0xE0F0FF);
-    createGround3D(scene, 100, 0x88BB66);
-    onProgress?.(0.1);
-
-    // ===== PLATFORMS =====
-    const platPositions: [number, number, number][] = [
-      [0, 0.5, 0], [5, 1, -6], [-4, 1.5, -12], [3, 2, -18], [-2, 2.5, -24],
-      [6, 3, -30], [0, 3.5, -36],
-    ];
-    const colors = ["blue", "green", "red", "yellow"] as const;
-    for (let i = 0; i < platPositions.length; i++) {
-      const [x, y, z] = platPositions[i];
-      const { mesh, size } = await createPlatform3D(scene, x, y, z, {
-        variant: "4x4x1", color: colors[i % 4],
-      });
-      const body = createPhysicsBody("box", 0, { x, y, z }, size);
-      if (world && body) world.addBody(body);
-      platforms.push({ mesh, body });
-    }
-    onProgress?.(0.3);
-
-    // ===== ANIMATED CHARACTER (warrior) =====
-    const warrior = await createAnimatedCharacter3D(scene, 0, 3, 0, {
-      url: modelUrl("meshy-characters", "Warrior_figure_Animations.glb"),
-    });
-    player = warrior.mesh;
-    playerBody = createPhysicsBody("box", 5, { x: 0, y: 3, z: 0 }, warrior.size);
-    if (playerBody) {
-      playerBody.linearDamping = 0.9; // Stop quickly when no input (prevents infinite sliding)
-      playerBody.angularDamping = 1.0; // Prevent unwanted rotation
-      playerBody.fixedRotation = true; // Controller handles facing direction
-    }
-    if (world && playerBody) world.addBody(playerBody);
-
-    // Character controller — auto-manages idle/walk/run/jump/attack animations
-    controller = createCharacterController3D(warrior, playerBody);
-    onProgress?.(0.5);
-
-    // ===== COLLECTIBLES =====
-    const itemTypes = ["diamond", "star", "heart"] as const;
-    for (let i = 0; i < platPositions.length - 2; i++) {
-      const [x, , z] = platPositions[i + 1];
-      const { mesh } = await createCollectible3D(scene, x, 3 + i * 0.5, z, {
-        type: itemTypes[i % 3], color: "yellow",
-      });
-      items.push({ mesh, collected: false });
-    }
-    onProgress?.(0.7);
-
-    // ===== BARRIERS =====
-    await createBarrier3D(scene, 2, 1, -9, { variant: "2x1x4", color: "red" });
-    await createBarrier3D(scene, -3, 2, -21, { variant: "3x1x2", color: "red" });
-    onProgress?.(0.8);
-
-    // ===== DECORATIONS =====
-    await createDecoration3D(scene, -8, 0, -5, { type: "pillar_2x2x4" });
-    await createDecoration3D(scene, 10, 0, -20, { type: "structure_A" });
-    onProgress?.(0.9);
-
-    // HUD + keyboard
-    hud = createHUD(container);
-    hud.update({ score: 0 });
-    const kb = createKeyboardState();
-    keys = kb.keys;
-    destroyKb = kb.destroy;
-
-    // Jump detection
-    playerBody.addEventListener("collide", (e: any) => {
-      if (e.contact.ni.y > 0.5) (playerBody as any).__canJump = true;
-    });
-    onProgress?.(1);
-  },
-
-  update(delta: number) {
-    if (!player || !world) return;
-    world.step(1 / 60, delta, 3);
-
-    // Player movement — VELOCITY-BASED for instant, responsive walking
-    // (Force-based movement is sluggish and causes sliding)
-    const SPEED = 5;
-    const vx = ((keys.ArrowRight || keys.KeyD) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA) ? 1 : 0);
-    const vz = ((keys.ArrowDown || keys.KeyS) ? 1 : 0) - ((keys.ArrowUp || keys.KeyW) ? 1 : 0);
-    if (vx !== 0 || vz !== 0) {
-      // Normalize diagonal movement
-      const len = Math.sqrt(vx * vx + vz * vz);
-      playerBody.velocity.x = (vx / len) * SPEED;
-      playerBody.velocity.z = (vz / len) * SPEED;
-    }
-    if (keys.Space && (playerBody as any).__canJump) {
-      playerBody.velocity.y = JUMP_FORCE;
-      (playerBody as any).__canJump = false;
-      controller.jump();
-    }
-
-    // Controller handles: mesh sync, facing direction, animation states
-    controller.update(delta);
-
-    // Sync platforms
-    syncBodiesToMeshes(platforms);
-
-    // Camera follow
-    camera.position.x += (player.position.x - camera.position.x) * CAMERA_LERP * delta;
-    camera.position.y += (player.position.y + CAMERA_OFFSET_Y - camera.position.y) * CAMERA_LERP * delta;
-    camera.position.z += (player.position.z + CAMERA_OFFSET_Z - camera.position.z) * CAMERA_LERP * delta;
-    camera.lookAt(player.position.x, player.position.y + CAMERA_LOOK_Y, player.position.z);
-
-    // Collect items
-    for (const c of items) {
-      if (!c.collected && player.position.distanceTo(c.mesh.position) < COLLECT_DISTANCE) {
-        c.collected = true;
-        c.mesh.visible = false;
-        score++;
-        hud.update({ score });
-      }
-      if (!c.collected) c.mesh.rotation.y += delta * 2;
-    }
-
-    // Fall off world = reset
-    if (player.position.y < -10) {
-      playerBody.position.set(0, 5, 0);
-      playerBody.velocity.set(0, 0, 0);
-    }
-  },
-
-  cleanup() {
-    destroyKb?.();
-  },
-};
-`;
+export const GAME_3D_SCENE_STARTER_CHARACTER = GAME_3D_SCENE_STARTER;
 
 // =============================================================================
 // 3D ENDLESS RUNNER SCENE STARTER
