@@ -1542,16 +1542,12 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 	// Existing games have hardcoded values saved in DB. The window global IS injected via
 	// <script> tag above, but ES module imports bypass window globals. Fix: rewrite the
 	// actual module source code so exported constants and spawn calls read from the global.
-	console.warn("[SETTINGS_PATCH] settingsFile:", settingsFile?.path, "hasContent:", !!settingsFile?.content);
 	if (settingsFile?.content) {
 		try {
 			JSON.parse(settingsFile.content); // validate JSON
-			const _spKeys = Object.keys(sandpackFiles);
-			console.warn("[SETTINGS_PATCH] settingsFile found, sandpackFiles keys:", _spKeys.filter(k => k.includes("assets-3d") || k.includes("GameScene") || k.includes("Game3D")));
 
 			// 1. Patch assets-3d.ts — replace hardcoded constants with settings-backed values
-			const assetsKey = _spKeys.find((p) => p.endsWith("/assets-3d.ts"));
-			console.warn("[SETTINGS_PATCH] assetsKey:", assetsKey);
+			const assetsKey = Object.keys(sandpackFiles).find((p) => p.endsWith("/assets-3d.ts"));
 			if (assetsKey) {
 				const af = sandpackFiles[assetsKey];
 				let code = typeof af === "string" ? af : af.code;
@@ -1594,8 +1590,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			}
 
 			// 2. Patch GameScene3D.ts — inject spawn position from settings
-			const sceneKey = _spKeys.find((p) => p.endsWith("GameScene3D.ts"));
-			console.warn("[SETTINGS_PATCH] sceneKey:", sceneKey);
+			const sceneKey = Object.keys(sandpackFiles).find((p) => p.endsWith("GameScene3D.ts"));
 			if (sceneKey) {
 				const sf = sandpackFiles[sceneKey];
 				let code = typeof sf === "string" ? sf : sf.code;
@@ -1681,7 +1676,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 					(sandpackFiles[game3dKey] as SandpackFile).code = code;
 				}
 			}
-		} catch (e) { console.error("[SETTINGS_PATCH] Exception:", e); }
+		} catch { /* invalid settings JSON — skip all patching */ }
 	}
 
 	return sandpackFiles;
