@@ -4573,9 +4573,11 @@ export const GameScene = {
 
     // ===== PLAYER — Lily animated character =====
     const __gs = (window as any).__VIBEXE_GAME_SETTINGS__ || {};
+    console.log("[3D] Game Settings:", JSON.stringify(__gs));
     const spawnX = __gs.player?.spawnX ?? 0;
     const spawnY = __gs.player?.spawnY ?? 3;
     const spawnZ = __gs.player?.spawnZ ?? 0;
+    console.log("[3D] Player spawn:", spawnX, spawnY, spawnZ);
     const lilyResult = await createAnimatedCharacter3D(scene, spawnX, spawnY, spawnZ, {
       url: modelUrl("platformer-project", "characters/Lily.glb"),
     });
