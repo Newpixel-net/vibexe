@@ -421,6 +421,8 @@ if (typeof window !== 'undefined') {
     var _lastScene = null;
     var _frame = 0;
     var _MAX = 300;
+    var _startTime = Date.now();
+    var _MAX_WALL = 120000;
     var _fp = ["Platform_","Collectible_","Barrier_","Decoration_","Player_","Character_","Object_"];
     function _isF(n) { if(!n) return false; for(var i=0;i<_fp.length;i++) if(n.indexOf(_fp[i])===0) return true; return false; }
     function _findBody(mesh, name) {
@@ -463,9 +465,10 @@ if (typeof window !== 'undefined') {
       return t;
     }
     function _apply() {
-      if (window.__vibexe_editor__) return;
+      if (Date.now() - _startTime > _MAX_WALL) { console.log("[SCENE_EDITOR] Override wall-time expired"); return; }
+      if (window.__vibexe_editor__) { requestAnimationFrame(_apply); return; }
       var s = window.__vibexe_scene__;
-      if (!s || !s.children) { _frame++; if(_frame<_MAX) requestAnimationFrame(_apply); return; }
+      if (!s || !s.children) { requestAnimationFrame(_apply); return; }
       if (s !== _lastScene) { _cache={}; _bodies={}; _logged={}; _lastScene=s; }
       var keys = Object.keys(_ov);
       for (var ki=0; ki<keys.length; ki++) {
