@@ -1636,11 +1636,60 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 							(_, p1, x, p2, y, p3, z, p4) =>
 								`${p1}${sp.spawnX ?? x.trim()}${p2}${sp.spawnY ?? y.trim()}${p3}${sp.spawnZ ?? z.trim()}${p4}`,
 						);
+						// Also patch createPlayer3D spawn args
+						code = code.replace(
+							/(createPlayer3D\s*\(\s*scene\s*,\s*)([^,]+)(\s*,\s*)([^,]+)(\s*,\s*)([^,]+)(\s*[,)])/,
+							(_, p1, x, p2, y, p3, z, p4) =>
+								`${p1}${sp.spawnX ?? x.trim()}${p2}${sp.spawnY ?? y.trim()}${p3}${sp.spawnZ ?? z.trim()}${p4}`,
+						);
 						// Replace createPhysicsBody position object
 						code = code.replace(
 							/(createPhysicsBody\s*\([^,]+,\s*[^,]+,\s*)\{\s*x:\s*([^,]+),\s*y:\s*([^,]+),\s*z:\s*([^}]+)\}/,
 							(_, prefix, x, y, z) =>
 								`${prefix}{ x: ${sp.spawnX ?? x.trim()}, y: ${sp.spawnY ?? y.trim()}, z: ${sp.spawnZ ?? z.trim()} }`,
+						);
+					}
+
+					// Patch respawn position variable declarations
+					if (sp.respawnX != null || sp.respawnY != null || sp.respawnZ != null) {
+						// Replace: const respawnX = __gs.player?.respawnX ?? 0;
+						if (sp.respawnX != null) {
+							code = code.replace(
+								/(const respawnX\s*=\s*)([^;]+)(;)/,
+								`$1${sp.respawnX}$3`,
+							);
+						}
+						if (sp.respawnY != null) {
+							code = code.replace(
+								/(const respawnY\s*=\s*)([^;]+)(;)/,
+								`$1${sp.respawnY}$3`,
+							);
+						}
+						if (sp.respawnZ != null) {
+							code = code.replace(
+								/(const respawnZ\s*=\s*)([^;]+)(;)/,
+								`$1${sp.respawnZ}$3`,
+							);
+						}
+					}
+
+					// Also patch spawn variable declarations (for modules where __gs is unavailable)
+					if (sp.spawnX != null) {
+						code = code.replace(
+							/(const spawnX\s*=\s*)([^;]+)(;)/,
+							`$1${sp.spawnX}$3`,
+						);
+					}
+					if (sp.spawnY != null) {
+						code = code.replace(
+							/(const spawnY\s*=\s*)([^;]+)(;)/,
+							`$1${sp.spawnY}$3`,
+						);
+					}
+					if (sp.spawnZ != null) {
+						code = code.replace(
+							/(const spawnZ\s*=\s*)([^;]+)(;)/,
+							`$1${sp.spawnZ}$3`,
 						);
 					}
 

@@ -820,6 +820,16 @@ export function SandpackPreview({
 					userData: data.userData,
 					_materialColor: data._materialColor,
 				});
+				// Live-sync player character position to Game Settings spawn
+				if (data.userData?.__isPlayerCharacter && data.position) {
+					gameEditor.updateGameSettings({
+						player: {
+							spawnX: Math.round(data.position.x * 100) / 100,
+							spawnY: Math.round(data.position.y * 100) / 100,
+							spawnZ: Math.round(data.position.z * 100) / 100,
+						},
+					});
+				}
 			} else if (data.type === "game-editor-object-deselected") {
 				gameEditor.updateSelectedObject(null);
 			} else if (data.type === "game-editor-gizmo-mode") {

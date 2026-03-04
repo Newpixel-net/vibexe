@@ -1480,6 +1480,7 @@ export async function createPlayer3D(
   mesh.castShadow = true;
   mesh.name = \`Player_\${model}\`;
   mesh.userData.vibexeType = "player";
+  mesh.userData.__isPlayerCharacter = true;
   mesh.userData.vibexeFactory = "createPlayer3D";
   mesh.userData.vibexeArgs = { x, y, z, model, scale };
   scene.add(mesh);
@@ -1754,7 +1755,7 @@ export async function createAnimatedCharacter3D(
   const urlParts = opts.url.split("/");
   const fileName = urlParts[urlParts.length - 1].replace(/\.(glb|gltf)$/i, "");
   mesh.name = "Character_" + fileName;
-  mesh.userData = { vibexeType: "AnimatedCharacter", vibexeFactory: "animatedCharacter" };
+  mesh.userData = { vibexeType: "AnimatedCharacter", vibexeFactory: "animatedCharacter", __isPlayerCharacter: true };
   mesh.add(pivot);
   mesh.position.set(x, y, z);
   if (opts.rotation !== undefined) mesh.rotation.y = opts.rotation;
@@ -4188,6 +4189,32 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 })();
                 break;
               }
+              case "game-editor-move-player": {
+                // Live-sync: teleport player character to new spawn position (from Game Settings panel)
+                if (!scene) break;
+                scene.traverse((obj: any) => {
+                  if (obj.userData?.__isPlayerCharacter) {
+                    if (d.x !== undefined) obj.position.x = Number(d.x);
+                    if (d.y !== undefined) obj.position.y = Number(d.y);
+                    if (d.z !== undefined) obj.position.z = Number(d.z);
+                    // Also teleport physics body if present
+                    const body = obj.userData?.__physicsBody;
+                    if (body) {
+                      if (d.x !== undefined) body.position.x = Number(d.x);
+                      if (d.y !== undefined) body.position.y = Number(d.y);
+                      if (d.z !== undefined) body.position.z = Number(d.z);
+                      body.velocity.set(0, 0, 0);
+                      body.angularVelocity.set(0, 0, 0);
+                    }
+                    // Update selection UI if this is the selected object
+                    if (_selectedObj && _selectedObj.uuid === obj.uuid) {
+                      if (_boxHelper) _boxHelper.update();
+                      _sendSelectedObject(obj);
+                    }
+                  }
+                });
+                break;
+              }
               case "game-editor-set-spawn-mode":
                 // Toggle spawn cursor mode + store factory/args for click-to-spawn
                 _spawnMode = !!d.active;
@@ -4576,6 +4603,9 @@ export const GameScene = {
     const spawnX = __gs.player?.spawnX ?? 0;
     const spawnY = __gs.player?.spawnY ?? 3;
     const spawnZ = __gs.player?.spawnZ ?? 0;
+    const respawnX = __gs.player?.respawnX ?? 0;
+    const respawnY = __gs.player?.respawnY ?? 5;
+    const respawnZ = __gs.player?.respawnZ ?? 0;
     const lilyResult = await createAnimatedCharacter3D(scene, spawnX, spawnY, spawnZ, {
       url: modelUrl("platformer-project", "characters/Lily.glb"),
     });
@@ -4691,11 +4721,7 @@ export const GameScene = {
 
     // Fall off world = reset to respawn point
     if (lily.mesh.position.y < -10) {
-      playerBody.position.set(
-        __gs.player?.respawnX ?? 0,
-        __gs.player?.respawnY ?? 5,
-        __gs.player?.respawnZ ?? 0
-      );
+      playerBody.position.set(respawnX, respawnY, respawnZ);
       playerBody.velocity.set(0, 0, 0);
     }
   },

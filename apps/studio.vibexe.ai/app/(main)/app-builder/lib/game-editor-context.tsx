@@ -401,9 +401,21 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 					(next as any)[key] = val;
 				}
 			}
+			// Live-sync player spawn position to iframe
+			if (patch.player) {
+				const p = patch.player as Record<string, unknown>;
+				if (p.spawnX !== undefined || p.spawnY !== undefined || p.spawnZ !== undefined) {
+					sendToIframe({
+						type: "game-editor-move-player",
+						x: p.spawnX ?? next.player?.spawnX,
+						y: p.spawnY ?? next.player?.spawnY,
+						z: p.spawnZ ?? next.player?.spawnZ,
+					});
+				}
+			}
 			return next;
 		});
-	}, []);
+	}, [sendToIframe]);
 
 	const setGameSettings = useCallback((settings: GameSettings) => {
 		setGameSettingsState(settings);
