@@ -1638,6 +1638,27 @@ export async function createAnimatedCharacter3D(
     console.log("[3D] Auto-upright: rotated -90° on X (Z-up model detected)");
   }
 
+  // --- Unity export Root bone fix ---
+  // Unity GLTF exports often bake a 180° Z rotation into the Root bone (handedness conversion).
+  // Combined with Hips at -90° X, this causes the character to render face-down.
+  // Detect this pattern and apply a compensating 180° X rotation.
+  if (inner.rotation.x === 0) {
+    let _unityRootBone: any = null;
+    inner.traverse((child: any) => {
+      if (child.isBone && !_unityRootBone && child.name.toLowerCase() === "root") {
+        _unityRootBone = child;
+      }
+    });
+    if (_unityRootBone) {
+      const qz = Math.abs(_unityRootBone.quaternion.z);
+      const qw = Math.abs(_unityRootBone.quaternion.w);
+      if (qz > 0.95 && qw < 0.1) {
+        inner.rotation.x = Math.PI;
+        console.log("[3D] Unity Root bone fix: applied 180° X rotation (Root bone has 180° Z)");
+      }
+    }
+  }
+
   // --- Measure ACTUAL rendered size using boneTransform (SkinnedMesh) ---
   // Box3.setFromObject only measures bind-pose geometry (can be 0.02 units for a
   // model whose bones expand it to 2+ units at render time). We MUST account for
