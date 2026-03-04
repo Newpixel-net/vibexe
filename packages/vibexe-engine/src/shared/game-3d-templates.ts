@@ -4181,6 +4181,53 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   renderer.domElement.style.cursor = "";
                 }
                 break;
+              case "game-editor-collect-all-transforms": {
+                // Collect transforms of ONLY factory-created game objects for batch save
+                if (!scene) break;
+                const _allTf: Record<string, any> = {};
+                const _fPrefixes = ["Platform_", "Collectible_", "Barrier_", "Decoration_", "Player_", "Character_", "UnnamedGroup_", "Object_"];
+                scene.traverse((child: any) => {
+                  // Auto-name unnamed objects
+                  if (!child.name) {
+                    if (child.userData?.vibexeFactory) {
+                      child.name = (child.userData.vibexeFactory === "animatedCharacter" ? "Character_" : "Object_") + child.uuid.slice(0, 8);
+                    } else if (child.type === "Group" && child.children?.length > 0 && child.parent === scene) {
+                      let _ugC = 0;
+                      for (let _ii = 0; _ii < scene.children.length; _ii++) {
+                        const _cc = scene.children[_ii];
+                        if (_cc === child) break;
+                        if (!_cc.name && _cc.type === "Group" && _cc.children?.length > 0) _ugC++;
+                      }
+                      child.name = "UnnamedGroup_" + _ugC;
+                    }
+                  }
+                  if (!child.name) return;
+                  if (child.name.indexOf("__editor_") === 0) return;
+                  if (child.type === "GridHelper") return;
+                  // Skip ground planes
+                  if (child.isMesh && !child.name && child.geometry?.type === "PlaneGeometry") {
+                    const gp = child.geometry.parameters;
+                    if (gp && (gp.width >= 50 || gp.height >= 50)) return;
+                  }
+                  if (child.isLight || child.isCamera || child.type === "BoxHelper") return;
+                  // WHITELIST: Only factory-created name prefixes
+                  let _isF = false;
+                  for (let pi = 0; pi < _fPrefixes.length; pi++) {
+                    if (child.name.indexOf(_fPrefixes[pi]) === 0) { _isF = true; break; }
+                  }
+                  if (!_isF) return;
+                  let saveName = child.name;
+                  if (_allTf[saveName]) saveName = child.name + "_" + child.uuid.slice(0, 6);
+                  _allTf[saveName] = {
+                    position: { x: +child.position.x.toFixed(3), y: +child.position.y.toFixed(3), z: +child.position.z.toFixed(3) },
+                    rotation: { x: +(child.rotation.x * 180 / Math.PI).toFixed(1), y: +(child.rotation.y * 180 / Math.PI).toFixed(1), z: +(child.rotation.z * 180 / Math.PI).toFixed(1) },
+                    scale: { x: +child.scale.x.toFixed(3), y: +child.scale.y.toFixed(3), z: +child.scale.z.toFixed(3) },
+                  };
+                });
+                console.log("[EmbeddedBridge] Collected transforms:", Object.keys(_allTf).length, "objects");
+                window.parent.postMessage({ type: "game-editor-all-transforms", transforms: _allTf }, "*");
+                break;
+              }
             }
           });
 

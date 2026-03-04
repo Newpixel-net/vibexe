@@ -482,6 +482,57 @@ export function getGameEditorBridgeScript(): string {
       case "game-editor-request-tree":
         sendSceneTree();
         break;
+      case "game-editor-collect-all-transforms":
+        // Collect transforms of ONLY factory-created game objects for batch save
+        // CRITICAL: Must NOT collect bones, GLTF internals, gizmo parts, or generic "Scene" objects
+        if (!editor || !editor.scene) break;
+        var allTransforms = {};
+        var _factoryPrefixes = ["Platform_", "Collectible_", "Barrier_", "Decoration_", "Player_", "Character_", "UnnamedGroup_", "Object_"];
+        editor.scene.traverse(function(child) {
+          // Auto-name unnamed objects (supports pre-fix games without vibexeFactory metadata)
+          if (!child.name) {
+            if (child.userData && child.userData.vibexeFactory) {
+              child.name = (child.userData.vibexeFactory === "animatedCharacter" ? "Character_" : "Object_") + child.uuid.slice(0, 8);
+            } else if (child.type === "Group" && child.children && child.children.length > 0 && child.parent === editor.scene) {
+              var _ugCount = 0;
+              for (var _i = 0; _i < editor.scene.children.length; _i++) {
+                var _ch = editor.scene.children[_i];
+                if (_ch === child) break;
+                if (!_ch.name && _ch.type === "Group" && _ch.children && _ch.children.length > 0) _ugCount++;
+              }
+              child.name = "UnnamedGroup_" + _ugCount;
+            }
+          }
+          if (!child.name) return;
+          if (child.name.indexOf("__editor_") === 0) return;
+          if (child.type === "GridHelper") return;
+          // Skip ground planes (large unnamed PlaneGeometry)
+          if (child.isMesh && !child.name && child.geometry && child.geometry.type === "PlaneGeometry") {
+            var gp = child.geometry.parameters;
+            if (gp && (gp.width >= 50 || gp.height >= 50)) return;
+          }
+          // Skip infrastructure: lights, cameras, helpers
+          if (child.isLight || child.isCamera || child.type === "BoxHelper") return;
+          // WHITELIST: Only collect objects with factory-created name prefixes
+          var isFactory = false;
+          for (var pi = 0; pi < _factoryPrefixes.length; pi++) {
+            if (child.name.indexOf(_factoryPrefixes[pi]) === 0) { isFactory = true; break; }
+          }
+          if (!isFactory) return;
+          // Deduplicate names: append uuid suffix if name already used
+          var saveName = child.name;
+          if (allTransforms[saveName]) {
+            saveName = child.name + "_" + child.uuid.slice(0, 6);
+          }
+          allTransforms[saveName] = {
+            position: { x: +child.position.x.toFixed(3), y: +child.position.y.toFixed(3), z: +child.position.z.toFixed(3) },
+            rotation: { x: +(child.rotation.x * 180 / Math.PI).toFixed(1), y: +(child.rotation.y * 180 / Math.PI).toFixed(1), z: +(child.rotation.z * 180 / Math.PI).toFixed(1) },
+            scale: { x: +child.scale.x.toFixed(3), y: +child.scale.y.toFixed(3), z: +child.scale.z.toFixed(3) }
+          };
+        });
+        console.log("[GameEditorBridge] Collected transforms:", Object.keys(allTransforms).length, "objects");
+        window.parent.postMessage({ type: "game-editor-all-transforms", transforms: allTransforms }, "*");
+        break;
     }
   });
 })();
