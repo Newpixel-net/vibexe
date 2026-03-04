@@ -1229,6 +1229,14 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		try {
 			const settingsObj = JSON.parse(settingsFile.content);
 			runtimeGlobals += `window.__VIBEXE_GAME_SETTINGS__ = ${JSON.stringify(settingsObj)};\n`;
+			// Runtime override: apply environment/camera settings AFTER scene initializes.
+			// Works for ALL games (old templates without __gs reads AND new templates).
+			// Waits for window.__vibexe_scene__ (set by Game3D.tsx) then applies settings.
+			const env = settingsObj.environment;
+			const cam = settingsObj.camera;
+			if (env || cam) {
+				runtimeGlobals += `(function(){var _gs=window.__VIBEXE_GAME_SETTINGS__||{};var _t=setInterval(function(){var T=window.THREE;var s=window.__vibexe_scene__;var c=window.__vibexe_camera__;if(!T||!s)return;clearInterval(_t);var e=_gs.environment||{};if(e.backgroundColor){try{s.background=new T.Color(e.backgroundColor)}catch(x){}}if(e.fogEnabled){try{s.fog=new T.Fog(e.backgroundColor||"#87CEEB",e.fogNear||30,e.fogFar||100)}catch(x){}}var amb=s.getObjectByName("__default_ambient__");if(amb&&e.ambientLightIntensity!=null)amb.intensity=e.ambientLightIntensity;var sun=s.getObjectByName("__default_sun__");if(sun&&e.sunLightIntensity!=null)sun.intensity=e.sunLightIntensity;var hemi=s.getObjectByName("__default_hemi__");if(hemi&&e.hemisphereIntensity!=null)hemi.intensity=e.hemisphereIntensity;if(c&&_gs.camera){if(_gs.camera.fov!=null){c.fov=_gs.camera.fov;c.updateProjectionMatrix()}}},100)})();\n`;
+			}
 		} catch { /* invalid JSON — skip */ }
 	}
 	if (runtimeGlobals) {
@@ -1647,35 +1655,8 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				}
 			}
 
-			// 3. Patch Game3D.tsx — inject environment settings (background, lighting, fog, camera FOV)
-			const game3dKey = Object.keys(sandpackFiles).find((p) => p.endsWith("Game3D.tsx"));
-			if (game3dKey) {
-				const gf = sandpackFiles[game3dKey];
-				let code = typeof gf === "string" ? gf : gf.code;
-				if (!code.includes("__VIBEXE_GAME_SETTINGS__")) {
-					// Add __gs after last import
-					const lastFrom = Math.max(code.lastIndexOf('from "'), code.lastIndexOf("from '"));
-					const insertAt = lastFrom >= 0 ? code.indexOf("\n", lastFrom) : -1;
-					if (insertAt >= 0) {
-						code = `${code.slice(0, insertAt + 1)}const __gs_env: any = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).environment || {};\nconst __gs_cam: any = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).camera || {};\n${code.slice(insertAt + 1)}`;
-					}
-					// Patch background color: 0x87CEEB or similar hex → settings-backed
-					code = code.replace(
-						/(\.setClearColor\s*\(\s*)(0x[0-9a-fA-F]+)/,
-						`$1parseInt((__gs_env.backgroundColor || "#87CEEB").replace("#",""), 16)`,
-					);
-					// Patch camera FOV if hardcoded
-					code = code.replace(
-						/(PerspectiveCamera\s*\(\s*)(\d+)/,
-						`$1(__gs_cam.fov ?? $2)`,
-					);
-				}
-				if (typeof gf === "string") {
-					sandpackFiles[game3dKey] = code;
-				} else {
-					(sandpackFiles[game3dKey] as SandpackFile).code = code;
-				}
-			}
+			// 3. Game3D.tsx environment patching removed — runtime override in index.html handles
+			// ALL environment settings (background, lighting, fog, camera FOV) for both old and new games.
 		} catch { /* invalid settings JSON — skip all patching */ }
 	}
 

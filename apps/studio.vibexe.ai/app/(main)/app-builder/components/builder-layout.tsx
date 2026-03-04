@@ -159,6 +159,7 @@ export function BuilderLayout({
 							selectedFileId={selectedFileId}
 							onFileSelect={setSelectedFileId}
 							onFileUpdate={handleFileUpdate}
+							onFilesRefresh={handleFilesChange}
 							view={view}
 							onViewChange={setView}
 							isGenerating={isGenerating}

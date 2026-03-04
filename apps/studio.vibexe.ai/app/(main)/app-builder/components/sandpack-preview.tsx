@@ -69,6 +69,7 @@ interface SandpackPreviewProps {
 	files: AppFile[];
 	isGenerating?: boolean;
 	onFileUpdate?: (fileId: string, content: string) => void;
+	onFilesRefresh?: () => Promise<void> | void;
 	onViewChange?: (view: RightPanelView) => void;
 	onFileSelect?: (fileId: string) => void;
 	previewMode?: PreviewMode;
@@ -527,6 +528,7 @@ export function SandpackPreview({
 	files,
 	isGenerating,
 	onFileUpdate,
+	onFilesRefresh,
 	onViewChange,
 	onFileSelect,
 	previewMode = "browser",
@@ -545,6 +547,8 @@ export function SandpackPreview({
 	filesRef.current = files;
 	const onFileUpdateRef = useRef(onFileUpdate);
 	onFileUpdateRef.current = onFileUpdate;
+	const onFilesRefreshRef = useRef(onFilesRefresh);
+	onFilesRefreshRef.current = onFilesRefresh;
 	const [codeViewer, setCodeViewer] = useState<{
 		filePath: string;
 		content: string;
@@ -655,12 +659,21 @@ export function SandpackPreview({
 		// Update file in state so convertToSandpackFiles re-runs with new settings
 		if (currentOnFileUpdate && existingFile) {
 			currentOnFileUpdate(existingFile.id, content);
+			// Wait for SandpackFileSync to process the updated files, then full refresh
+			setTimeout(() => { sandpackRefreshRef.current?.(); }, 600);
+		} else {
+			// First-time save: file not yet in state — refetch all files from API
+			// so convertToSandpackFiles gets the new settings file
+			const refreshFn = onFilesRefreshRef.current;
+			if (refreshFn) {
+				await refreshFn();
+				// After files are refreshed, wait for SandpackFileSync + then reload
+				setTimeout(() => { sandpackRefreshRef.current?.(); }, 800);
+			} else {
+				// Fallback: just refresh (settings won't apply until page reload)
+				setTimeout(() => { sandpackRefreshRef.current?.(); }, 600);
+			}
 		}
-		// Wait for SandpackFileSync to process the updated files, then full refresh
-		// (HMR won't re-evaluate index.html <script> with window globals — need full reload)
-		setTimeout(() => {
-			sandpackRefreshRef.current?.();
-		}, 600);
 	}, [appId]);
 
 	// Landscape/portrait rotation toggle for mobile-frame mode

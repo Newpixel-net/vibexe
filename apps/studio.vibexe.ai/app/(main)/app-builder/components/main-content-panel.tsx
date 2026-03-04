@@ -31,6 +31,8 @@ export interface MainContentPanelProps {
 	onFileSelect: (fileId: string | null) => void;
 	/** Callback when file content is updated */
 	onFileUpdate: (fileId: string, content: string) => void;
+	/** Callback to refetch all files from API (used after first-time settings save) */
+	onFilesRefresh?: () => Promise<void> | void;
 	/** Current active view tab */
 	view: RightPanelView;
 	/** Callback when view tab changes */
@@ -61,6 +63,7 @@ export function MainContentPanel({
 	selectedFileId,
 	onFileSelect,
 	onFileUpdate,
+	onFilesRefresh,
 	view,
 	onViewChange,
 	isGenerating,
@@ -83,6 +86,7 @@ export function MainContentPanel({
 						files={files}
 						isGenerating={isGenerating}
 						onFileUpdate={onFileUpdate}
+						onFilesRefresh={onFilesRefresh}
 						onViewChange={onViewChange}
 						onFileSelect={(id) => onFileSelect(id)}
 						previewMode={previewMode}
