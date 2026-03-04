@@ -94,6 +94,19 @@ function RefreshButton() {
 }
 
 /**
+ * Bridge that exposes useSandpackNavigation().refresh to parent via ref.
+ * Lives inside SandpackProvider to access the hook.
+ */
+function SandpackRefreshBridge({ refreshRef }: { refreshRef: React.MutableRefObject<(() => void) | null> }) {
+	const { refresh } = useSandpackNavigation();
+	useEffect(() => {
+		refreshRef.current = refresh;
+		return () => { refreshRef.current = null; };
+	}, [refresh, refreshRef]);
+	return null;
+}
+
+/**
  * Inner component that syncs file changes to Sandpack via imperative API.
  * Lives inside SandpackProvider to access useSandpack() hook.
  * Debounces rapid updates to avoid race conditions during streaming.
@@ -541,6 +554,9 @@ export function SandpackPreview({
 	// Detect game mode
 	const isGameMode = projectType === "game" || projectType === "game-mobile";
 
+	// Ref for triggering Sandpack refresh from outside SandpackProvider
+	const sandpackRefreshRef = useRef<(() => void) | null>(null);
+
 	// Save-all-transforms resolver for batch save
 	const allTransformsResolverRef = useRef<((transforms: Record<string, any>) => void) | null>(null);
 	// Spawned objects persistence — saved before restart, restored after
@@ -636,20 +652,15 @@ export function SandpackPreview({
 		} catch (err) {
 			console.warn("[GameSettings] DB save failed:", err);
 		}
-		// Update Sandpack files to trigger re-render
+		// Update file in state so convertToSandpackFiles re-runs with new settings
 		if (currentOnFileUpdate && existingFile) {
 			currentOnFileUpdate(existingFile.id, content);
 		}
-		// Refresh iframe so settings take effect (module re-evaluates window global)
-		try {
-			const iframes = document.querySelectorAll(".sandpack-container iframe");
-			for (const iframe of iframes) {
-				const f = iframe as HTMLIFrameElement;
-				if (f.contentWindow) {
-					f.contentWindow.postMessage({ type: "refresh" }, "*");
-				}
-			}
-		} catch { /* ignore */ }
+		// Wait for SandpackFileSync to process the updated files, then full refresh
+		// (HMR won't re-evaluate index.html <script> with window globals — need full reload)
+		setTimeout(() => {
+			sandpackRefreshRef.current?.();
+		}, 600);
 	}, [appId]);
 
 	// Landscape/portrait rotation toggle for mobile-frame mode
@@ -1249,6 +1260,7 @@ export function SandpackPreview({
 									theme="auto"
 								>
 									<SandpackFileSync files={sandpackFiles} />
+									<SandpackRefreshBridge refreshRef={sandpackRefreshRef} />
 									<div className="relative w-full h-full flex flex-col">
 										<div className={`flex-1 min-h-0 ${showConsole ? "" : "h-full"}`}>
 											<SandpackPreviewPane
@@ -1330,6 +1342,7 @@ export function SandpackPreview({
 							theme="auto"
 						>
 							<SandpackFileSync files={sandpackFiles} />
+							<SandpackRefreshBridge refreshRef={sandpackRefreshRef} />
 							<div className="relative w-full h-full flex flex-col">
 								{/* Preview pane - takes all space minus console */}
 								<div className={`flex-1 min-h-0 ${showConsole ? "" : "h-full"}`}>

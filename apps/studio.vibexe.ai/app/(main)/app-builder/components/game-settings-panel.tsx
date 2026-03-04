@@ -115,38 +115,38 @@ export function GameSettingsPanel({ settings, onChange, onSave, onClose }: GameS
 						<DragNumberInput label="Z" value={settings.player?.respawnZ ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "respawnZ", v)} color="#4c7ce7" />
 
 						<SectionLabel>Lives</SectionLabel>
-						<DragNumberInput label="Starting Lives" value={settings.player?.startingLives ?? 3} step={1} precision={0} onChange={(v) => update("player", "startingLives", Math.max(1, Math.round(v)))} />
+						<DragNumberInput label="Lives" value={settings.player?.startingLives ?? 3} step={1} precision={0} onChange={(v) => update("player", "startingLives", Math.max(1, Math.round(v)))} labelClassName="w-[60px] text-left" />
 					</>
 				)}
 
 				{activeTab === "physics" && (
 					<>
 						<SectionLabel>Gravity</SectionLabel>
-						<DragNumberInput label="Gravity" value={settings.physics?.gravity ?? -38} step={1} precision={0} onChange={(v) => update("physics", "gravity", v)} />
-						<DragNumberInput label="Fall Gravity" value={settings.physics?.fallGravity ?? -65} step={1} precision={0} onChange={(v) => update("physics", "fallGravity", v)} />
+						<DragNumberInput label="Down" value={settings.physics?.gravity ?? -38} step={1} precision={0} onChange={(v) => update("physics", "gravity", v)} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Fall" value={settings.physics?.fallGravity ?? -65} step={1} precision={0} onChange={(v) => update("physics", "fallGravity", v)} labelClassName="w-[60px] text-left" />
 
 						<SectionLabel>Movement</SectionLabel>
-						<DragNumberInput label="Jump Force" value={settings.physics?.jumpForce ?? 17} step={0.5} precision={1} onChange={(v) => update("physics", "jumpForce", v)} />
-						<DragNumberInput label="Move Speed" value={settings.physics?.moveSpeed ?? 6} step={0.5} precision={1} onChange={(v) => update("physics", "moveSpeed", v)} />
-						<DragNumberInput label="Run Speed" value={settings.physics?.runSpeed ?? 7.5} step={0.5} precision={1} onChange={(v) => update("physics", "runSpeed", v)} />
-						<DragNumberInput label="Friction" value={settings.physics?.friction ?? 28} step={1} precision={0} onChange={(v) => update("physics", "friction", v)} />
-						<DragNumberInput label="Coyote Time" value={settings.physics?.coyoteTime ?? 0.15} step={0.01} precision={2} onChange={(v) => update("physics", "coyoteTime", v)} />
+						<DragNumberInput label="Jump" value={settings.physics?.jumpForce ?? 17} step={0.5} precision={1} onChange={(v) => update("physics", "jumpForce", v)} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Walk" value={settings.physics?.moveSpeed ?? 6} step={0.5} precision={1} onChange={(v) => update("physics", "moveSpeed", v)} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Run" value={settings.physics?.runSpeed ?? 7.5} step={0.5} precision={1} onChange={(v) => update("physics", "runSpeed", v)} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Friction" value={settings.physics?.friction ?? 28} step={1} precision={0} onChange={(v) => update("physics", "friction", v)} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Coyote" value={settings.physics?.coyoteTime ?? 0.15} step={0.01} precision={2} onChange={(v) => update("physics", "coyoteTime", v)} labelClassName="w-[60px] text-left" />
 					</>
 				)}
 
 				{activeTab === "camera" && (
 					<>
 						<SectionLabel>Position</SectionLabel>
-						<DragNumberInput label="Offset Y" value={settings.camera?.offsetY ?? 8} step={0.5} precision={1} onChange={(v) => update("camera", "offsetY", v)} />
-						<DragNumberInput label="Offset Z" value={settings.camera?.offsetZ ?? 12} step={0.5} precision={1} onChange={(v) => update("camera", "offsetZ", v)} />
+						<DragNumberInput label="Offset Y" value={settings.camera?.offsetY ?? 8} step={0.5} precision={1} onChange={(v) => update("camera", "offsetY", v)} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Offset Z" value={settings.camera?.offsetZ ?? 12} step={0.5} precision={1} onChange={(v) => update("camera", "offsetZ", v)} labelClassName="w-[60px] text-left" />
 
 						<SectionLabel>Lens</SectionLabel>
-						<DragNumberInput label="FOV" value={settings.camera?.fov ?? 60} step={1} precision={0} onChange={(v) => update("camera", "fov", Math.max(20, Math.min(120, v)))} />
+						<DragNumberInput label="FOV" value={settings.camera?.fov ?? 60} step={1} precision={0} onChange={(v) => update("camera", "fov", Math.max(20, Math.min(120, v)))} labelClassName="w-[60px] text-left" />
 
 						<SectionLabel>Follow</SectionLabel>
-						<DragNumberInput label="Lerp Speed" value={settings.camera?.lerp ?? 3} step={0.5} precision={1} onChange={(v) => update("camera", "lerp", v)} />
-						<DragNumberInput label="Look Ahead" value={settings.camera?.lookAhead ?? 5} step={0.5} precision={1} onChange={(v) => update("camera", "lookAhead", v)} />
-						<DragNumberInput label="Look Y Offset" value={settings.camera?.lookY ?? 1} step={0.5} precision={1} onChange={(v) => update("camera", "lookY", v)} />
+						<DragNumberInput label="Lerp" value={settings.camera?.lerp ?? 3} step={0.5} precision={1} onChange={(v) => update("camera", "lerp", v)} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Ahead" value={settings.camera?.lookAhead ?? 5} step={0.5} precision={1} onChange={(v) => update("camera", "lookAhead", v)} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Look Y" value={settings.camera?.lookY ?? 1} step={0.5} precision={1} onChange={(v) => update("camera", "lookY", v)} labelClassName="w-[60px] text-left" />
 					</>
 				)}
 
@@ -167,9 +167,9 @@ export function GameSettingsPanel({ settings, onChange, onSave, onClose }: GameS
 						</div>
 
 						<SectionLabel>Lighting</SectionLabel>
-						<DragNumberInput label="Ambient" value={settings.environment?.ambientLightIntensity ?? 0.15} step={0.05} precision={2} onChange={(v) => update("environment", "ambientLightIntensity", Math.max(0, Math.min(2, v)))} />
-						<DragNumberInput label="Sun" value={settings.environment?.sunLightIntensity ?? 0.55} step={0.05} precision={2} onChange={(v) => update("environment", "sunLightIntensity", Math.max(0, Math.min(2, v)))} />
-						<DragNumberInput label="Hemisphere" value={settings.environment?.hemisphereIntensity ?? 0.35} step={0.05} precision={2} onChange={(v) => update("environment", "hemisphereIntensity", Math.max(0, Math.min(2, v)))} />
+						<DragNumberInput label="Ambient" value={settings.environment?.ambientLightIntensity ?? 0.15} step={0.05} precision={2} onChange={(v) => update("environment", "ambientLightIntensity", Math.max(0, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Sun" value={settings.environment?.sunLightIntensity ?? 0.55} step={0.05} precision={2} onChange={(v) => update("environment", "sunLightIntensity", Math.max(0, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Hemi" value={settings.environment?.hemisphereIntensity ?? 0.35} step={0.05} precision={2} onChange={(v) => update("environment", "hemisphereIntensity", Math.max(0, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
 
 						<SectionLabel>Fog</SectionLabel>
 						<div className="flex items-center gap-2">
@@ -188,8 +188,8 @@ export function GameSettingsPanel({ settings, onChange, onSave, onClose }: GameS
 						</div>
 						{settings.environment?.fogEnabled && (
 							<>
-								<DragNumberInput label="Fog Near" value={settings.environment?.fogNear ?? 30} step={1} precision={0} onChange={(v) => update("environment", "fogNear", Math.max(1, v))} />
-								<DragNumberInput label="Fog Far" value={settings.environment?.fogFar ?? 100} step={1} precision={0} onChange={(v) => update("environment", "fogFar", Math.max(1, v))} />
+								<DragNumberInput label="Near" value={settings.environment?.fogNear ?? 30} step={1} precision={0} onChange={(v) => update("environment", "fogNear", Math.max(1, v))} labelClassName="w-[60px] text-left" />
+								<DragNumberInput label="Far" value={settings.environment?.fogFar ?? 100} step={1} precision={0} onChange={(v) => update("environment", "fogFar", Math.max(1, v))} labelClassName="w-[60px] text-left" />
 							</>
 						)}
 					</>

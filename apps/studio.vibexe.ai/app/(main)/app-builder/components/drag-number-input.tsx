@@ -15,6 +15,8 @@ interface DragNumberInputProps {
 	precision?: number;
 	onChange: (value: number) => void;
 	color?: string;
+	/** Override label width class (default "w-3 text-center" for X/Y/Z axes) */
+	labelClassName?: string;
 }
 
 export function DragNumberInput({
@@ -24,6 +26,7 @@ export function DragNumberInput({
 	precision = 3,
 	onChange,
 	color = "#888",
+	labelClassName,
 }: DragNumberInputProps) {
 	const safeValue = Number.isFinite(value) ? value : 0;
 	const [isEditing, setIsEditing] = useState(false);
@@ -82,7 +85,7 @@ export function DragNumberInput({
 	return (
 		<div className="flex items-center gap-1 flex-1 min-w-0">
 			<span
-				className="text-[10px] font-bold select-none cursor-ew-resize flex-shrink-0 w-3 text-center"
+				className={`text-[10px] font-bold select-none cursor-ew-resize flex-shrink-0 ${labelClassName || "w-3 text-center"}`}
 				style={{ color }}
 				onPointerDown={handlePointerDown}
 				onPointerMove={handlePointerMove}
