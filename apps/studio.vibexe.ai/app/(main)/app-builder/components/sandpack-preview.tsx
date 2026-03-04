@@ -452,13 +452,14 @@ if (typeof window !== 'undefined') {
       }
       return rem===0;
     }
-    var _att=0;
-    var _iv = setInterval(function() {
-      _att++;
-      if (_try() || _att>200) {
-        clearInterval(_iv);
-        if (_att>1) console.log("[SCENE_EDITOR] Done after "+_att+" polls");
-      }
+    // Persistent monitor — never stops, re-applies on every scene change (hot-reload, exit editor, etc.)
+    var _done = false;
+    setInterval(function() {
+      var s = window.__vibexe_scene__;
+      if (!s || !s.children) { _done = false; return; }
+      if (s !== _lastScene) { _done = false; }
+      if (_done) return;
+      if (_try()) { _done = true; console.log("[SCENE_EDITOR] All overrides applied"); }
     }, 300);
   })();
 }
