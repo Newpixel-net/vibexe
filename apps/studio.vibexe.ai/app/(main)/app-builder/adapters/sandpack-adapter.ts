@@ -1586,7 +1586,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 					// Add __gs declaration before first exported const
 					code = code.replace(
 						/^(export\s+const\s+)/m,
-						"const __gs: any = (window as any).__VIBEXE_GAME_SETTINGS__ || {};\n$1",
+						"const __gs: any = (window as any).__VIBEXE_GAME_SETTINGS__ || {};\nconsole.warn('[GS-PATCH] assets-3d __gs=', JSON.stringify(__gs));\n$1",
 					);
 					// Map constant names to settings paths
 					const constMap: [string, string][] = [
