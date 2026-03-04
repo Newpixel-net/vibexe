@@ -1757,10 +1757,12 @@ export async function createAnimatedCharacter3D(
 
   // --- Apply deferred Unity Root bone fix ---
   // Applied AFTER pivot correction so measurements used the un-rotated geometry.
-  // The 180° X on inner counteracts the Root bone's 180° Z that makes the character face-down.
+  // Unity GLTF exports bake 180° Z into Root bone (LH→RH conversion).
+  // Combined with Hips -90° X, character lies face-down. -PI/2 X rotation stands her upright.
+  // (PI would only flip face-down→face-up, still horizontal. -PI/2 rotates to vertical.)
   if (_needsUnityRootFix) {
-    inner.rotation.x = Math.PI;
-    console.log("[3D] Unity Root bone fix: applied 180° X rotation to inner (after pivot)");
+    inner.rotation.x = -Math.PI / 2;
+    console.log("[3D] Unity Root bone fix: applied -90° X rotation to inner (after pivot)");
   }
 
   scene.add(mesh);
