@@ -23,7 +23,7 @@ export const GAME_3D_TEMPLATE_FILES: TemplateFile[] = [
  */
 export function modelUrl(packId: string, filename: string): string {
   const origin = (window as any).__VIBEXE_API_ORIGIN__ || "";
-  return \`\${origin}/api/app-builder/media-stock-3d/\${packId}/\${encodeURI(filename)}\`;
+  return \`\${origin}/api/app-builder/media-stock-3d/\${packId}/\${encodeURI(filename)}?v=2\`;
 }
 `,
 	},
@@ -5212,26 +5212,7 @@ async function loadModel(subpath: string, cloneMats = false): Promise<any> {
       // Characters: load full GLTF to check for animations
       const gltf: any = await new Promise((resolve, reject) => {
         const loader = new THREE.GLTFLoader();
-        console.log("[3D] GLTFLoader class:", typeof THREE.GLTFLoader, "THREE.REVISION:", THREE.REVISION);
-        loader.load(url, (result: any) => {
-          console.log("[3D] GLTF raw result keys:", Object.keys(result));
-          console.log("[3D] GLTF animations type:", typeof result.animations, "isArray:", Array.isArray(result.animations), "length:", result.animations ? result.animations.length : "N/A");
-          if (result.animations && result.animations.length > 0) {
-            console.log("[3D] First clip:", result.animations[0].name, "tracks:", result.animations[0].tracks?.length);
-          }
-          // Also try parsing GLB JSON directly as a sanity check
-          fetch(url).then(r => r.arrayBuffer()).then(buf => {
-            const view = new DataView(buf);
-            const jsonLen = view.getUint32(12, true);
-            const jsonStr = new TextDecoder().decode(new Uint8Array(buf, 20, jsonLen));
-            const json = JSON.parse(jsonStr.replace(/\\x00+$/, ''));
-            console.log("[3D] RAW GLB JSON animations:", json.animations ? json.animations.length : 0);
-            if (json.animations && json.animations[0]) {
-              console.log("[3D] RAW first anim:", json.animations[0].name, "channels:", json.animations[0].channels?.length);
-            }
-          }).catch(e => console.warn("[3D] GLB parse check failed:", e));
-          resolve(result);
-        }, undefined, reject);
+        loader.load(url, resolve, undefined, reject);
       });
       mesh = gltf.scene;
       const rawClips = gltf.animations || [];
