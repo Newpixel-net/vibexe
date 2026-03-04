@@ -1770,6 +1770,7 @@ export function getVisualEditBridgeScript(): string {
         // CRITICAL: Must NOT collect bones, GLTF internals, gizmo parts, or generic "Scene" objects
         if (!editor || !editor.scene) break;
         var allTransforms = {};
+        var _nameCounts = {};
         var _factoryPrefixes = ["Platform_", "Collectible_", "Barrier_", "Decoration_", "Player_", "Character_", "UnnamedGroup_", "Object_"];
         editor.scene.traverse(function(child) {
           // Auto-name unnamed objects (supports pre-fix games without vibexeFactory metadata)
@@ -1799,11 +1800,10 @@ export function getVisualEditBridgeScript(): string {
             if (child.name.indexOf(_factoryPrefixes[pi]) === 0) { isFactory = true; break; }
           }
           if (!isFactory) return;
-          // Deduplicate names: append uuid suffix if name already used
-          var saveName = child.name;
-          if (allTransforms[saveName]) {
-            saveName = child.name + "_" + child.uuid.slice(0, 6);
-          }
+          // Stable index-based dedup: Name, Name#1, Name#2 (not UUID — must match on reload)
+          if (!_nameCounts[child.name]) _nameCounts[child.name] = 0;
+          var _idx = _nameCounts[child.name]++;
+          var saveName = _idx === 0 ? child.name : child.name + "#" + _idx;
           allTransforms[saveName] = {
             position: { x: +child.position.x.toFixed(3), y: +child.position.y.toFixed(3), z: +child.position.z.toFixed(3) },
             rotation: { x: +(child.rotation.x * 180 / Math.PI).toFixed(1), y: +(child.rotation.y * 180 / Math.PI).toFixed(1), z: +(child.rotation.z * 180 / Math.PI).toFixed(1) },

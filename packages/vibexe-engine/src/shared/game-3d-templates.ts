@@ -4185,6 +4185,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 // Collect transforms of ONLY factory-created game objects for batch save
                 if (!scene) break;
                 const _allTf: Record<string, any> = {};
+                const _nameCounts: Record<string, number> = {};
                 const _fPrefixes = ["Platform_", "Collectible_", "Barrier_", "Decoration_", "Player_", "Character_", "UnnamedGroup_", "Object_"];
                 scene.traverse((child: any) => {
                   // Auto-name unnamed objects
@@ -4216,8 +4217,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                     if (child.name.indexOf(_fPrefixes[pi]) === 0) { _isF = true; break; }
                   }
                   if (!_isF) return;
-                  let saveName = child.name;
-                  if (_allTf[saveName]) saveName = child.name + "_" + child.uuid.slice(0, 6);
+                  // Stable index-based dedup: Name, Name#1, Name#2
+                  if (!_nameCounts[child.name]) _nameCounts[child.name] = 0;
+                  const _idx = _nameCounts[child.name]++;
+                  const saveName = _idx === 0 ? child.name : child.name + "#" + _idx;
                   _allTf[saveName] = {
                     position: { x: +child.position.x.toFixed(3), y: +child.position.y.toFixed(3), z: +child.position.z.toFixed(3) },
                     rotation: { x: +(child.rotation.x * 180 / Math.PI).toFixed(1), y: +(child.rotation.y * 180 / Math.PI).toFixed(1), z: +(child.rotation.z * 180 / Math.PI).toFixed(1) },

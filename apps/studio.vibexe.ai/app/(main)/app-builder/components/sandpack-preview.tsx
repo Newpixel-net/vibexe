@@ -435,6 +435,10 @@ if (typeof window !== 'undefined') {
               if (gc===gi) { t=ch; break; } gc++;
             }
           }
+        } else if (name.indexOf("#")!==-1) {
+          // Index-based: "Platform_grid#2" means the 3rd Platform_grid (0-indexed after first)
+          var _parts = name.split("#"), _base = _parts[0], _ni = parseInt(_parts[1],10), _nc = 0;
+          s.traverse(function(c) { if(!t && c.name===_base) { if(_nc===_ni) { t=c; } _nc++; } });
         } else {
           s.traverse(function(c) { if(!t && c.name===name) t=c; });
         }
