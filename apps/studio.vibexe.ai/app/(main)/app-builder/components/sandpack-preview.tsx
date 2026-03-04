@@ -407,83 +407,90 @@ function updateTransformInSource(
 
 	const json = JSON.stringify(overrides);
 	// Self-applying override: polls window.__vibexe_scene__ (set by Game3D.tsx)
-	// No monkey-patching — works across Sandpack hot-reloads reliably
+	// rAF loop: continuously fights physics for 300 frames (5s).
+	// Stops immediately when editor opens (__vibexe_editor__ guard).
 	const block = `${MARKER_START}
 ${DATA_MARKER} ${json}
 if (typeof window !== 'undefined') {
   window.__SCENE_OVERRIDES__ = ${json};
   (function() {
     var _ov = ${json};
-    var _applied = {};
+    var _logged = {};
+    var _cache = {};
+    var _bodies = {};
     var _lastScene = null;
+    var _frame = 0;
+    var _MAX = 300;
     var _fp = ["Platform_","Collectible_","Barrier_","Decoration_","Player_","Character_","Object_"];
     function _isF(n) { if(!n) return false; for(var i=0;i<_fp.length;i++) if(n.indexOf(_fp[i])===0) return true; return false; }
-    function _findBody(mesh) {
+    function _findBody(mesh, name) {
+      if (_bodies[name]) return _bodies[name];
       var pb = mesh.userData && mesh.userData.__physicsBody;
-      if (pb && pb.position) return pb;
+      if (pb && pb.position) { _bodies[name]=pb; return pb; }
       var w = window.__vibexe_world__;
       if (!w || !w.bodies) return null;
-      var mx = mesh.position.x, my = mesh.position.y, mz = mesh.position.z;
+      var o = _ov[name];
+      if (!o || !o.p) return null;
+      var tx=o.p[0], ty=o.p[1], tz=o.p[2];
       for (var i = 0; i < w.bodies.length; i++) {
         var b = w.bodies[i];
-        if (Math.abs(b.position.x - mx) < 0.05 && Math.abs(b.position.y - my) < 0.05 && Math.abs(b.position.z - mz) < 0.05) {
+        if (Math.abs(b.position.x-tx)<0.5 && Math.abs(b.position.y-ty)<0.5 && Math.abs(b.position.z-tz)<0.5) {
           mesh.userData.__physicsBody = b;
+          _bodies[name] = b;
           return b;
         }
       }
       return null;
     }
-    function _try() {
-      if (window.__vibexe_editor__) return false;
-      var s = window.__vibexe_scene__;
-      if (!s || !s.children) return false;
-      if (s !== _lastScene) { _applied = {}; _lastScene = s; }
-      var keys = Object.keys(_ov), rem = 0;
-      for (var ki=0; ki<keys.length; ki++) {
-        var name = keys[ki];
-        if (_applied[name]) continue;
-        var o = _ov[name], t = null;
-        if (name.indexOf("UnnamedGroup_")===0) {
-          var gi = parseInt(name.replace("UnnamedGroup_",""),10), gc = 0;
-          for (var ci=0; ci<s.children.length; ci++) {
-            var ch = s.children[ci];
-            if (ch.type==="Group" && ch.children && ch.children.length>0 && !_isF(ch.name||"")) {
-              if (gc===gi) { t=ch; break; } gc++;
-            }
+    function _find(s, name) {
+      if (_cache[name]) return _cache[name];
+      var t = null;
+      if (name.indexOf("UnnamedGroup_")===0) {
+        var gi = parseInt(name.replace("UnnamedGroup_",""),10), gc = 0;
+        for (var ci=0; ci<s.children.length; ci++) {
+          var ch = s.children[ci];
+          if (ch.type==="Group" && ch.children && ch.children.length>0 && !_isF(ch.name||"")) {
+            if (gc===gi) { t=ch; break; } gc++;
           }
-        } else if (name.indexOf("#")!==-1) {
-          var _parts = name.split("#"), _base = _parts[0], _ni = parseInt(_parts[1],10), _nc = 0;
-          s.traverse(function(c) { if(!t && c.name===_base) { if(_nc===_ni) { t=c; } _nc++; } });
-        } else {
-          s.traverse(function(c) { if(!t && c.name===name) t=c; });
         }
-        if (t) {
-          var _hasBody = false;
-          if (o.p) {
-            var pb = _findBody(t);
-            t.position.set(o.p[0],o.p[1],o.p[2]);
-            if (pb) { pb.position.set(o.p[0],o.p[1],o.p[2]); if(pb.velocity) pb.velocity.set(0,0,0); _hasBody=true; }
-          }
-          if (o.r) t.rotation.set(o.r[0],o.r[1],o.r[2]);
-          if (o.s) t.scale.set(o.s[0],o.s[1],o.s[2]);
-          _applied[name] = true;
-          console.log("[SCENE_EDITOR] Applied: "+name+(_hasBody?" +body":""));
-        } else { rem++; }
+      } else if (name.indexOf("#")!==-1) {
+        var _parts = name.split("#"), _base = _parts[0], _ni = parseInt(_parts[1],10), _nc = 0;
+        s.traverse(function(c) { if(!t && c.name===_base) { if(_nc===_ni) { t=c; } _nc++; } });
+      } else {
+        s.traverse(function(c) { if(!t && c.name===name) t=c; });
       }
-      return rem===0;
+      if (t) _cache[name] = t;
+      return t;
     }
-    var _done = false;
-    var _polls = 0;
-    var _iv = setInterval(function() {
-      if (_done) return;
+    function _apply() {
       if (window.__vibexe_editor__) return;
       var s = window.__vibexe_scene__;
-      if (!s || !s.children) return;
-      if (s !== _lastScene) { _done = false; _polls = 0; }
-      _polls++;
-      if (_try()) { _done = true; clearInterval(_iv); console.log("[SCENE_EDITOR] All overrides applied after "+_polls+" polls"); }
-      else if (_polls > 100) { _done = true; clearInterval(_iv); console.log("[SCENE_EDITOR] Override polling stopped after "+_polls+" polls (some objects not found)"); }
-    }, 300);
+      if (!s || !s.children) { _frame++; if(_frame<_MAX) requestAnimationFrame(_apply); return; }
+      if (s !== _lastScene) { _cache={}; _bodies={}; _logged={}; _lastScene=s; }
+      var keys = Object.keys(_ov);
+      for (var ki=0; ki<keys.length; ki++) {
+        var name = keys[ki];
+        var o = _ov[name];
+        var t = _find(s, name);
+        if (!t) continue;
+        var _hasBody = false;
+        if (o.p) {
+          t.position.set(o.p[0],o.p[1],o.p[2]);
+          var pb = _findBody(t, name);
+          if (pb) { pb.position.set(o.p[0],o.p[1],o.p[2]); if(pb.velocity) pb.velocity.set(0,0,0); _hasBody=true; }
+        }
+        if (!_logged[name]) {
+          if (o.r) t.rotation.set(o.r[0],o.r[1],o.r[2]);
+          if (o.s) t.scale.set(o.s[0],o.s[1],o.s[2]);
+          _logged[name] = true;
+          console.log("[SCENE_EDITOR] Applied: "+name+(_hasBody?" +body":""));
+        }
+      }
+      _frame++;
+      if (_frame < _MAX) requestAnimationFrame(_apply);
+      else console.log("[SCENE_EDITOR] Override done after "+_frame+" frames, "+Object.keys(_bodies).length+" bodies");
+    }
+    requestAnimationFrame(_apply);
   })();
 }
 ${MARKER_END}`;
@@ -574,7 +581,8 @@ export function SandpackPreview({
 				const t = transforms[name];
 				code = updateTransformInSource(code, name, t.position, t.rotation, t.scale);
 			}
-			console.log("[GameEditor] Save comparison: changed=", code !== sceneFile.content, "origLen=", sceneFile.content.length, "newLen=", code.length);
+			// Debug: uncomment to check save comparison
+			// console.log("[GameEditor] Save comparison: changed=", code !== sceneFile.content);
 			if (code !== sceneFile.content) {
 				currentOnFileUpdate(sceneFile.id, code);
 				// Save to DB
