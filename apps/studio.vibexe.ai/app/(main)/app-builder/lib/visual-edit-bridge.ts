@@ -1672,6 +1672,35 @@ export function getVisualEditBridgeScript(): string {
         window.__vibexe_spawn_factory__ = d.factory || null;
         window.__vibexe_spawn_args__ = d.args || null;
         break;
+      case "game-editor-move-player":
+        // Live-sync: teleport player character to new spawn position
+        if (editor && editor.scene) {
+          editor.scene.traverse(function(obj) {
+            var ud = obj.userData || {};
+            var isPlayer = ud.__isPlayerCharacter
+              || ud.vibexeType === "player"
+              || ud.vibexeType === "AnimatedCharacter"
+              || (obj.name && (obj.name.indexOf("Character_") === 0 || obj.name.indexOf("Player_") === 0));
+            if (isPlayer) {
+              if (d.x !== undefined) obj.position.x = Number(d.x);
+              if (d.y !== undefined) obj.position.y = Number(d.y);
+              if (d.z !== undefined) obj.position.z = Number(d.z);
+              var body = obj.userData.__physicsBody;
+              if (body) {
+                if (d.x !== undefined) body.position.x = Number(d.x);
+                if (d.y !== undefined) body.position.y = Number(d.y);
+                if (d.z !== undefined) body.position.z = Number(d.z);
+                body.velocity.set(0, 0, 0);
+                if (body.angularVelocity) body.angularVelocity.set(0, 0, 0);
+              }
+              if (selectedObj && selectedObj.uuid === obj.uuid) {
+                if (boxHelper) boxHelper.update();
+                sendSelectedObject(obj);
+              }
+            }
+          });
+        }
+        break;
       // Select + Focus (hierarchy double-click)
       case "game-editor-select-and-focus":
         if (editor && d.uuid) {
