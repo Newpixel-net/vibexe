@@ -1225,6 +1225,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 	if (appId) runtimeGlobals += `window.__VIBEXE_APP_ID__ = ${JSON.stringify(appId)};\n`;
 	// Inject game settings from __game-settings.json virtual file
 	const settingsFile = files.find((f) => f.path === "src/__game-settings.json" || f.path === "__game-settings.json");
+	console.log("[convertToSandpackFiles] settingsFile found:", !!settingsFile, "path:", settingsFile?.path, "contentLen:", settingsFile?.content?.length);
 	if (settingsFile?.content) {
 		try {
 			const settingsObj = JSON.parse(settingsFile.content);
@@ -1235,7 +1236,26 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			const env = settingsObj.environment;
 			const cam = settingsObj.camera;
 			if (env || cam) {
-				runtimeGlobals += `(function(){var _gs=window.__VIBEXE_GAME_SETTINGS__||{};var _t=setInterval(function(){var T=window.THREE;var s=window.__vibexe_scene__;var c=window.__vibexe_camera__;if(!T||!s)return;clearInterval(_t);var e=_gs.environment||{};if(e.backgroundColor){try{s.background=new T.Color(e.backgroundColor)}catch(x){}}if(e.fogEnabled){try{s.fog=new T.Fog(e.backgroundColor||"#87CEEB",e.fogNear||30,e.fogFar||100)}catch(x){}}var amb=s.getObjectByName("__default_ambient__");if(amb&&e.ambientLightIntensity!=null)amb.intensity=e.ambientLightIntensity;var sun=s.getObjectByName("__default_sun__");if(sun&&e.sunLightIntensity!=null)sun.intensity=e.sunLightIntensity;var hemi=s.getObjectByName("__default_hemi__");if(hemi&&e.hemisphereIntensity!=null)hemi.intensity=e.hemisphereIntensity;if(c&&_gs.camera){if(_gs.camera.fov!=null){c.fov=_gs.camera.fov;c.updateProjectionMatrix()}}},100)})();\n`;
+				runtimeGlobals += [
+					"(function(){",
+					"console.warn('[GS-OVERRIDE] Script loaded. env=',JSON.stringify(window.__VIBEXE_GAME_SETTINGS__?.environment));",
+					"var _gs=window.__VIBEXE_GAME_SETTINGS__||{};",
+					"var _n=0;",
+					"var _t=setInterval(function(){",
+					"_n++;",
+					"var T=window.THREE;var s=window.__vibexe_scene__;var c=window.__vibexe_camera__;",
+					"if(!T||!s){if(_n%50===0)console.warn('[GS-OVERRIDE] Waiting... THREE=',!!T,'scene=',!!s,'poll=',_n);return;}",
+					"clearInterval(_t);",
+					"console.warn('[GS-OVERRIDE] Scene found after',_n,'polls. Applying env settings...');",
+					"var e=_gs.environment||{};",
+					"if(e.backgroundColor){try{s.background=new T.Color(e.backgroundColor);console.warn('[GS-OVERRIDE] BG set to',e.backgroundColor)}catch(x){console.warn('[GS-OVERRIDE] BG error',x)}}",
+					"if(e.fogEnabled){try{s.fog=new T.Fog(e.backgroundColor||'#87CEEB',e.fogNear||30,e.fogFar||100);console.warn('[GS-OVERRIDE] Fog enabled')}catch(x){}}",
+					"var amb=s.getObjectByName('__default_ambient__');if(amb&&e.ambientLightIntensity!=null){amb.intensity=e.ambientLightIntensity;console.warn('[GS-OVERRIDE] Ambient=',e.ambientLightIntensity)}",
+					"var sun=s.getObjectByName('__default_sun__');if(sun&&e.sunLightIntensity!=null){sun.intensity=e.sunLightIntensity;console.warn('[GS-OVERRIDE] Sun=',e.sunLightIntensity)}",
+					"var hemi=s.getObjectByName('__default_hemi__');if(hemi&&e.hemisphereIntensity!=null){hemi.intensity=e.hemisphereIntensity;console.warn('[GS-OVERRIDE] Hemi=',e.hemisphereIntensity)}",
+					"if(c&&_gs.camera){if(_gs.camera.fov!=null){c.fov=_gs.camera.fov;c.updateProjectionMatrix();console.warn('[GS-OVERRIDE] FOV=',_gs.camera.fov)}}",
+					"},100)})();\n",
+				].join("");
 			}
 		} catch { /* invalid JSON — skip */ }
 	}
