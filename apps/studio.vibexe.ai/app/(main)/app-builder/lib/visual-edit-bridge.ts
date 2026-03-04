@@ -1695,7 +1695,8 @@ export function getVisualEditBridgeScript(): string {
               }
               if (selectedObj && selectedObj.uuid === obj.uuid) {
                 if (boxHelper) boxHelper.update();
-                sendSelectedObject(obj);
+                // Don't sendSelectedObject here — parent already knows the position
+                // (it sent this message). Calling it would create a feedback loop.
               }
             }
           });
