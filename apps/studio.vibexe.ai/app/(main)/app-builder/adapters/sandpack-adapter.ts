@@ -1543,9 +1543,8 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 						"var _t=setInterval(function(){",
 						"_n++;",
 						"var T=(window as any).THREE;var s=(window as any).__vibexe_scene__;var c=(window as any).__vibexe_camera__;",
-						"if(!T||!s){if(_n%50===0)console.warn('[GS] Waiting... poll=',_n);return;}",
+						"if(!T||!s)return;",
 						"clearInterval(_t);",
-						"console.warn('[GS] Applied after',_n,'polls');",
 						// Environment
 						"var e=_gs.environment||{};",
 						"if(e.backgroundColor){try{s.background=new T.Color(e.backgroundColor)}catch(x){}}",
@@ -1557,7 +1556,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 						"if(c&&_gs.camera&&_gs.camera.fov!=null){c.fov=_gs.camera.fov;c.updateProjectionMatrix()}",
 						// Physics gravity — override CANNON.World.gravity at runtime
 						"var w=(window as any).__vibexe_world__;",
-						"if(w&&_gs.physics&&_gs.physics.gravity!=null){try{w.gravity.set(0,_gs.physics.gravity,0);console.warn('[GS] Gravity=',_gs.physics.gravity)}catch(x){}}",
+						"if(w&&_gs.physics&&_gs.physics.gravity!=null){try{w.gravity.set(0,_gs.physics.gravity,0)}catch(x){}}",
 						"},100)})();\n",
 					].join("");
 				}
@@ -1620,7 +1619,6 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 					} else {
 						(sandpackFiles[assetsKey] as SandpackFile).code = code;
 					}
-					console.log(`[convertToSandpackFiles] Patched ${patchCount} constants in assets-3d.ts`);
 				}
 			}
 
