@@ -689,8 +689,9 @@ export function getVisualEditBridgeScript(): string {
     boxHelper = new THREE.BoxHelper(obj, 0x00ff88);
     boxHelper.name = "__editor_box_helper__";
     // Override for animated characters — SkinnedMesh bind-pose gives wrong Box3
-    if (obj.userData && obj.userData.vibexeType === "AnimatedCharacter" && obj.userData.__characterBounds) {
-      var _cb = obj.userData.__characterBounds;
+    // Use __characterBounds if available; otherwise fall back to default character dimensions
+    if (obj.userData && obj.userData.vibexeType === "AnimatedCharacter") {
+      var _cb = obj.userData.__characterBounds || { halfX: 0.45, halfZ: 0.45, height: 1.5 };
       var _bObj = obj;
       boxHelper.update = function() {
         var wp = new THREE.Vector3();

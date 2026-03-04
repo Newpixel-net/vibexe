@@ -561,6 +561,9 @@ export function SandpackPreview({
 	// Ref for triggering Sandpack refresh from outside SandpackProvider
 	const sandpackRefreshRef = useRef<(() => void) | null>(null);
 
+	// Track whether scene transforms were modified during editor session
+	const sceneModifiedDuringEditRef = useRef(false);
+
 	// Save-all-transforms resolver for batch save
 	const allTransformsResolverRef = useRef<((transforms: Record<string, any>) => void) | null>(null);
 	// Spawned objects persistence — saved before restart, restored after
@@ -892,6 +895,7 @@ export function SandpackPreview({
 				const updated = updateTransformInSource(sceneFile.content, objName, pos, rot, scl);
 				if (updated !== sceneFile.content) {
 					console.log("[GameEditor] Persisting transform for:", objName, "pos:", pos);
+					sceneModifiedDuringEditRef.current = true;
 					currentOnFileUpdate(sceneFile.id, updated);
 					// Also save to database so changes survive page refresh
 					fetch(`/api/app-builder/apps/${appId}/files`, {
@@ -907,6 +911,20 @@ export function SandpackPreview({
 		window.addEventListener("message", handler);
 		return () => window.removeEventListener("message", handler);
 	}, [visualEdit, gameEditor]);
+
+	// When exiting Scene Editor after transforms were modified, refresh Sandpack
+	// so the game reloads with SCENE_EDITOR_OVERRIDES applied from source code.
+	const prevEditorEnabledRef = useRef(false);
+	useEffect(() => {
+		const wasEnabled = prevEditorEnabledRef.current;
+		prevEditorEnabledRef.current = gameEditor.enabled;
+		if (wasEnabled && !gameEditor.enabled && sceneModifiedDuringEditRef.current) {
+			console.log("[GameEditor] Scene modified during edit session — refreshing preview to apply overrides");
+			sceneModifiedDuringEditRef.current = false;
+			// Delay to let SandpackFileSync process the last file update
+			setTimeout(() => { sandpackRefreshRef.current?.(); }, 400);
+		}
+	}, [gameEditor.enabled]);
 
 	// Keyboard shortcuts for visual edit
 	useEffect(() => {
