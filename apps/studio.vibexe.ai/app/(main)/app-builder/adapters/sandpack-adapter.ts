@@ -1871,6 +1871,25 @@ $1`,
 				);
 			}
 
+			// Expose __vibexeFactories from assets-3d.ts where factory functions ARE in scope.
+			// The spawn restoration block (injected into Game3D.tsx) polls for this global.
+			// Old projects don't have it. We MUST set it here, NOT in Game3D.tsx,
+			// because Game3D.tsx doesn't import the factory functions directly.
+			if (!code.includes("__vibexeFactories")) {
+				code += `\n// Expose factories for scene editor spawn restoration
+if (typeof window !== "undefined") {
+  (window).__vibexeFactories = {
+    createPlatform3D: typeof createPlatform3D !== "undefined" ? createPlatform3D : undefined,
+    createCollectible3D: typeof createCollectible3D !== "undefined" ? createCollectible3D : undefined,
+    createPlayer3D: typeof createPlayer3D !== "undefined" ? createPlayer3D : undefined,
+    createBarrier3D: typeof createBarrier3D !== "undefined" ? createBarrier3D : undefined,
+    createDecoration3D: typeof createDecoration3D !== "undefined" ? createDecoration3D : undefined,
+    createAnimatedCharacter3D: typeof createAnimatedCharacter3D !== "undefined" ? createAnimatedCharacter3D : undefined,
+  };
+}
+`;
+			}
+
 			if (typeof af2 === "string") {
 				sandpackFiles[assetsKey2] = code;
 			} else {
@@ -1888,31 +1907,24 @@ $1`,
 			const sf2 = sandpackFiles[sceneKey2];
 			let code = typeof sf2 === "string" ? sf2 : sf2.code;
 
-			// Phase 1: Expose __vibexeFactories + __vibexe_scene__ BEFORE gameScene.init()
-			// Old projects may not have these globals at all (template was updated later).
-			// Without them, the spawn restoration block polls for 30s then times out.
-			// Case A: __vibexeFactories not in code at all → inject before init
-			// Case B: __vibexeFactories exists but AFTER init → move before init
+			// Phase 1: Expose __vibexe_scene__ BEFORE gameScene.init()
+			// Factories are exposed from assets-3d.ts (where they're in scope).
+			// Here we only handle __vibexe_scene__ and factory-move for new-ish projects.
 			if (code.includes("await gameScene.init(")) {
-				const hasFactories = code.includes("__vibexeFactories");
 				const hasSceneGlobal = code.includes("__vibexe_scene__");
+				const hasFactories = code.includes("__vibexeFactories");
 
-				if (!hasFactories) {
-					// Case A: Old project — inject both globals before init
+				// Old project: inject __vibexe_scene__ = scene before init
+				// (factories are handled in assets-3d.ts patch, NOT here)
+				if (!hasSceneGlobal) {
 					code = code.replace(
 						/await\s+gameScene\.init\(/,
-						`(window).__vibexeFactories = {
-      createPlatform3D: typeof createPlatform3D !== "undefined" ? createPlatform3D : undefined,
-      createCollectible3D: typeof createCollectible3D !== "undefined" ? createCollectible3D : undefined,
-      createPlayer3D: typeof createPlayer3D !== "undefined" ? createPlayer3D : undefined,
-      createBarrier3D: typeof createBarrier3D !== "undefined" ? createBarrier3D : undefined,
-      createDecoration3D: typeof createDecoration3D !== "undefined" ? createDecoration3D : undefined,
-      createAnimatedCharacter3D: typeof createAnimatedCharacter3D !== "undefined" ? createAnimatedCharacter3D : undefined,
-    };
-    ${!hasSceneGlobal ? "(window).__vibexe_scene__ = scene;\n    " : ""}await gameScene.init(`,
+						`(window).__vibexe_scene__ = scene;\n    await gameScene.init(`,
 					);
-				} else {
-					// Case B: Has factories but possibly after init — move before init
+				}
+
+				// Case B: Has factories but AFTER init — move before init
+				if (hasFactories) {
 					const initIdx = code.indexOf("await gameScene.init(");
 					const factoriesIdx = code.indexOf("__vibexeFactories");
 					if (factoriesIdx > initIdx) {
