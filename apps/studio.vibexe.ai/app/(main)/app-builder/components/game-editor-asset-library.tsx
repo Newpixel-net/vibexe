@@ -90,6 +90,11 @@ export function GameEditorAssetLibrary() {
 		[selectedColor],
 	);
 
+	// Debounce single-click to prevent it racing with double-click.
+	// Without this, React fires onClick twice before onDoubleClick — the second click
+	// toggles the prefab OFF, so double-click fires with the wrong state.
+	const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
 	const handleSelect = useCallback(
 		(item: AssetLibraryItem) => {
 			const prefab = buildPrefab(item);
@@ -102,12 +107,34 @@ export function GameEditorAssetLibrary() {
 		[activePrefab, buildPrefab, setActivePrefab],
 	);
 
+	const handleClick = useCallback(
+		(item: AssetLibraryItem) => {
+			if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+			clickTimerRef.current = setTimeout(() => {
+				handleSelect(item);
+				clickTimerRef.current = null;
+			}, 250);
+		},
+		[handleSelect],
+	);
+
 	const handleQuickSpawn = useCallback(
 		(item: AssetLibraryItem) => {
 			const prefab = buildPrefab(item);
 			spawnObject(prefab.factory, { x: 0, y: 2, z: 0 }, prefab.args);
 		},
 		[buildPrefab, spawnObject],
+	);
+
+	const handleDoubleClick = useCallback(
+		(item: AssetLibraryItem) => {
+			if (clickTimerRef.current) {
+				clearTimeout(clickTimerRef.current);
+				clickTimerRef.current = null;
+			}
+			handleQuickSpawn(item);
+		},
+		[handleQuickSpawn],
 	);
 
 	// Categories with non-zero counts (for display)
@@ -232,8 +259,8 @@ export function GameEditorAssetLibrary() {
 								<button
 									key={item.id}
 									type="button"
-									onClick={() => handleSelect(item)}
-									onDoubleClick={() => handleQuickSpawn(item)}
+									onClick={() => handleClick(item)}
+									onDoubleClick={() => handleDoubleClick(item)}
 									className={`relative flex flex-col items-center gap-0.5 p-2 rounded transition-all ${
 										isActive
 											? "bg-emerald-500/20 ring-1 ring-emerald-500/40"

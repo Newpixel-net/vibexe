@@ -3440,12 +3440,13 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         scene = new THREE.Scene();
         const __envBg = __gs.environment?.backgroundColor;
         scene.background = new THREE.Color(__envBg || bgColor);
-        (window as any).__vibexe_scene__ = scene;
-        // Expose factory functions so persisted spawned objects can recreate themselves
+        // Expose factories BEFORE init so spawn restoration can use them immediately
+        // (persisted spawn block polls for __vibexeFactories with a 30s timeout)
         (window as any).__vibexeFactories = {
           createPlatform3D, createCollectible3D, createPlayer3D,
           createBarrier3D, createDecoration3D, createAnimatedCharacter3D,
         };
+        (window as any).__vibexe_scene__ = scene;
 
         // Optional fog from game settings
         if (__gs.environment?.fogEnabled) {
@@ -3917,6 +3918,15 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   }
                 }
               }
+              // Validate no unresolved __MODEL_URL__ placeholders remain
+              let _hasUnresolved2 = false;
+              for (const _uk2 of Object.keys(_resolvedArgs2)) {
+                if (typeof _resolvedArgs2[_uk2] === "string" && _resolvedArgs2[_uk2].startsWith("__MODEL_URL__")) {
+                  console.warn("[SPAWN] Failed to resolve model URL:", _resolvedArgs2[_uk2]);
+                  _hasUnresolved2 = true;
+                }
+              }
+              if (!_hasUnresolved2) {
               // Spawn via the same handler as palette double-click
               const _fns2: Record<string, Function> = {
                 createPlatform3D, createCollectible3D, createPlayer3D,
@@ -3947,6 +3957,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   }
                 })();
               }
+              } // close _hasUnresolved2 guard
               return; // Don't fall through to selection
             }
 
@@ -4180,6 +4191,15 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                       }
                     }
                   }
+                  // Validate no unresolved __MODEL_URL__ placeholders remain
+                  let _hasUnresolved = false;
+                  for (const _uk of Object.keys(_spawnA)) {
+                    if (typeof _spawnA[_uk] === "string" && _spawnA[_uk].startsWith("__MODEL_URL__")) {
+                      console.warn("[SPAWN] Failed to resolve model URL:", _spawnA[_uk]);
+                      _hasUnresolved = true;
+                    }
+                  }
+                  if (_hasUnresolved) return;
                   const _fns: Record<string, Function> = {
                     createPlatform3D, createCollectible3D, createPlayer3D,
                     createBarrier3D, createDecoration3D, createAnimatedCharacter3D,
@@ -4223,6 +4243,11 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 window.parent.postMessage({ type: "game-editor-spawned-objects", objects: spawned }, "*");
                 break;
               }
+              case "game-editor-cleanup-confirmed":
+                // Host has finished collecting spawned objects — safe to release globals
+                delete (window as any).__vibexe_scene__;
+                delete (window as any).__vibexeFactories;
+                break;
               case "game-editor-restore-spawned-objects": {
                 // Recreate spawned objects from saved data
                 const toRestore = d.objects || [];

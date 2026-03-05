@@ -1052,16 +1052,27 @@ export function SandpackPreview({
 						}, 3000);
 					});
 
-					// Step 1b: Collect spawned objects WHILE bridge is still active
-					iframe.contentWindow.postMessage({ type: "game-editor-get-spawned-objects" }, "*");
-					// Give bridge a moment to respond (spawned objects handler is synchronous)
-					await new Promise((r) => setTimeout(r, 200));
+					// Step 1b: Collect spawned objects via promise-based message flow
+					const spawnedFromBridge = await new Promise<any[]>((resolve) => {
+						const timeout = setTimeout(() => resolve(spawnedObjectsRef.current), 3000);
+						const handler = (ev: MessageEvent) => {
+							if (ev.data?.type === "game-editor-spawned-objects") {
+								clearTimeout(timeout);
+								window.removeEventListener("message", handler);
+								resolve(ev.data.objects || []);
+							}
+						};
+						window.addEventListener("message", handler);
+						iframe.contentWindow!.postMessage({ type: "game-editor-get-spawned-objects" }, "*");
+					});
+					spawnedObjectsRef.current = spawnedFromBridge;
 				}
 
 				// Step 2: NOW deactivate the bridge
 				sendDisable();
 
 				// Step 3: Save transforms + spawned objects to source code
+				let saveSuccess = false;
 				const sceneFile = filesRef.current.find((f) => f.path?.includes("GameScene3D"));
 				if (!sceneFile?.content) {
 					console.warn("[GameEditor] GameScene3D.ts not found in files — NOTHING saved");
@@ -1085,18 +1096,29 @@ export function SandpackPreview({
 
 					pendingSceneContentRef.current = code;
 
-					// 3c: Save to database (source of truth for file content)
+					// 3c: Save to database with retry (source of truth for file content)
 					console.log("[GameEditor] Saving scene to DB (path:", sceneFile.path, ", code length:", code.length, ")");
-					try {
-						const resp = await fetch(`/api/app-builder/apps/${appId}/files`, {
-							method: "PUT",
-							headers: { "Content-Type": "application/json" },
-							body: JSON.stringify({ path: sceneFile.path, content: code }),
-						});
-						if (!resp.ok) console.warn("[GameEditor] Scene DB save HTTP error:", resp.status);
-						else console.log("[GameEditor] Scene saved to DB successfully");
-					} catch (err) {
-						console.warn("[GameEditor] Scene DB save failed:", err);
+					for (let attempt = 0; attempt < 3; attempt++) {
+						try {
+							const resp = await fetch(`/api/app-builder/apps/${appId}/files`, {
+								method: "PUT",
+								headers: { "Content-Type": "application/json" },
+								body: JSON.stringify({ path: sceneFile.path, content: code }),
+							});
+							if (resp.ok) {
+								console.log("[GameEditor] Scene saved to DB successfully");
+								saveSuccess = true;
+								break;
+							}
+							console.warn("[GameEditor] Scene DB save HTTP error:", resp.status, "attempt:", attempt + 1);
+						} catch (err) {
+							console.warn("[GameEditor] Scene DB save failed (attempt", attempt + 1, "):", err);
+						}
+						if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
+					}
+					if (!saveSuccess) {
+						console.error("[GameEditor] Failed to save scene after 3 attempts — preserving spawned objects for retry");
+						// Don't clear spawnedObjectsRef on failure — preserve for next attempt
 					}
 				}
 
@@ -1151,12 +1173,19 @@ export function SandpackPreview({
 
 				// Step 6: Refresh Sandpack to reload the iframe with updated files.
 				// The direct updateFile above ensures content is in Sandpack before refresh.
-				// Small delay to let settings file update propagate through convertToSandpackFiles.
-				console.log("[GameEditor] Scheduling Sandpack refresh in 400ms");
-				setTimeout(() => { sandpackRefreshRef.current?.(); }, 400);
+				// 800ms delay to let settings + scene file updates propagate through convertToSandpackFiles.
+				console.log("[GameEditor] Scheduling Sandpack refresh in 800ms");
+				setTimeout(() => { sandpackRefreshRef.current?.(); }, 800);
 
-				// Clear spawned objects ref after they've been persisted to code
-				spawnedObjectsRef.current = [];
+				// Clear spawned objects ref only if save succeeded — preserve for retry otherwise
+				if (saveSuccess) {
+					spawnedObjectsRef.current = [];
+				}
+
+				// Phase 9: Send cleanup confirmation to iframe so it can release globals
+				if (iframe?.contentWindow) {
+					iframe.contentWindow.postMessage({ type: "game-editor-cleanup-confirmed" }, "*");
+				}
 				sceneModifiedDuringEditRef.current = false;
 			} catch (err) {
 				console.error("[GameEditor] Exit save error:", err);

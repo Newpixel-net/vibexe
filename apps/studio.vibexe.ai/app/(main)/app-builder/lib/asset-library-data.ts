@@ -173,6 +173,9 @@ function buildModelPath(packId: string, sourceCat: string, filename: string, col
 			return `${prefix}/${filename}.glb`;
 		}
 
+		case "meshy-characters":
+			return `${filename}.glb`;
+
 		default:
 			return filename;
 	}

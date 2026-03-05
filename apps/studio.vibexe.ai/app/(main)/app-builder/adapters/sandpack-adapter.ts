@@ -1798,6 +1798,132 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		}
 	}
 
+	// =====================================================================
+	// Runtime patches for existing projects (stored engine code in DB).
+	// These fix bugs that are already fixed in the template source but
+	// don't take effect until a project is regenerated.
+	// =====================================================================
+
+	// Patch assets-3d.ts for existing projects
+	{
+		const assetsKey2 = Object.keys(sandpackFiles).find((p) => p.endsWith("/assets-3d.ts"));
+		if (assetsKey2) {
+			const af2 = sandpackFiles[assetsKey2];
+			let code = typeof af2 === "string" ? af2 : af2.code;
+
+			// Phase 2: Fix _autoCorrectModelUrl — add dimension-pattern guard
+			// Old code "corrects" names like "decorative_1x1x1" by snapping them to valid platform dimensions.
+			// The guard prevents this by checking if the baseName IS a dimension pattern or a named decorative.
+			if (code.includes("_autoCorrectModelUrl") && !code.includes("_dimGuardApplied")) {
+				// Match both TS signature (url: string): string and plain JS (url)
+				code = code.replace(
+					/function\s+_autoCorrectModelUrl\s*\([^)]*\)\s*(?::\s*string\s*)?\{/,
+					`function _autoCorrectModelUrl(url) {
+  var _dimGuardApplied = true;
+  var _parts = url.split("/"); var _fname = _parts[_parts.length - 1] || "";
+  var _bn = _fname.replace(/\\.[^.]+$/, "").replace(/_(blue|green|red|yellow)$/, "");
+  if (/^\\d+x\\d+x\\d+$/.test(_bn) || /^platform_decorative_/.test(_bn) || /^platform_slope_/.test(_bn) || /^platform_arrow_/.test(_bn)) return url;`,
+				);
+			}
+
+			if (typeof af2 === "string") {
+				sandpackFiles[assetsKey2] = code;
+			} else {
+				(sandpackFiles[assetsKey2] as SandpackFile).code = code;
+			}
+		}
+	}
+
+	// Patch GameScene3D.ts for existing projects
+	{
+		const sceneKey2 = Object.keys(sandpackFiles).find((p) => p.endsWith("GameScene3D.ts"));
+		if (sceneKey2) {
+			const sf2 = sandpackFiles[sceneKey2];
+			let code = typeof sf2 === "string" ? sf2 : sf2.code;
+
+			// Phase 1: Move __vibexeFactories before gameScene.init()
+			// Old code sets factories AFTER init, causing spawn restoration timeout.
+			if (code.includes("__vibexeFactories") && code.includes("await gameScene.init()")) {
+				// Check if factories are set AFTER init (old pattern)
+				const initIdx = code.indexOf("await gameScene.init()");
+				const factoriesIdx = code.indexOf("__vibexeFactories");
+				// Only patch if factories come after init (the bug pattern)
+				if (factoriesIdx > initIdx) {
+					code = code.replace(
+						/await\s+gameScene\.init\(\)/,
+						`(window).__vibexeFactories = {
+      createPlatform3D: createPlatform3D,
+      createCollectible3D: createCollectible3D,
+      createPlayer3D: createPlayer3D,
+      createBarrier3D: createBarrier3D,
+      createDecoration3D: createDecoration3D,
+      createAnimatedCharacter3D: typeof createAnimatedCharacter3D !== "undefined" ? createAnimatedCharacter3D : undefined,
+    };
+    await gameScene.init()`,
+					);
+				}
+			}
+
+			// Phase 6: Ensure createAnimatedCharacter3D is in factory maps (_fns / _fns2)
+			// Old code may lack it in one or both maps, causing animated character spawn to silently fail.
+			if (code.includes("createDecoration3D: createDecoration3D") && !code.includes("createAnimatedCharacter3D: createAnimatedCharacter3D")) {
+				code = code.replace(
+					/createDecoration3D:\s*createDecoration3D,?\s*\}/g,
+					`createDecoration3D: createDecoration3D,
+      createAnimatedCharacter3D: typeof createAnimatedCharacter3D !== "undefined" ? createAnimatedCharacter3D : undefined
+    }`,
+				);
+			}
+
+			// Phase 7: __MODEL_URL__ resolution robustness — skip spawn if URL unresolved
+			if (code.includes("__MODEL_URL__") && !code.includes("_urlValidationPatch")) {
+				// After resolving __MODEL_URL__ placeholders, skip spawn if resolution failed
+				code = code.replace(
+					/(for\s*\(\s*(?:var|const|let)\s+_k\s+of\s+Object\.keys\(_spawnA\)\s*\)[\s\S]*?_spawnA\[_k\]\s*=\s*modelUrl[^;]+;[\s\S]*?\}[\s\S]*?\})/,
+					`$1
+                  var _urlValidationPatch = true;
+                  var _hasUnresolved = false;
+                  for (var _uk of Object.keys(_spawnA)) {
+                    if (typeof _spawnA[_uk] === "string" && _spawnA[_uk].startsWith("__MODEL_URL__")) {
+                      console.warn("[SPAWN] Failed to resolve model URL:", _spawnA[_uk]);
+                      _hasUnresolved = true;
+                    }
+                  }
+                  if (_hasUnresolved) return;`,
+				);
+			}
+
+			// Phase 8: Spawn mode visual feedback — crosshair cursor
+			// Old projects may lack the cursor change in the spawn mode handler
+			if (code.includes("game-editor-set-spawn-mode") && !code.includes("style.cursor")) {
+				code = code.replace(
+					/(_spawnMode\s*=\s*!!d\.active;[\s\S]*?_spawnArgs\s*=\s*d\.args[^;]*;)/,
+					`$1\n                  renderer.domElement.style.cursor = d.active ? "crosshair" : "";`,
+				);
+			}
+
+			// Phase 9: Defer cleanup until host confirms objects collected
+			// Add game-editor-cleanup-confirmed handler alongside existing editor message handlers
+			if (!code.includes("game-editor-cleanup-confirmed") && code.includes("game-editor-enable")) {
+				// Insert the handler in the switch/case block before a known case
+				code = code.replace(
+					/(case\s*["']game-editor-get-spawned-objects["']\s*:)/,
+					`case "game-editor-cleanup-confirmed":
+                delete (window).__vibexe_scene__;
+                delete (window).__vibexeFactories;
+                break;
+              $1`,
+				);
+			}
+
+			if (typeof sf2 === "string") {
+				sandpackFiles[sceneKey2] = code;
+			} else {
+				(sandpackFiles[sceneKey2] as SandpackFile).code = code;
+			}
+		}
+	}
+
 	return sandpackFiles;
 }
 
