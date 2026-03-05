@@ -43,7 +43,7 @@ import type { AppFile } from "../adapters/file-adapter";
 import { useVisualEdit } from "../lib/visual-edit-context";
 import { useGameEditor, type GizmoMode } from "../lib/game-editor-context";
 import { GameEditorPanel } from "./game-editor-panel";
-import { GameSettingsPanel } from "./game-settings-panel";
+
 import type { RightPanelView } from "./right-panel-tabs";
 import { VisualEditToolbar } from "./visual-edit-toolbar";
 import {
@@ -1591,23 +1591,9 @@ export function SandpackPreview({
 					</div>
 				)}
 
-				{/* Game Editor Panel / Settings Panel (overlaid on right side — mutually exclusive) */}
+				{/* Game Editor Panel (overlaid on right side — tabs: Assets / Properties / Settings) */}
 				{gameEditor.enabled && isGameMode && (
-					gameEditor.isSettingsOpen ? (
-						<GameSettingsPanel
-							settings={gameEditor.gameSettings}
-							onChange={gameEditor.updateGameSettings}
-							onSave={handleSaveSettings}
-							onClose={gameEditor.toggleSettings}
-							pickSpawnActive={gameEditor.pickSpawnActive}
-							pickRespawnActive={gameEditor.pickRespawnActive}
-							onTogglePickSpawn={gameEditor.togglePickSpawn}
-							onTogglePickRespawn={gameEditor.togglePickRespawn}
-							characterHalfHeight={gameEditor.characterHalfHeight}
-						/>
-					) : (
-						<GameEditorPanel />
-					)
+					<GameEditorPanel settingsProps={{ onSave: handleSaveSettings }} />
 				)}
 			</div>
 		</div>

@@ -484,6 +484,27 @@ function buildSceneFromGLTF(json: any, buffers: ArrayBuffer[]): any {
             material.transparent = true;
             material.opacity = baseColor[3];
           }
+          // Texture: extract embedded baseColorTexture from GLB binary buffer
+          const baseColorTex = pbr.baseColorTexture;
+          if (baseColorTex && json.textures && json.images) {
+            const texDef = json.textures[baseColorTex.index];
+            if (texDef && texDef.source !== undefined) {
+              const imgDef = json.images[texDef.source];
+              if (imgDef && imgDef.bufferView !== undefined && buffers.length > 0) {
+                const bv = json.bufferViews[imgDef.bufferView];
+                const buf = buffers[bv.buffer || 0];
+                const imgBytes = new Uint8Array(buf, bv.byteOffset || 0, bv.byteLength);
+                const blob = new Blob([imgBytes], { type: imgDef.mimeType || "image/png" });
+                const objUrl = URL.createObjectURL(blob);
+                const texImg = new Image();
+                const tex = new THREE.Texture(texImg);
+                texImg.onload = function() { tex.needsUpdate = true; URL.revokeObjectURL(objUrl); };
+                texImg.src = objUrl;
+                material.map = tex;
+                material.needsUpdate = true;
+              }
+            }
+          }
         } else {
           material = new THREE.MeshStandardMaterial({
             color: 0x88cc88,
@@ -1755,7 +1776,8 @@ export async function createAnimatedCharacter3D(
   const urlParts = opts.url.split("/");
   const fileName = urlParts[urlParts.length - 1].replace(/\.(glb|gltf)$/i, "");
   mesh.name = "Character_" + fileName;
-  mesh.userData = { vibexeType: "AnimatedCharacter", vibexeFactory: "animatedCharacter", __isPlayerCharacter: true };
+  mesh.userData = { vibexeType: "AnimatedCharacter", vibexeFactory: "createAnimatedCharacter3D", __isPlayerCharacter: true };
+  mesh.userData.vibexeArgs = { x: x, y: y, z: z, url: opts.url };
   mesh.add(pivot);
   mesh.position.set(x, y, z);
   if (opts.rotation !== undefined) mesh.rotation.y = opts.rotation;
@@ -4129,7 +4151,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 if (d.factory && d.position) {
                   const _fns: Record<string, Function> = {
                     createPlatform3D, createCollectible3D, createPlayer3D,
-                    createBarrier3D, createDecoration3D,
+                    createBarrier3D, createDecoration3D, createAnimatedCharacter3D,
                   };
                   const fn = _fns[d.factory] || (window as any)[d.factory];
                   if (fn) {
@@ -4175,7 +4197,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 const toRestore = d.objects || [];
                 const _fnsRestore: Record<string, Function> = {
                   createPlatform3D, createCollectible3D, createPlayer3D,
-                  createBarrier3D, createDecoration3D,
+                  createBarrier3D, createDecoration3D, createAnimatedCharacter3D,
                 };
                 (async () => {
                   for (const obj of toRestore) {

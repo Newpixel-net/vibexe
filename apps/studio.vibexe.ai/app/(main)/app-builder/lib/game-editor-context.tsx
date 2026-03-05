@@ -101,13 +101,10 @@ interface GameEditorContextValue {
 	// Animation name overrides (originalName → displayName)
 	animClipOverrides: Record<string, string>;
 	animModelId: string | null;
-	// Palette
-	isPaletteOpen: boolean;
+	// Palette / Asset Library
 	activePrefab: PrefabDefinition | null;
 	// Game Settings
 	gameSettings: GameSettings;
-	isSettingsOpen: boolean;
-	toggleSettings: () => void;
 	updateGameSettings: (patch: Partial<GameSettings>) => void;
 	setGameSettings: (settings: GameSettings) => void;
 	// Pick-from-scene mode for spawn/respawn position
@@ -155,8 +152,7 @@ interface GameEditorContextValue {
 	updateAnimProgress: (time: number, duration: number, clipName: string | null, paused: boolean) => void;
 	renameAnimClip: (originalName: string, newDisplayName: string) => void;
 	fetchAnimOverrides: (modelId: string) => void;
-	// Palette
-	togglePalette: () => void;
+	// Palette / Asset Library
 	setActivePrefab: (prefab: PrefabDefinition | null) => void;
 	spawnObject: (factory: string, position: { x: number; y: number; z: number }, args?: Record<string, any>) => void;
 	// Scene editor extended actions
@@ -185,10 +181,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [animPlaybackState, setAnimPlaybackState] = useState<"stopped" | "playing" | "paused">("stopped");
 	const [animCurrentTime, setAnimCurrentTime] = useState(0);
 	const [animClipDuration, setAnimClipDuration] = useState(0);
-	const [isPaletteOpen, setIsPaletteOpen] = useState(false);
 	const [activePrefab, setActivePrefabState] = useState<PrefabDefinition | null>(null);
 	const [gameSettings, setGameSettingsState] = useState<GameSettings>({ ...DEFAULT_GAME_SETTINGS });
-	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 	const [pickSpawnActive, setPickSpawnActive] = useState(false);
 	const [pickRespawnActive, setPickRespawnActive] = useState(false);
 	const [characterHalfHeight, setCharacterHalfHeight] = useState(0.75);
@@ -405,11 +399,6 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		});
 	}, [animModelId]);
 
-	// Game Settings actions
-	const toggleSettings = useCallback(() => {
-		setIsSettingsOpen((prev) => !prev);
-	}, []);
-
 	const togglePickSpawn = useCallback(() => {
 		setPickSpawnActive((prev) => {
 			const next = !prev;
@@ -457,11 +446,6 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 
 	const setGameSettings = useCallback((settings: GameSettings) => {
 		setGameSettingsState(settings);
-	}, []);
-
-	// Palette actions
-	const togglePalette = useCallback(() => {
-		setIsPaletteOpen((prev) => !prev);
 	}, []);
 
 	const setActivePrefab = useCallback((prefab: PrefabDefinition | null) => {
@@ -553,11 +537,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				animClipDuration,
 				animClipOverrides,
 				animModelId,
-				isPaletteOpen,
 				activePrefab,
 				gameSettings,
-				isSettingsOpen,
-				toggleSettings,
 				updateGameSettings,
 				setGameSettings,
 				pickSpawnActive,
@@ -601,7 +582,6 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				updateAnimProgress,
 				renameAnimClip,
 				fetchAnimOverrides,
-				togglePalette,
 				setActivePrefab,
 				spawnObject,
 				redoAction,
