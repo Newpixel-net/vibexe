@@ -1577,7 +1577,10 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			"var _origR=_r.render;",
 			"var _chrs=[] as any[];var _lsc:any=null;",
 			"_r.render=function(_s:any,_c:any){",
-			"if(_s){",
+			// Skip Y-offset correction when Scene Editor is active —
+			// the editor controls character position directly via game-editor-move-player.
+			// Without this guard, the correction fights the editor's position changes.
+			"if(_s&&!(window as any).__vibexe_editor__){",
 			"var _w=(window as any).__vibexe_world__;",
 			"if(_w&&_w.bodies){",
 			"if(_s!==_lsc){_chrs=[];_lsc=_s;if(_s.traverse)_s.traverse(function(_o:any){var _cb=_o.userData&&_o.userData.__characterBounds;if(_cb&&_cb.height)_chrs.push(_o)})}",

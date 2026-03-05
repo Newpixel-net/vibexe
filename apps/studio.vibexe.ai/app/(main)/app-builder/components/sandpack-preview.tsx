@@ -570,6 +570,9 @@ export function SandpackPreview({
 	const allTransformsResolverRef = useRef<((transforms: Record<string, any>) => void) | null>(null);
 	// Spawned objects persistence — saved before restart, restored after
 	const spawnedObjectsRef = useRef<any[]>([]);
+	// Ref for game settings — avoids stale closure in async exit flow
+	const gameSettingsRef = useRef(gameEditor.gameSettings);
+	gameSettingsRef.current = gameEditor.gameSettings;
 
 	// Register save handler with game editor context
 	useEffect(() => {
@@ -969,6 +972,7 @@ export function SandpackPreview({
 
 				// Step 3: Save transforms to source code
 				const names = Object.keys(transforms);
+				console.log("[GameEditor] Transforms collected:", names.length, "objects:", names.join(", "));
 				if (names.length > 0) {
 					const sceneFile = filesRef.current.find((f) => f.path?.includes("GameScene3D"));
 					if (sceneFile?.content) {
@@ -978,30 +982,64 @@ export function SandpackPreview({
 							code = updateTransformInSource(code, name, t.position, t.rotation, t.scale);
 						}
 						pendingSceneContentRef.current = code;
-						console.log("[GameEditor] Collected and saving", names.length, "transforms to DB");
-						await fetch(`/api/app-builder/apps/${appId}/files`, {
-							method: "PUT",
-							headers: { "Content-Type": "application/json" },
-							body: JSON.stringify({ path: sceneFile.path, content: code }),
-						}).catch((err) => console.warn("[GameEditor] DB save failed:", err));
+						const hasOverrides = code.includes("SCENE_EDITOR_OVERRIDES_START");
+						console.log("[GameEditor] Saving", names.length, "transforms to DB (path:", sceneFile.path, ", has overrides:", hasOverrides, ", code length:", code.length, ")");
+						try {
+							const resp = await fetch(`/api/app-builder/apps/${appId}/files`, {
+								method: "PUT",
+								headers: { "Content-Type": "application/json" },
+								body: JSON.stringify({ path: sceneFile.path, content: code }),
+							});
+							if (!resp.ok) {
+								console.warn("[GameEditor] Transform DB save HTTP error:", resp.status);
+							} else {
+								console.log("[GameEditor] Transforms saved to DB successfully");
+							}
+						} catch (err) {
+							console.warn("[GameEditor] DB save failed:", err);
+						}
+					} else {
+						console.warn("[GameEditor] GameScene3D.ts not found in files — transforms NOT saved");
 					}
+				} else {
+					console.log("[GameEditor] No transforms collected (timeout or empty scene)");
 				}
 
 				// Step 4: Auto-save game settings on exit
-				const settings = gameEditor.gameSettings;
+				// Use ref for latest settings (avoids stale closure in async flow)
+				const settings = gameSettingsRef.current;
 				if (settings) {
 					const content = JSON.stringify(settings, null, 2);
 					const settingsFile = filesRef.current.find((f) =>
 						f.path === "src/__game-settings.json" || f.path === "__game-settings.json"
 					);
-					if (settingsFile) {
-						console.log("[GameEditor] Auto-saving game settings");
-						await fetch(`/api/app-builder/apps/${appId}/files`, {
+					const filePath = settingsFile?.path || "src/__game-settings.json";
+					console.log("[GameEditor] Auto-saving game settings to", filePath, settingsFile ? "(existing)" : "(creating new)");
+					try {
+						const resp = await fetch(`/api/app-builder/apps/${appId}/files`, {
 							method: "PUT",
 							headers: { "Content-Type": "application/json" },
-							body: JSON.stringify({ path: settingsFile.path, content }),
-						}).catch((err) => console.warn("[GameEditor] Settings save failed:", err));
+							body: JSON.stringify({ path: filePath, content }),
+						});
+						if (!resp.ok) {
+							console.warn("[GameEditor] Settings save HTTP error:", resp.status);
+						} else {
+							console.log("[GameEditor] Settings saved to DB successfully");
+						}
+					} catch (err) {
+						console.warn("[GameEditor] Settings save failed:", err);
+					}
+					if (settingsFile) {
+						// Existing file — update in-memory state
 						onFileUpdateRef.current?.(settingsFile.id, content);
+					} else {
+						// First-time save — file not yet in state, refetch all files
+						// so convertToSandpackFiles picks up the new settings file
+						const refreshFn = onFilesRefreshRef.current;
+						if (refreshFn) {
+							console.log("[GameEditor] Refreshing files after first-time settings save");
+							await refreshFn();
+						}
 					}
 				}
 
@@ -1010,13 +1048,19 @@ export function SandpackPreview({
 				if (pendingContent) {
 					const sceneFile = filesRef.current.find((f) => f.path?.includes("GameScene3D"));
 					if (onFileUpdateRef.current && sceneFile) {
+						console.log("[GameEditor] Flushing scene edits to Sandpack (file:", sceneFile.path, ", id:", sceneFile.id, ")");
 						onFileUpdateRef.current(sceneFile.id, pendingContent);
+					} else {
+						console.warn("[GameEditor] Cannot flush scene edits — onFileUpdate:", !!onFileUpdateRef.current, ", sceneFile:", !!sceneFile);
 					}
 					pendingSceneContentRef.current = null;
 				}
 
 				// Step 6: Refresh after Sandpack processes the file updates
-				setTimeout(() => { sandpackRefreshRef.current?.(); }, 400);
+				// Use a longer delay to ensure React processes state updates from
+				// onFileUpdate/onFilesRefresh before we trigger the Sandpack reload
+				console.log("[GameEditor] Scheduling Sandpack refresh in 600ms");
+				setTimeout(() => { sandpackRefreshRef.current?.(); }, 600);
 				sceneModifiedDuringEditRef.current = false;
 			} catch (err) {
 				console.error("[GameEditor] Exit save error:", err);
