@@ -2073,9 +2073,10 @@ if (typeof window !== "undefined") {
 					);
 				}
 
-				// 10c: Inject 3 texture message handlers before game-editor-collect-all-transforms
+				// 10c: Inject 3 texture message handlers before game-editor-get-spawned-objects
+				// (using get-spawned-objects as anchor since collect-all-transforms may not exist in older projects)
 				code = code.replace(
-					/(case\s*["']game-editor-collect-all-transforms["']\s*:)/,
+					/(case\s*["']game-editor-get-spawned-objects["']\s*:)/,
 					`case "game-editor-apply-texture": {
                 var _texTarget = null;
                 scene.traverse(function(c) { if (c.uuid === d.uuid) _texTarget = c; });
