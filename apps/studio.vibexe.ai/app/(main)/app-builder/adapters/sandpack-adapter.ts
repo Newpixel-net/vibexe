@@ -2010,6 +2010,11 @@ if (typeof window !== "undefined") {
 						`var _textureCache = {};
           var _originalMaps = new WeakMap();
           function _applyTextureToMesh(obj, textureUrl, tileX, tileY) {
+            if (!obj.userData) obj.userData = {};
+            if (!obj.userData.vibexeArgs) obj.userData.vibexeArgs = {};
+            obj.userData.vibexeArgs.textureUrl = textureUrl;
+            obj.userData.vibexeArgs.textureTileX = tileX;
+            obj.userData.vibexeArgs.textureTileY = tileY;
             var applyToMat = function(mat, tex) {
               if (!_originalMaps.has(mat)) _originalMaps.set(mat, mat.map);
               tex.wrapS = THREE.RepeatWrapping;
@@ -2028,11 +2033,6 @@ if (typeof window !== "undefined") {
                 var ms = Array.isArray(obj.material) ? obj.material : [obj.material];
                 ms.forEach(function(m) { applyToMat(m, tex); });
               }
-              if (!obj.userData) obj.userData = {};
-              if (!obj.userData.vibexeArgs) obj.userData.vibexeArgs = {};
-              obj.userData.vibexeArgs.textureUrl = textureUrl;
-              obj.userData.vibexeArgs.textureTileX = tileX;
-              obj.userData.vibexeArgs.textureTileY = tileY;
             };
             if (_textureCache[textureUrl]) { apply(_textureCache[textureUrl]); }
             else { new THREE.TextureLoader().load(textureUrl, function(tex) { _textureCache[textureUrl] = tex; apply(tex); }); }

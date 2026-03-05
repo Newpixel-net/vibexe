@@ -3813,6 +3813,12 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           const _originalMaps = new WeakMap<any, any>();
 
           function _applyTextureToMesh(obj: any, textureUrl: string, tileX: number, tileY: number) {
+            // Store immediately (before async load) so _sendSelectedObject picks it up
+            if (!obj.userData) obj.userData = {};
+            if (!obj.userData.vibexeArgs) obj.userData.vibexeArgs = {};
+            obj.userData.vibexeArgs.textureUrl = textureUrl;
+            obj.userData.vibexeArgs.textureTileX = tileX;
+            obj.userData.vibexeArgs.textureTileY = tileY;
             const applyToMat = (mat: any, tex: any) => {
               if (!_originalMaps.has(mat)) {
                 _originalMaps.set(mat, mat.map);
@@ -3840,12 +3846,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   applyToMat(obj.material, tex);
                 }
               }
-              // Store in userData for persistence
-              if (!obj.userData) obj.userData = {};
-              if (!obj.userData.vibexeArgs) obj.userData.vibexeArgs = {};
-              obj.userData.vibexeArgs.textureUrl = textureUrl;
-              obj.userData.vibexeArgs.textureTileX = tileX;
-              obj.userData.vibexeArgs.textureTileY = tileY;
+              // userData already set at top of _applyTextureToMesh
             };
             if (_textureCache[textureUrl]) {
               apply(_textureCache[textureUrl]);
