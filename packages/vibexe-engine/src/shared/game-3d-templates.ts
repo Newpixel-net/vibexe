@@ -1789,7 +1789,11 @@ export async function createAnimatedCharacter3D(
         console.log("[3D] Unity Root bone fix: pivot Y adjusted by " + (-_feetOffset).toFixed(4) + " to ground feet (feet were " + _feetOffset.toFixed(4) + " above ground)");
       }
     }
-    console.log("[3D] Unity Root bone fix: applied -90° X rotation to inner (after pivot)");
+    // Foot bones sit inside the shoe mesh — sole geometry extends below the bone.
+    // Raise the model slightly so the shoe sole touches the ground instead of clipping through.
+    const _soleRaise = targetHeight * 0.07;
+    pivot.position.y += _soleRaise;
+    console.log("[3D] Unity Root bone fix: applied -90° X rotation + sole raise " + _soleRaise.toFixed(4));
   }
 
   scene.add(mesh);
