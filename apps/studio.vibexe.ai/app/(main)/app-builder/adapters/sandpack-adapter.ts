@@ -1645,16 +1645,6 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 						patchCount++;
 					}
 				}
-				// Patch 1b: Inject sole raise for character pivot (prevents shoe sole clipping).
-				// Old templates lack this fix; new templates from the updated engine already include it.
-				if (!code.includes("_soleRaise") && code.includes("_needsUnityRootFix")) {
-					code = code.replace(
-						/(console\.log\("\[3D\] Unity Root bone fix: applied -90[^"]+"\);)/,
-						"$1\n    var _soleRaise = targetHeight * 0.07; pivot.position.y += _soleRaise;",
-					);
-					patchCount++;
-				}
-
 				if (patchCount > 0) {
 					if (typeof af === "string") {
 						sandpackFiles[assetsKey] = code;
@@ -1779,6 +1769,28 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 
 			// 3. Environment settings handled by runtime override in entry point (async setInterval)
 		} catch { /* invalid settings JSON — skip all patching */ }
+	}
+
+	// Patch: Inject sole raise for character pivot (prevents shoe sole clipping through floor).
+	// Old templates lack this fix; new templates from the updated engine already include it.
+	// This runs independently of game settings — always applies to assets-3d.ts.
+	{
+		const assetsKey = Object.keys(sandpackFiles).find((p) => p.endsWith("/assets-3d.ts"));
+		if (assetsKey) {
+			const af = sandpackFiles[assetsKey];
+			let code = typeof af === "string" ? af : af.code;
+			if (!code.includes("_soleRaise") && code.includes("_needsUnityRootFix")) {
+				code = code.replace(
+					/(console\.log\("\[3D\] Unity Root bone fix: applied -90[^"]+"\);)/,
+					"$1\n    var _soleRaise = targetHeight * 0.07; pivot.position.y += _soleRaise;",
+				);
+				if (typeof af === "string") {
+					sandpackFiles[assetsKey] = code;
+				} else {
+					(sandpackFiles[assetsKey] as SandpackFile).code = code;
+				}
+			}
+		}
 	}
 
 	return sandpackFiles;
