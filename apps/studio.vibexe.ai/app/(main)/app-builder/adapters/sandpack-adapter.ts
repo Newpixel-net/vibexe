@@ -1888,18 +1888,37 @@ $1`,
 			const sf2 = sandpackFiles[sceneKey2];
 			let code = typeof sf2 === "string" ? sf2 : sf2.code;
 
-			// Phase 1: Move __vibexeFactories before gameScene.init()
-			// Old code sets factories AFTER init, causing spawn restoration timeout.
-			// NOTE: init() call has arguments like (scene, camera, renderer, container, callback)
-			if (code.includes("__vibexeFactories") && code.includes("await gameScene.init(")) {
-				// Check if factories are set AFTER init (old pattern)
-				const initIdx = code.indexOf("await gameScene.init(");
-				const factoriesIdx = code.indexOf("__vibexeFactories");
-				// Only patch if factories come after init (the bug pattern)
-				if (factoriesIdx > initIdx) {
+			// Phase 1: Expose __vibexeFactories + __vibexe_scene__ BEFORE gameScene.init()
+			// Old projects may not have these globals at all (template was updated later).
+			// Without them, the spawn restoration block polls for 30s then times out.
+			// Case A: __vibexeFactories not in code at all → inject before init
+			// Case B: __vibexeFactories exists but AFTER init → move before init
+			if (code.includes("await gameScene.init(")) {
+				const hasFactories = code.includes("__vibexeFactories");
+				const hasSceneGlobal = code.includes("__vibexe_scene__");
+
+				if (!hasFactories) {
+					// Case A: Old project — inject both globals before init
 					code = code.replace(
 						/await\s+gameScene\.init\(/,
 						`(window).__vibexeFactories = {
+      createPlatform3D: typeof createPlatform3D !== "undefined" ? createPlatform3D : undefined,
+      createCollectible3D: typeof createCollectible3D !== "undefined" ? createCollectible3D : undefined,
+      createPlayer3D: typeof createPlayer3D !== "undefined" ? createPlayer3D : undefined,
+      createBarrier3D: typeof createBarrier3D !== "undefined" ? createBarrier3D : undefined,
+      createDecoration3D: typeof createDecoration3D !== "undefined" ? createDecoration3D : undefined,
+      createAnimatedCharacter3D: typeof createAnimatedCharacter3D !== "undefined" ? createAnimatedCharacter3D : undefined,
+    };
+    ${!hasSceneGlobal ? "(window).__vibexe_scene__ = scene;\n    " : ""}await gameScene.init(`,
+					);
+				} else {
+					// Case B: Has factories but possibly after init — move before init
+					const initIdx = code.indexOf("await gameScene.init(");
+					const factoriesIdx = code.indexOf("__vibexeFactories");
+					if (factoriesIdx > initIdx) {
+						code = code.replace(
+							/await\s+gameScene\.init\(/,
+							`(window).__vibexeFactories = {
       createPlatform3D: createPlatform3D,
       createCollectible3D: createCollectible3D,
       createPlayer3D: createPlayer3D,
@@ -1908,7 +1927,8 @@ $1`,
       createAnimatedCharacter3D: typeof createAnimatedCharacter3D !== "undefined" ? createAnimatedCharacter3D : undefined,
     };
     await gameScene.init(`,
-					);
+						);
+					}
 				}
 			}
 
