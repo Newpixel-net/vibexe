@@ -1562,6 +1562,38 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				}
 			} catch { /* invalid JSON */ }
 		}
+		// Character Y-offset fix: correct mesh feet position relative to physics body center.
+		// Without this, mesh.position.copy(physicsBody.position) places the mesh at the body
+		// CENTER, but pivot correction puts feet at local Y=0, causing characters to float
+		// above the ground by halfHeight. Patches renderer.render to fix Y before each frame.
+		globals += [
+			"(function(){",
+			"var _cn=0;",
+			"var _ct=setInterval(function(){",
+			"_cn++;if(_cn>100){clearInterval(_ct);return}",
+			"var _r=(window as any).__vibexe_renderer__;",
+			"if(!_r||!_r.render)return;",
+			"clearInterval(_ct);",
+			"var _origR=_r.render;",
+			"var _chrs=[] as any[];var _lsc:any=null;",
+			"_r.render=function(_s:any,_c:any){",
+			"if(_s&&!(window as any).__vibexe_editor__){",
+			"var _w=(window as any).__vibexe_world__;",
+			"if(_w&&_w.bodies){",
+			"if(_s!==_lsc){_chrs=[];_lsc=_s;if(_s.traverse)_s.traverse(function(_o:any){var _cb=_o.userData&&_o.userData.__characterBounds;if(_cb&&_cb.height)_chrs.push(_o)})}",
+			"for(var _ci=0;_ci<_chrs.length;_ci++){",
+			"var _o=_chrs[_ci];var _hh=_o.userData.__characterBounds.height/2;",
+			"for(var _bi=0;_bi<_w.bodies.length;_bi++){",
+			"var _b=_w.bodies[_bi];",
+			"if(_b.mass>0&&Math.abs(_b.position.x-_o.position.x)<0.5&&Math.abs(_b.position.z-_o.position.z)<0.5&&Math.abs(_b.position.y-_o.position.y)<0.15){",
+			"_o.position.y=_b.position.y-_hh;break}",
+			"}}}",
+			"}",
+			"return _origR.call(this,_s,_c)",
+			"};",
+			"},100)})();\n",
+		].join("");
+
 		globals += "\n";
 		for (const entryKey of ["/index.js", "/index.jsx", "/index.ts", "/index.tsx"]) {
 			if (sandpackFiles[entryKey]) {
