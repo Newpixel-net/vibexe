@@ -825,21 +825,6 @@ export function SandpackPreview({
 					userData: data.userData,
 					_materialColor: data._materialColor,
 				});
-				// Live-sync player character position to Game Settings spawn
-				const isPlayer = data.userData?.__isPlayerCharacter
-					|| data.userData?.vibexeType === "player"
-					|| data.userData?.vibexeType === "AnimatedCharacter"
-					|| data.name?.startsWith("Character_")
-					|| data.name?.startsWith("Player_");
-				if (isPlayer && data.position) {
-					gameEditor.updateGameSettings({
-						player: {
-							spawnX: Math.round(data.position.x * 100) / 100,
-							spawnY: Math.round(data.position.y * 100) / 100,
-							spawnZ: Math.round(data.position.z * 100) / 100,
-						},
-					});
-				}
 			} else if (data.type === "game-editor-object-deselected") {
 				gameEditor.updateSelectedObject(null);
 			} else if (data.type === "game-editor-gizmo-mode") {
@@ -928,28 +913,86 @@ export function SandpackPreview({
 		return () => window.removeEventListener("message", handler);
 	}, [visualEdit, gameEditor]);
 
-	// When exiting Scene Editor after transforms were modified, flush pending
-	// content to Sandpack and refresh so the game reloads with overrides applied.
+	// When exiting Scene Editor, collect ALL transforms from bridge and save.
+	// This replaces the old approach that relied on debounced persist-transform messages
+	// which could be lost when the bridge was deactivated.
 	const prevEditorEnabledRef = useRef(false);
 	useEffect(() => {
 		const wasEnabled = prevEditorEnabledRef.current;
 		prevEditorEnabledRef.current = gameEditor.enabled;
-		if (wasEnabled && !gameEditor.enabled && sceneModifiedDuringEditRef.current) {
-			console.log("[GameEditor] Scene modified during edit session — flushing to Sandpack & refreshing");
-			sceneModifiedDuringEditRef.current = false;
-			// Flush accumulated scene edits to Sandpack files before refresh
+		if (!wasEnabled || gameEditor.enabled) return; // only run on exit
+
+		console.log("[GameEditor] Exiting — collecting all transforms");
+
+		(async () => {
+			const iframe = iframeRef.current;
+			if (iframe?.contentWindow) {
+				// Collect all transforms from bridge (handler still works after deactivation)
+				iframe.contentWindow.postMessage({ type: "game-editor-collect-all-transforms" }, "*");
+				const transforms = await new Promise<Record<string, any>>((resolve) => {
+					allTransformsResolverRef.current = resolve;
+					setTimeout(() => {
+						if (allTransformsResolverRef.current === resolve) {
+							console.warn("[GameEditor] Timed out waiting for transforms");
+							allTransformsResolverRef.current = null;
+							resolve({});
+						}
+					}, 3000);
+				});
+
+				// Save transforms to source code
+				const names = Object.keys(transforms);
+				if (names.length > 0) {
+					const sceneFile = filesRef.current.find((f) => f.path?.includes("GameScene3D"));
+					if (sceneFile?.content) {
+						let code = pendingSceneContentRef.current ?? sceneFile.content;
+						for (const name of names) {
+							const t = transforms[name];
+							code = updateTransformInSource(code, name, t.position, t.rotation, t.scale);
+						}
+						pendingSceneContentRef.current = code;
+						console.log("[GameEditor] Saving", names.length, "transforms to DB");
+						await fetch(`/api/app-builder/apps/${appId}/files`, {
+							method: "PUT",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ path: sceneFile.path, content: code }),
+						}).catch((err) => console.warn("[GameEditor] DB save failed:", err));
+					}
+				}
+			}
+
+			// Auto-save game settings on exit
+			const settings = gameEditor.gameSettings;
+			if (settings) {
+				const content = JSON.stringify(settings, null, 2);
+				const settingsFile = filesRef.current.find((f) =>
+					f.path === "src/__game-settings.json" || f.path === "__game-settings.json"
+				);
+				if (settingsFile) {
+					console.log("[GameEditor] Auto-saving game settings");
+					await fetch(`/api/app-builder/apps/${appId}/files`, {
+						method: "PUT",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ path: settingsFile.path, content }),
+					}).catch((err) => console.warn("[GameEditor] Settings save failed:", err));
+					onFileUpdateRef.current?.(settingsFile.id, content);
+				}
+			}
+
+			// Flush scene edits to Sandpack
 			const pendingContent = pendingSceneContentRef.current;
 			if (pendingContent) {
-				const currentOnFileUpdate = onFileUpdateRef.current;
 				const sceneFile = filesRef.current.find((f) => f.path?.includes("GameScene3D"));
-				if (currentOnFileUpdate && sceneFile) {
-					currentOnFileUpdate(sceneFile.id, pendingContent);
+				if (onFileUpdateRef.current && sceneFile) {
+					onFileUpdateRef.current(sceneFile.id, pendingContent);
 				}
 				pendingSceneContentRef.current = null;
 			}
-			// Delay to let SandpackFileSync process the file update
+
+			// Refresh after Sandpack processes the file updates
 			setTimeout(() => { sandpackRefreshRef.current?.(); }, 400);
-		}
+			sceneModifiedDuringEditRef.current = false;
+		})();
 	}, [gameEditor.enabled]);
 
 	// Keyboard shortcuts for visual edit
