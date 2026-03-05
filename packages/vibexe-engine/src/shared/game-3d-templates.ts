@@ -1255,6 +1255,41 @@ function _neutralModelUrl(name: string): string {
   return modelUrl("kaykit-platformer", \`Assets/gltf/neutral/\${name}.gltf\`);
 }
 
+/**
+ * Fix materials on loaded decoration models for consistent rendering.
+ * MeshStandardMaterial (PBR) requires environment maps to look correct.
+ * Our scene editor uses basic directional/ambient lights — convert to
+ * MeshPhongMaterial which renders predictably without IBL.
+ */
+function _fixDecorationMaterials(root: any): void {
+  root.traverse((child: any) => {
+    if (!child.isMesh || !child.material) return;
+    const fixMat = (mat: any) => {
+      if (!mat.isMeshStandardMaterial) return mat;
+      const hasVtxColor = !!(child.geometry?.attributes?.color);
+      const phong = new THREE.MeshPhongMaterial({
+        color: mat.color ? mat.color.clone() : new THREE.Color(0xcccccc),
+        map: mat.map || null,
+        normalMap: mat.normalMap || null,
+        emissive: new THREE.Color(0x111111),
+        emissiveIntensity: 0.15,
+        shininess: 12,
+        transparent: mat.transparent || false,
+        opacity: mat.opacity ?? 1,
+        side: mat.side,
+        alphaTest: mat.alphaTest || 0,
+        vertexColors: hasVtxColor,
+      });
+      return phong;
+    };
+    if (Array.isArray(child.material)) {
+      child.material = child.material.map(fixMat);
+    } else {
+      child.material = fixMat(child.material);
+    }
+  });
+}
+
 function _fallbackBox(w: number, h: number, d: number, color: number): any {
   const geo = new THREE.BoxGeometry(w, h, d);
   const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.7 });
@@ -1581,6 +1616,7 @@ export async function createDecoration3D(
       url = _ppModelUrl(subpath);
     }
     mesh = await _loadOrClone(url);
+    _fixDecorationMaterials(mesh);
     mesh.scale.setScalar(scale);
   } catch (err) {
     console.warn("[3D] createDecoration3D fallback — failed to load:", type, err);

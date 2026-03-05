@@ -1826,6 +1826,51 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				);
 			}
 
+			// Bug 1 fix: Add _fixDecorationMaterials for consistent rendering
+			// MeshStandardMaterial (PBR) renders white/grey without environment maps.
+			// Convert to MeshPhongMaterial which works with basic scene lighting.
+			if (code.includes("createDecoration3D") && !code.includes("_fixDecorationMaterials")) {
+				// Inject the helper function before createDecoration3D
+				code = code.replace(
+					/((?:export\s+)?async\s+function\s+createDecoration3D\s*\()/,
+					`function _fixDecorationMaterials(root) {
+  root.traverse(function(child) {
+    if (!child.isMesh || !child.material) return;
+    var fixMat = function(mat) {
+      if (!mat.isMeshStandardMaterial) return mat;
+      var hasVtxColor = !!(child.geometry && child.geometry.attributes && child.geometry.attributes.color);
+      var phong = new THREE.MeshPhongMaterial({
+        color: mat.color ? mat.color.clone() : new THREE.Color(0xcccccc),
+        map: mat.map || null,
+        normalMap: mat.normalMap || null,
+        emissive: new THREE.Color(0x111111),
+        emissiveIntensity: 0.15,
+        shininess: 12,
+        transparent: mat.transparent || false,
+        opacity: mat.opacity != null ? mat.opacity : 1,
+        side: mat.side,
+        alphaTest: mat.alphaTest || 0,
+        vertexColors: hasVtxColor,
+      });
+      return phong;
+    };
+    if (Array.isArray(child.material)) {
+      child.material = child.material.map(fixMat);
+    } else {
+      child.material = fixMat(child.material);
+    }
+  });
+}
+$1`,
+				);
+
+				// Add the call after _loadOrClone in createDecoration3D
+				code = code.replace(
+					/(mesh\s*=\s*await\s+_loadOrClone\s*\(\s*url\s*\)\s*;)/,
+					`$1\n    _fixDecorationMaterials(mesh);`,
+				);
+			}
+
 			if (typeof af2 === "string") {
 				sandpackFiles[assetsKey2] = code;
 			} else {
@@ -1845,14 +1890,15 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 
 			// Phase 1: Move __vibexeFactories before gameScene.init()
 			// Old code sets factories AFTER init, causing spawn restoration timeout.
-			if (code.includes("__vibexeFactories") && code.includes("await gameScene.init()")) {
+			// NOTE: init() call has arguments like (scene, camera, renderer, container, callback)
+			if (code.includes("__vibexeFactories") && code.includes("await gameScene.init(")) {
 				// Check if factories are set AFTER init (old pattern)
-				const initIdx = code.indexOf("await gameScene.init()");
+				const initIdx = code.indexOf("await gameScene.init(");
 				const factoriesIdx = code.indexOf("__vibexeFactories");
 				// Only patch if factories come after init (the bug pattern)
 				if (factoriesIdx > initIdx) {
 					code = code.replace(
-						/await\s+gameScene\.init\(\)/,
+						/await\s+gameScene\.init\(/,
 						`(window).__vibexeFactories = {
       createPlatform3D: createPlatform3D,
       createCollectible3D: createCollectible3D,
@@ -1861,7 +1907,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
       createDecoration3D: createDecoration3D,
       createAnimatedCharacter3D: typeof createAnimatedCharacter3D !== "undefined" ? createAnimatedCharacter3D : undefined,
     };
-    await gameScene.init()`,
+    await gameScene.init(`,
 					);
 				}
 			}
