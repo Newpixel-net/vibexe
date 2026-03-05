@@ -1834,9 +1834,11 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		}
 	}
 
-	// Patch GameScene3D.ts for existing projects
+	// Patch Game3D.tsx engine code for existing projects
+	// NOTE: Engine code (__vibexeFactories, factory maps, message handlers, spawn mode)
+	// lives in Game3D.tsx, NOT GameScene3D.ts (which is the AI-generated scene setup).
 	{
-		const sceneKey2 = Object.keys(sandpackFiles).find((p) => p.endsWith("GameScene3D.ts"));
+		const sceneKey2 = Object.keys(sandpackFiles).find((p) => p.endsWith("Game3D.tsx"));
 		if (sceneKey2) {
 			const sf2 = sandpackFiles[sceneKey2];
 			let code = typeof sf2 === "string" ? sf2 : sf2.code;
