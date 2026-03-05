@@ -1193,9 +1193,11 @@ export function getVisualEditBridgeScript(): string {
   // Send live player position to parent (for "pick from scene" in Game Settings panel)
   function sendPlayerPositionUpdate(obj) {
     if (!obj || !isPlayerCharacter(obj)) return;
+    var bounds = obj.userData && obj.userData.__characterBounds;
     window.parent.postMessage({
       type: "game-editor-player-position-update",
-      position: { x: +obj.position.x.toFixed(3), y: +obj.position.y.toFixed(3), z: +obj.position.z.toFixed(3) }
+      position: { x: +obj.position.x.toFixed(3), y: +obj.position.y.toFixed(3), z: +obj.position.z.toFixed(3) },
+      characterHeight: bounds ? bounds.height : 1.5
     }, "*");
   }
 

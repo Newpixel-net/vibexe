@@ -21,6 +21,7 @@ interface GameSettingsPanelProps {
 	pickRespawnActive?: boolean;
 	onTogglePickSpawn?: () => void;
 	onTogglePickRespawn?: () => void;
+	characterHalfHeight?: number;
 }
 
 function deepMerge(target: any, patch: any): any {
@@ -35,10 +36,9 @@ function deepMerge(target: any, patch: any): any {
 	return result;
 }
 
-// Half-height of the player capsule — used to convert between body-center (stored) and feet (displayed)
-const PLAYER_HALF_HEIGHT = 0.75;
-
-export function GameSettingsPanel({ settings, onChange, onSave, onClose, pickSpawnActive, pickRespawnActive, onTogglePickSpawn, onTogglePickRespawn }: GameSettingsPanelProps) {
+export function GameSettingsPanel({ settings, onChange, onSave, onClose, pickSpawnActive, pickRespawnActive, onTogglePickSpawn, onTogglePickRespawn, characterHalfHeight }: GameSettingsPanelProps) {
+	// Half-height of the player capsule — converts between body-center (stored) and feet (displayed)
+	const halfHeight = characterHalfHeight ?? 0.75;
 	const [activeTab, setActiveTab] = useState<SettingsTab>("player");
 
 	const update = useCallback((section: string, field: string, value: any) => {
@@ -135,7 +135,7 @@ export function GameSettingsPanel({ settings, onChange, onSave, onClose, pickSpa
 							</div>
 						)}
 						<DragNumberInput label="X" value={settings.player?.spawnX ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "spawnX", v)} color="#e74c4c" />
-						<DragNumberInput label="Y" value={(settings.player?.spawnY ?? 3) - PLAYER_HALF_HEIGHT} step={0.5} precision={1} onChange={(v) => update("player", "spawnY", v + PLAYER_HALF_HEIGHT)} color="#4ce74c" />
+						<DragNumberInput label="Y" value={(settings.player?.spawnY ?? 3) - halfHeight} step={0.5} precision={1} onChange={(v) => update("player", "spawnY", v + halfHeight)} color="#4ce74c" />
 						<DragNumberInput label="Z" value={settings.player?.spawnZ ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "spawnZ", v)} color="#4c7ce7" />
 
 						<div className="flex items-center justify-between">
@@ -162,7 +162,7 @@ export function GameSettingsPanel({ settings, onChange, onSave, onClose, pickSpa
 							</div>
 						)}
 						<DragNumberInput label="X" value={settings.player?.respawnX ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "respawnX", v)} color="#e74c4c" />
-						<DragNumberInput label="Y" value={(settings.player?.respawnY ?? 5) - PLAYER_HALF_HEIGHT} step={0.5} precision={1} onChange={(v) => update("player", "respawnY", v + PLAYER_HALF_HEIGHT)} color="#4ce74c" />
+						<DragNumberInput label="Y" value={(settings.player?.respawnY ?? 5) - halfHeight} step={0.5} precision={1} onChange={(v) => update("player", "respawnY", v + halfHeight)} color="#4ce74c" />
 						<DragNumberInput label="Z" value={settings.player?.respawnZ ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "respawnZ", v)} color="#4c7ce7" />
 
 						<SectionLabel>Lives</SectionLabel>

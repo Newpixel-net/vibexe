@@ -898,13 +898,18 @@ export function SandpackPreview({
 				// Live-sync player position to Game Settings panel (pick-from-scene)
 				const pos = data.position as { x: number; y: number; z: number };
 				if (!pos) return;
+				// Convert feet Y (mesh position) → body center Y (physics) by adding half-height
+				const halfHeight = (data.characterHeight ?? 1.5) / 2;
+				if (data.characterHeight) {
+					gameEditor.setCharacterHalfHeight(halfHeight);
+				}
 				if (gameEditor.pickSpawnActive) {
 					gameEditor.updateGameSettings({
-						player: { spawnX: pos.x, spawnY: pos.y, spawnZ: pos.z }
+						player: { spawnX: pos.x, spawnY: pos.y + halfHeight, spawnZ: pos.z }
 					});
 				} else if (gameEditor.pickRespawnActive) {
 					gameEditor.updateGameSettings({
-						player: { respawnX: pos.x, respawnY: pos.y, respawnZ: pos.z }
+						player: { respawnX: pos.x, respawnY: pos.y + halfHeight, respawnZ: pos.z }
 					});
 				}
 			}
@@ -913,9 +918,9 @@ export function SandpackPreview({
 		return () => window.removeEventListener("message", handler);
 	}, [visualEdit, gameEditor]);
 
-	// When exiting Scene Editor, collect ALL transforms from bridge and save.
-	// This replaces the old approach that relied on debounced persist-transform messages
-	// which could be lost when the bridge was deactivated.
+	// When exiting Scene Editor, collect ALL transforms from bridge BEFORE disabling it,
+	// then send game-editor-disable, then save. This avoids the race condition where
+	// disable arrives before collect (bridge nulls editor → collect is silently dropped).
 	const prevEditorEnabledRef = useRef(false);
 	useEffect(() => {
 		const wasEnabled = prevEditorEnabledRef.current;
@@ -924,23 +929,45 @@ export function SandpackPreview({
 
 		console.log("[GameEditor] Exiting — collecting all transforms");
 
-		(async () => {
-			const iframe = iframeRef.current;
-			if (iframe?.contentWindow) {
-				// Collect all transforms from bridge (handler still works after deactivation)
-				iframe.contentWindow.postMessage({ type: "game-editor-collect-all-transforms" }, "*");
-				const transforms = await new Promise<Record<string, any>>((resolve) => {
-					allTransformsResolverRef.current = resolve;
-					setTimeout(() => {
-						if (allTransformsResolverRef.current === resolve) {
-							console.warn("[GameEditor] Timed out waiting for transforms");
-							allTransformsResolverRef.current = null;
-							resolve({});
-						}
-					}, 3000);
-				});
+		const iframe = iframeRef.current;
 
-				// Save transforms to source code
+		// Helper: send disable to bridge (called after collection OR on error)
+		const sendDisable = () => {
+			if (iframe?.contentWindow) {
+				iframe.contentWindow.postMessage({ type: "game-editor-disable" }, "*");
+			}
+			try {
+				const iframes = document.querySelectorAll(".sandpack-container iframe");
+				for (const f of iframes) {
+					const frame = f as HTMLIFrameElement;
+					if (frame.contentWindow) frame.contentWindow.postMessage({ type: "game-editor-disable" }, "*");
+				}
+			} catch { /* ignore */ }
+		};
+
+		(async () => {
+			try {
+				let transforms: Record<string, any> = {};
+
+				if (iframe?.contentWindow) {
+					// Step 1: Collect transforms WHILE bridge is still active
+					iframe.contentWindow.postMessage({ type: "game-editor-collect-all-transforms" }, "*");
+					transforms = await new Promise<Record<string, any>>((resolve) => {
+						allTransformsResolverRef.current = resolve;
+						setTimeout(() => {
+							if (allTransformsResolverRef.current === resolve) {
+								console.warn("[GameEditor] Timed out waiting for transforms — using fallback");
+								allTransformsResolverRef.current = null;
+								resolve({});
+							}
+						}, 3000);
+					});
+				}
+
+				// Step 2: NOW deactivate the bridge
+				sendDisable();
+
+				// Step 3: Save transforms to source code
 				const names = Object.keys(transforms);
 				if (names.length > 0) {
 					const sceneFile = filesRef.current.find((f) => f.path?.includes("GameScene3D"));
@@ -951,7 +978,7 @@ export function SandpackPreview({
 							code = updateTransformInSource(code, name, t.position, t.rotation, t.scale);
 						}
 						pendingSceneContentRef.current = code;
-						console.log("[GameEditor] Saving", names.length, "transforms to DB");
+						console.log("[GameEditor] Collected and saving", names.length, "transforms to DB");
 						await fetch(`/api/app-builder/apps/${appId}/files`, {
 							method: "PUT",
 							headers: { "Content-Type": "application/json" },
@@ -959,39 +986,43 @@ export function SandpackPreview({
 						}).catch((err) => console.warn("[GameEditor] DB save failed:", err));
 					}
 				}
-			}
 
-			// Auto-save game settings on exit
-			const settings = gameEditor.gameSettings;
-			if (settings) {
-				const content = JSON.stringify(settings, null, 2);
-				const settingsFile = filesRef.current.find((f) =>
-					f.path === "src/__game-settings.json" || f.path === "__game-settings.json"
-				);
-				if (settingsFile) {
-					console.log("[GameEditor] Auto-saving game settings");
-					await fetch(`/api/app-builder/apps/${appId}/files`, {
-						method: "PUT",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ path: settingsFile.path, content }),
-					}).catch((err) => console.warn("[GameEditor] Settings save failed:", err));
-					onFileUpdateRef.current?.(settingsFile.id, content);
+				// Step 4: Auto-save game settings on exit
+				const settings = gameEditor.gameSettings;
+				if (settings) {
+					const content = JSON.stringify(settings, null, 2);
+					const settingsFile = filesRef.current.find((f) =>
+						f.path === "src/__game-settings.json" || f.path === "__game-settings.json"
+					);
+					if (settingsFile) {
+						console.log("[GameEditor] Auto-saving game settings");
+						await fetch(`/api/app-builder/apps/${appId}/files`, {
+							method: "PUT",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ path: settingsFile.path, content }),
+						}).catch((err) => console.warn("[GameEditor] Settings save failed:", err));
+						onFileUpdateRef.current?.(settingsFile.id, content);
+					}
 				}
-			}
 
-			// Flush scene edits to Sandpack
-			const pendingContent = pendingSceneContentRef.current;
-			if (pendingContent) {
-				const sceneFile = filesRef.current.find((f) => f.path?.includes("GameScene3D"));
-				if (onFileUpdateRef.current && sceneFile) {
-					onFileUpdateRef.current(sceneFile.id, pendingContent);
+				// Step 5: Flush scene edits to Sandpack
+				const pendingContent = pendingSceneContentRef.current;
+				if (pendingContent) {
+					const sceneFile = filesRef.current.find((f) => f.path?.includes("GameScene3D"));
+					if (onFileUpdateRef.current && sceneFile) {
+						onFileUpdateRef.current(sceneFile.id, pendingContent);
+					}
+					pendingSceneContentRef.current = null;
 				}
-				pendingSceneContentRef.current = null;
-			}
 
-			// Refresh after Sandpack processes the file updates
-			setTimeout(() => { sandpackRefreshRef.current?.(); }, 400);
-			sceneModifiedDuringEditRef.current = false;
+				// Step 6: Refresh after Sandpack processes the file updates
+				setTimeout(() => { sandpackRefreshRef.current?.(); }, 400);
+				sceneModifiedDuringEditRef.current = false;
+			} catch (err) {
+				console.error("[GameEditor] Exit save error:", err);
+				// SAFEGUARD: Always disable bridge even on error
+				sendDisable();
+			}
 		})();
 	}, [gameEditor.enabled]);
 
@@ -1528,6 +1559,7 @@ export function SandpackPreview({
 							pickRespawnActive={gameEditor.pickRespawnActive}
 							onTogglePickSpawn={gameEditor.togglePickSpawn}
 							onTogglePickRespawn={gameEditor.togglePickRespawn}
+							characterHalfHeight={gameEditor.characterHalfHeight}
 						/>
 					) : (
 						<GameEditorPanel />

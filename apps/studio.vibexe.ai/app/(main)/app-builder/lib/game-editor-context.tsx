@@ -115,6 +115,9 @@ interface GameEditorContextValue {
 	pickRespawnActive: boolean;
 	togglePickSpawn: () => void;
 	togglePickRespawn: () => void;
+	// Dynamic character half-height (from bridge, defaults to 0.75)
+	characterHalfHeight: number;
+	setCharacterHalfHeight: (v: number) => void;
 	// Scene editor extended state
 	gizmoSpace: "world" | "local";
 	hierarchySearch: string;
@@ -188,6 +191,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 	const [pickSpawnActive, setPickSpawnActive] = useState(false);
 	const [pickRespawnActive, setPickRespawnActive] = useState(false);
+	const [characterHalfHeight, setCharacterHalfHeight] = useState(0.75);
 	const pickSpawnRef = useRef(false);
 	const pickRespawnRef = useRef(false);
 	const [animClipOverrides, setAnimClipOverrides] = useState<Record<string, string>>({});
@@ -212,19 +216,21 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const toggleEditor = useCallback(() => {
 		setEnabledState((prev) => {
 			const next = !prev;
-			const msg = { type: next ? "game-editor-enable" : "game-editor-disable" };
-			sendToIframe(msg);
-			// Fallback: also try sending via any iframe in the preview container
-			// This handles cases where iframeRef chain breaks
-			try {
-				const iframes = document.querySelectorAll(".sandpack-container iframe");
-				for (const iframe of iframes) {
-					const f = iframe as HTMLIFrameElement;
-					if (f.contentWindow) {
-						f.contentWindow.postMessage(msg, "*");
+			if (next) {
+				// Send enable immediately
+				const msg = { type: "game-editor-enable" };
+				sendToIframe(msg);
+				try {
+					const iframes = document.querySelectorAll(".sandpack-container iframe");
+					for (const iframe of iframes) {
+						const f = iframe as HTMLIFrameElement;
+						if (f.contentWindow) {
+							f.contentWindow.postMessage(msg, "*");
+						}
 					}
-				}
-			} catch { /* ignore */ }
+				} catch { /* ignore */ }
+			}
+			// For disable: DON'T send here — exit useEffect sends it AFTER collecting transforms
 			if (!next) {
 				setSelectedObject(null);
 				setSceneTree(null);
@@ -235,16 +241,20 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 
 	const setEnabled = useCallback((v: boolean) => {
 		setEnabledState(v);
-		const msg = { type: v ? "game-editor-enable" : "game-editor-disable" };
-		sendToIframe(msg);
-		// Fallback: also try via DOM query
-		try {
-			const iframes = document.querySelectorAll(".sandpack-container iframe");
-			for (const iframe of iframes) {
-				const f = iframe as HTMLIFrameElement;
-				if (f.contentWindow) f.contentWindow.postMessage(msg, "*");
-			}
-		} catch { /* ignore */ }
+		if (v) {
+			// Send enable immediately
+			const msg = { type: "game-editor-enable" };
+			sendToIframe(msg);
+			try {
+				const iframes = document.querySelectorAll(".sandpack-container iframe");
+				for (const iframe of iframes) {
+					const f = iframe as HTMLIFrameElement;
+					if (f.contentWindow) f.contentWindow.postMessage(msg, "*");
+				}
+			} catch { /* ignore */ }
+		}
+		// For disable: DON'T send game-editor-disable here.
+		// The exit useEffect in sandpack-preview.tsx sends it AFTER collecting transforms.
 		if (!v) {
 			setSelectedObject(null);
 			setSceneTree(null);
@@ -554,6 +564,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				pickRespawnActive,
 				togglePickSpawn,
 				togglePickRespawn,
+				characterHalfHeight,
+				setCharacterHalfHeight,
 				gizmoSpace,
 				hierarchySearch,
 				canUndo,
