@@ -1409,6 +1409,7 @@ export function getVisualEditBridgeScript(): string {
       editor = ed;
       active = true;
       pendingActivate = false;
+      (window as any).__vibexe_editor_active__ = true;
       var THREE = window.THREE;
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
@@ -1551,6 +1552,7 @@ export function getVisualEditBridgeScript(): string {
   function deactivateBridge() {
     if (!active) return;
     active = false;
+    (window as any).__vibexe_editor_active__ = false;
     cancelAnimationFrame(editorAnimId);
     // Clear pending persistTransform timer to prevent stale messages after deactivation
     if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
