@@ -3813,6 +3813,12 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           const _originalMaps = new WeakMap<any, any>();
 
           function _applyTextureToMesh(obj: any, textureUrl: string, tileX: number, tileY: number) {
+            // Resolve relative URLs for sandpack iframe (different origin)
+            let _resolvedUrl = textureUrl;
+            if (textureUrl.startsWith("/")) {
+              const _apiOrigin = (window as any).__VIBEXE_API_ORIGIN__ || "";
+              _resolvedUrl = _apiOrigin + textureUrl;
+            }
             // Store immediately (before async load) so _sendSelectedObject picks it up
             if (!obj.userData) obj.userData = {};
             if (!obj.userData.vibexeArgs) obj.userData.vibexeArgs = {};
@@ -3848,11 +3854,11 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               }
               // userData already set at top of _applyTextureToMesh
             };
-            if (_textureCache[textureUrl]) {
-              apply(_textureCache[textureUrl]);
+            if (_textureCache[_resolvedUrl]) {
+              apply(_textureCache[_resolvedUrl]);
             } else {
-              new THREE.TextureLoader().load(textureUrl, (tex: any) => {
-                _textureCache[textureUrl] = tex;
+              new THREE.TextureLoader().load(_resolvedUrl, (tex: any) => {
+                _textureCache[_resolvedUrl] = tex;
                 apply(tex);
               });
             }
@@ -4211,6 +4217,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           window.addEventListener("message", (e: MessageEvent) => {
             const d = e.data;
             if (!d || !d.type) return;
+            if (d.type && d.type.startsWith("game-editor-") && d.type.includes("texture")) {
+              console.log("[TEXTURE-MSG] Received message:", d.type, JSON.stringify(d));
+            }
             const _extBridge = !!(window as any).__vibexeExternalBridge;
             switch (d.type) {
               case "game-editor-enable": _activateBridge(); break;
@@ -4446,11 +4455,14 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 break;
               case "game-editor-apply-texture": {
                 // Apply texture to object by uuid
+                console.log("[TEXTURE] Handler reached. uuid:", d.uuid, "url:", d.textureUrl);
                 let _texTarget: any = null;
                 scene.traverse((c: any) => { if (c.uuid === d.uuid) _texTarget = c; });
+                console.log("[TEXTURE] Found target:", !!_texTarget, _texTarget?.name);
                 if (_texTarget) {
                   _applyTextureToMesh(_texTarget, d.textureUrl, d.tileX || 1, d.tileY || 1);
                   if (!_texTarget.userData.__spawned) _texTarget.__hasTextureOverride = true;
+                  console.log("[TEXTURE] Applied. Sending selected object back.");
                   _sendSelectedObject(_texTarget);
                 }
                 break;

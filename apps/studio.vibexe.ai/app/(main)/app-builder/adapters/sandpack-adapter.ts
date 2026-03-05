@@ -2010,6 +2010,10 @@ if (typeof window !== "undefined") {
 						`var _textureCache = {};
           var _originalMaps = new WeakMap();
           function _applyTextureToMesh(obj, textureUrl, tileX, tileY) {
+            var _resolvedUrl = textureUrl;
+            if (textureUrl.charAt(0) === "/") {
+              _resolvedUrl = (window.__VIBEXE_API_ORIGIN__ || "") + textureUrl;
+            }
             if (!obj.userData) obj.userData = {};
             if (!obj.userData.vibexeArgs) obj.userData.vibexeArgs = {};
             obj.userData.vibexeArgs.textureUrl = textureUrl;
@@ -2034,8 +2038,8 @@ if (typeof window !== "undefined") {
                 ms.forEach(function(m) { applyToMat(m, tex); });
               }
             };
-            if (_textureCache[textureUrl]) { apply(_textureCache[textureUrl]); }
-            else { new THREE.TextureLoader().load(textureUrl, function(tex) { _textureCache[textureUrl] = tex; apply(tex); }); }
+            if (_textureCache[_resolvedUrl]) { apply(_textureCache[_resolvedUrl]); }
+            else { new THREE.TextureLoader().load(_resolvedUrl, function(tex) { _textureCache[_resolvedUrl] = tex; apply(tex); }); }
           }
           function _removeTextureFromMesh(obj) {
             var restore = function(mat) {
@@ -2062,28 +2066,70 @@ if (typeof window !== "undefined") {
 				}
 
 				// 10b: Extend _sendSelectedObject payload with texture fields
-				if (code.includes("_materialColor: matColor,") && !code.includes("_textureUrl:")) {
-					code = code.replace(
-						/_materialColor:\s*matColor,\s*\}/,
-						`_materialColor: matColor,
+				if (!code.includes("_textureUrl:")) {
+					const _texFields = `
               _textureUrl: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureUrl || null : null,
               _textureTileX: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureTileX || 1 : 1,
-              _textureTileY: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureTileY || 1 : 1,
+              _textureTileY: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureTileY || 1 : 1,`;
+					if (code.includes("_materialColor: matColor,")) {
+						// Anchor on _materialColor if it exists
+						code = code.replace(
+							/_materialColor:\s*matColor,\s*\}/,
+							`_materialColor: matColor,${_texFields}
               }`,
-					);
+						);
+					} else if (code.includes("function _sendSelectedObject")) {
+						// Fallback: anchor on castShadow or userData inside _sendSelectedObject
+						const anchored = code.replace(
+							/(userData:\s*_safeUserData\(obj\.userData\),?\s*)(},\s*"\*"\))/,
+							`$1${_texFields}
+              $2`,
+						);
+						if (anchored !== code) {
+							code = anchored;
+						} else {
+							// Last resort: anchor on castShadow line
+							code = code.replace(
+								/(castShadow:\s*!!obj\.castShadow,?\s*)(},\s*"\*"\))/,
+								`$1${_texFields}
+              $2`,
+							);
+						}
+					}
 				}
 
 				// 10c: Inject 3 texture message handlers before game-editor-get-spawned-objects
-				// (using get-spawned-objects as anchor since collect-all-transforms may not exist in older projects)
+				// These handlers send the full selected-object message directly (not via _sendSelectedObject)
+				// to guarantee texture fields are included even if _sendSelectedObject wasn't patched
 				code = code.replace(
 					/(case\s*["']game-editor-get-spawned-objects["']\s*:)/,
 					`case "game-editor-apply-texture": {
+                console.log("[TEXTURE] apply-texture handler reached. uuid:", d.uuid, "url:", d.textureUrl);
                 var _texTarget = null;
                 scene.traverse(function(c) { if (c.uuid === d.uuid) _texTarget = c; });
+                console.log("[TEXTURE] Found target:", !!_texTarget, _texTarget ? _texTarget.name : "none");
                 if (_texTarget) {
                   _applyTextureToMesh(_texTarget, d.textureUrl, d.tileX || 1, d.tileY || 1);
                   if (!_texTarget.userData.__spawned) _texTarget.__hasTextureOverride = true;
-                  _sendSelectedObject(_texTarget);
+                  var _mc = null;
+                  if (_texTarget.material && _texTarget.material.color) { try { _mc = "#" + _texTarget.material.color.getHexString(); } catch(e) {} }
+                  window.parent.postMessage({
+                    type: "game-editor-object-selected",
+                    uuid: _texTarget.uuid,
+                    name: _texTarget.name || _texTarget.type,
+                    objType: _texTarget.userData && _texTarget.userData.vibexeType ? _texTarget.userData.vibexeType : _texTarget.type,
+                    position: { x: _texTarget.position.x, y: _texTarget.position.y, z: _texTarget.position.z },
+                    rotation: { x: _texTarget.rotation.x * 180 / Math.PI, y: _texTarget.rotation.y * 180 / Math.PI, z: _texTarget.rotation.z * 180 / Math.PI },
+                    scale: { x: _texTarget.scale.x, y: _texTarget.scale.y, z: _texTarget.scale.z },
+                    visible: _texTarget.visible !== false,
+                    castShadow: !!_texTarget.castShadow,
+                    userData: _texTarget.userData || {},
+                    _materialColor: _mc,
+                    _textureUrl: _texTarget.userData && _texTarget.userData.vibexeArgs ? _texTarget.userData.vibexeArgs.textureUrl || null : null,
+                    _textureTileX: _texTarget.userData && _texTarget.userData.vibexeArgs ? _texTarget.userData.vibexeArgs.textureTileX || 1 : 1,
+                    _textureTileY: _texTarget.userData && _texTarget.userData.vibexeArgs ? _texTarget.userData.vibexeArgs.textureTileY || 1 : 1,
+                  }, "*");
+                  console.log("[TEXTURE] Sent object-selected with textureUrl:", _texTarget.userData.vibexeArgs.textureUrl);
                 }
                 break;
               }
@@ -2092,7 +2138,24 @@ if (typeof window !== "undefined") {
                 scene.traverse(function(c) { if (c.uuid === d.uuid) _rtTarget = c; });
                 if (_rtTarget) {
                   _removeTextureFromMesh(_rtTarget);
-                  _sendSelectedObject(_rtTarget);
+                  var _mc2 = null;
+                  if (_rtTarget.material && _rtTarget.material.color) { try { _mc2 = "#" + _rtTarget.material.color.getHexString(); } catch(e) {} }
+                  window.parent.postMessage({
+                    type: "game-editor-object-selected",
+                    uuid: _rtTarget.uuid,
+                    name: _rtTarget.name || _rtTarget.type,
+                    objType: _rtTarget.userData && _rtTarget.userData.vibexeType ? _rtTarget.userData.vibexeType : _rtTarget.type,
+                    position: { x: _rtTarget.position.x, y: _rtTarget.position.y, z: _rtTarget.position.z },
+                    rotation: { x: _rtTarget.rotation.x * 180 / Math.PI, y: _rtTarget.rotation.y * 180 / Math.PI, z: _rtTarget.rotation.z * 180 / Math.PI },
+                    scale: { x: _rtTarget.scale.x, y: _rtTarget.scale.y, z: _rtTarget.scale.z },
+                    visible: _rtTarget.visible !== false,
+                    castShadow: !!_rtTarget.castShadow,
+                    userData: _rtTarget.userData || {},
+                    _materialColor: _mc2,
+                    _textureUrl: null,
+                    _textureTileX: 1,
+                    _textureTileY: 1,
+                  }, "*");
                 }
                 break;
               }
@@ -2101,7 +2164,24 @@ if (typeof window !== "undefined") {
                 scene.traverse(function(c) { if (c.uuid === d.uuid) _utTarget = c; });
                 if (_utTarget && _utTarget.userData && _utTarget.userData.vibexeArgs && _utTarget.userData.vibexeArgs.textureUrl) {
                   _applyTextureToMesh(_utTarget, _utTarget.userData.vibexeArgs.textureUrl, d.tileX || 1, d.tileY || 1);
-                  _sendSelectedObject(_utTarget);
+                  var _mc3 = null;
+                  if (_utTarget.material && _utTarget.material.color) { try { _mc3 = "#" + _utTarget.material.color.getHexString(); } catch(e) {} }
+                  window.parent.postMessage({
+                    type: "game-editor-object-selected",
+                    uuid: _utTarget.uuid,
+                    name: _utTarget.name || _utTarget.type,
+                    objType: _utTarget.userData && _utTarget.userData.vibexeType ? _utTarget.userData.vibexeType : _utTarget.type,
+                    position: { x: _utTarget.position.x, y: _utTarget.position.y, z: _utTarget.position.z },
+                    rotation: { x: _utTarget.rotation.x * 180 / Math.PI, y: _utTarget.rotation.y * 180 / Math.PI, z: _utTarget.rotation.z * 180 / Math.PI },
+                    scale: { x: _utTarget.scale.x, y: _utTarget.scale.y, z: _utTarget.scale.z },
+                    visible: _utTarget.visible !== false,
+                    castShadow: !!_utTarget.castShadow,
+                    userData: _utTarget.userData || {},
+                    _materialColor: _mc3,
+                    _textureUrl: _utTarget.userData.vibexeArgs.textureUrl || null,
+                    _textureTileX: _utTarget.userData.vibexeArgs.textureTileX || 1,
+                    _textureTileY: _utTarget.userData.vibexeArgs.textureTileY || 1,
+                  }, "*");
                 }
                 break;
               }

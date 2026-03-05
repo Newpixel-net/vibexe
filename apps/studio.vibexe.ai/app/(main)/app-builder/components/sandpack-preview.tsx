@@ -568,7 +568,8 @@ function updateSpawnedObjectsInSource(
 	const texHelper = textureOverrides.length > 0 || spawnedObjects.some((s) => s.args?.textureUrl)
 		? `
     function _applyTex(obj, url, tx, ty) {
-      new THREE.TextureLoader().load(url, function(tex) {
+      var _rUrl = url.charAt(0) === "/" ? (window.__VIBEXE_API_ORIGIN__ || "") + url : url;
+      new THREE.TextureLoader().load(_rUrl, function(tex) {
         tex.wrapS = THREE.RepeatWrapping;
         tex.wrapT = THREE.RepeatWrapping;
         tex.repeat.set(tx, ty);
