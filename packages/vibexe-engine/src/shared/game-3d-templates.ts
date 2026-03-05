@@ -3827,12 +3827,20 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             obj.userData.vibexeArgs.textureTileY = tileY;
             const applyToMat = (mat: any, tex: any) => {
               if (!_originalMaps.has(mat)) {
-                _originalMaps.set(mat, mat.map);
+                _originalMaps.set(mat, { map: mat.map, color: mat.color ? mat.color.clone() : null });
               }
-              tex.wrapS = THREE.RepeatWrapping;
-              tex.wrapT = THREE.RepeatWrapping;
-              tex.repeat.set(tileX, tileY);
-              mat.map = tex;
+              // Clone texture per material so repeat/wrap are independent
+              const t = tex.clone();
+              t.needsUpdate = true;
+              t.wrapS = THREE.RepeatWrapping;
+              t.wrapT = THREE.RepeatWrapping;
+              t.repeat.set(tileX, tileY);
+              // sRGB encoding so texture renders with correct colors under lighting
+              if (THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+              t.anisotropy = 4;
+              mat.map = t;
+              // Set color to white so texture is not tinted by original material color
+              if (mat.color) mat.color.set(0xffffff);
               mat.needsUpdate = true;
             };
             const apply = (tex: any) => {
@@ -3867,7 +3875,14 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           function _removeTextureFromMesh(obj: any) {
             const restore = (mat: any) => {
               if (_originalMaps.has(mat)) {
-                mat.map = _originalMaps.get(mat);
+                const orig = _originalMaps.get(mat);
+                // Restore both map and color (may be {map,color} object or legacy bare map)
+                if (orig && typeof orig === "object" && "map" in orig) {
+                  mat.map = orig.map;
+                  if (orig.color && mat.color) mat.color.copy(orig.color);
+                } else {
+                  mat.map = orig; // legacy: was just the map
+                }
                 _originalMaps.delete(mat);
                 mat.needsUpdate = true;
               }

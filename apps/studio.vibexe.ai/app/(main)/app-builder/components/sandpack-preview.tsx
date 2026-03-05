@@ -570,17 +570,26 @@ function updateSpawnedObjectsInSource(
     function _applyTex(obj, url, tx, ty) {
       var _rUrl = url.charAt(0) === "/" ? (window.__VIBEXE_API_ORIGIN__ || "") + url : url;
       new THREE.TextureLoader().load(_rUrl, function(tex) {
-        tex.wrapS = THREE.RepeatWrapping;
-        tex.wrapT = THREE.RepeatWrapping;
-        tex.repeat.set(tx, ty);
+        var applyMat = function(m) {
+          var t = tex.clone();
+          t.needsUpdate = true;
+          t.wrapS = THREE.RepeatWrapping;
+          t.wrapT = THREE.RepeatWrapping;
+          t.repeat.set(tx, ty);
+          if (THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+          t.anisotropy = 4;
+          m.map = t;
+          if (m.color) m.color.set(0xffffff);
+          m.needsUpdate = true;
+        };
         obj.traverse(function(c) {
           if (!c.isMesh || !c.material) return;
           var mats = Array.isArray(c.material) ? c.material : [c.material];
-          mats.forEach(function(m) { m.map = tex; m.needsUpdate = true; });
+          mats.forEach(applyMat);
         });
         if (obj.isMesh && obj.material) {
           var ms = Array.isArray(obj.material) ? obj.material : [obj.material];
-          ms.forEach(function(m) { m.map = tex; m.needsUpdate = true; });
+          ms.forEach(applyMat);
         }
       });
     }`

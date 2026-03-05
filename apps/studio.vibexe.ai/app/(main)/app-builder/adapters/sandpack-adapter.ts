@@ -2020,11 +2020,16 @@ if (typeof window !== "undefined") {
             obj.userData.vibexeArgs.textureTileX = tileX;
             obj.userData.vibexeArgs.textureTileY = tileY;
             var applyToMat = function(mat, tex) {
-              if (!_originalMaps.has(mat)) _originalMaps.set(mat, mat.map);
-              tex.wrapS = THREE.RepeatWrapping;
-              tex.wrapT = THREE.RepeatWrapping;
-              tex.repeat.set(tileX, tileY);
-              mat.map = tex;
+              if (!_originalMaps.has(mat)) _originalMaps.set(mat, { map: mat.map, color: mat.color ? mat.color.clone() : null });
+              var t = tex.clone();
+              t.needsUpdate = true;
+              t.wrapS = THREE.RepeatWrapping;
+              t.wrapT = THREE.RepeatWrapping;
+              t.repeat.set(tileX, tileY);
+              if (THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+              t.anisotropy = 4;
+              mat.map = t;
+              if (mat.color) mat.color.set(0xffffff);
               mat.needsUpdate = true;
             };
             var apply = function(tex) {
@@ -2043,7 +2048,7 @@ if (typeof window !== "undefined") {
           }
           function _removeTextureFromMesh(obj) {
             var restore = function(mat) {
-              if (_originalMaps.has(mat)) { mat.map = _originalMaps.get(mat); _originalMaps.delete(mat); mat.needsUpdate = true; }
+              if (_originalMaps.has(mat)) { var orig = _originalMaps.get(mat); if (orig && typeof orig === "object" && "map" in orig) { mat.map = orig.map; if (orig.color && mat.color) mat.color.copy(orig.color); } else { mat.map = orig; } _originalMaps.delete(mat); mat.needsUpdate = true; }
             };
             obj.traverse(function(child) {
               if (!child.isMesh || !child.material) return;
