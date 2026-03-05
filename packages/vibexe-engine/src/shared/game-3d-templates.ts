@@ -2061,6 +2061,10 @@ export function createCharacterController3D(
     if (physSpeed > 0.05) {
       // Physics body is moving — sync mesh to it
       character.mesh.position.copy(physicsBody.position);
+      // Offset Y by half-height so feet (at mesh origin via pivot correction)
+      // align with the bottom of the physics box (ground contact point).
+      const __cb = character.mesh.userData?.__characterBounds;
+      if (__cb) character.mesh.position.y -= __cb.height / 2;
     }
     // If physics velocity is near-zero, AI may be moving mesh directly — let it
 
@@ -4698,7 +4702,10 @@ export const GameScene = {
     }
 
     // Sync physics → meshes
+    // Offset mesh Y by half-height so feet (at mesh origin via pivot correction)
+    // align with the bottom of the physics box (ground contact point).
     lily.mesh.position.copy(playerBody.position);
+    lily.mesh.position.y -= lily.size.y;
     syncBodiesToMeshes(platforms);
 
     // Camera follow
