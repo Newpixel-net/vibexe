@@ -970,6 +970,9 @@ export function SandpackPreview({
 					castShadow: data.castShadow,
 					userData: data.userData,
 					_materialColor: data._materialColor,
+					_textureUrl: data._textureUrl || null,
+					_textureTileX: data._textureTileX,
+					_textureTileY: data._textureTileY,
 				});
 			} else if (data.type === "game-editor-object-deselected") {
 				gameEditor.updateSelectedObject(null);
