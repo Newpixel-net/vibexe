@@ -3439,6 +3439,11 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         const __envBg = __gs.environment?.backgroundColor;
         scene.background = new THREE.Color(__envBg || bgColor);
         (window as any).__vibexe_scene__ = scene;
+        // Expose factory functions so persisted spawned objects can recreate themselves
+        (window as any).__vibexeFactories = {
+          createPlatform3D, createCollectible3D, createPlayer3D,
+          createBarrier3D, createDecoration3D, createAnimatedCharacter3D,
+        };
 
         // Optional fog from game settings
         if (__gs.environment?.fogEnabled) {
@@ -4398,6 +4403,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       delete (window as any).__vibexe_camera__;
       delete (window as any).__vibexe_world__;
       delete (window as any).__vibexe_editor__;
+      delete (window as any).__vibexeFactories;
       if (renderer) {
         renderer.dispose();
         if (renderer.domElement.parentNode) {

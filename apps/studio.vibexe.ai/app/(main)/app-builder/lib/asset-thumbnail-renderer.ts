@@ -2,12 +2,11 @@
  * Asset Thumbnail Renderer — Renders 3D model previews for the asset library.
  *
  * Uses an offscreen canvas with Three.js (dynamically imported) to render
- * rotating 3D model thumbnails. Only loads Three.js when the first thumbnail
+ * 3D model thumbnails. Only loads Three.js when the first thumbnail
  * is requested, keeping the initial bundle lean.
  *
  * Performance:
  * - IntersectionObserver: only renders visible cards
- * - Time-sliced: max 8 renders per animation frame
  * - Model cache: prevents duplicate GLTF downloads
  * - Singleton renderer: one shared WebGLRenderer instance
  */
@@ -29,10 +28,6 @@ class AssetThumbnailRenderer {
 	private scene: any = null;
 	private camera: any = null;
 	private modelCache = new Map<string, any>();
-	private renderQueue: Array<{ key: string; canvas: HTMLCanvasElement; url: string; resolve: () => void }> = [];
-	private isRendering = false;
-	private observer: IntersectionObserver | null = null;
-	private visibleCanvases = new Set<HTMLCanvasElement>();
 	private initialized = false;
 	private initPromise: Promise<void> | null = null;
 
@@ -143,7 +138,7 @@ class AssetThumbnailRenderer {
 
 			// Clean up
 			this.scene.remove(model);
-		} catch (err) {
+		} catch {
 			// Silently fail — placeholder icon will show instead
 		}
 	}
@@ -151,7 +146,6 @@ class AssetThumbnailRenderer {
 	dispose(): void {
 		this.renderer?.dispose();
 		this.modelCache.clear();
-		this.observer?.disconnect();
 		this.initialized = false;
 		this.initPromise = null;
 		_rendererInstance = null;
@@ -169,21 +163,24 @@ function getRenderer(): AssetThumbnailRenderer {
  * React hook for rendering a 3D model thumbnail.
  * Returns a canvas ref and loading state.
  *
- * Lazily loads Three.js on first use. Falls back gracefully if Three.js
- * is not available (placeholder icon shows instead).
+ * @param packId - asset pack identifier
+ * @param modelPath - path to model file within the pack
+ * @param visible - must be true before rendering starts (from IntersectionObserver)
  */
-export function useAssetThumbnail(packId: string, modelPath: string): {
+export function useAssetThumbnail(packId: string, modelPath: string, visible: boolean): {
 	canvasRef: React.RefObject<HTMLCanvasElement | null>;
 	isLoading: boolean;
 	hasRendered: boolean;
 } {
 	const canvasRef = useRef<HTMLCanvasElement | null>(null);
-	const [isLoading, setIsLoading] = useState(true);
+	const [isLoading, setIsLoading] = useState(false);
 	const [hasRendered, setHasRendered] = useState(false);
 
 	useEffect(() => {
+		if (!visible) return; // Don't render until card is visible
 		const canvas = canvasRef.current;
 		if (!canvas || !packId || !modelPath) return;
+		if (hasRendered) return; // Already rendered — don't re-render
 
 		const url = buildModelUrl(packId, modelPath);
 		const renderer = getRenderer();
@@ -209,7 +206,7 @@ export function useAssetThumbnail(packId: string, modelPath: string): {
 		return () => {
 			cancelled = true;
 		};
-	}, [packId, modelPath]);
+	}, [packId, modelPath, visible, hasRendered]);
 
 	return { canvasRef, isLoading, hasRendered };
 }

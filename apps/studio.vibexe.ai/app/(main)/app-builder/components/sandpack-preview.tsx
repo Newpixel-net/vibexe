@@ -98,12 +98,17 @@ function RefreshButton() {
  * Bridge that exposes useSandpackNavigation().refresh to parent via ref.
  * Lives inside SandpackProvider to access the hook.
  */
-function SandpackRefreshBridge({ refreshRef }: { refreshRef: React.MutableRefObject<(() => void) | null> }) {
+function SandpackRefreshBridge({ refreshRef, updateFileRef }: {
+	refreshRef: React.MutableRefObject<(() => void) | null>;
+	updateFileRef: React.MutableRefObject<((path: string, code: string) => void) | null>;
+}) {
 	const { refresh } = useSandpackNavigation();
+	const { sandpack } = useSandpack();
 	useEffect(() => {
 		refreshRef.current = refresh;
-		return () => { refreshRef.current = null; };
-	}, [refresh, refreshRef]);
+		updateFileRef.current = (path: string, code: string) => sandpack.updateFile(path, code);
+		return () => { refreshRef.current = null; updateFileRef.current = null; };
+	}, [refresh, refreshRef, sandpack, updateFileRef]);
 	return null;
 }
 
@@ -519,6 +524,86 @@ ${MARKER_END}`;
 }
 
 /**
+ * Persist spawned objects by injecting factory calls into GameScene3D.ts.
+ * Uses SCENE_EDITOR_SPAWNED markers so they can be stripped on next save.
+ * The spawn code runs inside a self-executing async block that waits for
+ * the scene to be available, then calls factory functions via the engine's
+ * exposed __vibexeFactories map.
+ */
+function updateSpawnedObjectsInSource(
+	code: string,
+	spawnedObjects: Array<{
+		factory: string;
+		args: Record<string, any>;
+		position: { x: number; y: number; z: number };
+		rotation?: { x: number; y: number; z: number };
+		scale?: { x: number; y: number; z: number };
+	}>,
+): string {
+	const SPAWN_START = "// SCENE_EDITOR_SPAWNED_START";
+	const SPAWN_END = "// SCENE_EDITOR_SPAWNED_END";
+
+	// Strip existing spawned block
+	const startIdx = code.indexOf(SPAWN_START);
+	const endIdx = code.indexOf(SPAWN_END);
+	if (startIdx !== -1 && endIdx !== -1) {
+		code =
+			code.substring(0, startIdx).trimEnd() +
+			"\n" +
+			code.substring(endIdx + SPAWN_END.length).trimStart();
+	}
+
+	if (spawnedObjects.length === 0) return code;
+
+	const spawnsJson = JSON.stringify(spawnedObjects);
+
+	// Self-executing block that polls for __vibexeFactories (exposed by game engine)
+	// and recreates spawned objects. Runs once after scene is ready.
+	const block = `${SPAWN_START}
+// SCENE_EDITOR_SPAWNED_DATA: ${spawnsJson}
+if (typeof window !== 'undefined') {
+  (function() {
+    var _spawns = ${spawnsJson};
+    var _done = false;
+    var _startT = Date.now();
+    function _trySpawn() {
+      if (_done) return;
+      if (Date.now() - _startT > 30000) { console.log("[SCENE_EDITOR] Spawn timeout"); return; }
+      var fns = window.__vibexeFactories;
+      var scene = window.__vibexe_scene__;
+      if (!fns || !scene) { requestAnimationFrame(_trySpawn); return; }
+      _done = true;
+      console.log("[SCENE_EDITOR] Spawning " + _spawns.length + " persisted objects");
+      (async function() {
+        for (var i = 0; i < _spawns.length; i++) {
+          var s = _spawns[i];
+          var fn = fns[s.factory];
+          if (!fn) { console.warn("[SCENE_EDITOR] Unknown factory:", s.factory); continue; }
+          try {
+            var result = await fn(scene, s.position.x, s.position.y, s.position.z, s.args || {});
+            if (result && result.mesh) {
+              if (s.rotation) result.mesh.rotation.set(s.rotation.x, s.rotation.y, s.rotation.z);
+              if (s.scale) result.mesh.scale.set(s.scale.x, s.scale.y, s.scale.z);
+              result.mesh.userData.__spawned = true;
+            }
+          } catch (e) { console.warn("[SCENE_EDITOR] Spawn failed:", s.factory, e); }
+        }
+      })();
+    }
+    requestAnimationFrame(_trySpawn);
+  })();
+}
+${SPAWN_END}`;
+
+	// Insert BEFORE the overrides block (if it exists), otherwise append
+	const overridesStart = code.indexOf("// SCENE_EDITOR_OVERRIDES_START");
+	if (overridesStart !== -1) {
+		return code.substring(0, overridesStart).trimEnd() + "\n" + block + "\n" + code.substring(overridesStart);
+	}
+	return code.trimEnd() + "\n" + block + "\n";
+}
+
+/**
  * Main preview component with responsive toggles and console.
  * No key on SandpackProvider - SandpackFileSync handles incremental
  * updates so the preview iframe stays alive during streaming.
@@ -558,8 +643,9 @@ export function SandpackPreview({
 	// Detect game mode
 	const isGameMode = projectType === "game" || projectType === "game-mobile";
 
-	// Ref for triggering Sandpack refresh from outside SandpackProvider
+	// Refs for triggering Sandpack refresh and direct file updates from outside SandpackProvider
 	const sandpackRefreshRef = useRef<(() => void) | null>(null);
+	const sandpackUpdateFileRef = useRef<((path: string, code: string) => void) | null>(null);
 
 	// Track whether scene transforms were modified during editor session
 	const sceneModifiedDuringEditRef = useRef(false);
@@ -921,16 +1007,16 @@ export function SandpackPreview({
 		return () => window.removeEventListener("message", handler);
 	}, [visualEdit, gameEditor]);
 
-	// When exiting Scene Editor, collect ALL transforms from bridge BEFORE disabling it,
-	// then send game-editor-disable, then save. This avoids the race condition where
-	// disable arrives before collect (bridge nulls editor → collect is silently dropped).
+	// When exiting Scene Editor, collect ALL transforms + spawned objects from bridge
+	// BEFORE disabling it, then save everything to code, then flush to Sandpack.
+	// Uses direct sandpack.updateFile() to bypass SandpackFileSync debounce race.
 	const prevEditorEnabledRef = useRef(false);
 	useEffect(() => {
 		const wasEnabled = prevEditorEnabledRef.current;
 		prevEditorEnabledRef.current = gameEditor.enabled;
 		if (!wasEnabled || gameEditor.enabled) return; // only run on exit
 
-		console.log("[GameEditor] Exiting — collecting all transforms");
+		console.log("[GameEditor] Exiting — collecting all transforms + spawned objects");
 
 		const iframe = iframeRef.current;
 
@@ -953,7 +1039,7 @@ export function SandpackPreview({
 				let transforms: Record<string, any> = {};
 
 				if (iframe?.contentWindow) {
-					// Step 1: Collect transforms WHILE bridge is still active
+					// Step 1a: Collect transforms WHILE bridge is still active
 					iframe.contentWindow.postMessage({ type: "game-editor-collect-all-transforms" }, "*");
 					transforms = await new Promise<Record<string, any>>((resolve) => {
 						allTransformsResolverRef.current = resolve;
@@ -965,48 +1051,56 @@ export function SandpackPreview({
 							}
 						}, 3000);
 					});
+
+					// Step 1b: Collect spawned objects WHILE bridge is still active
+					iframe.contentWindow.postMessage({ type: "game-editor-get-spawned-objects" }, "*");
+					// Give bridge a moment to respond (spawned objects handler is synchronous)
+					await new Promise((r) => setTimeout(r, 200));
 				}
 
 				// Step 2: NOW deactivate the bridge
 				sendDisable();
 
-				// Step 3: Save transforms to source code
-				const names = Object.keys(transforms);
-				console.log("[GameEditor] Transforms collected:", names.length, "objects:", names.join(", "));
-				if (names.length > 0) {
-					const sceneFile = filesRef.current.find((f) => f.path?.includes("GameScene3D"));
-					if (sceneFile?.content) {
-						let code = pendingSceneContentRef.current ?? sceneFile.content;
-						for (const name of names) {
-							const t = transforms[name];
-							code = updateTransformInSource(code, name, t.position, t.rotation, t.scale);
-						}
-						pendingSceneContentRef.current = code;
-						const hasOverrides = code.includes("SCENE_EDITOR_OVERRIDES_START");
-						console.log("[GameEditor] Saving", names.length, "transforms to DB (path:", sceneFile.path, ", has overrides:", hasOverrides, ", code length:", code.length, ")");
-						try {
-							const resp = await fetch(`/api/app-builder/apps/${appId}/files`, {
-								method: "PUT",
-								headers: { "Content-Type": "application/json" },
-								body: JSON.stringify({ path: sceneFile.path, content: code }),
-							});
-							if (!resp.ok) {
-								console.warn("[GameEditor] Transform DB save HTTP error:", resp.status);
-							} else {
-								console.log("[GameEditor] Transforms saved to DB successfully");
-							}
-						} catch (err) {
-							console.warn("[GameEditor] DB save failed:", err);
-						}
-					} else {
-						console.warn("[GameEditor] GameScene3D.ts not found in files — transforms NOT saved");
-					}
+				// Step 3: Save transforms + spawned objects to source code
+				const sceneFile = filesRef.current.find((f) => f.path?.includes("GameScene3D"));
+				if (!sceneFile?.content) {
+					console.warn("[GameEditor] GameScene3D.ts not found in files — NOTHING saved");
 				} else {
-					console.log("[GameEditor] No transforms collected (timeout or empty scene)");
+					let code = pendingSceneContentRef.current ?? sceneFile.content;
+
+					// 3a: Apply all collected transforms
+					const names = Object.keys(transforms);
+					console.log("[GameEditor] Transforms collected:", names.length, "objects:", names.join(", "));
+					for (const name of names) {
+						const t = transforms[name];
+						code = updateTransformInSource(code, name, t.position, t.rotation, t.scale);
+					}
+
+					// 3b: Persist spawned objects as code (factory calls that recreate them on reload)
+					const spawned = spawnedObjectsRef.current;
+					if (spawned.length > 0) {
+						console.log("[GameEditor] Persisting", spawned.length, "spawned objects to code");
+						code = updateSpawnedObjectsInSource(code, spawned);
+					}
+
+					pendingSceneContentRef.current = code;
+
+					// 3c: Save to database (source of truth for file content)
+					console.log("[GameEditor] Saving scene to DB (path:", sceneFile.path, ", code length:", code.length, ")");
+					try {
+						const resp = await fetch(`/api/app-builder/apps/${appId}/files`, {
+							method: "PUT",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ path: sceneFile.path, content: code }),
+						});
+						if (!resp.ok) console.warn("[GameEditor] Scene DB save HTTP error:", resp.status);
+						else console.log("[GameEditor] Scene saved to DB successfully");
+					} catch (err) {
+						console.warn("[GameEditor] Scene DB save failed:", err);
+					}
 				}
 
 				// Step 4: Auto-save game settings on exit
-				// Use ref for latest settings (avoids stale closure in async flow)
 				const settings = gameSettingsRef.current;
 				if (settings) {
 					const content = JSON.stringify(settings, null, 2);
@@ -1014,27 +1108,19 @@ export function SandpackPreview({
 						f.path === "src/__game-settings.json" || f.path === "__game-settings.json"
 					);
 					const filePath = settingsFile?.path || "src/__game-settings.json";
-					console.log("[GameEditor] Auto-saving game settings to", filePath, settingsFile ? "(existing)" : "(creating new)");
+					console.log("[GameEditor] Auto-saving game settings to", filePath);
 					try {
-						const resp = await fetch(`/api/app-builder/apps/${appId}/files`, {
+						await fetch(`/api/app-builder/apps/${appId}/files`, {
 							method: "PUT",
 							headers: { "Content-Type": "application/json" },
 							body: JSON.stringify({ path: filePath, content }),
 						});
-						if (!resp.ok) {
-							console.warn("[GameEditor] Settings save HTTP error:", resp.status);
-						} else {
-							console.log("[GameEditor] Settings saved to DB successfully");
-						}
 					} catch (err) {
 						console.warn("[GameEditor] Settings save failed:", err);
 					}
 					if (settingsFile) {
-						// Existing file — update in-memory state
 						onFileUpdateRef.current?.(settingsFile.id, content);
 					} else {
-						// First-time save — file not yet in state, refetch all files
-						// so convertToSandpackFiles picks up the new settings file
 						const refreshFn = onFilesRefreshRef.current;
 						if (refreshFn) {
 							console.log("[GameEditor] Refreshing files after first-time settings save");
@@ -1043,24 +1129,34 @@ export function SandpackPreview({
 					}
 				}
 
-				// Step 5: Flush scene edits to Sandpack
+				// Step 5: Flush scene edits — use DIRECT sandpack.updateFile() to bypass
+				// SandpackFileSync's 300ms debounce. This prevents the race where refresh()
+				// fires before the debounced updateFile.
 				const pendingContent = pendingSceneContentRef.current;
 				if (pendingContent) {
-					const sceneFile = filesRef.current.find((f) => f.path?.includes("GameScene3D"));
-					if (onFileUpdateRef.current && sceneFile) {
-						console.log("[GameEditor] Flushing scene edits to Sandpack (file:", sceneFile.path, ", id:", sceneFile.id, ")");
-						onFileUpdateRef.current(sceneFile.id, pendingContent);
-					} else {
-						console.warn("[GameEditor] Cannot flush scene edits — onFileUpdate:", !!onFileUpdateRef.current, ", sceneFile:", !!sceneFile);
+					const sceneFile2 = filesRef.current.find((f) => f.path?.includes("GameScene3D"));
+					if (sceneFile2) {
+						// Update parent state so convertToSandpackFiles picks up changes
+						onFileUpdateRef.current?.(sceneFile2.id, pendingContent);
+
+						// ALSO update Sandpack DIRECTLY — bypasses debounce race
+						const sandpackPath = sceneFile2.path?.startsWith("src/") ? `/${sceneFile2.path}` : `/src/${sceneFile2.path}`;
+						if (sandpackUpdateFileRef.current) {
+							console.log("[GameEditor] Direct Sandpack update:", sandpackPath);
+							sandpackUpdateFileRef.current(sandpackPath, pendingContent);
+						}
 					}
 					pendingSceneContentRef.current = null;
 				}
 
-				// Step 6: Refresh after Sandpack processes the file updates
-				// Use a longer delay to ensure React processes state updates from
-				// onFileUpdate/onFilesRefresh before we trigger the Sandpack reload
-				console.log("[GameEditor] Scheduling Sandpack refresh in 600ms");
-				setTimeout(() => { sandpackRefreshRef.current?.(); }, 600);
+				// Step 6: Refresh Sandpack to reload the iframe with updated files.
+				// The direct updateFile above ensures content is in Sandpack before refresh.
+				// Small delay to let settings file update propagate through convertToSandpackFiles.
+				console.log("[GameEditor] Scheduling Sandpack refresh in 400ms");
+				setTimeout(() => { sandpackRefreshRef.current?.(); }, 400);
+
+				// Clear spawned objects ref after they've been persisted to code
+				spawnedObjectsRef.current = [];
 				sceneModifiedDuringEditRef.current = false;
 			} catch (err) {
 				console.error("[GameEditor] Exit save error:", err);
@@ -1450,7 +1546,7 @@ export function SandpackPreview({
 									theme="auto"
 								>
 									<SandpackFileSync files={sandpackFiles} />
-									<SandpackRefreshBridge refreshRef={sandpackRefreshRef} />
+									<SandpackRefreshBridge refreshRef={sandpackRefreshRef} updateFileRef={sandpackUpdateFileRef} />
 									<div className="relative w-full h-full flex flex-col">
 										<div className={`flex-1 min-h-0 ${showConsole ? "" : "h-full"}`}>
 											<SandpackPreviewPane
@@ -1532,7 +1628,7 @@ export function SandpackPreview({
 							theme="auto"
 						>
 							<SandpackFileSync files={sandpackFiles} />
-							<SandpackRefreshBridge refreshRef={sandpackRefreshRef} />
+							<SandpackRefreshBridge refreshRef={sandpackRefreshRef} updateFileRef={sandpackUpdateFileRef} />
 							<div className="relative w-full h-full flex flex-col">
 								{/* Preview pane - takes all space minus console */}
 								<div className={`flex-1 min-h-0 ${showConsole ? "" : "h-full"}`}>

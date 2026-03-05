@@ -290,9 +290,9 @@ export function GameEditorAssetLibrary() {
  * falls back to a colored square or category icon.
  */
 function AssetThumbnailCard({ item, itemColor }: { item: AssetLibraryItem; itemColor?: string }) {
-	const { canvasRef, isLoading, hasRendered } = useAssetThumbnail(item.packId, item.modelPath);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [isVisible, setIsVisible] = useState(false);
+	const { canvasRef, hasRendered } = useAssetThumbnail(item.packId, item.modelPath, isVisible);
 
 	// IntersectionObserver to only render when visible
 	useEffect(() => {
@@ -314,37 +314,22 @@ function AssetThumbnailCard({ item, itemColor }: { item: AssetLibraryItem; itemC
 	return (
 		<div
 			ref={containerRef}
-			className="w-full aspect-square rounded flex items-center justify-center text-white/20 overflow-hidden"
+			className="w-full aspect-square rounded flex items-center justify-center text-white/20 overflow-hidden relative"
 			style={{
 				backgroundColor: itemColor
 					? `${itemColor}30`
 					: "rgba(255,255,255,0.03)",
 			}}
 		>
-			{isVisible && hasRendered ? (
-				<canvas
-					ref={canvasRef}
-					className="w-full h-full"
-					width={128}
-					height={128}
-				/>
-			) : isVisible && !hasRendered ? (
-				<>
-					<canvas ref={canvasRef} className="hidden" width={128} height={128} />
-					{/* Fallback icon while loading or if Three.js unavailable */}
-					{itemColor ? (
-						<div
-							className="w-6 h-6 rounded"
-							style={{ backgroundColor: itemColor, opacity: 0.7 }}
-						/>
-					) : (
-						<div className="text-[18px] opacity-30">
-							{getCategoryIcon(item.category)}
-						</div>
-					)}
-				</>
-			) : (
-				/* Not visible yet — show placeholder */
+			{/* Canvas always mounted so the ref is available for the renderer */}
+			<canvas
+				ref={canvasRef}
+				className={`w-full h-full ${hasRendered ? "" : "absolute opacity-0 pointer-events-none"}`}
+				width={128}
+				height={128}
+			/>
+			{/* Placeholder shown until 3D render completes */}
+			{!hasRendered && (
 				itemColor ? (
 					<div
 						className="w-6 h-6 rounded"
