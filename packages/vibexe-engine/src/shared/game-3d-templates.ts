@@ -1237,6 +1237,7 @@ async function _loadOrClone(url: string): Promise<any> {
   }
   const model = await loadGLTF(url);
   console.log("[3D] Loaded GLTF:", url);
+  _fixDecorationMaterials(model);
   _modelCache3D.set(url, model);
   return model.clone();
 }
@@ -1616,7 +1617,6 @@ export async function createDecoration3D(
       url = _ppModelUrl(subpath);
     }
     mesh = await _loadOrClone(url);
-    _fixDecorationMaterials(mesh);
     mesh.scale.setScalar(scale);
   } catch (err) {
     console.warn("[3D] createDecoration3D fallback — failed to load:", type, err);

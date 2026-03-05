@@ -1826,13 +1826,14 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				);
 			}
 
-			// Bug 1 fix: Add _fixDecorationMaterials for consistent rendering
+			// Bug 1 fix: Convert PBR materials to Phong for ALL loaded models.
 			// MeshStandardMaterial (PBR) renders white/grey without environment maps.
-			// Convert to MeshPhongMaterial which works with basic scene lighting.
-			if (code.includes("createDecoration3D") && !code.includes("_fixDecorationMaterials")) {
-				// Inject the helper function before createDecoration3D
+			// Patch _loadOrClone to apply the fix to EVERY model, not just decorations.
+
+			// Step 1: Inject _fixDecorationMaterials function definition if not present
+			if (code.includes("_loadOrClone") && !code.includes("_fixDecorationMaterials")) {
 				code = code.replace(
-					/((?:export\s+)?async\s+function\s+createDecoration3D\s*\()/,
+					/((?:async\s+)?function\s+_loadOrClone\s*\()/,
 					`function _fixDecorationMaterials(root) {
   root.traverse(function(child) {
     if (!child.isMesh || !child.material) return;
@@ -1863,11 +1864,14 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 }
 $1`,
 				);
+			}
 
-				// Add the call after _loadOrClone in createDecoration3D
+			// Step 2: Inject _fixDecorationMaterials(model) call inside _loadOrClone
+			// Use negative lookahead to only inject if not already there
+			if (code.includes("_loadOrClone")) {
 				code = code.replace(
-					/(mesh\s*=\s*await\s+_loadOrClone\s*\(\s*url\s*\)\s*;)/,
-					`$1\n    _fixDecorationMaterials(mesh);`,
+					/(console\.log\s*\(\s*"\[3D\]\s*Loaded\s*GLTF:"\s*,\s*url\s*\)\s*;)(?!\s*\n\s*_fixDecorationMaterials)/,
+					`$1\n  _fixDecorationMaterials(model);`,
 				);
 			}
 
