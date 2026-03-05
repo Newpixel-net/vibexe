@@ -2000,6 +2000,128 @@ if (typeof window !== "undefined") {
 				);
 			}
 
+			// Phase 10: Inject texture library helpers + message handlers for existing projects
+			if (!code.includes("game-editor-apply-texture") && code.includes("game-editor-enable")) {
+				// 10a: Inject _textureCache, _originalMaps, _applyTextureToMesh, _removeTextureFromMesh
+				// before the _sendSelectedObject function
+				if (code.includes("function _sendSelectedObject")) {
+					code = code.replace(
+						/(function _sendSelectedObject)/,
+						`var _textureCache = {};
+          var _originalMaps = new WeakMap();
+          function _applyTextureToMesh(obj, textureUrl, tileX, tileY) {
+            var applyToMat = function(mat, tex) {
+              if (!_originalMaps.has(mat)) _originalMaps.set(mat, mat.map);
+              tex.wrapS = THREE.RepeatWrapping;
+              tex.wrapT = THREE.RepeatWrapping;
+              tex.repeat.set(tileX, tileY);
+              mat.map = tex;
+              mat.needsUpdate = true;
+            };
+            var apply = function(tex) {
+              obj.traverse(function(child) {
+                if (!child.isMesh || !child.material) return;
+                var mats = Array.isArray(child.material) ? child.material : [child.material];
+                mats.forEach(function(m) { applyToMat(m, tex); });
+              });
+              if (obj.isMesh && obj.material) {
+                var ms = Array.isArray(obj.material) ? obj.material : [obj.material];
+                ms.forEach(function(m) { applyToMat(m, tex); });
+              }
+              if (!obj.userData) obj.userData = {};
+              if (!obj.userData.vibexeArgs) obj.userData.vibexeArgs = {};
+              obj.userData.vibexeArgs.textureUrl = textureUrl;
+              obj.userData.vibexeArgs.textureTileX = tileX;
+              obj.userData.vibexeArgs.textureTileY = tileY;
+            };
+            if (_textureCache[textureUrl]) { apply(_textureCache[textureUrl]); }
+            else { new THREE.TextureLoader().load(textureUrl, function(tex) { _textureCache[textureUrl] = tex; apply(tex); }); }
+          }
+          function _removeTextureFromMesh(obj) {
+            var restore = function(mat) {
+              if (_originalMaps.has(mat)) { mat.map = _originalMaps.get(mat); _originalMaps.delete(mat); mat.needsUpdate = true; }
+            };
+            obj.traverse(function(child) {
+              if (!child.isMesh || !child.material) return;
+              var mats = Array.isArray(child.material) ? child.material : [child.material];
+              mats.forEach(restore);
+            });
+            if (obj.isMesh && obj.material) {
+              var ms = Array.isArray(obj.material) ? obj.material : [obj.material];
+              ms.forEach(restore);
+            }
+            if (obj.userData && obj.userData.vibexeArgs) {
+              delete obj.userData.vibexeArgs.textureUrl;
+              delete obj.userData.vibexeArgs.textureTileX;
+              delete obj.userData.vibexeArgs.textureTileY;
+            }
+            delete obj.__hasTextureOverride;
+          }
+          $1`,
+					);
+				}
+
+				// 10b: Extend _sendSelectedObject payload with texture fields
+				if (code.includes("_materialColor: matColor,") && !code.includes("_textureUrl:")) {
+					code = code.replace(
+						/_materialColor:\s*matColor,\s*\}/,
+						`_materialColor: matColor,
+              _textureUrl: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureUrl || null : null,
+              _textureTileX: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureTileX || 1 : 1,
+              _textureTileY: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureTileY || 1 : 1,
+              }`,
+					);
+				}
+
+				// 10c: Inject 3 texture message handlers before game-editor-collect-all-transforms
+				code = code.replace(
+					/(case\s*["']game-editor-collect-all-transforms["']\s*:)/,
+					`case "game-editor-apply-texture": {
+                var _texTarget = null;
+                scene.traverse(function(c) { if (c.uuid === d.uuid) _texTarget = c; });
+                if (_texTarget) {
+                  _applyTextureToMesh(_texTarget, d.textureUrl, d.tileX || 1, d.tileY || 1);
+                  if (!_texTarget.userData.__spawned) _texTarget.__hasTextureOverride = true;
+                  _sendSelectedObject(_texTarget);
+                }
+                break;
+              }
+              case "game-editor-remove-texture": {
+                var _rtTarget = null;
+                scene.traverse(function(c) { if (c.uuid === d.uuid) _rtTarget = c; });
+                if (_rtTarget) {
+                  _removeTextureFromMesh(_rtTarget);
+                  _sendSelectedObject(_rtTarget);
+                }
+                break;
+              }
+              case "game-editor-update-tiling": {
+                var _utTarget = null;
+                scene.traverse(function(c) { if (c.uuid === d.uuid) _utTarget = c; });
+                if (_utTarget && _utTarget.userData && _utTarget.userData.vibexeArgs && _utTarget.userData.vibexeArgs.textureUrl) {
+                  _applyTextureToMesh(_utTarget, _utTarget.userData.vibexeArgs.textureUrl, d.tileX || 1, d.tileY || 1);
+                  _sendSelectedObject(_utTarget);
+                }
+                break;
+              }
+              $1`,
+				);
+
+				// 10d: Extend game-editor-get-spawned-objects to collect textureOverrides
+				if (code.includes("game-editor-spawned-objects") && !code.includes("textureOverrides")) {
+					code = code.replace(
+						/window\.parent\.postMessage\(\s*\{\s*type:\s*["']game-editor-spawned-objects["']\s*,\s*objects:\s*spawned\s*\}\s*,/,
+						`var textureOverrides = [];
+                scene.traverse(function(child) {
+                  if (child.__hasTextureOverride && child.userData && child.userData.vibexeArgs && child.userData.vibexeArgs.textureUrl) {
+                    textureOverrides.push({ name: child.name, textureUrl: child.userData.vibexeArgs.textureUrl, tileX: child.userData.vibexeArgs.textureTileX || 1, tileY: child.userData.vibexeArgs.textureTileY || 1 });
+                  }
+                });
+                window.parent.postMessage({ type: "game-editor-spawned-objects", objects: spawned, textureOverrides: textureOverrides },`,
+					);
+				}
+			}
+
 			if (typeof sf2 === "string") {
 				sandpackFiles[sceneKey2] = code;
 			} else {

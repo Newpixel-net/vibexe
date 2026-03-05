@@ -3802,7 +3802,90 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               castShadow: !!obj.castShadow,
               userData: _safeUserData(obj.userData),
               _materialColor: matColor,
+              _textureUrl: obj.userData?.vibexeArgs?.textureUrl || null,
+              _textureTileX: obj.userData?.vibexeArgs?.textureTileX || 1,
+              _textureTileY: obj.userData?.vibexeArgs?.textureTileY || 1,
             }, "*");
+          }
+
+          // ---- Texture helpers ----
+          const _textureCache: Record<string, any> = {};
+          const _originalMaps = new WeakMap<any, any>();
+
+          function _applyTextureToMesh(obj: any, textureUrl: string, tileX: number, tileY: number) {
+            const applyToMat = (mat: any, tex: any) => {
+              if (!_originalMaps.has(mat)) {
+                _originalMaps.set(mat, mat.map);
+              }
+              tex.wrapS = THREE.RepeatWrapping;
+              tex.wrapT = THREE.RepeatWrapping;
+              tex.repeat.set(tileX, tileY);
+              mat.map = tex;
+              mat.needsUpdate = true;
+            };
+            const apply = (tex: any) => {
+              obj.traverse((child: any) => {
+                if (!child.isMesh || !child.material) return;
+                if (Array.isArray(child.material)) {
+                  child.material.forEach((m: any) => applyToMat(m, tex));
+                } else {
+                  applyToMat(child.material, tex);
+                }
+              });
+              // Also apply to obj itself if it's a mesh
+              if (obj.isMesh && obj.material) {
+                if (Array.isArray(obj.material)) {
+                  obj.material.forEach((m: any) => applyToMat(m, tex));
+                } else {
+                  applyToMat(obj.material, tex);
+                }
+              }
+              // Store in userData for persistence
+              if (!obj.userData) obj.userData = {};
+              if (!obj.userData.vibexeArgs) obj.userData.vibexeArgs = {};
+              obj.userData.vibexeArgs.textureUrl = textureUrl;
+              obj.userData.vibexeArgs.textureTileX = tileX;
+              obj.userData.vibexeArgs.textureTileY = tileY;
+            };
+            if (_textureCache[textureUrl]) {
+              apply(_textureCache[textureUrl]);
+            } else {
+              new THREE.TextureLoader().load(textureUrl, (tex: any) => {
+                _textureCache[textureUrl] = tex;
+                apply(tex);
+              });
+            }
+          }
+
+          function _removeTextureFromMesh(obj: any) {
+            const restore = (mat: any) => {
+              if (_originalMaps.has(mat)) {
+                mat.map = _originalMaps.get(mat);
+                _originalMaps.delete(mat);
+                mat.needsUpdate = true;
+              }
+            };
+            obj.traverse((child: any) => {
+              if (!child.isMesh || !child.material) return;
+              if (Array.isArray(child.material)) {
+                child.material.forEach(restore);
+              } else {
+                restore(child.material);
+              }
+            });
+            if (obj.isMesh && obj.material) {
+              if (Array.isArray(obj.material)) {
+                obj.material.forEach(restore);
+              } else {
+                restore(obj.material);
+              }
+            }
+            if (obj.userData?.vibexeArgs) {
+              delete obj.userData.vibexeArgs.textureUrl;
+              delete obj.userData.vibexeArgs.textureTileX;
+              delete obj.userData.vibexeArgs.textureTileY;
+            }
+            delete obj.__hasTextureOverride;
           }
 
           // ---- Selection ----
@@ -4265,6 +4348,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               case "game-editor-get-spawned-objects": {
                 // Collect all spawned objects for persistence across restart
                 const spawned: any[] = [];
+                const textureOverrides: any[] = [];
                 scene.traverse((child: any) => {
                   if (child.userData?.__spawned && child.userData?.vibexeFactory) {
                     spawned.push({
@@ -4275,8 +4359,17 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                       scale: { x: child.scale.x, y: child.scale.y, z: child.scale.z },
                     });
                   }
+                  // Collect texture overrides for scene-original (non-spawned) objects
+                  if (child.__hasTextureOverride && child.userData?.vibexeArgs?.textureUrl) {
+                    textureOverrides.push({
+                      name: child.name,
+                      textureUrl: child.userData.vibexeArgs.textureUrl,
+                      tileX: child.userData.vibexeArgs.textureTileX || 1,
+                      tileY: child.userData.vibexeArgs.textureTileY || 1,
+                    });
+                  }
                 });
-                window.parent.postMessage({ type: "game-editor-spawned-objects", objects: spawned }, "*");
+                window.parent.postMessage({ type: "game-editor-spawned-objects", objects: spawned, textureOverrides }, "*");
                 break;
               }
               case "game-editor-cleanup-confirmed":
@@ -4350,6 +4443,35 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   renderer.domElement.style.cursor = "";
                 }
                 break;
+              case "game-editor-apply-texture": {
+                // Apply texture to object by uuid
+                let _texTarget: any = null;
+                scene.traverse((c: any) => { if (c.uuid === d.uuid) _texTarget = c; });
+                if (_texTarget) {
+                  _applyTextureToMesh(_texTarget, d.textureUrl, d.tileX || 1, d.tileY || 1);
+                  if (!_texTarget.userData.__spawned) _texTarget.__hasTextureOverride = true;
+                  _sendSelectedObject(_texTarget);
+                }
+                break;
+              }
+              case "game-editor-remove-texture": {
+                let _rtTarget: any = null;
+                scene.traverse((c: any) => { if (c.uuid === d.uuid) _rtTarget = c; });
+                if (_rtTarget) {
+                  _removeTextureFromMesh(_rtTarget);
+                  _sendSelectedObject(_rtTarget);
+                }
+                break;
+              }
+              case "game-editor-update-tiling": {
+                let _utTarget: any = null;
+                scene.traverse((c: any) => { if (c.uuid === d.uuid) _utTarget = c; });
+                if (_utTarget && _utTarget.userData?.vibexeArgs?.textureUrl) {
+                  _applyTextureToMesh(_utTarget, _utTarget.userData.vibexeArgs.textureUrl, d.tileX || 1, d.tileY || 1);
+                  _sendSelectedObject(_utTarget);
+                }
+                break;
+              }
               case "game-editor-collect-all-transforms": {
                 // Collect transforms of ONLY factory-created game objects for batch save
                 if (!scene) break;

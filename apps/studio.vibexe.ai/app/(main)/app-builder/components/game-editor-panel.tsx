@@ -5,13 +5,14 @@
  * Overlaid on the right side of the viewport when editor is active.
  */
 
-import { Box, Check, Copy, Eye, EyeOff, Focus, Layers, Pause, Pencil, Play, Search, Settings, Square, Trash2, X } from "lucide-react";
+import { Box, Check, Copy, Eye, EyeOff, Focus, Layers, Paintbrush, Pause, Pencil, Play, Search, Settings, Square, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DragNumberInput } from "./drag-number-input";
 import { SceneTreeNode } from "./scene-tree-node";
 import { useGameEditor, type GameSettings } from "../lib/game-editor-context";
 import { GameEditorAssetLibrary } from "./game-editor-asset-library";
 import { GameSettingsContent, type GameSettingsContentProps } from "./game-settings-panel";
+import { TEXTURE_CATALOG, TEXTURE_CATEGORIES, textureUrl, type TextureCategory, type TextureLibraryItem } from "../lib/texture-library-data";
 
 type EditorTab = "properties" | "assets" | "settings";
 
@@ -58,6 +59,9 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 		togglePickSpawn,
 		togglePickRespawn,
 		characterHalfHeight,
+		applyTexture,
+		removeTexture,
+		updateTiling,
 	} = useGameEditor();
 
 	const [activeTab, setActiveTab] = useState<EditorTab>("properties");
@@ -68,6 +72,8 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 	const [editingName, setEditingName] = useState(false);
 	const [nameValue, setNameValue] = useState("");
 	const nameInputRef = useRef<HTMLInputElement>(null);
+	const [texturePickerOpen, setTexturePickerOpen] = useState(false);
+	const [textureCategory, setTextureCategory] = useState<TextureCategory>("ground");
 
 	// Auto-switch to Properties tab when an object is selected
 	useEffect(() => {
@@ -168,6 +174,7 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 
 	useEffect(() => {
 		setEditingName(false);
+		setTexturePickerOpen(false);
 	}, [selectedObject?.uuid]);
 
 	const handleToggleVisibility = useCallback(
@@ -422,6 +429,123 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 									)}
 								</div>
 							)}
+
+							{/* Material / Texture */}
+							<Section title="Material">
+								{selectedObject._textureUrl ? (
+									<div className="space-y-1.5">
+										<div className="flex items-center gap-2">
+											<img
+												src={selectedObject._textureUrl}
+												alt="texture"
+												className="w-8 h-8 rounded border border-white/10 object-cover flex-shrink-0"
+											/>
+											<div className="flex-1 min-w-0">
+												<div className="text-[10px] text-white/60 truncate">
+													{TEXTURE_CATALOG.find((t) => textureUrl(t.filename) === selectedObject._textureUrl)?.displayName || "Custom"}
+												</div>
+											</div>
+											<button
+												type="button"
+												onClick={() => {
+													removeTexture(selectedObject.uuid);
+													setTexturePickerOpen(false);
+												}}
+												className="p-1 rounded text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors flex-shrink-0"
+												title="Remove texture"
+											>
+												<X className="w-3 h-3" />
+											</button>
+										</div>
+										{/* Tiling controls */}
+										<div className="flex gap-1.5">
+											<DragNumberInput
+												label="Tile X"
+												value={selectedObject._textureTileX ?? 1}
+												step={0.5}
+												precision={1}
+												color="#8b5cf6"
+												onChange={(v) => updateTiling(selectedObject.uuid, Math.max(0.1, v), selectedObject._textureTileY ?? 1)}
+											/>
+											<DragNumberInput
+												label="Tile Y"
+												value={selectedObject._textureTileY ?? 1}
+												step={0.5}
+												precision={1}
+												color="#8b5cf6"
+												onChange={(v) => updateTiling(selectedObject.uuid, selectedObject._textureTileX ?? 1, Math.max(0.1, v))}
+											/>
+										</div>
+										<button
+											type="button"
+											onClick={() => setTexturePickerOpen(!texturePickerOpen)}
+											className="w-full text-[10px] text-white/30 hover:text-white/50 py-0.5 transition-colors"
+										>
+											{texturePickerOpen ? "Close" : "Replace texture..."}
+										</button>
+									</div>
+								) : (
+									<button
+										type="button"
+										onClick={() => setTexturePickerOpen(!texturePickerOpen)}
+										className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] text-violet-300/70 bg-violet-500/[0.08] hover:bg-violet-500/[0.15] rounded transition-colors"
+									>
+										<Paintbrush className="w-3 h-3" />
+										Browse Textures
+									</button>
+								)}
+								{texturePickerOpen && (
+									<div className="mt-1.5 space-y-1">
+										{/* Category tabs */}
+										<div className="flex gap-0.5">
+											{TEXTURE_CATEGORIES.map((cat) => (
+												<button
+													key={cat.id}
+													type="button"
+													onClick={() => setTextureCategory(cat.id)}
+													className={`flex-1 text-[9px] py-0.5 rounded transition-colors ${
+														textureCategory === cat.id
+															? "bg-violet-500/20 text-violet-300"
+															: "text-white/30 hover:text-white/50 hover:bg-white/[0.04]"
+													}`}
+												>
+													{cat.label}
+												</button>
+											))}
+										</div>
+										{/* Thumbnail grid */}
+										<div className="grid grid-cols-4 gap-1 max-h-[160px] overflow-y-auto scrollbar-thin">
+											{TEXTURE_CATALOG.filter((t) => t.category === textureCategory).map((tex) => {
+												const url = textureUrl(tex.filename);
+												const isActive = selectedObject._textureUrl === url;
+												return (
+													<button
+														key={tex.id}
+														type="button"
+														onClick={() => {
+															applyTexture(selectedObject.uuid, url, tex.defaultTileX, tex.defaultTileY);
+															setTexturePickerOpen(false);
+														}}
+														className={`relative aspect-square rounded border overflow-hidden transition-all ${
+															isActive
+																? "border-violet-400 ring-1 ring-violet-400/50"
+																: "border-white/10 hover:border-white/25"
+														}`}
+														title={tex.displayName}
+													>
+														<img
+															src={url}
+															alt={tex.displayName}
+															className="w-full h-full object-cover"
+															loading="lazy"
+														/>
+													</button>
+												);
+											})}
+										</div>
+									</div>
+								)}
+							</Section>
 
 							{/* Animation Player (for AnimatedCharacter) */}
 							{animationClips.length > 0 && (

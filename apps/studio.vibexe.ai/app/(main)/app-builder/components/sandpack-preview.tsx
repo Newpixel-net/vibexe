@@ -539,6 +539,12 @@ function updateSpawnedObjectsInSource(
 		rotation?: { x: number; y: number; z: number };
 		scale?: { x: number; y: number; z: number };
 	}>,
+	textureOverrides: Array<{
+		name: string;
+		textureUrl: string;
+		tileX: number;
+		tileY: number;
+	}> = [],
 ): string {
 	const SPAWN_START = "// SCENE_EDITOR_SPAWNED_START";
 	const SPAWN_END = "// SCENE_EDITOR_SPAWNED_END";
@@ -553,9 +559,58 @@ function updateSpawnedObjectsInSource(
 			code.substring(endIdx + SPAWN_END.length).trimStart();
 	}
 
-	if (spawnedObjects.length === 0) return code;
+	if (spawnedObjects.length === 0 && textureOverrides.length === 0) return code;
 
 	const spawnsJson = JSON.stringify(spawnedObjects);
+	const texOvJson = JSON.stringify(textureOverrides);
+
+	// Texture application helper (inline, no external deps)
+	const texHelper = textureOverrides.length > 0 || spawnedObjects.some((s) => s.args?.textureUrl)
+		? `
+    function _applyTex(obj, url, tx, ty) {
+      new THREE.TextureLoader().load(url, function(tex) {
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(tx, ty);
+        obj.traverse(function(c) {
+          if (!c.isMesh || !c.material) return;
+          var mats = Array.isArray(c.material) ? c.material : [c.material];
+          mats.forEach(function(m) { m.map = tex; m.needsUpdate = true; });
+        });
+        if (obj.isMesh && obj.material) {
+          var ms = Array.isArray(obj.material) ? obj.material : [obj.material];
+          ms.forEach(function(m) { m.map = tex; m.needsUpdate = true; });
+        }
+      });
+    }`
+		: "";
+
+	// Spawned objects texture application (inside the spawn loop)
+	const spawnTexLine = spawnedObjects.some((s) => s.args?.textureUrl)
+		? `\n              if (s.args && s.args.textureUrl) { _applyTex(result.mesh, s.args.textureUrl, s.args.textureTileX || 1, s.args.textureTileY || 1); }`
+		: "";
+
+	// Scene-original texture overrides application
+	const texOverridesBlock = textureOverrides.length > 0
+		? `
+      var _texOv = ${texOvJson};
+      if (_texOv.length > 0) {
+        console.log("[SCENE_EDITOR] Applying " + _texOv.length + " texture overrides");
+        scene.traverse(function(child) {
+          for (var j = 0; j < _texOv.length; j++) {
+            if (child.name === _texOv[j].name) {
+              _applyTex(child, _texOv[j].textureUrl, _texOv[j].tileX, _texOv[j].tileY);
+              if (!child.userData) child.userData = {};
+              if (!child.userData.vibexeArgs) child.userData.vibexeArgs = {};
+              child.userData.vibexeArgs.textureUrl = _texOv[j].textureUrl;
+              child.userData.vibexeArgs.textureTileX = _texOv[j].tileX;
+              child.userData.vibexeArgs.textureTileY = _texOv[j].tileY;
+              child.__hasTextureOverride = true;
+            }
+          }
+        });
+      }`
+		: "";
 
 	// Self-executing block that polls for __vibexeFactories (exposed by game engine)
 	// and recreates spawned objects. Runs once after scene is ready.
@@ -565,7 +620,7 @@ if (typeof window !== 'undefined') {
   (function() {
     var _spawns = ${spawnsJson};
     var _done = false;
-    var _startT = Date.now();
+    var _startT = Date.now();${texHelper}
     function _trySpawn() {
       if (_done) return;
       if (Date.now() - _startT > 30000) { console.log("[SCENE_EDITOR] Spawn timeout"); return; }
@@ -584,10 +639,10 @@ if (typeof window !== 'undefined') {
             if (result && result.mesh) {
               if (s.rotation) result.mesh.rotation.set(s.rotation.x, s.rotation.y, s.rotation.z);
               if (s.scale) result.mesh.scale.set(s.scale.x, s.scale.y, s.scale.z);
-              result.mesh.userData.__spawned = true;
+              result.mesh.userData.__spawned = true;${spawnTexLine}
             }
           } catch (e) { console.warn("[SCENE_EDITOR] Spawn failed:", s.factory, e); }
-        }
+        }${texOverridesBlock}
       })();
     }
     requestAnimationFrame(_trySpawn);
@@ -656,6 +711,8 @@ export function SandpackPreview({
 	const allTransformsResolverRef = useRef<((transforms: Record<string, any>) => void) | null>(null);
 	// Spawned objects persistence — saved before restart, restored after
 	const spawnedObjectsRef = useRef<any[]>([]);
+	// Texture overrides for scene-original (non-spawned) objects
+	const textureOverridesRef = useRef<any[]>([]);
 	// Ref for game settings — avoids stale closure in async exit flow
 	const gameSettingsRef = useRef(gameEditor.gameSettings);
 	gameSettingsRef.current = gameEditor.gameSettings;
@@ -946,6 +1003,7 @@ export function SandpackPreview({
 			} else if (data.type === "game-editor-spawned-objects") {
 				// Store spawned objects for restoration after restart
 				spawnedObjectsRef.current = data.objects || [];
+				if (data.textureOverrides) textureOverridesRef.current = data.textureOverrides;
 			} else if (data.type === "game-editor-all-transforms") {
 				// Resolve pending save-all-transforms promise
 				if (allTransformsResolverRef.current) {
@@ -1052,20 +1110,21 @@ export function SandpackPreview({
 						}, 3000);
 					});
 
-					// Step 1b: Collect spawned objects via promise-based message flow
-					const spawnedFromBridge = await new Promise<any[]>((resolve) => {
-						const timeout = setTimeout(() => resolve(spawnedObjectsRef.current), 3000);
+					// Step 1b: Collect spawned objects + texture overrides via promise-based message flow
+					const bridgeResult = await new Promise<{ objects: any[]; textureOverrides: any[] }>((resolve) => {
+						const timeout = setTimeout(() => resolve({ objects: spawnedObjectsRef.current, textureOverrides: textureOverridesRef.current }), 3000);
 						const handler = (ev: MessageEvent) => {
 							if (ev.data?.type === "game-editor-spawned-objects") {
 								clearTimeout(timeout);
 								window.removeEventListener("message", handler);
-								resolve(ev.data.objects || []);
+								resolve({ objects: ev.data.objects || [], textureOverrides: ev.data.textureOverrides || [] });
 							}
 						};
 						window.addEventListener("message", handler);
 						iframe.contentWindow!.postMessage({ type: "game-editor-get-spawned-objects" }, "*");
 					});
-					spawnedObjectsRef.current = spawnedFromBridge;
+					spawnedObjectsRef.current = bridgeResult.objects;
+					textureOverridesRef.current = bridgeResult.textureOverrides;
 				}
 
 				// Step 2: NOW deactivate the bridge
@@ -1089,9 +1148,10 @@ export function SandpackPreview({
 
 					// 3b: Persist spawned objects as code (factory calls that recreate them on reload)
 					const spawned = spawnedObjectsRef.current;
-					if (spawned.length > 0) {
-						console.log("[GameEditor] Persisting", spawned.length, "spawned objects to code");
-						code = updateSpawnedObjectsInSource(code, spawned);
+					const texOverrides = textureOverridesRef.current;
+					if (spawned.length > 0 || texOverrides.length > 0) {
+						console.log("[GameEditor] Persisting", spawned.length, "spawned objects +", texOverrides.length, "texture overrides to code");
+						code = updateSpawnedObjectsInSource(code, spawned, texOverrides);
 					}
 
 					pendingSceneContentRef.current = code;
@@ -1177,9 +1237,10 @@ export function SandpackPreview({
 				console.log("[GameEditor] Scheduling Sandpack refresh in 800ms");
 				setTimeout(() => { sandpackRefreshRef.current?.(); }, 800);
 
-				// Clear spawned objects ref only if save succeeded — preserve for retry otherwise
+				// Clear spawned objects + texture overrides only if save succeeded
 				if (saveSuccess) {
 					spawnedObjectsRef.current = [];
+					textureOverridesRef.current = [];
 				}
 
 				// Phase 9: Send cleanup confirmation to iframe so it can release globals

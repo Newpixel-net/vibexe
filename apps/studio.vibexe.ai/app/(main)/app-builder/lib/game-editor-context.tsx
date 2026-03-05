@@ -39,6 +39,9 @@ export interface SelectedSceneObject {
 	castShadow?: boolean;
 	userData: Record<string, any>;
 	_materialColor?: string;
+	_textureUrl?: string | null;
+	_textureTileX?: number;
+	_textureTileY?: number;
 }
 
 export interface PrefabDefinition {
@@ -155,6 +158,10 @@ interface GameEditorContextValue {
 	// Palette / Asset Library
 	setActivePrefab: (prefab: PrefabDefinition | null) => void;
 	spawnObject: (factory: string, position: { x: number; y: number; z: number }, args?: Record<string, any>) => void;
+	// Texture library
+	applyTexture: (uuid: string, textureUrl: string, tileX: number, tileY: number) => void;
+	removeTexture: (uuid: string) => void;
+	updateTiling: (uuid: string, tileX: number, tileY: number) => void;
 	// Scene editor extended actions
 	redoAction: () => void;
 	renameObject: (uuid: string, name: string) => void;
@@ -463,6 +470,22 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		setIsDirty(true);
 	}, [sendToIframe]);
 
+	// Texture library actions
+	const applyTexture = useCallback((uuid: string, textureUrl: string, tileX: number, tileY: number) => {
+		sendToIframe({ type: "game-editor-apply-texture", uuid, textureUrl, tileX, tileY });
+		setIsDirty(true);
+	}, [sendToIframe]);
+
+	const removeTexture = useCallback((uuid: string) => {
+		sendToIframe({ type: "game-editor-remove-texture", uuid });
+		setIsDirty(true);
+	}, [sendToIframe]);
+
+	const updateTiling = useCallback((uuid: string, tileX: number, tileY: number) => {
+		sendToIframe({ type: "game-editor-update-tiling", uuid, tileX, tileY });
+		setIsDirty(true);
+	}, [sendToIframe]);
+
 	// Scene editor extended actions
 	const redoAction = useCallback(() => {
 		sendToIframe({ type: "game-editor-redo" });
@@ -584,6 +607,9 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				fetchAnimOverrides,
 				setActivePrefab,
 				spawnObject,
+				applyTexture,
+				removeTexture,
+				updateTiling,
 				redoAction,
 				renameObject,
 				toggleVisibility,
