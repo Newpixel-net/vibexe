@@ -832,14 +832,10 @@ export function SandpackPreview({
 					|| data.name?.startsWith("Character_")
 					|| data.name?.startsWith("Player_");
 				if (isPlayer && data.position) {
-					// Mesh position is feet position (corrected by render patch).
-					// spawnY needs body CENTER position, so add halfHeight.
-					const halfH = data.userData?.__characterBounds?.height
-						? data.userData.__characterBounds.height / 2 : 0.75;
 					gameEditor.updateGameSettings({
 						player: {
 							spawnX: Math.round(data.position.x * 100) / 100,
-							spawnY: Math.round((data.position.y + halfH) * 100) / 100,
+							spawnY: Math.round(data.position.y * 100) / 100,
 							spawnZ: Math.round(data.position.z * 100) / 100,
 						},
 					});
@@ -912,34 +908,18 @@ export function SandpackPreview({
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ path: sceneFile.path, content: updated }),
 					}).catch((err) => console.warn("[GameEditor] DB save failed:", err));
-					// Sync character position to Game Settings spawnY (overrides are
-					// skipped for characters, so position only persists via spawnY)
-					if (objName.startsWith("Character_") || objName.startsWith("Player_")) {
-						const bounds = gameEditor.selectedObject?.userData?.__characterBounds;
-						const halfH = bounds?.height ? bounds.height / 2 : 0.75;
-						gameEditor.updateGameSettings({
-							player: {
-								spawnX: Math.round(pos.x * 100) / 100,
-								spawnY: Math.round((pos.y + halfH) * 100) / 100,
-								spawnZ: Math.round(pos.z * 100) / 100,
-							},
-						});
-					}
 				}
 			} else if (data.type === "game-editor-player-position-update") {
 				// Live-sync player position to Game Settings panel (pick-from-scene)
 				const pos = data.position as { x: number; y: number; z: number };
 				if (!pos) return;
-				// Raycast hits ground surface (feet position). spawnY needs body
-				// CENTER position, so add default halfHeight.
-				const halfH = 0.75;
 				if (gameEditor.pickSpawnActive) {
 					gameEditor.updateGameSettings({
-						player: { spawnX: pos.x, spawnY: pos.y + halfH, spawnZ: pos.z }
+						player: { spawnX: pos.x, spawnY: pos.y, spawnZ: pos.z }
 					});
 				} else if (gameEditor.pickRespawnActive) {
 					gameEditor.updateGameSettings({
-						player: { respawnX: pos.x, respawnY: pos.y + halfH, respawnZ: pos.z }
+						player: { respawnX: pos.x, respawnY: pos.y, respawnZ: pos.z }
 					});
 				}
 			}
