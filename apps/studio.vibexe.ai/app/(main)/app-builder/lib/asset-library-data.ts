@@ -242,6 +242,8 @@ function buildFactoryArgs(
 			return {
 				type: filename,
 				neutral: true,
+				_pack: "kaykit-platformer",
+				_path: `Assets/gltf/neutral/${filename}.gltf`,
 			};
 		}
 		// Color kaykit-platformer — _pack/_path for explicit cross-pack

@@ -1345,7 +1345,8 @@ function _autoCorrectModelUrl(url: string): string {
 
   if (baseName.startsWith("platform_")) {
     const variant = baseName.slice("platform_".length);
-    if (!_VALID_PLATFORMS.includes(variant)) {
+    // Only snap dimension-style variants (NxNxN). Skip named variants like slope_2x2x2, arrow_*, etc.
+    if (/^\d+x\d+x\d+$/.test(variant) && !_VALID_PLATFORMS.includes(variant)) {
       const rp = variant.split("x").map(Number);
       const rVol = (rp[0]||4) * (rp[1]||4) * (rp[2]||1);
       let best = _VALID_PLATFORMS[0], bestDiff = Infinity;
@@ -1359,7 +1360,8 @@ function _autoCorrectModelUrl(url: string): string {
     }
   } else if (baseName.startsWith("barrier_")) {
     const variant = baseName.slice("barrier_".length);
-    if (!_VALID_BARRIERS.includes(variant)) {
+    // Only snap dimension-style variants (NxNxN)
+    if (/^\d+x\d+x\d+$/.test(variant) && !_VALID_BARRIERS.includes(variant)) {
       const rp = variant.split("x").map(Number);
       const rVol = (rp[0]||4) * (rp[1]||4) * (rp[2]||1);
       let best = _VALID_BARRIERS[0], bestDiff = Infinity;
@@ -3903,16 +3905,28 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 const projPt = camera.position.clone().add(dir.multiplyScalar(10));
                 spawnPos = { x: projPt.x, y: Math.max(0.5, projPt.y), z: projPt.z };
               }
+              // Resolve __MODEL_URL__ placeholders in spawn args
+              const _resolvedArgs2 = { ..._spawnArgs };
+              for (const _k of Object.keys(_resolvedArgs2)) {
+                const _v = _resolvedArgs2[_k];
+                if (typeof _v === "string" && _v.startsWith("__MODEL_URL__")) {
+                  const _rest = _v.slice(13); // "__MODEL_URL__".length
+                  const _sep = _rest.indexOf("__");
+                  if (_sep >= 0) {
+                    _resolvedArgs2[_k] = modelUrl(_rest.slice(0, _sep), _rest.slice(_sep + 2));
+                  }
+                }
+              }
               // Spawn via the same handler as palette double-click
               const _fns2: Record<string, Function> = {
                 createPlatform3D, createCollectible3D, createPlayer3D,
-                createBarrier3D, createDecoration3D,
+                createBarrier3D, createDecoration3D, createAnimatedCharacter3D,
               };
               const fn2 = _fns2[_spawnFactory] || (window as any)[_spawnFactory];
               if (fn2) {
                 (async () => {
                   try {
-                    const result = await fn2(scene, spawnPos.x, spawnPos.y, spawnPos.z, _spawnArgs);
+                    const result = await fn2(scene, spawnPos.x, spawnPos.y, spawnPos.z, _resolvedArgs2);
                     if (result?.mesh) {
                       result.mesh.userData.__spawned = true;
                       _sendSceneTree();
@@ -4154,6 +4168,18 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 break;
               case "game-editor-spawn-object":
                 if (d.factory && d.position) {
+                  // Resolve __MODEL_URL__ placeholders in spawn args
+                  const _spawnA = { ...(d.args || {}) };
+                  for (const _k of Object.keys(_spawnA)) {
+                    const _v = _spawnA[_k];
+                    if (typeof _v === "string" && _v.startsWith("__MODEL_URL__")) {
+                      const _rest = _v.slice(13);
+                      const _sep = _rest.indexOf("__");
+                      if (_sep >= 0) {
+                        _spawnA[_k] = modelUrl(_rest.slice(0, _sep), _rest.slice(_sep + 2));
+                      }
+                    }
+                  }
                   const _fns: Record<string, Function> = {
                     createPlatform3D, createCollectible3D, createPlayer3D,
                     createBarrier3D, createDecoration3D, createAnimatedCharacter3D,
@@ -4162,7 +4188,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   if (fn) {
                     (async () => {
                       try {
-                        const result = await fn(scene, d.position.x, d.position.y, d.position.z, d.args || {});
+                        const result = await fn(scene, d.position.x, d.position.y, d.position.z, _spawnA);
                         if (result?.mesh) {
                           result.mesh.userData.__spawned = true;
                           _sendSceneTree();
