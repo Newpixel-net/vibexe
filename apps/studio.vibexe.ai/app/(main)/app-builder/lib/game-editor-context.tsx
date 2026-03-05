@@ -42,6 +42,9 @@ export interface SelectedSceneObject {
 	_textureUrl?: string | null;
 	_textureTileX?: number;
 	_textureTileY?: number;
+	_textureRotation?: number;
+	_textureOffsetX?: number;
+	_textureOffsetY?: number;
 }
 
 export interface PrefabDefinition {
@@ -162,6 +165,7 @@ interface GameEditorContextValue {
 	applyTexture: (uuid: string, textureUrl: string, tileX: number, tileY: number) => void;
 	removeTexture: (uuid: string) => void;
 	updateTiling: (uuid: string, tileX: number, tileY: number) => void;
+	updateTextureParams: (uuid: string, tileX: number, tileY: number, rotation: number, offsetX: number, offsetY: number) => void;
 	// Scene editor extended actions
 	redoAction: () => void;
 	renameObject: (uuid: string, name: string) => void;
@@ -486,6 +490,11 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		setIsDirty(true);
 	}, [sendToIframe]);
 
+	const updateTextureParams = useCallback((uuid: string, tileX: number, tileY: number, rotation: number, offsetX: number, offsetY: number) => {
+		sendToIframe({ type: "game-editor-update-texture-params", uuid, tileX, tileY, rotation, offsetX, offsetY });
+		setIsDirty(true);
+	}, [sendToIframe]);
+
 	// Scene editor extended actions
 	const redoAction = useCallback(() => {
 		sendToIframe({ type: "game-editor-redo" });
@@ -610,6 +619,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				applyTexture,
 				removeTexture,
 				updateTiling,
+				updateTextureParams,
 				redoAction,
 				renameObject,
 				toggleVisibility,

@@ -544,6 +544,9 @@ function updateSpawnedObjectsInSource(
 		textureUrl: string;
 		tileX: number;
 		tileY: number;
+		rotation?: number;
+		offsetX?: number;
+		offsetY?: number;
 	}> = [],
 ): string {
 	const SPAWN_START = "// SCENE_EDITOR_SPAWNED_START";
@@ -567,8 +570,11 @@ function updateSpawnedObjectsInSource(
 	// Texture application helper (inline, no external deps)
 	const texHelper = textureOverrides.length > 0 || spawnedObjects.some((s) => s.args?.textureUrl)
 		? `
-    function _applyTex(obj, url, tx, ty) {
+    function _applyTex(obj, url, tx, ty, rot, ox, oy) {
       var _rUrl = url.charAt(0) === "/" ? (window.__VIBEXE_API_ORIGIN__ || "") + url : url;
+      var _rotRad = ((rot || 0) * Math.PI) / 180;
+      var _ox = ox || 0;
+      var _oy = oy || 0;
       new THREE.TextureLoader().load(_rUrl, function(tex) {
         var applyMat = function(m) {
           var t = tex.clone();
@@ -576,6 +582,9 @@ function updateSpawnedObjectsInSource(
           t.wrapS = THREE.RepeatWrapping;
           t.wrapT = THREE.RepeatWrapping;
           t.repeat.set(tx, ty);
+          t.rotation = _rotRad;
+          t.center.set(0.5, 0.5);
+          t.offset.set(_ox, _oy);
           if (THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
           t.anisotropy = 4;
           m.map = t;
@@ -597,7 +606,7 @@ function updateSpawnedObjectsInSource(
 
 	// Spawned objects texture application (inside the spawn loop)
 	const spawnTexLine = spawnedObjects.some((s) => s.args?.textureUrl)
-		? `\n              if (s.args && s.args.textureUrl) { _applyTex(result.mesh, s.args.textureUrl, s.args.textureTileX || 1, s.args.textureTileY || 1); }`
+		? `\n              if (s.args && s.args.textureUrl) { _applyTex(result.mesh, s.args.textureUrl, s.args.textureTileX || 1, s.args.textureTileY || 1, s.args.textureRotation || 0, s.args.textureOffsetX || 0, s.args.textureOffsetY || 0); }`
 		: "";
 
 	// Scene-original texture overrides application
@@ -609,12 +618,15 @@ function updateSpawnedObjectsInSource(
         scene.traverse(function(child) {
           for (var j = 0; j < _texOv.length; j++) {
             if (child.name === _texOv[j].name) {
-              _applyTex(child, _texOv[j].textureUrl, _texOv[j].tileX, _texOv[j].tileY);
+              _applyTex(child, _texOv[j].textureUrl, _texOv[j].tileX, _texOv[j].tileY, _texOv[j].rotation || 0, _texOv[j].offsetX || 0, _texOv[j].offsetY || 0);
               if (!child.userData) child.userData = {};
               if (!child.userData.vibexeArgs) child.userData.vibexeArgs = {};
               child.userData.vibexeArgs.textureUrl = _texOv[j].textureUrl;
               child.userData.vibexeArgs.textureTileX = _texOv[j].tileX;
               child.userData.vibexeArgs.textureTileY = _texOv[j].tileY;
+              child.userData.vibexeArgs.textureRotation = _texOv[j].rotation || 0;
+              child.userData.vibexeArgs.textureOffsetX = _texOv[j].offsetX || 0;
+              child.userData.vibexeArgs.textureOffsetY = _texOv[j].offsetY || 0;
               child.__hasTextureOverride = true;
             }
           }
@@ -983,6 +995,9 @@ export function SandpackPreview({
 					_textureUrl: data._textureUrl || null,
 					_textureTileX: data._textureTileX,
 					_textureTileY: data._textureTileY,
+					_textureRotation: data._textureRotation || 0,
+					_textureOffsetX: data._textureOffsetX || 0,
+					_textureOffsetY: data._textureOffsetY || 0,
 				});
 			} else if (data.type === "game-editor-object-deselected") {
 				gameEditor.updateSelectedObject(null);

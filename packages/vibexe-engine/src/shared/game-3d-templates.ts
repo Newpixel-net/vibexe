@@ -3805,6 +3805,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               _textureUrl: obj.userData?.vibexeArgs?.textureUrl || null,
               _textureTileX: obj.userData?.vibexeArgs?.textureTileX || 1,
               _textureTileY: obj.userData?.vibexeArgs?.textureTileY || 1,
+              _textureRotation: obj.userData?.vibexeArgs?.textureRotation || 0,
+              _textureOffsetX: obj.userData?.vibexeArgs?.textureOffsetX || 0,
+              _textureOffsetY: obj.userData?.vibexeArgs?.textureOffsetY || 0,
             }, "*");
           }
 
@@ -3812,7 +3815,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           const _textureCache: Record<string, any> = {};
           const _originalMaps = new WeakMap<any, any>();
 
-          function _applyTextureToMesh(obj: any, textureUrl: string, tileX: number, tileY: number) {
+          function _applyTextureToMesh(obj: any, textureUrl: string, tileX: number, tileY: number, rotation?: number, offsetX?: number, offsetY?: number) {
             // Resolve relative URLs for sandpack iframe (different origin)
             let _resolvedUrl = textureUrl;
             if (textureUrl.startsWith("/")) {
@@ -3825,6 +3828,12 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             obj.userData.vibexeArgs.textureUrl = textureUrl;
             obj.userData.vibexeArgs.textureTileX = tileX;
             obj.userData.vibexeArgs.textureTileY = tileY;
+            obj.userData.vibexeArgs.textureRotation = rotation || 0;
+            obj.userData.vibexeArgs.textureOffsetX = offsetX || 0;
+            obj.userData.vibexeArgs.textureOffsetY = offsetY || 0;
+            const _rot = (rotation || 0) * Math.PI / 180;
+            const _offX = offsetX || 0;
+            const _offY = offsetY || 0;
             const applyToMat = (mat: any, tex: any) => {
               if (!_originalMaps.has(mat)) {
                 _originalMaps.set(mat, { map: mat.map, color: mat.color ? mat.color.clone() : null });
@@ -3835,6 +3844,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               t.wrapS = THREE.RepeatWrapping;
               t.wrapT = THREE.RepeatWrapping;
               t.repeat.set(tileX, tileY);
+              t.rotation = _rot;
+              t.center.set(0.5, 0.5);
+              t.offset.set(_offX, _offY);
               // sRGB encoding so texture renders with correct colors under lighting
               if (THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
               t.anisotropy = 4;
@@ -3906,6 +3918,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               delete obj.userData.vibexeArgs.textureUrl;
               delete obj.userData.vibexeArgs.textureTileX;
               delete obj.userData.vibexeArgs.textureTileY;
+              delete obj.userData.vibexeArgs.textureRotation;
+              delete obj.userData.vibexeArgs.textureOffsetX;
+              delete obj.userData.vibexeArgs.textureOffsetY;
             }
             delete obj.__hasTextureOverride;
           }
@@ -4391,6 +4406,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                       textureUrl: child.userData.vibexeArgs.textureUrl,
                       tileX: child.userData.vibexeArgs.textureTileX || 1,
                       tileY: child.userData.vibexeArgs.textureTileY || 1,
+                      rotation: child.userData.vibexeArgs.textureRotation || 0,
+                      offsetX: child.userData.vibexeArgs.textureOffsetX || 0,
+                      offsetY: child.userData.vibexeArgs.textureOffsetY || 0,
                     });
                   }
                 });
@@ -4475,7 +4493,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 scene.traverse((c: any) => { if (c.uuid === d.uuid) _texTarget = c; });
                 console.log("[TEXTURE] Found target:", !!_texTarget, _texTarget?.name);
                 if (_texTarget) {
-                  _applyTextureToMesh(_texTarget, d.textureUrl, d.tileX || 1, d.tileY || 1);
+                  _applyTextureToMesh(_texTarget, d.textureUrl, d.tileX || 1, d.tileY || 1, 0, 0, 0);
                   if (!_texTarget.userData.__spawned) _texTarget.__hasTextureOverride = true;
                   console.log("[TEXTURE] Applied. Sending selected object back.");
                   _sendSelectedObject(_texTarget);
@@ -4495,8 +4513,19 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 let _utTarget: any = null;
                 scene.traverse((c: any) => { if (c.uuid === d.uuid) _utTarget = c; });
                 if (_utTarget && _utTarget.userData?.vibexeArgs?.textureUrl) {
-                  _applyTextureToMesh(_utTarget, _utTarget.userData.vibexeArgs.textureUrl, d.tileX || 1, d.tileY || 1);
+                  const _utArgs = _utTarget.userData.vibexeArgs;
+                  _applyTextureToMesh(_utTarget, _utArgs.textureUrl, d.tileX || 1, d.tileY || 1, _utArgs.textureRotation || 0, _utArgs.textureOffsetX || 0, _utArgs.textureOffsetY || 0);
                   _sendSelectedObject(_utTarget);
+                }
+                break;
+              }
+              case "game-editor-update-texture-params": {
+                let _tpTarget: any = null;
+                scene.traverse((c: any) => { if (c.uuid === d.uuid) _tpTarget = c; });
+                if (_tpTarget && _tpTarget.userData?.vibexeArgs?.textureUrl) {
+                  _applyTextureToMesh(_tpTarget, _tpTarget.userData.vibexeArgs.textureUrl, d.tileX || 1, d.tileY || 1, d.rotation || 0, d.offsetX || 0, d.offsetY || 0);
+                  if (!_tpTarget.userData.__spawned) _tpTarget.__hasTextureOverride = true;
+                  _sendSelectedObject(_tpTarget);
                 }
                 break;
               }

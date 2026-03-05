@@ -2009,7 +2009,7 @@ if (typeof window !== "undefined") {
 						/(function _sendSelectedObject)/,
 						`var _textureCache = {};
           var _originalMaps = new WeakMap();
-          function _applyTextureToMesh(obj, textureUrl, tileX, tileY) {
+          function _applyTextureToMesh(obj, textureUrl, tileX, tileY, rotation, offsetX, offsetY) {
             var _resolvedUrl = textureUrl;
             if (textureUrl.charAt(0) === "/") {
               _resolvedUrl = (window.__VIBEXE_API_ORIGIN__ || "") + textureUrl;
@@ -2019,6 +2019,12 @@ if (typeof window !== "undefined") {
             obj.userData.vibexeArgs.textureUrl = textureUrl;
             obj.userData.vibexeArgs.textureTileX = tileX;
             obj.userData.vibexeArgs.textureTileY = tileY;
+            obj.userData.vibexeArgs.textureRotation = rotation || 0;
+            obj.userData.vibexeArgs.textureOffsetX = offsetX || 0;
+            obj.userData.vibexeArgs.textureOffsetY = offsetY || 0;
+            var _rot = ((rotation || 0) * Math.PI) / 180;
+            var _offX = offsetX || 0;
+            var _offY = offsetY || 0;
             var applyToMat = function(mat, tex) {
               if (!_originalMaps.has(mat)) _originalMaps.set(mat, { map: mat.map, color: mat.color ? mat.color.clone() : null });
               var t = tex.clone();
@@ -2026,6 +2032,9 @@ if (typeof window !== "undefined") {
               t.wrapS = THREE.RepeatWrapping;
               t.wrapT = THREE.RepeatWrapping;
               t.repeat.set(tileX, tileY);
+              t.rotation = _rot;
+              t.center.set(0.5, 0.5);
+              t.offset.set(_offX, _offY);
               if (THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
               t.anisotropy = 4;
               mat.map = t;
@@ -2063,6 +2072,9 @@ if (typeof window !== "undefined") {
               delete obj.userData.vibexeArgs.textureUrl;
               delete obj.userData.vibexeArgs.textureTileX;
               delete obj.userData.vibexeArgs.textureTileY;
+              delete obj.userData.vibexeArgs.textureRotation;
+              delete obj.userData.vibexeArgs.textureOffsetX;
+              delete obj.userData.vibexeArgs.textureOffsetY;
             }
             delete obj.__hasTextureOverride;
           }
@@ -2075,7 +2087,10 @@ if (typeof window !== "undefined") {
 					const _texFields = `
               _textureUrl: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureUrl || null : null,
               _textureTileX: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureTileX || 1 : 1,
-              _textureTileY: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureTileY || 1 : 1,`;
+              _textureTileY: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureTileY || 1 : 1,
+              _textureRotation: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureRotation || 0 : 0,
+              _textureOffsetX: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureOffsetX || 0 : 0,
+              _textureOffsetY: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureOffsetY || 0 : 0,`;
 					if (code.includes("_materialColor: matColor,")) {
 						// Anchor on _materialColor if it exists
 						code = code.replace(
@@ -2114,10 +2129,11 @@ if (typeof window !== "undefined") {
                 scene.traverse(function(c) { if (c.uuid === d.uuid) _texTarget = c; });
                 console.log("[TEXTURE] Found target:", !!_texTarget, _texTarget ? _texTarget.name : "none");
                 if (_texTarget) {
-                  _applyTextureToMesh(_texTarget, d.textureUrl, d.tileX || 1, d.tileY || 1);
+                  _applyTextureToMesh(_texTarget, d.textureUrl, d.tileX || 1, d.tileY || 1, 0, 0, 0);
                   if (!_texTarget.userData.__spawned) _texTarget.__hasTextureOverride = true;
                   var _mc = null;
                   if (_texTarget.material && _texTarget.material.color) { try { _mc = "#" + _texTarget.material.color.getHexString(); } catch(e) {} }
+                  var _tA = _texTarget.userData && _texTarget.userData.vibexeArgs ? _texTarget.userData.vibexeArgs : {};
                   window.parent.postMessage({
                     type: "game-editor-object-selected",
                     uuid: _texTarget.uuid,
@@ -2130,11 +2146,14 @@ if (typeof window !== "undefined") {
                     castShadow: !!_texTarget.castShadow,
                     userData: (function(ud) { try { return JSON.parse(JSON.stringify(ud || {})); } catch(e) { return {}; } })(_texTarget.userData),
                     _materialColor: _mc,
-                    _textureUrl: _texTarget.userData && _texTarget.userData.vibexeArgs ? _texTarget.userData.vibexeArgs.textureUrl || null : null,
-                    _textureTileX: _texTarget.userData && _texTarget.userData.vibexeArgs ? _texTarget.userData.vibexeArgs.textureTileX || 1 : 1,
-                    _textureTileY: _texTarget.userData && _texTarget.userData.vibexeArgs ? _texTarget.userData.vibexeArgs.textureTileY || 1 : 1,
+                    _textureUrl: _tA.textureUrl || null,
+                    _textureTileX: _tA.textureTileX || 1,
+                    _textureTileY: _tA.textureTileY || 1,
+                    _textureRotation: _tA.textureRotation || 0,
+                    _textureOffsetX: _tA.textureOffsetX || 0,
+                    _textureOffsetY: _tA.textureOffsetY || 0,
                   }, "*");
-                  console.log("[TEXTURE] Sent object-selected with textureUrl:", _texTarget.userData.vibexeArgs.textureUrl);
+                  console.log("[TEXTURE] Sent object-selected with textureUrl:", _tA.textureUrl);
                 }
                 break;
               }
@@ -2160,6 +2179,9 @@ if (typeof window !== "undefined") {
                     _textureUrl: null,
                     _textureTileX: 1,
                     _textureTileY: 1,
+                    _textureRotation: 0,
+                    _textureOffsetX: 0,
+                    _textureOffsetY: 0,
                   }, "*");
                 }
                 break;
@@ -2168,7 +2190,8 @@ if (typeof window !== "undefined") {
                 var _utTarget = null;
                 scene.traverse(function(c) { if (c.uuid === d.uuid) _utTarget = c; });
                 if (_utTarget && _utTarget.userData && _utTarget.userData.vibexeArgs && _utTarget.userData.vibexeArgs.textureUrl) {
-                  _applyTextureToMesh(_utTarget, _utTarget.userData.vibexeArgs.textureUrl, d.tileX || 1, d.tileY || 1);
+                  var _utA = _utTarget.userData.vibexeArgs;
+                  _applyTextureToMesh(_utTarget, _utA.textureUrl, d.tileX || 1, d.tileY || 1, _utA.textureRotation || 0, _utA.textureOffsetX || 0, _utA.textureOffsetY || 0);
                   var _mc3 = null;
                   if (_utTarget.material && _utTarget.material.color) { try { _mc3 = "#" + _utTarget.material.color.getHexString(); } catch(e) {} }
                   window.parent.postMessage({
@@ -2183,9 +2206,43 @@ if (typeof window !== "undefined") {
                     castShadow: !!_utTarget.castShadow,
                     userData: (function(ud) { try { return JSON.parse(JSON.stringify(ud || {})); } catch(e) { return {}; } })(_utTarget.userData),
                     _materialColor: _mc3,
-                    _textureUrl: _utTarget.userData.vibexeArgs.textureUrl || null,
-                    _textureTileX: _utTarget.userData.vibexeArgs.textureTileX || 1,
-                    _textureTileY: _utTarget.userData.vibexeArgs.textureTileY || 1,
+                    _textureUrl: _utA.textureUrl || null,
+                    _textureTileX: _utA.textureTileX || 1,
+                    _textureTileY: _utA.textureTileY || 1,
+                    _textureRotation: _utA.textureRotation || 0,
+                    _textureOffsetX: _utA.textureOffsetX || 0,
+                    _textureOffsetY: _utA.textureOffsetY || 0,
+                  }, "*");
+                }
+                break;
+              }
+              case "game-editor-update-texture-params": {
+                var _tpTarget = null;
+                scene.traverse(function(c) { if (c.uuid === d.uuid) _tpTarget = c; });
+                if (_tpTarget && _tpTarget.userData && _tpTarget.userData.vibexeArgs && _tpTarget.userData.vibexeArgs.textureUrl) {
+                  _applyTextureToMesh(_tpTarget, _tpTarget.userData.vibexeArgs.textureUrl, d.tileX || 1, d.tileY || 1, d.rotation || 0, d.offsetX || 0, d.offsetY || 0);
+                  if (!_tpTarget.userData.__spawned) _tpTarget.__hasTextureOverride = true;
+                  var _mc4 = null;
+                  if (_tpTarget.material && _tpTarget.material.color) { try { _mc4 = "#" + _tpTarget.material.color.getHexString(); } catch(e) {} }
+                  var _tpA = _tpTarget.userData.vibexeArgs;
+                  window.parent.postMessage({
+                    type: "game-editor-object-selected",
+                    uuid: _tpTarget.uuid,
+                    name: _tpTarget.name || _tpTarget.type,
+                    objType: _tpTarget.userData && _tpTarget.userData.vibexeType ? _tpTarget.userData.vibexeType : _tpTarget.type,
+                    position: { x: _tpTarget.position.x, y: _tpTarget.position.y, z: _tpTarget.position.z },
+                    rotation: { x: _tpTarget.rotation.x * 180 / Math.PI, y: _tpTarget.rotation.y * 180 / Math.PI, z: _tpTarget.rotation.z * 180 / Math.PI },
+                    scale: { x: _tpTarget.scale.x, y: _tpTarget.scale.y, z: _tpTarget.scale.z },
+                    visible: _tpTarget.visible !== false,
+                    castShadow: !!_tpTarget.castShadow,
+                    userData: (function(ud) { try { return JSON.parse(JSON.stringify(ud || {})); } catch(e) { return {}; } })(_tpTarget.userData),
+                    _materialColor: _mc4,
+                    _textureUrl: _tpA.textureUrl || null,
+                    _textureTileX: _tpA.textureTileX || 1,
+                    _textureTileY: _tpA.textureTileY || 1,
+                    _textureRotation: _tpA.textureRotation || 0,
+                    _textureOffsetX: _tpA.textureOffsetX || 0,
+                    _textureOffsetY: _tpA.textureOffsetY || 0,
                   }, "*");
                 }
                 break;
@@ -2200,7 +2257,7 @@ if (typeof window !== "undefined") {
 						`var textureOverrides = [];
                 scene.traverse(function(child) {
                   if (child.__hasTextureOverride && child.userData && child.userData.vibexeArgs && child.userData.vibexeArgs.textureUrl) {
-                    textureOverrides.push({ name: child.name, textureUrl: child.userData.vibexeArgs.textureUrl, tileX: child.userData.vibexeArgs.textureTileX || 1, tileY: child.userData.vibexeArgs.textureTileY || 1 });
+                    textureOverrides.push({ name: child.name, textureUrl: child.userData.vibexeArgs.textureUrl, tileX: child.userData.vibexeArgs.textureTileX || 1, tileY: child.userData.vibexeArgs.textureTileY || 1, rotation: child.userData.vibexeArgs.textureRotation || 0, offsetX: child.userData.vibexeArgs.textureOffsetX || 0, offsetY: child.userData.vibexeArgs.textureOffsetY || 0 });
                   }
                 });
                 window.parent.postMessage({ type: "game-editor-spawned-objects", objects: spawned, textureOverrides: textureOverrides },`,
