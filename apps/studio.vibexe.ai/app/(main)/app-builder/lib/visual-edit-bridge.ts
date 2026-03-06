@@ -1507,10 +1507,21 @@ export function getVisualEditBridgeScript(): string {
         });
         if (_hasPBR) {
           _ensurePBREnv();
+          // Cap ambient light — override leaves it at 2.0 which floods StandardMaterial
+          var _al2 = editor.scene.getObjectByName('__default_ambient__');
+          if (_al2 && _al2.intensity > 0.5) { _al2.intensity = 0.3; }
           if (editor.scene.environment) {
             editor.scene.traverse(function(c) {
-              if (c.isMesh && c.material && c.material.isMeshStandardMaterial && !c.material.envMap) {
-                c.material.envMap = editor.scene.environment;
+              if (c.isMesh && c.material && c.material.isMeshStandardMaterial) {
+                if (!c.material.envMap) c.material.envMap = editor.scene.environment;
+                // Fix override values: envMapIntensity and metalness
+                if (c.material.metalnessMap) {
+                  // PBR metal texture — use bridge values
+                  c.material.envMapIntensity = 1.0;
+                  c.material.metalness = 0.95;
+                } else {
+                  c.material.envMapIntensity = 0.3;
+                }
                 c.material.needsUpdate = true;
               }
             });
