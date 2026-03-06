@@ -567,8 +567,8 @@ export function getVisualEditBridgeScript(): string {
       editor.scene.add(pbrKey);
     }
     // Async HDRI upgrade — real studio reflections for metals
-    var _hdriUrl = ((window as any).__VIBEXE_API_ORIGIN__ || "") + "/media-stock/games-3d/textures/env_studio.jpg";
-    new T.TextureLoader().load(_hdriUrl, function(hdriTex: any) {
+    var _hdriUrl = (window.__VIBEXE_API_ORIGIN__ || "") + "/media-stock/games-3d/textures/env_studio.jpg";
+    new T.TextureLoader().load(_hdriUrl, function(hdriTex) {
       hdriTex.mapping = T.EquirectangularReflectionMapping;
       if (T.SRGBColorSpace) hdriTex.colorSpace = T.SRGBColorSpace;
       var pmrem2 = new T.PMREMGenerator(editor.renderer);
