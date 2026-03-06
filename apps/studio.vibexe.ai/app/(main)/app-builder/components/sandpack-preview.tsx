@@ -609,28 +609,45 @@ function updateSpawnedObjectsInSource(
 		? `\n              if (s.args && s.args.textureUrl) { _applyTex(result.mesh, s.args.textureUrl, s.args.textureTileX || 1, s.args.textureTileY || 1, s.args.textureRotation || 0, s.args.textureOffsetX || 0, s.args.textureOffsetY || 0); }`
 		: "";
 
-	// Scene-original texture overrides application
+	// Scene-original texture overrides application (with polling for async GLTF loads)
 	const texOverridesBlock = textureOverrides.length > 0
 		? `
       var _texOv = ${texOvJson};
       if (_texOv.length > 0) {
         console.log("[SCENE_EDITOR] Applying " + _texOv.length + " texture overrides");
-        scene.traverse(function(child) {
-          for (var j = 0; j < _texOv.length; j++) {
-            if (child.name === _texOv[j].name) {
-              _applyTex(child, _texOv[j].textureUrl, _texOv[j].tileX, _texOv[j].tileY, _texOv[j].rotation || 0, _texOv[j].offsetX || 0, _texOv[j].offsetY || 0);
-              if (!child.userData) child.userData = {};
-              if (!child.userData.vibexeArgs) child.userData.vibexeArgs = {};
-              child.userData.vibexeArgs.textureUrl = _texOv[j].textureUrl;
-              child.userData.vibexeArgs.textureTileX = _texOv[j].tileX;
-              child.userData.vibexeArgs.textureTileY = _texOv[j].tileY;
-              child.userData.vibexeArgs.textureRotation = _texOv[j].rotation || 0;
-              child.userData.vibexeArgs.textureOffsetX = _texOv[j].offsetX || 0;
-              child.userData.vibexeArgs.textureOffsetY = _texOv[j].offsetY || 0;
-              child.__hasTextureOverride = true;
+        var _texApplied = {};
+        function _tryApplyTexOverrides() {
+          var remaining = 0;
+          scene.traverse(function(child) {
+            for (var j = 0; j < _texOv.length; j++) {
+              if (!_texApplied[j] && child.name === _texOv[j].name) {
+                _applyTex(child, _texOv[j].textureUrl, _texOv[j].tileX, _texOv[j].tileY, _texOv[j].rotation || 0, _texOv[j].offsetX || 0, _texOv[j].offsetY || 0);
+                if (!child.userData) child.userData = {};
+                if (!child.userData.vibexeArgs) child.userData.vibexeArgs = {};
+                child.userData.vibexeArgs.textureUrl = _texOv[j].textureUrl;
+                child.userData.vibexeArgs.textureTileX = _texOv[j].tileX;
+                child.userData.vibexeArgs.textureTileY = _texOv[j].tileY;
+                child.userData.vibexeArgs.textureRotation = _texOv[j].rotation || 0;
+                child.userData.vibexeArgs.textureOffsetX = _texOv[j].offsetX || 0;
+                child.userData.vibexeArgs.textureOffsetY = _texOv[j].offsetY || 0;
+                child.__hasTextureOverride = true;
+                _texApplied[j] = true;
+              }
             }
-          }
-        });
+          });
+          for (var k = 0; k < _texOv.length; k++) { if (!_texApplied[k]) remaining++; }
+          return remaining === 0;
+        }
+        if (!_tryApplyTexOverrides()) {
+          var _texPollCount = 0;
+          var _texPollIv = setInterval(function() {
+            _texPollCount++;
+            if (_tryApplyTexOverrides() || _texPollCount > 30) {
+              clearInterval(_texPollIv);
+              if (_texPollCount > 0) console.log("[SCENE_EDITOR] Texture override polling done after " + _texPollCount + " polls");
+            }
+          }, 500);
+        }
       }`
 		: "";
 
