@@ -85,7 +85,7 @@ export function DragNumberInput({
 	return (
 		<div className="flex items-center gap-1 flex-1 min-w-0">
 			<span
-				className={`text-[10px] font-bold select-none cursor-ew-resize flex-shrink-0 ${labelClassName || "w-3 text-center"}`}
+				className={`text-xs font-bold select-none cursor-ew-resize flex-shrink-0 ${labelClassName || "w-3 text-center"}`}
 				style={{ color }}
 				onPointerDown={handlePointerDown}
 				onPointerMove={handlePointerMove}

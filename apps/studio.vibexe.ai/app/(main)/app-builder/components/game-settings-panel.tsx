@@ -5,23 +5,18 @@
  * Shares the 260px right sidebar with the scene editor panel.
  */
 
-import { Camera, Crosshair, RotateCcw, Sun, User, X, Zap } from "lucide-react";
+import { Camera, Gauge, RotateCcw, Sparkles, Sun, User, Volume2, X, Zap } from "lucide-react";
 import { useCallback, useState } from "react";
 import { DragNumberInput } from "./drag-number-input";
-import { DEFAULT_GAME_SETTINGS, type GameSettings } from "../lib/game-editor-context";
+import { DEFAULT_GAME_SETTINGS, type GameSettings, type QualityPreset } from "../lib/game-editor-context";
 
-type SettingsTab = "player" | "physics" | "camera" | "environment";
+type SettingsTab = "player" | "physics" | "camera" | "environment" | "audio" | "effects" | "performance";
 
 interface GameSettingsPanelProps {
 	settings: GameSettings;
 	onChange: (settings: GameSettings) => void;
 	onSave: (settings: GameSettings) => void;
 	onClose: () => void;
-	pickSpawnActive?: boolean;
-	pickRespawnActive?: boolean;
-	onTogglePickSpawn?: () => void;
-	onTogglePickRespawn?: () => void;
-	characterHalfHeight?: number;
 }
 
 function deepMerge(target: any, patch: any): any {
@@ -36,9 +31,77 @@ function deepMerge(target: any, patch: any): any {
 	return result;
 }
 
-export function GameSettingsPanel({ settings, onChange, onSave, onClose, pickSpawnActive, pickRespawnActive, onTogglePickSpawn, onTogglePickRespawn, characterHalfHeight }: GameSettingsPanelProps) {
-	// Half-height of the player capsule — converts between body-center (stored) and feet (displayed)
-	const halfHeight = characterHalfHeight ?? 0.75;
+/* ------------------------------------------------------------------ */
+/*  Tooltip — hover info icon that shows a description                */
+/* ------------------------------------------------------------------ */
+
+function Tooltip({ text }: { text: string }) {
+	return (
+		<div className="group relative inline-flex ml-1">
+			<svg className="w-3.5 h-3.5 text-zinc-500 cursor-help" fill="currentColor" viewBox="0 0 20 20">
+				<path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+			</svg>
+			<div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-[11px] text-zinc-300 whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 shadow-lg">
+				{text}
+				<div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-700" />
+			</div>
+		</div>
+	);
+}
+
+/* ------------------------------------------------------------------ */
+/*  ValidationHint — amber warning when value is outside range        */
+/* ------------------------------------------------------------------ */
+
+function ValidationHint({ value, min, max, unit = "" }: { value: number; min: number; max: number; unit?: string }) {
+	if (value < min || value > max) {
+		return (
+			<span className="text-[10px] text-amber-400 ml-2">
+				Recommended: {min}{unit} – {max}{unit}
+			</span>
+		);
+	}
+	return null;
+}
+
+/* ------------------------------------------------------------------ */
+/*  SectionLabel — section header with optional tooltip               */
+/* ------------------------------------------------------------------ */
+
+function SectionLabel({ children, tooltip }: { children: React.ReactNode; tooltip?: string }) {
+	return (
+		<div className="text-xs font-medium text-white/30 uppercase tracking-wider pt-1 flex items-center">
+			{children}
+			{tooltip && <Tooltip text={tooltip} />}
+		</div>
+	);
+}
+
+/* ------------------------------------------------------------------ */
+/*  SettingRow — wraps a DragNumberInput with optional validation      */
+/* ------------------------------------------------------------------ */
+
+function SettingRow({ children, tooltip, validation }: {
+	children: React.ReactNode;
+	tooltip?: string;
+	validation?: React.ReactNode;
+}) {
+	return (
+		<div>
+			<div className="flex items-center">
+				{children}
+				{tooltip && <Tooltip text={tooltip} />}
+			</div>
+			{validation}
+		</div>
+	);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main Panel                                                        */
+/* ------------------------------------------------------------------ */
+
+export function GameSettingsPanel({ settings, onChange, onSave, onClose }: GameSettingsPanelProps) {
 	const [activeTab, setActiveTab] = useState<SettingsTab>("player");
 
 	const update = useCallback((section: string, field: string, value: any) => {
@@ -55,7 +118,22 @@ export function GameSettingsPanel({ settings, onChange, onSave, onClose, pickSpa
 		{ id: "physics", label: "Physics", icon: Zap },
 		{ id: "camera", label: "Camera", icon: Camera },
 		{ id: "environment", label: "Env", icon: Sun },
+		{ id: "audio", label: "Audio", icon: Volume2 },
+		{ id: "effects", label: "FX", icon: Sparkles },
+		{ id: "performance", label: "Perf", icon: Gauge },
 	];
+
+	const QUALITY_PRESETS: Record<string, { antialias: boolean; pixelRatio: number; maxFPS: number }> = {
+		low: { antialias: false, pixelRatio: 0.5, maxFPS: 30 },
+		medium: { antialias: true, pixelRatio: 0.75, maxFPS: 60 },
+		high: { antialias: true, pixelRatio: 1, maxFPS: 60 },
+		ultra: { antialias: true, pixelRatio: 2, maxFPS: 120 },
+	};
+
+	const applyPreset = (preset: QualityPreset) => {
+		const p = QUALITY_PRESETS[preset];
+		onChange(deepMerge(settings, { performance: { qualityPreset: preset, ...p } }));
+	};
 
 	return (
 		<div data-game-editor-panel className="absolute top-0 right-0 bottom-0 w-[260px] bg-[#0f0f1a]/95 backdrop-blur-xl border-l border-white/[0.08] flex flex-col z-30 overflow-hidden">
@@ -111,120 +189,173 @@ export function GameSettingsPanel({ settings, onChange, onSave, onClose, pickSpa
 			<div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-2">
 				{activeTab === "player" && (
 					<>
-						<div className="flex items-center justify-between">
-							<SectionLabel>Spawn Position</SectionLabel>
-							{onTogglePickSpawn && (
-								<button
-									type="button"
-									onClick={onTogglePickSpawn}
-									className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ${
-										pickSpawnActive
-											? "bg-violet-500/20 text-violet-300 border border-violet-400/40"
-											: "text-white/30 hover:text-white/50 hover:bg-white/[0.06] border border-transparent"
-									}`}
-									title={pickSpawnActive ? "Stop picking — click to disable" : "Pick from scene — drag player to set spawn"}
-								>
-									<Crosshair className="w-3 h-3" />
-									{pickSpawnActive ? "Picking..." : "Pick"}
-								</button>
-							)}
-						</div>
-						{pickSpawnActive && (
-							<div className="text-[9px] text-violet-300/70 -mt-1 mb-1">
-								Drag the player character to set spawn position
-							</div>
-						)}
+						<SectionLabel tooltip="Starting position coordinates for the player character">Spawn Position</SectionLabel>
 						<DragNumberInput label="X" value={settings.player?.spawnX ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "spawnX", v)} color="#e74c4c" />
-						<DragNumberInput label="Y" value={(settings.player?.spawnY ?? 3) - halfHeight} step={0.5} precision={1} onChange={(v) => update("player", "spawnY", v + halfHeight)} color="#4ce74c" />
+						<DragNumberInput label="Y" value={settings.player?.spawnY ?? 3} step={0.5} precision={1} onChange={(v) => update("player", "spawnY", v)} color="#4ce74c" />
 						<DragNumberInput label="Z" value={settings.player?.spawnZ ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "spawnZ", v)} color="#4c7ce7" />
 
-						<div className="flex items-center justify-between">
-							<SectionLabel>Respawn Position</SectionLabel>
-							{onTogglePickRespawn && (
-								<button
-									type="button"
-									onClick={onTogglePickRespawn}
-									className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ${
-										pickRespawnActive
-											? "bg-violet-500/20 text-violet-300 border border-violet-400/40"
-											: "text-white/30 hover:text-white/50 hover:bg-white/[0.06] border border-transparent"
-									}`}
-									title={pickRespawnActive ? "Stop picking — click to disable" : "Pick from scene — drag player to set respawn"}
-								>
-									<Crosshair className="w-3 h-3" />
-									{pickRespawnActive ? "Picking..." : "Pick"}
-								</button>
-							)}
-						</div>
-						{pickRespawnActive && (
-							<div className="text-[9px] text-violet-300/70 -mt-1 mb-1">
-								Drag the player character to set respawn position
-							</div>
-						)}
+						<SectionLabel tooltip="Where the player reappears after falling off the map">Respawn Position</SectionLabel>
 						<DragNumberInput label="X" value={settings.player?.respawnX ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "respawnX", v)} color="#e74c4c" />
-						<DragNumberInput label="Y" value={(settings.player?.respawnY ?? 5) - halfHeight} step={0.5} precision={1} onChange={(v) => update("player", "respawnY", v + halfHeight)} color="#4ce74c" />
+						<SettingRow tooltip="Y position threshold — falling below this triggers respawn">
+							<DragNumberInput label="Y" value={settings.player?.respawnY ?? 5} step={0.5} precision={1} onChange={(v) => update("player", "respawnY", v)} color="#4ce74c" />
+						</SettingRow>
 						<DragNumberInput label="Z" value={settings.player?.respawnZ ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "respawnZ", v)} color="#4c7ce7" />
 
-						<SectionLabel>Lives</SectionLabel>
-						<DragNumberInput label="Lives" value={settings.player?.startingLives ?? 3} step={1} precision={0} onChange={(v) => update("player", "startingLives", Math.max(1, Math.round(v)))} labelClassName="w-[60px] text-left" />
+						<SectionLabel tooltip="Number of lives before game over (1-99)">Lives</SectionLabel>
+						<SettingRow
+							validation={<ValidationHint value={settings.player?.startingLives ?? 3} min={1} max={99} />}
+						>
+							<DragNumberInput label="Lives" value={settings.player?.startingLives ?? 3} step={1} precision={0} onChange={(v) => update("player", "startingLives", Math.max(1, Math.round(v)))} labelClassName="w-[60px] text-left" />
+						</SettingRow>
 					</>
 				)}
 
 				{activeTab === "physics" && (
 					<>
-						<SectionLabel>Gravity</SectionLabel>
-						<DragNumberInput label="Down" value={settings.physics?.gravity ?? -38} step={1} precision={0} onChange={(v) => update("physics", "gravity", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Fall" value={settings.physics?.fallGravity ?? -65} step={1} precision={0} onChange={(v) => update("physics", "fallGravity", v)} labelClassName="w-[60px] text-left" />
+						<SectionLabel tooltip="Downward force strength. Earth = -9.8, Moon = -1.6">Gravity</SectionLabel>
+						<SettingRow
+							tooltip="Main gravity pull. More negative = heavier"
+							validation={<ValidationHint value={settings.physics?.gravity ?? -38} min={-80} max={-5} />}
+						>
+							<DragNumberInput label="Down" value={settings.physics?.gravity ?? -38} step={1} precision={0} onChange={(v) => update("physics", "gravity", v)} labelClassName="w-[60px] text-left" />
+						</SettingRow>
+						<SettingRow
+							tooltip="Extra gravity when falling (makes jumps feel snappier)"
+							validation={<ValidationHint value={settings.physics?.fallGravity ?? -65} min={-120} max={-10} />}
+						>
+							<DragNumberInput label="Fall" value={settings.physics?.fallGravity ?? -65} step={1} precision={0} onChange={(v) => update("physics", "fallGravity", v)} labelClassName="w-[60px] text-left" />
+						</SettingRow>
 
-						<SectionLabel>Movement</SectionLabel>
-						<DragNumberInput label="Jump" value={settings.physics?.jumpForce ?? 17} step={0.5} precision={1} onChange={(v) => update("physics", "jumpForce", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Walk" value={settings.physics?.moveSpeed ?? 6} step={0.5} precision={1} onChange={(v) => update("physics", "moveSpeed", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Run" value={settings.physics?.runSpeed ?? 7.5} step={0.5} precision={1} onChange={(v) => update("physics", "runSpeed", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Friction" value={settings.physics?.friction ?? 28} step={1} precision={0} onChange={(v) => update("physics", "friction", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Coyote" value={settings.physics?.coyoteTime ?? 0.15} step={0.01} precision={2} onChange={(v) => update("physics", "coyoteTime", v)} labelClassName="w-[60px] text-left" />
+						<SectionLabel tooltip="Player movement and jump parameters">Movement</SectionLabel>
+						<SettingRow
+							tooltip="How high the player jumps. Higher = bigger jumps"
+							validation={<ValidationHint value={settings.physics?.jumpForce ?? 17} min={5} max={50} />}
+						>
+							<DragNumberInput label="Jump" value={settings.physics?.jumpForce ?? 17} step={0.5} precision={1} onChange={(v) => update("physics", "jumpForce", v)} labelClassName="w-[60px] text-left" />
+						</SettingRow>
+						<SettingRow
+							tooltip="Movement speed when walking (units/second)"
+							validation={<ValidationHint value={settings.physics?.moveSpeed ?? 6} min={1} max={20} unit=" u/s" />}
+						>
+							<DragNumberInput label="Walk" value={settings.physics?.moveSpeed ?? 6} step={0.5} precision={1} onChange={(v) => update("physics", "moveSpeed", v)} labelClassName="w-[60px] text-left" />
+						</SettingRow>
+						<SettingRow
+							tooltip="Movement speed when running (units/second)"
+							validation={<ValidationHint value={settings.physics?.runSpeed ?? 7.5} min={2} max={30} unit=" u/s" />}
+						>
+							<DragNumberInput label="Run" value={settings.physics?.runSpeed ?? 7.5} step={0.5} precision={1} onChange={(v) => update("physics", "runSpeed", v)} labelClassName="w-[60px] text-left" />
+						</SettingRow>
+						<SettingRow
+							tooltip="Ground friction. Lower = slippery (ice), higher = grippy"
+							validation={<ValidationHint value={settings.physics?.friction ?? 28} min={1} max={60} />}
+						>
+							<DragNumberInput label="Friction" value={settings.physics?.friction ?? 28} step={1} precision={0} onChange={(v) => update("physics", "friction", v)} labelClassName="w-[60px] text-left" />
+						</SettingRow>
+						<SettingRow
+							tooltip="Grace period (seconds) to jump after leaving a platform edge"
+							validation={<ValidationHint value={settings.physics?.coyoteTime ?? 0.15} min={0} max={0.5} unit="s" />}
+						>
+							<DragNumberInput label="Coyote" value={settings.physics?.coyoteTime ?? 0.15} step={0.01} precision={2} onChange={(v) => update("physics", "coyoteTime", v)} labelClassName="w-[60px] text-left" />
+						</SettingRow>
 					</>
 				)}
 
 				{activeTab === "camera" && (
 					<>
-						<SectionLabel>Position</SectionLabel>
-						<DragNumberInput label="Offset Y" value={settings.camera?.offsetY ?? 8} step={0.5} precision={1} onChange={(v) => update("camera", "offsetY", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Offset Z" value={settings.camera?.offsetZ ?? 12} step={0.5} precision={1} onChange={(v) => update("camera", "offsetZ", v)} labelClassName="w-[60px] text-left" />
+						<SectionLabel tooltip="Camera offset relative to the player">Position</SectionLabel>
+						<SettingRow
+							tooltip="Camera height above the player"
+							validation={<ValidationHint value={settings.camera?.offsetY ?? 8} min={1} max={30} />}
+						>
+							<DragNumberInput label="Offset Y" value={settings.camera?.offsetY ?? 8} step={0.5} precision={1} onChange={(v) => update("camera", "offsetY", v)} labelClassName="w-[60px] text-left" />
+						</SettingRow>
+						<SettingRow
+							tooltip="Camera distance behind the player"
+							validation={<ValidationHint value={settings.camera?.offsetZ ?? 12} min={2} max={40} />}
+						>
+							<DragNumberInput label="Offset Z" value={settings.camera?.offsetZ ?? 12} step={0.5} precision={1} onChange={(v) => update("camera", "offsetZ", v)} labelClassName="w-[60px] text-left" />
+						</SettingRow>
 
-						<SectionLabel>Lens</SectionLabel>
-						<DragNumberInput label="FOV" value={settings.camera?.fov ?? 60} step={1} precision={0} onChange={(v) => update("camera", "fov", Math.max(20, Math.min(120, v)))} labelClassName="w-[60px] text-left" />
+						<SectionLabel tooltip="Field of View in degrees. 60 = normal, 90 = wide, 45 = zoom">Lens</SectionLabel>
+						<SettingRow
+							tooltip="Field of View angle (20-120 degrees)"
+							validation={<ValidationHint value={settings.camera?.fov ?? 60} min={20} max={120} unit="deg" />}
+						>
+							<DragNumberInput label="FOV" value={settings.camera?.fov ?? 60} step={1} precision={0} onChange={(v) => update("camera", "fov", Math.max(20, Math.min(120, v)))} labelClassName="w-[60px] text-left" />
+						</SettingRow>
 
-						<SectionLabel>Follow</SectionLabel>
-						<DragNumberInput label="Lerp" value={settings.camera?.lerp ?? 3} step={0.5} precision={1} onChange={(v) => update("camera", "lerp", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Ahead" value={settings.camera?.lookAhead ?? 5} step={0.5} precision={1} onChange={(v) => update("camera", "lookAhead", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Look Y" value={settings.camera?.lookY ?? 1} step={0.5} precision={1} onChange={(v) => update("camera", "lookY", v)} labelClassName="w-[60px] text-left" />
+						<SectionLabel tooltip="How the camera follows the player">Follow</SectionLabel>
+						<SettingRow tooltip="Camera smoothness. Lower = smoother, higher = snappier">
+							<DragNumberInput label="Lerp" value={settings.camera?.lerp ?? 3} step={0.5} precision={1} onChange={(v) => update("camera", "lerp", v)} labelClassName="w-[60px] text-left" />
+						</SettingRow>
+						<SettingRow tooltip="How far ahead the camera looks in movement direction">
+							<DragNumberInput label="Ahead" value={settings.camera?.lookAhead ?? 5} step={0.5} precision={1} onChange={(v) => update("camera", "lookAhead", v)} labelClassName="w-[60px] text-left" />
+						</SettingRow>
+						<SettingRow tooltip="Vertical look offset — shifts the camera target up or down">
+							<DragNumberInput label="Look Y" value={settings.camera?.lookY ?? 1} step={0.5} precision={1} onChange={(v) => update("camera", "lookY", v)} labelClassName="w-[60px] text-left" />
+						</SettingRow>
 					</>
 				)}
 
 				{activeTab === "environment" && (
 					<>
-						<SectionLabel>Background</SectionLabel>
+						<SectionLabel tooltip="Sky/background color when no skybox is used">Background</SectionLabel>
 						<div className="flex items-center gap-2">
-							<span className="text-[10px] text-white/50 w-[60px]">Color</span>
+							<span className="text-xs text-white/50 w-[60px]">Color</span>
 							<input
 								type="color"
 								value={settings.environment?.backgroundColor ?? "#87CEEB"}
 								onChange={(e) => update("environment", "backgroundColor", e.target.value)}
 								className="w-8 h-6 rounded border border-white/10 bg-transparent cursor-pointer"
 							/>
-							<span className="text-[10px] text-white/40 font-mono">
+							<span className="text-xs text-white/40 font-mono">
 								{settings.environment?.backgroundColor ?? "#87CEEB"}
 							</span>
 						</div>
 
-						<SectionLabel>Lighting</SectionLabel>
-						<DragNumberInput label="Ambient" value={settings.environment?.ambientLightIntensity ?? 0.15} step={0.05} precision={2} onChange={(v) => update("environment", "ambientLightIntensity", Math.max(0, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Sun" value={settings.environment?.sunLightIntensity ?? 0.55} step={0.05} precision={2} onChange={(v) => update("environment", "sunLightIntensity", Math.max(0, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Hemi" value={settings.environment?.hemisphereIntensity ?? 0.35} step={0.05} precision={2} onChange={(v) => update("environment", "hemisphereIntensity", Math.max(0, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
-
-						<SectionLabel>Fog</SectionLabel>
+						<SectionLabel tooltip="Light sources that illuminate the scene">Lighting</SectionLabel>
+						<SettingRow
+							tooltip="Base light that illuminates everything equally"
+							validation={<ValidationHint value={settings.environment?.ambientLightIntensity ?? 0.15} min={0} max={2} />}
+						>
+							<DragNumberInput label="Ambient" value={settings.environment?.ambientLightIntensity ?? 0.15} step={0.05} precision={2} onChange={(v) => update("environment", "ambientLightIntensity", Math.max(0, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
+						</SettingRow>
 						<div className="flex items-center gap-2">
-							<span className="text-[10px] text-white/50 w-[60px]">Enabled</span>
+							<span className="text-xs text-white/50 w-[60px]">Color</span>
+							<input type="color" value={settings.environment?.ambientLightColor ?? "#ffffff"} onChange={(e) => update("environment", "ambientLightColor", e.target.value)} className="w-8 h-6 rounded border border-white/10 bg-transparent cursor-pointer" />
+							<span className="text-xs text-white/40 font-mono">{settings.environment?.ambientLightColor ?? "#ffffff"}</span>
+						</div>
+						<SettingRow
+							tooltip="Directional sunlight strength"
+							validation={<ValidationHint value={settings.environment?.sunLightIntensity ?? 0.55} min={0} max={2} />}
+						>
+							<DragNumberInput label="Sun" value={settings.environment?.sunLightIntensity ?? 0.55} step={0.05} precision={2} onChange={(v) => update("environment", "sunLightIntensity", Math.max(0, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
+						</SettingRow>
+						<div className="flex items-center gap-2">
+							<span className="text-xs text-white/50 w-[60px]">Color</span>
+							<input type="color" value={settings.environment?.sunLightColor ?? "#fff8ee"} onChange={(e) => update("environment", "sunLightColor", e.target.value)} className="w-8 h-6 rounded border border-white/10 bg-transparent cursor-pointer" />
+							<span className="text-xs text-white/40 font-mono">{settings.environment?.sunLightColor ?? "#fff8ee"}</span>
+						</div>
+						<SettingRow
+							tooltip="Sky-to-ground gradient light strength"
+							validation={<ValidationHint value={settings.environment?.hemisphereIntensity ?? 0.35} min={0} max={2} />}
+						>
+							<DragNumberInput label="Hemi" value={settings.environment?.hemisphereIntensity ?? 0.35} step={0.05} precision={2} onChange={(v) => update("environment", "hemisphereIntensity", Math.max(0, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
+						</SettingRow>
+						<div className="flex items-center gap-2">
+							<span className="text-xs text-white/50 w-[60px]">Sky</span>
+							<input type="color" value={settings.environment?.hemisphereSkyColor ?? "#eef4ff"} onChange={(e) => update("environment", "hemisphereSkyColor", e.target.value)} className="w-8 h-6 rounded border border-white/10 bg-transparent cursor-pointer" />
+							<span className="text-xs text-white/40 font-mono">{settings.environment?.hemisphereSkyColor ?? "#eef4ff"}</span>
+						</div>
+						<div className="flex items-center gap-2">
+							<span className="text-xs text-white/50 w-[60px]">Ground</span>
+							<input type="color" value={settings.environment?.hemisphereGroundColor ?? "#886644"} onChange={(e) => update("environment", "hemisphereGroundColor", e.target.value)} className="w-8 h-6 rounded border border-white/10 bg-transparent cursor-pointer" />
+							<span className="text-xs text-white/40 font-mono">{settings.environment?.hemisphereGroundColor ?? "#886644"}</span>
+						</div>
+
+						<SectionLabel tooltip="Adds distance fog that fades objects in the background">Fog</SectionLabel>
+						<div className="flex items-center gap-2">
+							<span className="text-xs text-white/50 w-[60px]">Enabled</span>
 							<button
 								type="button"
 								onClick={() => update("environment", "fogEnabled", !(settings.environment?.fogEnabled ?? false))}
@@ -236,13 +367,169 @@ export function GameSettingsPanel({ settings, onChange, onSave, onClose, pickSpa
 									settings.environment?.fogEnabled ? "translate-x-4" : "translate-x-0.5"
 								}`} />
 							</button>
+							<Tooltip text="Toggle distance fog on/off" />
 						</div>
 						{settings.environment?.fogEnabled && (
 							<>
-								<DragNumberInput label="Near" value={settings.environment?.fogNear ?? 30} step={1} precision={0} onChange={(v) => update("environment", "fogNear", Math.max(1, v))} labelClassName="w-[60px] text-left" />
-								<DragNumberInput label="Far" value={settings.environment?.fogFar ?? 100} step={1} precision={0} onChange={(v) => update("environment", "fogFar", Math.max(1, v))} labelClassName="w-[60px] text-left" />
+								<div className="flex items-center gap-2">
+									<span className="text-xs text-white/50 w-[60px]">Color</span>
+									<input type="color" value={settings.environment?.fogColor ?? "#88aacc"} onChange={(e) => update("environment", "fogColor", e.target.value)} className="w-8 h-6 rounded border border-white/10 bg-transparent cursor-pointer" />
+									<span className="text-xs text-white/40 font-mono">{settings.environment?.fogColor ?? "#88aacc"}</span>
+								</div>
+								<SettingRow
+									tooltip="Distance where fog begins (closer = more fog)"
+									validation={<ValidationHint value={settings.environment?.fogNear ?? 30} min={1} max={200} />}
+								>
+									<DragNumberInput label="Near" value={settings.environment?.fogNear ?? 30} step={1} precision={0} onChange={(v) => update("environment", "fogNear", Math.max(1, v))} labelClassName="w-[60px] text-left" />
+								</SettingRow>
+								<SettingRow
+									tooltip="Distance where fog fully obscures objects"
+									validation={<ValidationHint value={settings.environment?.fogFar ?? 100} min={10} max={500} />}
+								>
+									<DragNumberInput label="Far" value={settings.environment?.fogFar ?? 100} step={1} precision={0} onChange={(v) => update("environment", "fogFar", Math.max(1, v))} labelClassName="w-[60px] text-left" />
+								</SettingRow>
 							</>
 						)}
+
+						<SectionLabel tooltip="Shadow rendering quality — higher = sharper but slower">Shadows</SectionLabel>
+						<div className="flex items-center gap-2">
+							<span className="text-xs text-white/50 w-[60px]">Quality</span>
+							<select
+								value={settings.environment?.shadowQuality ?? "medium"}
+								onChange={(e) => update("environment", "shadowQuality", e.target.value)}
+								className="bg-zinc-800 text-xs text-zinc-300 rounded px-2 py-1 border border-zinc-700 focus:ring-1 focus:ring-violet-500 outline-none"
+							>
+								<option value="low">Low (512)</option>
+								<option value="medium">Medium (1024)</option>
+								<option value="high">High (2048)</option>
+							</select>
+						</div>
+					</>
+				)}
+
+				{activeTab === "audio" && (
+					<>
+						<SectionLabel tooltip="Master audio controls for the game">Audio</SectionLabel>
+						<div className="flex items-center gap-2">
+							<span className="text-xs text-white/50 w-[60px]">Enabled</span>
+							<button
+								type="button"
+								onClick={() => update("audio", "enabled", !(settings.audio?.enabled ?? true))}
+								className={`w-8 h-4 rounded-full transition-colors relative ${
+									settings.audio?.enabled !== false ? "bg-violet-500" : "bg-white/10"
+								}`}
+							>
+								<div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
+									settings.audio?.enabled !== false ? "translate-x-4" : "translate-x-0.5"
+								}`} />
+							</button>
+						</div>
+						<DragNumberInput label="Master" value={Math.round((settings.audio?.masterVolume ?? 0.8) * 100)} step={1} precision={0} onChange={(v) => update("audio", "masterVolume", Math.max(0, Math.min(100, Math.round(v))) / 100)} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Music" value={Math.round((settings.audio?.musicVolume ?? 0.5) * 100)} step={1} precision={0} onChange={(v) => update("audio", "musicVolume", Math.max(0, Math.min(100, Math.round(v))) / 100)} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="SFX" value={Math.round((settings.audio?.sfxVolume ?? 0.7) * 100)} step={1} precision={0} onChange={(v) => update("audio", "sfxVolume", Math.max(0, Math.min(100, Math.round(v))) / 100)} labelClassName="w-[60px] text-left" />
+					</>
+				)}
+
+				{activeTab === "effects" && (
+					<>
+						<SectionLabel tooltip="Visual style presets with bloom and color grading">Post-Processing</SectionLabel>
+						<div className="space-y-1">
+							{(["none", "cinematic", "vibrant", "dark", "neon", "natural"] as const).map((preset) => {
+								const labels: Record<string, string> = {
+									none: "None — No effects",
+									cinematic: "Cinematic — Warm, subtle bloom",
+									vibrant: "Vibrant — Saturated, bright",
+									dark: "Dark — Moody, high contrast",
+									neon: "Neon — Glowing highlights",
+									natural: "Natural — Soft, realistic",
+								};
+								const isActive = (settings.postProcessing?.preset ?? "none") === preset;
+								return (
+									<button
+										key={preset}
+										type="button"
+										onClick={() => update("postProcessing", "preset", preset)}
+										className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
+											isActive ? "bg-violet-500/20 text-violet-300 border border-violet-500/40" : "text-white/50 hover:bg-white/5 border border-transparent"
+										}`}
+									>
+										{labels[preset]}
+									</button>
+								);
+							})}
+						</div>
+						{(settings.postProcessing?.preset ?? "none") !== "none" && (
+							<>
+								<SectionLabel tooltip="Fine-tune bloom effect intensity and threshold">Bloom</SectionLabel>
+								<DragNumberInput label="Intensity" value={settings.postProcessing?.bloomIntensity ?? 0.5} step={0.1} precision={1} onChange={(v) => update("postProcessing", "bloomIntensity", Math.max(0, Math.min(3, v)))} labelClassName="w-[60px] text-left" />
+								<DragNumberInput label="Threshold" value={settings.postProcessing?.bloomThreshold ?? 0.8} step={0.05} precision={2} onChange={(v) => update("postProcessing", "bloomThreshold", Math.max(0, Math.min(1, v)))} labelClassName="w-[60px] text-left" />
+							</>
+						)}
+					</>
+				)}
+
+				{activeTab === "performance" && (
+					<>
+						<SectionLabel tooltip="Overall rendering quality — affects shadows, resolution, and anti-aliasing">Quality Preset</SectionLabel>
+						<div className="flex items-center gap-2">
+							<span className="text-xs text-white/50 w-[60px]">Preset</span>
+							<select
+								value={settings.performance?.qualityPreset ?? "high"}
+								onChange={(e) => applyPreset(e.target.value as QualityPreset)}
+								className="bg-zinc-800 text-xs text-zinc-300 rounded px-2 py-1 border border-zinc-700 focus:ring-1 focus:ring-violet-500 outline-none"
+							>
+								<option value="low">Low</option>
+								<option value="medium">Medium</option>
+								<option value="high">High</option>
+								<option value="ultra">Ultra</option>
+							</select>
+						</div>
+
+						<SectionLabel tooltip="Toggle the FPS counter overlay">Debug</SectionLabel>
+						<div className="flex items-center gap-2">
+							<span className="text-xs text-white/50 w-[60px]">Show FPS</span>
+							<button
+								type="button"
+								onClick={() => update("performance", "showFPS", !(settings.performance?.showFPS ?? false))}
+								className={`w-8 h-4 rounded-full transition-colors relative ${
+									settings.performance?.showFPS ? "bg-violet-500" : "bg-white/10"
+								}`}
+							>
+								<div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
+									settings.performance?.showFPS ? "translate-x-4" : "translate-x-0.5"
+								}`} />
+							</button>
+						</div>
+
+						<SectionLabel tooltip="Advanced rendering options">Rendering</SectionLabel>
+						<div className="flex items-center gap-2">
+							<span className="text-xs text-white/50 w-[60px]">Antialias</span>
+							<button
+								type="button"
+								onClick={() => update("performance", "antialias", !(settings.performance?.antialias ?? true))}
+								className={`w-8 h-4 rounded-full transition-colors relative ${
+									settings.performance?.antialias !== false ? "bg-violet-500" : "bg-white/10"
+								}`}
+							>
+								<div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
+									settings.performance?.antialias !== false ? "translate-x-4" : "translate-x-0.5"
+								}`} />
+							</button>
+						</div>
+						<DragNumberInput label="Pixel Ratio" value={settings.performance?.pixelRatio ?? 1} step={0.25} precision={2} onChange={(v) => update("performance", "pixelRatio", Math.max(0.5, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
+						<div className="flex items-center gap-2">
+							<span className="text-xs text-white/50 w-[60px]">Max FPS</span>
+							<select
+								value={settings.performance?.maxFPS ?? 60}
+								onChange={(e) => update("performance", "maxFPS", Number(e.target.value))}
+								className="bg-zinc-800 text-xs text-zinc-300 rounded px-2 py-1 border border-zinc-700 focus:ring-1 focus:ring-violet-500 outline-none"
+							>
+								<option value={30}>30</option>
+								<option value={60}>60</option>
+								<option value={120}>120</option>
+								<option value={0}>Unlimited</option>
+							</select>
+						</div>
 					</>
 				)}
 			</div>
@@ -257,238 +544,6 @@ export function GameSettingsPanel({ settings, onChange, onSave, onClose, pickSpa
 					Save & Apply
 				</button>
 			</div>
-		</div>
-	);
-}
-
-/**
- * Embeddable settings content — used as a tab within GameEditorPanel.
- * Same controls as GameSettingsPanel but without the outer wrapper/header.
- */
-export interface GameSettingsContentProps {
-	settings: GameSettings;
-	onChange: (settings: GameSettings) => void;
-	onSave: (settings: GameSettings) => void;
-	pickSpawnActive?: boolean;
-	pickRespawnActive?: boolean;
-	onTogglePickSpawn?: () => void;
-	onTogglePickRespawn?: () => void;
-	characterHalfHeight?: number;
-}
-
-export function GameSettingsContent({ settings, onChange, onSave, pickSpawnActive, pickRespawnActive, onTogglePickSpawn, onTogglePickRespawn, characterHalfHeight }: GameSettingsContentProps) {
-	const halfHeight = characterHalfHeight ?? 0.75;
-	const [activeTab, setActiveTab] = useState<SettingsTab>("player");
-
-	const update = useCallback((section: string, field: string, value: any) => {
-		const patched = deepMerge(settings, { [section]: { [field]: value } });
-		onChange(patched);
-	}, [settings, onChange]);
-
-	const handleReset = useCallback(() => {
-		onChange({ ...DEFAULT_GAME_SETTINGS });
-	}, [onChange]);
-
-	const tabs: { id: SettingsTab; label: string; icon: typeof User }[] = [
-		{ id: "player", label: "Player", icon: User },
-		{ id: "physics", label: "Physics", icon: Zap },
-		{ id: "camera", label: "Camera", icon: Camera },
-		{ id: "environment", label: "Env", icon: Sun },
-	];
-
-	return (
-		<div className="flex flex-col flex-1 min-h-0">
-			{/* Settings sub-tabs + reset */}
-			<div className="flex items-center border-b border-white/[0.06]">
-				<div className="flex flex-1">
-					{tabs.map((tab) => {
-						const Icon = tab.icon;
-						const isActive = activeTab === tab.id;
-						return (
-							<button
-								key={tab.id}
-								type="button"
-								onClick={() => setActiveTab(tab.id)}
-								className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 text-[9px] transition-colors ${
-									isActive
-										? "text-violet-400 border-b-2 border-violet-400 bg-violet-500/10"
-										: "text-white/30 hover:text-white/50 hover:bg-white/[0.04]"
-								}`}
-							>
-								<Icon className="w-3 h-3" />
-								{tab.label}
-							</button>
-						);
-					})}
-				</div>
-				<button
-					type="button"
-					onClick={handleReset}
-					className="p-1 mr-1 rounded text-white/25 hover:text-white/50 hover:bg-white/[0.06] transition-colors"
-					title="Reset to Defaults"
-				>
-					<RotateCcw className="w-3 h-3" />
-				</button>
-			</div>
-
-			{/* Tab Content */}
-			<div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-2">
-				{activeTab === "player" && (
-					<>
-						<div className="flex items-center justify-between">
-							<SectionLabel>Spawn Position</SectionLabel>
-							{onTogglePickSpawn && (
-								<button
-									type="button"
-									onClick={onTogglePickSpawn}
-									className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ${
-										pickSpawnActive
-											? "bg-violet-500/20 text-violet-300 border border-violet-400/40"
-											: "text-white/30 hover:text-white/50 hover:bg-white/[0.06] border border-transparent"
-									}`}
-									title={pickSpawnActive ? "Stop picking" : "Pick from scene"}
-								>
-									<Crosshair className="w-3 h-3" />
-									{pickSpawnActive ? "Picking..." : "Pick"}
-								</button>
-							)}
-						</div>
-						{pickSpawnActive && (
-							<div className="text-[9px] text-violet-300/70 -mt-1 mb-1">
-								Drag the player character to set spawn position
-							</div>
-						)}
-						<DragNumberInput label="X" value={settings.player?.spawnX ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "spawnX", v)} color="#e74c4c" />
-						<DragNumberInput label="Y" value={(settings.player?.spawnY ?? 3) - halfHeight} step={0.5} precision={1} onChange={(v) => update("player", "spawnY", v + halfHeight)} color="#4ce74c" />
-						<DragNumberInput label="Z" value={settings.player?.spawnZ ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "spawnZ", v)} color="#4c7ce7" />
-
-						<div className="flex items-center justify-between">
-							<SectionLabel>Respawn Position</SectionLabel>
-							{onTogglePickRespawn && (
-								<button
-									type="button"
-									onClick={onTogglePickRespawn}
-									className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ${
-										pickRespawnActive
-											? "bg-violet-500/20 text-violet-300 border border-violet-400/40"
-											: "text-white/30 hover:text-white/50 hover:bg-white/[0.06] border border-transparent"
-									}`}
-									title={pickRespawnActive ? "Stop picking" : "Pick from scene"}
-								>
-									<Crosshair className="w-3 h-3" />
-									{pickRespawnActive ? "Picking..." : "Pick"}
-								</button>
-							)}
-						</div>
-						{pickRespawnActive && (
-							<div className="text-[9px] text-violet-300/70 -mt-1 mb-1">
-								Drag the player character to set respawn position
-							</div>
-						)}
-						<DragNumberInput label="X" value={settings.player?.respawnX ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "respawnX", v)} color="#e74c4c" />
-						<DragNumberInput label="Y" value={(settings.player?.respawnY ?? 5) - halfHeight} step={0.5} precision={1} onChange={(v) => update("player", "respawnY", v + halfHeight)} color="#4ce74c" />
-						<DragNumberInput label="Z" value={settings.player?.respawnZ ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "respawnZ", v)} color="#4c7ce7" />
-
-						<SectionLabel>Lives</SectionLabel>
-						<DragNumberInput label="Lives" value={settings.player?.startingLives ?? 3} step={1} precision={0} onChange={(v) => update("player", "startingLives", Math.max(1, Math.round(v)))} labelClassName="w-[60px] text-left" />
-					</>
-				)}
-
-				{activeTab === "physics" && (
-					<>
-						<SectionLabel>Gravity</SectionLabel>
-						<DragNumberInput label="Down" value={settings.physics?.gravity ?? -38} step={1} precision={0} onChange={(v) => update("physics", "gravity", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Fall" value={settings.physics?.fallGravity ?? -65} step={1} precision={0} onChange={(v) => update("physics", "fallGravity", v)} labelClassName="w-[60px] text-left" />
-
-						<SectionLabel>Movement</SectionLabel>
-						<DragNumberInput label="Jump" value={settings.physics?.jumpForce ?? 17} step={0.5} precision={1} onChange={(v) => update("physics", "jumpForce", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Walk" value={settings.physics?.moveSpeed ?? 6} step={0.5} precision={1} onChange={(v) => update("physics", "moveSpeed", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Run" value={settings.physics?.runSpeed ?? 7.5} step={0.5} precision={1} onChange={(v) => update("physics", "runSpeed", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Friction" value={settings.physics?.friction ?? 28} step={1} precision={0} onChange={(v) => update("physics", "friction", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Coyote" value={settings.physics?.coyoteTime ?? 0.15} step={0.01} precision={2} onChange={(v) => update("physics", "coyoteTime", v)} labelClassName="w-[60px] text-left" />
-					</>
-				)}
-
-				{activeTab === "camera" && (
-					<>
-						<SectionLabel>Position</SectionLabel>
-						<DragNumberInput label="Offset Y" value={settings.camera?.offsetY ?? 8} step={0.5} precision={1} onChange={(v) => update("camera", "offsetY", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Offset Z" value={settings.camera?.offsetZ ?? 12} step={0.5} precision={1} onChange={(v) => update("camera", "offsetZ", v)} labelClassName="w-[60px] text-left" />
-
-						<SectionLabel>Lens</SectionLabel>
-						<DragNumberInput label="FOV" value={settings.camera?.fov ?? 60} step={1} precision={0} onChange={(v) => update("camera", "fov", Math.max(20, Math.min(120, v)))} labelClassName="w-[60px] text-left" />
-
-						<SectionLabel>Follow</SectionLabel>
-						<DragNumberInput label="Lerp" value={settings.camera?.lerp ?? 3} step={0.5} precision={1} onChange={(v) => update("camera", "lerp", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Ahead" value={settings.camera?.lookAhead ?? 5} step={0.5} precision={1} onChange={(v) => update("camera", "lookAhead", v)} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Look Y" value={settings.camera?.lookY ?? 1} step={0.5} precision={1} onChange={(v) => update("camera", "lookY", v)} labelClassName="w-[60px] text-left" />
-					</>
-				)}
-
-				{activeTab === "environment" && (
-					<>
-						<SectionLabel>Background</SectionLabel>
-						<div className="flex items-center gap-2">
-							<span className="text-[10px] text-white/50 w-[60px]">Color</span>
-							<input
-								type="color"
-								value={settings.environment?.backgroundColor ?? "#87CEEB"}
-								onChange={(e) => update("environment", "backgroundColor", e.target.value)}
-								className="w-8 h-6 rounded border border-white/10 bg-transparent cursor-pointer"
-							/>
-							<span className="text-[10px] text-white/40 font-mono">
-								{settings.environment?.backgroundColor ?? "#87CEEB"}
-							</span>
-						</div>
-
-						<SectionLabel>Lighting</SectionLabel>
-						<DragNumberInput label="Ambient" value={settings.environment?.ambientLightIntensity ?? 0.15} step={0.05} precision={2} onChange={(v) => update("environment", "ambientLightIntensity", Math.max(0, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Sun" value={settings.environment?.sunLightIntensity ?? 0.55} step={0.05} precision={2} onChange={(v) => update("environment", "sunLightIntensity", Math.max(0, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
-						<DragNumberInput label="Hemi" value={settings.environment?.hemisphereIntensity ?? 0.35} step={0.05} precision={2} onChange={(v) => update("environment", "hemisphereIntensity", Math.max(0, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
-
-						<SectionLabel>Fog</SectionLabel>
-						<div className="flex items-center gap-2">
-							<span className="text-[10px] text-white/50 w-[60px]">Enabled</span>
-							<button
-								type="button"
-								onClick={() => update("environment", "fogEnabled", !(settings.environment?.fogEnabled ?? false))}
-								className={`w-8 h-4 rounded-full transition-colors relative ${
-									settings.environment?.fogEnabled ? "bg-violet-500" : "bg-white/10"
-								}`}
-							>
-								<div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
-									settings.environment?.fogEnabled ? "translate-x-4" : "translate-x-0.5"
-								}`} />
-							</button>
-						</div>
-						{settings.environment?.fogEnabled && (
-							<>
-								<DragNumberInput label="Near" value={settings.environment?.fogNear ?? 30} step={1} precision={0} onChange={(v) => update("environment", "fogNear", Math.max(1, v))} labelClassName="w-[60px] text-left" />
-								<DragNumberInput label="Far" value={settings.environment?.fogFar ?? 100} step={1} precision={0} onChange={(v) => update("environment", "fogFar", Math.max(1, v))} labelClassName="w-[60px] text-left" />
-							</>
-						)}
-					</>
-				)}
-			</div>
-
-			{/* Save Button */}
-			<div className="p-2 border-t border-white/[0.08]">
-				<button
-					type="button"
-					onClick={() => onSave(settings)}
-					className="w-full py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-[11px] font-medium transition-colors"
-				>
-					Save & Apply
-				</button>
-			</div>
-		</div>
-	);
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-	return (
-		<div className="text-[10px] font-medium text-white/30 uppercase tracking-wider pt-1">
-			{children}
 		</div>
 	);
 }

@@ -43,7 +43,7 @@ import type { AppFile } from "../adapters/file-adapter";
 import { useVisualEdit } from "../lib/visual-edit-context";
 import { useGameEditor, type GizmoMode } from "../lib/game-editor-context";
 import { GameEditorPanel } from "./game-editor-panel";
-
+import { GameSettingsPanel } from "./game-settings-panel";
 import type { RightPanelView } from "./right-panel-tabs";
 import { VisualEditToolbar } from "./visual-edit-toolbar";
 import {
@@ -98,17 +98,12 @@ function RefreshButton() {
  * Bridge that exposes useSandpackNavigation().refresh to parent via ref.
  * Lives inside SandpackProvider to access the hook.
  */
-function SandpackRefreshBridge({ refreshRef, updateFileRef }: {
-	refreshRef: React.MutableRefObject<(() => void) | null>;
-	updateFileRef: React.MutableRefObject<((path: string, code: string) => void) | null>;
-}) {
+function SandpackRefreshBridge({ refreshRef }: { refreshRef: React.MutableRefObject<(() => void) | null> }) {
 	const { refresh } = useSandpackNavigation();
-	const { sandpack } = useSandpack();
 	useEffect(() => {
 		refreshRef.current = refresh;
-		updateFileRef.current = (path: string, code: string) => sandpack.updateFile(path, code);
-		return () => { refreshRef.current = null; updateFileRef.current = null; };
-	}, [refresh, refreshRef, sandpack, updateFileRef]);
+		return () => { refreshRef.current = null; };
+	}, [refresh, refreshRef]);
 	return null;
 }
 
@@ -524,294 +519,6 @@ ${MARKER_END}`;
 }
 
 /**
- * Persist spawned objects by injecting factory calls into GameScene3D.ts.
- * Uses SCENE_EDITOR_SPAWNED markers so they can be stripped on next save.
- * The spawn code runs inside a self-executing async block that waits for
- * the scene to be available, then calls factory functions via the engine's
- * exposed __vibexeFactories map.
- */
-function updateSpawnedObjectsInSource(
-	code: string,
-	spawnedObjects: Array<{
-		factory: string;
-		args: Record<string, any>;
-		position: { x: number; y: number; z: number };
-		rotation?: { x: number; y: number; z: number };
-		scale?: { x: number; y: number; z: number };
-	}>,
-	textureOverrides: Array<{
-		name: string;
-		textureUrl: string;
-		tileX: number;
-		tileY: number;
-		rotation?: number;
-		offsetX?: number;
-		offsetY?: number;
-		hasPBR?: boolean;
-	}> = [],
-): string {
-	const SPAWN_START = "// SCENE_EDITOR_SPAWNED_START";
-	const SPAWN_END = "// SCENE_EDITOR_SPAWNED_END";
-
-	// Strip existing spawned block
-	const startIdx = code.indexOf(SPAWN_START);
-	const endIdx = code.indexOf(SPAWN_END);
-	if (startIdx !== -1 && endIdx !== -1) {
-		code =
-			code.substring(0, startIdx).trimEnd() +
-			"\n" +
-			code.substring(endIdx + SPAWN_END.length).trimStart();
-	}
-
-	if (spawnedObjects.length === 0 && textureOverrides.length === 0) return code;
-
-	const spawnsJson = JSON.stringify(spawnedObjects);
-	const texOvJson = JSON.stringify(textureOverrides);
-
-	// Texture application helper (inline, no external deps)
-	const texHelper = textureOverrides.length > 0 || spawnedObjects.some((s) => s.args?.textureUrl)
-		? `
-    var _pbrEnvDone = false;
-    function _ensurePbrEnv() {
-      if (_pbrEnvDone) return;
-      var _r = window.__vibexe_renderer__;
-      var _s = window.__vibexe_scene__;
-      if (!_r || !_s) return;
-      _pbrEnvDone = true;
-      var pmrem = new THREE.PMREMGenerator(_r);
-      pmrem.compileEquirectangularShader();
-      var es = new THREE.Scene();
-      var _skyG = new THREE.SphereGeometry(50, 32, 16);
-      es.add(new THREE.Mesh(_skyG, new THREE.MeshBasicMaterial({ color: new THREE.Color(2.0, 2.1, 2.5), side: THREE.BackSide })));
-      var _gndG = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-      es.add(new THREE.Mesh(_gndG, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.1, 0.1, 0.12), side: THREE.BackSide })));
-      var _pG = new THREE.PlaneGeometry(8, 8);
-      var _aP = function(x,y,z,r,g,b,sx,sy) {
-        var p = new THREE.Mesh(_pG, new THREE.MeshBasicMaterial({ color: new THREE.Color(r,g,b), side: THREE.DoubleSide }));
-        p.position.set(x,y,z); p.lookAt(0,0,0); p.scale.set(sx,sy,1);
-        es.add(p);
-      };
-      _aP(0,45,-5, 20,20,18, 4, 4);
-      _aP(20,25,-15, 15,14,12, 3, 2.5);
-      _aP(-25,20,-10, 5,7,10, 2.5, 2);
-      _aP(5,30,10, 10,8,5, 2, 1.5);
-      _aP(0,-10,0, 3,3,4, 5, 5);
-      _aP(30,5,15, 6,6,8, 2, 2);
-      _aP(-30,10,15, 4,5,7, 2, 2);
-      _s.environment = pmrem.fromScene(es, 0, 0.1, 100).texture;
-      _r.toneMapping = 4;
-      _r.toneMappingExposure = 1.2;
-      window.__vibexePbrEnvDone = true;
-      pmrem.dispose(); _skyG.dispose(); _gndG.dispose(); _pG.dispose();
-      var _hdriUrl = (window.__VIBEXE_API_ORIGIN__ || "") + "/api/app-builder/media-stock-3d/textures/env_studio.jpg";
-      new THREE.TextureLoader().load(_hdriUrl, function(hdriTex) {
-        hdriTex.mapping = THREE.EquirectangularReflectionMapping;
-        var pmrem2 = new THREE.PMREMGenerator(_r);
-        _s.environment = pmrem2.fromEquirectangular(hdriTex).texture;
-        pmrem2.dispose(); hdriTex.dispose();
-      }, undefined, function() {});
-      if (!_s.getObjectByName("__pbr_key__")) {
-        var pbrKey = new THREE.DirectionalLight(0xFFFBF0, 1.5);
-        pbrKey.name = "__pbr_key__";
-        pbrKey.position.set(15, 30, -10);
-        pbrKey.castShadow = false;
-        _s.add(pbrKey);
-      }
-    }
-    function _applyTex(obj, url, tx, ty, rot, ox, oy, hasPBR) {
-      var _rUrl = url.charAt(0) === "/" ? (window.__VIBEXE_API_ORIGIN__ || "") + url : url;
-      var _rotRad = ((rot || 0) * Math.PI) / 180;
-      var _ox = ox || 0;
-      var _oy = oy || 0;
-      if (hasPBR) {
-        _ensurePbrEnv();
-        var _baseNoExt = _rUrl.replace(/\\.[^.]+$/, "");
-        var _ext = (_rUrl.match(/\\.[^.]+$/) || [".jpg"])[0];
-        var _fname = _rUrl.split("/").pop() || "";
-        var _nScale = 1.0;
-        if (/^Metal/i.test(_fname)) _nScale = 0.8;
-        else if (/^Brick/i.test(_fname)) _nScale = 1.5;
-        else if (/^Rock|^Paving/i.test(_fname)) _nScale = 1.2;
-        else if (/^Wood|^WoodFloor|^Planks/i.test(_fname)) _nScale = 0.6;
-        else if (/^Concrete|^Plaster/i.test(_fname)) _nScale = 0.8;
-        else if (/^Fabric|^Leather|^Carpet/i.test(_fname)) _nScale = 0.5;
-        else if (/^Marble|^Granite|^Onyx|^Travertine/i.test(_fname)) _nScale = 0.7;
-        var _loadT = function(u) { return new Promise(function(res) { new THREE.TextureLoader().load(u, function(t) { res(t); }, undefined, function() { res(null); }); }); };
-        var _cfgT = function(t, srgb) {
-          var c = t.clone(); c.needsUpdate = true;
-          c.wrapS = THREE.RepeatWrapping; c.wrapT = THREE.RepeatWrapping;
-          c.repeat.set(tx, ty); c.rotation = _rotRad;
-          c.center.set(0.5, 0.5); c.offset.set(_ox, _oy);
-          c.anisotropy = 4;
-          if (srgb && THREE.sRGBEncoding) c.encoding = THREE.sRGBEncoding;
-          return c;
-        };
-        Promise.all([_loadT(_rUrl), _loadT(_baseNoExt + "_Normal" + _ext), _loadT(_baseNoExt + "_Roughness" + _ext), _loadT(_baseNoExt + "_Metalness" + _ext), _loadT(_baseNoExt + "_AO" + _ext)])
-          .then(function(maps) {
-            if (!maps[0]) return;
-            var applyPBR = function(child) {
-              if (!child.isMesh || !child.material) return;
-              var ms = Array.isArray(child.material) ? child.material : [child.material];
-              var nm = ms.map(function(mat) {
-                var _mO = {
-                  map: _cfgT(maps[0], true),
-                  roughness: maps[2] ? 1.0 : 0.7,
-                  metalness: maps[3] ? 1.0 : 0.0,
-                  envMapIntensity: maps[3] ? 2.0 : 1.0,
-                  side: THREE.DoubleSide
-                };
-                var _sc = window.__vibexe_scene__;
-                if (_sc && _sc.environment) _mO.envMap = _sc.environment;
-                if (maps[1]) { _mO.normalMap = _cfgT(maps[1], false); _mO.normalScale = new THREE.Vector2(_nScale, _nScale); }
-                if (maps[2]) _mO.roughnessMap = _cfgT(maps[2], false);
-                if (maps[3]) _mO.metalnessMap = _cfgT(maps[3], false);
-                if (maps[4]) { _mO.aoMap = _cfgT(maps[4], false); _mO.aoMapIntensity = 1.0; }
-                var stdMat = new THREE.MeshStandardMaterial(_mO);
-                if (maps[4] && child.geometry && child.geometry.attributes.uv && !child.geometry.attributes.uv2) {
-                  child.geometry.setAttribute("uv2", child.geometry.attributes.uv);
-                }
-                return stdMat;
-              });
-              child.material = Array.isArray(child.material) ? nm : nm[0];
-              if (Array.isArray(child.material)) child.material.forEach(function(m) { m.needsUpdate = true; });
-              else if (child.material) child.material.needsUpdate = true;
-            };
-            obj.traverse(applyPBR);
-            if (obj.isMesh && obj.material) applyPBR(obj);
-            var _rr = window.__vibexe_renderer__;
-            if (_rr) { _rr.toneMapping = 4; _rr.toneMappingExposure = 1.2; }
-          });
-        return;
-      }
-      new THREE.TextureLoader().load(_rUrl, function(tex) {
-        var applyMat = function(m) {
-          var t = tex.clone();
-          t.needsUpdate = true;
-          t.wrapS = THREE.RepeatWrapping;
-          t.wrapT = THREE.RepeatWrapping;
-          t.repeat.set(tx, ty);
-          t.rotation = _rotRad;
-          t.center.set(0.5, 0.5);
-          t.offset.set(_ox, _oy);
-          if (THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
-          t.anisotropy = 4;
-          m.map = t;
-          if (m.color) m.color.set(0xffffff);
-          m.needsUpdate = true;
-        };
-        obj.traverse(function(c) {
-          if (!c.isMesh || !c.material) return;
-          var mats = Array.isArray(c.material) ? c.material : [c.material];
-          mats.forEach(applyMat);
-        });
-        if (obj.isMesh && obj.material) {
-          var ms = Array.isArray(obj.material) ? obj.material : [obj.material];
-          ms.forEach(applyMat);
-        }
-      });
-    }`
-		: "";
-
-	// Spawned objects texture application (inside the spawn loop)
-	const spawnTexLine = spawnedObjects.some((s) => s.args?.textureUrl)
-		? `\n              if (s.args && s.args.textureUrl) { _applyTex(result.mesh, s.args.textureUrl, s.args.textureTileX || 1, s.args.textureTileY || 1, s.args.textureRotation || 0, s.args.textureOffsetX || 0, s.args.textureOffsetY || 0, s.args.hasPBR); }`
-		: "";
-
-	// Scene-original texture overrides application (with polling for async GLTF loads)
-	const texOverridesBlock = textureOverrides.length > 0
-		? `
-      var _texOv = ${texOvJson};
-      if (_texOv.length > 0) {
-        console.log("[SCENE_EDITOR] Applying " + _texOv.length + " texture overrides");
-        var _texApplied = {};
-        function _tryApplyTexOverrides() {
-          var remaining = 0;
-          scene.traverse(function(child) {
-            for (var j = 0; j < _texOv.length; j++) {
-              if (!_texApplied[j] && child.name === _texOv[j].name) {
-                _applyTex(child, _texOv[j].textureUrl, _texOv[j].tileX, _texOv[j].tileY, _texOv[j].rotation || 0, _texOv[j].offsetX || 0, _texOv[j].offsetY || 0, _texOv[j].hasPBR);
-                if (!child.userData) child.userData = {};
-                if (!child.userData.vibexeArgs) child.userData.vibexeArgs = {};
-                child.userData.vibexeArgs.textureUrl = _texOv[j].textureUrl;
-                child.userData.vibexeArgs.textureTileX = _texOv[j].tileX;
-                child.userData.vibexeArgs.textureTileY = _texOv[j].tileY;
-                child.userData.vibexeArgs.textureRotation = _texOv[j].rotation || 0;
-                child.userData.vibexeArgs.textureOffsetX = _texOv[j].offsetX || 0;
-                child.userData.vibexeArgs.textureOffsetY = _texOv[j].offsetY || 0;
-                if (_texOv[j].hasPBR) child.userData.vibexeArgs.hasPBR = true;
-                child.__hasTextureOverride = true;
-                _texApplied[j] = true;
-              }
-            }
-          });
-          for (var k = 0; k < _texOv.length; k++) { if (!_texApplied[k]) remaining++; }
-          return remaining === 0;
-        }
-        function _finalizePbrToneMapping() {
-          var _rr = window.__vibexe_renderer__;
-          if (_rr && window.__vibexePbrEnvDone) { _rr.toneMapping = 4; _rr.toneMappingExposure = 1.2; }
-        }
-        if (!_tryApplyTexOverrides()) {
-          var _texPollCount = 0;
-          var _texPollIv = setInterval(function() {
-            _texPollCount++;
-            if (_tryApplyTexOverrides() || _texPollCount > 30) {
-              clearInterval(_texPollIv);
-              if (_texPollCount > 0) console.log("[SCENE_EDITOR] Texture override polling done after " + _texPollCount + " polls");
-              _finalizePbrToneMapping();
-            }
-          }, 500);
-        } else { _finalizePbrToneMapping(); }
-      }`
-		: "";
-
-	// Self-executing block that polls for __vibexeFactories (exposed by game engine)
-	// and recreates spawned objects. Runs once after scene is ready.
-	const block = `${SPAWN_START}
-// SCENE_EDITOR_SPAWNED_DATA: ${spawnsJson}
-if (typeof window !== 'undefined') {
-  (function() {
-    var _spawns = ${spawnsJson};
-    var _done = false;
-    var _startT = Date.now();${texHelper}
-    function _trySpawn() {
-      if (_done) return;
-      if (Date.now() - _startT > 30000) { console.log("[SCENE_EDITOR] Spawn timeout"); return; }
-      var fns = window.__vibexeFactories;
-      var scene = window.__vibexe_scene__;
-      if (!fns || !scene) { requestAnimationFrame(_trySpawn); return; }
-      _done = true;
-      console.log("[SCENE_EDITOR] Spawning " + _spawns.length + " persisted objects");
-      (async function() {
-        for (var i = 0; i < _spawns.length; i++) {
-          var s = _spawns[i];
-          var fn = fns[s.factory];
-          if (!fn) { console.warn("[SCENE_EDITOR] Unknown factory:", s.factory); continue; }
-          try {
-            var result = await fn(scene, s.position.x, s.position.y, s.position.z, s.args || {});
-            if (result && result.mesh) {
-              if (s.rotation) result.mesh.rotation.set(s.rotation.x, s.rotation.y, s.rotation.z);
-              if (s.scale) result.mesh.scale.set(s.scale.x, s.scale.y, s.scale.z);
-              result.mesh.userData.__spawned = true;${spawnTexLine}
-            }
-          } catch (e) { console.warn("[SCENE_EDITOR] Spawn failed:", s.factory, e); }
-        }${texOverridesBlock}
-      })();
-    }
-    requestAnimationFrame(_trySpawn);
-  })();
-}
-${SPAWN_END}`;
-
-	// Insert BEFORE the overrides block (if it exists), otherwise append
-	const overridesStart = code.indexOf("// SCENE_EDITOR_OVERRIDES_START");
-	if (overridesStart !== -1) {
-		return code.substring(0, overridesStart).trimEnd() + "\n" + block + "\n" + code.substring(overridesStart);
-	}
-	return code.trimEnd() + "\n" + block + "\n";
-}
-
-/**
  * Main preview component with responsive toggles and console.
  * No key on SandpackProvider - SandpackFileSync handles incremental
  * updates so the preview iframe stays alive during streaming.
@@ -851,24 +558,21 @@ export function SandpackPreview({
 	// Detect game mode
 	const isGameMode = projectType === "game" || projectType === "game-mobile";
 
-	// Refs for triggering Sandpack refresh and direct file updates from outside SandpackProvider
+	// Ref for triggering Sandpack refresh from outside SandpackProvider
 	const sandpackRefreshRef = useRef<(() => void) | null>(null);
-	const sandpackUpdateFileRef = useRef<((path: string, code: string) => void) | null>(null);
 
 	// Track whether scene transforms were modified during editor session
 	const sceneModifiedDuringEditRef = useRef(false);
-	// Accumulate scene file edits during editor mode (avoids Sandpack hot-reload loop)
-	const pendingSceneContentRef = useRef<string | null>(null);
 
 	// Save-all-transforms resolver for batch save
 	const allTransformsResolverRef = useRef<((transforms: Record<string, any>) => void) | null>(null);
 	// Spawned objects persistence — saved before restart, restored after
 	const spawnedObjectsRef = useRef<any[]>([]);
-	// Texture overrides for scene-original (non-spawned) objects
-	const textureOverridesRef = useRef<any[]>([]);
-	// Ref for game settings — avoids stale closure in async exit flow
-	const gameSettingsRef = useRef(gameEditor.gameSettings);
-	gameSettingsRef.current = gameEditor.gameSettings;
+
+	// Mutex to prevent concurrent settings saves
+	const savingSettingsRef = useRef(false);
+	// Track last loaded settings content to avoid redundant re-parses
+	const lastLoadedSettingsContentRef = useRef<string | null>(null);
 
 	// Register save handler with game editor context
 	useEffect(() => {
@@ -897,25 +601,25 @@ export function SandpackPreview({
 				return;
 			}
 			console.log("[GameEditor] Saving all transforms:", names.length, "objects");
-			// Find GameScene3D.ts — use pending content if already modified during this session
+			// Find GameScene3D.ts
 			const currentFiles = filesRef.current;
 			const currentOnFileUpdate = onFileUpdateRef.current;
 			const sceneFile = currentFiles.find((f) => f.path?.includes("GameScene3D"));
-			if (!sceneFile?.content) {
+			if (!sceneFile?.content || !currentOnFileUpdate) {
 				console.warn("[GameEditor] Cannot save: GameScene3D.ts not found");
 				return;
 			}
-			// Apply all transforms to source code (start from pending content if available)
-			let code = pendingSceneContentRef.current ?? sceneFile.content;
+			// Apply all transforms to source code
+			let code = sceneFile.content;
 			for (const name of names) {
 				const t = transforms[name];
 				code = updateTransformInSource(code, name, t.position, t.rotation, t.scale);
 			}
-			const baseContent = pendingSceneContentRef.current ?? sceneFile.content;
-			if (code !== baseContent) {
-				pendingSceneContentRef.current = code;
-				sceneModifiedDuringEditRef.current = true;
-				// Save to DB only — no Sandpack file update during editor mode
+			// Debug: uncomment to check save comparison
+			// console.log("[GameEditor] Save comparison: changed=", code !== sceneFile.content);
+			if (code !== sceneFile.content) {
+				currentOnFileUpdate(sceneFile.id, code);
+				// Save to DB
 				try {
 					await fetch(`/api/app-builder/apps/${appId}/files`, {
 						method: "PUT",
@@ -931,54 +635,88 @@ export function SandpackPreview({
 		gameEditor.setSaveHandler(saveAllTransforms);
 	}, [isGameMode, appId, gameEditor.setSaveHandler]);
 
-	// Load game settings from files on mount
-	useEffect(() => {
-		if (!isGameMode) return;
+	// Load game settings from files — re-runs when the settings file content changes
+	const settingsFileContent = useMemo(() => {
+		if (!isGameMode) return null;
 		const settingsFile = files.find((f) => f.path === "src/__game-settings.json" || f.path === "__game-settings.json");
-		if (settingsFile?.content) {
-			try {
-				gameEditor.setGameSettings(JSON.parse(settingsFile.content));
-			} catch { /* invalid JSON */ }
-		}
-	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [isGameMode]); // Only on mount — don't re-run on every files change
+		return settingsFile?.content ?? null;
+	}, [isGameMode, files]);
+
+	useEffect(() => {
+		if (!settingsFileContent) return;
+		// Skip if we already loaded this exact content (avoids overwriting in-progress edits)
+		if (settingsFileContent === lastLoadedSettingsContentRef.current) return;
+		lastLoadedSettingsContentRef.current = settingsFileContent;
+		try {
+			gameEditor.setGameSettings(JSON.parse(settingsFileContent));
+		} catch { /* invalid JSON */ }
+	}, [settingsFileContent, gameEditor.setGameSettings]);
+
+	// Send settings to the game iframe via postMessage (reliable delivery after game loads)
+	const sendSettingsToGame = useCallback((settings: import("../lib/game-editor-context").GameSettings) => {
+		const iframe = iframeRef.current;
+		if (!iframe?.contentWindow) return;
+		iframe.contentWindow.postMessage({
+			type: "applySettings",
+			settings,
+		}, "*");
+	}, []);
 
 	// Save game settings to DB + trigger Sandpack refresh
 	const handleSaveSettings = useCallback(async (settings: import("../lib/game-editor-context").GameSettings) => {
-		const content = JSON.stringify(settings, null, 2);
-		const currentOnFileUpdate = onFileUpdateRef.current;
-		// Find or create the settings file
-		const existingFile = filesRef.current.find((f) => f.path === "src/__game-settings.json" || f.path === "__game-settings.json");
-		const filePath = existingFile?.path || "src/__game-settings.json";
-		// Save to DB
+		// Prevent concurrent saves
+		if (savingSettingsRef.current) return;
+		savingSettingsRef.current = true;
 		try {
-			await fetch(`/api/app-builder/apps/${appId}/files`, {
-				method: "PUT",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ path: filePath, content }),
-			});
-		} catch (err) {
-			console.warn("[GameSettings] DB save failed:", err);
-		}
-		// Update file in state so convertToSandpackFiles re-runs with new settings
-		if (currentOnFileUpdate && existingFile) {
-			currentOnFileUpdate(existingFile.id, content);
-			// Wait for SandpackFileSync to process the updated files, then full refresh
-			setTimeout(() => { sandpackRefreshRef.current?.(); }, 600);
-		} else {
-			// First-time save: file not yet in state — refetch all files from API
-			// so convertToSandpackFiles gets the new settings file
-			const refreshFn = onFilesRefreshRef.current;
-			if (refreshFn) {
-				await refreshFn();
-				// After files are refreshed, wait for SandpackFileSync + then reload
-				setTimeout(() => { sandpackRefreshRef.current?.(); }, 800);
-			} else {
-				// Fallback: just refresh (settings won't apply until page reload)
-				setTimeout(() => { sandpackRefreshRef.current?.(); }, 600);
+			const content = JSON.stringify(settings, null, 2);
+			// Track that we initiated this content so the load effect doesn't re-parse it
+			lastLoadedSettingsContentRef.current = content;
+			const currentOnFileUpdate = onFileUpdateRef.current;
+			// Find or create the settings file
+			const existingFile = filesRef.current.find((f) => f.path === "src/__game-settings.json" || f.path === "__game-settings.json");
+			const filePath = existingFile?.path || "src/__game-settings.json";
+			// Save to DB
+			try {
+				await fetch(`/api/app-builder/apps/${appId}/files`, {
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ path: filePath, content }),
+				});
+			} catch (err) {
+				console.warn("[GameSettings] DB save failed:", err);
 			}
+			// Update file in state so convertToSandpackFiles re-runs with new settings
+			if (currentOnFileUpdate && existingFile) {
+				currentOnFileUpdate(existingFile.id, content);
+				// Wait for SandpackFileSync to process the updated files, then full refresh
+				setTimeout(() => {
+					sandpackRefreshRef.current?.();
+					// Send settings via postMessage after refresh starts loading
+					setTimeout(() => sendSettingsToGame(settings), 1000);
+				}, 600);
+			} else {
+				// First-time save: file not yet in state — refetch all files from API
+				// so convertToSandpackFiles gets the new settings file
+				const refreshFn = onFilesRefreshRef.current;
+				if (refreshFn) {
+					await refreshFn();
+					// After files are refreshed, wait for SandpackFileSync + then reload
+					setTimeout(() => {
+						sandpackRefreshRef.current?.();
+						setTimeout(() => sendSettingsToGame(settings), 1000);
+					}, 800);
+				} else {
+					// Fallback: just refresh (settings won't apply until page reload)
+					setTimeout(() => {
+						sandpackRefreshRef.current?.();
+						setTimeout(() => sendSettingsToGame(settings), 1000);
+					}, 600);
+				}
+			}
+		} finally {
+			savingSettingsRef.current = false;
 		}
-	}, [appId]);
+	}, [appId, sendSettingsToGame]);
 
 	// Landscape/portrait rotation toggle for mobile-frame mode
 	const [isLandscape, setIsLandscape] = useState(false);
@@ -1100,6 +838,15 @@ export function SandpackPreview({
 					console.log("[GameEditor] Re-sending game-editor-enable to bridge");
 					iframe.contentWindow.postMessage({ type: "game-editor-enable" }, "*");
 				}
+				// Send current game settings after bridge is ready
+				if (iframe?.contentWindow) {
+					setTimeout(() => {
+						iframe.contentWindow?.postMessage({
+							type: "applySettings",
+							settings: gameEditor.gameSettings,
+						}, "*");
+					}, 200);
+				}
 				// Restore spawned objects from previous session (if any)
 				if (spawnedObjectsRef.current.length > 0 && iframe?.contentWindow) {
 					const objectsToRestore = [...spawnedObjectsRef.current];
@@ -1123,13 +870,22 @@ export function SandpackPreview({
 					castShadow: data.castShadow,
 					userData: data.userData,
 					_materialColor: data._materialColor,
-					_textureUrl: data._textureUrl || null,
-					_textureTileX: data._textureTileX,
-					_textureTileY: data._textureTileY,
-					_textureRotation: data._textureRotation || 0,
-					_textureOffsetX: data._textureOffsetX || 0,
-					_textureOffsetY: data._textureOffsetY || 0,
 				});
+				// Live-sync player character position to Game Settings spawn
+				const isPlayer = data.userData?.__isPlayerCharacter
+					|| data.userData?.vibexeType === "player"
+					|| data.userData?.vibexeType === "AnimatedCharacter"
+					|| data.name?.startsWith("Character_")
+					|| data.name?.startsWith("Player_");
+				if (isPlayer && data.position) {
+					gameEditor.updateGameSettings({
+						player: {
+							spawnX: Math.round(data.position.x * 100) / 100,
+							spawnY: Math.round(data.position.y * 100) / 100,
+							spawnZ: Math.round(data.position.z * 100) / 100,
+						},
+					});
+				}
 			} else if (data.type === "game-editor-object-deselected") {
 				gameEditor.updateSelectedObject(null);
 			} else if (data.type === "game-editor-gizmo-mode") {
@@ -1162,7 +918,6 @@ export function SandpackPreview({
 			} else if (data.type === "game-editor-spawned-objects") {
 				// Store spawned objects for restoration after restart
 				spawnedObjectsRef.current = data.objects || [];
-				if (data.textureOverrides) textureOverridesRef.current = data.textureOverrides;
 			} else if (data.type === "game-editor-all-transforms") {
 				// Resolve pending save-all-transforms promise
 				if (allTransformsResolverRef.current) {
@@ -1171,52 +926,33 @@ export function SandpackPreview({
 				}
 			} else if (data.type === "game-editor-persist-transform") {
 				// Persist transform changes to source code (GameScene3D.ts)
-				// IMPORTANT: Do NOT call currentOnFileUpdate() here — it triggers Sandpack
-				// hot-reload which restarts the game and resets all object positions.
-				// Instead, accumulate changes in memory + save to DB only.
-				// The editor-exit refresh mechanism applies changes from DB.
 				const currentFiles = filesRef.current;
+				const currentOnFileUpdate = onFileUpdateRef.current;
+				if (!currentOnFileUpdate) return;
 				const objName = data.name as string;
 				const pos = data.position as { x: number; y: number; z: number };
 				const rot = data.rotation as { x: number; y: number; z: number };
 				const scl = data.scale as { x: number; y: number; z: number };
 				if (!objName) return;
-				// Find GameScene3D.ts file — use pending content if we've already modified it
+				// Find GameScene3D.ts file
 				const sceneFile = currentFiles.find((f) => f.path?.includes("GameScene3D"));
 				if (!sceneFile?.content) {
 					console.warn("[GameEditor] Cannot persist: GameScene3D.ts not found in files", currentFiles.length);
 					return;
 				}
-				const baseContent = pendingSceneContentRef.current ?? sceneFile.content;
-				const updated = updateTransformInSource(baseContent, objName, pos, rot, scl);
-				if (updated !== baseContent) {
+				const updated = updateTransformInSource(sceneFile.content, objName, pos, rot, scl);
+				if (updated !== sceneFile.content) {
 					console.log("[GameEditor] Persisting transform for:", objName, "pos:", pos);
 					sceneModifiedDuringEditRef.current = true;
-					pendingSceneContentRef.current = updated;
-					// Save to database so changes survive page refresh (no Sandpack update)
+					currentOnFileUpdate(sceneFile.id, updated);
+					// Also save to database so changes survive page refresh
 					fetch(`/api/app-builder/apps/${appId}/files`, {
 						method: "PUT",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ path: sceneFile.path, content: updated }),
 					}).catch((err) => console.warn("[GameEditor] DB save failed:", err));
-				}
-			} else if (data.type === "game-editor-player-position-update") {
-				// Live-sync player position to Game Settings panel (pick-from-scene)
-				const pos = data.position as { x: number; y: number; z: number };
-				if (!pos) return;
-				// Convert feet Y (mesh position) → body center Y (physics) by adding half-height
-				const halfHeight = (data.characterHeight ?? 1.5) / 2;
-				if (data.characterHeight) {
-					gameEditor.setCharacterHalfHeight(halfHeight);
-				}
-				if (gameEditor.pickSpawnActive) {
-					gameEditor.updateGameSettings({
-						player: { spawnX: pos.x, spawnY: pos.y + halfHeight, spawnZ: pos.z }
-					});
-				} else if (gameEditor.pickRespawnActive) {
-					gameEditor.updateGameSettings({
-						player: { respawnX: pos.x, respawnY: pos.y + halfHeight, respawnZ: pos.z }
-					});
+				} else {
+					console.warn("[GameEditor] No change after updateTransformInSource for:", objName);
 				}
 			}
 		};
@@ -1224,195 +960,18 @@ export function SandpackPreview({
 		return () => window.removeEventListener("message", handler);
 	}, [visualEdit, gameEditor]);
 
-	// When exiting Scene Editor, collect ALL transforms + spawned objects from bridge
-	// BEFORE disabling it, then save everything to code, then flush to Sandpack.
-	// Uses direct sandpack.updateFile() to bypass SandpackFileSync debounce race.
+	// When exiting Scene Editor after transforms were modified, refresh Sandpack
+	// so the game reloads with SCENE_EDITOR_OVERRIDES applied from source code.
 	const prevEditorEnabledRef = useRef(false);
 	useEffect(() => {
 		const wasEnabled = prevEditorEnabledRef.current;
 		prevEditorEnabledRef.current = gameEditor.enabled;
-		if (!wasEnabled || gameEditor.enabled) return; // only run on exit
-
-		console.log("[GameEditor] Exiting — collecting all transforms + spawned objects");
-
-		const iframe = iframeRef.current;
-
-		// Helper: send disable to bridge (called after collection OR on error)
-		const sendDisable = () => {
-			if (iframe?.contentWindow) {
-				iframe.contentWindow.postMessage({ type: "game-editor-disable" }, "*");
-			}
-			try {
-				const iframes = document.querySelectorAll(".sandpack-container iframe");
-				for (const f of iframes) {
-					const frame = f as HTMLIFrameElement;
-					if (frame.contentWindow) frame.contentWindow.postMessage({ type: "game-editor-disable" }, "*");
-				}
-			} catch { /* ignore */ }
-		};
-
-		(async () => {
-			try {
-				let transforms: Record<string, any> = {};
-
-				if (iframe?.contentWindow) {
-					// Step 1a: Collect transforms WHILE bridge is still active
-					iframe.contentWindow.postMessage({ type: "game-editor-collect-all-transforms" }, "*");
-					transforms = await new Promise<Record<string, any>>((resolve) => {
-						allTransformsResolverRef.current = resolve;
-						setTimeout(() => {
-							if (allTransformsResolverRef.current === resolve) {
-								console.warn("[GameEditor] Timed out waiting for transforms — using fallback");
-								allTransformsResolverRef.current = null;
-								resolve({});
-							}
-						}, 3000);
-					});
-
-					// Step 1b: Collect spawned objects + texture overrides via promise-based message flow
-					const bridgeResult = await new Promise<{ objects: any[]; textureOverrides: any[] }>((resolve) => {
-						const timeout = setTimeout(() => resolve({ objects: spawnedObjectsRef.current, textureOverrides: textureOverridesRef.current }), 3000);
-						const handler = (ev: MessageEvent) => {
-							if (ev.data?.type === "game-editor-spawned-objects") {
-								clearTimeout(timeout);
-								window.removeEventListener("message", handler);
-								resolve({ objects: ev.data.objects || [], textureOverrides: ev.data.textureOverrides || [] });
-							}
-						};
-						window.addEventListener("message", handler);
-						iframe.contentWindow!.postMessage({ type: "game-editor-get-spawned-objects" }, "*");
-					});
-					spawnedObjectsRef.current = bridgeResult.objects;
-					textureOverridesRef.current = bridgeResult.textureOverrides;
-				}
-
-				// Step 2: NOW deactivate the bridge
-				sendDisable();
-
-				// Step 3: Save transforms + spawned objects to source code
-				let saveSuccess = false;
-				const sceneFile = filesRef.current.find((f) => f.path?.includes("GameScene3D"));
-				if (!sceneFile?.content) {
-					console.warn("[GameEditor] GameScene3D.ts not found in files — NOTHING saved");
-				} else {
-					let code = pendingSceneContentRef.current ?? sceneFile.content;
-
-					// 3a: Apply all collected transforms
-					const names = Object.keys(transforms);
-					console.log("[GameEditor] Transforms collected:", names.length, "objects:", names.join(", "));
-					for (const name of names) {
-						const t = transforms[name];
-						code = updateTransformInSource(code, name, t.position, t.rotation, t.scale);
-					}
-
-					// 3b: Persist spawned objects as code (factory calls that recreate them on reload)
-					const spawned = spawnedObjectsRef.current;
-					const texOverrides = textureOverridesRef.current;
-					if (spawned.length > 0 || texOverrides.length > 0) {
-						console.log("[GameEditor] Persisting", spawned.length, "spawned objects +", texOverrides.length, "texture overrides to code");
-						code = updateSpawnedObjectsInSource(code, spawned, texOverrides);
-					}
-
-					pendingSceneContentRef.current = code;
-
-					// 3c: Save to database with retry (source of truth for file content)
-					console.log("[GameEditor] Saving scene to DB (path:", sceneFile.path, ", code length:", code.length, ")");
-					for (let attempt = 0; attempt < 3; attempt++) {
-						try {
-							const resp = await fetch(`/api/app-builder/apps/${appId}/files`, {
-								method: "PUT",
-								headers: { "Content-Type": "application/json" },
-								body: JSON.stringify({ path: sceneFile.path, content: code }),
-							});
-							if (resp.ok) {
-								console.log("[GameEditor] Scene saved to DB successfully");
-								saveSuccess = true;
-								break;
-							}
-							console.warn("[GameEditor] Scene DB save HTTP error:", resp.status, "attempt:", attempt + 1);
-						} catch (err) {
-							console.warn("[GameEditor] Scene DB save failed (attempt", attempt + 1, "):", err);
-						}
-						if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
-					}
-					if (!saveSuccess) {
-						console.error("[GameEditor] Failed to save scene after 3 attempts — preserving spawned objects for retry");
-						// Don't clear spawnedObjectsRef on failure — preserve for next attempt
-					}
-				}
-
-				// Step 4: Auto-save game settings on exit
-				const settings = gameSettingsRef.current;
-				if (settings) {
-					const content = JSON.stringify(settings, null, 2);
-					const settingsFile = filesRef.current.find((f) =>
-						f.path === "src/__game-settings.json" || f.path === "__game-settings.json"
-					);
-					const filePath = settingsFile?.path || "src/__game-settings.json";
-					console.log("[GameEditor] Auto-saving game settings to", filePath);
-					try {
-						await fetch(`/api/app-builder/apps/${appId}/files`, {
-							method: "PUT",
-							headers: { "Content-Type": "application/json" },
-							body: JSON.stringify({ path: filePath, content }),
-						});
-					} catch (err) {
-						console.warn("[GameEditor] Settings save failed:", err);
-					}
-					if (settingsFile) {
-						onFileUpdateRef.current?.(settingsFile.id, content);
-					} else {
-						const refreshFn = onFilesRefreshRef.current;
-						if (refreshFn) {
-							console.log("[GameEditor] Refreshing files after first-time settings save");
-							await refreshFn();
-						}
-					}
-				}
-
-				// Step 5: Flush scene edits — use DIRECT sandpack.updateFile() to bypass
-				// SandpackFileSync's 300ms debounce. This prevents the race where refresh()
-				// fires before the debounced updateFile.
-				const pendingContent = pendingSceneContentRef.current;
-				if (pendingContent) {
-					const sceneFile2 = filesRef.current.find((f) => f.path?.includes("GameScene3D"));
-					if (sceneFile2) {
-						// Update parent state so convertToSandpackFiles picks up changes
-						onFileUpdateRef.current?.(sceneFile2.id, pendingContent);
-
-						// ALSO update Sandpack DIRECTLY — bypasses debounce race
-						const sandpackPath = sceneFile2.path?.startsWith("src/") ? `/${sceneFile2.path}` : `/src/${sceneFile2.path}`;
-						if (sandpackUpdateFileRef.current) {
-							console.log("[GameEditor] Direct Sandpack update:", sandpackPath);
-							sandpackUpdateFileRef.current(sandpackPath, pendingContent);
-						}
-					}
-					pendingSceneContentRef.current = null;
-				}
-
-				// Step 6: Refresh Sandpack to reload the iframe with updated files.
-				// The direct updateFile above ensures content is in Sandpack before refresh.
-				// 800ms delay to let settings + scene file updates propagate through convertToSandpackFiles.
-				console.log("[GameEditor] Scheduling Sandpack refresh in 800ms");
-				setTimeout(() => { sandpackRefreshRef.current?.(); }, 800);
-
-				// Clear spawned objects + texture overrides only if save succeeded
-				if (saveSuccess) {
-					spawnedObjectsRef.current = [];
-					textureOverridesRef.current = [];
-				}
-
-				// Phase 9: Send cleanup confirmation to iframe so it can release globals
-				if (iframe?.contentWindow) {
-					iframe.contentWindow.postMessage({ type: "game-editor-cleanup-confirmed" }, "*");
-				}
-				sceneModifiedDuringEditRef.current = false;
-			} catch (err) {
-				console.error("[GameEditor] Exit save error:", err);
-				// SAFEGUARD: Always disable bridge even on error
-				sendDisable();
-			}
-		})();
+		if (wasEnabled && !gameEditor.enabled && sceneModifiedDuringEditRef.current) {
+			console.log("[GameEditor] Scene modified during edit session — refreshing preview to apply overrides");
+			sceneModifiedDuringEditRef.current = false;
+			// Delay to let SandpackFileSync process the last file update
+			setTimeout(() => { sandpackRefreshRef.current?.(); }, 400);
+		}
 	}, [gameEditor.enabled]);
 
 	// Keyboard shortcuts for visual edit
@@ -1795,7 +1354,7 @@ export function SandpackPreview({
 									theme="auto"
 								>
 									<SandpackFileSync files={sandpackFiles} />
-									<SandpackRefreshBridge refreshRef={sandpackRefreshRef} updateFileRef={sandpackUpdateFileRef} />
+									<SandpackRefreshBridge refreshRef={sandpackRefreshRef} />
 									<div className="relative w-full h-full flex flex-col">
 										<div className={`flex-1 min-h-0 ${showConsole ? "" : "h-full"}`}>
 											<SandpackPreviewPane
@@ -1877,7 +1436,7 @@ export function SandpackPreview({
 							theme="auto"
 						>
 							<SandpackFileSync files={sandpackFiles} />
-							<SandpackRefreshBridge refreshRef={sandpackRefreshRef} updateFileRef={sandpackUpdateFileRef} />
+							<SandpackRefreshBridge refreshRef={sandpackRefreshRef} />
 							<div className="relative w-full h-full flex flex-col">
 								{/* Preview pane - takes all space minus console */}
 								<div className={`flex-1 min-h-0 ${showConsole ? "" : "h-full"}`}>
@@ -1936,9 +1495,18 @@ export function SandpackPreview({
 					</div>
 				)}
 
-				{/* Game Editor Panel (overlaid on right side — tabs: Assets / Properties / Settings) */}
+				{/* Game Editor Panel / Settings Panel (overlaid on right side — mutually exclusive) */}
 				{gameEditor.enabled && isGameMode && (
-					<GameEditorPanel settingsProps={{ onSave: handleSaveSettings }} />
+					gameEditor.isSettingsOpen ? (
+						<GameSettingsPanel
+							settings={gameEditor.gameSettings}
+							onChange={gameEditor.updateGameSettings}
+							onSave={handleSaveSettings}
+							onClose={gameEditor.toggleSettings}
+						/>
+					) : (
+						<GameEditorPanel />
+					)
 				)}
 			</div>
 		</div>

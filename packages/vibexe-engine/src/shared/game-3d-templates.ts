@@ -110,16 +110,16 @@ const __gs: any = typeof window !== 'undefined' ? (window as any).__VIBEXE_GAME_
 
 // ===== Common Game Constants (Platformer Project physics) =====
 export const TOUCH_DEADZONE = 0.15;   // Joystick deadzone (0-1 range)
-export const GRAVITY_3D = __gs.physics?.gravity ?? -38;
-export const FALL_GRAVITY = __gs.physics?.fallGravity ?? -65;
-export const JUMP_FORCE = __gs.physics?.jumpForce ?? 17;
+export let GRAVITY_3D = __gs.physics?.gravity ?? -38;
+export let FALL_GRAVITY = __gs.physics?.fallGravity ?? -65;
+export let JUMP_FORCE = __gs.physics?.jumpForce ?? 17;
 export const MIN_JUMP_FORCE = 10;      // Min jump height (tap Space)
-export const MOVE_SPEED = __gs.physics?.moveSpeed ?? 6;
-export const RUN_SPEED = __gs.physics?.runSpeed ?? 7.5;
+export let MOVE_SPEED = __gs.physics?.moveSpeed ?? 6;
+export let RUN_SPEED = __gs.physics?.runSpeed ?? 7.5;
 export const ACCELERATION = 13;        // Ground acceleration
 export const AIR_ACCELERATION = 32;    // Air acceleration (faster than ground!)
-export const FRICTION = __gs.physics?.friction ?? 28;
-export const COYOTE_TIME = __gs.physics?.coyoteTime ?? 0.15;
+export let FRICTION = __gs.physics?.friction ?? 28;
+export let COYOTE_TIME = __gs.physics?.coyoteTime ?? 0.15;
 export const JUMP_BUFFER = 0.15;       // Seconds before landing a jump press is remembered
 export const DASH_FORCE = 25;          // Dash velocity
 export const DASH_DURATION = 0.3;      // Dash duration in seconds
@@ -134,14 +134,14 @@ export const STOMP_FORCE = -20;        // Stomp downward force (additive per fra
 export const AIR_DIVE_FORCE = 16;      // Air dive forward force
 
 // Camera follow constants (3rd-person platformer defaults)
-export const CAMERA_OFFSET_Y = __gs.camera?.offsetY ?? 8;
-export const CAMERA_OFFSET_Z = __gs.camera?.offsetZ ?? 12;
-export const CAMERA_LERP = __gs.camera?.lerp ?? 3;
-export const CAMERA_LOOK_Y = __gs.camera?.lookY ?? 1;
+export let CAMERA_OFFSET_Y = __gs.camera?.offsetY ?? 8;
+export let CAMERA_OFFSET_Z = __gs.camera?.offsetZ ?? 12;
+export let CAMERA_LERP = __gs.camera?.lerp ?? 3;
+export let CAMERA_LOOK_Y = __gs.camera?.lookY ?? 1;
 // Common AI aliases — prevent "undefined" crashes
-export const CAMERA_LOOK_AHEAD = __gs.camera?.lookAhead ?? 5;
-export const CAMERA_DISTANCE = CAMERA_OFFSET_Z;
-export const CAMERA_HEIGHT = CAMERA_OFFSET_Y;
+export let CAMERA_LOOK_AHEAD = __gs.camera?.lookAhead ?? 5;
+export let CAMERA_DISTANCE = CAMERA_OFFSET_Z;
+export let CAMERA_HEIGHT = CAMERA_OFFSET_Y;
 export const CAMERA_SMOOTH = 0.1;
 
 // Collision / pickup distances
@@ -198,6 +198,7 @@ Object.assign(window, {
   createPhysicsWorld, createPhysicsBody, createPhysicsGround, syncBodiesToMeshes, createContactMaterial,
   createGround3D, createSkyGradient, checkCollision, checkBoxCollision, createHUD,
   createKeyboardState, createTouchJoystick, createTapDetector, createSwipeDetector,
+  hapticFeedback, tryLockLandscape,
   createAnimationPlayer, createOrbitControls, onClickObject,
   loadGLTF, modelUrl, initRenderer, initScene, initCamera,
   // Animation Registry
@@ -942,6 +943,8 @@ export function createOrbitControls(
 /**
  * Creates a visible virtual joystick (bottom-left, 120px diameter).
  * Returns { x, y, active, destroy }. x/y range: -1 to 1.
+ * Multi-touch safe: tracks a single pointer ID so other fingers
+ * (tap-to-jump, shoot, etc.) work simultaneously.
  */
 export function createTouchJoystick(container: HTMLElement): {
   x: number; y: number; active: boolean; destroy: () => void;
@@ -961,9 +964,12 @@ export function createTouchJoystick(container: HTMLElement): {
   container.appendChild(base);
 
   let startX = 0, startY = 0;
+  let joystickPointerId: number | null = null;
 
   function onPointerDown(e: PointerEvent) {
+    if (joystickPointerId !== null) return;
     e.preventDefault();
+    joystickPointerId = e.pointerId;
     base.setPointerCapture(e.pointerId);
     const rect = base.getBoundingClientRect();
     startX = rect.left + HALF;
@@ -973,7 +979,7 @@ export function createTouchJoystick(container: HTMLElement): {
   }
 
   function onPointerMove(e: PointerEvent) {
-    if (!state.active) return;
+    if (e.pointerId !== joystickPointerId) return;
     let dx = e.clientX - startX;
     let dy = e.clientY - startY;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -983,7 +989,9 @@ export function createTouchJoystick(container: HTMLElement): {
     thumb.style.transform = \`translate(calc(-50% + \${dx}px), calc(-50% + \${dy}px))\`;
   }
 
-  function onPointerUp() {
+  function onPointerUp(e: PointerEvent) {
+    if (e.pointerId !== joystickPointerId) return;
+    joystickPointerId = null;
     state.active = false;
     state.x = 0;
     state.y = 0;
@@ -1010,28 +1018,27 @@ export function createTouchJoystick(container: HTMLElement): {
 /**
  * Detects taps on the container with left/right half split.
  * onTap(x, y, isLeft) — isLeft=true if tap was on the left half.
+ * Multi-touch safe: tracks each pointer independently.
  * Returns cleanup function.
  */
 export function createTapDetector(
   container: HTMLElement,
   onTap: (x: number, y: number, isLeft: boolean) => void,
 ): () => void {
-  let startTime = 0;
-  let startX = 0;
-  let startY = 0;
+  const pointerStarts = new Map<number, { x: number; y: number; time: number }>();
 
   function onDown(e: PointerEvent) {
-    startTime = Date.now();
-    startX = e.clientX;
-    startY = e.clientY;
+    pointerStarts.set(e.pointerId, { x: e.clientX, y: e.clientY, time: Date.now() });
   }
 
   function onUp(e: PointerEvent) {
-    const dt = Date.now() - startTime;
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
-    // Tap = short press + small movement
-    if (dt < 300 && Math.abs(dx) < 20 && Math.abs(dy) < 20) {
+    const start = pointerStarts.get(e.pointerId);
+    pointerStarts.delete(e.pointerId);
+    if (!start) return;
+    const dt = Date.now() - start.time;
+    const dx = Math.abs(e.clientX - start.x);
+    const dy = Math.abs(e.clientY - start.y);
+    if (dt < 300 && dx < 20 && dy < 20) {
       const rect = container.getBoundingClientRect();
       const isLeft = e.clientX < rect.left + rect.width / 2;
       onTap(e.clientX, e.clientY, isLeft);
@@ -1055,19 +1062,23 @@ export function createTapDetector(
 export function createSwipeDetector(
   container: HTMLElement,
   onSwipe: (direction: "left" | "right" | "up" | "down") => void,
-  threshold: number = 30,
+  threshold: number = 50,
 ): () => void {
-  let startX = 0;
-  let startY = 0;
+  const pointerStarts = new Map<number, { x: number; y: number; time: number }>();
+  const maxTime = 300;
 
   function onDown(e: PointerEvent) {
-    startX = e.clientX;
-    startY = e.clientY;
+    pointerStarts.set(e.pointerId, { x: e.clientX, y: e.clientY, time: Date.now() });
   }
 
   function onUp(e: PointerEvent) {
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
+    const start = pointerStarts.get(e.pointerId);
+    pointerStarts.delete(e.pointerId);
+    if (!start) return;
+    const dt = Date.now() - start.time;
+    if (dt > maxTime) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
     if (absDx < threshold && absDy < threshold) return;
@@ -1085,6 +1096,26 @@ export function createSwipeDetector(
     container.removeEventListener("pointerdown", onDown);
     container.removeEventListener("pointerup", onUp);
   };
+}
+
+// ===== HAPTIC FEEDBACK =====
+export function hapticFeedback(style: "light" | "medium" | "heavy" = "light") {
+  try {
+    if ("vibrate" in navigator) {
+      const durations = { light: 10, medium: 25, heavy: 50 };
+      navigator.vibrate(durations[style]);
+    }
+  } catch (_) { /* not all devices support vibration */ }
+}
+
+// ===== ORIENTATION LOCK =====
+export function tryLockLandscape() {
+  try {
+    const so = screen?.orientation;
+    if (so && typeof so.lock === "function") {
+      so.lock("landscape").catch(() => {});
+    }
+  } catch (_) { /* not supported */ }
 }
 
 // ===== ANIMATION MIXER AUTO-UPDATE =====
@@ -1196,15 +1227,17 @@ const _sfxPool: Map<string, number> = new Map(); // URL → active instance coun
 
 function _getAudioContext(): AudioContext {
   if (!_audioCtx) {
+    const __gsAudio = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).audio || {};
+    const audioEnabled = __gsAudio.enabled !== false;
     _audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
     _masterGain = _audioCtx.createGain();
-    _masterGain.gain.value = 0.8;
+    _masterGain.gain.value = audioEnabled ? (__gsAudio.masterVolume ?? 0.8) : 0;
     _masterGain.connect(_audioCtx.destination);
     _musicGain = _audioCtx.createGain();
-    _musicGain.gain.value = 0.5;
+    _musicGain.gain.value = __gsAudio.musicVolume ?? 0.5;
     _musicGain.connect(_masterGain);
     _sfxGain = _audioCtx.createGain();
-    _sfxGain.gain.value = 1.0;
+    _sfxGain.gain.value = __gsAudio.sfxVolume ?? 1.0;
     _sfxGain.connect(_masterGain);
     // Set initial listener orientation so spatial audio works immediately
     // (forward: -Z, up: +Y — matches Three.js default camera orientation)
@@ -3486,8 +3519,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
 
         // Optional fog from game settings
         if (__gs.environment?.fogEnabled) {
+          const __fogColor = __gs.environment?.fogColor || __envBg || bgColor;
           scene.fog = new THREE.Fog(
-            __envBg || bgColor,
+            __fogColor,
             __gs.environment?.fogNear ?? 30,
             __gs.environment?.fogFar ?? 100
           );
@@ -3496,18 +3530,30 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         // Engine-wide default lighting — balanced for cartoon/Phong materials.
         // Total light budget ~1.0 so colors render faithfully without clipping.
         // Games can remove/replace these in their init() if needed.
-        const _defHemi = new THREE.HemisphereLight(0xEEF4FF, 0x886644, __gs.environment?.hemisphereIntensity ?? 0.35);
+        const _defHemi = new THREE.HemisphereLight(
+          __gs.environment?.hemisphereSkyColor || '#eef4ff',
+          __gs.environment?.hemisphereGroundColor || '#886644',
+          __gs.environment?.hemisphereIntensity ?? 0.35
+        );
         _defHemi.name = '__default_hemi__';
         scene.add(_defHemi);
-        const _defAmbient = new THREE.AmbientLight(0xFFFFFF, __gs.environment?.ambientLightIntensity ?? 0.15);
+        const _defAmbient = new THREE.AmbientLight(
+          __gs.environment?.ambientLightColor || '#ffffff',
+          __gs.environment?.ambientLightIntensity ?? 0.15
+        );
         _defAmbient.name = '__default_ambient__';
         scene.add(_defAmbient);
-        const _defSun = new THREE.DirectionalLight(0xFFF8EE, __gs.environment?.sunLightIntensity ?? 0.55);
+        const _defSun = new THREE.DirectionalLight(
+          __gs.environment?.sunLightColor || '#fff8ee',
+          __gs.environment?.sunLightIntensity ?? 0.55
+        );
         _defSun.name = '__default_sun__';
         _defSun.position.set(8, 20, 10);
         _defSun.castShadow = true;
-        _defSun.shadow.mapSize.width = 1024;
-        _defSun.shadow.mapSize.height = 1024;
+        const __shadowSizes: Record<string, number> = { low: 512, medium: 1024, high: 2048 };
+        const __shadowSize = __shadowSizes[__gs.environment?.shadowQuality || 'medium'] || 1024;
+        _defSun.shadow.mapSize.width = __shadowSize;
+        _defSun.shadow.mapSize.height = __shadowSize;
         _defSun.shadow.camera.near = 0.5;
         _defSun.shadow.camera.far = 50;
         _defSun.shadow.camera.left = -20;
@@ -3616,6 +3662,28 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         loading.setProgress(1);
         renderer.render(scene, camera);
         loading.remove();
+
+        // ===== Post-Processing from Game Settings =====
+        // Apply post-processing preset if configured via settings UI.
+        // Uses the existing createPostProcessing() pipeline which stores
+        // the EffectComposer on window.__vibexe_composer__ for the render loop.
+        const __ppSettings = __gs.postProcessing;
+        if (__ppSettings && __ppSettings.preset && __ppSettings.preset !== "none") {
+          const __pp = createPostProcessing(renderer, scene, camera, __ppSettings.preset);
+          if (__pp) {
+            // Apply custom bloom overrides if user adjusted them from preset defaults
+            const __presetData = POST_PROCESSING_PRESETS[__ppSettings.preset];
+            const __customIntensity = __ppSettings.bloomIntensity;
+            const __customThreshold = __ppSettings.bloomThreshold;
+            if (__customIntensity != null || __customThreshold != null) {
+              __pp.addBloom({
+                strength: __customIntensity ?? __presetData?.bloom?.strength ?? 0.5,
+                radius: __presetData?.bloom?.radius ?? 0.4,
+                threshold: __customThreshold ?? __presetData?.bloom?.threshold ?? 0.85,
+              });
+            }
+          }
+        }
 
         // ===== Scene Editor Integration =====
         // Expose hooks for the game editor bridge to pause/resume and control camera.
@@ -4760,6 +4828,64 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 window.parent.postMessage({ type: "game-editor-all-transforms", transforms: _allTf }, "*");
                 break;
               }
+              case "updateGameSettings": {
+                const s = d.settings;
+                if (!s) break;
+                // --- Physics ---
+                if (s.physics) {
+                  if (s.physics.gravity !== undefined) { GRAVITY_3D = s.physics.gravity; (window as any).GRAVITY_3D = GRAVITY_3D; }
+                  if (s.physics.fallGravity !== undefined) { FALL_GRAVITY = s.physics.fallGravity; (window as any).FALL_GRAVITY = FALL_GRAVITY; }
+                  if (s.physics.jumpForce !== undefined) { JUMP_FORCE = s.physics.jumpForce; (window as any).JUMP_FORCE = JUMP_FORCE; }
+                  if (s.physics.moveSpeed !== undefined) { MOVE_SPEED = s.physics.moveSpeed; (window as any).MOVE_SPEED = MOVE_SPEED; }
+                  if (s.physics.runSpeed !== undefined) { RUN_SPEED = s.physics.runSpeed; (window as any).RUN_SPEED = RUN_SPEED; }
+                  if (s.physics.friction !== undefined) { FRICTION = s.physics.friction; (window as any).FRICTION = FRICTION; }
+                  if (s.physics.coyoteTime !== undefined) { COYOTE_TIME = s.physics.coyoteTime; (window as any).COYOTE_TIME = COYOTE_TIME; }
+                  if (world && s.physics.gravity !== undefined) {
+                    world.gravity.set(0, s.physics.gravity, 0);
+                  }
+                }
+                // --- Camera ---
+                if (s.camera) {
+                  if (s.camera.fov !== undefined && camera) { camera.fov = s.camera.fov; camera.updateProjectionMatrix(); }
+                  if (s.camera.offsetY !== undefined) { CAMERA_OFFSET_Y = s.camera.offsetY; CAMERA_HEIGHT = s.camera.offsetY; (window as any).CAMERA_OFFSET_Y = s.camera.offsetY; }
+                  if (s.camera.offsetZ !== undefined) { CAMERA_OFFSET_Z = s.camera.offsetZ; CAMERA_DISTANCE = s.camera.offsetZ; (window as any).CAMERA_OFFSET_Z = s.camera.offsetZ; }
+                  if (s.camera.lerp !== undefined) { CAMERA_LERP = s.camera.lerp; (window as any).CAMERA_LERP = s.camera.lerp; }
+                  if (s.camera.lookY !== undefined) { CAMERA_LOOK_Y = s.camera.lookY; (window as any).CAMERA_LOOK_Y = s.camera.lookY; }
+                  if (s.camera.lookAhead !== undefined) { CAMERA_LOOK_AHEAD = s.camera.lookAhead; (window as any).CAMERA_LOOK_AHEAD = s.camera.lookAhead; }
+                }
+                // --- Environment ---
+                if (s.environment && scene) {
+                  if (s.environment.backgroundColor !== undefined) scene.background = new THREE.Color(s.environment.backgroundColor);
+                  const _al = scene.getObjectByName('__default_ambient__');
+                  if (_al && s.environment.ambientLightIntensity !== undefined) (_al as any).intensity = s.environment.ambientLightIntensity;
+                  if (_al && s.environment.ambientLightColor) (_al as any).color = new THREE.Color(s.environment.ambientLightColor);
+                  const _sl = scene.getObjectByName('__default_sun__');
+                  if (_sl && s.environment.sunLightIntensity !== undefined) (_sl as any).intensity = s.environment.sunLightIntensity;
+                  if (_sl && s.environment.sunLightColor) (_sl as any).color = new THREE.Color(s.environment.sunLightColor);
+                  const _hl = scene.getObjectByName('__default_hemi__');
+                  if (_hl && s.environment.hemisphereIntensity !== undefined) (_hl as any).intensity = s.environment.hemisphereIntensity;
+                  if (s.environment.fogEnabled !== undefined) {
+                    if (s.environment.fogEnabled) {
+                      const _fogColor = s.environment.fogColor || s.environment.backgroundColor || '#87CEEB';
+                      scene.fog = new THREE.Fog(_fogColor, s.environment.fogNear ?? 30, s.environment.fogFar ?? 100);
+                    } else {
+                      scene.fog = null;
+                    }
+                  } else if (scene.fog) {
+                    if (s.environment.fogNear !== undefined) scene.fog.near = s.environment.fogNear;
+                    if (s.environment.fogFar !== undefined) scene.fog.far = s.environment.fogFar;
+                    if (s.environment.fogColor) scene.fog.color = new THREE.Color(s.environment.fogColor);
+                  }
+                }
+                // --- Audio ---
+                if (s.audio && _masterGain) {
+                  const enabled = s.audio.enabled !== false;
+                  _masterGain.gain.value = enabled ? (s.audio.masterVolume ?? 0.8) : 0;
+                  if (_musicGain && s.audio.musicVolume !== undefined) _musicGain.gain.value = s.audio.musicVolume;
+                  if (_sfxGain && s.audio.sfxVolume !== undefined) _sfxGain.gain.value = s.audio.sfxVolume;
+                }
+                break;
+              }
             }
           });
 
@@ -5020,6 +5146,7 @@ import {
   createPhysicsBody, syncBodiesToMeshes, createKeyboardState,
   createGround3D, createSkyGradient, createHUD,
   playSound, soundUrl, preloadSounds,
+  hapticFeedback, tryLockLandscape,
   CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_LERP, CAMERA_LOOK_Y,
   COLLECT_DISTANCE, JUMP_FORCE, COYOTE_TIME, JUMP_BUFFER,
   FALL_GRAVITY, GRAVITY_3D, MOVE_SPEED,
@@ -5178,6 +5305,7 @@ export const GameScene = {
       coyoteTimer = COYOTE_TIME; // Consume coyote time
       jumpBufferTimer = 0;
       playSound(soundUrl("platformer-project/sfx/jump_0.wav"), { volume: 0.6 });
+      hapticFeedback("light");
     }
 
     // Sync physics → meshes
@@ -5201,6 +5329,7 @@ export const GameScene = {
         score++;
         hud.update({ score });
         playSound(soundUrl("platformer-project/sfx/coin01.wav"), { volume: 0.7 });
+        hapticFeedback("light");
       }
       if (!c.collected) c.mesh.rotation.y += delta * 2;
     }
@@ -5209,6 +5338,7 @@ export const GameScene = {
     if (lily.mesh.position.y < -10) {
       playerBody.position.set(respawnX, respawnY, respawnZ);
       playerBody.velocity.set(0, 0, 0);
+      hapticFeedback("heavy");
     }
   },
 

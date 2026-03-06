@@ -55,6 +55,8 @@ export interface PrefabDefinition {
 }
 
 // ===== Game Settings =====
+export type QualityPreset = "low" | "medium" | "high" | "ultra";
+
 export interface GameSettings {
 	version?: number;
 	player?: {
@@ -74,9 +76,32 @@ export interface GameSettings {
 	environment?: {
 		backgroundColor?: string;
 		ambientLightIntensity?: number;
+		ambientLightColor?: string;
 		sunLightIntensity?: number;
+		sunLightColor?: string;
 		hemisphereIntensity?: number;
-		fogEnabled?: boolean; fogNear?: number; fogFar?: number;
+		hemisphereSkyColor?: string;
+		hemisphereGroundColor?: string;
+		fogEnabled?: boolean; fogColor?: string; fogNear?: number; fogFar?: number;
+		shadowQuality?: "low" | "medium" | "high";
+	};
+	audio?: {
+		masterVolume?: number;
+		musicVolume?: number;
+		sfxVolume?: number;
+		enabled?: boolean;
+	};
+	postProcessing?: {
+		preset?: "none" | "cinematic" | "vibrant" | "dark" | "neon" | "natural";
+		bloomIntensity?: number;
+		bloomThreshold?: number;
+	};
+	performance?: {
+		qualityPreset?: QualityPreset;
+		showFPS?: boolean;
+		antialias?: boolean;
+		pixelRatio?: number;
+		maxFPS?: number;
 	};
 }
 
@@ -85,7 +110,10 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
 	player: { spawnX: 0, spawnY: 3, spawnZ: 0, startingLives: 3, respawnX: 0, respawnY: 5, respawnZ: 0 },
 	physics: { gravity: -38, fallGravity: -65, jumpForce: 17, moveSpeed: 6, runSpeed: 7.5, friction: 28, coyoteTime: 0.15 },
 	camera: { offsetY: 8, offsetZ: 12, fov: 60, lerp: 3, lookAhead: 5, lookY: 1 },
-	environment: { backgroundColor: "#87CEEB", ambientLightIntensity: 0.15, sunLightIntensity: 0.55, hemisphereIntensity: 0.35, fogEnabled: false, fogNear: 30, fogFar: 100 },
+	environment: { backgroundColor: "#87CEEB", ambientLightIntensity: 0.15, ambientLightColor: "#ffffff", sunLightIntensity: 0.55, sunLightColor: "#fff8ee", hemisphereIntensity: 0.35, hemisphereSkyColor: "#eef4ff", hemisphereGroundColor: "#886644", fogEnabled: false, fogColor: "#88aacc", fogNear: 30, fogFar: 100, shadowQuality: "medium" as const },
+	audio: { masterVolume: 0.8, musicVolume: 0.5, sfxVolume: 0.7, enabled: true },
+	postProcessing: { preset: "none" as const, bloomIntensity: 0.5, bloomThreshold: 0.8 },
+	performance: { qualityPreset: "high" as QualityPreset, showFPS: false, antialias: true, pixelRatio: 1, maxFPS: 60 },
 };
 
 interface GameEditorContextValue {
@@ -451,6 +479,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 					});
 				}
 			}
+			// Live-sync ALL settings to iframe (physics, camera, lighting, fog, etc.)
+			sendToIframe({ type: "updateGameSettings", settings: next });
 			return next;
 		});
 	}, [sendToIframe]);

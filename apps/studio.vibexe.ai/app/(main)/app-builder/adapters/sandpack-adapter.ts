@@ -1562,43 +1562,6 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				}
 			} catch { /* invalid JSON */ }
 		}
-		// Character Y-offset fix: correct mesh feet position relative to physics body center.
-		// Without this, mesh.position.copy(physicsBody.position) places the mesh at the body
-		// CENTER, but pivot correction puts feet at local Y=0, causing characters to float
-		// above the ground by halfHeight. Patches renderer.render to fix Y before each frame.
-		globals += [
-			"(function(){",
-			"var _cn=0;",
-			"var _ct=setInterval(function(){",
-			"_cn++;if(_cn>100){clearInterval(_ct);return}",
-			"var _r=(window as any).__vibexe_renderer__;",
-			"if(!_r||!_r.render)return;",
-			"clearInterval(_ct);",
-			"var _origR=_r.render;",
-			"var _chrs=[] as any[];var _lsc:any=null;",
-			"_r.render=function(_s:any,_c:any){",
-			// Skip Y-offset correction when Scene Editor is active —
-			// the editor controls character position directly via game-editor-move-player.
-			// Without this guard, the correction fights the editor's position changes.
-			// NOTE: __vibexe_editor__ is always truthy (it's the game's scene/camera object).
-			// __vibexe_editor_active__ is a boolean set by activateBridge/deactivateBridge.
-			"if(_s&&!(window as any).__vibexe_editor_active__){",
-			"var _w=(window as any).__vibexe_world__;",
-			"if(_w&&_w.bodies){",
-			"if(_s!==_lsc){_chrs=[];_lsc=_s;if(_s.traverse)_s.traverse(function(_o:any){var _cb=_o.userData&&_o.userData.__characterBounds;if(_cb&&_cb.height)_chrs.push(_o)})}",
-			"for(var _ci=0;_ci<_chrs.length;_ci++){",
-			"var _o=_chrs[_ci];var _hh=_o.userData.__characterBounds.height/2;",
-			"for(var _bi=0;_bi<_w.bodies.length;_bi++){",
-			"var _b=_w.bodies[_bi];",
-			"if(_b.mass>0&&Math.abs(_b.position.x-_o.position.x)<0.5&&Math.abs(_b.position.z-_o.position.z)<0.5&&Math.abs(_b.position.y-_o.position.y)<0.15){",
-			"_o.position.y=_b.position.y-_hh;break}",
-			"}}}",
-			"}",
-			"return _origR.call(this,_s,_c)",
-			"};",
-			"},100)})();\n",
-		].join("");
-
 		globals += "\n";
 		for (const entryKey of ["/index.js", "/index.jsx", "/index.ts", "/index.tsx"]) {
 			if (sandpackFiles[entryKey]) {
@@ -1618,36 +1581,42 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		try {
 			const gsObj = JSON.parse(settingsFile.content);
 
+			// Clamp a numeric value to [min, max] — prevents invalid values from being injected
+			const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
+
 			// 1. Patch assets-3d.ts — replace hardcoded constants with actual settings values
 			const assetsKey = Object.keys(sandpackFiles).find((p) => p.endsWith("/assets-3d.ts"));
 			if (assetsKey) {
 				const af = sandpackFiles[assetsKey];
 				let code = typeof af === "string" ? af : af.code;
-				// Map: [constantName, settingsPath, value]
-				const constMap: [string, number | undefined][] = [
-					["GRAVITY_3D", gsObj.physics?.gravity],
-					["FALL_GRAVITY", gsObj.physics?.fallGravity],
-					["JUMP_FORCE", gsObj.physics?.jumpForce],
-					["MOVE_SPEED", gsObj.physics?.moveSpeed],
-					["RUN_SPEED", gsObj.physics?.runSpeed],
-					["FRICTION", gsObj.physics?.friction],
-					["COYOTE_TIME", gsObj.physics?.coyoteTime],
-					["CAMERA_OFFSET_Y", gsObj.camera?.offsetY],
-					["CAMERA_OFFSET_Z", gsObj.camera?.offsetZ],
-					["CAMERA_HEIGHT", gsObj.camera?.offsetY],
-					["CAMERA_DISTANCE", gsObj.camera?.offsetZ],
-					["CAMERA_LERP", gsObj.camera?.lerp],
-					["CAMERA_LOOK_AHEAD", gsObj.camera?.lookAhead],
-					["CAMERA_LOOK_Y", gsObj.camera?.lookY],
+				// Map: [constantName, rawValue, min, max]
+				const constMap: [string, number | undefined, number, number][] = [
+					["GRAVITY_3D", gsObj.physics?.gravity, -200, 0],
+					["FALL_GRAVITY", gsObj.physics?.fallGravity, -200, 0],
+					["JUMP_FORCE", gsObj.physics?.jumpForce, 0, 100],
+					["MOVE_SPEED", gsObj.physics?.moveSpeed, 0, 50],
+					["RUN_SPEED", gsObj.physics?.runSpeed, 0, 50],
+					["FRICTION", gsObj.physics?.friction, 0, 100],
+					["COYOTE_TIME", gsObj.physics?.coyoteTime, 0, 2],
+					["CAMERA_OFFSET_Y", gsObj.camera?.offsetY, -50, 100],
+					["CAMERA_OFFSET_Z", gsObj.camera?.offsetZ, 0, 100],
+					["CAMERA_HEIGHT", gsObj.camera?.offsetY, -50, 100],
+					["CAMERA_DISTANCE", gsObj.camera?.offsetZ, 0, 100],
+					["CAMERA_LERP", gsObj.camera?.lerp, 0.1, 30],
+					["CAMERA_LOOK_AHEAD", gsObj.camera?.lookAhead, 0, 30],
+					["CAMERA_LOOK_Y", gsObj.camera?.lookY, -20, 20],
 				];
 				let patchCount = 0;
-				for (const [name, value] of constMap) {
-					if (value == null) continue; // only patch if setting has a value
+				for (const [name, rawValue, min, max] of constMap) {
+					if (rawValue == null || Number.isNaN(rawValue)) continue;
+					const value = clamp(rawValue, min, max);
 					const re = new RegExp(`(export\\s+const\\s+${name}\\s*=\\s*)([^;]+)(;)`);
-					const m = code.match(re);
-					if (m) {
-						code = code.replace(re, `$1${value}$3`);
+					const before = code;
+					code = code.replace(re, `$1${value}$3`);
+					if (code !== before) {
 						patchCount++;
+					} else {
+						console.warn(`[sandpack-adapter] Failed to patch ${name} — constant not found in assets-3d.ts`);
 					}
 				}
 				if (patchCount > 0) {
@@ -1764,6 +1733,27 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 							} catch { /* invalid override JSON — skip */ }
 						}
 					}
+
+					// Patch MAX_LIVES — startingLives from player settings
+					// Engine templates use: const MAX_LIVES = __gsR.runner?.maxLives ?? __gsR.player?.startingLives ?? 3;
+					if (sp.startingLives != null && !Number.isNaN(sp.startingLives)) {
+						const lives = clamp(Math.round(sp.startingLives), 1, 99);
+						const before = code;
+						code = code.replace(
+							/(const\s+MAX_LIVES\s*=\s*)([^;]+)(;)/,
+							`$1${lives}$3`,
+						);
+						if (code === before) {
+							// Fallback: some templates use `let lives = N;` directly (e.g. squad-shooter)
+							code = code.replace(
+								/(let\s+lives\s*=\s*)(\d+)(;)/,
+								`$1${lives}$3`,
+							);
+						}
+						if (code === before) {
+							console.warn("[sandpack-adapter] Failed to patch startingLives — MAX_LIVES / lives constant not found in GameScene3D.ts");
+						}
+					}
 				}
 				if (typeof sf === "string") {
 					sandpackFiles[sceneKey] = code;
@@ -1774,643 +1764,6 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 
 			// 3. Environment settings handled by runtime override in entry point (async setInterval)
 		} catch { /* invalid settings JSON — skip all patching */ }
-	}
-
-	// Patch: Inject sole raise for character pivot (prevents shoe sole clipping through floor).
-	// Old templates lack this fix; new templates from the updated engine already include it.
-	// This runs independently of game settings — always applies to assets-3d.ts.
-	{
-		const assetsKey = Object.keys(sandpackFiles).find((p) => p.endsWith("/assets-3d.ts"));
-		if (assetsKey) {
-			const af = sandpackFiles[assetsKey];
-			let code = typeof af === "string" ? af : af.code;
-			if (!code.includes("_soleRaise") && code.includes("_needsUnityRootFix")) {
-				code = code.replace(
-					/(console\.log\("\[3D\] Unity Root bone fix: applied -90[^"]+"\);)/,
-					"$1\n    var _soleRaise = targetHeight * 0.07; pivot.position.y += _soleRaise;",
-				);
-				if (typeof af === "string") {
-					sandpackFiles[assetsKey] = code;
-				} else {
-					(sandpackFiles[assetsKey] as SandpackFile).code = code;
-				}
-			}
-		}
-	}
-
-	// =====================================================================
-	// Runtime patches for existing projects (stored engine code in DB).
-	// These fix bugs that are already fixed in the template source but
-	// don't take effect until a project is regenerated.
-	// =====================================================================
-
-	// Patch assets-3d.ts for existing projects
-	{
-		const assetsKey2 = Object.keys(sandpackFiles).find((p) => p.endsWith("/assets-3d.ts"));
-		if (assetsKey2) {
-			const af2 = sandpackFiles[assetsKey2];
-			let code = typeof af2 === "string" ? af2 : af2.code;
-
-			// Phase 2: Fix _autoCorrectModelUrl — add dimension-pattern guard
-			// Old code "corrects" names like "decorative_1x1x1" by snapping them to valid platform dimensions.
-			// The guard prevents this by checking if the baseName IS a dimension pattern or a named decorative.
-			if (code.includes("_autoCorrectModelUrl") && !code.includes("_dimGuardApplied")) {
-				// Match both TS signature (url: string): string and plain JS (url)
-				code = code.replace(
-					/function\s+_autoCorrectModelUrl\s*\([^)]*\)\s*(?::\s*string\s*)?\{/,
-					`function _autoCorrectModelUrl(url) {
-  var _dimGuardApplied = true;
-  var _parts = url.split("/"); var _fname = _parts[_parts.length - 1] || "";
-  var _bn = _fname.replace(/\\.[^.]+$/, "").replace(/_(blue|green|red|yellow)$/, "");
-  if (/^\\d+x\\d+x\\d+$/.test(_bn) || /^platform_decorative_/.test(_bn) || /^platform_slope_/.test(_bn) || /^platform_arrow_/.test(_bn)) return url;`,
-				);
-			}
-
-			// Bug 1 fix: Convert PBR materials to Phong for ALL loaded models.
-			// MeshStandardMaterial (PBR) renders white/grey without environment maps.
-			// Patch _loadOrClone to apply the fix to EVERY model, not just decorations.
-
-			// Step 1: Inject _fixDecorationMaterials function definition if not present
-			if (code.includes("_loadOrClone") && !code.includes("_fixDecorationMaterials")) {
-				code = code.replace(
-					/((?:async\s+)?function\s+_loadOrClone\s*\()/,
-					`function _fixDecorationMaterials(root) {
-  root.traverse(function(child) {
-    if (!child.isMesh || !child.material) return;
-    var fixMat = function(mat) {
-      if (!mat.isMeshStandardMaterial) return mat;
-      var hasVtxColor = !!(child.geometry && child.geometry.attributes && child.geometry.attributes.color);
-      var phong = new THREE.MeshPhongMaterial({
-        color: mat.color ? mat.color.clone() : new THREE.Color(0xcccccc),
-        map: mat.map || null,
-        normalMap: mat.normalMap || null,
-        emissive: new THREE.Color(0x111111),
-        emissiveIntensity: 0.15,
-        shininess: 12,
-        transparent: mat.transparent || false,
-        opacity: mat.opacity != null ? mat.opacity : 1,
-        side: mat.side,
-        alphaTest: mat.alphaTest || 0,
-        vertexColors: hasVtxColor,
-      });
-      return phong;
-    };
-    if (Array.isArray(child.material)) {
-      child.material = child.material.map(fixMat);
-    } else {
-      child.material = fixMat(child.material);
-    }
-  });
-}
-$1`,
-				);
-			}
-
-			// Step 2: Inject _fixDecorationMaterials(model) call inside _loadOrClone
-			// Use negative lookahead to only inject if not already there
-			if (code.includes("_loadOrClone")) {
-				code = code.replace(
-					/(console\.log\s*\(\s*"\[3D\]\s*Loaded\s*GLTF:"\s*,\s*url\s*\)\s*;)(?!\s*\n\s*_fixDecorationMaterials)/,
-					`$1\n  _fixDecorationMaterials(model);`,
-				);
-			}
-
-			// Expose __vibexeFactories from assets-3d.ts where factory functions ARE in scope.
-			// The spawn restoration block (injected into Game3D.tsx) polls for this global.
-			// Old projects don't have it. We MUST set it here, NOT in Game3D.tsx,
-			// because Game3D.tsx doesn't import the factory functions directly.
-			if (!code.includes("__vibexeFactories")) {
-				code += `\n// Expose factories for scene editor spawn restoration
-if (typeof window !== "undefined") {
-  (window).__vibexeFactories = {
-    createPlatform3D: typeof createPlatform3D !== "undefined" ? createPlatform3D : undefined,
-    createCollectible3D: typeof createCollectible3D !== "undefined" ? createCollectible3D : undefined,
-    createPlayer3D: typeof createPlayer3D !== "undefined" ? createPlayer3D : undefined,
-    createBarrier3D: typeof createBarrier3D !== "undefined" ? createBarrier3D : undefined,
-    createDecoration3D: typeof createDecoration3D !== "undefined" ? createDecoration3D : undefined,
-    createAnimatedCharacter3D: typeof createAnimatedCharacter3D !== "undefined" ? createAnimatedCharacter3D : undefined,
-  };
-}
-`;
-			}
-
-			if (typeof af2 === "string") {
-				sandpackFiles[assetsKey2] = code;
-			} else {
-				(sandpackFiles[assetsKey2] as SandpackFile).code = code;
-			}
-		}
-	}
-
-	// Patch Game3D.tsx engine code for existing projects
-	// NOTE: Engine code (__vibexeFactories, factory maps, message handlers, spawn mode)
-	// lives in Game3D.tsx, NOT GameScene3D.ts (which is the AI-generated scene setup).
-	{
-		const sceneKey2 = Object.keys(sandpackFiles).find((p) => p.endsWith("Game3D.tsx"));
-		if (sceneKey2) {
-			const sf2 = sandpackFiles[sceneKey2];
-			let code = typeof sf2 === "string" ? sf2 : sf2.code;
-
-			// Phase 1: Expose __vibexe_scene__ BEFORE gameScene.init()
-			// Factories are exposed from assets-3d.ts (where they're in scope).
-			// Here we only handle __vibexe_scene__ and factory-move for new-ish projects.
-			if (code.includes("await gameScene.init(")) {
-				const hasSceneGlobal = code.includes("__vibexe_scene__");
-				const hasFactories = code.includes("__vibexeFactories");
-
-				// Old project: inject __vibexe_scene__ = scene before init
-				// (factories are handled in assets-3d.ts patch, NOT here)
-				if (!hasSceneGlobal) {
-					code = code.replace(
-						/await\s+gameScene\.init\(/,
-						`(window).__vibexe_scene__ = scene;\n    await gameScene.init(`,
-					);
-				}
-
-				// Case B: Has factories but AFTER init — move before init
-				if (hasFactories) {
-					const initIdx = code.indexOf("await gameScene.init(");
-					const factoriesIdx = code.indexOf("__vibexeFactories");
-					if (factoriesIdx > initIdx) {
-						code = code.replace(
-							/await\s+gameScene\.init\(/,
-							`(window).__vibexeFactories = {
-      createPlatform3D: createPlatform3D,
-      createCollectible3D: createCollectible3D,
-      createPlayer3D: createPlayer3D,
-      createBarrier3D: createBarrier3D,
-      createDecoration3D: createDecoration3D,
-      createAnimatedCharacter3D: typeof createAnimatedCharacter3D !== "undefined" ? createAnimatedCharacter3D : undefined,
-    };
-    await gameScene.init(`,
-						);
-					}
-				}
-			}
-
-			// Phase 6: Ensure createAnimatedCharacter3D is in factory maps (_fns / _fns2)
-			// Old code may lack it in one or both maps, causing animated character spawn to silently fail.
-			if (code.includes("createDecoration3D: createDecoration3D") && !code.includes("createAnimatedCharacter3D: createAnimatedCharacter3D")) {
-				code = code.replace(
-					/createDecoration3D:\s*createDecoration3D,?\s*\}/g,
-					`createDecoration3D: createDecoration3D,
-      createAnimatedCharacter3D: typeof createAnimatedCharacter3D !== "undefined" ? createAnimatedCharacter3D : undefined
-    }`,
-				);
-			}
-
-			// Phase 7: __MODEL_URL__ resolution robustness — skip spawn if URL unresolved
-			if (code.includes("__MODEL_URL__") && !code.includes("_urlValidationPatch")) {
-				// After resolving __MODEL_URL__ placeholders, skip spawn if resolution failed
-				code = code.replace(
-					/(for\s*\(\s*(?:var|const|let)\s+_k\s+of\s+Object\.keys\(_spawnA\)\s*\)[\s\S]*?_spawnA\[_k\]\s*=\s*modelUrl[^;]+;[\s\S]*?\}[\s\S]*?\})/,
-					`$1
-                  var _urlValidationPatch = true;
-                  var _hasUnresolved = false;
-                  for (var _uk of Object.keys(_spawnA)) {
-                    if (typeof _spawnA[_uk] === "string" && _spawnA[_uk].startsWith("__MODEL_URL__")) {
-                      console.warn("[SPAWN] Failed to resolve model URL:", _spawnA[_uk]);
-                      _hasUnresolved = true;
-                    }
-                  }
-                  if (_hasUnresolved) return;`,
-				);
-			}
-
-			// Phase 8: Spawn mode visual feedback — crosshair cursor
-			// Old projects may lack the cursor change in the spawn mode handler
-			if (code.includes("game-editor-set-spawn-mode") && !code.includes("style.cursor")) {
-				code = code.replace(
-					/(_spawnMode\s*=\s*!!d\.active;[\s\S]*?_spawnArgs\s*=\s*d\.args[^;]*;)/,
-					`$1\n                  renderer.domElement.style.cursor = d.active ? "crosshair" : "";`,
-				);
-			}
-
-			// Phase 9: Defer cleanup until host confirms objects collected
-			// Add game-editor-cleanup-confirmed handler alongside existing editor message handlers
-			if (!code.includes("game-editor-cleanup-confirmed") && code.includes("game-editor-enable")) {
-				// Insert the handler in the switch/case block before a known case
-				code = code.replace(
-					/(case\s*["']game-editor-get-spawned-objects["']\s*:)/,
-					`case "game-editor-cleanup-confirmed":
-                delete (window).__vibexe_scene__;
-                delete (window).__vibexeFactories;
-                break;
-              $1`,
-				);
-			}
-
-			// Phase 10: Inject texture library helpers + message handlers for existing projects
-			if (!code.includes("game-editor-apply-texture") && code.includes("game-editor-enable")) {
-				// 10a: Inject _textureCache, _originalMaps, _applyTextureToMesh, _removeTextureFromMesh
-				// before the _sendSelectedObject function
-				if (code.includes("function _sendSelectedObject")) {
-					code = code.replace(
-						/(function _sendSelectedObject)/,
-						`var _textureCache = {};
-          var _originalMaps = new WeakMap();
-          var _envMapGenerated = false;
-          function _ensureEnvironmentMap() {
-            if (_envMapGenerated) return;
-            _envMapGenerated = true;
-            var pmrem = new THREE.PMREMGenerator(renderer);
-            pmrem.compileEquirectangularShader();
-            var envScene = new THREE.Scene();
-            var _skyG = new THREE.SphereGeometry(50, 32, 16);
-            envScene.add(new THREE.Mesh(_skyG, new THREE.MeshBasicMaterial({ color: new THREE.Color(2.0, 2.1, 2.5), side: THREE.BackSide })));
-            var _gndG = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-            envScene.add(new THREE.Mesh(_gndG, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.1, 0.1, 0.12), side: THREE.BackSide })));
-            var _pG = new THREE.PlaneGeometry(8, 8);
-            var _aP = function(x,y,z,r,g,b,sx,sy) {
-              var p = new THREE.Mesh(_pG, new THREE.MeshBasicMaterial({ color: new THREE.Color(r,g,b), side: THREE.DoubleSide }));
-              p.position.set(x,y,z); p.lookAt(0,0,0); p.scale.set(sx,sy,1);
-              envScene.add(p);
-            };
-            _aP(0,45,-5, 20,20,18, 4, 4);
-            _aP(20,25,-15, 15,14,12, 3, 2.5);
-            _aP(-25,20,-10, 5,7,10, 2.5, 2);
-            _aP(5,30,10, 10,8,5, 2, 1.5);
-            _aP(0,-10,0, 3,3,4, 5, 5);
-            _aP(30,5,15, 6,6,8, 2, 2);
-            _aP(-30,10,15, 4,5,7, 2, 2);
-            scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
-            renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.2;
-            pmrem.dispose(); _skyG.dispose(); _gndG.dispose(); _pG.dispose();
-            var _hdriUrl = (window.__VIBEXE_API_ORIGIN__ || "") + "/api/app-builder/media-stock-3d/textures/env_studio.jpg";
-            new THREE.TextureLoader().load(_hdriUrl, function(hdriTex) {
-              hdriTex.mapping = THREE.EquirectangularReflectionMapping;
-              var pmrem2 = new THREE.PMREMGenerator(renderer);
-              scene.environment = pmrem2.fromEquirectangular(hdriTex).texture;
-              pmrem2.dispose(); hdriTex.dispose();
-            }, undefined, function() {});
-            if (!scene.getObjectByName("__pbr_key__")) {
-              var pbrKey = new THREE.DirectionalLight(0xFFFBF0, 1.5);
-              pbrKey.name = "__pbr_key__";
-              pbrKey.position.set(15, 30, -10);
-              pbrKey.castShadow = false;
-              scene.add(pbrKey);
-            }
-          }
-          function _applyTextureToMesh(obj, textureUrl, tileX, tileY, rotation, offsetX, offsetY, hasPBR) {
-            var _resolvedUrl = textureUrl;
-            if (textureUrl.charAt(0) === "/") {
-              _resolvedUrl = (window.__VIBEXE_API_ORIGIN__ || "") + textureUrl;
-            }
-            if (!obj.userData) obj.userData = {};
-            if (!obj.userData.vibexeArgs) obj.userData.vibexeArgs = {};
-            obj.userData.vibexeArgs.textureUrl = textureUrl;
-            obj.userData.vibexeArgs.textureTileX = tileX;
-            obj.userData.vibexeArgs.textureTileY = tileY;
-            obj.userData.vibexeArgs.textureRotation = rotation || 0;
-            obj.userData.vibexeArgs.textureOffsetX = offsetX || 0;
-            obj.userData.vibexeArgs.textureOffsetY = offsetY || 0;
-            if (hasPBR) obj.userData.vibexeArgs.hasPBR = true;
-            else delete obj.userData.vibexeArgs.hasPBR;
-            var _rot = ((rotation || 0) * Math.PI) / 180;
-            var _offX = offsetX || 0;
-            var _offY = offsetY || 0;
-            if (hasPBR) {
-              _ensureEnvironmentMap();
-              var _baseNoExt = _resolvedUrl.replace(/\\.[^.]+$/, "");
-              var _ext = (_resolvedUrl.match(/\\.[^.]+$/) || [".jpg"])[0];
-              var _normalUrl = _baseNoExt + "_Normal" + _ext;
-              var _roughnessUrl = _baseNoExt + "_Roughness" + _ext;
-              var _metalnessUrl = _baseNoExt + "_Metalness" + _ext;
-              var _aoUrl = _baseNoExt + "_AO" + _ext;
-              var _fname = _resolvedUrl.split("/").pop() || "";
-              var _nScale = 1.0;
-              if (/^Metal/i.test(_fname)) _nScale = 0.8;
-              else if (/^Brick/i.test(_fname)) _nScale = 1.5;
-              else if (/^Rock|^Paving/i.test(_fname)) _nScale = 1.2;
-              else if (/^Wood|^WoodFloor|^Planks/i.test(_fname)) _nScale = 0.6;
-              else if (/^Concrete|^Plaster/i.test(_fname)) _nScale = 0.8;
-              else if (/^Fabric|^Leather|^Carpet/i.test(_fname)) _nScale = 0.5;
-              else if (/^Marble|^Granite|^Onyx|^Travertine/i.test(_fname)) _nScale = 0.7;
-              var _configureTex = function(tex, isSRGB) {
-                var t = tex.clone(); t.needsUpdate = true;
-                t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
-                t.repeat.set(tileX, tileY); t.rotation = _rot;
-                t.center.set(0.5, 0.5); t.offset.set(_offX, _offY);
-                t.anisotropy = 4;
-                if (isSRGB && THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
-                return t;
-              };
-              var _loadTex = function(url) {
-                if (url in _textureCache) return Promise.resolve(_textureCache[url]);
-                return new Promise(function(resolve) {
-                  new THREE.TextureLoader().load(url, function(tex) { _textureCache[url] = tex; resolve(tex); }, undefined, function() { _textureCache[url] = null; resolve(null); });
-                });
-              };
-              Promise.all([_loadTex(_resolvedUrl), _loadTex(_normalUrl), _loadTex(_roughnessUrl), _loadTex(_metalnessUrl), _loadTex(_aoUrl)])
-                .then(function(maps) {
-                  var colorTex = maps[0], normalTex = maps[1], roughnessTex = maps[2], metalnessTex = maps[3], aoTex = maps[4];
-                  if (!colorTex) return;
-                  var applyPBR = function(child) {
-                    if (!child.isMesh || !child.material) return;
-                    var mats = Array.isArray(child.material) ? child.material : [child.material];
-                    var newMats = mats.map(function(mat) {
-                      if (!child.__vibexe_origMats) child.__vibexe_origMats = [];
-                      child.__vibexe_origMats.push(mat);
-                      var _mOpts = {
-                        map: _configureTex(colorTex, true),
-                        roughness: roughnessTex ? 1.0 : 0.7,
-                        metalness: metalnessTex ? 1.0 : 0.0,
-                        envMapIntensity: metalnessTex ? 2.0 : 1.0,
-                        side: THREE.DoubleSide
-                      };
-                      if (scene.environment) _mOpts.envMap = scene.environment;
-                      if (normalTex) { _mOpts.normalMap = _configureTex(normalTex, false); _mOpts.normalScale = new THREE.Vector2(_nScale, _nScale); }
-                      if (roughnessTex) _mOpts.roughnessMap = _configureTex(roughnessTex, false);
-                      if (metalnessTex) _mOpts.metalnessMap = _configureTex(metalnessTex, false);
-                      if (aoTex) { _mOpts.aoMap = _configureTex(aoTex, false); _mOpts.aoMapIntensity = 1.0; }
-                      var stdMat = new THREE.MeshStandardMaterial(_mOpts);
-                      if (aoTex && child.geometry && child.geometry.attributes.uv && !child.geometry.attributes.uv2) {
-                        child.geometry.setAttribute("uv2", child.geometry.attributes.uv);
-                      }
-                      return stdMat;
-                    });
-                    child.material = Array.isArray(child.material) ? newMats : newMats[0];
-                    if (Array.isArray(child.material)) child.material.forEach(function(m) { m.needsUpdate = true; });
-                    else if (child.material) child.material.needsUpdate = true;
-                  };
-                  obj.traverse(applyPBR);
-                  if (obj.isMesh && obj.material) applyPBR(obj);
-                });
-              return;
-            }
-            var applyToMat = function(mat, tex) {
-              if (!_originalMaps.has(mat)) _originalMaps.set(mat, { map: mat.map, color: mat.color ? mat.color.clone() : null });
-              var t = tex.clone();
-              t.needsUpdate = true;
-              t.wrapS = THREE.RepeatWrapping;
-              t.wrapT = THREE.RepeatWrapping;
-              t.repeat.set(tileX, tileY);
-              t.rotation = _rot;
-              t.center.set(0.5, 0.5);
-              t.offset.set(_offX, _offY);
-              if (THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
-              t.anisotropy = 4;
-              mat.map = t;
-              if (mat.color) mat.color.set(0xffffff);
-              mat.needsUpdate = true;
-            };
-            var apply = function(tex) {
-              obj.traverse(function(child) {
-                if (!child.isMesh || !child.material) return;
-                var mats = Array.isArray(child.material) ? child.material : [child.material];
-                mats.forEach(function(m) { applyToMat(m, tex); });
-              });
-              if (obj.isMesh && obj.material) {
-                var ms = Array.isArray(obj.material) ? obj.material : [obj.material];
-                ms.forEach(function(m) { applyToMat(m, tex); });
-              }
-            };
-            if (_textureCache[_resolvedUrl]) { apply(_textureCache[_resolvedUrl]); }
-            else { new THREE.TextureLoader().load(_resolvedUrl, function(tex) { _textureCache[_resolvedUrl] = tex; apply(tex); }); }
-          }
-          function _removeTextureFromMesh(obj) {
-            var restorePBR = function(child) {
-              if (child.__vibexe_origMats && child.isMesh) {
-                var origMats = child.__vibexe_origMats;
-                if (Array.isArray(child.material)) {
-                  child.material.forEach(function(m) { if (m.dispose) m.dispose(); });
-                  child.material = origMats.length > 1 ? origMats : origMats[0];
-                } else {
-                  if (child.material.dispose) child.material.dispose();
-                  child.material = origMats[0];
-                }
-                delete child.__vibexe_origMats;
-                return true;
-              }
-              return false;
-            };
-            var hadPBR = false;
-            obj.traverse(function(child) { if (restorePBR(child)) hadPBR = true; });
-            if (obj.isMesh && restorePBR(obj)) hadPBR = true;
-            if (!hadPBR) {
-              var restore = function(mat) {
-                if (_originalMaps.has(mat)) { var orig = _originalMaps.get(mat); if (orig && typeof orig === "object" && "map" in orig) { mat.map = orig.map; if (orig.color && mat.color) mat.color.copy(orig.color); } else { mat.map = orig; } _originalMaps.delete(mat); mat.needsUpdate = true; }
-              };
-              obj.traverse(function(child) {
-                if (!child.isMesh || !child.material) return;
-                var mats = Array.isArray(child.material) ? child.material : [child.material];
-                mats.forEach(restore);
-              });
-              if (obj.isMesh && obj.material) {
-                var ms = Array.isArray(obj.material) ? obj.material : [obj.material];
-                ms.forEach(restore);
-              }
-            }
-            if (obj.userData && obj.userData.vibexeArgs) {
-              delete obj.userData.vibexeArgs.textureUrl;
-              delete obj.userData.vibexeArgs.textureTileX;
-              delete obj.userData.vibexeArgs.textureTileY;
-              delete obj.userData.vibexeArgs.textureRotation;
-              delete obj.userData.vibexeArgs.textureOffsetX;
-              delete obj.userData.vibexeArgs.textureOffsetY;
-              delete obj.userData.vibexeArgs.hasPBR;
-            }
-            delete obj.__hasTextureOverride;
-          }
-          $1`,
-					);
-				}
-
-				// 10b: Extend _sendSelectedObject payload with texture fields
-				if (!code.includes("_textureUrl:")) {
-					const _texFields = `
-              _textureUrl: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureUrl || null : null,
-              _textureTileX: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureTileX || 1 : 1,
-              _textureTileY: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureTileY || 1 : 1,
-              _textureRotation: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureRotation || 0 : 0,
-              _textureOffsetX: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureOffsetX || 0 : 0,
-              _textureOffsetY: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureOffsetY || 0 : 0,
-              _hasPBR: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.hasPBR || false : false,`;
-					if (code.includes("_materialColor: matColor,")) {
-						// Anchor on _materialColor if it exists
-						code = code.replace(
-							/_materialColor:\s*matColor,\s*\}/,
-							`_materialColor: matColor,${_texFields}
-              }`,
-						);
-					} else if (code.includes("function _sendSelectedObject")) {
-						// Fallback: anchor on castShadow or userData inside _sendSelectedObject
-						const anchored = code.replace(
-							/(userData:\s*_safeUserData\(obj\.userData\),?\s*)(},\s*"\*"\))/,
-							`$1${_texFields}
-              $2`,
-						);
-						if (anchored !== code) {
-							code = anchored;
-						} else {
-							// Last resort: anchor on castShadow line
-							code = code.replace(
-								/(castShadow:\s*!!obj\.castShadow,?\s*)(},\s*"\*"\))/,
-								`$1${_texFields}
-              $2`,
-							);
-						}
-					}
-				}
-
-				// 10c: Inject 3 texture message handlers before game-editor-get-spawned-objects
-				// These handlers send the full selected-object message directly (not via _sendSelectedObject)
-				// to guarantee texture fields are included even if _sendSelectedObject wasn't patched
-				code = code.replace(
-					/(case\s*["']game-editor-get-spawned-objects["']\s*:)/,
-					`case "game-editor-apply-texture": {
-                console.log("[TEXTURE] apply-texture handler reached. uuid:", d.uuid, "url:", d.textureUrl, "hasPBR:", d.hasPBR);
-                var _texTarget = null;
-                scene.traverse(function(c) { if (c.uuid === d.uuid) _texTarget = c; });
-                console.log("[TEXTURE] Found target:", !!_texTarget, _texTarget ? _texTarget.name : "none");
-                if (_texTarget) {
-                  _applyTextureToMesh(_texTarget, d.textureUrl, d.tileX || 1, d.tileY || 1, 0, 0, 0, d.hasPBR);
-                  if (!_texTarget.userData.__spawned) _texTarget.__hasTextureOverride = true;
-                  var _mc = null;
-                  if (_texTarget.material && _texTarget.material.color) { try { _mc = "#" + _texTarget.material.color.getHexString(); } catch(e) {} }
-                  var _tA = _texTarget.userData && _texTarget.userData.vibexeArgs ? _texTarget.userData.vibexeArgs : {};
-                  window.parent.postMessage({
-                    type: "game-editor-object-selected",
-                    uuid: _texTarget.uuid,
-                    name: _texTarget.name || _texTarget.type,
-                    objType: _texTarget.userData && _texTarget.userData.vibexeType ? _texTarget.userData.vibexeType : _texTarget.type,
-                    position: { x: _texTarget.position.x, y: _texTarget.position.y, z: _texTarget.position.z },
-                    rotation: { x: _texTarget.rotation.x * 180 / Math.PI, y: _texTarget.rotation.y * 180 / Math.PI, z: _texTarget.rotation.z * 180 / Math.PI },
-                    scale: { x: _texTarget.scale.x, y: _texTarget.scale.y, z: _texTarget.scale.z },
-                    visible: _texTarget.visible !== false,
-                    castShadow: !!_texTarget.castShadow,
-                    userData: (function(ud) { try { return JSON.parse(JSON.stringify(ud || {})); } catch(e) { return {}; } })(_texTarget.userData),
-                    _materialColor: _mc,
-                    _textureUrl: _tA.textureUrl || null,
-                    _textureTileX: _tA.textureTileX || 1,
-                    _textureTileY: _tA.textureTileY || 1,
-                    _textureRotation: _tA.textureRotation || 0,
-                    _textureOffsetX: _tA.textureOffsetX || 0,
-                    _textureOffsetY: _tA.textureOffsetY || 0,
-                    _hasPBR: _tA.hasPBR || false,
-                  }, "*");
-                  console.log("[TEXTURE] Sent object-selected with textureUrl:", _tA.textureUrl);
-                }
-                break;
-              }
-              case "game-editor-remove-texture": {
-                var _rtTarget = null;
-                scene.traverse(function(c) { if (c.uuid === d.uuid) _rtTarget = c; });
-                if (_rtTarget) {
-                  _removeTextureFromMesh(_rtTarget);
-                  var _mc2 = null;
-                  if (_rtTarget.material && _rtTarget.material.color) { try { _mc2 = "#" + _rtTarget.material.color.getHexString(); } catch(e) {} }
-                  window.parent.postMessage({
-                    type: "game-editor-object-selected",
-                    uuid: _rtTarget.uuid,
-                    name: _rtTarget.name || _rtTarget.type,
-                    objType: _rtTarget.userData && _rtTarget.userData.vibexeType ? _rtTarget.userData.vibexeType : _rtTarget.type,
-                    position: { x: _rtTarget.position.x, y: _rtTarget.position.y, z: _rtTarget.position.z },
-                    rotation: { x: _rtTarget.rotation.x * 180 / Math.PI, y: _rtTarget.rotation.y * 180 / Math.PI, z: _rtTarget.rotation.z * 180 / Math.PI },
-                    scale: { x: _rtTarget.scale.x, y: _rtTarget.scale.y, z: _rtTarget.scale.z },
-                    visible: _rtTarget.visible !== false,
-                    castShadow: !!_rtTarget.castShadow,
-                    userData: (function(ud) { try { return JSON.parse(JSON.stringify(ud || {})); } catch(e) { return {}; } })(_rtTarget.userData),
-                    _materialColor: _mc2,
-                    _textureUrl: null,
-                    _textureTileX: 1,
-                    _textureTileY: 1,
-                    _textureRotation: 0,
-                    _textureOffsetX: 0,
-                    _textureOffsetY: 0,
-                    _hasPBR: false,
-                  }, "*");
-                }
-                break;
-              }
-              case "game-editor-update-tiling": {
-                var _utTarget = null;
-                scene.traverse(function(c) { if (c.uuid === d.uuid) _utTarget = c; });
-                if (_utTarget && _utTarget.userData && _utTarget.userData.vibexeArgs && _utTarget.userData.vibexeArgs.textureUrl) {
-                  var _utA = _utTarget.userData.vibexeArgs;
-                  _applyTextureToMesh(_utTarget, _utA.textureUrl, d.tileX || 1, d.tileY || 1, _utA.textureRotation || 0, _utA.textureOffsetX || 0, _utA.textureOffsetY || 0, _utA.hasPBR);
-                  var _mc3 = null;
-                  if (_utTarget.material && _utTarget.material.color) { try { _mc3 = "#" + _utTarget.material.color.getHexString(); } catch(e) {} }
-                  window.parent.postMessage({
-                    type: "game-editor-object-selected",
-                    uuid: _utTarget.uuid,
-                    name: _utTarget.name || _utTarget.type,
-                    objType: _utTarget.userData && _utTarget.userData.vibexeType ? _utTarget.userData.vibexeType : _utTarget.type,
-                    position: { x: _utTarget.position.x, y: _utTarget.position.y, z: _utTarget.position.z },
-                    rotation: { x: _utTarget.rotation.x * 180 / Math.PI, y: _utTarget.rotation.y * 180 / Math.PI, z: _utTarget.rotation.z * 180 / Math.PI },
-                    scale: { x: _utTarget.scale.x, y: _utTarget.scale.y, z: _utTarget.scale.z },
-                    visible: _utTarget.visible !== false,
-                    castShadow: !!_utTarget.castShadow,
-                    userData: (function(ud) { try { return JSON.parse(JSON.stringify(ud || {})); } catch(e) { return {}; } })(_utTarget.userData),
-                    _materialColor: _mc3,
-                    _textureUrl: _utA.textureUrl || null,
-                    _textureTileX: _utA.textureTileX || 1,
-                    _textureTileY: _utA.textureTileY || 1,
-                    _textureRotation: _utA.textureRotation || 0,
-                    _textureOffsetX: _utA.textureOffsetX || 0,
-                    _textureOffsetY: _utA.textureOffsetY || 0,
-                    _hasPBR: _utA.hasPBR || false,
-                  }, "*");
-                }
-                break;
-              }
-              case "game-editor-update-texture-params": {
-                var _tpTarget = null;
-                scene.traverse(function(c) { if (c.uuid === d.uuid) _tpTarget = c; });
-                if (_tpTarget && _tpTarget.userData && _tpTarget.userData.vibexeArgs && _tpTarget.userData.vibexeArgs.textureUrl) {
-                  _applyTextureToMesh(_tpTarget, _tpTarget.userData.vibexeArgs.textureUrl, d.tileX || 1, d.tileY || 1, d.rotation || 0, d.offsetX || 0, d.offsetY || 0, _tpTarget.userData.vibexeArgs.hasPBR);
-                  if (!_tpTarget.userData.__spawned) _tpTarget.__hasTextureOverride = true;
-                  var _mc4 = null;
-                  if (_tpTarget.material && _tpTarget.material.color) { try { _mc4 = "#" + _tpTarget.material.color.getHexString(); } catch(e) {} }
-                  var _tpA = _tpTarget.userData.vibexeArgs;
-                  window.parent.postMessage({
-                    type: "game-editor-object-selected",
-                    uuid: _tpTarget.uuid,
-                    name: _tpTarget.name || _tpTarget.type,
-                    objType: _tpTarget.userData && _tpTarget.userData.vibexeType ? _tpTarget.userData.vibexeType : _tpTarget.type,
-                    position: { x: _tpTarget.position.x, y: _tpTarget.position.y, z: _tpTarget.position.z },
-                    rotation: { x: _tpTarget.rotation.x * 180 / Math.PI, y: _tpTarget.rotation.y * 180 / Math.PI, z: _tpTarget.rotation.z * 180 / Math.PI },
-                    scale: { x: _tpTarget.scale.x, y: _tpTarget.scale.y, z: _tpTarget.scale.z },
-                    visible: _tpTarget.visible !== false,
-                    castShadow: !!_tpTarget.castShadow,
-                    userData: (function(ud) { try { return JSON.parse(JSON.stringify(ud || {})); } catch(e) { return {}; } })(_tpTarget.userData),
-                    _materialColor: _mc4,
-                    _textureUrl: _tpA.textureUrl || null,
-                    _textureTileX: _tpA.textureTileX || 1,
-                    _textureTileY: _tpA.textureTileY || 1,
-                    _textureRotation: _tpA.textureRotation || 0,
-                    _textureOffsetX: _tpA.textureOffsetX || 0,
-                    _textureOffsetY: _tpA.textureOffsetY || 0,
-                    _hasPBR: _tpA.hasPBR || false,
-                  }, "*");
-                }
-                break;
-              }
-              $1`,
-				);
-
-				// 10d: Extend game-editor-get-spawned-objects to collect textureOverrides
-				if (code.includes("game-editor-spawned-objects") && !code.includes("textureOverrides")) {
-					code = code.replace(
-						/window\.parent\.postMessage\(\s*\{\s*type:\s*["']game-editor-spawned-objects["']\s*,\s*objects:\s*spawned\s*\}\s*,/,
-						`var textureOverrides = [];
-                scene.traverse(function(child) {
-                  if (child.__hasTextureOverride && child.userData && child.userData.vibexeArgs && child.userData.vibexeArgs.textureUrl) {
-                    textureOverrides.push({ name: child.name, textureUrl: child.userData.vibexeArgs.textureUrl, tileX: child.userData.vibexeArgs.textureTileX || 1, tileY: child.userData.vibexeArgs.textureTileY || 1, rotation: child.userData.vibexeArgs.textureRotation || 0, offsetX: child.userData.vibexeArgs.textureOffsetX || 0, offsetY: child.userData.vibexeArgs.textureOffsetY || 0, hasPBR: child.userData.vibexeArgs.hasPBR || false });
-                  }
-                });
-                window.parent.postMessage({ type: "game-editor-spawned-objects", objects: spawned, textureOverrides: textureOverrides },`,
-					);
-				}
-			}
-
-			if (typeof sf2 === "string") {
-				sandpackFiles[sceneKey2] = code;
-			} else {
-				(sandpackFiles[sceneKey2] as SandpackFile).code = code;
-			}
-		}
 	}
 
 	return sandpackFiles;
