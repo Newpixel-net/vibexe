@@ -1954,6 +1954,7 @@ export function getVisualEditBridgeScript(): string {
           }
           m.material.needsUpdate = true;
         });
+        sendSelectedObject(_utObj);
         break;
       }
       case "game-editor-collect-all-transforms":

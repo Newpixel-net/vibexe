@@ -522,6 +522,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 
 	const updateTextureParams = useCallback((uuid: string, tileX: number, tileY: number, rotation: number, offsetX: number, offsetY: number) => {
 		sendToIframe({ type: "game-editor-update-texture-params", uuid, tileX, tileY, rotation, offsetX, offsetY });
+		// Optimistic UI update — don't wait for bridge round-trip
+		setSelectedObject(prev => prev && prev.uuid === uuid ? { ...prev, _textureTileX: tileX, _textureTileY: tileY, _textureRotation: rotation, _textureOffsetX: offsetX, _textureOffsetY: offsetY } : prev);
 		setIsDirty(true);
 	}, [sendToIframe]);
 
