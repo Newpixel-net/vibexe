@@ -1607,41 +1607,31 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 					["CAMERA_LOOK_Y", gsObj.camera?.lookY, -20, 20],
 				];
 				let patchCount = 0;
-				// Debug: show context around first variable to understand actual format
-				const _jfIdx = code.indexOf("JUMP_FORCE");
-				if (_jfIdx >= 0) {
-					const _ctx = code.substring(Math.max(0, _jfIdx - 40), _jfIdx + 60);
-					console.warn(`[sandpack-adapter] DEBUG JUMP_FORCE context: [${_ctx}]`);
-					// Also show char codes of 10 chars before JUMP_FORCE
-					const _before10 = code.substring(Math.max(0, _jfIdx - 10), _jfIdx);
-					const _codes = [..._before10].map((c) => c.charCodeAt(0));
-					console.warn(`[sandpack-adapter] DEBUG chars before JUMP_FORCE:`, JSON.stringify(_before10), `codes:`, _codes);
-				}
 				for (const [name, rawValue, min, max] of constMap) {
 					if (rawValue == null || Number.isNaN(rawValue)) continue;
 					const value = clamp(rawValue, min, max);
-					// Try multiple regex patterns — webpack may transform export declarations
 					const patterns = [
 						new RegExp(`(export\\s+(?:const|let)\\s+${name}\\s*=\\s*)([^;]+)(;)`),
 						new RegExp(`((?:var|let|const)\\s+${name}\\s*=\\s*)([^;]+)(;)`),
 					];
-					const before = code;
+					let matched = false;
 					for (const re of patterns) {
-						code = code.replace(re, `$1${value}$3`);
-						if (code !== before) break;
+						code = code.replace(re, (_m, g1, _g2, g3) => {
+							matched = true;
+							return `${g1}${value}${g3}`;
+						});
+						if (matched) break;
 					}
-					if (code !== before) {
+					if (matched) {
 						patchCount++;
 					} else {
-						console.warn(`[sandpack-adapter] Failed to patch ${name} — not found. Has "${name}":`, code.includes(name));
+						console.warn(`[sandpack-adapter] Failed to patch ${name} — not found in template`);
 					}
 				}
-				if (patchCount > 0) {
-					if (typeof af === "string") {
-						sandpackFiles[assetsKey] = code;
-					} else {
-						(sandpackFiles[assetsKey] as SandpackFile).code = code;
-					}
+				if (typeof af === "string") {
+					sandpackFiles[assetsKey] = code;
+				} else {
+					(sandpackFiles[assetsKey] as SandpackFile).code = code;
 				}
 			}
 
