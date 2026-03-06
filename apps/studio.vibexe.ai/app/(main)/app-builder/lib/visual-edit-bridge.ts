@@ -650,7 +650,13 @@ export function getVisualEditBridgeScript(): string {
       rotation: { x: obj.rotation.x*180/Math.PI, y: obj.rotation.y*180/Math.PI, z: obj.rotation.z*180/Math.PI },
       scale: { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z },
       visible: obj.visible !== false, castShadow: !!obj.castShadow,
-      userData: safeUserData(obj.userData), _materialColor: matColor
+      userData: safeUserData(obj.userData), _materialColor: matColor,
+      _textureUrl: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureUrl || null,
+      _textureTileX: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureTileX || 1,
+      _textureTileY: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureTileY || 1,
+      _textureRotation: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureRotation || 0,
+      _textureOffsetX: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureOffsetX || 0,
+      _textureOffsetY: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureOffsetY || 0
     }, "*");
   }
 
