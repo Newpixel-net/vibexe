@@ -503,7 +503,6 @@ if (typeof window !== 'undefined') {
       if (!s || !s.children) { requestAnimationFrame(_apply); return; }
       if (s !== _lastScene) { _cache={}; _bodies={}; _logged={}; _delDone=false; _lastScene=s; }
       if (!_delDone && _ov.__deleted && _ov.__deleted.length) {
-        _delDone = true;
         var _rm = [];
         s.traverse(function(o) { if (_ov.__deleted.indexOf(o.name) !== -1) _rm.push(o); });
         _rm.forEach(function(o) {
@@ -516,6 +515,7 @@ if (typeof window !== 'undefined') {
           }
         });
         if (_rm.length) console.log("[SCENE_EDITOR] Deleted " + _rm.length + " objects");
+        if (_rm.length >= _ov.__deleted.length) _delDone = true;
       }
       var _gsPlayer = window.__VIBEXE_GAME_SETTINGS__ && window.__VIBEXE_GAME_SETTINGS__.player;
       var keys = Object.keys(_ov);
