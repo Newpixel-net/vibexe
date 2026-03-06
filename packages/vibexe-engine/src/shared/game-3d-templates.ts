@@ -3954,7 +3954,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                       roughness: roughnessTex ? 1.0 : 0.7,
                       metalness: metalnessTex ? 1.0 : 0.0,
                       envMapIntensity: metalnessTex ? 2.0 : 1.0,
+                      side: THREE.DoubleSide,
                     };
+                    if (scene.environment) _matOpts.envMap = scene.environment;
                     if (normalTex) {
                       _matOpts.normalMap = _configureTex(normalTex, false);
                       _matOpts.normalScale = new THREE.Vector2(_normalScale, _normalScale);
@@ -3973,6 +3975,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                     return stdMat;
                   });
                   child.material = Array.isArray(child.material) ? newMats : newMats[0];
+                  if (Array.isArray(child.material)) child.material.forEach((m: any) => { m.needsUpdate = true; });
+                  else if (child.material) child.material.needsUpdate = true;
                 };
                 obj.traverse(applyPBR);
                 if (obj.isMesh && obj.material) applyPBR(obj);

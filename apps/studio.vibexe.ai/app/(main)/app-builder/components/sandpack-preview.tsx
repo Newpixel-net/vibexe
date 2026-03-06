@@ -657,8 +657,11 @@ function updateSpawnedObjectsInSource(
                   map: _cfgT(maps[0], true),
                   roughness: maps[2] ? 1.0 : 0.7,
                   metalness: maps[3] ? 1.0 : 0.0,
-                  envMapIntensity: maps[3] ? 2.0 : 1.0
+                  envMapIntensity: maps[3] ? 2.0 : 1.0,
+                  side: THREE.DoubleSide
                 };
+                var _sc = window.__vibexe_scene__;
+                if (_sc && _sc.environment) _mO.envMap = _sc.environment;
                 if (maps[1]) { _mO.normalMap = _cfgT(maps[1], false); _mO.normalScale = new THREE.Vector2(_nScale, _nScale); }
                 if (maps[2]) _mO.roughnessMap = _cfgT(maps[2], false);
                 if (maps[3]) _mO.metalnessMap = _cfgT(maps[3], false);
@@ -670,7 +673,8 @@ function updateSpawnedObjectsInSource(
                 return stdMat;
               });
               child.material = Array.isArray(child.material) ? nm : nm[0];
-              if (maps[3]) nm.forEach(function(m) { m.envMapIntensity = 2.0; });
+              if (Array.isArray(child.material)) child.material.forEach(function(m) { m.needsUpdate = true; });
+              else if (child.material) child.material.needsUpdate = true;
             };
             obj.traverse(applyPBR);
             if (obj.isMesh && obj.material) applyPBR(obj);

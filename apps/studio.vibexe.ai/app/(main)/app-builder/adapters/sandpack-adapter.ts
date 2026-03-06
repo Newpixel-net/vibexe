@@ -2116,8 +2116,10 @@ if (typeof window !== "undefined") {
                         map: _configureTex(colorTex, true),
                         roughness: roughnessTex ? 1.0 : 0.7,
                         metalness: metalnessTex ? 1.0 : 0.0,
-                        envMapIntensity: metalnessTex ? 2.0 : 1.0
+                        envMapIntensity: metalnessTex ? 2.0 : 1.0,
+                        side: THREE.DoubleSide
                       };
+                      if (scene.environment) _mOpts.envMap = scene.environment;
                       if (normalTex) { _mOpts.normalMap = _configureTex(normalTex, false); _mOpts.normalScale = new THREE.Vector2(_nScale, _nScale); }
                       if (roughnessTex) _mOpts.roughnessMap = _configureTex(roughnessTex, false);
                       if (metalnessTex) _mOpts.metalnessMap = _configureTex(metalnessTex, false);
@@ -2129,6 +2131,8 @@ if (typeof window !== "undefined") {
                       return stdMat;
                     });
                     child.material = Array.isArray(child.material) ? newMats : newMats[0];
+                    if (Array.isArray(child.material)) child.material.forEach(function(m) { m.needsUpdate = true; });
+                    else if (child.material) child.material.needsUpdate = true;
                   };
                   obj.traverse(applyPBR);
                   if (obj.isMesh && obj.material) applyPBR(obj);
