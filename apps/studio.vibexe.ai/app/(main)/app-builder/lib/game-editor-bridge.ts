@@ -486,6 +486,152 @@ export function getGameEditorBridgeScript(): string {
           }
         }
         break;
+      case "game-editor-apply-texture": {
+        // Apply texture to object — handles both PBR and basic textures
+        if (!editor || !editor.scene || !d.uuid || !d.textureUrl) break;
+        var _atTarget = findObjectByUuid(editor.scene, d.uuid);
+        if (!_atTarget) break;
+        var THREE = window.THREE;
+        if (!THREE) break;
+        var _atUrl = d.textureUrl;
+        var _atTileX = d.tileX || 1;
+        var _atTileY = d.tileY || 1;
+        var _atPBR = !!d.hasPBR;
+        // Resolve relative URLs
+        var _atResolvedUrl = _atUrl;
+        if (_atUrl.charAt(0) === '/') {
+          _atResolvedUrl = (window.__VIBEXE_API_ORIGIN__ || '') + _atUrl;
+        }
+        // Store in userData immediately
+        if (!_atTarget.userData) _atTarget.userData = {};
+        if (!_atTarget.userData.vibexeArgs) _atTarget.userData.vibexeArgs = {};
+        _atTarget.userData.vibexeArgs.textureUrl = _atUrl;
+        _atTarget.userData.vibexeArgs.textureTileX = _atTileX;
+        _atTarget.userData.vibexeArgs.textureTileY = _atTileY;
+        _atTarget.userData.vibexeArgs.textureRotation = 0;
+        _atTarget.userData.vibexeArgs.textureOffsetX = 0;
+        _atTarget.userData.vibexeArgs.textureOffsetY = 0;
+        if (_atPBR) _atTarget.userData.vibexeArgs.hasPBR = true;
+        else delete _atTarget.userData.vibexeArgs.hasPBR;
+        if (!_atTarget.userData.__spawned) _atTarget.__hasTextureOverride = true;
+        // Load and apply texture
+        var _atLoader = new THREE.TextureLoader();
+        var _atCfg = function(tex) {
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          tex.repeat.set(_atTileX, _atTileY);
+          tex.anisotropy = 4;
+          if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
+          return tex;
+        };
+        _atLoader.load(_atResolvedUrl, function(colorTex) {
+          _atCfg(colorTex);
+          _atTarget.traverse(function(m) {
+            if (!m.isMesh || !m.material) return;
+            if (_atPBR) {
+              m.material = new THREE.MeshStandardMaterial({ map: colorTex, roughness: 0.7, metalness: 0.0 });
+            } else {
+              m.material.map = colorTex;
+            }
+            m.material.needsUpdate = true;
+          });
+          // Load PBR maps
+          if (_atPBR) {
+            var _bne = _atResolvedUrl.replace(/\.[^.]+$/, '');
+            var _ext = (_atResolvedUrl.match(/\.[^.]+$/) || ['.jpg'])[0];
+            var _loadPBR = function(suffix, applier) {
+              _atLoader.load(_bne + suffix + _ext, function(t) {
+                t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
+                t.repeat.set(_atTileX, _atTileY); t.anisotropy = 4;
+                _atTarget.traverse(function(m) { if (m.isMesh && m.material) { applier(m.material, t); m.material.needsUpdate = true; } });
+              }, undefined, function() {});
+            };
+            _loadPBR('_Normal', function(mat, t) { mat.normalMap = t; });
+            _loadPBR('_Roughness', function(mat, t) { mat.roughnessMap = t; });
+            _loadPBR('_Metalness', function(mat, t) { mat.metalnessMap = t; });
+          }
+          console.log("[GameEditorBridge] Texture applied:", _atUrl, "PBR:", _atPBR);
+          sendSelectedObject(_atTarget);
+        }, undefined, function(err) {
+          console.warn("[GameEditorBridge] Texture load failed:", _atUrl);
+        });
+        // Send updated object info immediately (before texture loads)
+        sendSelectedObject(_atTarget);
+        break;
+      }
+      case "game-editor-remove-texture": {
+        if (!editor || !editor.scene || !d.uuid) break;
+        var _rtTarget = findObjectByUuid(editor.scene, d.uuid);
+        if (!_rtTarget) break;
+        var THREE = window.THREE;
+        // Clear userData
+        if (_rtTarget.userData && _rtTarget.userData.vibexeArgs) {
+          delete _rtTarget.userData.vibexeArgs.textureUrl;
+          delete _rtTarget.userData.vibexeArgs.textureTileX;
+          delete _rtTarget.userData.vibexeArgs.textureTileY;
+          delete _rtTarget.userData.vibexeArgs.textureRotation;
+          delete _rtTarget.userData.vibexeArgs.textureOffsetX;
+          delete _rtTarget.userData.vibexeArgs.textureOffsetY;
+          delete _rtTarget.userData.vibexeArgs.hasPBR;
+        }
+        // Restore default material
+        _rtTarget.traverse(function(m) {
+          if (m.isMesh && m.material) {
+            if (m.material.map) { m.material.map.dispose(); m.material.map = null; }
+            if (m.material.normalMap) { m.material.normalMap.dispose(); m.material.normalMap = null; }
+            if (m.material.roughnessMap) { m.material.roughnessMap.dispose(); m.material.roughnessMap = null; }
+            if (m.material.metalnessMap) { m.material.metalnessMap.dispose(); m.material.metalnessMap = null; }
+            m.material.needsUpdate = true;
+          }
+        });
+        sendSelectedObject(_rtTarget);
+        break;
+      }
+      case "game-editor-update-texture-params": {
+        if (!editor || !editor.scene || !d.uuid) break;
+        var _tpTarget = findObjectByUuid(editor.scene, d.uuid);
+        if (!_tpTarget || !_tpTarget.userData?.vibexeArgs?.textureUrl) break;
+        var _tpArgs = _tpTarget.userData.vibexeArgs;
+        _tpArgs.textureTileX = d.tileX || 1;
+        _tpArgs.textureTileY = d.tileY || 1;
+        _tpArgs.textureRotation = d.rotation || 0;
+        _tpArgs.textureOffsetX = d.offsetX || 0;
+        _tpArgs.textureOffsetY = d.offsetY || 0;
+        var _rot = (_tpArgs.textureRotation || 0) * Math.PI / 180;
+        _tpTarget.traverse(function(m) {
+          if (m.isMesh && m.material && m.material.map) {
+            m.material.map.repeat.set(d.tileX || 1, d.tileY || 1);
+            m.material.map.rotation = _rot;
+            m.material.map.offset.set(d.offsetX || 0, d.offsetY || 0);
+            m.material.map.center.set(0.5, 0.5);
+            m.material.map.needsUpdate = true;
+            if (m.material.normalMap) { m.material.normalMap.repeat.set(d.tileX || 1, d.tileY || 1); m.material.normalMap.rotation = _rot; m.material.normalMap.offset.set(d.offsetX || 0, d.offsetY || 0); m.material.normalMap.center.set(0.5, 0.5); }
+            if (m.material.roughnessMap) { m.material.roughnessMap.repeat.set(d.tileX || 1, d.tileY || 1); m.material.roughnessMap.rotation = _rot; m.material.roughnessMap.offset.set(d.offsetX || 0, d.offsetY || 0); m.material.roughnessMap.center.set(0.5, 0.5); }
+            if (m.material.metalnessMap) { m.material.metalnessMap.repeat.set(d.tileX || 1, d.tileY || 1); m.material.metalnessMap.rotation = _rot; m.material.metalnessMap.offset.set(d.offsetX || 0, d.offsetY || 0); m.material.metalnessMap.center.set(0.5, 0.5); }
+          }
+        });
+        if (!_tpTarget.userData.__spawned) _tpTarget.__hasTextureOverride = true;
+        sendSelectedObject(_tpTarget);
+        break;
+      }
+      case "game-editor-update-tiling": {
+        if (!editor || !editor.scene || !d.uuid) break;
+        var _utTarget = findObjectByUuid(editor.scene, d.uuid);
+        if (!_utTarget || !_utTarget.userData?.vibexeArgs?.textureUrl) break;
+        _utTarget.userData.vibexeArgs.textureTileX = d.tileX || 1;
+        _utTarget.userData.vibexeArgs.textureTileY = d.tileY || 1;
+        _utTarget.traverse(function(m) {
+          if (m.isMesh && m.material && m.material.map) {
+            m.material.map.repeat.set(d.tileX || 1, d.tileY || 1);
+            m.material.map.needsUpdate = true;
+            if (m.material.normalMap) m.material.normalMap.repeat.set(d.tileX || 1, d.tileY || 1);
+            if (m.material.roughnessMap) m.material.roughnessMap.repeat.set(d.tileX || 1, d.tileY || 1);
+            if (m.material.metalnessMap) m.material.metalnessMap.repeat.set(d.tileX || 1, d.tileY || 1);
+          }
+        });
+        sendSelectedObject(_utTarget);
+        break;
+      }
       case "game-editor-request-tree":
         sendSceneTree();
         break;
