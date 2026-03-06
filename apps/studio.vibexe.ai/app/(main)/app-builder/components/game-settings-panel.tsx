@@ -98,30 +98,27 @@ function SettingRow({ children, tooltip, validation }: {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Main Panel                                                        */
+/*  Content-only variant (used inside game-editor-panel tabs)          */
 /* ------------------------------------------------------------------ */
 
-export function GameSettingsPanel({ settings, onChange, onSave, onClose }: GameSettingsPanelProps) {
+export interface GameSettingsContentProps {
+	settings: GameSettings;
+	onChange: (settings: GameSettings) => void;
+	onSave: (settings: GameSettings) => void;
+	pickSpawnActive?: boolean;
+	pickRespawnActive?: boolean;
+	onTogglePickSpawn?: () => void;
+	onTogglePickRespawn?: () => void;
+	characterHalfHeight?: number;
+}
+
+export function GameSettingsContent({ settings, onChange, onSave }: GameSettingsContentProps) {
 	const [activeTab, setActiveTab] = useState<SettingsTab>("player");
 
 	const update = useCallback((section: string, field: string, value: any) => {
 		const patched = deepMerge(settings, { [section]: { [field]: value } });
 		onChange(patched);
 	}, [settings, onChange]);
-
-	const handleReset = useCallback(() => {
-		onChange({ ...DEFAULT_GAME_SETTINGS });
-	}, [onChange]);
-
-	const tabs: { id: SettingsTab; label: string; icon: typeof User }[] = [
-		{ id: "player", label: "Player", icon: User },
-		{ id: "physics", label: "Physics", icon: Zap },
-		{ id: "camera", label: "Camera", icon: Camera },
-		{ id: "environment", label: "Env", icon: Sun },
-		{ id: "audio", label: "Audio", icon: Volume2 },
-		{ id: "effects", label: "FX", icon: Sparkles },
-		{ id: "performance", label: "Perf", icon: Gauge },
-	];
 
 	const QUALITY_PRESETS: Record<string, { antialias: boolean; pixelRatio: number; maxFPS: number }> = {
 		low: { antialias: false, pixelRatio: 0.5, maxFPS: 30 },
@@ -135,33 +132,18 @@ export function GameSettingsPanel({ settings, onChange, onSave, onClose }: GameS
 		onChange(deepMerge(settings, { performance: { qualityPreset: preset, ...p } }));
 	};
 
-	return (
-		<div data-game-editor-panel className="absolute top-0 right-0 bottom-0 w-[260px] bg-[#0f0f1a]/95 backdrop-blur-xl border-l border-white/[0.08] flex flex-col z-30 overflow-hidden">
-			{/* Header */}
-			<div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.08]">
-				<span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">
-					Game Settings
-				</span>
-				<div className="flex items-center gap-1">
-					<button
-						type="button"
-						onClick={handleReset}
-						className="p-1 rounded text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
-						title="Reset to Defaults"
-					>
-						<RotateCcw className="w-3.5 h-3.5" />
-					</button>
-					<button
-						type="button"
-						onClick={onClose}
-						className="p-1 rounded text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
-						title="Close Settings"
-					>
-						<X className="w-3.5 h-3.5" />
-					</button>
-				</div>
-			</div>
+	const tabs: { id: SettingsTab; label: string; icon: typeof User }[] = [
+		{ id: "player", label: "Player", icon: User },
+		{ id: "physics", label: "Physics", icon: Zap },
+		{ id: "camera", label: "Camera", icon: Camera },
+		{ id: "environment", label: "Env", icon: Sun },
+		{ id: "audio", label: "Audio", icon: Volume2 },
+		{ id: "effects", label: "FX", icon: Sparkles },
+		{ id: "performance", label: "Perf", icon: Gauge },
+	];
 
+	return (
+		<>
 			{/* Tab Bar */}
 			<div className="flex border-b border-white/[0.08]">
 				{tabs.map((tab) => {
@@ -544,6 +526,46 @@ export function GameSettingsPanel({ settings, onChange, onSave, onClose }: GameS
 					Save & Apply
 				</button>
 			</div>
+		</>
+	);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main Panel (standalone with header + close)                        */
+/* ------------------------------------------------------------------ */
+
+export function GameSettingsPanel({ settings, onChange, onSave, onClose }: GameSettingsPanelProps) {
+	const handleReset = useCallback(() => {
+		onChange({ ...DEFAULT_GAME_SETTINGS });
+	}, [onChange]);
+
+	return (
+		<div data-game-editor-panel className="absolute top-0 right-0 bottom-0 w-[260px] bg-[#0f0f1a]/95 backdrop-blur-xl border-l border-white/[0.08] flex flex-col z-30 overflow-hidden">
+			{/* Header */}
+			<div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.08]">
+				<span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">
+					Game Settings
+				</span>
+				<div className="flex items-center gap-1">
+					<button
+						type="button"
+						onClick={handleReset}
+						className="p-1 rounded text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
+						title="Reset to Defaults"
+					>
+						<RotateCcw className="w-3.5 h-3.5" />
+					</button>
+					<button
+						type="button"
+						onClick={onClose}
+						className="p-1 rounded text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
+						title="Close Settings"
+					>
+						<X className="w-3.5 h-3.5" />
+					</button>
+				</div>
+			</div>
+			<GameSettingsContent settings={settings} onChange={onChange} onSave={onSave} />
 		</div>
 	);
 }
