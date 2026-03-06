@@ -531,35 +531,31 @@ export function getVisualEditBridgeScript(): string {
     if (!T || !editor || !editor.scene || !editor.renderer) return;
     var pmrem = new T.PMREMGenerator(editor.renderer);
     pmrem.compileEquirectangularShader();
-    // Bright studio procedural env (fallback — zero flicker)
+    // High-contrast studio env — bright sky + dark ground = good metal reflections
     var envScene = new T.Scene();
     var skyGeo = new T.SphereGeometry(50, 32, 16);
-    envScene.add(new T.Mesh(skyGeo, new T.MeshBasicMaterial({ color: new T.Color(3.0, 3.2, 3.5), side: T.BackSide })));
-    // Ground hemisphere BRIGHT (was 0.1 → dark mirror on metals)
+    envScene.add(new T.Mesh(skyGeo, new T.MeshBasicMaterial({ color: new T.Color(1.8, 2.0, 2.5), side: T.BackSide })));
+    // Dark ground for contrast (metals need bright/dark difference)
     var gndGeo = new T.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-    envScene.add(new T.Mesh(gndGeo, new T.MeshBasicMaterial({ color: new T.Color(1.2, 1.2, 1.3), side: T.BackSide })));
+    envScene.add(new T.Mesh(gndGeo, new T.MeshBasicMaterial({ color: new T.Color(0.4, 0.35, 0.3), side: T.BackSide })));
     var pGeo = new T.PlaneGeometry(8, 8);
     var _addP = function(x, y, z, r, g, b, sx, sy) {
       var p = new T.Mesh(pGeo, new T.MeshBasicMaterial({ color: new T.Color(r, g, b), side: T.DoubleSide }));
       p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
       envScene.add(p);
     };
-    // Key light (top-front, very bright)
-    _addP(0, 45, -5, 25, 25, 22, 5, 5);
-    // Fill lights (sides + back, bright)
-    _addP(25, 20, -15, 12, 11, 10, 3, 3);
-    _addP(-25, 20, -10, 8, 9, 12, 3, 3);
-    _addP(5, 35, 15, 10, 9, 8, 3, 2.5);
-    // Bottom fill (CRITICAL: prevents dark underside on metals)
-    _addP(0, -15, 0, 6, 6, 7, 8, 8);
-    // Side fills
-    _addP(35, 5, 15, 5, 5, 7, 2.5, 2.5);
-    _addP(-35, 10, 15, 5, 6, 8, 2.5, 2.5);
-    // Back fill
-    _addP(0, 15, 30, 4, 4, 5, 4, 3);
+    // Key light (top-front, intense and focused)
+    _addP(0, 45, -10, 30, 28, 25, 3, 3);
+    // Rim light (back-top, strong edge highlight)
+    _addP(-10, 40, 20, 18, 18, 22, 2.5, 2.5);
+    // Fill (side, moderate)
+    _addP(30, 15, -10, 6, 6, 7, 2, 2);
+    _addP(-30, 10, 5, 4, 4, 5, 2, 2);
+    // Subtle bottom fill (prevents pure black undersides)
+    _addP(0, -20, 0, 2, 2, 2.5, 5, 5);
     editor.scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
     editor.renderer.toneMapping = 4; // ACESFilmicToneMapping
-    editor.renderer.toneMappingExposure = 1.5;
+    editor.renderer.toneMappingExposure = 1.0;
     pmrem.dispose(); skyGeo.dispose(); gndGeo.dispose(); pGeo.dispose();
     // Async HDRI upgrade
     var _hdriUrl = (window.__VIBEXE_API_ORIGIN__ || '') + '/api/app-builder/media-stock-3d/textures/env_studio.jpg';
@@ -571,7 +567,7 @@ export function getVisualEditBridgeScript(): string {
     }, undefined, function() {});
     // PBR key light
     if (!editor.scene.getObjectByName('__pbr_key__')) {
-      var pbrKey = new T.DirectionalLight(0xFFFBF0, 1.5);
+      var pbrKey = new T.DirectionalLight(0xFFFBF0, 2.5);
       pbrKey.name = '__pbr_key__';
       pbrKey.position.set(15, 30, -10);
       pbrKey.castShadow = false;
@@ -1960,13 +1956,13 @@ export function getVisualEditBridgeScript(): string {
             var colorTex = _pbrResults[0], normalTex = _pbrResults[1], roughnessTex = _pbrResults[2], metalnessTex = _pbrResults[3], aoTex = _pbrResults[4];
             if (!colorTex) return;
             // Category-based metalness: only Metal* textures are truly metallic
-            var _metalVal = _isMetal ? 0.9 : 0.0;
-            var _envIntensity = _isMetal ? 1.0 : 0.4;
+            var _metalVal = _isMetal ? 0.95 : 0.0;
+            var _envIntensity = _isMetal ? 1.5 : 0.15;
             _atObj.traverse(function(m) {
               if (!m.isMesh || !m.material) return;
               var _matOpts = {
                 map: _atCfg(colorTex.clone(), true),
-                roughness: roughnessTex ? 1.0 : 0.5,
+                roughness: roughnessTex ? 1.0 : (_isMetal ? 0.3 : 0.85),
                 metalness: _metalVal,
                 envMapIntensity: _envIntensity,
                 side: _THREE.DoubleSide

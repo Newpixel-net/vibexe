@@ -3897,32 +3897,28 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             // Instant procedural env (fallback — zero flicker)
             const envScene = new THREE.Scene();
             const _skyGeo = new THREE.SphereGeometry(50, 32, 16);
-            envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(3.0, 3.2, 3.5), side: THREE.BackSide })));
+            envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(1.8, 2.0, 2.5), side: THREE.BackSide })));
             const _gndGeo = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-            // Ground hemisphere BRIGHT (prevents dark mirror on metals)
-            envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(1.2, 1.2, 1.3), side: THREE.BackSide })));
+            // Dark ground for contrast (metals need bright/dark difference)
+            envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.4, 0.35, 0.3), side: THREE.BackSide })));
             const _pGeo = new THREE.PlaneGeometry(8, 8);
             const _addPanel = (x: number, y: number, z: number, r: number, g: number, b: number, sx: number, sy: number) => {
               const p = new THREE.Mesh(_pGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide }));
               p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
               envScene.add(p);
             };
-            // Key light (top-front, very bright)
-            _addPanel(0, 45, -5, 25, 25, 22, 5, 5);
-            // Fill lights (sides + back)
-            _addPanel(25, 20, -15, 12, 11, 10, 3, 3);
-            _addPanel(-25, 20, -10, 8, 9, 12, 3, 3);
-            _addPanel(5, 35, 15, 10, 9, 8, 3, 2.5);
-            // Bottom fill (prevents dark underside on metals)
-            _addPanel(0, -15, 0, 6, 6, 7, 8, 8);
-            // Side fills
-            _addPanel(35, 5, 15, 5, 5, 7, 2.5, 2.5);
-            _addPanel(-35, 10, 15, 5, 6, 8, 2.5, 2.5);
-            // Back fill
-            _addPanel(0, 15, 30, 4, 4, 5, 4, 3);
+            // Key light (top-front, intense and focused)
+            _addPanel(0, 45, -10, 30, 28, 25, 3, 3);
+            // Rim light (back-top, strong edge highlight)
+            _addPanel(-10, 40, 20, 18, 18, 22, 2.5, 2.5);
+            // Fill (side, moderate)
+            _addPanel(30, 15, -10, 6, 6, 7, 2, 2);
+            _addPanel(-30, 10, 5, 4, 4, 5, 2, 2);
+            // Subtle bottom fill (prevents pure black undersides)
+            _addPanel(0, -20, 0, 2, 2, 2.5, 5, 5);
             scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.5;
+            renderer.toneMappingExposure = 1.0;
             pmrem.dispose(); _skyGeo.dispose(); _gndGeo.dispose(); _pGeo.dispose();
 
             // Async HDRI upgrade — real equirectangular for detailed reflections
@@ -3937,7 +3933,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
 
             // PBR key light — strong specular highlights on metals
             if (!scene.getObjectByName("__pbr_key__")) {
-              const pbrKey = new THREE.DirectionalLight(0xFFFBF0, 1.5);
+              const pbrKey = new THREE.DirectionalLight(0xFFFBF0, 2.5);
               pbrKey.name = "__pbr_key__";
               pbrKey.position.set(15, 30, -10);
               pbrKey.castShadow = false;
@@ -4027,8 +4023,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               ]).then(([colorTex, normalTex, roughnessTex, metalnessTex, aoTex]: any[]) => {
                 if (!colorTex) return;
                 // Category-based metalness: only Metal* textures are truly metallic
-                const _metalVal = _isMetal ? 0.9 : 0.0;
-                const _envIntensity = _isMetal ? 1.0 : 0.4;
+                const _metalVal = _isMetal ? 0.95 : 0.0;
+                const _envIntensity = _isMetal ? 1.5 : 0.15;
                 const applyPBR = (child: any) => {
                   if (!child.isMesh || !child.material) return;
                   const mats = Array.isArray(child.material) ? child.material : [child.material];
@@ -4037,7 +4033,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                     child.__vibexe_origMats.push(mat);
                     const _matOpts: any = {
                       map: _configureTex(colorTex, true),
-                      roughness: roughnessTex ? 1.0 : 0.5,
+                      roughness: roughnessTex ? 1.0 : (_isMetal ? 0.3 : 0.85),
                       metalness: _metalVal,
                       envMapIntensity: _envIntensity,
                       side: THREE.DoubleSide,

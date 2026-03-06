@@ -541,9 +541,9 @@ if (typeof window !== 'undefined') {
                 for (var _qi=0; _qi<5; _qi++) { (function(idx){ _loadT(_urls[idx], function(tex){ _res[idx]=tex; _cnt++; if(_cnt===5){
                   var cT=_res[0],nT=_res[1],rT=_res[2],mT=_res[3],aT=_res[4];
                   if(!cT) return;
-                  var _mVal=_isM?0.9:0.0, _eI=_isM?1.0:0.4;
+                  var _mVal=_isM?0.95:0.0, _eI=_isM?1.5:0.15;
                   _obj.traverse(function(m){ if(!m.isMesh||!m.material) return;
-                    var mo={map:_cfgTex(cT.clone(),true),roughness:rT?1.0:0.5,metalness:_mVal,envMapIntensity:_eI,side:THREE.DoubleSide};
+                    var mo={map:_cfgTex(cT.clone(),true),roughness:rT?1.0:(_isM?0.3:0.85),metalness:_mVal,envMapIntensity:_eI,side:THREE.DoubleSide};
                     if(nT){mo.normalMap=_cfgTex(nT.clone(),false);mo.normalScale=new THREE.Vector2(_ns,_ns);}
                     if(rT) mo.roughnessMap=_cfgTex(rT.clone(),false);
                     if(mT&&_isM) mo.metalnessMap=_cfgTex(mT.clone(),false);
@@ -1221,7 +1221,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=40`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=41`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);
