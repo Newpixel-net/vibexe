@@ -1873,11 +1873,19 @@ export function getVisualEditBridgeScript(): string {
           if (!_nameCounts[child.name]) _nameCounts[child.name] = 0;
           var _idx = _nameCounts[child.name]++;
           var saveName = _idx === 0 ? child.name : child.name + "#" + _idx;
-          allTransforms[saveName] = {
+          var _tfData = {
             position: { x: +child.position.x.toFixed(3), y: +child.position.y.toFixed(3), z: +child.position.z.toFixed(3) },
             rotation: { x: +(child.rotation.x * 180 / Math.PI).toFixed(1), y: +(child.rotation.y * 180 / Math.PI).toFixed(1), z: +(child.rotation.z * 180 / Math.PI).toFixed(1) },
             scale: { x: +child.scale.x.toFixed(3), y: +child.scale.y.toFixed(3), z: +child.scale.z.toFixed(3) }
           };
+          var _txUrl = child.userData && child.userData.vibexeArgs && child.userData.vibexeArgs.textureUrl;
+          if (_txUrl) {
+            _tfData._textureUrl = _txUrl;
+            _tfData._textureTileX = child.userData.vibexeArgs.textureTileX || 1;
+            _tfData._textureTileY = child.userData.vibexeArgs.textureTileY || 1;
+            _tfData._hasPBR = !!child.userData.vibexeArgs.hasPBR;
+          }
+          allTransforms[saveName] = _tfData;
         });
         console.log("[GameEditorBridge] Collected transforms:", Object.keys(allTransforms).length, "objects");
         window.parent.postMessage({ type: "game-editor-all-transforms", transforms: allTransforms }, "*");

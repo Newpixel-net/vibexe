@@ -379,14 +379,14 @@ function updateTransformInSource(
 	pos: { x: number; y: number; z: number },
 	rot: { x: number; y: number; z: number },
 	scl: { x: number; y: number; z: number },
+	tex?: { url: string; tileX: number; tileY: number; hasPBR: boolean } | null,
 ): string {
 	const MARKER_START = "// SCENE_EDITOR_OVERRIDES_START";
 	const MARKER_END = "// SCENE_EDITOR_OVERRIDES_END";
 	const DATA_MARKER = "// SCENE_EDITOR_OVERRIDES_DATA:";
 
 	// Parse existing overrides from data marker if present
-	let overrides: Record<string, { p: number[]; r: number[]; s: number[] }> =
-		{};
+	let overrides: Record<string, any> = {};
 	const dataMatch = code.match(
 		new RegExp(
 			DATA_MARKER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*(.+)",
@@ -413,11 +413,15 @@ function updateTransformInSource(
 	const ry = +((rot.y * Math.PI) / 180).toFixed(4);
 	const rz = +((rot.z * Math.PI) / 180).toFixed(4);
 
-	// Merge new transform
+	// Preserve existing texture data if not explicitly provided
+	const existingTex = overrides[objectName]?.t;
+
+	// Merge new transform (preserve texture if not overridden)
 	overrides[objectName] = {
 		p: [+pos.x.toFixed(3), +pos.y.toFixed(3), +pos.z.toFixed(3)],
 		r: [rx, ry, rz],
 		s: [+scl.x.toFixed(3), +scl.y.toFixed(3), +scl.z.toFixed(3)],
+		...(tex ? { t: [tex.url, tex.tileX, tex.tileY, tex.hasPBR ? 1 : 0] } : existingTex ? { t: existingTex } : {}),
 	};
 
 	const json = JSON.stringify(overrides);
@@ -613,7 +617,8 @@ export function SandpackPreview({
 			let code = sceneFile.content;
 			for (const name of names) {
 				const t = transforms[name];
-				code = updateTransformInSource(code, name, t.position, t.rotation, t.scale);
+				const texData = t._textureUrl ? { url: t._textureUrl, tileX: t._textureTileX || 1, tileY: t._textureTileY || 1, hasPBR: !!t._hasPBR } : null;
+				code = updateTransformInSource(code, name, t.position, t.rotation, t.scale, texData);
 			}
 			// Debug: uncomment to check save comparison
 			// console.log("[GameEditor] Save comparison: changed=", code !== sceneFile.content);

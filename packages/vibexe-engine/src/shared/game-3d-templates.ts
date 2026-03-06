@@ -3640,8 +3640,14 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 if (o.p) t.position.set(o.p[0], o.p[1], o.p[2]);
                 if (o.r) t.rotation.set(o.r[0], o.r[1], o.r[2]);
                 if (o.s) t.scale.set(o.s[0], o.s[1], o.s[2]);
+                // Restore texture if saved
+                if (o.t && o.t[0]) {
+                  _applyTextureToMesh(t, o.t[0], o.t[1] || 1, o.t[2] || 1, 0, 0, 0, !!o.t[3]);
+                  console.log("[SCENE_EDITOR] Applied:", name, "+texture");
+                } else {
+                  console.log("[SCENE_EDITOR] Applied:", name);
+                }
                 __applied.add(name);
-                console.log("[SCENE_EDITOR] Applied:", name);
               } else { rem++; }
             }
             return rem === 0;
@@ -4819,11 +4825,20 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   if (!_nameCounts[child.name]) _nameCounts[child.name] = 0;
                   const _idx = _nameCounts[child.name]++;
                   const saveName = _idx === 0 ? child.name : child.name + "#" + _idx;
-                  _allTf[saveName] = {
+                  const _tf: any = {
                     position: { x: +child.position.x.toFixed(3), y: +child.position.y.toFixed(3), z: +child.position.z.toFixed(3) },
                     rotation: { x: +(child.rotation.x * 180 / Math.PI).toFixed(1), y: +(child.rotation.y * 180 / Math.PI).toFixed(1), z: +(child.rotation.z * 180 / Math.PI).toFixed(1) },
                     scale: { x: +child.scale.x.toFixed(3), y: +child.scale.y.toFixed(3), z: +child.scale.z.toFixed(3) },
                   };
+                  // Include texture data if present
+                  const _texUrl = child.userData?.vibexeArgs?.textureUrl;
+                  if (_texUrl) {
+                    _tf._textureUrl = _texUrl;
+                    _tf._textureTileX = child.userData.vibexeArgs.textureTileX || 1;
+                    _tf._textureTileY = child.userData.vibexeArgs.textureTileY || 1;
+                    _tf._hasPBR = !!child.userData.vibexeArgs.hasPBR;
+                  }
+                  _allTf[saveName] = _tf;
                 });
                 console.log("[EmbeddedBridge] Collected transforms:", Object.keys(_allTf).length, "objects");
                 window.parent.postMessage({ type: "game-editor-all-transforms", transforms: _allTf }, "*");
