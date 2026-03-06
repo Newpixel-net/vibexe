@@ -4023,30 +4023,36 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   const newMats = mats.map((mat: any) => {
                     if (!child.__vibexe_origMats) child.__vibexe_origMats = [];
                     child.__vibexe_origMats.push(mat);
-                    const _matOpts: any = {
-                      map: _configureTex(colorTex, true),
-                      roughness: roughnessTex ? 1.0 : (_isMetal ? 0.3 : 0.7),
-                      metalness: _metalVal,
-                      envMapIntensity: _envIntensity,
-                      side: THREE.DoubleSide,
-                    };
-                    if (scene.environment) _matOpts.envMap = scene.environment;
-                    if (normalTex) {
-                      _matOpts.normalMap = _configureTex(normalTex, false);
-                      _matOpts.normalScale = new THREE.Vector2(_normalScale, _normalScale);
+                    if (_isMetal) {
+                      // Metals need StandardMaterial for env map reflections
+                      const _matOpts: any = {
+                        map: _configureTex(colorTex, true),
+                        roughness: roughnessTex ? 1.0 : 0.3,
+                        metalness: 0.95,
+                        envMapIntensity: 1.0,
+                        side: THREE.DoubleSide,
+                      };
+                      if (scene.environment) _matOpts.envMap = scene.environment;
+                      if (normalTex) {
+                        _matOpts.normalMap = _configureTex(normalTex, false);
+                        _matOpts.normalScale = new THREE.Vector2(_normalScale, _normalScale);
+                      }
+                      if (roughnessTex) _matOpts.roughnessMap = _configureTex(roughnessTex, false);
+                      if (metalnessTex) _matOpts.metalnessMap = _configureTex(metalnessTex, false);
+                      return new THREE.MeshStandardMaterial(_matOpts);
+                    } else {
+                      // Non-metals use Phong — works with Phong-calibrated lights (no PI division)
+                      const _phOpts: any = {
+                        map: _configureTex(colorTex, true),
+                        shininess: 15,
+                        side: THREE.DoubleSide,
+                      };
+                      if (normalTex) {
+                        _phOpts.normalMap = _configureTex(normalTex, false);
+                        _phOpts.normalScale = new THREE.Vector2(_normalScale, _normalScale);
+                      }
+                      return new THREE.MeshPhongMaterial(_phOpts);
                     }
-                    if (roughnessTex) _matOpts.roughnessMap = _configureTex(roughnessTex, false);
-                    if (metalnessTex && _isMetal) _matOpts.metalnessMap = _configureTex(metalnessTex, false);
-                    if (aoTex) {
-                      _matOpts.aoMap = _configureTex(aoTex, false);
-                      _matOpts.aoMapIntensity = 1.0;
-                    }
-                    const stdMat = new THREE.MeshStandardMaterial(_matOpts);
-                    // AO requires uv2 attribute
-                    if (aoTex && child.geometry && child.geometry.attributes.uv && !child.geometry.attributes.uv2) {
-                      child.geometry.setAttribute("uv2", child.geometry.attributes.uv);
-                    }
-                    return stdMat;
                   });
                   child.material = Array.isArray(child.material) ? newMats : newMats[0];
                   if (Array.isArray(child.material)) child.material.forEach((m: any) => { m.needsUpdate = true; });

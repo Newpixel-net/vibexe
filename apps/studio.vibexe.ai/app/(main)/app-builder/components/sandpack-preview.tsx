@@ -565,13 +565,19 @@ if (typeof window !== 'undefined') {
                   var _mVal=_isM?0.95:0.0, _eI=_isM?1.0:0.3;
                   var _envTex = (window.__vibexe_scene__ && window.__vibexe_scene__.environment) || null;
                   _obj.traverse(function(m){ if(!m.isMesh||!m.material) return;
-                    var mo={map:_cfgTex(cT.clone(),true),roughness:rT?1.0:(_isM?0.3:0.7),metalness:_mVal,envMapIntensity:_eI,side:THREE.DoubleSide};
-                    if(_envTex) mo.envMap=_envTex;
-                    if(nT){mo.normalMap=_cfgTex(nT.clone(),false);mo.normalScale=new THREE.Vector2(_ns,_ns);}
-                    if(rT) mo.roughnessMap=_cfgTex(rT.clone(),false);
-                    if(mT&&_isM) mo.metalnessMap=_cfgTex(mT.clone(),false);
-                    if(aT){mo.aoMap=_cfgTex(aT.clone(),false);mo.aoMapIntensity=1.0;if(m.geometry&&m.geometry.attributes.uv&&!m.geometry.attributes.uv2)m.geometry.setAttribute('uv2',m.geometry.attributes.uv);}
-                    m.material=new THREE.MeshStandardMaterial(mo);m.material.needsUpdate=true;
+                    if(_isM){
+                      var mo={map:_cfgTex(cT.clone(),true),roughness:rT?1.0:0.3,metalness:0.95,envMapIntensity:1.0,side:THREE.DoubleSide};
+                      if(_envTex) mo.envMap=_envTex;
+                      if(nT){mo.normalMap=_cfgTex(nT.clone(),false);mo.normalScale=new THREE.Vector2(_ns,_ns);}
+                      if(rT) mo.roughnessMap=_cfgTex(rT.clone(),false);
+                      if(mT) mo.metalnessMap=_cfgTex(mT.clone(),false);
+                      m.material=new THREE.MeshStandardMaterial(mo);
+                    } else {
+                      var po={map:_cfgTex(cT.clone(),true),shininess:15,side:THREE.DoubleSide};
+                      if(nT){po.normalMap=_cfgTex(nT.clone(),false);po.normalScale=new THREE.Vector2(_ns,_ns);}
+                      m.material=new THREE.MeshPhongMaterial(po);
+                    }
+                    m.material.needsUpdate=true;
                   });
                   console.log('[SCENE_EDITOR] PBR applied:',_ti[0],'isMetal:',_isM,'metalness:',_mVal,'envMap:',!!_envTex);
                 }}); })(_qi); }

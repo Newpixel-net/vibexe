@@ -550,8 +550,8 @@ export function getVisualEditBridgeScript(): string {
     _addP(-35, 12, 8, 1, 1, 1.2, 2, 2);       // Fill (subtle)
     _addP(0, -30, 0, 0.5, 0.5, 0.6, 4, 4);   // Bottom fill (dim)
     editor.scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
-    editor.renderer.toneMapping = 4; // ACESFilmicToneMapping
-    editor.renderer.toneMappingExposure = 2.5;
+    // Keep renderer tone mapping unchanged — Phong materials don't need ACES
+    // Only set env map and lights for metal reflections
     pmrem.dispose(); skyGeo.dispose(); gndGeo.dispose(); pGeo.dispose();
     // Moderate light boost for PBR (Standard material /PI factor)
     var _al = editor.scene.getObjectByName('__default_ambient__');
@@ -1499,32 +1499,39 @@ export function getVisualEditBridgeScript(): string {
       setTimeout(fixOrbitControls, 50);
       setTimeout(fixOrbitControls, 200);
       showDebug("Bridge ACTIVATED. Canvas: " + editor.renderer.domElement.tagName + " " + editor.renderer.domElement.width + "x" + editor.renderer.domElement.height);
-      // On activation, fix any PBR materials created by the override (which lacks env setup)
+      // On activation, fix PBR materials created by the override
+      // Override creates StandardMaterial for ALL PBR textures. Non-metals should use Phong
+      // (StandardMaterial divides light by PI which makes things dark with Phong-calibrated lights)
       setTimeout(function() {
-        var _hasPBR = false;
+        var _hasMetal = false;
         editor.scene.traverse(function(c) {
-          if (c.isMesh && c.material && c.material.isMeshStandardMaterial) _hasPBR = true;
+          if (c.isMesh && c.material && c.material.isMeshStandardMaterial && c.material.metalnessMap) _hasMetal = true;
         });
-        if (_hasPBR) {
-          _ensurePBREnv();
-          if (editor.scene.environment) {
-            editor.scene.traverse(function(c) {
-              if (c.isMesh && c.material && c.material.isMeshStandardMaterial) {
-                if (!c.material.envMap) c.material.envMap = editor.scene.environment;
-                // Fix override values: envMapIntensity and metalness
-                if (c.material.metalnessMap) {
-                  // PBR metal texture — use bridge values
-                  c.material.envMapIntensity = 1.0;
-                  c.material.metalness = 0.95;
-                } else {
-                  c.material.envMapIntensity = 0.3;
-                }
-                c.material.needsUpdate = true;
-              }
-            });
-            showDebug("PBR env patched for override materials");
+        if (_hasMetal) _ensurePBREnv();
+        var _T = window.THREE;
+        if (!_T) return;
+        editor.scene.traverse(function(c) {
+          if (!c.isMesh || !c.material || !c.material.isMeshStandardMaterial) return;
+          // Skip GLTF default materials (no vibexeArgs texture = original model material)
+          var _va = c.parent && c.parent.userData && c.parent.userData.vibexeArgs;
+          if (!_va || !_va.textureUrl || !_va.hasPBR) return;
+          if (c.material.metalnessMap) {
+            // Metal — keep StandardMaterial, add env
+            if (editor.scene.environment && !c.material.envMap) c.material.envMap = editor.scene.environment;
+            c.material.envMapIntensity = 1.0;
+            c.material.metalness = 0.95;
+            c.material.needsUpdate = true;
+          } else {
+            // Non-metal — convert to Phong for correct brightness
+            var _oldMat = c.material;
+            var _phOpts = { shininess: 15, side: _T.DoubleSide };
+            if (_oldMat.map) _phOpts.map = _oldMat.map;
+            if (_oldMat.normalMap) { _phOpts.normalMap = _oldMat.normalMap; _phOpts.normalScale = _oldMat.normalScale; }
+            c.material = new _T.MeshPhongMaterial(_phOpts);
+            c.material.needsUpdate = true;
           }
-        }
+        });
+        showDebug("PBR materials patched (metals=Standard, non-metals=Phong)");
       }, 300);
       // Prevent right-click context menu on canvas (for flythrough mode)
       flyContextMenuHandler = function(e) { if (active) e.preventDefault(); };
@@ -1980,28 +1987,36 @@ export function getVisualEditBridgeScript(): string {
             var _envIntensity = _isMetal ? 1.0 : 0.3;
             _atObj.traverse(function(m) {
               if (!m.isMesh || !m.material) return;
-              var _matOpts = {
-                map: _atCfg(colorTex.clone(), true),
-                roughness: roughnessTex ? 1.0 : (_isMetal ? 0.3 : 0.7),
-                metalness: _metalVal,
-                envMapIntensity: _envIntensity,
-                side: _THREE.DoubleSide
-              };
-              if (editor && editor.scene && editor.scene.environment) _matOpts.envMap = editor.scene.environment;
-              if (normalTex) {
-                _matOpts.normalMap = _atCfg(normalTex.clone(), false);
-                _matOpts.normalScale = new _THREE.Vector2(_nScale, _nScale);
-              }
-              if (roughnessTex) _matOpts.roughnessMap = _atCfg(roughnessTex.clone(), false);
-              if (metalnessTex && _isMetal) _matOpts.metalnessMap = _atCfg(metalnessTex.clone(), false);
-              if (aoTex) {
-                _matOpts.aoMap = _atCfg(aoTex.clone(), false);
-                _matOpts.aoMapIntensity = 1.0;
-                if (m.geometry && m.geometry.attributes.uv && !m.geometry.attributes.uv2) {
-                  m.geometry.setAttribute('uv2', m.geometry.attributes.uv);
+              if (_isMetal) {
+                // Metals need StandardMaterial for env map reflections
+                var _matOpts = {
+                  map: _atCfg(colorTex.clone(), true),
+                  roughness: roughnessTex ? 1.0 : 0.3,
+                  metalness: 0.95,
+                  envMapIntensity: 1.0,
+                  side: _THREE.DoubleSide
+                };
+                if (editor && editor.scene && editor.scene.environment) _matOpts.envMap = editor.scene.environment;
+                if (normalTex) {
+                  _matOpts.normalMap = _atCfg(normalTex.clone(), false);
+                  _matOpts.normalScale = new _THREE.Vector2(_nScale, _nScale);
                 }
+                if (roughnessTex) _matOpts.roughnessMap = _atCfg(roughnessTex.clone(), false);
+                if (metalnessTex) _matOpts.metalnessMap = _atCfg(metalnessTex.clone(), false);
+                m.material = new _THREE.MeshStandardMaterial(_matOpts);
+              } else {
+                // Non-metals use Phong — works with existing Phong-calibrated lights (no PI division)
+                var _phongOpts = {
+                  map: _atCfg(colorTex.clone(), true),
+                  shininess: 15,
+                  side: _THREE.DoubleSide
+                };
+                if (normalTex) {
+                  _phongOpts.normalMap = _atCfg(normalTex.clone(), false);
+                  _phongOpts.normalScale = new _THREE.Vector2(_nScale, _nScale);
+                }
+                m.material = new _THREE.MeshPhongMaterial(_phongOpts);
               }
-              m.material = new _THREE.MeshStandardMaterial(_matOpts);
               m.material.needsUpdate = true;
             });
             console.log("[GameEditorBridge] PBR texture applied:", _atUrl, "isMetal:", _isMetal, "metalness:", _metalVal, "envMapIntensity:", _envIntensity, "normalScale:", _nScale);
