@@ -3808,14 +3808,30 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               _textureRotation: obj.userData?.vibexeArgs?.textureRotation || 0,
               _textureOffsetX: obj.userData?.vibexeArgs?.textureOffsetX || 0,
               _textureOffsetY: obj.userData?.vibexeArgs?.textureOffsetY || 0,
+              _hasPBR: obj.userData?.vibexeArgs?.hasPBR || false,
             }, "*");
+          }
+
+          // ---- Environment map for PBR ----
+          let _envMapGenerated = false;
+          function _ensureEnvironmentMap() {
+            if (_envMapGenerated) return;
+            _envMapGenerated = true;
+            const pmrem = new THREE.PMREMGenerator(renderer);
+            pmrem.compileEquirectangularShader();
+            const envScene = new THREE.Scene();
+            envScene.background = new THREE.Color(0.75, 0.75, 0.8);
+            const sGeo = new THREE.SphereGeometry(50, 16, 8);
+            envScene.add(new THREE.Mesh(sGeo, new THREE.MeshBasicMaterial({ color: 0xccccdd, side: THREE.BackSide })));
+            scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
+            pmrem.dispose(); sGeo.dispose();
           }
 
           // ---- Texture helpers ----
           const _textureCache: Record<string, any> = {};
           const _originalMaps = new WeakMap<any, any>();
 
-          function _applyTextureToMesh(obj: any, textureUrl: string, tileX: number, tileY: number, rotation?: number, offsetX?: number, offsetY?: number) {
+          function _applyTextureToMesh(obj: any, textureUrl: string, tileX: number, tileY: number, rotation?: number, offsetX?: number, offsetY?: number, hasPBR?: boolean) {
             // Resolve relative URLs for sandpack iframe (different origin)
             let _resolvedUrl = textureUrl;
             if (textureUrl.startsWith("/")) {
@@ -3831,9 +3847,80 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             obj.userData.vibexeArgs.textureRotation = rotation || 0;
             obj.userData.vibexeArgs.textureOffsetX = offsetX || 0;
             obj.userData.vibexeArgs.textureOffsetY = offsetY || 0;
+            if (hasPBR) obj.userData.vibexeArgs.hasPBR = true;
+            else delete obj.userData.vibexeArgs.hasPBR;
             const _rot = (rotation || 0) * Math.PI / 180;
             const _offX = offsetX || 0;
             const _offY = offsetY || 0;
+
+            // === PBR path ===
+            if (hasPBR) {
+              _ensureEnvironmentMap();
+              // Derive PBR map URLs from base filename (e.g. Metal049A.jpg → Metal049A_Normal.jpg)
+              const _baseNoExt = _resolvedUrl.replace(/\.[^.]+$/, "");
+              const _ext = _resolvedUrl.match(/\.[^.]+$/)?.[0] || ".jpg";
+              const _normalUrl = _baseNoExt + "_Normal" + _ext;
+              const _roughnessUrl = _baseNoExt + "_Roughness" + _ext;
+              const _metalnessUrl = _baseNoExt + "_Metalness" + _ext;
+
+              const _configureTex = (tex: any, isSRGB: boolean) => {
+                const t = tex.clone();
+                t.needsUpdate = true;
+                t.wrapS = THREE.RepeatWrapping;
+                t.wrapT = THREE.RepeatWrapping;
+                t.repeat.set(tileX, tileY);
+                t.rotation = _rot;
+                t.center.set(0.5, 0.5);
+                t.offset.set(_offX, _offY);
+                t.anisotropy = 4;
+                if (isSRGB && THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+                return t;
+              };
+
+              const _loadTex = (url: string): Promise<any> => {
+                if (_textureCache[url]) return Promise.resolve(_textureCache[url]);
+                return new Promise((resolve) => {
+                  new THREE.TextureLoader().load(url, (tex: any) => {
+                    _textureCache[url] = tex;
+                    resolve(tex);
+                  }, undefined, () => resolve(null)); // 404 → null
+                });
+              };
+
+              Promise.all([
+                _loadTex(_resolvedUrl),
+                _loadTex(_normalUrl),
+                _loadTex(_roughnessUrl),
+                _loadTex(_metalnessUrl),
+              ]).then(([colorTex, normalTex, roughnessTex, metalnessTex]: any[]) => {
+                if (!colorTex) return;
+                const applyPBR = (child: any) => {
+                  if (!child.isMesh || !child.material) return;
+                  const mats = Array.isArray(child.material) ? child.material : [child.material];
+                  const newMats = mats.map((mat: any) => {
+                    // Store original material for restoration
+                    if (!child.__vibexe_origMats) child.__vibexe_origMats = [];
+                    child.__vibexe_origMats.push(mat);
+                    const pbrMat = new THREE.MeshStandardMaterial({
+                      map: _configureTex(colorTex, true),
+                      normalMap: normalTex ? _configureTex(normalTex, false) : undefined,
+                      roughnessMap: roughnessTex ? _configureTex(roughnessTex, false) : undefined,
+                      roughness: roughnessTex ? 1.0 : 0.7,
+                      metalnessMap: metalnessTex ? _configureTex(metalnessTex, false) : undefined,
+                      metalness: metalnessTex ? 1.0 : 0.0,
+                      envMapIntensity: 1.0,
+                    });
+                    return pbrMat;
+                  });
+                  child.material = Array.isArray(child.material) ? newMats : newMats[0];
+                };
+                obj.traverse(applyPBR);
+                if (obj.isMesh && obj.material) applyPBR(obj);
+              });
+              return;
+            }
+
+            // === Non-PBR path (unchanged) ===
             const applyToMat = (mat: any, tex: any) => {
               if (!_originalMaps.has(mat)) {
                 _originalMaps.set(mat, { map: mat.map, color: mat.color ? mat.color.clone() : null });
@@ -3885,33 +3972,61 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           }
 
           function _removeTextureFromMesh(obj: any) {
-            const restore = (mat: any) => {
-              if (_originalMaps.has(mat)) {
-                const orig = _originalMaps.get(mat);
-                // Restore both map and color (may be {map,color} object or legacy bare map)
-                if (orig && typeof orig === "object" && "map" in orig) {
-                  mat.map = orig.map;
-                  if (orig.color && mat.color) mat.color.copy(orig.color);
+            // PBR restoration: check for stored original materials
+            const restorePBR = (child: any) => {
+              if (child.__vibexe_origMats && child.isMesh) {
+                const origMats = child.__vibexe_origMats;
+                if (Array.isArray(child.material)) {
+                  // Dispose PBR materials
+                  child.material.forEach((m: any) => { if (m.dispose) m.dispose(); });
+                  child.material = origMats.length > 1 ? origMats : origMats[0];
                 } else {
-                  mat.map = orig; // legacy: was just the map
+                  if (child.material.dispose) child.material.dispose();
+                  child.material = origMats[0];
                 }
-                _originalMaps.delete(mat);
-                mat.needsUpdate = true;
+                delete child.__vibexe_origMats;
+                return true;
               }
+              return false;
             };
+            let hadPBR = false;
             obj.traverse((child: any) => {
-              if (!child.isMesh || !child.material) return;
-              if (Array.isArray(child.material)) {
-                child.material.forEach(restore);
-              } else {
-                restore(child.material);
-              }
+              if (restorePBR(child)) hadPBR = true;
             });
-            if (obj.isMesh && obj.material) {
-              if (Array.isArray(obj.material)) {
-                obj.material.forEach(restore);
-              } else {
-                restore(obj.material);
+            if (obj.isMesh) {
+              if (restorePBR(obj)) hadPBR = true;
+            }
+
+            if (!hadPBR) {
+              // Non-PBR restoration (unchanged)
+              const restore = (mat: any) => {
+                if (_originalMaps.has(mat)) {
+                  const orig = _originalMaps.get(mat);
+                  // Restore both map and color (may be {map,color} object or legacy bare map)
+                  if (orig && typeof orig === "object" && "map" in orig) {
+                    mat.map = orig.map;
+                    if (orig.color && mat.color) mat.color.copy(orig.color);
+                  } else {
+                    mat.map = orig; // legacy: was just the map
+                  }
+                  _originalMaps.delete(mat);
+                  mat.needsUpdate = true;
+                }
+              };
+              obj.traverse((child: any) => {
+                if (!child.isMesh || !child.material) return;
+                if (Array.isArray(child.material)) {
+                  child.material.forEach(restore);
+                } else {
+                  restore(child.material);
+                }
+              });
+              if (obj.isMesh && obj.material) {
+                if (Array.isArray(obj.material)) {
+                  obj.material.forEach(restore);
+                } else {
+                  restore(obj.material);
+                }
               }
             }
             if (obj.userData?.vibexeArgs) {
@@ -3921,6 +4036,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               delete obj.userData.vibexeArgs.textureRotation;
               delete obj.userData.vibexeArgs.textureOffsetX;
               delete obj.userData.vibexeArgs.textureOffsetY;
+              delete obj.userData.vibexeArgs.hasPBR;
             }
             delete obj.__hasTextureOverride;
           }
@@ -4409,6 +4525,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                       rotation: child.userData.vibexeArgs.textureRotation || 0,
                       offsetX: child.userData.vibexeArgs.textureOffsetX || 0,
                       offsetY: child.userData.vibexeArgs.textureOffsetY || 0,
+                      hasPBR: child.userData.vibexeArgs.hasPBR || false,
                     });
                   }
                 });
@@ -4488,12 +4605,12 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 break;
               case "game-editor-apply-texture": {
                 // Apply texture to object by uuid
-                console.log("[TEXTURE] Handler reached. uuid:", d.uuid, "url:", d.textureUrl);
+                console.log("[TEXTURE] Handler reached. uuid:", d.uuid, "url:", d.textureUrl, "hasPBR:", d.hasPBR);
                 let _texTarget: any = null;
                 scene.traverse((c: any) => { if (c.uuid === d.uuid) _texTarget = c; });
                 console.log("[TEXTURE] Found target:", !!_texTarget, _texTarget?.name);
                 if (_texTarget) {
-                  _applyTextureToMesh(_texTarget, d.textureUrl, d.tileX || 1, d.tileY || 1, 0, 0, 0);
+                  _applyTextureToMesh(_texTarget, d.textureUrl, d.tileX || 1, d.tileY || 1, 0, 0, 0, d.hasPBR);
                   if (!_texTarget.userData.__spawned) _texTarget.__hasTextureOverride = true;
                   console.log("[TEXTURE] Applied. Sending selected object back.");
                   _sendSelectedObject(_texTarget);
@@ -4514,7 +4631,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 scene.traverse((c: any) => { if (c.uuid === d.uuid) _utTarget = c; });
                 if (_utTarget && _utTarget.userData?.vibexeArgs?.textureUrl) {
                   const _utArgs = _utTarget.userData.vibexeArgs;
-                  _applyTextureToMesh(_utTarget, _utArgs.textureUrl, d.tileX || 1, d.tileY || 1, _utArgs.textureRotation || 0, _utArgs.textureOffsetX || 0, _utArgs.textureOffsetY || 0);
+                  _applyTextureToMesh(_utTarget, _utArgs.textureUrl, d.tileX || 1, d.tileY || 1, _utArgs.textureRotation || 0, _utArgs.textureOffsetX || 0, _utArgs.textureOffsetY || 0, _utArgs.hasPBR);
                   _sendSelectedObject(_utTarget);
                 }
                 break;
@@ -4523,7 +4640,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 let _tpTarget: any = null;
                 scene.traverse((c: any) => { if (c.uuid === d.uuid) _tpTarget = c; });
                 if (_tpTarget && _tpTarget.userData?.vibexeArgs?.textureUrl) {
-                  _applyTextureToMesh(_tpTarget, _tpTarget.userData.vibexeArgs.textureUrl, d.tileX || 1, d.tileY || 1, d.rotation || 0, d.offsetX || 0, d.offsetY || 0);
+                  _applyTextureToMesh(_tpTarget, _tpTarget.userData.vibexeArgs.textureUrl, d.tileX || 1, d.tileY || 1, d.rotation || 0, d.offsetX || 0, d.offsetY || 0, _tpTarget.userData.vibexeArgs.hasPBR);
                   if (!_tpTarget.userData.__spawned) _tpTarget.__hasTextureOverride = true;
                   _sendSelectedObject(_tpTarget);
                 }

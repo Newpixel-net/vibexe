@@ -162,7 +162,7 @@ interface GameEditorContextValue {
 	setActivePrefab: (prefab: PrefabDefinition | null) => void;
 	spawnObject: (factory: string, position: { x: number; y: number; z: number }, args?: Record<string, any>) => void;
 	// Texture library
-	applyTexture: (uuid: string, textureUrl: string, tileX: number, tileY: number) => void;
+	applyTexture: (uuid: string, textureUrl: string, tileX: number, tileY: number, hasPBR?: boolean) => void;
 	removeTexture: (uuid: string) => void;
 	updateTiling: (uuid: string, tileX: number, tileY: number) => void;
 	updateTextureParams: (uuid: string, tileX: number, tileY: number, rotation: number, offsetX: number, offsetY: number) => void;
@@ -475,8 +475,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	}, [sendToIframe]);
 
 	// Texture library actions
-	const applyTexture = useCallback((uuid: string, textureUrl: string, tileX: number, tileY: number) => {
-		sendToIframe({ type: "game-editor-apply-texture", uuid, textureUrl, tileX, tileY });
+	const applyTexture = useCallback((uuid: string, textureUrl: string, tileX: number, tileY: number, hasPBR?: boolean) => {
+		sendToIframe({ type: "game-editor-apply-texture", uuid, textureUrl, tileX, tileY, hasPBR: !!hasPBR });
 		setIsDirty(true);
 	}, [sendToIframe]);
 

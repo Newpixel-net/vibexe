@@ -161,7 +161,8 @@ export function getGameEditorBridgeScript(): string {
       _textureTileY: obj.userData?.vibexeArgs?.textureTileY || 1,
       _textureRotation: obj.userData?.vibexeArgs?.textureRotation || 0,
       _textureOffsetX: obj.userData?.vibexeArgs?.textureOffsetX || 0,
-      _textureOffsetY: obj.userData?.vibexeArgs?.textureOffsetY || 0
+      _textureOffsetY: obj.userData?.vibexeArgs?.textureOffsetY || 0,
+      _hasPBR: obj.userData?.vibexeArgs?.hasPBR || false
     }, "*");
   }
 

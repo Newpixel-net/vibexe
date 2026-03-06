@@ -2009,7 +2009,20 @@ if (typeof window !== "undefined") {
 						/(function _sendSelectedObject)/,
 						`var _textureCache = {};
           var _originalMaps = new WeakMap();
-          function _applyTextureToMesh(obj, textureUrl, tileX, tileY, rotation, offsetX, offsetY) {
+          var _envMapGenerated = false;
+          function _ensureEnvironmentMap() {
+            if (_envMapGenerated) return;
+            _envMapGenerated = true;
+            var pmrem = new THREE.PMREMGenerator(renderer);
+            pmrem.compileEquirectangularShader();
+            var envScene = new THREE.Scene();
+            envScene.background = new THREE.Color(0.75, 0.75, 0.8);
+            var sGeo = new THREE.SphereGeometry(50, 16, 8);
+            envScene.add(new THREE.Mesh(sGeo, new THREE.MeshBasicMaterial({ color: 0xccccdd, side: THREE.BackSide })));
+            scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
+            pmrem.dispose(); sGeo.dispose();
+          }
+          function _applyTextureToMesh(obj, textureUrl, tileX, tileY, rotation, offsetX, offsetY, hasPBR) {
             var _resolvedUrl = textureUrl;
             if (textureUrl.charAt(0) === "/") {
               _resolvedUrl = (window.__VIBEXE_API_ORIGIN__ || "") + textureUrl;
@@ -2022,9 +2035,60 @@ if (typeof window !== "undefined") {
             obj.userData.vibexeArgs.textureRotation = rotation || 0;
             obj.userData.vibexeArgs.textureOffsetX = offsetX || 0;
             obj.userData.vibexeArgs.textureOffsetY = offsetY || 0;
+            if (hasPBR) obj.userData.vibexeArgs.hasPBR = true;
+            else delete obj.userData.vibexeArgs.hasPBR;
             var _rot = ((rotation || 0) * Math.PI) / 180;
             var _offX = offsetX || 0;
             var _offY = offsetY || 0;
+            if (hasPBR) {
+              _ensureEnvironmentMap();
+              var _baseNoExt = _resolvedUrl.replace(/\\.[^.]+$/, "");
+              var _ext = (_resolvedUrl.match(/\\.[^.]+$/) || [".jpg"])[0];
+              var _normalUrl = _baseNoExt + "_Normal" + _ext;
+              var _roughnessUrl = _baseNoExt + "_Roughness" + _ext;
+              var _metalnessUrl = _baseNoExt + "_Metalness" + _ext;
+              var _configureTex = function(tex, isSRGB) {
+                var t = tex.clone(); t.needsUpdate = true;
+                t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
+                t.repeat.set(tileX, tileY); t.rotation = _rot;
+                t.center.set(0.5, 0.5); t.offset.set(_offX, _offY);
+                t.anisotropy = 4;
+                if (isSRGB && THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+                return t;
+              };
+              var _loadTex = function(url) {
+                if (_textureCache[url]) return Promise.resolve(_textureCache[url]);
+                return new Promise(function(resolve) {
+                  new THREE.TextureLoader().load(url, function(tex) { _textureCache[url] = tex; resolve(tex); }, undefined, function() { resolve(null); });
+                });
+              };
+              Promise.all([_loadTex(_resolvedUrl), _loadTex(_normalUrl), _loadTex(_roughnessUrl), _loadTex(_metalnessUrl)])
+                .then(function(maps) {
+                  var colorTex = maps[0], normalTex = maps[1], roughnessTex = maps[2], metalnessTex = maps[3];
+                  if (!colorTex) return;
+                  var applyPBR = function(child) {
+                    if (!child.isMesh || !child.material) return;
+                    var mats = Array.isArray(child.material) ? child.material : [child.material];
+                    var newMats = mats.map(function(mat) {
+                      if (!child.__vibexe_origMats) child.__vibexe_origMats = [];
+                      child.__vibexe_origMats.push(mat);
+                      return new THREE.MeshStandardMaterial({
+                        map: _configureTex(colorTex, true),
+                        normalMap: normalTex ? _configureTex(normalTex, false) : undefined,
+                        roughnessMap: roughnessTex ? _configureTex(roughnessTex, false) : undefined,
+                        roughness: roughnessTex ? 1.0 : 0.7,
+                        metalnessMap: metalnessTex ? _configureTex(metalnessTex, false) : undefined,
+                        metalness: metalnessTex ? 1.0 : 0.0,
+                        envMapIntensity: 1.0
+                      });
+                    });
+                    child.material = Array.isArray(child.material) ? newMats : newMats[0];
+                  };
+                  obj.traverse(applyPBR);
+                  if (obj.isMesh && obj.material) applyPBR(obj);
+                });
+              return;
+            }
             var applyToMat = function(mat, tex) {
               if (!_originalMaps.has(mat)) _originalMaps.set(mat, { map: mat.map, color: mat.color ? mat.color.clone() : null });
               var t = tex.clone();
@@ -2056,17 +2120,37 @@ if (typeof window !== "undefined") {
             else { new THREE.TextureLoader().load(_resolvedUrl, function(tex) { _textureCache[_resolvedUrl] = tex; apply(tex); }); }
           }
           function _removeTextureFromMesh(obj) {
-            var restore = function(mat) {
-              if (_originalMaps.has(mat)) { var orig = _originalMaps.get(mat); if (orig && typeof orig === "object" && "map" in orig) { mat.map = orig.map; if (orig.color && mat.color) mat.color.copy(orig.color); } else { mat.map = orig; } _originalMaps.delete(mat); mat.needsUpdate = true; }
+            var restorePBR = function(child) {
+              if (child.__vibexe_origMats && child.isMesh) {
+                var origMats = child.__vibexe_origMats;
+                if (Array.isArray(child.material)) {
+                  child.material.forEach(function(m) { if (m.dispose) m.dispose(); });
+                  child.material = origMats.length > 1 ? origMats : origMats[0];
+                } else {
+                  if (child.material.dispose) child.material.dispose();
+                  child.material = origMats[0];
+                }
+                delete child.__vibexe_origMats;
+                return true;
+              }
+              return false;
             };
-            obj.traverse(function(child) {
-              if (!child.isMesh || !child.material) return;
-              var mats = Array.isArray(child.material) ? child.material : [child.material];
-              mats.forEach(restore);
-            });
-            if (obj.isMesh && obj.material) {
-              var ms = Array.isArray(obj.material) ? obj.material : [obj.material];
-              ms.forEach(restore);
+            var hadPBR = false;
+            obj.traverse(function(child) { if (restorePBR(child)) hadPBR = true; });
+            if (obj.isMesh && restorePBR(obj)) hadPBR = true;
+            if (!hadPBR) {
+              var restore = function(mat) {
+                if (_originalMaps.has(mat)) { var orig = _originalMaps.get(mat); if (orig && typeof orig === "object" && "map" in orig) { mat.map = orig.map; if (orig.color && mat.color) mat.color.copy(orig.color); } else { mat.map = orig; } _originalMaps.delete(mat); mat.needsUpdate = true; }
+              };
+              obj.traverse(function(child) {
+                if (!child.isMesh || !child.material) return;
+                var mats = Array.isArray(child.material) ? child.material : [child.material];
+                mats.forEach(restore);
+              });
+              if (obj.isMesh && obj.material) {
+                var ms = Array.isArray(obj.material) ? obj.material : [obj.material];
+                ms.forEach(restore);
+              }
             }
             if (obj.userData && obj.userData.vibexeArgs) {
               delete obj.userData.vibexeArgs.textureUrl;
@@ -2075,6 +2159,7 @@ if (typeof window !== "undefined") {
               delete obj.userData.vibexeArgs.textureRotation;
               delete obj.userData.vibexeArgs.textureOffsetX;
               delete obj.userData.vibexeArgs.textureOffsetY;
+              delete obj.userData.vibexeArgs.hasPBR;
             }
             delete obj.__hasTextureOverride;
           }
@@ -2090,7 +2175,8 @@ if (typeof window !== "undefined") {
               _textureTileY: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureTileY || 1 : 1,
               _textureRotation: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureRotation || 0 : 0,
               _textureOffsetX: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureOffsetX || 0 : 0,
-              _textureOffsetY: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureOffsetY || 0 : 0,`;
+              _textureOffsetY: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.textureOffsetY || 0 : 0,
+              _hasPBR: obj.userData && obj.userData.vibexeArgs ? obj.userData.vibexeArgs.hasPBR || false : false,`;
 					if (code.includes("_materialColor: matColor,")) {
 						// Anchor on _materialColor if it exists
 						code = code.replace(
@@ -2124,12 +2210,12 @@ if (typeof window !== "undefined") {
 				code = code.replace(
 					/(case\s*["']game-editor-get-spawned-objects["']\s*:)/,
 					`case "game-editor-apply-texture": {
-                console.log("[TEXTURE] apply-texture handler reached. uuid:", d.uuid, "url:", d.textureUrl);
+                console.log("[TEXTURE] apply-texture handler reached. uuid:", d.uuid, "url:", d.textureUrl, "hasPBR:", d.hasPBR);
                 var _texTarget = null;
                 scene.traverse(function(c) { if (c.uuid === d.uuid) _texTarget = c; });
                 console.log("[TEXTURE] Found target:", !!_texTarget, _texTarget ? _texTarget.name : "none");
                 if (_texTarget) {
-                  _applyTextureToMesh(_texTarget, d.textureUrl, d.tileX || 1, d.tileY || 1, 0, 0, 0);
+                  _applyTextureToMesh(_texTarget, d.textureUrl, d.tileX || 1, d.tileY || 1, 0, 0, 0, d.hasPBR);
                   if (!_texTarget.userData.__spawned) _texTarget.__hasTextureOverride = true;
                   var _mc = null;
                   if (_texTarget.material && _texTarget.material.color) { try { _mc = "#" + _texTarget.material.color.getHexString(); } catch(e) {} }
@@ -2152,6 +2238,7 @@ if (typeof window !== "undefined") {
                     _textureRotation: _tA.textureRotation || 0,
                     _textureOffsetX: _tA.textureOffsetX || 0,
                     _textureOffsetY: _tA.textureOffsetY || 0,
+                    _hasPBR: _tA.hasPBR || false,
                   }, "*");
                   console.log("[TEXTURE] Sent object-selected with textureUrl:", _tA.textureUrl);
                 }
@@ -2182,6 +2269,7 @@ if (typeof window !== "undefined") {
                     _textureRotation: 0,
                     _textureOffsetX: 0,
                     _textureOffsetY: 0,
+                    _hasPBR: false,
                   }, "*");
                 }
                 break;
@@ -2191,7 +2279,7 @@ if (typeof window !== "undefined") {
                 scene.traverse(function(c) { if (c.uuid === d.uuid) _utTarget = c; });
                 if (_utTarget && _utTarget.userData && _utTarget.userData.vibexeArgs && _utTarget.userData.vibexeArgs.textureUrl) {
                   var _utA = _utTarget.userData.vibexeArgs;
-                  _applyTextureToMesh(_utTarget, _utA.textureUrl, d.tileX || 1, d.tileY || 1, _utA.textureRotation || 0, _utA.textureOffsetX || 0, _utA.textureOffsetY || 0);
+                  _applyTextureToMesh(_utTarget, _utA.textureUrl, d.tileX || 1, d.tileY || 1, _utA.textureRotation || 0, _utA.textureOffsetX || 0, _utA.textureOffsetY || 0, _utA.hasPBR);
                   var _mc3 = null;
                   if (_utTarget.material && _utTarget.material.color) { try { _mc3 = "#" + _utTarget.material.color.getHexString(); } catch(e) {} }
                   window.parent.postMessage({
@@ -2212,6 +2300,7 @@ if (typeof window !== "undefined") {
                     _textureRotation: _utA.textureRotation || 0,
                     _textureOffsetX: _utA.textureOffsetX || 0,
                     _textureOffsetY: _utA.textureOffsetY || 0,
+                    _hasPBR: _utA.hasPBR || false,
                   }, "*");
                 }
                 break;
@@ -2220,7 +2309,7 @@ if (typeof window !== "undefined") {
                 var _tpTarget = null;
                 scene.traverse(function(c) { if (c.uuid === d.uuid) _tpTarget = c; });
                 if (_tpTarget && _tpTarget.userData && _tpTarget.userData.vibexeArgs && _tpTarget.userData.vibexeArgs.textureUrl) {
-                  _applyTextureToMesh(_tpTarget, _tpTarget.userData.vibexeArgs.textureUrl, d.tileX || 1, d.tileY || 1, d.rotation || 0, d.offsetX || 0, d.offsetY || 0);
+                  _applyTextureToMesh(_tpTarget, _tpTarget.userData.vibexeArgs.textureUrl, d.tileX || 1, d.tileY || 1, d.rotation || 0, d.offsetX || 0, d.offsetY || 0, _tpTarget.userData.vibexeArgs.hasPBR);
                   if (!_tpTarget.userData.__spawned) _tpTarget.__hasTextureOverride = true;
                   var _mc4 = null;
                   if (_tpTarget.material && _tpTarget.material.color) { try { _mc4 = "#" + _tpTarget.material.color.getHexString(); } catch(e) {} }
@@ -2243,6 +2332,7 @@ if (typeof window !== "undefined") {
                     _textureRotation: _tpA.textureRotation || 0,
                     _textureOffsetX: _tpA.textureOffsetX || 0,
                     _textureOffsetY: _tpA.textureOffsetY || 0,
+                    _hasPBR: _tpA.hasPBR || false,
                   }, "*");
                 }
                 break;
@@ -2257,7 +2347,7 @@ if (typeof window !== "undefined") {
 						`var textureOverrides = [];
                 scene.traverse(function(child) {
                   if (child.__hasTextureOverride && child.userData && child.userData.vibexeArgs && child.userData.vibexeArgs.textureUrl) {
-                    textureOverrides.push({ name: child.name, textureUrl: child.userData.vibexeArgs.textureUrl, tileX: child.userData.vibexeArgs.textureTileX || 1, tileY: child.userData.vibexeArgs.textureTileY || 1, rotation: child.userData.vibexeArgs.textureRotation || 0, offsetX: child.userData.vibexeArgs.textureOffsetX || 0, offsetY: child.userData.vibexeArgs.textureOffsetY || 0 });
+                    textureOverrides.push({ name: child.name, textureUrl: child.userData.vibexeArgs.textureUrl, tileX: child.userData.vibexeArgs.textureTileX || 1, tileY: child.userData.vibexeArgs.textureTileY || 1, rotation: child.userData.vibexeArgs.textureRotation || 0, offsetX: child.userData.vibexeArgs.textureOffsetX || 0, offsetY: child.userData.vibexeArgs.textureOffsetY || 0, hasPBR: child.userData.vibexeArgs.hasPBR || false });
                   }
                 });
                 window.parent.postMessage({ type: "game-editor-spawned-objects", objects: spawned, textureOverrides: textureOverrides },`,

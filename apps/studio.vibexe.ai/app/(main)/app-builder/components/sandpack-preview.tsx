@@ -547,6 +547,7 @@ function updateSpawnedObjectsInSource(
 		rotation?: number;
 		offsetX?: number;
 		offsetY?: number;
+		hasPBR?: boolean;
 	}> = [],
 ): string {
 	const SPAWN_START = "// SCENE_EDITOR_SPAWNED_START";
@@ -570,11 +571,62 @@ function updateSpawnedObjectsInSource(
 	// Texture application helper (inline, no external deps)
 	const texHelper = textureOverrides.length > 0 || spawnedObjects.some((s) => s.args?.textureUrl)
 		? `
-    function _applyTex(obj, url, tx, ty, rot, ox, oy) {
+    var _pbrEnvDone = false;
+    function _ensurePbrEnv() {
+      if (_pbrEnvDone) return;
+      _pbrEnvDone = true;
+      var pmrem = new THREE.PMREMGenerator(renderer);
+      pmrem.compileEquirectangularShader();
+      var es = new THREE.Scene();
+      es.background = new THREE.Color(0.75, 0.75, 0.8);
+      var sg = new THREE.SphereGeometry(50, 16, 8);
+      es.add(new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ color: 0xccccdd, side: THREE.BackSide })));
+      scene.environment = pmrem.fromScene(es, 0, 0.1, 100).texture;
+      pmrem.dispose(); sg.dispose();
+    }
+    function _applyTex(obj, url, tx, ty, rot, ox, oy, hasPBR) {
       var _rUrl = url.charAt(0) === "/" ? (window.__VIBEXE_API_ORIGIN__ || "") + url : url;
       var _rotRad = ((rot || 0) * Math.PI) / 180;
       var _ox = ox || 0;
       var _oy = oy || 0;
+      if (hasPBR) {
+        _ensurePbrEnv();
+        var _baseNoExt = _rUrl.replace(/\\.[^.]+$/, "");
+        var _ext = (_rUrl.match(/\\.[^.]+$/) || [".jpg"])[0];
+        var _loadT = function(u) { return new Promise(function(res) { new THREE.TextureLoader().load(u, function(t) { res(t); }, undefined, function() { res(null); }); }); };
+        var _cfgT = function(t, srgb) {
+          var c = t.clone(); c.needsUpdate = true;
+          c.wrapS = THREE.RepeatWrapping; c.wrapT = THREE.RepeatWrapping;
+          c.repeat.set(tx, ty); c.rotation = _rotRad;
+          c.center.set(0.5, 0.5); c.offset.set(_ox, _oy);
+          c.anisotropy = 4;
+          if (srgb && THREE.sRGBEncoding) c.encoding = THREE.sRGBEncoding;
+          return c;
+        };
+        Promise.all([_loadT(_rUrl), _loadT(_baseNoExt + "_Normal" + _ext), _loadT(_baseNoExt + "_Roughness" + _ext), _loadT(_baseNoExt + "_Metalness" + _ext)])
+          .then(function(maps) {
+            if (!maps[0]) return;
+            var applyPBR = function(child) {
+              if (!child.isMesh || !child.material) return;
+              var ms = Array.isArray(child.material) ? child.material : [child.material];
+              var nm = ms.map(function(mat) {
+                return new THREE.MeshStandardMaterial({
+                  map: _cfgT(maps[0], true),
+                  normalMap: maps[1] ? _cfgT(maps[1], false) : undefined,
+                  roughnessMap: maps[2] ? _cfgT(maps[2], false) : undefined,
+                  roughness: maps[2] ? 1.0 : 0.7,
+                  metalnessMap: maps[3] ? _cfgT(maps[3], false) : undefined,
+                  metalness: maps[3] ? 1.0 : 0.0,
+                  envMapIntensity: 1.0
+                });
+              });
+              child.material = Array.isArray(child.material) ? nm : nm[0];
+            };
+            obj.traverse(applyPBR);
+            if (obj.isMesh && obj.material) applyPBR(obj);
+          });
+        return;
+      }
       new THREE.TextureLoader().load(_rUrl, function(tex) {
         var applyMat = function(m) {
           var t = tex.clone();
@@ -606,7 +658,7 @@ function updateSpawnedObjectsInSource(
 
 	// Spawned objects texture application (inside the spawn loop)
 	const spawnTexLine = spawnedObjects.some((s) => s.args?.textureUrl)
-		? `\n              if (s.args && s.args.textureUrl) { _applyTex(result.mesh, s.args.textureUrl, s.args.textureTileX || 1, s.args.textureTileY || 1, s.args.textureRotation || 0, s.args.textureOffsetX || 0, s.args.textureOffsetY || 0); }`
+		? `\n              if (s.args && s.args.textureUrl) { _applyTex(result.mesh, s.args.textureUrl, s.args.textureTileX || 1, s.args.textureTileY || 1, s.args.textureRotation || 0, s.args.textureOffsetX || 0, s.args.textureOffsetY || 0, s.args.hasPBR); }`
 		: "";
 
 	// Scene-original texture overrides application (with polling for async GLTF loads)
@@ -621,7 +673,7 @@ function updateSpawnedObjectsInSource(
           scene.traverse(function(child) {
             for (var j = 0; j < _texOv.length; j++) {
               if (!_texApplied[j] && child.name === _texOv[j].name) {
-                _applyTex(child, _texOv[j].textureUrl, _texOv[j].tileX, _texOv[j].tileY, _texOv[j].rotation || 0, _texOv[j].offsetX || 0, _texOv[j].offsetY || 0);
+                _applyTex(child, _texOv[j].textureUrl, _texOv[j].tileX, _texOv[j].tileY, _texOv[j].rotation || 0, _texOv[j].offsetX || 0, _texOv[j].offsetY || 0, _texOv[j].hasPBR);
                 if (!child.userData) child.userData = {};
                 if (!child.userData.vibexeArgs) child.userData.vibexeArgs = {};
                 child.userData.vibexeArgs.textureUrl = _texOv[j].textureUrl;
@@ -630,6 +682,7 @@ function updateSpawnedObjectsInSource(
                 child.userData.vibexeArgs.textureRotation = _texOv[j].rotation || 0;
                 child.userData.vibexeArgs.textureOffsetX = _texOv[j].offsetX || 0;
                 child.userData.vibexeArgs.textureOffsetY = _texOv[j].offsetY || 0;
+                if (_texOv[j].hasPBR) child.userData.vibexeArgs.hasPBR = true;
                 child.__hasTextureOverride = true;
                 _texApplied[j] = true;
               }

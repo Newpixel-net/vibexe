@@ -656,7 +656,8 @@ export function getVisualEditBridgeScript(): string {
       _textureTileY: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureTileY || 1,
       _textureRotation: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureRotation || 0,
       _textureOffsetX: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureOffsetX || 0,
-      _textureOffsetY: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureOffsetY || 0
+      _textureOffsetY: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureOffsetY || 0,
+      _hasPBR: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.hasPBR || false
     }, "*");
   }
 

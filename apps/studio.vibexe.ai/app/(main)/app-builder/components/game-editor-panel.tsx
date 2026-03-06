@@ -554,7 +554,7 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 														key={tex.id}
 														type="button"
 														onClick={() => {
-															applyTexture(selectedObject.uuid, url, tex.defaultTileX, tex.defaultTileY);
+															applyTexture(selectedObject.uuid, url, tex.defaultTileX, tex.defaultTileY, tex.hasPBR);
 															setTexturePickerOpen(false);
 														}}
 														className={`relative w-[42px] h-[42px] mx-auto rounded-full overflow-hidden transition-all shadow-[inset_0_0_6px_rgba(0,0,0,0.25)] ${
