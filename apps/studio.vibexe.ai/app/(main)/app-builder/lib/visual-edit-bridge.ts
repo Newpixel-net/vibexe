@@ -560,13 +560,24 @@ export function getVisualEditBridgeScript(): string {
     if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.5);
     // PBR key light for specular highlights
     if (!editor.scene.getObjectByName('__pbr_key__')) {
-      var pbrKey = new T.DirectionalLight(0xFFFBF0, 1.2);
+      var pbrKey = new T.DirectionalLight(0xFFFBF0, 1.5);
       pbrKey.name = '__pbr_key__';
       pbrKey.position.set(15, 30, -10);
       pbrKey.castShadow = false;
       editor.scene.add(pbrKey);
     }
-    console.log("[GameEditorBridge] PBR env v45 (exposure 2.5)");
+    // Async HDRI upgrade — real studio reflections for metals
+    var _hdriUrl = ((window as any).__VIBEXE_API_ORIGIN__ || "") + "/media-stock/games-3d/textures/env_studio.jpg";
+    new T.TextureLoader().load(_hdriUrl, function(hdriTex: any) {
+      hdriTex.mapping = T.EquirectangularReflectionMapping;
+      if (T.SRGBColorSpace) hdriTex.colorSpace = T.SRGBColorSpace;
+      var pmrem2 = new T.PMREMGenerator(editor.renderer);
+      pmrem2.compileEquirectangularShader();
+      editor.scene.environment = pmrem2.fromEquirectangular(hdriTex).texture;
+      pmrem2.dispose(); hdriTex.dispose();
+      console.log("[GameEditorBridge] HDRI env upgraded");
+    }, undefined, function() { console.log("[GameEditorBridge] HDRI not found, using procedural env"); });
+    console.log("[GameEditorBridge] PBR env v46 (HDRI+AO)");
   }
   var flyMouseMoveHandler = null;
   var flyRMBDownHandler = null;
@@ -1982,8 +1993,13 @@ export function getVisualEditBridgeScript(): string {
               }
               if (roughnessTex) _matOpts.roughnessMap = _atCfg(roughnessTex.clone(), false);
               if (metalnessTex) _matOpts.metalnessMap = _atCfg(metalnessTex.clone(), false);
+              if (aoTex) { _matOpts.aoMap = _atCfg(aoTex.clone(), false); _matOpts.aoMapIntensity = 1.0; }
               m.material = new _THREE.MeshStandardMaterial(_matOpts);
               m.material.needsUpdate = true;
+              // Three.js requires uv2 for AO maps
+              if (aoTex && m.geometry && m.geometry.attributes.uv && !m.geometry.attributes.uv2) {
+                m.geometry.setAttribute('uv2', m.geometry.attributes.uv);
+              }
             });
             console.log("[GameEditorBridge] PBR texture applied:", _atUrl, "isMetal:", _isMetal, "metalness:", _metalVal, "envMapIntensity:", _envIntensity, "normalScale:", _nScale);
             sendSelectedObject(_atObj);
