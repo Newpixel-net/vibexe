@@ -3894,23 +3894,24 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             const pmrem = new THREE.PMREMGenerator(renderer);
             pmrem.compileEquirectangularShader();
             _envMapGenerated = true;
-            // Studio env — balanced for MeshStandardMaterial (needs ~3x Phong light due to /PI)
+            // Studio env — high contrast for realistic metal reflections
+            // Dark sky/ground + concentrated bright lights = metals show dark body + bright highlights
             const envScene = new THREE.Scene();
             const _skyGeo = new THREE.SphereGeometry(50, 32, 16);
-            envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 1.1, 1.3), side: THREE.BackSide })));
+            envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.35, 0.4, 0.55), side: THREE.BackSide })));
             const _gndGeo = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-            envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.5, 0.45, 0.4), side: THREE.BackSide })));
+            envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.15, 0.13, 0.1), side: THREE.BackSide })));
             const _pGeo = new THREE.PlaneGeometry(8, 8);
             const _addPanel = (x: number, y: number, z: number, r: number, g: number, b: number, sx: number, sy: number) => {
               const p = new THREE.Mesh(_pGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide }));
               p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
               envScene.add(p);
             };
-            _addPanel(0, 45, -10, 8, 7, 6, 3, 3);       // Key light
-            _addPanel(-10, 40, 20, 5, 5, 6, 2.5, 2.5);   // Rim light
-            _addPanel(30, 15, -10, 3, 3, 3.5, 3, 3);      // Fill
-            _addPanel(-30, 10, 5, 2, 2, 2.5, 3, 3);       // Fill
-            _addPanel(0, -20, 0, 1.5, 1.5, 2, 6, 6);      // Bottom fill
+            _addPanel(0, 45, -10, 10, 9, 8, 2, 2);       // Key light (bright, small)
+            _addPanel(-15, 40, 25, 4, 4, 5, 1.5, 1.5);   // Rim light
+            _addPanel(35, 20, -15, 2, 2, 2.5, 2, 2);      // Fill (subtle)
+            _addPanel(-35, 12, 8, 1, 1, 1.2, 2, 2);       // Fill (subtle)
+            _addPanel(0, -30, 0, 0.5, 0.5, 0.6, 4, 4);   // Bottom fill (dim)
             scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
             renderer.toneMappingExposure = 1.0;
@@ -4015,7 +4016,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 if (!colorTex) return;
                 // Category-based metalness: only Metal* textures are truly metallic
                 const _metalVal = _isMetal ? 0.95 : 0.0;
-                const _envIntensity = _isMetal ? 1.5 : 0.4;
+                const _envIntensity = _isMetal ? 1.0 : 0.3;
                 const applyPBR = (child: any) => {
                   if (!child.isMesh || !child.material) return;
                   const mats = Array.isArray(child.material) ? child.material : [child.material];

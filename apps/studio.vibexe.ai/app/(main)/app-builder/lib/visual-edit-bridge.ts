@@ -531,23 +531,24 @@ export function getVisualEditBridgeScript(): string {
     _pbrEnvReady = true;
     var pmrem = new T.PMREMGenerator(editor.renderer);
     pmrem.compileEquirectangularShader();
-    // Studio env — balanced for MeshStandardMaterial (needs ~3x Phong light due to /PI)
+    // Studio env — high contrast for realistic metal reflections
+    // Dark sky/ground + concentrated bright lights = metals show dark body + bright highlights
     var envScene = new T.Scene();
     var skyGeo = new T.SphereGeometry(50, 32, 16);
-    envScene.add(new T.Mesh(skyGeo, new T.MeshBasicMaterial({ color: new T.Color(1.0, 1.1, 1.3), side: T.BackSide })));
+    envScene.add(new T.Mesh(skyGeo, new T.MeshBasicMaterial({ color: new T.Color(0.35, 0.4, 0.55), side: T.BackSide })));
     var gndGeo = new T.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-    envScene.add(new T.Mesh(gndGeo, new T.MeshBasicMaterial({ color: new T.Color(0.5, 0.45, 0.4), side: T.BackSide })));
+    envScene.add(new T.Mesh(gndGeo, new T.MeshBasicMaterial({ color: new T.Color(0.15, 0.13, 0.1), side: T.BackSide })));
     var pGeo = new T.PlaneGeometry(8, 8);
     var _addP = function(x, y, z, r, g, b, sx, sy) {
       var p = new T.Mesh(pGeo, new T.MeshBasicMaterial({ color: new T.Color(r, g, b), side: T.DoubleSide }));
       p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
       envScene.add(p);
     };
-    _addP(0, 45, -10, 8, 7, 6, 3, 3);       // Key light
-    _addP(-10, 40, 20, 5, 5, 6, 2.5, 2.5);   // Rim light
-    _addP(30, 15, -10, 3, 3, 3.5, 3, 3);      // Fill
-    _addP(-30, 10, 5, 2, 2, 2.5, 3, 3);       // Fill
-    _addP(0, -20, 0, 1.5, 1.5, 2, 6, 6);      // Bottom fill
+    _addP(0, 45, -10, 10, 9, 8, 2, 2);       // Key light (bright, small)
+    _addP(-15, 40, 25, 4, 4, 5, 1.5, 1.5);   // Rim light
+    _addP(35, 20, -15, 2, 2, 2.5, 2, 2);      // Fill (subtle)
+    _addP(-35, 12, 8, 1, 1, 1.2, 2, 2);       // Fill (subtle)
+    _addP(0, -30, 0, 0.5, 0.5, 0.6, 4, 4);   // Bottom fill (dim)
     editor.scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
     editor.renderer.toneMapping = 4; // ACESFilmicToneMapping
     editor.renderer.toneMappingExposure = 1.0;
@@ -565,7 +566,7 @@ export function getVisualEditBridgeScript(): string {
       pbrKey.castShadow = false;
       editor.scene.add(pbrKey);
     }
-    console.log("[GameEditorBridge] PBR env v43 (balanced lighting)");
+    console.log("[GameEditorBridge] PBR env v44 (high-contrast studio)");
   }
   var flyMouseMoveHandler = null;
   var flyRMBDownHandler = null;
@@ -1968,7 +1969,7 @@ export function getVisualEditBridgeScript(): string {
             if (!colorTex) return;
             // Category-based metalness: only Metal* textures are truly metallic
             var _metalVal = _isMetal ? 0.95 : 0.0;
-            var _envIntensity = _isMetal ? 1.5 : 0.4;
+            var _envIntensity = _isMetal ? 1.0 : 0.3;
             _atObj.traverse(function(m) {
               if (!m.isMesh || !m.material) return;
               var _matOpts = {
