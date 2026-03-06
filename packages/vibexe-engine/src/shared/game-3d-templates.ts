@@ -3475,7 +3475,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       // Create renderer + store on window so idempotent helpers return it
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(container.clientWidth, container.clientHeight);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      const __perfSettings = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).performance || {};
+      renderer.setPixelRatio(Math.min(__perfSettings.pixelRatio || window.devicePixelRatio, 2));
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       renderer.outputEncoding = THREE.sRGBEncoding;
@@ -4864,6 +4865,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   if (_sl && s.environment.sunLightColor) (_sl as any).color = new THREE.Color(s.environment.sunLightColor);
                   const _hl = scene.getObjectByName('__default_hemi__');
                   if (_hl && s.environment.hemisphereIntensity !== undefined) (_hl as any).intensity = s.environment.hemisphereIntensity;
+                  if (_hl && s.environment.hemisphereSkyColor) (_hl as any).color = new THREE.Color(s.environment.hemisphereSkyColor);
+                  if (_hl && s.environment.hemisphereGroundColor) (_hl as any).groundColor = new THREE.Color(s.environment.hemisphereGroundColor);
                   if (s.environment.fogEnabled !== undefined) {
                     if (s.environment.fogEnabled) {
                       const _fogColor = s.environment.fogColor || s.environment.backgroundColor || '#87CEEB';
@@ -4876,6 +4879,20 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                     if (s.environment.fogFar !== undefined) scene.fog.far = s.environment.fogFar;
                     if (s.environment.fogColor) scene.fog.color = new THREE.Color(s.environment.fogColor);
                   }
+                  // Shadow quality
+                  if (s.environment.shadowQuality) {
+                    const _sl2 = scene.getObjectByName('__default_sun__');
+                    if (_sl2) {
+                      const _shSizes: Record<string, number> = { low: 512, medium: 1024, high: 2048 };
+                      const _shSz = _shSizes[s.environment.shadowQuality] || 1024;
+                      (_sl2 as any).shadow.mapSize.width = _shSz;
+                      (_sl2 as any).shadow.mapSize.height = _shSz;
+                      if ((_sl2 as any).shadow.map) {
+                        (_sl2 as any).shadow.map.dispose();
+                        (_sl2 as any).shadow.map = null;
+                      }
+                    }
+                  }
                 }
                 // --- Audio ---
                 if (s.audio && _masterGain) {
@@ -4883,6 +4900,60 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   _masterGain.gain.value = enabled ? (s.audio.masterVolume ?? 0.8) : 0;
                   if (_musicGain && s.audio.musicVolume !== undefined) _musicGain.gain.value = s.audio.musicVolume;
                   if (_sfxGain && s.audio.sfxVolume !== undefined) _sfxGain.gain.value = s.audio.sfxVolume;
+                  // Also update HTMLAudioElement volume directly (music bypasses Web Audio graph)
+                  if (s.audio.musicVolume !== undefined && _currentMusic) {
+                    _currentMusic.el.volume = s.audio.musicVolume;
+                  }
+                  if (!enabled && _currentMusic) {
+                    _currentMusic.el.volume = 0;
+                  }
+                }
+                // --- Post-Processing ---
+                if (s.postProcessing) {
+                  const _comp = (window as any).__vibexe_composer__;
+                  if (_comp && _comp.passes) {
+                    // Update bloom pass parameters if it exists
+                    for (const _pass of _comp.passes) {
+                      if (_pass.strength !== undefined) {
+                        // This is a bloom pass (UnrealBloomPass)
+                        if (s.postProcessing.bloomIntensity !== undefined) _pass.strength = s.postProcessing.bloomIntensity;
+                        if (s.postProcessing.bloomThreshold !== undefined) _pass.threshold = s.postProcessing.bloomThreshold;
+                      }
+                    }
+                  }
+                  // If preset changed and no composer exists, create it
+                  if (!_comp && s.postProcessing.preset && s.postProcessing.preset !== 'none' && renderer && scene && camera) {
+                    const _pp = createPostProcessing(renderer, scene, camera, s.postProcessing.preset);
+                    if (_pp && s.postProcessing.bloomIntensity != null) {
+                      _pp.addBloom({
+                        strength: s.postProcessing.bloomIntensity ?? 0.5,
+                        radius: 0.4,
+                        threshold: s.postProcessing.bloomThreshold ?? 0.85,
+                      });
+                    }
+                  }
+                }
+                // --- Performance ---
+                if (s.performance && renderer) {
+                  if (s.performance.pixelRatio !== undefined) {
+                    renderer.setPixelRatio(Math.min(s.performance.pixelRatio, 2));
+                  }
+                  if (s.performance.showFPS !== undefined) {
+                    let _fpsDiv = document.getElementById('__vibexe_fps__');
+                    if (s.performance.showFPS) {
+                      if (!_fpsDiv) {
+                        _fpsDiv = document.createElement('div');
+                        _fpsDiv.id = '__vibexe_fps__';
+                        _fpsDiv.style.cssText = 'position:fixed;top:4px;left:4px;background:rgba(0,0,0,0.7);color:#0f0;font:12px monospace;padding:2px 6px;z-index:99999;pointer-events:none';
+                        document.body.appendChild(_fpsDiv);
+                        let _frames = 0, _lastFps = performance.now();
+                        const _fpsLoop = () => { _frames++; const now = performance.now(); if (now - _lastFps >= 1000) { const _el = document.getElementById('__vibexe_fps__'); if (_el) _el.textContent = _frames + ' FPS'; _frames = 0; _lastFps = now; } if (document.getElementById('__vibexe_fps__')) requestAnimationFrame(_fpsLoop); };
+                        requestAnimationFrame(_fpsLoop);
+                      }
+                    } else if (_fpsDiv) {
+                      _fpsDiv.remove();
+                    }
+                  }
                 }
                 break;
               }

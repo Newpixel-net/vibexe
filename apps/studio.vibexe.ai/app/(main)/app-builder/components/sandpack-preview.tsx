@@ -870,6 +870,12 @@ export function SandpackPreview({
 					castShadow: data.castShadow,
 					userData: data.userData,
 					_materialColor: data._materialColor,
+					_textureUrl: data._textureUrl,
+					_textureTileX: data._textureTileX,
+					_textureTileY: data._textureTileY,
+					_textureRotation: data._textureRotation,
+					_textureOffsetX: data._textureOffsetX,
+					_textureOffsetY: data._textureOffsetY,
 				});
 				// Live-sync player character position to Game Settings spawn
 				const isPlayer = data.userData?.__isPlayerCharacter
