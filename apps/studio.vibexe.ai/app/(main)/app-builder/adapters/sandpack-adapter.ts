@@ -1607,10 +1607,15 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 					["CAMERA_LOOK_Y", gsObj.camera?.lookY, -20, 20],
 				];
 				let patchCount = 0;
-				// Debug: log the first export declaration to understand the format
-				const _debugExport = code.match(/export\s+(?:const|let)\s+\w+/);
-				if (!_debugExport) {
-					console.warn(`[sandpack-adapter] DEBUG: no "export const/let" found in ${assetsKey}. First 300 chars:`, code.substring(0, 300));
+				// Debug: show context around first variable to understand actual format
+				const _jfIdx = code.indexOf("JUMP_FORCE");
+				if (_jfIdx >= 0) {
+					const _ctx = code.substring(Math.max(0, _jfIdx - 40), _jfIdx + 60);
+					console.warn(`[sandpack-adapter] DEBUG JUMP_FORCE context: [${_ctx}]`);
+					// Also show char codes of 10 chars before JUMP_FORCE
+					const _before10 = code.substring(Math.max(0, _jfIdx - 10), _jfIdx);
+					const _codes = [..._before10].map((c) => c.charCodeAt(0));
+					console.warn(`[sandpack-adapter] DEBUG chars before JUMP_FORCE:`, JSON.stringify(_before10), `codes:`, _codes);
 				}
 				for (const [name, rawValue, min, max] of constMap) {
 					if (rawValue == null || Number.isNaN(rawValue)) continue;
