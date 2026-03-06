@@ -535,16 +535,16 @@ if (typeof window !== 'undefined') {
                     window.__vibexe_pbr_env__ = true;
                     var _pm = new THREE.PMREMGenerator(_r); _pm.compileEquirectangularShader();
                     var _es = new THREE.Scene();
-                    _es.add(new THREE.Mesh(new THREE.SphereGeometry(50,32,16), new THREE.MeshBasicMaterial({color:new THREE.Color(2.0,2.2,2.8),side:THREE.BackSide})));
-                    _es.add(new THREE.Mesh(new THREE.SphereGeometry(49,32,16,0,Math.PI*2,Math.PI/2,Math.PI/2), new THREE.MeshBasicMaterial({color:new THREE.Color(1.0,0.9,0.8),side:THREE.BackSide})));
+                    _es.add(new THREE.Mesh(new THREE.SphereGeometry(50,32,16), new THREE.MeshBasicMaterial({color:new THREE.Color(1.0,1.1,1.3),side:THREE.BackSide})));
+                    _es.add(new THREE.Mesh(new THREE.SphereGeometry(49,32,16,0,Math.PI*2,Math.PI/2,Math.PI/2), new THREE.MeshBasicMaterial({color:new THREE.Color(0.5,0.45,0.4),side:THREE.BackSide})));
                     var _pg=new THREE.PlaneGeometry(8,8), _ap=function(x,y,z,cr,cg,cb,sx,sy){var p=new THREE.Mesh(_pg,new THREE.MeshBasicMaterial({color:new THREE.Color(cr,cg,cb),side:THREE.DoubleSide}));p.position.set(x,y,z);p.lookAt(0,0,0);p.scale.set(sx,sy,1);_es.add(p);};
-                    _ap(0,45,-10,30,28,25,3,3);_ap(-10,40,20,18,18,22,2.5,2.5);_ap(30,15,-10,8,8,9,3,3);_ap(-30,10,5,6,6,7,3,3);_ap(0,-20,0,4,4,5,6,6);
+                    _ap(0,45,-10,8,7,6,3,3);_ap(-10,40,20,5,5,6,2.5,2.5);_ap(30,15,-10,3,3,3.5,3,3);_ap(-30,10,5,2,2,2.5,3,3);_ap(0,-20,0,1.5,1.5,2,6,6);
                     _sc.environment=_pm.fromScene(_es,0,0.1,100).texture; _pm.dispose();
-                    _r.toneMapping=4; _r.toneMappingExposure=1.3;
-                    var _oal=_sc.getObjectByName('__default_ambient__'); if(_oal)_oal.intensity=Math.max(_oal.intensity,0.5);
-                    var _ohl=_sc.getObjectByName('__default_hemi__'); if(_ohl)_ohl.intensity=Math.max(_ohl.intensity,0.6);
-                    if(!_sc.getObjectByName('__pbr_key__')){var _pk=new THREE.DirectionalLight(0xFFFBF0,2.5);_pk.name='__pbr_key__';_pk.position.set(15,30,-10);_pk.castShadow=false;_sc.add(_pk);}
-                    console.log('[SCENE_EDITOR] PBR env initialized for game mode');
+                    _r.toneMapping=4; _r.toneMappingExposure=1.0;
+                    var _oal=_sc.getObjectByName('__default_ambient__'); if(_oal)_oal.intensity=Math.max(_oal.intensity,0.3);
+                    var _ohl=_sc.getObjectByName('__default_hemi__'); if(_ohl)_ohl.intensity=Math.max(_ohl.intensity,0.5);
+                    if(!_sc.getObjectByName('__pbr_key__')){var _pk=new THREE.DirectionalLight(0xFFFBF0,1.2);_pk.name='__pbr_key__';_pk.position.set(15,30,-10);_pk.castShadow=false;_sc.add(_pk);}
+                    console.log('[SCENE_EDITOR] PBR env v43 (balanced)');
                   }
                 }
                 var _b = _tu.replace(/\\.[^.]+$/,''), _e = (_tu.match(/\\.[^.]+$/)||['.jpg'])[0];
@@ -1242,7 +1242,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=42`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=43`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);

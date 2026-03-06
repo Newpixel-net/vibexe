@@ -3894,42 +3894,37 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             const pmrem = new THREE.PMREMGenerator(renderer);
             pmrem.compileEquirectangularShader();
             _envMapGenerated = true;
-            // Studio env — bright sky + warm ground + strong light panels
+            // Studio env — balanced for MeshStandardMaterial (needs ~3x Phong light due to /PI)
             const envScene = new THREE.Scene();
             const _skyGeo = new THREE.SphereGeometry(50, 32, 16);
-            envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(2.0, 2.2, 2.8), side: THREE.BackSide })));
+            envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 1.1, 1.3), side: THREE.BackSide })));
             const _gndGeo = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-            // Warm ground (bright enough for diffuse ambient, still contrast with sky for metals)
-            envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.9, 0.8), side: THREE.BackSide })));
+            envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.5, 0.45, 0.4), side: THREE.BackSide })));
             const _pGeo = new THREE.PlaneGeometry(8, 8);
             const _addPanel = (x: number, y: number, z: number, r: number, g: number, b: number, sx: number, sy: number) => {
               const p = new THREE.Mesh(_pGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide }));
               p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
               envScene.add(p);
             };
-            // Key light (top-front, intense)
-            _addPanel(0, 45, -10, 30, 28, 25, 3, 3);
-            // Rim light (back-top)
-            _addPanel(-10, 40, 20, 18, 18, 22, 2.5, 2.5);
-            // Fill lights (sides, brighter for diffuse)
-            _addPanel(30, 15, -10, 8, 8, 9, 3, 3);
-            _addPanel(-30, 10, 5, 6, 6, 7, 3, 3);
-            // Bottom fill (prevents dark undersides)
-            _addPanel(0, -20, 0, 4, 4, 5, 6, 6);
+            _addPanel(0, 45, -10, 8, 7, 6, 3, 3);       // Key light
+            _addPanel(-10, 40, 20, 5, 5, 6, 2.5, 2.5);   // Rim light
+            _addPanel(30, 15, -10, 3, 3, 3.5, 3, 3);      // Fill
+            _addPanel(-30, 10, 5, 2, 2, 2.5, 3, 3);       // Fill
+            _addPanel(0, -20, 0, 1.5, 1.5, 2, 6, 6);      // Bottom fill
             scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.3;
+            renderer.toneMappingExposure = 1.0;
             pmrem.dispose(); _skyGeo.dispose(); _gndGeo.dispose(); _pGeo.dispose();
 
-            // Boost existing lights for PBR (Standard material /PI factor needs more light)
+            // Moderate light boost for PBR (Standard material /PI factor)
             const _al = scene.getObjectByName("__default_ambient__") as any;
-            if (_al) _al.intensity = Math.max(_al.intensity, 0.5);
+            if (_al) _al.intensity = Math.max(_al.intensity, 0.3);
             const _hl = scene.getObjectByName("__default_hemi__") as any;
-            if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.6);
+            if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.5);
 
-            // PBR key light
+            // PBR key light for specular highlights
             if (!scene.getObjectByName("__pbr_key__")) {
-              const pbrKey = new THREE.DirectionalLight(0xFFFBF0, 2.5);
+              const pbrKey = new THREE.DirectionalLight(0xFFFBF0, 1.2);
               pbrKey.name = "__pbr_key__";
               pbrKey.position.set(15, 30, -10);
               pbrKey.castShadow = false;
