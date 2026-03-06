@@ -599,8 +599,9 @@ function updateSpawnedObjectsInSource(
       _aP(30,5,15, 6,6,8, 2, 2);
       _aP(-30,10,15, 4,5,7, 2, 2);
       _s.environment = pmrem.fromScene(es, 0, 0.1, 100).texture;
-      _r.toneMapping = THREE.ACESFilmicToneMapping;
+      _r.toneMapping = 4;
       _r.toneMappingExposure = 1.2;
+      window.__vibexePbrEnvDone = true;
       pmrem.dispose(); _skyG.dispose(); _gndG.dispose(); _pG.dispose();
     }
     function _applyTex(obj, url, tx, ty, rot, ox, oy, hasPBR) {
@@ -645,6 +646,8 @@ function updateSpawnedObjectsInSource(
             };
             obj.traverse(applyPBR);
             if (obj.isMesh && obj.material) applyPBR(obj);
+            var _rr = window.__vibexe_renderer__;
+            if (_rr) { _rr.toneMapping = 4; _rr.toneMappingExposure = 1.2; }
           });
         return;
       }
@@ -712,6 +715,10 @@ function updateSpawnedObjectsInSource(
           for (var k = 0; k < _texOv.length; k++) { if (!_texApplied[k]) remaining++; }
           return remaining === 0;
         }
+        function _finalizePbrToneMapping() {
+          var _rr = window.__vibexe_renderer__;
+          if (_rr && window.__vibexePbrEnvDone) { _rr.toneMapping = 4; _rr.toneMappingExposure = 1.2; }
+        }
         if (!_tryApplyTexOverrides()) {
           var _texPollCount = 0;
           var _texPollIv = setInterval(function() {
@@ -719,9 +726,10 @@ function updateSpawnedObjectsInSource(
             if (_tryApplyTexOverrides() || _texPollCount > 30) {
               clearInterval(_texPollIv);
               if (_texPollCount > 0) console.log("[SCENE_EDITOR] Texture override polling done after " + _texPollCount + " polls");
+              _finalizePbrToneMapping();
             }
           }, 500);
-        }
+        } else { _finalizePbrToneMapping(); }
       }`
 		: "";
 
