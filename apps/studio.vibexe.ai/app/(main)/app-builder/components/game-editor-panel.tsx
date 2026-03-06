@@ -466,6 +466,7 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 												step={0.5}
 												precision={1}
 												color="#8b5cf6"
+												labelClassName="w-8 text-left text-[9px]"
 												onChange={(v) => updateTextureParams(selectedObject.uuid, Math.max(0.1, v), selectedObject._textureTileY ?? 1, selectedObject._textureRotation ?? 0, selectedObject._textureOffsetX ?? 0, selectedObject._textureOffsetY ?? 0)}
 											/>
 											<DragNumberInput
@@ -474,36 +475,40 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 												step={0.5}
 												precision={1}
 												color="#8b5cf6"
+												labelClassName="w-8 text-left text-[9px]"
 												onChange={(v) => updateTextureParams(selectedObject.uuid, selectedObject._textureTileX ?? 1, Math.max(0.1, v), selectedObject._textureRotation ?? 0, selectedObject._textureOffsetX ?? 0, selectedObject._textureOffsetY ?? 0)}
 											/>
 										</div>
 										{/* Rotation control */}
 										<div className="flex gap-1.5">
 											<DragNumberInput
-												label="Rotation"
+												label="Rot"
 												value={selectedObject._textureRotation ?? 0}
 												step={5}
 												precision={0}
 												color="#f59e0b"
+												labelClassName="w-6 text-left text-[9px]"
 												onChange={(v) => updateTextureParams(selectedObject.uuid, selectedObject._textureTileX ?? 1, selectedObject._textureTileY ?? 1, Math.max(0, Math.min(360, v)), selectedObject._textureOffsetX ?? 0, selectedObject._textureOffsetY ?? 0)}
 											/>
 										</div>
 										{/* Offset controls */}
 										<div className="flex gap-1.5">
 											<DragNumberInput
-												label="Offset X"
+												label="Off X"
 												value={selectedObject._textureOffsetX ?? 0}
 												step={0.05}
 												precision={2}
 												color="#06b6d4"
+												labelClassName="w-7 text-left text-[9px]"
 												onChange={(v) => updateTextureParams(selectedObject.uuid, selectedObject._textureTileX ?? 1, selectedObject._textureTileY ?? 1, selectedObject._textureRotation ?? 0, v, selectedObject._textureOffsetY ?? 0)}
 											/>
 											<DragNumberInput
-												label="Offset Y"
+												label="Off Y"
 												value={selectedObject._textureOffsetY ?? 0}
 												step={0.05}
 												precision={2}
 												color="#06b6d4"
+												labelClassName="w-7 text-left text-[9px]"
 												onChange={(v) => updateTextureParams(selectedObject.uuid, selectedObject._textureTileX ?? 1, selectedObject._textureTileY ?? 1, selectedObject._textureRotation ?? 0, selectedObject._textureOffsetX ?? 0, v)}
 											/>
 										</div>

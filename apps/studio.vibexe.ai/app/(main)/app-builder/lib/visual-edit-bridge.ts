@@ -1925,22 +1925,34 @@ export function getVisualEditBridgeScript(): string {
         sendSelectedObject(_rtObj);
         break;
       }
-      case "game-editor-update-tiling": {
+      case "game-editor-update-texture-params": {
         if (!editor || !editor.scene || !d.uuid) break;
         var _utObj = findByUuid(editor.scene, d.uuid);
         if (!_utObj) break;
         var _utX = d.tileX || 1;
         var _utY = d.tileY || 1;
+        var _utRot = (d.rotation || 0) * Math.PI / 180;
+        var _utOX = d.offsetX || 0;
+        var _utOY = d.offsetY || 0;
         if (_utObj.userData && _utObj.userData.vibexeArgs) {
           _utObj.userData.vibexeArgs.textureTileX = _utX;
           _utObj.userData.vibexeArgs.textureTileY = _utY;
+          _utObj.userData.vibexeArgs.textureRotation = d.rotation || 0;
+          _utObj.userData.vibexeArgs.textureOffsetX = d.offsetX || 0;
+          _utObj.userData.vibexeArgs.textureOffsetY = d.offsetY || 0;
         }
         _utObj.traverse(function(m) {
           if (!m.isMesh || !m.material) return;
-          if (m.material.map) m.material.map.repeat.set(_utX, _utY);
-          if (m.material.normalMap) m.material.normalMap.repeat.set(_utX, _utY);
-          if (m.material.roughnessMap) m.material.roughnessMap.repeat.set(_utX, _utY);
-          if (m.material.metalnessMap) m.material.metalnessMap.repeat.set(_utX, _utY);
+          var maps = [m.material.map, m.material.normalMap, m.material.roughnessMap, m.material.metalnessMap];
+          for (var mi = 0; mi < maps.length; mi++) {
+            if (maps[mi]) {
+              maps[mi].repeat.set(_utX, _utY);
+              maps[mi].rotation = _utRot;
+              maps[mi].offset.set(_utOX, _utOY);
+              maps[mi].center.set(0.5, 0.5);
+            }
+          }
+          m.material.needsUpdate = true;
         });
         break;
       }
