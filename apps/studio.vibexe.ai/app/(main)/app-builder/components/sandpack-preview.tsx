@@ -506,8 +506,40 @@ if (typeof window !== 'undefined') {
         if (!_logged[name]) {
           if (o.r) t.rotation.set(o.r[0],o.r[1],o.r[2]);
           if (o.s) t.scale.set(o.s[0],o.s[1],o.s[2]);
+          if (o.t && o.t[0] && typeof THREE !== 'undefined') {
+            (function(_obj, _ti) {
+              var _tu = _ti[0], _tx = _ti[1]||1, _ty = _ti[2]||1, _pbr = !!_ti[3];
+              var _ao = window.__VIBEXE_API_ORIGIN__ || '';
+              if (_tu.charAt(0)==='/') _tu = _ao + _tu;
+              if (!_obj.userData) _obj.userData = {};
+              if (!_obj.userData.vibexeArgs) _obj.userData.vibexeArgs = {};
+              _obj.userData.vibexeArgs.textureUrl = _ti[0];
+              _obj.userData.vibexeArgs.textureTileX = _tx;
+              _obj.userData.vibexeArgs.textureTileY = _ty;
+              _obj.userData.vibexeArgs.hasPBR = _pbr;
+              var _ldr = new THREE.TextureLoader();
+              var _cfg = function(tex) { tex.wrapS=THREE.RepeatWrapping; tex.wrapT=THREE.RepeatWrapping; tex.repeat.set(_tx,_ty); tex.anisotropy=4; return tex; };
+              _ldr.load(_tu, function(cTex) {
+                cTex = _cfg(cTex);
+                if (THREE.sRGBEncoding) cTex.encoding = THREE.sRGBEncoding;
+                _obj.traverse(function(m) {
+                  if (m.isMesh && m.material) {
+                    if (_pbr) { m.material = new THREE.MeshStandardMaterial({ map: cTex, roughness: 0.7, metalness: 0.0 }); }
+                    else { m.material.map = cTex; }
+                    m.material.needsUpdate = true;
+                  }
+                });
+                if (_pbr) {
+                  var _b = _tu.replace(/\\.[^.]+$/,''), _e = (_tu.match(/\\.[^.]+$/)||['.jpg'])[0];
+                  _ldr.load(_b+'_Normal'+_e, function(nT) { nT=_cfg(nT); _obj.traverse(function(m){ if(m.isMesh&&m.material){m.material.normalMap=nT;m.material.needsUpdate=true;} }); }, undefined, function(){});
+                  _ldr.load(_b+'_Roughness'+_e, function(rT) { rT=_cfg(rT); _obj.traverse(function(m){ if(m.isMesh&&m.material){m.material.roughnessMap=rT;m.material.needsUpdate=true;} }); }, undefined, function(){});
+                  _ldr.load(_b+'_Metalness'+_e, function(mT) { mT=_cfg(mT); _obj.traverse(function(m){ if(m.isMesh&&m.material){m.material.metalnessMap=mT;m.material.needsUpdate=true;} }); }, undefined, function(){});
+                }
+              });
+            })(t, o.t);
+          }
           _logged[name] = true;
-          console.log("[SCENE_EDITOR] Applied: "+name+(_hasBody?" +body":""));
+          console.log("[SCENE_EDITOR] Applied: "+name+(_hasBody?" +body":"")+(o.t?" +texture":""));
         }
       }
       _frame++;
