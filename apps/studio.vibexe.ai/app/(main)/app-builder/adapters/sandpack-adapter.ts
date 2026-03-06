@@ -1607,16 +1607,28 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 					["CAMERA_LOOK_Y", gsObj.camera?.lookY, -20, 20],
 				];
 				let patchCount = 0;
+				// Debug: log the first export declaration to understand the format
+				const _debugExport = code.match(/export\s+(?:const|let)\s+\w+/);
+				if (!_debugExport) {
+					console.warn(`[sandpack-adapter] DEBUG: no "export const/let" found in ${assetsKey}. First 300 chars:`, code.substring(0, 300));
+				}
 				for (const [name, rawValue, min, max] of constMap) {
 					if (rawValue == null || Number.isNaN(rawValue)) continue;
 					const value = clamp(rawValue, min, max);
-					const re = new RegExp(`(export\\s+(?:const|let)\\s+${name}\\s*=\\s*)([^;]+)(;)`);
+					// Try multiple regex patterns — webpack may transform export declarations
+					const patterns = [
+						new RegExp(`(export\\s+(?:const|let)\\s+${name}\\s*=\\s*)([^;]+)(;)`),
+						new RegExp(`((?:var|let|const)\\s+${name}\\s*=\\s*)([^;]+)(;)`),
+					];
 					const before = code;
-					code = code.replace(re, `$1${value}$3`);
+					for (const re of patterns) {
+						code = code.replace(re, `$1${value}$3`);
+						if (code !== before) break;
+					}
 					if (code !== before) {
 						patchCount++;
 					} else {
-						console.warn(`[sandpack-adapter] Failed to patch ${name} — constant not found in assets-3d.ts`);
+						console.warn(`[sandpack-adapter] Failed to patch ${name} — not found. Has "${name}":`, code.includes(name));
 					}
 				}
 				if (patchCount > 0) {
