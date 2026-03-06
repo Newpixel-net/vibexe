@@ -528,25 +528,6 @@ if (typeof window !== 'undefined') {
               };
               var _loadT = function(url, cb) { if(!url){cb(null);return;} _ldr.load(url, cb, undefined, function(){ cb(null); }); };
               if (_pbr) {
-                // Ensure PBR env is set up for game mode (override runs when editor is NOT active)
-                if (!window.__vibexe_pbr_env__ && typeof THREE !== 'undefined') {
-                  var _r = window.__vibexe_renderer__, _sc = window.__vibexe_scene__;
-                  if (_r && _sc) {
-                    window.__vibexe_pbr_env__ = true;
-                    var _pm = new THREE.PMREMGenerator(_r); _pm.compileEquirectangularShader();
-                    var _es = new THREE.Scene();
-                    _es.add(new THREE.Mesh(new THREE.SphereGeometry(50,32,16), new THREE.MeshBasicMaterial({color:new THREE.Color(1.0,1.1,1.3),side:THREE.BackSide})));
-                    _es.add(new THREE.Mesh(new THREE.SphereGeometry(49,32,16,0,Math.PI*2,Math.PI/2,Math.PI/2), new THREE.MeshBasicMaterial({color:new THREE.Color(0.5,0.45,0.4),side:THREE.BackSide})));
-                    var _pg=new THREE.PlaneGeometry(8,8), _ap=function(x,y,z,cr,cg,cb,sx,sy){var p=new THREE.Mesh(_pg,new THREE.MeshBasicMaterial({color:new THREE.Color(cr,cg,cb),side:THREE.DoubleSide}));p.position.set(x,y,z);p.lookAt(0,0,0);p.scale.set(sx,sy,1);_es.add(p);};
-                    _ap(0,45,-10,8,7,6,3,3);_ap(-10,40,20,5,5,6,2.5,2.5);_ap(30,15,-10,3,3,3.5,3,3);_ap(-30,10,5,2,2,2.5,3,3);_ap(0,-20,0,1.5,1.5,2,6,6);
-                    _sc.environment=_pm.fromScene(_es,0,0.1,100).texture; _pm.dispose();
-                    _r.toneMapping=4; _r.toneMappingExposure=1.0;
-                    var _oal=_sc.getObjectByName('__default_ambient__'); if(_oal)_oal.intensity=Math.max(_oal.intensity,0.3);
-                    var _ohl=_sc.getObjectByName('__default_hemi__'); if(_ohl)_ohl.intensity=Math.max(_ohl.intensity,0.5);
-                    if(!_sc.getObjectByName('__pbr_key__')){var _pk=new THREE.DirectionalLight(0xFFFBF0,1.2);_pk.name='__pbr_key__';_pk.position.set(15,30,-10);_pk.castShadow=false;_sc.add(_pk);}
-                    console.log('[SCENE_EDITOR] PBR env v43 (balanced)');
-                  }
-                }
                 var _b = _tu.replace(/\\.[^.]+$/,''), _e = (_tu.match(/\\.[^.]+$/)||['.jpg'])[0];
                 var _fn = _tu.split('/').pop()||'';
                 var _isM = /^Metal|^CorrugatedSteel|^DiamondPlate|^PaintedMetal/i.test(_fn);
@@ -560,6 +541,27 @@ if (typeof window !== 'undefined') {
                 for (var _qi=0; _qi<5; _qi++) { (function(idx){ _loadT(_urls[idx], function(tex){ _res[idx]=tex; _cnt++; if(_cnt===5){
                   var cT=_res[0],nT=_res[1],rT=_res[2],mT=_res[3],aT=_res[4];
                   if(!cT) return;
+                  // PBR env setup — inside callback so renderer/scene are guaranteed available
+                  if (!window.__vibexe_pbr_env__) {
+                    var _r = window.__vibexe_renderer__, _sc = window.__vibexe_scene__;
+                    if (_r && _sc) {
+                      window.__vibexe_pbr_env__ = true;
+                      var _pm = new THREE.PMREMGenerator(_r); _pm.compileEquirectangularShader();
+                      var _es2 = new THREE.Scene();
+                      _es2.add(new THREE.Mesh(new THREE.SphereGeometry(50,32,16), new THREE.MeshBasicMaterial({color:new THREE.Color(1.0,1.1,1.3),side:THREE.BackSide})));
+                      _es2.add(new THREE.Mesh(new THREE.SphereGeometry(49,32,16,0,Math.PI*2,Math.PI/2,Math.PI/2), new THREE.MeshBasicMaterial({color:new THREE.Color(0.5,0.45,0.4),side:THREE.BackSide})));
+                      var _pg2=new THREE.PlaneGeometry(8,8), _ap2=function(x,y,z,cr,cg,cb,sx,sy){var p=new THREE.Mesh(_pg2,new THREE.MeshBasicMaterial({color:new THREE.Color(cr,cg,cb),side:THREE.DoubleSide}));p.position.set(x,y,z);p.lookAt(0,0,0);p.scale.set(sx,sy,1);_es2.add(p);};
+                      _ap2(0,45,-10,8,7,6,3,3);_ap2(-10,40,20,5,5,6,2.5,2.5);_ap2(30,15,-10,3,3,3.5,3,3);_ap2(-30,10,5,2,2,2.5,3,3);_ap2(0,-20,0,1.5,1.5,2,6,6);
+                      _sc.environment=_pm.fromScene(_es2,0,0.1,100).texture; _pm.dispose();
+                      _r.toneMapping=4; _r.toneMappingExposure=1.0;
+                      var _oal=_sc.getObjectByName('__default_ambient__'); if(_oal)_oal.intensity=Math.max(_oal.intensity,0.3);
+                      var _ohl=_sc.getObjectByName('__default_hemi__'); if(_ohl)_ohl.intensity=Math.max(_ohl.intensity,0.5);
+                      if(!_sc.getObjectByName('__pbr_key__')){var _pk=new THREE.DirectionalLight(0xFFFBF0,1.2);_pk.name='__pbr_key__';_pk.position.set(15,30,-10);_pk.castShadow=false;_sc.add(_pk);}
+                      console.log('[SCENE_EDITOR] PBR env v43 (balanced)');
+                    } else {
+                      console.warn('[SCENE_EDITOR] PBR env FAILED: renderer=',!!_r,'scene=',!!_sc);
+                    }
+                  }
                   var _mVal=_isM?0.95:0.0, _eI=_isM?1.5:0.4;
                   var _envTex = (window.__vibexe_scene__ && window.__vibexe_scene__.environment) || null;
                   _obj.traverse(function(m){ if(!m.isMesh||!m.material) return;
@@ -571,7 +573,7 @@ if (typeof window !== 'undefined') {
                     if(aT){mo.aoMap=_cfgTex(aT.clone(),false);mo.aoMapIntensity=1.0;if(m.geometry&&m.geometry.attributes.uv&&!m.geometry.attributes.uv2)m.geometry.setAttribute('uv2',m.geometry.attributes.uv);}
                     m.material=new THREE.MeshStandardMaterial(mo);m.material.needsUpdate=true;
                   });
-                  console.log('[SCENE_EDITOR] PBR applied:',_ti[0],'isMetal:',_isM,'metalness:',_mVal);
+                  console.log('[SCENE_EDITOR] PBR applied:',_ti[0],'isMetal:',_isM,'metalness:',_mVal,'envMap:',!!_envTex);
                 }}); })(_qi); }
               } else {
                 _loadT(_tu, function(cTex) {
