@@ -3792,7 +3792,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 const child = obj.children[i];
                 if (child === _boxHelper) continue;
                 if (child === _transformControls) continue;
-                if (child.type === "BoxHelper" || child.type === "TransformControlsGizmo" || child.type === "TransformControlsPlane") continue;
+                if (child.type === "BoxHelper" || child.type === "TransformControlsGizmo" || child.type === "TransformControlsPlane" || child.type === "TransformControlsRoot") continue;
                 if (child.isTransformControls) continue;
                 // Skip particles, trails, and Points objects (VFX internals)
                 if (child.type === "Points") continue;
@@ -4166,7 +4166,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             }
             if (_transformControls) {
               _transformControls.detach();
-              scene.remove(_transformControls);
+              scene.remove(_transformControls.getHelper ? _transformControls.getHelper() : _transformControls);
               _transformControls.dispose();
               _transformControls = null;
             }
@@ -4234,7 +4234,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   if (_boxHelper) _boxHelper.update();
                 }
               });
-              scene.add(_transformControls);
+              scene.add(_transformControls.getHelper ? _transformControls.getHelper() : _transformControls);
             } else {
               console.warn("[Editor] TransformControls not available — gizmo disabled. Ensure CDN loaded.");
             }
@@ -4279,6 +4279,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 if (child.isMesh && child !== _boxHelper &&
                     child.type !== "TransformControlsGizmo" &&
                     child.type !== "TransformControlsPlane" &&
+                    child.type !== "TransformControlsRoot" &&
                     !child.name.startsWith("__editor_")) {
                   allMeshes.push(child);
                 }
@@ -4355,6 +4356,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               if (child.isMesh && child !== _boxHelper &&
                   child.type !== "TransformControlsGizmo" &&
                   child.type !== "TransformControlsPlane" &&
+                  child.type !== "TransformControlsRoot" &&
                   !child.name.startsWith("__editor_") &&
                   !child.name.startsWith("__particle_") &&
                   !child.name.startsWith("__trail_")) {

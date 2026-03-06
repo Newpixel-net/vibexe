@@ -224,7 +224,7 @@ export function getGameEditorBridgeScript(): string {
         }
       });
 
-      editor.scene.add(transformControls);
+      editor.scene.add(transformControls.getHelper ? transformControls.getHelper() : transformControls);
     }
 
     sendSelectedObject(obj);
@@ -239,7 +239,7 @@ export function getGameEditorBridgeScript(): string {
     }
     if (transformControls) {
       transformControls.detach();
-      editor.scene.remove(transformControls);
+      editor.scene.remove(transformControls.getHelper ? transformControls.getHelper() : transformControls);
       transformControls.dispose();
       transformControls = null;
     }

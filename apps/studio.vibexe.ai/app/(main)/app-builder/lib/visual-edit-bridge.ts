@@ -710,7 +710,7 @@ export function getVisualEditBridgeScript(): string {
   // ---- Selection ----
   function deselectObject() {
     if (boxHelper && editor) { editor.scene.remove(boxHelper); if (boxHelper.dispose) boxHelper.dispose(); boxHelper = null; }
-    if (transformControls && editor) { transformControls.detach(); editor.scene.remove(transformControls); transformControls.dispose(); transformControls = null; }
+    if (transformControls && editor) { transformControls.detach(); editor.scene.remove(transformControls.getHelper ? transformControls.getHelper() : transformControls); transformControls.dispose(); transformControls = null; }
     // Sweep: remove ALL stale __editor_ objects (handles duplicates from embedded bridge)
     if (editor && editor.scene) {
       var stale = [];
@@ -810,7 +810,7 @@ export function getVisualEditBridgeScript(): string {
           sendPlayerPositionUpdate(selectedObj);
         }
       });
-      editor.scene.add(transformControls);
+      editor.scene.add(transformControls.getHelper ? transformControls.getHelper() : transformControls);
     } else {
       console.warn("[GameEditorBridge] TransformControls NOT available — gizmo disabled");
     }
