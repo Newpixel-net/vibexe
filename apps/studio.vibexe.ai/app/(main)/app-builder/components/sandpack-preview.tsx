@@ -522,8 +522,8 @@ if (typeof window !== 'undefined') {
                 tex.wrapS=THREE.RepeatWrapping; tex.wrapT=THREE.RepeatWrapping;
                 tex.repeat.set(_tx,_ty); tex.anisotropy=8; tex.generateMipmaps=true;
                 tex.minFilter=THREE.LinearMipmapLinearFilter;
-                if (isSRGB) { if (THREE.SRGBColorSpace) tex.colorSpace=THREE.SRGBColorSpace; else if (THREE.sRGBEncoding) tex.encoding=THREE.sRGBEncoding; }
-                else { if (THREE.LinearSRGBColorSpace) tex.colorSpace=THREE.LinearSRGBColorSpace; else if (THREE.LinearEncoding) tex.encoding=THREE.LinearEncoding; }
+                if (isSRGB) { tex.encoding=3001; tex.colorSpace='srgb'; }
+                else { tex.encoding=3000; tex.colorSpace='srgb-linear'; }
                 return tex;
               };
               var _loadT = function(url, cb) { if(!url){cb(null);return;} _ldr.load(url, cb, undefined, function(){ cb(null); }); };
@@ -565,18 +565,12 @@ if (typeof window !== 'undefined') {
                   var _mVal=_isM?0.95:0.0, _eI=_isM?1.0:0.3;
                   var _envTex = (window.__vibexe_scene__ && window.__vibexe_scene__.environment) || null;
                   _obj.traverse(function(m){ if(!m.isMesh||!m.material) return;
-                    if(_isM){
-                      var mo={map:_cfgTex(cT.clone(),true),roughness:rT?1.0:0.3,metalness:0.95,envMapIntensity:1.0,side:THREE.DoubleSide};
-                      if(_envTex) mo.envMap=_envTex;
-                      if(nT){mo.normalMap=_cfgTex(nT.clone(),false);mo.normalScale=new THREE.Vector2(_ns,_ns);}
-                      if(rT) mo.roughnessMap=_cfgTex(rT.clone(),false);
-                      if(mT) mo.metalnessMap=_cfgTex(mT.clone(),false);
-                      m.material=new THREE.MeshStandardMaterial(mo);
-                    } else {
-                      var po={map:_cfgTex(cT.clone(),true),shininess:15,side:THREE.DoubleSide};
-                      if(nT){po.normalMap=_cfgTex(nT.clone(),false);po.normalScale=new THREE.Vector2(_ns,_ns);}
-                      m.material=new THREE.MeshPhongMaterial(po);
-                    }
+                    var mo={map:_cfgTex(cT.clone(),true),roughness:rT?1.0:0.7,metalness:_mVal,envMapIntensity:_eI,side:THREE.DoubleSide};
+                    if(_envTex) mo.envMap=_envTex;
+                    if(nT){mo.normalMap=_cfgTex(nT.clone(),false);mo.normalScale=new THREE.Vector2(_ns,_ns);}
+                    if(rT) mo.roughnessMap=_cfgTex(rT.clone(),false);
+                    if(mT) mo.metalnessMap=_cfgTex(mT.clone(),false);
+                    m.material=new THREE.MeshStandardMaterial(mo);
                     m.material.needsUpdate=true;
                   });
                   console.log('[SCENE_EDITOR] PBR applied:',_ti[0],'isMetal:',_isM,'metalness:',_mVal,'envMap:',!!_envTex);

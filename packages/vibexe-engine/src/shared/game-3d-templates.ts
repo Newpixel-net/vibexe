@@ -3992,7 +3992,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 t.center.set(0.5, 0.5);
                 t.offset.set(_offX, _offY);
                 t.anisotropy = 4;
-                if (isSRGB && THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+                // Set BOTH encoding (r128) AND colorSpace (r152+) for compat
+                if (isSRGB) { t.encoding = 3001; t.colorSpace = 'srgb'; }
+                else { t.encoding = 3000; t.colorSpace = 'srgb-linear'; }
                 return t;
               };
 
@@ -4023,36 +4025,21 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   const newMats = mats.map((mat: any) => {
                     if (!child.__vibexe_origMats) child.__vibexe_origMats = [];
                     child.__vibexe_origMats.push(mat);
-                    if (_isMetal) {
-                      // Metals need StandardMaterial for env map reflections
-                      const _matOpts: any = {
-                        map: _configureTex(colorTex, true),
-                        roughness: roughnessTex ? 1.0 : 0.3,
-                        metalness: 0.95,
-                        envMapIntensity: 1.0,
-                        side: THREE.DoubleSide,
-                      };
-                      if (scene.environment) _matOpts.envMap = scene.environment;
-                      if (normalTex) {
-                        _matOpts.normalMap = _configureTex(normalTex, false);
-                        _matOpts.normalScale = new THREE.Vector2(_normalScale, _normalScale);
-                      }
-                      if (roughnessTex) _matOpts.roughnessMap = _configureTex(roughnessTex, false);
-                      if (metalnessTex) _matOpts.metalnessMap = _configureTex(metalnessTex, false);
-                      return new THREE.MeshStandardMaterial(_matOpts);
-                    } else {
-                      // Non-metals use Phong — works with Phong-calibrated lights (no PI division)
-                      const _phOpts: any = {
-                        map: _configureTex(colorTex, true),
-                        shininess: 15,
-                        side: THREE.DoubleSide,
-                      };
-                      if (normalTex) {
-                        _phOpts.normalMap = _configureTex(normalTex, false);
-                        _phOpts.normalScale = new THREE.Vector2(_normalScale, _normalScale);
-                      }
-                      return new THREE.MeshPhongMaterial(_phOpts);
+                    const _matOpts: any = {
+                      map: _configureTex(colorTex, true),
+                      roughness: roughnessTex ? 1.0 : 0.7,
+                      metalness: _metalVal,
+                      envMapIntensity: _envIntensity,
+                      side: THREE.DoubleSide,
+                    };
+                    if (scene.environment) _matOpts.envMap = scene.environment;
+                    if (normalTex) {
+                      _matOpts.normalMap = _configureTex(normalTex, false);
+                      _matOpts.normalScale = new THREE.Vector2(_normalScale, _normalScale);
                     }
+                    if (roughnessTex) _matOpts.roughnessMap = _configureTex(roughnessTex, false);
+                    if (metalnessTex) _matOpts.metalnessMap = _configureTex(metalnessTex, false);
+                    return new THREE.MeshStandardMaterial(_matOpts);
                   });
                   child.material = Array.isArray(child.material) ? newMats : newMats[0];
                   if (Array.isArray(child.material)) child.material.forEach((m: any) => { m.needsUpdate = true; });
@@ -4078,8 +4065,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               t.rotation = _rot;
               t.center.set(0.5, 0.5);
               t.offset.set(_offX, _offY);
-              // sRGB encoding so texture renders with correct colors under lighting
-              if (THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
+              // Set BOTH encoding (r128) AND colorSpace (r152+) for compat
+              t.encoding = 3001; t.colorSpace = 'srgb';
               t.anisotropy = 4;
               mat.map = t;
               // Set color to white so texture is not tinted by original material color
