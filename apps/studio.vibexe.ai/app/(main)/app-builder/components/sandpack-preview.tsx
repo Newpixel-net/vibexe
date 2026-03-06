@@ -522,8 +522,7 @@ if (typeof window !== 'undefined') {
                 tex.wrapS=THREE.RepeatWrapping; tex.wrapT=THREE.RepeatWrapping;
                 tex.repeat.set(_tx,_ty); tex.anisotropy=8; tex.generateMipmaps=true;
                 tex.minFilter=THREE.LinearMipmapLinearFilter;
-                if (isSRGB) { tex.encoding=3001; tex.colorSpace='srgb'; }
-                else { tex.encoding=3000; tex.colorSpace='srgb-linear'; }
+                tex.colorSpace = isSRGB ? THREE.SRGBColorSpace : THREE.LinearSRGBColorSpace;
                 return tex;
               };
               var _loadT = function(url, cb) { if(!url){cb(null);return;} _ldr.load(url, cb, undefined, function(){ cb(null); }); };
@@ -553,7 +552,7 @@ if (typeof window !== 'undefined') {
                       var _pg2=new THREE.PlaneGeometry(8,8), _ap2=function(x,y,z,cr,cg,cb,sx,sy){var p=new THREE.Mesh(_pg2,new THREE.MeshBasicMaterial({color:new THREE.Color(cr,cg,cb),side:THREE.DoubleSide}));p.position.set(x,y,z);p.lookAt(0,0,0);p.scale.set(sx,sy,1);_es2.add(p);};
                       _ap2(0,45,-10,10,9,8,2,2);_ap2(-15,40,25,4,4,5,1.5,1.5);_ap2(35,20,-15,2,2,2.5,2,2);_ap2(-35,12,8,1,1,1.2,2,2);_ap2(0,-30,0,0.5,0.5,0.6,4,4);
                       _sc.environment=_pm.fromScene(_es2,0,0.1,100).texture; _pm.dispose();
-                      _r.toneMapping=4; _r.toneMappingExposure=2.5;
+                      _r.toneMapping=THREE.ACESFilmicToneMapping; _r.toneMappingExposure=2.5;
                       var _oal=_sc.getObjectByName('__default_ambient__'); if(_oal)_oal.intensity=Math.max(_oal.intensity,0.3);
                       var _ohl=_sc.getObjectByName('__default_hemi__'); if(_ohl)_ohl.intensity=Math.max(_ohl.intensity,0.5);
                       if(!_sc.getObjectByName('__pbr_key__')){var _pk=new THREE.DirectionalLight(0xFFFBF0,1.2);_pk.name='__pbr_key__';_pk.position.set(15,30,-10);_pk.castShadow=false;_sc.add(_pk);}
@@ -1228,20 +1227,8 @@ export function SandpackPreview({
 		if (dependencies.phaser) {
 			resources.push("https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js");
 		}
-		if (dependencies.three) {
-			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js");
-			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js");
-			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js");
-			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js");
-			// Post-processing addons (EffectComposer, UnrealBloomPass)
-			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js");
-			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/Pass.js");
-			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js");
-			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js");
-			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js");
-			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js");
-			resources.push("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js");
-		}
+		// Three.js r172 is loaded via CJS shim in sandpack-adapter.ts (no UMD/global scripts in r160+)
+		// No externalResources needed for Three.js — the shim handles core + all addons
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
 			resources.push(`${window.location.origin}/api/app-builder/bridge?v=44`);

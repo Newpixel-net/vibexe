@@ -521,7 +521,7 @@ export function getGameEditorBridgeScript(): string {
           tex.wrapT = THREE.RepeatWrapping;
           tex.repeat.set(_atTileX, _atTileY);
           tex.anisotropy = 4;
-          if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
+          tex.colorSpace = THREE.SRGBColorSpace || 'srgb';
           return tex;
         };
         _atLoader.load(_atResolvedUrl, function(colorTex) {

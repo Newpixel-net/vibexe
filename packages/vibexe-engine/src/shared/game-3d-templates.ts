@@ -43,20 +43,8 @@ export { modelUrl };
 const THREE = (window as any).THREE;
 const CANNON = (window as any).CANNON;
 
-// ===== r128 Compatibility Polyfills =====
-// CapsuleGeometry doesn't exist in r128 (added r138). Polyfill so AI code doesn't crash.
-if (THREE && !THREE.CapsuleGeometry) {
-  THREE.CapsuleGeometry = class CapsuleGeometry extends THREE.CylinderGeometry {
-    constructor(radius = 0.5, length = 1, capSegs = 8, radialSegs = 16) {
-      super(radius, radius, length, radialSegs, 1, false);
-    }
-  };
-}
-// SRGBColorSpace / outputColorSpace don't exist in r128 (added r152). Polyfill.
-if (THREE && !THREE.SRGBColorSpace) {
-  THREE.SRGBColorSpace = "srgb";
-  THREE.LinearSRGBColorSpace = "srgb-linear";
-}
+// ===== Three.js r172 — no polyfills needed =====
+// CapsuleGeometry, SRGBColorSpace, outputColorSpace all native in r172.
 
 // ===== NaN-tolerant Quaternion patch =====
 // AI-generated code often passes NaN/undefined values to rotation APIs,
@@ -233,7 +221,7 @@ export function initRenderer(container: HTMLDivElement): typeof THREE.WebGLRende
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;
   container.appendChild(renderer.domElement);
 
@@ -3479,7 +3467,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       renderer.setPixelRatio(Math.min(__perfSettings.pixelRatio || window.devicePixelRatio, 2));
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      renderer.outputEncoding = THREE.sRGBEncoding;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
       // NoToneMapping by default — Phong/Lambert materials already output LDR values.
       // Tone mapping (ACES/Reinhard) crushes contrast and desaturates cartoon colors.
       // Games that need HDR can enable tone mapping via createPostProcessing().
@@ -3992,9 +3980,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 t.center.set(0.5, 0.5);
                 t.offset.set(_offX, _offY);
                 t.anisotropy = 4;
-                // Set BOTH encoding (r128) AND colorSpace (r152+) for compat
-                if (isSRGB) { t.encoding = 3001; t.colorSpace = 'srgb'; }
-                else { t.encoding = 3000; t.colorSpace = 'srgb-linear'; }
+                t.colorSpace = isSRGB ? (THREE.SRGBColorSpace || 'srgb') : (THREE.LinearSRGBColorSpace || 'srgb-linear');
                 return t;
               };
 
@@ -4065,8 +4051,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               t.rotation = _rot;
               t.center.set(0.5, 0.5);
               t.offset.set(_offX, _offY);
-              // Set BOTH encoding (r128) AND colorSpace (r152+) for compat
-              t.encoding = 3001; t.colorSpace = 'srgb';
+              t.colorSpace = THREE.SRGBColorSpace || 'srgb';
               t.anisotropy = 4;
               mat.map = t;
               // Set color to white so texture is not tinted by original material color

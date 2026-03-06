@@ -1499,18 +1499,17 @@ export function getVisualEditBridgeScript(): string {
       setTimeout(fixOrbitControls, 50);
       setTimeout(fixOrbitControls, 200);
       showDebug("Bridge ACTIVATED. Canvas: " + editor.renderer.domElement.tagName + " " + editor.renderer.domElement.width + "x" + editor.renderer.domElement.height);
-      // On activation, fix texture encoding on override-created materials
-      // Override may use colorSpace API which r128 ignores — force encoding=3001 for sRGB maps
+      // On activation, ensure texture colorSpace is correct and env maps are applied
       setTimeout(function() {
         var _hasPBR = false;
+        var _srgb = THREE.SRGBColorSpace || 'srgb';
         editor.scene.traverse(function(c) {
           if (!c.isMesh || !c.material) return;
           var _va = c.parent && c.parent.userData && c.parent.userData.vibexeArgs;
           if (_va && _va.hasPBR) _hasPBR = true;
-          // Fix texture encoding: color maps need sRGBEncoding (3001)
           var _m = c.material;
-          if (_m.map && _m.map.encoding === 3000) { _m.map.encoding = 3001; _m.map.needsUpdate = true; _m.needsUpdate = true; }
-          // Data maps stay at LinearEncoding (3000) — normalMap, roughnessMap, metalnessMap
+          // Ensure color maps use sRGB colorSpace
+          if (_m.map && _m.map.colorSpace !== _srgb) { _m.map.colorSpace = _srgb; _m.map.needsUpdate = true; _m.needsUpdate = true; }
           // Add env map for metals
           if (_m.isMeshStandardMaterial && _m.metalnessMap) {
             if (editor.scene.environment && !_m.envMap) _m.envMap = editor.scene.environment;
@@ -1519,7 +1518,7 @@ export function getVisualEditBridgeScript(): string {
           }
         });
         if (_hasPBR) _ensurePBREnv();
-        showDebug("PBR textures encoding fixed, env applied");
+        showDebug("PBR textures colorSpace verified, env applied");
       }, 300);
       // Prevent right-click context menu on canvas (for flythrough mode)
       flyContextMenuHandler = function(e) { if (active) e.preventDefault(); };
@@ -1936,14 +1935,7 @@ export function getVisualEditBridgeScript(): string {
           tex.anisotropy = (editor && editor.renderer && editor.renderer.capabilities) ? editor.renderer.capabilities.getMaxAnisotropy() : 8;
           tex.generateMipmaps = true;
           tex.minFilter = _THREE.LinearMipmapLinearFilter;
-          // Set BOTH encoding (r128) AND colorSpace (r152+) for compat
-          if (isSRGB) {
-            tex.encoding = 3001; // THREE.sRGBEncoding
-            tex.colorSpace = 'srgb';
-          } else {
-            tex.encoding = 3000; // THREE.LinearEncoding
-            tex.colorSpace = 'srgb-linear';
-          }
+          tex.colorSpace = isSRGB ? (_THREE.SRGBColorSpace || 'srgb') : (_THREE.LinearSRGBColorSpace || 'srgb-linear');
           return tex;
         };
         var _atLoadTex = function(url, cb) {
