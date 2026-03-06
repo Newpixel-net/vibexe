@@ -2016,11 +2016,25 @@ if (typeof window !== "undefined") {
             var pmrem = new THREE.PMREMGenerator(renderer);
             pmrem.compileEquirectangularShader();
             var envScene = new THREE.Scene();
-            envScene.background = new THREE.Color(0.75, 0.75, 0.8);
-            var sGeo = new THREE.SphereGeometry(50, 16, 8);
-            envScene.add(new THREE.Mesh(sGeo, new THREE.MeshBasicMaterial({ color: 0xccccdd, side: THREE.BackSide })));
+            var _skyG = new THREE.SphereGeometry(50, 32, 16);
+            envScene.add(new THREE.Mesh(_skyG, new THREE.MeshBasicMaterial({ color: 0xc8d0dc, side: THREE.BackSide })));
+            var _gndG = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+            envScene.add(new THREE.Mesh(_gndG, new THREE.MeshBasicMaterial({ color: 0x555560, side: THREE.BackSide })));
+            var _pG = new THREE.PlaneGeometry(8, 8);
+            var _aP = function(x,y,z,col,sx,sy) {
+              var p = new THREE.Mesh(_pG, new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide }));
+              p.position.set(x,y,z); p.lookAt(0,0,0); p.scale.set(sx,sy,1);
+              envScene.add(p);
+            };
+            _aP(20,25,-15, 0xffffff, 2, 1.5);
+            _aP(-25,20,-10, 0x99aacc, 1.5, 1);
+            _aP(5,30,10, 0xffeebb, 1, 1);
+            _aP(-10,-3,25, 0x888899, 3, 0.5);
+            _aP(0,45,0, 0xffffff, 0.5, 0.5);
             scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
-            pmrem.dispose(); sGeo.dispose();
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0;
+            pmrem.dispose(); _skyG.dispose(); _gndG.dispose(); _pG.dispose();
           }
           function _applyTextureToMesh(obj, textureUrl, tileX, tileY, rotation, offsetX, offsetY, hasPBR) {
             var _resolvedUrl = textureUrl;
@@ -2057,9 +2071,9 @@ if (typeof window !== "undefined") {
                 return t;
               };
               var _loadTex = function(url) {
-                if (_textureCache[url]) return Promise.resolve(_textureCache[url]);
+                if (url in _textureCache) return Promise.resolve(_textureCache[url]);
                 return new Promise(function(resolve) {
-                  new THREE.TextureLoader().load(url, function(tex) { _textureCache[url] = tex; resolve(tex); }, undefined, function() { resolve(null); });
+                  new THREE.TextureLoader().load(url, function(tex) { _textureCache[url] = tex; resolve(tex); }, undefined, function() { _textureCache[url] = null; resolve(null); });
                 });
               };
               Promise.all([_loadTex(_resolvedUrl), _loadTex(_normalUrl), _loadTex(_roughnessUrl), _loadTex(_metalnessUrl)])
@@ -2076,7 +2090,7 @@ if (typeof window !== "undefined") {
                         map: _configureTex(colorTex, true),
                         roughness: roughnessTex ? 1.0 : 0.7,
                         metalness: metalnessTex ? 1.0 : 0.0,
-                        envMapIntensity: 1.0
+                        envMapIntensity: metalnessTex ? 1.5 : 1.0
                       };
                       if (normalTex) _mOpts.normalMap = _configureTex(normalTex, false);
                       if (roughnessTex) _mOpts.roughnessMap = _configureTex(roughnessTex, false);

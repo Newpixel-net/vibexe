@@ -3820,11 +3820,29 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             const pmrem = new THREE.PMREMGenerator(renderer);
             pmrem.compileEquirectangularShader();
             const envScene = new THREE.Scene();
-            envScene.background = new THREE.Color(0.75, 0.75, 0.8);
-            const sGeo = new THREE.SphereGeometry(50, 16, 8);
-            envScene.add(new THREE.Mesh(sGeo, new THREE.MeshBasicMaterial({ color: 0xccccdd, side: THREE.BackSide })));
+            // Sky dome — neutral cool white
+            const _skyGeo = new THREE.SphereGeometry(50, 32, 16);
+            envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: 0xc8d0dc, side: THREE.BackSide })));
+            // Ground hemisphere — darker below for contrast
+            const _gndGeo = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+            envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: 0x555560, side: THREE.BackSide })));
+            // Studio soft-box panels — create bright rectangular reflections on metals
+            const _pGeo = new THREE.PlaneGeometry(8, 8);
+            const _addPanel = (x: number, y: number, z: number, col: number, sx: number, sy: number) => {
+              const p = new THREE.Mesh(_pGeo, new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide }));
+              p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
+              envScene.add(p);
+            };
+            _addPanel(20, 25, -15, 0xffffff, 2, 1.5);   // Key light — big bright white
+            _addPanel(-25, 20, -10, 0x99aacc, 1.5, 1);   // Fill — cool blue-ish
+            _addPanel(5, 30, 10, 0xffeebb, 1, 1);         // Back/rim — warm yellow
+            _addPanel(-10, -3, 25, 0x888899, 3, 0.5);     // Low back — subtle fill
+            _addPanel(0, 45, 0, 0xffffff, 0.5, 0.5);      // Overhead — small bright "sun" spot
             scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
-            pmrem.dispose(); sGeo.dispose();
+            // Enable tone mapping for HDR-quality PBR
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0;
+            pmrem.dispose(); _skyGeo.dispose(); _gndGeo.dispose(); _pGeo.dispose();
           }
 
           // ---- Texture helpers ----
@@ -3878,12 +3896,12 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               };
 
               const _loadTex = (url: string): Promise<any> => {
-                if (_textureCache[url]) return Promise.resolve(_textureCache[url]);
+                if (url in _textureCache) return Promise.resolve(_textureCache[url]);
                 return new Promise((resolve) => {
                   new THREE.TextureLoader().load(url, (tex: any) => {
                     _textureCache[url] = tex;
                     resolve(tex);
-                  }, undefined, () => resolve(null)); // 404 → null
+                  }, undefined, () => { _textureCache[url] = null; resolve(null); }); // 404 → cache null
                 });
               };
 
@@ -3905,7 +3923,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                       map: _configureTex(colorTex, true),
                       roughness: roughnessTex ? 1.0 : 0.7,
                       metalness: metalnessTex ? 1.0 : 0.0,
-                      envMapIntensity: 1.0,
+                      envMapIntensity: metalnessTex ? 1.5 : 1.0,
                     };
                     if (normalTex) _matOpts.normalMap = _configureTex(normalTex, false);
                     if (roughnessTex) _matOpts.roughnessMap = _configureTex(roughnessTex, false);
