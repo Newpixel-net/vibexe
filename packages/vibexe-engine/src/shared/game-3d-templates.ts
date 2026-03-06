@@ -3820,28 +3820,30 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             const pmrem = new THREE.PMREMGenerator(renderer);
             pmrem.compileEquirectangularShader();
             const envScene = new THREE.Scene();
-            // Sky dome — neutral cool white
+            // Sky dome — HDR bright for visible reflections on metals
             const _skyGeo = new THREE.SphereGeometry(50, 32, 16);
-            envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: 0xc8d0dc, side: THREE.BackSide })));
-            // Ground hemisphere — darker below for contrast
+            envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(2.0, 2.1, 2.5), side: THREE.BackSide })));
+            // Ground hemisphere — dark for contrast
             const _gndGeo = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-            envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: 0x555560, side: THREE.BackSide })));
-            // Studio soft-box panels — create bright rectangular reflections on metals
+            envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.1, 0.1, 0.12), side: THREE.BackSide })));
+            // HDR Studio soft-box panels — values >> 1.0 for bright specular highlights
             const _pGeo = new THREE.PlaneGeometry(8, 8);
-            const _addPanel = (x: number, y: number, z: number, col: number, sx: number, sy: number) => {
-              const p = new THREE.Mesh(_pGeo, new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide }));
+            const _addPanel = (x: number, y: number, z: number, r: number, g: number, b: number, sx: number, sy: number) => {
+              const p = new THREE.Mesh(_pGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide }));
               p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
               envScene.add(p);
             };
-            _addPanel(20, 25, -15, 0xffffff, 2, 1.5);   // Key light — big bright white
-            _addPanel(-25, 20, -10, 0x99aacc, 1.5, 1);   // Fill — cool blue-ish
-            _addPanel(5, 30, 10, 0xffeebb, 1, 1);         // Back/rim — warm yellow
-            _addPanel(-10, -3, 25, 0x888899, 3, 0.5);     // Low back — subtle fill
-            _addPanel(0, 45, 0, 0xffffff, 0.5, 0.5);      // Overhead — small bright "sun" spot
+            _addPanel(0, 45, -5, 20, 20, 18, 4, 4);       // Overhead — massive bright
+            _addPanel(20, 25, -15, 15, 14, 12, 3, 2.5);    // Key light — big bright white
+            _addPanel(-25, 20, -10, 5, 7, 10, 2.5, 2);     // Fill — cool blue
+            _addPanel(5, 30, 10, 10, 8, 5, 2, 1.5);        // Back/rim — warm
+            _addPanel(0, -10, 0, 3, 3, 4, 5, 5);           // Floor bounce
+            _addPanel(30, 5, 15, 6, 6, 8, 2, 2);           // Side accent
+            _addPanel(-30, 10, 15, 4, 5, 7, 2, 2);         // Side fill
             scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
             // Enable tone mapping for HDR-quality PBR
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.0;
+            renderer.toneMappingExposure = 1.2;
             pmrem.dispose(); _skyGeo.dispose(); _gndGeo.dispose(); _pGeo.dispose();
           }
 
@@ -3923,7 +3925,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                       map: _configureTex(colorTex, true),
                       roughness: roughnessTex ? 1.0 : 0.7,
                       metalness: metalnessTex ? 1.0 : 0.0,
-                      envMapIntensity: metalnessTex ? 1.5 : 1.0,
+                      envMapIntensity: metalnessTex ? 2.0 : 1.0,
                     };
                     if (normalTex) _matOpts.normalMap = _configureTex(normalTex, false);
                     if (roughnessTex) _matOpts.roughnessMap = _configureTex(roughnessTex, false);

@@ -2017,23 +2017,25 @@ if (typeof window !== "undefined") {
             pmrem.compileEquirectangularShader();
             var envScene = new THREE.Scene();
             var _skyG = new THREE.SphereGeometry(50, 32, 16);
-            envScene.add(new THREE.Mesh(_skyG, new THREE.MeshBasicMaterial({ color: 0xc8d0dc, side: THREE.BackSide })));
+            envScene.add(new THREE.Mesh(_skyG, new THREE.MeshBasicMaterial({ color: new THREE.Color(2.0, 2.1, 2.5), side: THREE.BackSide })));
             var _gndG = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-            envScene.add(new THREE.Mesh(_gndG, new THREE.MeshBasicMaterial({ color: 0x555560, side: THREE.BackSide })));
+            envScene.add(new THREE.Mesh(_gndG, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.1, 0.1, 0.12), side: THREE.BackSide })));
             var _pG = new THREE.PlaneGeometry(8, 8);
-            var _aP = function(x,y,z,col,sx,sy) {
-              var p = new THREE.Mesh(_pG, new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide }));
+            var _aP = function(x,y,z,r,g,b,sx,sy) {
+              var p = new THREE.Mesh(_pG, new THREE.MeshBasicMaterial({ color: new THREE.Color(r,g,b), side: THREE.DoubleSide }));
               p.position.set(x,y,z); p.lookAt(0,0,0); p.scale.set(sx,sy,1);
               envScene.add(p);
             };
-            _aP(20,25,-15, 0xffffff, 2, 1.5);
-            _aP(-25,20,-10, 0x99aacc, 1.5, 1);
-            _aP(5,30,10, 0xffeebb, 1, 1);
-            _aP(-10,-3,25, 0x888899, 3, 0.5);
-            _aP(0,45,0, 0xffffff, 0.5, 0.5);
+            _aP(0,45,-5, 20,20,18, 4, 4);
+            _aP(20,25,-15, 15,14,12, 3, 2.5);
+            _aP(-25,20,-10, 5,7,10, 2.5, 2);
+            _aP(5,30,10, 10,8,5, 2, 1.5);
+            _aP(0,-10,0, 3,3,4, 5, 5);
+            _aP(30,5,15, 6,6,8, 2, 2);
+            _aP(-30,10,15, 4,5,7, 2, 2);
             scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.0;
+            renderer.toneMappingExposure = 1.2;
             pmrem.dispose(); _skyG.dispose(); _gndG.dispose(); _pG.dispose();
           }
           function _applyTextureToMesh(obj, textureUrl, tileX, tileY, rotation, offsetX, offsetY, hasPBR) {
@@ -2090,7 +2092,7 @@ if (typeof window !== "undefined") {
                         map: _configureTex(colorTex, true),
                         roughness: roughnessTex ? 1.0 : 0.7,
                         metalness: metalnessTex ? 1.0 : 0.0,
-                        envMapIntensity: metalnessTex ? 1.5 : 1.0
+                        envMapIntensity: metalnessTex ? 2.0 : 1.0
                       };
                       if (normalTex) _mOpts.normalMap = _configureTex(normalTex, false);
                       if (roughnessTex) _mOpts.roughnessMap = _configureTex(roughnessTex, false);
