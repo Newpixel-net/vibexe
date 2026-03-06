@@ -522,6 +522,56 @@ export function getVisualEditBridgeScript(): string {
   var flyKeys = {};
   var flyRMBDown = false;
   var flyLastMouse = null;
+  // PBR environment state
+  var _pbrEnvReady = false;
+  function _ensurePBREnv() {
+    if (_pbrEnvReady) return;
+    _pbrEnvReady = true;
+    var T = window.THREE;
+    if (!T || !editor || !editor.scene || !editor.renderer) return;
+    var pmrem = new T.PMREMGenerator(editor.renderer);
+    pmrem.compileEquirectangularShader();
+    // Instant procedural env (fallback — zero flicker)
+    var envScene = new T.Scene();
+    var skyGeo = new T.SphereGeometry(50, 32, 16);
+    envScene.add(new T.Mesh(skyGeo, new T.MeshBasicMaterial({ color: new T.Color(2.0, 2.1, 2.5), side: T.BackSide })));
+    var gndGeo = new T.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+    envScene.add(new T.Mesh(gndGeo, new T.MeshBasicMaterial({ color: new T.Color(0.1, 0.1, 0.12), side: T.BackSide })));
+    var pGeo = new T.PlaneGeometry(8, 8);
+    var _addP = function(x, y, z, r, g, b, sx, sy) {
+      var p = new T.Mesh(pGeo, new T.MeshBasicMaterial({ color: new T.Color(r, g, b), side: T.DoubleSide }));
+      p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
+      envScene.add(p);
+    };
+    _addP(0, 45, -5, 20, 20, 18, 4, 4);
+    _addP(20, 25, -15, 15, 14, 12, 3, 2.5);
+    _addP(-25, 20, -10, 5, 7, 10, 2.5, 2);
+    _addP(5, 30, 10, 10, 8, 5, 2, 1.5);
+    _addP(0, -10, 0, 3, 3, 4, 5, 5);
+    _addP(30, 5, 15, 6, 6, 8, 2, 2);
+    _addP(-30, 10, 15, 4, 5, 7, 2, 2);
+    editor.scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
+    editor.renderer.toneMapping = 4; // ACESFilmicToneMapping
+    editor.renderer.toneMappingExposure = 1.2;
+    pmrem.dispose(); skyGeo.dispose(); gndGeo.dispose(); pGeo.dispose();
+    // Async HDRI upgrade
+    var _hdriUrl = (window.__VIBEXE_API_ORIGIN__ || '') + '/api/app-builder/media-stock-3d/textures/env_studio.jpg';
+    new T.TextureLoader().load(_hdriUrl, function(hdriTex) {
+      hdriTex.mapping = T.EquirectangularReflectionMapping;
+      var pmrem2 = new T.PMREMGenerator(editor.renderer);
+      editor.scene.environment = pmrem2.fromEquirectangular(hdriTex).texture;
+      pmrem2.dispose(); hdriTex.dispose();
+    }, undefined, function() {});
+    // PBR key light
+    if (!editor.scene.getObjectByName('__pbr_key__')) {
+      var pbrKey = new T.DirectionalLight(0xFFFBF0, 1.5);
+      pbrKey.name = '__pbr_key__';
+      pbrKey.position.set(15, 30, -10);
+      pbrKey.castShadow = false;
+      editor.scene.add(pbrKey);
+    }
+    console.log("[GameEditorBridge] PBR environment initialized (env map + ACES + key light)");
+  }
   var flyMouseMoveHandler = null;
   var flyRMBDownHandler = null;
   var flyRMBUpHandler = null;
@@ -1861,42 +1911,96 @@ export function getVisualEditBridgeScript(): string {
         else delete _atObj.userData.vibexeArgs.hasPBR;
         // Load and apply texture
         var _atLoader = new _THREE.TextureLoader();
-        _atLoader.load(_atResolved, function(colorTex) {
-          colorTex.wrapS = _THREE.RepeatWrapping;
-          colorTex.wrapT = _THREE.RepeatWrapping;
-          colorTex.repeat.set(_atTileX, _atTileY);
-          colorTex.anisotropy = 4;
-          if (_THREE.SRGBColorSpace) colorTex.colorSpace = _THREE.SRGBColorSpace;
-          else if (_THREE.sRGBEncoding) colorTex.encoding = _THREE.sRGBEncoding;
-          _atObj.traverse(function(m) {
-            if (!m.isMesh || !m.material) return;
-            if (_atPBR) {
-              m.material = new _THREE.MeshStandardMaterial({ map: colorTex, roughness: 0.7, metalness: 0.0 });
-            } else {
-              m.material.map = colorTex;
-            }
-            m.material.needsUpdate = true;
-          });
-          // Load PBR maps
-          if (_atPBR) {
-            var _bne = _atResolved.replace(/\.[^.]+$/, '');
-            var _ext = (_atResolved.match(/\.[^.]+$/) || ['.jpg'])[0];
-            var _loadMap = function(suffix, applier) {
-              _atLoader.load(_bne + suffix + _ext, function(t) {
-                t.wrapS = _THREE.RepeatWrapping; t.wrapT = _THREE.RepeatWrapping;
-                t.repeat.set(_atTileX, _atTileY);
-                _atObj.traverse(function(m) { if (m.isMesh && m.material) { applier(m.material, t); m.material.needsUpdate = true; } });
-              }, undefined, function() {});
-            };
-            _loadMap('_Normal', function(mat, t) { mat.normalMap = t; });
-            _loadMap('_Roughness', function(mat, t) { mat.roughnessMap = t; });
-            _loadMap('_Metalness', function(mat, t) { mat.metalnessMap = t; mat.metalness = 1.0; });
+        var _atCfg = function(tex, isSRGB) {
+          tex.wrapS = _THREE.RepeatWrapping;
+          tex.wrapT = _THREE.RepeatWrapping;
+          tex.repeat.set(_atTileX, _atTileY);
+          tex.anisotropy = (editor && editor.renderer && editor.renderer.capabilities) ? editor.renderer.capabilities.getMaxAnisotropy() : 8;
+          tex.generateMipmaps = true;
+          tex.minFilter = _THREE.LinearMipmapLinearFilter;
+          if (isSRGB) {
+            if (_THREE.SRGBColorSpace) tex.colorSpace = _THREE.SRGBColorSpace;
+            else if (_THREE.sRGBEncoding) tex.encoding = _THREE.sRGBEncoding;
+          } else {
+            if (_THREE.LinearSRGBColorSpace) tex.colorSpace = _THREE.LinearSRGBColorSpace;
+            else if (_THREE.LinearEncoding) tex.encoding = _THREE.LinearEncoding;
           }
-          console.log("[GameEditorBridge] Texture applied:", _atUrl, "PBR:", _atPBR);
-          sendSelectedObject(_atObj);
-        }, undefined, function() {
-          console.warn("[GameEditorBridge] Texture load failed:", _atUrl);
-        });
+          return tex;
+        };
+        var _atLoadTex = function(url, cb) {
+          _atLoader.load(url, cb, undefined, function() { cb(null); });
+        };
+        if (_atPBR) {
+          _ensurePBREnv();
+          var _bne = _atResolved.replace(/\.[^.]+$/, '');
+          var _ext = (_atResolved.match(/\.[^.]+$/) || ['.jpg'])[0];
+          // Category-based normalScale from filename
+          var _fname = _atResolved.split('/').pop() || '';
+          var _nScale = 1.0;
+          if (/^Metal/i.test(_fname)) _nScale = 0.8;
+          else if (/^Brick/i.test(_fname)) _nScale = 1.5;
+          else if (/^Rock|^Paving/i.test(_fname)) _nScale = 1.2;
+          else if (/^Wood|^WoodFloor|^Planks/i.test(_fname)) _nScale = 0.6;
+          else if (/^Concrete|^Plaster/i.test(_fname)) _nScale = 0.8;
+          else if (/^Fabric|^Leather|^Carpet/i.test(_fname)) _nScale = 0.5;
+          else if (/^Marble|^Granite|^Onyx|^Travertine/i.test(_fname)) _nScale = 0.7;
+          // Promise.all for all PBR maps (matches engine pattern)
+          var _pbrLoaded = 0, _pbrTotal = 5, _pbrResults = [null,null,null,null,null];
+          var _pbrUrls = [_atResolved, _bne+'_Normal'+_ext, _bne+'_Roughness'+_ext, _bne+'_Metalness'+_ext, _bne+'_AO'+_ext];
+          var _pbrApply = function() {
+            var colorTex = _pbrResults[0], normalTex = _pbrResults[1], roughnessTex = _pbrResults[2], metalnessTex = _pbrResults[3], aoTex = _pbrResults[4];
+            if (!colorTex) return;
+            _atObj.traverse(function(m) {
+              if (!m.isMesh || !m.material) return;
+              var _matOpts = {
+                map: _atCfg(colorTex.clone(), true),
+                roughness: roughnessTex ? 1.0 : 0.7,
+                metalness: metalnessTex ? 1.0 : 0.0,
+                envMapIntensity: metalnessTex ? 2.0 : 1.0,
+                side: _THREE.DoubleSide
+              };
+              if (editor && editor.scene && editor.scene.environment) _matOpts.envMap = editor.scene.environment;
+              if (normalTex) {
+                _matOpts.normalMap = _atCfg(normalTex.clone(), false);
+                _matOpts.normalScale = new _THREE.Vector2(_nScale, _nScale);
+              }
+              if (roughnessTex) _matOpts.roughnessMap = _atCfg(roughnessTex.clone(), false);
+              if (metalnessTex) _matOpts.metalnessMap = _atCfg(metalnessTex.clone(), false);
+              if (aoTex) {
+                _matOpts.aoMap = _atCfg(aoTex.clone(), false);
+                _matOpts.aoMapIntensity = 1.0;
+                if (m.geometry && m.geometry.attributes.uv && !m.geometry.attributes.uv2) {
+                  m.geometry.setAttribute('uv2', m.geometry.attributes.uv);
+                }
+              }
+              m.material = new _THREE.MeshStandardMaterial(_matOpts);
+              m.material.needsUpdate = true;
+            });
+            console.log("[GameEditorBridge] PBR texture applied:", _atUrl, "metalness:", metalnessTex ? 1.0 : 0.0, "envMapIntensity:", metalnessTex ? 2.0 : 1.0, "normalScale:", _nScale);
+            sendSelectedObject(_atObj);
+          };
+          for (var _pi = 0; _pi < _pbrTotal; _pi++) {
+            (function(idx) {
+              _atLoadTex(_pbrUrls[idx], function(tex) {
+                _pbrResults[idx] = tex;
+                _pbrLoaded++;
+                if (_pbrLoaded === _pbrTotal) _pbrApply();
+              });
+            })(_pi);
+          }
+        } else {
+          _atLoadTex(_atResolved, function(colorTex) {
+            if (!colorTex) { console.warn("[GameEditorBridge] Texture load failed:", _atUrl); return; }
+            _atCfg(colorTex, true);
+            _atObj.traverse(function(m) {
+              if (!m.isMesh || !m.material) return;
+              m.material.map = colorTex;
+              m.material.needsUpdate = true;
+            });
+            console.log("[GameEditorBridge] Texture applied:", _atUrl);
+            sendSelectedObject(_atObj);
+          });
+        }
         sendSelectedObject(_atObj);
         break;
       }

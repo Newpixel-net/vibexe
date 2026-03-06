@@ -518,24 +518,45 @@ if (typeof window !== 'undefined') {
               _obj.userData.vibexeArgs.textureTileY = _ty;
               _obj.userData.vibexeArgs.hasPBR = _pbr;
               var _ldr = new THREE.TextureLoader();
-              var _cfg = function(tex) { tex.wrapS=THREE.RepeatWrapping; tex.wrapT=THREE.RepeatWrapping; tex.repeat.set(_tx,_ty); tex.anisotropy=4; return tex; };
-              _ldr.load(_tu, function(cTex) {
-                cTex = _cfg(cTex);
-                if (THREE.sRGBEncoding) cTex.encoding = THREE.sRGBEncoding;
-                _obj.traverse(function(m) {
-                  if (m.isMesh && m.material) {
-                    if (_pbr) { m.material = new THREE.MeshStandardMaterial({ map: cTex, roughness: 0.7, metalness: 0.0 }); }
-                    else { m.material.map = cTex; }
-                    m.material.needsUpdate = true;
-                  }
+              var _cfgTex = function(tex, isSRGB) {
+                tex.wrapS=THREE.RepeatWrapping; tex.wrapT=THREE.RepeatWrapping;
+                tex.repeat.set(_tx,_ty); tex.anisotropy=8; tex.generateMipmaps=true;
+                tex.minFilter=THREE.LinearMipmapLinearFilter;
+                if (isSRGB) { if (THREE.SRGBColorSpace) tex.colorSpace=THREE.SRGBColorSpace; else if (THREE.sRGBEncoding) tex.encoding=THREE.sRGBEncoding; }
+                else { if (THREE.LinearSRGBColorSpace) tex.colorSpace=THREE.LinearSRGBColorSpace; else if (THREE.LinearEncoding) tex.encoding=THREE.LinearEncoding; }
+                return tex;
+              };
+              var _loadT = function(url, cb) { _ldr.load(url, cb, undefined, function(){ cb(null); }); };
+              if (_pbr) {
+                var _b = _tu.replace(/\\.[^.]+$/,''), _e = (_tu.match(/\\.[^.]+$/)||['.jpg'])[0];
+                var _fn = _tu.split('/').pop()||'';
+                var _ns = 1.0;
+                if (/^Metal/i.test(_fn)) _ns=0.8; else if (/^Brick/i.test(_fn)) _ns=1.5;
+                else if (/^Rock|^Paving/i.test(_fn)) _ns=1.2; else if (/^Wood|^WoodFloor|^Planks/i.test(_fn)) _ns=0.6;
+                else if (/^Concrete|^Plaster/i.test(_fn)) _ns=0.8; else if (/^Fabric|^Leather|^Carpet/i.test(_fn)) _ns=0.5;
+                else if (/^Marble|^Granite|^Onyx|^Travertine/i.test(_fn)) _ns=0.7;
+                var _urls = [_tu, _b+'_Normal'+_e, _b+'_Roughness'+_e, _b+'_Metalness'+_e, _b+'_AO'+_e];
+                var _cnt=0, _res=[null,null,null,null,null];
+                for (var _qi=0; _qi<5; _qi++) { (function(idx){ _loadT(_urls[idx], function(tex){ _res[idx]=tex; _cnt++; if(_cnt===5){
+                  var cT=_res[0],nT=_res[1],rT=_res[2],mT=_res[3],aT=_res[4];
+                  if(!cT) return;
+                  _obj.traverse(function(m){ if(!m.isMesh||!m.material) return;
+                    var mo={map:_cfgTex(cT.clone(),true),roughness:rT?1.0:0.7,metalness:mT?1.0:0.0,envMapIntensity:mT?2.0:1.0,side:THREE.DoubleSide};
+                    if(nT){mo.normalMap=_cfgTex(nT.clone(),false);mo.normalScale=new THREE.Vector2(_ns,_ns);}
+                    if(rT) mo.roughnessMap=_cfgTex(rT.clone(),false);
+                    if(mT) mo.metalnessMap=_cfgTex(mT.clone(),false);
+                    if(aT){mo.aoMap=_cfgTex(aT.clone(),false);mo.aoMapIntensity=1.0;if(m.geometry&&m.geometry.attributes.uv&&!m.geometry.attributes.uv2)m.geometry.setAttribute('uv2',m.geometry.attributes.uv);}
+                    m.material=new THREE.MeshStandardMaterial(mo);m.material.needsUpdate=true;
+                  });
+                  console.log('[SCENE_EDITOR] PBR applied:',_ti[0],'metalness:',mT?1:0);
+                }}); })(_qi); }
+              } else {
+                _loadT(_tu, function(cTex) {
+                  if (!cTex) return;
+                  _cfgTex(cTex, true);
+                  _obj.traverse(function(m) { if (m.isMesh && m.material) { m.material.map = cTex; m.material.needsUpdate = true; } });
                 });
-                if (_pbr) {
-                  var _b = _tu.replace(/\\.[^.]+$/,''), _e = (_tu.match(/\\.[^.]+$/)||['.jpg'])[0];
-                  _ldr.load(_b+'_Normal'+_e, function(nT) { nT=_cfg(nT); _obj.traverse(function(m){ if(m.isMesh&&m.material){m.material.normalMap=nT;m.material.needsUpdate=true;} }); }, undefined, function(){});
-                  _ldr.load(_b+'_Roughness'+_e, function(rT) { rT=_cfg(rT); _obj.traverse(function(m){ if(m.isMesh&&m.material){m.material.roughnessMap=rT;m.material.needsUpdate=true;} }); }, undefined, function(){});
-                  _ldr.load(_b+'_Metalness'+_e, function(mT) { mT=_cfg(mT); _obj.traverse(function(m){ if(m.isMesh&&m.material){m.material.metalnessMap=mT;m.material.needsUpdate=true;} }); }, undefined, function(){});
-                }
-              });
+              }
             })(t, o.t);
           }
           _logged[name] = true;
@@ -1198,7 +1219,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=38`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=39`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);
