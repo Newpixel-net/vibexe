@@ -1498,6 +1498,25 @@ export function getVisualEditBridgeScript(): string {
       setTimeout(fixOrbitControls, 50);
       setTimeout(fixOrbitControls, 200);
       showDebug("Bridge ACTIVATED. Canvas: " + editor.renderer.domElement.tagName + " " + editor.renderer.domElement.width + "x" + editor.renderer.domElement.height);
+      // On activation, fix any PBR materials created by the override (which lacks env setup)
+      setTimeout(function() {
+        var _hasPBR = false;
+        editor.scene.traverse(function(c) {
+          if (c.isMesh && c.material && c.material.isMeshStandardMaterial) _hasPBR = true;
+        });
+        if (_hasPBR) {
+          _ensurePBREnv();
+          if (editor.scene.environment) {
+            editor.scene.traverse(function(c) {
+              if (c.isMesh && c.material && c.material.isMeshStandardMaterial && !c.material.envMap) {
+                c.material.envMap = editor.scene.environment;
+                c.material.needsUpdate = true;
+              }
+            });
+            showDebug("PBR env patched for override materials");
+          }
+        }
+      }, 300);
       // Prevent right-click context menu on canvas (for flythrough mode)
       flyContextMenuHandler = function(e) { if (active) e.preventDefault(); };
       editor.renderer.domElement.addEventListener("contextmenu", flyContextMenuHandler);
