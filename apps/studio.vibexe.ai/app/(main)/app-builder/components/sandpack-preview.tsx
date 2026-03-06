@@ -1505,7 +1505,7 @@ export function SandpackPreview({
 							onClose={gameEditor.toggleSettings}
 						/>
 					) : (
-						<GameEditorPanel />
+						<GameEditorPanel settingsProps={{ onSave: handleSaveSettings }} />
 					)
 				)}
 			</div>
