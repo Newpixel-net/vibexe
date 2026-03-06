@@ -551,7 +551,7 @@ export function getVisualEditBridgeScript(): string {
     _addP(0, -30, 0, 0.5, 0.5, 0.6, 4, 4);   // Bottom fill (dim)
     editor.scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
     editor.renderer.toneMapping = 4; // ACESFilmicToneMapping
-    editor.renderer.toneMappingExposure = 1.0;
+    editor.renderer.toneMappingExposure = 2.5;
     pmrem.dispose(); skyGeo.dispose(); gndGeo.dispose(); pGeo.dispose();
     // Moderate light boost for PBR (Standard material /PI factor)
     var _al = editor.scene.getObjectByName('__default_ambient__');
@@ -566,7 +566,7 @@ export function getVisualEditBridgeScript(): string {
       pbrKey.castShadow = false;
       editor.scene.add(pbrKey);
     }
-    console.log("[GameEditorBridge] PBR env v44 (high-contrast studio)");
+    console.log("[GameEditorBridge] PBR env v45 (exposure 2.5)");
   }
   var flyMouseMoveHandler = null;
   var flyRMBDownHandler = null;
@@ -1507,9 +1507,6 @@ export function getVisualEditBridgeScript(): string {
         });
         if (_hasPBR) {
           _ensurePBREnv();
-          // Cap ambient light — override leaves it at 2.0 which floods StandardMaterial
-          var _al2 = editor.scene.getObjectByName('__default_ambient__');
-          if (_al2 && _al2.intensity > 0.5) { _al2.intensity = 0.3; }
           if (editor.scene.environment) {
             editor.scene.traverse(function(c) {
               if (c.isMesh && c.material && c.material.isMeshStandardMaterial) {

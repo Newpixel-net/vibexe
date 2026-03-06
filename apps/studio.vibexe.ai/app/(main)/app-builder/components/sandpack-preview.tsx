@@ -553,11 +553,11 @@ if (typeof window !== 'undefined') {
                       var _pg2=new THREE.PlaneGeometry(8,8), _ap2=function(x,y,z,cr,cg,cb,sx,sy){var p=new THREE.Mesh(_pg2,new THREE.MeshBasicMaterial({color:new THREE.Color(cr,cg,cb),side:THREE.DoubleSide}));p.position.set(x,y,z);p.lookAt(0,0,0);p.scale.set(sx,sy,1);_es2.add(p);};
                       _ap2(0,45,-10,10,9,8,2,2);_ap2(-15,40,25,4,4,5,1.5,1.5);_ap2(35,20,-15,2,2,2.5,2,2);_ap2(-35,12,8,1,1,1.2,2,2);_ap2(0,-30,0,0.5,0.5,0.6,4,4);
                       _sc.environment=_pm.fromScene(_es2,0,0.1,100).texture; _pm.dispose();
-                      _r.toneMapping=4; _r.toneMappingExposure=1.0;
+                      _r.toneMapping=4; _r.toneMappingExposure=2.5;
                       var _oal=_sc.getObjectByName('__default_ambient__'); if(_oal)_oal.intensity=Math.max(_oal.intensity,0.3);
                       var _ohl=_sc.getObjectByName('__default_hemi__'); if(_ohl)_ohl.intensity=Math.max(_ohl.intensity,0.5);
                       if(!_sc.getObjectByName('__pbr_key__')){var _pk=new THREE.DirectionalLight(0xFFFBF0,1.2);_pk.name='__pbr_key__';_pk.position.set(15,30,-10);_pk.castShadow=false;_sc.add(_pk);}
-                      console.log('[SCENE_EDITOR] PBR env v44 (high-contrast studio)');
+                      console.log('[SCENE_EDITOR] PBR env v45 (exposure 2.5)');
                     } else {
                       console.warn('[SCENE_EDITOR] PBR env FAILED: renderer=',!!_r,'scene=',!!_sc);
                     }

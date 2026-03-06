@@ -3914,7 +3914,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             _addPanel(0, -30, 0, 0.5, 0.5, 0.6, 4, 4);   // Bottom fill (dim)
             scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.0;
+            renderer.toneMappingExposure = 2.5;
             pmrem.dispose(); _skyGeo.dispose(); _gndGeo.dispose(); _pGeo.dispose();
 
             // Moderate light boost for PBR (Standard material /PI factor)
