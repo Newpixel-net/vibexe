@@ -551,12 +551,15 @@ if (typeof window !== 'undefined') {
                       _es2.add(new THREE.Mesh(new THREE.SphereGeometry(49,32,16,0,Math.PI*2,Math.PI/2,Math.PI/2), new THREE.MeshBasicMaterial({color:new THREE.Color(0.15,0.13,0.1),side:THREE.BackSide})));
                       var _pg2=new THREE.PlaneGeometry(8,8), _ap2=function(x,y,z,cr,cg,cb,sx,sy){var p=new THREE.Mesh(_pg2,new THREE.MeshBasicMaterial({color:new THREE.Color(cr,cg,cb),side:THREE.DoubleSide}));p.position.set(x,y,z);p.lookAt(0,0,0);p.scale.set(sx,sy,1);_es2.add(p);};
                       _ap2(0,45,-10,10,9,8,2,2);_ap2(-15,40,25,4,4,5,1.5,1.5);_ap2(35,20,-15,2,2,2.5,2,2);_ap2(-35,12,8,1,1,1.2,2,2);_ap2(0,-30,0,0.5,0.5,0.6,4,4);
-                      _sc.environment=_pm.fromScene(_es2,0,0.1,100).texture; _pm.dispose();
+                      _sc.environment=_pm.fromScene(_es2,0,0.1,100).texture;
                       _r.toneMapping=THREE.ACESFilmicToneMapping; _r.toneMappingExposure=2.5;
+                      var _hdriUrl2=(window.__VIBEXE_API_ORIGIN__||'')+'/media-stock/games-3d/textures/env_studio.jpg';
+                      new THREE.TextureLoader().load(_hdriUrl2,function(ht){ht.mapping=THREE.EquirectangularReflectionMapping;ht.colorSpace=THREE.SRGBColorSpace;var pm3=new THREE.PMREMGenerator(_r);pm3.compileEquirectangularShader();_sc.environment=pm3.fromEquirectangular(ht).texture;pm3.dispose();ht.dispose();console.log('[PBR] HDRI env upgraded');},undefined,function(){console.log('[PBR] HDRI not found, using procedural');});
+                      _pm.dispose();
                       var _oal=_sc.getObjectByName('__default_ambient__'); if(_oal)_oal.intensity=Math.max(_oal.intensity,0.3);
                       var _ohl=_sc.getObjectByName('__default_hemi__'); if(_ohl)_ohl.intensity=Math.max(_ohl.intensity,0.5);
-                      if(!_sc.getObjectByName('__pbr_key__')){var _pk=new THREE.DirectionalLight(0xFFFBF0,1.2);_pk.name='__pbr_key__';_pk.position.set(15,30,-10);_pk.castShadow=false;_sc.add(_pk);}
-                      console.log('[SCENE_EDITOR] PBR env v45 (exposure 2.5)');
+                      if(!_sc.getObjectByName('__pbr_key__')){var _pk=new THREE.DirectionalLight(0xFFFBF0,1.5);_pk.name='__pbr_key__';_pk.position.set(15,30,-10);_pk.castShadow=false;_sc.add(_pk);}
+                      console.log('[SCENE_EDITOR] PBR env v46 (HDRI+AO)');
                     } else {
                       console.warn('[SCENE_EDITOR] PBR env FAILED: renderer=',!!_r,'scene=',!!_sc);
                     }
@@ -569,7 +572,9 @@ if (typeof window !== 'undefined') {
                     if(nT){mo.normalMap=_cfgTex(nT.clone(),false);mo.normalScale=new THREE.Vector2(_ns,_ns);}
                     if(rT) mo.roughnessMap=_cfgTex(rT.clone(),false);
                     if(mT) mo.metalnessMap=_cfgTex(mT.clone(),false);
+                    if(aT){mo.aoMap=_cfgTex(aT.clone(),false);mo.aoMapIntensity=1.0;}
                     m.material=new THREE.MeshStandardMaterial(mo);
+                    if(aT&&m.geometry&&m.geometry.attributes.uv&&!m.geometry.attributes.uv2){m.geometry.setAttribute('uv2',m.geometry.attributes.uv);}
                     m.material.needsUpdate=true;
                   });
                   console.log('[SCENE_EDITOR] PBR applied:',_ti[0],'isMetal:',_isM,'metalness:',_mVal,'envMap:',!!_envTex);

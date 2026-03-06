@@ -3903,7 +3903,20 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
             renderer.toneMappingExposure = 2.5;
-            pmrem.dispose(); _skyGeo.dispose(); _gndGeo.dispose(); _pGeo.dispose();
+            _skyGeo.dispose(); _gndGeo.dispose(); _pGeo.dispose();
+
+            // Async HDRI upgrade — real studio reflections for metals
+            const _hdriUrl = ((window as any).__VIBEXE_API_ORIGIN__ || "") + "/media-stock/games-3d/textures/env_studio.jpg";
+            new THREE.TextureLoader().load(_hdriUrl, (hdriTex: any) => {
+              hdriTex.mapping = THREE.EquirectangularReflectionMapping;
+              hdriTex.colorSpace = THREE.SRGBColorSpace || "srgb";
+              const pmrem2 = new THREE.PMREMGenerator(renderer);
+              pmrem2.compileEquirectangularShader();
+              scene.environment = pmrem2.fromEquirectangular(hdriTex).texture;
+              pmrem2.dispose(); hdriTex.dispose();
+              console.log("[PBR] HDRI env upgraded");
+            }, undefined, () => { console.log("[PBR] HDRI not found, using procedural env"); });
+            pmrem.dispose();
 
             // Moderate light boost for PBR (Standard material /PI factor)
             const _al = scene.getObjectByName("__default_ambient__") as any;
@@ -3913,7 +3926,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
 
             // PBR key light for specular highlights
             if (!scene.getObjectByName("__pbr_key__")) {
-              const pbrKey = new THREE.DirectionalLight(0xFFFBF0, 1.2);
+              const pbrKey = new THREE.DirectionalLight(0xFFFBF0, 1.5);
               pbrKey.name = "__pbr_key__";
               pbrKey.position.set(15, 30, -10);
               pbrKey.castShadow = false;
@@ -4025,8 +4038,16 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                     }
                     if (roughnessTex) _matOpts.roughnessMap = _configureTex(roughnessTex, false);
                     if (metalnessTex) _matOpts.metalnessMap = _configureTex(metalnessTex, false);
+                    if (aoTex) { _matOpts.aoMap = _configureTex(aoTex, false); _matOpts.aoMapIntensity = 1.0; }
                     return new THREE.MeshStandardMaterial(_matOpts);
                   });
+                  // AO requires UV2 channel — copy from UV1 if missing
+                  if (aoTex && child.geometry) {
+                    const _g = child.geometry;
+                    if (_g.attributes.uv && !_g.attributes.uv2) {
+                      _g.setAttribute("uv2", _g.attributes.uv);
+                    }
+                  }
                   child.material = Array.isArray(child.material) ? newMats : newMats[0];
                   if (Array.isArray(child.material)) child.material.forEach((m: any) => { m.needsUpdate = true; });
                   else if (child.material) child.material.needsUpdate = true;
