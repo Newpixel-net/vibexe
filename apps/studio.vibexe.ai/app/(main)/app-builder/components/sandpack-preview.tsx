@@ -574,8 +574,11 @@ function updateSpawnedObjectsInSource(
     var _pbrEnvDone = false;
     function _ensurePbrEnv() {
       if (_pbrEnvDone) return;
+      var _r = window.__vibexe_renderer__;
+      var _s = window.__vibexe_scene__;
+      if (!_r || !_s) return;
       _pbrEnvDone = true;
-      var pmrem = new THREE.PMREMGenerator(renderer);
+      var pmrem = new THREE.PMREMGenerator(_r);
       pmrem.compileEquirectangularShader();
       var es = new THREE.Scene();
       var _skyG = new THREE.SphereGeometry(50, 32, 16);
@@ -595,9 +598,9 @@ function updateSpawnedObjectsInSource(
       _aP(0,-10,0, 3,3,4, 5, 5);
       _aP(30,5,15, 6,6,8, 2, 2);
       _aP(-30,10,15, 4,5,7, 2, 2);
-      scene.environment = pmrem.fromScene(es, 0, 0.1, 100).texture;
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.2;
+      _s.environment = pmrem.fromScene(es, 0, 0.1, 100).texture;
+      _r.toneMapping = THREE.ACESFilmicToneMapping;
+      _r.toneMappingExposure = 1.2;
       pmrem.dispose(); _skyG.dispose(); _gndG.dispose(); _pG.dispose();
     }
     function _applyTex(obj, url, tx, ty, rot, ox, oy, hasPBR) {
