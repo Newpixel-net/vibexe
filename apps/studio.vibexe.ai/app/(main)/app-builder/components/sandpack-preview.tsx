@@ -641,6 +641,7 @@ function updateSpawnedObjectsInSource(
                 return new THREE.MeshStandardMaterial(_mO);
               });
               child.material = Array.isArray(child.material) ? nm : nm[0];
+              if (maps[3]) nm.forEach(function(m) { m.envMapIntensity = 2.0; });
             };
             obj.traverse(applyPBR);
             if (obj.isMesh && obj.material) applyPBR(obj);
