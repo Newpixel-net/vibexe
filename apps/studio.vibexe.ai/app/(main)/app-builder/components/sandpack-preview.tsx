@@ -504,7 +504,12 @@ if (typeof window !== 'undefined') {
       if (s !== _lastScene) { _cache={}; _bodies={}; _logged={}; _delDone=false; _lastScene=s; }
       if (!_delDone && _ov.__deleted && _ov.__deleted.length) {
         var _rm = [];
-        s.traverse(function(o) { if (_ov.__deleted.indexOf(o.name) !== -1) _rm.push(o); });
+        s.traverse(function(o) { if (o.name && _ov.__deleted.indexOf(o.name) !== -1) _rm.push(o); });
+        if (!_rm.length && _frame % 30 === 0) {
+          var _allNames = [];
+          s.traverse(function(o) { if (o.name) _allNames.push(o.name); });
+          console.log("[SCENE_EDITOR] __deleted check frame " + _frame + ": looking for " + JSON.stringify(_ov.__deleted) + " in " + _allNames.length + " named objects. Sample: " + _allNames.slice(0,20).join(","));
+        }
         _rm.forEach(function(o) {
           if (o.parent) o.parent.remove(o);
           var w = window.__vibexe_world__;
