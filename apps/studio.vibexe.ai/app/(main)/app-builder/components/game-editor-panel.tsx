@@ -7,6 +7,7 @@
 
 import { Box, Check, Copy, Eye, EyeOff, Focus, Layers, Paintbrush, Pause, Pencil, Play, Search, Settings, Square, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@vibexe-internal/ui/dialog";
 import { DragNumberInput } from "./drag-number-input";
 import { SceneTreeNode } from "./scene-tree-node";
 import { useGameEditor, type GameSettings } from "../lib/game-editor-context";
@@ -75,6 +76,7 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 	const nameInputRef = useRef<HTMLInputElement>(null);
 	const [texturePickerOpen, setTexturePickerOpen] = useState(false);
 	const [textureCategory, setTextureCategory] = useState<TextureCategory>("ground");
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
 	// Auto-switch to Properties tab when an object is selected
 	useEffect(() => {
@@ -149,7 +151,13 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 
 	const handleDelete = useCallback(() => {
 		if (!selectedObject) return;
+		setDeleteDialogOpen(true);
+	}, [selectedObject]);
+
+	const handleConfirmDelete = useCallback(() => {
+		if (!selectedObject) return;
 		deleteObject(selectedObject.uuid);
+		setDeleteDialogOpen(false);
 	}, [selectedObject, deleteObject]);
 
 	// Name editing
@@ -800,6 +808,34 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 					</div>
 				</div>
 			)}
+			{/* Delete confirmation dialog */}
+			<Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+				<DialogContent variant="destructive">
+					<DialogHeader>
+						<DialogTitle>Delete Object</DialogTitle>
+						<DialogDescription>
+							Are you sure you want to delete &quot;{selectedObject?.name || "Unnamed"}&quot;? This action can be undone with Ctrl+Z.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<DialogClose asChild>
+							<button
+								type="button"
+								className="px-3 py-1.5 text-xs rounded bg-white/10 hover:bg-white/20 text-white/70 transition-colors"
+							>
+								Cancel
+							</button>
+						</DialogClose>
+						<button
+							type="button"
+							onClick={handleConfirmDelete}
+							className="px-3 py-1.5 text-xs rounded bg-red-600 hover:bg-red-500 text-white transition-colors"
+						>
+							Delete
+						</button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

@@ -53,6 +53,7 @@ import {
 	extractDependencies,
 } from "../adapters/sandpack-adapter";
 import { isRtlLanguage } from "../lib/languages";
+import { useToasts } from "@vibexe-internal/ui/toast";
 
 type DeviceSize = "desktop" | "tablet" | "mobile";
 
@@ -380,6 +381,8 @@ function updateTransformInSource(
 	rot: { x: number; y: number; z: number },
 	scl: { x: number; y: number; z: number },
 	tex?: { url: string; tileX: number; tileY: number; hasPBR: boolean } | null,
+	visible?: boolean,
+	deletedNames?: string[],
 ): string {
 	const MARKER_START = "// SCENE_EDITOR_OVERRIDES_START";
 	const MARKER_END = "// SCENE_EDITOR_OVERRIDES_END";
@@ -415,14 +418,23 @@ function updateTransformInSource(
 
 	// Preserve existing texture data if not explicitly provided
 	const existingTex = overrides[objectName]?.t;
+	const existingVis = overrides[objectName]?.v;
 
-	// Merge new transform (preserve texture if not overridden)
+	// Merge new transform (preserve texture + visibility if not overridden)
 	overrides[objectName] = {
 		p: [+pos.x.toFixed(3), +pos.y.toFixed(3), +pos.z.toFixed(3)],
 		r: [rx, ry, rz],
 		s: [+scl.x.toFixed(3), +scl.y.toFixed(3), +scl.z.toFixed(3)],
 		...(tex ? { t: [tex.url, tex.tileX, tex.tileY, tex.hasPBR ? 1 : 0] } : existingTex ? { t: existingTex } : {}),
+		...(visible === false ? { v: 0 } : existingVis !== undefined ? { v: existingVis } : {}),
 	};
+
+	// Merge deleted objects list
+	if (deletedNames && deletedNames.length > 0) {
+		const existing: string[] = overrides.__deleted || [];
+		overrides.__deleted = Array.from(new Set([...existing, ...deletedNames]));
+		for (const dn of overrides.__deleted) delete overrides[dn]; // no point keeping transforms for deleted objects
+	}
 
 	const json = JSON.stringify(overrides);
 	// Self-applying override: polls window.__vibexe_scene__ (set by Game3D.tsx)
@@ -437,6 +449,7 @@ if (typeof window !== 'undefined') {
     var _logged = {};
     var _cache = {};
     var _bodies = {};
+    var _delDone = false;
     var _lastScene = null;
     var _frame = 0;
     var _MAX = 300;
@@ -488,11 +501,27 @@ if (typeof window !== 'undefined') {
       if (window.__vibexe_editor__) { requestAnimationFrame(_apply); return; }
       var s = window.__vibexe_scene__;
       if (!s || !s.children) { requestAnimationFrame(_apply); return; }
-      if (s !== _lastScene) { _cache={}; _bodies={}; _logged={}; _lastScene=s; }
+      if (s !== _lastScene) { _cache={}; _bodies={}; _logged={}; _delDone=false; _lastScene=s; }
+      if (!_delDone && _ov.__deleted && _ov.__deleted.length) {
+        _delDone = true;
+        var _rm = [];
+        s.traverse(function(o) { if (_ov.__deleted.indexOf(o.name) !== -1) _rm.push(o); });
+        _rm.forEach(function(o) {
+          if (o.parent) o.parent.remove(o);
+          var w = window.__vibexe_world__;
+          if (w && w.bodies) {
+            for (var bi = w.bodies.length-1; bi >= 0; bi--) {
+              if (w.bodies[bi].__meshRef === o || w.bodies[bi].__meshName === o.name) w.removeBody(w.bodies[bi]);
+            }
+          }
+        });
+        if (_rm.length) console.log("[SCENE_EDITOR] Deleted " + _rm.length + " objects");
+      }
       var _gsPlayer = window.__VIBEXE_GAME_SETTINGS__ && window.__VIBEXE_GAME_SETTINGS__.player;
       var keys = Object.keys(_ov);
       for (var ki=0; ki<keys.length; ki++) {
         var name = keys[ki];
+        if (name === "__deleted") continue;
         if (_gsPlayer && (name.indexOf("Character_")===0 || name.indexOf("Player_")===0)) continue;
         var o = _ov[name];
         var t = _find(s, name);
@@ -506,6 +535,7 @@ if (typeof window !== 'undefined') {
         if (!_logged[name]) {
           if (o.r) t.rotation.set(o.r[0],o.r[1],o.r[2]);
           if (o.s) t.scale.set(o.s[0],o.s[1],o.s[2]);
+          if (o.v !== undefined) t.visible = !!o.v;
           if (o.t && o.t[0] && typeof THREE !== 'undefined') {
             (function(_obj, _ti) {
               var _tu = _ti[0], _tx = _ti[1]||1, _ty = _ti[2]||1, _pbr = !!_ti[3];
@@ -625,6 +655,7 @@ export function SandpackPreview({
 	const [showConsole, setShowConsole] = useState(false);
 	const visualEdit = useVisualEdit();
 	const gameEditor = useGameEditor();
+	const { toast } = useToasts();
 	const iframeContainerRef = useRef<HTMLDivElement>(null);
 	const iframeRef = useRef<HTMLIFrameElement | null>(null);
 	const [iframeBounds, setIframeBounds] = useState<DOMRect | null>(null);
@@ -654,6 +685,8 @@ export function SandpackPreview({
 	const allTransformsResolverRef = useRef<((transforms: Record<string, any>) => void) | null>(null);
 	// Spawned objects persistence — saved before restart, restored after
 	const spawnedObjectsRef = useRef<any[]>([]);
+	// Track deleted object names for persistence across save
+	const deletedObjectsRef = useRef<string[]>([]);
 
 	// Mutex to prevent concurrent settings saves
 	const savingSettingsRef = useRef(false);
@@ -669,24 +702,26 @@ export function SandpackPreview({
 				console.warn("[GameEditor] No iframe for save");
 				return;
 			}
+			const deletions = deletedObjectsRef.current;
 			// Request all transforms from bridge
 			iframe.contentWindow.postMessage({ type: "game-editor-collect-all-transforms" }, "*");
-			// Wait for response
+			// Wait for response with 8s timeout
 			const transforms = await new Promise<Record<string, any>>((resolve) => {
 				allTransformsResolverRef.current = resolve;
 				setTimeout(() => {
 					if (allTransformsResolverRef.current === resolve) {
 						allTransformsResolverRef.current = null;
+						toast("Save timed out — saving what we have", { type: "warning" });
 						resolve({});
 					}
-				}, 3000);
+				}, 8000);
 			});
 			const names = Object.keys(transforms);
-			if (names.length === 0) {
-				console.log("[GameEditor] No transforms to save");
+			if (names.length === 0 && deletions.length === 0) {
+				console.log("[GameEditor] No transforms or deletions to save");
 				return;
 			}
-			console.log("[GameEditor] Saving all transforms:", names.length, "objects");
+			console.log("[GameEditor] Saving:", names.length, "objects,", deletions.length, "deletions");
 			// Find GameScene3D.ts
 			const currentFiles = filesRef.current;
 			const currentOnFileUpdate = onFileUpdateRef.current;
@@ -697,13 +732,19 @@ export function SandpackPreview({
 			}
 			// Apply all transforms to source code
 			let code = sceneFile.content;
-			for (const name of names) {
-				const t = transforms[name];
-				const texData = t._textureUrl ? { url: t._textureUrl, tileX: t._textureTileX || 1, tileY: t._textureTileY || 1, hasPBR: !!t._hasPBR } : null;
-				code = updateTransformInSource(code, name, t.position, t.rotation, t.scale, texData);
+			if (names.length > 0) {
+				for (const name of names) {
+					const t = transforms[name];
+					const texData = t._textureUrl ? { url: t._textureUrl, tileX: t._textureTileX || 1, tileY: t._textureTileY || 1, hasPBR: !!t._hasPBR } : null;
+					const vis = t._visible === false ? false : undefined;
+					code = updateTransformInSource(code, name, t.position, t.rotation, t.scale, texData, vis, deletions);
+				}
+			} else if (deletions.length > 0) {
+				// Deletions only — no transforms, use a dummy call to merge deletions into overrides
+				code = updateTransformInSource(code, "__dummy__", { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 1, y: 1, z: 1 }, null, undefined, deletions);
+				// Remove the dummy entry from the JSON data marker
+				code = code.replace(/"__dummy__":\{[^}]*\},?/g, "").replace(/,\}/g, "}");
 			}
-			// Debug: uncomment to check save comparison
-			// console.log("[GameEditor] Save comparison: changed=", code !== sceneFile.content);
 			if (code !== sceneFile.content) {
 				currentOnFileUpdate(sceneFile.id, code);
 				// Save to DB
@@ -713,14 +754,19 @@ export function SandpackPreview({
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ path: sceneFile.path, content: code }),
 					});
-					console.log("[GameEditor] DB save complete for", names.length, "objects");
+					console.log("[GameEditor] DB save complete for", names.length, "objects,", deletions.length, "deletions");
+					toast("Scene saved", { type: "success" });
+					deletedObjectsRef.current = [];
 				} catch (err) {
 					console.warn("[GameEditor] DB save failed:", err);
+					toast("Failed to save scene", { type: "error" });
 				}
+			} else {
+				toast("Scene saved", { type: "success" });
 			}
 		};
 		gameEditor.setSaveHandler(saveAllTransforms);
-	}, [isGameMode, appId, gameEditor.setSaveHandler]);
+	}, [isGameMode, appId, gameEditor.setSaveHandler, toast]);
 
 	// Load game settings from files — re-runs when the settings file content changes
 	const settingsFileContent = useMemo(() => {
@@ -993,6 +1039,11 @@ export function SandpackPreview({
 				gameEditor.requestSceneTree();
 			} else if (data.type === "game-editor-scene-dirty") {
 				gameEditor.setDirty(true);
+			} else if (data.type === "game-editor-object-deleted") {
+				const deletedName = data.name as string;
+				if (deletedName && !deletedObjectsRef.current.includes(deletedName)) {
+					deletedObjectsRef.current = [...deletedObjectsRef.current, deletedName];
+				}
 			} else if (data.type === "game-editor-animation-clips") {
 				gameEditor.setAnimationClips(data.clips || [], data.currentClip, data.animMap, data.clipDurations);
 			} else if (data.type === "game-editor-animation-progress") {
@@ -1066,6 +1117,16 @@ export function SandpackPreview({
 			setTimeout(() => { sandpackRefreshRef.current?.(); }, 400);
 		}
 	}, [gameEditor.enabled]);
+
+	// Warn before leaving with unsaved changes
+	useEffect(() => {
+		if (!isGameMode) return;
+		const handler = (e: BeforeUnloadEvent) => {
+			if (gameEditor.isDirty) { e.preventDefault(); e.returnValue = ""; }
+		};
+		window.addEventListener("beforeunload", handler);
+		return () => window.removeEventListener("beforeunload", handler);
+	}, [isGameMode, gameEditor.isDirty]);
 
 	// Keyboard shortcuts for visual edit
 	useEffect(() => {

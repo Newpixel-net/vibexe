@@ -1410,10 +1410,12 @@ export function getVisualEditBridgeScript(): string {
         if (selectedObj && editor) {
           var delObj = selectedObj;
           var uuid = delObj.uuid;
+          var _kbDelName = delObj.name || "";
           pushUndo({ type: "delete", uuid: uuid, object: delObj });
           editor.scene.remove(delObj);
           deselectObject(); sendSceneTree();
-          window.parent.postMessage({ type: "game-editor-object-deleted", uuid: uuid }, "*");
+          window.parent.postMessage({ type: "game-editor-object-deleted", uuid: uuid, name: _kbDelName }, "*");
+          window.parent.postMessage({ type: "game-editor-scene-dirty" }, "*");
         }
         e.preventDefault(); break;
       // Arrow keys — pan camera (Shift = faster)
@@ -1726,6 +1728,7 @@ export function getVisualEditBridgeScript(): string {
     }
     if (boxHelper && selectedObj && selectedObj.uuid === uuid) boxHelper.update();
     sendSelectedObject(obj); sendSceneTree();
+    window.parent.postMessage({ type: "game-editor-scene-dirty" }, "*");
     // Persist transform/property changes to source code
     if (property.indexOf("position") === 0 || property.indexOf("rotation") === 0 || property.indexOf("scale") === 0) {
       persistTransform(obj);
@@ -1754,9 +1757,12 @@ export function getVisualEditBridgeScript(): string {
         if (editor && d.uuid) {
           var toDelete = findByUuid(editor.scene, d.uuid);
           if (toDelete) {
+            var _delName = toDelete.name || "";
             pushUndo({ type: "delete", uuid: d.uuid, object: toDelete });
             if (selectedObj && selectedObj.uuid === d.uuid) deselectObject();
             editor.scene.remove(toDelete); sendSceneTree();
+            window.parent.postMessage({ type: "game-editor-object-deleted", uuid: d.uuid, name: _delName }, "*");
+            window.parent.postMessage({ type: "game-editor-scene-dirty" }, "*");
           }
         } break;
       case "game-editor-request-tree": sendSceneTree(); break;
@@ -2130,6 +2136,7 @@ export function getVisualEditBridgeScript(): string {
             rotation: { x: +(child.rotation.x * 180 / Math.PI).toFixed(1), y: +(child.rotation.y * 180 / Math.PI).toFixed(1), z: +(child.rotation.z * 180 / Math.PI).toFixed(1) },
             scale: { x: +child.scale.x.toFixed(3), y: +child.scale.y.toFixed(3), z: +child.scale.z.toFixed(3) }
           };
+          if (child.visible === false) _tfData._visible = false;
           var _txUrl = child.userData && child.userData.vibexeArgs && child.userData.vibexeArgs.textureUrl;
           if (_txUrl) {
             _tfData._textureUrl = _txUrl;

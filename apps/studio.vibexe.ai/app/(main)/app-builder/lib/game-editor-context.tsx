@@ -324,6 +324,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const deleteObject = useCallback((uuid: string) => {
 		sendToIframe({ type: "game-editor-delete-object", uuid });
 		setSelectedObject(null);
+		setIsDirty(true);
 	}, [sendToIframe]);
 
 	const requestSceneTree = useCallback(() => {
