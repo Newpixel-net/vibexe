@@ -610,15 +610,16 @@ function updateSpawnedObjectsInSource(
               if (!child.isMesh || !child.material) return;
               var ms = Array.isArray(child.material) ? child.material : [child.material];
               var nm = ms.map(function(mat) {
-                return new THREE.MeshStandardMaterial({
+                var _mO = {
                   map: _cfgT(maps[0], true),
-                  normalMap: maps[1] ? _cfgT(maps[1], false) : undefined,
-                  roughnessMap: maps[2] ? _cfgT(maps[2], false) : undefined,
                   roughness: maps[2] ? 1.0 : 0.7,
-                  metalnessMap: maps[3] ? _cfgT(maps[3], false) : undefined,
                   metalness: maps[3] ? 1.0 : 0.0,
                   envMapIntensity: 1.0
-                });
+                };
+                if (maps[1]) _mO.normalMap = _cfgT(maps[1], false);
+                if (maps[2]) _mO.roughnessMap = _cfgT(maps[2], false);
+                if (maps[3]) _mO.metalnessMap = _cfgT(maps[3], false);
+                return new THREE.MeshStandardMaterial(_mO);
               });
               child.material = Array.isArray(child.material) ? nm : nm[0];
             };

@@ -2072,15 +2072,16 @@ if (typeof window !== "undefined") {
                     var newMats = mats.map(function(mat) {
                       if (!child.__vibexe_origMats) child.__vibexe_origMats = [];
                       child.__vibexe_origMats.push(mat);
-                      return new THREE.MeshStandardMaterial({
+                      var _mOpts = {
                         map: _configureTex(colorTex, true),
-                        normalMap: normalTex ? _configureTex(normalTex, false) : undefined,
-                        roughnessMap: roughnessTex ? _configureTex(roughnessTex, false) : undefined,
                         roughness: roughnessTex ? 1.0 : 0.7,
-                        metalnessMap: metalnessTex ? _configureTex(metalnessTex, false) : undefined,
                         metalness: metalnessTex ? 1.0 : 0.0,
                         envMapIntensity: 1.0
-                      });
+                      };
+                      if (normalTex) _mOpts.normalMap = _configureTex(normalTex, false);
+                      if (roughnessTex) _mOpts.roughnessMap = _configureTex(roughnessTex, false);
+                      if (metalnessTex) _mOpts.metalnessMap = _configureTex(metalnessTex, false);
+                      return new THREE.MeshStandardMaterial(_mOpts);
                     });
                     child.material = Array.isArray(child.material) ? newMats : newMats[0];
                   };

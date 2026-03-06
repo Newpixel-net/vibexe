@@ -3901,16 +3901,16 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                     // Store original material for restoration
                     if (!child.__vibexe_origMats) child.__vibexe_origMats = [];
                     child.__vibexe_origMats.push(mat);
-                    const pbrMat = new THREE.MeshStandardMaterial({
+                    const _matOpts: any = {
                       map: _configureTex(colorTex, true),
-                      normalMap: normalTex ? _configureTex(normalTex, false) : undefined,
-                      roughnessMap: roughnessTex ? _configureTex(roughnessTex, false) : undefined,
                       roughness: roughnessTex ? 1.0 : 0.7,
-                      metalnessMap: metalnessTex ? _configureTex(metalnessTex, false) : undefined,
                       metalness: metalnessTex ? 1.0 : 0.0,
                       envMapIntensity: 1.0,
-                    });
-                    return pbrMat;
+                    };
+                    if (normalTex) _matOpts.normalMap = _configureTex(normalTex, false);
+                    if (roughnessTex) _matOpts.roughnessMap = _configureTex(roughnessTex, false);
+                    if (metalnessTex) _matOpts.metalnessMap = _configureTex(metalnessTex, false);
+                    return new THREE.MeshStandardMaterial(_matOpts);
                   });
                   child.material = Array.isArray(child.material) ? newMats : newMats[0];
                 };
