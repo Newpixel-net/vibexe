@@ -1834,6 +1834,116 @@ export function getVisualEditBridgeScript(): string {
         var fakeEvent = { key: d.key, ctrlKey: !!d.ctrlKey, metaKey: !!d.metaKey, target: { tagName: "BODY" }, preventDefault: function() {} };
         onKeyDown(fakeEvent);
         break;
+      case "game-editor-apply-texture": {
+        if (!editor || !editor.scene || !d.uuid || !d.textureUrl) break;
+        var _atObj = findByUuid(editor.scene, d.uuid);
+        if (!_atObj) break;
+        var _THREE = window.THREE;
+        if (!_THREE) break;
+        var _atUrl = d.textureUrl;
+        var _atTileX = d.tileX || 1;
+        var _atTileY = d.tileY || 1;
+        var _atPBR = !!d.hasPBR;
+        var _atResolved = _atUrl;
+        if (_atUrl.charAt(0) === '/') {
+          _atResolved = (window.__VIBEXE_API_ORIGIN__ || '') + _atUrl;
+        }
+        // Store in userData immediately so collect picks it up
+        if (!_atObj.userData) _atObj.userData = {};
+        if (!_atObj.userData.vibexeArgs) _atObj.userData.vibexeArgs = {};
+        _atObj.userData.vibexeArgs.textureUrl = _atUrl;
+        _atObj.userData.vibexeArgs.textureTileX = _atTileX;
+        _atObj.userData.vibexeArgs.textureTileY = _atTileY;
+        _atObj.userData.vibexeArgs.textureRotation = 0;
+        _atObj.userData.vibexeArgs.textureOffsetX = 0;
+        _atObj.userData.vibexeArgs.textureOffsetY = 0;
+        if (_atPBR) _atObj.userData.vibexeArgs.hasPBR = true;
+        else delete _atObj.userData.vibexeArgs.hasPBR;
+        // Load and apply texture
+        var _atLoader = new _THREE.TextureLoader();
+        _atLoader.load(_atResolved, function(colorTex) {
+          colorTex.wrapS = _THREE.RepeatWrapping;
+          colorTex.wrapT = _THREE.RepeatWrapping;
+          colorTex.repeat.set(_atTileX, _atTileY);
+          colorTex.anisotropy = 4;
+          if (_THREE.SRGBColorSpace) colorTex.colorSpace = _THREE.SRGBColorSpace;
+          else if (_THREE.sRGBEncoding) colorTex.encoding = _THREE.sRGBEncoding;
+          _atObj.traverse(function(m) {
+            if (!m.isMesh || !m.material) return;
+            if (_atPBR) {
+              m.material = new _THREE.MeshStandardMaterial({ map: colorTex, roughness: 0.7, metalness: 0.0 });
+            } else {
+              m.material.map = colorTex;
+            }
+            m.material.needsUpdate = true;
+          });
+          // Load PBR maps
+          if (_atPBR) {
+            var _bne = _atResolved.replace(/\.[^.]+$/, '');
+            var _ext = (_atResolved.match(/\.[^.]+$/) || ['.jpg'])[0];
+            var _loadMap = function(suffix, applier) {
+              _atLoader.load(_bne + suffix + _ext, function(t) {
+                t.wrapS = _THREE.RepeatWrapping; t.wrapT = _THREE.RepeatWrapping;
+                t.repeat.set(_atTileX, _atTileY);
+                _atObj.traverse(function(m) { if (m.isMesh && m.material) { applier(m.material, t); m.material.needsUpdate = true; } });
+              }, undefined, function() {});
+            };
+            _loadMap('_Normal', function(mat, t) { mat.normalMap = t; });
+            _loadMap('_Roughness', function(mat, t) { mat.roughnessMap = t; });
+            _loadMap('_Metalness', function(mat, t) { mat.metalnessMap = t; mat.metalness = 1.0; });
+          }
+          console.log("[GameEditorBridge] Texture applied:", _atUrl, "PBR:", _atPBR);
+          sendSelectedObject(_atObj);
+        }, undefined, function() {
+          console.warn("[GameEditorBridge] Texture load failed:", _atUrl);
+        });
+        sendSelectedObject(_atObj);
+        break;
+      }
+      case "game-editor-remove-texture": {
+        if (!editor || !editor.scene || !d.uuid) break;
+        var _rtObj = findByUuid(editor.scene, d.uuid);
+        if (!_rtObj) break;
+        var _RT = window.THREE;
+        if (!_RT) break;
+        if (_rtObj.userData && _rtObj.userData.vibexeArgs) {
+          delete _rtObj.userData.vibexeArgs.textureUrl;
+          delete _rtObj.userData.vibexeArgs.textureTileX;
+          delete _rtObj.userData.vibexeArgs.textureTileY;
+          delete _rtObj.userData.vibexeArgs.textureRotation;
+          delete _rtObj.userData.vibexeArgs.textureOffsetX;
+          delete _rtObj.userData.vibexeArgs.textureOffsetY;
+          delete _rtObj.userData.vibexeArgs.hasPBR;
+        }
+        _rtObj.traverse(function(m) {
+          if (!m.isMesh) return;
+          var c = m.material && m.material.color ? m.material.color.getHex() : 0xffffff;
+          m.material = new _RT.MeshPhongMaterial({ color: c });
+          m.material.needsUpdate = true;
+        });
+        console.log("[GameEditorBridge] Texture removed from:", _rtObj.name);
+        sendSelectedObject(_rtObj);
+        break;
+      }
+      case "game-editor-update-tiling": {
+        if (!editor || !editor.scene || !d.uuid) break;
+        var _utObj = findByUuid(editor.scene, d.uuid);
+        if (!_utObj) break;
+        var _utX = d.tileX || 1;
+        var _utY = d.tileY || 1;
+        if (_utObj.userData && _utObj.userData.vibexeArgs) {
+          _utObj.userData.vibexeArgs.textureTileX = _utX;
+          _utObj.userData.vibexeArgs.textureTileY = _utY;
+        }
+        _utObj.traverse(function(m) {
+          if (!m.isMesh || !m.material) return;
+          if (m.material.map) m.material.map.repeat.set(_utX, _utY);
+          if (m.material.normalMap) m.material.normalMap.repeat.set(_utX, _utY);
+          if (m.material.roughnessMap) m.material.roughnessMap.repeat.set(_utX, _utY);
+          if (m.material.metalnessMap) m.material.metalnessMap.repeat.set(_utX, _utY);
+        });
+        break;
+      }
       case "game-editor-collect-all-transforms":
         // Collect transforms of ONLY factory-created game objects for batch save
         // CRITICAL: Must NOT collect bones, GLTF internals, gizmo parts, or generic "Scene" objects
