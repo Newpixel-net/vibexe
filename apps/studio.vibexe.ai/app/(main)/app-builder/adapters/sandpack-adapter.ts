@@ -2037,6 +2037,20 @@ if (typeof window !== "undefined") {
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
             renderer.toneMappingExposure = 1.2;
             pmrem.dispose(); _skyG.dispose(); _gndG.dispose(); _pG.dispose();
+            var _hdriUrl = (window.__VIBEXE_API_ORIGIN__ || "") + "/api/app-builder/media-stock-3d/textures/env_studio.jpg";
+            new THREE.TextureLoader().load(_hdriUrl, function(hdriTex) {
+              hdriTex.mapping = THREE.EquirectangularReflectionMapping;
+              var pmrem2 = new THREE.PMREMGenerator(renderer);
+              scene.environment = pmrem2.fromEquirectangular(hdriTex).texture;
+              pmrem2.dispose(); hdriTex.dispose();
+            }, undefined, function() {});
+            if (!scene.getObjectByName("__pbr_key__")) {
+              var pbrKey = new THREE.DirectionalLight(0xFFFBF0, 1.5);
+              pbrKey.name = "__pbr_key__";
+              pbrKey.position.set(15, 30, -10);
+              pbrKey.castShadow = false;
+              scene.add(pbrKey);
+            }
           }
           function _applyTextureToMesh(obj, textureUrl, tileX, tileY, rotation, offsetX, offsetY, hasPBR) {
             var _resolvedUrl = textureUrl;
@@ -2063,6 +2077,16 @@ if (typeof window !== "undefined") {
               var _normalUrl = _baseNoExt + "_Normal" + _ext;
               var _roughnessUrl = _baseNoExt + "_Roughness" + _ext;
               var _metalnessUrl = _baseNoExt + "_Metalness" + _ext;
+              var _aoUrl = _baseNoExt + "_AO" + _ext;
+              var _fname = _resolvedUrl.split("/").pop() || "";
+              var _nScale = 1.0;
+              if (/^Metal/i.test(_fname)) _nScale = 0.8;
+              else if (/^Brick/i.test(_fname)) _nScale = 1.5;
+              else if (/^Rock|^Paving/i.test(_fname)) _nScale = 1.2;
+              else if (/^Wood|^WoodFloor|^Planks/i.test(_fname)) _nScale = 0.6;
+              else if (/^Concrete|^Plaster/i.test(_fname)) _nScale = 0.8;
+              else if (/^Fabric|^Leather|^Carpet/i.test(_fname)) _nScale = 0.5;
+              else if (/^Marble|^Granite|^Onyx|^Travertine/i.test(_fname)) _nScale = 0.7;
               var _configureTex = function(tex, isSRGB) {
                 var t = tex.clone(); t.needsUpdate = true;
                 t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
@@ -2078,9 +2102,9 @@ if (typeof window !== "undefined") {
                   new THREE.TextureLoader().load(url, function(tex) { _textureCache[url] = tex; resolve(tex); }, undefined, function() { _textureCache[url] = null; resolve(null); });
                 });
               };
-              Promise.all([_loadTex(_resolvedUrl), _loadTex(_normalUrl), _loadTex(_roughnessUrl), _loadTex(_metalnessUrl)])
+              Promise.all([_loadTex(_resolvedUrl), _loadTex(_normalUrl), _loadTex(_roughnessUrl), _loadTex(_metalnessUrl), _loadTex(_aoUrl)])
                 .then(function(maps) {
-                  var colorTex = maps[0], normalTex = maps[1], roughnessTex = maps[2], metalnessTex = maps[3];
+                  var colorTex = maps[0], normalTex = maps[1], roughnessTex = maps[2], metalnessTex = maps[3], aoTex = maps[4];
                   if (!colorTex) return;
                   var applyPBR = function(child) {
                     if (!child.isMesh || !child.material) return;
@@ -2094,10 +2118,15 @@ if (typeof window !== "undefined") {
                         metalness: metalnessTex ? 1.0 : 0.0,
                         envMapIntensity: metalnessTex ? 2.0 : 1.0
                       };
-                      if (normalTex) _mOpts.normalMap = _configureTex(normalTex, false);
+                      if (normalTex) { _mOpts.normalMap = _configureTex(normalTex, false); _mOpts.normalScale = new THREE.Vector2(_nScale, _nScale); }
                       if (roughnessTex) _mOpts.roughnessMap = _configureTex(roughnessTex, false);
                       if (metalnessTex) _mOpts.metalnessMap = _configureTex(metalnessTex, false);
-                      return new THREE.MeshStandardMaterial(_mOpts);
+                      if (aoTex) { _mOpts.aoMap = _configureTex(aoTex, false); _mOpts.aoMapIntensity = 1.0; }
+                      var stdMat = new THREE.MeshStandardMaterial(_mOpts);
+                      if (aoTex && child.geometry && child.geometry.attributes.uv && !child.geometry.attributes.uv2) {
+                        child.geometry.setAttribute("uv2", child.geometry.attributes.uv);
+                      }
+                      return stdMat;
                     });
                     child.material = Array.isArray(child.material) ? newMats : newMats[0];
                   };

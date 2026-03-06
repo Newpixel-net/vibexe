@@ -603,6 +603,20 @@ function updateSpawnedObjectsInSource(
       _r.toneMappingExposure = 1.2;
       window.__vibexePbrEnvDone = true;
       pmrem.dispose(); _skyG.dispose(); _gndG.dispose(); _pG.dispose();
+      var _hdriUrl = (window.__VIBEXE_API_ORIGIN__ || "") + "/api/app-builder/media-stock-3d/textures/env_studio.jpg";
+      new THREE.TextureLoader().load(_hdriUrl, function(hdriTex) {
+        hdriTex.mapping = THREE.EquirectangularReflectionMapping;
+        var pmrem2 = new THREE.PMREMGenerator(_r);
+        _s.environment = pmrem2.fromEquirectangular(hdriTex).texture;
+        pmrem2.dispose(); hdriTex.dispose();
+      }, undefined, function() {});
+      if (!_s.getObjectByName("__pbr_key__")) {
+        var pbrKey = new THREE.DirectionalLight(0xFFFBF0, 1.5);
+        pbrKey.name = "__pbr_key__";
+        pbrKey.position.set(15, 30, -10);
+        pbrKey.castShadow = false;
+        _s.add(pbrKey);
+      }
     }
     function _applyTex(obj, url, tx, ty, rot, ox, oy, hasPBR) {
       var _rUrl = url.charAt(0) === "/" ? (window.__VIBEXE_API_ORIGIN__ || "") + url : url;
@@ -613,6 +627,15 @@ function updateSpawnedObjectsInSource(
         _ensurePbrEnv();
         var _baseNoExt = _rUrl.replace(/\\.[^.]+$/, "");
         var _ext = (_rUrl.match(/\\.[^.]+$/) || [".jpg"])[0];
+        var _fname = _rUrl.split("/").pop() || "";
+        var _nScale = 1.0;
+        if (/^Metal/i.test(_fname)) _nScale = 0.8;
+        else if (/^Brick/i.test(_fname)) _nScale = 1.5;
+        else if (/^Rock|^Paving/i.test(_fname)) _nScale = 1.2;
+        else if (/^Wood|^WoodFloor|^Planks/i.test(_fname)) _nScale = 0.6;
+        else if (/^Concrete|^Plaster/i.test(_fname)) _nScale = 0.8;
+        else if (/^Fabric|^Leather|^Carpet/i.test(_fname)) _nScale = 0.5;
+        else if (/^Marble|^Granite|^Onyx|^Travertine/i.test(_fname)) _nScale = 0.7;
         var _loadT = function(u) { return new Promise(function(res) { new THREE.TextureLoader().load(u, function(t) { res(t); }, undefined, function() { res(null); }); }); };
         var _cfgT = function(t, srgb) {
           var c = t.clone(); c.needsUpdate = true;
@@ -623,7 +646,7 @@ function updateSpawnedObjectsInSource(
           if (srgb && THREE.sRGBEncoding) c.encoding = THREE.sRGBEncoding;
           return c;
         };
-        Promise.all([_loadT(_rUrl), _loadT(_baseNoExt + "_Normal" + _ext), _loadT(_baseNoExt + "_Roughness" + _ext), _loadT(_baseNoExt + "_Metalness" + _ext)])
+        Promise.all([_loadT(_rUrl), _loadT(_baseNoExt + "_Normal" + _ext), _loadT(_baseNoExt + "_Roughness" + _ext), _loadT(_baseNoExt + "_Metalness" + _ext), _loadT(_baseNoExt + "_AO" + _ext)])
           .then(function(maps) {
             if (!maps[0]) return;
             var applyPBR = function(child) {
@@ -636,10 +659,15 @@ function updateSpawnedObjectsInSource(
                   metalness: maps[3] ? 1.0 : 0.0,
                   envMapIntensity: maps[3] ? 2.0 : 1.0
                 };
-                if (maps[1]) _mO.normalMap = _cfgT(maps[1], false);
+                if (maps[1]) { _mO.normalMap = _cfgT(maps[1], false); _mO.normalScale = new THREE.Vector2(_nScale, _nScale); }
                 if (maps[2]) _mO.roughnessMap = _cfgT(maps[2], false);
                 if (maps[3]) _mO.metalnessMap = _cfgT(maps[3], false);
-                return new THREE.MeshStandardMaterial(_mO);
+                if (maps[4]) { _mO.aoMap = _cfgT(maps[4], false); _mO.aoMapIntensity = 1.0; }
+                var stdMat = new THREE.MeshStandardMaterial(_mO);
+                if (maps[4] && child.geometry && child.geometry.attributes.uv && !child.geometry.attributes.uv2) {
+                  child.geometry.setAttribute("uv2", child.geometry.attributes.uv);
+                }
+                return stdMat;
               });
               child.material = Array.isArray(child.material) ? nm : nm[0];
               if (maps[3]) nm.forEach(function(m) { m.envMapIntensity = 2.0; });

@@ -3819,32 +3819,48 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             _envMapGenerated = true;
             const pmrem = new THREE.PMREMGenerator(renderer);
             pmrem.compileEquirectangularShader();
+            // Instant procedural env (fallback — zero flicker)
             const envScene = new THREE.Scene();
-            // Sky dome — HDR bright for visible reflections on metals
             const _skyGeo = new THREE.SphereGeometry(50, 32, 16);
             envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(2.0, 2.1, 2.5), side: THREE.BackSide })));
-            // Ground hemisphere — dark for contrast
             const _gndGeo = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
             envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.1, 0.1, 0.12), side: THREE.BackSide })));
-            // HDR Studio soft-box panels — values >> 1.0 for bright specular highlights
             const _pGeo = new THREE.PlaneGeometry(8, 8);
             const _addPanel = (x: number, y: number, z: number, r: number, g: number, b: number, sx: number, sy: number) => {
               const p = new THREE.Mesh(_pGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide }));
               p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
               envScene.add(p);
             };
-            _addPanel(0, 45, -5, 20, 20, 18, 4, 4);       // Overhead — massive bright
-            _addPanel(20, 25, -15, 15, 14, 12, 3, 2.5);    // Key light — big bright white
-            _addPanel(-25, 20, -10, 5, 7, 10, 2.5, 2);     // Fill — cool blue
-            _addPanel(5, 30, 10, 10, 8, 5, 2, 1.5);        // Back/rim — warm
-            _addPanel(0, -10, 0, 3, 3, 4, 5, 5);           // Floor bounce
-            _addPanel(30, 5, 15, 6, 6, 8, 2, 2);           // Side accent
-            _addPanel(-30, 10, 15, 4, 5, 7, 2, 2);         // Side fill
+            _addPanel(0, 45, -5, 20, 20, 18, 4, 4);
+            _addPanel(20, 25, -15, 15, 14, 12, 3, 2.5);
+            _addPanel(-25, 20, -10, 5, 7, 10, 2.5, 2);
+            _addPanel(5, 30, 10, 10, 8, 5, 2, 1.5);
+            _addPanel(0, -10, 0, 3, 3, 4, 5, 5);
+            _addPanel(30, 5, 15, 6, 6, 8, 2, 2);
+            _addPanel(-30, 10, 15, 4, 5, 7, 2, 2);
             scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
-            // Enable tone mapping for HDR-quality PBR
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
             renderer.toneMappingExposure = 1.2;
             pmrem.dispose(); _skyGeo.dispose(); _gndGeo.dispose(); _pGeo.dispose();
+
+            // Async HDRI upgrade — real equirectangular for detailed reflections
+            const _hdriUrl = ((window as any).__VIBEXE_API_ORIGIN__ || "") + "/api/app-builder/media-stock-3d/textures/env_studio.jpg";
+            new THREE.TextureLoader().load(_hdriUrl, (hdriTex: any) => {
+              hdriTex.mapping = THREE.EquirectangularReflectionMapping;
+              const pmrem2 = new THREE.PMREMGenerator(renderer);
+              scene.environment = pmrem2.fromEquirectangular(hdriTex).texture;
+              pmrem2.dispose();
+              hdriTex.dispose();
+            }, undefined, () => { /* 404 = keep procedural fallback */ });
+
+            // PBR key light — strong specular highlights on metals
+            if (!scene.getObjectByName("__pbr_key__")) {
+              const pbrKey = new THREE.DirectionalLight(0xFFFBF0, 1.5);
+              pbrKey.name = "__pbr_key__";
+              pbrKey.position.set(15, 30, -10);
+              pbrKey.castShadow = false;
+              scene.add(pbrKey);
+            }
           }
 
           // ---- Texture helpers ----
@@ -3876,12 +3892,24 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             // === PBR path ===
             if (hasPBR) {
               _ensureEnvironmentMap();
-              // Derive PBR map URLs from base filename (e.g. Metal049A.jpg → Metal049A_Normal.jpg)
               const _baseNoExt = _resolvedUrl.replace(/\.[^.]+$/, "");
               const _ext = _resolvedUrl.match(/\.[^.]+$/)?.[0] || ".jpg";
               const _normalUrl = _baseNoExt + "_Normal" + _ext;
               const _roughnessUrl = _baseNoExt + "_Roughness" + _ext;
               const _metalnessUrl = _baseNoExt + "_Metalness" + _ext;
+              const _aoUrl = _baseNoExt + "_AO" + _ext;
+
+              // Category-based normalScale from filename
+              const _fname = _resolvedUrl.split("/").pop() || "";
+              let _normalScale = 1.0;
+              if (/^Metal/i.test(_fname)) _normalScale = 0.8;
+              else if (/^Brick/i.test(_fname)) _normalScale = 1.5;
+              else if (/^Rock|^Paving/i.test(_fname)) _normalScale = 1.2;
+              else if (/^Wood|^WoodFloor|^Planks/i.test(_fname)) _normalScale = 0.6;
+              else if (/^Concrete|^Plaster/i.test(_fname)) _normalScale = 0.8;
+              else if (/^Fabric|^Leather|^Carpet/i.test(_fname)) _normalScale = 0.5;
+              else if (/^Marble|^Granite|^Onyx|^Travertine/i.test(_fname)) _normalScale = 0.7;
+              else if (/^Asphalt|^Road/i.test(_fname)) _normalScale = 1.0;
 
               const _configureTex = (tex: any, isSRGB: boolean) => {
                 const t = tex.clone();
@@ -3903,7 +3931,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   new THREE.TextureLoader().load(url, (tex: any) => {
                     _textureCache[url] = tex;
                     resolve(tex);
-                  }, undefined, () => { _textureCache[url] = null; resolve(null); }); // 404 → cache null
+                  }, undefined, () => { _textureCache[url] = null; resolve(null); });
                 });
               };
 
@@ -3912,13 +3940,13 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 _loadTex(_normalUrl),
                 _loadTex(_roughnessUrl),
                 _loadTex(_metalnessUrl),
-              ]).then(([colorTex, normalTex, roughnessTex, metalnessTex]: any[]) => {
+                _loadTex(_aoUrl),
+              ]).then(([colorTex, normalTex, roughnessTex, metalnessTex, aoTex]: any[]) => {
                 if (!colorTex) return;
                 const applyPBR = (child: any) => {
                   if (!child.isMesh || !child.material) return;
                   const mats = Array.isArray(child.material) ? child.material : [child.material];
                   const newMats = mats.map((mat: any) => {
-                    // Store original material for restoration
                     if (!child.__vibexe_origMats) child.__vibexe_origMats = [];
                     child.__vibexe_origMats.push(mat);
                     const _matOpts: any = {
@@ -3927,10 +3955,22 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                       metalness: metalnessTex ? 1.0 : 0.0,
                       envMapIntensity: metalnessTex ? 2.0 : 1.0,
                     };
-                    if (normalTex) _matOpts.normalMap = _configureTex(normalTex, false);
+                    if (normalTex) {
+                      _matOpts.normalMap = _configureTex(normalTex, false);
+                      _matOpts.normalScale = new THREE.Vector2(_normalScale, _normalScale);
+                    }
                     if (roughnessTex) _matOpts.roughnessMap = _configureTex(roughnessTex, false);
                     if (metalnessTex) _matOpts.metalnessMap = _configureTex(metalnessTex, false);
-                    return new THREE.MeshStandardMaterial(_matOpts);
+                    if (aoTex) {
+                      _matOpts.aoMap = _configureTex(aoTex, false);
+                      _matOpts.aoMapIntensity = 1.0;
+                    }
+                    const stdMat = new THREE.MeshStandardMaterial(_matOpts);
+                    // AO requires uv2 attribute
+                    if (aoTex && child.geometry && child.geometry.attributes.uv && !child.geometry.attributes.uv2) {
+                      child.geometry.setAttribute("uv2", child.geometry.attributes.uv);
+                    }
+                    return stdMat;
                   });
                   child.material = Array.isArray(child.material) ? newMats : newMats[0];
                 };
