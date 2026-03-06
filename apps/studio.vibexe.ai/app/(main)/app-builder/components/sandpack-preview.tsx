@@ -526,29 +526,31 @@ if (typeof window !== 'undefined') {
                 else { if (THREE.LinearSRGBColorSpace) tex.colorSpace=THREE.LinearSRGBColorSpace; else if (THREE.LinearEncoding) tex.encoding=THREE.LinearEncoding; }
                 return tex;
               };
-              var _loadT = function(url, cb) { _ldr.load(url, cb, undefined, function(){ cb(null); }); };
+              var _loadT = function(url, cb) { if(!url){cb(null);return;} _ldr.load(url, cb, undefined, function(){ cb(null); }); };
               if (_pbr) {
                 var _b = _tu.replace(/\\.[^.]+$/,''), _e = (_tu.match(/\\.[^.]+$/)||['.jpg'])[0];
                 var _fn = _tu.split('/').pop()||'';
+                var _isM = /^Metal|^CorrugatedSteel|^DiamondPlate|^PaintedMetal/i.test(_fn);
                 var _ns = 1.0;
-                if (/^Metal/i.test(_fn)) _ns=0.8; else if (/^Brick/i.test(_fn)) _ns=1.5;
+                if (_isM) _ns=0.8; else if (/^Brick/i.test(_fn)) _ns=1.5;
                 else if (/^Rock|^Paving/i.test(_fn)) _ns=1.2; else if (/^Wood|^WoodFloor|^Planks/i.test(_fn)) _ns=0.6;
                 else if (/^Concrete|^Plaster/i.test(_fn)) _ns=0.8; else if (/^Fabric|^Leather|^Carpet/i.test(_fn)) _ns=0.5;
                 else if (/^Marble|^Granite|^Onyx|^Travertine/i.test(_fn)) _ns=0.7;
-                var _urls = [_tu, _b+'_Normal'+_e, _b+'_Roughness'+_e, _b+'_Metalness'+_e, _b+'_AO'+_e];
+                var _urls = [_tu, _b+'_Normal'+_e, _b+'_Roughness'+_e, _isM?_b+'_Metalness'+_e:'', _b+'_AO'+_e];
                 var _cnt=0, _res=[null,null,null,null,null];
                 for (var _qi=0; _qi<5; _qi++) { (function(idx){ _loadT(_urls[idx], function(tex){ _res[idx]=tex; _cnt++; if(_cnt===5){
                   var cT=_res[0],nT=_res[1],rT=_res[2],mT=_res[3],aT=_res[4];
                   if(!cT) return;
+                  var _mVal=_isM?0.9:0.0, _eI=_isM?1.0:0.4;
                   _obj.traverse(function(m){ if(!m.isMesh||!m.material) return;
-                    var mo={map:_cfgTex(cT.clone(),true),roughness:rT?1.0:0.7,metalness:mT?1.0:0.0,envMapIntensity:mT?2.0:1.0,side:THREE.DoubleSide};
+                    var mo={map:_cfgTex(cT.clone(),true),roughness:rT?1.0:0.5,metalness:_mVal,envMapIntensity:_eI,side:THREE.DoubleSide};
                     if(nT){mo.normalMap=_cfgTex(nT.clone(),false);mo.normalScale=new THREE.Vector2(_ns,_ns);}
                     if(rT) mo.roughnessMap=_cfgTex(rT.clone(),false);
-                    if(mT) mo.metalnessMap=_cfgTex(mT.clone(),false);
+                    if(mT&&_isM) mo.metalnessMap=_cfgTex(mT.clone(),false);
                     if(aT){mo.aoMap=_cfgTex(aT.clone(),false);mo.aoMapIntensity=1.0;if(m.geometry&&m.geometry.attributes.uv&&!m.geometry.attributes.uv2)m.geometry.setAttribute('uv2',m.geometry.attributes.uv);}
                     m.material=new THREE.MeshStandardMaterial(mo);m.material.needsUpdate=true;
                   });
-                  console.log('[SCENE_EDITOR] PBR applied:',_ti[0],'metalness:',mT?1:0);
+                  console.log('[SCENE_EDITOR] PBR applied:',_ti[0],'isMetal:',_isM,'metalness:',_mVal);
                 }}); })(_qi); }
               } else {
                 _loadT(_tu, function(cTex) {
@@ -1219,7 +1221,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=39`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=40`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);

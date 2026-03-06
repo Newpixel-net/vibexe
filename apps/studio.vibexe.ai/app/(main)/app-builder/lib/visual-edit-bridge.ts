@@ -531,28 +531,35 @@ export function getVisualEditBridgeScript(): string {
     if (!T || !editor || !editor.scene || !editor.renderer) return;
     var pmrem = new T.PMREMGenerator(editor.renderer);
     pmrem.compileEquirectangularShader();
-    // Instant procedural env (fallback — zero flicker)
+    // Bright studio procedural env (fallback — zero flicker)
     var envScene = new T.Scene();
     var skyGeo = new T.SphereGeometry(50, 32, 16);
-    envScene.add(new T.Mesh(skyGeo, new T.MeshBasicMaterial({ color: new T.Color(2.0, 2.1, 2.5), side: T.BackSide })));
+    envScene.add(new T.Mesh(skyGeo, new T.MeshBasicMaterial({ color: new T.Color(3.0, 3.2, 3.5), side: T.BackSide })));
+    // Ground hemisphere BRIGHT (was 0.1 → dark mirror on metals)
     var gndGeo = new T.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-    envScene.add(new T.Mesh(gndGeo, new T.MeshBasicMaterial({ color: new T.Color(0.1, 0.1, 0.12), side: T.BackSide })));
+    envScene.add(new T.Mesh(gndGeo, new T.MeshBasicMaterial({ color: new T.Color(1.2, 1.2, 1.3), side: T.BackSide })));
     var pGeo = new T.PlaneGeometry(8, 8);
     var _addP = function(x, y, z, r, g, b, sx, sy) {
       var p = new T.Mesh(pGeo, new T.MeshBasicMaterial({ color: new T.Color(r, g, b), side: T.DoubleSide }));
       p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
       envScene.add(p);
     };
-    _addP(0, 45, -5, 20, 20, 18, 4, 4);
-    _addP(20, 25, -15, 15, 14, 12, 3, 2.5);
-    _addP(-25, 20, -10, 5, 7, 10, 2.5, 2);
-    _addP(5, 30, 10, 10, 8, 5, 2, 1.5);
-    _addP(0, -10, 0, 3, 3, 4, 5, 5);
-    _addP(30, 5, 15, 6, 6, 8, 2, 2);
-    _addP(-30, 10, 15, 4, 5, 7, 2, 2);
+    // Key light (top-front, very bright)
+    _addP(0, 45, -5, 25, 25, 22, 5, 5);
+    // Fill lights (sides + back, bright)
+    _addP(25, 20, -15, 12, 11, 10, 3, 3);
+    _addP(-25, 20, -10, 8, 9, 12, 3, 3);
+    _addP(5, 35, 15, 10, 9, 8, 3, 2.5);
+    // Bottom fill (CRITICAL: prevents dark underside on metals)
+    _addP(0, -15, 0, 6, 6, 7, 8, 8);
+    // Side fills
+    _addP(35, 5, 15, 5, 5, 7, 2.5, 2.5);
+    _addP(-35, 10, 15, 5, 6, 8, 2.5, 2.5);
+    // Back fill
+    _addP(0, 15, 30, 4, 4, 5, 4, 3);
     editor.scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
     editor.renderer.toneMapping = 4; // ACESFilmicToneMapping
-    editor.renderer.toneMappingExposure = 1.2;
+    editor.renderer.toneMappingExposure = 1.5;
     pmrem.dispose(); skyGeo.dispose(); gndGeo.dispose(); pGeo.dispose();
     // Async HDRI upgrade
     var _hdriUrl = (window.__VIBEXE_API_ORIGIN__ || '') + '/api/app-builder/media-stock-3d/textures/env_studio.jpg';
@@ -1928,35 +1935,40 @@ export function getVisualEditBridgeScript(): string {
           return tex;
         };
         var _atLoadTex = function(url, cb) {
+          if (!url) { cb(null); return; }
           _atLoader.load(url, cb, undefined, function() { cb(null); });
         };
         if (_atPBR) {
           _ensurePBREnv();
           var _bne = _atResolved.replace(/\.[^.]+$/, '');
           var _ext = (_atResolved.match(/\.[^.]+$/) || ['.jpg'])[0];
-          // Category-based normalScale from filename
+          // Category-based metalness + normalScale from filename
           var _fname = _atResolved.split('/').pop() || '';
+          var _isMetal = /^Metal|^CorrugatedSteel|^DiamondPlate|^PaintedMetal/i.test(_fname);
           var _nScale = 1.0;
-          if (/^Metal/i.test(_fname)) _nScale = 0.8;
+          if (_isMetal) _nScale = 0.8;
           else if (/^Brick/i.test(_fname)) _nScale = 1.5;
           else if (/^Rock|^Paving/i.test(_fname)) _nScale = 1.2;
           else if (/^Wood|^WoodFloor|^Planks/i.test(_fname)) _nScale = 0.6;
           else if (/^Concrete|^Plaster/i.test(_fname)) _nScale = 0.8;
           else if (/^Fabric|^Leather|^Carpet/i.test(_fname)) _nScale = 0.5;
           else if (/^Marble|^Granite|^Onyx|^Travertine/i.test(_fname)) _nScale = 0.7;
-          // Promise.all for all PBR maps (matches engine pattern)
+          // Promise.all for PBR maps (skip metalness for non-metals to avoid mirror effect)
           var _pbrLoaded = 0, _pbrTotal = 5, _pbrResults = [null,null,null,null,null];
-          var _pbrUrls = [_atResolved, _bne+'_Normal'+_ext, _bne+'_Roughness'+_ext, _bne+'_Metalness'+_ext, _bne+'_AO'+_ext];
+          var _pbrUrls = [_atResolved, _bne+'_Normal'+_ext, _bne+'_Roughness'+_ext, _isMetal ? _bne+'_Metalness'+_ext : '', _bne+'_AO'+_ext];
           var _pbrApply = function() {
             var colorTex = _pbrResults[0], normalTex = _pbrResults[1], roughnessTex = _pbrResults[2], metalnessTex = _pbrResults[3], aoTex = _pbrResults[4];
             if (!colorTex) return;
+            // Category-based metalness: only Metal* textures are truly metallic
+            var _metalVal = _isMetal ? 0.9 : 0.0;
+            var _envIntensity = _isMetal ? 1.0 : 0.4;
             _atObj.traverse(function(m) {
               if (!m.isMesh || !m.material) return;
               var _matOpts = {
                 map: _atCfg(colorTex.clone(), true),
-                roughness: roughnessTex ? 1.0 : 0.7,
-                metalness: metalnessTex ? 1.0 : 0.0,
-                envMapIntensity: metalnessTex ? 2.0 : 1.0,
+                roughness: roughnessTex ? 1.0 : 0.5,
+                metalness: _metalVal,
+                envMapIntensity: _envIntensity,
                 side: _THREE.DoubleSide
               };
               if (editor && editor.scene && editor.scene.environment) _matOpts.envMap = editor.scene.environment;
@@ -1965,7 +1977,7 @@ export function getVisualEditBridgeScript(): string {
                 _matOpts.normalScale = new _THREE.Vector2(_nScale, _nScale);
               }
               if (roughnessTex) _matOpts.roughnessMap = _atCfg(roughnessTex.clone(), false);
-              if (metalnessTex) _matOpts.metalnessMap = _atCfg(metalnessTex.clone(), false);
+              if (metalnessTex && _isMetal) _matOpts.metalnessMap = _atCfg(metalnessTex.clone(), false);
               if (aoTex) {
                 _matOpts.aoMap = _atCfg(aoTex.clone(), false);
                 _matOpts.aoMapIntensity = 1.0;
@@ -1976,7 +1988,7 @@ export function getVisualEditBridgeScript(): string {
               m.material = new _THREE.MeshStandardMaterial(_matOpts);
               m.material.needsUpdate = true;
             });
-            console.log("[GameEditorBridge] PBR texture applied:", _atUrl, "metalness:", metalnessTex ? 1.0 : 0.0, "envMapIntensity:", metalnessTex ? 2.0 : 1.0, "normalScale:", _nScale);
+            console.log("[GameEditorBridge] PBR texture applied:", _atUrl, "isMetal:", _isMetal, "metalness:", _metalVal, "envMapIntensity:", _envIntensity, "normalScale:", _nScale);
             sendSelectedObject(_atObj);
           };
           for (var _pi = 0; _pi < _pbrTotal; _pi++) {

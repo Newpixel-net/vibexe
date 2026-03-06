@@ -3897,25 +3897,32 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             // Instant procedural env (fallback — zero flicker)
             const envScene = new THREE.Scene();
             const _skyGeo = new THREE.SphereGeometry(50, 32, 16);
-            envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(2.0, 2.1, 2.5), side: THREE.BackSide })));
+            envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(3.0, 3.2, 3.5), side: THREE.BackSide })));
             const _gndGeo = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-            envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.1, 0.1, 0.12), side: THREE.BackSide })));
+            // Ground hemisphere BRIGHT (prevents dark mirror on metals)
+            envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(1.2, 1.2, 1.3), side: THREE.BackSide })));
             const _pGeo = new THREE.PlaneGeometry(8, 8);
             const _addPanel = (x: number, y: number, z: number, r: number, g: number, b: number, sx: number, sy: number) => {
               const p = new THREE.Mesh(_pGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide }));
               p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
               envScene.add(p);
             };
-            _addPanel(0, 45, -5, 20, 20, 18, 4, 4);
-            _addPanel(20, 25, -15, 15, 14, 12, 3, 2.5);
-            _addPanel(-25, 20, -10, 5, 7, 10, 2.5, 2);
-            _addPanel(5, 30, 10, 10, 8, 5, 2, 1.5);
-            _addPanel(0, -10, 0, 3, 3, 4, 5, 5);
-            _addPanel(30, 5, 15, 6, 6, 8, 2, 2);
-            _addPanel(-30, 10, 15, 4, 5, 7, 2, 2);
+            // Key light (top-front, very bright)
+            _addPanel(0, 45, -5, 25, 25, 22, 5, 5);
+            // Fill lights (sides + back)
+            _addPanel(25, 20, -15, 12, 11, 10, 3, 3);
+            _addPanel(-25, 20, -10, 8, 9, 12, 3, 3);
+            _addPanel(5, 35, 15, 10, 9, 8, 3, 2.5);
+            // Bottom fill (prevents dark underside on metals)
+            _addPanel(0, -15, 0, 6, 6, 7, 8, 8);
+            // Side fills
+            _addPanel(35, 5, 15, 5, 5, 7, 2.5, 2.5);
+            _addPanel(-35, 10, 15, 5, 6, 8, 2.5, 2.5);
+            // Back fill
+            _addPanel(0, 15, 30, 4, 4, 5, 4, 3);
             scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.2;
+            renderer.toneMappingExposure = 1.5;
             pmrem.dispose(); _skyGeo.dispose(); _gndGeo.dispose(); _pGeo.dispose();
 
             // Async HDRI upgrade — real equirectangular for detailed reflections
@@ -3974,10 +3981,11 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               const _metalnessUrl = _baseNoExt + "_Metalness" + _ext;
               const _aoUrl = _baseNoExt + "_AO" + _ext;
 
-              // Category-based normalScale from filename
+              // Category-based metalness + normalScale from filename
               const _fname = _resolvedUrl.split("/").pop() || "";
+              const _isMetal = /^Metal|^CorrugatedSteel|^DiamondPlate|^PaintedMetal/i.test(_fname);
               let _normalScale = 1.0;
-              if (/^Metal/i.test(_fname)) _normalScale = 0.8;
+              if (_isMetal) _normalScale = 0.8;
               else if (/^Brick/i.test(_fname)) _normalScale = 1.5;
               else if (/^Rock|^Paving/i.test(_fname)) _normalScale = 1.2;
               else if (/^Wood|^WoodFloor|^Planks/i.test(_fname)) _normalScale = 0.6;
@@ -4014,10 +4022,13 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 _loadTex(_resolvedUrl),
                 _loadTex(_normalUrl),
                 _loadTex(_roughnessUrl),
-                _loadTex(_metalnessUrl),
+                _isMetal ? _loadTex(_metalnessUrl) : Promise.resolve(null),
                 _loadTex(_aoUrl),
               ]).then(([colorTex, normalTex, roughnessTex, metalnessTex, aoTex]: any[]) => {
                 if (!colorTex) return;
+                // Category-based metalness: only Metal* textures are truly metallic
+                const _metalVal = _isMetal ? 0.9 : 0.0;
+                const _envIntensity = _isMetal ? 1.0 : 0.4;
                 const applyPBR = (child: any) => {
                   if (!child.isMesh || !child.material) return;
                   const mats = Array.isArray(child.material) ? child.material : [child.material];
@@ -4026,9 +4037,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                     child.__vibexe_origMats.push(mat);
                     const _matOpts: any = {
                       map: _configureTex(colorTex, true),
-                      roughness: roughnessTex ? 1.0 : 0.7,
-                      metalness: metalnessTex ? 1.0 : 0.0,
-                      envMapIntensity: metalnessTex ? 2.0 : 1.0,
+                      roughness: roughnessTex ? 1.0 : 0.5,
+                      metalness: _metalVal,
+                      envMapIntensity: _envIntensity,
                       side: THREE.DoubleSide,
                     };
                     if (scene.environment) _matOpts.envMap = scene.environment;
@@ -4037,7 +4048,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                       _matOpts.normalScale = new THREE.Vector2(_normalScale, _normalScale);
                     }
                     if (roughnessTex) _matOpts.roughnessMap = _configureTex(roughnessTex, false);
-                    if (metalnessTex) _matOpts.metalnessMap = _configureTex(metalnessTex, false);
+                    if (metalnessTex && _isMetal) _matOpts.metalnessMap = _configureTex(metalnessTex, false);
                     if (aoTex) {
                       _matOpts.aoMap = _configureTex(aoTex, false);
                       _matOpts.aoMapIntensity = 1.0;
