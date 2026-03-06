@@ -528,6 +528,25 @@ if (typeof window !== 'undefined') {
               };
               var _loadT = function(url, cb) { if(!url){cb(null);return;} _ldr.load(url, cb, undefined, function(){ cb(null); }); };
               if (_pbr) {
+                // Ensure PBR env is set up for game mode (override runs when editor is NOT active)
+                if (!window.__vibexe_pbr_env__ && typeof THREE !== 'undefined') {
+                  var _r = window.__vibexe_renderer__, _sc = window.__vibexe_scene__;
+                  if (_r && _sc) {
+                    window.__vibexe_pbr_env__ = true;
+                    var _pm = new THREE.PMREMGenerator(_r); _pm.compileEquirectangularShader();
+                    var _es = new THREE.Scene();
+                    _es.add(new THREE.Mesh(new THREE.SphereGeometry(50,32,16), new THREE.MeshBasicMaterial({color:new THREE.Color(2.0,2.2,2.8),side:THREE.BackSide})));
+                    _es.add(new THREE.Mesh(new THREE.SphereGeometry(49,32,16,0,Math.PI*2,Math.PI/2,Math.PI/2), new THREE.MeshBasicMaterial({color:new THREE.Color(1.0,0.9,0.8),side:THREE.BackSide})));
+                    var _pg=new THREE.PlaneGeometry(8,8), _ap=function(x,y,z,cr,cg,cb,sx,sy){var p=new THREE.Mesh(_pg,new THREE.MeshBasicMaterial({color:new THREE.Color(cr,cg,cb),side:THREE.DoubleSide}));p.position.set(x,y,z);p.lookAt(0,0,0);p.scale.set(sx,sy,1);_es.add(p);};
+                    _ap(0,45,-10,30,28,25,3,3);_ap(-10,40,20,18,18,22,2.5,2.5);_ap(30,15,-10,8,8,9,3,3);_ap(-30,10,5,6,6,7,3,3);_ap(0,-20,0,4,4,5,6,6);
+                    _sc.environment=_pm.fromScene(_es,0,0.1,100).texture; _pm.dispose();
+                    _r.toneMapping=4; _r.toneMappingExposure=1.3;
+                    var _oal=_sc.getObjectByName('__default_ambient__'); if(_oal)_oal.intensity=Math.max(_oal.intensity,0.5);
+                    var _ohl=_sc.getObjectByName('__default_hemi__'); if(_ohl)_ohl.intensity=Math.max(_ohl.intensity,0.6);
+                    if(!_sc.getObjectByName('__pbr_key__')){var _pk=new THREE.DirectionalLight(0xFFFBF0,2.5);_pk.name='__pbr_key__';_pk.position.set(15,30,-10);_pk.castShadow=false;_sc.add(_pk);}
+                    console.log('[SCENE_EDITOR] PBR env initialized for game mode');
+                  }
+                }
                 var _b = _tu.replace(/\\.[^.]+$/,''), _e = (_tu.match(/\\.[^.]+$/)||['.jpg'])[0];
                 var _fn = _tu.split('/').pop()||'';
                 var _isM = /^Metal|^CorrugatedSteel|^DiamondPlate|^PaintedMetal/i.test(_fn);
@@ -541,9 +560,11 @@ if (typeof window !== 'undefined') {
                 for (var _qi=0; _qi<5; _qi++) { (function(idx){ _loadT(_urls[idx], function(tex){ _res[idx]=tex; _cnt++; if(_cnt===5){
                   var cT=_res[0],nT=_res[1],rT=_res[2],mT=_res[3],aT=_res[4];
                   if(!cT) return;
-                  var _mVal=_isM?0.95:0.0, _eI=_isM?1.5:0.15;
+                  var _mVal=_isM?0.95:0.0, _eI=_isM?1.5:0.4;
+                  var _envTex = (window.__vibexe_scene__ && window.__vibexe_scene__.environment) || null;
                   _obj.traverse(function(m){ if(!m.isMesh||!m.material) return;
-                    var mo={map:_cfgTex(cT.clone(),true),roughness:rT?1.0:(_isM?0.3:0.85),metalness:_mVal,envMapIntensity:_eI,side:THREE.DoubleSide};
+                    var mo={map:_cfgTex(cT.clone(),true),roughness:rT?1.0:(_isM?0.3:0.7),metalness:_mVal,envMapIntensity:_eI,side:THREE.DoubleSide};
+                    if(_envTex) mo.envMap=_envTex;
                     if(nT){mo.normalMap=_cfgTex(nT.clone(),false);mo.normalScale=new THREE.Vector2(_ns,_ns);}
                     if(rT) mo.roughnessMap=_cfgTex(rT.clone(),false);
                     if(mT&&_isM) mo.metalnessMap=_cfgTex(mT.clone(),false);
@@ -1221,7 +1242,7 @@ export function SandpackPreview({
 		}
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=41`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=42`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);

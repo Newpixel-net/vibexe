@@ -3891,47 +3891,43 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           let _envMapGenerated = false;
           function _ensureEnvironmentMap() {
             if (_envMapGenerated) return;
-            _envMapGenerated = true;
             const pmrem = new THREE.PMREMGenerator(renderer);
             pmrem.compileEquirectangularShader();
-            // Instant procedural env (fallback — zero flicker)
+            _envMapGenerated = true;
+            // Studio env — bright sky + warm ground + strong light panels
             const envScene = new THREE.Scene();
             const _skyGeo = new THREE.SphereGeometry(50, 32, 16);
-            envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(1.8, 2.0, 2.5), side: THREE.BackSide })));
+            envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(2.0, 2.2, 2.8), side: THREE.BackSide })));
             const _gndGeo = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-            // Dark ground for contrast (metals need bright/dark difference)
-            envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.4, 0.35, 0.3), side: THREE.BackSide })));
+            // Warm ground (bright enough for diffuse ambient, still contrast with sky for metals)
+            envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.9, 0.8), side: THREE.BackSide })));
             const _pGeo = new THREE.PlaneGeometry(8, 8);
             const _addPanel = (x: number, y: number, z: number, r: number, g: number, b: number, sx: number, sy: number) => {
               const p = new THREE.Mesh(_pGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide }));
               p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
               envScene.add(p);
             };
-            // Key light (top-front, intense and focused)
+            // Key light (top-front, intense)
             _addPanel(0, 45, -10, 30, 28, 25, 3, 3);
-            // Rim light (back-top, strong edge highlight)
+            // Rim light (back-top)
             _addPanel(-10, 40, 20, 18, 18, 22, 2.5, 2.5);
-            // Fill (side, moderate)
-            _addPanel(30, 15, -10, 6, 6, 7, 2, 2);
-            _addPanel(-30, 10, 5, 4, 4, 5, 2, 2);
-            // Subtle bottom fill (prevents pure black undersides)
-            _addPanel(0, -20, 0, 2, 2, 2.5, 5, 5);
+            // Fill lights (sides, brighter for diffuse)
+            _addPanel(30, 15, -10, 8, 8, 9, 3, 3);
+            _addPanel(-30, 10, 5, 6, 6, 7, 3, 3);
+            // Bottom fill (prevents dark undersides)
+            _addPanel(0, -20, 0, 4, 4, 5, 6, 6);
             scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.0;
+            renderer.toneMappingExposure = 1.3;
             pmrem.dispose(); _skyGeo.dispose(); _gndGeo.dispose(); _pGeo.dispose();
 
-            // Async HDRI upgrade — real equirectangular for detailed reflections
-            const _hdriUrl = ((window as any).__VIBEXE_API_ORIGIN__ || "") + "/api/app-builder/media-stock-3d/textures/env_studio.jpg";
-            new THREE.TextureLoader().load(_hdriUrl, (hdriTex: any) => {
-              hdriTex.mapping = THREE.EquirectangularReflectionMapping;
-              const pmrem2 = new THREE.PMREMGenerator(renderer);
-              scene.environment = pmrem2.fromEquirectangular(hdriTex).texture;
-              pmrem2.dispose();
-              hdriTex.dispose();
-            }, undefined, () => { /* 404 = keep procedural fallback */ });
+            // Boost existing lights for PBR (Standard material /PI factor needs more light)
+            const _al = scene.getObjectByName("__default_ambient__") as any;
+            if (_al) _al.intensity = Math.max(_al.intensity, 0.5);
+            const _hl = scene.getObjectByName("__default_hemi__") as any;
+            if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.6);
 
-            // PBR key light — strong specular highlights on metals
+            // PBR key light
             if (!scene.getObjectByName("__pbr_key__")) {
               const pbrKey = new THREE.DirectionalLight(0xFFFBF0, 2.5);
               pbrKey.name = "__pbr_key__";
@@ -4024,7 +4020,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 if (!colorTex) return;
                 // Category-based metalness: only Metal* textures are truly metallic
                 const _metalVal = _isMetal ? 0.95 : 0.0;
-                const _envIntensity = _isMetal ? 1.5 : 0.15;
+                const _envIntensity = _isMetal ? 1.5 : 0.4;
                 const applyPBR = (child: any) => {
                   if (!child.isMesh || !child.material) return;
                   const mats = Array.isArray(child.material) ? child.material : [child.material];
@@ -4033,7 +4029,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                     child.__vibexe_origMats.push(mat);
                     const _matOpts: any = {
                       map: _configureTex(colorTex, true),
-                      roughness: roughnessTex ? 1.0 : (_isMetal ? 0.3 : 0.85),
+                      roughness: roughnessTex ? 1.0 : (_isMetal ? 0.3 : 0.7),
                       metalness: _metalVal,
                       envMapIntensity: _envIntensity,
                       side: THREE.DoubleSide,

@@ -526,45 +526,42 @@ export function getVisualEditBridgeScript(): string {
   var _pbrEnvReady = false;
   function _ensurePBREnv() {
     if (_pbrEnvReady) return;
-    _pbrEnvReady = true;
     var T = window.THREE;
     if (!T || !editor || !editor.scene || !editor.renderer) return;
+    _pbrEnvReady = true;
     var pmrem = new T.PMREMGenerator(editor.renderer);
     pmrem.compileEquirectangularShader();
-    // High-contrast studio env — bright sky + dark ground = good metal reflections
+    // Studio env — bright sky + warm ground + strong light panels
     var envScene = new T.Scene();
     var skyGeo = new T.SphereGeometry(50, 32, 16);
-    envScene.add(new T.Mesh(skyGeo, new T.MeshBasicMaterial({ color: new T.Color(1.8, 2.0, 2.5), side: T.BackSide })));
-    // Dark ground for contrast (metals need bright/dark difference)
+    envScene.add(new T.Mesh(skyGeo, new T.MeshBasicMaterial({ color: new T.Color(2.0, 2.2, 2.8), side: T.BackSide })));
+    // Warm ground (bright enough for diffuse ambient, still contrast with sky for metals)
     var gndGeo = new T.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-    envScene.add(new T.Mesh(gndGeo, new T.MeshBasicMaterial({ color: new T.Color(0.4, 0.35, 0.3), side: T.BackSide })));
+    envScene.add(new T.Mesh(gndGeo, new T.MeshBasicMaterial({ color: new T.Color(1.0, 0.9, 0.8), side: T.BackSide })));
     var pGeo = new T.PlaneGeometry(8, 8);
     var _addP = function(x, y, z, r, g, b, sx, sy) {
       var p = new T.Mesh(pGeo, new T.MeshBasicMaterial({ color: new T.Color(r, g, b), side: T.DoubleSide }));
       p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
       envScene.add(p);
     };
-    // Key light (top-front, intense and focused)
+    // Key light (top-front, intense)
     _addP(0, 45, -10, 30, 28, 25, 3, 3);
-    // Rim light (back-top, strong edge highlight)
+    // Rim light (back-top)
     _addP(-10, 40, 20, 18, 18, 22, 2.5, 2.5);
-    // Fill (side, moderate)
-    _addP(30, 15, -10, 6, 6, 7, 2, 2);
-    _addP(-30, 10, 5, 4, 4, 5, 2, 2);
-    // Subtle bottom fill (prevents pure black undersides)
-    _addP(0, -20, 0, 2, 2, 2.5, 5, 5);
+    // Fill lights (sides, brighter for diffuse)
+    _addP(30, 15, -10, 8, 8, 9, 3, 3);
+    _addP(-30, 10, 5, 6, 6, 7, 3, 3);
+    // Bottom fill (prevents dark undersides)
+    _addP(0, -20, 0, 4, 4, 5, 6, 6);
     editor.scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
     editor.renderer.toneMapping = 4; // ACESFilmicToneMapping
-    editor.renderer.toneMappingExposure = 1.0;
+    editor.renderer.toneMappingExposure = 1.3;
     pmrem.dispose(); skyGeo.dispose(); gndGeo.dispose(); pGeo.dispose();
-    // Async HDRI upgrade
-    var _hdriUrl = (window.__VIBEXE_API_ORIGIN__ || '') + '/api/app-builder/media-stock-3d/textures/env_studio.jpg';
-    new T.TextureLoader().load(_hdriUrl, function(hdriTex) {
-      hdriTex.mapping = T.EquirectangularReflectionMapping;
-      var pmrem2 = new T.PMREMGenerator(editor.renderer);
-      editor.scene.environment = pmrem2.fromEquirectangular(hdriTex).texture;
-      pmrem2.dispose(); hdriTex.dispose();
-    }, undefined, function() {});
+    // Boost existing lights for PBR (Standard material /PI factor needs more light)
+    var _al = editor.scene.getObjectByName('__default_ambient__');
+    if (_al) _al.intensity = Math.max(_al.intensity, 0.5);
+    var _hl = editor.scene.getObjectByName('__default_hemi__');
+    if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.6);
     // PBR key light
     if (!editor.scene.getObjectByName('__pbr_key__')) {
       var pbrKey = new T.DirectionalLight(0xFFFBF0, 2.5);
@@ -573,7 +570,7 @@ export function getVisualEditBridgeScript(): string {
       pbrKey.castShadow = false;
       editor.scene.add(pbrKey);
     }
-    console.log("[GameEditorBridge] PBR environment initialized (env map + ACES + key light)");
+    console.log("[GameEditorBridge] PBR environment initialized (env map + ACES + key light + boosted ambient)");
   }
   var flyMouseMoveHandler = null;
   var flyRMBDownHandler = null;
@@ -1957,12 +1954,12 @@ export function getVisualEditBridgeScript(): string {
             if (!colorTex) return;
             // Category-based metalness: only Metal* textures are truly metallic
             var _metalVal = _isMetal ? 0.95 : 0.0;
-            var _envIntensity = _isMetal ? 1.5 : 0.15;
+            var _envIntensity = _isMetal ? 1.5 : 0.4;
             _atObj.traverse(function(m) {
               if (!m.isMesh || !m.material) return;
               var _matOpts = {
                 map: _atCfg(colorTex.clone(), true),
-                roughness: roughnessTex ? 1.0 : (_isMetal ? 0.3 : 0.85),
+                roughness: roughnessTex ? 1.0 : (_isMetal ? 0.3 : 0.7),
                 metalness: _metalVal,
                 envMapIntensity: _envIntensity,
                 side: _THREE.DoubleSide
