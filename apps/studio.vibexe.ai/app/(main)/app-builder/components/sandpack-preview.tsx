@@ -553,7 +553,7 @@ if (typeof window !== 'undefined') {
                       _ap2(0,45,-10,10,9,8,2,2);_ap2(-15,40,25,4,4,5,1.5,1.5);_ap2(35,20,-15,2,2,2.5,2,2);_ap2(-35,12,8,1,1,1.2,2,2);_ap2(0,-30,0,0.5,0.5,0.6,4,4);
                       _sc.environment=_pm.fromScene(_es2,0,0.1,100).texture;
                       _r.toneMapping=THREE.ACESFilmicToneMapping; _r.toneMappingExposure=2.5;
-                      var _hdriUrl2=(window.__VIBEXE_API_ORIGIN__||'')+'/media-stock/games-3d/textures/env_studio.jpg';
+                      var _hdriUrl2=(window.__VIBEXE_API_ORIGIN__||'')+'/api/app-builder/media-stock-3d/textures/env_studio.jpg';
                       new THREE.TextureLoader().load(_hdriUrl2,function(ht){ht.mapping=THREE.EquirectangularReflectionMapping;ht.colorSpace=THREE.SRGBColorSpace;var pm3=new THREE.PMREMGenerator(_r);pm3.compileEquirectangularShader();_sc.environment=pm3.fromEquirectangular(ht).texture;pm3.dispose();ht.dispose();console.log('[PBR] HDRI env upgraded');},undefined,function(){console.log('[PBR] HDRI not found, using procedural');});
                       _pm.dispose();
                       var _oal=_sc.getObjectByName('__default_ambient__'); if(_oal)_oal.intensity=Math.max(_oal.intensity,0.3);

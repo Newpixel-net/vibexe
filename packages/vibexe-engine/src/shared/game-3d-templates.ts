@@ -3906,7 +3906,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             _skyGeo.dispose(); _gndGeo.dispose(); _pGeo.dispose();
 
             // Async HDRI upgrade — real studio reflections for metals
-            const _hdriUrl = ((window as any).__VIBEXE_API_ORIGIN__ || "") + "/media-stock/games-3d/textures/env_studio.jpg";
+            const _hdriUrl = ((window as any).__VIBEXE_API_ORIGIN__ || "") + "/api/app-builder/media-stock-3d/textures/env_studio.jpg";
             new THREE.TextureLoader().load(_hdriUrl, (hdriTex: any) => {
               hdriTex.mapping = THREE.EquirectangularReflectionMapping;
               hdriTex.colorSpace = THREE.SRGBColorSpace || "srgb";
