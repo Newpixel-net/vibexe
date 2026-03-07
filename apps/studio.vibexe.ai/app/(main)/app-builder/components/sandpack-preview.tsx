@@ -498,18 +498,14 @@ if (typeof window !== 'undefined') {
     }
     function _apply() {
       if (Date.now() - _startTime > _MAX_WALL) { console.log("[SCENE_EDITOR] Override wall-time expired"); return; }
-      if (window.__vibexe_editor__) { requestAnimationFrame(_apply); return; }
       var s = window.__vibexe_scene__;
       if (!s || !s.children) { requestAnimationFrame(_apply); return; }
       if (s !== _lastScene) { _cache={}; _bodies={}; _logged={}; _delDone=false; _lastScene=s; }
+      var _inEditor = !!window.__vibexe_editor__;
       if (!_delDone && _ov.__deleted && _ov.__deleted.length) {
         var _rm = [];
         s.traverse(function(o) { if (o.name && _ov.__deleted.indexOf(o.name) !== -1) _rm.push(o); });
-        if (!_rm.length && _frame % 30 === 0) {
-          var _allNames = [];
-          s.traverse(function(o) { if (o.name) _allNames.push(o.name); });
-          console.log("[SCENE_EDITOR] __deleted check frame " + _frame + ": looking for " + JSON.stringify(_ov.__deleted) + " in " + _allNames.length + " named objects. Sample: " + _allNames.slice(0,20).join(","));
-        }
+
         _rm.forEach(function(o) {
           if (o.parent) o.parent.remove(o);
           var w = window.__vibexe_world__;
@@ -531,13 +527,14 @@ if (typeof window !== 'undefined') {
         var o = _ov[name];
         var t = _find(s, name);
         if (!t) continue;
+        if (o.v !== undefined) t.visible = !!o.v;
+        if (_inEditor) continue;
         var _hasBody = false;
         if (o.p) {
           t.position.set(o.p[0],o.p[1],o.p[2]);
           var pb = _findBody(t, name);
           if (pb) { pb.position.set(o.p[0],o.p[1],o.p[2]); if(pb.velocity) pb.velocity.set(0,0,0); _hasBody=true; }
         }
-        if (o.v !== undefined) t.visible = !!o.v;
         if (!_logged[name]) {
           if (o.r) t.rotation.set(o.r[0],o.r[1],o.r[2]);
           if (o.s) t.scale.set(o.s[0],o.s[1],o.s[2]);
