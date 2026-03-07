@@ -2935,6 +2935,10 @@ export function getVisualEditBridgeScript(): string {
               uTex1: { value: _rpTextures[1] || null },
               uTex2: { value: _rpTextures[2] || null },
               uTex3: { value: _rpTextures[3] || null },
+              uHasTex0: { value: _rpTextures[0] ? 1.0 : 0.0 },
+              uHasTex1: { value: _rpTextures[1] ? 1.0 : 0.0 },
+              uHasTex2: { value: _rpTextures[2] ? 1.0 : 0.0 },
+              uHasTex3: { value: _rpTextures[3] ? 1.0 : 0.0 },
               uColor0: { value: new _rpTHREE.Vector3(_rpColors[0] ? _rpColors[0][0] : 0.5, _rpColors[0] ? _rpColors[0][1] : 0.5, _rpColors[0] ? _rpColors[0][2] : 0.5) },
               uColor1: { value: new _rpTHREE.Vector3(_rpColors[1] ? _rpColors[1][0] : 0.5, _rpColors[1] ? _rpColors[1][1] : 0.5, _rpColors[1] ? _rpColors[1][2] : 0.5) },
               uColor2: { value: new _rpTHREE.Vector3(_rpColors[2] ? _rpColors[2][0] : 0.5, _rpColors[2] ? _rpColors[2][1] : 0.5, _rpColors[2] ? _rpColors[2][2] : 0.5) },
@@ -2972,6 +2976,10 @@ export function getVisualEditBridgeScript(): string {
               "uniform vec3 uColor2;",
               "uniform vec3 uColor3;",
               "uniform int uNumLayers;",
+              "uniform float uHasTex0;",
+              "uniform float uHasTex1;",
+              "uniform float uHasTex2;",
+              "uniform float uHasTex3;",
               "uniform float uTexScale;",
               "varying vec2 vUv;",
               "varying vec3 vNormal;",
@@ -2983,22 +2991,21 @@ export function getVisualEditBridgeScript(): string {
               "  vec2 scaledUv = vUv * uTexScale;",
               "  vec3 col = vec3(0.0);",
               "  if (uNumLayers > 0) {",
-              "    vec3 c0 = uTex0 != uTex0 ? uColor0 : texture2D(uTex0, scaledUv).rgb;",
+              "    vec3 c0 = mix(uColor0, texture2D(uTex0, scaledUv).rgb, uHasTex0);",
               "    col += c0 * vW0;",
               "  }",
               "  if (uNumLayers > 1) {",
-              "    vec3 c1 = uTex1 != uTex1 ? uColor1 : texture2D(uTex1, scaledUv).rgb;",
+              "    vec3 c1 = mix(uColor1, texture2D(uTex1, scaledUv).rgb, uHasTex1);",
               "    col += c1 * vW1;",
               "  }",
               "  if (uNumLayers > 2) {",
-              "    vec3 c2 = uTex2 != uTex2 ? uColor2 : texture2D(uTex2, scaledUv).rgb;",
+              "    vec3 c2 = mix(uColor2, texture2D(uTex2, scaledUv).rgb, uHasTex2);",
               "    col += c2 * vW2;",
               "  }",
               "  if (uNumLayers > 3) {",
-              "    vec3 c3 = uTex3 != uTex3 ? uColor3 : texture2D(uTex3, scaledUv).rgb;",
+              "    vec3 c3 = mix(uColor3, texture2D(uTex3, scaledUv).rgb, uHasTex3);",
               "    col += c3 * vW3;",
               "  }",
-              "  // Simple directional lighting",
               "  float light = max(0.0, dot(vNormal, normalize(vec3(0.5, 1.0, 0.3))));",
               "  light = 0.35 + light * 0.65;",
               "  gl_FragColor = vec4(col * light, 1.0);",
@@ -3025,6 +3032,10 @@ export function getVisualEditBridgeScript(): string {
           for (var ti2 = 0; ti2 < _rpNumLayers; ti2++) {
             (function(idx) {
               var url = _rpTexUrls[idx];
+              // Prepend origin for relative URLs (iframe is on different domain)
+              if (url && url.charAt(0) === '/') {
+                url = (window.__VIBEXE_API_ORIGIN__ || '') + url;
+              }
               if (!url || url.length < 5) {
                 _rpTextures[idx] = null;
                 _rpLoaded++;
