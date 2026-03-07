@@ -372,12 +372,21 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 								</div>
 							</Section>
 
-							{/* Actions — Focus only */}
-							<div className="flex gap-1.5 mt-1">
+							{/* Actions — Save & Apply + Focus */}
+							<div className="space-y-1.5 mt-1">
+								<button
+									type="button"
+									onClick={() => settingsProps?.onSave?.(gameSettings)}
+									className="w-full flex items-center justify-center gap-1.5 px-2 py-2 text-[11px] font-medium text-white bg-violet-600 hover:bg-violet-500 rounded-lg transition-colors"
+									title="Save camera settings to project"
+								>
+									<Check className="w-3 h-3" />
+									Save &amp; Apply
+								</button>
 								<button
 									type="button"
 									onClick={focusSelected}
-									className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] text-white/50 bg-white/[0.04] hover:bg-white/[0.08] rounded transition-colors"
+									className="w-full flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] text-white/50 bg-white/[0.04] hover:bg-white/[0.08] rounded transition-colors"
 									title="Focus camera (F)"
 								>
 									<Focus className="w-3 h-3" />
