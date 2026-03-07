@@ -784,6 +784,16 @@ export function getVisualEditBridgeScript(): string {
       console.log("[GameEditorBridge] TransformControls available, creating gizmo for: " + (obj.name || obj.type));
       transformControls = new THREE.TransformControls(editor.camera, editor.renderer.domElement);
       transformControls.name = "__editor_transform_controls__";
+      // Set snap properties so TC snaps DURING drag (not just post-hoc)
+      if (gridSnap) {
+        transformControls.translationSnap = gridSnapIncrement;
+        transformControls.rotationSnap = rotationSnapDeg * Math.PI / 180;
+        transformControls.scaleSnap = gridSnapIncrement;
+      } else {
+        transformControls.translationSnap = null;
+        transformControls.rotationSnap = null;
+        transformControls.scaleSnap = null;
+      }
       transformControls.attach(obj);
       transformControls.addEventListener("dragging-changed", function(e) {
         if (editor.orbitControls) editor.orbitControls.enabled = !e.value;
@@ -961,6 +971,18 @@ export function getVisualEditBridgeScript(): string {
       editor.scene.remove(gridHelper);
       if (gridHelper.dispose) gridHelper.dispose();
       gridHelper = null;
+    }
+    // Sync TC snap properties so snapping happens DURING drag
+    if (transformControls) {
+      if (gridSnap) {
+        transformControls.translationSnap = gridSnapIncrement;
+        transformControls.rotationSnap = rotationSnapDeg * Math.PI / 180;
+        transformControls.scaleSnap = gridSnapIncrement;
+      } else {
+        transformControls.translationSnap = null;
+        transformControls.rotationSnap = null;
+        transformControls.scaleSnap = null;
+      }
     }
     window.parent.postMessage({ type: "game-editor-snap-changed", snap: gridSnap }, "*");
   }
@@ -1789,6 +1811,12 @@ export function getVisualEditBridgeScript(): string {
       case "game-editor-set-snap-settings":
         if (typeof d.gridIncrement === "number") gridSnapIncrement = d.gridIncrement;
         if (typeof d.rotationDeg === "number") rotationSnapDeg = d.rotationDeg;
+        // Sync TC snap properties if snap is active
+        if (gridSnap && transformControls) {
+          transformControls.translationSnap = gridSnapIncrement;
+          transformControls.rotationSnap = rotationSnapDeg * Math.PI / 180;
+          transformControls.scaleSnap = gridSnapIncrement;
+        }
         break;
       case "game-editor-set-spawn-mode":
         window.__vibexe_spawn_mode__ = !!d.active;

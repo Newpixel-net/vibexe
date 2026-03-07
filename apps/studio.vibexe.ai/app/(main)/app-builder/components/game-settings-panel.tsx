@@ -392,6 +392,7 @@ export function GameSettingsContent({ settings, onChange, onSave }: GameSettings
 				{activeTab === "audio" && (
 					<>
 						<SectionLabel tooltip="Master audio controls for the game">Audio</SectionLabel>
+						<p className="text-xs text-white/30 mb-3">Audio settings apply when your game code uses the audio system. Add sound effects or music in your game code to enable these controls.</p>
 						<div className="flex items-center gap-2">
 							<span className="text-xs text-white/50 w-[60px]">Enabled</span>
 							<button
@@ -498,6 +499,7 @@ export function GameSettingsContent({ settings, onChange, onSave }: GameSettings
 								}`} />
 							</button>
 						</div>
+						<p className="text-xs text-white/30 -mt-1 mb-1 ml-[68px]">Applied on next game reload</p>
 						<DragNumberInput label="Pixel Ratio" value={settings.performance?.pixelRatio ?? 1} step={0.25} precision={2} onChange={(v) => update("performance", "pixelRatio", Math.max(0.5, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
 						<div className="flex items-center gap-2">
 							<span className="text-xs text-white/50 w-[60px]">Max FPS</span>

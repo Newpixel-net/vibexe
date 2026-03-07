@@ -4844,6 +4844,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 window.parent.postMessage({ type: "game-editor-all-transforms", transforms: _allTf }, "*");
                 break;
               }
+              case "applySettings":
+                // applySettings sends same shape as updateGameSettings
+                d.settings = d.settings || {};
+                // fall through
               case "updateGameSettings": {
                 const s = d.settings;
                 if (!s) break;
@@ -4924,26 +4928,23 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   }
                 }
                 // --- Post-Processing ---
-                if (s.postProcessing) {
-                  const _comp = (window as any).__vibexe_composer__;
-                  if (_comp && _comp.passes) {
-                    // Update bloom pass parameters if it exists
-                    for (const _pass of _comp.passes) {
-                      if (_pass.strength !== undefined) {
-                        // This is a bloom pass (UnrealBloomPass)
-                        if (s.postProcessing.bloomIntensity !== undefined) _pass.strength = s.postProcessing.bloomIntensity;
-                        if (s.postProcessing.bloomThreshold !== undefined) _pass.threshold = s.postProcessing.bloomThreshold;
-                      }
-                    }
+                if (s.postProcessing && renderer && scene && camera) {
+                  const _pp = s.postProcessing;
+                  // Destroy existing composer to allow full preset switch
+                  const _oldComp = (window as any).__vibexe_composer__;
+                  if (_oldComp) {
+                    (window as any).__vibexe_composer__ = null;
+                    _oldComp.dispose?.();
                   }
-                  // If preset changed and no composer exists, create it
-                  if (!_comp && s.postProcessing.preset && s.postProcessing.preset !== 'none' && renderer && scene && camera) {
-                    const _pp = createPostProcessing(renderer, scene, camera, s.postProcessing.preset);
-                    if (_pp && s.postProcessing.bloomIntensity != null) {
-                      _pp.addBloom({
-                        strength: s.postProcessing.bloomIntensity ?? 0.5,
-                        radius: 0.4,
-                        threshold: s.postProcessing.bloomThreshold ?? 0.85,
+                  // Recreate with new settings (or clear if preset is "none")
+                  if (_pp.preset && _pp.preset !== "none") {
+                    const _newPP = createPostProcessing(renderer, scene, camera, _pp.preset);
+                    if (_newPP && (_pp.bloomIntensity != null || _pp.bloomThreshold != null)) {
+                      const _presetData = POST_PROCESSING_PRESETS[_pp.preset];
+                      _newPP.addBloom({
+                        strength: _pp.bloomIntensity ?? _presetData?.bloom?.strength ?? 0.5,
+                        radius: _presetData?.bloom?.radius ?? 0.4,
+                        threshold: _pp.bloomThreshold ?? _presetData?.bloom?.threshold ?? 0.85,
                       });
                     }
                   }
@@ -4952,6 +4953,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 if (s.performance && renderer) {
                   if (s.performance.pixelRatio !== undefined) {
                     renderer.setPixelRatio(Math.min(s.performance.pixelRatio, 2));
+                  }
+                  if (s.performance.maxFPS !== undefined) {
+                    (window as any).__vibexe_targetFPS__ = s.performance.maxFPS;
+                    (window as any).__vibexe_frameInterval__ = s.performance.maxFPS > 0 ? 1000 / s.performance.maxFPS : 0;
                   }
                   if (s.performance.showFPS !== undefined) {
                     let _fpsDiv = document.getElementById('__vibexe_fps__');
@@ -4970,6 +4975,13 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                     }
                   }
                 }
+                // --- Player (runtime-updatable respawn/lives) ---
+                if (s.player) {
+                  if (s.player.respawnX !== undefined) (window as any).__vibexe_respawnX__ = s.player.respawnX;
+                  if (s.player.respawnY !== undefined) (window as any).__vibexe_respawnY__ = s.player.respawnY;
+                  if (s.player.respawnZ !== undefined) (window as any).__vibexe_respawnZ__ = s.player.respawnZ;
+                  if (s.player.startingLives !== undefined) (window as any).__vibexe_maxLives__ = s.player.startingLives;
+                }
                 break;
               }
             }
@@ -4983,9 +4995,23 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         // ===== End Scene Editor Bridge =====
 
         clock.start();
-        const animate = () => {
+        let __lastFrameTime = 0;
+        // Initialize FPS cap from settings
+        const __initFPS = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).performance?.maxFPS;
+        if (__initFPS && __initFPS > 0) {
+          (window as any).__vibexe_targetFPS__ = __initFPS;
+          (window as any).__vibexe_frameInterval__ = 1000 / __initFPS;
+        }
+        const animate = (time?: number) => {
           if (disposed) return;
           animFrameId = requestAnimationFrame(animate);
+          // FPS capping
+          const __frameInterval = (window as any).__vibexe_frameInterval__ || 0;
+          if (__frameInterval > 0 && time) {
+            const __elapsed = time - __lastFrameTime;
+            if (__elapsed < __frameInterval) return;
+            __lastFrameTime = time - (__elapsed % __frameInterval);
+          }
 
           // In editor mode, skip game logic — only render + tick animation mixers for preview
           if (__editorMode) {
@@ -5299,9 +5325,13 @@ export const GameScene = {
     const spawnX = __gs.player?.spawnX ?? 0;
     const spawnY = __gs.player?.spawnY ?? 3;
     const spawnZ = __gs.player?.spawnZ ?? 0;
-    const respawnX = __gs.player?.respawnX ?? 0;
-    const respawnY = __gs.player?.respawnY ?? 5;
-    const respawnZ = __gs.player?.respawnZ ?? 0;
+    let respawnX = __gs.player?.respawnX ?? 0;
+    let respawnY = __gs.player?.respawnY ?? 5;
+    let respawnZ = __gs.player?.respawnZ ?? 0;
+    // Store on window for runtime updates via updateGameSettings
+    (window as any).__vibexe_respawnX__ = respawnX;
+    (window as any).__vibexe_respawnY__ = respawnY;
+    (window as any).__vibexe_respawnZ__ = respawnZ;
     const lilyResult = await createAnimatedCharacter3D(scene, spawnX, spawnY, spawnZ, {
       url: modelUrl("platformer-project", "characters/Lily.glb"),
     });
@@ -5420,9 +5450,12 @@ export const GameScene = {
       if (!c.collected) c.mesh.rotation.y += delta * 2;
     }
 
-    // Fall off world = reset to respawn point
+    // Fall off world = reset to respawn point (read from window for live updates)
     if (lily.mesh.position.y < -10) {
-      playerBody.position.set(respawnX, respawnY, respawnZ);
+      const _rx = (window as any).__vibexe_respawnX__ ?? respawnX;
+      const _ry = (window as any).__vibexe_respawnY__ ?? respawnY;
+      const _rz = (window as any).__vibexe_respawnZ__ ?? respawnZ;
+      playerBody.position.set(_rx, _ry, _rz);
       playerBody.velocity.set(0, 0, 0);
       hapticFeedback("heavy");
     }
@@ -5480,7 +5513,8 @@ const SPAWN_Z_AHEAD = SEGMENT_COUNT * SEGMENT_LENGTH;
 const RECYCLE_Z_BEHIND = 20;        // Recycle when this far behind camera
 const BARRIER_CHANCE = 0.35;        // Chance per segment per lane
 const COLLECTIBLE_CHANCE = 0.4;     // Chance per segment per lane
-const MAX_LIVES = __gsR.runner?.maxLives ?? __gsR.player?.startingLives ?? 3;
+let MAX_LIVES = __gsR.runner?.maxLives ?? __gsR.player?.startingLives ?? 3;
+(window as any).__vibexe_maxLives__ = MAX_LIVES;
 const INVULN_TIME = 1.5;            // Seconds of invulnerability after hit
 const JUMP_VELOCITY = __gsR.runner?.jumpVelocity ?? 10;
 
@@ -5823,6 +5857,8 @@ function restartGame() {
   speed = INITIAL_SPEED;
   distance = 0;
   score = 0;
+  // Read latest MAX_LIVES from window (updated by updateGameSettings)
+  MAX_LIVES = (window as any).__vibexe_maxLives__ ?? MAX_LIVES;
   lives = MAX_LIVES;
   invulnTimer = 0;
   gameOver = false;
