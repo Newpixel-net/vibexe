@@ -514,6 +514,7 @@ export function getVisualEditBridgeScript(): string {
   var gridSnapIncrement = 0.5;
   var rotationSnapDeg = 15;
   var gizmoSpace = "world";
+  var panToolActive = false;
   var gridHelper = null;
   var canvasPointerDownHandler = null;
   var bodyMouseDownHandler = null;
@@ -1302,6 +1303,7 @@ export function getVisualEditBridgeScript(): string {
     lastHandleClickTime = now;
     showDebug("Click from " + source + " at (" + Math.round(clientX) + ", " + Math.round(clientY) + ")");
     if (!active || !editor) { showDebug("SKIP: active=" + active + " editor=" + !!editor); return; }
+    if (panToolActive) { showDebug("SKIP: pan tool active"); return; }
     if (transformControls && (transformControls.dragging || transformControls.axis)) { showDebug("SKIP: gizmo active (dragging=" + transformControls.dragging + " axis=" + transformControls.axis + ")"); return; }
     var rect = editor.renderer.domElement.getBoundingClientRect();
     showDebug("Canvas rect: " + Math.round(rect.left) + "," + Math.round(rect.top) + " " + Math.round(rect.width) + "x" + Math.round(rect.height) + " | Click: " + Math.round(clientX) + "," + Math.round(clientY));
@@ -1391,16 +1393,33 @@ export function getVisualEditBridgeScript(): string {
       duplicateSelected(); e.preventDefault(); return;
     }
     switch (e.key) {
+      case "q": case "Q":
+        panToolActive = true;
+        if (transformControls) transformControls.detach();
+        if (editor.orbitControls) {
+          editor.orbitControls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
+        }
+        window.parent.postMessage({ type: "game-editor-gizmo-mode", mode: "pan" }, "*");
+        e.preventDefault(); break;
       case "w": case "W":
+        panToolActive = false;
+        if (editor && editor.orbitControls) editor.orbitControls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
         if (transformControls) transformControls.setMode("translate");
+        if (transformControls && selectedObj) transformControls.attach(selectedObj);
         window.parent.postMessage({ type: "game-editor-gizmo-mode", mode: "translate" }, "*");
         e.preventDefault(); break;
       case "e": case "E":
+        panToolActive = false;
+        if (editor && editor.orbitControls) editor.orbitControls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
         if (transformControls) transformControls.setMode("rotate");
+        if (transformControls && selectedObj) transformControls.attach(selectedObj);
         window.parent.postMessage({ type: "game-editor-gizmo-mode", mode: "rotate" }, "*");
         e.preventDefault(); break;
       case "r": case "R":
+        panToolActive = false;
+        if (editor && editor.orbitControls) editor.orbitControls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
         if (transformControls) transformControls.setMode("scale");
+        if (transformControls && selectedObj) transformControls.attach(selectedObj);
         window.parent.postMessage({ type: "game-editor-gizmo-mode", mode: "scale" }, "*");
         e.preventDefault(); break;
       case "x": case "X":
@@ -1464,6 +1483,19 @@ export function getVisualEditBridgeScript(): string {
     updateFlyMovement();
     if (editor.orbitControls && !flyMode) editor.orbitControls.update();
     if (boxHelper && selectedObj) boxHelper.update();
+    // Throttled camera orientation broadcast (~10Hz)
+    if (!editor._camTimer) editor._camTimer = 0;
+    if (!editor._lastQ) editor._lastQ = { x: 0, y: 0, z: 0, w: 1 };
+    editor._camTimer++;
+    if (editor._camTimer >= 6) {
+      editor._camTimer = 0;
+      var q = editor.camera.quaternion;
+      if (Math.abs(q.x - editor._lastQ.x) > 0.005 || Math.abs(q.y - editor._lastQ.y) > 0.005 ||
+          Math.abs(q.z - editor._lastQ.z) > 0.005 || Math.abs(q.w - editor._lastQ.w) > 0.005) {
+        editor._lastQ = { x: +q.x.toFixed(4), y: +q.y.toFixed(4), z: +q.z.toFixed(4), w: +q.w.toFixed(4) };
+        window.parent.postMessage({ type: "game-editor-camera-orientation", quaternion: editor._lastQ }, "*");
+      }
+    }
     // Per-frame sweep: remove duplicate __editor_ objects (old Game3D.tsx templates lack _hasExt guard)
     if (editor.scene) {
       var dupes = [];
@@ -1766,7 +1798,21 @@ export function getVisualEditBridgeScript(): string {
       case "game-editor-enable": activateBridge(); break;
       case "game-editor-disable": deactivateBridge(); break;
       case "game-editor-set-mode":
-        if (transformControls && d.mode) transformControls.setMode(d.mode); break;
+        if (d.mode === "pan") {
+          panToolActive = true;
+          if (transformControls) transformControls.detach();
+          if (editor && editor.orbitControls) {
+            editor.orbitControls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
+          }
+        } else {
+          panToolActive = false;
+          if (editor && editor.orbitControls) {
+            editor.orbitControls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
+          }
+          if (transformControls && d.mode) transformControls.setMode(d.mode);
+          if (transformControls && selectedObj) transformControls.attach(selectedObj);
+        }
+        break;
       case "game-editor-select-by-uuid":
         if (editor && d.uuid) {
           var obj = findByUuid(editor.scene, d.uuid);
@@ -1798,6 +1844,32 @@ export function getVisualEditBridgeScript(): string {
         gizmoSpace = gizmoSpace === "world" ? "local" : "world";
         if (transformControls && transformControls.setSpace) transformControls.setSpace(gizmoSpace);
         window.parent.postMessage({ type: "game-editor-gizmo-space", space: gizmoSpace }, "*");
+        break;
+      case "game-editor-snap-camera":
+        if (!editor || !editor.camera || !editor.orbitControls) break;
+        var _target = editor.orbitControls.target.clone();
+        var _dist = editor.camera.position.distanceTo(_target);
+        var _snapPos = _target.clone();
+        switch (d.direction) {
+          case "front": _snapPos.z += _dist; break;
+          case "back": _snapPos.z -= _dist; break;
+          case "right": _snapPos.x += _dist; break;
+          case "left": _snapPos.x -= _dist; break;
+          case "top": _snapPos.y += _dist; _snapPos.z += 0.001; break;
+          case "bottom": _snapPos.y -= _dist; _snapPos.z += 0.001; break;
+        }
+        var _snapStart = editor.camera.position.clone();
+        var _snapT = 0;
+        function _animSnap() {
+          _snapT += 0.08;
+          if (_snapT >= 1) _snapT = 1;
+          var _ease = _snapT * (2 - _snapT);
+          editor.camera.position.lerpVectors(_snapStart, _snapPos, _ease);
+          editor.camera.lookAt(_target);
+          editor.orbitControls.update();
+          if (_snapT < 1) requestAnimationFrame(_animSnap);
+        }
+        _animSnap();
         break;
       case "game-editor-rename-object":
         if (editor && d.uuid && d.name !== undefined) {

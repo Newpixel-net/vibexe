@@ -22,11 +22,15 @@ import {
 	ChevronUp,
 	Copy,
 	ExternalLink,
+	Crosshair,
 	Gamepad2,
+	Globe,
 	Grid3X3,
+	Hand,
 	Monitor,
 	MousePointer2,
 	Move,
+	Redo2,
 	RefreshCw,
 	RotateCcw,
 	RotateCw,
@@ -44,6 +48,7 @@ import { useVisualEdit } from "../lib/visual-edit-context";
 import { useGameEditor, type GizmoMode } from "../lib/game-editor-context";
 import { GameEditorPanel } from "./game-editor-panel";
 import { GameSettingsPanel } from "./game-settings-panel";
+import { SceneGizmo } from "./scene-gizmo";
 import type { RightPanelView } from "./right-panel-tabs";
 import { VisualEditToolbar } from "./visual-edit-toolbar";
 import {
@@ -1034,7 +1039,9 @@ export function SandpackPreview({
 			} else if (data.type === "game-editor-snap-changed") {
 				gameEditor.setSnapEnabled(!!data.snap);
 			} else if (data.type === "game-editor-gizmo-space") {
-				// Sync gizmo space state from bridge
+				gameEditor.setGizmoSpace(data.space as "world" | "local");
+			} else if (data.type === "game-editor-camera-orientation") {
+				gameEditor.setCameraQuaternion(data.quaternion);
 			} else if (data.type === "game-editor-undo-redo-state") {
 				gameEditor.setUndoRedoState(!!data.canUndo, !!data.canRedo);
 			} else if (data.type === "game-editor-object-duplicated") {
@@ -1375,22 +1382,35 @@ export function SandpackPreview({
 				<div className="flex items-center gap-2">
 					{isGameMode && dependencies.three ? (
 						<>
-							<button
-								type="button"
-								onClick={gameEditor.toggleEditor}
-								className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-xl transition-all duration-200 ${
-									gameEditor.enabled
-										? "bg-emerald-500/[0.15] text-emerald-300 border border-emerald-500/[0.25]"
-										: "text-white/40 hover:bg-white/[0.04] hover:text-white/70"
-								}`}
-								title={gameEditor.enabled ? "Exit Scene Editor" : "Scene Editor"}
-							>
-								<Gamepad2 className="w-3.5 h-3.5" />
-								<span className="hidden sm:inline">Scene Editor</span>
-							</button>
+							<div className="flex items-center bg-white/[0.04] rounded-xl border border-white/[0.08] overflow-hidden">
+								<button
+									type="button"
+									onClick={() => { if (!gameEditor.enabled) gameEditor.toggleEditor(); }}
+									className={`px-3 py-1.5 text-xs transition-all ${
+										gameEditor.enabled
+											? "bg-emerald-500/[0.15] text-emerald-300"
+											: "text-white/40 hover:text-white/60"
+									}`}
+								>
+									Scene
+								</button>
+								<div className="w-px h-4 bg-white/[0.08]" />
+								<button
+									type="button"
+									onClick={() => { if (gameEditor.enabled) gameEditor.toggleEditor(); }}
+									className={`px-3 py-1.5 text-xs transition-all ${
+										!gameEditor.enabled
+											? "bg-blue-500/[0.15] text-blue-300"
+											: "text-white/40 hover:text-white/60"
+									}`}
+								>
+									Game
+								</button>
+							</div>
 							{gameEditor.enabled && (
 								<div className="flex items-center gap-0.5 border-l border-white/[0.08] pl-2">
 									{([
+										{ mode: "pan" as const, icon: Hand, label: "Pan (Q)", key: "Q" },
 										{ mode: "translate" as const, icon: Move, label: "Move (W)", key: "W" },
 										{ mode: "rotate" as const, icon: RotateCcw, label: "Rotate (E)", key: "E" },
 										{ mode: "scale" as const, icon: Scaling, label: "Scale (R)", key: "R" },
@@ -1424,11 +1444,41 @@ export function SandpackPreview({
 									</button>
 									<button
 										type="button"
+										onClick={gameEditor.toggleGizmoSpace}
+										className={`flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-lg transition-all duration-150 ${
+											gameEditor.gizmoSpace === "local"
+												? "bg-blue-500/[0.15] text-blue-300"
+												: "text-white/35 hover:bg-white/[0.04] hover:text-white/60"
+										}`}
+										title={gameEditor.gizmoSpace === "world" ? "World Space (X)" : "Local Space (X)"}
+									>
+										{gameEditor.gizmoSpace === "world" ? <Globe className="w-3.5 h-3.5" /> : <Crosshair className="w-3.5 h-3.5" />}
+									</button>
+									<button
+										type="button"
 										onClick={gameEditor.undoAction}
-										className="flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-lg text-white/35 hover:bg-white/[0.04] hover:text-white/60 transition-all duration-150"
+										className={`flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-lg transition-all duration-150 ${
+											gameEditor.canUndo
+												? "text-white/35 hover:bg-white/[0.04] hover:text-white/60"
+												: "text-white/15 cursor-not-allowed"
+										}`}
 										title="Undo (Ctrl+Z)"
+										disabled={!gameEditor.canUndo}
 									>
 										<Undo2 className="w-3.5 h-3.5" />
+									</button>
+									<button
+										type="button"
+										onClick={gameEditor.redoAction}
+										className={`flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-lg transition-all duration-150 ${
+											gameEditor.canRedo
+												? "text-white/35 hover:bg-white/[0.04] hover:text-white/60"
+												: "text-white/15 cursor-not-allowed"
+										}`}
+										title="Redo (Ctrl+Shift+Z)"
+										disabled={!gameEditor.canRedo}
+									>
+										<Redo2 className="w-3.5 h-3.5" />
 									</button>
 								</div>
 							)}
@@ -1638,6 +1688,9 @@ export function SandpackPreview({
 
 					</div>
 				)}
+
+				{/* Scene Gizmo (orientation cube) */}
+				{gameEditor.enabled && isGameMode && <SceneGizmo />}
 
 				{/* Game Editor Panel / Settings Panel (overlaid on right side — mutually exclusive) */}
 				{gameEditor.enabled && isGameMode && (

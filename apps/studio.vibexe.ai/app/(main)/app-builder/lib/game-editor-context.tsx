@@ -10,7 +10,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 
 // ===== Types =====
 
-export type GizmoMode = "translate" | "rotate" | "scale";
+export type GizmoMode = "translate" | "rotate" | "scale" | "pan";
 
 export interface SceneNode {
 	uuid: string;
@@ -200,8 +200,13 @@ interface GameEditorContextValue {
 	renameObject: (uuid: string, name: string) => void;
 	toggleVisibility: (uuid: string) => void;
 	toggleGizmoSpace: () => void;
+	setGizmoSpace: (space: "world" | "local") => void;
 	setHierarchySearch: (search: string) => void;
 	setUndoRedoState: (canUndo: boolean, canRedo: boolean) => void;
+	// Camera orientation for Scene Gizmo
+	cameraQuaternion: { x: number; y: number; z: number; w: number };
+	setCameraQuaternion: (q: { x: number; y: number; z: number; w: number }) => void;
+	snapCameraToView: (direction: "front" | "back" | "left" | "right" | "top" | "bottom") => void;
 }
 
 const GameEditorContext = createContext<GameEditorContextValue | null>(null);
@@ -234,6 +239,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [hierarchySearch, setHierarchySearchState] = useState("");
 	const [canUndo, setCanUndo] = useState(false);
 	const [canRedo, setCanRedo] = useState(false);
+	const [cameraQuaternion, setCameraQuaternion] = useState<{ x: number; y: number; z: number; w: number }>({ x: 0, y: 0, z: 0, w: 1 });
 	const saveHandlerRef = useRef<(() => Promise<void>) | null>(null);
 	const iframeRef = useRef<React.RefObject<HTMLIFrameElement | null> | null>(null);
 
@@ -586,6 +592,14 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		sendToIframe({ type: "game-editor-toggle-space" });
 	}, [sendToIframe]);
 
+	const setGizmoSpace = useCallback((space: "world" | "local") => {
+		setGizmoSpaceState(space);
+	}, []);
+
+	const snapCameraToView = useCallback((direction: "front" | "back" | "left" | "right" | "top" | "bottom") => {
+		sendToIframe({ type: "game-editor-snap-camera", direction });
+	}, [sendToIframe]);
+
 	const setHierarchySearch = useCallback((search: string) => {
 		setHierarchySearchState(search);
 	}, []);
@@ -698,8 +712,12 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				renameObject,
 				toggleVisibility,
 				toggleGizmoSpace,
+				setGizmoSpace,
 				setHierarchySearch,
 				setUndoRedoState,
+				cameraQuaternion,
+				setCameraQuaternion,
+				snapCameraToView,
 			}}
 		>
 			{children}
