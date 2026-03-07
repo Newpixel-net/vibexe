@@ -2612,8 +2612,11 @@ export function getVisualEditBridgeScript(): string {
       // ===== TERRAIN PAINTER HANDLERS =====
 
       case "terrain-painter-generate-terrain": {
+        console.log("[TerrainPainter] CASE HIT. editor=", !!editor, "scene=", !!(editor && editor.scene), "THREE=", !!window.THREE);
         var _tpTHREE = window.THREE;
-        if (!_tpTHREE || !editor || !editor.scene) break;
+        if (!_tpTHREE) { console.log("[TerrainPainter] ABORT: no THREE"); break; }
+        if (!editor) { console.log("[TerrainPainter] ABORT: no editor"); break; }
+        if (!editor.scene) { console.log("[TerrainPainter] ABORT: no editor.scene"); break; }
         var _tpS = d.settings || {};
         var _tpW = _tpS.terrainWidth || 200;
         var _tpD = _tpS.terrainDepth || 200;
@@ -2771,8 +2774,9 @@ export function getVisualEditBridgeScript(): string {
       }
 
       case "terrain-painter-repaint": {
+        console.log("[TerrainPainter] REPAINT CASE HIT. editor=", !!editor, "scene=", !!(editor && editor.scene));
         var _rpTHREE = window.THREE;
-        if (!_rpTHREE || !editor || !editor.scene) break;
+        if (!_rpTHREE || !editor || !editor.scene) { console.log("[TerrainPainter] REPAINT ABORT: missing deps"); break; }
         var _rpTerrain = editor.scene.getObjectByName("__terrain__");
         if (!_rpTerrain || !_rpTerrain.geometry) { console.warn("[TerrainPainter] No terrain found for repaint"); break; }
 
