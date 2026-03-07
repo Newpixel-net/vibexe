@@ -2732,8 +2732,12 @@ export function createPostProcessing(
 /**
  * Shortcut: set scene fog.
  */
-export function addFogEffect(scene: any, opts?: { color?: number; near?: number; far?: number }) {
-  scene.fog = new THREE.Fog(opts?.color ?? 0x88aacc, opts?.near ?? 20, opts?.far ?? 80);
+export function addFogEffect(scene: any, opts?: { color?: number; near?: number; far?: number; type?: string; density?: number }) {
+  if (opts?.type === 'exponential') {
+    scene.fog = new THREE.FogExp2(opts?.color ?? 0x88aacc, opts?.density ?? 0.02);
+  } else {
+    scene.fog = new THREE.Fog(opts?.color ?? 0x88aacc, opts?.near ?? 20, opts?.far ?? 80);
+  }
 }
 
 /**
@@ -3509,11 +3513,16 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         // Optional fog from game settings
         if (__gs.environment?.fogEnabled) {
           const __fogColor = __gs.environment?.fogColor || __envBg || bgColor;
-          scene.fog = new THREE.Fog(
-            __fogColor,
-            __gs.environment?.fogNear ?? 30,
-            __gs.environment?.fogFar ?? 100
-          );
+          const __fogType = __gs.environment?.fogType || "linear";
+          if (__fogType === "exponential") {
+            scene.fog = new THREE.FogExp2(__fogColor, __gs.environment?.fogDensity ?? 0.02);
+          } else {
+            scene.fog = new THREE.Fog(
+              __fogColor,
+              __gs.environment?.fogNear ?? 30,
+              __gs.environment?.fogFar ?? 100
+            );
+          }
         }
 
         // Engine-wide default lighting — balanced for cartoon/Phong materials.
@@ -4889,14 +4898,30 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   if (s.environment.fogEnabled !== undefined) {
                     if (s.environment.fogEnabled) {
                       const _fogColor = s.environment.fogColor || s.environment.backgroundColor || '#87CEEB';
-                      scene.fog = new THREE.Fog(_fogColor, s.environment.fogNear ?? 30, s.environment.fogFar ?? 100);
+                      const _fogType = s.environment.fogType || 'linear';
+                      if (_fogType === 'exponential') {
+                        scene.fog = new THREE.FogExp2(_fogColor, s.environment.fogDensity ?? 0.02);
+                      } else {
+                        scene.fog = new THREE.Fog(_fogColor, s.environment.fogNear ?? 30, s.environment.fogFar ?? 100);
+                      }
                     } else {
                       scene.fog = null;
                     }
                   } else if (scene.fog) {
-                    if (s.environment.fogNear !== undefined) scene.fog.near = s.environment.fogNear;
-                    if (s.environment.fogFar !== undefined) scene.fog.far = s.environment.fogFar;
                     if (s.environment.fogColor) scene.fog.color = new THREE.Color(s.environment.fogColor);
+                    if (s.environment.fogType !== undefined) {
+                      const _fogColor = s.environment.fogColor || s.environment.backgroundColor || '#87CEEB';
+                      if (s.environment.fogType === 'exponential') {
+                        scene.fog = new THREE.FogExp2(_fogColor, s.environment.fogDensity ?? 0.02);
+                      } else {
+                        scene.fog = new THREE.Fog(_fogColor, s.environment.fogNear ?? 30, s.environment.fogFar ?? 100);
+                      }
+                    } else if (scene.fog.isFogExp2) {
+                      if (s.environment.fogDensity !== undefined) scene.fog.density = s.environment.fogDensity;
+                    } else {
+                      if (s.environment.fogNear !== undefined) scene.fog.near = s.environment.fogNear;
+                      if (s.environment.fogFar !== undefined) scene.fog.far = s.environment.fogFar;
+                    }
                   }
                   // Shadow quality
                   if (s.environment.shadowQuality) {

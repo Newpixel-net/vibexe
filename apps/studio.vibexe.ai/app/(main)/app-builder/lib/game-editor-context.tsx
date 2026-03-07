@@ -83,6 +83,7 @@ export interface GameSettings {
 		hemisphereSkyColor?: string;
 		hemisphereGroundColor?: string;
 		fogEnabled?: boolean; fogColor?: string; fogNear?: number; fogFar?: number;
+		fogType?: "linear" | "exponential"; fogDensity?: number;
 		shadowQuality?: "low" | "medium" | "high";
 	};
 	audio?: {
@@ -110,7 +111,7 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
 	player: { spawnX: 0, spawnY: 3, spawnZ: 0, startingLives: 3, respawnX: 0, respawnY: 5, respawnZ: 0 },
 	physics: { gravity: -38, fallGravity: -65, jumpForce: 17, moveSpeed: 6, runSpeed: 7.5, friction: 28, coyoteTime: 0.15 },
 	camera: { offsetY: 8, offsetZ: 12, fov: 60, lerp: 3, lookAhead: 5, lookY: 1 },
-	environment: { backgroundColor: "#87CEEB", ambientLightIntensity: 0.15, ambientLightColor: "#ffffff", sunLightIntensity: 0.55, sunLightColor: "#fff8ee", hemisphereIntensity: 0.35, hemisphereSkyColor: "#eef4ff", hemisphereGroundColor: "#886644", fogEnabled: false, fogColor: "#88aacc", fogNear: 30, fogFar: 100, shadowQuality: "medium" as const },
+	environment: { backgroundColor: "#87CEEB", ambientLightIntensity: 0.15, ambientLightColor: "#ffffff", sunLightIntensity: 0.55, sunLightColor: "#fff8ee", hemisphereIntensity: 0.35, hemisphereSkyColor: "#eef4ff", hemisphereGroundColor: "#886644", fogEnabled: false, fogColor: "#88aacc", fogNear: 30, fogFar: 100, fogType: "linear" as const, fogDensity: 0.02, shadowQuality: "medium" as const },
 	audio: { masterVolume: 0.8, musicVolume: 0.5, sfxVolume: 0.7, enabled: true },
 	postProcessing: { preset: "none" as const, bloomIntensity: 0.5, bloomThreshold: 0.8 },
 	performance: { qualityPreset: "high" as QualityPreset, showFPS: false, antialias: true, pixelRatio: 1, maxFPS: 60 },

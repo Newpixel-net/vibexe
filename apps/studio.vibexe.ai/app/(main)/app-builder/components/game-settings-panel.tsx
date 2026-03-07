@@ -98,6 +98,43 @@ function SettingRow({ children, tooltip, validation }: {
 }
 
 /* ------------------------------------------------------------------ */
+/*  ColorInput — larger swatch + editable hex input                    */
+/* ------------------------------------------------------------------ */
+
+function ColorInput({ label, value, onChange }: {
+	label: string;
+	value: string;
+	onChange: (hex: string) => void;
+}) {
+	const [editing, setEditing] = useState(false);
+	const [draft, setDraft] = useState(value);
+
+	return (
+		<div className="flex items-center gap-2">
+			<span className="text-xs text-white/50 w-[60px]">{label}</span>
+			<label className="relative w-7 h-7 rounded-md border border-white/15 cursor-pointer overflow-hidden shrink-0"
+				style={{ backgroundColor: value }}>
+				<input type="color" value={value} onChange={(e) => { onChange(e.target.value); setDraft(e.target.value); }}
+					className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+			</label>
+			{editing ? (
+				<input className="w-[72px] text-xs font-mono bg-white/5 text-white/80 rounded px-1.5 py-0.5 border border-white/15 outline-none focus:border-violet-400"
+					value={draft}
+					onChange={(e) => setDraft(e.target.value)}
+					onBlur={() => { if (/^#[0-9a-f]{6}$/i.test(draft)) onChange(draft); setEditing(false); }}
+					onKeyDown={(e) => { if (e.key === "Enter") { if (/^#[0-9a-f]{6}$/i.test(draft)) onChange(draft); setEditing(false); } if (e.key === "Escape") { setDraft(value); setEditing(false); } }}
+					autoFocus />
+			) : (
+				<span className="text-xs text-white/40 font-mono cursor-text hover:text-white/60"
+					onClick={() => { setDraft(value); setEditing(true); }}>
+					{value}
+				</span>
+			)}
+		</div>
+	);
+}
+
+/* ------------------------------------------------------------------ */
 /*  Content-only variant (used inside game-editor-panel tabs)          */
 /* ------------------------------------------------------------------ */
 
@@ -282,18 +319,7 @@ export function GameSettingsContent({ settings, onChange, onSave }: GameSettings
 				{activeTab === "environment" && (
 					<>
 						<SectionLabel tooltip="Sky/background color when no skybox is used">Background</SectionLabel>
-						<div className="flex items-center gap-2">
-							<span className="text-xs text-white/50 w-[60px]">Color</span>
-							<input
-								type="color"
-								value={settings.environment?.backgroundColor ?? "#87CEEB"}
-								onChange={(e) => update("environment", "backgroundColor", e.target.value)}
-								className="w-8 h-6 rounded border border-white/10 bg-transparent cursor-pointer"
-							/>
-							<span className="text-xs text-white/40 font-mono">
-								{settings.environment?.backgroundColor ?? "#87CEEB"}
-							</span>
-						</div>
+						<ColorInput label="Color" value={settings.environment?.backgroundColor ?? "#87CEEB"} onChange={(v) => update("environment", "backgroundColor", v)} />
 
 						<SectionLabel tooltip="Light sources that illuminate the scene">Lighting</SectionLabel>
 						<SettingRow
@@ -302,45 +328,36 @@ export function GameSettingsContent({ settings, onChange, onSave }: GameSettings
 						>
 							<DragNumberInput label="Ambient" value={settings.environment?.ambientLightIntensity ?? 0.15} step={0.05} precision={2} onChange={(v) => update("environment", "ambientLightIntensity", Math.max(0, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
 						</SettingRow>
-						<div className="flex items-center gap-2">
-							<span className="text-xs text-white/50 w-[60px]">Color</span>
-							<input type="color" value={settings.environment?.ambientLightColor ?? "#ffffff"} onChange={(e) => update("environment", "ambientLightColor", e.target.value)} className="w-8 h-6 rounded border border-white/10 bg-transparent cursor-pointer" />
-							<span className="text-xs text-white/40 font-mono">{settings.environment?.ambientLightColor ?? "#ffffff"}</span>
-						</div>
+						<ColorInput label="Color" value={settings.environment?.ambientLightColor ?? "#ffffff"} onChange={(v) => update("environment", "ambientLightColor", v)} />
 						<SettingRow
 							tooltip="Directional sunlight strength"
 							validation={<ValidationHint value={settings.environment?.sunLightIntensity ?? 0.55} min={0} max={2} />}
 						>
 							<DragNumberInput label="Sun" value={settings.environment?.sunLightIntensity ?? 0.55} step={0.05} precision={2} onChange={(v) => update("environment", "sunLightIntensity", Math.max(0, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
 						</SettingRow>
-						<div className="flex items-center gap-2">
-							<span className="text-xs text-white/50 w-[60px]">Color</span>
-							<input type="color" value={settings.environment?.sunLightColor ?? "#fff8ee"} onChange={(e) => update("environment", "sunLightColor", e.target.value)} className="w-8 h-6 rounded border border-white/10 bg-transparent cursor-pointer" />
-							<span className="text-xs text-white/40 font-mono">{settings.environment?.sunLightColor ?? "#fff8ee"}</span>
-						</div>
+						<ColorInput label="Color" value={settings.environment?.sunLightColor ?? "#fff8ee"} onChange={(v) => update("environment", "sunLightColor", v)} />
 						<SettingRow
 							tooltip="Sky-to-ground gradient light strength"
 							validation={<ValidationHint value={settings.environment?.hemisphereIntensity ?? 0.35} min={0} max={2} />}
 						>
 							<DragNumberInput label="Hemi" value={settings.environment?.hemisphereIntensity ?? 0.35} step={0.05} precision={2} onChange={(v) => update("environment", "hemisphereIntensity", Math.max(0, Math.min(2, v)))} labelClassName="w-[60px] text-left" />
 						</SettingRow>
-						<div className="flex items-center gap-2">
-							<span className="text-xs text-white/50 w-[60px]">Sky</span>
-							<input type="color" value={settings.environment?.hemisphereSkyColor ?? "#eef4ff"} onChange={(e) => update("environment", "hemisphereSkyColor", e.target.value)} className="w-8 h-6 rounded border border-white/10 bg-transparent cursor-pointer" />
-							<span className="text-xs text-white/40 font-mono">{settings.environment?.hemisphereSkyColor ?? "#eef4ff"}</span>
-						</div>
-						<div className="flex items-center gap-2">
-							<span className="text-xs text-white/50 w-[60px]">Ground</span>
-							<input type="color" value={settings.environment?.hemisphereGroundColor ?? "#886644"} onChange={(e) => update("environment", "hemisphereGroundColor", e.target.value)} className="w-8 h-6 rounded border border-white/10 bg-transparent cursor-pointer" />
-							<span className="text-xs text-white/40 font-mono">{settings.environment?.hemisphereGroundColor ?? "#886644"}</span>
-						</div>
+						<ColorInput label="Sky" value={settings.environment?.hemisphereSkyColor ?? "#eef4ff"} onChange={(v) => update("environment", "hemisphereSkyColor", v)} />
+						<ColorInput label="Ground" value={settings.environment?.hemisphereGroundColor ?? "#886644"} onChange={(v) => update("environment", "hemisphereGroundColor", v)} />
 
 						<SectionLabel tooltip="Adds distance fog that fades objects in the background">Fog</SectionLabel>
 						<div className="flex items-center gap-2">
 							<span className="text-xs text-white/50 w-[60px]">Enabled</span>
 							<button
 								type="button"
-								onClick={() => update("environment", "fogEnabled", !(settings.environment?.fogEnabled ?? false))}
+								onClick={() => {
+									const wasEnabled = settings.environment?.fogEnabled ?? false;
+									if (!wasEnabled && (settings.environment?.fogColor ?? "#88aacc") === "#88aacc") {
+										onChange(deepMerge(settings, { environment: { fogEnabled: true, fogColor: settings.environment?.backgroundColor ?? "#87CEEB" } }));
+									} else {
+										update("environment", "fogEnabled", !wasEnabled);
+									}
+								}}
 								className={`w-8 h-4 rounded-full transition-colors relative ${
 									settings.environment?.fogEnabled ? "bg-violet-500" : "bg-white/10"
 								}`}
@@ -354,22 +371,45 @@ export function GameSettingsContent({ settings, onChange, onSave }: GameSettings
 						{settings.environment?.fogEnabled && (
 							<>
 								<div className="flex items-center gap-2">
-									<span className="text-xs text-white/50 w-[60px]">Color</span>
-									<input type="color" value={settings.environment?.fogColor ?? "#88aacc"} onChange={(e) => update("environment", "fogColor", e.target.value)} className="w-8 h-6 rounded border border-white/10 bg-transparent cursor-pointer" />
-									<span className="text-xs text-white/40 font-mono">{settings.environment?.fogColor ?? "#88aacc"}</span>
+									<ColorInput label="Color" value={settings.environment?.fogColor ?? "#88aacc"} onChange={(v) => update("environment", "fogColor", v)} />
+									<button onClick={() => update("environment", "fogColor", settings.environment?.backgroundColor ?? "#87CEEB")}
+										className="text-[10px] text-white/30 hover:text-white/60 px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 shrink-0"
+										title="Set fog color to match background">
+										Match Sky
+									</button>
 								</div>
-								<SettingRow
-									tooltip="Distance where fog begins (closer = more fog)"
-									validation={<ValidationHint value={settings.environment?.fogNear ?? 30} min={1} max={200} />}
-								>
-									<DragNumberInput label="Near" value={settings.environment?.fogNear ?? 30} step={1} precision={0} onChange={(v) => update("environment", "fogNear", Math.max(1, v))} labelClassName="w-[60px] text-left" />
-								</SettingRow>
-								<SettingRow
-									tooltip="Distance where fog fully obscures objects"
-									validation={<ValidationHint value={settings.environment?.fogFar ?? 100} min={10} max={500} />}
-								>
-									<DragNumberInput label="Far" value={settings.environment?.fogFar ?? 100} step={1} precision={0} onChange={(v) => update("environment", "fogFar", Math.max(1, v))} labelClassName="w-[60px] text-left" />
-								</SettingRow>
+								<div className="flex items-center gap-2">
+									<span className="text-xs text-white/50 w-[60px]">Type</span>
+									<select value={settings.environment?.fogType ?? "linear"}
+										onChange={(e) => update("environment", "fogType", e.target.value)}
+										className="bg-zinc-800 text-xs text-zinc-300 rounded px-2 py-1 border border-zinc-700 focus:ring-1 focus:ring-violet-500 outline-none">
+										<option value="linear">Linear (Near/Far)</option>
+										<option value="exponential">Exponential (Density)</option>
+									</select>
+								</div>
+								{(settings.environment?.fogType ?? "linear") === "linear" ? (
+									<>
+										<SettingRow
+											tooltip="Distance where fog begins (closer = more fog)"
+											validation={<ValidationHint value={settings.environment?.fogNear ?? 30} min={1} max={200} />}
+										>
+											<DragNumberInput label="Near" value={settings.environment?.fogNear ?? 30} step={1} precision={0} onChange={(v) => update("environment", "fogNear", Math.max(1, v))} labelClassName="w-[60px] text-left" />
+										</SettingRow>
+										<SettingRow
+											tooltip="Distance where fog fully obscures objects"
+											validation={<ValidationHint value={settings.environment?.fogFar ?? 100} min={10} max={500} />}
+										>
+											<DragNumberInput label="Far" value={settings.environment?.fogFar ?? 100} step={1} precision={0} onChange={(v) => update("environment", "fogFar", Math.max(1, v))} labelClassName="w-[60px] text-left" />
+										</SettingRow>
+									</>
+								) : (
+									<SettingRow
+										tooltip="Fog density — higher values create thicker fog"
+										validation={<ValidationHint value={settings.environment?.fogDensity ?? 0.02} min={0.001} max={0.5} />}
+									>
+										<DragNumberInput label="Density" value={settings.environment?.fogDensity ?? 0.02} step={0.005} precision={3} onChange={(v) => update("environment", "fogDensity", Math.max(0.001, Math.min(0.5, v)))} labelClassName="w-[60px] text-left" />
+									</SettingRow>
+								)}
 							</>
 						)}
 
