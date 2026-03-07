@@ -515,6 +515,9 @@ export function getVisualEditBridgeScript(): string {
   var rotationSnapDeg = 15;
   var gizmoSpace = "world";
   var panToolActive = false;
+  var _lastCamBroadcast = 0;
+  var _lastCamQ = { x: 0, y: 0, z: 0, w: 1 };
+  var _savedOrbitMouseButtons = null; // Save game's original orbit mouseButtons
   var gridHelper = null;
   var canvasPointerDownHandler = null;
   var bodyMouseDownHandler = null;
@@ -795,7 +798,7 @@ export function getVisualEditBridgeScript(): string {
         transformControls.rotationSnap = null;
         transformControls.scaleSnap = null;
       }
-      transformControls.attach(obj);
+      if (!panToolActive) transformControls.attach(obj);
       transformControls.addEventListener("dragging-changed", function(e) {
         if (editor.orbitControls) editor.orbitControls.enabled = !e.value;
         if (e.value && selectedObj) {
@@ -1031,8 +1034,14 @@ export function getVisualEditBridgeScript(): string {
     flyMode = false;
     if (editor && editor.orbitControls) {
       editor.orbitControls.enabled = true;
-      // Update orbit target to where camera is now looking
+      // Restore mouseButtons based on panToolActive state
       var THREE = window.THREE;
+      if (panToolActive) {
+        editor.orbitControls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
+      } else {
+        editor.orbitControls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
+      }
+      // Update orbit target to where camera is now looking
       var dir = new THREE.Vector3();
       editor.camera.getWorldDirection(dir);
       editor.orbitControls.target.copy(editor.camera.position).add(dir.multiplyScalar(10));
@@ -1366,14 +1375,16 @@ export function getVisualEditBridgeScript(): string {
     // Track key state for flythrough
     flyKeys[e.code] = true;
     // If RMB is held and a movement key is pressed, enter fly mode
-    var isMoveKey = e.code === "KeyW" || e.code === "KeyA" || e.code === "KeyS" || e.code === "KeyD" || e.code === "KeyQ" || e.code === "KeyE";
-    if (flyRMBDown && isMoveKey) {
+    // Note: KeyQ is excluded from isMoveKey to avoid conflict with Pan tool shortcut
+    var isMoveKey = e.code === "KeyW" || e.code === "KeyA" || e.code === "KeyS" || e.code === "KeyD" || e.code === "KeyE";
+    if (flyRMBDown && isMoveKey && !panToolActive) {
       enterFlyMode();
       e.preventDefault();
       return;
     }
-    // In fly mode, skip gizmo switching (WASD used for movement)
-    if (flyMode && isMoveKey) {
+    // In fly mode, skip gizmo switching (WASD used for movement) — also block Q/E fly keys
+    var isFlyMoveKey = isMoveKey || e.code === "KeyQ" || e.code === "KeyE";
+    if (flyMode && isFlyMoveKey) {
       e.preventDefault();
       return;
     }
@@ -1434,6 +1445,14 @@ export function getVisualEditBridgeScript(): string {
         toggleGridHelper(); e.preventDefault(); break;
       case "Escape":
         if (flyMode) { exitFlyMode(); }
+        else if (panToolActive) {
+          // Cancel pan mode, return to translate
+          panToolActive = false;
+          if (editor && editor.orbitControls) editor.orbitControls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
+          if (transformControls) transformControls.setMode("translate");
+          if (transformControls && selectedObj) transformControls.attach(selectedObj);
+          window.parent.postMessage({ type: "game-editor-gizmo-mode", mode: "translate" }, "*");
+        }
         else if (transformControls && transformControls.dragging) {
           // Cancel active gizmo drag — restore to pre-drag position
           if (selectedObj && transformControls.__undoPos) {
@@ -1483,17 +1502,16 @@ export function getVisualEditBridgeScript(): string {
     updateFlyMovement();
     if (editor.orbitControls && !flyMode) editor.orbitControls.update();
     if (boxHelper && selectedObj) boxHelper.update();
-    // Throttled camera orientation broadcast (~10Hz)
-    if (!editor._camTimer) editor._camTimer = 0;
-    if (!editor._lastQ) editor._lastQ = { x: 0, y: 0, z: 0, w: 1 };
-    editor._camTimer++;
-    if (editor._camTimer >= 6) {
-      editor._camTimer = 0;
+    // Throttled camera orientation broadcast (~10Hz wall-clock)
+    var _camNow = Date.now();
+    if (!_lastCamBroadcast) _lastCamBroadcast = 0;
+    if (_camNow - _lastCamBroadcast >= 100) {
+      _lastCamBroadcast = _camNow;
       var q = editor.camera.quaternion;
-      if (Math.abs(q.x - editor._lastQ.x) > 0.005 || Math.abs(q.y - editor._lastQ.y) > 0.005 ||
-          Math.abs(q.z - editor._lastQ.z) > 0.005 || Math.abs(q.w - editor._lastQ.w) > 0.005) {
-        editor._lastQ = { x: +q.x.toFixed(4), y: +q.y.toFixed(4), z: +q.z.toFixed(4), w: +q.w.toFixed(4) };
-        window.parent.postMessage({ type: "game-editor-camera-orientation", quaternion: editor._lastQ }, "*");
+      if (Math.abs(q.x - _lastCamQ.x) > 0.005 || Math.abs(q.y - _lastCamQ.y) > 0.005 ||
+          Math.abs(q.z - _lastCamQ.z) > 0.005 || Math.abs(q.w - _lastCamQ.w) > 0.005) {
+        _lastCamQ = { x: +q.x.toFixed(4), y: +q.y.toFixed(4), z: +q.z.toFixed(4), w: +q.w.toFixed(4) };
+        window.parent.postMessage({ type: "game-editor-camera-orientation", quaternion: _lastCamQ }, "*");
       }
     }
     // Per-frame sweep: remove duplicate __editor_ objects (old Game3D.tsx templates lack _hasExt guard)
@@ -1541,6 +1559,10 @@ export function getVisualEditBridgeScript(): string {
       function fixOrbitControls() {
         if (!editor || !editor.orbitControls) return;
         var oc = editor.orbitControls;
+        // Save original mouseButtons on first call (for non-editor-created controls)
+        if (!_savedOrbitMouseButtons && !oc._vibexeEditorCreated && oc.mouseButtons) {
+          _savedOrbitMouseButtons = { LEFT: oc.mouseButtons.LEFT, MIDDLE: oc.mouseButtons.MIDDLE, RIGHT: oc.mouseButtons.RIGHT };
+        }
         oc.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
         oc.screenSpacePanning = true;
         // No distance limits — allow infinite zoom for long maps
@@ -1594,6 +1616,7 @@ export function getVisualEditBridgeScript(): string {
       // Flythrough: track right mouse button
       flyRMBDownHandler = function(e) {
         if (!active || !editor || e.button !== 2) return;
+        if (panToolActive) return; // Don't enter fly mode from pan mode
         flyRMBDown = true;
         flyLastMouse = { x: e.clientX, y: e.clientY };
       };
@@ -1706,13 +1729,21 @@ export function getVisualEditBridgeScript(): string {
     deselectObject();
     if (isDragging) endXZDrag();
     if (gridHelper && editor) { editor.scene.remove(gridHelper); if (gridHelper.dispose) gridHelper.dispose(); gridHelper = null; }
-    // Dispose editor-created OrbitControls
-    if (editor && editor.orbitControls && editor.orbitControls._vibexeEditorCreated) {
-      editor.orbitControls.dispose();
-      editor.orbitControls = null;
+    // Dispose editor-created OrbitControls, or restore original mouseButtons for game's own controls
+    if (editor && editor.orbitControls) {
+      if (editor.orbitControls._vibexeEditorCreated) {
+        editor.orbitControls.dispose();
+        editor.orbitControls = null;
+      } else if (_savedOrbitMouseButtons) {
+        editor.orbitControls.mouseButtons = _savedOrbitMouseButtons;
+      }
     }
+    _savedOrbitMouseButtons = null;
     gridSnap = false;
+    panToolActive = false;
+    gizmoSpace = "world";
     undoStack = [];
+    redoStack = [];
     // Restore game HUD pointer events
     var hiddenEls = document.querySelectorAll("[data-editor-hidden]");
     for (var ri = 0; ri < hiddenEls.length; ri++) {
@@ -1847,29 +1878,39 @@ export function getVisualEditBridgeScript(): string {
         break;
       case "game-editor-snap-camera":
         if (!editor || !editor.camera || !editor.orbitControls) break;
-        var _target = editor.orbitControls.target.clone();
-        var _dist = editor.camera.position.distanceTo(_target);
-        var _snapPos = _target.clone();
-        switch (d.direction) {
-          case "front": _snapPos.z += _dist; break;
-          case "back": _snapPos.z -= _dist; break;
-          case "right": _snapPos.x += _dist; break;
-          case "left": _snapPos.x -= _dist; break;
-          case "top": _snapPos.y += _dist; _snapPos.z += 0.001; break;
-          case "bottom": _snapPos.y -= _dist; _snapPos.z += 0.001; break;
-        }
-        var _snapStart = editor.camera.position.clone();
-        var _snapT = 0;
-        function _animSnap() {
-          _snapT += 0.08;
-          if (_snapT >= 1) _snapT = 1;
-          var _ease = _snapT * (2 - _snapT);
-          editor.camera.position.lerpVectors(_snapStart, _snapPos, _ease);
-          editor.camera.lookAt(_target);
-          editor.orbitControls.update();
-          if (_snapT < 1) requestAnimationFrame(_animSnap);
-        }
-        _animSnap();
+        // Cancel any previous snap animation
+        if (window.__snapAnimId) { cancelAnimationFrame(window.__snapAnimId); window.__snapAnimId = null; }
+        (function() {
+          var _cam = editor.camera;
+          var _orbit = editor.orbitControls;
+          var _target = _orbit.target.clone();
+          var _dist = _cam.position.distanceTo(_target);
+          var _snapPos = _target.clone();
+          switch (d.direction) {
+            case "front": _snapPos.z += _dist; break;
+            case "back": _snapPos.z -= _dist; break;
+            case "right": _snapPos.x += _dist; break;
+            case "left": _snapPos.x -= _dist; break;
+            case "top": _snapPos.y += _dist; _snapPos.z += 0.01; break;
+            case "bottom": _snapPos.y -= _dist; _snapPos.z += 0.01; break;
+          }
+          var _snapStart = _cam.position.clone();
+          var _snapT = 0;
+          function _doSnap() {
+            if (!active || !editor) { window.__snapAnimId = null; return; }
+            _snapT += 0.08;
+            if (_snapT >= 1) _snapT = 1;
+            var _ease = _snapT * (2 - _snapT);
+            _cam.position.lerpVectors(_snapStart, _snapPos, _ease);
+            _orbit.update();
+            if (_snapT < 1) {
+              window.__snapAnimId = requestAnimationFrame(_doSnap);
+            } else {
+              window.__snapAnimId = null;
+            }
+          }
+          _doSnap();
+        })();
         break;
       case "game-editor-rename-object":
         if (editor && d.uuid && d.name !== undefined) {
@@ -1969,6 +2010,7 @@ export function getVisualEditBridgeScript(): string {
         // Wait a tick for activation, then process click
         setTimeout(function() {
           if (!active || !editor) return;
+          if (panToolActive) return; // Pan mode: don't select objects
           // If spawn mode is active, spawn object at click position instead of selecting
           if (window.__vibexe_spawn_mode__ && window.__vibexe_spawn_factory__) {
             var THREE2 = window.THREE;

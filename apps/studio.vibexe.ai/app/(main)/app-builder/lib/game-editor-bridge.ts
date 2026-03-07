@@ -458,7 +458,7 @@ export function getGameEditorBridgeScript(): string {
         deactivate();
         break;
       case "game-editor-set-mode":
-        if (transformControls && d.mode) {
+        if (transformControls && d.mode && d.mode !== "pan") {
           transformControls.setMode(d.mode);
         }
         break;

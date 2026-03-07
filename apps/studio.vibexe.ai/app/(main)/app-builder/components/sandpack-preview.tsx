@@ -23,7 +23,6 @@ import {
 	Copy,
 	ExternalLink,
 	Crosshair,
-	Gamepad2,
 	Globe,
 	Grid3X3,
 	Hand,

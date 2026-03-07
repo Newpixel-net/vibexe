@@ -296,6 +296,12 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				} catch { /* ignore */ }
 				setSelectedObject(null);
 				setSceneTree(null);
+				// Reset editor state to defaults
+				setGizmoModeState("translate");
+				setGizmoSpaceState("world");
+				setCanUndo(false);
+				setCanRedo(false);
+				setCameraQuaternion({ x: 0, y: 0, z: 0, w: 1 });
 			}
 			return next;
 		});
@@ -328,6 +334,12 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 			} catch { /* ignore */ }
 			setSelectedObject(null);
 			setSceneTree(null);
+			// Reset editor state to defaults
+			setGizmoModeState("translate");
+			setGizmoSpaceState("world");
+			setCanUndo(false);
+			setCanRedo(false);
+			setCameraQuaternion({ x: 0, y: 0, z: 0, w: 1 });
 		}
 	}, [sendToIframe]);
 
