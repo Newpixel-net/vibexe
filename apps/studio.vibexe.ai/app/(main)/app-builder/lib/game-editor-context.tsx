@@ -483,6 +483,16 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 			}
 			// Live-sync ALL settings to iframe (physics, camera, lighting, fog, etc.)
 			sendToIframe({ type: "updateGameSettings", settings: next });
+			// FX presets: send via external bridge (works even with old Game3D.tsx)
+			if (patch.postProcessing) {
+				const pp = next.postProcessing;
+				sendToIframe({
+					type: "game-editor-apply-fx",
+					preset: pp?.preset ?? "none",
+					bloomIntensity: pp?.bloomIntensity,
+					bloomThreshold: pp?.bloomThreshold,
+				});
+			}
 			return next;
 		});
 	}, [sendToIframe]);

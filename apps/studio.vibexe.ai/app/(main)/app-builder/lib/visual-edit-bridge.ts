@@ -2177,6 +2177,33 @@ export function getVisualEditBridgeScript(): string {
         console.log("[GameEditorBridge] Collected transforms:", Object.keys(allTransforms).length, "objects");
         window.parent.postMessage({ type: "game-editor-all-transforms", transforms: allTransforms }, "*");
         break;
+      case "game-editor-apply-fx": {
+        // Apply post-processing preset from the external bridge (works even with old Game3D.tsx)
+        var _fxPreset = d.preset;
+        var _fxCreatePP = window.createPostProcessing;
+        var _fxRenderer = window.__vibexe_renderer__ || (editor && editor.renderer);
+        var _fxScene = window.__vibexe_scene__ || (editor && editor.scene);
+        var _fxCamera = window.__vibexe_camera__ || (editor && editor.camera);
+        console.log("[GameEditorBridge] Apply FX:", _fxPreset, "createPP:", !!_fxCreatePP, "renderer:", !!_fxRenderer);
+        // Destroy existing composer
+        var _fxOld = window.__vibexe_composer__;
+        if (_fxOld) { window.__vibexe_composer__ = null; try { _fxOld.dispose(); } catch(e) {} }
+        if (_fxPreset && _fxPreset !== "none" && _fxCreatePP && _fxRenderer && _fxScene && _fxCamera) {
+          var _fxPP = _fxCreatePP(_fxRenderer, _fxScene, _fxCamera, _fxPreset);
+          console.log("[GameEditorBridge] FX composer created:", !!_fxPP, "on window:", !!window.__vibexe_composer__);
+          // Apply custom bloom overrides
+          if (_fxPP && d.bloomIntensity != null || d.bloomThreshold != null) {
+            var _fxPresets = window.POST_PROCESSING_PRESETS || {};
+            var _fxPD = _fxPresets[_fxPreset];
+            _fxPP.addBloom({
+              strength: d.bloomIntensity != null ? d.bloomIntensity : (_fxPD && _fxPD.bloom ? _fxPD.bloom.strength : 0.5),
+              radius: _fxPD && _fxPD.bloom ? _fxPD.bloom.radius : 0.4,
+              threshold: d.bloomThreshold != null ? d.bloomThreshold : (_fxPD && _fxPD.bloom ? _fxPD.bloom.threshold : 0.85)
+            });
+          }
+        }
+        break;
+      }
     }
   });
   } // end initBridge
