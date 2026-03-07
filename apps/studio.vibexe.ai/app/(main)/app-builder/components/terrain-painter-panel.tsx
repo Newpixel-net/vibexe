@@ -105,7 +105,7 @@ const DEFAULT_LAYERS: LayerData[] = [
 		name: "Dirt",
 		enabled: true,
 		previewColor: "#8b6914",
-		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Ground037_Color.jpg",
+		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Ground037.jpg",
 		modifiers: [
 			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0, max: 0.3, minFalloff: 0.05, maxFalloff: 0.1 } },
 		],
@@ -114,7 +114,7 @@ const DEFAULT_LAYERS: LayerData[] = [
 		name: "Grass",
 		enabled: true,
 		previewColor: "#6b8e23",
-		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Grass004_Color.jpg",
+		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Grass004.jpg",
 		modifiers: [
 			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.1, max: 0.5, minFalloff: 0.05, maxFalloff: 0.1 } },
 			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 30, minFalloff: 5, maxFalloff: 10 } },
@@ -124,7 +124,7 @@ const DEFAULT_LAYERS: LayerData[] = [
 		name: "Rock",
 		enabled: true,
 		previewColor: "#7a7a7a",
-		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Rock034_Color.jpg",
+		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Rock035.jpg",
 		modifiers: [
 			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 25, maxAngle: 90, minFalloff: 10, maxFalloff: 5 } },
 		],
@@ -133,7 +133,7 @@ const DEFAULT_LAYERS: LayerData[] = [
 		name: "Snow",
 		enabled: true,
 		previewColor: "#e8e8e8",
-		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Snow006_Color.jpg",
+		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Snow006.jpg",
 		modifiers: [
 			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.6, max: 1.0, minFalloff: 0.1, maxFalloff: 0.05 } },
 		],
