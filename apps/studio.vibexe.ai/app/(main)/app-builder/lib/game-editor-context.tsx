@@ -207,6 +207,14 @@ interface GameEditorContextValue {
 	cameraQuaternion: { x: number; y: number; z: number; w: number };
 	setCameraQuaternion: (q: { x: number; y: number; z: number; w: number }) => void;
 	snapCameraToView: (direction: "front" | "back" | "left" | "right" | "top" | "bottom") => void;
+	// Perspective / Orthographic toggle
+	editorProjection: "perspective" | "orthographic";
+	setEditorProjection: (mode: "perspective" | "orthographic") => void;
+	toggleEditorProjection: () => void;
+	// Center / Pivot orbit toggle
+	pivotMode: "center" | "pivot";
+	setPivotMode: (mode: "center" | "pivot") => void;
+	togglePivotMode: () => void;
 }
 
 const GameEditorContext = createContext<GameEditorContextValue | null>(null);
@@ -240,6 +248,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [canUndo, setCanUndo] = useState(false);
 	const [canRedo, setCanRedo] = useState(false);
 	const [cameraQuaternion, setCameraQuaternion] = useState<{ x: number; y: number; z: number; w: number }>({ x: 0, y: 0, z: 0, w: 1 });
+	const [editorProjection, setEditorProjectionState] = useState<"perspective" | "orthographic">("perspective");
+	const [pivotMode, setPivotModeState] = useState<"center" | "pivot">("center");
 	const saveHandlerRef = useRef<(() => Promise<void>) | null>(null);
 	const iframeRef = useRef<React.RefObject<HTMLIFrameElement | null> | null>(null);
 
@@ -302,6 +312,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				setCanUndo(false);
 				setCanRedo(false);
 				setCameraQuaternion({ x: 0, y: 0, z: 0, w: 1 });
+				setEditorProjectionState("perspective");
+				setPivotModeState("center");
 			}
 			return next;
 		});
@@ -340,6 +352,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 			setCanUndo(false);
 			setCanRedo(false);
 			setCameraQuaternion({ x: 0, y: 0, z: 0, w: 1 });
+			setEditorProjectionState("perspective");
+			setPivotModeState("center");
 		}
 	}, [sendToIframe]);
 
@@ -349,7 +363,11 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	}, [sendToIframe]);
 
 	const selectObjectByUuid = useCallback((uuid: string) => {
-		sendToIframe({ type: "game-editor-select-by-uuid", uuid });
+		if (uuid === "__game_camera__") {
+			sendToIframe({ type: "game-editor-select-camera", uuid });
+		} else {
+			sendToIframe({ type: "game-editor-select-by-uuid", uuid });
+		}
 	}, [sendToIframe]);
 
 	const deselectObject = useCallback(() => {
@@ -612,6 +630,30 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		sendToIframe({ type: "game-editor-snap-camera", direction });
 	}, [sendToIframe]);
 
+	const setEditorProjection = useCallback((mode: "perspective" | "orthographic") => {
+		setEditorProjectionState(mode);
+	}, []);
+
+	const toggleEditorProjection = useCallback(() => {
+		setEditorProjectionState((prev) => {
+			const next = prev === "perspective" ? "orthographic" : "perspective";
+			sendToIframe({ type: "game-editor-toggle-projection", projection: next });
+			return next;
+		});
+	}, [sendToIframe]);
+
+	const setPivotMode = useCallback((mode: "center" | "pivot") => {
+		setPivotModeState(mode);
+	}, []);
+
+	const togglePivotMode = useCallback(() => {
+		setPivotModeState((prev) => {
+			const next = prev === "center" ? "pivot" : "center";
+			sendToIframe({ type: "game-editor-set-pivot-mode", mode: next });
+			return next;
+		});
+	}, [sendToIframe]);
+
 	const setHierarchySearch = useCallback((search: string) => {
 		setHierarchySearchState(search);
 	}, []);
@@ -730,6 +772,12 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				cameraQuaternion,
 				setCameraQuaternion,
 				snapCameraToView,
+				editorProjection,
+				setEditorProjection,
+				toggleEditorProjection,
+				pivotMode,
+				setPivotMode,
+				togglePivotMode,
 			}}
 		>
 			{children}

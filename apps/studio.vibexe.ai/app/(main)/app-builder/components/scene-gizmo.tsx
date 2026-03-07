@@ -37,13 +37,14 @@ function quaternionToMatrix3d(q: { x: number; y: number; z: number; w: number })
 }
 
 export function SceneGizmo() {
-	const { cameraQuaternion, snapCameraToView } = useGameEditor();
+	const { cameraQuaternion, snapCameraToView, editorProjection, toggleEditorProjection } = useGameEditor();
+	const isOrtho = editorProjection === "orthographic";
 	const cubeTransform = quaternionToMatrix3d(cameraQuaternion);
 
 	return (
 		<div
 			className="absolute top-3 right-[276px] z-50 select-none"
-			style={{ width: 80, height: 80, perspective: 300 }}
+			style={{ width: 80, height: 100, perspective: 300 }}
 		>
 			{/* Cube + axis container — all 3D elements rotate together */}
 			<div
@@ -113,6 +114,22 @@ export function SceneGizmo() {
 					</div>
 				))}
 			</div>
+			{/* Persp/Ortho toggle label */}
+			<button
+				type="button"
+				onClick={toggleEditorProjection}
+				className="w-full mt-1 text-center cursor-pointer border-0 bg-transparent"
+				style={{
+					fontSize: 10,
+					fontFamily: "ui-monospace, monospace",
+					color: isOrtho ? "#fbbf24" : "rgba(255,255,255,0.5)",
+					padding: 0,
+					lineHeight: "14px",
+				}}
+				title={isOrtho ? "Switch to Perspective" : "Switch to Orthographic"}
+			>
+				{isOrtho ? "Ortho" : "Persp"}
+			</button>
 		</div>
 	);
 }

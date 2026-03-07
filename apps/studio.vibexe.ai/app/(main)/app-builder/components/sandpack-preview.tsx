@@ -17,6 +17,7 @@ import {
 	useSandpackNavigation,
 } from "@codesandbox/sandpack-react";
 import {
+	Camera,
 	Check,
 	ChevronDown,
 	ChevronUp,
@@ -1041,6 +1042,10 @@ export function SandpackPreview({
 				gameEditor.setGizmoSpace(data.space as "world" | "local");
 			} else if (data.type === "game-editor-camera-orientation") {
 				gameEditor.setCameraQuaternion(data.quaternion);
+			} else if (data.type === "game-editor-projection-changed") {
+				gameEditor.setEditorProjection(data.projection as "perspective" | "orthographic");
+			} else if (data.type === "game-editor-pivot-mode-changed") {
+				gameEditor.setPivotMode(data.mode as "center" | "pivot");
 			} else if (data.type === "game-editor-undo-redo-state") {
 				gameEditor.setUndoRedoState(!!data.canUndo, !!data.canRedo);
 			} else if (data.type === "game-editor-object-duplicated") {
@@ -1453,6 +1458,21 @@ export function SandpackPreview({
 									>
 										{gameEditor.gizmoSpace === "world" ? <Globe className="w-3.5 h-3.5" /> : <Crosshair className="w-3.5 h-3.5" />}
 									</button>
+									{gameEditor.selectedObject && (
+										<button
+											type="button"
+											onClick={gameEditor.togglePivotMode}
+											className={`flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-lg transition-all duration-150 ${
+												gameEditor.pivotMode === "pivot"
+													? "bg-violet-500/[0.15] text-violet-300"
+													: "text-white/35 hover:bg-white/[0.04] hover:text-white/60"
+											}`}
+											title={gameEditor.pivotMode === "center" ? "Center (orbit center fixed)" : "Pivot (orbit follows selection)"}
+										>
+											<Crosshair className="w-3.5 h-3.5" />
+											<span className="text-[10px]">{gameEditor.pivotMode === "pivot" ? "Pivot" : "Center"}</span>
+										</button>
+									)}
 									<button
 										type="button"
 										onClick={gameEditor.undoAction}
@@ -1685,6 +1705,15 @@ export function SandpackPreview({
 							/>
 						)}
 
+					</div>
+				)}
+
+				{/* Camera Preview PIP label */}
+				{gameEditor.enabled && isGameMode && (
+					<div className="absolute pointer-events-none z-50" style={{ bottom: 8, left: 8 }}>
+						<div className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono text-white/60 bg-black/40 border border-white/10">
+							<Camera className="w-2.5 h-2.5" /> Camera
+						</div>
 					</div>
 				)}
 

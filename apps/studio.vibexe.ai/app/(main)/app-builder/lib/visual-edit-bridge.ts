@@ -519,6 +519,16 @@ export function getVisualEditBridgeScript(): string {
   var _lastCamQ = { x: 0, y: 0, z: 0, w: 1 };
   var _savedOrbitMouseButtons = null; // Save game's original orbit mouseButtons
   var gridHelper = null;
+  // Camera Preview PIP
+  var previewCamera = null;
+  var pipFrameCounter = 0;
+  // Camera Frustum Helper
+  var cameraHelper = null;
+  var cameraSelected = false;
+  // Pivot mode
+  var pivotMode = "center";
+  // Projection mode
+  var editorProjectionMode = "perspective";
   var canvasPointerDownHandler = null;
   var bodyMouseDownHandler = null;
   // Flythrough mode (right-click hold + WASD, Unity-style)
@@ -650,8 +660,8 @@ export function getVisualEditBridgeScript(): string {
     if (obj.children) {
       for (var i = 0; i < obj.children.length; i++) {
         var child = obj.children[i];
-        if (child === boxHelper || child === transformControls) continue;
-        if (child.type === "BoxHelper" || child.type === "TransformControlsGizmo" || child.type === "TransformControlsPlane") continue;
+        if (child === boxHelper || child === transformControls || child === cameraHelper) continue;
+        if (child.type === "BoxHelper" || child.type === "TransformControlsGizmo" || child.type === "TransformControlsPlane" || child.type === "CameraHelper") continue;
         if (child.isTransformControls) continue;
         // Skip particles, trails, and Points objects (VFX internals)
         if (child.type === "Points") continue;
@@ -685,7 +695,23 @@ export function getVisualEditBridgeScript(): string {
 
   function sendSceneTree() {
     if (!editor || !editor.scene) return;
-    window.parent.postMessage({ type: "game-editor-scene-tree", tree: serializeNode(editor.scene) }, "*");
+    var tree = serializeNode(editor.scene);
+    // Inject synthetic "Main Camera" node at top of hierarchy
+    if (tree && tree.children && previewCamera) {
+      updatePreviewCamera();
+      tree.children.unshift({
+        uuid: "__game_camera__",
+        name: "Main Camera",
+        type: "PerspectiveCamera",
+        position: { x: +previewCamera.position.x.toFixed(2), y: +previewCamera.position.y.toFixed(2), z: +previewCamera.position.z.toFixed(2) },
+        rotation: { x: 0, y: 0, z: 0 },
+        scale: { x: 1, y: 1, z: 1 },
+        visible: true,
+        userData: { _isSyntheticCameraNode: true },
+        children: []
+      });
+    }
+    window.parent.postMessage({ type: "game-editor-scene-tree", tree: tree }, "*");
   }
 
   function sendSelectedObject(obj) {
@@ -740,6 +766,12 @@ export function getVisualEditBridgeScript(): string {
       }
     }
     selectedObj = null;
+    destroyCameraHelper();
+    // Auto-revert pivot mode on deselect
+    if (pivotMode !== "center") {
+      pivotMode = "center";
+      window.parent.postMessage({ type: "game-editor-pivot-mode-changed", mode: "center" }, "*");
+    }
     window.parent.postMessage({ type: "game-editor-object-deselected" }, "*");
   }
 
@@ -850,7 +882,7 @@ export function getVisualEditBridgeScript(): string {
       var dupes = [];
       for (var si = 0; si < editor.scene.children.length; si++) {
         var sc = editor.scene.children[si];
-        if (sc.name && sc.name.indexOf("__editor_") === 0 && sc !== myBox && sc !== myTC) dupes.push(sc);
+        if (sc.name && sc.name.indexOf("__editor_") === 0 && sc !== myBox && sc !== myTC && sc !== cameraHelper) dupes.push(sc);
       }
       for (var di = 0; di < dupes.length; di++) {
         if (dupes[di].detach) dupes[di].detach();
@@ -1218,9 +1250,9 @@ export function getVisualEditBridgeScript(): string {
       var child = editor.scene.children[i];
       if (!child.visible) continue;
       if ((child.name || "").indexOf("__editor_") === 0) continue;
-      if (child === boxHelper || child === transformControls) continue;
+      if (child === boxHelper || child === transformControls || child === cameraHelper) continue;
       if (child.isLight || child.type === "HemisphereLight" || child.type === "AmbientLight" || child.type === "DirectionalLight") continue;
-      if (child.type === "GridHelper") continue;
+      if (child.type === "GridHelper" || child.type === "CameraHelper") continue;
       if (isGroundPlane(child)) continue;
       var box = new THREE.Box3().setFromObject(child);
       if (box.isEmpty()) continue;
@@ -1301,6 +1333,68 @@ export function getVisualEditBridgeScript(): string {
   // debugEl removed — showDebug now console-only
   function showDebug(msg) {
     console.log("[GameEditorBridge] " + msg);
+  }
+
+  // ---- Camera Preview PIP ----
+  function findPlayerMesh() {
+    if (!editor || !editor.scene) return null;
+    var found = null;
+    editor.scene.traverse(function(c) {
+      if (found) return;
+      var ud = c.userData || {};
+      if (ud.vibexeType === "AnimatedCharacter" && c.name && (c.name.indexOf("Character_") === 0 || c.name.indexOf("Player_") === 0)) found = c;
+      else if (ud.__isPlayerCharacter) found = c;
+    });
+    return found;
+  }
+
+  function createPreviewCamera() {
+    if (previewCamera) return;
+    var THREE = window.THREE;
+    if (!THREE || !editor) return;
+    var gs = window.__vibexe_game_settings__ || {};
+    var cam = gs.camera || {};
+    previewCamera = new THREE.PerspectiveCamera(cam.fov || 60, 200 / 120, 0.1, 1000);
+    previewCamera.name = "__editor_preview_cam__";
+    console.log("[GameEditorBridge] Preview camera created");
+  }
+
+  function destroyPreviewCamera() {
+    previewCamera = null;
+  }
+
+  function updatePreviewCamera() {
+    if (!previewCamera || !editor) return;
+    var gs = window.__vibexe_game_settings__ || {};
+    var cam = gs.camera || {};
+    var offsetY = cam.offsetY || 8;
+    var offsetZ = cam.offsetZ || 12;
+    var lookY = cam.lookY || 1;
+    var player = findPlayerMesh();
+    var px = 0, py = 0, pz = 0;
+    if (player) { px = player.position.x; py = player.position.y; pz = player.position.z; }
+    previewCamera.position.set(px, py + offsetY, pz + offsetZ);
+    previewCamera.lookAt(px, py + lookY, pz);
+    previewCamera.updateMatrixWorld(true);
+  }
+
+  // ---- Camera Frustum Helper ----
+  function createCameraHelper() {
+    if (cameraHelper || !previewCamera || !editor) return;
+    var THREE = window.THREE;
+    if (!THREE || !THREE.CameraHelper) return;
+    cameraHelper = new THREE.CameraHelper(previewCamera);
+    cameraHelper.name = "__editor_camera_helper__";
+    editor.scene.add(cameraHelper);
+    console.log("[GameEditorBridge] CameraHelper created");
+  }
+
+  function destroyCameraHelper() {
+    if (!cameraHelper) return;
+    if (editor && editor.scene) editor.scene.remove(cameraHelper);
+    if (cameraHelper.dispose) cameraHelper.dispose();
+    cameraHelper = null;
+    cameraSelected = false;
   }
 
   // ---- Click + Drag + Keyboard ----
@@ -1500,8 +1594,18 @@ export function getVisualEditBridgeScript(): string {
     if (!active || !editor) return;
     editorAnimId = requestAnimationFrame(editorLoop);
     updateFlyMovement();
+    // Pivot mode: lock orbit target to selected object
+    if (pivotMode === "pivot" && selectedObj && editor.orbitControls && !flyMode) {
+      var _wp = new (window.THREE.Vector3)();
+      selectedObj.getWorldPosition(_wp);
+      editor.orbitControls.target.copy(_wp);
+    }
     if (editor.orbitControls && !flyMode) editor.orbitControls.update();
     if (boxHelper && selectedObj) boxHelper.update();
+    // Update preview camera position (follows player character)
+    if (previewCamera) updatePreviewCamera();
+    // Update camera frustum helper
+    if (cameraHelper) cameraHelper.update();
     // Throttled camera orientation broadcast (~10Hz wall-clock)
     var _camNow = Date.now();
     if (!_lastCamBroadcast) _lastCamBroadcast = 0;
@@ -1519,7 +1623,7 @@ export function getVisualEditBridgeScript(): string {
       var dupes = [];
       for (var ei = 0; ei < editor.scene.children.length; ei++) {
         var ec = editor.scene.children[ei];
-        if (ec.name && ec.name.indexOf("__editor_") === 0 && ec !== boxHelper && ec !== transformControls && ec !== gridHelper) dupes.push(ec);
+        if (ec.name && ec.name.indexOf("__editor_") === 0 && ec !== boxHelper && ec !== transformControls && ec !== gridHelper && ec !== cameraHelper) dupes.push(ec);
       }
       for (var di = 0; di < dupes.length; di++) { if (dupes[di].detach) dupes[di].detach(); editor.scene.remove(dupes[di]); if (dupes[di].dispose) dupes[di].dispose(); }
     }
@@ -1530,6 +1634,25 @@ export function getVisualEditBridgeScript(): string {
         composer.render();
       } else {
         editor.renderer.render(editor.scene, editor.camera);
+      }
+      // Camera Preview PIP — sub-render at ~15fps (every 4th frame)
+      if (previewCamera && editor.renderer && editor.scene) {
+        pipFrameCounter++;
+        if (pipFrameCounter >= 4) {
+          pipFrameCounter = 0;
+          var _dpr = editor.renderer.getPixelRatio();
+          var _fullSize = editor.renderer.getSize(new (window.THREE.Vector2)());
+          var _pipW = Math.floor(200 * _dpr);
+          var _pipH = Math.floor(120 * _dpr);
+          editor.renderer.setViewport(4, 4, _pipW, _pipH);
+          editor.renderer.setScissor(4, 4, _pipW, _pipH);
+          editor.renderer.setScissorTest(true);
+          previewCamera.aspect = 200 / 120;
+          previewCamera.updateProjectionMatrix();
+          editor.renderer.render(editor.scene, previewCamera);
+          editor.renderer.setScissorTest(false);
+          editor.renderer.setViewport(0, 0, _fullSize.x, _fullSize.y);
+        }
       }
     } catch (e) {
       // Prevent cascading crashes (e.g., TransformControls infinite recursion)
@@ -1706,6 +1829,7 @@ export function getVisualEditBridgeScript(): string {
           hel.setAttribute("data-editor-hidden", "1");
         }
       }
+      createPreviewCamera();
       editorLoop();
       setTimeout(function() {
         sendSceneTree();
@@ -1729,6 +1853,17 @@ export function getVisualEditBridgeScript(): string {
     deselectObject();
     if (isDragging) endXZDrag();
     if (gridHelper && editor) { editor.scene.remove(gridHelper); if (gridHelper.dispose) gridHelper.dispose(); gridHelper = null; }
+    // Clean up camera preview + frustum
+    destroyCameraHelper();
+    destroyPreviewCamera();
+    pipFrameCounter = 0;
+    cameraSelected = false;
+    pivotMode = "center";
+    // Restore game camera if ortho was active
+    if (editorProjectionMode !== "perspective" && window.__vibexe_camera__ && editor) {
+      editor.camera = window.__vibexe_camera__;
+    }
+    editorProjectionMode = "perspective";
     // Dispose editor-created OrbitControls, or restore original mouseButtons for game's own controls
     if (editor && editor.orbitControls) {
       if (editor.orbitControls._vibexeEditorCreated) {
@@ -1871,6 +2006,77 @@ export function getVisualEditBridgeScript(): string {
       case "game-editor-undo": applyUndo(); break;
       case "game-editor-redo": applyRedo(); break;
       case "game-editor-toggle-snap": toggleGridHelper(); break;
+      case "game-editor-select-camera":
+        deselectObject();
+        cameraSelected = true;
+        if (previewCamera) {
+          updatePreviewCamera();
+          createCameraHelper();
+        }
+        // Post synthetic selection back to parent
+        window.parent.postMessage({
+          type: "game-editor-object-selected",
+          uuid: "__game_camera__",
+          name: "Main Camera",
+          objType: "PerspectiveCamera",
+          position: previewCamera ? { x: +previewCamera.position.x.toFixed(2), y: +previewCamera.position.y.toFixed(2), z: +previewCamera.position.z.toFixed(2) } : { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          scale: { x: 1, y: 1, z: 1 },
+          visible: true,
+          castShadow: false,
+          userData: { _isSyntheticCameraNode: true },
+          _materialColor: null
+        }, "*");
+        break;
+      case "game-editor-set-pivot-mode":
+        pivotMode = d.mode || "center";
+        break;
+      case "game-editor-toggle-projection":
+        if (!editor) break;
+        (function() {
+          var THREE = window.THREE;
+          var oldCam = editor.camera;
+          var newMode = d.projection || (editorProjectionMode === "perspective" ? "orthographic" : "perspective");
+          deselectObject();
+          if (newMode === "orthographic") {
+            // Create orthographic camera
+            var dist = oldCam.position.distanceTo(editor.orbitControls ? editor.orbitControls.target : new THREE.Vector3());
+            var frustumSize = dist * 0.9;
+            var aspect = oldCam.aspect || (editor.renderer.domElement.width / editor.renderer.domElement.height);
+            var ortho = new THREE.OrthographicCamera(
+              -frustumSize * aspect, frustumSize * aspect,
+              frustumSize, -frustumSize,
+              0.1, 10000
+            );
+            ortho.position.copy(oldCam.position);
+            ortho.quaternion.copy(oldCam.quaternion);
+            ortho.zoom = 1;
+            ortho.updateProjectionMatrix();
+            editor.camera = ortho;
+            if (editor.orbitControls) editor.orbitControls.object = ortho;
+          } else {
+            // Restore perspective camera
+            var gameCam = window.__vibexe_camera__;
+            if (gameCam) {
+              gameCam.position.copy(oldCam.position);
+              gameCam.quaternion.copy(oldCam.quaternion);
+              gameCam.updateProjectionMatrix();
+              editor.camera = gameCam;
+              if (editor.orbitControls) editor.orbitControls.object = gameCam;
+            }
+          }
+          if (editor.orbitControls) editor.orbitControls.update();
+          // Update EffectComposer pass cameras if present
+          var composer = window.__vibexe_composer__;
+          if (composer && composer.passes) {
+            for (var pi = 0; pi < composer.passes.length; pi++) {
+              if (composer.passes[pi].camera) composer.passes[pi].camera = editor.camera;
+            }
+          }
+          editorProjectionMode = newMode;
+          window.parent.postMessage({ type: "game-editor-projection-changed", projection: newMode }, "*");
+        })();
+        break;
       case "game-editor-toggle-space":
         gizmoSpace = gizmoSpace === "world" ? "local" : "world";
         if (transformControls && transformControls.setSpace) transformControls.setSpace(gizmoSpace);
