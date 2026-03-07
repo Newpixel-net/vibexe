@@ -277,8 +277,17 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 					});
 				}, 800);
 			}
-			// For disable: DON'T send here — exit useEffect sends it AFTER collecting transforms
 			if (!next) {
+				// Send disable to iframe so the bridge deactivates (removes gizmo, grid, restores game)
+				const disableMsg = { type: "game-editor-disable" };
+				sendToIframe(disableMsg);
+				try {
+					const iframes = document.querySelectorAll(".sandpack-container iframe");
+					for (const iframe of iframes) {
+						const f = iframe as HTMLIFrameElement;
+						if (f.contentWindow) f.contentWindow.postMessage(disableMsg, "*");
+					}
+				} catch { /* ignore */ }
 				setSelectedObject(null);
 				setSceneTree(null);
 			}
@@ -300,9 +309,17 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				}
 			} catch { /* ignore */ }
 		}
-		// For disable: DON'T send game-editor-disable here.
-		// The exit useEffect in sandpack-preview.tsx sends it AFTER collecting transforms.
 		if (!v) {
+			// Send disable to iframe so the bridge deactivates
+			const disableMsg = { type: "game-editor-disable" };
+			sendToIframe(disableMsg);
+			try {
+				const iframes = document.querySelectorAll(".sandpack-container iframe");
+				for (const iframe of iframes) {
+					const f = iframe as HTMLIFrameElement;
+					if (f.contentWindow) f.contentWindow.postMessage(disableMsg, "*");
+				}
+			} catch { /* ignore */ }
 			setSelectedObject(null);
 			setSceneTree(null);
 		}
