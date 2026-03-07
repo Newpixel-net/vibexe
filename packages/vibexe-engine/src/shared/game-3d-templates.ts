@@ -2660,6 +2660,7 @@ const POST_PROCESSING_PRESETS: Record<string, any> = {
   natural: { bloom: { strength: 0.2, radius: 0.3, threshold: 0.9 }, fog: { color: 0xccddee, near: 30, far: 100 }, toneMapping: "Linear", exposure: 1.0 },
 };
 (window as any).POST_PROCESSING_PRESETS = POST_PROCESSING_PRESETS;
+(window as any).createPostProcessing = createPostProcessing;
 
 /**
  * Creates post-processing pipeline with EffectComposer.
@@ -3672,11 +3673,12 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         // Uses the existing createPostProcessing() pipeline which stores
         // the EffectComposer on window.__vibexe_composer__ for the render loop.
         const __ppSettings = __gs.postProcessing;
-        if (__ppSettings && __ppSettings.preset && __ppSettings.preset !== "none") {
-          const __pp = createPostProcessing(renderer, scene, camera, __ppSettings.preset);
+        const __createPP = (window as any).createPostProcessing;
+        if (__ppSettings && __ppSettings.preset && __ppSettings.preset !== "none" && __createPP) {
+          const __pp = __createPP(renderer, scene, camera, __ppSettings.preset);
           if (__pp) {
             // Apply custom bloom overrides if user adjusted them from preset defaults
-            const __presetData = POST_PROCESSING_PRESETS[__ppSettings.preset];
+            const __presetData = ((window as any).POST_PROCESSING_PRESETS || {})[__ppSettings.preset];
             const __customIntensity = __ppSettings.bloomIntensity;
             const __customThreshold = __ppSettings.bloomThreshold;
             if (__customIntensity != null || __customThreshold != null) {
@@ -4955,6 +4957,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 // --- Post-Processing ---
                 if (s.postProcessing && renderer && scene && camera) {
                   const _pp = s.postProcessing;
+                  console.log("[PostFX] Updating post-processing:", _pp.preset, "renderer:", !!renderer, "scene:", !!scene);
                   // Destroy existing composer to allow full preset switch
                   const _oldComp = (window as any).__vibexe_composer__;
                   if (_oldComp) {
@@ -4963,14 +4966,21 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   }
                   // Recreate with new settings (or clear if preset is "none")
                   if (_pp.preset && _pp.preset !== "none") {
-                    const _newPP = createPostProcessing(renderer, scene, camera, _pp.preset);
-                    if (_newPP && (_pp.bloomIntensity != null || _pp.bloomThreshold != null)) {
-                      const _presetData = POST_PROCESSING_PRESETS[_pp.preset];
-                      _newPP.addBloom({
-                        strength: _pp.bloomIntensity ?? _presetData?.bloom?.strength ?? 0.5,
-                        radius: _presetData?.bloom?.radius ?? 0.4,
-                        threshold: _pp.bloomThreshold ?? _presetData?.bloom?.threshold ?? 0.85,
-                      });
+                    const _createPP = (window as any).createPostProcessing;
+                    console.log("[PostFX] createPostProcessing available:", !!_createPP, "THREE.EffectComposer:", !!(window as any).THREE?.EffectComposer);
+                    if (_createPP) {
+                      const _newPP = _createPP(renderer, scene, camera, _pp.preset);
+                      console.log("[PostFX] Created composer:", !!_newPP, "stored on window:", !!(window as any).__vibexe_composer__);
+                      if (_newPP && (_pp.bloomIntensity != null || _pp.bloomThreshold != null)) {
+                        const _presetData = ((window as any).POST_PROCESSING_PRESETS || {})[_pp.preset];
+                        _newPP.addBloom({
+                          strength: _pp.bloomIntensity ?? _presetData?.bloom?.strength ?? 0.5,
+                          radius: _presetData?.bloom?.radius ?? 0.4,
+                          threshold: _pp.bloomThreshold ?? _presetData?.bloom?.threshold ?? 0.85,
+                        });
+                      }
+                    } else {
+                      console.warn("[PostFX] createPostProcessing not found on window — assets-3d.ts may not be loaded");
                     }
                   }
                 }
