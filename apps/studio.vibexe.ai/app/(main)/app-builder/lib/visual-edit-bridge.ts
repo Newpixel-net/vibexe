@@ -2960,7 +2960,7 @@ export function getVisualEditBridgeScript(): string {
               "  vW0 = w0; vW1 = w1; vW2 = w2; vW3 = w3;",
               "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
               "}"
-            ].join("\n");
+            ].join("\\n");
 
             var _rpFragShader = [
               "uniform sampler2D uTex0;",
@@ -3003,7 +3003,7 @@ export function getVisualEditBridgeScript(): string {
               "  light = 0.35 + light * 0.65;",
               "  gl_FragColor = vec4(col * light, 1.0);",
               "}"
-            ].join("\n");
+            ].join("\\n");
 
             // Dispose old material
             if (_rpTerrain.material) { try { _rpTerrain.material.dispose(); } catch(e) {} }
