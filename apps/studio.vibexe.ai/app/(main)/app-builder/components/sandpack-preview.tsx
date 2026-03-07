@@ -1046,6 +1046,23 @@ export function SandpackPreview({
 				gameEditor.setEditorProjection(data.projection as "perspective" | "orthographic");
 			} else if (data.type === "game-editor-pivot-mode-changed") {
 				gameEditor.setPivotMode(data.mode as "center" | "pivot");
+			} else if (data.type === "game-editor-camera-moved") {
+				// TC drag on camera — update inspector position + settings (no send-back to iframe)
+				if (gameEditor.selectedObject?.userData?._isSyntheticCameraNode && data.position) {
+					gameEditor.updateSelectedObject({
+						...gameEditor.selectedObject,
+						position: data.position,
+					});
+					// Direct setter — no sendToIframe to prevent feedback loop
+					gameEditor.setGameSettings({
+						...gameEditor.gameSettings,
+						camera: {
+							...gameEditor.gameSettings.camera,
+							offsetY: data.offsetY,
+							offsetZ: data.offsetZ,
+						},
+					});
+				}
 			} else if (data.type === "game-editor-undo-redo-state") {
 				gameEditor.setUndoRedoState(!!data.canUndo, !!data.canRedo);
 			} else if (data.type === "game-editor-object-duplicated") {
@@ -1708,12 +1725,15 @@ export function SandpackPreview({
 					</div>
 				)}
 
-				{/* Camera Preview PIP label */}
-				{gameEditor.enabled && isGameMode && (
-					<div className="absolute pointer-events-none z-50" style={{ bottom: 8, left: 8 }}>
-						<div className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono text-white/60 bg-black/40 border border-white/10">
-							<Camera className="w-2.5 h-2.5" /> Camera
+				{/* Camera Preview PIP title bar — only when camera selected */}
+				{gameEditor.enabled && isGameMode && gameEditor.selectedObject?.userData?._isSyntheticCameraNode && (
+					<div className="absolute pointer-events-none z-50 flex flex-col" style={{ bottom: 4, left: 4 }}>
+						<div className="flex items-center gap-1.5 px-2 py-1 bg-[#2a2a2a]/95 border border-white/15 border-b-0 rounded-t" style={{ width: 200 }}>
+							<span className="text-white/40 text-xs">&#9776;</span>
+							<Camera className="w-2.5 h-2.5 text-blue-400/70" />
+							<span className="text-[10px] font-medium text-white/80">Main Camera</span>
 						</div>
+						<div style={{ width: 200, height: 120 }} className="border border-white/15 border-t-0 rounded-b" />
 					</div>
 				)}
 

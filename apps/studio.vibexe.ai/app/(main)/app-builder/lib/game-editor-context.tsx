@@ -72,6 +72,7 @@ export interface GameSettings {
 	camera?: {
 		offsetY?: number; offsetZ?: number; fov?: number;
 		lerp?: number; lookAhead?: number; lookY?: number;
+		near?: number; far?: number;
 	};
 	environment?: {
 		backgroundColor?: string;
@@ -110,7 +111,7 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
 	version: 1,
 	player: { spawnX: 0, spawnY: 3, spawnZ: 0, startingLives: 3, respawnX: 0, respawnY: 5, respawnZ: 0 },
 	physics: { gravity: -38, fallGravity: -65, jumpForce: 17, moveSpeed: 6, runSpeed: 7.5, friction: 28, coyoteTime: 0.15 },
-	camera: { offsetY: 8, offsetZ: 12, fov: 60, lerp: 3, lookAhead: 5, lookY: 1 },
+	camera: { offsetY: 8, offsetZ: 12, fov: 60, lerp: 3, lookAhead: 5, lookY: 1, near: 0.1, far: 1000 },
 	environment: { backgroundColor: "#87CEEB", ambientLightIntensity: 0.15, ambientLightColor: "#ffffff", sunLightIntensity: 0.55, sunLightColor: "#fff8ee", hemisphereIntensity: 0.35, hemisphereSkyColor: "#eef4ff", hemisphereGroundColor: "#886644", fogEnabled: false, fogColor: "#88aacc", fogNear: 30, fogFar: 100, fogType: "linear" as const, fogDensity: 0.02, shadowQuality: "medium" as const },
 	audio: { masterVolume: 0.8, musicVolume: 0.5, sfxVolume: 0.7, enabled: true },
 	postProcessing: { preset: "none" as const, bloomIntensity: 0.5, bloomThreshold: 0.8 },
@@ -142,6 +143,7 @@ interface GameEditorContextValue {
 	gameSettings: GameSettings;
 	updateGameSettings: (patch: Partial<GameSettings>) => void;
 	setGameSettings: (settings: GameSettings) => void;
+	updateCameraProperty: (property: string, value: number) => void;
 	// Pick-from-scene mode for spawn/respawn position
 	pickSpawnActive: boolean;
 	pickRespawnActive: boolean;
@@ -567,6 +569,11 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		setGameSettingsState(settings);
 	}, []);
 
+	const updateCameraProperty = useCallback((property: string, value: number) => {
+		updateGameSettings({ camera: { [property]: value } });
+		sendToIframe({ type: "game-editor-update-camera-property", property, value });
+	}, [updateGameSettings, sendToIframe]);
+
 	const setActivePrefab = useCallback((prefab: PrefabDefinition | null) => {
 		setActivePrefabState(prefab);
 		sendToIframe({
@@ -715,6 +722,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				gameSettings,
 				updateGameSettings,
 				setGameSettings,
+				updateCameraProperty,
 				pickSpawnActive,
 				pickRespawnActive,
 				togglePickSpawn,

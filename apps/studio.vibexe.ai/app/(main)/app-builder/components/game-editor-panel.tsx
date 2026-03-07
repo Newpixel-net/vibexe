@@ -5,7 +5,7 @@
  * Overlaid on the right side of the viewport when editor is active.
  */
 
-import { Box, Check, Copy, Eye, EyeOff, Focus, Layers, Paintbrush, Pause, Pencil, Play, Search, Settings, Square, Trash2, X } from "lucide-react";
+import { Box, Camera, Check, Copy, Eye, EyeOff, Focus, Layers, Paintbrush, Pause, Pencil, Play, Search, Settings, Square, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@vibexe-internal/ui/dialog";
 import { DragNumberInput } from "./drag-number-input";
@@ -64,6 +64,7 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 		removeTexture,
 		updateTiling,
 		updateTextureParams,
+		updateCameraProperty,
 	} = useGameEditor();
 
 	const [activeTab, setActiveTab] = useState<EditorTab>("properties");
@@ -287,7 +288,104 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 
 			{activeTab === "properties" && (
 				<div className="flex-1 overflow-y-auto scrollbar-thin">
-					{selectedObject ? (
+					{selectedObject?.userData?._isSyntheticCameraNode ? (
+						/* ===== Camera-Specific Inspector ===== */
+						<div className="p-3 space-y-3">
+							{/* Header */}
+							<div>
+								<div className="flex items-center gap-1.5">
+									<Camera className="w-3.5 h-3.5 text-blue-400" />
+									<span className="text-[13px] font-medium text-white/90">Main Camera</span>
+								</div>
+								<div className="text-[10px] text-white/30">PerspectiveCamera</div>
+							</div>
+
+							{/* Position (read-only, updated by TC drag) */}
+							<Section title="Position">
+								<div className="flex gap-1.5">
+									<DragNumberInput label="X" value={selectedObject.position.x} color="#e74c3c" onChange={() => {}} />
+									<DragNumberInput label="Y" value={selectedObject.position.y} color="#2ecc71" onChange={() => {}} />
+									<DragNumberInput label="Z" value={selectedObject.position.z} color="#3498db" onChange={() => {}} />
+								</div>
+								<div className="text-[9px] text-white/20 mt-0.5">Drag camera gizmo to move</div>
+							</Section>
+
+							{/* Camera Properties */}
+							<Section title="Camera">
+								<div className="space-y-1.5">
+									<DragNumberInput
+										label="FOV"
+										value={gameSettings.camera?.fov ?? 60}
+										step={1}
+										precision={0}
+										color="#f59e0b"
+										onChange={(v) => updateCameraProperty("fov", Math.max(1, Math.min(179, v)))}
+									/>
+									<div className="flex gap-1.5">
+										<DragNumberInput
+											label="Near"
+											value={gameSettings.camera?.near ?? 0.1}
+											step={0.01}
+											precision={2}
+											color="#8b5cf6"
+											onChange={(v) => updateCameraProperty("near", Math.max(0.01, Math.min(100, v)))}
+										/>
+										<DragNumberInput
+											label="Far"
+											value={gameSettings.camera?.far ?? 1000}
+											step={10}
+											precision={0}
+											color="#8b5cf6"
+											onChange={(v) => updateCameraProperty("far", Math.max(10, Math.min(10000, v)))}
+										/>
+									</div>
+								</div>
+							</Section>
+
+							{/* Follow Camera Offsets */}
+							<Section title="Follow Camera">
+								<div className="space-y-1.5">
+									<DragNumberInput
+										label="Offset Y"
+										value={gameSettings.camera?.offsetY ?? 8}
+										step={0.5}
+										color="#2ecc71"
+										labelClassName="w-12 text-left text-[9px]"
+										onChange={(v) => updateCameraProperty("offsetY", v)}
+									/>
+									<DragNumberInput
+										label="Offset Z"
+										value={gameSettings.camera?.offsetZ ?? 12}
+										step={0.5}
+										color="#3498db"
+										labelClassName="w-12 text-left text-[9px]"
+										onChange={(v) => updateCameraProperty("offsetZ", v)}
+									/>
+									<DragNumberInput
+										label="Look Y"
+										value={gameSettings.camera?.lookY ?? 1}
+										step={0.1}
+										color="#e74c3c"
+										labelClassName="w-12 text-left text-[9px]"
+										onChange={(v) => updateCameraProperty("lookY", v)}
+									/>
+								</div>
+							</Section>
+
+							{/* Actions — Focus only */}
+							<div className="flex gap-1.5 mt-1">
+								<button
+									type="button"
+									onClick={focusSelected}
+									className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] text-white/50 bg-white/[0.04] hover:bg-white/[0.08] rounded transition-colors"
+									title="Focus camera (F)"
+								>
+									<Focus className="w-3 h-3" />
+									Focus
+								</button>
+							</div>
+						</div>
+					) : selectedObject ? (
 						<div className="p-3 space-y-3">
 							{/* Header — editable name */}
 							<div>

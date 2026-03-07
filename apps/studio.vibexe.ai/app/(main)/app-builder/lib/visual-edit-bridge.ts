@@ -660,7 +660,8 @@ export function getVisualEditBridgeScript(): string {
     if (obj.children) {
       for (var i = 0; i < obj.children.length; i++) {
         var child = obj.children[i];
-        if (child === boxHelper || child === transformControls || child === cameraHelper) continue;
+        if (child === boxHelper || child === transformControls || child === cameraHelper || child === previewCamera) continue;
+        if (child.name === "__editor_preview_cam__") continue;
         if (child.type === "BoxHelper" || child.type === "TransformControlsGizmo" || child.type === "TransformControlsPlane" || child.type === "CameraHelper") continue;
         if (child.isTransformControls) continue;
         // Skip particles, trails, and Points objects (VFX internals)
@@ -698,7 +699,7 @@ export function getVisualEditBridgeScript(): string {
     var tree = serializeNode(editor.scene);
     // Inject synthetic "Main Camera" node at top of hierarchy
     if (tree && tree.children && previewCamera) {
-      updatePreviewCamera();
+      if (!cameraSelected) updatePreviewCamera();
       tree.children.unshift({
         uuid: "__game_camera__",
         name: "Main Camera",
@@ -882,7 +883,7 @@ export function getVisualEditBridgeScript(): string {
       var dupes = [];
       for (var si = 0; si < editor.scene.children.length; si++) {
         var sc = editor.scene.children[si];
-        if (sc.name && sc.name.indexOf("__editor_") === 0 && sc !== myBox && sc !== myTC && sc !== cameraHelper) dupes.push(sc);
+        if (sc.name && sc.name.indexOf("__editor_") === 0 && sc !== myBox && sc !== myTC && sc !== cameraHelper && sc !== previewCamera) dupes.push(sc);
       }
       for (var di = 0; di < dupes.length; di++) {
         if (dupes[di].detach) dupes[di].detach();
@@ -1390,10 +1391,12 @@ export function getVisualEditBridgeScript(): string {
   }
 
   function destroyCameraHelper() {
-    if (!cameraHelper) return;
-    if (editor && editor.scene) editor.scene.remove(cameraHelper);
-    if (cameraHelper.dispose) cameraHelper.dispose();
-    cameraHelper = null;
+    if (cameraHelper) {
+      if (editor && editor.scene) editor.scene.remove(cameraHelper);
+      if (cameraHelper.dispose) cameraHelper.dispose();
+      cameraHelper = null;
+    }
+    if (previewCamera && editor && editor.scene) editor.scene.remove(previewCamera);
     cameraSelected = false;
   }
 
@@ -1602,8 +1605,8 @@ export function getVisualEditBridgeScript(): string {
     }
     if (editor.orbitControls && !flyMode) editor.orbitControls.update();
     if (boxHelper && selectedObj) boxHelper.update();
-    // Update preview camera position (follows player character)
-    if (previewCamera) updatePreviewCamera();
+    // Update preview camera position (follows player character) — skip when user-dragging
+    if (previewCamera && !cameraSelected) updatePreviewCamera();
     // Update camera frustum helper
     if (cameraHelper) cameraHelper.update();
     // Throttled camera orientation broadcast (~10Hz wall-clock)
@@ -1623,7 +1626,7 @@ export function getVisualEditBridgeScript(): string {
       var dupes = [];
       for (var ei = 0; ei < editor.scene.children.length; ei++) {
         var ec = editor.scene.children[ei];
-        if (ec.name && ec.name.indexOf("__editor_") === 0 && ec !== boxHelper && ec !== transformControls && ec !== gridHelper && ec !== cameraHelper) dupes.push(ec);
+        if (ec.name && ec.name.indexOf("__editor_") === 0 && ec !== boxHelper && ec !== transformControls && ec !== gridHelper && ec !== cameraHelper && ec !== previewCamera) dupes.push(ec);
       }
       for (var di = 0; di < dupes.length; di++) { if (dupes[di].detach) dupes[di].detach(); editor.scene.remove(dupes[di]); if (dupes[di].dispose) dupes[di].dispose(); }
     }
@@ -1635,8 +1638,8 @@ export function getVisualEditBridgeScript(): string {
       } else {
         editor.renderer.render(editor.scene, editor.camera);
       }
-      // Camera Preview PIP — sub-render every frame (200x120 is tiny)
-      if (previewCamera && editor.renderer && editor.scene) {
+      // Camera Preview PIP — only render when camera is selected
+      if (previewCamera && editor.renderer && editor.scene && cameraSelected) {
         var _dpr = editor.renderer.getPixelRatio();
         var _fullSize = editor.renderer.getSize(new (window.THREE.Vector2)());
         var _pipW = Math.floor(200 * _dpr);
@@ -1986,7 +1989,8 @@ export function getVisualEditBridgeScript(): string {
             editor.orbitControls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
           }
           if (transformControls && d.mode) transformControls.setMode(d.mode);
-          if (transformControls && selectedObj) transformControls.attach(selectedObj);
+          if (cameraSelected && previewCamera && transformControls) transformControls.attach(previewCamera);
+          else if (transformControls && selectedObj) transformControls.attach(selectedObj);
         }
         break;
       case "game-editor-select-by-uuid":
@@ -2021,7 +2025,40 @@ export function getVisualEditBridgeScript(): string {
         cameraSelected = true;
         if (previewCamera) {
           updatePreviewCamera();
+          // Add previewCamera to scene (required for TC attachment)
+          editor.scene.add(previewCamera);
           createCameraHelper();
+          // Create TransformControls attached to previewCamera
+          if (THREE.TransformControls) {
+            transformControls = new THREE.TransformControls(editor.camera, editor.renderer.domElement);
+            transformControls.name = "__editor_transform_controls__";
+            if (gridSnap) {
+              transformControls.translationSnap = gridSnapIncrement;
+            }
+            transformControls.attach(previewCamera);
+            transformControls.addEventListener("dragging-changed", function(ev) {
+              if (editor.orbitControls) editor.orbitControls.enabled = !ev.value;
+            });
+            transformControls.addEventListener("objectChange", function() {
+              if (!previewCamera) return;
+              // Reverse-compute offsetY/offsetZ from new camera position relative to player
+              var player = findPlayerMesh();
+              var px = 0, py = 0, pz = 0;
+              if (player) { px = player.position.x; py = player.position.y; pz = player.position.z; }
+              var newOffsetY = previewCamera.position.y - py;
+              var newOffsetZ = previewCamera.position.z - pz;
+              // Update frustum helper
+              if (cameraHelper) cameraHelper.update();
+              // Post camera-moved to parent
+              window.parent.postMessage({
+                type: "game-editor-camera-moved",
+                position: { x: +previewCamera.position.x.toFixed(2), y: +previewCamera.position.y.toFixed(2), z: +previewCamera.position.z.toFixed(2) },
+                offsetY: +newOffsetY.toFixed(2),
+                offsetZ: +newOffsetZ.toFixed(2)
+              }, "*");
+            });
+            editor.scene.add(transformControls.getHelper ? transformControls.getHelper() : transformControls);
+          }
         }
         // Post synthetic selection back to parent
         window.parent.postMessage({
@@ -2037,6 +2074,42 @@ export function getVisualEditBridgeScript(): string {
           userData: { _isSyntheticCameraNode: true },
           _materialColor: null
         }, "*");
+        break;
+      case "game-editor-update-camera-property":
+        if (previewCamera && d.property) {
+          var _cpVal = d.value;
+          switch (d.property) {
+            case "fov":
+              previewCamera.fov = _cpVal;
+              previewCamera.updateProjectionMatrix();
+              break;
+            case "near":
+              previewCamera.near = _cpVal;
+              previewCamera.updateProjectionMatrix();
+              break;
+            case "far":
+              previewCamera.far = _cpVal;
+              previewCamera.updateProjectionMatrix();
+              break;
+            case "offsetY":
+            case "offsetZ":
+            case "lookY":
+              // Reposition camera based on new offset/lookY
+              var _gs2 = window.__vibexe_game_settings__ || {};
+              var _cam2 = _gs2.camera || {};
+              var _oY = d.property === "offsetY" ? _cpVal : (_cam2.offsetY || 8);
+              var _oZ = d.property === "offsetZ" ? _cpVal : (_cam2.offsetZ || 12);
+              var _lY = d.property === "lookY" ? _cpVal : (_cam2.lookY || 1);
+              var _pl = findPlayerMesh();
+              var _ppx = 0, _ppy = 0, _ppz = 0;
+              if (_pl) { _ppx = _pl.position.x; _ppy = _pl.position.y; _ppz = _pl.position.z; }
+              previewCamera.position.set(_ppx, _ppy + _oY, _ppz + _oZ);
+              previewCamera.lookAt(_ppx, _ppy + _lY, _ppz);
+              previewCamera.updateMatrixWorld(true);
+              break;
+          }
+          if (cameraHelper) cameraHelper.update();
+        }
         break;
       case "game-editor-set-pivot-mode":
         pivotMode = d.mode || "center";
