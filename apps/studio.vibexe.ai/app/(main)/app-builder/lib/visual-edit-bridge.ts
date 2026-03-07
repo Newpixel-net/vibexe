@@ -2825,11 +2825,11 @@ export function getVisualEditBridgeScript(): string {
               var opacity = (mod.opacity != null ? mod.opacity : 100) / 100;
 
               if (mod.type === "Height") {
-                // Height modifier — min/max are in normalized 0-1 range
-                var hMin = (p.min || 0) / _rpRange;
-                var hMax = (p.max || 1) / _rpRange;
-                var hMinF = (p.minFalloff || 1) / _rpRange;
-                var hMaxF = (p.maxFalloff || 1) / _rpRange;
+                // Height modifier — min/max are in normalized 0-1 range, vHeight is also 0-1
+                var hMin = p.min != null ? p.min : 0;
+                var hMax = p.max != null ? p.max : 1;
+                var hMinF = p.minFalloff != null ? p.minFalloff : 0.05;
+                var hMaxF = p.maxFalloff != null ? p.maxFalloff : 0.05;
                 mask = _rpSmoothstep(hMin - hMinF, hMin, vHeight) * (1.0 - _rpSmoothstep(hMax, hMax + hMaxF, vHeight));
               } else if (mod.type === "Slope") {
                 var sMin = p.minAngle || 0;
