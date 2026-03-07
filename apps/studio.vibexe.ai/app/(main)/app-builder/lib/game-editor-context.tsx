@@ -217,6 +217,8 @@ interface GameEditorContextValue {
 	pivotMode: "center" | "pivot";
 	setPivotMode: (mode: "center" | "pivot") => void;
 	togglePivotMode: () => void;
+	// Generic iframe message sender (for module communication)
+	sendToIframe: (msg: any) => void;
 }
 
 const GameEditorContext = createContext<GameEditorContextValue | null>(null);
@@ -786,6 +788,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				pivotMode,
 				setPivotMode,
 				togglePivotMode,
+				sendToIframe,
 			}}
 		>
 			{children}

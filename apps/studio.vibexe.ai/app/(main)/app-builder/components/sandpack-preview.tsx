@@ -28,6 +28,7 @@ import {
 	Grid3X3,
 	Hand,
 	Monitor,
+	Mountain,
 	MousePointer2,
 	Move,
 	Redo2,
@@ -49,6 +50,7 @@ import { useGameEditor, type GizmoMode } from "../lib/game-editor-context";
 import { GameEditorPanel } from "./game-editor-panel";
 import { GameSettingsPanel } from "./game-settings-panel";
 import { SceneGizmo } from "./scene-gizmo";
+import { TerrainPainterPanel } from "./terrain-painter-panel";
 import type { RightPanelView } from "./right-panel-tabs";
 import { VisualEditToolbar } from "./visual-edit-toolbar";
 import {
@@ -858,6 +860,9 @@ export function SandpackPreview({
 		}
 	}, [appId, sendSettingsToGame]);
 
+	// Terrain Painter module panel
+	const [terrainPainterOpen, setTerrainPainterOpen] = useState(false);
+
 	// Landscape/portrait rotation toggle for mobile-frame mode
 	const [isLandscape, setIsLandscape] = useState(false);
 	const toggleRotation = useCallback(() => setIsLandscape((v) => !v), []);
@@ -1516,6 +1521,20 @@ export function SandpackPreview({
 									>
 										<Redo2 className="w-3.5 h-3.5" />
 									</button>
+									<div className="w-px h-4 bg-white/[0.08] mx-0.5" />
+									<button
+										type="button"
+										onClick={() => setTerrainPainterOpen((v) => !v)}
+										className={`flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-lg transition-all duration-150 ${
+											terrainPainterOpen
+												? "bg-green-500/[0.15] text-green-300"
+												: "text-white/35 hover:bg-white/[0.04] hover:text-white/60"
+										}`}
+										title="Terrain Painter Module"
+									>
+										<Mountain className="w-3.5 h-3.5" />
+										<span className="hidden lg:inline">Terrain</span>
+									</button>
 								</div>
 							)}
 						</>
@@ -1742,7 +1761,12 @@ export function SandpackPreview({
 
 				{/* Game Editor Panel / Settings Panel (overlaid on right side — mutually exclusive) */}
 				{gameEditor.enabled && isGameMode && (
-					gameEditor.isSettingsOpen ? (
+					terrainPainterOpen ? (
+						<TerrainPainterPanel
+							sendToIframe={gameEditor.sendToIframe}
+							onClose={() => setTerrainPainterOpen(false)}
+						/>
+					) : gameEditor.isSettingsOpen ? (
 						<GameSettingsPanel
 							settings={gameEditor.gameSettings}
 							onChange={gameEditor.updateGameSettings}

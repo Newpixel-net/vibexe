@@ -76,3 +76,21 @@ export { GAME_ASSETS_REFERENCE } from "./shared/game-assets-reference";
 // 3D game assets reference (3D model catalog for runtime injection)
 export { GAME_3D_ASSETS_REFERENCE, PACKS_3D } from "./shared/game-assets-reference-3d";
 export type { AssetPack3D } from "./shared/game-assets-reference-3d";
+
+// Module system
+export {
+	ALL_MODULE_MANIFESTS,
+	TERRAIN_PAINTER_MANIFEST,
+	registerModule,
+	getModule,
+	getAllModules,
+	getModulesByCategory,
+	getModuleManifests,
+} from "./shared/modules";
+export type {
+	ModuleManifest,
+	ModuleCategory,
+	ModuleInstance,
+	ModuleRegistryEntry,
+	ModuleMessage,
+} from "./shared/modules";
