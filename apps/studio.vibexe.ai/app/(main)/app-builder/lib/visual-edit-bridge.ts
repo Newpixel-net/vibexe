@@ -1555,22 +1555,7 @@ export function getVisualEditBridgeScript(): string {
         if (_hasPBR) _ensurePBREnv();
         showDebug("PBR textures colorSpace verified, env applied");
       }, 300);
-      // Auto-apply FX preset on activation (for saved settings that persist across reloads)
-      setTimeout(function() {
-        var _gs = window.__gs || window.__gameSettings;
-        var _pp = _gs && _gs.postProcessing;
-        var _preset = _pp && _pp.preset;
-        if (_preset && _preset !== "none" && window.createPostProcessing && !window.__vibexe_composer__) {
-          var _r = window.__vibexe_renderer__ || (editor && editor.renderer);
-          var _s = window.__vibexe_scene__ || (editor && editor.scene);
-          var _c = window.__vibexe_camera__ || (editor && editor.camera);
-          if (_r && _s && _c) {
-            var _pp2 = window.createPostProcessing(_r, _s, _c, _preset);
-            window.__lastFxKey = _preset + "|" + String(_pp.bloomIntensity || 0) + "|" + String(_pp.bloomThreshold || 0);
-            console.log("[GameEditorBridge] Auto-applied FX on activation:", _preset, "composer:", !!_pp2);
-          }
-        }
-      }, 500);
+      // FX auto-apply happens via applySettings message (sent 200ms after bridge loads)
       // Prevent right-click context menu on canvas (for flythrough mode)
       flyContextMenuHandler = function(e) { if (active) e.preventDefault(); };
       editor.renderer.domElement.addEventListener("contextmenu", flyContextMenuHandler);
@@ -2194,6 +2179,7 @@ export function getVisualEditBridgeScript(): string {
         window.parent.postMessage({ type: "game-editor-all-transforms", transforms: allTransforms }, "*");
         break;
       case "game-editor-apply-fx":
+      case "applySettings":
       case "updateGameSettings": {
         // Extract FX preset — from dedicated message or from updateGameSettings payload
         var _fxPreset = d.preset || (d.settings && d.settings.postProcessing && d.settings.postProcessing.preset) || null;
