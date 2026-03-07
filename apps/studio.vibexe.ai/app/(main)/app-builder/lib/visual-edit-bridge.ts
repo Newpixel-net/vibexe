@@ -2177,9 +2177,19 @@ export function getVisualEditBridgeScript(): string {
         console.log("[GameEditorBridge] Collected transforms:", Object.keys(allTransforms).length, "objects");
         window.parent.postMessage({ type: "game-editor-all-transforms", transforms: allTransforms }, "*");
         break;
-      case "game-editor-apply-fx": {
-        // Apply post-processing preset from the external bridge (works even with old Game3D.tsx)
-        var _fxPreset = d.preset;
+      case "game-editor-apply-fx":
+      case "updateGameSettings": {
+        // Extract FX preset — from dedicated message or from updateGameSettings payload
+        var _fxPreset = d.preset || (d.settings && d.settings.postProcessing && d.settings.postProcessing.preset) || null;
+        var _fxBloomI = d.bloomIntensity != null ? d.bloomIntensity : (d.settings && d.settings.postProcessing ? d.settings.postProcessing.bloomIntensity : undefined);
+        var _fxBloomT = d.bloomThreshold != null ? d.bloomThreshold : (d.settings && d.settings.postProcessing ? d.settings.postProcessing.bloomThreshold : undefined);
+        // Only process FX if we have a preset value
+        if (_fxPreset === null || _fxPreset === undefined) break;
+        // Track last applied preset to avoid re-creating composer on every settings update
+        if (window.__lastFxPreset === _fxPreset && window.__lastFxBloomI === _fxBloomI && window.__lastFxBloomT === _fxBloomT) break;
+        window.__lastFxPreset = _fxPreset;
+        window.__lastFxBloomI = _fxBloomI;
+        window.__lastFxBloomT = _fxBloomT;
         var _fxCreatePP = window.createPostProcessing;
         var _fxRenderer = window.__vibexe_renderer__ || (editor && editor.renderer);
         var _fxScene = window.__vibexe_scene__ || (editor && editor.scene);
@@ -2192,13 +2202,13 @@ export function getVisualEditBridgeScript(): string {
           var _fxPP = _fxCreatePP(_fxRenderer, _fxScene, _fxCamera, _fxPreset);
           console.log("[GameEditorBridge] FX composer created:", !!_fxPP, "on window:", !!window.__vibexe_composer__);
           // Apply custom bloom overrides
-          if (_fxPP && d.bloomIntensity != null || d.bloomThreshold != null) {
+          if (_fxPP && (_fxBloomI != null || _fxBloomT != null)) {
             var _fxPresets = window.POST_PROCESSING_PRESETS || {};
             var _fxPD = _fxPresets[_fxPreset];
             _fxPP.addBloom({
-              strength: d.bloomIntensity != null ? d.bloomIntensity : (_fxPD && _fxPD.bloom ? _fxPD.bloom.strength : 0.5),
+              strength: _fxBloomI != null ? _fxBloomI : (_fxPD && _fxPD.bloom ? _fxPD.bloom.strength : 0.5),
               radius: _fxPD && _fxPD.bloom ? _fxPD.bloom.radius : 0.4,
-              threshold: d.bloomThreshold != null ? d.bloomThreshold : (_fxPD && _fxPD.bloom ? _fxPD.bloom.threshold : 0.85)
+              threshold: _fxBloomT != null ? _fxBloomT : (_fxPD && _fxPD.bloom ? _fxPD.bloom.threshold : 0.85)
             });
           }
         }
