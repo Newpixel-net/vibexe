@@ -521,7 +521,7 @@ export function getVisualEditBridgeScript(): string {
   var gridHelper = null;
   // Camera Preview PIP
   var previewCamera = null;
-  var pipFrameCounter = 0;
+  // pipFrameCounter removed — PIP now renders every frame
   // Camera Frustum Helper
   var cameraHelper = null;
   var cameraSelected = false;
@@ -1635,24 +1635,35 @@ export function getVisualEditBridgeScript(): string {
       } else {
         editor.renderer.render(editor.scene, editor.camera);
       }
-      // Camera Preview PIP — sub-render at ~15fps (every 4th frame)
+      // Camera Preview PIP — sub-render every frame (200x120 is tiny)
       if (previewCamera && editor.renderer && editor.scene) {
-        pipFrameCounter++;
-        if (pipFrameCounter >= 4) {
-          pipFrameCounter = 0;
-          var _dpr = editor.renderer.getPixelRatio();
-          var _fullSize = editor.renderer.getSize(new (window.THREE.Vector2)());
-          var _pipW = Math.floor(200 * _dpr);
-          var _pipH = Math.floor(120 * _dpr);
-          editor.renderer.setViewport(4, 4, _pipW, _pipH);
-          editor.renderer.setScissor(4, 4, _pipW, _pipH);
-          editor.renderer.setScissorTest(true);
-          previewCamera.aspect = 200 / 120;
-          previewCamera.updateProjectionMatrix();
-          editor.renderer.render(editor.scene, previewCamera);
-          editor.renderer.setScissorTest(false);
-          editor.renderer.setViewport(0, 0, _fullSize.x, _fullSize.y);
-        }
+        var _dpr = editor.renderer.getPixelRatio();
+        var _fullSize = editor.renderer.getSize(new (window.THREE.Vector2)());
+        var _pipW = Math.floor(200 * _dpr);
+        var _pipH = Math.floor(120 * _dpr);
+        var _pipX = Math.floor(4 * _dpr);
+        var _pipY = Math.floor(4 * _dpr);
+        // Save current clear color
+        var _prevClearColor = new (window.THREE.Color)();
+        var _prevClearAlpha = editor.renderer.getClearAlpha();
+        editor.renderer.getClearColor(_prevClearColor);
+        // Draw dark border (2px padding around PIP)
+        var _border = Math.floor(2 * _dpr);
+        editor.renderer.setViewport(_pipX - _border, _pipY - _border, _pipW + _border * 2, _pipH + _border * 2);
+        editor.renderer.setScissor(_pipX - _border, _pipY - _border, _pipW + _border * 2, _pipH + _border * 2);
+        editor.renderer.setScissorTest(true);
+        editor.renderer.setClearColor(0x111111, 0.9);
+        editor.renderer.clear();
+        // Render PIP viewport
+        editor.renderer.setViewport(_pipX, _pipY, _pipW, _pipH);
+        editor.renderer.setScissor(_pipX, _pipY, _pipW, _pipH);
+        previewCamera.aspect = 200 / 120;
+        previewCamera.updateProjectionMatrix();
+        editor.renderer.render(editor.scene, previewCamera);
+        // Restore
+        editor.renderer.setScissorTest(false);
+        editor.renderer.setViewport(0, 0, _fullSize.x, _fullSize.y);
+        editor.renderer.setClearColor(_prevClearColor, _prevClearAlpha);
       }
     } catch (e) {
       // Prevent cascading crashes (e.g., TransformControls infinite recursion)
@@ -1856,7 +1867,6 @@ export function getVisualEditBridgeScript(): string {
     // Clean up camera preview + frustum
     destroyCameraHelper();
     destroyPreviewCamera();
-    pipFrameCounter = 0;
     cameraSelected = false;
     pivotMode = "center";
     // Restore game camera if ortho was active
