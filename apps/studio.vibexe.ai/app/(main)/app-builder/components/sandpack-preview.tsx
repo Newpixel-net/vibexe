@@ -1524,7 +1524,10 @@ export function SandpackPreview({
 									<div className="w-px h-4 bg-white/[0.08] mx-0.5" />
 									<button
 										type="button"
-										onClick={() => setTerrainPainterOpen((v) => !v)}
+										onClick={() => setTerrainPainterOpen((v) => {
+											if (!v && gameEditor.isSettingsOpen) gameEditor.toggleSettings?.();
+											return !v;
+										})}
 										className={`flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-lg transition-all duration-150 ${
 											terrainPainterOpen
 												? "bg-green-500/[0.15] text-green-300"

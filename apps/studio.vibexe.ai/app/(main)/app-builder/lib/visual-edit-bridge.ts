@@ -2608,6 +2608,503 @@ export function getVisualEditBridgeScript(): string {
         }
         break;
       }
+
+      // ===== TERRAIN PAINTER HANDLERS =====
+
+      case "terrain-painter-generate-terrain": {
+        var _tpTHREE = window.THREE;
+        if (!_tpTHREE || !editor || !editor.scene) break;
+        var _tpS = d.settings || {};
+        var _tpW = _tpS.terrainWidth || 200;
+        var _tpD = _tpS.terrainDepth || 200;
+        var _tpH = _tpS.terrainHeightScale || 30;
+        var _tpSeg = _tpS.terrainSegments || 128;
+
+        console.log("[TerrainPainter] Generating terrain:", _tpW, "x", _tpD, "h=", _tpH, "seg=", _tpSeg);
+
+        // Remove existing terrain
+        var _tpOld = editor.scene.getObjectByName("__terrain__");
+        if (_tpOld) { editor.scene.remove(_tpOld); if (_tpOld.geometry) _tpOld.geometry.dispose(); if (_tpOld.material) _tpOld.material.dispose(); }
+
+        // ---- Inline simplex noise (2D) ----
+        var _tpGrad3 = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];
+        var _tpPerm = new Array(512);
+        var _tpP = [151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180];
+        for (var _tpI = 0; _tpI < 512; _tpI++) _tpPerm[_tpI] = _tpP[_tpI & 255];
+
+        function _tpDot2(g, x, y) { return g[0]*x + g[1]*y; }
+
+        function _tpNoise2D(xin, yin) {
+          var F2 = 0.5*(Math.sqrt(3.0)-1.0);
+          var G2 = (3.0-Math.sqrt(3.0))/6.0;
+          var s = (xin+yin)*F2;
+          var i = Math.floor(xin+s);
+          var j = Math.floor(yin+s);
+          var t = (i+j)*G2;
+          var X0 = i-t; var Y0 = j-t;
+          var x0 = xin-X0; var y0 = yin-Y0;
+          var i1, j1;
+          if (x0>y0) { i1=1; j1=0; } else { i1=0; j1=1; }
+          var x1 = x0-i1+G2; var y1 = y0-j1+G2;
+          var x2 = x0-1.0+2.0*G2; var y2 = y0-1.0+2.0*G2;
+          var ii = i & 255; var jj = j & 255;
+          var gi0 = _tpPerm[ii+_tpPerm[jj]] % 12;
+          var gi1 = _tpPerm[ii+i1+_tpPerm[jj+j1]] % 12;
+          var gi2 = _tpPerm[ii+1+_tpPerm[jj+1]] % 12;
+          var n0 = 0, n1 = 0, n2 = 0;
+          var t0 = 0.5 - x0*x0 - y0*y0;
+          if (t0 >= 0) { t0 *= t0; n0 = t0*t0*_tpDot2(_tpGrad3[gi0], x0, y0); }
+          var t1 = 0.5 - x1*x1 - y1*y1;
+          if (t1 >= 0) { t1 *= t1; n1 = t1*t1*_tpDot2(_tpGrad3[gi1], x1, y1); }
+          var t2 = 0.5 - x2*x2 - y2*y2;
+          if (t2 >= 0) { t2 *= t2; n2 = t2*t2*_tpDot2(_tpGrad3[gi2], x2, y2); }
+          return 70.0 * (n0 + n1 + n2); // -1..1
+        }
+
+        function _tpFbm(x, y, octaves, lac, gain) {
+          var sum = 0, amp = 1, freq = 1, maxAmp = 0;
+          for (var o = 0; o < octaves; o++) {
+            sum += _tpNoise2D(x*freq, y*freq) * amp;
+            maxAmp += amp;
+            amp *= gain;
+            freq *= lac;
+          }
+          return sum / maxAmp;
+        }
+
+        function _tpRidge(x, y, octaves) {
+          var sum = 0, amp = 1, freq = 1;
+          for (var o = 0; o < octaves; o++) {
+            var n = 1.0 - Math.abs(_tpNoise2D(x*freq, y*freq));
+            n = n * n;
+            sum += n * amp;
+            amp *= 0.5;
+            freq *= 2.0;
+          }
+          return sum;
+        }
+
+        function _tpSmoothstep(edge0, edge1, x) {
+          var t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+          return t * t * (3 - 2 * t);
+        }
+
+        // Create plane geometry
+        var _tpGeo = new _tpTHREE.PlaneGeometry(_tpW, _tpD, _tpSeg, _tpSeg);
+        _tpGeo.rotateX(-Math.PI / 2); // lay flat on XZ plane
+
+        // Displace vertices with noise
+        var _tpPos = _tpGeo.attributes.position;
+        var _tpMinY = Infinity, _tpMaxY = -Infinity;
+        for (var vi = 0; vi < _tpPos.count; vi++) {
+          var vx = _tpPos.getX(vi);
+          var vz = _tpPos.getZ(vi);
+          var nx = vx / _tpW; // normalize to 0-1 range
+          var nz = vz / _tpD;
+          // Combine fBm + ridged noise
+          var baseH = _tpFbm(nx * 3.0, nz * 3.0, 6, 2.0, 0.5);
+          var ridgeH = _tpRidge(nx * 2.0 + 5.0, nz * 2.0 + 5.0, 5);
+          var h = (baseH * 0.6 + ridgeH * 0.4) * _tpH;
+          _tpPos.setY(vi, h);
+          if (h < _tpMinY) _tpMinY = h;
+          if (h > _tpMaxY) _tpMaxY = h;
+        }
+        _tpPos.needsUpdate = true;
+        _tpGeo.computeVertexNormals();
+
+        // Store per-vertex height (0-1 normalized) and slope (degrees) as attributes
+        var _tpHeightArr = new Float32Array(_tpPos.count);
+        var _tpSlopeArr = new Float32Array(_tpPos.count);
+        var _tpNormAttr = _tpGeo.attributes.normal;
+        var _tpRange = _tpMaxY - _tpMinY || 1;
+        for (var vi2 = 0; vi2 < _tpPos.count; vi2++) {
+          _tpHeightArr[vi2] = (_tpPos.getY(vi2) - _tpMinY) / _tpRange;
+          var ny = _tpNormAttr.getY(vi2);
+          _tpSlopeArr[vi2] = Math.acos(Math.min(1, Math.abs(ny))) * (180 / Math.PI);
+        }
+        _tpGeo.setAttribute("terrainHeight", new _tpTHREE.BufferAttribute(_tpHeightArr, 1));
+        _tpGeo.setAttribute("terrainSlope", new _tpTHREE.BufferAttribute(_tpSlopeArr, 1));
+
+        // Initial vertex-color material (height gradient: green low → brown mid → white high)
+        var _tpColors = new Float32Array(_tpPos.count * 3);
+        for (var vi3 = 0; vi3 < _tpPos.count; vi3++) {
+          var nh = _tpHeightArr[vi3];
+          var slope = _tpSlopeArr[vi3];
+          var r, g, b;
+          if (nh > 0.7) { // snow
+            var sf = _tpSmoothstep(0.65, 0.8, nh);
+            r = 0.35 + sf * 0.6; g = 0.45 + sf * 0.5; b = 0.35 + sf * 0.6;
+          } else if (slope > 35) { // rock on steep slopes
+            r = 0.45; g = 0.42; b = 0.38;
+          } else if (nh > 0.3) { // grass
+            r = 0.25; g = 0.45; b = 0.15;
+          } else { // dirt
+            r = 0.45; g = 0.35; b = 0.2;
+          }
+          _tpColors[vi3*3] = r;
+          _tpColors[vi3*3+1] = g;
+          _tpColors[vi3*3+2] = b;
+        }
+        _tpGeo.setAttribute("color", new _tpTHREE.BufferAttribute(_tpColors, 3));
+
+        var _tpMat = new _tpTHREE.MeshStandardMaterial({
+          vertexColors: true,
+          roughness: 0.85,
+          metalness: 0.05,
+          flatShading: false
+        });
+
+        var _tpMesh = new _tpTHREE.Mesh(_tpGeo, _tpMat);
+        _tpMesh.name = "__terrain__";
+        _tpMesh.receiveShadow = true;
+        _tpMesh.castShadow = true;
+        _tpMesh.userData.vibexeType = "Terrain";
+        _tpMesh.userData.__isTerrain = true;
+        _tpMesh.userData.__terrainMinY = _tpMinY;
+        _tpMesh.userData.__terrainMaxY = _tpMaxY;
+        editor.scene.add(_tpMesh);
+        sendSceneTree();
+
+        console.log("[TerrainPainter] Terrain generated:", _tpPos.count, "vertices, height range:", _tpMinY.toFixed(1), "-", _tpMaxY.toFixed(1));
+        window.parent.postMessage({ type: "terrain-painter-terrain-generated", vertexCount: _tpPos.count, minY: _tpMinY, maxY: _tpMaxY }, "*");
+        break;
+      }
+
+      case "terrain-painter-repaint": {
+        var _rpTHREE = window.THREE;
+        if (!_rpTHREE || !editor || !editor.scene) break;
+        var _rpTerrain = editor.scene.getObjectByName("__terrain__");
+        if (!_rpTerrain || !_rpTerrain.geometry) { console.warn("[TerrainPainter] No terrain found for repaint"); break; }
+
+        var _rpLayers = d.layers || [];
+        var _rpGeo = _rpTerrain.geometry;
+        var _rpHAttr = _rpGeo.attributes.terrainHeight;
+        var _rpSAttr = _rpGeo.attributes.terrainSlope;
+        if (!_rpHAttr || !_rpSAttr) { console.warn("[TerrainPainter] Terrain missing height/slope attributes"); break; }
+
+        var _rpCount = _rpHAttr.count;
+        var _rpEnabledLayers = _rpLayers.filter(function(l) { return l.enabled; });
+        var _rpNumLayers = Math.min(_rpEnabledLayers.length, 4); // max 4 for vertex color packing
+
+        console.log("[TerrainPainter] Repainting with", _rpNumLayers, "enabled layers");
+
+        // Smoothstep helper
+        function _rpSmoothstep(e0, e1, x) {
+          var t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0 || 0.001)));
+          return t * t * (3 - 2 * t);
+        }
+
+        // Compute per-vertex weights for each layer
+        var _rpWeights = [];
+        for (var li = 0; li < _rpNumLayers; li++) _rpWeights.push(new Float32Array(_rpCount));
+
+        var _rpPos = _rpGeo.attributes.position;
+        var _rpMinY = _rpTerrain.userData.__terrainMinY || 0;
+        var _rpMaxY = _rpTerrain.userData.__terrainMaxY || 1;
+        var _rpRange = _rpMaxY - _rpMinY || 1;
+
+        for (var vi = 0; vi < _rpCount; vi++) {
+          var vHeight = _rpHAttr.getX(vi); // 0-1 normalized
+          var vSlope = _rpSAttr.getX(vi);  // 0-90 degrees
+          var vx = _rpPos.getX(vi);
+          var vz = _rpPos.getZ(vi);
+
+          for (var li2 = 0; li2 < _rpNumLayers; li2++) {
+            var layer = _rpEnabledLayers[li2];
+            var weight = 1.0;
+
+            for (var mi = 0; mi < layer.modifiers.length; mi++) {
+              var mod = layer.modifiers[mi];
+              if (!mod.enabled) continue;
+              var mask = 1.0;
+              var p = mod.params || {};
+              var opacity = (mod.opacity != null ? mod.opacity : 100) / 100;
+
+              if (mod.type === "Height") {
+                // Height modifier — min/max are in normalized 0-1 range
+                var hMin = (p.min || 0) / _rpRange;
+                var hMax = (p.max || 1) / _rpRange;
+                var hMinF = (p.minFalloff || 1) / _rpRange;
+                var hMaxF = (p.maxFalloff || 1) / _rpRange;
+                mask = _rpSmoothstep(hMin - hMinF, hMin, vHeight) * (1.0 - _rpSmoothstep(hMax, hMax + hMaxF, vHeight));
+              } else if (mod.type === "Slope") {
+                var sMin = p.minAngle || 0;
+                var sMax = p.maxAngle || 90;
+                var sMinF = p.minFalloff || 10;
+                var sMaxF = p.maxFalloff || 10;
+                mask = _rpSmoothstep(sMin - sMinF, sMin, vSlope) * (1.0 - _rpSmoothstep(sMax, sMax + sMaxF, vSlope));
+              } else if (mod.type === "Noise") {
+                var nScale = (p.noiseScale || 50) * 0.01;
+                var nOx = p.noiseOffsetX || 0;
+                var nOy = p.noiseOffsetY || 0;
+                var nVal = (_tpNoise2D((vx + nOx) * nScale, (vz + nOy) * nScale) + 1) * 0.5; // 0-1
+                var nMin = p.levelMin != null ? p.levelMin : 0;
+                var nMax = p.levelMax != null ? p.levelMax : 1;
+                mask = _rpSmoothstep(nMin, nMax, nVal);
+              } else if (mod.type === "Curvature") {
+                // Approximate curvature from height differences to neighbors
+                mask = 0.5; // simplified — just provide base coverage
+              } else if (mod.type === "Direction") {
+                var nx2 = _rpGeo.attributes.normal ? _rpGeo.attributes.normal.getX(vi) : 0;
+                var nz2 = _rpGeo.attributes.normal ? _rpGeo.attributes.normal.getZ(vi) : 0;
+                var dirAngle = Math.atan2(nz2, nx2) * (180 / Math.PI);
+                var targetAngle = p.xAngle || 45;
+                var diff = Math.abs(((dirAngle - targetAngle + 180) % 360) - 180);
+                var dMin = p.levelMin || 0;
+                var dMax = p.levelMax || 1;
+                mask = 1.0 - _rpSmoothstep(0, 90, diff);
+                mask = dMin + mask * (dMax - dMin);
+              }
+
+              mask *= opacity;
+
+              // Apply blend mode
+              if (mod.blendMode === "Multiply") { weight *= mask; }
+              else if (mod.blendMode === "Add") { weight = Math.min(1, weight + mask); }
+              else if (mod.blendMode === "Subtract") { weight = Math.max(0, weight - mask); }
+              else if (mod.blendMode === "Min") { weight = Math.min(weight, mask); }
+              else if (mod.blendMode === "Max") { weight = Math.max(weight, mask); }
+            }
+
+            _rpWeights[li2][vi] = Math.max(0, Math.min(1, weight));
+          }
+        }
+
+        // Normalize weights per vertex so they sum to 1
+        for (var vi3 = 0; vi3 < _rpCount; vi3++) {
+          var wSum = 0;
+          for (var li3 = 0; li3 < _rpNumLayers; li3++) wSum += _rpWeights[li3][vi3];
+          if (wSum > 0.001) {
+            for (var li4 = 0; li4 < _rpNumLayers; li4++) _rpWeights[li4][vi3] /= wSum;
+          }
+        }
+
+        // Collect texture URLs from enabled layers
+        var _rpTexUrls = [];
+        for (var li5 = 0; li5 < _rpNumLayers; li5++) _rpTexUrls.push(_rpEnabledLayers[li5].diffuseUrl || "");
+
+        // Layer preview colors (fallback when no texture)
+        var _rpColors = [];
+        for (var li6 = 0; li6 < _rpNumLayers; li6++) {
+          var pc = _rpEnabledLayers[li6].previewColor || "#808080";
+          var cr = parseInt(pc.slice(1,3), 16)/255;
+          var cg = parseInt(pc.slice(3,5), 16)/255;
+          var cb = parseInt(pc.slice(5,7), 16)/255;
+          _rpColors.push([cr, cg, cb]);
+        }
+
+        // Check if any layers have real texture URLs
+        var _rpHasTextures = _rpTexUrls.some(function(u) { return u && u.length > 5; });
+
+        if (_rpHasTextures) {
+          // Load textures and create ShaderMaterial
+          var _rpLoader = new _rpTHREE.TextureLoader();
+          var _rpTextures = new Array(_rpNumLayers);
+          var _rpLoaded = 0;
+          var _rpTotal = 0;
+
+          for (var ti = 0; ti < _rpNumLayers; ti++) {
+            if (_rpTexUrls[ti] && _rpTexUrls[ti].length > 5) _rpTotal++;
+          }
+
+          if (_rpTotal === 0) _rpTotal = 1; // avoid /0
+
+          function _rpApplyShaderMaterial() {
+            // Pack weights into vertex color + UV2 attributes
+            var _w0 = new Float32Array(_rpCount);
+            var _w1 = new Float32Array(_rpCount);
+            var _w2 = new Float32Array(_rpCount);
+            var _w3 = new Float32Array(_rpCount);
+            for (var v = 0; v < _rpCount; v++) {
+              _w0[v] = _rpNumLayers > 0 ? _rpWeights[0][v] : 0;
+              _w1[v] = _rpNumLayers > 1 ? _rpWeights[1][v] : 0;
+              _w2[v] = _rpNumLayers > 2 ? _rpWeights[2][v] : 0;
+              _w3[v] = _rpNumLayers > 3 ? _rpWeights[3][v] : 0;
+            }
+            _rpGeo.setAttribute("w0", new _rpTHREE.BufferAttribute(_w0, 1));
+            _rpGeo.setAttribute("w1", new _rpTHREE.BufferAttribute(_w1, 1));
+            _rpGeo.setAttribute("w2", new _rpTHREE.BufferAttribute(_w2, 1));
+            _rpGeo.setAttribute("w3", new _rpTHREE.BufferAttribute(_w3, 1));
+
+            var _rpUniforms = {
+              uTex0: { value: _rpTextures[0] || null },
+              uTex1: { value: _rpTextures[1] || null },
+              uTex2: { value: _rpTextures[2] || null },
+              uTex3: { value: _rpTextures[3] || null },
+              uColor0: { value: new _rpTHREE.Vector3(_rpColors[0] ? _rpColors[0][0] : 0.5, _rpColors[0] ? _rpColors[0][1] : 0.5, _rpColors[0] ? _rpColors[0][2] : 0.5) },
+              uColor1: { value: new _rpTHREE.Vector3(_rpColors[1] ? _rpColors[1][0] : 0.5, _rpColors[1] ? _rpColors[1][1] : 0.5, _rpColors[1] ? _rpColors[1][2] : 0.5) },
+              uColor2: { value: new _rpTHREE.Vector3(_rpColors[2] ? _rpColors[2][0] : 0.5, _rpColors[2] ? _rpColors[2][1] : 0.5, _rpColors[2] ? _rpColors[2][2] : 0.5) },
+              uColor3: { value: new _rpTHREE.Vector3(_rpColors[3] ? _rpColors[3][0] : 0.5, _rpColors[3] ? _rpColors[3][1] : 0.5, _rpColors[3] ? _rpColors[3][2] : 0.5) },
+              uNumLayers: { value: _rpNumLayers },
+              uTexScale: { value: 10.0 }
+            };
+
+            var _rpVertShader = [
+              "attribute float w0;",
+              "attribute float w1;",
+              "attribute float w2;",
+              "attribute float w3;",
+              "varying vec2 vUv;",
+              "varying vec3 vNormal;",
+              "varying float vW0;",
+              "varying float vW1;",
+              "varying float vW2;",
+              "varying float vW3;",
+              "void main() {",
+              "  vUv = uv;",
+              "  vNormal = normalize(normalMatrix * normal);",
+              "  vW0 = w0; vW1 = w1; vW2 = w2; vW3 = w3;",
+              "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
+              "}"
+            ].join("\n");
+
+            var _rpFragShader = [
+              "uniform sampler2D uTex0;",
+              "uniform sampler2D uTex1;",
+              "uniform sampler2D uTex2;",
+              "uniform sampler2D uTex3;",
+              "uniform vec3 uColor0;",
+              "uniform vec3 uColor1;",
+              "uniform vec3 uColor2;",
+              "uniform vec3 uColor3;",
+              "uniform int uNumLayers;",
+              "uniform float uTexScale;",
+              "varying vec2 vUv;",
+              "varying vec3 vNormal;",
+              "varying float vW0;",
+              "varying float vW1;",
+              "varying float vW2;",
+              "varying float vW3;",
+              "void main() {",
+              "  vec2 scaledUv = vUv * uTexScale;",
+              "  vec3 col = vec3(0.0);",
+              "  if (uNumLayers > 0) {",
+              "    vec3 c0 = uTex0 != uTex0 ? uColor0 : texture2D(uTex0, scaledUv).rgb;",
+              "    col += c0 * vW0;",
+              "  }",
+              "  if (uNumLayers > 1) {",
+              "    vec3 c1 = uTex1 != uTex1 ? uColor1 : texture2D(uTex1, scaledUv).rgb;",
+              "    col += c1 * vW1;",
+              "  }",
+              "  if (uNumLayers > 2) {",
+              "    vec3 c2 = uTex2 != uTex2 ? uColor2 : texture2D(uTex2, scaledUv).rgb;",
+              "    col += c2 * vW2;",
+              "  }",
+              "  if (uNumLayers > 3) {",
+              "    vec3 c3 = uTex3 != uTex3 ? uColor3 : texture2D(uTex3, scaledUv).rgb;",
+              "    col += c3 * vW3;",
+              "  }",
+              "  // Simple directional lighting",
+              "  float light = max(0.0, dot(vNormal, normalize(vec3(0.5, 1.0, 0.3))));",
+              "  light = 0.35 + light * 0.65;",
+              "  gl_FragColor = vec4(col * light, 1.0);",
+              "}"
+            ].join("\n");
+
+            // Dispose old material
+            if (_rpTerrain.material) { try { _rpTerrain.material.dispose(); } catch(e) {} }
+
+            var _rpShaderMat = new _rpTHREE.ShaderMaterial({
+              uniforms: _rpUniforms,
+              vertexShader: _rpVertShader,
+              fragmentShader: _rpFragShader,
+              lights: false,
+              side: _rpTHREE.DoubleSide
+            });
+
+            _rpTerrain.material = _rpShaderMat;
+            console.log("[TerrainPainter] ShaderMaterial applied with", _rpNumLayers, "texture layers");
+            window.parent.postMessage({ type: "terrain-painter-repainted" }, "*");
+          }
+
+          // Load each texture
+          for (var ti2 = 0; ti2 < _rpNumLayers; ti2++) {
+            (function(idx) {
+              var url = _rpTexUrls[idx];
+              if (!url || url.length < 5) {
+                _rpTextures[idx] = null;
+                _rpLoaded++;
+                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                return;
+              }
+              _rpLoader.load(url, function(tex) {
+                tex.wrapS = _rpTHREE.RepeatWrapping;
+                tex.wrapT = _rpTHREE.RepeatWrapping;
+                tex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
+                if (_rpTHREE.SRGBColorSpace) tex.colorSpace = _rpTHREE.SRGBColorSpace;
+                _rpTextures[idx] = tex;
+                _rpLoaded++;
+                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+              }, undefined, function() {
+                console.warn("[TerrainPainter] Failed to load texture:", url);
+                _rpTextures[idx] = null;
+                _rpLoaded++;
+                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+              });
+            })(ti2);
+          }
+        } else {
+          // No textures — just apply vertex colors from layer preview colors
+          var _rpVCols = new Float32Array(_rpCount * 3);
+          for (var vi4 = 0; vi4 < _rpCount; vi4++) {
+            var r = 0, g = 0, b = 0;
+            for (var li7 = 0; li7 < _rpNumLayers; li7++) {
+              var w = _rpWeights[li7][vi4];
+              var c = _rpColors[li7] || [0.5, 0.5, 0.5];
+              r += c[0] * w;
+              g += c[1] * w;
+              b += c[2] * w;
+            }
+            _rpVCols[vi4*3] = r;
+            _rpVCols[vi4*3+1] = g;
+            _rpVCols[vi4*3+2] = b;
+          }
+          _rpGeo.setAttribute("color", new _rpTHREE.BufferAttribute(_rpVCols, 3));
+          _rpGeo.attributes.color.needsUpdate = true;
+
+          // Use vertex color material
+          if (_rpTerrain.material) { try { _rpTerrain.material.dispose(); } catch(e) {} }
+          _rpTerrain.material = new _rpTHREE.MeshStandardMaterial({
+            vertexColors: true,
+            roughness: 0.85,
+            metalness: 0.05,
+            flatShading: false
+          });
+          console.log("[TerrainPainter] Vertex colors applied with", _rpNumLayers, "layers");
+          window.parent.postMessage({ type: "terrain-painter-repainted" }, "*");
+        }
+        break;
+      }
+
+      case "terrain-painter-toggle-heatmap": {
+        var _hmTerrain = editor && editor.scene ? editor.scene.getObjectByName("__terrain__") : null;
+        if (!_hmTerrain || !_hmTerrain.geometry) break;
+        var _hmTHREE = window.THREE;
+        if (!_hmTHREE) break;
+        var _hmEnabled = !!d.enabled;
+        var _hmGeo = _hmTerrain.geometry;
+        var _hmHAttr = _hmGeo.attributes.terrainHeight;
+        if (!_hmHAttr) break;
+
+        if (_hmEnabled) {
+          // Show height heatmap (blue=low → green=mid → red=high)
+          var _hmCols = new Float32Array(_hmHAttr.count * 3);
+          for (var hvi = 0; hvi < _hmHAttr.count; hvi++) {
+            var h = _hmHAttr.getX(hvi);
+            if (h < 0.5) {
+              _hmCols[hvi*3] = 0; _hmCols[hvi*3+1] = h*2; _hmCols[hvi*3+2] = 1-h*2;
+            } else {
+              _hmCols[hvi*3] = (h-0.5)*2; _hmCols[hvi*3+1] = 1-(h-0.5)*2; _hmCols[hvi*3+2] = 0;
+            }
+          }
+          _hmGeo.setAttribute("color", new _hmTHREE.BufferAttribute(_hmCols, 3));
+          if (_hmTerrain.material) { try { _hmTerrain.material.dispose(); } catch(e) {} }
+          _hmTerrain.material = new _hmTHREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
+        }
+        // else: heatmap disabled — repaint will restore colors
+        break;
+      }
+
     }
   });
   } // end initBridge

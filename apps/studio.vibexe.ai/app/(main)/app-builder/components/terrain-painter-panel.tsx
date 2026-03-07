@@ -15,7 +15,7 @@
 
 import {
 	ChevronDown,
-	ChevronUp,
+	ChevronRight,
 	Eye,
 	EyeOff,
 	Layers,
@@ -102,35 +102,40 @@ const MODIFIER_DEFAULTS: Record<ModifierType, Omit<ModifierData, "type">> = {
 
 const DEFAULT_LAYERS: LayerData[] = [
 	{
-		name: "Snow",
+		name: "Dirt",
 		enabled: true,
-		previewColor: "#e8e8e8",
-		diffuseUrl: "",
-		modifiers: [{ type: "Height", ...MODIFIER_DEFAULTS.Height }],
-	},
-	{
-		name: "Sand",
-		enabled: true,
-		previewColor: "#c4a969",
-		diffuseUrl: "",
-		modifiers: [{ type: "Slope", ...MODIFIER_DEFAULTS.Slope }],
+		previewColor: "#8b6914",
+		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Ground037_Color.jpg",
+		modifiers: [
+			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0, max: 0.3, minFalloff: 0.05, maxFalloff: 0.1 } },
+		],
 	},
 	{
 		name: "Grass",
 		enabled: true,
 		previewColor: "#6b8e23",
-		diffuseUrl: "",
-		modifiers: [{ type: "Height", ...MODIFIER_DEFAULTS.Height }],
+		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Grass004_Color.jpg",
+		modifiers: [
+			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.1, max: 0.5, minFalloff: 0.05, maxFalloff: 0.1 } },
+			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 30, minFalloff: 5, maxFalloff: 10 } },
+		],
 	},
 	{
-		name: "Dirt",
+		name: "Rock",
 		enabled: true,
-		previewColor: "#8b6914",
-		diffuseUrl: "",
+		previewColor: "#7a7a7a",
+		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Rock034_Color.jpg",
 		modifiers: [
-			{ type: "Height", ...MODIFIER_DEFAULTS.Height },
-			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope },
-			{ type: "Curvature", ...MODIFIER_DEFAULTS.Curvature },
+			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 25, maxAngle: 90, minFalloff: 10, maxFalloff: 5 } },
+		],
+	},
+	{
+		name: "Snow",
+		enabled: true,
+		previewColor: "#e8e8e8",
+		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Snow006_Color.jpg",
+		modifiers: [
+			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.6, max: 1.0, minFalloff: 0.1, maxFalloff: 0.05 } },
 		],
 	},
 ];
@@ -182,25 +187,28 @@ export function TerrainPainterPanel({
 	// ===== Layer actions =====
 
 	const addLayer = useCallback(() => {
-		const newLayer: LayerData = {
-			name: `Layer ${layers.length + 1}`,
-			enabled: true,
-			previewColor: "#808080",
-			diffuseUrl: "",
-			modifiers: [],
-		};
-		setLayers((prev) => [...prev, newLayer]);
-		setSelectedLayer(layers.length);
-	}, [layers.length]);
+		setLayers((prev) => {
+			const newLayer: LayerData = {
+				name: `Layer ${prev.length + 1}`,
+				enabled: true,
+				previewColor: "#808080",
+				diffuseUrl: "",
+				modifiers: [],
+			};
+			setSelectedLayer(prev.length);
+			return [...prev, newLayer];
+		});
+	}, []);
 
 	const removeLayer = useCallback(
 		(index: number) => {
-			setLayers((prev) => prev.filter((_, i) => i !== index));
-			if (selectedLayer >= layers.length - 1) {
-				setSelectedLayer(Math.max(0, layers.length - 2));
-			}
+			setLayers((prev) => {
+				const next = prev.filter((_, i) => i !== index);
+				setSelectedLayer((sel) => sel >= next.length ? Math.max(0, next.length - 1) : sel);
+				return next;
+			});
 		},
-		[selectedLayer, layers.length],
+		[],
 	);
 
 	const toggleLayer = useCallback((index: number) => {
@@ -208,6 +216,15 @@ export function TerrainPainterPanel({
 			prev.map((l, i) => (i === index ? { ...l, enabled: !l.enabled } : l)),
 		);
 	}, []);
+
+	const updateLayerField = useCallback(
+		(index: number, field: keyof LayerData, value: string) => {
+			setLayers((prev) =>
+				prev.map((l, i) => (i === index ? { ...l, [field]: value } : l)),
+			);
+		},
+		[],
+	);
 
 	// ===== Modifier actions =====
 
@@ -339,8 +356,13 @@ export function TerrainPainterPanel({
 						onToggleLayer={toggleLayer}
 						onRemoveLayer={removeLayer}
 						onAddLayer={addLayer}
+						onUpdateLayerField={updateLayerField}
 						showHeatmap={showHeatmap}
-						onToggleHeatmap={() => setShowHeatmap(!showHeatmap)}
+						onToggleHeatmap={() => {
+						const next = !showHeatmap;
+						setShowHeatmap(next);
+						sendToIframe({ type: "terrain-painter-toggle-heatmap", enabled: next });
+					}}
 						currentLayer={currentLayer}
 						onAddModifier={addModifier}
 						onRemoveModifier={removeModifier}
@@ -379,6 +401,7 @@ function LayersTab({
 	onToggleLayer,
 	onRemoveLayer,
 	onAddLayer,
+	onUpdateLayerField,
 	showHeatmap,
 	onToggleHeatmap,
 	currentLayer,
@@ -393,6 +416,7 @@ function LayersTab({
 	onToggleLayer: (i: number) => void;
 	onRemoveLayer: (i: number) => void;
 	onAddLayer: () => void;
+	onUpdateLayerField: (i: number, field: keyof LayerData, value: string) => void;
 	showHeatmap: boolean;
 	onToggleHeatmap: () => void;
 	currentLayer: LayerData | undefined;
@@ -457,6 +481,20 @@ function LayersTab({
 					</div>
 				))}
 			</div>
+
+			{/* Texture URL for selected layer */}
+			{currentLayer && (
+				<div className="px-3 py-1.5 border-t border-white/5">
+					<label className="text-[9px] text-white/40 block mb-1">Texture URL</label>
+					<input
+						type="text"
+						value={currentLayer.diffuseUrl}
+						onChange={(e) => onUpdateLayerField(selectedLayer, "diffuseUrl", e.target.value)}
+						placeholder="/api/app-builder/media-stock-3d/textures/..."
+						className="w-full text-[9px] bg-[#252525] border border-white/10 rounded px-2 py-1 text-white/70 outline-none placeholder:text-white/20"
+					/>
+				</div>
+			)}
 
 			{/* Layer controls */}
 			<div className="flex items-center gap-2 px-3 py-2 border-t border-white/5">
@@ -578,7 +616,7 @@ function ModifierRow({
 					{expanded ? (
 						<ChevronDown className="w-3 h-3" />
 					) : (
-						<ChevronUp className="w-3 h-3" style={{ transform: "rotate(90deg)" }} />
+						<ChevronRight className="w-3 h-3" />
 					)}
 				</button>
 
@@ -697,6 +735,16 @@ function ModifierRow({
 					)}
 					{modifier.type === "TextureMask" && (
 						<>
+							<div className="flex items-center gap-2">
+								<span className="text-[9px] text-white/40 w-16">Texture</span>
+								<input
+									type="text"
+									value={(modifier.params.textureUrl as string) || ""}
+									onChange={(e) => onUpdateParam("textureUrl", e.target.value)}
+									placeholder="Texture URL..."
+									className="flex-1 text-[9px] bg-[#333] border border-white/10 rounded px-1 py-0.5 text-white/70 outline-none placeholder:text-white/20"
+								/>
+							</div>
 							<div className="flex items-center gap-2">
 								<span className="text-[9px] text-white/40 w-16">Channel</span>
 								<select
