@@ -477,7 +477,7 @@ if (typeof window !== 'undefined') {
       return null;
     }
     function _find(s, name) {
-      if (_cache[name]) return _cache[name];
+      if (_cache[name]) { if (_cache[name].parent) return _cache[name]; delete _cache[name]; delete _logged[name]; }
       var t = null;
       if (name.indexOf("UnnamedGroup_")===0) {
         var gi = parseInt(name.replace("UnnamedGroup_",""),10), gc = 0;
@@ -537,10 +537,10 @@ if (typeof window !== 'undefined') {
           var pb = _findBody(t, name);
           if (pb) { pb.position.set(o.p[0],o.p[1],o.p[2]); if(pb.velocity) pb.velocity.set(0,0,0); _hasBody=true; }
         }
+        if (o.v !== undefined) t.visible = !!o.v;
         if (!_logged[name]) {
           if (o.r) t.rotation.set(o.r[0],o.r[1],o.r[2]);
           if (o.s) t.scale.set(o.s[0],o.s[1],o.s[2]);
-          if (o.v !== undefined) t.visible = !!o.v;
           if (o.t && o.t[0] && typeof THREE !== 'undefined') {
             (function(_obj, _ti) {
               var _tu = _ti[0], _tx = _ti[1]||1, _ty = _ti[2]||1, _pbr = !!_ti[3];
