@@ -263,6 +263,19 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 						}
 					}
 				} catch { /* ignore */ }
+				// Re-send FX settings after bridge activates (bridge needs renderer/scene/camera ready)
+				setTimeout(() => {
+					setGameSettingsState((gs) => {
+						const pp = gs.postProcessing;
+						if (pp?.preset && pp.preset !== "none") {
+							sendToIframe({
+								type: "updateGameSettings",
+								settings: { postProcessing: pp },
+							});
+						}
+						return gs; // don't actually change state
+					});
+				}, 800);
 			}
 			// For disable: DON'T send here — exit useEffect sends it AFTER collecting transforms
 			if (!next) {
