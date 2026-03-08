@@ -1854,7 +1854,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 						const lives = clamp(Math.round(sp.startingLives), 1, 99);
 						const before = code;
 						code = code.replace(
-							/(const\s+MAX_LIVES\s*=\s*)([^;]+)(;)/,
+							/((?:const|let)\s+MAX_LIVES\s*=\s*)([^;]+)(;)/,
 							`$1${lives}$3`,
 						);
 						if (code === before) {

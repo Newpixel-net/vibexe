@@ -1213,7 +1213,10 @@ export function SandpackPreview({
 				}
 				// Auto-generate terrain on page load if not in editor mode and terrain config exists
 				// (The IIFE in the saved file may be stale and lack _autoTerrain)
-				if (!gameEditor.enabled && iframe?.contentWindow) {
+				// Skip if we just exited scene editor — the exit handler already triggers terrain gen
+				if (justExitedEditorRef.current) {
+					justExitedEditorRef.current = false;
+				} else if (!gameEditor.enabled && iframe?.contentWindow) {
 					const terrainCfg = gameEditor.gameSettings.terrain;
 					if (terrainCfg?.enabled) {
 						// Wait 8s for IIFE 300-frame loop + GLTF loads to complete
@@ -1357,12 +1360,15 @@ export function SandpackPreview({
 					textureOverridesRef.current = data.textureOverrides;
 				}
 			} else if (data.type === "terrain-heightmap-data") {
-				// Store sculpt heightmap data for persistence
+				// Store sculpt heightmap data for persistence and save to DB
 				if (data.data && typeof data.data === "string") {
 					const terrainCfg = gameEditor.gameSettings.terrain;
 					if (terrainCfg) {
 						terrainCfg.sculptHeightData = data.data;
 						console.log("[GameEditor] Stored sculpt heightmap:", data.vertexCount, "vertices");
+						// Persist sculpt data to DB so it survives page reload
+						const updatedSettings = { ...gameEditor.gameSettings, terrain: { ...terrainCfg } };
+						handleSaveSettings(updatedSettings);
 					}
 				}
 			} else if (data.type === "game-editor-all-transforms") {
@@ -1410,10 +1416,13 @@ export function SandpackPreview({
 	// When exiting Scene Editor after transforms were modified, refresh Sandpack
 	// so the game reloads with SCENE_EDITOR_OVERRIDES applied from source code.
 	const prevEditorEnabledRef = useRef(false);
+	const justExitedEditorRef = useRef(false);
 	useEffect(() => {
 		const wasEnabled = prevEditorEnabledRef.current;
 		prevEditorEnabledRef.current = gameEditor.enabled;
 		if (wasEnabled && !gameEditor.enabled) {
+			// Flag to suppress duplicate terrain gen from bridge-loaded handler
+			justExitedEditorRef.current = true;
 			// Request heightmap data before bridge deactivates (for sculpt persistence)
 			const iframe = iframeRef.current;
 			if (iframe?.contentWindow && gameEditor.gameSettings.terrain?.enabled) {
@@ -2088,9 +2097,12 @@ export function SandpackPreview({
 							onClose={() => setTerrainPainterOpen(false)}
 							initialConfig={gameEditor.gameSettings.terrain}
 							onTerrainConfigChanged={(config) => {
-								gameEditor.updateGameSettings({ terrain: config });
+								// Preserve sculptHeightData from in-memory state (panel config doesn't include it)
+								const existingSculpt = gameEditor.gameSettings.terrain?.sculptHeightData;
+								const mergedConfig = existingSculpt ? { ...config, sculptHeightData: existingSculpt } : config;
+								gameEditor.updateGameSettings({ terrain: mergedConfig });
 								// Auto-save terrain config to JSON file so it persists across iframe reloads
-								const updatedSettings = { ...gameEditor.gameSettings, terrain: config };
+								const updatedSettings = { ...gameEditor.gameSettings, terrain: mergedConfig };
 								handleSaveSettings(updatedSettings);
 							}}
 						/>

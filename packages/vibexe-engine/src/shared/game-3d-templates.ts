@@ -5121,7 +5121,16 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 // --- Player (runtime-updatable respawn/lives) ---
                 if (s.player) {
                   if (s.player.respawnX !== undefined) (window as any).__vibexe_respawnX__ = s.player.respawnX;
-                  if (s.player.respawnY !== undefined) (window as any).__vibexe_respawnY__ = s.player.respawnY;
+                  if (s.player.respawnY !== undefined) {
+                    let _rspY = s.player.respawnY;
+                    // Terrain-aware: raise respawn Y if terrain surface is higher
+                    const _gth2 = (window as any).__vibexe_getTerrainHeight;
+                    if (_gth2) {
+                      const _rspTH = _gth2(s.player.respawnX ?? (window as any).__vibexe_respawnX__ ?? 0, s.player.respawnZ ?? (window as any).__vibexe_respawnZ__ ?? 0);
+                      if (_rspTH != null && _rspTH + 1 > _rspY) _rspY = _rspTH + 1;
+                    }
+                    (window as any).__vibexe_respawnY__ = _rspY;
+                  }
                   if (s.player.respawnZ !== undefined) (window as any).__vibexe_respawnZ__ = s.player.respawnZ;
                   if (s.player.startingLives !== undefined) (window as any).__vibexe_maxLives__ = s.player.startingLives;
                 }
