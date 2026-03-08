@@ -636,8 +636,7 @@ if (typeof window !== 'undefined') {
       else {
         console.log("[SCENE_EDITOR] Override done after "+_frame+" frames, "+Object.keys(_bodies).length+" bodies");
         _autoPhysics(s);
-        console.log("[SCENE_EDITOR] About to call _autoTerrain, typeof=", typeof _autoTerrain);
-        try { _autoTerrain(); } catch(e) { console.error("[SCENE_EDITOR] _autoTerrain error:", e); }
+        _autoTerrain();
       }
     }
     // Auto-terrain: regenerate terrain from persisted config if it exists
@@ -1149,6 +1148,44 @@ export function SandpackPreview({
 						iframe.contentWindow?.postMessage({ type: "game-editor-restore-spawned-objects", objects: objectsToRestore }, "*");
 					}, 500);
 				}
+				// Auto-generate terrain on page load if not in editor mode and terrain config exists
+				// (The IIFE in the saved file may be stale and lack _autoTerrain)
+				if (!gameEditor.enabled && iframe?.contentWindow) {
+					const terrainCfg = gameEditor.gameSettings.terrain;
+					if (terrainCfg?.enabled) {
+						// Wait 8s for IIFE 300-frame loop + GLTF loads to complete
+						setTimeout(() => {
+							console.log("[GameEditor] Auto-generating terrain on page load (Game mode)");
+							iframe.contentWindow?.postMessage({
+								type: "terrain-painter-generate-terrain",
+								settings: {
+									terrainWidth: terrainCfg.width || 200,
+									terrainDepth: terrainCfg.depth || 200,
+									terrainHeightScale: terrainCfg.heightScale || 8,
+									terrainSegments: terrainCfg.segments || 256,
+								},
+							}, "*");
+							if (terrainCfg.layers && terrainCfg.layers.length > 0) {
+								setTimeout(() => {
+									iframe.contentWindow?.postMessage({
+										type: "terrain-painter-repaint",
+										layers: terrainCfg.layers!.map((l: any) => ({
+											name: l.textureUrl?.split("/").pop()?.replace(/\.[^.]+$/, "") || "Layer",
+											enabled: l.enabled !== false,
+											diffuseUrl: l.textureUrl || "",
+											tileSize: l.tileSize || 4,
+											opacity: 100,
+											roughness: 0.85,
+											normalIntensity: 1.0,
+											metallic: false,
+											modifiers: [],
+										})),
+									}, "*");
+								}, 1000);
+							}
+						}, 8000);
+					}
+				}
 			} else if (data.type === "game-editor-scene-tree") {
 				gameEditor.updateSceneTree(data.tree);
 			} else if (data.type === "game-editor-object-selected") {
@@ -1518,7 +1555,7 @@ export function SandpackPreview({
 		// No externalResources needed for Three.js — the shim handles core + all addons
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=70`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=71`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);
