@@ -1332,7 +1332,7 @@ export function SandpackPreview({
 		// No externalResources needed for Three.js — the shim handles core + all addons
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=56`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=57`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);

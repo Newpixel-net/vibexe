@@ -3119,7 +3119,6 @@ export function getVisualEditBridgeScript(): string {
             ].join("\\n");
 
             var _rpFragShader = [
-              "#extension GL_OES_standard_derivatives : enable",
               "precision highp float;",
               "",
               "uniform sampler2D uTex0, uTex1, uTex2, uTex3;",
@@ -3286,8 +3285,7 @@ export function getVisualEditBridgeScript(): string {
               vertexShader: _rpVertShader,
               fragmentShader: _rpFragShader,
               lights: false,
-              side: _rpTHREE.DoubleSide,
-              extensions: { derivatives: true }
+              side: _rpTHREE.DoubleSide
             });
 
             _rpTerrain.material = _rpShaderMat;
