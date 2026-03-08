@@ -19,6 +19,7 @@ import { writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { db } from "@/db";
 import { type BuilderAppId, builderApps, builderFiles } from "@/db/schema";
+import { ALL_MODULE_MANIFESTS } from "@vibexe-ai/vibexe-engine";
 
 const DEPLOY_ROOT =
 	process.env.DEPLOY_ROOT ?? "/home/vibexe/public_html/apps";
@@ -250,6 +251,14 @@ function createVirtualPlugin(
 			"module.exports = { jsxDEV: window.React.createElement, Fragment: window.React.Fragment };",
 	};
 
+	// Add @vibexe/* module shims from module registry
+	for (const mod of ALL_MODULE_MANIFESTS) {
+		const pkgName = `@vibexe/${mod.id}`;
+		if (!shims[pkgName]) {
+			shims[pkgName] = mod.runtimeCode || `module.exports = {};`;
+		}
+	}
+
 	return {
 		name: "virtual-fs",
 		setup(build) {
@@ -377,8 +386,44 @@ export async function buildApp(
 					/import\s*["']@vibexe\/sdk["'];?/g,
 					"",
 				);
+				// Rewrite @vibexe/* module imports to use window globals
+				// Each module registers on window.__vibexe_modules__[moduleId]
+				content = content.replace(
+					/import\s*\{([^}]*)\}\s*from\s*["']@vibexe\/([^"']+)["'];?/g,
+					(_, names, moduleId) => {
+						const cleanNames = names.split(',').map((n: string) => n.trim()).filter(Boolean);
+						return `const { ${cleanNames.join(', ')} } = (window.__vibexe_modules__ && window.__vibexe_modules__["${moduleId}"]) || {};`;
+					},
+				);
+				// Default import: import terrain from "@vibexe/terrain"
+				content = content.replace(
+					/import\s+(\w+)\s+from\s*["']@vibexe\/(?!sdk)([^"']+)["'];?/g,
+					'const $1 = (window.__vibexe_modules__ && window.__vibexe_modules__["$2"]) || {};',
+				);
+				// Bare import: import "@vibexe/terrain"
+				content = content.replace(
+					/import\s*["']@vibexe\/(?!sdk)([^"']+)["'];?/g,
+					"",
+				);
 				virtualFiles.set(path, content);
 			}
+		}
+
+		// Detect installed modules from manifest
+		let installedModuleIds: string[] = [];
+		for (const f of dbFiles) {
+			if (f.path === "src/__vibexe-modules.json" || f.path === "__vibexe-modules.json") {
+				try {
+					const parsed = JSON.parse(f.content || "{}");
+					const installed = parsed.installed || {};
+					installedModuleIds = Object.entries(installed)
+						.filter(([, cfg]: [string, any]) => cfg.enabled)
+						.map(([id]) => id);
+				} catch { /* invalid JSON */ }
+			}
+		}
+		if (installedModuleIds.length > 0) {
+			log(`Installed modules: ${installedModuleIds.join(", ")}`);
 		}
 
 		log(`${virtualFiles.size} code files, ${cssContents.length} CSS files`);
