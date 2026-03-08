@@ -937,6 +937,21 @@ class WebhooksClient {
   }
 }
 
+class ModulesClient {
+  getInstalled() {
+    return (typeof window !== "undefined" && window.__VIBEXE_INSTALLED_MODULES__) || [];
+  }
+  isInstalled(id) {
+    return this.getInstalled().indexOf(id) !== -1;
+  }
+  getConfig(id) {
+    var gs = typeof window !== "undefined" && window.__VIBEXE_GAME_SETTINGS__;
+    if (!gs || !gs.modules || !gs.modules.installed) return null;
+    var m = gs.modules.installed[id];
+    return m && m.enabled ? m.config || {} : null;
+  }
+}
+
 export class VibexeApp {
   constructor(config) {
     // Runtime appId override (injected by Sandpack host) takes precedence over hardcoded config
@@ -955,6 +970,7 @@ export class VibexeApp {
     this.jobs = new JobsClient(base, headers);
     this.storage = new StorageClient(base, headers);
     this.webhooks = new WebhooksClient(base, headers);
+    this.modules = new ModulesClient();
   }
 }
 `;
