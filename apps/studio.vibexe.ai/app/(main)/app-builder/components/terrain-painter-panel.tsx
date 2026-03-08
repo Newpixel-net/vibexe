@@ -27,6 +27,12 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import {
+	TEXTURE_CATALOG,
+	TEXTURE_CATEGORIES,
+	textureUrl,
+	type TextureCategory,
+} from "../lib/texture-library-data";
 
 // ===== Types (mirroring the runtime module types) =====
 
@@ -246,6 +252,7 @@ export function TerrainPainterPanel({
 				enabled: true,
 				previewColor: "#808080",
 				diffuseUrl: "",
+				tileSize: 4,
 				modifiers: [],
 			};
 			setSelectedLayer(prev.length);
@@ -580,11 +587,19 @@ function LayersTab({
 								: "hover:bg-white/5"
 						}`}
 					>
-						{/* Color swatch */}
+						{/* Texture thumbnail */}
 						<div
-							className="w-6 h-6 rounded border border-white/20 flex-shrink-0"
+							className="w-6 h-6 rounded border border-white/20 flex-shrink-0 overflow-hidden"
 							style={{ backgroundColor: layer.previewColor }}
-						/>
+						>
+							{layer.diffuseUrl && (
+								<img
+									src={layer.diffuseUrl}
+									alt={layer.name}
+									className="w-full h-full object-cover"
+								/>
+							)}
+						</div>
 						{/* Name */}
 						<span
 							className={`text-[11px] flex-1 ${
@@ -621,18 +636,15 @@ function LayersTab({
 				))}
 			</div>
 
-			{/* Texture URL for selected layer */}
+			{/* Texture picker for selected layer */}
 			{currentLayer && (
-				<div className="px-3 py-1.5 border-t border-white/5">
-					<label className="text-[9px] text-white/40 block mb-1">Texture URL</label>
-					<input
-						type="text"
-						value={currentLayer.diffuseUrl}
-						onChange={(e) => onUpdateLayerField(selectedLayer, "diffuseUrl", e.target.value)}
-						placeholder="/api/app-builder/media-stock-3d/textures/..."
-						className="w-full text-[9px] bg-[#252525] border border-white/10 rounded px-2 py-1 text-white/70 outline-none placeholder:text-white/20"
-					/>
-				</div>
+				<TerrainTexturePicker
+					currentUrl={currentLayer.diffuseUrl}
+					onSelect={(url, displayName) => {
+						onUpdateLayerField(selectedLayer, "diffuseUrl", url);
+						if (displayName) onUpdateLayerField(selectedLayer, "name", displayName);
+					}}
+				/>
 			)}
 
 			{/* Layer controls */}
@@ -715,6 +727,184 @@ function LayersTab({
 							))}
 						</div>
 					)}
+				</div>
+			)}
+		</div>
+	);
+}
+
+// ===== Terrain Texture Picker =====
+
+/** Terrain-specific categories most useful for landscape painting */
+const TERRAIN_CATEGORIES: TextureCategory[] = [
+	"ground", "stone", "nature", "road", "concrete", "brick", "wood", "marble", "special",
+];
+
+function TerrainTexturePicker({
+	currentUrl,
+	onSelect,
+}: {
+	currentUrl: string;
+	onSelect: (url: string, displayName?: string) => void;
+}) {
+	const [open, setOpen] = useState(false);
+	const [category, setCategory] = useState<TextureCategory>("ground");
+
+	// Find current texture's display name
+	const currentTex = TEXTURE_CATALOG.find(
+		(t) => textureUrl(t.filename) === currentUrl || currentUrl.endsWith(t.filename),
+	);
+
+	return (
+		<div className="px-3 py-1.5 border-t border-white/5">
+			<button
+				onClick={() => setOpen(!open)}
+				className="w-full flex items-center gap-2 px-2 py-1.5 rounded bg-[#252525] border border-white/10 hover:border-white/20 transition-colors"
+			>
+				{/* Current texture preview */}
+				<div className="w-7 h-7 rounded border border-white/20 overflow-hidden flex-shrink-0 bg-[#1a1a1a]">
+					{currentUrl && (
+						<img src={currentUrl} alt="" className="w-full h-full object-cover" />
+					)}
+				</div>
+				<span className="text-[10px] text-white/70 flex-1 text-left truncate">
+					{currentTex?.displayName || "Select Texture"}
+				</span>
+				<ChevronDown className={`w-3 h-3 text-white/40 transition-transform ${open ? "rotate-180" : ""}`} />
+			</button>
+
+			{open && (
+				<div className="mt-1.5 space-y-1">
+					{/* Category tabs */}
+					<div className="flex gap-0.5 overflow-x-auto pb-1 scrollbar-none">
+						{TERRAIN_CATEGORIES.map((catId) => {
+							const cat = TEXTURE_CATEGORIES.find((c) => c.id === catId);
+							if (!cat) return null;
+							return (
+								<button
+									key={cat.id}
+									type="button"
+									onClick={() => setCategory(cat.id)}
+									className={`text-[9px] px-1.5 py-0.5 rounded whitespace-nowrap transition-colors ${
+										category === cat.id
+											? "bg-green-500/20 text-green-300"
+											: "text-neutral-400 hover:text-neutral-300 hover:bg-white/[0.04]"
+									}`}
+								>
+									{cat.label}
+								</button>
+							);
+						})}
+					</div>
+					{/* Texture grid */}
+					<div className="grid grid-cols-5 gap-1 max-h-[200px] overflow-y-auto scrollbar-thin py-0.5">
+						{TEXTURE_CATALOG.filter((t) => t.category === category).map((tex) => {
+							const url = textureUrl(tex.filename);
+							const isActive = currentUrl === url || currentUrl.endsWith(tex.filename);
+							return (
+								<button
+									key={tex.id}
+									type="button"
+									onClick={() => {
+										onSelect(url, tex.displayName);
+										setOpen(false);
+									}}
+									className={`relative w-[38px] h-[38px] mx-auto rounded-full overflow-hidden transition-all shadow-[inset_0_0_6px_rgba(0,0,0,0.25)] ${
+										isActive
+											? "ring-2 ring-green-400 ring-offset-1 ring-offset-[#1a1a2e]"
+											: "ring-1 ring-white/10 hover:ring-green-400/60"
+									}`}
+									title={tex.displayName}
+								>
+									<img
+										src={url}
+										alt={tex.displayName}
+										className="w-full h-full object-cover"
+										loading="lazy"
+									/>
+								</button>
+							);
+						})}
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}
+
+// ===== Mini Texture Picker (for TextureMask modifier) =====
+
+function MiniTexturePicker({
+	currentUrl,
+	onSelect,
+}: {
+	currentUrl: string;
+	onSelect: (url: string) => void;
+}) {
+	const [open, setOpen] = useState(false);
+	const [category, setCategory] = useState<TextureCategory>("ground");
+
+	const currentTex = TEXTURE_CATALOG.find(
+		(t) => textureUrl(t.filename) === currentUrl || currentUrl.endsWith(t.filename),
+	);
+
+	return (
+		<div className="flex flex-col gap-1">
+			<div className="flex items-center gap-2">
+				<span className="text-[9px] text-white/40 w-16">Texture</span>
+				<button
+					onClick={() => setOpen(!open)}
+					className="flex-1 flex items-center gap-1.5 px-1.5 py-0.5 text-[9px] bg-[#333] border border-white/10 rounded hover:border-white/20 text-white/70"
+				>
+					{currentUrl && (
+						<img src={currentUrl} alt="" className="w-4 h-4 rounded-sm object-cover" />
+					)}
+					<span className="truncate">{currentTex?.displayName || currentUrl || "Pick..."}</span>
+					<ChevronDown className={`w-2.5 h-2.5 ml-auto text-white/30 ${open ? "rotate-180" : ""}`} />
+				</button>
+			</div>
+			{open && (
+				<div className="space-y-1 ml-[72px]">
+					<div className="flex gap-0.5 overflow-x-auto pb-0.5 scrollbar-none">
+						{TERRAIN_CATEGORIES.slice(0, 6).map((catId) => {
+							const cat = TEXTURE_CATEGORIES.find((c) => c.id === catId);
+							if (!cat) return null;
+							return (
+								<button
+									key={cat.id}
+									type="button"
+									onClick={() => setCategory(cat.id)}
+									className={`text-[8px] px-1 py-0.5 rounded whitespace-nowrap ${
+										category === cat.id
+											? "bg-green-500/20 text-green-300"
+											: "text-neutral-400 hover:text-neutral-300"
+									}`}
+								>
+									{cat.label}
+								</button>
+							);
+						})}
+					</div>
+					<div className="grid grid-cols-5 gap-0.5 max-h-[120px] overflow-y-auto scrollbar-thin">
+						{TEXTURE_CATALOG.filter((t) => t.category === category).map((tex) => {
+							const url = textureUrl(tex.filename);
+							return (
+								<button
+									key={tex.id}
+									type="button"
+									onClick={() => { onSelect(url); setOpen(false); }}
+									className={`w-[28px] h-[28px] mx-auto rounded-full overflow-hidden ${
+										currentUrl === url
+											? "ring-2 ring-green-400"
+											: "ring-1 ring-white/10 hover:ring-green-400/60"
+									}`}
+									title={tex.displayName}
+								>
+									<img src={url} alt={tex.displayName} className="w-full h-full object-cover" loading="lazy" />
+								</button>
+							);
+						})}
+					</div>
 				</div>
 			)}
 		</div>
@@ -874,16 +1064,10 @@ function ModifierRow({
 					)}
 					{modifier.type === "TextureMask" && (
 						<>
-							<div className="flex items-center gap-2">
-								<span className="text-[9px] text-white/40 w-16">Texture</span>
-								<input
-									type="text"
-									value={(modifier.params.textureUrl as string) || ""}
-									onChange={(e) => onUpdateParam("textureUrl", e.target.value)}
-									placeholder="Texture URL..."
-									className="flex-1 text-[9px] bg-[#333] border border-white/10 rounded px-1 py-0.5 text-white/70 outline-none placeholder:text-white/20"
-								/>
-							</div>
+							<MiniTexturePicker
+								currentUrl={(modifier.params.textureUrl as string) || ""}
+								onSelect={(url) => onUpdateParam("textureUrl", url)}
+							/>
 							<div className="flex items-center gap-2">
 								<span className="text-[9px] text-white/40 w-16">Channel</span>
 								<select
