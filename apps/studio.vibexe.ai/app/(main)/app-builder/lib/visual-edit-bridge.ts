@@ -828,7 +828,7 @@ export function getVisualEditBridgeScript(): string {
       if (typeof v === "function") continue;
       if (v && typeof v === "object") {
         if (v.isObject3D || v.isBufferGeometry || v.isMaterial || v.isTexture || v instanceof HTMLElement) continue;
-        try { JSON.stringify(v); safe[k] = v; } catch(e) { continue; }
+        try { safe[k] = JSON.parse(JSON.stringify(v)); } catch(e) { continue; }
       } else {
         safe[k] = v;
       }
