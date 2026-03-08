@@ -1619,6 +1619,10 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			.map(([id]) => id);
 		if (enabledModuleIds.length > 0) {
 			globals += `(window as any).__VIBEXE_INSTALLED_MODULES__ = ${JSON.stringify(enabledModuleIds)};\n`;
+			// Auto-import enabled modules so their runtimeCode executes
+			for (const modId of enabledModuleIds) {
+				globals += `require('@vibexe/${modId}');\n`;
+			}
 		}
 		// Inject game settings global + runtime override for environment/physics/camera
 		if (settingsFile?.content) {
