@@ -216,9 +216,10 @@ export function initRenderer(container: HTMLDivElement): typeof THREE.WebGLRende
   // Return existing renderer if Game3D.tsx already created one
   if ((window as any).__vibexe_renderer__) return (window as any).__vibexe_renderer__;
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  const __gsPerf = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).performance || {};
+  const renderer = new THREE.WebGLRenderer({ antialias: __gsPerf.antialias !== false, alpha: false });
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(__gsPerf.pixelRatio || window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -3480,9 +3481,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       const THREE = (window as any).THREE;
 
       // Create renderer + store on window so idempotent helpers return it
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(container.clientWidth, container.clientHeight);
       const __perfSettings = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).performance || {};
+      renderer = new THREE.WebGLRenderer({ antialias: __perfSettings.antialias !== false });
+      renderer.setSize(container.clientWidth, container.clientHeight);
       renderer.setPixelRatio(Math.min(__perfSettings.pixelRatio || window.devicePixelRatio, 2));
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -5098,11 +5099,24 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
 
         clock.start();
         let __lastFrameTime = 0;
-        // Initialize FPS cap from settings
-        const __initFPS = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).performance?.maxFPS;
-        if (__initFPS && __initFPS > 0) {
-          (window as any).__vibexe_targetFPS__ = __initFPS;
-          (window as any).__vibexe_frameInterval__ = 1000 / __initFPS;
+        // Initialize performance settings from saved config
+        const __initPerf = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).performance;
+        if (__initPerf) {
+          // FPS cap
+          if (__initPerf.maxFPS && __initPerf.maxFPS > 0) {
+            (window as any).__vibexe_targetFPS__ = __initPerf.maxFPS;
+            (window as any).__vibexe_frameInterval__ = 1000 / __initPerf.maxFPS;
+          }
+          // FPS counter overlay
+          if (__initPerf.showFPS) {
+            const _fpsDiv = document.createElement('div');
+            _fpsDiv.id = '__vibexe_fps__';
+            _fpsDiv.style.cssText = 'position:fixed;top:4px;left:4px;background:rgba(0,0,0,0.7);color:#0f0;font:12px monospace;padding:2px 6px;z-index:99999;pointer-events:none';
+            document.body.appendChild(_fpsDiv);
+            let _frames = 0, _lastFps = performance.now();
+            const _fpsLoop = () => { _frames++; const now = performance.now(); if (now - _lastFps >= 1000) { const _el = document.getElementById('__vibexe_fps__'); if (_el) _el.textContent = _frames + ' FPS'; _frames = 0; _lastFps = now; } if (document.getElementById('__vibexe_fps__')) requestAnimationFrame(_fpsLoop); };
+            requestAnimationFrame(_fpsLoop);
+          }
         }
         const animate = (time?: number) => {
           if (disposed) return;

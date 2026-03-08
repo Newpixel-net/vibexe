@@ -3703,21 +3703,20 @@ export function getVisualEditBridgeScript(): string {
               "  vec3 c2 = (uNumLayers > 2) ? sampleTerrain(uTex2, vWorldPos, baseUv, N, uTexScale2, uHasTex2, uColor2) : vec3(0.5);",
               "  vec3 c3 = (uNumLayers > 3) ? sampleTerrain(uTex3, vWorldPos, baseUv, N, uTexScale3, uHasTex3, uColor3) : vec3(0.5);",
               "",
-              "  // Height-based depth blending — textures with higher luminance 'poke through'",
+              "  // Depth-enhanced weight blending — sharper transitions between layers",
               "  float depth = 0.2;",
-              "  float lum0 = dot(c0, vec3(0.299, 0.587, 0.114));",
-              "  float lum1 = dot(c1, vec3(0.299, 0.587, 0.114));",
-              "  float lum2 = dot(c2, vec3(0.299, 0.587, 0.114));",
-              "  float lum3 = dot(c3, vec3(0.299, 0.587, 0.114));",
-              "  float hb0 = lum0 + vW0; float hb1 = lum1 + vW1;",
-              "  float hb2 = lum2 + vW2; float hb3 = lum3 + vW3;",
-              "  float maxH = max(max(hb0, hb1), max(hb2, hb3));",
-              "  float bw0 = max(hb0 - maxH + depth, 0.0);",
-              "  float bw1 = max(hb1 - maxH + depth, 0.0);",
-              "  float bw2 = max(hb2 - maxH + depth, 0.0);",
-              "  float bw3 = max(hb3 - maxH + depth, 0.0);",
-              "  float bwSum = bw0 + bw1 + bw2 + bw3 + 0.001;",
-              "  vec3 col = (c0*bw0 + c1*bw1 + c2*bw2 + c3*bw3) / bwSum;",
+              "  float hb0 = vW0 + depth;",
+              "  float hb1 = vW1 + depth;",
+              "  float hb2 = vW2 + depth;",
+              "  float hb3 = vW3 + depth;",
+              "  float hbMax = max(max(hb0, hb1), max(hb2, hb3)) - depth;",
+              "  hb0 = max(hb0 - hbMax, 0.0);",
+              "  hb1 = max(hb1 - hbMax, 0.0);",
+              "  hb2 = max(hb2 - hbMax, 0.0);",
+              "  hb3 = max(hb3 - hbMax, 0.0);",
+              "  float hbSum = hb0 + hb1 + hb2 + hb3 + 0.001;",
+              "  hb0 /= hbSum; hb1 /= hbSum; hb2 /= hbSum; hb3 /= hbSum;",
+              "  vec3 albedo = c0 * hb0 + c1 * hb1 + c2 * hb2 + c3 * hb3;",
               "",
               "  // Blend normal maps by layer weights * normal intensity",
               "  vec3 blendedNormalTS = vec3(0.0, 0.0, 0.0);",
@@ -3733,8 +3732,6 @@ export function getVisualEditBridgeScript(): string {
               "  // Per-layer roughness blend",
               "  float roughness = uRoughness0 * vW0 + uRoughness1 * vW1 + uRoughness2 * vW2 + uRoughness3 * vW3;",
               "  roughness = clamp(roughness, 0.05, 1.0);",
-              "  // Apply per-layer opacity to weights before final blend",
-              "  vec3 albedo = col;",
               "  float metallic = uMetallic0 * vW0 + uMetallic1 * vW1 + uMetallic2 * vW2 + uMetallic3 * vW3;",
               "  vec3 F0 = mix(vec3(0.04), albedo, metallic);",
               "",
@@ -3858,6 +3855,7 @@ export function getVisualEditBridgeScript(): string {
                 ntex.wrapT = _rpTHREE.RepeatWrapping;
                 ntex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
                 ntex.anisotropy = 16;
+                ntex.colorSpace = _rpTHREE.NoColorSpace;
                 _rpNormalTextures[idx] = ntex;
                 _rpLoaded++;
                 console.log("[TerrainPainter] Normal[" + idx + "] loaded OK (" + _rpLoaded + "/" + _rpTotal + ")");
