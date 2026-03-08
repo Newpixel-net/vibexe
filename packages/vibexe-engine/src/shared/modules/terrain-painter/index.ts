@@ -32,7 +32,681 @@ export const TERRAIN_PAINTER_MANIFEST: ModuleManifest = {
 		"textures/terrain/snow.jpg",
 		"textures/terrain/dirt.jpg",
 	],
-	runtimeCode: "", // Will be populated by the build system
+	runtimeCode: `
+// @vibexe/terrain-painter v1.0.0
+// Procedural terrain generation, PBR painting, sculpting, physics
+var THREE = require('three');
+var CANNON = typeof window !== 'undefined' ? window.CANNON : null;
+
+// ============================================================
+// SimplexNoise — 2D simplex noise with fBm, ridged, warp
+// ============================================================
+
+var _grad3 = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];
+var _p = [151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180];
+var _perm = new Array(512);
+for (var _i = 0; _i < 512; _i++) _perm[_i] = _p[_i & 255];
+
+function SimplexNoise() {}
+
+SimplexNoise.noise2D = function(xin, yin) {
+  var F2 = 0.5 * (Math.sqrt(3.0) - 1.0);
+  var G2 = (3.0 - Math.sqrt(3.0)) / 6.0;
+  var s = (xin + yin) * F2;
+  var i = Math.floor(xin + s);
+  var j = Math.floor(yin + s);
+  var t = (i + j) * G2;
+  var X0 = i - t, Y0 = j - t;
+  var x0 = xin - X0, y0 = yin - Y0;
+  var i1, j1;
+  if (x0 > y0) { i1 = 1; j1 = 0; } else { i1 = 0; j1 = 1; }
+  var x1 = x0 - i1 + G2, y1 = y0 - j1 + G2;
+  var x2 = x0 - 1.0 + 2.0 * G2, y2 = y0 - 1.0 + 2.0 * G2;
+  var ii = i & 255, jj = j & 255;
+  var gi0 = _perm[ii + _perm[jj]] % 12;
+  var gi1 = _perm[ii + i1 + _perm[jj + j1]] % 12;
+  var gi2 = _perm[ii + 1 + _perm[jj + 1]] % 12;
+  var n0 = 0, n1 = 0, n2 = 0;
+  var t0 = 0.5 - x0 * x0 - y0 * y0;
+  if (t0 >= 0) { t0 *= t0; n0 = t0 * t0 * (_grad3[gi0][0] * x0 + _grad3[gi0][1] * y0); }
+  var t1 = 0.5 - x1 * x1 - y1 * y1;
+  if (t1 >= 0) { t1 *= t1; n1 = t1 * t1 * (_grad3[gi1][0] * x1 + _grad3[gi1][1] * y1); }
+  var t2 = 0.5 - x2 * x2 - y2 * y2;
+  if (t2 >= 0) { t2 *= t2; n2 = t2 * t2 * (_grad3[gi2][0] * x2 + _grad3[gi2][1] * y2); }
+  return 70.0 * (n0 + n1 + n2);
+};
+
+SimplexNoise.fbm = function(x, y, octaves, lacunarity, gain) {
+  var sum = 0, amp = 1, freq = 1, maxAmp = 0;
+  for (var o = 0; o < octaves; o++) {
+    sum += SimplexNoise.noise2D(x * freq, y * freq) * amp;
+    maxAmp += amp;
+    amp *= gain;
+    freq *= lacunarity;
+  }
+  return sum / maxAmp;
+};
+
+SimplexNoise.ridgedMultifractal = function(x, y, octaves, lacunarity, gain, sharpness) {
+  var sum = 0, amp = 1, freq = 1, prev = 1;
+  for (var o = 0; o < octaves; o++) {
+    var n = SimplexNoise.noise2D(x * freq, y * freq);
+    n = 1.0 - Math.abs(n);
+    n = Math.pow(n, sharpness);
+    n *= prev;
+    prev = Math.max(0.01, n);
+    sum += n * amp;
+    amp *= gain;
+    freq *= lacunarity;
+  }
+  return sum;
+};
+
+SimplexNoise.domainWarp = function(x, y, strength) {
+  var wx = SimplexNoise.fbm(x + 5.2, y + 1.3, 3, 2.0, 0.5) * strength;
+  var wy = SimplexNoise.fbm(x + 9.7, y + 6.8, 3, 2.0, 0.5) * strength;
+  return [x + wx, y + wy];
+};
+
+SimplexNoise.smoothstep = function(edge0, edge1, x) {
+  var t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+};
+
+
+// ============================================================
+// TerrainGenerator
+// ============================================================
+
+function TerrainGenerator(scene, options) {
+  this.scene = scene;
+  this.width = (options && options.width) || 100;
+  this.depth = (options && options.depth) || 100;
+  this.heightScale = (options && options.heightScale) || 8;
+  this.segments = (options && options.segments) || 128;
+  this.mesh = null;
+  this.heightData = null;
+  this.minY = 0;
+  this.maxY = 0;
+  this._segX = this.segments + 1;
+  this._segZ = this.segments + 1;
+}
+
+TerrainGenerator.prototype.generate = function() {
+  // Remove existing terrain
+  var old = this.scene.getObjectByName("__terrain__");
+  if (old) {
+    this.scene.remove(old);
+    if (old.geometry) old.geometry.dispose();
+    if (old.material) old.material.dispose();
+  }
+
+  var W = this.width, D = this.depth, H = this.heightScale, seg = this.segments;
+  var segX = this._segX, segZ = this._segZ;
+
+  // Create geometry laid flat on XZ plane
+  var geo = new THREE.PlaneGeometry(W, D, seg, seg);
+  geo.rotateX(-Math.PI / 2);
+
+  var pos = geo.attributes.position;
+  var minY = Infinity, maxY = -Infinity;
+  var halfW = W * 0.5, halfD = D * 0.5;
+  var heightData = new Float32Array(segX * segZ);
+
+  for (var vi = 0; vi < pos.count; vi++) {
+    var vx = pos.getX(vi);
+    var vz = pos.getZ(vi);
+    var nx = vx / W;
+    var nz = vz / D;
+
+    // Edge falloff
+    var edgeX = 1.0 - Math.pow(2.0 * Math.abs(nx), 6);
+    var edgeZ = 1.0 - Math.pow(2.0 * Math.abs(nz), 6);
+    var edgeFalloff = SimplexNoise.smoothstep(0, 0.15, Math.max(0, Math.min(edgeX, edgeZ)));
+
+    // Domain warp for organic shapes
+    var warpPt = SimplexNoise.domainWarp(nx * 1.5, nz * 1.5, 0.35);
+    var wx = warpPt[0], wz = warpPt[1];
+
+    // Scale 1: Continental (domain-warped fBm)
+    var continental = (SimplexNoise.fbm(wx * 1.2, wz * 1.2, 5, 2.0, 0.5) + 1) * 0.5;
+    continental = Math.pow(continental, 1.5);
+
+    // Scale 2: Mountain ridges (ridged multifractal)
+    var ridges = SimplexNoise.ridgedMultifractal(nx * 3.0 + 3.7, nz * 3.0 + 1.2, 6, 2.2, 0.5, 2.0);
+    ridges *= 0.35;
+
+    // Scale 3: Rolling foothills
+    var hills = SimplexNoise.fbm(nx * 6.0 + 7.3, nz * 6.0 + 2.8, 4, 2.0, 0.5) * 0.08;
+
+    // Scale 4: Fine surface detail (altitude-dependent)
+    var detail = SimplexNoise.fbm(nx * 15.0, nz * 15.0, 3, 2.0, 0.4) * 0.03;
+
+    // Altitude-dependent roughness composition
+    var baseH = continental * 0.55 + ridges;
+    var roughDetail = (hills + detail) * (0.3 + Math.min(1, baseH) * 0.7);
+
+    var h = (baseH + roughDetail) * edgeFalloff * H;
+    pos.setY(vi, h);
+    heightData[vi] = h;
+    if (h < minY) minY = h;
+    if (h > maxY) maxY = h;
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+
+  // Normalize so minimum height = 0 (terrain IS the game floor)
+  if (minY !== 0) {
+    var shift = -minY;
+    for (var nvi = 0; nvi < pos.count; nvi++) {
+      var shiftedY = pos.getY(nvi) + shift;
+      pos.setY(nvi, shiftedY);
+      heightData[nvi] = shiftedY;
+    }
+    maxY += shift;
+    minY = 0;
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+  }
+
+  // Per-vertex height (0-1) and slope (degrees) attributes
+  var heightArr = new Float32Array(pos.count);
+  var slopeArr = new Float32Array(pos.count);
+  var normAttr = geo.attributes.normal;
+  var range = maxY - minY || 1;
+  for (var vi2 = 0; vi2 < pos.count; vi2++) {
+    heightArr[vi2] = (pos.getY(vi2) - minY) / range;
+    var ny = normAttr.getY(vi2);
+    slopeArr[vi2] = Math.acos(Math.min(1, Math.abs(ny))) * (180 / Math.PI);
+  }
+  geo.setAttribute("terrainHeight", new THREE.BufferAttribute(heightArr, 1));
+  geo.setAttribute("terrainSlope", new THREE.BufferAttribute(slopeArr, 1));
+
+  // Vertex colors: height gradient (brown/green/white/gray)
+  var colors = new Float32Array(pos.count * 3);
+  for (var vi3 = 0; vi3 < pos.count; vi3++) {
+    var nh = heightArr[vi3];
+    var slope = slopeArr[vi3];
+    var r, g, b;
+    if (nh > 0.7) {
+      var sf = SimplexNoise.smoothstep(0.65, 0.8, nh);
+      r = 0.35 + sf * 0.6; g = 0.45 + sf * 0.5; b = 0.35 + sf * 0.6;
+    } else if (slope > 35) {
+      r = 0.45; g = 0.42; b = 0.38;
+    } else if (nh > 0.3) {
+      r = 0.25; g = 0.45; b = 0.15;
+    } else {
+      r = 0.45; g = 0.35; b = 0.2;
+    }
+    colors[vi3 * 3] = r;
+    colors[vi3 * 3 + 1] = g;
+    colors[vi3 * 3 + 2] = b;
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+  var mat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.85,
+    metalness: 0.05,
+    flatShading: false
+  });
+
+  var mesh = new THREE.Mesh(geo, mat);
+  mesh.name = "__terrain__";
+  mesh.receiveShadow = true;
+  mesh.castShadow = true;
+  mesh.userData.vibexeType = "Terrain";
+  mesh.userData.__isTerrain = true;
+  mesh.userData.__terrainMinY = minY;
+  mesh.userData.__terrainMaxY = maxY;
+  mesh.userData.__terrainWidth = W;
+  this.scene.add(mesh);
+
+  this.mesh = mesh;
+  this.heightData = heightData;
+  this.minY = minY;
+  this.maxY = maxY;
+
+  // Store globally for physics and height queries
+  window.__vibexe_terrainData = {
+    heightData: heightData,
+    width: W,
+    depth: D,
+    segX: segX,
+    segZ: segZ,
+    minY: minY,
+    maxY: maxY
+  };
+
+  // Bilinear interpolation height query (O(1) per call)
+  var self = this;
+  window.__vibexe_getTerrainHeight = function(x, z) {
+    return self.getHeightAt(x, z);
+  };
+
+  // Hide ground plane and grid
+  this.scene.traverse(function(child) {
+    if (child === mesh) return;
+    if (child.isMesh && !child.name) {
+      var cGeo = child.geometry;
+      if (cGeo && cGeo.type === "PlaneGeometry") {
+        var cParams = cGeo.parameters;
+        if (cParams && (cParams.width >= 50 || cParams.height >= 50)) {
+          child.visible = false;
+          child.userData.__hiddenByTerrain = true;
+        }
+      }
+    }
+    if (child.isGridHelper || child.type === "GridHelper") {
+      child.visible = false;
+      child.userData.__hiddenByTerrain = true;
+    }
+  });
+
+  console.log("[TerrainGenerator] Generated:", pos.count, "vertices, height range:", minY.toFixed(1), "-", maxY.toFixed(1));
+  return mesh;
+};
+
+TerrainGenerator.prototype.getHeightAt = function(x, z) {
+  var td = window.__vibexe_terrainData;
+  if (!td) return 0;
+  var gx = (x + td.width * 0.5) / td.width * (td.segX - 1);
+  var gz = (td.depth * 0.5 - z) / td.depth * (td.segZ - 1);
+  gx = Math.max(0, Math.min(td.segX - 2, gx));
+  gz = Math.max(0, Math.min(td.segZ - 2, gz));
+  var ix = Math.floor(gx), iz = Math.floor(gz);
+  var fx = gx - ix, fz = gz - iz;
+  var i00 = iz * td.segX + ix;
+  var h00 = td.heightData[i00];
+  var h10 = td.heightData[i00 + 1];
+  var h01 = td.heightData[i00 + td.segX];
+  var h11 = td.heightData[i00 + td.segX + 1];
+  return h00 * (1 - fx) * (1 - fz) + h10 * fx * (1 - fz) + h01 * (1 - fx) * fz + h11 * fx * fz;
+};
+
+TerrainGenerator.prototype.getMesh = function() {
+  return this.mesh;
+};
+
+TerrainGenerator.prototype.getHeightData = function() {
+  return this.heightData;
+};
+
+TerrainGenerator.prototype.destroy = function() {
+  if (this.mesh) {
+    this.scene.remove(this.mesh);
+    if (this.mesh.geometry) this.mesh.geometry.dispose();
+    if (this.mesh.material) this.mesh.material.dispose();
+    this.mesh = null;
+  }
+  this.heightData = null;
+  window.__vibexe_terrainData = null;
+  window.__vibexe_getTerrainHeight = null;
+};
+
+
+// ============================================================
+// TerrainPhysics — CANNON.js Heightfield
+// ============================================================
+
+function TerrainPhysics(terrainGenerator) {
+  this.terrainGen = terrainGenerator;
+  this.body = null;
+  this.shape = null;
+  this.world = null;
+  this._postStepFn = null;
+  this._watcherInterval = null;
+}
+
+TerrainPhysics.prototype.setup = function(world) {
+  var C = window.CANNON;
+  if (!C || !world) {
+    // World not ready — set up a watcher
+    console.warn("[TerrainPhysics] World not ready — will create heightfield when physics starts");
+    var self = this;
+    if (!this._watcherInterval) {
+      this._watcherInterval = setInterval(function() {
+        var dC = window.CANNON;
+        var dW = window.__vibexe_world__;
+        var dTD = window.__vibexe_terrainData;
+        if (dC && dW && dTD && !window.__vibexe_terrainBody) {
+          clearInterval(self._watcherInterval);
+          self._watcherInterval = null;
+          self.setup(dW);
+        }
+      }, 200);
+    }
+    return;
+  }
+
+  this.world = world;
+
+  // Remove previous terrain body
+  if (window.__vibexe_terrainBody) {
+    try { world.removeBody(window.__vibexe_terrainBody); } catch(e) {}
+    window.__vibexe_terrainBody = null;
+  }
+
+  // Disable infinite ground plane (terrain replaces it)
+  for (var bi = 0; bi < world.bodies.length; bi++) {
+    var gpBody = world.bodies[bi];
+    if (gpBody.mass === 0 && gpBody.shapes && gpBody.shapes.length === 1 && gpBody.shapes[0] instanceof C.Plane) {
+      gpBody.position.set(0, -10000, 0);
+      gpBody.updateMassProperties();
+      window.__vibexe_groundPlaneBody = gpBody;
+      console.log("[TerrainPhysics] Disabled ground plane (moved to Y=-10000)");
+      break;
+    }
+  }
+
+  var td = window.__vibexe_terrainData;
+  if (!td) return;
+
+  // Build column-major height matrix for CANNON Heightfield
+  var matrix = [];
+  for (var hx = 0; hx < td.segX; hx++) {
+    matrix.push([]);
+    for (var hz = 0; hz < td.segZ; hz++) {
+      matrix[hx].push(td.heightData[hz * td.segX + hx]);
+    }
+  }
+
+  var elementSize = td.width / (td.segX - 1);
+  try {
+    this.shape = new C.Heightfield(matrix, { elementSize: elementSize });
+    this.body = new C.Body({ mass: 0, type: C.Body.STATIC });
+    this.body.addShape(this.shape);
+    // CANNON Heightfield: height along local Z, rotate -90 X to align with world Y
+    this.body.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+    this.body.position.set(-td.width / 2, 0, td.depth / 2);
+    world.addBody(this.body);
+    window.__vibexe_terrainBody = this.body;
+    window.__vibexe_terrainHFShape = this.shape;
+    console.log("[TerrainPhysics] Heightfield body created:", td.segX, "x", td.segZ, "elementSize:", elementSize.toFixed(3));
+  } catch(err) {
+    console.error("[TerrainPhysics] Failed to create heightfield:", err);
+  }
+
+  // PostStep terrain clamp — ensures dynamic bodies stay above terrain
+  if (!window.__vibexe_terrainPostStep) {
+    this._postStepFn = function() {
+      var getH = window.__vibexe_getTerrainHeight;
+      var w = window.__vibexe_world__;
+      if (!getH || !w) return;
+      for (var pi = 0; pi < w.bodies.length; pi++) {
+        var pb = w.bodies[pi];
+        if (pb.mass <= 0) continue;
+        var th = getH(pb.position.x, pb.position.z);
+        if (th == null) continue;
+        var halfH = 0.75;
+        var minY = th + halfH;
+        if (pb.position.y < minY) {
+          pb.position.y = minY;
+          if (pb.velocity.y < 0) pb.velocity.y = 0;
+          pb.__canJump = true;
+        }
+      }
+    };
+    window.__vibexe_terrainPostStep = this._postStepFn;
+    world.addEventListener("postStep", this._postStepFn);
+    console.log("[TerrainPhysics] PostStep terrain clamp registered");
+  }
+};
+
+TerrainPhysics.prototype.rebuild = function() {
+  var C = window.CANNON;
+  var world = this.world || window.__vibexe_world__;
+  var td = window.__vibexe_terrainData;
+  if (!C || !world || !td) return;
+
+  // Remove old body
+  if (window.__vibexe_terrainBody) {
+    try { world.removeBody(window.__vibexe_terrainBody); } catch(e) {}
+  }
+
+  // Build new height matrix from updated heightData
+  var matrix = [];
+  for (var sx = 0; sx < td.segX; sx++) {
+    matrix.push([]);
+    for (var sz = 0; sz < td.segZ; sz++) {
+      matrix[sx].push(td.heightData[sz * td.segX + sx]);
+    }
+  }
+
+  var elementSize = td.width / (td.segX - 1);
+  try {
+    this.shape = new C.Heightfield(matrix, { elementSize: elementSize });
+    this.body = new C.Body({ mass: 0, type: C.Body.STATIC });
+    this.body.addShape(this.shape);
+    this.body.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+    this.body.position.set(-td.width / 2, 0, td.depth / 2);
+    world.addBody(this.body);
+    window.__vibexe_terrainBody = this.body;
+    window.__vibexe_terrainHFShape = this.shape;
+  } catch(err) {
+    console.error("[TerrainPhysics] Rebuild failed:", err);
+  }
+};
+
+TerrainPhysics.prototype.destroy = function() {
+  if (this._watcherInterval) {
+    clearInterval(this._watcherInterval);
+    this._watcherInterval = null;
+  }
+  var world = this.world || window.__vibexe_world__;
+  if (this.body && world) {
+    try { world.removeBody(this.body); } catch(e) {}
+  }
+  if (this._postStepFn && world) {
+    try { world.removeEventListener("postStep", this._postStepFn); } catch(e) {}
+  }
+  window.__vibexe_terrainBody = null;
+  window.__vibexe_terrainHFShape = null;
+  window.__vibexe_terrainPostStep = null;
+  this.body = null;
+  this.shape = null;
+  this.world = null;
+};
+
+
+// ============================================================
+// TerrainSculpt — Raise/Lower/Flatten/Smooth brushes
+// ============================================================
+
+function TerrainSculpt(terrainGenerator, terrainPhysics) {
+  this.terrainGen = terrainGenerator;
+  this.terrainPhysics = terrainPhysics;
+  this._targetHeight = 0;
+}
+
+TerrainSculpt.prototype.setTargetHeight = function(h) {
+  this._targetHeight = h;
+};
+
+TerrainSculpt.prototype.applyBrush = function(worldX, worldZ, type, size, strength, falloff) {
+  var mesh = this.terrainGen.mesh;
+  if (!mesh) return;
+  var geo = mesh.geometry;
+  var pos = geo.attributes.position;
+  var td = window.__vibexe_terrainData;
+  if (!td) return;
+
+  var R = size;
+  var str = strength;
+  var R2 = R * R;
+  var modified = false;
+
+  for (var vi = 0; vi < pos.count; vi++) {
+    var vx = pos.getX(vi);
+    var vz = pos.getZ(vi);
+    var dx = vx - worldX;
+    var dz = vz - worldZ;
+    var dist2 = dx * dx + dz * dz;
+    if (dist2 > R2) continue;
+
+    var dist = Math.sqrt(dist2);
+    var alpha;
+    if (falloff === "flat") {
+      alpha = 1.0;
+    } else if (falloff === "linear") {
+      alpha = 1.0 - dist / R;
+    } else {
+      // gaussian
+      var t = dist / R;
+      alpha = Math.exp(-t * t * 3.0);
+    }
+
+    var curY = pos.getY(vi);
+
+    switch (type) {
+      case "raise":
+        pos.setY(vi, curY + alpha * str);
+        break;
+      case "lower":
+        pos.setY(vi, curY - alpha * str);
+        break;
+      case "flatten":
+        pos.setY(vi, curY + (this._targetHeight - curY) * alpha * str);
+        break;
+      case "smooth": {
+        var gx = vi % td.segX;
+        var gz = Math.floor(vi / td.segX);
+        var sum = 0, cnt = 0;
+        for (var nz = -1; nz <= 1; nz++) {
+          for (var nx = -1; nx <= 1; nx++) {
+            var ngx = gx + nx, ngz = gz + nz;
+            if (ngx >= 0 && ngx < td.segX && ngz >= 0 && ngz < td.segZ) {
+              var ni = ngz * td.segX + ngx;
+              if (ni < pos.count) {
+                sum += pos.getY(ni);
+                cnt++;
+              }
+            }
+          }
+        }
+        var avg = cnt > 0 ? sum / cnt : curY;
+        pos.setY(vi, curY + (avg - curY) * alpha * str);
+        break;
+      }
+    }
+
+    if (vi < td.heightData.length) {
+      td.heightData[vi] = pos.getY(vi);
+    }
+    modified = true;
+  }
+
+  if (modified) {
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+
+    // Recompute minY/maxY
+    var newMinY = Infinity, newMaxY = -Infinity;
+    for (var mi = 0; mi < pos.count; mi++) {
+      var yy = pos.getY(mi);
+      if (yy < newMinY) newMinY = yy;
+      if (yy > newMaxY) newMaxY = yy;
+    }
+    td.minY = newMinY;
+    td.maxY = newMaxY;
+
+    // Update terrainHeight and terrainSlope attributes
+    var hAttr = geo.attributes.terrainHeight;
+    var sAttr = geo.attributes.terrainSlope;
+    if (hAttr && sAttr) {
+      var norms = geo.attributes.normal;
+      var hRange = td.maxY - td.minY || 1;
+      for (var ui = 0; ui < pos.count; ui++) {
+        var nh = (pos.getY(ui) - td.minY) / hRange;
+        hAttr.setX(ui, Math.max(0, Math.min(1, nh)));
+        var ny = norms.getY(ui);
+        sAttr.setX(ui, Math.acos(Math.abs(ny)) * (180 / Math.PI));
+      }
+      hAttr.needsUpdate = true;
+      sAttr.needsUpdate = true;
+    }
+
+    // Rebuild physics heightfield after sculpt
+    if (this.terrainPhysics) {
+      this.terrainPhysics.rebuild();
+    }
+  }
+};
+
+
+// ============================================================
+// TerrainPainter — Facade combining all subsystems
+// ============================================================
+
+function TerrainPainter(scene, options) {
+  this.scene = scene;
+  this.options = options || {};
+  this.generator = new TerrainGenerator(scene, options);
+  this.physics = new TerrainPhysics(this.generator);
+  this.sculpt = new TerrainSculpt(this.generator, this.physics);
+}
+
+TerrainPainter.prototype.generate = function(options) {
+  if (options) {
+    if (options.width !== undefined) this.generator.width = options.width;
+    if (options.depth !== undefined) this.generator.depth = options.depth;
+    if (options.heightScale !== undefined) this.generator.heightScale = options.heightScale;
+    if (options.segments !== undefined) {
+      this.generator.segments = options.segments;
+      this.generator._segX = options.segments + 1;
+      this.generator._segZ = options.segments + 1;
+    }
+  }
+  return this.generator.generate();
+};
+
+TerrainPainter.prototype.getHeightAt = function(x, z) {
+  return this.generator.getHeightAt(x, z);
+};
+
+TerrainPainter.prototype.applyBrush = function(worldX, worldZ, type, size, strength, falloff) {
+  this.sculpt.applyBrush(worldX, worldZ, type, size, strength, falloff);
+};
+
+TerrainPainter.prototype.setTargetHeight = function(h) {
+  this.sculpt.setTargetHeight(h);
+};
+
+TerrainPainter.prototype.setupPhysics = function(world) {
+  this.physics.setup(world || window.__vibexe_world__);
+};
+
+TerrainPainter.prototype.getMesh = function() {
+  return this.generator.getMesh();
+};
+
+TerrainPainter.prototype.getHeightData = function() {
+  return this.generator.getHeightData();
+};
+
+TerrainPainter.prototype.destroy = function() {
+  this.physics.destroy();
+  this.generator.destroy();
+};
+
+
+// ============================================================
+// Register module and exports
+// ============================================================
+
+if (typeof window !== 'undefined') {
+  window.__vibexe_modules__ = window.__vibexe_modules__ || {};
+  window.__vibexe_modules__["terrain-painter"] = {
+    TerrainPainter: TerrainPainter,
+    TerrainGenerator: TerrainGenerator,
+    TerrainPhysics: TerrainPhysics,
+    TerrainSculpt: TerrainSculpt,
+    SimplexNoise: SimplexNoise
+  };
+}
+
+module.exports = { TerrainPainter: TerrainPainter, TerrainGenerator: TerrainGenerator, TerrainPhysics: TerrainPhysics, TerrainSculpt: TerrainSculpt, SimplexNoise: SimplexNoise };
+`,
 	bridgeHandlers: {
 		"terrain-painter-repaint": "handleRepaint",
 		"terrain-painter-add-layer": "handleAddLayer",
