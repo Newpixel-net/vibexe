@@ -863,7 +863,8 @@ export function getVisualEditBridgeScript(): string {
   // ---- Selection ----
   function deselectObject() {
     if (boxHelper && editor) { editor.scene.remove(boxHelper); if (boxHelper.dispose) boxHelper.dispose(); boxHelper = null; }
-    if (transformControls && editor) { transformControls.detach(); editor.scene.remove(transformControls.getHelper ? transformControls.getHelper() : transformControls); transformControls.dispose(); transformControls = null; }
+    // TC is reused across selections — only detach, don't dispose/remove/null
+    if (transformControls) transformControls.detach();
     // Sweep: remove ALL stale __editor_ objects (handles duplicates from embedded bridge)
     if (editor && editor.scene) {
       var stale = [];
@@ -878,8 +879,6 @@ export function getVisualEditBridgeScript(): string {
         editor.scene.remove(stale[j]);
         if (stale[j].dispose) stale[j].dispose();
       }
-      // Detach reusable TC (keep in scene, just detach from object)
-      if (transformControls) transformControls.detach();
     }
     selectedObj = null;
     destroyCameraHelper();
@@ -998,13 +997,13 @@ export function getVisualEditBridgeScript(): string {
     // Both bridges handle the same postMessage; embedded bridge may create duplicates.
     // setTimeout(0) runs after all synchronous message handlers have processed.
     var myBox = boxHelper;
-    var myTC = transformControls;
+    var myTCHelper = transformControls ? (transformControls.getHelper ? transformControls.getHelper() : transformControls) : null;
     setTimeout(function() {
       if (!editor || !editor.scene) return;
       var dupes = [];
       for (var si = 0; si < editor.scene.children.length; si++) {
         var sc = editor.scene.children[si];
-        if (sc.name && sc.name.indexOf("__editor_") === 0 && sc !== myBox && sc !== myTC && sc !== cameraHelper && sc !== previewCamera) dupes.push(sc);
+        if (sc.name && sc.name.indexOf("__editor_") === 0 && sc !== myBox && sc !== myTCHelper && sc !== cameraHelper && sc !== previewCamera) dupes.push(sc);
       }
       for (var di = 0; di < dupes.length; di++) {
         if (dupes[di].detach) dupes[di].detach();
