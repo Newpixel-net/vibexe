@@ -179,6 +179,14 @@ const DEFAULT_LAYERS: LayerData[] = [
 export interface TerrainPainterPanelProps {
 	sendToIframe: (msg: Record<string, unknown>) => void;
 	onClose: () => void;
+	onTerrainConfigChanged?: (config: {
+		enabled: boolean;
+		width: number;
+		depth: number;
+		heightScale: number;
+		segments: number;
+		layers: Array<{ textureUrl: string; normalUrl: string; enabled: boolean; tileSize: number }>;
+	}) => void;
 }
 
 // ===== Component =====
@@ -186,6 +194,7 @@ export interface TerrainPainterPanelProps {
 export function TerrainPainterPanel({
 	sendToIframe,
 	onClose,
+	onTerrainConfigChanged,
 }: TerrainPainterPanelProps) {
 	const [activeTab, setActiveTab] = useState<"layers" | "settings" | "sculpt">("layers");
 	const [layers, setLayers] = useState<LayerData[]>(DEFAULT_LAYERS);
@@ -287,7 +296,23 @@ export function TerrainPainterPanel({
 			type: "terrain-painter-generate-terrain",
 			settings,
 		});
-	}, [sendToIframe, settings]);
+		// Persist terrain config so it survives iframe reloads
+		if (onTerrainConfigChanged) {
+			onTerrainConfigChanged({
+				enabled: true,
+				width: settings.terrainWidth,
+				depth: settings.terrainDepth,
+				heightScale: settings.terrainHeightScale,
+				segments: settings.terrainSegments,
+				layers: layers.map((l) => ({
+					textureUrl: l.diffuseUrl,
+					normalUrl: l.diffuseUrl.replace(/\.[^.]+$/, "_Normal$&"),
+					enabled: l.enabled,
+					tileSize: l.tileSize,
+				})),
+			});
+		}
+	}, [sendToIframe, settings, layers, onTerrainConfigChanged]);
 
 	// ===== Layer actions =====
 

@@ -636,6 +636,57 @@ if (typeof window !== 'undefined') {
       else {
         console.log("[SCENE_EDITOR] Override done after "+_frame+" frames, "+Object.keys(_bodies).length+" bodies");
         _autoPhysics(s);
+        _autoTerrain();
+      }
+    }
+    // Auto-terrain: regenerate terrain from persisted config if it exists
+    var _autoTerrainDone = false;
+    function _autoTerrain() {
+      if (_autoTerrainDone) return;
+      _autoTerrainDone = true;
+      var gs = window.__VIBEXE_GAME_SETTINGS__;
+      if (!gs || !gs.terrain || !gs.terrain.enabled) return;
+      var tc = gs.terrain;
+      // Only auto-generate if no terrain already exists in scene
+      var scene = window.__vibexe_scene__;
+      if (scene && scene.getObjectByName && scene.getObjectByName("__terrain__")) {
+        console.log("[AutoTerrain] Terrain already exists, skipping");
+        return;
+      }
+      console.log("[AutoTerrain] Regenerating terrain from saved config:", tc.width, "x", (tc.depth||tc.width), "h=", tc.heightScale);
+      // Send generate message — bridge handler picks this up
+      window.postMessage({
+        type: "terrain-painter-generate-terrain",
+        settings: {
+          terrainWidth: tc.width || 200,
+          terrainDepth: tc.depth || 200,
+          terrainHeightScale: tc.heightScale || 8,
+          terrainSegments: tc.segments || 256,
+        }
+      }, "*");
+      // After terrain generates, auto-repaint with saved layers
+      if (tc.layers && tc.layers.length > 0) {
+        setTimeout(function() {
+          window.postMessage({
+            type: "terrain-painter-repaint",
+            layers: tc.layers.map(function(l) {
+              return {
+                name: l.textureUrl ? l.textureUrl.split("/").pop().replace(/\.[^.]+$/, "") : "Layer",
+                enabled: l.enabled !== false,
+                diffuseUrl: l.textureUrl || "",
+                tileSize: l.tileSize || 4,
+                opacity: 100,
+                roughness: 0.85,
+                normalIntensity: 1.0,
+                metallic: false,
+                modifiers: [
+                  { type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: {} },
+                  { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: {} }
+                ]
+              };
+            })
+          }, "*");
+        }, 1000);
       }
     }
     // Auto-physics: scan scene meshes and create CANNON bodies for objects that need them
@@ -1243,6 +1294,42 @@ export function SandpackPreview({
 			sceneModifiedDuringEditRef.current = false;
 			// Delay to let SandpackFileSync process the last file update
 			setTimeout(() => { sandpackRefreshRef.current?.(); }, 400);
+			// Auto-regenerate terrain after iframe refresh if terrain config exists
+			const terrainCfg = gameEditor.gameSettings.terrain;
+			if (terrainCfg?.enabled) {
+				// Wait for iframe to reload + scene to initialize (IIFE runs 300 frames ~5s)
+				setTimeout(() => {
+					console.log("[GameEditor] Auto-regenerating terrain after refresh");
+					gameEditor.sendToIframe({
+						type: "terrain-painter-generate-terrain",
+						settings: {
+							terrainWidth: terrainCfg.width || 200,
+							terrainDepth: terrainCfg.depth || 200,
+							terrainHeightScale: terrainCfg.heightScale || 8,
+							terrainSegments: terrainCfg.segments || 256,
+						},
+					});
+					// Auto-repaint with saved layers after generation
+					if (terrainCfg.layers && terrainCfg.layers.length > 0) {
+						setTimeout(() => {
+							gameEditor.sendToIframe({
+								type: "terrain-painter-repaint",
+								layers: terrainCfg.layers!.map((l) => ({
+									name: l.textureUrl?.split("/").pop()?.replace(/\.[^.]+$/, "") || "Layer",
+									enabled: l.enabled !== false,
+									diffuseUrl: l.textureUrl || "",
+									tileSize: l.tileSize || 4,
+									opacity: 100,
+									roughness: 0.85,
+									normalIntensity: 1.0,
+									metallic: false,
+									modifiers: [],
+								})),
+							});
+						}, 1000);
+					}
+				}, 8000); // 8s: 0.4s (file sync) + ~5s (IIFE 300 frames) + 2.6s buffer
+			}
 		}
 	}, [gameEditor.enabled]);
 
@@ -1425,7 +1512,7 @@ export function SandpackPreview({
 		// No externalResources needed for Three.js — the shim handles core + all addons
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=68`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=69`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);
@@ -1861,6 +1948,12 @@ export function SandpackPreview({
 						<TerrainPainterPanel
 							sendToIframe={gameEditor.sendToIframe}
 							onClose={() => setTerrainPainterOpen(false)}
+							onTerrainConfigChanged={(config) => {
+								gameEditor.updateGameSettings({ terrain: config });
+								// Auto-save terrain config to JSON file so it persists across iframe reloads
+								const updatedSettings = { ...gameEditor.gameSettings, terrain: config };
+								handleSaveSettings(updatedSettings);
+							}}
 						/>
 					) : gameEditor.isSettingsOpen ? (
 						<GameSettingsPanel

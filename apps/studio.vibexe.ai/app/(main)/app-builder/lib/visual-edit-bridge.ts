@@ -2914,11 +2914,12 @@ export function getVisualEditBridgeScript(): string {
       // ===== TERRAIN PAINTER HANDLERS =====
 
       case "terrain-painter-generate-terrain": {
-        console.log("[TerrainPainter] CASE HIT. editor=", !!editor, "scene=", !!(editor && editor.scene), "THREE=", !!window.THREE);
+        // Use editor.scene in scene-editor mode, or __vibexe_scene__ in game mode (for terrain persistence)
+        var _tpScene = (editor && editor.scene) ? editor.scene : window.__vibexe_scene__;
+        console.log("[TerrainPainter] CASE HIT. editor=", !!editor, "scene=", !!_tpScene, "THREE=", !!window.THREE);
         var _tpTHREE = window.THREE;
         if (!_tpTHREE) { console.log("[TerrainPainter] ABORT: no THREE"); break; }
-        if (!editor) { console.log("[TerrainPainter] ABORT: no editor"); break; }
-        if (!editor.scene) { console.log("[TerrainPainter] ABORT: no editor.scene"); break; }
+        if (!_tpScene) { console.log("[TerrainPainter] ABORT: no scene"); break; }
         var _tpS = d.settings || {};
         var _tpW = _tpS.terrainWidth || 200;
         var _tpD = _tpS.terrainDepth || 200;
@@ -2928,8 +2929,8 @@ export function getVisualEditBridgeScript(): string {
         console.log("[TerrainPainter] Generating terrain:", _tpW, "x", _tpD, "h=", _tpH, "seg=", _tpSeg);
 
         // Remove existing terrain
-        var _tpOld = editor.scene.getObjectByName("__terrain__");
-        if (_tpOld) { editor.scene.remove(_tpOld); if (_tpOld.geometry) _tpOld.geometry.dispose(); if (_tpOld.material) _tpOld.material.dispose(); }
+        var _tpOld = _tpScene.getObjectByName("__terrain__");
+        if (_tpOld) { _tpScene.remove(_tpOld); if (_tpOld.geometry) _tpOld.geometry.dispose(); if (_tpOld.material) _tpOld.material.dispose(); }
 
         // ---- Inline simplex noise (2D) ----
         var _tpGrad3 = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];
@@ -3126,12 +3127,12 @@ export function getVisualEditBridgeScript(): string {
         _tpMesh.userData.__terrainMinY = _tpMinY;
         _tpMesh.userData.__terrainMaxY = _tpMaxY;
         _tpMesh.userData.__terrainWidth = _tpW;
-        editor.scene.add(_tpMesh);
+        _tpScene.add(_tpMesh);
         // Set dark gray background matching Unity Terrain Painter references
-        editor.scene.background = new _tpTHREE.Color(0x3a3a42);
+        _tpScene.background = new _tpTHREE.Color(0x3a3a42);
 
         // === TERRAIN-AS-FLOOR: Hide existing ground plane and grid ===
-        editor.scene.traverse(function(child) {
+        _tpScene.traverse(function(child) {
           if (child === _tpMesh) return;
           // Hide ground plane mesh (large unnamed PlaneGeometry)
           if (child.isMesh && !child.name) {
@@ -3328,7 +3329,7 @@ export function getVisualEditBridgeScript(): string {
           }
         }
 
-        sendSceneTree();
+        if (editor) sendSceneTree();
 
         console.log("[TerrainPainter] Terrain generated:", _tpPos.count, "vertices, height range:", _tpMinY.toFixed(1), "-", _tpMaxY.toFixed(1));
         window.parent.postMessage({ type: "terrain-painter-terrain-generated", vertexCount: _tpPos.count, minY: _tpMinY, maxY: _tpMaxY }, "*");
@@ -3336,10 +3337,11 @@ export function getVisualEditBridgeScript(): string {
       }
 
       case "terrain-painter-repaint": {
-        console.log("[TerrainPainter] REPAINT CASE HIT. editor=", !!editor, "scene=", !!(editor && editor.scene));
+        var _rpScene = (editor && editor.scene) ? editor.scene : window.__vibexe_scene__;
+        console.log("[TerrainPainter] REPAINT CASE HIT. editor=", !!editor, "scene=", !!_rpScene);
         var _rpTHREE = window.THREE;
-        if (!_rpTHREE || !editor || !editor.scene) { console.log("[TerrainPainter] REPAINT ABORT: missing deps"); break; }
-        var _rpTerrain = editor.scene.getObjectByName("__terrain__");
+        if (!_rpTHREE || !_rpScene) { console.log("[TerrainPainter] REPAINT ABORT: missing deps"); break; }
+        var _rpTerrain = _rpScene.getObjectByName("__terrain__");
         if (!_rpTerrain || !_rpTerrain.geometry) { console.warn("[TerrainPainter] No terrain found for repaint"); break; }
 
         var _rpLayers = d.layers || [];
@@ -3894,7 +3896,8 @@ export function getVisualEditBridgeScript(): string {
       }
 
       case "terrain-painter-toggle-heatmap": {
-        var _hmTerrain = editor && editor.scene ? editor.scene.getObjectByName("__terrain__") : null;
+        var _hmScene = (editor && editor.scene) ? editor.scene : window.__vibexe_scene__;
+        var _hmTerrain = _hmScene ? _hmScene.getObjectByName("__terrain__") : null;
         if (!_hmTerrain || !_hmTerrain.geometry) break;
         var _hmTHREE = window.THREE;
         if (!_hmTHREE) break;

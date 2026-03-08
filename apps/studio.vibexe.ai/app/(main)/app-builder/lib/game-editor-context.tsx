@@ -112,6 +112,19 @@ export interface GameSettings {
 			config?: Record<string, unknown>;
 		}>;
 	};
+	terrain?: {
+		enabled?: boolean;
+		width?: number;
+		depth?: number;
+		heightScale?: number;
+		segments?: number;
+		layers?: Array<{
+			textureUrl?: string;
+			normalUrl?: string;
+			enabled?: boolean;
+			tileSize?: number;
+		}>;
+	};
 }
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
