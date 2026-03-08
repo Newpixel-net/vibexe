@@ -2886,6 +2886,14 @@ export function getVisualEditBridgeScript(): string {
       case "game-editor-apply-fx":
       case "applySettings":
       case "updateGameSettings": {
+        // Merge settings into global so _autoTerrain and other consumers see the latest
+        if (d.settings && typeof d.settings === "object") {
+          if (!window.__VIBEXE_GAME_SETTINGS__) window.__VIBEXE_GAME_SETTINGS__ = {};
+          var _gsKeys = Object.keys(d.settings);
+          for (var _gsi = 0; _gsi < _gsKeys.length; _gsi++) {
+            window.__VIBEXE_GAME_SETTINGS__[_gsKeys[_gsi]] = d.settings[_gsKeys[_gsi]];
+          }
+        }
         // Extract FX preset — from dedicated message or from updateGameSettings payload
         var _fxPreset = d.preset || (d.settings && d.settings.postProcessing && d.settings.postProcessing.preset) || null;
         // Only process FX if we have a preset value

@@ -645,7 +645,10 @@ if (typeof window !== 'undefined') {
       if (_autoTerrainDone) return;
       _autoTerrainDone = true;
       var gs = window.__VIBEXE_GAME_SETTINGS__;
-      if (!gs || !gs.terrain || !gs.terrain.enabled) return;
+      if (!gs || !gs.terrain || !gs.terrain.enabled) {
+        console.log("[AutoTerrain] No terrain config in settings, skipping. gs.terrain=", gs && gs.terrain);
+        return;
+      }
       var tc = gs.terrain;
       // Only auto-generate if no terrain already exists in scene
       var scene = window.__vibexe_scene__;
@@ -1289,17 +1292,19 @@ export function SandpackPreview({
 	useEffect(() => {
 		const wasEnabled = prevEditorEnabledRef.current;
 		prevEditorEnabledRef.current = gameEditor.enabled;
-		if (wasEnabled && !gameEditor.enabled && sceneModifiedDuringEditRef.current) {
-			console.log("[GameEditor] Scene modified during edit session — refreshing preview to apply overrides");
-			sceneModifiedDuringEditRef.current = false;
-			// Delay to let SandpackFileSync process the last file update
-			setTimeout(() => { sandpackRefreshRef.current?.(); }, 400);
-			// Auto-regenerate terrain after iframe refresh if terrain config exists
+		if (wasEnabled && !gameEditor.enabled) {
+			// Refresh sandpack if objects were moved during edit session
+			if (sceneModifiedDuringEditRef.current) {
+				console.log("[GameEditor] Scene modified during edit session — refreshing preview to apply overrides");
+				sceneModifiedDuringEditRef.current = false;
+				setTimeout(() => { sandpackRefreshRef.current?.(); }, 400);
+			}
+			// Always auto-regenerate terrain on Scene→Game transition if terrain config exists
 			const terrainCfg = gameEditor.gameSettings.terrain;
 			if (terrainCfg?.enabled) {
-				// Wait for iframe to reload + scene to initialize (IIFE runs 300 frames ~5s)
+				// Short delay (2s) — terrain handler works even without editor (uses window.__vibexe_scene__)
 				setTimeout(() => {
-					console.log("[GameEditor] Auto-regenerating terrain after refresh");
+					console.log("[GameEditor] Auto-regenerating terrain after Scene→Game switch");
 					gameEditor.sendToIframe({
 						type: "terrain-painter-generate-terrain",
 						settings: {
@@ -1328,7 +1333,7 @@ export function SandpackPreview({
 							});
 						}, 1000);
 					}
-				}, 8000); // 8s: 0.4s (file sync) + ~5s (IIFE 300 frames) + 2.6s buffer
+				}, 2000); // 2s delay: bridge deactivation + scene ready
 			}
 		}
 	}, [gameEditor.enabled]);
@@ -1512,7 +1517,7 @@ export function SandpackPreview({
 		// No externalResources needed for Three.js — the shim handles core + all addons
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=69`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=70`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);
