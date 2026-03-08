@@ -636,7 +636,8 @@ if (typeof window !== 'undefined') {
       else {
         console.log("[SCENE_EDITOR] Override done after "+_frame+" frames, "+Object.keys(_bodies).length+" bodies");
         _autoPhysics(s);
-        _autoTerrain();
+        console.log("[SCENE_EDITOR] About to call _autoTerrain, typeof=", typeof _autoTerrain);
+        try { _autoTerrain(); } catch(e) { console.error("[SCENE_EDITOR] _autoTerrain error:", e); }
       }
     }
     // Auto-terrain: regenerate terrain from persisted config if it exists
