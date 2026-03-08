@@ -168,7 +168,7 @@ export function TerrainPainterPanel({
 		splatmapResolution: 256,
 		terrainWidth: 200,
 		terrainDepth: 200,
-		terrainHeightScale: 50,
+		terrainHeightScale: 8,
 		terrainSegments: 256,
 	});
 
@@ -996,7 +996,7 @@ function SettingsTab({
 				label="Height"
 				value={settings.terrainHeightScale}
 				min={1}
-				max={200}
+				max={50}
 				step={1}
 				onChange={(v) => onUpdateSettings({ terrainHeightScale: v })}
 			/>

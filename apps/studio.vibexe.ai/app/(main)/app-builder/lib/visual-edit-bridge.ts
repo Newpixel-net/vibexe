@@ -3596,11 +3596,7 @@ export function getVisualEditBridgeScript(): string {
         _sculptBrushFalloff = d.brushFalloff || "gaussian";
 
         // Deselect any currently selected object to avoid gizmo interference
-        if (selectedObj && transformControls) {
-          transformControls.detach();
-          if (boxHelper) boxHelper.visible = false;
-          selectedObj = null;
-        }
+        deselectObject();
 
         if (!_sculptBrushMesh) {
           var _sTHREE = window.THREE;
@@ -3633,6 +3629,7 @@ export function getVisualEditBridgeScript(): string {
           if (hits.length > 0) {
             var pt = hits[0].point;
             if (_sculptBrushMesh) {
+              _sculptBrushMesh.visible = true;
               _sculptBrushMesh.position.set(pt.x, pt.y + 0.3, pt.z);
             }
             if (_sculptMouseDown) {
@@ -3643,6 +3640,9 @@ export function getVisualEditBridgeScript(): string {
                 applySculptBrush(pt.x, pt.z);
               }
             }
+          } else {
+            // Hide brush when not over terrain
+            if (_sculptBrushMesh) _sculptBrushMesh.visible = false;
           }
         };
 

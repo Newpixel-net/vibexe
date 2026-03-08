@@ -2143,6 +2143,20 @@ export function createCharacterController3D(
     const physVz = physicsBody.velocity.z;
     const physSpeed = Math.sqrt(physVx * physVx + physVz * physVz);
 
+    // Terrain floor clamping — terrain is visual-only (no physics collider)
+    const _getTerrainH = (window as any).__vibexe_getTerrainHeight;
+    if (_getTerrainH) {
+      const terrainY = _getTerrainH(physicsBody.position.x, physicsBody.position.z);
+      if (terrainY != null) {
+        const bodyHalfH = (character.mesh.userData?.__characterBounds?.height ?? 1.5) / 2;
+        if (physicsBody.position.y < terrainY + bodyHalfH) {
+          physicsBody.position.y = terrainY + bodyHalfH;
+          if (physicsBody.velocity.y < 0) physicsBody.velocity.y = 0;
+          (physicsBody as any).__canJump = true;
+        }
+      }
+    }
+
     if (physSpeed > 0.05) {
       // Physics body is moving — sync mesh to it
       character.mesh.position.copy(physicsBody.position);
@@ -5358,11 +5372,19 @@ export const GameScene = {
     // ===== PLAYER — Lily animated character =====
     const __gs = (window as any).__VIBEXE_GAME_SETTINGS__ || {};
     const spawnX = __gs.player?.spawnX ?? 0;
-    const spawnY = __gs.player?.spawnY ?? 3;
+    let spawnY = __gs.player?.spawnY ?? 3;
     const spawnZ = __gs.player?.spawnZ ?? 0;
     let respawnX = __gs.player?.respawnX ?? 0;
     let respawnY = __gs.player?.respawnY ?? 5;
     let respawnZ = __gs.player?.respawnZ ?? 0;
+    // Terrain-aware spawn: raise spawn/respawn Y if terrain is higher
+    const _gth = (window as any).__vibexe_getTerrainHeight;
+    if (_gth) {
+      const _spawnTH = _gth(spawnX, spawnZ);
+      if (_spawnTH != null && _spawnTH + 1 > spawnY) spawnY = _spawnTH + 1;
+      const _rspawnTH = _gth(respawnX, respawnZ);
+      if (_rspawnTH != null && _rspawnTH + 1 > respawnY) respawnY = _rspawnTH + 1;
+    }
     // Store on window for runtime updates via updateGameSettings
     (window as any).__vibexe_respawnX__ = respawnX;
     (window as any).__vibexe_respawnY__ = respawnY;
