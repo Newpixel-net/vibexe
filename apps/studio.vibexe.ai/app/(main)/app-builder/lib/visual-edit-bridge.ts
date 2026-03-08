@@ -2675,16 +2675,27 @@ export function getVisualEditBridgeScript(): string {
           return sum / maxAmp;
         }
 
-        function _tpRidge(x, y, octaves) {
-          var sum = 0, amp = 1, freq = 1;
+        // Ridged multifractal (Musgrave algorithm) — signal-dependent amplitude creates sharp peaks
+        function _tpRidgedMF(x, y, octaves, lacunarity, gain, sharpness) {
+          var sum = 0, amp = 1, freq = 1, prev = 1;
           for (var o = 0; o < octaves; o++) {
-            var n = 1.0 - Math.abs(_tpNoise2D(x*freq, y*freq));
-            n = n * n;
+            var n = _tpNoise2D(x * freq, y * freq);
+            n = 1.0 - Math.abs(n);
+            n = Math.pow(n, sharpness);
+            n *= prev;
+            prev = Math.max(0.01, n);
             sum += n * amp;
-            amp *= 0.5;
-            freq *= 2.0;
+            amp *= gain;
+            freq *= lacunarity;
           }
           return sum;
+        }
+
+        // Domain warp — distorts coordinates with another noise for organic mountain shapes
+        function _tpDomainWarp(x, y, strength) {
+          var wx = _tpFbm(x + 5.2, y + 1.3, 3, 2.0, 0.5) * strength;
+          var wy = _tpFbm(x + 9.7, y + 6.8, 3, 2.0, 0.5) * strength;
+          return [x + wx, y + wy];
         }
 
         function _tpSmoothstep(edge0, edge1, x) {
@@ -2696,49 +2707,71 @@ export function getVisualEditBridgeScript(): string {
         var _tpGeo = new _tpTHREE.PlaneGeometry(_tpW, _tpD, _tpSeg, _tpSeg);
         _tpGeo.rotateX(-Math.PI / 2); // lay flat on XZ plane
 
-        // Displace vertices with noise — realistic mountain terrain
+        // Displace vertices with multi-scale noise composition
         var _tpPos = _tpGeo.attributes.position;
         var _tpMinY = Infinity, _tpMaxY = -Infinity;
         var _tpHalfW = _tpW * 0.5;
         var _tpHalfD = _tpD * 0.5;
+        var _tpSegX = _tpSeg + 1;
+        var _tpSegZ = _tpSeg + 1;
+        var _tpHeightData = new Float32Array(_tpSegX * _tpSegZ);
+
         for (var vi = 0; vi < _tpPos.count; vi++) {
           var vx = _tpPos.getX(vi);
           var vz = _tpPos.getZ(vi);
-          var nx = vx / _tpW; // normalize to ~-0.5..0.5 range
+          var nx = vx / _tpW; // -0.5..0.5
           var nz = vz / _tpD;
 
-          // Gaussian peak — localized mountain with wide flat base
-          // Matches Unity reference: dramatic peak rising from flat/rolling terrain
-          var px = vx / _tpHalfW; // -1..1 across terrain
-          var pz = vz / _tpHalfD;
-          var r2 = px * px + pz * pz; // squared distance from center
-          var peak = Math.exp(-r2 * 4.0); // sharp gaussian: flat at edges, steep near center
-          // peak is ~1.0 at center, ~0.02 at edges (r=1)
+          // Edge falloff — smooth fade to 0 near terrain borders
+          var edgeX = 1.0 - Math.pow(2.0 * Math.abs(nx), 6);
+          var edgeZ = 1.0 - Math.pow(2.0 * Math.abs(nz), 6);
+          var edgeFalloff = _tpSmoothstep(0, 0.15, Math.max(0, Math.min(edgeX, edgeZ)));
 
-          // Secondary smaller peak offset from center
-          var p2x = (vx - _tpW * 0.18) / _tpHalfW;
-          var p2z = (vz + _tpD * 0.15) / _tpHalfD;
-          var r2b = p2x * p2x + p2z * p2z;
-          var peak2 = Math.exp(-r2b * 8.0) * 0.45; // smaller, sharper secondary peak
+          // Domain warp for organic mountain shapes
+          var warpPt = _tpDomainWarp(nx * 1.5, nz * 1.5, 0.35);
+          var wx = warpPt[0];
+          var wz = warpPt[1];
 
-          // Rolling hills across the flat base (very low amplitude)
-          var hills = _tpFbm(nx * 1.0, nz * 1.0, 4, 2.0, 0.5) * 0.06;
+          // Scale 1: Continental — large mountain range shape (domain-warped fBm)
+          var continental = (_tpFbm(wx * 1.2, wz * 1.2, 5, 2.0, 0.5) + 1) * 0.5;
+          continental = Math.pow(continental, 1.5); // bias toward valleys
 
-          // Ridge detail only on the main peak
-          var ridgeH = _tpRidge(nx * 2.0 + 5.0, nz * 2.0 + 5.0, 4);
-          var ridgeMask = peak * peak; // ridges only near main peak
+          // Scale 2: Mountain ridges (ridged multifractal — sharp peaks at zero crossings)
+          var ridges = _tpRidgedMF(nx * 3.0 + 3.7, nz * 3.0 + 1.2, 6, 2.2, 0.5, 2.0);
+          ridges *= 0.35;
 
-          // Micro detail for surface texture
-          var detailH = _tpFbm(nx * 6.0, nz * 6.0, 3, 2.0, 0.4) * 0.02;
+          // Scale 3: Rolling foothills
+          var hills = _tpFbm(nx * 6.0 + 7.3, nz * 6.0 + 2.8, 4, 2.0, 0.5) * 0.08;
 
-          // Combine: gaussian peaks + rolling hills + ridge detail
-          var h = (peak * 0.70 + peak2 + hills + ridgeH * ridgeMask * 0.10 + detailH) * _tpH;
+          // Scale 4: Fine surface detail (altitude-dependent — more detail on peaks)
+          var detail = _tpFbm(nx * 15.0, nz * 15.0, 3, 2.0, 0.4) * 0.03;
+
+          // Altitude-dependent roughness composition
+          var baseH = continental * 0.55 + ridges;
+          var roughDetail = (hills + detail) * (0.3 + Math.min(1, baseH) * 0.7);
+
+          var h = (baseH + roughDetail) * edgeFalloff * _tpH;
           _tpPos.setY(vi, h);
+          _tpHeightData[vi] = h;
           if (h < _tpMinY) _tpMinY = h;
           if (h > _tpMaxY) _tpMaxY = h;
         }
         _tpPos.needsUpdate = true;
         _tpGeo.computeVertexNormals();
+
+        // TERRAIN-AS-FLOOR: Normalize so minimum height = 0 (terrain IS the game floor)
+        if (_tpMinY !== 0) {
+          var _tpShift = -_tpMinY;
+          for (var nvi = 0; nvi < _tpPos.count; nvi++) {
+            var shiftedY = _tpPos.getY(nvi) + _tpShift;
+            _tpPos.setY(nvi, shiftedY);
+            _tpHeightData[nvi] = shiftedY;
+          }
+          _tpMaxY += _tpShift;
+          _tpMinY = 0;
+          _tpPos.needsUpdate = true;
+          _tpGeo.computeVertexNormals();
+        }
 
         // Store per-vertex height (0-1 normalized) and slope (degrees) as attributes
         var _tpHeightArr = new Float32Array(_tpPos.count);
@@ -2794,6 +2827,57 @@ export function getVisualEditBridgeScript(): string {
         editor.scene.add(_tpMesh);
         // Set dark gray background matching Unity Terrain Painter references
         editor.scene.background = new _tpTHREE.Color(0x3a3a42);
+
+        // === TERRAIN-AS-FLOOR: Hide existing ground plane and grid ===
+        editor.scene.traverse(function(child) {
+          if (child === _tpMesh) return;
+          // Hide ground plane mesh (large unnamed PlaneGeometry)
+          if (child.isMesh && !child.name) {
+            var cGeo = child.geometry;
+            if (cGeo && cGeo.type === "PlaneGeometry") {
+              var cParams = cGeo.parameters;
+              if (cParams && (cParams.width >= 50 || cParams.height >= 50)) {
+                child.visible = false;
+                child.userData.__hiddenByTerrain = true;
+              }
+            }
+          }
+          // Hide grid helper
+          if (child.isGridHelper || child.type === "GridHelper") {
+            child.visible = false;
+            child.userData.__hiddenByTerrain = true;
+          }
+        });
+
+        // Store heightmap data for CPU-side getHeightAt() queries
+        window.__vibexe_terrainData = {
+          heightData: _tpHeightData,
+          width: _tpW,
+          depth: _tpD,
+          segX: _tpSegX,
+          segZ: _tpSegZ,
+          minY: _tpMinY,
+          maxY: _tpMaxY
+        };
+
+        // Bilinear interpolation height query — O(1) per call, no raycasting needed
+        window.__vibexe_getTerrainHeight = function(x, z) {
+          var td = window.__vibexe_terrainData;
+          if (!td) return 0;
+          var gx = (x + td.width * 0.5) / td.width * (td.segX - 1);
+          var gz = (td.depth * 0.5 - z) / td.depth * (td.segZ - 1);
+          gx = Math.max(0, Math.min(td.segX - 2, gx));
+          gz = Math.max(0, Math.min(td.segZ - 2, gz));
+          var ix = Math.floor(gx), iz = Math.floor(gz);
+          var fx = gx - ix, fz = gz - iz;
+          var i00 = iz * td.segX + ix;
+          var h00 = td.heightData[i00];
+          var h10 = td.heightData[i00 + 1];
+          var h01 = td.heightData[i00 + td.segX];
+          var h11 = td.heightData[i00 + td.segX + 1];
+          return h00*(1-fx)*(1-fz) + h10*fx*(1-fz) + h01*(1-fx)*fz + h11*fx*fz;
+        };
+
         sendSceneTree();
 
         console.log("[TerrainPainter] Terrain generated:", _tpPos.count, "vertices, height range:", _tpMinY.toFixed(1), "-", _tpMaxY.toFixed(1));
@@ -2913,7 +2997,17 @@ export function getVisualEditBridgeScript(): string {
 
         // Collect texture URLs from enabled layers
         var _rpTexUrls = [];
-        for (var li5 = 0; li5 < _rpNumLayers; li5++) _rpTexUrls.push(_rpEnabledLayers[li5].diffuseUrl || "");
+        var _rpNormalUrls = [];
+        for (var li5 = 0; li5 < _rpNumLayers; li5++) {
+          var _diffUrl = _rpEnabledLayers[li5].diffuseUrl || "";
+          _rpTexUrls.push(_diffUrl);
+          // Auto-derive normal map URL: Snow006_Color.jpg → Snow006_NormalGL.jpg
+          var _normUrl = _rpEnabledLayers[li5].normalUrl || "";
+          if (!_normUrl && _diffUrl) {
+            _normUrl = _diffUrl.replace(/_Color\\./, "_NormalGL.");
+          }
+          _rpNormalUrls.push(_normUrl);
+        }
 
         // Layer preview colors (fallback when no texture)
         var _rpColors = [];
@@ -2929,20 +3023,22 @@ export function getVisualEditBridgeScript(): string {
         var _rpHasTextures = _rpTexUrls.some(function(u) { return u && u.length > 5; });
 
         if (_rpHasTextures) {
-          // Load textures and create ShaderMaterial
+          // Load textures (diffuse + normal maps) and create PBR ShaderMaterial
           var _rpLoader = new _rpTHREE.TextureLoader();
           var _rpTextures = new Array(_rpNumLayers);
+          var _rpNormalTextures = new Array(_rpNumLayers);
           var _rpLoaded = 0;
           var _rpTotal = 0;
 
           for (var ti = 0; ti < _rpNumLayers; ti++) {
             if (_rpTexUrls[ti] && _rpTexUrls[ti].length > 5) _rpTotal++;
+            if (_rpNormalUrls[ti] && _rpNormalUrls[ti].length > 5) _rpTotal++;
           }
 
           if (_rpTotal === 0) _rpTotal = 1; // avoid /0
 
           function _rpApplyShaderMaterial() {
-            // Pack weights into vertex color + UV2 attributes
+            // Pack weights into vertex attributes
             var _w0 = new Float32Array(_rpCount);
             var _w1 = new Float32Array(_rpCount);
             var _w2 = new Float32Array(_rpCount);
@@ -2963,10 +3059,18 @@ export function getVisualEditBridgeScript(): string {
               uTex1: { value: _rpTextures[1] || null },
               uTex2: { value: _rpTextures[2] || null },
               uTex3: { value: _rpTextures[3] || null },
+              uNormal0: { value: _rpNormalTextures[0] || null },
+              uNormal1: { value: _rpNormalTextures[1] || null },
+              uNormal2: { value: _rpNormalTextures[2] || null },
+              uNormal3: { value: _rpNormalTextures[3] || null },
               uHasTex0: { value: _rpTextures[0] ? 1.0 : 0.0 },
               uHasTex1: { value: _rpTextures[1] ? 1.0 : 0.0 },
               uHasTex2: { value: _rpTextures[2] ? 1.0 : 0.0 },
               uHasTex3: { value: _rpTextures[3] ? 1.0 : 0.0 },
+              uHasNormal0: { value: _rpNormalTextures[0] ? 1.0 : 0.0 },
+              uHasNormal1: { value: _rpNormalTextures[1] ? 1.0 : 0.0 },
+              uHasNormal2: { value: _rpNormalTextures[2] ? 1.0 : 0.0 },
+              uHasNormal3: { value: _rpNormalTextures[3] ? 1.0 : 0.0 },
               uColor0: { value: new _rpTHREE.Vector3(_rpColors[0] ? _rpColors[0][0] : 0.5, _rpColors[0] ? _rpColors[0][1] : 0.5, _rpColors[0] ? _rpColors[0][2] : 0.5) },
               uColor1: { value: new _rpTHREE.Vector3(_rpColors[1] ? _rpColors[1][0] : 0.5, _rpColors[1] ? _rpColors[1][1] : 0.5, _rpColors[1] ? _rpColors[1][2] : 0.5) },
               uColor2: { value: new _rpTHREE.Vector3(_rpColors[2] ? _rpColors[2][0] : 0.5, _rpColors[2] ? _rpColors[2][1] : 0.5, _rpColors[2] ? _rpColors[2][2] : 0.5) },
@@ -2975,7 +3079,11 @@ export function getVisualEditBridgeScript(): string {
               uTexScale0: { value: 50.0 },
               uTexScale1: { value: 50.0 },
               uTexScale2: { value: 1.5 },
-              uTexScale3: { value: 100.0 }
+              uTexScale3: { value: 100.0 },
+              uRoughness0: { value: 0.85 },
+              uRoughness1: { value: 0.75 },
+              uRoughness2: { value: 0.92 },
+              uRoughness3: { value: 0.3 }
             };
 
             // Compute per-layer texture scales from tileSize (matching Unity's TerrainLayer.tileSize)
@@ -3002,7 +3110,7 @@ export function getVisualEditBridgeScript(): string {
               "varying float vHeight;",
               "void main() {",
               "  vUv = uv;",
-              "  vNormal = normalize(normalMatrix * normal);",
+              "  vNormal = normalize(mat3(modelMatrix) * normal);",
               "  vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;",
               "  vHeight = terrainHeight;",
               "  vW0 = w0; vW1 = w1; vW2 = w2; vW3 = w3;",
@@ -3011,73 +3119,162 @@ export function getVisualEditBridgeScript(): string {
             ].join("\\n");
 
             var _rpFragShader = [
-              "uniform sampler2D uTex0;",
-              "uniform sampler2D uTex1;",
-              "uniform sampler2D uTex2;",
-              "uniform sampler2D uTex3;",
-              "uniform vec3 uColor0;",
-              "uniform vec3 uColor1;",
-              "uniform vec3 uColor2;",
-              "uniform vec3 uColor3;",
+              "#extension GL_OES_standard_derivatives : enable",
+              "precision highp float;",
+              "",
+              "uniform sampler2D uTex0, uTex1, uTex2, uTex3;",
+              "uniform sampler2D uNormal0, uNormal1, uNormal2, uNormal3;",
+              "uniform vec3 uColor0, uColor1, uColor2, uColor3;",
               "uniform int uNumLayers;",
-              "uniform float uHasTex0;",
-              "uniform float uHasTex1;",
-              "uniform float uHasTex2;",
-              "uniform float uHasTex3;",
-              "uniform float uTexScale0;",
-              "uniform float uTexScale1;",
-              "uniform float uTexScale2;",
-              "uniform float uTexScale3;",
+              "uniform float uHasTex0, uHasTex1, uHasTex2, uHasTex3;",
+              "uniform float uHasNormal0, uHasNormal1, uHasNormal2, uHasNormal3;",
+              "uniform float uTexScale0, uTexScale1, uTexScale2, uTexScale3;",
+              "uniform float uRoughness0, uRoughness1, uRoughness2, uRoughness3;",
+              "",
               "varying vec2 vUv;",
               "varying vec3 vNormal;",
               "varying vec3 vWorldPos;",
-              "varying float vW0;",
-              "varying float vW1;",
-              "varying float vW2;",
-              "varying float vW3;",
+              "varying float vW0, vW1, vW2, vW3;",
               "varying float vHeight;",
+              "",
+              "// Triplanar blend weights from world-space normal",
+              "vec3 triplanarBlend(vec3 n) {",
+              "  vec3 b = abs(n);",
+              "  b = max(b - 0.2, 0.0);",
+              "  b = pow(b, vec3(4.0));",
+              "  return b / (b.x + b.y + b.z + 0.001);",
+              "}",
+              "",
+              "// Sample texture with triplanar projection for steep slopes",
+              "vec3 sampleTerrain(sampler2D tex, vec3 wp, vec2 uv, vec3 N, float scale, float hasTex, vec3 fallbackColor) {",
+              "  if (hasTex < 0.5) return fallbackColor;",
+              "  float steepness = 1.0 - abs(N.y);",
+              "  if (steepness > 0.5) {",
+              "    vec3 bl = triplanarBlend(N);",
+              "    vec3 xSamp = texture2D(tex, wp.yz * scale * 0.01).rgb;",
+              "    vec3 ySamp = texture2D(tex, wp.xz * scale * 0.01).rgb;",
+              "    vec3 zSamp = texture2D(tex, wp.xy * scale * 0.01).rgb;",
+              "    return xSamp * bl.x + ySamp * bl.y + zSamp * bl.z;",
+              "  }",
+              "  return texture2D(tex, uv * scale).rgb;",
+              "}",
+              "",
+              "// Sample normal map (returns tangent-space normal)",
+              "vec3 sampleNormalMap(sampler2D nmap, vec2 uv, float scale, float hasNorm) {",
+              "  if (hasNorm < 0.5) return vec3(0.0, 0.0, 1.0);",
+              "  vec3 n = texture2D(nmap, uv * scale).rgb * 2.0 - 1.0;",
+              "  return normalize(n);",
+              "}",
+              "",
+              "// Perturb normal using screen-space derivatives (no tangent attribute needed)",
+              "vec3 perturbNormal(vec3 N, vec3 wp, vec2 uv, vec3 mapN) {",
+              "  vec3 q0 = dFdx(wp);",
+              "  vec3 q1 = dFdy(wp);",
+              "  vec2 st0 = dFdx(uv);",
+              "  vec2 st1 = dFdy(uv);",
+              "  float det = st0.x * st1.y - st0.y * st1.x;",
+              "  if (abs(det) < 0.0001) return N;",
+              "  vec3 T = normalize(q0 * st1.y - q1 * st0.y);",
+              "  vec3 B = normalize(cross(N, T));",
+              "  return normalize(T * mapN.x + B * mapN.y + N * mapN.z);",
+              "}",
+              "",
+              "// GGX/Trowbridge-Reitz normal distribution",
+              "float distributionGGX(float NdotH, float roughness) {",
+              "  float a = roughness * roughness;",
+              "  float a2 = a * a;",
+              "  float d = NdotH * NdotH * (a2 - 1.0) + 1.0;",
+              "  return a2 / (3.14159 * d * d + 0.0001);",
+              "}",
+              "",
+              "// Smith's Schlick-GGX geometry function",
+              "float geometrySmith(float NdotV, float NdotL, float roughness) {",
+              "  float r = roughness + 1.0;",
+              "  float k = r * r / 8.0;",
+              "  float g1 = NdotV / (NdotV * (1.0 - k) + k);",
+              "  float g2 = NdotL / (NdotL * (1.0 - k) + k);",
+              "  return g1 * g2;",
+              "}",
+              "",
+              "// Fresnel-Schlick approximation",
+              "vec3 fresnelSchlick(float cosTheta, vec3 F0) {",
+              "  return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);",
+              "}",
+              "",
               "void main() {",
-              "  vec3 col = vec3(0.0);",
-              "  if (uNumLayers > 0) {",
-              "    vec3 c0 = mix(uColor0, texture2D(uTex0, vUv * uTexScale0).rgb, uHasTex0);",
-              "    col += c0 * vW0;",
-              "  }",
-              "  if (uNumLayers > 1) {",
-              "    vec3 c1 = mix(uColor1, texture2D(uTex1, vUv * uTexScale1).rgb, uHasTex1);",
-              "    col += c1 * vW1;",
-              "  }",
-              "  if (uNumLayers > 2) {",
-              "    vec3 c2 = mix(uColor2, texture2D(uTex2, vUv * uTexScale2).rgb, uHasTex2);",
-              "    col += c2 * vW2;",
-              "  }",
-              "  if (uNumLayers > 3) {",
-              "    vec3 c3 = mix(uColor3, texture2D(uTex3, vUv * uTexScale3).rgb, uHasTex3);",
-              "    col += c3 * vW3;",
-              "  }",
               "  vec3 N = normalize(vNormal);",
+              "  vec3 V = normalize(cameraPosition - vWorldPos);",
+              "  vec2 baseUv = vUv;",
+              "",
+              "  // Sample diffuse textures (with triplanar for steep slopes)",
+              "  vec3 col = vec3(0.0);",
+              "  if (uNumLayers > 0) col += sampleTerrain(uTex0, vWorldPos, baseUv, N, uTexScale0, uHasTex0, uColor0) * vW0;",
+              "  if (uNumLayers > 1) col += sampleTerrain(uTex1, vWorldPos, baseUv, N, uTexScale1, uHasTex1, uColor1) * vW1;",
+              "  if (uNumLayers > 2) col += sampleTerrain(uTex2, vWorldPos, baseUv, N, uTexScale2, uHasTex2, uColor2) * vW2;",
+              "  if (uNumLayers > 3) col += sampleTerrain(uTex3, vWorldPos, baseUv, N, uTexScale3, uHasTex3, uColor3) * vW3;",
+              "",
+              "  // Blend normal maps by layer weights",
+              "  vec3 blendedNormalTS = vec3(0.0, 0.0, 0.0);",
+              "  if (uNumLayers > 0) blendedNormalTS += sampleNormalMap(uNormal0, baseUv, uTexScale0, uHasNormal0) * vW0;",
+              "  if (uNumLayers > 1) blendedNormalTS += sampleNormalMap(uNormal1, baseUv, uTexScale1, uHasNormal1) * vW1;",
+              "  if (uNumLayers > 2) blendedNormalTS += sampleNormalMap(uNormal2, baseUv, uTexScale2, uHasNormal2) * vW2;",
+              "  if (uNumLayers > 3) blendedNormalTS += sampleNormalMap(uNormal3, baseUv, uTexScale3, uHasNormal3) * vW3;",
+              "  blendedNormalTS = normalize(blendedNormalTS);",
+              "",
+              "  // Perturb surface normal with blended normal map",
+              "  vec3 pertN = perturbNormal(N, vWorldPos, baseUv, blendedNormalTS);",
+              "",
+              "  // Per-layer roughness blend",
+              "  float roughness = uRoughness0 * vW0 + uRoughness1 * vW1 + uRoughness2 * vW2 + uRoughness3 * vW3;",
+              "  roughness = clamp(roughness, 0.05, 1.0);",
+              "  vec3 albedo = col;",
+              "  float metallic = 0.0;",
+              "  vec3 F0 = vec3(0.04);",
+              "",
+              "  // === PBR Cook-Torrance Lighting ===",
+              "  vec3 totalLight = vec3(0.0);",
+              "",
+              "  // Sun light (primary)",
               "  vec3 sunDir = normalize(vec3(0.5, 0.75, 0.35));",
+              "  vec3 sunColor = vec3(1.0, 0.95, 0.85) * 2.5;",
+              "  vec3 H = normalize(V + sunDir);",
+              "  float NdotL = max(dot(pertN, sunDir), 0.0);",
+              "  float NdotV = max(dot(pertN, V), 0.001);",
+              "  float NdotH = max(dot(pertN, H), 0.0);",
+              "  float HdotV = max(dot(H, V), 0.0);",
+              "  float D = distributionGGX(NdotH, roughness);",
+              "  float G = geometrySmith(NdotV, NdotL, roughness);",
+              "  vec3 F = fresnelSchlick(HdotV, F0);",
+              "  vec3 kD = (1.0 - F) * (1.0 - metallic);",
+              "  vec3 spec = (D * G * F) / (4.0 * NdotV * NdotL + 0.001);",
+              "  totalLight += (kD * albedo / 3.14159 + spec) * sunColor * NdotL;",
+              "",
+              "  // Fill light (secondary, cooler)",
               "  vec3 fillDir = normalize(vec3(-0.4, 0.3, -0.7));",
+              "  vec3 fillColor = vec3(0.3, 0.4, 0.6) * 0.8;",
+              "  float fillNdotL = max(dot(pertN, fillDir), 0.0);",
+              "  totalLight += albedo * fillColor * fillNdotL;",
+              "",
+              "  // Back/rim light",
               "  vec3 backDir = normalize(vec3(-0.2, 0.6, -0.3));",
-              "  float sunDiff = max(0.0, dot(N, sunDir));",
-              "  float fillDiff = max(0.0, dot(N, fillDir));",
-              "  float backDiff = max(0.0, dot(N, backDir));",
-              "  vec3 viewDir = normalize(cameraPosition - vWorldPos);",
-              "  vec3 halfVec = normalize(sunDir + viewDir);",
-              "  float spec = pow(max(0.0, dot(N, halfVec)), 64.0);",
-              "  float snowMask = vW3;",
-              "  float rockMask = vW2;",
-              "  vec3 ambient = vec3(0.35, 0.37, 0.42);",
-              "  vec3 sunLight = vec3(1.0, 0.95, 0.85) * sunDiff * 1.8;",
-              "  vec3 fillLight = vec3(0.3, 0.35, 0.5) * fillDiff * 0.6;",
-              "  vec3 backLight = vec3(0.2, 0.22, 0.3) * backDiff * 0.4;",
-              "  vec3 lighting = ambient + sunLight + fillLight + backLight;",
-              "  vec3 specColor = vec3(1.0, 0.97, 0.9) * spec * (snowMask * 0.4 + rockMask * 0.08 + 0.02);",
-              "  vec3 finalColor = col * lighting + specColor;",
-              "  vec3 fogColor = vec3(0.35, 0.38, 0.45);",
+              "  vec3 backColor = vec3(0.2, 0.22, 0.3) * 0.5;",
+              "  float backNdotL = max(dot(pertN, backDir), 0.0);",
+              "  totalLight += albedo * backColor * backNdotL;",
+              "",
+              "  // Hemisphere ambient (sky + ground bounce)",
+              "  vec3 skyAmb = vec3(0.4, 0.45, 0.6);",
+              "  vec3 gndAmb = vec3(0.15, 0.12, 0.08);",
+              "  float upFactor = pertN.y * 0.5 + 0.5;",
+              "  vec3 ambient = mix(gndAmb, skyAmb, upFactor) * albedo * 0.35;",
+              "  totalLight += ambient;",
+              "",
+              "  // Atmospheric fog",
+              "  vec3 fogColor = vec3(0.55, 0.60, 0.72);",
               "  float fogDist = length(vWorldPos - cameraPosition) / 400.0;",
-              "  float fogAmt = clamp(fogDist * fogDist, 0.0, 0.3);",
-              "  finalColor = mix(finalColor, fogColor, fogAmt);",
-              "  gl_FragColor = vec4(finalColor, 1.0);",
+              "  float fogAmt = clamp(fogDist * fogDist, 0.0, 0.4);",
+              "  totalLight = mix(totalLight, fogColor, fogAmt);",
+              "",
+              "  gl_FragColor = vec4(totalLight, 1.0);",
               "}"
             ].join("\\n");
 
@@ -3089,19 +3286,19 @@ export function getVisualEditBridgeScript(): string {
               vertexShader: _rpVertShader,
               fragmentShader: _rpFragShader,
               lights: false,
-              side: _rpTHREE.DoubleSide
+              side: _rpTHREE.DoubleSide,
+              extensions: { derivatives: true }
             });
 
             _rpTerrain.material = _rpShaderMat;
-            console.log("[TerrainPainter] ShaderMaterial applied with", _rpNumLayers, "texture layers");
+            console.log("[TerrainPainter] PBR ShaderMaterial applied with", _rpNumLayers, "layers, normal maps:", !!_rpNormalTextures[0]);
             window.parent.postMessage({ type: "terrain-painter-repainted" }, "*");
           }
 
-          // Load each texture
+          // Load diffuse textures
           for (var ti2 = 0; ti2 < _rpNumLayers; ti2++) {
             (function(idx) {
               var url = _rpTexUrls[idx];
-              // Prepend origin for relative URLs (iframe is on different domain)
               if (url && url.charAt(0) === '/') {
                 url = (window.__VIBEXE_API_ORIGIN__ || '') + url;
               }
@@ -3116,19 +3313,45 @@ export function getVisualEditBridgeScript(): string {
                 tex.wrapT = _rpTHREE.RepeatWrapping;
                 tex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
                 tex.anisotropy = 16;
-                // Do NOT set SRGBColorSpace — let textures stay as raw sRGB values
-                // Three.js ShaderMaterial injects colorspace_fragment (linearToSRGB) on output,
-                // so treating sRGB textures as "linear" + that auto-conversion = correct brightness
                 _rpTextures[idx] = tex;
                 _rpLoaded++;
                 if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
               }, undefined, function() {
-                console.warn("[TerrainPainter] Failed to load texture:", url);
+                console.warn("[TerrainPainter] Failed to load diffuse:", url);
                 _rpTextures[idx] = null;
                 _rpLoaded++;
                 if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
               });
             })(ti2);
+          }
+
+          // Load normal map textures (auto-derived from diffuse URLs)
+          for (var ni2 = 0; ni2 < _rpNumLayers; ni2++) {
+            (function(idx) {
+              var nurl = _rpNormalUrls[idx];
+              if (nurl && nurl.charAt(0) === '/') {
+                nurl = (window.__VIBEXE_API_ORIGIN__ || '') + nurl;
+              }
+              if (!nurl || nurl.length < 5) {
+                _rpNormalTextures[idx] = null;
+                _rpLoaded++;
+                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                return;
+              }
+              _rpLoader.load(nurl, function(ntex) {
+                ntex.wrapS = _rpTHREE.RepeatWrapping;
+                ntex.wrapT = _rpTHREE.RepeatWrapping;
+                ntex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
+                ntex.anisotropy = 16;
+                _rpNormalTextures[idx] = ntex;
+                _rpLoaded++;
+                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+              }, undefined, function() {
+                _rpNormalTextures[idx] = null;
+                _rpLoaded++;
+                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+              });
+            })(ni2);
           }
         } else {
           // No textures — just apply vertex colors from layer preview colors
