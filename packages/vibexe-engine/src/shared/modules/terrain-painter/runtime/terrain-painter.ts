@@ -37,6 +37,7 @@ export class TerrainPainter {
 	private modifierStack: ModifierStack;
 	layers: LayerSettings[] = [];
 	private layerTextures: any[] = []; // THREE.Texture[]
+	private layerNormalTextures: (any | null)[] = []; // THREE.Texture[] (layers 0-3)
 	private config: TerrainPainterConfig;
 
 	constructor(
@@ -80,10 +81,20 @@ export class TerrainPainter {
 		const layer = new LayerSettings(texture);
 		this.layers.push(layer);
 
-		// Load the diffuse texture
-		this.loadLayerTexture(this.layers.length - 1, texture.diffuseUrl);
+		const idx = this.layers.length - 1;
 
-		return this.layers.length - 1;
+		// Load the diffuse texture
+		this.loadLayerTexture(idx, texture.diffuseUrl);
+
+		// Load normal map (auto-derive from diffuse URL if not specified)
+		if (idx < 4) {
+			const normalUrl = texture.normalUrl || this.deriveNormalUrl(texture.diffuseUrl);
+			if (normalUrl) {
+				this.loadLayerNormalTexture(idx, normalUrl);
+			}
+		}
+
+		return idx;
 	}
 
 	/** Remove a layer by index */
@@ -91,6 +102,7 @@ export class TerrainPainter {
 		if (index >= 0 && index < this.layers.length) {
 			this.layers.splice(index, 1);
 			this.layerTextures.splice(index, 1);
+			if (index < 4) this.layerNormalTextures.splice(index, 1);
 		}
 	}
 
@@ -155,6 +167,21 @@ export class TerrainPainter {
 
 		// Set layer diffuse textures on terrain material
 		this.terrain.setLayerTextures(this.layerTextures);
+
+		// Set normal maps (layers 0-3)
+		this.terrain.setLayerNormalMaps(this.layerNormalTextures);
+
+		// Compute per-layer texture scales from tiling config
+		const terrainW = this.config.terrain.width || 100;
+		const scales: number[] = [];
+		const roughnessValues: number[] = [];
+		for (let i = 0; i < this.layers.length; i++) {
+			const tileSize = this.layers[i].texture.tiling || 4;
+			scales.push(terrainW / tileSize);
+			roughnessValues.push(this.layers[i].texture.roughness ?? 0.8);
+		}
+		this.terrain.setLayerTexScales(scales);
+		this.terrain.setLayerRoughness(roughnessValues);
 	}
 
 	/** Set splatmap resolution and repaint */
@@ -172,9 +199,47 @@ export class TerrainPainter {
 		loader.load(url, (texture: any) => {
 			texture.wrapS = T.RepeatWrapping;
 			texture.wrapT = T.RepeatWrapping;
+			texture.minFilter = T.LinearMipmapLinearFilter;
+			texture.anisotropy = 16;
 			texture.colorSpace = T.SRGBColorSpace;
 			this.layerTextures[index] = texture;
 		});
+	}
+
+	/** Load a layer's normal map texture from URL */
+	private loadLayerNormalTexture(index: number, url: string): void {
+		const T = this.THREE;
+		const loader = new T.TextureLoader();
+
+		loader.load(
+			url,
+			(texture: any) => {
+				texture.wrapS = T.RepeatWrapping;
+				texture.wrapT = T.RepeatWrapping;
+				texture.minFilter = T.LinearMipmapLinearFilter;
+				texture.anisotropy = 16;
+				// Normal maps must stay in linear color space
+				if (T.LinearSRGBColorSpace) {
+					texture.colorSpace = T.LinearSRGBColorSpace;
+				}
+				this.layerNormalTextures[index] = texture;
+			},
+			undefined,
+			() => {
+				// Normal map failed to load — terrain still works, just flat normals
+				this.layerNormalTextures[index] = null;
+			},
+		);
+	}
+
+	/** Auto-derive normal map URL from diffuse URL (e.g. "Ground037.jpg" → "Ground037_Normal.jpg") */
+	private deriveNormalUrl(diffuseUrl: string): string | null {
+		if (!diffuseUrl) return null;
+		const lastDot = diffuseUrl.lastIndexOf(".");
+		if (lastDot === -1) return null;
+		const base = diffuseUrl.substring(0, lastDot);
+		const ext = diffuseUrl.substring(lastDot);
+		return `${base}_Normal${ext}`;
 	}
 
 	/** Serialize full state for persistence */
@@ -197,6 +262,7 @@ export class TerrainPainter {
 		this.terrain.dispose();
 		this.modifierStack.dispose();
 		for (const tex of this.layerTextures) tex?.dispose();
+		for (const tex of this.layerNormalTextures) tex?.dispose();
 		if (this.terrain.mesh.parent) {
 			this.terrain.mesh.parent.remove(this.terrain.mesh);
 		}

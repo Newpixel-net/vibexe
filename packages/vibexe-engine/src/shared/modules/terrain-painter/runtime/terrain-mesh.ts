@@ -59,7 +59,7 @@ export class TerrainMesh {
 		// Rotate to XZ plane (Three.js PlaneGeometry is XY by default)
 		this.geometry.rotateX(-Math.PI / 2);
 
-		// Create splatmap terrain material
+		// Create PBR splatmap terrain material
 		this.material = new T.ShaderMaterial({
 			vertexShader: TERRAIN_MATERIAL_VERTEX,
 			fragmentShader: TERRAIN_MATERIAL_FRAGMENT,
@@ -70,6 +70,7 @@ export class TerrainMesh {
 				u_terrainDepth: { value: depth },
 				u_splatmap0: { value: null },
 				u_splatmap1: { value: null },
+				// Layer diffuse textures
 				u_layer0: { value: null },
 				u_layer1: { value: null },
 				u_layer2: { value: null },
@@ -78,11 +79,34 @@ export class TerrainMesh {
 				u_layer5: { value: null },
 				u_layer6: { value: null },
 				u_layer7: { value: null },
+				// Normal maps (layers 0-3)
+				u_normal0: { value: null },
+				u_normal1: { value: null },
+				u_normal2: { value: null },
+				u_normal3: { value: null },
+				u_hasNormal0: { value: 0.0 },
+				u_hasNormal1: { value: 0.0 },
+				u_hasNormal2: { value: 0.0 },
+				u_hasNormal3: { value: 0.0 },
+				// Per-layer texture scale
+				u_texScale0: { value: 10.0 },
+				u_texScale1: { value: 10.0 },
+				u_texScale2: { value: 10.0 },
+				u_texScale3: { value: 10.0 },
+				u_texScale4: { value: 10.0 },
+				u_texScale5: { value: 10.0 },
+				u_texScale6: { value: 10.0 },
+				u_texScale7: { value: 10.0 },
+				// Per-layer roughness
+				u_roughness0: { value: 0.85 },
+				u_roughness1: { value: 0.75 },
+				u_roughness2: { value: 0.92 },
+				u_roughness3: { value: 0.3 },
+				u_roughness4: { value: 0.8 },
+				u_roughness5: { value: 0.8 },
+				u_roughness6: { value: 0.8 },
+				u_roughness7: { value: 0.8 },
 				u_layerCount: { value: 0 },
-				u_textureTiling: { value: 10.0 },
-				u_lightDir: { value: new T.Vector3(0.5, 1, 0.3).normalize() },
-				u_lightColor: { value: new T.Color(1, 0.95, 0.9) },
-				u_ambientColor: { value: new T.Color(0.3, 0.35, 0.4) },
 			},
 			side: T.DoubleSide,
 		});
@@ -317,10 +341,37 @@ export class TerrainMesh {
 		this.material.uniforms.u_layerCount.value = textures.length;
 	}
 
+	/** Set layer normal map textures (layers 0-3) */
+	setLayerNormalMaps(normals: (unknown | null)[]): void {
+		for (let i = 0; i < Math.min(normals.length, 4); i++) {
+			this.material.uniforms[`u_normal${i}`].value = normals[i];
+			this.material.uniforms[`u_hasNormal${i}`].value = normals[i] ? 1.0 : 0.0;
+		}
+	}
+
+	/** Set per-layer texture tiling scales */
+	setLayerTexScales(scales: number[]): void {
+		for (let i = 0; i < Math.min(scales.length, 8); i++) {
+			this.material.uniforms[`u_texScale${i}`].value = scales[i];
+		}
+	}
+
+	/** Set per-layer roughness values */
+	setLayerRoughness(values: number[]): void {
+		for (let i = 0; i < Math.min(values.length, 8); i++) {
+			this.material.uniforms[`u_roughness${i}`].value = values[i];
+		}
+	}
+
 	dispose(): void {
 		this.geometry?.dispose();
 		this.material?.dispose();
 		this.heightmapTexture?.dispose();
 		this.normalMapTexture?.dispose();
+		// Dispose normal map textures from uniforms
+		for (let i = 0; i < 4; i++) {
+			const nt = this.material?.uniforms?.[`u_normal${i}`]?.value;
+			if (nt) nt.dispose();
+		}
 	}
 }

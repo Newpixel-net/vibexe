@@ -14,8 +14,10 @@ export interface LayerTexture {
 	name: string;
 	/** URL to the diffuse texture image */
 	diffuseUrl: string;
-	/** URL to the normal map (optional) */
+	/** URL to the normal map (optional — auto-derived from diffuseUrl if omitted) */
 	normalUrl?: string;
+	/** Per-layer roughness (0.0 = mirror, 1.0 = fully rough). Default 0.8 */
+	roughness?: number;
 	/** Texture tiling scale */
 	tiling: number;
 	/** Preview color for the UI swatch */
