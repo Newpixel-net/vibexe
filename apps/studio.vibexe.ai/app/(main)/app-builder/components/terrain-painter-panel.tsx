@@ -54,6 +54,11 @@ interface LayerData {
 	diffuseUrl: string;
 	tileSize: number; // world units per tile — matching Unity's TerrainLayer.tileSize
 	modifiers: ModifierData[];
+	// PBR material controls
+	opacity: number; // 0-100, default 100
+	roughness: number; // 0.0-1.0, default 0.8
+	normalIntensity: number; // 0.0-1.0, default 1.0
+	metallic: boolean; // default false
 }
 
 interface TerrainPainterSettings {
@@ -114,6 +119,10 @@ const DEFAULT_LAYERS: LayerData[] = [
 		previewColor: "#8b6914",
 		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Ground037.jpg",
 		tileSize: 4,
+		opacity: 100,
+		roughness: 0.85,
+		normalIntensity: 1.0,
+		metallic: false,
 		modifiers: [
 			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0, max: 0.25, minFalloff: 0.01, maxFalloff: 0.08 } },
 			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 25, minFalloff: 5, maxFalloff: 10 } },
@@ -125,6 +134,10 @@ const DEFAULT_LAYERS: LayerData[] = [
 		previewColor: "#6b8e23",
 		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Grass004.jpg",
 		tileSize: 4,
+		opacity: 100,
+		roughness: 0.75,
+		normalIntensity: 1.0,
+		metallic: false,
 		modifiers: [
 			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.05, max: 0.55, minFalloff: 0.03, maxFalloff: 0.08 } },
 			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 30, minFalloff: 3, maxFalloff: 8 } },
@@ -136,6 +149,10 @@ const DEFAULT_LAYERS: LayerData[] = [
 		previewColor: "#7a7a7a",
 		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Rock035.jpg",
 		tileSize: 128,
+		opacity: 100,
+		roughness: 0.92,
+		normalIntensity: 1.0,
+		metallic: false,
 		modifiers: [
 			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 20, maxAngle: 90, minFalloff: 8, maxFalloff: 3 } },
 		],
@@ -146,6 +163,10 @@ const DEFAULT_LAYERS: LayerData[] = [
 		previewColor: "#f0f0f0",
 		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Snow006.jpg",
 		tileSize: 2,
+		opacity: 100,
+		roughness: 0.3,
+		normalIntensity: 1.0,
+		metallic: false,
 		modifiers: [
 			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.55, max: 1.0, minFalloff: 0.08, maxFalloff: 0.02 } },
 			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 50, minFalloff: 5, maxFalloff: 10 } },
@@ -179,7 +200,7 @@ export function TerrainPainterPanel({
 	});
 
 	// Sculpt state
-	const [sculptBrushType, setSculptBrushType] = useState<"raise" | "lower" | "flatten" | "smooth">("raise");
+	const [sculptBrushType, setSculptBrushType] = useState<"raise" | "lower" | "flatten" | "smooth" | "paint" | "erase">("raise");
 	const [sculptBrushSize, setSculptBrushSize] = useState(10);
 	const [sculptBrushStrength, setSculptBrushStrength] = useState(0.3);
 	const [sculptBrushFalloff, setSculptBrushFalloff] = useState<"gaussian" | "linear" | "flat">("gaussian");
@@ -194,6 +215,7 @@ export function TerrainPainterPanel({
 				brushSize: sculptBrushSize,
 				brushStrength: sculptBrushStrength,
 				brushFalloff: sculptBrushFalloff,
+				paintLayerIndex: selectedLayer,
 			});
 			setSculptActive(true);
 		} else if (sculptActive) {
@@ -220,9 +242,10 @@ export function TerrainPainterPanel({
 				brushSize: sculptBrushSize,
 				brushStrength: sculptBrushStrength,
 				brushFalloff: sculptBrushFalloff,
+				paintLayerIndex: selectedLayer,
 			});
 		}
-	}, [sculptBrushType, sculptBrushSize, sculptBrushStrength, sculptBrushFalloff, sculptActive]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [sculptBrushType, sculptBrushSize, sculptBrushStrength, sculptBrushFalloff, sculptActive, selectedLayer]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Auto-repaint after terrain generation — listen for bridge callback
 	const layersRef = useRef(layers);
@@ -276,6 +299,10 @@ export function TerrainPainterPanel({
 				previewColor: "#808080",
 				diffuseUrl: "",
 				tileSize: 4,
+				opacity: 100,
+				roughness: 0.8,
+				normalIntensity: 1.0,
+				metallic: false,
 				modifiers: [],
 			};
 			setSelectedLayer(prev.length);
@@ -301,7 +328,7 @@ export function TerrainPainterPanel({
 	}, []);
 
 	const updateLayerField = useCallback(
-		(index: number, field: keyof LayerData, value: string) => {
+		(index: number, field: keyof LayerData, value: string | number | boolean) => {
 			setLayers((prev) =>
 				prev.map((l, i) => (i === index ? { ...l, [field]: value } : l)),
 			);
@@ -473,9 +500,9 @@ export function TerrainPainterPanel({
 				)}
 				{activeTab === "sculpt" && (
 					<div className="p-3 space-y-4 flex-1">
-						{/* Brush Type */}
+						{/* Sculpt Tools */}
 						<div>
-							<label className="text-[10px] text-white/50 uppercase tracking-wider mb-2 block">Brush Tool</label>
+							<label className="text-[10px] text-white/50 uppercase tracking-wider mb-2 block">Sculpt Tools</label>
 							<div className="grid grid-cols-2 gap-1.5">
 								{(["raise", "lower", "flatten", "smooth"] as const).map(type => (
 									<button
@@ -492,6 +519,56 @@ export function TerrainPainterPanel({
 								))}
 							</div>
 						</div>
+
+						{/* Paint Tools */}
+						<div>
+							<label className="text-[10px] text-white/50 uppercase tracking-wider mb-2 block">Paint Tools</label>
+							<div className="grid grid-cols-2 gap-1.5">
+								{(["paint", "erase"] as const).map(type => (
+									<button
+										key={type}
+										onClick={() => setSculptBrushType(type)}
+										className={`py-1.5 rounded text-[11px] font-medium transition-colors ${
+											sculptBrushType === type
+												? "bg-blue-600 text-white"
+												: "bg-white/5 text-white/60 hover:bg-white/10"
+										}`}
+									>
+										{type.charAt(0).toUpperCase() + type.slice(1)}
+									</button>
+								))}
+							</div>
+						</div>
+
+						{/* Paint Layer Selector — shown when paint/erase is active */}
+						{(sculptBrushType === "paint" || sculptBrushType === "erase") && (
+							<div>
+								<label className="text-[10px] text-white/50 uppercase tracking-wider mb-1 block">Paint Layer</label>
+								<div className="flex flex-col gap-1">
+									{layers.map((layer, i) => (
+										<button
+											key={i}
+											onClick={() => setSelectedLayer(i)}
+											className={`flex items-center gap-2 px-2 py-1.5 rounded text-[11px] transition-colors ${
+												selectedLayer === i
+													? "bg-blue-600/30 ring-1 ring-blue-400/50 text-white"
+													: "bg-white/5 text-white/60 hover:bg-white/10"
+											}`}
+										>
+											<div
+												className="w-4 h-4 rounded border border-white/20 overflow-hidden flex-shrink-0"
+												style={{ backgroundColor: layer.previewColor }}
+											>
+												{layer.diffuseUrl && (
+													<img src={layer.diffuseUrl} alt="" className="w-full h-full object-cover" />
+												)}
+											</div>
+											<span>{layer.name}</span>
+										</button>
+									))}
+								</div>
+							</div>
+						)}
 
 						{/* Brush Size */}
 						<div>
@@ -585,7 +662,7 @@ function LayersTab({
 	onToggleLayer: (i: number) => void;
 	onRemoveLayer: (i: number) => void;
 	onAddLayer: () => void;
-	onUpdateLayerField: (i: number, field: keyof LayerData, value: string) => void;
+	onUpdateLayerField: (i: number, field: keyof LayerData, value: string | number | boolean) => void;
 	showHeatmap: boolean;
 	onToggleHeatmap: () => void;
 	currentLayer: LayerData | undefined;
@@ -668,6 +745,59 @@ function LayersTab({
 						if (displayName) onUpdateLayerField(selectedLayer, "name", displayName);
 					}}
 				/>
+			)}
+
+			{/* PBR Material Controls for selected layer */}
+			{currentLayer && (
+				<div className="px-3 py-2 border-t border-white/5 flex flex-col gap-2">
+					<span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider">Material</span>
+					{/* Opacity */}
+					<div className="flex items-center gap-2">
+						<span className="text-[9px] text-white/40 w-16 flex-shrink-0">Opacity</span>
+						<input type="range" min={0} max={100} step={1}
+							value={currentLayer.opacity}
+							onChange={e => onUpdateLayerField(selectedLayer, "opacity", Number(e.target.value))}
+							className="flex-1 h-1 accent-green-400" />
+						<span className="text-[9px] text-white/40 w-7 text-right">{currentLayer.opacity}</span>
+					</div>
+					{/* Roughness */}
+					<div className="flex items-center gap-2">
+						<span className="text-[9px] text-white/40 w-16 flex-shrink-0">Roughness</span>
+						<input type="range" min={0} max={1} step={0.01}
+							value={currentLayer.roughness}
+							onChange={e => onUpdateLayerField(selectedLayer, "roughness", Number(e.target.value))}
+							className="flex-1 h-1 accent-green-400" />
+						<span className="text-[9px] text-white/40 w-7 text-right">{currentLayer.roughness.toFixed(2)}</span>
+					</div>
+					{/* Normal Intensity */}
+					<div className="flex items-center gap-2">
+						<span className="text-[9px] text-white/40 w-16 flex-shrink-0">Normal</span>
+						<input type="range" min={0} max={2} step={0.05}
+							value={currentLayer.normalIntensity}
+							onChange={e => onUpdateLayerField(selectedLayer, "normalIntensity", Number(e.target.value))}
+							className="flex-1 h-1 accent-green-400" />
+						<span className="text-[9px] text-white/40 w-7 text-right">{currentLayer.normalIntensity.toFixed(2)}</span>
+					</div>
+					{/* Metallic */}
+					<label className="flex items-center gap-2 text-[9px] text-white/50 cursor-pointer">
+						<input
+							type="checkbox"
+							checked={currentLayer.metallic}
+							onChange={e => onUpdateLayerField(selectedLayer, "metallic", e.target.checked)}
+							className="w-3 h-3 rounded accent-green-500"
+						/>
+						Metallic
+					</label>
+					{/* Tile Size */}
+					<div className="flex items-center gap-2">
+						<span className="text-[9px] text-white/40 w-16 flex-shrink-0">Tile Size</span>
+						<input type="range" min={0.5} max={32} step={0.5}
+							value={currentLayer.tileSize}
+							onChange={e => onUpdateLayerField(selectedLayer, "tileSize", Number(e.target.value))}
+							className="flex-1 h-1 accent-green-400" />
+						<span className="text-[9px] text-white/40 w-7 text-right">{currentLayer.tileSize}</span>
+					</div>
+				</div>
 			)}
 
 			{/* Layer controls */}

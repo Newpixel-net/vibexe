@@ -545,6 +545,9 @@ export function getVisualEditBridgeScript(): string {
   var _sculptMouseDown = false;
   var _sculptBrushMesh = null;
   var _sculptTargetHeight = 0;
+  // Weight painting state — per-vertex painted weights override modifier-computed weights
+  var _paintLayerIndex = 0; // which layer index to paint (0-3)
+  var _paintedWeights = null; // Float32Array[vertexCount * 4] or null if no painting done
 
   function applySculptBrush(wx, wz) {
     var terrain = editor.scene.getObjectByName("__terrain__");
@@ -580,45 +583,85 @@ export function getVisualEditBridgeScript(): string {
 
       var curY = pos.getY(vi);
 
-      switch (_sculptBrushType) {
-        case "raise":
-          pos.setY(vi, curY + alpha * str);
-          break;
-        case "lower":
-          pos.setY(vi, curY - alpha * str);
-          break;
-        case "flatten":
-          pos.setY(vi, curY + (_sculptTargetHeight - curY) * alpha * str);
-          break;
-        case "smooth": {
-          var gx = vi % td.segX;
-          var gz = Math.floor(vi / td.segX);
-          var sum = 0, cnt = 0;
-          for (var nz = -1; nz <= 1; nz++) {
-            for (var nx = -1; nx <= 1; nx++) {
-              var ngx = gx + nx, ngz = gz + nz;
-              if (ngx >= 0 && ngx < td.segX && ngz >= 0 && ngz < td.segZ) {
-                var ni = ngz * td.segX + ngx;
-                if (ni < pos.count) {
-                  sum += pos.getY(ni);
-                  cnt++;
+      // Weight painting mode — paint directly to layer weights
+      if (_sculptBrushType === "paint" || _sculptBrushType === "erase") {
+        // Initialize painted weights array on first paint
+        if (!_paintedWeights) {
+          _paintedWeights = new Float32Array(pos.count * 4);
+          // Pre-fill with -1 to indicate "not painted" (use modifier weights)
+          for (var pw = 0; pw < _paintedWeights.length; pw++) _paintedWeights[pw] = -1;
+        }
+        var baseIdx = vi * 4;
+        // If this vertex hasn't been painted yet, initialize from current shader weights
+        if (_paintedWeights[baseIdx] < 0) {
+          var wAttrs = [geo.attributes.w0, geo.attributes.w1, geo.attributes.w2, geo.attributes.w3];
+          for (var ci = 0; ci < 4; ci++) {
+            _paintedWeights[baseIdx + ci] = wAttrs[ci] ? wAttrs[ci].getX(vi) : (ci === 0 ? 1 : 0);
+          }
+        }
+        // Add to target layer, reduce others
+        var paintDelta = alpha * str * (_sculptBrushType === "erase" ? -1 : 1);
+        _paintedWeights[baseIdx + _paintLayerIndex] = Math.max(0, Math.min(1, _paintedWeights[baseIdx + _paintLayerIndex] + paintDelta));
+        // Renormalize so all 4 weights sum to 1
+        var wSum2 = 0;
+        for (var ni2 = 0; ni2 < 4; ni2++) wSum2 += Math.max(0, _paintedWeights[baseIdx + ni2]);
+        if (wSum2 > 0.001) {
+          for (var ni3 = 0; ni3 < 4; ni3++) _paintedWeights[baseIdx + ni3] = Math.max(0, _paintedWeights[baseIdx + ni3]) / wSum2;
+        }
+        // Write directly to shader weight attributes
+        var wAttrs2 = [geo.attributes.w0, geo.attributes.w1, geo.attributes.w2, geo.attributes.w3];
+        for (var wi = 0; wi < 4; wi++) {
+          if (wAttrs2[wi]) wAttrs2[wi].setX(vi, _paintedWeights[baseIdx + wi]);
+        }
+        modified = true;
+      } else {
+        // Regular sculpt modes (raise/lower/flatten/smooth) — modify height
+        switch (_sculptBrushType) {
+          case "raise":
+            pos.setY(vi, curY + alpha * str);
+            break;
+          case "lower":
+            pos.setY(vi, curY - alpha * str);
+            break;
+          case "flatten":
+            pos.setY(vi, curY + (_sculptTargetHeight - curY) * alpha * str);
+            break;
+          case "smooth": {
+            var gx = vi % td.segX;
+            var gz = Math.floor(vi / td.segX);
+            var sum = 0, cnt = 0;
+            for (var nz = -1; nz <= 1; nz++) {
+              for (var nx = -1; nx <= 1; nx++) {
+                var ngx = gx + nx, ngz = gz + nz;
+                if (ngx >= 0 && ngx < td.segX && ngz >= 0 && ngz < td.segZ) {
+                  var ni = ngz * td.segX + ngx;
+                  if (ni < pos.count) {
+                    sum += pos.getY(ni);
+                    cnt++;
+                  }
                 }
               }
             }
+            var avg = cnt > 0 ? sum / cnt : curY;
+            pos.setY(vi, curY + (avg - curY) * alpha * str);
+            break;
           }
-          var avg = cnt > 0 ? sum / cnt : curY;
-          pos.setY(vi, curY + (avg - curY) * alpha * str);
-          break;
         }
-      }
 
-      if (vi < td.heightData.length) {
-        td.heightData[vi] = pos.getY(vi);
+        if (vi < td.heightData.length) {
+          td.heightData[vi] = pos.getY(vi);
+        }
       }
       modified = true;
     }
 
     if (modified) {
+      // For paint mode, only update weight attributes (no geometry/physics changes)
+      if (_sculptBrushType === "paint" || _sculptBrushType === "erase") {
+        var wAttrs3 = [geo.attributes.w0, geo.attributes.w1, geo.attributes.w2, geo.attributes.w3];
+        for (var wa = 0; wa < 4; wa++) { if (wAttrs3[wa]) wAttrs3[wa].needsUpdate = true; }
+        return; // Skip height/normal/physics updates
+      }
       pos.needsUpdate = true;
       geo.computeVertexNormals();
       // Recompute minY/maxY so height normalization stays correct after sculpting
@@ -3395,15 +3438,32 @@ export function getVisualEditBridgeScript(): string {
               uRoughness0: { value: 0.85 },
               uRoughness1: { value: 0.75 },
               uRoughness2: { value: 0.92 },
-              uRoughness3: { value: 0.3 }
+              uRoughness3: { value: 0.3 },
+              uNormalIntensity0: { value: 1.0 },
+              uNormalIntensity1: { value: 1.0 },
+              uNormalIntensity2: { value: 1.0 },
+              uNormalIntensity3: { value: 1.0 },
+              uMetallic0: { value: 0.0 },
+              uMetallic1: { value: 0.0 },
+              uMetallic2: { value: 0.0 },
+              uMetallic3: { value: 0.0 },
+              uOpacity0: { value: 1.0 },
+              uOpacity1: { value: 1.0 },
+              uOpacity2: { value: 1.0 },
+              uOpacity3: { value: 1.0 }
             };
 
-            // Compute per-layer texture scales from tileSize (matching Unity's TerrainLayer.tileSize)
+            // Compute per-layer texture scales and read PBR params from layer data
             var _rpTerrainW = _rpTerrain.userData.__terrainWidth || 200;
             for (var tsi = 0; tsi < _rpNumLayers; tsi++) {
               var tileSize = _rpEnabledLayers[tsi].tileSize || 4;
               var scale = _rpTerrainW / tileSize;
               _rpUniforms["uTexScale" + tsi].value = scale;
+              if (_rpEnabledLayers[tsi].roughness != null) _rpUniforms["uRoughness" + tsi].value = _rpEnabledLayers[tsi].roughness;
+              if (_rpEnabledLayers[tsi].normalIntensity != null) _rpUniforms["uNormalIntensity" + tsi].value = _rpEnabledLayers[tsi].normalIntensity;
+              if (_rpEnabledLayers[tsi].metallic) _rpUniforms["uMetallic" + tsi].value = 1.0;
+              var layerOpacity = _rpEnabledLayers[tsi].opacity != null ? _rpEnabledLayers[tsi].opacity / 100 : 1.0;
+              _rpUniforms["uOpacity" + tsi].value = layerOpacity;
             }
 
             var _rpVertShader = [
@@ -3441,6 +3501,9 @@ export function getVisualEditBridgeScript(): string {
               "uniform float uHasNormal0, uHasNormal1, uHasNormal2, uHasNormal3;",
               "uniform float uTexScale0, uTexScale1, uTexScale2, uTexScale3;",
               "uniform float uRoughness0, uRoughness1, uRoughness2, uRoughness3;",
+              "uniform float uNormalIntensity0, uNormalIntensity1, uNormalIntensity2, uNormalIntensity3;",
+              "uniform float uMetallic0, uMetallic1, uMetallic2, uMetallic3;",
+              "uniform float uOpacity0, uOpacity1, uOpacity2, uOpacity3;",
               "",
               "varying vec2 vUv;",
               "varying vec3 vNormal;",
@@ -3551,12 +3614,12 @@ export function getVisualEditBridgeScript(): string {
               "  float bwSum = bw0 + bw1 + bw2 + bw3 + 0.001;",
               "  vec3 col = (c0*bw0 + c1*bw1 + c2*bw2 + c3*bw3) / bwSum;",
               "",
-              "  // Blend normal maps by layer weights",
+              "  // Blend normal maps by layer weights * normal intensity",
               "  vec3 blendedNormalTS = vec3(0.0, 0.0, 0.0);",
-              "  if (uNumLayers > 0) blendedNormalTS += sampleNormalMap(uNormal0, baseUv, uTexScale0, uHasNormal0) * vW0;",
-              "  if (uNumLayers > 1) blendedNormalTS += sampleNormalMap(uNormal1, baseUv, uTexScale1, uHasNormal1) * vW1;",
-              "  if (uNumLayers > 2) blendedNormalTS += sampleNormalMap(uNormal2, baseUv, uTexScale2, uHasNormal2) * vW2;",
-              "  if (uNumLayers > 3) blendedNormalTS += sampleNormalMap(uNormal3, baseUv, uTexScale3, uHasNormal3) * vW3;",
+              "  if (uNumLayers > 0) blendedNormalTS += sampleNormalMap(uNormal0, baseUv, uTexScale0, uHasNormal0) * vW0 * uNormalIntensity0;",
+              "  if (uNumLayers > 1) blendedNormalTS += sampleNormalMap(uNormal1, baseUv, uTexScale1, uHasNormal1) * vW1 * uNormalIntensity1;",
+              "  if (uNumLayers > 2) blendedNormalTS += sampleNormalMap(uNormal2, baseUv, uTexScale2, uHasNormal2) * vW2 * uNormalIntensity2;",
+              "  if (uNumLayers > 3) blendedNormalTS += sampleNormalMap(uNormal3, baseUv, uTexScale3, uHasNormal3) * vW3 * uNormalIntensity3;",
               "  blendedNormalTS = normalize(blendedNormalTS);",
               "",
               "  // Perturb surface normal with blended normal map",
@@ -3565,9 +3628,10 @@ export function getVisualEditBridgeScript(): string {
               "  // Per-layer roughness blend",
               "  float roughness = uRoughness0 * vW0 + uRoughness1 * vW1 + uRoughness2 * vW2 + uRoughness3 * vW3;",
               "  roughness = clamp(roughness, 0.05, 1.0);",
+              "  // Apply per-layer opacity to weights before final blend",
               "  vec3 albedo = col;",
-              "  float metallic = 0.0;",
-              "  vec3 F0 = vec3(0.04);",
+              "  float metallic = uMetallic0 * vW0 + uMetallic1 * vW1 + uMetallic2 * vW2 + uMetallic3 * vW3;",
+              "  vec3 F0 = mix(vec3(0.04), albedo, metallic);",
               "",
               "  // === PBR Cook-Torrance Lighting ===",
               "  vec3 totalLight = vec3(0.0);",
@@ -3771,6 +3835,7 @@ export function getVisualEditBridgeScript(): string {
         _sculptBrushSize = d.brushSize || 10;
         _sculptBrushStrength = d.brushStrength || 0.3;
         _sculptBrushFalloff = d.brushFalloff || "gaussian";
+        if (d.paintLayerIndex != null) _paintLayerIndex = d.paintLayerIndex;
 
         // Deselect any currently selected object to avoid gizmo interference
         deselectObject();
@@ -3843,13 +3908,11 @@ export function getVisualEditBridgeScript(): string {
         };
 
         // Block ALL pointerdown during sculpt to prevent selection handler from firing
+        // NOTE: Do NOT call preventDefault() on pointerdown — it suppresses mousedown per Pointer Events spec
         window.__sculptPointerDown = function(ev) {
           if (!_sculptActive || ev.button !== 0) return;
-          // Always block propagation when sculpt is active — clicking void areas
-          // must NOT trigger object selection via handleClick()
           ev.stopPropagation();
           ev.stopImmediatePropagation();
-          ev.preventDefault();
         };
 
         window.__sculptMouseUp = function() { _sculptMouseDown = false; };
@@ -3896,6 +3959,7 @@ export function getVisualEditBridgeScript(): string {
         }
         if (d.brushStrength !== undefined) _sculptBrushStrength = d.brushStrength;
         if (d.brushFalloff !== undefined) _sculptBrushFalloff = d.brushFalloff;
+        if (d.paintLayerIndex != null) _paintLayerIndex = d.paintLayerIndex;
         break;
       }
 
