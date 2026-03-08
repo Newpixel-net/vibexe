@@ -869,6 +869,8 @@ export function getVisualEditBridgeScript(): string {
       var stale = [];
       for (var i = 0; i < editor.scene.children.length; i++) {
         var c = editor.scene.children[i];
+        // Skip TC helper — it's reused across selections, not disposable here
+        if (c.name === "__editor_transform_controls__") continue;
         if (c.name && c.name.indexOf("__editor_") === 0) stale.push(c);
       }
       for (var j = 0; j < stale.length; j++) {
@@ -876,6 +878,8 @@ export function getVisualEditBridgeScript(): string {
         editor.scene.remove(stale[j]);
         if (stale[j].dispose) stale[j].dispose();
       }
+      // Detach reusable TC (keep in scene, just detach from object)
+      if (transformControls) transformControls.detach();
     }
     selectedObj = null;
     destroyCameraHelper();
@@ -929,10 +933,53 @@ export function getVisualEditBridgeScript(): string {
     if (THREE.TransformControls) {
       // Final safety: never attach to scene root
       if (obj === editor.scene || obj.type === "Scene") { showDebug("ABORT: refusing to attach TC to scene"); return; }
-      console.log("[GameEditorBridge] TransformControls available, creating gizmo for: " + (obj.name || obj.type));
-      transformControls = new THREE.TransformControls(editor.camera, editor.renderer.domElement);
-      transformControls.name = "__editor_transform_controls__";
-      // Set snap properties so TC snaps DURING drag (not just post-hoc)
+      // Reuse single TransformControls instance — create only on first selection
+      if (!transformControls) {
+        console.log("[GameEditorBridge] Creating reusable TransformControls");
+        transformControls = new THREE.TransformControls(editor.camera, editor.renderer.domElement);
+        transformControls.name = "__editor_transform_controls__";
+        transformControls.addEventListener("dragging-changed", function(e) {
+          if (editor.orbitControls) editor.orbitControls.enabled = !e.value;
+          if (e.value && selectedObj) {
+            transformControls.__undoPos = { x: selectedObj.position.x, y: selectedObj.position.y, z: selectedObj.position.z };
+            transformControls.__undoRot = { x: selectedObj.rotation.x, y: selectedObj.rotation.y, z: selectedObj.rotation.z };
+            transformControls.__undoScl = { x: selectedObj.scale.x, y: selectedObj.scale.y, z: selectedObj.scale.z };
+          } else if (!e.value && selectedObj && transformControls.__undoPos) {
+            pushUndo({ type: "transform", uuid: selectedObj.uuid,
+              oldPos: transformControls.__undoPos, oldRot: transformControls.__undoRot, oldScl: transformControls.__undoScl,
+              newPos: { x: selectedObj.position.x, y: selectedObj.position.y, z: selectedObj.position.z },
+              newRot: { x: selectedObj.rotation.x, y: selectedObj.rotation.y, z: selectedObj.rotation.z },
+              newScl: { x: selectedObj.scale.x, y: selectedObj.scale.y, z: selectedObj.scale.z }
+            });
+            if (gridSnap) {
+              selectedObj.position.x = snapToGrid(selectedObj.position.x);
+              selectedObj.position.y = snapToGrid(selectedObj.position.y);
+              selectedObj.position.z = snapToGrid(selectedObj.position.z);
+              if (transformControls.getMode && transformControls.getMode() === "rotate") {
+                selectedObj.rotation.x = snapRotation(selectedObj.rotation.x);
+                selectedObj.rotation.y = snapRotation(selectedObj.rotation.y);
+                selectedObj.rotation.z = snapRotation(selectedObj.rotation.z);
+              }
+              sendSelectedObject(selectedObj);
+              if (boxHelper) boxHelper.update();
+            }
+            persistTransform(selectedObj);
+          }
+        });
+        transformControls.addEventListener("objectChange", function() {
+          if (selectedObj) {
+            sendSelectedObject(selectedObj);
+            if (boxHelper) boxHelper.update();
+            // Live-sync player position to Game Settings panel
+            sendPlayerPositionUpdate(selectedObj);
+          }
+        });
+        var tcHelper = transformControls.getHelper ? transformControls.getHelper() : transformControls;
+        tcHelper.name = "__editor_transform_controls__";
+        editor.scene.add(tcHelper);
+      }
+      console.log("[GameEditorBridge] Attaching TC to: " + (obj.name || obj.type));
+      // Update snap properties
       if (gridSnap) {
         transformControls.translationSnap = gridSnapIncrement;
         transformControls.rotationSnap = rotationSnapDeg * Math.PI / 180;
@@ -943,43 +990,6 @@ export function getVisualEditBridgeScript(): string {
         transformControls.scaleSnap = null;
       }
       if (!panToolActive) transformControls.attach(obj);
-      transformControls.addEventListener("dragging-changed", function(e) {
-        if (editor.orbitControls) editor.orbitControls.enabled = !e.value;
-        if (e.value && selectedObj) {
-          transformControls.__undoPos = { x: selectedObj.position.x, y: selectedObj.position.y, z: selectedObj.position.z };
-          transformControls.__undoRot = { x: selectedObj.rotation.x, y: selectedObj.rotation.y, z: selectedObj.rotation.z };
-          transformControls.__undoScl = { x: selectedObj.scale.x, y: selectedObj.scale.y, z: selectedObj.scale.z };
-        } else if (!e.value && selectedObj && transformControls.__undoPos) {
-          pushUndo({ type: "transform", uuid: selectedObj.uuid,
-            oldPos: transformControls.__undoPos, oldRot: transformControls.__undoRot, oldScl: transformControls.__undoScl,
-            newPos: { x: selectedObj.position.x, y: selectedObj.position.y, z: selectedObj.position.z },
-            newRot: { x: selectedObj.rotation.x, y: selectedObj.rotation.y, z: selectedObj.rotation.z },
-            newScl: { x: selectedObj.scale.x, y: selectedObj.scale.y, z: selectedObj.scale.z }
-          });
-          if (gridSnap) {
-            selectedObj.position.x = snapToGrid(selectedObj.position.x);
-            selectedObj.position.y = snapToGrid(selectedObj.position.y);
-            selectedObj.position.z = snapToGrid(selectedObj.position.z);
-            if (transformControls.getMode && transformControls.getMode() === "rotate") {
-              selectedObj.rotation.x = snapRotation(selectedObj.rotation.x);
-              selectedObj.rotation.y = snapRotation(selectedObj.rotation.y);
-              selectedObj.rotation.z = snapRotation(selectedObj.rotation.z);
-            }
-            sendSelectedObject(selectedObj);
-            if (boxHelper) boxHelper.update();
-          }
-          persistTransform(selectedObj);
-        }
-      });
-      transformControls.addEventListener("objectChange", function() {
-        if (selectedObj) {
-          sendSelectedObject(selectedObj);
-          if (boxHelper) boxHelper.update();
-          // Live-sync player position to Game Settings panel
-          sendPlayerPositionUpdate(selectedObj);
-        }
-      });
-      editor.scene.add(transformControls.getHelper ? transformControls.getHelper() : transformControls);
     } else {
       console.warn("[GameEditorBridge] TransformControls NOT available — gizmo disabled");
     }
@@ -1952,6 +1962,8 @@ export function getVisualEditBridgeScript(): string {
         // (debugEl check removed — no visual overlay)
         var cs = window.getComputedStyle(hel);
         if (cs.position === "absolute" || cs.position === "fixed") {
+          hel.dataset.editorOrigDisplay = hel.style.display || "";
+          hel.style.display = "none";
           hel.style.pointerEvents = "none";
           hel.setAttribute("data-editor-hidden", "1");
         }
@@ -1978,6 +1990,14 @@ export function getVisualEditBridgeScript(): string {
     // Clean up animation progress interval
     if (__animProgressInterval) { clearInterval(__animProgressInterval); __animProgressInterval = null; }
     deselectObject();
+    // Dispose reusable TransformControls on bridge deactivation
+    if (transformControls && editor) {
+      transformControls.detach();
+      var tcH = transformControls.getHelper ? transformControls.getHelper() : transformControls;
+      editor.scene.remove(tcH);
+      if (transformControls.dispose) transformControls.dispose();
+      transformControls = null;
+    }
     if (isDragging) endXZDrag();
     if (gridHelper && editor) { editor.scene.remove(gridHelper); if (gridHelper.dispose) gridHelper.dispose(); gridHelper = null; }
     // Clean up camera preview + frustum
@@ -2005,10 +2025,12 @@ export function getVisualEditBridgeScript(): string {
     gizmoSpace = "world";
     undoStack = [];
     redoStack = [];
-    // Restore game HUD pointer events
+    // Restore game HUD visibility and pointer events
     var hiddenEls = document.querySelectorAll("[data-editor-hidden]");
     for (var ri = 0; ri < hiddenEls.length; ri++) {
       hiddenEls[ri].style.pointerEvents = "";
+      hiddenEls[ri].style.display = hiddenEls[ri].dataset.editorOrigDisplay || "";
+      delete hiddenEls[ri].dataset.editorOrigDisplay;
       hiddenEls[ri].removeAttribute("data-editor-hidden");
     }
     if (editor) {
@@ -3643,21 +3665,14 @@ export function getVisualEditBridgeScript(): string {
           }
         };
 
-        // Block pointerdown to prevent selection handler from firing during sculpt
+        // Block ALL pointerdown during sculpt to prevent selection handler from firing
         window.__sculptPointerDown = function(ev) {
           if (!_sculptActive || ev.button !== 0) return;
-          var terrain = editor.scene.getObjectByName("__terrain__");
-          if (!terrain) return;
-          var rect = editor.renderer.domElement.getBoundingClientRect();
-          _sculptMV.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
-          _sculptMV.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
-          _sculptRC.setFromCamera(_sculptMV, editor.camera);
-          var hits = _sculptRC.intersectObject(terrain);
-          if (hits.length > 0) {
-            ev.stopPropagation();
-            ev.stopImmediatePropagation();
-            ev.preventDefault();
-          }
+          // Always block propagation when sculpt is active — clicking void areas
+          // must NOT trigger object selection via handleClick()
+          ev.stopPropagation();
+          ev.stopImmediatePropagation();
+          ev.preventDefault();
         };
 
         window.__sculptMouseUp = function() { _sculptMouseDown = false; };
