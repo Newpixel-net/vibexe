@@ -3577,7 +3577,10 @@ export function getVisualEditBridgeScript(): string {
               uOpacity0: { value: 1.0 },
               uOpacity1: { value: 1.0 },
               uOpacity2: { value: 1.0 },
-              uOpacity3: { value: 1.0 }
+              uOpacity3: { value: 1.0 },
+              uFogColor: { value: new _rpTHREE.Vector3(0.62, 0.68, 0.80) },
+              uFogFar: { value: 300.0 },
+              uFogMaxAmt: { value: 0.5 }
             };
 
             // Compute per-layer texture scales and read PBR params from layer data
@@ -3631,6 +3634,8 @@ export function getVisualEditBridgeScript(): string {
               "uniform float uNormalIntensity0, uNormalIntensity1, uNormalIntensity2, uNormalIntensity3;",
               "uniform float uMetallic0, uMetallic1, uMetallic2, uMetallic3;",
               "uniform float uOpacity0, uOpacity1, uOpacity2, uOpacity3;",
+              "uniform vec3 uFogColor;",
+              "uniform float uFogFar, uFogMaxAmt;",
               "",
               "varying vec2 vUv;",
               "varying vec3 vNormal;",
@@ -3797,11 +3802,10 @@ export function getVisualEditBridgeScript(): string {
               "  // Minimum brightness floor to prevent overly dark areas",
               "  totalLight = max(totalLight, albedo * 0.08);",
               "",
-              "  // Atmospheric mountain haze",
-              "  vec3 fogColor = vec3(0.62, 0.68, 0.80);",
-              "  float fogDist = length(vWorldPos - cameraPosition) / 300.0;",
-              "  float fogAmt = clamp(fogDist * fogDist, 0.0, 0.5);",
-              "  totalLight = mix(totalLight, fogColor, fogAmt);",
+              "  // Atmospheric haze (reads from uniforms, settable from scene.fog)",
+              "  float fogDist = length(vWorldPos - cameraPosition) / uFogFar;",
+              "  float fogAmt = clamp(fogDist * fogDist, 0.0, uFogMaxAmt);",
+              "  totalLight = mix(totalLight, uFogColor, fogAmt);",
               "",
               "  gl_FragColor = vec4(totalLight, 1.0);",
               "}"
@@ -3819,6 +3823,15 @@ export function getVisualEditBridgeScript(): string {
             });
 
             _rpTerrain.material = _rpShaderMat;
+            // Sync fog uniforms from scene.fog if present
+            var _sc2 = window.__vibexe_scene__;
+            if (_sc2 && _sc2.fog) {
+              var _f = _sc2.fog;
+              if (_f.color) _rpUniforms.uFogColor.value.set(_f.color.r, _f.color.g, _f.color.b);
+              if (_f.far) _rpUniforms.uFogFar.value = _f.far;
+            }
+            // Store uniforms ref on terrain for dynamic fog updates
+            _rpTerrain.userData.__fogUniforms = _rpUniforms;
             console.log("[TerrainPainter] PBR ShaderMaterial applied with", _rpNumLayers, "layers, normal maps:", !!_rpNormalTextures[0]);
             window.parent.postMessage({ type: "terrain-painter-repainted" }, "*");
           }

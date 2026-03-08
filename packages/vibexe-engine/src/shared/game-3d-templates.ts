@@ -2149,7 +2149,13 @@ export function createCharacterController3D(
     if (_getTerrainH) {
       const terrainY = _getTerrainH(physicsBody.position.x, physicsBody.position.z);
       if (terrainY != null) {
-        const bodyHalfH = (character.mesh.userData?.__characterBounds?.height ?? 1.5) / 2;
+        // Use physics body shape half-height if available, fall back to mesh bounds
+        let bodyHalfH = 0.75;
+        if (physicsBody.shapes?.[0]?.halfExtents?.y) {
+          bodyHalfH = physicsBody.shapes[0].halfExtents.y;
+        } else if (character.mesh.userData?.__characterBounds?.height) {
+          bodyHalfH = character.mesh.userData.__characterBounds.height / 2;
+        }
         if (physicsBody.position.y < terrainY + bodyHalfH) {
           physicsBody.position.y = terrainY + bodyHalfH;
           if (physicsBody.velocity.y < 0) physicsBody.velocity.y = 0;
@@ -3568,12 +3574,17 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         const __shadowSize = __shadowSizes[__gs.environment?.shadowQuality || 'medium'] || 1024;
         _defSun.shadow.mapSize.width = __shadowSize;
         _defSun.shadow.mapSize.height = __shadowSize;
+        // Scale shadow frustum to terrain size if terrain module is enabled
+        const __hasTerrain = !!__gs.terrain?.enabled;
+        const __terrainHalf = __hasTerrain ? Math.max((__gs.terrain?.width || 200) / 2, (__gs.terrain?.depth || 200) / 2) : 20;
+        const __shadowExtent = Math.min(__terrainHalf, 100); // cap at 100 to keep shadow quality
         _defSun.shadow.camera.near = 0.5;
-        _defSun.shadow.camera.far = 50;
-        _defSun.shadow.camera.left = -20;
-        _defSun.shadow.camera.right = 20;
-        _defSun.shadow.camera.top = 20;
-        _defSun.shadow.camera.bottom = -20;
+        _defSun.shadow.camera.far = __hasTerrain ? 200 : 50;
+        _defSun.shadow.camera.left = -__shadowExtent;
+        _defSun.shadow.camera.right = __shadowExtent;
+        _defSun.shadow.camera.top = __shadowExtent;
+        _defSun.shadow.camera.bottom = -__shadowExtent;
+        if (__hasTerrain) _defSun.position.set(40, 80, 40);
         _defSun.shadow.bias = -0.001;
         scene.add(_defSun);
 

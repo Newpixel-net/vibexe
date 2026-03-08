@@ -519,7 +519,7 @@ if (typeof window !== 'undefined') {
       if (!s || !s.children) { requestAnimationFrame(_apply); return; }
       if (s !== _lastScene) { _cache={}; _bodies={}; _logged={}; _delDone=false; _lastScene=s; }
       var _inEditor = !!window.__vibexe_editor__;
-      if (!_delDone && _ov.__deleted && _ov.__deleted.length) {
+      if (_ov.__deleted && _ov.__deleted.length) {
         var _rm = [];
         s.traverse(function(o) { if (o.name && _ov.__deleted.indexOf(o.name) !== -1) _rm.push(o); });
 
@@ -532,8 +532,7 @@ if (typeof window !== 'undefined') {
             }
           }
         });
-        if (_rm.length) console.log("[SCENE_EDITOR] Deleted " + _rm.length + " objects");
-        if (_rm.length >= _ov.__deleted.length) _delDone = true;
+        if (_rm.length && !_delDone) { console.log("[SCENE_EDITOR] Deleted " + _rm.length + " objects"); _delDone = true; }
       }
       var _gsPlayer = window.__VIBEXE_GAME_SETTINGS__ && window.__VIBEXE_GAME_SETTINGS__.player;
       var keys = Object.keys(_ov);
@@ -554,7 +553,29 @@ if (typeof window !== 'undefined') {
         }
         if (!_logged[name]) {
           if (o.r) t.rotation.set(o.r[0],o.r[1],o.r[2]);
-          if (o.s) t.scale.set(o.s[0],o.s[1],o.s[2]);
+          if (o.s) {
+            t.scale.set(o.s[0],o.s[1],o.s[2]);
+            // Update physics shape to match new scale
+            var _spb = _findBody(t, name);
+            if (_spb && _spb.shapes && _spb.shapes[0] && typeof CANNON !== 'undefined') {
+              var _os = _spb.shapes[0];
+              if (_os.halfExtents && _os.__origHE) {
+                _spb.removeShape(_os);
+                var _nhe = new CANNON.Vec3(_os.__origHE.x*Math.abs(o.s[0]), _os.__origHE.y*Math.abs(o.s[1]), _os.__origHE.z*Math.abs(o.s[2]));
+                var _ns2 = new CANNON.Box(_nhe);
+                _ns2.__origHE = _os.__origHE;
+                _spb.addShape(_ns2);
+              } else if (_os.halfExtents) {
+                // First scale — save original half-extents
+                _os.__origHE = { x: _os.halfExtents.x, y: _os.halfExtents.y, z: _os.halfExtents.z };
+                _spb.removeShape(_os);
+                var _nhe2 = new CANNON.Vec3(_os.__origHE.x*Math.abs(o.s[0]), _os.__origHE.y*Math.abs(o.s[1]), _os.__origHE.z*Math.abs(o.s[2]));
+                var _ns3 = new CANNON.Box(_nhe2);
+                _ns3.__origHE = _os.__origHE;
+                _spb.addShape(_ns3);
+              }
+            }
+          }
           if (o.t && o.t[0] && typeof THREE !== 'undefined') {
             (function(_obj, _ti) {
               var _tu = _ti[0], _tx = _ti[1]||1, _ty = _ti[2]||1, _pbr = !!_ti[3];
