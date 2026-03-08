@@ -169,7 +169,7 @@ export function TerrainPainterPanel({
 		terrainWidth: 200,
 		terrainDepth: 200,
 		terrainHeightScale: 50,
-		terrainSegments: 128,
+		terrainSegments: 256,
 	});
 
 	// ===== Bridge messages =====

@@ -2621,7 +2621,7 @@ export function getVisualEditBridgeScript(): string {
         var _tpW = _tpS.terrainWidth || 200;
         var _tpD = _tpS.terrainDepth || 200;
         var _tpH = _tpS.terrainHeightScale || 50;
-        var _tpSeg = _tpS.terrainSegments || 128;
+        var _tpSeg = _tpS.terrainSegments || 256;
 
         console.log("[TerrainPainter] Generating terrain:", _tpW, "x", _tpD, "h=", _tpH, "seg=", _tpSeg);
 
@@ -3027,29 +3027,28 @@ export function getVisualEditBridgeScript(): string {
               "    vec3 c3 = mix(uColor3, texture2D(uTex3, vUv * uTexScale3).rgb, uHasTex3);",
               "    col += c3 * vW3;",
               "  }",
-              "  vec3 sunDir = normalize(vec3(0.7, 0.45, 0.35));",
-              "  vec3 fillDir = normalize(vec3(-0.4, 0.3, -0.5));",
-              "  vec3 backDir = normalize(vec3(-0.2, 0.8, -0.3));",
-              "  float sunDiff = max(0.0, dot(vNormal, sunDir));",
-              "  float fillDiff = max(0.0, dot(vNormal, fillDir));",
-              "  float backDiff = max(0.0, dot(vNormal, backDir));",
+              "  vec3 N = normalize(vNormal);",
+              "  vec3 sunDir = normalize(vec3(0.6, 0.7, 0.4));",
+              "  vec3 fillDir = normalize(vec3(-0.5, 0.3, -0.6));",
+              "  vec3 backDir = normalize(vec3(-0.3, 0.5, -0.2));",
+              "  float sunDiff = max(0.0, dot(N, sunDir));",
+              "  float fillDiff = max(0.0, dot(N, fillDir));",
+              "  float backDiff = max(0.0, dot(N, backDir));",
               "  vec3 viewDir = normalize(cameraPosition - vWorldPos);",
               "  vec3 halfVec = normalize(sunDir + viewDir);",
-              "  float spec = pow(max(0.0, dot(vNormal, halfVec)), 64.0);",
+              "  float spec = pow(max(0.0, dot(N, halfVec)), 48.0);",
               "  float snowMask = vW3;",
               "  float rockMask = vW2;",
-              "  vec3 ambient = vec3(0.10, 0.12, 0.16);",
-              "  vec3 sunLight = vec3(1.0, 0.92, 0.78) * sunDiff * 0.9;",
-              "  vec3 fillLight = vec3(0.2, 0.25, 0.4) * fillDiff * 0.35;",
-              "  vec3 backLight = vec3(0.15, 0.18, 0.25) * backDiff * 0.2;",
+              "  vec3 ambient = vec3(0.35, 0.38, 0.45);",
+              "  vec3 sunLight = vec3(1.0, 0.95, 0.85) * sunDiff * 1.2;",
+              "  vec3 fillLight = vec3(0.3, 0.35, 0.5) * fillDiff * 0.5;",
+              "  vec3 backLight = vec3(0.2, 0.22, 0.3) * backDiff * 0.3;",
               "  vec3 lighting = ambient + sunLight + fillLight + backLight;",
-              "  vec3 specColor = vec3(1.0, 0.97, 0.9) * spec * (snowMask * 0.4 + rockMask * 0.08 + 0.02);",
+              "  vec3 specColor = vec3(1.0, 0.97, 0.9) * spec * (snowMask * 0.5 + rockMask * 0.1 + 0.03);",
               "  vec3 finalColor = col * lighting + specColor;",
-              "  vec3 fogColor = vec3(0.50, 0.55, 0.68);",
-              "  float fogAmt = (1.0 - smoothstep(0.0, 0.4, vHeight)) * 0.18;",
+              "  vec3 fogColor = vec3(0.55, 0.60, 0.72);",
+              "  float fogAmt = (1.0 - smoothstep(0.0, 0.35, vHeight)) * 0.15;",
               "  finalColor = mix(finalColor, fogColor, fogAmt);",
-              "  finalColor = vec3(1.0) - exp(-finalColor * 1.8);",
-              "  finalColor = pow(finalColor, vec3(1.0 / 2.2));",
               "  gl_FragColor = vec4(finalColor, 1.0);",
               "}"
             ].join("\\n");
