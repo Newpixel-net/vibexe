@@ -633,7 +633,91 @@ if (typeof window !== 'undefined') {
       }
       _frame++;
       if (_frame < _MAX) requestAnimationFrame(_apply);
-      else console.log("[SCENE_EDITOR] Override done after "+_frame+" frames, "+Object.keys(_bodies).length+" bodies");
+      else {
+        console.log("[SCENE_EDITOR] Override done after "+_frame+" frames, "+Object.keys(_bodies).length+" bodies");
+        _autoPhysics(s);
+      }
+    }
+    // Auto-physics: scan scene meshes and create CANNON bodies for objects that need them
+    var _autoPhysDone = false;
+    function _autoPhysics(scene) {
+      if (_autoPhysDone) return;
+      var w = window.__vibexe_world__;
+      if (!w) { console.log("[AutoPhysics] No physics world found, skipping"); return; }
+      var CANNON = window.CANNON;
+      if (!CANNON) { console.log("[AutoPhysics] CANNON not loaded, skipping"); return; }
+      _autoPhysDone = true;
+      var created = 0, skipped = 0;
+      // Types that should be solid (static physics bodies)
+      var solidTypes = { platform: true, barrier: true };
+      // Types that are trigger-only (no solid body, collected via distance)
+      var triggerTypes = { collectible: true };
+      // Types that are visual-only (no physics)
+      var decorTypes = { decoration: true };
+      // Types that already have special handling
+      var playerTypes = { player: true, AnimatedCharacter: true };
+      scene.traverse(function(obj) {
+        if (!obj.isMesh && !obj.isGroup) return;
+        if (!obj.userData) return;
+        // Skip if already has a physics body
+        if (obj.userData.__physicsBody) { skipped++; return; }
+        // Also check if a body was found in the _bodies cache
+        if (obj.name && _bodies[obj.name]) { skipped++; return; }
+        // Check by vibexeType
+        var vType = obj.userData.vibexeType;
+        // Also infer type from name prefix if vibexeType not set
+        if (!vType && obj.name) {
+          if (obj.name.indexOf("Platform_") === 0 || obj.name.indexOf("platform") === 0) vType = "platform";
+          else if (obj.name.indexOf("Barrier_") === 0 || obj.name.indexOf("barrier") === 0) vType = "barrier";
+          else if (obj.name.indexOf("Collectible_") === 0 || obj.name.indexOf("collectible") === 0) vType = "collectible";
+          else if (obj.name.indexOf("Decoration_") === 0 || obj.name.indexOf("decoration") === 0) vType = "decoration";
+        }
+        if (!vType) return;
+        if (playerTypes[vType]) return;
+        if (decorTypes[vType]) return;
+        if (triggerTypes[vType]) return;
+        if (!solidTypes[vType]) return;
+        // Compute bounding box for physics shape
+        var box = new THREE.Box3();
+        if (obj.isGroup || obj.children.length > 0) {
+          // For groups, compute from all children
+          obj.traverse(function(child) {
+            if (child.isMesh && child.geometry) {
+              child.geometry.computeBoundingBox();
+              var childBox = child.geometry.boundingBox.clone();
+              childBox.applyMatrix4(child.matrixWorld);
+              box.expandByObject(child);
+            }
+          });
+        } else if (obj.geometry) {
+          obj.geometry.computeBoundingBox();
+          box.copy(obj.geometry.boundingBox);
+          box.applyMatrix4(obj.matrixWorld);
+        }
+        if (box.isEmpty()) return;
+        var size = new THREE.Vector3();
+        box.getSize(size);
+        var center = new THREE.Vector3();
+        box.getCenter(center);
+        // Half-extents for CANNON Box shape (minimum 0.1 to avoid degenerate)
+        var hx = Math.max(size.x * 0.5, 0.05);
+        var hy = Math.max(size.y * 0.5, 0.05);
+        var hz = Math.max(size.z * 0.5, 0.05);
+        var shape = new CANNON.Box(new CANNON.Vec3(hx, hy, hz));
+        var body = new CANNON.Body({ mass: 0, shape: shape });
+        body.position.set(center.x, center.y, center.z);
+        body.type = CANNON.Body.STATIC;
+        body.__meshRef = obj;
+        body.__meshName = obj.name;
+        body.__autoPhysics = true;
+        w.addBody(body);
+        obj.userData.__physicsBody = body;
+        if (obj.name) _bodies[obj.name] = body;
+        created++;
+      });
+      if (created > 0) console.log("[AutoPhysics] Created "+created+" physics bodies ("+skipped+" already had bodies)");
+      else if (skipped > 0) console.log("[AutoPhysics] All "+skipped+" objects already have physics bodies");
+      else console.log("[AutoPhysics] No objects needed physics bodies");
     }
     requestAnimationFrame(_apply);
   })();

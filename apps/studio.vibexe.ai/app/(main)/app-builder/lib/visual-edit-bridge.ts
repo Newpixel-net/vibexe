@@ -2049,6 +2049,99 @@ export function getVisualEditBridgeScript(): string {
     });
   }
 
+  // ---- Auto-Physics System ----
+  // Scans all scene meshes and creates CANNON bodies for objects that need them.
+  // Uses vibexeType or name prefix to determine physics behavior:
+  //   platform/barrier → static box body (solid)
+  //   collectible → no body (trigger via distance)
+  //   decoration → no body (visual only)
+  //   character/player → skip (has own dynamic body)
+  function rebuildAutoPhysics(scene) {
+    var w = window.__vibexe_world__;
+    if (!w) { console.log("[AutoPhysics] No physics world, skipping"); return; }
+    var C = window.CANNON;
+    if (!C) { console.log("[AutoPhysics] CANNON not loaded, skipping"); return; }
+    var T = window.THREE || (typeof THREE !== "undefined" ? THREE : null);
+    if (!T) return;
+
+    var solidTypes = { platform: 1, barrier: 1 };
+    var skipTypes = { collectible: 1, decoration: 1, player: 1, AnimatedCharacter: 1 };
+    var created = 0, synced = 0, skipped = 0;
+
+    scene.traverse(function(obj) {
+      if (!obj.isMesh && !(obj.isGroup && obj.children && obj.children.length > 0)) return;
+      if (!obj.userData) return;
+
+      // Determine vibexeType from userData or name prefix
+      var vType = obj.userData.vibexeType;
+      if (!vType && obj.name) {
+        if (obj.name.indexOf("Platform_") === 0 || obj.name.indexOf("platform_") === 0) vType = "platform";
+        else if (obj.name.indexOf("Barrier_") === 0 || obj.name.indexOf("barrier_") === 0) vType = "barrier";
+        else if (obj.name.indexOf("Collectible_") === 0) vType = "collectible";
+        else if (obj.name.indexOf("Decoration_") === 0) vType = "decoration";
+        else if (obj.name.indexOf("Character_") === 0 || obj.name.indexOf("Player_") === 0) vType = "player";
+      }
+      if (!vType) return;
+      if (skipTypes[vType]) return;
+      if (!solidTypes[vType]) return;
+
+      // If already has a body, just sync its position to the mesh
+      var existingBody = obj.userData.__physicsBody;
+      if (existingBody && existingBody.position) {
+        // Sync body position to mesh position (scene editor may have moved it)
+        existingBody.position.set(obj.position.x, obj.position.y, obj.position.z);
+        if (existingBody.velocity) existingBody.velocity.set(0, 0, 0);
+        synced++;
+        return;
+      }
+
+      // Check if there's already a body in world near this mesh position
+      var found = false;
+      for (var bi = 0; bi < w.bodies.length; bi++) {
+        var b = w.bodies[bi];
+        if (b.__meshName === obj.name || b.__meshRef === obj) { obj.userData.__physicsBody = b; found = true; break; }
+        if (Math.abs(b.position.x - obj.position.x) < 0.3 &&
+            Math.abs(b.position.y - obj.position.y) < 0.3 &&
+            Math.abs(b.position.z - obj.position.z) < 0.3) {
+          obj.userData.__physicsBody = b; b.__meshRef = obj; b.__meshName = obj.name; found = true; break;
+        }
+      }
+      if (found) { synced++; return; }
+
+      // Compute bounding box from mesh/group
+      var box3 = new T.Box3();
+      try {
+        box3.expandByObject(obj);
+      } catch(e) { return; }
+      if (box3.isEmpty()) return;
+
+      var sz = new T.Vector3();
+      box3.getSize(sz);
+      var ctr = new T.Vector3();
+      box3.getCenter(ctr);
+
+      // Half-extents (minimum 0.05 to avoid degenerate shapes)
+      var hx = Math.max(sz.x * 0.5, 0.05);
+      var hy = Math.max(sz.y * 0.5, 0.05);
+      var hz = Math.max(sz.z * 0.5, 0.05);
+
+      var shape = new C.Box(new C.Vec3(hx, hy, hz));
+      var body = new C.Body({ mass: 0, shape: shape });
+      body.position.set(ctr.x, ctr.y, ctr.z);
+      body.type = C.Body.STATIC;
+      body.__meshRef = obj;
+      body.__meshName = obj.name || "";
+      body.__autoPhysics = true;
+      w.addBody(body);
+      obj.userData.__physicsBody = body;
+      created++;
+    });
+
+    if (created > 0 || synced > 0) {
+      console.log("[AutoPhysics] Created " + created + " bodies, synced " + synced + ", skipped " + skipped);
+    }
+  }
+
   function deactivateBridge() {
     if (!active) return;
     active = false;
@@ -2107,6 +2200,8 @@ export function getVisualEditBridgeScript(): string {
     }
     if (editor) {
       editor.resume();
+      // Auto-physics: ensure all scene objects have appropriate CANNON bodies
+      rebuildAutoPhysics(editor.scene);
     }
     window.removeEventListener("mousedown", onCanvasMouseDown, true);
     window.removeEventListener("mousemove", onCanvasMouseMove, true);
