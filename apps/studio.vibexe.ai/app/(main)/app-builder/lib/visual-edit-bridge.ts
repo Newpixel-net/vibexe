@@ -2699,31 +2699,40 @@ export function getVisualEditBridgeScript(): string {
         // Displace vertices with noise — realistic mountain terrain
         var _tpPos = _tpGeo.attributes.position;
         var _tpMinY = Infinity, _tpMaxY = -Infinity;
-        var _tpHalfW = _tpW * 0.55;
-        var _tpHalfD = _tpD * 0.55;
+        var _tpHalfW = _tpW * 0.5;
+        var _tpHalfD = _tpD * 0.5;
         for (var vi = 0; vi < _tpPos.count; vi++) {
           var vx = _tpPos.getX(vi);
           var vz = _tpPos.getZ(vi);
           var nx = vx / _tpW; // normalize to ~-0.5..0.5 range
           var nz = vz / _tpD;
 
-          // Central dome — wide gentle mountain with gradual slopes
-          var cx = vx / _tpHalfW;
-          var cz = vz / _tpHalfD;
-          var distSq = cx * cx + cz * cz;
-          var dome = Math.max(0, 1.0 - distSq);
-          dome = dome * dome; // quadratic falloff for gentler slopes (was cubic)
+          // Gaussian peak — localized mountain with wide flat base
+          // Matches Unity reference: dramatic peak rising from flat/rolling terrain
+          var px = vx / _tpHalfW; // -1..1 across terrain
+          var pz = vz / _tpHalfD;
+          var r2 = px * px + pz * pz; // squared distance from center
+          var peak = Math.exp(-r2 * 4.0); // sharp gaussian: flat at edges, steep near center
+          // peak is ~1.0 at center, ~0.02 at edges (r=1)
 
-          // Low-frequency fBm — rolling hills
-          var baseH = _tpFbm(nx * 1.2, nz * 1.2, 5, 2.0, 0.5);
-          // Subtle ridge noise — just for mountain ridgelines near the peak
-          var ridgeH = _tpRidge(nx * 1.5 + 5.0, nz * 1.5 + 5.0, 4);
-          // Very subtle detail for surface micro-roughness
-          var detailH = _tpFbm(nx * 5.0, nz * 5.0, 3, 2.0, 0.4) * 0.03;
+          // Secondary smaller peak offset from center
+          var p2x = (vx - _tpW * 0.18) / _tpHalfW;
+          var p2z = (vz + _tpD * 0.15) / _tpHalfD;
+          var r2b = p2x * p2x + p2z * p2z;
+          var peak2 = Math.exp(-r2b * 8.0) * 0.45; // smaller, sharper secondary peak
 
-          // Combine: dome dominates, noise adds variation on slopes
-          var ridgeMask = dome * dome; // ridges only appear near the peak
-          var h = (dome * 0.50 + baseH * 0.35 + ridgeH * ridgeMask * 0.15 + detailH) * _tpH;
+          // Rolling hills across the flat base (very low amplitude)
+          var hills = _tpFbm(nx * 1.0, nz * 1.0, 4, 2.0, 0.5) * 0.06;
+
+          // Ridge detail only on the main peak
+          var ridgeH = _tpRidge(nx * 2.0 + 5.0, nz * 2.0 + 5.0, 4);
+          var ridgeMask = peak * peak; // ridges only near main peak
+
+          // Micro detail for surface texture
+          var detailH = _tpFbm(nx * 6.0, nz * 6.0, 3, 2.0, 0.4) * 0.02;
+
+          // Combine: gaussian peaks + rolling hills + ridge detail
+          var h = (peak * 0.70 + peak2 + hills + ridgeH * ridgeMask * 0.10 + detailH) * _tpH;
           _tpPos.setY(vi, h);
           if (h < _tpMinY) _tpMinY = h;
           if (h > _tpMaxY) _tpMaxY = h;
