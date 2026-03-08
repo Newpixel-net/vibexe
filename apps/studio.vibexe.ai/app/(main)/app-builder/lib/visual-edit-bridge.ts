@@ -3095,6 +3095,31 @@ export function getVisualEditBridgeScript(): string {
           } catch(hfErr) {
             console.error("[TerrainPhysics] Failed to create heightfield:", hfErr);
           }
+
+          // === PostStep terrain clamp — belt-and-suspenders safety net ===
+          // Ensures all dynamic bodies stay above terrain even if Heightfield collision fails
+          if (!window.__vibexe_terrainPostStep) {
+            window.__vibexe_terrainPostStep = function() {
+              var getH = window.__vibexe_getTerrainHeight;
+              var w = window.__vibexe_world__;
+              if (!getH || !w) return;
+              for (var pi = 0; pi < w.bodies.length; pi++) {
+                var pb = w.bodies[pi];
+                if (pb.mass <= 0) continue; // Skip static bodies
+                var th = getH(pb.position.x, pb.position.z);
+                if (th == null) continue;
+                var halfH = 0.75; // Default half-height for character
+                var minY = th + halfH;
+                if (pb.position.y < minY) {
+                  pb.position.y = minY;
+                  if (pb.velocity.y < 0) pb.velocity.y = 0;
+                  pb.__canJump = true;
+                }
+              }
+            };
+            _tpWorld.addEventListener("postStep", window.__vibexe_terrainPostStep);
+            console.log("[TerrainPhysics] PostStep terrain clamp registered");
+          }
         } else {
           // World not ready yet — set up a watcher to create heightfield when world appears
           console.warn("[TerrainPhysics] World not ready — will create heightfield when physics starts");
@@ -3138,6 +3163,27 @@ export function getVisualEditBridgeScript(): string {
                   console.log("[TerrainPhysics] Deferred heightfield created successfully");
                 } catch(de) {
                   console.error("[TerrainPhysics] Deferred heightfield creation failed:", de);
+                }
+                // Deferred postStep clamp
+                if (!window.__vibexe_terrainPostStep) {
+                  window.__vibexe_terrainPostStep = function() {
+                    var getH = window.__vibexe_getTerrainHeight;
+                    var w2 = window.__vibexe_world__;
+                    if (!getH || !w2) return;
+                    for (var pi2 = 0; pi2 < w2.bodies.length; pi2++) {
+                      var pb2 = w2.bodies[pi2];
+                      if (pb2.mass <= 0) continue;
+                      var th2 = getH(pb2.position.x, pb2.position.z);
+                      if (th2 == null) continue;
+                      if (pb2.position.y < th2 + 0.75) {
+                        pb2.position.y = th2 + 0.75;
+                        if (pb2.velocity.y < 0) pb2.velocity.y = 0;
+                        pb2.__canJump = true;
+                      }
+                    }
+                  };
+                  dWorld.addEventListener("postStep", window.__vibexe_terrainPostStep);
+                  console.log("[TerrainPhysics] Deferred postStep clamp registered");
                 }
               }
             }, 200);
