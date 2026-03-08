@@ -470,12 +470,22 @@ if (typeof window !== 'undefined') {
       if (pb && pb.position) { _bodies[name]=pb; return pb; }
       var w = window.__vibexe_world__;
       if (!w || !w.bodies) return null;
+      // First try matching by mesh reference or name tag (auto-physics sets __meshRef/__meshName)
+      for (var i = 0; i < w.bodies.length; i++) {
+        var b = w.bodies[i];
+        if (b.__meshRef === mesh || b.__meshName === name) {
+          mesh.userData.__physicsBody = b;
+          _bodies[name] = b;
+          return b;
+        }
+      }
+      // Fallback: proximity search with wider tolerance (2 units for large objects)
       var o = _ov[name];
       if (!o || !o.p) return null;
       var tx=o.p[0], ty=o.p[1], tz=o.p[2];
       for (var i = 0; i < w.bodies.length; i++) {
         var b = w.bodies[i];
-        if (Math.abs(b.position.x-tx)<0.5 && Math.abs(b.position.y-ty)<0.5 && Math.abs(b.position.z-tz)<0.5) {
+        if (Math.abs(b.position.x-tx)<2 && Math.abs(b.position.y-ty)<2 && Math.abs(b.position.z-tz)<2) {
           mesh.userData.__physicsBody = b;
           _bodies[name] = b;
           return b;
@@ -1146,19 +1156,31 @@ export function SandpackPreview({
 							settings: gameEditor.gameSettings,
 						}, "*");
 					}, 200);
+					// Re-apply FX preset on reload if set (bridge handles FX independently)
+					const pp = gameEditor.gameSettings.postProcessing;
+					if (pp?.preset && pp.preset !== "none") {
+						setTimeout(() => {
+							iframe.contentWindow?.postMessage({
+								type: "game-editor-apply-fx",
+								preset: pp.preset,
+								bloomIntensity: pp.bloomIntensity,
+								bloomThreshold: pp.bloomThreshold,
+							}, "*");
+						}, 2000);
+					}
 				}
 				// Restore spawned objects from previous session (if any)
 				if (spawnedObjectsRef.current.length > 0 && iframe?.contentWindow) {
 					const objectsToRestore = [...spawnedObjectsRef.current];
 					console.log("[GameEditor] Restoring", objectsToRestore.length, "spawned objects after reload");
-					// Delay to let game scene fully initialize
+					// Delay to let game scene fully initialize (3s for GLTF loads + physics world)
 					setTimeout(() => {
 						iframe.contentWindow?.postMessage({ type: "game-editor-restore-spawned-objects", objects: objectsToRestore }, "*");
 						// Run auto-physics after restored objects have time to load their models
 						setTimeout(() => {
 							iframe.contentWindow?.postMessage({ type: "run-auto-physics" }, "*");
 						}, 5000);
-					}, 500);
+					}, 3000);
 				}
 				// Restore texture overrides for scene-original objects
 				if (textureOverridesRef.current.length > 0 && iframe?.contentWindow) {
@@ -2043,6 +2065,7 @@ export function SandpackPreview({
 						<TerrainPainterPanel
 							sendToIframe={gameEditor.sendToIframe}
 							onClose={() => setTerrainPainterOpen(false)}
+							initialConfig={gameEditor.gameSettings.terrain}
 							onTerrainConfigChanged={(config) => {
 								gameEditor.updateGameSettings({ terrain: config });
 								// Auto-save terrain config to JSON file so it persists across iframe reloads

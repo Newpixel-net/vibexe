@@ -185,8 +185,24 @@ export interface TerrainPainterPanelProps {
 		depth: number;
 		heightScale: number;
 		segments: number;
-		layers: Array<{ textureUrl: string; normalUrl: string; enabled: boolean; tileSize: number }>;
+		layers: Array<{ textureUrl: string; normalUrl: string; enabled: boolean; tileSize: number; opacity?: number; roughness?: number; normalIntensity?: number; metallic?: boolean; modifiers?: any[] }>;
 	}) => void;
+	initialConfig?: {
+		width?: number;
+		depth?: number;
+		heightScale?: number;
+		segments?: number;
+		layers?: Array<{
+			textureUrl?: string;
+			enabled?: boolean;
+			tileSize?: number;
+			opacity?: number;
+			roughness?: number;
+			normalIntensity?: number;
+			metallic?: boolean;
+			modifiers?: any[];
+		}>;
+	};
 }
 
 // ===== Component =====
@@ -195,18 +211,40 @@ export function TerrainPainterPanel({
 	sendToIframe,
 	onClose,
 	onTerrainConfigChanged,
+	initialConfig,
 }: TerrainPainterPanelProps) {
 	const [activeTab, setActiveTab] = useState<"layers" | "settings" | "sculpt">("layers");
-	const [layers, setLayers] = useState<LayerData[]>(DEFAULT_LAYERS);
+	// Initialize layers from saved config if available, otherwise use defaults
+	const [layers, setLayers] = useState<LayerData[]>(() => {
+		if (initialConfig?.layers && initialConfig.layers.length > 0) {
+			return initialConfig.layers.map((l, idx) => {
+				const defLayer = DEFAULT_LAYERS[idx];
+				const fileName = l.textureUrl?.split("/").pop()?.replace(/\.[^.]+$/, "") || defLayer?.name || `Layer ${idx + 1}`;
+				return {
+					name: fileName,
+					enabled: l.enabled !== false,
+					previewColor: defLayer?.previewColor || "#808080",
+					diffuseUrl: l.textureUrl || defLayer?.diffuseUrl || "",
+					tileSize: l.tileSize ?? defLayer?.tileSize ?? 4,
+					opacity: l.opacity ?? defLayer?.opacity ?? 100,
+					roughness: l.roughness ?? defLayer?.roughness ?? 0.8,
+					normalIntensity: l.normalIntensity ?? defLayer?.normalIntensity ?? 1.0,
+					metallic: l.metallic ?? defLayer?.metallic ?? false,
+					modifiers: (l.modifiers && l.modifiers.length > 0 ? l.modifiers : defLayer?.modifiers || []) as ModifierData[],
+				};
+			});
+		}
+		return DEFAULT_LAYERS;
+	});
 	const [selectedLayer, setSelectedLayer] = useState(0);
 	const [showHeatmap, setShowHeatmap] = useState(false);
-	const [settings, setSettings] = useState<TerrainPainterSettings>({
+	const [settings, setSettings] = useState<TerrainPainterSettings>(() => ({
 		splatmapResolution: 256,
-		terrainWidth: 200,
-		terrainDepth: 200,
-		terrainHeightScale: 40,
-		terrainSegments: 256,
-	});
+		terrainWidth: initialConfig?.width ?? 200,
+		terrainDepth: initialConfig?.depth ?? 200,
+		terrainHeightScale: initialConfig?.heightScale ?? 40,
+		terrainSegments: initialConfig?.segments ?? 256,
+	}));
 
 	// Sculpt state
 	const [sculptBrushType, setSculptBrushType] = useState<"raise" | "lower" | "flatten" | "smooth" | "paint" | "erase">("raise");
@@ -289,7 +327,28 @@ export function TerrainPainterPanel({
 				modifiers: l.modifiers.map((m) => ({ ...m })),
 			})),
 		});
-	}, [sendToIframe, layers]);
+		// Also persist layer config changes on repaint (not just generate)
+		if (onTerrainConfigChanged) {
+			onTerrainConfigChanged({
+				enabled: true,
+				width: settings.terrainWidth,
+				depth: settings.terrainDepth,
+				heightScale: settings.terrainHeightScale,
+				segments: settings.terrainSegments,
+				layers: layers.map((l) => ({
+					textureUrl: l.diffuseUrl,
+					normalUrl: l.diffuseUrl.replace(/\.[^.]+$/, "_Normal$&"),
+					enabled: l.enabled,
+					tileSize: l.tileSize,
+					opacity: l.opacity,
+					roughness: l.roughness,
+					normalIntensity: l.normalIntensity,
+					metallic: l.metallic,
+					modifiers: l.modifiers,
+				})),
+			});
+		}
+	}, [sendToIframe, layers, settings, onTerrainConfigChanged]);
 
 	const sendGenerateTerrain = useCallback(() => {
 		sendToIframe({
