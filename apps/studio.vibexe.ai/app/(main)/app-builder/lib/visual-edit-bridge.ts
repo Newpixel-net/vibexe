@@ -2696,18 +2696,33 @@ export function getVisualEditBridgeScript(): string {
         var _tpGeo = new _tpTHREE.PlaneGeometry(_tpW, _tpD, _tpSeg, _tpSeg);
         _tpGeo.rotateX(-Math.PI / 2); // lay flat on XZ plane
 
-        // Displace vertices with noise
+        // Displace vertices with noise — realistic mountain terrain
         var _tpPos = _tpGeo.attributes.position;
         var _tpMinY = Infinity, _tpMaxY = -Infinity;
+        var _tpHalfW = _tpW * 0.45;
+        var _tpHalfD = _tpD * 0.45;
         for (var vi = 0; vi < _tpPos.count; vi++) {
           var vx = _tpPos.getX(vi);
           var vz = _tpPos.getZ(vi);
-          var nx = vx / _tpW; // normalize to 0-1 range
+          var nx = vx / _tpW; // normalize to ~-0.5..0.5 range
           var nz = vz / _tpD;
-          // Combine fBm + ridged noise
-          var baseH = _tpFbm(nx * 4.0, nz * 4.0, 7, 2.0, 0.5);
-          var ridgeH = _tpRidge(nx * 3.0 + 5.0, nz * 3.0 + 5.0, 6);
-          var h = (baseH * 0.65 + ridgeH * 0.35) * _tpH;
+
+          // Central dome — creates one dominant mountain peak
+          var cx = vx / _tpHalfW;
+          var cz = vz / _tpHalfD;
+          var distSq = cx * cx + cz * cz;
+          var dome = Math.max(0, 1.0 - distSq);
+          dome = dome * dome * dome; // cubic falloff for natural peak shape
+
+          // Low-frequency fBm — large terrain features (rolling hills)
+          var baseH = _tpFbm(nx * 1.5, nz * 1.5, 6, 2.0, 0.5);
+          // Medium ridge noise — cliff features and ridgelines
+          var ridgeH = _tpRidge(nx * 2.0 + 5.0, nz * 2.0 + 5.0, 5);
+          // High-frequency detail for surface roughness
+          var detailH = _tpFbm(nx * 6.0, nz * 6.0, 3, 2.0, 0.4) * 0.08;
+
+          // Combine: dome shapes the mountain, noise adds natural variation
+          var h = (dome * 0.55 + baseH * 0.28 + ridgeH * 0.17 + detailH) * _tpH;
           _tpPos.setY(vi, h);
           if (h < _tpMinY) _tpMinY = h;
           if (h > _tpMaxY) _tpMaxY = h;
@@ -2767,8 +2782,8 @@ export function getVisualEditBridgeScript(): string {
         _tpMesh.userData.__terrainMaxY = _tpMaxY;
         _tpMesh.userData.__terrainWidth = _tpW;
         editor.scene.add(_tpMesh);
-        // Set sky blue background for terrain scenes
-        editor.scene.background = new _tpTHREE.Color(0x78B0D4);
+        // Set dark gray background matching Unity Terrain Painter references
+        editor.scene.background = new _tpTHREE.Color(0x3a3a42);
         sendSceneTree();
 
         console.log("[TerrainPainter] Terrain generated:", _tpPos.count, "vertices, height range:", _tpMinY.toFixed(1), "-", _tpMaxY.toFixed(1));
@@ -3030,26 +3045,27 @@ export function getVisualEditBridgeScript(): string {
               "    col += c3 * vW3;",
               "  }",
               "  vec3 N = normalize(vNormal);",
-              "  vec3 sunDir = normalize(vec3(0.6, 0.7, 0.4));",
-              "  vec3 fillDir = normalize(vec3(-0.5, 0.3, -0.6));",
-              "  vec3 backDir = normalize(vec3(-0.3, 0.5, -0.2));",
+              "  vec3 sunDir = normalize(vec3(0.5, 0.75, 0.35));",
+              "  vec3 fillDir = normalize(vec3(-0.4, 0.3, -0.7));",
+              "  vec3 backDir = normalize(vec3(-0.2, 0.6, -0.3));",
               "  float sunDiff = max(0.0, dot(N, sunDir));",
               "  float fillDiff = max(0.0, dot(N, fillDir));",
               "  float backDiff = max(0.0, dot(N, backDir));",
               "  vec3 viewDir = normalize(cameraPosition - vWorldPos);",
               "  vec3 halfVec = normalize(sunDir + viewDir);",
-              "  float spec = pow(max(0.0, dot(N, halfVec)), 48.0);",
+              "  float spec = pow(max(0.0, dot(N, halfVec)), 64.0);",
               "  float snowMask = vW3;",
               "  float rockMask = vW2;",
-              "  vec3 ambient = vec3(0.50, 0.53, 0.60);",
-              "  vec3 sunLight = vec3(1.0, 0.95, 0.85) * sunDiff * 1.6;",
-              "  vec3 fillLight = vec3(0.3, 0.35, 0.5) * fillDiff * 0.8;",
-              "  vec3 backLight = vec3(0.2, 0.22, 0.3) * backDiff * 0.5;",
+              "  vec3 ambient = vec3(0.35, 0.37, 0.42);",
+              "  vec3 sunLight = vec3(1.0, 0.95, 0.85) * sunDiff * 1.8;",
+              "  vec3 fillLight = vec3(0.3, 0.35, 0.5) * fillDiff * 0.6;",
+              "  vec3 backLight = vec3(0.2, 0.22, 0.3) * backDiff * 0.4;",
               "  vec3 lighting = ambient + sunLight + fillLight + backLight;",
-              "  vec3 specColor = vec3(1.0, 0.97, 0.9) * spec * (snowMask * 0.5 + rockMask * 0.1 + 0.03);",
+              "  vec3 specColor = vec3(1.0, 0.97, 0.9) * spec * (snowMask * 0.4 + rockMask * 0.08 + 0.02);",
               "  vec3 finalColor = col * lighting + specColor;",
-              "  vec3 fogColor = vec3(0.55, 0.60, 0.72);",
-              "  float fogAmt = (1.0 - smoothstep(0.0, 0.35, vHeight)) * 0.15;",
+              "  vec3 fogColor = vec3(0.35, 0.38, 0.45);",
+              "  float fogDist = length(vWorldPos - cameraPosition) / 400.0;",
+              "  float fogAmt = clamp(fogDist * fogDist, 0.0, 0.3);",
               "  finalColor = mix(finalColor, fogColor, fogAmt);",
               "  gl_FragColor = vec4(finalColor, 1.0);",
               "}"
