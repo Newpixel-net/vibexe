@@ -644,6 +644,35 @@ export function getVisualEditBridgeScript(): string {
         hAttr.needsUpdate = true;
         sAttr.needsUpdate = true;
       }
+
+      // === Update CANNON Heightfield after sculpt ===
+      if (window.__vibexe_terrainBody && window.__vibexe_terrainHFShape && window.CANNON) {
+        var _suWorld = window.__vibexe_world__;
+        if (_suWorld) {
+          try {
+            // Rebuild the height matrix from updated heightData
+            var _suMatrix = [];
+            for (var sx = 0; sx < td.segX; sx++) {
+              _suMatrix.push([]);
+              for (var sz = 0; sz < td.segZ; sz++) {
+                _suMatrix[sx].push(td.heightData[sz * td.segX + sx]);
+              }
+            }
+            // Remove old body, create new heightfield with updated data
+            _suWorld.removeBody(window.__vibexe_terrainBody);
+            var _suElementSize = td.width / (td.segX - 1);
+            var _suShape = new window.CANNON.Heightfield(_suMatrix, { elementSize: _suElementSize });
+            var _suBody = new window.CANNON.Body({ mass: 0, type: window.CANNON.Body.STATIC });
+            _suBody.addShape(_suShape);
+            _suBody.position.set(-td.width / 2, 0, -td.depth / 2);
+            _suWorld.addBody(_suBody);
+            window.__vibexe_terrainBody = _suBody;
+            window.__vibexe_terrainHFShape = _suShape;
+          } catch(suErr) {
+            console.warn("[TerrainPhysics] Sculpt heightfield update failed:", suErr);
+          }
+        }
+      }
     }
   }
 
@@ -3011,6 +3040,104 @@ export function getVisualEditBridgeScript(): string {
           var h11 = td.heightData[i00 + td.segX + 1];
           return h00*(1-fx)*(1-fz) + h10*fx*(1-fz) + h01*(1-fx)*fz + h11*fx*fz;
         };
+
+        // === CANNON.js Heightfield Physics ===
+        // Creates a physics collider matching the terrain mesh so characters walk on it
+        var _tpCANNON = window.CANNON;
+        var _tpWorld = window.__vibexe_world__;
+        if (_tpCANNON && _tpWorld) {
+          // Remove previous terrain heightfield body if it exists
+          if (window.__vibexe_terrainBody) {
+            try { _tpWorld.removeBody(window.__vibexe_terrainBody); } catch(e) {}
+            window.__vibexe_terrainBody = null;
+          }
+
+          // Disable the infinite ground plane body — terrain replaces it
+          // The ground plane sits at Y=0 which blocks the character below terrain
+          for (var bi = 0; bi < _tpWorld.bodies.length; bi++) {
+            var _gpBody = _tpWorld.bodies[bi];
+            if (_gpBody.mass === 0 && _gpBody.shapes && _gpBody.shapes.length === 1 && _gpBody.shapes[0] instanceof _tpCANNON.Plane) {
+              _gpBody.position.set(0, -10000, 0); // Move far below so it never collides
+              _gpBody.updateMassProperties();
+              window.__vibexe_groundPlaneBody = _gpBody;
+              console.log("[TerrainPhysics] Disabled ground plane (moved to Y=-10000)");
+              break;
+            }
+          }
+
+          // Build column-major height matrix for CANNON Heightfield
+          // CANNON Heightfield expects matrix[col][row] (X-major), origin at corner
+          var _hfMatrix = [];
+          for (var hx = 0; hx < _tpSegX; hx++) {
+            _hfMatrix.push([]);
+            for (var hz = 0; hz < _tpSegZ; hz++) {
+              // Terrain data is row-major (Z * segX + X), need to transpose for CANNON
+              _hfMatrix[hx].push(_tpHeightData[hz * _tpSegX + hx]);
+            }
+          }
+
+          var _hfElementSize = _tpW / (_tpSegX - 1);
+          try {
+            var _hfShape = new _tpCANNON.Heightfield(_hfMatrix, { elementSize: _hfElementSize });
+            var _hfBody = new _tpCANNON.Body({ mass: 0, type: _tpCANNON.Body.STATIC });
+            _hfBody.addShape(_hfShape);
+            // CANNON Heightfield origin is at corner (0,0) — offset to center the terrain
+            _hfBody.position.set(-_tpW / 2, 0, -_tpD / 2);
+            // CANNON Heightfield default orientation: height along Y, grid on XZ — no rotation needed
+            _tpWorld.addBody(_hfBody);
+            window.__vibexe_terrainBody = _hfBody;
+            window.__vibexe_terrainHFShape = _hfShape;
+            console.log("[TerrainPhysics] Heightfield body created:", _tpSegX, "x", _tpSegZ, "elementSize:", _hfElementSize.toFixed(3));
+          } catch(hfErr) {
+            console.error("[TerrainPhysics] Failed to create heightfield:", hfErr);
+          }
+        } else {
+          // World not ready yet — set up a watcher to create heightfield when world appears
+          console.warn("[TerrainPhysics] World not ready — will create heightfield when physics starts");
+          if (!window.__vibexe_terrainPhysicsWatcher) {
+            window.__vibexe_terrainPhysicsWatcher = setInterval(function() {
+              var dCANNON = window.CANNON;
+              var dWorld = window.__vibexe_world__;
+              var dTD = window.__vibexe_terrainData;
+              if (dCANNON && dWorld && dTD && !window.__vibexe_terrainBody) {
+                clearInterval(window.__vibexe_terrainPhysicsWatcher);
+                window.__vibexe_terrainPhysicsWatcher = null;
+                // Disable ground plane
+                for (var dbi = 0; dbi < dWorld.bodies.length; dbi++) {
+                  var dgp = dWorld.bodies[dbi];
+                  if (dgp.mass === 0 && dgp.shapes && dgp.shapes[0] instanceof dCANNON.Plane) {
+                    dgp.position.set(0, -10000, 0);
+                    dgp.updateMassProperties();
+                    window.__vibexe_groundPlaneBody = dgp;
+                    console.log("[TerrainPhysics] Deferred: disabled ground plane");
+                    break;
+                  }
+                }
+                // Build heightfield
+                var dm = [];
+                for (var dx = 0; dx < dTD.segX; dx++) {
+                  dm.push([]);
+                  for (var dz = 0; dz < dTD.segZ; dz++) {
+                    dm[dx].push(dTD.heightData[dz * dTD.segX + dx]);
+                  }
+                }
+                var dES = dTD.width / (dTD.segX - 1);
+                try {
+                  var dShape = new dCANNON.Heightfield(dm, { elementSize: dES });
+                  var dBody = new dCANNON.Body({ mass: 0, type: dCANNON.Body.STATIC });
+                  dBody.addShape(dShape);
+                  dBody.position.set(-dTD.width / 2, 0, -dTD.depth / 2);
+                  dWorld.addBody(dBody);
+                  window.__vibexe_terrainBody = dBody;
+                  window.__vibexe_terrainHFShape = dShape;
+                  console.log("[TerrainPhysics] Deferred heightfield created successfully");
+                } catch(de) {
+                  console.error("[TerrainPhysics] Deferred heightfield creation failed:", de);
+                }
+              }
+            }, 200);
+          }
+        }
 
         sendSceneTree();
 
