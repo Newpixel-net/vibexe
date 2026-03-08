@@ -3033,32 +3033,32 @@ export function getVisualEditBridgeScript(): string {
           var nx = vx / _tpW; // -0.5..0.5
           var nz = vz / _tpD;
 
-          // Edge falloff — smooth fade to 0 near terrain borders
-          var edgeX = 1.0 - Math.pow(2.0 * Math.abs(nx), 6);
-          var edgeZ = 1.0 - Math.pow(2.0 * Math.abs(nz), 6);
+          // Edge falloff — smooth fade to 0 near terrain borders (pow 10 = sharper, extends mountains closer to edges)
+          var edgeX = 1.0 - Math.pow(2.0 * Math.abs(nx), 10);
+          var edgeZ = 1.0 - Math.pow(2.0 * Math.abs(nz), 10);
           var edgeFalloff = _tpSmoothstep(0, 0.15, Math.max(0, Math.min(edgeX, edgeZ)));
 
           // Domain warp for organic mountain shapes
-          var warpPt = _tpDomainWarp(nx * 1.5, nz * 1.5, 0.35);
+          var warpPt = _tpDomainWarp(nx * 1.5, nz * 1.5, 0.45);
           var wx = warpPt[0];
           var wz = warpPt[1];
 
           // Scale 1: Continental — large mountain range shape (domain-warped fBm)
-          var continental = (_tpFbm(wx * 1.2, wz * 1.2, 5, 2.0, 0.5) + 1) * 0.5;
-          continental = Math.pow(continental, 1.5); // bias toward valleys
+          var continental = (_tpFbm(wx * 1.5, wz * 1.5, 6, 2.0, 0.5) + 1) * 0.5;
+          continental = Math.pow(continental, 2.5); // pow 2.5 = deep valleys, dramatic peaks
 
           // Scale 2: Mountain ridges (ridged multifractal — sharp peaks at zero crossings)
-          var ridges = _tpRidgedMF(nx * 3.0 + 3.7, nz * 3.0 + 1.2, 6, 2.2, 0.5, 2.0);
-          ridges *= 0.35;
+          var ridges = _tpRidgedMF(nx * 3.0 + 3.7, nz * 3.0 + 1.2, 7, 2.2, 0.5, 3.0);
+          ridges *= 0.5;
 
           // Scale 3: Rolling foothills
-          var hills = _tpFbm(nx * 6.0 + 7.3, nz * 6.0 + 2.8, 4, 2.0, 0.5) * 0.08;
+          var hills = _tpFbm(nx * 6.0 + 7.3, nz * 6.0 + 2.8, 5, 2.0, 0.5) * 0.12;
 
           // Scale 4: Fine surface detail (altitude-dependent — more detail on peaks)
-          var detail = _tpFbm(nx * 15.0, nz * 15.0, 3, 2.0, 0.4) * 0.03;
+          var detail = _tpFbm(nx * 20.0, nz * 20.0, 4, 2.0, 0.4) * 0.05;
 
           // Altitude-dependent roughness composition
-          var baseH = continental * 0.55 + ridges;
+          var baseH = continental * 0.4 + ridges;
           var roughDetail = (hills + detail) * (0.3 + Math.min(1, baseH) * 0.7);
 
           var h = (baseH + roughDetail) * edgeFalloff * _tpH;
@@ -3778,10 +3778,10 @@ export function getVisualEditBridgeScript(): string {
               "  // Minimum brightness floor to prevent overly dark areas",
               "  totalLight = max(totalLight, albedo * 0.08);",
               "",
-              "  // Atmospheric fog",
-              "  vec3 fogColor = vec3(0.55, 0.60, 0.72);",
-              "  float fogDist = length(vWorldPos - cameraPosition) / 400.0;",
-              "  float fogAmt = clamp(fogDist * fogDist, 0.0, 0.4);",
+              "  // Atmospheric mountain haze",
+              "  vec3 fogColor = vec3(0.62, 0.68, 0.80);",
+              "  float fogDist = length(vWorldPos - cameraPosition) / 300.0;",
+              "  float fogAmt = clamp(fogDist * fogDist, 0.0, 0.5);",
               "  totalLight = mix(totalLight, fogColor, fogAmt);",
               "",
               "  gl_FragColor = vec4(totalLight, 1.0);",

@@ -124,7 +124,7 @@ const DEFAULT_LAYERS: LayerData[] = [
 		normalIntensity: 1.0,
 		metallic: false,
 		modifiers: [
-			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0, max: 0.25, minFalloff: 0.01, maxFalloff: 0.08 } },
+			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0, max: 0.2, minFalloff: 0.02, maxFalloff: 0.08 } },
 			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 25, minFalloff: 5, maxFalloff: 10 } },
 		],
 	},
@@ -139,8 +139,8 @@ const DEFAULT_LAYERS: LayerData[] = [
 		normalIntensity: 1.0,
 		metallic: false,
 		modifiers: [
-			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.05, max: 0.55, minFalloff: 0.03, maxFalloff: 0.08 } },
-			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 30, minFalloff: 3, maxFalloff: 8 } },
+			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.03, max: 0.35, minFalloff: 0.03, maxFalloff: 0.1 } },
+			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 30, minFalloff: 3, maxFalloff: 10 } },
 		],
 	},
 	{
@@ -154,7 +154,7 @@ const DEFAULT_LAYERS: LayerData[] = [
 		normalIntensity: 1.0,
 		metallic: false,
 		modifiers: [
-			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 20, maxAngle: 90, minFalloff: 8, maxFalloff: 3 } },
+			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.1, max: 0.95, minFalloff: 0.08, maxFalloff: 0.1 } },
 		],
 	},
 	{
@@ -168,8 +168,8 @@ const DEFAULT_LAYERS: LayerData[] = [
 		normalIntensity: 1.0,
 		metallic: false,
 		modifiers: [
-			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.55, max: 1.0, minFalloff: 0.08, maxFalloff: 0.02 } },
-			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 50, minFalloff: 5, maxFalloff: 10 } },
+			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.72, max: 1.0, minFalloff: 0.08, maxFalloff: 0.02 } },
+			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 45, minFalloff: 5, maxFalloff: 10 } },
 		],
 	},
 ];
@@ -204,7 +204,7 @@ export function TerrainPainterPanel({
 		splatmapResolution: 256,
 		terrainWidth: 200,
 		terrainDepth: 200,
-		terrainHeightScale: 8,
+		terrainHeightScale: 40,
 		terrainSegments: 256,
 	});
 

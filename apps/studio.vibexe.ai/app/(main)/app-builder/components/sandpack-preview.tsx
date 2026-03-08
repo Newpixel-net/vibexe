@@ -663,7 +663,7 @@ if (typeof window !== 'undefined') {
         settings: {
           terrainWidth: tc.width || 200,
           terrainDepth: tc.depth || 200,
-          terrainHeightScale: tc.heightScale || 8,
+          terrainHeightScale: tc.heightScale || 40,
           terrainSegments: tc.segments || 256,
         }
       }, "*");
@@ -672,7 +672,13 @@ if (typeof window !== 'undefined') {
         setTimeout(function() {
           window.postMessage({
             type: "terrain-painter-repaint",
-            layers: tc.layers.map(function(l) {
+            layers: tc.layers.map(function(l, idx) {
+              var mtnMods = [
+                [{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0, max: 0.2, minFalloff: 0.02, maxFalloff: 0.08 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 25, minFalloff: 5, maxFalloff: 10 } }],
+                [{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.03, max: 0.35, minFalloff: 0.03, maxFalloff: 0.1 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 30, minFalloff: 3, maxFalloff: 10 } }],
+                [{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.1, max: 0.95, minFalloff: 0.08, maxFalloff: 0.1 } }],
+                [{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.72, max: 1.0, minFalloff: 0.08, maxFalloff: 0.02 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 45, minFalloff: 5, maxFalloff: 10 } }]
+              ];
               return {
                 name: l.textureUrl ? l.textureUrl.split("/").pop().replace(/\.[^.]+$/, "") : "Layer",
                 enabled: l.enabled !== false,
@@ -682,10 +688,7 @@ if (typeof window !== 'undefined') {
                 roughness: 0.85,
                 normalIntensity: 1.0,
                 metallic: false,
-                modifiers: [
-                  { type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: {} },
-                  { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: {} }
-                ]
+                modifiers: mtnMods[idx] || []
               };
             })
           }, "*");
@@ -1161,15 +1164,21 @@ export function SandpackPreview({
 								settings: {
 									terrainWidth: terrainCfg.width || 200,
 									terrainDepth: terrainCfg.depth || 200,
-									terrainHeightScale: terrainCfg.heightScale || 8,
+									terrainHeightScale: terrainCfg.heightScale || 40,
 									terrainSegments: terrainCfg.segments || 256,
 								},
 							}, "*");
 							if (terrainCfg.layers && terrainCfg.layers.length > 0) {
+								const mtnMods = [
+									[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0, max: 0.2, minFalloff: 0.02, maxFalloff: 0.08 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 25, minFalloff: 5, maxFalloff: 10 } }],
+									[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.03, max: 0.35, minFalloff: 0.03, maxFalloff: 0.1 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 30, minFalloff: 3, maxFalloff: 10 } }],
+									[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.1, max: 0.95, minFalloff: 0.08, maxFalloff: 0.1 } }],
+									[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.72, max: 1.0, minFalloff: 0.08, maxFalloff: 0.02 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 45, minFalloff: 5, maxFalloff: 10 } }],
+								];
 								setTimeout(() => {
 									iframe.contentWindow?.postMessage({
 										type: "terrain-painter-repaint",
-										layers: terrainCfg.layers!.map((l: any) => ({
+										layers: terrainCfg.layers!.map((l: any, idx: number) => ({
 											name: l.textureUrl?.split("/").pop()?.replace(/\.[^.]+$/, "") || "Layer",
 											enabled: l.enabled !== false,
 											diffuseUrl: l.textureUrl || "",
@@ -1178,7 +1187,7 @@ export function SandpackPreview({
 											roughness: 0.85,
 											normalIntensity: 1.0,
 											metallic: false,
-											modifiers: [],
+											modifiers: mtnMods[idx] || [],
 										})),
 									}, "*");
 								}, 1000);
@@ -1348,16 +1357,22 @@ export function SandpackPreview({
 						settings: {
 							terrainWidth: terrainCfg.width || 200,
 							terrainDepth: terrainCfg.depth || 200,
-							terrainHeightScale: terrainCfg.heightScale || 8,
+							terrainHeightScale: terrainCfg.heightScale || 40,
 							terrainSegments: terrainCfg.segments || 256,
 						},
 					});
-					// Auto-repaint with saved layers after generation
+					// Auto-repaint with saved layers after generation (mountain modifiers for height/slope blending)
 					if (terrainCfg.layers && terrainCfg.layers.length > 0) {
+						const mtnMods = [
+							[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0, max: 0.2, minFalloff: 0.02, maxFalloff: 0.08 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 25, minFalloff: 5, maxFalloff: 10 } }],
+							[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.03, max: 0.35, minFalloff: 0.03, maxFalloff: 0.1 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 30, minFalloff: 3, maxFalloff: 10 } }],
+							[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.1, max: 0.95, minFalloff: 0.08, maxFalloff: 0.1 } }],
+							[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.72, max: 1.0, minFalloff: 0.08, maxFalloff: 0.02 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 45, minFalloff: 5, maxFalloff: 10 } }],
+						];
 						setTimeout(() => {
 							gameEditor.sendToIframe({
 								type: "terrain-painter-repaint",
-								layers: terrainCfg.layers!.map((l) => ({
+								layers: terrainCfg.layers!.map((l, idx) => ({
 									name: l.textureUrl?.split("/").pop()?.replace(/\.[^.]+$/, "") || "Layer",
 									enabled: l.enabled !== false,
 									diffuseUrl: l.textureUrl || "",
@@ -1366,7 +1381,7 @@ export function SandpackPreview({
 									roughness: 0.85,
 									normalIntensity: 1.0,
 									metallic: false,
-									modifiers: [],
+									modifiers: mtnMods[idx] || [],
 								})),
 							});
 						}, 1000);
@@ -1555,7 +1570,7 @@ export function SandpackPreview({
 		// No externalResources needed for Three.js — the shim handles core + all addons
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=71`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=72`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);
