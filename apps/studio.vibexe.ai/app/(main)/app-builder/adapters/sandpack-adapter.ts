@@ -1549,7 +1549,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 	//   1. Listed in __vibexe-modules.json (explicit install), OR
 	//   2. Code imports from @vibexe/{id} (auto-detection fallback)
 
-	// Read module manifest
+	// Read module manifest from __vibexe-modules.json OR from __game-settings.json
 	const modulesFile = files.find(
 		(f) => f.path === "src/__vibexe-modules.json" || f.path === "__vibexe-modules.json"
 	);
@@ -1558,6 +1558,15 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		try {
 			const parsed = JSON.parse(modulesFile.content);
 			installedModules = parsed.installed || {};
+		} catch { /* invalid JSON */ }
+	}
+	// Fallback: read modules from game settings (always up-to-date in state)
+	if (Object.keys(installedModules).length === 0 && settingsFile?.content) {
+		try {
+			const gs = JSON.parse(settingsFile.content);
+			if (gs.modules?.installed) {
+				installedModules = gs.modules.installed;
+			}
 		} catch { /* invalid JSON */ }
 	}
 
