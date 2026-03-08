@@ -118,11 +118,23 @@ export interface GameSettings {
 		depth?: number;
 		heightScale?: number;
 		segments?: number;
+		sculptHeightData?: string; // Base64-encoded Float32Array of sculpted heightmap
 		layers?: Array<{
 			textureUrl?: string;
 			normalUrl?: string;
 			enabled?: boolean;
 			tileSize?: number;
+			opacity?: number;
+			roughness?: number;
+			normalIntensity?: number;
+			metallic?: boolean;
+			modifiers?: Array<{
+				type: string;
+				enabled?: boolean;
+				blendMode?: string;
+				opacity?: number;
+				params?: Record<string, number>;
+			}>;
 		}>;
 	};
 }

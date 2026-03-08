@@ -309,6 +309,11 @@ export function TerrainPainterPanel({
 					normalUrl: l.diffuseUrl.replace(/\.[^.]+$/, "_Normal$&"),
 					enabled: l.enabled,
 					tileSize: l.tileSize,
+					opacity: l.opacity,
+					roughness: l.roughness,
+					normalIntensity: l.normalIntensity,
+					metallic: l.metallic,
+					modifiers: l.modifiers,
 				})),
 			});
 		}

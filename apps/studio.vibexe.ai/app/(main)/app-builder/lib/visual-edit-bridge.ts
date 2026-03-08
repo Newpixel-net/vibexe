@@ -2931,7 +2931,7 @@ export function getVisualEditBridgeScript(): string {
         var _tpS = d.settings || {};
         var _tpW = _tpS.terrainWidth || 200;
         var _tpD = _tpS.terrainDepth || 200;
-        var _tpH = _tpS.terrainHeightScale || 50;
+        var _tpH = _tpS.terrainHeightScale || 40;
         var _tpSeg = _tpS.terrainSegments || 256;
 
         console.log("[TerrainPainter] Generating terrain:", _tpW, "x", _tpD, "h=", _tpH, "seg=", _tpSeg);
@@ -3069,6 +3069,28 @@ export function getVisualEditBridgeScript(): string {
         }
         _tpPos.needsUpdate = true;
         _tpGeo.computeVertexNormals();
+
+        // If sculpt heightmap data was saved, overlay it on the generated terrain
+        if (_tpS.sculptHeightData && typeof _tpS.sculptHeightData === "string") {
+          try {
+            var _sData = atob(_tpS.sculptHeightData);
+            var _sBytes = new Uint8Array(_sData.length);
+            for (var si = 0; si < _sData.length; si++) _sBytes[si] = _sData.charCodeAt(si);
+            var _sFloats = new Float32Array(_sBytes.buffer);
+            if (_sFloats.length === _tpPos.count) {
+              _tpMinY = Infinity; _tpMaxY = -Infinity;
+              for (var svi = 0; svi < _sFloats.length; svi++) {
+                _tpPos.setY(svi, _sFloats[svi]);
+                _tpHeightData[svi] = _sFloats[svi];
+                if (_sFloats[svi] < _tpMinY) _tpMinY = _sFloats[svi];
+                if (_sFloats[svi] > _tpMaxY) _tpMaxY = _sFloats[svi];
+              }
+              _tpPos.needsUpdate = true;
+              _tpGeo.computeVertexNormals();
+              console.log("[TerrainPainter] Restored sculpt heightmap (" + _sFloats.length + " vertices)");
+            }
+          } catch(e) { console.warn("[TerrainPainter] Failed to restore sculpt data:", e); }
+        }
 
         // TERRAIN-AS-FLOOR: Normalize so minimum height = 0 (terrain IS the game floor)
         if (_tpMinY !== 0) {
@@ -4047,6 +4069,20 @@ export function getVisualEditBridgeScript(): string {
         if (window.__sculptPointerDown) window.removeEventListener("pointerdown", window.__sculptPointerDown, true);
 
         console.log("[TerrainSculpt] Deactivated");
+        break;
+      }
+
+      case "terrain-get-heightmap": {
+        // Export current heightmap as base64 Float32Array for persistence
+        var td = window.__vibexe_terrainData;
+        if (td && td.heightData) {
+          var bytes = new Uint8Array(td.heightData.buffer);
+          var b64 = "";
+          for (var bi = 0; bi < bytes.length; bi++) b64 += String.fromCharCode(bytes[bi]);
+          var encoded = btoa(b64);
+          window.parent.postMessage({ type: "terrain-heightmap-data", data: encoded, vertexCount: td.heightData.length }, "*");
+          console.log("[TerrainPainter] Exported heightmap:", td.heightData.length, "vertices,", encoded.length, "bytes base64");
+        }
         break;
       }
 

@@ -669,6 +669,7 @@ if (typeof window !== 'undefined') {
           terrainDepth: tc.depth || 200,
           terrainHeightScale: tc.heightScale || 40,
           terrainSegments: tc.segments || 256,
+          sculptHeightData: tc.sculptHeightData || null,
         }
       }, "*");
       // After terrain generates, auto-repaint with saved layers
@@ -677,7 +678,7 @@ if (typeof window !== 'undefined') {
           window.postMessage({
             type: "terrain-painter-repaint",
             layers: tc.layers.map(function(l, idx) {
-              var mtnMods = [
+              var _defMods = [
                 [{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0, max: 0.2, minFalloff: 0.02, maxFalloff: 0.08 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 25, minFalloff: 5, maxFalloff: 10 } }],
                 [{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.03, max: 0.35, minFalloff: 0.03, maxFalloff: 0.1 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 30, minFalloff: 3, maxFalloff: 10 } }],
                 [{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.1, max: 0.95, minFalloff: 0.08, maxFalloff: 0.1 } }],
@@ -688,11 +689,11 @@ if (typeof window !== 'undefined') {
                 enabled: l.enabled !== false,
                 diffuseUrl: l.textureUrl || "",
                 tileSize: l.tileSize || 4,
-                opacity: 100,
-                roughness: 0.85,
-                normalIntensity: 1.0,
-                metallic: false,
-                modifiers: mtnMods[idx] || []
+                opacity: l.opacity != null ? l.opacity : 100,
+                roughness: l.roughness != null ? l.roughness : 0.85,
+                normalIntensity: l.normalIntensity != null ? l.normalIntensity : 1.0,
+                metallic: l.metallic || false,
+                modifiers: l.modifiers && l.modifiers.length > 0 ? l.modifiers : (_defMods[idx] || [])
               };
             })
           }, "*");
@@ -837,6 +838,8 @@ export function SandpackPreview({
 	const allTransformsResolverRef = useRef<((transforms: Record<string, any>) => void) | null>(null);
 	// Spawned objects persistence — saved before restart, restored after
 	const spawnedObjectsRef = useRef<any[]>([]);
+	// Texture overrides for scene-original objects (not spawned) — persist across reloads
+	const textureOverridesRef = useRef<any[]>([]);
 	// Track deleted object names for persistence across save
 	const deletedObjectsRef = useRef<string[]>([]);
 
@@ -1157,6 +1160,14 @@ export function SandpackPreview({
 						}, 5000);
 					}, 500);
 				}
+				// Restore texture overrides for scene-original objects
+				if (textureOverridesRef.current.length > 0 && iframe?.contentWindow) {
+					const overrides = [...textureOverridesRef.current];
+					console.log("[GameEditor] Restoring", overrides.length, "texture overrides after reload");
+					setTimeout(() => {
+						iframe.contentWindow?.postMessage({ type: "game-editor-apply-texture-overrides", overrides }, "*");
+					}, 2000);
+				}
 				// Auto-generate terrain on page load if not in editor mode and terrain config exists
 				// (The IIFE in the saved file may be stale and lack _autoTerrain)
 				if (!gameEditor.enabled && iframe?.contentWindow) {
@@ -1172,10 +1183,11 @@ export function SandpackPreview({
 									terrainDepth: terrainCfg.depth || 200,
 									terrainHeightScale: terrainCfg.heightScale || 40,
 									terrainSegments: terrainCfg.segments || 256,
+									sculptHeightData: terrainCfg.sculptHeightData || null,
 								},
 							}, "*");
 							if (terrainCfg.layers && terrainCfg.layers.length > 0) {
-								const mtnMods = [
+								const _defMods = [
 									[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0, max: 0.2, minFalloff: 0.02, maxFalloff: 0.08 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 25, minFalloff: 5, maxFalloff: 10 } }],
 									[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.03, max: 0.35, minFalloff: 0.03, maxFalloff: 0.1 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 30, minFalloff: 3, maxFalloff: 10 } }],
 									[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.1, max: 0.95, minFalloff: 0.08, maxFalloff: 0.1 } }],
@@ -1189,11 +1201,11 @@ export function SandpackPreview({
 											enabled: l.enabled !== false,
 											diffuseUrl: l.textureUrl || "",
 											tileSize: l.tileSize || 4,
-											opacity: 100,
-											roughness: 0.85,
-											normalIntensity: 1.0,
-											metallic: false,
-											modifiers: mtnMods[idx] || [],
+											opacity: l.opacity != null ? l.opacity : 100,
+											roughness: l.roughness != null ? l.roughness : 0.85,
+											normalIntensity: l.normalIntensity != null ? l.normalIntensity : 1.0,
+											metallic: l.metallic || false,
+											modifiers: l.modifiers && l.modifiers.length > 0 ? l.modifiers : (_defMods[idx] || []),
 										})),
 									}, "*");
 								}, 1000);
@@ -1297,6 +1309,19 @@ export function SandpackPreview({
 			} else if (data.type === "game-editor-spawned-objects") {
 				// Store spawned objects for restoration after restart
 				spawnedObjectsRef.current = data.objects || [];
+				// Store texture overrides for scene-original objects
+				if (data.textureOverrides && data.textureOverrides.length > 0) {
+					textureOverridesRef.current = data.textureOverrides;
+				}
+			} else if (data.type === "terrain-heightmap-data") {
+				// Store sculpt heightmap data for persistence
+				if (data.data && typeof data.data === "string") {
+					const terrainCfg = gameEditor.gameSettings.terrain;
+					if (terrainCfg) {
+						terrainCfg.sculptHeightData = data.data;
+						console.log("[GameEditor] Stored sculpt heightmap:", data.vertexCount, "vertices");
+					}
+				}
 			} else if (data.type === "game-editor-all-transforms") {
 				// Resolve pending save-all-transforms promise
 				if (allTransformsResolverRef.current) {
@@ -1346,6 +1371,11 @@ export function SandpackPreview({
 		const wasEnabled = prevEditorEnabledRef.current;
 		prevEditorEnabledRef.current = gameEditor.enabled;
 		if (wasEnabled && !gameEditor.enabled) {
+			// Request heightmap data before bridge deactivates (for sculpt persistence)
+			const iframe = iframeRef.current;
+			if (iframe?.contentWindow && gameEditor.gameSettings.terrain?.enabled) {
+				iframe.contentWindow.postMessage({ type: "terrain-get-heightmap" }, "*");
+			}
 			// Refresh sandpack if objects were moved during edit session
 			if (sceneModifiedDuringEditRef.current) {
 				console.log("[GameEditor] Scene modified during edit session — refreshing preview to apply overrides");
@@ -1365,11 +1395,12 @@ export function SandpackPreview({
 							terrainDepth: terrainCfg.depth || 200,
 							terrainHeightScale: terrainCfg.heightScale || 40,
 							terrainSegments: terrainCfg.segments || 256,
+							sculptHeightData: terrainCfg.sculptHeightData || null,
 						},
 					});
 					// Auto-repaint with saved layers after generation (mountain modifiers for height/slope blending)
 					if (terrainCfg.layers && terrainCfg.layers.length > 0) {
-						const mtnMods = [
+						const _defMods = [
 							[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0, max: 0.2, minFalloff: 0.02, maxFalloff: 0.08 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 25, minFalloff: 5, maxFalloff: 10 } }],
 							[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.03, max: 0.35, minFalloff: 0.03, maxFalloff: 0.1 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 30, minFalloff: 3, maxFalloff: 10 } }],
 							[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.1, max: 0.95, minFalloff: 0.08, maxFalloff: 0.1 } }],
@@ -1378,16 +1409,16 @@ export function SandpackPreview({
 						setTimeout(() => {
 							gameEditor.sendToIframe({
 								type: "terrain-painter-repaint",
-								layers: terrainCfg.layers!.map((l, idx) => ({
+								layers: terrainCfg.layers!.map((l: any, idx: number) => ({
 									name: l.textureUrl?.split("/").pop()?.replace(/\.[^.]+$/, "") || "Layer",
 									enabled: l.enabled !== false,
 									diffuseUrl: l.textureUrl || "",
 									tileSize: l.tileSize || 4,
-									opacity: 100,
-									roughness: 0.85,
-									normalIntensity: 1.0,
-									metallic: false,
-									modifiers: mtnMods[idx] || [],
+									opacity: l.opacity != null ? l.opacity : 100,
+									roughness: l.roughness != null ? l.roughness : 0.85,
+									normalIntensity: l.normalIntensity != null ? l.normalIntensity : 1.0,
+									metallic: l.metallic || false,
+									modifiers: l.modifiers && l.modifiers.length > 0 ? l.modifiers : (_defMods[idx] || []),
 								})),
 							});
 						}, 1000);

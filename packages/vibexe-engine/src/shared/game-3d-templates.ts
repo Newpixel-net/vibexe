@@ -4782,6 +4782,35 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 if (_apCreated > 0) console.log("[AutoPhysics] run-auto-physics created " + _apCreated + " bodies");
                 break;
               }
+              case "game-editor-apply-texture-overrides": {
+                // Re-apply texture overrides for scene-original objects after page reload
+                const _texOverrides = d.overrides as any[];
+                if (!_texOverrides || !scene) break;
+                const THREE = (window as any).THREE;
+                if (!THREE) break;
+                const _texLoader = new THREE.TextureLoader();
+                for (const ov of _texOverrides) {
+                  if (!ov.name || !ov.textureUrl) continue;
+                  const obj = scene.getObjectByName(ov.name);
+                  if (!obj) continue;
+                  _texLoader.load(ov.textureUrl, (tex: any) => {
+                    tex.wrapS = THREE.RepeatWrapping;
+                    tex.wrapT = THREE.RepeatWrapping;
+                    tex.colorSpace = THREE.SRGBColorSpace;
+                    if (ov.tileX) tex.repeat.x = ov.tileX;
+                    if (ov.tileY) tex.repeat.y = ov.tileY;
+                    obj.traverse((child: any) => {
+                      if (child.isMesh && child.material) {
+                        child.material.map = tex;
+                        child.material.needsUpdate = true;
+                      }
+                    });
+                    if (!obj.userData) obj.userData = {};
+                    obj.userData.vibexeArgs = { textureUrl: ov.textureUrl, textureTileX: ov.tileX, textureTileY: ov.tileY };
+                  });
+                }
+                break;
+              }
               case "game-editor-move-player": {
                 // Live-sync: teleport player character to new spawn position (from Game Settings panel)
                 if (!scene) break;
