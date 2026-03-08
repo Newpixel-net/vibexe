@@ -26,7 +26,7 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	TEXTURE_CATALOG,
 	TEXTURE_CATEGORIES,
@@ -223,6 +223,29 @@ export function TerrainPainterPanel({
 			});
 		}
 	}, [sculptBrushType, sculptBrushSize, sculptBrushStrength, sculptBrushFalloff, sculptActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+	// Auto-repaint after terrain generation — listen for bridge callback
+	const layersRef = useRef(layers);
+	layersRef.current = layers;
+	useEffect(() => {
+		function handleTerrainGenerated(e: MessageEvent) {
+			if (e.data?.type === "terrain-painter-terrain-generated") {
+				console.log("[TerrainPainterPanel] Terrain generated, auto-repainting...");
+				// Small delay to ensure terrain mesh is fully ready in iframe
+				setTimeout(() => {
+					sendToIframe({
+						type: "terrain-painter-repaint",
+						layers: layersRef.current.map((l) => ({
+							...l,
+							modifiers: l.modifiers.map((m) => ({ ...m })),
+						})),
+					});
+				}, 300);
+			}
+		}
+		window.addEventListener("message", handleTerrainGenerated);
+		return () => window.removeEventListener("message", handleTerrainGenerated);
+	}, [sendToIframe]);
 
 	// ===== Bridge messages =====
 
