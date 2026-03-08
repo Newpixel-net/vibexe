@@ -15,6 +15,7 @@
  */
 
 import type { AppFile } from "./file-adapter";
+import { ALL_MODULE_MANIFESTS } from "@vibexe-ai/vibexe-engine";
 
 export interface SandpackFile {
 	code: string;
@@ -1526,6 +1527,68 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		};
 	}
 
+	// ---- Vibexe Module Injection ----
+	// Modules are self-contained feature packages injected as /node_modules/@vibexe/{id}/
+	// They're only loaded if:
+	//   1. Listed in __vibexe-modules.json (explicit install), OR
+	//   2. Code imports from @vibexe/{id} (auto-detection fallback)
+
+	// Read module manifest
+	const modulesFile = files.find(
+		(f) => f.path === "src/__vibexe-modules.json" || f.path === "__vibexe-modules.json"
+	);
+	let installedModules: Record<string, { enabled: boolean; version?: string; config?: Record<string, unknown> }> = {};
+	if (modulesFile?.content) {
+		try {
+			const parsed = JSON.parse(modulesFile.content);
+			installedModules = parsed.installed || {};
+		} catch { /* invalid JSON */ }
+	}
+
+	// Auto-detect module imports (fallback for projects without manifest)
+	for (const mod of ALL_MODULE_MANIFESTS) {
+		const moduleImport = `@vibexe/${mod.id}`;
+		const usesModule = files.some(
+			(f) => f.content && f.content.includes(moduleImport)
+		);
+		if (usesModule && !installedModules[mod.id]) {
+			installedModules[mod.id] = { enabled: true, version: mod.version };
+		}
+	}
+
+	// Inject enabled modules
+	for (const [moduleId, moduleConfig] of Object.entries(installedModules)) {
+		if (!moduleConfig.enabled) continue;
+
+		const manifest = ALL_MODULE_MANIFESTS.find((m) => m.id === moduleId);
+		if (!manifest) continue;
+
+		const pkgName = `@vibexe/${moduleId}`;
+
+		// Package.json
+		sandpackFiles[`/node_modules/${pkgName}/package.json`] = {
+			code: JSON.stringify({
+				name: pkgName,
+				version: manifest.version,
+				main: "index.js",
+			}),
+			hidden: true,
+		};
+
+		// Module source - use runtimeCode from manifest, or generate a stub
+		const moduleSource = manifest.runtimeCode || [
+			`// @vibexe/${moduleId} module stub`,
+			`// Runtime code will be populated by the module system`,
+			`console.log('[Vibexe Module] ${manifest.name} v${manifest.version} loaded');`,
+			`module.exports = {};`,
+		].join("\n");
+
+		sandpackFiles[`/node_modules/${pkgName}/index.js`] = {
+			code: moduleSource,
+			hidden: true,
+		};
+	}
+
 	// Prepend runtime globals to ALL entry point files so they're set before any app code runs.
 	// Sandpack prefers .tsx > .ts > .jsx > .js, so we must inject into every variant that exists.
 	// NOTE: Sandpack does NOT execute inline <script> tags in index.html <body>.
@@ -1534,6 +1597,13 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		let globals = "// Runtime globals injected by Vibexe\n";
 		if (apiOrigin) globals += `(window as any).__VIBEXE_API_ORIGIN__ = ${JSON.stringify(apiOrigin)};\n`;
 		if (appId) globals += `(window as any).__VIBEXE_APP_ID__ = ${JSON.stringify(appId)};\n`;
+		// Expose installed modules list for runtime access
+		const enabledModuleIds = Object.entries(installedModules)
+			.filter(([, cfg]) => cfg.enabled)
+			.map(([id]) => id);
+		if (enabledModuleIds.length > 0) {
+			globals += `(window as any).__VIBEXE_INSTALLED_MODULES__ = ${JSON.stringify(enabledModuleIds)};\n`;
+		}
 		// Inject game settings global + runtime override for environment/physics/camera
 		if (settingsFile?.content) {
 			try {
