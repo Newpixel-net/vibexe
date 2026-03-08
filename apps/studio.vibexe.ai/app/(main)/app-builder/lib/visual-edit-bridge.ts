@@ -2620,7 +2620,7 @@ export function getVisualEditBridgeScript(): string {
         var _tpS = d.settings || {};
         var _tpW = _tpS.terrainWidth || 200;
         var _tpD = _tpS.terrainDepth || 200;
-        var _tpH = _tpS.terrainHeightScale || 30;
+        var _tpH = _tpS.terrainHeightScale || 50;
         var _tpSeg = _tpS.terrainSegments || 128;
 
         console.log("[TerrainPainter] Generating terrain:", _tpW, "x", _tpD, "h=", _tpH, "seg=", _tpSeg);
@@ -2705,9 +2705,9 @@ export function getVisualEditBridgeScript(): string {
           var nx = vx / _tpW; // normalize to 0-1 range
           var nz = vz / _tpD;
           // Combine fBm + ridged noise
-          var baseH = _tpFbm(nx * 3.0, nz * 3.0, 6, 2.0, 0.5);
-          var ridgeH = _tpRidge(nx * 2.0 + 5.0, nz * 2.0 + 5.0, 5);
-          var h = (baseH * 0.6 + ridgeH * 0.4) * _tpH;
+          var baseH = _tpFbm(nx * 4.0, nz * 4.0, 7, 2.0, 0.5);
+          var ridgeH = _tpRidge(nx * 3.0 + 5.0, nz * 3.0 + 5.0, 6);
+          var h = (baseH * 0.4 + ridgeH * 0.6) * _tpH;
           _tpPos.setY(vi, h);
           if (h < _tpMinY) _tpMinY = h;
           if (h > _tpMaxY) _tpMaxY = h;
@@ -2765,6 +2765,7 @@ export function getVisualEditBridgeScript(): string {
         _tpMesh.userData.__isTerrain = true;
         _tpMesh.userData.__terrainMinY = _tpMinY;
         _tpMesh.userData.__terrainMaxY = _tpMaxY;
+        _tpMesh.userData.__terrainWidth = _tpW;
         editor.scene.add(_tpMesh);
         sendSceneTree();
 
@@ -2944,23 +2945,39 @@ export function getVisualEditBridgeScript(): string {
               uColor2: { value: new _rpTHREE.Vector3(_rpColors[2] ? _rpColors[2][0] : 0.5, _rpColors[2] ? _rpColors[2][1] : 0.5, _rpColors[2] ? _rpColors[2][2] : 0.5) },
               uColor3: { value: new _rpTHREE.Vector3(_rpColors[3] ? _rpColors[3][0] : 0.5, _rpColors[3] ? _rpColors[3][1] : 0.5, _rpColors[3] ? _rpColors[3][2] : 0.5) },
               uNumLayers: { value: _rpNumLayers },
-              uTexScale: { value: 10.0 }
+              uTexScale0: { value: 50.0 },
+              uTexScale1: { value: 50.0 },
+              uTexScale2: { value: 1.5 },
+              uTexScale3: { value: 100.0 }
             };
+
+            // Compute per-layer texture scales from tileSize (matching Unity's TerrainLayer.tileSize)
+            var _rpTerrainW = _rpTerrain.userData.__terrainWidth || 200;
+            for (var tsi = 0; tsi < _rpNumLayers; tsi++) {
+              var tileSize = _rpEnabledLayers[tsi].tileSize || 4;
+              var scale = _rpTerrainW / tileSize;
+              _rpUniforms["uTexScale" + tsi].value = scale;
+            }
 
             var _rpVertShader = [
               "attribute float w0;",
               "attribute float w1;",
               "attribute float w2;",
               "attribute float w3;",
+              "attribute float terrainHeight;",
               "varying vec2 vUv;",
               "varying vec3 vNormal;",
+              "varying vec3 vWorldPos;",
               "varying float vW0;",
               "varying float vW1;",
               "varying float vW2;",
               "varying float vW3;",
+              "varying float vHeight;",
               "void main() {",
               "  vUv = uv;",
               "  vNormal = normalize(normalMatrix * normal);",
+              "  vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;",
+              "  vHeight = terrainHeight;",
               "  vW0 = w0; vW1 = w1; vW2 = w2; vW3 = w3;",
               "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
               "}"
@@ -2980,35 +2997,60 @@ export function getVisualEditBridgeScript(): string {
               "uniform float uHasTex1;",
               "uniform float uHasTex2;",
               "uniform float uHasTex3;",
-              "uniform float uTexScale;",
+              "uniform float uTexScale0;",
+              "uniform float uTexScale1;",
+              "uniform float uTexScale2;",
+              "uniform float uTexScale3;",
               "varying vec2 vUv;",
               "varying vec3 vNormal;",
+              "varying vec3 vWorldPos;",
               "varying float vW0;",
               "varying float vW1;",
               "varying float vW2;",
               "varying float vW3;",
+              "varying float vHeight;",
               "void main() {",
-              "  vec2 scaledUv = vUv * uTexScale;",
               "  vec3 col = vec3(0.0);",
               "  if (uNumLayers > 0) {",
-              "    vec3 c0 = mix(uColor0, texture2D(uTex0, scaledUv).rgb, uHasTex0);",
+              "    vec3 c0 = mix(uColor0, texture2D(uTex0, vUv * uTexScale0).rgb, uHasTex0);",
               "    col += c0 * vW0;",
               "  }",
               "  if (uNumLayers > 1) {",
-              "    vec3 c1 = mix(uColor1, texture2D(uTex1, scaledUv).rgb, uHasTex1);",
+              "    vec3 c1 = mix(uColor1, texture2D(uTex1, vUv * uTexScale1).rgb, uHasTex1);",
               "    col += c1 * vW1;",
               "  }",
               "  if (uNumLayers > 2) {",
-              "    vec3 c2 = mix(uColor2, texture2D(uTex2, scaledUv).rgb, uHasTex2);",
+              "    vec3 c2 = mix(uColor2, texture2D(uTex2, vUv * uTexScale2).rgb, uHasTex2);",
               "    col += c2 * vW2;",
               "  }",
               "  if (uNumLayers > 3) {",
-              "    vec3 c3 = mix(uColor3, texture2D(uTex3, scaledUv).rgb, uHasTex3);",
+              "    vec3 c3 = mix(uColor3, texture2D(uTex3, vUv * uTexScale3).rgb, uHasTex3);",
               "    col += c3 * vW3;",
               "  }",
-              "  float light = max(0.0, dot(vNormal, normalize(vec3(0.5, 1.0, 0.3))));",
-              "  light = 0.35 + light * 0.65;",
-              "  gl_FragColor = vec4(col * light, 1.0);",
+              "  vec3 sunDir = normalize(vec3(0.7, 0.45, 0.35));",
+              "  vec3 fillDir = normalize(vec3(-0.4, 0.3, -0.5));",
+              "  vec3 backDir = normalize(vec3(-0.2, 0.8, -0.3));",
+              "  float sunDiff = max(0.0, dot(vNormal, sunDir));",
+              "  float fillDiff = max(0.0, dot(vNormal, fillDir));",
+              "  float backDiff = max(0.0, dot(vNormal, backDir));",
+              "  vec3 viewDir = normalize(cameraPosition - vWorldPos);",
+              "  vec3 halfVec = normalize(sunDir + viewDir);",
+              "  float spec = pow(max(0.0, dot(vNormal, halfVec)), 64.0);",
+              "  float snowMask = vW3;",
+              "  float rockMask = vW2;",
+              "  vec3 ambient = vec3(0.10, 0.12, 0.16);",
+              "  vec3 sunLight = vec3(1.0, 0.92, 0.78) * sunDiff * 0.9;",
+              "  vec3 fillLight = vec3(0.2, 0.25, 0.4) * fillDiff * 0.35;",
+              "  vec3 backLight = vec3(0.15, 0.18, 0.25) * backDiff * 0.2;",
+              "  vec3 lighting = ambient + sunLight + fillLight + backLight;",
+              "  vec3 specColor = vec3(1.0, 0.97, 0.9) * spec * (snowMask * 0.4 + rockMask * 0.08 + 0.02);",
+              "  vec3 finalColor = col * lighting + specColor;",
+              "  vec3 fogColor = vec3(0.50, 0.55, 0.68);",
+              "  float fogAmt = (1.0 - smoothstep(0.0, 0.4, vHeight)) * 0.18;",
+              "  finalColor = mix(finalColor, fogColor, fogAmt);",
+              "  finalColor = vec3(1.0) - exp(-finalColor * 1.8);",
+              "  finalColor = pow(finalColor, vec3(1.0 / 2.2));",
+              "  gl_FragColor = vec4(finalColor, 1.0);",
               "}"
             ].join("\\n");
 
@@ -3046,6 +3088,7 @@ export function getVisualEditBridgeScript(): string {
                 tex.wrapS = _rpTHREE.RepeatWrapping;
                 tex.wrapT = _rpTHREE.RepeatWrapping;
                 tex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
+                tex.anisotropy = 16;
                 if (_rpTHREE.SRGBColorSpace) tex.colorSpace = _rpTHREE.SRGBColorSpace;
                 _rpTextures[idx] = tex;
                 _rpLoaded++;

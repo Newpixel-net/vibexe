@@ -46,6 +46,7 @@ interface LayerData {
 	enabled: boolean;
 	previewColor: string;
 	diffuseUrl: string;
+	tileSize: number; // world units per tile — matching Unity's TerrainLayer.tileSize
 	modifiers: ModifierData[];
 }
 
@@ -106,8 +107,10 @@ const DEFAULT_LAYERS: LayerData[] = [
 		enabled: true,
 		previewColor: "#8b6914",
 		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Ground037.jpg",
+		tileSize: 4,
 		modifiers: [
-			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0, max: 0.3, minFalloff: 0.05, maxFalloff: 0.1 } },
+			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0, max: 0.25, minFalloff: 0.01, maxFalloff: 0.08 } },
+			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 25, minFalloff: 5, maxFalloff: 10 } },
 		],
 	},
 	{
@@ -115,9 +118,10 @@ const DEFAULT_LAYERS: LayerData[] = [
 		enabled: true,
 		previewColor: "#6b8e23",
 		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Grass004.jpg",
+		tileSize: 4,
 		modifiers: [
-			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.1, max: 0.5, minFalloff: 0.05, maxFalloff: 0.1 } },
-			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 30, minFalloff: 5, maxFalloff: 10 } },
+			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.05, max: 0.55, minFalloff: 0.03, maxFalloff: 0.08 } },
+			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 30, minFalloff: 3, maxFalloff: 8 } },
 		],
 	},
 	{
@@ -125,17 +129,20 @@ const DEFAULT_LAYERS: LayerData[] = [
 		enabled: true,
 		previewColor: "#7a7a7a",
 		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Rock035.jpg",
+		tileSize: 128,
 		modifiers: [
-			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 25, maxAngle: 90, minFalloff: 10, maxFalloff: 5 } },
+			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 20, maxAngle: 90, minFalloff: 8, maxFalloff: 3 } },
 		],
 	},
 	{
 		name: "Snow",
 		enabled: true,
-		previewColor: "#e8e8e8",
+		previewColor: "#f0f0f0",
 		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Snow006.jpg",
+		tileSize: 2,
 		modifiers: [
-			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.6, max: 1.0, minFalloff: 0.1, maxFalloff: 0.05 } },
+			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.55, max: 1.0, minFalloff: 0.08, maxFalloff: 0.02 } },
+			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 50, minFalloff: 5, maxFalloff: 10 } },
 		],
 	},
 ];
@@ -159,9 +166,9 @@ export function TerrainPainterPanel({
 	const [showHeatmap, setShowHeatmap] = useState(false);
 	const [settings, setSettings] = useState<TerrainPainterSettings>({
 		splatmapResolution: 256,
-		terrainWidth: 100,
-		terrainDepth: 100,
-		terrainHeightScale: 30,
+		terrainWidth: 200,
+		terrainDepth: 200,
+		terrainHeightScale: 50,
 		terrainSegments: 128,
 	});
 
