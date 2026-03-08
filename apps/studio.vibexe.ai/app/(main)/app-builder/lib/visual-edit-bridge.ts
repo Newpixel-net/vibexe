@@ -536,6 +536,107 @@ export function getVisualEditBridgeScript(): string {
   var flyKeys = {};
   var flyRMBDown = false;
   var flyLastMouse = null;
+  // Terrain sculpt state (persists across messages)
+  var _sculptActive = false;
+  var _sculptBrushType = "raise";
+  var _sculptBrushSize = 10;
+  var _sculptBrushStrength = 0.3;
+  var _sculptBrushFalloff = "gaussian";
+  var _sculptMouseDown = false;
+  var _sculptBrushMesh = null;
+  var _sculptTargetHeight = 0;
+
+  function applySculptBrush(wx, wz) {
+    var terrain = editor.scene.getObjectByName("__terrain__");
+    if (!terrain) return;
+    var geo = terrain.geometry;
+    var pos = geo.attributes.position;
+    var td = window.__vibexe_terrainData;
+    if (!td) return;
+
+    var R = _sculptBrushSize;
+    var str = _sculptBrushStrength;
+    var R2 = R * R;
+    var modified = false;
+
+    for (var vi = 0; vi < pos.count; vi++) {
+      var vx = pos.getX(vi);
+      var vz = pos.getZ(vi);
+      var dx = vx - wx;
+      var dz = vz - wz;
+      var dist2 = dx * dx + dz * dz;
+      if (dist2 > R2) continue;
+
+      var dist = Math.sqrt(dist2);
+      var alpha;
+      if (_sculptBrushFalloff === "flat") {
+        alpha = 1.0;
+      } else if (_sculptBrushFalloff === "linear") {
+        alpha = 1.0 - dist / R;
+      } else {
+        var t = dist / R;
+        alpha = Math.exp(-t * t * 3.0);
+      }
+
+      var curY = pos.getY(vi);
+
+      switch (_sculptBrushType) {
+        case "raise":
+          pos.setY(vi, curY + alpha * str);
+          break;
+        case "lower":
+          pos.setY(vi, curY - alpha * str);
+          break;
+        case "flatten":
+          pos.setY(vi, curY + (_sculptTargetHeight - curY) * alpha * str);
+          break;
+        case "smooth": {
+          var gx = vi % td.segX;
+          var gz = Math.floor(vi / td.segX);
+          var sum = 0, cnt = 0;
+          for (var nz = -1; nz <= 1; nz++) {
+            for (var nx = -1; nx <= 1; nx++) {
+              var ngx = gx + nx, ngz = gz + nz;
+              if (ngx >= 0 && ngx < td.segX && ngz >= 0 && ngz < td.segZ) {
+                var ni = ngz * td.segX + ngx;
+                if (ni < pos.count) {
+                  sum += pos.getY(ni);
+                  cnt++;
+                }
+              }
+            }
+          }
+          var avg = cnt > 0 ? sum / cnt : curY;
+          pos.setY(vi, curY + (avg - curY) * alpha * str);
+          break;
+        }
+      }
+
+      if (vi < td.heightData.length) {
+        td.heightData[vi] = pos.getY(vi);
+      }
+      modified = true;
+    }
+
+    if (modified) {
+      pos.needsUpdate = true;
+      geo.computeVertexNormals();
+      var hAttr = geo.attributes.terrainHeight;
+      var sAttr = geo.attributes.terrainSlope;
+      if (hAttr && sAttr) {
+        var norms = geo.attributes.normal;
+        for (var ui = 0; ui < pos.count; ui++) {
+          var nh = (pos.getY(ui) - td.minY) / (td.maxY - td.minY || 1);
+          hAttr.setX(ui, Math.max(0, Math.min(1, nh)));
+          var ny = norms.getY(ui);
+          sAttr.setX(ui, Math.acos(Math.abs(ny)) * (180 / Math.PI));
+        }
+        hAttr.needsUpdate = true;
+        sAttr.needsUpdate = true;
+      }
+    }
+  }
+
   // PBR environment state
   var _pbrEnvReady = false;
   function _ensurePBREnv() {
@@ -3448,6 +3549,113 @@ export function getVisualEditBridgeScript(): string {
           _hmTerrain.material = new _hmTHREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
         }
         // else: heatmap disabled — repaint will restore colors
+        break;
+      }
+
+      // ===== TERRAIN SCULPT HANDLERS =====
+
+      case "terrain-painter-sculpt-activate": {
+        _sculptActive = true;
+        _sculptBrushType = d.brushType || "raise";
+        _sculptBrushSize = d.brushSize || 10;
+        _sculptBrushStrength = d.brushStrength || 0.3;
+        _sculptBrushFalloff = d.brushFalloff || "gaussian";
+
+        if (!_sculptBrushMesh) {
+          var _sTHREE = window.THREE;
+          var ringGeo = new _sTHREE.RingGeometry(_sculptBrushSize * 0.95, _sculptBrushSize, 64);
+          ringGeo.rotateX(-Math.PI / 2);
+          var ringMat = new _sTHREE.MeshBasicMaterial({
+            color: 0x00ff88, side: _sTHREE.DoubleSide,
+            transparent: true, opacity: 0.5, depthTest: false
+          });
+          _sculptBrushMesh = new _sTHREE.Mesh(ringGeo, ringMat);
+          _sculptBrushMesh.name = "__sculptBrush__";
+          _sculptBrushMesh.renderOrder = 999;
+          editor.scene.add(_sculptBrushMesh);
+        }
+
+        window.__sculptMouseMove = function(ev) {
+          if (!_sculptActive || !editor) return;
+          var terrain = editor.scene.getObjectByName("__terrain__");
+          if (!terrain) return;
+          var rect = editor.renderer.domElement.getBoundingClientRect();
+          var mx = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+          var my = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+          var rc = new (window.THREE).Raycaster();
+          rc.setFromCamera(new (window.THREE).Vector2(mx, my), editor.camera);
+          var hits = rc.intersectObject(terrain);
+          if (hits.length > 0) {
+            var pt = hits[0].point;
+            if (_sculptBrushMesh) {
+              _sculptBrushMesh.position.set(pt.x, pt.y + 0.3, pt.z);
+            }
+            if (_sculptMouseDown) {
+              applySculptBrush(pt.x, pt.z);
+            }
+          }
+        };
+
+        window.__sculptMouseDown = function(ev) {
+          if (!_sculptActive || ev.button !== 0) return;
+          var terrain = editor.scene.getObjectByName("__terrain__");
+          if (!terrain) return;
+          var rect = editor.renderer.domElement.getBoundingClientRect();
+          var mx = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+          var my = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+          var rc = new (window.THREE).Raycaster();
+          rc.setFromCamera(new (window.THREE).Vector2(mx, my), editor.camera);
+          var hits = rc.intersectObject(terrain);
+          if (hits.length > 0) {
+            _sculptMouseDown = true;
+            _sculptTargetHeight = hits[0].point.y;
+            applySculptBrush(hits[0].point.x, hits[0].point.z);
+            ev.stopPropagation();
+          }
+        };
+
+        window.__sculptMouseUp = function() { _sculptMouseDown = false; };
+
+        window.addEventListener("mousemove", window.__sculptMouseMove, true);
+        window.addEventListener("mousedown", window.__sculptMouseDown, true);
+        window.addEventListener("mouseup", window.__sculptMouseUp, true);
+
+        console.log("[TerrainSculpt] Activated:", _sculptBrushType, "size:", _sculptBrushSize);
+        break;
+      }
+
+      case "terrain-painter-sculpt-deactivate": {
+        _sculptActive = false;
+        _sculptMouseDown = false;
+
+        if (_sculptBrushMesh) {
+          editor.scene.remove(_sculptBrushMesh);
+          _sculptBrushMesh.geometry.dispose();
+          _sculptBrushMesh.material.dispose();
+          _sculptBrushMesh = null;
+        }
+
+        if (window.__sculptMouseMove) window.removeEventListener("mousemove", window.__sculptMouseMove, true);
+        if (window.__sculptMouseDown) window.removeEventListener("mousedown", window.__sculptMouseDown, true);
+        if (window.__sculptMouseUp) window.removeEventListener("mouseup", window.__sculptMouseUp, true);
+
+        console.log("[TerrainSculpt] Deactivated");
+        break;
+      }
+
+      case "terrain-painter-sculpt-update": {
+        if (d.brushType !== undefined) _sculptBrushType = d.brushType;
+        if (d.brushSize !== undefined) {
+          _sculptBrushSize = d.brushSize;
+          if (_sculptBrushMesh) {
+            _sculptBrushMesh.geometry.dispose();
+            var newRingGeo = new (window.THREE).RingGeometry(_sculptBrushSize * 0.95, _sculptBrushSize, 64);
+            newRingGeo.rotateX(-Math.PI / 2);
+            _sculptBrushMesh.geometry = newRingGeo;
+          }
+        }
+        if (d.brushStrength !== undefined) _sculptBrushStrength = d.brushStrength;
+        if (d.brushFalloff !== undefined) _sculptBrushFalloff = d.brushFalloff;
         break;
       }
 

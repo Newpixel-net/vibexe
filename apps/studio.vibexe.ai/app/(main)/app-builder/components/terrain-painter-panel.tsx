@@ -26,7 +26,7 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 // ===== Types (mirroring the runtime module types) =====
 
@@ -160,7 +160,7 @@ export function TerrainPainterPanel({
 	sendToIframe,
 	onClose,
 }: TerrainPainterPanelProps) {
-	const [activeTab, setActiveTab] = useState<"layers" | "settings">("layers");
+	const [activeTab, setActiveTab] = useState<"layers" | "settings" | "sculpt">("layers");
 	const [layers, setLayers] = useState<LayerData[]>(DEFAULT_LAYERS);
 	const [selectedLayer, setSelectedLayer] = useState(0);
 	const [showHeatmap, setShowHeatmap] = useState(false);
@@ -171,6 +171,52 @@ export function TerrainPainterPanel({
 		terrainHeightScale: 50,
 		terrainSegments: 256,
 	});
+
+	// Sculpt state
+	const [sculptBrushType, setSculptBrushType] = useState<"raise" | "lower" | "flatten" | "smooth">("raise");
+	const [sculptBrushSize, setSculptBrushSize] = useState(10);
+	const [sculptBrushStrength, setSculptBrushStrength] = useState(0.3);
+	const [sculptBrushFalloff, setSculptBrushFalloff] = useState<"gaussian" | "linear" | "flat">("gaussian");
+	const [sculptActive, setSculptActive] = useState(false);
+
+	// Sculpt activation/deactivation on tab change
+	useEffect(() => {
+		if (activeTab === "sculpt") {
+			sendToIframe({
+				type: "terrain-painter-sculpt-activate",
+				brushType: sculptBrushType,
+				brushSize: sculptBrushSize,
+				brushStrength: sculptBrushStrength,
+				brushFalloff: sculptBrushFalloff,
+			});
+			setSculptActive(true);
+		} else if (sculptActive) {
+			sendToIframe({ type: "terrain-painter-sculpt-deactivate" });
+			setSculptActive(false);
+		}
+	}, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+	// Deactivate sculpt on panel close
+	useEffect(() => {
+		return () => {
+			if (sculptActive) {
+				sendToIframe({ type: "terrain-painter-sculpt-deactivate" });
+			}
+		};
+	}, [sculptActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+	// Send parameter updates when sculpt is active
+	useEffect(() => {
+		if (sculptActive) {
+			sendToIframe({
+				type: "terrain-painter-sculpt-update",
+				brushType: sculptBrushType,
+				brushSize: sculptBrushSize,
+				brushStrength: sculptBrushStrength,
+				brushFalloff: sculptBrushFalloff,
+			});
+		}
+	}, [sculptBrushType, sculptBrushSize, sculptBrushStrength, sculptBrushFalloff, sculptActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// ===== Bridge messages =====
 
@@ -351,11 +397,22 @@ export function TerrainPainterPanel({
 					<Settings className="w-3 h-3" />
 					Settings
 				</button>
+				<button
+					onClick={() => setActiveTab("sculpt")}
+					className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-medium transition-colors ${
+						activeTab === "sculpt"
+							? "text-green-400 border-b-2 border-green-400"
+							: "text-white/50 hover:text-white/70"
+					}`}
+				>
+					<Mountain className="w-3 h-3" />
+					Sculpt
+				</button>
 			</div>
 
 			{/* Content */}
 			<div className="flex-1 overflow-y-auto">
-				{activeTab === "layers" ? (
+				{activeTab === "layers" && (
 					<LayersTab
 						layers={layers}
 						selectedLayer={selectedLayer}
@@ -376,12 +433,87 @@ export function TerrainPainterPanel({
 						onUpdateModifier={updateModifier}
 						onUpdateModifierParam={updateModifierParam}
 					/>
-				) : (
+				)}
+				{activeTab === "settings" && (
 					<SettingsTab
 						settings={settings}
 						onUpdateSettings={(s) => setSettings({ ...settings, ...s })}
 						onGenerateTerrain={sendGenerateTerrain}
 					/>
+				)}
+				{activeTab === "sculpt" && (
+					<div className="p-3 space-y-4 flex-1">
+						{/* Brush Type */}
+						<div>
+							<label className="text-[10px] text-white/50 uppercase tracking-wider mb-2 block">Brush Tool</label>
+							<div className="grid grid-cols-2 gap-1.5">
+								{(["raise", "lower", "flatten", "smooth"] as const).map(type => (
+									<button
+										key={type}
+										onClick={() => setSculptBrushType(type)}
+										className={`py-1.5 rounded text-[11px] font-medium transition-colors ${
+											sculptBrushType === type
+												? "bg-green-600 text-white"
+												: "bg-white/5 text-white/60 hover:bg-white/10"
+										}`}
+									>
+										{type.charAt(0).toUpperCase() + type.slice(1)}
+									</button>
+								))}
+							</div>
+						</div>
+
+						{/* Brush Size */}
+						<div>
+							<label className="text-[10px] text-white/50 uppercase tracking-wider">
+								Brush Size: {sculptBrushSize}
+							</label>
+							<input type="range" min={1} max={50} step={1}
+								value={sculptBrushSize}
+								onChange={e => setSculptBrushSize(Number(e.target.value))}
+								className="w-full accent-green-500 mt-1" />
+						</div>
+
+						{/* Brush Strength */}
+						<div>
+							<label className="text-[10px] text-white/50 uppercase tracking-wider">
+								Strength: {sculptBrushStrength.toFixed(2)}
+							</label>
+							<input type="range" min={0.01} max={1} step={0.01}
+								value={sculptBrushStrength}
+								onChange={e => setSculptBrushStrength(Number(e.target.value))}
+								className="w-full accent-green-500 mt-1" />
+						</div>
+
+						{/* Falloff */}
+						<div>
+							<label className="text-[10px] text-white/50 uppercase tracking-wider mb-1 block">Falloff</label>
+							<div className="flex gap-1.5">
+								{(["gaussian", "linear", "flat"] as const).map(f => (
+									<button key={f}
+										onClick={() => setSculptBrushFalloff(f)}
+										className={`flex-1 py-1 rounded text-[10px] transition-colors ${
+											sculptBrushFalloff === f
+												? "bg-green-600/50 text-green-300"
+												: "bg-white/5 text-white/50 hover:bg-white/10"
+										}`}
+									>
+										{f.charAt(0).toUpperCase() + f.slice(1)}
+									</button>
+								))}
+							</div>
+						</div>
+
+						{/* Repaint after sculpt */}
+						<div className="pt-2 border-t border-white/10">
+							<button
+								onClick={sendRepaint}
+								className="w-full py-2 rounded-md bg-white/5 hover:bg-white/10 text-white/70 text-xs transition-colors"
+							>
+								Repaint After Sculpt
+							</button>
+						</div>
+					</div>
 				)}
 			</div>
 
