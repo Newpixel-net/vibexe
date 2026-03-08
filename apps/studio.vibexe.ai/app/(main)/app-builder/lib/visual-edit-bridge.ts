@@ -3001,10 +3001,10 @@ export function getVisualEditBridgeScript(): string {
         for (var li5 = 0; li5 < _rpNumLayers; li5++) {
           var _diffUrl = _rpEnabledLayers[li5].diffuseUrl || "";
           _rpTexUrls.push(_diffUrl);
-          // Auto-derive normal map URL: Snow006_Color.jpg → Snow006_NormalGL.jpg
+          // Auto-derive normal map URL: Ground037.jpg → Ground037_Normal.jpg
           var _normUrl = _rpEnabledLayers[li5].normalUrl || "";
           if (!_normUrl && _diffUrl) {
-            _normUrl = _diffUrl.replace(/_Color\\./, "_NormalGL.");
+            _normUrl = _diffUrl.replace(/\\.jpg$/i, "_Normal.jpg");
           }
           _rpNormalUrls.push(_normUrl);
         }
@@ -3296,6 +3296,8 @@ export function getVisualEditBridgeScript(): string {
             window.parent.postMessage({ type: "terrain-painter-repainted" }, "*");
           }
 
+          console.log("[TerrainPainter] Loading", _rpTotal, "textures. Diffuse:", _rpTexUrls, "Normal:", _rpNormalUrls);
+
           // Load diffuse textures
           for (var ti2 = 0; ti2 < _rpNumLayers; ti2++) {
             (function(idx) {
@@ -3309,16 +3311,19 @@ export function getVisualEditBridgeScript(): string {
                 if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
                 return;
               }
+              console.log("[TerrainPainter] Loading diffuse[" + idx + "]:", url);
               _rpLoader.load(url, function(tex) {
                 tex.wrapS = _rpTHREE.RepeatWrapping;
                 tex.wrapT = _rpTHREE.RepeatWrapping;
                 tex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
                 tex.anisotropy = 16;
+                tex.colorSpace = _rpTHREE.SRGBColorSpace;
                 _rpTextures[idx] = tex;
                 _rpLoaded++;
+                console.log("[TerrainPainter] Diffuse[" + idx + "] loaded OK (" + _rpLoaded + "/" + _rpTotal + ")");
                 if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
               }, undefined, function() {
-                console.warn("[TerrainPainter] Failed to load diffuse:", url);
+                console.warn("[TerrainPainter] Failed to load diffuse[" + idx + "]:", url);
                 _rpTextures[idx] = null;
                 _rpLoaded++;
                 if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
@@ -3339,6 +3344,7 @@ export function getVisualEditBridgeScript(): string {
                 if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
                 return;
               }
+              console.log("[TerrainPainter] Loading normal[" + idx + "]:", nurl);
               _rpLoader.load(nurl, function(ntex) {
                 ntex.wrapS = _rpTHREE.RepeatWrapping;
                 ntex.wrapT = _rpTHREE.RepeatWrapping;
@@ -3346,8 +3352,10 @@ export function getVisualEditBridgeScript(): string {
                 ntex.anisotropy = 16;
                 _rpNormalTextures[idx] = ntex;
                 _rpLoaded++;
+                console.log("[TerrainPainter] Normal[" + idx + "] loaded OK (" + _rpLoaded + "/" + _rpTotal + ")");
                 if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
               }, undefined, function() {
+                console.warn("[TerrainPainter] Failed to load normal[" + idx + "]:", nurl);
                 _rpNormalTextures[idx] = null;
                 _rpLoaded++;
                 if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
