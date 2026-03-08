@@ -105,6 +105,13 @@ export interface GameSettings {
 		pixelRatio?: number;
 		maxFPS?: number;
 	};
+	modules?: {
+		installed?: Record<string, {
+			enabled: boolean;
+			version?: string;
+			config?: Record<string, unknown>;
+		}>;
+	};
 }
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {

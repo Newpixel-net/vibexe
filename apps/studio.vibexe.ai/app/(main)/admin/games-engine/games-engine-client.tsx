@@ -26,8 +26,10 @@ import {
 	PACKS_3D,
 	GAME_ASSETS_REFERENCE,
 	GAME_3D_ASSETS_REFERENCE,
+	ALL_MODULE_MANIFESTS,
 	type TemplateFile,
 	type AssetPack3D,
+	type ModuleManifest,
 } from "@vibexe-ai/vibexe-engine";
 
 // =============================================================================
@@ -528,7 +530,7 @@ const THEMES_2D: Theme2D[] = [
 // TAB TYPES
 // =============================================================================
 
-type Tab = "overview" | "genres" | "factories" | "assets" | "overrides" | "starters";
+type Tab = "overview" | "genres" | "factories" | "assets" | "overrides" | "starters" | "modules";
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 	{ id: "overview", label: "Overview", icon: <Gamepad2 className="size-4" /> },
@@ -537,6 +539,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 	{ id: "assets", label: "Assets", icon: <FolderOpen className="size-4" /> },
 	{ id: "overrides", label: "Overrides", icon: <Clapperboard className="size-4" /> },
 	{ id: "starters", label: "Starters", icon: <FileCode className="size-4" /> },
+	{ id: "modules", label: "Modules", icon: <Puzzle className="size-4" /> },
 ];
 
 // =============================================================================
@@ -1231,6 +1234,124 @@ function StartersTab() {
 }
 
 // =============================================================================
+// MODULES TAB
+// =============================================================================
+
+function ModulesTab() {
+	return (
+		<div className="space-y-6">
+			<div className="rounded-md bg-muted/30 border border-border p-3 text-xs text-muted-foreground">
+				<p className="mb-1">Vibexe Modules are self-contained feature packages injected into the game runtime.</p>
+				<p>Modules are installed per-app via <code className="font-mono">__vibexe-modules.json</code> and injected as <code className="font-mono">/node_modules/@vibexe/&#123;id&#125;/</code> shims in the sandpack iframe.</p>
+				<p className="mt-1">Each module provides: runtime code (Three.js), bridge handlers (editor integration), default settings, and required assets.</p>
+			</div>
+
+			<div>
+				<h3 className="text-sm font-medium text-foreground mb-3">
+					Available Modules
+					<span className="ml-2 text-xs text-muted-foreground font-normal">({ALL_MODULE_MANIFESTS.length} total)</span>
+				</h3>
+				<div className="space-y-3">
+					{ALL_MODULE_MANIFESTS.map((mod: ModuleManifest) => (
+						<div key={mod.id} className="rounded-lg border border-border bg-card p-4">
+							<div className="flex items-center gap-2 mb-2">
+								<Puzzle className="w-4 h-4 text-purple-400" />
+								<span className="font-medium text-foreground text-sm">{mod.name}</span>
+								<Badge className="text-purple-400 bg-purple-500/10">{mod.category}</Badge>
+								<Badge className="text-blue-400 bg-blue-500/10">v{mod.version}</Badge>
+								<span className="text-xs text-muted-foreground ml-auto font-mono">@vibexe/{mod.id}</span>
+							</div>
+							<p className="text-xs text-muted-foreground mb-3">{mod.description}</p>
+
+							<div className="grid grid-cols-2 gap-4 text-xs">
+								{/* Bridge Handlers */}
+								<div>
+									<span className="text-muted-foreground font-medium">Bridge Handlers</span>
+									<div className="mt-1 space-y-0.5">
+										{Object.entries(mod.bridgeHandlers).length > 0 ? (
+											Object.entries(mod.bridgeHandlers).map(([msg, handler]) => (
+												<div key={msg} className="flex items-center gap-1.5">
+													<span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground font-mono">{msg}</span>
+													<span className="text-zinc-500">&rarr;</span>
+													<span className="text-cyan-400 font-mono text-[10px]">{handler}</span>
+												</div>
+											))
+										) : (
+											<span className="text-zinc-500">None</span>
+										)}
+									</div>
+								</div>
+
+								{/* Assets */}
+								<div>
+									<span className="text-muted-foreground font-medium">Required Assets</span>
+									<div className="mt-1 flex flex-wrap gap-1">
+										{mod.assets.length > 0 ? (
+											mod.assets.map((asset) => (
+												<span key={asset} className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground font-mono">{asset}</span>
+											))
+										) : (
+											<span className="text-zinc-500">None</span>
+										)}
+									</div>
+								</div>
+							</div>
+
+							{/* Default Settings */}
+							{Object.keys(mod.defaultSettings).length > 0 && (
+								<div className="mt-3">
+									<ExpandableSection
+										title="Default Settings"
+										badge={<Badge className="text-muted-foreground bg-muted/50">{Object.keys(mod.defaultSettings).length} keys</Badge>}
+									>
+										<pre className="text-[10px] font-mono text-muted-foreground bg-muted/30 rounded p-2 overflow-x-auto">
+											{JSON.stringify(mod.defaultSettings, null, 2)}
+										</pre>
+									</ExpandableSection>
+								</div>
+							)}
+
+							{/* Runtime Code Status */}
+							<div className="mt-3 flex items-center gap-2 text-[10px]">
+								<span className="text-muted-foreground">Runtime Code:</span>
+								{mod.runtimeCode ? (
+									<span className="text-emerald-400">{mod.runtimeCode.length} bytes</span>
+								) : (
+									<span className="text-amber-400">Stub (module will log load message)</span>
+								)}
+							</div>
+						</div>
+					))}
+				</div>
+			</div>
+
+			{/* Module System Architecture */}
+			<div>
+				<h3 className="text-sm font-medium text-foreground mb-3">Module System Architecture</h3>
+				<div className="rounded-lg border border-border bg-card p-4 text-xs text-muted-foreground space-y-2">
+					<div className="flex items-center gap-2">
+						<span className="font-medium text-foreground">Detection:</span>
+						<span>Auto-detect from imports <code className="font-mono bg-muted/50 px-1 rounded">@vibexe/&#123;id&#125;</code> or explicit <code className="font-mono bg-muted/50 px-1 rounded">__vibexe-modules.json</code></span>
+					</div>
+					<div className="flex items-center gap-2">
+						<span className="font-medium text-foreground">Injection:</span>
+						<span>Sandpack <code className="font-mono bg-muted/50 px-1 rounded">/node_modules/@vibexe/&#123;id&#125;/index.js</code> shim (same as THREE/CANNON pattern)</span>
+					</div>
+					<div className="flex items-center gap-2">
+						<span className="font-medium text-foreground">Production:</span>
+						<span>esbuild virtual plugin resolves <code className="font-mono bg-muted/50 px-1 rounded">@vibexe/*</code> to runtime code or window globals</span>
+					</div>
+					<div className="flex items-center gap-2">
+						<span className="font-medium text-foreground">Runtime Global:</span>
+						<span><code className="font-mono bg-muted/50 px-1 rounded">window.__VIBEXE_INSTALLED_MODULES__</code> &mdash; array of enabled module IDs</span>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+// =============================================================================
 // MAIN COMPONENT
 // =============================================================================
 
@@ -1272,6 +1393,7 @@ export function GamesEngineClient() {
 			{activeTab === "assets" && <AssetsTab />}
 			{activeTab === "overrides" && <OverridesTab />}
 			{activeTab === "starters" && <StartersTab />}
+			{activeTab === "modules" && <ModulesTab />}
 		</div>
 	);
 }

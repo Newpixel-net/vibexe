@@ -827,6 +827,15 @@ export function SandpackPreview({
 			} catch (err) {
 				console.warn("[GameSettings] DB save failed:", err);
 			}
+			// Also save modules manifest so sandpack-adapter can inject modules
+			if (settings.modules?.installed) {
+				const modulesJson = JSON.stringify({ installed: settings.modules.installed }, null, 2);
+				fetch(`/api/app-builder/apps/${appId}/files`, {
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ path: "src/__vibexe-modules.json", content: modulesJson }),
+				}).catch(() => { /* non-critical */ });
+			}
 			// Update file in state so convertToSandpackFiles re-runs with new settings
 			if (currentOnFileUpdate && existingFile) {
 				currentOnFileUpdate(existingFile.id, content);

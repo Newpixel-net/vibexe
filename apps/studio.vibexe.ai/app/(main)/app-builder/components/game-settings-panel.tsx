@@ -5,12 +5,13 @@
  * Shares the 260px right sidebar with the scene editor panel.
  */
 
-import { Camera, Gauge, RotateCcw, Sparkles, Sun, User, Volume2, X, Zap } from "lucide-react";
+import { Camera, Gauge, Puzzle, RotateCcw, Sparkles, Sun, User, Volume2, X, Zap } from "lucide-react";
 import { useCallback, useState } from "react";
+import { ALL_MODULE_MANIFESTS, type ModuleManifest } from "@vibexe-ai/vibexe-engine";
 import { DragNumberInput } from "./drag-number-input";
 import { DEFAULT_GAME_SETTINGS, type GameSettings, type QualityPreset } from "../lib/game-editor-context";
 
-type SettingsTab = "player" | "physics" | "camera" | "environment" | "audio" | "effects" | "performance";
+type SettingsTab = "player" | "physics" | "camera" | "environment" | "audio" | "effects" | "performance" | "modules";
 
 interface GameSettingsPanelProps {
 	settings: GameSettings;
@@ -177,6 +178,7 @@ export function GameSettingsContent({ settings, onChange, onSave }: GameSettings
 		{ id: "audio", label: "Audio", icon: Volume2 },
 		{ id: "effects", label: "FX", icon: Sparkles },
 		{ id: "performance", label: "Perf", icon: Gauge },
+		{ id: "modules", label: "Modules", icon: Puzzle },
 	];
 
 	return (
@@ -555,6 +557,55 @@ export function GameSettingsContent({ settings, onChange, onSave }: GameSettings
 							</select>
 						</div>
 					</>
+				)}
+
+				{activeTab === "modules" && (
+					<div className="space-y-3">
+						<div className="text-[10px] text-zinc-500 px-1 mb-2">
+							Install modules to add features to your game. Modules provide terrain painting, weather effects, and more.
+						</div>
+						{ALL_MODULE_MANIFESTS.map((mod: ModuleManifest) => {
+							const isInstalled = settings.modules?.installed?.[mod.id]?.enabled ?? false;
+							return (
+								<div key={mod.id} className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
+									<div className="flex items-center justify-between mb-1.5">
+										<div className="flex items-center gap-2">
+											<Puzzle className="w-3.5 h-3.5 text-purple-400" />
+											<span className="text-xs font-medium text-zinc-200">{mod.name}</span>
+										</div>
+										<button
+											type="button"
+											onClick={() => {
+												const current = settings.modules?.installed || {};
+												const updated = {
+													...current,
+													[mod.id]: {
+														...current[mod.id],
+														enabled: !isInstalled,
+														version: mod.version,
+													},
+												};
+												onChange(deepMerge(settings, { modules: { installed: updated } }));
+											}}
+											className={`w-8 h-4 rounded-full transition-colors relative ${
+												isInstalled ? "bg-purple-600" : "bg-zinc-700"
+											}`}
+										>
+											<div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
+												isInstalled ? "translate-x-4" : "translate-x-0.5"
+											}`} />
+										</button>
+									</div>
+									<p className="text-[10px] text-zinc-500 mb-1">{mod.description}</p>
+									<div className="flex items-center gap-2">
+										<span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">{mod.category}</span>
+										<span className="text-[9px] text-zinc-600">v{mod.version}</span>
+										<span className="text-[9px] text-zinc-600 font-mono">@vibexe/{mod.id}</span>
+									</div>
+								</div>
+							);
+						})}
+					</div>
 				)}
 			</div>
 
