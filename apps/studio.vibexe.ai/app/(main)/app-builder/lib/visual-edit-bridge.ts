@@ -2707,7 +2707,7 @@ export function getVisualEditBridgeScript(): string {
           // Combine fBm + ridged noise
           var baseH = _tpFbm(nx * 4.0, nz * 4.0, 7, 2.0, 0.5);
           var ridgeH = _tpRidge(nx * 3.0 + 5.0, nz * 3.0 + 5.0, 6);
-          var h = (baseH * 0.4 + ridgeH * 0.6) * _tpH;
+          var h = (baseH * 0.65 + ridgeH * 0.35) * _tpH;
           _tpPos.setY(vi, h);
           if (h < _tpMinY) _tpMinY = h;
           if (h > _tpMaxY) _tpMaxY = h;
@@ -2767,6 +2767,8 @@ export function getVisualEditBridgeScript(): string {
         _tpMesh.userData.__terrainMaxY = _tpMaxY;
         _tpMesh.userData.__terrainWidth = _tpW;
         editor.scene.add(_tpMesh);
+        // Set sky blue background for terrain scenes
+        editor.scene.background = new _tpTHREE.Color(0x78B0D4);
         sendSceneTree();
 
         console.log("[TerrainPainter] Terrain generated:", _tpPos.count, "vertices, height range:", _tpMinY.toFixed(1), "-", _tpMaxY.toFixed(1));
@@ -3039,10 +3041,10 @@ export function getVisualEditBridgeScript(): string {
               "  float spec = pow(max(0.0, dot(N, halfVec)), 48.0);",
               "  float snowMask = vW3;",
               "  float rockMask = vW2;",
-              "  vec3 ambient = vec3(0.35, 0.38, 0.45);",
-              "  vec3 sunLight = vec3(1.0, 0.95, 0.85) * sunDiff * 1.2;",
-              "  vec3 fillLight = vec3(0.3, 0.35, 0.5) * fillDiff * 0.5;",
-              "  vec3 backLight = vec3(0.2, 0.22, 0.3) * backDiff * 0.3;",
+              "  vec3 ambient = vec3(0.50, 0.53, 0.60);",
+              "  vec3 sunLight = vec3(1.0, 0.95, 0.85) * sunDiff * 1.6;",
+              "  vec3 fillLight = vec3(0.3, 0.35, 0.5) * fillDiff * 0.8;",
+              "  vec3 backLight = vec3(0.2, 0.22, 0.3) * backDiff * 0.5;",
               "  vec3 lighting = ambient + sunLight + fillLight + backLight;",
               "  vec3 specColor = vec3(1.0, 0.97, 0.9) * spec * (snowMask * 0.5 + rockMask * 0.1 + 0.03);",
               "  vec3 finalColor = col * lighting + specColor;",
@@ -3088,7 +3090,9 @@ export function getVisualEditBridgeScript(): string {
                 tex.wrapT = _rpTHREE.RepeatWrapping;
                 tex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
                 tex.anisotropy = 16;
-                if (_rpTHREE.SRGBColorSpace) tex.colorSpace = _rpTHREE.SRGBColorSpace;
+                // Do NOT set SRGBColorSpace — let textures stay as raw sRGB values
+                // Three.js ShaderMaterial injects colorspace_fragment (linearToSRGB) on output,
+                // so treating sRGB textures as "linear" + that auto-conversion = correct brightness
                 _rpTextures[idx] = tex;
                 _rpLoaded++;
                 if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
