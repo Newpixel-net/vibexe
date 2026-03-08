@@ -3574,10 +3574,10 @@ export function getVisualEditBridgeScript(): string {
         _sculptBrushFalloff = d.brushFalloff || "gaussian";
 
         // Deselect any currently selected object to avoid gizmo interference
-        if (selectedObject && transformControls) {
+        if (selectedObj && transformControls) {
           transformControls.detach();
           if (boxHelper) boxHelper.visible = false;
-          selectedObject = null;
+          selectedObj = null;
         }
 
         if (!_sculptBrushMesh) {
