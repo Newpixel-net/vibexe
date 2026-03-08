@@ -664,7 +664,8 @@ export function getVisualEditBridgeScript(): string {
             var _suShape = new window.CANNON.Heightfield(_suMatrix, { elementSize: _suElementSize });
             var _suBody = new window.CANNON.Body({ mass: 0, type: window.CANNON.Body.STATIC });
             _suBody.addShape(_suShape);
-            _suBody.position.set(-td.width / 2, 0, -td.depth / 2);
+            _suBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+            _suBody.position.set(-td.width / 2, 0, td.depth / 2);
             _suWorld.addBody(_suBody);
             window.__vibexe_terrainBody = _suBody;
             window.__vibexe_terrainHFShape = _suShape;
@@ -3081,9 +3082,12 @@ export function getVisualEditBridgeScript(): string {
             var _hfShape = new _tpCANNON.Heightfield(_hfMatrix, { elementSize: _hfElementSize });
             var _hfBody = new _tpCANNON.Body({ mass: 0, type: _tpCANNON.Body.STATIC });
             _hfBody.addShape(_hfShape);
-            // CANNON Heightfield origin is at corner (0,0) — offset to center the terrain
-            _hfBody.position.set(-_tpW / 2, 0, -_tpD / 2);
-            // CANNON Heightfield default orientation: height along Y, grid on XZ — no rotation needed
+            // CANNON Heightfield: height along local Z, grid in local XY
+            // Rotate -90° on X to map local Z → world Y (up)
+            _hfBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+            // After rotation: local X → world X, local Y → world Z, local Z → world Y
+            // Origin at corner — offset to center terrain on world XZ
+            _hfBody.position.set(-_tpW / 2, 0, _tpD / 2);
             _tpWorld.addBody(_hfBody);
             window.__vibexe_terrainBody = _hfBody;
             window.__vibexe_terrainHFShape = _hfShape;
@@ -3126,7 +3130,8 @@ export function getVisualEditBridgeScript(): string {
                   var dShape = new dCANNON.Heightfield(dm, { elementSize: dES });
                   var dBody = new dCANNON.Body({ mass: 0, type: dCANNON.Body.STATIC });
                   dBody.addShape(dShape);
-                  dBody.position.set(-dTD.width / 2, 0, -dTD.depth / 2);
+                  dBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+                  dBody.position.set(-dTD.width / 2, 0, dTD.depth / 2);
                   dWorld.addBody(dBody);
                   window.__vibexe_terrainBody = dBody;
                   window.__vibexe_terrainHFShape = dShape;
