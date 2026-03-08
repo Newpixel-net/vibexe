@@ -621,12 +621,22 @@ export function getVisualEditBridgeScript(): string {
     if (modified) {
       pos.needsUpdate = true;
       geo.computeVertexNormals();
+      // Recompute minY/maxY so height normalization stays correct after sculpting
+      var newMinY = Infinity, newMaxY = -Infinity;
+      for (var mi = 0; mi < pos.count; mi++) {
+        var yy = pos.getY(mi);
+        if (yy < newMinY) newMinY = yy;
+        if (yy > newMaxY) newMaxY = yy;
+      }
+      td.minY = newMinY;
+      td.maxY = newMaxY;
       var hAttr = geo.attributes.terrainHeight;
       var sAttr = geo.attributes.terrainSlope;
       if (hAttr && sAttr) {
         var norms = geo.attributes.normal;
+        var hRange = td.maxY - td.minY || 1;
         for (var ui = 0; ui < pos.count; ui++) {
-          var nh = (pos.getY(ui) - td.minY) / (td.maxY - td.minY || 1);
+          var nh = (pos.getY(ui) - td.minY) / hRange;
           hAttr.setX(ui, Math.max(0, Math.min(1, nh)));
           var ny = norms.getY(ui);
           sAttr.setX(ui, Math.acos(Math.abs(ny)) * (180 / Math.PI));
@@ -1504,6 +1514,8 @@ export function getVisualEditBridgeScript(): string {
   // ---- Click + Drag + Keyboard ----
   var lastHandleClickTime = 0;
   function handleClick(clientX, clientY, source) {
+    // Skip selection clicks while terrain sculpt is active
+    if (_sculptActive) return;
     // Dedup: multiple listeners fire for same physical click — ignore if < 50ms apart
     var now = Date.now();
     if (now - lastHandleClickTime < 50) return;
@@ -3561,13 +3573,20 @@ export function getVisualEditBridgeScript(): string {
         _sculptBrushStrength = d.brushStrength || 0.3;
         _sculptBrushFalloff = d.brushFalloff || "gaussian";
 
+        // Deselect any currently selected object to avoid gizmo interference
+        if (selectedObject && transformControls) {
+          transformControls.detach();
+          if (boxHelper) boxHelper.visible = false;
+          selectedObject = null;
+        }
+
         if (!_sculptBrushMesh) {
           var _sTHREE = window.THREE;
-          var ringGeo = new _sTHREE.RingGeometry(_sculptBrushSize * 0.95, _sculptBrushSize, 64);
+          var ringGeo = new _sTHREE.RingGeometry(_sculptBrushSize * 0.9, _sculptBrushSize, 64);
           ringGeo.rotateX(-Math.PI / 2);
           var ringMat = new _sTHREE.MeshBasicMaterial({
             color: 0x00ff88, side: _sTHREE.DoubleSide,
-            transparent: true, opacity: 0.5, depthTest: false
+            transparent: true, opacity: 0.6, depthTest: false
           });
           _sculptBrushMesh = new _sTHREE.Mesh(ringGeo, ringMat);
           _sculptBrushMesh.name = "__sculptBrush__";
@@ -3575,23 +3594,32 @@ export function getVisualEditBridgeScript(): string {
           editor.scene.add(_sculptBrushMesh);
         }
 
+        // Reusable raycaster + mouse vector (avoid allocation per frame)
+        var _sculptRC = new (window.THREE).Raycaster();
+        var _sculptMV = new (window.THREE).Vector2();
+        var _sculptLastApply = 0; // throttle timestamp
+
         window.__sculptMouseMove = function(ev) {
           if (!_sculptActive || !editor) return;
           var terrain = editor.scene.getObjectByName("__terrain__");
           if (!terrain) return;
           var rect = editor.renderer.domElement.getBoundingClientRect();
-          var mx = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
-          var my = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
-          var rc = new (window.THREE).Raycaster();
-          rc.setFromCamera(new (window.THREE).Vector2(mx, my), editor.camera);
-          var hits = rc.intersectObject(terrain);
+          _sculptMV.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+          _sculptMV.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+          _sculptRC.setFromCamera(_sculptMV, editor.camera);
+          var hits = _sculptRC.intersectObject(terrain);
           if (hits.length > 0) {
             var pt = hits[0].point;
             if (_sculptBrushMesh) {
               _sculptBrushMesh.position.set(pt.x, pt.y + 0.3, pt.z);
             }
             if (_sculptMouseDown) {
-              applySculptBrush(pt.x, pt.z);
+              // Throttle to ~30fps to avoid performance issues
+              var now = performance.now();
+              if (now - _sculptLastApply > 33) {
+                _sculptLastApply = now;
+                applySculptBrush(pt.x, pt.z);
+              }
             }
           }
         };
@@ -3601,16 +3629,34 @@ export function getVisualEditBridgeScript(): string {
           var terrain = editor.scene.getObjectByName("__terrain__");
           if (!terrain) return;
           var rect = editor.renderer.domElement.getBoundingClientRect();
-          var mx = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
-          var my = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
-          var rc = new (window.THREE).Raycaster();
-          rc.setFromCamera(new (window.THREE).Vector2(mx, my), editor.camera);
-          var hits = rc.intersectObject(terrain);
+          _sculptMV.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+          _sculptMV.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+          _sculptRC.setFromCamera(_sculptMV, editor.camera);
+          var hits = _sculptRC.intersectObject(terrain);
           if (hits.length > 0) {
             _sculptMouseDown = true;
             _sculptTargetHeight = hits[0].point.y;
+            _sculptLastApply = performance.now();
             applySculptBrush(hits[0].point.x, hits[0].point.z);
             ev.stopPropagation();
+            ev.preventDefault();
+          }
+        };
+
+        // Block pointerdown to prevent selection handler from firing during sculpt
+        window.__sculptPointerDown = function(ev) {
+          if (!_sculptActive || ev.button !== 0) return;
+          var terrain = editor.scene.getObjectByName("__terrain__");
+          if (!terrain) return;
+          var rect = editor.renderer.domElement.getBoundingClientRect();
+          _sculptMV.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+          _sculptMV.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+          _sculptRC.setFromCamera(_sculptMV, editor.camera);
+          var hits = _sculptRC.intersectObject(terrain);
+          if (hits.length > 0) {
+            ev.stopPropagation();
+            ev.stopImmediatePropagation();
+            ev.preventDefault();
           }
         };
 
@@ -3619,6 +3665,7 @@ export function getVisualEditBridgeScript(): string {
         window.addEventListener("mousemove", window.__sculptMouseMove, true);
         window.addEventListener("mousedown", window.__sculptMouseDown, true);
         window.addEventListener("mouseup", window.__sculptMouseUp, true);
+        window.addEventListener("pointerdown", window.__sculptPointerDown, true);
 
         console.log("[TerrainSculpt] Activated:", _sculptBrushType, "size:", _sculptBrushSize);
         break;
@@ -3638,6 +3685,7 @@ export function getVisualEditBridgeScript(): string {
         if (window.__sculptMouseMove) window.removeEventListener("mousemove", window.__sculptMouseMove, true);
         if (window.__sculptMouseDown) window.removeEventListener("mousedown", window.__sculptMouseDown, true);
         if (window.__sculptMouseUp) window.removeEventListener("mouseup", window.__sculptMouseUp, true);
+        if (window.__sculptPointerDown) window.removeEventListener("pointerdown", window.__sculptPointerDown, true);
 
         console.log("[TerrainSculpt] Deactivated");
         break;
