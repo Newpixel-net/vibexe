@@ -4650,6 +4650,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                         const result = await fn(scene, d.position.x, d.position.y, d.position.z, _spawnA);
                         if (result?.mesh) {
                           result.mesh.userData.__spawned = true;
+                          result.mesh.userData.vibexeFactory = d.factory;
+                          result.mesh.userData.vibexeSpawnArgs = _spawnA;
                           _sendSceneTree();
                           window.parent.postMessage({
                             type: "game-editor-object-spawned",
@@ -4726,6 +4728,57 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   }
                   _sendSceneTree();
                 })();
+                break;
+              }
+              case "run-auto-physics": {
+                // Create physics bodies for any scene objects that don't have them yet
+                const _apW = (window as any).__vibexe_world__;
+                const _apC = (window as any).CANNON;
+                const _apT = (window as any).THREE;
+                if (!_apW || !_apC || !_apT || !scene) break;
+                const _apSolid: Record<string, boolean> = { platform: true, barrier: true };
+                const _apSkip: Record<string, boolean> = { collectible: true, decoration: true, player: true, AnimatedCharacter: true };
+                let _apCreated = 0;
+                scene.traverse((obj: any) => {
+                  if (!obj.isMesh && !(obj.isGroup && obj.children?.length > 0)) return;
+                  if (obj.userData?.__physicsBody) return;
+                  let vType = obj.userData?.vibexeType;
+                  if (!vType && obj.name) {
+                    if (obj.name.startsWith("Platform_") || obj.name.startsWith("platform_")) vType = "platform";
+                    else if (obj.name.startsWith("Barrier_") || obj.name.startsWith("barrier_")) vType = "barrier";
+                    else if (obj.name.startsWith("Collectible_")) vType = "collectible";
+                    else if (obj.name.startsWith("Decoration_")) vType = "decoration";
+                    else if (obj.name.startsWith("Character_") || obj.name.startsWith("Player_")) vType = "player";
+                  }
+                  if (!vType || _apSkip[vType] || !_apSolid[vType]) return;
+                  // Check if a body already exists near this position
+                  for (let bi = 0; bi < _apW.bodies.length; bi++) {
+                    const b = _apW.bodies[bi];
+                    if (b.__meshName === obj.name || b.__meshRef === obj) { obj.userData.__physicsBody = b; return; }
+                    if (Math.abs(b.position.x - obj.position.x) < 0.3 && Math.abs(b.position.y - obj.position.y) < 0.3 && Math.abs(b.position.z - obj.position.z) < 0.3) {
+                      obj.userData.__physicsBody = b; b.__meshRef = obj; b.__meshName = obj.name; return;
+                    }
+                  }
+                  const box3 = new _apT.Box3();
+                  try { box3.expandByObject(obj); } catch { return; }
+                  if (box3.isEmpty()) return;
+                  const sz = new _apT.Vector3(); box3.getSize(sz);
+                  const ctr = new _apT.Vector3(); box3.getCenter(ctr);
+                  const hx = Math.max(sz.x * 0.5, 0.05);
+                  const hy = Math.max(sz.y * 0.5, 0.05);
+                  const hz = Math.max(sz.z * 0.5, 0.05);
+                  const shape = new _apC.Box(new _apC.Vec3(hx, hy, hz));
+                  const body = new _apC.Body({ mass: 0, shape });
+                  body.position.set(ctr.x, ctr.y, ctr.z);
+                  body.type = _apC.Body.STATIC;
+                  body.__meshRef = obj;
+                  body.__meshName = obj.name || "";
+                  body.__autoPhysics = true;
+                  _apW.addBody(body);
+                  obj.userData.__physicsBody = body;
+                  _apCreated++;
+                });
+                if (_apCreated > 0) console.log("[AutoPhysics] run-auto-physics created " + _apCreated + " bodies");
                 break;
               }
               case "game-editor-move-player": {

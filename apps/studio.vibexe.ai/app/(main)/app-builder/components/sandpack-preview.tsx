@@ -637,6 +637,10 @@ if (typeof window !== 'undefined') {
         console.log("[SCENE_EDITOR] Override done after "+_frame+" frames, "+Object.keys(_bodies).length+" bodies");
         _autoPhysics(s);
         _autoTerrain();
+        // Delayed auto-physics retries — catch late-loading GLTF models and restored spawned objects
+        setTimeout(function() { _autoPhysics(s); }, 5000);
+        setTimeout(function() { _autoPhysics(s); }, 10000);
+        setTimeout(function() { _autoPhysics(s); }, 15000);
       }
     }
     // Auto-terrain: regenerate terrain from persisted config if it exists
@@ -696,14 +700,12 @@ if (typeof window !== 'undefined') {
       }
     }
     // Auto-physics: scan scene meshes and create CANNON bodies for objects that need them
-    var _autoPhysDone = false;
+    // Runs multiple times (idempotent — skips objects that already have bodies)
     function _autoPhysics(scene) {
-      if (_autoPhysDone) return;
       var w = window.__vibexe_world__;
-      if (!w) { console.log("[AutoPhysics] No physics world found, skipping"); return; }
+      if (!w) return;
       var CANNON = window.CANNON;
-      if (!CANNON) { console.log("[AutoPhysics] CANNON not loaded, skipping"); return; }
-      _autoPhysDone = true;
+      if (!CANNON) return;
       var created = 0, skipped = 0;
       // Types that should be solid (static physics bodies)
       var solidTypes = { platform: true, barrier: true };
@@ -1149,6 +1151,10 @@ export function SandpackPreview({
 					// Delay to let game scene fully initialize
 					setTimeout(() => {
 						iframe.contentWindow?.postMessage({ type: "game-editor-restore-spawned-objects", objects: objectsToRestore }, "*");
+						// Run auto-physics after restored objects have time to load their models
+						setTimeout(() => {
+							iframe.contentWindow?.postMessage({ type: "run-auto-physics" }, "*");
+						}, 5000);
 					}, 500);
 				}
 				// Auto-generate terrain on page load if not in editor mode and terrain config exists
