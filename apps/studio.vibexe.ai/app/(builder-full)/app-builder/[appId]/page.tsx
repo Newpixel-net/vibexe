@@ -21,7 +21,7 @@ export default async function AppBuilderAppPage({ params }: Props) {
 	const user = await getUser();
 	if (!user) redirect("/login");
 
-	const app = await getAppById(appId, user.id);
+	const app = await getAppById(appId, user.dbId);
 	if (!app) notFound();
 
 	const files = await getFilesForApp(appId);

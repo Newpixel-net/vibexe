@@ -252,7 +252,7 @@ export async function POST(request: Request) {
 			});
 		}
 
-		const app = await getAppById(appId, user.id);
+		const app = await getAppById(appId, user.dbId);
 		if (!app) {
 			return new Response(JSON.stringify({ error: "App not found" }), {
 				status: 404,

@@ -22,7 +22,7 @@ export async function POST(
 	}
 
 	const { appId } = await params;
-	const app = await getAppById(appId, user.id);
+	const app = await getAppById(appId, user.dbId);
 	if (!app) {
 		return Response.json({ error: "App not found" }, { status: 404 });
 	}
@@ -56,7 +56,7 @@ export async function GET(
 	}
 
 	const { appId } = await params;
-	const app = await getAppById(appId, user.id);
+	const app = await getAppById(appId, user.dbId);
 	if (!app) {
 		return Response.json({ error: "App not found" }, { status: 404 });
 	}

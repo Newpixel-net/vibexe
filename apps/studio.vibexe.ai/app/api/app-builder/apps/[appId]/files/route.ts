@@ -49,7 +49,7 @@ export async function GET(_request: Request, context: RouteContext) {
 		const { appId } = await context.params;
 
 		// Verify app exists and user has access
-		const app = await getAppById(appId, user.id);
+		const app = await getAppById(appId, user.dbId);
 		if (!app) {
 			return NextResponse.json({ error: "App not found" }, { status: 404 });
 		}
@@ -107,7 +107,7 @@ export async function PUT(request: Request, context: RouteContext) {
 		const { appId } = await context.params;
 
 		// Verify app exists and user has access
-		const app = await getAppById(appId, user.id);
+		const app = await getAppById(appId, user.dbId);
 		if (!app) {
 			return NextResponse.json({ error: "App not found" }, { status: 404 });
 		}
@@ -171,7 +171,7 @@ export async function DELETE(request: Request, context: RouteContext) {
 		const { appId } = await context.params;
 
 		// Verify app exists and user has access
-		const app = await getAppById(appId, user.id);
+		const app = await getAppById(appId, user.dbId);
 		if (!app) {
 			return NextResponse.json({ error: "App not found" }, { status: 404 });
 		}

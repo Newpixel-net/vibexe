@@ -18,7 +18,7 @@ export async function PATCH(
 	const { appId } = await params;
 
 	// Verify app ownership
-	const app = await getAppById(appId, user.id);
+	const app = await getAppById(appId, user.dbId);
 	if (!app) {
 		return NextResponse.json({ error: "App not found" }, { status: 404 });
 	}

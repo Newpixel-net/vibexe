@@ -129,7 +129,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
 		const { appId } = await context.params;
 
-		const app = await getAppById(appId, user.id);
+		const app = await getAppById(appId, user.dbId);
 		if (!app) {
 			return NextResponse.json({ error: "App not found" }, { status: 404 });
 		}
@@ -166,7 +166,7 @@ export async function PUT(request: Request, context: RouteContext) {
 
 		const { appId } = await context.params;
 
-		const app = await getAppById(appId, user.id);
+		const app = await getAppById(appId, user.dbId);
 		if (!app) {
 			return NextResponse.json({ error: "App not found" }, { status: 404 });
 		}

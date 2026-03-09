@@ -20,6 +20,7 @@ import {
 	builderFiles,
 	builderSuggestionTemplates,
 	builderVersions,
+	teamMemberships,
 } from "@/db/schema";
 
 // ============================================================================
@@ -27,11 +28,11 @@ import {
 // ============================================================================
 
 /**
- * Get an app by ID with ownership verification
+ * Get an app by ID with ownership verification via team membership.
  * @param appId - The builder app ID (bldr_xxx)
- * @param userId - The user ID to verify ownership (via team membership)
+ * @param userDbId - The user's numeric database ID (user.dbId)
  */
-export async function getAppById(appId: string, _userId: string) {
+export async function getAppById(appId: string, userDbId: number) {
 	const app = await db.query.builderApps.findFirst({
 		where: eq(builderApps.id, appId as BuilderAppId),
 		with: {
@@ -41,8 +42,16 @@ export async function getAppById(appId: string, _userId: string) {
 
 	if (!app) return null;
 
-	// TODO: Verify user is member of app.team
-	// For now, return app if found (ownership check in API layer)
+	// Verify user is a member of the app's team
+	const membership = await db.query.teamMemberships.findFirst({
+		where: and(
+			eq(teamMemberships.userDbId, userDbId),
+			eq(teamMemberships.teamDbId, app.teamDbId),
+		),
+	});
+
+	if (!membership) return null;
+
 	return app;
 }
 
