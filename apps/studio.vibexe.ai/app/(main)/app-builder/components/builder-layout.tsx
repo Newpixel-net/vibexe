@@ -171,11 +171,10 @@ export function BuilderLayout({
 				</div>
 			</div>
 
-			{/* Settings FAB */}
+			{/* Settings FAB — switches to Settings view in preview panel */}
 			<SettingsFab
-				badgeCount={3}
 				onClick={() => {
-					/* TODO: Open settings panel */
+					setView("preview");
 				}}
 			/>
 		</div>
