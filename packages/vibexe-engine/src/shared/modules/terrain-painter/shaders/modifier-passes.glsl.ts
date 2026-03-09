@@ -267,7 +267,7 @@ uniform float u_hasRoughMap1;
 uniform float u_hasRoughMap2;
 uniform float u_hasRoughMap3;
 
-// AO maps (layers 0-3)
+// AO maps (layers 0-3) — also used for emission textures when uIsEmissive > 0.5
 uniform sampler2D u_aoMap0;
 uniform sampler2D u_aoMap1;
 uniform sampler2D u_aoMap2;
@@ -276,6 +276,16 @@ uniform float u_hasAOMap0;
 uniform float u_hasAOMap1;
 uniform float u_hasAOMap2;
 uniform float u_hasAOMap3;
+
+// Emission flags — reuse AO slot as emission sampler when > 0.5
+uniform float u_isEmissive0;
+uniform float u_isEmissive1;
+uniform float u_isEmissive2;
+uniform float u_isEmissive3;
+uniform float u_emissionIntensity0;
+uniform float u_emissionIntensity1;
+uniform float u_emissionIntensity2;
+uniform float u_emissionIntensity3;
 
 // Per-layer texture scale and roughness
 uniform float u_texScale0;
@@ -539,6 +549,14 @@ void main() {
 
   // Minimum brightness floor
   totalLight = max(totalLight, albedo * 0.08);
+
+  // Emission — layers with uIsEmissive > 0.5 sample AO slot as emission texture
+  vec3 emission = vec3(0.0);
+  if (u_isEmissive0 > 0.5 && u_hasAOMap0 > 0.5) emission += texture2D(u_aoMap0, baseUv * u_texScale0).rgb * u_emissionIntensity0 * bw0 / bwSum;
+  if (u_isEmissive1 > 0.5 && u_hasAOMap1 > 0.5) emission += texture2D(u_aoMap1, baseUv * u_texScale1).rgb * u_emissionIntensity1 * bw1 / bwSum;
+  if (u_isEmissive2 > 0.5 && u_hasAOMap2 > 0.5) emission += texture2D(u_aoMap2, baseUv * u_texScale2).rgb * u_emissionIntensity2 * bw2 / bwSum;
+  if (u_isEmissive3 > 0.5 && u_hasAOMap3 > 0.5) emission += texture2D(u_aoMap3, baseUv * u_texScale3).rgb * u_emissionIntensity3 * bw3 / bwSum;
+  totalLight += emission;
 
   // Atmospheric fog
   vec3 fogColor = vec3(0.55, 0.60, 0.72);

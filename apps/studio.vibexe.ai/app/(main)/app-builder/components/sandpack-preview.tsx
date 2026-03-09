@@ -724,7 +724,10 @@ if (typeof window !== 'undefined') {
                 roughness: l.roughness != null ? l.roughness : 0.85,
                 normalIntensity: l.normalIntensity != null ? l.normalIntensity : 1.0,
                 metallic: l.metallic || false,
-                modifiers: l.modifiers && l.modifiers.length > 0 ? l.modifiers : (_defMods[idx] || [])
+                modifiers: l.modifiers && l.modifiers.length > 0 ? l.modifiers : (_defMods[idx] || []),
+                materialId: l.materialId,
+                emissionUrl: l.emissionUrl,
+                emissionIntensity: l.emissionIntensity,
               };
             })
           }, "*");
@@ -1252,6 +1255,9 @@ export function SandpackPreview({
 											normalIntensity: l.normalIntensity != null ? l.normalIntensity : 1.0,
 											metallic: l.metallic || false,
 											modifiers: l.modifiers && l.modifiers.length > 0 ? l.modifiers : (_defMods[idx] || []),
+											materialId: l.materialId,
+											emissionUrl: l.emissionUrl,
+											emissionIntensity: l.emissionIntensity,
 										})),
 									}, "*");
 								}, 1000);
@@ -1471,6 +1477,9 @@ export function SandpackPreview({
 									normalIntensity: l.normalIntensity != null ? l.normalIntensity : 1.0,
 									metallic: l.metallic || false,
 									modifiers: l.modifiers && l.modifiers.length > 0 ? l.modifiers : (_defMods[idx] || []),
+									materialId: l.materialId,
+									emissionUrl: l.emissionUrl,
+									emissionIntensity: l.emissionIntensity,
 								})),
 							});
 						}, 1000);
@@ -1659,7 +1668,7 @@ export function SandpackPreview({
 		// No externalResources needed for Three.js — the shim handles core + all addons
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=75`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=76`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);

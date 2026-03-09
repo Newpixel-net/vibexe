@@ -106,6 +106,15 @@ export class TerrainMesh {
 				u_hasAOMap1: { value: 0.0 },
 				u_hasAOMap2: { value: 0.0 },
 				u_hasAOMap3: { value: 0.0 },
+				// Emission flags (reuse AO slot as emission sampler)
+				u_isEmissive0: { value: 0.0 },
+				u_isEmissive1: { value: 0.0 },
+				u_isEmissive2: { value: 0.0 },
+				u_isEmissive3: { value: 0.0 },
+				u_emissionIntensity0: { value: 0.0 },
+				u_emissionIntensity1: { value: 0.0 },
+				u_emissionIntensity2: { value: 0.0 },
+				u_emissionIntensity3: { value: 0.0 },
 				// Per-layer texture scale
 				u_texScale0: { value: 10.0 },
 				u_texScale1: { value: 10.0 },

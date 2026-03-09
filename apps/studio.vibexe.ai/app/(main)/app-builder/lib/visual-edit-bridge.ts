@@ -3497,10 +3497,18 @@ export function getVisualEditBridgeScript(): string {
             _roughUrl = _diffUrl.replace(/\\.jpg$/i, "_Roughness.jpg");
           }
           _rpRoughnessUrls.push(_roughUrl);
-          // Auto-derive AO map URL: Ground037.jpg → Ground037_AO.jpg
-          var _aoUrl = _rpEnabledLayers[li5].aoUrl || "";
-          if (!_aoUrl && _diffUrl) {
-            _aoUrl = _diffUrl.replace(/\\.jpg$/i, "_AO.jpg");
+          // AO map URL — OR emission map URL for emissive layers (reuses AO slot)
+          var _layerEmissionUrl = _rpEnabledLayers[li5].emissionUrl || "";
+          var _layerEmissionIntensity = _rpEnabledLayers[li5].emissionIntensity || 0;
+          var _aoUrl;
+          if (_layerEmissionUrl && _layerEmissionIntensity > 0) {
+            // Emissive layer: load emission texture into AO slot
+            _aoUrl = _layerEmissionUrl;
+          } else {
+            _aoUrl = _rpEnabledLayers[li5].aoUrl || "";
+            if (!_aoUrl && _diffUrl) {
+              _aoUrl = _diffUrl.replace(/\\.jpg$/i, "_AO.jpg");
+            }
           }
           _rpAOUrls.push(_aoUrl);
         }
@@ -3587,6 +3595,14 @@ export function getVisualEditBridgeScript(): string {
               uHasAOMap1: { value: _rpAOTextures[1] ? 1.0 : 0.0 },
               uHasAOMap2: { value: _rpAOTextures[2] ? 1.0 : 0.0 },
               uHasAOMap3: { value: _rpAOTextures[3] ? 1.0 : 0.0 },
+              uIsEmissive0: { value: 0.0 },
+              uIsEmissive1: { value: 0.0 },
+              uIsEmissive2: { value: 0.0 },
+              uIsEmissive3: { value: 0.0 },
+              uEmissionIntensity0: { value: 0.0 },
+              uEmissionIntensity1: { value: 0.0 },
+              uEmissionIntensity2: { value: 0.0 },
+              uEmissionIntensity3: { value: 0.0 },
               uColor0: { value: new _rpTHREE.Vector3(_rpColors[0] ? _rpColors[0][0] : 0.5, _rpColors[0] ? _rpColors[0][1] : 0.5, _rpColors[0] ? _rpColors[0][2] : 0.5) },
               uColor1: { value: new _rpTHREE.Vector3(_rpColors[1] ? _rpColors[1][0] : 0.5, _rpColors[1] ? _rpColors[1][1] : 0.5, _rpColors[1] ? _rpColors[1][2] : 0.5) },
               uColor2: { value: new _rpTHREE.Vector3(_rpColors[2] ? _rpColors[2][0] : 0.5, _rpColors[2] ? _rpColors[2][1] : 0.5, _rpColors[2] ? _rpColors[2][2] : 0.5) },
@@ -3628,6 +3644,11 @@ export function getVisualEditBridgeScript(): string {
               if (_rpEnabledLayers[tsi].metallic) _rpUniforms["uMetallic" + tsi].value = 1.0;
               var layerOpacity = _rpEnabledLayers[tsi].opacity != null ? _rpEnabledLayers[tsi].opacity / 100 : 1.0;
               _rpUniforms["uOpacity" + tsi].value = layerOpacity;
+              // Emission support — reuses AO texture slot for emissive layers
+              if (_rpEnabledLayers[tsi].emissionUrl && _rpEnabledLayers[tsi].emissionIntensity > 0) {
+                _rpUniforms["uIsEmissive" + tsi].value = 1.0;
+                _rpUniforms["uEmissionIntensity" + tsi].value = _rpEnabledLayers[tsi].emissionIntensity || 1.0;
+              }
             }
 
             var _rpVertShader = [
@@ -3667,6 +3688,8 @@ export function getVisualEditBridgeScript(): string {
               "uniform float uHasNormal0, uHasNormal1, uHasNormal2, uHasNormal3;",
               "uniform float uHasRoughMap0, uHasRoughMap1, uHasRoughMap2, uHasRoughMap3;",
               "uniform float uHasAOMap0, uHasAOMap1, uHasAOMap2, uHasAOMap3;",
+              "uniform float uIsEmissive0, uIsEmissive1, uIsEmissive2, uIsEmissive3;",
+              "uniform float uEmissionIntensity0, uEmissionIntensity1, uEmissionIntensity2, uEmissionIntensity3;",
               "uniform float uTexScale0, uTexScale1, uTexScale2, uTexScale3;",
               "uniform float uRoughness0, uRoughness1, uRoughness2, uRoughness3;",
               "uniform float uNormalIntensity0, uNormalIntensity1, uNormalIntensity2, uNormalIntensity3;",
@@ -3899,6 +3922,14 @@ export function getVisualEditBridgeScript(): string {
               "",
               "  // Minimum brightness floor",
               "  totalLight = max(totalLight, albedo * 0.08);",
+              "",
+              "  // Emission from emissive layers (Lava/Burnt) — reuses AO texture slot",
+              "  vec3 emission = vec3(0.0);",
+              "  if (uIsEmissive0 > 0.5 && uHasAOMap0 > 0.5) emission += texture2D(uAOMap0, baseUv * uTexScale0).rgb * uEmissionIntensity0 * hb0;",
+              "  if (uIsEmissive1 > 0.5 && uHasAOMap1 > 0.5) emission += texture2D(uAOMap1, baseUv * uTexScale1).rgb * uEmissionIntensity1 * hb1;",
+              "  if (uIsEmissive2 > 0.5 && uHasAOMap2 > 0.5) emission += texture2D(uAOMap2, baseUv * uTexScale2).rgb * uEmissionIntensity2 * hb2;",
+              "  if (uIsEmissive3 > 0.5 && uHasAOMap3 > 0.5) emission += texture2D(uAOMap3, baseUv * uTexScale3).rgb * uEmissionIntensity3 * hb3;",
+              "  totalLight += emission;",
               "",
               "  // Atmospheric haze",
               "  float fogDist = camDist / uFogFar;",

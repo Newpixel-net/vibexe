@@ -16,12 +16,20 @@ export interface LayerTexture {
 	diffuseUrl: string;
 	/** URL to the normal map (optional — auto-derived from diffuseUrl if omitted) */
 	normalUrl?: string;
+	/** URL to roughness map (optional — auto-derived from diffuseUrl if omitted) */
+	roughnessUrl?: string;
+	/** URL to emission map (optional — for emissive materials like Lava/Burnt) */
+	emissionUrl?: string;
+	/** Emission intensity multiplier. Default 0 (no emission) */
+	emissionIntensity?: number;
 	/** Per-layer roughness (0.0 = mirror, 1.0 = fully rough). Default 0.8 */
 	roughness?: number;
 	/** Texture tiling scale */
 	tiling: number;
 	/** Preview color for the UI swatch */
 	previewColor: string;
+	/** Reference to terrain material catalog entry ID */
+	materialId?: string;
 }
 
 export class LayerSettings {

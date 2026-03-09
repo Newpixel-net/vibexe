@@ -33,6 +33,15 @@ import {
 	textureUrl,
 	type TextureCategory,
 } from "../lib/texture-library-data";
+import {
+	TERRAIN_MATERIAL_CATALOG,
+	TERRAIN_MATERIAL_CATEGORIES,
+	terrainTextureUrl,
+	terrainThumbnailUrl,
+	getTerrainMaterialById,
+	findMaterialByDiffuseUrl,
+	type TerrainMaterialCategory,
+} from "../lib/terrain-material-catalog";
 
 // ===== Types (mirroring the runtime module types) =====
 
@@ -59,6 +68,10 @@ interface LayerData {
 	roughness: number; // 0.0-1.0, default 0.8
 	normalIntensity: number; // 0.0-1.0, default 1.0
 	metallic: boolean; // default false
+	// Material catalog reference
+	materialId?: string; // links to terrain-material-catalog
+	emissionUrl?: string; // emission map URL (for Lava/Burnt)
+	emissionIntensity?: number; // 0.0-3.0, default 0
 }
 
 interface TerrainPainterSettings {
@@ -114,59 +127,63 @@ const MODIFIER_DEFAULTS: Record<ModifierType, Omit<ModifierData, "type">> = {
 
 const DEFAULT_LAYERS: LayerData[] = [
 	{
-		name: "Dirt",
+		name: "Dark Ground",
 		enabled: true,
-		previewColor: "#8b6914",
-		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Ground037.jpg",
+		previewColor: "#5a4430",
+		diffuseUrl: "/api/app-builder/media-stock-3d/textures/YFGM_Ground01.jpg",
 		tileSize: 4,
 		opacity: 100,
 		roughness: 0.85,
 		normalIntensity: 1.0,
 		metallic: false,
+		materialId: "yfgm_ground01",
 		modifiers: [
 			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0, max: 0.2, minFalloff: 0.02, maxFalloff: 0.08 } },
 			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 25, minFalloff: 5, maxFalloff: 10 } },
 		],
 	},
 	{
-		name: "Grass",
+		name: "Green Grass",
 		enabled: true,
-		previewColor: "#6b8e23",
-		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Grass004.jpg",
+		previewColor: "#4a7a2e",
+		diffuseUrl: "/api/app-builder/media-stock-3d/textures/YFGM_Grass01.jpg",
 		tileSize: 4,
 		opacity: 100,
-		roughness: 0.75,
+		roughness: 0.8,
 		normalIntensity: 1.0,
 		metallic: false,
+		materialId: "yfgm_grass01",
 		modifiers: [
 			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.03, max: 0.35, minFalloff: 0.03, maxFalloff: 0.1 } },
 			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 30, minFalloff: 3, maxFalloff: 10 } },
 		],
 	},
 	{
-		name: "Rock",
+		name: "Stony Ground",
 		enabled: true,
-		previewColor: "#7a7a7a",
-		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Rock035.jpg",
-		tileSize: 128,
+		previewColor: "#7a7060",
+		diffuseUrl: "/api/app-builder/media-stock-3d/textures/YFGM_GroundStones01.jpg",
+		tileSize: 4,
 		opacity: 100,
-		roughness: 0.92,
+		roughness: 0.85,
 		normalIntensity: 1.0,
 		metallic: false,
+		materialId: "yfgm_groundstones01",
 		modifiers: [
 			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.1, max: 0.95, minFalloff: 0.08, maxFalloff: 0.1 } },
 		],
 	},
 	{
-		name: "Snow",
+		name: "Frozen Grass",
 		enabled: true,
-		previewColor: "#f0f0f0",
-		diffuseUrl: "/api/app-builder/media-stock-3d/textures/Snow006.jpg",
-		tileSize: 2,
+		previewColor: "#8aaa8e",
+		diffuseUrl: "/api/app-builder/media-stock-3d/textures/YFGM_FrozenGrass.jpg",
+		tileSize: 4,
 		opacity: 100,
-		roughness: 0.3,
+		roughness: 0.8,
 		normalIntensity: 1.0,
 		metallic: false,
+		materialId: "yfgm_frozengrass",
 		modifiers: [
 			{ type: "Height", ...MODIFIER_DEFAULTS.Height, params: { min: 0.72, max: 1.0, minFalloff: 0.08, maxFalloff: 0.02 } },
 			{ type: "Slope", ...MODIFIER_DEFAULTS.Slope, params: { minAngle: 0, maxAngle: 45, minFalloff: 5, maxFalloff: 10 } },
@@ -345,6 +362,9 @@ export function TerrainPainterPanel({
 					normalIntensity: l.normalIntensity,
 					metallic: l.metallic,
 					modifiers: l.modifiers,
+					materialId: l.materialId,
+					emissionUrl: l.emissionUrl,
+					emissionIntensity: l.emissionIntensity,
 				})),
 			});
 		}
@@ -825,13 +845,27 @@ function LayersTab({
 				))}
 			</div>
 
-			{/* Texture picker for selected layer */}
+			{/* Material picker for selected layer */}
 			{currentLayer && (
-				<TerrainTexturePicker
+				<TerrainMaterialPicker
 					currentUrl={currentLayer.diffuseUrl}
-					onSelect={(url, displayName) => {
-						onUpdateLayerField(selectedLayer, "diffuseUrl", url);
-						if (displayName) onUpdateLayerField(selectedLayer, "name", displayName);
+					currentMaterialId={currentLayer.materialId}
+					onSelect={(mat) => {
+						setLayers((prev) => {
+							const next = [...prev];
+							next[selectedLayer] = {
+								...next[selectedLayer],
+								diffuseUrl: mat.diffuseUrl,
+								name: mat.name,
+								previewColor: mat.previewColor,
+								roughness: mat.roughness,
+								tileSize: mat.tileSize,
+								materialId: mat.materialId,
+								emissionUrl: mat.emissionUrl,
+								emissionIntensity: mat.emissionIntensity,
+							};
+							return next;
+						});
 					}}
 				/>
 			)}
@@ -1064,6 +1098,113 @@ function TerrainTexturePicker({
 										className="w-full h-full object-cover"
 										loading="lazy"
 									/>
+								</button>
+							);
+						})}
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}
+
+// ===== Terrain Material Picker (30 YFGM materials + classic) =====
+
+function TerrainMaterialPicker({
+	currentUrl,
+	currentMaterialId,
+	onSelect,
+}: {
+	currentUrl: string;
+	currentMaterialId?: string;
+	onSelect: (material: { diffuseUrl: string; name: string; previewColor: string; roughness: number; tileSize: number; materialId: string; emissionUrl?: string; emissionIntensity?: number }) => void;
+}) {
+	const [open, setOpen] = useState(false);
+	const [category, setCategory] = useState<TerrainMaterialCategory>("grass");
+
+	// Find current material
+	const currentMat = currentMaterialId
+		? getTerrainMaterialById(currentMaterialId)
+		: findMaterialByDiffuseUrl(currentUrl);
+
+	return (
+		<div className="px-3 py-1.5 border-t border-white/5">
+			<button
+				onClick={() => setOpen(!open)}
+				className="w-full flex items-center gap-2 px-2 py-1.5 rounded bg-[#252525] border border-white/10 hover:border-white/20 transition-colors"
+			>
+				<div className="w-7 h-7 rounded border border-white/20 overflow-hidden flex-shrink-0 bg-[#1a1a1a]">
+					{currentMat?.thumbnailFilename ? (
+						<img src={terrainThumbnailUrl(currentMat.thumbnailFilename)} alt="" className="w-full h-full object-cover" />
+					) : currentUrl ? (
+						<img src={currentUrl} alt="" className="w-full h-full object-cover" />
+					) : null}
+				</div>
+				<span className="text-[10px] text-white/70 flex-1 text-left truncate">
+					{currentMat?.name || "Select Material"}
+				</span>
+				<ChevronDown className={`w-3 h-3 text-white/40 transition-transform ${open ? "rotate-180" : ""}`} />
+			</button>
+
+			{open && (
+				<div className="mt-1.5 space-y-1">
+					{/* Category tabs */}
+					<div className="flex gap-0.5 overflow-x-auto pb-1 scrollbar-none">
+						{TERRAIN_MATERIAL_CATEGORIES.map((cat) => (
+							<button
+								key={cat.id}
+								type="button"
+								onClick={() => setCategory(cat.id)}
+								className={`text-[9px] px-1.5 py-0.5 rounded whitespace-nowrap transition-colors ${
+									category === cat.id
+										? "bg-green-500/20 text-green-300"
+										: "text-neutral-400 hover:text-neutral-300 hover:bg-white/[0.04]"
+								}`}
+							>
+								{cat.label}
+							</button>
+						))}
+					</div>
+					{/* Material grid */}
+					<div className="grid grid-cols-5 gap-1 max-h-[200px] overflow-y-auto scrollbar-thin py-0.5">
+						{TERRAIN_MATERIAL_CATALOG.filter((m) => m.category === category).map((mat) => {
+							const isActive = currentMaterialId === mat.id || currentUrl.endsWith(mat.diffuseFilename);
+							const thumbSrc = mat.thumbnailFilename
+								? terrainThumbnailUrl(mat.thumbnailFilename)
+								: terrainTextureUrl(mat.diffuseFilename);
+							return (
+								<button
+									key={mat.id}
+									type="button"
+									onClick={() => {
+										onSelect({
+											diffuseUrl: terrainTextureUrl(mat.diffuseFilename),
+											name: mat.name,
+											previewColor: mat.previewColor,
+											roughness: mat.defaultRoughness,
+											tileSize: mat.defaultTileSize,
+											materialId: mat.id,
+											emissionUrl: mat.emissionFilename ? terrainTextureUrl(mat.emissionFilename) : undefined,
+											emissionIntensity: mat.emissionIntensity,
+										});
+										setOpen(false);
+									}}
+									className={`relative w-[38px] h-[38px] mx-auto rounded-full overflow-hidden transition-all shadow-[inset_0_0_6px_rgba(0,0,0,0.25)] ${
+										isActive
+											? "ring-2 ring-green-400 ring-offset-1 ring-offset-[#1a1a2e]"
+											: "ring-1 ring-white/10 hover:ring-green-400/60"
+									}`}
+									title={mat.name}
+								>
+									<img
+										src={thumbSrc}
+										alt={mat.name}
+										className="w-full h-full object-cover"
+										loading="lazy"
+									/>
+									{mat.emissionFilename && (
+										<div className="absolute bottom-0 right-0 w-2 h-2 bg-orange-400 rounded-full" title="Emissive" />
+									)}
 								</button>
 							);
 						})}
