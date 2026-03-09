@@ -54,6 +54,8 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 		selectedUuids,
 		toggleMultiSelect,
 		deleteSelected,
+		groupSelected,
+		ungroupSelected,
 		hierarchySearch,
 		setHierarchySearch,
 		// Settings data from context
@@ -1152,6 +1154,18 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 								</button>
 							</div>
 
+							{/* Ungroup (only for Group objects) */}
+							{selectedObject?.userData?.vibexeType === "Group" && (
+								<button
+									type="button"
+									onClick={ungroupSelected}
+									className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] text-white/50 bg-white/[0.04] hover:bg-white/[0.08] rounded transition-colors mt-1"
+								>
+									<Layers className="w-3 h-3" />
+									Ungroup
+								</button>
+							)}
+
 							{/* Delete */}
 							<button
 								type="button"
@@ -1186,6 +1200,13 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 									className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-[10px] text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-colors"
 								>
 									<Lock className="w-3 h-3" /> Toggle Lock
+								</button>
+								<button
+									type="button"
+									onClick={groupSelected}
+									className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-[10px] text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-colors"
+								>
+									<Layers className="w-3 h-3" /> Group Objects
 								</button>
 								<button
 									type="button"

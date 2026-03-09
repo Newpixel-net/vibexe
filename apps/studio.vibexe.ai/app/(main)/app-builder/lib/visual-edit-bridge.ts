@@ -1391,6 +1391,78 @@ export function getVisualEditBridgeScript(): string {
     window.parent.postMessage({ type: "game-editor-object-duplicated", uuid: clone.uuid }, "*");
   }
 
+  // ---- Group / Ungroup ----
+  function groupObjects(uuids) {
+    if (!editor || !uuids || uuids.length < 2) return;
+    var THREE = window.THREE;
+    var objects = [];
+    for (var i = 0; i < uuids.length; i++) {
+      var obj = findByUuid(editor.scene, uuids[i]);
+      if (obj && obj !== editor.scene) objects.push(obj);
+    }
+    if (objects.length < 2) return;
+    // Compute center position
+    var cx = 0, cy = 0, cz = 0;
+    for (var j = 0; j < objects.length; j++) {
+      cx += objects[j].position.x;
+      cy += objects[j].position.y;
+      cz += objects[j].position.z;
+    }
+    cx /= objects.length; cy /= objects.length; cz /= objects.length;
+    // Create group at center
+    var group = new THREE.Group();
+    group.name = "Group";
+    group.position.set(cx, cy, cz);
+    group.userData.vibexeType = "Group";
+    group.userData.vibexeFactory = "group";
+    editor.scene.add(group);
+    // Reparent objects — adjust position to be relative to group
+    for (var k = 0; k < objects.length; k++) {
+      var o = objects[k];
+      var wp = new THREE.Vector3();
+      o.getWorldPosition(wp);
+      o.parent.remove(o);
+      group.add(o);
+      o.position.set(wp.x - cx, wp.y - cy, wp.z - cz);
+    }
+    pushUndo({ type: "group", uuid: group.uuid, childUuids: uuids });
+    selectObject(group);
+    sendSceneTree();
+    window.parent.postMessage({ type: "game-editor-objects-grouped", uuid: group.uuid, count: objects.length }, "*");
+    window.parent.postMessage({ type: "game-editor-scene-dirty" }, "*");
+  }
+
+  function ungroupObject(uuid) {
+    if (!editor || !uuid) return;
+    var group = findByUuid(editor.scene, uuid);
+    if (!group || !group.children || group.children.length === 0) return;
+    var THREE = window.THREE;
+    // Collect children (copy array since we'll modify it)
+    var children = [];
+    for (var i = 0; i < group.children.length; i++) {
+      var c = group.children[i];
+      if (c.name && c.name.indexOf("__editor_") === 0) continue;
+      children.push(c);
+    }
+    var childUuids = [];
+    for (var j = 0; j < children.length; j++) {
+      var child = children[j];
+      var wp = new THREE.Vector3();
+      child.getWorldPosition(wp);
+      group.remove(child);
+      editor.scene.add(child);
+      child.position.copy(wp);
+      childUuids.push(child.uuid);
+    }
+    // Remove empty group
+    deselectObject();
+    editor.scene.remove(group);
+    pushUndo({ type: "ungroup", uuid: uuid, childUuids: childUuids });
+    sendSceneTree();
+    window.parent.postMessage({ type: "game-editor-objects-ungrouped", count: childUuids.length }, "*");
+    window.parent.postMessage({ type: "game-editor-scene-dirty" }, "*");
+  }
+
   // ---- XZ Plane Drag ----
   function startXZDrag(obj, clientX, clientY) {
     if (!editor) return;
@@ -2589,6 +2661,12 @@ export function getVisualEditBridgeScript(): string {
         break;
       case "game-editor-clear-multi-highlight":
         clearMultiHighlight();
+        break;
+      case "game-editor-group-objects":
+        if (editor && d.uuids) groupObjects(d.uuids);
+        break;
+      case "game-editor-ungroup-object":
+        if (editor && d.uuid) ungroupObject(d.uuid);
         break;
       case "game-editor-set-snap-settings":
         if (typeof d.gridIncrement === "number") gridSnapIncrement = d.gridIncrement;

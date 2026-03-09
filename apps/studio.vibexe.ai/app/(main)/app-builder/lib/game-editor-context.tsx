@@ -268,6 +268,8 @@ interface GameEditorContextValue {
 	toggleMultiSelect: (uuid: string) => void;
 	clearMultiSelect: () => void;
 	deleteSelected: () => void;
+	groupSelected: () => void;
+	ungroupSelected: () => void;
 	deselectObject: () => void;
 	updateSceneTree: (tree: SceneNode) => void;
 	updateSelectedObject: (obj: SelectedSceneObject | null) => void;
@@ -542,6 +544,19 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		setSelectedObject(null);
 		setIsDirty(true);
 	}, [selectedUuids, sendToIframe]);
+
+	const groupSelected = useCallback(() => {
+		if (selectedUuids.length < 2) return;
+		sendToIframe({ type: "game-editor-group-objects", uuids: selectedUuids });
+		setSelectedUuids([]);
+		setIsDirty(true);
+	}, [selectedUuids, sendToIframe]);
+
+	const ungroupSelected = useCallback(() => {
+		if (!selectedObject) return;
+		sendToIframe({ type: "game-editor-ungroup-object", uuid: selectedObject.uuid });
+		setIsDirty(true);
+	}, [selectedObject, sendToIframe]);
 
 	const deselectObject = useCallback(() => {
 		setSelectedObject(null);
@@ -1033,6 +1048,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				toggleMultiSelect,
 				clearMultiSelect,
 				deleteSelected,
+				groupSelected,
+				ungroupSelected,
 				deselectObject,
 				updateSceneTree: setSceneTree,
 				updateSelectedObject: setSelectedObject,
