@@ -786,6 +786,7 @@ function LayersTab({
 	onRemoveModifier,
 	onUpdateModifier,
 	onUpdateModifierParam,
+	onSelectMaterial,
 }: {
 	layers: LayerData[];
 	selectedLayer: number;
