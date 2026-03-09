@@ -1560,12 +1560,14 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			installedModules = parsed.installed || {};
 		} catch { /* invalid JSON */ }
 	}
-	// Fallback: read modules from game settings (always up-to-date in state)
-	if (Object.keys(installedModules).length === 0 && settingsFile?.content) {
+	// Merge modules from game settings (always up-to-date, takes precedence)
+	if (settingsFile?.content) {
 		try {
 			const gs = JSON.parse(settingsFile.content);
 			if (gs.modules?.installed) {
-				installedModules = gs.modules.installed;
+				for (const [id, cfg] of Object.entries(gs.modules.installed as typeof installedModules)) {
+					installedModules[id] = cfg;
+				}
 			}
 		} catch { /* invalid JSON */ }
 	}
