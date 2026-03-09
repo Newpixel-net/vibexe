@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { type BuilderAppId, builderApps, builderAppDatabases } from "@/db/schema";
 import { executeQuery } from "@/lib/app-database/pool-manager";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -36,6 +37,14 @@ function periodToInterval(period: string): string | null {
 export async function GET(request: Request, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+
+		// Auth: only the app owner can view analytics
+		try {
+			await verifyAppAccess(appId);
+		} catch {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
+
 		const url = new URL(request.url);
 		const period = url.searchParams.get("period") || "24h";
 		const interval = periodToInterval(period);
