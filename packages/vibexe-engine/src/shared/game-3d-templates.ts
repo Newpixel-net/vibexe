@@ -5658,8 +5658,9 @@ export const GameScene = {
     }
 
     // Terrain ground-following: actively snap player to terrain surface
-    // CANNON heightfield collision is unreliable for Box shapes (catches on edges),
-    // so we use getHeightAt() as the authoritative ground level.
+    // Note: the authoritative ground-following is in the terrain-painter module's
+    // postStep callback (works for all projects including old saved files).
+    // This is a backup for new projects using this template directly.
     const _tGetH = (window as any).__vibexe_getTerrainHeight;
     if (_tGetH) {
       const _th = _tGetH(playerBody.position.x, playerBody.position.z);
@@ -5667,23 +5668,11 @@ export const GameScene = {
         const _halfH = playerBody.shapes?.[0]?.halfExtents?.y ?? 0.75;
         const _groundY = _th + _halfH;
         const _gap = playerBody.position.y - _groundY;
-        // Debug: log terrain following every 60 frames (~1s)
-        if (!(window as any).__tfDbgC) (window as any).__tfDbgC = 0;
-        (window as any).__tfDbgC++;
-        if ((window as any).__tfDbgC % 60 === 0) {
-          console.log("[TerrainFollow] th=" + _th.toFixed(2) + " bodyY=" + playerBody.position.y.toFixed(2) +
-            " groundY=" + _groundY.toFixed(2) + " gap=" + _gap.toFixed(3) + " vy=" + playerBody.velocity.y.toFixed(2) +
-            " halfH=" + _halfH.toFixed(2) + " canJump=" + (playerBody as any).__canJump);
-        }
         if (_gap < 0) {
-          // Below terrain — snap up immediately
           playerBody.position.y = _groundY;
           if (playerBody.velocity.y < 0) playerBody.velocity.y = 0;
           (playerBody as any).__canJump = true;
-        } else if (_gap < 2.0 && playerBody.velocity.y <= 1.0) {
-          // Within 2 units of terrain and not actively jumping — hug the surface
-          // Threshold increased from 0.4 to handle low-gravity settings (e.g. gravity=-5)
-          // velocity check <= 1.0 allows slight upward from terrain bumps, blocks real jumps (vy=17)
+        } else if (_gap < 3.0 && playerBody.velocity.y <= 1.5) {
           playerBody.position.y = _groundY;
           if (playerBody.velocity.y < 0) playerBody.velocity.y = 0;
           (playerBody as any).__canJump = true;
