@@ -297,8 +297,8 @@ var SKY_FRAGMENT = [
   "    sky += vec3(0.85, 0.9, 1.0) * bright * twinkle * starV * fade * 0.8;",
   "  }",
   "",
-  "  // Exposure",
-  "  sky = 1.0 - exp(-sky * uExposure);",
+  "  // Exposure (linear scale — renderer handles sRGB output)",
+  "  sky *= uExposure;",
   "",
   "  gl_FragColor = vec4(sky, 1.0);",
   "}"
@@ -335,16 +335,23 @@ function ProceduralSkyDome(scene) {
     uSunColor:  { value: new THREE.Vector3(1.0, 0.95, 0.85) },
     uMoonColor: { value: new THREE.Vector3(0.7, 0.75, 0.85) },
     uStarBright:{ value: 1.0 },
-    uExposure:  { value: 1.0 },
+    uExposure:  { value: 2.0 },
     uTime:      { value: 0 }
   };
 
   var geo = new THREE.SphereGeometry(1, 32, 16);
+  // Invert winding order so inside faces become FrontSide
+  // (BackSide doesn't render in some EffectComposer pipelines)
+  var idx = geo.index.array;
+  for (var fi = 0; fi < idx.length; fi += 3) {
+    var tmp = idx[fi]; idx[fi] = idx[fi + 2]; idx[fi + 2] = tmp;
+  }
+  geo.index.needsUpdate = true;
   var mat = new THREE.ShaderMaterial({
     vertexShader: SKY_VERTEX,
     fragmentShader: SKY_FRAGMENT,
     uniforms: this._u,
-    side: THREE.BackSide,
+    side: THREE.FrontSide,
     depthWrite: false,
     depthTest: false,
     toneMapped: false
@@ -567,7 +574,7 @@ function SkyWeatherSystem(scene, config) {
   this.scene = scene;
   this.config = {
     time: { solarTime: 0.45, cycleLengthMinutes: 10, autoAdvance: false, latitude: 45 },
-    sky:  { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 1.0 },
+    sky:  { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 2.0 },
     lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true },
     fog: { enabled: false, autoColor: true, density: 0.003 }
   };
@@ -775,7 +782,7 @@ module.exports = {
 			mieCoefficient: 0.005,
 			mieDirectionalG: 0.8,
 			starIntensity: 1.0,
-			exposure: 1.0,
+			exposure: 2.0,
 		},
 		lighting: {
 			autoSunLight: true,
