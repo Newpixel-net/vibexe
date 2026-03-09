@@ -20,7 +20,19 @@ export async function GET(request: NextRequest) {
 	const search = searchParams.get("search");
 
 	try {
-		let query = db
+		const conditions: ReturnType<typeof eq>[] = [
+			eq(workflowTemplates.isPublic, true),
+		];
+
+		if (category) {
+			conditions.push(eq(workflowTemplates.category, category));
+		}
+
+		if (search) {
+			conditions.push(ilike(workflowTemplates.name, `%${search}%`));
+		}
+
+		const templates = await db
 			.select({
 				dbId: workflowTemplates.dbId,
 				name: workflowTemplates.name,
@@ -36,29 +48,8 @@ export async function GET(request: NextRequest) {
 			})
 			.from(workflowTemplates)
 			.leftJoin(users, eq(workflowTemplates.authorDbId, users.dbId))
-			.where(eq(workflowTemplates.isPublic, true))
-			.orderBy(desc(workflowTemplates.useCount))
-			.$dynamic();
-
-		if (category) {
-			query = query.where(
-				and(
-					eq(workflowTemplates.isPublic, true),
-					eq(workflowTemplates.category, category),
-				),
-			);
-		}
-
-		if (search) {
-			query = query.where(
-				and(
-					eq(workflowTemplates.isPublic, true),
-					ilike(workflowTemplates.name, `%${search}%`),
-				),
-			);
-		}
-
-		const templates = await query;
+			.where(and(...conditions))
+			.orderBy(desc(workflowTemplates.useCount));
 		return Response.json({ templates });
 	} catch (err) {
 		console.error("[Templates] Error listing templates:", err);

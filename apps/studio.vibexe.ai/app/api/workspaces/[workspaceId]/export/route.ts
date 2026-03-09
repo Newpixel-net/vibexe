@@ -2,7 +2,8 @@ import type { NextRequest } from "next/server";
 import type { WorkspaceId } from "@vibexe-ai/protocol";
 import { vibexe } from "@/app/vibexe";
 import { db, agents } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { fetchCurrentTeam } from "@/services/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,8 @@ export async function GET(
 	const { workspaceId } = await params;
 
 	try {
+		const currentTeam = await fetchCurrentTeam();
+
 		const workspace = await vibexe.getWorkspace(workspaceId as WorkspaceId);
 
 		if (!workspace) {
@@ -27,12 +30,24 @@ export async function GET(
 			);
 		}
 
-		// Get agent metadata for the export
+		// Get agent metadata for the export — scoped to team
 		const [agent] = await db
 			.select({ name: agents.name, tags: agents.tags })
 			.from(agents)
-			.where(eq(agents.workspaceId, workspaceId as WorkspaceId))
+			.where(
+				and(
+					eq(agents.workspaceId, workspaceId as WorkspaceId),
+					eq(agents.teamDbId, currentTeam.dbId),
+				),
+			)
 			.limit(1);
+
+		if (!agent) {
+			return Response.json(
+				{ error: "Workspace not found" },
+				{ status: 404 },
+			);
+		}
 
 		const exportData = {
 			version: "1.0",
