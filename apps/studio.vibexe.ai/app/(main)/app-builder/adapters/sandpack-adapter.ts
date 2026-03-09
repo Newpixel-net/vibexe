@@ -1707,7 +1707,8 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		].join("");
 
 		// Auto-detect player mesh for old saved projects that don't register __vibexe_playerMesh__
-		// Polls every 2s for up to 30s after game starts (player mesh only exists after TAP TO START)
+		// Polls every 2s for up to 30s. Detects by: animation controller (__play), character name, or physics body signature.
+		// Old IIFE code stores playerBody as local var (not in userData), so we primarily detect via animations.
 		globals += [
 			"(function(){",
 			"var _pm=0;",
@@ -1716,13 +1717,22 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			"  _pm++;if(_pm>15){clearInterval(_pi);return;}",
 			"  var sc=window.__vibexe_scene__;",
 			"  if(!sc)return;",
+			"  var candidate=null;",
 			"  sc.traverse(function(o){",
-			"    if(window.__vibexe_playerMesh__)return;",
-			"    if(o.userData&&o.userData.__physicsBody&&o.userData.__physicsBody.mass>0&&o.userData.__physicsBody.fixedRotation){",
-			"      window.__vibexe_playerMesh__=o;",
-			"      console.log('[AutoDetect] Player mesh registered:',o.name||'unnamed');",
-			"    }",
+			"    if(candidate)return;",
+			"    if(!o.userData)return;",
+			// Primary: animated character mesh (has __play animation controller from loadModel)
+			"    if(o.userData.__play){candidate=o;return;}",
+			// Secondary: character-named mesh
+			"    var n=(o.name||'').toLowerCase();",
+			"    if(n.indexOf('character_')===0||n.indexOf('player')>=0){candidate=o;return;}",
+			// Tertiary: physics body with fixedRotation (original check, in case userData.__physicsBody exists)
+			"    if(o.userData.__physicsBody&&o.userData.__physicsBody.mass>0&&o.userData.__physicsBody.fixedRotation){candidate=o;return;}",
 			"  });",
+			"  if(candidate){",
+			"    window.__vibexe_playerMesh__=candidate;",
+			"    console.log('[AutoDetect] Player mesh registered:',candidate.name||'unnamed','via',candidate.userData.__play?'animation':((candidate.name||'').toLowerCase().indexOf('character_')===0?'name':'physics'));",
+			"  }",
 			"},2000);",
 			"})();\n",
 		].join("");
