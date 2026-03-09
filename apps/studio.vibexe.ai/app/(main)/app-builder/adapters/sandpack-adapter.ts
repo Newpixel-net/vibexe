@@ -1706,6 +1706,28 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			"})();\n",
 		].join("");
 
+		// Auto-detect player mesh for old saved projects that don't register __vibexe_playerMesh__
+		// Polls every 2s for up to 30s after game starts (player mesh only exists after TAP TO START)
+		globals += [
+			"(function(){",
+			"var _pm=0;",
+			"var _pi=setInterval(function(){",
+			"  if(window.__vibexe_playerMesh__){clearInterval(_pi);return;}",
+			"  _pm++;if(_pm>15){clearInterval(_pi);return;}",
+			"  var sc=window.__vibexe_scene__;",
+			"  if(!sc)return;",
+			"  sc.traverse(function(o){",
+			"    if(window.__vibexe_playerMesh__)return;",
+			"    if(o.userData&&o.userData.__physicsBody&&o.userData.__physicsBody.mass>0&&o.userData.__physicsBody.fixedRotation){",
+			"      window.__vibexe_playerMesh__=o;",
+			"      console.log('[AutoDetect] Player mesh registered:',o.name||'unnamed');",
+			"    }",
+			"  });",
+			"},2000);",
+			"})();
+",
+		].join("");
+
 		// Debug overlay — system health query handler (responds to parent frame requests)
 		// Enhanced v2: rich diagnostics with problem detection for terrain solidity,
 		// player physics, grounded state, and cross-system health analysis
