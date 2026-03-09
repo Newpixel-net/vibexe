@@ -230,6 +230,9 @@ var SKY_FRAGMENT = [
   "uniform float uCloudScale;",
   "uniform vec2 uCloudOff;",
   "uniform float uCloudBright;",
+  "uniform float uGodRayInt;",
+  "uniform float uAuroraInt;",
+  "uniform float uRainbowInt;",
   "",
   "float miePhase(float c, float g) {",
   "  float g2 = g * g;",
@@ -322,6 +325,21 @@ var SKY_FRAGMENT = [
   "    sky += vec3(0.85, 0.9, 1.0) * bright * twinkle * starV * fade * 0.8;",
   "  }",
   "",
+  "  // Aurora borealis",
+  "  if (uAuroraInt > 0.01 && dir.y > 0.08) {",
+  "    float aNight = 1.0 - smoothstep(-0.12, 0.08, uSunDir.y);",
+  "    if (aNight > 0.1) {",
+  "      float aX = dir.x * 3.0 + uTime * 0.03;",
+  "      float curtain = cfbm(vec2(aX, dir.y * 2.5)) * 0.6 + cfbm(vec2(aX * 2.0 + 1.7, dir.y * 4.0)) * 0.4;",
+  "      float band = smoothstep(0.15, 0.4, dir.y) * smoothstep(0.85, 0.55, dir.y);",
+  "      float wave = sin(dir.x * 8.0 + uTime * 0.5) * 0.15 + 0.85;",
+  "      float aMask = smoothstep(0.3, 0.5, curtain) * band * wave;",
+  "      vec3 aCol = mix(vec3(0.1, 0.9, 0.3), vec3(0.15, 0.3, 0.9), smoothstep(0.3, 0.7, dir.y));",
+  "      aCol = mix(aCol, vec3(0.7, 0.1, 0.5), smoothstep(0.6, 0.85, dir.y) * 0.5);",
+  "      sky += aCol * aMask * uAuroraInt * aNight * 0.5;",
+  "    }",
+  "  }",
+  "",
   "  // Procedural clouds",
   "  if (uCloudCover > 0.01 && dir.y > 0.01) {",
   "    vec2 cUV = dir.xz / (dir.y + 0.08) * uCloudScale + uCloudOff;",
@@ -340,6 +358,32 @@ var SKY_FRAGMENT = [
   "    float edgeGlow = smoothstep(thresh + 0.1, thresh + 0.02, cn) * 0.35 * daylight * sunFace;",
   "    cCol += vec3(1.0, 0.92, 0.75) * edgeGlow;",
   "    sky = mix(sky, cCol, cMask * cFade);",
+  "  }",
+  "",
+  "  // God rays (crepuscular)",
+  "  if (uGodRayInt > 0.01 && uSunDir.y > -0.02) {",
+  "    float grDot = max(0.0, dot(dir, uSunDir));",
+  "    float grAngle = atan(dir.x - uSunDir.x, dir.z - uSunDir.z);",
+  "    float grNoise = cnoise(vec2(grAngle * 6.0, grDot * 3.0)) * 0.5 + 0.5;",
+  "    float grRays = pow(grDot, 4.0) * grNoise * pow(grDot, 6.0);",
+  "    float grCloud = 1.0 - uCloudCover * 0.6;",
+  "    float grSunUp = smoothstep(-0.02, 0.1, uSunDir.y);",
+  "    sky += uSunColor * grRays * uGodRayInt * grCloud * grSunUp * 3.0;",
+  "  }",
+  "",
+  "  // Rainbow arc",
+  "  if (uRainbowInt > 0.01 && dir.y > 0.0 && uSunDir.y > 0.05) {",
+  "    vec3 antiSun = normalize(vec3(-uSunDir.x, abs(uSunDir.y) * 0.3, -uSunDir.z));",
+  "    float rbAng = acos(clamp(dot(dir, antiSun), -1.0, 1.0));",
+  "    float rbW = 0.025;",
+  "    float rbCtr = 0.72;",
+  "    float rbMask = smoothstep(rbW, rbW * 0.3, abs(rbAng - rbCtr));",
+  "    if (rbMask > 0.01) {",
+  "      float t = clamp((rbAng - (rbCtr - rbW)) / (rbW * 2.0), 0.0, 1.0);",
+  "      float hue = (1.0 - t) * 0.8;",
+  "      vec3 rbCol = clamp(abs(mod(hue * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);",
+  "      sky += rbCol * rbMask * uRainbowInt * smoothstep(0.0, 0.12, dir.y) * 0.35;",
+  "    }",
   "  }",
   "",
   "  // Exposure (linear scale — renderer handles sRGB output)",
@@ -386,7 +430,10 @@ function ProceduralSkyDome(scene) {
     uCloudDens:  { value: 0.85 },
     uCloudScale: { value: 3.0 },
     uCloudOff:   { value: new THREE.Vector2(0, 0) },
-    uCloudBright:{ value: 1.0 }
+    uCloudBright:{ value: 1.0 },
+    uGodRayInt:  { value: 0 },
+    uAuroraInt:  { value: 0 },
+    uRainbowInt: { value: 0 }
   };
 
   var geo = new THREE.SphereGeometry(1, 32, 16);
@@ -813,6 +860,136 @@ LightningEffect.prototype.dispose = function() {
 
 
 // ============================================================
+// WeatherAudio — Procedural ambient weather sounds
+// ============================================================
+
+function WeatherAudio() {
+  this._ctx = null;
+  this._masterGain = null;
+  this._rainGain = null;
+  this._windGain = null;
+  this._rainSource = null;
+  this._windSource = null;
+  this._thunderOsc = null;
+  this._thunderGain = null;
+  this._noiseBuf = null;
+}
+
+WeatherAudio.prototype._init = function() {
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    this._ctx = new AC();
+    this._masterGain = this._ctx.createGain();
+    this._masterGain.gain.value = 0.5;
+    this._masterGain.connect(this._ctx.destination);
+
+    // Shared noise buffer (2 seconds)
+    var sr = this._ctx.sampleRate;
+    var bufLen = sr * 2;
+    this._noiseBuf = this._ctx.createBuffer(1, bufLen, sr);
+    var d = this._noiseBuf.getChannelData(0);
+    for (var i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+
+    // Rain: high-pass filtered noise (patter)
+    this._rainGain = this._ctx.createGain();
+    this._rainGain.gain.value = 0;
+    var rainHP = this._ctx.createBiquadFilter();
+    rainHP.type = "highpass";
+    rainHP.frequency.value = 3000;
+    var rainLP = this._ctx.createBiquadFilter();
+    rainLP.type = "lowpass";
+    rainLP.frequency.value = 8000;
+    this._rainSource = this._ctx.createBufferSource();
+    this._rainSource.buffer = this._noiseBuf;
+    this._rainSource.loop = true;
+    this._rainSource.connect(rainHP);
+    rainHP.connect(rainLP);
+    rainLP.connect(this._rainGain);
+    this._rainGain.connect(this._masterGain);
+    this._rainSource.start();
+
+    // Wind: band-pass filtered noise
+    this._windGain = this._ctx.createGain();
+    this._windGain.gain.value = 0;
+    var windBP = this._ctx.createBiquadFilter();
+    windBP.type = "bandpass";
+    windBP.frequency.value = 250;
+    windBP.Q.value = 0.5;
+    this._windSource = this._ctx.createBufferSource();
+    this._windSource.buffer = this._noiseBuf;
+    this._windSource.loop = true;
+    this._windSource.connect(windBP);
+    windBP.connect(this._windGain);
+    this._windGain.connect(this._masterGain);
+    this._windSource.start();
+
+    // Thunder: low oscillator for rumble
+    this._thunderGain = this._ctx.createGain();
+    this._thunderGain.gain.value = 0;
+    this._thunderOsc = this._ctx.createOscillator();
+    this._thunderOsc.type = "sawtooth";
+    this._thunderOsc.frequency.value = 40;
+    var tLP = this._ctx.createBiquadFilter();
+    tLP.type = "lowpass";
+    tLP.frequency.value = 80;
+    this._thunderOsc.connect(tLP);
+    tLP.connect(this._thunderGain);
+    this._thunderGain.connect(this._masterGain);
+    this._thunderOsc.start();
+
+    console.log("[SkyWeather] Audio initialized");
+  } catch(e) {
+    console.warn("[SkyWeather] Audio init failed:", e.message);
+  }
+};
+
+WeatherAudio.prototype.update = function(config, precipConfig, lightningFlashing) {
+  if (!config || !config.enabled) {
+    if (this._ctx && this._masterGain) this._masterGain.gain.value = 0;
+    return;
+  }
+  if (!this._ctx) this._init();
+  if (!this._ctx) return;
+
+  var vol = config.volume !== undefined ? config.volume : 0.5;
+  this._masterGain.gain.value = vol;
+
+  var pType = (precipConfig && precipConfig.type) || "none";
+  var pInt = (precipConfig && precipConfig.intensity) || 0;
+  var wStr = (precipConfig && precipConfig.windStrength) || 0;
+
+  // Rain
+  if (this._rainGain) {
+    var rTarget = pType === "rain" ? pInt * 0.35 : (pType === "snow" ? pInt * 0.05 : 0);
+    this._rainGain.gain.value += (rTarget - this._rainGain.gain.value) * 0.05;
+  }
+
+  // Wind
+  if (this._windGain) {
+    var wTarget = (pType !== "none" ? wStr * 0.2 : 0) + (pType === "snow" ? 0.05 : 0);
+    this._windGain.gain.value += (wTarget - this._windGain.gain.value) * 0.05;
+  }
+
+  // Thunder
+  if (this._thunderGain) {
+    var tTarget = lightningFlashing ? 0.6 + Math.random() * 0.3 : 0;
+    this._thunderGain.gain.value += (tTarget - this._thunderGain.gain.value) * 0.15;
+  }
+};
+
+WeatherAudio.prototype.dispose = function() {
+  try {
+    if (this._rainSource) this._rainSource.stop();
+    if (this._windSource) this._windSource.stop();
+    if (this._thunderOsc) this._thunderOsc.stop();
+    if (this._ctx) this._ctx.close();
+  } catch(e) {}
+  this._ctx = null;
+};
+
+
+// ============================================================
 // SkyWeatherSystem — Facade combining all subsystems
 // ============================================================
 
@@ -822,10 +999,11 @@ function SkyWeatherSystem(scene, config) {
     time: { solarTime: 0.45, cycleLengthMinutes: 10, autoAdvance: false, latitude: 45 },
     sky:  { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 2.0 },
     lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true },
-    fog: { enabled: false, autoColor: true, density: 0.003 },
+    fog: { enabled: false, autoColor: true, density: 0.003, heightFalloff: 0 },
     clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
     precipitation: { type: "none", intensity: 0, windDirection: 0, windStrength: 0.3 },
-    lightning: { enabled: false, frequency: 0.1 }
+    lightning: { enabled: false, frequency: 0.1 },
+    effects: { godRays: 0, aurora: 0, rainbow: 0, ambientAudio: false, audioVolume: 0.5 }
   };
   if (config) this._merge(config);
 
@@ -842,6 +1020,7 @@ function SkyWeatherSystem(scene, config) {
   this.lighting = new SkyLighting(scene);
   this.particles = new WeatherParticles(scene);
   this.lightning = new LightningEffect(scene);
+  this.audio = new WeatherAudio();
 
   // Initial update
   this.solar.update(this.solarTime, this.config.time.latitude);
@@ -907,11 +1086,28 @@ SkyWeatherSystem.prototype._tick = function(dt) {
     this.skyDome._u.uCloudOff.value.y += dt * cSpeed * 0.3;
   }
 
+  // Effects uniforms (god rays, aurora, rainbow)
+  var fx = this.config.effects || {};
+  if (this.skyDome && this.skyDome._u) {
+    this.skyDome._u.uGodRayInt.value = fx.godRays || 0;
+    this.skyDome._u.uAuroraInt.value = fx.aurora || 0;
+    this.skyDome._u.uRainbowInt.value = fx.rainbow || 0;
+  }
+
   // Precipitation particles
   if (this.particles) this.particles.update(dt, this.config.precipitation);
 
   // Lightning
   if (this.lightning) this.lightning.update(dt, this.config.lightning);
+
+  // Ambient audio
+  if (this.audio) {
+    this.audio.update(
+      { enabled: fx.ambientAudio, volume: fx.audioVolume },
+      this.config.precipitation,
+      this.lightning && this.lightning._flashing
+    );
+  }
 
   // Fog
   if (this.config.fog.enabled) {
@@ -936,7 +1132,17 @@ SkyWeatherSystem.prototype._updateFog = function() {
     this.scene.fog = new THREE.FogExp2(0xffffff, this.config.fog.density);
     this.scene.fog.__skyWeather = true;
   }
-  this.scene.fog.density = this.config.fog.density;
+  var baseDensity = this.config.fog.density;
+  // Height-based fog: thicker at low elevations
+  var hFalloff = this.config.fog.heightFalloff || 0;
+  if (hFalloff > 0) {
+    var cam = null;
+    this.scene.traverse(function(o) { if (!cam && o.isCamera) cam = o; });
+    var camY = cam ? cam.position.y : 5;
+    var hFactor = Math.exp(-Math.max(0, camY) * hFalloff * 0.05);
+    baseDensity *= (1.0 + hFactor * 2.0);
+  }
+  this.scene.fog.density = baseDensity;
   if (this.config.fog.autoColor) {
     this.scene.fog.color.setRGB(hz[0], hz[1], hz[2]);
   }
@@ -978,6 +1184,7 @@ SkyWeatherSystem.prototype.destroy = function() {
   this.lighting.dispose();
   if (this.particles) this.particles.dispose();
   if (this.lightning) this.lightning.dispose();
+  if (this.audio) this.audio.dispose();
 
   if (this._origBg !== null) this.scene.background = this._origBg;
   if (this.scene.fog && this.scene.fog.__skyWeather) this.scene.fog = null;
@@ -1001,7 +1208,8 @@ if (typeof window !== "undefined") {
     SkyLighting: SkyLighting,
     SkyColorPalette: SkyColorPalette,
     WeatherParticles: WeatherParticles,
-    LightningEffect: LightningEffect
+    LightningEffect: LightningEffect,
+    WeatherAudio: WeatherAudio
   };
 
   // Auto-init when scene becomes available
@@ -1036,7 +1244,8 @@ module.exports = {
   SkyLighting: SkyLighting,
   SkyColorPalette: SkyColorPalette,
   WeatherParticles: WeatherParticles,
-  LightningEffect: LightningEffect
+  LightningEffect: LightningEffect,
+  WeatherAudio: WeatherAudio
 };
 `,
 	bridgeHandlers: {
@@ -1070,6 +1279,7 @@ module.exports = {
 			enabled: false,
 			autoColor: true,
 			density: 0.003,
+			heightFalloff: 0,
 		},
 		clouds: {
 			coverage: 0,
@@ -1087,6 +1297,13 @@ module.exports = {
 		lightning: {
 			enabled: false,
 			frequency: 0.1,
+		},
+		effects: {
+			godRays: 0,
+			aurora: 0,
+			rainbow: 0,
+			ambientAudio: false,
+			audioVolume: 0.5,
 		},
 	},
 };

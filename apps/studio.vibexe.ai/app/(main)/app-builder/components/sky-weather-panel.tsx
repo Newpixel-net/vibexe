@@ -17,6 +17,7 @@ import {
 	Moon,
 	CloudFog,
 	RotateCcw,
+	Sparkles,
 	Sun,
 	X,
 	Zap,
@@ -50,6 +51,7 @@ interface SkyWeatherConfig {
 		enabled?: boolean;
 		autoColor?: boolean;
 		density?: number;
+		heightFalloff?: number;
 	};
 	clouds?: {
 		coverage?: number;
@@ -68,6 +70,13 @@ interface SkyWeatherConfig {
 		enabled?: boolean;
 		frequency?: number;
 	};
+	effects?: {
+		godRays?: number;
+		aurora?: number;
+		rainbow?: number;
+		ambientAudio?: boolean;
+		audioVolume?: number;
+	};
 }
 
 interface SkyWeatherPanelProps {
@@ -80,7 +89,7 @@ interface SkyWeatherPanelProps {
 	onSave: (config: SkyWeatherConfig) => void;
 }
 
-type SkyTab = "time" | "sky" | "clouds" | "lighting" | "fog";
+type SkyTab = "time" | "sky" | "clouds" | "lighting" | "fog" | "fx";
 
 const WEATHER_PRESETS = [
 	{ label: "Clear", icon: "☀️", clouds: { coverage: 0 }, fog: { enabled: false }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
@@ -124,6 +133,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 		clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0, ...skyWeather?.clouds },
 		precipitation: { type: "none", intensity: 0, windDirection: 0, windStrength: 0.3, ...skyWeather?.precipitation },
 		lightning: { enabled: false, frequency: 0.1, ...skyWeather?.lightning },
+		effects: { godRays: 0, aurora: 0, rainbow: 0, ambientAudio: false, audioVolume: 0.5, ...skyWeather?.effects },
 	}));
 
 	// Track whether user made changes (for auto-save on close)
@@ -139,6 +149,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 			clouds: { ...config.clouds, ...patch.clouds },
 			precipitation: { ...config.precipitation, ...patch.precipitation },
 			lightning: { ...config.lightning, ...patch.lightning },
+			effects: { ...config.effects, ...patch.effects },
 		};
 		setConfig(merged);
 		latestConfigRef.current = merged;
@@ -159,6 +170,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 		{ id: "clouds", label: "Clouds", icon: Cloud },
 		{ id: "lighting", label: "Light", icon: Lightbulb },
 		{ id: "fog", label: "Fog", icon: CloudFog },
+		{ id: "fx", label: "FX", icon: Sparkles },
 	];
 
 	return (
@@ -543,8 +555,57 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 									format={(v) => v.toFixed(4)}
 									onChange={(v) => sendConfig({ fog: { ...config.fog, density: v } })}
 								/>
+								<SliderRow
+									label="Height Falloff"
+									value={config.fog?.heightFalloff ?? 0}
+									min={0} max={1} step={0.05}
+									format={(v) => v.toFixed(2)}
+									onChange={(v) => sendConfig({ fog: { ...config.fog, heightFalloff: v } })}
+								/>
 							</>
 						)}
+					</>
+				)}
+
+				{activeTab === "fx" && (
+					<>
+						<SliderRow
+							label="God Rays"
+							value={config.effects?.godRays ?? 0}
+							min={0} max={2} step={0.1}
+							format={(v) => v.toFixed(1)}
+							onChange={(v) => sendConfig({ effects: { ...config.effects, godRays: v } })}
+						/>
+						<SliderRow
+							label="Aurora Borealis"
+							value={config.effects?.aurora ?? 0}
+							min={0} max={2} step={0.1}
+							format={(v) => v.toFixed(1)}
+							onChange={(v) => sendConfig({ effects: { ...config.effects, aurora: v } })}
+						/>
+						<SliderRow
+							label="Rainbow"
+							value={config.effects?.rainbow ?? 0}
+							min={0} max={2} step={0.1}
+							format={(v) => v.toFixed(1)}
+							onChange={(v) => sendConfig({ effects: { ...config.effects, rainbow: v } })}
+						/>
+						<div className="border-t border-white/[0.06] pt-3">
+							<ToggleRow
+								label="Ambient Audio"
+								value={config.effects?.ambientAudio ?? false}
+								onChange={(v) => sendConfig({ effects: { ...config.effects, ambientAudio: v } })}
+							/>
+							{config.effects?.ambientAudio && (
+								<SliderRow
+									label="Volume"
+									value={config.effects?.audioVolume ?? 0.5}
+									min={0} max={1} step={0.05}
+									format={(v) => `${Math.round(v * 100)}%`}
+									onChange={(v) => sendConfig({ effects: { ...config.effects, audioVolume: v } })}
+								/>
+							)}
+						</div>
 					</>
 				)}
 			</div>
@@ -576,6 +637,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 							clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
 							precipitation: { type: "none", intensity: 0, windDirection: 0, windStrength: 0.3 },
 							lightning: { enabled: false, frequency: 0.1 },
+							effects: { godRays: 0, aurora: 0, rainbow: 0, ambientAudio: false, audioVolume: 0.5 },
 						};
 						setConfig(defaults);
 						latestConfigRef.current = defaults;

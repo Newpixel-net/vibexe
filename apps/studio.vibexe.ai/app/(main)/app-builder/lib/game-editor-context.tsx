@@ -173,10 +173,11 @@ export interface GameSettings {
 		time?: { solarTime?: number; cycleLengthMinutes?: number; autoAdvance?: boolean; latitude?: number };
 		sky?: { sunDiskSize?: number; moonDiskSize?: number; mieCoefficient?: number; mieDirectionalG?: number; starIntensity?: number; exposure?: number };
 		lighting?: { autoSunLight?: boolean; autoAmbient?: boolean; sunIntensity?: number; ambientIntensity?: number; shadowsEnabled?: boolean };
-		fog?: { enabled?: boolean; autoColor?: boolean; density?: number };
+		fog?: { enabled?: boolean; autoColor?: boolean; density?: number; heightFalloff?: number };
 		clouds?: { coverage?: number; density?: number; speed?: number; scale?: number; brightness?: number };
 		precipitation?: { type?: string; intensity?: number; windDirection?: number; windStrength?: number };
 		lightning?: { enabled?: boolean; frequency?: number };
+		effects?: { godRays?: number; aurora?: number; rainbow?: number; ambientAudio?: boolean; audioVolume?: number };
 	};
 	terrain?: {
 		enabled?: boolean;
