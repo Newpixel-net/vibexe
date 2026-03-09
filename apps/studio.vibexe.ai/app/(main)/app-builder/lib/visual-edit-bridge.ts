@@ -2887,20 +2887,61 @@ export function getVisualEditBridgeScript(): string {
       case "applySettings":
       case "updateGameSettings": {
         // Merge settings into global so _autoTerrain and other consumers see the latest
-        if (d.settings && typeof d.settings === "object") {
+        var _gsSettings = d.settings || {};
+        if (_gsSettings && typeof _gsSettings === "object") {
           if (!window.__VIBEXE_GAME_SETTINGS__) window.__VIBEXE_GAME_SETTINGS__ = {};
-          var _gsKeys = Object.keys(d.settings);
+          var _gsKeys = Object.keys(_gsSettings);
           for (var _gsi = 0; _gsi < _gsKeys.length; _gsi++) {
-            window.__VIBEXE_GAME_SETTINGS__[_gsKeys[_gsi]] = d.settings[_gsKeys[_gsi]];
+            window.__VIBEXE_GAME_SETTINGS__[_gsKeys[_gsi]] = _gsSettings[_gsKeys[_gsi]];
           }
         }
+
+        // === Apply audio settings (Bug #15) ===
+        var _audioS = _gsSettings.audio || d.audio;
+        if (_audioS) {
+          // Set global audio volume via AudioListener if available
+          var _audioListener = window.__vibexe_audioListener__;
+          if (_audioListener && _audioListener.gain) {
+            var _masterVol = _audioS.masterVolume != null ? _audioS.masterVolume : 0.8;
+            _audioListener.gain.gain.value = _audioS.enabled === false ? 0 : _masterVol;
+          }
+          // Store audio settings globally for any audio code to reference
+          window.__vibexe_audio_settings__ = _audioS;
+          console.log("[GameEditorBridge] Audio settings applied:", _audioS.enabled, "vol:", _audioS.masterVolume);
+        }
+
+        // === Apply performance settings (Bug #16) ===
+        var _perfS = _gsSettings.performance || d.performance;
+        if (_perfS) {
+          var _perfRenderer = window.__vibexe_renderer__ || (editor && editor.renderer);
+          if (_perfRenderer) {
+            // Pixel ratio
+            if (_perfS.pixelRatio != null) {
+              _perfRenderer.setPixelRatio(Math.max(0.5, Math.min(2, _perfS.pixelRatio)));
+            }
+            // Shadow quality based on preset
+            if (_perfS.qualityPreset === "low") {
+              _perfRenderer.shadowMap.enabled = false;
+            } else {
+              _perfRenderer.shadowMap.enabled = true;
+            }
+          }
+          // FPS cap — store globally for game loop to reference
+          if (_perfS.maxFPS != null) {
+            window.__vibexe_maxFPS__ = _perfS.maxFPS;
+          }
+          // Store globally
+          window.__vibexe_performance_settings__ = _perfS;
+          console.log("[GameEditorBridge] Performance settings applied:", _perfS.qualityPreset, "px:", _perfS.pixelRatio);
+        }
+
         // Extract FX preset — from dedicated message or from updateGameSettings payload
-        var _fxPreset = d.preset || (d.settings && d.settings.postProcessing && d.settings.postProcessing.preset) || null;
+        var _fxPreset = d.preset || (_gsSettings.postProcessing && _gsSettings.postProcessing.preset) || null;
         // Only process FX if we have a preset value
         if (_fxPreset === null || _fxPreset === undefined) break;
         // Build a cache key to avoid re-creating composer on every settings update
-        var _fxBloomI = d.bloomIntensity != null ? d.bloomIntensity : (d.settings && d.settings.postProcessing ? d.settings.postProcessing.bloomIntensity : 0);
-        var _fxBloomT = d.bloomThreshold != null ? d.bloomThreshold : (d.settings && d.settings.postProcessing ? d.settings.postProcessing.bloomThreshold : 0);
+        var _fxBloomI = d.bloomIntensity != null ? d.bloomIntensity : (_gsSettings.postProcessing ? _gsSettings.postProcessing.bloomIntensity : 0);
+        var _fxBloomT = d.bloomThreshold != null ? d.bloomThreshold : (_gsSettings.postProcessing ? _gsSettings.postProcessing.bloomThreshold : 0);
         var _fxKey = _fxPreset + "|" + String(_fxBloomI) + "|" + String(_fxBloomT);
         if (window.__lastFxKey === _fxKey) break;
         window.__lastFxKey = _fxKey;
@@ -2915,6 +2956,154 @@ export function getVisualEditBridgeScript(): string {
         if (_fxPreset && _fxPreset !== "none" && _fxCreatePP && _fxRenderer && _fxScene && _fxCamera) {
           var _fxPP = _fxCreatePP(_fxRenderer, _fxScene, _fxCamera, _fxPreset);
           console.log("[GameEditorBridge] FX composer created:", !!_fxPP);
+        }
+        break;
+      }
+
+      // ===== SPAWNED OBJECTS & TEXTURE OVERRIDES (Bug #5, #6) =====
+
+      case "game-editor-get-spawned-objects": {
+        var _gsScene = (editor && editor.scene) ? editor.scene : window.__vibexe_scene__;
+        if (!_gsScene) break;
+        var _spawnedList = [];
+        var _texOverrides = [];
+        _gsScene.traverse(function(child) {
+          if (!child.name) return;
+          // Collect spawned objects
+          if (child.userData && child.userData.__spawned) {
+            var _spData = {
+              name: child.name,
+              type: child.userData.vibexeType || "decoration",
+              modelUrl: child.userData.__modelUrl || child.userData.vibexeArgs && child.userData.vibexeArgs.modelUrl || "",
+              position: { x: child.position.x, y: child.position.y, z: child.position.z },
+              rotation: { x: child.rotation.x * 180 / Math.PI, y: child.rotation.y * 180 / Math.PI, z: child.rotation.z * 180 / Math.PI },
+              scale: { x: child.scale.x, y: child.scale.y, z: child.scale.z },
+            };
+            // Include texture info if applied
+            if (child.userData.vibexeArgs && child.userData.vibexeArgs.textureUrl) {
+              _spData.textureUrl = child.userData.vibexeArgs.textureUrl;
+              _spData.textureTileX = child.userData.vibexeArgs.textureTileX || 1;
+              _spData.textureTileY = child.userData.vibexeArgs.textureTileY || 1;
+              _spData.hasPBR = !!child.userData.vibexeArgs.hasPBR;
+            }
+            _spawnedList.push(_spData);
+          }
+          // Collect texture overrides for scene-original (non-spawned) objects
+          if (child.__hasTextureOverride && child.userData && child.userData.vibexeArgs && child.userData.vibexeArgs.textureUrl) {
+            _texOverrides.push({
+              name: child.name,
+              textureUrl: child.userData.vibexeArgs.textureUrl,
+              tileX: child.userData.vibexeArgs.textureTileX || 1,
+              tileY: child.userData.vibexeArgs.textureTileY || 1,
+              hasPBR: !!child.userData.vibexeArgs.hasPBR,
+            });
+          }
+        });
+        console.log("[GameEditorBridge] Collected", _spawnedList.length, "spawned objects,", _texOverrides.length, "texture overrides");
+        window.parent.postMessage({ type: "game-editor-spawned-objects", objects: _spawnedList, textureOverrides: _texOverrides }, "*");
+        break;
+      }
+
+      case "game-editor-restore-spawned-objects": {
+        var _rsScene = (editor && editor.scene) ? editor.scene : window.__vibexe_scene__;
+        var _rsTHREE = window.THREE;
+        if (!_rsScene || !_rsTHREE || !d.objects) break;
+        var _rsLoader = new _rsTHREE.TextureLoader();
+        console.log("[GameEditorBridge] Restoring", d.objects.length, "spawned objects");
+        for (var _rsi = 0; _rsi < d.objects.length; _rsi++) {
+          (function(obj) {
+            // Skip if object with same name already exists
+            if (_rsScene.getObjectByName(obj.name)) return;
+            if (obj.modelUrl) {
+              // Load GLTF model
+              var _gltfLoader = window.__vibexe_gltfLoader__;
+              if (!_gltfLoader && window.GLTFLoader) _gltfLoader = new window.GLTFLoader();
+              if (!_gltfLoader) { console.warn("[Restore] No GLTFLoader for:", obj.name); return; }
+              var _rsUrl = obj.modelUrl;
+              if (_rsUrl.charAt(0) === '/') _rsUrl = (window.__VIBEXE_API_ORIGIN__ || '') + _rsUrl;
+              _gltfLoader.load(_rsUrl, function(gltf) {
+                var model = gltf.scene || gltf.scenes[0];
+                model.name = obj.name;
+                model.position.set(obj.position.x, obj.position.y, obj.position.z);
+                model.rotation.set(obj.rotation.x * Math.PI / 180, obj.rotation.y * Math.PI / 180, obj.rotation.z * Math.PI / 180);
+                model.scale.set(obj.scale.x, obj.scale.y, obj.scale.z);
+                model.userData.__spawned = true;
+                model.userData.vibexeType = obj.type;
+                model.userData.__modelUrl = obj.modelUrl;
+                if (!model.userData.vibexeArgs) model.userData.vibexeArgs = {};
+                model.userData.vibexeArgs.modelUrl = obj.modelUrl;
+                _rsScene.add(model);
+                // Apply texture if saved
+                if (obj.textureUrl) {
+                  var _txUrl = obj.textureUrl;
+                  if (_txUrl.charAt(0) === '/') _txUrl = (window.__VIBEXE_API_ORIGIN__ || '') + _txUrl;
+                  _rsLoader.load(_txUrl, function(tex) {
+                    tex.wrapS = _rsTHREE.RepeatWrapping;
+                    tex.wrapT = _rsTHREE.RepeatWrapping;
+                    tex.colorSpace = _rsTHREE.SRGBColorSpace || 'srgb';
+                    tex.repeat.set(obj.textureTileX || 1, obj.textureTileY || 1);
+                    model.traverse(function(m) {
+                      if (m.isMesh && m.material) {
+                        m.material.map = tex;
+                        m.material.needsUpdate = true;
+                      }
+                    });
+                    model.userData.vibexeArgs.textureUrl = obj.textureUrl;
+                    model.userData.vibexeArgs.textureTileX = obj.textureTileX;
+                    model.userData.vibexeArgs.textureTileY = obj.textureTileY;
+                  });
+                }
+                console.log("[GameEditorBridge] Restored spawned:", obj.name);
+              }, undefined, function(err) { console.warn("[Restore] GLTF load failed:", obj.name, err); });
+            } else {
+              // Simple geometry fallback (box/sphere)
+              var _rsGeo = new _rsTHREE.BoxGeometry(1, 1, 1);
+              var _rsMat = new _rsTHREE.MeshStandardMaterial({ color: 0x888888 });
+              var _rsMesh = new _rsTHREE.Mesh(_rsGeo, _rsMat);
+              _rsMesh.name = obj.name;
+              _rsMesh.position.set(obj.position.x, obj.position.y, obj.position.z);
+              _rsMesh.rotation.set(obj.rotation.x * Math.PI / 180, obj.rotation.y * Math.PI / 180, obj.rotation.z * Math.PI / 180);
+              _rsMesh.scale.set(obj.scale.x, obj.scale.y, obj.scale.z);
+              _rsMesh.userData.__spawned = true;
+              _rsMesh.userData.vibexeType = obj.type;
+              _rsScene.add(_rsMesh);
+            }
+          })(d.objects[_rsi]);
+        }
+        break;
+      }
+
+      case "game-editor-apply-texture-overrides": {
+        var _toScene = (editor && editor.scene) ? editor.scene : window.__vibexe_scene__;
+        var _toTHREE = window.THREE;
+        if (!_toScene || !_toTHREE || !d.overrides) break;
+        var _toLoader = new _toTHREE.TextureLoader();
+        console.log("[GameEditorBridge] Applying", d.overrides.length, "texture overrides");
+        for (var _toi = 0; _toi < d.overrides.length; _toi++) {
+          (function(ov) {
+            var target = _toScene.getObjectByName(ov.name);
+            if (!target) { console.warn("[TextureOverride] Object not found:", ov.name); return; }
+            var _ovUrl = ov.textureUrl;
+            if (_ovUrl.charAt(0) === '/') _ovUrl = (window.__VIBEXE_API_ORIGIN__ || '') + _ovUrl;
+            _toLoader.load(_ovUrl, function(tex) {
+              tex.wrapS = _toTHREE.RepeatWrapping;
+              tex.wrapT = _toTHREE.RepeatWrapping;
+              tex.colorSpace = _toTHREE.SRGBColorSpace || 'srgb';
+              tex.repeat.set(ov.tileX || 1, ov.tileY || 1);
+              target.traverse(function(m) {
+                if (m.isMesh && m.material) {
+                  m.material.map = tex;
+                  m.material.needsUpdate = true;
+                }
+              });
+              if (!target.userData.vibexeArgs) target.userData.vibexeArgs = {};
+              target.userData.vibexeArgs.textureUrl = ov.textureUrl;
+              target.userData.vibexeArgs.textureTileX = ov.tileX;
+              target.userData.vibexeArgs.textureTileY = ov.tileY;
+              target.__hasTextureOverride = true;
+              console.log("[TextureOverride] Applied:", ov.name, ov.textureUrl);
+            }, undefined, function() { console.warn("[TextureOverride] Load failed:", ov.name, ov.textureUrl); });
+          })(d.overrides[_toi]);
         }
         break;
       }
@@ -3277,7 +3466,13 @@ export function getVisualEditBridgeScript(): string {
                 if (pb.mass <= 0) continue; // Skip static bodies
                 var th = getH(pb.position.x, pb.position.z);
                 if (th == null) continue;
-                var halfH = 0.75; // Default half-height for character
+                // Use body's shape half-height if available, else default 0.75
+                var halfH = 0.75;
+                if (pb.shapes && pb.shapes[0]) {
+                  var _sh = pb.shapes[0];
+                  if (_sh.halfExtents) halfH = _sh.halfExtents.y;
+                  else if (_sh.radius) halfH = _sh.radius;
+                }
                 var minY = th + halfH;
                 if (pb.position.y < minY) {
                   pb.position.y = minY;
@@ -3344,8 +3539,14 @@ export function getVisualEditBridgeScript(): string {
                       if (pb2.mass <= 0) continue;
                       var th2 = getH(pb2.position.x, pb2.position.z);
                       if (th2 == null) continue;
-                      if (pb2.position.y < th2 + 0.75) {
-                        pb2.position.y = th2 + 0.75;
+                      var hH2 = 0.75;
+                      if (pb2.shapes && pb2.shapes[0]) {
+                        var _sh2 = pb2.shapes[0];
+                        if (_sh2.halfExtents) hH2 = _sh2.halfExtents.y;
+                        else if (_sh2.radius) hH2 = _sh2.radius;
+                      }
+                      if (pb2.position.y < th2 + hH2) {
+                        pb2.position.y = th2 + hH2;
                         if (pb2.velocity.y < 0) pb2.velocity.y = 0;
                         pb2.__canJump = true;
                       }
@@ -3834,12 +4035,13 @@ export function getVisualEditBridgeScript(): string {
               "  float ao2 = sampleTerrainR(uAOMap2, vWorldPos, baseUv, N, uTexScale2, uHasAOMap2, 1.0);",
               "  float ao3 = sampleTerrainR(uAOMap3, vWorldPos, baseUv, N, uTexScale3, uHasAOMap3, 1.0);",
               "",
-              "  // Luminance-based height blending — creates natural material transitions",
-              "  float depth = 0.2;",
-              "  float lum0 = dot(c0, vec3(0.299, 0.587, 0.114));",
-              "  float lum1 = dot(c1, vec3(0.299, 0.587, 0.114));",
-              "  float lum2 = dot(c2, vec3(0.299, 0.587, 0.114));",
-              "  float lum3 = dot(c3, vec3(0.299, 0.587, 0.114));",
+              "  // Height-depth blending with reduced luminance influence",
+              "  float depth = 0.15;",
+              "  float lumScale = 0.1;",
+              "  float lum0 = dot(c0, vec3(0.299, 0.587, 0.114)) * lumScale;",
+              "  float lum1 = dot(c1, vec3(0.299, 0.587, 0.114)) * lumScale;",
+              "  float lum2 = dot(c2, vec3(0.299, 0.587, 0.114)) * lumScale;",
+              "  float lum3 = dot(c3, vec3(0.299, 0.587, 0.114)) * lumScale;",
               "  float hb0 = lum0 + vW0;",
               "  float hb1 = lum1 + vW1;",
               "  float hb2 = lum2 + vW2;",

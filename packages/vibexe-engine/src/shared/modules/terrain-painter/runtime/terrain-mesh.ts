@@ -134,6 +134,11 @@ export class TerrainMesh {
 				u_roughness6: { value: 0.8 },
 				u_roughness7: { value: 0.8 },
 				u_layerCount: { value: 0 },
+				// Fog uniforms (configurable from game settings)
+				uFogColor: { value: [0.55, 0.60, 0.72] },
+				uFogNear: { value: 50.0 },
+				uFogFar: { value: 400.0 },
+				uFogEnabled: { value: 1.0 },
 			},
 			side: T.DoubleSide,
 		});

@@ -307,6 +307,12 @@ uniform float u_roughness7;
 
 uniform int u_layerCount;
 
+// Fog uniforms (configurable from game settings)
+uniform vec3 uFogColor;
+uniform float uFogNear;
+uniform float uFogFar;
+uniform float uFogEnabled;
+
 // --- Anti-tiling hash (Inigo Quilez) ---
 float hash21(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -445,20 +451,21 @@ void main() {
   float ao2 = sampleTerrainR(u_aoMap2, vWorldPos, baseUv, N, u_texScale2, u_hasAOMap2, 1.0);
   float ao3 = sampleTerrainR(u_aoMap3, vWorldPos, baseUv, N, u_texScale3, u_hasAOMap3, 1.0);
 
-  // --- Luminance-based height-depth blending (natural material transitions) ---
-  float depth = 0.2;
-  float lum0 = dot(c0, vec3(0.299, 0.587, 0.114));
-  float lum1 = dot(c1, vec3(0.299, 0.587, 0.114));
-  float lum2 = dot(c2, vec3(0.299, 0.587, 0.114));
-  float lum3 = dot(c3, vec3(0.299, 0.587, 0.114));
+  // --- Height-depth blending with reduced luminance influence ---
+  // Luminance scaled to 10% to prevent bright textures overriding splatmap weights
+  float depth = 0.15;
+  float lumScale = 0.1;
+  float lum0 = dot(c0, vec3(0.299, 0.587, 0.114)) * lumScale;
+  float lum1 = dot(c1, vec3(0.299, 0.587, 0.114)) * lumScale;
+  float lum2 = dot(c2, vec3(0.299, 0.587, 0.114)) * lumScale;
+  float lum3 = dot(c3, vec3(0.299, 0.587, 0.114)) * lumScale;
   float hb0 = lum0 + w0; float hb1 = lum1 + w1;
   float hb2 = lum2 + w2; float hb3 = lum3 + w3;
 
-  // For layers 4-7, use simple weighted blend
-  float lum4 = dot(c4, vec3(0.299, 0.587, 0.114));
-  float lum5 = dot(c5, vec3(0.299, 0.587, 0.114));
-  float lum6 = dot(c6, vec3(0.299, 0.587, 0.114));
-  float lum7 = dot(c7, vec3(0.299, 0.587, 0.114));
+  float lum4 = dot(c4, vec3(0.299, 0.587, 0.114)) * lumScale;
+  float lum5 = dot(c5, vec3(0.299, 0.587, 0.114)) * lumScale;
+  float lum6 = dot(c6, vec3(0.299, 0.587, 0.114)) * lumScale;
+  float lum7 = dot(c7, vec3(0.299, 0.587, 0.114)) * lumScale;
   float hb4 = lum4 + w4; float hb5 = lum5 + w5;
   float hb6 = lum6 + w6; float hb7 = lum7 + w7;
 
@@ -558,11 +565,12 @@ void main() {
   if (u_isEmissive3 > 0.5 && u_hasAOMap3 > 0.5) emission += texture2D(u_aoMap3, baseUv * u_texScale3).rgb * u_emissionIntensity3 * bw3 / bwSum;
   totalLight += emission;
 
-  // Atmospheric fog
-  vec3 fogColor = vec3(0.55, 0.60, 0.72);
-  float fogDist = camDist / 400.0;
-  float fogAmt = clamp(fogDist * fogDist, 0.0, 0.4);
-  totalLight = mix(totalLight, fogColor, fogAmt);
+  // Atmospheric fog (configurable via uniforms)
+  if (uFogEnabled > 0.5) {
+    float fogRange = max(uFogFar - uFogNear, 1.0);
+    float fogFactor = clamp((camDist - uFogNear) / fogRange, 0.0, 0.6);
+    totalLight = mix(totalLight, uFogColor, fogFactor * fogFactor);
+  }
 
   gl_FragColor = vec4(totalLight, 1.0);
 }
