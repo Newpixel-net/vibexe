@@ -1670,6 +1670,10 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 						// Performance settings — apply pixelRatio, maxFPS
 						"var _pfs=_gs.performance;",
 						"if(_pfs){if(_pfs.pixelRatio!=null){var _prr=window.__vibexe_renderer__;if(_prr&&_prr.setPixelRatio){_prr.setPixelRatio(Math.max(0.5,Math.min(2,_pfs.pixelRatio)))}}if(_pfs.maxFPS!=null){window.__vibexe_maxFPS__=_pfs.maxFPS}if(_pfs.showFPS){var _fpsD=document.createElement('div');_fpsD.id='vibexe-fps';_fpsD.style.cssText='position:fixed;top:4px;left:4px;padding:2px 6px;background:rgba(0,0,0,0.7);color:#0f0;font:11px monospace;z-index:99999;pointer-events:none';document.body.appendChild(_fpsD);var _fc=0,_lt=performance.now();(function _fpsLoop(){_fc++;var now=performance.now();if(now-_lt>=1000){_fpsD.textContent=_fc+' FPS';_fc=0;_lt=now}requestAnimationFrame(_fpsLoop)})()}}",
+						// Shadow quality — apply shadow map size and increase shadow camera far for large terrains
+						"var _shq=(_gs.environment&&_gs.environment.shadowQuality)||'medium';",
+						"var _shSize={low:512,medium:1024,high:2048}[_shq]||1024;",
+						"s.traverse(function(obj){if(obj.isLight&&obj.shadow){obj.shadow.mapSize.width=_shSize;obj.shadow.mapSize.height=_shSize;if(obj.shadow.camera){obj.shadow.camera.far=200;obj.shadow.camera.left=-80;obj.shadow.camera.right=80;obj.shadow.camera.top=80;obj.shadow.camera.bottom=-80;obj.shadow.camera.updateProjectionMatrix()}}});",
 						// Texture overrides — apply saved textures to scene-original objects
 						"var _tov=_gs.textureOverrides;",
 						"if(_tov&&_tov.length){var _tl=new T.TextureLoader();for(var _ti=0;_ti<_tov.length;_ti++){(function(_to){var _obj=null;s.traverse(function(ch){if(ch.name===_to.name)_obj=ch;});if(!_obj)return;_tl.load(_to.textureUrl,function(tex){tex.colorSpace=T.SRGBColorSpace;tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.repeat.set(_to.tileX||1,_to.tileY||1);_obj.traverse(function(m){if(m.isMesh&&m.material){m.material.map=tex;m.material.needsUpdate=true;}});})})(_tov[_ti]);}}",
