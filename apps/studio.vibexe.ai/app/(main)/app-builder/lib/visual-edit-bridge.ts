@@ -3100,6 +3100,29 @@ export function getVisualEditBridgeScript(): string {
           console.log("[GameEditorBridge] Performance settings applied:", _perfS.qualityPreset, "px:", _perfS.pixelRatio);
         }
 
+        // === Sync terrain fog uniforms when environment settings change ===
+        var _envS = _gsSettings.environment;
+        if (_envS) {
+          var _terrainMesh = (window.__vibexe_scene__ || (editor && editor.scene));
+          if (_terrainMesh) {
+            var _tObj = _terrainMesh.getObjectByName && _terrainMesh.getObjectByName("__terrain__");
+            if (_tObj && _tObj.userData && _tObj.userData.__fogUniforms) {
+              var _fu = _tObj.userData.__fogUniforms;
+              if (_envS.fogEnabled === false) {
+                _fu.uFogMaxAmt.value = 0.0;
+              } else if (_envS.fogEnabled) {
+                _fu.uFogMaxAmt.value = 0.5;
+                if (_envS.fogColor) {
+                  var _fc = new (window.THREE || THREE).Color(_envS.fogColor);
+                  _fu.uFogColor.value.set(_fc.r, _fc.g, _fc.b);
+                }
+                if (_envS.fogFar) _fu.uFogFar.value = _envS.fogFar;
+                else if (_envS.fogDensity) _fu.uFogFar.value = 3.0 / _envS.fogDensity;
+              }
+            }
+          }
+        }
+
         // Extract FX preset — from dedicated message or from updateGameSettings payload
         var _fxPreset = d.preset || (_gsSettings.postProcessing && _gsSettings.postProcessing.preset) || null;
         // Only process FX if we have a preset value
@@ -4404,12 +4427,16 @@ export function getVisualEditBridgeScript(): string {
             });
 
             _rpTerrain.material = _rpShaderMat;
-            // Sync fog uniforms from scene.fog if present
+            // Sync fog uniforms from scene.fog if present; disable if no fog
             var _sc2 = window.__vibexe_scene__;
             if (_sc2 && _sc2.fog) {
               var _f = _sc2.fog;
               if (_f.color) _rpUniforms.uFogColor.value.set(_f.color.r, _f.color.g, _f.color.b);
               if (_f.far) _rpUniforms.uFogFar.value = _f.far;
+              else if (_f.density) _rpUniforms.uFogFar.value = 3.0 / _f.density;
+            } else {
+              // No fog — push fog far enough that it never affects rendering
+              _rpUniforms.uFogMaxAmt.value = 0.0;
             }
             // Store uniforms ref on terrain for dynamic fog updates
             _rpTerrain.userData.__fogUniforms = _rpUniforms;
