@@ -174,6 +174,7 @@ export interface GameSettings {
 		sky?: { sunDiskSize?: number; moonDiskSize?: number; mieCoefficient?: number; mieDirectionalG?: number; starIntensity?: number; exposure?: number };
 		lighting?: { autoSunLight?: boolean; autoAmbient?: boolean; sunIntensity?: number; ambientIntensity?: number; shadowsEnabled?: boolean };
 		fog?: { enabled?: boolean; autoColor?: boolean; density?: number };
+		clouds?: { coverage?: number; density?: number; speed?: number; scale?: number; brightness?: number };
 	};
 	terrain?: {
 		enabled?: boolean;

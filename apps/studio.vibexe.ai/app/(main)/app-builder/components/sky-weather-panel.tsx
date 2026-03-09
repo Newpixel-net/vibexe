@@ -9,6 +9,7 @@
 
 import {
 	Clock,
+	Cloud,
 	CloudSun,
 	Eye,
 	Lightbulb,
@@ -48,6 +49,13 @@ interface SkyWeatherConfig {
 		autoColor?: boolean;
 		density?: number;
 	};
+	clouds?: {
+		coverage?: number;
+		density?: number;
+		speed?: number;
+		scale?: number;
+		brightness?: number;
+	};
 }
 
 interface SkyWeatherPanelProps {
@@ -60,7 +68,17 @@ interface SkyWeatherPanelProps {
 	onSave: (config: SkyWeatherConfig) => void;
 }
 
-type SkyTab = "time" | "sky" | "lighting" | "fog";
+type SkyTab = "time" | "sky" | "clouds" | "lighting" | "fog";
+
+const WEATHER_PRESETS = [
+	{ label: "Clear", icon: "☀️", clouds: { coverage: 0 }, fog: { enabled: false } },
+	{ label: "Fair", icon: "🌤", clouds: { coverage: 0.2, brightness: 1.0 }, fog: { enabled: false } },
+	{ label: "Partly Cloudy", icon: "⛅", clouds: { coverage: 0.5, brightness: 1.0 }, fog: { enabled: false } },
+	{ label: "Cloudy", icon: "☁️", clouds: { coverage: 0.8, brightness: 0.9 }, fog: { enabled: true, density: 0.002 } },
+	{ label: "Overcast", icon: "🌥", clouds: { coverage: 1.0, brightness: 0.65 }, fog: { enabled: true, density: 0.004 } },
+	{ label: "Foggy", icon: "🌫", clouds: { coverage: 0.6, brightness: 0.6 }, fog: { enabled: true, density: 0.02, autoColor: true } },
+	{ label: "Stormy", icon: "⛈", clouds: { coverage: 0.95, brightness: 0.35, density: 1.0 }, fog: { enabled: true, density: 0.008, autoColor: true } },
+] as const;
 
 const TIME_PRESETS = [
 	{ label: "Dawn", time: 0.25, icon: "🌅" },
@@ -89,6 +107,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 		sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 2.0, ...skyWeather?.sky },
 		lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true, ...skyWeather?.lighting },
 		fog: { enabled: false, autoColor: true, density: 0.003, ...skyWeather?.fog },
+		clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0, ...skyWeather?.clouds },
 	}));
 
 	// Track whether user made changes (for auto-save on close)
@@ -101,6 +120,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 			sky: { ...config.sky, ...patch.sky },
 			lighting: { ...config.lighting, ...patch.lighting },
 			fog: { ...config.fog, ...patch.fog },
+			clouds: { ...config.clouds, ...patch.clouds },
 		};
 		setConfig(merged);
 		latestConfigRef.current = merged;
@@ -118,6 +138,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 	const tabs: { id: SkyTab; label: string; icon: typeof Sun }[] = [
 		{ id: "time", label: "Time", icon: Clock },
 		{ id: "sky", label: "Sky", icon: CloudSun },
+		{ id: "clouds", label: "Clouds", icon: Cloud },
 		{ id: "lighting", label: "Light", icon: Lightbulb },
 		{ id: "fog", label: "Fog", icon: CloudFog },
 	];
@@ -308,6 +329,71 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 					</>
 				)}
 
+				{activeTab === "clouds" && (
+					<>
+						{/* Weather Presets */}
+						<div>
+							<label className="text-[10px] text-white/40 uppercase tracking-wider mb-1.5 block">Weather Presets</label>
+							<div className="grid grid-cols-2 gap-1">
+								{WEATHER_PRESETS.map((preset) => (
+									<button
+										key={preset.label}
+										type="button"
+										onClick={() => {
+											sendConfig({
+												clouds: { ...config.clouds, ...preset.clouds },
+												fog: { ...config.fog, ...preset.fog },
+											});
+										}}
+										className="px-2 py-1.5 text-[10px] rounded-lg bg-white/[0.04] text-white/50 hover:bg-white/[0.08] hover:text-white/70 transition-all text-left"
+									>
+										<span className="text-sm mr-1">{preset.icon}</span>
+										{preset.label}
+									</button>
+								))}
+							</div>
+						</div>
+
+						<div className="border-t border-white/[0.06] pt-3">
+							<SliderRow
+								label="Cloud Coverage"
+								value={config.clouds?.coverage ?? 0}
+								min={0} max={1} step={0.05}
+								format={(v) => `${Math.round(v * 100)}%`}
+								onChange={(v) => sendConfig({ clouds: { ...config.clouds, coverage: v } })}
+							/>
+							<SliderRow
+								label="Cloud Density"
+								value={config.clouds?.density ?? 0.85}
+								min={0.1} max={1} step={0.05}
+								format={(v) => v.toFixed(2)}
+								onChange={(v) => sendConfig({ clouds: { ...config.clouds, density: v } })}
+							/>
+							<SliderRow
+								label="Wind Speed"
+								value={config.clouds?.speed ?? 1.0}
+								min={0} max={5} step={0.1}
+								format={(v) => v.toFixed(1)}
+								onChange={(v) => sendConfig({ clouds: { ...config.clouds, speed: v } })}
+							/>
+							<SliderRow
+								label="Cloud Scale"
+								value={config.clouds?.scale ?? 3.0}
+								min={1} max={8} step={0.5}
+								format={(v) => v.toFixed(1)}
+								onChange={(v) => sendConfig({ clouds: { ...config.clouds, scale: v } })}
+							/>
+							<SliderRow
+								label="Brightness"
+								value={config.clouds?.brightness ?? 1.0}
+								min={0.1} max={2} step={0.05}
+								format={(v) => v.toFixed(2)}
+								onChange={(v) => sendConfig({ clouds: { ...config.clouds, brightness: v } })}
+							/>
+						</div>
+					</>
+				)}
+
 				{activeTab === "lighting" && (
 					<>
 						<ToggleRow
@@ -393,6 +479,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 							sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 2.0 },
 							lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true },
 							fog: { enabled: false, autoColor: true, density: 0.003 },
+							clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
 						};
 						setConfig(defaults);
 						latestConfigRef.current = defaults;

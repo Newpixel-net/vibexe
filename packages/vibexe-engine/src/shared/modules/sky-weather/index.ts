@@ -225,6 +225,11 @@ var SKY_FRAGMENT = [
   "uniform float uStarBright;",
   "uniform float uExposure;",
   "uniform float uTime;",
+  "uniform float uCloudCover;",
+  "uniform float uCloudDens;",
+  "uniform float uCloudScale;",
+  "uniform vec2 uCloudOff;",
+  "uniform float uCloudBright;",
   "",
   "float miePhase(float c, float g) {",
   "  float g2 = g * g;",
@@ -233,6 +238,26 @@ var SKY_FRAGMENT = [
   "",
   "float starHash(vec2 p) {",
   "  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);",
+  "}",
+  "",
+  "float cnoise(vec2 p) {",
+  "  vec2 i = floor(p); vec2 f = fract(p);",
+  "  f = f * f * (3.0 - 2.0 * f);",
+  "  float a = fract(sin(dot(i, vec2(127.1,311.7))) * 43758.5453);",
+  "  float b = fract(sin(dot(i + vec2(1.0,0.0), vec2(127.1,311.7))) * 43758.5453);",
+  "  float c = fract(sin(dot(i + vec2(0.0,1.0), vec2(127.1,311.7))) * 43758.5453);",
+  "  float d = fract(sin(dot(i + vec2(1.0,1.0), vec2(127.1,311.7))) * 43758.5453);",
+  "  return mix(mix(a,b,f.x), mix(c,d,f.x), f.y);",
+  "}",
+  "",
+  "float cfbm(vec2 p) {",
+  "  float v = 0.0;",
+  "  v += 0.5000 * cnoise(p); p *= 2.02;",
+  "  v += 0.2500 * cnoise(p); p *= 2.03;",
+  "  v += 0.1250 * cnoise(p); p *= 2.01;",
+  "  v += 0.0625 * cnoise(p); p *= 2.04;",
+  "  v += 0.0312 * cnoise(p);",
+  "  return v;",
   "}",
   "",
   "void main() {",
@@ -297,6 +322,26 @@ var SKY_FRAGMENT = [
   "    sky += vec3(0.85, 0.9, 1.0) * bright * twinkle * starV * fade * 0.8;",
   "  }",
   "",
+  "  // Procedural clouds",
+  "  if (uCloudCover > 0.01 && dir.y > 0.01) {",
+  "    vec2 cUV = dir.xz / (dir.y + 0.08) * uCloudScale + uCloudOff;",
+  "    float cn = cfbm(cUV);",
+  "    float thresh = 1.0 - uCloudCover;",
+  "    float cMask = smoothstep(thresh, thresh + 0.15, cn) * uCloudDens;",
+  "    float cFade = smoothstep(0.01, 0.18, dir.y);",
+  "    vec2 dxzSafe = normalize(dir.xz + vec2(0.001));",
+  "    vec2 sxzSafe = normalize(uSunDir.xz + vec2(0.001));",
+  "    float sunFace = dot(dxzSafe, sxzSafe) * 0.5 + 0.5;",
+  "    float daylight = smoothstep(-0.1, 0.2, uSunDir.y);",
+  "    float cLight = mix(0.12, 1.0, daylight) * mix(0.7, 1.3, sunFace);",
+  "    vec3 cCol = vec3(cLight * uCloudBright);",
+  "    float nightTint = 1.0 - daylight;",
+  "    cCol = mix(cCol, cCol * vec3(0.4, 0.45, 0.65), nightTint);",
+  "    float edgeGlow = smoothstep(thresh + 0.1, thresh + 0.02, cn) * 0.35 * daylight * sunFace;",
+  "    cCol += vec3(1.0, 0.92, 0.75) * edgeGlow;",
+  "    sky = mix(sky, cCol, cMask * cFade);",
+  "  }",
+  "",
   "  // Exposure (linear scale — renderer handles sRGB output)",
   "  sky *= uExposure;",
   "",
@@ -336,7 +381,12 @@ function ProceduralSkyDome(scene) {
     uMoonColor: { value: new THREE.Vector3(0.7, 0.75, 0.85) },
     uStarBright:{ value: 1.0 },
     uExposure:  { value: 2.0 },
-    uTime:      { value: 0 }
+    uTime:      { value: 0 },
+    uCloudCover: { value: 0 },
+    uCloudDens:  { value: 0.85 },
+    uCloudScale: { value: 3.0 },
+    uCloudOff:   { value: new THREE.Vector2(0, 0) },
+    uCloudBright:{ value: 1.0 }
   };
 
   var geo = new THREE.SphereGeometry(1, 32, 16);
@@ -576,7 +626,8 @@ function SkyWeatherSystem(scene, config) {
     time: { solarTime: 0.45, cycleLengthMinutes: 10, autoAdvance: false, latitude: 45 },
     sky:  { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 2.0 },
     lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true },
-    fog: { enabled: false, autoColor: true, density: 0.003 }
+    fog: { enabled: false, autoColor: true, density: 0.003 },
+    clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 }
   };
   if (config) this._merge(config);
 
@@ -643,6 +694,18 @@ SkyWeatherSystem.prototype._tick = function(dt) {
   this.solar.update(this.solarTime, this.config.time.latitude);
   this.skyDome.update(this.solarTime, this.solar.sunDirection, this.solar.moonDirection, this.solar.moonPhase, this.config.sky);
   this.lighting.update(this.solarTime, this.solar.sunDirection, this.config.lighting);
+
+  // Cloud animation
+  var cs = this.config.clouds || {};
+  if (this.skyDome && this.skyDome._u) {
+    this.skyDome._u.uCloudCover.value = cs.coverage || 0;
+    this.skyDome._u.uCloudDens.value = cs.density !== undefined ? cs.density : 0.85;
+    this.skyDome._u.uCloudScale.value = cs.scale || 3.0;
+    this.skyDome._u.uCloudBright.value = cs.brightness !== undefined ? cs.brightness : 1.0;
+    var cSpeed = (cs.speed || 1.0) * 0.008;
+    this.skyDome._u.uCloudOff.value.x += dt * cSpeed * 0.7;
+    this.skyDome._u.uCloudOff.value.y += dt * cSpeed * 0.3;
+  }
 
   // Fog
   if (this.config.fog.enabled) {
@@ -795,6 +858,13 @@ module.exports = {
 			enabled: false,
 			autoColor: true,
 			density: 0.003,
+		},
+		clouds: {
+			coverage: 0,
+			density: 0.85,
+			speed: 1.0,
+			scale: 3.0,
+			brightness: 1.0,
 		},
 	},
 };
