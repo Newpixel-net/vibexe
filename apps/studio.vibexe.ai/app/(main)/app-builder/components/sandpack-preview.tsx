@@ -549,7 +549,12 @@ if (typeof window !== 'undefined') {
         if (o.p) {
           t.position.set(o.p[0],o.p[1],o.p[2]);
           var pb = _findBody(t, name);
-          if (pb) { pb.position.set(o.p[0],o.p[1],o.p[2]); if(pb.velocity) pb.velocity.set(0,0,0); _hasBody=true; }
+          if (pb) {
+            // Account for pivot offset (GLTF models with off-center pivots)
+            var _pOff = pb.__pivotOffset || { x: 0, y: 0, z: 0 };
+            pb.position.set(o.p[0] + _pOff.x, o.p[1] + _pOff.y, o.p[2] + _pOff.z);
+            if(pb.velocity) pb.velocity.set(0,0,0); _hasBody=true;
+          }
         }
         if (!_logged[name]) {
           if (o.r) t.rotation.set(o.r[0],o.r[1],o.r[2]);
@@ -798,12 +803,17 @@ if (typeof window !== 'undefined') {
         var hy = Math.max(size.y * 0.5, 0.05);
         var hz = Math.max(size.z * 0.5, 0.05);
         var shape = new CANNON.Box(new CANNON.Vec3(hx, hy, hz));
+        shape.__origHE = { x: hx, y: hy, z: hz };
         var body = new CANNON.Body({ mass: 0, shape: shape });
         body.position.set(center.x, center.y, center.z);
         body.type = CANNON.Body.STATIC;
         body.__meshRef = obj;
         body.__meshName = obj.name;
         body.__autoPhysics = true;
+        // Store offset from mesh origin to bbox center (for GLTF offset pivots)
+        body.__pivotOffset = { x: center.x - obj.position.x, y: center.y - obj.position.y, z: center.z - obj.position.z };
+        // Store the mesh scale at creation time so we can detect scale changes
+        body.__lastScale = { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z };
         w.addBody(body);
         obj.userData.__physicsBody = body;
         if (obj.name) _bodies[obj.name] = body;
@@ -1197,13 +1207,11 @@ export function SandpackPreview({
 				if (spawnedObjectsRef.current.length > 0 && iframe?.contentWindow) {
 					const objectsToRestore = [...spawnedObjectsRef.current];
 					console.log("[GameEditor] Restoring", objectsToRestore.length, "spawned objects after reload");
-					// Delay to let game scene fully initialize (3s for GLTF loads + physics world)
+					// Delay to let game scene fully initialize before sending restore command.
+					// Auto-physics is triggered by the "game-editor-spawned-restored" completion
+					// message from the bridge (no fixed timer — waits for all GLTF loads to finish).
 					setTimeout(() => {
 						iframe.contentWindow?.postMessage({ type: "game-editor-restore-spawned-objects", objects: objectsToRestore }, "*");
-						// Run auto-physics after restored objects have time to load their models
-						setTimeout(() => {
-							iframe.contentWindow?.postMessage({ type: "run-auto-physics" }, "*");
-						}, 5000);
 					}, 3000);
 				}
 				// Restore texture overrides for scene-original objects
@@ -1364,6 +1372,13 @@ export function SandpackPreview({
 				// Store texture overrides for scene-original objects
 				if (data.textureOverrides && data.textureOverrides.length > 0) {
 					textureOverridesRef.current = data.textureOverrides;
+				}
+			} else if (data.type === "game-editor-spawned-restored") {
+				// All spawned objects finished loading (GLTF loads complete) — now run auto-physics
+				console.log("[GameEditor] Spawned objects restored (" + (data.count || 0) + "), running auto-physics");
+				const iframe = iframeRef.current;
+				if (iframe?.contentWindow) {
+					iframe.contentWindow.postMessage({ type: "run-auto-physics" }, "*");
 				}
 			} else if (data.type === "terrain-heightmap-data") {
 				// Store sculpt heightmap data for persistence and save to DB

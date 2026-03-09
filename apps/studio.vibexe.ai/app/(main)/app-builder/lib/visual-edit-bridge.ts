@@ -2085,14 +2085,24 @@ export function getVisualEditBridgeScript(): string {
       if (skipTypes[vType]) return;
       if (!solidTypes[vType]) return;
 
-      // If already has a body, just sync its position to the mesh
+      // If already has a body, sync position and check for scale changes
       var existingBody = obj.userData.__physicsBody;
       if (existingBody && existingBody.position) {
-        // Sync body position to mesh position (scene editor may have moved it)
-        existingBody.position.set(obj.position.x, obj.position.y, obj.position.z);
-        if (existingBody.velocity) existingBody.velocity.set(0, 0, 0);
-        synced++;
-        return;
+        // Bug #9: Check if scale changed — if so, remove old body and recreate
+        var ls = existingBody.__lastScale;
+        if (ls && (Math.abs(ls.x - obj.scale.x) > 0.001 || Math.abs(ls.y - obj.scale.y) > 0.001 || Math.abs(ls.z - obj.scale.z) > 0.001)) {
+          // Scale changed — remove old body so a new one is created below
+          w.removeBody(existingBody);
+          obj.userData.__physicsBody = null;
+          // Fall through to create a new body with updated dimensions
+        } else {
+          // Bug #8: Account for pivot offset when syncing position
+          var pOff = existingBody.__pivotOffset || { x: 0, y: 0, z: 0 };
+          existingBody.position.set(obj.position.x + pOff.x, obj.position.y + pOff.y, obj.position.z + pOff.z);
+          if (existingBody.velocity) existingBody.velocity.set(0, 0, 0);
+          synced++;
+          return;
+        }
       }
 
       // Check if there's already a body in world near this mesh position
@@ -2126,12 +2136,17 @@ export function getVisualEditBridgeScript(): string {
       var hz = Math.max(sz.z * 0.5, 0.05);
 
       var shape = new C.Box(new C.Vec3(hx, hy, hz));
+      shape.__origHE = { x: hx, y: hy, z: hz };
       var body = new C.Body({ mass: 0, shape: shape });
       body.position.set(ctr.x, ctr.y, ctr.z);
       body.type = C.Body.STATIC;
       body.__meshRef = obj;
       body.__meshName = obj.name || "";
       body.__autoPhysics = true;
+      // Store offset from mesh origin to bbox center (Bug #8: GLTF offset pivots)
+      body.__pivotOffset = { x: ctr.x - obj.position.x, y: ctr.y - obj.position.y, z: ctr.z - obj.position.z };
+      // Store scale at creation time so we can detect changes (Bug #9)
+      body.__lastScale = { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z };
       w.addBody(body);
       obj.userData.__physicsBody = body;
       created++;
@@ -3009,8 +3024,38 @@ export function getVisualEditBridgeScript(): string {
         var _rsTHREE = window.THREE;
         if (!_rsScene || !_rsTHREE || !d.objects) break;
         var _rsLoader = new _rsTHREE.TextureLoader();
-        console.log("[GameEditorBridge] Restoring", d.objects.length, "spawned objects");
-        for (var _rsi = 0; _rsi < d.objects.length; _rsi++) {
+        var _rsTotal = d.objects.length;
+        var _rsPending = 0;
+        console.log("[GameEditorBridge] Restoring", _rsTotal, "spawned objects");
+
+        // Called after each async GLTF load completes (success or error).
+        // When all pending loads finish, notify the parent so it can trigger auto-physics.
+        function _rsCheckDone() {
+          _rsPending--;
+          if (_rsPending <= 0) {
+            console.log("[GameEditorBridge] All spawned objects restored, notifying parent");
+            window.parent.postMessage({ type: "game-editor-spawned-restored", count: _rsTotal }, "*");
+          }
+        }
+
+        // First pass: count how many objects need async GLTF loading
+        for (var _rsi = 0; _rsi < _rsTotal; _rsi++) {
+          var _rsObj = d.objects[_rsi];
+          if (!_rsScene.getObjectByName(_rsObj.name) && _rsObj.modelUrl) {
+            var _rsChkLoader = window.__vibexe_gltfLoader__;
+            if (!_rsChkLoader && window.GLTFLoader) _rsChkLoader = new window.GLTFLoader();
+            if (_rsChkLoader) _rsPending++;
+          }
+        }
+
+        // If nothing needs async loading, signal completion immediately
+        if (_rsPending === 0) {
+          console.log("[GameEditorBridge] No async GLTF loads needed, notifying parent");
+          window.parent.postMessage({ type: "game-editor-spawned-restored", count: _rsTotal }, "*");
+        }
+
+        // Second pass: actually load/create the objects
+        for (var _rsi2 = 0; _rsi2 < _rsTotal; _rsi2++) {
           (function(obj) {
             // Skip if object with same name already exists
             if (_rsScene.getObjectByName(obj.name)) return;
@@ -3054,7 +3099,11 @@ export function getVisualEditBridgeScript(): string {
                   });
                 }
                 console.log("[GameEditorBridge] Restored spawned:", obj.name);
-              }, undefined, function(err) { console.warn("[Restore] GLTF load failed:", obj.name, err); });
+                _rsCheckDone();
+              }, undefined, function(err) {
+                console.warn("[Restore] GLTF load failed:", obj.name, err);
+                _rsCheckDone();
+              });
             } else {
               // Simple geometry fallback (box/sphere)
               var _rsGeo = new _rsTHREE.BoxGeometry(1, 1, 1);
@@ -3068,7 +3117,7 @@ export function getVisualEditBridgeScript(): string {
               _rsMesh.userData.vibexeType = obj.type;
               _rsScene.add(_rsMesh);
             }
-          })(d.objects[_rsi]);
+          })(d.objects[_rsi2]);
         }
         break;
       }
