@@ -1118,6 +1118,7 @@ export function getVisualEditBridgeScript(): string {
         obj.rotation.set(entry.oldRot.x, entry.oldRot.y, entry.oldRot.z);
         obj.scale.set(entry.oldScl.x, entry.oldScl.y, entry.oldScl.z);
         if (selectedObj && selectedObj.uuid === entry.uuid) { sendSelectedObject(obj); if (boxHelper) boxHelper.update(); }
+        persistTransform(obj);
         redoStack.push({ type: "transform", uuid: entry.uuid,
           oldPos: entry.newPos, oldRot: entry.newRot, oldScl: entry.newScl,
           newPos: entry.oldPos, newRot: entry.oldRot, newScl: entry.oldScl });
@@ -1160,6 +1161,7 @@ export function getVisualEditBridgeScript(): string {
         obj.rotation.set(entry.oldRot.x, entry.oldRot.y, entry.oldRot.z);
         obj.scale.set(entry.oldScl.x, entry.oldScl.y, entry.oldScl.z);
         if (selectedObj && selectedObj.uuid === entry.uuid) { sendSelectedObject(obj); if (boxHelper) boxHelper.update(); }
+        persistTransform(obj);
         undoStack.push({ type: "transform", uuid: entry.uuid,
           oldPos: entry.newPos, oldRot: entry.newRot, oldScl: entry.newScl,
           newPos: entry.oldPos, newRot: entry.oldRot, newScl: entry.oldScl });
@@ -1681,14 +1683,15 @@ export function getVisualEditBridgeScript(): string {
       return;
     }
     // Ctrl+Shift+Z or Ctrl+Y — Redo
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "z") {
+    var keyLower = (e.key || "").toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && keyLower === "z") {
       applyRedo(); e.preventDefault(); return;
     }
-    if ((e.ctrlKey || e.metaKey) && (e.key === "y" || e.key === "Y")) {
+    if ((e.ctrlKey || e.metaKey) && keyLower === "y") {
       applyRedo(); e.preventDefault(); return;
     }
     // Ctrl+Z — Undo
-    if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+    if ((e.ctrlKey || e.metaKey) && keyLower === "z") {
       applyUndo(); e.preventDefault(); return;
     }
     // Ctrl+D — Duplicate
@@ -2336,6 +2339,13 @@ export function getVisualEditBridgeScript(): string {
       case "game-editor-duplicate": duplicateSelected(); break;
       case "game-editor-undo": applyUndo(); break;
       case "game-editor-redo": applyRedo(); break;
+      case "game-editor-register-spawn-undo":
+        if (d.uuid && editor) {
+          // Push spawn undo — on undo, removes the spawned object; on redo, re-adds it
+          pushUndo({ type: "duplicate", uuid: d.uuid });
+          window.parent.postMessage({ type: "game-editor-undo-redo-state", canUndo: undoStack.length > 0, canRedo: redoStack.length > 0 }, "*");
+        }
+        break;
       case "game-editor-toggle-snap": toggleGridHelper(); break;
       case "game-editor-select-camera":
         deselectObject();
@@ -2664,7 +2674,7 @@ export function getVisualEditBridgeScript(): string {
       case "game-editor-viewport-keydown":
         if (!active) break;
         // Simulate keydown event for the bridge's onKeyDown handler
-        var fakeEvent = { key: d.key, ctrlKey: !!d.ctrlKey, metaKey: !!d.metaKey, target: { tagName: "BODY" }, preventDefault: function() {} };
+        var fakeEvent = { key: d.key, ctrlKey: !!d.ctrlKey, metaKey: !!d.metaKey, shiftKey: !!d.shiftKey, target: { tagName: "BODY" }, preventDefault: function() {} };
         onKeyDown(fakeEvent);
         break;
       case "game-editor-apply-texture": {
@@ -3154,6 +3164,57 @@ export function getVisualEditBridgeScript(): string {
             }, undefined, function() { console.warn("[TextureOverride] Load failed:", ov.name, ov.textureUrl); });
           })(d.overrides[_toi]);
         }
+        break;
+      }
+
+      // ===== LIGHT RESTORATION (Game mode — recreate editor lights from saved config) =====
+
+      case "game-editor-restore-lights": {
+        var _rlScene = (editor && editor.scene) ? editor.scene : window.__vibexe_scene__;
+        var _rlTHREE = window.THREE;
+        if (!_rlScene || !_rlTHREE || !d.lights) break;
+        console.log("[GameEditorBridge] Restoring", d.lights.length, "lights");
+        for (var _rli = 0; _rli < d.lights.length; _rli++) {
+          (function(cfg) {
+            // Skip if light already exists
+            if (_rlScene.getObjectByName(cfg.name)) return;
+            var _light;
+            var _color = new _rlTHREE.Color(cfg.color || "#ffffff");
+            var _intensity = cfg.intensity != null ? cfg.intensity : 1;
+            var _distance = cfg.distance != null ? cfg.distance : 20;
+            var _decay = cfg.decay != null ? cfg.decay : 2;
+            if (cfg.type === "spot") {
+              var _angle = cfg.angle != null ? cfg.angle : 0.5;
+              var _penumbra = cfg.penumbra != null ? cfg.penumbra : 0.5;
+              _light = new _rlTHREE.SpotLight(_color, _intensity, _distance, _angle, _penumbra, _decay);
+              if (cfg.target) {
+                _light.target.position.set(cfg.target.x || 0, cfg.target.y || 0, cfg.target.z || 0);
+              }
+              _rlScene.add(_light.target);
+            } else {
+              _light = new _rlTHREE.PointLight(_color, _intensity, _distance, _decay);
+            }
+            _light.name = cfg.name;
+            _light.position.set(cfg.position.x || 0, cfg.position.y || 5, cfg.position.z || 0);
+            _light.castShadow = true;
+            _light.shadow.mapSize.width = 512;
+            _light.shadow.mapSize.height = 512;
+            _light.userData.__editorLight = true;
+            _light.userData.__lightType = cfg.type;
+            _light.userData.__lightColor = cfg.color || "#ffffff";
+            _light.userData.__lightIntensity = _intensity;
+            _light.userData.__lightDistance = _distance;
+            _light.userData.__lightDecay = _decay;
+            if (cfg.type === "spot") {
+              _light.userData.__lightAngle = cfg.angle != null ? cfg.angle : 0.5;
+              _light.userData.__lightPenumbra = cfg.penumbra != null ? cfg.penumbra : 0.5;
+              _light.userData.__lightTarget = cfg.target || { x: 0, y: 0, z: 0 };
+            }
+            _rlScene.add(_light);
+            console.log("[GameEditorBridge] Restored light:", cfg.name, cfg.type);
+          })(d.lights[_rli]);
+        }
+        window.parent.postMessage({ type: "game-editor-lights-restored", count: d.lights.length }, "*");
         break;
       }
 
@@ -4577,6 +4638,167 @@ export function getVisualEditBridgeScript(): string {
       }
     }, 50);
   }
+})();
+
+// ===== FPS-Adaptive Quality System =====
+// Third IIFE — monitors frame rate and auto-adjusts pixel ratio + shadows
+// to maintain playable FPS. Restores quality when performance recovers.
+(function() {
+  var AQ_SAMPLE_SIZE = 60;
+  var AQ_CHECK_INTERVAL = 2000;
+  var AQ_LOW_FPS = 30;
+  var AQ_HIGH_FPS = 50;
+  var AQ_RECOVER_HOLD = 5000;
+  var AQ_PR_STEP = 0.25;
+  var AQ_PR_MIN = 0.5;
+
+  var frameTimes = [];
+  var lastCheckTime = 0;
+  var highFpsSince = 0;
+  var originalPixelRatio = null;
+  var currentPixelRatio = null;
+  var shadowsDisabled = false;
+  var started = false;
+
+  var state = {
+    fps: 0,
+    currentPixelRatio: null,
+    originalPixelRatio: null,
+    shadowsDisabled: false,
+    reductions: 0
+  };
+  window.__vibexe_adaptive_quality__ = state;
+
+  function getRenderer() {
+    return window.__vibexe_renderer__ || null;
+  }
+
+  function getMaxPixelRatio() {
+    var dpr = (typeof devicePixelRatio !== "undefined") ? devicePixelRatio : 1;
+    return Math.min(dpr, 2);
+  }
+
+  function init() {
+    var renderer = getRenderer();
+    if (!renderer) return false;
+    originalPixelRatio = renderer.getPixelRatio();
+    currentPixelRatio = originalPixelRatio;
+    state.originalPixelRatio = originalPixelRatio;
+    state.currentPixelRatio = currentPixelRatio;
+    return true;
+  }
+
+  function reduceQuality() {
+    var renderer = getRenderer();
+    if (!renderer) return;
+
+    // First: reduce pixel ratio
+    if (currentPixelRatio > AQ_PR_MIN + 0.01) {
+      currentPixelRatio = Math.max(AQ_PR_MIN, currentPixelRatio - AQ_PR_STEP);
+      renderer.setPixelRatio(currentPixelRatio);
+      state.currentPixelRatio = currentPixelRatio;
+      state.reductions++;
+      console.log("[AdaptiveQuality] Reduced pixelRatio to", currentPixelRatio);
+      return;
+    }
+
+    // Second: disable shadows
+    if (!shadowsDisabled && renderer.shadowMap) {
+      renderer.shadowMap.enabled = false;
+      shadowsDisabled = true;
+      state.shadowsDisabled = true;
+      state.reductions++;
+      console.log("[AdaptiveQuality] Disabled shadows");
+    }
+  }
+
+  function restoreQuality() {
+    var renderer = getRenderer();
+    if (!renderer) return;
+
+    // First: re-enable shadows
+    if (shadowsDisabled && renderer.shadowMap) {
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.needsUpdate = true;
+      shadowsDisabled = false;
+      state.shadowsDisabled = false;
+      console.log("[AdaptiveQuality] Re-enabled shadows");
+      highFpsSince = performance.now();
+      return;
+    }
+
+    // Second: increase pixel ratio
+    var maxPR = getMaxPixelRatio();
+    if (currentPixelRatio < maxPR - 0.01) {
+      currentPixelRatio = Math.min(maxPR, currentPixelRatio + AQ_PR_STEP);
+      renderer.setPixelRatio(currentPixelRatio);
+      state.currentPixelRatio = currentPixelRatio;
+      console.log("[AdaptiveQuality] Increased pixelRatio to", currentPixelRatio);
+      highFpsSince = performance.now();
+    }
+  }
+
+  function onFrame() {
+    var now = performance.now();
+
+    frameTimes.push(now);
+    if (frameTimes.length > AQ_SAMPLE_SIZE) {
+      frameTimes.shift();
+    }
+
+    if (now - lastCheckTime < AQ_CHECK_INTERVAL) return;
+    lastCheckTime = now;
+
+    if (frameTimes.length < 10) return;
+
+    var oldest = frameTimes[0];
+    var newest = frameTimes[frameTimes.length - 1];
+    var elapsed = newest - oldest;
+    if (elapsed < 1) return;
+
+    var avgFps = ((frameTimes.length - 1) / elapsed) * 1000;
+    state.fps = Math.round(avgFps);
+
+    // Skip during scene editor — don't fight the editor's own rendering
+    if (window.__vibexe_editor_active__) {
+      highFpsSince = 0;
+      return;
+    }
+
+    if (avgFps < AQ_LOW_FPS) {
+      reduceQuality();
+      highFpsSince = 0;
+    } else if (avgFps > AQ_HIGH_FPS) {
+      if (highFpsSince === 0) {
+        highFpsSince = now;
+      } else if (now - highFpsSince > AQ_RECOVER_HOLD) {
+        var maxPR = getMaxPixelRatio();
+        if (shadowsDisabled || currentPixelRatio < maxPR - 0.01) {
+          restoreQuality();
+        }
+      }
+    } else {
+      highFpsSince = 0;
+    }
+  }
+
+  // Hook into requestAnimationFrame to piggyback on the game loop
+  var _origRAF = window.requestAnimationFrame;
+  window.requestAnimationFrame = function(cb) {
+    return _origRAF.call(window, function(ts) {
+      if (!started) {
+        if (init()) {
+          started = true;
+          lastCheckTime = performance.now();
+          console.log("[AdaptiveQuality] Started monitoring (pixelRatio:", originalPixelRatio + ")");
+        }
+      }
+      if (started) {
+        onFrame();
+      }
+      cb(ts);
+    });
+  };
 })();
 `;
 }

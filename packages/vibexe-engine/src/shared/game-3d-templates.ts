@@ -262,15 +262,15 @@ export function initScene(): typeof THREE.Scene {
   sun.name = "DirectionalLight";
   sun.position.set(8, 20, 10);
   sun.castShadow = true;
-  sun.shadow.mapSize.width = 1024;
-  sun.shadow.mapSize.height = 1024;
+  sun.shadow.mapSize.width = 2048;
+  sun.shadow.mapSize.height = 2048;
   sun.shadow.camera.near = 0.5;
-  sun.shadow.camera.far = 50;
-  sun.shadow.camera.left = -20;
-  sun.shadow.camera.right = 20;
-  sun.shadow.camera.top = 20;
-  sun.shadow.camera.bottom = -20;
-  sun.shadow.bias = -0.001;
+  sun.shadow.camera.far = 200;
+  sun.shadow.camera.left = -80;
+  sun.shadow.camera.right = 80;
+  sun.shadow.camera.top = 80;
+  sun.shadow.camera.bottom = -80;
+  sun.shadow.bias = -0.0005;
   scene.add(sun);
 
   return scene;
@@ -5231,6 +5231,21 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               }
             }
           } catch {}
+          // Shadow camera follows player so shadows stay visible on large terrains
+          const __playerMesh = (window as any).__vibexe_playerMesh__;
+          if (__playerMesh && __playerMesh.position) {
+            const __sun2 = scene.getObjectByName('__default_sun__') || scene.getObjectByName('DirectionalLight');
+            if (__sun2 && (__sun2 as any).isDirectionalLight) {
+              const __px = __playerMesh.position.x;
+              const __pz = __playerMesh.position.z;
+              // Offset sun relative to player but keep same directional angle
+              (__sun2 as any).position.set(__px + 30, 80, __pz + 30);
+              if ((__sun2 as any).target) {
+                (__sun2 as any).target.position.set(__px, 0, __pz);
+                (__sun2 as any).target.updateMatrixWorld();
+              }
+            }
+          }
           // Render via post-processing composer if available, else standard render
           const __composer = (window as any).__vibexe_composer__;
           if (__composer) { __composer.render(delta); }

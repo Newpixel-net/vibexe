@@ -1555,10 +1555,45 @@ function SettingsTab({
 	onUpdateSettings: (s: Partial<TerrainPainterSettings>) => void;
 	onGenerateTerrain: () => void;
 }) {
+	const TERRAIN_PRESETS = [
+		{ label: "Small", width: 100, depth: 100, segments: 128, height: 30 },
+		{ label: "Medium", width: 200, depth: 200, segments: 256, height: 40 },
+		{ label: "Large", width: 400, depth: 400, segments: 384, height: 60 },
+		{ label: "Huge", width: 500, depth: 500, segments: 512, height: 80 },
+	];
+
+	const vertexCount = (settings.terrainSegments + 1) * (settings.terrainSegments + 1);
+	const isHighPerf = vertexCount > 100000; // >316 segments
+
 	return (
 		<div className="p-3 flex flex-col gap-3">
 			<div className="text-[10px] font-semibold text-white/50 uppercase tracking-wider">
-				Terrain
+				Terrain Size Preset
+			</div>
+
+			<div className="grid grid-cols-4 gap-1">
+				{TERRAIN_PRESETS.map((p) => (
+					<button
+						key={p.label}
+						onClick={() => onUpdateSettings({
+							terrainWidth: p.width,
+							terrainDepth: p.depth,
+							terrainSegments: p.segments,
+							terrainHeightScale: p.height,
+						})}
+						className={`text-[9px] py-1 rounded border transition-colors ${
+							settings.terrainWidth === p.width && settings.terrainSegments === p.segments
+								? "bg-blue-600 border-blue-500 text-white"
+								: "bg-[#333] border-white/10 text-white/60 hover:bg-[#444]"
+						}`}
+					>
+						{p.label}
+					</button>
+				))}
+			</div>
+
+			<div className="text-[10px] font-semibold text-white/50 uppercase tracking-wider mt-1">
+				Custom
 			</div>
 
 			<ParamSlider
@@ -1581,7 +1616,7 @@ function SettingsTab({
 				label="Height"
 				value={settings.terrainHeightScale}
 				min={1}
-				max={50}
+				max={100}
 				step={1}
 				onChange={(v) => onUpdateSettings({ terrainHeightScale: v })}
 			/>
@@ -1593,6 +1628,16 @@ function SettingsTab({
 				step={16}
 				onChange={(v) => onUpdateSettings({ terrainSegments: v })}
 			/>
+
+			{isHighPerf && (
+				<div className="text-[9px] text-amber-400/80 bg-amber-900/20 border border-amber-500/20 rounded px-2 py-1">
+					High vertex count ({(vertexCount / 1000).toFixed(0)}K). May reduce FPS on mobile devices.
+				</div>
+			)}
+
+			<div className="text-[9px] text-white/30">
+				{(vertexCount / 1000).toFixed(0)}K vertices &middot; {settings.terrainWidth}x{settings.terrainDepth} units
+			</div>
 
 			<div className="text-[10px] font-semibold text-white/50 uppercase tracking-wider mt-2">
 				Splatmap

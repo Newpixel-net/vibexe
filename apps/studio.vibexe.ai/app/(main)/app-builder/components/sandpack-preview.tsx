@@ -27,6 +27,7 @@ import {
 	Globe,
 	Grid3X3,
 	Hand,
+	Lightbulb,
 	Monitor,
 	Mountain,
 	MousePointer2,
@@ -46,7 +47,7 @@ import { PHONE_FRAME, PhoneFrame } from "./phone-frame";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AppFile } from "../adapters/file-adapter";
 import { useVisualEdit } from "../lib/visual-edit-context";
-import { useGameEditor, type GizmoMode } from "../lib/game-editor-context";
+import { useGameEditor, type GizmoMode, type SceneDefinition, type SceneObjectDef } from "../lib/game-editor-context";
 import { GameEditorPanel } from "./game-editor-panel";
 import { GameSettingsPanel } from "./game-settings-panel";
 import { SceneGizmo } from "./scene-gizmo";
@@ -886,6 +887,26 @@ export function SandpackPreview({
 	const textureOverridesRef = useRef<any[]>([]);
 	// Track deleted object names for persistence across save
 	const deletedObjectsRef = useRef<string[]>([]);
+	// Editor lights persistence — saved to game settings, restored after reload
+	const lightsRef = useRef<Array<{ name: string; type: "point" | "spot"; color: string; intensity: number; position: { x: number; y: number; z: number }; distance?: number; decay?: number; angle?: number; penumbra?: number; target?: { x: number; y: number; z: number } }>>([]);
+	// Light dropdown state
+	const [lightDropdownOpen, setLightDropdownOpen] = useState(false);
+
+	// Close light dropdown when editor is disabled
+	useEffect(() => {
+		if (!gameEditor.enabled) setLightDropdownOpen(false);
+	}, [gameEditor.enabled]);
+
+	// Close light dropdown on outside click
+	useEffect(() => {
+		if (!lightDropdownOpen) return;
+		const close = () => setLightDropdownOpen(false);
+		// Delay to avoid closing immediately from the same click that opened it
+		const timer = setTimeout(() => {
+			window.addEventListener("click", close, { once: true });
+		}, 0);
+		return () => { clearTimeout(timer); window.removeEventListener("click", close); };
+	}, [lightDropdownOpen]);
 
 	// Mutex to prevent concurrent settings saves
 	const savingSettingsRef = useRef(false);
@@ -1222,6 +1243,15 @@ export function SandpackPreview({
 						iframe.contentWindow?.postMessage({ type: "game-editor-apply-texture-overrides", overrides }, "*");
 					}, 2000);
 				}
+				// Restore editor lights from game settings (both game mode and scene editor)
+				const savedLights = gameEditor.gameSettings.lights;
+				if (savedLights && savedLights.length > 0 && iframe?.contentWindow) {
+					lightsRef.current = savedLights;
+					console.log("[GameEditor] Restoring", savedLights.length, "lights after reload");
+					setTimeout(() => {
+						iframe.contentWindow?.postMessage({ type: "game-editor-restore-lights", lights: savedLights }, "*");
+					}, 2500);
+				}
 				// Auto-generate terrain on page load if not in editor mode and terrain config exists
 				// (The IIFE in the saved file may be stale and lack _autoTerrain)
 				// Skip if we just exited scene editor — the exit handler already triggers terrain gen
@@ -1293,6 +1323,16 @@ export function SandpackPreview({
 					_textureRotation: data._textureRotation,
 					_textureOffsetX: data._textureOffsetX,
 					_textureOffsetY: data._textureOffsetY,
+					// Light properties
+					_isEditorLight: data._isEditorLight,
+					_lightType: data._lightType,
+					_lightColor: data._lightColor,
+					_lightIntensity: data._lightIntensity,
+					_lightDistance: data._lightDistance,
+					_lightDecay: data._lightDecay,
+					_lightAngle: data._lightAngle,
+					_lightPenumbra: data._lightPenumbra,
+					_lightTarget: data._lightTarget,
 				});
 				// Live-sync player character position to Game Settings spawn
 				const isPlayer = data.userData?.__isPlayerCharacter
@@ -1361,8 +1401,12 @@ export function SandpackPreview({
 			} else if (data.type === "game-editor-object-spawned") {
 				gameEditor.requestSceneTree();
 				gameEditor.setDirty(true);
-				// Collect all spawned objects so we can restore them after refresh
+				// Register spawn for undo (bridge tracks by uuid, same as duplicate undo)
 				const iframe = iframeRef.current;
+				if (iframe?.contentWindow && data.uuid) {
+					iframe.contentWindow.postMessage({ type: "game-editor-register-spawn-undo", uuid: data.uuid }, "*");
+				}
+				// Collect all spawned objects so we can restore them after refresh
 				if (iframe?.contentWindow) {
 					iframe.contentWindow.postMessage({ type: "game-editor-get-spawned-objects" }, "*");
 				}
@@ -1428,6 +1472,65 @@ export function SandpackPreview({
 				} else {
 					console.warn("[GameEditor] No change after updateTransformInSource for:", objName);
 				}
+			} else if (data.type === "game-editor-scene-state") {
+				// Bridge responded with current scene's object/camera state for scene switching
+				const sceneId = data.sceneId as string;
+				const objects = (data.objects || []) as SceneObjectDef[];
+				const cameraPos = data.cameraPosition as number[] | undefined;
+				const cameraTarget = data.cameraTarget as number[] | undefined;
+				if (sceneId) {
+					gameEditor.updateSceneObjects(sceneId, objects);
+					if (cameraPos && cameraTarget) {
+						gameEditor.updateSceneCamera(sceneId, cameraPos, cameraTarget);
+					}
+					console.log("[GameEditor] Saved scene state for:", sceneId, objects.length, "objects");
+				}
+			} else if (data.type === "game-editor-scene-loaded") {
+				// Bridge finished loading a scene -- request fresh scene tree
+				gameEditor.requestSceneTree();
+				console.log("[GameEditor] Scene loaded:", data.sceneId);
+			} else if (data.type === "game-request-load-scene") {
+				// Game code requested a scene switch via game.loadScene(sceneName)
+				const sceneName = data.sceneName as string;
+				if (sceneName) {
+					const targetScene = gameEditor.scenes.find(
+						(s) => s.name === sceneName || s.id === sceneName
+					);
+					if (targetScene) {
+						console.log("[GameEditor] Game requested scene switch to:", targetScene.name);
+						gameEditor.switchScene(targetScene.id);
+					} else {
+						console.warn("[GameEditor] Scene not found:", sceneName);
+					}
+				}
+			} else if (data.type === "game-editor-light-added") {
+				// Track new light in lightsRef and persist to game settings
+				const lightData = {
+					name: data.name as string,
+					type: data.lightType as "point" | "spot",
+					color: (data.color as string) || "#ffffff",
+					intensity: (data.intensity as number) || 1,
+					position: data.position as { x: number; y: number; z: number },
+					distance: data.distance as number | undefined,
+					decay: data.decay as number | undefined,
+					angle: data.angle as number | undefined,
+					penumbra: data.penumbra as number | undefined,
+					target: data.target as { x: number; y: number; z: number } | undefined,
+				};
+				lightsRef.current = [...lightsRef.current, lightData];
+				gameEditor.updateGameSettings({ lights: lightsRef.current });
+				handleSaveSettings({ ...gameEditor.gameSettings, lights: lightsRef.current });
+				gameEditor.requestSceneTree();
+			} else if (data.type === "game-editor-light-removed") {
+				lightsRef.current = lightsRef.current.filter((l) => l.name !== data.name);
+				gameEditor.updateGameSettings({ lights: lightsRef.current });
+				handleSaveSettings({ ...gameEditor.gameSettings, lights: lightsRef.current });
+			} else if (data.type === "game-editor-lights-collected") {
+				// Update lightsRef from bridge (authoritative source during editor session)
+				lightsRef.current = data.lights || [];
+				gameEditor.updateGameSettings({ lights: lightsRef.current });
+			} else if (data.type === "game-editor-lights-restored") {
+				console.log("[GameEditor] Lights restored:", data.count);
 			}
 		};
 		window.addEventListener("message", handler);
@@ -1448,6 +1551,10 @@ export function SandpackPreview({
 			const iframe = iframeRef.current;
 			if (iframe?.contentWindow && gameEditor.gameSettings.terrain?.enabled) {
 				iframe.contentWindow.postMessage({ type: "terrain-get-heightmap" }, "*");
+			}
+			// Collect latest light positions from bridge before deactivation
+			if (iframe?.contentWindow && lightsRef.current.length > 0) {
+				iframe.contentWindow.postMessage({ type: "game-editor-collect-lights" }, "*");
 			}
 			// Refresh sandpack if objects were moved during edit session
 			if (sceneModifiedDuringEditRef.current) {
@@ -1548,14 +1655,15 @@ export function SandpackPreview({
 			if (!iframe?.contentWindow) return;
 			// Forward relevant keys
 			const key = e.key.toLowerCase();
-			const forwarded = ["f", "g", "w", "e", "r", "escape", "delete", "backspace"].includes(key)
-				|| ((e.ctrlKey || e.metaKey) && (key === "z" || key === "d"));
+			const forwarded = ["f", "g", "w", "e", "r", "q", "x", "escape", "delete", "backspace"].includes(key)
+				|| ((e.ctrlKey || e.metaKey) && (key === "z" || key === "y" || key === "d"));
 			if (forwarded) {
 				iframe.contentWindow.postMessage({
 					type: "game-editor-viewport-keydown",
 					key: e.key,
 					ctrlKey: e.ctrlKey,
 					metaKey: e.metaKey,
+					shiftKey: e.shiftKey,
 				}, "*");
 				e.preventDefault();
 			}
@@ -1889,6 +1997,45 @@ export function SandpackPreview({
 										<Mountain className="w-3.5 h-3.5" />
 										<span className="hidden lg:inline">Terrain</span>
 									</button>
+									<div className="relative">
+										<button
+											type="button"
+											onClick={() => setLightDropdownOpen((v) => !v)}
+											className={`flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-lg transition-all duration-150 ${
+												lightDropdownOpen
+													? "bg-yellow-500/[0.15] text-yellow-300"
+													: "text-white/35 hover:bg-white/[0.04] hover:text-white/60"
+											}`}
+											title="Add Light"
+										>
+											<Lightbulb className="w-3.5 h-3.5" />
+											<span className="hidden lg:inline">Light</span>
+										</button>
+										{lightDropdownOpen && (
+											<div className="absolute top-full left-0 mt-1 bg-[#1a1a1a] border border-white/[0.12] rounded-lg shadow-xl z-50 min-w-[140px] py-1">
+												<button
+													type="button"
+													className="w-full text-left px-3 py-1.5 text-[11px] text-white/70 hover:bg-white/[0.08] hover:text-white/90 transition-colors"
+													onClick={() => {
+														gameEditor.addLight("point");
+														setLightDropdownOpen(false);
+													}}
+												>
+													Point Light
+												</button>
+												<button
+													type="button"
+													className="w-full text-left px-3 py-1.5 text-[11px] text-white/70 hover:bg-white/[0.08] hover:text-white/90 transition-colors"
+													onClick={() => {
+														gameEditor.addLight("spot");
+														setLightDropdownOpen(false);
+													}}
+												>
+													Spot Light
+												</button>
+											</div>
+										)}
+									</div>
 								</div>
 							)}
 						</>

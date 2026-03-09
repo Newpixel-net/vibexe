@@ -45,6 +45,16 @@ export interface SelectedSceneObject {
 	_textureRotation?: number;
 	_textureOffsetX?: number;
 	_textureOffsetY?: number;
+	// Light properties (present when an editor light is selected)
+	_isEditorLight?: boolean;
+	_lightType?: "point" | "spot";
+	_lightColor?: string;
+	_lightIntensity?: number;
+	_lightDistance?: number;
+	_lightDecay?: number;
+	_lightAngle?: number;
+	_lightPenumbra?: number;
+	_lightTarget?: { x: number; y: number; z: number };
 }
 
 export interface PrefabDefinition {
@@ -52,6 +62,51 @@ export interface PrefabDefinition {
 	args: Record<string, any>;
 	displayName: string;
 	category: string;
+}
+
+// ===== Scene / Level Definitions =====
+
+export interface SceneObjectDef {
+	name: string;
+	type: string;
+	modelUrl?: string;
+	position: number[];
+	rotation: number[];
+	scale: number[];
+	textureUrl?: string;
+	textureTileX?: number;
+	textureTileY?: number;
+	hasPBR?: boolean;
+	visible?: boolean;
+}
+
+export interface SceneTerrainDef {
+	enabled: boolean;
+	width: number;
+	depth: number;
+	heightScale: number;
+	segments: number;
+	sculptHeightData?: string;
+	layers?: any[];
+}
+
+export interface SceneDefinition {
+	id: string;
+	name: string;
+	isDefault: boolean;
+	objects: SceneObjectDef[];
+	terrain?: SceneTerrainDef;
+	cameraPosition?: number[];
+	cameraTarget?: number[];
+}
+
+export function createDefaultScene(name = "Level 1", isDefault = true): SceneDefinition {
+	return {
+		id: crypto.randomUUID(),
+		name,
+		isDefault,
+		objects: [],
+	};
 }
 
 // ===== Game Settings =====
@@ -137,6 +192,21 @@ export interface GameSettings {
 			}>;
 		}>;
 	};
+	lights?: Array<{
+		name: string;
+		type: "point" | "spot";
+		color: string;
+		intensity: number;
+		position: { x: number; y: number; z: number };
+		distance?: number;
+		decay?: number;
+		angle?: number;
+		penumbra?: number;
+		target?: { x: number; y: number; z: number };
+	}>;
+	// Multi-scene / level system
+	scenes?: SceneDefinition[];
+	activeSceneId?: string;
 }
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
@@ -249,6 +319,24 @@ interface GameEditorContextValue {
 	pivotMode: "center" | "pivot";
 	setPivotMode: (mode: "center" | "pivot") => void;
 	togglePivotMode: () => void;
+	// Settings panel toggle (for terrain/other panels to close settings when opening)
+	isSettingsOpen: boolean;
+	toggleSettings: () => void;
+	// Light management
+	addLight: (type: "point" | "spot", options?: { color?: string; intensity?: number; position?: { x: number; y: number; z: number }; distance?: number; decay?: number; angle?: number; penumbra?: number; target?: { x: number; y: number; z: number } }) => void;
+	updateLight: (name: string, props: Record<string, any>) => void;
+	removeLight: (name: string) => void;
+	// Multi-scene / level management
+	scenes: SceneDefinition[];
+	activeSceneId: string;
+	addScene: (name?: string) => SceneDefinition;
+	removeScene: (sceneId: string) => void;
+	renameScene: (sceneId: string, name: string) => void;
+	switchScene: (sceneId: string) => void;
+	updateSceneObjects: (sceneId: string, objects: SceneObjectDef[]) => void;
+	updateSceneTerrain: (sceneId: string, terrain: SceneTerrainDef | undefined) => void;
+	updateSceneCamera: (sceneId: string, position: number[], target: number[]) => void;
+	getActiveScene: () => SceneDefinition | undefined;
 	// Generic iframe message sender (for module communication)
 	sendToIframe: (msg: any) => void;
 }
@@ -288,6 +376,15 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [pivotMode, setPivotModeState] = useState<"center" | "pivot">("center");
 	const saveHandlerRef = useRef<(() => Promise<void>) | null>(null);
 	const iframeRef = useRef<React.RefObject<HTMLIFrameElement | null> | null>(null);
+
+	// Settings panel open/close
+	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+	const toggleSettings = useCallback(() => setIsSettingsOpen((v) => !v), []);
+
+	// Multi-scene / level state
+	const defaultScene = createDefaultScene();
+	const [scenes, setScenesState] = useState<SceneDefinition[]>([defaultScene]);
+	const [activeSceneId, setActiveSceneId] = useState<string>(defaultScene.id);
 
 	const sendToIframe = useCallback((msg: any) => {
 		const iframe = iframeRef.current?.current;
@@ -695,6 +792,22 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		});
 	}, [sendToIframe]);
 
+	// Light management
+	const addLight = useCallback((type: "point" | "spot", options?: { color?: string; intensity?: number; position?: { x: number; y: number; z: number }; distance?: number; decay?: number; angle?: number; penumbra?: number; target?: { x: number; y: number; z: number } }) => {
+		sendToIframe({ type: "game-editor-add-light", lightType: type, ...options });
+		setIsDirty(true);
+	}, [sendToIframe]);
+
+	const updateLight = useCallback((name: string, props: Record<string, any>) => {
+		sendToIframe({ type: "game-editor-update-light", name, ...props });
+		setIsDirty(true);
+	}, [sendToIframe]);
+
+	const removeLight = useCallback((name: string) => {
+		sendToIframe({ type: "game-editor-remove-light", name });
+		setIsDirty(true);
+	}, [sendToIframe]);
+
 	const setHierarchySearch = useCallback((search: string) => {
 		setHierarchySearchState(search);
 	}, []);
@@ -728,6 +841,105 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 			pickRespawnRef.current = false;
 		}
 	}, [enabled]);
+
+	// ===== Multi-scene / level management =====
+
+	// Sync scenes from gameSettings when settings are loaded from DB (initial load only).
+	// We track whether we've done the initial sync to avoid overwriting user edits.
+	const scenesInitializedRef = useRef(false);
+	useEffect(() => {
+		if (scenesInitializedRef.current) return;
+		if (gameSettings.scenes && gameSettings.scenes.length > 0) {
+			scenesInitializedRef.current = true;
+			setScenesState(gameSettings.scenes);
+			if (gameSettings.activeSceneId) {
+				setActiveSceneId(gameSettings.activeSceneId);
+			} else {
+				setActiveSceneId(gameSettings.scenes[0].id);
+			}
+		}
+	}, [gameSettings.scenes, gameSettings.activeSceneId]);
+
+	const addScene = useCallback((name?: string) => {
+		const sceneCount = scenes.length;
+		const newScene = createDefaultScene(name || `Level ${sceneCount + 1}`, false);
+		setScenesState((prev) => [...prev, newScene]);
+		// Persist to game settings
+		setGameSettingsState((prev) => ({
+			...prev,
+			scenes: [...(prev.scenes || []), newScene],
+		}));
+		setIsDirty(true);
+		return newScene;
+	}, [scenes.length]);
+
+	const removeScene = useCallback((sceneId: string) => {
+		setScenesState((prev) => {
+			if (prev.length <= 1) return prev; // can't delete last scene
+			const next = prev.filter((s) => s.id !== sceneId);
+			// If we deleted the active scene, switch to first remaining
+			if (sceneId === activeSceneId && next.length > 0) {
+				setActiveSceneId(next[0].id);
+			}
+			// Ensure at least one scene is default
+			if (!next.some((s) => s.isDefault) && next.length > 0) {
+				next[0].isDefault = true;
+			}
+			setGameSettingsState((gs) => ({ ...gs, scenes: next }));
+			setIsDirty(true);
+			return next;
+		});
+	}, [activeSceneId]);
+
+	const renameScene = useCallback((sceneId: string, name: string) => {
+		setScenesState((prev) => {
+			const next = prev.map((s) => s.id === sceneId ? { ...s, name } : s);
+			setGameSettingsState((gs) => ({ ...gs, scenes: next }));
+			setIsDirty(true);
+			return next;
+		});
+	}, []);
+
+	const switchScene = useCallback((sceneId: string) => {
+		if (sceneId === activeSceneId) return;
+		console.log("[GameEditor] Switching to scene:", sceneId);
+		setActiveSceneId(sceneId);
+		setGameSettingsState((prev) => ({ ...prev, activeSceneId: sceneId }));
+		// Deselect current object and clear scene tree (will be re-populated after load)
+		setSelectedObject(null);
+		setSceneTree(null);
+		// Tell iframe to switch scenes
+		sendToIframe({ type: "game-editor-switch-scene", sceneId });
+		setIsDirty(true);
+	}, [activeSceneId, sendToIframe]);
+
+	const updateSceneObjects = useCallback((sceneId: string, objects: SceneObjectDef[]) => {
+		setScenesState((prev) => {
+			const next = prev.map((s) => s.id === sceneId ? { ...s, objects } : s);
+			setGameSettingsState((gs) => ({ ...gs, scenes: next }));
+			return next;
+		});
+	}, []);
+
+	const updateSceneTerrain = useCallback((sceneId: string, terrain: SceneTerrainDef | undefined) => {
+		setScenesState((prev) => {
+			const next = prev.map((s) => s.id === sceneId ? { ...s, terrain } : s);
+			setGameSettingsState((gs) => ({ ...gs, scenes: next }));
+			return next;
+		});
+	}, []);
+
+	const updateSceneCamera = useCallback((sceneId: string, position: number[], target: number[]) => {
+		setScenesState((prev) => {
+			const next = prev.map((s) => s.id === sceneId ? { ...s, cameraPosition: position, cameraTarget: target } : s);
+			setGameSettingsState((gs) => ({ ...gs, scenes: next }));
+			return next;
+		});
+	}, []);
+
+	const getActiveScene = useCallback(() => {
+		return scenes.find((s) => s.id === activeSceneId);
+	}, [scenes, activeSceneId]);
 
 	const setIframeRefCb = useCallback((ref: React.RefObject<HTMLIFrameElement | null>) => {
 		iframeRef.current = ref;
@@ -820,6 +1032,22 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				pivotMode,
 				setPivotMode,
 				togglePivotMode,
+				isSettingsOpen,
+				toggleSettings,
+				addLight,
+				updateLight,
+				removeLight,
+				// Multi-scene / level management
+				scenes,
+				activeSceneId,
+				addScene,
+				removeScene,
+				renameScene,
+				switchScene,
+				updateSceneObjects,
+				updateSceneTerrain,
+				updateSceneCamera,
+				getActiveScene,
 				sendToIframe,
 			}}
 		>

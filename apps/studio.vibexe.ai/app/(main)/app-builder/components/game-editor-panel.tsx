@@ -5,12 +5,12 @@
  * Overlaid on the right side of the viewport when editor is active.
  */
 
-import { Box, Camera, Check, Copy, Eye, EyeOff, Focus, Layers, Paintbrush, Pause, Pencil, Play, Search, Settings, Square, Trash2, X } from "lucide-react";
+import { Box, Camera, Check, ChevronDown, ChevronRight, Copy, Eye, EyeOff, Focus, Layers, Paintbrush, Pause, Pencil, Play, Plus, Search, Settings, Square, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@vibexe-internal/ui/dialog";
 import { DragNumberInput } from "./drag-number-input";
 import { SceneTreeNode } from "./scene-tree-node";
-import { useGameEditor, type GameSettings } from "../lib/game-editor-context";
+import { useGameEditor, type GameSettings, type SceneDefinition } from "../lib/game-editor-context";
 import { GameEditorAssetLibrary } from "./game-editor-asset-library";
 import { GameSettingsContent, type GameSettingsContentProps } from "./game-settings-panel";
 import { TEXTURE_CATALOG, TEXTURE_CATEGORIES, textureUrl, type TextureCategory, type TextureLibraryItem } from "../lib/texture-library-data";
@@ -65,9 +65,20 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 		updateTiling,
 		updateTextureParams,
 		updateCameraProperty,
+		// Multi-scene / level
+		scenes,
+		activeSceneId,
+		addScene,
+		removeScene,
+		renameScene,
+		switchScene,
 	} = useGameEditor();
 
 	const [activeTab, setActiveTab] = useState<EditorTab>("properties");
+	const [scenesExpanded, setScenesExpanded] = useState(true);
+	const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
+	const [sceneNameValue, setSceneNameValue] = useState("");
+	const sceneNameInputRef = useRef<HTMLInputElement>(null);
 	const progressBarRef = useRef<HTMLDivElement>(null);
 	const [editingClip, setEditingClip] = useState<string | null>(null);
 	const [editValue, setEditValue] = useState("");
@@ -254,6 +265,106 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 						</div>
 					)}
 				</div>
+			</div>
+
+			{/* Scenes / Levels */}
+			<div className="flex-shrink-0 border-b border-white/[0.08]">
+				<div className="flex items-center justify-between px-3 py-1.5">
+					<button
+						type="button"
+						onClick={() => setScenesExpanded((v) => !v)}
+						className="flex items-center gap-1 text-[11px] font-semibold text-white/40 uppercase tracking-wider hover:text-white/60 transition-colors"
+					>
+						{scenesExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+						Scenes
+						<span className="text-[9px] font-normal text-white/20 ml-1">({scenes.length})</span>
+					</button>
+					<button
+						type="button"
+						onClick={() => addScene()}
+						className="p-0.5 rounded hover:bg-white/[0.08] text-white/30 hover:text-white/60 transition-colors"
+						title="Add new scene / level"
+					>
+						<Plus className="w-3 h-3" />
+					</button>
+				</div>
+				{scenesExpanded && (
+					<div className="px-1 pb-1.5 space-y-0.5 max-h-[15vh] overflow-y-auto scrollbar-thin">
+						{scenes.map((scene) => {
+							const isActive = scene.id === activeSceneId;
+							const isEditing = editingSceneId === scene.id;
+							return (
+								<div
+									key={scene.id}
+									className={`group flex items-center gap-1 px-2 py-1 rounded text-[10px] cursor-pointer transition-colors ${
+										isActive
+											? "bg-emerald-500/[0.12] text-emerald-300"
+											: "text-white/50 hover:bg-white/[0.04] hover:text-white/70"
+									}`}
+									onClick={() => { if (!isEditing) switchScene(scene.id); }}
+								>
+									<span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? "bg-emerald-400" : "bg-white/15"}`} />
+									{isEditing ? (
+										<input
+											ref={sceneNameInputRef}
+											type="text"
+											value={sceneNameValue}
+											onChange={(e) => setSceneNameValue(e.target.value)}
+											onBlur={() => {
+												if (sceneNameValue.trim()) renameScene(scene.id, sceneNameValue.trim());
+												setEditingSceneId(null);
+											}}
+											onKeyDown={(e) => {
+												if (e.key === "Enter") {
+													if (sceneNameValue.trim()) renameScene(scene.id, sceneNameValue.trim());
+													setEditingSceneId(null);
+												} else if (e.key === "Escape") {
+													setEditingSceneId(null);
+												}
+											}}
+											className="flex-1 bg-transparent text-[10px] text-white/80 outline-none border-b border-white/20 px-0.5"
+											autoFocus
+											onClick={(e) => e.stopPropagation()}
+										/>
+									) : (
+										<span className="flex-1 truncate">{scene.name}</span>
+									)}
+									{scene.isDefault && (
+										<span className="text-[8px] text-white/20 uppercase flex-shrink-0">default</span>
+									)}
+									{/* Rename button */}
+									<button
+										type="button"
+										className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-white/[0.08] text-white/20 hover:text-white/50 transition-all"
+										onClick={(e) => {
+											e.stopPropagation();
+											setEditingSceneId(scene.id);
+											setSceneNameValue(scene.name);
+											setTimeout(() => sceneNameInputRef.current?.select(), 0);
+										}}
+										title="Rename scene"
+									>
+										<Pencil className="w-2.5 h-2.5" />
+									</button>
+									{/* Delete button — only if more than 1 scene */}
+									{scenes.length > 1 && (
+										<button
+											type="button"
+											className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-500/20 text-white/20 hover:text-red-400 transition-all"
+											onClick={(e) => {
+												e.stopPropagation();
+												removeScene(scene.id);
+											}}
+											title="Delete scene"
+										>
+											<Trash2 className="w-2.5 h-2.5" />
+										</button>
+									)}
+								</div>
+							);
+						})}
+					</div>
+				)}
 			</div>
 
 			{/* Tab Bar */}

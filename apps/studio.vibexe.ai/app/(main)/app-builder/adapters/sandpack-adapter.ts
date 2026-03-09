@@ -1669,6 +1669,25 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				}
 			} catch { /* invalid JSON */ }
 		}
+		// Inject game.loadScene() API — allows game code to request scene switches at runtime
+		globals += [
+			"(function(){",
+			"var _vibexeGame = (window as any).__vibexe_game__ || {};",
+			"_vibexeGame.loadScene = function(sceneName: string) {",
+			"  window.parent.postMessage({ type: 'game-request-load-scene', sceneName: sceneName }, '*');",
+			"};",
+			"_vibexeGame.getScenes = function() {",
+			"  var gs = (window as any).__VIBEXE_GAME_SETTINGS__;",
+			"  return (gs && gs.scenes) ? gs.scenes.map(function(s: any) { return { id: s.id, name: s.name, isDefault: s.isDefault }; }) : [];",
+			"};",
+			"_vibexeGame.getActiveSceneId = function() {",
+			"  var gs = (window as any).__VIBEXE_GAME_SETTINGS__;",
+			"  return gs && gs.activeSceneId || '';",
+			"};",
+			"(window as any).__vibexe_game__ = _vibexeGame;",
+			"})();\n",
+		].join("");
+
 		globals += "\n";
 		for (const entryKey of ["/index.js", "/index.jsx", "/index.ts", "/index.tsx"]) {
 			if (sandpackFiles[entryKey]) {

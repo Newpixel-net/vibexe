@@ -23,10 +23,10 @@ export interface TerrainConfig {
 }
 
 export const DEFAULT_TERRAIN_CONFIG: TerrainConfig = {
-	width: 100,
-	depth: 100,
-	heightScale: 30,
-	segments: 128,
+	width: 200,
+	depth: 200,
+	heightScale: 40,
+	segments: 256,
 };
 
 export class TerrainMesh {
