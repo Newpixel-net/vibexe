@@ -2095,6 +2095,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				// Expose factory functions on window for character-system module
 				// Old saved projects define these inside the IIFE but don't expose them
 				if (!code.includes("__vibexe_createAnimatedCharacter3D")) {
+					const before = code;
 					code = code.replace(
 						/(__vibexe_scene__\s*=\s*scene\s*;)/,
 						`$1\n` +
@@ -2102,6 +2103,23 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 						`if(typeof createCharacterController3D==='function')(window as any).__vibexe_createCharacterController3D=createCharacterController3D;\n` +
 						`if(typeof createPhysicsBody==='function')(window as any).__vibexe_createPhysicsBody=createPhysicsBody;`,
 					);
+					if (code === before) {
+						console.warn("[sandpack-adapter] Failed to patch factory exposure — __vibexe_scene__ = scene not found in GameScene3D.ts");
+						// Fallback: try matching just the scene variable assignment pattern
+						code = code.replace(
+							/(window\s*(?:as\s+any\s*)?\)\s*\.\s*__vibexe_scene__\s*=\s*scene\s*;)/,
+							`$1\n` +
+							`if(typeof createAnimatedCharacter3D==='function')(window as any).__vibexe_createAnimatedCharacter3D=createAnimatedCharacter3D;\n` +
+							`if(typeof createCharacterController3D==='function')(window as any).__vibexe_createCharacterController3D=createCharacterController3D;\n` +
+							`if(typeof createPhysicsBody==='function')(window as any).__vibexe_createPhysicsBody=createPhysicsBody;`,
+						);
+						if (code === before) {
+							console.warn("[sandpack-adapter] Fallback factory patch also failed. Looking for scene assign...");
+							// Last resort: check what patterns exist
+							const sceneAssigns = code.match(/__vibexe_scene__[^;\n]{0,40}/g);
+							console.warn("[sandpack-adapter] Scene patterns found:", sceneAssigns?.slice(0, 5));
+						}
+					}
 				}
 
 				if (typeof sf === "string") {
