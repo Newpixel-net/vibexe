@@ -5,7 +5,7 @@
  * Overlaid on the right side of the viewport when editor is active.
  */
 
-import { Box, Camera, Check, ChevronDown, ChevronRight, Copy, Eye, EyeOff, Focus, Lightbulb, Layers, Paintbrush, Pause, Pencil, Play, Plus, Search, Settings, Square, Sun, Trash2, X } from "lucide-react";
+import { Box, Camera, Check, ChevronDown, ChevronRight, Copy, Eye, EyeOff, Focus, Lightbulb, Layers, Lock, Paintbrush, Pause, Pencil, Play, Plus, Search, Settings, Square, Sun, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@vibexe-internal/ui/dialog";
 import { DragNumberInput } from "./drag-number-input";
@@ -592,6 +592,11 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 								<div className="text-[10px] text-white/30">
 									{selectedObject.userData?.vibexeType || selectedObject.type}
 								</div>
+								{selectedObject.userData?.__editorLocked && (
+									<div className="flex items-center gap-1 mt-1 px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-[9px] text-amber-400">
+										<Lock className="w-2.5 h-2.5" /> Object locked — transform disabled
+									</div>
+								)}
 							</div>
 
 							{/* Position */}
@@ -674,6 +679,25 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 									/>
 								</div>
 							</Section>
+
+							{/* Reset Transform */}
+							<button
+								type="button"
+								onClick={() => {
+									handlePropertyChange("position.x", 0);
+									handlePropertyChange("position.y", 0);
+									handlePropertyChange("position.z", 0);
+									handlePropertyChange("rotation.x", 0);
+									handlePropertyChange("rotation.y", 0);
+									handlePropertyChange("rotation.z", 0);
+									handlePropertyChange("scale.x", 1);
+									handlePropertyChange("scale.y", 1);
+									handlePropertyChange("scale.z", 1);
+								}}
+								className="w-full text-[9px] text-white/30 hover:text-white/60 py-0.5 rounded hover:bg-white/[0.04] transition-colors"
+							>
+								Reset Transform
+							</button>
 
 							{/* Visibility */}
 							<div className="flex items-center gap-2">
