@@ -359,12 +359,12 @@ export async function POST(request: Request) {
 		const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
 		let userPrompt = "";
 		if (lastUserMsg) {
-			const content = lastUserMsg.content;
+			const content = (lastUserMsg as Record<string, unknown>).content;
 			if (typeof content === "string" && content.length > 0) {
 				userPrompt = content;
 			} else {
-				// Fallback: extract text from parts array (AI SDK v5+ format)
-				const parts = (lastUserMsg as Record<string, unknown>).parts;
+				// Fallback: extract text from parts array (AI SDK v6 format)
+				const parts = (lastUserMsg as Record<string, unknown>).parts ?? lastUserMsg.parts;
 				if (Array.isArray(parts)) {
 					userPrompt = parts
 						.filter((p: Record<string, unknown>) => p.type === "text" && typeof p.text === "string")
@@ -730,16 +730,17 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 		if (isGameProject) {
 			// Extract text from all messages — handle both string content AND parts array (AI SDK v5)
 			const allMessages = messages.map((m: UIMessage) => {
-				if (typeof m.content === "string" && m.content.length > 0) return m.content;
-				// AI SDK v5: content may be empty, text lives in parts[].text
-				const parts = (m as Record<string, unknown>).parts;
+				const content = (m as Record<string, unknown>).content;
+				if (typeof content === "string" && content.length > 0) return content;
+				// AI SDK v6: content may be empty, text lives in parts[].text
+				const parts = (m as Record<string, unknown>).parts ?? m.parts;
 				if (Array.isArray(parts)) {
 					return parts
 						.filter((p: Record<string, unknown>) => p.type === "text" && typeof p.text === "string")
 						.map((p: Record<string, unknown>) => p.text)
 						.join(" ");
 				}
-				return typeof m.content === "string" ? m.content : "";
+				return typeof content === "string" ? content : "";
 			}).map(s => (s as string).toLowerCase()).join(" ");
 			const searchText = userPrompt.toLowerCase() + " " + allMessages;
 			if (GAME_3D_KEYWORDS.some(kw => searchText.includes(kw))) {

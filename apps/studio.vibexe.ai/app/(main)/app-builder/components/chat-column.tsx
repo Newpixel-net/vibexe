@@ -750,10 +750,11 @@ export function ChatColumn({
 			// (screenshots as data URLs can be 1-5MB, exceeding ~5MB localStorage quota)
 			try {
 				const lightweight = messages.map((m) => {
-					if (!m.experimental_attachments?.length) return m;
+					const attachments = (m as Record<string, unknown>).experimental_attachments as Array<Record<string, unknown>> | undefined;
+					if (!attachments?.length) return m;
 					return {
 						...m,
-						experimental_attachments: m.experimental_attachments.map(
+						experimental_attachments: attachments.map(
 							(a: Record<string, unknown>) =>
 								typeof a.url === "string" &&
 								(a.url as string).startsWith("data:")
@@ -869,9 +870,9 @@ export function ChatColumn({
 				if (firstUserMsg) {
 					// AI SDK v6: text is in parts[0].text, not content
 				const text =
-						"content" in firstUserMsg && typeof firstUserMsg.content === "string"
-							? firstUserMsg.content
-							: firstUserMsg.parts?.find((p: { type: string }) => p.type === "text")?.text ?? "";
+						"content" in firstUserMsg && typeof (firstUserMsg as Record<string, unknown>).content === "string"
+							? (firstUserMsg as Record<string, unknown>).content as string
+							: (firstUserMsg.parts?.find((p) => p.type === "text") as { text?: string } | undefined)?.text ?? "";
 					if (text) {
 						const newName = generateAppName(text);
 						fetch(`/api/app-builder/apps/${appId}/name`, {
