@@ -2433,8 +2433,12 @@ export function SandpackPreview({
 							sendToIframe={gameEditor.sendToIframe}
 							onClose={() => setActiveModulePanel(null)}
 							settings={gameEditor.gameSettings}
-							onSettingsChanged={(skyConfig) => {
+							onChange={(skyConfig) => {
+								// Live preview only — updates React state + postMessage, NO file write, NO refresh
 								gameEditor.updateGameSettings({ skyWeather: skyConfig });
+							}}
+							onSave={(skyConfig) => {
+								// Persist to DB — only called on explicit save or panel close
 								const updatedSettings = { ...gameEditor.gameSettings, skyWeather: skyConfig };
 								handleSaveSettings(updatedSettings);
 							}}

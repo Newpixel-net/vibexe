@@ -54,7 +54,10 @@ interface SkyWeatherPanelProps {
 	sendToIframe: (msg: Record<string, unknown>) => void;
 	onClose: () => void;
 	settings: GameSettings;
-	onSettingsChanged: (config: SkyWeatherConfig) => void;
+	/** Live preview — updates React state + sends postMessage (no file write, no refresh) */
+	onChange: (config: SkyWeatherConfig) => void;
+	/** Persist to DB — only called on explicit save or panel close */
+	onSave: (config: SkyWeatherConfig) => void;
 }
 
 type SkyTab = "time" | "sky" | "lighting" | "fog";
@@ -76,7 +79,7 @@ function getTimeLabel(t: number): string {
 	return `${h12}:${mins.toString().padStart(2, "0")} ${ampm}`;
 }
 
-export function SkyWeatherPanel({ sendToIframe, onClose, settings, onSettingsChanged }: SkyWeatherPanelProps) {
+export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onSave }: SkyWeatherPanelProps) {
 	const [activeTab, setActiveTab] = useState<SkyTab>("time");
 
 	// Extract existing sky config from game settings
@@ -88,6 +91,10 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onSettingsCha
 		fog: { enabled: false, autoColor: true, density: 0.003, ...skyWeather?.fog },
 	}));
 
+	// Track whether user made changes (for auto-save on close)
+	const dirtyRef = useRef(false);
+	const latestConfigRef = useRef(config);
+
 	const sendConfig = useCallback((patch: Partial<SkyWeatherConfig>) => {
 		const merged = {
 			time: { ...config.time, ...patch.time },
@@ -96,9 +103,12 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onSettingsCha
 			fog: { ...config.fog, ...patch.fog },
 		};
 		setConfig(merged);
+		latestConfigRef.current = merged;
+		dirtyRef.current = true;
+		// Live preview — postMessage only, no file write, no refresh
 		sendToIframe({ type: "sky-weather-update-config", config: merged });
-		onSettingsChanged(merged);
-	}, [config, sendToIframe, onSettingsChanged]);
+		onChange(merged);
+	}, [config, sendToIframe, onChange]);
 
 	const setTime = useCallback((t: number) => {
 		sendToIframe({ type: "sky-weather-set-time", solarTime: t });
@@ -120,7 +130,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onSettingsCha
 					<CloudSun className="w-4 h-4 text-amber-400" />
 					<span className="text-xs font-semibold text-white/90">Sky & Weather</span>
 				</div>
-				<button type="button" onClick={onClose} className="p-1 rounded-md hover:bg-white/[0.08] text-white/40 hover:text-white/70 transition-colors">
+				<button type="button" onClick={() => { if (dirtyRef.current) onSave(latestConfigRef.current); onClose(); }} className="p-1 rounded-md hover:bg-white/[0.08] text-white/40 hover:text-white/70 transition-colors">
 					<X className="w-3.5 h-3.5" />
 				</button>
 			</div>
@@ -359,8 +369,22 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onSettingsCha
 				)}
 			</div>
 
-			{/* Reset Button */}
-			<div className="p-3 border-t border-white/[0.08]">
+			{/* Footer — Save & Reset */}
+			<div className="p-3 border-t border-white/[0.08] space-y-1.5">
+				<button
+					type="button"
+					onClick={() => {
+						onSave(latestConfigRef.current);
+						dirtyRef.current = false;
+					}}
+					className={`w-full py-2 rounded-lg text-[11px] font-medium transition-colors flex items-center justify-center gap-1.5 ${
+						dirtyRef.current
+							? "bg-amber-600 hover:bg-amber-500 text-white"
+							: "bg-white/[0.06] text-white/30 cursor-default"
+					}`}
+				>
+					Save & Apply
+				</button>
 				<button
 					type="button"
 					onClick={() => {
@@ -371,11 +395,13 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onSettingsCha
 							fog: { enabled: false, autoColor: true, density: 0.003 },
 						};
 						setConfig(defaults);
+						latestConfigRef.current = defaults;
+						dirtyRef.current = true;
 						sendToIframe({ type: "sky-weather-update-config", config: defaults });
 						sendToIframe({ type: "sky-weather-set-time", solarTime: 0.45 });
-						onSettingsChanged(defaults);
+						onChange(defaults);
 					}}
-					className="w-full py-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.10] text-white/50 hover:text-white/70 text-[11px] font-medium transition-colors flex items-center justify-center gap-1.5"
+					className="w-full py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-white/40 hover:text-white/60 text-[10px] transition-colors flex items-center justify-center gap-1.5"
 				>
 					<RotateCcw className="w-3 h-3" />
 					Reset to Defaults
