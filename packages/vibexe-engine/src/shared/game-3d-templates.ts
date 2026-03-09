@@ -3531,6 +3531,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           createBarrier3D, createDecoration3D, createAnimatedCharacter3D,
         };
         (window as any).__vibexe_scene__ = scene;
+        // Expose factory functions for modules (character-system, etc.)
+        (window as any).__vibexe_createAnimatedCharacter3D = createAnimatedCharacter3D;
+        (window as any).__vibexe_createCharacterController3D = createCharacterController3D;
+        (window as any).__vibexe_createPhysicsBody = createPhysicsBody;
 
         // Optional fog from game settings
         if (__gs.environment?.fogEnabled) {

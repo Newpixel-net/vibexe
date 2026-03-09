@@ -136,6 +136,103 @@ function ColorInput({ label, value, onChange }: {
 }
 
 /* ------------------------------------------------------------------ */
+/*  CharacterPicker — character selection sub-section in Player tab    */
+/* ------------------------------------------------------------------ */
+
+// Built-in character registry (mirrors the module's registry)
+const AVAILABLE_CHARACTERS = [
+	{
+		id: "warrior",
+		name: "Warrior",
+		pack: "meshy-characters",
+		model: "Warrior_figure_Animations.glb",
+	},
+];
+
+function CharacterPicker({
+	characterId,
+	groundOffset,
+	onSelect,
+	onGroundOffsetChange,
+}: {
+	characterId: string;
+	groundOffset: number;
+	onSelect: (id: string, pack: string, model: string) => void;
+	onGroundOffsetChange: (v: number) => void;
+}) {
+	const [expanded, setExpanded] = useState(false);
+	const current = AVAILABLE_CHARACTERS.find((c) => c.id === characterId) ?? AVAILABLE_CHARACTERS[0];
+
+	return (
+		<div className="space-y-1.5">
+			{/* Current character display */}
+			<button
+				type="button"
+				onClick={() => setExpanded(!expanded)}
+				className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] transition-colors"
+			>
+				<div className="w-7 h-7 rounded bg-gradient-to-br from-violet-500/30 to-indigo-500/30 flex items-center justify-center text-xs shrink-0">
+					<User className="w-3.5 h-3.5 text-violet-400" />
+				</div>
+				<div className="flex-1 text-left">
+					<div className="text-[11px] text-white/80 font-medium">{current.name}</div>
+					<div className="text-[9px] text-white/30">{current.pack}</div>
+				</div>
+				<svg
+					className={`w-3 h-3 text-white/30 transition-transform ${expanded ? "rotate-180" : ""}`}
+					fill="none" stroke="currentColor" viewBox="0 0 24 24"
+				>
+					<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+				</svg>
+			</button>
+
+			{/* Character grid (expanded) */}
+			{expanded && (
+				<div className="grid grid-cols-3 gap-1 p-1 rounded-md bg-white/[0.02] border border-white/[0.06]">
+					{AVAILABLE_CHARACTERS.map((char) => (
+						<button
+							key={char.id}
+							type="button"
+							onClick={() => {
+								onSelect(char.id, char.pack, char.model);
+								setExpanded(false);
+							}}
+							className={`flex flex-col items-center gap-0.5 p-1.5 rounded transition-colors ${
+								char.id === characterId
+									? "bg-violet-500/20 border border-violet-500/40"
+									: "bg-white/[0.03] border border-transparent hover:bg-white/[0.06]"
+							}`}
+						>
+							<div className="w-8 h-8 rounded bg-gradient-to-br from-violet-500/20 to-indigo-500/20 flex items-center justify-center">
+								<User className="w-4 h-4 text-violet-300" />
+							</div>
+							<span className="text-[9px] text-white/60 truncate w-full text-center">{char.name}</span>
+						</button>
+					))}
+					{/* Placeholder for future characters */}
+					<div className="flex flex-col items-center gap-0.5 p-1.5 rounded bg-white/[0.02] border border-dashed border-white/[0.08]">
+						<div className="w-8 h-8 rounded bg-white/[0.03] flex items-center justify-center">
+							<span className="text-white/20 text-sm">+</span>
+						</div>
+						<span className="text-[9px] text-white/20">More soon</span>
+					</div>
+				</div>
+			)}
+
+			{/* Ground offset fine-tuning */}
+			<DragNumberInput
+				label="Ground"
+				value={groundOffset}
+				step={0.05}
+				precision={2}
+				onChange={onGroundOffsetChange}
+				labelClassName="w-[60px] text-left"
+			/>
+		</div>
+	);
+}
+
+/* ------------------------------------------------------------------ */
 /*  Content-only variant (used inside game-editor-panel tabs)          */
 /* ------------------------------------------------------------------ */
 
@@ -210,6 +307,19 @@ export function GameSettingsContent({ settings, onChange, onSave, pickSpawnActiv
 			<div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-2">
 				{activeTab === "player" && (
 					<>
+						{/* Character Selection sub-section */}
+						<SectionLabel tooltip="Select the player character model and adjust fit">Character</SectionLabel>
+						<CharacterPicker
+							characterId={settings.character?.id ?? "warrior"}
+							groundOffset={settings.character?.groundOffset ?? 0}
+							onSelect={(id: string, pack: string, model: string) => {
+								onChange(deepMerge(settings, { character: { id, pack, model } }));
+							}}
+							onGroundOffsetChange={(v: number) => {
+								onChange(deepMerge(settings, { character: { ...settings.character, groundOffset: v } }));
+							}}
+						/>
+
 						<SectionLabel tooltip="Starting position coordinates for the player character">Spawn Position</SectionLabel>
 						<DragNumberInput label="X" value={settings.player?.spawnX ?? 0} step={0.5} precision={1} onChange={(v) => update("player", "spawnX", v)} color="#e74c4c" />
 						<DragNumberInput label="Y" value={settings.player?.spawnY ?? 3} step={0.5} precision={1} onChange={(v) => update("player", "spawnY", v)} color="#4ce74c" />

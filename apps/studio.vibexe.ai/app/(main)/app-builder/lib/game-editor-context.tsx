@@ -236,6 +236,14 @@ export interface GameSettings {
 		tileY?: number;
 		hasPBR?: boolean;
 	}>;
+	// Character system — selected player character
+	character?: {
+		id?: string;         // Registry key (e.g. "warrior")
+		pack?: string;       // Asset pack name
+		model?: string;      // Model filename within pack
+		groundOffset?: number; // Fine-tune feet-to-floor offset
+		scale?: number;      // Scale multiplier (on top of auto-scale)
+	};
 	// Multi-scene / level system
 	scenes?: SceneDefinition[];
 	activeSceneId?: string;
