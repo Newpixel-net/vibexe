@@ -298,7 +298,7 @@ var SKY_FRAGMENT = [
   "  float sunA = acos(clamp(cosT, -1.0, 1.0));",
   "  float disk = 1.0 - smoothstep(uSunSize * 0.85, uSunSize, sunA);",
   "  float corona = 1.0 - smoothstep(uSunSize, uSunSize * 4.0, sunA);",
-  "  sky += uSunColor * (disk * 8.0 + corona * 0.15) * sunVis;",
+  "  sky += uSunColor * (disk * 4.0 + corona * 0.15) * sunVis;",
   "",
   "  // Moon disk with phase shadow",
   "  float moonCos = dot(dir, uMoonDir);",
@@ -400,7 +400,7 @@ var SKY_FRAGMENT = [
   "    float grRays = pow(grDot, 4.0) * grNoise * pow(grDot, 6.0);",
   "    float grCloud = 1.0 - uCloudCover * 0.6;",
   "    float grSunUp = smoothstep(-0.02, 0.1, uSunDir.y);",
-  "    sky += uSunColor * grRays * uGodRayInt * grCloud * grSunUp * 3.0;",
+  "    sky += uSunColor * grRays * uGodRayInt * grCloud * grSunUp * 1.5;",
   "  }",
   "",
   "  // Rainbow arc",
@@ -418,8 +418,11 @@ var SKY_FRAGMENT = [
   "    }",
   "  }",
   "",
-  "  // Exposure (linear scale — renderer handles sRGB output)",
+  "  // Reinhard tonemap (prevents HDR blow-out from additive effects)",
+  "  sky = sky / (1.0 + sky);",
+  "  // Exposure (post-tonemap — clean range)",
   "  sky *= uExposure;",
+  "  sky = clamp(sky, 0.0, 1.0);",
   "",
   "  gl_FragColor = vec4(sky, 1.0);",
   "}"
@@ -456,7 +459,7 @@ function ProceduralSkyDome(scene) {
     uSunColor:  { value: new THREE.Vector3(1.0, 0.95, 0.85) },
     uMoonColor: { value: new THREE.Vector3(0.7, 0.75, 0.85) },
     uStarBright:{ value: 1.0 },
-    uExposure:  { value: 2.0 },
+    uExposure:  { value: 1.2 },
     uTime:      { value: 0 },
     uCloudCover: { value: 0 },
     uCloudDens:  { value: 0.85 },
@@ -1030,7 +1033,7 @@ function SkyWeatherSystem(scene, config) {
   this.scene = scene;
   this.config = {
     time: { solarTime: 0.45, cycleLengthMinutes: 10, autoAdvance: false, latitude: 45 },
-    sky:  { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 2.0 },
+    sky:  { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 1.2 },
     lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true },
     fog: { enabled: false, autoColor: true, density: 0.003, heightFalloff: 0 },
     clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
@@ -1178,7 +1181,9 @@ SkyWeatherSystem.prototype._updateFog = function() {
   }
   this.scene.fog.density = baseDensity;
   if (this.config.fog.autoColor) {
-    this.scene.fog.color.setRGB(hz[0], hz[1], hz[2]);
+    // Convert sRGB horizon color to linear space for correct fog rendering
+    var lr = Math.pow(hz[0], 2.2), lg = Math.pow(hz[1], 2.2), lb = Math.pow(hz[2], 2.2);
+    this.scene.fog.color.setRGB(lr, lg, lb);
   }
 };
 
@@ -1198,6 +1203,30 @@ SkyWeatherSystem.prototype._listen = function() {
     }
     if (d.type === "sky-weather-set-preset") {
       console.log("[SkyWeather] Preset:", d.preset, "(weather presets available in Phase 3)");
+    }
+    // Debug overlay health query
+    if (d.type === "vibexe-debug-query-systems") {
+      try {
+        window.parent.postMessage({
+          type: "vibexe-debug-system-report",
+          system: "sky-weather",
+          status: self._active ? "ok" : "inactive",
+          details: {
+            solarTime: self.solarTime ? self.solarTime.toFixed(3) : "N/A",
+            isDay: self.solar ? self.solar.sunDirection.y > 0 : false,
+            autoAdvance: self.config.time.autoAdvance,
+            cycleLenMin: self.config.time.cycleLengthMinutes,
+            fog: self.config.fog.enabled ? "on" : "off",
+            clouds: (self.config.clouds.coverage || 0) > 0 ? "on" : "off",
+            precipitation: self.config.precipitation.type !== "none" ? self.config.precipitation.type : "off",
+            lightning: self.config.lightning.enabled ? "on" : "off",
+            exposure: self.config.sky.exposure,
+            godRays: self.config.effects.godRays > 0 ? "on" : "off",
+            aurora: self.config.effects.aurora > 0 ? "on" : "off",
+            shootingStars: self.config.effects.shootingStars > 0 ? "on" : "off"
+          }
+        }, "*");
+      } catch(e) {}
     }
   };
   window.addEventListener("message", this._msgHandler);
@@ -1300,7 +1329,7 @@ module.exports = {
 			mieCoefficient: 0.005,
 			mieDirectionalG: 0.8,
 			starIntensity: 1.0,
-			exposure: 2.0,
+			exposure: 1.2,
 		},
 		lighting: {
 			autoSunLight: true,

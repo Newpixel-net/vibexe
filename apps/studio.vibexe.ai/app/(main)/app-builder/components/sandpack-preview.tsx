@@ -56,6 +56,7 @@ import { GameSettingsPanel } from "./game-settings-panel";
 import { SceneGizmo } from "./scene-gizmo";
 import { TerrainPainterPanel } from "./terrain-painter-panel";
 import { SkyWeatherPanel } from "./sky-weather-panel";
+import { DebugOverlay } from "./debug-overlay";
 import type { RightPanelView } from "./right-panel-tabs";
 import { VisualEditToolbar } from "./visual-edit-toolbar";
 import {
@@ -1293,6 +1294,30 @@ export function SandpackPreview({
 						iframe.contentWindow?.postMessage({ type: "game-editor-restore-lights", lights: savedLights }, "*");
 					}, 2500);
 				}
+				// Restore sky-weather config on reload/bridge-load if module is installed
+				const swCfg = gameEditor.gameSettings.skyWeather;
+				if (swCfg && iframe?.contentWindow) {
+					const swModule = gameEditor.gameSettings.modules?.installed?.["sky-weather"];
+					const isSwInstalled = swModule?.enabled;
+					if (isSwInstalled) {
+						setTimeout(() => {
+							console.log("[GameEditor] Restoring sky-weather config after bridge load");
+							iframe.contentWindow?.postMessage({
+								type: "sky-weather-update-config",
+								config: swCfg,
+							}, "*");
+							// Also restore time
+							if (swCfg.time?.solarTime !== undefined) {
+								iframe.contentWindow?.postMessage({
+									type: "sky-weather-set-time",
+									solarTime: swCfg.time.solarTime,
+									autoAdvance: swCfg.time.autoAdvance,
+									cycleLengthMinutes: swCfg.time.cycleLengthMinutes,
+								}, "*");
+							}
+						}, 3000); // After module initialization
+					}
+				}
 				// Auto-generate terrain on page load if not in editor mode and terrain config exists
 				// (The IIFE in the saved file may be stale and lack _autoTerrain)
 				// Skip if we just exited scene editor — the exit handler already triggers terrain gen
@@ -1628,6 +1653,29 @@ export function SandpackPreview({
 			// Collect latest light positions from bridge before deactivation
 			if (iframe?.contentWindow && lightsRef.current.length > 0) {
 				iframe.contentWindow.postMessage({ type: "game-editor-collect-lights" }, "*");
+			}
+			// Send sky-weather config to iframe on Scene→Game transition
+			const swCfg = gameEditor.gameSettings.skyWeather;
+			if (swCfg && iframe?.contentWindow) {
+				const swMod = gameEditor.gameSettings.modules?.installed?.["sky-weather"];
+				const isSwInstalled = swMod?.enabled;
+				if (isSwInstalled) {
+					setTimeout(() => {
+						console.log("[GameEditor] Restoring sky-weather config after Scene→Game exit");
+						iframe.contentWindow?.postMessage({
+							type: "sky-weather-update-config",
+							config: swCfg,
+						}, "*");
+						if (swCfg.time?.solarTime !== undefined) {
+							iframe.contentWindow?.postMessage({
+								type: "sky-weather-set-time",
+								solarTime: swCfg.time.solarTime,
+								autoAdvance: swCfg.time.autoAdvance,
+								cycleLengthMinutes: swCfg.time.cycleLengthMinutes,
+							}, "*");
+						}
+					}, 1500); // After bridge deactivation
+				}
 			}
 			// Refresh sandpack if objects were moved during edit session
 			if (sceneModifiedDuringEditRef.current) {
@@ -2410,6 +2458,9 @@ export function SandpackPreview({
 
 				{/* Scene Gizmo (orientation cube) */}
 				{gameEditor.enabled && isGameMode && <SceneGizmo />}
+
+				{/* Debug Overlay — Runtime diagnostics (game mode only) */}
+				{isGameMode && !gameEditor.enabled && <DebugOverlay iframeRef={iframeRef} />}
 
 				{/* Game Editor Panel / Module Panel / Settings Panel (overlaid on right side — mutually exclusive) */}
 				{gameEditor.enabled && isGameMode && (

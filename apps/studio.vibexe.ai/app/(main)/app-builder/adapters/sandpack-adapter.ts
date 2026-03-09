@@ -1706,6 +1706,38 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			"})();\n",
 		].join("");
 
+		// Debug overlay — system health query handler (responds to parent frame requests)
+		globals += [
+			"(function(){",
+			"window.addEventListener('message',function(ev){",
+			"if(!ev.data||ev.data.type!=='vibexe-debug-query-systems')return;",
+			"var r=[];",
+			"var T=(window as any).THREE;",
+			"var ren=(window as any).__vibexe_renderer__;",
+			"r.push({system:'Renderer',status:ren?'ok':'missing',details:ren?{pixelRatio:ren.getPixelRatio()}:null});",
+			"var sc=(window as any).__vibexe_scene__;",
+			"r.push({system:'Scene',status:sc?'ok':'missing',details:sc?{children:sc.children.length,fog:sc.fog?'active':'none'}:null});",
+			"var cam=(window as any).__vibexe_camera__;",
+			"r.push({system:'Camera',status:cam?'ok':'missing',details:cam?{fov:cam.fov}:null});",
+			"var w=(window as any).__vibexe_world__;",
+			"r.push({system:'Physics',status:w?'ok':'missing',details:w?{bodies:w.bodies?w.bodies.length:0,gravity:w.gravity?w.gravity.y:0}:null});",
+			"var pm=(window as any).__vibexe_playerMesh__;",
+			"r.push({system:'Player',status:pm?'ok':'missing',details:pm?{name:pm.name,y:pm.position?+pm.position.y.toFixed(1):0}:null});",
+			"var tm=sc&&sc.getObjectByName?sc.getObjectByName('__terrainMesh__'):null;",
+			"r.push({system:'Terrain',status:tm?'ok':'off',details:tm?{verts:tm.geometry.attributes.position.count}:null});",
+			"var sw=(window as any).__vibexe_skyWeather;",
+			"r.push({system:'Sky & Weather',status:sw&&sw._active?'ok':(sw?'inactive':'off'),details:sw?{time:+(sw.solarTime||0).toFixed(3),fog:sw.config.fog.enabled,auto:sw.config.time.autoAdvance}:null});",
+			"var aq=(window as any).__vibexe_adaptive_quality__;",
+			"r.push({system:'Adaptive Quality',status:aq?'ok':'off'});",
+			"var au=(window as any).__vibexe_audio__;",
+			"r.push({system:'Audio',status:au?(au.enabled?'ok':'muted'):'off'});",
+			"var mods=Object.keys((window as any).__vibexe_modules__||{});",
+			"r.push({system:'Modules',status:mods.length>0?'ok':'none',details:{loaded:mods}});",
+			"try{window.parent.postMessage({type:'vibexe-debug-system-report-all',systems:r},'*')}catch(e){}",
+			"});",
+			"})();\n",
+		].join("");
+
 		globals += "\n";
 		for (const entryKey of ["/index.js", "/index.jsx", "/index.ts", "/index.tsx"]) {
 			const entry = sandpackFiles[entryKey];

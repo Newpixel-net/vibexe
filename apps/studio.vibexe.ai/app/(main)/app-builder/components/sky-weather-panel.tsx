@@ -128,7 +128,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 	const skyWeather = settings.skyWeather;
 	const [config, setConfig] = useState<SkyWeatherConfig>(() => ({
 		time: { solarTime: 0.45, cycleLengthMinutes: 10, autoAdvance: false, latitude: 45, ...skyWeather?.time },
-		sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 2.0, ...skyWeather?.sky },
+		sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 1.2, ...skyWeather?.sky },
 		lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true, ...skyWeather?.lighting },
 		fog: { enabled: false, autoColor: true, density: 0.003, ...skyWeather?.fog },
 		clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0, ...skyWeather?.clouds },
@@ -639,7 +639,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 					onClick={() => {
 						const defaults: SkyWeatherConfig = {
 							time: { solarTime: 0.45, cycleLengthMinutes: 10, autoAdvance: false, latitude: 45 },
-							sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 2.0 },
+							sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 1.2 },
 							lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true },
 							fog: { enabled: false, autoColor: true, density: 0.003 },
 							clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
