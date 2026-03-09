@@ -5573,6 +5573,8 @@ export const GameScene = {
     }
     if (world && playerBody) world.addBody(playerBody);
     if (lily.mesh && playerBody) lily.mesh.userData.__physicsBody = playerBody;
+    // Register player mesh globally for shadow-follow, debug overlay, and terrain queries
+    (window as any).__vibexe_playerMesh__ = lily.mesh;
     lilyController = createCharacterController3D(lilyResult, playerBody);
     onProgress?.(0.5);
 
@@ -5665,14 +5667,23 @@ export const GameScene = {
         const _halfH = playerBody.shapes?.[0]?.halfExtents?.y ?? 0.75;
         const _groundY = _th + _halfH;
         const _gap = playerBody.position.y - _groundY;
+        // Debug: log terrain following every 60 frames (~1s)
+        if (!(window as any).__tfDbgC) (window as any).__tfDbgC = 0;
+        (window as any).__tfDbgC++;
+        if ((window as any).__tfDbgC % 60 === 0) {
+          console.log("[TerrainFollow] th=" + _th.toFixed(2) + " bodyY=" + playerBody.position.y.toFixed(2) +
+            " groundY=" + _groundY.toFixed(2) + " gap=" + _gap.toFixed(3) + " vy=" + playerBody.velocity.y.toFixed(2) +
+            " halfH=" + _halfH.toFixed(2) + " canJump=" + (playerBody as any).__canJump);
+        }
         if (_gap < 0) {
           // Below terrain — snap up immediately
           playerBody.position.y = _groundY;
           if (playerBody.velocity.y < 0) playerBody.velocity.y = 0;
           (playerBody as any).__canJump = true;
-        } else if (_gap < 0.4 && playerBody.velocity.y <= 0.5) {
-          // Close to terrain and not actively jumping — hug the surface
-          // Handles downhill walking where gravity + damping can't keep up
+        } else if (_gap < 2.0 && playerBody.velocity.y <= 1.0) {
+          // Within 2 units of terrain and not actively jumping — hug the surface
+          // Threshold increased from 0.4 to handle low-gravity settings (e.g. gravity=-5)
+          // velocity check <= 1.0 allows slight upward from terrain bumps, blocks real jumps (vy=17)
           playerBody.position.y = _groundY;
           if (playerBody.velocity.y < 0) playerBody.velocity.y = 0;
           (playerBody as any).__canJump = true;
