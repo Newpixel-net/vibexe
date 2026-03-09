@@ -13,7 +13,7 @@ import { db } from "@/db";
 import { type BuilderAppId, builderApps, builderAppDatabases } from "@/db/schema";
 import type { AppSchema, SearchFieldConfig } from "@/lib/app-database/schema-types";
 import { applySearchVector } from "@/lib/app-database/schema-executor";
-import { getUser } from "@/lib/auth/get-user";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
 	params: Promise<{ appId: string; entity: string }>;
@@ -48,12 +48,13 @@ async function resolveAppAndEntity(appId: string, entityName: string) {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
 	try {
-		const user = await getUser();
-		if (!user) {
+		const { appId, entity: entityName } = await params;
+
+		try {
+			await verifyAppAccess(appId);
+		} catch {
 			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 		}
-
-		const { appId, entity: entityName } = await params;
 		const ctx = await resolveAppAndEntity(appId, entityName);
 		if ("error" in ctx) {
 			return NextResponse.json({ error: ctx.error }, { status: ctx.status });
@@ -75,12 +76,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
 	try {
-		const user = await getUser();
-		if (!user) {
+		const { appId, entity: entityName } = await params;
+
+		try {
+			await verifyAppAccess(appId);
+		} catch {
 			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 		}
-
-		const { appId, entity: entityName } = await params;
 		const ctx = await resolveAppAndEntity(appId, entityName);
 		if ("error" in ctx) {
 			return NextResponse.json({ error: ctx.error }, { status: ctx.status });

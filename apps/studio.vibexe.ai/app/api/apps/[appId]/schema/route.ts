@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { type BuilderAppId, builderApps, builderAppDatabases } from "@/db/schema";
 import type { AppSchema } from "@/lib/app-database/schema-types";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -17,6 +18,12 @@ interface RouteParams {
 export async function GET(_request: Request, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+
+		try {
+			await verifyAppAccess(appId);
+		} catch {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
 
 		const app = await db.query.builderApps.findFirst({
 			where: eq(builderApps.id, appId as BuilderAppId),

@@ -4,6 +4,7 @@
  * GET /api/app-templates?category=Dashboard&search=project&limit=20&offset=0
  */
 
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { listTemplates } from "@/app/(main)/app-builder/lib/template-queries";
 import {
@@ -11,6 +12,9 @@ import {
 	ALL_CATEGORY_PATHS,
 	TEMPLATE_CATEGORY_TREE,
 } from "@/app/(main)/app-builder/lib/template-constants";
+import { db } from "@/db";
+import { teamMemberships } from "@/db/schema";
+import { getUser } from "@/lib/auth/get-user";
 
 export async function GET(request: Request) {
 	try {
@@ -22,10 +26,18 @@ export async function GET(request: Request) {
 			50,
 		);
 		const offset = Number.parseInt(searchParams.get("offset") ?? "0", 10);
-		const teamDbId = searchParams.get("teamDbId")
-			? Number.parseInt(searchParams.get("teamDbId")!, 10)
-			: undefined;
 		const includeAll = searchParams.get("includeAll") === "true";
+
+		// Derive teamDbId from authenticated user — never trust query params
+		let teamDbId: number | undefined;
+		const user = await getUser();
+		if (user) {
+			const membership = await db.query.teamMemberships.findFirst({
+				where: eq(teamMemberships.userDbId, user.dbId),
+				columns: { teamDbId: true },
+			});
+			teamDbId = membership?.teamDbId;
+		}
 
 		const { templates, total } = await listTemplates({
 			category,
