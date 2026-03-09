@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import {
 	attachWorkflowToApp,
@@ -6,8 +5,6 @@ import {
 	getWorkflowsForApp,
 } from "@/app/(main)/app-builder/lib/workflow-queries";
 import { getAppById } from "@/app/(main)/app-builder/lib/queries";
-import { db } from "@/db";
-import { teamMemberships } from "@/db/schema";
 import { getUser } from "@/lib/auth/get-user";
 
 export async function GET(
@@ -104,7 +101,7 @@ export async function DELETE(
 		);
 	}
 
-	const deleted = await detachWorkflowFromApp(body.linkId);
+	const deleted = await detachWorkflowFromApp(body.linkId, appId);
 	if (!deleted) {
 		return NextResponse.json({ error: "Link not found" }, { status: 404 });
 	}

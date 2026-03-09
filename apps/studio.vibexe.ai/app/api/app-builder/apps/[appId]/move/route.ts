@@ -1,9 +1,9 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { moveAppToProject } from "@/app/(main)/app-builder/lib/project-queries";
 import { getAppById } from "@/app/(main)/app-builder/lib/queries";
 import { db, builderProjects } from "@/db";
-import type { BuilderProjectId } from "@/db/schema";
+import { type BuilderProjectId, teamMemberships } from "@/db/schema";
 import { getUser } from "@/lib/auth/get-user";
 
 export async function PATCH(
@@ -30,9 +30,22 @@ export async function PATCH(
 	if (body.projectId) {
 		const project = await db.query.builderProjects.findFirst({
 			where: eq(builderProjects.id, body.projectId as BuilderProjectId),
-			columns: { dbId: true },
+			columns: { dbId: true, teamDbId: true },
 		});
 		if (!project) {
+			return NextResponse.json(
+				{ error: "Project not found" },
+				{ status: 404 },
+			);
+		}
+		// Verify the target project belongs to the user's team
+		const membership = await db.query.teamMemberships.findFirst({
+			where: and(
+				eq(teamMemberships.userDbId, user.dbId),
+				eq(teamMemberships.teamDbId, project.teamDbId),
+			),
+		});
+		if (!membership) {
 			return NextResponse.json(
 				{ error: "Project not found" },
 				{ status: 404 },

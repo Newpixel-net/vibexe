@@ -71,9 +71,30 @@ export async function attachWorkflowToApp(
 }
 
 /**
- * Detach a workflow from a builder app
+ * Detach a workflow from a builder app.
+ * Scopes the delete to the given app to prevent cross-app IDOR.
  */
-export async function detachWorkflowFromApp(linkId: string) {
+export async function detachWorkflowFromApp(linkId: string, appId?: string) {
+	// If appId provided, scope the delete to that app for safety
+	if (appId) {
+		const app = await db.query.builderApps.findFirst({
+			where: eq(builderApps.id, appId as BuilderAppId),
+			columns: { dbId: true },
+		});
+		if (!app) return null;
+
+		const [deleted] = await db
+			.delete(builderAppWorkflows)
+			.where(
+				and(
+					eq(builderAppWorkflows.id, linkId as BuilderAppWorkflowId),
+					eq(builderAppWorkflows.appDbId, app.dbId),
+				),
+			)
+			.returning();
+		return deleted;
+	}
+
 	const [deleted] = await db
 		.delete(builderAppWorkflows)
 		.where(eq(builderAppWorkflows.id, linkId as BuilderAppWorkflowId))
