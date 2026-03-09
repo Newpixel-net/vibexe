@@ -1724,8 +1724,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			"    }",
 			"  });",
 			"},2000);",
-			"})();
-",
+			"})();\n",
 		].join("");
 
 		// Debug overlay — system health query handler (responds to parent frame requests)
