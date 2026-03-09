@@ -5167,6 +5167,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             requestAnimationFrame(_fpsLoop);
           }
         }
+        // Performance auto-guard state
+        let __perfFrames = 0, __perfLastCheck = performance.now(), __perfDowngraded = false;
         const animate = (time?: number) => {
           if (disposed) return;
           animFrameId = requestAnimationFrame(animate);
@@ -5176,6 +5178,28 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             const __elapsed = time - __lastFrameTime;
             if (__elapsed < __frameInterval) return;
             __lastFrameTime = time - (__elapsed % __frameInterval);
+          }
+          // Performance auto-guard: if avg FPS < 20 for 3 seconds, reduce quality
+          __perfFrames++;
+          const __perfNow = performance.now();
+          if (__perfNow - __perfLastCheck >= 3000) {
+            const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
+            if (__avgFps < 20 && !__perfDowngraded) {
+              __perfDowngraded = true;
+              console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
+              renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 1));
+              renderer.shadowMap.enabled = false;
+              (window as any).__vibexe_cullDistance__ = 80;
+            } else if (__avgFps > 40 && __perfDowngraded) {
+              __perfDowngraded = false;
+              console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality');
+              renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+              renderer.shadowMap.enabled = true;
+              renderer.shadowMap.needsUpdate = true;
+              (window as any).__vibexe_cullDistance__ = 150;
+            }
+            __perfFrames = 0;
+            __perfLastCheck = __perfNow;
           }
 
           // In editor mode, skip game logic — only render + tick animation mixers for preview
@@ -5244,6 +5268,23 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 (__sun2 as any).target.position.set(__px, 0, __pz);
                 (__sun2 as any).target.updateMatrixWorld();
               }
+            }
+          }
+          // Distance-based LOD culling — hide objects far from camera to improve FPS
+          const __cullDist = (window as any).__vibexe_cullDistance__ || 150;
+          const __camPos = camera.position;
+          for (let __ci = 0; __ci < scene.children.length; __ci++) {
+            const __ch = scene.children[__ci];
+            if (!__ch.userData || __ch.userData.__editorOnly || __ch.name?.startsWith('__')) continue;
+            const __vt = __ch.userData.vibexeType;
+            if (!__vt) continue; // Only cull game objects (platforms, collectibles, etc.)
+            const __dx = __ch.position.x - __camPos.x;
+            const __dz = __ch.position.z - __camPos.z;
+            const __d2 = __dx * __dx + __dz * __dz;
+            const __wasVis = __ch.visible;
+            const __shouldVis = __d2 < __cullDist * __cullDist;
+            if (__wasVis !== __shouldVis && !__ch.userData.__editorForceVisible) {
+              __ch.visible = __shouldVis;
             }
           }
           // Render via post-processing composer if available, else standard render
