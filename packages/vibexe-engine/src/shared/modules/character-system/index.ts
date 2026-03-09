@@ -341,6 +341,9 @@ if (typeof window !== "undefined") {
 
     var scene = window.__vibexe_scene__;
     var createChar = window.__vibexe_createAnimatedCharacter3D;
+    if (_initAttempts <= 3 || _initAttempts % 5 === 0) {
+      console.log('[CharacterSystem] Poll #' + _initAttempts + ' scene:', !!scene, 'createChar:', !!createChar);
+    }
     if (!scene || !createChar) return;
 
     clearInterval(_initInterval);
