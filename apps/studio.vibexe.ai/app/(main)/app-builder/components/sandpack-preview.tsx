@@ -1236,6 +1236,10 @@ export function SandpackPreview({
 					}, 3000);
 				}
 				// Restore texture overrides for scene-original objects
+				// First check persisted game settings (survives full page reload)
+				if (textureOverridesRef.current.length === 0 && gameEditor.gameSettings.textureOverrides?.length) {
+					textureOverridesRef.current = gameEditor.gameSettings.textureOverrides;
+				}
 				if (textureOverridesRef.current.length > 0 && iframe?.contentWindow) {
 					const overrides = [...textureOverridesRef.current];
 					console.log("[GameEditor] Restoring", overrides.length, "texture overrides after reload");
@@ -1394,6 +1398,25 @@ export function SandpackPreview({
 				const deletedName = data.name as string;
 				if (deletedName && !deletedObjectsRef.current.includes(deletedName)) {
 					deletedObjectsRef.current = [...deletedObjectsRef.current, deletedName];
+					// Auto-persist deletion to source code so it survives reload (Bug #7)
+					const delFiles = filesRef.current;
+					const delOnUpdate = onFileUpdateRef.current;
+					const delSceneFile = delFiles.find((f) => f.path?.includes("GameScene3D"));
+					if (delSceneFile?.content && delOnUpdate) {
+						const delCode = updateTransformInSource(
+							delSceneFile.content, "__del_marker__",
+							{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 1, y: 1, z: 1 },
+							null, undefined, deletedObjectsRef.current
+						).replace(/"__del_marker__":\{[^}]*\},?/g, "").replace(/,\}/g, "}");
+						if (delCode !== delSceneFile.content) {
+							delOnUpdate(delSceneFile.id, delCode);
+							fetch(`/api/app-builder/apps/${appId}/files`, {
+								method: "PUT",
+								headers: { "Content-Type": "application/json" },
+								body: JSON.stringify({ path: delSceneFile.path, content: delCode }),
+							}).catch(() => {});
+						}
+					}
 				}
 			} else if (data.type === "game-editor-animation-clips") {
 				gameEditor.setAnimationClips(data.clips || [], data.currentClip, data.animMap, data.clipDurations);
@@ -1417,9 +1440,18 @@ export function SandpackPreview({
 			} else if (data.type === "game-editor-spawned-objects") {
 				// Store spawned objects for restoration after restart
 				spawnedObjectsRef.current = data.objects || [];
-				// Store texture overrides for scene-original objects
+				// Store texture overrides for scene-original objects + persist to DB
 				if (data.textureOverrides && data.textureOverrides.length > 0) {
 					textureOverridesRef.current = data.textureOverrides;
+					// Persist to game settings so they survive full page reload
+					const texOverrides = data.textureOverrides.map((o: any) => ({
+						name: o.name,
+						textureUrl: o.textureUrl,
+						tileX: o.tileX || 1,
+						tileY: o.tileY || 1,
+						hasPBR: !!o.hasPBR,
+					}));
+					gameEditor.updateGameSettings({ textureOverrides: texOverrides });
 				}
 			} else if (data.type === "game-editor-spawned-restored") {
 				// All spawned objects finished loading (GLTF loads complete) — now run auto-physics

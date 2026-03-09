@@ -1664,6 +1664,9 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 						// Physics gravity — override CANNON.World.gravity at runtime
 						"var w=(window as any).__vibexe_world__;",
 						"if(w&&_gs.physics&&_gs.physics.gravity!=null){try{w.gravity.set(0,_gs.physics.gravity,0)}catch(x){}}",
+						// Texture overrides — apply saved textures to scene-original objects
+						"var _tov=_gs.textureOverrides;",
+						"if(_tov&&_tov.length){var _tl=new T.TextureLoader();for(var _ti=0;_ti<_tov.length;_ti++){(function(_to){var _obj=null;s.traverse(function(ch){if(ch.name===_to.name)_obj=ch;});if(!_obj)return;_tl.load(_to.textureUrl,function(tex){tex.colorSpace=T.SRGBColorSpace;tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.repeat.set(_to.tileX||1,_to.tileY||1);_obj.traverse(function(m){if(m.isMesh&&m.material){m.material.map=tex;m.material.needsUpdate=true;}});})})(_tov[_ti]);}}",
 						"},100)})();\n",
 					].join("");
 				}

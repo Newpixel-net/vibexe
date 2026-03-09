@@ -205,6 +205,14 @@ export interface GameSettings {
 		penumbra?: number;
 		target?: { x: number; y: number; z: number };
 	}>;
+	// Texture overrides for scene-original objects (persisted across reloads)
+	textureOverrides?: Array<{
+		name: string;
+		textureUrl: string;
+		tileX?: number;
+		tileY?: number;
+		hasPBR?: boolean;
+	}>;
 	// Multi-scene / level system
 	scenes?: SceneDefinition[];
 	activeSceneId?: string;
