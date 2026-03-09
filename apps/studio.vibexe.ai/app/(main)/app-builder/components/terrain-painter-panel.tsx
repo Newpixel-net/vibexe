@@ -518,6 +518,27 @@ export function TerrainPainterPanel({
 		[selectedLayer],
 	);
 
+	const selectMaterial = useCallback(
+		(layerIndex: number, mat: { diffuseUrl: string; name: string; previewColor: string; roughness: number; tileSize: number; materialId: string; emissionUrl?: string; emissionIntensity?: number }) => {
+			setLayers((prev) => {
+				const next = [...prev];
+				next[layerIndex] = {
+					...next[layerIndex],
+					diffuseUrl: mat.diffuseUrl,
+					name: mat.name,
+					previewColor: mat.previewColor,
+					roughness: mat.roughness,
+					tileSize: mat.tileSize,
+					materialId: mat.materialId,
+					emissionUrl: mat.emissionUrl,
+					emissionIntensity: mat.emissionIntensity,
+				};
+				return next;
+			});
+		},
+		[],
+	);
+
 	// ===== Render =====
 
 	const currentLayer = layers[selectedLayer];
@@ -598,6 +619,7 @@ export function TerrainPainterPanel({
 						onRemoveModifier={removeModifier}
 						onUpdateModifier={updateModifier}
 						onUpdateModifierParam={updateModifierParam}
+						onSelectMaterial={selectMaterial}
 					/>
 				)}
 				{activeTab === "settings" && (
@@ -779,6 +801,7 @@ function LayersTab({
 	onRemoveModifier: (i: number) => void;
 	onUpdateModifier: (i: number, updates: Partial<ModifierData>) => void;
 	onUpdateModifierParam: (i: number, key: string, value: number | string | boolean) => void;
+	onSelectMaterial: (layerIndex: number, mat: { diffuseUrl: string; name: string; previewColor: string; roughness: number; tileSize: number; materialId: string; emissionUrl?: string; emissionIntensity?: number }) => void;
 }) {
 	const [showAddModifier, setShowAddModifier] = useState(false);
 
@@ -850,23 +873,7 @@ function LayersTab({
 				<TerrainMaterialPicker
 					currentUrl={currentLayer.diffuseUrl}
 					currentMaterialId={currentLayer.materialId}
-					onSelect={(mat) => {
-						setLayers((prev) => {
-							const next = [...prev];
-							next[selectedLayer] = {
-								...next[selectedLayer],
-								diffuseUrl: mat.diffuseUrl,
-								name: mat.name,
-								previewColor: mat.previewColor,
-								roughness: mat.roughness,
-								tileSize: mat.tileSize,
-								materialId: mat.materialId,
-								emissionUrl: mat.emissionUrl,
-								emissionIntensity: mat.emissionIntensity,
-							};
-							return next;
-						});
-					}}
+					onSelect={(mat) => onSelectMaterial(selectedLayer, mat)}
 				/>
 			)}
 
