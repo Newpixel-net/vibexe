@@ -1811,17 +1811,29 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			"r.push({system:'Modules',status:mods.length>0?'ok':'none',details:{loaded:mods}});",
 
 			// Auto-Physics check — count solid objects without physics bodies
+			// Skip known non-solid: collectibles, decorations, player, sky, lights, characters, sub-meshes
 			"if(sc&&w){",
 			"  var solidNoPhys=0;var solidNames=[];",
 			"  sc.traverse(function(o){",
 			"    if(!o.isMesh)return;",
 			"    var vt=o.userData&&o.userData.vibexeType;",
-			"    if(vt==='collectible'||vt==='decoration'||vt==='player')return;",
-			"    if(o.name==='__terrain__'||o.name==='__groundPlane__')return;",
-			"    if(o.name&&o.name.indexOf('Helper')>=0)return;",
-			"    if(!o.userData||!o.userData.__physicsBody){solidNoPhys++;if(solidNames.length<5)solidNames.push(o.name||'unnamed');}",
+			"    if(vt==='collectible'||vt==='decoration'||vt==='player'||vt==='character')return;",
+			"    var n=o.name||'';",
+			"    if(n==='__terrain__'||n==='__groundPlane__'||n==='__skyDome__')return;",
+			"    if(n.indexOf('Helper')>=0||n.indexOf('helper')>=0)return;",
+			"    if(n.indexOf('Light')>=0||n.indexOf('light')>=0)return;",
+			// Skip character meshes (Lily etc) — they're inside a Group managed by character controller
+			"    if(o.parent&&o.parent.userData&&(o.parent.userData.vibexeType==='player'||o.parent.userData.vibexeType==='character'))return;",
+			// Skip child meshes inside a parent that already has physics (GLTF sub-meshes)
+			"    if(o.parent&&o.parent.userData&&o.parent.userData.__physicsBody)return;",
+			// Skip objects that are part of collectibles/decorations by name prefix
+			"    if(n.indexOf('Collectible')>=0||n.indexOf('Character')>=0||n.indexOf('Decoration')>=0)return;",
+			// Only flag platform/barrier-type objects (these actually need physics)
+			"    var isPlatformLike=n.indexOf('Platform')>=0||n.indexOf('Barrier')>=0||n.indexOf('Wall')>=0||n.indexOf('Floor')>=0||n.indexOf('Block')>=0||vt==='platform'||vt==='barrier';",
+			"    if(!isPlatformLike)return;",
+			"    if(!o.userData||!o.userData.__physicsBody){solidNoPhys++;if(solidNames.length<5)solidNames.push(n||'unnamed');}",
 			"  });",
-			"  if(solidNoPhys>0)problems.push({id:'objects-no-physics',severity:'warn',msg:solidNoPhys+' solid mesh(es) have no physics body: '+solidNames.join(', ')+(solidNoPhys>5?'...':'')});",
+			"  if(solidNoPhys>0)problems.push({id:'objects-no-physics',severity:'warn',msg:solidNoPhys+' platform/barrier mesh(es) missing physics: '+solidNames.join(', ')+(solidNoPhys>5?'...':'')});",
 			"}",
 
 			// Send report with problems
