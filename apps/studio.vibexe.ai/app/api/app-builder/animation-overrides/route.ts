@@ -31,6 +31,12 @@ async function saveOverrides(data: Record<string, Record<string, string>>): Prom
 }
 
 export async function GET(request: NextRequest) {
+	const { getUser } = await import("@/lib/auth/get-user");
+	const user = await getUser();
+	if (!user) {
+		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+	}
+
 	const model = request.nextUrl.searchParams.get("model");
 	const all = await loadOverrides();
 
@@ -41,6 +47,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+	const { getUser } = await import("@/lib/auth/get-user");
+	const user = await getUser();
+	if (!user) {
+		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+	}
+
 	try {
 		const body = await request.json();
 		const { model, overrides } = body as { model: string; overrides: Record<string, string> };

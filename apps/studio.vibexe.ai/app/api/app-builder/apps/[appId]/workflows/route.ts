@@ -5,6 +5,7 @@ import {
 	detachWorkflowFromApp,
 	getWorkflowsForApp,
 } from "@/app/(main)/app-builder/lib/workflow-queries";
+import { getAppById } from "@/app/(main)/app-builder/lib/queries";
 import { db } from "@/db";
 import { teamMemberships } from "@/db/schema";
 import { getUser } from "@/lib/auth/get-user";
@@ -19,6 +20,13 @@ export async function GET(
 	}
 
 	const { appId } = await params;
+
+	// Verify app ownership
+	const app = await getAppById(appId, user.id);
+	if (!app) {
+		return NextResponse.json({ error: "App not found" }, { status: 404 });
+	}
+
 	const workflows = await getWorkflowsForApp(appId);
 
 	return NextResponse.json({ workflows });
@@ -34,6 +42,13 @@ export async function POST(
 	}
 
 	const { appId } = await params;
+
+	// Verify app ownership
+	const app = await getAppById(appId, user.id);
+	if (!app) {
+		return NextResponse.json({ error: "App not found" }, { status: 404 });
+	}
+
 	const body = (await request.json()) as {
 		workspaceId: string;
 		purpose?: string;
@@ -70,6 +85,14 @@ export async function DELETE(
 	const user = await getUser();
 	if (!user) {
 		return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+	}
+
+	const { appId } = await params;
+
+	// Verify app ownership
+	const app = await getAppById(appId, user.id);
+	if (!app) {
+		return NextResponse.json({ error: "App not found" }, { status: 404 });
 	}
 
 	const body = (await request.json()) as { linkId: string };

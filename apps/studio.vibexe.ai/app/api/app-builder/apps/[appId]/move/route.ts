@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { moveAppToProject } from "@/app/(main)/app-builder/lib/project-queries";
+import { getAppById } from "@/app/(main)/app-builder/lib/queries";
 import { db, builderProjects } from "@/db";
 import type { BuilderProjectId } from "@/db/schema";
 import { getUser } from "@/lib/auth/get-user";
@@ -15,6 +16,13 @@ export async function PATCH(
 	}
 
 	const { appId } = await params;
+
+	// Verify app ownership
+	const app = await getAppById(appId, user.id);
+	if (!app) {
+		return NextResponse.json({ error: "App not found" }, { status: 404 });
+	}
+
 	const body = (await request.json()) as { projectId: string | null };
 
 	let projectDbId: number | null = null;
