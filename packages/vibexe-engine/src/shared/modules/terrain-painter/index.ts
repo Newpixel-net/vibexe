@@ -311,7 +311,7 @@ TerrainGenerator.prototype.getHeightAt = function(x, z) {
   var td = window.__vibexe_terrainData;
   if (!td) return 0;
   var gx = (x + td.width * 0.5) / td.width * (td.segX - 1);
-  var gz = (td.depth * 0.5 - z) / td.depth * (td.segZ - 1);
+  var gz = (z + td.depth * 0.5) / td.depth * (td.segZ - 1);
   gx = Math.max(0, Math.min(td.segX - 2, gx));
   gz = Math.max(0, Math.min(td.segZ - 2, gz));
   var ix = Math.floor(gx), iz = Math.floor(gz);
@@ -403,11 +403,14 @@ TerrainPhysics.prototype.setup = function(world) {
   if (!td) return;
 
   // Build column-major height matrix for CANNON Heightfield
+  // CANNON grid: hz=0 → world Z=+D/2, hz=end → world Z=-D/2 (after rotation+offset)
+  // HeightData: row 0 → world Z=-D/2, row end → world Z=+D/2
+  // So we reverse Z: use (segZ - 1 - hz) to align CANNON grid with visual mesh
   var matrix = [];
   for (var hx = 0; hx < td.segX; hx++) {
     matrix.push([]);
     for (var hz = 0; hz < td.segZ; hz++) {
-      matrix[hx].push(td.heightData[hz * td.segX + hx]);
+      matrix[hx].push(td.heightData[(td.segZ - 1 - hz) * td.segX + hx]);
     }
   }
 
@@ -472,12 +475,12 @@ TerrainPhysics.prototype.rebuild = function() {
     try { world.removeBody(window.__vibexe_terrainBody); } catch(e) {}
   }
 
-  // Build new height matrix from updated heightData
+  // Build new height matrix from updated heightData (Z-reversed to match CANNON grid)
   var matrix = [];
   for (var sx = 0; sx < td.segX; sx++) {
     matrix.push([]);
     for (var sz = 0; sz < td.segZ; sz++) {
-      matrix[sx].push(td.heightData[sz * td.segX + sx]);
+      matrix[sx].push(td.heightData[(td.segZ - 1 - sz) * td.segX + sx]);
     }
   }
 

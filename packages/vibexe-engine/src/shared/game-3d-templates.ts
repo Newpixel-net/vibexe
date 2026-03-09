@@ -5606,7 +5606,9 @@ export const GameScene = {
 
     // Jump detection
     playerBody.addEventListener("collide", (e: any) => {
-      if (e.contact.ni.y > 0.5) {
+      // Use Math.abs for normal Y — contact normal direction depends on body order
+      // in CANNON's broadphase, so it can point either way for terrain collisions
+      if (Math.abs(e.contact.ni.y) > 0.5) {
         (playerBody as any).__canJump = true;
         coyoteTimer = 0;
       }
