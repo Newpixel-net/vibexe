@@ -1,7 +1,8 @@
 import type { NextRequest } from "next/server";
 import { db } from "@/db";
 import { webhookEndpoints, webhookRequestLogs } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
+import { fetchCurrentTeam } from "@/services/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
  *
  * Fetches recent webhook request logs for a given endpoint.
  * Supports lookup by either dbId or webhook path.
+ * Auth: requires session — endpoint must belong to the caller's team.
  */
 export async function GET(request: NextRequest) {
 	const endpointId = request.nextUrl.searchParams.get("endpointId");
@@ -28,6 +30,8 @@ export async function GET(request: NextRequest) {
 	}
 
 	try {
+		const currentTeam = await fetchCurrentTeam();
+
 		let resolvedEndpointId = endpointId ? Number.parseInt(endpointId, 10) : null;
 		if (resolvedEndpointId !== null && Number.isNaN(resolvedEndpointId)) {
 			return Response.json(
@@ -36,12 +40,34 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Resolve by path if needed
-		if (!resolvedEndpointId && webhookPath) {
+		// Resolve by endpointId — verify it belongs to the team
+		if (resolvedEndpointId !== null) {
 			const [endpoint] = await db
 				.select({ dbId: webhookEndpoints.dbId })
 				.from(webhookEndpoints)
-				.where(eq(webhookEndpoints.webhookPath, webhookPath))
+				.where(
+					and(
+						eq(webhookEndpoints.dbId, resolvedEndpointId),
+						eq(webhookEndpoints.teamDbId, currentTeam.dbId),
+					),
+				)
+				.limit(1);
+			if (!endpoint) {
+				return Response.json({ logs: [] });
+			}
+		}
+
+		// Resolve by path — scoped to team
+		if (resolvedEndpointId === null && webhookPath) {
+			const [endpoint] = await db
+				.select({ dbId: webhookEndpoints.dbId })
+				.from(webhookEndpoints)
+				.where(
+					and(
+						eq(webhookEndpoints.webhookPath, webhookPath),
+						eq(webhookEndpoints.teamDbId, currentTeam.dbId),
+					),
+				)
 				.limit(1);
 			if (!endpoint) {
 				return Response.json({ logs: [] });
@@ -61,11 +87,7 @@ export async function GET(request: NextRequest) {
 			.limit(limit);
 
 		return Response.json({ logs });
-	} catch (err) {
-		console.error("[Webhook Logs] Error fetching logs:", err);
-		return Response.json(
-			{ error: "Internal server error" },
-			{ status: 500 },
-		);
+	} catch {
+		return Response.json({ error: "Unauthorized" }, { status: 401 });
 	}
 }
