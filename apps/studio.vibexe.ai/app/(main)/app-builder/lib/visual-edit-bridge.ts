@@ -3480,6 +3480,8 @@ export function getVisualEditBridgeScript(): string {
         // Collect texture URLs from enabled layers
         var _rpTexUrls = [];
         var _rpNormalUrls = [];
+        var _rpRoughnessUrls = [];
+        var _rpAOUrls = [];
         for (var li5 = 0; li5 < _rpNumLayers; li5++) {
           var _diffUrl = _rpEnabledLayers[li5].diffuseUrl || "";
           _rpTexUrls.push(_diffUrl);
@@ -3489,6 +3491,18 @@ export function getVisualEditBridgeScript(): string {
             _normUrl = _diffUrl.replace(/\\.jpg$/i, "_Normal.jpg");
           }
           _rpNormalUrls.push(_normUrl);
+          // Auto-derive roughness map URL: Ground037.jpg → Ground037_Roughness.jpg
+          var _roughUrl = _rpEnabledLayers[li5].roughnessUrl || "";
+          if (!_roughUrl && _diffUrl) {
+            _roughUrl = _diffUrl.replace(/\\.jpg$/i, "_Roughness.jpg");
+          }
+          _rpRoughnessUrls.push(_roughUrl);
+          // Auto-derive AO map URL: Ground037.jpg → Ground037_AO.jpg
+          var _aoUrl = _rpEnabledLayers[li5].aoUrl || "";
+          if (!_aoUrl && _diffUrl) {
+            _aoUrl = _diffUrl.replace(/\\.jpg$/i, "_AO.jpg");
+          }
+          _rpAOUrls.push(_aoUrl);
         }
 
         // Layer preview colors (fallback when no texture)
@@ -3509,12 +3523,16 @@ export function getVisualEditBridgeScript(): string {
           var _rpLoader = new _rpTHREE.TextureLoader();
           var _rpTextures = new Array(_rpNumLayers);
           var _rpNormalTextures = new Array(_rpNumLayers);
+          var _rpRoughnessTextures = new Array(_rpNumLayers);
+          var _rpAOTextures = new Array(_rpNumLayers);
           var _rpLoaded = 0;
           var _rpTotal = 0;
 
           for (var ti = 0; ti < _rpNumLayers; ti++) {
             if (_rpTexUrls[ti] && _rpTexUrls[ti].length > 5) _rpTotal++;
             if (_rpNormalUrls[ti] && _rpNormalUrls[ti].length > 5) _rpTotal++;
+            if (_rpRoughnessUrls[ti] && _rpRoughnessUrls[ti].length > 5) _rpTotal++;
+            if (_rpAOUrls[ti] && _rpAOUrls[ti].length > 5) _rpTotal++;
           }
 
           if (_rpTotal === 0) _rpTotal = 1; // avoid /0
@@ -3553,6 +3571,22 @@ export function getVisualEditBridgeScript(): string {
               uHasNormal1: { value: _rpNormalTextures[1] ? 1.0 : 0.0 },
               uHasNormal2: { value: _rpNormalTextures[2] ? 1.0 : 0.0 },
               uHasNormal3: { value: _rpNormalTextures[3] ? 1.0 : 0.0 },
+              uRoughMap0: { value: _rpRoughnessTextures[0] || null },
+              uRoughMap1: { value: _rpRoughnessTextures[1] || null },
+              uRoughMap2: { value: _rpRoughnessTextures[2] || null },
+              uRoughMap3: { value: _rpRoughnessTextures[3] || null },
+              uHasRoughMap0: { value: _rpRoughnessTextures[0] ? 1.0 : 0.0 },
+              uHasRoughMap1: { value: _rpRoughnessTextures[1] ? 1.0 : 0.0 },
+              uHasRoughMap2: { value: _rpRoughnessTextures[2] ? 1.0 : 0.0 },
+              uHasRoughMap3: { value: _rpRoughnessTextures[3] ? 1.0 : 0.0 },
+              uAOMap0: { value: _rpAOTextures[0] || null },
+              uAOMap1: { value: _rpAOTextures[1] || null },
+              uAOMap2: { value: _rpAOTextures[2] || null },
+              uAOMap3: { value: _rpAOTextures[3] || null },
+              uHasAOMap0: { value: _rpAOTextures[0] ? 1.0 : 0.0 },
+              uHasAOMap1: { value: _rpAOTextures[1] ? 1.0 : 0.0 },
+              uHasAOMap2: { value: _rpAOTextures[2] ? 1.0 : 0.0 },
+              uHasAOMap3: { value: _rpAOTextures[3] ? 1.0 : 0.0 },
               uColor0: { value: new _rpTHREE.Vector3(_rpColors[0] ? _rpColors[0][0] : 0.5, _rpColors[0] ? _rpColors[0][1] : 0.5, _rpColors[0] ? _rpColors[0][2] : 0.5) },
               uColor1: { value: new _rpTHREE.Vector3(_rpColors[1] ? _rpColors[1][0] : 0.5, _rpColors[1] ? _rpColors[1][1] : 0.5, _rpColors[1] ? _rpColors[1][2] : 0.5) },
               uColor2: { value: new _rpTHREE.Vector3(_rpColors[2] ? _rpColors[2][0] : 0.5, _rpColors[2] ? _rpColors[2][1] : 0.5, _rpColors[2] ? _rpColors[2][2] : 0.5) },
@@ -3625,10 +3659,14 @@ export function getVisualEditBridgeScript(): string {
               "",
               "uniform sampler2D uTex0, uTex1, uTex2, uTex3;",
               "uniform sampler2D uNormal0, uNormal1, uNormal2, uNormal3;",
+              "uniform sampler2D uRoughMap0, uRoughMap1, uRoughMap2, uRoughMap3;",
+              "uniform sampler2D uAOMap0, uAOMap1, uAOMap2, uAOMap3;",
               "uniform vec3 uColor0, uColor1, uColor2, uColor3;",
               "uniform int uNumLayers;",
               "uniform float uHasTex0, uHasTex1, uHasTex2, uHasTex3;",
               "uniform float uHasNormal0, uHasNormal1, uHasNormal2, uHasNormal3;",
+              "uniform float uHasRoughMap0, uHasRoughMap1, uHasRoughMap2, uHasRoughMap3;",
+              "uniform float uHasAOMap0, uHasAOMap1, uHasAOMap2, uHasAOMap3;",
               "uniform float uTexScale0, uTexScale1, uTexScale2, uTexScale3;",
               "uniform float uRoughness0, uRoughness1, uRoughness2, uRoughness3;",
               "uniform float uNormalIntensity0, uNormalIntensity1, uNormalIntensity2, uNormalIntensity3;",
@@ -3648,6 +3686,18 @@ export function getVisualEditBridgeScript(): string {
               "  p = fract(p * vec2(123.34, 456.21));",
               "  p += dot(p, p + 45.32);",
               "  return fract(p.x * p.y);",
+              "}",
+              "",
+              "// Procedural detail noise — adds micro variation at close range",
+              "float detailNoise(vec2 p) {",
+              "  vec2 i = floor(p);",
+              "  vec2 f = fract(p);",
+              "  f = f * f * (3.0 - 2.0 * f);",
+              "  float a = hash21(i);",
+              "  float b = hash21(i + vec2(1.0, 0.0));",
+              "  float c = hash21(i + vec2(0.0, 1.0));",
+              "  float d = hash21(i + vec2(1.0, 1.0));",
+              "  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);",
               "}",
               "",
               "// Triplanar blend weights from world-space normal",
@@ -3673,14 +3723,33 @@ export function getVisualEditBridgeScript(): string {
               "  vec2 suv = uv * scale;",
               "  vec3 c1 = texture2D(tex, suv).rgb;",
               "  vec3 c2 = texture2D(tex, suv * 0.3713 + vec2(17.3, 13.7)).rgb;",
-              "  float noiseBlend = smoothstep(0.35, 0.65, fract(sin(dot(floor(suv * 0.5), vec2(127.1, 311.7))) * 43758.5453));",
+              "  float noiseBlend = smoothstep(0.35, 0.65, hash21(floor(suv * 0.5)));",
               "  return mix(c1, c2, noiseBlend * 0.3);",
               "}",
               "",
+              "// Sample single-channel map with anti-tiling (for roughness/AO)",
+              "float sampleTerrainR(sampler2D tex, vec3 wp, vec2 uv, vec3 N, float scale, float hasMap, float fallback) {",
+              "  if (hasMap < 0.5) return fallback;",
+              "  float steepness = 1.0 - abs(N.y);",
+              "  if (steepness > 0.5) {",
+              "    vec3 bl = triplanarBlend(N);",
+              "    float xS = texture2D(tex, wp.yz * scale * 0.01).r;",
+              "    float yS = texture2D(tex, wp.xz * scale * 0.01).r;",
+              "    float zS = texture2D(tex, wp.xy * scale * 0.01).r;",
+              "    return xS * bl.x + yS * bl.y + zS * bl.z;",
+              "  }",
+              "  vec2 suv = uv * scale;",
+              "  float c1 = texture2D(tex, suv).r;",
+              "  float c2 = texture2D(tex, suv * 0.3713 + vec2(17.3, 13.7)).r;",
+              "  float nb = smoothstep(0.35, 0.65, hash21(floor(suv * 0.5)));",
+              "  return mix(c1, c2, nb * 0.3);",
+              "}",
+              "",
               "// Sample normal map (returns tangent-space normal)",
-              "vec3 sampleNormalMap(sampler2D nmap, vec2 uv, float scale, float hasNorm) {",
+              "vec3 sampleNormalMap(sampler2D nmap, vec2 uv, float scale, float hasNorm, float intensity) {",
               "  if (hasNorm < 0.5) return vec3(0.0, 0.0, 1.0);",
               "  vec3 n = texture2D(nmap, uv * scale).rgb * 2.0 - 1.0;",
+              "  n.xy *= intensity;",
               "  return normalize(n);",
               "}",
               "",
@@ -3724,42 +3793,71 @@ export function getVisualEditBridgeScript(): string {
               "  vec3 V = normalize(cameraPosition - vWorldPos);",
               "  vec2 baseUv = vUv;",
               "",
-              "  // Sample each layer individually for height-based blending",
+              "  // Sample each layer diffuse + roughness + AO",
               "  vec3 c0 = (uNumLayers > 0) ? sampleTerrain(uTex0, vWorldPos, baseUv, N, uTexScale0, uHasTex0, uColor0) : vec3(0.5);",
               "  vec3 c1 = (uNumLayers > 1) ? sampleTerrain(uTex1, vWorldPos, baseUv, N, uTexScale1, uHasTex1, uColor1) : vec3(0.5);",
               "  vec3 c2 = (uNumLayers > 2) ? sampleTerrain(uTex2, vWorldPos, baseUv, N, uTexScale2, uHasTex2, uColor2) : vec3(0.5);",
               "  vec3 c3 = (uNumLayers > 3) ? sampleTerrain(uTex3, vWorldPos, baseUv, N, uTexScale3, uHasTex3, uColor3) : vec3(0.5);",
               "",
-              "  // Depth-enhanced weight blending — sharper transitions between layers",
+              "  // Sample per-layer roughness from maps (fallback to uniform value)",
+              "  float r0 = sampleTerrainR(uRoughMap0, vWorldPos, baseUv, N, uTexScale0, uHasRoughMap0, uRoughness0);",
+              "  float r1 = sampleTerrainR(uRoughMap1, vWorldPos, baseUv, N, uTexScale1, uHasRoughMap1, uRoughness1);",
+              "  float r2 = sampleTerrainR(uRoughMap2, vWorldPos, baseUv, N, uTexScale2, uHasRoughMap2, uRoughness2);",
+              "  float r3 = sampleTerrainR(uRoughMap3, vWorldPos, baseUv, N, uTexScale3, uHasRoughMap3, uRoughness3);",
+              "",
+              "  // Sample per-layer AO from maps (fallback to 1.0 = no occlusion)",
+              "  float ao0 = sampleTerrainR(uAOMap0, vWorldPos, baseUv, N, uTexScale0, uHasAOMap0, 1.0);",
+              "  float ao1 = sampleTerrainR(uAOMap1, vWorldPos, baseUv, N, uTexScale1, uHasAOMap1, 1.0);",
+              "  float ao2 = sampleTerrainR(uAOMap2, vWorldPos, baseUv, N, uTexScale2, uHasAOMap2, 1.0);",
+              "  float ao3 = sampleTerrainR(uAOMap3, vWorldPos, baseUv, N, uTexScale3, uHasAOMap3, 1.0);",
+              "",
+              "  // Luminance-based height blending — creates natural material transitions",
               "  float depth = 0.2;",
-              "  float hb0 = vW0 + depth;",
-              "  float hb1 = vW1 + depth;",
-              "  float hb2 = vW2 + depth;",
-              "  float hb3 = vW3 + depth;",
-              "  float hbMax = max(max(hb0, hb1), max(hb2, hb3)) - depth;",
-              "  hb0 = max(hb0 - hbMax, 0.0);",
-              "  hb1 = max(hb1 - hbMax, 0.0);",
-              "  hb2 = max(hb2 - hbMax, 0.0);",
-              "  hb3 = max(hb3 - hbMax, 0.0);",
+              "  float lum0 = dot(c0, vec3(0.299, 0.587, 0.114));",
+              "  float lum1 = dot(c1, vec3(0.299, 0.587, 0.114));",
+              "  float lum2 = dot(c2, vec3(0.299, 0.587, 0.114));",
+              "  float lum3 = dot(c3, vec3(0.299, 0.587, 0.114));",
+              "  float hb0 = lum0 + vW0;",
+              "  float hb1 = lum1 + vW1;",
+              "  float hb2 = lum2 + vW2;",
+              "  float hb3 = lum3 + vW3;",
+              "  float hbMax = max(max(hb0, hb1), max(hb2, hb3));",
+              "  hb0 = max(hb0 - hbMax + depth, 0.0);",
+              "  hb1 = max(hb1 - hbMax + depth, 0.0);",
+              "  hb2 = max(hb2 - hbMax + depth, 0.0);",
+              "  hb3 = max(hb3 - hbMax + depth, 0.0);",
               "  float hbSum = hb0 + hb1 + hb2 + hb3 + 0.001;",
               "  hb0 /= hbSum; hb1 /= hbSum; hb2 /= hbSum; hb3 /= hbSum;",
+              "",
               "  vec3 albedo = c0 * hb0 + c1 * hb1 + c2 * hb2 + c3 * hb3;",
+              "",
+              "  // Detail noise: adds micro variation at close range to break flat look",
+              "  float camDist = length(vWorldPos - cameraPosition);",
+              "  float detailFade = 1.0 - smoothstep(5.0, 40.0, camDist);",
+              "  if (detailFade > 0.01) {",
+              "    float dn = detailNoise(vWorldPos.xz * 2.0) * 2.0 - 1.0;",
+              "    albedo += albedo * dn * 0.08 * detailFade;",
+              "  }",
               "",
               "  // Blend normal maps by layer weights * normal intensity",
               "  vec3 blendedNormalTS = vec3(0.0, 0.0, 0.0);",
-              "  if (uNumLayers > 0) blendedNormalTS += sampleNormalMap(uNormal0, baseUv, uTexScale0, uHasNormal0) * vW0 * uNormalIntensity0;",
-              "  if (uNumLayers > 1) blendedNormalTS += sampleNormalMap(uNormal1, baseUv, uTexScale1, uHasNormal1) * vW1 * uNormalIntensity1;",
-              "  if (uNumLayers > 2) blendedNormalTS += sampleNormalMap(uNormal2, baseUv, uTexScale2, uHasNormal2) * vW2 * uNormalIntensity2;",
-              "  if (uNumLayers > 3) blendedNormalTS += sampleNormalMap(uNormal3, baseUv, uTexScale3, uHasNormal3) * vW3 * uNormalIntensity3;",
+              "  if (uNumLayers > 0) blendedNormalTS += sampleNormalMap(uNormal0, baseUv, uTexScale0, uHasNormal0, uNormalIntensity0) * hb0;",
+              "  if (uNumLayers > 1) blendedNormalTS += sampleNormalMap(uNormal1, baseUv, uTexScale1, uHasNormal1, uNormalIntensity1) * hb1;",
+              "  if (uNumLayers > 2) blendedNormalTS += sampleNormalMap(uNormal2, baseUv, uTexScale2, uHasNormal2, uNormalIntensity2) * hb2;",
+              "  if (uNumLayers > 3) blendedNormalTS += sampleNormalMap(uNormal3, baseUv, uTexScale3, uHasNormal3, uNormalIntensity3) * hb3;",
               "  blendedNormalTS = normalize(blendedNormalTS);",
               "",
               "  // Perturb surface normal with blended normal map",
               "  vec3 pertN = perturbNormal(N, vWorldPos, baseUv, blendedNormalTS);",
               "",
-              "  // Per-layer roughness blend",
-              "  float roughness = uRoughness0 * vW0 + uRoughness1 * vW1 + uRoughness2 * vW2 + uRoughness3 * vW3;",
+              "  // Per-layer roughness blend (from maps or uniform fallback)",
+              "  float roughness = r0 * hb0 + r1 * hb1 + r2 * hb2 + r3 * hb3;",
               "  roughness = clamp(roughness, 0.05, 1.0);",
-              "  float metallic = uMetallic0 * vW0 + uMetallic1 * vW1 + uMetallic2 * vW2 + uMetallic3 * vW3;",
+              "",
+              "  // Per-layer AO blend",
+              "  float ao = ao0 * hb0 + ao1 * hb1 + ao2 * hb2 + ao3 * hb3;",
+              "",
+              "  float metallic = uMetallic0 * hb0 + uMetallic1 * hb1 + uMetallic2 * hb2 + uMetallic3 * hb3;",
               "  vec3 F0 = mix(vec3(0.04), albedo, metallic);",
               "",
               "  // === PBR Cook-Torrance Lighting ===",
@@ -3784,7 +3882,7 @@ export function getVisualEditBridgeScript(): string {
               "  vec3 fillDir = normalize(vec3(-0.4, 0.5, -0.7));",
               "  vec3 fillColor = vec3(0.4, 0.5, 0.7) * 1.2;",
               "  float fillNdotL = max(dot(pertN, fillDir), 0.0);",
-              "  totalLight += albedo * fillColor * fillNdotL;",
+              "  totalLight += albedo * fillColor * fillNdotL * ao;",
               "",
               "  // Back/rim light",
               "  vec3 backDir = normalize(vec3(-0.2, 0.6, -0.3));",
@@ -3792,18 +3890,18 @@ export function getVisualEditBridgeScript(): string {
               "  float backNdotL = max(dot(pertN, backDir), 0.0);",
               "  totalLight += albedo * backColor * backNdotL;",
               "",
-              "  // Hemisphere ambient (sky + ground bounce)",
+              "  // Hemisphere ambient (sky + ground bounce) — modulated by AO",
               "  vec3 skyAmb = vec3(0.55, 0.6, 0.75);",
               "  vec3 gndAmb = vec3(0.25, 0.2, 0.15);",
               "  float upFactor = pertN.y * 0.5 + 0.5;",
-              "  vec3 ambient = mix(gndAmb, skyAmb, upFactor) * albedo * 0.6;",
+              "  vec3 ambient = mix(gndAmb, skyAmb, upFactor) * albedo * 0.6 * ao;",
               "  totalLight += ambient;",
               "",
-              "  // Minimum brightness floor to prevent overly dark areas",
+              "  // Minimum brightness floor",
               "  totalLight = max(totalLight, albedo * 0.08);",
               "",
-              "  // Atmospheric haze (reads from uniforms, settable from scene.fog)",
-              "  float fogDist = length(vWorldPos - cameraPosition) / uFogFar;",
+              "  // Atmospheric haze",
+              "  float fogDist = camDist / uFogFar;",
               "  float fogAmt = clamp(fogDist * fogDist, 0.0, uFogMaxAmt);",
               "  totalLight = mix(totalLight, uFogColor, fogAmt);",
               "",
@@ -3832,11 +3930,11 @@ export function getVisualEditBridgeScript(): string {
             }
             // Store uniforms ref on terrain for dynamic fog updates
             _rpTerrain.userData.__fogUniforms = _rpUniforms;
-            console.log("[TerrainPainter] PBR ShaderMaterial applied with", _rpNumLayers, "layers, normal maps:", !!_rpNormalTextures[0]);
+            console.log("[TerrainPainter] PBR ShaderMaterial applied with", _rpNumLayers, "layers, normals:", !!_rpNormalTextures[0], "roughness:", !!_rpRoughnessTextures[0], "ao:", !!_rpAOTextures[0]);
             window.parent.postMessage({ type: "terrain-painter-repainted" }, "*");
           }
 
-          console.log("[TerrainPainter] Loading", _rpTotal, "textures. Diffuse:", _rpTexUrls, "Normal:", _rpNormalUrls);
+          console.log("[TerrainPainter] Loading", _rpTotal, "textures. Diffuse:", _rpTexUrls, "Normal:", _rpNormalUrls, "Roughness:", _rpRoughnessUrls, "AO:", _rpAOUrls);
 
           // Load diffuse textures
           for (var ti2 = 0; ti2 < _rpNumLayers; ti2++) {
@@ -3902,6 +4000,68 @@ export function getVisualEditBridgeScript(): string {
                 if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
               });
             })(ni2);
+          }
+
+          // Load roughness map textures
+          for (var ri2 = 0; ri2 < _rpNumLayers; ri2++) {
+            (function(idx) {
+              var rurl = _rpRoughnessUrls[idx];
+              if (rurl && rurl.charAt(0) === '/') {
+                rurl = (window.__VIBEXE_API_ORIGIN__ || '') + rurl;
+              }
+              if (!rurl || rurl.length < 5) {
+                _rpRoughnessTextures[idx] = null;
+                _rpLoaded++;
+                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                return;
+              }
+              _rpLoader.load(rurl, function(rtex) {
+                rtex.wrapS = _rpTHREE.RepeatWrapping;
+                rtex.wrapT = _rpTHREE.RepeatWrapping;
+                rtex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
+                rtex.anisotropy = 16;
+                rtex.colorSpace = _rpTHREE.NoColorSpace;
+                _rpRoughnessTextures[idx] = rtex;
+                _rpLoaded++;
+                console.log("[TerrainPainter] Roughness[" + idx + "] loaded OK (" + _rpLoaded + "/" + _rpTotal + ")");
+                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+              }, undefined, function() {
+                _rpRoughnessTextures[idx] = null;
+                _rpLoaded++;
+                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+              });
+            })(ri2);
+          }
+
+          // Load AO map textures
+          for (var ai2 = 0; ai2 < _rpNumLayers; ai2++) {
+            (function(idx) {
+              var aurl = _rpAOUrls[idx];
+              if (aurl && aurl.charAt(0) === '/') {
+                aurl = (window.__VIBEXE_API_ORIGIN__ || '') + aurl;
+              }
+              if (!aurl || aurl.length < 5) {
+                _rpAOTextures[idx] = null;
+                _rpLoaded++;
+                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                return;
+              }
+              _rpLoader.load(aurl, function(atex) {
+                atex.wrapS = _rpTHREE.RepeatWrapping;
+                atex.wrapT = _rpTHREE.RepeatWrapping;
+                atex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
+                atex.anisotropy = 16;
+                atex.colorSpace = _rpTHREE.NoColorSpace;
+                _rpAOTextures[idx] = atex;
+                _rpLoaded++;
+                console.log("[TerrainPainter] AO[" + idx + "] loaded OK (" + _rpLoaded + "/" + _rpTotal + ")");
+                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+              }, undefined, function() {
+                _rpAOTextures[idx] = null;
+                _rpLoaded++;
+                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+              });
+            })(ai2);
           }
         } else {
           // No textures — just apply vertex colors from layer preview colors

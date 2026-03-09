@@ -257,6 +257,26 @@ uniform float u_hasNormal1;
 uniform float u_hasNormal2;
 uniform float u_hasNormal3;
 
+// Roughness maps (layers 0-3)
+uniform sampler2D u_roughMap0;
+uniform sampler2D u_roughMap1;
+uniform sampler2D u_roughMap2;
+uniform sampler2D u_roughMap3;
+uniform float u_hasRoughMap0;
+uniform float u_hasRoughMap1;
+uniform float u_hasRoughMap2;
+uniform float u_hasRoughMap3;
+
+// AO maps (layers 0-3)
+uniform sampler2D u_aoMap0;
+uniform sampler2D u_aoMap1;
+uniform sampler2D u_aoMap2;
+uniform sampler2D u_aoMap3;
+uniform float u_hasAOMap0;
+uniform float u_hasAOMap1;
+uniform float u_hasAOMap2;
+uniform float u_hasAOMap3;
+
 // Per-layer texture scale and roughness
 uniform float u_texScale0;
 uniform float u_texScale1;
@@ -284,6 +304,18 @@ float hash21(vec2 p) {
   return fract(p.x * p.y);
 }
 
+// --- Procedural detail noise for close-range micro variation ---
+float detailNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash21(i);
+  float b = hash21(i + vec2(1.0, 0.0));
+  float c = hash21(i + vec2(0.0, 1.0));
+  float d = hash21(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
 // --- Triplanar blend weights from world-space normal ---
 vec3 triplanarBlend(vec3 n) {
   vec3 b = abs(n);
@@ -307,6 +339,24 @@ vec3 sampleTerrain(sampler2D tex, vec3 wp, vec2 uv, vec3 N, float scale) {
   vec3 c1 = texture2D(tex, suv).rgb;
   vec3 c2 = texture2D(tex, suv * 0.3713 + vec2(17.3, 13.7)).rgb;
   float nb = smoothstep(0.35, 0.65, fract(sin(dot(floor(suv * 0.5), vec2(127.1, 311.7))) * 43758.5453));
+  return mix(c1, c2, nb * 0.3);
+}
+
+// --- Sample single-channel map with anti-tiling (roughness/AO) ---
+float sampleTerrainR(sampler2D tex, vec3 wp, vec2 uv, vec3 N, float scale, float hasMap, float fallback) {
+  if (hasMap < 0.5) return fallback;
+  float steepness = 1.0 - abs(N.y);
+  if (steepness > 0.5) {
+    vec3 bl = triplanarBlend(N);
+    float xS = texture2D(tex, wp.yz * scale * 0.01).r;
+    float yS = texture2D(tex, wp.xz * scale * 0.01).r;
+    float zS = texture2D(tex, wp.xy * scale * 0.01).r;
+    return xS * bl.x + yS * bl.y + zS * bl.z;
+  }
+  vec2 suv = uv * scale;
+  float c1 = texture2D(tex, suv).r;
+  float c2 = texture2D(tex, suv * 0.3713 + vec2(17.3, 13.7)).r;
+  float nb = smoothstep(0.35, 0.65, hash21(floor(suv * 0.5)));
   return mix(c1, c2, nb * 0.3);
 }
 
@@ -373,7 +423,19 @@ void main() {
   vec3 c6 = (u_layerCount > 6) ? sampleTerrain(u_layer6, vWorldPos, baseUv, N, u_texScale6) : vec3(0.5);
   vec3 c7 = (u_layerCount > 7) ? sampleTerrain(u_layer7, vWorldPos, baseUv, N, u_texScale7) : vec3(0.5);
 
-  // --- Height-based depth blending (layers 0-3 use luminance-based depth) ---
+  // --- Sample per-layer roughness from maps (fallback to uniform) ---
+  float r0 = sampleTerrainR(u_roughMap0, vWorldPos, baseUv, N, u_texScale0, u_hasRoughMap0, u_roughness0);
+  float r1 = sampleTerrainR(u_roughMap1, vWorldPos, baseUv, N, u_texScale1, u_hasRoughMap1, u_roughness1);
+  float r2 = sampleTerrainR(u_roughMap2, vWorldPos, baseUv, N, u_texScale2, u_hasRoughMap2, u_roughness2);
+  float r3 = sampleTerrainR(u_roughMap3, vWorldPos, baseUv, N, u_texScale3, u_hasRoughMap3, u_roughness3);
+
+  // --- Sample per-layer AO from maps (fallback to 1.0 = no occlusion) ---
+  float ao0 = sampleTerrainR(u_aoMap0, vWorldPos, baseUv, N, u_texScale0, u_hasAOMap0, 1.0);
+  float ao1 = sampleTerrainR(u_aoMap1, vWorldPos, baseUv, N, u_texScale1, u_hasAOMap1, 1.0);
+  float ao2 = sampleTerrainR(u_aoMap2, vWorldPos, baseUv, N, u_texScale2, u_hasAOMap2, 1.0);
+  float ao3 = sampleTerrainR(u_aoMap3, vWorldPos, baseUv, N, u_texScale3, u_hasAOMap3, 1.0);
+
+  // --- Luminance-based height-depth blending (natural material transitions) ---
   float depth = 0.2;
   float lum0 = dot(c0, vec3(0.299, 0.587, 0.114));
   float lum1 = dot(c1, vec3(0.299, 0.587, 0.114));
@@ -403,26 +465,37 @@ void main() {
 
   vec3 albedo = (c0*bw0 + c1*bw1 + c2*bw2 + c3*bw3 + c4*bw4 + c5*bw5 + c6*bw6 + c7*bw7) / bwSum;
 
+  // Detail noise: adds micro variation at close range
+  float camDist = length(vWorldPos - cameraPosition);
+  float detailFade = 1.0 - smoothstep(5.0, 40.0, camDist);
+  if (detailFade > 0.01) {
+    float dn = detailNoise(vWorldPos.xz * 2.0) * 2.0 - 1.0;
+    albedo += albedo * dn * 0.08 * detailFade;
+  }
+
   // --- Blend normal maps by splatmap weights (layers 0-3) ---
   vec3 blendedNormalTS = vec3(0.0, 0.0, 0.0);
   float normalWeightSum = 0.0;
-  if (u_layerCount > 0) { blendedNormalTS += sampleNormalMap(u_normal0, baseUv, u_texScale0, u_hasNormal0) * w0; normalWeightSum += w0; }
-  if (u_layerCount > 1) { blendedNormalTS += sampleNormalMap(u_normal1, baseUv, u_texScale1, u_hasNormal1) * w1; normalWeightSum += w1; }
-  if (u_layerCount > 2) { blendedNormalTS += sampleNormalMap(u_normal2, baseUv, u_texScale2, u_hasNormal2) * w2; normalWeightSum += w2; }
-  if (u_layerCount > 3) { blendedNormalTS += sampleNormalMap(u_normal3, baseUv, u_texScale3, u_hasNormal3) * w3; normalWeightSum += w3; }
+  if (u_layerCount > 0) { blendedNormalTS += sampleNormalMap(u_normal0, baseUv, u_texScale0, u_hasNormal0) * bw0; normalWeightSum += bw0; }
+  if (u_layerCount > 1) { blendedNormalTS += sampleNormalMap(u_normal1, baseUv, u_texScale1, u_hasNormal1) * bw1; normalWeightSum += bw1; }
+  if (u_layerCount > 2) { blendedNormalTS += sampleNormalMap(u_normal2, baseUv, u_texScale2, u_hasNormal2) * bw2; normalWeightSum += bw2; }
+  if (u_layerCount > 3) { blendedNormalTS += sampleNormalMap(u_normal3, baseUv, u_texScale3, u_hasNormal3) * bw3; normalWeightSum += bw3; }
   // Layers 4-7 contribute flat normal (no normal map samplers to save texture units)
-  blendedNormalTS += vec3(0.0, 0.0, 1.0) * (w4 + w5 + w6 + w7);
+  blendedNormalTS += vec3(0.0, 0.0, 1.0) * (bw4 + bw5 + bw6 + bw7);
   blendedNormalTS = normalize(blendedNormalTS);
 
   // Perturb surface normal with blended normal map
   vec3 pertN = perturbNormal(N, vWorldPos, baseUv, blendedNormalTS);
 
-  // --- Per-layer roughness blend ---
-  float roughness = u_roughness0*w0 + u_roughness1*w1 + u_roughness2*w2 + u_roughness3*w3
-                  + u_roughness4*w4 + u_roughness5*w5 + u_roughness6*w6 + u_roughness7*w7;
-  float wTotal = w0+w1+w2+w3+w4+w5+w6+w7;
-  if (wTotal > 0.0) roughness /= wTotal;
+  // --- Per-layer roughness blend (from maps or uniform fallback) ---
+  float roughness = r0*bw0 + r1*bw1 + r2*bw2 + r3*bw3
+                  + u_roughness4*bw4 + u_roughness5*bw5 + u_roughness6*bw6 + u_roughness7*bw7;
+  float bwTotalNorm = bw0+bw1+bw2+bw3+bw4+bw5+bw6+bw7;
+  if (bwTotalNorm > 0.0) roughness /= bwTotalNorm;
   roughness = clamp(roughness, 0.05, 1.0);
+
+  // Per-layer AO blend
+  float ao = (ao0*bw0 + ao1*bw1 + ao2*bw2 + ao3*bw3 + bw4 + bw5 + bw6 + bw7) / bwSum;
 
   float metallic = 0.0; // terrain is dielectric
   vec3 F0 = vec3(0.04);
@@ -445,11 +518,11 @@ void main() {
   vec3 spec = (D * G * F) / (4.0 * NdotV * NdotL + 0.001);
   totalLight += (kD * albedo / 3.14159 + spec) * sunColor * NdotL;
 
-  // Fill light (secondary, cooler)
+  // Fill light (secondary, cooler) — modulated by AO
   vec3 fillDir = normalize(vec3(-0.4, 0.5, -0.7));
   vec3 fillColor = vec3(0.4, 0.5, 0.7) * 1.2;
   float fillNdotL = max(dot(pertN, fillDir), 0.0);
-  totalLight += albedo * fillColor * fillNdotL;
+  totalLight += albedo * fillColor * fillNdotL * ao;
 
   // Back/rim light
   vec3 backDir = normalize(vec3(-0.2, 0.6, -0.3));
@@ -457,11 +530,11 @@ void main() {
   float backNdotL = max(dot(pertN, backDir), 0.0);
   totalLight += albedo * backColor * backNdotL;
 
-  // Hemisphere ambient (sky + ground bounce)
+  // Hemisphere ambient (sky + ground bounce) — modulated by AO
   vec3 skyAmb = vec3(0.55, 0.6, 0.75);
   vec3 gndAmb = vec3(0.25, 0.2, 0.15);
   float upFactor = pertN.y * 0.5 + 0.5;
-  vec3 ambient = mix(gndAmb, skyAmb, upFactor) * albedo * 0.6;
+  vec3 ambient = mix(gndAmb, skyAmb, upFactor) * albedo * 0.6 * ao;
   totalLight += ambient;
 
   // Minimum brightness floor
@@ -469,7 +542,7 @@ void main() {
 
   // Atmospheric fog
   vec3 fogColor = vec3(0.55, 0.60, 0.72);
-  float fogDist = length(vWorldPos - cameraPosition) / 400.0;
+  float fogDist = camDist / 400.0;
   float fogAmt = clamp(fogDist * fogDist, 0.0, 0.4);
   totalLight = mix(totalLight, fogColor, fogAmt);
 
