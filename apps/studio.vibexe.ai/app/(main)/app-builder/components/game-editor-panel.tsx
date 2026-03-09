@@ -82,6 +82,8 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 		addLight,
 		updateLight,
 		removeLight,
+		// Prefabs
+		saveAsPrefab,
 	} = useGameEditor();
 
 	const [activeTab, setActiveTab] = useState<EditorTab>("properties");
@@ -100,6 +102,8 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 	const [texturePickerOpen, setTexturePickerOpen] = useState(false);
 	const [textureCategory, setTextureCategory] = useState<TextureCategory>("ground");
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [prefabDialogOpen, setPrefabDialogOpen] = useState(false);
+	const [prefabNameValue, setPrefabNameValue] = useState("");
 
 	// Close light dropdown on outside click
 	useEffect(() => {
@@ -1154,6 +1158,22 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 								</button>
 							</div>
 
+							{/* Save as Prefab */}
+							{selectedObject && (selectedObject.userData?.vibexeType === "decoration" || selectedObject.userData?.vibexeType === "AnimatedCharacter" || selectedObject.userData?.__spawned) && (
+								<button
+									type="button"
+									onClick={() => {
+										setPrefabNameValue(selectedObject.name || "My Prefab");
+										setPrefabDialogOpen(true);
+									}}
+									className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] text-white/50 bg-white/[0.04] hover:bg-blue-500/20 hover:text-blue-300 rounded transition-colors mt-1"
+									title="Save as reusable prefab"
+								>
+									<Box className="w-3 h-3" />
+									Save as Prefab
+								</button>
+							)}
+
 							{/* Ungroup (only for Group objects) */}
 							{selectedObject?.userData?.vibexeType === "Group" && (
 								<button
@@ -1272,6 +1292,55 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 							className="px-3 py-1.5 text-xs rounded bg-red-600 hover:bg-red-500 text-white transition-colors"
 						>
 							Delete
+						</button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Save as Prefab dialog */}
+			<Dialog open={prefabDialogOpen} onOpenChange={setPrefabDialogOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Save as Prefab</DialogTitle>
+						<DialogDescription>
+							Save this object as a reusable prefab. You can spawn copies from the Asset Library.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="py-2">
+						<label className="text-[11px] text-white/50 block mb-1">Prefab Name</label>
+						<input
+							type="text"
+							value={prefabNameValue}
+							onChange={(e) => setPrefabNameValue(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" && prefabNameValue.trim()) {
+									saveAsPrefab(prefabNameValue.trim());
+									setPrefabDialogOpen(false);
+								}
+							}}
+							className="w-full px-2 py-1.5 text-xs bg-white/[0.06] border border-white/10 rounded text-white/90 focus:outline-none focus:border-blue-500/50"
+							autoFocus
+						/>
+					</div>
+					<DialogFooter>
+						<DialogClose asChild>
+							<button
+								type="button"
+								className="px-3 py-1.5 text-xs rounded bg-white/10 hover:bg-white/20 text-white/70 transition-colors"
+							>
+								Cancel
+							</button>
+						</DialogClose>
+						<button
+							type="button"
+							disabled={!prefabNameValue.trim()}
+							onClick={() => {
+								saveAsPrefab(prefabNameValue.trim());
+								setPrefabDialogOpen(false);
+							}}
+							className="px-3 py-1.5 text-xs rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-40"
+						>
+							Save Prefab
 						</button>
 					</DialogFooter>
 				</DialogContent>

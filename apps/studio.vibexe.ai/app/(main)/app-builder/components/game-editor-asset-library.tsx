@@ -5,7 +5,7 @@
  * Replaces the old ~28-item palette with full asset catalog.
  */
 
-import { Search, X } from "lucide-react";
+import { Box, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGameEditor, type PrefabDefinition } from "../lib/game-editor-context";
 import {
@@ -43,15 +43,18 @@ const COLOR_MAP: Record<string, string> = {
 const COLOR_OPTIONS = ["blue", "green", "red", "yellow"];
 
 export function GameEditorAssetLibrary() {
-	const { activePrefab, setActivePrefab, spawnObject } = useGameEditor();
+	const { activePrefab, setActivePrefab, spawnObject, gameSettings, deletePrefab } = useGameEditor();
 	const [search, setSearch] = useState("");
-	const [activeCategory, setActiveCategory] = useState<AssetCategory>("platforms");
+	const [activeCategory, setActiveCategory] = useState<AssetCategory | "my-prefabs">("platforms");
 	const [activeSubcategory, setActiveSubcategory] = useState<string | null>(null);
 	const [selectedColor, setSelectedColor] = useState("blue");
 
+	// Custom prefabs from game settings
+	const customPrefabs = gameSettings.customPrefabs || [];
+
 	// Get items for current category
-	const categoryItems = useMemo(() => getItemsByCategory(activeCategory), [activeCategory]);
-	const subcategories = useMemo(() => getSubcategories(activeCategory), [activeCategory]);
+	const categoryItems = useMemo(() => activeCategory === "my-prefabs" ? [] : getItemsByCategory(activeCategory as AssetCategory), [activeCategory]);
+	const subcategories = useMemo(() => activeCategory === "my-prefabs" ? [] : getSubcategories(activeCategory as AssetCategory), [activeCategory]);
 
 	// Reset subcategory when category changes
 	useEffect(() => {
@@ -171,6 +174,20 @@ export function GameEditorAssetLibrary() {
 			{!search && (
 				<div className="flex-shrink-0 px-2 pb-1">
 					<div className="flex gap-0.5 overflow-x-auto scrollbar-none">
+						{customPrefabs.length > 0 && (
+							<button
+								type="button"
+								onClick={() => setActiveCategory("my-prefabs")}
+								className={`px-2 py-0.5 text-[9px] rounded-full whitespace-nowrap transition-colors ${
+									activeCategory === "my-prefabs"
+										? "bg-blue-500/20 text-blue-300"
+										: "text-blue-400/40 hover:text-blue-400/70"
+								}`}
+							>
+								My Prefabs
+								<span className="ml-0.5 text-blue-400/30">{customPrefabs.length}</span>
+							</button>
+						)}
 						{categoriesWithCounts.map((cat) => (
 							<button
 								key={cat.id}
@@ -246,7 +263,55 @@ export function GameEditorAssetLibrary() {
 				</div>
 			)}
 
+			{/* My Prefabs grid */}
+			{activeCategory === "my-prefabs" && !search && (
+				<div className="flex-1 overflow-y-auto scrollbar-thin px-2 pb-2 min-h-0">
+					{customPrefabs.length > 0 ? (
+						<div className="grid grid-cols-2 gap-1">
+							{customPrefabs.map((cp) => (
+								<div key={cp.id} className="relative group">
+									<button
+										type="button"
+										onClick={() => {
+											// Spawn prefab at origin
+											spawnObject(cp.factory, { x: 0, y: 2, z: 0 }, {
+												modelUrl: cp.modelUrl,
+												textureUrl: cp.textureUrl,
+												textureTileX: cp.textureTileX,
+												textureTileY: cp.textureTileY,
+											});
+										}}
+										className="w-full flex flex-col items-center gap-0.5 p-2 rounded bg-white/[0.03] hover:bg-blue-500/10 transition-all"
+										title={`${cp.displayName}\nClick to spawn`}
+									>
+										<div className="w-full aspect-square rounded bg-blue-500/10 flex items-center justify-center">
+											<Box className="w-5 h-5 text-blue-400/50" />
+										</div>
+										<span className="text-[8px] text-white/50 truncate w-full text-center leading-tight mt-0.5">
+											{cp.displayName}
+										</span>
+									</button>
+									<button
+										type="button"
+										onClick={() => deletePrefab(cp.id)}
+										className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-500/20 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+										title="Delete prefab"
+									>
+										<X className="w-2.5 h-2.5" />
+									</button>
+								</div>
+							))}
+						</div>
+					) : (
+						<div className="py-8 text-center text-[10px] text-white/20">
+							No custom prefabs yet. Select an object and click "Save as Prefab".
+						</div>
+					)}
+				</div>
+			)}
+
 			{/* Asset grid — 2 columns */}
+			{(activeCategory !== "my-prefabs" || !!search) && (
 			<div className="flex-1 overflow-y-auto scrollbar-thin px-2 pb-2 min-h-0">
 				{filteredItems.length > 0 ? (
 					<div className="grid grid-cols-2 gap-1">
@@ -291,6 +356,7 @@ export function GameEditorAssetLibrary() {
 					</div>
 				)}
 			</div>
+			)}
 
 			{/* Active prefab indicator */}
 			{activePrefab && (

@@ -40,6 +40,7 @@ export interface SelectedSceneObject {
 	castShadow?: boolean;
 	userData: Record<string, any>;
 	_materialColor?: string;
+	_modelUrl?: string;
 	_textureUrl?: string | null;
 	_textureTileX?: number;
 	_textureTileY?: number;
@@ -205,6 +206,18 @@ export interface GameSettings {
 		penumbra?: number;
 		target?: { x: number; y: number; z: number };
 	}>;
+	// User-created prefabs (saved objects for reuse)
+	customPrefabs?: Array<{
+		id: string;
+		displayName: string;
+		factory: string;
+		modelUrl?: string;
+		textureUrl?: string;
+		textureTileX?: number;
+		textureTileY?: number;
+		hasPBR?: boolean;
+		scale?: { x: number; y: number; z: number };
+	}>;
 	// Texture overrides for scene-original objects (persisted across reloads)
 	textureOverrides?: Array<{
 		name: string;
@@ -353,6 +366,9 @@ interface GameEditorContextValue {
 	updateSceneTerrain: (sceneId: string, terrain: SceneTerrainDef | undefined) => void;
 	updateSceneCamera: (sceneId: string, position: number[], target: number[]) => void;
 	getActiveScene: () => SceneDefinition | undefined;
+	// Prefab management
+	saveAsPrefab: (displayName: string) => void;
+	deletePrefab: (prefabId: string) => void;
 	// Generic iframe message sender (for module communication)
 	sendToIframe: (msg: any) => void;
 }
@@ -785,6 +801,38 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		setIsDirty(true);
 	}, [sendToIframe]);
 
+	// Prefab management — save selected object as reusable prefab
+	const saveAsPrefab = useCallback((displayName: string) => {
+		if (!selectedObject) return;
+		const id = "prefab_" + Date.now().toString(36);
+		const prefab = {
+			id,
+			displayName,
+			factory: selectedObject.type || "decoration",
+			modelUrl: selectedObject._modelUrl || undefined,
+			textureUrl: selectedObject._textureUrl || undefined,
+			textureTileX: selectedObject._textureTileX || undefined,
+			textureTileY: selectedObject._textureTileY || undefined,
+			hasPBR: undefined as boolean | undefined,
+			scale: {
+				x: selectedObject.scale?.x ?? 1,
+				y: selectedObject.scale?.y ?? 1,
+				z: selectedObject.scale?.z ?? 1,
+			},
+		};
+		setGameSettingsState((prev) => {
+			const existing = prev.customPrefabs || [];
+			return { ...prev, customPrefabs: [...existing, prefab] };
+		});
+	}, [selectedObject]);
+
+	const deletePrefab = useCallback((prefabId: string) => {
+		setGameSettingsState((prev) => {
+			const existing = prev.customPrefabs || [];
+			return { ...prev, customPrefabs: existing.filter((p) => p.id !== prefabId) };
+		});
+	}, []);
+
 	// Texture library actions
 	const applyTexture = useCallback((uuid: string, textureUrl: string, tileX: number, tileY: number, hasPBR?: boolean) => {
 		sendToIframe({ type: "game-editor-apply-texture", uuid, textureUrl, tileX, tileY, hasPBR: !!hasPBR });
@@ -1124,6 +1172,8 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				updateSceneTerrain,
 				updateSceneCamera,
 				getActiveScene,
+				saveAsPrefab,
+				deletePrefab,
 				sendToIframe,
 			}}
 		>

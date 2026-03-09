@@ -924,6 +924,7 @@ export function getVisualEditBridgeScript(): string {
       scale: { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z },
       visible: obj.visible !== false, castShadow: !!obj.castShadow,
       userData: safeUserData(obj.userData), _materialColor: matColor,
+      _modelUrl: obj.userData && (obj.userData.__modelUrl || (obj.userData.vibexeArgs && obj.userData.vibexeArgs.modelUrl)) || null,
       _textureUrl: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureUrl || null,
       _textureTileX: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureTileX || 1,
       _textureTileY: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureTileY || 1,
