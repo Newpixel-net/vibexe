@@ -2089,6 +2089,19 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 						}
 					}
 				}
+
+				// Expose factory functions on window for character-system module
+				// Old saved projects define these inside the IIFE but don't expose them
+				if (!code.includes("__vibexe_createAnimatedCharacter3D")) {
+					code = code.replace(
+						/(__vibexe_scene__\s*=\s*scene\s*;)/,
+						`$1\n` +
+						`if(typeof createAnimatedCharacter3D==='function')(window as any).__vibexe_createAnimatedCharacter3D=createAnimatedCharacter3D;\n` +
+						`if(typeof createCharacterController3D==='function')(window as any).__vibexe_createCharacterController3D=createCharacterController3D;\n` +
+						`if(typeof createPhysicsBody==='function')(window as any).__vibexe_createPhysicsBody=createPhysicsBody;`,
+					);
+				}
+
 				if (typeof sf === "string") {
 					sandpackFiles[sceneKey] = code;
 				} else {
