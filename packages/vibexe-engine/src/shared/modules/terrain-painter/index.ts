@@ -430,7 +430,13 @@ TerrainPhysics.prototype.setup = function(world) {
     console.error("[TerrainPhysics] Failed to create heightfield:", err);
   }
 
-  // PostStep terrain clamp — ensures dynamic bodies stay above terrain
+  // PostStep terrain clamp + active ground-following
+  // Runs after every physics step to ensure dynamic bodies stay ON terrain.
+  // Two modes:
+  //   1. Below terrain → snap up immediately (safety net)
+  //   2. Within threshold above terrain & not jumping → snap to surface (ground-follow)
+  // Mode 2 is critical because CANNON Heightfield collision is unreliable for Box shapes
+  // (catches on edges, leaves gaps) and low-gravity settings cause slow floaty descent.
   if (!window.__vibexe_terrainPostStep) {
     this._postStepFn = function() {
       var getH = window.__vibexe_getTerrainHeight;
@@ -452,6 +458,15 @@ TerrainPhysics.prototype.setup = function(world) {
         }
         var minY = th + halfH;
         if (pb.position.y < minY) {
+          // Below terrain — snap up immediately
+          pb.position.y = minY;
+          if (pb.velocity.y < 0) pb.velocity.y = 0;
+          pb.__canJump = true;
+        } else if ((pb.position.y - minY) < 3.0 && pb.velocity.y <= 1.5) {
+          // Active ground-following: within 3 units of terrain surface and
+          // not actively jumping up (JUMP_FORCE is typically 17, so vy <= 1.5
+          // means the body is either falling, at rest, or barely moving up from
+          // terrain bumps). Snap to exact terrain surface for smooth walking.
           pb.position.y = minY;
           if (pb.velocity.y < 0) pb.velocity.y = 0;
           pb.__canJump = true;
@@ -460,7 +475,7 @@ TerrainPhysics.prototype.setup = function(world) {
     };
     window.__vibexe_terrainPostStep = this._postStepFn;
     world.addEventListener("postStep", this._postStepFn);
-    console.log("[TerrainPhysics] PostStep terrain clamp registered");
+    console.log("[TerrainPhysics] PostStep terrain clamp + ground-following registered");
   }
 };
 
@@ -700,6 +715,40 @@ TerrainPainter.prototype.destroy = function() {
   this.generator.destroy();
 };
 
+
+// ============================================================
+// Auto-detect player mesh (for old saved projects that don't register it)
+// ============================================================
+
+if (typeof window !== 'undefined' && !window.__vibexe_playerMesh__) {
+  // Poll for scene availability, then find the animated character mesh
+  var _detectPlayer = function() {
+    if (window.__vibexe_playerMesh__) return; // Already set by newer template
+    var scene = window.__vibexe_scene__;
+    if (!scene) { setTimeout(_detectPlayer, 500); return; }
+    // Find the player mesh: animated character with a physicsBody (mass > 0)
+    var found = null;
+    scene.traverse(function(obj) {
+      if (found) return;
+      if (obj.userData && obj.userData.__physicsBody && obj.userData.__physicsBody.mass > 0) {
+        // Check if this looks like a character (has animation mixer or specific name)
+        if (obj.userData.__physicsBody.fixedRotation) {
+          found = obj;
+        }
+      }
+    });
+    if (found) {
+      window.__vibexe_playerMesh__ = found;
+      console.log("[TerrainPainter] Auto-detected player mesh:", found.name || "unnamed");
+    } else {
+      // Retry a few times
+      if (!window.__vibexe_playerDetectRetry) window.__vibexe_playerDetectRetry = 0;
+      window.__vibexe_playerDetectRetry++;
+      if (window.__vibexe_playerDetectRetry < 20) setTimeout(_detectPlayer, 1000);
+    }
+  };
+  setTimeout(_detectPlayer, 2000); // Start detecting after initial load
+}
 
 // ============================================================
 // Register module and exports
