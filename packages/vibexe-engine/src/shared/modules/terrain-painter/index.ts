@@ -122,7 +122,7 @@ function TerrainGenerator(scene, options) {
   this.scene = scene;
   this.width = (options && options.width) || 100;
   this.depth = (options && options.depth) || 100;
-  this.heightScale = (options && options.heightScale) || 8;
+  this.heightScale = (options && options.heightScale != null) ? options.heightScale : 30;
   this.segments = (options && options.segments) || 128;
   this.mesh = null;
   this.heightData = null;
@@ -438,7 +438,15 @@ TerrainPhysics.prototype.setup = function(world) {
         if (pb.mass <= 0) continue;
         var th = getH(pb.position.x, pb.position.z);
         if (th == null) continue;
-        var halfH = 0.75;
+        // Compute half-height from body's shape bounds (not hardcoded)
+        var halfH = 0.5;
+        if (pb.shapes && pb.shapes.length > 0) {
+          var s0 = pb.shapes[0];
+          if (s0.halfExtents) halfH = s0.halfExtents.y;
+          else if (s0.radius) halfH = s0.radius;
+          else if (s0.height) halfH = s0.height * 0.5;
+          else if (s0.boundingSphereRadius) halfH = s0.boundingSphereRadius;
+        }
         var minY = th + halfH;
         if (pb.position.y < minY) {
           pb.position.y = minY;
