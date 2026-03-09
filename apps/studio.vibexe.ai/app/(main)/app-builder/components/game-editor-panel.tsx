@@ -50,6 +50,7 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 		fetchAnimOverrides,
 		renameObject,
 		toggleVisibility,
+		toggleLock,
 		hierarchySearch,
 		setHierarchySearch,
 		// Settings data from context
@@ -218,6 +219,13 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 		[toggleVisibility],
 	);
 
+	const handleToggleLock = useCallback(
+		(uuid: string) => {
+			toggleLock(uuid);
+		},
+		[toggleLock],
+	);
+
 	const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
 		if (!selectedObject || !animClipDuration) return;
 		const rect = e.currentTarget.getBoundingClientRect();
@@ -301,6 +309,7 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 							onSelect={handleTreeSelect}
 							onDoubleClick={handleTreeDoubleClick}
 							onToggleVisibility={handleToggleVisibility}
+							onToggleLock={handleToggleLock}
 							searchFilter={hierarchySearch ? hierarchySearch.toLowerCase() : undefined}
 						/>
 					) : (

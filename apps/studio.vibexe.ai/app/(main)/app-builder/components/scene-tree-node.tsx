@@ -15,6 +15,8 @@ import {
 	Eye,
 	EyeOff,
 	Lightbulb,
+	Lock,
+	Unlock,
 	Folder,
 	Camera,
 	Video,
@@ -32,6 +34,7 @@ interface SceneTreeNodeProps {
 	onSelect: (uuid: string) => void;
 	onDoubleClick?: (uuid: string) => void;
 	onToggleVisibility?: (uuid: string) => void;
+	onToggleLock?: (uuid: string) => void;
 	searchFilter?: string;
 }
 
@@ -75,6 +78,7 @@ export function SceneTreeNode({
 	onSelect,
 	onDoubleClick,
 	onToggleVisibility,
+	onToggleLock,
 	searchFilter,
 }: SceneTreeNodeProps) {
 	const [expanded, setExpanded] = useState(depth < 1);
@@ -105,6 +109,14 @@ export function SceneTreeNode({
 			onToggleVisibility?.(node.uuid);
 		},
 		[node.uuid, onToggleVisibility],
+	);
+
+	const handleLockToggle = useCallback(
+		(e: React.MouseEvent) => {
+			e.stopPropagation();
+			onToggleLock?.(node.uuid);
+		},
+		[node.uuid, onToggleLock],
 	);
 
 	// Auto-expand when search filter is active and node matches
@@ -188,6 +200,21 @@ export function SceneTreeNode({
 					/>
 				)}
 
+				{/* Lock toggle */}
+				{onToggleLock && (
+					<span
+						className="flex-shrink-0 cursor-pointer"
+						onClick={handleLockToggle}
+						title={node._isLocked ? "Unlock" : "Lock"}
+					>
+						{node._isLocked ? (
+							<Lock className="w-2.5 h-2.5 text-amber-400/60 hover:text-amber-400 transition-colors" />
+						) : (
+							<Unlock className="w-2.5 h-2.5 text-white/0 group-hover/node:text-white/15 hover:!text-white/40 transition-colors" />
+						)}
+					</span>
+				)}
+
 				{/* Visibility toggle — always show if hidden, show on hover if visible */}
 				{onToggleVisibility && (
 					<span
@@ -216,6 +243,7 @@ export function SceneTreeNode({
 							onSelect={onSelect}
 							onDoubleClick={onDoubleClick}
 							onToggleVisibility={onToggleVisibility}
+							onToggleLock={onToggleLock}
 							searchFilter={searchFilter}
 						/>
 					))}

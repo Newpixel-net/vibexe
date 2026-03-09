@@ -25,6 +25,7 @@ export interface SceneNode {
 	_isMesh?: boolean;
 	_isLight?: boolean;
 	_isGroup?: boolean;
+	_isLocked?: boolean;
 	_materialColor?: string;
 }
 
@@ -303,6 +304,7 @@ interface GameEditorContextValue {
 	redoAction: () => void;
 	renameObject: (uuid: string, name: string) => void;
 	toggleVisibility: (uuid: string) => void;
+	toggleLock: (uuid: string) => void;
 	toggleGizmoSpace: () => void;
 	setGizmoSpace: (space: "world" | "local") => void;
 	setHierarchySearch: (search: string) => void;
@@ -756,6 +758,10 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		sendToIframe({ type: "game-editor-toggle-visibility", uuid });
 	}, [sendToIframe]);
 
+	const toggleLock = useCallback((uuid: string) => {
+		sendToIframe({ type: "game-editor-toggle-lock", uuid });
+	}, [sendToIframe]);
+
 	const toggleGizmoSpace = useCallback(() => {
 		sendToIframe({ type: "game-editor-toggle-space" });
 	}, [sendToIframe]);
@@ -1019,6 +1025,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				redoAction,
 				renameObject,
 				toggleVisibility,
+				toggleLock,
 				toggleGizmoSpace,
 				setGizmoSpace,
 				setHierarchySearch,

@@ -874,7 +874,7 @@ export function getVisualEditBridgeScript(): string {
       rotation: { x: obj.rotation.x*180/Math.PI, y: obj.rotation.y*180/Math.PI, z: obj.rotation.z*180/Math.PI },
       scale: { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z },
       visible: obj.visible !== false, userData: safeUserData(obj.userData), children: children,
-      _isMesh: !!obj.isMesh, _isLight: !!obj.isLight, _isGroup: !!obj.isGroup, _materialColor: matColor
+      _isMesh: !!obj.isMesh, _isLight: !!obj.isLight, _isGroup: !!obj.isGroup, _isLocked: !!(obj.userData && obj.userData.__editorLocked), _materialColor: matColor
     };
   }
 
@@ -1002,6 +1002,12 @@ export function getVisualEditBridgeScript(): string {
       boxHelper.update();
     }
     editor.scene.add(boxHelper);
+    // Skip TransformControls for locked objects (still allow selection for inspect/unlock)
+    if (obj.userData && obj.userData.__editorLocked) {
+      sendPropertyUpdate(obj);
+      showDebug("Object locked — select only (no transform)");
+      return;
+    }
     if (THREE.TransformControls) {
       // Final safety: never attach to scene root
       if (obj === editor.scene || obj.type === "Scene") { showDebug("ABORT: refusing to attach TC to scene"); return; }
@@ -2537,6 +2543,19 @@ export function getVisualEditBridgeScript(): string {
         if (editor && d.uuid) {
           var visObj = findByUuid(editor.scene, d.uuid);
           if (visObj) { updateProperty(d.uuid, "visible", !visObj.visible); }
+        } break;
+      case "game-editor-toggle-lock":
+        if (editor && d.uuid) {
+          var lockObj = findByUuid(editor.scene, d.uuid);
+          if (lockObj) {
+            var isLocked = !lockObj.userData.__editorLocked;
+            lockObj.userData.__editorLocked = isLocked;
+            // If locking the currently selected object, detach transform controls
+            if (isLocked && selectedObj && selectedObj.uuid === d.uuid && transformControls) {
+              transformControls.detach();
+            }
+            sendSceneTree();
+          }
         } break;
       case "game-editor-set-snap-settings":
         if (typeof d.gridIncrement === "number") gridSnapIncrement = d.gridIncrement;
