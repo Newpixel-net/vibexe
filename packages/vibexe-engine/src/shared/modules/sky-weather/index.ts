@@ -233,6 +233,7 @@ var SKY_FRAGMENT = [
   "uniform float uGodRayInt;",
   "uniform float uAuroraInt;",
   "uniform float uRainbowInt;",
+  "uniform float uShootStarInt;",
   "",
   "float miePhase(float c, float g) {",
   "  float g2 = g * g;",
@@ -323,6 +324,37 @@ var SKY_FRAGMENT = [
   "    float twinkle = sin(sh * 6283.0 + uTime * 1.5) * 0.25 + 0.75;",
   "    float fade = smoothstep(0.02, 0.15, dir.y);",
   "    sky += vec3(0.85, 0.9, 1.0) * bright * twinkle * starV * fade * 0.8;",
+  "  }",
+  "",
+  "  // Shooting stars (meteors)",
+  "  if (uShootStarInt > 0.01 && dir.y > 0.05) {",
+  "    float ssNight = 1.0 - smoothstep(-0.05, 0.1, uSunDir.y);",
+  "    if (ssNight > 0.1) {",
+  "      for (int mi = 0; mi < 3; mi++) {",
+  "        float rate = 0.18 + float(mi) * 0.11;",
+  "        float cyc = floor(uTime * rate);",
+  "        float ph = fract(uTime * rate);",
+  "        float s1 = fract(sin(cyc * 127.1 + float(mi) * 311.7) * 43758.5);",
+  "        float s2 = fract(sin(cyc * 269.5 + float(mi) * 113.3) * 43758.5);",
+  "        float s3 = fract(sin(cyc * 419.2 + float(mi) * 227.1) * 43758.5);",
+  "        float mShow = step(s3, 0.35);",
+  "        float mVis = smoothstep(0.0, 0.04, ph) * smoothstep(0.28, 0.12, ph) * mShow;",
+  "        if (mVis > 0.01) {",
+  "          float az = s1 * 6.283;",
+  "          float el = 0.25 + s2 * 0.45;",
+  "          vec3 mStart = normalize(vec3(sin(az), el, cos(az)));",
+  "          vec3 mVel = normalize(vec3(s2 - 0.5, -0.45, s1 - 0.3));",
+  "          float prog = ph / 0.28;",
+  "          vec3 mHead = normalize(mStart + mVel * prog * 0.25);",
+  "          float mDist = acos(clamp(dot(dir, mHead), -1.0, 1.0));",
+  "          float glow = exp(-mDist * mDist * 40000.0);",
+  "          vec3 mTail = normalize(mStart + mVel * max(0.0, prog - 0.35) * 0.25);",
+  "          float tDist = acos(clamp(dot(dir, mTail), -1.0, 1.0));",
+  "          float tGlow = exp(-tDist * tDist * 60000.0) * 0.4;",
+  "          sky += vec3(1.0, 0.95, 0.85) * (glow + tGlow) * mVis * uShootStarInt * ssNight;",
+  "        }",
+  "      }",
+  "    }",
   "  }",
   "",
   "  // Aurora borealis",
@@ -433,7 +465,8 @@ function ProceduralSkyDome(scene) {
     uCloudBright:{ value: 1.0 },
     uGodRayInt:  { value: 0 },
     uAuroraInt:  { value: 0 },
-    uRainbowInt: { value: 0 }
+    uRainbowInt: { value: 0 },
+    uShootStarInt: { value: 0 }
   };
 
   var geo = new THREE.SphereGeometry(1, 32, 16);
@@ -1003,7 +1036,7 @@ function SkyWeatherSystem(scene, config) {
     clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
     precipitation: { type: "none", intensity: 0, windDirection: 0, windStrength: 0.3 },
     lightning: { enabled: false, frequency: 0.1 },
-    effects: { godRays: 0, aurora: 0, rainbow: 0, ambientAudio: false, audioVolume: 0.5 }
+    effects: { godRays: 0, aurora: 0, rainbow: 0, shootingStars: 0, ambientAudio: false, audioVolume: 0.5 }
   };
   if (config) this._merge(config);
 
@@ -1092,6 +1125,7 @@ SkyWeatherSystem.prototype._tick = function(dt) {
     this.skyDome._u.uGodRayInt.value = fx.godRays || 0;
     this.skyDome._u.uAuroraInt.value = fx.aurora || 0;
     this.skyDome._u.uRainbowInt.value = fx.rainbow || 0;
+    this.skyDome._u.uShootStarInt.value = fx.shootingStars || 0;
   }
 
   // Precipitation particles
@@ -1302,6 +1336,7 @@ module.exports = {
 			godRays: 0,
 			aurora: 0,
 			rainbow: 0,
+			shootingStars: 0,
 			ambientAudio: false,
 			audioVolume: 0.5,
 		},

@@ -74,6 +74,7 @@ interface SkyWeatherConfig {
 		godRays?: number;
 		aurora?: number;
 		rainbow?: number;
+		shootingStars?: number;
 		ambientAudio?: boolean;
 		audioVolume?: number;
 	};
@@ -133,7 +134,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 		clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0, ...skyWeather?.clouds },
 		precipitation: { type: "none", intensity: 0, windDirection: 0, windStrength: 0.3, ...skyWeather?.precipitation },
 		lightning: { enabled: false, frequency: 0.1, ...skyWeather?.lightning },
-		effects: { godRays: 0, aurora: 0, rainbow: 0, ambientAudio: false, audioVolume: 0.5, ...skyWeather?.effects },
+		effects: { godRays: 0, aurora: 0, rainbow: 0, shootingStars: 0, ambientAudio: false, audioVolume: 0.5, ...skyWeather?.effects },
 	}));
 
 	// Track whether user made changes (for auto-save on close)
@@ -590,6 +591,13 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 							format={(v) => v.toFixed(1)}
 							onChange={(v) => sendConfig({ effects: { ...config.effects, rainbow: v } })}
 						/>
+						<SliderRow
+							label="Shooting Stars"
+							value={config.effects?.shootingStars ?? 0}
+							min={0} max={2} step={0.1}
+							format={(v) => v.toFixed(1)}
+							onChange={(v) => sendConfig({ effects: { ...config.effects, shootingStars: v } })}
+						/>
 						<div className="border-t border-white/[0.06] pt-3">
 							<ToggleRow
 								label="Ambient Audio"
@@ -637,7 +645,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 							clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
 							precipitation: { type: "none", intensity: 0, windDirection: 0, windStrength: 0.3 },
 							lightning: { enabled: false, frequency: 0.1 },
-							effects: { godRays: 0, aurora: 0, rainbow: 0, ambientAudio: false, audioVolume: 0.5 },
+							effects: { godRays: 0, aurora: 0, rainbow: 0, shootingStars: 0, ambientAudio: false, audioVolume: 0.5 },
 						};
 						setConfig(defaults);
 						latestConfigRef.current = defaults;

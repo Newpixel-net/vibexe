@@ -177,7 +177,7 @@ export interface GameSettings {
 		clouds?: { coverage?: number; density?: number; speed?: number; scale?: number; brightness?: number };
 		precipitation?: { type?: string; intensity?: number; windDirection?: number; windStrength?: number };
 		lightning?: { enabled?: boolean; frequency?: number };
-		effects?: { godRays?: number; aurora?: number; rainbow?: number; ambientAudio?: boolean; audioVolume?: number };
+		effects?: { godRays?: number; aurora?: number; rainbow?: number; shootingStars?: number; ambientAudio?: boolean; audioVolume?: number };
 	};
 	terrain?: {
 		enabled?: boolean;
