@@ -699,7 +699,7 @@ export function getVisualEditBridgeScript(): string {
             for (var sx = 0; sx < td.segX; sx++) {
               _suMatrix.push([]);
               for (var sz = 0; sz < td.segZ; sz++) {
-                _suMatrix[sx].push(td.heightData[sz * td.segX + sx]);
+                _suMatrix[sx].push(td.heightData[(td.segZ - 1 - sz) * td.segX + sx]);
               }
             }
             // Remove old body, create new heightfield with updated data
@@ -3661,7 +3661,7 @@ export function getVisualEditBridgeScript(): string {
           var td = window.__vibexe_terrainData;
           if (!td) return 0;
           var gx = (x + td.width * 0.5) / td.width * (td.segX - 1);
-          var gz = (td.depth * 0.5 - z) / td.depth * (td.segZ - 1);
+          var gz = (z + td.depth * 0.5) / td.depth * (td.segZ - 1);
           gx = Math.max(0, Math.min(td.segX - 2, gx));
           gz = Math.max(0, Math.min(td.segZ - 2, gz));
           var ix = Math.floor(gx), iz = Math.floor(gz);
@@ -3705,7 +3705,7 @@ export function getVisualEditBridgeScript(): string {
             _hfMatrix.push([]);
             for (var hz = 0; hz < _tpSegZ; hz++) {
               // Terrain data is row-major (Z * segX + X), need to transpose for CANNON
-              _hfMatrix[hx].push(_tpHeightData[hz * _tpSegX + hx]);
+              _hfMatrix[hx].push(_tpHeightData[(_tpSegZ - 1 - hz) * _tpSegX + hx]);
             }
           }
 
@@ -3785,7 +3785,7 @@ export function getVisualEditBridgeScript(): string {
                 for (var dx = 0; dx < dTD.segX; dx++) {
                   dm.push([]);
                   for (var dz = 0; dz < dTD.segZ; dz++) {
-                    dm[dx].push(dTD.heightData[dz * dTD.segX + dx]);
+                    dm[dx].push(dTD.heightData[(dTD.segZ - 1 - dz) * dTD.segX + dx]);
                   }
                 }
                 var dES = dTD.width / (dTD.segX - 1);
