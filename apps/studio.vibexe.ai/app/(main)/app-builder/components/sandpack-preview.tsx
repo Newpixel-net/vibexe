@@ -1384,6 +1384,10 @@ export function SandpackPreview({
 				gameEditor.setUndoRedoState(!!data.canUndo, !!data.canRedo);
 			} else if (data.type === "game-editor-object-duplicated") {
 				gameEditor.requestSceneTree();
+			} else if (data.type === "game-editor-request-group") {
+				gameEditor.groupSelected();
+			} else if (data.type === "game-editor-objects-grouped" || data.type === "game-editor-objects-ungrouped") {
+				gameEditor.requestSceneTree();
 			} else if (data.type === "game-editor-scene-dirty") {
 				gameEditor.setDirty(true);
 			} else if (data.type === "game-editor-object-deleted") {
@@ -1653,8 +1657,14 @@ export function SandpackPreview({
 			if (tag === "input" || tag === "textarea" || tag === "select") return;
 			const iframe = iframeRef.current;
 			if (!iframe?.contentWindow) return;
-			// Forward relevant keys
+			// Ctrl+G — Group selected objects (handled at parent level, multi-select state lives here)
 			const key = e.key.toLowerCase();
+			if ((e.ctrlKey || e.metaKey) && key === "g") {
+				gameEditor.groupSelected();
+				e.preventDefault();
+				return;
+			}
+			// Forward relevant keys
 			const forwarded = ["f", "g", "w", "e", "r", "q", "x", "escape", "delete", "backspace"].includes(key)
 				|| ((e.ctrlKey || e.metaKey) && (key === "z" || key === "y" || key === "d"));
 			if (forwarded) {

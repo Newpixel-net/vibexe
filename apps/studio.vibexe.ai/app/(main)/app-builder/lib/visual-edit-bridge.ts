@@ -1802,6 +1802,11 @@ export function getVisualEditBridgeScript(): string {
     if ((e.ctrlKey || e.metaKey) && (e.key === "d" || e.key === "D")) {
       duplicateSelected(); e.preventDefault(); return;
     }
+    // Ctrl+G — Group (forward to parent for multi-select grouping)
+    if ((e.ctrlKey || e.metaKey) && (e.key === "g" || e.key === "G")) {
+      window.parent.postMessage({ type: "game-editor-request-group" }, "*");
+      e.preventDefault(); return;
+    }
     switch (e.key) {
       case "q": case "Q":
         panToolActive = true;
