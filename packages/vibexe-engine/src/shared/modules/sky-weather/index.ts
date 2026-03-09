@@ -617,6 +617,202 @@ SkyLighting.prototype.dispose = function() {
 
 
 // ============================================================
+// WeatherParticles — Rain & Snow GPU particle system
+// ============================================================
+
+function WeatherParticles(scene) {
+  this.scene = scene;
+  this._points = null;
+  this._positions = null;
+  this._velocities = null;
+  this._count = 0;
+  this._type = "none";
+  this._area = 80;
+  this._height = 60;
+}
+
+WeatherParticles.prototype.update = function(dt, config) {
+  var type = (config && config.type) || "none";
+  var intensity = (config && config.intensity) || 0;
+
+  var targetCount = 0;
+  if (type === "rain") targetCount = Math.floor(intensity * 8000);
+  else if (type === "snow") targetCount = Math.floor(intensity * 3000);
+
+  if (type !== this._type || Math.abs(targetCount - this._count) > 500) {
+    this._rebuild(type, targetCount);
+  }
+
+  if (!this._points || this._count === 0) return;
+
+  var windDir = (config && config.windDirection !== undefined) ? config.windDirection : 0;
+  var windStr = (config && config.windStrength !== undefined) ? config.windStrength : 0.3;
+  var windRad = windDir * Math.PI / 180;
+  var windX = Math.sin(windRad) * windStr * 8;
+  var windZ = Math.cos(windRad) * windStr * 8;
+
+  var pos = this._positions;
+  var vel = this._velocities;
+  var area = this._area;
+  var height = this._height;
+
+  var cx = 0, cz = 0;
+  var player = window.__vibexe_playerMesh__;
+  if (player) { cx = player.position.x; cz = player.position.z; }
+
+  var now = performance.now() * 0.001;
+
+  for (var i = 0; i < this._count; i++) {
+    var i3 = i * 3;
+    pos[i3]     += (vel[i3] + windX) * dt;
+    pos[i3 + 1] += vel[i3 + 1] * dt;
+    pos[i3 + 2] += (vel[i3 + 2] + windZ) * dt;
+
+    if (this._type === "snow") {
+      pos[i3]     += Math.sin(now * 1.2 + i * 0.37) * 0.6 * dt;
+      pos[i3 + 2] += Math.cos(now * 0.9 + i * 0.53) * 0.4 * dt;
+    }
+
+    if (pos[i3 + 1] < -2 ||
+        Math.abs(pos[i3] - cx) > area ||
+        Math.abs(pos[i3 + 2] - cz) > area) {
+      pos[i3]     = cx + (Math.random() - 0.5) * area * 2;
+      pos[i3 + 1] = height * (0.5 + Math.random() * 0.5);
+      pos[i3 + 2] = cz + (Math.random() - 0.5) * area * 2;
+    }
+  }
+
+  this._points.geometry.attributes.position.needsUpdate = true;
+};
+
+WeatherParticles.prototype._rebuild = function(type, count) {
+  if (this._points) {
+    this.scene.remove(this._points);
+    this._points.geometry.dispose();
+    this._points.material.dispose();
+    this._points = null;
+  }
+
+  this._type = type;
+  this._count = count;
+  if (count === 0 || type === "none") return;
+
+  var geo = new THREE.BufferGeometry();
+  this._positions = new Float32Array(count * 3);
+  this._velocities = new Float32Array(count * 3);
+
+  var area = this._area;
+  var height = this._height;
+
+  for (var i = 0; i < count; i++) {
+    var i3 = i * 3;
+    this._positions[i3]     = (Math.random() - 0.5) * area * 2;
+    this._positions[i3 + 1] = Math.random() * height;
+    this._positions[i3 + 2] = (Math.random() - 0.5) * area * 2;
+
+    if (type === "rain") {
+      this._velocities[i3]     = 0;
+      this._velocities[i3 + 1] = -(15 + Math.random() * 10);
+      this._velocities[i3 + 2] = 0;
+    } else {
+      this._velocities[i3]     = 0;
+      this._velocities[i3 + 1] = -(1.5 + Math.random() * 1.5);
+      this._velocities[i3 + 2] = 0;
+    }
+  }
+
+  geo.setAttribute("position", new THREE.BufferAttribute(this._positions, 3));
+
+  var mat;
+  if (type === "rain") {
+    mat = new THREE.PointsMaterial({
+      color: 0xaaccee, size: 0.15, transparent: true,
+      opacity: 0.4, sizeAttenuation: true, depthWrite: false
+    });
+  } else {
+    mat = new THREE.PointsMaterial({
+      color: 0xffffff, size: 0.35, transparent: true,
+      opacity: 0.7, sizeAttenuation: true, depthWrite: false
+    });
+  }
+
+  this._points = new THREE.Points(geo, mat);
+  this._points.name = "__weatherParticles__";
+  this._points.frustumCulled = false;
+  this._points.renderOrder = 100;
+  this.scene.add(this._points);
+};
+
+WeatherParticles.prototype.dispose = function() {
+  if (this._points) {
+    this.scene.remove(this._points);
+    this._points.geometry.dispose();
+    this._points.material.dispose();
+    this._points = null;
+  }
+};
+
+
+// ============================================================
+// LightningEffect — Random lightning flashes during storms
+// ============================================================
+
+function LightningEffect(scene) {
+  this.scene = scene;
+  this._flashLight = null;
+  this._timer = 0;
+  this._nextFlash = 3 + Math.random() * 8;
+  this._flashing = false;
+  this._flashDur = 0;
+}
+
+LightningEffect.prototype.update = function(dt, config) {
+  if (!config || !config.enabled) {
+    if (this._flashLight) {
+      this.scene.remove(this._flashLight);
+      this._flashLight = null;
+    }
+    this._flashing = false;
+    return;
+  }
+
+  this._timer += dt;
+  var freq = config.frequency || 0.1;
+  var interval = 1 / Math.max(0.01, freq);
+
+  if (!this._flashing && this._timer >= this._nextFlash) {
+    this._flashing = true;
+    this._flashDur = 0.08 + Math.random() * 0.12;
+
+    if (!this._flashLight) {
+      this._flashLight = new THREE.AmbientLight(0xccddff, 0);
+      this._flashLight.name = "__lightningFlash__";
+      this.scene.add(this._flashLight);
+    }
+    this._flashLight.intensity = 2.0 + Math.random() * 3.0;
+
+    try { window.parent.postMessage({ type: "sky-weather-lightning-flash" }, "*"); } catch(e) {}
+  }
+
+  if (this._flashing) {
+    this._flashDur -= dt;
+    if (this._flashDur <= 0) {
+      this._flashing = false;
+      if (this._flashLight) this._flashLight.intensity = 0;
+      this._nextFlash = this._timer + interval * (0.5 + Math.random());
+    }
+  }
+};
+
+LightningEffect.prototype.dispose = function() {
+  if (this._flashLight) {
+    this.scene.remove(this._flashLight);
+    this._flashLight = null;
+  }
+};
+
+
+// ============================================================
 // SkyWeatherSystem — Facade combining all subsystems
 // ============================================================
 
@@ -627,7 +823,9 @@ function SkyWeatherSystem(scene, config) {
     sky:  { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 2.0 },
     lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true },
     fog: { enabled: false, autoColor: true, density: 0.003 },
-    clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 }
+    clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
+    precipitation: { type: "none", intensity: 0, windDirection: 0, windStrength: 0.3 },
+    lightning: { enabled: false, frequency: 0.1 }
   };
   if (config) this._merge(config);
 
@@ -642,6 +840,8 @@ function SkyWeatherSystem(scene, config) {
   this.solar = new SolarCalculator();
   this.skyDome = new ProceduralSkyDome(scene);
   this.lighting = new SkyLighting(scene);
+  this.particles = new WeatherParticles(scene);
+  this.lightning = new LightningEffect(scene);
 
   // Initial update
   this.solar.update(this.solarTime, this.config.time.latitude);
@@ -707,6 +907,12 @@ SkyWeatherSystem.prototype._tick = function(dt) {
     this.skyDome._u.uCloudOff.value.y += dt * cSpeed * 0.3;
   }
 
+  // Precipitation particles
+  if (this.particles) this.particles.update(dt, this.config.precipitation);
+
+  // Lightning
+  if (this.lightning) this.lightning.update(dt, this.config.lightning);
+
   // Fog
   if (this.config.fog.enabled) {
     this._updateFog();
@@ -770,6 +976,8 @@ SkyWeatherSystem.prototype.destroy = function() {
 
   this.skyDome.dispose();
   this.lighting.dispose();
+  if (this.particles) this.particles.dispose();
+  if (this.lightning) this.lightning.dispose();
 
   if (this._origBg !== null) this.scene.background = this._origBg;
   if (this.scene.fog && this.scene.fog.__skyWeather) this.scene.fog = null;
@@ -791,7 +999,9 @@ if (typeof window !== "undefined") {
     SolarCalculator: SolarCalculator,
     ProceduralSkyDome: ProceduralSkyDome,
     SkyLighting: SkyLighting,
-    SkyColorPalette: SkyColorPalette
+    SkyColorPalette: SkyColorPalette,
+    WeatherParticles: WeatherParticles,
+    LightningEffect: LightningEffect
   };
 
   // Auto-init when scene becomes available
@@ -824,7 +1034,9 @@ module.exports = {
   SolarCalculator: SolarCalculator,
   ProceduralSkyDome: ProceduralSkyDome,
   SkyLighting: SkyLighting,
-  SkyColorPalette: SkyColorPalette
+  SkyColorPalette: SkyColorPalette,
+  WeatherParticles: WeatherParticles,
+  LightningEffect: LightningEffect
 };
 `,
 	bridgeHandlers: {
@@ -865,6 +1077,16 @@ module.exports = {
 			speed: 1.0,
 			scale: 3.0,
 			brightness: 1.0,
+		},
+		precipitation: {
+			type: "none",
+			intensity: 0,
+			windDirection: 0,
+			windStrength: 0.3,
+		},
+		lightning: {
+			enabled: false,
+			frequency: 0.1,
 		},
 	},
 };

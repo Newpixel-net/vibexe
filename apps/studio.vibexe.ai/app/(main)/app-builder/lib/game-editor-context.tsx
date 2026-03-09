@@ -175,6 +175,8 @@ export interface GameSettings {
 		lighting?: { autoSunLight?: boolean; autoAmbient?: boolean; sunIntensity?: number; ambientIntensity?: number; shadowsEnabled?: boolean };
 		fog?: { enabled?: boolean; autoColor?: boolean; density?: number };
 		clouds?: { coverage?: number; density?: number; speed?: number; scale?: number; brightness?: number };
+		precipitation?: { type?: string; intensity?: number; windDirection?: number; windStrength?: number };
+		lightning?: { enabled?: boolean; frequency?: number };
 	};
 	terrain?: {
 		enabled?: boolean;

@@ -11,6 +11,7 @@ import {
 	Clock,
 	Cloud,
 	CloudSun,
+	Droplets,
 	Eye,
 	Lightbulb,
 	Moon,
@@ -18,6 +19,7 @@ import {
 	RotateCcw,
 	Sun,
 	X,
+	Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GameSettings } from "../lib/game-editor-context";
@@ -56,6 +58,16 @@ interface SkyWeatherConfig {
 		scale?: number;
 		brightness?: number;
 	};
+	precipitation?: {
+		type?: string;
+		intensity?: number;
+		windDirection?: number;
+		windStrength?: number;
+	};
+	lightning?: {
+		enabled?: boolean;
+		frequency?: number;
+	};
 }
 
 interface SkyWeatherPanelProps {
@@ -71,13 +83,15 @@ interface SkyWeatherPanelProps {
 type SkyTab = "time" | "sky" | "clouds" | "lighting" | "fog";
 
 const WEATHER_PRESETS = [
-	{ label: "Clear", icon: "☀️", clouds: { coverage: 0 }, fog: { enabled: false } },
-	{ label: "Fair", icon: "🌤", clouds: { coverage: 0.2, brightness: 1.0 }, fog: { enabled: false } },
-	{ label: "Partly Cloudy", icon: "⛅", clouds: { coverage: 0.5, brightness: 1.0 }, fog: { enabled: false } },
-	{ label: "Cloudy", icon: "☁️", clouds: { coverage: 0.8, brightness: 0.9 }, fog: { enabled: true, density: 0.002 } },
-	{ label: "Overcast", icon: "🌥", clouds: { coverage: 1.0, brightness: 0.65 }, fog: { enabled: true, density: 0.004 } },
-	{ label: "Foggy", icon: "🌫", clouds: { coverage: 0.6, brightness: 0.6 }, fog: { enabled: true, density: 0.02, autoColor: true } },
-	{ label: "Stormy", icon: "⛈", clouds: { coverage: 0.95, brightness: 0.35, density: 1.0 }, fog: { enabled: true, density: 0.008, autoColor: true } },
+	{ label: "Clear", icon: "☀️", clouds: { coverage: 0 }, fog: { enabled: false }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
+	{ label: "Fair", icon: "🌤", clouds: { coverage: 0.2, brightness: 1.0 }, fog: { enabled: false }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
+	{ label: "Partly Cloudy", icon: "⛅", clouds: { coverage: 0.5, brightness: 1.0 }, fog: { enabled: false }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
+	{ label: "Cloudy", icon: "☁️", clouds: { coverage: 0.8, brightness: 0.9 }, fog: { enabled: true, density: 0.002 }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
+	{ label: "Overcast", icon: "🌥", clouds: { coverage: 1.0, brightness: 0.65 }, fog: { enabled: true, density: 0.004 }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
+	{ label: "Rainy", icon: "🌧", clouds: { coverage: 0.85, brightness: 0.5 }, fog: { enabled: true, density: 0.004, autoColor: true }, precipitation: { type: "rain", intensity: 0.6 }, lightning: { enabled: false } },
+	{ label: "Snowy", icon: "🌨", clouds: { coverage: 0.9, brightness: 0.7 }, fog: { enabled: true, density: 0.006, autoColor: true }, precipitation: { type: "snow", intensity: 0.7 }, lightning: { enabled: false } },
+	{ label: "Foggy", icon: "🌫", clouds: { coverage: 0.6, brightness: 0.6 }, fog: { enabled: true, density: 0.02, autoColor: true }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
+	{ label: "Stormy", icon: "⛈", clouds: { coverage: 0.95, brightness: 0.35, density: 1.0 }, fog: { enabled: true, density: 0.008, autoColor: true }, precipitation: { type: "rain", intensity: 0.9, windStrength: 0.7 }, lightning: { enabled: true, frequency: 0.15 } },
 ] as const;
 
 const TIME_PRESETS = [
@@ -108,6 +122,8 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 		lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true, ...skyWeather?.lighting },
 		fog: { enabled: false, autoColor: true, density: 0.003, ...skyWeather?.fog },
 		clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0, ...skyWeather?.clouds },
+		precipitation: { type: "none", intensity: 0, windDirection: 0, windStrength: 0.3, ...skyWeather?.precipitation },
+		lightning: { enabled: false, frequency: 0.1, ...skyWeather?.lightning },
 	}));
 
 	// Track whether user made changes (for auto-save on close)
@@ -121,6 +137,8 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 			lighting: { ...config.lighting, ...patch.lighting },
 			fog: { ...config.fog, ...patch.fog },
 			clouds: { ...config.clouds, ...patch.clouds },
+			precipitation: { ...config.precipitation, ...patch.precipitation },
+			lightning: { ...config.lightning, ...patch.lightning },
 		};
 		setConfig(merged);
 		latestConfigRef.current = merged;
@@ -343,6 +361,8 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 											sendConfig({
 												clouds: { ...config.clouds, ...preset.clouds },
 												fog: { ...config.fog, ...preset.fog },
+												precipitation: { ...config.precipitation, ...preset.precipitation },
+												lightning: { ...config.lightning, ...preset.lightning },
 											});
 										}}
 										className="px-2 py-1.5 text-[10px] rounded-lg bg-white/[0.04] text-white/50 hover:bg-white/[0.08] hover:text-white/70 transition-all text-left"
@@ -390,6 +410,80 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 								format={(v) => v.toFixed(2)}
 								onChange={(v) => sendConfig({ clouds: { ...config.clouds, brightness: v } })}
 							/>
+						</div>
+
+						{/* Precipitation */}
+						<div className="border-t border-white/[0.06] pt-3">
+							<div className="flex items-center gap-1.5 mb-2">
+								<Droplets className="w-3 h-3 text-blue-400" />
+								<span className="text-[10px] text-white/50 uppercase tracking-wider">Precipitation</span>
+							</div>
+
+							{/* Type selector */}
+							<div className="grid grid-cols-3 gap-1 mb-2">
+								{(["none", "rain", "snow"] as const).map((pType) => (
+									<button
+										key={pType}
+										type="button"
+										onClick={() => sendConfig({ precipitation: { ...config.precipitation, type: pType, intensity: pType === "none" ? 0 : (config.precipitation?.intensity || 0.5) } })}
+										className={`px-2 py-1.5 text-[10px] rounded-lg transition-all capitalize ${
+											(config.precipitation?.type ?? "none") === pType
+												? "bg-blue-500/[0.15] text-blue-300 border border-blue-500/[0.25]"
+												: "bg-white/[0.04] text-white/50 hover:bg-white/[0.08]"
+										}`}
+									>
+										{pType === "none" ? "Off" : pType === "rain" ? "🌧 Rain" : "🌨 Snow"}
+									</button>
+								))}
+							</div>
+
+							{config.precipitation?.type && config.precipitation.type !== "none" && (
+								<>
+									<SliderRow
+										label="Intensity"
+										value={config.precipitation?.intensity ?? 0.5}
+										min={0.1} max={1} step={0.05}
+										format={(v) => `${Math.round(v * 100)}%`}
+										onChange={(v) => sendConfig({ precipitation: { ...config.precipitation, intensity: v } })}
+									/>
+									<SliderRow
+										label="Wind Direction"
+										value={config.precipitation?.windDirection ?? 0}
+										min={0} max={360} step={5}
+										format={(v) => `${Math.round(v)}°`}
+										onChange={(v) => sendConfig({ precipitation: { ...config.precipitation, windDirection: v } })}
+									/>
+									<SliderRow
+										label="Wind Strength"
+										value={config.precipitation?.windStrength ?? 0.3}
+										min={0} max={1} step={0.05}
+										format={(v) => v.toFixed(2)}
+										onChange={(v) => sendConfig({ precipitation: { ...config.precipitation, windStrength: v } })}
+									/>
+								</>
+							)}
+						</div>
+
+						{/* Lightning */}
+						<div className="border-t border-white/[0.06] pt-3">
+							<div className="flex items-center gap-1.5 mb-2">
+								<Zap className="w-3 h-3 text-yellow-400" />
+								<span className="text-[10px] text-white/50 uppercase tracking-wider">Lightning</span>
+							</div>
+							<ToggleRow
+								label="Enable Lightning"
+								value={config.lightning?.enabled ?? false}
+								onChange={(v) => sendConfig({ lightning: { ...config.lightning, enabled: v } })}
+							/>
+							{config.lightning?.enabled && (
+								<SliderRow
+									label="Frequency"
+									value={config.lightning?.frequency ?? 0.1}
+									min={0.02} max={0.5} step={0.01}
+									format={(v) => `${v.toFixed(2)}/s`}
+									onChange={(v) => sendConfig({ lightning: { ...config.lightning, frequency: v } })}
+								/>
+							)}
 						</div>
 					</>
 				)}
@@ -480,6 +574,8 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 							lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true },
 							fog: { enabled: false, autoColor: true, density: 0.003 },
 							clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
+							precipitation: { type: "none", intensity: 0, windDirection: 0, windStrength: 0.3 },
+							lightning: { enabled: false, frequency: 0.1 },
 						};
 						setConfig(defaults);
 						latestConfigRef.current = defaults;
