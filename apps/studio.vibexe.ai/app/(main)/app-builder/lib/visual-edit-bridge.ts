@@ -499,6 +499,7 @@ export function getVisualEditBridgeScript(): string {
   var mouse = null;
   var selectedObj = null;
   var boxHelper = null;
+  var multiBoxHelpers = [];
   var transformControls = null;
   var editor = null;
   var editorAnimId = 0;
@@ -961,6 +962,31 @@ export function getVisualEditBridgeScript(): string {
       window.parent.postMessage({ type: "game-editor-pivot-mode-changed", mode: "center" }, "*");
     }
     window.parent.postMessage({ type: "game-editor-object-deselected" }, "*");
+  }
+
+  function clearMultiHighlight() {
+    if (!editor) return;
+    for (var i = 0; i < multiBoxHelpers.length; i++) {
+      editor.scene.remove(multiBoxHelpers[i]);
+      if (multiBoxHelpers[i].dispose) multiBoxHelpers[i].dispose();
+    }
+    multiBoxHelpers = [];
+  }
+
+  function setMultiHighlight(uuids) {
+    clearMultiHighlight();
+    if (!editor || !uuids || uuids.length === 0) return;
+    var THREE = window.THREE;
+    for (var i = 0; i < uuids.length; i++) {
+      var obj = findByUuid(editor.scene, uuids[i]);
+      if (!obj) continue;
+      // Skip the currently selected object (it already has boxHelper)
+      if (selectedObj && selectedObj.uuid === obj.uuid) continue;
+      var bh = new THREE.BoxHelper(obj, 0x4488ff);
+      bh.name = "__editor_multi_box_" + i + "__";
+      editor.scene.add(bh);
+      multiBoxHelpers.push(bh);
+    }
   }
 
   function selectObject(obj) {
@@ -2179,6 +2205,7 @@ export function getVisualEditBridgeScript(): string {
     // Clean up animation progress interval
     if (__animProgressInterval) { clearInterval(__animProgressInterval); __animProgressInterval = null; }
     deselectObject();
+    clearMultiHighlight();
     // Dispose reusable TransformControls on bridge deactivation
     if (transformControls && editor) {
       transformControls.detach();
@@ -2557,6 +2584,12 @@ export function getVisualEditBridgeScript(): string {
             sendSceneTree();
           }
         } break;
+      case "game-editor-multi-highlight":
+        if (editor && d.uuids) setMultiHighlight(d.uuids);
+        break;
+      case "game-editor-clear-multi-highlight":
+        clearMultiHighlight();
+        break;
       case "game-editor-set-snap-settings":
         if (typeof d.gridIncrement === "number") gridSnapIncrement = d.gridIncrement;
         if (typeof d.rotationDeg === "number") rotationSnapDeg = d.rotationDeg;

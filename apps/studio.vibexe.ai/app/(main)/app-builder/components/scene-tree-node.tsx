@@ -4,6 +4,7 @@
  * SceneTreeNode — Recursive collapsible tree node for scene hierarchy.
  * Shows type icon, name, color dot, expand/collapse for groups.
  * Visibility toggle via eye icon click.
+ * Supports multi-select via Shift+click.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -31,7 +32,9 @@ interface SceneTreeNodeProps {
 	node: SceneNode;
 	depth: number;
 	selectedUuid: string | null;
+	selectedUuids?: string[];
 	onSelect: (uuid: string) => void;
+	onMultiSelect?: (uuid: string) => void;
 	onDoubleClick?: (uuid: string) => void;
 	onToggleVisibility?: (uuid: string) => void;
 	onToggleLock?: (uuid: string) => void;
@@ -75,7 +78,9 @@ export function SceneTreeNode({
 	node,
 	depth,
 	selectedUuid,
+	selectedUuids,
 	onSelect,
+	onMultiSelect,
 	onDoubleClick,
 	onToggleVisibility,
 	onToggleLock,
@@ -84,12 +89,17 @@ export function SceneTreeNode({
 	const [expanded, setExpanded] = useState(depth < 1);
 	const hasChildren = node.children.length > 0;
 	const isSelected = node.uuid === selectedUuid;
+	const isMultiSelected = selectedUuids?.includes(node.uuid) ?? false;
 	const rowRef = useRef<HTMLDivElement>(null);
 
 	// ALL hooks MUST be called before any conditional returns (Rules of Hooks)
-	const handleClick = useCallback(() => {
-		onSelect(node.uuid);
-	}, [node.uuid, onSelect]);
+	const handleClick = useCallback((e: React.MouseEvent) => {
+		if (e.shiftKey && onMultiSelect) {
+			onMultiSelect(node.uuid);
+		} else {
+			onSelect(node.uuid);
+		}
+	}, [node.uuid, onSelect, onMultiSelect]);
 
 	const handleDoubleClick = useCallback(() => {
 		onDoubleClick?.(node.uuid);
@@ -159,15 +169,18 @@ export function SceneTreeNode({
 		displayName = node.name || `${node.userData.vibexeType}`;
 	}
 
+	// Row highlight: primary (violet) for active selection, secondary (blue) for multi-select
+	const rowClass = isSelected
+		? "bg-violet-500/20 text-violet-200"
+		: isMultiSelected
+			? "bg-blue-500/15 text-blue-200"
+			: "hover:bg-white/[0.06] text-white/60 hover:text-white/80";
+
 	return (
 		<div>
 			<div
 				ref={rowRef}
-				className={`group/node flex items-center gap-1 px-1 py-[3px] cursor-pointer rounded-sm transition-colors ${
-					isSelected
-						? "bg-violet-500/20 text-violet-200"
-						: "hover:bg-white/[0.06] text-white/60 hover:text-white/80"
-				}`}
+				className={`group/node flex items-center gap-1 px-1 py-[3px] cursor-pointer rounded-sm transition-colors ${rowClass}`}
 				style={{ paddingLeft: depth * 12 + 4 }}
 				onClick={handleClick}
 				onDoubleClick={handleDoubleClick}
@@ -240,7 +253,9 @@ export function SceneTreeNode({
 							node={child}
 							depth={depth + 1}
 							selectedUuid={selectedUuid}
+							selectedUuids={selectedUuids}
 							onSelect={onSelect}
+							onMultiSelect={onMultiSelect}
 							onDoubleClick={onDoubleClick}
 							onToggleVisibility={onToggleVisibility}
 							onToggleLock={onToggleLock}

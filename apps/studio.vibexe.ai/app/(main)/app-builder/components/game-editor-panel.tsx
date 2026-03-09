@@ -51,6 +51,9 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 		renameObject,
 		toggleVisibility,
 		toggleLock,
+		selectedUuids,
+		toggleMultiSelect,
+		deleteSelected,
 		hierarchySearch,
 		setHierarchySearch,
 		// Settings data from context
@@ -167,6 +170,14 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 		[selectAndFocus, sceneTree],
 	);
 
+	const handleMultiSelect = useCallback(
+		(uuid: string) => {
+			if (sceneTree && uuid === sceneTree.uuid) return;
+			toggleMultiSelect(uuid);
+		},
+		[toggleMultiSelect, sceneTree],
+	);
+
 	const handlePropertyChange = useCallback(
 		(property: string, value: any) => {
 			if (!selectedObject) return;
@@ -181,10 +192,13 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 	}, [selectedObject]);
 
 	const handleConfirmDelete = useCallback(() => {
-		if (!selectedObject) return;
-		deleteObject(selectedObject.uuid);
+		if (selectedUuids.length > 1) {
+			deleteSelected();
+		} else if (selectedObject) {
+			deleteObject(selectedObject.uuid);
+		}
 		setDeleteDialogOpen(false);
-	}, [selectedObject, deleteObject]);
+	}, [selectedObject, selectedUuids, deleteObject, deleteSelected]);
 
 	// Name editing
 	const handleStartNameEdit = useCallback(() => {
@@ -306,7 +320,9 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 							node={sceneTree}
 							depth={0}
 							selectedUuid={selectedObject?.uuid || null}
+							selectedUuids={selectedUuids}
 							onSelect={handleTreeSelect}
+							onMultiSelect={handleMultiSelect}
 							onDoubleClick={handleTreeDoubleClick}
 							onToggleVisibility={handleToggleVisibility}
 							onToggleLock={handleToggleLock}
@@ -1146,6 +1162,40 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 								Delete Object
 							</button>
 						</div>
+					) : selectedUuids.length > 1 ? (
+						<div className="p-3 space-y-3">
+							<div>
+								<div className="text-[13px] font-medium text-white/90">{selectedUuids.length} objects selected</div>
+								<div className="text-[10px] text-white/30">Shift+click to add/remove</div>
+							</div>
+							<div className="space-y-1">
+								<button
+									type="button"
+									onClick={() => {
+										for (const uuid of selectedUuids) toggleVisibility(uuid);
+									}}
+									className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-[10px] text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-colors"
+								>
+									<Eye className="w-3 h-3" /> Toggle Visibility
+								</button>
+								<button
+									type="button"
+									onClick={() => {
+										for (const uuid of selectedUuids) toggleLock(uuid);
+									}}
+									className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-[10px] text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-colors"
+								>
+									<Lock className="w-3 h-3" /> Toggle Lock
+								</button>
+								<button
+									type="button"
+									onClick={() => setDeleteDialogOpen(true)}
+									className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-[10px] text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+								>
+									<Trash2 className="w-3 h-3" /> Delete {selectedUuids.length} Objects
+								</button>
+							</div>
+						</div>
 					) : (
 						<div className="px-3 py-8 text-center">
 							<div className="text-[11px] text-white/25">
@@ -1179,9 +1229,11 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 			<Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
 				<DialogContent variant="destructive">
 					<DialogHeader>
-						<DialogTitle>Delete Object</DialogTitle>
+						<DialogTitle>{selectedUuids.length > 1 ? `Delete ${selectedUuids.length} Objects` : "Delete Object"}</DialogTitle>
 						<DialogDescription>
-							Are you sure you want to delete &quot;{selectedObject?.name || "Unnamed"}&quot;? This action can be undone with Ctrl+Z.
+							{selectedUuids.length > 1
+								? `Are you sure you want to delete ${selectedUuids.length} objects? This action can be undone with Ctrl+Z.`
+								: `Are you sure you want to delete "${selectedObject?.name || "Unnamed"}"? This action can be undone with Ctrl+Z.`}
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter>

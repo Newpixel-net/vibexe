@@ -225,6 +225,7 @@ interface GameEditorContextValue {
 	enabled: boolean;
 	sceneTree: SceneNode | null;
 	selectedObject: SelectedSceneObject | null;
+	selectedUuids: string[];
 	gizmoMode: GizmoMode;
 	snapEnabled: boolean;
 	isDirty: boolean;
@@ -264,6 +265,9 @@ interface GameEditorContextValue {
 	setEnabled: (v: boolean) => void;
 	setGizmoMode: (mode: GizmoMode) => void;
 	selectObjectByUuid: (uuid: string) => void;
+	toggleMultiSelect: (uuid: string) => void;
+	clearMultiSelect: () => void;
+	deleteSelected: () => void;
 	deselectObject: () => void;
 	updateSceneTree: (tree: SceneNode) => void;
 	updateSelectedObject: (obj: SelectedSceneObject | null) => void;
@@ -351,6 +355,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [selectedObject, setSelectedObject] = useState<SelectedSceneObject | null>(null);
 	const [gizmoMode, setGizmoModeState] = useState<GizmoMode>("translate");
 	const [snapEnabled, setSnapEnabledState] = useState(false);
+	const [selectedUuids, setSelectedUuids] = useState<string[]>([]);
 	const [isDirty, setIsDirty] = useState(false);
 	const [isSaving, setIsSaving] = useState(false);
 	const [animationClips, setAnimationClipsState] = useState<string[]>([]);
@@ -498,6 +503,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	}, [sendToIframe]);
 
 	const selectObjectByUuid = useCallback((uuid: string) => {
+		setSelectedUuids([uuid]);
 		if (uuid === "__game_camera__") {
 			sendToIframe({ type: "game-editor-select-camera", uuid });
 		} else {
@@ -505,8 +511,42 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		}
 	}, [sendToIframe]);
 
+	const toggleMultiSelect = useCallback((uuid: string) => {
+		setSelectedUuids((prev) => {
+			const next = prev.includes(uuid) ? prev.filter((u) => u !== uuid) : [...prev, uuid];
+			// Highlight all in iframe
+			sendToIframe({ type: "game-editor-multi-highlight", uuids: next });
+			// If toggling off the currently inspected object, select last remaining
+			if (next.length > 0) {
+				const lastUuid = next[next.length - 1];
+				sendToIframe({ type: "game-editor-select-by-uuid", uuid: lastUuid });
+			} else {
+				sendToIframe({ type: "game-editor-deselect" });
+				setSelectedObject(null);
+			}
+			return next;
+		});
+	}, [sendToIframe]);
+
+	const clearMultiSelect = useCallback(() => {
+		setSelectedUuids([]);
+		sendToIframe({ type: "game-editor-clear-multi-highlight" });
+	}, [sendToIframe]);
+
+	const deleteSelected = useCallback(() => {
+		if (selectedUuids.length === 0) return;
+		for (const uuid of selectedUuids) {
+			sendToIframe({ type: "game-editor-delete-object", uuid });
+		}
+		setSelectedUuids([]);
+		setSelectedObject(null);
+		setIsDirty(true);
+	}, [selectedUuids, sendToIframe]);
+
 	const deselectObject = useCallback(() => {
 		setSelectedObject(null);
+		setSelectedUuids([]);
+		sendToIframe({ type: "game-editor-clear-multi-highlight" });
 		sendToIframe({ type: "game-editor-deselect" });
 		// Reset animation state
 		setAnimationClipsState([]);
@@ -957,6 +997,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				enabled,
 				sceneTree,
 				selectedObject,
+				selectedUuids,
 				gizmoMode,
 				snapEnabled,
 				isDirty,
@@ -989,6 +1030,9 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				setEnabled,
 				setGizmoMode,
 				selectObjectByUuid,
+				toggleMultiSelect,
+				clearMultiSelect,
+				deleteSelected,
 				deselectObject,
 				updateSceneTree: setSceneTree,
 				updateSelectedObject: setSelectedObject,
