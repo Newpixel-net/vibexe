@@ -1081,6 +1081,10 @@ SkyWeatherSystem.prototype._merge = function(src) {
       }
     }
   }
+  // Sync the running solarTime if time config was updated
+  if (src.time && src.time.solarTime !== undefined) {
+    this.solarTime = src.time.solarTime;
+  }
 };
 
 SkyWeatherSystem.prototype._startLoop = function() {
@@ -1286,8 +1290,15 @@ if (typeof window !== "undefined") {
         var settings = {};
         try {
           var gs = window.__VIBEXE_GAME_SETTINGS__;
-          if (gs && gs.modules && gs.modules.installed && gs.modules.installed["sky-weather"]) {
-            settings = gs.modules.installed["sky-weather"].config || {};
+          if (gs) {
+            // Primary: top-level skyWeather config (saved by SkyWeatherPanel)
+            if (gs.skyWeather && typeof gs.skyWeather === "object") {
+              settings = gs.skyWeather;
+            }
+            // Fallback: module config (for legacy compatibility)
+            else if (gs.modules && gs.modules.installed && gs.modules.installed["sky-weather"]) {
+              settings = gs.modules.installed["sky-weather"].config || {};
+            }
           }
         } catch(e) {}
         window.__vibexe_skyWeather = new SkyWeatherSystem(scene, settings);

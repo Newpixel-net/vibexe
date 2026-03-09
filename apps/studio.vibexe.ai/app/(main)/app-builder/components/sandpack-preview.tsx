@@ -2490,7 +2490,12 @@ export function SandpackPreview({
 							}}
 							onSave={(skyConfig) => {
 								// Persist to DB — only called on explicit save or panel close
-								const updatedSettings = { ...gameEditor.gameSettings, skyWeather: skyConfig };
+								// Also mirror to modules.installed config so auto-init picks it up
+								const modules = { ...gameEditor.gameSettings.modules };
+								if (modules.installed?.["sky-weather"]) {
+									modules.installed = { ...modules.installed, "sky-weather": { ...modules.installed["sky-weather"], config: skyConfig } };
+								}
+								const updatedSettings = { ...gameEditor.gameSettings, skyWeather: skyConfig, modules };
 								handleSaveSettings(updatedSettings);
 							}}
 						/>
