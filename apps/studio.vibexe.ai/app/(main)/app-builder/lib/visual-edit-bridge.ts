@@ -2674,7 +2674,12 @@ export function getVisualEditBridgeScript(): string {
       case "game-editor-viewport-keydown":
         if (!active) break;
         // Simulate keydown event for the bridge's onKeyDown handler
-        var fakeEvent = { key: d.key, ctrlKey: !!d.ctrlKey, metaKey: !!d.metaKey, shiftKey: !!d.shiftKey, target: { tagName: "BODY" }, preventDefault: function() {} };
+        var _fkKey = d.key || "";
+        var _fkCode = "Key" + _fkKey.toUpperCase();
+        if (_fkKey === "Escape") _fkCode = "Escape";
+        else if (_fkKey === "Delete") _fkCode = "Delete";
+        else if (_fkKey === "Backspace") _fkCode = "Backspace";
+        var fakeEvent = { key: d.key, code: _fkCode, ctrlKey: !!d.ctrlKey, metaKey: !!d.metaKey, shiftKey: !!d.shiftKey, target: { tagName: "BODY" }, preventDefault: function() {} };
         onKeyDown(fakeEvent);
         break;
       case "game-editor-apply-texture": {

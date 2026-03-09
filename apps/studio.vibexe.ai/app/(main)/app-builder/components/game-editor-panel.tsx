@@ -5,7 +5,7 @@
  * Overlaid on the right side of the viewport when editor is active.
  */
 
-import { Box, Camera, Check, ChevronDown, ChevronRight, Copy, Eye, EyeOff, Focus, Layers, Paintbrush, Pause, Pencil, Play, Plus, Search, Settings, Square, Trash2, X } from "lucide-react";
+import { Box, Camera, Check, ChevronDown, ChevronRight, Copy, Eye, EyeOff, Focus, Lightbulb, Layers, Paintbrush, Pause, Pencil, Play, Plus, Search, Settings, Square, Sun, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@vibexe-internal/ui/dialog";
 import { DragNumberInput } from "./drag-number-input";
@@ -72,10 +72,15 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 		removeScene,
 		renameScene,
 		switchScene,
+		// Lights
+		addLight,
+		updateLight,
+		removeLight,
 	} = useGameEditor();
 
 	const [activeTab, setActiveTab] = useState<EditorTab>("properties");
 	const [scenesExpanded, setScenesExpanded] = useState(true);
+	const [lightDropdownOpen, setLightDropdownOpen] = useState(false);
 	const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
 	const [sceneNameValue, setSceneNameValue] = useState("");
 	const sceneNameInputRef = useRef<HTMLInputElement>(null);
@@ -89,6 +94,14 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 	const [texturePickerOpen, setTexturePickerOpen] = useState(false);
 	const [textureCategory, setTextureCategory] = useState<TextureCategory>("ground");
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+	// Close light dropdown on outside click
+	useEffect(() => {
+		if (!lightDropdownOpen) return;
+		const handler = () => setLightDropdownOpen(false);
+		const timer = setTimeout(() => document.addEventListener("click", handler), 0);
+		return () => { clearTimeout(timer); document.removeEventListener("click", handler); };
+	}, [lightDropdownOpen]);
 
 	// Auto-switch to Properties tab when an object is selected
 	useEffect(() => {
@@ -229,6 +242,37 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 					<span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">
 						Scene Hierarchy
 					</span>
+					{/* Add light dropdown */}
+					<div className="relative">
+						<button
+							type="button"
+							onClick={() => setLightDropdownOpen((v) => !v)}
+							className="p-0.5 rounded hover:bg-white/[0.08] text-white/30 hover:text-white/60 transition-colors"
+							title="Add light"
+						>
+							<Sun className="w-3 h-3" />
+						</button>
+						{lightDropdownOpen && (
+							<div className="absolute right-0 top-full mt-1 bg-[#1a1a2e] border border-white/[0.12] rounded-lg shadow-xl z-50 min-w-[120px] py-1">
+								<button
+									type="button"
+									onClick={() => { addLight("point"); setLightDropdownOpen(false); }}
+									className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-white/60 hover:bg-white/[0.06] hover:text-white/80 transition-colors"
+								>
+									<Sun className="w-3 h-3 text-amber-400" />
+									Point Light
+								</button>
+								<button
+									type="button"
+									onClick={() => { addLight("spot"); setLightDropdownOpen(false); }}
+									className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-white/60 hover:bg-white/[0.06] hover:text-white/80 transition-colors"
+								>
+									<Lightbulb className="w-3 h-3 text-blue-400" />
+									Spot Light
+								</button>
+							</div>
+						)}
+					</div>
 				</div>
 				{/* Hierarchy Search */}
 				<div className="px-2 pb-1">
@@ -948,6 +992,78 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 											</div>
 										</div>
 									)}
+								</Section>
+							)}
+
+							{/* Light Properties (for Point/Spot lights) */}
+							{selectedObject._isEditorLight && (
+								<Section title={`${selectedObject._lightType === "spot" ? "Spot" : "Point"} Light`}>
+									<div className="space-y-1.5">
+										{/* Color */}
+										<div className="flex items-center gap-2">
+											<span className="text-[9px] text-white/40 w-10">Color</span>
+											<input
+												type="color"
+												value={selectedObject._lightColor || "#ffffff"}
+												onChange={(e) => updateLight(selectedObject.name, { color: e.target.value })}
+												className="w-6 h-6 rounded border border-white/[0.15] bg-transparent cursor-pointer"
+											/>
+											<span className="text-[9px] text-white/30 font-mono">{selectedObject._lightColor || "#ffffff"}</span>
+										</div>
+										{/* Intensity */}
+										<DragNumberInput
+											label="Intensity"
+											value={selectedObject._lightIntensity ?? 1}
+											step={0.1}
+											precision={1}
+											color="#f59e0b"
+											labelClassName="w-14 text-left text-[9px]"
+											onChange={(v) => updateLight(selectedObject.name, { intensity: Math.max(0, v) })}
+										/>
+										{/* Distance */}
+										<DragNumberInput
+											label="Distance"
+											value={selectedObject._lightDistance ?? 50}
+											step={1}
+											precision={0}
+											color="#8b5cf6"
+											labelClassName="w-14 text-left text-[9px]"
+											onChange={(v) => updateLight(selectedObject.name, { distance: Math.max(0, v) })}
+										/>
+										{/* Decay */}
+										<DragNumberInput
+											label="Decay"
+											value={selectedObject._lightDecay ?? 2}
+											step={0.1}
+											precision={1}
+											color="#06b6d4"
+											labelClassName="w-14 text-left text-[9px]"
+											onChange={(v) => updateLight(selectedObject.name, { decay: Math.max(0, v) })}
+										/>
+										{/* Spot light extras */}
+										{selectedObject._lightType === "spot" && (
+											<>
+												<DragNumberInput
+													label="Angle"
+													value={((selectedObject._lightAngle ?? Math.PI / 6) * 180 / Math.PI)}
+													step={1}
+													precision={0}
+													color="#e74c3c"
+													labelClassName="w-14 text-left text-[9px]"
+													onChange={(v) => updateLight(selectedObject.name, { angle: Math.max(1, Math.min(90, v)) * Math.PI / 180 })}
+												/>
+												<DragNumberInput
+													label="Penumbra"
+													value={selectedObject._lightPenumbra ?? 0.1}
+													step={0.05}
+													precision={2}
+													color="#2ecc71"
+													labelClassName="w-14 text-left text-[9px]"
+													onChange={(v) => updateLight(selectedObject.name, { penumbra: Math.max(0, Math.min(1, v)) })}
+												/>
+											</>
+										)}
+									</div>
 								</Section>
 							)}
 

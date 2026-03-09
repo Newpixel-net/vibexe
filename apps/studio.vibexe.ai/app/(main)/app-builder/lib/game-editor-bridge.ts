@@ -593,6 +593,15 @@ export function getGameEditorBridgeScript(): string {
           var toDelete = findObjectByUuid(editor.scene, d.uuid);
           if (toDelete) {
             if (selectedObj && selectedObj.uuid === d.uuid) deselectObject();
+            // Clean up light helpers if deleting a light
+            if (toDelete.isLight && toDelete.userData && toDelete.userData.__editorLight) {
+              var _delName = toDelete.name;
+              if (toDelete.isSpotLight && toDelete.target) editor.scene.remove(toDelete.target);
+              var _delHelper = editor.scene.getObjectByName("__editor_light_helper_" + _delName);
+              if (_delHelper) editor.scene.remove(_delHelper);
+              var _delSpotHelper = editor.scene.getObjectByName("__editor_spot_helper_" + _delName);
+              if (_delSpotHelper) editor.scene.remove(_delSpotHelper);
+            }
             editor.scene.remove(toDelete);
             sendSceneTree();
           }
