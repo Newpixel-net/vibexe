@@ -1664,9 +1664,18 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 						// Physics gravity — override CANNON.World.gravity at runtime
 						"var w=(window as any).__vibexe_world__;",
 						"if(w&&_gs.physics&&_gs.physics.gravity!=null){try{w.gravity.set(0,_gs.physics.gravity,0)}catch(x){}}",
+						// Audio settings — expose volume globals for game code
+						"var _aus=_gs.audio;",
+						"if(_aus){window.__vibexe_audio__={enabled:_aus.enabled!==false,masterVolume:_aus.masterVolume!=null?_aus.masterVolume:0.8,musicVolume:_aus.musicVolume!=null?_aus.musicVolume:0.5,sfxVolume:_aus.sfxVolume!=null?_aus.sfxVolume:0.7};if(_aus.enabled===false){var _allAudio=document.querySelectorAll('audio');for(var _ai2=0;_ai2<_allAudio.length;_ai2++){_allAudio[_ai2].muted=true;}}}",
+						// Performance settings — apply pixelRatio, maxFPS
+						"var _pfs=_gs.performance;",
+						"if(_pfs){if(_pfs.pixelRatio!=null){var _prr=window.__vibexe_renderer__;if(_prr&&_prr.setPixelRatio){_prr.setPixelRatio(Math.max(0.5,Math.min(2,_pfs.pixelRatio)))}}if(_pfs.maxFPS!=null){window.__vibexe_maxFPS__=_pfs.maxFPS}if(_pfs.showFPS){var _fpsD=document.createElement('div');_fpsD.id='vibexe-fps';_fpsD.style.cssText='position:fixed;top:4px;left:4px;padding:2px 6px;background:rgba(0,0,0,0.7);color:#0f0;font:11px monospace;z-index:99999;pointer-events:none';document.body.appendChild(_fpsD);var _fc=0,_lt=performance.now();(function _fpsLoop(){_fc++;var now=performance.now();if(now-_lt>=1000){_fpsD.textContent=_fc+' FPS';_fc=0;_lt=now}requestAnimationFrame(_fpsLoop)})()}}",
 						// Texture overrides — apply saved textures to scene-original objects
 						"var _tov=_gs.textureOverrides;",
 						"if(_tov&&_tov.length){var _tl=new T.TextureLoader();for(var _ti=0;_ti<_tov.length;_ti++){(function(_to){var _obj=null;s.traverse(function(ch){if(ch.name===_to.name)_obj=ch;});if(!_obj)return;_tl.load(_to.textureUrl,function(tex){tex.colorSpace=T.SRGBColorSpace;tex.wrapS=tex.wrapT=T.RepeatWrapping;tex.repeat.set(_to.tileX||1,_to.tileY||1);_obj.traverse(function(m){if(m.isMesh&&m.material){m.material.map=tex;m.material.needsUpdate=true;}});})})(_tov[_ti]);}}",
+						// FPS cap — wrap requestAnimationFrame to throttle render loop
+						"var _mfps=window.__vibexe_maxFPS__;",
+						"if(_mfps&&_mfps>0&&_mfps<120){var _origRAF=window.requestAnimationFrame;var _frameInt=1000/_mfps;var _lastFrame=0;window.requestAnimationFrame=function(cb){return _origRAF.call(window,function(ts){if(ts-_lastFrame>=_frameInt){_lastFrame=ts;cb(ts)}else{_origRAF.call(window,cb)}})}}",
 						"},100)})();\n",
 					].join("");
 				}
@@ -1693,10 +1702,12 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 
 		globals += "\n";
 		for (const entryKey of ["/index.js", "/index.jsx", "/index.ts", "/index.tsx"]) {
-			if (sandpackFiles[entryKey]) {
+			const entry = sandpackFiles[entryKey];
+			if (entry) {
+				const existing = typeof entry === "string" ? entry : entry.code || "";
 				sandpackFiles[entryKey] = {
-					...sandpackFiles[entryKey],
-					code: globals + (sandpackFiles[entryKey].code || ""),
+					...(typeof entry === "object" ? entry : {}),
+					code: globals + existing,
 				};
 			}
 		}
