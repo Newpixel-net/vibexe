@@ -6,7 +6,7 @@
  */
 
 import { NextResponse, type NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { builderAppBackups } from "@/db/schema";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
@@ -19,14 +19,17 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: RouteParams) {
 	const { appId, backupId } = await params;
 	try {
-		await verifyAppAccess(appId);
+		const { appDbId } = await verifyAppAccess(appId);
 		const id = Number(backupId);
 		if (Number.isNaN(id)) {
 			return NextResponse.json({ error: "Invalid backup ID" }, { status: 400 });
 		}
 
 		const backup = await db.query.builderAppBackups.findFirst({
-			where: eq(builderAppBackups.dbId, id),
+			where: and(
+				eq(builderAppBackups.dbId, id),
+				eq(builderAppBackups.appDbId, appDbId),
+			),
 		});
 
 		if (!backup) {
@@ -59,10 +62,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
 	const { appId, backupId } = await params;
 	try {
-		await verifyAppAccess(appId);
+		const { appDbId } = await verifyAppAccess(appId);
 		const id = Number(backupId);
 		if (Number.isNaN(id)) {
 			return NextResponse.json({ error: "Invalid backup ID" }, { status: 400 });
+		}
+
+		// Verify backup belongs to this app before deleting
+		const backup = await db.query.builderAppBackups.findFirst({
+			where: and(
+				eq(builderAppBackups.dbId, id),
+				eq(builderAppBackups.appDbId, appDbId),
+			),
+			columns: { dbId: true },
+		});
+		if (!backup) {
+			return NextResponse.json({ error: "Backup not found" }, { status: 404 });
 		}
 
 		await deleteBackup(id);

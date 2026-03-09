@@ -13,6 +13,7 @@ import {
 	getExternalDb,
 	removeExternalDb,
 } from "@/lib/app-database/supabase-connect";
+import { verifyAppAccess } from "@/lib/auth/verify-app-access";
 
 interface RouteParams {
 	params: Promise<{ appId: string }>;
@@ -21,6 +22,11 @@ interface RouteParams {
 export async function GET(_request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+		try {
+			await verifyAppAccess(appId);
+		} catch {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
 		const externalDb = await getExternalDb(appId);
 		return NextResponse.json({ externalDb });
 	} catch (error) {
@@ -35,6 +41,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 export async function POST(request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+		try {
+			await verifyAppAccess(appId);
+		} catch {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
 		const body = await request.json().catch(() => ({}));
 
 		const { url, anonKey } = body;
@@ -86,6 +97,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 	try {
 		const { appId } = await params;
+		try {
+			await verifyAppAccess(appId);
+		} catch {
+			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+		}
 		const result = await removeExternalDb(appId);
 		return NextResponse.json({ success: result.success });
 	} catch (error) {

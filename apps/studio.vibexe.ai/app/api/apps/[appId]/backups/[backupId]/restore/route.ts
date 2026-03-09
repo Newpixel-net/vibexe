@@ -8,7 +8,7 @@
  */
 
 import { NextResponse, type NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { builderAppBackups, builderAppDatabases } from "@/db/schema";
 import { verifyAppAccess } from "@/lib/auth/verify-app-access";
@@ -35,9 +35,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 			);
 		}
 
-		// Get backup details
+		// Get backup details — scoped to the authenticated app to prevent cross-app IDOR
 		const backup = await db.query.builderAppBackups.findFirst({
-			where: eq(builderAppBackups.dbId, id),
+			where: and(
+				eq(builderAppBackups.dbId, id),
+				eq(builderAppBackups.appDbId, appDbId),
+			),
 		});
 		if (!backup) {
 			return NextResponse.json({ error: "Backup not found" }, { status: 404 });
