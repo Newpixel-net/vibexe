@@ -202,7 +202,7 @@ export interface TerrainPainterPanelProps {
 		depth: number;
 		heightScale: number;
 		segments: number;
-		layers: Array<{ textureUrl: string; normalUrl: string; enabled: boolean; tileSize: number; opacity?: number; roughness?: number; normalIntensity?: number; metallic?: boolean; modifiers?: any[] }>;
+		layers: Array<{ textureUrl: string; normalUrl: string; enabled: boolean; tileSize: number; opacity?: number; roughness?: number; normalIntensity?: number; metallic?: boolean; modifiers?: any[]; materialId?: string; emissionUrl?: string; emissionIntensity?: number }>;
 	}) => void;
 	initialConfig?: {
 		width?: number;
@@ -218,6 +218,9 @@ export interface TerrainPainterPanelProps {
 			normalIntensity?: number;
 			metallic?: boolean;
 			modifiers?: any[];
+			materialId?: string;
+			emissionUrl?: string;
+			emissionIntensity?: number;
 		}>;
 	};
 }
@@ -236,17 +239,24 @@ export function TerrainPainterPanel({
 		if (initialConfig?.layers && initialConfig.layers.length > 0) {
 			return initialConfig.layers.map((l, idx) => {
 				const defLayer = DEFAULT_LAYERS[idx];
+				// Resolve display name from catalog (materialId > URL match > filename)
+				const catEntry = l.materialId
+					? getTerrainMaterialById(l.materialId)
+					: l.textureUrl ? findMaterialByDiffuseUrl(l.textureUrl) : undefined;
 				const fileName = l.textureUrl?.split("/").pop()?.replace(/\.[^.]+$/, "") || defLayer?.name || `Layer ${idx + 1}`;
 				return {
-					name: fileName,
+					name: catEntry?.name || fileName,
 					enabled: l.enabled !== false,
-					previewColor: defLayer?.previewColor || "#808080",
+					previewColor: catEntry?.previewColor || defLayer?.previewColor || "#808080",
 					diffuseUrl: l.textureUrl || defLayer?.diffuseUrl || "",
 					tileSize: l.tileSize ?? defLayer?.tileSize ?? 4,
 					opacity: l.opacity ?? defLayer?.opacity ?? 100,
 					roughness: l.roughness ?? defLayer?.roughness ?? 0.8,
 					normalIntensity: l.normalIntensity ?? defLayer?.normalIntensity ?? 1.0,
 					metallic: l.metallic ?? defLayer?.metallic ?? false,
+					materialId: l.materialId ?? catEntry?.id ?? defLayer?.materialId,
+					emissionUrl: l.emissionUrl,
+					emissionIntensity: l.emissionIntensity,
 					modifiers: (l.modifiers && l.modifiers.length > 0 ? l.modifiers : defLayer?.modifiers || []) as ModifierData[],
 				};
 			});
