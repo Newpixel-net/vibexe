@@ -45,8 +45,10 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 
 const runtimeCode = `// @vibexe/character-system v1.0.0
 // Player character management — selection, loading, swapping, animation normalization
+console.log('[CharacterSystem] Module code loaded');
 
 var THREE = require('three');
+console.log('[CharacterSystem] THREE loaded:', !!THREE);
 
 // ===== CHARACTER REGISTRY =====
 var _builtInCharacters = ${BUILT_IN_CHARACTERS};

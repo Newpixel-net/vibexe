@@ -1630,8 +1630,10 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			.map(([id]) => id);
 		if (enabledModuleIds.length > 0) {
 			globals += `(window as any).__VIBEXE_INSTALLED_MODULES__ = ${JSON.stringify(enabledModuleIds)};\n`;
+			globals += `console.log('[Vibexe] Injecting modules:', ${JSON.stringify(enabledModuleIds)});\n`;
 			// Auto-import enabled modules so their runtimeCode executes
 			for (const modId of enabledModuleIds) {
+				globals += `console.log('[Vibexe] Requiring @vibexe/${modId}');\n`;
 				globals += `require('@vibexe/${modId}');\n`;
 			}
 		}
