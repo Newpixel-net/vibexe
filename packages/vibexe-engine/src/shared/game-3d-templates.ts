@@ -5655,6 +5655,31 @@ export const GameScene = {
       hapticFeedback("light");
     }
 
+    // Terrain ground-following: actively snap player to terrain surface
+    // CANNON heightfield collision is unreliable for Box shapes (catches on edges),
+    // so we use getHeightAt() as the authoritative ground level.
+    const _tGetH = (window as any).__vibexe_getTerrainHeight;
+    if (_tGetH) {
+      const _th = _tGetH(playerBody.position.x, playerBody.position.z);
+      if (_th != null) {
+        const _halfH = playerBody.shapes?.[0]?.halfExtents?.y ?? 0.75;
+        const _groundY = _th + _halfH;
+        const _gap = playerBody.position.y - _groundY;
+        if (_gap < 0) {
+          // Below terrain — snap up immediately
+          playerBody.position.y = _groundY;
+          if (playerBody.velocity.y < 0) playerBody.velocity.y = 0;
+          (playerBody as any).__canJump = true;
+        } else if (_gap < 0.4 && playerBody.velocity.y <= 0.5) {
+          // Close to terrain and not actively jumping — hug the surface
+          // Handles downhill walking where gravity + damping can't keep up
+          playerBody.position.y = _groundY;
+          if (playerBody.velocity.y < 0) playerBody.velocity.y = 0;
+          (playerBody as any).__canJump = true;
+        }
+      }
+    }
+
     // Sync physics → meshes
     // Offset mesh Y by half-height so feet (at mesh origin via pivot correction)
     // align with the bottom of the physics box (ground contact point).
