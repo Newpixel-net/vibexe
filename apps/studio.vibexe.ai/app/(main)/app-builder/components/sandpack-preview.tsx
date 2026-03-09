@@ -30,6 +30,9 @@ import {
 	Lightbulb,
 	Monitor,
 	Mountain,
+	CloudSun,
+	Puzzle,
+	ChevronRight,
 	MousePointer2,
 	Move,
 	Redo2,
@@ -52,6 +55,7 @@ import { GameEditorPanel } from "./game-editor-panel";
 import { GameSettingsPanel } from "./game-settings-panel";
 import { SceneGizmo } from "./scene-gizmo";
 import { TerrainPainterPanel } from "./terrain-painter-panel";
+import { SkyWeatherPanel } from "./sky-weather-panel";
 import type { RightPanelView } from "./right-panel-tabs";
 import { VisualEditToolbar } from "./visual-edit-toolbar";
 import {
@@ -62,6 +66,14 @@ import {
 } from "../adapters/sandpack-adapter";
 import { isRtlLanguage } from "../lib/languages";
 import { useToasts } from "@vibexe-internal/ui/toast";
+import { ALL_MODULE_MANIFESTS, type ModuleManifest } from "@vibexe-ai/vibexe-engine";
+
+/** Map module icon names → lucide components */
+const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+	Mountain,
+	CloudSun,
+	Puzzle,
+};
 
 type DeviceSize = "desktop" | "tablet" | "mobile";
 
@@ -1080,8 +1092,33 @@ export function SandpackPreview({
 		}
 	}, [appId, sendSettingsToGame]);
 
-	// Terrain Painter module panel
-	const [terrainPainterOpen, setTerrainPainterOpen] = useState(false);
+	// Active module panel (null = none open, module id = that module's panel)
+	const [activeModulePanel, setActiveModulePanel] = useState<string | null>(null);
+	const terrainPainterOpen = activeModulePanel === "terrain-painter";
+	const setTerrainPainterOpen = (v: boolean | ((prev: boolean) => boolean)) => {
+		setActiveModulePanel((prev) => {
+			const wasOpen = prev === "terrain-painter";
+			const next = typeof v === "function" ? v(wasOpen) : v;
+			return next ? "terrain-painter" : null;
+		});
+	};
+	// Modules dropdown in toolbar
+	const [modulesDropdownOpen, setModulesDropdownOpen] = useState(false);
+
+	// Close modules dropdown when editor is disabled
+	useEffect(() => {
+		if (!gameEditor.enabled) setModulesDropdownOpen(false);
+	}, [gameEditor.enabled]);
+
+	// Close modules dropdown on outside click
+	useEffect(() => {
+		if (!modulesDropdownOpen) return;
+		const close = () => setModulesDropdownOpen(false);
+		const timer = setTimeout(() => {
+			window.addEventListener("click", close, { once: true });
+		}, 0);
+		return () => { clearTimeout(timer); window.removeEventListener("click", close); };
+	}, [modulesDropdownOpen]);
 
 	// Landscape/portrait rotation toggle for mobile-frame mode
 	const [isLandscape, setIsLandscape] = useState(false);
@@ -2023,22 +2060,94 @@ export function SandpackPreview({
 										<Redo2 className="w-3.5 h-3.5" />
 									</button>
 									<div className="w-px h-4 bg-white/[0.08] mx-0.5" />
-									<button
-										type="button"
-										onClick={() => setTerrainPainterOpen((v) => {
-											if (!v && gameEditor.isSettingsOpen) gameEditor.toggleSettings?.();
-											return !v;
-										})}
-										className={`flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-lg transition-all duration-150 ${
-											terrainPainterOpen
-												? "bg-green-500/[0.15] text-green-300"
-												: "text-white/35 hover:bg-white/[0.04] hover:text-white/60"
-										}`}
-										title="Terrain Painter Module"
-									>
-										<Mountain className="w-3.5 h-3.5" />
-										<span className="hidden lg:inline">Terrain</span>
-									</button>
+									{/* Unified Modules dropdown */}
+									<div className="relative">
+										<button
+											type="button"
+											onClick={() => setModulesDropdownOpen((v) => !v)}
+											className={`flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-lg transition-all duration-150 ${
+												activeModulePanel
+													? "bg-purple-500/[0.15] text-purple-300"
+													: modulesDropdownOpen
+														? "bg-white/[0.06] text-white/70"
+														: "text-white/35 hover:bg-white/[0.04] hover:text-white/60"
+											}`}
+											title="Modules"
+										>
+											<Puzzle className="w-3.5 h-3.5" />
+											<span className="hidden lg:inline">Modules</span>
+											<ChevronDown className="w-2.5 h-2.5 opacity-50" />
+										</button>
+										{modulesDropdownOpen && (() => {
+											const enabledModules = ALL_MODULE_MANIFESTS.filter(
+												(m) => gameEditor.gameSettings.modules?.installed?.[m.id]?.enabled
+											);
+											return (
+												<div className="absolute top-full left-0 mt-1 bg-[#141418] border border-white/[0.12] rounded-xl shadow-2xl z-50 min-w-[200px] py-1.5 backdrop-blur-xl">
+													{enabledModules.length === 0 ? (
+														<div className="px-3 py-3 text-center">
+															<Puzzle className="w-5 h-5 text-white/20 mx-auto mb-1.5" />
+															<p className="text-[10px] text-white/30">No modules enabled</p>
+															<button
+																type="button"
+																className="mt-2 text-[10px] text-purple-400 hover:text-purple-300 transition-colors"
+																onClick={() => {
+																	setModulesDropdownOpen(false);
+																	if (!gameEditor.isSettingsOpen) gameEditor.toggleSettings?.();
+																}}
+															>
+																Open Settings → Modules
+															</button>
+														</div>
+													) : (
+														<>
+															<div className="px-3 py-1 text-[9px] font-medium text-white/25 uppercase tracking-wider">Installed Modules</div>
+															{enabledModules.map((mod) => {
+																const Icon = MODULE_ICONS[mod.icon] || Puzzle;
+																const isActive = activeModulePanel === mod.id;
+																return (
+																	<button
+																		key={mod.id}
+																		type="button"
+																		className={`w-full flex items-center gap-2.5 px-3 py-2 text-[11px] transition-all ${
+																			isActive
+																				? "bg-purple-500/[0.12] text-purple-300"
+																				: "text-white/60 hover:bg-white/[0.06] hover:text-white/90"
+																		}`}
+																		onClick={() => {
+																			if (gameEditor.isSettingsOpen) gameEditor.toggleSettings?.();
+																			setActiveModulePanel(isActive ? null : mod.id);
+																			setModulesDropdownOpen(false);
+																		}}
+																	>
+																		<Icon className="w-3.5 h-3.5 flex-shrink-0" />
+																		<div className="flex-1 text-left">
+																			<div className="font-medium">{mod.name}</div>
+																			<div className="text-[9px] text-white/30 mt-0.5">{mod.description.slice(0, 50)}{mod.description.length > 50 ? "…" : ""}</div>
+																		</div>
+																		{isActive && <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />}
+																	</button>
+																);
+															})}
+														</>
+													)}
+													<div className="border-t border-white/[0.06] mt-1 pt-1">
+														<button
+															type="button"
+															className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[10px] text-white/30 hover:text-white/60 hover:bg-white/[0.04] transition-colors"
+															onClick={() => {
+																setModulesDropdownOpen(false);
+																if (!gameEditor.isSettingsOpen) gameEditor.toggleSettings?.();
+															}}
+														>
+															<span>Manage Modules</span>
+															<ChevronRight className="w-3 h-3 ml-auto opacity-50" />
+														</button>
+													</div>
+												</div>
+											);
+										})()}
+									</div>
 									<div className="relative">
 										<button
 											type="button"
@@ -2302,12 +2411,12 @@ export function SandpackPreview({
 				{/* Scene Gizmo (orientation cube) */}
 				{gameEditor.enabled && isGameMode && <SceneGizmo />}
 
-				{/* Game Editor Panel / Settings Panel (overlaid on right side — mutually exclusive) */}
+				{/* Game Editor Panel / Module Panel / Settings Panel (overlaid on right side — mutually exclusive) */}
 				{gameEditor.enabled && isGameMode && (
-					terrainPainterOpen ? (
+					activeModulePanel === "terrain-painter" ? (
 						<TerrainPainterPanel
 							sendToIframe={gameEditor.sendToIframe}
-							onClose={() => setTerrainPainterOpen(false)}
+							onClose={() => setActiveModulePanel(null)}
 							initialConfig={gameEditor.gameSettings.terrain}
 							onTerrainConfigChanged={(config) => {
 								// Preserve sculptHeightData from in-memory state (panel config doesn't include it)
@@ -2316,6 +2425,17 @@ export function SandpackPreview({
 								gameEditor.updateGameSettings({ terrain: mergedConfig });
 								// Auto-save terrain config to JSON file so it persists across iframe reloads
 								const updatedSettings = { ...gameEditor.gameSettings, terrain: mergedConfig };
+								handleSaveSettings(updatedSettings);
+							}}
+						/>
+					) : activeModulePanel === "sky-weather" ? (
+						<SkyWeatherPanel
+							sendToIframe={gameEditor.sendToIframe}
+							onClose={() => setActiveModulePanel(null)}
+							settings={gameEditor.gameSettings}
+							onSettingsChanged={(skyConfig) => {
+								gameEditor.updateGameSettings({ skyWeather: skyConfig });
+								const updatedSettings = { ...gameEditor.gameSettings, skyWeather: skyConfig };
 								handleSaveSettings(updatedSettings);
 							}}
 						/>

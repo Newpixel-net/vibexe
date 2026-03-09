@@ -169,6 +169,12 @@ export interface GameSettings {
 			config?: Record<string, unknown>;
 		}>;
 	};
+	skyWeather?: {
+		time?: { solarTime?: number; cycleLengthMinutes?: number; autoAdvance?: boolean; latitude?: number };
+		sky?: { sunDiskSize?: number; moonDiskSize?: number; mieCoefficient?: number; mieDirectionalG?: number; starIntensity?: number; exposure?: number };
+		lighting?: { autoSunLight?: boolean; autoAmbient?: boolean; sunIntensity?: number; ambientIntensity?: number; shadowsEnabled?: boolean };
+		fog?: { enabled?: boolean; autoColor?: boolean; density?: number };
+	};
 	terrain?: {
 		enabled?: boolean;
 		width?: number;
