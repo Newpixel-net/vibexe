@@ -1,19 +1,26 @@
 "use client";
 
 /**
- * Debug Overlay — Runtime Diagnostic HUD
+ * Debug Overlay — Runtime Diagnostic HUD (v2)
  *
  * Floating button in game mode preview that queries iframe systems
- * and displays a modern diagnostic panel showing health of all subsystems.
+ * and displays a modern diagnostic panel showing health of all subsystems
+ * PLUS detected problems with actionable descriptions.
  */
 
-import { Activity, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Activity, AlertTriangle, ChevronDown, ChevronUp, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface SystemReport {
 	system: string;
 	status: "ok" | "inactive" | "missing" | "off" | "muted" | "none" | string;
 	details?: Record<string, unknown> | null;
+}
+
+interface Problem {
+	id: string;
+	severity: "error" | "warn";
+	msg: string;
 }
 
 interface DebugOverlayProps {
@@ -41,6 +48,7 @@ const STATUS_LABELS: Record<string, string> = {
 export function DebugOverlay({ iframeRef }: DebugOverlayProps) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [systems, setSystems] = useState<SystemReport[]>([]);
+	const [problems, setProblems] = useState<Problem[]>([]);
 	const [expanded, setExpanded] = useState<Set<string>>(new Set());
 	const [lastUpdate, setLastUpdate] = useState<number>(0);
 	const queryIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -55,6 +63,7 @@ export function DebugOverlay({ iframeRef }: DebugOverlayProps) {
 		const handler = (ev: MessageEvent) => {
 			if (ev.data?.type === "vibexe-debug-system-report-all") {
 				setSystems(ev.data.systems || []);
+				setProblems(ev.data.problems || []);
 				setLastUpdate(Date.now());
 			}
 		};
@@ -89,25 +98,52 @@ export function DebugOverlay({ iframeRef }: DebugOverlayProps) {
 
 	const okCount = systems.filter((s) => s.status === "ok").length;
 	const warnCount = systems.filter((s) => ["inactive", "missing", "muted"].includes(s.status)).length;
+	const errorProblems = problems.filter((p) => p.severity === "error");
+	const warnProblems = problems.filter((p) => p.severity === "warn");
 
 	if (!isOpen) {
+		const hasErrors = errorProblems.length > 0;
+		const hasWarns = warnProblems.length > 0 || warnCount > 0;
 		return (
 			<button
 				type="button"
 				onClick={() => setIsOpen(true)}
 				className="absolute bottom-3 left-3 z-[100] flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-medium transition-all duration-200 backdrop-blur-md border"
 				style={{
-					background: warnCount > 0 ? "rgba(245, 158, 11, 0.15)" : "rgba(16, 185, 129, 0.1)",
-					borderColor: warnCount > 0 ? "rgba(245, 158, 11, 0.3)" : "rgba(16, 185, 129, 0.2)",
-					color: warnCount > 0 ? "#fbbf24" : "#6ee7b7",
+					background: hasErrors
+						? "rgba(239, 68, 68, 0.15)"
+						: hasWarns
+							? "rgba(245, 158, 11, 0.15)"
+							: "rgba(16, 185, 129, 0.1)",
+					borderColor: hasErrors
+						? "rgba(239, 68, 68, 0.3)"
+						: hasWarns
+							? "rgba(245, 158, 11, 0.3)"
+							: "rgba(16, 185, 129, 0.2)",
+					color: hasErrors ? "#f87171" : hasWarns ? "#fbbf24" : "#6ee7b7",
 				}}
 				title="Open system diagnostics"
 			>
-				<Activity className="w-3.5 h-3.5" />
+				{hasErrors ? (
+					<AlertTriangle className="w-3.5 h-3.5" />
+				) : (
+					<Activity className="w-3.5 h-3.5" />
+				)}
 				<span className="hidden sm:inline">Debug</span>
 				{systems.length > 0 && (
 					<span className="ml-1 tabular-nums">
 						{okCount}/{systems.length}
+					</span>
+				)}
+				{problems.length > 0 && (
+					<span
+						className="ml-1 px-1 py-0.5 rounded text-[8px] font-bold"
+						style={{
+							background: hasErrors ? "rgba(239, 68, 68, 0.2)" : "rgba(245, 158, 11, 0.2)",
+							color: hasErrors ? "#f87171" : "#fbbf24",
+						}}
+					>
+						{problems.length}
 					</span>
 				)}
 			</button>
@@ -116,7 +152,7 @@ export function DebugOverlay({ iframeRef }: DebugOverlayProps) {
 
 	return (
 		<div
-			className="absolute bottom-3 left-3 z-[100] w-72 rounded-xl border border-white/10 backdrop-blur-xl shadow-2xl overflow-hidden"
+			className="absolute bottom-3 left-3 z-[100] w-80 rounded-xl border border-white/10 backdrop-blur-xl shadow-2xl overflow-hidden"
 			style={{ background: "rgba(10, 10, 14, 0.92)" }}
 		>
 			{/* Header */}
@@ -144,7 +180,57 @@ export function DebugOverlay({ iframeRef }: DebugOverlayProps) {
 				<span className="text-emerald-400 font-medium">{okCount} OK</span>
 				{warnCount > 0 && <span className="text-amber-400 font-medium">{warnCount} WARN</span>}
 				<span className="text-white/20">{systems.length} systems</span>
+				{problems.length > 0 && (
+					<span
+						className="ml-auto font-medium"
+						style={{ color: errorProblems.length > 0 ? "#f87171" : "#fbbf24" }}
+					>
+						{problems.length} problem{problems.length !== 1 ? "s" : ""}
+					</span>
+				)}
 			</div>
+
+			{/* Problems section */}
+			{problems.length > 0 && (
+				<div className="border-b border-white/[0.06]">
+					<div className="px-3 py-1 text-[8px] font-semibold uppercase tracking-wider text-white/25">
+						Detected Problems
+					</div>
+					{problems.map((p) => (
+						<div
+							key={p.id}
+							className="flex items-start gap-2 px-3 py-1.5"
+							style={{
+								background:
+									p.severity === "error"
+										? "rgba(239, 68, 68, 0.06)"
+										: "rgba(245, 158, 11, 0.04)",
+							}}
+						>
+							<div
+								className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1"
+								style={{
+									background:
+										p.severity === "error"
+											? "rgba(239, 68, 68, 0.8)"
+											: "rgba(245, 158, 11, 0.8)",
+								}}
+							/>
+							<span
+								className="text-[9px] leading-tight"
+								style={{
+									color:
+										p.severity === "error"
+											? "rgba(248, 113, 113, 0.9)"
+											: "rgba(251, 191, 36, 0.8)",
+								}}
+							>
+								{p.msg}
+							</span>
+						</div>
+					))}
+				</div>
+			)}
 
 			{/* Systems list */}
 			<div className="max-h-64 overflow-y-auto scrollbar-thin">
@@ -196,7 +282,17 @@ export function DebugOverlay({ iframeRef }: DebugOverlayProps) {
 									{Object.entries(s.details).map(([k, v]) => (
 										<div key={k} className="flex items-center gap-2 text-[9px] py-0.5">
 											<span className="text-white/30 min-w-[60px]">{k}</span>
-											<span className="text-white/50 font-mono truncate">
+											<span
+												className="font-mono truncate"
+												style={{
+													color:
+														v === false
+															? "#f87171"
+															: v === true
+																? "#6ee7b7"
+																: "#71717a",
+												}}
+											>
 												{typeof v === "object" ? JSON.stringify(v) : String(v)}
 											</span>
 										</div>
@@ -217,7 +313,7 @@ export function DebugOverlay({ iframeRef }: DebugOverlayProps) {
 				>
 					Refresh
 				</button>
-				<span className="text-[8px] text-white/15 font-mono">vibexe diagnostics</span>
+				<span className="text-[8px] text-white/15 font-mono">vibexe diagnostics v2</span>
 			</div>
 		</div>
 	);

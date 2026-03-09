@@ -1707,33 +1707,125 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		].join("");
 
 		// Debug overlay — system health query handler (responds to parent frame requests)
+		// Enhanced v2: rich diagnostics with problem detection for terrain solidity,
+		// player physics, grounded state, and cross-system health analysis
 		globals += [
 			"(function(){",
 			"window.addEventListener('message',function(ev){",
 			"if(!ev.data||ev.data.type!=='vibexe-debug-query-systems')return;",
 			"var r=[];",
-			"var T=(window as any).THREE;",
-			"var ren=(window as any).__vibexe_renderer__;",
-			"r.push({system:'Renderer',status:ren?'ok':'missing',details:ren?{pixelRatio:ren.getPixelRatio()}:null});",
-			"var sc=(window as any).__vibexe_scene__;",
-			"r.push({system:'Scene',status:sc?'ok':'missing',details:sc?{children:sc.children.length,fog:sc.fog?'active':'none'}:null});",
-			"var cam=(window as any).__vibexe_camera__;",
-			"r.push({system:'Camera',status:cam?'ok':'missing',details:cam?{fov:cam.fov}:null});",
-			"var w=(window as any).__vibexe_world__;",
-			"r.push({system:'Physics',status:w?'ok':'missing',details:w?{bodies:w.bodies?w.bodies.length:0,gravity:w.gravity?w.gravity.y:0}:null});",
-			"var pm=(window as any).__vibexe_playerMesh__;",
-			"r.push({system:'Player',status:pm?'ok':'missing',details:pm?{name:pm.name,y:pm.position?+pm.position.y.toFixed(1):0}:null});",
-			"var tm=sc&&sc.getObjectByName?sc.getObjectByName('__terrainMesh__'):null;",
-			"r.push({system:'Terrain',status:tm?'ok':'off',details:tm?{verts:tm.geometry.attributes.position.count}:null});",
-			"var sw=(window as any).__vibexe_skyWeather;",
+			"var problems=[];",
+			"var W=window;",
+
+			// Renderer
+			"var ren=W.__vibexe_renderer__;",
+			"r.push({system:'Renderer',status:ren?'ok':'missing',details:ren?{pixelRatio:ren.getPixelRatio(),size:ren.getSize?((function(){var s=new(W.THREE||{}).Vector2();ren.getSize(s);return s.x+'x'+s.y})()):'?'}:null});",
+
+			// Scene
+			"var sc=W.__vibexe_scene__;",
+			"var meshCount=0;var lightCount=0;",
+			"if(sc){sc.traverse(function(o){if(o.isMesh)meshCount++;if(o.isLight)lightCount++;})}",
+			"r.push({system:'Scene',status:sc?'ok':'missing',details:sc?{children:sc.children.length,meshes:meshCount,lights:lightCount,fog:sc.fog?'active':'none'}:null});",
+
+			// Camera
+			"var cam=W.__vibexe_camera__;",
+			"r.push({system:'Camera',status:cam?'ok':'missing',details:cam?{fov:cam.fov,near:cam.near,far:cam.far,pos:cam.position?+cam.position.y.toFixed(1)+'y':'?'}:null});",
+
+			// Physics World
+			"var w=W.__vibexe_world__;",
+			"var dynamicCount=0;var staticCount=0;",
+			"if(w&&w.bodies){for(var bi=0;bi<w.bodies.length;bi++){if(w.bodies[bi].mass>0)dynamicCount++;else staticCount++;}}",
+			"r.push({system:'Physics',status:w?'ok':'missing',details:w?{bodies:(w.bodies?w.bodies.length:0),dynamic:dynamicCount,static:staticCount,gravity:w.gravity?w.gravity.y:0}:null});",
+			"if(!w)problems.push({id:'no-physics',severity:'error',msg:'Physics world not initialized — no collisions will work'});",
+
+			// Terrain (FIXED: use __terrain__ not __terrainMesh__)
+			"var tm=sc&&sc.getObjectByName?sc.getObjectByName('__terrain__'):null;",
+			"var tData=W.__vibexe_terrainData;",
+			"var tBody=W.__vibexe_terrainBody;",
+			"var tPost=W.__vibexe_terrainPostStep;",
+			"var tGetH=W.__vibexe_getTerrainHeight;",
+			"var tStatus='off';",
+			"if(tm&&tBody&&tPost)tStatus='ok';",
+			"else if(tm&&!tBody)tStatus='inactive';",
+			"else if(tm)tStatus='ok';",
+			"var tDetails=null;",
+			"if(tm){",
+			"  tDetails={mesh:true,verts:tm.geometry&&tm.geometry.attributes&&tm.geometry.attributes.position?tm.geometry.attributes.position.count:0};",
+			"  tDetails.physicsBody=!!tBody;",
+			"  tDetails.postStepClamp=!!tPost;",
+			"  tDetails.heightQuery=!!tGetH;",
+			"  if(tData){tDetails.width=tData.width||'?';tDetails.depth=tData.depth||'?';tDetails.segments=tData.segments||'?';}",
+			"}else{tDetails={mesh:false,physicsBody:!!tBody,heightData:!!tData};}",
+			"r.push({system:'Terrain',status:tStatus,details:tDetails});",
+			// Terrain problems
+			"if(tm&&!tBody)problems.push({id:'terrain-no-physics',severity:'error',msg:'Terrain mesh exists but has NO physics body — characters fall through'});",
+			"if(tm&&tBody&&!tPost)problems.push({id:'terrain-no-clamp',severity:'warn',msg:'Terrain has physics body but postStep clamp not active — bodies may clip through'});",
+			"if(tm&&!tGetH)problems.push({id:'terrain-no-height-query',severity:'warn',msg:'Terrain height query function missing — spawn height may be wrong'});",
+
+			// Player (enhanced with physics body, velocity, grounded state, terrain distance)
+			"var pm=W.__vibexe_playerMesh__;",
+			"var pb=pm&&pm.userData?pm.userData.__physicsBody:null;",
+			"var pStatus=pm?'ok':'missing';",
+			"var pDetails=null;",
+			"if(pm){",
+			"  pDetails={name:pm.name||'unknown',y:pm.position?+pm.position.y.toFixed(2):0};",
+			"  pDetails.hasPhysicsBody=!!pb;",
+			"  if(pb){",
+			"    pDetails.velocity={x:+pb.velocity.x.toFixed(2),y:+pb.velocity.y.toFixed(2),z:+pb.velocity.z.toFixed(2)};",
+			"    pDetails.grounded=pb.__canJump!==false;",
+			"    pDetails.mass=pb.mass;",
+			"    pDetails.damping=pb.linearDamping;",
+			"  }",
+			"  if(tGetH&&pm.position){",
+			"    var terrainH=tGetH(pm.position.x,pm.position.z);",
+			"    pDetails.terrainHeightBelow=+terrainH.toFixed(2);",
+			"    pDetails.distFromTerrain=+(pm.position.y-terrainH).toFixed(2);",
+			"  }",
+			"}",
+			"r.push({system:'Player',status:pStatus,details:pDetails});",
+			// Player problems
+			"if(pm&&!pb)problems.push({id:'player-no-physics',severity:'error',msg:'Player mesh exists but has NO physics body — movement/collision broken'});",
+			"if(pm&&pb&&pb.__canJump===false&&pb.velocity&&Math.abs(pb.velocity.y)<0.1){",
+			"  problems.push({id:'player-stuck-air',severity:'warn',msg:'Player not grounded but near-zero Y velocity — may be stuck in air'});",
+			"}",
+			"if(pm&&tGetH&&pm.position){",
+			"  var _th=tGetH(pm.position.x,pm.position.z);",
+			"  if(pm.position.y>_th+5)problems.push({id:'player-floating',severity:'warn',msg:'Player is '+((pm.position.y-_th).toFixed(1))+'u above terrain — may be air-walking'});",
+			"  if(pm.position.y<_th-1)problems.push({id:'player-below-terrain',severity:'error',msg:'Player is BELOW terrain surface — fell through physics'});",
+			"}",
+
+			// Sky & Weather
+			"var sw=W.__vibexe_skyWeather;",
 			"r.push({system:'Sky & Weather',status:sw&&sw._active?'ok':(sw?'inactive':'off'),details:sw?{time:+(sw.solarTime||0).toFixed(3),fog:sw.config.fog.enabled,auto:sw.config.time.autoAdvance}:null});",
-			"var aq=(window as any).__vibexe_adaptive_quality__;",
-			"r.push({system:'Adaptive Quality',status:aq?'ok':'off'});",
-			"var au=(window as any).__vibexe_audio__;",
+
+			// Adaptive Quality
+			"var aq=W.__vibexe_adaptive_quality__;",
+			"r.push({system:'Adaptive Quality',status:aq?'ok':'off',details:aq?{fps:aq.currentFps||0,reduced:aq.isReduced||false}:null});",
+
+			// Audio
+			"var au=W.__vibexe_audio__;",
 			"r.push({system:'Audio',status:au?(au.enabled?'ok':'muted'):'off'});",
-			"var mods=Object.keys((window as any).__vibexe_modules__||{});",
+
+			// Modules
+			"var mods=Object.keys(W.__vibexe_modules__||{});",
 			"r.push({system:'Modules',status:mods.length>0?'ok':'none',details:{loaded:mods}});",
-			"try{window.parent.postMessage({type:'vibexe-debug-system-report-all',systems:r},'*')}catch(e){}",
+
+			// Auto-Physics check — count solid objects without physics bodies
+			"if(sc&&w){",
+			"  var solidNoPhys=0;var solidNames=[];",
+			"  sc.traverse(function(o){",
+			"    if(!o.isMesh)return;",
+			"    var vt=o.userData&&o.userData.vibexeType;",
+			"    if(vt==='collectible'||vt==='decoration'||vt==='player')return;",
+			"    if(o.name==='__terrain__'||o.name==='__groundPlane__')return;",
+			"    if(o.name&&o.name.indexOf('Helper')>=0)return;",
+			"    if(!o.userData||!o.userData.__physicsBody){solidNoPhys++;if(solidNames.length<5)solidNames.push(o.name||'unnamed');}",
+			"  });",
+			"  if(solidNoPhys>0)problems.push({id:'objects-no-physics',severity:'warn',msg:solidNoPhys+' solid mesh(es) have no physics body: '+solidNames.join(', ')+(solidNoPhys>5?'...':'')});",
+			"}",
+
+			// Send report with problems
+			"try{window.parent.postMessage({type:'vibexe-debug-system-report-all',systems:r,problems:problems},'*')}catch(e){}",
 			"});",
 			"})();\n",
 		].join("");
