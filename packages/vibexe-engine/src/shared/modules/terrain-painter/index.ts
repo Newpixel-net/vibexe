@@ -445,6 +445,8 @@ TerrainPhysics.prototype.setup = function(world) {
       for (var pi = 0; pi < w.bodies.length; pi++) {
         var pb = w.bodies[pi];
         if (pb.mass <= 0) continue;
+        // Skip sleeping bodies (saves CPU — they're not moving)
+        if (pb.sleepState === 2) continue;
         var th = getH(pb.position.x, pb.position.z);
         if (th == null) continue;
         // Compute half-height from body's shape bounds (not hardcoded)

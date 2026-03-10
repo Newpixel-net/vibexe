@@ -8,7 +8,7 @@ import {
 
 describe("language model tier helpers", () => {
 	const cases = [
-		{ plan: "free", tier: Tier.enum.free, canUsePro: false },
+		{ plan: "free", tier: Tier.enum.pro, canUsePro: true }, // Self-hosted: no billing, all models accessible
 		{ plan: "pro", tier: Tier.enum.pro, canUsePro: true },
 		{ plan: "team", tier: Tier.enum.pro, canUsePro: true },
 		{ plan: "enterprise", tier: Tier.enum.pro, canUsePro: true },

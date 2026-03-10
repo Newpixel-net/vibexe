@@ -7,7 +7,7 @@
  * Supports multi-select via Shift+click.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
 	Box,
 	ChevronDown,
@@ -74,7 +74,7 @@ function nodeMatchesSearch(node: SceneNode, filter: string): boolean {
 	return false;
 }
 
-export function SceneTreeNode({
+export const SceneTreeNode = memo(function SceneTreeNode({
 	node,
 	depth,
 	selectedUuid,
@@ -266,4 +266,4 @@ export function SceneTreeNode({
 			)}
 		</div>
 	);
-}
+});

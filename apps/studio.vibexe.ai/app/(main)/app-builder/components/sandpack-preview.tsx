@@ -935,6 +935,9 @@ export function SandpackPreview({
 	const pendingSettingsRef = useRef<import("../lib/game-editor-context").GameSettings | null>(null);
 	// Track last loaded settings content to avoid redundant re-parses
 	const lastLoadedSettingsContentRef = useRef<string | null>(null);
+	// Debounce timer for transform persistence (prevents 60+ DB writes/sec during drag)
+	const persistTransformTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const pendingTransformRef = useRef<{ name: string; pos: any; rot: any; scl: any } | null>(null);
 
 	// Register save handler with game editor context
 	useEffect(() => {
@@ -1591,35 +1594,37 @@ export function SandpackPreview({
 					allTransformsResolverRef.current = null;
 				}
 			} else if (data.type === "game-editor-persist-transform") {
-				// Persist transform changes to source code (GameScene3D.ts)
-				const currentFiles = filesRef.current;
-				const currentOnFileUpdate = onFileUpdateRef.current;
-				if (!currentOnFileUpdate) return;
+				// Persist transform changes to source code — debounced to max 1 write per 400ms
 				const objName = data.name as string;
-				const pos = data.position as { x: number; y: number; z: number };
-				const rot = data.rotation as { x: number; y: number; z: number };
-				const scl = data.scale as { x: number; y: number; z: number };
 				if (!objName) return;
-				// Find GameScene3D.ts file
-				const sceneFile = currentFiles.find((f) => f.path?.includes("GameScene3D"));
-				if (!sceneFile?.content) {
-					console.warn("[GameEditor] Cannot persist: GameScene3D.ts not found in files", currentFiles.length);
-					return;
-				}
-				const updated = updateTransformInSource(sceneFile.content, objName, pos, rot, scl);
-				if (updated !== sceneFile.content) {
-					console.log("[GameEditor] Persisting transform for:", objName, "pos:", pos);
-					sceneModifiedDuringEditRef.current = true;
-					currentOnFileUpdate(sceneFile.id, updated);
-					// Also save to database so changes survive page refresh
-					fetch(`/api/app-builder/apps/${appId}/files`, {
-						method: "PUT",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ path: sceneFile.path, content: updated }),
-					}).catch((err) => console.warn("[GameEditor] DB save failed:", err));
-				} else {
-					console.warn("[GameEditor] No change after updateTransformInSource for:", objName);
-				}
+				pendingTransformRef.current = {
+					name: objName,
+					pos: data.position as { x: number; y: number; z: number },
+					rot: data.rotation as { x: number; y: number; z: number },
+					scl: data.scale as { x: number; y: number; z: number },
+				};
+				if (persistTransformTimerRef.current) return; // already scheduled
+				persistTransformTimerRef.current = setTimeout(() => {
+					persistTransformTimerRef.current = null;
+					const pending = pendingTransformRef.current;
+					pendingTransformRef.current = null;
+					if (!pending) return;
+					const currentFiles = filesRef.current;
+					const currentOnFileUpdate = onFileUpdateRef.current;
+					if (!currentOnFileUpdate) return;
+					const sceneFile = currentFiles.find((f) => f.path?.includes("GameScene3D"));
+					if (!sceneFile?.content) return;
+					const updated = updateTransformInSource(sceneFile.content, pending.name, pending.pos, pending.rot, pending.scl);
+					if (updated !== sceneFile.content) {
+						sceneModifiedDuringEditRef.current = true;
+						currentOnFileUpdate(sceneFile.id, updated);
+						fetch(`/api/app-builder/apps/${appId}/files`, {
+							method: "PUT",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ path: sceneFile.path, content: updated }),
+						}).catch((err) => console.warn("[GameEditor] DB save failed:", err));
+					}
+				}, 400);
 			} else if (data.type === "game-editor-scene-state") {
 				// Bridge responded with current scene's object/camera state for scene switching
 				const sceneId = data.sceneId as string;
@@ -2011,7 +2016,7 @@ export function SandpackPreview({
 		// No externalResources needed for Three.js — the shim handles core + all addons
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=79`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=80`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);

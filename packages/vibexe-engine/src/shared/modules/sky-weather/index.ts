@@ -499,7 +499,7 @@ function ProceduralSkyDome(scene) {
 
 ProceduralSkyDome.prototype.update = function(st, sunDir, moonDir, moonPhase, cfg) {
   // Rebuild gradient when solarTime changes visibly
-  if (Math.abs(st - this._lastST) > 0.0005) {
+  if (Math.abs(st - this._lastST) > 0.003) {
     this._buildGradient(st);
     this._lastST = st;
   }
@@ -626,8 +626,9 @@ SkyLighting.prototype.update = function(solarTime, sunDir, cfg) {
   if (!cfg || !cfg.autoSunLight) return;
   var alt = sunDir.y;
 
-  // ---- Sun direction ----
-  var sp = sunDir.clone().multiplyScalar(100);
+  // ---- Sun direction (reuse temp vector to avoid per-frame allocation) ----
+  if (!this._tmpSp) this._tmpSp = new THREE.Vector3();
+  var sp = this._tmpSp.copy(sunDir).multiplyScalar(100);
   var player = window.__vibexe_playerMesh__;
   if (player) {
     this.sunLight.position.set(player.position.x + sp.x, sp.y, player.position.z + sp.z);
@@ -1177,9 +1178,12 @@ SkyWeatherSystem.prototype._updateFog = function() {
   // Height-based fog: thicker at low elevations
   var hFalloff = this.config.fog.heightFalloff || 0;
   if (hFalloff > 0) {
-    var cam = null;
-    this.scene.traverse(function(o) { if (!cam && o.isCamera) cam = o; });
-    var camY = cam ? cam.position.y : 5;
+    // Use cached camera (avoid per-frame scene traverse)
+    if (!this._cachedCam) {
+      var ed = window.__vibexe_editor__; if (ed && ed.camera) { this._cachedCam = ed.camera; }
+      else { this.scene.traverse(function(o) { if (!this._cachedCam && o.isCamera) this._cachedCam = o; }.bind(this)); }
+    }
+    var camY = this._cachedCam ? this._cachedCam.position.y : 5;
     var hFactor = Math.exp(-Math.max(0, camY) * hFalloff * 0.05);
     baseDensity *= (1.0 + hFactor * 2.0);
   }

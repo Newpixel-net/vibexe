@@ -681,19 +681,23 @@ function swapCharacter(scene, characterId) {
               _csMesh.rotation.y = Math.atan2(vx, vz);
             }
 
-            // Camera terrain-height correction — prevent camera going underground
-            // Runs AFTER template's camera follow (which may place camera inside terrain)
-            var _getH = window.__vibexe_getTerrainHeight;
-            if (_getH && _csMesh && _csMesh.visible) {
-              var cam = (window.__vibexe_editor__ || {}).camera;
-              if (cam && cam.position) {
-                var _camTH = _getH(cam.position.x, cam.position.z);
-                if (_camTH != null) {
-                  var _camClearance = 3.0;
-                  if (cam.position.y < _camTH + _camClearance) {
-                    cam.position.y = _camTH + _camClearance;
-                    // Re-aim at player after Y correction
-                    cam.lookAt(_csMesh.position.x, _csMesh.position.y + 1.0, _csMesh.position.z);
+            // Camera terrain-height correction — throttled to every 6th frame
+            if (!newCtrl._camFrame) newCtrl._camFrame = 0;
+            newCtrl._camFrame++;
+            if (newCtrl._camFrame >= 6) {
+              newCtrl._camFrame = 0;
+              var _getH = window.__vibexe_getTerrainHeight;
+              if (_getH && _csMesh && _csMesh.visible) {
+                if (!newCtrl._camRef) newCtrl._camRef = (window.__vibexe_editor__ || {}).camera;
+                var cam = newCtrl._camRef;
+                if (cam && cam.position) {
+                  var _camTH = _getH(cam.position.x, cam.position.z);
+                  if (_camTH != null) {
+                    var _camClearance = 3.0;
+                    if (cam.position.y < _camTH + _camClearance) {
+                      cam.position.y = _camTH + _camClearance;
+                      cam.lookAt(_csMesh.position.x, _csMesh.position.y + 1.0, _csMesh.position.z);
+                    }
                   }
                 }
               }

@@ -5173,6 +5173,14 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         }
         // Performance auto-guard state
         let __perfFrames = 0, __perfLastCheck = performance.now(), __perfDowngraded = false;
+        // Hoisted vectors for audio listener (avoid per-frame allocation)
+        const __audioFwd = new THREE.Vector3();
+        const __audioUp = new THREE.Vector3();
+        // Cached sun reference (avoid per-frame getObjectByName)
+        let __cachedSun: any = null;
+        let __sunSearched = false;
+        // LOD culling frame counter (run every 4th frame instead of every frame)
+        let __lodFrame = 0;
         const animate = (time?: number) => {
           if (disposed) return;
           animFrameId = requestAnimationFrame(animate);
@@ -5244,25 +5252,26 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               } else if (__ac.listener.setPosition) {
                 __ac.listener.setPosition(camera.position.x, camera.position.y, camera.position.z);
               }
-              // Listener orientation from camera quaternion (fixes panning on camera rotate)
-              const __fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-              const __up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
+              // Listener orientation from camera quaternion (reuse hoisted vectors)
+              __audioFwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+              __audioUp.set(0, 1, 0).applyQuaternion(camera.quaternion);
               if (__ac.listener.forwardX) {
-                __ac.listener.forwardX.value = __fwd.x;
-                __ac.listener.forwardY.value = __fwd.y;
-                __ac.listener.forwardZ.value = __fwd.z;
-                __ac.listener.upX.value = __up.x;
-                __ac.listener.upY.value = __up.y;
-                __ac.listener.upZ.value = __up.z;
+                __ac.listener.forwardX.value = __audioFwd.x;
+                __ac.listener.forwardY.value = __audioFwd.y;
+                __ac.listener.forwardZ.value = __audioFwd.z;
+                __ac.listener.upX.value = __audioUp.x;
+                __ac.listener.upY.value = __audioUp.y;
+                __ac.listener.upZ.value = __audioUp.z;
               } else if (__ac.listener.setOrientation) {
-                __ac.listener.setOrientation(__fwd.x, __fwd.y, __fwd.z, __up.x, __up.y, __up.z);
+                __ac.listener.setOrientation(__audioFwd.x, __audioFwd.y, __audioFwd.z, __audioUp.x, __audioUp.y, __audioUp.z);
               }
             }
           } catch {}
           // Shadow camera follows player so shadows stay visible on large terrains
           const __playerMesh = (window as any).__vibexe_playerMesh__;
           if (__playerMesh && __playerMesh.position) {
-            const __sun2 = scene.getObjectByName('__default_sun__') || scene.getObjectByName('DirectionalLight');
+            if (!__sunSearched) { __cachedSun = scene.getObjectByName('__default_sun__') || scene.getObjectByName('DirectionalLight'); __sunSearched = true; }
+            const __sun2 = __cachedSun;
             if (__sun2 && (__sun2 as any).isDirectionalLight) {
               const __px = __playerMesh.position.x;
               const __pz = __playerMesh.position.z;
@@ -5274,7 +5283,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               }
             }
           }
-          // Distance-based LOD culling — hide objects far from camera to improve FPS
+          // Distance-based LOD culling — run every 4th frame to reduce overhead
+          __lodFrame++;
+          if (__lodFrame >= 4) { __lodFrame = 0;
           const __cullDist = (window as any).__vibexe_cullDistance__ || 150;
           const __camPos = camera.position;
           for (let __ci = 0; __ci < scene.children.length; __ci++) {
@@ -5291,6 +5302,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               __ch.visible = __shouldVis;
             }
           }
+          } // end LOD frame gate
           // Render via post-processing composer if available, else standard render
           const __composer = (window as any).__vibexe_composer__;
           if (__composer) { __composer.render(delta); }

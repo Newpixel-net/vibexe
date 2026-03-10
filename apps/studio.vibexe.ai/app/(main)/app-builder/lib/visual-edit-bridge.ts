@@ -889,6 +889,13 @@ export function getVisualEditBridgeScript(): string {
     };
   }
 
+  var _sceneTreeTimer = null;
+  var _sceneTreeQueued = false;
+  function sendSceneTreeThrottled() {
+    if (_sceneTreeTimer) { _sceneTreeQueued = true; return; }
+    sendSceneTree();
+    _sceneTreeTimer = setTimeout(function() { _sceneTreeTimer = null; if (_sceneTreeQueued) { _sceneTreeQueued = false; sendSceneTree(); } }, 200);
+  }
   function sendSceneTree() {
     if (!editor || !editor.scene) return;
     var tree = serializeNode(editor.scene);
@@ -1220,11 +1227,11 @@ export function getVisualEditBridgeScript(): string {
       }
     } else if (entry.type === "delete") {
       editor.scene.add(entry.object);
-      sendSceneTree();
+      sendSceneTreeThrottled();
       redoStack.push({ type: "delete-reverse", uuid: entry.uuid, object: entry.object });
     } else if (entry.type === "duplicate") {
       var dup = findByUuid(editor.scene, entry.uuid);
-      if (dup) { editor.scene.remove(dup); deselectObject(); sendSceneTree(); redoStack.push({ type: "duplicate-reverse", uuid: entry.uuid, object: dup }); }
+      if (dup) { editor.scene.remove(dup); deselectObject(); sendSceneTreeThrottled(); redoStack.push({ type: "duplicate-reverse", uuid: entry.uuid, object: dup }); }
     } else if (entry.type === "property") {
       var obj2 = findByUuid(editor.scene, entry.uuid);
       if (obj2) {
@@ -1264,11 +1271,11 @@ export function getVisualEditBridgeScript(): string {
     } else if (entry.type === "delete-reverse") {
       editor.scene.remove(entry.object);
       if (selectedObj && selectedObj.uuid === entry.uuid) deselectObject();
-      sendSceneTree();
+      sendSceneTreeThrottled();
       undoStack.push({ type: "delete", uuid: entry.uuid, object: entry.object });
     } else if (entry.type === "duplicate-reverse") {
       editor.scene.add(entry.object);
-      sendSceneTree();
+      sendSceneTreeThrottled();
       undoStack.push({ type: "duplicate", uuid: entry.uuid });
     } else if (entry.type === "property") {
       var obj2 = findByUuid(editor.scene, entry.uuid);
@@ -1457,7 +1464,7 @@ export function getVisualEditBridgeScript(): string {
     editor.scene.add(clone);
     pushUndo({ type: "duplicate", uuid: clone.uuid });
     selectObject(clone);
-    sendSceneTree();
+    sendSceneTreeThrottled();
     window.parent.postMessage({ type: "game-editor-object-duplicated", uuid: clone.uuid }, "*");
   }
 
@@ -1497,7 +1504,7 @@ export function getVisualEditBridgeScript(): string {
     }
     pushUndo({ type: "group", uuid: group.uuid, childUuids: uuids });
     selectObject(group);
-    sendSceneTree();
+    sendSceneTreeThrottled();
     window.parent.postMessage({ type: "game-editor-objects-grouped", uuid: group.uuid, count: objects.length }, "*");
     window.parent.postMessage({ type: "game-editor-scene-dirty" }, "*");
   }
@@ -1528,7 +1535,7 @@ export function getVisualEditBridgeScript(): string {
     deselectObject();
     editor.scene.remove(group);
     pushUndo({ type: "ungroup", uuid: uuid, childUuids: childUuids });
-    sendSceneTree();
+    sendSceneTreeThrottled();
     window.parent.postMessage({ type: "game-editor-objects-ungrouped", count: childUuids.length }, "*");
     window.parent.postMessage({ type: "game-editor-scene-dirty" }, "*");
   }
@@ -1591,7 +1598,7 @@ export function getVisualEditBridgeScript(): string {
     }
     dragPlane = null; dragOffset = null; dragStartPos = null;
     persistTransform(selectedObj);
-    sendSceneTree();
+    sendSceneTreeThrottled();
   }
 
   // ---- Raycast helper ----
@@ -1975,7 +1982,7 @@ export function getVisualEditBridgeScript(): string {
           var _kbDelName = delObj.name || "";
           pushUndo({ type: "delete", uuid: uuid, object: delObj });
           editor.scene.remove(delObj);
-          deselectObject(); sendSceneTree();
+          deselectObject(); sendSceneTreeThrottled();
           window.parent.postMessage({ type: "game-editor-object-deleted", uuid: uuid, name: _kbDelName }, "*");
           window.parent.postMessage({ type: "game-editor-scene-dirty" }, "*");
         }
@@ -2298,7 +2305,7 @@ export function getVisualEditBridgeScript(): string {
       createPreviewCamera();
       editorLoop();
       setTimeout(function() {
-        sendSceneTree();
+        sendSceneTreeThrottled();
         window.parent.postMessage({ type: "game-editor-ready" }, "*");
       }, 100);
     });
@@ -2556,7 +2563,7 @@ export function getVisualEditBridgeScript(): string {
       case "name": obj.name = String(value); break;
     }
     if (boxHelper && selectedObj && selectedObj.uuid === uuid) boxHelper.update();
-    sendSelectedObject(obj); sendSceneTree();
+    sendSelectedObject(obj); sendSceneTreeThrottled();
     window.parent.postMessage({ type: "game-editor-scene-dirty" }, "*");
     // Persist transform/property changes to source code
     if (property.indexOf("position") === 0 || property.indexOf("rotation") === 0 || property.indexOf("scale") === 0) {
@@ -2608,7 +2615,7 @@ export function getVisualEditBridgeScript(): string {
             var _delName = toDelete.name || "";
             pushUndo({ type: "delete", uuid: d.uuid, object: toDelete });
             if (selectedObj && selectedObj.uuid === d.uuid) deselectObject();
-            editor.scene.remove(toDelete); sendSceneTree();
+            editor.scene.remove(toDelete); sendSceneTreeThrottled();
             window.parent.postMessage({ type: "game-editor-object-deleted", uuid: d.uuid, name: _delName }, "*");
             window.parent.postMessage({ type: "game-editor-scene-dirty" }, "*");
           }
@@ -2869,7 +2876,7 @@ export function getVisualEditBridgeScript(): string {
             if (isLocked && selectedObj && selectedObj.uuid === d.uuid && transformControls) {
               transformControls.detach();
             }
-            sendSceneTree();
+            sendSceneTreeThrottled();
           }
         } break;
       case "game-editor-multi-highlight":
@@ -4080,7 +4087,7 @@ export function getVisualEditBridgeScript(): string {
           }
         }
 
-        if (editor) sendSceneTree();
+        if (editor) sendSceneTreeThrottled();
 
         console.log("[TerrainPainter] Terrain generated:", _tpPos.count, "vertices, height range:", _tpMinY.toFixed(1), "-", _tpMaxY.toFixed(1));
         window.parent.postMessage({ type: "terrain-painter-terrain-generated", vertexCount: _tpPos.count, minY: _tpMinY, maxY: _tpMaxY }, "*");

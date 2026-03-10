@@ -6,7 +6,7 @@
  * Also supports direct typing.
  */
 
-import { useCallback, useRef, useState } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 
 interface DragNumberInputProps {
 	label: string;
@@ -19,7 +19,7 @@ interface DragNumberInputProps {
 	labelClassName?: string;
 }
 
-export function DragNumberInput({
+export const DragNumberInput = memo(function DragNumberInput({
 	label,
 	value,
 	step = 0.1,
@@ -117,4 +117,4 @@ export function DragNumberInput({
 			)}
 		</div>
 	);
-}
+});
