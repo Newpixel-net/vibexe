@@ -1096,15 +1096,19 @@ export function getVisualEditBridgeScript(): string {
           }
         });
         transformControls.addEventListener("objectChange", function() {
-          // Camera mode: compute offsets from player position
+          // Camera mode: compute offsets and save to iframe settings (no position reset)
           if (cameraSelected && previewCamera) {
             var player = findPlayerMesh();
             var px = 0, py = 0, pz = 0;
             if (player) { px = player.position.x; py = player.position.y; pz = player.position.z; }
-            var newOffsetY = Math.max(1, previewCamera.position.y - py);
-            var newOffsetZ = Math.max(1, previewCamera.position.z - pz);
-            previewCamera.position.y = py + newOffsetY;
-            previewCamera.position.z = pz + newOffsetZ;
+            var newOffsetY = previewCamera.position.y - py;
+            var newOffsetZ = previewCamera.position.z - pz;
+            // Persist to iframe game settings so updatePreviewCamera uses them after deselect
+            var _gs = window.__vibexe_game_settings__;
+            if (!_gs) { _gs = {}; window.__vibexe_game_settings__ = _gs; }
+            if (!_gs.camera) _gs.camera = {};
+            _gs.camera.offsetY = newOffsetY;
+            _gs.camera.offsetZ = newOffsetZ;
             if (cameraHelper) cameraHelper.update();
             window.parent.postMessage({
               type: "game-editor-camera-moved",
@@ -1784,7 +1788,7 @@ export function getVisualEditBridgeScript(): string {
     showDebug("Click from " + source + " at (" + Math.round(clientX) + ", " + Math.round(clientY) + ")");
     if (!active || !editor) { showDebug("SKIP: active=" + active + " editor=" + !!editor); return; }
     if (panToolActive) { showDebug("SKIP: pan tool active"); return; }
-    if (transformControls && transformControls.dragging) { showDebug("SKIP: gizmo active (dragging)"); return; }
+    if (transformControls && (transformControls.dragging || transformControls.axis)) { showDebug("SKIP: gizmo active (dragging/hover)"); return; }
     var rect = editor.renderer.domElement.getBoundingClientRect();
     showDebug("Canvas rect: " + Math.round(rect.left) + "," + Math.round(rect.top) + " " + Math.round(rect.width) + "x" + Math.round(rect.height) + " | Click: " + Math.round(clientX) + "," + Math.round(clientY));
     var target = raycastMeshes(clientX, clientY);
@@ -2034,8 +2038,10 @@ export function getVisualEditBridgeScript(): string {
       }
     }
     // Camera state is saved on deactivation + OrbitControls "end" event (not periodic — periodic causes flashing)
-    // Per-frame sweep: remove duplicate __editor_ objects (old Game3D.tsx templates lack _hasExt guard)
-    if (editor.scene) {
+    // Throttled sweep: remove duplicate __editor_ objects every 60 frames (old Game3D.tsx templates lack _hasExt guard)
+    if (!editorLoop._sweepCount) editorLoop._sweepCount = 0;
+    if (++editorLoop._sweepCount >= 60 && editor.scene) {
+      editorLoop._sweepCount = 0;
       var dupes = [];
       for (var ei = 0; ei < editor.scene.children.length; ei++) {
         var ec = editor.scene.children[ei];
@@ -2059,27 +2065,27 @@ export function getVisualEditBridgeScript(): string {
         var _pipH = Math.floor(120 * _dpr);
         var _pipX = Math.floor(4 * _dpr);
         var _pipY = Math.floor(4 * _dpr);
-        // Save current clear color
         var _prevClearColor = new (window.THREE.Color)();
         var _prevClearAlpha = editor.renderer.getClearAlpha();
         editor.renderer.getClearColor(_prevClearColor);
-        // Draw dark border (2px padding around PIP)
-        var _border = Math.floor(2 * _dpr);
-        editor.renderer.setViewport(_pipX - _border, _pipY - _border, _pipW + _border * 2, _pipH + _border * 2);
-        editor.renderer.setScissor(_pipX - _border, _pipY - _border, _pipW + _border * 2, _pipH + _border * 2);
-        editor.renderer.setScissorTest(true);
-        editor.renderer.setClearColor(0x111111, 0.9);
-        editor.renderer.clear();
-        // Render PIP viewport
-        editor.renderer.setViewport(_pipX, _pipY, _pipW, _pipH);
-        editor.renderer.setScissor(_pipX, _pipY, _pipW, _pipH);
-        previewCamera.aspect = 200 / 120;
-        previewCamera.updateProjectionMatrix();
-        editor.renderer.render(editor.scene, previewCamera);
-        // Restore
-        editor.renderer.setScissorTest(false);
-        editor.renderer.setViewport(0, 0, _fullSize.x, _fullSize.y);
-        editor.renderer.setClearColor(_prevClearColor, _prevClearAlpha);
+        try {
+          var _border = Math.floor(2 * _dpr);
+          editor.renderer.setViewport(_pipX - _border, _pipY - _border, _pipW + _border * 2, _pipH + _border * 2);
+          editor.renderer.setScissor(_pipX - _border, _pipY - _border, _pipW + _border * 2, _pipH + _border * 2);
+          editor.renderer.setScissorTest(true);
+          editor.renderer.setClearColor(0x111111, 0.9);
+          editor.renderer.clear();
+          editor.renderer.setViewport(_pipX, _pipY, _pipW, _pipH);
+          editor.renderer.setScissor(_pipX, _pipY, _pipW, _pipH);
+          previewCamera.aspect = 200 / 120;
+          previewCamera.updateProjectionMatrix();
+          editor.renderer.render(editor.scene, previewCamera);
+        } finally {
+          // Always restore renderer state even if PIP render throws
+          editor.renderer.setScissorTest(false);
+          editor.renderer.setViewport(0, 0, _fullSize.x, _fullSize.y);
+          editor.renderer.setClearColor(_prevClearColor, _prevClearAlpha);
+        }
       }
     } catch (e) {
       // Prevent cascading crashes (e.g., TransformControls infinite recursion)
@@ -2661,10 +2667,14 @@ export function getVisualEditBridgeScript(): string {
                   var player = findPlayerMesh();
                   var px = 0, py = 0, pz = 0;
                   if (player) { px = player.position.x; py = player.position.y; pz = player.position.z; }
-                  var newOffsetY = Math.max(1, previewCamera.position.y - py);
-                  var newOffsetZ = Math.max(1, previewCamera.position.z - pz);
-                  previewCamera.position.y = py + newOffsetY;
-                  previewCamera.position.z = pz + newOffsetZ;
+                  var newOffsetY = previewCamera.position.y - py;
+                  var newOffsetZ = previewCamera.position.z - pz;
+                  // Persist to iframe game settings so updatePreviewCamera uses them after deselect
+                  var _gs = window.__vibexe_game_settings__;
+                  if (!_gs) { _gs = {}; window.__vibexe_game_settings__ = _gs; }
+                  if (!_gs.camera) _gs.camera = {};
+                  _gs.camera.offsetY = newOffsetY;
+                  _gs.camera.offsetZ = newOffsetZ;
                   if (cameraHelper) cameraHelper.update();
                   window.parent.postMessage({
                     type: "game-editor-camera-moved",
