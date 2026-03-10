@@ -5641,11 +5641,15 @@ export const GameScene = {
     const _currentPM = (window as any).__vibexe_playerMesh__;
     if (_currentPM && _currentPM !== _lastKnownPlayerMesh) {
       _lastKnownPlayerMesh = _currentPM;
+      // Hide old lily.mesh if a different mesh was swapped in
+      if (lily && lily.mesh && _currentPM !== lily.mesh && lily.mesh.visible) {
+        lily.mesh.visible = false;
+      }
       const _cr = _currentPM.userData?.__charResult;
       if (_cr && _currentPM !== lily?.mesh) {
         // Reshape playerBody to match new character dimensions
         const _cb = _currentPM.userData?.__characterBounds;
-        if (_cb && playerBody && playerBody.shapes?.length) {
+        if (_cb && _cb.halfX != null && _cb.height != null && _cb.halfZ != null && playerBody && playerBody.shapes?.length) {
           const _newHalf = new CANNON.Vec3(
             Math.max(0.05, _cb.halfX),
             Math.max(0.05, _cb.height / 2),
