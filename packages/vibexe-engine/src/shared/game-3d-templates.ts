@@ -122,8 +122,8 @@ export const STOMP_FORCE = -20;        // Stomp downward force (additive per fra
 export const AIR_DIVE_FORCE = 16;      // Air dive forward force
 
 // Camera follow constants (3rd-person platformer defaults)
-export let CAMERA_OFFSET_Y = __gs.camera?.offsetY ?? 8;
-export let CAMERA_OFFSET_Z = __gs.camera?.offsetZ ?? 12;
+export let CAMERA_OFFSET_Y = Math.max(3, __gs.camera?.offsetY ?? 8);
+export let CAMERA_OFFSET_Z = Math.max(3, __gs.camera?.offsetZ ?? 12);
 export let CAMERA_LERP = __gs.camera?.lerp ?? 3;
 export let CAMERA_LOOK_Y = __gs.camera?.lookY ?? 1;
 // Common AI aliases — prevent "undefined" crashes
@@ -4990,8 +4990,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 // --- Camera ---
                 if (s.camera) {
                   if (s.camera.fov !== undefined && camera) { camera.fov = s.camera.fov; camera.updateProjectionMatrix(); }
-                  if (s.camera.offsetY !== undefined) { CAMERA_OFFSET_Y = s.camera.offsetY; CAMERA_HEIGHT = s.camera.offsetY; (window as any).CAMERA_OFFSET_Y = s.camera.offsetY; }
-                  if (s.camera.offsetZ !== undefined) { CAMERA_OFFSET_Z = s.camera.offsetZ; CAMERA_DISTANCE = s.camera.offsetZ; (window as any).CAMERA_OFFSET_Z = s.camera.offsetZ; }
+                  if (s.camera.offsetY !== undefined) { const _oy = Math.max(3, s.camera.offsetY); CAMERA_OFFSET_Y = _oy; CAMERA_HEIGHT = _oy; (window as any).CAMERA_OFFSET_Y = _oy; }
+                  if (s.camera.offsetZ !== undefined) { const _oz = Math.max(3, s.camera.offsetZ); CAMERA_OFFSET_Z = _oz; CAMERA_DISTANCE = _oz; (window as any).CAMERA_OFFSET_Z = _oz; }
                   if (s.camera.lerp !== undefined) { CAMERA_LERP = s.camera.lerp; (window as any).CAMERA_LERP = s.camera.lerp; }
                   if (s.camera.lookY !== undefined) { CAMERA_LOOK_Y = s.camera.lookY; (window as any).CAMERA_LOOK_Y = s.camera.lookY; }
                   if (s.camera.lookAhead !== undefined) { CAMERA_LOOK_AHEAD = s.camera.lookAhead; (window as any).CAMERA_LOOK_AHEAD = s.camera.lookAhead; }
