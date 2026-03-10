@@ -44,7 +44,7 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v3.0.0
+const runtimeCode = `// @vibexe/character-system v3.1.0
 // Production-quality character management — bone measurement, pivot correction, camera override
 console.log('[CharacterSystem] Module v3 loaded');
 
@@ -278,15 +278,15 @@ function loadCharacterGLB(scene, url, position, charName) {
       }
 
       // --- Pivot correction AFTER scaling ---
+      // Re-measure bounding box after rotation + scale for accurate foot position
       inner.updateMatrixWorld(true);
-      var scaledMinY = measuredMinY * autoScale;
       var pivotBox = new THREE.Box3().setFromObject(inner);
       var pivotCenter = new THREE.Vector3();
       pivotBox.getCenter(pivotCenter);
       var pivot = new THREE.Group();
       pivot.add(inner);
-      // Use bone-measured minY (feet) for Y offset, geometry center for XZ
-      pivot.position.set(-pivotCenter.x, -scaledMinY, -pivotCenter.z);
+      // Use post-transform bounding box min.y for feet, center for XZ
+      pivot.position.set(-pivotCenter.x, -pivotBox.min.y, -pivotCenter.z);
 
       // --- Apply deferred Unity Root bone fix ---
       if (needsUnityRootFix) {
@@ -500,8 +500,9 @@ function CharacterManager(scene) {
   this._activeResult = null;
   this._physicsBody = null;
   this._swapping = false;
-  this._rafId = null;
-  this._lastTime = 0;
+  this._controllerObj = null;
+  this._controllerRegistered = false;
+  this._cachedCamera = null;
   this._cameraOverride = false;
   // Animation state machine
   this._animState = "idle";
@@ -515,157 +516,139 @@ CharacterManager.prototype.getRegistry = function() { return this._registry; };
 CharacterManager.prototype.getActiveId = function() { return this._activeId; };
 CharacterManager.prototype.getActiveMesh = function() { return this._activeMesh; };
 
-// Unified per-frame update loop: mixer, position sync, Y offset, camera, terrain, facing, animation state
+// Register controller in _activeControllers3D (runs AFTER gameScene.update each frame)
+// This replaces the separate RAF loop — no double mixer update, camera override wins naturally,
+// and controller is automatically skipped in editor mode by the framework.
 CharacterManager.prototype._startUpdateLoop = function() {
   var self = this;
-  if (this._rafId) return;
-  this._lastTime = performance.now();
+  if (this._controllerRegistered) return;
+  this._controllerRegistered = true;
+  this._cachedCamera = null;
 
-  function tick() {
-    self._rafId = requestAnimationFrame(tick);
-    var now = performance.now();
-    var dt = (now - self._lastTime) / 1000;
-    self._lastTime = now;
-    if (dt > 0.1) dt = 0.1;
-    if (dt <= 0) return;
+  var controllerObj = {
+    update: function(delta) {
+      if (delta <= 0 || delta > 0.1) return;
 
-    var result = self._activeResult;
-    var body = self._physicsBody;
-    var mesh = self._activeMesh;
-    if (!result || !mesh) return;
+      var result = self._activeResult;
+      var body = self._physicsBody;
+      var mesh = self._activeMesh;
+      if (!result || !mesh) return;
 
-    // 1. Update animation mixer
-    if (result.mixer) {
-      result.mixer.update(dt);
-    }
+      // NOTE: Mixer update handled by framework via _activeMixers3D — NOT here.
+      // This prevents the double-update bug (2x animation speed).
 
-    // 2. Terrain ground-following (snap physics body above terrain)
-    if (body) {
-      var getTerrainH = window.__vibexe_getTerrainHeight;
-      if (getTerrainH) {
-        var th = getTerrainH(body.position.x, body.position.z);
-        if (th != null) {
-          var bodyHalfH = 0.75;
-          if (body.shapes && body.shapes[0] && body.shapes[0].halfExtents && body.shapes[0].halfExtents.y) {
-            bodyHalfH = body.shapes[0].halfExtents.y;
-          } else if (mesh.userData && mesh.userData.__characterBounds) {
-            bodyHalfH = mesh.userData.__characterBounds.height / 2;
-          }
-          var groundY = th + bodyHalfH;
-          var gap = body.position.y - groundY;
-          if (gap < 0) {
-            body.position.y = groundY;
-            if (body.velocity.y < 0) body.velocity.y = 0;
-            body.__canJump = true;
-          } else if (gap < 3.0 && body.velocity.y <= 1.5) {
-            body.position.y = groundY;
-            if (body.velocity.y < 0) body.velocity.y = 0;
-            body.__canJump = true;
-          }
-        }
-      }
-    }
-
-    // 3. Sync mesh position to physics body with Y offset
-    if (body && mesh) {
-      mesh.position.x = body.position.x;
-      mesh.position.z = body.position.z;
-      // Offset Y by half-height: mesh origin is at feet (pivot correction),
-      // body center is at body middle, so mesh.y = body.y - height/2
-      var cb = mesh.userData && mesh.userData.__characterBounds;
-      if (cb) {
-        mesh.position.y = body.position.y - cb.height / 2;
-      } else {
-        mesh.position.y = body.position.y - TARGET_HEIGHT / 2;
-      }
-    }
-
-    // 4. Facing direction (smooth rotation toward movement)
-    if (body) {
-      var vx = body.velocity.x;
-      var vz = body.velocity.z;
-      var hSpeed = Math.sqrt(vx * vx + vz * vz);
-      if (hSpeed > 0.3 && mesh) {
-        if (Math.abs(vx) > 0.01 || Math.abs(vz) > 0.01) {
-          var targetAngle = Math.atan2(vx, vz);
-          var current = mesh.rotation.y;
-          var diff = targetAngle - current;
-          while (diff > Math.PI) diff -= Math.PI * 2;
-          while (diff < -Math.PI) diff += Math.PI * 2;
-          mesh.rotation.y += diff * Math.min(1, dt * 10);
-        }
-      }
-    }
-
-    // 5. Camera follow override
-    if (self._cameraOverride && mesh) {
-      var cam = window.__vibexe_camera__ || (window.__vibexe_scene__ && window.__vibexe_scene__.userData && window.__vibexe_scene__.userData.__camera);
-      // Try to find camera from scene children
-      if (!cam && window.__vibexe_scene__) {
-        window.__vibexe_scene__.traverse(function(child) {
-          if (!cam && child.isCamera) cam = child;
-        });
-      }
-      if (cam) {
-        cam.position.x += (mesh.position.x - cam.position.x) * CAMERA_LERP * dt;
-        cam.position.y += (mesh.position.y + CAMERA_OFFSET_Y - cam.position.y) * CAMERA_LERP * dt;
-        cam.position.z += (mesh.position.z + CAMERA_OFFSET_Z - cam.position.z) * CAMERA_LERP * dt;
-        cam.lookAt(mesh.position.x, mesh.position.y + CAMERA_LOOK_Y, mesh.position.z);
-      }
-    }
-
-    // 6. Per-frame animation state machine (replaces 100ms setInterval)
-    if (body && result.play) {
-      var pvx = body.velocity.x;
-      var pvz = body.velocity.z;
-      var pSpeed = Math.sqrt(pvx * pvx + pvz * pvz);
-      var isGrounded = body.__canJump !== false;
-      var isRising = body.velocity.y > 2;
-
-      // Attack cooldown
-      if (self._isAttacking) {
-        self._attackTimer -= dt;
-        if (self._attackTimer <= 0) self._isAttacking = false;
-        else return; // Don't switch during attack
-      }
-
-      self._animStateTimer += dt;
-
-      // State machine with hysteresis
-      var newState = self._animState;
-      if (!isGrounded && isRising) {
-        newState = "jump";
-      } else if (self._animState === "run" ? pSpeed > RUN_SPEED * 0.6 : pSpeed > RUN_SPEED) {
-        newState = "run";
-      } else if (self._animState === "walk" ? pSpeed > WALK_SPEED * 0.3 : pSpeed > WALK_SPEED) {
-        newState = "walk";
-      } else {
-        newState = "idle";
-      }
-
-      if (newState !== self._animState && (self._animStateTimer >= MIN_STATE_HOLD || newState === "jump")) {
-        self._animState = newState;
-        self._animStateTimer = 0;
-        if (newState === "jump") {
-          result.play("jump", { loop: false, crossfade: 0.15 });
-        } else if (newState === "run") {
-          result.play("run", { crossfade: 0.2 });
-        } else if (newState === "walk") {
-          result.play("walk", { crossfade: 0.2 });
+      // 1. Sync mesh position to physics body with Y offset
+      if (body) {
+        mesh.position.x = body.position.x;
+        mesh.position.z = body.position.z;
+        var cb = mesh.userData && mesh.userData.__characterBounds;
+        if (cb) {
+          mesh.position.y = body.position.y - cb.height / 2;
         } else {
-          result.play("idle", { crossfade: 0.3 });
+          mesh.position.y = body.position.y - TARGET_HEIGHT / 2;
         }
       }
-    }
+
+      // 2. Facing direction (smooth rotation toward movement)
+      if (body) {
+        var vx = body.velocity.x;
+        var vz = body.velocity.z;
+        var hSpeed = Math.sqrt(vx * vx + vz * vz);
+        if (hSpeed > 0.3) {
+          if (Math.abs(vx) > 0.01 || Math.abs(vz) > 0.01) {
+            var targetAngle = Math.atan2(vx, vz);
+            var current = mesh.rotation.y;
+            var diff = targetAngle - current;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            mesh.rotation.y += diff * Math.min(1, delta * 10);
+          }
+        }
+      }
+
+      // 3. Camera follow override (runs AFTER gameScene.update, so naturally wins)
+      if (self._cameraOverride) {
+        if (!self._cachedCamera) {
+          self._cachedCamera = window.__vibexe_camera__;
+          if (!self._cachedCamera && window.__vibexe_scene__) {
+            var sc = window.__vibexe_scene__;
+            if (sc.userData && sc.userData.__camera) {
+              self._cachedCamera = sc.userData.__camera;
+            }
+            if (!self._cachedCamera) {
+              sc.traverse(function(child) {
+                if (!self._cachedCamera && child.isCamera) self._cachedCamera = child;
+              });
+            }
+          }
+        }
+        var cam = self._cachedCamera;
+        if (cam) {
+          cam.position.x += (mesh.position.x - cam.position.x) * CAMERA_LERP * delta;
+          cam.position.y += (mesh.position.y + CAMERA_OFFSET_Y - cam.position.y) * CAMERA_LERP * delta;
+          cam.position.z += (mesh.position.z + CAMERA_OFFSET_Z - cam.position.z) * CAMERA_LERP * delta;
+          cam.lookAt(mesh.position.x, mesh.position.y + CAMERA_LOOK_Y, mesh.position.z);
+        }
+      }
+
+      // 4. Per-frame animation state machine
+      if (body && result.play) {
+        var pvx = body.velocity.x;
+        var pvz = body.velocity.z;
+        var pSpeed = Math.sqrt(pvx * pvx + pvz * pvz);
+        var isGrounded = body.__canJump !== false;
+        var isRising = body.velocity.y > 2;
+
+        if (self._isAttacking) {
+          self._attackTimer -= delta;
+          if (self._attackTimer <= 0) self._isAttacking = false;
+          else return;
+        }
+
+        self._animStateTimer += delta;
+        var newState = self._animState;
+        if (!isGrounded && isRising) {
+          newState = "jump";
+        } else if (self._animState === "run" ? pSpeed > RUN_SPEED * 0.6 : pSpeed > RUN_SPEED) {
+          newState = "run";
+        } else if (self._animState === "walk" ? pSpeed > WALK_SPEED * 0.3 : pSpeed > WALK_SPEED) {
+          newState = "walk";
+        } else {
+          newState = "idle";
+        }
+
+        if (newState !== self._animState && (self._animStateTimer >= MIN_STATE_HOLD || newState === "jump")) {
+          self._animState = newState;
+          self._animStateTimer = 0;
+          if (newState === "jump") {
+            result.play("jump", { loop: false, crossfade: 0.15 });
+          } else if (newState === "run") {
+            result.play("run", { crossfade: 0.2 });
+          } else if (newState === "walk") {
+            result.play("walk", { crossfade: 0.2 });
+          } else {
+            result.play("idle", { crossfade: 0.3 });
+          }
+        }
+      }
+    },
+    __charSystem: true
+  };
+  self._controllerObj = controllerObj;
+
+  if (window._activeControllers3D && Array.isArray(window._activeControllers3D)) {
+    window._activeControllers3D.push(controllerObj);
   }
-  tick();
 };
 
 CharacterManager.prototype._stopUpdateLoop = function() {
-  if (this._rafId) {
-    cancelAnimationFrame(this._rafId);
-    this._rafId = null;
+  if (this._controllerObj && window._activeControllers3D) {
+    var idx = window._activeControllers3D.indexOf(this._controllerObj);
+    if (idx !== -1) window._activeControllers3D.splice(idx, 1);
   }
+  this._controllerObj = null;
+  this._controllerRegistered = false;
+  this._cachedCamera = null;
 };
 
 // Swap to a new character by ID
@@ -712,6 +695,15 @@ CharacterManager.prototype.swap = function(characterId, options) {
   // 2. Dispose old character (our own, if any)
   this._disposeActive();
 
+  // 2b. Remove stale controllers from _activeControllers3D (e.g. old lilyController)
+  if (window._activeControllers3D && Array.isArray(window._activeControllers3D)) {
+    for (var ci = window._activeControllers3D.length - 1; ci >= 0; ci--) {
+      if (!window._activeControllers3D[ci].__charSystem) {
+        window._activeControllers3D.splice(ci, 1);
+      }
+    }
+  }
+
   // 3. Also remove the legacy player mesh (Lily) if it exists and isn't ours
   var legacyMesh = window.__vibexe_playerMesh__;
   if (legacyMesh && legacyMesh !== this._activeMesh) {
@@ -753,6 +745,17 @@ CharacterManager.prototype.swap = function(characterId, options) {
       if (existingBody) {
         self._physicsBody = existingBody;
         charResult.mesh.userData.__physicsBody = existingBody;
+        // Reshape body to match new character dimensions
+        var CANNON_R = window.CANNON;
+        if (CANNON_R && existingBody.shapes && existingBody.shapes.length > 0) {
+          existingBody.removeShape(existingBody.shapes[0]);
+          var newHalfX = Math.max(charResult.size.x, 0.2);
+          var newHalfY = Math.max(charResult.size.y, 0.3);
+          var newHalfZ = Math.max(charResult.size.z, 0.2);
+          var newShape = new CANNON_R.Box(new CANNON_R.Vec3(newHalfX, newHalfY, newHalfZ));
+          existingBody.addShape(newShape);
+          console.log("[CharacterSystem] Reshaped physics body:", newHalfX.toFixed(2), newHalfY.toFixed(2), newHalfZ.toFixed(2));
+        }
         console.log("[CharacterSystem] Reusing existing physics body");
       } else {
         var CANNON = window.CANNON;
