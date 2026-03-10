@@ -7,10 +7,11 @@
  * Features:
  * - Character registry (built-in + future database categories)
  * - Runtime character swapping (dispose old, load new, rebind physics)
+ * - Self-contained GLTFLoader-based character loading (no dependency on game internals)
  * - Animation normalization (maps arbitrary clip names to standard slots)
  * - Auto-scaling to consistent height (1.5 world units)
  * - Ground offset correction (feet alignment with terrain/floor)
- * - Physics body recreation on swap
+ * - Physics body reuse on swap
  */
 
 import type { ModuleManifest } from "../module-types";
@@ -18,9 +19,6 @@ import type { ModuleManifest } from "../module-types";
 /**
  * Built-in character registry.
  * Format: { id, name, pack, model, animations, groundOffset, thumbnail }
- *
- * `animations` maps standard slots to fuzzy search terms.
- * The runtime uses the existing fuzzy matcher in createAnimatedCharacter3D.
  */
 const BUILT_IN_CHARACTERS = JSON.stringify([
 	{
@@ -43,20 +41,17 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v1.0.0
-// Player character management — selection, loading, swapping, animation normalization
-console.log('[CharacterSystem] Module code loaded');
+const runtimeCode = `// @vibexe/character-system v2.0.0
+// Self-contained character management — loads GLB via THREE.GLTFLoader directly
+console.log('[CharacterSystem] Module v2 loaded');
 
 var THREE = require('three');
-console.log('[CharacterSystem] THREE loaded:', !!THREE);
 
 // ===== CHARACTER REGISTRY =====
 var _builtInCharacters = ${BUILT_IN_CHARACTERS};
-var _customCharacters = []; // Future: loaded from database
 
 function CharacterRegistry() {
   this._characters = {};
-  // Load built-in characters
   for (var i = 0; i < _builtInCharacters.length; i++) {
     var c = _builtInCharacters[i];
     this._characters[c.id] = c;
@@ -84,18 +79,165 @@ CharacterRegistry.prototype.register = function(charDef) {
   this._characters[charDef.id] = charDef;
 };
 
-// ===== CHARACTER MANAGER =====
-// Handles the active character: loading, swapping, physics, animation
+// ===== ANIMATION CLASSIFIER =====
+// Fuzzy match clip names to standard animation slots
+function classifyAnimations(clips) {
+  var map = {};
+  var slotPatterns = {
+    idle: ["idle", "stand", "breathing", "rest"],
+    walk: ["walk", "locomotion", "step"],
+    run: ["run", "sprint", "jog", "fast"],
+    jump: ["jump", "leap", "hop"],
+    attack: ["attack", "kick", "punch", "slash", "hit", "strike", "swing"],
+    die: ["die", "death", "dead", "fall"],
+    hit: ["hit", "hurt", "damage", "flinch", "react"],
+    special: ["spin", "dance", "wave", "taunt", "emote", "special"]
+  };
 
+  for (var slot in slotPatterns) {
+    if (!slotPatterns.hasOwnProperty(slot)) continue;
+    var patterns = slotPatterns[slot];
+    for (var p = 0; p < patterns.length; p++) {
+      if (map[slot]) break;
+      var pat = patterns[p].toLowerCase();
+      for (var c = 0; c < clips.length; c++) {
+        var name = clips[c].name.toLowerCase();
+        if (name.indexOf(pat) !== -1) {
+          map[slot] = clips[c];
+          break;
+        }
+      }
+    }
+  }
+  return map;
+}
+
+// ===== SELF-CONTAINED CHARACTER LOADER =====
+// Uses THREE.GLTFLoader directly — no dependency on game internal functions
+function loadCharacterGLB(scene, url, position) {
+  var GLTFLoader = THREE.GLTFLoader;
+  if (!GLTFLoader) {
+    console.error("[CharacterSystem] GLTFLoader not available on THREE");
+    return Promise.resolve(null);
+  }
+
+  var loader = new GLTFLoader();
+  return new Promise(function(resolve, reject) {
+    console.log("[CharacterSystem] Loading GLB:", url);
+    loader.load(url, function(gltf) {
+      var model = gltf.scene;
+
+      // Measure raw size
+      var rawBox = new THREE.Box3().setFromObject(model);
+      var rawSize = rawBox.getSize(new THREE.Vector3());
+      console.log("[CharacterSystem] Raw model size:", rawSize.x.toFixed(2), rawSize.y.toFixed(2), rawSize.z.toFixed(2));
+
+      // Auto-upright: if Z is tallest dimension, model is Z-up — rotate -90 on X
+      if (rawSize.z > rawSize.y * 1.2 && rawSize.z > rawSize.x) {
+        model.rotation.x = -Math.PI / 2;
+        console.log("[CharacterSystem] Auto-upright: rotated -90 on X (Z-up model)");
+        // Recalculate after rotation
+        model.updateMatrixWorld(true);
+        rawBox.setFromObject(model);
+        rawSize = rawBox.getSize(new THREE.Vector3());
+      }
+
+      // Auto-scale to 1.5 world units height
+      var targetHeight = 1.5;
+      var currentHeight = rawSize.y;
+      if (currentHeight > 0) {
+        var scaleFactor = targetHeight / currentHeight;
+        model.scale.multiplyScalar(scaleFactor);
+        console.log("[CharacterSystem] Auto-scale:", scaleFactor.toFixed(3), "(" + currentHeight.toFixed(2) + " -> " + targetHeight + " units)");
+      }
+
+      // Position
+      model.position.set(position.x, position.y, position.z);
+
+      // Fix materials for proper lighting
+      model.traverse(function(child) {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          if (child.material) {
+            child.material.needsUpdate = true;
+          }
+        }
+      });
+
+      // Add to scene
+      scene.add(model);
+
+      // Animation mixer
+      var mixer = new THREE.AnimationMixer(model);
+      var clips = gltf.animations || [];
+
+      // Classify animations
+      var animMap = classifyAnimations(clips);
+      console.log("[CharacterSystem] Animations:", clips.length, "clips. Mapped:", Object.keys(animMap).join(", "));
+
+      // Play idle if available
+      var currentAction = null;
+      if (animMap.idle) {
+        currentAction = mixer.clipAction(animMap.idle);
+        currentAction.play();
+      } else if (clips.length > 0) {
+        currentAction = mixer.clipAction(clips[0]);
+        currentAction.play();
+      }
+
+      // Final bounding box for physics
+      model.updateMatrixWorld(true);
+      var finalBox = new THREE.Box3().setFromObject(model);
+      var finalSize = finalBox.getSize(new THREE.Vector3());
+
+      // Animation playback helpers
+      var result = {
+        mesh: model,
+        mixer: mixer,
+        clips: clips,
+        animMap: animMap,
+        size: finalSize,
+        currentAction: currentAction,
+        play: function(slotName) {
+          var clip = animMap[slotName];
+          if (!clip) return;
+          var newAction = mixer.clipAction(clip);
+          if (newAction === result.currentAction) return;
+          if (result.currentAction) {
+            result.currentAction.fadeOut(0.2);
+          }
+          newAction.reset().fadeIn(0.2).play();
+          result.currentAction = newAction;
+        },
+        stop: function() {
+          mixer.stopAllAction();
+          result.currentAction = null;
+        }
+      };
+
+      console.log("[CharacterSystem] Character loaded. Size:", finalSize.x.toFixed(2) + "x" + finalSize.y.toFixed(2) + "x" + finalSize.z.toFixed(2));
+      resolve(result);
+    }, function(progress) {
+      // Progress callback — silent
+    }, function(err) {
+      console.error("[CharacterSystem] GLB load failed:", err);
+      reject(err);
+    });
+  });
+}
+
+// ===== CHARACTER MANAGER =====
 function CharacterManager(scene) {
   this._scene = scene;
   this._registry = new CharacterRegistry();
   this._activeId = null;
   this._activeMesh = null;
-  this._activeController = null;
-  this._activeResult = null; // { mesh, mixer, clips, play, stop, size }
+  this._activeResult = null;
   this._physicsBody = null;
   this._swapping = false;
+  this._mixerRAF = null; // requestAnimationFrame ID for mixer updates
+  this._lastTime = 0;
   console.log("[CharacterSystem] Manager created, registry:", this._registry.getAll().length, "characters");
 }
 
@@ -111,12 +253,41 @@ CharacterManager.prototype.getActiveMesh = function() {
   return this._activeMesh;
 };
 
-CharacterManager.prototype.getActiveController = function() {
-  return this._activeController;
+// Start animation mixer update loop
+CharacterManager.prototype._startMixerLoop = function() {
+  var self = this;
+  if (this._mixerRAF) return; // already running
+
+  this._lastTime = performance.now();
+  function tick() {
+    self._mixerRAF = requestAnimationFrame(tick);
+    var now = performance.now();
+    var dt = (now - self._lastTime) / 1000;
+    self._lastTime = now;
+    if (dt > 0.1) dt = 0.1; // clamp
+
+    if (self._activeResult && self._activeResult.mixer) {
+      self._activeResult.mixer.update(dt);
+    }
+
+    // Sync mesh position to physics body
+    if (self._physicsBody && self._activeMesh) {
+      self._activeMesh.position.x = self._physicsBody.position.x;
+      self._activeMesh.position.y = self._physicsBody.position.y;
+      self._activeMesh.position.z = self._physicsBody.position.z;
+    }
+  }
+  tick();
+};
+
+CharacterManager.prototype._stopMixerLoop = function() {
+  if (this._mixerRAF) {
+    cancelAnimationFrame(this._mixerRAF);
+    this._mixerRAF = null;
+  }
 };
 
 // Swap to a new character by ID
-// Returns a Promise that resolves when the swap is complete
 CharacterManager.prototype.swap = function(characterId, options) {
   if (this._swapping) {
     console.warn("[CharacterSystem] Swap already in progress, ignoring");
@@ -136,45 +307,64 @@ CharacterManager.prototype.swap = function(characterId, options) {
 
   console.log("[CharacterSystem] Swapping to:", charDef.name, "(" + characterId + ")");
 
-  // 1. Capture old position if we have an active character
+  // 1. Capture old position from physics body or current mesh
+  var existingBody = null;
   if (this._physicsBody) {
     spawnPos = {
       x: this._physicsBody.position.x,
-      y: this._physicsBody.position.y + 1,
+      y: this._physicsBody.position.y,
       z: this._physicsBody.position.z
     };
+    existingBody = this._physicsBody;
+  } else if (window.__vibexe_playerMesh__) {
+    // First swap — grab position and physics from the existing player (Lily)
+    var oldMesh = window.__vibexe_playerMesh__;
+    spawnPos = {
+      x: oldMesh.position.x,
+      y: oldMesh.position.y,
+      z: oldMesh.position.z
+    };
+    if (oldMesh.userData && oldMesh.userData.__physicsBody) {
+      existingBody = oldMesh.userData.__physicsBody;
+    }
   }
 
-  // 2. Dispose old character
+  // 2. Dispose old character (our own, if any)
   this._disposeActive();
 
-  // 3. Build model URL
+  // 3. Also remove the legacy player mesh (Lily) if it exists and isn't ours
+  var legacyMesh = window.__vibexe_playerMesh__;
+  if (legacyMesh && legacyMesh !== this._activeMesh) {
+    console.log("[CharacterSystem] Removing legacy player mesh:", legacyMesh.name || "unnamed");
+    scene.remove(legacyMesh);
+    legacyMesh.traverse(function(child) {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach(function(m) { m.dispose(); });
+        } else {
+          child.material.dispose();
+        }
+      }
+    });
+    window.__vibexe_playerMesh__ = null;
+  }
+
+  // 4. Build model URL
   var baseUrl = "";
   if (typeof window !== "undefined" && window.location) {
     baseUrl = window.location.origin;
   }
   var modelUrl = baseUrl + "/api/app-builder/media-stock-3d/" + charDef.pack + "/" + charDef.model;
 
-  // 4. Load new character using the existing createAnimatedCharacter3D
-  var createChar = null;
-  var createCtrl = null;
-  var createPhys = null;
-
-  // Access the game's factory functions from window globals
-  if (typeof window !== "undefined") {
-    createChar = window.__vibexe_createAnimatedCharacter3D;
-    createCtrl = window.__vibexe_createCharacterController3D;
-    createPhys = window.__vibexe_createPhysicsBody;
-  }
-
-  if (!createChar) {
-    console.error("[CharacterSystem] createAnimatedCharacter3D not available on window");
-    self._swapping = false;
-    return Promise.resolve(false);
-  }
-
-  return createChar(scene, spawnPos.x, spawnPos.y, spawnPos.z, { url: modelUrl })
+  // 5. Load new character using self-contained GLTFLoader
+  return loadCharacterGLB(scene, modelUrl, spawnPos)
     .then(function(charResult) {
+      if (!charResult) {
+        self._swapping = false;
+        return false;
+      }
+
       self._activeResult = charResult;
       self._activeMesh = charResult.mesh;
       self._activeId = characterId;
@@ -184,33 +374,43 @@ CharacterManager.prototype.swap = function(characterId, options) {
         charResult.mesh.position.y += charDef.groundOffset;
       }
 
-      // Register player mesh globally
+      // Register player mesh globally (game loop reads this for physics sync)
       window.__vibexe_playerMesh__ = charResult.mesh;
 
-      // 5. Create physics body
-      var world = window.__vibexe_world__;
-      if (createPhys && world) {
-        var body = createPhys("box", 5, spawnPos, charResult.size);
-        if (body) {
+      // 6. Reuse existing physics body or create new one
+      if (existingBody) {
+        // Reuse the existing body — just link it to the new mesh
+        self._physicsBody = existingBody;
+        charResult.mesh.userData.__physicsBody = existingBody;
+        console.log("[CharacterSystem] Reusing existing physics body");
+      } else {
+        // Create new physics body using CANNON if available
+        var CANNON = window.CANNON;
+        var world = window.__vibexe_world__;
+        if (CANNON && world) {
+          var halfX = Math.max(charResult.size.x / 2, 0.2);
+          var halfY = Math.max(charResult.size.y / 2, 0.3);
+          var halfZ = Math.max(charResult.size.z / 2, 0.2);
+          var shape = new CANNON.Box(new CANNON.Vec3(halfX, halfY, halfZ));
+          var body = new CANNON.Body({ mass: 5, shape: shape });
+          body.position.set(spawnPos.x, spawnPos.y + halfY, spawnPos.z);
           body.linearDamping = 0.9;
           body.angularDamping = 1.0;
           body.fixedRotation = true;
           world.addBody(body);
           self._physicsBody = body;
-
-          // Link to mesh
-          if (charResult.mesh) {
-            charResult.mesh.userData.__physicsBody = body;
-          }
+          charResult.mesh.userData.__physicsBody = body;
+          console.log("[CharacterSystem] Created new physics body");
         }
       }
 
-      // 6. Create animation controller
-      if (createCtrl && self._physicsBody) {
-        self._activeController = createCtrl(charResult, self._physicsBody);
-      }
+      // 7. Start animation mixer update loop
+      self._startMixerLoop();
 
-      // 7. Store config for persistence
+      // 8. Hook into keyboard for animation state
+      self._setupAnimationSync(charResult);
+
+      // 9. Store config for persistence
       var gs = window.__VIBEXE_GAME_SETTINGS__ || {};
       gs.character = {
         id: characterId,
@@ -244,26 +444,53 @@ CharacterManager.prototype.swap = function(characterId, options) {
     });
 };
 
+// Sync animation state with keyboard input (walk/idle/jump)
+CharacterManager.prototype._setupAnimationSync = function(charResult) {
+  if (this._animSyncInterval) clearInterval(this._animSyncInterval);
+
+  var self = this;
+  var lastAnim = "idle";
+  this._animSyncInterval = setInterval(function() {
+    if (!self._physicsBody || !charResult) return;
+
+    var vx = self._physicsBody.velocity.x;
+    var vy = self._physicsBody.velocity.y;
+    var vz = self._physicsBody.velocity.z;
+    var speed = Math.sqrt(vx * vx + vz * vz);
+    var vertSpeed = vy;
+
+    var newAnim = "idle";
+    if (vertSpeed > 2) {
+      newAnim = "jump";
+    } else if (speed > 1.5) {
+      newAnim = speed > 5 ? "run" : "walk";
+    }
+
+    if (newAnim !== lastAnim) {
+      charResult.play(newAnim);
+      lastAnim = newAnim;
+    }
+  }, 100);
+};
+
 CharacterManager.prototype._disposeActive = function() {
+  // Stop mixer loop
+  this._stopMixerLoop();
+
+  // Stop animation sync
+  if (this._animSyncInterval) {
+    clearInterval(this._animSyncInterval);
+    this._animSyncInterval = null;
+  }
+
   // Stop animations
   if (this._activeResult && this._activeResult.stop) {
     try { this._activeResult.stop(); } catch(e) {}
   }
 
-  // Remove physics body from world
-  if (this._physicsBody) {
-    var world = window.__vibexe_world__;
-    if (world) {
-      try { world.removeBody(this._physicsBody); } catch(e) {}
-    }
-    this._physicsBody = null;
-  }
-
-  // Remove mesh from scene
+  // Remove mesh from scene (but DON'T remove physics body — we might reuse it)
   if (this._activeMesh && this._scene) {
     this._scene.remove(this._activeMesh);
-
-    // Dispose geometries and materials
     this._activeMesh.traverse(function(child) {
       if (child.geometry) child.geometry.dispose();
       if (child.material) {
@@ -288,15 +515,7 @@ CharacterManager.prototype._disposeActive = function() {
 
   this._activeMesh = null;
   this._activeResult = null;
-  this._activeController = null;
   this._activeId = null;
-};
-
-// Update controller each frame (called from game loop)
-CharacterManager.prototype.update = function(dt) {
-  if (this._activeController && this._activeController.update) {
-    this._activeController.update(dt);
-  }
 };
 
 // ===== MODULE INITIALIZATION =====
@@ -329,22 +548,20 @@ if (typeof window !== "undefined") {
 }
 
 // ===== AUTO-INIT =====
-// If character config exists in game settings, load it on startup
+// Wait for scene to be available (no longer needs factory functions)
 (function() {
   if (typeof window === "undefined") return;
 
-  // Wait for scene and factories to be available
   var _initAttempts = 0;
   var _initInterval = setInterval(function() {
     _initAttempts++;
-    if (_initAttempts > 30) { clearInterval(_initInterval); return; } // 60s max
+    if (_initAttempts > 30) { clearInterval(_initInterval); return; }
 
     var scene = window.__vibexe_scene__;
-    var createChar = window.__vibexe_createAnimatedCharacter3D;
     if (_initAttempts <= 3 || _initAttempts % 5 === 0) {
-      console.log('[CharacterSystem] Poll #' + _initAttempts + ' scene:', !!scene, 'createChar:', !!createChar);
+      console.log('[CharacterSystem] Poll #' + _initAttempts + ' scene:', !!scene);
     }
-    if (!scene || !createChar) return;
+    if (!scene) return;
 
     clearInterval(_initInterval);
 
@@ -362,22 +579,17 @@ if (typeof window !== "undefined") {
     // Check if there's a character config to auto-load
     var gs = window.__VIBEXE_GAME_SETTINGS__ || {};
     var charConfig = gs.character;
-    var charId = charConfig && charConfig.id ? charConfig.id : "warrior";
 
-    console.log("[CharacterSystem] Auto-init with character:", charId);
+    console.log("[CharacterSystem] Auto-init. charConfig:", charConfig ? charConfig.id : "none");
 
-    // Don't auto-swap if a player mesh already exists (Lily from old template)
-    // The character system will take over once explicitly activated
-    if (!window.__vibexe_playerMesh__ || (charConfig && charConfig.id)) {
-      // Small delay to let the scene finish loading
+    // Only auto-swap if there's an explicit character config saved
+    // (user previously selected a character via the UI)
+    if (charConfig && charConfig.id) {
       setTimeout(function() {
-        // Check if player mesh was already loaded by old code
-        if (window.__vibexe_playerMesh__ && !charConfig) {
-          console.log("[CharacterSystem] Player already loaded by legacy code, standing by");
-          return;
-        }
-        manager.swap(charId);
-      }, 500);
+        manager.swap(charConfig.id);
+      }, 1000);
+    } else {
+      console.log("[CharacterSystem] No character config — standing by for user selection");
     }
 
   }, 2000);
@@ -393,7 +605,7 @@ module.exports = {
 export const CHARACTER_SYSTEM_MANIFEST: ModuleManifest = {
 	id: "character-system",
 	name: "Character System",
-	version: "1.0.0",
+	version: "2.0.0",
 	category: "tools",
 	description:
 		"Player character selection, swapping, and animation management",

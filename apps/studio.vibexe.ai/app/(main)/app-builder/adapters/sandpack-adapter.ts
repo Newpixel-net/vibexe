@@ -2092,31 +2092,6 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 					}
 				}
 
-				// Expose factory functions on window for character-system module
-				// Old saved projects define these inside the IIFE but don't expose them
-				if (!code.includes("__vibexe_createAnimatedCharacter3D")) {
-					const factoryPatch =
-						`\nif(typeof createAnimatedCharacter3D==='function')(window as any).__vibexe_createAnimatedCharacter3D=createAnimatedCharacter3D;` +
-						`\nif(typeof createCharacterController3D==='function')(window as any).__vibexe_createCharacterController3D=createCharacterController3D;` +
-						`\nif(typeof createPhysicsBody==='function')(window as any).__vibexe_createPhysicsBody=createPhysicsBody;`;
-					const before = code;
-					// Match: (window as any).__vibexe_scene__ = scene;
-					code = code.replace(
-						/(\(window\s+as\s+any\)\.__vibexe_scene__\s*=\s*scene\s*;)/,
-						`$1${factoryPatch}`,
-					);
-					if (code === before) {
-						// Fallback: match without cast — __vibexe_scene__ = scene;
-						code = code.replace(
-							/(__vibexe_scene__\s*=\s*scene\s*;)/,
-							`$1${factoryPatch}`,
-						);
-					}
-					if (code === before) {
-						console.warn("[sandpack-adapter] Failed to patch factory exposure. Patterns:", code.match(/__vibexe_scene__[^;\n]{0,60}/g)?.slice(0, 5));
-					}
-				}
-
 				if (typeof sf === "string") {
 					sandpackFiles[sceneKey] = code;
 				} else {
