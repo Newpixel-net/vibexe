@@ -217,11 +217,19 @@ export function initRenderer(container: HTMLDivElement): typeof THREE.WebGLRende
   if ((window as any).__vibexe_renderer__) return (window as any).__vibexe_renderer__;
 
   const __gsPerf = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).performance || {};
-  const renderer = new THREE.WebGLRenderer({ antialias: __gsPerf.antialias !== false, alpha: false });
+  // Disable native MSAA when post-processing will handle AA (saves ~30% fill rate)
+  const __hasFX = !!(((window as any).__VIBEXE_GAME_SETTINGS__ || {}).fxPreset);
+  const renderer = new THREE.WebGLRenderer({
+    antialias: __hasFX ? false : (__gsPerf.antialias !== false),
+    alpha: false,
+    stencil: false,                    // Not used — saves bandwidth
+    powerPreference: "high-performance" // Prefer discrete GPU on multi-GPU systems
+  });
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(Math.min(__gsPerf.pixelRatio || window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.autoUpdate = false; // Manual shadow updates — huge perf win
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;
   container.appendChild(renderer.domElement);
@@ -709,7 +717,8 @@ export function createPhysicsWorld(gravity: number = -20): any {
   }
   const world = new CANNON.World();
   world.gravity.set(0, gravity, 0);
-  world.broadphase = new CANNON.NaiveBroadphase();
+  // SAPBroadphase: O(n log n) vs NaiveBroadphase O(n²) — critical for 50+ bodies
+  world.broadphase = CANNON.SAPBroadphase ? new CANNON.SAPBroadphase(world) : new CANNON.NaiveBroadphase();
   world.solver.iterations = 10;
   // Default contact material (medium friction, slight bounce)
   const defaultMat = new CANNON.Material("default");
@@ -2713,7 +2722,8 @@ export function createPostProcessing(
   function addBloom(opts?: { strength?: number; radius?: number; threshold?: number }) {
     if (!THREE.UnrealBloomPass) { console.warn("[PostFX] UnrealBloomPass not loaded — bloom unavailable"); return; }
     if (_bloomPass) composer.removePass(_bloomPass);
-    const res = new THREE.Vector2(renderer.domElement.width, renderer.domElement.height);
+    // Half-resolution bloom: 4x fewer fragments, visually identical at typical bloom radius
+    const res = new THREE.Vector2(Math.floor(renderer.domElement.width / 2), Math.floor(renderer.domElement.height / 2));
     _bloomPass = new THREE.UnrealBloomPass(res, opts?.strength ?? 0.5, opts?.radius ?? 0.4, opts?.threshold ?? 0.85);
     composer.addPass(_bloomPass);
   }
@@ -3488,11 +3498,18 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
 
       // Create renderer + store on window so idempotent helpers return it
       const __perfSettings = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).performance || {};
-      renderer = new THREE.WebGLRenderer({ antialias: __perfSettings.antialias !== false });
+      const __iifeFX = !!((window as any).__VIBEXE_GAME_SETTINGS__ || {}).fxPreset;
+      renderer = new THREE.WebGLRenderer({
+        antialias: __iifeFX ? false : (__perfSettings.antialias !== false),
+        alpha: false,
+        stencil: false,
+        powerPreference: "high-performance"
+      });
       renderer.setSize(container.clientWidth, container.clientHeight);
       renderer.setPixelRatio(Math.min(__perfSettings.pixelRatio || window.devicePixelRatio, 2));
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.shadowMap.autoUpdate = false; // Manual shadow updates for perf
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       // NoToneMapping by default — Phong/Lambert materials already output LDR values.
       // Tone mapping (ACES/Reinhard) crushes contrast and desaturates cartoon colors.
@@ -5181,9 +5198,14 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         let __sunSearched = false;
         // LOD culling frame counter (run every 4th frame instead of every frame)
         let __lodFrame = 0;
+        // Shadow update: every 15 frames or when player moves >5 units
+        let __shadowFrame = 0;
+        let __shadowLastPX = 0, __shadowLastPZ = 0;
         const animate = (time?: number) => {
           if (disposed) return;
           animFrameId = requestAnimationFrame(animate);
+          // Skip entire frame when tab is hidden — saves CPU/GPU
+          if (document.hidden) return;
           // FPS capping
           const __frameInterval = (window as any).__vibexe_frameInterval__ || 0;
           if (__frameInterval > 0 && time) {
@@ -5223,6 +5245,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             __editorLastTime = __now;
             // Tick animation mixers so animations preview in editor
             (window as any)._updateAllMixers3D?.(__ed);
+            // Shadow update in editor: every 30 frames (camera orbits slowly)
+            __shadowFrame++;
+            if (__shadowFrame >= 30) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
             // Only render here if the bridge is NOT actively rendering (avoids double-render flicker)
             if (!(window as any).__vibexe_bridge_rendering__) {
               const __ec2 = (window as any).__vibexe_composer__;
@@ -5285,7 +5310,22 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 (__sun2 as any).target.position.set(__px, 0, __pz);
                 (__sun2 as any).target.updateMatrixWorld();
               }
+              // Static shadow map: only update every 15 frames or when player moves >5 units
+              __shadowFrame++;
+              const __sdx = __px - __shadowLastPX;
+              const __sdz = __pz - __shadowLastPZ;
+              const __sMoved = __sdx * __sdx + __sdz * __sdz > 25; // >5 units
+              if (__shadowFrame >= 15 || __sMoved) {
+                __shadowFrame = 0;
+                __shadowLastPX = __px;
+                __shadowLastPZ = __pz;
+                renderer.shadowMap.needsUpdate = true;
+              }
             }
+          } else {
+            // No player — update shadows every 30 frames (scene editor / static scenes)
+            __shadowFrame++;
+            if (__shadowFrame >= 30) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
           }
           // Distance-based LOD culling — run every 4th frame to reduce overhead
           __lodFrame++;
@@ -5312,6 +5352,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           if (__composer) { __composer.render(delta); }
           else { renderer.render(scene, camera); }
         };
+        // Force initial shadow map render (autoUpdate is off)
+        renderer.shadowMap.needsUpdate = true;
         animate();
       }
 
