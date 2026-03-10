@@ -457,6 +457,9 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
       }
       mesh.userData.__animMap = autoAnimMap;
 
+      // Set __charHalfY for old saved game code's mesh sync Y-offset
+      mesh.userData.__charHalfY = halfExtents.y;
+
       // Store full result on mesh for game template access
       mesh.userData.__charResult = {
         mesh: mesh,
@@ -587,7 +590,71 @@ function swapCharacter(scene, characterId) {
         result.mesh.userData.__animMap = animMap;
       }
 
-      // Set global reference — game template will detect this change on next frame
+      // === Transfer physics body from old mesh to new mesh ===
+      var physBody = oldMesh && oldMesh.userData ? oldMesh.userData.__physicsBody : null;
+      if (physBody) {
+        result.mesh.userData.__physicsBody = physBody;
+        // Reshape physics body to match new character dimensions
+        var cb = result.mesh.userData.__characterBounds;
+        if (cb && physBody.shapes && physBody.shapes.length > 0) {
+          var CANNON = window.CANNON;
+          if (CANNON) {
+            var newHalf = new CANNON.Vec3(
+              Math.max(0.05, cb.halfX),
+              Math.max(0.05, cb.height / 2),
+              Math.max(0.05, cb.halfZ)
+            );
+            physBody.shapes[0] = new CANNON.Box(newHalf);
+            if (physBody.updateBoundingRadius) physBody.updateBoundingRadius();
+            if (physBody.updateMassProperties) physBody.updateMassProperties();
+            console.log("[CharacterSystem] Reshaped physics body:", cb);
+          }
+        }
+        // Snap physics body to terrain height at current position
+        var getH = window.__vibexe_getTerrainHeight;
+        if (getH) {
+          var th = getH(physBody.position.x, physBody.position.z);
+          if (th != null) {
+            var halfH = cb ? cb.height / 2 : 0.75;
+            var minY = th + halfH + 0.5;
+            if (physBody.position.y < minY) {
+              physBody.position.y = minY;
+              if (physBody.velocity) physBody.velocity.set(0, 0, 0);
+            }
+          }
+        }
+      }
+
+      // === Create new controller for animation state machine ===
+      var createCtrl = window.__vibexe_createCharacterController3D;
+      if (createCtrl && physBody) {
+        // Remove old controllers from _activeControllers3D
+        if (window._activeControllers3D) {
+          for (var ci = window._activeControllers3D.length - 1; ci >= 0; ci--) {
+            var ctrl = window._activeControllers3D[ci];
+            if (ctrl && (ctrl.__charSystem || ctrl === window.__vibexe_lilyController__)) {
+              window._activeControllers3D.splice(ci, 1);
+            }
+          }
+        }
+        // Use animMap for proper animation names
+        var animMap = result.mesh.userData.__animMap || {};
+        var newCtrl = createCtrl(result.mesh.userData.__charResult, physBody, {
+          idleAnim: animMap.idle || "idle",
+          walkAnim: animMap.walk || "walk",
+          runAnim: animMap.run || "run",
+          jumpAnim: animMap.jump || "jump",
+          attackAnim: animMap.attack || "attack",
+        });
+        // Register in framework
+        if (window._activeControllers3D) {
+          newCtrl.__charSystem = true;
+          window._activeControllers3D.push(newCtrl);
+        }
+        console.log("[CharacterSystem] Created new controller with animations:", animMap);
+      }
+
+      // Set global reference
       window.__vibexe_playerMesh__ = result.mesh;
 
       // Save character config
