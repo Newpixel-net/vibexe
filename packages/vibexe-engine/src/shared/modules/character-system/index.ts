@@ -158,7 +158,7 @@ function findClip(name, clipNames, clipMap) {
 
 // ===== PRODUCTION CHARACTER LOADER =====
 // Matches createAnimatedCharacter3D quality: bone measurement, pivot, scale cap, root motion
-function loadCharacterGLB(scene, url, position, charName) {
+function loadCharacterGLB(scene, url, position, charName, modelFileName) {
   var GLTFLoader = THREE.GLTFLoader;
   if (!GLTFLoader) {
     console.error("[CharacterSystem] GLTFLoader not available on THREE");
@@ -318,10 +318,14 @@ function loadCharacterGLB(scene, url, position, charName) {
       var mesh = new THREE.Group();
       var meshName = "Character_" + (charName || "Unknown");
       mesh.name = meshName;
+      // Extract model ID from filename (strip .glb extension) for animation overrides API
+      var cleanModelId = modelFileName ? modelFileName.replace(/\\.glb$/i, "") : charName;
       mesh.userData = {
         vibexeType: "AnimatedCharacter",
         vibexeFactory: "createAnimatedCharacter3D",
-        __isPlayerCharacter: true
+        __isPlayerCharacter: true,
+        __characterModel: cleanModelId,
+        __characterId: charName
       };
       mesh.add(pivot);
       mesh.position.set(position.x, position.y, position.z);
@@ -764,7 +768,7 @@ CharacterManager.prototype.swap = function(characterId, options) {
   var modelUrl = baseUrl + "/api/app-builder/media-stock-3d/" + charDef.pack + "/" + charDef.model;
 
   // 5. Load new character
-  return loadCharacterGLB(scene, modelUrl, spawnPos, charDef.name)
+  return loadCharacterGLB(scene, modelUrl, spawnPos, charDef.name, charDef.model)
     .then(function(charResult) {
       if (!charResult) {
         self._swapping = false;
@@ -774,6 +778,17 @@ CharacterManager.prototype.swap = function(characterId, options) {
       self._activeResult = charResult;
       self._activeMesh = charResult.mesh;
       self._activeId = characterId;
+
+      // Merge explicit animation overrides from character definition into autoAnimMap
+      if (charDef.animations && charResult.mesh.userData.__animMap) {
+        var animMap = charResult.mesh.userData.__animMap;
+        for (var ak in charDef.animations) {
+          if (charDef.animations.hasOwnProperty(ak)) {
+            animMap[ak] = charDef.animations[ak];
+          }
+        }
+        charResult.mesh.userData.__animMap = animMap;
+      }
 
       // Register player mesh globally
       window.__vibexe_playerMesh__ = charResult.mesh;

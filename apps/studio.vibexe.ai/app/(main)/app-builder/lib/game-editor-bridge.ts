@@ -88,6 +88,19 @@ export function getGameEditorBridgeScript(): string {
         // Skip particles, trails, and Points objects (VFX internals)
         if (child.type === "Points") continue;
         if (child.name && (child.name.indexOf("__particle_") === 0 || child.name.indexOf("__trail_") === 0)) continue;
+        // Skip stale character meshes - only keep the active player mesh
+        if (child.name && child.name.indexOf("Character_") === 0) {
+          var activePlayer = window.__vibexe_playerMesh__;
+          if (activePlayer && child !== activePlayer && child.uuid !== activePlayer.uuid) {
+            var isAncestor = false;
+            var p = activePlayer.parent;
+            while (p) {
+              if (p === child) { isAncestor = true; break; }
+              p = p.parent;
+            }
+            if (!isAncestor) continue;
+          }
+        }
         var serialized = serializeNode(child);
         if (serialized) children.push(serialized);
       }

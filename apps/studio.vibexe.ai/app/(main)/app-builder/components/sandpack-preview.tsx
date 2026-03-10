@@ -31,6 +31,7 @@ import {
 	Monitor,
 	Mountain,
 	CloudSun,
+	PersonStanding,
 	Puzzle,
 	ChevronRight,
 	MousePointer2,
@@ -56,6 +57,7 @@ import { GameSettingsPanel } from "./game-settings-panel";
 import { SceneGizmo } from "./scene-gizmo";
 import { TerrainPainterPanel } from "./terrain-painter-panel";
 import { SkyWeatherPanel } from "./sky-weather-panel";
+import { CharacterSystemPanel } from "./character-system-panel";
 import { DebugOverlay } from "./debug-overlay";
 import type { RightPanelView } from "./right-panel-tabs";
 import { VisualEditToolbar } from "./visual-edit-toolbar";
@@ -73,6 +75,7 @@ import { ALL_MODULE_MANIFESTS, type ModuleManifest } from "@vibexe-ai/vibexe-eng
 const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
 	Mountain,
 	CloudSun,
+	PersonStanding,
 	Puzzle,
 };
 
@@ -2503,6 +2506,25 @@ export function SandpackPreview({
 									modules.installed = { ...modules.installed, "sky-weather": { ...modules.installed["sky-weather"], config: skyConfig } };
 								}
 								const updatedSettings = { ...gameEditor.gameSettings, skyWeather: skyConfig, modules };
+								handleSaveSettings(updatedSettings);
+							}}
+						/>
+					) : activeModulePanel === "character-system" ? (
+						<CharacterSystemPanel
+							sendToIframe={gameEditor.sendToIframe}
+							onClose={() => setActiveModulePanel(null)}
+							settings={gameEditor.gameSettings}
+							onChange={(charConfig) => {
+								// Live preview only — updates React state + postMessage, NO file write, NO refresh
+								gameEditor.updateGameSettings({ character: charConfig });
+							}}
+							onSave={(charConfig) => {
+								// Persist to DB — only called on explicit save or panel close
+								const modules = { ...gameEditor.gameSettings.modules };
+								if (modules.installed?.["character-system"]) {
+									modules.installed = { ...modules.installed, "character-system": { ...modules.installed["character-system"], config: charConfig as unknown as Record<string, unknown> } };
+								}
+								const updatedSettings = { ...gameEditor.gameSettings, character: charConfig, modules };
 								handleSaveSettings(updatedSettings);
 							}}
 						/>

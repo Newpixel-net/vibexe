@@ -125,7 +125,8 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 		if (selectedObject?.userData?.vibexeType === "AnimatedCharacter" && selectedObject.uuid) {
 			getAnimations(selectedObject.uuid);
 			const name = selectedObject.name || "";
-			const modelId = name.startsWith("Character_") ? name.slice(10) : name;
+			const modelId = selectedObject?.userData?.__characterModel ||
+				(name.startsWith("Character_") ? name.slice(10) : name);
 			if (modelId) fetchAnimOverrides(modelId);
 		}
 	}, [selectedObject?.uuid, selectedObject?.userData?.vibexeType, selectedObject?.name, getAnimations, fetchAnimOverrides]);
