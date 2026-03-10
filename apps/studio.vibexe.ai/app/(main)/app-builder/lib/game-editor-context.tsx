@@ -1089,11 +1089,11 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	}, []);
 
 	const updateSceneCamera = useCallback((sceneId: string, position: number[], target: number[]) => {
-		setScenesState((prev) => {
-			const next = prev.map((s) => s.id === sceneId ? { ...s, cameraPosition: position, cameraTarget: target } : s);
-			setGameSettingsState((gs) => ({ ...gs, scenes: next }));
-			return next;
-		});
+		// Only update scenes state — do NOT propagate to gameSettings to avoid re-render cascade
+		// Camera position is only consumed by game-editor-enable message (read via setScenesState callback)
+		setScenesState((prev) =>
+			prev.map((s) => s.id === sceneId ? { ...s, cameraPosition: position, cameraTarget: target } : s),
+		);
 	}, []);
 
 	const getActiveScene = useCallback(() => {

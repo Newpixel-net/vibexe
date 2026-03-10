@@ -1993,17 +1993,7 @@ export function getVisualEditBridgeScript(): string {
         window.parent.postMessage({ type: "game-editor-camera-orientation", quaternion: _lastCamQ }, "*");
       }
     }
-    // Periodic camera position/target save (~every 2s) so parent always has fresh data
-    if (_camNow - _lastCamSave > 2000 && editor.orbitControls) {
-      _lastCamSave = _camNow;
-      var _cp = editor.camera.position;
-      var _ct = editor.orbitControls.target;
-      window.parent.postMessage({
-        type: "game-editor-camera-state",
-        position: [_cp.x, _cp.y, _cp.z],
-        target: [_ct.x, _ct.y, _ct.z]
-      }, "*");
-    }
+    // Camera state is saved on deactivation + OrbitControls "end" event (not periodic — periodic causes flashing)
     // Per-frame sweep: remove duplicate __editor_ objects (old Game3D.tsx templates lack _hasExt guard)
     if (editor.scene) {
       var dupes = [];
@@ -2111,6 +2101,17 @@ export function getVisualEditBridgeScript(): string {
           editor.orbitControls._vibexeEditorCreated = true;
           editor.orbitControls.enableDamping = true;
           editor.orbitControls.dampingFactor = 0.12;
+          // Save camera state when user finishes orbiting/panning/zooming
+          editor.orbitControls.addEventListener("end", function() {
+            if (!active || !editor || !editor.camera || !editor.orbitControls) return;
+            var _cp = editor.camera.position;
+            var _ct = editor.orbitControls.target;
+            window.parent.postMessage({
+              type: "game-editor-camera-state",
+              position: [_cp.x, _cp.y, _cp.z],
+              target: [_ct.x, _ct.y, _ct.z]
+            }, "*");
+          });
         }
         fixOrbitControls();
       }
