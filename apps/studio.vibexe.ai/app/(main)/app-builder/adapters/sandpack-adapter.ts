@@ -1913,9 +1913,11 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			// If terrain-painter module is not installed, clear terrain config
 			// to prevent stale IIFE _autoTerrain() from generating terrain
 			const _modInst = gsObj.modules?.installed;
-			const hasTerrainModule = Array.isArray(_modInst) && _modInst.some(
-				(m: any) => m.id === "terrain-painter" && m.enabled !== false,
-			);
+			const hasTerrainModule = _modInst && typeof _modInst === "object"
+				? (Array.isArray(_modInst)
+					? _modInst.some((m: any) => m.id === "terrain-painter" && m.enabled !== false)
+					: !!(_modInst as any)["terrain-painter"]?.enabled)
+				: false;
 			if (!hasTerrainModule && gsObj.terrain) {
 				gsObj.terrain = { ...gsObj.terrain, enabled: false };
 			}
@@ -2106,9 +2108,11 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				// When character-system module swaps the player character, this ensures
 				// the game template's update loop (which references lily.mesh) uses the new mesh
 				const _charModInst = gsObj.modules?.installed;
-				const hasCharModule = Array.isArray(_charModInst) && _charModInst.some(
-					(m: any) => m.id === "character-system" && m.enabled !== false,
-				);
+				const hasCharModule = _charModInst && typeof _charModInst === "object"
+					? (Array.isArray(_charModInst)
+						? _charModInst.some((m: any) => m.id === "character-system" && m.enabled !== false)
+						: !!(_charModInst as any)["character-system"]?.enabled)
+					: false;
 				if (hasCharModule && code.includes("lily = lilyResult") && code.includes("lily.mesh")) {
 					code = code.replace(
 						/(lily\s*=\s*lilyResult\s*;)/,

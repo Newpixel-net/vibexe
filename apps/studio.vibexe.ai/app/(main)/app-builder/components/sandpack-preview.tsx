@@ -1334,9 +1334,11 @@ export function SandpackPreview({
 				} else if (!gameEditor.enabled && iframe?.contentWindow) {
 					const terrainCfg = gameEditor.gameSettings.terrain;
 					const _inst = gameEditor.gameSettings.modules?.installed;
-					const terrainModuleInstalled = Array.isArray(_inst) && _inst.some(
-						(m: any) => m.id === "terrain-painter" && m.enabled !== false,
-					);
+					const terrainModuleInstalled = _inst && typeof _inst === "object"
+						? (Array.isArray(_inst)
+							? _inst.some((m: any) => m.id === "terrain-painter" && m.enabled !== false)
+							: !!(_inst as any)["terrain-painter"]?.enabled)
+						: false;
 					if (terrainCfg?.enabled && terrainModuleInstalled) {
 						// Wait 8s for IIFE 300-frame loop + GLTF loads to complete
 						setTimeout(() => {
@@ -1750,9 +1752,11 @@ export function SandpackPreview({
 			// Always auto-regenerate terrain on Scene→Game transition if terrain config exists
 			const terrainCfg = gameEditor.gameSettings.terrain;
 			const _inst2 = gameEditor.gameSettings.modules?.installed;
-			const terrainModuleInstalled = Array.isArray(_inst2) && _inst2.some(
-				(m: any) => m.id === "terrain-painter" && m.enabled !== false,
-			);
+			const terrainModuleInstalled = _inst2 && typeof _inst2 === "object"
+				? (Array.isArray(_inst2)
+					? _inst2.some((m: any) => m.id === "terrain-painter" && m.enabled !== false)
+					: !!(_inst2 as any)["terrain-painter"]?.enabled)
+				: false;
 			if (terrainCfg?.enabled && terrainModuleInstalled) {
 				// Short delay (2s) — terrain handler works even without editor (uses window.__vibexe_scene__)
 				setTimeout(() => {

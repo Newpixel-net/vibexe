@@ -1098,6 +1098,16 @@ export function getVisualEditBridgeScript(): string {
         });
         var tcHelper = transformControls.getHelper ? transformControls.getHelper() : transformControls;
         tcHelper.name = "__editor_transform_controls__";
+        // Recursion guard: r172 TransformControlsRoot.updateMatrixWorld calls
+        // object.updateWorldMatrix(true,true) which traverses up to scene root,
+        // re-triggering this same updateMatrixWorld — infinite stack overflow.
+        var _tcUpdating = false;
+        var _origUMW = tcHelper.updateMatrixWorld;
+        tcHelper.updateMatrixWorld = function(force) {
+          if (_tcUpdating) return;
+          _tcUpdating = true;
+          try { _origUMW.call(this, force); } finally { _tcUpdating = false; }
+        };
         editor.scene.add(tcHelper);
       }
       console.log("[GameEditorBridge] Attaching TC to: " + (obj.name || obj.type));
@@ -2612,7 +2622,9 @@ export function getVisualEditBridgeScript(): string {
                 offsetZ: +newOffsetZ.toFixed(2)
               }, "*");
             });
-            editor.scene.add(transformControls.getHelper ? transformControls.getHelper() : transformControls);
+            // Ensure TC helper is in scene (getHelper returns same object each time)
+            var _tcH2 = transformControls.getHelper ? transformControls.getHelper() : transformControls;
+            if (!_tcH2.parent) editor.scene.add(_tcH2);
           }
         }
         // Post synthetic selection back to parent
