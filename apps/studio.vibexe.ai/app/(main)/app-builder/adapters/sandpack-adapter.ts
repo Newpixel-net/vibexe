@@ -1912,7 +1912,8 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 
 			// If terrain-painter module is not installed, clear terrain config
 			// to prevent stale IIFE _autoTerrain() from generating terrain
-			const hasTerrainModule = gsObj.modules?.installed?.some(
+			const _modInst = gsObj.modules?.installed;
+			const hasTerrainModule = Array.isArray(_modInst) && _modInst.some(
 				(m: any) => m.id === "terrain-painter" && m.enabled !== false,
 			);
 			if (!hasTerrainModule && gsObj.terrain) {
@@ -2104,7 +2105,8 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				// Patch: Character System bridge — redirect lily.mesh to active player mesh
 				// When character-system module swaps the player character, this ensures
 				// the game template's update loop (which references lily.mesh) uses the new mesh
-				const hasCharModule = gsObj.modules?.installed?.some(
+				const _charModInst = gsObj.modules?.installed;
+				const hasCharModule = Array.isArray(_charModInst) && _charModInst.some(
 					(m: any) => m.id === "character-system" && m.enabled !== false,
 				);
 				if (hasCharModule && code.includes("lily = lilyResult") && code.includes("lily.mesh")) {

@@ -1328,7 +1328,8 @@ export function SandpackPreview({
 					justExitedEditorRef.current = false;
 				} else if (!gameEditor.enabled && iframe?.contentWindow) {
 					const terrainCfg = gameEditor.gameSettings.terrain;
-					const terrainModuleInstalled = gameEditor.gameSettings.modules?.installed?.some(
+					const _inst = gameEditor.gameSettings.modules?.installed;
+					const terrainModuleInstalled = Array.isArray(_inst) && _inst.some(
 						(m: any) => m.id === "terrain-painter" && m.enabled !== false,
 					);
 					if (terrainCfg?.enabled && terrainModuleInstalled) {
@@ -1704,7 +1705,8 @@ export function SandpackPreview({
 			}
 			// Always auto-regenerate terrain on Scene→Game transition if terrain config exists
 			const terrainCfg = gameEditor.gameSettings.terrain;
-			const terrainModuleInstalled = gameEditor.gameSettings.modules?.installed?.some(
+			const _inst2 = gameEditor.gameSettings.modules?.installed;
+			const terrainModuleInstalled = Array.isArray(_inst2) && _inst2.some(
 				(m: any) => m.id === "terrain-painter" && m.enabled !== false,
 			);
 			if (terrainCfg?.enabled && terrainModuleInstalled) {
