@@ -790,6 +790,8 @@ export function getVisualEditBridgeScript(): string {
 
   // Signal that external bridge is loaded — embedded bridge (game-3d-templates.ts) defers to us
   window.__vibexeExternalBridge = true;
+  // Enable flag: set to true only by explicit game-editor-enable message, cleared on disable
+  var _enableRequested = false;
 
   // Notify parent that game editor bridge is ready
   try {
@@ -2007,6 +2009,8 @@ export function getVisualEditBridgeScript(): string {
   var pendingActivate = false;
   function activateBridge() {
     if (active || pendingActivate) return;
+    // Safety: only activate if parent explicitly sent game-editor-enable
+    if (!_enableRequested) { showDebug("activateBridge BLOCKED — no enable requested"); return; }
     pendingActivate = true;
     waitForEditor(function(ed) {
       editor = ed;
@@ -2445,8 +2449,8 @@ export function getVisualEditBridgeScript(): string {
     var d = e.data;
     if (!d || !d.type) return;
     switch (d.type) {
-      case "game-editor-enable": activateBridge(); break;
-      case "game-editor-disable": deactivateBridge(); break;
+      case "game-editor-enable": _enableRequested = true; activateBridge(); break;
+      case "game-editor-disable": _enableRequested = false; deactivateBridge(); break;
       case "game-editor-set-mode":
         if (d.mode === "pan") {
           panToolActive = true;
@@ -2798,7 +2802,8 @@ export function getVisualEditBridgeScript(): string {
         } break;
       case "game-editor-viewport-click":
         // Click forwarded from parent page — handles cross-origin iframe event routing
-        if (!active) { activateBridge(); }
+        // REMOVED auto-activation: bridge should only activate via explicit game-editor-enable
+        if (!active) { return; }
         // Wait a tick for activation, then process click
         setTimeout(function() {
           if (!active || !editor) return;

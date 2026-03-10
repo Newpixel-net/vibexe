@@ -1617,10 +1617,10 @@ export function SandpackPreview({
 			} else if (data.type === "vibexe-character-swapped") {
 				// Character system swapped the player — refresh scene tree so new character appears in hierarchy
 				console.log("[GameEditor] Character swapped to:", data.characterName);
-				gameEditor.requestSceneTree();
+				if (gameEditor.enabled) gameEditor.requestSceneTree();
 			} else if (data.type === "game-editor-scene-changed") {
 				// Generic scene change notification — refresh tree
-				gameEditor.requestSceneTree();
+				if (gameEditor.enabled) gameEditor.requestSceneTree();
 			} else if (data.type === "game-editor-light-added") {
 				// Track new light in lightsRef and persist to game settings
 				const lightData = {
@@ -1942,7 +1942,7 @@ export function SandpackPreview({
 		// No externalResources needed for Three.js — the shim handles core + all addons
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=77`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=78`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);
