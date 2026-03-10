@@ -226,10 +226,11 @@ export function initRenderer(container: HTMLDivElement): typeof THREE.WebGLRende
     powerPreference: "high-performance" // Prefer discrete GPU on multi-GPU systems
   });
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(Math.min(__gsPerf.pixelRatio || window.devicePixelRatio, 2));
+  // Cap pixelRatio at 1.5 — rendering at 2x costs 78% more pixels for minimal visual gain
+  renderer.setPixelRatio(Math.min(__gsPerf.pixelRatio || window.devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.shadowMap.autoUpdate = false; // Manual shadow updates — huge perf win
+  renderer.shadowMap.type = THREE.PCFShadowMap; // PCF (not Soft) — 2x faster shadow filtering
+  renderer.shadowMap.autoUpdate = false;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;
   container.appendChild(renderer.domElement);
@@ -270,14 +271,14 @@ export function initScene(): typeof THREE.Scene {
   sun.name = "DirectionalLight";
   sun.position.set(8, 20, 10);
   sun.castShadow = true;
-  sun.shadow.mapSize.width = 2048;
-  sun.shadow.mapSize.height = 2048;
+  sun.shadow.mapSize.width = 1024;
+  sun.shadow.mapSize.height = 1024;
   sun.shadow.camera.near = 0.5;
-  sun.shadow.camera.far = 200;
-  sun.shadow.camera.left = -80;
-  sun.shadow.camera.right = 80;
-  sun.shadow.camera.top = 80;
-  sun.shadow.camera.bottom = -80;
+  sun.shadow.camera.far = 150;
+  sun.shadow.camera.left = -60;
+  sun.shadow.camera.right = 60;
+  sun.shadow.camera.top = 60;
+  sun.shadow.camera.bottom = -60;
   sun.shadow.bias = -0.0005;
   scene.add(sun);
 
@@ -3506,9 +3507,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         powerPreference: "high-performance"
       });
       renderer.setSize(container.clientWidth, container.clientHeight);
-      renderer.setPixelRatio(Math.min(__perfSettings.pixelRatio || window.devicePixelRatio, 2));
+      renderer.setPixelRatio(Math.min(__perfSettings.pixelRatio || window.devicePixelRatio, 1.5));
       renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.shadowMap.type = THREE.PCFShadowMap;
       renderer.shadowMap.autoUpdate = false; // Manual shadow updates for perf
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       // NoToneMapping by default — Phong/Lambert materials already output LDR values.
@@ -5213,24 +5214,40 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             if (__elapsed < __frameInterval) return;
             __lastFrameTime = time - (__elapsed % __frameInterval);
           }
-          // Performance auto-guard: if avg FPS < 20 for 3 seconds, reduce quality
+          // Performance auto-guard: if avg FPS < 30 for 2 seconds, reduce quality
           __perfFrames++;
           const __perfNow = performance.now();
-          if (__perfNow - __perfLastCheck >= 3000) {
+          if (__perfNow - __perfLastCheck >= 2000) {
             const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
-            if (__avgFps < 20 && !__perfDowngraded) {
+            if (__avgFps < 30 && !__perfDowngraded) {
               __perfDowngraded = true;
               console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
-              renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 1));
+              renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.75));
               renderer.shadowMap.enabled = false;
-              (window as any).__vibexe_cullDistance__ = 80;
-            } else if (__avgFps > 40 && __perfDowngraded) {
+              (window as any).__vibexe_cullDistance__ = 60;
+              // Disable bloom pass if exists
+              if (composer && composer.passes) {
+                for (var __pi = 0; __pi < composer.passes.length; __pi++) {
+                  if (composer.passes[__pi].constructor && composer.passes[__pi].constructor.name === 'UnrealBloomPass') {
+                    composer.passes[__pi].enabled = false;
+                  }
+                }
+              }
+            } else if (__avgFps > 55 && __perfDowngraded) {
               __perfDowngraded = false;
               console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality');
-              renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+              renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
               renderer.shadowMap.enabled = true;
               renderer.shadowMap.needsUpdate = true;
               (window as any).__vibexe_cullDistance__ = 150;
+              // Re-enable bloom pass
+              if (composer && composer.passes) {
+                for (var __pi2 = 0; __pi2 < composer.passes.length; __pi2++) {
+                  if (composer.passes[__pi2].constructor && composer.passes[__pi2].constructor.name === 'UnrealBloomPass') {
+                    composer.passes[__pi2].enabled = true;
+                  }
+                }
+              }
             }
             __perfFrames = 0;
             __perfLastCheck = __perfNow;
@@ -5330,7 +5347,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           // Distance-based LOD culling — run every 4th frame to reduce overhead
           __lodFrame++;
           if (__lodFrame >= 4) { __lodFrame = 0;
-          const __cullDist = (window as any).__vibexe_cullDistance__ || 150;
+          const __cullDist = (window as any).__vibexe_cullDistance__ || 120;
           const __camPos = camera.position;
           for (let __ci = 0; __ci < scene.children.length; __ci++) {
             const __ch = scene.children[__ci];
@@ -7025,8 +7042,8 @@ export const GameScene = {
     const shooterSun = new THREE.DirectionalLight(0xFFF8EE, 0.5);
     shooterSun.position.set(8, 40, -8);
     shooterSun.castShadow = true;
-    shooterSun.shadow.mapSize.width = 2048;
-    shooterSun.shadow.mapSize.height = 2048;
+    shooterSun.shadow.mapSize.width = 1024;
+    shooterSun.shadow.mapSize.height = 1024;
     shooterSun.shadow.camera.near = 0.5;
     shooterSun.shadow.camera.far = 80;
     shooterSun.shadow.camera.left = -ARENA_HALF;

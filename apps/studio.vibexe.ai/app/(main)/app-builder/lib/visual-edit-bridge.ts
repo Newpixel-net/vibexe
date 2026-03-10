@@ -4587,11 +4587,11 @@ export function getVisualEditBridgeScript(): string {
               "  float camDist = length(vWorldPos - cameraPosition);",
               "",
               "  // === SHADER LOD: distance-based quality reduction ===",
-              "  // Near (<80): full PBR with all maps",
-              "  // Mid (80-160): skip AO maps, simplified roughness",
-              "  // Far (>160): skip normals, use uniform roughness, simplified lighting",
-              "  float lodNear = smoothstep(80.0, 120.0, camDist);",
-              "  float lodFar = smoothstep(140.0, 200.0, camDist);",
+              "  // Near (<40): full PBR with all maps",
+              "  // Mid (40-80): skip AO maps, simplified roughness",
+              "  // Far (>80): skip normals, use uniform roughness, simplified lighting",
+              "  float lodNear = smoothstep(40.0, 70.0, camDist);",
+              "  float lodFar = smoothstep(80.0, 130.0, camDist);",
               "",
               "  // Sample each layer diffuse (always needed)",
               "  vec3 c0 = (uNumLayers > 0) ? sampleTerrain(uTex0, vWorldPos, baseUv, N, uTexScale0, uHasTex0, uColor0) : vec3(0.5);",
@@ -4796,7 +4796,7 @@ export function getVisualEditBridgeScript(): string {
                 tex.wrapS = _rpTHREE.RepeatWrapping;
                 tex.wrapT = _rpTHREE.RepeatWrapping;
                 tex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
-                tex.anisotropy = 16;
+                tex.anisotropy = 8;
                 tex.colorSpace = _rpTHREE.SRGBColorSpace;
                 _rpTextures[idx] = tex;
                 _rpLoaded++;
@@ -4829,7 +4829,7 @@ export function getVisualEditBridgeScript(): string {
                 ntex.wrapS = _rpTHREE.RepeatWrapping;
                 ntex.wrapT = _rpTHREE.RepeatWrapping;
                 ntex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
-                ntex.anisotropy = 16;
+                ntex.anisotropy = 8;
                 ntex.colorSpace = _rpTHREE.NoColorSpace;
                 _rpNormalTextures[idx] = ntex;
                 _rpLoaded++;
@@ -4861,7 +4861,7 @@ export function getVisualEditBridgeScript(): string {
                 rtex.wrapS = _rpTHREE.RepeatWrapping;
                 rtex.wrapT = _rpTHREE.RepeatWrapping;
                 rtex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
-                rtex.anisotropy = 16;
+                rtex.anisotropy = 8;
                 rtex.colorSpace = _rpTHREE.NoColorSpace;
                 _rpRoughnessTextures[idx] = rtex;
                 _rpLoaded++;
@@ -4892,7 +4892,7 @@ export function getVisualEditBridgeScript(): string {
                 atex.wrapS = _rpTHREE.RepeatWrapping;
                 atex.wrapT = _rpTHREE.RepeatWrapping;
                 atex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
-                atex.anisotropy = 16;
+                atex.anisotropy = 8;
                 atex.colorSpace = _rpTHREE.NoColorSpace;
                 _rpAOTextures[idx] = atex;
                 _rpLoaded++;
