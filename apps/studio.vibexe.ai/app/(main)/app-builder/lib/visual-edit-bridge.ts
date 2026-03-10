@@ -1757,7 +1757,7 @@ export function getVisualEditBridgeScript(): string {
     showDebug("Click from " + source + " at (" + Math.round(clientX) + ", " + Math.round(clientY) + ")");
     if (!active || !editor) { showDebug("SKIP: active=" + active + " editor=" + !!editor); return; }
     if (panToolActive) { showDebug("SKIP: pan tool active"); return; }
-    if (transformControls && (transformControls.dragging || transformControls.axis)) { showDebug("SKIP: gizmo active (dragging=" + transformControls.dragging + " axis=" + transformControls.axis + ")"); return; }
+    if (transformControls && transformControls.dragging) { showDebug("SKIP: gizmo active (dragging)"); return; }
     var rect = editor.renderer.domElement.getBoundingClientRect();
     showDebug("Canvas rect: " + Math.round(rect.left) + "," + Math.round(rect.top) + " " + Math.round(rect.width) + "x" + Math.round(rect.height) + " | Click: " + Math.round(clientX) + "," + Math.round(clientY));
     var target = raycastMeshes(clientX, clientY);
@@ -2954,7 +2954,7 @@ export function getVisualEditBridgeScript(): string {
             return;
           }
           var cx = d.clientX, cy = d.clientY;
-          if (transformControls && (transformControls.dragging || transformControls.axis)) return;
+          if (transformControls && transformControls.dragging) return;
           var target = raycastMeshes(cx, cy);
           if (target && target !== editor.scene) {
             if (selectedObj && target.uuid === selectedObj.uuid) {
