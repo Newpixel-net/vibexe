@@ -1242,7 +1242,12 @@ export function SandpackPreview({
 				// If editor is already enabled (user clicked before bridge loaded), re-send enable
 				if (gameEditor.enabled && iframe?.contentWindow) {
 					console.log("[GameEditor] Re-sending game-editor-enable to bridge");
-					iframe.contentWindow.postMessage({ type: "game-editor-enable" }, "*");
+					const activeScene = gameEditor.getActiveScene();
+					iframe.contentWindow.postMessage({
+						type: "game-editor-enable",
+						cameraPosition: activeScene?.cameraPosition,
+						cameraTarget: activeScene?.cameraTarget,
+					}, "*");
 				}
 				// Send current game settings after bridge is ready
 				if (iframe?.contentWindow) {
@@ -1408,12 +1413,13 @@ export function SandpackPreview({
 					_lightTarget: data._lightTarget,
 				});
 				// Live-sync player character position to Game Settings spawn
+				// Only auto-sync when pick-spawn mode is active (not on every selection)
 				const isPlayer = data.userData?.__isPlayerCharacter
 					|| data.userData?.vibexeType === "player"
 					|| data.userData?.vibexeType === "AnimatedCharacter"
 					|| data.name?.startsWith("Character_")
 					|| data.name?.startsWith("Player_");
-				if (isPlayer && data.position) {
+				if (isPlayer && data.position && gameEditor.pickSpawnActive) {
 					gameEditor.updateGameSettings({
 						player: {
 							spawnX: Math.round(data.position.x * 100) / 100,
@@ -1432,6 +1438,14 @@ export function SandpackPreview({
 				gameEditor.setGizmoSpace(data.space as "world" | "local");
 			} else if (data.type === "game-editor-camera-orientation") {
 				gameEditor.setCameraQuaternion(data.quaternion);
+			} else if (data.type === "game-editor-camera-state") {
+				// Persist camera position/target from the bridge into the active scene
+				if (data.position && data.target) {
+					const sceneId = gameEditor.activeSceneId;
+					if (sceneId) {
+						gameEditor.updateSceneCamera(sceneId, data.position, data.target);
+					}
+				}
 			} else if (data.type === "game-editor-projection-changed") {
 				gameEditor.setEditorProjection(data.projection as "perspective" | "orthographic");
 			} else if (data.type === "game-editor-pivot-mode-changed") {
@@ -1649,6 +1663,36 @@ export function SandpackPreview({
 				gameEditor.updateGameSettings({ lights: lightsRef.current });
 			} else if (data.type === "game-editor-lights-restored") {
 				console.log("[GameEditor] Lights restored:", data.count);
+			} else if (data.type === "game-editor-player-position-update") {
+				// When user drags the player character in scene editor, always update spawn position
+				if (data.position) {
+					gameEditor.updateGameSettings({
+						player: {
+							spawnX: Math.round(data.position.x * 100) / 100,
+							spawnY: Math.round(data.position.y * 100) / 100,
+							spawnZ: Math.round(data.position.z * 100) / 100,
+						},
+					});
+				}
+			} else if (data.type === "game-editor-ground-click") {
+				// Ground/terrain click with no object hit — used for pick-spawn/pick-respawn
+				if (gameEditor.pickSpawnActive && data.position) {
+					gameEditor.updateGameSettings({
+						player: {
+							spawnX: data.position.x,
+							spawnY: data.position.y + 1,
+							spawnZ: data.position.z,
+						},
+					});
+					gameEditor.togglePickSpawn();
+				} else if (gameEditor.pickRespawnActive && data.position) {
+					gameEditor.updateGameSettings({
+						player: {
+							respawnY: data.position.y,
+						},
+					});
+					gameEditor.togglePickRespawn();
+				}
 			}
 		};
 		window.addEventListener("message", handler);

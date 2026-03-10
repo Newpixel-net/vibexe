@@ -451,18 +451,26 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 		setEnabledState((prev) => {
 			const next = !prev;
 			if (next) {
-				// Send enable immediately
-				const msg = { type: "game-editor-enable" };
-				sendToIframe(msg);
-				try {
-					const iframes = document.querySelectorAll(".sandpack-container iframe");
-					for (const iframe of iframes) {
-						const f = iframe as HTMLIFrameElement;
-						if (f.contentWindow) {
-							f.contentWindow.postMessage(msg, "*");
-						}
+				// Read current scene camera data via setter callback (avoids stale closure)
+				setScenesState((currentScenes) => {
+					const activeScene = currentScenes.find((s) => s.isDefault) || currentScenes[0];
+					const msg: any = { type: "game-editor-enable" };
+					if (activeScene?.cameraPosition) {
+						msg.cameraPosition = activeScene.cameraPosition;
+						msg.cameraTarget = activeScene.cameraTarget;
 					}
-				} catch { /* ignore */ }
+					sendToIframe(msg);
+					try {
+						const iframes = document.querySelectorAll(".sandpack-container iframe");
+						for (const iframe of iframes) {
+							const f = iframe as HTMLIFrameElement;
+							if (f.contentWindow) {
+								f.contentWindow.postMessage(msg, "*");
+							}
+						}
+					} catch { /* ignore */ }
+					return currentScenes; // don't change state
+				});
 				// Re-send FX settings after bridge activates (bridge needs renderer/scene/camera ready)
 				setTimeout(() => {
 					setGameSettingsState((gs) => {
@@ -506,16 +514,24 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const setEnabled = useCallback((v: boolean) => {
 		setEnabledState(v);
 		if (v) {
-			// Send enable immediately
-			const msg = { type: "game-editor-enable" };
-			sendToIframe(msg);
-			try {
-				const iframes = document.querySelectorAll(".sandpack-container iframe");
-				for (const iframe of iframes) {
-					const f = iframe as HTMLIFrameElement;
-					if (f.contentWindow) f.contentWindow.postMessage(msg, "*");
+			// Send enable with persisted camera position from active scene
+			setScenesState((currentScenes) => {
+				const activeScene = currentScenes.find((s) => s.isDefault) || currentScenes[0];
+				const msg: any = { type: "game-editor-enable" };
+				if (activeScene?.cameraPosition) {
+					msg.cameraPosition = activeScene.cameraPosition;
+					msg.cameraTarget = activeScene.cameraTarget;
 				}
-			} catch { /* ignore */ }
+				sendToIframe(msg);
+				try {
+					const iframes = document.querySelectorAll(".sandpack-container iframe");
+					for (const iframe of iframes) {
+						const f = iframe as HTMLIFrameElement;
+						if (f.contentWindow) f.contentWindow.postMessage(msg, "*");
+					}
+				} catch { /* ignore */ }
+				return currentScenes; // don't change state
+			});
 		}
 		if (!v) {
 			// Send disable to iframe so the bridge deactivates

@@ -522,6 +522,10 @@ export function getVisualEditBridgeScript(): string {
   var _savedCameraPos = null;
   var _savedCameraQuat = null;
   var _savedOrbitTarget = null;
+  // Persisted camera position/target from parent (survives reload / Scene↔Game transitions)
+  var _restoreCameraPos = null;
+  var _restoreCameraTarget = null;
+  var _lastCamSave = 0;
   var gridHelper = null;
   // Camera Preview PIP
   var previewCamera = null;
@@ -1398,7 +1402,14 @@ export function getVisualEditBridgeScript(): string {
     if (!selectedObj || !editor) return;
     var clone = selectedObj.clone(true);
     clone.position.x += 1;
-    clone.traverse(function(c) { c.uuid = window.THREE.MathUtils.generateUUID(); });
+    clone.traverse(function(c) {
+      c.uuid = window.THREE.MathUtils.generateUUID();
+      // Clear physics body references so clone gets its own body via auto-physics
+      if (c.userData) {
+        delete c.userData.__physicsBody;
+        delete c.userData.__autoPhysicsBody;
+      }
+    });
     // Give clone a unique name so persistTransform doesn't conflict with the original
     if (clone.name) { clone.name = clone.name + "_copy"; }
     editor.scene.add(clone);
@@ -1765,6 +1776,27 @@ export function getVisualEditBridgeScript(): string {
       lastClickTime = 0;
       lastClickUuid = "";
       deselectObject();
+      // Send ground intersection point to parent for pick-spawn/pick-respawn
+      try {
+        var _groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        // If terrain exists, try raycasting against it first
+        var _terrain = editor.scene.getObjectByName("__terrain__");
+        var _groundPt = null;
+        if (_terrain) {
+          var _tHits = raycaster.intersectObject(_terrain, false);
+          if (_tHits.length > 0) _groundPt = _tHits[0].point;
+        }
+        if (!_groundPt) {
+          _groundPt = new THREE.Vector3();
+          if (!raycaster.ray.intersectPlane(_groundPlane, _groundPt)) _groundPt = null;
+        }
+        if (_groundPt) {
+          window.parent.postMessage({
+            type: "game-editor-ground-click",
+            position: { x: +_groundPt.x.toFixed(3), y: +_groundPt.y.toFixed(3), z: +_groundPt.z.toFixed(3) }
+          }, "*");
+        }
+      } catch(e) { console.warn("[GameEditorBridge] ground-click error:", e); }
     }
   }
 
@@ -1951,6 +1983,17 @@ export function getVisualEditBridgeScript(): string {
         window.parent.postMessage({ type: "game-editor-camera-orientation", quaternion: _lastCamQ }, "*");
       }
     }
+    // Periodic camera position/target save (~every 2s) so parent always has fresh data
+    if (_camNow - _lastCamSave > 2000 && editor.orbitControls) {
+      _lastCamSave = _camNow;
+      var _cp = editor.camera.position;
+      var _ct = editor.orbitControls.target;
+      window.parent.postMessage({
+        type: "game-editor-camera-state",
+        position: [_cp.x, _cp.y, _cp.z],
+        target: [_ct.x, _ct.y, _ct.z]
+      }, "*");
+    }
     // Per-frame sweep: remove duplicate __editor_ objects (old Game3D.tsx templates lack _hasExt guard)
     if (editor.scene) {
       var dupes = [];
@@ -2064,6 +2107,22 @@ export function getVisualEditBridgeScript(): string {
       // Deferred fix — catches embedded bridge's pause() overwriting our settings
       setTimeout(fixOrbitControls, 50);
       setTimeout(fixOrbitControls, 200);
+      // Restore persisted camera position/target AFTER fixOrbitControls finishes
+      // (fixOrbitControls resets oc.target to (0,1,0), so restore must come later)
+      if (_restoreCameraPos) {
+        setTimeout(function() {
+          if (editor && editor.camera && editor.orbitControls && _restoreCameraPos) {
+            editor.camera.position.set(_restoreCameraPos[0], _restoreCameraPos[1], _restoreCameraPos[2]);
+            if (_restoreCameraTarget) {
+              editor.orbitControls.target.set(_restoreCameraTarget[0], _restoreCameraTarget[1], _restoreCameraTarget[2]);
+            }
+            editor.orbitControls.update();
+            showDebug("Restored persisted camera pos=[" + _restoreCameraPos.join(",") + "] target=[" + (_restoreCameraTarget || []).join(",") + "]");
+            _restoreCameraPos = null;
+            _restoreCameraTarget = null;
+          }
+        }, 250);
+      }
       showDebug("Bridge ACTIVATED. Canvas: " + editor.renderer.domElement.tagName + " " + editor.renderer.domElement.width + "x" + editor.renderer.domElement.height);
       // On activation, ensure texture colorSpace is correct and env maps are applied
       setTimeout(function() {
@@ -2304,6 +2363,16 @@ export function getVisualEditBridgeScript(): string {
 
   function deactivateBridge() {
     if (!active) return;
+    // Send camera state to parent BEFORE cleanup (so it can be persisted and restored later)
+    if (editor && editor.camera && editor.orbitControls) {
+      var cp = editor.camera.position;
+      var ct = editor.orbitControls.target;
+      window.parent.postMessage({
+        type: "game-editor-camera-state",
+        position: [cp.x, cp.y, cp.z],
+        target: [ct.x, ct.y, ct.z]
+      }, "*");
+    }
     active = false;
     window.__vibexe_editor_active__ = false;
     cancelAnimationFrame(editorAnimId);
@@ -2449,7 +2518,11 @@ export function getVisualEditBridgeScript(): string {
     var d = e.data;
     if (!d || !d.type) return;
     switch (d.type) {
-      case "game-editor-enable": _enableRequested = true; activateBridge(); break;
+      case "game-editor-enable":
+        _enableRequested = true;
+        if (d.cameraPosition) { _restoreCameraPos = d.cameraPosition; _restoreCameraTarget = d.cameraTarget || null; }
+        activateBridge();
+        break;
       case "game-editor-disable": _enableRequested = false; deactivateBridge(); break;
       case "game-editor-set-mode":
         if (d.mode === "pan") {
@@ -2733,6 +2806,21 @@ export function getVisualEditBridgeScript(): string {
         window.__vibexe_spawn_factory__ = d.factory || null;
         window.__vibexe_spawn_args__ = d.args || null;
         break;
+      case "game-editor-show-spawn-marker":
+        if (editor && editor.scene) {
+          var _spawnMarker = editor.scene.getObjectByName("__editor_spawn_marker__");
+          if (!_spawnMarker) {
+            var _spGeo = new THREE.SphereGeometry(0.3, 16, 16);
+            var _spMat = new THREE.MeshBasicMaterial({ color: 0x00ff88, transparent: true, opacity: 0.7 });
+            _spawnMarker = new THREE.Mesh(_spGeo, _spMat);
+            _spawnMarker.name = "__editor_spawn_marker__";
+            _spawnMarker.raycast = function() {};
+            editor.scene.add(_spawnMarker);
+          }
+          _spawnMarker.position.set(d.x || 0, d.y || 3, d.z || 0);
+          _spawnMarker.visible = !!d.visible;
+        }
+        break;
       case "game-editor-move-player":
         // Live-sync: teleport player character to new spawn position
         if (editor && editor.scene) {
@@ -2843,6 +2931,26 @@ export function getVisualEditBridgeScript(): string {
             }
           } else {
             deselectObject();
+            // Send ground intersection point to parent for pick-spawn/pick-respawn
+            try {
+              var _gp2 = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+              var _terrain2 = editor.scene.getObjectByName("__terrain__");
+              var _gPt2 = null;
+              if (_terrain2) {
+                var _tH2 = raycaster.intersectObject(_terrain2, false);
+                if (_tH2.length > 0) _gPt2 = _tH2[0].point;
+              }
+              if (!_gPt2) {
+                _gPt2 = new THREE.Vector3();
+                if (!raycaster.ray.intersectPlane(_gp2, _gPt2)) _gPt2 = null;
+              }
+              if (_gPt2) {
+                window.parent.postMessage({
+                  type: "game-editor-ground-click",
+                  position: { x: +_gPt2.x.toFixed(3), y: +_gPt2.y.toFixed(3), z: +_gPt2.z.toFixed(3) }
+                }, "*");
+              }
+            } catch(e2) {}
           }
         }, active ? 0 : 500);
         break;
