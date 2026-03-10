@@ -5569,6 +5569,14 @@ export const GameScene = {
       url: modelUrl("platformer-project", "characters/Lily.glb"),
     });
     lily = lilyResult;
+    // Store character half-height on mesh userData for dynamic lookup
+    if (lily.mesh) {
+      lily.mesh.userData.__charHalfY = lily.size?.y || 0.5;
+    }
+    // If character-system module is installed, hide Lily until swap completes
+    if ((window as any).__VIBEXE_INSTALLED_MODULES__?.includes?.("character-system")) {
+      lily.mesh.visible = false;
+    }
     playerBody = createPhysicsBody("box", 5, { x: spawnX, y: spawnY, z: spawnZ }, lily.size);
     if (playerBody) {
       playerBody.linearDamping = 0.9;
@@ -5623,7 +5631,7 @@ export const GameScene = {
   },
 
   update(delta: number) {
-    if (!lily || !world) return;
+    if ((!lily && !(window as any).__vibexe_playerMesh__) || !world) return;
 
     // Asymmetric gravity: lighter going up, heavier falling
     const vy = playerBody.velocity.y;
@@ -5684,34 +5692,40 @@ export const GameScene = {
       }
     }
 
-    // Sync physics → meshes
-    // Offset mesh Y by half-height so feet (at mesh origin via pivot correction)
-    // align with the bottom of the physics box (ground contact point).
-    lily.mesh.position.copy(playerBody.position);
-    lily.mesh.position.y -= lily.size.y;
+    // Sync physics → active player mesh (supports character-system swaps)
+    const activePlayer = (window as any).__vibexe_playerMesh__ || lily?.mesh;
+    if (activePlayer && playerBody) {
+      activePlayer.position.copy(playerBody.position);
+      const playerHalfY = activePlayer.userData?.__charHalfY || lily?.size?.y || 0.5;
+      activePlayer.position.y -= playerHalfY;
+    }
     syncBodiesToMeshes(platforms);
 
-    // Camera follow
-    camera.position.x += (lily.mesh.position.x - camera.position.x) * CAMERA_LERP * delta;
-    camera.position.y += (lily.mesh.position.y + CAMERA_OFFSET_Y - camera.position.y) * CAMERA_LERP * delta;
-    camera.position.z += (lily.mesh.position.z + CAMERA_OFFSET_Z - camera.position.z) * CAMERA_LERP * delta;
-    camera.lookAt(lily.mesh.position.x, lily.mesh.position.y + CAMERA_LOOK_Y, lily.mesh.position.z);
+    // Camera follow active player
+    if (activePlayer) {
+      camera.position.x += (activePlayer.position.x - camera.position.x) * CAMERA_LERP * delta;
+      camera.position.y += (activePlayer.position.y + CAMERA_OFFSET_Y - camera.position.y) * CAMERA_LERP * delta;
+      camera.position.z += (activePlayer.position.z + CAMERA_OFFSET_Z - camera.position.z) * CAMERA_LERP * delta;
+      camera.lookAt(activePlayer.position.x, activePlayer.position.y + CAMERA_LOOK_Y, activePlayer.position.z);
+    }
 
     // Collect items
-    for (const c of items) {
-      if (!c.collected && lily.mesh.position.distanceTo(c.mesh.position) < COLLECT_DISTANCE) {
-        c.collected = true;
-        c.mesh.visible = false;
-        score++;
-        hud.update({ score });
-        playSound(soundUrl("platformer-project/sfx/coin01.wav"), { volume: 0.7 });
-        hapticFeedback("light");
+    if (activePlayer) {
+      for (const c of items) {
+        if (!c.collected && activePlayer.position.distanceTo(c.mesh.position) < COLLECT_DISTANCE) {
+          c.collected = true;
+          c.mesh.visible = false;
+          score++;
+          hud.update({ score });
+          playSound(soundUrl("platformer-project/sfx/coin01.wav"), { volume: 0.7 });
+          hapticFeedback("light");
+        }
+        if (!c.collected) c.mesh.rotation.y += delta * 2;
       }
-      if (!c.collected) c.mesh.rotation.y += delta * 2;
     }
 
     // Fall off world = reset to respawn point (read from window for live updates)
-    if (lily.mesh.position.y < -10) {
+    if (activePlayer && activePlayer.position.y < -10) {
       const _rx = (window as any).__vibexe_respawnX__ ?? respawnX;
       const _ry = (window as any).__vibexe_respawnY__ ?? respawnY;
       const _rz = (window as any).__vibexe_respawnZ__ ?? respawnZ;
