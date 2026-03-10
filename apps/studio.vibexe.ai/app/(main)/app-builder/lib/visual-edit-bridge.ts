@@ -2057,10 +2057,20 @@ export function getVisualEditBridgeScript(): string {
       for (var di = 0; di < dupes.length; di++) { if (dupes[di].detach) dupes[di].detach(); editor.scene.remove(dupes[di]); if (dupes[di].dispose) dupes[di].dispose(); }
     }
     try {
-      // Allow our render calls through the wrapper (blocks game loop's renders)
-      if (editor.renderer) editor.renderer.__allowRender = true;
-      // Use EffectComposer when available (preserves post-processing in editor mode)
+      // Temporarily restore real render methods for our frame (JS is single-threaded — safe)
+      var _noop = function() {};
+      var _realRender = editor.renderer.__origRender || editor.renderer.render;
+      if (editor.renderer.__bridgeWrapped) editor.renderer.render = _realRender;
+      // Re-wrap composer if recreated (e.g., FX preset change)
       var composer = window.__vibexe_composer__;
+      if (composer && !composer.__bridgeWrapped) {
+        composer.__origRender = composer.render.bind(composer);
+        composer.render = _noop;
+        composer.__bridgeWrapped = true;
+      }
+      var _realComposer = composer && composer.__origRender;
+      if (_realComposer) composer.render = _realComposer;
+      // Render scene via composer or direct renderer
       if (composer && composer.render) {
         composer.render();
       } else {
@@ -2090,14 +2100,14 @@ export function getVisualEditBridgeScript(): string {
           previewCamera.updateProjectionMatrix();
           editor.renderer.render(editor.scene, previewCamera);
         } finally {
-          // Always restore renderer state even if PIP render throws
           editor.renderer.setScissorTest(false);
           editor.renderer.setViewport(0, 0, _fullSize.x, _fullSize.y);
           editor.renderer.setClearColor(_prevClearColor, _prevClearAlpha);
         }
       }
-      // Re-block renders from game loop
-      if (editor.renderer) editor.renderer.__allowRender = false;
+      // Re-noop for game loop (blocks until next editorLoop frame)
+      if (editor.renderer.__bridgeWrapped) editor.renderer.render = _noop;
+      if (composer && composer.__bridgeWrapped) composer.render = _noop;
     } catch (e) {
       // Prevent cascading crashes (e.g., TransformControls infinite recursion)
       console.error("[GameEditorBridge] Render error — cleaning up:", e.message);
@@ -2129,16 +2139,19 @@ export function getVisualEditBridgeScript(): string {
         _savedOrbitTarget = editor.orbitControls.target.clone();
       }
       editor.pause();
-      // Prevent game loop double-render: wrap renderer.render so only bridge can render
-      // The game loop's animate() still runs in __editorMode and calls composer/renderer.render
-      // which fights with our editorLoop. Wrapping renderer.render blocks all non-bridge renders.
+      // Prevent game loop double-render by no-opping renderer.render + composer.render
+      // The game loop still runs in __editorMode and calls these every frame, fighting our editorLoop.
+      // JS is single-threaded so we temporarily restore originals during our own render (safe).
       if (editor.renderer && !editor.renderer.__bridgeWrapped) {
         editor.renderer.__origRender = editor.renderer.render.bind(editor.renderer);
-        editor.renderer.render = function() {
-          if (!editor.renderer.__allowRender) return;
-          return editor.renderer.__origRender.apply(editor.renderer, arguments);
-        };
+        editor.renderer.render = function() {}; // no-op for game loop
         editor.renderer.__bridgeWrapped = true;
+      }
+      var _c = window.__vibexe_composer__;
+      if (_c && !_c.__bridgeWrapped) {
+        _c.__origRender = _c.render.bind(_c);
+        _c.render = function() {}; // no-op for game loop
+        _c.__bridgeWrapped = true;
       }
       // Fix OrbitControls for editor mode — must use deferred override because
       // the embedded bridge in Game3D.tsx also handles game-editor-activate and
@@ -2449,12 +2462,17 @@ export function getVisualEditBridgeScript(): string {
     active = false;
     window.__vibexe_editor_active__ = false;
     window.__vibexe_bridge_rendering__ = false;
-    // Restore original renderer.render so game loop can render normally in Game mode
+    // Restore original render methods so game loop renders normally in Game mode
     if (editor && editor.renderer && editor.renderer.__bridgeWrapped) {
       editor.renderer.render = editor.renderer.__origRender;
       delete editor.renderer.__origRender;
-      delete editor.renderer.__allowRender;
       delete editor.renderer.__bridgeWrapped;
+    }
+    var _dc = window.__vibexe_composer__;
+    if (_dc && _dc.__bridgeWrapped) {
+      _dc.render = _dc.__origRender;
+      delete _dc.__origRender;
+      delete _dc.__bridgeWrapped;
     }
     cancelAnimationFrame(editorAnimId);
     // Clear pending persistTransform timer to prevent stale messages after deactivation
