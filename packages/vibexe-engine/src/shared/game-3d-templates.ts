@@ -5214,7 +5214,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             __perfLastCheck = __perfNow;
           }
 
-          // In editor mode, skip game logic — only render + tick animation mixers for preview
+          // In editor mode, skip game logic — only tick animation mixers for preview
+          // Rendering is handled by the bridge's editorLoop (prevents double-render flicker)
           if (__editorMode) {
             if (__editorOrbitControls) __editorOrbitControls.update();
             const __now = performance.now();
@@ -5222,8 +5223,11 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             __editorLastTime = __now;
             // Tick animation mixers so animations preview in editor
             (window as any)._updateAllMixers3D?.(__ed);
-            const __ec2 = (window as any).__vibexe_composer__;
-            if (__ec2) { __ec2.render(__ed); } else { renderer.render(scene, camera); }
+            // Only render here if the bridge is NOT actively rendering (avoids double-render flicker)
+            if (!(window as any).__vibexe_bridge_rendering__) {
+              const __ec2 = (window as any).__vibexe_composer__;
+              if (__ec2) { __ec2.render(__ed); } else { renderer.render(scene, camera); }
+            }
             return;
           }
 

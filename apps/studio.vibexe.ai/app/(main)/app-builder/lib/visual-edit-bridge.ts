@@ -2057,6 +2057,8 @@ export function getVisualEditBridgeScript(): string {
       for (var di = 0; di < dupes.length; di++) { if (dupes[di].detach) dupes[di].detach(); editor.scene.remove(dupes[di]); if (dupes[di].dispose) dupes[di].dispose(); }
     }
     try {
+      // Signal to game loop that bridge is handling rendering (prevents double-render flicker)
+      window.__vibexe_bridge_rendering__ = true;
       // Use EffectComposer when available (preserves post-processing in editor mode)
       var composer = window.__vibexe_composer__;
       if (composer && composer.render) {
@@ -2433,6 +2435,7 @@ export function getVisualEditBridgeScript(): string {
     }
     active = false;
     window.__vibexe_editor_active__ = false;
+    window.__vibexe_bridge_rendering__ = false;
     cancelAnimationFrame(editorAnimId);
     // Clear pending persistTransform timer to prevent stale messages after deactivation
     if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
