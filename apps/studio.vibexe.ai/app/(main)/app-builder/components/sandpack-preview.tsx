@@ -1601,6 +1601,13 @@ export function SandpackPreview({
 						console.warn("[GameEditor] Scene not found:", sceneName);
 					}
 				}
+			} else if (data.type === "vibexe-character-swapped") {
+				// Character system swapped the player — refresh scene tree so new character appears in hierarchy
+				console.log("[GameEditor] Character swapped to:", data.characterName);
+				gameEditor.requestSceneTree();
+			} else if (data.type === "game-editor-scene-changed") {
+				// Generic scene change notification — refresh tree
+				gameEditor.requestSceneTree();
 			} else if (data.type === "game-editor-light-added") {
 				// Track new light in lightsRef and persist to game settings
 				const lightData = {

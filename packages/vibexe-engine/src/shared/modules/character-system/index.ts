@@ -7,10 +7,13 @@
  * Features:
  * - Character registry (built-in + future database categories)
  * - Runtime character swapping (dispose old, load new, rebind physics)
- * - Self-contained GLTFLoader-based character loading (no dependency on game internals)
- * - Animation normalization (maps arbitrary clip names to standard slots)
- * - Auto-scaling to consistent height (1.5 world units)
- * - Ground offset correction (feet alignment with terrain/floor)
+ * - Production-quality GLTFLoader character loading (bone measurement, pivot correction, scale cap)
+ * - Scored animation matching (partial keyword with priority ranking)
+ * - Root motion stripping (locks XZ on root bones)
+ * - Camera follow override (replaces stale game loop reference)
+ * - Terrain ground-following
+ * - Per-frame animation state machine with hysteresis
+ * - Scene hierarchy integration (Character_ prefix, userData)
  * - Physics body reuse on swap
  */
 
@@ -26,7 +29,7 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 		name: "Warrior",
 		pack: "meshy-characters",
 		model: "Warrior_figure_Animations.glb",
-		thumbnail: "/api/app-builder/media-stock-3d/meshy-characters/Warrior_figure_Animations.glb",
+		thumbnail: "",
 		groundOffset: 0,
 		animations: {
 			idle: "idle",
@@ -41,11 +44,29 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v2.0.0
-// Self-contained character management — loads GLB via THREE.GLTFLoader directly
-console.log('[CharacterSystem] Module v2 loaded');
+const runtimeCode = `// @vibexe/character-system v3.0.0
+// Production-quality character management — bone measurement, pivot correction, camera override
+console.log('[CharacterSystem] Module v3 loaded');
 
 var THREE = require('three');
+
+// ===== CONSTANTS =====
+var TARGET_HEIGHT = 1.5;     // World units — matches SCALES_3D.animatedCharacter
+var MAX_AUTO_SCALE = 1;      // Cap to prevent over-scaling skinned meshes
+var CAMERA_OFFSET_Y = 8;     // Camera height above player
+var CAMERA_OFFSET_Z = 12;    // Camera distance behind player
+var CAMERA_LERP = 3;         // Camera smoothing speed
+var CAMERA_LOOK_Y = 1;       // Camera look-at Y offset
+var WALK_SPEED = 0.5;        // Horizontal speed threshold for walk
+var RUN_SPEED = 5;           // Horizontal speed threshold for run
+var MIN_STATE_HOLD = 0.15;   // Min seconds before animation state change
+
+// Root bone names for root motion stripping
+var _ROOT_BONE_NAMES = {
+  "hips": true, "root": true, "mixamorig:hips": true, "mixamorigHips": true,
+  "mixamorig_hips": true, "pelvis": true, "rootnode": true, "root_bone": true,
+  "bip001": true, "bip01": true, "hip": true
+};
 
 // ===== CHARACTER REGISTRY =====
 var _builtInCharacters = ${BUILT_IN_CHARACTERS};
@@ -79,42 +100,65 @@ CharacterRegistry.prototype.register = function(charDef) {
   this._characters[charDef.id] = charDef;
 };
 
-// ===== ANIMATION CLASSIFIER =====
-// Fuzzy match clip names to standard animation slots
-function classifyAnimations(clips) {
-  var map = {};
-  var slotPatterns = {
-    idle: ["idle", "stand", "breathing", "rest"],
-    walk: ["walk", "locomotion", "step"],
-    run: ["run", "sprint", "jog", "fast"],
-    jump: ["jump", "leap", "hop"],
-    attack: ["attack", "kick", "punch", "slash", "hit", "strike", "swing"],
-    die: ["die", "death", "dead", "fall"],
-    hit: ["hit", "hurt", "damage", "flinch", "react"],
-    special: ["spin", "dance", "wave", "taunt", "emote", "special"]
-  };
-
-  for (var slot in slotPatterns) {
-    if (!slotPatterns.hasOwnProperty(slot)) continue;
-    var patterns = slotPatterns[slot];
-    for (var p = 0; p < patterns.length; p++) {
-      if (map[slot]) break;
-      var pat = patterns[p].toLowerCase();
-      for (var c = 0; c < clips.length; c++) {
-        var name = clips[c].name.toLowerCase();
-        if (name.indexOf(pat) !== -1) {
-          map[slot] = clips[c];
-          break;
-        }
-      }
+// ===== SCORED ANIMATION MATCHING =====
+// Priority: 3=starts with keyword, 2=word boundary, 1=anywhere. Shortest name wins ties.
+function _bestPartial(keyword, clipNames, clipMap) {
+  var best = null;
+  var bestPri = 0;
+  var bestLen = Infinity;
+  for (var i = 0; i < clipNames.length; i++) {
+    var cn = clipNames[i];
+    var cl = cn.toLowerCase();
+    if (cl.indexOf(keyword) === -1) continue;
+    var pri;
+    if (cl.indexOf(keyword) === 0) {
+      pri = 3;
+    } else if (cl.indexOf("_" + keyword) !== -1 || cl.indexOf(" " + keyword) !== -1) {
+      pri = 2;
+    } else {
+      pri = 1;
+    }
+    if (pri > bestPri || (pri === bestPri && cn.length < bestLen)) {
+      best = cn; bestPri = pri; bestLen = cn.length;
     }
   }
-  return map;
+  return best ? clipMap[best] : null;
 }
 
-// ===== SELF-CONTAINED CHARACTER LOADER =====
-// Uses THREE.GLTFLoader directly — no dependency on game internal functions
-function loadCharacterGLB(scene, url, position) {
+function findClip(name, clipNames, clipMap) {
+  // 1. Exact match
+  if (clipMap[name]) return clipMap[name];
+  // 2. Case-insensitive exact
+  var lower = name.toLowerCase();
+  for (var i = 0; i < clipNames.length; i++) {
+    if (clipNames[i].toLowerCase() === lower) return clipMap[clipNames[i]];
+  }
+  // 3. Scored partial match
+  var partial = _bestPartial(lower, clipNames, clipMap);
+  if (partial) return partial;
+  // 4. Common aliases
+  var aliases = {
+    idle: ["idle"],
+    run: ["running", "run"],
+    walk: ["walking", "walk"],
+    jump: ["jump", "leap"],
+    attack: ["slash", "attack", "kick", "hook", "punch", "spin"],
+    die: ["dead", "death", "die"],
+    hit: ["hit", "reaction", "damage"]
+  };
+  var aliasKeys = aliases[lower];
+  if (aliasKeys) {
+    for (var a = 0; a < aliasKeys.length; a++) {
+      var m = _bestPartial(aliasKeys[a], clipNames, clipMap);
+      if (m) return m;
+    }
+  }
+  return null;
+}
+
+// ===== PRODUCTION CHARACTER LOADER =====
+// Matches createAnimatedCharacter3D quality: bone measurement, pivot, scale cap, root motion
+function loadCharacterGLB(scene, url, position, charName) {
   var GLTFLoader = THREE.GLTFLoader;
   if (!GLTFLoader) {
     console.error("[CharacterSystem] GLTFLoader not available on THREE");
@@ -125,100 +169,302 @@ function loadCharacterGLB(scene, url, position) {
   return new Promise(function(resolve, reject) {
     console.log("[CharacterSystem] Loading GLB:", url);
     loader.load(url, function(gltf) {
-      var model = gltf.scene;
-
-      // Measure raw size
-      var rawBox = new THREE.Box3().setFromObject(model);
-      var rawSize = rawBox.getSize(new THREE.Vector3());
-      console.log("[CharacterSystem] Raw model size:", rawSize.x.toFixed(2), rawSize.y.toFixed(2), rawSize.z.toFixed(2));
-
-      // Auto-upright: if Z is tallest dimension, model is Z-up — rotate -90 on X
-      if (rawSize.z > rawSize.y * 1.2 && rawSize.z > rawSize.x) {
-        model.rotation.x = -Math.PI / 2;
-        console.log("[CharacterSystem] Auto-upright: rotated -90 on X (Z-up model)");
-        // Recalculate after rotation
-        model.updateMatrixWorld(true);
-        rawBox.setFromObject(model);
-        rawSize = rawBox.getSize(new THREE.Vector3());
-      }
-
-      // Auto-scale to 1.5 world units height
-      var targetHeight = 1.5;
-      var currentHeight = rawSize.y;
-      if (currentHeight > 0) {
-        var scaleFactor = targetHeight / currentHeight;
-        model.scale.multiplyScalar(scaleFactor);
-        console.log("[CharacterSystem] Auto-scale:", scaleFactor.toFixed(3), "(" + currentHeight.toFixed(2) + " -> " + targetHeight + " units)");
-      }
-
-      // Position
-      model.position.set(position.x, position.y, position.z);
+      var inner = gltf.scene;
 
       // Fix materials for proper lighting
-      model.traverse(function(child) {
+      inner.traverse(function(child) {
         if (child.isMesh) {
           child.castShadow = true;
           child.receiveShadow = true;
-          if (child.material) {
-            child.material.needsUpdate = true;
-          }
         }
       });
 
-      // Add to scene
-      scene.add(model);
+      // --- Auto-upright detection ---
+      var rawBox = new THREE.Box3().setFromObject(inner);
+      var rawSize = new THREE.Vector3();
+      rawBox.getSize(rawSize);
+      console.log("[CharacterSystem] Raw model size:", rawSize.x.toFixed(2), rawSize.y.toFixed(2), rawSize.z.toFixed(2));
 
-      // Animation mixer
-      var mixer = new THREE.AnimationMixer(model);
-      var clips = gltf.animations || [];
-
-      // Classify animations
-      var animMap = classifyAnimations(clips);
-      console.log("[CharacterSystem] Animations:", clips.length, "clips. Mapped:", Object.keys(animMap).join(", "));
-
-      // Play idle if available
-      var currentAction = null;
-      if (animMap.idle) {
-        currentAction = mixer.clipAction(animMap.idle);
-        currentAction.play();
-      } else if (clips.length > 0) {
-        currentAction = mixer.clipAction(clips[0]);
-        currentAction.play();
+      var maxHoriz = Math.max(rawSize.x, rawSize.z);
+      if (rawSize.y < maxHoriz * 0.5) {
+        inner.rotation.x = -Math.PI / 2;
+        console.log("[CharacterSystem] Auto-upright: rotated -90 on X (Z-up model)");
       }
 
-      // Final bounding box for physics
-      model.updateMatrixWorld(true);
-      var finalBox = new THREE.Box3().setFromObject(model);
-      var finalSize = finalBox.getSize(new THREE.Vector3());
-
-      // Animation playback helpers
-      var result = {
-        mesh: model,
-        mixer: mixer,
-        clips: clips,
-        animMap: animMap,
-        size: finalSize,
-        currentAction: currentAction,
-        play: function(slotName) {
-          var clip = animMap[slotName];
-          if (!clip) return;
-          var newAction = mixer.clipAction(clip);
-          if (newAction === result.currentAction) return;
-          if (result.currentAction) {
-            result.currentAction.fadeOut(0.2);
+      // --- Unity Root bone fix detection ---
+      var needsUnityRootFix = false;
+      if (inner.rotation.x === 0) {
+        var unityRootBone = null;
+        inner.traverse(function(child) {
+          if (child.isBone && !unityRootBone && child.name.toLowerCase() === "root") {
+            unityRootBone = child;
           }
-          newAction.reset().fadeIn(0.2).play();
-          result.currentAction = newAction;
-        },
-        stop: function() {
-          mixer.stopAllAction();
-          result.currentAction = null;
+        });
+        if (unityRootBone) {
+          var qz = Math.abs(unityRootBone.quaternion.z);
+          var qw = Math.abs(unityRootBone.quaternion.w);
+          if (qz > 0.95 && qw < 0.1) {
+            needsUnityRootFix = true;
+            console.log("[CharacterSystem] Unity Root bone fix detected");
+          }
         }
+      }
+
+      // --- Measure ACTUAL rendered size using boneTransform (SkinnedMesh) ---
+      // Box3.setFromObject only measures bind-pose geometry (can be 0.02 units for a
+      // model whose bones expand it to 2+ units at render time)
+      inner.updateMatrixWorld(true);
+      var measuredHeight = 0;
+      var measuredMinY = Infinity;
+      var usedBoneTransform = false;
+
+      // Play first animation frame so bones are in a real pose
+      var tempClips = gltf.animations || [];
+      if (tempClips.length > 0) {
+        var tempMixer = new THREE.AnimationMixer(inner);
+        tempMixer.clipAction(tempClips[0]).play();
+        tempMixer.update(0);
+      }
+
+      inner.traverse(function(child) {
+        if (usedBoneTransform) return;
+        if (child.isSkinnedMesh && child.skeleton && typeof child.boneTransform === "function") {
+          try {
+            child.skeleton.update();
+            var posCount = child.geometry.attributes.position.count;
+            var step = Math.max(1, Math.floor(posCount / 200));
+            var v4 = new THREE.Vector4();
+            var minY = Infinity, maxY = -Infinity;
+            var minX = Infinity, maxX = -Infinity;
+            var minZ = Infinity, maxZ = -Infinity;
+            for (var i = 0; i < posCount; i += step) {
+              child.boneTransform(i, v4);
+              if (v4.y < minY) minY = v4.y;
+              if (v4.y > maxY) maxY = v4.y;
+              if (v4.x < minX) minX = v4.x;
+              if (v4.x > maxX) maxX = v4.x;
+              if (v4.z < minZ) minZ = v4.z;
+              if (v4.z > maxZ) maxZ = v4.z;
+            }
+            var boneH = maxY - minY;
+            if (boneH > 0.001) {
+              measuredHeight = boneH;
+              measuredMinY = minY;
+              usedBoneTransform = true;
+              console.log("[CharacterSystem] Bone-deformed size:", (maxX-minX).toFixed(3), boneH.toFixed(3), (maxZ-minZ).toFixed(3));
+            }
+          } catch (e) { /* boneTransform not available */ }
+        }
+      });
+
+      // Fallback: use geometry bounding box (for non-skinned models)
+      if (!usedBoneTransform) {
+        var corrBox = new THREE.Box3().setFromObject(inner);
+        var corrSize = new THREE.Vector3();
+        corrBox.getSize(corrSize);
+        measuredHeight = corrSize.y || 1;
+        measuredMinY = corrBox.min.y;
+        console.log("[CharacterSystem] Geometry size (no bones):", corrSize.x.toFixed(3), corrSize.y.toFixed(3), corrSize.z.toFixed(3));
+      }
+
+      // --- Auto-scale with cap ---
+      var rawAutoScale = TARGET_HEIGHT / measuredHeight;
+      var autoScale = Math.min(rawAutoScale, MAX_AUTO_SCALE);
+      inner.scale.setScalar(autoScale);
+      if (rawAutoScale > MAX_AUTO_SCALE) {
+        console.log("[CharacterSystem] Auto-scale CAPPED:", autoScale.toFixed(3), "(raw was " + rawAutoScale.toFixed(1) + ")");
+      } else {
+        console.log("[CharacterSystem] Auto-scale:", autoScale.toFixed(3));
+      }
+
+      // --- Pivot correction AFTER scaling ---
+      inner.updateMatrixWorld(true);
+      var scaledMinY = measuredMinY * autoScale;
+      var pivotBox = new THREE.Box3().setFromObject(inner);
+      var pivotCenter = new THREE.Vector3();
+      pivotBox.getCenter(pivotCenter);
+      var pivot = new THREE.Group();
+      pivot.add(inner);
+      // Use bone-measured minY (feet) for Y offset, geometry center for XZ
+      pivot.position.set(-pivotCenter.x, -scaledMinY, -pivotCenter.z);
+
+      // --- Apply deferred Unity Root bone fix ---
+      if (needsUnityRootFix) {
+        inner.rotation.x = -Math.PI / 2;
+        inner.updateMatrixWorld(true);
+        pivot.updateMatrixWorld(true);
+        // Find lowest foot bone for grounding
+        var footNames = { "foot_l": true, "foot_r": true, "toes_l": true, "toes_r": true, "leftfoot": true, "rightfoot": true, "lefttoebase": true, "righttoebase": true };
+        var lowestFootY = Infinity;
+        var wp = new THREE.Vector3();
+        inner.traverse(function(child) {
+          if (child.isBone && footNames[child.name.toLowerCase()]) {
+            child.getWorldPosition(wp);
+            if (wp.y < lowestFootY) lowestFootY = wp.y;
+          }
+        });
+        if (lowestFootY !== Infinity) {
+          var feetOffset = lowestFootY;
+          if (Math.abs(feetOffset) > 0.01) {
+            pivot.position.y -= feetOffset;
+          }
+        }
+        var soleRaise = TARGET_HEIGHT * 0.07;
+        pivot.position.y += soleRaise;
+        console.log("[CharacterSystem] Unity Root bone fix applied");
+      }
+
+      // --- Wrapper Group: world position, scale 1 ---
+      var mesh = new THREE.Group();
+      var meshName = "Character_" + (charName || "Unknown");
+      mesh.name = meshName;
+      mesh.userData = {
+        vibexeType: "AnimatedCharacter",
+        vibexeFactory: "createAnimatedCharacter3D",
+        __isPlayerCharacter: true
+      };
+      mesh.add(pivot);
+      mesh.position.set(position.x, position.y, position.z);
+
+      // Physics half-extents based on target height
+      var halfExtents = { x: TARGET_HEIGHT * 0.3, y: TARGET_HEIGHT / 2, z: TARGET_HEIGHT * 0.3 };
+
+      // Store character bounds for editor BoxHelper override
+      mesh.userData.__characterBounds = {
+        halfX: halfExtents.x,
+        halfZ: halfExtents.z,
+        height: TARGET_HEIGHT
       };
 
-      console.log("[CharacterSystem] Character loaded. Size:", finalSize.x.toFixed(2) + "x" + finalSize.y.toFixed(2) + "x" + finalSize.z.toFixed(2));
+      scene.add(mesh);
+
+      // --- Root motion stripping ---
+      var allClips = gltf.animations || [];
+      for (var ci = 0; ci < allClips.length; ci++) {
+        var clip = allClips[ci];
+        for (var ti = clip.tracks.length - 1; ti >= 0; ti--) {
+          var track = clip.tracks[ti];
+          var isPos = track.name.indexOf(".position") === track.name.length - 9;
+          var isScale = track.name.indexOf(".scale") === track.name.length - 6;
+          if (!isPos && !isScale) continue;
+          var suffix = isPos ? ".position" : ".scale";
+          var nodePath = track.name.replace(suffix, "");
+          if (nodePath === "") {
+            // Scene root — remove entirely
+            clip.tracks.splice(ti, 1);
+          } else if (isPos && _ROOT_BONE_NAMES[nodePath.toLowerCase()]) {
+            // Root bone position: lock XZ, keep Y for hip bobbing
+            if (track.values && track.values.length >= 3) {
+              var firstX = track.values[0];
+              var firstZ = track.values[2];
+              for (var j = 0; j < track.values.length; j += 3) {
+                track.values[j] = firstX;
+                track.values[j + 2] = firstZ;
+              }
+            }
+          }
+        }
+      }
+
+      // --- Animation setup ---
+      var mixer = new THREE.AnimationMixer(inner);
+
+      // Register with framework mixer array for global updates
+      if (window._activeMixers3D && Array.isArray(window._activeMixers3D)) {
+        window._activeMixers3D.push(mixer);
+      }
+
+      var clipMap = {};
+      var clipNames = [];
+      for (var ci2 = 0; ci2 < allClips.length; ci2++) {
+        var c = allClips[ci2];
+        clipMap[c.name] = c;
+        clipNames.push(c.name);
+      }
+      console.log("[CharacterSystem] Animation clips:", clipNames.join(", "));
+
+      var currentAction = null;
+
+      function play(name, playOpts) {
+        var clip = findClip(name, clipNames, clipMap);
+        if (!clip) return;
+        var action = mixer.clipAction(clip);
+
+        // IDEMPOTENT: If same animation is already playing, do nothing
+        if (currentAction === action && action.isRunning()) return;
+
+        var loop = !playOpts || playOpts.loop !== false;
+        action.loop = loop ? THREE.LoopRepeat : THREE.LoopOnce;
+        if (!loop) action.clampWhenFinished = true;
+
+        var fade = (playOpts && playOpts.crossfade !== undefined) ? playOpts.crossfade : 0.25;
+        if (currentAction && currentAction !== action) {
+          action.reset().fadeIn(fade).play();
+          currentAction.fadeOut(fade);
+        } else {
+          action.reset().play();
+        }
+        currentAction = action;
+      }
+
+      function stop() {
+        mixer.stopAllAction();
+        currentAction = null;
+      }
+
+      // Auto-play idle
+      play("idle");
+
+      // Store animation data on mesh.userData for editor access
+      mesh.userData.__clipNames = clipNames;
+      mesh.userData.__play = play;
+      mesh.userData.__stop = stop;
+      mesh.userData.__currentClip = function() { return currentAction && currentAction.getClip ? currentAction.getClip().name : null; };
+      mesh.userData.__pause = function() { if (currentAction) currentAction.paused = true; };
+      mesh.userData.__resume = function() { if (currentAction) currentAction.paused = false; };
+
+      // Auto-classify clips for animMap
+      var autoAnimMap = {};
+      for (var aci = 0; aci < allClips.length; aci++) {
+        var acn = allClips[aci].name.toLowerCase();
+        var acdur = allClips[aci].duration;
+        if (acn.indexOf("idle") !== -1 || (acdur > 2 && acn.indexOf("walk") === -1 && acn.indexOf("run") === -1)) {
+          if (!autoAnimMap.idle) autoAnimMap.idle = allClips[aci].name;
+        }
+        if (acn.indexOf("walk") !== -1) { if (!autoAnimMap.walk) autoAnimMap.walk = allClips[aci].name; }
+        if (acn.indexOf("run") !== -1 || acn.indexOf("sprint") !== -1) { if (!autoAnimMap.run) autoAnimMap.run = allClips[aci].name; }
+        if (acn.indexOf("jump") !== -1) { if (!autoAnimMap.jump) autoAnimMap.jump = allClips[aci].name; }
+        if (acn.indexOf("attack") !== -1 || acn.indexOf("kick") !== -1 || acn.indexOf("punch") !== -1 || acn.indexOf("slash") !== -1) { if (!autoAnimMap.attack) autoAnimMap.attack = allClips[aci].name; }
+        if (acn.indexOf("dead") !== -1 || acn.indexOf("death") !== -1 || acn.indexOf("die") !== -1) { if (!autoAnimMap.die) autoAnimMap.die = allClips[aci].name; }
+        if (acn.indexOf("hit") !== -1 || acn.indexOf("damage") !== -1) { if (!autoAnimMap.hit) autoAnimMap.hit = allClips[aci].name; }
+      }
+      // Prefer exact name matches
+      for (var exi = 0; exi < allClips.length; exi++) {
+        var exn = allClips[exi].name.toLowerCase();
+        if (exn === "idle" && autoAnimMap.idle && autoAnimMap.idle.toLowerCase() !== "idle") autoAnimMap.idle = allClips[exi].name;
+        if (exn === "walk" && autoAnimMap.walk && autoAnimMap.walk.toLowerCase() !== "walk") autoAnimMap.walk = allClips[exi].name;
+        if (exn === "run" && autoAnimMap.run && autoAnimMap.run.toLowerCase() !== "run") autoAnimMap.run = allClips[exi].name;
+        if (exn === "jump" && autoAnimMap.jump && autoAnimMap.jump.toLowerCase() !== "jump") autoAnimMap.jump = allClips[exi].name;
+      }
+      mesh.userData.__animMap = autoAnimMap;
+
+      var result = {
+        mesh: mesh,
+        inner: inner,
+        pivot: pivot,
+        mixer: mixer,
+        clips: clipNames,
+        clipMap: clipMap,
+        play: play,
+        stop: stop,
+        size: halfExtents,
+        currentAction: function() { return currentAction; }
+      };
+
+      console.log("[CharacterSystem] Character loaded:", meshName, "| clips:", clipNames.length,
+        "| boneDeformed:", usedBoneTransform, "| scale:", autoScale.toFixed(3));
       resolve(result);
-    }, function(progress) {
+    }, function() {
       // Progress callback — silent
     }, function(err) {
       console.error("[CharacterSystem] GLB load failed:", err);
@@ -228,12 +474,10 @@ function loadCharacterGLB(scene, url, position) {
 }
 
 // ===== ORIGIN DETECTION =====
-// Sandpack iframe runs on codesandbox.io — we need vibexe.online origin for API calls
 var _vibexeOrigin = "";
 
 function _getVibexeOrigin() {
   if (_vibexeOrigin) return _vibexeOrigin;
-  // Try document.referrer (set by parent frame)
   if (typeof document !== "undefined" && document.referrer) {
     try {
       var u = new URL(document.referrer);
@@ -241,7 +485,6 @@ function _getVibexeOrigin() {
       return _vibexeOrigin;
     } catch(e) {}
   }
-  // Fallback: window.location.origin (only works if not in sandpack iframe)
   if (typeof window !== "undefined" && window.location) {
     return window.location.origin;
   }
@@ -257,54 +500,171 @@ function CharacterManager(scene) {
   this._activeResult = null;
   this._physicsBody = null;
   this._swapping = false;
-  this._mixerRAF = null; // requestAnimationFrame ID for mixer updates
+  this._rafId = null;
   this._lastTime = 0;
+  this._cameraOverride = false;
+  // Animation state machine
+  this._animState = "idle";
+  this._animStateTimer = 0;
+  this._isAttacking = false;
+  this._attackTimer = 0;
   console.log("[CharacterSystem] Manager created, registry:", this._registry.getAll().length, "characters");
 }
 
-CharacterManager.prototype.getRegistry = function() {
-  return this._registry;
-};
+CharacterManager.prototype.getRegistry = function() { return this._registry; };
+CharacterManager.prototype.getActiveId = function() { return this._activeId; };
+CharacterManager.prototype.getActiveMesh = function() { return this._activeMesh; };
 
-CharacterManager.prototype.getActiveId = function() {
-  return this._activeId;
-};
-
-CharacterManager.prototype.getActiveMesh = function() {
-  return this._activeMesh;
-};
-
-// Start animation mixer update loop
-CharacterManager.prototype._startMixerLoop = function() {
+// Unified per-frame update loop: mixer, position sync, Y offset, camera, terrain, facing, animation state
+CharacterManager.prototype._startUpdateLoop = function() {
   var self = this;
-  if (this._mixerRAF) return; // already running
-
+  if (this._rafId) return;
   this._lastTime = performance.now();
+
   function tick() {
-    self._mixerRAF = requestAnimationFrame(tick);
+    self._rafId = requestAnimationFrame(tick);
     var now = performance.now();
     var dt = (now - self._lastTime) / 1000;
     self._lastTime = now;
-    if (dt > 0.1) dt = 0.1; // clamp
+    if (dt > 0.1) dt = 0.1;
+    if (dt <= 0) return;
 
-    if (self._activeResult && self._activeResult.mixer) {
-      self._activeResult.mixer.update(dt);
+    var result = self._activeResult;
+    var body = self._physicsBody;
+    var mesh = self._activeMesh;
+    if (!result || !mesh) return;
+
+    // 1. Update animation mixer
+    if (result.mixer) {
+      result.mixer.update(dt);
     }
 
-    // Sync mesh position to physics body
-    if (self._physicsBody && self._activeMesh) {
-      self._activeMesh.position.x = self._physicsBody.position.x;
-      self._activeMesh.position.y = self._physicsBody.position.y;
-      self._activeMesh.position.z = self._physicsBody.position.z;
+    // 2. Terrain ground-following (snap physics body above terrain)
+    if (body) {
+      var getTerrainH = window.__vibexe_getTerrainHeight;
+      if (getTerrainH) {
+        var th = getTerrainH(body.position.x, body.position.z);
+        if (th != null) {
+          var bodyHalfH = 0.75;
+          if (body.shapes && body.shapes[0] && body.shapes[0].halfExtents && body.shapes[0].halfExtents.y) {
+            bodyHalfH = body.shapes[0].halfExtents.y;
+          } else if (mesh.userData && mesh.userData.__characterBounds) {
+            bodyHalfH = mesh.userData.__characterBounds.height / 2;
+          }
+          var groundY = th + bodyHalfH;
+          var gap = body.position.y - groundY;
+          if (gap < 0) {
+            body.position.y = groundY;
+            if (body.velocity.y < 0) body.velocity.y = 0;
+            body.__canJump = true;
+          } else if (gap < 3.0 && body.velocity.y <= 1.5) {
+            body.position.y = groundY;
+            if (body.velocity.y < 0) body.velocity.y = 0;
+            body.__canJump = true;
+          }
+        }
+      }
+    }
+
+    // 3. Sync mesh position to physics body with Y offset
+    if (body && mesh) {
+      mesh.position.x = body.position.x;
+      mesh.position.z = body.position.z;
+      // Offset Y by half-height: mesh origin is at feet (pivot correction),
+      // body center is at body middle, so mesh.y = body.y - height/2
+      var cb = mesh.userData && mesh.userData.__characterBounds;
+      if (cb) {
+        mesh.position.y = body.position.y - cb.height / 2;
+      } else {
+        mesh.position.y = body.position.y - TARGET_HEIGHT / 2;
+      }
+    }
+
+    // 4. Facing direction (smooth rotation toward movement)
+    if (body) {
+      var vx = body.velocity.x;
+      var vz = body.velocity.z;
+      var hSpeed = Math.sqrt(vx * vx + vz * vz);
+      if (hSpeed > 0.3 && mesh) {
+        if (Math.abs(vx) > 0.01 || Math.abs(vz) > 0.01) {
+          var targetAngle = Math.atan2(vx, vz);
+          var current = mesh.rotation.y;
+          var diff = targetAngle - current;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          mesh.rotation.y += diff * Math.min(1, dt * 10);
+        }
+      }
+    }
+
+    // 5. Camera follow override
+    if (self._cameraOverride && mesh) {
+      var cam = window.__vibexe_camera__ || (window.__vibexe_scene__ && window.__vibexe_scene__.userData && window.__vibexe_scene__.userData.__camera);
+      // Try to find camera from scene children
+      if (!cam && window.__vibexe_scene__) {
+        window.__vibexe_scene__.traverse(function(child) {
+          if (!cam && child.isCamera) cam = child;
+        });
+      }
+      if (cam) {
+        cam.position.x += (mesh.position.x - cam.position.x) * CAMERA_LERP * dt;
+        cam.position.y += (mesh.position.y + CAMERA_OFFSET_Y - cam.position.y) * CAMERA_LERP * dt;
+        cam.position.z += (mesh.position.z + CAMERA_OFFSET_Z - cam.position.z) * CAMERA_LERP * dt;
+        cam.lookAt(mesh.position.x, mesh.position.y + CAMERA_LOOK_Y, mesh.position.z);
+      }
+    }
+
+    // 6. Per-frame animation state machine (replaces 100ms setInterval)
+    if (body && result.play) {
+      var pvx = body.velocity.x;
+      var pvz = body.velocity.z;
+      var pSpeed = Math.sqrt(pvx * pvx + pvz * pvz);
+      var isGrounded = body.__canJump !== false;
+      var isRising = body.velocity.y > 2;
+
+      // Attack cooldown
+      if (self._isAttacking) {
+        self._attackTimer -= dt;
+        if (self._attackTimer <= 0) self._isAttacking = false;
+        else return; // Don't switch during attack
+      }
+
+      self._animStateTimer += dt;
+
+      // State machine with hysteresis
+      var newState = self._animState;
+      if (!isGrounded && isRising) {
+        newState = "jump";
+      } else if (self._animState === "run" ? pSpeed > RUN_SPEED * 0.6 : pSpeed > RUN_SPEED) {
+        newState = "run";
+      } else if (self._animState === "walk" ? pSpeed > WALK_SPEED * 0.3 : pSpeed > WALK_SPEED) {
+        newState = "walk";
+      } else {
+        newState = "idle";
+      }
+
+      if (newState !== self._animState && (self._animStateTimer >= MIN_STATE_HOLD || newState === "jump")) {
+        self._animState = newState;
+        self._animStateTimer = 0;
+        if (newState === "jump") {
+          result.play("jump", { loop: false, crossfade: 0.15 });
+        } else if (newState === "run") {
+          result.play("run", { crossfade: 0.2 });
+        } else if (newState === "walk") {
+          result.play("walk", { crossfade: 0.2 });
+        } else {
+          result.play("idle", { crossfade: 0.3 });
+        }
+      }
     }
   }
   tick();
 };
 
-CharacterManager.prototype._stopMixerLoop = function() {
-  if (this._mixerRAF) {
-    cancelAnimationFrame(this._mixerRAF);
-    this._mixerRAF = null;
+CharacterManager.prototype._stopUpdateLoop = function() {
+  if (this._rafId) {
+    cancelAnimationFrame(this._rafId);
+    this._rafId = null;
   }
 };
 
@@ -338,7 +698,6 @@ CharacterManager.prototype.swap = function(characterId, options) {
     };
     existingBody = this._physicsBody;
   } else if (window.__vibexe_playerMesh__) {
-    // First swap — grab position and physics from the existing player (Lily)
     var oldMesh = window.__vibexe_playerMesh__;
     spawnPos = {
       x: oldMesh.position.x,
@@ -375,8 +734,8 @@ CharacterManager.prototype.swap = function(characterId, options) {
   var baseUrl = _getVibexeOrigin();
   var modelUrl = baseUrl + "/api/app-builder/media-stock-3d/" + charDef.pack + "/" + charDef.model;
 
-  // 5. Load new character using self-contained GLTFLoader
-  return loadCharacterGLB(scene, modelUrl, spawnPos)
+  // 5. Load new character
+  return loadCharacterGLB(scene, modelUrl, spawnPos, charDef.name)
     .then(function(charResult) {
       if (!charResult) {
         self._swapping = false;
@@ -387,28 +746,21 @@ CharacterManager.prototype.swap = function(characterId, options) {
       self._activeMesh = charResult.mesh;
       self._activeId = characterId;
 
-      // Apply ground offset
-      if (charDef.groundOffset && charResult.mesh) {
-        charResult.mesh.position.y += charDef.groundOffset;
-      }
-
-      // Register player mesh globally (game loop reads this for physics sync)
+      // Register player mesh globally
       window.__vibexe_playerMesh__ = charResult.mesh;
 
       // 6. Reuse existing physics body or create new one
       if (existingBody) {
-        // Reuse the existing body — just link it to the new mesh
         self._physicsBody = existingBody;
         charResult.mesh.userData.__physicsBody = existingBody;
         console.log("[CharacterSystem] Reusing existing physics body");
       } else {
-        // Create new physics body using CANNON if available
         var CANNON = window.CANNON;
         var world = window.__vibexe_world__;
         if (CANNON && world) {
-          var halfX = Math.max(charResult.size.x / 2, 0.2);
-          var halfY = Math.max(charResult.size.y / 2, 0.3);
-          var halfZ = Math.max(charResult.size.z / 2, 0.2);
+          var halfX = Math.max(charResult.size.x, 0.2);
+          var halfY = Math.max(charResult.size.y, 0.3);
+          var halfZ = Math.max(charResult.size.z, 0.2);
           var shape = new CANNON.Box(new CANNON.Vec3(halfX, halfY, halfZ));
           var body = new CANNON.Body({ mass: 5, shape: shape });
           body.position.set(spawnPos.x, spawnPos.y + halfY, spawnPos.z);
@@ -422,13 +774,17 @@ CharacterManager.prototype.swap = function(characterId, options) {
         }
       }
 
-      // 7. Start animation mixer update loop
-      self._startMixerLoop();
+      // 7. Enable camera override (our loop takes over camera follow)
+      self._cameraOverride = true;
 
-      // 8. Hook into keyboard for animation state
-      self._setupAnimationSync(charResult);
+      // 8. Start unified update loop
+      self._startUpdateLoop();
 
-      // 9. Store config for persistence
+      // 9. Reset animation state
+      self._animState = "idle";
+      self._animStateTimer = 0;
+
+      // 10. Store config for persistence
       var gs = window.__VIBEXE_GAME_SETTINGS__ || {};
       gs.character = {
         id: characterId,
@@ -440,7 +796,7 @@ CharacterManager.prototype.swap = function(characterId, options) {
 
       console.log("[CharacterSystem] Swap complete:", charDef.name,
         "| animations:", charResult.clips ? charResult.clips.length : 0,
-        "| size:", charResult.size ? (charResult.size.x.toFixed(2) + "x" + charResult.size.y.toFixed(2) + "x" + charResult.size.z.toFixed(2)) : "unknown");
+        "| pivot-corrected, bone-measured");
 
       self._swapping = false;
 
@@ -450,6 +806,10 @@ CharacterManager.prototype.swap = function(characterId, options) {
           type: "vibexe-character-swapped",
           characterId: characterId,
           characterName: charDef.name
+        }, "*");
+        // Request scene tree refresh so new character appears in hierarchy
+        window.parent.postMessage({
+          type: "game-editor-scene-changed"
         }, "*");
       }
 
@@ -462,51 +822,22 @@ CharacterManager.prototype.swap = function(characterId, options) {
     });
 };
 
-// Sync animation state with keyboard input (walk/idle/jump)
-CharacterManager.prototype._setupAnimationSync = function(charResult) {
-  if (this._animSyncInterval) clearInterval(this._animSyncInterval);
-
-  var self = this;
-  var lastAnim = "idle";
-  this._animSyncInterval = setInterval(function() {
-    if (!self._physicsBody || !charResult) return;
-
-    var vx = self._physicsBody.velocity.x;
-    var vy = self._physicsBody.velocity.y;
-    var vz = self._physicsBody.velocity.z;
-    var speed = Math.sqrt(vx * vx + vz * vz);
-    var vertSpeed = vy;
-
-    var newAnim = "idle";
-    if (vertSpeed > 2) {
-      newAnim = "jump";
-    } else if (speed > 1.5) {
-      newAnim = speed > 5 ? "run" : "walk";
-    }
-
-    if (newAnim !== lastAnim) {
-      charResult.play(newAnim);
-      lastAnim = newAnim;
-    }
-  }, 100);
-};
-
 CharacterManager.prototype._disposeActive = function() {
-  // Stop mixer loop
-  this._stopMixerLoop();
-
-  // Stop animation sync
-  if (this._animSyncInterval) {
-    clearInterval(this._animSyncInterval);
-    this._animSyncInterval = null;
-  }
+  // Stop update loop
+  this._stopUpdateLoop();
 
   // Stop animations
   if (this._activeResult && this._activeResult.stop) {
     try { this._activeResult.stop(); } catch(e) {}
   }
 
-  // Remove mesh from scene (but DON'T remove physics body — we might reuse it)
+  // Remove mixer from framework array
+  if (this._activeResult && this._activeResult.mixer && window._activeMixers3D) {
+    var idx = window._activeMixers3D.indexOf(this._activeResult.mixer);
+    if (idx !== -1) window._activeMixers3D.splice(idx, 1);
+  }
+
+  // Remove mesh from scene
   if (this._activeMesh && this._scene) {
     this._scene.remove(this._activeMesh);
     this._activeMesh.traverse(function(child) {
@@ -534,6 +865,7 @@ CharacterManager.prototype._disposeActive = function() {
   this._activeMesh = null;
   this._activeResult = null;
   this._activeId = null;
+  this._cameraOverride = false;
 };
 
 // ===== MODULE INITIALIZATION =====
@@ -543,13 +875,12 @@ if (typeof window !== "undefined") {
   window.addEventListener("message", function(ev) {
     if (!ev.data) return;
 
-    // Capture parent origin from ANY message (ev.origin is the sender's origin)
+    // Capture parent origin from ANY message
     if (!_vibexeOrigin && ev.origin && ev.origin !== "null" && ev.origin.indexOf("codesandbox") === -1 && ev.origin.indexOf("localhost") === -1) {
       _vibexeOrigin = ev.origin;
     }
 
     if (ev.data.type === "character-system-swap") {
-      // Also store explicitly passed origin
       if (ev.data.origin) _vibexeOrigin = ev.data.origin;
       var mgr = window.__vibexe_modules__ && window.__vibexe_modules__["character-system"];
       if (mgr && mgr.manager) {
@@ -573,7 +904,6 @@ if (typeof window !== "undefined") {
 }
 
 // ===== AUTO-INIT =====
-// Wait for scene to be available (no longer needs factory functions)
 (function() {
   if (typeof window === "undefined") return;
 
@@ -590,10 +920,8 @@ if (typeof window !== "undefined") {
 
     clearInterval(_initInterval);
 
-    // Create the manager
     var manager = new CharacterManager(scene);
 
-    // Register on window
     if (!window.__vibexe_modules__) window.__vibexe_modules__ = {};
     window.__vibexe_modules__["character-system"] = {
       CharacterRegistry: CharacterRegistry,
@@ -601,14 +929,11 @@ if (typeof window !== "undefined") {
       manager: manager
     };
 
-    // Check if there's a character config to auto-load
     var gs = window.__VIBEXE_GAME_SETTINGS__ || {};
     var charConfig = gs.character;
 
     console.log("[CharacterSystem] Auto-init. charConfig:", charConfig ? charConfig.id : "none");
 
-    // Only auto-swap if there's an explicit character config saved
-    // (user previously selected a character via the UI)
     if (charConfig && charConfig.id) {
       setTimeout(function() {
         manager.swap(charConfig.id);
@@ -630,7 +955,7 @@ module.exports = {
 export const CHARACTER_SYSTEM_MANIFEST: ModuleManifest = {
 	id: "character-system",
 	name: "Character System",
-	version: "2.0.0",
+	version: "3.0.0",
 	category: "tools",
 	description:
 		"Player character selection, swapping, and animation management",
