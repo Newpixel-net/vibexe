@@ -2624,8 +2624,8 @@ export function getVisualEditBridgeScript(): string {
               var player = findPlayerMesh();
               var px = 0, py = 0, pz = 0;
               if (player) { px = player.position.x; py = player.position.y; pz = player.position.z; }
-              var newOffsetY = Math.max(1, previewCamera.position.y - py);
-              var newOffsetZ = Math.max(1, previewCamera.position.z - pz);
+              var newOffsetY = Math.max(3, previewCamera.position.y - py);
+              var newOffsetZ = Math.max(3, previewCamera.position.z - pz);
               // Clamp camera position so it can't go below player
               previewCamera.position.y = py + newOffsetY;
               previewCamera.position.z = pz + newOffsetZ;
