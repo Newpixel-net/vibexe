@@ -2153,6 +2153,41 @@ export function getVisualEditBridgeScript(): string {
         _c.render = function() {}; // no-op for game loop
         _c.__bridgeWrapped = true;
       }
+      // === Runtime renderer optimizations (patches old saved IIFE code) ===
+      if (editor.renderer) {
+        var _r = editor.renderer;
+        // Cap pixelRatio at 1.5 (was 2 in old templates — saves 78% pixels)
+        if (_r.getPixelRatio() > 1.5) {
+          _r.setPixelRatio(1.5);
+          showDebug("PerfPatch: pixelRatio capped to 1.5 (was " + window.devicePixelRatio + ")");
+        }
+        // Switch to faster shadow filtering
+        if (THREE.PCFShadowMap !== undefined && _r.shadowMap.type !== THREE.PCFShadowMap) {
+          _r.shadowMap.type = THREE.PCFShadowMap;
+          _r.shadowMap.needsUpdate = true;
+          showDebug("PerfPatch: PCFShadowMap (was PCFSoft)");
+        }
+        // Disable shadow autoUpdate (manual control for perf)
+        if (_r.shadowMap.autoUpdate !== false) {
+          _r.shadowMap.autoUpdate = false;
+          _r.shadowMap.needsUpdate = true;
+          showDebug("PerfPatch: shadow autoUpdate disabled");
+        }
+        // Reduce shadow map resolution on directional lights
+        if (editor.scene) {
+          editor.scene.traverse(function(obj) {
+            if (obj.isDirectionalLight && obj.shadow && obj.shadow.mapSize) {
+              if (obj.shadow.mapSize.width > 1024) {
+                obj.shadow.mapSize.width = 1024;
+                obj.shadow.mapSize.height = 1024;
+                if (obj.shadow.map) { obj.shadow.map.dispose(); obj.shadow.map = null; }
+                _r.shadowMap.needsUpdate = true;
+                showDebug("PerfPatch: shadow map 1024 for " + obj.name);
+              }
+            }
+          });
+        }
+      }
       // Fix OrbitControls for editor mode — must use deferred override because
       // the embedded bridge in Game3D.tsx also handles game-editor-activate and
       // calls pause() which creates OrbitControls with default mouseButtons.
