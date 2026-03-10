@@ -41,9 +41,9 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v4.0.0
+const runtimeCode = `// @vibexe/character-system v4.1.0
 // Pure GLB loader & model swapper — no physics, no camera, no input
-console.log('[CharacterSystem] Module v4 loaded');
+console.log('[CharacterSystem] Module v4.1 loaded');
 
 var THREE = require('three');
 
@@ -625,34 +625,81 @@ function swapCharacter(scene, characterId) {
         }
       }
 
-      // === Create new controller for animation state machine ===
-      var createCtrl = window.__vibexe_createCharacterController3D;
-      if (createCtrl && physBody) {
-        // Remove old controllers from _activeControllers3D
-        if (window._activeControllers3D) {
-          for (var ci = window._activeControllers3D.length - 1; ci >= 0; ci--) {
-            var ctrl = window._activeControllers3D[ci];
-            if (ctrl && (ctrl.__charSystem || ctrl === window.__vibexe_lilyController__)) {
-              window._activeControllers3D.splice(ci, 1);
+      // === Create inline animation controller (no factory dependency) ===
+      // Clear ALL old controllers from framework (old Lily controller + any stale charSystem ones)
+      if (window._activeControllers3D) {
+        for (var ci = window._activeControllers3D.length - 1; ci >= 0; ci--) {
+          window._activeControllers3D.splice(ci, 1);
+        }
+      }
+
+      var animMap = result.mesh.userData.__animMap || {};
+      var _csLastAnim = "idle";
+      var _csMesh = result.mesh;
+      var _csBody = result.mesh.userData.__physicsBody || physBody;
+      var _csPlay = result.mesh.userData.__play;
+
+      if (_csPlay && _csBody) {
+        var newCtrl = {
+          __charSystem: true,
+          update: function(dt) {
+            if (!_csBody || !_csPlay) return;
+            var vx = _csBody.velocity ? _csBody.velocity.x : 0;
+            var vy = _csBody.velocity ? _csBody.velocity.y : 0;
+            var vz = _csBody.velocity ? _csBody.velocity.z : 0;
+            var speed = Math.sqrt(vx * vx + vz * vz);
+
+            var targetAnim;
+            if (vy > 2) {
+              targetAnim = "jump";
+            } else if (speed > 4) {
+              targetAnim = "run";
+            } else if (speed > 0.5) {
+              targetAnim = "walk";
+            } else {
+              targetAnim = "idle";
+            }
+
+            if (targetAnim !== _csLastAnim) {
+              var clipName = animMap[targetAnim] || targetAnim;
+              _csPlay(clipName, { crossfade: 0.15 });
+              _csLastAnim = targetAnim;
+            }
+
+            // Face movement direction
+            if (speed > 0.5) {
+              _csMesh.rotation.y = Math.atan2(vx, vz);
             }
           }
-        }
-        // Use animMap for proper animation names
-        var animMap = result.mesh.userData.__animMap || {};
-        var newCtrl = createCtrl(result.mesh.userData.__charResult, physBody, {
-          idleAnim: animMap.idle || "idle",
-          walkAnim: animMap.walk || "walk",
-          runAnim: animMap.run || "run",
-          jumpAnim: animMap.jump || "jump",
-          attackAnim: animMap.attack || "attack",
-        });
-        // Register in framework
+        };
+
         if (window._activeControllers3D) {
-          newCtrl.__charSystem = true;
           window._activeControllers3D.push(newCtrl);
         }
-        console.log("[CharacterSystem] Created new controller with animations:", animMap);
+        console.log("[CharacterSystem] Inline controller created | animMap:", Object.keys(animMap).join(","));
       }
+
+      // === Post-terrain snap: poll for terrain height, snap character when available ===
+      var _snapDone = false;
+      var _snapCount = 0;
+      var _snapTimer = setInterval(function() {
+        _snapCount++;
+        if (_snapDone || _snapCount > 60) { clearInterval(_snapTimer); return; }
+        var getH = window.__vibexe_getTerrainHeight;
+        var body = result.mesh.userData.__physicsBody;
+        if (!getH || !body) return;
+        var th = getH(body.position.x, body.position.z);
+        if (th == null) return;
+        var halfH = result.mesh.userData.__characterBounds ? result.mesh.userData.__characterBounds.height / 2 : 0.75;
+        var targetY = th + halfH + 0.5;
+        if (body.position.y < targetY) {
+          body.position.y = targetY;
+          if (body.velocity) body.velocity.set(0, 0, 0);
+          console.log("[CharacterSystem] Snapped to terrain: Y=" + targetY.toFixed(1) + " (terrain=" + th.toFixed(1) + ")");
+        }
+        _snapDone = true;
+        clearInterval(_snapTimer);
+      }, 500);
 
       // Set global reference
       window.__vibexe_playerMesh__ = result.mesh;
@@ -807,7 +854,7 @@ module.exports = {
 export const CHARACTER_SYSTEM_MANIFEST: ModuleManifest = {
 	id: "character-system",
 	name: "Character System",
-	version: "4.0.0",
+	version: "4.1.0",
 	category: "tools",
 	description: "Player character selection and model swapping",
 	icon: "PersonStanding",

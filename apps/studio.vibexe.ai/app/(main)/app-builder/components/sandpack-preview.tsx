@@ -1328,7 +1328,10 @@ export function SandpackPreview({
 					justExitedEditorRef.current = false;
 				} else if (!gameEditor.enabled && iframe?.contentWindow) {
 					const terrainCfg = gameEditor.gameSettings.terrain;
-					if (terrainCfg?.enabled) {
+					const terrainModuleInstalled = gameEditor.gameSettings.modules?.installed?.some(
+						(m: any) => m.id === "terrain-painter" && m.enabled !== false,
+					);
+					if (terrainCfg?.enabled && terrainModuleInstalled) {
 						// Wait 8s for IIFE 300-frame loop + GLTF loads to complete
 						setTimeout(() => {
 							console.log("[GameEditor] Auto-generating terrain on page load (Game mode)");
@@ -1695,7 +1698,10 @@ export function SandpackPreview({
 			}
 			// Always auto-regenerate terrain on Scene→Game transition if terrain config exists
 			const terrainCfg = gameEditor.gameSettings.terrain;
-			if (terrainCfg?.enabled) {
+			const terrainModuleInstalled = gameEditor.gameSettings.modules?.installed?.some(
+				(m: any) => m.id === "terrain-painter" && m.enabled !== false,
+			);
+			if (terrainCfg?.enabled && terrainModuleInstalled) {
 				// Short delay (2s) — terrain handler works even without editor (uses window.__vibexe_scene__)
 				setTimeout(() => {
 					console.log("[GameEditor] Auto-regenerating terrain after Scene→Game switch");

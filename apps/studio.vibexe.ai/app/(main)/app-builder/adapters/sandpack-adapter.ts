@@ -1910,6 +1910,15 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		try {
 			const gsObj = JSON.parse(settingsFile.content);
 
+			// If terrain-painter module is not installed, clear terrain config
+			// to prevent stale IIFE _autoTerrain() from generating terrain
+			const hasTerrainModule = gsObj.modules?.installed?.some(
+				(m: any) => m.id === "terrain-painter" && m.enabled !== false,
+			);
+			if (!hasTerrainModule && gsObj.terrain) {
+				gsObj.terrain = { ...gsObj.terrain, enabled: false };
+			}
+
 			// Clamp a numeric value to [min, max] — prevents invalid values from being injected
 			const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
 
@@ -2090,6 +2099,30 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 							console.warn("[sandpack-adapter] Failed to patch startingLives — MAX_LIVES / lives constant not found in GameScene3D.ts");
 						}
 					}
+				}
+
+				// Patch: Character System bridge — redirect lily.mesh to active player mesh
+				// When character-system module swaps the player character, this ensures
+				// the game template's update loop (which references lily.mesh) uses the new mesh
+				const hasCharModule = gsObj.modules?.installed?.some(
+					(m: any) => m.id === "character-system" && m.enabled !== false,
+				);
+				if (hasCharModule && code.includes("lily = lilyResult") && code.includes("lily.mesh")) {
+					code = code.replace(
+						/(lily\s*=\s*lilyResult\s*;)/,
+						`$1\n` +
+						`    // [CharSystem Bridge] Redirect lily.mesh/size when character module swaps\n` +
+						`    var _csRedirect = setInterval(function() {\n` +
+						`      var _pm = (window as any).__vibexe_playerMesh__;\n` +
+						`      if (_pm && _pm !== lily.mesh) {\n` +
+						`        lily.mesh = _pm;\n` +
+						`        var _cb = _pm.userData?.__characterBounds;\n` +
+						`        if (_cb) lily.size = { x: _cb.halfX, y: _cb.height / 2, z: _cb.halfZ };\n` +
+						`        clearInterval(_csRedirect);\n` +
+						`        console.log("[CharBridge] Redirected lily.mesh to", _pm.name);\n` +
+						`      }\n` +
+						`    }, 200);\n`,
+					);
 				}
 
 				if (typeof sf === "string") {
