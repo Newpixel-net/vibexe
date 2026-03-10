@@ -791,6 +791,13 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 					bloomThreshold: pp?.bloomThreshold,
 				});
 			}
+			// Character swap: send swap message to iframe character-system module
+			if (patch.character && (patch.character as Record<string, unknown>).id) {
+				sendToIframe({
+					type: "character-system-swap",
+					characterId: (patch.character as Record<string, unknown>).id,
+				});
+			}
 			return next;
 		});
 	}, [sendToIframe]);
