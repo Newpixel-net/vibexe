@@ -1008,6 +1008,11 @@ export function getVisualEditBridgeScript(): string {
       showDebug("SKIP: cannot select scene root (type=" + obj.type + " parent=" + !!obj.parent + ")");
       return;
     }
+    // Dedup: skip if already selected (prevents duplicate TC attach logs + unnecessary work)
+    if (selectedObj && selectedObj.uuid === obj.uuid) {
+      showDebug("DEDUP: already selected " + (obj.name || obj.uuid.slice(0,8)));
+      return;
+    }
     deselectObject();
     selectedObj = obj;
     var THREE = window.THREE;
@@ -1049,7 +1054,7 @@ export function getVisualEditBridgeScript(): string {
     editor.scene.add(boxHelper);
     // Skip TransformControls for locked objects (still allow selection for inspect/unlock)
     if (obj.userData && obj.userData.__editorLocked) {
-      sendPropertyUpdate(obj);
+      sendSelectedObject(obj);
       showDebug("Object locked — select only (no transform)");
       return;
     }
@@ -1142,7 +1147,9 @@ export function getVisualEditBridgeScript(): string {
         transformControls.rotationSnap = null;
         transformControls.scaleSnap = null;
       }
-      if (!panToolActive) transformControls.attach(obj);
+      transformControls.attach(obj);
+      // If pan tool is active, hide gizmo but keep it attached (so toggling pan off restores it)
+      if (panToolActive && tcHelperObj) tcHelperObj.visible = false;
       if (transformControls && transformControls.setSpace && typeof gizmoSpace === "string") {
         transformControls.setSpace(gizmoSpace);
       }
@@ -1160,7 +1167,7 @@ export function getVisualEditBridgeScript(): string {
       var dupes = [];
       for (var si = 0; si < editor.scene.children.length; si++) {
         var sc = editor.scene.children[si];
-        if (sc.name && sc.name.indexOf("__editor_") === 0 && sc !== myBox && sc !== myTCHelper && sc !== cameraHelper && sc !== previewCamera) dupes.push(sc);
+        if (sc.name && sc.name.indexOf("__editor_") === 0 && sc !== myBox && sc !== myTCHelper && sc !== cameraHelper && sc !== previewCamera && sc.type !== "TransformControlsGizmo" && sc.type !== "TransformControlsPlane" && sc.type !== "TransformControlsRoot") dupes.push(sc);
       }
       for (var di = 0; di < dupes.length; di++) {
         if (dupes[di].detach) dupes[di].detach();
@@ -1998,6 +2005,7 @@ export function getVisualEditBridgeScript(): string {
       editor.orbitControls.target.copy(_wp);
     }
     if (editor.orbitControls && !flyMode) editor.orbitControls.update();
+    if (transformControls && transformControls.update) transformControls.update();
     if (boxHelper && selectedObj) boxHelper.update();
     if (multiBoxHelpers && multiBoxHelpers.length > 0) {
       for (var mbi = 0; mbi < multiBoxHelpers.length; mbi++) {
@@ -2031,7 +2039,7 @@ export function getVisualEditBridgeScript(): string {
       var dupes = [];
       for (var ei = 0; ei < editor.scene.children.length; ei++) {
         var ec = editor.scene.children[ei];
-        if (ec.name && ec.name.indexOf("__editor_") === 0 && ec !== boxHelper && ec !== transformControls && ec !== tcHelperObj && ec !== gridHelper && ec !== cameraHelper && ec !== previewCamera) dupes.push(ec);
+        if (ec.name && ec.name.indexOf("__editor_") === 0 && ec !== boxHelper && ec !== transformControls && ec !== tcHelperObj && ec !== gridHelper && ec !== cameraHelper && ec !== previewCamera && ec.type !== "TransformControlsGizmo" && ec.type !== "TransformControlsPlane" && ec.type !== "TransformControlsRoot") dupes.push(ec);
       }
       for (var di = 0; di < dupes.length; di++) { if (dupes[di].detach) dupes[di].detach(); editor.scene.remove(dupes[di]); if (dupes[di].dispose) dupes[di].dispose(); }
     }
@@ -2252,15 +2260,9 @@ export function getVisualEditBridgeScript(): string {
       window.addEventListener("mousemove", onCanvasMouseMove, true);
       window.addEventListener("mouseup", onCanvasMouseUp, true);
       window.addEventListener("keydown", onKeyDown, true);
-      // Also listen directly on the canvas element (belt and suspenders)
-      // Store reference so we can remove on deactivate (prevents handler accumulation)
-      canvasPointerDownHandler = function(e) {
-        if (!active || !editor) return;
-        if (e.button !== 0) return;
-        showDebug("pointerdown on canvas: " + e.clientX + "," + e.clientY);
-        handleClick(e.clientX, e.clientY, "canvas-pointerdown");
-      };
-      editor.renderer.domElement.addEventListener("pointerdown", canvasPointerDownHandler, false);
+      // NOTE: canvasPointerDownHandler REMOVED — it fired before TC's own pointerdown,
+      // causing handleClick→raycast miss→deselectObject→TC.detach BEFORE TC could start drag.
+      // Window capture mousedown handler (onCanvasMouseDown) is sufficient for selection.
       // Also listen on document.body for clicks (catches clicks on HUD overlays)
       bodyMouseDownHandler = function(e) {
         if (!active || !editor) return;
