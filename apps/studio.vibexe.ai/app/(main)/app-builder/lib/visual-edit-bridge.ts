@@ -501,6 +501,7 @@ export function getVisualEditBridgeScript(): string {
   var boxHelper = null;
   var multiBoxHelpers = [];
   var transformControls = null;
+  var tcHelperObj = null; // TC helper (from getHelper()) — must survive editor sweep
   var editor = null;
   var editorAnimId = 0;
   var lastClickTime = 0;
@@ -1117,6 +1118,7 @@ export function getVisualEditBridgeScript(): string {
         });
         var tcHelper = transformControls.getHelper ? transformControls.getHelper() : transformControls;
         tcHelper.name = "__editor_transform_controls__";
+        tcHelperObj = tcHelper; // Store reference so editor sweep doesn't remove it
         // Recursion guard: r172 TransformControlsRoot.updateMatrixWorld calls
         // object.updateWorldMatrix(true,true) which traverses up to scene root,
         // re-triggering this same updateMatrixWorld — infinite stack overflow.
@@ -2029,7 +2031,7 @@ export function getVisualEditBridgeScript(): string {
       var dupes = [];
       for (var ei = 0; ei < editor.scene.children.length; ei++) {
         var ec = editor.scene.children[ei];
-        if (ec.name && ec.name.indexOf("__editor_") === 0 && ec !== boxHelper && ec !== transformControls && ec !== gridHelper && ec !== cameraHelper && ec !== previewCamera) dupes.push(ec);
+        if (ec.name && ec.name.indexOf("__editor_") === 0 && ec !== boxHelper && ec !== transformControls && ec !== tcHelperObj && ec !== gridHelper && ec !== cameraHelper && ec !== previewCamera) dupes.push(ec);
       }
       for (var di = 0; di < dupes.length; di++) { if (dupes[di].detach) dupes[di].detach(); editor.scene.remove(dupes[di]); if (dupes[di].dispose) dupes[di].dispose(); }
     }
@@ -2678,6 +2680,7 @@ export function getVisualEditBridgeScript(): string {
               });
               var tcHelper = transformControls.getHelper ? transformControls.getHelper() : transformControls;
               tcHelper.name = "__editor_transform_controls__";
+              tcHelperObj = tcHelper; // Store reference so editor sweep doesn't remove it
               var _tcUpdating2 = false;
               var _origUMW2 = tcHelper.updateMatrixWorld;
               tcHelper.updateMatrixWorld = function(force) {
