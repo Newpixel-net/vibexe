@@ -1060,6 +1060,7 @@ export function getVisualEditBridgeScript(): string {
         console.log("[GameEditorBridge] Creating reusable TransformControls");
         transformControls = new THREE.TransformControls(editor.camera, editor.renderer.domElement);
         transformControls.name = "__editor_transform_controls__";
+        transformControls.setSize(0.6);
         transformControls.addEventListener("dragging-changed", function(e) {
           if (editor.orbitControls) editor.orbitControls.enabled = !e.value;
           if (e.value && selectedObj) {
@@ -1724,13 +1725,13 @@ export function getVisualEditBridgeScript(): string {
     if (!THREE || !THREE.CameraHelper) return;
     // Use a display-only camera clone with short far for small frustum visualization
     var _displayCam = previewCamera.clone();
-    _displayCam.far = 30; // Short frustum for visual clarity (actual far is 500+)
+    _displayCam.far = 10; // Short frustum for visual clarity (actual far is 500+)
     _displayCam.updateProjectionMatrix();
     cameraHelper = new THREE.CameraHelper(_displayCam);
     cameraHelper.name = "__editor_camera_helper__";
     cameraHelper.__displayCam = _displayCam;
     editor.scene.add(cameraHelper);
-    console.log("[GameEditorBridge] CameraHelper created (display far=30)");
+    console.log("[GameEditorBridge] CameraHelper created (display far=10)");
   }
 
   function destroyCameraHelper() {
@@ -2609,6 +2610,7 @@ export function getVisualEditBridgeScript(): string {
           if (THREE.TransformControls) {
             transformControls = new THREE.TransformControls(editor.camera, editor.renderer.domElement);
             transformControls.name = "__editor_transform_controls__";
+            transformControls.setSize(0.6);
             if (gridSnap) {
               transformControls.translationSnap = gridSnapIncrement;
             }
@@ -2639,6 +2641,15 @@ export function getVisualEditBridgeScript(): string {
             });
             // Ensure TC helper is in scene (getHelper returns same object each time)
             var _tcH2 = transformControls.getHelper ? transformControls.getHelper() : transformControls;
+            _tcH2.name = "__editor_transform_controls__";
+            // Recursion guard (same as main TC)
+            var _tcU2 = false;
+            var _origU2 = _tcH2.updateMatrixWorld;
+            _tcH2.updateMatrixWorld = function(force) {
+              if (_tcU2) return;
+              _tcU2 = true;
+              try { _origU2.call(this, force); } finally { _tcU2 = false; }
+            };
             if (!_tcH2.parent) editor.scene.add(_tcH2);
           }
         }
