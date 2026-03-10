@@ -547,12 +547,12 @@ function swapCharacter(scene, characterId) {
         oldMesh.traverse(function(child) {
           if (child.geometry) child.geometry.dispose();
           if (child.material) {
-            if (Array.isArray(child.material)) {
-              child.material.forEach(function(m) { if (m.map) m.map.dispose(); m.dispose(); });
-            } else {
-              if (child.material.map) child.material.map.dispose();
-              child.material.dispose();
-            }
+            var mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach(function(m) {
+              var texKeys = ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap", "bumpMap"];
+              texKeys.forEach(function(k) { if (m[k]) m[k].dispose(); });
+              m.dispose();
+            });
           }
         });
       }
@@ -604,13 +604,19 @@ function swapCharacter(scene, characterId) {
               Math.max(0.05, cb.height / 2),
               Math.max(0.05, cb.halfZ)
             );
-            physBody.shapes[0] = new CANNON.Box(newHalf);
-            if (physBody.updateBoundingRadius) physBody.updateBoundingRadius();
-            if (physBody.updateMassProperties) physBody.updateMassProperties();
+            var newBox = new CANNON.Box(newHalf);
+            if (physBody.removeShape && physBody.addShape) {
+              physBody.removeShape(physBody.shapes[0]);
+              physBody.addShape(newBox);
+            } else {
+              physBody.shapes[0] = newBox;
+              if (physBody.updateBoundingRadius) physBody.updateBoundingRadius();
+              if (physBody.updateMassProperties) physBody.updateMassProperties();
+            }
             console.log("[CharacterSystem] Reshaped physics body:", cb);
           }
         }
-        // Snap physics body to terrain height at current position
+        // Snap physics body AND mesh to terrain height at current position
         var getH = window.__vibexe_getTerrainHeight;
         if (getH) {
           var th = getH(physBody.position.x, physBody.position.z);
@@ -619,6 +625,7 @@ function swapCharacter(scene, characterId) {
             var minY = th + halfH + 0.5;
             if (physBody.position.y < minY) {
               physBody.position.y = minY;
+              result.mesh.position.y = minY;
               if (physBody.velocity) physBody.velocity.set(0, 0, 0);
             }
           }
@@ -626,10 +633,13 @@ function swapCharacter(scene, characterId) {
       }
 
       // === Create inline animation controller (no factory dependency) ===
-      // Clear ALL old controllers from framework (old Lily controller + any stale charSystem ones)
+      // Remove only charSystem controllers + known lily controller (preserve other user controllers)
       if (window._activeControllers3D) {
         for (var ci = window._activeControllers3D.length - 1; ci >= 0; ci--) {
-          window._activeControllers3D.splice(ci, 1);
+          var ctrl = window._activeControllers3D[ci];
+          if (ctrl && (ctrl.__charSystem || ctrl.__lilyController)) {
+            window._activeControllers3D.splice(ci, 1);
+          }
         }
       }
 
@@ -786,11 +796,13 @@ if (typeof window !== "undefined") {
       if (mesh) {
         var s = Math.max(0.1, Math.min(5.0, ev.data.scale || 1));
         mesh.scale.set(s, s, s);
-        // Update bounds for physics
-        if (mesh.userData.__characterBounds) {
-          mesh.userData.__characterBounds.halfX *= s;
-          mesh.userData.__characterBounds.halfZ *= s;
-          mesh.userData.__characterBounds.height *= s;
+        // Update bounds for physics (multiply from original, not current — prevents accumulation)
+        var bounds = mesh.userData.__characterBounds;
+        if (bounds) {
+          if (!bounds._origHalfX) { bounds._origHalfX = bounds.halfX; bounds._origHalfZ = bounds.halfZ; bounds._origHeight = bounds.height; }
+          bounds.halfX = bounds._origHalfX * s;
+          bounds.halfZ = bounds._origHalfZ * s;
+          bounds.height = bounds._origHeight * s;
         }
       }
     }
