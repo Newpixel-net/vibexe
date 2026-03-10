@@ -5754,6 +5754,14 @@ export const GameScene = {
       camera.position.x += (activePlayer.position.x - camera.position.x) * CAMERA_LERP * delta;
       camera.position.y += (activePlayer.position.y + CAMERA_OFFSET_Y - camera.position.y) * CAMERA_LERP * delta;
       camera.position.z += (activePlayer.position.z + CAMERA_OFFSET_Z - camera.position.z) * CAMERA_LERP * delta;
+      // Terrain-height correction — prevent camera going underground on hilly terrain
+      const _camGetH = (window as any).__vibexe_getTerrainHeight;
+      if (_camGetH) {
+        const _camTH = _camGetH(camera.position.x, camera.position.z);
+        if (_camTH != null && camera.position.y < _camTH + 3.0) {
+          camera.position.y = _camTH + 3.0;
+        }
+      }
       camera.lookAt(activePlayer.position.x, activePlayer.position.y + CAMERA_LOOK_Y, activePlayer.position.z);
     }
 

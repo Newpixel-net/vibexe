@@ -41,9 +41,9 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v4.1.0
-// Pure GLB loader & model swapper — no physics, no camera, no input
-console.log('[CharacterSystem] Module v4.1 loaded');
+const runtimeCode = `// @vibexe/character-system v4.2.0
+// Pure GLB loader & model swapper — camera terrain correction
+console.log('[CharacterSystem] Module v4.2 loaded');
 
 var THREE = require('three');
 
@@ -669,6 +669,24 @@ function swapCharacter(scene, characterId) {
             // Face movement direction
             if (speed > 0.5) {
               _csMesh.rotation.y = Math.atan2(vx, vz);
+            }
+
+            // Camera terrain-height correction — prevent camera going underground
+            // Runs AFTER template's camera follow (which may place camera inside terrain)
+            var _getH = window.__vibexe_getTerrainHeight;
+            if (_getH && _csMesh && _csMesh.visible) {
+              var cam = (window.__vibexe_editor__ || {}). camera;
+              if (cam && cam.position) {
+                var _camTH = _getH(cam.position.x, cam.position.z);
+                if (_camTH != null) {
+                  var _camClearance = 3.0;
+                  if (cam.position.y < _camTH + _camClearance) {
+                    cam.position.y = _camTH + _camClearance;
+                    // Re-aim at player after Y correction
+                    cam.lookAt(_csMesh.position.x, _csMesh.position.y + 1.0, _csMesh.position.z);
+                  }
+                }
+              }
             }
           }
         };
