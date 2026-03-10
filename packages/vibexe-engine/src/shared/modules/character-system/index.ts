@@ -711,6 +711,7 @@ CharacterManager.prototype.swap = function(characterId, options) {
       z: this._physicsBody.position.z
     };
     existingBody = this._physicsBody;
+    console.log("[CharacterSystem] Reusing own physics body");
   } else if (window.__vibexe_playerMesh__) {
     var oldMesh = window.__vibexe_playerMesh__;
     spawnPos = {
@@ -718,9 +719,12 @@ CharacterManager.prototype.swap = function(characterId, options) {
       y: oldMesh.position.y,
       z: oldMesh.position.z
     };
+    console.log("[CharacterSystem] Found legacy mesh:", oldMesh.name, "hasPhysicsBody:", !!(oldMesh.userData && oldMesh.userData.__physicsBody));
     if (oldMesh.userData && oldMesh.userData.__physicsBody) {
       existingBody = oldMesh.userData.__physicsBody;
     }
+  } else {
+    console.log("[CharacterSystem] No existing mesh or body found");
   }
 
   // 2. Dispose old character (our own, if any)
@@ -744,12 +748,13 @@ CharacterManager.prototype.swap = function(characterId, options) {
       var mi = window._activeMixers3D.indexOf(legacyMesh.userData.__mixer);
       if (mi !== -1) window._activeMixers3D.splice(mi, 1);
     }
-    // Remove legacy physics body from CANNON world
+    // Remove legacy physics body from CANNON world — but NOT if we captured it for reuse
     if (legacyMesh.userData && legacyMesh.userData.__physicsBody && window.__vibexe_world__) {
       var legacyBody = legacyMesh.userData.__physicsBody;
-      // Only remove if we're NOT reusing it
-      if (legacyBody !== self._physicsBody) {
+      if (legacyBody !== existingBody) {
         try { window.__vibexe_world__.removeBody(legacyBody); } catch(e) {}
+      } else {
+        console.log("[CharacterSystem] Keeping legacy body for reuse");
       }
     }
     scene.remove(legacyMesh);
@@ -1039,11 +1044,13 @@ if (typeof window !== "undefined") {
       var _originWait = setInterval(function() {
         _originWaitCount++;
         var hasOrigin = !!_vibexeOrigin || _originWaitCount > 30;
-        var hasPlayer = !!window.__vibexe_playerMesh__;
+        var playerMesh = window.__vibexe_playerMesh__;
+        var hasPlayer = !!playerMesh;
+        var hasBody = hasPlayer && playerMesh.userData && !!playerMesh.userData.__physicsBody;
         if (_originWaitCount % 10 === 0) {
-          console.log("[CharacterSystem] Auto-init poll #" + _originWaitCount + " origin:" + hasOrigin + " player:" + hasPlayer);
+          console.log("[CharacterSystem] Auto-init poll #" + _originWaitCount + " origin:" + hasOrigin + " player:" + hasPlayer + " body:" + hasBody);
         }
-        if (hasOrigin && hasPlayer) {
+        if (hasOrigin && hasPlayer && hasBody) {
           clearInterval(_originWait);
           if (!_vibexeOrigin) {
             console.warn("[CharacterSystem] Origin not received from parent, swap may fail");
@@ -1053,7 +1060,7 @@ if (typeof window !== "undefined") {
         } else if (_originWaitCount > 150) {
           // 15s hard timeout — swap anyway (better than never loading)
           clearInterval(_originWait);
-          console.warn("[CharacterSystem] Auto-init timeout. origin:" + hasOrigin + " player:" + hasPlayer + " — swapping anyway");
+          console.warn("[CharacterSystem] Auto-init timeout. origin:" + hasOrigin + " player:" + hasPlayer + " body:" + hasBody + " — swapping anyway");
           manager.swap(charConfig.id);
         }
       }, 100);
