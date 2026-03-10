@@ -763,6 +763,29 @@ CharacterManager.prototype.swap = function(characterId, options) {
     window.__vibexe_playerMesh__ = null;
   }
 
+  // 3b. Sweep ALL stale Character_ meshes from scene (persistence may have re-added them)
+  var toRemove = [];
+  for (var si = 0; si < scene.children.length; si++) {
+    var sc = scene.children[si];
+    if (sc.name && sc.name.indexOf("Character_") === 0 && sc !== self._activeMesh) {
+      toRemove.push(sc);
+    }
+  }
+  for (var ri = 0; ri < toRemove.length; ri++) {
+    console.log("[CharacterSystem] Removing stale character:", toRemove[ri].name);
+    scene.remove(toRemove[ri]);
+    toRemove[ri].traverse(function(child) {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach(function(m) { m.dispose(); });
+        } else if (child.material.dispose) {
+          child.material.dispose();
+        }
+      }
+    });
+  }
+
   // 4. Build model URL (use parent origin, not iframe's codesandbox origin)
   var baseUrl = _getVibexeOrigin();
   var modelUrl = baseUrl + "/api/app-builder/media-stock-3d/" + charDef.pack + "/" + charDef.model;
@@ -848,6 +871,19 @@ CharacterManager.prototype.swap = function(characterId, options) {
         groundOffset: charDef.groundOffset || 0
       };
       window.__VIBEXE_GAME_SETTINGS__ = gs;
+
+      // Post-swap cleanup: remove any stale Character_ meshes added by persistence
+      var postClean = [];
+      for (var pci = 0; pci < scene.children.length; pci++) {
+        var pcc = scene.children[pci];
+        if (pcc.name && pcc.name.indexOf("Character_") === 0 && pcc !== charResult.mesh) {
+          postClean.push(pcc);
+        }
+      }
+      for (var pcj = 0; pcj < postClean.length; pcj++) {
+        console.log("[CharacterSystem] Post-swap cleanup:", postClean[pcj].name);
+        scene.remove(postClean[pcj]);
+      }
 
       console.log("[CharacterSystem] Swap complete:", charDef.name,
         "| animations:", charResult.clips ? charResult.clips.length : 0,
