@@ -880,6 +880,10 @@ export function SandpackPreview({
 	onFileUpdateRef.current = onFileUpdate;
 	const onFilesRefreshRef = useRef(onFilesRefresh);
 	onFilesRefreshRef.current = onFilesRefresh;
+	const gameEditorRef = useRef(gameEditor);
+	gameEditorRef.current = gameEditor;
+	const visualEditRef = useRef(visualEdit);
+	visualEditRef.current = visualEdit;
 	const [codeViewer, setCodeViewer] = useState<{
 		filePath: string;
 		content: string;
@@ -926,6 +930,9 @@ export function SandpackPreview({
 
 	// Mutex to prevent concurrent settings saves
 	const savingSettingsRef = useRef(false);
+	// Debounce timer for settings saves (prevents double Sandpack rebuilds)
+	const saveSettingsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const pendingSettingsRef = useRef<import("../lib/game-editor-context").GameSettings | null>(null);
 	// Track last loaded settings content to avoid redundant re-parses
 	const lastLoadedSettingsContentRef = useRef<string | null>(null);
 
@@ -1031,8 +1038,8 @@ export function SandpackPreview({
 		}, "*");
 	}, []);
 
-	// Save game settings to DB + trigger Sandpack refresh
-	const handleSaveSettings = useCallback(async (settings: import("../lib/game-editor-context").GameSettings) => {
+	// Save game settings to DB + trigger Sandpack refresh (debounced 500ms)
+	const _doSaveSettings = useCallback(async (settings: import("../lib/game-editor-context").GameSettings) => {
 		// Prevent concurrent saves
 		if (savingSettingsRef.current) return;
 		savingSettingsRef.current = true;
@@ -1095,6 +1102,17 @@ export function SandpackPreview({
 			savingSettingsRef.current = false;
 		}
 	}, [appId, sendSettingsToGame]);
+
+	// Debounced wrapper — coalesces rapid settings changes into a single save+rebuild
+	const handleSaveSettings = useCallback((settings: import("../lib/game-editor-context").GameSettings) => {
+		pendingSettingsRef.current = settings;
+		if (saveSettingsTimerRef.current) clearTimeout(saveSettingsTimerRef.current);
+		saveSettingsTimerRef.current = setTimeout(() => {
+			const s = pendingSettingsRef.current;
+			pendingSettingsRef.current = null;
+			if (s) _doSaveSettings(s);
+		}, 500);
+	}, [_doSaveSettings]);
 
 	// Active module panel (null = none open, module id = that module's panel)
 	const [activeModulePanel, setActiveModulePanel] = useState<string | null>(null);
@@ -1213,8 +1231,11 @@ export function SandpackPreview({
 	}, [visualEdit.selectedElement]);
 
 	// Listen for postMessage from Sandpack iframe
+	// Uses refs to avoid re-attaching handler on every gameEditor/visualEdit state change
 	useEffect(() => {
 		const handler = (e: MessageEvent) => {
+			const gameEditor = gameEditorRef.current;
+			const visualEdit = visualEditRef.current;
 			const data = e.data;
 			if (!data || typeof data !== "object" || !data.type) return;
 			if (data.type === "visual-edit-select") {
@@ -1699,7 +1720,7 @@ export function SandpackPreview({
 		};
 		window.addEventListener("message", handler);
 		return () => window.removeEventListener("message", handler);
-	}, [visualEdit, gameEditor]);
+	}, []); // eslint-disable-line react-hooks/exhaustive-deps -- uses refs for stable access
 
 	// When exiting Scene Editor after transforms were modified, refresh Sandpack
 	// so the game reloads with SCENE_EDITOR_OVERRIDES applied from source code.
