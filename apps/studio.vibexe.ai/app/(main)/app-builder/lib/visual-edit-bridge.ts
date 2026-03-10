@@ -519,6 +519,9 @@ export function getVisualEditBridgeScript(): string {
   var _lastCamBroadcast = 0;
   var _lastCamQ = { x: 0, y: 0, z: 0, w: 1 };
   var _savedOrbitMouseButtons = null; // Save game's original orbit mouseButtons
+  var _savedCameraPos = null;
+  var _savedCameraQuat = null;
+  var _savedOrbitTarget = null;
   var gridHelper = null;
   // Camera Preview PIP
   var previewCamera = null;
@@ -1009,20 +1012,28 @@ export function getVisualEditBridgeScript(): string {
       var _cb = obj.userData.__characterBounds || { halfX: 0.45, halfZ: 0.45, height: 1.5 };
       var _bObj = obj;
       boxHelper.update = function() {
-        var wp = new THREE.Vector3();
-        _bObj.getWorldPosition(wp);
-        var hx = _cb.halfX, hz = _cb.halfZ, h = _cb.height;
+        var bb = new THREE.Box3();
+        // Use the actual rendered bounds of the character group
+        bb.setFromObject(_bObj);
+        if (bb.isEmpty()) {
+          var wp2 = new THREE.Vector3();
+          _bObj.getWorldPosition(wp2);
+          bb.setFromCenterAndSize(wp2, new THREE.Vector3(_cb.halfX * 2, _cb.height, _cb.halfZ * 2));
+        }
+        var min = bb.min, max = bb.max;
         var pos = this.geometry.attributes.position;
         if (!pos) return;
         var a = pos.array;
-        a[0]=wp.x+hx; a[1]=wp.y+h; a[2]=wp.z+hz;
-        a[3]=wp.x-hx; a[4]=wp.y+h; a[5]=wp.z+hz;
-        a[6]=wp.x-hx; a[7]=wp.y;   a[8]=wp.z+hz;
-        a[9]=wp.x+hx; a[10]=wp.y;  a[11]=wp.z+hz;
-        a[12]=wp.x+hx;a[13]=wp.y+h;a[14]=wp.z-hz;
-        a[15]=wp.x-hx;a[16]=wp.y+h;a[17]=wp.z-hz;
-        a[18]=wp.x-hx;a[19]=wp.y;  a[20]=wp.z-hz;
-        a[21]=wp.x+hx;a[22]=wp.y;  a[23]=wp.z-hz;
+        // Front face (max Z)
+        a[0]=max.x; a[1]=max.y; a[2]=max.z;
+        a[3]=min.x; a[4]=max.y; a[5]=max.z;
+        a[6]=min.x; a[7]=min.y; a[8]=max.z;
+        a[9]=max.x; a[10]=min.y; a[11]=max.z;
+        // Back face (min Z)
+        a[12]=max.x; a[13]=max.y; a[14]=min.z;
+        a[15]=min.x; a[16]=max.y; a[17]=min.z;
+        a[18]=min.x; a[19]=min.y; a[20]=min.z;
+        a[21]=max.x; a[22]=min.y; a[23]=min.z;
         pos.needsUpdate = true;
         this.geometry.computeBoundingSphere();
       };
@@ -1095,6 +1106,9 @@ export function getVisualEditBridgeScript(): string {
         transformControls.scaleSnap = null;
       }
       if (!panToolActive) transformControls.attach(obj);
+      if (transformControls && transformControls.setSpace && typeof gizmoSpace === "string") {
+        transformControls.setSpace(gizmoSpace);
+      }
     } else {
       console.warn("[GameEditorBridge] TransformControls NOT available — gizmo disabled");
     }
@@ -1536,7 +1550,7 @@ export function getVisualEditBridgeScript(): string {
     // Pass 1: standard mesh raycasting (works for static Mesh objects)
     var meshes = [];
     editor.scene.traverse(function(child) {
-      if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && (child.name||"").indexOf("__editor_") !== 0 && (child.name||"").indexOf("__particle_") !== 0 && (child.name||"").indexOf("__trail_") !== 0 && child.name !== "__terrain__" && child.name !== "__weather__" && child.name !== "__sky__" && !isGroundPlane(child)) {
+      if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && child.type !== "SpotLightHelper" && child.type !== "PointLightHelper" && (child.name||"").indexOf("__editor_") !== 0 && (child.name||"").indexOf("__particle_") !== 0 && (child.name||"").indexOf("__trail_") !== 0 && child.name !== "__terrain__" && child.name !== "__weather__" && child.name !== "__sky__" && !isGroundPlane(child)) {
         meshes.push(child);
       }
     });
@@ -1552,7 +1566,7 @@ export function getVisualEditBridgeScript(): string {
       if (!child.visible) continue;
       if ((child.name || "").indexOf("__editor_") === 0) continue;
       if (child === boxHelper || child === transformControls || child === cameraHelper) continue;
-      if (child.isLight || child.type === "HemisphereLight" || child.type === "AmbientLight" || child.type === "DirectionalLight") continue;
+      if (child.isLight || child.type === "HemisphereLight" || child.type === "AmbientLight" || child.type === "DirectionalLight" || child.type === "SpotLight" || child.type === "PointLight") continue;
       if (child.type === "GridHelper" || child.type === "CameraHelper") continue;
       if (isGroundPlane(child)) continue;
       if (child.name === "__terrain__" || child.name === "__weather__" || child.name === "__sky__") continue;
@@ -1914,6 +1928,11 @@ export function getVisualEditBridgeScript(): string {
     }
     if (editor.orbitControls && !flyMode) editor.orbitControls.update();
     if (boxHelper && selectedObj) boxHelper.update();
+    if (multiBoxHelpers && multiBoxHelpers.length > 0) {
+      for (var mbi = 0; mbi < multiBoxHelpers.length; mbi++) {
+        if (multiBoxHelpers[mbi]) multiBoxHelpers[mbi].update();
+      }
+    }
     // Update preview camera position (follows player character) — skip when user-dragging
     if (previewCamera && !cameraSelected) updatePreviewCamera();
     // Update camera frustum helper
@@ -1997,6 +2016,14 @@ export function getVisualEditBridgeScript(): string {
       var THREE = window.THREE;
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
+      // Save camera state before entering editor mode so we can restore on exit
+      if (editor && editor.camera) {
+        _savedCameraPos = editor.camera.position.clone();
+        _savedCameraQuat = editor.camera.quaternion.clone();
+      }
+      if (editor && editor.orbitControls && editor.orbitControls.target) {
+        _savedOrbitTarget = editor.orbitControls.target.clone();
+      }
       editor.pause();
       // Fix OrbitControls for editor mode — must use deferred override because
       // the embedded bridge in Game3D.tsx also handles game-editor-activate and
@@ -2330,6 +2357,18 @@ export function getVisualEditBridgeScript(): string {
     }
     if (editor) {
       editor.resume();
+      // Restore camera position/rotation from before editor mode was entered
+      if (_savedCameraPos && editor.camera) {
+        editor.camera.position.copy(_savedCameraPos);
+        editor.camera.quaternion.copy(_savedCameraQuat);
+        if (editor.orbitControls && _savedOrbitTarget) {
+          editor.orbitControls.target.copy(_savedOrbitTarget);
+          editor.orbitControls.update();
+        }
+        _savedCameraPos = null;
+        _savedCameraQuat = null;
+        _savedOrbitTarget = null;
+      }
       // Auto-physics: ensure all scene objects have appropriate CANNON bodies
       rebuildAutoPhysics(editor.scene);
     }

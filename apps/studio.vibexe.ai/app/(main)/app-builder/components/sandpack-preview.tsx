@@ -1486,6 +1486,12 @@ export function SandpackPreview({
 						}
 					}
 				}
+				// Refresh scene tree so hierarchy reflects the deletion
+				gameEditor.requestSceneTree();
+				// If the deleted object was selected, deselect it
+				if (data.uuid && gameEditor.selectedObject?.uuid === data.uuid) {
+					gameEditor.updateSelectedObject(null);
+				}
 			} else if (data.type === "game-editor-animation-clips") {
 				gameEditor.setAnimationClips(data.clips || [], data.currentClip, data.animMap, data.clipDurations);
 			} else if (data.type === "game-editor-animation-progress") {
