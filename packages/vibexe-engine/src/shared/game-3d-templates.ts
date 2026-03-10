@@ -5693,23 +5693,26 @@ export const GameScene = {
     }
 
     // Sync physics → active player mesh (supports character-system swaps)
+    // When character-system module is active, it handles its own mesh sync + camera follow
+    // via _activeControllers3D — skip both here to prevent double-update jitter.
+    const _charSysActive = (window as any).__vibexe_charSystem_active__;
     const activePlayer = (window as any).__vibexe_playerMesh__ || lily?.mesh;
-    if (activePlayer && playerBody) {
+    if (!_charSysActive && activePlayer && playerBody) {
       activePlayer.position.copy(playerBody.position);
       const playerHalfY = activePlayer.userData?.__charHalfY || lily?.size?.y || 0.5;
       activePlayer.position.y -= playerHalfY;
     }
     syncBodiesToMeshes(platforms);
 
-    // Camera follow active player
-    if (activePlayer) {
+    // Camera follow active player (skip when character-system owns the camera)
+    if (!_charSysActive && activePlayer) {
       camera.position.x += (activePlayer.position.x - camera.position.x) * CAMERA_LERP * delta;
       camera.position.y += (activePlayer.position.y + CAMERA_OFFSET_Y - camera.position.y) * CAMERA_LERP * delta;
       camera.position.z += (activePlayer.position.z + CAMERA_OFFSET_Z - camera.position.z) * CAMERA_LERP * delta;
       camera.lookAt(activePlayer.position.x, activePlayer.position.y + CAMERA_LOOK_Y, activePlayer.position.z);
     }
 
-    // Collect items
+    // Collect items (use character-system mesh when active)
     if (activePlayer) {
       for (const c of items) {
         if (!c.collected && activePlayer.position.distanceTo(c.mesh.position) < COLLECT_DISTANCE) {

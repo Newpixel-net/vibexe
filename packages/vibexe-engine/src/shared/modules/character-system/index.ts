@@ -692,6 +692,9 @@ CharacterManager.prototype.swap = function(characterId, options) {
   }
 
   this._swapping = true;
+  // Signal EARLY that character-system is taking over camera + position sync
+  // This prevents game template from fighting with us during async load
+  window.__vibexe_charSystem_active__ = true;
   var self = this;
   var opts = options || {};
   var scene = this._scene;
@@ -852,8 +855,10 @@ CharacterManager.prototype.swap = function(characterId, options) {
         }
       }
 
-      // 7. Enable camera override (our loop takes over camera follow)
+      // 7. Enable camera override (our loop takes over camera follow + mesh sync)
       self._cameraOverride = true;
+      // Signal to game template that character-system owns camera + position sync
+      window.__vibexe_charSystem_active__ = true;
 
       // 8. Start unified update loop
       self._startUpdateLoop();
@@ -957,6 +962,8 @@ CharacterManager.prototype._disposeActive = function() {
   this._activeResult = null;
   this._activeId = null;
   this._cameraOverride = false;
+  // Release camera+position ownership back to game template
+  window.__vibexe_charSystem_active__ = false;
 };
 
 // ===== MODULE INITIALIZATION =====
