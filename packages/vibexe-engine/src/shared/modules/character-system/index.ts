@@ -415,6 +415,9 @@ function loadCharacterGLB(scene, url, position, charName) {
       // Auto-play idle
       play("idle");
 
+      // Store mixer on userData for cleanup
+      mesh.userData.__mixer = mixer;
+
       // Store animation data on mesh.userData for editor access
       mesh.userData.__clipNames = clipNames;
       mesh.userData.__play = play;
@@ -422,6 +425,20 @@ function loadCharacterGLB(scene, url, position, charName) {
       mesh.userData.__currentClip = function() { return currentAction && currentAction.getClip ? currentAction.getClip().name : null; };
       mesh.userData.__pause = function() { if (currentAction) currentAction.paused = true; };
       mesh.userData.__resume = function() { if (currentAction) currentAction.paused = false; };
+
+      // Clip durations and time control
+      mesh.userData.__clipDurations = {};
+      for (var cdi = 0; cdi < allClips.length; cdi++) {
+        mesh.userData.__clipDurations[allClips[cdi].name] = allClips[cdi].duration;
+      }
+      mesh.userData.__getTime = function() {
+        if (!currentAction) return null;
+        var clip = currentAction.getClip();
+        return { time: currentAction.time, duration: clip ? clip.duration : 0, clipName: clip ? clip.name : null, paused: currentAction.paused };
+      };
+      mesh.userData.__setTime = function(t) {
+        if (currentAction) { currentAction.time = t; }
+      };
 
       // Auto-classify clips for animMap
       var autoAnimMap = {};
@@ -445,6 +462,13 @@ function loadCharacterGLB(scene, url, position, charName) {
         if (exn === "walk" && autoAnimMap.walk && autoAnimMap.walk.toLowerCase() !== "walk") autoAnimMap.walk = allClips[exi].name;
         if (exn === "run" && autoAnimMap.run && autoAnimMap.run.toLowerCase() !== "run") autoAnimMap.run = allClips[exi].name;
         if (exn === "jump" && autoAnimMap.jump && autoAnimMap.jump.toLowerCase() !== "jump") autoAnimMap.jump = allClips[exi].name;
+      }
+
+      // Fallback: assign idle to longest clip, walk to second-longest
+      if (!autoAnimMap.idle && allClips.length > 0) {
+        var sorted = allClips.slice().sort(function(a, b) { return b.duration - a.duration; });
+        autoAnimMap.idle = sorted[0].name;
+        if (sorted.length > 1 && !autoAnimMap.walk) autoAnimMap.walk = sorted[1].name;
       }
       mesh.userData.__animMap = autoAnimMap;
 
@@ -708,6 +732,19 @@ CharacterManager.prototype.swap = function(characterId, options) {
   var legacyMesh = window.__vibexe_playerMesh__;
   if (legacyMesh && legacyMesh !== this._activeMesh) {
     console.log("[CharacterSystem] Removing legacy player mesh:", legacyMesh.name || "unnamed");
+    // Remove legacy mixer from _activeMixers3D
+    if (legacyMesh.userData && legacyMesh.userData.__mixer && window._activeMixers3D) {
+      var mi = window._activeMixers3D.indexOf(legacyMesh.userData.__mixer);
+      if (mi !== -1) window._activeMixers3D.splice(mi, 1);
+    }
+    // Remove legacy physics body from CANNON world
+    if (legacyMesh.userData && legacyMesh.userData.__physicsBody && window.__vibexe_world__) {
+      var legacyBody = legacyMesh.userData.__physicsBody;
+      // Only remove if we're NOT reusing it
+      if (legacyBody !== self._physicsBody) {
+        try { window.__vibexe_world__.removeBody(legacyBody); } catch(e) {}
+      }
+    }
     scene.remove(legacyMesh);
     legacyMesh.traverse(function(child) {
       if (child.geometry) child.geometry.dispose();
@@ -913,10 +950,10 @@ if (typeof window !== "undefined") {
   var _initAttempts = 0;
   var _initInterval = setInterval(function() {
     _initAttempts++;
-    if (_initAttempts > 30) { clearInterval(_initInterval); return; }
+    if (_initAttempts > 150) { clearInterval(_initInterval); return; }
 
     var scene = window.__vibexe_scene__;
-    if (_initAttempts <= 3 || _initAttempts % 5 === 0) {
+    if (_initAttempts <= 3 || _initAttempts % 25 === 0) {
       console.log('[CharacterSystem] Poll #' + _initAttempts + ' scene:', !!scene);
     }
     if (!scene) return;
@@ -938,14 +975,12 @@ if (typeof window !== "undefined") {
     console.log("[CharacterSystem] Auto-init. charConfig:", charConfig ? charConfig.id : "none");
 
     if (charConfig && charConfig.id) {
-      setTimeout(function() {
-        manager.swap(charConfig.id);
-      }, 1000);
+      manager.swap(charConfig.id);
     } else {
       console.log("[CharacterSystem] No character config — standing by for user selection");
     }
 
-  }, 2000);
+  }, 200);
 })();
 
 // CommonJS export
