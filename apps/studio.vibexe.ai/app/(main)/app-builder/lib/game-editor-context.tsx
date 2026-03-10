@@ -796,6 +796,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				sendToIframe({
 					type: "character-system-swap",
 					characterId: (patch.character as Record<string, unknown>).id,
+					origin: window.location.origin,
 				});
 			}
 			return next;

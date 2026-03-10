@@ -227,6 +227,27 @@ function loadCharacterGLB(scene, url, position) {
   });
 }
 
+// ===== ORIGIN DETECTION =====
+// Sandpack iframe runs on codesandbox.io — we need vibexe.online origin for API calls
+var _vibexeOrigin = "";
+
+function _getVibexeOrigin() {
+  if (_vibexeOrigin) return _vibexeOrigin;
+  // Try document.referrer (set by parent frame)
+  if (typeof document !== "undefined" && document.referrer) {
+    try {
+      var u = new URL(document.referrer);
+      _vibexeOrigin = u.origin;
+      return _vibexeOrigin;
+    } catch(e) {}
+  }
+  // Fallback: window.location.origin (only works if not in sandpack iframe)
+  if (typeof window !== "undefined" && window.location) {
+    return window.location.origin;
+  }
+  return "";
+}
+
 // ===== CHARACTER MANAGER =====
 function CharacterManager(scene) {
   this._scene = scene;
@@ -350,11 +371,8 @@ CharacterManager.prototype.swap = function(characterId, options) {
     window.__vibexe_playerMesh__ = null;
   }
 
-  // 4. Build model URL
-  var baseUrl = "";
-  if (typeof window !== "undefined" && window.location) {
-    baseUrl = window.location.origin;
-  }
+  // 4. Build model URL (use parent origin, not iframe's codesandbox origin)
+  var baseUrl = _getVibexeOrigin();
   var modelUrl = baseUrl + "/api/app-builder/media-stock-3d/" + charDef.pack + "/" + charDef.model;
 
   // 5. Load new character using self-contained GLTFLoader
@@ -526,6 +544,8 @@ if (typeof window !== "undefined") {
     if (!ev.data) return;
 
     if (ev.data.type === "character-system-swap") {
+      // Store origin from parent frame for API URL construction
+      if (ev.data.origin) _vibexeOrigin = ev.data.origin;
       var mgr = window.__vibexe_modules__ && window.__vibexe_modules__["character-system"];
       if (mgr && mgr.manager) {
         mgr.manager.swap(ev.data.characterId, ev.data.options || {});
