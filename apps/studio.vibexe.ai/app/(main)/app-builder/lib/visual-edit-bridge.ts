@@ -2057,8 +2057,8 @@ export function getVisualEditBridgeScript(): string {
       for (var di = 0; di < dupes.length; di++) { if (dupes[di].detach) dupes[di].detach(); editor.scene.remove(dupes[di]); if (dupes[di].dispose) dupes[di].dispose(); }
     }
     try {
-      // Signal to game loop that bridge is handling rendering (prevents double-render flicker)
-      window.__vibexe_bridge_rendering__ = true;
+      // Allow our render calls through the wrapper (blocks game loop's renders)
+      if (editor.renderer) editor.renderer.__allowRender = true;
       // Use EffectComposer when available (preserves post-processing in editor mode)
       var composer = window.__vibexe_composer__;
       if (composer && composer.render) {
@@ -2096,6 +2096,8 @@ export function getVisualEditBridgeScript(): string {
           editor.renderer.setClearColor(_prevClearColor, _prevClearAlpha);
         }
       }
+      // Re-block renders from game loop
+      if (editor.renderer) editor.renderer.__allowRender = false;
     } catch (e) {
       // Prevent cascading crashes (e.g., TransformControls infinite recursion)
       console.error("[GameEditorBridge] Render error — cleaning up:", e.message);
@@ -2127,6 +2129,17 @@ export function getVisualEditBridgeScript(): string {
         _savedOrbitTarget = editor.orbitControls.target.clone();
       }
       editor.pause();
+      // Prevent game loop double-render: wrap renderer.render so only bridge can render
+      // The game loop's animate() still runs in __editorMode and calls composer/renderer.render
+      // which fights with our editorLoop. Wrapping renderer.render blocks all non-bridge renders.
+      if (editor.renderer && !editor.renderer.__bridgeWrapped) {
+        editor.renderer.__origRender = editor.renderer.render.bind(editor.renderer);
+        editor.renderer.render = function() {
+          if (!editor.renderer.__allowRender) return;
+          return editor.renderer.__origRender.apply(editor.renderer, arguments);
+        };
+        editor.renderer.__bridgeWrapped = true;
+      }
       // Fix OrbitControls for editor mode — must use deferred override because
       // the embedded bridge in Game3D.tsx also handles game-editor-activate and
       // calls pause() which creates OrbitControls with default mouseButtons.
@@ -2436,6 +2449,13 @@ export function getVisualEditBridgeScript(): string {
     active = false;
     window.__vibexe_editor_active__ = false;
     window.__vibexe_bridge_rendering__ = false;
+    // Restore original renderer.render so game loop can render normally in Game mode
+    if (editor && editor.renderer && editor.renderer.__bridgeWrapped) {
+      editor.renderer.render = editor.renderer.__origRender;
+      delete editor.renderer.__origRender;
+      delete editor.renderer.__allowRender;
+      delete editor.renderer.__bridgeWrapped;
+    }
     cancelAnimationFrame(editorAnimId);
     // Clear pending persistTransform timer to prevent stale messages after deactivation
     if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
