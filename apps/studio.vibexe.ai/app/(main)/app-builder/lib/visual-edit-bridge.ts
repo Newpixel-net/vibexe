@@ -1722,15 +1722,21 @@ export function getVisualEditBridgeScript(): string {
     if (cameraHelper || !previewCamera || !editor) return;
     var THREE = window.THREE;
     if (!THREE || !THREE.CameraHelper) return;
-    cameraHelper = new THREE.CameraHelper(previewCamera);
+    // Use a display-only camera clone with short far for small frustum visualization
+    var _displayCam = previewCamera.clone();
+    _displayCam.far = 30; // Short frustum for visual clarity (actual far is 500+)
+    _displayCam.updateProjectionMatrix();
+    cameraHelper = new THREE.CameraHelper(_displayCam);
     cameraHelper.name = "__editor_camera_helper__";
+    cameraHelper.__displayCam = _displayCam;
     editor.scene.add(cameraHelper);
-    console.log("[GameEditorBridge] CameraHelper created");
+    console.log("[GameEditorBridge] CameraHelper created (display far=30)");
   }
 
   function destroyCameraHelper() {
     if (cameraHelper) {
       if (editor && editor.scene) editor.scene.remove(cameraHelper);
+      if (cameraHelper.__displayCam) cameraHelper.__displayCam = null;
       if (cameraHelper.dispose) cameraHelper.dispose();
       cameraHelper = null;
     }
@@ -1979,8 +1985,13 @@ export function getVisualEditBridgeScript(): string {
     }
     // Update preview camera position (follows player character) — skip when user-dragging
     if (previewCamera && !cameraSelected) updatePreviewCamera();
-    // Update camera frustum helper
-    if (cameraHelper) cameraHelper.update();
+    // Update camera frustum helper — sync display camera with preview camera position/rotation
+    if (cameraHelper && cameraHelper.__displayCam && previewCamera) {
+      cameraHelper.__displayCam.position.copy(previewCamera.position);
+      cameraHelper.__displayCam.rotation.copy(previewCamera.rotation);
+      cameraHelper.__displayCam.updateProjectionMatrix();
+      cameraHelper.update();
+    }
     // Throttled camera orientation broadcast (~10Hz wall-clock)
     var _camNow = Date.now();
     if (!_lastCamBroadcast) _lastCamBroadcast = 0;
@@ -2611,8 +2622,11 @@ export function getVisualEditBridgeScript(): string {
               var player = findPlayerMesh();
               var px = 0, py = 0, pz = 0;
               if (player) { px = player.position.x; py = player.position.y; pz = player.position.z; }
-              var newOffsetY = previewCamera.position.y - py;
-              var newOffsetZ = previewCamera.position.z - pz;
+              var newOffsetY = Math.max(1, previewCamera.position.y - py);
+              var newOffsetZ = Math.max(1, previewCamera.position.z - pz);
+              // Clamp camera position so it can't go below player
+              previewCamera.position.y = py + newOffsetY;
+              previewCamera.position.z = pz + newOffsetZ;
               // Update frustum helper
               if (cameraHelper) cameraHelper.update();
               // Post camera-moved to parent

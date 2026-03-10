@@ -422,7 +422,19 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 	const [hierarchySearch, setHierarchySearchState] = useState("");
 	const [canUndo, setCanUndo] = useState(false);
 	const [canRedo, setCanRedo] = useState(false);
-	const [cameraQuaternion, setCameraQuaternion] = useState<{ x: number; y: number; z: number; w: number }>({ x: 0, y: 0, z: 0, w: 1 });
+	// Camera quaternion stored as ref (NOT state) to avoid 10Hz re-render of entire context tree
+	const cameraQuaternionRef = useRef<{ x: number; y: number; z: number; w: number }>({ x: 0, y: 0, z: 0, w: 1 });
+	const [cameraQuaternion, setCameraQuaternionState] = useState<{ x: number; y: number; z: number; w: number }>({ x: 0, y: 0, z: 0, w: 1 });
+	const _camQThrottle = useRef(0);
+	const setCameraQuaternion = useCallback((q: { x: number; y: number; z: number; w: number }) => {
+		cameraQuaternionRef.current = q;
+		// Only update React state once per second (scene gizmo doesn't need 10Hz)
+		const now = Date.now();
+		if (now - _camQThrottle.current > 1000) {
+			_camQThrottle.current = now;
+			setCameraQuaternionState(q);
+		}
+	}, []);
 	const [editorProjection, setEditorProjectionState] = useState<"perspective" | "orthographic">("perspective");
 	const [pivotMode, setPivotModeState] = useState<"center" | "pivot">("center");
 	const saveHandlerRef = useRef<(() => Promise<void>) | null>(null);
