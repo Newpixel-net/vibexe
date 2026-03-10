@@ -1090,6 +1090,24 @@ export function getVisualEditBridgeScript(): string {
           }
         });
         transformControls.addEventListener("objectChange", function() {
+          // Camera mode: compute offsets from player position
+          if (cameraSelected && previewCamera) {
+            var player = findPlayerMesh();
+            var px = 0, py = 0, pz = 0;
+            if (player) { px = player.position.x; py = player.position.y; pz = player.position.z; }
+            var newOffsetY = Math.max(3, previewCamera.position.y - py);
+            var newOffsetZ = Math.max(3, previewCamera.position.z - pz);
+            previewCamera.position.y = py + newOffsetY;
+            previewCamera.position.z = pz + newOffsetZ;
+            if (cameraHelper) cameraHelper.update();
+            window.parent.postMessage({
+              type: "game-editor-camera-moved",
+              position: { x: +previewCamera.position.x.toFixed(2), y: +previewCamera.position.y.toFixed(2), z: +previewCamera.position.z.toFixed(2) },
+              offsetY: +newOffsetY.toFixed(2),
+              offsetZ: +newOffsetZ.toFixed(2)
+            }, "*");
+            return;
+          }
           if (selectedObj) {
             sendSelectedObject(selectedObj);
             if (boxHelper) boxHelper.update();
@@ -2599,6 +2617,8 @@ export function getVisualEditBridgeScript(): string {
         break;
       case "game-editor-toggle-snap": toggleGridHelper(); break;
       case "game-editor-select-camera":
+        // Guard: skip if already selected (prevents flicker from repeated messages)
+        if (cameraSelected && previewCamera) break;
         deselectObject();
         cameraSelected = true;
         if (previewCamera) {
@@ -2606,51 +2626,71 @@ export function getVisualEditBridgeScript(): string {
           // Add previewCamera to scene (required for TC attachment)
           editor.scene.add(previewCamera);
           createCameraHelper();
-          // Create TransformControls attached to previewCamera
+          // Reuse existing TC (same as regular object selection) — camera-specific
+          // objectChange logic is in the shared handler via cameraSelected flag
           if (THREE.TransformControls) {
-            transformControls = new THREE.TransformControls(editor.camera, editor.renderer.domElement);
-            transformControls.name = "__editor_transform_controls__";
-            transformControls.setSize(0.6);
-            if (gridSnap) {
-              transformControls.translationSnap = gridSnapIncrement;
+            if (!transformControls) {
+              // TC not yet created (camera selected before any object) — trigger creation
+              // via the same path as selectObject to keep single TC instance
+              console.log("[GameEditorBridge] Creating reusable TC (via camera select)");
+              transformControls = new THREE.TransformControls(editor.camera, editor.renderer.domElement);
+              transformControls.name = "__editor_transform_controls__";
+              transformControls.setSize(0.6);
+              transformControls.addEventListener("dragging-changed", function(e) {
+                if (editor.orbitControls) editor.orbitControls.enabled = !e.value;
+                if (!cameraSelected && e.value && selectedObj) {
+                  transformControls.__undoPos = { x: selectedObj.position.x, y: selectedObj.position.y, z: selectedObj.position.z };
+                  transformControls.__undoRot = { x: selectedObj.rotation.x, y: selectedObj.rotation.y, z: selectedObj.rotation.z };
+                  transformControls.__undoScl = { x: selectedObj.scale.x, y: selectedObj.scale.y, z: selectedObj.scale.z };
+                } else if (!cameraSelected && !e.value && selectedObj && transformControls.__undoPos) {
+                  pushUndo({ type: "transform", uuid: selectedObj.uuid,
+                    oldPos: transformControls.__undoPos, oldRot: transformControls.__undoRot, oldScl: transformControls.__undoScl,
+                    newPos: { x: selectedObj.position.x, y: selectedObj.position.y, z: selectedObj.position.z },
+                    newRot: { x: selectedObj.rotation.x, y: selectedObj.rotation.y, z: selectedObj.rotation.z },
+                    newScl: { x: selectedObj.scale.x, y: selectedObj.scale.y, z: selectedObj.scale.z }
+                  });
+                  persistTransform(selectedObj);
+                }
+              });
+              transformControls.addEventListener("objectChange", function() {
+                if (cameraSelected && previewCamera) {
+                  var player = findPlayerMesh();
+                  var px = 0, py = 0, pz = 0;
+                  if (player) { px = player.position.x; py = player.position.y; pz = player.position.z; }
+                  var newOffsetY = Math.max(3, previewCamera.position.y - py);
+                  var newOffsetZ = Math.max(3, previewCamera.position.z - pz);
+                  previewCamera.position.y = py + newOffsetY;
+                  previewCamera.position.z = pz + newOffsetZ;
+                  if (cameraHelper) cameraHelper.update();
+                  window.parent.postMessage({
+                    type: "game-editor-camera-moved",
+                    position: { x: +previewCamera.position.x.toFixed(2), y: +previewCamera.position.y.toFixed(2), z: +previewCamera.position.z.toFixed(2) },
+                    offsetY: +newOffsetY.toFixed(2),
+                    offsetZ: +newOffsetZ.toFixed(2)
+                  }, "*");
+                  return;
+                }
+                if (selectedObj) {
+                  sendSelectedObject(selectedObj);
+                  if (boxHelper) boxHelper.update();
+                  sendPlayerPositionUpdate(selectedObj);
+                }
+              });
+              var tcHelper = transformControls.getHelper ? transformControls.getHelper() : transformControls;
+              tcHelper.name = "__editor_transform_controls__";
+              var _tcUpdating2 = false;
+              var _origUMW2 = tcHelper.updateMatrixWorld;
+              tcHelper.updateMatrixWorld = function(force) {
+                if (_tcUpdating2) return;
+                _tcUpdating2 = true;
+                try { _origUMW2.call(this, force); } finally { _tcUpdating2 = false; }
+              };
+              editor.scene.add(tcHelper);
             }
+            // Set translate mode for camera dragging
+            if (transformControls.setMode) transformControls.setMode("translate");
+            if (gridSnap) transformControls.translationSnap = gridSnapIncrement;
             transformControls.attach(previewCamera);
-            transformControls.addEventListener("dragging-changed", function(ev) {
-              if (editor.orbitControls) editor.orbitControls.enabled = !ev.value;
-            });
-            transformControls.addEventListener("objectChange", function() {
-              if (!previewCamera) return;
-              // Reverse-compute offsetY/offsetZ from new camera position relative to player
-              var player = findPlayerMesh();
-              var px = 0, py = 0, pz = 0;
-              if (player) { px = player.position.x; py = player.position.y; pz = player.position.z; }
-              var newOffsetY = Math.max(3, previewCamera.position.y - py);
-              var newOffsetZ = Math.max(3, previewCamera.position.z - pz);
-              // Clamp camera position so it can't go below player
-              previewCamera.position.y = py + newOffsetY;
-              previewCamera.position.z = pz + newOffsetZ;
-              // Update frustum helper
-              if (cameraHelper) cameraHelper.update();
-              // Post camera-moved to parent
-              window.parent.postMessage({
-                type: "game-editor-camera-moved",
-                position: { x: +previewCamera.position.x.toFixed(2), y: +previewCamera.position.y.toFixed(2), z: +previewCamera.position.z.toFixed(2) },
-                offsetY: +newOffsetY.toFixed(2),
-                offsetZ: +newOffsetZ.toFixed(2)
-              }, "*");
-            });
-            // Ensure TC helper is in scene (getHelper returns same object each time)
-            var _tcH2 = transformControls.getHelper ? transformControls.getHelper() : transformControls;
-            _tcH2.name = "__editor_transform_controls__";
-            // Recursion guard (same as main TC)
-            var _tcU2 = false;
-            var _origU2 = _tcH2.updateMatrixWorld;
-            _tcH2.updateMatrixWorld = function(force) {
-              if (_tcU2) return;
-              _tcU2 = true;
-              try { _origU2.call(this, force); } finally { _tcU2 = false; }
-            };
-            if (!_tcH2.parent) editor.scene.add(_tcH2);
           }
         }
         // Post synthetic selection back to parent
