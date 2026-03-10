@@ -1033,15 +1033,27 @@ if (typeof window !== "undefined") {
     console.log("[CharacterSystem] Auto-init. charConfig:", charConfig ? charConfig.id : "none");
 
     if (charConfig && charConfig.id) {
-      // Wait for parent origin before swapping (needed for GLB URL)
+      // Wait for BOTH parent origin AND existing player mesh before swapping.
+      // This ensures the swap reuses the existing physics body (no split-brain).
       var _originWaitCount = 0;
       var _originWait = setInterval(function() {
         _originWaitCount++;
-        if (_vibexeOrigin || _originWaitCount > 30) {
+        var hasOrigin = !!_vibexeOrigin || _originWaitCount > 30;
+        var hasPlayer = !!window.__vibexe_playerMesh__;
+        if (_originWaitCount % 10 === 0) {
+          console.log("[CharacterSystem] Auto-init poll #" + _originWaitCount + " origin:" + hasOrigin + " player:" + hasPlayer);
+        }
+        if (hasOrigin && hasPlayer) {
           clearInterval(_originWait);
           if (!_vibexeOrigin) {
             console.warn("[CharacterSystem] Origin not received from parent, swap may fail");
           }
+          console.log("[CharacterSystem] Auto-init: origin + player ready, swapping to", charConfig.id);
+          manager.swap(charConfig.id);
+        } else if (_originWaitCount > 150) {
+          // 15s hard timeout — swap anyway (better than never loading)
+          clearInterval(_originWait);
+          console.warn("[CharacterSystem] Auto-init timeout. origin:" + hasOrigin + " player:" + hasPlayer + " — swapping anyway");
           manager.swap(charConfig.id);
         }
       }, 100);

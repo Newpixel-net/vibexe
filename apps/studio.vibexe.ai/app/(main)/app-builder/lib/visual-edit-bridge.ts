@@ -1536,7 +1536,7 @@ export function getVisualEditBridgeScript(): string {
     // Pass 1: standard mesh raycasting (works for static Mesh objects)
     var meshes = [];
     editor.scene.traverse(function(child) {
-      if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && (child.name||"").indexOf("__editor_") !== 0 && (child.name||"").indexOf("__particle_") !== 0 && (child.name||"").indexOf("__trail_") !== 0 && !isGroundPlane(child)) {
+      if (child.isMesh && child !== boxHelper && child.type !== "TransformControlsGizmo" && child.type !== "TransformControlsPlane" && (child.name||"").indexOf("__editor_") !== 0 && (child.name||"").indexOf("__particle_") !== 0 && (child.name||"").indexOf("__trail_") !== 0 && child.name !== "__terrain__" && child.name !== "__weather__" && child.name !== "__sky__" && !isGroundPlane(child)) {
         meshes.push(child);
       }
     });
@@ -1555,6 +1555,7 @@ export function getVisualEditBridgeScript(): string {
       if (child.isLight || child.type === "HemisphereLight" || child.type === "AmbientLight" || child.type === "DirectionalLight") continue;
       if (child.type === "GridHelper" || child.type === "CameraHelper") continue;
       if (isGroundPlane(child)) continue;
+      if (child.name === "__terrain__" || child.name === "__weather__" || child.name === "__sky__") continue;
       var box = new THREE.Box3().setFromObject(child);
       if (box.isEmpty()) continue;
       // Expand tiny boxes (SkinnedMesh bind-pose) to a minimum clickable size

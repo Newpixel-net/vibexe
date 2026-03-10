@@ -332,6 +332,8 @@ export function getGameEditorBridgeScript(): string {
           child.type !== "TransformControlsPlane") {
         // Skip non-light editor helpers
         if (child.name.indexOf("__editor_") === 0 && !child.userData.__isLightHelper) return;
+        // Skip terrain/weather/sky — non-selectable infrastructure meshes
+        if (child.name === "__terrain__" || child.name === "__weather__" || child.name === "__sky__") return;
         meshes.push(child);
       }
     });
