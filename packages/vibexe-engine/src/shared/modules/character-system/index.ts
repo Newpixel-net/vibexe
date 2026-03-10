@@ -675,7 +675,7 @@ function swapCharacter(scene, characterId) {
             // Runs AFTER template's camera follow (which may place camera inside terrain)
             var _getH = window.__vibexe_getTerrainHeight;
             if (_getH && _csMesh && _csMesh.visible) {
-              var cam = (window.__vibexe_editor__ || {}). camera;
+              var cam = (window.__vibexe_editor__ || {}).camera;
               if (cam && cam.position) {
                 var _camTH = _getH(cam.position.x, cam.position.z);
                 if (_camTH != null) {
@@ -712,6 +712,8 @@ function swapCharacter(scene, characterId) {
         var targetY = th + halfH + 0.5;
         if (body.position.y < targetY) {
           body.position.y = targetY;
+          // CRITICAL: sync mesh position to match physics body (prevents character-under-terrain)
+          result.mesh.position.y = targetY;
           if (body.velocity) body.velocity.set(0, 0, 0);
           console.log("[CharacterSystem] Snapped to terrain: Y=" + targetY.toFixed(1) + " (terrain=" + th.toFixed(1) + ")");
         }

@@ -5661,18 +5661,25 @@ export const GameScene = {
         }
         // Link physics body to new mesh
         _currentPM.userData.__physicsBody = playerBody;
-        // Clear old controllers — remove lilyController from _activeControllers3D
+        // Clear old lilyController from _activeControllers3D
+        // BUT preserve __charSystem controllers — character module handles its own animation/camera
+        const _hasCharSystem = (window as any)._activeControllers3D?.some((c: any) => c?.__charSystem);
         if ((window as any)._activeControllers3D) {
           const _ctrls = (window as any)._activeControllers3D;
           for (let i = _ctrls.length - 1; i >= 0; i--) {
-            if (_ctrls[i] === lilyController || _ctrls[i]?.__charSystem) {
+            if (_ctrls[i] === lilyController) {
               _ctrls.splice(i, 1);
             }
           }
         }
-        // Create new controller using the swapped character's data
-        lilyController = createCharacterController3D(_cr, playerBody);
-        console.log("[GameTemplate] Character swap detected, new controller created");
+        // Only create template controller if character-system module didn't register its own
+        if (!_hasCharSystem) {
+          lilyController = createCharacterController3D(_cr, playerBody);
+          console.log("[GameTemplate] Character swap detected, new controller created");
+        } else {
+          lilyController = null;
+          console.log("[GameTemplate] Character swap detected, charSystem controller preserved");
+        }
       }
     }
 
