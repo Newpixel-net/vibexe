@@ -472,15 +472,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 						msg.cameraTarget = activeScene.cameraTarget;
 					}
 					sendToIframe(msg);
-					try {
-						const iframes = document.querySelectorAll(".sandpack-container iframe");
-						for (const iframe of iframes) {
-							const f = iframe as HTMLIFrameElement;
-							if (f.contentWindow) {
-								f.contentWindow.postMessage(msg, "*");
-							}
-						}
-					} catch { /* ignore */ }
+					// NOTE: removed duplicate postMessage loop — sendToIframe already dispatches to all iframes
 					return currentScenes; // don't change state
 				});
 				// Re-send FX settings after bridge activates (bridge needs renderer/scene/camera ready)
