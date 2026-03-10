@@ -1026,7 +1026,18 @@ if (typeof window !== "undefined") {
     console.log("[CharacterSystem] Auto-init. charConfig:", charConfig ? charConfig.id : "none");
 
     if (charConfig && charConfig.id) {
-      manager.swap(charConfig.id);
+      // Wait for parent origin before swapping (needed for GLB URL)
+      var _originWaitCount = 0;
+      var _originWait = setInterval(function() {
+        _originWaitCount++;
+        if (_vibexeOrigin || _originWaitCount > 30) {
+          clearInterval(_originWait);
+          if (!_vibexeOrigin) {
+            console.warn("[CharacterSystem] Origin not received from parent, swap may fail");
+          }
+          manager.swap(charConfig.id);
+        }
+      }, 100);
     } else {
       console.log("[CharacterSystem] No character config — standing by for user selection");
     }
