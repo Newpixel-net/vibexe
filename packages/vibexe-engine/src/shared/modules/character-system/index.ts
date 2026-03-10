@@ -543,8 +543,13 @@ if (typeof window !== "undefined") {
   window.addEventListener("message", function(ev) {
     if (!ev.data) return;
 
+    // Capture parent origin from ANY message (ev.origin is the sender's origin)
+    if (!_vibexeOrigin && ev.origin && ev.origin !== "null" && ev.origin.indexOf("codesandbox") === -1 && ev.origin.indexOf("localhost") === -1) {
+      _vibexeOrigin = ev.origin;
+    }
+
     if (ev.data.type === "character-system-swap") {
-      // Store origin from parent frame for API URL construction
+      // Also store explicitly passed origin
       if (ev.data.origin) _vibexeOrigin = ev.data.origin;
       var mgr = window.__vibexe_modules__ && window.__vibexe_modules__["character-system"];
       if (mgr && mgr.manager) {
