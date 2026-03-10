@@ -5497,6 +5497,7 @@ const CANNON = (window as any).CANNON;
 // ===== Game State =====
 let scene: any, camera: any, renderer: any;
 let lily: any, lilyController: any, playerBody: any, world: any;
+let _lastKnownPlayerMesh: any = null;
 let hud: any, keys: any, destroyKb: () => void;
 const platforms: { mesh: any; body: any }[] = [];
 const items: { mesh: any; collected: boolean }[] = [];
@@ -5633,23 +5634,51 @@ export const GameScene = {
   update(delta: number) {
     if ((!lily && !(window as any).__vibexe_playerMesh__) || !world) return;
 
-    const _charSysActive = (window as any).__vibexe_charSystem_active__;
     const activePlayer = (window as any).__vibexe_playerMesh__ || lily?.mesh;
 
-    // When character-system module owns a separate physics body, route ALL
-    // keyboard input + terrain following to that body instead of the stale
-    // template playerBody. This prevents "split brain" where keyboard moves
-    // one body but the character mesh follows a different one.
-    const _pBody = (_charSysActive && activePlayer?.userData?.__physicsBody)
-      ? activePlayer.userData.__physicsBody : playerBody;
+    // === Swap detection: when character-system module swaps the player mesh,
+    // reshape the physics body and create a new controller automatically ===
+    const _currentPM = (window as any).__vibexe_playerMesh__;
+    if (_currentPM && _currentPM !== _lastKnownPlayerMesh) {
+      _lastKnownPlayerMesh = _currentPM;
+      const _cr = _currentPM.userData?.__charResult;
+      if (_cr && _currentPM !== lily?.mesh) {
+        // Reshape playerBody to match new character dimensions
+        const _cb = _currentPM.userData?.__characterBounds;
+        if (_cb && playerBody && playerBody.shapes?.length) {
+          const _newHalf = new CANNON.Vec3(
+            Math.max(0.05, _cb.halfX),
+            Math.max(0.05, _cb.height / 2),
+            Math.max(0.05, _cb.halfZ)
+          );
+          playerBody.shapes[0] = new CANNON.Box(_newHalf);
+          playerBody.updateBoundingRadius();
+          playerBody.updateMassProperties();
+        }
+        // Link physics body to new mesh
+        _currentPM.userData.__physicsBody = playerBody;
+        // Clear old controllers — remove lilyController from _activeControllers3D
+        if ((window as any)._activeControllers3D) {
+          const _ctrls = (window as any)._activeControllers3D;
+          for (let i = _ctrls.length - 1; i >= 0; i--) {
+            if (_ctrls[i] === lilyController || _ctrls[i]?.__charSystem) {
+              _ctrls.splice(i, 1);
+            }
+          }
+        }
+        // Create new controller using the swapped character's data
+        lilyController = createCharacterController3D(_cr, playerBody);
+        console.log("[GameTemplate] Character swap detected, new controller created");
+      }
+    }
 
     // Asymmetric gravity: lighter going up, heavier falling
-    const vy = _pBody.velocity.y;
+    const vy = playerBody.velocity.y;
     world.gravity.set(0, vy > 0 ? GRAVITY_3D : FALL_GRAVITY, 0);
     world.step(1 / 60, delta, 3);
 
     // Coyote time + jump buffer
-    if ((_pBody as any).__canJump) {
+    if ((playerBody as any).__canJump) {
       coyoteTimer = 0;
     } else {
       coyoteTimer += delta;
@@ -5661,18 +5690,18 @@ export const GameScene = {
     const vz = ((keys.ArrowDown || keys.KeyS) ? 1 : 0) - ((keys.ArrowUp || keys.KeyW) ? 1 : 0);
     if (vx !== 0 || vz !== 0) {
       const len = Math.sqrt(vx * vx + vz * vz);
-      _pBody.velocity.x = (vx / len) * MOVE_SPEED;
-      _pBody.velocity.z = (vz / len) * MOVE_SPEED;
+      playerBody.velocity.x = (vx / len) * MOVE_SPEED;
+      playerBody.velocity.z = (vz / len) * MOVE_SPEED;
     }
 
     // Jump with coyote time + jump buffer
     if (keys.Space) {
       jumpBufferTimer = JUMP_BUFFER;
     }
-    const canJump = (_pBody as any).__canJump || coyoteTimer < COYOTE_TIME;
+    const canJump = (playerBody as any).__canJump || coyoteTimer < COYOTE_TIME;
     if (jumpBufferTimer > 0 && canJump) {
-      _pBody.velocity.y = JUMP_FORCE;
-      (_pBody as any).__canJump = false;
+      playerBody.velocity.y = JUMP_FORCE;
+      (playerBody as any).__canJump = false;
       coyoteTimer = COYOTE_TIME; // Consume coyote time
       jumpBufferTimer = 0;
       playSound(soundUrl("platformer-project/sfx/jump_0.wav"), { volume: 0.6 });
@@ -5685,35 +5714,39 @@ export const GameScene = {
     // This is a backup for new projects using this template directly.
     const _tGetH = (window as any).__vibexe_getTerrainHeight;
     if (_tGetH) {
-      const _th = _tGetH(_pBody.position.x, _pBody.position.z);
+      const _th = _tGetH(playerBody.position.x, playerBody.position.z);
       if (_th != null) {
-        const _halfH = _pBody.shapes?.[0]?.halfExtents?.y ?? 0.75;
+        const _halfH = playerBody.shapes?.[0]?.halfExtents?.y ?? 0.75;
         const _groundY = _th + _halfH;
-        const _gap = _pBody.position.y - _groundY;
+        const _gap = playerBody.position.y - _groundY;
         if (_gap < 0) {
-          _pBody.position.y = _groundY;
-          if (_pBody.velocity.y < 0) _pBody.velocity.y = 0;
-          (_pBody as any).__canJump = true;
-        } else if (_gap < 3.0 && _pBody.velocity.y <= 1.5) {
-          _pBody.position.y = _groundY;
-          if (_pBody.velocity.y < 0) _pBody.velocity.y = 0;
-          (_pBody as any).__canJump = true;
+          playerBody.position.y = _groundY;
+          if (playerBody.velocity.y < 0) playerBody.velocity.y = 0;
+          (playerBody as any).__canJump = true;
+        } else if (_gap < 3.0 && playerBody.velocity.y <= 1.5) {
+          playerBody.position.y = _groundY;
+          if (playerBody.velocity.y < 0) playerBody.velocity.y = 0;
+          (playerBody as any).__canJump = true;
         }
       }
     }
 
-    // Sync physics → active player mesh (supports character-system swaps)
-    // When character-system module is active, it handles its own mesh sync + camera follow
-    // via _activeControllers3D — skip both here to prevent double-update jitter.
-    if (!_charSysActive && activePlayer && _pBody) {
-      activePlayer.position.copy(_pBody.position);
-      const playerHalfY = activePlayer.userData?.__charHalfY || lily?.size?.y || 0.5;
+    // Sync physics → active player mesh (game template always owns this)
+    if (activePlayer && playerBody) {
+      activePlayer.position.copy(playerBody.position);
+      const playerHalfY = activePlayer.userData?.__characterBounds?.height
+        ? activePlayer.userData.__characterBounds.height / 2
+        : (lily?.size?.y || 0.5);
       activePlayer.position.y -= playerHalfY;
+      // Apply ground offset if set by character system
+      if (activePlayer.userData?.__groundOffset) {
+        activePlayer.position.y += activePlayer.userData.__groundOffset;
+      }
     }
     syncBodiesToMeshes(platforms);
 
-    // Camera follow active player (skip when character-system owns the camera)
-    if (!_charSysActive && activePlayer) {
+    // Camera follow active player (game template always owns this)
+    if (activePlayer) {
       camera.position.x += (activePlayer.position.x - camera.position.x) * CAMERA_LERP * delta;
       camera.position.y += (activePlayer.position.y + CAMERA_OFFSET_Y - camera.position.y) * CAMERA_LERP * delta;
       camera.position.z += (activePlayer.position.z + CAMERA_OFFSET_Z - camera.position.z) * CAMERA_LERP * delta;
@@ -5740,8 +5773,8 @@ export const GameScene = {
       const _rx = (window as any).__vibexe_respawnX__ ?? respawnX;
       const _ry = (window as any).__vibexe_respawnY__ ?? respawnY;
       const _rz = (window as any).__vibexe_respawnZ__ ?? respawnZ;
-      _pBody.position.set(_rx, _ry, _rz);
-      _pBody.velocity.set(0, 0, 0);
+      playerBody.position.set(_rx, _ry, _rz);
+      playerBody.velocity.set(0, 0, 0);
       hapticFeedback("heavy");
     }
   },

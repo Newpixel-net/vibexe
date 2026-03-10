@@ -1,20 +1,17 @@
 /**
- * Character System Module — Manifest & Registration
+ * Character System Module — Pure GLB Loader & Model Swapper
  *
- * Manages player character selection, loading, and runtime swapping.
- * Characters are AI-generated 3D models (GLB) with skeletal animations.
+ * Loads player character GLB models with production-quality processing
+ * and swaps the visible mesh. Does NOT manage physics, camera, keyboard
+ * input, or animation state — the game template owns all of those.
  *
  * Features:
- * - Character registry (built-in + future database categories)
- * - Runtime character swapping (dispose old, load new, rebind physics)
- * - Production-quality GLTFLoader character loading (bone measurement, pivot correction, scale cap)
- * - Scored animation matching (partial keyword with priority ranking)
- * - Root motion stripping (locks XZ on root bones)
- * - Camera follow override (replaces stale game loop reference)
- * - Terrain ground-following
- * - Per-frame animation state machine with hysteresis
+ * - Character registry (built-in + extensible)
+ * - Production-quality GLTFLoader (bone measurement, pivot correction, scale cap)
+ * - Scored animation matching with alias fallbacks
+ * - Root motion stripping (locks XZ on root bones, keeps Y hip-bob)
  * - Scene hierarchy integration (Character_ prefix, userData)
- * - Physics body reuse on swap
+ * - Mesh swap with old mesh disposal and stale mesh cleanup
  */
 
 import type { ModuleManifest } from "../module-types";
@@ -44,22 +41,15 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v3.1.0
-// Production-quality character management — bone measurement, pivot correction, camera override
-console.log('[CharacterSystem] Module v3 loaded');
+const runtimeCode = `// @vibexe/character-system v4.0.0
+// Pure GLB loader & model swapper — no physics, no camera, no input
+console.log('[CharacterSystem] Module v4 loaded');
 
 var THREE = require('three');
 
 // ===== CONSTANTS =====
 var TARGET_HEIGHT = 1.5;     // World units — matches SCALES_3D.animatedCharacter
 var MAX_AUTO_SCALE = 1;      // Cap to prevent over-scaling skinned meshes
-var CAMERA_OFFSET_Y = 8;     // Camera height above player
-var CAMERA_OFFSET_Z = 12;    // Camera distance behind player
-var CAMERA_LERP = 3;         // Camera smoothing speed
-var CAMERA_LOOK_Y = 1;       // Camera look-at Y offset
-var WALK_SPEED = 0.5;        // Horizontal speed threshold for walk
-var RUN_SPEED = 5;           // Horizontal speed threshold for run
-var MIN_STATE_HOLD = 0.15;   // Min seconds before animation state change
 
 // Root bone names for root motion stripping
 var _ROOT_BONE_NAMES = {
@@ -69,15 +59,18 @@ var _ROOT_BONE_NAMES = {
 };
 
 // ===== CHARACTER REGISTRY =====
-var _builtInCharacters = ${BUILT_IN_CHARACTERS};
+var BUILTIN_CHARACTERS = ${BUILT_IN_CHARACTERS};
+
+var _registry = null;
 
 function CharacterRegistry() {
   this._characters = {};
-  for (var i = 0; i < _builtInCharacters.length; i++) {
-    var c = _builtInCharacters[i];
-    this._characters[c.id] = c;
-  }
 }
+
+CharacterRegistry.prototype.register = function(charDef) {
+  if (!charDef || !charDef.id) return;
+  this._characters[charDef.id] = charDef;
+};
 
 CharacterRegistry.prototype.get = function(id) {
   return this._characters[id] || null;
@@ -93,11 +86,6 @@ CharacterRegistry.prototype.getAll = function() {
 
 CharacterRegistry.prototype.getDefault = function() {
   return this._characters["warrior"] || this.getAll()[0] || null;
-};
-
-CharacterRegistry.prototype.register = function(charDef) {
-  if (!charDef || !charDef.id) return;
-  this._characters[charDef.id] = charDef;
 };
 
 // ===== SCORED ANIMATION MATCHING =====
@@ -340,8 +328,6 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
         height: TARGET_HEIGHT
       };
 
-      scene.add(mesh);
-
       // --- Root motion stripping ---
       var allClips = gltf.animations || [];
       for (var ci = 0; ci < allClips.length; ci++) {
@@ -372,11 +358,6 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
 
       // --- Animation setup ---
       var mixer = new THREE.AnimationMixer(inner);
-
-      // Register with framework mixer array for global updates
-      if (window._activeMixers3D && Array.isArray(window._activeMixers3D)) {
-        window._activeMixers3D.push(mixer);
-      }
 
       var clipMap = {};
       var clipNames = [];
@@ -476,6 +457,16 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
       }
       mesh.userData.__animMap = autoAnimMap;
 
+      // Store full result on mesh for game template access
+      mesh.userData.__charResult = {
+        mesh: mesh,
+        mixer: mixer,
+        clips: clipNames,
+        play: play,
+        stop: stop,
+        size: halfExtents
+      };
+
       var result = {
         mesh: mesh,
         inner: inner,
@@ -519,461 +510,107 @@ function _getVibexeOrigin() {
   return "";
 }
 
-// ===== CHARACTER MANAGER =====
-function CharacterManager(scene) {
-  this._scene = scene;
-  this._registry = new CharacterRegistry();
-  this._activeId = null;
-  this._activeMesh = null;
-  this._activeResult = null;
-  this._physicsBody = null;
-  this._swapping = false;
-  this._controllerObj = null;
-  this._controllerRegistered = false;
-  this._cachedCamera = null;
-  this._cameraOverride = false;
-  // Animation state machine
-  this._animState = "idle";
-  this._animStateTimer = 0;
-  this._isAttacking = false;
-  this._attackTimer = 0;
-  console.log("[CharacterSystem] Manager created, registry:", this._registry.getAll().length, "characters");
-}
+// ===== SWAP FUNCTION =====
+function swapCharacter(scene, characterId) {
+  var charDef = _registry.get(characterId);
+  if (!charDef) { console.warn("[CharacterSystem] Unknown character:", characterId); return Promise.resolve(false); }
 
-CharacterManager.prototype.getRegistry = function() { return this._registry; };
-CharacterManager.prototype.getActiveId = function() { return this._activeId; };
-CharacterManager.prototype.getActiveMesh = function() { return this._activeMesh; };
-
-// Register controller in _activeControllers3D (runs AFTER gameScene.update each frame)
-// This replaces the separate RAF loop — no double mixer update, camera override wins naturally,
-// and controller is automatically skipped in editor mode by the framework.
-CharacterManager.prototype._startUpdateLoop = function() {
-  var self = this;
-  if (this._controllerRegistered) return;
-  this._controllerRegistered = true;
-  this._cachedCamera = null;
-
-  var controllerObj = {
-    update: function(delta) {
-      if (delta <= 0 || delta > 0.1) return;
-
-      var result = self._activeResult;
-      var body = self._physicsBody;
-      var mesh = self._activeMesh;
-      if (!result || !mesh) return;
-
-      // NOTE: Mixer update handled by framework via _activeMixers3D — NOT here.
-      // This prevents the double-update bug (2x animation speed).
-
-      // 1. Sync mesh position to physics body with Y offset
-      if (body) {
-        mesh.position.x = body.position.x;
-        mesh.position.z = body.position.z;
-        var cb = mesh.userData && mesh.userData.__characterBounds;
-        if (cb) {
-          mesh.position.y = body.position.y - cb.height / 2;
-        } else {
-          mesh.position.y = body.position.y - TARGET_HEIGHT / 2;
-        }
-      }
-
-      // 2. Facing direction (smooth rotation toward movement)
-      if (body) {
-        var vx = body.velocity.x;
-        var vz = body.velocity.z;
-        var hSpeed = Math.sqrt(vx * vx + vz * vz);
-        if (hSpeed > 0.3) {
-          if (Math.abs(vx) > 0.01 || Math.abs(vz) > 0.01) {
-            var targetAngle = Math.atan2(vx, vz);
-            var current = mesh.rotation.y;
-            var diff = targetAngle - current;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff += Math.PI * 2;
-            mesh.rotation.y += diff * Math.min(1, delta * 10);
-          }
-        }
-      }
-
-      // 3. Camera follow override (runs AFTER gameScene.update, so naturally wins)
-      if (self._cameraOverride) {
-        if (!self._cachedCamera) {
-          self._cachedCamera = window.__vibexe_camera__;
-          if (!self._cachedCamera && window.__vibexe_scene__) {
-            var sc = window.__vibexe_scene__;
-            if (sc.userData && sc.userData.__camera) {
-              self._cachedCamera = sc.userData.__camera;
-            }
-            if (!self._cachedCamera) {
-              sc.traverse(function(child) {
-                if (!self._cachedCamera && child.isCamera) self._cachedCamera = child;
-              });
-            }
-          }
-        }
-        var cam = self._cachedCamera;
-        if (cam) {
-          cam.position.x += (mesh.position.x - cam.position.x) * CAMERA_LERP * delta;
-          cam.position.y += (mesh.position.y + CAMERA_OFFSET_Y - cam.position.y) * CAMERA_LERP * delta;
-          cam.position.z += (mesh.position.z + CAMERA_OFFSET_Z - cam.position.z) * CAMERA_LERP * delta;
-          cam.lookAt(mesh.position.x, mesh.position.y + CAMERA_LOOK_Y, mesh.position.z);
-        }
-      }
-
-      // 4. Per-frame animation state machine
-      if (body && result.play) {
-        var pvx = body.velocity.x;
-        var pvz = body.velocity.z;
-        var pSpeed = Math.sqrt(pvx * pvx + pvz * pvz);
-        var isGrounded = body.__canJump !== false;
-        var isRising = body.velocity.y > 2;
-
-        if (self._isAttacking) {
-          self._attackTimer -= delta;
-          if (self._attackTimer <= 0) self._isAttacking = false;
-          else return;
-        }
-
-        self._animStateTimer += delta;
-        var newState = self._animState;
-        if (!isGrounded && isRising) {
-          newState = "jump";
-        } else if (self._animState === "run" ? pSpeed > RUN_SPEED * 0.6 : pSpeed > RUN_SPEED) {
-          newState = "run";
-        } else if (self._animState === "walk" ? pSpeed > WALK_SPEED * 0.3 : pSpeed > WALK_SPEED) {
-          newState = "walk";
-        } else {
-          newState = "idle";
-        }
-
-        if (newState !== self._animState && (self._animStateTimer >= MIN_STATE_HOLD || newState === "jump")) {
-          self._animState = newState;
-          self._animStateTimer = 0;
-          if (newState === "jump") {
-            result.play("jump", { loop: false, crossfade: 0.15 });
-          } else if (newState === "run") {
-            result.play("run", { crossfade: 0.2 });
-          } else if (newState === "walk") {
-            result.play("walk", { crossfade: 0.2 });
-          } else {
-            result.play("idle", { crossfade: 0.3 });
-          }
-        }
-      }
-    },
-    __charSystem: true
-  };
-  self._controllerObj = controllerObj;
-
-  if (window._activeControllers3D && Array.isArray(window._activeControllers3D)) {
-    window._activeControllers3D.push(controllerObj);
-  }
-};
-
-CharacterManager.prototype._stopUpdateLoop = function() {
-  if (this._controllerObj && window._activeControllers3D) {
-    var idx = window._activeControllers3D.indexOf(this._controllerObj);
-    if (idx !== -1) window._activeControllers3D.splice(idx, 1);
-  }
-  this._controllerObj = null;
-  this._controllerRegistered = false;
-  this._cachedCamera = null;
-};
-
-// Swap to a new character by ID
-CharacterManager.prototype.swap = function(characterId, options) {
-  if (this._swapping) {
-    console.warn("[CharacterSystem] Swap already in progress, ignoring");
-    return Promise.resolve(false);
-  }
-  var charDef = this._registry.get(characterId);
-  if (!charDef) {
-    console.error("[CharacterSystem] Character not found:", characterId);
-    return Promise.resolve(false);
-  }
-
-  this._swapping = true;
-  // Signal EARLY that character-system is taking over camera + position sync
-  // This prevents game template from fighting with us during async load
-  window.__vibexe_charSystem_active__ = true;
-  var self = this;
-  var opts = options || {};
-  var scene = this._scene;
-  var spawnPos = opts.position || { x: 0, y: 5, z: 0 };
-
-  console.log("[CharacterSystem] Swapping to:", charDef.name, "(" + characterId + ")");
-
-  // 1. Capture old position from physics body or current mesh
-  var existingBody = null;
-  if (this._physicsBody) {
-    spawnPos = {
-      x: this._physicsBody.position.x,
-      y: this._physicsBody.position.y,
-      z: this._physicsBody.position.z
-    };
-    existingBody = this._physicsBody;
-    console.log("[CharacterSystem] Reusing own physics body");
-  } else if (window.__vibexe_playerMesh__) {
-    var oldMesh = window.__vibexe_playerMesh__;
-    spawnPos = {
-      x: oldMesh.position.x,
-      y: oldMesh.position.y,
-      z: oldMesh.position.z
-    };
-    console.log("[CharacterSystem] Found legacy mesh:", oldMesh.name, "hasPhysicsBody:", !!(oldMesh.userData && oldMesh.userData.__physicsBody));
-    if (oldMesh.userData && oldMesh.userData.__physicsBody) {
-      existingBody = oldMesh.userData.__physicsBody;
-    }
-  } else {
-    console.log("[CharacterSystem] No existing mesh or body found");
-  }
-
-  // 2. Dispose old character (our own, if any)
-  this._disposeActive();
-
-  // 2b. Remove stale controllers from _activeControllers3D (e.g. old lilyController)
-  if (window._activeControllers3D && Array.isArray(window._activeControllers3D)) {
-    for (var ci = window._activeControllers3D.length - 1; ci >= 0; ci--) {
-      if (!window._activeControllers3D[ci].__charSystem) {
-        window._activeControllers3D.splice(ci, 1);
-      }
-    }
-  }
-
-  // 3. Also remove the legacy player mesh (Lily) if it exists and isn't ours
-  var legacyMesh = window.__vibexe_playerMesh__;
-  if (legacyMesh && legacyMesh !== this._activeMesh) {
-    console.log("[CharacterSystem] Removing legacy player mesh:", legacyMesh.name || "unnamed");
-    // Remove legacy mixer from _activeMixers3D
-    if (legacyMesh.userData && legacyMesh.userData.__mixer && window._activeMixers3D) {
-      var mi = window._activeMixers3D.indexOf(legacyMesh.userData.__mixer);
-      if (mi !== -1) window._activeMixers3D.splice(mi, 1);
-    }
-    // Remove legacy physics body from CANNON world — but NOT if we captured it for reuse
-    if (legacyMesh.userData && legacyMesh.userData.__physicsBody && window.__vibexe_world__) {
-      var legacyBody = legacyMesh.userData.__physicsBody;
-      if (legacyBody !== existingBody) {
-        try { window.__vibexe_world__.removeBody(legacyBody); } catch(e) {}
-      } else {
-        console.log("[CharacterSystem] Keeping legacy body for reuse");
-      }
-    }
-    scene.remove(legacyMesh);
-    legacyMesh.traverse(function(child) {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach(function(m) { m.dispose(); });
-        } else {
-          child.material.dispose();
-        }
-      }
-    });
-    window.__vibexe_playerMesh__ = null;
-  }
-
-  // 3b. Sweep ALL stale Character_ meshes from scene (persistence may have re-added them)
-  var toRemove = [];
-  for (var si = 0; si < scene.children.length; si++) {
-    var sc = scene.children[si];
-    if (sc.name && sc.name.indexOf("Character_") === 0 && sc !== self._activeMesh) {
-      toRemove.push(sc);
-    }
-  }
-  for (var ri = 0; ri < toRemove.length; ri++) {
-    console.log("[CharacterSystem] Removing stale character:", toRemove[ri].name);
-    scene.remove(toRemove[ri]);
-    toRemove[ri].traverse(function(child) {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach(function(m) { m.dispose(); });
-        } else if (child.material.dispose) {
-          child.material.dispose();
-        }
-      }
-    });
-  }
-
-  // 4. Build model URL (use parent origin, not iframe's codesandbox origin)
   var baseUrl = _getVibexeOrigin();
+  if (!baseUrl) { console.warn("[CharacterSystem] No origin available"); return Promise.resolve(false); }
+
   var modelUrl = baseUrl + "/api/app-builder/media-stock-3d/" + charDef.pack + "/" + charDef.model;
 
-  // 5. Load new character
+  // Capture old position from current player mesh
+  var oldMesh = window.__vibexe_playerMesh__;
+  var spawnPos = { x: 0, y: 3, z: 0 };
+  if (oldMesh) {
+    spawnPos = { x: oldMesh.position.x, y: oldMesh.position.y, z: oldMesh.position.z };
+  }
+
+  console.log("[CharacterSystem] Loading", charDef.name, "from", modelUrl);
+
   return loadCharacterGLB(scene, modelUrl, spawnPos, charDef.name, charDef.model)
-    .then(function(charResult) {
-      if (!charResult) {
-        self._swapping = false;
-        return false;
+    .then(function(result) {
+      if (!result) return false;
+
+      // Remove old mesh from scene and dispose
+      if (oldMesh) {
+        // Remove old mixer from _activeMixers3D
+        if (oldMesh.userData && oldMesh.userData.__mixer && window._activeMixers3D) {
+          var mi = window._activeMixers3D.indexOf(oldMesh.userData.__mixer);
+          if (mi !== -1) window._activeMixers3D.splice(mi, 1);
+        }
+        scene.remove(oldMesh);
+        oldMesh.traverse(function(child) {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach(function(m) { if (m.map) m.map.dispose(); m.dispose(); });
+            } else {
+              if (child.material.map) child.material.map.dispose();
+              child.material.dispose();
+            }
+          }
+        });
       }
 
-      self._activeResult = charResult;
-      self._activeMesh = charResult.mesh;
-      self._activeId = characterId;
+      // Also sweep any stale Character_ meshes from scene
+      var toRemove = [];
+      for (var i = 0; i < scene.children.length; i++) {
+        var sc = scene.children[i];
+        if (sc.name && sc.name.indexOf("Character_") === 0 && sc !== result.mesh) {
+          toRemove.push(sc);
+        }
+      }
+      toRemove.forEach(function(m) {
+        console.log("[CharacterSystem] Removing stale character:", m.name);
+        scene.remove(m);
+        m.traverse(function(c) { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
+      });
+
+      // Add new mesh to scene
+      scene.add(result.mesh);
+
+      // Register mixer in framework
+      if (result.mixer && window._activeMixers3D) {
+        window._activeMixers3D.push(result.mixer);
+      }
 
       // Merge explicit animation overrides from character definition into autoAnimMap
-      if (charDef.animations && charResult.mesh.userData.__animMap) {
-        var animMap = charResult.mesh.userData.__animMap;
+      if (charDef.animations && result.mesh.userData.__animMap) {
+        var animMap = result.mesh.userData.__animMap;
         for (var ak in charDef.animations) {
           if (charDef.animations.hasOwnProperty(ak)) {
             animMap[ak] = charDef.animations[ak];
           }
         }
-        charResult.mesh.userData.__animMap = animMap;
+        result.mesh.userData.__animMap = animMap;
       }
 
-      // Register player mesh globally
-      window.__vibexe_playerMesh__ = charResult.mesh;
+      // Set global reference — game template will detect this change on next frame
+      window.__vibexe_playerMesh__ = result.mesh;
 
-      // 6. Reuse existing physics body or create new one
-      if (existingBody) {
-        self._physicsBody = existingBody;
-        charResult.mesh.userData.__physicsBody = existingBody;
-        // Reshape body to match new character dimensions
-        var CANNON_R = window.CANNON;
-        if (CANNON_R && existingBody.shapes && existingBody.shapes.length > 0) {
-          existingBody.removeShape(existingBody.shapes[0]);
-          var newHalfX = Math.max(charResult.size.x, 0.2);
-          var newHalfY = Math.max(charResult.size.y, 0.3);
-          var newHalfZ = Math.max(charResult.size.z, 0.2);
-          var newShape = new CANNON_R.Box(new CANNON_R.Vec3(newHalfX, newHalfY, newHalfZ));
-          existingBody.addShape(newShape);
-          console.log("[CharacterSystem] Reshaped physics body:", newHalfX.toFixed(2), newHalfY.toFixed(2), newHalfZ.toFixed(2));
-        }
-        console.log("[CharacterSystem] Reusing existing physics body");
-      } else {
-        var CANNON = window.CANNON;
-        var world = window.__vibexe_world__;
-        if (CANNON && world) {
-          var halfX = Math.max(charResult.size.x, 0.2);
-          var halfY = Math.max(charResult.size.y, 0.3);
-          var halfZ = Math.max(charResult.size.z, 0.2);
-          var shape = new CANNON.Box(new CANNON.Vec3(halfX, halfY, halfZ));
-          var body = new CANNON.Body({ mass: 5, shape: shape });
-          body.position.set(spawnPos.x, spawnPos.y + halfY, spawnPos.z);
-          body.linearDamping = 0.9;
-          body.angularDamping = 1.0;
-          body.fixedRotation = true;
-          world.addBody(body);
-          self._physicsBody = body;
-          charResult.mesh.userData.__physicsBody = body;
-          console.log("[CharacterSystem] Created new physics body");
-        }
-      }
-
-      // 7. Enable camera override (our loop takes over camera follow + mesh sync)
-      self._cameraOverride = true;
-      // Signal to game template that character-system owns camera + position sync
-      window.__vibexe_charSystem_active__ = true;
-
-      // 8. Start unified update loop
-      self._startUpdateLoop();
-
-      // 9. Reset animation state
-      self._animState = "idle";
-      self._animStateTimer = 0;
-
-      // 10. Store config for persistence
+      // Save character config
       var gs = window.__VIBEXE_GAME_SETTINGS__ || {};
-      gs.character = {
-        id: characterId,
-        pack: charDef.pack,
-        model: charDef.model,
-        groundOffset: charDef.groundOffset || 0
-      };
+      gs.character = { id: characterId, pack: charDef.pack, model: charDef.model };
       window.__VIBEXE_GAME_SETTINGS__ = gs;
-
-      // Post-swap cleanup: remove any stale Character_ meshes added by persistence
-      var postClean = [];
-      for (var pci = 0; pci < scene.children.length; pci++) {
-        var pcc = scene.children[pci];
-        if (pcc.name && pcc.name.indexOf("Character_") === 0 && pcc !== charResult.mesh) {
-          postClean.push(pcc);
-        }
-      }
-      for (var pcj = 0; pcj < postClean.length; pcj++) {
-        console.log("[CharacterSystem] Post-swap cleanup:", postClean[pcj].name);
-        scene.remove(postClean[pcj]);
-      }
-
-      console.log("[CharacterSystem] Swap complete:", charDef.name,
-        "| animations:", charResult.clips ? charResult.clips.length : 0,
-        "| pivot-corrected, bone-measured");
-
-      self._swapping = false;
 
       // Notify parent frame
       if (window.parent && window.parent !== window) {
-        window.parent.postMessage({
-          type: "vibexe-character-swapped",
-          characterId: characterId,
-          characterName: charDef.name
-        }, "*");
-        // Request scene tree refresh so new character appears in hierarchy
-        window.parent.postMessage({
-          type: "game-editor-scene-changed"
-        }, "*");
+        window.parent.postMessage({ type: "vibexe-character-swapped", characterId: characterId, characterName: charDef.name }, "*");
+        window.parent.postMessage({ type: "game-editor-scene-changed" }, "*");
       }
 
+      console.log("[CharacterSystem] Swapped to", charDef.name, "| animations:", result.clips ? result.clips.length : 0);
       return true;
     })
     .catch(function(err) {
-      console.error("[CharacterSystem] Failed to load character:", err);
-      self._swapping = false;
+      console.error("[CharacterSystem] Swap failed:", err);
       return false;
     });
-};
+}
 
-CharacterManager.prototype._disposeActive = function() {
-  // Stop update loop
-  this._stopUpdateLoop();
-
-  // Stop animations
-  if (this._activeResult && this._activeResult.stop) {
-    try { this._activeResult.stop(); } catch(e) {}
-  }
-
-  // Remove mixer from framework array
-  if (this._activeResult && this._activeResult.mixer && window._activeMixers3D) {
-    var idx = window._activeMixers3D.indexOf(this._activeResult.mixer);
-    if (idx !== -1) window._activeMixers3D.splice(idx, 1);
-  }
-
-  // Remove mesh from scene
-  if (this._activeMesh && this._scene) {
-    this._scene.remove(this._activeMesh);
-    this._activeMesh.traverse(function(child) {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach(function(m) { m.dispose(); });
-        } else {
-          child.material.dispose();
-        }
-      }
-    });
-  }
-
-  // Clean up animation mixer
-  if (this._activeResult && this._activeResult.mixer) {
-    try { this._activeResult.mixer.stopAllAction(); } catch(e) {}
-  }
-
-  // Clear globals
-  if (window.__vibexe_playerMesh__ === this._activeMesh) {
-    window.__vibexe_playerMesh__ = null;
-  }
-
-  this._activeMesh = null;
-  this._activeResult = null;
-  this._activeId = null;
-  this._cameraOverride = false;
-  // Release camera+position ownership back to game template
-  window.__vibexe_charSystem_active__ = false;
-};
-
-// ===== MODULE INITIALIZATION =====
-
-// Listen for character swap messages from parent frame
+// ===== MESSAGE HANDLERS =====
 if (typeof window !== "undefined") {
   window.addEventListener("message", function(ev) {
     if (!ev.data) return;
@@ -983,23 +620,55 @@ if (typeof window !== "undefined") {
       _vibexeOrigin = ev.origin;
     }
 
-    if (ev.data.type === "character-system-swap") {
+    var type = ev.data.type;
+
+    if (type === "character-system-swap") {
       if (ev.data.origin) _vibexeOrigin = ev.data.origin;
-      var mgr = window.__vibexe_modules__ && window.__vibexe_modules__["character-system"];
-      if (mgr && mgr.manager) {
-        mgr.manager.swap(ev.data.characterId, ev.data.options || {});
+      swapCharacter(window.__vibexe_scene__, ev.data.characterId);
+    }
+
+    if (type === "character-system-get-registry") {
+      if (window.parent && window.parent !== window && _registry) {
+        window.parent.postMessage({ type: "vibexe-character-registry", characters: _registry.getAll() }, "*");
       }
     }
 
-    if (ev.data.type === "character-system-get-registry") {
-      var mgr2 = window.__vibexe_modules__ && window.__vibexe_modules__["character-system"];
-      if (mgr2 && mgr2.manager) {
-        var chars = mgr2.manager.getRegistry().getAll();
-        if (window.parent && window.parent !== window) {
-          window.parent.postMessage({
-            type: "vibexe-character-registry",
-            characters: chars
-          }, "*");
+    if (type === "character-system-play-animation") {
+      var mesh = window.__vibexe_playerMesh__;
+      if (mesh && mesh.userData && mesh.userData.__play) {
+        mesh.userData.__play(ev.data.clipName, { crossfade: 0.2 });
+      }
+    }
+
+    if (type === "character-system-stop-animation") {
+      var mesh = window.__vibexe_playerMesh__;
+      if (mesh && mesh.userData && mesh.userData.__play) {
+        mesh.userData.__play("idle", { crossfade: 0.3 });
+      }
+    }
+
+    if (type === "character-system-set-scale") {
+      var mesh = window.__vibexe_playerMesh__;
+      if (mesh) {
+        var s = Math.max(0.1, Math.min(5.0, ev.data.scale || 1));
+        mesh.scale.set(s, s, s);
+        // Update bounds for physics
+        if (mesh.userData.__characterBounds) {
+          mesh.userData.__characterBounds.halfX *= s;
+          mesh.userData.__characterBounds.halfZ *= s;
+          mesh.userData.__characterBounds.height *= s;
+        }
+      }
+    }
+
+    if (type === "character-system-set-ground-offset") {
+      var mesh = window.__vibexe_playerMesh__;
+      if (mesh) {
+        var offset = ev.data.groundOffset || 0;
+        mesh.userData.__groundOffset = offset;
+        // Also adjust the pivot group Y for immediate visual feedback
+        if (mesh.children.length > 0 && mesh.children[0]) {
+          mesh.children[0].position.y = offset;
         }
       }
     }
@@ -1010,87 +679,80 @@ if (typeof window !== "undefined") {
 (function() {
   if (typeof window === "undefined") return;
 
-  var _initAttempts = 0;
-  var _initInterval = setInterval(function() {
-    _initAttempts++;
-    if (_initAttempts > 150) { clearInterval(_initInterval); return; }
+  var _attempts = 0;
+  var _interval = setInterval(function() {
+    _attempts++;
+    if (_attempts > 150) { clearInterval(_interval); return; }
 
     var scene = window.__vibexe_scene__;
-    if (_initAttempts <= 3 || _initAttempts % 25 === 0) {
-      console.log('[CharacterSystem] Poll #' + _initAttempts + ' scene:', !!scene);
+    if (_attempts <= 3 || _attempts % 25 === 0) {
+      console.log('[CharacterSystem] Poll #' + _attempts + ' scene:', !!scene);
     }
     if (!scene) return;
+    clearInterval(_interval);
 
-    clearInterval(_initInterval);
-
-    var manager = new CharacterManager(scene);
+    // Create and register module
+    _registry = new CharacterRegistry();
+    BUILTIN_CHARACTERS.forEach(function(c) { _registry.register(c); });
 
     if (!window.__vibexe_modules__) window.__vibexe_modules__ = {};
     window.__vibexe_modules__["character-system"] = {
-      CharacterRegistry: CharacterRegistry,
-      CharacterManager: CharacterManager,
-      manager: manager
+      registry: _registry,
+      swap: function(id) { return swapCharacter(scene, id); }
     };
 
+    console.log("[CharacterSystem] Module ready, registry:", _registry.getAll().length, "characters");
+
+    // Auto-swap if character config saved
     var gs = window.__VIBEXE_GAME_SETTINGS__ || {};
     var charConfig = gs.character;
-
-    console.log("[CharacterSystem] Auto-init. charConfig:", charConfig ? charConfig.id : "none");
-
     if (charConfig && charConfig.id) {
-      // Wait for BOTH parent origin AND existing player mesh before swapping.
-      // This ensures the swap reuses the existing physics body (no split-brain).
-      var _originWaitCount = 0;
-      var _originWait = setInterval(function() {
-        _originWaitCount++;
-        var hasOrigin = !!_vibexeOrigin || _originWaitCount > 30;
-        var playerMesh = window.__vibexe_playerMesh__;
-        var hasPlayer = !!playerMesh;
-        var hasBody = hasPlayer && playerMesh.userData && !!playerMesh.userData.__physicsBody;
-        if (_originWaitCount % 10 === 0) {
-          console.log("[CharacterSystem] Auto-init poll #" + _originWaitCount + " origin:" + hasOrigin + " player:" + hasPlayer + " body:" + hasBody);
-        }
-        if (hasOrigin && hasPlayer && hasBody) {
-          clearInterval(_originWait);
-          if (!_vibexeOrigin) {
-            console.warn("[CharacterSystem] Origin not received from parent, swap may fail");
-          }
-          console.log("[CharacterSystem] Auto-init: origin + player ready, swapping to", charConfig.id);
-          manager.swap(charConfig.id);
-        } else if (_originWaitCount > 150) {
-          // 15s hard timeout — swap anyway (better than never loading)
-          clearInterval(_originWait);
-          console.warn("[CharacterSystem] Auto-init timeout. origin:" + hasOrigin + " player:" + hasPlayer + " body:" + hasBody + " — swapping anyway");
-          manager.swap(charConfig.id);
+      console.log("[CharacterSystem] Auto-init: will swap to", charConfig.id);
+      // Wait for Lily mesh + physics body to exist (game template creates these)
+      var _waitCount = 0;
+      var _wait = setInterval(function() {
+        _waitCount++;
+        var pm = window.__vibexe_playerMesh__;
+        if (pm && pm.userData && pm.userData.__physicsBody) {
+          clearInterval(_wait);
+          // Small delay to let game template fully initialize
+          setTimeout(function() { swapCharacter(scene, charConfig.id); }, 500);
+        } else if (_waitCount > 150) {
+          clearInterval(_wait);
+          console.warn("[CharacterSystem] Auto-init timeout, swapping anyway");
+          swapCharacter(scene, charConfig.id);
         }
       }, 100);
     } else {
       console.log("[CharacterSystem] No character config — standing by for user selection");
     }
-
   }, 200);
 })();
 
 // CommonJS export
 module.exports = {
   CharacterRegistry: CharacterRegistry,
-  CharacterManager: CharacterManager
+  swapCharacter: swapCharacter,
+  loadCharacterGLB: loadCharacterGLB
 };
 `;
 
 export const CHARACTER_SYSTEM_MANIFEST: ModuleManifest = {
 	id: "character-system",
 	name: "Character System",
-	version: "3.0.0",
+	version: "4.0.0",
 	category: "tools",
-	description:
-		"Player character selection, swapping, and animation management",
+	description: "Player character selection and model swapping",
 	icon: "PersonStanding",
 	assets: [],
 	runtimeCode,
 	bridgeHandlers: {
 		"character-system-swap": "handleSwap",
 		"character-system-get-registry": "handleGetRegistry",
+		"character-system-play-animation": "handlePlayAnimation",
+		"character-system-stop-animation": "handleStopAnimation",
+		"character-system-set-scale": "handleSetScale",
+		"character-system-set-ground-offset": "handleSetGroundOffset",
 	},
 	defaultSettings: {
 		characterId: "warrior",

@@ -1,10 +1,19 @@
 "use client";
 
 /**
- * CharacterSystemPanel — UI for the Character System module
+ * CharacterSystemPanel — UI for the Character System module (Pure Model Swapper)
  *
- * Controls: Character selection, ground offset, animation preview.
- * Communicates with the sandpack iframe via postMessage bridge.
+ * The character-system module is a pure model swapper: it loads GLB models,
+ * handles animations, and sets scale/offset. Physics, camera, and keyboard
+ * input are handled by the game template automatically.
+ *
+ * Message types sent to iframe:
+ *   character-system-swap           — swap active character model
+ *   character-system-get-registry   — request available characters list
+ *   character-system-play-animation — preview a specific animation clip
+ *   character-system-stop-animation — stop animation preview
+ *   character-system-set-scale      — live-preview scale change
+ *   character-system-set-ground-offset — live-preview ground offset change
  */
 
 import {
@@ -70,26 +79,26 @@ export function CharacterSystemPanel({ sendToIframe, onClose, settings, onChange
 	const dirtyRef = useRef(false);
 	const latestConfigRef = useRef(config);
 
-	// Listen for character-swapped and animation info messages from iframe
+	// Listen for messages from the character-system module in the iframe
 	useEffect(() => {
 		function handleMessage(ev: MessageEvent) {
 			if (!ev.data) return;
+
 			if (ev.data.type === "vibexe-character-swapped") {
-				// Character was swapped in the iframe, request animation info
+				// Character was swapped in the iframe -- request updated registry
 				sendToIframe({ type: "character-system-get-registry" });
 			}
-			if (ev.data.type === "vibexe-character-registry") {
-				// Update character list from iframe registry (future expansion)
+
+			if (ev.data.type === "vibexe-character-registry" && ev.data.characters) {
+				console.log("[CharPanel] Registry:", ev.data.characters);
 			}
 		}
 		window.addEventListener("message", handleMessage);
 		return () => window.removeEventListener("message", handleMessage);
 	}, [sendToIframe]);
 
-	// Request animation clips for the active character on mount
+	// Populate animation clips when the selected character changes
 	useEffect(() => {
-		// The character module stores clip names on the mesh userData
-		// We read them from gameSettings or request from iframe
 		const charDef = CHARACTERS.find((c) => c.id === config.id);
 		if (charDef?.animations) {
 			setAnimClips(Object.values(charDef.animations));
@@ -123,18 +132,17 @@ export function CharacterSystemPanel({ sendToIframe, onClose, settings, onChange
 			origin: window.location.origin,
 		});
 
-		// Update animation clips
+		// Update animation clips from character definition
 		if (charDef.animations) {
 			setAnimClips(Object.values(charDef.animations));
 		}
+		setCurrentClip(null);
 
 		onChange(newConfig);
 	}, [config.groundOffset, config.scale, sendToIframe, onChange]);
 
 	const handlePlayAnimation = useCallback((clipName: string) => {
 		setCurrentClip(clipName);
-		// The character system module handles animation via the mesh userData
-		// We send a generic play command
 		sendToIframe({
 			type: "character-system-play-animation",
 			clipName,
@@ -207,30 +215,31 @@ export function CharacterSystemPanel({ sendToIframe, onClose, settings, onChange
 							<span className="text-[10px] text-white/50 uppercase tracking-wider">Active: {activeChar.name}</span>
 						</div>
 
-						{/* Ground Offset */}
+						{/* Ground Offset: range -2.0 to 2.0, step 0.1 */}
 						<div className="mb-3">
 							<label className="text-[10px] text-white/40 mb-1 block">Ground Offset</label>
 							<DragNumberInput
 								label="Y"
 								value={config.groundOffset ?? 0}
-								step={0.05}
-								precision={2}
+								step={0.1}
+								precision={1}
 								color="#8b5cf6"
 								onChange={(v) => {
-									updateConfig({ groundOffset: v });
-									sendToIframe({ type: "character-system-set-ground-offset", groundOffset: v });
+									const clamped = Math.max(-2.0, Math.min(2.0, v));
+									updateConfig({ groundOffset: clamped });
+									sendToIframe({ type: "character-system-set-ground-offset", groundOffset: clamped });
 								}}
 							/>
 						</div>
 
-						{/* Scale */}
+						{/* Scale: range 0.1 to 5.0, step 0.1 */}
 						<div className="mb-3">
 							<label className="text-[10px] text-white/40 mb-1 block">Scale</label>
 							<DragNumberInput
 								label="S"
 								value={config.scale ?? 1.0}
-								step={0.05}
-								precision={2}
+								step={0.1}
+								precision={1}
 								color="#8b5cf6"
 								onChange={(v) => {
 									const clamped = Math.max(0.1, Math.min(5.0, v));
@@ -290,7 +299,7 @@ export function CharacterSystemPanel({ sendToIframe, onClose, settings, onChange
 				)}
 			</div>
 
-			{/* Footer — Save & Reset */}
+			{/* Footer -- Save & Reset */}
 			<div className="p-3 border-t border-white/[0.08] space-y-1.5">
 				<button
 					type="button"
