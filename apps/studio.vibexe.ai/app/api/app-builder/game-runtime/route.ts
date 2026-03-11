@@ -34,100 +34,57 @@ canvas{display:block;width:100%;height:100%}
 <!-- Runtime bootstrap globals (injected dynamically) -->
 <script id="vibexe-bootstrap"></script>
 
-<!-- Three.js r172 CJS core — needs module/exports shim, then assigns window.THREE -->
-<script>var module={exports:{}};var exports=module.exports;</script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.cjs"></script>
-<script>window.THREE=module.exports;module={exports:{}};exports=module.exports;</script>
-
-<!-- Three.js addons — loads and attaches to window.THREE -->
-<script>
-(function(){
-  var T = window.THREE;
-  if (!T) { console.error('[Runtime] THREE not loaded'); return; }
-
-  // Addon URLs from jsdelivr ESM
-  var CDN = 'https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/';
-  var addons = [
-    { url: CDN + 'loaders/GLTFLoader.js', names: ['GLTFLoader'] },
-    { url: CDN + 'controls/OrbitControls.js', names: ['OrbitControls'] },
-    { url: CDN + 'controls/TransformControls.js', names: ['TransformControls'] },
-    { url: CDN + 'postprocessing/EffectComposer.js', names: ['EffectComposer','Pass','FullScreenQuad'] },
-    { url: CDN + 'postprocessing/RenderPass.js', names: ['RenderPass'] },
-    { url: CDN + 'postprocessing/UnrealBloomPass.js', names: ['UnrealBloomPass'] },
-    { url: CDN + 'postprocessing/ShaderPass.js', names: ['ShaderPass'] },
-    { url: CDN + 'shaders/CopyShader.js', names: ['CopyShader'] },
-    { url: CDN + 'shaders/LuminosityHighPassShader.js', names: ['LuminosityHighPassShader'] },
-  ];
-
-  // Load each addon via sync XHR + transform (same pattern as sandpack-adapter, but cleaner)
-  function loadAddon(url, names) {
-    try {
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', url, false);
-      xhr.send();
-      if (xhr.status !== 200) return;
-      var src = xhr.responseText;
-
-      // Transform ESM → plain JS
-      // Replace: import { X, Y } from 'three' → var {X, Y} = THREE;
-      src = src.replace(/import\\s*\\{([^}]+)\\}\\s*from\\s*['"]three['"]/g,
-        function(_, imports) { return 'var {' + imports + '} = THREE'; });
-      // Replace: import * as X from 'three' → var X = THREE;
-      src = src.replace(/import\\s*\\*\\s*as\\s+(\\w+)\\s+from\\s*['"]three['"]/g,
-        function(_, name) { return 'var ' + name + ' = THREE'; });
-      // Replace: import { X } from './OtherAddon.js' → var {X} = THREE;
-      src = src.replace(/import\\s*\\{([^}]+)\\}\\s*from\\s*['"]\\.\\//g,
-        function(_, imports) { return 'var {' + imports + '} = THREE'; });
-      // Replace: export { X, Y } → (remove)
-      src = src.replace(/export\\s*\\{[^}]*\\}\\s*;?/g, '');
-      // Replace: export class X → var X = class X
-      src = src.replace(/export\\s+class\\s+(\\w+)/g, 'var $1 = class $1');
-      // Replace: export const X → var X
-      src = src.replace(/export\\s+const\\s+/g, 'var ');
-      // Replace: export let/var X → var X
-      src = src.replace(/export\\s+(?:let|var)\\s+/g, 'var ');
-      // Replace: export function X → function X
-      src = src.replace(/export\\s+function\\s+/g, 'function ');
-
-      // Build return for named exports
-      var ret = 'return {' + names.map(function(n) {
-        return n + ':typeof ' + n + '!=="undefined"?' + n + ':undefined';
-      }).join(',') + '};';
-
-      var fn = new Function('THREE', src + '\\n' + ret);
-      var result = fn(T);
-      for (var k in result) {
-        if (result[k] !== undefined) T[k] = result[k];
-      }
-    } catch(e) {
-      console.warn('[Runtime] Failed to load addon:', url, e.message);
-    }
+<!-- Import map for ESM modules -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/"
   }
-
-  for (var i = 0; i < addons.length; i++) {
-    loadAddon(addons[i].url, addons[i].names);
-  }
-
-  var loaded = ['GLTFLoader','OrbitControls','TransformControls','EffectComposer']
-    .filter(function(n) { return !!T[n]; }).length;
-  console.log('[Runtime] Three.js r' + T.REVISION + ' loaded with ' + loaded + '/4 core addons');
-})();
+}
 </script>
 
-<!-- CANNON.js — CJS bundle needs module/exports shim for browser -->
-<script>var module={exports:{}};var exports=module.exports;</script>
-<script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.cjs.js"></script>
-<script>window.CANNON=module.exports;delete window.module;delete window.exports;</script>
+<!-- Three.js r172 + addons + CANNON.js — loaded as ES modules, assigned to window globals -->
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { EffectComposer, Pass, FullScreenQuad } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { CopyShader } from 'three/addons/shaders/CopyShader.js';
+import { LuminosityHighPassShader } from 'three/addons/shaders/LuminosityHighPassShader.js';
+import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js';
 
-<!-- Visual Edit Bridge (scene editor) -->
-<script src="/api/app-builder/bridge?v=${bridgeVersion}"></script>
+// Assign to window globals (game code uses window.THREE and window.CANNON)
+Object.assign(THREE, { GLTFLoader, OrbitControls, TransformControls, EffectComposer, Pass, FullScreenQuad, RenderPass, UnrealBloomPass, ShaderPass, CopyShader, LuminosityHighPassShader });
+window.THREE = THREE;
+window.CANNON = CANNON;
 
-<!-- Message handler — receives bootstrap + bundle from parent -->
+var loaded = ['GLTFLoader','OrbitControls','TransformControls','EffectComposer']
+  .filter(function(n) { return !!THREE[n]; }).length;
+console.log('[Runtime] Three.js r' + THREE.REVISION + ' loaded with ' + loaded + '/4 core addons');
+console.log('[Runtime] CANNON.js loaded');
+
+// Signal that libraries are ready (bridge and game code wait for this)
+window.__vibexe_libs_ready__ = true;
+window.dispatchEvent(new Event('vibexe-libs-ready'));
+</script>
+
+<!-- Visual Edit Bridge + Message handler — loaded after libs are ready -->
 <script>
 (function(){
-  var bundleLoaded = false;
+  function initRuntime() {
+    // Load bridge script dynamically
+    var bridgeScript = document.createElement('script');
+    bridgeScript.src = '/api/app-builder/bridge?v=${bridgeVersion}';
+    document.body.appendChild(bridgeScript);
 
-  window.addEventListener('message', function(ev) {
+    var bundleLoaded = false;
+
+    window.addEventListener('message', function(ev) {
     if (!ev.data || !ev.data.type) return;
 
     // Inject bootstrap globals
@@ -206,8 +163,16 @@ canvas{display:block;width:100%;height:100%}
     }
   });
 
-  // Notify parent that runtime page is ready
-  window.parent.postMessage({ type: 'vibexe-runtime-ready' }, '*');
+    // Notify parent that runtime page is ready
+    window.parent.postMessage({ type: 'vibexe-runtime-ready' }, '*');
+  }
+
+  // Wait for ES module libs to load before initializing
+  if (window.__vibexe_libs_ready__) {
+    initRuntime();
+  } else {
+    window.addEventListener('vibexe-libs-ready', initRuntime, { once: true });
+  }
 })();
 </script>
 </body>
