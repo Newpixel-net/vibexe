@@ -1056,7 +1056,7 @@ export function getVisualEditBridgeScript(): string {
         pos.needsUpdate = true;
         this.geometry.computeBoundingSphere();
       };
-      boxHelper.update();
+      try { boxHelper.update(); } catch(e) {}
     }
     editor.scene.add(boxHelper);
     // Skip TransformControls for locked objects (still allow selection for inspect/unlock)
@@ -1076,6 +1076,7 @@ export function getVisualEditBridgeScript(): string {
         transformControls.setSize(0.6);
         transformControls.addEventListener("dragging-changed", function(e) {
           if (editor.orbitControls) editor.orbitControls.enabled = !e.value;
+          if (!selectedObj || !selectedObj.parent) return;
           if (e.value && selectedObj) {
             transformControls.__undoPos = { x: selectedObj.position.x, y: selectedObj.position.y, z: selectedObj.position.z };
             transformControls.__undoRot = { x: selectedObj.rotation.x, y: selectedObj.rotation.y, z: selectedObj.rotation.z };
@@ -1097,7 +1098,7 @@ export function getVisualEditBridgeScript(): string {
                 selectedObj.rotation.z = snapRotation(selectedObj.rotation.z);
               }
               sendSelectedObject(selectedObj);
-              if (boxHelper) boxHelper.update();
+              if (boxHelper && boxHelper.object && boxHelper.object.parent) { try { boxHelper.update(); } catch(e) {} }
             }
             persistTransform(selectedObj);
           }
@@ -1125,9 +1126,10 @@ export function getVisualEditBridgeScript(): string {
             }, "*");
             return;
           }
+          if (!selectedObj || !selectedObj.parent) return;
           if (selectedObj) {
             sendSelectedObject(selectedObj);
-            if (boxHelper) boxHelper.update();
+            if (boxHelper && boxHelper.object && boxHelper.object.parent) { try { boxHelper.update(); } catch(e) {} }
             // Live-sync player position to Game Settings panel
             sendPlayerPositionUpdate(selectedObj);
           }
@@ -1219,7 +1221,7 @@ export function getVisualEditBridgeScript(): string {
         obj.position.set(entry.oldPos.x, entry.oldPos.y, entry.oldPos.z);
         obj.rotation.set(entry.oldRot.x, entry.oldRot.y, entry.oldRot.z);
         obj.scale.set(entry.oldScl.x, entry.oldScl.y, entry.oldScl.z);
-        if (selectedObj && selectedObj.uuid === entry.uuid) { sendSelectedObject(obj); if (boxHelper) boxHelper.update(); }
+        if (selectedObj && selectedObj.uuid === entry.uuid) { sendSelectedObject(obj); if (boxHelper && boxHelper.object && boxHelper.object.parent) { try { boxHelper.update(); } catch(e) {} } }
         persistTransform(obj);
         redoStack.push({ type: "transform", uuid: entry.uuid,
           oldPos: entry.newPos, oldRot: entry.newRot, oldScl: entry.newScl,
@@ -1262,7 +1264,7 @@ export function getVisualEditBridgeScript(): string {
         obj.position.set(entry.oldPos.x, entry.oldPos.y, entry.oldPos.z);
         obj.rotation.set(entry.oldRot.x, entry.oldRot.y, entry.oldRot.z);
         obj.scale.set(entry.oldScl.x, entry.oldScl.y, entry.oldScl.z);
-        if (selectedObj && selectedObj.uuid === entry.uuid) { sendSelectedObject(obj); if (boxHelper) boxHelper.update(); }
+        if (selectedObj && selectedObj.uuid === entry.uuid) { sendSelectedObject(obj); if (boxHelper && boxHelper.object && boxHelper.object.parent) { try { boxHelper.update(); } catch(e) {} } }
         persistTransform(obj);
         undoStack.push({ type: "transform", uuid: entry.uuid,
           oldPos: entry.newPos, oldRot: entry.newRot, oldScl: entry.newScl,
@@ -1578,7 +1580,7 @@ export function getVisualEditBridgeScript(): string {
       selectedObj.position.x = newX;
       selectedObj.position.z = newZ;
       sendSelectedObject(selectedObj);
-      if (boxHelper) boxHelper.update();
+      if (boxHelper && boxHelper.object && boxHelper.object.parent) { try { boxHelper.update(); } catch(e) {} }
       // Live-sync player position during XZ drag
       sendPlayerPositionUpdate(selectedObj);
     }
@@ -1675,6 +1677,8 @@ export function getVisualEditBridgeScript(): string {
     // Debounce: batch rapid changes (e.g. during drag) into one update
     if (persistTimer) clearTimeout(persistTimer);
     persistTimer = setTimeout(function() {
+      // Guard: object may have been deleted during debounce
+      if (!obj || !obj.parent || !obj.position) return;
       var msg = {
         type: "game-editor-persist-transform",
         name: obj.name,
@@ -1969,7 +1973,7 @@ export function getVisualEditBridgeScript(): string {
             selectedObj.rotation.set(transformControls.__undoRot.x, transformControls.__undoRot.y, transformControls.__undoRot.z);
             selectedObj.scale.set(transformControls.__undoScl.x, transformControls.__undoScl.y, transformControls.__undoScl.z);
             sendSelectedObject(selectedObj);
-            if (boxHelper) boxHelper.update();
+            if (boxHelper && boxHelper.object && boxHelper.object.parent) { try { boxHelper.update(); } catch(e) {} }
           }
         }
         else if (isDragging) { endXZDrag(); }
@@ -2017,10 +2021,10 @@ export function getVisualEditBridgeScript(): string {
     }
     if (editor.orbitControls && !flyMode) editor.orbitControls.update();
     if (transformControls && transformControls.update) transformControls.update();
-    if (boxHelper && selectedObj) boxHelper.update();
+    if (boxHelper && selectedObj && boxHelper.object && boxHelper.object.parent) { try { boxHelper.update(); } catch(e) {} }
     if (multiBoxHelpers && multiBoxHelpers.length > 0) {
       for (var mbi = 0; mbi < multiBoxHelpers.length; mbi++) {
-        if (multiBoxHelpers[mbi]) multiBoxHelpers[mbi].update();
+        if (multiBoxHelpers[mbi] && multiBoxHelpers[mbi].object && multiBoxHelpers[mbi].object.parent) { try { multiBoxHelpers[mbi].update(); } catch(e) {} }
       }
     }
     // Update preview camera position (follows player character) — skip when user-dragging
@@ -2649,7 +2653,7 @@ export function getVisualEditBridgeScript(): string {
       case "visible": obj.visible = !!value; break;
       case "name": obj.name = String(value); break;
     }
-    if (boxHelper && selectedObj && selectedObj.uuid === uuid) boxHelper.update();
+    if (boxHelper && selectedObj && selectedObj.uuid === uuid && boxHelper.object && boxHelper.object.parent) { try { boxHelper.update(); } catch(e) {} }
     sendSelectedObject(obj); sendSceneTreeThrottled();
     window.parent.postMessage({ type: "game-editor-scene-dirty" }, "*");
     // Persist transform/property changes to source code
@@ -2742,6 +2746,7 @@ export function getVisualEditBridgeScript(): string {
               transformControls.setSize(0.6);
               transformControls.addEventListener("dragging-changed", function(e) {
                 if (editor.orbitControls) editor.orbitControls.enabled = !e.value;
+                if (!cameraSelected && (!selectedObj || !selectedObj.parent)) return;
                 if (!cameraSelected && e.value && selectedObj) {
                   transformControls.__undoPos = { x: selectedObj.position.x, y: selectedObj.position.y, z: selectedObj.position.z };
                   transformControls.__undoRot = { x: selectedObj.rotation.x, y: selectedObj.rotation.y, z: selectedObj.rotation.z };
@@ -2778,9 +2783,10 @@ export function getVisualEditBridgeScript(): string {
                   }, "*");
                   return;
                 }
+                if (!selectedObj || !selectedObj.parent) return;
                 if (selectedObj) {
                   sendSelectedObject(selectedObj);
-                  if (boxHelper) boxHelper.update();
+                  if (boxHelper && boxHelper.object && boxHelper.object.parent) { try { boxHelper.update(); } catch(e) {} }
                   sendPlayerPositionUpdate(selectedObj);
                 }
               });
@@ -3030,7 +3036,7 @@ export function getVisualEditBridgeScript(): string {
                 if (body.angularVelocity) body.angularVelocity.set(0, 0, 0);
               }
               if (selectedObj && selectedObj.uuid === obj.uuid) {
-                if (boxHelper) boxHelper.update();
+                if (boxHelper && boxHelper.object && boxHelper.object.parent) { try { boxHelper.update(); } catch(e) {} }
                 // Don't sendSelectedObject here — parent already knows the position
                 // (it sent this message). Calling it would create a feedback loop.
               }
@@ -3264,7 +3270,7 @@ export function getVisualEditBridgeScript(): string {
             if (!colorTex) { console.warn("[GameEditorBridge] Texture load failed:", _atUrl); return; }
             _atCfg(colorTex, true);
             _atObj.traverse(function(m) {
-              if (!m.isMesh || !m.material) return;
+              if (!m.isMesh || !m.material || Array.isArray(m.material)) return;
               m.material.map = colorTex;
               m.material.needsUpdate = true;
             });
@@ -3292,7 +3298,8 @@ export function getVisualEditBridgeScript(): string {
         }
         _rtObj.traverse(function(m) {
           if (!m.isMesh) return;
-          var c = m.material && m.material.color ? m.material.color.getHex() : 0xffffff;
+          var mat = Array.isArray(m.material) ? m.material[0] : m.material;
+          var c = mat && mat.color ? mat.color.getHex() : 0xffffff;
           m.material = new _RT.MeshPhongMaterial({ color: c });
           m.material.needsUpdate = true;
         });
@@ -3317,7 +3324,7 @@ export function getVisualEditBridgeScript(): string {
           _utObj.userData.vibexeArgs.textureOffsetY = d.offsetY || 0;
         }
         _utObj.traverse(function(m) {
-          if (!m.isMesh || !m.material) return;
+          if (!m.isMesh || !m.material || Array.isArray(m.material)) return;
           var maps = [m.material.map, m.material.normalMap, m.material.roughnessMap, m.material.metalnessMap];
           for (var mi = 0; mi < maps.length; mi++) {
             if (maps[mi]) {
@@ -3602,7 +3609,7 @@ export function getVisualEditBridgeScript(): string {
                     tex.colorSpace = _rsTHREE.SRGBColorSpace || 'srgb';
                     tex.repeat.set(obj.textureTileX || 1, obj.textureTileY || 1);
                     model.traverse(function(m) {
-                      if (m.isMesh && m.material) {
+                      if (m.isMesh && m.material && !Array.isArray(m.material)) {
                         m.material.map = tex;
                         m.material.needsUpdate = true;
                       }
@@ -3654,7 +3661,7 @@ export function getVisualEditBridgeScript(): string {
               tex.colorSpace = _toTHREE.SRGBColorSpace || 'srgb';
               tex.repeat.set(ov.tileX || 1, ov.tileY || 1);
               target.traverse(function(m) {
-                if (m.isMesh && m.material) {
+                if (m.isMesh && m.material && !Array.isArray(m.material)) {
                   m.material.map = tex;
                   m.material.needsUpdate = true;
                 }

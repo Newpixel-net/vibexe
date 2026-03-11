@@ -663,7 +663,7 @@ export function getGameEditorBridgeScript(): string {
         _atLoader.load(_atResolvedUrl, function(colorTex) {
           _atCfg(colorTex);
           _atTarget.traverse(function(m) {
-            if (!m.isMesh || !m.material) return;
+            if (!m.isMesh || !m.material || Array.isArray(m.material)) return;
             if (_atPBR) {
               m.material = new THREE.MeshStandardMaterial({ map: colorTex, roughness: 0.7, metalness: 0.0 });
             } else {
@@ -679,7 +679,7 @@ export function getGameEditorBridgeScript(): string {
               _atLoader.load(_bne + suffix + _ext, function(t) {
                 t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
                 t.repeat.set(_atTileX, _atTileY); t.anisotropy = 4;
-                _atTarget.traverse(function(m) { if (m.isMesh && m.material) { applier(m.material, t); m.material.needsUpdate = true; } });
+                _atTarget.traverse(function(m) { if (m.isMesh && m.material && !Array.isArray(m.material)) { applier(m.material, t); m.material.needsUpdate = true; } });
               }, undefined, function() {});
             };
             _loadPBR('_Normal', function(mat, t) { mat.normalMap = t; });
@@ -712,7 +712,7 @@ export function getGameEditorBridgeScript(): string {
         }
         // Restore default material
         _rtTarget.traverse(function(m) {
-          if (m.isMesh && m.material) {
+          if (m.isMesh && m.material && !Array.isArray(m.material)) {
             if (m.material.map) { m.material.map.dispose(); m.material.map = null; }
             if (m.material.normalMap) { m.material.normalMap.dispose(); m.material.normalMap = null; }
             if (m.material.roughnessMap) { m.material.roughnessMap.dispose(); m.material.roughnessMap = null; }
@@ -735,7 +735,7 @@ export function getGameEditorBridgeScript(): string {
         _tpArgs.textureOffsetY = d.offsetY || 0;
         var _rot = (_tpArgs.textureRotation || 0) * Math.PI / 180;
         _tpTarget.traverse(function(m) {
-          if (m.isMesh && m.material && m.material.map) {
+          if (m.isMesh && m.material && !Array.isArray(m.material) && m.material.map) {
             m.material.map.repeat.set(d.tileX || 1, d.tileY || 1);
             m.material.map.rotation = _rot;
             m.material.map.offset.set(d.offsetX || 0, d.offsetY || 0);
@@ -757,7 +757,7 @@ export function getGameEditorBridgeScript(): string {
         _utTarget.userData.vibexeArgs.textureTileX = d.tileX || 1;
         _utTarget.userData.vibexeArgs.textureTileY = d.tileY || 1;
         _utTarget.traverse(function(m) {
-          if (m.isMesh && m.material && m.material.map) {
+          if (m.isMesh && m.material && !Array.isArray(m.material) && m.material.map) {
             m.material.map.repeat.set(d.tileX || 1, d.tileY || 1);
             m.material.map.needsUpdate = true;
             if (m.material.normalMap) m.material.normalMap.repeat.set(d.tileX || 1, d.tileY || 1);

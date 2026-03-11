@@ -46,6 +46,12 @@ export function GameRuntimeIframe({
 	const hasTriggeredCompile = useRef(false);
 	const compileInProgress = useRef(false);
 
+	// Store gameSettings in a ref so compileAndInject doesn't depend on it
+	// (gameSettings creates a new object reference on every update, which would
+	// cause compileAndInject identity to change and trigger recompile loops)
+	const gameSettingsRef = useRef(gameSettings);
+	gameSettingsRef.current = gameSettings;
+
 	// Compile game code server-side
 	const compileAndInject = useCallback(async () => {
 		if (!files.length) return;
@@ -74,7 +80,7 @@ export function GameRuntimeIframe({
 			);
 			const settings = settingsFile?.content
 				? JSON.parse(settingsFile.content)
-				: gameSettings || {};
+				: gameSettingsRef.current || {};
 
 			console.log(`[GameRuntime] Compiling ${compileFiles.length} files...`);
 
@@ -136,7 +142,7 @@ export function GameRuntimeIframe({
 			setIsCompiling(false);
 			compileInProgress.current = false;
 		}
-	}, [files, gameSettings, enabledModuleIds, appId, iframeRef]);
+	}, [files, enabledModuleIds, appId, iframeRef]);
 
 	// Expose refresh function to parent (force recompile, clear hash to bypass cache)
 	useEffect(() => {
@@ -226,7 +232,7 @@ export function GameRuntimeIframe({
 				clearTimeout(compileTimeout.current);
 			}
 		};
-	}, [files, gameSettings, compileAndInject]);
+	}, [files, compileAndInject]);
 
 	return (
 		<div className="relative w-full h-full">

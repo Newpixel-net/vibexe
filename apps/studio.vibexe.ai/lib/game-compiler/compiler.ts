@@ -237,7 +237,7 @@ export async function compileGameBundle(input: CompileInput): Promise<CompileOut
 			jsx: "transform",
 			jsxFactory: "React.createElement",
 			jsxFragment: "React.Fragment",
-			minify: false, // Keep readable for debugging; enable in production
+			minify: true,
 			write: false,
 			plugins: [createVirtualPlugin(files)],
 			define: {
@@ -708,6 +708,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
 
       function animate(time?: number) {
         W.__vibexe_animFrameId__ = requestAnimationFrame(animate);
+        try {
         // Skip when tab hidden
         if (document.hidden) return;
         // FPS capping
@@ -724,7 +725,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         if (__perfNow - __perfLastCheck >= 2000 && !__editorMode) {
           const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
           const __perfAge = __perfNow - __perfStartTime;
-          if (__avgFps < 20 && !__perfDowngraded && __perfAge > 20000) {
+          if (__avgFps < 30 && !__perfDowngraded && __perfAge > 10000) {
             __perfDowngraded = true;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
             renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.85));
@@ -732,7 +733,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
             W.__vibexe_cullDistance__ = 80;
             const comp = W.__vibexe_composer__;
             if (comp?.passes) { for (let pi = 0; pi < comp.passes.length; pi++) { if (comp.passes[pi].constructor?.name === 'UnrealBloomPass') comp.passes[pi].enabled = false; } }
-          } else if (__avgFps > 30 && __perfDowngraded) {
+          } else if (__avgFps > 45 && __perfDowngraded) {
             __perfDowngraded = false;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality');
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
@@ -833,6 +834,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         // ===== Render =====
         const comp = W.__vibexe_composer__;
         if (comp && !W.__vibexe_skipComposer__) comp.render(delta); else renderer.render(scene, camera);
+        } catch (__frameErr) { console.error('[GameLoop] Frame error:', __frameErr); }
       }
       // Force initial shadow render
       renderer.shadowMap.needsUpdate = true;

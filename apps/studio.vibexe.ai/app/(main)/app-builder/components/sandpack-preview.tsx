@@ -1248,6 +1248,7 @@ export function SandpackPreview({
 			const visualEdit = visualEditRef.current;
 			const data = e.data;
 			if (!data || typeof data !== "object" || !data.type) return;
+			try {
 			if (data.type === "visual-edit-select") {
 				visualEdit.selectElement({
 					tagName: data.tagName,
@@ -1728,6 +1729,9 @@ export function SandpackPreview({
 					});
 					gameEditor.togglePickRespawn();
 				}
+			}
+			} catch (err) {
+				console.error("[MessageHandler] Error processing message:", data.type, err);
 			}
 		};
 		window.addEventListener("message", handler);

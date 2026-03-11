@@ -73,6 +73,19 @@ window.__vibexe_libs_ready__ = true;
 window.dispatchEvent(new Event('vibexe-libs-ready'));
 </script>
 
+<!-- Global error handlers — catch bundle crashes and report to parent -->
+<script>
+window.onerror = function(msg, url, line, col, err) {
+  console.error('[Runtime Error]', msg, 'at', url + ':' + line + ':' + col);
+  try { window.parent.postMessage({ type: 'vibexe-runtime-error', error: String(msg), line: line, col: col }, '*'); } catch(e) {}
+  return true;
+};
+window.addEventListener('unhandledrejection', function(e) {
+  console.error('[Runtime Unhandled Rejection]', e.reason);
+  try { window.parent.postMessage({ type: 'vibexe-runtime-error', error: String(e.reason) }, '*'); } catch(e2) {}
+});
+</script>
+
 <!-- Visual Edit Bridge + Message handler — loaded after libs are ready -->
 <script>
 (function(){
@@ -140,10 +153,15 @@ window.dispatchEvent(new Event('vibexe-libs-ready'));
         if (root) root.innerHTML = '';
       }
 
-      var script = document.createElement('script');
-      script.id = 'vibexe-game-bundle';
-      script.textContent = ev.data.code;
-      document.body.appendChild(script);
+      try {
+        var script = document.createElement('script');
+        script.id = 'vibexe-game-bundle';
+        script.textContent = ev.data.code;
+        document.body.appendChild(script);
+      } catch(e) {
+        console.error('[Runtime] Bundle execution error:', e);
+        window.parent.postMessage({ type: 'vibexe-runtime-error', error: String(e) }, '*');
+      }
       bundleLoaded = true;
 
       // Notify parent that bundle is loaded
