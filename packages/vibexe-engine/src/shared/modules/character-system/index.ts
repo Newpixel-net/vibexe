@@ -120,11 +120,18 @@ function _attachInputListeners() {
     if ((window.__vibexe_editor__ || {}).isEditing) return;
     if (_mouseState.midDown) {
       var dx = e.clientX - _mouseState.lastX;
+      var dy = e.clientY - _mouseState.lastY;
       _mouseState.lastX = e.clientX;
       _mouseState.lastY = e.clientY;
       // Accumulate yaw rotation from mouse drag
       if (window.__charCtrl_orbitYaw !== undefined) {
         window.__charCtrl_orbitYaw += dx * 0.005; // radians per pixel
+      }
+      // Accumulate pitch from vertical mouse drag
+      if (window.__charCtrl_orbitPitch !== undefined) {
+        window.__charCtrl_orbitPitch -= dy * 0.005;
+        // Clamp pitch: 0.05 (nearly horizontal) to 1.2 (~70 degrees looking down)
+        window.__charCtrl_orbitPitch = Math.max(0.05, Math.min(1.2, window.__charCtrl_orbitPitch));
       }
     }
   });
@@ -604,6 +611,8 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
         if (acn.indexOf("walk") !== -1) { if (!autoAnimMap.walk) autoAnimMap.walk = allClips[aci].name; }
         if (acn.indexOf("run") !== -1 || acn.indexOf("sprint") !== -1) { if (!autoAnimMap.run) autoAnimMap.run = allClips[aci].name; }
         if (acn.indexOf("jump") !== -1) { if (!autoAnimMap.jump) autoAnimMap.jump = allClips[aci].name; }
+        if (acn.indexOf("fall") !== -1 || acn.indexOf("falling") !== -1 || acn.indexOf("air") !== -1 || acn.indexOf("airborne") !== -1 || acn.indexOf("freefall") !== -1) { if (!autoAnimMap.fall) autoAnimMap.fall = allClips[aci].name; }
+        if (acn.indexOf("land") !== -1 || acn.indexOf("landing") !== -1 || acn.indexOf("touchdown") !== -1 || acn.indexOf("groundhit") !== -1) { if (!autoAnimMap.land) autoAnimMap.land = allClips[aci].name; }
         if (acn.indexOf("attack") !== -1 || acn.indexOf("kick") !== -1 || acn.indexOf("punch") !== -1 || acn.indexOf("slash") !== -1) { if (!autoAnimMap.attack) autoAnimMap.attack = allClips[aci].name; }
         if (acn.indexOf("dead") !== -1 || acn.indexOf("death") !== -1 || acn.indexOf("die") !== -1) { if (!autoAnimMap.die) autoAnimMap.die = allClips[aci].name; }
         if (acn.indexOf("hit") !== -1 || acn.indexOf("damage") !== -1) { if (!autoAnimMap.hit) autoAnimMap.hit = allClips[aci].name; }
@@ -710,23 +719,44 @@ function swapCharacter(scene, characterId) {
 
       // Remove old mesh from scene and dispose
       if (oldMesh) {
-        // Remove old mixer from _activeMixers3D
-        if (oldMesh.userData && oldMesh.userData.__mixer && window._activeMixers3D) {
-          var mi = window._activeMixers3D.indexOf(oldMesh.userData.__mixer);
-          if (mi !== -1) window._activeMixers3D.splice(mi, 1);
+        // Remove old mixer from _activeMixers3D (with stopAllAction + uncacheRoot)
+        if (oldMesh.userData && oldMesh.userData.__mixer) {
+          try {
+            oldMesh.userData.__mixer.stopAllAction();
+            oldMesh.userData.__mixer.uncacheRoot(oldMesh);
+          } catch(e) {}
+          if (window._activeMixers3D) {
+            var mi = window._activeMixers3D.indexOf(oldMesh.userData.__mixer);
+            if (mi !== -1) window._activeMixers3D.splice(mi, 1);
+            // Fallback: also search for any mixer pointing to this mesh
+            for (var _mxi = window._activeMixers3D.length - 1; _mxi >= 0; _mxi--) {
+              try {
+                if (window._activeMixers3D[_mxi]._root === oldMesh || window._activeMixers3D[_mxi]._root === oldMesh.children[0]) {
+                  window._activeMixers3D.splice(_mxi, 1);
+                }
+              } catch(e) {}
+            }
+          }
+          oldMesh.userData.__mixer = null;
         }
         scene.remove(oldMesh);
-        oldMesh.traverse(function(child) {
-          if (child.geometry) child.geometry.dispose();
-          if (child.material) {
-            var mats = Array.isArray(child.material) ? child.material : [child.material];
-            mats.forEach(function(m) {
-              var texKeys = ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap", "bumpMap"];
-              texKeys.forEach(function(k) { if (m[k]) m[k].dispose(); });
-              m.dispose();
-            });
-          }
-        });
+        try {
+          oldMesh.traverse(function(child) {
+            try {
+              if (child.geometry) child.geometry.dispose();
+              if (child.material) {
+                var mats = Array.isArray(child.material) ? child.material : [child.material];
+                mats.forEach(function(m) {
+                  try {
+                    var texKeys = ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap", "bumpMap"];
+                    texKeys.forEach(function(k) { if (m[k]) { try { m[k].dispose(); } catch(e) {} } });
+                    m.dispose();
+                  } catch(e) {}
+                });
+              }
+            } catch(e) {}
+          });
+        } catch(e) { console.warn("[CharacterSystem] Error disposing old mesh:", e); }
       }
 
       // Also sweep any stale Character_ meshes from scene
@@ -739,22 +769,42 @@ function swapCharacter(scene, characterId) {
       }
       toRemove.forEach(function(m) {
         console.log("[CharacterSystem] Removing stale character:", m.name);
-        if (m.userData && m.userData.__mixer && window._activeMixers3D) {
-          var mi = window._activeMixers3D.indexOf(m.userData.__mixer);
-          if (mi !== -1) window._activeMixers3D.splice(mi, 1);
+        if (m.userData && m.userData.__mixer) {
+          try {
+            m.userData.__mixer.stopAllAction();
+            m.userData.__mixer.uncacheRoot(m);
+          } catch(e) {}
+          if (window._activeMixers3D) {
+            var mi = window._activeMixers3D.indexOf(m.userData.__mixer);
+            if (mi !== -1) window._activeMixers3D.splice(mi, 1);
+            for (var _mxi2 = window._activeMixers3D.length - 1; _mxi2 >= 0; _mxi2--) {
+              try {
+                if (window._activeMixers3D[_mxi2]._root === m || window._activeMixers3D[_mxi2]._root === m.children[0]) {
+                  window._activeMixers3D.splice(_mxi2, 1);
+                }
+              } catch(e) {}
+            }
+          }
+          m.userData.__mixer = null;
         }
         scene.remove(m);
-        m.traverse(function(c) {
-          if (c.geometry) c.geometry.dispose();
-          if (c.material) {
-            var mats = Array.isArray(c.material) ? c.material : [c.material];
-            mats.forEach(function(mat) {
-              var texKeys = ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap", "bumpMap"];
-              texKeys.forEach(function(k) { if (mat[k]) mat[k].dispose(); });
-              mat.dispose();
-            });
-          }
-        });
+        try {
+          m.traverse(function(c) {
+            try {
+              if (c.geometry) c.geometry.dispose();
+              if (c.material) {
+                var mats = Array.isArray(c.material) ? c.material : [c.material];
+                mats.forEach(function(mat) {
+                  try {
+                    var texKeys = ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap", "bumpMap"];
+                    texKeys.forEach(function(k) { if (mat[k]) { try { mat[k].dispose(); } catch(e) {} } });
+                    mat.dispose();
+                  } catch(e) {}
+                });
+              }
+            } catch(e) {}
+          });
+        } catch(e) { console.warn("[CharacterSystem] Error disposing stale mesh:", m.name, e); }
       });
 
       // Add new mesh to scene
@@ -784,7 +834,14 @@ function swapCharacter(scene, characterId) {
       // === Transfer physics body from old mesh to new mesh ===
       var physBody = oldMesh && oldMesh.userData ? oldMesh.userData.__physicsBody : null;
       if (physBody) {
-        result.mesh.userData.__physicsBody = physBody;
+        // Validate physics body is still in the world
+        if (physBody.world) {
+          result.mesh.userData.__physicsBody = physBody;
+        } else {
+          // Body exists but lost its world reference — still transfer it
+          result.mesh.userData.__physicsBody = physBody;
+          console.warn("[CharacterSystem] Physics body transferred but may not be in world");
+        }
         // Reshape physics body to match new character dimensions
         var cb = result.mesh.userData.__characterBounds;
         if (cb && physBody.shapes && physBody.shapes.length > 0) {
@@ -824,6 +881,9 @@ function swapCharacter(scene, characterId) {
         }
       }
 
+      // Set global reference EARLY (before controller init) so other systems can find the new mesh
+      window.__vibexe_playerMesh__ = result.mesh;
+
       // === Blink-style WASD Controller (v6.0.0) ===
       // Camera-relative movement, smooth rotation, orbit camera, scroll zoom
       // Port of Unity "Blink Top Down WASD Character Controller" to Three.js + CANNON.js
@@ -835,10 +895,14 @@ function swapCharacter(scene, characterId) {
       // (charSystem controller now owns movement, animation, and camera)
       window.__charCtrl_active = true;
 
-      // Remove ALL existing controllers — charSystem controller handles everything
+      // Remove only old charSystem controllers, preserve others (e.g. trigger/spring controllers)
       if (window._activeControllers3D) {
-        console.log("[CharacterSystem] Clearing", window._activeControllers3D.length, "old controllers");
-        window._activeControllers3D.length = 0;
+        for (var _ci = window._activeControllers3D.length - 1; _ci >= 0; _ci--) {
+          if (window._activeControllers3D[_ci] && window._activeControllers3D[_ci].__charSystem) {
+            window._activeControllers3D.splice(_ci, 1);
+          }
+        }
+        console.log("[CharacterSystem] Removed old charSystem controllers, remaining:", window._activeControllers3D.length);
       }
 
       var animMap = result.mesh.userData.__animMap || {};
@@ -867,6 +931,7 @@ function swapCharacter(scene, characterId) {
         var _initCamOffZ = Math.max(1, _gsCamera.offsetZ || 12);
         var _initCamOffY = Math.max(1, _gsCamera.offsetY || 8);
         window.__charCtrl_orbitYaw = window.__charCtrl_orbitYaw || 0;
+        window.__charCtrl_orbitPitch = window.__charCtrl_orbitPitch || 0.4; // Default ~23 degrees down
 
         // Camera zoom state (Blink: scroll wheel, min 2 max 15, lerp speed 15)
         var _camDistTarget = _gsChar.camDist || _initCamOffZ;
@@ -887,6 +952,13 @@ function swapCharacter(scene, characterId) {
         // Jump state
         var _wasGrounded = true;
         var _jumpCooldown = 0;
+        var _landTimer = 0;
+
+        // Coyote time + jump buffer (Blink-style)
+        var _coyoteTimer = 0;
+        var _coyoteTime = 0.15; // 150ms grace period
+        var _jumpBufferTimer = 0;
+        var _jumpBuffer = 0.1; // 100ms buffer
 
         var newCtrl = {
           __charSystem: true,
@@ -939,13 +1011,28 @@ function swapCharacter(scene, characterId) {
               _csBody.velocity.z = worldZ * moveSpeed;
             }
 
-            // Jump — only when grounded (__canJump flag from CANNON collision) and cooldown expired
+            // Coyote time + jump buffer (Blink-style)
             _jumpCooldown = Math.max(0, _jumpCooldown - dt);
             var isGrounded = !!(_csBody.__canJump);
-            if (_inputState.space && isGrounded && _jumpCooldown <= 0) {
+            if (isGrounded) {
+              _coyoteTimer = 0;
+            } else {
+              _coyoteTimer += dt;
+            }
+            var canJump = isGrounded || _coyoteTimer < _coyoteTime;
+
+            // Jump buffer — remember jump press for a few frames
+            if (_inputState.space) {
+              _jumpBufferTimer = _jumpBuffer;
+            }
+            if (_jumpBufferTimer > 0) _jumpBufferTimer -= dt;
+
+            if (_jumpBufferTimer > 0 && canJump && _jumpCooldown <= 0) {
               if (_csBody.velocity) _csBody.velocity.y = _jumpForce;
               _csBody.__canJump = false;
+              _coyoteTimer = _coyoteTime; // Consume coyote
               _jumpCooldown = 0.3;
+              _jumpBufferTimer = 0;
             }
 
             // === 6. PHYSICS → MESH POSITION SYNC ===
@@ -968,15 +1055,36 @@ function swapCharacter(scene, characterId) {
               _rotVelocity = 0;
             }
 
-            // === 8. ANIMATION STATE MACHINE (with hysteresis) ===
+            // === 8. ANIMATION STATE MACHINE (with hysteresis + fall/land) ===
             var vx = _csBody.velocity ? _csBody.velocity.x : 0;
             var vy = _csBody.velocity ? _csBody.velocity.y : 0;
             var vz = _csBody.velocity ? _csBody.velocity.z : 0;
             var speed = Math.sqrt(vx * vx + vz * vz);
+            var _isOnGround = !!(_csBody.__canJump);
+
+            // Land timer countdown
+            if (_landTimer > 0) _landTimer -= dt;
+            // Detect landing moment
+            if (_csLastAnim === "fall" && _isOnGround && _landTimer <= 0) {
+              _landTimer = 0.3; // Stay in land state for 0.3s
+            }
 
             var targetAnim;
-            if (vy > 2) {
+            if (!_isOnGround && vy < -2) {
+              targetAnim = "fall";
+            } else if (vy > 2) {
               targetAnim = "jump";
+            } else if (_csLastAnim === "fall" && _isOnGround) {
+              targetAnim = "land";
+            } else if (_csLastAnim === "land") {
+              // Stay in land for minimum time (handled by _landTimer)
+              if (_landTimer > 0) {
+                targetAnim = "land";
+              } else if (speed > 0.5) {
+                targetAnim = "walk";
+              } else {
+                targetAnim = "idle";
+              }
             } else if (_csLastAnim === "run" ? speed > 3.2 : speed > 4) {
               targetAnim = "run";
             } else if (_csLastAnim === "idle" ? speed > 0.5 : speed > 0.3) {
@@ -1000,9 +1108,12 @@ function swapCharacter(scene, characterId) {
                 _camVelX = 0; _camVelY = 0; _camVelZ = 0;
               }
               // Camera position = player + rotateY(orbitYaw) * (0, height, dist)
-              var camTargetX = _csMesh.position.x + Math.sin(orbitYaw) * _camDist;
-              var camTargetY = _csMesh.position.y + _camHeight;
-              var camTargetZ = _csMesh.position.z + Math.cos(orbitYaw) * _camDist;
+              var orbitPitch = window.__charCtrl_orbitPitch || 0.4;
+              var camHorizDist = _camDist * Math.cos(orbitPitch);
+              var camVertDist = _camDist * Math.sin(orbitPitch);
+              var camTargetX = _csMesh.position.x + Math.sin(orbitYaw) * camHorizDist;
+              var camTargetY = _csMesh.position.y + camVertDist + 1.0;
+              var camTargetZ = _csMesh.position.z + Math.cos(orbitYaw) * camHorizDist;
 
               // SmoothDamp per axis (Blink: dampTime 0.1s)
               var sdX = _smoothDamp(cam.position.x, camTargetX, _camVelX, _camFollowSmoothTime, dt);
@@ -1024,16 +1135,14 @@ function swapCharacter(scene, characterId) {
                 }
               }
 
-              // === Camera collision avoidance (Blink-style) ===
-              // Raycast from player to camera — if obstructed, move camera closer
+              // === Camera collision avoidance (improved multi-ray) ===
               var _playerCenter = new THREE.Vector3(_csMesh.position.x, _csMesh.position.y + _csHalfH, _csMesh.position.z);
               var _camPos = new THREE.Vector3(cam.position.x, cam.position.y, cam.position.z);
               var _toCamera = new THREE.Vector3().subVectors(_camPos, _playerCenter);
               var _toCamLen = _toCamera.length();
               if (_toCamLen > 0.1) {
                 _toCamera.normalize();
-                var _ccRay = new THREE.Raycaster(_playerCenter, _toCamera, 0.3, _toCamLen);
-                // Only test against terrain and solid meshes (skip player, helpers, particles)
+                // Build collision targets once per frame
                 var _ccTargets = [];
                 var _ccScene = window.__vibexe_scene__;
                 if (_ccScene) {
@@ -1047,12 +1156,25 @@ function swapCharacter(scene, characterId) {
                   });
                 }
                 if (_ccTargets.length > 0) {
-                  var _ccHits = _ccRay.intersectObjects(_ccTargets, false);
-                  if (_ccHits.length > 0) {
-                    var _hitDist = _ccHits[0].distance;
-                    // Pull camera to 0.5 units in front of the hit point
-                    var _safeDist = Math.max(1.0, _hitDist - 0.5);
-                    cam.position.copy(_playerCenter).addScaledVector(_toCamera, _safeDist);
+                  // Cast 3 rays: center, +0.3 up, -0.3 down
+                  var _closestHit = _toCamLen;
+                  var _upOffset = new THREE.Vector3(0, 0.3, 0);
+                  var _downOffset = new THREE.Vector3(0, -0.3, 0);
+                  var _origins = [_playerCenter, _playerCenter.clone().add(_upOffset), _playerCenter.clone().add(_downOffset)];
+                  for (var _ri = 0; _ri < _origins.length; _ri++) {
+                    var _ccRay = new THREE.Raycaster(_origins[_ri], _toCamera, 0.3, _toCamLen);
+                    var _ccHits = _ccRay.intersectObjects(_ccTargets, false);
+                    if (_ccHits.length > 0 && _ccHits[0].distance < _closestHit) {
+                      _closestHit = _ccHits[0].distance;
+                    }
+                  }
+                  if (_closestHit < _toCamLen) {
+                    var _safeDist = Math.max(1.0, _closestHit - 0.5);
+                    // Smooth pull-in (don't pop instantly)
+                    var _pullPos = _playerCenter.clone().addScaledVector(_toCamera, _safeDist);
+                    cam.position.x += (_pullPos.x - cam.position.x) * Math.min(12 * dt, 1);
+                    cam.position.y += (_pullPos.y - cam.position.y) * Math.min(12 * dt, 1);
+                    cam.position.z += (_pullPos.z - cam.position.z) * Math.min(12 * dt, 1);
                   }
                 }
               }
@@ -1098,9 +1220,6 @@ function swapCharacter(scene, characterId) {
         _activeSnapTimer = null;
       }, 500);
       _activeSnapTimer = _snapTimer;
-
-      // Set global reference
-      window.__vibexe_playerMesh__ = result.mesh;
 
       // Save character config
       var gs = window.__VIBEXE_GAME_SETTINGS__ || {};

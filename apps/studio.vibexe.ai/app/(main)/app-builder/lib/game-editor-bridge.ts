@@ -18,6 +18,7 @@ export function getGameEditorBridgeScript(): string {
   var selectedObj = null;
   var boxHelper = null;
   var transformControls = null;
+  var _gizmoProxy = null;  // Proxy Object3D for centering gizmo on animated characters
   var editor = null;
   var pendingEnable = false;
 
@@ -76,9 +77,10 @@ export function getGameEditorBridgeScript(): string {
     if (obj.children) {
       for (var i = 0; i < obj.children.length; i++) {
         var child = obj.children[i];
-        // Skip editor helpers (BoxHelper, TransformControls, GridHelper, light helpers)
+        // Skip editor helpers (BoxHelper, TransformControls, GridHelper, gizmo proxy, light helpers)
         if (child === boxHelper) continue;
         if (child === transformControls) continue;
+        if (child === _gizmoProxy) continue;
         if (child.type === "BoxHelper" || child.type === "TransformControlsGizmo" || child.type === "TransformControlsPlane") continue;
         if (child.isTransformControls) continue;
         if (child.userData && child.userData.__isLightHelper) continue;
@@ -239,7 +241,23 @@ export function getGameEditorBridgeScript(): string {
     if (THREE.TransformControls) {
       transformControls = new THREE.TransformControls(editor.camera, editor.renderer.domElement);
       transformControls.name = "__editor_transform_controls__";
-      transformControls.attach(obj);
+      // For animated characters, place gizmo at visual center (not feet)
+      var _isAnimChar = obj.userData && obj.userData.vibexeType === "AnimatedCharacter" && obj.userData.__characterBounds;
+      var _charYOffset = _isAnimChar ? obj.userData.__characterBounds.height / 2 : 0;
+
+      if (_isAnimChar) {
+        // Create a proxy Object3D at the character's visual center
+        _gizmoProxy = new THREE.Object3D();
+        _gizmoProxy.name = "__editor_gizmo_proxy__";
+        _gizmoProxy.position.copy(obj.position);
+        _gizmoProxy.position.y += _charYOffset;
+        _gizmoProxy.rotation.copy(obj.rotation);
+        _gizmoProxy.scale.copy(obj.scale);
+        editor.scene.add(_gizmoProxy);
+        transformControls.attach(_gizmoProxy);
+      } else {
+        transformControls.attach(obj);
+      }
 
       // Disable orbit when dragging gizmo
       transformControls.addEventListener("dragging-changed", function(e) {
@@ -251,6 +269,14 @@ export function getGameEditorBridgeScript(): string {
       // Send transform updates while dragging
       transformControls.addEventListener("objectChange", function() {
         if (selectedObj) {
+          // Sync proxy back to the real object for animated characters
+          if (_gizmoProxy && _isAnimChar) {
+            selectedObj.position.x = _gizmoProxy.position.x;
+            selectedObj.position.y = _gizmoProxy.position.y - _charYOffset;
+            selectedObj.position.z = _gizmoProxy.position.z;
+            selectedObj.rotation.copy(_gizmoProxy.rotation);
+            selectedObj.scale.copy(_gizmoProxy.scale);
+          }
           sendSelectedObject(selectedObj);
           if (boxHelper) boxHelper.update();
           // Sync light helper position when light is dragged
@@ -284,6 +310,10 @@ export function getGameEditorBridgeScript(): string {
       editor.scene.remove(transformControls.getHelper ? transformControls.getHelper() : transformControls);
       transformControls.dispose();
       transformControls = null;
+    }
+    if (_gizmoProxy) {
+      editor.scene.remove(_gizmoProxy);
+      _gizmoProxy = null;
     }
     selectedObj = null;
     window.parent.postMessage({ type: "game-editor-object-deselected" }, "*");
@@ -436,8 +466,9 @@ export function getGameEditorBridgeScript(): string {
       console.log("[GameEditorBridge] Pausing game...");
       editor.pause();
 
-      // Reset character controller orbit yaw — prevents disorienting camera angle on return to game
+      // Reset character controller orbit yaw/pitch — prevents disorienting camera angle on return to game
       window.__charCtrl_orbitYaw = 0;
+      window.__charCtrl_orbitPitch = 0.4; // Reset to default pitch
       // Signal charSystem that camera was moved externally (editor) — resets SmoothDamp velocities on resume
       window.__charCtrl_camActive = false;
       // Trigger blur to clear any stuck keys in charSystem input handlers
