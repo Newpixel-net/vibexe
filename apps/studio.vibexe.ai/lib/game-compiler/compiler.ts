@@ -181,7 +181,7 @@ export async function compileGameBundle(input: CompileInput): Promise<CompileOut
 
 		if (gameScenePath) {
 			entryPath = "__runtime_entry__.ts";
-			entryContent = generateGameEntry(gameScenePath, assetsPath);
+			entryContent = generateGameEntry(gameScenePath, assetsPath, input.enabledModuleIds);
 			files.set(entryPath, entryContent);
 		}
 	}
@@ -309,16 +309,22 @@ function findFileByName(files: Map<string, string>, name: string): string | null
  * - The runtime page already loads Three.js + CANNON.js as ES modules
  * - The bridge is loaded as a separate script (/api/app-builder/bridge)
  */
-function generateGameEntry(gameScenePath: string, assetsPath: string | null): string {
+function generateGameEntry(gameScenePath: string, assetsPath: string | null, enabledModuleIds?: string[]): string {
 	const assetsImport = assetsPath
 		? `import "./${assetsPath}";`
 		: '// No assets-3d.ts found — factory functions may not be available';
 
 	const sceneImport = `import * as GameSceneModule from "./${gameScenePath}";`;
 
+	// Generate module imports — these trigger module registration on window.__vibexe_modules__
+	const moduleImports = (enabledModuleIds || [])
+		.map((id) => `import "@vibexe/${id}";`)
+		.join("\n");
+
 	return `// Synthetic entry — bootstraps game without React (lightweight runtime)
 ${assetsImport}
 ${sceneImport}
+${moduleImports ? `\n// Auto-import enabled modules\n${moduleImports}` : ""}
 
 // Resolve game scene from any export pattern the AI might use
 const _m = GameSceneModule as any;
@@ -336,9 +342,66 @@ if (!gameScene || typeof gameScene.init !== 'function') {
 } else {
   const W = window as any;
   const THREE = W.THREE;
+  const CANNON = W.CANNON;
   const container = document.getElementById('root')!;
   const __gs = W.__VIBEXE_GAME_SETTINGS__ || {};
   const __perf = __gs.performance || {};
+
+  // ===== Audio Singleton =====
+  let _audioCtx: AudioContext | null = null;
+  let _masterGain: GainNode | null = null;
+  let _musicGain: GainNode | null = null;
+  let _sfxGain: GainNode | null = null;
+  let _currentMusic: { el: HTMLAudioElement; fadeTimer?: any } | null = null;
+  let _musicMutedVol = 0;
+
+  function _getAudioContext(): AudioContext {
+    if (!_audioCtx) {
+      const __gsAudio = (__gs.audio) || {};
+      const audioEnabled = __gsAudio.enabled !== false;
+      _audioCtx = new ((window as any).AudioContext || (window as any).webkitAudioContext)();
+      _masterGain = _audioCtx!.createGain();
+      _masterGain!.gain.value = audioEnabled ? (__gsAudio.masterVolume ?? 0.8) : 0;
+      _masterGain!.connect(_audioCtx!.destination);
+      _musicGain = _audioCtx!.createGain();
+      _musicGain!.gain.value = __gsAudio.musicVolume ?? 0.5;
+      _musicGain!.connect(_masterGain!);
+      _sfxGain = _audioCtx!.createGain();
+      _sfxGain!.gain.value = __gsAudio.sfxVolume ?? 1.0;
+      _sfxGain!.connect(_masterGain!);
+      try {
+        const L = _audioCtx!.listener;
+        if ((L as any).forwardX) {
+          (L as any).forwardX.value = 0; (L as any).forwardY.value = 0; (L as any).forwardZ.value = -1;
+          (L as any).upX.value = 0; (L as any).upY.value = 1; (L as any).upZ.value = 0;
+        } else if ((L as any).setOrientation) {
+          (L as any).setOrientation(0, 0, -1, 0, 1, 0);
+        }
+      } catch {}
+    }
+    if (_audioCtx!.state === 'suspended') _audioCtx!.resume();
+    return _audioCtx!;
+  }
+  W._getAudioContext = _getAudioContext;
+  W._audioCtx = null;
+
+  function muteMusic(): void {
+    if (_currentMusic) { _musicMutedVol = _currentMusic.el.volume; _currentMusic.el.volume = 0; }
+  }
+  function unmuteMusic(): void {
+    if (_currentMusic) { _currentMusic.el.volume = _musicMutedVol || 0.5; }
+  }
+  W.muteMusic = muteMusic;
+  W.unmuteMusic = unmuteMusic;
+
+  // Store audio config for debug handler
+  const __gsAudio = __gs.audio || {};
+  W.__vibexe_audio__ = {
+    enabled: __gsAudio.enabled !== false,
+    masterVolume: __gsAudio.masterVolume ?? 0.8,
+    musicVolume: __gsAudio.musicVolume ?? 0.5,
+    sfxVolume: __gsAudio.sfxVolume ?? 0.7,
+  };
 
   // ===== Renderer =====
   const renderer = new THREE.WebGLRenderer({
@@ -456,6 +519,61 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   (gameScene as any).renderer = renderer;
   (gameScene as any).container = container;
 
+  // ===== Auto-Physics =====
+  // Creates CANNON static Box bodies for platforms/barriers that don't have explicit physics
+  function _autoPhysics() {
+    const _apW = W.__vibexe_world__;
+    if (!_apW || !CANNON || !THREE || !scene) return;
+    const _apSolid: Record<string, boolean> = { platform: true, barrier: true };
+    const _apSkip: Record<string, boolean> = { collectible: true, decoration: true, player: true, AnimatedCharacter: true, character: true };
+    let _apCreated = 0;
+    scene.traverse((obj: any) => {
+      if (!obj.isMesh && !(obj.isGroup && obj.children?.length > 0)) return;
+      if (obj.userData?.__physicsBody) return;
+      let vType = obj.userData?.vibexeType;
+      if (!vType && obj.name) {
+        if (obj.name.startsWith('Platform_') || obj.name.startsWith('platform_')) vType = 'platform';
+        else if (obj.name.startsWith('Barrier_') || obj.name.startsWith('barrier_') || obj.name.indexOf('Block') >= 0) vType = 'barrier';
+        else if (obj.name.startsWith('Collectible_')) vType = 'collectible';
+        else if (obj.name.startsWith('Decoration_')) vType = 'decoration';
+        else if (obj.name.startsWith('Character_') || obj.name.startsWith('Player_')) vType = 'player';
+      }
+      if (!vType || _apSkip[vType] || !_apSolid[vType]) return;
+      // Check if a body already exists near this position
+      for (let bi = 0; bi < _apW.bodies.length; bi++) {
+        const b = _apW.bodies[bi];
+        if (b.__meshName === obj.name || b.__meshRef === obj) { obj.userData.__physicsBody = b; return; }
+        if (Math.abs(b.position.x - obj.position.x) < 0.3 && Math.abs(b.position.y - obj.position.y) < 0.3 && Math.abs(b.position.z - obj.position.z) < 0.3) {
+          obj.userData.__physicsBody = b; b.__meshRef = obj; b.__meshName = obj.name; return;
+        }
+      }
+      const box3 = new THREE.Box3();
+      try { box3.expandByObject(obj); } catch { return; }
+      if (box3.isEmpty()) return;
+      const sz = new THREE.Vector3(); box3.getSize(sz);
+      const ctr = new THREE.Vector3(); box3.getCenter(ctr);
+      const hx = Math.max(sz.x * 0.5, 0.05);
+      const hy = Math.max(sz.y * 0.5, 0.05);
+      const hz = Math.max(sz.z * 0.5, 0.05);
+      const shape = new CANNON.Box(new CANNON.Vec3(hx, hy, hz));
+      const body = new CANNON.Body({ mass: 0, shape });
+      body.position.set(ctr.x, ctr.y, ctr.z);
+      body.type = CANNON.Body.STATIC;
+      body.__meshRef = obj;
+      body.__meshName = obj.name || '';
+      body.__autoPhysics = true;
+      _apW.addBody(body);
+      obj.userData.__physicsBody = body;
+      _apCreated++;
+    });
+    if (_apCreated > 0) console.log('[AutoPhysics] Created ' + _apCreated + ' bodies');
+  }
+
+  // Also handle run-auto-physics message from sandpack-preview
+  window.addEventListener('message', (ev: any) => {
+    if (ev.data?.type === 'run-auto-physics') _autoPhysics();
+  });
+
   // ===== Resize =====
   window.addEventListener('resize', () => {
     const w = container.clientWidth, h = container.clientHeight;
@@ -485,7 +603,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
     pause() {
       __editorMode = true;
       clock.stop();
-      if (W.muteMusic) W.muteMusic();
+      muteMusic();
       if (__menuOverlay) { __menuOverlay.remove(); __menuOverlay = null; if (__menuResolve) { __menuResolve(); __menuResolve = null; } }
       if (THREE.OrbitControls) {
         __editorOrbitControls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -501,7 +619,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
     resume() {
       __editorMode = false;
       if (__editorOrbitControls) { __editorOrbitControls.dispose(); __editorOrbitControls = null; W.__vibexe_editor__.orbitControls = null; }
-      if (W.unmuteMusic) W.unmuteMusic();
+      unmuteMusic();
       clock.start();
     },
   };
@@ -543,27 +661,164 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       __createPP(renderer, scene, camera, __ppSettings.preset);
     }
 
+    // Run auto-physics after init with retries (objects may still be loading GLBs)
+    _autoPhysics();
+    setTimeout(() => _autoPhysics(), 5000);
+    setTimeout(() => _autoPhysics(), 10000);
+    setTimeout(() => _autoPhysics(), 15000);
+
     // Initial render
     renderer.render(scene, camera);
 
     // Show TAP TO START overlay then start game loop
     const _startLoop = () => {
-      try { W._audioCtx?.resume(); W._getAudioContext?.(); } catch {}
-      function animate() {
+      try { _getAudioContext(); } catch {}
+
+      // Performance state
+      let __lastFrameTime = 0;
+      let __perfFrames = 0, __perfLastCheck = performance.now(), __perfDowngraded = false;
+      // Shadow follow state
+      let __shadowFrame = 0, __shadowLastPX = 0, __shadowLastPZ = 0;
+      // LOD culling frame counter
+      let __lodFrame = 0;
+      // Cached sun reference
+      let __cachedSun: any = null, __sunSearched = false;
+      // Audio listener vectors (reuse to avoid per-frame allocation)
+      const __audioFwd = new THREE.Vector3();
+      const __audioUp = new THREE.Vector3();
+      // FPS cap from settings
+      const __initFI = __perf.maxFPS && __perf.maxFPS > 0 ? 1000 / __perf.maxFPS : 0;
+      if (__initFI > 0) { W.__vibexe_frameInterval__ = __initFI; W.__vibexe_targetFPS__ = __perf.maxFPS; }
+
+      function animate(time?: number) {
         W.__vibexe_animFrameId__ = requestAnimationFrame(animate);
+        // Skip when tab hidden
+        if (document.hidden) return;
+        // FPS capping
+        const __frameInterval = W.__vibexe_frameInterval__ || 0;
+        if (__frameInterval > 0 && time) {
+          const __elapsed = time - __lastFrameTime;
+          if (__elapsed < __frameInterval) return;
+          __lastFrameTime = time - (__elapsed % __frameInterval);
+        }
+
+        // ===== PerfGuard =====
+        __perfFrames++;
+        const __perfNow = performance.now();
+        if (__perfNow - __perfLastCheck >= 2000) {
+          const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
+          if (__avgFps < 45 && !__perfDowngraded) {
+            __perfDowngraded = true;
+            console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
+            renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.75));
+            renderer.shadowMap.enabled = false;
+            W.__vibexe_cullDistance__ = 60;
+            const comp = W.__vibexe_composer__;
+            if (comp?.passes) { for (let pi = 0; pi < comp.passes.length; pi++) { if (comp.passes[pi].constructor?.name === 'UnrealBloomPass') comp.passes[pi].enabled = false; } }
+          } else if (__avgFps > 55 && __perfDowngraded) {
+            __perfDowngraded = false;
+            console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality');
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.needsUpdate = true;
+            W.__vibexe_cullDistance__ = 150;
+            const comp = W.__vibexe_composer__;
+            if (comp?.passes) { for (let pi = 0; pi < comp.passes.length; pi++) { if (comp.passes[pi].constructor?.name === 'UnrealBloomPass') comp.passes[pi].enabled = true; } }
+          }
+          __perfFrames = 0;
+          __perfLastCheck = __perfNow;
+        }
+
+        // ===== Editor mode =====
         if (__editorMode) {
           if (__editorOrbitControls) __editorOrbitControls.update();
-          renderer.shadowMap.needsUpdate = true;
-          const comp = W.__vibexe_composer__;
-          if (comp && !W.__vibexe_skipComposer__) comp.render(); else renderer.render(scene, camera);
+          W._updateAllMixers3D?.(0.016);
+          __shadowFrame++;
+          if (__shadowFrame >= 30) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
+          if (!W.__vibexe_bridge_rendering__) {
+            const comp = W.__vibexe_composer__;
+            if (comp && !W.__vibexe_skipComposer__) comp.render(); else renderer.render(scene, camera);
+          }
           return;
         }
+
         const delta = clock.getDelta();
+        // Auto-update animation mixers
+        W._updateAllMixers3D?.(delta);
         try { if (gameScene.update) gameScene.update(delta); } catch (e) { console.error('[Runtime] update error:', e); }
-        renderer.shadowMap.needsUpdate = true;
+        // Auto-update character controllers, particles, triggers, springs
+        W._updateAllControllers3D?.(delta);
+        W._updateAllParticles3D?.(delta);
+        W._updateAllTriggers3D?.();
+        W._updateAllSprings3D?.();
+        // Spatial audio: attached sounds follow meshes
+        W._updateAllSpatial3D?.();
+
+        // ===== Audio listener position/orientation from camera =====
+        try {
+          if (_audioCtx?.listener && camera) {
+            const L = _audioCtx.listener as any;
+            if (L.positionX) {
+              L.positionX.value = camera.position.x;
+              L.positionY.value = camera.position.y;
+              L.positionZ.value = camera.position.z;
+            } else if (L.setPosition) {
+              L.setPosition(camera.position.x, camera.position.y, camera.position.z);
+            }
+            __audioFwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+            __audioUp.set(0, 1, 0).applyQuaternion(camera.quaternion);
+            if (L.forwardX) {
+              L.forwardX.value = __audioFwd.x; L.forwardY.value = __audioFwd.y; L.forwardZ.value = __audioFwd.z;
+              L.upX.value = __audioUp.x; L.upY.value = __audioUp.y; L.upZ.value = __audioUp.z;
+            } else if (L.setOrientation) {
+              L.setOrientation(__audioFwd.x, __audioFwd.y, __audioFwd.z, __audioUp.x, __audioUp.y, __audioUp.z);
+            }
+          }
+        } catch {}
+
+        // ===== Shadow follow player =====
+        const __playerMesh = W.__vibexe_playerMesh__;
+        if (__playerMesh?.position) {
+          if (!__sunSearched) { __cachedSun = scene.getObjectByName('__default_sun__'); __sunSearched = true; }
+          if (__cachedSun?.isDirectionalLight) {
+            const __px = __playerMesh.position.x, __pz = __playerMesh.position.z;
+            __cachedSun.position.set(__px + 30, 80, __pz + 30);
+            if (__cachedSun.target) { __cachedSun.target.position.set(__px, 0, __pz); __cachedSun.target.updateMatrixWorld(); }
+            __shadowFrame++;
+            const __sdx = __px - __shadowLastPX, __sdz = __pz - __shadowLastPZ;
+            if (__shadowFrame >= 15 || __sdx * __sdx + __sdz * __sdz > 25) {
+              __shadowFrame = 0; __shadowLastPX = __px; __shadowLastPZ = __pz;
+              renderer.shadowMap.needsUpdate = true;
+            }
+          }
+        } else {
+          __shadowFrame++;
+          if (__shadowFrame >= 30) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
+        }
+
+        // ===== LOD culling (every 4th frame) =====
+        __lodFrame++;
+        if (__lodFrame >= 4) {
+          __lodFrame = 0;
+          const __cullDist = W.__vibexe_cullDistance__ || 120;
+          const __camPos = camera.position;
+          for (let ci = 0; ci < scene.children.length; ci++) {
+            const ch = scene.children[ci];
+            if (!ch.userData || ch.userData.__editorOnly || ch.name?.startsWith('__')) continue;
+            if (!ch.userData.vibexeType) continue;
+            const dx = ch.position.x - __camPos.x, dz = ch.position.z - __camPos.z;
+            const d2 = dx * dx + dz * dz;
+            const shouldVis = d2 < __cullDist * __cullDist;
+            if (ch.visible !== shouldVis && !ch.userData.__editorForceVisible) ch.visible = shouldVis;
+          }
+        }
+
+        // ===== Render =====
         const comp = W.__vibexe_composer__;
-        if (comp && !W.__vibexe_skipComposer__) comp.render(); else renderer.render(scene, camera);
+        if (comp && !W.__vibexe_skipComposer__) comp.render(delta); else renderer.render(scene, camera);
       }
+      // Force initial shadow render
+      renderer.shadowMap.needsUpdate = true;
       animate();
     };
 
