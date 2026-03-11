@@ -80,6 +80,7 @@ export function getGameEditorBridgeScript(): string {
         if (child === boxHelper) continue;
         if (child === transformControls) continue;
         if (child.type === "BoxHelper" || child.type === "TransformControlsGizmo" || child.type === "TransformControlsPlane") continue;
+        if (child.name === "__editor_box_helper__" || child.name === "__editor_transform_controls__") continue;
         if (child.isTransformControls) continue;
         if (child.userData && child.userData.__isLightHelper) continue;
         if (child.type === "SpotLightHelper") continue;
@@ -199,50 +200,73 @@ export function getGameEditorBridgeScript(): string {
   }
 
   // ===== Selection =====
+  // Store name of selected object so we can re-find it if the reference becomes stale
+  var selectedObjName = "";
+
+  // Build a manual wireframe box (avoids THREE.BoxHelper bind-pose issues with SkinnedMesh)
+  function createCharacterBox(THREE, cb) {
+    var indices = new Uint16Array([0,1, 1,2, 2,3, 3,0, 4,5, 5,6, 6,7, 7,4, 0,4, 1,5, 2,6, 3,7]);
+    var positions = new Float32Array(8 * 3);
+    var geo = new THREE.BufferGeometry();
+    geo.setIndex(new THREE.BufferAttribute(indices, 1));
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    var mat = new THREE.LineBasicMaterial({ color: 0x00ff88 });
+    var box = new THREE.LineSegments(geo, mat);
+    box.name = "__editor_box_helper__";
+    box.frustumCulled = false;
+    // Store bounds for update
+    box.userData.__charBounds = cb;
+    box.update = function() {};
+    return box;
+  }
+
+  // Update character box vertices from the CURRENT selectedObj position
+  function updateCharacterBox(box) {
+    if (!box || !selectedObj) return;
+    var cb = box.userData.__charBounds;
+    if (!cb) return;
+    var wx = selectedObj.position.x;
+    var wy = selectedObj.position.y;
+    var wz = selectedObj.position.z;
+    var hx = cb.halfX, hz = cb.halfZ, h = cb.height;
+    var pos = box.geometry.attributes.position;
+    if (!pos) return;
+    var a = pos.array;
+    a[0]=wx+hx; a[1]=wy+h; a[2]=wz+hz;
+    a[3]=wx-hx; a[4]=wy+h; a[5]=wz+hz;
+    a[6]=wx-hx; a[7]=wy;   a[8]=wz+hz;
+    a[9]=wx+hx; a[10]=wy;  a[11]=wz+hz;
+    a[12]=wx+hx;a[13]=wy+h;a[14]=wz-hz;
+    a[15]=wx-hx;a[16]=wy+h;a[17]=wz-hz;
+    a[18]=wx-hx;a[19]=wy;  a[20]=wz-hz;
+    a[21]=wx+hx;a[22]=wy;  a[23]=wz-hz;
+    pos.needsUpdate = true;
+    box.geometry.computeBoundingSphere();
+  }
+
   function selectObject(obj) {
     deselectObject();
     if (!obj || !editor) return;
     selectedObj = obj;
+    selectedObjName = obj.name || "";
 
     var THREE = window.THREE;
 
     // Force matrix update so all position reads are current
     obj.updateMatrixWorld(true);
 
-    // BoxHelper highlight
-    boxHelper = new THREE.BoxHelper(obj, 0x00ff88);
-    boxHelper.name = "__editor_box_helper__";
-    // Override for animated characters — SkinnedMesh bind-pose gives wrong Box3
-    // Use obj.position DIRECTLY (not getWorldPosition which reads stale matrixWorld)
-    if (obj.userData && obj.userData.vibexeType === "AnimatedCharacter" && obj.userData.__characterBounds) {
-      var _cb = obj.userData.__characterBounds;
-      var _bObj = obj;
-      boxHelper.update = function() {
-        // Read position directly — for scene-root children this IS world position
-        // (getWorldPosition reads matrixWorld which can be stale before render)
-        var wx = _bObj.position.x;
-        var wy = _bObj.position.y;
-        var wz = _bObj.position.z;
-        var hx = _cb.halfX, hz = _cb.halfZ, h = _cb.height;
-        var pos = this.geometry.attributes.position;
-        if (!pos) return;
-        var a = pos.array;
-        a[0]=wx+hx; a[1]=wy+h; a[2]=wz+hz;
-        a[3]=wx-hx; a[4]=wy+h; a[5]=wz+hz;
-        a[6]=wx-hx; a[7]=wy;   a[8]=wz+hz;
-        a[9]=wx+hx; a[10]=wy;  a[11]=wz+hz;
-        a[12]=wx+hx;a[13]=wy+h;a[14]=wz-hz;
-        a[15]=wx-hx;a[16]=wy+h;a[17]=wz-hz;
-        a[18]=wx-hx;a[19]=wy;  a[20]=wz-hz;
-        a[21]=wx+hx;a[22]=wy;  a[23]=wz-hz;
-        pos.needsUpdate = true;
-        this.geometry.computeBoundingSphere();
-      };
-      boxHelper.update();
+    // BoxHelper highlight — use manual wireframe for animated characters (bind-pose bounding box is wrong)
+    var isAnimChar = obj.userData && obj.userData.vibexeType === "AnimatedCharacter" && obj.userData.__characterBounds;
+    if (isAnimChar) {
+      boxHelper = createCharacterBox(THREE, obj.userData.__characterBounds);
+      updateCharacterBox(boxHelper);
+    } else {
+      boxHelper = new THREE.BoxHelper(obj, 0x00ff88);
+      boxHelper.name = "__editor_box_helper__";
     }
     editor.scene.add(boxHelper);
 
-    // TransformControls gizmo — attach directly to the object (no proxy)
+    // TransformControls gizmo — attach directly to the object
     if (THREE.TransformControls) {
       transformControls = new THREE.TransformControls(editor.camera, editor.renderer.domElement);
       transformControls.name = "__editor_transform_controls__";
@@ -259,7 +283,11 @@ export function getGameEditorBridgeScript(): string {
       transformControls.addEventListener("objectChange", function() {
         if (selectedObj) {
           sendSelectedObject(selectedObj);
-          if (boxHelper) boxHelper.update();
+          if (boxHelper && boxHelper.userData.__charBounds) {
+            updateCharacterBox(boxHelper);
+          } else if (boxHelper && boxHelper.update) {
+            boxHelper.update();
+          }
           // Sync light helper position when light is dragged
           if (selectedObj.isLight && selectedObj.userData.__editorLight) {
             var _tcHelper = editor.scene.getObjectByName("__editor_light_helper_" + selectedObj.name);
@@ -273,7 +301,11 @@ export function getGameEditorBridgeScript(): string {
         }
       });
 
-      editor.scene.add(transformControls.getHelper ? transformControls.getHelper() : transformControls);
+      var tcHelper = transformControls.getHelper ? transformControls.getHelper() : transformControls;
+      editor.scene.add(tcHelper);
+
+      // Force initial TC update so gizmo renders at correct position
+      if (transformControls.update) transformControls.update();
     }
 
     sendSelectedObject(obj);
@@ -283,7 +315,8 @@ export function getGameEditorBridgeScript(): string {
     if (!editor) return;
     if (boxHelper) {
       editor.scene.remove(boxHelper);
-      boxHelper.dispose ? boxHelper.dispose() : null;
+      if (boxHelper.geometry) boxHelper.geometry.dispose();
+      if (boxHelper.material) boxHelper.material.dispose();
       boxHelper = null;
     }
     if (transformControls) {
@@ -293,6 +326,7 @@ export function getGameEditorBridgeScript(): string {
       transformControls = null;
     }
     selectedObj = null;
+    selectedObjName = "";
     window.parent.postMessage({ type: "game-editor-object-deselected" }, "*");
   }
 
@@ -418,7 +452,33 @@ export function getGameEditorBridgeScript(): string {
       if (editor.orbitControls) editor.orbitControls.update();
       // Force matrix updates before reading positions (prevents stale matrixWorld)
       editor.scene.updateMatrixWorld(true);
-      if (boxHelper && selectedObj) boxHelper.update();
+
+      // Guard: if selectedObj was swapped out of scene, re-find by name
+      if (selectedObj && !selectedObj.parent && selectedObjName) {
+        var refound = editor.scene.getObjectByName(selectedObjName);
+        if (refound && refound !== selectedObj) {
+          console.log("[GameEditorBridge] Re-found stale selectedObj: " + selectedObjName);
+          selectedObj = refound;
+          if (transformControls) {
+            transformControls.attach(refound);
+          }
+        }
+      }
+
+      // Update box helper
+      if (boxHelper && selectedObj) {
+        if (boxHelper.userData.__charBounds) {
+          updateCharacterBox(boxHelper);
+        } else if (boxHelper.update) {
+          boxHelper.update();
+        }
+      }
+
+      // TransformControls needs explicit update in r172 (extends Controls, not Object3D)
+      if (transformControls && transformControls.update) {
+        transformControls.update();
+      }
+
       editor.renderer.render(editor.scene, editor.camera);
     } catch(e) {
       console.warn("[GameEditorBridge] editorLoop error (likely disposal race):", e.message);
