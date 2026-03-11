@@ -41,9 +41,9 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v5.4.0
-// Pure GLB loader & model swapper — detached bind mode + proper skeleton rebind + camera follow
-console.log('[CharacterSystem] Module v5.4.0 loaded');
+const runtimeCode = `// @vibexe/character-system v6.0.0
+// Blink-style top-down WASD controller + camera-relative movement + orbit camera
+console.log('[CharacterSystem] Module v6.0.0 loaded');
 
 var THREE = require('three');
 
@@ -57,6 +57,128 @@ var _ROOT_BONE_NAMES = {
   "mixamorig_hips": true, "pelvis": true, "rootnode": true, "root_bone": true,
   "bip001": true, "bip01": true, "hip": true
 };
+
+// ===== INPUT STATE (Module-level, shared by all controllers) =====
+// Keyboard input tracking — camera-relative WASD movement (Blink-style)
+var _inputState = { w: false, a: false, s: false, d: false, shift: false, space: false };
+var _mouseState = { midDown: false, lastX: 0, lastY: 0, scrollDelta: 0 };
+var _inputListenersAttached = false;
+
+function _attachInputListeners() {
+  if (_inputListenersAttached) return;
+  _inputListenersAttached = true;
+
+  // Find the iframe's document (we're running inside the iframe)
+  var doc = typeof document !== "undefined" ? document : null;
+  if (!doc) return;
+
+  doc.addEventListener("keydown", function(e) {
+    var k = e.key.toLowerCase();
+    if (k === "w" || k === "arrowup") _inputState.w = true;
+    if (k === "a" || k === "arrowleft") _inputState.a = true;
+    if (k === "s" || k === "arrowdown") _inputState.s = true;
+    if (k === "d" || k === "arrowright") _inputState.d = true;
+    if (k === "shift") _inputState.shift = true;
+    if (k === " ") _inputState.space = true;
+  });
+
+  doc.addEventListener("keyup", function(e) {
+    var k = e.key.toLowerCase();
+    if (k === "w" || k === "arrowup") _inputState.w = false;
+    if (k === "a" || k === "arrowleft") _inputState.a = false;
+    if (k === "s" || k === "arrowdown") _inputState.s = false;
+    if (k === "d" || k === "arrowright") _inputState.d = false;
+    if (k === "shift") _inputState.shift = false;
+    if (k === " ") _inputState.space = false;
+  });
+
+  // Clear all keys on blur (prevents stuck keys when tabbing away)
+  window.addEventListener("blur", function() {
+    _inputState.w = _inputState.a = _inputState.s = _inputState.d = false;
+    _inputState.shift = _inputState.space = false;
+    _mouseState.midDown = false;
+  });
+
+  // Mouse: middle button for orbit, scroll for zoom
+  doc.addEventListener("mousedown", function(e) {
+    if (e.button === 1) { // middle mouse
+      _mouseState.midDown = true;
+      _mouseState.lastX = e.clientX;
+      _mouseState.lastY = e.clientY;
+      e.preventDefault();
+    }
+  });
+
+  doc.addEventListener("mouseup", function(e) {
+    if (e.button === 1) _mouseState.midDown = false;
+  });
+
+  doc.addEventListener("mousemove", function(e) {
+    if (_mouseState.midDown) {
+      var dx = e.clientX - _mouseState.lastX;
+      _mouseState.lastX = e.clientX;
+      _mouseState.lastY = e.clientY;
+      // Accumulate yaw rotation from mouse drag
+      if (window.__charCtrl_orbitYaw !== undefined) {
+        window.__charCtrl_orbitYaw += dx * 0.005; // radians per pixel
+      }
+    }
+  });
+
+  doc.addEventListener("wheel", function(e) {
+    // Accumulate scroll for zoom (consumed each frame)
+    _mouseState.scrollDelta += e.deltaY;
+    e.preventDefault();
+  }, { passive: false });
+
+  console.log("[CharacterSystem] Input listeners attached (WASD + mouse orbit/zoom)");
+}
+
+// ===== SMOOTH DAMP ANGLE (Unity's SmoothDampAngle port) =====
+// Critically-damped spring for angle interpolation — eliminates wrapping artifacts
+// Returns { value, velocity }
+function _smoothDampAngle(current, target, currentVelocity, smoothTime, dt) {
+  // Normalize delta to [-PI, PI]
+  var delta = target - current;
+  while (delta > Math.PI) delta -= Math.PI * 2;
+  while (delta < -Math.PI) delta += Math.PI * 2;
+  target = current + delta;
+
+  // Critically-damped spring (same as Unity's Mathf.SmoothDamp)
+  smoothTime = Math.max(0.0001, smoothTime);
+  var omega = 2.0 / smoothTime;
+  var x = omega * dt;
+  var exp = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x);
+  var change = current - target;
+  var temp = (currentVelocity + omega * change) * dt;
+  var newVel = (currentVelocity - omega * temp) * exp;
+  var result = target + (change + temp) * exp;
+
+  // Prevent overshooting
+  if ((target - current > 0) === (result > target)) {
+    result = target;
+    newVel = 0;
+  }
+
+  return { value: result, velocity: newVel };
+}
+
+// ===== SMOOTH DAMP (Vector component — Unity's Vector3.SmoothDamp per axis) =====
+function _smoothDamp(current, target, currentVelocity, smoothTime, dt) {
+  smoothTime = Math.max(0.0001, smoothTime);
+  var omega = 2.0 / smoothTime;
+  var x = omega * dt;
+  var exp = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x);
+  var change = current - target;
+  var temp = (currentVelocity + omega * change) * dt;
+  var newVel = (currentVelocity - omega * temp) * exp;
+  var result = target + (change + temp) * exp;
+  if ((target - current > 0) === (result > target)) {
+    result = target;
+    newVel = 0;
+  }
+  return { value: result, velocity: newVel };
+}
 
 // ===== CHARACTER REGISTRY =====
 var BUILTIN_CHARACTERS = ${BUILT_IN_CHARACTERS};
@@ -697,10 +819,18 @@ function swapCharacter(scene, characterId) {
         }
       }
 
-      // === Create inline animation controller (no factory dependency) ===
-      // Remove ALL existing controllers — the charSystem controller handles everything
-      // (physics sync, animation, camera follow). The old game template controller
-      // doesn't have __charSystem/__lilyController tags and was resetting the camera.
+      // === Blink-style WASD Controller (v6.0.0) ===
+      // Camera-relative movement, smooth rotation, orbit camera, scroll zoom
+      // Port of Unity "Blink Top Down WASD Character Controller" to Three.js + CANNON.js
+
+      // Attach input listeners (idempotent — only runs once)
+      _attachInputListeners();
+
+      // Tell the game template's IIFE to stop handling WASD input
+      // (charSystem controller now owns movement, animation, and camera)
+      window.__charCtrl_active = true;
+
+      // Remove ALL existing controllers — charSystem controller handles everything
       if (window._activeControllers3D) {
         console.log("[CharacterSystem] Clearing", window._activeControllers3D.length, "old controllers");
         window._activeControllers3D.length = 0;
@@ -713,38 +843,131 @@ function swapCharacter(scene, characterId) {
       var _csPlay = result.mesh.userData.__play;
 
       if (_csPlay && _csBody) {
-        // Camera follow settings from game settings
+        // === Controller configuration from game settings ===
         var _gsCamera = (window.__VIBEXE_GAME_SETTINGS__ || {}).camera || {};
-        var _camOffY = Math.max(1, _gsCamera.offsetY || 8);
-        var _camOffZ = Math.max(1, _gsCamera.offsetZ || 12);
-        var _camLerp = _gsCamera.lerp || 3;
-        var _camLookY = 1.5;
+        var _gsChar = (window.__VIBEXE_GAME_SETTINGS__ || {}).characterController || {};
         var _csHalfH = result.mesh.userData.__characterBounds ? result.mesh.userData.__characterBounds.height / 2 : 0.75;
+
+        // Movement speeds (matches Blink: walkSpeed=2, runSpeed=5)
+        var _walkSpeed = _gsChar.walkSpeed || 4;
+        var _runSpeed = _gsChar.runSpeed || 8;
+        var _jumpForce = _gsChar.jumpForce || 8;
+
+        // Rotation smoothing (Blink: smoothTime=0.25s)
+        var _rotSmoothTime = _gsChar.rotationSmoothTime || 0.15;
+        var _rotVelocity = 0;
+
+        // Camera orbit state (Blink: middle mouse drag rotates camera)
+        // Initialize orbit yaw from current camera settings offset direction
+        var _initCamOffZ = Math.max(1, _gsCamera.offsetZ || 12);
+        var _initCamOffY = Math.max(1, _gsCamera.offsetY || 8);
+        window.__charCtrl_orbitYaw = window.__charCtrl_orbitYaw || 0;
+
+        // Camera zoom state (Blink: scroll wheel, min 2 max 15, lerp speed 15)
+        var _camDistTarget = _gsChar.camDist || _initCamOffZ;
+        var _camHeightTarget = _gsChar.camHeight || _initCamOffY;
+        var _camDist = _camDistTarget;
+        var _camHeight = _camHeightTarget;
+        var _camMinDist = _gsChar.camMinDist || 3;
+        var _camMaxDist = _gsChar.camMaxDist || 25;
+        var _camMinHeight = _gsChar.camMinHeight || 2;
+        var _camMaxHeight = _gsChar.camMaxHeight || 20;
+        var _camZoomSpeed = 15;
+        var _camLookYOffset = _gsChar.camLookY || 1.2;
+
+        // Camera smooth follow (Blink: Vector3.SmoothDamp, dampTime 0.1s)
+        var _camFollowSmoothTime = _gsChar.camSmoothTime || 0.12;
+        var _camVelX = 0, _camVelY = 0, _camVelZ = 0;
+
+        // Jump state
+        var _wasGrounded = true;
+        var _jumpCooldown = 0;
 
         var newCtrl = {
           __charSystem: true,
           update: function(dt) {
             if (!_csBody || !_csPlay) return;
+            dt = Math.min(dt, 0.05); // Cap dt to prevent huge jumps on lag spikes
 
-            // === Physics → mesh position sync ===
-            // Ensures character mesh tracks the physics body regardless of saved game code
+            // === 1. READ INPUT — Camera-relative WASD (Blink-style) ===
+            var inputX = 0, inputZ = 0;
+            if (_inputState.w) inputZ -= 1;
+            if (_inputState.s) inputZ += 1;
+            if (_inputState.a) inputX -= 1;
+            if (_inputState.d) inputX += 1;
+
+            // Normalize diagonal input
+            var inputLen = Math.sqrt(inputX * inputX + inputZ * inputZ);
+            if (inputLen > 1) { inputX /= inputLen; inputZ /= inputLen; }
+            var hasInput = inputLen > 0.01;
+
+            // === 2. CAMERA ORBIT — Middle mouse drag (Blink-style) ===
+            var orbitYaw = window.__charCtrl_orbitYaw || 0;
+
+            // === 3. CAMERA ZOOM — Scroll wheel (Blink-style) ===
+            if (_mouseState.scrollDelta !== 0) {
+              var zoomDelta = _mouseState.scrollDelta * 0.01;
+              _camDistTarget += zoomDelta;
+              _camHeightTarget += zoomDelta * 0.6; // Height scales proportionally
+              _camDistTarget = Math.max(_camMinDist, Math.min(_camMaxDist, _camDistTarget));
+              _camHeightTarget = Math.max(_camMinHeight, Math.min(_camMaxHeight, _camHeightTarget));
+              _mouseState.scrollDelta = 0;
+            }
+            // Smooth zoom lerp (Blink: zoomSpeed=15)
+            _camDist += (_camDistTarget - _camDist) * Math.min(_camZoomSpeed * dt, 1);
+            _camHeight += (_camHeightTarget - _camHeight) * Math.min(_camZoomSpeed * dt, 1);
+
+            // === 4. ROTATE INPUT BY CAMERA YAW (Blink core feature) ===
+            // This makes W always move "away from camera" regardless of orbit angle
+            var cosY = Math.cos(orbitYaw);
+            var sinY = Math.sin(orbitYaw);
+            var worldX = inputX * cosY + inputZ * sinY;
+            var worldZ = -inputX * sinY + inputZ * cosY;
+
+            // === 5. APPLY MOVEMENT TO PHYSICS BODY ===
+            var isRunning = _inputState.shift && hasInput;
+            var moveSpeed = isRunning ? _runSpeed : _walkSpeed;
+
+            // Only override X/Z velocity — preserve Y for jump/gravity
+            if (_csBody.velocity) {
+              _csBody.velocity.x = worldX * moveSpeed;
+              _csBody.velocity.z = worldZ * moveSpeed;
+            }
+
+            // Jump — only when grounded (vy near zero) and cooldown expired
+            _jumpCooldown = Math.max(0, _jumpCooldown - dt);
+            var isGrounded = Math.abs(_csBody.velocity ? _csBody.velocity.y : 0) < 0.5;
+            if (_inputState.space && isGrounded && _jumpCooldown <= 0) {
+              if (_csBody.velocity) _csBody.velocity.y = _jumpForce;
+              _jumpCooldown = 0.3;
+            }
+
+            // === 6. PHYSICS → MESH POSITION SYNC ===
             if (_csBody.position) {
               _csMesh.position.x = _csBody.position.x;
               _csMesh.position.y = _csBody.position.y - _csHalfH;
               _csMesh.position.z = _csBody.position.z;
-              // Apply ground offset if set
               if (_csMesh.userData && _csMesh.userData.__groundOffset) {
                 _csMesh.position.y += _csMesh.userData.__groundOffset;
               }
             }
 
+            // === 7. SMOOTH CHARACTER ROTATION (Blink: SmoothDampAngle 0.25s) ===
+            if (hasInput) {
+              var targetAngle = Math.atan2(worldX, worldZ);
+              var dampResult = _smoothDampAngle(_csMesh.rotation.y, targetAngle, _rotVelocity, _rotSmoothTime, dt);
+              _csMesh.rotation.y = dampResult.value;
+              _rotVelocity = dampResult.velocity;
+            } else {
+              _rotVelocity = 0;
+            }
+
+            // === 8. ANIMATION STATE MACHINE (with hysteresis) ===
             var vx = _csBody.velocity ? _csBody.velocity.x : 0;
             var vy = _csBody.velocity ? _csBody.velocity.y : 0;
             var vz = _csBody.velocity ? _csBody.velocity.z : 0;
             var speed = Math.sqrt(vx * vx + vz * vz);
 
-            // Hysteresis: use different thresholds for entering vs leaving run/walk
-            // to prevent flickering at boundary speeds
             var targetAnim;
             if (vy > 2) {
               targetAnim = "jump";
@@ -762,23 +985,21 @@ function swapCharacter(scene, characterId) {
               _csLastAnim = targetAnim;
             }
 
-            // Face movement direction
-            if (speed > 0.5) {
-              _csMesh.rotation.y = Math.atan2(vx, vz);
-            }
-
-            // === Third-person camera follow ===
-            // Runs AFTER gameScene.update() — overrides any stale camera from old saved code
+            // === 9. CAMERA FOLLOW (Blink: SmoothDamp with orbit) ===
             var cam = window.__vibexe_camera__ || (window.__vibexe_editor__ || {}).camera;
             if (cam && cam.position && _csMesh.visible && !(window.__vibexe_editor__ || {}).isEditing) {
-              var targetX = _csMesh.position.x;
-              var targetY = _csMesh.position.y + _camOffY;
-              var targetZ = _csMesh.position.z + _camOffZ;
-              var lerpF = _camLerp * dt;
-              if (lerpF > 1) lerpF = 1;
-              cam.position.x += (targetX - cam.position.x) * lerpF;
-              cam.position.y += (targetY - cam.position.y) * lerpF;
-              cam.position.z += (targetZ - cam.position.z) * lerpF;
+              // Camera position = player + rotateY(orbitYaw) * (0, height, dist)
+              var camTargetX = _csMesh.position.x + Math.sin(orbitYaw) * _camDist;
+              var camTargetY = _csMesh.position.y + _camHeight;
+              var camTargetZ = _csMesh.position.z + Math.cos(orbitYaw) * _camDist;
+
+              // SmoothDamp per axis (Blink: dampTime 0.1s)
+              var sdX = _smoothDamp(cam.position.x, camTargetX, _camVelX, _camFollowSmoothTime, dt);
+              var sdY = _smoothDamp(cam.position.y, camTargetY, _camVelY, _camFollowSmoothTime, dt);
+              var sdZ = _smoothDamp(cam.position.z, camTargetZ, _camVelZ, _camFollowSmoothTime, dt);
+              cam.position.x = sdX.value; _camVelX = sdX.velocity;
+              cam.position.y = sdY.value; _camVelY = sdY.velocity;
+              cam.position.z = sdZ.value; _camVelZ = sdZ.velocity;
 
               // Terrain-height correction — smooth lerp to prevent camera going underground
               var _getH = window.__vibexe_getTerrainHeight;
@@ -787,12 +1008,13 @@ function swapCharacter(scene, characterId) {
                 if (_camTH != null) {
                   var _camMinY = _camTH + _csHalfH + 2.0;
                   if (cam.position.y < _camMinY) {
-                    cam.position.y += (_camMinY - cam.position.y) * Math.min(lerpF * 2, 1);
+                    cam.position.y += (_camMinY - cam.position.y) * Math.min(8 * dt, 1);
                   }
                 }
               }
 
-              cam.lookAt(_csMesh.position.x, _csMesh.position.y + _camLookY, _csMesh.position.z);
+              // Look at player + Y offset
+              cam.lookAt(_csMesh.position.x, _csMesh.position.y + _camLookYOffset, _csMesh.position.z);
             }
           }
         };
@@ -800,7 +1022,8 @@ function swapCharacter(scene, characterId) {
         if (window._activeControllers3D) {
           window._activeControllers3D.push(newCtrl);
         }
-        console.log("[CharacterSystem] Inline controller created | animMap:", Object.keys(animMap).join(","));
+        console.log("[CharacterSystem] Blink controller v6.0 created | animMap:", Object.keys(animMap).join(","),
+          "| speeds:", _walkSpeed + "/" + _runSpeed, "| camDist:", _camDist.toFixed(1), "| orbit/zoom enabled");
       }
 
       // === Post-terrain snap: poll for terrain height, snap character when available ===
@@ -986,7 +1209,7 @@ module.exports = {
 export const CHARACTER_SYSTEM_MANIFEST: ModuleManifest = {
 	id: "character-system",
 	name: "Character System",
-	version: "5.4.0",
+	version: "6.0.0",
 	category: "tools",
 	description: "Player character selection and model swapping",
 	icon: "PersonStanding",
