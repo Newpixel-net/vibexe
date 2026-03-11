@@ -1013,6 +1013,39 @@ function swapCharacter(scene, characterId) {
                 }
               }
 
+              // === Camera collision avoidance (Blink-style) ===
+              // Raycast from player to camera — if obstructed, move camera closer
+              var _playerCenter = new THREE.Vector3(_csMesh.position.x, _csMesh.position.y + _csHalfH, _csMesh.position.z);
+              var _camPos = new THREE.Vector3(cam.position.x, cam.position.y, cam.position.z);
+              var _toCamera = new THREE.Vector3().subVectors(_camPos, _playerCenter);
+              var _toCamLen = _toCamera.length();
+              if (_toCamLen > 0.1) {
+                _toCamera.normalize();
+                var _ccRay = new THREE.Raycaster(_playerCenter, _toCamera, 0.3, _toCamLen);
+                // Only test against terrain and solid meshes (skip player, helpers, particles)
+                var _ccTargets = [];
+                var _ccScene = window.__vibexe_scene__;
+                if (_ccScene) {
+                  _ccScene.traverse(function(child) {
+                    if (!child.isMesh) return;
+                    if (child === _csMesh || child.name.indexOf("Character_") === 0) return;
+                    if (child.name.indexOf("__editor_") === 0) return;
+                    if (child.userData && child.userData.vibexeType === "AnimatedCharacter") return;
+                    if (!child.visible) return;
+                    _ccTargets.push(child);
+                  });
+                }
+                if (_ccTargets.length > 0) {
+                  var _ccHits = _ccRay.intersectObjects(_ccTargets, false);
+                  if (_ccHits.length > 0) {
+                    var _hitDist = _ccHits[0].distance;
+                    // Pull camera to 0.5 units in front of the hit point
+                    var _safeDist = Math.max(1.0, _hitDist - 0.5);
+                    cam.position.copy(_playerCenter).addScaledVector(_toCamera, _safeDist);
+                  }
+                }
+              }
+
               // Look at player + Y offset
               cam.lookAt(_csMesh.position.x, _csMesh.position.y + _camLookYOffset, _csMesh.position.z);
             }

@@ -5772,26 +5772,29 @@ export const GameScene = {
     if (jumpBufferTimer > 0) jumpBufferTimer -= delta;
 
     // Player movement — VELOCITY-BASED
-    const vx = ((keys.ArrowRight || keys.KeyD) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA) ? 1 : 0);
-    const vz = ((keys.ArrowDown || keys.KeyS) ? 1 : 0) - ((keys.ArrowUp || keys.KeyW) ? 1 : 0);
-    if (vx !== 0 || vz !== 0) {
-      const len = Math.sqrt(vx * vx + vz * vz);
-      playerBody.velocity.x = (vx / len) * MOVE_SPEED;
-      playerBody.velocity.z = (vz / len) * MOVE_SPEED;
-    }
+    // Skip when character-system module owns movement (Blink controller)
+    if (!(window as any).__charCtrl_active) {
+      const vx = ((keys.ArrowRight || keys.KeyD) ? 1 : 0) - ((keys.ArrowLeft || keys.KeyA) ? 1 : 0);
+      const vz = ((keys.ArrowDown || keys.KeyS) ? 1 : 0) - ((keys.ArrowUp || keys.KeyW) ? 1 : 0);
+      if (vx !== 0 || vz !== 0) {
+        const len = Math.sqrt(vx * vx + vz * vz);
+        playerBody.velocity.x = (vx / len) * MOVE_SPEED;
+        playerBody.velocity.z = (vz / len) * MOVE_SPEED;
+      }
 
-    // Jump with coyote time + jump buffer
-    if (keys.Space) {
-      jumpBufferTimer = JUMP_BUFFER;
-    }
-    const canJump = (playerBody as any).__canJump || coyoteTimer < COYOTE_TIME;
-    if (jumpBufferTimer > 0 && canJump) {
-      playerBody.velocity.y = JUMP_FORCE;
-      (playerBody as any).__canJump = false;
-      coyoteTimer = COYOTE_TIME; // Consume coyote time
-      jumpBufferTimer = 0;
-      playSound(soundUrl("platformer-project/sfx/jump_0.wav"), { volume: 0.6 });
-      hapticFeedback("light");
+      // Jump with coyote time + jump buffer
+      if (keys.Space) {
+        jumpBufferTimer = JUMP_BUFFER;
+      }
+      const canJump = (playerBody as any).__canJump || coyoteTimer < COYOTE_TIME;
+      if (jumpBufferTimer > 0 && canJump) {
+        playerBody.velocity.y = JUMP_FORCE;
+        (playerBody as any).__canJump = false;
+        coyoteTimer = COYOTE_TIME; // Consume coyote time
+        jumpBufferTimer = 0;
+        playSound(soundUrl("platformer-project/sfx/jump_0.wav"), { volume: 0.6 });
+        hapticFeedback("light");
+      }
     }
 
     // Terrain ground-following: actively snap player to terrain surface
@@ -5817,34 +5820,40 @@ export const GameScene = {
       }
     }
 
-    // Sync physics → active player mesh (game template always owns this)
-    if (activePlayer && playerBody) {
-      activePlayer.position.copy(playerBody.position);
-      const playerHalfY = activePlayer.userData?.__characterBounds?.height
-        ? activePlayer.userData.__characterBounds.height / 2
-        : (lily?.size?.y || 0.5);
-      activePlayer.position.y -= playerHalfY;
-      // Apply ground offset if set by character system
-      if (activePlayer.userData?.__groundOffset) {
-        activePlayer.position.y += activePlayer.userData.__groundOffset;
+    // Sync physics → active player mesh
+    // Skip when character-system module owns mesh sync (Blink controller)
+    if (!(window as any).__charCtrl_active) {
+      if (activePlayer && playerBody) {
+        activePlayer.position.copy(playerBody.position);
+        const playerHalfY = activePlayer.userData?.__characterBounds?.height
+          ? activePlayer.userData.__characterBounds.height / 2
+          : (lily?.size?.y || 0.5);
+        activePlayer.position.y -= playerHalfY;
+        // Apply ground offset if set by character system
+        if (activePlayer.userData?.__groundOffset) {
+          activePlayer.position.y += activePlayer.userData.__groundOffset;
+        }
       }
     }
     syncBodiesToMeshes(platforms);
 
-    // Camera follow active player (game template always owns this)
-    if (activePlayer) {
-      camera.position.x += (activePlayer.position.x - camera.position.x) * CAMERA_LERP * delta;
-      camera.position.y += (activePlayer.position.y + CAMERA_OFFSET_Y - camera.position.y) * CAMERA_LERP * delta;
-      camera.position.z += (activePlayer.position.z + CAMERA_OFFSET_Z - camera.position.z) * CAMERA_LERP * delta;
-      // Terrain-height correction — prevent camera going underground on hilly terrain
-      const _camGetH = (window as any).__vibexe_getTerrainHeight;
-      if (_camGetH) {
-        const _camTH = _camGetH(camera.position.x, camera.position.z);
-        if (_camTH != null && camera.position.y < _camTH + 3.0) {
-          camera.position.y = _camTH + 3.0;
+    // Camera follow active player
+    // Skip when character-system module owns camera (Blink orbit camera)
+    if (!(window as any).__charCtrl_active) {
+      if (activePlayer) {
+        camera.position.x += (activePlayer.position.x - camera.position.x) * CAMERA_LERP * delta;
+        camera.position.y += (activePlayer.position.y + CAMERA_OFFSET_Y - camera.position.y) * CAMERA_LERP * delta;
+        camera.position.z += (activePlayer.position.z + CAMERA_OFFSET_Z - camera.position.z) * CAMERA_LERP * delta;
+        // Terrain-height correction — prevent camera going underground on hilly terrain
+        const _camGetH = (window as any).__vibexe_getTerrainHeight;
+        if (_camGetH) {
+          const _camTH = _camGetH(camera.position.x, camera.position.z);
+          if (_camTH != null && camera.position.y < _camTH + 3.0) {
+            camera.position.y = _camTH + 3.0;
+          }
         }
+        camera.lookAt(activePlayer.position.x, activePlayer.position.y + CAMERA_LOOK_Y, activePlayer.position.z);
       }
-      camera.lookAt(activePlayer.position.x, activePlayer.position.y + CAMERA_LOOK_Y, activePlayer.position.z);
     }
 
     // Collect items
