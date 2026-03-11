@@ -994,6 +994,11 @@ function swapCharacter(scene, characterId) {
             // === 9. CAMERA FOLLOW (Blink: SmoothDamp with orbit) ===
             var cam = window.__vibexe_camera__ || (window.__vibexe_editor__ || {}).camera;
             if (cam && cam.position && _csMesh.visible && !(window.__vibexe_editor__ || {}).isEditing) {
+              // Reset smooth velocities if camera was moved externally (editor moved it)
+              if (!window.__charCtrl_camActive) {
+                window.__charCtrl_camActive = true;
+                _camVelX = 0; _camVelY = 0; _camVelZ = 0;
+              }
               // Camera position = player + rotateY(orbitYaw) * (0, height, dist)
               var camTargetX = _csMesh.position.x + Math.sin(orbitYaw) * _camDist;
               var camTargetY = _csMesh.position.y + _camHeight;

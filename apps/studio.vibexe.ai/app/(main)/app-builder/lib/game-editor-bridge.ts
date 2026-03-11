@@ -407,9 +407,13 @@ export function getGameEditorBridgeScript(): string {
   function editorLoop() {
     if (!active || !editor) return;
     editorAnimId = requestAnimationFrame(editorLoop);
-    if (editor.orbitControls) editor.orbitControls.update();
-    if (boxHelper && selectedObj) boxHelper.update();
-    editor.renderer.render(editor.scene, editor.camera);
+    try {
+      if (editor.orbitControls) editor.orbitControls.update();
+      if (boxHelper && selectedObj) boxHelper.update();
+      editor.renderer.render(editor.scene, editor.camera);
+    } catch(e) {
+      console.warn("[GameEditorBridge] editorLoop error (likely disposal race):", e.message);
+    }
   }
 
   // ===== Activate / Deactivate =====
@@ -431,6 +435,13 @@ export function getGameEditorBridgeScript(): string {
       // Pause game loop
       console.log("[GameEditorBridge] Pausing game...");
       editor.pause();
+
+      // Reset character controller orbit yaw — prevents disorienting camera angle on return to game
+      window.__charCtrl_orbitYaw = 0;
+      // Signal charSystem that camera was moved externally (editor) — resets SmoothDamp velocities on resume
+      window.__charCtrl_camActive = false;
+      // Trigger blur to clear any stuck keys in charSystem input handlers
+      try { window.dispatchEvent(new Event("blur")); } catch(e) {}
 
       // Attach listeners
       editor.renderer.domElement.addEventListener("click", onCanvasClick);
@@ -568,7 +579,7 @@ export function getGameEditorBridgeScript(): string {
   }
 
   // ===== PostMessage Handler =====
-  window.addEventListener("message", function(e) {
+  function _onBridgeMessage(e) {
     var d = e.data;
     if (!d || !d.type) return;
 
@@ -1018,7 +1029,8 @@ export function getGameEditorBridgeScript(): string {
         window.parent.postMessage({ type: "game-editor-all-transforms", transforms: allTransforms }, "*");
         break;
     }
-  });
+  }
+  window.addEventListener("message", _onBridgeMessage);
 })();
 `;
 }
