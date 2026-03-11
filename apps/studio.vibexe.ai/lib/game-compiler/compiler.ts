@@ -409,7 +409,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
     alpha: false, stencil: false, powerPreference: 'high-performance'
   });
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(Math.min(__perf.pixelRatio || window.devicePixelRatio, 1.5));
+  renderer.setPixelRatio(Math.min(__perf.pixelRatio || window.devicePixelRatio, 1.0));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.shadowMap.autoUpdate = false;
@@ -695,6 +695,9 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       // Signal PerfGuard is active (bridge AdaptiveQuality should back off)
       W.__vibexe_perfguard__ = true;
 
+      // Disable bloom by default for performance — skip composer entirely and render direct
+      W.__vibexe_skipComposer__ = true;
+
       // Reset PerfGuard counters on tab-switch to prevent false FPS trigger
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden) {
@@ -732,7 +735,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
           } else if (__avgFps > 30 && __perfDowngraded) {
             __perfDowngraded = false;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality');
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.needsUpdate = true;
             W.__vibexe_cullDistance__ = 150;
