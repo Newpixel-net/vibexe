@@ -1676,11 +1676,6 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 						"if(_pfs){if(_pfs.pixelRatio!=null){var _prr=window.__vibexe_renderer__;if(_prr&&_prr.setPixelRatio){_prr.setPixelRatio(Math.max(0.5,Math.min(1.5,_pfs.pixelRatio)))}}if(_pfs.maxFPS!=null){window.__vibexe_maxFPS__=_pfs.maxFPS}if(_pfs.showFPS){var _fpsD=document.createElement('div');_fpsD.id='vibexe-fps';_fpsD.style.cssText='position:fixed;top:4px;left:4px;padding:2px 6px;background:rgba(0,0,0,0.7);color:#0f0;font:11px monospace;z-index:99999;pointer-events:none';document.body.appendChild(_fpsD);var _fc=0,_lt=performance.now();(function _fpsLoop(){_fc++;var now=performance.now();if(now-_lt>=1000){_fpsD.textContent=_fc+' FPS';_fc=0;_lt=now}requestAnimationFrame(_fpsLoop)})()}}",
 						// Runtime renderer perf patches (applies to old saved IIFE code)
 						"var _ren=window.__vibexe_renderer__;if(_ren){if(_ren.getPixelRatio()>1.5){_ren.setPixelRatio(1.5)}if(T.PCFShadowMap!==undefined&&_ren.shadowMap.type!==T.PCFShadowMap){_ren.shadowMap.type=T.PCFShadowMap;_ren.shadowMap.needsUpdate=true}if(_ren.shadowMap.autoUpdate!==false){_ren.shadowMap.autoUpdate=false;_ren.shadowMap.needsUpdate=true}}",
-						// Bloom bypass: disable bloom by default and override composer.render() to skip
-						// EffectComposer overhead entirely when no effect passes are active.
-						// Saved IIFE game loop does: if(__composer){__composer.render(delta)} else {renderer.render(scene,camera)}
-						// By overriding composer.render(), we intercept both local-var and window-var calls.
-						"var _comp=window.__vibexe_composer__;if(_comp&&_comp.passes){for(var _bi=0;_bi<_comp.passes.length;_bi++){if(_comp.passes[_bi].constructor&&_comp.passes[_bi].constructor.name==='UnrealBloomPass'){_comp.passes[_bi].enabled=false}}var _origCR=_comp.render.bind(_comp);_comp.render=function(d){var _any=false;for(var i=1;i<_comp.passes.length;i++){if(_comp.passes[i].enabled){_any=true;break}}if(_any){_origCR(d)}else{var _r2=window.__vibexe_renderer__;var _s2=window.__vibexe_scene__;var _c2=window.__vibexe_camera__;if(_r2&&_s2&&_c2)_r2.render(_s2,_c2)}};console.log('[PerfPatch] Bloom off + composer bypass active')}",
 						// Shadow quality — apply shadow map size and increase shadow camera far for large terrains
 						"var _shq=(_gs.environment&&_gs.environment.shadowQuality)||'medium';",
 						"var _shSize={low:512,medium:1024,high:2048}[_shq]||1024;",
@@ -1771,9 +1766,11 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			"var problems=[];",
 			"var W=window;",
 
-			// Renderer
+			// Renderer (enhanced with shadow/bloom/performance info)
 			"var ren=W.__vibexe_renderer__;",
-			"r.push({system:'Renderer',status:ren?'ok':'missing',details:ren?{pixelRatio:ren.getPixelRatio(),size:ren.getSize?((function(){var s=new(W.THREE||{}).Vector2();ren.getSize(s);return s.x+'x'+s.y})()):'?'}:null});",
+			"var comp=W.__vibexe_composer__;",
+			"var _bloomPass=null;if(comp&&comp.passes){for(var _bp=0;_bp<comp.passes.length;_bp++){if(comp.passes[_bp].constructor&&comp.passes[_bp].constructor.name==='UnrealBloomPass'){_bloomPass=comp.passes[_bp];break}}}",
+			"r.push({system:'Renderer',status:ren?'ok':'missing',details:ren?{pixelRatio:ren.getPixelRatio(),devicePR:W.devicePixelRatio||1,size:ren.getSize?((function(){var s=new(W.THREE||{}).Vector2();ren.getSize(s);return s.x+'x'+s.y})()):'?',shadows:ren.shadowMap.enabled,shadowType:ren.shadowMap.type===1?'PCF':ren.shadowMap.type===2?'PCFSoft':'Basic',shadowAutoUpdate:ren.shadowMap.autoUpdate,toneMapping:['No','Linear','Reinhard','Cineon','ACES'][ren.toneMapping]||ren.toneMapping,bloom:_bloomPass?(_bloomPass.enabled?'ON':'OFF'):'none',composer:comp?'active':'none'}:null});",
 
 			// Scene
 			"var sc=W.__vibexe_scene__;",
@@ -1852,9 +1849,14 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			"var sw=W.__vibexe_skyWeather;",
 			"r.push({system:'Sky & Weather',status:sw&&sw._active?'ok':(sw?'inactive':'off'),details:sw?{time:+(sw.solarTime||0).toFixed(3),fog:sw.config.fog.enabled,auto:sw.config.time.autoAdvance}:null});",
 
-			// Adaptive Quality
+			// Adaptive Quality (full state from bridge AQ system)
 			"var aq=W.__vibexe_adaptive_quality__;",
-			"r.push({system:'Adaptive Quality',status:aq?'ok':'off',details:aq?{fps:aq.currentFps||0,reduced:aq.isReduced||false}:null});",
+			"r.push({system:'Adaptive Quality',status:aq?'ok':'off',details:aq?{fps:aq.fps||0,pixelRatio:aq.currentPixelRatio,originalPR:aq.originalPixelRatio,shadowsOff:aq.shadowsDisabled||false,bloomOff:aq.bloomDisabled||false,reductions:aq.reductions||0}:null});",
+			// Performance guard (from template game loop)
+			"var cullDist=W.__vibexe_cullDistance__||120;",
+			"var fpsCounter=document.getElementById('__vibexe_fps__');",
+			"var gameFps=fpsCounter?parseInt(fpsCounter.textContent)||0:0;",
+			"r.push({system:'Performance',status:gameFps>=50?'ok':(gameFps>=30?'inactive':'missing'),details:{gameFps:gameFps,cullDistance:cullDist,skipComposer:!!W.__vibexe_skipComposer__,editorActive:!!W.__vibexe_editor_active__}});",
 
 			// Audio
 			"var au=W.__vibexe_audio__;",
