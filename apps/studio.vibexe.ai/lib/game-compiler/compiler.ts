@@ -461,10 +461,10 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   const __shSize = __shSizes[__gs.environment?.shadowQuality || 'medium'] || 1024;
   sun.shadow.mapSize.set(__shSize, __shSize);
   const __hasTerrain = !!__gs.terrain?.enabled;
-  const __tHalf = __hasTerrain ? Math.max((__gs.terrain?.width || 200) / 2, (__gs.terrain?.depth || 200) / 2) : 20;
-  const __shExt = Math.min(__tHalf, 100);
+  // Shadow frustum follows player — only need ~40 unit radius (not full terrain)
+  const __shExt = __hasTerrain ? 40 : 20;
   sun.shadow.camera.near = 0.5;
-  sun.shadow.camera.far = __hasTerrain ? 200 : 50;
+  sun.shadow.camera.far = __hasTerrain ? 150 : 50;
   sun.shadow.camera.left = -__shExt;
   sun.shadow.camera.right = __shExt;
   sun.shadow.camera.top = __shExt;
@@ -721,15 +721,15 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         if (__perfNow - __perfLastCheck >= 2000 && !__editorMode) {
           const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
           const __perfAge = __perfNow - __perfStartTime;
-          if (__avgFps < 35 && !__perfDowngraded && __perfAge > 10000) {
+          if (__avgFps < 20 && !__perfDowngraded && __perfAge > 20000) {
             __perfDowngraded = true;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
-            renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.75));
+            renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.85));
             renderer.shadowMap.enabled = false;
-            W.__vibexe_cullDistance__ = 60;
+            W.__vibexe_cullDistance__ = 80;
             const comp = W.__vibexe_composer__;
             if (comp?.passes) { for (let pi = 0; pi < comp.passes.length; pi++) { if (comp.passes[pi].constructor?.name === 'UnrealBloomPass') comp.passes[pi].enabled = false; } }
-          } else if (__avgFps > 45 && __perfDowngraded) {
+          } else if (__avgFps > 30 && __perfDowngraded) {
             __perfDowngraded = false;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality');
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
