@@ -2160,10 +2160,10 @@ export function getVisualEditBridgeScript(): string {
       // === Runtime renderer optimizations (patches old saved IIFE code) ===
       if (editor.renderer) {
         var _r = editor.renderer;
-        // Cap pixelRatio at 1.5 (was 2 in old templates — saves 78% pixels)
-        if (_r.getPixelRatio() > 1.5) {
-          _r.setPixelRatio(1.5);
-          showDebug("PerfPatch: pixelRatio capped to 1.5 (was " + window.devicePixelRatio + ")");
+        // Cap pixelRatio at 1.0 for max FPS
+        if (_r.getPixelRatio() > 1.0) {
+          _r.setPixelRatio(1.0);
+          showDebug("PerfPatch: pixelRatio capped to 1.0 (was " + window.devicePixelRatio + ")");
         }
         // Switch to faster shadow filtering
         if (THREE.PCFShadowMap !== undefined && _r.shadowMap.type !== THREE.PCFShadowMap) {
@@ -5216,7 +5216,7 @@ export function getVisualEditBridgeScript(): string {
 
   function getMaxPixelRatio() {
     var dpr = (typeof devicePixelRatio !== "undefined") ? devicePixelRatio : 1;
-    return Math.min(dpr, 1.5);
+    return Math.min(dpr, 1.0);
   }
 
   function init() {

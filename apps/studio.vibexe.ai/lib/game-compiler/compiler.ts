@@ -405,7 +405,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
 
   // ===== Renderer =====
   const renderer = new THREE.WebGLRenderer({
-    antialias: __perf.antialias !== false,
+    antialias: __perf.antialias === true,
     alpha: false, stencil: false, powerPreference: 'high-performance'
   });
   renderer.setSize(container.clientWidth, container.clientHeight);
@@ -457,8 +457,8 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   sun.name = '__default_sun__';
   sun.position.set(8, 20, 10);
   sun.castShadow = true;
-  const __shSizes: Record<string, number> = { low: 512, medium: 1024, high: 2048 };
-  const __shSize = __shSizes[__gs.environment?.shadowQuality || 'medium'] || 1024;
+  const __shSizes: Record<string, number> = { low: 256, medium: 512, high: 1024 };
+  const __shSize = __shSizes[__gs.environment?.shadowQuality || 'medium'] || 512;
   sun.shadow.mapSize.set(__shSize, __shSize);
   const __hasTerrain = !!__gs.terrain?.enabled;
   // Shadow frustum follows player — only need ~40 unit radius (not full terrain)
@@ -725,15 +725,15 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         if (__perfNow - __perfLastCheck >= 2000 && !__editorMode) {
           const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
           const __perfAge = __perfNow - __perfStartTime;
-          if (__avgFps < 30 && !__perfDowngraded && __perfAge > 10000) {
+          if (__avgFps < 40 && !__perfDowngraded && __perfAge > 8000) {
             __perfDowngraded = true;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
-            renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.85));
+            renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.75));
             renderer.shadowMap.enabled = false;
             W.__vibexe_cullDistance__ = 80;
             const comp = W.__vibexe_composer__;
             if (comp?.passes) { for (let pi = 0; pi < comp.passes.length; pi++) { if (comp.passes[pi].constructor?.name === 'UnrealBloomPass') comp.passes[pi].enabled = false; } }
-          } else if (__avgFps > 45 && __perfDowngraded) {
+          } else if (__avgFps > 55 && __perfDowngraded) {
             __perfDowngraded = false;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality');
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
@@ -804,7 +804,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
             if (__cachedSun.target) { __cachedSun.target.position.set(__px, 0, __pz); __cachedSun.target.updateMatrixWorld(); }
             __shadowFrame++;
             const __sdx = __px - __shadowLastPX, __sdz = __pz - __shadowLastPZ;
-            if (__shadowFrame >= 15 || __sdx * __sdx + __sdz * __sdz > 25) {
+            if (__shadowFrame >= 30 || __sdx * __sdx + __sdz * __sdz > 25) {
               __shadowFrame = 0; __shadowLastPX = __px; __shadowLastPZ = __pz;
               renderer.shadowMap.needsUpdate = true;
             }
