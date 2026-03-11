@@ -2187,6 +2187,17 @@ export function getVisualEditBridgeScript(): string {
             }
           });
         }
+        // Disable bloom and bypass EffectComposer for editor perf
+        var _comp = window.__vibexe_composer__;
+        if (_comp && _comp.passes) {
+          for (var _bi = 0; _bi < _comp.passes.length; _bi++) {
+            if (_comp.passes[_bi].constructor && _comp.passes[_bi].constructor.name === 'UnrealBloomPass') {
+              _comp.passes[_bi].enabled = false;
+            }
+          }
+          window.__vibexe_skipComposer__ = true;
+          showDebug("PerfPatch: bloom disabled + composer bypass");
+        }
       }
       // Fix OrbitControls for editor mode — must use deferred override because
       // the embedded bridge in Game3D.tsx also handles game-editor-activate and
@@ -5167,8 +5178,8 @@ export function getVisualEditBridgeScript(): string {
 (function() {
   var AQ_SAMPLE_SIZE = 60;
   var AQ_CHECK_INTERVAL = 2000;
-  var AQ_LOW_FPS = 30;
-  var AQ_HIGH_FPS = 50;
+  var AQ_LOW_FPS = 45;
+  var AQ_HIGH_FPS = 55;
   var AQ_RECOVER_HOLD = 5000;
   var AQ_PR_STEP = 0.25;
   var AQ_PR_MIN = 0.5;
@@ -5179,6 +5190,7 @@ export function getVisualEditBridgeScript(): string {
   var originalPixelRatio = null;
   var currentPixelRatio = null;
   var shadowsDisabled = false;
+  var bloomDisabled = false;
   var started = false;
 
   var state = {
@@ -5186,6 +5198,7 @@ export function getVisualEditBridgeScript(): string {
     currentPixelRatio: null,
     originalPixelRatio: null,
     shadowsDisabled: false,
+    bloomDisabled: false,
     reductions: 0
   };
   window.__vibexe_adaptive_quality__ = state;
@@ -5213,7 +5226,24 @@ export function getVisualEditBridgeScript(): string {
     var renderer = getRenderer();
     if (!renderer) return;
 
-    // First: reduce pixel ratio
+    // First: disable bloom (biggest win — eliminates 7 render passes)
+    if (!bloomDisabled) {
+      var comp = window.__vibexe_composer__;
+      if (comp && comp.passes) {
+        for (var i = 0; i < comp.passes.length; i++) {
+          if (comp.passes[i].constructor && comp.passes[i].constructor.name === 'UnrealBloomPass') {
+            comp.passes[i].enabled = false;
+          }
+        }
+      }
+      window.__vibexe_skipComposer__ = true;
+      bloomDisabled = true;
+      state.reductions++;
+      console.log("[AdaptiveQuality] Disabled bloom + composer bypass");
+      return;
+    }
+
+    // Second: reduce pixel ratio
     if (currentPixelRatio > AQ_PR_MIN + 0.01) {
       currentPixelRatio = Math.max(AQ_PR_MIN, currentPixelRatio - AQ_PR_STEP);
       renderer.setPixelRatio(currentPixelRatio);
@@ -5223,7 +5253,7 @@ export function getVisualEditBridgeScript(): string {
       return;
     }
 
-    // Second: disable shadows
+    // Third: disable shadows
     if (!shadowsDisabled && renderer.shadowMap) {
       renderer.shadowMap.enabled = false;
       shadowsDisabled = true;
@@ -5255,6 +5285,23 @@ export function getVisualEditBridgeScript(): string {
       renderer.setPixelRatio(currentPixelRatio);
       state.currentPixelRatio = currentPixelRatio;
       console.log("[AdaptiveQuality] Increased pixelRatio to", currentPixelRatio);
+      highFpsSince = performance.now();
+      return;
+    }
+
+    // Third: re-enable bloom (last restore step — only if FPS is consistently high)
+    if (bloomDisabled) {
+      var comp = window.__vibexe_composer__;
+      if (comp && comp.passes) {
+        for (var i = 0; i < comp.passes.length; i++) {
+          if (comp.passes[i].constructor && comp.passes[i].constructor.name === 'UnrealBloomPass') {
+            comp.passes[i].enabled = true;
+          }
+        }
+      }
+      window.__vibexe_skipComposer__ = false;
+      bloomDisabled = false;
+      console.log("[AdaptiveQuality] Re-enabled bloom");
       highFpsSince = performance.now();
     }
   }
@@ -5294,7 +5341,7 @@ export function getVisualEditBridgeScript(): string {
         highFpsSince = now;
       } else if (now - highFpsSince > AQ_RECOVER_HOLD) {
         var maxPR = getMaxPixelRatio();
-        if (shadowsDisabled || currentPixelRatio < maxPR - 0.01) {
+        if (bloomDisabled || shadowsDisabled || currentPixelRatio < maxPR - 0.01) {
           restoreQuality();
         }
       }

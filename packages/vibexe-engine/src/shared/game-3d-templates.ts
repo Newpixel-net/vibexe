@@ -5219,7 +5219,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           const __perfNow = performance.now();
           if (__perfNow - __perfLastCheck >= 2000) {
             const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
-            if (__avgFps < 30 && !__perfDowngraded) {
+            if (__avgFps < 45 && !__perfDowngraded) {
               __perfDowngraded = true;
               console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
               renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.75));
@@ -5268,7 +5268,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             // Only render here if the bridge is NOT actively rendering (avoids double-render flicker)
             if (!(window as any).__vibexe_bridge_rendering__) {
               const __ec2 = (window as any).__vibexe_composer__;
-              if (__ec2) { __ec2.render(__ed); } else { renderer.render(scene, camera); }
+              if (__ec2 && !(window as any).__vibexe_skipComposer__) { __ec2.render(__ed); } else { renderer.render(scene, camera); }
             }
             return;
           }
@@ -5364,9 +5364,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             }
           }
           } // end LOD frame gate
-          // Render via post-processing composer if available, else standard render
+          // Render via post-processing composer if available and has active effects, else direct render
           const __composer = (window as any).__vibexe_composer__;
-          if (__composer) { __composer.render(delta); }
+          if (__composer && !(window as any).__vibexe_skipComposer__) { __composer.render(delta); }
           else { renderer.render(scene, camera); }
         };
         // Force initial shadow map render (autoUpdate is off)
