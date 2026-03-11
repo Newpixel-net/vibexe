@@ -43,6 +43,7 @@ export function GameRuntimeIframe({
 	const lastHash = useRef<string>("");
 	const compileTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const pendingBundle = useRef<{ bundle: string; bootstrap: string } | null>(null);
+	const hasTriggeredCompile = useRef(false);
 
 	// Compile game code server-side
 	const compileAndInject = useCallback(async () => {
@@ -59,13 +60,15 @@ export function GameRuntimeIframe({
 					content: f.content!,
 				}));
 
-			// Find settings file
+			// Find settings file (may be at root or in src/ prefix)
 			const settingsFile = files.find(
-				(f) => f.path === "__game-settings.json" || f.path === "/__game-settings.json",
+				(f) => f.path.endsWith("__game-settings.json"),
 			);
 			const settings = settingsFile?.content
 				? JSON.parse(settingsFile.content)
 				: gameSettings || {};
+
+			console.log(`[GameRuntime] Compiling ${compileFiles.length} files...`);
 
 			const resp = await fetch("/api/app-builder/compile", {
 				method: "POST",
@@ -79,9 +82,18 @@ export function GameRuntimeIframe({
 				}),
 			});
 
+			if (!resp.ok) {
+				const errorText = await resp.text();
+				console.error("[GameRuntime] Compile request failed:", resp.status, errorText);
+				setCompileError(`Compile failed (${resp.status}): ${errorText}`);
+				setIsCompiling(false);
+				return;
+			}
+
 			const result = await resp.json();
 
 			if (result.errors?.length && !result.bundle) {
+				console.error("[GameRuntime] Compile errors:", result.errors);
 				setCompileError(result.errors.join("\n"));
 				setIsCompiling(false);
 				return;
@@ -97,8 +109,10 @@ export function GameRuntimeIframe({
 			// Inject into iframe
 			const iframe = iframeRef.current;
 			if (iframe?.contentWindow && runtimeReady.current) {
+				console.log("[GameRuntime] Injecting bundle into iframe...");
 				injectBundle(iframe.contentWindow, result.bootstrap, result.bundle);
 			} else {
+				console.log("[GameRuntime] Runtime not ready yet, saving bundle for later injection");
 				// Save for when runtime becomes ready
 				pendingBundle.current = { bundle: result.bundle, bootstrap: result.bootstrap };
 			}
@@ -151,8 +165,9 @@ export function GameRuntimeIframe({
 						);
 						pendingBundle.current = null;
 					}
-				} else {
+				} else if (!hasTriggeredCompile.current) {
 					// First load — compile now
+					hasTriggeredCompile.current = true;
 					compileAndInject();
 				}
 			}
@@ -163,7 +178,26 @@ export function GameRuntimeIframe({
 		}
 
 		window.addEventListener("message", onMessage);
-		return () => window.removeEventListener("message", onMessage);
+
+		// Fallback: if runtime-ready was already sent before listener attached,
+		// check via iframe contentWindow and force compile after a timeout
+		const fallbackTimer = setTimeout(() => {
+			if (!hasTriggeredCompile.current && !runtimeReady.current) {
+				const iframe = iframeRef.current;
+				const iframeWin = iframe?.contentWindow as Window & { __vibexe_libs_ready__?: boolean } | null;
+				if (iframeWin?.__vibexe_libs_ready__) {
+					console.log("[GameRuntime] Fallback: runtime was ready but message was missed");
+					runtimeReady.current = true;
+					hasTriggeredCompile.current = true;
+					compileAndInject();
+				}
+			}
+		}, 3000);
+
+		return () => {
+			window.removeEventListener("message", onMessage);
+			clearTimeout(fallbackTimer);
+		};
 	}, [compileAndInject, iframeRef, onBundleLoaded]);
 
 	// Recompile when files change (debounced 500ms)
@@ -189,7 +223,7 @@ export function GameRuntimeIframe({
 		<div className="relative w-full h-full">
 			<iframe
 				ref={iframeRef}
-				src="/api/app-builder/game-runtime?bv=89"
+				src="/api/app-builder/game-runtime?bv=90"
 				className="w-full h-full border-0"
 				title="Game Preview"
 				allow="autoplay; fullscreen"

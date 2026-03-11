@@ -108,7 +108,7 @@ function createVirtualPlugin(files: Map<string, string>): esbuild.Plugin {
 					return { errors: [{ text: `Not found: ${args.path}` }] };
 				const ext = args.path.split(".").pop() || "tsx";
 				const loaders: Record<string, esbuild.Loader> = {
-					tsx: "tsx", ts: "ts", jsx: "jsx", js: "js", css: "css",
+					tsx: "tsx", ts: "ts", jsx: "jsx", js: "js", css: "css", json: "json",
 				};
 				return { contents: content, loader: loaders[ext] || "tsx" };
 			});
