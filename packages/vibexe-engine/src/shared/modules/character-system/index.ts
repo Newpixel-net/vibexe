@@ -41,9 +41,9 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v5.1.0
-// Pure GLB loader & model swapper — detached bind mode + rebind after transforms + camera follow
-console.log('[CharacterSystem] Module v5.1.0 loaded');
+const runtimeCode = `// @vibexe/character-system v5.2.0
+// Pure GLB loader & model swapper — detached bind mode + proper skeleton rebind + camera follow
+console.log('[CharacterSystem] Module v5.2.0 loaded');
 
 var THREE = require('three');
 
@@ -214,13 +214,17 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
       var measuredMinY = Infinity;
       var usedBoneTransform = false;
 
-      // Play first animation frame so bones are in a real pose
+      // Play first animation frame so bones are in a real pose for measurement
       var tempClips = gltf.animations || [];
       if (tempClips.length > 0) {
         var tempMixer = new THREE.AnimationMixer(inner);
         tempMixer.clipAction(tempClips[0]).play();
         tempMixer.update(0);
       }
+
+      // After measurement is done below, we will reset bones to bind pose.
+      // This is critical: hierarchy changes (pivot, scale, position) happen after
+      // measurement, and boneInverses must be recalculated with bones in bind pose.
 
       inner.traverse(function(child) {
         if (usedBoneTransform) return;
@@ -262,6 +266,16 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
         measuredMinY = corrBox.min.y;
         console.log("[CharacterSystem] Geometry size (no bones):", corrSize.x.toFixed(3), corrSize.y.toFixed(3), corrSize.z.toFixed(3));
       }
+
+      // --- Reset bones to bind pose after measurement ---
+      // tempMixer.update(0) moved bones out of bind pose for measurement.
+      // We must reset them BEFORE hierarchy changes (pivot, scale, position)
+      // so that calculateInverses() later captures the correct bind-pose transforms.
+      inner.traverse(function(child) {
+        if (child.isSkinnedMesh && child.skeleton) {
+          child.skeleton.pose();
+        }
+      });
 
       // --- Auto-scale with cap ---
       var rawAutoScale = TARGET_HEIGHT / measuredHeight;
@@ -335,6 +349,21 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
         halfZ: halfExtents.z,
         height: TARGET_HEIGHT
       };
+
+      // --- Recalculate skeleton for new hierarchy ---
+      // At this point the full hierarchy is: mesh → pivot → inner (with SkinnedMeshes)
+      // The bones are in bind pose (reset via skeleton.pose() earlier).
+      // We recalculate boneInverses to match the CURRENT world transforms (after
+      // pivot correction, auto-scale, and spawn position), then re-bind so that
+      // bindMatrix = current matrixWorld. This ensures the shader starts at zero
+      // delta (boneMatrix * bindMatrix in bind pose = identity transform).
+      mesh.updateMatrixWorld(true);
+      inner.traverse(function(child) {
+        if (child.isSkinnedMesh && child.skeleton) {
+          child.skeleton.calculateInverses();
+          child.bind(child.skeleton, child.matrixWorld);
+        }
+      });
 
       // --- Root motion stripping ---
       var allClips = gltf.animations || [];
@@ -582,19 +611,10 @@ function swapCharacter(scene, characterId) {
       // Add new mesh to scene
       scene.add(result.mesh);
 
-      // Re-bind all SkinnedMeshes with CURRENT matrixWorld after all transforms
-      // (scale, pivot correction, spawn position) are applied.
-      // GLTFLoader's bind() used the original GLB transforms — we need to reset
-      // so the shader delta starts at zero from the current position.
-      // NOTE: Do NOT call calculateInverses() — that corrupts bone inverse matrices.
-      result.mesh.updateMatrixWorld(true);
-      result.mesh.traverse(function(child) {
-        if (child.isSkinnedMesh && child.skeleton) {
-          child.bind(child.skeleton, child.matrixWorld);
-          console.log("[CharacterSystem] Re-bound SkinnedMesh:", child.name, "at worldPos",
-            child.matrixWorld.elements[12].toFixed(2), child.matrixWorld.elements[13].toFixed(2), child.matrixWorld.elements[14].toFixed(2));
-        }
-      });
+      // No re-bind needed here — loadCharacterGLB already called calculateInverses()
+      // and bind() after all hierarchy changes (pivot, scale, position) with bones
+      // in bind pose. In detached mode, bindMatrixInverse stays fixed, so moving
+      // the Group (mesh) creates the correct shader delta.
 
       // Register mixer in framework
       if (result.mixer && window._activeMixers3D) {
@@ -934,7 +954,7 @@ module.exports = {
 export const CHARACTER_SYSTEM_MANIFEST: ModuleManifest = {
 	id: "character-system",
 	name: "Character System",
-	version: "5.0.0",
+	version: "5.2.0",
 	category: "tools",
 	description: "Player character selection and model swapping",
 	icon: "PersonStanding",
