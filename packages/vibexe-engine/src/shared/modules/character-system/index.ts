@@ -41,9 +41,9 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v5.3.0
+const runtimeCode = `// @vibexe/character-system v5.4.0
 // Pure GLB loader & model swapper — detached bind mode + proper skeleton rebind + camera follow
-console.log('[CharacterSystem] Module v5.3.0 loaded');
+console.log('[CharacterSystem] Module v5.4.0 loaded');
 
 var THREE = require('three');
 
@@ -340,6 +340,9 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
       };
       mesh.add(pivot);
       mesh.position.set(position.x, position.y, position.z);
+
+      // Store pivot offset for editor gizmo correction
+      mesh.userData.__pivotOffset = { x: pivot.position.x, y: pivot.position.y, z: pivot.position.z };
 
       // Physics half-extents based on target height
       var halfExtents = { x: TARGET_HEIGHT * 0.3, y: TARGET_HEIGHT / 2, z: TARGET_HEIGHT * 0.3 };
@@ -806,6 +809,8 @@ function swapCharacter(scene, characterId) {
       var _snapTimer = setInterval(function() {
         _snapCount++;
         if (_snapDone || _snapCount > 60) { clearInterval(_snapTimer); return; }
+        // Skip during editor mode — prevents fighting with gizmo drag
+        if ((window.__vibexe_editor__ || {}).isEditing) return;
         var getH = window.__vibexe_getTerrainHeight;
         var body = result.mesh.userData.__physicsBody;
         if (!getH || !body) return;
@@ -981,7 +986,7 @@ module.exports = {
 export const CHARACTER_SYSTEM_MANIFEST: ModuleManifest = {
 	id: "character-system",
 	name: "Character System",
-	version: "5.3.0",
+	version: "5.4.0",
 	category: "tools",
 	description: "Player character selection and model swapping",
 	icon: "PersonStanding",
