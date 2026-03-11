@@ -41,9 +41,9 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v4.2.0
-// Pure GLB loader & model swapper — camera terrain correction
-console.log('[CharacterSystem] Module v4.2 loaded');
+const runtimeCode = `// @vibexe/character-system v4.3.0
+// Pure GLB loader & model swapper — physics sync + third-person camera follow
+console.log('[CharacterSystem] Module v4.3 loaded');
 
 var THREE = require('three');
 
@@ -650,10 +650,31 @@ function swapCharacter(scene, characterId) {
       var _csPlay = result.mesh.userData.__play;
 
       if (_csPlay && _csBody) {
+        // Camera follow settings from game settings
+        var _gsCamera = (window.__VIBEXE_GAME_SETTINGS__ || {}).camera || {};
+        var _camOffY = Math.max(1, _gsCamera.offsetY || 8);
+        var _camOffZ = Math.max(1, _gsCamera.offsetZ || 12);
+        var _camLerp = 3;
+        var _camLookY = 1.5;
+        var _csHalfH = result.mesh.userData.__characterBounds ? result.mesh.userData.__characterBounds.height / 2 : 0.75;
+
         var newCtrl = {
           __charSystem: true,
           update: function(dt) {
             if (!_csBody || !_csPlay) return;
+
+            // === Physics → mesh position sync ===
+            // Ensures character mesh tracks the physics body regardless of saved game code
+            if (_csBody.position) {
+              _csMesh.position.x = _csBody.position.x;
+              _csMesh.position.y = _csBody.position.y - _csHalfH;
+              _csMesh.position.z = _csBody.position.z;
+              // Apply ground offset if set
+              if (_csMesh.userData && _csMesh.userData.__groundOffset) {
+                _csMesh.position.y += _csMesh.userData.__groundOffset;
+              }
+            }
+
             var vx = _csBody.velocity ? _csBody.velocity.x : 0;
             var vy = _csBody.velocity ? _csBody.velocity.y : 0;
             var vz = _csBody.velocity ? _csBody.velocity.z : 0;
@@ -681,26 +702,29 @@ function swapCharacter(scene, characterId) {
               _csMesh.rotation.y = Math.atan2(vx, vz);
             }
 
-            // Camera terrain-height correction — throttled to every 6th frame
-            if (!newCtrl._camFrame) newCtrl._camFrame = 0;
-            newCtrl._camFrame++;
-            if (newCtrl._camFrame >= 6) {
-              newCtrl._camFrame = 0;
+            // === Third-person camera follow ===
+            // Runs AFTER gameScene.update() — overrides any stale camera from old saved code
+            var cam = window.__vibexe_camera__ || (window.__vibexe_editor__ || {}).camera;
+            if (cam && cam.position && _csMesh.visible && !(window.__vibexe_editor__ || {}).isEditing) {
+              var targetX = _csMesh.position.x;
+              var targetY = _csMesh.position.y + _camOffY;
+              var targetZ = _csMesh.position.z + _camOffZ;
+              var lerpF = _camLerp * dt;
+              if (lerpF > 1) lerpF = 1;
+              cam.position.x += (targetX - cam.position.x) * lerpF;
+              cam.position.y += (targetY - cam.position.y) * lerpF;
+              cam.position.z += (targetZ - cam.position.z) * lerpF;
+
+              // Terrain-height correction — prevent camera going underground
               var _getH = window.__vibexe_getTerrainHeight;
-              if (_getH && _csMesh && _csMesh.visible) {
-                if (!newCtrl._camRef) newCtrl._camRef = (window.__vibexe_editor__ || {}).camera;
-                var cam = newCtrl._camRef;
-                if (cam && cam.position) {
-                  var _camTH = _getH(cam.position.x, cam.position.z);
-                  if (_camTH != null) {
-                    var _camClearance = 3.0;
-                    if (cam.position.y < _camTH + _camClearance) {
-                      cam.position.y = _camTH + _camClearance;
-                      cam.lookAt(_csMesh.position.x, _csMesh.position.y + 1.0, _csMesh.position.z);
-                    }
-                  }
+              if (_getH) {
+                var _camTH = _getH(cam.position.x, cam.position.z);
+                if (_camTH != null && cam.position.y < _camTH + 3.0) {
+                  cam.position.y = _camTH + 3.0;
                 }
               }
+
+              cam.lookAt(_csMesh.position.x, _csMesh.position.y + _camLookY, _csMesh.position.z);
             }
           }
         };
