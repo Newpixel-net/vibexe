@@ -18,7 +18,6 @@ export function getGameEditorBridgeScript(): string {
   var selectedObj = null;
   var boxHelper = null;
   var transformControls = null;
-  var _gizmoProxy = null;  // Proxy Object3D for centering gizmo on animated characters
   var editor = null;
   var pendingEnable = false;
 
@@ -77,10 +76,9 @@ export function getGameEditorBridgeScript(): string {
     if (obj.children) {
       for (var i = 0; i < obj.children.length; i++) {
         var child = obj.children[i];
-        // Skip editor helpers (BoxHelper, TransformControls, GridHelper, gizmo proxy, light helpers)
+        // Skip editor helpers (BoxHelper, TransformControls, GridHelper, light helpers)
         if (child === boxHelper) continue;
         if (child === transformControls) continue;
-        if (child === _gizmoProxy) continue;
         if (child.type === "BoxHelper" || child.type === "TransformControlsGizmo" || child.type === "TransformControlsPlane") continue;
         if (child.isTransformControls) continue;
         if (child.userData && child.userData.__isLightHelper) continue;
@@ -208,28 +206,35 @@ export function getGameEditorBridgeScript(): string {
 
     var THREE = window.THREE;
 
+    // Force matrix update so all position reads are current
+    obj.updateMatrixWorld(true);
+
     // BoxHelper highlight
     boxHelper = new THREE.BoxHelper(obj, 0x00ff88);
     boxHelper.name = "__editor_box_helper__";
     // Override for animated characters — SkinnedMesh bind-pose gives wrong Box3
+    // Use obj.position DIRECTLY (not getWorldPosition which reads stale matrixWorld)
     if (obj.userData && obj.userData.vibexeType === "AnimatedCharacter" && obj.userData.__characterBounds) {
       var _cb = obj.userData.__characterBounds;
       var _bObj = obj;
       boxHelper.update = function() {
-        var wp = new THREE.Vector3();
-        _bObj.getWorldPosition(wp);
+        // Read position directly — for scene-root children this IS world position
+        // (getWorldPosition reads matrixWorld which can be stale before render)
+        var wx = _bObj.position.x;
+        var wy = _bObj.position.y;
+        var wz = _bObj.position.z;
         var hx = _cb.halfX, hz = _cb.halfZ, h = _cb.height;
         var pos = this.geometry.attributes.position;
         if (!pos) return;
         var a = pos.array;
-        a[0]=wp.x+hx; a[1]=wp.y+h; a[2]=wp.z+hz;
-        a[3]=wp.x-hx; a[4]=wp.y+h; a[5]=wp.z+hz;
-        a[6]=wp.x-hx; a[7]=wp.y;   a[8]=wp.z+hz;
-        a[9]=wp.x+hx; a[10]=wp.y;  a[11]=wp.z+hz;
-        a[12]=wp.x+hx;a[13]=wp.y+h;a[14]=wp.z-hz;
-        a[15]=wp.x-hx;a[16]=wp.y+h;a[17]=wp.z-hz;
-        a[18]=wp.x-hx;a[19]=wp.y;  a[20]=wp.z-hz;
-        a[21]=wp.x+hx;a[22]=wp.y;  a[23]=wp.z-hz;
+        a[0]=wx+hx; a[1]=wy+h; a[2]=wz+hz;
+        a[3]=wx-hx; a[4]=wy+h; a[5]=wz+hz;
+        a[6]=wx-hx; a[7]=wy;   a[8]=wz+hz;
+        a[9]=wx+hx; a[10]=wy;  a[11]=wz+hz;
+        a[12]=wx+hx;a[13]=wy+h;a[14]=wz-hz;
+        a[15]=wx-hx;a[16]=wy+h;a[17]=wz-hz;
+        a[18]=wx-hx;a[19]=wy;  a[20]=wz-hz;
+        a[21]=wx+hx;a[22]=wy;  a[23]=wz-hz;
         pos.needsUpdate = true;
         this.geometry.computeBoundingSphere();
       };
@@ -237,27 +242,11 @@ export function getGameEditorBridgeScript(): string {
     }
     editor.scene.add(boxHelper);
 
-    // TransformControls gizmo
+    // TransformControls gizmo — attach directly to the object (no proxy)
     if (THREE.TransformControls) {
       transformControls = new THREE.TransformControls(editor.camera, editor.renderer.domElement);
       transformControls.name = "__editor_transform_controls__";
-      // For animated characters, place gizmo at visual center (not feet)
-      var _isAnimChar = obj.userData && obj.userData.vibexeType === "AnimatedCharacter" && obj.userData.__characterBounds;
-      var _charYOffset = _isAnimChar ? obj.userData.__characterBounds.height / 2 : 0;
-
-      if (_isAnimChar) {
-        // Create a proxy Object3D at the character's visual center
-        _gizmoProxy = new THREE.Object3D();
-        _gizmoProxy.name = "__editor_gizmo_proxy__";
-        _gizmoProxy.position.copy(obj.position);
-        _gizmoProxy.position.y += _charYOffset;
-        _gizmoProxy.rotation.copy(obj.rotation);
-        _gizmoProxy.scale.copy(obj.scale);
-        editor.scene.add(_gizmoProxy);
-        transformControls.attach(_gizmoProxy);
-      } else {
-        transformControls.attach(obj);
-      }
+      transformControls.attach(obj);
 
       // Disable orbit when dragging gizmo
       transformControls.addEventListener("dragging-changed", function(e) {
@@ -269,14 +258,6 @@ export function getGameEditorBridgeScript(): string {
       // Send transform updates while dragging
       transformControls.addEventListener("objectChange", function() {
         if (selectedObj) {
-          // Sync proxy back to the real object for animated characters
-          if (_gizmoProxy && _isAnimChar) {
-            selectedObj.position.x = _gizmoProxy.position.x;
-            selectedObj.position.y = _gizmoProxy.position.y - _charYOffset;
-            selectedObj.position.z = _gizmoProxy.position.z;
-            selectedObj.rotation.copy(_gizmoProxy.rotation);
-            selectedObj.scale.copy(_gizmoProxy.scale);
-          }
           sendSelectedObject(selectedObj);
           if (boxHelper) boxHelper.update();
           // Sync light helper position when light is dragged
@@ -310,10 +291,6 @@ export function getGameEditorBridgeScript(): string {
       editor.scene.remove(transformControls.getHelper ? transformControls.getHelper() : transformControls);
       transformControls.dispose();
       transformControls = null;
-    }
-    if (_gizmoProxy) {
-      editor.scene.remove(_gizmoProxy);
-      _gizmoProxy = null;
     }
     selectedObj = null;
     window.parent.postMessage({ type: "game-editor-object-deselected" }, "*");
@@ -439,6 +416,8 @@ export function getGameEditorBridgeScript(): string {
     editorAnimId = requestAnimationFrame(editorLoop);
     try {
       if (editor.orbitControls) editor.orbitControls.update();
+      // Force matrix updates before reading positions (prevents stale matrixWorld)
+      editor.scene.updateMatrixWorld(true);
       if (boxHelper && selectedObj) boxHelper.update();
       editor.renderer.render(editor.scene, editor.camera);
     } catch(e) {
