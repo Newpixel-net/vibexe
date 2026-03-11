@@ -41,9 +41,9 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v4.3.0
-// Pure GLB loader & model swapper — physics sync + third-person camera follow
-console.log('[CharacterSystem] Module v4.3 loaded');
+const runtimeCode = `// @vibexe/character-system v4.4.0
+// Pure GLB loader & model swapper — skeleton rebind + camera follow
+console.log('[CharacterSystem] Module v4.4 loaded');
 
 var THREE = require('three');
 
@@ -159,11 +159,14 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
     loader.load(url, function(gltf) {
       var inner = gltf.scene;
 
-      // Fix materials for proper lighting
+      // Fix materials for proper lighting + disable frustum culling on skinned meshes
       inner.traverse(function(child) {
         if (child.isMesh) {
           child.castShadow = true;
           child.receiveShadow = true;
+        }
+        if (child.isSkinnedMesh) {
+          child.frustumCulled = false;
         }
       });
 
@@ -573,6 +576,16 @@ function swapCharacter(scene, characterId) {
 
       // Add new mesh to scene
       scene.add(result.mesh);
+
+      // CRITICAL: Rebind skeleton at new world position.
+      // Without this, SkinnedMesh renders at the bind-pose origin instead of
+      // the group's actual position (bindMatrix captured at load-time origin).
+      result.mesh.updateMatrixWorld(true);
+      result.mesh.traverse(function(child) {
+        if (child.isSkinnedMesh && child.skeleton) {
+          child.bind(child.skeleton);
+        }
+      });
 
       // Register mixer in framework
       if (result.mixer && window._activeMixers3D) {
