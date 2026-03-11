@@ -58,14 +58,14 @@ import { CopyShader } from 'three/addons/shaders/CopyShader.js';
 import { LuminosityHighPassShader } from 'three/addons/shaders/LuminosityHighPassShader.js';
 import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js';
 
-// Assign to window globals (game code uses window.THREE and window.CANNON)
-Object.assign(THREE, { GLTFLoader, OrbitControls, TransformControls, EffectComposer, RenderPass, UnrealBloomPass, ShaderPass, CopyShader, LuminosityHighPassShader });
-window.THREE = THREE;
-window.CANNON = CANNON;
+// ES module namespace is frozen — create a mutable copy with addons attached
+var T = Object.assign({}, THREE, { GLTFLoader, OrbitControls, TransformControls, EffectComposer, RenderPass, UnrealBloomPass, ShaderPass, CopyShader, LuminosityHighPassShader });
+window.THREE = T;
+window.CANNON = Object.assign({}, CANNON);
 
 var loaded = ['GLTFLoader','OrbitControls','TransformControls','EffectComposer']
-  .filter(function(n) { return !!THREE[n]; }).length;
-console.log('[Runtime] Three.js r' + THREE.REVISION + ' loaded with ' + loaded + '/4 core addons');
+  .filter(function(n) { return !!T[n]; }).length;
+console.log('[Runtime] Three.js r' + T.REVISION + ' loaded with ' + loaded + '/4 core addons');
 console.log('[Runtime] CANNON.js loaded');
 
 // Signal that libraries are ready (bridge and game code wait for this)
