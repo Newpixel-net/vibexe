@@ -58,6 +58,7 @@ import { SceneGizmo } from "./scene-gizmo";
 import { TerrainPainterPanel } from "./terrain-painter-panel";
 import { SkyWeatherPanel } from "./sky-weather-panel";
 import { CharacterSystemPanel } from "./character-system-panel";
+import { GameRuntimeIframe } from "./game-runtime-iframe";
 import { DebugOverlay } from "./debug-overlay";
 import type { RightPanelView } from "./right-panel-tabs";
 import { VisualEditToolbar } from "./visual-edit-toolbar";
@@ -2005,6 +2006,19 @@ export function SandpackPreview({
 	const sandpackFiles = useMemo(() => convertToSandpackFiles(files, langConfig, apiOrigin, appId), [files, langConfig, apiOrigin, appId]);
 	const dependencies = useMemo(() => extractDependencies(files), [files]);
 
+	// Lightweight runtime: use server-compiled iframe instead of Sandpack for 3D games
+	// Eliminates ~15-20 FPS overhead from in-browser bundling
+	const useLightweightRuntime = isGameMode && !!dependencies.three;
+
+	// Enabled module IDs for lightweight runtime compiler
+	const enabledModuleIds = useMemo(() => {
+		const installed = gameEditor.gameSettings?.modules?.installed;
+		if (!installed) return [] as string[];
+		return Object.entries(installed)
+			.filter(([, mod]) => (mod as { enabled?: boolean })?.enabled)
+			.map(([id]) => id);
+	}, [gameEditor.gameSettings?.modules?.installed]);
+
 	// Visual Edit bridge loaded as external script (bypasses Sandpack's bundler)
 	// Phaser CDN loaded when game projects use it (Sandpack's bundler can't handle the 4MB package)
 	const externalResources = useMemo(() => {
@@ -2385,6 +2399,16 @@ export function SandpackPreview({
 								ref={iframeContainerRef}
 								className="relative w-full h-full"
 							>
+								{useLightweightRuntime ? (
+									<GameRuntimeIframe
+										appId={appId}
+										files={files}
+										gameSettings={gameEditor.gameSettings}
+										enabledModuleIds={enabledModuleIds}
+										iframeRef={iframeRef as React.RefObject<HTMLIFrameElement | null>}
+										refreshRef={sandpackRefreshRef}
+									/>
+								) : (
 								<SandpackProvider
 									template="react-ts"
 									files={sandpackFiles}
@@ -2427,6 +2451,7 @@ export function SandpackPreview({
 										</div>
 									</div>
 								</SandpackProvider>
+								)}
 
 								{visualEdit.enabled && visualEdit.selectedElement && (
 									<VisualEditToolbar
@@ -2467,6 +2492,16 @@ export function SandpackPreview({
 							maxWidth: "100%",
 						}}
 					>
+						{useLightweightRuntime ? (
+							<GameRuntimeIframe
+								appId={appId}
+								files={files}
+								gameSettings={gameEditor.gameSettings}
+								enabledModuleIds={enabledModuleIds}
+								iframeRef={iframeRef as React.RefObject<HTMLIFrameElement | null>}
+								refreshRef={sandpackRefreshRef}
+							/>
+						) : (
 						<SandpackProvider
 							template="react-ts"
 							files={sandpackFiles}
@@ -2516,6 +2551,7 @@ export function SandpackPreview({
 								</div>
 							</div>
 						</SandpackProvider>
+						)}
 
 						{/* Visual Edit Toolbar (floating overlay) */}
 						{visualEdit.enabled && visualEdit.selectedElement && (
