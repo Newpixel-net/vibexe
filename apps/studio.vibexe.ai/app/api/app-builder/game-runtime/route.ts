@@ -213,6 +213,9 @@ canvas{display:block;width:100%;height:100%}
 		headers: {
 			"Content-Type": "text/html; charset=utf-8",
 			"Cache-Control": "no-cache",
+			// Allow same-origin iframe embedding (overrides global X-Frame-Options: DENY)
+			"X-Frame-Options": "SAMEORIGIN",
+			"Content-Security-Policy": "frame-ancestors 'self'",
 		},
 	});
 }

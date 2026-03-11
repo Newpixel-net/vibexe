@@ -190,6 +190,20 @@ const nextConfig: NextConfig = {
 				],
 			},
 			{
+				// Allow game runtime page to be iframed (lightweight runtime for game mode)
+				source: "/api/app-builder/game-runtime",
+				headers: [
+					{
+						key: "X-Frame-Options",
+						value: "SAMEORIGIN",
+					},
+					{
+						key: "Content-Security-Policy",
+						value: "frame-ancestors 'self'",
+					},
+				],
+			},
+			{
 				// CORS for app API routes — called from Sandpack iframe (codesandbox.io origin)
 				source: "/api/apps/:path*",
 				headers: [
