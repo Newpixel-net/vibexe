@@ -704,10 +704,10 @@ if (!gameScene || typeof gameScene.init !== 'function') {
           __lastFrameTime = time - (__elapsed % __frameInterval);
         }
 
-        // ===== PerfGuard (with 10s grace period for GLB loading) =====
+        // ===== PerfGuard (skip in editor mode + 10s grace period) =====
         __perfFrames++;
         const __perfNow = performance.now();
-        if (__perfNow - __perfLastCheck >= 2000) {
+        if (__perfNow - __perfLastCheck >= 2000 && !__editorMode) {
           const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
           const __perfAge = __perfNow - __perfStartTime;
           if (__avgFps < 35 && !__perfDowngraded && __perfAge > 10000) {
