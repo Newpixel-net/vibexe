@@ -41,9 +41,9 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v5.2.0
+const runtimeCode = `// @vibexe/character-system v5.3.0
 // Pure GLB loader & model swapper — detached bind mode + proper skeleton rebind + camera follow
-console.log('[CharacterSystem] Module v5.2.0 loaded');
+console.log('[CharacterSystem] Module v5.3.0 loaded');
 
 var THREE = require('three');
 
@@ -220,6 +220,7 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
         var tempMixer = new THREE.AnimationMixer(inner);
         tempMixer.clipAction(tempClips[0]).play();
         tempMixer.update(0);
+        tempMixer.stopAllAction();
       }
 
       // After measurement is done below, we will reset bones to bind pose.
@@ -551,7 +552,10 @@ function _getVibexeOrigin() {
 }
 
 // ===== SWAP FUNCTION =====
+var _isSwapping = false;
+
 function swapCharacter(scene, characterId) {
+  if (_isSwapping) { console.log("[CharacterSystem] Swap already in progress, skipping"); return Promise.resolve(false); }
   var charDef = _registry.get(characterId);
   if (!charDef) { console.warn("[CharacterSystem] Unknown character:", characterId); return Promise.resolve(false); }
 
@@ -568,10 +572,11 @@ function swapCharacter(scene, characterId) {
   }
 
   console.log("[CharacterSystem] Loading", charDef.name, "from", modelUrl);
+  _isSwapping = true;
 
   return loadCharacterGLB(scene, modelUrl, spawnPos, charDef.name, charDef.model)
     .then(function(result) {
-      if (!result) return false;
+      if (!result) { _isSwapping = false; return false; }
 
       // Remove old mesh from scene and dispose
       if (oldMesh) {
@@ -604,8 +609,22 @@ function swapCharacter(scene, characterId) {
       }
       toRemove.forEach(function(m) {
         console.log("[CharacterSystem] Removing stale character:", m.name);
+        if (m.userData && m.userData.__mixer && window._activeMixers3D) {
+          var mi = window._activeMixers3D.indexOf(m.userData.__mixer);
+          if (mi !== -1) window._activeMixers3D.splice(mi, 1);
+        }
         scene.remove(m);
-        m.traverse(function(c) { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
+        m.traverse(function(c) {
+          if (c.geometry) c.geometry.dispose();
+          if (c.material) {
+            var mats = Array.isArray(c.material) ? c.material : [c.material];
+            mats.forEach(function(mat) {
+              var texKeys = ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap", "bumpMap"];
+              texKeys.forEach(function(k) { if (mat[k]) mat[k].dispose(); });
+              mat.dispose();
+            });
+          }
+        });
       });
 
       // Add new mesh to scene
@@ -667,7 +686,8 @@ function swapCharacter(scene, characterId) {
             var minY = th + halfH + 0.5;
             if (physBody.position.y < minY) {
               physBody.position.y = minY;
-              result.mesh.position.y = minY;
+              // Mesh Y = body center Y minus halfH (feet at ground level)
+              result.mesh.position.y = minY - halfH;
               if (physBody.velocity) physBody.velocity.set(0, 0, 0);
             }
           }
@@ -694,7 +714,7 @@ function swapCharacter(scene, characterId) {
         var _gsCamera = (window.__VIBEXE_GAME_SETTINGS__ || {}).camera || {};
         var _camOffY = Math.max(1, _gsCamera.offsetY || 8);
         var _camOffZ = Math.max(1, _gsCamera.offsetZ || 12);
-        var _camLerp = 3;
+        var _camLerp = _gsCamera.lerp || 3;
         var _camLookY = 1.5;
         var _csHalfH = result.mesh.userData.__characterBounds ? result.mesh.userData.__characterBounds.height / 2 : 0.75;
 
@@ -720,12 +740,14 @@ function swapCharacter(scene, characterId) {
             var vz = _csBody.velocity ? _csBody.velocity.z : 0;
             var speed = Math.sqrt(vx * vx + vz * vz);
 
+            // Hysteresis: use different thresholds for entering vs leaving run/walk
+            // to prevent flickering at boundary speeds
             var targetAnim;
             if (vy > 2) {
               targetAnim = "jump";
-            } else if (speed > 4) {
+            } else if (_csLastAnim === "run" ? speed > 3.2 : speed > 4) {
               targetAnim = "run";
-            } else if (speed > 0.5) {
+            } else if (_csLastAnim === "idle" ? speed > 0.5 : speed > 0.3) {
               targetAnim = "walk";
             } else {
               targetAnim = "idle";
@@ -755,12 +777,15 @@ function swapCharacter(scene, characterId) {
               cam.position.y += (targetY - cam.position.y) * lerpF;
               cam.position.z += (targetZ - cam.position.z) * lerpF;
 
-              // Terrain-height correction — prevent camera going underground
+              // Terrain-height correction — smooth lerp to prevent camera going underground
               var _getH = window.__vibexe_getTerrainHeight;
               if (_getH) {
                 var _camTH = _getH(cam.position.x, cam.position.z);
-                if (_camTH != null && cam.position.y < _camTH + 3.0) {
-                  cam.position.y = _camTH + 3.0;
+                if (_camTH != null) {
+                  var _camMinY = _camTH + _csHalfH + 2.0;
+                  if (cam.position.y < _camMinY) {
+                    cam.position.y += (_camMinY - cam.position.y) * Math.min(lerpF * 2, 1);
+                  }
                 }
               }
 
@@ -790,8 +815,8 @@ function swapCharacter(scene, characterId) {
         var targetY = th + halfH + 0.5;
         if (body.position.y < targetY) {
           body.position.y = targetY;
-          // CRITICAL: sync mesh position to match physics body (prevents character-under-terrain)
-          result.mesh.position.y = targetY;
+          // Mesh Y = body center Y minus halfH (feet at ground level)
+          result.mesh.position.y = targetY - halfH;
           if (body.velocity) body.velocity.set(0, 0, 0);
           console.log("[CharacterSystem] Snapped to terrain: Y=" + targetY.toFixed(1) + " (terrain=" + th.toFixed(1) + ")");
         }
@@ -814,10 +839,12 @@ function swapCharacter(scene, characterId) {
       }
 
       console.log("[CharacterSystem] Swapped to", charDef.name, "| animations:", result.clips ? result.clips.length : 0);
+      _isSwapping = false;
       return true;
     })
     .catch(function(err) {
       console.error("[CharacterSystem] Swap failed:", err);
+      _isSwapping = false;
       return false;
     });
 }
@@ -954,7 +981,7 @@ module.exports = {
 export const CHARACTER_SYSTEM_MANIFEST: ModuleManifest = {
 	id: "character-system",
 	name: "Character System",
-	version: "5.2.0",
+	version: "5.3.0",
 	category: "tools",
 	description: "Player character selection and model swapping",
 	icon: "PersonStanding",
