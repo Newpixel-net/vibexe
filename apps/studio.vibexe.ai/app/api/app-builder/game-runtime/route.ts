@@ -34,8 +34,10 @@ canvas{display:block;width:100%;height:100%}
 <!-- Runtime bootstrap globals (injected dynamically) -->
 <script id="vibexe-bootstrap"></script>
 
-<!-- Three.js r172 UMD core — sets window.THREE -->
-<script src="https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.min.js"></script>
+<!-- Three.js r172 CJS core — needs module/exports shim, then assigns window.THREE -->
+<script>var module={exports:{}};var exports=module.exports;</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.cjs"></script>
+<script>window.THREE=module.exports;module={exports:{}};exports=module.exports;</script>
 
 <!-- Three.js addons — loads and attaches to window.THREE -->
 <script>
@@ -112,8 +114,10 @@ canvas{display:block;width:100%;height:100%}
 })();
 </script>
 
-<!-- CANNON.js — sets window.CANNON -->
+<!-- CANNON.js — CJS bundle needs module/exports shim for browser -->
+<script>var module={exports:{}};var exports=module.exports;</script>
 <script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.cjs.js"></script>
+<script>window.CANNON=module.exports;delete window.module;delete window.exports;</script>
 
 <!-- Visual Edit Bridge (scene editor) -->
 <script src="/api/app-builder/bridge?v=${bridgeVersion}"></script>

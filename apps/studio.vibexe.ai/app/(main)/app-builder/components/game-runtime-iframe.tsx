@@ -192,7 +192,6 @@ export function GameRuntimeIframe({
 				className="w-full h-full border-0"
 				title="Game Preview"
 				allow="autoplay; fullscreen"
-				sandbox="allow-scripts allow-same-origin allow-popups"
 			/>
 
 			{/* Compile status overlay */}
