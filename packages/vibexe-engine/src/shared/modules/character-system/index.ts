@@ -41,9 +41,9 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v4.4.0
+const runtimeCode = `// @vibexe/character-system v4.5.0
 // Pure GLB loader & model swapper — skeleton rebind + camera follow
-console.log('[CharacterSystem] Module v4.4 loaded');
+console.log('[CharacterSystem] Module v4.5 loaded');
 
 var THREE = require('three');
 
@@ -578,12 +578,14 @@ function swapCharacter(scene, characterId) {
       scene.add(result.mesh);
 
       // CRITICAL: Rebind skeleton at new world position.
-      // Without this, SkinnedMesh renders at the bind-pose origin instead of
-      // the group's actual position (bindMatrix captured at load-time origin).
+      // The bindMatrix AND boneInverses must both be recalculated at the
+      // current world position. Without this, the SkinnedMesh shader applies
+      // a double position offset (boneInverses at origin, bindMatrix at spawn).
       result.mesh.updateMatrixWorld(true);
       result.mesh.traverse(function(child) {
         if (child.isSkinnedMesh && child.skeleton) {
           child.bind(child.skeleton);
+          child.skeleton.calculateInverses();
         }
       });
 
