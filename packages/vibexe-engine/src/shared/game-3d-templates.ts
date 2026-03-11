@@ -5117,7 +5117,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                 // --- Performance ---
                 if (s.performance && renderer) {
                   if (s.performance.pixelRatio !== undefined) {
-                    renderer.setPixelRatio(Math.min(s.performance.pixelRatio, 2));
+                    renderer.setPixelRatio(Math.min(s.performance.pixelRatio, 1.5));
                   }
                   if (s.performance.maxFPS !== undefined) {
                     (window as any).__vibexe_targetFPS__ = s.performance.maxFPS;
