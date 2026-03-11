@@ -655,14 +655,12 @@ function swapCharacter(scene, characterId) {
       }
 
       // === Create inline animation controller (no factory dependency) ===
-      // Remove only charSystem controllers + known lily controller (preserve other user controllers)
+      // Remove ALL existing controllers — the charSystem controller handles everything
+      // (physics sync, animation, camera follow). The old game template controller
+      // doesn't have __charSystem/__lilyController tags and was resetting the camera.
       if (window._activeControllers3D) {
-        for (var ci = window._activeControllers3D.length - 1; ci >= 0; ci--) {
-          var ctrl = window._activeControllers3D[ci];
-          if (ctrl && (ctrl.__charSystem || ctrl.__lilyController)) {
-            window._activeControllers3D.splice(ci, 1);
-          }
-        }
+        console.log("[CharacterSystem] Clearing", window._activeControllers3D.length, "old controllers");
+        window._activeControllers3D.length = 0;
       }
 
       var animMap = result.mesh.userData.__animMap || {};
