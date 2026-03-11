@@ -50,7 +50,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { EffectComposer, Pass, FullScreenQuad } from 'three/addons/postprocessing/EffectComposer.js';
+import { EffectComposer, Pass } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
@@ -59,7 +59,7 @@ import { LuminosityHighPassShader } from 'three/addons/shaders/LuminosityHighPas
 import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js';
 
 // Assign to window globals (game code uses window.THREE and window.CANNON)
-Object.assign(THREE, { GLTFLoader, OrbitControls, TransformControls, EffectComposer, Pass, FullScreenQuad, RenderPass, UnrealBloomPass, ShaderPass, CopyShader, LuminosityHighPassShader });
+Object.assign(THREE, { GLTFLoader, OrbitControls, TransformControls, EffectComposer, Pass, RenderPass, UnrealBloomPass, ShaderPass, CopyShader, LuminosityHighPassShader });
 window.THREE = THREE;
 window.CANNON = CANNON;
 
