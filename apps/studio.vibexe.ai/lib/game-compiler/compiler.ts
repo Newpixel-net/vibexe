@@ -314,7 +314,7 @@ function generateGameEntry(gameScenePath: string, assetsPath: string | null): st
 		? `import "./${assetsPath}";`
 		: '// No assets-3d.ts found — factory functions may not be available';
 
-	const sceneImport = `import GameSceneDefault, * as GameSceneModule from "./${gameScenePath}";`;
+	const sceneImport = `import * as GameSceneModule from "./${gameScenePath}";`;
 
 	return `// Synthetic entry — bootstraps game without React (lightweight runtime)
 ${assetsImport}
@@ -322,7 +322,7 @@ ${sceneImport}
 
 // Resolve game scene from any export pattern the AI might use
 const _m = GameSceneModule as any;
-const _rawScene = _m.GameScene || _m.GameScene3D || _m.gameScene || GameSceneDefault
+const _rawScene = _m.GameScene || _m.GameScene3D || _m.gameScene || _m.default
   || Object.values(_m).find((v: any) => v && typeof v === 'object' && typeof v.init === 'function')
   || null;
 const gameScene: any = typeof _rawScene === 'function' ? new (_rawScene as any)() : _rawScene;
