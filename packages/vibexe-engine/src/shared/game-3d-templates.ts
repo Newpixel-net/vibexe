@@ -720,7 +720,7 @@ export function createPhysicsWorld(gravity: number = -20): any {
   world.gravity.set(0, gravity, 0);
   // SAPBroadphase: O(n log n) vs NaiveBroadphase O(n²) — critical for 50+ bodies
   world.broadphase = CANNON.SAPBroadphase ? new CANNON.SAPBroadphase(world) : new CANNON.NaiveBroadphase();
-  world.solver.iterations = 10;
+  world.solver.iterations = 5;
   // Default contact material (medium friction, slight bounce)
   const defaultMat = new CANNON.Material("default");
   const defaultContact = new CANNON.ContactMaterial(defaultMat, defaultMat, {
@@ -1523,7 +1523,7 @@ export async function createCollectible3D(
     mesh.material.emissiveIntensity = 0.3;
   }
   mesh.position.set(x, y, z);
-  mesh.castShadow = true;
+  mesh.castShadow = false; // Small objects — skip shadow for perf
   mesh.name = \`Collectible_\${type}\`;
   mesh.userData.vibexeType = "collectible";
   mesh.userData.vibexeFactory = "createCollectible3D";
@@ -2685,7 +2685,7 @@ export async function playSpatial3D(
 
 const POST_PROCESSING_PRESETS: Record<string, any> = {
   cinematic: { bloom: { strength: 0.4, radius: 0.4, threshold: 0.85 }, fog: { color: 0x88aacc, near: 20, far: 80 }, toneMapping: "ACESFilmic", exposure: 1.0 },
-  vibrant: { bloom: { strength: 0.8, radius: 0.5, threshold: 0.6 }, toneMapping: "ACESFilmic", exposure: 1.2 },
+  vibrant: { bloom: { strength: 0.6, radius: 0.4, threshold: 0.8 }, toneMapping: "ACESFilmic", exposure: 1.2 },
   dark: { bloom: { strength: 0.3, radius: 0.3, threshold: 0.9 }, fog: { color: 0x111122, near: 5, far: 40 }, toneMapping: "Cineon", exposure: 0.7 },
   neon: { bloom: { strength: 1.5, radius: 0.6, threshold: 0.4 }, fog: { color: 0x050510, near: 10, far: 60 }, toneMapping: "ACESFilmic", exposure: 0.9 },
   natural: { bloom: { strength: 0.2, radius: 0.3, threshold: 0.9 }, fog: { color: 0xccddee, near: 30, far: 100 }, toneMapping: "Linear", exposure: 1.0 },
@@ -2723,8 +2723,8 @@ export function createPostProcessing(
   function addBloom(opts?: { strength?: number; radius?: number; threshold?: number }) {
     if (!THREE.UnrealBloomPass) { console.warn("[PostFX] UnrealBloomPass not loaded — bloom unavailable"); return; }
     if (_bloomPass) composer.removePass(_bloomPass);
-    // Half-resolution bloom: 4x fewer fragments, visually identical at typical bloom radius
-    const res = new THREE.Vector2(Math.floor(renderer.domElement.width / 2), Math.floor(renderer.domElement.height / 2));
+    // Quarter-resolution bloom: 16x fewer fragments, visually acceptable at typical bloom radius
+    const res = new THREE.Vector2(Math.floor(renderer.domElement.width / 4), Math.floor(renderer.domElement.height / 4));
     _bloomPass = new THREE.UnrealBloomPass(res, opts?.strength ?? 0.5, opts?.radius ?? 0.4, opts?.threshold ?? 0.85);
     composer.addPass(_bloomPass);
   }
