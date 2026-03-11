@@ -41,9 +41,9 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v5.0.0
+const runtimeCode = `// @vibexe/character-system v5.0.1
 // Pure GLB loader & model swapper — detached bind mode + camera follow
-console.log('[CharacterSystem] Module v5.0 loaded');
+console.log('[CharacterSystem] Module v5.0.1 loaded');
 
 var THREE = require('three');
 
@@ -168,9 +168,10 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
         }
         if (child.isSkinnedMesh) {
           child.frustumCulled = false;
-          // DetachedBindMode (1) = bindMatrixInverse stays fixed (not auto-updated to matrixWorld^-1)
+          // DetachedBindMode = bindMatrixInverse stays fixed (not auto-updated to matrixWorld^-1)
           // This means the parent Group's world transform DOES move the visible mesh
-          child.bindMode = 1; // THREE.DetachedBindMode
+          // Three.js r172 uses string constants: "attached" or "detached"
+          child.bindMode = "detached";
         }
       });
 
