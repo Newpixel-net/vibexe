@@ -1675,8 +1675,10 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 						"var _pfs=_gs.performance;",
 						"if(_pfs){if(_pfs.pixelRatio!=null){var _prr=window.__vibexe_renderer__;if(_prr&&_prr.setPixelRatio){_prr.setPixelRatio(Math.max(0.5,Math.min(1.5,_pfs.pixelRatio)))}}if(_pfs.maxFPS!=null){window.__vibexe_maxFPS__=_pfs.maxFPS}if(_pfs.showFPS){var _fpsD=document.createElement('div');_fpsD.id='vibexe-fps';_fpsD.style.cssText='position:fixed;top:4px;left:4px;padding:2px 6px;background:rgba(0,0,0,0.7);color:#0f0;font:11px monospace;z-index:99999;pointer-events:none';document.body.appendChild(_fpsD);var _fc=0,_lt=performance.now();(function _fpsLoop(){_fc++;var now=performance.now();if(now-_lt>=1000){_fpsD.textContent=_fc+' FPS';_fc=0;_lt=now}requestAnimationFrame(_fpsLoop)})()}}",
 						// Runtime renderer perf patches (applies to old saved IIFE code)
-						// Override setPixelRatio to enforce 1.5 cap — prevents settings handler (Math.min(pr, 2)) from reverting
-						"var _ren=window.__vibexe_renderer__;if(_ren){var _origSPR=_ren.setPixelRatio.bind(_ren);_ren.setPixelRatio=function(v){_origSPR(Math.min(v,1.5))};_ren.setPixelRatio(_ren.getPixelRatio());if(T.PCFShadowMap!==undefined&&_ren.shadowMap.type!==T.PCFShadowMap){_ren.shadowMap.type=T.PCFShadowMap;_ren.shadowMap.needsUpdate=true}if(_ren.shadowMap.autoUpdate!==false){_ren.shadowMap.autoUpdate=false;_ren.shadowMap.needsUpdate=true}}",
+						"var _ren=window.__vibexe_renderer__;if(_ren){if(_ren.getPixelRatio()>1.5){_ren.setPixelRatio(1.5)}if(T.PCFShadowMap!==undefined&&_ren.shadowMap.type!==T.PCFShadowMap){_ren.shadowMap.type=T.PCFShadowMap;_ren.shadowMap.needsUpdate=true}if(_ren.shadowMap.autoUpdate!==false){_ren.shadowMap.autoUpdate=false;_ren.shadowMap.needsUpdate=true}}",
+						// Persistent pixelRatio enforcer — caps at 1.5 every 2s for 30s
+						// Needed because updateGameSettings handler resets PR to Math.min(pr, 2) after our initial patch
+						"var _prEnf=0;var _prInt=setInterval(function(){_prEnf++;if(_prEnf>15){clearInterval(_prInt);return}var _r3=window.__vibexe_renderer__;if(_r3&&_r3.getPixelRatio()>1.5){_r3.setPixelRatio(1.5)}},2000);",
 						// Shadow quality — apply shadow map size and increase shadow camera far for large terrains
 						"var _shq=(_gs.environment&&_gs.environment.shadowQuality)||'medium';",
 						"var _shSize={low:512,medium:1024,high:2048}[_shq]||1024;",
