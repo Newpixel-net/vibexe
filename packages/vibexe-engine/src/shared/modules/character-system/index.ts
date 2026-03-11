@@ -41,9 +41,9 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v4.5.0
-// Pure GLB loader & model swapper — skeleton rebind + camera follow
-console.log('[CharacterSystem] Module v4.5 loaded');
+const runtimeCode = `// @vibexe/character-system v5.0.0
+// Pure GLB loader & model swapper — detached bind mode + camera follow
+console.log('[CharacterSystem] Module v5.0 loaded');
 
 var THREE = require('three');
 
@@ -160,6 +160,7 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
       var inner = gltf.scene;
 
       // Fix materials for proper lighting + disable frustum culling on skinned meshes
+      // Use DetachedBindMode so parent Group transform actually moves the visible mesh
       inner.traverse(function(child) {
         if (child.isMesh) {
           child.castShadow = true;
@@ -167,6 +168,9 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
         }
         if (child.isSkinnedMesh) {
           child.frustumCulled = false;
+          // DetachedBindMode (1) = bindMatrixInverse stays fixed (not auto-updated to matrixWorld^-1)
+          // This means the parent Group's world transform DOES move the visible mesh
+          child.bindMode = 1; // THREE.DetachedBindMode
         }
       });
 
@@ -577,18 +581,6 @@ function swapCharacter(scene, characterId) {
       // Add new mesh to scene
       scene.add(result.mesh);
 
-      // CRITICAL: Rebind skeleton at new world position.
-      // The bindMatrix AND boneInverses must both be recalculated at the
-      // current world position. Without this, the SkinnedMesh shader applies
-      // a double position offset (boneInverses at origin, bindMatrix at spawn).
-      result.mesh.updateMatrixWorld(true);
-      result.mesh.traverse(function(child) {
-        if (child.isSkinnedMesh && child.skeleton) {
-          child.bind(child.skeleton);
-          child.skeleton.calculateInverses();
-        }
-      });
-
       // Register mixer in framework
       if (result.mixer && window._activeMixers3D) {
         window._activeMixers3D.push(result.mixer);
@@ -929,7 +921,7 @@ module.exports = {
 export const CHARACTER_SYSTEM_MANIFEST: ModuleManifest = {
 	id: "character-system",
 	name: "Character System",
-	version: "4.1.0",
+	version: "5.0.0",
 	category: "tools",
 	description: "Player character selection and model swapping",
 	icon: "PersonStanding",
