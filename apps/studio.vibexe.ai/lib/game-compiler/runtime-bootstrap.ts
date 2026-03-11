@@ -57,6 +57,8 @@ export function generateRuntimeBootstrap(opts: BootstrapSettings): string {
 
 function generateSettingsOverride(gs: Record<string, unknown>): string {
 	return `(function(){
+if(window.__vibexe_bootstrap_applied__)return;
+window.__vibexe_bootstrap_applied__=true;
 var _gs=${JSON.stringify(gs)};
 var _n=0;
 var _t=setInterval(function(){
@@ -76,7 +78,7 @@ if(w&&_gs.physics&&_gs.physics.gravity!=null){try{w.gravity.set(0,_gs.physics.gr
 var _aus=_gs.audio;
 if(_aus){window.__vibexe_audio__={enabled:_aus.enabled!==false,masterVolume:_aus.masterVolume!=null?_aus.masterVolume:0.8,musicVolume:_aus.musicVolume!=null?_aus.musicVolume:0.5,sfxVolume:_aus.sfxVolume!=null?_aus.sfxVolume:0.7};if(_aus.enabled===false){var _allAudio=document.querySelectorAll('audio');for(var _ai2=0;_ai2<_allAudio.length;_ai2++){_allAudio[_ai2].muted=true;}}}
 var _pfs=_gs.performance;
-if(_pfs){if(_pfs.pixelRatio!=null){var _prr=window.__vibexe_renderer__;if(_prr&&_prr.setPixelRatio){_prr.setPixelRatio(Math.max(0.5,Math.min(1.5,_pfs.pixelRatio)))}}if(_pfs.maxFPS!=null){window.__vibexe_maxFPS__=_pfs.maxFPS}if(_pfs.showFPS){var _fpsD=document.createElement('div');_fpsD.id='__vibexe_fps__';_fpsD.style.cssText='position:fixed;top:4px;left:4px;padding:2px 6px;background:rgba(0,0,0,0.7);color:#0f0;font:11px monospace;z-index:99999;pointer-events:none';document.body.appendChild(_fpsD);var _fc=0,_lt=performance.now();(function _fpsLoop(){_fc++;var now=performance.now();if(now-_lt>=1000){_fpsD.textContent=_fc+' FPS';_fc=0;_lt=now}requestAnimationFrame(_fpsLoop)})()}}
+if(_pfs){if(_pfs.pixelRatio!=null){var _prr=window.__vibexe_renderer__;if(_prr&&_prr.setPixelRatio){_prr.setPixelRatio(Math.max(0.5,Math.min(1.5,_pfs.pixelRatio)))}}if(_pfs.maxFPS!=null){window.__vibexe_maxFPS__=_pfs.maxFPS}if(_pfs.showFPS){var _existFps=document.getElementById('__vibexe_fps__');if(!_existFps){var _fpsD=document.createElement('div');_fpsD.id='__vibexe_fps__';_fpsD.style.cssText='position:fixed;top:4px;left:4px;padding:2px 6px;background:rgba(0,0,0,0.7);color:#0f0;font:11px monospace;z-index:99999;pointer-events:none';document.body.appendChild(_fpsD);var _fc=0,_lt=performance.now();(function _fpsLoop(){_fc++;var now=performance.now();if(now-_lt>=1000){var _el=document.getElementById('__vibexe_fps__');if(_el)_el.textContent=_fc+' FPS';_fc=0;_lt=now}requestAnimationFrame(_fpsLoop)})()}}}
 var _ren=window.__vibexe_renderer__;if(_ren){if(_ren.getPixelRatio()>1.5){_ren.setPixelRatio(1.5)}if(T.PCFShadowMap!==undefined&&_ren.shadowMap.type!==T.PCFShadowMap){_ren.shadowMap.type=T.PCFShadowMap;_ren.shadowMap.needsUpdate=true}if(_ren.shadowMap.autoUpdate!==false){_ren.shadowMap.autoUpdate=false;_ren.shadowMap.needsUpdate=true}}
 var _prEnf=0;var _prInt=setInterval(function(){_prEnf++;if(_prEnf>15){clearInterval(_prInt);return}var _r3=window.__vibexe_renderer__;if(_r3&&_r3.getPixelRatio()>1.5){_r3.setPixelRatio(1.5)}},2000);
 var _shq=(_gs.environment&&_gs.environment.shadowQuality)||'medium';

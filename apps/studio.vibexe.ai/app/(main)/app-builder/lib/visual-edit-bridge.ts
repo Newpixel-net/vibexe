@@ -5333,6 +5333,11 @@ export function getVisualEditBridgeScript(): string {
       return;
     }
 
+    // Skip when game IIFE PerfGuard is active — let it handle quality management
+    if (window.__vibexe_perfguard__) {
+      return;
+    }
+
     if (avgFps < AQ_LOW_FPS) {
       reduceQuality();
       highFpsSince = 0;

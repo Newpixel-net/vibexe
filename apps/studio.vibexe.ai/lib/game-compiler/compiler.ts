@@ -692,6 +692,17 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       const __initFI = __perf.maxFPS && __perf.maxFPS > 0 ? 1000 / __perf.maxFPS : 0;
       if (__initFI > 0) { W.__vibexe_frameInterval__ = __initFI; W.__vibexe_targetFPS__ = __perf.maxFPS; }
 
+      // Signal PerfGuard is active (bridge AdaptiveQuality should back off)
+      W.__vibexe_perfguard__ = true;
+
+      // Reset PerfGuard counters on tab-switch to prevent false FPS trigger
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          __perfFrames = 0;
+          __perfLastCheck = performance.now();
+        }
+      });
+
       function animate(time?: number) {
         W.__vibexe_animFrameId__ = requestAnimationFrame(animate);
         // Skip when tab hidden
