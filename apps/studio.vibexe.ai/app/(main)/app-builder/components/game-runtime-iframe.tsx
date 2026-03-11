@@ -44,10 +44,18 @@ export function GameRuntimeIframe({
 	const compileTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const pendingBundle = useRef<{ bundle: string; bootstrap: string } | null>(null);
 	const hasTriggeredCompile = useRef(false);
+	const compileInProgress = useRef(false);
 
 	// Compile game code server-side
 	const compileAndInject = useCallback(async () => {
 		if (!files.length) return;
+
+		// Prevent overlapping compiles (Scene→Game toggle fires multiple triggers)
+		if (compileInProgress.current) {
+			console.log("[GameRuntime] Compile already in progress, skipping");
+			return;
+		}
+		compileInProgress.current = true;
 
 		setIsCompiling(true);
 		setCompileError(null);
@@ -126,6 +134,7 @@ export function GameRuntimeIframe({
 			setCompileError(err instanceof Error ? err.message : String(err));
 		} finally {
 			setIsCompiling(false);
+			compileInProgress.current = false;
 		}
 	}, [files, gameSettings, enabledModuleIds, appId, iframeRef]);
 
