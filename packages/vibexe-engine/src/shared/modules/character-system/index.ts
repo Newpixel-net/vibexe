@@ -63,6 +63,7 @@ var _ROOT_BONE_NAMES = {
 var _inputState = { w: false, a: false, s: false, d: false, shift: false, space: false };
 var _mouseState = { midDown: false, lastX: 0, lastY: 0, scrollDelta: 0 };
 var _inputListenersAttached = false;
+var _activeSnapTimer = null;
 
 function _attachInputListeners() {
   if (_inputListenersAttached) return;
@@ -73,6 +74,7 @@ function _attachInputListeners() {
   if (!doc) return;
 
   doc.addEventListener("keydown", function(e) {
+    if ((window.__vibexe_editor__ || {}).isEditing) return;
     var k = e.key.toLowerCase();
     if (k === "w" || k === "arrowup") _inputState.w = true;
     if (k === "a" || k === "arrowleft") _inputState.a = true;
@@ -101,6 +103,7 @@ function _attachInputListeners() {
 
   // Mouse: middle button for orbit, scroll for zoom
   doc.addEventListener("mousedown", function(e) {
+    if ((window.__vibexe_editor__ || {}).isEditing) return;
     if (e.button === 1) { // middle mouse
       _mouseState.midDown = true;
       _mouseState.lastX = e.clientX;
@@ -114,6 +117,7 @@ function _attachInputListeners() {
   });
 
   doc.addEventListener("mousemove", function(e) {
+    if ((window.__vibexe_editor__ || {}).isEditing) return;
     if (_mouseState.midDown) {
       var dx = e.clientX - _mouseState.lastX;
       _mouseState.lastX = e.clientX;
@@ -126,6 +130,7 @@ function _attachInputListeners() {
   });
 
   doc.addEventListener("wheel", function(e) {
+    if ((window.__vibexe_editor__ || {}).isEditing) return;
     // Accumulate scroll for zoom (consumed each frame)
     _mouseState.scrollDelta += e.deltaY;
     e.preventDefault();
@@ -934,11 +939,12 @@ function swapCharacter(scene, characterId) {
               _csBody.velocity.z = worldZ * moveSpeed;
             }
 
-            // Jump — only when grounded (vy near zero) and cooldown expired
+            // Jump — only when grounded (__canJump flag from CANNON collision) and cooldown expired
             _jumpCooldown = Math.max(0, _jumpCooldown - dt);
-            var isGrounded = Math.abs(_csBody.velocity ? _csBody.velocity.y : 0) < 0.5;
+            var isGrounded = !!(_csBody.__canJump);
             if (_inputState.space && isGrounded && _jumpCooldown <= 0) {
               if (_csBody.velocity) _csBody.velocity.y = _jumpForce;
+              _csBody.__canJump = false;
               _jumpCooldown = 0.3;
             }
 
@@ -1062,6 +1068,7 @@ function swapCharacter(scene, characterId) {
       // === Post-terrain snap: poll for terrain height, snap character when available ===
       var _snapDone = false;
       var _snapCount = 0;
+      if (_activeSnapTimer) { clearInterval(_activeSnapTimer); _activeSnapTimer = null; }
       var _snapTimer = setInterval(function() {
         _snapCount++;
         if (_snapDone || _snapCount > 60) { clearInterval(_snapTimer); return; }
@@ -1083,7 +1090,9 @@ function swapCharacter(scene, characterId) {
         }
         _snapDone = true;
         clearInterval(_snapTimer);
+        _activeSnapTimer = null;
       }, 500);
+      _activeSnapTimer = _snapTimer;
 
       // Set global reference
       window.__vibexe_playerMesh__ = result.mesh;
