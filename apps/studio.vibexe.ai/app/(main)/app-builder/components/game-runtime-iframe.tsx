@@ -75,6 +75,7 @@ export function GameRuntimeIframe({
 					settings,
 					enabledModuleIds,
 					appId,
+					apiOrigin: window.location.origin,
 				}),
 			});
 

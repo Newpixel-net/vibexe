@@ -17,11 +17,13 @@ export async function POST(request: Request) {
 			settings,
 			enabledModuleIds,
 			appId,
+			apiOrigin: clientOrigin,
 		} = body as {
 			files: Array<{ path: string; content: string }>;
 			settings?: Record<string, unknown>;
 			enabledModuleIds?: string[];
 			appId?: string;
+			apiOrigin?: string;
 		};
 
 		if (!files || !Array.isArray(files) || files.length === 0) {
@@ -31,7 +33,9 @@ export async function POST(request: Request) {
 			);
 		}
 
-		const apiOrigin = new URL(request.url).origin;
+		// Prefer client-provided origin (browser-facing URL) over server-side request.url
+		// (which returns localhost:3000 on the internal Next.js server)
+		const apiOrigin = clientOrigin || new URL(request.url).origin;
 
 		const result = await compileGameBundle({
 			files,
