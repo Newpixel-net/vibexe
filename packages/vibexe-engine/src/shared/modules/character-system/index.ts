@@ -41,9 +41,9 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v5.0.1
-// Pure GLB loader & model swapper — detached bind mode + camera follow
-console.log('[CharacterSystem] Module v5.0.1 loaded');
+const runtimeCode = `// @vibexe/character-system v5.1.0
+// Pure GLB loader & model swapper — detached bind mode + rebind after transforms + camera follow
+console.log('[CharacterSystem] Module v5.1.0 loaded');
 
 var THREE = require('three');
 
@@ -581,6 +581,20 @@ function swapCharacter(scene, characterId) {
 
       // Add new mesh to scene
       scene.add(result.mesh);
+
+      // Re-bind all SkinnedMeshes with CURRENT matrixWorld after all transforms
+      // (scale, pivot correction, spawn position) are applied.
+      // GLTFLoader's bind() used the original GLB transforms — we need to reset
+      // so the shader delta starts at zero from the current position.
+      // NOTE: Do NOT call calculateInverses() — that corrupts bone inverse matrices.
+      result.mesh.updateMatrixWorld(true);
+      result.mesh.traverse(function(child) {
+        if (child.isSkinnedMesh && child.skeleton) {
+          child.bind(child.skeleton, child.matrixWorld);
+          console.log("[CharacterSystem] Re-bound SkinnedMesh:", child.name, "at worldPos",
+            child.matrixWorld.elements[12].toFixed(2), child.matrixWorld.elements[13].toFixed(2), child.matrixWorld.elements[14].toFixed(2));
+        }
+      });
 
       // Register mixer in framework
       if (result.mixer && window._activeMixers3D) {
