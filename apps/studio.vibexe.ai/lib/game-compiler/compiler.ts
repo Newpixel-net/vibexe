@@ -414,7 +414,8 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.shadowMap.autoUpdate = false;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.2;
   container.appendChild(renderer.domElement);
   W.__vibexe_renderer__ = renderer;
 
@@ -437,21 +438,21 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   const hemi = new THREE.HemisphereLight(
     __gs.environment?.hemisphereSkyColor || '#eef4ff',
     __gs.environment?.hemisphereGroundColor || '#886644',
-    __gs.environment?.hemisphereIntensity ?? 0.35
+    __gs.environment?.hemisphereIntensity ?? 0.5
   );
   hemi.name = '__default_hemi__';
   scene.add(hemi);
 
   const ambient = new THREE.AmbientLight(
     __gs.environment?.ambientLightColor || '#ffffff',
-    __gs.environment?.ambientLightIntensity ?? 0.15
+    __gs.environment?.ambientLightIntensity ?? 0.25
   );
   ambient.name = '__default_ambient__';
   scene.add(ambient);
 
   const sun = new THREE.DirectionalLight(
     __gs.environment?.sunLightColor || '#fff8ee',
-    __gs.environment?.sunLightIntensity ?? 0.55
+    __gs.environment?.sunLightIntensity ?? 0.7
   );
   sun.name = '__default_sun__';
   sun.position.set(8, 20, 10);
@@ -677,6 +678,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       // Performance state
       let __lastFrameTime = 0;
       let __perfFrames = 0, __perfLastCheck = performance.now(), __perfDowngraded = false;
+      const __perfStartTime = performance.now(); // Grace period: skip PerfGuard during initial loading
       // Shadow follow state
       let __shadowFrame = 0, __shadowLastPX = 0, __shadowLastPZ = 0;
       // LOD culling frame counter
@@ -702,12 +704,13 @@ if (!gameScene || typeof gameScene.init !== 'function') {
           __lastFrameTime = time - (__elapsed % __frameInterval);
         }
 
-        // ===== PerfGuard =====
+        // ===== PerfGuard (with 10s grace period for GLB loading) =====
         __perfFrames++;
         const __perfNow = performance.now();
         if (__perfNow - __perfLastCheck >= 2000) {
           const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
-          if (__avgFps < 45 && !__perfDowngraded) {
+          const __perfAge = __perfNow - __perfStartTime;
+          if (__avgFps < 35 && !__perfDowngraded && __perfAge > 10000) {
             __perfDowngraded = true;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
             renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.75));
@@ -715,7 +718,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
             W.__vibexe_cullDistance__ = 60;
             const comp = W.__vibexe_composer__;
             if (comp?.passes) { for (let pi = 0; pi < comp.passes.length; pi++) { if (comp.passes[pi].constructor?.name === 'UnrealBloomPass') comp.passes[pi].enabled = false; } }
-          } else if (__avgFps > 55 && __perfDowngraded) {
+          } else if (__avgFps > 45 && __perfDowngraded) {
             __perfDowngraded = false;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality');
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));

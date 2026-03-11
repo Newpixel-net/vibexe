@@ -1199,10 +1199,14 @@ export function SandpackPreview({
 		// Query the Sandpack iframe
 		const container = iframeContainerRef.current;
 		if (!container) return;
+		let registeredIframe: HTMLIFrameElement | null = null;
 		const findIframe = () => {
-			const iframe = container.querySelector("iframe");
-			if (iframe && iframe !== iframeRef.current) {
-				iframeRef.current = iframe;
+			// For lightweight runtime, iframeRef.current is set directly by React's ref prop.
+			// For Sandpack, it's set here via querySelector.
+			const iframe = iframeRef.current || container.querySelector("iframe");
+			if (iframe && iframe !== registeredIframe) {
+				registeredIframe = iframe as HTMLIFrameElement;
+				iframeRef.current = registeredIframe;
 				visualEdit.setIframeRef(iframeRef as React.RefObject<HTMLIFrameElement | null>);
 				gameEditor.setIframeRef(iframeRef as React.RefObject<HTMLIFrameElement | null>);
 			}
@@ -1211,7 +1215,9 @@ export function SandpackPreview({
 		// Observe DOM changes to catch Sandpack iframe insertion
 		const observer = new MutationObserver(findIframe);
 		observer.observe(container, { childList: true, subtree: true });
-		return () => observer.disconnect();
+		// Also retry after a short delay — React ref may be set after useEffect runs
+		const retryTimer = setTimeout(findIframe, 100);
+		return () => { observer.disconnect(); clearTimeout(retryTimer); };
 	}, [visualEdit.setIframeRef, gameEditor.setIframeRef]);
 
 	// Update iframe bounds when selection changes or window resizes
