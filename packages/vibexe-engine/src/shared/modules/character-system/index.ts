@@ -302,10 +302,11 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
         }
         if (child.isSkinnedMesh) {
           child.frustumCulled = false;
-          // DetachedBindMode = bindMatrixInverse stays fixed (not auto-updated to matrixWorld^-1)
-          // This means the parent Group's world transform DOES move the visible mesh
+          // AttachedBindMode = bindMatrixInverse auto-updates to inv(meshWorldMatrix) each frame.
+          // This eliminates the double-offset problem: moving the Group moves the render 1:1
+          // because mesh.matrixWorld cancels out in the bone transform chain.
           // Three.js r172 uses string constants: "attached" or "detached"
-          child.bindMode = "detached";
+          child.bindMode = "attached";
         }
       });
 
@@ -812,8 +813,8 @@ function swapCharacter(scene, characterId) {
 
       // No re-bind needed here — loadCharacterGLB already called calculateInverses()
       // and bind() after all hierarchy changes (pivot, scale, position) with bones
-      // in bind pose. In detached mode, bindMatrixInverse stays fixed, so moving
-      // the Group (mesh) creates the correct shader delta.
+      // in bind pose. In attached mode, bindMatrixInverse auto-updates to inv(meshWorldMatrix)
+      // each frame, so moving the Group moves the render 1:1 (no double-offset).
 
       // Register mixer in framework
       if (result.mixer && window._activeMixers3D) {

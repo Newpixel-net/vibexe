@@ -2386,64 +2386,76 @@ export function getVisualEditBridgeScript(): string {
           if (window.__savedCharControllers3D.length) showDebug("Suspended " + window.__savedCharControllers3D.length + " charSystem controllers");
         }
         // Fix AnimatedCharacter gizmo-mesh alignment in editor mode.
-        // Problem: In "detached" bindMode, position redistribution causes double-offset
-        // (group move by t → render shifts by 2t) because both meshWorldMatrix and bone
-        // positions change. Solution: switch to "attached" mode first. In attached mode,
-        // meshWorldMatrix*inv(meshWorldMatrix)=I every frame, eliminating the extra shader
-        // offset. Then redistribute the inner GLB offset into the group position.
-        // Result: gizmo/bbox at group pos = mesh render pos. Drag moves render 1:1.
+        // Character system module uses "attached" bindMode which eliminates double-offset.
+        // But there's still a PIVOT offset (used to center/ground the GLB model). The group
+        // position is where the gizmo attaches, but the visual mesh is offset by the pivot.
+        // Solution: move the group position to include the pivot offset, zero the pivot.
+        // Result: gizmo/bbox at group pos = mesh visual center. Drag moves render 1:1.
         editor.scene.traverse(function(_acNode) {
           if (!_acNode.userData || _acNode.userData.vibexeType !== "AnimatedCharacter") return;
           var _acSkm = null;
           _acNode.traverse(function(_c) { if (!_acSkm && _c.isSkinnedMesh) _acSkm = _c; });
           if (!_acSkm) return;
-          // CRITICAL: Switch to attached bindMode BEFORE redistribution.
-          // In attached mode, bindMatrixInverse = inv(meshWorldMatrix) every frame,
-          // so group translation maps 1:1 to render translation (no double-offset).
-          // DON'T call bind() — that recomputes boneInverses from tiny Armature scale
-          // and corrupts the mesh. Just flip the flag.
-          _acNode.__savedBindMode = _acSkm.bindMode;
-          _acSkm.bindMode = "attached";
+          // Ensure attached bindMode (character system v6+ already sets this, but guard for old saves)
+          if (_acSkm.bindMode !== "attached") {
+            _acNode.__savedBindMode = _acSkm.bindMode;
+            _acSkm.bindMode = "attached";
+          }
           _acSkm.updateMatrixWorld(true);
-          // Compute mesh render center vs group center
-          var _meshWP = new THREE.Vector3();
-          _acSkm.getWorldPosition(_meshWP);
-          var _groupWP = new THREE.Vector3();
-          _acNode.getWorldPosition(_groupWP);
-          var _dx = _meshWP.x - _groupWP.x, _dy = _meshWP.y - _groupWP.y, _dz = _meshWP.z - _groupWP.z;
-          if (Math.abs(_dx) > 0.5 || Math.abs(_dy) > 0.5 || Math.abs(_dz) > 0.5) {
-            _acNode.__savedGroupPos = _acNode.position.clone();
-            var _innerGroup = null;
-            for (var _ci = 0; _ci < _acNode.children.length && !_innerGroup; _ci++) {
-              var _ch = _acNode.children[_ci];
-              for (var _cj = 0; _cj < _ch.children.length && !_innerGroup; _cj++) {
-                var _ch2 = _ch.children[_cj];
-                if (_ch2.position.lengthSq() > 0.01) _innerGroup = _ch2;
-              }
+          // Find pivot node: first child of the group (character system creates: group → pivot → inner)
+          // Use __pivotOffset from userData if available (character system stores it), or measure
+          var _pivotNode = null;
+          var _pivotOffset = _acNode.userData.__pivotOffset;
+          for (var _ci = 0; _ci < _acNode.children.length; _ci++) {
+            var _ch = _acNode.children[_ci];
+            if (_ch.isGroup || _ch.type === "Group" || _ch.type === "Object3D") {
+              if (_ch.position.lengthSq() > 0.01) { _pivotNode = _ch; break; }
             }
-            if (_innerGroup) {
-              _acNode.__savedInnerGroup = _innerGroup;
-              _acNode.__savedInnerPos = _innerGroup.position.clone();
-              // Store redistribution offset (un-redistribute on persist so spawn pos is correct)
-              _acNode.__editorRedistOffset = { x: _dx, y: _dy, z: _dz };
-              // Move group to mesh world position (where it visually renders)
-              _acNode.position.x += _dx;
-              _acNode.position.y += _dy;
-              _acNode.position.z += _dz;
-              // Zero the inner offset to compensate (bone world positions unchanged in attached mode)
-              _innerGroup.position.set(0, 0, 0);
-              _acNode.updateWorldMatrix(false, true);
-              showDebug("AnimChar '" + _acNode.name + "': attached+aligned (" + _dx.toFixed(1) + "," + _dy.toFixed(1) + "," + _dz.toFixed(1) + ")");
-              // Fix timing race: if this character was already selected before redistribution,
-              // re-send properties and update bbox so panel shows correct position
-              if (selectedObj === _acNode) {
-                sendSelectedObject(_acNode);
-                if (boxHelper && boxHelper.update) try { boxHelper.update(); } catch(e) {}
-                showDebug("AnimChar re-sent selection after redistribution");
-              }
+          }
+          // Fallback: compute offset from world positions if no pivot node or pivotOffset
+          if (!_pivotNode && !_pivotOffset) {
+            var _meshWP = new THREE.Vector3();
+            _acSkm.getWorldPosition(_meshWP);
+            var _groupWP = new THREE.Vector3();
+            _acNode.getWorldPosition(_groupWP);
+            var _fdx = _meshWP.x - _groupWP.x, _fdy = _meshWP.y - _groupWP.y, _fdz = _meshWP.z - _groupWP.z;
+            if (Math.abs(_fdx) > 0.5 || Math.abs(_fdy) > 0.5 || Math.abs(_fdz) > 0.5) {
+              _pivotOffset = { x: _fdx, y: _fdy, z: _fdz };
+            }
+          }
+          // Use pivotNode's position as offset if available
+          var _dx = 0, _dy = 0, _dz = 0;
+          if (_pivotNode) {
+            _dx = _pivotNode.position.x;
+            _dy = _pivotNode.position.y;
+            _dz = _pivotNode.position.z;
+          } else if (_pivotOffset) {
+            _dx = _pivotOffset.x || 0;
+            _dy = _pivotOffset.y || 0;
+            _dz = _pivotOffset.z || 0;
+          }
+          if (Math.abs(_dx) > 0.01 || Math.abs(_dy) > 0.01 || Math.abs(_dz) > 0.01) {
+            _acNode.__savedGroupPos = _acNode.position.clone();
+            if (_pivotNode) {
+              _acNode.__savedPivotNode = _pivotNode;
+              _acNode.__savedPivotPos = _pivotNode.position.clone();
+            }
+            _acNode.__editorRedistOffset = { x: _dx, y: _dy, z: _dz };
+            // Move group to include pivot offset (so gizmo is at visual center)
+            _acNode.position.x += _dx;
+            _acNode.position.y += _dy;
+            _acNode.position.z += _dz;
+            // Zero the pivot to compensate
+            if (_pivotNode) _pivotNode.position.set(0, 0, 0);
+            _acNode.updateWorldMatrix(false, true);
+            showDebug("AnimChar '" + _acNode.name + "': pivot-aligned (" + _dx.toFixed(2) + "," + _dy.toFixed(2) + "," + _dz.toFixed(2) + ")");
+            if (selectedObj === _acNode) {
+              sendSelectedObject(_acNode);
+              if (boxHelper && boxHelper.update) try { boxHelper.update(); } catch(e) {}
+              showDebug("AnimChar re-sent selection after redistribution");
             }
           } else {
-            showDebug("AnimChar '" + _acNode.name + "': attached mode (already aligned)");
+            showDebug("AnimChar '" + _acNode.name + "': already aligned (no pivot offset)");
           }
         });
       }, 300);
@@ -2712,7 +2724,7 @@ export function getVisualEditBridgeScript(): string {
     if (editor && editor.scene) {
       editor.scene.traverse(function(_dn) {
         if (_dn.userData && _dn.userData.vibexeType === "AnimatedCharacter") {
-          // Restore bindMode FIRST (before position restore, so shader uses correct mode)
+          // Restore bindMode if it was changed (old saves might still use detached)
           if (_dn.__savedBindMode) {
             var _restoreSkm = null;
             _dn.traverse(function(_rc) { if (!_restoreSkm && _rc.isSkinnedMesh) _restoreSkm = _rc; });
@@ -2725,10 +2737,11 @@ export function getVisualEditBridgeScript(): string {
           if (_dn.__savedGroupPos) {
             _dn.position.copy(_dn.__savedGroupPos);
             delete _dn.__savedGroupPos;
-            if (_dn.__savedInnerGroup && _dn.__savedInnerPos) {
-              _dn.__savedInnerGroup.position.copy(_dn.__savedInnerPos);
-              delete _dn.__savedInnerGroup;
-              delete _dn.__savedInnerPos;
+            // Restore pivot node position
+            if (_dn.__savedPivotNode && _dn.__savedPivotPos) {
+              _dn.__savedPivotNode.position.copy(_dn.__savedPivotPos);
+              delete _dn.__savedPivotNode;
+              delete _dn.__savedPivotPos;
             }
             _dn.updateWorldMatrix(false, true);
           }
