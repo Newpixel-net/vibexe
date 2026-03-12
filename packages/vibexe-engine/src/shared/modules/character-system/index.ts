@@ -1052,6 +1052,11 @@ function swapCharacter(scene, characterId) {
         var _cursorLookYaw = 0;
         var _cursorActive = false;
 
+        // C4 fix: pooled Vector3s for camera collision (avoid per-frame allocation)
+        var _ccPlayerCenter = null, _ccCamPos = null, _ccToCamera = null;
+        var _ccUpOff = null, _ccDownOff = null, _ccPullPos = null;
+        var _ccRaycaster = null, _ccCachedTargets = null, _ccFrameCount = 0;
+
         // Camera mouse offset state (Blink: maxOffset, offsetDampTime)
         var _camOffsetX = 0, _camOffsetZ = 0;
         var _camOffsetVelX = 0, _camOffsetVelZ = 0;
@@ -1110,7 +1115,8 @@ function swapCharacter(scene, characterId) {
         (function() {
           var R = window.RAPIER;
           var rw = window.__vibexe_rapierWorld__;
-          if (!R || !rw || !_csBody) return;
+          // X6 fix: validate Rapier world is actually a valid World object
+          if (!R || !rw || !_csBody || typeof rw.createRigidBody !== 'function') return;
           // Clean up previous Rapier KCC (character re-swap)
           if (window.__charCtrl_rapier) {
             var _old = window.__charCtrl_rapier;
@@ -1673,10 +1679,21 @@ function swapCharacter(scene, characterId) {
               var _ikDamp = _smoothDampAngle(_ikHeadDelta, _ikTarget, _ikHeadVel, 0.4, dt);
               _ikHeadDelta = _ikDamp.value;
               _ikHeadVel = _ikDamp.velocity;
-              // Apply additive rotation (head=1.0, neck=0.5, spine=0.3 — matches Blink weights)
-              if (_ikBones.head) _ikBones.head.rotation.y += _ikHeadDelta;
-              if (_ikBones.neck) _ikBones.neck.rotation.y += _ikHeadDelta * 0.5;
-              if (_ikBones.spine) _ikBones.spine.rotation.y += _ikHeadDelta * 0.3;
+              // C5 fix: Apply IK as post-animation offset. Save base rotation from animation,
+              // then add IK delta. This prevents double-rotation if animation already moved the bone.
+              if (_ikBones.head) {
+                if (_ikBones.head.__ikBaseY === undefined) _ikBones.head.__ikBaseY = _ikBones.head.rotation.y;
+                var _headAnimY = _ikBones.head.rotation.y;
+                _ikBones.head.rotation.y = _headAnimY + _ikHeadDelta;
+              }
+              if (_ikBones.neck) {
+                var _neckAnimY = _ikBones.neck.rotation.y;
+                _ikBones.neck.rotation.y = _neckAnimY + _ikHeadDelta * 0.5;
+              }
+              if (_ikBones.spine) {
+                var _spineAnimY = _ikBones.spine.rotation.y;
+                _ikBones.spine.rotation.y = _spineAnimY + _ikHeadDelta * 0.3;
+              }
             }
 
             // === 9. CAMERA FOLLOW (Blink: SmoothDamp with orbit) ===
@@ -1740,45 +1757,59 @@ function swapCharacter(scene, characterId) {
               }
 
               // === Camera collision avoidance (improved multi-ray) ===
-              var _playerCenter = new THREE.Vector3(_csMesh.position.x, _csMesh.position.y + _csHalfH, _csMesh.position.z);
-              var _camPos = new THREE.Vector3(cam.position.x, cam.position.y, cam.position.z);
-              var _toCamera = new THREE.Vector3().subVectors(_camPos, _playerCenter);
-              var _toCamLen = _toCamera.length();
+              // C4 fix: reuse Vector3s instead of allocating new ones every frame
+              if (!_ccPlayerCenter) _ccPlayerCenter = new THREE.Vector3();
+              if (!_ccCamPos) _ccCamPos = new THREE.Vector3();
+              if (!_ccToCamera) _ccToCamera = new THREE.Vector3();
+              if (!_ccUpOff) _ccUpOff = new THREE.Vector3();
+              if (!_ccDownOff) _ccDownOff = new THREE.Vector3();
+              if (!_ccRaycaster) _ccRaycaster = new THREE.Raycaster();
+              _ccPlayerCenter.set(_csMesh.position.x, _csMesh.position.y + _csHalfH, _csMesh.position.z);
+              _ccCamPos.set(cam.position.x, cam.position.y, cam.position.z);
+              _ccToCamera.subVectors(_ccCamPos, _ccPlayerCenter);
+              var _toCamLen = _ccToCamera.length();
               if (_toCamLen > 0.1) {
-                _toCamera.normalize();
-                // Build collision targets once per frame
-                var _ccTargets = [];
-                var _ccScene = window.__vibexe_scene__;
-                if (_ccScene) {
-                  _ccScene.traverse(function(child) {
-                    if (!child.isMesh) return;
-                    if (child === _csMesh || child.name.indexOf("Character_") === 0) return;
-                    if (child.name.indexOf("__editor_") === 0) return;
-                    if (child.userData && child.userData.vibexeType === "AnimatedCharacter") return;
-                    if (!child.visible) return;
-                    _ccTargets.push(child);
-                  });
+                _ccToCamera.normalize();
+                // C4 fix: cache collision targets, rebuild every 60 frames (not every frame)
+                _ccFrameCount = (_ccFrameCount || 0) + 1;
+                if (!_ccCachedTargets || _ccFrameCount % 60 === 0) {
+                  _ccCachedTargets = [];
+                  var _ccScene = window.__vibexe_scene__;
+                  if (_ccScene) {
+                    _ccScene.traverse(function(child) {
+                      if (!child.isMesh) return;
+                      if (child === _csMesh || child.name.indexOf("Character_") === 0) return;
+                      if (child.name.indexOf("__editor_") === 0) return;
+                      if (child.userData && child.userData.vibexeType === "AnimatedCharacter") return;
+                      if (!child.visible) return;
+                      _ccCachedTargets.push(child);
+                    });
+                  }
                 }
-                if (_ccTargets.length > 0) {
+                if (_ccCachedTargets.length > 0) {
                   // Cast 3 rays: center, +0.3 up, -0.3 down
                   var _closestHit = _toCamLen;
-                  var _upOffset = new THREE.Vector3(0, 0.3, 0);
-                  var _downOffset = new THREE.Vector3(0, -0.3, 0);
-                  var _origins = [_playerCenter, _playerCenter.clone().add(_upOffset), _playerCenter.clone().add(_downOffset)];
+                  _ccUpOff.set(_ccPlayerCenter.x, _ccPlayerCenter.y + 0.3, _ccPlayerCenter.z);
+                  _ccDownOff.set(_ccPlayerCenter.x, _ccPlayerCenter.y - 0.3, _ccPlayerCenter.z);
+                  var _origins = [_ccPlayerCenter, _ccUpOff, _ccDownOff];
                   for (var _ri = 0; _ri < _origins.length; _ri++) {
-                    var _ccRay = new THREE.Raycaster(_origins[_ri], _toCamera, 0.3, _toCamLen);
-                    var _ccHits = _ccRay.intersectObjects(_ccTargets, false);
+                    _ccRaycaster.set(_origins[_ri], _ccToCamera);
+                    _ccRaycaster.near = 0.3;
+                    _ccRaycaster.far = _toCamLen;
+                    var _ccRay = _ccRaycaster;
+                    var _ccHits = _ccRay.intersectObjects(_ccCachedTargets, false);
                     if (_ccHits.length > 0 && _ccHits[0].distance < _closestHit) {
                       _closestHit = _ccHits[0].distance;
                     }
                   }
                   if (_closestHit < _toCamLen) {
                     var _safeDist = Math.max(1.0, _closestHit - 0.5);
-                    // Smooth pull-in (don't pop instantly)
-                    var _pullPos = _playerCenter.clone().addScaledVector(_toCamera, _safeDist);
-                    cam.position.x += (_pullPos.x - cam.position.x) * Math.min(12 * dt, 1);
-                    cam.position.y += (_pullPos.y - cam.position.y) * Math.min(12 * dt, 1);
-                    cam.position.z += (_pullPos.z - cam.position.z) * Math.min(12 * dt, 1);
+                    // Smooth pull-in (don't pop instantly) — C4 fix: reuse vector
+                    if (!_ccPullPos) _ccPullPos = new THREE.Vector3();
+                    _ccPullPos.copy(_ccPlayerCenter).addScaledVector(_ccToCamera, _safeDist);
+                    cam.position.x += (_ccPullPos.x - cam.position.x) * Math.min(12 * dt, 1);
+                    cam.position.y += (_ccPullPos.y - cam.position.y) * Math.min(12 * dt, 1);
+                    cam.position.z += (_ccPullPos.z - cam.position.z) * Math.min(12 * dt, 1);
                   }
                 }
               }
@@ -1946,9 +1977,11 @@ function swapCharacter(scene, characterId) {
         if ((window.__vibexe_editor__ || {}).isEditing) return;
         var getH = window.__vibexe_getTerrainHeight;
         var body = result.mesh.userData.__physicsBody;
-        if (!getH || !body) return;
+        // X4 fix: robust null checks — terrain may unload/reload during snap
+        if (!getH || typeof getH !== 'function') return;
+        if (!body || !body.position) return;
         var th = getH(body.position.x, body.position.z);
-        if (th == null) return;
+        if (th == null || isNaN(th)) return;
         var halfH = result.mesh.userData.__characterBounds ? result.mesh.userData.__characterBounds.height / 2 : 0.75;
         var targetY = th + halfH + 0.5;
         if (body.position.y < targetY) {

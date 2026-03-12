@@ -284,6 +284,10 @@ TerrainGenerator.prototype.generate = function() {
     return self.getHeightAt(x, z);
   };
 
+  // X7 fix: publish terrain surface offset for character-system module interop
+  // This offset accounts for PBR grass/vegetation visual height above geometric surface
+  window.__vibexe_terrainSurfaceOffset = 0.15;
+
   // Hide ground plane and grid
   this.scene.traverse(function(child) {
     if (child === mesh) return;
@@ -412,6 +416,11 @@ TerrainPhysics.prototype.setup = function(world) {
     // World not ready — set up a watcher
     console.warn("[TerrainPhysics] World not ready — will create heightfield when physics starts");
     var self = this;
+    // T4 fix: clear any prior watcher from previous terrain instance to prevent leaks
+    if (window.__vibexe_terrainPhysicsWatcher) {
+      clearInterval(window.__vibexe_terrainPhysicsWatcher);
+      window.__vibexe_terrainPhysicsWatcher = null;
+    }
     if (!this._watcherInterval) {
       this._watcherInterval = setInterval(function() {
         var dC = window.CANNON;
@@ -420,9 +429,11 @@ TerrainPhysics.prototype.setup = function(world) {
         if (dC && dW && dTD && !window.__vibexe_terrainBody) {
           clearInterval(self._watcherInterval);
           self._watcherInterval = null;
+          window.__vibexe_terrainPhysicsWatcher = null;
           self.setup(dW);
         }
       }, 200);
+      window.__vibexe_terrainPhysicsWatcher = this._watcherInterval;
     }
     return;
   }

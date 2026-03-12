@@ -168,7 +168,9 @@ function SkyColorPalette() {}
 
 // Returns { front: [r,g,b], back: [r,g,b] } for given height (0-1) and solarTime (0-1)
 SkyColorPalette.prototype.getColor = function(height, solarTime) {
+  // S10 fix: handle exact midnight (1.0 → 0.0 wrap) by clamping to just below 1.0
   var st = solarTime % 1;
+  if (st <= 0 && solarTime > 0) st = 0.999;
   var stopA = SKY_STOPS[0], stopB = SKY_STOPS[1], blendT = 0;
   for (var i = 0; i < SKY_STOPS.length - 1; i++) {
     if (st >= SKY_STOPS[i].t && st <= SKY_STOPS[i + 1].t) {
@@ -519,6 +521,8 @@ ProceduralSkyDome.prototype.update = function(st, sunDir, moonDir, moonPhase, cf
 };
 
 ProceduralSkyDome.prototype._buildGradient = function(solarTime) {
+  // S5 fix: guard against texture not properly initialized
+  if (!this._gradTex || !this._gradTex.image || !this._gradTex.image.data) return;
   var data = this._gradTex.image.data;
   var W = 128;
   for (var x = 0; x < W; x++) {
@@ -586,14 +590,20 @@ function SkyLighting(scene) {
 
 SkyLighting.prototype._findLights = function() {
   var self = this;
+  // X5 fix: prefer __default_sun__ to avoid creating a second sun that conflicts with shadow-follow
   this.scene.traverse(function(obj) {
-    if (!self.sunLight && obj.isDirectionalLight) {
-      self.sunLight = obj;
-      self._origSunInt = obj.intensity;
+    if (obj.isDirectionalLight) {
+      if (!self.sunLight || obj.name === "__default_sun__") {
+        self.sunLight = obj;
+        self._origSunInt = obj.intensity;
+      }
     }
     if (!self.ambientLight && (obj.isAmbientLight || obj.isHemisphereLight)) {
       self.ambientLight = obj;
       self._origAmbInt = obj.intensity;
+      // S6 fix: store original colors for restore on dispose
+      if (obj.color) self._origAmbColor = obj.color.clone();
+      if (obj.groundColor) self._origAmbGround = obj.groundColor.clone();
     }
   });
 
@@ -696,7 +706,12 @@ SkyLighting.prototype.update = function(solarTime, sunDir, cfg) {
 
 SkyLighting.prototype.dispose = function() {
   if (this._origSunInt !== null && this.sunLight) this.sunLight.intensity = this._origSunInt;
-  if (this._origAmbInt !== null && this.ambientLight) this.ambientLight.intensity = this._origAmbInt;
+  if (this._origAmbInt !== null && this.ambientLight) {
+    this.ambientLight.intensity = this._origAmbInt;
+    // S6 fix: restore original light colors (not just intensity)
+    if (this._origAmbColor && this.ambientLight.color) this.ambientLight.color.copy(this._origAmbColor);
+    if (this._origAmbGround && this.ambientLight.groundColor) this.ambientLight.groundColor.copy(this._origAmbGround);
+  }
   if (this._ownSun && this.sunLight) { this.scene.remove(this.sunLight); this.scene.remove(this.sunLight.target); }
   if (this._ownAmbient && this.ambientLight) this.scene.remove(this.ambientLight);
 };
@@ -736,8 +751,10 @@ WeatherParticles.prototype.update = function(dt, config) {
   var windDir = (config && config.windDirection !== undefined) ? config.windDirection : 0;
   var windStr = (config && config.windStrength !== undefined) ? config.windStrength : 0.3;
   var windRad = windDir * Math.PI / 180;
-  var windX = Math.sin(windRad) * windStr * 8;
-  var windZ = Math.cos(windRad) * windStr * 8;
+  // S8 fix: scale wind by particle type — rain is heavy (less wind effect), snow is light (more)
+  var windScale = (this._type === "snow") ? 3 : 8;
+  var windX = Math.sin(windRad) * windStr * windScale;
+  var windZ = Math.cos(windRad) * windStr * windScale;
 
   var pos = this._positions;
   var vel = this._velocities;
@@ -1198,7 +1215,8 @@ SkyWeatherSystem.prototype._updateFog = function() {
     var hFactor = Math.exp(-Math.max(0, camY) * hFalloff * 0.05);
     baseDensity *= (1.0 + hFactor * 2.0);
   }
-  this.scene.fog.density = baseDensity;
+  // S7 fix: clamp fog density to prevent opaque/invisible extremes
+  this.scene.fog.density = _clamp(baseDensity, 0.0001, 0.1);
   if (this.config.fog.autoColor) {
     // Convert sRGB horizon color to linear space for correct fog rendering
     var lr = Math.pow(hz[0], 2.2), lg = Math.pow(hz[1], 2.2), lb = Math.pow(hz[2], 2.2);
@@ -1305,7 +1323,8 @@ if (typeof window !== "undefined") {
     var timer = setInterval(function() {
       attempts++;
       var scene = window.__vibexe_scene__;
-      if (scene && !window.__vibexe_skyWeather) {
+      // S9 fix: also check THREE is available before constructing sky dome
+      if (scene && typeof THREE !== 'undefined' && !window.__vibexe_skyWeather) {
         clearInterval(timer);
         window.__skyWeather_autoInitInterval = null;
         var settings = {};
