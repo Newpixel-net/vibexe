@@ -1063,7 +1063,8 @@ function swapCharacter(scene, characterId) {
         // Terrain visual lift: grass/vegetation PBR textures extend above the geometric
         // terrain surface by ~0.3 units. Without this offset, character appears knee-deep
         // in grass even though the physics capsule is correctly sitting on the heightfield.
-        var _terrainVisualLift = window.__vibexe_getTerrainHeight ? 0.3 : 0;
+        // Checked dynamically each frame since terrain may be generated after controller init.
+        var _TERRAIN_VISUAL_LIFT = 0.35;
 
         // === RAPIER KCC SETUP (Phase 2C) ===
         // Create kinematic capsule body + character controller for native terrain collision.
@@ -1218,7 +1219,7 @@ function swapCharacter(scene, characterId) {
               _rapierBody.setNextKinematicTranslation({ x: _nx, y: _ny, z: _nz });
               // Sync mesh to Rapier position
               _csMesh.position.x = _nx;
-              _csMesh.position.y = _ny - _csHalfH + _terrainVisualLift;
+              _csMesh.position.y = _ny - _csHalfH + (window.__vibexe_getTerrainHeight ? _TERRAIN_VISUAL_LIFT : 0);
               _csMesh.position.z = _nz;
               if (_csMesh.userData && _csMesh.userData.__groundOffset) {
                 _csMesh.position.y += _csMesh.userData.__groundOffset;
@@ -1234,7 +1235,7 @@ function swapCharacter(scene, characterId) {
                     _ny = _minSafe;
                     _rapierBody.setNextKinematicTranslation({ x: _nx, y: _ny, z: _nz });
                     _rapierGravityVel = 0;
-                    _csMesh.position.y = _ny - _csHalfH + _terrainVisualLift;
+                    _csMesh.position.y = _ny - _csHalfH + (window.__vibexe_getTerrainHeight ? _TERRAIN_VISUAL_LIFT : 0);
                     if (_csMesh.userData && _csMesh.userData.__groundOffset) _csMesh.position.y += _csMesh.userData.__groundOffset;
                     isGrounded = true;
                   }
@@ -1406,7 +1407,7 @@ function swapCharacter(scene, characterId) {
             // Sync mesh to physics body position
             if (_csBody.position) {
               _csMesh.position.x = _csBody.position.x;
-              _csMesh.position.y = _csBody.position.y - _csHalfH + _terrainVisualLift;
+              _csMesh.position.y = _csBody.position.y - _csHalfH + (window.__vibexe_getTerrainHeight ? _TERRAIN_VISUAL_LIFT : 0);
               _csMesh.position.z = _csBody.position.z;
               if (_csMesh.userData && _csMesh.userData.__groundOffset) {
                 _csMesh.position.y += _csMesh.userData.__groundOffset;
