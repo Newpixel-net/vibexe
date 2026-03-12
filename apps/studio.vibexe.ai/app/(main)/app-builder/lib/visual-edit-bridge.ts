@@ -1145,6 +1145,11 @@ export function getVisualEditBridgeScript(): string {
             persistTransform(selectedObj);
           }
         });
+        // Throttle postMessages during drag to prevent React re-render storms
+        var _lastCamMovedTime = 0;
+        var _camMovedTimer = null;
+        var _lastObjChangeTime = 0;
+        var _objChangeTimer = null;
         transformControls.addEventListener("objectChange", function() {
           // Camera mode: compute offsets and save to iframe settings (no position reset)
           if (cameraSelected && previewCamera) {
@@ -1160,20 +1165,51 @@ export function getVisualEditBridgeScript(): string {
             _gs.camera.offsetY = newOffsetY;
             _gs.camera.offsetZ = newOffsetZ;
             if (cameraHelper) cameraHelper.update();
-            window.parent.postMessage({
-              type: "game-editor-camera-moved",
-              position: { x: +previewCamera.position.x.toFixed(2), y: +previewCamera.position.y.toFixed(2), z: +previewCamera.position.z.toFixed(2) },
-              offsetY: +newOffsetY.toFixed(2),
-              offsetZ: +newOffsetZ.toFixed(2)
-            }, "*");
+            // Throttle postMessage to parent (200ms) to prevent React re-render storm
+            var _camNow = Date.now();
+            if (_camNow - _lastCamMovedTime >= 200) {
+              _lastCamMovedTime = _camNow;
+              if (_camMovedTimer) { clearTimeout(_camMovedTimer); _camMovedTimer = null; }
+              window.parent.postMessage({
+                type: "game-editor-camera-moved",
+                position: { x: +previewCamera.position.x.toFixed(2), y: +previewCamera.position.y.toFixed(2), z: +previewCamera.position.z.toFixed(2) },
+                offsetY: +newOffsetY.toFixed(2),
+                offsetZ: +newOffsetZ.toFixed(2)
+              }, "*");
+            } else if (!_camMovedTimer) {
+              _camMovedTimer = setTimeout(function() {
+                _camMovedTimer = null;
+                _lastCamMovedTime = Date.now();
+                window.parent.postMessage({
+                  type: "game-editor-camera-moved",
+                  position: { x: +previewCamera.position.x.toFixed(2), y: +previewCamera.position.y.toFixed(2), z: +previewCamera.position.z.toFixed(2) },
+                  offsetY: +newOffsetY.toFixed(2),
+                  offsetZ: +newOffsetZ.toFixed(2)
+                }, "*");
+              }, 200 - (_camNow - _lastCamMovedTime));
+            }
             return;
           }
           if (!selectedObj || !selectedObj.parent) return;
           if (selectedObj) {
-            sendSelectedObject(selectedObj);
+            // boxHelper update is cheap — keep at full rate for visual feedback
             if (boxHelper && boxHelper.object && boxHelper.object.parent) { try { boxHelper.update(); } catch(e) {} }
-            // Live-sync player position to Game Settings panel
-            sendPlayerPositionUpdate(selectedObj);
+            // Throttle expensive postMessages to parent (sendSelectedObject + sendPlayerPositionUpdate)
+            var _objNow = Date.now();
+            if (_objNow - _lastObjChangeTime >= 150) {
+              _lastObjChangeTime = _objNow;
+              if (_objChangeTimer) { clearTimeout(_objChangeTimer); _objChangeTimer = null; }
+              sendSelectedObject(selectedObj);
+              sendPlayerPositionUpdate(selectedObj);
+            } else if (!_objChangeTimer) {
+              var _capturedObj = selectedObj;
+              _objChangeTimer = setTimeout(function() {
+                _objChangeTimer = null;
+                _lastObjChangeTime = Date.now();
+                sendSelectedObject(_capturedObj);
+                sendPlayerPositionUpdate(_capturedObj);
+              }, 150 - (_objNow - _lastObjChangeTime));
+            }
           }
         });
         var tcHelper = transformControls.getHelper ? transformControls.getHelper() : transformControls;
@@ -1590,6 +1626,8 @@ export function getVisualEditBridgeScript(): string {
   }
 
   // ---- XZ Plane Drag ----
+  var _lastXZDragMsgTime = 0;
+  var _xzDragMsgTimer = null;
   function startXZDrag(obj, clientX, clientY) {
     if (!editor) return;
     var THREE = window.THREE;
@@ -1626,10 +1664,23 @@ export function getVisualEditBridgeScript(): string {
       if (gridSnap) { newX = snapToGrid(newX); newZ = snapToGrid(newZ); }
       selectedObj.position.x = newX;
       selectedObj.position.z = newZ;
-      sendSelectedObject(selectedObj);
       if (boxHelper && boxHelper.object && boxHelper.object.parent) { try { boxHelper.update(); } catch(e) {} }
-      // Live-sync player position during XZ drag
-      sendPlayerPositionUpdate(selectedObj);
+      // Throttle postMessages during XZ drag (150ms)
+      var _xzNow = Date.now();
+      if (_xzNow - _lastXZDragMsgTime >= 150) {
+        _lastXZDragMsgTime = _xzNow;
+        if (_xzDragMsgTimer) { clearTimeout(_xzDragMsgTimer); _xzDragMsgTimer = null; }
+        sendSelectedObject(selectedObj);
+        sendPlayerPositionUpdate(selectedObj);
+      } else if (!_xzDragMsgTimer) {
+        var _xzObj = selectedObj;
+        _xzDragMsgTimer = setTimeout(function() {
+          _xzDragMsgTimer = null;
+          _lastXZDragMsgTime = Date.now();
+          sendSelectedObject(_xzObj);
+          sendPlayerPositionUpdate(_xzObj);
+        }, 150 - (_xzNow - _lastXZDragMsgTime));
+      }
     }
   }
 
@@ -1772,8 +1823,23 @@ export function getVisualEditBridgeScript(): string {
   }
 
   // Send live player position to parent (for "pick from scene" in Game Settings panel)
+  // Throttled to max once per 200ms to prevent 60fps React re-renders during gizmo drag
+  var _lastPlayerPosTime = 0;
+  var _playerPosTimer = null;
   function sendPlayerPositionUpdate(obj) {
     if (!obj || !isPlayerCharacter(obj)) return;
+    var now = Date.now();
+    if (now - _lastPlayerPosTime < 200) {
+      // Schedule a trailing update so final position is always sent
+      if (!_playerPosTimer) {
+        _playerPosTimer = setTimeout(function() {
+          _playerPosTimer = null;
+          sendPlayerPositionUpdate(obj);
+        }, 200 - (now - _lastPlayerPosTime));
+      }
+      return;
+    }
+    _lastPlayerPosTime = now;
     var bounds = obj.userData && obj.userData.__characterBounds;
     // Un-redistribute for spawn position (same logic as persistTransform)
     var _ro2 = obj.__editorRedistOffset;
@@ -2991,6 +3057,11 @@ export function getVisualEditBridgeScript(): string {
                   persistTransform(selectedObj);
                 }
               });
+              // Throttle postMessages during drag (same as primary TC)
+              var _lastCamMovedTime2 = 0;
+              var _camMovedTimer2 = null;
+              var _lastObjChangeTime2 = 0;
+              var _objChangeTimer2 = null;
               transformControls.addEventListener("objectChange", function() {
                 if (cameraSelected && previewCamera) {
                   var player = findPlayerMesh();
@@ -3005,19 +3076,50 @@ export function getVisualEditBridgeScript(): string {
                   _gs.camera.offsetY = newOffsetY;
                   _gs.camera.offsetZ = newOffsetZ;
                   if (cameraHelper) cameraHelper.update();
-                  window.parent.postMessage({
-                    type: "game-editor-camera-moved",
-                    position: { x: +previewCamera.position.x.toFixed(2), y: +previewCamera.position.y.toFixed(2), z: +previewCamera.position.z.toFixed(2) },
-                    offsetY: +newOffsetY.toFixed(2),
-                    offsetZ: +newOffsetZ.toFixed(2)
-                  }, "*");
+                  // Throttle postMessage to parent (200ms)
+                  var _camNow2 = Date.now();
+                  if (_camNow2 - _lastCamMovedTime2 >= 200) {
+                    _lastCamMovedTime2 = _camNow2;
+                    if (_camMovedTimer2) { clearTimeout(_camMovedTimer2); _camMovedTimer2 = null; }
+                    window.parent.postMessage({
+                      type: "game-editor-camera-moved",
+                      position: { x: +previewCamera.position.x.toFixed(2), y: +previewCamera.position.y.toFixed(2), z: +previewCamera.position.z.toFixed(2) },
+                      offsetY: +newOffsetY.toFixed(2),
+                      offsetZ: +newOffsetZ.toFixed(2)
+                    }, "*");
+                  } else if (!_camMovedTimer2) {
+                    _camMovedTimer2 = setTimeout(function() {
+                      _camMovedTimer2 = null;
+                      _lastCamMovedTime2 = Date.now();
+                      window.parent.postMessage({
+                        type: "game-editor-camera-moved",
+                        position: { x: +previewCamera.position.x.toFixed(2), y: +previewCamera.position.y.toFixed(2), z: +previewCamera.position.z.toFixed(2) },
+                        offsetY: +newOffsetY.toFixed(2),
+                        offsetZ: +newOffsetZ.toFixed(2)
+                      }, "*");
+                    }, 200 - (_camNow2 - _lastCamMovedTime2));
+                  }
                   return;
                 }
                 if (!selectedObj || !selectedObj.parent) return;
                 if (selectedObj) {
-                  sendSelectedObject(selectedObj);
                   if (boxHelper && boxHelper.object && boxHelper.object.parent) { try { boxHelper.update(); } catch(e) {} }
-                  sendPlayerPositionUpdate(selectedObj);
+                  // Throttle expensive postMessages (150ms) — same as primary TC
+                  var _objNow2 = Date.now();
+                  if (_objNow2 - _lastObjChangeTime2 >= 150) {
+                    _lastObjChangeTime2 = _objNow2;
+                    if (_objChangeTimer2) { clearTimeout(_objChangeTimer2); _objChangeTimer2 = null; }
+                    sendSelectedObject(selectedObj);
+                    sendPlayerPositionUpdate(selectedObj);
+                  } else if (!_objChangeTimer2) {
+                    var _capturedObj2 = selectedObj;
+                    _objChangeTimer2 = setTimeout(function() {
+                      _objChangeTimer2 = null;
+                      _lastObjChangeTime2 = Date.now();
+                      sendSelectedObject(_capturedObj2);
+                      sendPlayerPositionUpdate(_capturedObj2);
+                    }, 150 - (_objNow2 - _lastObjChangeTime2));
+                  }
                 }
               });
               var tcHelper = transformControls.getHelper ? transformControls.getHelper() : transformControls;

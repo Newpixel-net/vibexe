@@ -925,6 +925,9 @@ export function SandpackPreview({
 	gameEditorRef.current = gameEditor;
 	const visualEditRef = useRef(visualEdit);
 	visualEditRef.current = visualEdit;
+	// Debounce timers for gizmo drag to prevent React re-render storms
+	const playerPosUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const cameraMoveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [codeViewer, setCodeViewer] = useState<{
 		filePath: string;
 		content: string;
@@ -1536,21 +1539,24 @@ export function SandpackPreview({
 			} else if (data.type === "game-editor-pivot-mode-changed") {
 				gameEditor.setPivotMode(data.mode as "center" | "pivot");
 			} else if (data.type === "game-editor-camera-moved") {
-				// TC drag on camera — update inspector position + settings (no send-back to iframe)
+				// TC drag on camera — debounced update to inspector + settings
 				if (gameEditor.selectedObject?.userData?._isSyntheticCameraNode && data.position) {
-					gameEditor.updateSelectedObject({
-						...gameEditor.selectedObject,
-						position: data.position,
-					});
-					// Direct setter — no sendToIframe to prevent feedback loop
-					gameEditor.setGameSettings({
-						...gameEditor.gameSettings,
-						camera: {
-							...gameEditor.gameSettings.camera,
-							offsetY: data.offsetY,
-							offsetZ: data.offsetZ,
-						},
-					});
+					if (cameraMoveTimer.current) clearTimeout(cameraMoveTimer.current);
+					cameraMoveTimer.current = setTimeout(() => {
+						cameraMoveTimer.current = null;
+						gameEditor.updateSelectedObject({
+							...gameEditor.selectedObject!,
+							position: data.position,
+						});
+						gameEditor.setGameSettings({
+							...gameEditor.gameSettings,
+							camera: {
+								...gameEditor.gameSettings.camera,
+								offsetY: data.offsetY,
+								offsetZ: data.offsetZ,
+							},
+						});
+					}, 200);
 				}
 			} else if (data.type === "game-editor-undo-redo-state") {
 				gameEditor.setUndoRedoState(!!data.canUndo, !!data.canRedo);
@@ -1751,15 +1757,20 @@ export function SandpackPreview({
 			} else if (data.type === "game-editor-lights-restored") {
 				console.log("[GameEditor] Lights restored:", data.count);
 			} else if (data.type === "game-editor-player-position-update") {
-				// When user drags the player character in scene editor, always update spawn position
+				// When user drags the player character in scene editor, debounce spawn position update
+				// to prevent 60fps React re-renders during gizmo drag
 				if (data.position) {
-					gameEditor.updateGameSettings({
-						player: {
-							spawnX: Math.round(data.position.x * 100) / 100,
-							spawnY: Math.round(data.position.y * 100) / 100,
-							spawnZ: Math.round(data.position.z * 100) / 100,
-						},
-					});
+					if (playerPosUpdateTimer.current) clearTimeout(playerPosUpdateTimer.current);
+					playerPosUpdateTimer.current = setTimeout(() => {
+						playerPosUpdateTimer.current = null;
+						gameEditor.updateGameSettings({
+							player: {
+								spawnX: Math.round(data.position.x * 100) / 100,
+								spawnY: Math.round(data.position.y * 100) / 100,
+								spawnZ: Math.round(data.position.z * 100) / 100,
+							},
+						});
+					}, 250);
 				}
 			} else if (data.type === "game-editor-ground-click") {
 				// Ground/terrain click with no object hit — used for pick-spawn/pick-respawn
