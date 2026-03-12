@@ -138,7 +138,12 @@ TerrainGenerator.prototype.generate = function() {
   if (old) {
     this.scene.remove(old);
     if (old.geometry) old.geometry.dispose();
-    if (old.material) old.material.dispose();
+    if (old.material) {
+      // T-L1 fix: dispose material textures before disposing material itself
+      var _texKeys = ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap", "bumpMap", "displacementMap"];
+      for (var _ti = 0; _ti < _texKeys.length; _ti++) { if (old.material[_texKeys[_ti]]) { try { old.material[_texKeys[_ti]].dispose(); } catch(e) {} } }
+      old.material.dispose();
+    }
   }
 
   var W = this.width, D = this.depth, H = this.heightScale, seg = this.segments;
@@ -353,6 +358,8 @@ TerrainGenerator.prototype.destroy = function() {
   this.heightData = null;
   window.__vibexe_terrainData = null;
   window.__vibexe_getTerrainHeight = null;
+  // T-L2 fix: clear surface offset global on terrain destroy
+  window.__vibexe_terrainSurfaceOffset = 0;
 };
 
 
@@ -834,8 +841,7 @@ if (typeof window !== 'undefined' && !window.__vibexe_playerMesh__) {
       window.__vibexe_playerMesh__ = found;
       console.log("[TerrainPainter] Auto-detected player mesh:", found.name || "unnamed");
     } else {
-      // Retry a few times
-      if (!window.__vibexe_playerDetectRetry) window.__vibexe_playerDetectRetry = 0;
+      // T-L4 fix: always increment counter (was re-initializing to 0 on each call due to falsy check)
       window.__vibexe_playerDetectRetry++;
       if (window.__vibexe_playerDetectRetry < 20) setTimeout(_detectPlayer, 1000);
     }

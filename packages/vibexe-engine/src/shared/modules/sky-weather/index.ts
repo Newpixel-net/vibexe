@@ -940,6 +940,8 @@ function WeatherAudio() {
 }
 
 WeatherAudio.prototype._init = function() {
+  // S-L1 fix: guard against double-init (prevents creating multiple AudioContexts)
+  if (this._ctx) return;
   try {
     var AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
@@ -1214,10 +1216,12 @@ SkyWeatherSystem.prototype._updateFog = function() {
   // Height-based fog: thicker at low elevations
   var hFalloff = this.config.fog.heightFalloff || 0;
   if (hFalloff > 0) {
-    // Use cached camera (avoid per-frame scene traverse)
-    if (!this._cachedCam) {
+    // S-L2 fix: re-lookup camera every ~120 frames (camera can change on mode switch)
+    this._camLookupCount = (this._camLookupCount || 0) + 1;
+    if (!this._cachedCam || this._camLookupCount % 120 === 0) {
+      this._cachedCam = null;
       var ed = window.__vibexe_editor__; if (ed && ed.camera) { this._cachedCam = ed.camera; }
-      else { this.scene.traverse(function(o) { if (!this._cachedCam && o.isCamera) this._cachedCam = o; }.bind(this)); }
+      if (!this._cachedCam) { var _self = this; this.scene.traverse(function(o) { if (!_self._cachedCam && o.isCamera) _self._cachedCam = o; }); }
     }
     var camY = this._cachedCam ? this._cachedCam.position.y : 5;
     var hFactor = Math.exp(-Math.max(0, camY) * hFalloff * 0.05);
@@ -1297,6 +1301,11 @@ SkyWeatherSystem.prototype.destroy = function() {
   if (this._origBg !== null) this.scene.background = this._origBg;
   if (this.scene.fog && this.scene.fog.__skyWeather) this.scene.fog = null;
 
+  // S-L3 fix: clear auto-init interval on destroy (prevents re-init after destroy)
+  if (window.__skyWeather_autoInitInterval) {
+    clearInterval(window.__skyWeather_autoInitInterval);
+    window.__skyWeather_autoInitInterval = null;
+  }
   window.__vibexe_skyWeather = null;
   window.__vibexe_skyState = null;
   console.log("[SkyWeather] Destroyed");

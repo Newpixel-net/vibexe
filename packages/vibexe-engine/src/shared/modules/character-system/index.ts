@@ -698,11 +698,19 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
         if (exn === "jump" && autoAnimMap.jump && autoAnimMap.jump.toLowerCase() !== "jump") autoAnimMap.jump = allClips[exi].name;
       }
 
-      // Fallback: assign idle to longest clip, walk to second-longest
+      // C-L4 fix: Fallback idle — prefer any clip with "idle" substring before using longest-duration heuristic
       if (!autoAnimMap.idle && allClips.length > 0) {
-        var sorted = allClips.slice().sort(function(a, b) { return b.duration - a.duration; });
-        autoAnimMap.idle = sorted[0].name;
-        if (sorted.length > 1 && !autoAnimMap.walk) autoAnimMap.walk = sorted[1].name;
+        var _idleFallback = null;
+        for (var _fi = 0; _fi < allClips.length; _fi++) {
+          if (allClips[_fi].name.toLowerCase().indexOf("idle") !== -1) { _idleFallback = allClips[_fi].name; break; }
+        }
+        if (_idleFallback) {
+          autoAnimMap.idle = _idleFallback;
+        } else {
+          var sorted = allClips.slice().sort(function(a, b) { return b.duration - a.duration; });
+          autoAnimMap.idle = sorted[0].name;
+          if (sorted.length > 1 && !autoAnimMap.walk) autoAnimMap.walk = sorted[1].name;
+        }
       }
       mesh.userData.__animMap = autoAnimMap;
 
@@ -1683,10 +1691,10 @@ function swapCharacter(scene, characterId) {
               var _ikDamp = _smoothDampAngle(_ikHeadDelta, _ikTarget, _ikHeadVel, 0.4, dt);
               _ikHeadDelta = _ikDamp.value;
               _ikHeadVel = _ikDamp.velocity;
-              // C5 fix: Apply IK as post-animation offset. Save base rotation from animation,
-              // then add IK delta. This prevents double-rotation if animation already moved the bone.
+              // C5 fix: Apply IK as post-animation offset.
+              // Add IK delta on top of current animation rotation.
               if (_ikBones.head) {
-                if (_ikBones.head.__ikBaseY === undefined) _ikBones.head.__ikBaseY = _ikBones.head.rotation.y;
+                // C-L1 fix: removed unused __ikBaseY tracking (dead code)
                 var _headAnimY = _ikBones.head.rotation.y;
                 _ikBones.head.rotation.y = _headAnimY + _ikHeadDelta;
               }
@@ -1851,6 +1859,9 @@ function swapCharacter(scene, characterId) {
         };
         window.__vibexe_diagnostics__ = _diagData;
 
+        // C-L2 fix: remove old diag HUD on character swap (prevents duplicate HUDs)
+        var _oldHud = document.getElementById("__vibexe_diag_hud__");
+        if (_oldHud) { try { _oldHud.remove(); } catch(e) {} }
         // Create HUD element
         try {
           _diagEl = document.createElement("div");
@@ -1859,13 +1870,18 @@ function swapCharacter(scene, characterId) {
           document.body.appendChild(_diagEl);
         } catch(e) {}
 
+        // C-L3 fix: clean up previous diag listener on character swap
+        if (window.__charCtrl_diagKeyHandler) {
+          try { window.removeEventListener("keydown", window.__charCtrl_diagKeyHandler); } catch(e) {}
+        }
         // Toggle with backtick key
-        window.addEventListener("keydown", function(e) {
+        window.__charCtrl_diagKeyHandler = function(e) {
           if (e.key === "\`" || e.code === "Backquote") {
             _diagEnabled = !_diagEnabled;
             if (_diagEl) _diagEl.style.display = _diagEnabled ? "block" : "none";
           }
-        });
+        };
+        window.addEventListener("keydown", window.__charCtrl_diagKeyHandler);
 
         // Diagnostic update — runs at end of controller update
         var _origUpdate = newCtrl.update;
@@ -1916,8 +1932,9 @@ function swapCharacter(scene, characterId) {
           // Y jitter detection (frame-to-frame delta)
           var _yDelta = Math.abs(d.bodyY - d.lastBodyY);
           d.lastBodyY = d.bodyY;
+          // C-L5 fix: shift before push to maintain exact 60-sample cap (avoids momentary 61)
+          if (d.yDeltaSamples.length >= 60) d.yDeltaSamples.shift();
           d.yDeltaSamples.push(_yDelta);
-          if (d.yDeltaSamples.length > 60) d.yDeltaSamples.shift();
           d.yDeltaMax = 0;
           var _ySum = 0;
           for (var _di = 0; _di < d.yDeltaSamples.length; _di++) {
