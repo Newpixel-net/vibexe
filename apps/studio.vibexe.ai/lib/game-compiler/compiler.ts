@@ -48,6 +48,10 @@ function createVirtualPlugin(files: Map<string, string>): esbuild.Plugin {
 	for (const mod of ALL_MODULE_MANIFESTS) {
 		const pkgName = `@vibexe/${mod.id}`;
 		if (!shims[pkgName]) {
+			// P5 fix: warn when module has no runtimeCode (instead of silent empty shim)
+			if (!mod.runtimeCode) {
+				console.warn(`[GameCompiler] Module "${mod.id}" has no runtimeCode — using empty shim`);
+			}
 			shims[pkgName] = mod.runtimeCode || "module.exports = {};";
 		}
 	}
@@ -197,11 +201,17 @@ export async function compileGameBundle(input: CompileInput): Promise<CompileOut
 		};
 	}
 
-	// Generate cache key from all file contents + settings
+	// Generate cache key from all file contents + settings + module versions
+	// P6 fix: include module versions so cache busts when modules are updated
+	const moduleVersions = ALL_MODULE_MANIFESTS
+		.filter((m) => (input.enabledModuleIds || []).includes(m.id))
+		.map((m) => `${m.id}@${m.version}`)
+		.join(",");
 	const cacheKey = hashContent(
 		JSON.stringify(input.files.map((f) => f.content)) +
 		JSON.stringify(settings) +
-		JSON.stringify(input.enabledModuleIds || []),
+		JSON.stringify(input.enabledModuleIds || []) +
+		moduleVersions,
 	);
 
 	// Check cache

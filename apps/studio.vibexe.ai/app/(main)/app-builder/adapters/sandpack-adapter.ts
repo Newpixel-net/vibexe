@@ -1576,8 +1576,9 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		try {
 			const gs = JSON.parse(settingsFile.content);
 			if (gs.modules?.installed) {
+				// P3 fix: shallow merge per module (preserves config from modules.json, game-settings overrides enabled/version)
 				for (const [id, cfg] of Object.entries(gs.modules.installed as typeof installedModules)) {
-					installedModules[id] = cfg;
+					installedModules[id] = { ...installedModules[id], ...cfg };
 				}
 			}
 		} catch { /* invalid JSON */ }
@@ -1599,7 +1600,11 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		if (!moduleConfig.enabled) continue;
 
 		const manifest = ALL_MODULE_MANIFESTS.find((m) => m.id === moduleId);
-		if (!manifest) continue;
+		// P7 fix: log warning for missing manifests instead of silent skip
+		if (!manifest) {
+			console.warn(`[SandpackAdapter] Module "${moduleId}" enabled but no manifest found — skipping`);
+			continue;
+		}
 
 		const pkgName = `@vibexe/${moduleId}`;
 

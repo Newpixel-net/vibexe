@@ -4205,9 +4205,9 @@ export function getVisualEditBridgeScript(): string {
           var nx = vx / _tpW; // -0.5..0.5
           var nz = vz / _tpD;
 
-          // Edge falloff — smooth fade to 0 near terrain borders (pow 10 = sharper, extends mountains closer to edges)
-          var edgeX = 1.0 - Math.pow(2.0 * Math.abs(nx), 10);
-          var edgeZ = 1.0 - Math.pow(2.0 * Math.abs(nz), 10);
+          // T11 fix: edge falloff exponent aligned with module (was 10, module uses 6)
+          var edgeX = 1.0 - Math.pow(2.0 * Math.abs(nx), 6);
+          var edgeZ = 1.0 - Math.pow(2.0 * Math.abs(nz), 6);
           var edgeFalloff = _tpSmoothstep(0, 0.15, Math.max(0, Math.min(edgeX, edgeZ)));
 
           // Domain warp for organic mountain shapes
@@ -4243,13 +4243,21 @@ export function getVisualEditBridgeScript(): string {
         _tpGeo.computeVertexNormals();
 
         // If sculpt heightmap data was saved, overlay it on the generated terrain
-        if (_tpS.sculptHeightData && typeof _tpS.sculptHeightData === "string") {
+        // T5 fix: validate Base64 sculpt data — check length, NaN, and reasonable range
+        if (_tpS.sculptHeightData && typeof _tpS.sculptHeightData === "string" && _tpS.sculptHeightData.length > 0) {
           try {
             var _sData = atob(_tpS.sculptHeightData);
+            if (_sData.length % 4 !== 0) throw new Error("Invalid heightmap byte length: " + _sData.length + " (not multiple of 4)");
             var _sBytes = new Uint8Array(_sData.length);
             for (var si = 0; si < _sData.length; si++) _sBytes[si] = _sData.charCodeAt(si);
             var _sFloats = new Float32Array(_sBytes.buffer);
-            if (_sFloats.length === _tpPos.count) {
+            // Validate: check for NaN values (corrupted data)
+            var _hasNaN = false;
+            for (var _ni = 0; _ni < Math.min(_sFloats.length, 100); _ni++) {
+              if (isNaN(_sFloats[_ni])) { _hasNaN = true; break; }
+            }
+            if (_hasNaN) { console.warn("[TerrainPainter] Sculpt data contains NaN — skipping restore"); }
+            else if (_sFloats.length === _tpPos.count) {
               _tpMinY = Infinity; _tpMaxY = -Infinity;
               for (var svi = 0; svi < _sFloats.length; svi++) {
                 _tpPos.setY(svi, _sFloats[svi]);
@@ -4368,19 +4376,24 @@ export function getVisualEditBridgeScript(): string {
         // Bilinear interpolation height query — O(1) per call, no raycasting needed
         window.__vibexe_getTerrainHeight = function(x, z) {
           var td = window.__vibexe_terrainData;
-          if (!td) return 0;
-          var gx = (x + td.width * 0.5) / td.width * (td.segX - 1);
-          var gz = (z + td.depth * 0.5) / td.depth * (td.segZ - 1);
+          if (!td || !td.heightData) return null;
+          // T12 fix: return null outside terrain bounds + bounds check on array access
+          var halfW = td.width * 0.5, halfD = td.depth * 0.5;
+          if (x < -halfW || x > halfW || z < -halfD || z > halfD) return null;
+          var gx = (x + halfW) / td.width * (td.segX - 1);
+          var gz = (z + halfD) / td.depth * (td.segZ - 1);
           gx = Math.max(0, Math.min(td.segX - 2, gx));
           gz = Math.max(0, Math.min(td.segZ - 2, gz));
           var ix = Math.floor(gx), iz = Math.floor(gz);
           var fx = gx - ix, fz = gz - iz;
           var i00 = iz * td.segX + ix;
+          if (i00 + td.segX + 1 >= td.heightData.length || i00 < 0) return null;
           var h00 = td.heightData[i00];
           var h10 = td.heightData[i00 + 1];
           var h01 = td.heightData[i00 + td.segX];
           var h11 = td.heightData[i00 + td.segX + 1];
-          return h00*(1-fx)*(1-fz) + h10*fx*(1-fz) + h01*(1-fx)*fz + h11*fx*fz;
+          var r = h00*(1-fx)*(1-fz) + h10*fx*(1-fz) + h01*(1-fx)*fz + h11*fx*fz;
+          return isNaN(r) ? null : r;
         };
 
         // === MODULE API REGISTRY ===

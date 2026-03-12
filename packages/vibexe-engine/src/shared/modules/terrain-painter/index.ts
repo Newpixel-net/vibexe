@@ -313,19 +313,26 @@ TerrainGenerator.prototype.generate = function() {
 
 TerrainGenerator.prototype.getHeightAt = function(x, z) {
   var td = window.__vibexe_terrainData;
-  if (!td) return 0;
-  var gx = (x + td.width * 0.5) / td.width * (td.segX - 1);
-  var gz = (z + td.depth * 0.5) / td.depth * (td.segZ - 1);
+  if (!td || !td.heightData) return null;
+  // T3 fix: return null for positions outside terrain bounds
+  var halfW = td.width * 0.5, halfD = td.depth * 0.5;
+  if (x < -halfW || x > halfW || z < -halfD || z > halfD) return null;
+  var gx = (x + halfW) / td.width * (td.segX - 1);
+  var gz = (z + halfD) / td.depth * (td.segZ - 1);
   gx = Math.max(0, Math.min(td.segX - 2, gx));
   gz = Math.max(0, Math.min(td.segZ - 2, gz));
   var ix = Math.floor(gx), iz = Math.floor(gz);
   var fx = gx - ix, fz = gz - iz;
   var i00 = iz * td.segX + ix;
+  // T2 fix: bounds check before array access
+  var maxIdx = i00 + td.segX + 1;
+  if (maxIdx >= td.heightData.length || i00 < 0) return null;
   var h00 = td.heightData[i00];
   var h10 = td.heightData[i00 + 1];
   var h01 = td.heightData[i00 + td.segX];
   var h11 = td.heightData[i00 + td.segX + 1];
-  return h00 * (1 - fx) * (1 - fz) + h10 * fx * (1 - fz) + h01 * (1 - fx) * fz + h11 * fx * fz;
+  var result = h00 * (1 - fx) * (1 - fz) + h10 * fx * (1 - fz) + h01 * (1 - fx) * fz + h11 * fx * fz;
+  return isNaN(result) ? null : result;
 };
 
 TerrainGenerator.prototype.getMesh = function() {
@@ -411,7 +418,8 @@ TerrainPhysics.prototype._setupRapierHeightfield = function(td) {
 };
 
 TerrainPhysics.prototype.setup = function(world) {
-  var C = window.CANNON;
+  // T15 fix: prefer module-level CANNON capture, fallback to window (protects against global overwrites)
+  var C = CANNON || window.CANNON;
   if (!C || !world) {
     // World not ready — set up a watcher
     console.warn("[TerrainPhysics] World not ready — will create heightfield when physics starts");
@@ -496,7 +504,12 @@ TerrainPhysics.prototype.setup = function(world) {
   //   2. Within threshold above terrain & not jumping → snap to surface (ground-follow)
   // Mode 2 is critical because CANNON Heightfield collision is unreliable for Box shapes
   // (catches on edges, leaves gaps) and low-gravity settings cause slow floaty descent.
-  if (!window.__vibexe_terrainPostStep) {
+  // T14 fix: remove old PostStep listener before adding new one (prevents duplicate listeners on re-init)
+  if (window.__vibexe_terrainPostStep) {
+    try { world.removeEventListener("postStep", window.__vibexe_terrainPostStep); } catch(e) {}
+    window.__vibexe_terrainPostStep = null;
+  }
+  {
     this._postStepFn = function() {
       var getH = window.__vibexe_getTerrainHeight;
       var w = window.__vibexe_world__;
@@ -523,11 +536,9 @@ TerrainPhysics.prototype.setup = function(world) {
           pb.position.y = minY;
           if (pb.velocity.y < 0) pb.velocity.y = 0;
           pb.__canJump = true;
-        } else if ((pb.position.y - minY) < 3.0 && pb.velocity.y <= 1.5) {
-          // Active ground-following: within 3 units of terrain surface and
-          // not actively jumping up (JUMP_FORCE is typically 17, so vy <= 1.5
-          // means the body is either falling, at rest, or barely moving up from
-          // terrain bumps). Snap to exact terrain surface for smooth walking.
+        } else if ((pb.position.y - minY) < 3.0 && pb.velocity.y <= 0) {
+          // T7 fix: only snap when falling or at rest (was vy<=1.5, caught mid-jump)
+          // Active ground-following: within 3 units of terrain and falling/stationary
           pb.position.y = minY;
           if (pb.velocity.y < 0) pb.velocity.y = 0;
           pb.__canJump = true;
@@ -544,7 +555,8 @@ TerrainPhysics.prototype.setup = function(world) {
 };
 
 TerrainPhysics.prototype.rebuild = function() {
-  var C = window.CANNON;
+  // T15 fix: prefer module-level CANNON capture
+  var C = CANNON || window.CANNON;
   var world = this.world || window.__vibexe_world__;
   var td = window.__vibexe_terrainData;
   if (!C || !world || !td) return;

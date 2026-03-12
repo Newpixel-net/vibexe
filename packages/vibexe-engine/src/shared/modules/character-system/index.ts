@@ -926,10 +926,13 @@ function swapCharacter(scene, characterId) {
             );
             var newBox = new CANNON.Box(newHalf);
             if (physBody.removeShape && physBody.addShape) {
-              physBody.removeShape(physBody.shapes[0]);
+              // C9 fix: remove ALL shapes, not just the first (compound bodies may have multiple)
+              while (physBody.shapes.length > 0) {
+                physBody.removeShape(physBody.shapes[0]);
+              }
               physBody.addShape(newBox);
             } else {
-              physBody.shapes[0] = newBox;
+              physBody.shapes = [newBox];
               if (physBody.updateBoundingRadius) physBody.updateBoundingRadius();
               if (physBody.updateMassProperties) physBody.updateMassProperties();
             }
@@ -1290,7 +1293,8 @@ function swapCharacter(scene, characterId) {
                   isGrounded = true;
                 }
                 // 2. Cliff detection: block movement toward steep drops
-                if (_thNew != null && _thOld != null && _thOld - _thNew > 1.5) {
+                // C6 fix: raised threshold from 1.5 to 2.5 — less conservative, allows descending moderate slopes
+                if (_thNew != null && _thOld != null && _thOld - _thNew > 2.5) {
                   // Terrain dropped by >1.5 units — potential cliff edge
                   var _dropDist = Math.sqrt((_nx - _prevX) * (_nx - _prevX) + (_nz - _prevZ) * (_nz - _prevZ));
                   var _dropAngle = _dropDist > 0.01 ? Math.atan2(_thOld - _thNew, _dropDist) * 57.2958 : 90;
@@ -1506,8 +1510,8 @@ function swapCharacter(scene, characterId) {
                   _terrainYInit = true;
                 }
                 // Smooth terrain Y to prevent jitter on jagged terrain
-                // Use fast lerp (0.85) so character follows terrain closely but no micro-jitter
-                _terrainSmoothY = _terrainSmoothY + (_tH - _terrainSmoothY) * 0.85;
+                // C8 fix: reduced lerp from 0.85 to 0.5 — smoother following, less snappy on jagged terrain
+                _terrainSmoothY = _terrainSmoothY + (_tH - _terrainSmoothY) * 0.5;
 
                 var _minBodyY = _terrainSmoothY + _csHalfH + _terrainMargin;
 
@@ -2023,6 +2027,12 @@ function swapCharacter(scene, characterId) {
 if (typeof window !== "undefined") {
   window.addEventListener("message", function(ev) {
     if (!ev.data) return;
+    // X9 fix: validate message origin — accept same-origin, parent origin, or localhost (dev)
+    var evOrigin = ev.origin || "";
+    var isSameOrigin = evOrigin === window.location.origin;
+    var isParent = evOrigin === _vibexeOrigin;
+    var isLocal = evOrigin.indexOf("localhost") !== -1 || evOrigin.indexOf("127.0.0.1") !== -1;
+    if (evOrigin && evOrigin !== "null" && !isSameOrigin && !isParent && !isLocal) return;
 
     // Capture parent origin from ANY message
     if (!_vibexeOrigin && ev.origin && ev.origin !== "null" && ev.origin.indexOf("codesandbox") === -1 && ev.origin.indexOf("localhost") === -1) {
@@ -2129,20 +2139,28 @@ if (typeof window !== "undefined") {
     if (charConfig && charConfig.id) {
       console.log("[CharacterSystem] Auto-init: will swap to", charConfig.id);
       // Wait for Lily mesh + physics body to exist (game template creates these)
+      // C14/X10 fix: clear any prior wait interval on rapid swap to prevent stale timers
+      if (window.__charCtrl_swapWaitInterval) {
+        clearInterval(window.__charCtrl_swapWaitInterval);
+        window.__charCtrl_swapWaitInterval = null;
+      }
       var _waitCount = 0;
       var _wait = setInterval(function() {
         _waitCount++;
         var pm = window.__vibexe_playerMesh__;
         if (pm && pm.userData && pm.userData.__physicsBody) {
           clearInterval(_wait);
+          window.__charCtrl_swapWaitInterval = null;
           // Small delay to let game template fully initialize
           setTimeout(function() { swapCharacter(scene, charConfig.id); }, 500);
         } else if (_waitCount > 150) {
           clearInterval(_wait);
+          window.__charCtrl_swapWaitInterval = null;
           console.warn("[CharacterSystem] Auto-init timeout, swapping anyway");
           swapCharacter(scene, charConfig.id);
         }
       }, 100);
+      window.__charCtrl_swapWaitInterval = _wait;
     } else {
       console.log("[CharacterSystem] No character config — standing by for user selection");
     }

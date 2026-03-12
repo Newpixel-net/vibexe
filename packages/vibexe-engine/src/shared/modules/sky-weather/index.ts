@@ -885,7 +885,9 @@ LightningEffect.prototype.update = function(dt, config) {
     return;
   }
 
-  this._timer += dt;
+  // S11 fix: clamp dt to prevent rapid-fire flashes during frame drops (large dt jumps)
+  var clampedDt = Math.min(dt, 0.1);
+  this._timer += clampedDt;
   var freq = config.frequency || 0.1;
   var interval = 1 / Math.max(0.01, freq);
 
@@ -1034,8 +1036,10 @@ WeatherAudio.prototype.update = function(config, precipConfig, lightningFlashing
   }
 
   // Thunder
+  // S13 fix: scale thunder by precipitation intensity (louder during heavy storms)
   if (this._thunderGain) {
-    var tTarget = lightningFlashing ? 0.6 + Math.random() * 0.3 : 0;
+    var stormScale = pInt > 0 ? (0.5 + pInt * 0.5) : 1.0;
+    var tTarget = lightningFlashing ? (0.6 + Math.random() * 0.3) * stormScale : 0;
     this._thunderGain.gain.value += (tTarget - this._thunderGain.gain.value) * 0.15;
   }
 };
@@ -1129,8 +1133,10 @@ SkyWeatherSystem.prototype._startLoop = function() {
 };
 
 SkyWeatherSystem.prototype._tick = function(dt) {
+  // X8 fix: skip heavy updates in editor mode (particles, lightning, audio waste CPU)
+  var _inEditor = !!(window.__vibexe_editor_active || (window.__vibexe_editor__ && window.__vibexe_editor__.isEditing));
   // Advance time
-  if (this.config.time.autoAdvance) {
+  if (this.config.time.autoAdvance && !_inEditor) {
     var cycleSec = this.config.time.cycleLengthMinutes * 60;
     this.solarTime += dt / cycleSec;
     if (this.solarTime >= 1.0) this.solarTime -= 1.0;
@@ -1161,14 +1167,15 @@ SkyWeatherSystem.prototype._tick = function(dt) {
     this.skyDome._u.uShootStarInt.value = fx.shootingStars || 0;
   }
 
+  // X8 fix: skip particles, lightning, and audio in editor mode
   // Precipitation particles
-  if (this.particles) this.particles.update(dt, this.config.precipitation);
+  if (this.particles && !_inEditor) this.particles.update(dt, this.config.precipitation);
 
   // Lightning
-  if (this.lightning) this.lightning.update(dt, this.config.lightning);
+  if (this.lightning && !_inEditor) this.lightning.update(dt, this.config.lightning);
 
   // Ambient audio
-  if (this.audio) {
+  if (this.audio && !_inEditor) {
     this.audio.update(
       { enabled: fx.ambientAudio, volume: fx.audioVolume },
       this.config.precipitation,
@@ -1194,7 +1201,8 @@ SkyWeatherSystem.prototype._tick = function(dt) {
 };
 
 SkyWeatherSystem.prototype._updateFog = function() {
-  var hz = this.skyDome.getHorizonColor();
+  // S12 fix: always sample fresh horizon color from palette (skyDome cache may be stale between gradient rebuilds)
+  var hz = this.skyDome.palette ? this.skyDome.palette.getColor(0, this.solarTime).front : this.skyDome.getHorizonColor();
   if (!this.scene.fog || !this.scene.fog.__skyWeather) {
     // S3 fix: initialize fog with gamma-corrected horizon color (was 0xffffff causing flicker)
     var initR = Math.pow(hz[0], 2.2), initG = Math.pow(hz[1], 2.2), initB = Math.pow(hz[2], 2.2);
