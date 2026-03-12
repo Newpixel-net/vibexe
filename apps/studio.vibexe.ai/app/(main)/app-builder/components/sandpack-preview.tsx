@@ -892,9 +892,12 @@ export function SandpackPreview({
 		const hasCharSys = installed && (installed as Record<string, { enabled?: boolean }>)["character-system"]?.enabled;
 		if (hasCharSys) {
 			animOverridesFetched.current = true;
-			// Use explicit character ID from settings, or default to "Warrior" (only built-in character)
-			const charId = gameEditor.gameSettings?.character?.id;
-			const modelId = charId ? charId.charAt(0).toUpperCase() + charId.slice(1) : "Warrior";
+			// Overrides are keyed by GLB filename (without extension), not the character ID.
+			// Character system sets __characterModel = modelFileName.replace(/\.glb$/i, "")
+			// Map character IDs to their model filenames:
+			const charModelMap: Record<string, string> = { warrior: "Warrior_figure_Animations" };
+			const charId = gameEditor.gameSettings?.character?.id || "warrior";
+			const modelId = charModelMap[charId] || charModelMap.warrior;
 			gameEditor.fetchAnimOverrides(modelId);
 		}
 	}, [gameEditor.gameSettings?.modules?.installed]); // eslint-disable-line react-hooks/exhaustive-deps
