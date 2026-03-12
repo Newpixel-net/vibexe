@@ -1060,11 +1060,11 @@ function swapCharacter(scene, characterId) {
           }
         } catch(e) { _footstepCtx = null; }
 
-        // Terrain visual lift: grass/vegetation PBR textures extend above the geometric
-        // terrain surface by ~0.3 units. Without this offset, character appears knee-deep
-        // in grass even though the physics capsule is correctly sitting on the heightfield.
-        // Checked dynamically each frame since terrain may be generated after controller init.
-        var _TERRAIN_VISUAL_LIFT = 0.35;
+        // === MODULE INTEROP: Read terrain surface offset from terrain module ===
+        // The terrain module publishes window.__vibexe_terrainSurfaceOffset indicating
+        // how far PBR grass/vegetation textures extend above the geometric surface.
+        // We read this each frame (terrain may load after character controller init).
+        // Fallback: 0 if no terrain module is active.
 
         // === RAPIER KCC SETUP (Phase 2C) ===
         // Create kinematic capsule body + character controller for native terrain collision.
@@ -1219,7 +1219,7 @@ function swapCharacter(scene, characterId) {
               _rapierBody.setNextKinematicTranslation({ x: _nx, y: _ny, z: _nz });
               // Sync mesh to Rapier position
               _csMesh.position.x = _nx;
-              _csMesh.position.y = _ny - _csHalfH + (window.__vibexe_getTerrainHeight ? _TERRAIN_VISUAL_LIFT : 0);
+              _csMesh.position.y = _ny - _csHalfH + (window.__vibexe_terrainSurfaceOffset || 0);
               _csMesh.position.z = _nz;
               if (_csMesh.userData && _csMesh.userData.__groundOffset) {
                 _csMesh.position.y += _csMesh.userData.__groundOffset;
@@ -1235,7 +1235,7 @@ function swapCharacter(scene, characterId) {
                     _ny = _minSafe;
                     _rapierBody.setNextKinematicTranslation({ x: _nx, y: _ny, z: _nz });
                     _rapierGravityVel = 0;
-                    _csMesh.position.y = _ny - _csHalfH + (window.__vibexe_getTerrainHeight ? _TERRAIN_VISUAL_LIFT : 0);
+                    _csMesh.position.y = _ny - _csHalfH + (window.__vibexe_terrainSurfaceOffset || 0);
                     if (_csMesh.userData && _csMesh.userData.__groundOffset) _csMesh.position.y += _csMesh.userData.__groundOffset;
                     isGrounded = true;
                   }
@@ -1407,7 +1407,7 @@ function swapCharacter(scene, characterId) {
             // Sync mesh to physics body position
             if (_csBody.position) {
               _csMesh.position.x = _csBody.position.x;
-              _csMesh.position.y = _csBody.position.y - _csHalfH + (window.__vibexe_getTerrainHeight ? _TERRAIN_VISUAL_LIFT : 0);
+              _csMesh.position.y = _csBody.position.y - _csHalfH + (window.__vibexe_terrainSurfaceOffset || 0);
               _csMesh.position.z = _csBody.position.z;
               if (_csMesh.userData && _csMesh.userData.__groundOffset) {
                 _csMesh.position.y += _csMesh.userData.__groundOffset;

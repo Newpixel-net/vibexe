@@ -4383,6 +4383,17 @@ export function getVisualEditBridgeScript(): string {
           return h00*(1-fx)*(1-fz) + h10*fx*(1-fz) + h01*(1-fx)*fz + h11*fx*fz;
         };
 
+        // === MODULE INTEROP: Terrain Surface API ===
+        // PBR grass/vegetation textures extend visually above the geometric surface.
+        // Other modules (character-system, auto-physics) read this offset to position
+        // objects on the visual surface instead of inside the grass.
+        // Default 0.35 — updated by repaint handler when layer textures are known.
+        window.__vibexe_terrainSurfaceOffset = 0.35;
+        window.__vibexe_getVisualTerrainHeight = function(x, z) {
+          var h = window.__vibexe_getTerrainHeight ? window.__vibexe_getTerrainHeight(x, z) : 0;
+          return h + (window.__vibexe_terrainSurfaceOffset || 0);
+        };
+
         // === CANNON.js Heightfield Physics ===
         // Creates a physics collider matching the terrain mesh so characters walk on it
         var _tpCANNON = window.CANNON;
@@ -5211,6 +5222,25 @@ export function getVisualEditBridgeScript(): string {
             // Store uniforms ref on terrain for dynamic fog updates
             _rpTerrain.userData.__fogUniforms = _rpUniforms;
             console.log("[TerrainPainter] PBR ShaderMaterial applied with", _rpNumLayers, "layers, normals:", !!_rpNormalTextures[0], "roughness:", !!_rpRoughnessTextures[0], "ao:", !!_rpAOTextures[0]);
+
+            // === MODULE INTEROP: Update terrain surface offset from active layers ===
+            // Each texture type has a visual height — how far the texture appears to
+            // extend above the geometric surface (e.g., grass blades ~0.35 units tall).
+            // Modules like character-system read this to position entities on the
+            // visual surface, not inside the grass/vegetation.
+            var _soLookup = { grass: 0.35, ground: 0.15, dirt: 0.15, rock: 0.05, snow: 0.10 };
+            var _soMax = 0.15; // minimum baseline
+            for (var _soi = 0; _soi < _rpNumLayers; _soi++) {
+              var _soUrl = (_rpEnabledLayers[_soi].diffuseUrl || "").toLowerCase();
+              for (var _soKey in _soLookup) {
+                if (_soUrl.indexOf(_soKey) >= 0 && _soLookup[_soKey] > _soMax) {
+                  _soMax = _soLookup[_soKey];
+                }
+              }
+            }
+            window.__vibexe_terrainSurfaceOffset = _soMax;
+            console.log("[TerrainModule] Surface offset:", _soMax, "from", _rpNumLayers, "active layers");
+
             window.parent.postMessage({ type: "terrain-painter-repainted" }, "*");
           }
 
