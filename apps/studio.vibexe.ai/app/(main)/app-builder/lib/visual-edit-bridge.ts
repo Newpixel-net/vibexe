@@ -4390,28 +4390,25 @@ export function getVisualEditBridgeScript(): string {
 
         // === MODULE INTEROP: Terrain Surface API ===
         // PBR grass/vegetation textures extend visually above the geometric surface.
-        // The heightfield physics bodies are raised by this offset so ALL objects
-        // (characters, platforms, barriers) automatically sit on the visual surface.
+        // Physics heightfields stay at geometric level (KCC doesn't depenetrate).
+        // Consumers that position visual meshes read surfaceOffset to lift above grass.
         // Default 0.35 — updated by repaint handler when layer textures are known.
         window.__vibexe_terrainSurfaceOffset = 0.35;
 
-        // getTerrainHeight returns VISUAL height (geometric + surface offset).
-        // This means all consumers (PostStep, camera, spawn, character) automatically
-        // position at the visual surface — no per-module offset adjustments needed.
-        var _tpGeoGetHeight = window.__vibexe_getTerrainHeight;
-        window.__vibexe_getTerrainHeight = function(x, z) {
-          return _tpGeoGetHeight(x, z) + (window.__vibexe_terrainSurfaceOffset || 0);
+        // getTerrainHeight stays as geometric height (used by physics postStep, KCC safety nets)
+        // getVisualTerrainHeight = geometric + surfaceOffset (for mesh positioning, spawn markers)
+        window.__vibexe_getVisualTerrainHeight = function(x, z) {
+          var h = window.__vibexe_getTerrainHeight ? window.__vibexe_getTerrainHeight(x, z) : 0;
+          return h + (window.__vibexe_terrainSurfaceOffset || 0);
         };
-        // Alias for explicit queries
-        window.__vibexe_getVisualTerrainHeight = window.__vibexe_getTerrainHeight;
-        // Raw geometric height (no offset) for physics body creation
-        window.__vibexe_getGeometricTerrainHeight = _tpGeoGetHeight;
+        // Alias for code that explicitly wants geometric (no offset)
+        window.__vibexe_getGeometricTerrainHeight = window.__vibexe_getTerrainHeight;
 
         // Register terrain module API
         window.__vibexe_moduleAPI['terrain-painter'] = {
           version: '1.0',
           getHeight: window.__vibexe_getTerrainHeight,
-          getGeometricHeight: _tpGeoGetHeight,
+          getVisualHeight: window.__vibexe_getVisualTerrainHeight,
           surfaceOffset: window.__vibexe_terrainSurfaceOffset,
           terrainData: window.__vibexe_terrainData,
           has: { heightfield: true, sculpting: true, pbr: true }
@@ -4462,9 +4459,7 @@ export function getVisualEditBridgeScript(): string {
             _hfBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
             // After rotation: local X → world X, local Y → world Z, local Z → world Y
             // Origin at corner — offset to center terrain on world XZ
-            // Y offset = surfaceOffset so physics surface matches visual grass/vegetation level
-            var _hfSurfOff = window.__vibexe_terrainSurfaceOffset || 0;
-            _hfBody.position.set(-_tpW / 2, _hfSurfOff, _tpD / 2);
+            _hfBody.position.set(-_tpW / 2, 0, _tpD / 2);
             _tpWorld.addBody(_hfBody);
             window.__vibexe_terrainBody = _hfBody;
             window.__vibexe_terrainHFShape = _hfShape;
@@ -4500,9 +4495,7 @@ export function getVisualEditBridgeScript(): string {
               }
               var _rScale = { x: _tpW, y: 1.0, z: _tpD };
               var _rColDesc = _tpRAPIER.ColliderDesc.heightfield(_rNrows - 1, _rNcols - 1, _rHeights, _rScale);
-              // Raise Rapier heightfield by surfaceOffset to match visual grass level
-              var _rSurfOff = window.__vibexe_terrainSurfaceOffset || 0;
-              var _rBodyDesc = _tpRAPIER.RigidBodyDesc.fixed().setTranslation(0, _rSurfOff, 0);
+              var _rBodyDesc = _tpRAPIER.RigidBodyDesc.fixed();
               var _rBody = _tpRapierWorld.createRigidBody(_rBodyDesc);
               var _rCollider = _tpRapierWorld.createCollider(_rColDesc, _rBody);
               window.__vibexe_rapierTerrainBody__ = _rBody;
