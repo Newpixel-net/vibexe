@@ -50,12 +50,13 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v7.0.0
+const runtimeCode = `// @vibexe/character-system v8.0.0
 // Blink-style top-down WASD controller + camera-relative movement + orbit camera
 // Phase 1: IK Head Look-At + terrain-aware falling
 // Phase 2: Cursor look-at + camera mouse offset
 // Phase 3: Acceleration/deceleration, slope handling, step climbing, footstep audio
-console.log('[CharacterSystem] Module v7.0.0 loaded');
+// Phase 4: Rapier.js KCC — native terrain collision, auto-step, snap-to-ground
+console.log('[CharacterSystem] Module v8.0.0 loaded');
 
 var THREE = require('three');
 
@@ -1059,6 +1060,50 @@ function swapCharacter(scene, characterId) {
           }
         } catch(e) { _footstepCtx = null; }
 
+        // === RAPIER KCC SETUP (Phase 2C) ===
+        // Create kinematic capsule body + character controller for native terrain collision.
+        // Eliminates manual depenetration, step climbing, and __canJump hacks.
+        var _useRapier = false;
+        var _rapierBody = null;
+        var _rapierCollider = null;
+        var _rapierKCC = null;
+        var _rapierGravityVel = 0;
+        (function() {
+          var R = window.RAPIER;
+          var rw = window.__vibexe_rapierWorld__;
+          if (!R || !rw || !_csBody) return;
+          // Clean up previous Rapier KCC (character re-swap)
+          if (window.__charCtrl_rapier) {
+            var _old = window.__charCtrl_rapier;
+            try { if (_old.kcc) _old.kcc.free(); } catch(e) {}
+            try { if (_old.collider) rw.removeCollider(_old.collider, true); } catch(e) {}
+            try { if (_old.body) rw.removeRigidBody(_old.body); } catch(e) {}
+            window.__charCtrl_rapier = null;
+          }
+          try {
+            var capsR = 0.25;
+            var capsHH = Math.max(0.1, _csHalfH - capsR);
+            var ip = _csBody.position;
+            var bd = R.RigidBodyDesc.kinematicPositionBased()
+              .setTranslation(ip.x, ip.y, ip.z);
+            _rapierBody = rw.createRigidBody(bd);
+            var cd = R.ColliderDesc.capsule(capsHH, capsR);
+            _rapierCollider = rw.createCollider(cd, _rapierBody);
+            _rapierKCC = rw.createCharacterController(0.01);
+            _rapierKCC.enableSnapToGround(0.5);
+            _rapierKCC.setMaxSlopeClimbAngle(_slopeMaxAngle * Math.PI / 180);
+            _rapierKCC.setMinSlopeSlideAngle(30 * Math.PI / 180);
+            _rapierKCC.enableAutostep(_stepHeight, 0.2, true);
+            _rapierKCC.setApplyImpulsesToDynamicBodies(true);
+            _rapierKCC.setUp({ x: 0.0, y: 1.0, z: 0.0 });
+            window.__charCtrl_rapier = { body: _rapierBody, collider: _rapierCollider, kcc: _rapierKCC };
+            _useRapier = true;
+            console.log("[CharacterSystem] Rapier KCC created | capsule r=" + capsR + " hh=" + capsHH.toFixed(2));
+          } catch(e) {
+            console.warn("[CharacterSystem] Rapier KCC failed, CANNON fallback:", e);
+          }
+        })();
+
         var newCtrl = {
           __charSystem: true,
           update: function(dt) {
@@ -1104,11 +1149,92 @@ function swapCharacter(scene, characterId) {
 
             // === 5. APPLY MOVEMENT TO PHYSICS BODY ===
             var isRunning = _inputState.shift && hasInput;
+            var isGrounded = false;
+
+            if (_useRapier && _rapierBody && _rapierKCC && _rapierCollider) {
+              // --- RAPIER KCC PATH (native collision, no manual depenetration) ---
+              var moveSpeed = isRunning ? _runSpeed : _walkSpeed;
+              _jumpCooldown = Math.max(0, _jumpCooldown - dt);
+              isGrounded = _rapierKCC.computedGrounded();
+              if (isGrounded) { _coyoteTimer = 0; if (_rapierGravityVel < 0) _rapierGravityVel = 0; }
+              else { _coyoteTimer += dt; }
+              var canJump = isGrounded || _coyoteTimer < _coyoteTime;
+              // Air control reduction
+              if (!isGrounded) { worldX *= _airControlFactor; worldZ *= _airControlFactor; }
+              // Slope speed reduction (game feel — KCC handles actual collision blocking)
+              var _slopeMultiplier = 1.0;
+              var _getHT = window.__vibexe_getTerrainHeight;
+              if (_getHT && hasInput) {
+                var _rcp = _rapierBody.translation();
+                var _thH = _getHT(_rcp.x, _rcp.z);
+                if (_thH != null) {
+                  for (var _si = 0; _si < 3; _si++) {
+                    var _sd = [0.3, 0.6, 1.0][_si];
+                    var _hf = _getHT(_rcp.x + worldX * _sd, _rcp.z + worldZ * _sd);
+                    if (_hf != null) {
+                      var _rise = _hf - _thH;
+                      var _ang = Math.atan2(Math.abs(_rise), _sd) * 57.2958;
+                      if (_ang > 15 && _rise > 0) {
+                        var _sm = Math.max(0.2, 1.0 - (_ang / _slopeMaxAngle) * 0.8);
+                        if (_sm < _slopeMultiplier) _slopeMultiplier = _sm;
+                      }
+                    }
+                  }
+                }
+              }
+              // Acceleration/deceleration
+              var _tVX = worldX * moveSpeed * _slopeMultiplier;
+              var _tVZ = worldZ * moveSpeed * _slopeMultiplier;
+              var _ac = isGrounded ? (hasInput ? _accelGround : _decelGround) : _accelAir;
+              var _acs = _ac * dt;
+              var _dvx = _tVX - _currentVelX, _dvz = _tVZ - _currentVelZ;
+              var _dvl = Math.sqrt(_dvx * _dvx + _dvz * _dvz);
+              if (_dvl > _acs) { _currentVelX += (_dvx / _dvl) * _acs; _currentVelZ += (_dvz / _dvl) * _acs; }
+              else { _currentVelX = _tVX; _currentVelZ = _tVZ; }
+              // Jump
+              if (_inputState.space) _jumpBufferTimer = _jumpBuffer;
+              if (_jumpBufferTimer > 0) _jumpBufferTimer -= dt;
+              if (_jumpBufferTimer > 0 && canJump && _jumpCooldown <= 0) {
+                _rapierGravityVel = _jumpForce;
+                _coyoteTimer = _coyoteTime; _jumpCooldown = 0.3; _jumpBufferTimer = 0;
+              }
+              // Gravity
+              var _gv = parseFloat((window.__VIBEXE_GAME_SETTINGS__ || {}).gravity) || -38;
+              _rapierGravityVel += _gv * dt;
+              if (_rapierGravityVel < -50) _rapierGravityVel = -50;
+              // KCC collision resolution — Rapier handles terrain heightfield natively
+              _rapierKCC.computeColliderMovement(
+                _rapierCollider,
+                { x: _currentVelX * dt, y: _rapierGravityVel * dt, z: _currentVelZ * dt }
+              );
+              var _cm = _rapierKCC.computedMovement();
+              var _rp = _rapierBody.translation();
+              var _nx = _rp.x + _cm.x, _ny = _rp.y + _cm.y, _nz = _rp.z + _cm.z;
+              _rapierBody.setNextKinematicTranslation({ x: _nx, y: _ny, z: _nz });
+              // Sync mesh to Rapier position
+              _csMesh.position.x = _nx;
+              _csMesh.position.y = _ny - _csHalfH;
+              _csMesh.position.z = _nz;
+              if (_csMesh.userData && _csMesh.userData.__groundOffset) {
+                _csMesh.position.y += _csMesh.userData.__groundOffset;
+              }
+              // Sync CANNON body for diagnostics + animation state machine
+              if (_csBody && _csBody.position) {
+                _csBody.position.x = _nx; _csBody.position.y = _ny; _csBody.position.z = _nz;
+                if (_csBody.velocity) {
+                  _csBody.velocity.x = _currentVelX;
+                  _csBody.velocity.y = _rapierGravityVel;
+                  _csBody.velocity.z = _currentVelZ;
+                }
+                _csBody.__canJump = isGrounded;
+              }
+            } else {
+            // --- CANNON FALLBACK ---
             var moveSpeed = isRunning ? _runSpeed : _walkSpeed;
 
             // Grounded check (used by multiple systems)
             _jumpCooldown = Math.max(0, _jumpCooldown - dt);
-            var isGrounded = !!(_csBody.__canJump);
+            isGrounded = !!(_csBody.__canJump);
             if (isGrounded) {
               _coyoteTimer = 0;
             } else {
@@ -1264,6 +1390,7 @@ function swapCharacter(scene, characterId) {
                 _csMesh.position.y += _csMesh.userData.__groundOffset;
               }
             }
+            } // end CANNON fallback
 
             // === 7. SMOOTH CHARACTER ROTATION (Blink: SmoothDampAngle 0.25s) ===
             if (hasInput) {
@@ -1644,6 +1771,7 @@ function swapCharacter(scene, characterId) {
             var _stuckColor = d.stuckDetected ? "#f44" : "#0f0";
             _diagEl.innerHTML =
               "<span style='color:#0af'>== PHYSICS DIAGNOSTICS ==</span>\\n" +
+              "Engine: <span style='color:" + (_useRapier ? "#0f0" : "#fa0") + "'>" + (_useRapier ? "Rapier KCC" : "CANNON.js") + "</span>\\n" +
               "FPS: " + d.fps + " | Anim: " + d.animState + "\\n" +
               "Pos: " + d.posX.toFixed(2) + ", " + d.posY.toFixed(2) + ", " + d.posZ.toFixed(2) + "\\n" +
               "Vel: " + d.velX.toFixed(2) + ", " + d.velY.toFixed(2) + ", " + d.velZ.toFixed(2) + " (spd:" + d.speed.toFixed(1) + ")\\n" +
@@ -1662,7 +1790,8 @@ function swapCharacter(scene, characterId) {
         if (window._activeControllers3D) {
           window._activeControllers3D.push(newCtrl);
         }
-        console.log("[CharacterSystem] Blink controller v7.0 created | animMap:", Object.keys(animMap).join(","),
+        console.log("[CharacterSystem] Blink controller v8.0 created | physics:", _useRapier ? "Rapier KCC" : "CANNON",
+          "| animMap:", Object.keys(animMap).join(","),
           "| speeds:", _walkSpeed + "/" + _runSpeed, "| camDist:", _camDist.toFixed(1), "| diag: press \` to toggle");
       }
 
@@ -1849,7 +1978,7 @@ module.exports = {
 export const CHARACTER_SYSTEM_MANIFEST: ModuleManifest = {
 	id: "character-system",
 	name: "Character System",
-	version: "7.0.0",
+	version: "8.0.0",
 	category: "tools",
 	description: "Player character selection and model swapping",
 	icon: "PersonStanding",
