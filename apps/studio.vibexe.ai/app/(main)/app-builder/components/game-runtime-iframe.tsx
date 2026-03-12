@@ -26,6 +26,8 @@ interface GameRuntimeIframeProps {
 	onBundleLoaded?: () => void;
 	/** Parent can call refreshRef.current() to force recompile (equivalent to Sandpack refresh) */
 	refreshRef?: MutableRefObject<(() => void) | null>;
+	/** When true, skip automatic recompile on file changes (scene editor active) */
+	suppressRecompile?: boolean;
 }
 
 export function GameRuntimeIframe({
@@ -36,6 +38,7 @@ export function GameRuntimeIframe({
 	iframeRef,
 	onBundleLoaded,
 	refreshRef,
+	suppressRecompile,
 }: GameRuntimeIframeProps) {
 	const [compileError, setCompileError] = useState<string | null>(null);
 	const [isCompiling, setIsCompiling] = useState(false);
@@ -216,8 +219,10 @@ export function GameRuntimeIframe({
 	}, [compileAndInject, iframeRef, onBundleLoaded]);
 
 	// Recompile when files change (debounced 500ms)
+	// Skip recompile while scene editor is active to prevent destroying scene state
 	useEffect(() => {
 		if (!runtimeReady.current) return;
+		if (suppressRecompile) return;
 
 		if (compileTimeout.current) {
 			clearTimeout(compileTimeout.current);
@@ -232,7 +237,7 @@ export function GameRuntimeIframe({
 				clearTimeout(compileTimeout.current);
 			}
 		};
-	}, [files, compileAndInject]);
+	}, [files, compileAndInject, suppressRecompile]);
 
 	return (
 		<div className="relative w-full h-full">

@@ -2417,6 +2417,7 @@ export function SandpackPreview({
 										enabledModuleIds={enabledModuleIds}
 										iframeRef={iframeRef as React.RefObject<HTMLIFrameElement | null>}
 										refreshRef={sandpackRefreshRef}
+										suppressRecompile={gameEditor.enabled}
 									/>
 								) : (
 								<SandpackProvider
@@ -2510,6 +2511,7 @@ export function SandpackPreview({
 								enabledModuleIds={enabledModuleIds}
 								iframeRef={iframeRef as React.RefObject<HTMLIFrameElement | null>}
 								refreshRef={sandpackRefreshRef}
+								suppressRecompile={gameEditor.enabled}
 							/>
 						) : (
 						<SandpackProvider
