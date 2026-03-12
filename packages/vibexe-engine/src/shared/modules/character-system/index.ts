@@ -50,13 +50,14 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v8.0.0
+const runtimeCode = `// @vibexe/character-system v8.1.0
 // Blink-style top-down WASD controller + camera-relative movement + orbit camera
 // Phase 1: IK Head Look-At + terrain-aware falling
 // Phase 2: Cursor look-at + camera mouse offset
 // Phase 3: Acceleration/deceleration, slope handling, step climbing, footstep audio
 // Phase 4: Rapier.js KCC — native terrain collision, auto-step, snap-to-ground
-console.log('[CharacterSystem] Module v8.0.0 loaded');
+// Phase 4.1: Solid terrain — slope blocking, penetration guard, forward terrain check
+console.log('[CharacterSystem] Module v8.1.0 loaded');
 
 var THREE = require('three');
 
@@ -1108,7 +1109,7 @@ function swapCharacter(scene, characterId) {
             _rapierKCC.enableSnapToGround(0.5);
             _rapierKCC.setMaxSlopeClimbAngle(_slopeMaxAngle * Math.PI / 180);
             _rapierKCC.setMinSlopeSlideAngle(30 * Math.PI / 180);
-            _rapierKCC.enableAutostep(_stepHeight, 0.2, true);
+            _rapierKCC.enableAutostep(0.15, 0.3, false); // Low step (curbs only), wider min width, no dynamic bodies
             _rapierKCC.setApplyImpulsesToDynamicBodies(true);
             _rapierKCC.setUp({ x: 0.0, y: 1.0, z: 0.0 });
             window.__charCtrl_rapier = { body: _rapierBody, collider: _rapierCollider, kcc: _rapierKCC };
@@ -1176,7 +1177,7 @@ function swapCharacter(scene, characterId) {
               var canJump = isGrounded || _coyoteTimer < _coyoteTime;
               // Air control reduction
               if (!isGrounded) { worldX *= _airControlFactor; worldZ *= _airControlFactor; }
-              // Slope speed reduction (game feel — KCC handles actual collision blocking)
+              // Slope detection — BLOCK movement on steep terrain (mountains)
               var _slopeMultiplier = 1.0;
               var _getHT = window.__vibexe_getTerrainHeight;
               if (_getHT && hasInput) {
@@ -1189,9 +1190,16 @@ function swapCharacter(scene, characterId) {
                     if (_hf != null) {
                       var _rise = _hf - _thH;
                       var _ang = Math.atan2(Math.abs(_rise), _sd) * 57.2958;
-                      if (_ang > 15 && _rise > 0) {
-                        var _sm = Math.max(0.2, 1.0 - (_ang / _slopeMaxAngle) * 0.8);
-                        if (_sm < _slopeMultiplier) _slopeMultiplier = _sm;
+                      if (_rise > 0) {
+                        if (_ang >= _slopeMaxAngle) {
+                          // Slope too steep — BLOCK movement completely
+                          _slopeMultiplier = 0;
+                          break;
+                        } else if (_ang > 15) {
+                          // Gradual slowdown on moderate slopes
+                          var _sm = 1.0 - (_ang / _slopeMaxAngle) * 0.7;
+                          if (_sm < _slopeMultiplier) _slopeMultiplier = _sm;
+                        }
                       }
                     }
                   }
@@ -1233,20 +1241,35 @@ function swapCharacter(scene, characterId) {
               if (_csMesh.userData && _csMesh.userData.__groundOffset) {
                 _csMesh.position.y += _csMesh.userData.__groundOffset;
               }
-              // Safety net: if character falls below terrain (timing gap before
-              // Rapier heightfield is created), teleport back to terrain surface
+              // Terrain penetration guard — hard clamp to never go below terrain surface
+              // This catches ANY case where KCC allows terrain penetration (steep slopes,
+              // autostep bypass, heightfield gaps, timing before heightfield creation)
               var _getHSafe = window.__vibexe_getTerrainHeight;
               if (_getHSafe) {
                 var _thSafe = _getHSafe(_nx, _nz);
                 if (_thSafe != null) {
-                  var _minSafe = _thSafe + _csHalfH + 0.15;
-                  if (_ny < _minSafe - 2) {
+                  var _minSafe = _thSafe + _csHalfH + 0.1;
+                  if (_ny < _minSafe) {
+                    // Character is below terrain — push back up
                     _ny = _minSafe;
                     _rapierBody.setNextKinematicTranslation({ x: _nx, y: _ny, z: _nz });
-                    _rapierGravityVel = 0;
+                    if (_rapierGravityVel < 0) _rapierGravityVel = 0;
                     _csMesh.position.y = _ny - _csHalfH + (window.__vibexe_terrainSurfaceOffset || 0);
                     if (_csMesh.userData && _csMesh.userData.__groundOffset) _csMesh.position.y += _csMesh.userData.__groundOffset;
                     isGrounded = true;
+                  }
+                  // Also check: would the NEXT position be inside terrain? (forward blocking)
+                  var _lookAhead = 0.5;
+                  if (Math.abs(_currentVelX) + Math.abs(_currentVelZ) > 0.1) {
+                    var _velLen = Math.sqrt(_currentVelX * _currentVelX + _currentVelZ * _currentVelZ);
+                    var _fwdX = _nx + (_currentVelX / _velLen) * _lookAhead;
+                    var _fwdZ = _nz + (_currentVelZ / _velLen) * _lookAhead;
+                    var _fwdH = _getHSafe(_fwdX, _fwdZ);
+                    if (_fwdH != null && _fwdH > _ny + 0.3) {
+                      // Terrain ahead is higher than us — wall! Kill horizontal velocity
+                      _currentVelX *= 0.1;
+                      _currentVelZ *= 0.1;
+                    }
                   }
                 }
               }

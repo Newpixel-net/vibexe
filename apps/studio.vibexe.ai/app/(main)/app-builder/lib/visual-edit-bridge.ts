@@ -4393,7 +4393,7 @@ export function getVisualEditBridgeScript(): string {
         // Physics heightfields stay at geometric level (KCC doesn't depenetrate).
         // Consumers that position visual meshes read surfaceOffset to lift above grass.
         // Default 0.35 — updated by repaint handler when layer textures are known.
-        window.__vibexe_terrainSurfaceOffset = 0.65;
+        window.__vibexe_terrainSurfaceOffset = 0.35;
 
         // getTerrainHeight stays as geometric height (used by physics postStep, KCC safety nets)
         // getVisualTerrainHeight = geometric + surfaceOffset (for mesh positioning, spawn markers)
@@ -5248,8 +5248,8 @@ export function getVisualEditBridgeScript(): string {
             // extend above the geometric surface (e.g., grass blades ~0.35 units tall).
             // Modules like character-system read this to position entities on the
             // visual surface, not inside the grass/vegetation.
-            var _soLookup = { grass: 0.65, ground: 0.25, dirt: 0.25, rock: 0.10, snow: 0.15 };
-            var _soMax = 0.25; // minimum baseline
+            var _soLookup = { grass: 0.35, ground: 0.15, dirt: 0.15, rock: 0.05, snow: 0.10 };
+            var _soMax = 0.15; // minimum baseline
             for (var _soi = 0; _soi < _rpNumLayers; _soi++) {
               var _soUrl = (_rpEnabledLayers[_soi].diffuseUrl || "").toLowerCase();
               for (var _soKey in _soLookup) {
