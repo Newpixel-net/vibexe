@@ -50,14 +50,14 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v8.2.0
+const runtimeCode = `// @vibexe/character-system v8.3.0
 // Blink-style top-down WASD controller + camera-relative movement + orbit camera
 // Phase 1: IK Head Look-At + terrain-aware falling
 // Phase 2: Cursor look-at + camera mouse offset
 // Phase 3: Acceleration/deceleration, slope handling, step climbing, footstep audio
 // Phase 4: Rapier.js KCC — native terrain collision, auto-step, snap-to-ground
-// Phase 4.2: Solid terrain walls — wall rejection, boundary clamping, forward blocking
-console.log('[CharacterSystem] Module v8.2.0 loaded');
+// Phase 4.3: Solid terrain — walls, cliffs, edge margins, boundary clamping
+console.log('[CharacterSystem] Module v8.3.0 loaded');
 
 var THREE = require('three');
 
@@ -1235,25 +1235,45 @@ function swapCharacter(scene, characterId) {
               );
               var _cm = _rapierKCC.computedMovement();
               var _nx = _prevX + _cm.x, _ny = _prevY + _cm.y, _nz = _prevZ + _cm.z;
-              // === TERRAIN BOUNDARY + WALL REJECTION ===
-              // 1. Prevent walking off terrain edge (into void)
-              // 2. Block steep side walls (reject horizontal move)
+              // === TERRAIN BOUNDARY + WALL + CLIFF REJECTION ===
               var _getHSafe = window.__vibexe_getTerrainHeight;
               if (_getHSafe) {
                 var _thNew = _getHSafe(_nx, _nz);
                 var _thOld = _getHSafe(_prevX, _prevZ);
-                // Boundary check: if terrain returns null at new pos, character left the terrain
-                if (_thNew == null && _thOld != null) {
-                  // Off terrain edge — revert to previous position
-                  _nx = _prevX;
-                  _nz = _prevZ;
-                  _ny = _prevY + _cm.y;
-                  _currentVelX = 0;
-                  _currentVelZ = 0;
-                  _thNew = _thOld; // use old terrain height for further checks
+                // 1. Boundary: null at new pos OR near terrain edge (check 2 units ahead)
+                var _offEdge = (_thNew == null);
+                if (!_offEdge) {
+                  // Check if 2 units further in movement direction falls off terrain
+                  var _edgeDX = _nx - _prevX, _edgeDZ = _nz - _prevZ;
+                  var _edgeLen = Math.sqrt(_edgeDX * _edgeDX + _edgeDZ * _edgeDZ);
+                  if (_edgeLen > 0.001) {
+                    var _e2X = _nx + (_edgeDX / _edgeLen) * 2;
+                    var _e2Z = _nz + (_edgeDZ / _edgeLen) * 2;
+                    if (_getHSafe(_e2X, _e2Z) == null) _offEdge = true;
+                  }
+                }
+                if (_offEdge && _thOld != null) {
+                  _nx = _prevX; _nz = _prevZ; _ny = _prevY + _cm.y;
+                  _currentVelX = 0; _currentVelZ = 0;
+                  _thNew = _thOld;
                   var _minBound = _thOld + _csHalfH + 0.1;
                   if (_ny < _minBound) { _ny = _minBound; if (_rapierGravityVel < 0) _rapierGravityVel = 0; }
                   isGrounded = true;
+                }
+                // 2. Cliff detection: block movement toward steep drops
+                if (_thNew != null && _thOld != null && _thOld - _thNew > 1.5) {
+                  // Terrain dropped by >1.5 units — potential cliff edge
+                  var _dropDist = Math.sqrt((_nx - _prevX) * (_nx - _prevX) + (_nz - _prevZ) * (_nz - _prevZ));
+                  var _dropAngle = _dropDist > 0.01 ? Math.atan2(_thOld - _thNew, _dropDist) * 57.2958 : 90;
+                  if (_dropAngle > _slopeMaxAngle) {
+                    // Steep cliff — revert horizontal movement
+                    _nx = _prevX; _nz = _prevZ; _ny = _prevY + _cm.y;
+                    _currentVelX = 0; _currentVelZ = 0;
+                    _thNew = _thOld;
+                    var _minCliff = _thOld + _csHalfH + 0.1;
+                    if (_ny < _minCliff) { _ny = _minCliff; if (_rapierGravityVel < 0) _rapierGravityVel = 0; }
+                    isGrounded = true;
+                  }
                 }
                 if (_thNew != null) {
                   var _minSafe = _thNew + _csHalfH + 0.1;
