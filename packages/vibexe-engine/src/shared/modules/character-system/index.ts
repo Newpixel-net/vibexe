@@ -672,6 +672,24 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
         if (currentAction) { currentAction.time = t; }
       };
 
+      // Apply user animation renames from scene editor (animClipOverrides: { originalName: displayName })
+      var _animOv = (window.__VIBEXE_GAME_SETTINGS__ || {}).animClipOverrides || {};
+      if (_animOv && typeof _animOv === "object") {
+        for (var _ri = 0; _ri < allClips.length; _ri++) {
+          var _newName = _animOv[allClips[_ri].name];
+          if (_newName && typeof _newName === "string") {
+            allClips[_ri].name = _newName;
+          }
+        }
+        // Rebuild clipNames and clipMap with renamed clips
+        clipNames = [];
+        clipMap = {};
+        for (var _rn = 0; _rn < allClips.length; _rn++) {
+          clipNames.push(allClips[_rn].name);
+          clipMap[allClips[_rn].name] = allClips[_rn];
+        }
+      }
+
       // Auto-classify clips for animMap
       var autoAnimMap = {};
       // Phase 1: keyword-only classification (no duration heuristic — prevents combat clips from becoming idle)

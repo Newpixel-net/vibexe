@@ -883,6 +883,13 @@ export function SandpackPreview({
 	const [showConsole, setShowConsole] = useState(false);
 	const visualEdit = useVisualEdit();
 	const gameEditor = useGameEditor();
+	// Merge animation clip renames into gameSettings so character-system can use renamed names
+	const gameSettingsWithOverrides = useMemo(() => {
+		const gs = gameEditor.gameSettings;
+		const ov = gameEditor.animClipOverrides;
+		if (!ov || Object.keys(ov).length === 0) return gs;
+		return { ...gs, animClipOverrides: ov };
+	}, [gameEditor.gameSettings, gameEditor.animClipOverrides]);
 	const { toast } = useToasts();
 	const iframeContainerRef = useRef<HTMLDivElement>(null);
 	const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -2426,7 +2433,7 @@ export function SandpackPreview({
 									<GameRuntimeIframe
 										appId={appId}
 										files={files}
-										gameSettings={gameEditor.gameSettings}
+										gameSettings={gameSettingsWithOverrides}
 										enabledModuleIds={enabledModuleIds}
 										iframeRef={iframeRef as React.RefObject<HTMLIFrameElement | null>}
 										refreshRef={sandpackRefreshRef}
@@ -2520,7 +2527,7 @@ export function SandpackPreview({
 							<GameRuntimeIframe
 								appId={appId}
 								files={files}
-								gameSettings={gameEditor.gameSettings}
+								gameSettings={gameSettingsWithOverrides}
 								enabledModuleIds={enabledModuleIds}
 								iframeRef={iframeRef as React.RefObject<HTMLIFrameElement | null>}
 								refreshRef={sandpackRefreshRef}
