@@ -1165,7 +1165,7 @@ function swapCharacter(scene, characterId) {
             var cd = R.ColliderDesc.capsule(capsHH, capsR);
             _rapierCollider = rw.createCollider(cd, _rapierBody);
             _rapierKCC = rw.createCharacterController(0.01);
-            _rapierKCC.enableSnapToGround(0.5);
+            _rapierKCC.enableSnapToGround(1.5);
             _rapierKCC.setMaxSlopeClimbAngle(_slopeMaxAngle * Math.PI / 180);
             _rapierKCC.setMinSlopeSlideAngle(30 * Math.PI / 180);
             _rapierKCC.enableAutostep(0.15, 0.3, false); // Low step (curbs only), wider min width, no dynamic bodies

@@ -4591,16 +4591,16 @@ export function getVisualEditBridgeScript(): string {
             console.error("[TerrainPhysics] Failed to create heightfield:", hfErr);
           }
 
-          // === Rapier trimesh (for KCC terrain collision — exact match to visual mesh) ===
-          // Uses the actual terrain geometry vertices + indices for pixel-perfect collision.
-          // This replaces the old heightfield approach which had data ordering bugs.
+          // === Rapier heightfield (for KCC terrain collision — solid, volumetric) ===
+          // Heightfield is preferred over trimesh because:
+          // 1. Semi-infinite solid below surface — objects can't pass through
+          // 2. Proper depenetration — pushes objects out if they clip below surface
+          // 3. More efficient for terrain-like shapes than trimesh
+          // Uses CPU heightmap data (same source as getTerrainHeight) for guaranteed sync.
           window.__vibexe_rebuildRapierTerrain = function() {
             var _tpRAPIER = window.RAPIER;
             var _tpRapierWorld = window.__vibexe_rapierWorld__;
             if (!_tpRAPIER || !_tpRapierWorld) return;
-            var _rtScene = window.__vibexe_scene__ || (_tpScene);
-            var _rtMesh = _rtScene ? _rtScene.getObjectByName("__terrain__") : null;
-            if (!_rtMesh || !_rtMesh.geometry) return;
             // Remove previous Rapier terrain collider
             if (window.__vibexe_rapierTerrainCollider__) {
               try { _tpRapierWorld.removeCollider(window.__vibexe_rapierTerrainCollider__, true); } catch(e) {}
@@ -4610,36 +4610,180 @@ export function getVisualEditBridgeScript(): string {
               try { _tpRapierWorld.removeRigidBody(window.__vibexe_rapierTerrainBody__); } catch(e) {}
               window.__vibexe_rapierTerrainBody__ = null;
             }
+            var td = window.__vibexe_terrainData;
+            if (!td || !td.heightData || !td.segX || !td.segZ) {
+              console.warn("[TerrainPhysics] No terrain data for Rapier heightfield");
+              return;
+            }
             try {
-              var _rtGeo = _rtMesh.geometry;
-              var _rtPos = _rtGeo.attributes.position;
-              var _rtVerts = new Float32Array(_rtPos.count * 3);
-              for (var _vi = 0; _vi < _rtPos.count; _vi++) {
-                _rtVerts[_vi * 3] = _rtPos.getX(_vi);
-                _rtVerts[_vi * 3 + 1] = _rtPos.getY(_vi);
-                _rtVerts[_vi * 3 + 2] = _rtPos.getZ(_vi);
+              // Rapier heightfield: nrows/ncols = cell count (vertices - 1)
+              // heights[(nrows+1)*(ncols+1)] indexed as heights[ix + iz*(nrows+1)]
+              // Our heightData[iz * segX + ix] is the same order since nrows+1 = segX
+              var _rhNrows = td.segX - 1;
+              var _rhNcols = td.segZ - 1;
+              var _rhHeights = new Float32Array(td.heightData);
+              // Scale maps unit cells to world size; heightfield centered at body origin
+              var _rhScale = { x: td.width / _rhNrows, y: 1.0, z: td.depth / _rhNcols };
+              var _rhColDesc = _tpRAPIER.ColliderDesc.heightfield(_rhNrows, _rhNcols, _rhHeights, _rhScale);
+              _rhColDesc.setFriction(0.8);
+              var _rhBodyDesc = _tpRAPIER.RigidBodyDesc.fixed();
+              var _rhBody = _tpRapierWorld.createRigidBody(_rhBodyDesc);
+              var _rhCollider = _tpRapierWorld.createCollider(_rhColDesc, _rhBody);
+              window.__vibexe_rapierTerrainBody__ = _rhBody;
+              window.__vibexe_rapierTerrainCollider__ = _rhCollider;
+              console.log("[TerrainPhysics] Rapier heightfield created:", td.segX, "x", td.segZ,
+                "cells:", _rhNrows, "x", _rhNcols,
+                "scale:", _rhScale.x.toFixed(3), "/", _rhScale.z.toFixed(3),
+                "h-range:", (td.minY || 0).toFixed(1), "-", (td.maxY || 0).toFixed(1));
+            } catch(_rhErr) {
+              console.warn("[TerrainPhysics] Rapier heightfield failed, trying trimesh fallback:", _rhErr);
+              // Fallback: trimesh from mesh geometry (one-sided, less robust)
+              try {
+                var _rtScene = window.__vibexe_scene__ || (_tpScene);
+                var _rtMesh = _rtScene ? _rtScene.getObjectByName("__terrain__") : null;
+                if (_rtMesh && _rtMesh.geometry) {
+                  var _rtGeo = _rtMesh.geometry;
+                  var _rtPos = _rtGeo.attributes.position;
+                  var _rtVerts = new Float32Array(_rtPos.count * 3);
+                  for (var _vi = 0; _vi < _rtPos.count; _vi++) {
+                    _rtVerts[_vi * 3] = _rtPos.getX(_vi);
+                    _rtVerts[_vi * 3 + 1] = _rtPos.getY(_vi);
+                    _rtVerts[_vi * 3 + 2] = _rtPos.getZ(_vi);
+                  }
+                  var _rtIdx = _rtGeo.index ? new Uint32Array(_rtGeo.index.array) :
+                    new Uint32Array(Array.from({length: _rtPos.count}, function(_, i) { return i; }));
+                  var _rtColDesc = _tpRAPIER.ColliderDesc.trimesh(_rtVerts, _rtIdx);
+                  _rtColDesc.setFriction(0.8);
+                  var _rtBody = _tpRapierWorld.createRigidBody(_tpRAPIER.RigidBodyDesc.fixed());
+                  var _rtCollider = _tpRapierWorld.createCollider(_rtColDesc, _rtBody);
+                  window.__vibexe_rapierTerrainBody__ = _rtBody;
+                  window.__vibexe_rapierTerrainCollider__ = _rtCollider;
+                  console.log("[TerrainPhysics] Rapier trimesh fallback:", _rtPos.count, "verts");
+                }
+              } catch(_tmErr) {
+                console.warn("[TerrainPhysics] Both heightfield and trimesh failed:", _tmErr);
               }
-              var _rtIdx;
-              if (_rtGeo.index) {
-                _rtIdx = new Uint32Array(_rtGeo.index.array);
-              } else {
-                // Non-indexed geometry — generate sequential indices
-                _rtIdx = new Uint32Array(_rtPos.count);
-                for (var _ii = 0; _ii < _rtPos.count; _ii++) _rtIdx[_ii] = _ii;
-              }
-              var _rtColDesc = _tpRAPIER.ColliderDesc.trimesh(_rtVerts, _rtIdx);
-              _rtColDesc.setFriction(0.8);
-              var _rtBodyDesc = _tpRAPIER.RigidBodyDesc.fixed();
-              var _rtBody = _tpRapierWorld.createRigidBody(_rtBodyDesc);
-              var _rtCollider = _tpRapierWorld.createCollider(_rtColDesc, _rtBody);
-              window.__vibexe_rapierTerrainBody__ = _rtBody;
-              window.__vibexe_rapierTerrainCollider__ = _rtCollider;
-              console.log("[TerrainPhysics] Rapier trimesh created:", _rtPos.count, "verts,", (_rtIdx.length / 3) | 0, "tris");
-            } catch(_rtErr) {
-              console.warn("[TerrainPhysics] Rapier trimesh failed:", _rtErr);
             }
           };
           window.__vibexe_rebuildRapierTerrain();
+
+          // === Terrain boundary grid — visual wireframe showing play area edges ===
+          // Creates a colored wireframe at terrain boundaries so players/designers can see the play zone.
+          // Controlled via window.__vibexe_terrainBoundaryGrid (toggle with game-editor-toggle-boundary-grid)
+          (function() {
+            var _bgTHREE = window.THREE;
+            if (!_bgTHREE) return;
+            var _bgScene = (editor && editor.scene) ? editor.scene : window.__vibexe_scene__;
+            if (!_bgScene) return;
+            // Remove existing boundary grid
+            var _oldGrid = _bgScene.getObjectByName("__terrain_boundary_grid__");
+            if (_oldGrid) _bgScene.remove(_oldGrid);
+            var _bgW = _tpW, _bgD = _tpD;
+            var _bgHW = _bgW / 2, _bgHD = _bgD / 2;
+            var _bgGroup = new _bgTHREE.Group();
+            _bgGroup.name = "__terrain_boundary_grid__";
+            // Edge walls — vertical planes at terrain boundaries (cyan, semi-transparent)
+            var _wallH = (_tpMaxY || 20) + 5; // Extend above highest terrain point
+            var _wallMat = new _bgTHREE.MeshBasicMaterial({
+              color: 0x00ffcc, transparent: true, opacity: 0.08,
+              side: _bgTHREE.DoubleSide, depthWrite: false
+            });
+            var _wallLineMat = new _bgTHREE.LineBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.4 });
+            // Four edge walls
+            var _walls = [
+              { px: 0, pz: -_bgHD, sx: _bgW, sz: 0, ry: 0 },       // -Z edge
+              { px: 0, pz: _bgHD, sx: _bgW, sz: 0, ry: 0 },        // +Z edge
+              { px: -_bgHW, pz: 0, sx: 0, sz: _bgD, ry: Math.PI/2 }, // -X edge
+              { px: _bgHW, pz: 0, sx: 0, sz: _bgD, ry: Math.PI/2 }   // +X edge
+            ];
+            for (var _wi = 0; _wi < _walls.length; _wi++) {
+              var _wDef = _walls[_wi];
+              var _wWidth = _wDef.sx || _wDef.sz;
+              var _wGeo = new _bgTHREE.PlaneGeometry(_wWidth, _wallH);
+              var _wMesh = new _bgTHREE.Mesh(_wGeo, _wallMat);
+              _wMesh.position.set(_wDef.px, _wallH / 2, _wDef.pz);
+              _wMesh.rotation.y = _wDef.ry;
+              _bgGroup.add(_wMesh);
+              // Edge line at top of wall
+              var _lineGeo = new _bgTHREE.BufferGeometry();
+              var _half = _wWidth / 2;
+              if (_wDef.ry === 0) {
+                // Along X axis
+                _lineGeo.setFromPoints([
+                  new _bgTHREE.Vector3(_wDef.px - _half, _wallH, _wDef.pz),
+                  new _bgTHREE.Vector3(_wDef.px + _half, _wallH, _wDef.pz)
+                ]);
+              } else {
+                // Along Z axis
+                _lineGeo.setFromPoints([
+                  new _bgTHREE.Vector3(_wDef.px, _wallH, _wDef.pz - _half),
+                  new _bgTHREE.Vector3(_wDef.px, _wallH, _wDef.pz + _half)
+                ]);
+              }
+              _bgGroup.add(new _bgTHREE.Line(_lineGeo, _wallLineMat));
+            }
+            // Ground outline — bright line at terrain edge on the surface
+            var _outlineGeo = new _bgTHREE.BufferGeometry();
+            var _getH = window.__vibexe_getTerrainHeight;
+            // Sample points along each edge to follow terrain contour
+            var _outlinePts = [];
+            var _edgeSamples = 80;
+            // -Z edge (x from -HW to +HW)
+            for (var _ei = 0; _ei <= _edgeSamples; _ei++) {
+              var _ex = -_bgHW + (_ei / _edgeSamples) * _bgW;
+              var _eh = _getH ? (_getH(_ex, -_bgHD) || 0) : 0;
+              _outlinePts.push(new _bgTHREE.Vector3(_ex, _eh + 0.3, -_bgHD));
+            }
+            // +X edge (z from -HD to +HD)
+            for (var _ei2 = 0; _ei2 <= _edgeSamples; _ei2++) {
+              var _ez = -_bgHD + (_ei2 / _edgeSamples) * _bgD;
+              var _eh2 = _getH ? (_getH(_bgHW, _ez) || 0) : 0;
+              _outlinePts.push(new _bgTHREE.Vector3(_bgHW, _eh2 + 0.3, _ez));
+            }
+            // +Z edge (x from +HW to -HW)
+            for (var _ei3 = _edgeSamples; _ei3 >= 0; _ei3--) {
+              var _ex3 = -_bgHW + (_ei3 / _edgeSamples) * _bgW;
+              var _eh3 = _getH ? (_getH(_ex3, _bgHD) || 0) : 0;
+              _outlinePts.push(new _bgTHREE.Vector3(_ex3, _eh3 + 0.3, _bgHD));
+            }
+            // -X edge (z from +HD to -HD)
+            for (var _ei4 = _edgeSamples; _ei4 >= 0; _ei4--) {
+              var _ez4 = -_bgHD + (_ei4 / _edgeSamples) * _bgD;
+              var _eh4 = _getH ? (_getH(-_bgHW, _ez4) || 0) : 0;
+              _outlinePts.push(new _bgTHREE.Vector3(-_bgHW, _eh4 + 0.3, _ez4));
+            }
+            _outlineGeo.setFromPoints(_outlinePts);
+            var _outlineMat = new _bgTHREE.LineBasicMaterial({ color: 0x00ff88, linewidth: 2 });
+            _bgGroup.add(new _bgTHREE.LineLoop(_outlineGeo, _outlineMat));
+            // Ground grid lines inside terrain (subtle, shows terrain subdivisions at boundary)
+            var _gridLineMat = new _bgTHREE.LineBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.15 });
+            var _gridSpacing = Math.max(_bgW, _bgD) / 10; // 10 grid lines
+            // X-parallel lines
+            for (var _gx = -_bgHW; _gx <= _bgHW + 0.01; _gx += _gridSpacing) {
+              var _gPts = [];
+              for (var _gs = 0; _gs <= 20; _gs++) {
+                var _gz = -_bgHD + (_gs / 20) * _bgD;
+                var _gh = _getH ? (_getH(_gx, _gz) || 0) : 0;
+                _gPts.push(new _bgTHREE.Vector3(_gx, _gh + 0.2, _gz));
+              }
+              var _gGeo = new _bgTHREE.BufferGeometry().setFromPoints(_gPts);
+              _bgGroup.add(new _bgTHREE.Line(_gGeo, _gridLineMat));
+            }
+            // Z-parallel lines
+            for (var _gz2 = -_bgHD; _gz2 <= _bgHD + 0.01; _gz2 += _gridSpacing) {
+              var _gPts2 = [];
+              for (var _gs2 = 0; _gs2 <= 20; _gs2++) {
+                var _gx2 = -_bgHW + (_gs2 / 20) * _bgW;
+                var _gh2 = _getH ? (_getH(_gx2, _gz2) || 0) : 0;
+                _gPts2.push(new _bgTHREE.Vector3(_gx2, _gh2 + 0.2, _gz2));
+              }
+              var _gGeo2 = new _bgTHREE.BufferGeometry().setFromPoints(_gPts2);
+              _bgGroup.add(new _bgTHREE.Line(_gGeo2, _gridLineMat));
+            }
+            _bgGroup.visible = false; // Hidden by default, toggled via message
+            _bgScene.add(_bgGroup);
+            window.__vibexe_terrainBoundaryGrid = _bgGroup;
+          })();
 
           // === PostStep terrain clamp — belt-and-suspenders safety net ===
           // Ensures all dynamic bodies stay above terrain even if Heightfield collision fails
@@ -5588,6 +5732,19 @@ export function getVisualEditBridgeScript(): string {
           _hmTerrain.material = new _hmTHREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
         }
         // else: heatmap disabled — repaint will restore colors
+        break;
+      }
+
+      case "terrain-painter-toggle-boundary-grid": {
+        var _bgGrid = window.__vibexe_terrainBoundaryGrid;
+        if (_bgGrid) {
+          _bgGrid.visible = !_bgGrid.visible;
+          console.log("[TerrainPainter] Boundary grid:", _bgGrid.visible ? "ON" : "OFF");
+          window.parent.postMessage({
+            type: "game-editor-boundary-grid-state",
+            visible: _bgGrid.visible
+          }, "*");
+        }
         break;
       }
 

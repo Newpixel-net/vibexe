@@ -265,6 +265,7 @@ export function TerrainPainterPanel({
 	});
 	const [selectedLayer, setSelectedLayer] = useState(0);
 	const [showHeatmap, setShowHeatmap] = useState(false);
+	const [showBoundaryGrid, setShowBoundaryGrid] = useState(false);
 	const [settings, setSettings] = useState<TerrainPainterSettings>(() => ({
 		splatmapResolution: 256,
 		terrainWidth: initialConfig?.width ?? 200,
@@ -624,6 +625,11 @@ export function TerrainPainterPanel({
 						setShowHeatmap(next);
 						sendToIframe({ type: "terrain-painter-toggle-heatmap", enabled: next });
 					}}
+						showBoundaryGrid={showBoundaryGrid}
+						onToggleBoundaryGrid={() => {
+						setShowBoundaryGrid(!showBoundaryGrid);
+						sendToIframe({ type: "terrain-painter-toggle-boundary-grid" });
+					}}
 						currentLayer={currentLayer}
 						onAddModifier={addModifier}
 						onRemoveModifier={removeModifier}
@@ -791,6 +797,8 @@ function LayersTab({
 	onUpdateLayerField,
 	showHeatmap,
 	onToggleHeatmap,
+	showBoundaryGrid,
+	onToggleBoundaryGrid,
 	currentLayer,
 	onAddModifier,
 	onRemoveModifier,
@@ -807,6 +815,8 @@ function LayersTab({
 	onUpdateLayerField: (i: number, field: keyof LayerData, value: string | number | boolean) => void;
 	showHeatmap: boolean;
 	onToggleHeatmap: () => void;
+	showBoundaryGrid: boolean;
+	onToggleBoundaryGrid: () => void;
 	currentLayer: LayerData | undefined;
 	onAddModifier: (type: ModifierType) => void;
 	onRemoveModifier: (i: number) => void;
@@ -951,6 +961,15 @@ function LayersTab({
 						className="w-3 h-3 rounded border-white/20"
 					/>
 					Heatmap
+				</label>
+				<label className="flex items-center gap-1.5 text-[10px] text-white/40 cursor-pointer">
+					<input
+						type="checkbox"
+						checked={showBoundaryGrid}
+						onChange={onToggleBoundaryGrid}
+						className="w-3 h-3 rounded border-white/20"
+					/>
+					Boundary
 				</label>
 				<div className="flex-1" />
 				<button
