@@ -346,7 +346,7 @@ TerrainGenerator.prototype.destroy = function() {
 
 
 // ============================================================
-// TerrainPhysics — CANNON.js Heightfield
+// TerrainPhysics — CANNON.js Heightfield + Rapier Heightfield
 // ============================================================
 
 function TerrainPhysics(terrainGenerator) {
@@ -356,7 +356,55 @@ function TerrainPhysics(terrainGenerator) {
   this.world = null;
   this._postStepFn = null;
   this._watcherInterval = null;
+  // Rapier terrain collider (parallel physics world)
+  this._rapierBody = null;
+  this._rapierCollider = null;
 }
+
+// Helper: Build Rapier heightfield from terrain data
+TerrainPhysics.prototype._setupRapierHeightfield = function(td) {
+  var R = window.RAPIER;
+  var rw = window.__vibexe_rapierWorld__;
+  if (!R || !rw || !td) return;
+
+  // Remove previous Rapier terrain
+  if (this._rapierCollider) {
+    try { rw.removeCollider(this._rapierCollider, true); } catch(e) {}
+    this._rapierCollider = null;
+  }
+  if (this._rapierBody) {
+    try { rw.removeRigidBody(this._rapierBody); } catch(e) {}
+    this._rapierBody = null;
+  }
+
+  try {
+    // Rapier heightfield: nrows (X) x ncols (Z), Float32Array in row-major order
+    // Our heightData[z * segX + x] → rapier heights[x * segZ + z]
+    var nrows = td.segX;
+    var ncols = td.segZ;
+    var heights = new Float32Array(nrows * ncols);
+    for (var x = 0; x < nrows; x++) {
+      for (var z = 0; z < ncols; z++) {
+        heights[x * ncols + z] = td.heightData[z * nrows + x];
+      }
+    }
+
+    // Scale: heightfield spans -scale/2 to +scale/2 on X and Z, heights scaled by Y
+    var scale = { x: td.width, y: 1.0, z: td.depth };
+    var colliderDesc = R.ColliderDesc.heightfield(nrows, ncols, heights, scale);
+
+    // Fixed body at origin (Rapier centers the heightfield automatically)
+    var bodyDesc = R.RigidBodyDesc.fixed();
+    this._rapierBody = rw.createRigidBody(bodyDesc);
+    this._rapierCollider = rw.createCollider(colliderDesc, this._rapierBody);
+
+    window.__vibexe_rapierTerrainBody__ = this._rapierBody;
+    window.__vibexe_rapierTerrainCollider__ = this._rapierCollider;
+    console.log("[TerrainPhysics] Rapier heightfield created:", nrows, "x", ncols, "scale:", td.width + "x" + td.depth);
+  } catch(err) {
+    console.error("[TerrainPhysics] Rapier heightfield failed:", err);
+  }
+};
 
 TerrainPhysics.prototype.setup = function(world) {
   var C = window.CANNON;
@@ -479,6 +527,9 @@ TerrainPhysics.prototype.setup = function(world) {
     world.addEventListener("postStep", this._postStepFn);
     console.log("[TerrainPhysics] PostStep terrain clamp + ground-following registered");
   }
+
+  // Also create Rapier heightfield (parallel world — for KCC terrain collision)
+  this._setupRapierHeightfield(td);
 };
 
 TerrainPhysics.prototype.rebuild = function() {
@@ -514,6 +565,9 @@ TerrainPhysics.prototype.rebuild = function() {
   } catch(err) {
     console.error("[TerrainPhysics] Rebuild failed:", err);
   }
+
+  // Also rebuild Rapier heightfield
+  this._setupRapierHeightfield(td);
 };
 
 TerrainPhysics.prototype.destroy = function() {
@@ -528,12 +582,24 @@ TerrainPhysics.prototype.destroy = function() {
   if (this._postStepFn && world) {
     try { world.removeEventListener("postStep", this._postStepFn); } catch(e) {}
   }
+  // Clean up Rapier terrain
+  var rw = window.__vibexe_rapierWorld__;
+  if (this._rapierCollider && rw) {
+    try { rw.removeCollider(this._rapierCollider, true); } catch(e) {}
+  }
+  if (this._rapierBody && rw) {
+    try { rw.removeRigidBody(this._rapierBody); } catch(e) {}
+  }
   window.__vibexe_terrainBody = null;
   window.__vibexe_terrainHFShape = null;
   window.__vibexe_terrainPostStep = null;
+  window.__vibexe_rapierTerrainBody__ = null;
+  window.__vibexe_rapierTerrainCollider__ = null;
   this.body = null;
   this.shape = null;
   this.world = null;
+  this._rapierBody = null;
+  this._rapierCollider = null;
 };
 
 

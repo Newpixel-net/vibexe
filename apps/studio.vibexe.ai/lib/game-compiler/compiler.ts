@@ -502,6 +502,20 @@ if (!gameScene || typeof gameScene.init !== 'function') {
     } catch { (gameScene as any).world = world; }
   }
 
+  // ===== Rapier Physics World (parallel — migration from CANNON) =====
+  const _RAPIER = W.RAPIER;
+  if (_RAPIER) {
+    try {
+      const rapierWorld = new _RAPIER.World({ x: 0.0, y: _GRAVITY, z: 0.0 });
+      W.__vibexe_rapierWorld__ = rapierWorld;
+      // Map of Rapier rigid body handles → Three.js meshes (for sync loop)
+      W.__vibexe_rapierBodyMap__ = new Map();
+      console.log('[Runtime] Rapier world created, gravity:', _GRAVITY);
+    } catch (_rapierWorldErr: any) {
+      console.warn('[Runtime] Rapier world creation failed:', _rapierWorldErr);
+    }
+  }
+
   // ===== Expose Factories =====
   W.__vibexeFactories = {
     createPlatform3D: W.createPlatform3D,
@@ -793,6 +807,23 @@ if (!gameScene || typeof gameScene.init !== 'function') {
           const _ir = W.__vibexe_playerMesh__.userData.__innerGLBRoot;
           if (_ir.position.x !== 0 || _ir.position.y !== 0 || _ir.position.z !== 0) _ir.position.set(0, 0, 0);
         }
+        // Step Rapier world (parallel physics — terrain heightfield + KCC)
+        const _rw = W.__vibexe_rapierWorld__;
+        if (_rw) {
+          _rw.step();
+          // Sync Rapier dynamic bodies → Three.js meshes
+          const _rbm = W.__vibexe_rapierBodyMap__;
+          if (_rbm && _rbm.size > 0) {
+            _rbm.forEach((mesh: any, body: any) => {
+              if (!body.isValid() || body.isSleeping()) return;
+              const p = body.translation();
+              const r = body.rotation();
+              mesh.position.set(p.x, p.y, p.z);
+              mesh.quaternion.set(r.x, r.y, r.z, r.w);
+            });
+          }
+        }
+
         try { if (gameScene.update) gameScene.update(delta); } catch (e) { console.error('[Runtime] update error:', e); }
         // Auto-update character controllers, particles, triggers, springs
         W._updateAllControllers3D?.(delta);
