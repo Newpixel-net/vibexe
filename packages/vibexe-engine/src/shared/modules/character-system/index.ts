@@ -943,6 +943,15 @@ function swapCharacter(scene, characterId) {
       // (charSystem controller now owns movement, animation, and camera)
       window.__charCtrl_active = true;
 
+      // Register on module API registry for inter-module communication
+      if (!window.__vibexe_moduleAPI) window.__vibexe_moduleAPI = {};
+      window.__vibexe_moduleAPI['character-system'] = {
+        version: '8.0',
+        getMesh: function() { return result.mesh; },
+        getPosition: function() { return result.mesh ? { x: result.mesh.position.x, y: result.mesh.position.y, z: result.mesh.position.z } : null; },
+        has: { rapierKCC: true, animations: true, orbitCamera: true }
+      };
+
       // Remove only old charSystem controllers, preserve others (e.g. trigger/spring controllers)
       if (window._activeControllers3D) {
         for (var _ci = window._activeControllers3D.length - 1; _ci >= 0; _ci--) {
@@ -1219,7 +1228,7 @@ function swapCharacter(scene, characterId) {
               _rapierBody.setNextKinematicTranslation({ x: _nx, y: _ny, z: _nz });
               // Sync mesh to Rapier position
               _csMesh.position.x = _nx;
-              _csMesh.position.y = _ny - _csHalfH + (window.__vibexe_terrainSurfaceOffset || 0);
+              _csMesh.position.y = _ny - _csHalfH;
               _csMesh.position.z = _nz;
               if (_csMesh.userData && _csMesh.userData.__groundOffset) {
                 _csMesh.position.y += _csMesh.userData.__groundOffset;
@@ -1235,7 +1244,7 @@ function swapCharacter(scene, characterId) {
                     _ny = _minSafe;
                     _rapierBody.setNextKinematicTranslation({ x: _nx, y: _ny, z: _nz });
                     _rapierGravityVel = 0;
-                    _csMesh.position.y = _ny - _csHalfH + (window.__vibexe_terrainSurfaceOffset || 0);
+                    _csMesh.position.y = _ny - _csHalfH;
                     if (_csMesh.userData && _csMesh.userData.__groundOffset) _csMesh.position.y += _csMesh.userData.__groundOffset;
                     isGrounded = true;
                   }
@@ -1407,7 +1416,7 @@ function swapCharacter(scene, characterId) {
             // Sync mesh to physics body position
             if (_csBody.position) {
               _csMesh.position.x = _csBody.position.x;
-              _csMesh.position.y = _csBody.position.y - _csHalfH + (window.__vibexe_terrainSurfaceOffset || 0);
+              _csMesh.position.y = _csBody.position.y - _csHalfH;
               _csMesh.position.z = _csBody.position.z;
               if (_csMesh.userData && _csMesh.userData.__groundOffset) {
                 _csMesh.position.y += _csMesh.userData.__groundOffset;
