@@ -1838,11 +1838,14 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			// Player (enhanced with physics body, velocity, grounded state, terrain distance)
 			"var pm=W.__vibexe_playerMesh__;",
 			"var pb=pm&&pm.userData?pm.userData.__physicsBody:null;",
+			"var rapierKCC=W.__charCtrl_rapier;",
+			"var hasPhys=!!pb||!!rapierKCC;",
 			"var pStatus=pm?'ok':'missing';",
 			"var pDetails=null;",
 			"if(pm){",
 			"  pDetails={name:pm.name||'unknown',y:pm.position?+pm.position.y.toFixed(2):0};",
-			"  pDetails.hasPhysicsBody=!!pb;",
+			"  pDetails.hasPhysicsBody=hasPhys;",
+			"  pDetails.physicsType=rapierKCC?'rapier-kcc':(pb?'cannon':'none');",
 			"  if(pb){",
 			"    pDetails.velocity={x:+pb.velocity.x.toFixed(2),y:+pb.velocity.y.toFixed(2),z:+pb.velocity.z.toFixed(2)};",
 			"    pDetails.grounded=pb.__canJump!==false;",
@@ -1857,7 +1860,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			"}",
 			"r.push({system:'Player',status:pStatus,details:pDetails});",
 			// Player problems
-			"if(pm&&!pb)problems.push({id:'player-no-physics',severity:'error',msg:'Player mesh exists but has NO physics body — movement/collision broken'});",
+			"if(pm&&!hasPhys)problems.push({id:'player-no-physics',severity:'error',msg:'Player mesh exists but has NO physics body — movement/collision broken'});",
 			"if(pm&&pb&&pb.__canJump===false&&pb.velocity&&Math.abs(pb.velocity.y)<0.1){",
 			"  problems.push({id:'player-stuck-air',severity:'warn',msg:'Player not grounded but near-zero Y velocity — may be stuck in air'});",
 			"}",
@@ -1878,7 +1881,8 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 			"var cullDist=W.__vibexe_cullDistance__||120;",
 			"var fpsCounter=document.getElementById('__vibexe_fps__');",
 			"var gameFps=fpsCounter?parseInt(fpsCounter.textContent)||0:0;",
-			"r.push({system:'Performance',status:gameFps>=50?'ok':(gameFps>=30?'inactive':'missing'),details:{gameFps:gameFps,cullDistance:cullDist,skipComposer:!!W.__vibexe_skipComposer__,editorActive:!!W.__vibexe_editor_active__}});",
+			"if(!gameFps&&aq&&aq.fps)gameFps=Math.round(aq.fps);",
+			"r.push({system:'Performance',status:gameFps>=50?'ok':(gameFps>=30?'inactive':(gameFps>0?'inactive':'missing')),details:{gameFps:gameFps,cullDistance:cullDist,skipComposer:!!W.__vibexe_skipComposer__,editorActive:!!W.__vibexe_editor_active__}});",
 
 			// Audio
 			"var au=W.__vibexe_audio__;",
