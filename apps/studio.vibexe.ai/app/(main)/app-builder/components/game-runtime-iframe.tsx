@@ -48,6 +48,7 @@ export function GameRuntimeIframe({
 	const pendingBundle = useRef<{ bundle: string; bootstrap: string } | null>(null);
 	const hasTriggeredCompile = useRef(false);
 	const compileInProgress = useRef(false);
+	const needsRecompile = useRef(false);
 
 	// Store gameSettings in a ref so compileAndInject doesn't depend on it
 	// (gameSettings creates a new object reference on every update, which would
@@ -61,7 +62,8 @@ export function GameRuntimeIframe({
 
 		// Prevent overlapping compiles (Scene→Game toggle fires multiple triggers)
 		if (compileInProgress.current) {
-			console.log("[GameRuntime] Compile already in progress, skipping");
+			console.log("[GameRuntime] Compile already in progress, queuing recompile");
+			needsRecompile.current = true;
 			return;
 		}
 		compileInProgress.current = true;
@@ -150,6 +152,13 @@ export function GameRuntimeIframe({
 		} finally {
 			setIsCompiling(false);
 			compileInProgress.current = false;
+			// If a recompile was requested while we were compiling, do it now
+			if (needsRecompile.current) {
+				needsRecompile.current = false;
+				lastHash.current = ""; // Force fresh compile
+				console.log("[GameRuntime] Running queued recompile");
+				setTimeout(() => compileAndInject(), 100);
+			}
 		}
 	}, [files, enabledModuleIds, appId, iframeRef]);
 
@@ -256,7 +265,7 @@ export function GameRuntimeIframe({
 		<div className="relative w-full h-full">
 			<iframe
 				ref={iframeRef}
-				src="/api/app-builder/game-runtime?bv=149"
+				src="/api/app-builder/game-runtime?bv=150"
 				className="w-full h-full border-0"
 				title="Game Preview"
 				allow="autoplay; fullscreen"
