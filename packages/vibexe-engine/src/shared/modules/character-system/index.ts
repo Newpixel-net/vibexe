@@ -79,6 +79,23 @@ var _mouseState = { midDown: false, lastX: 0, lastY: 0, scrollDelta: 0, mouseX: 
 var _inputListenersAttached = false;
 var _activeSnapTimer = null;
 
+// Store listener references for cleanup on reload (X1 fix: prevent memory leak)
+var _listenerRefs = [];
+
+function _detachInputListeners() {
+  for (var i = 0; i < _listenerRefs.length; i++) {
+    var lr = _listenerRefs[i];
+    lr.target.removeEventListener(lr.event, lr.fn, lr.opts || false);
+  }
+  _listenerRefs = [];
+  _inputListenersAttached = false;
+}
+
+function _addTrackedListener(target, event, fn, opts) {
+  target.addEventListener(event, fn, opts || false);
+  _listenerRefs.push({ target: target, event: event, fn: fn, opts: opts || false });
+}
+
 function _attachInputListeners() {
   if (_inputListenersAttached) return;
   _inputListenersAttached = true;
@@ -87,7 +104,13 @@ function _attachInputListeners() {
   var doc = typeof document !== "undefined" ? document : null;
   if (!doc) return;
 
-  doc.addEventListener("keydown", function(e) {
+  // Clean up any previous listeners from prior bundle loads (X1 fix)
+  if (window.__charCtrl_cleanup) {
+    try { window.__charCtrl_cleanup(); } catch(e) {}
+  }
+  window.__charCtrl_cleanup = _detachInputListeners;
+
+  _addTrackedListener(doc, "keydown", function(e) {
     if ((window.__vibexe_editor__ || {}).isEditing) return;
     var k = e.key.toLowerCase();
     if (k === "w" || k === "arrowup") _inputState.w = true;
@@ -98,7 +121,7 @@ function _attachInputListeners() {
     if (k === " ") _inputState.space = true;
   });
 
-  doc.addEventListener("keyup", function(e) {
+  _addTrackedListener(doc, "keyup", function(e) {
     var k = e.key.toLowerCase();
     if (k === "w" || k === "arrowup") _inputState.w = false;
     if (k === "a" || k === "arrowleft") _inputState.a = false;
@@ -109,14 +132,14 @@ function _attachInputListeners() {
   });
 
   // Clear all keys on blur (prevents stuck keys when tabbing away)
-  window.addEventListener("blur", function() {
+  _addTrackedListener(window, "blur", function() {
     _inputState.w = _inputState.a = _inputState.s = _inputState.d = false;
     _inputState.shift = _inputState.space = false;
     _mouseState.midDown = false;
   });
 
   // Mouse: middle button for orbit, scroll for zoom
-  doc.addEventListener("mousedown", function(e) {
+  _addTrackedListener(doc, "mousedown", function(e) {
     if ((window.__vibexe_editor__ || {}).isEditing) return;
     if (e.button === 1) { // middle mouse
       _mouseState.midDown = true;
@@ -126,11 +149,11 @@ function _attachInputListeners() {
     }
   });
 
-  doc.addEventListener("mouseup", function(e) {
+  _addTrackedListener(doc, "mouseup", function(e) {
     if (e.button === 1) _mouseState.midDown = false;
   });
 
-  doc.addEventListener("mousemove", function(e) {
+  _addTrackedListener(doc, "mousemove", function(e) {
     if ((window.__vibexe_editor__ || {}).isEditing) return;
     // Always track cursor position for look-at (Blink: GetPoint)
     _mouseState.mouseX = e.clientX;
@@ -155,7 +178,7 @@ function _attachInputListeners() {
     }
   });
 
-  doc.addEventListener("wheel", function(e) {
+  _addTrackedListener(doc, "wheel", function(e) {
     if ((window.__vibexe_editor__ || {}).isEditing) return;
     // Accumulate scroll for zoom (consumed each frame)
     _mouseState.scrollDelta += e.deltaY;
@@ -745,10 +768,10 @@ var _isSwapping = false;
 function swapCharacter(scene, characterId) {
   if (_isSwapping) { console.log("[CharacterSystem] Swap already in progress, skipping"); return Promise.resolve(false); }
   var charDef = _registry.get(characterId);
-  if (!charDef) { console.warn("[CharacterSystem] Unknown character:", characterId); return Promise.resolve(false); }
+  if (!charDef) { console.warn("[CharacterSystem] Unknown character:", characterId); _isSwapping = false; return Promise.resolve(false); }
 
   var baseUrl = _getVibexeOrigin();
-  if (!baseUrl) { console.warn("[CharacterSystem] No origin available"); return Promise.resolve(false); }
+  if (!baseUrl) { console.warn("[CharacterSystem] No origin available"); _isSwapping = false; return Promise.resolve(false); }
 
   var modelUrl = baseUrl + "/api/app-builder/media-stock-3d/" + charDef.pack + "/" + charDef.model;
 
@@ -1062,7 +1085,7 @@ function swapCharacter(scene, characterId) {
         var _footstepCtx = null;
         var _footstepGain = null;
         try {
-          _footstepCtx = window.AudioContext ? new AudioContext() : null;
+          _footstepCtx = window.AudioContext ? new window.AudioContext() : null;
           if (_footstepCtx) {
             _footstepGain = _footstepCtx.createGain();
             _footstepGain.gain.value = 0.15;
@@ -1600,6 +1623,8 @@ function swapCharacter(scene, characterId) {
             // === 8.5 CURSOR LOOK-AT + IK HEAD (Blink: GetPoint + OnAnimatorIK) ===
             // Raycast from camera through mouse cursor to ground plane at character height.
             // Head/neck/spine track cursor position when mouse is active, fallback to camera direction.
+            // C1 fix: get camera reference BEFORE cursor look-at (was defined 45 lines later)
+            var cam = window.__vibexe_camera__ || (window.__vibexe_editor__ || {}).camera;
             var _ikBones = _csMesh.userData.__ikBones;
             if (_ikBones) {
               // --- Cursor ground raycast (Blink: GetPoint) ---
@@ -1655,7 +1680,7 @@ function swapCharacter(scene, characterId) {
             }
 
             // === 9. CAMERA FOLLOW (Blink: SmoothDamp with orbit) ===
-            var cam = window.__vibexe_camera__ || (window.__vibexe_editor__ || {}).camera;
+            // cam already defined above (section 8.5)
             if (cam && cam.position && _csMesh.visible && !(window.__vibexe_editor__ || {}).isEditing) {
               // Reset smooth velocities if camera was moved externally (editor moved it)
               if (!window.__charCtrl_camActive) {
@@ -2032,10 +2057,18 @@ if (typeof window !== "undefined") {
 (function() {
   if (typeof window === "undefined") return;
 
+  // X3 fix: Clear any previous auto-init interval from prior bundle loads
+  if (window.__charCtrl_autoInitInterval) {
+    clearInterval(window.__charCtrl_autoInitInterval);
+    window.__charCtrl_autoInitInterval = null;
+  }
+  // X2 fix: Reset __charCtrl_active on reload so template WASD isn't permanently disabled
+  window.__charCtrl_active = false;
+
   var _attempts = 0;
   var _interval = setInterval(function() {
     _attempts++;
-    if (_attempts > 150) { clearInterval(_interval); return; }
+    if (_attempts > 150) { clearInterval(_interval); window.__charCtrl_autoInitInterval = null; return; }
 
     var scene = window.__vibexe_scene__;
     if (_attempts <= 3 || _attempts % 25 === 0) {
@@ -2043,6 +2076,7 @@ if (typeof window !== "undefined") {
     }
     if (!scene) return;
     clearInterval(_interval);
+    window.__charCtrl_autoInitInterval = null;
 
     // Create and register module
     _registry = new CharacterRegistry();
@@ -2080,6 +2114,7 @@ if (typeof window !== "undefined") {
       console.log("[CharacterSystem] No character config — standing by for user selection");
     }
   }, 200);
+  window.__charCtrl_autoInitInterval = _interval;
 })();
 
 // CommonJS export

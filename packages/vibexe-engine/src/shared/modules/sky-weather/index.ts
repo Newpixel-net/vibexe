@@ -632,8 +632,10 @@ SkyLighting.prototype.update = function(solarTime, sunDir, cfg) {
   var player = window.__vibexe_playerMesh__;
   if (player) {
     this.sunLight.position.set(player.position.x + sp.x, sp.y, player.position.z + sp.z);
-    this.sunLight.target.position.set(player.position.x, 0, player.position.z);
-    this.sunLight.target.updateMatrixWorld();
+    if (this.sunLight.target) {
+      this.sunLight.target.position.set(player.position.x, 0, player.position.z);
+      this.sunLight.target.updateMatrixWorld();
+    }
   } else {
     this.sunLight.position.copy(sp);
     this.sunLight.target.position.set(0, 0, 0);
@@ -728,6 +730,8 @@ WeatherParticles.prototype.update = function(dt, config) {
   }
 
   if (!this._points || this._count === 0) return;
+  // S2 fix: guard against positions/velocities not initialized (rebuild not called yet)
+  if (!this._positions || !this._velocities) return;
 
   var windDir = (config && config.windDirection !== undefined) ? config.windDirection : 0;
   var windStr = (config && config.windStrength !== undefined) ? config.windStrength : 0.3;
@@ -851,12 +855,16 @@ function LightningEffect(scene) {
 }
 
 LightningEffect.prototype.update = function(dt, config) {
-  if (!config || !config.enabled) {
+  // S4 fix: also treat frequency=0 as disabled, and reset flash state on disable
+  if (!config || !config.enabled || config.frequency === 0) {
     if (this._flashLight) {
       this.scene.remove(this._flashLight);
       this._flashLight = null;
     }
     this._flashing = false;
+    this._flashDur = 0;
+    this._nextFlash = 0;
+    this._timer = 0;
     return;
   }
 
@@ -1171,7 +1179,10 @@ SkyWeatherSystem.prototype._tick = function(dt) {
 SkyWeatherSystem.prototype._updateFog = function() {
   var hz = this.skyDome.getHorizonColor();
   if (!this.scene.fog || !this.scene.fog.__skyWeather) {
-    this.scene.fog = new THREE.FogExp2(0xffffff, this.config.fog.density);
+    // S3 fix: initialize fog with gamma-corrected horizon color (was 0xffffff causing flicker)
+    var initR = Math.pow(hz[0], 2.2), initG = Math.pow(hz[1], 2.2), initB = Math.pow(hz[2], 2.2);
+    this.scene.fog = new THREE.FogExp2(0x000000, this.config.fog.density);
+    this.scene.fog.color.setRGB(initR, initG, initB);
     this.scene.fog.__skyWeather = true;
   }
   var baseDensity = this.config.fog.density;
@@ -1284,6 +1295,11 @@ if (typeof window !== "undefined") {
   };
 
   // Auto-init when scene becomes available
+  // X3 fix: Clear any previous auto-init interval from prior bundle loads
+  if (window.__skyWeather_autoInitInterval) {
+    clearInterval(window.__skyWeather_autoInitInterval);
+    window.__skyWeather_autoInitInterval = null;
+  }
   (function() {
     var attempts = 0;
     var timer = setInterval(function() {
@@ -1291,6 +1307,7 @@ if (typeof window !== "undefined") {
       var scene = window.__vibexe_scene__;
       if (scene && !window.__vibexe_skyWeather) {
         clearInterval(timer);
+        window.__skyWeather_autoInitInterval = null;
         var settings = {};
         try {
           var gs = window.__VIBEXE_GAME_SETTINGS__;
@@ -1309,9 +1326,11 @@ if (typeof window !== "undefined") {
       }
       if (attempts >= 100) {
         clearInterval(timer);
+        window.__skyWeather_autoInitInterval = null;
         console.warn("[SkyWeather] Scene not found after 10s");
       }
     }, 100);
+    window.__skyWeather_autoInitInterval = timer;
   })();
 }
 

@@ -4494,7 +4494,8 @@ export function getVisualEditBridgeScript(): string {
                 }
               }
               var _rScale = { x: _tpW, y: 1.0, z: _tpD };
-              var _rColDesc = _tpRAPIER.ColliderDesc.heightfield(_rNrows - 1, _rNcols - 1, _rHeights, _rScale);
+              // T13 fix: Rapier heightfield expects vertex count, not cell count (was nrows-1, ncols-1)
+              var _rColDesc = _tpRAPIER.ColliderDesc.heightfield(_rNrows, _rNcols, _rHeights, _rScale);
               var _rBodyDesc = _tpRAPIER.RigidBodyDesc.fixed();
               var _rBody = _tpRapierWorld.createRigidBody(_rBodyDesc);
               var _rCollider = _tpRapierWorld.createCollider(_rColDesc, _rBody);

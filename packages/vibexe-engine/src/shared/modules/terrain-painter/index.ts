@@ -789,6 +789,8 @@ TerrainPainter.prototype.destroy = function() {
 // ============================================================
 
 if (typeof window !== 'undefined' && !window.__vibexe_playerMesh__) {
+  // X3 fix: Reset retry counter on reload to prevent stale state
+  window.__vibexe_playerDetectRetry = 0;
   // Poll for scene availability, then find the animated character mesh
   var _detectPlayer = function() {
     if (window.__vibexe_playerMesh__) return; // Already set by newer template
