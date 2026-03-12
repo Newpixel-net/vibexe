@@ -904,6 +904,7 @@ export function SandpackPreview({
 		if (!ov || Object.keys(ov).length === 0) return gs;
 		return { ...gs, animClipOverrides: ov };
 	}, [gameEditor.gameSettings, gameEditor.animClipOverrides]);
+
 	const { toast } = useToasts();
 	const iframeContainerRef = useRef<HTMLDivElement>(null);
 	const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -930,6 +931,17 @@ export function SandpackPreview({
 
 	// Ref for triggering Sandpack refresh from outside SandpackProvider
 	const sandpackRefreshRef = useRef<(() => void) | null>(null);
+
+	// Recompile when animation overrides arrive (async fetch completes after first compile)
+	const prevOverridesLen = useRef(0);
+	useEffect(() => {
+		const len = Object.keys(gameEditor.animClipOverrides || {}).length;
+		if (len > 0 && prevOverridesLen.current === 0) {
+			// Overrides just arrived — force recompile so character system gets renamed clips
+			setTimeout(() => { sandpackRefreshRef.current?.(); }, 200);
+		}
+		prevOverridesLen.current = len;
+	}, [gameEditor.animClipOverrides]);
 
 	// Track whether scene transforms were modified during editor session
 	const sceneModifiedDuringEditRef = useRef(false);
