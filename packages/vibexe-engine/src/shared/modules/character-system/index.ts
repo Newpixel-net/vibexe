@@ -1142,41 +1142,48 @@ function swapCharacter(scene, characterId) {
         var _rapierCollider = null;
         var _rapierKCC = null;
         var _rapierGravityVel = 0;
+        // Deferred KCC init — setTimeout(0) prevents "recursive use" WASM error
+        // when Rapier world is borrowed during bundle re-injection or physics step.
+        // CANNON fallback runs for the first frame(s) until KCC is ready.
         (function() {
           var R = window.RAPIER;
           var rw = window.__vibexe_rapierWorld__;
-          // X6 fix: validate Rapier world is actually a valid World object
           if (!R || !rw || !_csBody || typeof rw.createRigidBody !== 'function') return;
-          // Clean up previous Rapier KCC (character re-swap)
-          if (window.__charCtrl_rapier) {
-            var _old = window.__charCtrl_rapier;
-            try { if (_old.kcc) _old.kcc.free(); } catch(e) {}
-            try { if (_old.collider) rw.removeCollider(_old.collider, true); } catch(e) {}
-            try { if (_old.body) rw.removeRigidBody(_old.body); } catch(e) {}
-            window.__charCtrl_rapier = null;
-          }
-          try {
-            var capsR = 0.25;
-            var capsHH = Math.max(0.1, _csHalfH - capsR);
-            var ip = _csBody.position;
-            var bd = R.RigidBodyDesc.kinematicPositionBased()
-              .setTranslation(ip.x, ip.y, ip.z);
-            _rapierBody = rw.createRigidBody(bd);
-            var cd = R.ColliderDesc.capsule(capsHH, capsR);
-            _rapierCollider = rw.createCollider(cd, _rapierBody);
-            _rapierKCC = rw.createCharacterController(0.01);
-            _rapierKCC.enableSnapToGround(1.5);
-            _rapierKCC.setMaxSlopeClimbAngle(_slopeMaxAngle * Math.PI / 180);
-            _rapierKCC.setMinSlopeSlideAngle(30 * Math.PI / 180);
-            _rapierKCC.enableAutostep(0.15, 0.3, false); // Low step (curbs only), wider min width, no dynamic bodies
-            _rapierKCC.setApplyImpulsesToDynamicBodies(true);
-            _rapierKCC.setUp({ x: 0.0, y: 1.0, z: 0.0 });
-            window.__charCtrl_rapier = { body: _rapierBody, collider: _rapierCollider, kcc: _rapierKCC };
-            _useRapier = true;
-            console.log("[CharacterSystem] Rapier KCC created | capsule r=" + capsR + " hh=" + capsHH.toFixed(2));
-          } catch(e) {
-            console.warn("[CharacterSystem] Rapier KCC failed, CANNON fallback:", e);
-          }
+          setTimeout(function() {
+            var R = window.RAPIER;
+            var rw = window.__vibexe_rapierWorld__;
+            if (!R || !rw || !_csBody) return;
+            // Clean up previous Rapier KCC (character re-swap)
+            if (window.__charCtrl_rapier) {
+              var _old = window.__charCtrl_rapier;
+              try { if (_old.kcc) _old.kcc.free(); } catch(e) {}
+              try { if (_old.collider) rw.removeCollider(_old.collider, true); } catch(e) {}
+              try { if (_old.body) rw.removeRigidBody(_old.body); } catch(e) {}
+              window.__charCtrl_rapier = null;
+            }
+            try {
+              var capsR = 0.25;
+              var capsHH = Math.max(0.1, _csHalfH - capsR);
+              var ip = _csBody.position;
+              var bd = R.RigidBodyDesc.kinematicPositionBased()
+                .setTranslation(ip.x, ip.y, ip.z);
+              _rapierBody = rw.createRigidBody(bd);
+              var cd = R.ColliderDesc.capsule(capsHH, capsR);
+              _rapierCollider = rw.createCollider(cd, _rapierBody);
+              _rapierKCC = rw.createCharacterController(0.01);
+              _rapierKCC.enableSnapToGround(1.5);
+              _rapierKCC.setMaxSlopeClimbAngle(_slopeMaxAngle * Math.PI / 180);
+              _rapierKCC.setMinSlopeSlideAngle(30 * Math.PI / 180);
+              _rapierKCC.enableAutostep(0.15, 0.3, false);
+              _rapierKCC.setApplyImpulsesToDynamicBodies(true);
+              _rapierKCC.setUp({ x: 0.0, y: 1.0, z: 0.0 });
+              window.__charCtrl_rapier = { body: _rapierBody, collider: _rapierCollider, kcc: _rapierKCC };
+              _useRapier = true;
+              console.log("[CharacterSystem] Rapier KCC created | capsule r=" + capsR + " hh=" + capsHH.toFixed(2));
+            } catch(e) {
+              console.warn("[CharacterSystem] Rapier KCC failed, CANNON fallback:", e);
+            }
+          }, 0);
         })();
 
         var newCtrl = {

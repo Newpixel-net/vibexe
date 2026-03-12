@@ -4601,6 +4601,12 @@ export function getVisualEditBridgeScript(): string {
             var _tpRAPIER = window.RAPIER;
             var _tpRapierWorld = window.__vibexe_rapierWorld__;
             if (!_tpRAPIER || !_tpRapierWorld) return;
+            // Defer to next tick — prevents "recursive use" WASM error when
+            // Rapier world is currently borrowed (e.g., during physics step or bundle re-injection)
+            setTimeout(function() {
+            var _tpRAPIER = window.RAPIER;
+            var _tpRapierWorld = window.__vibexe_rapierWorld__;
+            if (!_tpRAPIER || !_tpRapierWorld) return;
             // Remove previous Rapier terrain collider
             if (window.__vibexe_rapierTerrainCollider__) {
               try { _tpRapierWorld.removeCollider(window.__vibexe_rapierTerrainCollider__, true); } catch(e) {}
@@ -4664,6 +4670,7 @@ export function getVisualEditBridgeScript(): string {
                 console.warn("[TerrainPhysics] Both heightfield and trimesh failed:", _tmErr);
               }
             }
+            }, 0); // end setTimeout — deferred Rapier operations
           };
           window.__vibexe_rebuildRapierTerrain();
 
