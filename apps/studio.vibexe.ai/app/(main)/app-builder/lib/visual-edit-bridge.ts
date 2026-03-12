@@ -2324,28 +2324,50 @@ export function getVisualEditBridgeScript(): string {
         });
         if (_hasPBR) _ensurePBREnv();
         showDebug("PBR textures colorSpace verified, env applied");
-        // Fix AnimatedCharacter SkinnedMesh rendering for editor mode.
-        // In detached bindMode, mesh renders at bone world positions (set during game mode),
-        // NOT at the Character_Warrior group position. The bounding box & gizmo are at the
-        // group position, so the mesh appears separated from them.
-        // Fix: switch to attached mode AND rebind skeleton at current pose. This makes the
-        // mesh render at the group position with animation deltas applied locally.
-        // Save original bind state so we can restore on deactivation (game mode needs detached).
+        // Fix AnimatedCharacter position mismatch in editor mode.
+        // The SkinnedMesh world position differs from the Character_Warrior group position
+        // because the inner GLB "Scene" subgroup has a local offset that, when transformed
+        // through the parent's rotation, creates a large world-space gap. The bounding box
+        // and gizmo appear at the group position but the mesh renders elsewhere.
+        // Fix: absorb the inner offset into the group position so they align. DON'T touch
+        // the skeleton/bindMode — that causes mesh corruption. Reverse on deactivation.
         editor.scene.traverse(function(_acNode) {
           if (!_acNode.userData || _acNode.userData.vibexeType !== "AnimatedCharacter") return;
-          _acNode.traverse(function(_acChild) {
-            if (_acChild.isSkinnedMesh && _acChild.skeleton && _acChild.bindMode === "detached") {
-              // Save original bind state for restore on deactivation
-              _acChild.__origBindMatrix = _acChild.bindMatrix.clone();
-              _acChild.__origBoneInverses = _acChild.skeleton.boneInverses.map(function(m) { return m.clone(); });
-              _acChild.__wasDetached = true;
-              // Switch to attached + rebind at current world position
-              _acChild.bindMode = "attached";
-              _acNode.updateWorldMatrix(true, true);
-              _acChild.bind(_acChild.skeleton);
-              showDebug("SkinnedMesh '" + _acChild.name + "' rebound in attached mode for editor");
+          // Find the SkinnedMesh to compute where the mesh actually renders
+          var _acSkm = null;
+          _acNode.traverse(function(_c) { if (!_acSkm && _c.isSkinnedMesh) _acSkm = _c; });
+          if (!_acSkm) return;
+          // Get mesh world position vs group world position
+          var _meshWP = new THREE.Vector3();
+          _acSkm.getWorldPosition(_meshWP);
+          var _groupWP = new THREE.Vector3();
+          _acNode.getWorldPosition(_groupWP);
+          var _dx = _meshWP.x - _groupWP.x, _dy = _meshWP.y - _groupWP.y, _dz = _meshWP.z - _groupWP.z;
+          if (Math.abs(_dx) > 0.5 || Math.abs(_dy) > 0.5 || Math.abs(_dz) > 0.5) {
+            // Save original positions for restore
+            _acNode.__savedGroupPos = _acNode.position.clone();
+            // Find the inner "Scene" or first child-of-child group with nonzero position
+            var _innerGroup = null;
+            for (var _ci = 0; _ci < _acNode.children.length && !_innerGroup; _ci++) {
+              var _ch = _acNode.children[_ci];
+              for (var _cj = 0; _cj < _ch.children.length && !_innerGroup; _cj++) {
+                var _ch2 = _ch.children[_cj];
+                if (_ch2.position.lengthSq() > 0.01) _innerGroup = _ch2;
+              }
             }
-          });
+            if (_innerGroup) {
+              _acNode.__savedInnerGroup = _innerGroup;
+              _acNode.__savedInnerPos = _innerGroup.position.clone();
+              // Move group to mesh world position (where it actually renders)
+              _acNode.position.x += _dx;
+              _acNode.position.y += _dy;
+              _acNode.position.z += _dz;
+              // Zero the inner offset to compensate (so bones stay at same world positions)
+              _innerGroup.position.set(0, 0, 0);
+              _acNode.updateWorldMatrix(false, true);
+              showDebug("AnimChar '" + _acNode.name + "' position aligned: offset=(" + _dx.toFixed(1) + "," + _dy.toFixed(1) + "," + _dz.toFixed(1) + ")");
+            }
+          }
         });
       }, 300);
       // FX auto-apply happens via applySettings message (sent 200ms after bridge loads)
@@ -2607,24 +2629,18 @@ export function getVisualEditBridgeScript(): string {
       if (window.__sculptMouseUp) window.removeEventListener("mouseup", window.__sculptMouseUp, true);
       if (window.__sculptPointerDown) window.removeEventListener("pointerdown", window.__sculptPointerDown, true);
     }
-    // Restore SkinnedMesh bind state (was switched to attached + rebound for editor)
+    // Restore AnimatedCharacter group/inner positions (were adjusted for editor alignment)
     if (editor && editor.scene) {
       editor.scene.traverse(function(_dn) {
-        if (_dn.isSkinnedMesh && _dn.__wasDetached) {
-          _dn.bindMode = "detached";
-          // Restore original bindMatrix and boneInverses so game mode renders correctly
-          if (_dn.__origBindMatrix) {
-            _dn.bindMatrix.copy(_dn.__origBindMatrix);
-            _dn.bindMatrixInverse.copy(_dn.__origBindMatrix).invert();
-            delete _dn.__origBindMatrix;
+        if (_dn.userData && _dn.userData.vibexeType === "AnimatedCharacter" && _dn.__savedGroupPos) {
+          _dn.position.copy(_dn.__savedGroupPos);
+          delete _dn.__savedGroupPos;
+          if (_dn.__savedInnerGroup && _dn.__savedInnerPos) {
+            _dn.__savedInnerGroup.position.copy(_dn.__savedInnerPos);
+            delete _dn.__savedInnerGroup;
+            delete _dn.__savedInnerPos;
           }
-          if (_dn.__origBoneInverses) {
-            for (var _ri = 0; _ri < _dn.__origBoneInverses.length; _ri++) {
-              _dn.skeleton.boneInverses[_ri].copy(_dn.__origBoneInverses[_ri]);
-            }
-            delete _dn.__origBoneInverses;
-          }
-          delete _dn.__wasDetached;
+          _dn.updateWorldMatrix(false, true);
         }
       });
     }
