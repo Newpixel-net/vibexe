@@ -243,7 +243,7 @@ export function GameRuntimeIframe({
 		<div className="relative w-full h-full">
 			<iframe
 				ref={iframeRef}
-				src="/api/app-builder/game-runtime?bv=108"
+				src="/api/app-builder/game-runtime?bv=109"
 				className="w-full h-full border-0"
 				title="Game Preview"
 				allow="autoplay; fullscreen"

@@ -2064,34 +2064,7 @@ export function getVisualEditBridgeScript(): string {
         if (multiBoxHelpers[mbi] && multiBoxHelpers[mbi].object && multiBoxHelpers[mbi].object.parent) { try { multiBoxHelpers[mbi].update(); } catch(e) {} }
       }
     }
-    // Sync SkinnedMesh skeleton for AnimatedCharacter objects (detached bindMode means
-    // mesh renders at bone world positions, not parent position — bridge must fix this)
-    if (editor && editor.scene) {
-      editor.scene.traverse(function(_ac) {
-        if (!_ac.userData || _ac.userData.vibexeType !== "AnimatedCharacter") return;
-        var _skm = null;
-        _ac.traverse(function(_cc) { if (!_skm && _cc.isSkinnedMesh && _cc.skeleton) _skm = _cc; });
-        if (!_skm || _skm.bindMode !== "detached") return;
-        var _rootBone = _skm.skeleton.bones[0];
-        if (!_rootBone) return;
-        // Compute where the mesh currently renders vs where the group is
-        var _groupWP = new (window.THREE.Vector3)();
-        _ac.getWorldPosition(_groupWP);
-        var _boneWP = new (window.THREE.Vector3)();
-        _rootBone.getWorldPosition(_boneWP);
-        var _dx = _groupWP.x - _boneWP.x, _dy = _groupWP.y - _boneWP.y, _dz = _groupWP.z - _boneWP.z;
-        // Only sync if offset is significant (> 0.1 units)
-        if (Math.abs(_dx) > 0.1 || Math.abs(_dy) > 0.1 || Math.abs(_dz) > 0.1) {
-          // Shift all bones by the offset so mesh renders at group position
-          for (var _bi = 0; _bi < _skm.skeleton.bones.length; _bi++) {
-            var _b = _skm.skeleton.bones[_bi];
-            if (_b.parent && _b.parent.isBone) continue; // only move root-level bones
-            _b.position.x += _dx; _b.position.y += _dy; _b.position.z += _dz;
-          }
-          _skm.skeleton.update();
-        }
-      });
-    }
+    // SkinnedMesh skeleton sync handled by bindMode switch in activateBridge/deactivate
     // Update preview camera position (follows player character) — skip when user-dragging
     if (previewCamera && !cameraSelected) updatePreviewCamera();
     // Update camera frustum helper — sync display camera with preview camera position/rotation
@@ -2351,6 +2324,20 @@ export function getVisualEditBridgeScript(): string {
         });
         if (_hasPBR) _ensurePBREnv();
         showDebug("PBR textures colorSpace verified, env applied");
+        // Switch AnimatedCharacter SkinnedMeshes from detached→attached bindMode.
+        // In detached mode, mesh renders at bone world positions (set during game mode),
+        // ignoring the group's current position. Attached mode tracks the mesh's world
+        // matrix so moving the Character_Warrior group moves the visual mesh too.
+        editor.scene.traverse(function(_acNode) {
+          if (!_acNode.userData || _acNode.userData.vibexeType !== "AnimatedCharacter") return;
+          _acNode.traverse(function(_acChild) {
+            if (_acChild.isSkinnedMesh && _acChild.skeleton && _acChild.bindMode === "detached") {
+              _acChild.bindMode = "attached";
+              _acChild.__wasDetached = true;
+              showDebug("SkinnedMesh '" + _acChild.name + "' switched to attached bindMode for editor");
+            }
+          });
+        });
       }, 300);
       // FX auto-apply happens via applySettings message (sent 200ms after bridge loads)
       // Prevent right-click context menu on canvas (for flythrough mode)
@@ -2610,6 +2597,15 @@ export function getVisualEditBridgeScript(): string {
       if (window.__sculptMouseDown) window.removeEventListener("mousedown", window.__sculptMouseDown, true);
       if (window.__sculptMouseUp) window.removeEventListener("mouseup", window.__sculptMouseUp, true);
       if (window.__sculptPointerDown) window.removeEventListener("pointerdown", window.__sculptPointerDown, true);
+    }
+    // Restore SkinnedMesh bindMode to detached (was switched to attached for editor)
+    if (editor && editor.scene) {
+      editor.scene.traverse(function(_dn) {
+        if (_dn.isSkinnedMesh && _dn.__wasDetached) {
+          _dn.bindMode = "detached";
+          delete _dn.__wasDetached;
+        }
+      });
     }
     deselectObject();
     clearMultiHighlight();
