@@ -85,6 +85,12 @@ export function GameRuntimeIframe({
 				? JSON.parse(settingsFile.content)
 				: gameSettingsRef.current || {};
 
+			// Merge animation clip overrides from parent (stored separately via API, not in settings file)
+			const parentOverrides = gameSettingsRef.current?.animClipOverrides;
+			if (parentOverrides && typeof parentOverrides === "object" && Object.keys(parentOverrides).length > 0) {
+				settings.animClipOverrides = parentOverrides;
+			}
+
 			console.log(`[GameRuntime] Compiling ${compileFiles.length} files...`);
 
 			const resp = await fetch("/api/app-builder/compile", {
@@ -243,7 +249,7 @@ export function GameRuntimeIframe({
 		<div className="relative w-full h-full">
 			<iframe
 				ref={iframeRef}
-				src="/api/app-builder/game-runtime?bv=145"
+				src="/api/app-builder/game-runtime?bv=146"
 				className="w-full h-full border-0"
 				title="Game Preview"
 				allow="autoplay; fullscreen"
