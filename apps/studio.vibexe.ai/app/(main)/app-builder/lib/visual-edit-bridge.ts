@@ -2392,6 +2392,13 @@ export function getVisualEditBridgeScript(): string {
               _innerGroup.position.set(0, 0, 0);
               _acNode.updateWorldMatrix(false, true);
               showDebug("AnimChar '" + _acNode.name + "': attached+aligned (" + _dx.toFixed(1) + "," + _dy.toFixed(1) + "," + _dz.toFixed(1) + ")");
+              // Fix timing race: if this character was already selected before redistribution,
+              // re-send properties and update bbox so panel shows correct position
+              if (selectedObj === _acNode) {
+                sendSelectedObject(_acNode);
+                if (boxHelper && boxHelper.update) try { boxHelper.update(); } catch(e) {}
+                showDebug("AnimChar re-sent selection after redistribution");
+              }
             }
           } else {
             showDebug("AnimChar '" + _acNode.name + "': attached mode (already aligned)");
