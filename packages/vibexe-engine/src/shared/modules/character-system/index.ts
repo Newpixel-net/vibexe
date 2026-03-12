@@ -10,7 +10,9 @@
  * - Production-quality GLTFLoader (bone measurement, pivot correction, scale cap)
  * - Scored animation matching with alias fallbacks (incl. fall/land)
  * - Root motion stripping (locks XZ on root bones, keeps Y hip-bob)
- * - IK Head Look-At: head/neck/spine track camera direction (Blink OnAnimatorIK port)
+ * - IK Head Look-At: head/neck/spine track cursor/camera direction (Blink OnAnimatorIK port)
+ * - Cursor Look-At: raycast camera→ground through mouse, head follows cursor (Blink GetPoint)
+ * - Camera Mouse Offset: subtle camera shift toward cursor for "look ahead" feel
  * - Terrain-aware falling detection (ground distance + velocity threshold)
  * - Scene hierarchy integration (Character_ prefix, userData)
  * - Mesh swap with old mesh disposal and stale mesh cleanup
@@ -63,7 +65,7 @@ var _ROOT_BONE_NAMES = {
 // ===== INPUT STATE (Module-level, shared by all controllers) =====
 // Keyboard input tracking — camera-relative WASD movement (Blink-style)
 var _inputState = { w: false, a: false, s: false, d: false, shift: false, space: false };
-var _mouseState = { midDown: false, lastX: 0, lastY: 0, scrollDelta: 0 };
+var _mouseState = { midDown: false, lastX: 0, lastY: 0, scrollDelta: 0, mouseX: 0, mouseY: 0, mouseActive: false, mouseIdleTimer: 0 };
 var _inputListenersAttached = false;
 var _activeSnapTimer = null;
 
@@ -120,6 +122,11 @@ function _attachInputListeners() {
 
   doc.addEventListener("mousemove", function(e) {
     if ((window.__vibexe_editor__ || {}).isEditing) return;
+    // Always track cursor position for look-at (Blink: GetPoint)
+    _mouseState.mouseX = e.clientX;
+    _mouseState.mouseY = e.clientY;
+    _mouseState.mouseActive = true;
+    _mouseState.mouseIdleTimer = 0;
     if (_mouseState.midDown) {
       var dx = e.clientX - _mouseState.lastX;
       var dy = e.clientY - _mouseState.lastY;
@@ -996,6 +1003,19 @@ function swapCharacter(scene, characterId) {
         var _ikHeadDelta = 0;
         var _ikHeadVel = 0;
 
+        // Cursor look-at state (Blink: GetPoint → ground plane raycast)
+        var _cursorRay = new THREE.Raycaster();
+        var _cursorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        var _cursorTarget = new THREE.Vector3();
+        var _cursorLookYaw = 0;
+        var _cursorActive = false;
+
+        // Camera mouse offset state (Blink: maxOffset, offsetDampTime)
+        var _camOffsetX = 0, _camOffsetZ = 0;
+        var _camOffsetVelX = 0, _camOffsetVelZ = 0;
+        var _camOffsetMax = _gsChar.camMouseOffset || 0.8;
+        var _camOffsetSmooth = _gsChar.camOffsetDampTime || 0.25;
+
         var newCtrl = {
           __charSystem: true,
           update: function(dt) {
@@ -1145,13 +1165,42 @@ function swapCharacter(scene, characterId) {
               _csLastAnim = targetAnim;
             }
 
-            // === 8.5 IK HEAD LOOK-AT (Blink: OnAnimatorIK port) ===
-            // After animation mixer sets bone poses, additively rotate head/neck/spine
-            // toward camera direction. Mimics Unity's SetLookAtWeight + SetLookAtPosition.
+            // === 8.5 CURSOR LOOK-AT + IK HEAD (Blink: GetPoint + OnAnimatorIK) ===
+            // Raycast from camera through mouse cursor to ground plane at character height.
+            // Head/neck/spine track cursor position when mouse is active, fallback to camera direction.
             var _ikBones = _csMesh.userData.__ikBones;
             if (_ikBones) {
-              // Camera looks TOWARD player from behind — flip for character look direction
-              var _lookYaw = (orbitYaw || 0) + Math.PI;
+              // --- Cursor ground raycast (Blink: GetPoint) ---
+              // Decay mouse activity timer (fallback to camera after 2s idle)
+              _mouseState.mouseIdleTimer += dt;
+              _cursorActive = _mouseState.mouseActive && _mouseState.mouseIdleTimer < 2.0;
+
+              var _lookYaw;
+              if (_cursorActive && cam) {
+                // NDC from mouse position (iframe viewport coordinates)
+                var _vw = window.innerWidth || 800;
+                var _vh = window.innerHeight || 600;
+                var _ndcX = (_mouseState.mouseX / _vw) * 2 - 1;
+                var _ndcY = -(_mouseState.mouseY / _vh) * 2 + 1;
+                // Raycast from camera through mouse to horizontal plane at character Y
+                _cursorPlane.constant = -(_csMesh.position.y + _csHalfH);
+                _cursorRay.setFromCamera(new THREE.Vector2(_ndcX, _ndcY), cam);
+                var _hitDist = _cursorRay.ray.distanceToPlane(_cursorPlane);
+                if (_hitDist !== null && _hitDist > 0) {
+                  _cursorRay.ray.at(_hitDist, _cursorTarget);
+                  // Angle from character to cursor point (Blink: atan2 formula)
+                  var _dx = _cursorTarget.x - _csMesh.position.x;
+                  var _dz = _cursorTarget.z - _csMesh.position.z;
+                  _cursorLookYaw = Math.atan2(_dx, _dz);
+                  _lookYaw = _cursorLookYaw;
+                } else {
+                  _lookYaw = (orbitYaw || 0) + Math.PI;
+                }
+              } else {
+                // Fallback: camera direction (Phase 1 behavior)
+                _lookYaw = (orbitYaw || 0) + Math.PI;
+              }
+
               var _faceYaw = _csMesh.rotation.y;
               // Delta angle: how far to turn head from body facing
               var _rawDelta = _lookYaw - _faceYaw;
@@ -1188,6 +1237,30 @@ function swapCharacter(scene, characterId) {
               var camTargetX = _csMesh.position.x + Math.sin(orbitYaw) * camHorizDist;
               var camTargetY = _csMesh.position.y + camVertDist + 1.0;
               var camTargetZ = _csMesh.position.z + Math.cos(orbitYaw) * camHorizDist;
+
+              // === Camera mouse offset (Blink: maxOffset, offsetDampTime) ===
+              // Shift camera slightly toward cursor direction for "look ahead" feel
+              if (_cursorActive && _camOffsetMax > 0) {
+                var _offDx = _cursorTarget.x - _csMesh.position.x;
+                var _offDz = _cursorTarget.z - _csMesh.position.z;
+                var _offLen = Math.sqrt(_offDx * _offDx + _offDz * _offDz);
+                if (_offLen > 0.1) {
+                  var _offNx = (_offDx / _offLen) * _camOffsetMax;
+                  var _offNz = (_offDz / _offLen) * _camOffsetMax;
+                  var _sdOx = _smoothDamp(_camOffsetX, _offNx, _camOffsetVelX, _camOffsetSmooth, dt);
+                  var _sdOz = _smoothDamp(_camOffsetZ, _offNz, _camOffsetVelZ, _camOffsetSmooth, dt);
+                  _camOffsetX = _sdOx.value; _camOffsetVelX = _sdOx.velocity;
+                  _camOffsetZ = _sdOz.value; _camOffsetVelZ = _sdOz.velocity;
+                }
+              } else {
+                // Decay offset when cursor inactive
+                var _sdOx2 = _smoothDamp(_camOffsetX, 0, _camOffsetVelX, 0.3, dt);
+                var _sdOz2 = _smoothDamp(_camOffsetZ, 0, _camOffsetVelZ, 0.3, dt);
+                _camOffsetX = _sdOx2.value; _camOffsetVelX = _sdOx2.velocity;
+                _camOffsetZ = _sdOz2.value; _camOffsetVelZ = _sdOz2.velocity;
+              }
+              camTargetX += _camOffsetX;
+              camTargetZ += _camOffsetZ;
 
               // SmoothDamp per axis (Blink: dampTime 0.1s)
               var sdX = _smoothDamp(cam.position.x, camTargetX, _camVelX, _camFollowSmoothTime, dt);
@@ -1253,8 +1326,12 @@ function swapCharacter(scene, characterId) {
                 }
               }
 
-              // Look at player + Y offset
-              cam.lookAt(_csMesh.position.x, _csMesh.position.y + _camLookYOffset, _csMesh.position.z);
+              // Look at player + Y offset + cursor offset (camera looks slightly ahead of player)
+              cam.lookAt(
+                _csMesh.position.x + _camOffsetX * 0.5,
+                _csMesh.position.y + _camLookYOffset,
+                _csMesh.position.z + _camOffsetZ * 0.5
+              );
             }
           }
         };
@@ -1449,7 +1526,7 @@ module.exports = {
 export const CHARACTER_SYSTEM_MANIFEST: ModuleManifest = {
 	id: "character-system",
 	name: "Character System",
-	version: "6.1.0",
+	version: "6.2.0",
 	category: "tools",
 	description: "Player character selection and model swapping",
 	icon: "PersonStanding",
