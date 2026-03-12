@@ -206,14 +206,21 @@ export function GameRuntimeIframe({
 		// Fallback: if runtime-ready was already sent before listener attached,
 		// check via iframe contentWindow and force compile after a timeout
 		const fallbackTimer = setTimeout(() => {
-			if (!hasTriggeredCompile.current && !runtimeReady.current) {
+			if (!runtimeReady.current) {
 				const iframe = iframeRef.current;
 				const iframeWin = iframe?.contentWindow as Window & { __vibexe_libs_ready__?: boolean } | null;
 				if (iframeWin?.__vibexe_libs_ready__) {
 					console.log("[GameRuntime] Fallback: runtime was ready but message was missed");
 					runtimeReady.current = true;
 					hasTriggeredCompile.current = true;
-					compileAndInject();
+					// Inject pending bundle if one exists (from compile that finished while runtime wasn't ready)
+					if (pendingBundle.current && iframe?.contentWindow) {
+						console.log("[GameRuntime] Fallback: injecting pending bundle");
+						injectBundle(iframe.contentWindow, pendingBundle.current.bootstrap, pendingBundle.current.bundle);
+						pendingBundle.current = null;
+					} else {
+						compileAndInject();
+					}
 				}
 			}
 		}, 3000);
@@ -249,7 +256,7 @@ export function GameRuntimeIframe({
 		<div className="relative w-full h-full">
 			<iframe
 				ref={iframeRef}
-				src="/api/app-builder/game-runtime?bv=148"
+				src="/api/app-builder/game-runtime?bv=149"
 				className="w-full h-full border-0"
 				title="Game Preview"
 				allow="autoplay; fullscreen"
