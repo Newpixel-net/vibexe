@@ -628,7 +628,7 @@ if (typeof window !== 'undefined') {
                 else if (/^Rock|^Paving/i.test(_fn)) _ns=1.2; else if (/^Wood|^WoodFloor|^Planks/i.test(_fn)) _ns=0.6;
                 else if (/^Concrete|^Plaster/i.test(_fn)) _ns=0.8; else if (/^Fabric|^Leather|^Carpet/i.test(_fn)) _ns=0.5;
                 else if (/^Marble|^Granite|^Onyx|^Travertine/i.test(_fn)) _ns=0.7;
-                var _urls = [_tu, _b+'_Normal'+_e, _b+'_Roughness'+_e, _isM?_b+'_Metalness'+_e:'', _b+'_AO'+_e];
+                var _urls = [_tu, _b+'_Normal'+_e, _b+'_Roughness'+_e, _isM?_b+'_Metalness'+_e:'', ''];
                 var _cnt=0, _res=[null,null,null,null,null];
                 for (var _qi=0; _qi<5; _qi++) { (function(idx){ _loadT(_urls[idx], function(tex){ _res[idx]=tex; _cnt++; if(_cnt===5){
                   var cT=_res[0],nT=_res[1],rT=_res[2],mT=_res[3],aT=_res[4];
