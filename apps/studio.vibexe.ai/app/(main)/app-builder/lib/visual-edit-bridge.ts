@@ -2304,6 +2304,8 @@ export function getVisualEditBridgeScript(): string {
         }, 250);
       }
       showDebug("Bridge ACTIVATED. Canvas: " + editor.renderer.domElement.tagName + " " + editor.renderer.domElement.width + "x" + editor.renderer.domElement.height);
+      // Signal editor mode to character controller (stops position/camera sync)
+      window.__vibexe_editor_active = true;
       // On activation, ensure texture colorSpace is correct and env maps are applied
       setTimeout(function() {
         var _hasPBR = false;
@@ -2324,6 +2326,17 @@ export function getVisualEditBridgeScript(): string {
         });
         if (_hasPBR) _ensurePBREnv();
         showDebug("PBR textures colorSpace verified, env applied");
+        // Suspend character system controllers so they don't overwrite positions during editor mode
+        if (window._activeControllers3D) {
+          window.__savedCharControllers3D = [];
+          for (var _sci = window._activeControllers3D.length - 1; _sci >= 0; _sci--) {
+            if (window._activeControllers3D[_sci] && window._activeControllers3D[_sci].__charSystem) {
+              window.__savedCharControllers3D.push(window._activeControllers3D[_sci]);
+              window._activeControllers3D.splice(_sci, 1);
+            }
+          }
+          if (window.__savedCharControllers3D.length) showDebug("Suspended " + window.__savedCharControllers3D.length + " charSystem controllers");
+        }
         // Fix AnimatedCharacter position mismatch in editor mode.
         // The SkinnedMesh world position differs from the Character_Warrior group position
         // because the inner GLB "Scene" subgroup has a local offset that, when transformed
@@ -2629,6 +2642,8 @@ export function getVisualEditBridgeScript(): string {
       if (window.__sculptMouseUp) window.removeEventListener("mouseup", window.__sculptMouseUp, true);
       if (window.__sculptPointerDown) window.removeEventListener("pointerdown", window.__sculptPointerDown, true);
     }
+    // Clear editor-active flag so character controller resumes position sync
+    window.__vibexe_editor_active = false;
     // Restore AnimatedCharacter group/inner positions (were adjusted for editor alignment)
     if (editor && editor.scene) {
       editor.scene.traverse(function(_dn) {
@@ -2643,6 +2658,13 @@ export function getVisualEditBridgeScript(): string {
           _dn.updateWorldMatrix(false, true);
         }
       });
+    }
+    // Restore suspended character system controllers
+    if (window.__savedCharControllers3D && window._activeControllers3D) {
+      for (var _rci = 0; _rci < window.__savedCharControllers3D.length; _rci++) {
+        window._activeControllers3D.push(window.__savedCharControllers3D[_rci]);
+      }
+      delete window.__savedCharControllers3D;
     }
     deselectObject();
     clearMultiHighlight();

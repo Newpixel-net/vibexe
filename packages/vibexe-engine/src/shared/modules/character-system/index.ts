@@ -964,6 +964,8 @@ function swapCharacter(scene, characterId) {
           __charSystem: true,
           update: function(dt) {
             if (!_csBody || !_csPlay) return;
+            // Skip position/camera/input sync while scene editor is active
+            if (window.__vibexe_editor_active) return;
             dt = Math.min(dt, 0.05); // Cap dt to prevent huge jumps on lag spikes
 
             // === 1. READ INPUT — Camera-relative WASD (Blink-style) ===
