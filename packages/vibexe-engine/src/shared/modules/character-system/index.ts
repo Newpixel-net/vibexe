@@ -1526,11 +1526,144 @@ function swapCharacter(scene, characterId) {
           }
         };
 
+        // === 10. RUNTIME DIAGNOSTIC OVERLAY ===
+        // Creates an in-game debug HUD that logs physics metrics every frame.
+        // Accessible via window.__vibexe_diagnostics__ for programmatic reading.
+        // Toggle: press Backtick/Tilde key to show/hide
+        var _diagEnabled = false;
+        var _diagEl = null;
+        var _diagData = {
+          fps: 0, frameCount: 0, fpsAccum: 0, fpsTimer: 0,
+          bodyY: 0, terrainY: 0, yAboveTerrain: 0,
+          velX: 0, velY: 0, velZ: 0, speed: 0,
+          posX: 0, posY: 0, posZ: 0,
+          isGrounded: false, animState: "",
+          // Jitter detection
+          lastBodyY: 0, yDeltaMax: 0, yDeltaAvg: 0, yDeltaSamples: [],
+          // Penetration counter
+          penetrationCount: 0, penetrationFrames: 0,
+          // Stuck detection
+          lastPosX: 0, lastPosZ: 0, stuckFrames: 0, stuckDetected: false,
+          // Slope info
+          slopeAngle: 0, slopeMultiplier: 1
+        };
+        window.__vibexe_diagnostics__ = _diagData;
+
+        // Create HUD element
+        try {
+          _diagEl = document.createElement("div");
+          _diagEl.id = "__vibexe_diag_hud__";
+          _diagEl.style.cssText = "position:fixed;top:40px;left:8px;z-index:99999;font:11px/1.4 monospace;color:#0f0;background:rgba(0,0,0,0.75);padding:8px 10px;border-radius:4px;pointer-events:none;white-space:pre;display:none;min-width:260px;";
+          document.body.appendChild(_diagEl);
+        } catch(e) {}
+
+        // Toggle with backtick key
+        window.addEventListener("keydown", function(e) {
+          if (e.key === "\`" || e.code === "Backquote") {
+            _diagEnabled = !_diagEnabled;
+            if (_diagEl) _diagEl.style.display = _diagEnabled ? "block" : "none";
+          }
+        });
+
+        // Diagnostic update — runs at end of controller update
+        var _origUpdate = newCtrl.update;
+        newCtrl.update = function(dt) {
+          _origUpdate.call(this, dt);
+          if (!_csBody) return;
+
+          var d = _diagData;
+          // FPS
+          d.frameCount++;
+          d.fpsAccum += dt;
+          d.fpsTimer += dt;
+          if (d.fpsTimer >= 0.5) {
+            d.fps = Math.round(d.frameCount / d.fpsAccum);
+            d.frameCount = 0; d.fpsAccum = 0; d.fpsTimer = 0;
+          }
+
+          // Position + velocity
+          d.posX = _csBody.position.x;
+          d.posY = _csBody.position.y;
+          d.posZ = _csBody.position.z;
+          d.velX = _csBody.velocity ? _csBody.velocity.x : 0;
+          d.velY = _csBody.velocity ? _csBody.velocity.y : 0;
+          d.velZ = _csBody.velocity ? _csBody.velocity.z : 0;
+          d.speed = Math.sqrt(d.velX * d.velX + d.velZ * d.velZ);
+          d.isGrounded = !!_csBody.__canJump;
+          d.animState = _csLastAnim || "?";
+
+          // Terrain comparison
+          var _getHDiag = window.__vibexe_getTerrainHeight;
+          if (_getHDiag) {
+            var _thDiag = _getHDiag(_csMesh.position.x, _csMesh.position.z);
+            if (_thDiag != null) {
+              d.terrainY = _thDiag;
+              d.bodyY = _csBody.position.y;
+              d.yAboveTerrain = _csMesh.position.y - _thDiag;
+
+              // Penetration: mesh feet below terrain
+              if (d.yAboveTerrain < -0.05) {
+                d.penetrationCount++;
+                d.penetrationFrames++;
+              } else {
+                d.penetrationFrames = 0;
+              }
+            }
+          }
+
+          // Y jitter detection (frame-to-frame delta)
+          var _yDelta = Math.abs(d.bodyY - d.lastBodyY);
+          d.lastBodyY = d.bodyY;
+          d.yDeltaSamples.push(_yDelta);
+          if (d.yDeltaSamples.length > 60) d.yDeltaSamples.shift();
+          d.yDeltaMax = 0;
+          var _ySum = 0;
+          for (var _di = 0; _di < d.yDeltaSamples.length; _di++) {
+            _ySum += d.yDeltaSamples[_di];
+            if (d.yDeltaSamples[_di] > d.yDeltaMax) d.yDeltaMax = d.yDeltaSamples[_di];
+          }
+          d.yDeltaAvg = _ySum / d.yDeltaSamples.length;
+
+          // Stuck detection: position barely moving despite input
+          var _posDX = Math.abs(d.posX - d.lastPosX);
+          var _posDZ = Math.abs(d.posZ - d.lastPosZ);
+          d.lastPosX = d.posX;
+          d.lastPosZ = d.posZ;
+          if (d.speed > 0.5 && _posDX + _posDZ < 0.001) {
+            d.stuckFrames++;
+            d.stuckDetected = d.stuckFrames > 10;
+          } else {
+            d.stuckFrames = 0;
+            d.stuckDetected = false;
+          }
+
+          // Update HUD
+          if (_diagEnabled && _diagEl) {
+            var _jitterColor = d.yDeltaMax > 0.3 ? "#f44" : d.yDeltaMax > 0.1 ? "#fa0" : "#0f0";
+            var _penColor = d.penetrationFrames > 0 ? "#f44" : "#0f0";
+            var _stuckColor = d.stuckDetected ? "#f44" : "#0f0";
+            _diagEl.innerHTML =
+              "<span style='color:#0af'>== PHYSICS DIAGNOSTICS ==</span>\\n" +
+              "FPS: " + d.fps + " | Anim: " + d.animState + "\\n" +
+              "Pos: " + d.posX.toFixed(2) + ", " + d.posY.toFixed(2) + ", " + d.posZ.toFixed(2) + "\\n" +
+              "Vel: " + d.velX.toFixed(2) + ", " + d.velY.toFixed(2) + ", " + d.velZ.toFixed(2) + " (spd:" + d.speed.toFixed(1) + ")\\n" +
+              "Ground: " + (d.isGrounded ? "<span style='color:#0f0'>YES</span>" : "<span style='color:#f44'>NO</span>") + "\\n" +
+              "<span style='color:#0af'>-- TERRAIN --</span>\\n" +
+              "Body Y:    " + d.bodyY.toFixed(3) + "\\n" +
+              "Terrain Y: " + d.terrainY.toFixed(3) + "\\n" +
+              "Above:     <span style='color:" + _penColor + "'>" + d.yAboveTerrain.toFixed(3) + "</span>\\n" +
+              "Penetrate: <span style='color:" + _penColor + "'>" + d.penetrationCount + " total, " + d.penetrationFrames + " consecutive</span>\\n" +
+              "<span style='color:#0af'>-- QUALITY --</span>\\n" +
+              "Y Jitter:  <span style='color:" + _jitterColor + "'>max=" + d.yDeltaMax.toFixed(4) + " avg=" + d.yDeltaAvg.toFixed(4) + "</span>\\n" +
+              "Stuck:     <span style='color:" + _stuckColor + "'>" + (d.stuckDetected ? "YES (" + d.stuckFrames + " frames)" : "no") + "</span>";
+          }
+        };
+
         if (window._activeControllers3D) {
           window._activeControllers3D.push(newCtrl);
         }
-        console.log("[CharacterSystem] Blink controller v6.0 created | animMap:", Object.keys(animMap).join(","),
-          "| speeds:", _walkSpeed + "/" + _runSpeed, "| camDist:", _camDist.toFixed(1), "| orbit/zoom enabled");
+        console.log("[CharacterSystem] Blink controller v7.0 created | animMap:", Object.keys(animMap).join(","),
+          "| speeds:", _walkSpeed + "/" + _runSpeed, "| camDist:", _camDist.toFixed(1), "| diag: press \` to toggle");
       }
 
       // === Post-terrain snap: poll for terrain height, snap character when available ===
