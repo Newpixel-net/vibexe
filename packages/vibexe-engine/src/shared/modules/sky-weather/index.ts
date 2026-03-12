@@ -1363,6 +1363,13 @@ if (typeof window !== "undefined") {
       attempts++;
       var scene = window.__vibexe_scene__;
       // S9 fix: also check THREE is available before constructing sky dome
+      // Detect scene change: if sky-weather exists but on a stale scene (bundle re-injection),
+      // destroy the old instance so it re-creates on the current scene
+      if (scene && window.__vibexe_skyWeather && window.__vibexe_skyWeather.scene !== scene) {
+        console.log("[SkyWeather] Scene changed (bundle re-injected), re-initializing");
+        try { window.__vibexe_skyWeather.destroy(); } catch(e) {}
+        window.__vibexe_skyWeather = null;
+      }
       if (scene && typeof THREE !== 'undefined' && !window.__vibexe_skyWeather) {
         clearInterval(timer);
         window.__skyWeather_autoInitInterval = null;

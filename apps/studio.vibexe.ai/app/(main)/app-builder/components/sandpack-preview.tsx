@@ -454,10 +454,11 @@ function updateTransformInSource(
 		...(visible === false ? { v: 0 } : existingVis !== undefined ? { v: existingVis } : {}),
 	};
 
-	// Merge deleted objects list
+	// Merge deleted objects list (skip internal system objects like __skyDome__, __weatherParticles__)
 	if (deletedNames && deletedNames.length > 0) {
-		const existing: string[] = overrides.__deleted || [];
-		overrides.__deleted = Array.from(new Set([...existing, ...deletedNames]));
+		const filtered = deletedNames.filter((n: string) => !n.startsWith("__"));
+		const existing: string[] = (overrides.__deleted || []).filter((n: string) => !n.startsWith("__"));
+		overrides.__deleted = Array.from(new Set([...existing, ...filtered]));
 		for (const dn of overrides.__deleted) delete overrides[dn]; // no point keeping transforms for deleted objects
 	}
 
@@ -539,7 +540,7 @@ if (typeof window !== 'undefined') {
       var _inEditor = !!window.__vibexe_editor__;
       if (_ov.__deleted && _ov.__deleted.length) {
         var _rm = [];
-        s.traverse(function(o) { if (o.name && _ov.__deleted.indexOf(o.name) !== -1) _rm.push(o); });
+        s.traverse(function(o) { if (o.name && o.name.substring(0,2) !== "__" && _ov.__deleted.indexOf(o.name) !== -1) _rm.push(o); });
 
         _rm.forEach(function(o) {
           if (o.parent) o.parent.remove(o);
