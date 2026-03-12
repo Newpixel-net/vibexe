@@ -1543,6 +1543,17 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 		};
 	}
 
+	// Inject Rapier.js shim — maps @dimforge/rapier3d-compat to window.RAPIER global
+	// (Rapier WASM is loaded by the lightweight runtime; sandpack path gets an empty fallback)
+	sandpackFiles["/node_modules/@dimforge/rapier3d-compat/package.json"] = {
+		code: JSON.stringify({ name: "@dimforge/rapier3d-compat", version: "0.19.3", main: "index.js" }),
+		hidden: true,
+	};
+	sandpackFiles["/node_modules/@dimforge/rapier3d-compat/index.js"] = {
+		code: "module.exports = window.RAPIER || {};",
+		hidden: true,
+	};
+
 	// ---- Vibexe Module Injection ----
 	// Modules are self-contained feature packages injected as /node_modules/@vibexe/{id}/
 	// They're only loaded if:

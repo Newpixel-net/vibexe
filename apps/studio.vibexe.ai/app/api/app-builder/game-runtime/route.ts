@@ -4,7 +4,7 @@
  * Serves a lightweight HTML page that:
  * 1. Loads Three.js r172 as UMD (sets window.THREE)
  * 2. Loads Three.js addons (GLTFLoader, OrbitControls, TransformControls, post-processing)
- * 3. Loads CANNON.js (sets window.CANNON)
+ * 3. Loads CANNON.js (sets window.CANNON) + Rapier.js WASM (sets window.RAPIER)
  * 4. Loads the visual-edit-bridge for scene editing
  * 5. Receives compiled game bundle via postMessage
  *
@@ -67,6 +67,18 @@ var loaded = ['GLTFLoader','OrbitControls','TransformControls','EffectComposer']
   .filter(function(n) { return !!T[n]; }).length;
 console.log('[Runtime] Three.js r' + T.REVISION + ' loaded with ' + loaded + '/4 core addons');
 console.log('[Runtime] CANNON.js loaded');
+
+// Load Rapier.js physics (WASM — async init required)
+// Using dynamic import so CANNON still works if Rapier fails to load
+try {
+  var _rapierMod = await import('https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.19.3/+esm');
+  var _RAPIER = _rapierMod.default || _rapierMod;
+  await _RAPIER.init();
+  window.RAPIER = _RAPIER;
+  console.log('[Runtime] Rapier.js WASM physics loaded');
+} catch (_rapierErr) {
+  console.warn('[Runtime] Rapier.js failed to load (CANNON.js only):', _rapierErr);
+}
 
 // Signal that libraries are ready (bridge and game code wait for this)
 window.__vibexe_libs_ready__ = true;

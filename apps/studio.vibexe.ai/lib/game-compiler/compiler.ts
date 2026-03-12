@@ -32,10 +32,11 @@ function normalizePath(p: string): string {
 }
 
 function createVirtualPlugin(files: Map<string, string>): esbuild.Plugin {
-	// Shim modules: Three.js + CANNON.js + React as window globals
+	// Shim modules: Three.js + CANNON.js + Rapier.js + React as window globals
 	const shims: Record<string, string> = {
 		three: "module.exports = window.THREE;",
 		"cannon-es": "module.exports = window.CANNON;",
+		"@dimforge/rapier3d-compat": "module.exports = window.RAPIER || {};",
 		react: "module.exports = window.React || {};",
 		"react-dom": "module.exports = window.ReactDOM || {};",
 		"react-dom/client": "module.exports = { createRoot: (window.ReactDOM||{}).createRoot };",
@@ -306,7 +307,7 @@ function findFileByName(files: Map<string, string>, name: string): string | null
  * This works because:
  * - assets-3d.ts sets ALL factory functions on window via Object.assign(window, {...})
  * - GameScene3D.ts uses those globals directly
- * - The runtime page already loads Three.js + CANNON.js as ES modules
+ * - The runtime page already loads Three.js + CANNON.js + Rapier.js as ES modules
  * - The bridge is loaded as a separate script (/api/app-builder/bridge)
  */
 function generateGameEntry(gameScenePath: string, assetsPath: string | null, enabledModuleIds?: string[]): string {
