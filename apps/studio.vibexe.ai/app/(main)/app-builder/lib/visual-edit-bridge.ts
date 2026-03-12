@@ -3659,9 +3659,9 @@ export function getVisualEditBridgeScript(): string {
         if (_perfS) {
           var _perfRenderer = window.__vibexe_renderer__ || (editor && editor.renderer);
           if (_perfRenderer) {
-            // Pixel ratio
+            // Pixel ratio — cap at 1.0 for game mode (rendering at 2x costs 4x pixels for minimal gain)
             if (_perfS.pixelRatio != null) {
-              _perfRenderer.setPixelRatio(Math.max(0.5, Math.min(2, _perfS.pixelRatio)));
+              _perfRenderer.setPixelRatio(Math.max(0.5, Math.min(1.0, _perfS.pixelRatio)));
             }
             // Shadow quality based on preset
             if (_perfS.qualityPreset === "low") {
