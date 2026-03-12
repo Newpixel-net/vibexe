@@ -172,6 +172,20 @@ export function patchGameSceneCode(code: string, gs: GameSettings): string {
 		if (code === before) code = code.replace(/(let\s+lives\s*=\s*)(\d+)(;)/, `$1${lives}$3`);
 	}
 
+	// Strip system objects (__ prefixed) from scene override __deleted array
+	// Old saved files may have __skyDome__, __weatherParticles__ in __deleted
+	code = code.replace(
+		/(__deleted\s*:\s*\[)([^\]]*)\]/g,
+		(_match, prefix, items) => {
+			const filtered = items
+				.split(",")
+				.map((s: string) => s.trim())
+				.filter((s: string) => s && !/"__[^"]*__"/.test(s))
+				.join(",");
+			return `${prefix}${filtered}]`;
+		},
+	);
+
 	// Character System bridge — redirect lily.mesh when character module swaps
 	if (hasModule(gs, "character-system") && code.includes("lily = lilyResult") && code.includes("lily.mesh")) {
 		code = code.replace(

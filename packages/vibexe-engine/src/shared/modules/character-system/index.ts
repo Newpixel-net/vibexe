@@ -674,12 +674,10 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
 
       // Auto-classify clips for animMap
       var autoAnimMap = {};
+      // Phase 1: keyword-only classification (no duration heuristic — prevents combat clips from becoming idle)
       for (var aci = 0; aci < allClips.length; aci++) {
         var acn = allClips[aci].name.toLowerCase();
-        var acdur = allClips[aci].duration;
-        if (acn.indexOf("idle") !== -1 || (acdur > 2 && acn.indexOf("walk") === -1 && acn.indexOf("run") === -1)) {
-          if (!autoAnimMap.idle) autoAnimMap.idle = allClips[aci].name;
-        }
+        if (acn.indexOf("idle") !== -1) { if (!autoAnimMap.idle) autoAnimMap.idle = allClips[aci].name; }
         if (acn.indexOf("walk") !== -1) { if (!autoAnimMap.walk) autoAnimMap.walk = allClips[aci].name; }
         if (acn.indexOf("run") !== -1 || acn.indexOf("sprint") !== -1) { if (!autoAnimMap.run) autoAnimMap.run = allClips[aci].name; }
         if (acn.indexOf("jump") !== -1) { if (!autoAnimMap.jump) autoAnimMap.jump = allClips[aci].name; }

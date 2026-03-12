@@ -1141,11 +1141,10 @@ SkyWeatherSystem.prototype._tick = function(dt) {
   // X10 fix: self-healing orphan detection — if scene override script or any other
   // code removed our meshes from the scene, re-add them immediately
   if (this.skyDome && this.skyDome.mesh && !this.skyDome.mesh.parent) {
-    console.log("[SkyWeather] Sky dome orphaned — re-adding to scene");
+    if (!this._orphanLogged) { console.log("[SkyWeather] Sky dome orphaned — re-adding to scene"); this._orphanLogged = true; }
     this.scene.add(this.skyDome.mesh);
   }
   if (this.particles && this.particles._points && !this.particles._points.parent) {
-    console.log("[SkyWeather] Weather particles orphaned — re-adding to scene");
     this.scene.add(this.particles._points);
   }
   // X10 fix: enforce black background when sky dome is active (terrain painter etc. may override)
