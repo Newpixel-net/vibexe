@@ -1218,6 +1218,23 @@ function swapCharacter(scene, characterId) {
               if (_csMesh.userData && _csMesh.userData.__groundOffset) {
                 _csMesh.position.y += _csMesh.userData.__groundOffset;
               }
+              // Safety net: if character falls below terrain (timing gap before
+              // Rapier heightfield is created), teleport back to terrain surface
+              var _getHSafe = window.__vibexe_getTerrainHeight;
+              if (_getHSafe) {
+                var _thSafe = _getHSafe(_nx, _nz);
+                if (_thSafe != null) {
+                  var _minSafe = _thSafe + _csHalfH + 0.15;
+                  if (_ny < _minSafe - 2) {
+                    _ny = _minSafe;
+                    _rapierBody.setNextKinematicTranslation({ x: _nx, y: _ny, z: _nz });
+                    _rapierGravityVel = 0;
+                    _csMesh.position.y = _ny - _csHalfH;
+                    if (_csMesh.userData && _csMesh.userData.__groundOffset) _csMesh.position.y += _csMesh.userData.__groundOffset;
+                    isGrounded = true;
+                  }
+                }
+              }
               // Sync CANNON body for diagnostics + animation state machine
               if (_csBody && _csBody.position) {
                 _csBody.position.x = _nx; _csBody.position.y = _ny; _csBody.position.z = _nz;

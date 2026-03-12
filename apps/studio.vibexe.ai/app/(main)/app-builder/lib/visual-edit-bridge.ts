@@ -4419,6 +4419,44 @@ export function getVisualEditBridgeScript(): string {
             console.error("[TerrainPhysics] Failed to create heightfield:", hfErr);
           }
 
+          // === Rapier heightfield (parallel world — for KCC terrain collision) ===
+          var _tpRAPIER = window.RAPIER;
+          var _tpRapierWorld = window.__vibexe_rapierWorld__;
+          if (_tpRAPIER && _tpRapierWorld) {
+            // Remove previous Rapier terrain collider
+            if (window.__vibexe_rapierTerrainCollider__) {
+              try { _tpRapierWorld.removeCollider(window.__vibexe_rapierTerrainCollider__, true); } catch(e) {}
+              window.__vibexe_rapierTerrainCollider__ = null;
+            }
+            if (window.__vibexe_rapierTerrainBody__) {
+              try { _tpRapierWorld.removeRigidBody(window.__vibexe_rapierTerrainBody__); } catch(e) {}
+              window.__vibexe_rapierTerrainBody__ = null;
+            }
+            try {
+              // Rapier heightfield: row-major Float32Array, nrows(X) x ncols(Z)
+              // heightData is row-major: heightData[z * segX + x]
+              // Rapier wants heights[x * ncols + z] (transposed)
+              var _rNrows = _tpSegX;
+              var _rNcols = _tpSegZ;
+              var _rHeights = new Float32Array(_rNrows * _rNcols);
+              for (var _rx = 0; _rx < _rNrows; _rx++) {
+                for (var _rz = 0; _rz < _rNcols; _rz++) {
+                  _rHeights[_rx * _rNcols + _rz] = _tpHeightData[_rz * _rNrows + _rx];
+                }
+              }
+              var _rScale = { x: _tpW, y: 1.0, z: _tpD };
+              var _rColDesc = _tpRAPIER.ColliderDesc.heightfield(_rNrows - 1, _rNcols - 1, _rHeights, _rScale);
+              var _rBodyDesc = _tpRAPIER.RigidBodyDesc.fixed();
+              var _rBody = _tpRapierWorld.createRigidBody(_rBodyDesc);
+              var _rCollider = _tpRapierWorld.createCollider(_rColDesc, _rBody);
+              window.__vibexe_rapierTerrainBody__ = _rBody;
+              window.__vibexe_rapierTerrainCollider__ = _rCollider;
+              console.log("[TerrainPhysics] Rapier heightfield created:", _rNrows, "x", _rNcols, "scale:", _tpW + "x" + _tpD);
+            } catch(_rErr) {
+              console.warn("[TerrainPhysics] Rapier heightfield failed:", _rErr);
+            }
+          }
+
           // === PostStep terrain clamp — belt-and-suspenders safety net ===
           // Ensures all dynamic bodies stay above terrain even if Heightfield collision fails
           if (!window.__vibexe_terrainPostStep) {
