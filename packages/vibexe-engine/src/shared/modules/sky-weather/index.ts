@@ -1138,6 +1138,23 @@ SkyWeatherSystem.prototype._startLoop = function() {
 };
 
 SkyWeatherSystem.prototype._tick = function(dt) {
+  // X10 fix: self-healing orphan detection — if scene override script or any other
+  // code removed our meshes from the scene, re-add them immediately
+  if (this.skyDome && this.skyDome.mesh && !this.skyDome.mesh.parent) {
+    console.log("[SkyWeather] Sky dome orphaned — re-adding to scene");
+    this.scene.add(this.skyDome.mesh);
+  }
+  if (this.particles && this.particles._points && !this.particles._points.parent) {
+    console.log("[SkyWeather] Weather particles orphaned — re-adding to scene");
+    this.scene.add(this.particles._points);
+  }
+  // X10 fix: enforce black background when sky dome is active (terrain painter etc. may override)
+  if (this.skyDome && this.skyDome.mesh && this.skyDome.mesh.parent) {
+    var bg = this.scene.background;
+    if (bg && (bg.r > 0.01 || bg.g > 0.01 || bg.b > 0.01)) {
+      this.scene.background = new THREE.Color(0x000000);
+    }
+  }
   // X8 fix: skip heavy updates in editor mode (particles, lightning, audio waste CPU)
   var _inEditor = !!(window.__vibexe_editor_active || (window.__vibexe_editor__ && window.__vibexe_editor__.isEditing));
   // Advance time
