@@ -727,6 +727,14 @@ export function getVisualEditBridgeScript(): string {
           }
         }
       }
+      // Rebuild Rapier trimesh after sculpt (debounced — 500ms after last stroke)
+      if (window.__vibexe_rebuildRapierTerrain) {
+        if (window.__vibexe_rapierTerrainRebuildTimer) clearTimeout(window.__vibexe_rapierTerrainRebuildTimer);
+        window.__vibexe_rapierTerrainRebuildTimer = setTimeout(function() {
+          window.__vibexe_rapierTerrainRebuildTimer = null;
+          window.__vibexe_rebuildRapierTerrain();
+        }, 500);
+      }
     }
   }
 
@@ -4583,10 +4591,16 @@ export function getVisualEditBridgeScript(): string {
             console.error("[TerrainPhysics] Failed to create heightfield:", hfErr);
           }
 
-          // === Rapier heightfield (parallel world — for KCC terrain collision) ===
-          var _tpRAPIER = window.RAPIER;
-          var _tpRapierWorld = window.__vibexe_rapierWorld__;
-          if (_tpRAPIER && _tpRapierWorld) {
+          // === Rapier trimesh (for KCC terrain collision — exact match to visual mesh) ===
+          // Uses the actual terrain geometry vertices + indices for pixel-perfect collision.
+          // This replaces the old heightfield approach which had data ordering bugs.
+          window.__vibexe_rebuildRapierTerrain = function() {
+            var _tpRAPIER = window.RAPIER;
+            var _tpRapierWorld = window.__vibexe_rapierWorld__;
+            if (!_tpRAPIER || !_tpRapierWorld) return;
+            var _rtScene = window.__vibexe_scene__ || (_tpScene);
+            var _rtMesh = _rtScene ? _rtScene.getObjectByName("__terrain__") : null;
+            if (!_rtMesh || !_rtMesh.geometry) return;
             // Remove previous Rapier terrain collider
             if (window.__vibexe_rapierTerrainCollider__) {
               try { _tpRapierWorld.removeCollider(window.__vibexe_rapierTerrainCollider__, true); } catch(e) {}
@@ -4597,30 +4611,35 @@ export function getVisualEditBridgeScript(): string {
               window.__vibexe_rapierTerrainBody__ = null;
             }
             try {
-              // Rapier heightfield: row-major Float32Array, nrows(X) x ncols(Z)
-              // heightData is row-major: heightData[z * segX + x]
-              // Rapier wants heights[x * ncols + z] (transposed)
-              var _rNrows = _tpSegX;
-              var _rNcols = _tpSegZ;
-              var _rHeights = new Float32Array(_rNrows * _rNcols);
-              for (var _rx = 0; _rx < _rNrows; _rx++) {
-                for (var _rz = 0; _rz < _rNcols; _rz++) {
-                  _rHeights[_rx * _rNcols + _rz] = _tpHeightData[_rz * _rNrows + _rx];
-                }
+              var _rtGeo = _rtMesh.geometry;
+              var _rtPos = _rtGeo.attributes.position;
+              var _rtVerts = new Float32Array(_rtPos.count * 3);
+              for (var _vi = 0; _vi < _rtPos.count; _vi++) {
+                _rtVerts[_vi * 3] = _rtPos.getX(_vi);
+                _rtVerts[_vi * 3 + 1] = _rtPos.getY(_vi);
+                _rtVerts[_vi * 3 + 2] = _rtPos.getZ(_vi);
               }
-              var _rScale = { x: _tpW, y: 1.0, z: _tpD };
-              // T13 fix: Rapier heightfield expects vertex count, not cell count (was nrows-1, ncols-1)
-              var _rColDesc = _tpRAPIER.ColliderDesc.heightfield(_rNrows, _rNcols, _rHeights, _rScale);
-              var _rBodyDesc = _tpRAPIER.RigidBodyDesc.fixed();
-              var _rBody = _tpRapierWorld.createRigidBody(_rBodyDesc);
-              var _rCollider = _tpRapierWorld.createCollider(_rColDesc, _rBody);
-              window.__vibexe_rapierTerrainBody__ = _rBody;
-              window.__vibexe_rapierTerrainCollider__ = _rCollider;
-              console.log("[TerrainPhysics] Rapier heightfield created:", _rNrows, "x", _rNcols, "scale:", _tpW + "x" + _tpD);
-            } catch(_rErr) {
-              console.warn("[TerrainPhysics] Rapier heightfield failed:", _rErr);
+              var _rtIdx;
+              if (_rtGeo.index) {
+                _rtIdx = new Uint32Array(_rtGeo.index.array);
+              } else {
+                // Non-indexed geometry — generate sequential indices
+                _rtIdx = new Uint32Array(_rtPos.count);
+                for (var _ii = 0; _ii < _rtPos.count; _ii++) _rtIdx[_ii] = _ii;
+              }
+              var _rtColDesc = _tpRAPIER.ColliderDesc.trimesh(_rtVerts, _rtIdx);
+              _rtColDesc.setFriction(0.8);
+              var _rtBodyDesc = _tpRAPIER.RigidBodyDesc.fixed();
+              var _rtBody = _tpRapierWorld.createRigidBody(_rtBodyDesc);
+              var _rtCollider = _tpRapierWorld.createCollider(_rtColDesc, _rtBody);
+              window.__vibexe_rapierTerrainBody__ = _rtBody;
+              window.__vibexe_rapierTerrainCollider__ = _rtCollider;
+              console.log("[TerrainPhysics] Rapier trimesh created:", _rtPos.count, "verts,", (_rtIdx.length / 3) | 0, "tris");
+            } catch(_rtErr) {
+              console.warn("[TerrainPhysics] Rapier trimesh failed:", _rtErr);
             }
-          }
+          };
+          window.__vibexe_rebuildRapierTerrain();
 
           // === PostStep terrain clamp — belt-and-suspenders safety net ===
           // Ensures all dynamic bodies stay above terrain even if Heightfield collision fails
