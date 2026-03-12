@@ -498,6 +498,7 @@ export function getVisualEditBridgeScript(): string {
   var raycaster = null;
   var mouse = null;
   var selectedObj = null;
+  var selectedObjName = "";
   var boxHelper = null;
   var multiBoxHelpers = [];
   var transformControls = null;
@@ -973,6 +974,7 @@ export function getVisualEditBridgeScript(): string {
       }
     }
     selectedObj = null;
+    selectedObjName = "";
     destroyCameraHelper();
     // Auto-revert pivot mode on deselect
     if (pivotMode !== "center") {
@@ -1022,37 +1024,40 @@ export function getVisualEditBridgeScript(): string {
     }
     deselectObject();
     selectedObj = obj;
+    selectedObjName = obj.name || "";
     var THREE = window.THREE;
     boxHelper = new THREE.BoxHelper(obj, 0x00ff88);
     boxHelper.name = "__editor_box_helper__";
     // Override for animated characters — SkinnedMesh bind-pose gives wrong Box3
-    // Use __characterBounds if available; otherwise fall back to default character dimensions
+    // Use character's world position + __characterBounds dimensions instead of setFromObject
     if (obj.userData && obj.userData.vibexeType === "AnimatedCharacter") {
-      var _cb = obj.userData.__characterBounds || { halfX: 0.45, halfZ: 0.45, height: 1.5 };
-      var _bObj = obj;
+      boxHelper.userData.__isAnimCharBox = true;
       boxHelper.update = function() {
-        var bb = new THREE.Box3();
-        // Use the actual rendered bounds of the character group
-        bb.setFromObject(_bObj);
-        if (bb.isEmpty()) {
-          var wp2 = new THREE.Vector3();
-          _bObj.getWorldPosition(wp2);
-          bb.setFromCenterAndSize(wp2, new THREE.Vector3(_cb.halfX * 2, _cb.height, _cb.halfZ * 2));
-        }
-        var min = bb.min, max = bb.max;
+        // Read selectedObj directly (not closure capture) — stays current if character is swapped
+        var _so = selectedObj;
+        if (!_so || !_so.parent) return;
+        var _cb2 = _so.userData.__characterBounds || { halfX: 0.45, halfZ: 0.45, height: 1.5 };
+        // Get current world position of the character
+        var wp = new THREE.Vector3();
+        _so.getWorldPosition(wp);
+        // Build box from world position + known character dimensions
+        var hx = _cb2.halfX, hz = _cb2.halfZ, h = _cb2.height;
+        var minX = wp.x - hx, maxX = wp.x + hx;
+        var minY = wp.y, maxY = wp.y + h;
+        var minZ = wp.z - hz, maxZ = wp.z + hz;
         var pos = this.geometry.attributes.position;
         if (!pos) return;
         var a = pos.array;
         // Front face (max Z)
-        a[0]=max.x; a[1]=max.y; a[2]=max.z;
-        a[3]=min.x; a[4]=max.y; a[5]=max.z;
-        a[6]=min.x; a[7]=min.y; a[8]=max.z;
-        a[9]=max.x; a[10]=min.y; a[11]=max.z;
+        a[0]=maxX; a[1]=maxY; a[2]=maxZ;
+        a[3]=minX; a[4]=maxY; a[5]=maxZ;
+        a[6]=minX; a[7]=minY; a[8]=maxZ;
+        a[9]=maxX; a[10]=minY; a[11]=maxZ;
         // Back face (min Z)
-        a[12]=max.x; a[13]=max.y; a[14]=min.z;
-        a[15]=min.x; a[16]=max.y; a[17]=min.z;
-        a[18]=min.x; a[19]=min.y; a[20]=min.z;
-        a[21]=max.x; a[22]=min.y; a[23]=min.z;
+        a[12]=maxX; a[13]=maxY; a[14]=minZ;
+        a[15]=minX; a[16]=maxY; a[17]=minZ;
+        a[18]=minX; a[19]=minY; a[20]=minZ;
+        a[21]=maxX; a[22]=minY; a[23]=minZ;
         pos.needsUpdate = true;
         this.geometry.computeBoundingSphere();
       };
@@ -2020,8 +2025,20 @@ export function getVisualEditBridgeScript(): string {
       editor.orbitControls.target.copy(_wp);
     }
     if (editor.orbitControls && !flyMode) editor.orbitControls.update();
+    // Guard: if selectedObj was swapped out of scene by character module, re-find by name
+    if (selectedObj && !selectedObj.parent && selectedObjName) {
+      var refound = editor.scene.getObjectByName(selectedObjName);
+      if (refound && refound !== selectedObj) {
+        console.log("[GameEditorBridge] Re-found stale selectedObj: " + selectedObjName);
+        selectedObj = refound;
+        if (transformControls) { transformControls.attach(refound); }
+      }
+    }
     if (transformControls && transformControls.update) transformControls.update();
-    if (boxHelper && selectedObj && boxHelper.object && boxHelper.object.parent) { try { boxHelper.update(); } catch(e) {} }
+    if (boxHelper && selectedObj) {
+      // For animated characters, our update reads selectedObj directly (no stale closure)
+      if (boxHelper.userData.__isAnimCharBox || (boxHelper.object && boxHelper.object.parent)) { try { boxHelper.update(); } catch(e) {} }
+    }
     if (multiBoxHelpers && multiBoxHelpers.length > 0) {
       for (var mbi = 0; mbi < multiBoxHelpers.length; mbi++) {
         if (multiBoxHelpers[mbi] && multiBoxHelpers[mbi].object && multiBoxHelpers[mbi].object.parent) { try { multiBoxHelpers[mbi].update(); } catch(e) {} }
