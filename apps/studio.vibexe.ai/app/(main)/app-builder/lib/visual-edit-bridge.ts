@@ -1028,9 +1028,34 @@ export function getVisualEditBridgeScript(): string {
     var THREE = window.THREE;
     boxHelper = new THREE.BoxHelper(obj, 0x00ff88);
     boxHelper.name = "__editor_box_helper__";
+    // Guard for lights: BoxHelper.setFromObject on geometry-less objects produces NaN/Infinity
+    // which corrupts WebGL state and freezes the renderer. Use fixed-size box instead.
+    if (obj.isLight) {
+      boxHelper.update = function() {
+        var _lo = selectedObj;
+        if (!_lo || !_lo.parent) return;
+        var wp = new THREE.Vector3();
+        _lo.getWorldPosition(wp);
+        var hs = 0.3; // small cube around light position
+        var pos = this.geometry.attributes.position;
+        if (!pos) return;
+        var a = pos.array;
+        a[0]=wp.x+hs; a[1]=wp.y+hs; a[2]=wp.z+hs;
+        a[3]=wp.x-hs; a[4]=wp.y+hs; a[5]=wp.z+hs;
+        a[6]=wp.x-hs; a[7]=wp.y-hs; a[8]=wp.z+hs;
+        a[9]=wp.x+hs; a[10]=wp.y-hs; a[11]=wp.z+hs;
+        a[12]=wp.x+hs; a[13]=wp.y+hs; a[14]=wp.z-hs;
+        a[15]=wp.x-hs; a[16]=wp.y+hs; a[17]=wp.z-hs;
+        a[18]=wp.x-hs; a[19]=wp.y-hs; a[20]=wp.z-hs;
+        a[21]=wp.x+hs; a[22]=wp.y-hs; a[23]=wp.z-hs;
+        pos.needsUpdate = true;
+        this.geometry.computeBoundingSphere();
+      };
+      try { boxHelper.update(); } catch(e) {}
+    }
     // Override for animated characters — SkinnedMesh bind-pose gives wrong Box3
     // Use character's world position + __characterBounds dimensions instead of setFromObject
-    if (obj.userData && obj.userData.vibexeType === "AnimatedCharacter") {
+    else if (obj.userData && obj.userData.vibexeType === "AnimatedCharacter") {
       boxHelper.userData.__isAnimCharBox = true;
       boxHelper.update = function() {
         // Read selectedObj directly (not closure capture) — stays current if character is swapped
@@ -1335,8 +1360,13 @@ export function getVisualEditBridgeScript(): string {
     var box = new THREE.Box3().setFromObject(selectedObj);
     var center = new THREE.Vector3();
     box.getCenter(center);
+    // Guard against NaN/Infinity (lights and other geometry-less objects produce empty Box3)
+    if (!isFinite(center.x) || !isFinite(center.y) || !isFinite(center.z)) {
+      selectedObj.getWorldPosition(center);
+    }
     var size = new THREE.Vector3();
     box.getSize(size);
+    if (!isFinite(size.x)) size.set(1, 1, 1);
     var maxDim = Math.max(size.x, size.y, size.z, 1);
     var dist = maxDim * 2.5;
     var cam = editor.camera;
