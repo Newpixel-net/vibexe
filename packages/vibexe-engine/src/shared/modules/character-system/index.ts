@@ -8,8 +8,10 @@
  * Features:
  * - Character registry (built-in + extensible)
  * - Production-quality GLTFLoader (bone measurement, pivot correction, scale cap)
- * - Scored animation matching with alias fallbacks
+ * - Scored animation matching with alias fallbacks (incl. fall/land)
  * - Root motion stripping (locks XZ on root bones, keeps Y hip-bob)
+ * - IK Head Look-At: head/neck/spine track camera direction (Blink OnAnimatorIK port)
+ * - Terrain-aware falling detection (ground distance + velocity threshold)
  * - Scene hierarchy integration (Character_ prefix, userData)
  * - Mesh swap with old mesh disposal and stale mesh cleanup
  */
@@ -266,7 +268,9 @@ function findClip(name, clipNames, clipMap) {
     jump: ["jump", "leap"],
     attack: ["slash", "attack", "kick", "hook", "punch", "spin"],
     die: ["dead", "death", "die"],
-    hit: ["hit", "reaction", "damage"]
+    hit: ["hit", "reaction", "damage"],
+    fall: ["falling", "fall", "airborne", "freefall", "jump"],
+    land: ["landing", "land", "touchdown", "groundhit", "idle"]
   };
   var aliasKeys = aliases[lower];
   if (aliasKeys) {
@@ -591,6 +595,20 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
       // Store inner (GLB root) reference so game loop can pin position to zero
       // (prevents animation-driven root drift even if a track was missed)
       mesh.userData.__innerGLBRoot = inner;
+
+      // --- Find IK bones for head look-at system ---
+      var _ikHead = null, _ikNeck = null, _ikSpine = null;
+      inner.traverse(function(child) {
+        if (!child.isBone) return;
+        var bn = child.name.toLowerCase();
+        if ((bn === "head" || bn === "mixamorig:head") && !_ikHead) _ikHead = child;
+        if ((bn === "neck" || bn === "mixamorig:neck") && !_ikNeck) _ikNeck = child;
+        if ((bn === "spine" || bn === "mixamorig:spine") && !_ikSpine) _ikSpine = child;
+      });
+      if (_ikHead) {
+        mesh.userData.__ikBones = { head: _ikHead, neck: _ikNeck, spine: _ikSpine };
+        console.log("[CharacterSystem] IK bones:", _ikHead.name, _ikNeck ? _ikNeck.name : "-", _ikSpine ? _ikSpine.name : "-");
+      }
 
       // Store animation data on mesh.userData for editor access
       mesh.userData.__clipNames = clipNames;
@@ -974,6 +992,10 @@ function swapCharacter(scene, characterId) {
         var _jumpBufferTimer = 0;
         var _jumpBuffer = 0.1; // 100ms buffer
 
+        // IK Head Look-At state (Blink: OnAnimatorIK port)
+        var _ikHeadDelta = 0;
+        var _ikHeadVel = 0;
+
         var newCtrl = {
           __charSystem: true,
           update: function(dt) {
@@ -1085,8 +1107,16 @@ function swapCharacter(scene, characterId) {
               _landTimer = 0.3; // Stay in land state for 0.3s
             }
 
+            // Terrain-aware ground distance (cheap lookup, no raycast)
+            var _groundDist = 999;
+            var _getHFall = window.__vibexe_getTerrainHeight;
+            if (_getHFall) {
+              var _thFall = _getHFall(_csMesh.position.x, _csMesh.position.z);
+              if (_thFall != null) _groundDist = _csMesh.position.y - _thFall;
+            }
+
             var targetAnim;
-            if (!_isOnGround && vy < -2) {
+            if (!_isOnGround && (vy < -1.5 || _groundDist > 2.5)) {
               targetAnim = "fall";
             } else if (vy > 2) {
               targetAnim = "jump";
@@ -1113,6 +1143,34 @@ function swapCharacter(scene, characterId) {
               var clipName = animMap[targetAnim] || targetAnim;
               _csPlay(clipName, { crossfade: 0.15 });
               _csLastAnim = targetAnim;
+            }
+
+            // === 8.5 IK HEAD LOOK-AT (Blink: OnAnimatorIK port) ===
+            // After animation mixer sets bone poses, additively rotate head/neck/spine
+            // toward camera direction. Mimics Unity's SetLookAtWeight + SetLookAtPosition.
+            var _ikBones = _csMesh.userData.__ikBones;
+            if (_ikBones) {
+              // Camera looks TOWARD player from behind — flip for character look direction
+              var _lookYaw = (orbitYaw || 0) + Math.PI;
+              var _faceYaw = _csMesh.rotation.y;
+              // Delta angle: how far to turn head from body facing
+              var _rawDelta = _lookYaw - _faceYaw;
+              // Normalize to [-PI, PI]
+              while (_rawDelta > Math.PI) _rawDelta -= Math.PI * 2;
+              while (_rawDelta < -Math.PI) _rawDelta += Math.PI * 2;
+              // Clamp to ±60° (Blink: Mathf.Clamp(deltaAngle, -60, 60))
+              _rawDelta = Math.max(-1.047, Math.min(1.047, _rawDelta));
+              // Reduce IK weight during fast movement (looks unnatural at full sprint)
+              var _ikWeight = speed > 4 ? 0.2 : speed > 2 ? 0.6 : 1.0;
+              var _ikTarget = _rawDelta * _ikWeight;
+              // SmoothDamp (Blink: dampSmoothTimeIK = 0.4s)
+              var _ikDamp = _smoothDampAngle(_ikHeadDelta, _ikTarget, _ikHeadVel, 0.4, dt);
+              _ikHeadDelta = _ikDamp.value;
+              _ikHeadVel = _ikDamp.velocity;
+              // Apply additive rotation (head=1.0, neck=0.5, spine=0.3 — matches Blink weights)
+              if (_ikBones.head) _ikBones.head.rotation.y += _ikHeadDelta;
+              if (_ikBones.neck) _ikBones.neck.rotation.y += _ikHeadDelta * 0.5;
+              if (_ikBones.spine) _ikBones.spine.rotation.y += _ikHeadDelta * 0.3;
             }
 
             // === 9. CAMERA FOLLOW (Blink: SmoothDamp with orbit) ===
@@ -1391,7 +1449,7 @@ module.exports = {
 export const CHARACTER_SYSTEM_MANIFEST: ModuleManifest = {
 	id: "character-system",
 	name: "Character System",
-	version: "6.0.0",
+	version: "6.1.0",
 	category: "tools",
 	description: "Player character selection and model swapping",
 	icon: "PersonStanding",
