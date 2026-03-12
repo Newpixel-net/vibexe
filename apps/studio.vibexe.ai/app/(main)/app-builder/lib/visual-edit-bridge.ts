@@ -934,7 +934,7 @@ export function getVisualEditBridgeScript(): string {
         }
       }
     }
-    window.parent.postMessage({
+    var msg = {
       type: "game-editor-object-selected", uuid: obj.uuid, name: obj.name || obj.type,
       objType: obj.userData && obj.userData.vibexeType || obj.type,
       position: { x: obj.position.x, y: obj.position.y, z: obj.position.z },
@@ -950,7 +950,19 @@ export function getVisualEditBridgeScript(): string {
       _textureOffsetX: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureOffsetX || 0,
       _textureOffsetY: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.textureOffsetY || 0,
       _hasPBR: obj.userData && obj.userData.vibexeArgs && obj.userData.vibexeArgs.hasPBR || false
-    }, "*");
+    };
+    // Include light properties for ANY light (not just editor-added ones)
+    if (obj.isLight) {
+      msg._isEditorLight = true;
+      msg._lightType = obj.type === "SpotLight" ? "spot" : obj.type === "PointLight" ? "point" : obj.type === "DirectionalLight" ? "directional" : "hemi";
+      try { msg._lightColor = "#" + obj.color.getHexString(); } catch(e) { msg._lightColor = "#ffffff"; }
+      msg._lightIntensity = obj.intensity != null ? obj.intensity : 1;
+      if (obj.distance != null) msg._lightDistance = obj.distance;
+      if (obj.decay != null) msg._lightDecay = obj.decay;
+      if (obj.angle != null) msg._lightAngle = obj.angle;
+      if (obj.penumbra != null) msg._lightPenumbra = obj.penumbra;
+    }
+    window.parent.postMessage(msg, "*");
   }
 
   // ---- Selection ----
@@ -3926,6 +3938,137 @@ export function getVisualEditBridgeScript(): string {
           })(d.lights[_rli]);
         }
         window.parent.postMessage({ type: "game-editor-lights-restored", count: d.lights.length }, "*");
+        break;
+      }
+
+      case "game-editor-add-light": {
+        if (!editor || !editor.scene) break;
+        var _alTHREE = window.THREE;
+        var _alType = d.lightType || "point";
+        var _alColor = new _alTHREE.Color(d.color || "#ffffff");
+        var _alIntensity = d.intensity != null ? d.intensity : 1;
+        // Position in front of camera
+        var _alPos = d.position || { x: 0, y: 5, z: 0 };
+        if (!d.position && editor.camera) {
+          var _alDir = new _alTHREE.Vector3(0, 0, -5).applyQuaternion(editor.camera.quaternion);
+          _alPos = { x: +(editor.camera.position.x + _alDir.x).toFixed(1), y: +(editor.camera.position.y + _alDir.y).toFixed(1), z: +(editor.camera.position.z + _alDir.z).toFixed(1) };
+        }
+        var _alDistance = d.distance != null ? d.distance : 20;
+        var _alDecay = d.decay != null ? d.decay : 2;
+        var _alCount = 0;
+        editor.scene.traverse(function(c) { if (c.name && c.name.indexOf("Light_" + _alType + "_") === 0) _alCount++; });
+        var _alName = "Light_" + _alType + "_" + _alCount;
+        var _alLight;
+        if (_alType === "spot") {
+          var _alAngle = d.angle != null ? d.angle : 0.5;
+          var _alPenumbra = d.penumbra != null ? d.penumbra : 0.5;
+          _alLight = new _alTHREE.SpotLight(_alColor, _alIntensity, _alDistance, _alAngle, _alPenumbra, _alDecay);
+          if (d.target) _alLight.target.position.set(d.target.x || 0, d.target.y || 0, d.target.z || 0);
+          editor.scene.add(_alLight.target);
+        } else {
+          _alLight = new _alTHREE.PointLight(_alColor, _alIntensity, _alDistance, _alDecay);
+        }
+        _alLight.name = _alName;
+        _alLight.position.set(_alPos.x, _alPos.y, _alPos.z);
+        _alLight.castShadow = true;
+        _alLight.shadow.mapSize.width = 512;
+        _alLight.shadow.mapSize.height = 512;
+        _alLight.userData.__editorLight = true;
+        _alLight.userData.__lightType = _alType;
+        _alLight.userData.__lightColor = d.color || "#ffffff";
+        _alLight.userData.__lightIntensity = _alIntensity;
+        _alLight.userData.__lightDistance = _alDistance;
+        _alLight.userData.__lightDecay = _alDecay;
+        if (_alType === "spot") {
+          _alLight.userData.__lightAngle = d.angle != null ? d.angle : 0.5;
+          _alLight.userData.__lightPenumbra = d.penumbra != null ? d.penumbra : 0.5;
+          _alLight.userData.__lightTarget = d.target || { x: _alPos.x, y: 0, z: _alPos.z };
+        }
+        editor.scene.add(_alLight);
+        // Visual helper sphere
+        var _alHelperGeo = new _alTHREE.SphereGeometry(0.3, 8, 8);
+        var _alHelperMat = new _alTHREE.MeshBasicMaterial({ color: _alType === "spot" ? 0xffaa00 : 0xffff00, wireframe: true, depthTest: false, transparent: true, opacity: 0.7 });
+        var _alHelper = new _alTHREE.Mesh(_alHelperGeo, _alHelperMat);
+        _alHelper.name = "__editor_light_helper_" + _alName;
+        _alHelper.position.copy(_alLight.position);
+        _alHelper.userData.__lightHelperFor = _alName;
+        _alHelper.userData.__isLightHelper = true;
+        _alHelper.renderOrder = 999;
+        editor.scene.add(_alHelper);
+        if (_alType === "spot") {
+          var _alSpotHelper = new _alTHREE.SpotLightHelper(_alLight);
+          _alSpotHelper.name = "__editor_spot_helper_" + _alName;
+          _alSpotHelper.userData.__lightHelperFor = _alName;
+          _alSpotHelper.userData.__isLightHelper = true;
+          editor.scene.add(_alSpotHelper);
+        }
+        console.log("[GameEditorBridge] Added light:", _alName, "type:", _alType);
+        sendSceneTreeThrottled();
+        selectObject(_alLight);
+        window.parent.postMessage({
+          type: "game-editor-light-added", name: _alName, lightType: _alType,
+          color: d.color || "#ffffff", intensity: _alIntensity, position: _alPos,
+          distance: _alDistance, decay: _alDecay,
+          angle: _alType === "spot" ? (d.angle != null ? d.angle : 0.5) : undefined,
+          penumbra: _alType === "spot" ? (d.penumbra != null ? d.penumbra : 0.5) : undefined,
+          target: _alType === "spot" ? (d.target || { x: _alPos.x, y: 0, z: _alPos.z }) : undefined,
+        }, "*");
+        break;
+      }
+
+      case "game-editor-update-light": {
+        if (!editor || !editor.scene || !d.name) break;
+        var _ulLight = editor.scene.getObjectByName(d.name);
+        if (!_ulLight || !_ulLight.isLight) break;
+        if (d.color !== undefined) {
+          _ulLight.color.set(d.color);
+          _ulLight.userData.__lightColor = d.color;
+        }
+        if (d.intensity !== undefined) {
+          _ulLight.intensity = Number(d.intensity);
+          _ulLight.userData.__lightIntensity = Number(d.intensity);
+        }
+        if (d.distance !== undefined) {
+          _ulLight.distance = Number(d.distance);
+          _ulLight.userData.__lightDistance = Number(d.distance);
+        }
+        if (d.decay !== undefined) {
+          _ulLight.decay = Number(d.decay);
+          _ulLight.userData.__lightDecay = Number(d.decay);
+        }
+        if (d.position) {
+          _ulLight.position.set(d.position.x, d.position.y, d.position.z);
+          var _ulHelper = editor.scene.getObjectByName("__editor_light_helper_" + d.name);
+          if (_ulHelper) _ulHelper.position.copy(_ulLight.position);
+        }
+        if (_ulLight.isSpotLight) {
+          if (d.angle !== undefined) { _ulLight.angle = Number(d.angle); _ulLight.userData.__lightAngle = Number(d.angle); }
+          if (d.penumbra !== undefined) { _ulLight.penumbra = Number(d.penumbra); _ulLight.userData.__lightPenumbra = Number(d.penumbra); }
+          if (d.target) { _ulLight.target.position.set(d.target.x, d.target.y, d.target.z); _ulLight.userData.__lightTarget = d.target; }
+          var _ulSpotHelper = editor.scene.getObjectByName("__editor_spot_helper_" + d.name);
+          if (_ulSpotHelper && _ulSpotHelper.update) _ulSpotHelper.update();
+        }
+        console.log("[GameEditorBridge] Updated light:", d.name);
+        if (selectedObj && selectedObj === _ulLight) sendSelectedObject(_ulLight);
+        sendSceneTreeThrottled();
+        break;
+      }
+
+      case "game-editor-remove-light": {
+        if (!editor || !editor.scene || !d.name) break;
+        var _rmLight = editor.scene.getObjectByName(d.name);
+        if (_rmLight) {
+          if (selectedObj && selectedObj === _rmLight) deselectObject();
+          if (_rmLight.isSpotLight && _rmLight.target) editor.scene.remove(_rmLight.target);
+          editor.scene.remove(_rmLight);
+        }
+        var _rmHelper = editor.scene.getObjectByName("__editor_light_helper_" + d.name);
+        if (_rmHelper) editor.scene.remove(_rmHelper);
+        var _rmSpotHelper = editor.scene.getObjectByName("__editor_spot_helper_" + d.name);
+        if (_rmSpotHelper) editor.scene.remove(_rmSpotHelper);
+        console.log("[GameEditorBridge] Removed light:", d.name);
+        sendSceneTreeThrottled();
+        window.parent.postMessage({ type: "game-editor-light-removed", name: d.name }, "*");
         break;
       }
 

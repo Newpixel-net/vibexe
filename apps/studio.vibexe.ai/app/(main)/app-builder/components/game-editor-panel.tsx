@@ -757,8 +757,8 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 								</div>
 							)}
 
-							{/* Material / Texture */}
-							<Section title="Material">
+							{/* Material / Texture — hide for lights (they don't have materials) */}
+							{!selectedObject.type?.includes("Light") && <Section title="Material">
 								{selectedObject._textureUrl ? (
 									<div className="space-y-1.5">
 										<div className="flex items-center gap-2">
@@ -907,7 +907,7 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 										</div>
 									</div>
 								)}
-							</Section>
+							</Section>}
 
 							{/* Animation Player (for AnimatedCharacter) */}
 							{animationClips.length > 0 && (
@@ -1051,9 +1051,9 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 								</Section>
 							)}
 
-							{/* Light Properties (for Point/Spot lights) */}
+							{/* Light Properties */}
 							{selectedObject._isEditorLight && (
-								<Section title={`${selectedObject._lightType === "spot" ? "Spot" : "Point"} Light`}>
+								<Section title={`${selectedObject._lightType === "spot" ? "Spot" : selectedObject._lightType === "point" ? "Point" : selectedObject._lightType === "directional" ? "Directional" : "Hemisphere"} Light`}>
 									<div className="space-y-1.5">
 										{/* Color */}
 										<div className="flex items-center gap-2">
@@ -1076,26 +1076,30 @@ export function GameEditorPanel({ settingsProps }: GameEditorPanelProps) {
 											labelClassName="w-14 text-left text-[9px]"
 											onChange={(v) => updateLight(selectedObject.name, { intensity: Math.max(0, v) })}
 										/>
-										{/* Distance */}
-										<DragNumberInput
-											label="Distance"
-											value={selectedObject._lightDistance ?? 50}
-											step={1}
-											precision={0}
-											color="#8b5cf6"
-											labelClassName="w-14 text-left text-[9px]"
-											onChange={(v) => updateLight(selectedObject.name, { distance: Math.max(0, v) })}
-										/>
-										{/* Decay */}
-										<DragNumberInput
-											label="Decay"
-											value={selectedObject._lightDecay ?? 2}
-											step={0.1}
-											precision={1}
-											color="#06b6d4"
-											labelClassName="w-14 text-left text-[9px]"
-											onChange={(v) => updateLight(selectedObject.name, { decay: Math.max(0, v) })}
-										/>
+										{/* Distance — only for point/spot lights */}
+										{(selectedObject._lightType === "point" || selectedObject._lightType === "spot") && (
+											<DragNumberInput
+												label="Distance"
+												value={selectedObject._lightDistance ?? 50}
+												step={1}
+												precision={0}
+												color="#8b5cf6"
+												labelClassName="w-14 text-left text-[9px]"
+												onChange={(v) => updateLight(selectedObject.name, { distance: Math.max(0, v) })}
+											/>
+										)}
+										{/* Decay — only for point/spot lights */}
+										{(selectedObject._lightType === "point" || selectedObject._lightType === "spot") && (
+											<DragNumberInput
+												label="Decay"
+												value={selectedObject._lightDecay ?? 2}
+												step={0.1}
+												precision={1}
+												color="#06b6d4"
+												labelClassName="w-14 text-left text-[9px]"
+												onChange={(v) => updateLight(selectedObject.name, { decay: Math.max(0, v) })}
+											/>
+										)}
 										{/* Spot light extras */}
 										{selectedObject._lightType === "spot" && (
 											<>

@@ -47,9 +47,9 @@ export interface SelectedSceneObject {
 	_textureRotation?: number;
 	_textureOffsetX?: number;
 	_textureOffsetY?: number;
-	// Light properties (present when an editor light is selected)
+	// Light properties (present when any light is selected)
 	_isEditorLight?: boolean;
-	_lightType?: "point" | "spot";
+	_lightType?: "point" | "spot" | "directional" | "hemi";
 	_lightColor?: string;
 	_lightIntensity?: number;
 	_lightDistance?: number;
@@ -527,13 +527,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 					msg.cameraTarget = activeScene.cameraTarget;
 				}
 				sendToIframe(msg);
-				try {
-					const iframes = document.querySelectorAll(".sandpack-container iframe");
-					for (const iframe of iframes) {
-						const f = iframe as HTMLIFrameElement;
-						if (f.contentWindow) f.contentWindow.postMessage(msg, "*");
-					}
-				} catch { /* ignore */ }
+				// NOTE: removed duplicate postMessage loop — sendToIframe already dispatches to all iframes
 				return currentScenes; // don't change state
 			});
 		}
