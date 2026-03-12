@@ -50,9 +50,12 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v6.0.0
+const runtimeCode = `// @vibexe/character-system v7.0.0
 // Blink-style top-down WASD controller + camera-relative movement + orbit camera
-console.log('[CharacterSystem] Module v6.0.0 loaded');
+// Phase 1: IK Head Look-At + terrain-aware falling
+// Phase 2: Cursor look-at + camera mouse offset
+// Phase 3: Acceleration/deceleration, slope handling, step climbing, footstep audio
+console.log('[CharacterSystem] Module v7.0.0 loaded');
 
 var THREE = require('three');
 
@@ -1031,12 +1034,17 @@ function swapCharacter(scene, characterId) {
         var _airControlFactor = _gsChar.airControl || 0.3;
 
         // Phase 3: Slope handling (#8)
-        var _slopeMaxAngle = 50; // degrees — above this, slide
+        var _slopeMaxAngle = _gsChar.slopeMaxAngle || 45; // degrees — above this, slide
         var _slopeSlideSpeed = 6;
 
         // Phase 3: Step climbing (#9)
-        var _stepHeight = _gsChar.stepHeight || 0.4;
+        var _stepHeight = _gsChar.stepHeight || 0.6;
         var _stepCooldown = 0;
+
+        // Terrain depenetration system — prevents character from clipping through terrain
+        var _terrainMargin = 0.15; // buffer above terrain surface to prevent visual clipping
+        var _terrainSmoothY = 0; // smoothed terrain Y for interpolation
+        var _terrainYInit = false;
 
         // Phase 3: Footstep audio (#10)
         var _footstepTimer = 0;
@@ -1115,29 +1123,40 @@ function swapCharacter(scene, characterId) {
               worldZ *= _airControlFactor;
             }
 
-            // --- Slope handling (#8) ---
+            // --- Terrain-aware movement system ---
+            // Sample terrain height at current position and movement direction
+            var _getHTerrain = window.__vibexe_getTerrainHeight;
+            var _terrainHere = _getHTerrain ? _getHTerrain(_csBody.position.x, _csBody.position.z) : null;
             var _slopeMultiplier = 1.0;
-            if (isGrounded && hasInput) {
-              var _getHSlope = window.__vibexe_getTerrainHeight;
-              if (_getHSlope) {
-                var _px = _csMesh.position.x;
-                var _pz = _csMesh.position.z;
-                var _sampleDist = 0.5;
-                var _hCenter = _getHSlope(_px, _pz);
-                var _hFwd = _getHSlope(_px + worldX * _sampleDist, _pz + worldZ * _sampleDist);
-                if (_hCenter != null && _hFwd != null) {
-                  var _slopeRise = _hFwd - _hCenter;
-                  var _slopeAngle = Math.atan2(Math.abs(_slopeRise), _sampleDist) * 57.2958;
-                  if (_slopeAngle > _slopeMaxAngle && _slopeRise > 0) {
-                    // Too steep uphill — block movement, apply slide
-                    _slopeMultiplier = 0;
-                  } else if (_slopeAngle > 10) {
-                    // Gradual speed reduction on inclines (uphill only)
-                    if (_slopeRise > 0) {
-                      _slopeMultiplier = Math.max(0.3, 1.0 - (_slopeAngle / _slopeMaxAngle) * 0.7);
-                    }
+            var _slopeAngleHere = 0;
+
+            if (_getHTerrain && hasInput && _terrainHere != null) {
+              // Multi-sample slope detection: check 3 points forward for more accurate slope reading
+              var _px = _csBody.position.x;
+              var _pz = _csBody.position.z;
+              var _sampleDists = [0.3, 0.6, 1.0];
+              var _maxSlopeAngle = 0;
+              var _maxSlopeRise = 0;
+              for (var _si = 0; _si < _sampleDists.length; _si++) {
+                var _sd = _sampleDists[_si];
+                var _hFwd = _getHTerrain(_px + worldX * _sd, _pz + worldZ * _sd);
+                if (_hFwd != null) {
+                  var _rise = _hFwd - _terrainHere;
+                  var _angle = Math.atan2(Math.abs(_rise), _sd) * 57.2958;
+                  if (_angle > _maxSlopeAngle) {
+                    _maxSlopeAngle = _angle;
+                    _maxSlopeRise = _rise;
                   }
                 }
+              }
+              _slopeAngleHere = _maxSlopeAngle;
+
+              if (_maxSlopeAngle > _slopeMaxAngle && _maxSlopeRise > 0) {
+                // Too steep uphill — block movement completely
+                _slopeMultiplier = 0;
+              } else if (_maxSlopeAngle > 15 && _maxSlopeRise > 0) {
+                // Gradual speed reduction on uphill slopes
+                _slopeMultiplier = Math.max(0.2, 1.0 - (_maxSlopeAngle / _slopeMaxAngle) * 0.8);
               }
             }
 
@@ -1165,27 +1184,27 @@ function swapCharacter(scene, characterId) {
               _csBody.velocity.z = _currentVelZ;
             }
 
-            // --- Step climbing (#9) ---
+            // --- Step climbing (#9) — uses terrain height for reliable step detection ---
             _stepCooldown = Math.max(0, _stepCooldown - dt);
-            if (isGrounded && hasInput && _stepCooldown <= 0 && _csBody.velocity) {
-              var _actualSpeed = Math.sqrt(_csBody.velocity.x * _csBody.velocity.x + _csBody.velocity.z * _csBody.velocity.z);
-              var _expectedSpeed = Math.sqrt(_targetVelX * _targetVelX + _targetVelZ * _targetVelZ);
-              // If actual speed is much less than expected, we may be blocked by a step
-              if (_expectedSpeed > 1 && _actualSpeed < _expectedSpeed * 0.3) {
-                var _getHStep = window.__vibexe_getTerrainHeight;
-                if (_getHStep && _csBody.position) {
-                  var _stepFwdX = _csBody.position.x + worldX * 0.8;
-                  var _stepFwdZ = _csBody.position.z + worldZ * 0.8;
-                  var _hHere = _getHStep(_csBody.position.x, _csBody.position.z);
-                  var _hAhead = _getHStep(_stepFwdX, _stepFwdZ);
-                  if (_hHere != null && _hAhead != null) {
-                    var _stepDiff = _hAhead - _hHere;
-                    if (_stepDiff > 0.1 && _stepDiff <= _stepHeight) {
-                      // Step up: teleport physics body
-                      _csBody.position.y += _stepDiff + 0.1;
-                      if (_csBody.velocity) _csBody.velocity.y = Math.max(0, _csBody.velocity.y);
-                      _stepCooldown = 0.2;
-                    }
+            if (isGrounded && hasInput && _stepCooldown <= 0 && _getHTerrain && _terrainHere != null) {
+              // Check forward terrain at multiple distances
+              var _stepped = false;
+              var _stepDists = [0.4, 0.8];
+              for (var _sti = 0; _sti < _stepDists.length && !_stepped; _sti++) {
+                var _stD = _stepDists[_sti];
+                var _hAhead = _getHTerrain(
+                  _csBody.position.x + worldX * _stD,
+                  _csBody.position.z + worldZ * _stD
+                );
+                if (_hAhead != null) {
+                  var _stepDiff = _hAhead - _terrainHere;
+                  // Step up if terrain ahead is 0.05-0.6 units higher
+                  if (_stepDiff > 0.05 && _stepDiff <= _stepHeight) {
+                    // Teleport body above the step
+                    _csBody.position.y = _hAhead + _csHalfH + _terrainMargin;
+                    if (_csBody.velocity) _csBody.velocity.y = Math.max(0, _csBody.velocity.y);
+                    _stepCooldown = 0.15;
+                    _stepped = true;
                   }
                 }
               }
@@ -1205,7 +1224,38 @@ function swapCharacter(scene, characterId) {
               _jumpBufferTimer = 0;
             }
 
-            // === 6. PHYSICS → MESH POSITION SYNC ===
+            // === 6. TERRAIN DEPENETRATION + PHYSICS → MESH SYNC ===
+            // This is the critical system: forcibly keep character above terrain regardless
+            // of CANNON.js heightfield accuracy. Acts as a "safety net" for collision.
+            if (_csBody.position && _getHTerrain) {
+              var _tH = _getHTerrain(_csBody.position.x, _csBody.position.z);
+              if (_tH != null) {
+                // Initialize smoothed terrain Y on first frame
+                if (!_terrainYInit) {
+                  _terrainSmoothY = _tH;
+                  _terrainYInit = true;
+                }
+                // Smooth terrain Y to prevent jitter on jagged terrain
+                // Use fast lerp (0.85) so character follows terrain closely but no micro-jitter
+                _terrainSmoothY = _terrainSmoothY + (_tH - _terrainSmoothY) * 0.85;
+
+                var _minBodyY = _terrainSmoothY + _csHalfH + _terrainMargin;
+
+                // If body is below terrain minimum, force it up
+                if (_csBody.position.y < _minBodyY) {
+                  _csBody.position.y = _minBodyY;
+                  // Kill downward velocity to prevent re-penetration
+                  if (_csBody.velocity && _csBody.velocity.y < 0) {
+                    _csBody.velocity.y = 0;
+                  }
+                  // Force grounded state since we're on terrain
+                  _csBody.__canJump = true;
+                  isGrounded = true;
+                }
+              }
+            }
+
+            // Sync mesh to physics body position
             if (_csBody.position) {
               _csMesh.position.x = _csBody.position.x;
               _csMesh.position.y = _csBody.position.y - _csHalfH;
