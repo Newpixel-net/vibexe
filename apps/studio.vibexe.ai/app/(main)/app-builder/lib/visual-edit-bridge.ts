@@ -2571,6 +2571,18 @@ export function getVisualEditBridgeScript(): string {
     if (__animProgressInterval) { clearInterval(__animProgressInterval); __animProgressInterval = null; }
     // Clean up terrain physics watcher interval (created when world not ready yet)
     if (window.__vibexe_terrainPhysicsWatcher) { clearInterval(window.__vibexe_terrainPhysicsWatcher); window.__vibexe_terrainPhysicsWatcher = null; }
+    // Clear scene tree throttle timer
+    if (_sceneTreeTimer) { clearTimeout(_sceneTreeTimer); _sceneTreeTimer = null; _sceneTreeQueued = false; }
+    // Deactivate terrain sculpting if active (prevents leaked event listeners + stale _sculptActive flag)
+    if (_sculptActive) {
+      _sculptActive = false;
+      _sculptMouseDown = false;
+      if (_sculptBrushMesh && editor && editor.scene) { editor.scene.remove(_sculptBrushMesh); _sculptBrushMesh.geometry.dispose(); _sculptBrushMesh.material.dispose(); _sculptBrushMesh = null; }
+      if (window.__sculptMouseMove) window.removeEventListener("mousemove", window.__sculptMouseMove, true);
+      if (window.__sculptMouseDown) window.removeEventListener("mousedown", window.__sculptMouseDown, true);
+      if (window.__sculptMouseUp) window.removeEventListener("mouseup", window.__sculptMouseUp, true);
+      if (window.__sculptPointerDown) window.removeEventListener("pointerdown", window.__sculptPointerDown, true);
+    }
     deselectObject();
     clearMultiHighlight();
     // Dispose reusable TransformControls on bridge deactivation
@@ -3261,7 +3273,8 @@ export function getVisualEditBridgeScript(): string {
           else if (/^Marble|^Granite|^Onyx|^Travertine/i.test(_fname)) _nScale = 0.7;
           // Promise.all for PBR maps (skip metalness for non-metals to avoid mirror effect)
           var _pbrLoaded = 0, _pbrTotal = 5, _pbrResults = [null,null,null,null,null];
-          var _pbrUrls = [_atResolved, _bne+'_Normal'+_ext, _bne+'_Roughness'+_ext, _isMetal ? _bne+'_Metalness'+_ext : '', _bne+'_AO'+_ext];
+          // Skip AO map — no _AO files exist in the texture library (avoids 404 console noise)
+          var _pbrUrls = [_atResolved, _bne+'_Normal'+_ext, _bne+'_Roughness'+_ext, _isMetal ? _bne+'_Metalness'+_ext : '', ''];
           var _pbrApply = function() {
             var colorTex = _pbrResults[0], normalTex = _pbrResults[1], roughnessTex = _pbrResults[2], metalnessTex = _pbrResults[3], aoTex = _pbrResults[4];
             if (!colorTex) return;
@@ -4367,9 +4380,7 @@ export function getVisualEditBridgeScript(): string {
             _aoUrl = _layerEmissionUrl;
           } else {
             _aoUrl = _rpEnabledLayers[li5].aoUrl || "";
-            if (!_aoUrl && _diffUrl) {
-              _aoUrl = _diffUrl.replace(/\\.jpg$/i, "_AO.jpg");
-            }
+            // Don't auto-derive AO URLs — no _AO files exist in the texture library
           }
           _rpAOUrls.push(_aoUrl);
         }
