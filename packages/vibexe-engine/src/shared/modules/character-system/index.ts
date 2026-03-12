@@ -680,7 +680,6 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
         for (var _ri = 0; _ri < allClips.length; _ri++) {
           var _newName = _animOv[allClips[_ri].name];
           if (_newName && typeof _newName === "string") {
-            console.log("[CharacterSystem] Renamed clip: " + allClips[_ri].name + " -> " + _newName);
             allClips[_ri].name = _newName;
           }
         }
