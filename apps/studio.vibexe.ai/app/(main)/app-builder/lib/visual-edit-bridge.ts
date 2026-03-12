@@ -2324,17 +2324,26 @@ export function getVisualEditBridgeScript(): string {
         });
         if (_hasPBR) _ensurePBREnv();
         showDebug("PBR textures colorSpace verified, env applied");
-        // Switch AnimatedCharacter SkinnedMeshes from detached→attached bindMode.
-        // In detached mode, mesh renders at bone world positions (set during game mode),
-        // ignoring the group's current position. Attached mode tracks the mesh's world
-        // matrix so moving the Character_Warrior group moves the visual mesh too.
+        // Fix AnimatedCharacter SkinnedMesh rendering for editor mode.
+        // In detached bindMode, mesh renders at bone world positions (set during game mode),
+        // NOT at the Character_Warrior group position. The bounding box & gizmo are at the
+        // group position, so the mesh appears separated from them.
+        // Fix: switch to attached mode AND rebind skeleton at current pose. This makes the
+        // mesh render at the group position with animation deltas applied locally.
+        // Save original bind state so we can restore on deactivation (game mode needs detached).
         editor.scene.traverse(function(_acNode) {
           if (!_acNode.userData || _acNode.userData.vibexeType !== "AnimatedCharacter") return;
           _acNode.traverse(function(_acChild) {
             if (_acChild.isSkinnedMesh && _acChild.skeleton && _acChild.bindMode === "detached") {
-              _acChild.bindMode = "attached";
+              // Save original bind state for restore on deactivation
+              _acChild.__origBindMatrix = _acChild.bindMatrix.clone();
+              _acChild.__origBoneInverses = _acChild.skeleton.boneInverses.map(function(m) { return m.clone(); });
               _acChild.__wasDetached = true;
-              showDebug("SkinnedMesh '" + _acChild.name + "' switched to attached bindMode for editor");
+              // Switch to attached + rebind at current world position
+              _acChild.bindMode = "attached";
+              _acNode.updateWorldMatrix(true, true);
+              _acChild.bind(_acChild.skeleton);
+              showDebug("SkinnedMesh '" + _acChild.name + "' rebound in attached mode for editor");
             }
           });
         });
@@ -2598,11 +2607,23 @@ export function getVisualEditBridgeScript(): string {
       if (window.__sculptMouseUp) window.removeEventListener("mouseup", window.__sculptMouseUp, true);
       if (window.__sculptPointerDown) window.removeEventListener("pointerdown", window.__sculptPointerDown, true);
     }
-    // Restore SkinnedMesh bindMode to detached (was switched to attached for editor)
+    // Restore SkinnedMesh bind state (was switched to attached + rebound for editor)
     if (editor && editor.scene) {
       editor.scene.traverse(function(_dn) {
         if (_dn.isSkinnedMesh && _dn.__wasDetached) {
           _dn.bindMode = "detached";
+          // Restore original bindMatrix and boneInverses so game mode renders correctly
+          if (_dn.__origBindMatrix) {
+            _dn.bindMatrix.copy(_dn.__origBindMatrix);
+            _dn.bindMatrixInverse.copy(_dn.__origBindMatrix).invert();
+            delete _dn.__origBindMatrix;
+          }
+          if (_dn.__origBoneInverses) {
+            for (var _ri = 0; _ri < _dn.__origBoneInverses.length; _ri++) {
+              _dn.skeleton.boneInverses[_ri].copy(_dn.__origBoneInverses[_ri]);
+            }
+            delete _dn.__origBoneInverses;
+          }
           delete _dn.__wasDetached;
         }
       });
