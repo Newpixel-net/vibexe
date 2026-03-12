@@ -1704,10 +1704,14 @@ export function getVisualEditBridgeScript(): string {
           if (_dupeIdx >= 0) persistName = obj.name + "#" + _dupeIdx;
         }
       }
+      // Un-redistribute AnimatedCharacter position for persistence.
+      // Editor moves group to mesh render center for gizmo alignment;
+      // subtract that offset so the persisted position is the logical spawn position.
+      var _ro = obj.__editorRedistOffset;
       var msg = {
         type: "game-editor-persist-transform",
         name: persistName,
-        position: { x: +obj.position.x.toFixed(3), y: +obj.position.y.toFixed(3), z: +obj.position.z.toFixed(3) },
+        position: { x: +(obj.position.x - (_ro ? _ro.x : 0)).toFixed(3), y: +(obj.position.y - (_ro ? _ro.y : 0)).toFixed(3), z: +(obj.position.z - (_ro ? _ro.z : 0)).toFixed(3) },
         rotation: { x: +(obj.rotation.x * 180 / Math.PI).toFixed(1), y: +(obj.rotation.y * 180 / Math.PI).toFixed(1), z: +(obj.rotation.z * 180 / Math.PI).toFixed(1) },
         scale: { x: +obj.scale.x.toFixed(3), y: +obj.scale.y.toFixed(3), z: +obj.scale.z.toFixed(3) }
       };
@@ -1729,9 +1733,11 @@ export function getVisualEditBridgeScript(): string {
   function sendPlayerPositionUpdate(obj) {
     if (!obj || !isPlayerCharacter(obj)) return;
     var bounds = obj.userData && obj.userData.__characterBounds;
+    // Un-redistribute for spawn position (same logic as persistTransform)
+    var _ro2 = obj.__editorRedistOffset;
     window.parent.postMessage({
       type: "game-editor-player-position-update",
-      position: { x: +obj.position.x.toFixed(3), y: +obj.position.y.toFixed(3), z: +obj.position.z.toFixed(3) },
+      position: { x: +(obj.position.x - (_ro2 ? _ro2.x : 0)).toFixed(3), y: +(obj.position.y - (_ro2 ? _ro2.y : 0)).toFixed(3), z: +(obj.position.z - (_ro2 ? _ro2.z : 0)).toFixed(3) },
       characterHeight: bounds ? bounds.height : 1.5
     }, "*");
   }
@@ -2337,29 +2343,34 @@ export function getVisualEditBridgeScript(): string {
           }
           if (window.__savedCharControllers3D.length) showDebug("Suspended " + window.__savedCharControllers3D.length + " charSystem controllers");
         }
-        // Fix AnimatedCharacter position mismatch in editor mode.
-        // The SkinnedMesh world position differs from the Character_Warrior group position
-        // because the inner GLB "Scene" subgroup has a local offset that, when transformed
-        // through the parent's rotation, creates a large world-space gap. The bounding box
-        // and gizmo appear at the group position but the mesh renders elsewhere.
-        // Fix: absorb the inner offset into the group position so they align. DON'T touch
-        // the skeleton/bindMode — that causes mesh corruption. Reverse on deactivation.
+        // Fix AnimatedCharacter gizmo-mesh alignment in editor mode.
+        // Problem: In "detached" bindMode, position redistribution causes double-offset
+        // (group move by t → render shifts by 2t) because both meshWorldMatrix and bone
+        // positions change. Solution: switch to "attached" mode first. In attached mode,
+        // meshWorldMatrix*inv(meshWorldMatrix)=I every frame, eliminating the extra shader
+        // offset. Then redistribute the inner GLB offset into the group position.
+        // Result: gizmo/bbox at group pos = mesh render pos. Drag moves render 1:1.
         editor.scene.traverse(function(_acNode) {
           if (!_acNode.userData || _acNode.userData.vibexeType !== "AnimatedCharacter") return;
-          // Find the SkinnedMesh to compute where the mesh actually renders
           var _acSkm = null;
           _acNode.traverse(function(_c) { if (!_acSkm && _c.isSkinnedMesh) _acSkm = _c; });
           if (!_acSkm) return;
-          // Get mesh world position vs group world position
+          // CRITICAL: Switch to attached bindMode BEFORE redistribution.
+          // In attached mode, bindMatrixInverse = inv(meshWorldMatrix) every frame,
+          // so group translation maps 1:1 to render translation (no double-offset).
+          // DON'T call bind() — that recomputes boneInverses from tiny Armature scale
+          // and corrupts the mesh. Just flip the flag.
+          _acNode.__savedBindMode = _acSkm.bindMode;
+          _acSkm.bindMode = "attached";
+          _acSkm.updateMatrixWorld(true);
+          // Compute mesh render center vs group center
           var _meshWP = new THREE.Vector3();
           _acSkm.getWorldPosition(_meshWP);
           var _groupWP = new THREE.Vector3();
           _acNode.getWorldPosition(_groupWP);
           var _dx = _meshWP.x - _groupWP.x, _dy = _meshWP.y - _groupWP.y, _dz = _meshWP.z - _groupWP.z;
           if (Math.abs(_dx) > 0.5 || Math.abs(_dy) > 0.5 || Math.abs(_dz) > 0.5) {
-            // Save original positions for restore
             _acNode.__savedGroupPos = _acNode.position.clone();
-            // Find the inner "Scene" or first child-of-child group with nonzero position
             var _innerGroup = null;
             for (var _ci = 0; _ci < _acNode.children.length && !_innerGroup; _ci++) {
               var _ch = _acNode.children[_ci];
@@ -2371,15 +2382,19 @@ export function getVisualEditBridgeScript(): string {
             if (_innerGroup) {
               _acNode.__savedInnerGroup = _innerGroup;
               _acNode.__savedInnerPos = _innerGroup.position.clone();
-              // Move group to mesh world position (where it actually renders)
+              // Store redistribution offset (un-redistribute on persist so spawn pos is correct)
+              _acNode.__editorRedistOffset = { x: _dx, y: _dy, z: _dz };
+              // Move group to mesh world position (where it visually renders)
               _acNode.position.x += _dx;
               _acNode.position.y += _dy;
               _acNode.position.z += _dz;
-              // Zero the inner offset to compensate (so bones stay at same world positions)
+              // Zero the inner offset to compensate (bone world positions unchanged in attached mode)
               _innerGroup.position.set(0, 0, 0);
               _acNode.updateWorldMatrix(false, true);
-              showDebug("AnimChar '" + _acNode.name + "' position aligned: offset=(" + _dx.toFixed(1) + "," + _dy.toFixed(1) + "," + _dz.toFixed(1) + ")");
+              showDebug("AnimChar '" + _acNode.name + "': attached+aligned (" + _dx.toFixed(1) + "," + _dy.toFixed(1) + "," + _dz.toFixed(1) + ")");
             }
+          } else {
+            showDebug("AnimChar '" + _acNode.name + "': attached mode (already aligned)");
           }
         });
       }, 300);
@@ -2644,18 +2659,31 @@ export function getVisualEditBridgeScript(): string {
     }
     // Clear editor-active flag so character controller resumes position sync
     window.__vibexe_editor_active = false;
-    // Restore AnimatedCharacter group/inner positions (were adjusted for editor alignment)
+    // Restore AnimatedCharacter: bindMode + positions (were adjusted for editor alignment)
     if (editor && editor.scene) {
       editor.scene.traverse(function(_dn) {
-        if (_dn.userData && _dn.userData.vibexeType === "AnimatedCharacter" && _dn.__savedGroupPos) {
-          _dn.position.copy(_dn.__savedGroupPos);
-          delete _dn.__savedGroupPos;
-          if (_dn.__savedInnerGroup && _dn.__savedInnerPos) {
-            _dn.__savedInnerGroup.position.copy(_dn.__savedInnerPos);
-            delete _dn.__savedInnerGroup;
-            delete _dn.__savedInnerPos;
+        if (_dn.userData && _dn.userData.vibexeType === "AnimatedCharacter") {
+          // Restore bindMode FIRST (before position restore, so shader uses correct mode)
+          if (_dn.__savedBindMode) {
+            var _restoreSkm = null;
+            _dn.traverse(function(_rc) { if (!_restoreSkm && _rc.isSkinnedMesh) _restoreSkm = _rc; });
+            if (_restoreSkm) {
+              _restoreSkm.bindMode = _dn.__savedBindMode;
+              _restoreSkm.updateMatrixWorld(true);
+            }
+            delete _dn.__savedBindMode;
           }
-          _dn.updateWorldMatrix(false, true);
+          if (_dn.__savedGroupPos) {
+            _dn.position.copy(_dn.__savedGroupPos);
+            delete _dn.__savedGroupPos;
+            if (_dn.__savedInnerGroup && _dn.__savedInnerPos) {
+              _dn.__savedInnerGroup.position.copy(_dn.__savedInnerPos);
+              delete _dn.__savedInnerGroup;
+              delete _dn.__savedInnerPos;
+            }
+            _dn.updateWorldMatrix(false, true);
+          }
+          delete _dn.__editorRedistOffset;
         }
       });
     }
