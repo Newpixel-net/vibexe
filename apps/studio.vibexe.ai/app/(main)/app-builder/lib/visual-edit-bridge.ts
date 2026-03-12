@@ -1684,14 +1684,34 @@ export function getVisualEditBridgeScript(): string {
     persistTimer = setTimeout(function() {
       // Guard: object may have been deleted during debounce
       if (!obj || !obj.parent || !obj.position) return;
+      // Resolve duplicate names: if multiple scene objects share the same name,
+      // append #N (0-based index) so the override system can distinguish them
+      var persistName = obj.name;
+      if (editor && editor.scene) {
+        var _dupeCount = 0, _dupeIdx = -1;
+        editor.scene.traverse(function(c) {
+          if (c.name === obj.name && c !== obj && c.parent) _dupeCount++;
+        });
+        if (_dupeCount > 0) {
+          // Find this object's index among all objects with same name
+          var _idx = 0;
+          editor.scene.traverse(function(c) {
+            if (c.name === obj.name && c.parent) {
+              if (c === obj) _dupeIdx = _idx;
+              _idx++;
+            }
+          });
+          if (_dupeIdx >= 0) persistName = obj.name + "#" + _dupeIdx;
+        }
+      }
       var msg = {
         type: "game-editor-persist-transform",
-        name: obj.name,
+        name: persistName,
         position: { x: +obj.position.x.toFixed(3), y: +obj.position.y.toFixed(3), z: +obj.position.z.toFixed(3) },
         rotation: { x: +(obj.rotation.x * 180 / Math.PI).toFixed(1), y: +(obj.rotation.y * 180 / Math.PI).toFixed(1), z: +(obj.rotation.z * 180 / Math.PI).toFixed(1) },
         scale: { x: +obj.scale.x.toFixed(3), y: +obj.scale.y.toFixed(3), z: +obj.scale.z.toFixed(3) }
       };
-      console.log("[GameEditorBridge] persistTransform:", obj.name, "pos:", msg.position);
+      console.log("[GameEditorBridge] persistTransform:", persistName, "pos:", msg.position);
       window.parent.postMessage(msg, "*");
     }, 300);
   }
