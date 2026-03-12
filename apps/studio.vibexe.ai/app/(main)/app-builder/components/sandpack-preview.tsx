@@ -883,6 +883,20 @@ export function SandpackPreview({
 	const [showConsole, setShowConsole] = useState(false);
 	const visualEdit = useVisualEdit();
 	const gameEditor = useGameEditor();
+	// Auto-fetch animation overrides on mount if character module is installed
+	// (overrides are normally fetched only when selecting a character in scene mode)
+	const animOverridesFetched = useRef(false);
+	useEffect(() => {
+		if (animOverridesFetched.current) return;
+		const charId = gameEditor.gameSettings?.character?.id;
+		if (charId) {
+			animOverridesFetched.current = true;
+			// API stores overrides keyed by title-case name (e.g. "Warrior"), not lowercase registry ID
+			const modelId = charId.charAt(0).toUpperCase() + charId.slice(1);
+			gameEditor.fetchAnimOverrides(modelId);
+		}
+	}, [gameEditor.gameSettings?.character?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
 	// Merge animation clip renames into gameSettings so character-system can use renamed names
 	const gameSettingsWithOverrides = useMemo(() => {
 		const gs = gameEditor.gameSettings;
