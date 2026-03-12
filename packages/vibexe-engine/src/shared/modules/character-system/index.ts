@@ -674,10 +674,13 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
 
       // Apply user animation renames from scene editor (animClipOverrides: { originalName: displayName })
       var _animOv = (window.__VIBEXE_GAME_SETTINGS__ || {}).animClipOverrides || {};
-      if (_animOv && typeof _animOv === "object") {
+      var _animOvKeys = Object.keys(_animOv);
+      if (_animOvKeys.length > 0) {
+        console.log("[CharacterSystem] Applying " + _animOvKeys.length + " animation renames:", _animOvKeys.join(", "));
         for (var _ri = 0; _ri < allClips.length; _ri++) {
           var _newName = _animOv[allClips[_ri].name];
           if (_newName && typeof _newName === "string") {
+            console.log("[CharacterSystem] Renamed clip: " + allClips[_ri].name + " -> " + _newName);
             allClips[_ri].name = _newName;
           }
         }
@@ -728,6 +731,7 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
           if (sorted.length > 1 && !autoAnimMap.walk) autoAnimMap.walk = sorted[1].name;
         }
       }
+      console.log("[CharacterSystem] Auto-classified idle=" + (autoAnimMap.idle || "NONE") + " walk=" + (autoAnimMap.walk || "NONE") + " run=" + (autoAnimMap.run || "NONE"));
       mesh.userData.__animMap = autoAnimMap;
 
       // Set __charHalfY for old saved game code's mesh sync Y-offset
