@@ -580,9 +580,21 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       body.__autoPhysics = true;
       _apW.addBody(body);
       obj.userData.__physicsBody = body;
+      // === Rapier parallel collider (Phase 3) ===
+      var _apR = window.RAPIER;
+      var _apRW = window.__vibexe_rapierWorld__;
+      if (_apR && _apRW) {
+        try {
+          var _rbd = _apR.RigidBodyDesc.fixed().setTranslation(ctr.x, ctr.y, ctr.z);
+          var _rb = _apRW.createRigidBody(_rbd);
+          var _rcd = _apR.ColliderDesc.cuboid(hx, hy, hz);
+          _apRW.createCollider(_rcd, _rb);
+          obj.userData.__rapierBody = _rb;
+        } catch(e) {}
+      }
       _apCreated++;
     });
-    if (_apCreated > 0) console.log('[AutoPhysics] Created ' + _apCreated + ' bodies');
+    if (_apCreated > 0) console.log('[AutoPhysics] Created ' + _apCreated + ' bodies' + (window.__vibexe_rapierWorld__ ? ' (+ Rapier)' : ''));
   }
 
   // Also handle run-auto-physics message from sandpack-preview

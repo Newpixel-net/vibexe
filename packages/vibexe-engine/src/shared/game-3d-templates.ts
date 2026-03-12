@@ -4821,9 +4821,21 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   body.__autoPhysics = true;
                   _apW.addBody(body);
                   obj.userData.__physicsBody = body;
+                  // === Rapier parallel collider (Phase 3) ===
+                  const _apR = (window as any).RAPIER;
+                  const _apRW = (window as any).__vibexe_rapierWorld__;
+                  if (_apR && _apRW) {
+                    try {
+                      const _rbd = _apR.RigidBodyDesc.fixed().setTranslation(ctr.x, ctr.y, ctr.z);
+                      const _rb = _apRW.createRigidBody(_rbd);
+                      const _rcd = _apR.ColliderDesc.cuboid(hx, hy, hz);
+                      _apRW.createCollider(_rcd, _rb);
+                      obj.userData.__rapierBody = _rb;
+                    } catch(e) { /* Rapier not available */ }
+                  }
                   _apCreated++;
                 });
-                if (_apCreated > 0) console.log("[AutoPhysics] run-auto-physics created " + _apCreated + " bodies");
+                if (_apCreated > 0) console.log("[AutoPhysics] run-auto-physics created " + _apCreated + " bodies" + ((window as any).__vibexe_rapierWorld__ ? " (+ Rapier)" : ""));
                 break;
               }
               case "game-editor-apply-texture-overrides": {

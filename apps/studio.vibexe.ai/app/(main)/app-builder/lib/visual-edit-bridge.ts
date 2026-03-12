@@ -2590,6 +2590,12 @@ export function getVisualEditBridgeScript(): string {
           // Scale changed — remove old body so a new one is created below
           w.removeBody(existingBody);
           obj.userData.__physicsBody = null;
+          // Also remove Rapier body if exists (Phase 3)
+          var _scRW = window.__vibexe_rapierWorld__;
+          if (_scRW && obj.userData.__rapierBody) {
+            try { _scRW.removeRigidBody(obj.userData.__rapierBody); } catch(e) {}
+            obj.userData.__rapierBody = null;
+          }
           // Fall through to create a new body with updated dimensions
         } else {
           // Bug #8: Account for pivot offset when syncing position
@@ -2645,11 +2651,23 @@ export function getVisualEditBridgeScript(): string {
       body.__lastScale = { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z };
       w.addBody(body);
       obj.userData.__physicsBody = body;
+      // === Rapier parallel collider (Phase 3) ===
+      var _apR = window.RAPIER;
+      var _apRW = window.__vibexe_rapierWorld__;
+      if (_apR && _apRW) {
+        try {
+          var _rbd = _apR.RigidBodyDesc.fixed().setTranslation(ctr.x, ctr.y, ctr.z);
+          var _rb = _apRW.createRigidBody(_rbd);
+          var _rcd = _apR.ColliderDesc.cuboid(hx, hy, hz);
+          _apRW.createCollider(_rcd, _rb);
+          obj.userData.__rapierBody = _rb;
+        } catch(e) {}
+      }
       created++;
     });
 
     if (created > 0 || synced > 0) {
-      console.log("[AutoPhysics] Created " + created + " bodies, synced " + synced + ", skipped " + skipped);
+      console.log("[AutoPhysics] Created " + created + " bodies, synced " + synced + ", skipped " + skipped + (window.__vibexe_rapierWorld__ ? " (+ Rapier)" : ""));
     }
   }
 

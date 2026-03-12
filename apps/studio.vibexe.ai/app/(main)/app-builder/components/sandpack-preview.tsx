@@ -834,10 +834,22 @@ if (typeof window !== 'undefined') {
         body.__lastScale = { x: obj.scale.x, y: obj.scale.y, z: obj.scale.z };
         w.addBody(body);
         obj.userData.__physicsBody = body;
+        // === Rapier parallel collider (Phase 3) ===
+        var _apR = window.RAPIER;
+        var _apRW = window.__vibexe_rapierWorld__;
+        if (_apR && _apRW) {
+          try {
+            var _rbd = _apR.RigidBodyDesc.fixed().setTranslation(center.x, center.y, center.z);
+            var _rb = _apRW.createRigidBody(_rbd);
+            var _rcd = _apR.ColliderDesc.cuboid(hx, hy, hz);
+            _apRW.createCollider(_rcd, _rb);
+            obj.userData.__rapierBody = _rb;
+          } catch(e) {}
+        }
         if (obj.name) _bodies[obj.name] = body;
         created++;
       });
-      if (created > 0) console.log("[AutoPhysics] Created "+created+" physics bodies ("+skipped+" already had bodies)");
+      if (created > 0) console.log("[AutoPhysics] Created "+created+" physics bodies ("+skipped+" already had bodies)" + (window.__vibexe_rapierWorld__ ? " (+ Rapier)" : ""));
       else if (skipped > 0) console.log("[AutoPhysics] All "+skipped+" objects already have physics bodies");
       else console.log("[AutoPhysics] No objects needed physics bodies");
     }
