@@ -571,23 +571,33 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   }
 
   // Also handle run-auto-physics message from sandpack-preview
-  window.addEventListener('message', (ev: any) => {
+  const _autoPhysicsHandler = (ev: any) => {
     if (ev.data?.type === 'run-auto-physics') _autoPhysics();
-  });
+  };
+  window.addEventListener('message', _autoPhysicsHandler);
 
   // ===== Resize =====
-  window.addEventListener('resize', () => {
+  const _resizeHandler = () => {
     const w = container.clientWidth, h = container.clientHeight;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
     const comp = W.__vibexe_composer__;
     if (comp) comp.setSize(w, h);
-  });
+  };
+  window.addEventListener('resize', _resizeHandler);
 
-  document.addEventListener('visibilitychange', () => {
+  const _visibilityHandler = () => {
     if (document.hidden) clock.stop(); else clock.start();
-  });
+  };
+  document.addEventListener('visibilitychange', _visibilityHandler);
+
+  // Store cleanup function so bundle reload can remove these listeners
+  W.__vibexe_eventCleanup__ = () => {
+    window.removeEventListener('message', _autoPhysicsHandler);
+    window.removeEventListener('resize', _resizeHandler);
+    document.removeEventListener('visibilitychange', _visibilityHandler);
+  };
 
   // ===== Editor Integration =====
   let __editorMode = false;
@@ -699,12 +709,19 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       W.__vibexe_skipComposer__ = true;
 
       // Reset PerfGuard counters on tab-switch to prevent false FPS trigger
-      document.addEventListener('visibilitychange', () => {
+      const _perfVisHandler = () => {
         if (!document.hidden) {
           __perfFrames = 0;
           __perfLastCheck = performance.now();
         }
-      });
+      };
+      document.addEventListener('visibilitychange', _perfVisHandler);
+      // Append to cleanup so bundle reload removes this listener too
+      const _prevCleanup = W.__vibexe_eventCleanup__;
+      W.__vibexe_eventCleanup__ = () => {
+        if (_prevCleanup) _prevCleanup();
+        document.removeEventListener('visibilitychange', _perfVisHandler);
+      };
 
       function animate(time?: number) {
         W.__vibexe_animFrameId__ = requestAnimationFrame(animate);

@@ -139,6 +139,28 @@ window.addEventListener('unhandledrejection', function(e) {
         if (window.__vibexe_animFrameId__) {
           cancelAnimationFrame(window.__vibexe_animFrameId__);
         }
+        // Cancel FPS counter loop
+        if (window.__vibexe_fpsLoopId__) {
+          cancelAnimationFrame(window.__vibexe_fpsLoopId__);
+          window.__vibexe_fpsLoopId__ = null;
+        }
+        // Close AudioContext
+        var audioCtx = window.__vibexe_audioCtx__ || window._audioCtx;
+        if (audioCtx && audioCtx.close) { try { audioCtx.close(); } catch(e) {} }
+        window.__vibexe_audioCtx__ = null;
+        window._audioCtx = null;
+        window._masterGain = null;
+        window._musicGain = null;
+        window._sfxGain = null;
+        // Remove accumulated event listeners
+        if (window.__vibexe_eventCleanup__) {
+          try { window.__vibexe_eventCleanup__(); } catch(e) {}
+          window.__vibexe_eventCleanup__ = null;
+        }
+        // Restore original requestAnimationFrame if wrapped
+        if (window.requestAnimationFrame.__vibexe_original) {
+          window.requestAnimationFrame = window.requestAnimationFrame.__vibexe_original;
+        }
         old.remove();
         // Clear globals
         window.__vibexe_renderer__ = null;
@@ -148,9 +170,17 @@ window.addEventListener('unhandledrejection', function(e) {
         window.__vibexe_composer__ = null;
         window.__vibexe_playerMesh__ = null;
         window.__vibexe_editor__ = null;
+        window.__vibexe_bootstrap_applied__ = null;
+        window.__vibexe_perfguard__ = null;
+        window.__vibexe_terrainBody = null;
+        window.__vibexe_terrainPostStep = null;
+        window.__vibexe_terrainData = null;
         // Clear canvas
         var root = document.getElementById('root');
         if (root) root.innerHTML = '';
+        // Remove FPS overlay
+        var fpsEl = document.getElementById('__vibexe_fps__');
+        if (fpsEl) fpsEl.remove();
       }
 
       try {

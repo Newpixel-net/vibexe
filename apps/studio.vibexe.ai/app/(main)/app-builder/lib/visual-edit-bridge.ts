@@ -2569,6 +2569,8 @@ export function getVisualEditBridgeScript(): string {
     flyMode = false; flyKeys = {}; flyRMBDown = false; flyLastMouse = null;
     // Clean up animation progress interval
     if (__animProgressInterval) { clearInterval(__animProgressInterval); __animProgressInterval = null; }
+    // Clean up terrain physics watcher interval (created when world not ready yet)
+    if (window.__vibexe_terrainPhysicsWatcher) { clearInterval(window.__vibexe_terrainPhysicsWatcher); window.__vibexe_terrainPhysicsWatcher = null; }
     deselectObject();
     clearMultiHighlight();
     // Dispose reusable TransformControls on bridge deactivation
