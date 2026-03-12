@@ -1719,6 +1719,14 @@ export async function createAnimatedCharacter3D(
     }
   });
 
+  // --- Zero out baked GLB root position ---
+  // Some GLB exports bake a non-zero position into the root node.
+  // Animation playback can also accumulate root drift. Zero it early.
+  if (inner.position.lengthSq() > 0.001) {
+    console.log("[3D] Zeroing GLB root position:", inner.position.x.toFixed(3), inner.position.y.toFixed(3), inner.position.z.toFixed(3));
+    inner.position.set(0, 0, 0);
+  }
+
   // --- Auto-upright detection ---
   // Measure raw bounding box before any transforms
   const rawBox = new THREE.Box3().setFromObject(inner);
@@ -1848,6 +1856,8 @@ export async function createAnimatedCharacter3D(
   mesh.name = "Character_" + fileName;
   mesh.userData = { vibexeType: "AnimatedCharacter", vibexeFactory: "createAnimatedCharacter3D", __isPlayerCharacter: true };
   mesh.userData.vibexeArgs = { x: x, y: y, z: z, url: opts.url };
+  // Store inner GLB root ref for game loop pinning (prevents animation root drift)
+  mesh.userData.__innerGLBRoot = inner;
   mesh.add(pivot);
   mesh.position.set(x, y, z);
   if (opts.rotation !== undefined) mesh.rotation.y = opts.rotation;
@@ -1920,8 +1930,9 @@ export async function createAnimatedCharacter3D(
       if (!isPos && !isScale) continue;
       const suffix = isPos ? ".position" : ".scale";
       const nodePath = track.name.replace(suffix, "");
-      if (nodePath === "") {
-        // Scene root — remove entirely (prevents overriding our autoScale or position)
+      if (nodePath === "" || nodePath === inner.name) {
+        // Scene/GLB root node (empty path or by name e.g. "Scene") — remove entirely
+        // Prevents overriding our autoScale or position, and stops root motion drift
         clip.tracks.splice(ti, 1);
       } else if (isPos && _ROOT_BONE_NAMES.has(nodePath.toLowerCase())) {
         // Root bone position: lock XZ, keep Y for hip bobbing
