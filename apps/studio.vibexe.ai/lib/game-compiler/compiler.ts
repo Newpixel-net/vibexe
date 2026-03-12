@@ -768,6 +768,11 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         if (__editorMode) {
           if (__editorOrbitControls) __editorOrbitControls.update();
           W._updateAllMixers3D?.(0.016);
+          // Pin GLB root position to zero (animation root drift prevention)
+          if (W.__vibexe_playerMesh__?.userData?.__innerGLBRoot) {
+            const _ir = W.__vibexe_playerMesh__.userData.__innerGLBRoot;
+            if (_ir.position.x !== 0 || _ir.position.y !== 0 || _ir.position.z !== 0) _ir.position.set(0, 0, 0);
+          }
           __shadowFrame++;
           if (__shadowFrame >= 30) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
           if (!W.__vibexe_bridge_rendering__) {
@@ -780,6 +785,13 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         const delta = clock.getDelta();
         // Auto-update animation mixers
         W._updateAllMixers3D?.(delta);
+        // Pin GLB root node position to zero after mixer update.
+        // Some GLB animations have "Scene.position" tracks that drift the root node,
+        // causing gizmo misalignment in scene editor. This clamps it every frame.
+        if (W.__vibexe_playerMesh__?.userData?.__innerGLBRoot) {
+          const _ir = W.__vibexe_playerMesh__.userData.__innerGLBRoot;
+          if (_ir.position.x !== 0 || _ir.position.y !== 0 || _ir.position.z !== 0) _ir.position.set(0, 0, 0);
+        }
         try { if (gameScene.update) gameScene.update(delta); } catch (e) { console.error('[Runtime] update error:', e); }
         // Auto-update character controllers, particles, triggers, springs
         W._updateAllControllers3D?.(delta);

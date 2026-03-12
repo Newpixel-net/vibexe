@@ -293,8 +293,15 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
     loader.load(url, function(gltf) {
       var inner = gltf.scene;
 
+      // Zero out the GLB root node position/rotation if baked (some GLBs export with
+      // a non-zero origin on the Scene node, causing the mesh to render offset from its Group).
+      // Also prevents animation-driven root drift (tracks targeting "Scene.position").
+      if (inner.position.lengthSq() > 0.001) {
+        console.log("[CharacterSystem] Zeroing GLB root position:", inner.position.x.toFixed(3), inner.position.y.toFixed(3), inner.position.z.toFixed(3));
+        inner.position.set(0, 0, 0);
+      }
+
       // Fix materials for proper lighting + disable frustum culling on skinned meshes
-      // Use DetachedBindMode so parent Group transform actually moves the visible mesh
       inner.traverse(function(child) {
         if (child.isMesh) {
           child.castShadow = true;
@@ -505,6 +512,9 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
       });
 
       // --- Root motion stripping ---
+      // Strip position/scale tracks that target the GLB root (Scene) node.
+      // GLB root name is typically "Scene" or "" — both must be caught.
+      var _innerName = inner.name || "";
       var allClips = gltf.animations || [];
       for (var ci = 0; ci < allClips.length; ci++) {
         var clip = allClips[ci];
@@ -515,8 +525,8 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
           if (!isPos && !isScale) continue;
           var suffix = isPos ? ".position" : ".scale";
           var nodePath = track.name.replace(suffix, "");
-          if (nodePath === "") {
-            // Scene root — remove entirely
+          if (nodePath === "" || nodePath === _innerName) {
+            // GLB root node (empty path or by name "Scene" etc.) — remove entirely
             clip.tracks.splice(ti, 1);
           } else if (isPos && _ROOT_BONE_NAMES[nodePath.toLowerCase()]) {
             // Root bone position: lock XZ, keep Y for hip bobbing
@@ -578,6 +588,9 @@ function loadCharacterGLB(scene, url, position, charName, modelFileName) {
 
       // Store mixer on userData for cleanup
       mesh.userData.__mixer = mixer;
+      // Store inner (GLB root) reference so game loop can pin position to zero
+      // (prevents animation-driven root drift even if a track was missed)
+      mesh.userData.__innerGLBRoot = inner;
 
       // Store animation data on mesh.userData for editor access
       mesh.userData.__clipNames = clipNames;
