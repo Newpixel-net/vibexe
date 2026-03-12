@@ -13,6 +13,11 @@
  * - IK Head Look-At: head/neck/spine track cursor/camera direction (Blink OnAnimatorIK port)
  * - Cursor Look-At: raycast camera→ground through mouse, head follows cursor (Blink GetPoint)
  * - Camera Mouse Offset: subtle camera shift toward cursor for "look ahead" feel
+ * - Acceleration/deceleration: momentum ramp instead of instant velocity
+ * - Air control reduction: reduced horizontal input while airborne
+ * - Slope handling: speed reduction on inclines, block on steep slopes
+ * - Step climbing: auto-step small terrain height differences
+ * - Footstep audio: procedural Web Audio thuds synced to walk/run speed
  * - Terrain-aware falling detection (ground distance + velocity threshold)
  * - Scene hierarchy integration (Character_ prefix, userData)
  * - Mesh swap with old mesh disposal and stale mesh cleanup
@@ -1016,6 +1021,36 @@ function swapCharacter(scene, characterId) {
         var _camOffsetMax = _gsChar.camMouseOffset || 0.8;
         var _camOffsetSmooth = _gsChar.camOffsetDampTime || 0.25;
 
+        // Phase 3: Acceleration/deceleration (#11)
+        var _accelGround = _gsChar.accelGround || 20; // units/s² on ground
+        var _decelGround = _gsChar.decelGround || 15; // stopping decel
+        var _accelAir = _gsChar.accelAir || 5; // reduced air control
+        var _currentVelX = 0, _currentVelZ = 0;
+
+        // Phase 3: Air control reduction (#7)
+        var _airControlFactor = _gsChar.airControl || 0.3;
+
+        // Phase 3: Slope handling (#8)
+        var _slopeMaxAngle = 50; // degrees — above this, slide
+        var _slopeSlideSpeed = 6;
+
+        // Phase 3: Step climbing (#9)
+        var _stepHeight = _gsChar.stepHeight || 0.4;
+        var _stepCooldown = 0;
+
+        // Phase 3: Footstep audio (#10)
+        var _footstepTimer = 0;
+        var _footstepCtx = null;
+        var _footstepGain = null;
+        try {
+          _footstepCtx = window.AudioContext ? new AudioContext() : null;
+          if (_footstepCtx) {
+            _footstepGain = _footstepCtx.createGain();
+            _footstepGain.gain.value = 0.15;
+            _footstepGain.connect(_footstepCtx.destination);
+          }
+        } catch(e) { _footstepCtx = null; }
+
         var newCtrl = {
           __charSystem: true,
           update: function(dt) {
@@ -1063,13 +1098,7 @@ function swapCharacter(scene, characterId) {
             var isRunning = _inputState.shift && hasInput;
             var moveSpeed = isRunning ? _runSpeed : _walkSpeed;
 
-            // Only override X/Z velocity — preserve Y for jump/gravity
-            if (_csBody.velocity) {
-              _csBody.velocity.x = worldX * moveSpeed;
-              _csBody.velocity.z = worldZ * moveSpeed;
-            }
-
-            // Coyote time + jump buffer (Blink-style)
+            // Grounded check (used by multiple systems)
             _jumpCooldown = Math.max(0, _jumpCooldown - dt);
             var isGrounded = !!(_csBody.__canJump);
             if (isGrounded) {
@@ -1078,6 +1107,89 @@ function swapCharacter(scene, characterId) {
               _coyoteTimer += dt;
             }
             var canJump = isGrounded || _coyoteTimer < _coyoteTime;
+
+            // --- Air control reduction (#7) ---
+            // Reduce horizontal input while airborne (Blink: zeros input during jump)
+            if (!isGrounded) {
+              worldX *= _airControlFactor;
+              worldZ *= _airControlFactor;
+            }
+
+            // --- Slope handling (#8) ---
+            var _slopeMultiplier = 1.0;
+            if (isGrounded && hasInput) {
+              var _getHSlope = window.__vibexe_getTerrainHeight;
+              if (_getHSlope) {
+                var _px = _csMesh.position.x;
+                var _pz = _csMesh.position.z;
+                var _sampleDist = 0.5;
+                var _hCenter = _getHSlope(_px, _pz);
+                var _hFwd = _getHSlope(_px + worldX * _sampleDist, _pz + worldZ * _sampleDist);
+                if (_hCenter != null && _hFwd != null) {
+                  var _slopeRise = _hFwd - _hCenter;
+                  var _slopeAngle = Math.atan2(Math.abs(_slopeRise), _sampleDist) * 57.2958;
+                  if (_slopeAngle > _slopeMaxAngle && _slopeRise > 0) {
+                    // Too steep uphill — block movement, apply slide
+                    _slopeMultiplier = 0;
+                  } else if (_slopeAngle > 10) {
+                    // Gradual speed reduction on inclines (uphill only)
+                    if (_slopeRise > 0) {
+                      _slopeMultiplier = Math.max(0.3, 1.0 - (_slopeAngle / _slopeMaxAngle) * 0.7);
+                    }
+                  }
+                }
+              }
+            }
+
+            // --- Acceleration/deceleration (#11) ---
+            var _targetVelX = worldX * moveSpeed * _slopeMultiplier;
+            var _targetVelZ = worldZ * moveSpeed * _slopeMultiplier;
+            var _accel = isGrounded ? (hasInput ? _accelGround : _decelGround) : _accelAir;
+            var _accelStep = _accel * dt;
+
+            // Ramp toward target velocity
+            var _dvx = _targetVelX - _currentVelX;
+            var _dvz = _targetVelZ - _currentVelZ;
+            var _dvLen = Math.sqrt(_dvx * _dvx + _dvz * _dvz);
+            if (_dvLen > _accelStep) {
+              _currentVelX += (_dvx / _dvLen) * _accelStep;
+              _currentVelZ += (_dvz / _dvLen) * _accelStep;
+            } else {
+              _currentVelX = _targetVelX;
+              _currentVelZ = _targetVelZ;
+            }
+
+            // Apply to physics body — preserve Y for jump/gravity
+            if (_csBody.velocity) {
+              _csBody.velocity.x = _currentVelX;
+              _csBody.velocity.z = _currentVelZ;
+            }
+
+            // --- Step climbing (#9) ---
+            _stepCooldown = Math.max(0, _stepCooldown - dt);
+            if (isGrounded && hasInput && _stepCooldown <= 0 && _csBody.velocity) {
+              var _actualSpeed = Math.sqrt(_csBody.velocity.x * _csBody.velocity.x + _csBody.velocity.z * _csBody.velocity.z);
+              var _expectedSpeed = Math.sqrt(_targetVelX * _targetVelX + _targetVelZ * _targetVelZ);
+              // If actual speed is much less than expected, we may be blocked by a step
+              if (_expectedSpeed > 1 && _actualSpeed < _expectedSpeed * 0.3) {
+                var _getHStep = window.__vibexe_getTerrainHeight;
+                if (_getHStep && _csBody.position) {
+                  var _stepFwdX = _csBody.position.x + worldX * 0.8;
+                  var _stepFwdZ = _csBody.position.z + worldZ * 0.8;
+                  var _hHere = _getHStep(_csBody.position.x, _csBody.position.z);
+                  var _hAhead = _getHStep(_stepFwdX, _stepFwdZ);
+                  if (_hHere != null && _hAhead != null) {
+                    var _stepDiff = _hAhead - _hHere;
+                    if (_stepDiff > 0.1 && _stepDiff <= _stepHeight) {
+                      // Step up: teleport physics body
+                      _csBody.position.y += _stepDiff + 0.1;
+                      if (_csBody.velocity) _csBody.velocity.y = Math.max(0, _csBody.velocity.y);
+                      _stepCooldown = 0.2;
+                    }
+                  }
+                }
+              }
+            }
 
             // Jump buffer — remember jump press for a few frames
             if (_inputState.space) {
@@ -1163,6 +1275,34 @@ function swapCharacter(scene, characterId) {
               var clipName = animMap[targetAnim] || targetAnim;
               _csPlay(clipName, { crossfade: 0.15 });
               _csLastAnim = targetAnim;
+            }
+
+            // === 8.6 FOOTSTEP AUDIO (#10) ===
+            // Procedural footstep sounds via Web Audio oscillator (no file needed)
+            if (_footstepCtx && isGrounded && speed > 0.5) {
+              var _footInterval = isRunning ? 0.28 : 0.48;
+              _footstepTimer += dt;
+              if (_footstepTimer >= _footInterval) {
+                _footstepTimer -= _footInterval;
+                try {
+                  if (_footstepCtx.state === "suspended") _footstepCtx.resume();
+                  var _now = _footstepCtx.currentTime;
+                  // Low-frequency thud (60-90 Hz, 80ms decay)
+                  var _osc = _footstepCtx.createOscillator();
+                  var _env = _footstepCtx.createGain();
+                  _osc.type = "sine";
+                  _osc.frequency.setValueAtTime(60 + Math.random() * 30, _now);
+                  _osc.frequency.exponentialRampToValueAtTime(30, _now + 0.08);
+                  _env.gain.setValueAtTime(0.12 + Math.random() * 0.06, _now);
+                  _env.gain.exponentialRampToValueAtTime(0.001, _now + 0.1);
+                  _osc.connect(_env);
+                  _env.connect(_footstepGain);
+                  _osc.start(_now);
+                  _osc.stop(_now + 0.12);
+                } catch(e) {}
+              }
+            } else {
+              _footstepTimer = 0;
             }
 
             // === 8.5 CURSOR LOOK-AT + IK HEAD (Blink: GetPoint + OnAnimatorIK) ===
@@ -1526,7 +1666,7 @@ module.exports = {
 export const CHARACTER_SYSTEM_MANIFEST: ModuleManifest = {
 	id: "character-system",
 	name: "Character System",
-	version: "6.2.0",
+	version: "7.0.0",
 	category: "tools",
 	description: "Player character selection and model swapping",
 	icon: "PersonStanding",
