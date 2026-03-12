@@ -1099,6 +1099,9 @@ function SkyWeatherSystem(scene, config) {
   this._origBg = scene.background;
   scene.background = new THREE.Color(0x000000);
 
+  // Set global active flag so other systems (bootstrap, updateGameSettings) skip bg/fog/lighting
+  window.__skyWeather_active = true;
+
   this._startLoop();
   this._listen();
 
@@ -1250,8 +1253,25 @@ SkyWeatherSystem.prototype._listen = function() {
     if (d.type === "sky-weather-update-config" && d.config) {
       self._merge(d.config);
     }
-    if (d.type === "sky-weather-set-preset") {
-      console.log("[SkyWeather] Preset:", d.preset, "(weather presets available in Phase 3)");
+    if (d.type === "sky-weather-set-preset" && d.preset) {
+      var _presets = {
+        clear:    { clouds: { coverage: 0 }, precipitation: { type: "none", intensity: 0 }, fog: { enabled: false }, lightning: { enabled: false } },
+        fair:     { clouds: { coverage: 0.15 }, precipitation: { type: "none", intensity: 0 }, fog: { enabled: false }, lightning: { enabled: false } },
+        partlyCloudy: { clouds: { coverage: 0.35 }, precipitation: { type: "none", intensity: 0 }, fog: { enabled: false }, lightning: { enabled: false } },
+        cloudy:   { clouds: { coverage: 0.6 }, precipitation: { type: "none", intensity: 0 }, fog: { enabled: false }, lightning: { enabled: false } },
+        overcast: { clouds: { coverage: 0.85 }, precipitation: { type: "none", intensity: 0 }, fog: { enabled: true, density: 0.002 }, lightning: { enabled: false } },
+        rainy:    { clouds: { coverage: 0.75 }, precipitation: { type: "rain", intensity: 0.5, windStrength: 0.4 }, fog: { enabled: true, density: 0.004 }, lightning: { enabled: false } },
+        snowy:    { clouds: { coverage: 0.65 }, precipitation: { type: "snow", intensity: 0.4, windStrength: 0.2 }, fog: { enabled: true, density: 0.003 }, lightning: { enabled: false } },
+        foggy:    { clouds: { coverage: 0.3 }, precipitation: { type: "none", intensity: 0 }, fog: { enabled: true, density: 0.012, autoColor: true }, lightning: { enabled: false } },
+        stormy:   { clouds: { coverage: 0.9 }, precipitation: { type: "rain", intensity: 0.8, windStrength: 0.7 }, fog: { enabled: true, density: 0.006 }, lightning: { enabled: true, frequency: 0.15 } }
+      };
+      var _pc = _presets[d.preset];
+      if (_pc) {
+        self._merge(_pc);
+        console.log("[SkyWeather] Applied preset:", d.preset);
+      } else {
+        console.warn("[SkyWeather] Unknown preset:", d.preset);
+      }
     }
     // Debug overlay health query
     if (d.type === "vibexe-debug-query-systems") {
@@ -1306,6 +1326,8 @@ SkyWeatherSystem.prototype.destroy = function() {
     clearInterval(window.__skyWeather_autoInitInterval);
     window.__skyWeather_autoInitInterval = null;
   }
+  // Clear global active flag so bootstrap/updateGameSettings can manage bg/fog/lighting again
+  window.__skyWeather_active = false;
   window.__vibexe_skyWeather = null;
   window.__vibexe_skyState = null;
   console.log("[SkyWeather] Destroyed");

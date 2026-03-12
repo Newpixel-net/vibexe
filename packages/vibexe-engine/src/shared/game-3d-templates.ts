@@ -5037,8 +5037,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   if (s.camera.lookY !== undefined) { CAMERA_LOOK_Y = s.camera.lookY; (window as any).CAMERA_LOOK_Y = s.camera.lookY; }
                   if (s.camera.lookAhead !== undefined) { CAMERA_LOOK_AHEAD = s.camera.lookAhead; (window as any).CAMERA_LOOK_AHEAD = s.camera.lookAhead; }
                 }
-                // --- Environment ---
-                if (s.environment && scene) {
+                // --- Environment --- (skip bg/fog/lighting when sky-weather module is managing them)
+                if (s.environment && scene && !((window as any).__vibexe_skyWeather && (window as any).__vibexe_skyWeather._active)) {
                   if (s.environment.backgroundColor !== undefined) scene.background = new THREE.Color(s.environment.backgroundColor);
                   const _al = scene.getObjectByName('__default_ambient__');
                   if (_al && s.environment.ambientLightIntensity !== undefined) (_al as any).intensity = s.environment.ambientLightIntensity;

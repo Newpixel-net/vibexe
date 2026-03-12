@@ -1672,13 +1672,16 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 						"var T=(window as any).THREE;var s=(window as any).__vibexe_scene__;var c=(window as any).__vibexe_camera__;",
 						"if(!T||!s)return;",
 						"clearInterval(_t);",
-						// Environment
+						// Environment — skip bg/fog/lighting when sky-weather module manages them
 						"var e=_gs.environment||{};",
+						`var _swManaged=${so.modules?.installed?.["sky-weather"]?.enabled ? "true" : "false"}||!!(window as any).__skyWeather_active;`,
+						"if(!_swManaged){",
 						"if(e.backgroundColor){try{s.background=new T.Color(e.backgroundColor)}catch(x){}}",
 						"if(e.fogEnabled){try{s.fog=new T.Fog(e.fogColor||e.backgroundColor||'#87CEEB',e.fogNear||30,e.fogFar||100)}catch(x){}}",
 						"var amb=s.getObjectByName('__default_ambient__');if(amb&&e.ambientLightIntensity!=null)amb.intensity=e.ambientLightIntensity;if(amb&&e.ambientLightColor)try{amb.color=new T.Color(e.ambientLightColor)}catch(x){}",
 						"var sun=s.getObjectByName('__default_sun__');if(sun&&e.sunLightIntensity!=null)sun.intensity=e.sunLightIntensity;if(sun&&e.sunLightColor)try{sun.color=new T.Color(e.sunLightColor)}catch(x){}",
 						"var hemi=s.getObjectByName('__default_hemi__');if(hemi&&e.hemisphereIntensity!=null)hemi.intensity=e.hemisphereIntensity;if(hemi&&e.hemisphereSkyColor)try{hemi.color=new T.Color(e.hemisphereSkyColor)}catch(x){}if(hemi&&e.hemisphereGroundColor)try{hemi.groundColor=new T.Color(e.hemisphereGroundColor)}catch(x){}",
+						"}",
 						// Camera FOV
 						"if(c&&_gs.camera&&_gs.camera.fov!=null){c.fov=_gs.camera.fov;c.updateProjectionMatrix()}",
 						// Physics gravity — override CANNON.World.gravity at runtime

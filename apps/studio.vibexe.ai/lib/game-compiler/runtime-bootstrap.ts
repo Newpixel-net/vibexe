@@ -56,6 +56,14 @@ export function generateRuntimeBootstrap(opts: BootstrapSettings): string {
 }
 
 function generateSettingsOverride(gs: Record<string, unknown>): string {
+	// Check if sky-weather module is installed — if so, it manages bg/fog/lighting
+	const hasSkyWeather = !!(
+		gs.modules &&
+		(gs.modules as Record<string, unknown>).installed &&
+		((gs.modules as Record<string, unknown>).installed as Record<string, unknown>)["sky-weather"] &&
+		(((gs.modules as Record<string, unknown>).installed as Record<string, unknown>)["sky-weather"] as Record<string, unknown>).enabled
+	);
+
 	return `(function(){
 if(window.__vibexe_bootstrap_applied__)return;
 window.__vibexe_bootstrap_applied__=true;
@@ -68,11 +76,14 @@ var T=window.THREE;var s=window.__vibexe_scene__;var c=window.__vibexe_camera__;
 if(!T||!s)return;
 clearInterval(_t);
 var e=_gs.environment||{};
+var _swActive=${hasSkyWeather ? 'true' : 'false'}||!!window.__skyWeather_active;
+if(!_swActive){
 if(e.backgroundColor){try{s.background=new T.Color(e.backgroundColor)}catch(x){}}
 if(e.fogEnabled){try{s.fog=new T.Fog(e.fogColor||e.backgroundColor||'#87CEEB',e.fogNear||30,e.fogFar||100)}catch(x){}}
 var amb=s.getObjectByName('__default_ambient__');if(amb&&e.ambientLightIntensity!=null)amb.intensity=e.ambientLightIntensity;if(amb&&e.ambientLightColor)try{amb.color=new T.Color(e.ambientLightColor)}catch(x){}
 var sun=s.getObjectByName('__default_sun__');if(sun&&e.sunLightIntensity!=null)sun.intensity=e.sunLightIntensity;if(sun&&e.sunLightColor)try{sun.color=new T.Color(e.sunLightColor)}catch(x){}
 var hemi=s.getObjectByName('__default_hemi__');if(hemi&&e.hemisphereIntensity!=null)hemi.intensity=e.hemisphereIntensity;if(hemi&&e.hemisphereSkyColor)try{hemi.color=new T.Color(e.hemisphereSkyColor)}catch(x){}if(hemi&&e.hemisphereGroundColor)try{hemi.groundColor=new T.Color(e.hemisphereGroundColor)}catch(x){}
+}
 if(c&&_gs.camera&&_gs.camera.fov!=null){c.fov=_gs.camera.fov;c.updateProjectionMatrix()}
 var w=window.__vibexe_world__;
 if(w&&_gs.physics&&_gs.physics.gravity!=null){try{w.gravity.set(0,_gs.physics.gravity,0)}catch(x){}}
