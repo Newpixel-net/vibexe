@@ -50,14 +50,14 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v8.1.0
+const runtimeCode = `// @vibexe/character-system v8.2.0
 // Blink-style top-down WASD controller + camera-relative movement + orbit camera
 // Phase 1: IK Head Look-At + terrain-aware falling
 // Phase 2: Cursor look-at + camera mouse offset
 // Phase 3: Acceleration/deceleration, slope handling, step climbing, footstep audio
 // Phase 4: Rapier.js KCC — native terrain collision, auto-step, snap-to-ground
-// Phase 4.1: Solid terrain — slope blocking, penetration guard, forward terrain check
-console.log('[CharacterSystem] Module v8.1.0 loaded');
+// Phase 4.2: Solid terrain walls — wall rejection, boundary clamping, forward blocking
+console.log('[CharacterSystem] Module v8.2.0 loaded');
 
 var THREE = require('three');
 
@@ -1225,14 +1225,86 @@ function swapCharacter(scene, characterId) {
               var _gv = parseFloat((window.__VIBEXE_GAME_SETTINGS__ || {}).gravity) || -38;
               _rapierGravityVel += _gv * dt;
               if (_rapierGravityVel < -50) _rapierGravityVel = -50;
+              // Save previous position BEFORE KCC move (for wall rejection)
+              var _rp = _rapierBody.translation();
+              var _prevX = _rp.x, _prevY = _rp.y, _prevZ = _rp.z;
               // KCC collision resolution — Rapier handles terrain heightfield natively
               _rapierKCC.computeColliderMovement(
                 _rapierCollider,
                 { x: _currentVelX * dt, y: _rapierGravityVel * dt, z: _currentVelZ * dt }
               );
               var _cm = _rapierKCC.computedMovement();
-              var _rp = _rapierBody.translation();
-              var _nx = _rp.x + _cm.x, _ny = _rp.y + _cm.y, _nz = _rp.z + _cm.z;
+              var _nx = _prevX + _cm.x, _ny = _prevY + _cm.y, _nz = _prevZ + _cm.z;
+              // === TERRAIN BOUNDARY + WALL REJECTION ===
+              // 1. Prevent walking off terrain edge (into void)
+              // 2. Block steep side walls (reject horizontal move)
+              var _getHSafe = window.__vibexe_getTerrainHeight;
+              if (_getHSafe) {
+                var _thNew = _getHSafe(_nx, _nz);
+                var _thOld = _getHSafe(_prevX, _prevZ);
+                // Boundary check: if terrain returns null at new pos, character left the terrain
+                if (_thNew == null && _thOld != null) {
+                  // Off terrain edge — revert to previous position
+                  _nx = _prevX;
+                  _nz = _prevZ;
+                  _ny = _prevY + _cm.y;
+                  _currentVelX = 0;
+                  _currentVelZ = 0;
+                  _thNew = _thOld; // use old terrain height for further checks
+                  var _minBound = _thOld + _csHalfH + 0.1;
+                  if (_ny < _minBound) { _ny = _minBound; if (_rapierGravityVel < 0) _rapierGravityVel = 0; }
+                  isGrounded = true;
+                }
+                if (_thNew != null) {
+                  var _minSafe = _thNew + _csHalfH + 0.1;
+                  if (_ny < _minSafe) {
+                    // Character would be below terrain at new position.
+                    // Check if this is a wall (steep) or gentle slope:
+                    var _hDiff = _thNew - (_thOld || 0);
+                    var _hzMove = Math.sqrt((_nx - _prevX) * (_nx - _prevX) + (_nz - _prevZ) * (_nz - _prevZ));
+                    var _moveSlope = _hzMove > 0.001 ? Math.atan2(Math.abs(_hDiff), _hzMove) * 57.2958 : 0;
+                    if (_hDiff > 0.3 && _moveSlope > _slopeMaxAngle) {
+                      // WALL — terrain rose steeply. Reject horizontal movement entirely.
+                      // Keep character at previous XZ, only allow vertical (gravity/jump)
+                      _nx = _prevX;
+                      _nz = _prevZ;
+                      _ny = _prevY + _cm.y; // keep vertical movement from KCC
+                      _currentVelX = 0;
+                      _currentVelZ = 0;
+                      // Re-check terrain at reverted position
+                      var _thReverted = _getHSafe(_nx, _nz);
+                      if (_thReverted != null) {
+                        var _minReverted = _thReverted + _csHalfH + 0.1;
+                        if (_ny < _minReverted) { _ny = _minReverted; if (_rapierGravityVel < 0) _rapierGravityVel = 0; }
+                      }
+                      isGrounded = true;
+                    } else {
+                      // Gentle slope — allow climb, push up to terrain surface
+                      _ny = _minSafe;
+                      if (_rapierGravityVel < 0) _rapierGravityVel = 0;
+                      isGrounded = true;
+                    }
+                  }
+                  // Forward wall check — kill velocity if terrain ahead is a wall
+                  if (Math.abs(_currentVelX) + Math.abs(_currentVelZ) > 0.1) {
+                    var _velLen = Math.sqrt(_currentVelX * _currentVelX + _currentVelZ * _currentVelZ);
+                    for (var _la = 0.3; _la <= 0.9; _la += 0.3) {
+                      var _fwdX = _nx + (_currentVelX / _velLen) * _la;
+                      var _fwdZ = _nz + (_currentVelZ / _velLen) * _la;
+                      var _fwdH = _getHSafe(_fwdX, _fwdZ);
+                      if (_fwdH != null) {
+                        var _wallRise = _fwdH - _thNew;
+                        var _wallAng = Math.atan2(Math.abs(_wallRise), _la) * 57.2958;
+                        if (_wallRise > 0.2 && _wallAng > _slopeMaxAngle) {
+                          _currentVelX = 0;
+                          _currentVelZ = 0;
+                          break;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
               _rapierBody.setNextKinematicTranslation({ x: _nx, y: _ny, z: _nz });
               // Sync mesh to Rapier position (add surfaceOffset for visual grass level)
               _csMesh.position.x = _nx;
@@ -1240,38 +1312,6 @@ function swapCharacter(scene, characterId) {
               _csMesh.position.z = _nz;
               if (_csMesh.userData && _csMesh.userData.__groundOffset) {
                 _csMesh.position.y += _csMesh.userData.__groundOffset;
-              }
-              // Terrain penetration guard — hard clamp to never go below terrain surface
-              // This catches ANY case where KCC allows terrain penetration (steep slopes,
-              // autostep bypass, heightfield gaps, timing before heightfield creation)
-              var _getHSafe = window.__vibexe_getTerrainHeight;
-              if (_getHSafe) {
-                var _thSafe = _getHSafe(_nx, _nz);
-                if (_thSafe != null) {
-                  var _minSafe = _thSafe + _csHalfH + 0.1;
-                  if (_ny < _minSafe) {
-                    // Character is below terrain — push back up
-                    _ny = _minSafe;
-                    _rapierBody.setNextKinematicTranslation({ x: _nx, y: _ny, z: _nz });
-                    if (_rapierGravityVel < 0) _rapierGravityVel = 0;
-                    _csMesh.position.y = _ny - _csHalfH + (window.__vibexe_terrainSurfaceOffset || 0);
-                    if (_csMesh.userData && _csMesh.userData.__groundOffset) _csMesh.position.y += _csMesh.userData.__groundOffset;
-                    isGrounded = true;
-                  }
-                  // Also check: would the NEXT position be inside terrain? (forward blocking)
-                  var _lookAhead = 0.5;
-                  if (Math.abs(_currentVelX) + Math.abs(_currentVelZ) > 0.1) {
-                    var _velLen = Math.sqrt(_currentVelX * _currentVelX + _currentVelZ * _currentVelZ);
-                    var _fwdX = _nx + (_currentVelX / _velLen) * _lookAhead;
-                    var _fwdZ = _nz + (_currentVelZ / _velLen) * _lookAhead;
-                    var _fwdH = _getHSafe(_fwdX, _fwdZ);
-                    if (_fwdH != null && _fwdH > _ny + 0.3) {
-                      // Terrain ahead is higher than us — wall! Kill horizontal velocity
-                      _currentVelX *= 0.1;
-                      _currentVelZ *= 0.1;
-                    }
-                  }
-                }
               }
               // Sync CANNON body for diagnostics + animation state machine
               if (_csBody && _csBody.position) {
