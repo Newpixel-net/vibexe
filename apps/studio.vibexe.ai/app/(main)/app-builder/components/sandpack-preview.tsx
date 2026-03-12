@@ -883,19 +883,21 @@ export function SandpackPreview({
 	const [showConsole, setShowConsole] = useState(false);
 	const visualEdit = useVisualEdit();
 	const gameEditor = useGameEditor();
-	// Auto-fetch animation overrides on mount if character module is installed
+	// Auto-fetch animation overrides on mount if character-system module is installed
 	// (overrides are normally fetched only when selecting a character in scene mode)
 	const animOverridesFetched = useRef(false);
 	useEffect(() => {
 		if (animOverridesFetched.current) return;
-		const charId = gameEditor.gameSettings?.character?.id;
-		if (charId) {
+		const installed = gameEditor.gameSettings?.modules?.installed;
+		const hasCharSys = installed && (installed as Record<string, { enabled?: boolean }>)["character-system"]?.enabled;
+		if (hasCharSys) {
 			animOverridesFetched.current = true;
-			// API stores overrides keyed by title-case name (e.g. "Warrior"), not lowercase registry ID
-			const modelId = charId.charAt(0).toUpperCase() + charId.slice(1);
+			// Use explicit character ID from settings, or default to "Warrior" (only built-in character)
+			const charId = gameEditor.gameSettings?.character?.id;
+			const modelId = charId ? charId.charAt(0).toUpperCase() + charId.slice(1) : "Warrior";
 			gameEditor.fetchAnimOverrides(modelId);
 		}
-	}, [gameEditor.gameSettings?.character?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [gameEditor.gameSettings?.modules?.installed]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Merge animation clip renames into gameSettings so character-system can use renamed names
 	const gameSettingsWithOverrides = useMemo(() => {
