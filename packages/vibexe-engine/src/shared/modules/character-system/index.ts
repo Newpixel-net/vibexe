@@ -969,14 +969,16 @@ function _updateChaseCamera(ctx, cam, dt) {
   var cfg = ctx.settings;
   var _camState = ctx._camState;
   if (!_camState) return;
-  // Fixed behind player, smooth follow, look-ahead along Z
+  // Fixed behind player, smooth follow, look-ahead along movement direction
+  // Three.js: rotation.y=0 faces -Z. "Forward" = (-sin(θ),0,-cos(θ)), "Backward" = (sin(θ),0,cos(θ))
   var dist = cfg.camDist || 10;
   var height = cfg.camHeight || 5;
   var smoothTime = cfg.camSmoothTime || 0.15;
   var facingAngle = _csMesh.rotation.y;
-  var camTargetX = _csMesh.position.x - Math.sin(facingAngle) * dist;
+  // Camera BEHIND player = player + backward_dir * dist
+  var camTargetX = _csMesh.position.x + Math.sin(facingAngle) * dist;
   var camTargetY = _csMesh.position.y + height;
-  var camTargetZ = _csMesh.position.z - Math.cos(facingAngle) * dist;
+  var camTargetZ = _csMesh.position.z + Math.cos(facingAngle) * dist;
 
   var sdX = _smoothDamp(cam.position.x, camTargetX, _camState.velX, smoothTime, dt);
   var sdY = _smoothDamp(cam.position.y, camTargetY, _camState.velY, smoothTime * 1.5, dt);
@@ -985,10 +987,10 @@ function _updateChaseCamera(ctx, cam, dt) {
   cam.position.y = sdY.value; _camState.velY = sdY.velocity;
   cam.position.z = sdZ.value; _camState.velZ = sdZ.velocity;
 
-  // Look ahead of player
-  var lookX = _csMesh.position.x + Math.sin(facingAngle) * 5;
+  // Look AHEAD of player = player + forward_dir * lookAhead
+  var lookX = _csMesh.position.x - Math.sin(facingAngle) * 5;
   var lookY = _csMesh.position.y + 1.0;
-  var lookZ = _csMesh.position.z + Math.cos(facingAngle) * 5;
+  var lookZ = _csMesh.position.z - Math.cos(facingAngle) * 5;
   cam.lookAt(lookX, lookY, lookZ);
 }
 
@@ -1041,12 +1043,12 @@ function _updateFirstPersonCamera(ctx, cam, dt) {
   // Lock to head position
   var headY = _csMesh.position.y + _csHalfH * 1.8;
   cam.position.set(_csMesh.position.x, headY, _csMesh.position.z);
-  // Pitch/yaw from mouse state
+  // Pitch/yaw from mouse state (Three.js: yaw=0 faces -Z)
   var yaw = ctx._fpsYaw || 0;
   var pitch = ctx._fpsPitch || 0;
-  var lookX = _csMesh.position.x + Math.sin(yaw) * Math.cos(pitch);
+  var lookX = _csMesh.position.x - Math.sin(yaw) * Math.cos(pitch);
   var lookY = headY + Math.sin(pitch);
-  var lookZ = _csMesh.position.z + Math.cos(yaw) * Math.cos(pitch);
+  var lookZ = _csMesh.position.z - Math.cos(yaw) * Math.cos(pitch);
   cam.lookAt(lookX, lookY, lookZ);
 }
 
@@ -1345,14 +1347,14 @@ function _createRunnerController(ctx) {
       // Speed ramp
       _speed = Math.min(_maxSpeed, _speed + _accel * dt * 60 * _speedMult);
 
-      // Auto-forward (negative Z)
+      // Auto-forward (negative Z = into screen)
       if (ctx.body.velocity) ctx.body.velocity.z = -_speed;
 
-      // Lane switching
+      // Face forward (-Z direction, rotation.y = 0 in Three.js)
+      ctx.mesh.rotation.y = 0;
+
+      // Lane switching (A/Left = move left toward -X, D/Right = move right toward +X)
       _jumpCooldown = Math.max(0, _jumpCooldown - dt);
-      if ((_inputState.a || _inputState.w === false) && _inputState.a && !_laneSwitching) {
-        // Check specifically for left input
-      }
       if (_inputState.a && !_laneSwitching && _currentLane > 0) {
         _currentLane--;
         _targetX = _lanes[_currentLane];
