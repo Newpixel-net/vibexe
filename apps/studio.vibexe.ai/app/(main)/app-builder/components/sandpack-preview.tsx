@@ -1873,7 +1873,8 @@ export function SandpackPreview({
 				}
 			}
 			// Refresh sandpack if objects were moved during edit session
-			if (sceneModifiedDuringEditRef.current) {
+			const _sceneWasModified = sceneModifiedDuringEditRef.current;
+			if (_sceneWasModified) {
 				console.log("[GameEditor] Scene modified during edit session — refreshing preview to apply overrides");
 				sceneModifiedDuringEditRef.current = false;
 				setTimeout(() => { sandpackRefreshRef.current?.(); }, 400);
@@ -1887,10 +1888,54 @@ export function SandpackPreview({
 					: !!(_inst2 as any)["terrain-painter"]?.enabled)
 				: false;
 			if (terrainCfg?.enabled && terrainModuleInstalled) {
-				// Terrain regeneration is handled by the bridge-loaded handler (8s delay for Game mode).
-				// The IIFE _autoTerrain also fires as a backup, but the bridge-loaded path is primary
-				// since it sends the message from React→iframe (reliable, not dependent on bridge load timing).
-				console.log("[GameEditor] Terrain will auto-regenerate via bridge-loaded handler after recompile");
+				// Send terrain generation directly after recompile settles.
+				// The lightweight runtime's server-side compiler doesn't include the _autoTerrain IIFE,
+				// and bridge-loaded only fires once per iframe lifecycle, so this is the primary path.
+				const _terrainDelay = _sceneWasModified ? 10000 : 8000;
+				console.log("[GameEditor] Sending terrain generation after recompile (" + _terrainDelay + "ms delay)");
+				const _exitIframe = iframeRef.current;
+				setTimeout(() => {
+					console.log("[GameEditor] Firing terrain generation post-exit, biome:", terrainCfg.biome || "default");
+					_exitIframe?.contentWindow?.postMessage({
+						type: "terrain-painter-generate-terrain",
+						settings: {
+							terrainWidth: terrainCfg.width || 200,
+							terrainDepth: terrainCfg.depth || 200,
+							terrainHeightScale: terrainCfg.heightScale || 40,
+							terrainSegments: terrainCfg.segments || 256,
+							sculptHeightData: terrainCfg.sculptHeightData || null,
+						},
+						biome: terrainCfg.biome || null,
+						seed: terrainCfg.seed || 0,
+					}, "*");
+					if (terrainCfg.layers && terrainCfg.layers.length > 0) {
+						const _defMods = [
+							[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0, max: 0.2, minFalloff: 0.02, maxFalloff: 0.08 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 25, minFalloff: 5, maxFalloff: 10 } }],
+							[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.03, max: 0.35, minFalloff: 0.03, maxFalloff: 0.1 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 30, minFalloff: 3, maxFalloff: 10 } }],
+							[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.1, max: 0.95, minFalloff: 0.08, maxFalloff: 0.1 } }],
+							[{ type: "Height", enabled: true, blendMode: "Multiply", opacity: 100, params: { min: 0.72, max: 1.0, minFalloff: 0.08, maxFalloff: 0.02 } }, { type: "Slope", enabled: true, blendMode: "Multiply", opacity: 100, params: { minAngle: 0, maxAngle: 45, minFalloff: 5, maxFalloff: 10 } }],
+						];
+						setTimeout(() => {
+							_exitIframe?.contentWindow?.postMessage({
+								type: "terrain-painter-repaint",
+								layers: terrainCfg.layers!.map((l: any, idx: number) => ({
+									name: l.textureUrl?.split("/").pop()?.replace(/\.[^.]+$/, "") || "Layer",
+									enabled: l.enabled !== false,
+									diffuseUrl: l.textureUrl || "",
+									tileSize: l.tileSize || 4,
+									opacity: l.opacity != null ? l.opacity : 100,
+									roughness: l.roughness != null ? l.roughness : 0.85,
+									normalIntensity: l.normalIntensity != null ? l.normalIntensity : 1.0,
+									metallic: l.metallic || false,
+									modifiers: l.modifiers && l.modifiers.length > 0 ? l.modifiers : (_defMods[idx] || []),
+									materialId: l.materialId,
+									emissionUrl: l.emissionUrl,
+									emissionIntensity: l.emissionIntensity,
+								})),
+							}, "*");
+						}, 1000);
+					}
+				}, _terrainDelay);
 			}
 		}
 	}, [gameEditor.enabled]);
