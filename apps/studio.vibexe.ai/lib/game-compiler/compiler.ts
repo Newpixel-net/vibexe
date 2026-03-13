@@ -725,6 +725,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       // Performance state
       let __lastFrameTime = 0;
       let __perfFrames = 0, __perfLastCheck = performance.now(), __perfDowngraded = false;
+      let __perfDowngradeTime = 0; // Timestamp when quality was last reduced (cooldown)
       const __perfStartTime = performance.now(); // Grace period: skip PerfGuard during initial loading
       // Shadow follow state
       let __shadowFrame = 0, __shadowLastPX = 0, __shadowLastPZ = 0;
@@ -781,15 +782,17 @@ if (!gameScene || typeof gameScene.init !== 'function') {
           const __perfAge = __perfNow - __perfStartTime;
           if (__avgFps < 40 && !__perfDowngraded && __perfAge > 8000) {
             __perfDowngraded = true;
+            __perfDowngradeTime = __perfNow;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
             renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.75));
             renderer.shadowMap.enabled = false;
             W.__vibexe_cullDistance__ = 80;
             const comp = W.__vibexe_composer__;
             if (comp?.passes) { for (let pi = 0; pi < comp.passes.length; pi++) { if (comp.passes[pi].constructor?.name === 'UnrealBloomPass') comp.passes[pi].enabled = false; } }
-          } else if (__avgFps > 55 && __perfDowngraded) {
+          } else if (__avgFps > 55 && __perfDowngraded && (__perfNow - __perfDowngradeTime > 30000)) {
+            // Only restore after 30s cooldown to prevent oscillation (reduce→restore→reduce flicker)
             __perfDowngraded = false;
-            console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality');
+            console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality (after 30s cooldown)');
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.needsUpdate = true;

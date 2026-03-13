@@ -56,9 +56,15 @@ export function GameRuntimeIframe({
 	const gameSettingsRef = useRef(gameSettings);
 	gameSettingsRef.current = gameSettings;
 
+	// Store files in a ref so compileAndInject has a stable identity.
+	// The file-change useEffect watches `files` directly and calls compileAndInject.
+	const filesRef = useRef(files);
+	filesRef.current = files;
+
 	// Compile game code server-side
 	const compileAndInject = useCallback(async () => {
-		if (!files.length) return;
+		const currentFiles = filesRef.current;
+		if (!currentFiles.length) return;
 
 		// Prevent overlapping compiles (Scene→Game toggle fires multiple triggers)
 		if (compileInProgress.current) {
@@ -72,7 +78,7 @@ export function GameRuntimeIframe({
 		setCompileError(null);
 
 		try {
-			const compileFiles = files
+			const compileFiles = currentFiles
 				.filter((f) => f.content != null)
 				.map((f) => ({
 					path: f.path.startsWith("/") ? f.path : `/${f.path}`,
@@ -80,7 +86,7 @@ export function GameRuntimeIframe({
 				}));
 
 			// Find settings file (may be at root or in src/ prefix)
-			const settingsFile = files.find(
+			const settingsFile = currentFiles.find(
 				(f) => f.path.endsWith("__game-settings.json"),
 			);
 			const settings = settingsFile?.content
@@ -155,12 +161,14 @@ export function GameRuntimeIframe({
 			// If a recompile was requested while we were compiling, do it now
 			if (needsRecompile.current) {
 				needsRecompile.current = false;
-				lastHash.current = ""; // Force fresh compile
+				// Don't reset lastHash — let the hash check prevent redundant injections
+				// if the code hasn't actually changed between compiles
 				console.log("[GameRuntime] Running queued recompile");
 				setTimeout(() => compileAndInject(), 100);
 			}
 		}
-	}, [files, enabledModuleIds, appId, iframeRef]);
+	// eslint-disable-next-line react-hooks/exhaustive-deps -- filesRef used intentionally for stable identity
+	}, [enabledModuleIds, appId, iframeRef]);
 
 	// Expose refresh function to parent (force recompile, clear hash to bypass cache)
 	useEffect(() => {

@@ -938,6 +938,8 @@ export function SandpackPreview({
 	gameEditorRef.current = gameEditor;
 	const visualEditRef = useRef(visualEdit);
 	visualEditRef.current = visualEdit;
+	const isGameModeRef = useRef(isGameMode);
+	isGameModeRef.current = isGameMode;
 	// Debounce timers for gizmo drag to prevent React re-render storms
 	const playerPosUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const cameraMoveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1149,8 +1151,14 @@ export function SandpackPreview({
 			// Settings are already saved to DB and applied via postMessage.
 			if (gameEditorRef.current.enabled) {
 				sendSettingsToGame(settings);
+			} else if (isGameModeRef.current && iframeRef.current?.src?.includes("game-runtime")) {
+				// Lightweight runtime: settings already saved to DB and file state updated above.
+				// Apply via postMessage — do NOT trigger a full recompile which destroys the scene
+				// and causes visible flickering. The next recompile (e.g., on code change) will pick
+				// up the updated settings file automatically.
+				sendSettingsToGame(settings);
 			} else if (currentOnFileUpdate && existingFile) {
-				// Wait for SandpackFileSync to process the updated files, then full refresh
+				// Sandpack path: Wait for SandpackFileSync to process the updated files, then full refresh
 				setTimeout(() => {
 					sandpackRefreshRef.current?.();
 					// Send settings via postMessage after refresh starts loading
