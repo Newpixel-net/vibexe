@@ -54,6 +54,74 @@ function _lerpRGB(a, b, t) {
 
 
 // ============================================================
+// Procedural particle textures (Canvas2D → CanvasTexture)
+// Generated once, cached for reuse across rebuilds
+// ============================================================
+
+var __weatherTexCache = {};
+
+function _getSnowTexture() {
+  if (__weatherTexCache.snow) return __weatherTexCache.snow;
+  var s = 64, h = s / 2;
+  var c = document.createElement("canvas"); c.width = c.height = s;
+  var x = c.getContext("2d");
+  // Soft radial glow base
+  var g = x.createRadialGradient(h, h, 0, h, h, h);
+  g.addColorStop(0.0, "rgba(255,255,255,1.0)");
+  g.addColorStop(0.25, "rgba(230,240,255,0.7)");
+  g.addColorStop(0.6, "rgba(210,225,255,0.2)");
+  g.addColorStop(1.0, "rgba(200,220,255,0.0)");
+  x.fillStyle = g; x.fillRect(0, 0, s, s);
+  // 6-arm crystal branches
+  x.strokeStyle = "rgba(255,255,255,0.85)";
+  x.lineWidth = s * 0.025;
+  x.lineCap = "round";
+  for (var i = 0; i < 6; i++) {
+    var a = (i / 6) * Math.PI * 2;
+    var ex = h + Math.cos(a) * h * 0.75;
+    var ey = h + Math.sin(a) * h * 0.75;
+    x.beginPath(); x.moveTo(h, h); x.lineTo(ex, ey); x.stroke();
+    // Side branches at 60% along each arm
+    var bx = h + Math.cos(a) * h * 0.45;
+    var by = h + Math.sin(a) * h * 0.45;
+    for (var j = -1; j <= 1; j += 2) {
+      var ba = a + j * 0.55;
+      x.beginPath(); x.moveTo(bx, by);
+      x.lineTo(bx + Math.cos(ba) * h * 0.22, by + Math.sin(ba) * h * 0.22);
+      x.stroke();
+    }
+  }
+  var t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  __weatherTexCache.snow = t;
+  return t;
+}
+
+function _getRainTexture() {
+  if (__weatherTexCache.rain) return __weatherTexCache.rain;
+  var w = 32, ht = 64;
+  var c = document.createElement("canvas"); c.width = w; c.height = ht;
+  var x = c.getContext("2d");
+  // Vertical elongated drop with gradient fade at top/bottom
+  var g = x.createLinearGradient(0, 0, 0, ht);
+  g.addColorStop(0.0, "rgba(180,210,255,0.0)");
+  g.addColorStop(0.15, "rgba(190,215,255,0.3)");
+  g.addColorStop(0.4, "rgba(210,230,255,0.8)");
+  g.addColorStop(0.6, "rgba(210,230,255,0.8)");
+  g.addColorStop(0.85, "rgba(190,215,255,0.3)");
+  g.addColorStop(1.0, "rgba(180,210,255,0.0)");
+  x.fillStyle = g;
+  x.beginPath();
+  x.ellipse(w / 2, ht / 2, w / 2 - 2, ht / 2, 0, 0, Math.PI * 2);
+  x.fill();
+  var t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  __weatherTexCache.rain = t;
+  return t;
+}
+
+
+// ============================================================
 // SolarCalculator — Astronomical sun/moon positioning
 // ============================================================
 
@@ -315,17 +383,37 @@ var SKY_FRAGMENT = [
   "    sky += uMoonColor * mDisk * pMask * mVis * 0.5;",
   "  }",
   "",
-  "  // Procedural stars",
+  "  // Procedural stars with soft glow + diffraction spikes",
   "  float nightF = 1.0 - smoothstep(-0.12, 0.08, uSunDir.y);",
   "  float starV = uStarBright * nightF;",
   "  if (starV > 0.01 && dir.y > 0.02) {",
   "    vec2 sUV = vec2(atan(dir.z, dir.x), asin(dir.y)) * 180.0;",
   "    vec2 cell = floor(sUV);",
+  "    vec2 cellUV = fract(sUV) - 0.5;",
   "    float sh = starHash(cell);",
-  "    float bright = step(0.987, sh);",
+  "    float dist = length(cellUV);",
+  "",
+  "    // Multi-tier brightness: many dim, few bright",
+  "    float bright = smoothstep(0.985, 1.0, sh);",
+  "",
+  "    // Soft circular glow (Gaussian falloff, not a hard pixel)",
+  "    float radius = 0.12 + sh * 0.18;",
+  "    float glow = exp(-dist * dist / (radius * radius));",
+  "",
+  "    // 4-point diffraction spikes on bright stars",
+  "    float spikes = 0.0;",
+  "    if (sh > 0.995) {",
+  "      float sx = exp(-abs(cellUV.x) * 22.0) * exp(-dist * 3.5);",
+  "      float sy = exp(-abs(cellUV.y) * 22.0) * exp(-dist * 3.5);",
+  "      spikes = (sx + sy) * 0.25;",
+  "    }",
+  "",
+  "    // Color temperature variation (blue-white to warm-white)",
+  "    vec3 starCol = mix(vec3(0.75, 0.82, 1.0), vec3(1.0, 0.92, 0.8), fract(sh * 17.3));",
+  "",
   "    float twinkle = sin(sh * 6283.0 + uTime * 1.5) * 0.25 + 0.75;",
   "    float fade = smoothstep(0.02, 0.15, dir.y);",
-  "    sky += vec3(0.85, 0.9, 1.0) * bright * twinkle * starV * fade * 0.8;",
+  "    sky += starCol * bright * (glow + spikes) * twinkle * starV * fade;",
   "  }",
   "",
   "  // Shooting stars (meteors)",
@@ -831,13 +919,17 @@ WeatherParticles.prototype._rebuild = function(type, count) {
   var mat;
   if (type === "rain") {
     mat = new THREE.PointsMaterial({
-      color: 0xaaccee, size: 0.15, transparent: true,
-      opacity: 0.4, sizeAttenuation: true, depthWrite: false
+      map: _getRainTexture(),
+      color: 0xaaccee, size: 0.25, transparent: true,
+      opacity: 0.5, sizeAttenuation: true, depthWrite: false,
+      alphaTest: 0.01, blending: THREE.NormalBlending
     });
   } else {
     mat = new THREE.PointsMaterial({
-      color: 0xffffff, size: 0.35, transparent: true,
-      opacity: 0.7, sizeAttenuation: true, depthWrite: false
+      map: _getSnowTexture(),
+      color: 0xffffff, size: 0.5, transparent: true,
+      opacity: 0.8, sizeAttenuation: true, depthWrite: false,
+      alphaTest: 0.01, blending: THREE.NormalBlending
     });
   }
 
