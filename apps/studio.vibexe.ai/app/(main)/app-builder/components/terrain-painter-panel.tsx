@@ -482,6 +482,8 @@ export function TerrainPainterPanel({
 				depth: preset.terrain.depth,
 				heightScale: settings.terrainHeightScale,
 				segments: preset.terrain.segments,
+				biome: preset.biomeId,
+				seed: biomeSeed,
 				layers: newLayers.map((l) => ({
 					textureUrl: l.diffuseUrl,
 					normalUrl: l.diffuseUrl.replace(/\.[^.]+$/, "_Normal$&"),
