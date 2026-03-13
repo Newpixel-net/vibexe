@@ -832,17 +832,27 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         // Step Rapier world (parallel physics — terrain heightfield + KCC)
         const _rw = W.__vibexe_rapierWorld__;
         if (_rw) {
-          _rw.step();
-          // Sync Rapier dynamic bodies → Three.js meshes
-          const _rbm = W.__vibexe_rapierBodyMap__;
-          if (_rbm && _rbm.size > 0) {
-            _rbm.forEach((mesh: any, body: any) => {
-              if (!body.isValid() || body.isSleeping()) return;
-              const p = body.translation();
-              const r = body.rotation();
-              mesh.position.set(p.x, p.y, p.z);
-              mesh.quaternion.set(r.x, r.y, r.z, r.w);
-            });
+          try {
+            _rw.step();
+            // Sync Rapier dynamic bodies → Three.js meshes
+            const _rbm = W.__vibexe_rapierBodyMap__;
+            if (_rbm && _rbm.size > 0) {
+              _rbm.forEach((mesh: any, body: any) => {
+                if (!body.isValid() || body.isSleeping()) return;
+                const p = body.translation();
+                const r = body.rotation();
+                mesh.position.set(p.x, p.y, p.z);
+                mesh.quaternion.set(r.x, r.y, r.z, r.w);
+              });
+            }
+          } catch (_rapierErr: any) {
+            // Rapier WASM can throw "recursive use" if world state is corrupted
+            // Log once and disable to prevent flooding console every frame
+            if (!W.__rapierErrorLogged) {
+              W.__rapierErrorLogged = true;
+              console.warn('[Rapier] Physics step error (disabling Rapier):', _rapierErr?.message || _rapierErr);
+            }
+            W.__vibexe_rapierWorld__ = null;
           }
         }
 
