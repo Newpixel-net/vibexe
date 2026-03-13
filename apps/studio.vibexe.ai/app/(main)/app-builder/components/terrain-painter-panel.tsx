@@ -48,6 +48,36 @@ import {
 	ENVIRONMENT_CATEGORIES,
 	filterPresets,
 } from "../lib/terrain-presets";
+import type { BiomeParamRanges } from "../lib/terrain-presets";
+
+// ===== Resolve biome params from preset ranges =====
+// This runs client-side so the bridge doesn't need to depend on
+// the terrain-painter module being loaded on window.__vibexe_modules__
+function resolveBiomeParams(biomeRanges: BiomeParamRanges, seed: number) {
+	// Seeded PRNG (same algorithm as the module uses)
+	let s = ((seed % 2147483647) + 2147483647) % 2147483647;
+	if (s === 0) s = 1;
+	const rng = () => { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646; };
+	const rand = (lo: number, hi: number) => lo + (hi - lo) * rng();
+
+	return {
+		heightScale: rand(biomeRanges.heightScale[0], biomeRanges.heightScale[1]),
+		continentalGamma: rand(biomeRanges.continentalGamma[0], biomeRanges.continentalGamma[1]),
+		continentalFreq: biomeRanges.continentalFreq,
+		ridgeFreq: rand(biomeRanges.ridgeFreq[0], biomeRanges.ridgeFreq[1]),
+		ridgePower: rand(biomeRanges.ridgePower[0], biomeRanges.ridgePower[1]),
+		ridgeSharpness: rand(biomeRanges.ridgeSharpness[0], biomeRanges.ridgeSharpness[1]),
+		plateauSteepness: rand(biomeRanges.plateauSteepness[0], biomeRanges.plateauSteepness[1]),
+		hillsAmp: rand(biomeRanges.hillsAmp[0], biomeRanges.hillsAmp[1]),
+		detailAmp: rand(biomeRanges.detailAmp[0], biomeRanges.detailAmp[1]),
+		warpStrength: rand(biomeRanges.warpStrength[0], biomeRanges.warpStrength[1]),
+		thermalIterations: Math.round(rand(biomeRanges.thermalIter[0], biomeRanges.thermalIter[1])),
+		talusAngle: rand(biomeRanges.talusAngle[0], biomeRanges.talusAngle[1]),
+		hydroDrops: Math.round(rand(biomeRanges.hydroDrops[0], biomeRanges.hydroDrops[1])),
+		peakRounds: Math.round(rand(biomeRanges.peakRounds[0], biomeRanges.peakRounds[1])),
+		seed,
+	};
+}
 
 // ===== Types (mirroring the runtime module types) =====
 
@@ -481,17 +511,22 @@ export function TerrainPainterPanel({
 			terrainSegments: preset.terrain.segments,
 		}));
 
-		// Send generate with preset terrain dimensions and biomeId (module's TerrainGenerator with erosion)
+		// Resolve biome params from preset ranges (client-side, avoids module loading race)
+		const resolved = resolveBiomeParams(preset.terrain.biome, biomeSeed);
+
+		// Send generate with preset terrain dimensions, biomeId, AND resolved params
 		sendToIframe({
 			type: "terrain-painter-generate-terrain",
 			settings: {
 				...settings,
 				terrainWidth: preset.terrain.width,
 				terrainDepth: preset.terrain.depth,
+				terrainHeightScale: resolved.heightScale,
 				terrainSegments: preset.terrain.segments,
 			},
 			biome: preset.biomeId,
 			seed: biomeSeed,
+			resolvedBiomeParams: resolved,
 		});
 
 		// Persist terrain config so it survives iframe reloads
@@ -500,7 +535,7 @@ export function TerrainPainterPanel({
 				enabled: true,
 				width: preset.terrain.width,
 				depth: preset.terrain.depth,
-				heightScale: settings.terrainHeightScale,
+				heightScale: resolved.heightScale,
 				segments: preset.terrain.segments,
 				biome: preset.biomeId,
 				seed: biomeSeed,

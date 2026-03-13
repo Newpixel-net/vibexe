@@ -256,14 +256,14 @@ var BIOME_PRESETS = {
     warp: [0.20, 0.40]
   },
   platformer_varied: {
-    name: "Platformer (Islands & Cliffs)",
-    heightScale: [20, 45], segments: 256,
-    continental: { gamma: [1.8, 2.5], freq: 1.2 },
-    ridgeNetwork: { freq: [3.0, 5.0], power: [1.5, 2.5] },
-    ridgeFractal: { sharpness: [1.5, 2.5], plateau: [4.0, 6.0] },
-    hills: { amp: [0.06, 0.10] }, detail: { amp: [0.04, 0.08] },
-    erosion: { thermalIter: [80, 140], talus: [0.3, 0.5], hydroDrops: [10000, 20000], peakRounds: [4, 7] },
-    warp: [0.50, 0.75]
+    name: "Platformer (Gentle Hills & Plateaus)",
+    heightScale: [4, 10], segments: 256,
+    continental: { gamma: [0.8, 1.2], freq: 0.6 },
+    ridgeNetwork: { freq: [0.5, 1.2], power: [0.2, 0.5] },
+    ridgeFractal: { sharpness: [0.3, 0.7], plateau: [3.0, 5.0] },
+    hills: { amp: [0.12, 0.22] }, detail: { amp: [0.02, 0.04] },
+    erosion: { thermalIter: [120, 200], talus: [0.5, 0.8], hydroDrops: [8000, 15000], peakRounds: [8, 14] },
+    warp: [0.10, 0.25]
   },
   strategy_overview: {
     name: "Strategy (Overview Plains)",

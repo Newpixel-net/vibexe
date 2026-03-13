@@ -4216,13 +4216,15 @@ export function getVisualEditBridgeScript(): string {
         var _tpH = _tpS.terrainHeightScale || 40;
         var _tpSeg = _tpS.terrainSegments || 256;
 
-        // Biome support — read params from module if biome is specified
-        var _tpBP = null;
-        if (d.biome) {
+        // Biome support — use resolved params from panel (preferred), or module fallback
+        var _tpBP = d.resolvedBiomeParams || null;
+        if (_tpBP) {
+          _tpH = _tpBP.heightScale;
+        } else if (d.biome) {
           var _tpMod = window.__vibexe_modules__ && window.__vibexe_modules__["terrain-painter"];
           if (_tpMod && _tpMod.getBiomeParams) {
             _tpBP = _tpMod.getBiomeParams(d.biome, d.seed || Math.floor(Math.random() * 999999));
-            _tpH = _tpBP.heightScale; // Override height scale from biome
+            _tpH = _tpBP.heightScale;
           }
         }
 
@@ -4243,18 +4245,20 @@ export function getVisualEditBridgeScript(): string {
 
         // Delegate to module's TerrainGenerator when biome is set (has 4-stage erosion pipeline)
         var _tpBiomeGenerated = false;
-        if (d.biome) {
+        if (d.biome || _tpBP) {
           var _tpModGen = window.__vibexe_modules__ && window.__vibexe_modules__["terrain-painter"];
-          if (_tpModGen && _tpModGen.TerrainGenerator && _tpModGen.getBiomeParams) {
+          if (_tpModGen && _tpModGen.TerrainGenerator) {
             console.log("[TerrainPainter] Using module TerrainGenerator with erosion for biome:", d.biome);
-            var _bpGen = _tpModGen.getBiomeParams(d.biome, d.seed || Math.floor(Math.random() * 999999));
-            var _genInst = new _tpModGen.TerrainGenerator(_tpScene, {
-              width: _tpW,
-              depth: _tpD,
-              heightScale: _bpGen.heightScale,
-              segments: _tpSeg,
-              biomeParams: _bpGen
-            });
+            // Use resolved params from panel if available, else try module lookup
+            var _bpGen = _tpBP || (_tpModGen.getBiomeParams ? _tpModGen.getBiomeParams(d.biome, d.seed || Math.floor(Math.random() * 999999)) : null);
+            if (_bpGen) {
+              var _genInst = new _tpModGen.TerrainGenerator(_tpScene, {
+                width: _tpW,
+                depth: _tpD,
+                heightScale: _bpGen.heightScale || _tpH,
+                segments: _tpSeg,
+                biomeParams: _bpGen
+              });
             _genInst.generate();
 
             // Module's generate() also hides ground plane + grid, but ensure it
@@ -4277,6 +4281,7 @@ export function getVisualEditBridgeScript(): string {
             });
 
             _tpBiomeGenerated = true;
+            }
           }
         }
 
