@@ -507,7 +507,7 @@ var SKY_FRAGMENT = [
   "",
   "  // Rainbow arc",
   "  if (uRainbowInt > 0.01 && dir.y > 0.0 && uSunDir.y > 0.05) {",
-  "    vec3 antiSun = normalize(vec3(-uSunDir.x, abs(uSunDir.y) * 0.3, -uSunDir.z));",
+  "    vec3 antiSun = normalize(vec3(-uSunDir.x, -abs(uSunDir.y) * 0.3, -uSunDir.z));",
   "    float rbAng = acos(clamp(dot(dir, antiSun), -1.0, 1.0));",
   "    float rbW = 0.025;",
   "    float rbCtr = 0.72;",
@@ -1278,7 +1278,7 @@ SkyWeatherSystem.prototype._tick = function(dt) {
     this.skyDome._u.uCloudDens.value = cs.density !== undefined ? cs.density : 0.85;
     this.skyDome._u.uCloudScale.value = cs.scale || 3.0;
     this.skyDome._u.uCloudBright.value = cs.brightness !== undefined ? cs.brightness : 1.0;
-    var cSpeed = (cs.speed || 1.0) * 0.008;
+    var cSpeed = (cs.speed || 1.0) * 0.02;
     this.skyDome._u.uCloudOff.value.x += dt * cSpeed * 0.7;
     this.skyDome._u.uCloudOff.value.y += dt * cSpeed * 0.3;
   }

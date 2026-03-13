@@ -5245,7 +5245,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             if (__avgFps < 45 && !__perfDowngraded) {
               __perfDowngraded = true;
               console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
-              renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.75));
+              renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.9));
               renderer.shadowMap.enabled = false;
               (window as any).__vibexe_cullDistance__ = 60;
               // Disable bloom pass if exists

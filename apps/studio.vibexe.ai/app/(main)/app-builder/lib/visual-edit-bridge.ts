@@ -5935,8 +5935,8 @@ export function getVisualEditBridgeScript(): string {
   var AQ_LOW_FPS = 45;
   var AQ_HIGH_FPS = 55;
   var AQ_RECOVER_HOLD = 5000;
-  var AQ_PR_STEP = 0.25;
-  var AQ_PR_MIN = 0.5;
+  var AQ_PR_STEP = 0.15;
+  var AQ_PR_MIN = 0.75;
 
   var frameTimes = [];
   var lastCheckTime = 0;
