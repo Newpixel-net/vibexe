@@ -80,6 +80,10 @@ var _activeSnapTimer = null;
 // Shared animation state — each controller writes this so diagnostics can read it
 var _charAnimState = 'idle';
 
+// State preserved across controller reinit (Save & Apply)
+var _lastSwapScene = null;
+var _lastSwapCharId = null;
+
 // ===== GENRE PRESETS =====
 var GENRE_PRESETS = {
   rpg_adventure: { controllerMode: 'orbit', cameraProfile: 'orbit', walkSpeed: 4, runSpeed: 8, jumpForce: 8 },
@@ -1059,14 +1063,20 @@ function _createDoubleJumpAbility(cfg) {
   var maxJumps = cfg.jumpCount || 2;
   var _jumpCount = 0;
   var _wasGroundedAbility = true;
+  var _lastSpace = false;
+  var _spaceJustPressed = false;
   return {
     name: 'doubleJump',
     update: function(ctx, dt, isGrounded) {
+      // Track space just-pressed (not held) to prevent instant double-jump
+      var sp = _inputState.space;
+      _spaceJustPressed = sp && !_lastSpace;
+      _lastSpace = sp;
       if (isGrounded) { _jumpCount = 0; _wasGroundedAbility = true; }
       else if (_wasGroundedAbility) { _jumpCount = 1; _wasGroundedAbility = false; }
     },
     canActivate: function(ctx, isGrounded) {
-      return !isGrounded && _jumpCount < maxJumps && _inputState.space;
+      return !isGrounded && _jumpCount < maxJumps && _spaceJustPressed;
     },
     activate: function(ctx) {
       _jumpCount++;
@@ -1902,6 +1912,10 @@ function swapCharacter(scene, characterId) {
       // Multi-mode: orbit (default), runner, sidescroll, topdown, fps
       // Supports genre presets, camera profiles, abilities, input profiles
 
+      // Save state for reinit (Save & Apply triggers re-swap with same ID)
+      _lastSwapScene = scene;
+      _lastSwapCharId = characterId;
+
       // Attach input listeners (idempotent — only runs once)
       _attachInputListeners();
 
@@ -2116,6 +2130,16 @@ function swapCharacter(scene, characterId) {
           }
         } catch(e) { _footstepCtx = null; }
 
+        // === ORBIT MODE: Abilities + Extended Animation (v9.0 integration) ===
+        var _orbitAbilities = _initAbilities(_gsChar);
+        var _orbitCtx = {
+          mesh: _csMesh, body: _csBody, play: _csPlay, animMap: animMap,
+          halfH: _csHalfH, settings: _gsChar, inputState: _inputState, mouseState: _mouseState,
+          useRapier: false, rapierBody: null, rapierCollider: null, rapierKCC: null,
+          _rapierGravityVel: 0, _camState: null
+        };
+        var _orbitGravityScale = _gsChar.gravityScale || 1;
+
         // === MODULE INTEROP: Read terrain surface offset from terrain module ===
         // The terrain module publishes window.__vibexe_terrainSurfaceOffset indicating
         // how far PBR grass/vegetation textures extend above the geometric surface.
@@ -2167,6 +2191,11 @@ function swapCharacter(scene, characterId) {
               _rapierKCC.setUp({ x: 0.0, y: 1.0, z: 0.0 });
               window.__charCtrl_rapier = { body: _rapierBody, collider: _rapierCollider, kcc: _rapierKCC };
               _useRapier = true;
+              // Sync orbit ctx for abilities that check Rapier state
+              _orbitCtx.useRapier = true;
+              _orbitCtx.rapierBody = _rapierBody;
+              _orbitCtx.rapierCollider = _rapierCollider;
+              _orbitCtx.rapierKCC = _rapierKCC;
               console.log("[CharacterSystem] Rapier KCC created | capsule r=" + capsR + " hh=" + capsHH.toFixed(2));
             } catch(e) {
               console.warn("[CharacterSystem] Rapier KCC failed, CANNON fallback:", e);
@@ -2277,7 +2306,7 @@ function swapCharacter(scene, characterId) {
               }
               // Gravity
               var _gsP = (window.__VIBEXE_GAME_SETTINGS__ || {}).physics || {};
-              var _gv = parseFloat(_gsP.gravity) || -38;
+              var _gv = (parseFloat(_gsP.gravity) || -38) * _orbitGravityScale;
               _rapierGravityVel += _gv * dt;
               if (_rapierGravityVel < -50) _rapierGravityVel = -50;
               // Save previous position BEFORE KCC move (for wall rejection)
@@ -2582,6 +2611,20 @@ function swapCharacter(scene, characterId) {
             }
             } // end CANNON fallback
 
+            // === 6.5 ORBIT ABILITIES (v9.0) ===
+            // Update orbit context with current frame state
+            _orbitCtx._rapierGravityVel = _rapierGravityVel;
+            for (var _oai = 0; _oai < _orbitAbilities.length; _oai++) {
+              _orbitAbilities[_oai].update(_orbitCtx, dt, isGrounded);
+              if (_orbitAbilities[_oai].canActivate(_orbitCtx, isGrounded)) {
+                _orbitAbilities[_oai].activate(_orbitCtx);
+                // Sync back rapier gravity vel if ability changed it (e.g. doubleJump)
+                if (_orbitCtx._rapierGravityVel !== _rapierGravityVel) {
+                  _rapierGravityVel = _orbitCtx._rapierGravityVel;
+                }
+              }
+            }
+
             // === 7. SMOOTH CHARACTER ROTATION (Blink: SmoothDampAngle 0.25s) ===
             if (hasInput) {
               var targetAngle = Math.atan2(worldX, worldZ);
@@ -2592,7 +2635,7 @@ function swapCharacter(scene, characterId) {
               _rotVelocity = 0;
             }
 
-            // === 8. ANIMATION STATE MACHINE (with hysteresis + fall/land) ===
+            // === 8. ANIMATION STATE MACHINE (v9.0 — extended with abilities) ===
             var vx = _csBody.velocity ? _csBody.velocity.x : 0;
             var vy = _csBody.velocity ? _csBody.velocity.y : 0;
             var vz = _csBody.velocity ? _csBody.velocity.z : 0;
@@ -2614,33 +2657,10 @@ function swapCharacter(scene, characterId) {
               if (_thFall != null) _groundDist = _csMesh.position.y - _thFall;
             }
 
-            var targetAnim;
-            if (!_isOnGround && (vy < -1.5 || _groundDist > 2.5)) {
-              targetAnim = "fall";
-            } else if (vy > 2) {
-              targetAnim = "jump";
-            } else if (_csLastAnim === "fall" && _isOnGround) {
-              targetAnim = "land";
-            } else if (_csLastAnim === "land") {
-              // Stay in land for minimum time (handled by _landTimer)
-              if (_landTimer > 0) {
-                targetAnim = "land";
-              } else if (speed > 0.5) {
-                targetAnim = "walk";
-              } else {
-                targetAnim = "idle";
-              }
-            } else if (_csLastAnim === "run" ? speed > 3.2 : speed > 4) {
-              targetAnim = "run";
-            } else if (_csLastAnim === "idle" ? speed > 0.5 : speed > 0.3) {
-              targetAnim = "walk";
-            } else {
-              targetAnim = "idle";
-            }
-
+            // Use extended animation state machine (checks abilities before standard states)
+            var targetAnim = _resolveAnimState(_orbitCtx, _isOnGround, speed, vy, _groundDist, _orbitAbilities, _csLastAnim, _landTimer);
             if (targetAnim !== _csLastAnim) {
-              var clipName = animMap[targetAnim] || targetAnim;
-              _csPlay(clipName, { crossfade: 0.15 });
+              _playAnimForState(_orbitCtx, targetAnim, animMap);
               _csLastAnim = targetAnim;
               _charAnimState = targetAnim;
             }
@@ -3112,6 +3132,15 @@ if (typeof window !== "undefined") {
     if (type === "character-system-swap") {
       if (ev.data.origin) _vibexeOrigin = ev.data.origin;
       swapCharacter(window.__vibexe_scene__, ev.data.characterId);
+    }
+
+    // Reinit controller with current settings (triggered by Save & Apply)
+    // Re-swaps the same character to rebuild controller with updated characterController config
+    if (type === "character-system-reinit") {
+      if (_lastSwapScene && _lastSwapCharId) {
+        console.log("[CharacterSystem] Reinit: rebuilding controller for", _lastSwapCharId);
+        swapCharacter(_lastSwapScene, _lastSwapCharId);
+      }
     }
 
     if (type === "character-system-get-registry") {

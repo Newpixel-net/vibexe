@@ -1183,6 +1183,16 @@ export function SandpackPreview({
 					}, 600);
 				}
 			}
+			// If characterController settings exist, trigger controller reinit
+			// so the character system picks up new mode/preset/abilities/speeds
+			if (settings.characterController) {
+				const iframe = iframeRef.current;
+				if (iframe?.contentWindow) {
+					setTimeout(() => {
+						iframe.contentWindow?.postMessage({ type: "character-system-reinit" }, "*");
+					}, 300);
+				}
+			}
 		} finally {
 			savingSettingsRef.current = false;
 		}
