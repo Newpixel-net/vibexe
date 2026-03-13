@@ -1350,8 +1350,9 @@ function _createRunnerController(ctx) {
       // Auto-forward (negative Z = into screen)
       if (ctx.body.velocity) ctx.body.velocity.z = -_speed;
 
-      // Face forward (-Z direction, rotation.y = 0 in Three.js)
-      ctx.mesh.rotation.y = 0;
+      // Face forward (-Z = away from camera). GLB models face +Z at rotation.y=0,
+      // so Math.PI rotates them to face -Z (showing their back to the chase camera)
+      ctx.mesh.rotation.y = Math.PI;
 
       // Lane switching (A/Left = move left toward -X, D/Right = move right toward +X)
       _jumpCooldown = Math.max(0, _jumpCooldown - dt);
@@ -3137,18 +3138,102 @@ if (typeof window !== "undefined") {
     }
 
     // Reinit controller with current settings (triggered by Save & Apply)
-    // Re-swaps the same character to rebuild controller with updated characterController config
+    // Lightweight path: reuses existing mesh + physics, only rebuilds controller
     if (type === "character-system-reinit") {
-      var _reinitScene = _lastSwapScene || window.__vibexe_scene__;
-      var _reinitCharId = _lastSwapCharId;
-      // If no character was swapped yet, use saved config or default to "warrior"
-      if (!_reinitCharId) {
-        var _gs = window.__VIBEXE_GAME_SETTINGS__ || {};
-        _reinitCharId = (_gs.character && _gs.character.id) ? _gs.character.id : "warrior";
-      }
-      if (_reinitScene) {
-        console.log("[CharacterSystem] Reinit: rebuilding controller for", _reinitCharId);
-        swapCharacter(_reinitScene, _reinitCharId);
+      var _reinitMesh = window.__vibexe_playerMesh__;
+      if (_reinitMesh && _reinitMesh.userData && _reinitMesh.userData.__play) {
+        console.log("[CharacterSystem] Reinit: lightweight controller rebuild (no GLB reload)");
+
+        // Remove old charSystem controllers
+        if (window._activeControllers3D) {
+          for (var _rci = window._activeControllers3D.length - 1; _rci >= 0; _rci--) {
+            if (window._activeControllers3D[_rci] && window._activeControllers3D[_rci].__charSystem) {
+              if (window._activeControllers3D[_rci].dispose) window._activeControllers3D[_rci].dispose();
+              window._activeControllers3D.splice(_rci, 1);
+            }
+          }
+        }
+
+        // Resolve settings (same logic as swapCharacter)
+        var _riGsCamera = (window.__VIBEXE_GAME_SETTINGS__ || {}).camera || {};
+        var _riGsCharRaw = (window.__VIBEXE_GAME_SETTINGS__ || {}).characterController || {};
+        var _riPresetData = _riGsCharRaw.preset ? (GENRE_PRESETS[_riGsCharRaw.preset] || null) : null;
+        var _riGsChar = {};
+        if (_riPresetData) { for (var _rpk2 in _riPresetData) { if (_riPresetData.hasOwnProperty(_rpk2)) _riGsChar[_rpk2] = _riPresetData[_rpk2]; } }
+        for (var _ruk2 in _riGsCharRaw) { if (_riGsCharRaw.hasOwnProperty(_ruk2)) _riGsChar[_ruk2] = _riGsCharRaw[_ruk2]; }
+        if (_riPresetData && _riPresetData.abilities && _riGsCharRaw.abilities) {
+          _riGsChar.abilities = {};
+          for (var _rapk in _riPresetData.abilities) { if (_riPresetData.abilities.hasOwnProperty(_rapk)) _riGsChar.abilities[_rapk] = _riPresetData.abilities[_rapk]; }
+          for (var _rauk in _riGsCharRaw.abilities) { if (_riGsCharRaw.abilities.hasOwnProperty(_rauk)) _riGsChar.abilities[_rauk] = _riGsCharRaw.abilities[_rauk]; }
+        }
+        if (_riPresetData && _riPresetData.runner && _riGsCharRaw.runner) {
+          _riGsChar.runner = {};
+          for (var _rrpk in _riPresetData.runner) { if (_riPresetData.runner.hasOwnProperty(_rrpk)) _riGsChar.runner[_rrpk] = _riPresetData.runner[_rrpk]; }
+          for (var _rruk in _riGsCharRaw.runner) { if (_riGsCharRaw.runner.hasOwnProperty(_rruk)) _riGsChar.runner[_rruk] = _riGsCharRaw.runner[_rruk]; }
+        }
+        if (_riGsChar.inputProfile) {
+          if (typeof _riGsChar.inputProfile === 'string') {
+            _activeInputProfile = INPUT_PROFILES[_riGsChar.inputProfile] || INPUT_PROFILES['default'];
+          } else if (typeof _riGsChar.inputProfile === 'object') {
+            _activeInputProfile = _riGsChar.inputProfile;
+          }
+        }
+
+        var _riMode = _riGsChar.controllerMode || 'orbit';
+        var _riAnimMap = _reinitMesh.userData.__animMap || {};
+        var _riBody = _reinitMesh.userData.__physicsBody;
+        var _riPlay = _reinitMesh.userData.__play;
+        var _riHalfH = _reinitMesh.userData.__characterBounds ? _reinitMesh.userData.__characterBounds.height / 2 : 0.75;
+
+        console.log("[CharacterSystem] Reinit mode:", _riMode, "| preset:", _riGsChar.preset || "none");
+
+        // Update module API
+        if (!window.__vibexe_moduleAPI) window.__vibexe_moduleAPI = {};
+        window.__vibexe_moduleAPI['character-system'] = {
+          version: '9.0',
+          getMesh: function() { return _reinitMesh; },
+          getPosition: function() { return _reinitMesh ? { x: _reinitMesh.position.x, y: _reinitMesh.position.y, z: _reinitMesh.position.z } : null; },
+          has: { rapierKCC: true, animations: true, orbitCamera: true },
+          getMode: function() { return _riMode; },
+          getPreset: function() { return _riGsChar.preset || null; }
+        };
+
+        if (_riMode !== 'orbit' && _riBody && _riPlay) {
+          var _riCtx = {
+            mesh: _reinitMesh, body: _riBody, play: _riPlay, animMap: _riAnimMap, halfH: _riHalfH,
+            settings: _riGsChar, cameraSettings: _riGsCamera,
+            _camState: { velX: 0, velY: 0, velZ: 0, dist: _riGsChar.camDist || 12, distTarget: _riGsChar.camDist || 12,
+              height: _riGsChar.camHeight || 8, heightTarget: _riGsChar.camHeight || 8, smoothTime: _riGsChar.camSmoothTime || 0.12,
+              minDist: 3, maxDist: 25, minHeight: 2, maxHeight: 20,
+              offsetX: 0, offsetZ: 0, offsetVelX: 0, offsetVelZ: 0, offsetMax: 0.8, offsetSmooth: 0.25,
+              lookYOffset: _riGsChar.camLookY || 1.2, lookAtInit: false, lookAtX: 0, lookAtY: 0, lookAtZ: 0 },
+            useRapier: false, rapierBody: null, rapierCollider: null, rapierKCC: null,
+            _rapierGravityVel: 0, _cursorActive: false, _cursorTarget: new THREE.Vector3()
+          };
+          var _riFactory = { runner: _createRunnerController, sidescroll: _createSidescrollController, topdown: _createTopdownController, fps: _createFPSController }[_riMode];
+          if (_riFactory) {
+            var _riCtrl = _riFactory(_riCtx);
+            if (window._activeControllers3D) window._activeControllers3D.push(_riCtrl);
+            console.log("[CharacterSystem] Reinit: " + _riMode + " controller rebuilt");
+          }
+        } else if (_riMode === 'orbit') {
+          // For orbit mode reinit, do a full swapCharacter since orbit controller is inline
+          var _rScene = _lastSwapScene || window.__vibexe_scene__;
+          var _rCharId = _lastSwapCharId || 'warrior';
+          if (_rScene) swapCharacter(_rScene, _rCharId);
+        }
+      } else {
+        // No existing mesh — fall back to full swap
+        var _reinitScene = _lastSwapScene || window.__vibexe_scene__;
+        var _reinitCharId = _lastSwapCharId;
+        if (!_reinitCharId) {
+          var _gs = window.__VIBEXE_GAME_SETTINGS__ || {};
+          _reinitCharId = (_gs.character && _gs.character.id) ? _gs.character.id : "warrior";
+        }
+        if (_reinitScene) {
+          console.log("[CharacterSystem] Reinit: no existing mesh, full swap for", _reinitCharId);
+          swapCharacter(_reinitScene, _reinitCharId);
+        }
       }
     }
 
