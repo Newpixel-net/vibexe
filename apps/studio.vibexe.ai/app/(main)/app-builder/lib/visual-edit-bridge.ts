@@ -6252,21 +6252,31 @@ export function getVisualEditBridgeScript(): string {
   }
 
   // Hook into requestAnimationFrame to piggyback on the game loop
-  var _origRAF = window.requestAnimationFrame;
-  window.requestAnimationFrame = function(cb) {
-    return _origRAF.call(window, function(ts) {
-      if (!started) {
-        if (init()) {
-          started = true;
-          lastCheckTime = performance.now();
-          console.log("[AdaptiveQuality] Started monitoring (pixelRatio:", originalPixelRatio + ")");
-        }
+  // Guard: only wrap once — prevent RAF wrapper stacking on bridge reload
+  if (!window.__vibexe_aq_wrapped__) {
+    window.__vibexe_aq_wrapped__ = true;
+    var _origRAF = window.requestAnimationFrame;
+    window.requestAnimationFrame = function(cb) {
+      return _origRAF.call(window, function(ts) {
+        var aq = window.__vibexe_adaptive_quality__;
+        if (aq && aq._onFrame) aq._onFrame();
+        cb(ts);
+      });
+    };
+  }
+  // Expose onFrame via the state object so the RAF wrapper can call it
+  // even after bridge reload replaces the IIFE closure
+  state._onFrame = function() {
+    if (!started) {
+      if (init()) {
+        started = true;
+        lastCheckTime = performance.now();
+        console.log("[AdaptiveQuality] Started monitoring (pixelRatio:", originalPixelRatio + ")");
       }
-      if (started) {
-        onFrame();
-      }
-      cb(ts);
-    });
+    }
+    if (started) {
+      onFrame();
+    }
   };
 })();
 `;
