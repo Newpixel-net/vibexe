@@ -637,8 +637,10 @@ TerrainPhysics.prototype.setup = function(world) {
     console.log("[TerrainPhysics] PostStep terrain clamp + ground-following registered");
   }
 
-  // Also create Rapier heightfield (parallel world — for KCC terrain collision)
-  this._setupRapierHeightfield(td);
+  // Defer Rapier heightfield creation to next frame to avoid "recursive use" error
+  // when Rapier world.step() is running in the current animation frame
+  var self = this;
+  setTimeout(function() { self._setupRapierHeightfield(td); }, 100);
 };
 
 TerrainPhysics.prototype.rebuild = function() {
@@ -676,8 +678,9 @@ TerrainPhysics.prototype.rebuild = function() {
     console.error("[TerrainPhysics] Rebuild failed:", err);
   }
 
-  // Also rebuild Rapier heightfield
-  this._setupRapierHeightfield(td);
+  // Defer Rapier heightfield rebuild to next frame to avoid "recursive use" error
+  var self = this;
+  setTimeout(function() { self._setupRapierHeightfield(td); }, 100);
 };
 
 TerrainPhysics.prototype.destroy = function() {

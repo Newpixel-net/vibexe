@@ -1412,12 +1412,12 @@ export function SandpackPreview({
 						}, 3000); // After module initialization
 					}
 				}
-				// Auto-generate terrain on page load if not in editor mode and terrain config exists
-				// (The IIFE in the saved file may be stale and lack _autoTerrain)
+				// Auto-generate terrain after bridge load if terrain config exists
+				// Works in BOTH Scene editor mode and Game mode
 				// Skip if we just exited scene editor — the exit handler already triggers terrain gen
 				if (justExitedEditorRef.current) {
 					justExitedEditorRef.current = false;
-				} else if (!gameEditor.enabled && iframe?.contentWindow) {
+				} else if (iframe?.contentWindow) {
 					const terrainCfg = gameEditor.gameSettings.terrain;
 					const _inst = gameEditor.gameSettings.modules?.installed;
 					const terrainModuleInstalled = _inst && typeof _inst === "object"
@@ -1426,9 +1426,10 @@ export function SandpackPreview({
 							: !!(_inst as any)["terrain-painter"]?.enabled)
 						: false;
 					if (terrainCfg?.enabled && terrainModuleInstalled) {
-						// Wait 8s for IIFE 300-frame loop + GLTF loads to complete
+						// Scene editor: 3s (bridge already active). Game mode: 8s (wait for IIFE + GLTF loads)
+						const terrainDelay = gameEditor.enabled ? 3000 : 8000;
 						setTimeout(() => {
-							console.log("[GameEditor] Auto-generating terrain on page load (Game mode)");
+							console.log("[GameEditor] Auto-generating terrain after bridge load (editor:", gameEditor.enabled, ")");
 							iframe.contentWindow?.postMessage({
 								type: "terrain-painter-generate-terrain",
 								settings: {
@@ -1466,7 +1467,7 @@ export function SandpackPreview({
 									}, "*");
 								}, 1000);
 							}
-						}, 8000);
+						}, terrainDelay);
 					}
 				}
 			} else if (data.type === "game-editor-scene-tree") {
