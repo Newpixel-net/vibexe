@@ -165,30 +165,30 @@ TerrainGenerator.prototype.generate = function() {
     var nz = vz / D;
 
     // Edge falloff
-    var edgeX = 1.0 - Math.pow(2.0 * Math.abs(nx), 6);
-    var edgeZ = 1.0 - Math.pow(2.0 * Math.abs(nz), 6);
-    var edgeFalloff = SimplexNoise.smoothstep(0, 0.15, Math.max(0, Math.min(edgeX, edgeZ)));
+    var edgeX = 1.0 - Math.pow(2.0 * Math.abs(nx), 3);
+    var edgeZ = 1.0 - Math.pow(2.0 * Math.abs(nz), 3);
+    var edgeFalloff = SimplexNoise.smoothstep(0, 0.25, Math.max(0, Math.min(edgeX, edgeZ)));
 
     // Domain warp for organic shapes
-    var warpPt = SimplexNoise.domainWarp(nx * 1.5, nz * 1.5, 0.35);
+    var warpPt = SimplexNoise.domainWarp(nx * 1.5, nz * 1.5, 0.45);
     var wx = warpPt[0], wz = warpPt[1];
 
-    // Scale 1: Continental (domain-warped fBm)
-    var continental = (SimplexNoise.fbm(wx * 1.2, wz * 1.2, 5, 2.0, 0.5) + 1) * 0.5;
-    continental = Math.pow(continental, 1.5);
+    // Scale 1: Continental base (domain-warped fBm) — broad mountain shape
+    var continental = (SimplexNoise.fbm(wx * 1.0, wz * 1.0, 6, 2.0, 0.5) + 1) * 0.5;
+    continental = Math.pow(continental, 2.2);
 
-    // Scale 2: Mountain ridges (ridged multifractal)
-    var ridges = SimplexNoise.ridgedMultifractal(nx * 3.0 + 3.7, nz * 3.0 + 1.2, 6, 2.2, 0.5, 2.0);
-    ridges *= 0.35;
+    // Scale 2: Mountain ridges (ridged multifractal) — sharp peaks
+    var ridges = SimplexNoise.ridgedMultifractal(nx * 2.5 + 3.7, nz * 2.5 + 1.2, 5, 2.1, 0.5, 2.5);
+    ridges *= 0.3;
 
-    // Scale 3: Rolling foothills
-    var hills = SimplexNoise.fbm(nx * 6.0 + 7.3, nz * 6.0 + 2.8, 4, 2.0, 0.5) * 0.08;
+    // Scale 3: Rolling foothills — medium frequency variation
+    var hills = SimplexNoise.fbm(nx * 5.0 + 7.3, nz * 5.0 + 2.8, 4, 2.0, 0.5) * 0.06;
 
     // Scale 4: Fine surface detail (altitude-dependent)
-    var detail = SimplexNoise.fbm(nx * 15.0, nz * 15.0, 3, 2.0, 0.4) * 0.03;
+    var detail = SimplexNoise.fbm(nx * 12.0, nz * 12.0, 3, 2.0, 0.4) * 0.02;
 
-    // Altitude-dependent roughness composition
-    var baseH = continental * 0.55 + ridges;
+    // Compose: continental 60% + ridges, with altitude-dependent roughness
+    var baseH = continental * 0.6 + ridges;
     var roughDetail = (hills + detail) * (0.3 + Math.min(1, baseH) * 0.7);
 
     var h = (baseH + roughDetail) * edgeFalloff * H;
@@ -196,6 +196,75 @@ TerrainGenerator.prototype.generate = function() {
     heightData[vi] = h;
     if (h < minY) minY = h;
     if (h > maxY) maxY = h;
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+
+  // ========== Post-generation Erosion Pipeline ==========
+  // Thermal erosion: material slides downhill when slope exceeds talus angle
+  var THERMAL_ITERATIONS = 40;
+  var TALUS_ANGLE = 0.6; // ~31 degrees
+  var THERMAL_RATE = 0.4;
+  for (var ti = 0; ti < THERMAL_ITERATIONS; ti++) {
+    for (var tz = 1; tz < seg; tz++) {
+      for (var tx = 1; tx < seg; tx++) {
+        var ci = tz * segX + tx;
+        var ch = heightData[ci];
+        // 4-neighbor differences
+        var diffs = [
+          { idx: ci - 1, d: ch - heightData[ci - 1] },
+          { idx: ci + 1, d: ch - heightData[ci + 1] },
+          { idx: ci - segX, d: ch - heightData[ci - segX] },
+          { idx: ci + segX, d: ch - heightData[ci + segX] }
+        ];
+        var maxDiff = 0, totalDiff = 0;
+        for (var di = 0; di < 4; di++) {
+          if (diffs[di].d > TALUS_ANGLE) {
+            totalDiff += diffs[di].d;
+            if (diffs[di].d > maxDiff) maxDiff = diffs[di].d;
+          }
+        }
+        if (totalDiff > 0) {
+          var moved = maxDiff * THERMAL_RATE * 0.5;
+          heightData[ci] -= moved;
+          for (var di2 = 0; di2 < 4; di2++) {
+            if (diffs[di2].d > TALUS_ANGLE) {
+              heightData[diffs[di2].idx] += moved * (diffs[di2].d / totalDiff);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Feature-preserving smooth (Laplacian, 3 iterations)
+  var SMOOTH_ITERATIONS = 3;
+  var SMOOTH_FACTOR = 0.35;
+  for (var si = 0; si < SMOOTH_ITERATIONS; si++) {
+    var smoothed = new Float32Array(heightData.length);
+    for (var sz = 0; sz < segZ; sz++) {
+      for (var sx = 0; sx < segX; sx++) {
+        var sidx = sz * segX + sx;
+        if (sx === 0 || sx === segX - 1 || sz === 0 || sz === segZ - 1) {
+          smoothed[sidx] = heightData[sidx];
+          continue;
+        }
+        var avg4 = (heightData[sidx-1] + heightData[sidx+1] + heightData[sidx-segX] + heightData[sidx+segX]) * 0.25;
+        var diff = avg4 - heightData[sidx];
+        // Feature-preserving: only smooth small differences (preserve ridges)
+        var blendAmt = Math.min(1.0, 2.0 / (1.0 + Math.abs(diff) * 8.0));
+        smoothed[sidx] = heightData[sidx] + diff * SMOOTH_FACTOR * blendAmt;
+      }
+    }
+    heightData = smoothed;
+  }
+
+  // Write eroded heights back to geometry
+  minY = Infinity; maxY = -Infinity;
+  for (var ei = 0; ei < pos.count; ei++) {
+    pos.setY(ei, heightData[ei]);
+    if (heightData[ei] < minY) minY = heightData[ei];
+    if (heightData[ei] > maxY) maxY = heightData[ei];
   }
   pos.needsUpdate = true;
   geo.computeVertexNormals();
@@ -227,21 +296,32 @@ TerrainGenerator.prototype.generate = function() {
   geo.setAttribute("terrainHeight", new THREE.BufferAttribute(heightArr, 1));
   geo.setAttribute("terrainSlope", new THREE.BufferAttribute(slopeArr, 1));
 
-  // Vertex colors: height gradient (brown/green/white/gray)
+  // Vertex colors: mountain gradient (dirt/grass/rock/snow)
   var colors = new Float32Array(pos.count * 3);
   for (var vi3 = 0; vi3 < pos.count; vi3++) {
     var nh = heightArr[vi3];
     var slope = slopeArr[vi3];
     var r, g, b;
-    if (nh > 0.7) {
-      var sf = SimplexNoise.smoothstep(0.65, 0.8, nh);
-      r = 0.35 + sf * 0.6; g = 0.45 + sf * 0.5; b = 0.35 + sf * 0.6;
-    } else if (slope > 35) {
-      r = 0.45; g = 0.42; b = 0.38;
-    } else if (nh > 0.3) {
-      r = 0.25; g = 0.45; b = 0.15;
-    } else {
-      r = 0.45; g = 0.35; b = 0.2;
+    // Snow on high peaks (soft transition)
+    if (nh > 0.65 && slope < 40) {
+      var sf = SimplexNoise.smoothstep(0.6, 0.75, nh);
+      r = 0.75 + sf * 0.2; g = 0.78 + sf * 0.18; b = 0.82 + sf * 0.15;
+    }
+    // Rock on steep slopes (at any height)
+    else if (slope > 35) {
+      var rockVar = SimplexNoise.noise2D(pos.getX(vi3) * 0.1, pos.getZ(vi3) * 0.1) * 0.08;
+      r = 0.42 + rockVar; g = 0.40 + rockVar; b = 0.38 + rockVar;
+    }
+    // Grass on mid-heights
+    else if (nh > 0.15 && nh <= 0.65) {
+      var grassVar = SimplexNoise.noise2D(pos.getX(vi3) * 0.15, pos.getZ(vi3) * 0.15) * 0.06;
+      var heightBlend = SimplexNoise.smoothstep(0.15, 0.3, nh);
+      r = 0.28 + grassVar; g = 0.42 + grassVar + heightBlend * 0.05; b = 0.18 + grassVar;
+    }
+    // Dirt/sand at low elevations
+    else {
+      var dirtVar = SimplexNoise.noise2D(pos.getX(vi3) * 0.12, pos.getZ(vi3) * 0.12) * 0.05;
+      r = 0.48 + dirtVar; g = 0.38 + dirtVar; b = 0.25 + dirtVar;
     }
     colors[vi3 * 3] = r;
     colors[vi3 * 3 + 1] = g;

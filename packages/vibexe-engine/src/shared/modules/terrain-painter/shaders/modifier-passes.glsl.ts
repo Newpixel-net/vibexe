@@ -490,6 +490,16 @@ void main() {
     albedo += albedo * dn * 0.08 * detailFade;
   }
 
+  // Macro color variation: large-scale tonal shifts for natural look
+  float macroNoise = detailNoise(vWorldPos.xz * 0.015) * 2.0 - 1.0;
+  float macroNoise2 = detailNoise(vWorldPos.xz * 0.008 + vec2(100.0)) * 2.0 - 1.0;
+  // Warm/cool shift based on macro noise
+  albedo *= 1.0 + macroNoise * 0.12;
+  // Slight hue variation (warm in valleys, cool on peaks)
+  float heightFactor = clamp(vWorldPos.y * 0.02, 0.0, 1.0);
+  albedo.r *= 1.0 + macroNoise2 * 0.06 * (1.0 - heightFactor);
+  albedo.b *= 1.0 + macroNoise2 * 0.04 * heightFactor;
+
   // --- Blend normal maps by splatmap weights (layers 0-3) ---
   vec3 blendedNormalTS = vec3(0.0, 0.0, 0.0);
   float normalWeightSum = 0.0;
@@ -522,7 +532,7 @@ void main() {
 
   // Sun light (primary)
   vec3 sunDir = normalize(vec3(0.5, 0.75, 0.35));
-  vec3 sunColor = vec3(1.0, 0.95, 0.85) * 3.0;
+  vec3 sunColor = vec3(1.0, 0.92, 0.78) * 3.2;
   vec3 H = normalize(V + sunDir);
   float NdotL = max(dot(pertN, sunDir), 0.0);
   float NdotV = max(dot(pertN, V), 0.001);
@@ -548,8 +558,8 @@ void main() {
   totalLight += albedo * backColor * backNdotL;
 
   // Hemisphere ambient (sky + ground bounce) — modulated by AO
-  vec3 skyAmb = vec3(0.55, 0.6, 0.75);
-  vec3 gndAmb = vec3(0.25, 0.2, 0.15);
+  vec3 skyAmb = vec3(0.5, 0.58, 0.78);
+  vec3 gndAmb = vec3(0.28, 0.22, 0.15);
   float upFactor = pertN.y * 0.5 + 0.5;
   vec3 ambient = mix(gndAmb, skyAmb, upFactor) * albedo * 0.6 * ao;
   totalLight += ambient;
