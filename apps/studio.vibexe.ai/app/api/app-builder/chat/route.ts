@@ -709,7 +709,14 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 		let hasAnimatedCharacter = false;
 		let isRunner3d = false;
 		let isShooter3d = false;
+		let needsTerrain = false; // open-world, exploration, terrain-heavy games
 		let gameSubType: "platformer" | "runner" = "platformer"; // default
+		const TERRAIN_KEYWORDS = [
+			"open world", "open-world", "terrain", "exploration", "adventure game 3d",
+			"rpg 3d", "3d rpg", "survival 3d", "3d survival", "mmorpg", "mmo",
+			"walking simulator", "3d adventure", "sandbox 3d", "3d sandbox",
+			"hiking", "mountaineer", "landscape", "nature 3d",
+		];
 		const SHOOTER_3D_KEYWORDS = [
 			"3d shooter", "top down shooter", "top-down shooter", "squad shooter",
 			"archero", "brawl stars", "3d shoot", "shoot em up 3d", "bullet hell 3d",
@@ -765,6 +772,11 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				isShooter3d = true;
 				console.log(`[Chat API] 3D shooter detected (keywords)`);
 			}
+			// Detect terrain-heavy keywords (open world, exploration, RPG, etc.)
+			if (isGame3d && TERRAIN_KEYWORDS.some(kw => searchText.includes(kw))) {
+				needsTerrain = true;
+				console.log(`[Chat API] Terrain-heavy 3D game detected (keywords)`);
+			}
 			// Fallback: if 3D templates already exist in DB (injected on a previous call), force 3D mode
 			if (!isGame3d && existingFiles.some(f => f.path === "src/components/Game3D.tsx")) {
 				isGame3d = true;
@@ -804,6 +816,70 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 					console.log(`[Chat API] 3D scene starter injected: src/scenes/GameScene3D.ts (shooter=${isShooter3d}, runner=${isRunner3d}, character=${hasAnimatedCharacter})`);
 				} catch (e) {
 					console.error(`[Chat API] 3D scene starter injection failed:`, e);
+				}
+			}
+
+			// ── Module pre-activation ──────────────────────────────────────────
+			// Automatically create __game-settings.json with the right modules
+			// enabled based on detected game type. Only for NEW projects (no
+			// existing settings file). The engine handles "no modules" gracefully
+			// — if no __game-settings.json exists, no modules are injected.
+			if (isGame3d && !existingPaths.has("src/__game-settings.json") && !existingPaths.has("__game-settings.json")) {
+				try {
+					// Build module manifest based on game type
+					const preActivatedModules: Record<string, { enabled: boolean; version: string }> = {};
+
+					// Terrain painter: enabled for games that benefit from terrain
+					// (open world, runners, shooters, character-based, exploration games)
+					// Skip for pure UI/puzzle/card 3D games
+					if (isRunner3d || isShooter3d || hasAnimatedCharacter || needsTerrain) {
+						preActivatedModules["terrain-painter"] = { enabled: true, version: "1.0.0" };
+					}
+
+					// Character system: enabled when game has animated characters,
+					// or is a runner/shooter (always need a player character)
+					if (hasAnimatedCharacter || isRunner3d || isShooter3d || needsTerrain) {
+						preActivatedModules["character-system"] = { enabled: true, version: "8.0.0" };
+					}
+
+					// Sky & weather: enabled for all 3D games (day/night, atmosphere)
+					preActivatedModules["sky-weather"] = { enabled: true, version: "1.0.0" };
+
+					if (Object.keys(preActivatedModules).length > 0) {
+						const preSettings = {
+							...{
+								version: 1,
+								player: { spawnX: 0, spawnY: 3, spawnZ: 0, startingLives: 3, respawnX: 0, respawnY: 5, respawnZ: 0 },
+								physics: { gravity: -38, fallGravity: -65, jumpForce: 17, moveSpeed: 6, runSpeed: 7.5, friction: 28, coyoteTime: 0.15 },
+								camera: { offsetY: 8, offsetZ: 12, fov: 60, lerp: 3, lookAhead: 5, lookY: 1, near: 0.1, far: 1000 },
+								environment: { backgroundColor: "#87CEEB", ambientLightIntensity: 0.15, ambientLightColor: "#ffffff", sunLightIntensity: 0.55, sunLightColor: "#fff8ee", hemisphereIntensity: 0.35, hemisphereSkyColor: "#eef4ff", hemisphereGroundColor: "#886644", fogEnabled: false, fogColor: "#88aacc", fogNear: 30, fogFar: 100, fogType: "linear", fogDensity: 0.02, shadowQuality: "medium" },
+								audio: { masterVolume: 0.8, musicVolume: 0.5, sfxVolume: 0.7, enabled: true },
+								postProcessing: { preset: "none", bloomIntensity: 0.5, bloomThreshold: 0.8 },
+								performance: { qualityPreset: "high", showFPS: false, antialias: true, pixelRatio: 1, maxFPS: 60 },
+							},
+							modules: { installed: preActivatedModules },
+							// Pre-enable terrain config if terrain-painter is active
+							...(preActivatedModules["terrain-painter"] ? {
+								terrain: {
+									enabled: true,
+									width: 200, depth: 200, heightScale: 40, segments: 256,
+									biome: "alpine", seed: Math.floor(Math.random() * 10000),
+								},
+							} : {}),
+						};
+
+						const settingsContent = JSON.stringify(preSettings, null, 2);
+						await saveFile(appId, "src/__game-settings.json", settingsContent, "json");
+
+						// Also save the modules manifest separately
+						const modulesContent = JSON.stringify({ installed: preActivatedModules }, null, 2);
+						await saveFile(appId, "src/__vibexe-modules.json", modulesContent, "json");
+
+						const moduleNames = Object.keys(preActivatedModules).join(", ");
+						console.log(`[Chat API] Module pre-activation: ${moduleNames} (runner=${isRunner3d}, shooter=${isShooter3d}, character=${hasAnimatedCharacter}, terrain=${needsTerrain})`);
+					}
+				} catch (e) {
+					console.error(`[Chat API] Module pre-activation failed:`, e);
 				}
 			}
 		}
