@@ -1131,6 +1131,12 @@ export function SandpackPreview({
 			// Update file in state so convertToSandpackFiles re-runs with new settings
 			if (currentOnFileUpdate && existingFile) {
 				currentOnFileUpdate(existingFile.id, content);
+			}
+			// When scene editor is active, skip refresh/recompile to preserve terrain + scene state.
+			// Settings are already saved to DB and applied via postMessage.
+			if (gameEditorRef.current.enabled) {
+				sendSettingsToGame(settings);
+			} else if (currentOnFileUpdate && existingFile) {
 				// Wait for SandpackFileSync to process the updated files, then full refresh
 				setTimeout(() => {
 					sandpackRefreshRef.current?.();
