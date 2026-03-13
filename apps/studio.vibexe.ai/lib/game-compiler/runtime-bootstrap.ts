@@ -49,6 +49,9 @@ export function generateRuntimeBootstrap(opts: BootstrapSettings): string {
 	// Auto-detect player mesh for legacy projects
 	lines.push(generatePlayerAutoDetect());
 
+	// Console log collector — captures tagged logs for diagnostics
+	lines.push(generateLogCollector());
+
 	// Debug overlay — system health query handler
 	lines.push(generateDebugHandler());
 
@@ -157,58 +160,192 @@ var _pi=setInterval(function(){
 })();`;
 }
 
+function generateLogCollector(): string {
+	return `(function(){
+var _logRing=[];var _logMax=200;
+window.__vibexe_logRing__=_logRing;
+var _tags=['[TerrainPhysics]','[CharacterSystem]','[SkyWeather]','[AutoPhysics]','[Rapier]','[AutoDetect]','[Bootstrap]','[Module','[GLTF','[Terrain','[Physics','[Camera','[Spawn','[KCC]','[PerfGuard]','[AdaptiveQuality]','[Audio]','[Scene]','[Bridge]','[BoundaryGrid]'];
+var _origLog=console.log;var _origWarn=console.warn;var _origErr=console.error;
+function _capture(level,args){
+  var msg='';for(var i=0;i<args.length;i++){var a=args[i];msg+=(i>0?' ':'')+((a&&typeof a==='object')?JSON.stringify(a):String(a));}
+  var tagged=false;for(var t=0;t<_tags.length;t++){if(msg.indexOf(_tags[t])>=0){tagged=true;break;}}
+  if(!tagged&&level==='log')return;
+  _logRing.push({t:Date.now(),l:level,m:msg.substring(0,500)});
+  if(_logRing.length>_logMax)_logRing.shift();
+}
+console.log=function(){_capture('log',arguments);_origLog.apply(console,arguments);};
+console.warn=function(){_capture('warn',arguments);_origWarn.apply(console,arguments);};
+console.error=function(){_capture('err',arguments);_origErr.apply(console,arguments);};
+window.addEventListener('error',function(ev){_logRing.push({t:Date.now(),l:'err',m:'[Uncaught] '+(ev.message||'')+' at '+(ev.filename||'?')+':'+(ev.lineno||'?')});if(_logRing.length>_logMax)_logRing.shift();});
+window.addEventListener('unhandledrejection',function(ev){_logRing.push({t:Date.now(),l:'err',m:'[UnhandledPromise] '+(ev.reason?String(ev.reason).substring(0,300):'unknown')});if(_logRing.length>_logMax)_logRing.shift();});
+window.addEventListener('message',function(ev){
+  if(!ev.data||ev.data.type!=='vibexe-debug-query-logs')return;
+  try{window.parent.postMessage({type:'vibexe-debug-log-report',logs:_logRing.slice(-100)},'*')}catch(e){}
+});
+})();`;
+}
+
 function generateDebugHandler(): string {
 	return `(function(){
+var _prevSolarTime=null;var _solarSampleTime=0;
 window.addEventListener('message',function(ev){
 if(!ev.data||ev.data.type!=='vibexe-debug-query-systems')return;
 var r=[];
 var problems=[];
 var W=window;
+
+// === 1. RENDERER ===
 var ren=W.__vibexe_renderer__;
 var comp=W.__vibexe_composer__;
 var _bloomPass=null;if(comp&&comp.passes){for(var _bp=0;_bp<comp.passes.length;_bp++){if(comp.passes[_bp].constructor&&comp.passes[_bp].constructor.name==='UnrealBloomPass'){_bloomPass=comp.passes[_bp];break}}}
 r.push({system:'Renderer',status:ren?'ok':'missing',details:ren?{pixelRatio:ren.getPixelRatio(),devicePR:W.devicePixelRatio||1,size:ren.getSize?((function(){var s=new(W.THREE||{}).Vector2();ren.getSize(s);return s.x+'x'+s.y})()):'?',shadows:ren.shadowMap.enabled,shadowType:ren.shadowMap.type===1?'PCF':ren.shadowMap.type===2?'PCFSoft':'Basic',shadowAutoUpdate:ren.shadowMap.autoUpdate,toneMapping:['No','Linear','Reinhard','Cineon','ACES'][ren.toneMapping]||ren.toneMapping,bloom:_bloomPass?(_bloomPass.enabled?'ON':'OFF'):'none',composer:comp?'active':'none'}:null});
+if(ren&&ren.getPixelRatio()>1.5)problems.push({id:'high-pixel-ratio',severity:'warn',msg:'Pixel ratio '+ren.getPixelRatio().toFixed(2)+' exceeds 1.5 cap — performance impact'});
+
+// === 2. SCENE ===
 var sc=W.__vibexe_scene__;
-var meshCount=0;var lightCount=0;
-if(sc){sc.traverse(function(o){if(o.isMesh)meshCount++;if(o.isLight)lightCount++;})}
-r.push({system:'Scene',status:sc?'ok':'missing',details:sc?{children:sc.children.length,meshes:meshCount,lights:lightCount,fog:sc.fog?'active':'none'}:null});
+var meshCount=0;var lightCount=0;var skinnedCount=0;var totalTris=0;
+if(sc){sc.traverse(function(o){if(o.isMesh){meshCount++;if(o.isSkinnedMesh)skinnedCount++;if(o.geometry&&o.geometry.index)totalTris+=o.geometry.index.count/3;else if(o.geometry&&o.geometry.attributes&&o.geometry.attributes.position)totalTris+=o.geometry.attributes.position.count/3;}if(o.isLight)lightCount++;})}
+r.push({system:'Scene',status:sc?'ok':'missing',details:sc?{children:sc.children.length,meshes:meshCount,skinned:skinnedCount,lights:lightCount,triangles:totalTris>1000?Math.round(totalTris/1000)+'k':Math.round(totalTris),fog:sc.fog?('near:'+Math.round(sc.fog.near)+' far:'+Math.round(sc.fog.far)):'none',background:sc.background?'set':'none'}:null});
+if(meshCount>500)problems.push({id:'high-mesh-count',severity:'warn',msg:meshCount+' meshes in scene — may impact performance'});
+if(totalTris>500000)problems.push({id:'high-tri-count',severity:'warn',msg:Math.round(totalTris/1000)+'k triangles — consider LOD or culling'});
+
+// === 3. CAMERA ===
 var cam=W.__vibexe_camera__;
-r.push({system:'Camera',status:cam?'ok':'missing',details:cam?{fov:cam.fov,near:cam.near,far:cam.far,pos:cam.position?+cam.position.y.toFixed(1)+'y':'?'}:null});
+r.push({system:'Camera',status:cam?'ok':'missing',details:cam?{fov:cam.fov,near:cam.near,far:cam.far,pos:cam.position?(+cam.position.x.toFixed(1)+','+cam.position.y.toFixed(1)+','+cam.position.z.toFixed(1)):'?',charCtrlCam:!!W.__charCtrl_camActive,orbitYaw:W.__charCtrl_orbitYaw!=null?(+W.__charCtrl_orbitYaw.toFixed(2)+'rad'):'N/A'}:null});
+
+// === 4. CANNON PHYSICS ===
 var w=W.__vibexe_world__;
 var dynamicCount=0;var staticCount=0;
 if(w&&w.bodies){for(var bi=0;bi<w.bodies.length;bi++){if(w.bodies[bi].mass>0)dynamicCount++;else staticCount++;}}
-r.push({system:'Physics',status:w?'ok':'missing',details:w?{bodies:(w.bodies?w.bodies.length:0),dynamic:dynamicCount,static:staticCount,gravity:w.gravity?w.gravity.y:0}:null});
-if(!w)problems.push({id:'no-physics',severity:'error',msg:'Physics world not initialized'});
+r.push({system:'CANNON Physics',status:w?'ok':'missing',details:w?{bodies:(w.bodies?w.bodies.length:0),dynamic:dynamicCount,static:staticCount,gravity:w.gravity?w.gravity.y:0}:null});
+if(!w)problems.push({id:'no-cannon',severity:'warn',msg:'CANNON.js physics world not initialized'});
+
+// === 5. RAPIER PHYSICS ===
+var _rp=W.RAPIER;var _rpw=W.__vibexe_rapierWorld__;
+var rpStatus='off';var rpDetails=null;
+if(_rp&&_rpw){rpStatus='ok';var _rpBodies=0;var _rpColl=0;try{_rpBodies=_rpw.bodies?_rpw.bodies.len():0;_rpColl=_rpw.colliders?_rpw.colliders.len():0;}catch(e){}
+rpDetails={wasmLoaded:true,bodies:_rpBodies,colliders:_rpColl,terrainHF:!!W.__vibexe_rapierTerrainCollider__,terrainBody:!!W.__vibexe_rapierTerrainBody__,gravity:_rpw.gravity?+_rpw.gravity.y.toFixed(1):'?'};}
+else if(_rp){rpStatus='inactive';rpDetails={wasmLoaded:true,worldCreated:false};}
+else{rpDetails={wasmLoaded:false};}
+r.push({system:'Rapier Physics',status:rpStatus,details:rpDetails});
+if(_rp&&!_rpw)problems.push({id:'rapier-no-world',severity:'error',msg:'Rapier WASM loaded but world not created'});
+
+// === 6. TERRAIN (unified) ===
 var tm=sc&&sc.getObjectByName?sc.getObjectByName('__terrain__'):null;
 var tBody=W.__vibexe_terrainBody;
 var tPost=W.__vibexe_terrainPostStep;
 var tGetH=W.__vibexe_getTerrainHeight;
+var _td=W.__vibexe_terrainData;
+var rapierTerrain=!!W.__vibexe_rapierTerrainCollider__;
+var cannonTerrain=!!tBody;
 var tStatus='off';
-if(tm&&tBody&&tPost)tStatus='ok';else if(tm&&!tBody)tStatus='inactive';else if(tm)tStatus='ok';
+if(tm&&(cannonTerrain||rapierTerrain))tStatus='ok';else if(tm&&!cannonTerrain&&!rapierTerrain)tStatus='inactive';else if(tm)tStatus='ok';
 var tDetails=null;
-if(tm){tDetails={mesh:true,verts:tm.geometry&&tm.geometry.attributes&&tm.geometry.attributes.position?tm.geometry.attributes.position.count:0};tDetails.physicsBody=!!tBody;tDetails.postStepClamp=!!tPost;tDetails.heightQuery=!!tGetH;}else{tDetails={mesh:false,physicsBody:!!tBody};}
+if(tm){tDetails={mesh:true,verts:tm.geometry&&tm.geometry.attributes&&tm.geometry.attributes.position?tm.geometry.attributes.position.count:0,cannonBody:cannonTerrain,rapierHF:rapierTerrain,postStepClamp:!!tPost,heightQuery:!!tGetH,visualHeightFn:!!W.__vibexe_getVisualTerrainHeight,surfaceOffset:W.__vibexe_terrainSurfaceOffset||0,boundaryGrid:!!W.__vibexe_terrainBoundaryGrid};}else{tDetails={mesh:false,cannonBody:cannonTerrain,rapierHF:rapierTerrain};}
+if(_td){tDetails.dataSize=_td.segX+'x'+_td.segZ;tDetails.terrainSize=(_td.width||0)+'x'+(_td.depth||0);tDetails.maxHeight=_td.maxHeight||0;}
 r.push({system:'Terrain',status:tStatus,details:tDetails});
-if(tm&&!tBody)problems.push({id:'terrain-no-physics',severity:'error',msg:'Terrain mesh exists but has NO physics body'});
+if(tm&&!cannonTerrain&&!rapierTerrain)problems.push({id:'terrain-no-physics',severity:'error',msg:'Terrain mesh exists but has NO physics collider (neither CANNON nor Rapier)'});
+if(tm&&rapierTerrain&&!_td)problems.push({id:'terrain-no-data',severity:'warn',msg:'Rapier terrain collider exists but __vibexe_terrainData is missing'});
+
+// === 7. PLAYER ===
 var pm=W.__vibexe_playerMesh__;
 var pb=pm&&pm.userData?pm.userData.__physicsBody:null;
 var rapierKCC=W.__charCtrl_rapier;
 var hasPhys=!!pb||!!rapierKCC;
-r.push({system:'Player',status:pm?'ok':'missing',details:pm?{name:pm.name||'unknown',y:pm.position?+pm.position.y.toFixed(2):0,hasPhysicsBody:hasPhys,physicsType:rapierKCC?'rapier-kcc':(pb?'cannon':'none')}:null});
+r.push({system:'Player',status:pm?'ok':'missing',details:pm?{name:pm.name||'unknown',pos:pm.position?(+pm.position.x.toFixed(1)+','+pm.position.y.toFixed(1)+','+pm.position.z.toFixed(1)):'?',hasPhysicsBody:hasPhys,physicsType:rapierKCC?'rapier-kcc':(pb?'cannon':'none'),visible:pm.visible}:null});
 if(pm&&!hasPhys)problems.push({id:'player-no-physics',severity:'error',msg:'Player mesh has NO physics body'});
+if(pm&&pm.position&&pm.position.y<-50)problems.push({id:'player-fallen',severity:'error',msg:'Player Y='+pm.position.y.toFixed(1)+' — fell through world'});
+
+// === 8. CHARACTER CONTROLLER ===
+var _ccActive=!!W.__charCtrl_active;
+var _ccDetails={active:_ccActive};
+if(_ccActive){
+  _ccDetails.engine=rapierKCC?'Rapier KCC':'CANNON';
+  _ccDetails.grounded='query N/A';
+  if(rapierKCC&&rapierKCC.kcc){try{_ccDetails.grounded=rapierKCC.kcc.computedGrounded()?'yes':'no';}catch(e){}}
+  _ccDetails.snapToGround=rapierKCC&&rapierKCC.kcc?true:false;
+  _ccDetails.orbitYaw=W.__charCtrl_orbitYaw!=null?+(W.__charCtrl_orbitYaw*180/Math.PI).toFixed(0)+'deg':'N/A';
+  _ccDetails.orbitPitch=W.__charCtrl_orbitPitch!=null?+(W.__charCtrl_orbitPitch*180/Math.PI).toFixed(0)+'deg':'N/A';
+}
+r.push({system:'Character Controller',status:_ccActive?'ok':'off',details:_ccDetails});
+if(!_ccActive&&pm)problems.push({id:'char-ctrl-inactive',severity:'warn',msg:'Player mesh exists but character controller not active'});
+
+// === 9. SKY & WEATHER (deep check) ===
 var sw=W.__vibexe_skyWeather;
-r.push({system:'Sky & Weather',status:sw&&sw._active?'ok':(sw?'inactive':'off'),details:sw?{time:+(sw.solarTime||0).toFixed(3)}:null});
+var swStatus='off';var swDetails=null;
+if(sw){
+  var _swState=null;try{_swState=sw.getState?sw.getState():null;}catch(e){}
+  var _swCfg=sw.config||{};var _swTime=_swCfg.time||{};
+  var _st=+(sw.solarTime||0).toFixed(4);
+  var _autoAdv=!!_swTime.autoAdvance;
+  var _cycleLen=_swTime.cycleLengthMinutes||0;
+  var _timeLabel='unknown';
+  if(_st<0.21)_timeLabel='Night';else if(_st<0.29)_timeLabel='Dawn';else if(_st<0.42)_timeLabel='Morning';else if(_st<0.58)_timeLabel='Noon';else if(_st<0.71)_timeLabel='Afternoon';else if(_st<0.79)_timeLabel='Dusk';else _timeLabel='Night';
+  var _isAdvancing=false;
+  var now=Date.now();
+  if(_prevSolarTime!==null&&_autoAdv&&(now-_solarSampleTime)>1500){
+    _isAdvancing=Math.abs(_st-_prevSolarTime)>0.0001;
+  }
+  if(now-_solarSampleTime>1500||_prevSolarTime===null){_prevSolarTime=_st;_solarSampleTime=now;}
+  swStatus=sw._active?'ok':(sw.scene?'inactive':'off');
+  swDetails={solarTime:_st,timeOfDay:_timeLabel,autoAdvance:_autoAdv,advancing:_autoAdv?(_isAdvancing?'yes':'STALLED'):'disabled',cycleLenMin:_cycleLen,skyDome:!!(sw.skyDome&&sw.skyDome.mesh),lighting:!!(sw.lighting),stars:!!(sw.stars)};
+  if(_autoAdv&&!_isAdvancing&&_prevSolarTime!==null&&(now-_solarSampleTime)>3000){
+    problems.push({id:'sky-cycle-stalled',severity:'error',msg:'Day/night autoAdvance is ON but solarTime is NOT changing (stuck at '+_st+')'});
+  }
+  if(sw._active&&!sw.skyDome)problems.push({id:'sky-no-dome',severity:'warn',msg:'SkyWeather active but skyDome not created'});
+}
+r.push({system:'Sky & Weather',status:swStatus,details:swDetails});
+
+// === 10. ADAPTIVE QUALITY ===
 var aq=W.__vibexe_adaptive_quality__;
-r.push({system:'Adaptive Quality',status:aq?'ok':'off',details:aq?{fps:aq.fps||0,pixelRatio:aq.currentPixelRatio,reductions:aq.reductions||0}:null});
+r.push({system:'Adaptive Quality',status:aq?'ok':'off',details:aq?{fps:aq.fps||0,pixelRatio:aq.currentPixelRatio,reductions:aq.reductions||0,shadowsOff:!!aq.shadowsOff,degraded:aq.reductions>0}:null});
+
+// === 11. PERFORMANCE ===
 var cullDist=W.__vibexe_cullDistance__||120;
 var fpsCounter=document.getElementById('__vibexe_fps__');
 var gameFps=fpsCounter?parseInt(fpsCounter.textContent)||0:0;
 if(!gameFps&&aq&&aq.fps)gameFps=Math.round(aq.fps);
-r.push({system:'Performance',status:gameFps>=50?'ok':(gameFps>=30?'inactive':(gameFps>0?'inactive':'missing')),details:{gameFps:gameFps,cullDistance:cullDist,skipComposer:!!W.__vibexe_skipComposer__,editorActive:!!W.__vibexe_editor_active__}});
+var perfStatus=gameFps>=50?'ok':(gameFps>=30?'inactive':(gameFps>0?'inactive':'missing'));
+var _memInfo=null;if(W.performance&&W.performance.memory){try{_memInfo={usedMB:Math.round(W.performance.memory.usedJSHeapSize/1048576),totalMB:Math.round(W.performance.memory.totalJSHeapSize/1048576)};}catch(e){}}
+var _drawCalls=null;if(ren&&ren.info&&ren.info.render){_drawCalls=ren.info.render.calls;}
+r.push({system:'Performance',status:perfStatus,details:{gameFps:gameFps,cullDistance:cullDist,skipComposer:!!W.__vibexe_skipComposer__,editorActive:!!W.__vibexe_editor_active__,drawCalls:_drawCalls!=null?_drawCalls:'?',memory:_memInfo,maxFPS:W.__vibexe_maxFPS__||'none'}});
+if(gameFps>0&&gameFps<25)problems.push({id:'low-fps',severity:'error',msg:'Game FPS critically low: '+gameFps});
+else if(gameFps>=25&&gameFps<40)problems.push({id:'low-fps-warn',severity:'warn',msg:'Game FPS below target: '+gameFps});
+
+// === 12. AUDIO ===
 var au=W.__vibexe_audio__;
-r.push({system:'Audio',status:au?(au.enabled?'ok':'muted'):'off'});
+var _acState='N/A';try{var _ac=new(W.AudioContext||W.webkitAudioContext)();_acState=_ac.state;_ac.close();}catch(e){}
+r.push({system:'Audio',status:au?(au.enabled?'ok':'muted'):'off',details:au?{enabled:au.enabled,masterVol:au.masterVolume,musicVol:au.musicVolume,sfxVol:au.sfxVolume,contextState:_acState}:null});
+
+// === 13. MODULES ===
 var mods=Object.keys(W.__vibexe_modules__||{});
-r.push({system:'Modules',status:mods.length>0?'ok':'none',details:{loaded:mods}});
-if(sc&&w){
+var _modExpected=W.__VIBEXE_INSTALLED_MODULES__||[];
+var _modMissing=[];
+for(var _mi=0;_mi<_modExpected.length;_mi++){if(mods.indexOf(_modExpected[_mi])<0)_modMissing.push(_modExpected[_mi]);}
+r.push({system:'Modules',status:mods.length>0?'ok':'none',details:{loaded:mods,expected:_modExpected,missing:_modMissing}});
+if(_modMissing.length>0)problems.push({id:'modules-missing',severity:'error',msg:'Expected modules not loaded: '+_modMissing.join(', ')});
+
+// === 14. GLTF / MODELS ===
+var _gltfCount=0;var _gltfNames=[];
+if(sc){sc.traverse(function(o){if(o.userData&&o.userData.__gltfSource){_gltfCount++;if(_gltfNames.length<10)_gltfNames.push(o.name||'unnamed');}else if(o.type==='Group'&&o.children.length>0){var hasSkinned=false;o.traverse(function(c){if(c.isSkinnedMesh)hasSkinned=true;});if(hasSkinned&&_gltfNames.indexOf(o.name)<0){_gltfCount++;if(_gltfNames.length<10)_gltfNames.push(o.name||'unnamed');}}});}
+r.push({system:'GLTF Models',status:_gltfCount>0?'ok':'none',details:{count:_gltfCount,models:_gltfNames}});
+
+// === 15. SPAWN / RESPAWN ===
+var _gs=W.__VIBEXE_GAME_SETTINGS__||{};
+var _spawnPos=_gs.spawnPosition||null;
+var _spawnMarker=sc&&sc.getObjectByName?sc.getObjectByName('__editor_spawn_marker__'):null;
+r.push({system:'Spawn',status:_spawnPos?'ok':'missing',details:{position:_spawnPos?(_spawnPos.x+','+_spawnPos.y+','+_spawnPos.z):'not set',marker:!!_spawnMarker,respawnY:_gs.respawnY||'default'}});
+
+// === 16. LIGHTS (detailed) ===
+var _lightDetails=[];
+if(sc){sc.traverse(function(o){if(!o.isLight)return;var ld={name:o.name||o.type,type:o.type,intensity:o.intensity};if(o.shadow)ld.castShadow=o.castShadow;if(o.shadow&&o.shadow.mapSize)ld.shadowRes=o.shadow.mapSize.x;_lightDetails.push(ld);});}
+var _shadowLights=_lightDetails.filter(function(l){return l.castShadow;});
+r.push({system:'Lighting',status:_lightDetails.length>0?'ok':'missing',details:{total:_lightDetails.length,shadowCasters:_shadowLights.length,list:_lightDetails.slice(0,8).map(function(l){return l.name+'('+l.type+',i:'+l.intensity+')'})}});
+if(_lightDetails.length===0)problems.push({id:'no-lights',severity:'warn',msg:'No lights in scene'});
+if(_shadowLights.length>3)problems.push({id:'many-shadow-casters',severity:'warn',msg:_shadowLights.length+' shadow-casting lights — may impact performance'});
+
+// === 17. SOLID OBJECTS CHECK ===
+if(sc){
   var solidNoPhys=0;var solidNames=[];
   sc.traverse(function(o){
     if(!o.isMesh)return;
@@ -226,6 +363,31 @@ if(sc&&w){
   });
   if(solidNoPhys>0)problems.push({id:'objects-no-physics',severity:'warn',msg:solidNoPhys+' platform/barrier mesh(es) missing physics: '+solidNames.join(', ')});
 }
+
+// === 18. GAME SETTINGS INTEGRITY ===
+var _gsCheck=W.__VIBEXE_GAME_SETTINGS__;
+var _gsDetails={loaded:!!_gsCheck};
+if(_gsCheck){
+  _gsDetails.scenes=_gsCheck.scenes?_gsCheck.scenes.length:0;
+  _gsDetails.modules=_gsCheck.modules&&_gsCheck.modules.installed?Object.keys(_gsCheck.modules.installed).length:0;
+  _gsDetails.hasCamera=!!_gsCheck.camera;
+  _gsDetails.hasPhysics=!!_gsCheck.physics;
+  _gsDetails.hasTerrain=!!(_gsCheck.modules&&_gsCheck.modules.installed&&_gsCheck.modules.installed['terrain-painter']);
+  _gsDetails.hasCharCtrl=!!(_gsCheck.modules&&_gsCheck.modules.installed&&_gsCheck.modules.installed['character-system']);
+}
+r.push({system:'Game Settings',status:_gsCheck?'ok':'missing',details:_gsDetails});
+if(!_gsCheck)problems.push({id:'no-game-settings',severity:'error',msg:'__VIBEXE_GAME_SETTINGS__ not loaded'});
+
+// === 19. ERROR LOG SUMMARY ===
+var _logRing=W.__vibexe_logRing__||[];
+var _errCount=0;var _warnCount=0;var _recentErrors=[];
+for(var _li=0;_li<_logRing.length;_li++){
+  if(_logRing[_li].l==='err'){_errCount++;if(_recentErrors.length<3)_recentErrors.push(_logRing[_li].m.substring(0,80));}
+  if(_logRing[_li].l==='warn')_warnCount++;
+}
+r.push({system:'Console Health',status:_errCount>0?'inactive':(_warnCount>5?'inactive':'ok'),details:{errors:_errCount,warnings:_warnCount,totalLogs:_logRing.length,recentErrors:_recentErrors}});
+if(_errCount>5)problems.push({id:'many-errors',severity:'warn',msg:_errCount+' errors captured in console — check logs for details'});
+
 try{window.parent.postMessage({type:'vibexe-debug-system-report-all',systems:r,problems:problems},'*')}catch(e){}
 });
 })();`;
