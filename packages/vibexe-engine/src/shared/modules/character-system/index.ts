@@ -50,14 +50,15 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v8.3.0
+const runtimeCode = `// @vibexe/character-system v8.4.0
 // Blink-style top-down WASD controller + camera-relative movement + orbit camera
 // Phase 1: IK Head Look-At + terrain-aware falling
 // Phase 2: Cursor look-at + camera mouse offset
 // Phase 3: Acceleration/deceleration, slope handling, step climbing, footstep audio
 // Phase 4: Rapier.js KCC — native terrain collision, auto-step, snap-to-ground
 // Phase 4.3: Solid terrain — walls, cliffs, edge margins, boundary clamping
-console.log('[CharacterSystem] Module v8.3.0 loaded');
+// Phase 5: Camera smoothness — visual interpolation, terrain Y smoothing, softer collision, lookAt damping
+console.log('[CharacterSystem] Module v8.4.0 loaded');
 
 var THREE = require('three');
 
@@ -1129,6 +1130,19 @@ function swapCharacter(scene, characterId) {
         var _terrainSmoothY = 0; // smoothed terrain Y for interpolation
         var _terrainYInit = false;
 
+        // Visual position interpolation — smooth mesh position to eliminate physics jitter
+        // The camera tracks mesh position, so smoothing mesh = smoother camera
+        var _visualPosInit = false;
+        var _visualPosX = 0, _visualPosY = 0, _visualPosZ = 0;
+        var _visualSmoothFactor = 25; // Higher = faster tracking. 25 at 60fps = ~0.42 blend/frame
+
+        // Camera collision blend state — smooth recovery when collision clears
+        var _camCollisionBlend = 0; // 0 = no collision, 1 = full collision pull-in
+
+        // LookAt target smoothing — prevents camera rotation jitter
+        var _lookAtX = 0, _lookAtY = 0, _lookAtZ = 0;
+        var _lookAtInit = false;
+
         // Phase 3: Footstep audio (#10)
         var _footstepTimer = 0;
         var _footstepCtx = null;
@@ -1408,13 +1422,22 @@ function swapCharacter(scene, characterId) {
                 }
               }
               _rapierBody.setNextKinematicTranslation({ x: _nx, y: _ny, z: _nz });
-              // Sync mesh to Rapier position (add surfaceOffset for visual grass level)
-              _csMesh.position.x = _nx;
-              _csMesh.position.y = _ny - _csHalfH + (window.__vibexe_terrainSurfaceOffset || 0);
-              _csMesh.position.z = _nz;
+              // Sync mesh to Rapier position via visual interpolation (eliminates physics jitter)
+              var _targetMeshY = _ny - _csHalfH + (window.__vibexe_terrainSurfaceOffset || 0);
               if (_csMesh.userData && _csMesh.userData.__groundOffset) {
-                _csMesh.position.y += _csMesh.userData.__groundOffset;
+                _targetMeshY += _csMesh.userData.__groundOffset;
               }
+              if (!_visualPosInit) {
+                _visualPosX = _nx; _visualPosY = _targetMeshY; _visualPosZ = _nz;
+                _visualPosInit = true;
+              }
+              var _vBlend = Math.min(_visualSmoothFactor * dt, 1);
+              _visualPosX += (_nx - _visualPosX) * _vBlend;
+              _visualPosY += (_targetMeshY - _visualPosY) * _vBlend;
+              _visualPosZ += (_nz - _visualPosZ) * _vBlend;
+              _csMesh.position.x = _visualPosX;
+              _csMesh.position.y = _visualPosY;
+              _csMesh.position.z = _visualPosZ;
               // Sync CANNON body for diagnostics + animation state machine
               if (_csBody && _csBody.position) {
                 _csBody.position.x = _nx; _csBody.position.y = _ny; _csBody.position.z = _nz;
@@ -1559,8 +1582,9 @@ function swapCharacter(scene, characterId) {
                   _terrainYInit = true;
                 }
                 // Smooth terrain Y to prevent jitter on jagged terrain
-                // C8 fix: reduced lerp from 0.85 to 0.5 — smoother following, less snappy on jagged terrain
-                _terrainSmoothY = _terrainSmoothY + (_tH - _terrainSmoothY) * 0.5;
+                // C9 fix: dt-scaled lerp instead of fixed 0.5 — framerate-independent, smoother on jagged terrain
+                var _terrainLerp = Math.min(4 * dt, 0.35);
+                _terrainSmoothY = _terrainSmoothY + (_tH - _terrainSmoothY) * _terrainLerp;
 
                 var _minBodyY = _terrainSmoothY + _csHalfH + _terrainMargin;
 
@@ -1578,14 +1602,23 @@ function swapCharacter(scene, characterId) {
               }
             }
 
-            // Sync mesh to physics body position
+            // Sync mesh to physics body via visual interpolation (eliminates physics jitter)
             if (_csBody.position) {
-              _csMesh.position.x = _csBody.position.x;
-              _csMesh.position.y = _csBody.position.y - _csHalfH + (window.__vibexe_terrainSurfaceOffset || 0);
-              _csMesh.position.z = _csBody.position.z;
+              var _targetMeshYC = _csBody.position.y - _csHalfH + (window.__vibexe_terrainSurfaceOffset || 0);
               if (_csMesh.userData && _csMesh.userData.__groundOffset) {
-                _csMesh.position.y += _csMesh.userData.__groundOffset;
+                _targetMeshYC += _csMesh.userData.__groundOffset;
               }
+              if (!_visualPosInit) {
+                _visualPosX = _csBody.position.x; _visualPosY = _targetMeshYC; _visualPosZ = _csBody.position.z;
+                _visualPosInit = true;
+              }
+              var _vBlendC = Math.min(_visualSmoothFactor * dt, 1);
+              _visualPosX += (_csBody.position.x - _visualPosX) * _vBlendC;
+              _visualPosY += (_targetMeshYC - _visualPosY) * _vBlendC;
+              _visualPosZ += (_csBody.position.z - _visualPosZ) * _vBlendC;
+              _csMesh.position.x = _visualPosX;
+              _csMesh.position.y = _visualPosY;
+              _csMesh.position.z = _visualPosZ;
             }
             } // end CANNON fallback
 
@@ -1790,8 +1823,9 @@ function swapCharacter(scene, characterId) {
               camTargetZ += _camOffsetZ;
 
               // SmoothDamp per axis (Blink: dampTime 0.1s)
+              // C9 fix: Y-axis uses 1.8x longer smoothTime to reduce vertical bobbing from terrain jitter
               var sdX = _smoothDamp(cam.position.x, camTargetX, _camVelX, _camFollowSmoothTime, dt);
-              var sdY = _smoothDamp(cam.position.y, camTargetY, _camVelY, _camFollowSmoothTime, dt);
+              var sdY = _smoothDamp(cam.position.y, camTargetY, _camVelY, _camFollowSmoothTime * 1.8, dt);
               var sdZ = _smoothDamp(cam.position.z, camTargetZ, _camVelZ, _camFollowSmoothTime, dt);
               cam.position.x = sdX.value; _camVelX = sdX.velocity;
               cam.position.y = sdY.value; _camVelY = sdY.velocity;
@@ -1857,22 +1891,36 @@ function swapCharacter(scene, characterId) {
                   }
                   if (_closestHit < _toCamLen) {
                     var _safeDist = Math.max(1.0, _closestHit - 0.5);
-                    // Smooth pull-in (don't pop instantly) — C4 fix: reuse vector
+                    // C9 fix: softer pull-in (5 instead of 12) to reduce camera shake on collision
                     if (!_ccPullPos) _ccPullPos = new THREE.Vector3();
                     _ccPullPos.copy(_ccPlayerCenter).addScaledVector(_ccToCamera, _safeDist);
-                    cam.position.x += (_ccPullPos.x - cam.position.x) * Math.min(12 * dt, 1);
-                    cam.position.y += (_ccPullPos.y - cam.position.y) * Math.min(12 * dt, 1);
-                    cam.position.z += (_ccPullPos.z - cam.position.z) * Math.min(12 * dt, 1);
+                    // Ramp collision blend up quickly (entering collision)
+                    _camCollisionBlend = Math.min(_camCollisionBlend + 8 * dt, 1);
+                    var _pullRate = Math.min(5 * dt * _camCollisionBlend, 1);
+                    cam.position.x += (_ccPullPos.x - cam.position.x) * _pullRate;
+                    cam.position.y += (_ccPullPos.y - cam.position.y) * _pullRate;
+                    cam.position.z += (_ccPullPos.z - cam.position.z) * _pullRate;
+                  } else {
+                    // No collision — decay blend smoothly (prevents snap-back)
+                    _camCollisionBlend = Math.max(_camCollisionBlend - 3 * dt, 0);
                   }
                 }
               }
 
               // Look at player + Y offset + cursor offset (camera looks slightly ahead of player)
-              cam.lookAt(
-                _csMesh.position.x + _camOffsetX * 0.5,
-                _csMesh.position.y + _camLookYOffset,
-                _csMesh.position.z + _camOffsetZ * 0.5
-              );
+              // C9 fix: smooth the lookAt target to prevent camera rotation jitter
+              var _laTargetX = _csMesh.position.x + _camOffsetX * 0.5;
+              var _laTargetY = _csMesh.position.y + _camLookYOffset;
+              var _laTargetZ = _csMesh.position.z + _camOffsetZ * 0.5;
+              if (!_lookAtInit) {
+                _lookAtX = _laTargetX; _lookAtY = _laTargetY; _lookAtZ = _laTargetZ;
+                _lookAtInit = true;
+              }
+              var _laBlend = Math.min(20 * dt, 1); // Fast but smoothed
+              _lookAtX += (_laTargetX - _lookAtX) * _laBlend;
+              _lookAtY += (_laTargetY - _lookAtY) * Math.min(12 * dt, 1); // Y slower to reduce vertical rotation shake
+              _lookAtZ += (_laTargetZ - _lookAtZ) * _laBlend;
+              cam.lookAt(_lookAtX, _lookAtY, _lookAtZ);
             }
           }
         };
