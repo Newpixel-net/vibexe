@@ -113,6 +113,27 @@ SimplexNoise.smoothstep = function(edge0, edge1, x) {
   return t * t * (3 - 2 * t);
 };
 
+SimplexNoise.worley = function(x, y) {
+  // Return distance to nearest cell center (creates ridge patterns when inverted)
+  var ix = Math.floor(x), iy = Math.floor(y);
+  var minDist = 999;
+  for (var dy = -1; dy <= 1; dy++) {
+    for (var dx = -1; dx <= 1; dx++) {
+      var cx = ix + dx + (SimplexNoise.noise2D((ix+dx)*0.7, (iy+dy)*0.7) * 0.5 + 0.5);
+      var cy = iy + dy + (SimplexNoise.noise2D((ix+dx)*1.3, (iy+dy)*1.3) * 0.5 + 0.5);
+      var d = Math.sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy));
+      if (d < minDist) minDist = d;
+    }
+  }
+  return minDist;
+};
+
+SimplexNoise.plateauCurve = function(h, steepness) {
+  // S-curve that flattens peaks and creates natural plateau shapes
+  // steepness controls transition sharpness (2-6 typical)
+  return h / (1.0 + Math.pow(Math.abs(h), steepness) * 0.5);
+};
+
 
 // ============================================================
 // TerrainGenerator
@@ -161,37 +182,57 @@ TerrainGenerator.prototype.generate = function() {
   for (var vi = 0; vi < pos.count; vi++) {
     var vx = pos.getX(vi);
     var vz = pos.getZ(vi);
-    var nx = vx / W;
+    var nx = vx / W;  // normalized -0.5 to 0.5
     var nz = vz / D;
 
-    // Edge falloff
-    var edgeX = 1.0 - Math.pow(2.0 * Math.abs(nx), 3);
-    var edgeZ = 1.0 - Math.pow(2.0 * Math.abs(nz), 3);
-    var edgeFalloff = SimplexNoise.smoothstep(0, 0.25, Math.max(0, Math.min(edgeX, edgeZ)));
+    // Edge falloff: fade to a BASE ELEVATION (not zero!) near borders
+    // Use smooth quartic falloff for natural look
+    var edgeX = 1.0 - Math.pow(2.0 * Math.abs(nx), 4);
+    var edgeZ = 1.0 - Math.pow(2.0 * Math.abs(nz), 4);
+    var edgeFalloff = SimplexNoise.smoothstep(0, 0.3, Math.max(0, Math.min(edgeX, edgeZ)));
+    // Base elevation so edges aren't at zero (creates natural foothill border)
+    var baseElevation = H * 0.08;
 
-    // Domain warp for organic shapes
-    var warpPt = SimplexNoise.domainWarp(nx * 1.5, nz * 1.5, 0.45);
+    // Domain warp for organic shapes (increased strength for more natural flow)
+    var warpPt = SimplexNoise.domainWarp(nx * 1.8, nz * 1.8, 0.55);
     var wx = warpPt[0], wz = warpPt[1];
 
-    // Scale 1: Continental base (domain-warped fBm) — broad mountain shape
-    var continental = (SimplexNoise.fbm(wx * 1.0, wz * 1.0, 6, 2.0, 0.5) + 1) * 0.5;
-    continental = Math.pow(continental, 2.2);
+    // === Layer 1: Continental base (broad mountain masses) ===
+    // GENTLER gamma (1.4 instead of 2.2) — preserves foothills and rolling lowlands
+    var continental = (SimplexNoise.fbm(wx * 0.8, wz * 0.8, 6, 2.0, 0.5) + 1) * 0.5;
+    continental = Math.pow(continental, 1.4);
 
-    // Scale 2: Mountain ridges (ridged multifractal) — sharp peaks
-    var ridges = SimplexNoise.ridgedMultifractal(nx * 2.5 + 3.7, nz * 2.5 + 1.2, 5, 2.1, 0.5, 2.5);
-    ridges *= 0.3;
+    // === Layer 2: Ridge network (connected mountain ranges via Worley noise) ===
+    // Inverted Worley creates continuous ridgelines instead of isolated peaks
+    var worleyVal = SimplexNoise.worley(nx * 3.0 + 2.1, nz * 3.0 + 0.8);
+    var ridgeNetwork = 1.0 - SimplexNoise.smoothstep(0.0, 0.6, worleyVal);
+    ridgeNetwork = Math.pow(ridgeNetwork, 1.8);
 
-    // Scale 3: Rolling foothills — medium frequency variation
-    var hills = SimplexNoise.fbm(nx * 5.0 + 7.3, nz * 5.0 + 2.8, 4, 2.0, 0.5) * 0.06;
+    // === Layer 3: Ridged multifractal for mountain detail ===
+    // REDUCED sharpness (1.3 instead of 2.5) — creates broad rounded peaks
+    var ridges = SimplexNoise.ridgedMultifractal(nx * 2.0 + 3.7, nz * 2.0 + 1.2, 4, 2.0, 0.45, 1.3);
+    // Apply plateau curve to prevent needle peaks
+    ridges = SimplexNoise.plateauCurve(ridges, 3.0);
+    ridges *= 0.25;
 
-    // Scale 4: Fine surface detail (altitude-dependent)
-    var detail = SimplexNoise.fbm(nx * 12.0, nz * 12.0, 3, 2.0, 0.4) * 0.02;
+    // === Layer 4: Rolling foothills ===
+    var hills = SimplexNoise.fbm(nx * 4.0 + 7.3, nz * 4.0 + 2.8, 4, 2.0, 0.5) * 0.08;
 
-    // Compose: continental 60% + ridges, with altitude-dependent roughness
-    var baseH = continental * 0.6 + ridges;
-    var roughDetail = (hills + detail) * (0.3 + Math.min(1, baseH) * 0.7);
+    // === Layer 5: Fine surface detail (altitude-dependent) ===
+    var detail = SimplexNoise.fbm(nx * 10.0, nz * 10.0, 3, 2.0, 0.4) * 0.025;
 
-    var h = (baseH + roughDetail) * edgeFalloff * H;
+    // === Compose height with connected ridges ===
+    // Continental provides broad masses, ridge network creates mountain chains,
+    // ridged multifractal adds peak variation along the chains
+    var mountainMask = continental * 0.5 + ridgeNetwork * 0.3;
+    var peakDetail = ridges * (0.5 + mountainMask * 0.5);
+    var baseH = mountainMask + peakDetail;
+
+    // Altitude-dependent roughness (more detail at higher elevations)
+    var roughDetail = (hills + detail) * (0.4 + Math.min(1, baseH) * 0.6);
+
+    // Final height with base elevation at edges
+    var h = (baseH + roughDetail) * edgeFalloff * H + baseElevation * (1.0 - edgeFalloff * 0.7);
     pos.setY(vi, h);
     heightData[vi] = h;
     if (h < minY) minY = h;
@@ -200,17 +241,49 @@ TerrainGenerator.prototype.generate = function() {
   pos.needsUpdate = true;
   geo.computeVertexNormals();
 
-  // ========== Post-generation Erosion Pipeline ==========
-  // Thermal erosion: material slides downhill when slope exceeds talus angle
-  var THERMAL_ITERATIONS = 40;
-  var TALUS_ANGLE = 0.6; // ~31 degrees
-  var THERMAL_RATE = 0.4;
+  // ========== STAGE 1: Peak Rounding (smooth sharp peaks FIRST) ==========
+  // Unlike old code which preserved peaks, this TARGETS peaks for smoothing
+  var PEAK_ROUNDS = 5;
+  var PEAK_FACTOR = 0.5;
+  for (var pr = 0; pr < PEAK_ROUNDS; pr++) {
+    var peakSmoothed = new Float32Array(heightData.length);
+    for (var pz = 0; pz < segZ; pz++) {
+      for (var px = 0; px < segX; px++) {
+        var pidx = pz * segX + px;
+        if (px <= 1 || px >= segX - 2 || pz <= 1 || pz >= segZ - 2) {
+          peakSmoothed[pidx] = heightData[pidx];
+          continue;
+        }
+        // 8-neighbor average
+        var pavg = (
+          heightData[pidx - 1] + heightData[pidx + 1] +
+          heightData[pidx - segX] + heightData[pidx + segX] +
+          heightData[pidx - segX - 1] + heightData[pidx - segX + 1] +
+          heightData[pidx + segX - 1] + heightData[pidx + segX + 1]
+        ) * 0.125;
+        var pdiff = heightData[pidx] - pavg;
+        // Only smooth CONVEX areas (peaks/ridges where center > neighbors)
+        if (pdiff > 0) {
+          var peakBlend = Math.min(1.0, pdiff * 4.0) * PEAK_FACTOR;
+          peakSmoothed[pidx] = heightData[pidx] - pdiff * peakBlend;
+        } else {
+          peakSmoothed[pidx] = heightData[pidx];
+        }
+      }
+    }
+    heightData = peakSmoothed;
+  }
+
+  // ========== STAGE 2: Improved Thermal Erosion ==========
+  // More iterations, lower talus angle for more material movement
+  var THERMAL_ITERATIONS = 180;
+  var TALUS_ANGLE = 0.3;  // ~17 degrees (was 0.6/31deg)
+  var THERMAL_RATE = 0.35;
   for (var ti = 0; ti < THERMAL_ITERATIONS; ti++) {
     for (var tz = 1; tz < seg; tz++) {
       for (var tx = 1; tx < seg; tx++) {
         var ci = tz * segX + tx;
         var ch = heightData[ci];
-        // 4-neighbor differences
         var diffs = [
           { idx: ci - 1, d: ch - heightData[ci - 1] },
           { idx: ci + 1, d: ch - heightData[ci + 1] },
@@ -237,9 +310,129 @@ TerrainGenerator.prototype.generate = function() {
     }
   }
 
-  // Feature-preserving smooth (Laplacian, 3 iterations)
-  var SMOOTH_ITERATIONS = 3;
-  var SMOOTH_FACTOR = 0.35;
+  // ========== STAGE 3: Hydraulic Erosion (water flow + sediment) ==========
+  // Simulates raindrops flowing downhill, carving channels and depositing sediment
+  var HYDRO_DROPS = 25000;
+  var HYDRO_INERTIA = 0.3;
+  var HYDRO_CAPACITY = 8.0;
+  var HYDRO_DEPOSITION = 0.02;
+  var HYDRO_EROSION = 0.5;
+  var HYDRO_EVAPORATION = 0.01;
+  var HYDRO_MIN_SLOPE = 0.01;
+  var HYDRO_RADIUS = 3;
+  var HYDRO_GRAVITY = 10.0;
+  var HYDRO_MAX_LIFETIME = 80;
+
+  for (var drop = 0; drop < HYDRO_DROPS; drop++) {
+    // Random starting position
+    var dpx = Math.random() * (segX - 3) + 1;
+    var dpz = Math.random() * (segZ - 3) + 1;
+    var ddx = 0, ddz = 0; // direction
+    var dspeed = 0;
+    var dwater = 1;
+    var dsediment = 0;
+
+    for (var dlife = 0; dlife < HYDRO_MAX_LIFETIME; dlife++) {
+      var dix = Math.floor(dpx), diz = Math.floor(dpz);
+      if (dix < 1 || dix >= segX - 2 || diz < 1 || diz >= segZ - 2) break;
+
+      var didx = diz * segX + dix;
+      var dfx = dpx - dix, dfz = dpz - diz;
+
+      // Bilinear height sample
+      var dh00 = heightData[didx];
+      var dh10 = heightData[didx + 1];
+      var dh01 = heightData[didx + segX];
+      var dh11 = heightData[didx + segX + 1];
+
+      // Gradient (steepest descent direction)
+      var dgx = (dh10 - dh00) * (1 - dfz) + (dh11 - dh01) * dfz;
+      var dgz = (dh01 - dh00) * (1 - dfx) + (dh11 - dh10) * dfx;
+
+      // Update direction with inertia
+      ddx = ddx * HYDRO_INERTIA - dgx * (1 - HYDRO_INERTIA);
+      ddz = ddz * HYDRO_INERTIA - dgz * (1 - HYDRO_INERTIA);
+
+      // Normalize direction
+      var dlen = Math.sqrt(ddx * ddx + ddz * ddz);
+      if (dlen < 0.0001) {
+        ddx = Math.random() * 2 - 1;
+        ddz = Math.random() * 2 - 1;
+        dlen = Math.sqrt(ddx * ddx + ddz * ddz);
+      }
+      ddx /= dlen;
+      ddz /= dlen;
+
+      // Move droplet
+      var npx = dpx + ddx;
+      var npz = dpz + ddz;
+
+      // Check bounds
+      if (npx < 1 || npx >= segX - 2 || npz < 1 || npz >= segZ - 2) break;
+
+      // Height at new position (bilinear)
+      var nix = Math.floor(npx), niz = Math.floor(npz);
+      var nfx = npx - nix, nfz = npz - niz;
+      var nidx = niz * segX + nix;
+      var nh00 = heightData[nidx];
+      var nh10 = heightData[nidx + 1];
+      var nh01 = heightData[nidx + segX];
+      var nh11 = heightData[nidx + segX + 1];
+      var newH = nh00*(1-nfx)*(1-nfz) + nh10*nfx*(1-nfz) + nh01*(1-nfx)*nfz + nh11*nfx*nfz;
+      var oldH = dh00*(1-dfx)*(1-dfz) + dh10*dfx*(1-dfz) + dh01*(1-dfx)*dfz + dh11*dfx*dfz;
+      var dhDiff = newH - oldH;
+
+      // Sediment capacity based on speed and slope
+      var dslope = Math.max(-dhDiff, HYDRO_MIN_SLOPE);
+      var dcapacity = Math.max(dslope * dspeed * dwater * HYDRO_CAPACITY, 0.01);
+
+      if (dsediment > dcapacity || dhDiff > 0) {
+        // Deposit sediment
+        var depositAmt = (dhDiff > 0)
+          ? Math.min(dsediment, dhDiff)
+          : (dsediment - dcapacity) * HYDRO_DEPOSITION;
+        depositAmt = Math.max(0, depositAmt);
+        dsediment -= depositAmt;
+
+        // Deposit at old position (bilinear weights)
+        heightData[didx] += depositAmt * (1-dfx) * (1-dfz);
+        heightData[didx+1] += depositAmt * dfx * (1-dfz);
+        heightData[didx+segX] += depositAmt * (1-dfx) * dfz;
+        heightData[didx+segX+1] += depositAmt * dfx * dfz;
+      } else {
+        // Erode terrain
+        var erodeAmt = Math.min((dcapacity - dsediment) * HYDRO_EROSION, -dhDiff);
+        erodeAmt = Math.max(0, erodeAmt);
+
+        // Erode in a small radius for wider valleys
+        for (var erz = -HYDRO_RADIUS; erz <= HYDRO_RADIUS; erz++) {
+          for (var erx = -HYDRO_RADIUS; erx <= HYDRO_RADIUS; erx++) {
+            var eix = dix + erx, eiz = diz + erz;
+            if (eix < 0 || eix >= segX || eiz < 0 || eiz >= segZ) continue;
+            var edist = Math.sqrt(erx*erx + erz*erz);
+            if (edist > HYDRO_RADIUS) continue;
+            var eweight = Math.max(0, 1.0 - edist / HYDRO_RADIUS);
+            eweight = eweight * eweight; // quadratic falloff
+            var eidx = eiz * segX + eix;
+            heightData[eidx] -= erodeAmt * eweight * 0.1;
+          }
+        }
+        dsediment += erodeAmt;
+      }
+
+      // Update speed and water
+      dspeed = Math.sqrt(Math.max(0, dspeed * dspeed - dhDiff * HYDRO_GRAVITY));
+      dwater *= (1 - HYDRO_EVAPORATION);
+      if (dwater < 0.001) break;
+
+      dpx = npx;
+      dpz = npz;
+    }
+  }
+
+  // ========== STAGE 4: Post-erosion smoothing (gentle, preserve valleys) ==========
+  var SMOOTH_ITERATIONS = 4;
+  var SMOOTH_FACTOR = 0.3;
   for (var si = 0; si < SMOOTH_ITERATIONS; si++) {
     var smoothed = new Float32Array(heightData.length);
     for (var sz = 0; sz < segZ; sz++) {
@@ -250,10 +443,9 @@ TerrainGenerator.prototype.generate = function() {
           continue;
         }
         var avg4 = (heightData[sidx-1] + heightData[sidx+1] + heightData[sidx-segX] + heightData[sidx+segX]) * 0.25;
-        var diff = avg4 - heightData[sidx];
-        // Feature-preserving: only smooth small differences (preserve ridges)
-        var blendAmt = Math.min(1.0, 2.0 / (1.0 + Math.abs(diff) * 8.0));
-        smoothed[sidx] = heightData[sidx] + diff * SMOOTH_FACTOR * blendAmt;
+        var sdiff = avg4 - heightData[sidx];
+        // Gentle uniform smoothing (no feature preservation bias)
+        smoothed[sidx] = heightData[sidx] + sdiff * SMOOTH_FACTOR;
       }
     }
     heightData = smoothed;
