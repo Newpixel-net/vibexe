@@ -294,6 +294,16 @@ var BIOME_PRESETS = {
     hills: { amp: [0.10, 0.16] }, detail: { amp: [0.04, 0.07] },
     erosion: { thermalIter: [100, 170], talus: [0.4, 0.6], hydroDrops: [10000, 20000], peakRounds: [5, 9] },
     warp: [0.40, 0.60]
+  },
+  arena_flat: {
+    name: "Arena (Flat)",
+    heightScale: [2, 5], segments: 256,
+    continental: { gamma: [0.4, 0.7], freq: 0.3 },
+    ridgeNetwork: { freq: [0.3, 0.6], power: [0.1, 0.2] },
+    ridgeFractal: { sharpness: [0.2, 0.4], plateau: [0.5, 1.0] },
+    hills: { amp: [0.03, 0.08] }, detail: { amp: [0.01, 0.02] },
+    erosion: { thermalIter: [80, 120], talus: [0.6, 0.9], hydroDrops: [4000, 8000], peakRounds: [12, 18] },
+    warp: [0.05, 0.15]
   }
 };
 

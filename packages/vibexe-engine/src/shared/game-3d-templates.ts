@@ -5625,24 +5625,7 @@ export const GameScene = {
       soundUrl("platformer-project/sfx/jump_0.wav"),
       soundUrl("platformer-project/sfx/coin01.wav"),
     ]);
-
-    // ===== PLATFORMS — Platformer Project GLB models =====
-    const platPositions: [number, number, number][] = [
-      [0, 0.5, 0], [5, 1, -6], [-4, 1.5, -12], [3, 2, -18], [-2, 2.5, -24],
-      [6, 3, -30], [0, 3.5, -36],
-    ];
-    const platTypes = ["grid", "long", "grid", "bouncing", "grid", "long", "grid"];
-    for (let i = 0; i < platPositions.length; i++) {
-      const [x, y, z] = platPositions[i];
-      const { mesh, size } = await createPlatform3D(scene, x, y, z, {
-        type: platTypes[i % platTypes.length],
-      });
-      const body = createPhysicsBody("box", 0, { x, y, z }, size);
-      if (world && body) world.addBody(body);
-      if (mesh && body) mesh.userData.__physicsBody = body;
-      platforms.push({ mesh, body });
-    }
-    onProgress?.(0.3);
+    onProgress?.(0.2);
 
     // ===== PLAYER — Lily animated character =====
     const __gs = (window as any).__VIBEXE_GAME_SETTINGS__ || {};
@@ -5688,27 +5671,6 @@ export const GameScene = {
     (window as any).__vibexe_playerMesh__ = lily.mesh;
     lilyController = createCharacterController3D(lilyResult, playerBody);
     onProgress?.(0.5);
-
-    // ===== COLLECTIBLES — coins, stars, hearts =====
-    const itemTypes = ["coin", "star", "heart"] as const;
-    for (let i = 0; i < platPositions.length - 2; i++) {
-      const [x, , z] = platPositions[i + 1];
-      const { mesh } = await createCollectible3D(scene, x, 3 + i * 0.5, z, {
-        type: itemTypes[i % 3],
-      });
-      items.push({ mesh, collected: false });
-    }
-    onProgress?.(0.7);
-
-    // ===== HAZARDS — spikes =====
-    await createBarrier3D(scene, 2, 1, -9, { type: "spikes" });
-    await createBarrier3D(scene, -3, 2, -21, { type: "spikes_panel" });
-    onProgress?.(0.8);
-
-    // ===== DECORATIONS — signs, garden =====
-    await createDecoration3D(scene, -8, 0, -5, { type: "sign" });
-    await createDecoration3D(scene, 10, 0, -20, { type: "garden" });
-    onProgress?.(0.9);
 
     // HUD + keyboard
     hud = createHUD(container);
