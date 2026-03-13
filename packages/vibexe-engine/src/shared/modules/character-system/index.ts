@@ -997,6 +997,20 @@ function swapCharacter(scene, characterId) {
       // (charSystem controller now owns movement, animation, and camera)
       window.__charCtrl_active = true;
 
+      // C5 fix: Neutralize CANNON asymmetric gravity from old saved templates.
+      // Old GameScene3D.ts files set world.gravity to FALL_GRAVITY (-69) every frame,
+      // causing CANNON/Rapier gravity mismatch. preStep fires inside world.step()
+      // AFTER the template sets gravity but BEFORE physics sim — clean override.
+      var _cannonWorld = window.__vibexe_world__;
+      if (_cannonWorld && _cannonWorld.addEventListener) {
+        var _cfgGrav = parseFloat(((window.__VIBEXE_GAME_SETTINGS__ || {}).physics || {}).gravity) || -5;
+        _cannonWorld.addEventListener('preStep', function() {
+          if (window.__charCtrl_active) {
+            _cannonWorld.gravity.set(0, _cfgGrav, 0);
+          }
+        });
+      }
+
       // Register on module API registry for inter-module communication
       if (!window.__vibexe_moduleAPI) window.__vibexe_moduleAPI = {};
       window.__vibexe_moduleAPI['character-system'] = {
