@@ -340,7 +340,10 @@ r.push({system:'GLTF Models',status:_gltfCount>0?'ok':'none',details:{count:_glt
 var _gs=W.__VIBEXE_GAME_SETTINGS__||{};
 var _spawnPos=_gs.spawnPosition||null;
 var _spawnMarker=sc&&sc.getObjectByName?sc.getObjectByName('__editor_spawn_marker__'):null;
-r.push({system:'Spawn',status:_spawnPos?'ok':'off',details:{position:_spawnPos?(_spawnPos.x+','+_spawnPos.y+','+_spawnPos.z):'default (origin)',marker:!!_spawnMarker,respawnY:_gs.respawnY||'default'}});
+var _spawnSource='not set';var _spawnStatus='off';var _spawnDisplay='default (origin)';
+if(_spawnPos){_spawnStatus='ok';_spawnSource='gameSettings';_spawnDisplay=_spawnPos.x+','+_spawnPos.y+','+_spawnPos.z;}
+else if(pm&&pm.position){_spawnStatus='ok';_spawnSource='player position';_spawnDisplay=+pm.position.x.toFixed(1)+','+pm.position.y.toFixed(1)+','+pm.position.z.toFixed(1);}
+r.push({system:'Spawn',status:_spawnStatus,details:{position:_spawnDisplay,source:_spawnSource,marker:!!_spawnMarker,respawnY:_gs.respawnY||'default'}});
 
 // === 16. LIGHTS (detailed) ===
 var _lightDetails=[];
