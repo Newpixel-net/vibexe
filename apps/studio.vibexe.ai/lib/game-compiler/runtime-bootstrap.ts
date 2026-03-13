@@ -311,7 +311,7 @@ var cullDist=W.__vibexe_cullDistance__||120;
 var fpsCounter=document.getElementById('__vibexe_fps__');
 var gameFps=fpsCounter?parseInt(fpsCounter.textContent)||0:0;
 if(!gameFps&&aq&&aq.fps)gameFps=Math.round(aq.fps);
-var perfStatus=gameFps>=50?'ok':(gameFps>=30?'inactive':(gameFps>0?'inactive':'missing'));
+var perfStatus=gameFps>=40?'ok':(gameFps>=25?'inactive':(gameFps>0?'inactive':'missing'));
 var _memInfo=null;if(W.performance&&W.performance.memory){try{_memInfo={usedMB:Math.round(W.performance.memory.usedJSHeapSize/1048576),totalMB:Math.round(W.performance.memory.totalJSHeapSize/1048576)};}catch(e){}}
 var _drawCalls=null;if(ren&&ren.info&&ren.info.render){_drawCalls=ren.info.render.calls;}
 r.push({system:'Performance',status:perfStatus,details:{gameFps:gameFps,cullDistance:cullDist,skipComposer:!!W.__vibexe_skipComposer__,editorActive:!!W.__vibexe_editor_active__,drawCalls:_drawCalls!=null?_drawCalls:'?',memory:_memInfo,maxFPS:W.__vibexe_maxFPS__||'none'}});
@@ -340,7 +340,7 @@ r.push({system:'GLTF Models',status:_gltfCount>0?'ok':'none',details:{count:_glt
 var _gs=W.__VIBEXE_GAME_SETTINGS__||{};
 var _spawnPos=_gs.spawnPosition||null;
 var _spawnMarker=sc&&sc.getObjectByName?sc.getObjectByName('__editor_spawn_marker__'):null;
-r.push({system:'Spawn',status:_spawnPos?'ok':'missing',details:{position:_spawnPos?(_spawnPos.x+','+_spawnPos.y+','+_spawnPos.z):'not set',marker:!!_spawnMarker,respawnY:_gs.respawnY||'default'}});
+r.push({system:'Spawn',status:_spawnPos?'ok':'off',details:{position:_spawnPos?(_spawnPos.x+','+_spawnPos.y+','+_spawnPos.z):'default (origin)',marker:!!_spawnMarker,respawnY:_gs.respawnY||'default'}});
 
 // === 16. LIGHTS (detailed) ===
 var _lightDetails=[];
