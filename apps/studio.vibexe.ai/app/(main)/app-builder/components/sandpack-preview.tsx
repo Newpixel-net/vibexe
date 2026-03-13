@@ -1440,11 +1440,11 @@ export function SandpackPreview({
 					}
 				}
 				// Auto-generate terrain after bridge load if terrain config exists
-				// Works in BOTH Scene editor mode and Game mode
-				// Skip if we just exited scene editor — the exit handler already triggers terrain gen
+				// Works in BOTH Scene editor mode and Game mode (including Scene→Game transition)
 				if (justExitedEditorRef.current) {
 					justExitedEditorRef.current = false;
-				} else if (iframe?.contentWindow) {
+				}
+				if (iframe?.contentWindow) {
 					const terrainCfg = gameEditor.gameSettings.terrain;
 					const _inst = gameEditor.gameSettings.modules?.installed;
 					const terrainModuleInstalled = _inst && typeof _inst === "object"
@@ -1838,7 +1838,7 @@ export function SandpackPreview({
 		const wasEnabled = prevEditorEnabledRef.current;
 		prevEditorEnabledRef.current = gameEditor.enabled;
 		if (wasEnabled && !gameEditor.enabled) {
-			// Flag to suppress duplicate terrain gen from bridge-loaded handler
+			// Flag: bridge-loaded handler uses Game-mode delay (8s) for terrain regen
 			justExitedEditorRef.current = true;
 			// Request heightmap data before bridge deactivates (for sculpt persistence)
 			const iframe = iframeRef.current;
@@ -1887,12 +1887,10 @@ export function SandpackPreview({
 					: !!(_inst2 as any)["terrain-painter"]?.enabled)
 				: false;
 			if (terrainCfg?.enabled && terrainModuleInstalled) {
-				// Terrain regeneration is handled by the IIFE's _autoTerrain() which runs
-				// AFTER the recompile settles (new bundle injected). This avoids the race
-				// condition where React-level generate creates terrain, then recompile
-				// destroys it, and repaint arrives at an empty scene.
-				// The IIFE's _autoTerrain reads biome+seed+layers from saved game settings.
-				console.log("[GameEditor] Terrain will auto-regenerate via IIFE after recompile settles");
+				// Terrain regeneration is handled by the bridge-loaded handler (8s delay for Game mode).
+				// The IIFE _autoTerrain also fires as a backup, but the bridge-loaded path is primary
+				// since it sends the message from React→iframe (reliable, not dependent on bridge load timing).
+				console.log("[GameEditor] Terrain will auto-regenerate via bridge-loaded handler after recompile");
 			}
 		}
 	}, [gameEditor.enabled]);
