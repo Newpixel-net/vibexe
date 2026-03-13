@@ -157,6 +157,19 @@ var _pi=setInterval(function(){
       }
     }
     console.log('[AutoDetect] Player mesh registered:',candidate.name||'unnamed');
+    // Create spawn marker at player position
+    var T=window.THREE;
+    if(T&&!sc.getObjectByName('__editor_spawn_marker__')){
+      var _sg=new T.SphereGeometry(0.3,16,16);
+      var _sm=new T.MeshBasicMaterial({color:0x00ff88,transparent:true,opacity:0.6});
+      var _mk=new T.Mesh(_sg,_sm);
+      _mk.name='__editor_spawn_marker__';
+      _mk.raycast=function(){};
+      _mk.position.copy(candidate.position);
+      _mk.position.y-=0.3;
+      sc.add(_mk);
+      console.log('[Spawn] Marker created at player position');
+    }
   }
 },2000);
 })();`;
