@@ -819,64 +819,114 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 				}
 			}
 
-			// ── Module pre-activation ──────────────────────────────────────────
-			// Automatically create __game-settings.json with the right modules
-			// enabled based on detected game type. Only for NEW projects (no
-			// existing settings file). The engine handles "no modules" gracefully
-			// — if no __game-settings.json exists, no modules are injected.
+			// ── Genre-aware module pre-activation ─────────────────────────────
+			// Automatically create __game-settings.json with the RIGHT modules
+			// and settings for the detected game genre. Each genre has its own
+			// optimal module combination, terrain preset, camera, and physics.
 			if (isGame3d && !existingPaths.has("src/__game-settings.json") && !existingPaths.has("__game-settings.json")) {
 				try {
-					// Build module manifest based on game type
 					const preActivatedModules: Record<string, { enabled: boolean; version: string }> = {};
 
-					// Terrain painter: enabled for games that benefit from terrain
-					// (open world, runners, shooters, character-based, exploration games)
-					// Skip for pure UI/puzzle/card 3D games
-					if (isRunner3d || isShooter3d || hasAnimatedCharacter || needsTerrain) {
+					// ── Genre-specific module selection ──
+					if (isRunner3d) {
+						// RUNNER: NO terrain-painter (runner template creates its own flat
+						// ground + lane markers + segment platforms — terrain would conflict).
+						// NO character-system (runner template has its own auto-forward +
+						// lane-switching controller, not WASD orbit). Just sky for atmosphere.
+						preActivatedModules["sky-weather"] = { enabled: true, version: "1.0.0" };
+					} else if (isShooter3d) {
+						// SHOOTER: flat arena terrain, character-system for player control
 						preActivatedModules["terrain-painter"] = { enabled: true, version: "1.0.0" };
-					}
-
-					// Character system: enabled when game has animated characters,
-					// or is a runner/shooter (always need a player character)
-					if (hasAnimatedCharacter || isRunner3d || isShooter3d || needsTerrain) {
 						preActivatedModules["character-system"] = { enabled: true, version: "8.0.0" };
+						preActivatedModules["sky-weather"] = { enabled: true, version: "1.0.0" };
+					} else if (needsTerrain) {
+						// OPEN WORLD / EXPLORATION: full terrain, character, atmosphere
+						preActivatedModules["terrain-painter"] = { enabled: true, version: "1.0.0" };
+						preActivatedModules["character-system"] = { enabled: true, version: "8.0.0" };
+						preActivatedModules["sky-weather"] = { enabled: true, version: "1.0.0" };
+					} else if (hasAnimatedCharacter) {
+						// CHARACTER-BASED (platformer etc.): terrain + character system
+						preActivatedModules["terrain-painter"] = { enabled: true, version: "1.0.0" };
+						preActivatedModules["character-system"] = { enabled: true, version: "8.0.0" };
+						preActivatedModules["sky-weather"] = { enabled: true, version: "1.0.0" };
+					} else {
+						// GENERIC 3D: just sky for atmosphere
+						preActivatedModules["sky-weather"] = { enabled: true, version: "1.0.0" };
 					}
-
-					// Sky & weather: enabled for all 3D games (day/night, atmosphere)
-					preActivatedModules["sky-weather"] = { enabled: true, version: "1.0.0" };
 
 					if (Object.keys(preActivatedModules).length > 0) {
-						const preSettings = {
-							...{
-								version: 1,
-								player: { spawnX: 0, spawnY: 3, spawnZ: 0, startingLives: 3, respawnX: 0, respawnY: 5, respawnZ: 0 },
-								physics: { gravity: -38, fallGravity: -65, jumpForce: 17, moveSpeed: 6, runSpeed: 7.5, friction: 28, coyoteTime: 0.15 },
-								camera: { offsetY: 8, offsetZ: 12, fov: 60, lerp: 3, lookAhead: 5, lookY: 1, near: 0.1, far: 1000 },
-								environment: { backgroundColor: "#87CEEB", ambientLightIntensity: 0.15, ambientLightColor: "#ffffff", sunLightIntensity: 0.55, sunLightColor: "#fff8ee", hemisphereIntensity: 0.35, hemisphereSkyColor: "#eef4ff", hemisphereGroundColor: "#886644", fogEnabled: false, fogColor: "#88aacc", fogNear: 30, fogFar: 100, fogType: "linear", fogDensity: 0.02, shadowQuality: "medium" },
-								audio: { masterVolume: 0.8, musicVolume: 0.5, sfxVolume: 0.7, enabled: true },
-								postProcessing: { preset: "none", bloomIntensity: 0.5, bloomThreshold: 0.8 },
-								performance: { qualityPreset: "high", showFPS: false, antialias: true, pixelRatio: 1, maxFPS: 60 },
+						// ── Genre-specific base settings ──
+						// Each genre gets optimized physics, camera, and terrain config
+						const genreSettings = isRunner3d ? {
+							// RUNNER: chase camera, auto-forward physics, flat terrain
+							player: { spawnX: 0, spawnY: 2, spawnZ: 0, startingLives: 3, respawnX: 0, respawnY: 2, respawnZ: 0 },
+							physics: { gravity: -30, fallGravity: -50, jumpForce: 10, moveSpeed: 8, runSpeed: 8, friction: 20, coyoteTime: 0.1 },
+							camera: { offsetY: 6, offsetZ: 12, fov: 65, lerp: 5, lookAhead: 8, lookY: 0, near: 0.1, far: 500 },
+							runner: { initialSpeed: 8, maxSpeed: 25, acceleration: 0.15, laneWidth: 3, maxLives: 3, jumpVelocity: 10 },
+						} : isShooter3d ? {
+							// SHOOTER: tactical camera, arena physics
+							player: { spawnX: 0, spawnY: 3, spawnZ: 0, startingLives: 5, respawnX: 0, respawnY: 5, respawnZ: 0 },
+							physics: { gravity: -38, fallGravity: -65, jumpForce: 14, moveSpeed: 7, runSpeed: 10, friction: 25, coyoteTime: 0.12 },
+							camera: { offsetY: 10, offsetZ: 14, fov: 60, lerp: 4, lookAhead: 3, lookY: 2, near: 0.1, far: 800 },
+						} : needsTerrain ? {
+							// OPEN WORLD: exploration camera, moderate physics
+							player: { spawnX: 0, spawnY: 5, spawnZ: 0, startingLives: 3, respawnX: 0, respawnY: 8, respawnZ: 0 },
+							physics: { gravity: -38, fallGravity: -65, jumpForce: 17, moveSpeed: 6, runSpeed: 7.5, friction: 28, coyoteTime: 0.15 },
+							camera: { offsetY: 8, offsetZ: 12, fov: 60, lerp: 3, lookAhead: 5, lookY: 1, near: 0.1, far: 1000 },
+						} : {
+							// DEFAULT: balanced platformer settings
+							player: { spawnX: 0, spawnY: 3, spawnZ: 0, startingLives: 3, respawnX: 0, respawnY: 5, respawnZ: 0 },
+							physics: { gravity: -38, fallGravity: -65, jumpForce: 17, moveSpeed: 6, runSpeed: 7.5, friction: 28, coyoteTime: 0.15 },
+							camera: { offsetY: 8, offsetZ: 12, fov: 60, lerp: 3, lookAhead: 5, lookY: 1, near: 0.1, far: 1000 },
+						};
+
+						// ── Genre-specific terrain config ──
+						const terrainConfig = !preActivatedModules["terrain-painter"] ? {} : isRunner3d ? {
+							terrain: {
+								enabled: true,
+								width: 100, depth: 400, heightScale: 5, segments: 128,
+								biome: "runner_flat", seed: Math.floor(Math.random() * 10000),
 							},
+						} : isShooter3d ? {
+							terrain: {
+								enabled: true,
+								width: 150, depth: 150, heightScale: 8, segments: 128,
+								biome: "arena_flat", seed: Math.floor(Math.random() * 10000),
+							},
+						} : needsTerrain ? {
+							terrain: {
+								enabled: true,
+								width: 300, depth: 300, heightScale: 50, segments: 256,
+								biome: "alpine", seed: Math.floor(Math.random() * 10000),
+							},
+						} : {
+							terrain: {
+								enabled: true,
+								width: 200, depth: 200, heightScale: 40, segments: 256,
+								biome: "platformer_varied", seed: Math.floor(Math.random() * 10000),
+							},
+						};
+
+						const preSettings = {
+							version: 1,
+							...genreSettings,
+							environment: { backgroundColor: "#87CEEB", ambientLightIntensity: 0.15, ambientLightColor: "#ffffff", sunLightIntensity: 0.55, sunLightColor: "#fff8ee", hemisphereIntensity: 0.35, hemisphereSkyColor: "#eef4ff", hemisphereGroundColor: "#886644", fogEnabled: false, fogColor: "#88aacc", fogNear: 30, fogFar: 100, fogType: "linear", fogDensity: 0.02, shadowQuality: "medium" },
+							audio: { masterVolume: 0.8, musicVolume: 0.5, sfxVolume: 0.7, enabled: true },
+							postProcessing: { preset: "none", bloomIntensity: 0.5, bloomThreshold: 0.8 },
+							performance: { qualityPreset: "high", showFPS: false, antialias: true, pixelRatio: 1, maxFPS: 60 },
 							modules: { installed: preActivatedModules },
-							// Pre-enable terrain config if terrain-painter is active
-							...(preActivatedModules["terrain-painter"] ? {
-								terrain: {
-									enabled: true,
-									width: 200, depth: 200, heightScale: 40, segments: 256,
-									biome: "alpine", seed: Math.floor(Math.random() * 10000),
-								},
-							} : {}),
+							...terrainConfig,
 						};
 
 						const settingsContent = JSON.stringify(preSettings, null, 2);
 						await saveFile(appId, "src/__game-settings.json", settingsContent, "json");
 
-						// Also save the modules manifest separately
 						const modulesContent = JSON.stringify({ installed: preActivatedModules }, null, 2);
 						await saveFile(appId, "src/__vibexe-modules.json", modulesContent, "json");
 
+						const genre = isRunner3d ? "runner" : isShooter3d ? "shooter" : needsTerrain ? "open-world" : hasAnimatedCharacter ? "character" : "generic";
 						const moduleNames = Object.keys(preActivatedModules).join(", ");
-						console.log(`[Chat API] Module pre-activation: ${moduleNames} (runner=${isRunner3d}, shooter=${isShooter3d}, character=${hasAnimatedCharacter}, terrain=${needsTerrain})`);
+						console.log(`[Chat API] Genre-aware pre-activation [${genre}]: ${moduleNames} (terrain=${terrainConfig.terrain?.biome ?? "none"})`);
 					}
 				} catch (e) {
 					console.error(`[Chat API] Module pre-activation failed:`, e);
