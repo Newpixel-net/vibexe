@@ -4241,6 +4241,45 @@ export function getVisualEditBridgeScript(): string {
         var _tpOld = _tpScene.getObjectByName("__terrain__");
         if (_tpOld) { _tpScene.remove(_tpOld); if (_tpOld.geometry) _tpOld.geometry.dispose(); if (_tpOld.material) _tpOld.material.dispose(); }
 
+        // Delegate to module's TerrainGenerator when biome is set (has 4-stage erosion pipeline)
+        var _tpBiomeGenerated = false;
+        if (d.biome) {
+          var _tpModGen = window.__vibexe_modules__ && window.__vibexe_modules__["terrain-painter"];
+          if (_tpModGen && _tpModGen.TerrainGenerator && _tpModGen.getBiomeParams) {
+            console.log("[TerrainPainter] Using module TerrainGenerator with erosion for biome:", d.biome);
+            var _bpGen = _tpModGen.getBiomeParams(d.biome, d.seed || Math.floor(Math.random() * 999999));
+            var _genInst = new _tpModGen.TerrainGenerator(_tpScene, {
+              width: _tpW,
+              depth: _tpD,
+              heightScale: _bpGen.heightScale,
+              segments: _tpSeg,
+              biomeParams: _bpGen
+            });
+            _genInst.generate();
+
+            // Module's generate() also hides ground plane + grid, but ensure it
+            _tpScene.traverse(function(child) {
+              if (child.name === "__terrain__") return;
+              if (child.isMesh && !child.name) {
+                var cGeo = child.geometry;
+                if (cGeo && cGeo.type === "PlaneGeometry") {
+                  var cParams = cGeo.parameters;
+                  if (cParams && (cParams.width >= 50 || cParams.height >= 50)) {
+                    child.visible = false;
+                    child.userData.__hiddenByTerrain = true;
+                  }
+                }
+              }
+              if (child.isGridHelper || child.type === "GridHelper") {
+                child.visible = false;
+                child.userData.__hiddenByTerrain = true;
+              }
+            });
+
+            _tpBiomeGenerated = true;
+          }
+        }
+
         // ---- Inline simplex noise (2D) ----
         var _tpGrad3 = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];
         var _tpPerm = new Array(512);
@@ -4330,18 +4369,22 @@ export function getVisualEditBridgeScript(): string {
           return t * t * (3 - 2 * t);
         }
 
+        // Segment counts needed by both paths (inline noise + module delegation)
+        var _tpSegX = _tpSeg + 1;
+        var _tpSegZ = _tpSeg + 1;
+        var _tpGeo, _tpPos, _tpMinY, _tpMaxY, _tpHeightData, _tpMesh;
+
+        if (!_tpBiomeGenerated) {
         // Create plane geometry
-        var _tpGeo = new _tpTHREE.PlaneGeometry(_tpW, _tpD, _tpSeg, _tpSeg);
+        _tpGeo = new _tpTHREE.PlaneGeometry(_tpW, _tpD, _tpSeg, _tpSeg);
         _tpGeo.rotateX(-Math.PI / 2); // lay flat on XZ plane
 
         // Displace vertices with multi-scale noise composition
-        var _tpPos = _tpGeo.attributes.position;
-        var _tpMinY = Infinity, _tpMaxY = -Infinity;
+        _tpPos = _tpGeo.attributes.position;
+        _tpMinY = Infinity; _tpMaxY = -Infinity;
         var _tpHalfW = _tpW * 0.5;
         var _tpHalfD = _tpD * 0.5;
-        var _tpSegX = _tpSeg + 1;
-        var _tpSegZ = _tpSeg + 1;
-        var _tpHeightData = new Float32Array(_tpSegX * _tpSegZ);
+        _tpHeightData = new Float32Array(_tpSegX * _tpSegZ);
 
         for (var vi = 0; vi < _tpPos.count; vi++) {
           var vx = _tpPos.getX(vi);
@@ -4472,7 +4515,7 @@ export function getVisualEditBridgeScript(): string {
           flatShading: false
         });
 
-        var _tpMesh = new _tpTHREE.Mesh(_tpGeo, _tpMat);
+        _tpMesh = new _tpTHREE.Mesh(_tpGeo, _tpMat);
         _tpMesh.name = "__terrain__";
         _tpMesh.receiveShadow = true;
         _tpMesh.castShadow = true;
@@ -4505,6 +4548,25 @@ export function getVisualEditBridgeScript(): string {
             child.userData.__hiddenByTerrain = true;
           }
         });
+        } // end if (!_tpBiomeGenerated)
+
+        // Re-extract mesh data after module's TerrainGenerator so post-processing has the variables it needs
+        if (_tpBiomeGenerated) {
+          var _tpMesh2 = _tpScene.getObjectByName("__terrain__");
+          if (!_tpMesh2) { console.warn("[TerrainPainter] Module generated no __terrain__ mesh"); break; }
+          _tpGeo = _tpMesh2.geometry;
+          _tpPos = _tpGeo.attributes.position;
+          _tpHeightData = new Float32Array(_tpPos.count);
+          _tpMinY = Infinity;
+          _tpMaxY = -Infinity;
+          for (var _re = 0; _re < _tpPos.count; _re++) {
+            var _ry = _tpPos.getY(_re);
+            _tpHeightData[_re] = _ry;
+            if (_ry < _tpMinY) _tpMinY = _ry;
+            if (_ry > _tpMaxY) _tpMaxY = _ry;
+          }
+          _tpMesh = _tpMesh2;
+        }
 
         // Store heightmap data for CPU-side getHeightAt() queries
         window.__vibexe_terrainData = {

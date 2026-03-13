@@ -233,6 +233,67 @@ var BIOME_PRESETS = {
     hills: { amp: [0.05, 0.08] }, detail: { amp: [0.03, 0.06] },
     erosion: { thermalIter: [300, 500], talus: [0.12, 0.22], hydroDrops: [40000, 65000], peakRounds: [2, 4] },
     warp: [0.50, 0.70]
+  },
+  // ── Genre-specific terrain shapes ──
+  runner_flat: {
+    name: "Runner (Flat Track)",
+    heightScale: [3, 8], segments: 256,
+    continental: { gamma: [0.6, 0.9], freq: 0.3 },
+    ridgeNetwork: { freq: [1.0, 1.5], power: [0.2, 0.5] },
+    ridgeFractal: { sharpness: [0.3, 0.6], plateau: [1.0, 1.5] },
+    hills: { amp: [0.08, 0.15] }, detail: { amp: [0.02, 0.04] },
+    erosion: { thermalIter: [60, 100], talus: [0.6, 0.9], hydroDrops: [3000, 6000], peakRounds: [10, 18] },
+    warp: [0.15, 0.30]
+  },
+  racing_smooth: {
+    name: "Racing (Smooth Curves)",
+    heightScale: [8, 18], segments: 256,
+    continental: { gamma: [0.9, 1.2], freq: 0.4 },
+    ridgeNetwork: { freq: [1.2, 2.0], power: [0.3, 0.7] },
+    ridgeFractal: { sharpness: [0.4, 0.7], plateau: [1.5, 2.5] },
+    hills: { amp: [0.12, 0.20] }, detail: { amp: [0.01, 0.03] },
+    erosion: { thermalIter: [100, 180], talus: [0.5, 0.8], hydroDrops: [8000, 15000], peakRounds: [8, 14] },
+    warp: [0.20, 0.40]
+  },
+  platformer_varied: {
+    name: "Platformer (Islands & Cliffs)",
+    heightScale: [20, 45], segments: 256,
+    continental: { gamma: [1.8, 2.5], freq: 1.2 },
+    ridgeNetwork: { freq: [3.0, 5.0], power: [1.5, 2.5] },
+    ridgeFractal: { sharpness: [1.5, 2.5], plateau: [4.0, 6.0] },
+    hills: { amp: [0.06, 0.10] }, detail: { amp: [0.04, 0.08] },
+    erosion: { thermalIter: [80, 140], talus: [0.3, 0.5], hydroDrops: [10000, 20000], peakRounds: [4, 7] },
+    warp: [0.50, 0.75]
+  },
+  strategy_overview: {
+    name: "Strategy (Overview Plains)",
+    heightScale: [6, 14], segments: 256,
+    continental: { gamma: [0.7, 1.0], freq: 0.5 },
+    ridgeNetwork: { freq: [1.5, 2.5], power: [0.4, 0.8] },
+    ridgeFractal: { sharpness: [0.5, 0.9], plateau: [1.5, 2.5] },
+    hills: { amp: [0.12, 0.22] }, detail: { amp: [0.03, 0.06] },
+    erosion: { thermalIter: [80, 130], talus: [0.5, 0.7], hydroDrops: [5000, 12000], peakRounds: [6, 12] },
+    warp: [0.25, 0.45]
+  },
+  fps_tactical: {
+    name: "FPS (Tactical Terrain)",
+    heightScale: [15, 30], segments: 256,
+    continental: { gamma: [1.2, 1.6], freq: 0.7 },
+    ridgeNetwork: { freq: [2.0, 3.0], power: [1.0, 1.8] },
+    ridgeFractal: { sharpness: [0.8, 1.3], plateau: [2.0, 3.5] },
+    hills: { amp: [0.08, 0.14] }, detail: { amp: [0.03, 0.05] },
+    erosion: { thermalIter: [120, 200], talus: [0.35, 0.5], hydroDrops: [12000, 22000], peakRounds: [5, 9] },
+    warp: [0.35, 0.55]
+  },
+  survival_wilderness: {
+    name: "Survival (Dense Wilderness)",
+    heightScale: [18, 35], segments: 256,
+    continental: { gamma: [1.1, 1.5], freq: 0.6 },
+    ridgeNetwork: { freq: [2.0, 3.0], power: [1.0, 1.6] },
+    ridgeFractal: { sharpness: [0.7, 1.2], plateau: [2.0, 3.0] },
+    hills: { amp: [0.10, 0.16] }, detail: { amp: [0.04, 0.07] },
+    erosion: { thermalIter: [100, 170], talus: [0.4, 0.6], hydroDrops: [10000, 20000], peakRounds: [5, 9] },
+    warp: [0.40, 0.60]
   }
 };
 

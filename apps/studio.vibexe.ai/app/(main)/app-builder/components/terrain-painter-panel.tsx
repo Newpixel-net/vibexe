@@ -42,6 +42,12 @@ import {
 	findMaterialByDiffuseUrl,
 	type TerrainMaterialCategory,
 } from "../lib/terrain-material-catalog";
+import {
+	TERRAIN_PRESETS,
+	GENRE_CATEGORIES,
+	ENVIRONMENT_CATEGORIES,
+	filterPresets,
+} from "../lib/terrain-presets";
 
 // ===== Types (mirroring the runtime module types) =====
 
@@ -192,18 +198,6 @@ const DEFAULT_LAYERS: LayerData[] = [
 	},
 ];
 
-// ===== Biome presets for terrain randomization =====
-
-const BIOME_OPTIONS = [
-	{ id: "alpine", name: "Alpine", icon: "\u{1F3D4}\uFE0F", desc: "Tall peaks, deep valleys" },
-	{ id: "rolling_hills", name: "Rolling Hills", icon: "\u{1F304}", desc: "Gentle rounded terrain" },
-	{ id: "desert_mesa", name: "Desert Mesa", icon: "\u{1F3DC}\uFE0F", desc: "Flat plateaus, sharp cliffs" },
-	{ id: "volcanic", name: "Volcanic", icon: "\u{1F30B}", desc: "Central peak, steep slopes" },
-	{ id: "coastal", name: "Coastal", icon: "\u{1F3DD}\uFE0F", desc: "Low islands, water channels" },
-	{ id: "canyon", name: "Canyon", icon: "\u{1F3DE}\uFE0F", desc: "Deep erosion channels" },
-	{ id: "tundra", name: "Tundra", icon: "\u2744\uFE0F", desc: "Flat with gentle undulation" },
-	{ id: "badlands", name: "Badlands", icon: "\u{1FAA8}", desc: "Heavy erosion, layered rock" },
-];
 
 // ===== Props =====
 
@@ -295,8 +289,10 @@ export function TerrainPainterPanel({
 	const [sculptBrushFalloff, setSculptBrushFalloff] = useState<"gaussian" | "linear" | "flat">("gaussian");
 	const [sculptActive, setSculptActive] = useState(false);
 
-	// Randomize state
-	const [selectedBiome, setSelectedBiome] = useState<string>("alpine");
+	// Preset browser state
+	const [selectedGenre, setSelectedGenre] = useState<string>("all");
+	const [selectedEnvironment, setSelectedEnvironment] = useState<string>("all");
+	const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
 	const [biomeSeed, setBiomeSeed] = useState<number>(Math.floor(Math.random() * 999999));
 
 	// Sculpt activation/deactivation on tab change
@@ -428,21 +424,65 @@ export function TerrainPainterPanel({
 	}, [sendToIframe, settings, layers, onTerrainConfigChanged]);
 
 	const sendRandomize = useCallback(() => {
+		if (!selectedPreset) return;
+		const preset = TERRAIN_PRESETS.find((p) => p.id === selectedPreset);
+		if (!preset) return;
+
+		// Build layer data from preset material config
+		const newLayers: LayerData[] = preset.layers.map((pl, i) => {
+			const mat = getTerrainMaterialById(pl.materialId);
+			return {
+				name: mat?.name || `Layer ${i + 1}`,
+				enabled: true,
+				previewColor: mat?.previewColor || "#808080",
+				diffuseUrl: mat ? terrainTextureUrl(mat.diffuseFilename) : "",
+				tileSize: pl.tileSize,
+				opacity: 100,
+				roughness: pl.roughness,
+				normalIntensity: pl.normalIntensity,
+				metallic: false,
+				materialId: pl.materialId,
+				modifiers: pl.modifiers.map((m) => ({
+					type: m.type as ModifierType,
+					enabled: m.enabled,
+					blendMode: m.blendMode as BlendMode,
+					opacity: m.opacity,
+					params: m.params,
+				})),
+			};
+		});
+		setLayers(newLayers);
+
+		// Update settings state to match preset dimensions
+		setSettings((prev) => ({
+			...prev,
+			terrainWidth: preset.terrain.width,
+			terrainDepth: preset.terrain.depth,
+			terrainSegments: preset.terrain.segments,
+		}));
+
+		// Send generate with preset terrain dimensions and biomeId (module's TerrainGenerator with erosion)
 		sendToIframe({
 			type: "terrain-painter-generate-terrain",
-			settings,
-			biome: selectedBiome,
+			settings: {
+				...settings,
+				terrainWidth: preset.terrain.width,
+				terrainDepth: preset.terrain.depth,
+				terrainSegments: preset.terrain.segments,
+			},
+			biome: preset.biomeId,
 			seed: biomeSeed,
 		});
+
 		// Persist terrain config so it survives iframe reloads
 		if (onTerrainConfigChanged) {
 			onTerrainConfigChanged({
 				enabled: true,
-				width: settings.terrainWidth,
-				depth: settings.terrainDepth,
+				width: preset.terrain.width,
+				depth: preset.terrain.depth,
 				heightScale: settings.terrainHeightScale,
-				segments: settings.terrainSegments,
-				layers: layers.map((l) => ({
+				segments: preset.terrain.segments,
+				layers: newLayers.map((l) => ({
 					textureUrl: l.diffuseUrl,
 					normalUrl: l.diffuseUrl.replace(/\.[^.]+$/, "_Normal$&"),
 					enabled: l.enabled,
@@ -452,10 +492,30 @@ export function TerrainPainterPanel({
 					normalIntensity: l.normalIntensity,
 					metallic: l.metallic,
 					modifiers: l.modifiers,
+					materialId: l.materialId,
 				})),
 			});
 		}
-	}, [sendToIframe, settings, selectedBiome, biomeSeed, layers, onTerrainConfigChanged]);
+		// Auto-repaint with new materials after terrain generation completes
+		setTimeout(() => {
+			sendToIframe({
+				type: "terrain-painter-repaint",
+				layers: newLayers.map((l) => ({
+					textureUrl: l.diffuseUrl,
+					normalUrl: l.diffuseUrl.replace(/\.[^.]+$/, "_Normal$&"),
+					enabled: l.enabled,
+					tileSize: l.tileSize,
+					opacity: l.opacity,
+					roughness: l.roughness,
+					normalIntensity: l.normalIntensity,
+					metallic: l.metallic,
+					modifiers: l.modifiers,
+					materialId: l.materialId,
+				})),
+				resolution: settings.splatmapResolution,
+			});
+		}, 1500);
+	}, [selectedPreset, biomeSeed, sendToIframe, settings, onTerrainConfigChanged]);
 
 	// ===== Layer actions =====
 
@@ -806,31 +866,86 @@ export function TerrainPainterPanel({
 							</div>
 						</div>
 
-						{/* Randomize Terrain */}
+						{/* Terrain Presets */}
 						<div className="pt-3 border-t border-white/10">
 							<label className="text-[10px] text-white/50 uppercase tracking-wider mb-2 block">
-								Randomize Terrain
+								Terrain Presets
 							</label>
 
-							{/* Biome Grid */}
-							<div className="grid grid-cols-2 gap-1.5 mb-3">
-								{BIOME_OPTIONS.map(biome => (
+							{/* Genre filter */}
+							<div className="overflow-x-auto flex gap-1 pb-1 mb-1.5">
+								{GENRE_CATEGORIES.map((g) => (
 									<button
-										key={biome.id}
-										onClick={() => setSelectedBiome(biome.id)}
+										key={g.id}
+										onClick={() => {
+											setSelectedGenre(g.id);
+											const filtered = filterPresets(g.id, selectedEnvironment);
+											if (filtered.length > 0) {
+												setSelectedPreset(filtered[0].id);
+											} else {
+												setSelectedPreset(null);
+											}
+										}}
+										className={`shrink-0 px-2 py-0.5 rounded-full text-[9px] transition-colors ${
+											selectedGenre === g.id
+												? "bg-purple-600/50 text-purple-200 ring-1 ring-purple-400/40"
+												: "bg-white/5 text-white/50 hover:bg-white/10"
+										}`}
+									>
+										{g.icon} {g.name}
+									</button>
+								))}
+							</div>
+
+							{/* Environment filter */}
+							<div className="overflow-x-auto flex gap-1 pb-1 mb-2">
+								{ENVIRONMENT_CATEGORIES.map((e) => (
+									<button
+										key={e.id}
+										onClick={() => {
+											setSelectedEnvironment(e.id);
+											const filtered = filterPresets(selectedGenre, e.id);
+											if (filtered.length > 0) {
+												setSelectedPreset(filtered[0].id);
+											} else {
+												setSelectedPreset(null);
+											}
+										}}
+										className={`shrink-0 px-2 py-0.5 rounded-full text-[9px] transition-colors ${
+											selectedEnvironment === e.id
+												? "bg-purple-600/50 text-purple-200 ring-1 ring-purple-400/40"
+												: "bg-white/5 text-white/50 hover:bg-white/10"
+										}`}
+									>
+										{e.icon} {e.name}
+									</button>
+								))}
+							</div>
+
+							{/* Preset grid */}
+							<div className="grid grid-cols-2 gap-1.5 mb-3 max-h-[200px] overflow-y-auto">
+								{filterPresets(selectedGenre, selectedEnvironment).map((preset) => (
+									<button
+										key={preset.id}
+										onClick={() => setSelectedPreset(preset.id)}
 										className={`p-1.5 rounded text-left transition-colors ${
-											selectedBiome === biome.id
+											selectedPreset === preset.id
 												? "bg-purple-600/40 ring-1 ring-purple-400/50"
 												: "bg-white/5 hover:bg-white/10"
 										}`}
 									>
 										<div className="flex items-center gap-1">
-											<span className="text-sm">{biome.icon}</span>
-											<span className="text-[10px] text-white/80 font-medium">{biome.name}</span>
+											<span className="text-sm">{preset.icon}</span>
+											<span className="text-[10px] text-white/80 font-medium truncate">{preset.name}</span>
 										</div>
-										<div className="text-[9px] text-white/40 mt-0.5">{biome.desc}</div>
+										<div className="text-[9px] text-white/40 mt-0.5 line-clamp-2">{preset.description}</div>
 									</button>
 								))}
+								{filterPresets(selectedGenre, selectedEnvironment).length === 0 && (
+									<div className="col-span-2 text-[10px] text-white/30 text-center py-4">
+										No presets match these filters
+									</div>
+								)}
 							</div>
 
 							{/* Seed */}
@@ -839,7 +954,7 @@ export function TerrainPainterPanel({
 								<input
 									type="number"
 									value={biomeSeed}
-									onChange={e => setBiomeSeed(Number(e.target.value) || 0)}
+									onChange={(e) => setBiomeSeed(Number(e.target.value) || 0)}
 									className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1 text-[11px] text-white/80 outline-none focus:border-purple-400/50"
 								/>
 								<button
@@ -856,12 +971,17 @@ export function TerrainPainterPanel({
 							{/* Generate Button */}
 							<button
 								onClick={sendRandomize}
-								className="w-full py-2 rounded-md bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+								disabled={!selectedPreset}
+								className={`w-full py-2 rounded-md text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+									selectedPreset
+										? "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500"
+										: "bg-white/10 text-white/30 cursor-not-allowed"
+								}`}
 							>
 								<svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
 									<path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
 								</svg>
-								Randomize {BIOME_OPTIONS.find(b => b.id === selectedBiome)?.name || "Terrain"}
+								Generate {TERRAIN_PRESETS.find((p) => p.id === selectedPreset)?.name || "Terrain"}
 							</button>
 						</div>
 
@@ -1681,7 +1801,7 @@ function SettingsTab({
 	onUpdateSettings: (s: Partial<TerrainPainterSettings>) => void;
 	onGenerateTerrain: () => void;
 }) {
-	const TERRAIN_PRESETS = [
+	const SIZE_PRESETS = [
 		{ label: "Small", width: 100, depth: 100, segments: 128, height: 30 },
 		{ label: "Medium", width: 200, depth: 200, segments: 256, height: 40 },
 		{ label: "Large", width: 400, depth: 400, segments: 384, height: 60 },
@@ -1698,7 +1818,7 @@ function SettingsTab({
 			</div>
 
 			<div className="grid grid-cols-4 gap-1">
-				{TERRAIN_PRESETS.map((p) => (
+				{SIZE_PRESETS.map((p) => (
 					<button
 						key={p.label}
 						onClick={() => onUpdateSettings({
