@@ -4216,7 +4216,26 @@ export function getVisualEditBridgeScript(): string {
         var _tpH = _tpS.terrainHeightScale || 40;
         var _tpSeg = _tpS.terrainSegments || 256;
 
-        console.log("[TerrainPainter] Generating terrain:", _tpW, "x", _tpD, "h=", _tpH, "seg=", _tpSeg);
+        // Biome support — read params from module if biome is specified
+        var _tpBP = null;
+        if (d.biome) {
+          var _tpMod = window.__vibexe_modules__ && window.__vibexe_modules__["terrain-painter"];
+          if (_tpMod && _tpMod.getBiomeParams) {
+            _tpBP = _tpMod.getBiomeParams(d.biome, d.seed || Math.floor(Math.random() * 999999));
+            _tpH = _tpBP.heightScale; // Override height scale from biome
+          }
+        }
+
+        // Biome param variables (defaults match existing hardcoded values)
+        var _bpContGamma = _tpBP ? _tpBP.continentalGamma : 2.5;
+        var _bpContFreq = _tpBP ? _tpBP.continentalFreq : 1.5;
+        var _bpRidgeFreq = _tpBP ? _tpBP.ridgeFreq : 3.0;
+        var _bpRidgeSharp = _tpBP ? _tpBP.ridgeSharpness : 3.0;
+        var _bpHillsAmp = _tpBP ? _tpBP.hillsAmp : 0.12;
+        var _bpDetailAmp = _tpBP ? _tpBP.detailAmp : 0.05;
+        var _bpWarpStr = _tpBP ? _tpBP.warpStrength : 0.45;
+
+        console.log("[TerrainPainter] Generating terrain:", _tpW, "x", _tpD, "h=", _tpH, "seg=", _tpSeg, "biome=", d.biome || "default");
 
         // Remove existing terrain
         var _tpOld = _tpScene.getObjectByName("__terrain__");
@@ -4227,6 +4246,21 @@ export function getVisualEditBridgeScript(): string {
         var _tpPerm = new Array(512);
         var _tpP = [151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180];
         for (var _tpI = 0; _tpI < 512; _tpI++) _tpPerm[_tpI] = _tpP[_tpI & 255];
+
+        // Seed-based permutation shuffle (deterministic terrain from seed)
+        if (d.seed) {
+          var _tpSeedVal = d.seed;
+          var _tpShuffled = _tpP.slice();
+          var _tpM = _tpShuffled.length;
+          while (_tpM) {
+            _tpSeedVal = (_tpSeedVal * 16807 + 0) % 2147483647;
+            var _tpIdx = _tpSeedVal % _tpM--;
+            var _tpTmp = _tpShuffled[_tpM];
+            _tpShuffled[_tpM] = _tpShuffled[_tpIdx];
+            _tpShuffled[_tpIdx] = _tpTmp;
+          }
+          for (var _tpJ = 0; _tpJ < 512; _tpJ++) _tpPerm[_tpJ] = _tpShuffled[_tpJ & 255];
+        }
 
         function _tpDot2(g, x, y) { return g[0]*x + g[1]*y; }
 
@@ -4320,24 +4354,24 @@ export function getVisualEditBridgeScript(): string {
           var edgeZ = 1.0 - Math.pow(2.0 * Math.abs(nz), 6);
           var edgeFalloff = _tpSmoothstep(0, 0.15, Math.max(0, Math.min(edgeX, edgeZ)));
 
-          // Domain warp for organic mountain shapes
-          var warpPt = _tpDomainWarp(nx * 1.5, nz * 1.5, 0.45);
+          // Domain warp for organic mountain shapes (parameterized by biome)
+          var warpPt = _tpDomainWarp(nx * 1.5, nz * 1.5, _bpWarpStr);
           var wx = warpPt[0];
           var wz = warpPt[1];
 
           // Scale 1: Continental — large mountain range shape (domain-warped fBm)
-          var continental = (_tpFbm(wx * 1.5, wz * 1.5, 6, 2.0, 0.5) + 1) * 0.5;
-          continental = Math.pow(continental, 2.5); // pow 2.5 = deep valleys, dramatic peaks
+          var continental = (_tpFbm(wx * _bpContFreq, wz * _bpContFreq, 6, 2.0, 0.5) + 1) * 0.5;
+          continental = Math.pow(continental, _bpContGamma);
 
           // Scale 2: Mountain ridges (ridged multifractal — sharp peaks at zero crossings)
-          var ridges = _tpRidgedMF(nx * 3.0 + 3.7, nz * 3.0 + 1.2, 7, 2.2, 0.5, 3.0);
+          var ridges = _tpRidgedMF(nx * _bpRidgeFreq + 3.7, nz * _bpRidgeFreq + 1.2, 7, 2.2, 0.5, _bpRidgeSharp);
           ridges *= 0.5;
 
           // Scale 3: Rolling foothills
-          var hills = _tpFbm(nx * 6.0 + 7.3, nz * 6.0 + 2.8, 5, 2.0, 0.5) * 0.12;
+          var hills = _tpFbm(nx * 6.0 + 7.3, nz * 6.0 + 2.8, 5, 2.0, 0.5) * _bpHillsAmp;
 
           // Scale 4: Fine surface detail (altitude-dependent — more detail on peaks)
-          var detail = _tpFbm(nx * 20.0, nz * 20.0, 4, 2.0, 0.4) * 0.05;
+          var detail = _tpFbm(nx * 20.0, nz * 20.0, 4, 2.0, 0.4) * _bpDetailAmp;
 
           // Altitude-dependent roughness composition
           var baseH = continental * 0.4 + ridges;
@@ -4901,6 +4935,21 @@ export function getVisualEditBridgeScript(): string {
         if (editor) sendSceneTreeThrottled();
 
         console.log("[TerrainPainter] Terrain generated:", _tpPos.count, "vertices, height range:", _tpMinY.toFixed(1), "-", _tpMaxY.toFixed(1));
+
+          // Create boundary grid for terrain visualization
+          try {
+            var _bgOld = window.__vibexe_terrainBoundaryGrid;
+            if (_bgOld && _bgOld.parent) _bgOld.parent.remove(_bgOld);
+            var _bgEdges = new _tpTHREE.EdgesGeometry(new _tpTHREE.BoxGeometry(_tpW, 0.01, _tpD));
+            var _bgMat = new _tpTHREE.LineBasicMaterial({ color: 0xff4444, transparent: true, opacity: 0.5 });
+            var _bgMesh = new _tpTHREE.LineSegments(_bgEdges, _bgMat);
+            _bgMesh.position.set(0, 0.5, 0);
+            _bgMesh.name = "__terrain_boundary_grid__";
+            _bgMesh.visible = false;
+            _tpScene.add(_bgMesh);
+            window.__vibexe_terrainBoundaryGrid = _bgMesh;
+          } catch(e) { console.warn("[TerrainPainter] Boundary grid failed:", e); }
+
         window.parent.postMessage({ type: "terrain-painter-terrain-generated", vertexCount: _tpPos.count, minY: _tpMinY, maxY: _tpMaxY }, "*");
         break;
       }
@@ -4979,8 +5028,36 @@ export function getVisualEditBridgeScript(): string {
                 var nMax = p.levelMax != null ? p.levelMax : 1;
                 mask = _rpSmoothstep(nMin, nMax, nVal);
               } else if (mod.type === "Curvature") {
-                // Approximate curvature from height differences to neighbors
-                mask = 0.5; // simplified — just provide base coverage
+                // Compute discrete Laplacian curvature from neighbors
+                var _segX3 = Math.sqrt(_rpGeo.attributes.position.count);
+                var col3 = vi % _segX3;
+                var row3 = Math.floor(vi / _segX3);
+                var cH = _rpGeo.attributes.position.getY(vi);
+                var cSum = 0, cCount = 0;
+                var neighbors = [
+                  [col3-1, row3], [col3+1, row3], [col3, row3-1], [col3, row3+1],
+                  [col3-1, row3-1], [col3+1, row3-1], [col3-1, row3+1], [col3+1, row3+1]
+                ];
+                for (var ni = 0; ni < neighbors.length; ni++) {
+                  var nc = neighbors[ni][0], nr = neighbors[ni][1];
+                  if (nc >= 0 && nc < _segX3 && nr >= 0 && nr < _segX3) {
+                    cSum += _rpGeo.attributes.position.getY(nr * _segX3 + nc);
+                    cCount++;
+                  }
+                }
+                if (cCount > 0) {
+                  var avgNeighbor = cSum / cCount;
+                  var curvature = (cH - avgNeighbor) / (p.radius || 1.0);
+                  // Normalize to 0-1 range
+                  var cMin = p.minCurvature != null ? p.minCurvature : -0.5;
+                  var cMax = p.maxCurvature != null ? p.maxCurvature : 0.5;
+                  var cMinF = p.minFalloff || 0.1;
+                  var cMaxF = p.maxFalloff || 0.1;
+                  // Soft mode: use signed curvature (positive=convex/peaks, negative=concave/valleys)
+                  mask = _rpSmoothstep(cMin - cMinF, cMin, curvature) * (1.0 - _rpSmoothstep(cMax, cMax + cMaxF, curvature));
+                } else {
+                  mask = 0.5;
+                }
               } else if (mod.type === "Direction") {
                 var nx2 = _rpGeo.attributes.normal ? _rpGeo.attributes.normal.getX(vi) : 0;
                 var nz2 = _rpGeo.attributes.normal ? _rpGeo.attributes.normal.getZ(vi) : 0;
@@ -5737,8 +5814,11 @@ export function getVisualEditBridgeScript(): string {
           _hmGeo.setAttribute("color", new _hmTHREE.BufferAttribute(_hmCols, 3));
           if (_hmTerrain.material) { try { _hmTerrain.material.dispose(); } catch(e) {} }
           _hmTerrain.material = new _hmTHREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
+        } else {
+          // Heatmap disabled — auto-repaint to restore PBR material
+          console.log("[TerrainPainter] Heatmap OFF — requesting repaint");
+          window.parent.postMessage({ type: "terrain-painter-request-repaint" }, "*");
         }
-        // else: heatmap disabled — repaint will restore colors
         break;
       }
 

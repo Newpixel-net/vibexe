@@ -47,6 +47,20 @@ var _p = [151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,6
 var _perm = new Array(512);
 for (var _i = 0; _i < 512; _i++) _perm[_i] = _p[_i & 255];
 
+SimplexNoise.seed = function(s) {
+  // Seed-based permutation shuffle (Fisher-Yates with seeded PRNG)
+  var shuffled = _p.slice();
+  var m = shuffled.length;
+  while (m) {
+    s = (s * 16807 + 0) % 2147483647;
+    var i = s % m--;
+    var tmp = shuffled[m];
+    shuffled[m] = shuffled[i];
+    shuffled[i] = tmp;
+  }
+  for (var j = 0; j < 512; j++) _perm[j] = shuffled[j & 255];
+};
+
 function SimplexNoise() {}
 
 SimplexNoise.noise2D = function(xin, yin) {
@@ -136,6 +150,132 @@ SimplexNoise.plateauCurve = function(h, steepness) {
 
 
 // ============================================================
+// Biome Presets — terrain generation parameter sets
+// ============================================================
+
+var BIOME_PRESETS = {
+  alpine: {
+    name: "Alpine Mountains",
+    heightScale: [50, 80], segments: 256,
+    continental: { gamma: [1.2, 1.6], freq: 0.8 },
+    ridgeNetwork: { freq: [2.5, 3.5], power: [1.5, 2.2] },
+    ridgeFractal: { sharpness: [1.0, 1.5], plateau: [2.5, 3.5] },
+    hills: { amp: [0.06, 0.10] }, detail: { amp: [0.02, 0.04] },
+    erosion: { thermalIter: [150, 220], talus: [0.25, 0.35], hydroDrops: [20000, 35000], peakRounds: [4, 7] },
+    warp: [0.45, 0.65]
+  },
+  rolling_hills: {
+    name: "Rolling Hills",
+    heightScale: [12, 22], segments: 256,
+    continental: { gamma: [1.0, 1.3], freq: 0.6 },
+    ridgeNetwork: { freq: [1.5, 2.5], power: [0.8, 1.2] },
+    ridgeFractal: { sharpness: [0.6, 1.0], plateau: [1.5, 2.5] },
+    hills: { amp: [0.10, 0.18] }, detail: { amp: [0.03, 0.06] },
+    erosion: { thermalIter: [80, 130], talus: [0.4, 0.6], hydroDrops: [8000, 15000], peakRounds: [6, 10] },
+    warp: [0.35, 0.55]
+  },
+  desert_mesa: {
+    name: "Desert Mesa",
+    heightScale: [25, 45], segments: 256,
+    continental: { gamma: [2.0, 2.8], freq: 0.7 },
+    ridgeNetwork: { freq: [2.0, 3.0], power: [0.5, 1.0] },
+    ridgeFractal: { sharpness: [0.3, 0.8], plateau: [5.0, 8.0] },
+    hills: { amp: [0.03, 0.06] }, detail: { amp: [0.01, 0.02] },
+    erosion: { thermalIter: [200, 350], talus: [0.2, 0.3], hydroDrops: [5000, 10000], peakRounds: [8, 14] },
+    warp: [0.25, 0.40]
+  },
+  volcanic: {
+    name: "Volcanic",
+    heightScale: [55, 90], segments: 256,
+    continental: { gamma: [1.8, 2.5], freq: 0.5 },
+    ridgeNetwork: { freq: [1.8, 2.8], power: [2.0, 3.0] },
+    ridgeFractal: { sharpness: [1.5, 2.5], plateau: [2.0, 3.0] },
+    hills: { amp: [0.04, 0.08] }, detail: { amp: [0.03, 0.06] },
+    erosion: { thermalIter: [100, 160], talus: [0.3, 0.5], hydroDrops: [15000, 25000], peakRounds: [3, 5] },
+    warp: [0.50, 0.70]
+  },
+  coastal: {
+    name: "Coastal Islands",
+    heightScale: [8, 16], segments: 256,
+    continental: { gamma: [0.8, 1.2], freq: 1.0 },
+    ridgeNetwork: { freq: [3.0, 4.5], power: [1.0, 1.5] },
+    ridgeFractal: { sharpness: [0.8, 1.3], plateau: [2.0, 3.0] },
+    hills: { amp: [0.12, 0.20] }, detail: { amp: [0.04, 0.08] },
+    erosion: { thermalIter: [50, 90], talus: [0.5, 0.7], hydroDrops: [5000, 12000], peakRounds: [5, 8] },
+    warp: [0.60, 0.80]
+  },
+  canyon: {
+    name: "Canyon Lands",
+    heightScale: [30, 55], segments: 256,
+    continental: { gamma: [1.5, 2.0], freq: 0.9 },
+    ridgeNetwork: { freq: [2.5, 4.0], power: [2.0, 3.5] },
+    ridgeFractal: { sharpness: [2.0, 3.0], plateau: [2.0, 3.0] },
+    hills: { amp: [0.04, 0.07] }, detail: { amp: [0.02, 0.04] },
+    erosion: { thermalIter: [250, 400], talus: [0.15, 0.25], hydroDrops: [35000, 55000], peakRounds: [2, 4] },
+    warp: [0.40, 0.60]
+  },
+  tundra: {
+    name: "Tundra Flatlands",
+    heightScale: [5, 12], segments: 256,
+    continental: { gamma: [0.8, 1.1], freq: 0.5 },
+    ridgeNetwork: { freq: [1.0, 2.0], power: [0.3, 0.8] },
+    ridgeFractal: { sharpness: [0.4, 0.8], plateau: [1.0, 2.0] },
+    hills: { amp: [0.15, 0.25] }, detail: { amp: [0.05, 0.10] },
+    erosion: { thermalIter: [60, 100], talus: [0.5, 0.8], hydroDrops: [3000, 8000], peakRounds: [8, 15] },
+    warp: [0.30, 0.50]
+  },
+  badlands: {
+    name: "Badlands",
+    heightScale: [20, 40], segments: 256,
+    continental: { gamma: [1.5, 2.2], freq: 0.8 },
+    ridgeNetwork: { freq: [3.0, 5.0], power: [1.5, 2.5] },
+    ridgeFractal: { sharpness: [2.0, 3.5], plateau: [3.0, 5.0] },
+    hills: { amp: [0.05, 0.08] }, detail: { amp: [0.03, 0.06] },
+    erosion: { thermalIter: [300, 500], talus: [0.12, 0.22], hydroDrops: [40000, 65000], peakRounds: [2, 4] },
+    warp: [0.50, 0.70]
+  }
+};
+
+function _randomInRange(min, max, rng) {
+  return min + (rng ? rng() : Math.random()) * (max - min);
+}
+
+function _seededRandom(seed) {
+  var s = seed;
+  return function() {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+function getBiomeParams(biomeId, seed) {
+  var preset = BIOME_PRESETS[biomeId];
+  if (!preset) preset = BIOME_PRESETS.alpine;
+  var rng = _seededRandom(seed || Math.floor(Math.random() * 999999));
+
+  return {
+    biome: biomeId,
+    seed: seed,
+    heightScale: _randomInRange(preset.heightScale[0], preset.heightScale[1], rng),
+    segments: preset.segments,
+    continentalGamma: _randomInRange(preset.continental.gamma[0], preset.continental.gamma[1], rng),
+    continentalFreq: preset.continental.freq,
+    ridgeFreq: _randomInRange(preset.ridgeNetwork.freq[0], preset.ridgeNetwork.freq[1], rng),
+    ridgePower: _randomInRange(preset.ridgeNetwork.power[0], preset.ridgeNetwork.power[1], rng),
+    ridgeSharpness: _randomInRange(preset.ridgeFractal.sharpness[0], preset.ridgeFractal.sharpness[1], rng),
+    plateauSteepness: _randomInRange(preset.ridgeFractal.plateau[0], preset.ridgeFractal.plateau[1], rng),
+    hillsAmp: _randomInRange(preset.hills.amp[0], preset.hills.amp[1], rng),
+    detailAmp: _randomInRange(preset.detail.amp[0], preset.detail.amp[1], rng),
+    thermalIterations: Math.round(_randomInRange(preset.erosion.thermalIter[0], preset.erosion.thermalIter[1], rng)),
+    talusAngle: _randomInRange(preset.erosion.talus[0], preset.erosion.talus[1], rng),
+    hydroDrops: Math.round(_randomInRange(preset.erosion.hydroDrops[0], preset.erosion.hydroDrops[1], rng)),
+    peakRounds: Math.round(_randomInRange(preset.erosion.peakRounds[0], preset.erosion.peakRounds[1], rng)),
+    warpStrength: _randomInRange(preset.warp[0], preset.warp[1], rng)
+  };
+}
+
+
+// ============================================================
 // TerrainGenerator
 // ============================================================
 
@@ -151,6 +291,7 @@ function TerrainGenerator(scene, options) {
   this.maxY = 0;
   this._segX = this.segments + 1;
   this._segZ = this.segments + 1;
+  this.biomeParams = (options && options.biomeParams) || null;
 }
 
 TerrainGenerator.prototype.generate = function() {
@@ -169,6 +310,21 @@ TerrainGenerator.prototype.generate = function() {
 
   var W = this.width, D = this.depth, H = this.heightScale, seg = this.segments;
   var segX = this._segX, segZ = this._segZ;
+
+  // Use biome params if available, else defaults
+  var bp = this.biomeParams || {};
+  var _contGamma = bp.continentalGamma || 1.4;
+  var _contFreq = bp.continentalFreq || 0.8;
+  var _ridgeFreq = bp.ridgeFreq || 3.0;
+  var _ridgePower = bp.ridgePower || 1.8;
+  var _ridgeSharp = bp.ridgeSharpness || 1.3;
+  var _plateauSteep = bp.plateauSteepness || 3.0;
+  var _hillsAmp = bp.hillsAmp || 0.08;
+  var _detailAmp = bp.detailAmp || 0.025;
+  var _warpStr = bp.warpStrength || 0.55;
+
+  // Seed the noise if biome params include a seed
+  if (bp.seed) SimplexNoise.seed(bp.seed);
 
   // Create geometry laid flat on XZ plane
   var geo = new THREE.PlaneGeometry(W, D, seg, seg);
@@ -194,32 +350,30 @@ TerrainGenerator.prototype.generate = function() {
     var baseElevation = H * 0.08;
 
     // Domain warp for organic shapes (increased strength for more natural flow)
-    var warpPt = SimplexNoise.domainWarp(nx * 1.8, nz * 1.8, 0.55);
+    var warpPt = SimplexNoise.domainWarp(nx * 1.8, nz * 1.8, _warpStr);
     var wx = warpPt[0], wz = warpPt[1];
 
     // === Layer 1: Continental base (broad mountain masses) ===
-    // GENTLER gamma (1.4 instead of 2.2) — preserves foothills and rolling lowlands
-    var continental = (SimplexNoise.fbm(wx * 0.8, wz * 0.8, 6, 2.0, 0.5) + 1) * 0.5;
-    continental = Math.pow(continental, 1.4);
+    var continental = (SimplexNoise.fbm(wx * _contFreq, wz * _contFreq, 6, 2.0, 0.5) + 1) * 0.5;
+    continental = Math.pow(continental, _contGamma);
 
     // === Layer 2: Ridge network (connected mountain ranges via Worley noise) ===
     // Inverted Worley creates continuous ridgelines instead of isolated peaks
-    var worleyVal = SimplexNoise.worley(nx * 3.0 + 2.1, nz * 3.0 + 0.8);
+    var worleyVal = SimplexNoise.worley(nx * _ridgeFreq + 2.1, nz * _ridgeFreq + 0.8);
     var ridgeNetwork = 1.0 - SimplexNoise.smoothstep(0.0, 0.6, worleyVal);
-    ridgeNetwork = Math.pow(ridgeNetwork, 1.8);
+    ridgeNetwork = Math.pow(ridgeNetwork, _ridgePower);
 
     // === Layer 3: Ridged multifractal for mountain detail ===
-    // REDUCED sharpness (1.3 instead of 2.5) — creates broad rounded peaks
-    var ridges = SimplexNoise.ridgedMultifractal(nx * 2.0 + 3.7, nz * 2.0 + 1.2, 4, 2.0, 0.45, 1.3);
+    var ridges = SimplexNoise.ridgedMultifractal(nx * 2.0 + 3.7, nz * 2.0 + 1.2, 4, 2.0, 0.45, _ridgeSharp);
     // Apply plateau curve to prevent needle peaks
-    ridges = SimplexNoise.plateauCurve(ridges, 3.0);
+    ridges = SimplexNoise.plateauCurve(ridges, _plateauSteep);
     ridges *= 0.25;
 
     // === Layer 4: Rolling foothills ===
-    var hills = SimplexNoise.fbm(nx * 4.0 + 7.3, nz * 4.0 + 2.8, 4, 2.0, 0.5) * 0.08;
+    var hills = SimplexNoise.fbm(nx * 4.0 + 7.3, nz * 4.0 + 2.8, 4, 2.0, 0.5) * _hillsAmp;
 
     // === Layer 5: Fine surface detail (altitude-dependent) ===
-    var detail = SimplexNoise.fbm(nx * 10.0, nz * 10.0, 3, 2.0, 0.4) * 0.025;
+    var detail = SimplexNoise.fbm(nx * 10.0, nz * 10.0, 3, 2.0, 0.4) * _detailAmp;
 
     // === Compose height with connected ridges ===
     // Continental provides broad masses, ridge network creates mountain chains,
@@ -243,7 +397,7 @@ TerrainGenerator.prototype.generate = function() {
 
   // ========== STAGE 1: Peak Rounding (smooth sharp peaks FIRST) ==========
   // Unlike old code which preserved peaks, this TARGETS peaks for smoothing
-  var PEAK_ROUNDS = 5;
+  var PEAK_ROUNDS = bp.peakRounds || 5;
   var PEAK_FACTOR = 0.5;
   for (var pr = 0; pr < PEAK_ROUNDS; pr++) {
     var peakSmoothed = new Float32Array(heightData.length);
@@ -276,8 +430,8 @@ TerrainGenerator.prototype.generate = function() {
 
   // ========== STAGE 2: Improved Thermal Erosion ==========
   // More iterations, lower talus angle for more material movement
-  var THERMAL_ITERATIONS = 180;
-  var TALUS_ANGLE = 0.3;  // ~17 degrees (was 0.6/31deg)
+  var THERMAL_ITERATIONS = bp.thermalIterations || 180;
+  var TALUS_ANGLE = bp.talusAngle || 0.3;
   var THERMAL_RATE = 0.35;
   for (var ti = 0; ti < THERMAL_ITERATIONS; ti++) {
     for (var tz = 1; tz < seg; tz++) {
@@ -312,7 +466,7 @@ TerrainGenerator.prototype.generate = function() {
 
   // ========== STAGE 3: Hydraulic Erosion (water flow + sediment) ==========
   // Simulates raindrops flowing downhill, carving channels and depositing sediment
-  var HYDRO_DROPS = 25000;
+  var HYDRO_DROPS = bp.hydroDrops || 25000;
   var HYDRO_INERTIA = 0.3;
   var HYDRO_CAPACITY = 8.0;
   var HYDRO_DEPOSITION = 0.02;
@@ -1055,6 +1209,7 @@ TerrainPainter.prototype.generate = function(options) {
       this.generator._segX = options.segments + 1;
       this.generator._segZ = options.segments + 1;
     }
+    if (options.biomeParams !== undefined) this.generator.biomeParams = options.biomeParams;
   }
   return this.generator.generate();
 };
@@ -1135,11 +1290,13 @@ if (typeof window !== 'undefined') {
     TerrainGenerator: TerrainGenerator,
     TerrainPhysics: TerrainPhysics,
     TerrainSculpt: TerrainSculpt,
-    SimplexNoise: SimplexNoise
+    SimplexNoise: SimplexNoise,
+    BIOME_PRESETS: BIOME_PRESETS,
+    getBiomeParams: getBiomeParams
   };
 }
 
-module.exports = { TerrainPainter: TerrainPainter, TerrainGenerator: TerrainGenerator, TerrainPhysics: TerrainPhysics, TerrainSculpt: TerrainSculpt, SimplexNoise: SimplexNoise };
+module.exports = { TerrainPainter: TerrainPainter, TerrainGenerator: TerrainGenerator, TerrainPhysics: TerrainPhysics, TerrainSculpt: TerrainSculpt, SimplexNoise: SimplexNoise, BIOME_PRESETS: BIOME_PRESETS, getBiomeParams: getBiomeParams };
 `,
 	bridgeHandlers: {
 		"terrain-painter-repaint": "handleRepaint",
