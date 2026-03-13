@@ -1288,7 +1288,8 @@ function swapCharacter(scene, characterId) {
                 _coyoteTimer = _coyoteTime; _jumpCooldown = 0.3; _jumpBufferTimer = 0;
               }
               // Gravity
-              var _gv = parseFloat((window.__VIBEXE_GAME_SETTINGS__ || {}).gravity) || -38;
+              var _gsP = (window.__VIBEXE_GAME_SETTINGS__ || {}).physics || {};
+              var _gv = parseFloat(_gsP.gravity) || -38;
               _rapierGravityVel += _gv * dt;
               if (_rapierGravityVel < -50) _rapierGravityVel = -50;
               // Save previous position BEFORE KCC move (for wall rejection)

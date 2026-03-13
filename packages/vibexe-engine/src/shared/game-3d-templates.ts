@@ -5782,8 +5782,11 @@ export const GameScene = {
     }
 
     // Asymmetric gravity: lighter going up, heavier falling
-    const vy = playerBody.velocity.y;
-    world.gravity.set(0, vy > 0 ? GRAVITY_3D : FALL_GRAVITY, 0);
+    // Skip when character-system module owns physics (Rapier KCC)
+    if (!(window as any).__charCtrl_active) {
+      const vy = playerBody.velocity.y;
+      world.gravity.set(0, vy > 0 ? GRAVITY_3D : FALL_GRAVITY, 0);
+    }
     world.step(1 / 60, delta, 3);
 
     // Coyote time + jump buffer

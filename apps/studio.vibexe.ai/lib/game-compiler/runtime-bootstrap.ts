@@ -268,7 +268,7 @@ if(_ccActive){
   _ccDetails.engine=rapierKCC?'Rapier KCC':'CANNON';
   _ccDetails.grounded='N/A';
   if(rapierKCC&&rapierKCC.kcc){try{_ccDetails.grounded=rapierKCC.kcc.computedGrounded()?'yes':'airborne';}catch(e){}}
-  if(pm&&pm.position&&tm){var _gH=W.__vibexe_getTerrainHeight;if(_gH){var _th=_gH(pm.position.x,pm.position.z);if(_th!=null){_ccDetails.terrainGap=+(pm.position.y-_th).toFixed(2);}}}
+  if(pm&&pm.position&&tm){var _gH=W.__vibexe_getTerrainHeight;if(_gH){var _th=_gH(pm.position.x,pm.position.z);if(_th!=null){_ccDetails.terrainGap=+(pm.position.y-_th).toFixed(2);if(_ccDetails.terrainGap>=0&&_ccDetails.terrainGap<1.0)_ccDetails.onTerrain=true;}}}
   _ccDetails.snapToGround=rapierKCC&&rapierKCC.kcc?true:false;
   _ccDetails.orbitYaw=W.__charCtrl_orbitYaw!=null?+(W.__charCtrl_orbitYaw*180/Math.PI).toFixed(0)+'deg':'N/A';
   _ccDetails.orbitPitch=W.__charCtrl_orbitPitch!=null?+(W.__charCtrl_orbitPitch*180/Math.PI).toFixed(0)+'deg':'N/A';
