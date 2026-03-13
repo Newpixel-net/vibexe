@@ -6075,44 +6075,49 @@ export const GameScene = {
     // Physics step
     world.step(1 / 60, delta, 3);
 
-    // Speed ramp
-    speed = Math.min(MAX_SPEED, speed + SPEED_RAMP * delta);
+    // Speed ramp + movement — skip when character-system module owns movement
+    if (!(window as any).__charCtrl_active) {
+      speed = Math.min(MAX_SPEED, speed + SPEED_RAMP * delta);
 
-    // Auto-forward movement (negative Z = forward)
-    playerBody.velocity.z = -speed;
+      // Auto-forward movement (negative Z = forward)
+      playerBody.velocity.z = -speed;
 
-    // Lane switching — keyboard (with cooldown)
-    if (keys.ArrowLeft || keys.KeyA) {
-      if (currentLane > 0 && !(playerBody as any).__laneSwitching) {
-        currentLane--;
-        targetX = LANE_X[currentLane];
-        (playerBody as any).__laneSwitching = true;
-        setTimeout(() => { (playerBody as any).__laneSwitching = false; }, 200);
+      // Lane switching — keyboard (with cooldown)
+      if (keys.ArrowLeft || keys.KeyA) {
+        if (currentLane > 0 && !(playerBody as any).__laneSwitching) {
+          currentLane--;
+          targetX = LANE_X[currentLane];
+          (playerBody as any).__laneSwitching = true;
+          setTimeout(() => { (playerBody as any).__laneSwitching = false; }, 200);
+        }
       }
-    }
-    if (keys.ArrowRight || keys.KeyD) {
-      if (currentLane < 2 && !(playerBody as any).__laneSwitching) {
-        currentLane++;
-        targetX = LANE_X[currentLane];
-        (playerBody as any).__laneSwitching = true;
-        setTimeout(() => { (playerBody as any).__laneSwitching = false; }, 200);
+      if (keys.ArrowRight || keys.KeyD) {
+        if (currentLane < 2 && !(playerBody as any).__laneSwitching) {
+          currentLane++;
+          targetX = LANE_X[currentLane];
+          (playerBody as any).__laneSwitching = true;
+          setTimeout(() => { (playerBody as any).__laneSwitching = false; }, 200);
+        }
       }
-    }
 
-    // Jump
-    if (keys.ArrowUp || keys.KeyW || keys.Space) {
-      tryJump();
-    }
+      // Jump
+      if (keys.ArrowUp || keys.KeyW || keys.Space) {
+        tryJump();
+      }
 
-    // Tween X position toward target lane
-    const currentX = playerBody.position.x;
-    const dx = targetX - currentX;
-    if (Math.abs(dx) > 0.05) {
-      playerBody.position.x += dx * LANE_SWITCH_SPEED * (delta * 60);
-      playerBody.velocity.x = 0;
+      // Tween X position toward target lane
+      const currentX = playerBody.position.x;
+      const dx = targetX - currentX;
+      if (Math.abs(dx) > 0.05) {
+        playerBody.position.x += dx * LANE_SWITCH_SPEED * (delta * 60);
+        playerBody.velocity.x = 0;
+      } else {
+        playerBody.position.x = targetX;
+        playerBody.velocity.x = 0;
+      }
     } else {
-      playerBody.position.x = targetX;
-      playerBody.velocity.x = 0;
+      // Character-system owns movement — still ramp speed for score/distance tracking
+      speed = Math.min(MAX_SPEED, speed + SPEED_RAMP * delta);
     }
 
     // Update controller (syncs mesh + animations)

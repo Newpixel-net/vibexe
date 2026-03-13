@@ -364,6 +364,87 @@ export function GameSettingsContent({ settings, onChange, onSave, pickSpawnActiv
 						>
 							<DragNumberInput label="Lives" value={settings.player?.startingLives ?? 3} step={1} precision={0} onChange={(v) => update("player", "startingLives", Math.max(1, Math.round(v)))} labelClassName="w-[60px] text-left" />
 						</SettingRow>
+
+						{/* ── Controller Settings ── */}
+						<SectionLabel tooltip="Character controller mode and movement tuning">Controller</SectionLabel>
+						<div className="flex items-center gap-2">
+							<span className="text-xs text-white/50 w-[60px]">Preset</span>
+							<select
+								value={settings.characterController?.preset ?? ""}
+								onChange={(e) => {
+									const preset = e.target.value;
+									if (!preset) {
+										onChange(deepMerge(settings, { characterController: { preset: undefined } }));
+									} else {
+										// Auto-fill mode and camera from preset
+										const presetMap: Record<string, { controllerMode?: string; cameraProfile?: string }> = {
+											rpg_adventure: { controllerMode: "orbit", cameraProfile: "orbit" },
+											platformer: { controllerMode: "orbit", cameraProfile: "orbit" },
+											endless_runner: { controllerMode: "runner", cameraProfile: "chase" },
+											sidescroller: { controllerMode: "sidescroll", cameraProfile: "side" },
+											topdown_shooter: { controllerMode: "topdown", cameraProfile: "overhead" },
+											parkour: { controllerMode: "orbit", cameraProfile: "orbit" },
+											arena_fighter: { controllerMode: "orbit", cameraProfile: "orbit" },
+											walking_sim: { controllerMode: "orbit", cameraProfile: "orbit" },
+										};
+										const fill = presetMap[preset] || {};
+										onChange(deepMerge(settings, { characterController: { preset, ...fill } }));
+									}
+								}}
+								className="bg-zinc-800 text-xs text-zinc-300 rounded px-2 py-1 border border-zinc-700 focus:ring-1 focus:ring-violet-500 outline-none flex-1"
+							>
+								<option value="">Custom</option>
+								<option value="rpg_adventure">RPG / Adventure</option>
+								<option value="platformer">Platformer</option>
+								<option value="endless_runner">Endless Runner</option>
+								<option value="sidescroller">Sidescroller</option>
+								<option value="topdown_shooter">Top-Down Shooter</option>
+								<option value="parkour">Parkour</option>
+								<option value="arena_fighter">Arena Fighter</option>
+								<option value="walking_sim">Walking Sim</option>
+							</select>
+						</div>
+						<div className="flex items-center gap-2">
+							<span className="text-xs text-white/50 w-[60px]">Mode</span>
+							<select
+								value={settings.characterController?.controllerMode ?? "orbit"}
+								onChange={(e) => onChange(deepMerge(settings, { characterController: { controllerMode: e.target.value } }))}
+								className="bg-zinc-800 text-xs text-zinc-300 rounded px-2 py-1 border border-zinc-700 focus:ring-1 focus:ring-violet-500 outline-none flex-1"
+							>
+								<option value="orbit">Orbit (3rd Person)</option>
+								<option value="runner">Runner (Auto-Forward)</option>
+								<option value="sidescroll">Sidescroll (2D-style)</option>
+								<option value="topdown">Top-Down</option>
+								<option value="fps">First Person</option>
+							</select>
+						</div>
+						<div className="flex items-center gap-2">
+							<span className="text-xs text-white/50 w-[60px]">Camera</span>
+							<select
+								value={settings.characterController?.cameraProfile ?? "orbit"}
+								onChange={(e) => onChange(deepMerge(settings, { characterController: { cameraProfile: e.target.value } }))}
+								className="bg-zinc-800 text-xs text-zinc-300 rounded px-2 py-1 border border-zinc-700 focus:ring-1 focus:ring-violet-500 outline-none flex-1"
+							>
+								<option value="orbit">Orbit</option>
+								<option value="chase">Chase (Behind)</option>
+								<option value="side">Side View</option>
+								<option value="overhead">Overhead</option>
+								<option value="firstPerson">First Person</option>
+							</select>
+						</div>
+
+						<SectionLabel tooltip="Movement speed and jump parameters">Movement</SectionLabel>
+						<DragNumberInput label="Walk" value={settings.characterController?.walkSpeed ?? 4} step={0.5} precision={1} onChange={(v) => onChange(deepMerge(settings, { characterController: { walkSpeed: v } }))} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Run" value={settings.characterController?.runSpeed ?? 8} step={0.5} precision={1} onChange={(v) => onChange(deepMerge(settings, { characterController: { runSpeed: v } }))} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Jump" value={settings.characterController?.jumpForce ?? 8} step={0.5} precision={1} onChange={(v) => onChange(deepMerge(settings, { characterController: { jumpForce: v } }))} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Jumps" value={settings.characterController?.jumpCount ?? 1} step={1} precision={0} onChange={(v) => onChange(deepMerge(settings, { characterController: { jumpCount: Math.max(1, Math.round(v)) } }))} labelClassName="w-[60px] text-left" />
+
+						<SectionLabel tooltip="Physics-feel tuning (acceleration, air control, slopes)">Physics Feel</SectionLabel>
+						<DragNumberInput label="Accel" value={settings.characterController?.accelGround ?? 20} step={1} precision={0} onChange={(v) => onChange(deepMerge(settings, { characterController: { accelGround: v } }))} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Decel" value={settings.characterController?.decelGround ?? 15} step={1} precision={0} onChange={(v) => onChange(deepMerge(settings, { characterController: { decelGround: v } }))} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Air Ctrl" value={settings.characterController?.airControl ?? 0.3} step={0.05} precision={2} onChange={(v) => onChange(deepMerge(settings, { characterController: { airControl: Math.max(0, Math.min(1, v)) } }))} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Max Slope" value={settings.characterController?.slopeMaxAngle ?? 45} step={1} precision={0} onChange={(v) => onChange(deepMerge(settings, { characterController: { slopeMaxAngle: Math.max(10, Math.min(80, v)) } }))} labelClassName="w-[60px] text-left" />
+						<DragNumberInput label="Gravity" value={settings.characterController?.gravityScale ?? 1} step={0.1} precision={1} onChange={(v) => onChange(deepMerge(settings, { characterController: { gravityScale: v } }))} labelClassName="w-[60px] text-left" />
 					</>
 				)}
 

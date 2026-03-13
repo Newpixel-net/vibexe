@@ -50,15 +50,13 @@ const BUILT_IN_CHARACTERS = JSON.stringify([
 	},
 ]);
 
-const runtimeCode = `// @vibexe/character-system v8.4.0
-// Blink-style top-down WASD controller + camera-relative movement + orbit camera
-// Phase 1: IK Head Look-At + terrain-aware falling
-// Phase 2: Cursor look-at + camera mouse offset
-// Phase 3: Acceleration/deceleration, slope handling, step climbing, footstep audio
-// Phase 4: Rapier.js KCC — native terrain collision, auto-step, snap-to-ground
-// Phase 4.3: Solid terrain — walls, cliffs, edge margins, boundary clamping
-// Phase 5: Camera smoothness — visual interpolation, terrain Y smoothing, softer collision, lookAt damping
-console.log('[CharacterSystem] Module v8.4.0 loaded');
+const runtimeCode = `// @vibexe/character-system v9.0.0
+// Multi-mode character controller: orbit, runner, sidescroll, topdown, fps
+// Camera profiles: orbit, chase, side, overhead, firstPerson
+// Abilities: doubleJump, dash, wallSlide, crouch, groundPound
+// Genre presets: rpg_adventure, platformer, endless_runner, sidescroller, topdown_shooter, parkour, arena_fighter, walking_sim
+// Input profiles: default (WASD), arrows, custom bindings
+console.log('[CharacterSystem] Module v9.0.0 loaded');
 
 var THREE = require('three');
 
@@ -75,10 +73,31 @@ var _ROOT_BONE_NAMES = {
 
 // ===== INPUT STATE (Module-level, shared by all controllers) =====
 // Keyboard input tracking — camera-relative WASD movement (Blink-style)
-var _inputState = { w: false, a: false, s: false, d: false, shift: false, space: false };
+var _inputState = { w: false, a: false, s: false, d: false, shift: false, space: false, crouch: false, dash: false };
 var _mouseState = { midDown: false, lastX: 0, lastY: 0, scrollDelta: 0, mouseX: 0, mouseY: 0, mouseActive: false, mouseIdleTimer: 0 };
 var _inputListenersAttached = false;
 var _activeSnapTimer = null;
+// Shared animation state — each controller writes this so diagnostics can read it
+var _charAnimState = 'idle';
+
+// ===== GENRE PRESETS =====
+var GENRE_PRESETS = {
+  rpg_adventure: { controllerMode: 'orbit', cameraProfile: 'orbit', walkSpeed: 4, runSpeed: 8, jumpForce: 8 },
+  platformer: { controllerMode: 'orbit', cameraProfile: 'orbit', walkSpeed: 5, runSpeed: 10, jumpForce: 14, airControl: 0.5, abilities: { doubleJump: { enabled: true } } },
+  endless_runner: { controllerMode: 'runner', cameraProfile: 'chase', runner: { initialSpeed: 8, maxSpeed: 25, acceleration: 0.15, laneWidth: 3, laneCount: 3 } },
+  sidescroller: { controllerMode: 'sidescroll', cameraProfile: 'side', walkSpeed: 5, jumpForce: 12, abilities: { wallSlide: { enabled: true, slideSpeed: 2, jumpForce: 10 } } },
+  topdown_shooter: { controllerMode: 'topdown', cameraProfile: 'overhead', walkSpeed: 8, runSpeed: 12, abilities: { dash: { enabled: true, speed: 20, duration: 0.2, cooldown: 1.5 } } },
+  parkour: { controllerMode: 'orbit', cameraProfile: 'orbit', runSpeed: 12, jumpForce: 16, stepHeight: 1.2, abilities: { doubleJump: { enabled: true }, wallSlide: { enabled: true, slideSpeed: 2, jumpForce: 12 }, dash: { enabled: true, speed: 25, duration: 0.15, cooldown: 1 } } },
+  arena_fighter: { controllerMode: 'orbit', cameraProfile: 'orbit', walkSpeed: 6, abilities: { dash: { enabled: true, speed: 18, duration: 0.2, cooldown: 1.5 }, groundPound: { enabled: true, force: 30 } } },
+  walking_sim: { controllerMode: 'orbit', cameraProfile: 'orbit', walkSpeed: 2, runSpeed: 4, jumpForce: 0 }
+};
+
+// ===== INPUT PROFILES =====
+var INPUT_PROFILES = {
+  'default': { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', jump: 'Space', run: 'ShiftLeft', crouch: 'KeyC', dash: 'KeyQ' },
+  arrows: { forward: 'ArrowUp', back: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', jump: 'Space', run: 'ShiftLeft', crouch: 'KeyC', dash: 'KeyQ' }
+};
+var _activeInputProfile = INPUT_PROFILES['default'];
 
 // Store listener references for cleanup on reload (X1 fix: prevent memory leak)
 var _listenerRefs = [];
@@ -113,29 +132,33 @@ function _attachInputListeners() {
 
   _addTrackedListener(doc, "keydown", function(e) {
     if ((window.__vibexe_editor__ || {}).isEditing) return;
-    var k = e.key.toLowerCase();
-    if (k === "w" || k === "arrowup") _inputState.w = true;
-    if (k === "a" || k === "arrowleft") _inputState.a = true;
-    if (k === "s" || k === "arrowdown") _inputState.s = true;
-    if (k === "d" || k === "arrowright") _inputState.d = true;
-    if (k === "shift") _inputState.shift = true;
-    if (k === " ") _inputState.space = true;
+    var c = e.code; var k = e.key.toLowerCase(); var p = _activeInputProfile;
+    if (k === "w" || k === "arrowup" || c === p.forward) _inputState.w = true;
+    if (k === "a" || k === "arrowleft" || c === p.left) _inputState.a = true;
+    if (k === "s" || k === "arrowdown" || c === p.back) _inputState.s = true;
+    if (k === "d" || k === "arrowright" || c === p.right) _inputState.d = true;
+    if (k === "shift" || c === p.run) _inputState.shift = true;
+    if (k === " " || c === p.jump) _inputState.space = true;
+    if (k === "c" || c === p.crouch) _inputState.crouch = true;
+    if (k === "q" || c === p.dash) _inputState.dash = true;
   });
 
   _addTrackedListener(doc, "keyup", function(e) {
-    var k = e.key.toLowerCase();
-    if (k === "w" || k === "arrowup") _inputState.w = false;
-    if (k === "a" || k === "arrowleft") _inputState.a = false;
-    if (k === "s" || k === "arrowdown") _inputState.s = false;
-    if (k === "d" || k === "arrowright") _inputState.d = false;
-    if (k === "shift") _inputState.shift = false;
-    if (k === " ") _inputState.space = false;
+    var c = e.code; var k = e.key.toLowerCase(); var p = _activeInputProfile;
+    if (k === "w" || k === "arrowup" || c === p.forward) _inputState.w = false;
+    if (k === "a" || k === "arrowleft" || c === p.left) _inputState.a = false;
+    if (k === "s" || k === "arrowdown" || c === p.back) _inputState.s = false;
+    if (k === "d" || k === "arrowright" || c === p.right) _inputState.d = false;
+    if (k === "shift" || c === p.run) _inputState.shift = false;
+    if (k === " " || c === p.jump) _inputState.space = false;
+    if (k === "c" || c === p.crouch) _inputState.crouch = false;
+    if (k === "q" || c === p.dash) _inputState.dash = false;
   });
 
   // Clear all keys on blur (prevents stuck keys when tabbing away)
   _addTrackedListener(window, "blur", function() {
     _inputState.w = _inputState.a = _inputState.s = _inputState.d = false;
-    _inputState.shift = _inputState.space = false;
+    _inputState.shift = _inputState.space = _inputState.crouch = _inputState.dash = false;
     _mouseState.midDown = false;
   });
 
@@ -790,6 +813,894 @@ function _getVibexeOrigin() {
   return "";
 }
 
+// ===== CAMERA PROFILE FUNCTIONS =====
+// Each takes (ctx, cam, dt) where ctx has mesh, body, halfH, settings, cameraSettings
+
+function _updateOrbitCamera(ctx, cam, dt) {
+  var _csMesh = ctx.mesh;
+  var _csHalfH = ctx.halfH;
+  var cfg = ctx.settings;
+  var _gsCamera = ctx.cameraSettings;
+  var _camState = ctx._camState;
+  if (!_camState) return;
+
+  var orbitYaw = window.__charCtrl_orbitYaw || 0;
+  var orbitPitch = window.__charCtrl_orbitPitch || 0.4;
+
+  // Zoom from scroll wheel
+  if (_mouseState.scrollDelta !== 0) {
+    var zoomDelta = _mouseState.scrollDelta * 0.01;
+    _camState.distTarget += zoomDelta;
+    _camState.heightTarget += zoomDelta * 0.6;
+    _camState.distTarget = Math.max(_camState.minDist, Math.min(_camState.maxDist, _camState.distTarget));
+    _camState.heightTarget = Math.max(_camState.minHeight, Math.min(_camState.maxHeight, _camState.heightTarget));
+    _mouseState.scrollDelta = 0;
+  }
+  _camState.dist += (_camState.distTarget - _camState.dist) * Math.min(15 * dt, 1);
+  _camState.height += (_camState.heightTarget - _camState.height) * Math.min(15 * dt, 1);
+
+  // Camera position = player + rotateY(orbitYaw) * (0, height, dist)
+  var camHorizDist = _camState.dist * Math.cos(orbitPitch);
+  var camVertDist = _camState.dist * Math.sin(orbitPitch);
+  var camTargetX = _csMesh.position.x + Math.sin(orbitYaw) * camHorizDist;
+  var camTargetY = _csMesh.position.y + camVertDist + 1.0;
+  var camTargetZ = _csMesh.position.z + Math.cos(orbitYaw) * camHorizDist;
+
+  // Camera mouse offset
+  if (ctx._cursorActive && _camState.offsetMax > 0) {
+    var _offDx = ctx._cursorTarget.x - _csMesh.position.x;
+    var _offDz = ctx._cursorTarget.z - _csMesh.position.z;
+    var _offLen = Math.sqrt(_offDx * _offDx + _offDz * _offDz);
+    if (_offLen > 0.1) {
+      var _offNx = (_offDx / _offLen) * _camState.offsetMax;
+      var _offNz = (_offDz / _offLen) * _camState.offsetMax;
+      var _sdOx = _smoothDamp(_camState.offsetX, _offNx, _camState.offsetVelX, _camState.offsetSmooth, dt);
+      var _sdOz = _smoothDamp(_camState.offsetZ, _offNz, _camState.offsetVelZ, _camState.offsetSmooth, dt);
+      _camState.offsetX = _sdOx.value; _camState.offsetVelX = _sdOx.velocity;
+      _camState.offsetZ = _sdOz.value; _camState.offsetVelZ = _sdOz.velocity;
+    }
+  } else {
+    var _sdOx2 = _smoothDamp(_camState.offsetX, 0, _camState.offsetVelX, 0.3, dt);
+    var _sdOz2 = _smoothDamp(_camState.offsetZ, 0, _camState.offsetVelZ, 0.3, dt);
+    _camState.offsetX = _sdOx2.value; _camState.offsetVelX = _sdOx2.velocity;
+    _camState.offsetZ = _sdOz2.value; _camState.offsetVelZ = _sdOz2.velocity;
+  }
+  camTargetX += _camState.offsetX;
+  camTargetZ += _camState.offsetZ;
+
+  // SmoothDamp follow
+  var sdX = _smoothDamp(cam.position.x, camTargetX, _camState.velX, _camState.smoothTime, dt);
+  var sdY = _smoothDamp(cam.position.y, camTargetY, _camState.velY, _camState.smoothTime * 1.8, dt);
+  var sdZ = _smoothDamp(cam.position.z, camTargetZ, _camState.velZ, _camState.smoothTime, dt);
+  cam.position.x = sdX.value; _camState.velX = sdX.velocity;
+  cam.position.y = sdY.value; _camState.velY = sdY.velocity;
+  cam.position.z = sdZ.value; _camState.velZ = sdZ.velocity;
+
+  // Terrain-height correction
+  var _getH = window.__vibexe_getTerrainHeight;
+  if (_getH) {
+    var _camTH = _getH(cam.position.x, cam.position.z);
+    if (_camTH != null) {
+      var _camMinY = _camTH + _csHalfH + 2.0;
+      if (cam.position.y < _camMinY) {
+        cam.position.y += (_camMinY - cam.position.y) * Math.min(8 * dt, 1);
+      }
+    }
+  }
+
+  // Camera collision avoidance
+  if (!_camState._ccPlayerCenter) _camState._ccPlayerCenter = new THREE.Vector3();
+  if (!_camState._ccCamPos) _camState._ccCamPos = new THREE.Vector3();
+  if (!_camState._ccToCamera) _camState._ccToCamera = new THREE.Vector3();
+  if (!_camState._ccUpOff) _camState._ccUpOff = new THREE.Vector3();
+  if (!_camState._ccDownOff) _camState._ccDownOff = new THREE.Vector3();
+  if (!_camState._ccRaycaster) _camState._ccRaycaster = new THREE.Raycaster();
+  _camState._ccPlayerCenter.set(_csMesh.position.x, _csMesh.position.y + _csHalfH, _csMesh.position.z);
+  _camState._ccCamPos.set(cam.position.x, cam.position.y, cam.position.z);
+  _camState._ccToCamera.subVectors(_camState._ccCamPos, _camState._ccPlayerCenter);
+  var _toCamLen = _camState._ccToCamera.length();
+  if (_toCamLen > 0.1) {
+    _camState._ccToCamera.normalize();
+    _camState._ccFrameCount = (_camState._ccFrameCount || 0) + 1;
+    if (!_camState._ccCachedTargets || _camState._ccFrameCount % 60 === 0) {
+      _camState._ccCachedTargets = [];
+      var _ccScene = window.__vibexe_scene__;
+      if (_ccScene) {
+        _ccScene.traverse(function(child) {
+          if (!child.isMesh) return;
+          if (child === _csMesh || child.name.indexOf("Character_") === 0) return;
+          if (child.name.indexOf("__editor_") === 0) return;
+          if (child.userData && child.userData.vibexeType === "AnimatedCharacter") return;
+          if (!child.visible) return;
+          _camState._ccCachedTargets.push(child);
+        });
+      }
+    }
+    if (_camState._ccCachedTargets && _camState._ccCachedTargets.length > 0) {
+      var _closestHit = _toCamLen;
+      _camState._ccUpOff.set(_camState._ccPlayerCenter.x, _camState._ccPlayerCenter.y + 0.3, _camState._ccPlayerCenter.z);
+      _camState._ccDownOff.set(_camState._ccPlayerCenter.x, _camState._ccPlayerCenter.y - 0.3, _camState._ccPlayerCenter.z);
+      var _origins = [_camState._ccPlayerCenter, _camState._ccUpOff, _camState._ccDownOff];
+      for (var _ri = 0; _ri < _origins.length; _ri++) {
+        _camState._ccRaycaster.set(_origins[_ri], _camState._ccToCamera);
+        _camState._ccRaycaster.near = 0.3;
+        _camState._ccRaycaster.far = _toCamLen;
+        var _ccHits = _camState._ccRaycaster.intersectObjects(_camState._ccCachedTargets, false);
+        if (_ccHits.length > 0 && _ccHits[0].distance < _closestHit) {
+          _closestHit = _ccHits[0].distance;
+        }
+      }
+      if (_closestHit < _toCamLen) {
+        var _safeDist = Math.max(1.0, _closestHit - 0.5);
+        if (!_camState._ccPullPos) _camState._ccPullPos = new THREE.Vector3();
+        _camState._ccPullPos.copy(_camState._ccPlayerCenter).addScaledVector(_camState._ccToCamera, _safeDist);
+        _camState.collisionBlend = Math.min((_camState.collisionBlend || 0) + 8 * dt, 1);
+        var _pullRate = Math.min(5 * dt * _camState.collisionBlend, 1);
+        cam.position.x += (_camState._ccPullPos.x - cam.position.x) * _pullRate;
+        cam.position.y += (_camState._ccPullPos.y - cam.position.y) * _pullRate;
+        cam.position.z += (_camState._ccPullPos.z - cam.position.z) * _pullRate;
+      } else {
+        _camState.collisionBlend = Math.max((_camState.collisionBlend || 0) - 3 * dt, 0);
+      }
+    }
+  }
+
+  // LookAt with smoothing
+  var _laTargetX = _csMesh.position.x + _camState.offsetX * 0.5;
+  var _laTargetY = _csMesh.position.y + _camState.lookYOffset;
+  var _laTargetZ = _csMesh.position.z + _camState.offsetZ * 0.5;
+  if (!_camState.lookAtInit) {
+    _camState.lookAtX = _laTargetX; _camState.lookAtY = _laTargetY; _camState.lookAtZ = _laTargetZ;
+    _camState.lookAtInit = true;
+  }
+  var _laBlend = Math.min(20 * dt, 1);
+  _camState.lookAtX += (_laTargetX - _camState.lookAtX) * _laBlend;
+  _camState.lookAtY += (_laTargetY - _camState.lookAtY) * Math.min(12 * dt, 1);
+  _camState.lookAtZ += (_laTargetZ - _camState.lookAtZ) * _laBlend;
+  cam.lookAt(_camState.lookAtX, _camState.lookAtY, _camState.lookAtZ);
+}
+
+function _updateChaseCamera(ctx, cam, dt) {
+  var _csMesh = ctx.mesh;
+  var cfg = ctx.settings;
+  var _camState = ctx._camState;
+  if (!_camState) return;
+  // Fixed behind player, smooth follow, look-ahead along Z
+  var dist = cfg.camDist || 10;
+  var height = cfg.camHeight || 5;
+  var smoothTime = cfg.camSmoothTime || 0.15;
+  var facingAngle = _csMesh.rotation.y;
+  var camTargetX = _csMesh.position.x - Math.sin(facingAngle) * dist;
+  var camTargetY = _csMesh.position.y + height;
+  var camTargetZ = _csMesh.position.z - Math.cos(facingAngle) * dist;
+
+  var sdX = _smoothDamp(cam.position.x, camTargetX, _camState.velX, smoothTime, dt);
+  var sdY = _smoothDamp(cam.position.y, camTargetY, _camState.velY, smoothTime * 1.5, dt);
+  var sdZ = _smoothDamp(cam.position.z, camTargetZ, _camState.velZ, smoothTime, dt);
+  cam.position.x = sdX.value; _camState.velX = sdX.velocity;
+  cam.position.y = sdY.value; _camState.velY = sdY.velocity;
+  cam.position.z = sdZ.value; _camState.velZ = sdZ.velocity;
+
+  // Look ahead of player
+  var lookX = _csMesh.position.x + Math.sin(facingAngle) * 5;
+  var lookY = _csMesh.position.y + 1.0;
+  var lookZ = _csMesh.position.z + Math.cos(facingAngle) * 5;
+  cam.lookAt(lookX, lookY, lookZ);
+}
+
+function _updateSideCamera(ctx, cam, dt) {
+  var _csMesh = ctx.mesh;
+  var cfg = ctx.settings;
+  var _camState = ctx._camState;
+  if (!_camState) return;
+  var sideOffset = cfg.camDist || 15;
+  var height = cfg.camHeight || 3;
+  var smoothTime = cfg.camSmoothTime || 0.1;
+  var camTargetX = _csMesh.position.x + sideOffset;
+  var camTargetY = _csMesh.position.y + height;
+  var camTargetZ = _csMesh.position.z;
+
+  var sdX = _smoothDamp(cam.position.x, camTargetX, _camState.velX, smoothTime, dt);
+  var sdY = _smoothDamp(cam.position.y, camTargetY, _camState.velY, smoothTime, dt);
+  var sdZ = _smoothDamp(cam.position.z, camTargetZ, _camState.velZ, smoothTime, dt);
+  cam.position.x = sdX.value; _camState.velX = sdX.velocity;
+  cam.position.y = sdY.value; _camState.velY = sdY.velocity;
+  cam.position.z = sdZ.value; _camState.velZ = sdZ.velocity;
+
+  cam.lookAt(_csMesh.position.x, _csMesh.position.y + 1, _csMesh.position.z);
+}
+
+function _updateOverheadCamera(ctx, cam, dt) {
+  var _csMesh = ctx.mesh;
+  var cfg = ctx.settings;
+  var _camState = ctx._camState;
+  if (!_camState) return;
+  var fixedHeight = cfg.camHeight || 20;
+  var smoothTime = cfg.camSmoothTime || 0.08;
+  var camTargetX = _csMesh.position.x;
+  var camTargetY = _csMesh.position.y + fixedHeight;
+  var camTargetZ = _csMesh.position.z;
+
+  var sdX = _smoothDamp(cam.position.x, camTargetX, _camState.velX, smoothTime, dt);
+  var sdY = _smoothDamp(cam.position.y, camTargetY, _camState.velY, smoothTime, dt);
+  var sdZ = _smoothDamp(cam.position.z, camTargetZ, _camState.velZ, smoothTime, dt);
+  cam.position.x = sdX.value; _camState.velX = sdX.velocity;
+  cam.position.y = sdY.value; _camState.velY = sdY.velocity;
+  cam.position.z = sdZ.value; _camState.velZ = sdZ.velocity;
+
+  cam.lookAt(_csMesh.position.x, _csMesh.position.y, _csMesh.position.z);
+}
+
+function _updateFirstPersonCamera(ctx, cam, dt) {
+  var _csMesh = ctx.mesh;
+  var _csHalfH = ctx.halfH;
+  // Lock to head position
+  var headY = _csMesh.position.y + _csHalfH * 1.8;
+  cam.position.set(_csMesh.position.x, headY, _csMesh.position.z);
+  // Pitch/yaw from mouse state
+  var yaw = ctx._fpsYaw || 0;
+  var pitch = ctx._fpsPitch || 0;
+  var lookX = _csMesh.position.x + Math.sin(yaw) * Math.cos(pitch);
+  var lookY = headY + Math.sin(pitch);
+  var lookZ = _csMesh.position.z + Math.cos(yaw) * Math.cos(pitch);
+  cam.lookAt(lookX, lookY, lookZ);
+}
+
+var _cameraUpdaters = {
+  orbit: _updateOrbitCamera,
+  chase: _updateChaseCamera,
+  side: _updateSideCamera,
+  overhead: _updateOverheadCamera,
+  firstPerson: _updateFirstPersonCamera
+};
+
+// ===== ABILITY FACTORIES =====
+function _createDoubleJumpAbility(cfg) {
+  var maxJumps = cfg.jumpCount || 2;
+  var _jumpCount = 0;
+  var _wasGroundedAbility = true;
+  return {
+    name: 'doubleJump',
+    update: function(ctx, dt, isGrounded) {
+      if (isGrounded) { _jumpCount = 0; _wasGroundedAbility = true; }
+      else if (_wasGroundedAbility) { _jumpCount = 1; _wasGroundedAbility = false; }
+    },
+    canActivate: function(ctx, isGrounded) {
+      return !isGrounded && _jumpCount < maxJumps && _inputState.space;
+    },
+    activate: function(ctx) {
+      _jumpCount++;
+      var force = ctx.settings.jumpForce || 8;
+      if (ctx.useRapier && ctx._rapierGravityVel !== undefined) {
+        ctx._rapierGravityVel = force * 0.9;
+      } else if (ctx.body && ctx.body.velocity) {
+        ctx.body.velocity.y = force * 0.9;
+      }
+      _charAnimState = 'jump';
+      ctx.play('jump', { crossfade: 0.1 });
+      return true;
+    },
+    isActive: function() { return false; }
+  };
+}
+
+function _createDashAbility(cfg) {
+  var dashSpeed = (cfg && cfg.speed) || 20;
+  var dashDuration = (cfg && cfg.duration) || 0.2;
+  var dashCooldown = (cfg && cfg.cooldown) || 1.5;
+  var _timer = 0;
+  var _cooldownTimer = 0;
+  var _active = false;
+  var _dirX = 0, _dirZ = 0;
+  return {
+    name: 'dash',
+    update: function(ctx, dt) {
+      if (_cooldownTimer > 0) _cooldownTimer -= dt;
+      if (_active) {
+        _timer -= dt;
+        if (_timer <= 0) { _active = false; return; }
+        // Apply dash velocity
+        if (ctx.useRapier && ctx.rapierBody) {
+          // Dash direction applied via velocity override in controller
+        } else if (ctx.body && ctx.body.velocity) {
+          ctx.body.velocity.x = _dirX * dashSpeed;
+          ctx.body.velocity.z = _dirZ * dashSpeed;
+        }
+      }
+    },
+    canActivate: function() { return !_active && _cooldownTimer <= 0 && _inputState.dash; },
+    activate: function(ctx) {
+      _active = true;
+      _timer = dashDuration;
+      _cooldownTimer = dashCooldown;
+      // Dash in facing direction
+      _dirX = Math.sin(ctx.mesh.rotation.y);
+      _dirZ = Math.cos(ctx.mesh.rotation.y);
+      _charAnimState = 'dash';
+      return true;
+    },
+    isActive: function() { return _active; },
+    getDirX: function() { return _dirX; },
+    getDirZ: function() { return _dirZ; },
+    getSpeed: function() { return dashSpeed; }
+  };
+}
+
+function _createWallSlideAbility(cfg) {
+  var slideSpeed = (cfg && cfg.slideSpeed) || 2;
+  var wallJumpForce = (cfg && cfg.jumpForce) || 10;
+  var _onWall = false;
+  var _wallNormalX = 0, _wallNormalZ = 0;
+  return {
+    name: 'wallSlide',
+    update: function(ctx, dt, isGrounded) {
+      if (isGrounded) { _onWall = false; return; }
+      // Raycast left/right to detect walls
+      var mesh = ctx.mesh;
+      var rc = new THREE.Raycaster();
+      var dirs = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)];
+      var origin = new THREE.Vector3(mesh.position.x, mesh.position.y + ctx.halfH, mesh.position.z);
+      _onWall = false;
+      var scene = window.__vibexe_scene__;
+      if (!scene) return;
+      for (var i = 0; i < dirs.length; i++) {
+        rc.set(origin, dirs[i]);
+        rc.far = 0.6;
+        var hits = rc.intersectObjects(scene.children, true);
+        for (var h = 0; h < hits.length; h++) {
+          if (hits[h].object === mesh || hits[h].object.name.indexOf("Character_") === 0) continue;
+          if (hits[h].face) {
+            _onWall = true;
+            _wallNormalX = hits[h].face.normal.x;
+            _wallNormalZ = hits[h].face.normal.z;
+            // Reduce fall speed
+            if (ctx.body && ctx.body.velocity && ctx.body.velocity.y < -slideSpeed) {
+              ctx.body.velocity.y = -slideSpeed;
+            }
+            if (ctx._rapierGravityVel !== undefined && ctx._rapierGravityVel < -slideSpeed) {
+              ctx._rapierGravityVel = -slideSpeed;
+            }
+            break;
+          }
+        }
+        if (_onWall) break;
+      }
+      if (_onWall) _charAnimState = 'wallSlide';
+    },
+    canActivate: function(ctx, isGrounded) {
+      return _onWall && !isGrounded && _inputState.space;
+    },
+    activate: function(ctx) {
+      // Wall jump — push away from wall
+      var force = wallJumpForce;
+      if (ctx.body && ctx.body.velocity) {
+        ctx.body.velocity.x = _wallNormalX * force * 0.7;
+        ctx.body.velocity.y = force;
+        ctx.body.velocity.z = _wallNormalZ * force * 0.7;
+      }
+      if (ctx._rapierGravityVel !== undefined) ctx._rapierGravityVel = force;
+      _onWall = false;
+      _charAnimState = 'jump';
+      ctx.play('jump', { crossfade: 0.1 });
+      return true;
+    },
+    isActive: function() { return _onWall; }
+  };
+}
+
+function _createCrouchSlideAbility(cfg) {
+  var speedMult = (cfg && cfg.speedMultiplier) || 0.4;
+  var _active = false;
+  return {
+    name: 'crouch',
+    update: function(ctx, dt, isGrounded) {
+      _active = isGrounded && _inputState.crouch;
+      if (_active) _charAnimState = 'crouch';
+    },
+    canActivate: function() { return false; },
+    activate: function() { return false; },
+    isActive: function() { return _active; },
+    getSpeedMultiplier: function() { return _active ? speedMult : 1.0; }
+  };
+}
+
+function _createGroundPoundAbility(cfg) {
+  var poundForce = (cfg && cfg.force) || 30;
+  var _active = false;
+  var _landTimer = 0;
+  return {
+    name: 'groundPound',
+    update: function(ctx, dt, isGrounded) {
+      if (_active && isGrounded) {
+        _active = false;
+        _landTimer = 0.3;
+        _charAnimState = 'land';
+      }
+      if (_landTimer > 0) _landTimer -= dt;
+    },
+    canActivate: function(ctx, isGrounded) {
+      return !isGrounded && !_active && _inputState.crouch;
+    },
+    activate: function(ctx) {
+      _active = true;
+      if (ctx.body && ctx.body.velocity) {
+        ctx.body.velocity.x = 0; ctx.body.velocity.z = 0;
+        ctx.body.velocity.y = -poundForce;
+      }
+      if (ctx._rapierGravityVel !== undefined) ctx._rapierGravityVel = -poundForce;
+      _charAnimState = 'groundPound';
+      return true;
+    },
+    isActive: function() { return _active; }
+  };
+}
+
+function _initAbilities(cfg) {
+  var abilities = [];
+  var ab = cfg.abilities || {};
+  if (ab.doubleJump && ab.doubleJump.enabled) abilities.push(_createDoubleJumpAbility(cfg));
+  if (ab.dash && ab.dash.enabled) abilities.push(_createDashAbility(ab.dash));
+  if (ab.wallSlide && ab.wallSlide.enabled) abilities.push(_createWallSlideAbility(ab.wallSlide));
+  if (ab.crouch && ab.crouch.enabled) abilities.push(_createCrouchSlideAbility(ab.crouch));
+  if (ab.groundPound && ab.groundPound.enabled) abilities.push(_createGroundPoundAbility(ab.groundPound));
+  return abilities;
+}
+
+// ===== EXTENDED ANIMATION STATE MACHINE =====
+function _resolveAnimState(ctx, isGrounded, speed, vy, groundDist, abilities, lastAnim, landTimer) {
+  // Check ability-driven states first
+  for (var i = 0; i < abilities.length; i++) {
+    if (abilities[i].isActive()) {
+      var n = abilities[i].name;
+      if (n === 'dash') return 'dash';
+      if (n === 'wallSlide') return 'wallSlide';
+      if (n === 'crouch') return 'crouch';
+      if (n === 'groundPound') return 'groundPound';
+    }
+  }
+  // Standard state machine
+  if (!isGrounded && (vy < -1.5 || groundDist > 2.5)) return 'fall';
+  if (vy > 2) return 'jump';
+  if (lastAnim === 'fall' && isGrounded) return 'land';
+  if (lastAnim === 'land') {
+    if (landTimer > 0) return 'land';
+    if (speed > 0.5) return 'walk';
+    return 'idle';
+  }
+  if (lastAnim === 'run' ? speed > 3.2 : speed > 4) return 'run';
+  if (lastAnim === 'idle' ? speed > 0.5 : speed > 0.3) return 'walk';
+  return 'idle';
+}
+
+// Fallback chain for animation clips: dash→run, slide→walk, wallSlide→fall, crouch→idle, groundPound→fall
+var _ANIM_FALLBACKS = { dash: 'run', slide: 'walk', wallSlide: 'fall', crouch: 'idle', groundPound: 'fall', sprint: 'run' };
+
+function _playAnimForState(ctx, state, animMap) {
+  var clipName = null;
+  // Check user animationMap override first
+  var userMap = ctx.settings.animationMap;
+  if (userMap && userMap[state]) clipName = userMap[state];
+  if (!clipName) clipName = animMap[state];
+  if (!clipName) {
+    // Fallback chain
+    var fb = _ANIM_FALLBACKS[state];
+    if (fb) clipName = (userMap && userMap[fb]) || animMap[fb] || fb;
+  }
+  if (!clipName) clipName = state;
+  ctx.play(clipName, { crossfade: 0.15 });
+}
+
+// ===== RUNNER CONTROLLER =====
+function _createRunnerController(ctx) {
+  var cfg = ctx.settings;
+  var rcfg = cfg.runner || {};
+  var _speed = rcfg.initialSpeed || 8;
+  var _maxSpeed = rcfg.maxSpeed || 25;
+  var _accel = rcfg.acceleration || 0.15;
+  var _laneWidth = rcfg.laneWidth || 3;
+  var _laneCount = rcfg.laneCount || 3;
+  var _laneSwitchSpeed = rcfg.laneSwitchSpeed || 0.15;
+  var _lanes = [];
+  var _halfLanes = Math.floor(_laneCount / 2);
+  for (var i = 0; i < _laneCount; i++) _lanes.push((i - _halfLanes) * _laneWidth);
+  var _currentLane = _halfLanes; // Start in center
+  var _targetX = _lanes[_currentLane];
+  var _distance = 0;
+  var _paused = false;
+  var _speedMult = 1.0;
+  var _laneSwitching = false;
+  var _jumpForce = cfg.jumpForce || 10;
+  var _jumpCooldown = 0;
+  var _isGrounded = true;
+
+  // Expose runner API
+  window.__charCtrl_runner = {
+    getCurrentSpeed: function() { return _speed; },
+    getCurrentLane: function() { return _currentLane; },
+    getDistance: function() { return _distance; },
+    getLaneX: function(lane) { return _lanes[lane] || 0; },
+    setSpeedMultiplier: function(m) { _speedMult = m; },
+    reset: function() { _speed = rcfg.initialSpeed || 8; _distance = 0; _currentLane = _halfLanes; _targetX = _lanes[_currentLane]; _paused = false; },
+    pause: function() { _paused = true; },
+    resume: function() { _paused = false; }
+  };
+
+  return {
+    __charSystem: true,
+    update: function(dt) {
+      if (!ctx.body || _paused) return;
+      if (window.__vibexe_editor_active) return;
+      dt = Math.min(dt, 0.05);
+
+      // Speed ramp
+      _speed = Math.min(_maxSpeed, _speed + _accel * dt * 60 * _speedMult);
+
+      // Auto-forward (negative Z)
+      if (ctx.body.velocity) ctx.body.velocity.z = -_speed;
+
+      // Lane switching
+      _jumpCooldown = Math.max(0, _jumpCooldown - dt);
+      if ((_inputState.a || _inputState.w === false) && _inputState.a && !_laneSwitching) {
+        // Check specifically for left input
+      }
+      if (_inputState.a && !_laneSwitching && _currentLane > 0) {
+        _currentLane--;
+        _targetX = _lanes[_currentLane];
+        _laneSwitching = true;
+        setTimeout(function() { _laneSwitching = false; }, 200);
+      }
+      if (_inputState.d && !_laneSwitching && _currentLane < _laneCount - 1) {
+        _currentLane++;
+        _targetX = _lanes[_currentLane];
+        _laneSwitching = true;
+        setTimeout(function() { _laneSwitching = false; }, 200);
+      }
+
+      // Jump
+      _isGrounded = !!(ctx.body.__canJump);
+      if (_inputState.space && _isGrounded && _jumpCooldown <= 0) {
+        if (ctx.body.velocity) ctx.body.velocity.y = _jumpForce;
+        ctx.body.__canJump = false;
+        _jumpCooldown = 0.3;
+      }
+
+      // Tween X toward target lane
+      if (ctx.body.position) {
+        var dx = _targetX - ctx.body.position.x;
+        if (Math.abs(dx) > 0.05) {
+          ctx.body.position.x += dx * _laneSwitchSpeed * (dt * 60);
+          if (ctx.body.velocity) ctx.body.velocity.x = 0;
+        } else {
+          ctx.body.position.x = _targetX;
+          if (ctx.body.velocity) ctx.body.velocity.x = 0;
+        }
+      }
+
+      // Sync mesh
+      if (ctx.body.position) {
+        ctx.mesh.position.x = ctx.body.position.x;
+        ctx.mesh.position.y = ctx.body.position.y - ctx.halfH + (window.__vibexe_terrainSurfaceOffset || 0);
+        ctx.mesh.position.z = ctx.body.position.z;
+      }
+
+      // Distance tracking
+      _distance += _speed * dt;
+
+      // Animation
+      var vy = ctx.body.velocity ? ctx.body.velocity.y : 0;
+      if (vy > 2) { _charAnimState = 'jump'; }
+      else if (!_isGrounded && vy < -1) { _charAnimState = 'fall'; }
+      else { _charAnimState = 'run'; }
+      _playAnimForState(ctx, _charAnimState, ctx.animMap);
+
+      // Camera
+      var cam = window.__vibexe_camera__ || (window.__vibexe_editor__ || {}).camera;
+      if (cam) {
+        var camProfile = ctx.settings.cameraProfile || 'chase';
+        var updater = _cameraUpdaters[camProfile] || _updateChaseCamera;
+        updater(ctx, cam, dt);
+      }
+    },
+    dispose: function() {
+      window.__charCtrl_runner = null;
+    }
+  };
+}
+
+// ===== SIDESCROLL CONTROLLER =====
+function _createSidescrollController(ctx) {
+  var cfg = ctx.settings;
+  var _walkSpeed = cfg.walkSpeed || 5;
+  var _runSpeed = cfg.runSpeed || 10;
+  var _jumpForce = cfg.jumpForce || 12;
+  var _spawnZ = ctx.mesh.position.z; // Lock Z at spawn
+  var _jumpCooldown = 0;
+  var _rotVelocity = 0;
+  var _abilities = _initAbilities(cfg);
+  var _lastAnim = 'idle';
+  var _landTimer = 0;
+
+  return {
+    __charSystem: true,
+    update: function(dt) {
+      if (!ctx.body) return;
+      if (window.__vibexe_editor_active) return;
+      dt = Math.min(dt, 0.05);
+
+      var inputX = 0;
+      if (_inputState.a) inputX -= 1;
+      if (_inputState.d) inputX += 1;
+      var hasInput = Math.abs(inputX) > 0.01;
+      var isRunning = _inputState.shift && hasInput;
+      var moveSpeed = isRunning ? _runSpeed : _walkSpeed;
+
+      // Crouch speed modifier
+      var crouchMod = 1;
+      for (var ai = 0; ai < _abilities.length; ai++) {
+        if (_abilities[ai].getSpeedMultiplier) crouchMod *= _abilities[ai].getSpeedMultiplier();
+      }
+
+      _jumpCooldown = Math.max(0, _jumpCooldown - dt);
+      var isGrounded = !!(ctx.body.__canJump);
+
+      if (ctx.body.velocity) {
+        ctx.body.velocity.x = inputX * moveSpeed * crouchMod;
+        ctx.body.velocity.z = 0; // Lock Z
+      }
+      if (ctx.body.position) ctx.body.position.z = _spawnZ;
+
+      // Jump
+      if (_inputState.space && isGrounded && _jumpCooldown <= 0) {
+        if (ctx.body.velocity) ctx.body.velocity.y = _jumpForce;
+        ctx.body.__canJump = false;
+        _jumpCooldown = 0.3;
+      }
+
+      // Abilities
+      var speed = Math.abs(ctx.body.velocity ? ctx.body.velocity.x : 0);
+      var vy = ctx.body.velocity ? ctx.body.velocity.y : 0;
+      for (var ai2 = 0; ai2 < _abilities.length; ai2++) {
+        _abilities[ai2].update(ctx, dt, isGrounded);
+        if (_abilities[ai2].canActivate(ctx, isGrounded)) _abilities[ai2].activate(ctx);
+      }
+
+      // Rotation — face movement direction
+      if (hasInput) {
+        var targetAngle = inputX > 0 ? Math.PI / 2 : -Math.PI / 2;
+        var dampResult = _smoothDampAngle(ctx.mesh.rotation.y, targetAngle, _rotVelocity, 0.1, dt);
+        ctx.mesh.rotation.y = dampResult.value;
+        _rotVelocity = dampResult.velocity;
+      }
+
+      // Sync mesh
+      if (ctx.body.position) {
+        ctx.mesh.position.x = ctx.body.position.x;
+        ctx.mesh.position.y = ctx.body.position.y - ctx.halfH + (window.__vibexe_terrainSurfaceOffset || 0);
+        ctx.mesh.position.z = ctx.body.position.z;
+      }
+
+      // Animation
+      if (_lastAnim === 'fall' && isGrounded) _landTimer = 0.3;
+      if (_landTimer > 0) _landTimer -= dt;
+      var groundDist = 999;
+      var _getH = window.__vibexe_getTerrainHeight;
+      if (_getH) { var th = _getH(ctx.mesh.position.x, ctx.mesh.position.z); if (th != null) groundDist = ctx.mesh.position.y - th; }
+      var newAnim = _resolveAnimState(ctx, isGrounded, speed, vy, groundDist, _abilities, _lastAnim, _landTimer);
+      if (newAnim !== _lastAnim) { _playAnimForState(ctx, newAnim, ctx.animMap); _lastAnim = newAnim; }
+      _charAnimState = _lastAnim;
+
+      // Camera
+      var cam = window.__vibexe_camera__ || (window.__vibexe_editor__ || {}).camera;
+      if (cam) {
+        var updater = _cameraUpdaters[cfg.cameraProfile || 'side'] || _updateSideCamera;
+        updater(ctx, cam, dt);
+      }
+    },
+    dispose: function() {}
+  };
+}
+
+// ===== TOPDOWN CONTROLLER =====
+function _createTopdownController(ctx) {
+  var cfg = ctx.settings;
+  var _walkSpeed = cfg.walkSpeed || 8;
+  var _runSpeed = cfg.runSpeed || 12;
+  var _rotVelocity = 0;
+  var _abilities = _initAbilities(cfg);
+  var _lastAnim = 'idle';
+  var _landTimer = 0;
+
+  return {
+    __charSystem: true,
+    update: function(dt) {
+      if (!ctx.body) return;
+      if (window.__vibexe_editor_active) return;
+      dt = Math.min(dt, 0.05);
+
+      // WASD world-relative (no camera rotation)
+      var inputX = 0, inputZ = 0;
+      if (_inputState.w) inputZ -= 1;
+      if (_inputState.s) inputZ += 1;
+      if (_inputState.a) inputX -= 1;
+      if (_inputState.d) inputX += 1;
+      var inputLen = Math.sqrt(inputX * inputX + inputZ * inputZ);
+      if (inputLen > 1) { inputX /= inputLen; inputZ /= inputLen; }
+      var hasInput = inputLen > 0.01;
+      var isRunning = _inputState.shift && hasInput;
+      var moveSpeed = isRunning ? _runSpeed : _walkSpeed;
+
+      var crouchMod = 1;
+      for (var ai = 0; ai < _abilities.length; ai++) {
+        if (_abilities[ai].getSpeedMultiplier) crouchMod *= _abilities[ai].getSpeedMultiplier();
+      }
+
+      if (ctx.body.velocity) {
+        ctx.body.velocity.x = inputX * moveSpeed * crouchMod;
+        ctx.body.velocity.z = inputZ * moveSpeed * crouchMod;
+      }
+
+      var isGrounded = !!(ctx.body.__canJump);
+
+      // Face movement direction
+      if (hasInput) {
+        var targetAngle = Math.atan2(inputX, inputZ);
+        var dampResult = _smoothDampAngle(ctx.mesh.rotation.y, targetAngle, _rotVelocity, 0.1, dt);
+        ctx.mesh.rotation.y = dampResult.value;
+        _rotVelocity = dampResult.velocity;
+      }
+
+      // Abilities
+      var speed = Math.sqrt((ctx.body.velocity ? ctx.body.velocity.x : 0) * (ctx.body.velocity ? ctx.body.velocity.x : 0) + (ctx.body.velocity ? ctx.body.velocity.z : 0) * (ctx.body.velocity ? ctx.body.velocity.z : 0));
+      var vy = ctx.body.velocity ? ctx.body.velocity.y : 0;
+      for (var ai2 = 0; ai2 < _abilities.length; ai2++) {
+        _abilities[ai2].update(ctx, dt, isGrounded);
+        if (_abilities[ai2].canActivate(ctx, isGrounded)) _abilities[ai2].activate(ctx);
+      }
+
+      // Sync mesh
+      if (ctx.body.position) {
+        ctx.mesh.position.x = ctx.body.position.x;
+        ctx.mesh.position.y = ctx.body.position.y - ctx.halfH + (window.__vibexe_terrainSurfaceOffset || 0);
+        ctx.mesh.position.z = ctx.body.position.z;
+      }
+
+      // Animation
+      if (_lastAnim === 'fall' && isGrounded) _landTimer = 0.3;
+      if (_landTimer > 0) _landTimer -= dt;
+      var groundDist = 999;
+      var _getH = window.__vibexe_getTerrainHeight;
+      if (_getH) { var th = _getH(ctx.mesh.position.x, ctx.mesh.position.z); if (th != null) groundDist = ctx.mesh.position.y - th; }
+      var newAnim = _resolveAnimState(ctx, isGrounded, speed, vy, groundDist, _abilities, _lastAnim, _landTimer);
+      if (newAnim !== _lastAnim) { _playAnimForState(ctx, newAnim, ctx.animMap); _lastAnim = newAnim; }
+      _charAnimState = _lastAnim;
+
+      // Camera
+      var cam = window.__vibexe_camera__ || (window.__vibexe_editor__ || {}).camera;
+      if (cam) {
+        var updater = _cameraUpdaters[cfg.cameraProfile || 'overhead'] || _updateOverheadCamera;
+        updater(ctx, cam, dt);
+      }
+    },
+    dispose: function() {}
+  };
+}
+
+// ===== FPS CONTROLLER =====
+function _createFPSController(ctx) {
+  var cfg = ctx.settings;
+  var _walkSpeed = cfg.walkSpeed || 5;
+  var _runSpeed = cfg.runSpeed || 10;
+  var _jumpForce = cfg.jumpForce || 8;
+  var _jumpCooldown = 0;
+  var _yaw = 0;
+  var _pitch = 0;
+  var _pointerLocked = false;
+  var _abilities = _initAbilities(cfg);
+  var _lastAnim = 'idle';
+  var _landTimer = 0;
+
+  // Hide player mesh in FPS mode
+  ctx.mesh.visible = false;
+
+  // Pointer lock
+  var doc = typeof document !== "undefined" ? document : null;
+  if (doc) {
+    _addTrackedListener(doc, "click", function() {
+      if (!_pointerLocked && doc.pointerLockElement !== doc.body) {
+        try { doc.body.requestPointerLock(); } catch(e) {}
+      }
+    });
+    _addTrackedListener(doc, "pointerlockchange", function() {
+      _pointerLocked = !!doc.pointerLockElement;
+    });
+    _addTrackedListener(doc, "mousemove", function(e) {
+      if (!_pointerLocked) return;
+      _yaw += e.movementX * 0.002;
+      _pitch -= e.movementY * 0.002;
+      _pitch = Math.max(-1.4, Math.min(1.4, _pitch));
+    });
+  }
+
+  ctx._fpsYaw = _yaw;
+  ctx._fpsPitch = _pitch;
+
+  return {
+    __charSystem: true,
+    update: function(dt) {
+      if (!ctx.body) return;
+      if (window.__vibexe_editor_active) return;
+      dt = Math.min(dt, 0.05);
+
+      ctx._fpsYaw = _yaw;
+      ctx._fpsPitch = _pitch;
+
+      // WASD strafe relative to facing
+      var inputX = 0, inputZ = 0;
+      if (_inputState.w) inputZ -= 1;
+      if (_inputState.s) inputZ += 1;
+      if (_inputState.a) inputX -= 1;
+      if (_inputState.d) inputX += 1;
+      var inputLen = Math.sqrt(inputX * inputX + inputZ * inputZ);
+      if (inputLen > 1) { inputX /= inputLen; inputZ /= inputLen; }
+      var hasInput = inputLen > 0.01;
+      var isRunning = _inputState.shift && hasInput;
+      var moveSpeed = isRunning ? _runSpeed : _walkSpeed;
+
+      // Rotate input by yaw
+      var cosY = Math.cos(_yaw);
+      var sinY = Math.sin(_yaw);
+      var worldX = inputX * cosY + inputZ * sinY;
+      var worldZ = -inputX * sinY + inputZ * cosY;
+
+      if (ctx.body.velocity) {
+        ctx.body.velocity.x = worldX * moveSpeed;
+        ctx.body.velocity.z = worldZ * moveSpeed;
+      }
+
+      _jumpCooldown = Math.max(0, _jumpCooldown - dt);
+      var isGrounded = !!(ctx.body.__canJump);
+      if (_inputState.space && isGrounded && _jumpCooldown <= 0) {
+        if (ctx.body.velocity) ctx.body.velocity.y = _jumpForce;
+        ctx.body.__canJump = false;
+        _jumpCooldown = 0.3;
+      }
+
+      // Abilities
+      for (var ai = 0; ai < _abilities.length; ai++) {
+        _abilities[ai].update(ctx, dt, isGrounded);
+        if (_abilities[ai].canActivate(ctx, isGrounded)) _abilities[ai].activate(ctx);
+      }
+
+      // Sync mesh position (still tracks physics even though invisible)
+      if (ctx.body.position) {
+        ctx.mesh.position.x = ctx.body.position.x;
+        ctx.mesh.position.y = ctx.body.position.y - ctx.halfH;
+        ctx.mesh.position.z = ctx.body.position.z;
+        ctx.mesh.rotation.y = _yaw;
+      }
+
+      // Animation (for third-person spectators or shadow)
+      var speed = Math.sqrt(worldX * worldX + worldZ * worldZ) * moveSpeed;
+      var vy = ctx.body.velocity ? ctx.body.velocity.y : 0;
+      if (_lastAnim === 'fall' && isGrounded) _landTimer = 0.3;
+      if (_landTimer > 0) _landTimer -= dt;
+      var newAnim = _resolveAnimState(ctx, isGrounded, speed, vy, 999, _abilities, _lastAnim, _landTimer);
+      if (newAnim !== _lastAnim) { _playAnimForState(ctx, newAnim, ctx.animMap); _lastAnim = newAnim; }
+      _charAnimState = _lastAnim;
+
+      // Camera — first person
+      var cam = window.__vibexe_camera__ || (window.__vibexe_editor__ || {}).camera;
+      if (cam) {
+        _updateFirstPersonCamera(ctx, cam, dt);
+      }
+    },
+    dispose: function() {
+      ctx.mesh.visible = true;
+      if (doc && doc.exitPointerLock) try { doc.exitPointerLock(); } catch(e) {}
+    }
+  };
+}
+
 // ===== SWAP FUNCTION =====
 var _isSwapping = false;
 
@@ -987,21 +1898,17 @@ function swapCharacter(scene, characterId) {
       // Set global reference EARLY (before controller init) so other systems can find the new mesh
       window.__vibexe_playerMesh__ = result.mesh;
 
-      // === Blink-style WASD Controller (v6.0.0) ===
-      // Camera-relative movement, smooth rotation, orbit camera, scroll zoom
-      // Port of Unity "Blink Top Down WASD Character Controller" to Three.js + CANNON.js
+      // === Character Controller (v9.0.0) ===
+      // Multi-mode: orbit (default), runner, sidescroll, topdown, fps
+      // Supports genre presets, camera profiles, abilities, input profiles
 
       // Attach input listeners (idempotent — only runs once)
       _attachInputListeners();
 
       // Tell the game template's IIFE to stop handling WASD input
-      // (charSystem controller now owns movement, animation, and camera)
       window.__charCtrl_active = true;
 
-      // C5 fix: Neutralize CANNON asymmetric gravity from old saved templates.
-      // Old GameScene3D.ts files set world.gravity to FALL_GRAVITY (-69) every frame,
-      // causing CANNON/Rapier gravity mismatch. preStep fires inside world.step()
-      // AFTER the template sets gravity but BEFORE physics sim — clean override.
+      // C5 fix: Neutralize CANNON asymmetric gravity
       var _cannonWorld = window.__vibexe_world__;
       if (_cannonWorld && _cannonWorld.addEventListener) {
         var _cfgGrav = parseFloat(((window.__VIBEXE_GAME_SETTINGS__ || {}).physics || {}).gravity) || -5;
@@ -1012,23 +1919,13 @@ function swapCharacter(scene, characterId) {
         });
       }
 
-      // Register on module API registry for inter-module communication
-      if (!window.__vibexe_moduleAPI) window.__vibexe_moduleAPI = {};
-      window.__vibexe_moduleAPI['character-system'] = {
-        version: '8.0',
-        getMesh: function() { return result.mesh; },
-        getPosition: function() { return result.mesh ? { x: result.mesh.position.x, y: result.mesh.position.y, z: result.mesh.position.z } : null; },
-        has: { rapierKCC: true, animations: true, orbitCamera: true }
-      };
-
-      // Remove only old charSystem controllers, preserve others (e.g. trigger/spring controllers)
+      // Remove only old charSystem controllers, preserve others
       if (window._activeControllers3D) {
         for (var _ci = window._activeControllers3D.length - 1; _ci >= 0; _ci--) {
           if (window._activeControllers3D[_ci] && window._activeControllers3D[_ci].__charSystem) {
             window._activeControllers3D.splice(_ci, 1);
           }
         }
-        console.log("[CharacterSystem] Removed old charSystem controllers, remaining:", window._activeControllers3D.length);
       }
 
       var animMap = result.mesh.userData.__animMap || {};
@@ -1038,9 +1935,72 @@ function swapCharacter(scene, characterId) {
       var _csPlay = result.mesh.userData.__play;
 
       if (_csPlay && _csBody) {
-        // === Controller configuration from game settings ===
+        // === Preset Resolution + Mode Dispatch ===
         var _gsCamera = (window.__VIBEXE_GAME_SETTINGS__ || {}).camera || {};
-        var _gsChar = (window.__VIBEXE_GAME_SETTINGS__ || {}).characterController || {};
+        var _gsCharRaw = (window.__VIBEXE_GAME_SETTINGS__ || {}).characterController || {};
+        // Merge preset with user overrides
+        var _presetData = _gsCharRaw.preset ? (GENRE_PRESETS[_gsCharRaw.preset] || null) : null;
+        var _gsChar = {};
+        if (_presetData) { for (var _pk in _presetData) { if (_presetData.hasOwnProperty(_pk)) _gsChar[_pk] = _presetData[_pk]; } }
+        for (var _uk in _gsCharRaw) { if (_gsCharRaw.hasOwnProperty(_uk)) _gsChar[_uk] = _gsCharRaw[_uk]; }
+        // Deep merge abilities
+        if (_presetData && _presetData.abilities && _gsCharRaw.abilities) {
+          _gsChar.abilities = {};
+          for (var _apk in _presetData.abilities) { if (_presetData.abilities.hasOwnProperty(_apk)) _gsChar.abilities[_apk] = _presetData.abilities[_apk]; }
+          for (var _auk in _gsCharRaw.abilities) { if (_gsCharRaw.abilities.hasOwnProperty(_auk)) _gsChar.abilities[_auk] = _gsCharRaw.abilities[_auk]; }
+        }
+        // Deep merge runner config
+        if (_presetData && _presetData.runner && _gsCharRaw.runner) {
+          _gsChar.runner = {};
+          for (var _rpk in _presetData.runner) { if (_presetData.runner.hasOwnProperty(_rpk)) _gsChar.runner[_rpk] = _presetData.runner[_rpk]; }
+          for (var _ruk in _gsCharRaw.runner) { if (_gsCharRaw.runner.hasOwnProperty(_ruk)) _gsChar.runner[_ruk] = _gsCharRaw.runner[_ruk]; }
+        }
+
+        // Input profile resolution
+        if (_gsChar.inputProfile) {
+          if (typeof _gsChar.inputProfile === 'string') {
+            _activeInputProfile = INPUT_PROFILES[_gsChar.inputProfile] || INPUT_PROFILES['default'];
+          } else if (typeof _gsChar.inputProfile === 'object') {
+            _activeInputProfile = _gsChar.inputProfile;
+          }
+        }
+
+        var _controllerMode = _gsChar.controllerMode || 'orbit';
+        console.log("[CharacterSystem] Controller mode:", _controllerMode, "| preset:", _gsChar.preset || "none");
+
+        // Register module API
+        if (!window.__vibexe_moduleAPI) window.__vibexe_moduleAPI = {};
+        window.__vibexe_moduleAPI['character-system'] = {
+          version: '9.0',
+          getMesh: function() { return result.mesh; },
+          getPosition: function() { return result.mesh ? { x: result.mesh.position.x, y: result.mesh.position.y, z: result.mesh.position.z } : null; },
+          has: { rapierKCC: true, animations: true, orbitCamera: true },
+          getMode: function() { return _controllerMode; },
+          getPreset: function() { return _gsChar.preset || null; }
+        };
+
+        // === NON-ORBIT CONTROLLER DISPATCH ===
+        if (_controllerMode !== 'orbit') {
+          var _csHalfH = result.mesh.userData.__characterBounds ? result.mesh.userData.__characterBounds.height / 2 : 0.75;
+          var _ctrlCtx = {
+            mesh: _csMesh, body: _csBody, play: _csPlay, animMap: animMap, halfH: _csHalfH,
+            settings: _gsChar, cameraSettings: _gsCamera,
+            _camState: { velX: 0, velY: 0, velZ: 0, dist: _gsChar.camDist || 12, distTarget: _gsChar.camDist || 12,
+              height: _gsChar.camHeight || 8, heightTarget: _gsChar.camHeight || 8, smoothTime: _gsChar.camSmoothTime || 0.12,
+              minDist: 3, maxDist: 25, minHeight: 2, maxHeight: 20,
+              offsetX: 0, offsetZ: 0, offsetVelX: 0, offsetVelZ: 0, offsetMax: 0.8, offsetSmooth: 0.25,
+              lookYOffset: _gsChar.camLookY || 1.2, lookAtInit: false, lookAtX: 0, lookAtY: 0, lookAtZ: 0 },
+            useRapier: false, rapierBody: null, rapierCollider: null, rapierKCC: null,
+            _rapierGravityVel: 0, _cursorActive: false, _cursorTarget: new THREE.Vector3()
+          };
+          var _ctrlFactory = { runner: _createRunnerController, sidescroll: _createSidescrollController, topdown: _createTopdownController, fps: _createFPSController }[_controllerMode];
+          if (_ctrlFactory) {
+            var newCtrl = _ctrlFactory(_ctrlCtx);
+            if (window._activeControllers3D) window._activeControllers3D.push(newCtrl);
+            console.log("[CharacterSystem] " + _controllerMode + " controller created | animMap:", Object.keys(animMap).join(","));
+          }
+        } else {
+        // === ORBIT CONTROLLER (default, backward-compatible) ===
         var _csHalfH = result.mesh.userData.__characterBounds ? result.mesh.userData.__characterBounds.height / 2 : 0.75;
 
         // Movement speeds (matches Blink: walkSpeed=2, runSpeed=5)
@@ -1682,6 +2642,7 @@ function swapCharacter(scene, characterId) {
               var clipName = animMap[targetAnim] || targetAnim;
               _csPlay(clipName, { crossfade: 0.15 });
               _csLastAnim = targetAnim;
+              _charAnimState = targetAnim;
             }
 
             // === 8.6 FOOTSTEP AUDIO (#10) ===
@@ -1997,7 +2958,7 @@ function swapCharacter(scene, characterId) {
           d.velZ = _csBody.velocity ? _csBody.velocity.z : 0;
           d.speed = Math.sqrt(d.velX * d.velX + d.velZ * d.velZ);
           d.isGrounded = !!_csBody.__canJump;
-          d.animState = _csLastAnim || "?";
+          d.animState = _charAnimState || _csLastAnim || "?";
 
           // Terrain comparison
           var _getHDiag = window.__vibexe_getTerrainHeight;
@@ -2071,10 +3032,11 @@ function swapCharacter(scene, characterId) {
         if (window._activeControllers3D) {
           window._activeControllers3D.push(newCtrl);
         }
-        console.log("[CharacterSystem] Blink controller v8.0 created | physics:", _useRapier ? "Rapier KCC" : "CANNON",
+        console.log("[CharacterSystem] Orbit controller v9.0 created | physics:", _useRapier ? "Rapier KCC" : "CANNON",
           "| animMap:", Object.keys(animMap).join(","),
           "| speeds:", _walkSpeed + "/" + _runSpeed, "| camDist:", _camDist.toFixed(1), "| diag: press \` to toggle");
-      }
+      } // end orbit controller (else branch)
+      } // end mode dispatch
 
       // === Post-terrain snap: poll for terrain height, snap character when available ===
       var _snapDone = false;
@@ -2285,9 +3247,9 @@ module.exports = {
 export const CHARACTER_SYSTEM_MANIFEST: ModuleManifest = {
 	id: "character-system",
 	name: "Character System",
-	version: "8.0.0",
+	version: "9.0.0",
 	category: "tools",
-	description: "Player character selection and model swapping",
+	description: "Multi-mode character controller with camera profiles, abilities, and genre presets",
 	icon: "PersonStanding",
 	assets: [],
 	runtimeCode,

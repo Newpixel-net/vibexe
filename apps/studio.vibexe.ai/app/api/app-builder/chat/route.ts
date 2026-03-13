@@ -831,23 +831,23 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 					if (isRunner3d) {
 						// RUNNER: NO terrain-painter (runner template creates its own flat
 						// ground + lane markers + segment platforms — terrain would conflict).
-						// NO character-system (runner template has its own auto-forward +
-						// lane-switching controller, not WASD orbit). Just sky for atmosphere.
+						// Character-system with runner mode: auto-forward + lane switching
+						preActivatedModules["character-system"] = { enabled: true, version: "9.0.0" };
 						preActivatedModules["sky-weather"] = { enabled: true, version: "1.0.0" };
 					} else if (isShooter3d) {
 						// SHOOTER: flat arena terrain, character-system for player control
 						preActivatedModules["terrain-painter"] = { enabled: true, version: "1.0.0" };
-						preActivatedModules["character-system"] = { enabled: true, version: "8.0.0" };
+						preActivatedModules["character-system"] = { enabled: true, version: "9.0.0" };
 						preActivatedModules["sky-weather"] = { enabled: true, version: "1.0.0" };
 					} else if (needsTerrain) {
 						// OPEN WORLD / EXPLORATION: full terrain, character, atmosphere
 						preActivatedModules["terrain-painter"] = { enabled: true, version: "1.0.0" };
-						preActivatedModules["character-system"] = { enabled: true, version: "8.0.0" };
+						preActivatedModules["character-system"] = { enabled: true, version: "9.0.0" };
 						preActivatedModules["sky-weather"] = { enabled: true, version: "1.0.0" };
 					} else if (hasAnimatedCharacter) {
 						// CHARACTER-BASED (platformer etc.): terrain + character system
 						preActivatedModules["terrain-painter"] = { enabled: true, version: "1.0.0" };
-						preActivatedModules["character-system"] = { enabled: true, version: "8.0.0" };
+						preActivatedModules["character-system"] = { enabled: true, version: "9.0.0" };
 						preActivatedModules["sky-weather"] = { enabled: true, version: "1.0.0" };
 					} else {
 						// GENERIC 3D: just sky for atmosphere
@@ -858,11 +858,12 @@ const supabase = createClient("${supabaseConfig.url}", "${supabaseConfig.anonKey
 						// ── Genre-specific base settings ──
 						// Each genre gets optimized physics, camera, and terrain config
 						const genreSettings = isRunner3d ? {
-							// RUNNER: chase camera, auto-forward physics, flat terrain
+							// RUNNER: chase camera, auto-forward physics, char-system runner mode
 							player: { spawnX: 0, spawnY: 2, spawnZ: 0, startingLives: 3, respawnX: 0, respawnY: 2, respawnZ: 0 },
 							physics: { gravity: -30, fallGravity: -50, jumpForce: 10, moveSpeed: 8, runSpeed: 8, friction: 20, coyoteTime: 0.1 },
 							camera: { offsetY: 6, offsetZ: 12, fov: 65, lerp: 5, lookAhead: 8, lookY: 0, near: 0.1, far: 500 },
 							runner: { initialSpeed: 8, maxSpeed: 25, acceleration: 0.15, laneWidth: 3, maxLives: 3, jumpVelocity: 10 },
+							characterController: { preset: "endless_runner" },
 						} : isShooter3d ? {
 							// SHOOTER: tactical camera, arena physics
 							player: { spawnX: 0, spawnY: 3, spawnZ: 0, startingLives: 5, respawnX: 0, respawnY: 5, respawnZ: 0 },

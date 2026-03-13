@@ -244,6 +244,33 @@ export interface GameSettings {
 		groundOffset?: number; // Fine-tune feet-to-floor offset
 		scale?: number;      // Scale multiplier (on top of auto-scale)
 	};
+	// Character controller — mode, camera, movement, abilities
+	characterController?: {
+		controllerMode?: "orbit" | "runner" | "sidescroll" | "topdown" | "fps";
+		cameraProfile?: "orbit" | "chase" | "side" | "overhead" | "firstPerson";
+		preset?: string;
+		walkSpeed?: number; runSpeed?: number; sprintSpeed?: number;
+		jumpForce?: number; jumpCount?: number;
+		accelGround?: number; decelGround?: number; accelAir?: number; airControl?: number;
+		slopeMaxAngle?: number; stepHeight?: number; gravityScale?: number;
+		camDist?: number; camHeight?: number; camSmoothTime?: number; camLookY?: number;
+		rotationSmoothTime?: number;
+		camMinDist?: number; camMaxDist?: number; camMinHeight?: number; camMaxHeight?: number;
+		camMouseOffset?: number; camOffsetDampTime?: number;
+		runner?: {
+			initialSpeed?: number; maxSpeed?: number; acceleration?: number;
+			laneWidth?: number; laneCount?: number; laneSwitchSpeed?: number;
+		};
+		abilities?: {
+			doubleJump?: { enabled?: boolean };
+			dash?: { enabled?: boolean; speed?: number; duration?: number; cooldown?: number };
+			wallSlide?: { enabled?: boolean; slideSpeed?: number; jumpForce?: number };
+			crouch?: { enabled?: boolean; speedMultiplier?: number };
+			groundPound?: { enabled?: boolean; force?: number };
+		};
+		animationMap?: Record<string, string>;
+		inputProfile?: string | Record<string, string>;
+	};
 	// Multi-scene / level system
 	scenes?: SceneDefinition[];
 	activeSceneId?: string;
