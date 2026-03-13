@@ -938,8 +938,6 @@ export function SandpackPreview({
 	gameEditorRef.current = gameEditor;
 	const visualEditRef = useRef(visualEdit);
 	visualEditRef.current = visualEdit;
-	const isGameModeRef = useRef(isGameMode);
-	isGameModeRef.current = isGameMode;
 	// Debounce timers for gizmo drag to prevent React re-render storms
 	const playerPosUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const cameraMoveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -951,6 +949,8 @@ export function SandpackPreview({
 
 	// Detect game mode
 	const isGameMode = projectType === "game" || projectType === "game-mobile";
+	const isGameModeRef = useRef(isGameMode);
+	isGameModeRef.current = isGameMode;
 
 	// Ref for triggering Sandpack refresh from outside SandpackProvider
 	const sandpackRefreshRef = useRef<(() => void) | null>(null);
