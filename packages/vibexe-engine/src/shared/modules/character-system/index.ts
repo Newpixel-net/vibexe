@@ -3137,9 +3137,16 @@ if (typeof window !== "undefined") {
     // Reinit controller with current settings (triggered by Save & Apply)
     // Re-swaps the same character to rebuild controller with updated characterController config
     if (type === "character-system-reinit") {
-      if (_lastSwapScene && _lastSwapCharId) {
-        console.log("[CharacterSystem] Reinit: rebuilding controller for", _lastSwapCharId);
-        swapCharacter(_lastSwapScene, _lastSwapCharId);
+      var _reinitScene = _lastSwapScene || window.__vibexe_scene__;
+      var _reinitCharId = _lastSwapCharId;
+      // If no character was swapped yet, use saved config or default to "warrior"
+      if (!_reinitCharId) {
+        var _gs = window.__VIBEXE_GAME_SETTINGS__ || {};
+        _reinitCharId = (_gs.character && _gs.character.id) ? _gs.character.id : "warrior";
+      }
+      if (_reinitScene) {
+        console.log("[CharacterSystem] Reinit: rebuilding controller for", _reinitCharId);
+        swapCharacter(_reinitScene, _reinitCharId);
       }
     }
 
@@ -3258,6 +3265,29 @@ if (typeof window !== "undefined") {
         }
       }, 100);
       window.__charCtrl_swapWaitInterval = _wait;
+    } else if (gs.characterController && (gs.characterController.controllerMode || gs.characterController.preset)) {
+      // No character ID but characterController settings exist — take over existing player mesh
+      console.log("[CharacterSystem] Auto-init: characterController settings found, will take over existing mesh");
+      if (window.__charCtrl_swapWaitInterval) {
+        clearInterval(window.__charCtrl_swapWaitInterval);
+        window.__charCtrl_swapWaitInterval = null;
+      }
+      var _waitCount2 = 0;
+      var _wait2 = setInterval(function() {
+        _waitCount2++;
+        var pm = window.__vibexe_playerMesh__;
+        if (pm && pm.userData && pm.userData.__physicsBody) {
+          clearInterval(_wait2);
+          window.__charCtrl_swapWaitInterval = null;
+          // Swap with "warrior" (built-in) — GLB cached after first load
+          setTimeout(function() { swapCharacter(scene, "warrior"); }, 500);
+        } else if (_waitCount2 > 150) {
+          clearInterval(_wait2);
+          window.__charCtrl_swapWaitInterval = null;
+          console.warn("[CharacterSystem] Auto-init timeout waiting for player mesh");
+        }
+      }, 100);
+      window.__charCtrl_swapWaitInterval = _wait2;
     } else {
       console.log("[CharacterSystem] No character config — standing by for user selection");
     }

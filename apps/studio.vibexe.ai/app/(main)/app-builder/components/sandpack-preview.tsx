@@ -1186,11 +1186,17 @@ export function SandpackPreview({
 			// If characterController settings exist, trigger controller reinit
 			// so the character system picks up new mode/preset/abilities/speeds
 			if (settings.characterController) {
+				// Ensure a character ID is set so the module can swap/reinit
+				if (!settings.character?.id) {
+					settings.character = { ...(settings.character || {}), id: "warrior" };
+				}
 				const iframe = iframeRef.current;
 				if (iframe?.contentWindow) {
+					// Send updated settings first (with character.id), then reinit
+					iframe.contentWindow.postMessage({ type: "updateGameSettings", settings }, "*");
 					setTimeout(() => {
 						iframe.contentWindow?.postMessage({ type: "character-system-reinit" }, "*");
-					}, 300);
+					}, 400);
 				}
 			}
 		} finally {
