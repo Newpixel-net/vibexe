@@ -210,6 +210,8 @@ export interface TerrainPainterPanelProps {
 		depth: number;
 		heightScale: number;
 		segments: number;
+		biome?: string;
+		seed?: number;
 		layers: Array<{ textureUrl: string; normalUrl: string; enabled: boolean; tileSize: number; opacity?: number; roughness?: number; normalIntensity?: number; metallic?: boolean; modifiers?: any[]; materialId?: string; emissionUrl?: string; emissionIntensity?: number }>;
 	}) => void;
 	initialConfig?: {
@@ -217,6 +219,8 @@ export interface TerrainPainterPanelProps {
 		depth?: number;
 		heightScale?: number;
 		segments?: number;
+		biome?: string;
+		seed?: number;
 		layers?: Array<{
 			textureUrl?: string;
 			enabled?: boolean;
@@ -289,11 +293,19 @@ export function TerrainPainterPanel({
 	const [sculptBrushFalloff, setSculptBrushFalloff] = useState<"gaussian" | "linear" | "flat">("gaussian");
 	const [sculptActive, setSculptActive] = useState(false);
 
-	// Preset browser state
+	// Preset browser state — restore from saved config if biome was persisted
 	const [selectedGenre, setSelectedGenre] = useState<string>("all");
 	const [selectedEnvironment, setSelectedEnvironment] = useState<string>("all");
-	const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
-	const [biomeSeed, setBiomeSeed] = useState<number>(Math.floor(Math.random() * 999999));
+	const [selectedPreset, setSelectedPreset] = useState<string | null>(() => {
+		if (initialConfig?.biome) {
+			const match = TERRAIN_PRESETS.find((p) => p.biomeId === initialConfig.biome);
+			return match?.id || null;
+		}
+		return null;
+	});
+	const [biomeSeed, setBiomeSeed] = useState<number>(() =>
+		initialConfig?.seed ?? Math.floor(Math.random() * 999999)
+	);
 
 	// Sculpt activation/deactivation on tab change
 	useEffect(() => {
@@ -371,12 +383,15 @@ export function TerrainPainterPanel({
 		});
 		// Also persist layer config changes on repaint (not just generate)
 		if (onTerrainConfigChanged) {
+			const preset = selectedPreset ? TERRAIN_PRESETS.find((p) => p.id === selectedPreset) : null;
 			onTerrainConfigChanged({
 				enabled: true,
 				width: settings.terrainWidth,
 				depth: settings.terrainDepth,
 				heightScale: settings.terrainHeightScale,
 				segments: settings.terrainSegments,
+				biome: preset?.biomeId,
+				seed: biomeSeed,
 				layers: layers.map((l) => ({
 					textureUrl: l.diffuseUrl,
 					normalUrl: l.diffuseUrl.replace(/\.[^.]+$/, "_Normal$&"),
@@ -393,12 +408,15 @@ export function TerrainPainterPanel({
 				})),
 			});
 		}
-	}, [sendToIframe, layers, settings, onTerrainConfigChanged]);
+	}, [sendToIframe, layers, settings, onTerrainConfigChanged, selectedPreset, biomeSeed]);
 
 	const sendGenerateTerrain = useCallback(() => {
+		const preset = selectedPreset ? TERRAIN_PRESETS.find((p) => p.id === selectedPreset) : null;
 		sendToIframe({
 			type: "terrain-painter-generate-terrain",
 			settings,
+			biome: preset?.biomeId || null,
+			seed: biomeSeed,
 		});
 		// Persist terrain config so it survives iframe reloads
 		if (onTerrainConfigChanged) {
@@ -408,6 +426,8 @@ export function TerrainPainterPanel({
 				depth: settings.terrainDepth,
 				heightScale: settings.terrainHeightScale,
 				segments: settings.terrainSegments,
+				biome: preset?.biomeId,
+				seed: biomeSeed,
 				layers: layers.map((l) => ({
 					textureUrl: l.diffuseUrl,
 					normalUrl: l.diffuseUrl.replace(/\.[^.]+$/, "_Normal$&"),
@@ -421,7 +441,7 @@ export function TerrainPainterPanel({
 				})),
 			});
 		}
-	}, [sendToIframe, settings, layers, onTerrainConfigChanged]);
+	}, [sendToIframe, settings, layers, onTerrainConfigChanged, selectedPreset, biomeSeed]);
 
 	const sendRandomize = useCallback(() => {
 		if (!selectedPreset) return;
