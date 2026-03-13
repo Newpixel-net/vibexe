@@ -974,7 +974,9 @@ function _updateChaseCamera(ctx, cam, dt) {
   var dist = cfg.camDist || 10;
   var height = cfg.camHeight || 5;
   var smoothTime = cfg.camSmoothTime || 0.15;
-  var facingAngle = _csMesh.rotation.y;
+  // Use movement direction override if set (e.g. runner always moves -Z = angle 0)
+  // Otherwise fall back to mesh visual rotation
+  var facingAngle = (ctx._facingOverride !== undefined) ? ctx._facingOverride : _csMesh.rotation.y;
   // Camera BEHIND player = player + backward_dir * dist
   var camTargetX = _csMesh.position.x + Math.sin(facingAngle) * dist;
   var camTargetY = _csMesh.position.y + height;
@@ -2010,6 +2012,8 @@ function swapCharacter(scene, characterId) {
             useRapier: false, rapierBody: null, rapierCollider: null, rapierKCC: null,
             _rapierGravityVel: 0, _cursorActive: false, _cursorTarget: new THREE.Vector3()
           };
+          // Runner: movement is always -Z (angle=0), mesh rotated to PI for visuals only
+          if (_controllerMode === 'runner') _ctrlCtx._facingOverride = 0;
           var _ctrlFactory = { runner: _createRunnerController, sidescroll: _createSidescrollController, topdown: _createTopdownController, fps: _createFPSController }[_controllerMode];
           if (_ctrlFactory) {
             var newCtrl = _ctrlFactory(_ctrlCtx);
@@ -3210,6 +3214,7 @@ if (typeof window !== "undefined") {
             useRapier: false, rapierBody: null, rapierCollider: null, rapierKCC: null,
             _rapierGravityVel: 0, _cursorActive: false, _cursorTarget: new THREE.Vector3()
           };
+          if (_riMode === 'runner') _riCtx._facingOverride = 0;
           var _riFactory = { runner: _createRunnerController, sidescroll: _createSidescrollController, topdown: _createTopdownController, fps: _createFPSController }[_riMode];
           if (_riFactory) {
             var _riCtrl = _riFactory(_riCtx);
