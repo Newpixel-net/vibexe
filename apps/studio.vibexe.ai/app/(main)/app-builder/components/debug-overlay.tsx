@@ -446,7 +446,11 @@ export function DebugOverlay({ iframeRef }: DebugOverlayProps) {
 																	? "#f87171"
 																	: typeof v === "string" && v === "yes"
 																		? "#6ee7b7"
-																		: "#71717a",
+																		: typeof v === "string" && v === "checking"
+																			? "#fbbf24"
+																			: typeof v === "string" && v === "airborne"
+																				? "#fbbf24"
+																				: "#71717a",
 												}}
 											>
 												{Array.isArray(v)

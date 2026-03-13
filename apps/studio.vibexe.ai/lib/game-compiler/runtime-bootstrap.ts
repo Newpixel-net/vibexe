@@ -90,6 +90,8 @@ var hemi=s.getObjectByName('__default_hemi__');if(hemi&&e.hemisphereIntensity!=n
 if(c&&_gs.camera&&_gs.camera.fov!=null){c.fov=_gs.camera.fov;c.updateProjectionMatrix()}
 var w=window.__vibexe_world__;
 if(w&&_gs.physics&&_gs.physics.gravity!=null){try{w.gravity.set(0,_gs.physics.gravity,0)}catch(x){}}
+var _rpw=window.__vibexe_rapierWorld__;
+if(_rpw&&_gs.physics&&_gs.physics.gravity!=null){try{_rpw.gravity={x:0.0,y:_gs.physics.gravity,z:0.0}}catch(x){}}
 var _aus=_gs.audio;
 if(_aus){window.__vibexe_audio__={enabled:_aus.enabled!==false,masterVolume:_aus.masterVolume!=null?_aus.masterVolume:0.8,musicVolume:_aus.musicVolume!=null?_aus.musicVolume:0.5,sfxVolume:_aus.sfxVolume!=null?_aus.sfxVolume:0.7};if(_aus.enabled===false){var _allAudio=document.querySelectorAll('audio');for(var _ai2=0;_ai2<_allAudio.length;_ai2++){_allAudio[_ai2].muted=true;}}}
 var _pfs=_gs.performance;
@@ -205,7 +207,9 @@ if(ren&&ren.getPixelRatio()>1.5)problems.push({id:'high-pixel-ratio',severity:'w
 var sc=W.__vibexe_scene__;
 var meshCount=0;var lightCount=0;var skinnedCount=0;var totalTris=0;
 if(sc){sc.traverse(function(o){if(o.isMesh){meshCount++;if(o.isSkinnedMesh)skinnedCount++;if(o.geometry&&o.geometry.index)totalTris+=o.geometry.index.count/3;else if(o.geometry&&o.geometry.attributes&&o.geometry.attributes.position)totalTris+=o.geometry.attributes.position.count/3;}if(o.isLight)lightCount++;})}
-r.push({system:'Scene',status:sc?'ok':'missing',details:sc?{children:sc.children.length,meshes:meshCount,skinned:skinnedCount,lights:lightCount,triangles:totalTris>1000?Math.round(totalTris/1000)+'k':Math.round(totalTris),fog:sc.fog?('near:'+Math.round(sc.fog.near)+' far:'+Math.round(sc.fog.far)):'none',background:sc.background?'set':'none'}:null});
+var _fogInfo='none';
+if(sc&&sc.fog){if(sc.fog.density!==undefined){_fogInfo='exp2 d:'+sc.fog.density.toFixed(4);}else{_fogInfo='linear near:'+Math.round(sc.fog.near||0)+' far:'+Math.round(sc.fog.far||0);}}
+r.push({system:'Scene',status:sc?'ok':'missing',details:sc?{children:sc.children.length,meshes:meshCount,skinned:skinnedCount,lights:lightCount,triangles:totalTris>1000?Math.round(totalTris/1000)+'k':Math.round(totalTris),fog:_fogInfo,background:sc.background?'set':'none'}:null});
 if(meshCount>500)problems.push({id:'high-mesh-count',severity:'warn',msg:meshCount+' meshes in scene — may impact performance'});
 if(totalTris>500000)problems.push({id:'high-tri-count',severity:'warn',msg:Math.round(totalTris/1000)+'k triangles — consider LOD or culling'});
 
@@ -229,6 +233,7 @@ else if(_rp){rpStatus='inactive';rpDetails={wasmLoaded:true,worldCreated:false};
 else{rpDetails={wasmLoaded:false};}
 r.push({system:'Rapier Physics',status:rpStatus,details:rpDetails});
 if(_rp&&!_rpw)problems.push({id:'rapier-no-world',severity:'error',msg:'Rapier WASM loaded but world not created'});
+if(w&&_rpw){var _cg=w.gravity?w.gravity.y:0;var _rg=_rpw.gravity?_rpw.gravity.y:0;if(Math.abs(_cg-_rg)>1)problems.push({id:'gravity-mismatch',severity:'warn',msg:'CANNON gravity ('+_cg+') != Rapier gravity ('+_rg+') — physics inconsistency'});}
 
 // === 6. TERRAIN (unified) ===
 var tm=sc&&sc.getObjectByName?sc.getObjectByName('__terrain__'):null;
@@ -242,7 +247,7 @@ var tStatus='off';
 if(tm&&(cannonTerrain||rapierTerrain))tStatus='ok';else if(tm&&!cannonTerrain&&!rapierTerrain)tStatus='inactive';else if(tm)tStatus='ok';
 var tDetails=null;
 if(tm){tDetails={mesh:true,verts:tm.geometry&&tm.geometry.attributes&&tm.geometry.attributes.position?tm.geometry.attributes.position.count:0,cannonBody:cannonTerrain,rapierHF:rapierTerrain,postStepClamp:!!tPost,heightQuery:!!tGetH,visualHeightFn:!!W.__vibexe_getVisualTerrainHeight,surfaceOffset:W.__vibexe_terrainSurfaceOffset||0,boundaryGrid:!!W.__vibexe_terrainBoundaryGrid};}else{tDetails={mesh:false,cannonBody:cannonTerrain,rapierHF:rapierTerrain};}
-if(_td){tDetails.dataSize=_td.segX+'x'+_td.segZ;tDetails.terrainSize=(_td.width||0)+'x'+(_td.depth||0);tDetails.maxHeight=_td.maxHeight||0;}
+if(_td){tDetails.dataSize=_td.segX+'x'+_td.segZ;tDetails.terrainSize=(_td.width||0)+'x'+(_td.depth||0);tDetails.heightRange=(_td.minY!=null?_td.minY.toFixed(1):'?')+' - '+(_td.maxY!=null?_td.maxY.toFixed(1):'?');}
 r.push({system:'Terrain',status:tStatus,details:tDetails});
 if(tm&&!cannonTerrain&&!rapierTerrain)problems.push({id:'terrain-no-physics',severity:'error',msg:'Terrain mesh exists but has NO physics collider (neither CANNON nor Rapier)'});
 if(tm&&rapierTerrain&&!_td)problems.push({id:'terrain-no-data',severity:'warn',msg:'Rapier terrain collider exists but __vibexe_terrainData is missing'});
@@ -261,8 +266,9 @@ var _ccActive=!!W.__charCtrl_active;
 var _ccDetails={active:_ccActive};
 if(_ccActive){
   _ccDetails.engine=rapierKCC?'Rapier KCC':'CANNON';
-  _ccDetails.grounded='query N/A';
-  if(rapierKCC&&rapierKCC.kcc){try{_ccDetails.grounded=rapierKCC.kcc.computedGrounded()?'yes':'no';}catch(e){}}
+  _ccDetails.grounded='N/A';
+  if(rapierKCC&&rapierKCC.kcc){try{_ccDetails.grounded=rapierKCC.kcc.computedGrounded()?'yes':'airborne';}catch(e){}}
+  if(pm&&pm.position&&tm){var _gH=W.__vibexe_getTerrainHeight;if(_gH){var _th=_gH(pm.position.x,pm.position.z);if(_th!=null){_ccDetails.terrainGap=+(pm.position.y-_th).toFixed(2);}}}
   _ccDetails.snapToGround=rapierKCC&&rapierKCC.kcc?true:false;
   _ccDetails.orbitYaw=W.__charCtrl_orbitYaw!=null?+(W.__charCtrl_orbitYaw*180/Math.PI).toFixed(0)+'deg':'N/A';
   _ccDetails.orbitPitch=W.__charCtrl_orbitPitch!=null?+(W.__charCtrl_orbitPitch*180/Math.PI).toFixed(0)+'deg':'N/A';
@@ -281,15 +287,15 @@ if(sw){
   var _cycleLen=_swTime.cycleLengthMinutes||0;
   var _timeLabel='unknown';
   if(_st<0.21)_timeLabel='Night';else if(_st<0.29)_timeLabel='Dawn';else if(_st<0.42)_timeLabel='Morning';else if(_st<0.58)_timeLabel='Noon';else if(_st<0.71)_timeLabel='Afternoon';else if(_st<0.79)_timeLabel='Dusk';else _timeLabel='Night';
-  var _isAdvancing=false;
+  var _advStatus='checking';
   var now=Date.now();
   if(_prevSolarTime!==null&&_autoAdv&&(now-_solarSampleTime)>1500){
-    _isAdvancing=Math.abs(_st-_prevSolarTime)>0.0001;
+    _advStatus=Math.abs(_st-_prevSolarTime)>0.00005?'yes':'STALLED';
   }
   if(now-_solarSampleTime>1500||_prevSolarTime===null){_prevSolarTime=_st;_solarSampleTime=now;}
   swStatus=sw._active?'ok':(sw.scene?'inactive':'off');
-  swDetails={solarTime:_st,timeOfDay:_timeLabel,autoAdvance:_autoAdv,advancing:_autoAdv?(_isAdvancing?'yes':'STALLED'):'disabled',cycleLenMin:_cycleLen,skyDome:!!(sw.skyDome&&sw.skyDome.mesh),lighting:!!(sw.lighting),stars:!!(sw.stars)};
-  if(_autoAdv&&!_isAdvancing&&_prevSolarTime!==null&&(now-_solarSampleTime)>3000){
+  swDetails={solarTime:_st,timeOfDay:_timeLabel,autoAdvance:_autoAdv,advancing:_autoAdv?_advStatus:'disabled',cycleLenMin:_cycleLen,skyDome:!!(sw.skyDome&&sw.skyDome.mesh),lighting:!!(sw.lighting),stars:!!(sw.stars)};
+  if(_autoAdv&&_advStatus==='STALLED'){
     problems.push({id:'sky-cycle-stalled',severity:'error',msg:'Day/night autoAdvance is ON but solarTime is NOT changing (stuck at '+_st+')'});
   }
   if(sw._active&&!sw.skyDome)problems.push({id:'sky-no-dome',severity:'warn',msg:'SkyWeather active but skyDome not created'});
