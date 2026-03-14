@@ -1213,7 +1213,7 @@ let _masterGain: GainNode | null = null;
 let _musicGain: GainNode | null = null;
 let _sfxGain: GainNode | null = null;
 const _audioCache: Map<string, AudioBuffer> = new Map();
-let _currentMusic: { el: HTMLAudioElement; fadeTimer?: any } | null = null;
+let _currentMusic: { el: HTMLAudioElement; fadeHandle?: any } | null = null;
 let _musicMutedVol = 0; // saved volume before mute
 
 /** Mute the currently-playing BGM (if any). Safe to call when nothing is playing. */
@@ -2564,7 +2564,14 @@ export async function playSound(
   source.onended = () => {
     _sfxPool.set(url, Math.max(0, (_sfxPool.get(url) || 1) - 1));
   };
-  source.start(0);
+  try {
+    source.start(0);
+  } catch (e) {
+    // Revert pool counter — onended will never fire if start() fails
+    _sfxPool.set(url, Math.max(0, currentCount));
+    console.warn("[Audio] source.start() failed:", e);
+    return { stop() {} };
+  }
 
   return {
     stop() { try { source.stop(); } catch {} },
@@ -2591,13 +2598,17 @@ export function playMusic(
   const fadeIn = opts?.fadeIn ?? 0;
   const crossfade = opts?.crossfadeDuration ?? 1.0;
 
-  // rAF-based fade helper for smooth frame-synced volume transitions
+  // rAF-based fade helper for smooth frame-synced volume transitions.
+  // Returns a cancellation object; call .cancel() to stop the fade mid-flight.
+  type FadeHandle = { rafId: number; cancel: () => void };
   function _rafFade(
     el2: HTMLAudioElement, fromVol: number, toVol: number, duration: number, onDone?: () => void
-  ): number {
+  ): FadeHandle {
     const startTime = performance.now();
+    let cancelled = false;
     let rafId = 0;
     function tick() {
+      if (cancelled) return;
       const elapsed = performance.now() - startTime;
       const progress = Math.min(1, elapsed / (duration * 1000));
       try { el2.volume = fromVol + (toVol - fromVol) * progress; } catch {}
@@ -2605,15 +2616,15 @@ export function playMusic(
       else { onDone?.(); }
     }
     rafId = requestAnimationFrame(tick);
-    return rafId;
+    return { rafId, cancel() { cancelled = true; cancelAnimationFrame(rafId); } };
   }
 
   // Crossfade out old music
   if (_currentMusic) {
     const old = _currentMusic;
     const startVol = old.el.volume;
-    if (old.fadeTimer) cancelAnimationFrame(old.fadeTimer);
-    old.fadeTimer = _rafFade(old.el, startVol, 0, crossfade, () => {
+    if (old.fadeHandle) old.fadeHandle.cancel();
+    old.fadeHandle = _rafFade(old.el, startVol, 0, crossfade, () => {
       old.el.pause();
       old.el.src = "";
     });
@@ -2624,11 +2635,11 @@ export function playMusic(
   el.volume = fadeIn > 0 ? 0 : vol;
   el.play().catch(() => {});
 
-  const entry = { el, fadeTimer: 0 as any };
+  const entry = { el, fadeHandle: null as FadeHandle | null };
   _currentMusic = entry;
 
   if (fadeIn > 0) {
-    entry.fadeTimer = _rafFade(el, 0, vol, fadeIn);
+    entry.fadeHandle = _rafFade(el, 0, vol, fadeIn);
   }
 
   return {
@@ -5276,10 +5287,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               renderer.shadowMap.enabled = false;
               (window as any).__vibexe_cullDistance__ = 60;
               // Disable bloom pass if exists
-              if (composer && composer.passes) {
-                for (var __pi = 0; __pi < composer.passes.length; __pi++) {
-                  if (composer.passes[__pi].constructor && composer.passes[__pi].constructor.name === 'UnrealBloomPass') {
-                    composer.passes[__pi].enabled = false;
+              if (__composer && __composer.passes) {
+                for (var __pi = 0; __pi < __composer.passes.length; __pi++) {
+                  if (__composer.passes[__pi].constructor && __composer.passes[__pi].constructor.name === 'UnrealBloomPass') {
+                    __composer.passes[__pi].enabled = false;
                   }
                 }
               }
@@ -5291,10 +5302,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               renderer.shadowMap.needsUpdate = true;
               (window as any).__vibexe_cullDistance__ = 150;
               // Re-enable bloom pass
-              if (composer && composer.passes) {
-                for (var __pi2 = 0; __pi2 < composer.passes.length; __pi2++) {
-                  if (composer.passes[__pi2].constructor && composer.passes[__pi2].constructor.name === 'UnrealBloomPass') {
-                    composer.passes[__pi2].enabled = true;
+              if (__composer && __composer.passes) {
+                for (var __pi2 = 0; __pi2 < __composer.passes.length; __pi2++) {
+                  if (__composer.passes[__pi2].constructor && __composer.passes[__pi2].constructor.name === 'UnrealBloomPass') {
+                    __composer.passes[__pi2].enabled = true;
                   }
                 }
               }
@@ -6290,7 +6301,7 @@ function triggerGameOver() {
   playSound(soundUrl("explosion"), { volume: 0.5 });
 }
 
-function restartGame() {
+async function restartGame() {
   for (const seg of segments) {
     for (const p of seg.platforms) { scene.remove(p.mesh); world.removeBody(p.body); }
     for (const b of seg.barriers) { scene.remove(b.mesh); if (b.body) world.removeBody(b.body); }
@@ -6317,7 +6328,7 @@ function restartGame() {
   (playerBody as any).__canJump = true;
 
   for (let i = 0; i < SEGMENT_COUNT; i++) {
-    spawnSegment(i < 3);
+    await spawnSegment(i < 3);
   }
 
   hud.update({ score: 0, lives: MAX_LIVES, custom: "Distance: 0m" });
@@ -6404,7 +6415,7 @@ function recycleSegments() {
       for (const c of seg.collectibles) { scene.remove(c.mesh); }
       for (const d of seg.decorations) { scene.remove(d); }
       segments.splice(i, 1);
-      spawnSegment(false);
+      spawnSegment(false).catch(e => console.warn("[Runner] Segment respawn failed:", e));
     }
   }
 }
