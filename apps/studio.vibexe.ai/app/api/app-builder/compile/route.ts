@@ -7,9 +7,15 @@
  */
 
 import { compileGameBundle } from "@/lib/game-compiler/compiler";
+import { getUser } from "@/lib/auth/get-user";
 
 export async function POST(request: Request) {
 	try {
+		const user = await getUser();
+		if (!user) {
+			return Response.json({ error: "Unauthorized" }, { status: 401 });
+		}
+
 		const body = await request.json();
 
 		const {

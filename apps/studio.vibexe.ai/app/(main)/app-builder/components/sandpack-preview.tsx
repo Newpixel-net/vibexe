@@ -331,9 +331,10 @@ function CodeViewerOverlay({
 
 	// Scroll to highlighted line after mount
 	useEffect(() => {
-		setTimeout(() => {
+		const id = setTimeout(() => {
 			highlightRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
 		}, 50);
+		return () => clearTimeout(id);
 	}, []);
 
 	// Close on Escape

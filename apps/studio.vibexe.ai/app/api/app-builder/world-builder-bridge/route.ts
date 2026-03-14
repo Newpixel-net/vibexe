@@ -5,7 +5,6 @@ export function GET() {
 		headers: {
 			"Content-Type": "application/javascript",
 			"Cache-Control": "public, max-age=3600",
-			"Access-Control-Allow-Origin": "*",
 		},
 	});
 }

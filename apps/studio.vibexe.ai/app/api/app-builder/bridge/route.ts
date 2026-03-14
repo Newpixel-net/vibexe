@@ -5,7 +5,6 @@ export function GET() {
 		headers: {
 			"Content-Type": "application/javascript",
 			"Cache-Control": "no-cache",
-			"Access-Control-Allow-Origin": "*",
 		},
 	});
 }

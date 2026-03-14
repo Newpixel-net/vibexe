@@ -14,7 +14,8 @@
 
 export function GET(request: Request) {
 	const url = new URL(request.url);
-	const bridgeVersion = url.searchParams.get("bv") || "89";
+	// Sanitize to digits only — prevents XSS via template interpolation
+	const bridgeVersion = (url.searchParams.get("bv") || "89").replace(/\D/g, "") || "89";
 
 	const html = `<!DOCTYPE html>
 <html lang="en">
@@ -116,6 +117,8 @@ window.addEventListener('unhandledrejection', function(e) {
 
     window.addEventListener('message', function(ev) {
     if (!ev.data || !ev.data.type) return;
+    // Only accept messages from same origin (prevents cross-origin injection)
+    if (ev.origin && ev.origin !== window.location.origin) return;
 
     // Inject bootstrap globals
     if (ev.data.type === 'vibexe-inject-bootstrap') {
