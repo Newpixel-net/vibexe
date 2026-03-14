@@ -23,6 +23,7 @@ export function getWorldBuilderBridgeScript(): string {
   var _scene = null;
   var _camera = null;
   var _renderer = null;
+  var _currentCanvas = null;
   var _raycaster = null;
   var _mouse = new THREE.Vector2(-999, -999);
   var _mouseDown = false;
@@ -1738,6 +1739,27 @@ export function getWorldBuilderBridgeScript(): string {
     if (msg.type === "wb-enable") {
       _active = true;
       window.__wb_active__ = true;
+      // Re-capture scene/camera/renderer in case bundle was re-injected
+      if (window.__vibexe_scene__) _scene = window.__vibexe_scene__;
+      if (window.__vibexe_camera__) _camera = window.__vibexe_camera__;
+      if (window.__vibexe_renderer__) {
+        _renderer = window.__vibexe_renderer__;
+        var canvas = _renderer.domElement;
+        if (canvas !== _currentCanvas) {
+          if (_currentCanvas) {
+            _currentCanvas.removeEventListener("mousemove", onMouseMove);
+            _currentCanvas.removeEventListener("mousedown", onMouseDown);
+            _currentCanvas.removeEventListener("mouseup", onMouseUp);
+          }
+          canvas.addEventListener("mousemove", onMouseMove);
+          canvas.addEventListener("mousedown", onMouseDown);
+          canvas.addEventListener("mouseup", onMouseUp);
+          canvas.addEventListener("wheel", onWheel, { passive: false });
+          _currentCanvas = canvas;
+          console.log("[WB] Re-attached to new canvas", canvas.width + "x" + canvas.height);
+        }
+      }
+      if (!_raycaster && window.THREE) _raycaster = new window.THREE.Raycaster();
       updateRaycastTargets();
       updateGrid();
       console.log("[WB] Enabled");
@@ -1843,6 +1865,7 @@ export function getWorldBuilderBridgeScript(): string {
     _octree = createOctree();
 
     var canvas = _renderer.domElement;
+    _currentCanvas = canvas;
     canvas.addEventListener("mousemove", onMouseMove);
     canvas.addEventListener("mousedown", onMouseDown);
     canvas.addEventListener("mouseup", onMouseUp);
