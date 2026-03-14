@@ -227,16 +227,14 @@ export function TerrainPopulateTab({ population }: TerrainPopulateTabProps) {
 				return;
 			}
 
-			// Set resolved layers on engine
+			// Use updateLayer to sync both engine state AND React state
 			for (const layer of resolved) {
-				population.engine.setLayer(layer);
+				updateLayer(layer);
 			}
 
-			// Force state refresh
-			const newLayers = population.engine.getLayers();
-			if (newLayers.length > 0) setSelectedLayerId(newLayers[0].id);
+			if (resolved.length > 0) setSelectedLayerId(resolved[0].id);
 		},
-		[layers, removeLayer, population.engine],
+		[layers, removeLayer, updateLayer],
 	);
 
 	// Asset picker modal
