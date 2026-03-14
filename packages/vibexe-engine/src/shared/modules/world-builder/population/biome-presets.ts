@@ -79,9 +79,9 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "large tree",
-						keywords: ["tree", "pine", "oak", "birch"],
+						keywords: ["garden", "sign", "pillar"],
 						categories: ["environment", "decorations"],
-						minimumDistance: 6,
+						minimumDistance: 14,
 						minScale: 0.8,
 						maxScale: 1.4,
 					},
@@ -99,24 +99,14 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "bush",
-						keywords: ["bush", "shrub", "hedge"],
+						keywords: ["sign", "barrel", "crate"],
 						categories: ["decorations", "environment"],
-						minimumDistance: 3,
+						minimumDistance: 10,
 						minScale: 0.6,
 						maxScale: 1.0,
 					},
 				],
-				detailSlots: [
-					{
-						role: "ground cover",
-						keywords: ["grass", "fern", "plant", "flower"],
-						categories: ["decorations"],
-						minimumDistance: 2,
-						clusterRadius: 1.5,
-						clusterAmount: 4,
-						scale: 0.4,
-					},
-				],
+				detailSlots: [],
 			},
 			{
 				name: "Rocky Outcrops",
@@ -129,9 +119,9 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "rock",
-						keywords: ["rock", "stone", "boulder"],
+						keywords: ["pillar", "spikes", "platform"],
 						categories: ["environment", "decorations"],
-						minimumDistance: 5,
+						minimumDistance: 12,
 						minScale: 0.5,
 						maxScale: 1.5,
 					},
@@ -157,9 +147,9 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "cactus",
-						keywords: ["cactus", "palm", "dead tree"],
+						keywords: ["pillar", "sign", "garden"],
 						categories: ["environment", "decorations"],
-						minimumDistance: 10,
+						minimumDistance: 16,
 						minScale: 0.7,
 						maxScale: 1.3,
 					},
@@ -176,24 +166,14 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "desert rock",
-						keywords: ["rock", "stone", "sandstone"],
-						categories: ["environment"],
-						minimumDistance: 7,
+						keywords: ["spikes", "platform", "pillar"],
+						categories: ["environment", "decorations", "hazards"],
+						minimumDistance: 12,
 						minScale: 0.4,
 						maxScale: 2.0,
 					},
 				],
-				detailSlots: [
-					{
-						role: "small stones",
-						keywords: ["pebble", "small rock", "debris"],
-						categories: ["environment", "decorations"],
-						minimumDistance: 4,
-						clusterRadius: 2,
-						clusterAmount: 5,
-						scale: 0.3,
-					},
-				],
+				detailSlots: [],
 			},
 		],
 	},
@@ -214,9 +194,9 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "pine tree",
-						keywords: ["pine", "spruce", "conifer", "tree"],
+						keywords: ["garden", "pillar", "sign"],
 						categories: ["environment", "decorations"],
-						minimumDistance: 5,
+						minimumDistance: 12,
 						minScale: 0.7,
 						maxScale: 1.3,
 					},
@@ -231,18 +211,17 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				],
 				minThreshold: 0.3,
 				maxThreshold: 1.0,
-				treeSlots: [],
-				detailSlots: [
+				treeSlots: [
 					{
-						role: "alpine flowers",
-						keywords: ["flower", "plant", "grass"],
-						categories: ["decorations"],
-						minimumDistance: 2,
-						clusterRadius: 1,
-						clusterAmount: 6,
-						scale: 0.3,
+						role: "meadow props",
+						keywords: ["coin", "star", "heart"],
+						categories: ["collectibles", "decorations"],
+						minimumDistance: 10,
+						minScale: 0.6,
+						maxScale: 0.9,
 					},
 				],
+				detailSlots: [],
 			},
 			{
 				name: "Rocky Peaks (High)",
@@ -254,24 +233,14 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "large boulder",
-						keywords: ["rock", "boulder", "cliff"],
-						categories: ["environment"],
-						minimumDistance: 8,
+						keywords: ["spikes", "platform", "pillar"],
+						categories: ["environment", "decorations", "hazards"],
+						minimumDistance: 14,
 						minScale: 0.5,
 						maxScale: 2.0,
 					},
 				],
-				detailSlots: [
-					{
-						role: "small rocks",
-						keywords: ["pebble", "small rock", "debris"],
-						categories: ["environment"],
-						minimumDistance: 3,
-						clusterRadius: 1.5,
-						clusterAmount: 3,
-						scale: 0.25,
-					},
-				],
+				detailSlots: [],
 			},
 		],
 	},
@@ -292,9 +261,9 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "palm tree",
-						keywords: ["palm", "tropical", "coconut"],
+						keywords: ["garden", "pillar", "sign"],
 						categories: ["environment", "decorations"],
-						minimumDistance: 5,
+						minimumDistance: 12,
 						minScale: 0.8,
 						maxScale: 1.3,
 					},
@@ -312,24 +281,14 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "bush",
-						keywords: ["bush", "shrub", "fern"],
+						keywords: ["barrel", "crate", "sign"],
 						categories: ["decorations", "environment"],
-						minimumDistance: 3,
+						minimumDistance: 10,
 						minScale: 0.5,
 						maxScale: 1.0,
 					},
 				],
-				detailSlots: [
-					{
-						role: "tropical plants",
-						keywords: ["plant", "flower", "fern", "mushroom"],
-						categories: ["decorations"],
-						minimumDistance: 1.5,
-						clusterRadius: 1,
-						clusterAmount: 5,
-						scale: 0.35,
-					},
-				],
+				detailSlots: [],
 			},
 		],
 	},
@@ -350,9 +309,9 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "building",
-						keywords: ["building", "house", "tower", "shop"],
-						categories: ["buildings"],
-						minimumDistance: 8,
+						keywords: ["pillar", "garden", "sign"],
+						categories: ["environment", "decorations"],
+						minimumDistance: 16,
 						minScale: 0.8,
 						maxScale: 1.2,
 					},
@@ -369,9 +328,9 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "street furniture",
-						keywords: ["lamp", "bench", "sign", "fence", "barrel", "crate"],
-						categories: ["decorations", "interactive"],
-						minimumDistance: 4,
+						keywords: ["sign", "barrel", "crate"],
+						categories: ["decorations", "environment"],
+						minimumDistance: 8,
 						minScale: 0.8,
 						maxScale: 1.0,
 					},
@@ -390,9 +349,9 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "city tree",
-						keywords: ["tree", "pine", "oak"],
+						keywords: ["garden", "sign", "pillar"],
 						categories: ["environment", "decorations"],
-						minimumDistance: 7,
+						minimumDistance: 12,
 						minScale: 0.7,
 						maxScale: 1.1,
 					},
@@ -417,9 +376,9 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "platform",
-						keywords: ["platform", "block", "tile"],
-						categories: ["platforms"],
-						minimumDistance: 4,
+						keywords: ["platform", "grid_platform", "long_platform"],
+						categories: ["environment", "decorations"],
+						minimumDistance: 8,
 						minScale: 0.8,
 						maxScale: 1.2,
 					},
@@ -434,18 +393,17 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				],
 				minThreshold: 0.3,
 				maxThreshold: 1.0,
-				treeSlots: [],
-				detailSlots: [
+				treeSlots: [
 					{
 						role: "collectible",
-						keywords: ["coin", "star", "gem", "heart"],
-						categories: ["collectibles"],
-						minimumDistance: 2,
-						clusterRadius: 1,
-						clusterAmount: 3,
-						scale: 0.5,
+						keywords: ["coin", "star", "heart"],
+						categories: ["collectibles", "decorations"],
+						minimumDistance: 10,
+						minScale: 0.6,
+						maxScale: 0.9,
 					},
 				],
+				detailSlots: [],
 			},
 			{
 				name: "Decorations",
@@ -457,9 +415,9 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "decoration",
-						keywords: ["sign", "barrel", "crate", "fence", "lamp"],
-						categories: ["decorations"],
-						minimumDistance: 6,
+						keywords: ["sign", "barrel", "crate"],
+						categories: ["decorations", "environment"],
+						minimumDistance: 10,
 						minScale: 0.7,
 						maxScale: 1.0,
 					},
