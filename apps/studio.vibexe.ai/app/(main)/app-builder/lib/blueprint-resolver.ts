@@ -41,34 +41,30 @@ function genId(): string {
  * Searches by keywords and categories, returns the first good match.
  */
 function resolveSlot(slot: PresetAssetSlot): AssetLibraryItem | null {
-	const candidates: AssetLibraryItem[] = [];
-
-	// Search by each keyword
+	// Search keywords in priority order — first keyword that has matches wins.
+	// This gives presets deterministic control: put the best visual match first.
 	for (const kw of slot.keywords) {
 		const results = searchAssets(kw);
-		for (const r of results) {
-			// Filter by preferred categories
-			if (slot.categories.length > 0 && !slot.categories.includes(r.category)) continue;
-			// Skip animated characters (too heavy for population)
-			if (r.isAnimated) continue;
-			candidates.push(r);
+		const filtered = results.filter((r) => {
+			if (slot.categories.length > 0 && !slot.categories.includes(r.category)) return false;
+			if (r.isAnimated) return false;
+			return true;
+		});
+		if (filtered.length > 0) {
+			// Within same keyword, prefer shorter names (more specific match)
+			filtered.sort((a, b) => a.displayName.length - b.displayName.length);
+			return filtered[0];
 		}
 	}
 
-	if (candidates.length === 0) {
-		// Fallback: just search by category
-		for (const cat of slot.categories) {
-			const catItems = ASSET_CATALOG.filter(
-				(i) => i.category === (cat as AssetCategory) && !i.isAnimated,
-			);
-			if (catItems.length > 0) return catItems[0];
-		}
-		return null;
+	// Fallback: search by category
+	for (const cat of slot.categories) {
+		const catItems = ASSET_CATALOG.filter(
+			(i) => i.category === (cat as AssetCategory) && !i.isAnimated,
+		);
+		if (catItems.length > 0) return catItems[0];
 	}
-
-	// Prefer shorter names (more generic/likely correct)
-	candidates.sort((a, b) => a.displayName.length - b.displayName.length);
-	return candidates[0];
+	return null;
 }
 
 /**

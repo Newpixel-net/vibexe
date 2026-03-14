@@ -66,7 +66,7 @@ export const BIOME_PRESETS: BiomePreset[] = [
 	{
 		id: "forest",
 		name: "Forest",
-		description: "Dense woodland with trees on flat areas, bushes on slopes, flowers in valleys",
+		description: "Dense woodland with vegetation on flat areas, bushes on slopes, rocks on ridges",
 		layers: [
 			{
 				name: "Canopy Trees",
@@ -79,11 +79,19 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "large tree",
-						keywords: ["garden", "sign", "pillar"],
-						categories: ["environment", "decorations"],
-						minimumDistance: 14,
-						minScale: 0.8,
-						maxScale: 1.4,
+						keywords: ["garden"],
+						categories: ["decorations"],
+						minimumDistance: 12,
+						minScale: 1.0,
+						maxScale: 1.8,
+					},
+					{
+						role: "tree trunk",
+						keywords: ["pillar 2x2"],
+						categories: ["decorations"],
+						minimumDistance: 16,
+						minScale: 0.6,
+						maxScale: 1.0,
 					},
 				],
 				detailSlots: [],
@@ -99,11 +107,19 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "bush",
-						keywords: ["sign", "barrel", "crate"],
-						categories: ["decorations", "environment"],
-						minimumDistance: 10,
+						keywords: ["bush"],
+						categories: ["decorations"],
+						minimumDistance: 6,
 						minScale: 0.6,
-						maxScale: 1.0,
+						maxScale: 1.2,
+					},
+					{
+						role: "fallen log",
+						keywords: ["wood log"],
+						categories: ["resources"],
+						minimumDistance: 10,
+						minScale: 0.5,
+						maxScale: 0.8,
 					},
 				],
 				detailSlots: [],
@@ -119,9 +135,9 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "rock",
-						keywords: ["pillar", "spikes", "platform"],
-						categories: ["environment", "decorations"],
-						minimumDistance: 12,
+						keywords: ["stone chunks"],
+						categories: ["resources"],
+						minimumDistance: 10,
 						minScale: 0.5,
 						maxScale: 1.5,
 					},
@@ -134,10 +150,10 @@ export const BIOME_PRESETS: BiomePreset[] = [
 	{
 		id: "desert",
 		name: "Desert",
-		description: "Sparse cacti and rocks scattered across dunes, with brush in sheltered areas",
+		description: "Sparse vegetation scattered across dunes, with rocks on ridges",
 		layers: [
 			{
-				name: "Cacti & Joshua Trees",
+				name: "Cacti & Vegetation",
 				autoRules: [
 					{ source: "slope", invert: true, inputMin: 0, inputMax: 0.2, blendMode: "multiply", enabled: true },
 					{ source: "noise", invert: false, inputMin: 0.4, inputMax: 1.0, blendMode: "multiply", enabled: true },
@@ -147,8 +163,8 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "cactus",
-						keywords: ["pillar", "sign", "garden"],
-						categories: ["environment", "decorations"],
+						keywords: ["garden"],
+						categories: ["decorations"],
 						minimumDistance: 16,
 						minScale: 0.7,
 						maxScale: 1.3,
@@ -166,11 +182,19 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "desert rock",
-						keywords: ["spikes", "platform", "pillar"],
-						categories: ["environment", "decorations", "hazards"],
-						minimumDistance: 12,
+						keywords: ["stone chunks"],
+						categories: ["resources"],
+						minimumDistance: 10,
 						minScale: 0.4,
 						maxScale: 2.0,
+					},
+					{
+						role: "small stone",
+						keywords: ["stone brick"],
+						categories: ["resources"],
+						minimumDistance: 8,
+						minScale: 0.3,
+						maxScale: 0.7,
 					},
 				],
 				detailSlots: [],
@@ -181,7 +205,7 @@ export const BIOME_PRESETS: BiomePreset[] = [
 	{
 		id: "alpine",
 		name: "Alpine",
-		description: "Pine trees below treeline, bare rock and snow above, meadow flowers in between",
+		description: "Trees below treeline, bare rock above, meadow collectibles in between",
 		layers: [
 			{
 				name: "Pine Forest (Low)",
@@ -194,11 +218,19 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "pine tree",
-						keywords: ["garden", "pillar", "sign"],
-						categories: ["environment", "decorations"],
-						minimumDistance: 12,
-						minScale: 0.7,
-						maxScale: 1.3,
+						keywords: ["garden"],
+						categories: ["decorations"],
+						minimumDistance: 10,
+						minScale: 0.8,
+						maxScale: 1.5,
+					},
+					{
+						role: "tree trunk",
+						keywords: ["pillar 1x1"],
+						categories: ["decorations"],
+						minimumDistance: 14,
+						minScale: 0.5,
+						maxScale: 0.8,
 					},
 				],
 				detailSlots: [],
@@ -213,12 +245,20 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				maxThreshold: 1.0,
 				treeSlots: [
 					{
-						role: "meadow props",
-						keywords: ["coin", "star", "heart"],
-						categories: ["collectibles", "decorations"],
-						minimumDistance: 10,
-						minScale: 0.6,
-						maxScale: 0.9,
+						role: "meadow flowers",
+						keywords: ["coin"],
+						categories: ["collectibles"],
+						minimumDistance: 6,
+						minScale: 0.5,
+						maxScale: 0.8,
+					},
+					{
+						role: "meadow star",
+						keywords: ["star"],
+						categories: ["collectibles"],
+						minimumDistance: 8,
+						minScale: 0.4,
+						maxScale: 0.7,
 					},
 				],
 				detailSlots: [],
@@ -233,9 +273,9 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "large boulder",
-						keywords: ["spikes", "platform", "pillar"],
-						categories: ["environment", "decorations", "hazards"],
-						minimumDistance: 14,
+						keywords: ["stone chunks"],
+						categories: ["resources"],
+						minimumDistance: 12,
 						minScale: 0.5,
 						maxScale: 2.0,
 					},
@@ -248,7 +288,7 @@ export const BIOME_PRESETS: BiomePreset[] = [
 	{
 		id: "tropical",
 		name: "Tropical",
-		description: "Dense palm trees near water, lush vegetation on flat areas, rocks on slopes",
+		description: "Dense vegetation near water, lush bushes on flat areas, fallen wood on ground",
 		layers: [
 			{
 				name: "Palm Trees",
@@ -261,11 +301,11 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "palm tree",
-						keywords: ["garden", "pillar", "sign"],
-						categories: ["environment", "decorations"],
-						minimumDistance: 12,
-						minScale: 0.8,
-						maxScale: 1.3,
+						keywords: ["garden"],
+						categories: ["decorations"],
+						minimumDistance: 10,
+						minScale: 1.0,
+						maxScale: 1.6,
 					},
 				],
 				detailSlots: [],
@@ -281,11 +321,19 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "bush",
-						keywords: ["barrel", "crate", "sign"],
-						categories: ["decorations", "environment"],
-						minimumDistance: 10,
+						keywords: ["bush"],
+						categories: ["decorations"],
+						minimumDistance: 6,
 						minScale: 0.5,
 						maxScale: 1.0,
+					},
+					{
+						role: "fallen wood",
+						keywords: ["wood log"],
+						categories: ["resources"],
+						minimumDistance: 8,
+						minScale: 0.4,
+						maxScale: 0.7,
 					},
 				],
 				detailSlots: [],
@@ -309,8 +357,8 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "building",
-						keywords: ["pillar", "garden", "sign"],
-						categories: ["environment", "decorations"],
+						keywords: ["building"],
+						categories: ["buildings"],
 						minimumDistance: 16,
 						minScale: 0.8,
 						maxScale: 1.2,
@@ -328,9 +376,17 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "street furniture",
-						keywords: ["sign", "barrel", "crate"],
-						categories: ["decorations", "environment"],
+						keywords: ["bench"],
+						categories: ["decorations"],
 						minimumDistance: 8,
+						minScale: 0.8,
+						maxScale: 1.0,
+					},
+					{
+						role: "street light",
+						keywords: ["streetlight"],
+						categories: ["decorations"],
+						minimumDistance: 12,
 						minScale: 0.8,
 						maxScale: 1.0,
 					},
@@ -348,12 +404,20 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				maxThreshold: 1.0,
 				treeSlots: [
 					{
-						role: "city tree",
-						keywords: ["garden", "sign", "pillar"],
-						categories: ["environment", "decorations"],
-						minimumDistance: 12,
+						role: "park bush",
+						keywords: ["bush"],
+						categories: ["decorations"],
+						minimumDistance: 8,
 						minScale: 0.7,
 						maxScale: 1.1,
+					},
+					{
+						role: "park tree",
+						keywords: ["garden"],
+						categories: ["decorations"],
+						minimumDistance: 12,
+						minScale: 0.8,
+						maxScale: 1.3,
 					},
 				],
 				detailSlots: [],
@@ -364,7 +428,7 @@ export const BIOME_PRESETS: BiomePreset[] = [
 	{
 		id: "platformer",
 		name: "Platformer World",
-		description: "Game-focused: platforms at various heights, collectibles in accessible areas, hazards on edges",
+		description: "Game-focused: platforms, collectibles, and decorations scattered on terrain",
 		layers: [
 			{
 				name: "Platforms",
@@ -376,11 +440,19 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				treeSlots: [
 					{
 						role: "platform",
-						keywords: ["platform", "grid_platform", "long_platform"],
-						categories: ["environment", "decorations"],
+						keywords: ["grid platform"],
+						categories: ["platforms"],
 						minimumDistance: 8,
 						minScale: 0.8,
 						maxScale: 1.2,
+					},
+					{
+						role: "long platform",
+						keywords: ["long platform"],
+						categories: ["platforms"],
+						minimumDistance: 12,
+						minScale: 0.8,
+						maxScale: 1.0,
 					},
 				],
 				detailSlots: [],
@@ -395,12 +467,20 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				maxThreshold: 1.0,
 				treeSlots: [
 					{
-						role: "collectible",
-						keywords: ["coin", "star", "heart"],
-						categories: ["collectibles", "decorations"],
-						minimumDistance: 10,
+						role: "coin",
+						keywords: ["coin"],
+						categories: ["collectibles"],
+						minimumDistance: 5,
 						minScale: 0.6,
 						maxScale: 0.9,
+					},
+					{
+						role: "star",
+						keywords: ["star"],
+						categories: ["collectibles"],
+						minimumDistance: 10,
+						minScale: 0.5,
+						maxScale: 0.8,
 					},
 				],
 				detailSlots: [],
@@ -414,10 +494,18 @@ export const BIOME_PRESETS: BiomePreset[] = [
 				maxThreshold: 1.0,
 				treeSlots: [
 					{
-						role: "decoration",
-						keywords: ["sign", "barrel", "crate"],
-						categories: ["decorations", "environment"],
+						role: "sign",
+						keywords: ["sign"],
+						categories: ["decorations"],
 						minimumDistance: 10,
+						minScale: 0.7,
+						maxScale: 1.0,
+					},
+					{
+						role: "decoration",
+						keywords: ["garden"],
+						categories: ["decorations"],
+						minimumDistance: 12,
 						minScale: 0.7,
 						maxScale: 1.0,
 					},
