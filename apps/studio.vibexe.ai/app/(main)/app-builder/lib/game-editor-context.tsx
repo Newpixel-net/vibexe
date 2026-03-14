@@ -864,7 +864,9 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 				});
 			}
 			// Character swap: send swap message to iframe character-system module
-			if (patch.character && (patch.character as Record<string, unknown>).id) {
+			// Only trigger swap when character.id actually CHANGES (not on every settings pass-through)
+			if (patch.character && (patch.character as Record<string, unknown>).id &&
+				(patch.character as Record<string, unknown>).id !== (prev.character as Record<string, unknown> | undefined)?.id) {
 				sendToIframe({
 					type: "character-system-swap",
 					characterId: (patch.character as Record<string, unknown>).id,

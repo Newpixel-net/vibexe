@@ -269,8 +269,9 @@ export function GameSettingsContent({ settings, onChange, onSave, pickSpawnActiv
 	}, []);
 
 	const update = useCallback((section: string, field: string, value: any) => {
-		const patched = deepMerge(settings, { [section]: { [field]: value } });
-		onChange(patched);
+		// Pass only the changed section (not full settings) to avoid stale-closure overwrites
+		const currentSection = (settings as any)[section] || {};
+		onChange({ [section]: { ...currentSection, [field]: value } } as any);
 	}, [settings, onChange]);
 
 	const QUALITY_PRESETS: Record<string, { antialias: boolean; pixelRatio: number; maxFPS: number }> = {
@@ -282,7 +283,7 @@ export function GameSettingsContent({ settings, onChange, onSave, pickSpawnActiv
 
 	const applyPreset = (preset: QualityPreset) => {
 		const p = QUALITY_PRESETS[preset];
-		onChange(deepMerge(settings, { performance: { qualityPreset: preset, ...p } }));
+		onChange({ performance: { ...settings.performance, qualityPreset: preset, ...p } } as any);
 	};
 
 	const tabs: { id: SettingsTab; label: string; icon: typeof User }[] = [

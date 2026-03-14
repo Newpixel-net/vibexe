@@ -1097,7 +1097,9 @@ export function SandpackPreview({
 		if (settingsFileContent === lastLoadedSettingsContentRef.current) return;
 		lastLoadedSettingsContentRef.current = settingsFileContent;
 		try {
-			gameEditor.setGameSettings(JSON.parse(settingsFileContent));
+			const parsed = JSON.parse(settingsFileContent);
+			console.log("[GameSettings] Loading from file — characterController:", JSON.stringify(parsed.characterController || null).slice(0, 120));
+			gameEditor.setGameSettings(parsed);
 		} catch { /* invalid JSON */ }
 	}, [settingsFileContent, gameEditor.setGameSettings]);
 
@@ -1126,13 +1128,19 @@ export function SandpackPreview({
 			const filePath = existingFile?.path || "src/__game-settings.json";
 			// Save to DB
 			try {
-				await fetch(`/api/app-builder/apps/${appId}/files`, {
+				const saveResp = await fetch(`/api/app-builder/apps/${appId}/files`, {
 					method: "PUT",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ path: filePath, content }),
 				});
+				if (!saveResp.ok) {
+					const errBody = await saveResp.text().catch(() => "");
+					console.error("[GameSettings] DB save failed:", saveResp.status, errBody);
+				} else {
+					console.log("[GameSettings] Saved to DB:", filePath, "characterController:", JSON.stringify(settings.characterController || null).slice(0, 120));
+				}
 			} catch (err) {
-				console.warn("[GameSettings] DB save failed:", err);
+				console.error("[GameSettings] DB save network error:", err);
 			}
 			// Also save modules manifest so sandpack-adapter can inject modules
 			if (settings.modules?.installed) {
@@ -1187,13 +1195,15 @@ export function SandpackPreview({
 			// so the character system picks up new mode/preset/abilities/speeds
 			if (settings.characterController) {
 				// Ensure a character ID is set so the module can swap/reinit
-				if (!settings.character?.id) {
-					settings.character = { ...(settings.character || {}), id: "warrior" };
+				// Clone to avoid mutating React state directly
+				const settingsForIframe = { ...settings };
+				if (!settingsForIframe.character?.id) {
+					settingsForIframe.character = { ...(settingsForIframe.character || {}), id: "warrior" };
 				}
 				const iframe = iframeRef.current;
 				if (iframe?.contentWindow) {
 					// Send updated settings first (with character.id), then reinit
-					iframe.contentWindow.postMessage({ type: "updateGameSettings", settings }, "*");
+					iframe.contentWindow.postMessage({ type: "updateGameSettings", settings: settingsForIframe }, "*");
 					setTimeout(() => {
 						iframe.contentWindow?.postMessage({ type: "character-system-reinit" }, "*");
 					}, 400);

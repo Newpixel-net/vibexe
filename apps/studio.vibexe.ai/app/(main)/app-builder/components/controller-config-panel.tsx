@@ -470,7 +470,12 @@ export function ControllerConfigPanel({ settings, onChange }: ControllerConfigPa
 	}, []);
 
 	const patchCC = useCallback((patch: Record<string, unknown>) => {
-		onChange(deepMerge(settings, { characterController: patch }));
+		// Pass ONLY { characterController: merged } to updateGameSettings.
+		// Previously passed full settings via deepMerge which triggered unintended
+		// side effects (character-system-swap on every change) and stale-closure overwrites.
+		const currentCC = settings.characterController || {};
+		const mergedCC = deepMerge(currentCC, patch);
+		onChange({ characterController: mergedCC } as any);
 	}, [settings, onChange]);
 
 	const mode = cc.controllerMode || "orbit";
