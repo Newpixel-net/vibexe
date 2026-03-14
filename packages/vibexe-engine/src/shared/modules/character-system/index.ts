@@ -1516,7 +1516,7 @@ function _createRunnerController(ctx) {
     getDistance: function() { return _distance; },
     getLaneX: function(lane) { return _lanes[lane] || 0; },
     setSpeedMultiplier: function(m) { _speedMult = m; },
-    reset: function() { _speed = rcfg.initialSpeed || 8; _distance = 0; _currentLane = _halfLanes; _targetX = _lanes[_currentLane]; _paused = false; },
+    reset: function() { _speed = rcfg.initialSpeed || 5; _distance = 0; _currentLane = _halfLanes; _targetX = _lanes[_currentLane]; _paused = false; },
     pause: function() { _paused = true; },
     resume: function() { _paused = false; }
   };

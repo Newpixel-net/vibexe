@@ -6146,19 +6146,22 @@ export const GameScene = {
     // Distance tracking (score is collectible-only, distance shown separately)
     distance += speed * delta;
 
+    // Use character-system mesh when active, fallback to IIFE player mesh
+    const _activeMesh = (window as any).__vibexe_playerMesh__ || player;
+
     // Invulnerability timer
     if (invulnTimer > 0) {
       invulnTimer -= delta;
-      player.visible = Math.floor(invulnTimer * 10) % 2 === 0;
+      _activeMesh.visible = Math.floor(invulnTimer * 10) % 2 === 0;
     } else {
-      player.visible = true;
+      _activeMesh.visible = true;
     }
 
     // Check barrier collisions
     for (const seg of segments) {
       for (const b of seg.barriers) {
         const bPos = b.mesh.position;
-        const pPos = player.position;
+        const pPos = _activeMesh.position;
         const dz = Math.abs(pPos.z - bPos.z);
         const dxB = Math.abs(pPos.x - bPos.x);
         if (dz < 1.2 && dxB < 1.0 && pPos.y < bPos.y + 1.5 && invulnTimer <= 0) {
@@ -6170,7 +6173,7 @@ export const GameScene = {
       for (const c of seg.collectibles) {
         if (c.collected) continue;
         const cPos = c.mesh.position;
-        const pPos = player.position;
+        const pPos = _activeMesh.position;
         const dist = Math.sqrt(
           (pPos.x - cPos.x) ** 2 + (pPos.y - cPos.y) ** 2 + (pPos.z - cPos.z) ** 2
         );
@@ -6194,20 +6197,22 @@ export const GameScene = {
       }
     }
 
-    // Camera follow — behind and above
-    const camTargetX = player.position.x * 0.5;
-    const camTargetY = player.position.y + 4;
-    const camTargetZ = player.position.z + 10;
-    camera.position.x += (camTargetX - camera.position.x) * 3 * delta;
-    camera.position.y += (camTargetY - camera.position.y) * 3 * delta;
-    camera.position.z += (camTargetZ - camera.position.z) * 5 * delta;
-    camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+    // Camera follow — skip when character-system module owns camera
+    if (!(window as any).__charCtrl_active) {
+      const camTargetX = player.position.x * 0.5;
+      const camTargetY = player.position.y + 4;
+      const camTargetZ = player.position.z + 10;
+      camera.position.x += (camTargetX - camera.position.x) * 3 * delta;
+      camera.position.y += (camTargetY - camera.position.y) * 3 * delta;
+      camera.position.z += (camTargetZ - camera.position.z) * 5 * delta;
+      camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+    }
 
     // HUD update
     hud.update({ score, lives, custom: \`Distance: \${Math.floor(distance)}m | Speed: \${speed.toFixed(1)}\` });
 
     // Fall off edge = lose life
-    if (player.position.y < -5) {
+    if (_activeMesh.position.y < -5) {
       lives--;
       if (lives <= 0) {
         triggerGameOver();
@@ -6238,7 +6243,8 @@ function hitBarrier() {
   lives--;
   invulnTimer = INVULN_TIME;
   playSound(soundUrl("hit"), { volume: 0.7 });
-  createParticleEmitter(scene, player.position.x, player.position.y + 1, player.position.z, {
+  const _hitMesh = (window as any).__vibexe_playerMesh__ || player;
+  createParticleEmitter(scene, _hitMesh.position.x, _hitMesh.position.y + 1, _hitMesh.position.z, {
     preset: "explosion", count: 20, duration: 0.6,
   });
   speed = Math.max(INITIAL_SPEED, speed * 0.7);
@@ -6381,7 +6387,8 @@ async function spawnSegment(safe: boolean = false) {
 }
 
 function recycleSegments() {
-  const playerZ = player.position.z;
+  const _rcMesh = (window as any).__vibexe_playerMesh__ || player;
+  const playerZ = _rcMesh.position.z;
   for (let i = segments.length - 1; i >= 0; i--) {
     const seg = segments[i];
     if (seg.z > playerZ + RECYCLE_Z_BEHIND) {
