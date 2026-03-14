@@ -31,7 +31,7 @@ function normalizePath(p: string): string {
 	return out.join("/");
 }
 
-function createVirtualPlugin(files: Map<string, string>): esbuild.Plugin {
+function createVirtualPlugin(files: Map<string, string>, enabledModuleIds?: string[]): esbuild.Plugin {
 	// Shim modules: Three.js + CANNON.js + Rapier.js + React as window globals
 	const shims: Record<string, string> = {
 		three: "module.exports = window.THREE;",
@@ -44,15 +44,21 @@ function createVirtualPlugin(files: Map<string, string>): esbuild.Plugin {
 		"react/jsx-dev-runtime": "module.exports = { jsxDEV: (window.React||{}).createElement, Fragment: (window.React||{}).Fragment };",
 	};
 
-	// Add @vibexe/* module shims from module registry
+	// Add @vibexe/* module shims — only shim enabled modules with full runtimeCode,
+	// disabled modules get empty shims (saves memory: sky-weather alone is ~70KB)
+	const enabledSet = new Set(enabledModuleIds || []);
 	for (const mod of ALL_MODULE_MANIFESTS) {
 		const pkgName = `@vibexe/${mod.id}`;
 		if (!shims[pkgName]) {
-			// P5 fix: warn when module has no runtimeCode (instead of silent empty shim)
-			if (!mod.runtimeCode) {
-				console.warn(`[GameCompiler] Module "${mod.id}" has no runtimeCode — using empty shim`);
+			if (enabledSet.has(mod.id)) {
+				if (!mod.runtimeCode) {
+					console.warn(`[GameCompiler] Module "${mod.id}" is enabled but has no runtimeCode`);
+				}
+				shims[pkgName] = mod.runtimeCode || "module.exports = {};";
+			} else {
+				// Disabled module — empty shim prevents "not found" errors if AI code imports it
+				shims[pkgName] = "module.exports = {};";
 			}
-			shims[pkgName] = mod.runtimeCode || "module.exports = {};";
 		}
 	}
 
@@ -250,7 +256,7 @@ export async function compileGameBundle(input: CompileInput): Promise<CompileOut
 			jsxFragment: "React.Fragment",
 			minify: true,
 			write: false,
-			plugins: [createVirtualPlugin(files)],
+			plugins: [createVirtualPlugin(files, input.enabledModuleIds)],
 			define: {
 				"process.env.NODE_ENV": '"production"',
 			},

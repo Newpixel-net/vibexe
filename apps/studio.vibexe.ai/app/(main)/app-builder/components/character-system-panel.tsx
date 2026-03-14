@@ -78,6 +78,9 @@ export function CharacterSystemPanel({ sendToIframe, onClose, settings, onChange
 
 	const dirtyRef = useRef(false);
 	const latestConfigRef = useRef(config);
+	// Keep config in a ref so updateConfig has stable identity
+	const configRef = useRef(config);
+	configRef.current = config;
 
 	// Listen for messages from the character-system module in the iframe
 	useEffect(() => {
@@ -106,23 +109,26 @@ export function CharacterSystemPanel({ sendToIframe, onClose, settings, onChange
 	}, [config.id]);
 
 	const updateConfig = useCallback((patch: Partial<CharacterConfig>) => {
-		const merged = { ...config, ...patch };
+		const merged = { ...configRef.current, ...patch };
 		setConfig(merged);
 		latestConfigRef.current = merged;
+		configRef.current = merged;
 		dirtyRef.current = true;
 		onChange(merged);
-	}, [config, onChange]);
+	}, [onChange]);
 
 	const handleSelectCharacter = useCallback((charDef: CharacterDef) => {
+		const cur = configRef.current;
 		const newConfig: CharacterConfig = {
 			id: charDef.id,
 			pack: charDef.pack,
 			model: charDef.model,
-			groundOffset: config.groundOffset ?? 0,
-			scale: config.scale ?? 1.0,
+			groundOffset: cur.groundOffset ?? 0,
+			scale: cur.scale ?? 1.0,
 		};
 		setConfig(newConfig);
 		latestConfigRef.current = newConfig;
+		configRef.current = newConfig;
 		dirtyRef.current = true;
 
 		// Send swap command to iframe
@@ -139,7 +145,7 @@ export function CharacterSystemPanel({ sendToIframe, onClose, settings, onChange
 		setCurrentClip(null);
 
 		onChange(newConfig);
-	}, [config.groundOffset, config.scale, sendToIframe, onChange]);
+	}, [sendToIframe, onChange]);
 
 	const handlePlayAnimation = useCallback((clipName: string) => {
 		setCurrentClip(clipName);

@@ -121,6 +121,7 @@ function humanKey(code: string): string {
 function deepMerge(target: any, patch: any): any {
 	const result = { ...target };
 	for (const [key, val] of Object.entries(patch)) {
+		if (key === "__proto__" || key === "constructor" || key === "prototype") continue;
 		if (val && typeof val === "object" && !Array.isArray(val) && target[key] && typeof target[key] === "object") {
 			result[key] = deepMerge(target[key], val);
 		} else {
@@ -259,6 +260,9 @@ function PCInputGrid({ bindings, onChange }: {
 }) {
 	const [rebinding, setRebinding] = useState<string | null>(null);
 	const listenerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
+	// Keep bindings in a ref so keydown handler always has current value
+	const bindingsRef = useRef(bindings);
+	bindingsRef.current = bindings;
 
 	// Clean up listener on unmount
 	useEffect(() => {
@@ -284,14 +288,14 @@ function PCInputGrid({ bindings, onChange }: {
 				listenerRef.current = null;
 				return;
 			}
-			onChange({ ...bindings, [action]: e.code });
+			onChange({ ...bindingsRef.current, [action]: e.code });
 			setRebinding(null);
 			document.removeEventListener("keydown", handler);
 			listenerRef.current = null;
 		};
 		listenerRef.current = handler;
 		document.addEventListener("keydown", handler);
-	}, [bindings, onChange]);
+	}, [onChange]);
 
 	return (
 		<div className="space-y-0.5">

@@ -40,7 +40,7 @@ export function generateRuntimeBootstrap(opts: BootstrapSettings): string {
 
 	// Settings runtime override — applies AFTER scene initializes
 	if (gs && (gs.environment || gs.camera || gs.physics)) {
-		lines.push(generateSettingsOverride(gs));
+		lines.push(generateSettingsOverride(gs, opts.enabledModuleIds));
 	}
 
 	// Game API — loadScene, getScenes, getActiveSceneId
@@ -58,9 +58,10 @@ export function generateRuntimeBootstrap(opts: BootstrapSettings): string {
 	return lines.join("\n");
 }
 
-function generateSettingsOverride(gs: Record<string, unknown>): string {
-	// Check if sky-weather module is installed — if so, it manages bg/fog/lighting
-	const hasSkyWeather = !!(
+function generateSettingsOverride(gs: Record<string, unknown>, enabledModuleIds: string[]): string {
+	// Check if sky-weather module is active — authoritative source is enabledModuleIds,
+	// fallback to game settings structure for backward compatibility
+	const hasSkyWeather = enabledModuleIds.includes("sky-weather") || !!(
 		gs.modules &&
 		(gs.modules as Record<string, unknown>).installed &&
 		((gs.modules as Record<string, unknown>).installed as Record<string, unknown>)["sky-weather"] &&

@@ -140,30 +140,35 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 	// Track whether user made changes (for auto-save on close)
 	const dirtyRef = useRef(false);
 	const latestConfigRef = useRef(config);
+	// Keep config in a ref so sendConfig has stable identity (no re-create on every slider drag)
+	const configRef = useRef(config);
+	configRef.current = config;
 
 	const sendConfig = useCallback((patch: Partial<SkyWeatherConfig>) => {
+		const cur = configRef.current;
 		const merged = {
-			time: { ...config.time, ...patch.time },
-			sky: { ...config.sky, ...patch.sky },
-			lighting: { ...config.lighting, ...patch.lighting },
-			fog: { ...config.fog, ...patch.fog },
-			clouds: { ...config.clouds, ...patch.clouds },
-			precipitation: { ...config.precipitation, ...patch.precipitation },
-			lightning: { ...config.lightning, ...patch.lightning },
-			effects: { ...config.effects, ...patch.effects },
+			time: { ...cur.time, ...patch.time },
+			sky: { ...cur.sky, ...patch.sky },
+			lighting: { ...cur.lighting, ...patch.lighting },
+			fog: { ...cur.fog, ...patch.fog },
+			clouds: { ...cur.clouds, ...patch.clouds },
+			precipitation: { ...cur.precipitation, ...patch.precipitation },
+			lightning: { ...cur.lightning, ...patch.lightning },
+			effects: { ...cur.effects, ...patch.effects },
 		};
 		setConfig(merged);
 		latestConfigRef.current = merged;
+		configRef.current = merged;
 		dirtyRef.current = true;
 		// Live preview — postMessage only, no file write, no refresh
 		sendToIframe({ type: "sky-weather-update-config", config: merged });
 		onChange(merged);
-	}, [config, sendToIframe, onChange]);
+	}, [sendToIframe, onChange]);
 
 	const setTime = useCallback((t: number) => {
 		sendToIframe({ type: "sky-weather-set-time", solarTime: t });
-		sendConfig({ time: { ...config.time, solarTime: t } });
-	}, [config.time, sendToIframe, sendConfig]);
+		sendConfig({ time: { solarTime: t } });
+	}, [sendToIframe, sendConfig]);
 
 	const tabs: { id: SkyTab; label: string; icon: typeof Sun }[] = [
 		{ id: "time", label: "Time", icon: Clock },
@@ -352,7 +357,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 						/>
 						<SliderRow
 							label="Exposure"
-							value={config.sky?.exposure ?? 2.0}
+							value={config.sky?.exposure ?? 1.2}
 							min={0.5} max={5.0} step={0.1}
 							format={(v) => v.toFixed(1)}
 							onChange={(v) => sendConfig({ sky: { ...config.sky, exposure: v } })}

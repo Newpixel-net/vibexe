@@ -192,6 +192,40 @@ window.addEventListener('unhandledrejection', function(e) {
         window.__vibexe_terrainBody = null;
         window.__vibexe_terrainPostStep = null;
         window.__vibexe_terrainData = null;
+        // Rapier cleanup — free WASM resources
+        var _rpw = window.__vibexe_rapierWorld__;
+        if (_rpw && _rpw.free) { try { _rpw.free(); } catch(e) {} }
+        window.__vibexe_rapierWorld__ = null;
+        window.__vibexe_rapierBodyMap__ = null;
+        window.__vibexe_rapierTerrainCollider__ = null;
+        window.__vibexe_rapierTerrainBody__ = null;
+        window.__rapierErrorLogged = null;
+        // Clean up module globals to prevent stale handlers/timers on reload
+        window.__vibexe_modules__ = {};
+        // Sky-weather cleanup: destroy instance + clear init timer
+        if (window.__vibexe_skyWeather) {
+          try { window.__vibexe_skyWeather.destroy(); } catch(e) {}
+        }
+        window.__vibexe_skyWeather = null;
+        window.__skyWeather_active = null;
+        if (window.__skyWeather_autoInitInterval) {
+          clearInterval(window.__skyWeather_autoInitInterval);
+          window.__skyWeather_autoInitInterval = null;
+        }
+        // Character system cleanup
+        window.__vibexe_characterSystem = null;
+        if (window.__charCtrl_autoInitInterval) {
+          clearInterval(window.__charCtrl_autoInitInterval);
+          window.__charCtrl_autoInitInterval = null;
+        }
+        window.__charCtrl_active = false;
+        // Cancel any module-owned intervals/timers
+        if (window.__vibexe_moduleTimers__) {
+          for (var _mt = 0; _mt < window.__vibexe_moduleTimers__.length; _mt++) {
+            try { clearInterval(window.__vibexe_moduleTimers__[_mt]); } catch(e) {}
+          }
+          window.__vibexe_moduleTimers__ = [];
+        }
         // Clear canvas
         var root = document.getElementById('root');
         if (root) root.innerHTML = '';
