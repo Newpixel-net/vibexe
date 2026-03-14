@@ -17,14 +17,13 @@ import {
 	MousePointer2,
 	Paintbrush,
 	RotateCcw,
-	Search,
 	Undo2,
 	Redo2,
 	X,
 	Trash2,
 	Check,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	WB_TOOLS,
 	type WBTool,
@@ -40,7 +39,6 @@ import {
 	type WBReplacerSettings,
 	type WBExtrudeSettings,
 	type WBMirrorSettings,
-	type WBPaletteItem,
 	DEFAULT_SNAP_SETTINGS,
 	DEFAULT_PIN_SETTINGS,
 	DEFAULT_BRUSH_TOOL_SETTINGS,
@@ -54,7 +52,8 @@ import {
 	DEFAULT_EXTRUDE_SETTINGS,
 	DEFAULT_MIRROR_SETTINGS,
 } from "../lib/world-builder-types";
-import { WB_PALETTE_PACKS } from "../lib/world-builder-palette-data";
+import { SharedAssetBrowser, toWBItem } from "./shared-asset-browser";
+import type { AssetLibraryItem } from "../lib/asset-library-data";
 
 interface WorldBuilderPanelProps {
 	sendToIframe: (msg: any) => void;
@@ -121,10 +120,7 @@ function Hint({ text }: { text: string }) {
 
 export function WorldBuilderPanel({ sendToIframe, onClose }: WorldBuilderPanelProps) {
 	const [activeTool, setActiveTool] = useState<WBTool>("pin");
-	const [activeItem, setActiveItem] = useState<WBPaletteItem | null>(null);
-	const [activePack, setActivePack] = useState(0);
-	const [activeCategory, setActiveCategory] = useState(0);
-	const [search, setSearch] = useState("");
+	const [activeItem, setActiveItem] = useState<{ id: string; name: string; modelPath: string; pack: string; category: string } | null>(null);
 	const [snapSettings, setSnapSettings] = useState<WBSnapSettings>({ ...DEFAULT_SNAP_SETTINGS });
 	const [pinSettings, setPinSettings] = useState<WBPinSettings>({ ...DEFAULT_PIN_SETTINGS });
 	const [brushToolSettings, setBrushToolSettings] = useState<WBBrushToolSettings>({ ...DEFAULT_BRUSH_TOOL_SETTINGS });
@@ -169,10 +165,11 @@ export function WorldBuilderPanel({ sendToIframe, onClose }: WorldBuilderPanelPr
 
 	const handleToolChange = useCallback((tool: WBTool) => { setActiveTool(tool); stableSend({ type: "wb-set-tool", tool }); }, [stableSend]);
 
-	const handleItemSelect = useCallback((item: WBPaletteItem) => {
-		if (activeItem?.id === item.id) { setActiveItem(null); stableSend({ type: "wb-set-active-item", item: null }); }
+	const handleItemSelect = useCallback((item: AssetLibraryItem, color: string) => {
+		const wbItem = toWBItem(item, color);
+		if (activeItem?.id === wbItem.id) { setActiveItem(null); stableSend({ type: "wb-set-active-item", item: null }); }
 		else {
-			setActiveItem(item); stableSend({ type: "wb-set-active-item", item });
+			setActiveItem(wbItem); stableSend({ type: "wb-set-active-item", item: wbItem });
 			if (activeTool === "eraser" || activeTool === "select" || activeTool === "replacer") { setActiveTool("pin"); stableSend({ type: "wb-set-tool", tool: "pin" }); }
 		}
 	}, [activeItem, activeTool, stableSend]);
@@ -199,16 +196,6 @@ export function WorldBuilderPanel({ sendToIframe, onClose }: WorldBuilderPanelPr
 	const handleUndo = useCallback(() => stableSend({ type: "wb-undo" }), [stableSend]);
 	const handleRedo = useCallback(() => stableSend({ type: "wb-redo" }), [stableSend]);
 	const handleClear = useCallback(() => { if (confirm("Remove all placed objects?")) stableSend({ type: "wb-clear-all" }); }, [stableSend]);
-
-	const currentPack = WB_PALETTE_PACKS[activePack];
-	const filteredCategories = useMemo(() => {
-		if (!currentPack) return [];
-		if (!search) return currentPack.categories;
-		const q = search.toLowerCase();
-		return currentPack.categories.map((cat) => ({ ...cat, items: cat.items.filter((i) => i.name.toLowerCase().includes(q)) })).filter((cat) => cat.items.length > 0);
-	}, [currentPack, search]);
-	useEffect(() => { setActiveCategory(0); }, [activePack]);
-	const currentCategory = filteredCategories[activeCategory];
 
 	// Which tools show brush properties
 	const showBrushProps = activeTool === "pin" || activeTool === "brush" || activeTool === "line" || activeTool === "shape" || activeTool === "gravity" || activeTool === "tiling-floor" || activeTool === "tiling-wall";
@@ -584,50 +571,21 @@ export function WorldBuilderPanel({ sendToIframe, onClose }: WorldBuilderPanelPr
 				</div>
 			)}
 
-			{/* Palette Browser */}
-			<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-				<div className="flex gap-0.5 px-2 pt-2 pb-1 overflow-x-auto scrollbar-none">
-					{WB_PALETTE_PACKS.map((pack, i) => (
-						<button key={pack.id} type="button" onClick={() => setActivePack(i)}
-							className={`px-2 py-0.5 text-[9px] rounded-full whitespace-nowrap transition-colors ${activePack === i ? "bg-amber-500/[0.15] text-amber-300" : "text-white/30 hover:text-white/50"}`}>
-							{pack.name}
-						</button>
-					))}
+			{/* Asset Browser (shared single source of truth) */}
+			<SharedAssetBrowser
+				onSelect={handleItemSelect}
+				selectedItemId={activeItem?.id ?? null}
+				columns={3}
+				highlightColor="amber"
+				showPackFilter
+			/>
+
+			{/* Active item status bar */}
+			{activeItem && (
+				<div className="flex-shrink-0 px-2 py-1 bg-amber-500/10 border-t border-amber-500/20 text-[10px] text-amber-400 text-center">
+					{activeTool === "pin" ? "Click to place" : activeTool === "brush" ? "Paint to scatter" : activeTool === "line" ? "Click points, Enter to place" : activeTool === "shape" ? "Drag to set shape" : activeTool === "gravity" ? "Click to drop" : activeTool === "replacer" ? "Click to replace" : ""}: {activeItem.name}
 				</div>
-				<div className="px-2 py-1 flex items-center gap-1.5">
-					<Search className="w-3 h-3 text-white/25" />
-					<input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search models..."
-						className="flex-1 bg-transparent text-[11px] text-white/70 placeholder:text-white/20 outline-none" />
-				</div>
-				<div className="flex gap-0.5 px-2 pb-1 overflow-x-auto scrollbar-none">
-					{filteredCategories.map((cat, i) => (
-						<button key={cat.id} type="button" onClick={() => setActiveCategory(i)}
-							className={`px-2 py-0.5 text-[9px] rounded-full whitespace-nowrap transition-colors ${activeCategory === i ? "bg-white/[0.12] text-white/80" : "text-white/30 hover:text-white/50"}`}>
-							{cat.label}
-						</button>
-					))}
-				</div>
-				<div className="flex-1 overflow-y-auto scrollbar-thin px-2 pb-2">
-					<div className="grid grid-cols-3 gap-1">
-						{(currentCategory?.items || []).map((item) => {
-							const isActive = activeItem?.id === item.id;
-							return (
-								<button key={item.id} type="button" onClick={() => handleItemSelect(item)}
-									className={`relative flex flex-col items-center gap-0.5 p-1.5 rounded transition-all ${isActive ? "bg-amber-500/20 ring-1 ring-amber-500/40" : "bg-white/[0.04] hover:bg-white/[0.08]"}`}
-									title={`${item.name}\n${item.pack}/${item.modelPath}`}>
-									<div className="w-6 h-6 rounded" style={{ backgroundColor: item.thumbnailColor || "#666", opacity: 0.8 }} />
-									<span className="text-[8px] text-white/50 truncate w-full text-center leading-tight">{item.name}</span>
-								</button>
-							);
-						})}
-					</div>
-				</div>
-				{activeItem && (
-					<div className="px-2 py-1 bg-amber-500/10 border-t border-amber-500/20 text-[10px] text-amber-400 text-center">
-						{activeTool === "pin" ? "Click to place" : activeTool === "brush" ? "Paint to scatter" : activeTool === "line" ? "Click points, Enter to place" : activeTool === "shape" ? "Drag to set shape" : activeTool === "gravity" ? "Click to drop" : activeTool === "replacer" ? "Click to replace" : ""}: {activeItem.name}
-					</div>
-				)}
-			</div>
+			)}
 
 			{/* Grid Settings */}
 			<div className="border-t border-white/[0.06]">
