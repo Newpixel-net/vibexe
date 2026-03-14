@@ -11,6 +11,9 @@
 
 import type { ModuleManifest } from "../module-types";
 
+// Population system (heatmap-driven Poisson sampling)
+export * from "./population";
+
 export const WORLD_BUILDER_MANIFEST: ModuleManifest = {
 	id: "world-builder",
 	name: "World Builder",
