@@ -257,12 +257,41 @@ export interface GameSettings {
 		rotationSmoothTime?: number;
 		camMinDist?: number; camMaxDist?: number; camMinHeight?: number; camMaxHeight?: number;
 		camMouseOffset?: number; camOffsetDampTime?: number;
+		// Per-platform input bindings
+		platformInputs?: {
+			pc?: {
+				forward: string; back: string; left: string; right: string;
+				jump: string; run: string; crouch: string; dash: string;
+				interact?: string; attack?: string;
+			};
+			mobile?: {
+				moveMode: "joystick" | "dpad";
+				jumpGesture: "tap-right" | "swipe-up" | "button";
+				dashGesture: "swipe-right" | "double-tap" | "button";
+				crouchGesture: "swipe-down" | "button";
+				attackGesture?: "tap-right" | "button";
+				joystickSize?: number;
+				joystickPosition?: "bottom-left" | "bottom-right";
+				touchSensitivity?: number;
+			};
+			console?: {
+				forward: string; back: string; left: string; right: string;
+				jump: string; run: string; crouch: string; dash: string;
+				camera: string; interact?: string; attack?: string;
+				deadzone?: number;
+			};
+		};
 		runner?: {
 			initialSpeed?: number; maxSpeed?: number; acceleration?: number;
 			laneWidth?: number; laneCount?: number; laneSwitchSpeed?: number;
+			smoothMovementTime?: number;
+			roadConstraintMin?: number;
+			roadConstraintMax?: number;
+			touchDragEnabled?: boolean;
+			touchSensitivity?: number;
 		};
 		abilities?: {
-			doubleJump?: { enabled?: boolean };
+			doubleJump?: { enabled?: boolean; maxJumps?: number };
 			dash?: { enabled?: boolean; speed?: number; duration?: number; cooldown?: number };
 			wallSlide?: { enabled?: boolean; slideSpeed?: number; jumpForce?: number };
 			crouch?: { enabled?: boolean; speedMultiplier?: number };
@@ -270,6 +299,8 @@ export interface GameSettings {
 		};
 		animationMap?: Record<string, string>;
 		inputProfile?: string | Record<string, string>;
+		// Custom preset storage
+		customPresets?: Record<string, { name: string; basePreset?: string; config: Record<string, unknown> }>;
 	};
 	// Multi-scene / level system
 	scenes?: SceneDefinition[];

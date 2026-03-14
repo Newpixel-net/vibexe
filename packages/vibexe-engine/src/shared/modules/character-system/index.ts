@@ -88,7 +88,7 @@ var _lastSwapCharId = null;
 var GENRE_PRESETS = {
   rpg_adventure: { controllerMode: 'orbit', cameraProfile: 'orbit', walkSpeed: 4, runSpeed: 8, jumpForce: 8 },
   platformer: { controllerMode: 'orbit', cameraProfile: 'orbit', walkSpeed: 5, runSpeed: 10, jumpForce: 14, airControl: 0.5, abilities: { doubleJump: { enabled: true } } },
-  endless_runner: { controllerMode: 'runner', cameraProfile: 'chase', runner: { initialSpeed: 8, maxSpeed: 25, acceleration: 0.15, laneWidth: 3, laneCount: 3 } },
+  endless_runner: { controllerMode: 'runner', cameraProfile: 'chase', walkSpeed: 5, runSpeed: 5, runner: { initialSpeed: 5, maxSpeed: 25, acceleration: 0.15, laneWidth: 3, laneCount: 3, laneSwitchSpeed: 5, smoothMovementTime: 0.1, roadConstraintMin: -2, roadConstraintMax: 2, touchDragEnabled: true, touchSensitivity: 1.0 } },
   sidescroller: { controllerMode: 'sidescroll', cameraProfile: 'side', walkSpeed: 5, jumpForce: 12, abilities: { wallSlide: { enabled: true, slideSpeed: 2, jumpForce: 10 } } },
   topdown_shooter: { controllerMode: 'topdown', cameraProfile: 'overhead', walkSpeed: 8, runSpeed: 12, abilities: { dash: { enabled: true, speed: 20, duration: 0.2, cooldown: 1.5 } } },
   parkour: { controllerMode: 'orbit', cameraProfile: 'orbit', runSpeed: 12, jumpForce: 16, stepHeight: 1.2, abilities: { doubleJump: { enabled: true }, wallSlide: { enabled: true, slideSpeed: 2, jumpForce: 12 }, dash: { enabled: true, speed: 25, duration: 0.15, cooldown: 1 } } },
@@ -214,6 +214,185 @@ function _attachInputListeners() {
   }, { passive: false });
 
   console.log("[CharacterSystem] Input listeners attached (WASD + mouse orbit/zoom)");
+}
+
+// ===== PLATFORM DETECTION =====
+function _detectPlatform() {
+  if (typeof navigator !== 'undefined' && navigator.getGamepads) {
+    var pads = navigator.getGamepads();
+    for (var i = 0; i < pads.length; i++) { if (pads[i] !== null) return 'console'; }
+  }
+  if (typeof window !== 'undefined' && 'ontouchstart' in window && window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches) return 'mobile';
+  return 'pc';
+}
+var _detectedPlatform = null;
+function _getPlatform() {
+  if (!_detectedPlatform) _detectedPlatform = _detectPlatform();
+  return _detectedPlatform;
+}
+
+// ===== TOUCH INPUT SYSTEM =====
+var _touchJoystick = null;
+var _touchTapDetector = null;
+var _touchSwipeDetector = null;
+
+function _createTouchJoystick(container) {
+  var state = { x: 0, y: 0, active: false, destroy: null };
+  var el = document.createElement('div');
+  el.style.cssText = 'position:fixed;bottom:40px;left:40px;width:120px;height:120px;border-radius:60px;background:rgba(255,255,255,0.08);border:2px solid rgba(255,255,255,0.15);z-index:9999;touch-action:none;';
+  var knob = document.createElement('div');
+  knob.style.cssText = 'position:absolute;width:50px;height:50px;border-radius:25px;background:rgba(255,255,255,0.25);left:35px;top:35px;pointer-events:none;transition:transform 0.05s;';
+  el.appendChild(knob);
+  container.appendChild(el);
+
+  var cx = 60, cy = 60, maxR = 40;
+  var tid = null;
+
+  function onStart(e) {
+    e.preventDefault();
+    var t = e.touches ? e.touches[0] : e;
+    var r = el.getBoundingClientRect();
+    cx = r.left + r.width / 2; cy = r.top + r.height / 2;
+    state.active = true;
+    tid = t.identifier !== undefined ? t.identifier : null;
+    onMove(e);
+  }
+  function onMove(e) {
+    e.preventDefault();
+    if (!state.active) return;
+    var t = e.touches ? Array.from(e.touches).find(function(tt) { return tid === null || tt.identifier === tid; }) : e;
+    if (!t) return;
+    var dx = t.clientX - cx, dy = -(t.clientY - cy);
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > maxR) { dx = dx / dist * maxR; dy = dy / dist * maxR; }
+    state.x = dx / maxR; state.y = dy / maxR;
+    knob.style.transform = 'translate(' + (dx) + 'px,' + (-dy) + 'px)';
+  }
+  function onEnd(e) {
+    if (e.touches) {
+      for (var i = 0; i < e.touches.length; i++) { if (e.touches[i].identifier === tid) return; }
+    }
+    state.active = false; state.x = 0; state.y = 0; tid = null;
+    knob.style.transform = 'translate(0,0)';
+  }
+
+  el.addEventListener('touchstart', onStart, { passive: false });
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend', onEnd, { passive: false });
+
+  state.destroy = function() {
+    el.removeEventListener('touchstart', onStart);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onEnd);
+    if (el.parentNode) el.parentNode.removeChild(el);
+  };
+  return state;
+}
+
+function _createTapDetector(container, onTap) {
+  var state = { destroy: null };
+  function handler(e) {
+    if (e.touches && e.touches.length > 0) {
+      var t = e.touches[0];
+      var isLeft = t.clientX < window.innerWidth / 2;
+      onTap(t.clientX, t.clientY, isLeft);
+    }
+  }
+  container.addEventListener('touchstart', handler, { passive: true });
+  state.destroy = function() { container.removeEventListener('touchstart', handler); };
+  return state;
+}
+
+function _createSwipeDetector(container, onSwipe, threshold) {
+  threshold = threshold || 50;
+  var state = { destroy: null };
+  var sx = 0, sy = 0;
+  function onStart(e) { if (e.touches && e.touches[0]) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; } }
+  function onEnd(e) {
+    if (e.changedTouches && e.changedTouches[0]) {
+      var dx = e.changedTouches[0].clientX - sx;
+      var dy = e.changedTouches[0].clientY - sy;
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > threshold) {
+        onSwipe(dx > 0 ? 'right' : 'left');
+      } else if (Math.abs(dy) > threshold) {
+        onSwipe(dy > 0 ? 'down' : 'up');
+      }
+    }
+  }
+  container.addEventListener('touchstart', onStart, { passive: true });
+  container.addEventListener('touchend', onEnd, { passive: true });
+  state.destroy = function() {
+    container.removeEventListener('touchstart', onStart);
+    container.removeEventListener('touchend', onEnd);
+  };
+  return state;
+}
+
+function _attachTouchInputListeners() {
+  if (_touchJoystick) return; // already attached
+  _touchJoystick = _createTouchJoystick(document.body);
+  _touchTapDetector = _createTapDetector(document.body, function(x, y, isLeft) {
+    if (!isLeft) { _inputState.space = true; setTimeout(function() { _inputState.space = false; }, 100); }
+  });
+  _touchSwipeDetector = _createSwipeDetector(document.body, function(dir) {
+    if (dir === 'left' || dir === 'right') { _inputState.dash = true; setTimeout(function() { _inputState.dash = false; }, 200); }
+    if (dir === 'down') { _inputState.crouch = true; setTimeout(function() { _inputState.crouch = false; }, 200); }
+    if (dir === 'up') { _inputState.space = true; setTimeout(function() { _inputState.space = false; }, 100); }
+  }, 50);
+  console.log('[CharacterSystem] Touch input listeners attached');
+}
+
+function _detachTouchInputListeners() {
+  if (_touchJoystick && _touchJoystick.destroy) _touchJoystick.destroy();
+  if (_touchTapDetector && _touchTapDetector.destroy) _touchTapDetector.destroy();
+  if (_touchSwipeDetector && _touchSwipeDetector.destroy) _touchSwipeDetector.destroy();
+  _touchJoystick = null; _touchTapDetector = null; _touchSwipeDetector = null;
+}
+
+// ===== GAMEPAD SUPPORT =====
+function _pollGamepad() {
+  var gamepads = (typeof navigator !== 'undefined' && navigator.getGamepads) ? navigator.getGamepads() : [];
+  for (var i = 0; i < gamepads.length; i++) {
+    var gp = gamepads[i]; if (!gp) continue;
+    var gsChar = (window.__VIBEXE_GAME_SETTINGS__ || {}).characterController || {};
+    var dz = (gsChar.platformInputs && gsChar.platformInputs.console && gsChar.platformInputs.console.deadzone) || 0.15;
+    _inputState.a = gp.axes[0] < -dz;
+    _inputState.d = gp.axes[0] > dz;
+    _inputState.w = gp.axes[1] < -dz;
+    _inputState.s = gp.axes[1] > dz;
+    _inputState.space = gp.buttons[0] && gp.buttons[0].pressed;   // A/Cross
+    _inputState.shift = gp.buttons[6] && gp.buttons[6].pressed;   // LT
+    _inputState.crouch = gp.buttons[1] && gp.buttons[1].pressed;  // B/Circle
+    _inputState.dash = gp.buttons[4] && gp.buttons[4].pressed;    // LB
+    break; // use first connected gamepad
+  }
+}
+
+// ===== JOYSTICK → INPUT STATE BRIDGE (called per frame) =====
+function _updateTouchInput() {
+  if (_touchJoystick && _touchJoystick.active) {
+    _inputState.a = _touchJoystick.x < -0.3;
+    _inputState.d = _touchJoystick.x > 0.3;
+    _inputState.w = _touchJoystick.y > 0.3;
+    _inputState.s = _touchJoystick.y < -0.3;
+    _inputState.shift = (Math.abs(_touchJoystick.x) > 0.8 || Math.abs(_touchJoystick.y) > 0.8);
+  }
+}
+
+// ===== PLATFORM-AWARE INPUT SETUP =====
+function _setupPlatformInput() {
+  var platform = _getPlatform();
+  if (typeof window !== 'undefined') window.__vibexe_platform__ = platform;
+  var gsChar = (window.__VIBEXE_GAME_SETTINGS__ || {}).characterController || {};
+
+  if (platform === 'mobile') {
+    _attachTouchInputListeners();
+  }
+  if (platform === 'pc' && gsChar.platformInputs && gsChar.platformInputs.pc) {
+    _activeInputProfile = gsChar.platformInputs.pc;
+    console.log('[CharacterSystem] Using custom PC input bindings');
+  }
+  console.log('[CharacterSystem] Platform detected:', platform);
 }
 
 // ===== SMOOTH DAMP ANGLE (Unity's SmoothDampAngle port) =====
@@ -1308,12 +1487,15 @@ function _playAnimForState(ctx, state, animMap) {
 function _createRunnerController(ctx) {
   var cfg = ctx.settings;
   var rcfg = cfg.runner || {};
-  var _speed = rcfg.initialSpeed || 8;
+  var _speed = rcfg.initialSpeed || 5;
   var _maxSpeed = rcfg.maxSpeed || 25;
   var _accel = rcfg.acceleration || 0.15;
   var _laneWidth = rcfg.laneWidth || 3;
   var _laneCount = rcfg.laneCount || 3;
-  var _laneSwitchSpeed = rcfg.laneSwitchSpeed || 0.15;
+  var _laneSwitchSpeed = rcfg.laneSwitchSpeed || 5;
+  var _smoothMoveTime = rcfg.smoothMovementTime || 0.1;
+  var _roadMin = rcfg.roadConstraintMin !== undefined ? rcfg.roadConstraintMin : -Infinity;
+  var _roadMax = rcfg.roadConstraintMax !== undefined ? rcfg.roadConstraintMax : Infinity;
   var _lanes = [];
   var _halfLanes = Math.floor(_laneCount / 2);
   for (var i = 0; i < _laneCount; i++) _lanes.push((i - _halfLanes) * _laneWidth);
@@ -1345,6 +1527,10 @@ function _createRunnerController(ctx) {
       if (!ctx.body || _paused) return;
       if (window.__vibexe_editor_active) return;
       dt = Math.min(dt, 0.05);
+
+      // Poll gamepad and touch inputs
+      if (_getPlatform() === 'console') _pollGamepad();
+      _updateTouchInput();
 
       // Speed ramp
       _speed = Math.min(_maxSpeed, _speed + _accel * dt * 60 * _speedMult);
@@ -1379,16 +1565,25 @@ function _createRunnerController(ctx) {
         _jumpCooldown = 0.3;
       }
 
-      // Tween X toward target lane
+      // Smooth lane transition (interpolation based on smoothMovementTime)
       if (ctx.body.position) {
         var dx = _targetX - ctx.body.position.x;
-        if (Math.abs(dx) > 0.05) {
-          ctx.body.position.x += dx * _laneSwitchSpeed * (dt * 60);
+        if (Math.abs(dx) > 0.01) {
+          var lerpFactor = _smoothMoveTime > 0 ? Math.min(1, dt / _smoothMoveTime) : 1;
+          // Use _laneSwitchSpeed as units/sec when > 1, else use as fraction
+          var moveStep = _laneSwitchSpeed > 1 ? _laneSwitchSpeed * dt : dx * _laneSwitchSpeed * (dt * 60);
+          if (_laneSwitchSpeed > 1) {
+            moveStep = Math.sign(dx) * Math.min(Math.abs(moveStep), Math.abs(dx));
+          }
+          ctx.body.position.x += moveStep;
           if (ctx.body.velocity) ctx.body.velocity.x = 0;
         } else {
           ctx.body.position.x = _targetX;
           if (ctx.body.velocity) ctx.body.velocity.x = 0;
         }
+        // Road constraints
+        if (ctx.body.position.x < _roadMin) ctx.body.position.x = _roadMin;
+        if (ctx.body.position.x > _roadMax) ctx.body.position.x = _roadMax;
       }
 
       // Sync mesh
@@ -1441,6 +1636,9 @@ function _createSidescrollController(ctx) {
       if (!ctx.body) return;
       if (window.__vibexe_editor_active) return;
       dt = Math.min(dt, 0.05);
+
+      if (_getPlatform() === 'console') _pollGamepad();
+      _updateTouchInput();
 
       var inputX = 0;
       if (_inputState.a) inputX -= 1;
@@ -1531,6 +1729,9 @@ function _createTopdownController(ctx) {
       if (!ctx.body) return;
       if (window.__vibexe_editor_active) return;
       dt = Math.min(dt, 0.05);
+
+      if (_getPlatform() === 'console') _pollGamepad();
+      _updateTouchInput();
 
       // WASD world-relative (no camera rotation)
       var inputX = 0, inputZ = 0;
@@ -1645,6 +1846,9 @@ function _createFPSController(ctx) {
       if (!ctx.body) return;
       if (window.__vibexe_editor_active) return;
       dt = Math.min(dt, 0.05);
+
+      if (_getPlatform() === 'console') _pollGamepad();
+      _updateTouchInput();
 
       ctx._fpsYaw = _yaw;
       ctx._fpsPitch = _pitch;
@@ -1923,6 +2127,7 @@ function swapCharacter(scene, characterId) {
 
       // Attach input listeners (idempotent — only runs once)
       _attachInputListeners();
+      _setupPlatformInput();
 
       // Tell the game template's IIFE to stop handling WASD input
       window.__charCtrl_active = true;
@@ -2217,6 +2422,10 @@ function swapCharacter(scene, characterId) {
             // Skip position/camera/input sync while scene editor is active
             if (window.__vibexe_editor_active) return;
             dt = Math.min(dt, 0.05); // Cap dt to prevent huge jumps on lag spikes
+
+            // Poll gamepad and touch inputs before reading _inputState
+            if (_getPlatform() === 'console') _pollGamepad();
+            _updateTouchInput();
 
             // === 1. READ INPUT — Camera-relative WASD (Blink-style) ===
             var inputX = 0, inputZ = 0;
@@ -3182,6 +3391,12 @@ if (typeof window !== "undefined") {
             _activeInputProfile = _riGsChar.inputProfile;
           }
         }
+        // Re-apply platform-specific input bindings on reinit
+        var _riPlatform = _getPlatform();
+        if (_riPlatform === 'pc' && _riGsChar.platformInputs && _riGsChar.platformInputs.pc) {
+          _activeInputProfile = _riGsChar.platformInputs.pc;
+        }
+        if (_riPlatform === 'mobile') _attachTouchInputListeners();
 
         var _riMode = _riGsChar.controllerMode || 'orbit';
         var _riAnimMap = _reinitMesh.userData.__animMap || {};
