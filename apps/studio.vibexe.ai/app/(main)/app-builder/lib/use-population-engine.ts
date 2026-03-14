@@ -23,6 +23,7 @@ import {
 	DEFAULT_POPULATION_LAYER,
 } from "@vibexe-ai/vibexe-engine";
 import { resolveBlueprint, resolvePresetById } from "./blueprint-resolver";
+import { loadTextureAsHeatmap } from "./heatmap-textures";
 
 export interface UsePopulationEngineOptions {
 	sendToIframe: (msg: Record<string, unknown>) => void;
@@ -412,6 +413,33 @@ export function usePopulationEngine({ sendToIframe }: UsePopulationEngineOptions
 		}));
 	}, [sendToIframe]);
 
+	/** Load a custom heatmap texture for a layer from URL */
+	const loadCustomHeatmapForLayer = useCallback(
+		async (layerId: string, textureUrl: string) => {
+			try {
+				console.log(`[Population] Loading custom heatmap: ${textureUrl}`);
+				const heatmapData = await loadTextureAsHeatmap(textureUrl);
+				engineRef.current.setCustomHeatmap(layerId, heatmapData);
+				engineRef.current.invalidateHeatmap(layerId);
+				// Re-set the cached heatmap (invalidateHeatmap clears it, so set again)
+				engineRef.current.setCustomHeatmap(layerId, heatmapData);
+				console.log(`[Population] Custom heatmap loaded: ${heatmapData.width}x${heatmapData.height}`);
+			} catch (err) {
+				console.error(`[Population] Failed to load heatmap texture: ${textureUrl}`, err);
+			}
+		},
+		[],
+	);
+
+	// Auto-load custom heatmap textures when layers change
+	useEffect(() => {
+		for (const layer of state.layers) {
+			if (layer.heatmapSource === "custom" && layer.heatmapTextureUrl) {
+				loadCustomHeatmapForLayer(layer.id, layer.heatmapTextureUrl);
+			}
+		}
+	}, [state.layers, loadCustomHeatmapForLayer]);
+
 	/** Serialize state for persistence */
 	const toJSON = useCallback(() => {
 		return engineRef.current.toJSON();
@@ -440,6 +468,7 @@ export function usePopulationEngine({ sendToIframe }: UsePopulationEngineOptions
 		previewHeatmap,
 		previewPoints,
 		clearPreview,
+		loadCustomHeatmapForLayer,
 		toJSON,
 		fromJSON,
 		generateEntryId,

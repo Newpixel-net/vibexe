@@ -44,6 +44,7 @@ import type { usePopulationEngine } from "../lib/use-population-engine";
 import { resolvePresetById } from "../lib/blueprint-resolver";
 import { SharedAssetBrowser, toWBItem } from "./shared-asset-browser";
 import type { AssetLibraryItem } from "../lib/asset-library-data";
+import { PREDEFINED_HEATMAPS } from "../lib/heatmap-textures";
 
 // ===== Props =====
 
@@ -424,7 +425,73 @@ export function TerrainPopulateTab({ population }: TerrainPopulateTabProps) {
 						Additive mode (keep existing objects)
 					</label>
 
+					{/* Heatmap Source Toggle */}
+					<div>
+						<label className="text-[8px] text-white/30 mb-1 block">Heatmap Source</label>
+						<div className="flex gap-1">
+							<button
+								type="button"
+								onClick={() => updateField("heatmapSource", "auto")}
+								className={`flex-1 py-1 rounded text-[9px] font-medium transition-colors ${
+									selectedLayer.heatmapSource !== "custom"
+										? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30"
+										: "bg-white/[0.06] text-white/40 hover:bg-white/[0.1]"
+								}`}
+							>
+								Auto (Rules)
+							</button>
+							<button
+								type="button"
+								onClick={() => updateField("heatmapSource", "custom")}
+								className={`flex-1 py-1 rounded text-[9px] font-medium transition-colors ${
+									selectedLayer.heatmapSource === "custom"
+										? "bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-500/30"
+										: "bg-white/[0.06] text-white/40 hover:bg-white/[0.1]"
+								}`}
+							>
+								Custom (Texture)
+							</button>
+						</div>
+					</div>
+
+					{/* Custom Heatmap Texture Picker */}
+					{selectedLayer.heatmapSource === "custom" && (
+						<div>
+							<label className="text-[8px] text-white/30 mb-1 block">Heatmap Texture</label>
+							<div className="grid grid-cols-3 gap-1">
+								{PREDEFINED_HEATMAPS.map((hm) => (
+									<button
+										key={hm.id}
+										type="button"
+										onClick={() => updateField("heatmapTextureUrl", hm.url)}
+										className={`rounded overflow-hidden transition-all ${
+											selectedLayer.heatmapTextureUrl === hm.url
+												? "ring-2 ring-cyan-400/60"
+												: "ring-1 ring-white/10 hover:ring-white/30"
+										}`}
+										title={hm.description}
+									>
+										<img
+											src={hm.thumbnailUrl}
+											alt={hm.name}
+											className="w-full aspect-square object-cover bg-black/50"
+										/>
+										<span className="block text-[7px] text-white/50 text-center py-0.5 bg-white/[0.04] truncate px-0.5">
+											{hm.name}
+										</span>
+									</button>
+								))}
+							</div>
+							{selectedLayer.heatmapTextureUrl && (
+								<div className="text-[8px] text-cyan-400/50 mt-1 truncate">
+									Active: {selectedLayer.heatmapTextureUrl.split("/").pop()}
+								</div>
+							)}
+						</div>
+					)}
+
 					{/* Auto-Heatmap Rules */}
+					{selectedLayer.heatmapSource !== "custom" && (
 					<CollapsibleSection
 						title="Heatmap Rules"
 						icon={<Sparkles className="w-3 h-3" />}
@@ -501,6 +568,7 @@ export function TerrainPopulateTab({ population }: TerrainPopulateTabProps) {
 							<Plus className="w-2.5 h-2.5" /> Add Rule
 						</button>
 					</CollapsibleSection>
+					)}
 
 					{/* Trees */}
 					<CollapsibleSection
