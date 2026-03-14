@@ -54,13 +54,15 @@ export async function GET(
 		const ext = path.extname(resolved).toLowerCase();
 		const contentType = CONTENT_TYPES[ext] || "application/octet-stream";
 		const buffer = await readFile(resolved);
+		const etag = `"${fileStat.size}-${fileStat.mtimeMs.toString(36)}"`;
 
 		return new Response(buffer, {
 			status: 200,
 			headers: {
 				"Content-Type": contentType,
 				"Content-Length": String(buffer.length),
-				"Cache-Control": "public, max-age=31536000, immutable",
+				"Cache-Control": "public, max-age=3600, must-revalidate",
+				ETag: etag,
 				...CORS_HEADERS,
 			},
 		});

@@ -834,7 +834,7 @@ export function GameEditorProvider({ children }: { children: ReactNode }) {
 			const next = { ...prev };
 			for (const [key, val] of Object.entries(patch)) {
 				if (val && typeof val === "object" && !Array.isArray(val)) {
-					(next as any)[key] = { ...(prev as any)[key], ...val };
+					(next as any)[key] = { ...((prev as any)[key] || {}), ...val };
 				} else {
 					(next as any)[key] = val;
 				}

@@ -192,7 +192,9 @@ export function patchGameSceneCode(code: string, gs: GameSettings): string {
 			/(lily\s*=\s*lilyResult\s*;)/,
 			`$1\n` +
 			`    // [CharSystem Bridge] Redirect lily.mesh/size when character module swaps\n` +
+			`    var _csAttempts = 0;\n` +
 			`    var _csRedirect = setInterval(function() {\n` +
+			`      if (++_csAttempts > 100) { clearInterval(_csRedirect); return; }\n` +
 			`      var _pm = (window as any).__vibexe_playerMesh__;\n` +
 			`      if (_pm && _pm !== lily.mesh) {\n` +
 			`        lily.mesh = _pm;\n` +
