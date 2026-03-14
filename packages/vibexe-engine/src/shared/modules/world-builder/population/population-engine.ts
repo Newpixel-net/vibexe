@@ -84,6 +84,11 @@ export class PopulationEngine {
 		return this.layers.get(layerId);
 	}
 
+	/** Get terrain bounds (needed for heatmap preview overlay positioning) */
+	getTerrainBounds(): TerrainInfo["bounds"] | null {
+		return this.terrain?.bounds ?? null;
+	}
+
 	/** Get all layers */
 	getLayers(): PopulationLayer[] {
 		return Array.from(this.layers.values());
@@ -247,6 +252,22 @@ export class PopulationEngine {
 			candidateCount: totalCandidates,
 			filteredCount: totalFiltered,
 		};
+	}
+
+	/**
+	 * Dry-run populate — compute positions without storing objects.
+	 * Used for point preview visualization.
+	 */
+	dryRunLayer(layerId: string, seed?: number): PopulationResult {
+		const savedObjects = this.allObjects.get(layerId);
+		const result = this.populateLayer(layerId, seed);
+		// Restore previous objects (undo the storage side effect)
+		if (savedObjects) {
+			this.allObjects.set(layerId, savedObjects);
+		} else {
+			this.allObjects.delete(layerId);
+		}
+		return result;
 	}
 
 	/** Populate all enabled layers */

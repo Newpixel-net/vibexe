@@ -16,13 +16,16 @@ import {
 	ChevronDown,
 	ChevronRight,
 	Eye,
+	EyeOff,
 	Layers,
+	Map,
 	Plus,
 	Play,
 	Trash2,
 	TreePine,
 	Flower2,
 	Sparkles,
+	CircleDot,
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import {
@@ -72,6 +75,9 @@ export function TerrainPopulateTab({ population }: TerrainPopulateTabProps) {
 		populatingLayerId,
 		results,
 		spawnProgress,
+		heatmapPreviewLayerId,
+		pointPreviewLayerId,
+		previewPointCount,
 		requestTerrainData,
 		addLayer,
 		updateLayer,
@@ -80,6 +86,9 @@ export function TerrainPopulateTab({ population }: TerrainPopulateTabProps) {
 		populateAll,
 		clearLayer,
 		clearAll,
+		previewHeatmap,
+		previewPoints,
+		clearPreview,
 	} = population;
 
 	const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
@@ -655,12 +664,50 @@ export function TerrainPopulateTab({ population }: TerrainPopulateTabProps) {
 					</button>
 				</div>
 
+				{/* Preview buttons */}
+				{selectedLayer && terrainLoaded && (
+					<div className="flex gap-1">
+						<button
+							type="button"
+							onClick={() => previewHeatmap(selectedLayer.id)}
+							className={`flex-1 py-1.5 rounded text-[10px] font-medium flex items-center justify-center gap-1 transition-colors ${
+								heatmapPreviewLayerId === selectedLayer.id
+									? "bg-cyan-600/40 text-cyan-300 ring-1 ring-cyan-400/30"
+									: "bg-white/[0.06] text-white/50 hover:bg-cyan-500/15 hover:text-cyan-300"
+							}`}
+						>
+							<Map className="w-3 h-3" />
+							{heatmapPreviewLayerId === selectedLayer.id ? "Hide Heatmap" : "Preview Heatmap"}
+						</button>
+						<button
+							type="button"
+							onClick={() => previewPoints(selectedLayer.id, seed)}
+							className={`flex-1 py-1.5 rounded text-[10px] font-medium flex items-center justify-center gap-1 transition-colors ${
+								pointPreviewLayerId === selectedLayer.id
+									? "bg-cyan-600/40 text-cyan-300 ring-1 ring-cyan-400/30"
+									: "bg-white/[0.06] text-white/50 hover:bg-cyan-500/15 hover:text-cyan-300"
+							}`}
+						>
+							<CircleDot className="w-3 h-3" />
+							{pointPreviewLayerId === selectedLayer.id ? "Hide Points" : "Preview Points"}
+						</button>
+					</div>
+				)}
+				{previewPointCount > 0 && pointPreviewLayerId && (
+					<div className="text-[8px] text-cyan-400/60 text-center">
+						{previewPointCount} preview points shown
+					</div>
+				)}
+
 				{/* Populate buttons */}
 				<div className="flex gap-1">
 					{selectedLayer && (
 						<button
 							type="button"
-							onClick={() => populateLayer(selectedLayer.id, seed)}
+							onClick={() => {
+								clearPreview();
+								populateLayer(selectedLayer.id, seed);
+							}}
 							disabled={!terrainLoaded || !!populatingLayerId}
 							className="flex-1 py-1.5 rounded bg-emerald-600 text-white text-[10px] font-medium hover:bg-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-1"
 						>
@@ -670,7 +717,10 @@ export function TerrainPopulateTab({ population }: TerrainPopulateTabProps) {
 					)}
 					<button
 						type="button"
-						onClick={() => populateAll(seed)}
+						onClick={() => {
+							clearPreview();
+							populateAll(seed);
+						}}
 						disabled={!terrainLoaded || layers.length === 0 || !!populatingLayerId}
 						className="flex-1 py-1.5 rounded bg-emerald-600/70 text-white text-[10px] font-medium hover:bg-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-1"
 					>

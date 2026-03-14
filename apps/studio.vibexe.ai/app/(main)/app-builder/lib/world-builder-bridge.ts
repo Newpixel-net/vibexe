@@ -1926,6 +1926,115 @@ export function getWorldBuilderBridgeScript(): string {
       console.log("[WB:Pop] Cleared all " + cleared + " population objects");
       try { window.parent.postMessage({ type: "wb-populate-cleared-all", count: cleared }, "*"); } catch(ex) {}
     }
+    // ===== Population Preview Handlers =====
+    else if (msg.type === "wb-populate-heatmap-preview") {
+      // Render heatmap as semi-transparent overlay on terrain
+      // msg: { heatmapData: number[], width, height, bounds: {minX,maxX,minZ,maxZ,minY,maxY} }
+      // Remove existing overlay
+      if (_scene) {
+        var oldOverlay = _scene.getObjectByName("__pop_heatmap_overlay__");
+        if (oldOverlay) _scene.remove(oldOverlay);
+      }
+      if (!_scene || !msg.heatmapData) return;
+
+      var hmW = msg.width || 128;
+      var hmH = msg.height || 128;
+      var hmData = msg.heatmapData;
+      var hmBounds = msg.bounds;
+
+      // Create RGBA DataTexture: green = high density, transparent = low density
+      var rgba = new Uint8Array(hmW * hmH * 4);
+      for (var i = 0; i < hmW * hmH; i++) {
+        var v = hmData[i] || 0; // 0-1 float
+        // Color ramp: transparent black → green → bright green
+        rgba[i * 4 + 0] = Math.floor(v * 30);       // R (hint of color)
+        rgba[i * 4 + 1] = Math.floor(50 + v * 205);  // G (50-255)
+        rgba[i * 4 + 2] = Math.floor(v * 30);        // B
+        rgba[i * 4 + 3] = Math.floor(v * 180);       // A (0-180, never fully opaque)
+      }
+
+      var tex = new THREE.DataTexture(rgba, hmW, hmH, THREE.RGBAFormat);
+      tex.needsUpdate = true;
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearFilter;
+
+      var planeW = hmBounds.maxX - hmBounds.minX;
+      var planeD = hmBounds.maxZ - hmBounds.minZ;
+      var geo = new THREE.PlaneGeometry(planeW, planeD);
+      var mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      var overlay = new THREE.Mesh(geo, mat);
+      overlay.name = "__pop_heatmap_overlay__";
+      // Position: center of terrain, slightly above max height
+      overlay.position.set(
+        (hmBounds.minX + hmBounds.maxX) / 2,
+        hmBounds.maxY + 0.5,
+        (hmBounds.minZ + hmBounds.maxZ) / 2
+      );
+      overlay.rotation.x = -Math.PI / 2; // Lay flat (PlaneGeometry is XY)
+      overlay.renderOrder = 999;
+      _scene.add(overlay);
+      console.log("[WB:Pop] Heatmap overlay added (" + hmW + "x" + hmH + ")");
+    }
+    else if (msg.type === "wb-populate-heatmap-hide") {
+      // Remove heatmap overlay
+      if (_scene) {
+        var hmOverlay = _scene.getObjectByName("__pop_heatmap_overlay__");
+        if (hmOverlay) {
+          _scene.remove(hmOverlay);
+          console.log("[WB:Pop] Heatmap overlay removed");
+        }
+      }
+    }
+    else if (msg.type === "wb-populate-preview-points") {
+      // Render preview dots at computed spawn positions
+      // msg: { points: Array<{x,y,z}>, color?: string, layerId: string }
+      if (_scene) {
+        var oldPts = _scene.getObjectByName("__pop_preview_points__");
+        if (oldPts) _scene.remove(oldPts);
+      }
+      if (!_scene || !msg.points || msg.points.length === 0) return;
+
+      var pts = msg.points;
+      var positions = new Float32Array(pts.length * 3);
+      for (var i = 0; i < pts.length; i++) {
+        positions[i * 3 + 0] = pts[i].x;
+        positions[i * 3 + 1] = pts[i].y + 0.3; // Lift slightly above terrain
+        positions[i * 3 + 2] = pts[i].z;
+      }
+
+      var ptGeo = new THREE.BufferGeometry();
+      ptGeo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      var ptColor = msg.color || "#00ff88";
+      var ptMat = new THREE.PointsMaterial({
+        color: new THREE.Color(ptColor),
+        size: 0.4,
+        sizeAttenuation: true,
+        transparent: true,
+        opacity: 0.85,
+        depthWrite: false,
+      });
+      var pointCloud = new THREE.Points(ptGeo, ptMat);
+      pointCloud.name = "__pop_preview_points__";
+      pointCloud.renderOrder = 998;
+      _scene.add(pointCloud);
+      console.log("[WB:Pop] Preview points: " + pts.length + " markers");
+      try { window.parent.postMessage({ type: "wb-populate-preview-ready", count: pts.length }, "*"); } catch(ex) {}
+    }
+    else if (msg.type === "wb-populate-preview-clear") {
+      // Remove both heatmap overlay and point preview
+      if (_scene) {
+        var hmOv = _scene.getObjectByName("__pop_heatmap_overlay__");
+        if (hmOv) _scene.remove(hmOv);
+        var ptOv = _scene.getObjectByName("__pop_preview_points__");
+        if (ptOv) _scene.remove(ptOv);
+        console.log("[WB:Pop] Preview cleared");
+      }
+    }
     else if (msg.type === "wb-get-terrain-data") {
       // Extract terrain heightmap data for population engine
       var terrainMesh = null;

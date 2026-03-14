@@ -38,6 +38,12 @@ export interface PopulationEngineState {
 	results: Map<string, PopulationResult>;
 	/** Spawn progress for active population */
 	spawnProgress: { spawned: number; total: number } | null;
+	/** Whether heatmap preview overlay is showing (layer ID or null) */
+	heatmapPreviewLayerId: string | null;
+	/** Whether point preview is showing (layer ID or null) */
+	pointPreviewLayerId: string | null;
+	/** Number of preview points currently shown */
+	previewPointCount: number;
 }
 
 let _layerIdCounter = 1;
@@ -57,6 +63,9 @@ export function usePopulationEngine({ sendToIframe }: UsePopulationEngineOptions
 		populatingLayerId: null,
 		results: new Map(),
 		spawnProgress: null,
+		heatmapPreviewLayerId: null,
+		pointPreviewLayerId: null,
+		previewPointCount: 0,
 	});
 
 	// Listen for messages from iframe
@@ -95,6 +104,13 @@ export function usePopulationEngine({ sendToIframe }: UsePopulationEngineOptions
 				setState((s) => ({
 					...s,
 					spawnProgress: { spawned: msg.spawned, total: msg.total },
+				}));
+			}
+
+			if (msg.type === "wb-populate-preview-ready") {
+				setState((s) => ({
+					...s,
+					previewPointCount: msg.count || 0,
 				}));
 			}
 		}
@@ -227,6 +243,87 @@ export function usePopulationEngine({ sendToIframe }: UsePopulationEngineOptions
 		}));
 	}, [sendToIframe]);
 
+	/** Show heatmap overlay for a layer (toggle — call again to hide) */
+	const previewHeatmap = useCallback(
+		(layerId: string) => {
+			// Toggle off if already showing this layer
+			if (state.heatmapPreviewLayerId === layerId) {
+				sendToIframe({ type: "wb-populate-heatmap-hide" });
+				setState((s) => ({ ...s, heatmapPreviewLayerId: null }));
+				return;
+			}
+
+			if (!state.terrainLoaded) {
+				console.warn("[Population] No terrain data for heatmap preview");
+				return;
+			}
+
+			const heatmap = engineRef.current.computeHeatmap(layerId);
+			if (!heatmap) return;
+
+			const bounds = engineRef.current.getTerrainBounds();
+			if (!bounds) return;
+
+			sendToIframe({
+				type: "wb-populate-heatmap-preview",
+				heatmapData: Array.from(heatmap.data as Float32Array),
+				width: heatmap.width,
+				height: heatmap.height,
+				bounds,
+			});
+			setState((s) => ({ ...s, heatmapPreviewLayerId: layerId }));
+		},
+		[state.terrainLoaded, state.heatmapPreviewLayerId, sendToIframe],
+	);
+
+	/** Show point preview for a layer (toggle — call again to hide) */
+	const previewPoints = useCallback(
+		(layerId: string, seed?: number) => {
+			// Toggle off if already showing this layer
+			if (state.pointPreviewLayerId === layerId) {
+				sendToIframe({ type: "wb-populate-preview-clear" });
+				setState((s) => ({ ...s, pointPreviewLayerId: null, previewPointCount: 0 }));
+				return;
+			}
+
+			if (!state.terrainLoaded) {
+				console.warn("[Population] No terrain data for point preview");
+				return;
+			}
+
+			// Dry-run: compute positions without storing objects or triggering spawns
+			const result = engineRef.current.dryRunLayer(layerId, seed);
+			if (result.objects.length === 0) {
+				console.log("[Population] Preview: 0 points computed");
+				return;
+			}
+
+			// Send only positions (no GLTF loading — just dots)
+			sendToIframe({
+				type: "wb-populate-preview-points",
+				layerId,
+				points: result.objects.map((o) => o.position),
+			});
+			setState((s) => ({
+				...s,
+				pointPreviewLayerId: layerId,
+				previewPointCount: result.objects.length,
+			}));
+		},
+		[state.terrainLoaded, state.pointPreviewLayerId, sendToIframe],
+	);
+
+	/** Clear all preview overlays (heatmap + points) */
+	const clearPreview = useCallback(() => {
+		sendToIframe({ type: "wb-populate-preview-clear" });
+		setState((s) => ({
+			...s,
+			heatmapPreviewLayerId: null,
+			pointPreviewLayerId: null,
+			previewPointCount: 0,
+		}));
+	}, [sendToIframe]);
+
 	/** Serialize state for persistence */
 	const toJSON = useCallback(() => {
 		return engineRef.current.toJSON();
@@ -252,6 +349,9 @@ export function usePopulationEngine({ sendToIframe }: UsePopulationEngineOptions
 		populateAll,
 		clearLayer,
 		clearAll,
+		previewHeatmap,
+		previewPoints,
+		clearPreview,
 		toJSON,
 		fromJSON,
 		generateEntryId,
