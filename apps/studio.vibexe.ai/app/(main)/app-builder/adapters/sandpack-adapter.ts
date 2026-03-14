@@ -2166,6 +2166,69 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 					);
 				}
 
+				// Patch: Runner template — redirect player/recycleSegments to use active mesh
+				// When character-system module is active, the IIFE's local `player` var is stale
+				if (hasCharModule && code.includes("const _activeMesh") === false) {
+					// Patch collision detection: player.position → active mesh position
+					if (code.includes("player.position") && code.includes("hitBarrier")) {
+						// Add _activeMesh helper at start of update()
+						code = code.replace(
+							/(distance\s*\+=\s*speed\s*\*\s*delta\s*;)/,
+							`$1\n    const _activeMesh = (window as any).__vibexe_playerMesh__ || player;`,
+						);
+						// Replace player.position in collision check blocks
+						code = code.replace(/const pPos = player\.position;/g, "const pPos = _activeMesh.position;");
+						// Replace player.visible for invulnerability blink
+						code = code.replace(/player\.visible\s*=\s*Math\.floor/g, "_activeMesh.visible = Math.floor");
+						code = code.replace(/player\.visible\s*=\s*true/g, "_activeMesh.visible = true");
+						// Replace player.position.y < -5 for fall detection
+						code = code.replace(/if\s*\(player\.position\.y\s*<\s*-5\)/g, "if (_activeMesh.position.y < -5)");
+						// Fix hitBarrier particle spawn
+						code = code.replace(
+							/createParticleEmitter\(scene,\s*player\.position\.x,\s*player\.position\.y\s*\+\s*1,\s*player\.position\.z/g,
+							"createParticleEmitter(scene, ((window as any).__vibexe_playerMesh__ || player).position.x, ((window as any).__vibexe_playerMesh__ || player).position.y + 1, ((window as any).__vibexe_playerMesh__ || player).position.z",
+						);
+						// Fix recycleSegments
+						code = code.replace(
+							/const playerZ = player\.position\.z;/g,
+							"const playerZ = ((window as any).__vibexe_playerMesh__ || player).position.z;",
+						);
+						// Guard camera follow behind __charCtrl_active
+						if (!code.includes("__charCtrl_active") || !code.match(/if\s*\(!\(window\b[^)]*__charCtrl_active/)) {
+							code = code.replace(
+								/(\/\/\s*Camera follow[^\n]*\n\s*)(const camTargetX)/,
+								`$1if (!(window as any).__charCtrl_active) {\n    $2`,
+							);
+							code = code.replace(
+								/(camera\.lookAt\(player\.position\.x[^;]+;)/,
+								`$1\n    }`,
+							);
+						}
+					}
+				}
+
+				// Patch: Add missing pillar type mappings to _PP_DECORATIONS
+				if (code.includes("_PP_DECORATIONS") && !code.includes("pillar_2x2x4")) {
+					code = code.replace(
+						/("lilyhead":\s*"objects\/lilyhead\.glb"\s*,?\s*}\s*;)/,
+						`"lilyhead": "objects/lilyhead.glb",\n` +
+						`  "pillar_1x1x1": "__kaykit:Assets/gltf/neutral/pillar_1x1x1.gltf",\n` +
+						`  "pillar_1x1x2": "__kaykit:Assets/gltf/neutral/pillar_1x1x2.gltf",\n` +
+						`  "pillar_1x1x4": "__kaykit:Assets/gltf/neutral/pillar_1x1x4.gltf",\n` +
+						`  "pillar_2x2x2": "__kaykit:Assets/gltf/neutral/pillar_2x2x2.gltf",\n` +
+						`  "pillar_2x2x4": "__kaykit:Assets/gltf/neutral/pillar_2x2x4.gltf",\n` +
+						`  "pillar_2x2x8": "__kaykit:Assets/gltf/neutral/pillar_2x2x8.gltf",\n` +
+						`};`,
+					);
+					// Also patch the URL resolution to handle __kaykit: prefix
+					if (!code.includes('startsWith("__kaykit:")')) {
+						code = code.replace(
+							/(const subpath = _PP_DECORATIONS\[type\]\s*\|\|\s*`objects\/\$\{type\}\.glb`\s*;\s*\n\s*)(url = _ppModelUrl\(subpath\);)/,
+							`$1if (subpath.startsWith("__kaykit:")) { url = modelUrl("kaykit-platformer", subpath.slice(9)); } else { $2 }`,
+						);
+					}
+				}
+
 				if (typeof sf === "string") {
 					sandpackFiles[sceneKey] = code;
 				} else {
