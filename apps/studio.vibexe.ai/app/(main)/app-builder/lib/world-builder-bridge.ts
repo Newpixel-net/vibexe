@@ -1746,6 +1746,15 @@ export function getWorldBuilderBridgeScript(): string {
     var msg = e.data;
     if (!msg || typeof msg !== "object" || !msg.type || !msg.type.startsWith("wb-")) return;
 
+    // Auto-capture scene for any wb- message if not yet captured
+    // (Population tab and terrain-data requests don't send wb-enable)
+    if (!_scene && window.__vibexe_scene__) {
+      _scene = window.__vibexe_scene__;
+      if (window.__vibexe_camera__) _camera = window.__vibexe_camera__;
+      if (!_raycaster && window.THREE) _raycaster = new window.THREE.Raycaster();
+      console.log("[WB] Auto-captured scene for " + msg.type);
+    }
+
     if (msg.type === "wb-enable") {
       _active = true;
       window.__wb_active__ = true;
