@@ -51,6 +51,36 @@ export async function GET(
 		return NextResponse.json({ error: "Invalid path" }, { status: 400, headers: CORS_HEADERS });
 	}
 
+	// Redirect: pillar types from platformer-project → kaykit-platformer (neutral)
+	// Saved projects reference platformer-project/objects/pillar_*.glb which don't exist there
+	if (segments[0] === "platformer-project" && segments[1] === "objects" && segments[2]?.startsWith("pillar_")) {
+		const pillarName = segments[2].replace(".glb", "");
+		const redirectSegments = ["kaykit-platformer", "Assets", "gltf", "neutral", `${pillarName}.gltf`];
+		const redirectPath = path.join(MEDIA_BASE, ...redirectSegments);
+		const redirectResolved = path.resolve(redirectPath);
+		if (redirectResolved.startsWith(MEDIA_BASE)) {
+			try {
+				const rStat = await stat(redirectResolved);
+				if (rStat.isFile()) {
+					const ext = path.extname(redirectResolved).toLowerCase();
+					const contentType = CONTENT_TYPES[ext] || "application/octet-stream";
+					const buffer = await readFile(redirectResolved);
+					const etag = `"${rStat.size}-${rStat.mtimeMs.toString(36)}"`;
+					return new Response(buffer, {
+						status: 200,
+						headers: {
+							"Content-Type": contentType,
+							"Content-Length": String(buffer.length),
+							"Cache-Control": "public, max-age=3600, must-revalidate",
+							ETag: etag,
+							...CORS_HEADERS,
+						},
+					});
+				}
+			} catch { /* fall through to normal path */ }
+		}
+	}
+
 	const filePath = path.join(MEDIA_BASE, ...segments);
 
 	// Security: verify resolved path is inside MEDIA_BASE
