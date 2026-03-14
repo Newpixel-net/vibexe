@@ -121,4 +121,6 @@ export type {
 	TerrainInfo,
 	WorldPopulationBlueprint,
 	BiomePreset,
+	PresetAssetSlot,
+	PresetLayerTemplate,
 } from "./shared/modules/world-builder/population";
