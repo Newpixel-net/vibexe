@@ -95,3 +95,30 @@ export type {
 	ModuleRegistryEntry,
 	ModuleMessage,
 } from "./shared/modules";
+
+// Population system
+export {
+	PopulationEngine,
+	DEFAULT_POPULATION_LAYER,
+	DEFAULT_TREE_ENTRY,
+	DEFAULT_DETAIL_ENTRY,
+	DEFAULT_AUTO_RULE,
+	DENSITY_DISTANCES,
+	BIOME_PRESETS,
+	getBiomePreset,
+	getBiomePresetIds,
+	poissonDiskSampling,
+	poissonDiskSamplingSeeded,
+} from "./shared/modules/world-builder/population";
+export type {
+	PopulationLayer,
+	TreePopulationEntry,
+	DetailPopulationEntry,
+	AutoHeatmapRule,
+	HeatmapSource,
+	PopulatedObject,
+	PopulationResult,
+	TerrainInfo,
+	WorldPopulationBlueprint,
+	BiomePreset,
+} from "./shared/modules/world-builder/population";

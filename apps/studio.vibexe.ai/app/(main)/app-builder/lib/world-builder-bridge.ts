@@ -1854,6 +1854,145 @@ export function getWorldBuilderBridgeScript(): string {
       for (var i = 0; i < arr.length; i++) restoreObject(arr[i], true);
       console.log("[WB] Restored " + arr.length + " objects");
     }
+    // ===== Population System Handlers =====
+    else if (msg.type === "wb-populate-spawn") {
+      // Batch spawn objects from population engine
+      // msg.objects: Array<{ id, modelPath, packId, position, rotation, scale }>
+      var popObjs = msg.objects || [];
+      var layerId = msg.layerId || "unknown";
+      var spawned = 0;
+      var batchSize = 10; // Load 10 at a time to avoid overwhelming GLTFLoader
+      var queue = popObjs.slice();
+      function spawnBatch() {
+        var batch = queue.splice(0, batchSize);
+        if (batch.length === 0) {
+          console.log("[WB:Pop] Spawned " + spawned + " objects for layer " + layerId);
+          try { window.parent.postMessage({ type: "wb-populate-complete", layerId: layerId, count: spawned }, "*"); } catch(ex) {}
+          return;
+        }
+        var pending = batch.length;
+        for (var i = 0; i < batch.length; i++) {
+          (function(obj) {
+            var data = {
+              id: obj.id || genId(),
+              modelPath: obj.modelPath,
+              pack: obj.packId,
+              position: obj.position,
+              rotation: obj.rotation || { x: 0, y: 0, z: 0 },
+              scale: { x: obj.scale || 1, y: obj.scale || 1, z: obj.scale || 1 },
+              name: "pop_" + layerId,
+              itemId: obj.entryId || "",
+              toolSource: "population",
+              populationLayerId: layerId,
+            };
+            restoreObject(data, true);
+            spawned++;
+            pending--;
+            if (pending === 0) {
+              try { window.parent.postMessage({ type: "wb-populate-progress", layerId: layerId, spawned: spawned, total: popObjs.length }, "*"); } catch(ex) {}
+              setTimeout(spawnBatch, 16); // Yield to render loop
+            }
+          })(batch[i]);
+        }
+      }
+      spawnBatch();
+    }
+    else if (msg.type === "wb-populate-clear") {
+      // Clear all objects belonging to a population layer
+      var clearLayerId = msg.layerId;
+      var cleared = 0;
+      var ids = Object.keys(_placedObjects);
+      for (var i = 0; i < ids.length; i++) {
+        var entry = _placedObjects[ids[i]];
+        if (entry && entry.data && entry.data.populationLayerId === clearLayerId) {
+          removeObjectById(ids[i], true);
+          cleared++;
+        }
+      }
+      console.log("[WB:Pop] Cleared " + cleared + " objects from layer " + clearLayerId);
+      try { window.parent.postMessage({ type: "wb-populate-cleared", layerId: clearLayerId, count: cleared }, "*"); } catch(ex) {}
+    }
+    else if (msg.type === "wb-populate-clear-all") {
+      // Clear ALL population objects (all layers)
+      var cleared = 0;
+      var ids = Object.keys(_placedObjects);
+      for (var i = 0; i < ids.length; i++) {
+        var entry = _placedObjects[ids[i]];
+        if (entry && entry.data && entry.data.toolSource === "population") {
+          removeObjectById(ids[i], true);
+          cleared++;
+        }
+      }
+      console.log("[WB:Pop] Cleared all " + cleared + " population objects");
+      try { window.parent.postMessage({ type: "wb-populate-cleared-all", count: cleared }, "*"); } catch(ex) {}
+    }
+    else if (msg.type === "wb-get-terrain-data") {
+      // Extract terrain heightmap data for population engine
+      var terrainMesh = null;
+      if (window.__vibexe_terrainPainter__) {
+        // Terrain Painter active — read from its runtime
+        var painter = window.__vibexe_terrainPainter__;
+        if (painter.terrain && painter.terrain.heightmapTexture) {
+          var hmTex = painter.terrain.heightmapTexture;
+          var cfg = painter.terrain.config;
+          var pos = painter.terrain.mesh ? painter.terrain.mesh.position : { x: 0, y: 0, z: 0 };
+          var hw = cfg.width / 2, hd = cfg.depth / 2;
+          try {
+            window.parent.postMessage({
+              type: "wb-terrain-data",
+              heightData: Array.from(hmTex.image.data),
+              resolution: cfg.segments + 1,
+              bounds: {
+                minX: pos.x - hw, maxX: pos.x + hw,
+                minZ: pos.z - hd, maxZ: pos.z + hd,
+                minY: 0, maxY: cfg.heightScale,
+              },
+            }, "*");
+          } catch(ex) { console.warn("[WB:Pop] Failed to send terrain data:", ex); }
+          return;
+        }
+      }
+      // Fallback: find __terrain__ mesh in scene
+      if (_scene) {
+        _scene.traverse(function(obj) {
+          if (obj.name === "__terrain__" && obj.geometry) terrainMesh = obj;
+        });
+      }
+      if (terrainMesh) {
+        var positions = terrainMesh.geometry.attributes.position.array;
+        var vertexCount = positions.length / 3;
+        var res = Math.floor(Math.sqrt(vertexCount));
+        if (res * res === vertexCount) {
+          var hd2 = new Float32Array(vertexCount);
+          var minY2 = Infinity, maxY2 = -Infinity;
+          var minX2 = Infinity, maxX2 = -Infinity;
+          var minZ2 = Infinity, maxZ2 = -Infinity;
+          for (var i = 0; i < vertexCount; i++) {
+            var vx = positions[i*3], vy = positions[i*3+1], vz = positions[i*3+2];
+            minX2 = Math.min(minX2, vx); maxX2 = Math.max(maxX2, vx);
+            minY2 = Math.min(minY2, vy); maxY2 = Math.max(maxY2, vy);
+            minZ2 = Math.min(minZ2, vz); maxZ2 = Math.max(maxZ2, vz);
+          }
+          var range = maxY2 - minY2 || 1;
+          for (var i = 0; i < vertexCount; i++) hd2[i] = (positions[i*3+1] - minY2) / range;
+          var wp = terrainMesh.position || { x: 0, y: 0, z: 0 };
+          try {
+            window.parent.postMessage({
+              type: "wb-terrain-data",
+              heightData: Array.from(hd2),
+              resolution: res,
+              bounds: {
+                minX: minX2 + wp.x, maxX: maxX2 + wp.x,
+                minZ: minZ2 + wp.z, maxZ: maxZ2 + wp.z,
+                minY: minY2 + wp.y, maxY: maxY2 + wp.y,
+              },
+            }, "*");
+          } catch(ex) { console.warn("[WB:Pop] Failed to send terrain data:", ex); }
+        }
+      } else {
+        try { window.parent.postMessage({ type: "wb-terrain-data", error: "no-terrain" }, "*"); } catch(ex) {}
+      }
+    }
   });
 
   // ===== Init =====

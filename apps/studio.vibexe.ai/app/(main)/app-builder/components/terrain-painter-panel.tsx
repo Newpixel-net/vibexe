@@ -25,8 +25,11 @@ import {
 	Settings,
 	Trash2,
 	X,
+	TreePine,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePopulationEngine } from "../lib/use-population-engine";
+import { TerrainPopulateTab } from "./terrain-populate-tab";
 import {
 	TEXTURE_CATALOG,
 	TEXTURE_CATEGORIES,
@@ -275,7 +278,8 @@ export function TerrainPainterPanel({
 	onTerrainConfigChanged,
 	initialConfig,
 }: TerrainPainterPanelProps) {
-	const [activeTab, setActiveTab] = useState<"layers" | "settings" | "sculpt">("layers");
+	const [activeTab, setActiveTab] = useState<"layers" | "settings" | "sculpt" | "populate">("layers");
+	const population = usePopulationEngine({ sendToIframe });
 	// Initialize layers from saved config if available, otherwise use defaults
 	const [layers, setLayers] = useState<LayerData[]>(() => {
 		if (initialConfig?.layers && initialConfig.layers.length > 0) {
@@ -771,6 +775,17 @@ export function TerrainPainterPanel({
 					<Mountain className="w-3 h-3" />
 					Sculpt
 				</button>
+				<button
+					onClick={() => setActiveTab("populate")}
+					className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-medium transition-colors ${
+						activeTab === "populate"
+							? "text-green-400 border-b-2 border-green-400"
+							: "text-white/50 hover:text-white/70"
+					}`}
+				>
+					<TreePine className="w-3 h-3" />
+					Populate
+				</button>
 			</div>
 
 			{/* Content */}
@@ -1052,6 +1067,9 @@ export function TerrainPainterPanel({
 							</button>
 						</div>
 					</div>
+				)}
+				{activeTab === "populate" && (
+					<TerrainPopulateTab population={population} />
 				)}
 			</div>
 
