@@ -24,7 +24,7 @@ import {
 	Trash2,
 	Check,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	WB_TOOLS,
 	type WBTool,
@@ -143,6 +143,11 @@ export function WorldBuilderPanel({ sendToIframe, onClose }: WorldBuilderPanelPr
 	const [canRedo, setCanRedo] = useState(false);
 	const [selectionCount, setSelectionCount] = useState(0);
 
+	// Stabilize sendToIframe — ref always points to latest function, never triggers re-renders
+	const sendRef = useRef(sendToIframe);
+	sendRef.current = sendToIframe;
+	const stableSend = useCallback((msg: any) => sendRef.current(msg), []);
+
 	// Listen for bridge messages
 	useEffect(() => {
 		const handler = (e: MessageEvent) => {
@@ -160,23 +165,23 @@ export function WorldBuilderPanel({ sendToIframe, onClose }: WorldBuilderPanelPr
 		return () => window.removeEventListener("message", handler);
 	}, []);
 
-	useEffect(() => { sendToIframe({ type: "wb-enable" }); return () => { sendToIframe({ type: "wb-disable" }); }; }, [sendToIframe]);
+	useEffect(() => { stableSend({ type: "wb-enable" }); return () => { stableSend({ type: "wb-disable" }); }; }, [stableSend]);
 
-	const handleToolChange = useCallback((tool: WBTool) => { setActiveTool(tool); sendToIframe({ type: "wb-set-tool", tool }); }, [sendToIframe]);
+	const handleToolChange = useCallback((tool: WBTool) => { setActiveTool(tool); stableSend({ type: "wb-set-tool", tool }); }, [stableSend]);
 
 	const handleItemSelect = useCallback((item: WBPaletteItem) => {
-		if (activeItem?.id === item.id) { setActiveItem(null); sendToIframe({ type: "wb-set-active-item", item: null }); }
+		if (activeItem?.id === item.id) { setActiveItem(null); stableSend({ type: "wb-set-active-item", item: null }); }
 		else {
-			setActiveItem(item); sendToIframe({ type: "wb-set-active-item", item });
-			if (activeTool === "eraser" || activeTool === "select" || activeTool === "replacer") { setActiveTool("pin"); sendToIframe({ type: "wb-set-tool", tool: "pin" }); }
+			setActiveItem(item); stableSend({ type: "wb-set-active-item", item });
+			if (activeTool === "eraser" || activeTool === "select" || activeTool === "replacer") { setActiveTool("pin"); stableSend({ type: "wb-set-tool", tool: "pin" }); }
 		}
-	}, [activeItem, activeTool, sendToIframe]);
+	}, [activeItem, activeTool, stableSend]);
 
 	// Generic settings updater factory
 	const makeUpdater = <T,>(setter: React.Dispatch<React.SetStateAction<T>>, msgType: string) =>
 		useCallback((patch: Partial<T>) => {
-			setter((prev) => { const next = { ...prev, ...patch } as T; sendToIframe({ type: msgType, settings: next }); return next; });
-		}, [sendToIframe]);
+			setter((prev) => { const next = { ...prev, ...patch } as T; stableSend({ type: msgType, settings: next }); return next; });
+		}, [stableSend]);
 
 	const updateSnap = makeUpdater(setSnapSettings, "wb-update-snap");
 	const updatePin = makeUpdater(setPinSettings, "wb-update-pin-settings");
@@ -191,9 +196,9 @@ export function WorldBuilderPanel({ sendToIframe, onClose }: WorldBuilderPanelPr
 	const updateExtrude = makeUpdater(setExtrudeSettings, "wb-update-extrude-settings");
 	const updateMirror = makeUpdater(setMirrorSettings, "wb-update-mirror-settings");
 
-	const handleUndo = useCallback(() => sendToIframe({ type: "wb-undo" }), [sendToIframe]);
-	const handleRedo = useCallback(() => sendToIframe({ type: "wb-redo" }), [sendToIframe]);
-	const handleClear = useCallback(() => { if (confirm("Remove all placed objects?")) sendToIframe({ type: "wb-clear-all" }); }, [sendToIframe]);
+	const handleUndo = useCallback(() => stableSend({ type: "wb-undo" }), [stableSend]);
+	const handleRedo = useCallback(() => stableSend({ type: "wb-redo" }), [stableSend]);
+	const handleClear = useCallback(() => { if (confirm("Remove all placed objects?")) stableSend({ type: "wb-clear-all" }); }, [stableSend]);
 
 	const currentPack = WB_PALETTE_PACKS[activePack];
 	const filteredCategories = useMemo(() => {
@@ -327,7 +332,7 @@ export function WorldBuilderPanel({ sendToIframe, onClose }: WorldBuilderPanelPr
 						<input type="checkbox" checked={lineSettings.closed} onChange={(e) => updateLine({ closed: e.target.checked })} className="w-3 h-3 rounded accent-green-500" />
 						Closed path
 					</label>
-					<ConfirmButton onClick={() => sendToIframe({ type: "wb-confirm-line" })} label="Place Along Line (Enter)" />
+					<ConfirmButton onClick={() => stableSend({ type: "wb-confirm-line" })} label="Place Along Line (Enter)" />
 					<Hint text="Click: add point | Backspace: remove last | Esc: cancel" />
 				</div>
 			)}
@@ -354,7 +359,7 @@ export function WorldBuilderPanel({ sendToIframe, onClose }: WorldBuilderPanelPr
 						<input type="checkbox" checked={shapeSettings.objectsOrientedAlongLine} onChange={(e) => updateShape({ objectsOrientedAlongLine: e.target.checked })} className="w-3 h-3 rounded accent-green-500" />
 						Orient along shape
 					</label>
-					<ConfirmButton onClick={() => sendToIframe({ type: "wb-confirm-shape" })} label="Place Shape (Enter)" />
+					<ConfirmButton onClick={() => stableSend({ type: "wb-confirm-shape" })} label="Place Shape (Enter)" />
 					<Hint text="Click+drag: set center & radius | Scroll: radius | Shift+Scroll: sides" />
 				</div>
 			)}
@@ -380,7 +385,7 @@ export function WorldBuilderPanel({ sendToIframe, onClose }: WorldBuilderPanelPr
 						<span className="text-[8px] text-white/20">H</span>
 						<NumInput value={tilingSettings.spacing.h} onChange={(v) => updateTiling({ spacing: { ...tilingSettings.spacing, h: v } })} min={0} step={0.1} className="w-10" />
 					</SettingRow>
-					<ConfirmButton onClick={() => sendToIframe({ type: "wb-confirm-tiling" })} label="Fill Area (Enter)" />
+					<ConfirmButton onClick={() => stableSend({ type: "wb-confirm-tiling" })} label="Fill Area (Enter)" />
 					<Hint text="Click+drag: define area | Enter: place tiles | Esc: cancel" />
 				</div>
 			)}
@@ -417,11 +422,11 @@ export function WorldBuilderPanel({ sendToIframe, onClose }: WorldBuilderPanelPr
 					<div className="text-[10px] text-white/40">{selectionCount > 0 ? `${selectionCount} selected` : "No selection"}</div>
 					{selectionCount > 0 && (
 						<>
-							<button type="button" onClick={() => sendToIframe({ type: "wb-delete-selected" })}
+							<button type="button" onClick={() => stableSend({ type: "wb-delete-selected" })}
 								className="w-full flex items-center justify-center gap-1 px-2 py-1 bg-red-500/15 text-red-400 text-[10px] rounded hover:bg-red-500/25 transition-colors">
 								<Trash2 className="w-3 h-3" /> Delete Selected
 							</button>
-							<button type="button" onClick={() => sendToIframe({ type: "wb-select-all" })}
+							<button type="button" onClick={() => stableSend({ type: "wb-select-all" })}
 								className="w-full px-2 py-1 bg-blue-500/10 text-blue-400 text-[10px] rounded hover:bg-blue-500/20 transition-colors">
 								Select All (Ctrl+A)
 							</button>
@@ -453,7 +458,7 @@ export function WorldBuilderPanel({ sendToIframe, onClose }: WorldBuilderPanelPr
 						<span className="text-[9px] text-white/30 w-[54px]">Axis</span>
 						{(["x", "y", "z"] as const).map((a) => (
 							<button key={a} type="button"
-								onClick={() => sendToIframe({ type: "wb-extrude-axis", axis: a })}
+								onClick={() => stableSend({ type: "wb-extrude-axis", axis: a })}
 								className="px-2 py-0.5 text-[9px] bg-blue-500/10 text-blue-400 rounded hover:bg-blue-500/20 transition-colors uppercase">{a}
 							</button>
 						))}
@@ -462,7 +467,7 @@ export function WorldBuilderPanel({ sendToIframe, onClose }: WorldBuilderPanelPr
 						<input type="checkbox" checked={extrudeSettings.addRandomRotation} onChange={(e) => updateExtrude({ addRandomRotation: e.target.checked })} className="w-3 h-3 rounded accent-blue-500" />
 						Random rotation
 					</label>
-					<ConfirmButton onClick={() => sendToIframe({ type: "wb-confirm-extrude" })} label="Extrude (Enter)" />
+					<ConfirmButton onClick={() => stableSend({ type: "wb-confirm-extrude" })} label="Extrude (Enter)" />
 					<Hint text="Select objects, pick axis, Enter to extrude" />
 				</div>
 			)}
@@ -483,7 +488,7 @@ export function WorldBuilderPanel({ sendToIframe, onClose }: WorldBuilderPanelPr
 						<input type="checkbox" checked={mirrorSettings.invertScale} onChange={(e) => updateMirror({ invertScale: e.target.checked })} className="w-3 h-3 rounded accent-blue-500" />
 						Invert scale
 					</label>
-					<ConfirmButton onClick={() => sendToIframe({ type: "wb-confirm-mirror" })} label="Mirror (Enter)" />
+					<ConfirmButton onClick={() => stableSend({ type: "wb-confirm-mirror" })} label="Mirror (Enter)" />
 					<Hint text="Click: place mirror plane | R: rotate plane | Enter: confirm" />
 				</div>
 			)}
