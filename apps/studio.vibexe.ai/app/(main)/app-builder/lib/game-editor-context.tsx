@@ -100,6 +100,7 @@ export interface SceneDefinition {
 	terrain?: SceneTerrainDef;
 	cameraPosition?: number[];
 	cameraTarget?: number[];
+	worldBuilder?: import("./world-builder-types").WorldBuilderSceneData;
 }
 
 export function createDefaultScene(name = "Level 1", isDefault = true): SceneDefinition {

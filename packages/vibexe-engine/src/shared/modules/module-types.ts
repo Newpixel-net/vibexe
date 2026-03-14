@@ -42,7 +42,8 @@ export type ModuleCategory =
 	| "ai"
 	| "networking"
 	| "ui"
-	| "tools";
+	| "tools"
+	| "level-design";
 
 /** Runtime module instance — created when module is activated */
 export interface ModuleInstance {

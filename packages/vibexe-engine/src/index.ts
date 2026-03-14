@@ -81,6 +81,7 @@ export type { AssetPack3D } from "./shared/game-assets-reference-3d";
 export {
 	ALL_MODULE_MANIFESTS,
 	TERRAIN_PAINTER_MANIFEST,
+	WORLD_BUILDER_MANIFEST,
 	registerModule,
 	getModule,
 	getAllModules,

@@ -27,6 +27,7 @@ import {
 	Globe,
 	Grid3X3,
 	Hand,
+	Layers,
 	Lightbulb,
 	Monitor,
 	Mountain,
@@ -58,6 +59,7 @@ import { SceneGizmo } from "./scene-gizmo";
 import { TerrainPainterPanel } from "./terrain-painter-panel";
 import { SkyWeatherPanel } from "./sky-weather-panel";
 import { CharacterSystemPanel } from "./character-system-panel";
+import { WorldBuilderPanel } from "./world-builder-panel";
 import { GameRuntimeIframe } from "./game-runtime-iframe";
 import { DebugOverlay } from "./debug-overlay";
 import type { RightPanelView } from "./right-panel-tabs";
@@ -78,6 +80,7 @@ const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
 	CloudSun,
 	PersonStanding,
 	Puzzle,
+	Layers,
 };
 
 type DeviceSize = "desktop" | "tablet" | "mobile";
@@ -1696,7 +1699,31 @@ export function SandpackPreview({
 				if (iframe?.contentWindow) {
 					iframe.contentWindow.postMessage({ type: "run-auto-physics" }, "*");
 				}
-			} else if (data.type === "terrain-heightmap-data") {
+			}
+			// ===== World Builder bridge messages =====
+			else if (data.type === "wb-bridge-loaded" || data.type === "wb-ready") {
+				console.log("[WorldBuilder] Bridge:", data.type);
+			} else if (data.type === "wb-object-placed") {
+				console.log("[WorldBuilder] Object placed:", data.id, data.data?.name);
+				gameEditor.setDirty(true);
+			} else if (data.type === "wb-object-removed") {
+				console.log("[WorldBuilder] Object removed:", data.id);
+				gameEditor.setDirty(true);
+			} else if (data.type === "wb-placed-objects") {
+				// Store world builder placed objects for scene persistence
+				console.log("[WorldBuilder] Received", (data.objects || []).length, "placed objects");
+			} else if (data.type === "wb-cleared") {
+				console.log("[WorldBuilder] All objects cleared");
+				gameEditor.setDirty(true);
+			} else if (data.type === "wb-undo-state") {
+				// Handled by WorldBuilderPanel's own listener
+			} else if (data.type === "wb-line-confirmed" || data.type === "wb-shape-confirmed" || data.type === "wb-tiling-confirmed") {
+				console.log("[WorldBuilder]", data.type, "count:", data.count);
+				gameEditor.setDirty(true);
+			} else if (data.type === "wb-selection-changed" || data.type === "wb-brush-settings-changed" || data.type === "wb-eraser-settings-changed" || data.type === "wb-brush-tool-settings-changed" || data.type === "wb-replacer-settings-changed" || data.type === "wb-shape-settings-changed") {
+				// Handled by WorldBuilderPanel's own listener
+			}
+			else if (data.type === "terrain-heightmap-data") {
 				// Store sculpt heightmap data for persistence and save to DB
 				if (data.data && typeof data.data === "string") {
 					const terrainCfg = gameEditor.gameSettings.terrain;
@@ -2166,6 +2193,8 @@ export function SandpackPreview({
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
 			resources.push(`${window.location.origin}/api/app-builder/bridge?v=89`);
+			// World Builder bridge — loaded after visual-edit bridge
+			resources.push(`${window.location.origin}/api/app-builder/world-builder-bridge?v=3`);
 		}
 		return resources;
 	}, [dependencies, isGameMode]);
@@ -2788,6 +2817,11 @@ export function SandpackPreview({
 								const updatedSettings = { ...gameEditor.gameSettings, character: charConfig, modules };
 								handleSaveSettings(updatedSettings);
 							}}
+						/>
+					) : activeModulePanel === "world-builder" ? (
+						<WorldBuilderPanel
+							sendToIframe={gameEditor.sendToIframe}
+							onClose={() => setActiveModulePanel(null)}
 						/>
 					) : gameEditor.isSettingsOpen ? (
 						<GameSettingsPanel

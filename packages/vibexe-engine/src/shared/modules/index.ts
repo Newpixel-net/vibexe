@@ -27,8 +27,12 @@ export { SKY_WEATHER_MANIFEST } from "./sky-weather";
 // Character System module
 export { CHARACTER_SYSTEM_MANIFEST } from "./character-system";
 
+// World Builder module
+export { WORLD_BUILDER_MANIFEST } from "./world-builder";
+
 /** All available module manifests */
 import { TERRAIN_PAINTER_MANIFEST } from "./terrain-painter";
 import { SKY_WEATHER_MANIFEST } from "./sky-weather";
 import { CHARACTER_SYSTEM_MANIFEST } from "./character-system";
-export const ALL_MODULE_MANIFESTS = [TERRAIN_PAINTER_MANIFEST, SKY_WEATHER_MANIFEST, CHARACTER_SYSTEM_MANIFEST];
+import { WORLD_BUILDER_MANIFEST } from "./world-builder";
+export const ALL_MODULE_MANIFESTS = [TERRAIN_PAINTER_MANIFEST, SKY_WEATHER_MANIFEST, CHARACTER_SYSTEM_MANIFEST, WORLD_BUILDER_MANIFEST];
