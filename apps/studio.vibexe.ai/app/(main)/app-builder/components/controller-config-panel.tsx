@@ -29,16 +29,33 @@ interface ControllerConfigPanelProps {
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const PRESET_MAP: Record<string, { controllerMode: ControllerMode; cameraProfile: CameraProfile }> = {
-	rpg_adventure: { controllerMode: "orbit", cameraProfile: "orbit" },
-	platformer: { controllerMode: "orbit", cameraProfile: "orbit" },
-	endless_runner: { controllerMode: "runner", cameraProfile: "chase" },
-	sidescroller: { controllerMode: "sidescroll", cameraProfile: "side" },
-	topdown_shooter: { controllerMode: "topdown", cameraProfile: "overhead" },
-	parkour: { controllerMode: "orbit", cameraProfile: "orbit" },
-	arena_fighter: { controllerMode: "orbit", cameraProfile: "orbit" },
-	walking_sim: { controllerMode: "orbit", cameraProfile: "orbit" },
+/** Full preset defaults — mirrors GENRE_PRESETS from character-system runtime */
+const PRESET_DEFAULTS: Record<string, Record<string, unknown>> = {
+	rpg_adventure: { controllerMode: "orbit", cameraProfile: "orbit", walkSpeed: 4, runSpeed: 8, jumpForce: 8 },
+	platformer: { controllerMode: "orbit", cameraProfile: "orbit", walkSpeed: 5, runSpeed: 10, jumpForce: 14, airControl: 0.5, abilities: { doubleJump: { enabled: true } } },
+	endless_runner: { controllerMode: "runner", cameraProfile: "chase", walkSpeed: 5, runSpeed: 5, runner: { initialSpeed: 5, maxSpeed: 25, acceleration: 0.15, laneWidth: 3, laneCount: 3, laneSwitchSpeed: 5, smoothMovementTime: 0.1, roadConstraintMin: -2, roadConstraintMax: 2, touchDragEnabled: true, touchSensitivity: 1.0 } },
+	sidescroller: { controllerMode: "sidescroll", cameraProfile: "side", walkSpeed: 5, jumpForce: 12, abilities: { wallSlide: { enabled: true, slideSpeed: 2, jumpForce: 10 } } },
+	topdown_shooter: { controllerMode: "topdown", cameraProfile: "overhead", walkSpeed: 8, runSpeed: 12, abilities: { dash: { enabled: true, speed: 20, duration: 0.2, cooldown: 1.5 } } },
+	parkour: { controllerMode: "orbit", cameraProfile: "orbit", runSpeed: 12, jumpForce: 16, stepHeight: 1.2, abilities: { doubleJump: { enabled: true }, wallSlide: { enabled: true, slideSpeed: 2, jumpForce: 12 }, dash: { enabled: true, speed: 25, duration: 0.15, cooldown: 1 } } },
+	arena_fighter: { controllerMode: "orbit", cameraProfile: "orbit", walkSpeed: 6, abilities: { dash: { enabled: true, speed: 18, duration: 0.2, cooldown: 1.5 }, groundPound: { enabled: true, force: 30 } } },
+	walking_sim: { controllerMode: "orbit", cameraProfile: "orbit", walkSpeed: 2, runSpeed: 4, jumpForce: 0 },
 };
+
+/** Compare current CC values against preset defaults, returns list of modified field names */
+function getModifiedFields(cc: Record<string, unknown>, defaults: Record<string, unknown>): string[] {
+	const modified: string[] = [];
+	for (const key of Object.keys(defaults)) {
+		if (key === "preset") continue;
+		const defVal = defaults[key];
+		const curVal = cc[key];
+		if (defVal && typeof defVal === "object" && !Array.isArray(defVal)) {
+			if (JSON.stringify(curVal || {}) !== JSON.stringify(defVal)) modified.push(key);
+		} else if (curVal !== undefined && curVal !== defVal) {
+			modified.push(key);
+		}
+	}
+	return modified;
+}
 
 const PRESET_LABELS: Record<string, string> = {
 	rpg_adventure: "RPG / Adventure",
@@ -482,11 +499,10 @@ export function ControllerConfigPanel({ settings, onChange }: ControllerConfigPa
 	const camera = cc.cameraProfile || "orbit";
 	const preset = cc.preset || "";
 
-	// Check if values differ from base preset
-	const isModified = preset && PRESET_MAP[preset] && (
-		cc.controllerMode !== PRESET_MAP[preset].controllerMode ||
-		cc.cameraProfile !== PRESET_MAP[preset].cameraProfile
-	);
+	// Check if any values differ from base preset (compares all fields)
+	const presetDefaults = preset ? PRESET_DEFAULTS[preset] : null;
+	const modifiedFields = presetDefaults ? getModifiedFields(cc as Record<string, unknown>, presetDefaults) : [];
+	const isModified = modifiedFields.length > 0;
 
 	// Custom presets
 	const customPresets = cc.customPresets || {};
@@ -505,7 +521,7 @@ export function ControllerConfigPanel({ settings, onChange }: ControllerConfigPa
 							if (!p) {
 								patchCC({ preset: undefined });
 							} else {
-								const fill = PRESET_MAP[p] || {};
+								const fill = PRESET_DEFAULTS[p] || {};
 								patchCC({ preset: p, ...fill });
 							}
 						}}
@@ -525,9 +541,14 @@ export function ControllerConfigPanel({ settings, onChange }: ControllerConfigPa
 						)}
 					</select>
 					{isModified && (
-						<span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30 whitespace-nowrap">
-							Modified
-						</span>
+						<div className="group relative inline-flex">
+							<span className="text-[9px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30 whitespace-nowrap cursor-help">
+								Modified
+							</span>
+							<div className="absolute bottom-full right-0 mb-1.5 px-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-[10px] text-zinc-300 whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 shadow-lg">
+								Changed: {modifiedFields.join(", ")}
+							</div>
+						</div>
 					)}
 				</div>
 			</div>
@@ -599,13 +620,10 @@ export function ControllerConfigPanel({ settings, onChange }: ControllerConfigPa
 			)}
 
 			{/* Reset to Defaults */}
-			{preset && PRESET_MAP[preset] && isModified && (
+			{preset && presetDefaults && isModified && (
 				<button
 					type="button"
-					onClick={() => {
-						const fill = PRESET_MAP[preset];
-						patchCC({ controllerMode: fill.controllerMode, cameraProfile: fill.cameraProfile });
-					}}
+					onClick={() => patchCC({ ...presetDefaults })}
 					className="w-full text-[10px] py-1 rounded bg-white/[0.03] text-white/30 hover:bg-white/[0.06] hover:text-white/50 transition-colors"
 				>
 					Reset to Preset Defaults
