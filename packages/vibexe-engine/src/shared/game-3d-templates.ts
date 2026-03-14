@@ -647,24 +647,32 @@ export function createHUD(container: HTMLDivElement): {
   livesEl.style.cssText = "color:#ff4444;font-size:20px;font-weight:bold;text-shadow:2px 2px 4px rgba(0,0,0,0.5);";
   livesEl.textContent = "\\u2764 3";
 
+  const customEl = document.createElement("div");
+  customEl.style.cssText = "position:absolute;top:40px;left:16px;color:#fff;font-size:14px;text-shadow:1px 1px 3px rgba(0,0,0,0.5);opacity:0.8;";
+
   wrapper.appendChild(scoreEl);
   wrapper.appendChild(livesEl);
+  wrapper.appendChild(customEl);
   container.appendChild(wrapper);
 
   const setScore = (score: number) => { scoreEl.textContent = \`Score: \${score}\`; };
   const setLives = (lives: number) => { livesEl.textContent = "\\u2764 ".repeat(lives).trim(); };
+  const setCustom = (text: string) => { customEl.textContent = text; };
 
   return {
     wrapper,
     scoreEl,
     livesEl,
+    customEl,
     setScore,
     setLives,
-    // Flexible update: accepts object {score?, lives?} or positional (score, lives)
+    setCustom,
+    // Flexible update: accepts object {score?, lives?, custom?} or positional (score, lives)
     update: (data: any) => {
       if (data && typeof data === "object") {
         if (data.score !== undefined) setScore(data.score);
         if (data.lives !== undefined) setLives(data.lives);
+        if (data.custom !== undefined) setCustom(data.custom);
       } else if (typeof data === "number") {
         setScore(data);
       }
@@ -6351,7 +6359,7 @@ async function spawnSegment(safe: boolean = false) {
   if (Math.random() < 0.5) {
     const side = Math.random() < 0.5 ? -7 : 7;
     const { mesh } = await createDecoration3D(scene, side, 0, z - SEGMENT_LENGTH / 2, {
-      type: "pillar_2x2x4",
+      type: "sphere",
       color: "green",
     });
     seg.decorations.push(mesh);

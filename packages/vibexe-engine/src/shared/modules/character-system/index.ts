@@ -2224,6 +2224,22 @@ function swapCharacter(scene, characterId) {
             var newCtrl = _ctrlFactory(_ctrlCtx);
             if (window._activeControllers3D) window._activeControllers3D.push(newCtrl);
             console.log("[CharacterSystem] " + _controllerMode + " controller created | animMap:", Object.keys(animMap).join(","));
+            // Auto-start runner games: the IIFE template gates world.step() behind a
+            // "press any key to start" check (gameStarted flag). Dispatch a synthetic
+            // KeyW event so world.step() runs immediately when charSystem owns the controller.
+            // KeyW is safe — the runner controller only reads A/D/Space, not W.
+            if (_controllerMode === 'runner') {
+              setTimeout(function() {
+                try {
+                  var _kd = new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true });
+                  document.dispatchEvent(_kd); window.dispatchEvent(_kd);
+                  setTimeout(function() {
+                    var _ku = new KeyboardEvent('keyup', { code: 'KeyW', key: 'w', bubbles: true });
+                    document.dispatchEvent(_ku); window.dispatchEvent(_ku);
+                  }, 50);
+                } catch(e) {}
+              }, 200);
+            }
           }
         } else {
         // === ORBIT CONTROLLER (default, backward-compatible) ===
@@ -3440,6 +3456,19 @@ if (typeof window !== "undefined") {
             var _riCtrl = _riFactory(_riCtx);
             if (window._activeControllers3D) window._activeControllers3D.push(_riCtrl);
             console.log("[CharacterSystem] Reinit: " + _riMode + " controller rebuilt");
+            // Auto-start runner on reinit (same as initial creation)
+            if (_riMode === 'runner') {
+              setTimeout(function() {
+                try {
+                  var _kd = new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', bubbles: true });
+                  document.dispatchEvent(_kd); window.dispatchEvent(_kd);
+                  setTimeout(function() {
+                    var _ku = new KeyboardEvent('keyup', { code: 'KeyW', key: 'w', bubbles: true });
+                    document.dispatchEvent(_ku); window.dispatchEvent(_ku);
+                  }, 50);
+                } catch(e) {}
+              }, 200);
+            }
           }
         } else if (_riMode === 'orbit') {
           // Lightweight orbit reinit: hot-swap abilities without full GLB re-download
