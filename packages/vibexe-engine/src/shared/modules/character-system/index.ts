@@ -2344,6 +2344,9 @@ function swapCharacter(scene, characterId) {
 
         // === ORBIT MODE: Abilities + Extended Animation (v9.0 integration) ===
         var _orbitAbilities = _initAbilities(_gsChar);
+        // Store abilities globally for hot-reload on reinit (avoid full GLB re-download)
+        window.__charCtrl_orbitAbilities = _orbitAbilities;
+        window.__charCtrl_orbitSettings = _gsChar;
         var _orbitCtx = {
           mesh: _csMesh, body: _csBody, play: _csPlay, animMap: animMap,
           halfH: _csHalfH, settings: _gsChar, inputState: _inputState, mouseState: _mouseState,
@@ -2828,12 +2831,14 @@ function swapCharacter(scene, characterId) {
             } // end CANNON fallback
 
             // === 6.5 ORBIT ABILITIES (v9.0) ===
+            // Read abilities from global (hot-swappable on reinit without GLB reload)
+            var _curAbilities = window.__charCtrl_orbitAbilities || _orbitAbilities;
             // Update orbit context with current frame state
             _orbitCtx._rapierGravityVel = _rapierGravityVel;
-            for (var _oai = 0; _oai < _orbitAbilities.length; _oai++) {
-              _orbitAbilities[_oai].update(_orbitCtx, dt, isGrounded);
-              if (_orbitAbilities[_oai].canActivate(_orbitCtx, isGrounded)) {
-                _orbitAbilities[_oai].activate(_orbitCtx);
+            for (var _oai = 0; _oai < _curAbilities.length; _oai++) {
+              _curAbilities[_oai].update(_orbitCtx, dt, isGrounded);
+              if (_curAbilities[_oai].canActivate(_orbitCtx, isGrounded)) {
+                _curAbilities[_oai].activate(_orbitCtx);
                 // Sync back rapier gravity vel if ability changed it (e.g. doubleJump)
                 if (_orbitCtx._rapierGravityVel !== _rapierGravityVel) {
                   _rapierGravityVel = _orbitCtx._rapierGravityVel;
@@ -2874,7 +2879,7 @@ function swapCharacter(scene, characterId) {
             }
 
             // Use extended animation state machine (checks abilities before standard states)
-            var targetAnim = _resolveAnimState(_orbitCtx, _isOnGround, speed, vy, _groundDist, _orbitAbilities, _csLastAnim, _landTimer);
+            var targetAnim = _resolveAnimState(_orbitCtx, _isOnGround, speed, vy, _groundDist, _curAbilities, _csLastAnim, _landTimer);
             if (targetAnim !== _csLastAnim) {
               _playAnimForState(_orbitCtx, targetAnim, animMap);
               _csLastAnim = targetAnim;
@@ -3357,16 +3362,7 @@ if (typeof window !== "undefined") {
       if (_reinitMesh && _reinitMesh.userData && _reinitMesh.userData.__play) {
         console.log("[CharacterSystem] Reinit: lightweight controller rebuild (no GLB reload)");
 
-        // Remove old charSystem controllers
-        if (window._activeControllers3D) {
-          for (var _rci = window._activeControllers3D.length - 1; _rci >= 0; _rci--) {
-            if (window._activeControllers3D[_rci] && window._activeControllers3D[_rci].__charSystem) {
-              if (window._activeControllers3D[_rci].dispose) window._activeControllers3D[_rci].dispose();
-              window._activeControllers3D.splice(_rci, 1);
-            }
-          }
-        }
-
+        // Resolve settings first to determine mode (needed to decide controller removal)
         // Resolve settings (same logic as swapCharacter)
         var _riGsCamera = (window.__VIBEXE_GAME_SETTINGS__ || {}).camera || {};
         var _riGsCharRaw = (window.__VIBEXE_GAME_SETTINGS__ || {}).characterController || {};
@@ -3418,6 +3414,15 @@ if (typeof window !== "undefined") {
         };
 
         if (_riMode !== 'orbit' && _riBody && _riPlay) {
+          // Remove old charSystem controllers (only for non-orbit modes that rebuild)
+          if (window._activeControllers3D) {
+            for (var _rci = window._activeControllers3D.length - 1; _rci >= 0; _rci--) {
+              if (window._activeControllers3D[_rci] && window._activeControllers3D[_rci].__charSystem) {
+                if (window._activeControllers3D[_rci].dispose) window._activeControllers3D[_rci].dispose();
+                window._activeControllers3D.splice(_rci, 1);
+              }
+            }
+          }
           var _riCtx = {
             mesh: _reinitMesh, body: _riBody, play: _riPlay, animMap: _riAnimMap, halfH: _riHalfH,
             settings: _riGsChar, cameraSettings: _riGsCamera,
@@ -3437,10 +3442,13 @@ if (typeof window !== "undefined") {
             console.log("[CharacterSystem] Reinit: " + _riMode + " controller rebuilt");
           }
         } else if (_riMode === 'orbit') {
-          // For orbit mode reinit, do a full swapCharacter since orbit controller is inline
-          var _rScene = _lastSwapScene || window.__vibexe_scene__;
-          var _rCharId = _lastSwapCharId || 'warrior';
-          if (_rScene) swapCharacter(_rScene, _rCharId);
+          // Lightweight orbit reinit: hot-swap abilities without full GLB re-download
+          // The orbit controller reads abilities from window.__charCtrl_orbitAbilities each frame
+          var _riNewAbilities = _initAbilities(_riGsChar);
+          window.__charCtrl_orbitAbilities = _riNewAbilities;
+          window.__charCtrl_orbitSettings = _riGsChar;
+          console.log("[CharacterSystem] Orbit reinit: hot-swapped " + _riNewAbilities.length + " abilities",
+            _riNewAbilities.map(function(a) { return a.name; }).join(", ") || "(none)");
         }
       } else {
         // No existing mesh — fall back to full swap

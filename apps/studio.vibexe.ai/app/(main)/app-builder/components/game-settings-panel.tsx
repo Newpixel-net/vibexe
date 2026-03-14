@@ -6,7 +6,7 @@
  */
 
 import { Camera, Gauge, Puzzle, RotateCcw, Sparkles, Sun, User, Volume2, X, Zap } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ALL_MODULE_MANIFESTS, type ModuleManifest } from "@vibexe-ai/vibexe-engine";
 import { DragNumberInput } from "./drag-number-input";
 import { ControllerConfigPanel } from "./controller-config-panel";
@@ -250,6 +250,23 @@ export interface GameSettingsContentProps {
 
 export function GameSettingsContent({ settings, onChange, onSave, pickSpawnActive, pickRespawnActive, onTogglePickSpawn, onTogglePickRespawn, characterHalfHeight }: GameSettingsContentProps) {
 	const [activeTab, setActiveTab] = useState<SettingsTab>("player");
+	const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+	const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	const handleSave = useCallback(() => {
+		setSaveStatus("saving");
+		onSave(settings);
+		// Show "Saved!" after a brief delay (matches debounce timing)
+		if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+		saveTimerRef.current = setTimeout(() => {
+			setSaveStatus("saved");
+			saveTimerRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
+		}, 600);
+	}, [onSave, settings]);
+
+	useEffect(() => {
+		return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+	}, []);
 
 	const update = useCallback((section: string, field: string, value: any) => {
 		const patched = deepMerge(settings, { [section]: { [field]: value } });
@@ -753,10 +770,17 @@ export function GameSettingsContent({ settings, onChange, onSave, pickSpawnActiv
 			<div className="p-3 border-t border-white/[0.08]">
 				<button
 					type="button"
-					onClick={() => onSave(settings)}
-					className="w-full py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-[11px] font-medium transition-colors"
+					onClick={handleSave}
+					disabled={saveStatus === "saving"}
+					className={`w-full py-2 rounded-lg text-white text-[11px] font-medium transition-colors ${
+						saveStatus === "saved"
+							? "bg-emerald-600"
+							: saveStatus === "saving"
+								? "bg-violet-600/60 cursor-wait"
+								: "bg-violet-600 hover:bg-violet-500"
+					}`}
 				>
-					Save & Apply
+					{saveStatus === "saved" ? "Saved & Applied!" : saveStatus === "saving" ? "Saving..." : "Save & Apply"}
 				</button>
 			</div>
 		</>
