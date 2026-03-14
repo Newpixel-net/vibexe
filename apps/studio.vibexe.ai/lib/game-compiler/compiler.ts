@@ -237,9 +237,10 @@ export async function compileGameBundle(input: CompileInput): Promise<CompileOut
 		};
 	}
 
-	// Compile with esbuild
+	// Compile with esbuild (30s timeout to prevent hangs from circular imports)
+	const COMPILE_TIMEOUT = 30_000;
 	try {
-		const result = await esbuild.build({
+		const buildPromise = esbuild.build({
 			stdin: {
 				contents: entryContent,
 				loader: entryPath.endsWith(".tsx") ? "tsx" :
@@ -262,6 +263,12 @@ export async function compileGameBundle(input: CompileInput): Promise<CompileOut
 			},
 			logLevel: "silent",
 		});
+		const result = await Promise.race([
+			buildPromise,
+			new Promise<never>((_, reject) =>
+				setTimeout(() => reject(new Error("Compilation timed out")), COMPILE_TIMEOUT),
+			),
+		]);
 
 		const bundle = result.outputFiles?.[0]?.text || "";
 		const errors = result.errors.map((e) => e.text);

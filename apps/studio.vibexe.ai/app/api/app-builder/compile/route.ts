@@ -39,6 +39,34 @@ export async function POST(request: Request) {
 			);
 		}
 
+		// Input validation: prevent DoS via oversized payloads
+		const MAX_FILES = 100;
+		const MAX_FILE_SIZE = 512 * 1024; // 512 KB per file
+		const MAX_TOTAL_SIZE = 5 * 1024 * 1024; // 5 MB total
+		if (files.length > MAX_FILES) {
+			return Response.json(
+				{ error: `Too many files (max ${MAX_FILES})` },
+				{ status: 400 },
+			);
+		}
+		let totalSize = 0;
+		for (const f of files) {
+			if (typeof f.content !== "string") continue;
+			if (f.content.length > MAX_FILE_SIZE) {
+				return Response.json(
+					{ error: `File "${f.path}" exceeds max size (${MAX_FILE_SIZE / 1024}KB)` },
+					{ status: 400 },
+				);
+			}
+			totalSize += f.content.length;
+		}
+		if (totalSize > MAX_TOTAL_SIZE) {
+			return Response.json(
+				{ error: `Total content exceeds max size (${MAX_TOTAL_SIZE / 1024 / 1024}MB)` },
+				{ status: 400 },
+			);
+		}
+
 		// Prefer client-provided origin (browser-facing URL) over server-side request.url
 		// (which returns localhost:3000 on the internal Next.js server)
 		const apiOrigin = clientOrigin || new URL(request.url).origin;

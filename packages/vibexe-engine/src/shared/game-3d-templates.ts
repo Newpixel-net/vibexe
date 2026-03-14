@@ -43,8 +43,8 @@ export { modelUrl };
 const THREE = (window as any).THREE;
 const CANNON = (window as any).CANNON;
 
-// ===== Three.js r172 — no polyfills needed =====
-// CapsuleGeometry, SRGBColorSpace, outputColorSpace all native in r172.
+// ===== Three.js (bundled via Sandpack/esbuild — version depends on package.json) =====
+// CapsuleGeometry, SRGBColorSpace, outputColorSpace require r152+.
 
 // ===== NaN-tolerant Quaternion patch =====
 // AI-generated code often passes NaN/undefined values to rotation APIs,
@@ -3493,6 +3493,13 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
     function disposeScene() {
       cancelAnimationFrame(animFrameId);
       gameScene.cleanup?.();
+      // Clear global active arrays to prevent stale entries on game restart
+      _activeMixers3D.length = 0;
+      _activeControllers3D.length = 0;
+      _activeParticles3D.length = 0;
+      _activeTriggers3D.length = 0;
+      _activeSprings3D.length = 0;
+      if ((window as any)._activeSpatial3D) (window as any)._activeSpatial3D.length = 0;
       if (scene) {
         scene.traverse((obj: any) => {
           if (obj.geometry) obj.geometry.dispose();
@@ -5983,7 +5990,7 @@ export const GameScene = {
     world = this.world;
 
     // Sky
-    createSkyGradient(scene, "#87CEEB", "#E0F7FF");
+    createSkyGradient(scene, 0x87CEEB, 0xE0F7FF);
 
     // Ground (visual only — physics segments handle collision)
     const groundGeo = new THREE.PlaneGeometry(20, 2000);
