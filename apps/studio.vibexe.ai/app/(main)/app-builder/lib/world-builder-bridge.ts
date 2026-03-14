@@ -1737,12 +1737,14 @@ export function getWorldBuilderBridgeScript(): string {
 
     if (msg.type === "wb-enable") {
       _active = true;
+      window.__wb_active__ = true;
       updateRaycastTargets();
       updateGrid();
       console.log("[WB] Enabled");
     }
     else if (msg.type === "wb-disable") {
       _active = false;
+      window.__wb_active__ = false;
       hidePreview(); hideCircleVis();
       clearLineVisuals(); clearShapeVisuals(); clearTilingVisuals(); clearMirrorVisuals();
       if (_gridHelper && _scene) { _scene.remove(_gridHelper); _gridHelper = null; }

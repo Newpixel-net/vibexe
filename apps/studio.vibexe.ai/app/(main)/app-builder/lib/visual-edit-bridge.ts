@@ -2009,6 +2009,8 @@ export function getVisualEditBridgeScript(): string {
   function onCanvasMouseDown(e) {
     if (!active || !editor) return;
     if (e.button !== 0) return;
+    // Yield to World Builder when it's active — WB handles its own clicks
+    if (window.__wb_active__) return;
     handleClick(e.clientX, e.clientY, "mousedown-capture");
   }
 
