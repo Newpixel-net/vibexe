@@ -428,18 +428,28 @@ export function getWorldBuilderBridgeScript(): string {
     var o = window.__VIBEXE_API_ORIGIN__ || window.location.origin;
     return o + "/api/app-builder/media-stock-3d/" + pack + "/" + path;
   }
+  var _pendingLoads = {}; // URL → Array<callback> for deduplication
   function loadModel(modelPath, pack, cb) {
     var url = modelUrl(pack, modelPath);
     if (_modelCache[url]) { cb(_modelCache[url].clone()); return; }
+    // Deduplicate concurrent loads for the same URL (population batches)
+    if (_pendingLoads[url]) { _pendingLoads[url].push(cb); return; }
+    _pendingLoads[url] = [cb];
     var L = window.GLTFLoader || (window.THREE && window.THREE.GLTFLoader);
-    if (!L) { cb(new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial({color:0xff00ff}))); return; }
+    if (!L) {
+      var cbs = _pendingLoads[url]; delete _pendingLoads[url];
+      for (var pi = 0; pi < cbs.length; pi++) cbs[pi](new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial({color:0xff00ff})));
+      return;
+    }
     new L().load(url, function(g) {
       var m = g.scene || g.scenes[0];
       _modelCache[url] = m;
-      cb(m.clone());
+      var cbs = _pendingLoads[url] || []; delete _pendingLoads[url];
+      for (var pi = 0; pi < cbs.length; pi++) cbs[pi](m.clone());
     }, undefined, function(err) {
       console.warn("[WB] Load fail:", url);
-      cb(new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial({color:0xff00ff})));
+      var cbs = _pendingLoads[url] || []; delete _pendingLoads[url];
+      for (var pi = 0; pi < cbs.length; pi++) cbs[pi](new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial({color:0xff00ff})));
     });
   }
 
@@ -1930,10 +1940,17 @@ export function getWorldBuilderBridgeScript(): string {
     else if (msg.type === "wb-populate-heatmap-preview") {
       // Render heatmap as semi-transparent overlay on terrain
       // msg: { heatmapData: number[], width, height, bounds: {minX,maxX,minZ,maxZ,minY,maxY} }
-      // Remove existing overlay
+      // Remove existing overlay (dispose GPU resources)
       if (_scene) {
         var oldOverlay = _scene.getObjectByName("__pop_heatmap_overlay__");
-        if (oldOverlay) _scene.remove(oldOverlay);
+        if (oldOverlay) {
+          _scene.remove(oldOverlay);
+          if (oldOverlay.geometry) oldOverlay.geometry.dispose();
+          if (oldOverlay.material) {
+            if (oldOverlay.material.map) oldOverlay.material.map.dispose();
+            oldOverlay.material.dispose();
+          }
+        }
       }
       if (!_scene || !msg.heatmapData) return;
 
@@ -1981,11 +1998,16 @@ export function getWorldBuilderBridgeScript(): string {
       console.log("[WB:Pop] Heatmap overlay added (" + hmW + "x" + hmH + ")");
     }
     else if (msg.type === "wb-populate-heatmap-hide") {
-      // Remove heatmap overlay
+      // Remove heatmap overlay + dispose GPU resources
       if (_scene) {
         var hmOverlay = _scene.getObjectByName("__pop_heatmap_overlay__");
         if (hmOverlay) {
           _scene.remove(hmOverlay);
+          if (hmOverlay.geometry) hmOverlay.geometry.dispose();
+          if (hmOverlay.material) {
+            if (hmOverlay.material.map) hmOverlay.material.map.dispose();
+            hmOverlay.material.dispose();
+          }
           console.log("[WB:Pop] Heatmap overlay removed");
         }
       }
@@ -1995,7 +2017,11 @@ export function getWorldBuilderBridgeScript(): string {
       // msg: { points: Array<{x,y,z}>, color?: string, layerId: string }
       if (_scene) {
         var oldPts = _scene.getObjectByName("__pop_preview_points__");
-        if (oldPts) _scene.remove(oldPts);
+        if (oldPts) {
+          _scene.remove(oldPts);
+          if (oldPts.geometry) oldPts.geometry.dispose();
+          if (oldPts.material) oldPts.material.dispose();
+        }
       }
       if (!_scene || !msg.points || msg.points.length === 0) return;
 
@@ -2026,40 +2052,53 @@ export function getWorldBuilderBridgeScript(): string {
       try { window.parent.postMessage({ type: "wb-populate-preview-ready", count: pts.length }, "*"); } catch(ex) {}
     }
     else if (msg.type === "wb-populate-preview-clear") {
-      // Remove both heatmap overlay and point preview
+      // Remove both heatmap overlay and point preview + dispose GPU resources
       if (_scene) {
         var hmOv = _scene.getObjectByName("__pop_heatmap_overlay__");
-        if (hmOv) _scene.remove(hmOv);
+        if (hmOv) {
+          _scene.remove(hmOv);
+          if (hmOv.geometry) hmOv.geometry.dispose();
+          if (hmOv.material) { if (hmOv.material.map) hmOv.material.map.dispose(); hmOv.material.dispose(); }
+        }
         var ptOv = _scene.getObjectByName("__pop_preview_points__");
-        if (ptOv) _scene.remove(ptOv);
+        if (ptOv) {
+          _scene.remove(ptOv);
+          if (ptOv.geometry) ptOv.geometry.dispose();
+          if (ptOv.material) ptOv.material.dispose();
+        }
         console.log("[WB:Pop] Preview cleared");
       }
     }
     else if (msg.type === "wb-get-terrain-data") {
       // Extract terrain heightmap data for population engine
       var terrainMesh = null;
-      if (window.__vibexe_terrainPainter__) {
-        // Terrain Painter active — read from its runtime
-        var painter = window.__vibexe_terrainPainter__;
-        if (painter.terrain && painter.terrain.heightmapTexture) {
-          var hmTex = painter.terrain.heightmapTexture;
-          var cfg = painter.terrain.config;
-          var pos = painter.terrain.mesh ? painter.terrain.mesh.position : { x: 0, y: 0, z: 0 };
-          var hw = cfg.width / 2, hd = cfg.depth / 2;
-          try {
-            window.parent.postMessage({
-              type: "wb-terrain-data",
-              heightData: Array.from(hmTex.image.data),
-              resolution: cfg.segments + 1,
-              bounds: {
-                minX: pos.x - hw, maxX: pos.x + hw,
-                minZ: pos.z - hd, maxZ: pos.z + hd,
-                minY: 0, maxY: cfg.heightScale,
-              },
-            }, "*");
-          } catch(ex) { console.warn("[WB:Pop] Failed to send terrain data:", ex); }
-          return;
+      // Primary path: read from __vibexe_terrainData (set by visual-edit-bridge terrain painter)
+      // NOTE: td.heightData stores WORLD-SPACE heights. Population engine expects NORMALIZED 0-1.
+      var td = window.__vibexe_terrainData;
+      if (td && td.heightData) {
+        var tdRes = td.segX || td.segZ || Math.floor(Math.sqrt(td.heightData.length));
+        var tdHW = td.width / 2, tdHD = td.depth / 2;
+        var tdMinY = td.minY !== undefined ? td.minY : 0;
+        var tdMaxY = td.maxY !== undefined ? td.maxY : 40;
+        var tdRange = tdMaxY - tdMinY || 1;
+        // Normalize heightData to 0-1 range
+        var normalized = new Float32Array(td.heightData.length);
+        for (var ni = 0; ni < td.heightData.length; ni++) {
+          normalized[ni] = (td.heightData[ni] - tdMinY) / tdRange;
         }
+        try {
+          window.parent.postMessage({
+            type: "wb-terrain-data",
+            heightData: Array.from(normalized),
+            resolution: tdRes,
+            bounds: {
+              minX: -tdHW, maxX: tdHW,
+              minZ: -tdHD, maxZ: tdHD,
+              minY: tdMinY, maxY: tdMaxY,
+            },
+          }, "*");
+        } catch(ex) { console.warn("[WB:Pop] Failed to send terrain data:", ex); }
+        return;
       }
       // Fallback: find __terrain__ mesh in scene
       if (_scene) {

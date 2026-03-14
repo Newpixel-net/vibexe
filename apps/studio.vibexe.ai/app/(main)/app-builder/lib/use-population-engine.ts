@@ -68,6 +68,9 @@ export function usePopulationEngine({ sendToIframe }: UsePopulationEngineOptions
 		previewPointCount: 0,
 	});
 
+	// Track whether we've loaded terrain at least once, for auto-refresh
+	const hasLoadedOnce = useRef(false);
+
 	// Listen for messages from iframe
 	useEffect(() => {
 		function handleMessage(ev: MessageEvent) {
@@ -85,11 +88,19 @@ export function usePopulationEngine({ sendToIframe }: UsePopulationEngineOptions
 					bounds: msg.bounds,
 				};
 				engineRef.current.setTerrainData(terrainInfo);
+				hasLoadedOnce.current = true;
 				setState((s) => ({ ...s, terrainLoaded: true }));
 				console.log(
 					`[Population] Terrain loaded: ${msg.resolution}x${msg.resolution}, bounds:`,
 					msg.bounds,
 				);
+			}
+
+			// Auto-refresh terrain data when terrain is modified
+			// (only if we've loaded it at least once — don't spam requests on every repaint)
+			if (msg.type === "terrain-painter-repainted" && hasLoadedOnce.current) {
+				console.log("[Population] Terrain changed — auto-refreshing heightmap");
+				sendToIframe({ type: "wb-get-terrain-data" });
 			}
 
 			if (msg.type === "wb-populate-complete") {
@@ -117,7 +128,7 @@ export function usePopulationEngine({ sendToIframe }: UsePopulationEngineOptions
 
 		window.addEventListener("message", handleMessage);
 		return () => window.removeEventListener("message", handleMessage);
-	}, []);
+	}, [sendToIframe]);
 
 	/** Request terrain data from the iframe */
 	const requestTerrainData = useCallback(() => {
@@ -142,12 +153,25 @@ export function usePopulationEngine({ sendToIframe }: UsePopulationEngineOptions
 		setState((s) => ({ ...s, layers: engineRef.current.getLayers() }));
 	}, []);
 
-	/** Remove a layer and its spawned objects */
+	/** Remove a layer and its spawned objects + any active preview */
 	const removeLayer = useCallback(
 		(layerId: string) => {
 			engineRef.current.removeLayer(layerId);
 			sendToIframe({ type: "wb-populate-clear", layerId });
-			setState((s) => ({ ...s, layers: engineRef.current.getLayers() }));
+			setState((s) => {
+				const updates: Partial<PopulationEngineState> = { layers: engineRef.current.getLayers() };
+				// Clean up previews if this layer had them
+				if (s.heatmapPreviewLayerId === layerId) {
+					sendToIframe({ type: "wb-populate-heatmap-hide" });
+					updates.heatmapPreviewLayerId = null;
+				}
+				if (s.pointPreviewLayerId === layerId) {
+					sendToIframe({ type: "wb-populate-preview-clear" });
+					updates.pointPreviewLayerId = null;
+					updates.previewPointCount = 0;
+				}
+				return { ...s, ...updates };
+			});
 		},
 		[sendToIframe],
 	);
@@ -217,7 +241,7 @@ export function usePopulationEngine({ sendToIframe }: UsePopulationEngineOptions
 		[populateLayer],
 	);
 
-	/** Clear population objects for a layer */
+	/** Clear population objects for a layer + its previews */
 	const clearLayer = useCallback(
 		(layerId: string) => {
 			engineRef.current.clearLayer(layerId);
@@ -225,21 +249,35 @@ export function usePopulationEngine({ sendToIframe }: UsePopulationEngineOptions
 			setState((s) => {
 				const newResults = new Map(s.results);
 				newResults.delete(layerId);
-				return { ...s, results: newResults };
+				const updates: Partial<PopulationEngineState> = { results: newResults };
+				if (s.heatmapPreviewLayerId === layerId) {
+					sendToIframe({ type: "wb-populate-heatmap-hide" });
+					updates.heatmapPreviewLayerId = null;
+				}
+				if (s.pointPreviewLayerId === layerId) {
+					sendToIframe({ type: "wb-populate-preview-clear" });
+					updates.pointPreviewLayerId = null;
+					updates.previewPointCount = 0;
+				}
+				return { ...s, ...updates };
 			});
 		},
 		[sendToIframe],
 	);
 
-	/** Clear all population objects */
+	/** Clear all population objects + all previews */
 	const clearAll = useCallback(() => {
 		engineRef.current.clearAll();
 		sendToIframe({ type: "wb-populate-clear-all" });
+		sendToIframe({ type: "wb-populate-preview-clear" });
 		setState((s) => ({
 			...s,
 			results: new Map(),
 			populatingLayerId: null,
 			spawnProgress: null,
+			heatmapPreviewLayerId: null,
+			pointPreviewLayerId: null,
+			previewPointCount: 0,
 		}));
 	}, [sendToIframe]);
 
