@@ -107,6 +107,11 @@ window.addEventListener('unhandledrejection', function(e) {
     bridgeScript.src = '/api/app-builder/bridge?v=${bridgeVersion}';
     document.body.appendChild(bridgeScript);
 
+    // World Builder bridge — loaded after main bridge
+    var wbBridgeScript = document.createElement('script');
+    wbBridgeScript.src = '/api/app-builder/world-builder-bridge?v=${bridgeVersion}';
+    document.body.appendChild(wbBridgeScript);
+
     var bundleLoaded = false;
 
     window.addEventListener('message', function(ev) {
