@@ -39,6 +39,9 @@ export const game3dDeveloper: AgentDefinition = {
 		"3d builder",
 		"city builder 3d",
 		"3d exploration",
+		"terrain population",
+		"world population",
+		"populate terrain",
 	],
 	systemPrompt: `You are the 3D Game Developer in the Vibexe App Builder pipeline. You receive a user's request and produce COMPLETE, WORKING Three.js 3D game code files via tool calls.
 
@@ -1311,6 +1314,64 @@ ${GAME_3D_ASSETS_REFERENCE}
 36. **Moving mesh directly instead of physics body** — If you have a physics body, ALWAYS move via \`playerBody.velocity.x = speed\`, NOT \`mesh.position.x += speed * delta\`. Direct mesh movement bypasses physics (no collisions) and the character controller uses physics velocity for animation states. The controller CAN detect mesh movement as fallback, but physics velocity is preferred.
 37. **FATAL: Calling initRenderer(), initScene(), initCamera()** — NEVER call these in your init() method. Game3D.tsx already creates the renderer, scene, and camera and passes them as arguments: \`init(scene, camera, renderer, container, onProgress?)\`. Just assign them to module-level variables: \`scene = _scene; camera = _camera; renderer = _renderer;\`. Calling \`initRenderer(container)\` creates a SECOND canvas, calling \`initScene()\` creates a SECOND scene (your objects become invisible because Game3D.tsx renders the first scene). These helpers are idempotent (they return the existing instances), but DO NOT rely on that — use the arguments passed to init().
 38. **FATAL: Looking up container via window.__gameContainer** — The container is passed as the 4th argument to init(). Use it directly: \`const container = arguments[3]\` or name it in the signature. Do NOT use \`(window as any).__gameContainer\` — that variable does not exist.
+
+## Terrain Population System
+
+When the user asks for a terrain/world with natural object placement (forests, deserts, cities, etc.), you can trigger the **Population System** via postMessage. The system uses heatmap-driven Poisson disk sampling for natural-looking object distributions.
+
+**How to trigger population from game code (inside GameScene3D.ts):**
+
+\`\`\`typescript
+// In init(), after terrain is created, send a population blueprint to the panel:
+window.parent.postMessage({
+  type: "wb-populate-blueprint",
+  blueprint: {
+    biome: "forest",  // Use preset: "forest" | "desert" | "alpine" | "tropical" | "city" | "platformer"
+    seed: 42,          // Optional seed for deterministic results
+  }
+}, "*");
+\`\`\`
+
+**Custom blueprint with specific layers (advanced):**
+
+\`\`\`typescript
+window.parent.postMessage({
+  type: "wb-populate-blueprint",
+  blueprint: {
+    seed: 12345,
+    layers: [
+      {
+        name: "Dense Trees",
+        rule: "flat areas",                     // "flat", "steep", "low", "high", "mid", "random", "ridge"
+        density: "dense",                        // "sparse" | "medium" | "dense" | "very-dense"
+        assets: [
+          { type: "tree", keywords: ["tree", "pine"], category: "environment" },
+          { type: "tree", keywords: ["bush", "shrub"], category: "decorations" },
+        ]
+      },
+      {
+        name: "Rock Scatter",
+        rule: "steep slopes",
+        density: "sparse",
+        assets: [
+          { type: "tree", keywords: ["rock", "boulder"], category: "environment" },
+          { type: "detail", keywords: ["pebble", "debris"], category: "decorations" },
+        ]
+      },
+    ]
+  }
+}, "*");
+\`\`\`
+
+**Important:** Population happens in the Terrain Painter's Populate tab — the system resolves asset keywords against the 3D model catalog and places objects using Poisson sampling filtered by terrain heatmaps (height, slope, curvature). The game code does NOT need to handle placement — just send the blueprint message and the panel + bridge handle everything.
+
+**6 Biome Presets available:**
+- \`forest\` — Trees on flat areas, bushes on slopes, rocks on ridges
+- \`desert\` — Sparse cacti on flat areas, rocks on curvature features
+- \`alpine\` — Pines at low altitude, flowers mid, boulders high
+- \`tropical\` — Palms near low areas, jungle floor vegetation
+- \`city\` — Buildings on flat areas, street props, park trees
+- \`platformer\` — Game platforms, collectibles, decorations
 
 ## Internationalization
 

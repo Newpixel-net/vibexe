@@ -41,6 +41,7 @@ import {
 	BIOME_PRESETS,
 } from "@vibexe-ai/vibexe-engine";
 import type { usePopulationEngine } from "../lib/use-population-engine";
+import { resolvePresetById } from "../lib/blueprint-resolver";
 import { SharedAssetBrowser, toWBItem } from "./shared-asset-browser";
 import type { AssetLibraryItem } from "../lib/asset-library-data";
 
@@ -213,27 +214,21 @@ export function TerrainPopulateTab({ population }: TerrainPopulateTabProps) {
 		[selectedLayer, updateLayer],
 	);
 
-	// Apply biome preset
+	// Apply biome preset with auto-resolved assets
 	const applyPreset = useCallback(
 		(presetId: string) => {
-			const preset = BIOME_PRESETS.find((p) => p.id === presetId);
-			if (!preset) return;
-
 			// Clear existing layers
 			for (const l of layers) removeLayer(l.id);
 
-			// Create layers from preset
-			for (const tpl of preset.layers) {
-				const layer: PopulationLayer = {
-					...DEFAULT_POPULATION_LAYER,
-					id: generateId(),
-					name: tpl.name,
-					autoRules: tpl.autoRules.map((r) => ({ ...r, id: generateId() })),
-					minThreshold: tpl.minThreshold,
-					maxThreshold: tpl.maxThreshold,
-					trees: [],
-					details: [],
-				};
+			// Resolve preset: matches keyword slots to actual catalog assets
+			const resolved = resolvePresetById(presetId);
+			if (!resolved || resolved.length === 0) {
+				console.warn("[Population] No assets resolved for preset:", presetId);
+				return;
+			}
+
+			// Set resolved layers on engine
+			for (const layer of resolved) {
 				population.engine.setLayer(layer);
 			}
 

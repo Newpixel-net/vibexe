@@ -22,6 +22,7 @@ import {
 	type TerrainInfo,
 	DEFAULT_POPULATION_LAYER,
 } from "@vibexe-ai/vibexe-engine";
+import { resolveBlueprint, resolvePresetById } from "./blueprint-resolver";
 
 export interface UsePopulationEngineOptions {
 	sendToIframe: (msg: Record<string, unknown>) => void;
@@ -123,6 +124,55 @@ export function usePopulationEngine({ sendToIframe }: UsePopulationEngineOptions
 					...s,
 					previewPointCount: msg.count || 0,
 				}));
+			}
+
+			// AI-triggered population via blueprint
+			if (msg.type === "wb-populate-blueprint") {
+				const blueprint = msg.blueprint;
+				if (!blueprint) return;
+
+				// Resolve blueprint to layers
+				const resolvedLayers = blueprint.biome && !blueprint.layers?.length
+					? resolvePresetById(blueprint.biome) || []
+					: resolveBlueprint(blueprint);
+
+				if (resolvedLayers.length === 0) {
+					console.warn("[Population] Blueprint resolved to 0 layers");
+					return;
+				}
+
+				// Clear existing, set new layers
+				engineRef.current.clearAll();
+				sendToIframe({ type: "wb-populate-clear-all" });
+				for (const layer of resolvedLayers) {
+					engineRef.current.setLayer(layer);
+				}
+				setState((s) => ({ ...s, layers: engineRef.current.getLayers() }));
+
+				// If terrain is loaded, auto-populate all layers
+				if (engineRef.current.getTerrainBounds()) {
+					const seed = blueprint.seed ?? Math.floor(Math.random() * 99999);
+					for (const layer of resolvedLayers) {
+						const result = engineRef.current.populateLayer(layer.id, seed);
+						if (result.objects.length > 0) {
+							sendToIframe({
+								type: "wb-populate-spawn",
+								layerId: layer.id,
+								objects: result.objects.map((obj) => ({
+									id: obj.id,
+									modelPath: obj.modelPath,
+									packId: obj.packId,
+									position: obj.position,
+									rotation: obj.rotation,
+									scale: obj.scale,
+									entryId: obj.entryId,
+								})),
+							});
+						}
+					}
+					setState((s) => ({ ...s, layers: engineRef.current.getLayers() }));
+				}
+				console.log(`[Population] Blueprint applied: ${resolvedLayers.length} layers`);
 			}
 		}
 
