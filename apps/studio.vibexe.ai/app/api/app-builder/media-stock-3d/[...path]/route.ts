@@ -51,33 +51,38 @@ export async function GET(
 		return NextResponse.json({ error: "Invalid path" }, { status: 400, headers: CORS_HEADERS });
 	}
 
-	// Redirect: pillar types from platformer-project → kaykit-platformer (neutral)
-	// Saved projects reference platformer-project/objects/pillar_*.glb which don't exist there
-	if (segments[0] === "platformer-project" && segments[1] === "objects" && segments[2]?.startsWith("pillar_")) {
-		const pillarName = segments[2].replace(".glb", "");
-		const redirectSegments = ["kaykit-platformer", "Assets", "gltf", "neutral", `${pillarName}.gltf`];
-		const redirectPath = path.join(MEDIA_BASE, ...redirectSegments);
-		const redirectResolved = path.resolve(redirectPath);
-		if (redirectResolved.startsWith(MEDIA_BASE)) {
-			try {
-				const rStat = await stat(redirectResolved);
-				if (rStat.isFile()) {
-					const ext = path.extname(redirectResolved).toLowerCase();
-					const contentType = CONTENT_TYPES[ext] || "application/octet-stream";
-					const buffer = await readFile(redirectResolved);
-					const etag = `"${rStat.size}-${rStat.mtimeMs.toString(36)}"`;
-					return new Response(buffer, {
-						status: 200,
-						headers: {
-							"Content-Type": contentType,
-							"Content-Length": String(buffer.length),
-							"Cache-Control": "public, max-age=3600, must-revalidate",
-							ETag: etag,
-							...CORS_HEADERS,
-						},
-					});
-				}
-			} catch { /* fall through to normal path */ }
+	// Redirect: pillar files from platformer-project → kaykit-platformer (neutral)
+	// Saved projects reference platformer-project/objects/pillar_*.glb which don't exist there.
+	// GLTF files also reference companion .bin and texture files that need the same redirect.
+	if (segments[0] === "platformer-project" && segments[1] === "objects") {
+		const filename = segments[2];
+		if (filename?.startsWith("pillar_") || filename === "platformer_texture.png") {
+			// Map to kaykit-platformer/Assets/gltf/neutral/ — swap .glb→.gltf for model files
+			const redirectName = filename.endsWith(".glb") ? filename.replace(".glb", ".gltf") : filename;
+			const redirectSegments = ["kaykit-platformer", "Assets", "gltf", "neutral", redirectName];
+			const redirectPath = path.join(MEDIA_BASE, ...redirectSegments);
+			const redirectResolved = path.resolve(redirectPath);
+			if (redirectResolved.startsWith(MEDIA_BASE)) {
+				try {
+					const rStat = await stat(redirectResolved);
+					if (rStat.isFile()) {
+						const ext = path.extname(redirectResolved).toLowerCase();
+						const contentType = CONTENT_TYPES[ext] || "application/octet-stream";
+						const buffer = await readFile(redirectResolved);
+						const etag = `"${rStat.size}-${rStat.mtimeMs.toString(36)}"`;
+						return new Response(buffer, {
+							status: 200,
+							headers: {
+								"Content-Type": contentType,
+								"Content-Length": String(buffer.length),
+								"Cache-Control": "public, max-age=3600, must-revalidate",
+								ETag: etag,
+								...CORS_HEADERS,
+							},
+						});
+					}
+				} catch { /* fall through to normal path */ }
+			}
 		}
 	}
 
