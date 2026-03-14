@@ -1380,6 +1380,14 @@ const _PP_DECORATIONS: Record<string, string> = {
   "button_panel": "objects/button_panel.glb",
   "glider": "objects/glider.glb",
   "lilyhead": "objects/lilyhead.glb",
+  // Pillar types from kaykit-platformer (neutral variants)
+  "pillar_1x1x1": "__kaykit:Assets/gltf/neutral/pillar_1x1x1.gltf",
+  "pillar_1x1x2": "__kaykit:Assets/gltf/neutral/pillar_1x1x2.gltf",
+  "pillar_1x1x4": "__kaykit:Assets/gltf/neutral/pillar_1x1x4.gltf",
+  "pillar_1x1x8": "__kaykit:Assets/gltf/neutral/pillar_1x1x8.gltf",
+  "pillar_2x2x2": "__kaykit:Assets/gltf/neutral/pillar_2x2x2.gltf",
+  "pillar_2x2x4": "__kaykit:Assets/gltf/neutral/pillar_2x2x4.gltf",
+  "pillar_2x2x8": "__kaykit:Assets/gltf/neutral/pillar_2x2x8.gltf",
 };
 
 // Size estimates for platformer-project models (half-extents for physics)
@@ -1654,7 +1662,11 @@ export async function createDecoration3D(
     } else {
       // Default: platformer-project objects
       const subpath = _PP_DECORATIONS[type] || \`objects/\${type}.glb\`;
-      url = _ppModelUrl(subpath);
+      if (subpath.startsWith("__kaykit:")) {
+        url = modelUrl("kaykit-platformer", subpath.slice(9));
+      } else {
+        url = _ppModelUrl(subpath);
+      }
     }
     mesh = await _loadOrClone(url);
     mesh.scale.setScalar(scale);
