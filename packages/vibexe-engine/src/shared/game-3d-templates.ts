@@ -631,8 +631,10 @@ export function createHUD(container: HTMLDivElement): {
   wrapper: HTMLDivElement;
   scoreEl: HTMLDivElement;
   livesEl: HTMLDivElement;
+  customEl: HTMLDivElement;
   setScore: (score: number) => void;
   setLives: (lives: number) => void;
+  setCustom: (text: string) => void;
   update: (data: any) => void;
   destroy: () => void;
 } {
@@ -993,6 +995,9 @@ export function createTouchJoystick(container: HTMLElement): {
     if (dist > HALF) { dx = (dx / dist) * HALF; dy = (dy / dist) * HALF; }
     state.x = dx / HALF;
     state.y = -dy / HALF; // Invert Y so up = positive
+    // Apply deadzone — ignore small movements to prevent drift
+    const mag = Math.sqrt(state.x * state.x + state.y * state.y);
+    if (mag < TOUCH_DEADZONE) { state.x = 0; state.y = 0; }
     thumb.style.transform = \`translate(calc(-50% + \${dx}px), calc(-50% + \${dy}px))\`;
   }
 
@@ -2284,6 +2289,8 @@ export function createCharacterController3D(
 
   function attack() {
     if (isAttacking) return;
+    // Don't lock state if attack animation doesn't exist
+    if (!character.clips.some((c: string) => c.toLowerCase().includes("attack") || c.toLowerCase().includes("hit") || c.toLowerCase().includes("kick") || c.toLowerCase().includes("punch"))) return;
     isAttacking = true;
     attackTimer = 1.0;
     character.play(attackAnim, { loop: false, crossfade: 0.1 });
@@ -3091,7 +3098,7 @@ export function createTrailRenderer(
 
   function _rebuildRibbon() {
     for (let i = 0; i < LENGTH; i++) {
-      const alpha = 1.0 - (i / (LENGTH - 1));
+      const alpha = 1.0 - (i / Math.max(1, LENGTH - 1));
       alphas[i * 2] = alpha;
       alphas[i * 2 + 1] = alpha;
 
@@ -3475,6 +3482,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
     const container = containerRef.current;
     let animFrameId = 0;
     let disposed = false;
+    let _bridgeGen = 0; // Incremented per initAndRun() to invalidate old message handlers
     let renderer: any = null;
     let camera: any = null;
     let scene: any = null;
@@ -3579,6 +3587,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       clock = new THREE.Clock();
 
       async function initAndRun() {
+        _bridgeGen++; // Invalidate old message handlers from previous initAndRun
+        const myGen = _bridgeGen;
         if (disposed) return;
         if (!gameScene || typeof gameScene.init !== 'function') {
           console.error('[Game3D] gameScene is invalid — check GameScene3D.ts exports:', gameScene);
@@ -4608,6 +4618,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
 
           // ---- PostMessage Handler ----
           window.addEventListener("message", (e: MessageEvent) => {
+            if (disposed || myGen !== _bridgeGen) return; // Skip stale handlers from previous restarts
             const d = e.data;
             if (!d || !d.type) return;
             if (d.type && d.type.startsWith("game-editor-") && d.type.includes("texture")) {
@@ -5334,7 +5345,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             return;
           }
 
-          const delta = clock.getDelta();
+          let delta = clock.getDelta();
+          // Cap delta to prevent physics teleporting after long tab-hidden periods
+          if (delta > 0.1) delta = 0.1;
           // Auto-update all animation mixers (from createAnimatedCharacter3D)
           (window as any)._updateAllMixers3D?.(delta);
           try { gameScene.update(delta); } catch (_e) { /* AI code error — keep rendering */ }
