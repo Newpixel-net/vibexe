@@ -150,7 +150,7 @@ export function expandClusters(
 	const expanded: Vector2[] = [];
 
 	for (let i = 0; i < seedPoints.length; i++) {
-		const pointSeed = seed !== undefined ? seed + i * 7919 : undefined;
+		const pointSeed = seed !== undefined ? (seed + i * 7919) | 0 : undefined;
 
 		const cluster =
 			pointSeed !== undefined

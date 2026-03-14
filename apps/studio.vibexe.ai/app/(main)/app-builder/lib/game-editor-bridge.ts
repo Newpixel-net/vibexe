@@ -89,6 +89,9 @@ export function getGameEditorBridgeScript(): string {
         // Skip particles, trails, and Points objects (VFX internals)
         if (child.type === "Points") continue;
         if (child.name && (child.name.indexOf("__particle_") === 0 || child.name.indexOf("__trail_") === 0)) continue;
+        // Skip population preview/heatmap overlays and spawned population objects
+        if (child.name && child.name.indexOf("__pop_") === 0) continue;
+        if (child.name && child.name.indexOf("pop_") === 0) continue;
         // Skip stale character meshes - only keep the active player mesh
         if (child.name && child.name.indexOf("Character_") === 0) {
           var activePlayer = window.__vibexe_playerMesh__;
@@ -247,8 +250,11 @@ export function getGameEditorBridgeScript(): string {
   function selectObject(obj) {
     deselectObject();
     if (!obj || !editor) return;
+    // Don't select population objects (preview overlays or spawned objects)
+    var n = obj.name || "";
+    if (n.indexOf("__pop_") === 0 || n.indexOf("pop_") === 0) return;
     selectedObj = obj;
-    selectedObjName = obj.name || "";
+    selectedObjName = n;
 
     var THREE = window.THREE;
 
@@ -375,6 +381,8 @@ export function getGameEditorBridgeScript(): string {
         if (child.name.indexOf("__editor_") === 0 && !child.userData.__isLightHelper) return;
         // Skip terrain/weather/sky — non-selectable infrastructure meshes
         if (child.name === "__terrain__" || child.name === "__weather__" || child.name === "__sky__") return;
+        // Skip population preview overlays and spawned population objects
+        if (child.name.indexOf("__pop_") === 0 || child.name.indexOf("pop_") === 0) return;
         meshes.push(child);
       }
     });
@@ -650,6 +658,7 @@ export function getGameEditorBridgeScript(): string {
 
   // ===== PostMessage Handler =====
   function _onBridgeMessage(e) {
+    if (e.origin !== window.location.origin) return;
     var d = e.data;
     if (!d || !d.type) return;
 

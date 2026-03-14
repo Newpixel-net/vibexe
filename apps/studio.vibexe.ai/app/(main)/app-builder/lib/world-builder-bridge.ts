@@ -392,12 +392,36 @@ export function getWorldBuilderBridgeScript(): string {
     try { window.parent.postMessage({ type: "wb-undo-state", canUndo: _undoStack.length > 0, canRedo: _redoStack.length > 0 }, "*"); } catch(e) {}
   }
 
+  // ===== Safe Merge (prototype-pollution guard) =====
+  function safeMerge(target, src) {
+    if (!src || typeof src !== "object" || Array.isArray(src)) return;
+    var keys = Object.keys(src);
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+      if (Object.prototype.hasOwnProperty.call(target, k)) target[k] = src[k];
+    }
+  }
+
   // ===== Object Management =====
   function genId() { return "wb_" + (_nextPlacedId++); }
 
   function removeObjectById(id, silent) {
     var e = _placedObjects[id];
     if (!e) return;
+    if (!_scene) return;
+    if (e.mesh) {
+      e.mesh.traverse(function(child) {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            for (var m = 0; m < child.material.length; m++) child.material[m].dispose();
+          } else {
+            child.material.dispose();
+          }
+        }
+      });
+    }
     _scene.remove(e.mesh);
     _octree.remove(id);
     delete _placedObjects[id];
@@ -1743,6 +1767,7 @@ export function getWorldBuilderBridgeScript(): string {
 
   // ===== postMessage Handler =====
   window.addEventListener("message", function(e) {
+    if (e.origin !== window.location.origin) return;
     var msg = e.data;
     if (!msg || typeof msg !== "object" || !msg.type || !msg.type.startsWith("wb-")) return;
 
@@ -1769,6 +1794,7 @@ export function getWorldBuilderBridgeScript(): string {
             _currentCanvas.removeEventListener("mousemove", onMouseMove);
             _currentCanvas.removeEventListener("mousedown", onMouseDown);
             _currentCanvas.removeEventListener("mouseup", onMouseUp);
+            _currentCanvas.removeEventListener("wheel", onWheel);
           }
           canvas.addEventListener("mousemove", onMouseMove);
           canvas.addEventListener("mousedown", onMouseDown);
@@ -1802,18 +1828,18 @@ export function getWorldBuilderBridgeScript(): string {
       console.log("[WB] Tool:", _tool);
     }
     else if (msg.type === "wb-set-active-item") { setPreviewItem(msg.item); }
-    else if (msg.type === "wb-update-snap") { if (msg.settings) { Object.assign(_snap, msg.settings); updateGrid(); } }
-    else if (msg.type === "wb-update-brush-settings") { if (msg.settings) Object.assign(_brush, msg.settings); }
-    else if (msg.type === "wb-update-pin-settings") { if (msg.settings) Object.assign(_pin, msg.settings); }
-    else if (msg.type === "wb-update-brush-tool-settings") { if (msg.settings) Object.assign(_brushTool, msg.settings); }
-    else if (msg.type === "wb-update-eraser-settings") { if (msg.settings) Object.assign(_eraser, msg.settings); }
-    else if (msg.type === "wb-update-line-settings") { if (msg.settings) Object.assign(_line, msg.settings); }
-    else if (msg.type === "wb-update-shape-settings") { if (msg.settings) Object.assign(_shape, msg.settings); }
-    else if (msg.type === "wb-update-tiling-settings") { if (msg.settings) Object.assign(_tiling, msg.settings); }
-    else if (msg.type === "wb-update-gravity-settings") { if (msg.settings) Object.assign(_gravity, msg.settings); }
-    else if (msg.type === "wb-update-replacer-settings") { if (msg.settings) Object.assign(_replacer, msg.settings); }
-    else if (msg.type === "wb-update-extrude-settings") { if (msg.settings) Object.assign(_extrude, msg.settings); }
-    else if (msg.type === "wb-update-mirror-settings") { if (msg.settings) Object.assign(_mirror, msg.settings); }
+    else if (msg.type === "wb-update-snap") { if (msg.settings) { safeMerge(_snap, msg.settings); updateGrid(); } }
+    else if (msg.type === "wb-update-brush-settings") { if (msg.settings) safeMerge(_brush, msg.settings); }
+    else if (msg.type === "wb-update-pin-settings") { if (msg.settings) safeMerge(_pin, msg.settings); }
+    else if (msg.type === "wb-update-brush-tool-settings") { if (msg.settings) safeMerge(_brushTool, msg.settings); }
+    else if (msg.type === "wb-update-eraser-settings") { if (msg.settings) safeMerge(_eraser, msg.settings); }
+    else if (msg.type === "wb-update-line-settings") { if (msg.settings) safeMerge(_line, msg.settings); }
+    else if (msg.type === "wb-update-shape-settings") { if (msg.settings) safeMerge(_shape, msg.settings); }
+    else if (msg.type === "wb-update-tiling-settings") { if (msg.settings) safeMerge(_tiling, msg.settings); }
+    else if (msg.type === "wb-update-gravity-settings") { if (msg.settings) safeMerge(_gravity, msg.settings); }
+    else if (msg.type === "wb-update-replacer-settings") { if (msg.settings) safeMerge(_replacer, msg.settings); }
+    else if (msg.type === "wb-update-extrude-settings") { if (msg.settings) safeMerge(_extrude, msg.settings); }
+    else if (msg.type === "wb-update-mirror-settings") { if (msg.settings) safeMerge(_mirror, msg.settings); }
     else if (msg.type === "wb-extrude-axis") { _extrudeAxis = msg.axis || "x"; }
     else if (msg.type === "wb-confirm-line") { confirmLine(); }
     else if (msg.type === "wb-confirm-shape") { confirmShape(); }
@@ -1875,6 +1901,7 @@ export function getWorldBuilderBridgeScript(): string {
     }
     // ===== Population System Handlers =====
     else if (msg.type === "wb-populate-spawn") {
+      if (!_scene) return;
       // Batch spawn objects from population engine
       // msg.objects: Array<{ id, modelPath, packId, position, rotation, scale }>
       var popObjs = msg.objects || [];
@@ -1898,7 +1925,7 @@ export function getWorldBuilderBridgeScript(): string {
               pack: obj.packId,
               position: obj.position,
               rotation: obj.rotation || { x: 0, y: 0, z: 0 },
-              scale: { x: obj.scale || 1, y: obj.scale || 1, z: obj.scale || 1 },
+              scale: typeof obj.scale === "object" ? obj.scale : { x: obj.scale || 1, y: obj.scale || 1, z: obj.scale || 1 },
               name: "pop_" + layerId,
               itemId: obj.entryId || "",
               toolSource: "population",
@@ -1917,6 +1944,7 @@ export function getWorldBuilderBridgeScript(): string {
       spawnBatch();
     }
     else if (msg.type === "wb-populate-clear") {
+      if (!_scene) return;
       // Clear all objects belonging to a population layer
       var clearLayerId = msg.layerId;
       var cleared = 0;
@@ -1932,6 +1960,7 @@ export function getWorldBuilderBridgeScript(): string {
       try { window.parent.postMessage({ type: "wb-populate-cleared", layerId: clearLayerId, count: cleared }, "*"); } catch(ex) {}
     }
     else if (msg.type === "wb-populate-clear-all") {
+      if (!_scene) return;
       // Clear ALL population objects (all layers)
       var cleared = 0;
       var ids = Object.keys(_placedObjects);
@@ -1961,12 +1990,13 @@ export function getWorldBuilderBridgeScript(): string {
           }
         }
       }
-      if (!_scene || !msg.heatmapData) return;
+      if (!_scene || !msg.heatmapData || !msg.bounds) return;
 
       var hmW = msg.width || 128;
       var hmH = msg.height || 128;
       var hmData = msg.heatmapData;
       var hmBounds = msg.bounds;
+      if (hmData.length < hmW * hmH) return;
 
       // Create RGBA DataTexture: green = high density, transparent = low density
       var rgba = new Uint8Array(hmW * hmH * 4);
@@ -2036,14 +2066,18 @@ export function getWorldBuilderBridgeScript(): string {
 
       var pts = msg.points;
       var positions = new Float32Array(pts.length * 3);
+      var validCount = 0;
       for (var i = 0; i < pts.length; i++) {
-        positions[i * 3 + 0] = pts[i].x;
-        positions[i * 3 + 1] = pts[i].y + 0.3; // Lift slightly above terrain
-        positions[i * 3 + 2] = pts[i].z;
+        if (!isFinite(pts[i].x) || !isFinite(pts[i].y) || !isFinite(pts[i].z)) continue;
+        positions[validCount * 3 + 0] = pts[i].x;
+        positions[validCount * 3 + 1] = pts[i].y + 0.3; // Lift slightly above terrain
+        positions[validCount * 3 + 2] = pts[i].z;
+        validCount++;
       }
 
       var ptGeo = new THREE.BufferGeometry();
       ptGeo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      ptGeo.setDrawRange(0, validCount);
       var ptColor = msg.color || "#00ff88";
       var ptMat = new THREE.PointsMaterial({
         color: new THREE.Color(ptColor),
@@ -2087,6 +2121,10 @@ export function getWorldBuilderBridgeScript(): string {
       if (td && td.heightData) {
         var tdRes = td.segX || td.segZ || Math.floor(Math.sqrt(td.heightData.length));
         var tdHW = td.width / 2, tdHD = td.depth / 2;
+        if (!isFinite(tdHW) || !isFinite(tdHD)) {
+          try { window.parent.postMessage({ type: "wb-terrain-data", error: "invalid-bounds" }, "*"); } catch(ex) {}
+          return;
+        }
         var tdMinY = td.minY !== undefined ? td.minY : 0;
         var tdMaxY = td.maxY !== undefined ? td.maxY : 40;
         var tdRange = tdMaxY - tdMinY || 1;
@@ -2118,8 +2156,8 @@ export function getWorldBuilderBridgeScript(): string {
       if (terrainMesh) {
         var positions = terrainMesh.geometry.attributes.position.array;
         var vertexCount = positions.length / 3;
-        var res = Math.floor(Math.sqrt(vertexCount));
-        if (res * res === vertexCount) {
+        var res = Math.round(Math.sqrt(vertexCount));
+        if (Math.abs(res * res - vertexCount) <= res) {
           var hd2 = new Float32Array(vertexCount);
           var minY2 = Infinity, maxY2 = -Infinity;
           var minX2 = Infinity, maxX2 = -Infinity;

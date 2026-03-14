@@ -41,6 +41,7 @@ export const DEFAULT_POPULATION_LAYER: Omit<PopulationLayer, "id"> = {
 	name: "New Layer",
 	enabled: true,
 	heatmapSource: "auto",
+	heatmapTextureUrl: undefined,
 	autoRules: [],
 	minThreshold: 0.5,
 	maxThreshold: 1.0,

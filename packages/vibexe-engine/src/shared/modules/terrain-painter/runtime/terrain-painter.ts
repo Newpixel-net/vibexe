@@ -221,6 +221,8 @@ export class TerrainPainter {
 				// Normal maps must stay in linear color space
 				if (T.LinearSRGBColorSpace) {
 					texture.colorSpace = T.LinearSRGBColorSpace;
+				} else if (T.LinearEncoding !== undefined) {
+					texture.encoding = T.LinearEncoding;
 				}
 				this.layerNormalTextures[index] = texture;
 			},

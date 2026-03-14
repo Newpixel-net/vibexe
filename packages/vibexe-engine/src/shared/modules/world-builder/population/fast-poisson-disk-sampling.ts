@@ -101,7 +101,9 @@ export function poissonDiskSampling(
 		activeList.push(index);
 
 		const { gx, gy } = worldToGrid(p);
-		grid[gy * gridWidth + gx] = index;
+		if (gx >= 0 && gx < gridWidth && gy >= 0 && gy < gridHeight) {
+			grid[gy * gridWidth + gx] = index;
+		}
 	}
 
 	// Seed: first point at center of region
@@ -217,7 +219,9 @@ export function poissonDiskSamplingSeeded(
 		points.push(p);
 		activeList.push(index);
 		const { gx, gy } = worldToGrid(p);
-		grid[gy * gridWidth + gx] = index;
+		if (gx >= 0 && gx < gridWidth && gy >= 0 && gy < gridHeight) {
+			grid[gy * gridWidth + gx] = index;
+		}
 	}
 
 	addPoint({

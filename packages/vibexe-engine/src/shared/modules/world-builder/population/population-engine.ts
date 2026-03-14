@@ -12,7 +12,7 @@
  *   // result.objects[] contains positioned + rotated + scaled instances
  */
 
-import { filterPoints, uniformHeatmap, compositeHeatmaps, type HeatmapData } from "./position-generator";
+import { filterPoints, uniformHeatmap, compositeHeatmaps, type HeatmapData, type BlendMode } from "./position-generator";
 import { expandClusters } from "./detail-clusterer";
 import type { Vector2 } from "./fast-poisson-disk-sampling";
 import {
@@ -305,7 +305,7 @@ export class PopulationEngine {
 		seed?: number,
 	): PopulatedObject[] {
 		const objects: PopulatedObject[] = [];
-		let rngState = seed !== undefined ? seed + hashString(tree.id) : 0;
+		let rngState = seed !== undefined ? (seed + hashString(tree.id)) | 0 : 0;
 
 		const rand = (): number => {
 			if (seed !== undefined) {
@@ -358,7 +358,7 @@ export class PopulationEngine {
 		seed?: number,
 	): PopulatedObject[] {
 		const objects: PopulatedObject[] = [];
-		let rngState = seed !== undefined ? seed + hashString(detail.id) : 0;
+		let rngState = seed !== undefined ? (seed + hashString(detail.id)) | 0 : 0;
 
 		const rand = (): number => {
 			if (seed !== undefined) {
@@ -394,8 +394,11 @@ export class PopulationEngine {
 		if (!this.terrain) return 0;
 
 		const { bounds, heightData, resolution } = this.terrain;
-		const u = (worldX - bounds.minX) / (bounds.maxX - bounds.minX);
-		const v = (worldZ - bounds.minZ) / (bounds.maxZ - bounds.minZ);
+		const rangeX = bounds.maxX - bounds.minX;
+		const rangeZ = bounds.maxZ - bounds.minZ;
+		if (rangeX <= 0 || rangeZ <= 0) return 0;
+		const u = (worldX - bounds.minX) / rangeX;
+		const v = (worldZ - bounds.minZ) / rangeZ;
 
 		if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
 
@@ -458,7 +461,7 @@ export class PopulationEngine {
 		const { heightData, resolution: terrainRes, bounds } = this.terrain;
 		const heightScale = bounds.maxY - bounds.minY;
 
-		const ruleMaps: { data: HeatmapData; blendMode: "multiply" | "add" | "min" | "max"; invert: boolean }[] = [];
+		const ruleMaps: { data: HeatmapData; blendMode: BlendMode; invert: boolean }[] = [];
 
 		for (const rule of rules) {
 			if (!rule.enabled) continue;
@@ -571,7 +574,7 @@ export class PopulationEngine {
 		const laplacian = (hL + hR + hD + hU - 4 * hC);
 
 		// Normalize to 0-1 range (map laplacian to sigmoid-like range)
-		return 0.5 + Math.tanh(laplacian * 20) * 0.5;
+		return 0.5 + Math.tanh(laplacian * 5) * 0.5;
 	}
 
 	/** Simple 2D value noise for the noise rule source */
@@ -583,8 +586,10 @@ export class PopulationEngine {
 
 		const hash = (a: number, b: number): number => {
 			let h = (a * 374761393 + b * 668265263 + 1274126177) | 0;
-			h = Math.imul(h ^ (h >>> 13), 1103515245);
-			return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+			h = Math.imul(h ^ (h >>> 13), 1274126177) | 0;
+			h = Math.imul(h ^ (h >>> 16), 2246822519) | 0;
+			h = (h ^ (h >>> 13)) | 0;
+			return ((h & 0x7fffffff) / 0x7fffffff);
 		};
 
 		const v00 = hash(xi, yi);

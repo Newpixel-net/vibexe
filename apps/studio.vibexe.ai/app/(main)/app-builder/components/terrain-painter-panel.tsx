@@ -366,7 +366,7 @@ export function TerrainPainterPanel({
 				sendToIframe({ type: "terrain-painter-sculpt-deactivate" });
 			}
 		};
-	}, [sculptActive]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [sculptActive, sendToIframe]);
 
 	// Send parameter updates when sculpt is active
 	useEffect(() => {
@@ -380,7 +380,7 @@ export function TerrainPainterPanel({
 				paintLayerIndex: selectedLayer,
 			});
 		}
-	}, [sculptBrushType, sculptBrushSize, sculptBrushStrength, sculptBrushFalloff, sculptActive, selectedLayer]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [sculptBrushType, sculptBrushSize, sculptBrushStrength, sculptBrushFalloff, sculptActive, selectedLayer, sendToIframe]);
 
 	// Auto-repaint after terrain generation or heatmap toggle-off — listen for bridge callbacks
 	const layersRef = useRef(layers);
@@ -558,10 +558,11 @@ export function TerrainPainterPanel({
 			});
 		}
 		// Auto-repaint with new materials after terrain generation completes
+		// Read from layersRef.current inside timeout to avoid stale closure over newLayers
 		setTimeout(() => {
 			sendToIframe({
 				type: "terrain-painter-repaint",
-				layers: newLayers.map((l) => ({
+				layers: layersRef.current.map((l) => ({
 					textureUrl: l.diffuseUrl,
 					normalUrl: l.diffuseUrl.replace(/\.[^.]+$/, "_Normal$&"),
 					enabled: l.enabled,

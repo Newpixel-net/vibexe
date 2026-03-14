@@ -177,6 +177,7 @@ export function compositeHeatmaps(
 				let srcVal = sampleBilinear(hm, srcX, srcY);
 
 				if (invert) srcVal = 1.0 - srcVal;
+				srcVal = Math.max(0, Math.min(1, srcVal));
 
 				// Blend
 				switch (blendMode) {
@@ -204,6 +205,8 @@ export type BlendMode = "multiply" | "add" | "min" | "max";
 
 /** Bilinear sample from a heatmap at fractional coordinates */
 function sampleBilinear(hm: HeatmapData, fx: number, fy: number): number {
+	fx = Math.max(0, Math.min(fx, hm.width - 1));
+	fy = Math.max(0, Math.min(fy, hm.height - 1));
 	const x0 = Math.floor(fx);
 	const y0 = Math.floor(fy);
 	const x1 = Math.min(x0 + 1, hm.width - 1);

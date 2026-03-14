@@ -95,6 +95,7 @@ function extractSplatmapLayers(painter: any, terrainRes: number): Float32Array[]
 
 		const width = splatmapRT.width;
 		const height = splatmapRT.height;
+		if (!width || !height) continue;
 		const pixels = new Uint8Array(width * height * 4);
 
 		// GPU readback
@@ -195,8 +196,8 @@ function resample(
 
 	for (let y = 0; y < dstH; y++) {
 		for (let x = 0; x < dstW; x++) {
-			const srcX = (x / (dstW - 1)) * (srcW - 1);
-			const srcY = (y / (dstH - 1)) * (srcH - 1);
+			const srcX = dstW <= 1 ? 0 : (x / (dstW - 1)) * (srcW - 1);
+			const srcY = dstH <= 1 ? 0 : (y / (dstH - 1)) * (srcH - 1);
 
 			const x0 = Math.floor(srcX);
 			const y0 = Math.floor(srcY);

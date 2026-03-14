@@ -240,41 +240,44 @@ export class ModifierStack {
 		const splatmapIndex = Math.floor(layerIndex / 4);
 		const channelIndex = layerIndex % 4;
 
-		if (splatmapIndex < this.splatmaps.length) {
-			this.compositeMaterial.uniforms.u_existingSplatmap.value =
-				this.splatmaps[splatmapIndex].texture;
-			this.compositeMaterial.uniforms.u_layerMask.value =
-				this.alphaMap.texture;
-			this.compositeMaterial.uniforms.u_channelIndex.value = channelIndex;
-			this.compositeMaterial.uniforms.u_layerEnabled.value = settings.enabled
-				? 1.0
-				: 0.0;
-
-			this.fullscreenQuad.material = this.compositeMaterial;
-
-			// Need a temp target since we can't read and write same RT
-			const tempRT = new T.WebGLRenderTarget(
-				this.resolution,
-				this.resolution,
-				{
-					format: T.RGBAFormat,
-					type: T.UnsignedByteType,
-				},
-			);
-
-			// Copy existing splatmap to temp
-			this.renderer.setRenderTarget(tempRT);
-			this.renderer.clear();
-
-			// Update source to read from temp, write to splatmap
-			this.compositeMaterial.uniforms.u_existingSplatmap.value =
-				this.splatmaps[splatmapIndex].texture;
-
-			this.renderer.setRenderTarget(this.splatmaps[splatmapIndex]);
-			this.renderer.render(scene, this.fullscreenCamera);
-
-			tempRT.dispose();
+		if (splatmapIndex >= this.splatmaps.length) {
+			console.warn(`[ModifierStack] Layer ${layerIndex} requires splatmap ${splatmapIndex}, but only ${this.splatmaps.length} splatmaps exist`);
+			return;
 		}
+
+		this.compositeMaterial.uniforms.u_existingSplatmap.value =
+			this.splatmaps[splatmapIndex].texture;
+		this.compositeMaterial.uniforms.u_layerMask.value =
+			this.alphaMap.texture;
+		this.compositeMaterial.uniforms.u_channelIndex.value = channelIndex;
+		this.compositeMaterial.uniforms.u_layerEnabled.value = settings.enabled
+			? 1.0
+			: 0.0;
+
+		this.fullscreenQuad.material = this.compositeMaterial;
+
+		// Need a temp target since we can't read and write same RT
+		const tempRT = new T.WebGLRenderTarget(
+			this.resolution,
+			this.resolution,
+			{
+				format: T.RGBAFormat,
+				type: T.UnsignedByteType,
+			},
+		);
+
+		// Copy existing splatmap to temp
+		this.renderer.setRenderTarget(tempRT);
+		this.renderer.clear();
+
+		// Update source to read from temp, write to splatmap
+		this.compositeMaterial.uniforms.u_existingSplatmap.value =
+			this.splatmaps[splatmapIndex].texture;
+
+		this.renderer.setRenderTarget(this.splatmaps[splatmapIndex]);
+		this.renderer.render(scene, this.fullscreenCamera);
+
+		tempRT.dispose();
 
 		scene.remove(this.fullscreenQuad);
 	}

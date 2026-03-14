@@ -419,9 +419,7 @@ export function usePopulationEngine({ sendToIframe }: UsePopulationEngineOptions
 			try {
 				console.log(`[Population] Loading custom heatmap: ${textureUrl}`);
 				const heatmapData = await loadTextureAsHeatmap(textureUrl);
-				engineRef.current.setCustomHeatmap(layerId, heatmapData);
 				engineRef.current.invalidateHeatmap(layerId);
-				// Re-set the cached heatmap (invalidateHeatmap clears it, so set again)
 				engineRef.current.setCustomHeatmap(layerId, heatmapData);
 				console.log(`[Population] Custom heatmap loaded: ${heatmapData.width}x${heatmapData.height}`);
 			} catch (err) {

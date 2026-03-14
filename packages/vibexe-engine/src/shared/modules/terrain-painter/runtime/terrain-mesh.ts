@@ -194,22 +194,21 @@ export class TerrainMesh {
 		for (let y = 0; y < res; y++) {
 			for (let x = 0; x < res; x++) {
 				const idx = y * res + x;
-				const h = this.heightData[idx] * scale;
 
-				// Sample neighbors (clamped)
-				const hL =
-					this.heightData[y * res + Math.max(0, x - 1)] * scale;
-				const hR =
-					this.heightData[y * res + Math.min(res - 1, x + 1)] * scale;
-				const hD =
-					this.heightData[Math.max(0, y - 1) * res + x] * scale;
-				const hU =
-					this.heightData[Math.min(res - 1, y + 1) * res + x] * scale;
+				const x0 = Math.max(0, x - 1);
+				const x1 = Math.min(res - 1, x + 1);
+				const y0 = Math.max(0, y - 1);
+				const y1 = Math.min(res - 1, y + 1);
+				const dx = x1 - x0 || 1;
+				const dy = y1 - y0 || 1;
+				const hL = this.heightData[y * res + x0] * scale;
+				const hR = this.heightData[y * res + x1] * scale;
+				const hD = this.heightData[y0 * res + x] * scale;
+				const hU = this.heightData[y1 * res + x] * scale;
 
-				// Cross-kernel normal
-				const nx = hL - hR;
+				const nx = (hL - hR) / dx;
 				const ny = 2.0;
-				const nz = hD - hU;
+				const nz = (hD - hU) / dy;
 				const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
 
 				// Store as 0-1 range (packed)
