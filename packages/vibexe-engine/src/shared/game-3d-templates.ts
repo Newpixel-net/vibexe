@@ -5463,7 +5463,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         setTimeout(() => {
           try {
             if (disposed || !scene || !THREE.PMREMGenerator) return;
-            if ((window as any).__vibexeExternalBridge) return; // bridge handles env map
+            // Skip only if bridge is actively rendering (Scene mode), not just loaded
+            if ((window as any).__vibexe_editor_active__) return; // bridge handles env map in Scene mode
             const __pmrem = new THREE.PMREMGenerator(renderer);
             __pmrem.compileEquirectangularShader?.();
             const __envScene = new THREE.Scene();
