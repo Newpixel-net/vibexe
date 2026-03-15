@@ -210,12 +210,29 @@ var r=[];
 var problems=[];
 var W=window;
 
-// === 1. RENDERER ===
+// === 1. RENDERER (enhanced with WebGPU details) ===
 var ren=W.__vibexe_renderer__;
 var comp=W.__vibexe_composer__;
 var _bloomPass=null;if(comp&&comp.passes){for(var _bp=0;_bp<comp.passes.length;_bp++){if(comp.passes[_bp].constructor&&comp.passes[_bp].constructor.name==='UnrealBloomPass'){_bloomPass=comp.passes[_bp];break}}}
-r.push({system:'Renderer',status:ren?'ok':'missing',details:ren?{pixelRatio:ren.getPixelRatio(),devicePR:W.devicePixelRatio||1,size:ren.getSize?((function(){var s=new(W.THREE||{}).Vector2();ren.getSize(s);return s.x+'x'+s.y})()):'?',shadows:ren.shadowMap.enabled,shadowType:ren.shadowMap.type===1?'PCF':ren.shadowMap.type===2?'PCFSoft':'Basic',shadowAutoUpdate:ren.shadowMap.autoUpdate,toneMapping:['No','Linear','Reinhard','Cineon','ACES'][ren.toneMapping]||ren.toneMapping,bloom:_bloomPass?(_bloomPass.enabled?'ON':'OFF'):'none',composer:comp?'active':'none'}:null});
+var _renType='unknown';if(ren){_renType=ren.constructor?ren.constructor.name:'unknown';}
+var _backendName='N/A';if(ren&&ren.backend){_backendName=ren.backend.constructor?ren.backend.constructor.name:'unknown';}
+var _renInfo=null;if(ren&&ren.info){var _ri=ren.info;_renInfo={drawCalls:_ri.render?_ri.render.calls:0,triangles:_ri.render?_ri.render.triangles:0,points:_ri.render?_ri.render.points:0,lines:_ri.render?_ri.render.lines:0,geometries:_ri.memory?_ri.memory.geometries:0,textures:_ri.memory?_ri.memory.textures:0,programs:_ri.programs?_ri.programs.length:0};}
+r.push({system:'Renderer',status:ren?'ok':'missing',details:ren?{rendererType:_renType,backend:_backendName,webgpuMode:!!W.__vibexe_webgpu__,pixelRatio:ren.getPixelRatio(),devicePR:W.devicePixelRatio||1,size:ren.getSize?((function(){var s=new(W.THREE||{}).Vector2();ren.getSize(s);return s.x+'x'+s.y})()):'?',outputColorSpace:ren.outputColorSpace||'?',toneMapping:['No','Linear','Reinhard','Cineon','ACES'][ren.toneMapping]||ren.toneMapping,exposure:ren.toneMappingExposure||1,shadows:ren.shadowMap.enabled,shadowType:ren.shadowMap.type===1?'PCF':ren.shadowMap.type===2?'PCFSoft':'Basic',shadowAutoUpdate:ren.shadowMap.autoUpdate,bloom:_bloomPass?(_bloomPass.enabled?'ON':'OFF'):'none',composer:comp?'active':'none',info:_renInfo}:null});
 if(ren&&ren.getPixelRatio()>1.5)problems.push({id:'high-pixel-ratio',severity:'warn',msg:'Pixel ratio '+ren.getPixelRatio().toFixed(2)+' exceeds 1.5 cap — performance impact'});
+
+// === 1b. WEBGPU COMPATIBILITY ===
+var _shaderMatCount=0;var _shaderMatNames=[];var _nodeMatsCount=0;var _stdMatCount=0;var _customMatTypes=[];
+if(sc){sc.traverse(function(o){if(!o.isMesh||!o.material)return;var mat=Array.isArray(o.material)?o.material:[o.material];for(var mi=0;mi<mat.length;mi++){var m=mat[mi];if(!m)continue;var mt=m.constructor?m.constructor.name:'?';if(mt==='ShaderMaterial'||mt==='RawShaderMaterial'){_shaderMatCount++;if(_shaderMatNames.length<5)_shaderMatNames.push((o.name||'unnamed')+':'+mt);}else if(mt.indexOf('Node')>=0){_nodeMatsCount++;}else if(mt.indexOf('Standard')>=0||mt.indexOf('Phong')>=0||mt.indexOf('Lambert')>=0||mt.indexOf('Basic')>=0||mt.indexOf('Physical')>=0){_stdMatCount++;}if(_customMatTypes.indexOf(mt)<0&&_customMatTypes.length<15)_customMatTypes.push(mt);}});}
+var _gpuStatus='ok';
+if(W.__vibexe_webgpu__&&_shaderMatCount>0)_gpuStatus='inactive';
+r.push({system:'WebGPU Compat',status:_gpuStatus,details:{webgpuAvailable:!!(W.THREE&&W.THREE.WebGPURenderer),webgpuActive:!!W.__vibexe_webgpu__,rendererBackend:_backendName,shaderMaterials:_shaderMatCount,shaderMatMeshes:_shaderMatNames,nodeMaterials:_nodeMatsCount,standardMaterials:_stdMatCount,materialTypes:_customMatTypes,errorHandler:!!W.__vibexe_webgpu_error_handler__,infoResetAvail:!!(ren&&ren.info&&ren.info.reset)}});
+if(W.__vibexe_webgpu__&&_shaderMatCount>0)problems.push({id:'webgpu-shader-mat',severity:'warn',msg:_shaderMatCount+' ShaderMaterial(s) in scene — incompatible with WebGPU renderer: '+_shaderMatNames.join(', ')});
+
+// === 1c. PERFGUARD STATE ===
+var _pgDegraded=!!W.__vibexe_perfguard_degraded__;
+var _pgDetails={active:!!W.__vibexe_perfguard__,degraded:_pgDegraded,pixelRatio:ren?ren.getPixelRatio():'?',shadowsEnabled:ren?ren.shadowMap.enabled:'?',cullDistance:W.__vibexe_cullDistance__||120,skipComposer:!!W.__vibexe_skipComposer__,frameInterval:W.__vibexe_frameInterval__||0,targetFPS:W.__vibexe_targetFPS__||'none'};
+r.push({system:'PerfGuard',status:_pgDegraded?'inactive':'ok',details:_pgDetails});
+if(_pgDegraded)problems.push({id:'perfguard-degraded',severity:'warn',msg:'PerfGuard has reduced quality — pixelRatio: '+(ren?ren.getPixelRatio():'?')+', shadows: '+(ren?ren.shadowMap.enabled:'?')});
 
 // === 2. SCENE ===
 var sc=W.__vibexe_scene__;
@@ -260,7 +277,9 @@ var cannonTerrain=!!tBody;
 var tStatus='off';
 if(tm&&(cannonTerrain||rapierTerrain))tStatus='ok';else if(tm&&!cannonTerrain&&!rapierTerrain)tStatus='inactive';else if(tm)tStatus='ok';
 var tDetails=null;
-if(tm){tDetails={mesh:true,verts:tm.geometry&&tm.geometry.attributes&&tm.geometry.attributes.position?tm.geometry.attributes.position.count:0,cannonBody:cannonTerrain,rapierHF:rapierTerrain,postStepClamp:!!tPost,heightQuery:!!tGetH,visualHeightFn:!!W.__vibexe_getVisualTerrainHeight,surfaceOffset:W.__vibexe_terrainSurfaceOffset||0,boundaryGrid:!!W.__vibexe_terrainBoundaryGrid};}else{tDetails={mesh:false,cannonBody:cannonTerrain,rapierHF:rapierTerrain};}
+var _tMatType='none';if(tm&&tm.material){_tMatType=tm.material.constructor?tm.material.constructor.name:'unknown';}
+var _tSegments='?';if(tm&&tm.geometry&&tm.geometry.parameters){_tSegments=(tm.geometry.parameters.widthSegments||'?')+'x'+(tm.geometry.parameters.heightSegments||'?');}else if(_td){_tSegments=(_td.segX||'?')+'x'+(_td.segZ||'?');}
+if(tm){tDetails={mesh:true,verts:tm.geometry&&tm.geometry.attributes&&tm.geometry.attributes.position?tm.geometry.attributes.position.count:0,segments:_tSegments,materialType:_tMatType,webgpuFallback:_tMatType.indexOf('Standard')>=0&&!!W.__vibexe_webgpu__,cannonBody:cannonTerrain,rapierHF:rapierTerrain,postStepClamp:!!tPost,heightQuery:!!tGetH,visualHeightFn:!!W.__vibexe_getVisualTerrainHeight,surfaceOffset:W.__vibexe_terrainSurfaceOffset||0,boundaryGrid:!!W.__vibexe_terrainBoundaryGrid};}else{tDetails={mesh:false,cannonBody:cannonTerrain,rapierHF:rapierTerrain};}
 if(_td){tDetails.dataSize=_td.segX+'x'+_td.segZ;tDetails.terrainSize=(_td.width||0)+'x'+(_td.depth||0);tDetails.heightRange=(_td.minY!=null?_td.minY.toFixed(1):'?')+' - '+(_td.maxY!=null?_td.maxY.toFixed(1):'?');}
 r.push({system:'Terrain',status:tStatus,details:tDetails});
 if(tm&&!cannonTerrain&&!rapierTerrain)problems.push({id:'terrain-no-physics',severity:'error',msg:'Terrain mesh exists but has NO physics collider (neither CANNON nor Rapier)'});
@@ -327,8 +346,9 @@ var gameFps=fpsCounter?parseInt(fpsCounter.textContent)||0:0;
 if(!gameFps&&aq&&aq.fps)gameFps=Math.round(aq.fps);
 var perfStatus=gameFps>=40?'ok':(gameFps>=25?'inactive':(gameFps>0?'inactive':'missing'));
 var _memInfo=null;if(W.performance&&W.performance.memory){try{_memInfo={usedMB:Math.round(W.performance.memory.usedJSHeapSize/1048576),totalMB:Math.round(W.performance.memory.totalJSHeapSize/1048576)};}catch(e){}}
-var _drawCalls=null;if(ren&&ren.info&&ren.info.render){_drawCalls=ren.info.render.calls;}
-r.push({system:'Performance',status:perfStatus,details:{gameFps:gameFps,cullDistance:cullDist,skipComposer:!!W.__vibexe_skipComposer__,editorActive:!!W.__vibexe_editor_active__,drawCalls:_drawCalls!=null?_drawCalls:'?',memory:_memInfo,maxFPS:W.__vibexe_maxFPS__||'none'}});
+var _drawCalls=null;var _rendTris=null;var _rendGeoms=null;var _rendTexs=null;
+if(ren&&ren.info){if(ren.info.render){_drawCalls=ren.info.render.calls;_rendTris=ren.info.render.triangles;}if(ren.info.memory){_rendGeoms=ren.info.memory.geometries;_rendTexs=ren.info.memory.textures;}}
+r.push({system:'Performance',status:perfStatus,details:{gameFps:gameFps,cullDistance:cullDist,skipComposer:!!W.__vibexe_skipComposer__,editorActive:!!W.__vibexe_editor_active__,drawCalls:_drawCalls!=null?_drawCalls:'?',renderedTris:_rendTris!=null?(_rendTris>1000?Math.round(_rendTris/1000)+'k':_rendTris):'?',gpuGeometries:_rendGeoms!=null?_rendGeoms:'?',gpuTextures:_rendTexs!=null?_rendTexs:'?',memory:_memInfo,maxFPS:W.__vibexe_maxFPS__||'none',infoResetActive:!!(ren&&ren.info&&ren.info.reset)}});
 if(gameFps>0&&gameFps<25)problems.push({id:'low-fps',severity:'error',msg:'Game FPS critically low: '+gameFps});
 else if(gameFps>=25&&gameFps<40)problems.push({id:'low-fps-warn',severity:'warn',msg:'Game FPS below target: '+gameFps});
 

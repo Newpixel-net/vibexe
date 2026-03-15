@@ -457,6 +457,24 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   W.__vibexe_renderer__ = renderer;
   W.__vibexe_webgpu__ = !!THREE.WebGPURenderer && renderer.constructor === THREE.WebGPURenderer;
 
+  // ===== Global WebGPU error suppression =====
+  if (!W.__vibexe_webgpu_error_handler__) {
+    W.__vibexe_webgpu_error_handler__ = true;
+    window.addEventListener('error', (evt: ErrorEvent) => {
+      const m = evt?.message || '';
+      if (m.includes('usedTimes') || m.includes('already initialized') || m.includes('is not a function')) {
+        evt.preventDefault();
+        return true;
+      }
+    });
+    window.addEventListener('unhandledrejection', (evt: PromiseRejectionEvent) => {
+      const m = String(evt?.reason?.message || evt?.reason || '');
+      if (m.includes('usedTimes') || m.includes('already initialized')) {
+        evt.preventDefault();
+      }
+    });
+  }
+
   // ===== Camera =====
   const aspect = container.clientWidth / container.clientHeight;
   const camera = new THREE.PerspectiveCamera(__gs.camera?.fov ?? 60, aspect, 0.1, 1000);
@@ -765,6 +783,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
     setTimeout(() => _autoPhysics(), 15000);
 
     // Initial render
+    if (renderer.info?.reset) renderer.info.reset();
     try { renderer.render(scene, camera); } catch(__re) { var __rm=__re?.message||""; if (!__rm.includes("already initialized")&&!__rm.includes("usedTimes")&&!__rm.includes("is not a function")) throw __re; }
 
     // Show TAP TO START overlay then start game loop
@@ -829,11 +848,12 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         if (__perfNow - __perfLastCheck >= 2000 && !__editorMode) {
           const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
           const __perfAge = __perfNow - __perfStartTime;
-          if (__avgFps < 40 && !__perfDowngraded && __perfAge > 8000) {
+          if (__avgFps < 30 && !__perfDowngraded && __perfAge > 15000) {
             __perfDowngraded = true;
             __perfDowngradeTime = __perfNow;
+            W.__vibexe_perfguard_degraded__ = true;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
-            renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.75));
+            renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 1.0));
             renderer.shadowMap.enabled = false;
             W.__vibexe_cullDistance__ = 80;
             const comp = W.__vibexe_composer__;
@@ -841,6 +861,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
           } else if (__avgFps > 55 && __perfDowngraded && (__perfNow - __perfDowngradeTime > 30000)) {
             // Only restore after 30s cooldown to prevent oscillation (reduce→restore→reduce flicker)
             __perfDowngraded = false;
+            W.__vibexe_perfguard_degraded__ = false;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality (after 30s cooldown)');
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
             renderer.shadowMap.enabled = true;
@@ -865,6 +886,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
           __shadowFrame++;
           if (__shadowFrame >= 30) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
           if (!W.__vibexe_bridge_rendering__) {
+            if (renderer.info?.reset) renderer.info.reset();
             try {
               const comp = W.__vibexe_composer__;
               if (comp && !W.__vibexe_skipComposer__) comp.render(); else renderer.render(scene, camera);
@@ -979,6 +1001,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         }
 
         // ===== Render =====
+        if (renderer.info?.reset) renderer.info.reset();
         const comp = W.__vibexe_composer__;
         try {
           if (comp && !W.__vibexe_skipComposer__) comp.render(delta); else renderer.render(scene, camera);
