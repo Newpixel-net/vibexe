@@ -745,6 +745,9 @@ export function getVisualEditBridgeScript(): string {
     var T = window.THREE;
     if (!T || !editor || !editor.scene || !editor.renderer) return;
     _pbrEnvReady = true;
+    // Ensure ACES tone mapping + correct exposure for PBR (r183)
+    editor.renderer.toneMapping = T.ACESFilmicToneMapping;
+    editor.renderer.toneMappingExposure = 0.9;
     // PBR light floor for r183 physically-based rendering (/PI factor)
     // Keep moderate — sky-weather and env map add more light on top.
     var _al = editor.scene.getObjectByName('__default_ambient__') || editor.scene.getObjectByName('AmbientLight');
@@ -753,6 +756,15 @@ export function getVisualEditBridgeScript(): string {
     if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.4);
     var _sl = editor.scene.getObjectByName('__default_sun__') || editor.scene.getObjectByName('DirectionalLight');
     if (_sl) _sl.intensity = Math.max(_sl.intensity, 1.2);
+    // Remove duplicate unnamed HemisphereLight (created by old createSkyGradient before dedup guard)
+    var _dupeHemis = [];
+    editor.scene.traverse(function(obj) {
+      if (obj.isHemisphereLight && !obj.name) _dupeHemis.push(obj);
+    });
+    for (var _dhi = 0; _dhi < _dupeHemis.length; _dhi++) {
+      editor.scene.remove(_dupeHemis[_dhi]);
+      console.log("[Bridge] Removed duplicate unnamed HemisphereLight");
+    }
     // Deferred env map — PMREMGenerator.fromScene() is extremely expensive on WebGPU
     // (compiles 6+ cube face shaders, blocks main thread). Defer to avoid FPS=1 on init.
     setTimeout(function() {
@@ -5943,14 +5955,24 @@ export function getVisualEditBridgeScript(): string {
         } else {
           // No textures — just apply vertex colors from layer preview colors
           var _rpVCols = new Float32Array(_rpCount * 3);
+          // Base terrain color for unpainted vertices (where all weights are near zero)
+          var _rpBaseColor = _rpColors[0] || [0.33, 0.47, 0.2]; // first layer or natural green
           for (var vi4 = 0; vi4 < _rpCount; vi4++) {
             var r = 0, g = 0, b = 0;
+            var wTotal = 0;
             for (var li7 = 0; li7 < _rpNumLayers; li7++) {
               var w = _rpWeights[li7][vi4];
               var c = _rpColors[li7] || [0.5, 0.5, 0.5];
               r += c[0] * w;
               g += c[1] * w;
               b += c[2] * w;
+              wTotal += w;
+            }
+            // Unpainted vertices (weight sum ≈ 0) → use base terrain color instead of black
+            if (wTotal < 0.001) {
+              r = _rpBaseColor[0];
+              g = _rpBaseColor[1];
+              b = _rpBaseColor[2];
             }
             _rpVCols[vi4*3] = r;
             _rpVCols[vi4*3+1] = g;

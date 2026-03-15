@@ -834,7 +834,13 @@ function ProceduralSkyDome(scene) {
   geo.index.needsUpdate = true;
 
   // TSL material — compiles to both WGSL (WebGPU) and GLSL (WebGL) automatically
-  var mat = _buildSkyMaterial(this._u, this._gradTex);
+  var mat;
+  try {
+    mat = _buildSkyMaterial(this._u, this._gradTex);
+  } catch(e) {
+    console.error("[SkyDome] TSL material build failed, using fallback:", e);
+    mat = new THREE.MeshBasicMaterial({ color: 0x4488cc, side: THREE.FrontSide, depthWrite: false, depthTest: false, toneMapped: false });
+  }
 
   this.mesh = new THREE.Mesh(geo, mat);
   this.mesh.name = "__skyDome__";
@@ -843,6 +849,7 @@ function ProceduralSkyDome(scene) {
   // Camera-follow approach: scale sphere to surround scene, position on camera each frame
   this.mesh.scale.setScalar(500);
   this.scene.add(this.mesh);
+  console.log("[SkyDome] Created: colorNode=", !!mat.colorNode, "side=", mat.side, "toneMapped=", mat.toneMapped, "depthTest=", mat.depthTest);
 }
 
 ProceduralSkyDome.prototype.update = function(st, sunDir, moonDir, moonPhase, cfg) {
@@ -936,6 +943,26 @@ function SkyLighting(scene) {
   this._origSunInt = null;
   this._origAmbInt = null;
   this._findLights();
+  // Retry finding lights after a short delay — Game3D IIFE may add them after sky-weather init
+  if (this._ownSun) {
+    var self = this;
+    setTimeout(function() {
+      // Check if game lights appeared after our init
+      var foundGame = null;
+      self.scene.traverse(function(obj) {
+        if (obj.isDirectionalLight && obj.name === "__default_sun__") foundGame = obj;
+      });
+      if (foundGame && self._ownSun) {
+        // Replace our created light with the game's light
+        self.scene.remove(self.sunLight);
+        if (self.sunLight.target) self.scene.remove(self.sunLight.target);
+        self.sunLight = foundGame;
+        self._origSunInt = foundGame.intensity;
+        self._ownSun = false;
+        console.log("[SkyLighting] Adopted __default_sun__ (deferred find)");
+      }
+    }, 500);
+  }
 }
 
 SkyLighting.prototype._findLights = function() {
@@ -958,7 +985,8 @@ SkyLighting.prototype._findLights = function() {
   });
 
   if (!this.sunLight) {
-    this.sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    console.log("[SkyLighting] No DirectionalLight found in scene, creating own");
+    this.sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
     this.sunLight.name = "__skyWeatherSun__";
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.set(2048, 2048);
@@ -1002,7 +1030,7 @@ SkyLighting.prototype.update = function(solarTime, sunDir, cfg) {
   }
 
   // ---- Sun intensity curve ----
-  var baseInt = cfg.sunIntensity || 1.5;
+  var baseInt = cfg.sunIntensity || 1.0;
   if (alt <= -0.05) {
     this.sunLight.intensity = 0;
   } else if (alt <= 0.12) {
@@ -1420,7 +1448,7 @@ function SkyWeatherSystem(scene, config) {
   this.config = {
     time: { solarTime: 0.45, cycleLengthMinutes: 10, autoAdvance: false, latitude: 45 },
     sky:  { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 1.2 },
-    lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true },
+    lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.0, ambientIntensity: 0.4, shadowsEnabled: true },
     fog: { enabled: false, autoColor: true, density: 0.003, heightFalloff: 0 },
     clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
     precipitation: { type: "none", intensity: 0, windDirection: 0, windStrength: 0.3 },

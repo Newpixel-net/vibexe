@@ -5337,8 +5337,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       renderer.shadowMap.autoUpdate = false; // Manual shadow updates for perf
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       // ACES filmic tone mapping for r183 PBR — MeshStandardMaterial divides by PI,
-      // so without tone mapping, scenes are dark/flat. Exposure 1.2 is neutral enough
-      // for both PBR and cartoon (Phong/Lambert) materials.
+      // so without tone mapping, scenes are dark/flat. Exposure 0.9 balances PBR and
+      // cartoon (Phong/Lambert) materials without blowing out highlights.
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 0.9;
       container.appendChild(renderer.domElement);
