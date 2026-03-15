@@ -3546,8 +3546,208 @@ const PARTICLE_PRESETS: Record<string, any> = {
 };
 (window as any).PARTICLE_PRESETS = PARTICLE_PRESETS;
 
+// ─── GPU Compute Particle Emitter (WebGPU — uses compute shaders + Sprite instancing) ───
+function _createGPUParticleEmitter(
+  scene: any,
+  position: { x: number; y: number; z: number },
+  config: any,
+  renderer: any,
+): { emit: () => void; stop: () => void; destroy: () => void; setPosition: (x: number, y: number, z: number) => void; isAlive: () => boolean; _destroyed: boolean; update: (delta: number) => void } {
+  const MAX = config.count || 50;
+  const sizeStart = config.sizeStart ?? 0.2;
+  const sizeEnd = config.sizeEnd ?? 0;
+  const speed = config.speed ?? 5;
+  const spread = config.spread ?? 1;
+  const gravity = config.gravity ?? 0;
+  const life = config.life ?? 1;
+  const isBurst = config.mode === "burst";
+  const colorList = config.colors || [0xffffff];
+  const dir = config.direction || null;
+
+  // Uniforms
+  const emitterPos = THREE.uniform(new THREE.Vector3(position.x, position.y, position.z));
+  const gravityU = THREE.uniform(gravity);
+  const dtU = THREE.uniform(0.016);
+  const speedU = THREE.uniform(speed);
+  const spreadU = THREE.uniform(spread);
+  const sizeStartU = THREE.uniform(sizeStart);
+  const sizeEndU = THREE.uniform(sizeEnd);
+  const lifeU = THREE.uniform(life);
+  const emittingU = THREE.uniform(isBurst ? 0 : 1);
+  // Direction uniforms (0,0,0 = omnidirectional)
+  const dirX = THREE.uniform(dir?.x ?? 0);
+  const dirY = THREE.uniform(dir?.y ?? 0);
+  const dirZ = THREE.uniform(dir?.z ?? 0);
+  const hasDir = THREE.uniform(dir ? 1 : 0);
+
+  // GPU storage buffers
+  const posBuf = THREE.instancedArray(MAX, "vec3");
+  const velBuf = THREE.instancedArray(MAX, "vec3");
+  const ageBuf = THREE.instancedArray(MAX, "float");
+  const lifeBuf = THREE.instancedArray(MAX, "float");
+  const sizeBuf = THREE.instancedArray(MAX, "float");
+
+  // Colors: CPU-initialized InstancedBufferAttribute (static — no compute needed)
+  const colorData = new Float32Array(MAX * 3);
+  for (let i = 0; i < MAX; i++) {
+    const c = new THREE.Color(colorList[Math.floor(Math.random() * colorList.length)]);
+    colorData[i * 3] = c.r; colorData[i * 3 + 1] = c.g; colorData[i * 3 + 2] = c.b;
+  }
+  const colorAttr = new THREE.StorageInstancedBufferAttribute(colorData, 3);
+
+  // ── Compute Init: spawn all particles ──
+  const computeInit = THREE.Fn(() => {
+    const idx = THREE.instanceIndex;
+    const pos = posBuf.element(idx);
+    const vel = velBuf.element(idx);
+    const age = ageBuf.element(idx);
+    const lf = lifeBuf.element(idx);
+    const sz = sizeBuf.element(idx);
+
+    // Position: emitter + random offset
+    pos.assign(emitterPos.add(THREE.vec3(
+      THREE.hash(idx).sub(0.5).mul(spreadU).mul(0.5),
+      THREE.hash(idx.add(1)).sub(0.5).mul(spreadU).mul(0.5),
+      THREE.hash(idx.add(2)).sub(0.5).mul(spreadU).mul(0.5)
+    )));
+
+    // Velocity: directional or omnidirectional
+    const omniVel = THREE.vec3(
+      THREE.hash(idx.add(3)).sub(0.5).mul(speedU),
+      THREE.hash(idx.add(4)).mul(speedU),
+      THREE.hash(idx.add(5)).sub(0.5).mul(speedU)
+    );
+    const dirVel = THREE.vec3(
+      dirX.mul(speedU).add(THREE.hash(idx.add(3)).sub(0.5).mul(spreadU)),
+      dirY.mul(speedU).add(THREE.hash(idx.add(4)).sub(0.5).mul(spreadU).mul(0.3)),
+      dirZ.mul(speedU).add(THREE.hash(idx.add(5)).sub(0.5).mul(spreadU))
+    );
+    vel.assign(THREE.mix(omniVel, dirVel, hasDir));
+
+    // Lifetime: randomized around base
+    lf.assign(lifeU.mul(THREE.hash(idx.add(6)).mul(0.6).add(0.7)));
+    // Burst: all start at age 0; Continuous: stagger spawns
+    age.assign(isBurst ? THREE.float(0) : THREE.hash(idx.add(7)).mul(lifeU));
+    sz.assign(sizeStartU);
+  })().compute(MAX);
+
+  // ── Compute Update: physics + aging + respawn ──
+  const computeUpdate = THREE.Fn(() => {
+    const idx = THREE.instanceIndex;
+    const pos = posBuf.element(idx);
+    const vel = velBuf.element(idx);
+    const age = ageBuf.element(idx);
+    const lf = lifeBuf.element(idx);
+    const sz = sizeBuf.element(idx);
+
+    age.addAssign(dtU);
+    const t = age.div(lf);
+
+    // Respawn dead particles in continuous mode
+    THREE.If(t.greaterThanEqual(1), () => {
+      THREE.If(emittingU.greaterThan(0), () => {
+        // New position at emitter + random offset
+        pos.assign(emitterPos.add(THREE.vec3(
+          THREE.hash(idx.add(THREE.time.mul(1000))).sub(0.5).mul(spreadU).mul(0.5),
+          THREE.hash(idx.add(THREE.time.mul(1000)).add(1)).sub(0.5).mul(spreadU).mul(0.5),
+          THREE.hash(idx.add(THREE.time.mul(1000)).add(2)).sub(0.5).mul(spreadU).mul(0.5)
+        )));
+        // New velocity
+        const _omni = THREE.vec3(
+          THREE.hash(idx.add(THREE.time.mul(1000)).add(3)).sub(0.5).mul(speedU),
+          THREE.hash(idx.add(THREE.time.mul(1000)).add(4)).mul(speedU),
+          THREE.hash(idx.add(THREE.time.mul(1000)).add(5)).sub(0.5).mul(speedU)
+        );
+        const _dir = THREE.vec3(
+          dirX.mul(speedU).add(THREE.hash(idx.add(THREE.time.mul(1000)).add(3)).sub(0.5).mul(spreadU)),
+          dirY.mul(speedU).add(THREE.hash(idx.add(THREE.time.mul(1000)).add(4)).sub(0.5).mul(spreadU).mul(0.3)),
+          dirZ.mul(speedU).add(THREE.hash(idx.add(THREE.time.mul(1000)).add(5)).sub(0.5).mul(spreadU))
+        );
+        vel.assign(THREE.mix(_omni, _dir, hasDir));
+        age.assign(0);
+        lf.assign(lifeU.mul(THREE.hash(idx.add(THREE.time.mul(1000)).add(6)).mul(0.6).add(0.7)));
+      });
+    });
+
+    // Physics: gravity + position update
+    vel.y.addAssign(gravityU.mul(dtU));
+    pos.addAssign(vel.mul(dtU));
+
+    // Size: interpolate when alive (t<1), zero when dead
+    const alive = t.lessThan(1);
+    sz.assign(alive.mul(THREE.mix(sizeStartU, sizeEndU, t.clamp(0, 1))));
+  })().compute(MAX);
+
+  // ── Material: SpriteNodeMaterial for billboarded quads (>1px on WebGPU) ──
+  // SpriteNodeMaterial auto-billboards each instance to face camera
+  // Used with Mesh(PlaneGeometry) + .count for instanced rendering
+  if (!THREE.SpriteNodeMaterial) {
+    throw new Error("SpriteNodeMaterial required for GPU compute particles");
+  }
+  const material = new THREE.SpriteNodeMaterial({
+    transparent: true,
+    depthWrite: false,
+  });
+  // .toAttribute() converts storage buffer to instanced vertex attribute
+  material.positionNode = posBuf.toAttribute();
+  material.scaleNode = THREE.max(sizeBuf.toAttribute(), THREE.float(0.01));
+  material.colorNode = THREE.instancedBufferAttribute(colorAttr);
+
+  // Circular soft-edge opacity with lifetime fade
+  const _uvC = THREE.uv().sub(THREE.vec2(0.5, 0.5));
+  const _dist = _uvC.length();
+  const _edge = THREE.float(1).sub(THREE.smoothstep(THREE.float(0.3), THREE.float(0.5), _dist));
+  const _t = ageBuf.toAttribute().div(lifeBuf.toAttribute()).clamp(0, 1);
+  material.opacityNode = THREE.float(1).sub(_t).mul(_edge);
+
+  // Instanced Mesh — PlaneGeometry + SpriteNodeMaterial = billboarded quads
+  const particles = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+  (particles as any).count = MAX;
+  particles.frustumCulled = false;
+  particles.name = "__particle_emitter";
+  scene.add(particles);
+
+  // Run init compute
+  renderer.compute(computeInit);
+
+  let _destroyed = false;
+  let _alive = true;
+  const _creationTime = performance.now() / 1000;
+  const _maxLife = life * 1.3; // max randomized lifetime
+
+  const emitter = {
+    _destroyed: false,
+    update(delta: number) {
+      if (_destroyed) return;
+      dtU.value = Math.min(delta, 0.1);
+      try { renderer.compute(computeUpdate); } catch (e) { /* context lost */ }
+      // Burst mode: auto-die after max lifetime
+      if (isBurst && (performance.now() / 1000 - _creationTime) > _maxLife) {
+        _alive = false;
+      }
+    },
+    isAlive() { return _alive && !_destroyed; },
+    emit() { emittingU.value = 1; },
+    stop() { emittingU.value = 0; },
+    setPosition(x: number, y: number, z: number) { emitterPos.value.set(x, y, z); },
+    destroy() {
+      _destroyed = true;
+      _alive = false;
+      emitter._destroyed = true;
+      scene.remove(particles);
+      material.dispose();
+      particles.geometry.dispose();
+    },
+  };
+
+  _activeParticles3D.push(emitter);
+  console.log("[Particles] GPU compute emitter created (" + MAX + " particles)");
+  return emitter;
+}
+
 /**
  * Creates a particle emitter at a position.
+ * Auto-selects GPU compute path (WebGPU) or CPU path (WebGL fallback).
  * Supports preset names or custom configuration.
  *
  * Usage:
@@ -3567,6 +3767,16 @@ export function createParticleEmitter(
   const config = typeof presetOrConfig === "string"
     ? { ...(PARTICLE_PRESETS[presetOrConfig] || PARTICLE_PRESETS.sparkle) }
     : presetOrConfig;
+
+  // Auto-use GPU compute particles when available (WebGPU renderer + TSL compute APIs)
+  const __renderer = (window as any).__vibexe_renderer__;
+  if (__renderer?.compute && THREE.instancedArray && THREE.Fn) {
+    try {
+      return _createGPUParticleEmitter(scene, position, config, __renderer);
+    } catch (_gpuErr) {
+      console.warn("[Particles] GPU compute failed, falling back to CPU:", _gpuErr);
+    }
+  }
 
   const MAX = config.count || 50;
   const positions = new Float32Array(MAX * 3);
