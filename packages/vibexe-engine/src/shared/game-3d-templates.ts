@@ -6266,8 +6266,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             _editorAnimId = requestAnimationFrame(_editorLoop);
             if (editor.orbitControls) editor.orbitControls.update();
             if (_boxHelper && _selectedObj) _boxHelper.update();
-            const __ec = (window as any).__vibexe_composer__;
-            if (__ec) { __ec.render(); } else { renderer.render(scene, camera); }
+            try {
+              const __ec = (window as any).__vibexe_composer__;
+              if (__ec) { __ec.render(); } else { renderer.render(scene, camera); }
+            } catch (__e: any) { if (!__e?.message?.includes("already initialized")) throw __e; }
           }
 
           // ---- Activate / Deactivate ----
@@ -6992,6 +6994,17 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         // Physics interpolation accumulator
         let __physAccum = 0;
         const __physDt = 1 / 60;
+        // Safe render: suppress WebGPU "Texture already initialized" error (Three.js r172 bug)
+        const __safeRender = (delta?: number) => {
+          try {
+            const __c = (window as any).__vibexe_composer__;
+            if (__c && !(window as any).__vibexe_skipComposer__) { __c.render(delta); }
+            else { renderer.render(scene, camera); }
+          } catch (__renderErr: any) {
+            if (__renderErr?.message?.includes("already initialized")) return; // suppress known r172 bug
+            throw __renderErr;
+          }
+        };
         const animate = (time?: number) => {
           if (disposed) return;
           animFrameId = requestAnimationFrame(animate);
@@ -7058,8 +7071,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             if (__shadowFrame >= 30) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
             // Only render here if the bridge is NOT actively rendering (avoids double-render flicker)
             if (!(window as any).__vibexe_bridge_rendering__) {
-              const __ec2 = (window as any).__vibexe_composer__;
-              if (__ec2 && !(window as any).__vibexe_skipComposer__) { __ec2.render(__ed); } else { renderer.render(scene, camera); }
+              __safeRender(__ed);
             }
             return;
           }
@@ -7170,9 +7182,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           }
           } // end LOD frame gate
           // Render via post-processing composer if available and has active effects, else direct render
-          const __composer = (window as any).__vibexe_composer__;
-          if (__composer && !(window as any).__vibexe_skipComposer__) { __composer.render(__frameDelta); }
-          else { renderer.render(scene, camera); }
+          __safeRender(__frameDelta);
         };
         // Force initial shadow map render (autoUpdate is off)
         renderer.shadowMap.needsUpdate = true;

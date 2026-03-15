@@ -765,7 +765,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
     setTimeout(() => _autoPhysics(), 15000);
 
     // Initial render
-    renderer.render(scene, camera);
+    try { renderer.render(scene, camera); } catch(__re) { if (!__re?.message?.includes("already initialized")) throw __re; }
 
     // Show TAP TO START overlay then start game loop
     const _startLoop = () => {
@@ -865,8 +865,10 @@ if (!gameScene || typeof gameScene.init !== 'function') {
           __shadowFrame++;
           if (__shadowFrame >= 30) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
           if (!W.__vibexe_bridge_rendering__) {
-            const comp = W.__vibexe_composer__;
-            if (comp && !W.__vibexe_skipComposer__) comp.render(); else renderer.render(scene, camera);
+            try {
+              const comp = W.__vibexe_composer__;
+              if (comp && !W.__vibexe_skipComposer__) comp.render(); else renderer.render(scene, camera);
+            } catch(__re) { if (!__re?.message?.includes("already initialized")) throw __re; }
           }
           return;
         }
@@ -977,8 +979,10 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         }
 
         // ===== Render =====
-        const comp = W.__vibexe_composer__;
-        if (comp && !W.__vibexe_skipComposer__) comp.render(delta); else renderer.render(scene, camera);
+        try {
+          const comp = W.__vibexe_composer__;
+          if (comp && !W.__vibexe_skipComposer__) comp.render(delta); else renderer.render(scene, camera);
+        } catch(__re) { if (!__re?.message?.includes("already initialized")) throw __re; }
         } catch (__frameErr) { console.error('[GameLoop] Frame error:', __frameErr); }
       }
       // Force initial shadow render

@@ -2243,11 +2243,13 @@ export function getVisualEditBridgeScript(): string {
       var _realComposer = composer && composer.__origRender;
       if (_realComposer) composer.render = _realComposer;
       // Render scene via composer or direct renderer
-      if (composer && composer.render) {
-        composer.render();
-      } else {
-        editor.renderer.render(editor.scene, editor.camera);
-      }
+      try {
+        if (composer && composer.render) {
+          composer.render();
+        } else {
+          editor.renderer.render(editor.scene, editor.camera);
+        }
+      } catch (__re) { if (__re && __re.message && !__re.message.includes("already initialized")) throw __re; }
       // Camera Preview PIP — only render when camera is selected
       if (previewCamera && editor.renderer && editor.scene && cameraSelected) {
         var _dpr = editor.renderer.getPixelRatio();
@@ -2270,7 +2272,7 @@ export function getVisualEditBridgeScript(): string {
           editor.renderer.setScissor(_pipX, _pipY, _pipW, _pipH);
           previewCamera.aspect = 200 / 120;
           previewCamera.updateProjectionMatrix();
-          editor.renderer.render(editor.scene, previewCamera);
+          try { editor.renderer.render(editor.scene, previewCamera); } catch (__re2) { if (__re2 && __re2.message && !__re2.message.includes("already initialized")) throw __re2; }
         } finally {
           editor.renderer.setScissorTest(false);
           editor.renderer.setViewport(0, 0, _fullSize.x, _fullSize.y);

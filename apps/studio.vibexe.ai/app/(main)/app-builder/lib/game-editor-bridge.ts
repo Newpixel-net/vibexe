@@ -489,6 +489,7 @@ export function getGameEditorBridgeScript(): string {
 
       editor.renderer.render(editor.scene, editor.camera);
     } catch(e) {
+      if (e && e.message && e.message.includes("already initialized")) return; // suppress WebGPU r172 texture bug
       console.warn("[GameEditorBridge] editorLoop error (likely disposal race):", e.message);
     }
   }
