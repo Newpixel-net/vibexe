@@ -4470,6 +4470,16 @@ export function getVisualEditBridgeScript(): string {
             }
             if (_hasNaN) { console.warn("[TerrainPainter] Sculpt data contains NaN — skipping restore"); }
             else if (_sFloats.length === _tpPos.count) {
+              // Sanity check: reject sculpt data with unreasonable heights
+              // Heights should be within heightScale * 10 (generous margin for sculpted terrain)
+              var _sculptSampleMax = -Infinity;
+              for (var _sci = 0; _sci < _sFloats.length; _sci++) {
+                if (_sFloats[_sci] > _sculptSampleMax) _sculptSampleMax = _sFloats[_sci];
+              }
+              var _sculptMaxAllowed = _tpH * 10;
+              if (_sculptSampleMax > _sculptMaxAllowed) {
+                console.warn("[TerrainPainter] Sculpt data heights corrupted (max=" + _sculptSampleMax.toFixed(0) + " expected<" + _sculptMaxAllowed + ") — skipping restore");
+              } else {
               _tpMinY = Infinity; _tpMaxY = -Infinity;
               for (var svi = 0; svi < _sFloats.length; svi++) {
                 _tpPos.setY(svi, _sFloats[svi]);
@@ -4480,19 +4490,22 @@ export function getVisualEditBridgeScript(): string {
               _tpPos.needsUpdate = true;
               _tpGeo.computeVertexNormals();
               console.log("[TerrainPainter] Restored sculpt heightmap (" + _sFloats.length + " vertices)");
+              }
             }
           } catch(e) { console.warn("[TerrainPainter] Failed to restore sculpt data:", e); }
         }
 
-        // TERRAIN-AS-FLOOR: Normalize so minimum height = 0 (terrain IS the game floor)
-        if (_tpMinY !== 0) {
-          var _tpShift = -_tpMinY;
+        // TERRAIN-AS-FLOOR: Normalize height range to [0, heightScale]
+        // Simple min-shift can inflate heights when erosion creates deep valleys.
+        // Rescale full range to fit within the target heightScale instead.
+        var _tpPostRange = _tpMaxY - _tpMinY;
+        if (_tpPostRange > 0.001) {
           for (var nvi = 0; nvi < _tpPos.count; nvi++) {
-            var shiftedY = _tpPos.getY(nvi) + _tpShift;
-            _tpPos.setY(nvi, shiftedY);
-            _tpHeightData[nvi] = shiftedY;
+            var _normH = ((_tpPos.getY(nvi) - _tpMinY) / _tpPostRange) * _tpH;
+            _tpPos.setY(nvi, _normH);
+            _tpHeightData[nvi] = _normH;
           }
-          _tpMaxY += _tpShift;
+          _tpMaxY = _tpH;
           _tpMinY = 0;
           _tpPos.needsUpdate = true;
           _tpGeo.computeVertexNormals();
@@ -6185,6 +6198,15 @@ export function getVisualEditBridgeScript(): string {
         // Export current heightmap as base64 Float32Array for persistence
         var td = window.__vibexe_terrainData;
         if (td && td.heightData) {
+          // Sanity check: don't export corrupted height data (max should be < 500 for any reasonable terrain)
+          var _expMaxH = -Infinity;
+          for (var _ehi = 0; _ehi < td.heightData.length; _ehi++) {
+            if (td.heightData[_ehi] > _expMaxH) _expMaxH = td.heightData[_ehi];
+          }
+          if (_expMaxH > 500) {
+            console.warn("[TerrainPainter] Heightmap export BLOCKED — max height " + _expMaxH.toFixed(0) + " is corrupted (expected < 500)");
+            break;
+          }
           var bytes = new Uint8Array(td.heightData.buffer);
           var b64 = "";
           for (var bi = 0; bi < bytes.length; bi++) b64 += String.fromCharCode(bytes[bi]);

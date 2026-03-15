@@ -686,15 +686,17 @@ TerrainGenerator.prototype.generate = function() {
   pos.needsUpdate = true;
   geo.computeVertexNormals();
 
-  // Normalize so minimum height = 0 (terrain IS the game floor)
-  if (minY !== 0) {
-    var shift = -minY;
+  // Normalize height range to [0, H] — erosion can carve deep valleys causing
+  // extreme range inflation when using simple min-shift. Instead, rescale the
+  // full range to fit within the target heightScale.
+  var postRange = maxY - minY;
+  if (postRange > 0.001) {
     for (var nvi = 0; nvi < pos.count; nvi++) {
-      var shiftedY = pos.getY(nvi) + shift;
-      pos.setY(nvi, shiftedY);
-      heightData[nvi] = shiftedY;
+      var normH = ((heightData[nvi] - minY) / postRange) * H;
+      pos.setY(nvi, normH);
+      heightData[nvi] = normH;
     }
-    maxY += shift;
+    maxY = H;
     minY = 0;
     pos.needsUpdate = true;
     geo.computeVertexNormals();
