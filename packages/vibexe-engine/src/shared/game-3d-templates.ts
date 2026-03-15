@@ -274,7 +274,8 @@ export function initRenderer(container: HTMLDivElement): any {
   renderer.shadowMap.type = THREE.PCFShadowMap; // PCF (not Soft) — 2x faster shadow filtering
   renderer.shadowMap.autoUpdate = false;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.5;
   container.appendChild(renderer.domElement);
 
   const onResize = () => {
@@ -300,16 +301,17 @@ export function initScene(): typeof THREE.Scene {
 
   const scene = new THREE.Scene();
 
-  // Balanced default lighting — total ~1.0 for clean Phong/cartoon rendering.
-  const hemi = new THREE.HemisphereLight(0xEEF4FF, 0x886644, 0.35);
+  // PBR-tuned lighting for r183 physically-based MeshStandardMaterial.
+  // r183 divides light by PI for energy conservation — need 2-3x old values.
+  const hemi = new THREE.HemisphereLight(0xEEF4FF, 0x886644, 0.8);
   hemi.name = "HemisphereLight";
   scene.add(hemi);
 
-  const ambient = new THREE.AmbientLight(0xFFFFFF, 0.15);
+  const ambient = new THREE.AmbientLight(0xFFFFFF, 0.4);
   ambient.name = "AmbientLight";
   scene.add(ambient);
 
-  const sun = new THREE.DirectionalLight(0xFFF8EE, 0.55);
+  const sun = new THREE.DirectionalLight(0xFFF8EE, 1.5);
   sun.name = "DirectionalLight";
   sun.position.set(8, 20, 10);
   sun.castShadow = true;
@@ -323,6 +325,37 @@ export function initScene(): typeof THREE.Scene {
   sun.shadow.camera.bottom = -60;
   sun.shadow.bias = -0.0005;
   scene.add(sun);
+
+  // Procedural environment map for PBR reflections / indirect lighting
+  // Without this, MeshStandardMaterial looks flat and clay-like.
+  try {
+    const __renderer = (window as any).__vibexe_renderer__;
+    if (__renderer && THREE.PMREMGenerator) {
+      const pmrem = new THREE.PMREMGenerator(__renderer);
+      pmrem.compileEquirectangularShader?.();
+      const envScene = new THREE.Scene();
+      const skyGeo = new THREE.SphereGeometry(50, 32, 16);
+      envScene.add(new THREE.Mesh(skyGeo, new THREE.MeshBasicMaterial({
+        color: new THREE.Color(0.35, 0.4, 0.55), side: THREE.BackSide
+      })));
+      const gndGeo = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+      envScene.add(new THREE.Mesh(gndGeo, new THREE.MeshBasicMaterial({
+        color: new THREE.Color(0.15, 0.13, 0.1), side: THREE.BackSide
+      })));
+      // Key light panel
+      const pGeo = new THREE.PlaneGeometry(8, 8);
+      const addPanel = (x: number, y: number, z: number, r: number, g: number, b: number, sx: number, sy: number) => {
+        const p = new THREE.Mesh(pGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide }));
+        p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
+        envScene.add(p);
+      };
+      addPanel(0, 45, -10, 10, 9, 8, 2, 2);
+      addPanel(-15, 40, 25, 4, 4, 5, 1.5, 1.5);
+      addPanel(35, 20, -15, 2, 2, 2.5, 2, 2);
+      scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
+      pmrem.dispose(); skyGeo.dispose(); gndGeo.dispose(); pGeo.dispose();
+    }
+  } catch (e) { console.warn("[initScene] env map setup error:", e); }
 
   return scene;
 }
@@ -5259,14 +5292,27 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       // Clean up post-processing composer
       try { (window as any).__vibexe_composer__?.dispose?.(); } catch {}
       delete (window as any).__vibexe_composer__;
-      // WebGPU renderer: clear internal texture/material caches to prevent stale "usedTimes" refs
+      // WebGPU renderer: aggressively clear internal caches to prevent stale "usedTimes" refs.
+      // Without this, Scene→Game switch fails because disposed textures are still in bind groups.
       if (renderer) {
         try {
-          // Clear render lists (Three.js r172 WebGPU internal state)
+          // r183 WebGPU internal cache clearing — try all known paths
+          if (renderer._nodes) renderer._nodes.dispose?.();
+          if (renderer._textures) renderer._textures.dispose?.();
+          if (renderer._objects) renderer._objects.dispose?.();
+          if (renderer._renderLists) renderer._renderLists.dispose?.();
+          if (renderer._renderContexts) renderer._renderContexts.dispose?.();
+          if (renderer._pipelines) renderer._pipelines.dispose?.();
+          if (renderer._bindings) renderer._bindings.dispose?.();
+          // r172 compat paths
           if (renderer.renderLists) renderer.renderLists.dispose?.();
           if (renderer.properties) renderer.properties.dispose?.();
           // Force info reset
           if (renderer.info) { renderer.info.reset?.(); }
+          // Clear render state on backend
+          if (renderer.backend) {
+            if (renderer.backend.textureUtils) renderer.backend.textureUtils.dispose?.();
+          }
         } catch {}
       }
       // Clear scene + world from window so restart creates fresh ones
@@ -5314,10 +5360,11 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       renderer.shadowMap.type = THREE.PCFShadowMap;
       renderer.shadowMap.autoUpdate = false; // Manual shadow updates for perf
       renderer.outputColorSpace = THREE.SRGBColorSpace;
-      // NoToneMapping by default — Phong/Lambert materials already output LDR values.
-      // Tone mapping (ACES/Reinhard) crushes contrast and desaturates cartoon colors.
-      // Games that need HDR can enable tone mapping via createPostProcessing().
-      renderer.toneMapping = THREE.NoToneMapping;
+      // ACES filmic tone mapping for r183 PBR — MeshStandardMaterial divides by PI,
+      // so without tone mapping, scenes are dark/flat. Exposure 1.2 is neutral enough
+      // for both PBR and cartoon (Phong/Lambert) materials.
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.2;
       container.appendChild(renderer.domElement);
       (window as any).__vibexe_renderer__ = renderer;
 
@@ -5373,25 +5420,25 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           }
         }
 
-        // Engine-wide default lighting — balanced for cartoon/Phong materials.
-        // Total light budget ~1.0 so colors render faithfully without clipping.
+        // PBR-tuned lighting for r183 physically-based MeshStandardMaterial.
+        // r183 divides light by PI for energy conservation — need 2-3x old values.
         // Games can remove/replace these in their init() if needed.
         const _defHemi = new THREE.HemisphereLight(
           __gs.environment?.hemisphereSkyColor || '#eef4ff',
           __gs.environment?.hemisphereGroundColor || '#886644',
-          __gs.environment?.hemisphereIntensity ?? 0.35
+          __gs.environment?.hemisphereIntensity ?? 0.8
         );
         _defHemi.name = '__default_hemi__';
         scene.add(_defHemi);
         const _defAmbient = new THREE.AmbientLight(
           __gs.environment?.ambientLightColor || '#ffffff',
-          __gs.environment?.ambientLightIntensity ?? 0.15
+          __gs.environment?.ambientLightIntensity ?? 0.4
         );
         _defAmbient.name = '__default_ambient__';
         scene.add(_defAmbient);
         const _defSun = new THREE.DirectionalLight(
           __gs.environment?.sunLightColor || '#fff8ee',
-          __gs.environment?.sunLightIntensity ?? 0.55
+          __gs.environment?.sunLightIntensity ?? 1.5
         );
         _defSun.name = '__default_sun__';
         _defSun.position.set(8, 20, 10);
@@ -5413,6 +5460,34 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         if (__hasTerrain) _defSun.position.set(40, 80, 40);
         _defSun.shadow.bias = -0.001;
         scene.add(_defSun);
+
+        // Procedural environment map for PBR reflections / indirect lighting
+        try {
+          if (THREE.PMREMGenerator) {
+            const __pmrem = new THREE.PMREMGenerator(renderer);
+            __pmrem.compileEquirectangularShader?.();
+            const __envScene = new THREE.Scene();
+            const __skyGeo = new THREE.SphereGeometry(50, 32, 16);
+            __envScene.add(new THREE.Mesh(__skyGeo, new THREE.MeshBasicMaterial({
+              color: new THREE.Color(0.35, 0.4, 0.55), side: THREE.BackSide
+            })));
+            const __gndGeo = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+            __envScene.add(new THREE.Mesh(__gndGeo, new THREE.MeshBasicMaterial({
+              color: new THREE.Color(0.15, 0.13, 0.1), side: THREE.BackSide
+            })));
+            const __pGeo = new THREE.PlaneGeometry(8, 8);
+            const __addP = (x: number, y: number, z: number, r: number, g: number, b: number, sx: number, sy: number) => {
+              const p = new THREE.Mesh(__pGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide }));
+              p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
+              __envScene.add(p);
+            };
+            __addP(0, 45, -10, 10, 9, 8, 2, 2);
+            __addP(-15, 40, 25, 4, 4, 5, 1.5, 1.5);
+            __addP(35, 20, -15, 2, 2, 2.5, 2, 2);
+            scene.environment = __pmrem.fromScene(__envScene, 0, 0.1, 100).texture;
+            __pmrem.dispose(); __skyGeo.dispose(); __gndGeo.dispose(); __pGeo.dispose();
+          }
+        } catch (__e) { console.warn("[Game3D] env map error:", __e); }
 
         const loading = createLoadingOverlay(container);
 
@@ -7025,9 +7100,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         // Physics interpolation accumulator
         let __physAccum = 0;
         const __physDt = 1 / 60;
-        // Safe render: suppress known WebGPU errors (Three.js r172 bugs)
+        // Safe render: suppress known WebGPU errors (Three.js r183 transient bugs)
         // - "Texture already initialized": render target re-init during updateRenderTarget
         // - "usedTimes": stale texture/material reference after scene disposal
+        let __renderErrCount = 0;
         const __isWebGPURenderErr = (e: any) => {
           const m = e?.message || "";
           return m.includes("already initialized") || m.includes("usedTimes") || m.includes("is not a function");
@@ -7037,8 +7113,34 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             const __c = (window as any).__vibexe_composer__;
             if (__c && !(window as any).__vibexe_skipComposer__) { __c.render(delta); }
             else { renderer.render(scene, camera); }
+            __renderErrCount = 0; // Successful render — reset error counter
           } catch (__renderErr: any) {
-            if (__isWebGPURenderErr(__renderErr)) return;
+            if (__isWebGPURenderErr(__renderErr)) {
+              __renderErrCount++;
+              // After 10 consecutive WebGPU errors, disable composer (may have stale refs)
+              if (__renderErrCount === 10 && (window as any).__vibexe_composer__) {
+                console.warn('[Game3D] 10 consecutive WebGPU render errors — disabling composer');
+                (window as any).__vibexe_skipComposer__ = true;
+              }
+              // After 30 consecutive errors, try clearing WebGPU caches
+              if (__renderErrCount === 30) {
+                console.warn('[Game3D] 30 consecutive WebGPU render errors — clearing caches');
+                try {
+                  if (renderer._nodes) renderer._nodes.dispose?.();
+                  if (renderer._textures) renderer._textures.dispose?.();
+                  if (renderer._pipelines) renderer._pipelines.dispose?.();
+                  if (renderer._bindings) renderer._bindings.dispose?.();
+                } catch {}
+                // Force material recompilation on all scene objects
+                scene?.traverse?.((obj: any) => {
+                  if (obj.material) {
+                    if (Array.isArray(obj.material)) obj.material.forEach((m: any) => { m.needsUpdate = true; });
+                    else obj.material.needsUpdate = true;
+                  }
+                });
+              }
+              return;
+            }
             throw __renderErr;
           }
         };

@@ -766,14 +766,14 @@ export function getVisualEditBridgeScript(): string {
     _addP(-35, 12, 8, 1, 1, 1.2, 2, 2);       // Fill (subtle)
     _addP(0, -30, 0, 0.5, 0.5, 0.6, 4, 4);   // Bottom fill (dim)
     editor.scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
-    // Keep renderer tone mapping unchanged — Phong materials don't need ACES
-    // Only set env map and lights for metal reflections
     pmrem.dispose(); skyGeo.dispose(); gndGeo.dispose(); pGeo.dispose();
-    // Moderate light boost for PBR (Standard material /PI factor)
-    var _al = editor.scene.getObjectByName('__default_ambient__');
-    if (_al) _al.intensity = Math.max(_al.intensity, 0.3);
-    var _hl = editor.scene.getObjectByName('__default_hemi__');
-    if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.5);
+    // PBR light boost for r183 physically-based rendering (/PI factor)
+    var _al = editor.scene.getObjectByName('__default_ambient__') || editor.scene.getObjectByName('AmbientLight');
+    if (_al) _al.intensity = Math.max(_al.intensity, 0.4);
+    var _hl = editor.scene.getObjectByName('__default_hemi__') || editor.scene.getObjectByName('HemisphereLight');
+    if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.8);
+    var _sl = editor.scene.getObjectByName('__default_sun__') || editor.scene.getObjectByName('DirectionalLight');
+    if (_sl) _sl.intensity = Math.max(_sl.intensity, 1.5);
     // PBR key light for specular highlights
     if (!editor.scene.getObjectByName('__pbr_key__')) {
       var pbrKey = new T.DirectionalLight(0xFFFBF0, 1.5);
