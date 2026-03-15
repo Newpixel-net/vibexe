@@ -434,7 +434,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   let __rendererNeedsInit = false;
   if (THREE.WebGPURenderer) {
     renderer = new THREE.WebGPURenderer({
-      antialias: __perf.antialias === true,
+      antialias: false, // WebGPU MSAA is very expensive — disable by default (can't be changed post-creation)
       powerPreference: 'high-performance'
     });
     __rendererNeedsInit = true;
