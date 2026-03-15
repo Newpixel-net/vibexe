@@ -5660,29 +5660,58 @@ export function getVisualEditBridgeScript(): string {
             // Dispose old material
             if (_rpTerrain.material) { try { _rpTerrain.material.dispose(); } catch(e) {} }
 
-            var _rpShaderMat = new _rpTHREE.ShaderMaterial({
-              uniforms: _rpUniforms,
-              vertexShader: _rpVertShader,
-              fragmentShader: _rpFragShader,
-              lights: false,
-              side: _rpTHREE.DoubleSide
-            });
-
-            _rpTerrain.material = _rpShaderMat;
-            // Sync fog uniforms from scene.fog if present; disable if no fog
-            var _sc2 = window.__vibexe_scene__;
-            if (_sc2 && _sc2.fog) {
-              var _f = _sc2.fog;
-              if (_f.color) _rpUniforms.uFogColor.value.set(_f.color.r, _f.color.g, _f.color.b);
-              if (_f.far) _rpUniforms.uFogFar.value = _f.far;
-              else if (_f.density) _rpUniforms.uFogFar.value = 3.0 / _f.density;
+            // WebGPU renderer does NOT support raw GLSL ShaderMaterial — use MeshStandardMaterial fallback
+            var _rpIsWebGPU = !!(window.__vibexe_webgpu__);
+            if (_rpIsWebGPU) {
+              var _rpStdMat = new _rpTHREE.MeshStandardMaterial({
+                side: _rpTHREE.DoubleSide,
+                roughness: 0.85,
+                metalness: 0.0,
+                vertexColors: false
+              });
+              // Apply dominant diffuse texture as material map
+              var _rpDomTex = _rpTextures[0] || _rpTextures[1] || _rpTextures[2] || _rpTextures[3];
+              if (_rpDomTex) {
+                _rpStdMat.map = _rpDomTex;
+              }
+              // Apply dominant normal map
+              var _rpDomNorm = _rpNormalTextures[0] || _rpNormalTextures[1] || _rpNormalTextures[2] || _rpNormalTextures[3];
+              if (_rpDomNorm) {
+                _rpStdMat.normalMap = _rpDomNorm;
+              }
+              // Apply dominant roughness map
+              var _rpDomRough = _rpRoughnessTextures[0] || _rpRoughnessTextures[1] || _rpRoughnessTextures[2] || _rpRoughnessTextures[3];
+              if (_rpDomRough) {
+                _rpStdMat.roughnessMap = _rpDomRough;
+              }
+              _rpStdMat.__isWebGPUFallback = true;
+              _rpTerrain.material = _rpStdMat;
+              console.log("[TerrainPainter] WebGPU fallback: MeshStandardMaterial applied with dominant texture from", _rpNumLayers, "layers");
             } else {
-              // No fog — push fog far enough that it never affects rendering
-              _rpUniforms.uFogMaxAmt.value = 0.0;
+              var _rpShaderMat = new _rpTHREE.ShaderMaterial({
+                uniforms: _rpUniforms,
+                vertexShader: _rpVertShader,
+                fragmentShader: _rpFragShader,
+                lights: false,
+                side: _rpTHREE.DoubleSide
+              });
+
+              _rpTerrain.material = _rpShaderMat;
+              // Sync fog uniforms from scene.fog if present; disable if no fog
+              var _sc2 = window.__vibexe_scene__;
+              if (_sc2 && _sc2.fog) {
+                var _f = _sc2.fog;
+                if (_f.color) _rpUniforms.uFogColor.value.set(_f.color.r, _f.color.g, _f.color.b);
+                if (_f.far) _rpUniforms.uFogFar.value = _f.far;
+                else if (_f.density) _rpUniforms.uFogFar.value = 3.0 / _f.density;
+              } else {
+                // No fog — push fog far enough that it never affects rendering
+                _rpUniforms.uFogMaxAmt.value = 0.0;
+              }
+              // Store uniforms ref on terrain for dynamic fog updates
+              _rpTerrain.userData.__fogUniforms = _rpUniforms;
+              console.log("[TerrainPainter] PBR ShaderMaterial applied with", _rpNumLayers, "layers, normals:", !!_rpNormalTextures[0], "roughness:", !!_rpRoughnessTextures[0], "ao:", !!_rpAOTextures[0]);
             }
-            // Store uniforms ref on terrain for dynamic fog updates
-            _rpTerrain.userData.__fogUniforms = _rpUniforms;
-            console.log("[TerrainPainter] PBR ShaderMaterial applied with", _rpNumLayers, "layers, normals:", !!_rpNormalTextures[0], "roughness:", !!_rpRoughnessTextures[0], "ao:", !!_rpAOTextures[0]);
 
             // === MODULE INTEROP: Update terrain surface offset from active layers ===
             // Each texture type has a visual height — how far the texture appears to
