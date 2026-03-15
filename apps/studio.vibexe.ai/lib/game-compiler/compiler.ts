@@ -428,14 +428,16 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   };
 
   // ===== Renderer (WebGPU with auto-fallback to WebGL 2) =====
+  // NOTE: renderer.init() is async (WebGPU) — deferred to the async IIFE below
+  // so esbuild can use IIFE output format (top-level await not supported in IIFE)
   let renderer: any;
+  let __rendererNeedsInit = false;
   if (THREE.WebGPURenderer) {
     renderer = new THREE.WebGPURenderer({
       antialias: __perf.antialias === true,
       powerPreference: 'high-performance'
     });
-    await renderer.init();
-    console.log('[Runtime] WebGPURenderer initialized (backend: ' + (renderer.backend?.constructor?.name || 'unknown') + ')');
+    __rendererNeedsInit = true;
   } else {
     renderer = new THREE.WebGLRenderer({
       antialias: __perf.antialias === true,
@@ -699,6 +701,28 @@ if (!gameScene || typeof gameScene.init !== 'function') {
 
   // ===== Initialize & Run =====
   (async () => {
+    // WebGPU renderer requires async init before first render
+    if (__rendererNeedsInit) {
+      try {
+        await renderer.init();
+        console.log('[Runtime] WebGPURenderer initialized (backend: ' + (renderer.backend?.constructor?.name || 'unknown') + ')');
+      } catch (initRendererErr: any) {
+        console.warn('[Runtime] WebGPURenderer init failed, falling back to WebGL:', initRendererErr);
+        renderer = new THREE.WebGLRenderer({ antialias: __perf.antialias === true, alpha: false, stencil: false, powerPreference: 'high-performance' });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(Math.min(__perf.pixelRatio || window.devicePixelRatio, 1.0));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFShadowMap;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        container.innerHTML = '';
+        container.appendChild(renderer.domElement);
+        W.__vibexe_renderer__ = renderer;
+        W.__vibexe_webgpu__ = false;
+      }
+    }
+
     try {
       await gameScene.init(scene, camera, renderer, container, () => {});
     } catch (initErr) {
