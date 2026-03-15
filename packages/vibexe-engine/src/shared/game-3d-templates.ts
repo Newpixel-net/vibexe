@@ -195,6 +195,8 @@ Object.assign(window, {
   soundUrl, createAudioManager, playSound, playMusic, playSpatial3D, preloadSounds, muteMusic, unmuteMusic,
   // Animation Events
   onAnimationEvent, onAnimationEvents,
+  // LOD System
+  createLOD3D, autoLOD,
   // Post-Processing
   createPostProcessing, addFogEffect, setToneMapping,
   // Particles & VFX
@@ -1576,6 +1578,229 @@ function _updateAllSpatial3D() {
 }
 (window as any)._activeSpatial3D = _activeSpatial3D;
 (window as any)._updateAllSpatial3D = _updateAllSpatial3D;
+
+// ===== LOD (Level of Detail) SYSTEM =====
+// Tracks all LOD groups and auto-updates them with the camera each frame.
+// THREE.LOD is built-in since r1 — shows/hides children based on camera distance.
+
+const _activeLODs3D: any[] = [];
+
+/**
+ * Updates all tracked LOD objects with the current camera.
+ * Called automatically in the game loop — AI never needs to worry about it.
+ */
+function _updateAllLODs3D(camera: any) {
+  if (!camera) return;
+  for (let i = _activeLODs3D.length - 1; i >= 0; i--) {
+    const lod = _activeLODs3D[i];
+    if (!lod.parent) { _activeLODs3D.splice(i, 1); continue; } // Auto-cleanup removed LODs
+    lod.update(camera);
+  }
+}
+(window as any)._activeLODs3D = _activeLODs3D;
+(window as any)._updateAllLODs3D = _updateAllLODs3D;
+
+/**
+ * Creates a billboard sprite from a mesh by rendering it to a canvas.
+ * Used as the lowest LOD level — a flat image facing the camera.
+ */
+function _createBillboard(mesh: any, size: number): any {
+  if (!THREE) return null;
+  // Render mesh snapshot to canvas
+  const res = 64;
+  const canvas = document.createElement("canvas");
+  canvas.width = res;
+  canvas.height = res;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    // Approximate: sample dominant color from mesh materials
+    let color = "#888888";
+    mesh.traverse((child: any) => {
+      if (child.isMesh && child.material) {
+        const mat = Array.isArray(child.material) ? child.material[0] : child.material;
+        if (mat.color) color = "#" + mat.color.getHexString();
+      }
+    });
+    // Draw a simple colored circle as billboard
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(res / 2, res / 2, res / 2 - 2, 0, Math.PI * 2);
+    ctx.fill();
+    // Add subtle border for definition
+    ctx.strokeStyle = "rgba(0,0,0,0.3)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(size, size, 1);
+  return sprite;
+}
+
+/**
+ * Creates a simplified low-poly version of a mesh (colored box matching bounds).
+ * Used as a medium LOD level.
+ */
+function _createSimplifiedMesh(mesh: any): any {
+  if (!THREE) return null;
+  const box = new THREE.Box3().setFromObject(mesh);
+  const sz = new THREE.Vector3();
+  box.getSize(sz);
+  if (sz.x === 0 || sz.y === 0 || sz.z === 0) return null;
+
+  // Sample color from original mesh
+  let color = 0x888888;
+  mesh.traverse((child: any) => {
+    if (child.isMesh && child.material) {
+      const mat = Array.isArray(child.material) ? child.material[0] : child.material;
+      if (mat.color) color = mat.color.getHex();
+    }
+  });
+
+  const geo = new THREE.BoxGeometry(sz.x, sz.y, sz.z);
+  const mat = new THREE.MeshPhongMaterial({ color, shininess: 5 });
+  const simplified = new THREE.Mesh(geo, mat);
+  // Center the box geometry to match the original mesh's center offset
+  const center = new THREE.Vector3();
+  box.getCenter(center);
+  simplified.position.copy(center).sub(mesh.position);
+  simplified.castShadow = false;
+  simplified.receiveShadow = false;
+  return simplified;
+}
+
+/**
+ * Wraps a mesh in a THREE.LOD with auto-generated detail levels.
+ *
+ * Level 0 (0-nearDist): Original mesh (full detail)
+ * Level 1 (nearDist-farDist): Simplified box mesh (low-poly)
+ * Level 2 (farDist+): Billboard sprite OR hidden
+ *
+ * The LOD replaces the mesh in its parent. Physics bodies remain unchanged
+ * (position synced to the LOD group, which passes through to visible child).
+ *
+ * Usage:
+ *   const { mesh } = await createPlatform3D(scene, 0, 1, -5);
+ *   const lod = createLOD3D(mesh);                          // Auto distances
+ *   const lod = createLOD3D(mesh, { near: 30, far: 60 });   // Custom distances
+ *   const lod = createLOD3D(mesh, { levels: [               // Full manual control
+ *     { mesh: highMesh, distance: 0 },
+ *     { mesh: lowMesh, distance: 30 },
+ *   ]});
+ */
+function createLOD3D(
+  mesh: any,
+  opts?: {
+    near?: number;
+    far?: number;
+    billboard?: boolean;
+    levels?: Array<{ mesh: any; distance: number }>;
+  },
+): any {
+  if (!THREE?.LOD) { console.warn("[LOD] THREE.LOD not available"); return mesh; }
+
+  const near = opts?.near ?? 30;
+  const far = opts?.far ?? 60;
+  const useBillboard = opts?.billboard !== false;
+
+  const lod = new THREE.LOD();
+
+  if (opts?.levels) {
+    // Manual levels
+    for (const l of opts.levels) {
+      lod.addLevel(l.mesh, l.distance);
+    }
+  } else {
+    // Auto-generate levels
+    // Level 0: original mesh (re-parent into LOD)
+    const origParent = mesh.parent;
+    const origPos = mesh.position.clone();
+    if (origParent) origParent.remove(mesh);
+    mesh.position.set(0, 0, 0); // LOD group holds position
+    lod.addLevel(mesh, 0);
+
+    // Level 1: simplified colored box
+    const simplified = _createSimplifiedMesh(mesh);
+    if (simplified) {
+      lod.addLevel(simplified, near);
+    }
+
+    // Level 2: billboard sprite or empty
+    if (useBillboard) {
+      const box = new THREE.Box3().setFromObject(mesh);
+      const sz = new THREE.Vector3();
+      box.getSize(sz);
+      const billSize = Math.max(sz.x, sz.y, sz.z);
+      const billboard = _createBillboard(mesh, billSize);
+      if (billboard) {
+        lod.addLevel(billboard, far);
+      }
+    }
+
+    // Level 3: empty object (invisible beyond 2x far)
+    const empty = new THREE.Object3D();
+    lod.addLevel(empty, far * 2);
+
+    // Place LOD at original mesh position
+    lod.position.copy(origPos);
+    if (origParent) origParent.add(lod);
+  }
+
+  // Transfer physics body reference if any
+  if (mesh.userData?.__physicsBody) {
+    lod.userData.__physicsBody = mesh.userData.__physicsBody;
+  }
+  // Transfer vibexe metadata
+  if (mesh.userData?.vibexeType) lod.userData.vibexeType = mesh.userData.vibexeType;
+  if (mesh.userData?.vibexeFactory) lod.userData.vibexeFactory = mesh.userData.vibexeFactory;
+
+  // Track for auto-update
+  _activeLODs3D.push(lod);
+
+  return lod;
+}
+
+/**
+ * Batch-applies LOD to all objects in the scene matching a filter.
+ * Useful for applying LOD to all decorations/collectibles at once.
+ *
+ * Usage:
+ *   // LOD all decorations with 25/50 distances
+ *   autoLOD(scene, { type: "decoration", near: 25, far: 50 });
+ *
+ *   // LOD everything except the player
+ *   autoLOD(scene, { exclude: ["player"], near: 30, far: 60 });
+ */
+function autoLOD(
+  scene: any,
+  opts?: {
+    type?: string;
+    exclude?: string[];
+    near?: number;
+    far?: number;
+    billboard?: boolean;
+  },
+): number {
+  const targets: any[] = [];
+  scene.traverse((child: any) => {
+    if (!child.userData?.vibexeType) return;
+    if (child.isLOD) return; // Already LOD'd
+    if (opts?.type && child.userData.vibexeType !== opts.type) return;
+    if (opts?.exclude && opts.exclude.includes(child.userData.vibexeType)) return;
+    targets.push(child);
+  });
+
+  let count = 0;
+  for (const target of targets) {
+    createLOD3D(target, { near: opts?.near, far: opts?.far, billboard: opts?.billboard });
+    count++;
+  }
+  return count;
+}
+
+(window as any).createLOD3D = createLOD3D;
+(window as any).autoLOD = autoLOD;
 
 // ===== KNOWN ANIMATION MAPS =====
 // Hardcoded clip name mappings for hosted GLB models.
@@ -3925,6 +4150,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       _activeSprings3D.length = 0;
       _physInterpMeshes.length = 0;
       _activeAnimEvents3D.length = 0;
+      _activeLODs3D.length = 0;
       if ((window as any)._activeSpatial3D) (window as any)._activeSpatial3D.length = 0;
       if (scene) {
         scene.traverse((obj: any) => {
@@ -5775,6 +6001,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           (window as any)._interpolatePhysics?.(__physAlpha);
           // Particles are visual-only — update with real frame delta
           (window as any)._updateAllParticles3D?.(__frameDelta);
+          // Update LOD levels based on camera distance
+          (window as any)._updateAllLODs3D?.(camera);
           // Update spatial audio: attached sounds follow meshes
           (window as any)._updateAllSpatial3D?.();
           // Update spatial audio listener position + orientation from camera
