@@ -3397,7 +3397,9 @@ const POST_PROCESSING_PRESETS: Record<string, any> = {
 (window as any).createPostProcessing = createPostProcessing;
 
 /**
- * Creates post-processing pipeline with EffectComposer.
+ * Creates post-processing pipeline.
+ * Uses WebGPU-compatible PostProcessing + TSL nodes when available (WebGPURenderer),
+ * falls back to legacy EffectComposer (WebGLRenderer only).
  * Stores on window.__vibexe_composer__ — Game3D.tsx auto-uses it for rendering.
  *
  * Usage:
@@ -3411,26 +3413,6 @@ export function createPostProcessing(
   renderer: any, scene: any, camera: any,
   preset?: string,
 ): { composer: any; addBloom: (opts?: any) => void; addFog: (opts?: any) => void; setPreset: (name: string) => void; destroy: () => void } | null {
-  if (!THREE.EffectComposer) {
-    console.warn("[PostFX] EffectComposer not loaded — post-processing unavailable");
-    return null;
-  }
-
-  const composer = new THREE.EffectComposer(renderer);
-  const renderPass = new THREE.RenderPass(scene, camera);
-  composer.addPass(renderPass);
-  (window as any).__vibexe_composer__ = composer;
-
-  let _bloomPass: any = null;
-
-  function addBloom(opts?: { strength?: number; radius?: number; threshold?: number }) {
-    if (!THREE.UnrealBloomPass) { console.warn("[PostFX] UnrealBloomPass not loaded — bloom unavailable"); return; }
-    if (_bloomPass) composer.removePass(_bloomPass);
-    // Quarter-resolution bloom: 16x fewer fragments, visually acceptable at typical bloom radius
-    const res = new THREE.Vector2(Math.floor(renderer.domElement.width / 4), Math.floor(renderer.domElement.height / 4));
-    _bloomPass = new THREE.UnrealBloomPass(res, opts?.strength ?? 0.5, opts?.radius ?? 0.4, opts?.threshold ?? 0.85);
-    composer.addPass(_bloomPass);
-  }
 
   function addFog(opts?: { color?: number; near?: number; far?: number }) {
     scene.fog = new THREE.Fog(opts?.color ?? 0x88aacc, opts?.near ?? 20, opts?.far ?? 80);
@@ -3442,22 +3424,87 @@ export function createPostProcessing(
     renderer.toneMappingExposure = exposure;
   }
 
-  function setPreset(name: string) {
+  // ─── WebGPU path: THREE.PostProcessing + TSL nodes ───
+  if (THREE.PostProcessing && THREE.pass) {
+    const postProcessing = new THREE.PostProcessing(renderer);
+    const scenePass = THREE.pass(scene, camera);
+    let _colorNode = scenePass.getTextureNode("output");
+    let _bloomActive = false;
+
+    // Start with plain scene pass
+    postProcessing.outputNode = _colorNode;
+    (window as any).__vibexe_composer__ = postProcessing;
+
+    function addBloom(opts?: { strength?: number; radius?: number; threshold?: number }) {
+      if (!THREE.bloom) { console.warn("[PostFX] bloom TSL node not loaded — bloom unavailable"); return; }
+      // bloom(inputNode, strength, radius, threshold)
+      const bloomNode = THREE.bloom(_colorNode, opts?.strength ?? 0.5, opts?.radius ?? 0.4, opts?.threshold ?? 0.85);
+      postProcessing.outputNode = _colorNode.add(bloomNode);
+      _bloomActive = true;
+      console.log("[PostFX] WebGPU bloom enabled — strength:", opts?.strength ?? 0.5);
+    }
+
+    function setPreset(name: string) {
+      const p = POST_PROCESSING_PRESETS[name];
+      if (!p) { console.warn("[PostFX] Unknown preset:", name); return; }
+      if (p.bloom) addBloom(p.bloom);
+      if (p.fog) addFog(p.fog); else scene.fog = null;
+      if (p.toneMapping) setToneMappingInternal(p.toneMapping, p.exposure ?? 1);
+    }
+
+    if (preset) setPreset(preset);
+    console.log("[PostFX] WebGPU PostProcessing pipeline created");
+
+    return {
+      composer: postProcessing,
+      addBloom,
+      addFog,
+      setPreset,
+      destroy() {
+        (window as any).__vibexe_composer__ = null;
+        postProcessing.dispose?.();
+      },
+    };
+  }
+
+  // ─── WebGL fallback: legacy EffectComposer ───
+  if (!THREE.EffectComposer) {
+    console.warn("[PostFX] Neither PostProcessing nor EffectComposer available — post-processing unavailable");
+    return null;
+  }
+
+  const composer = new THREE.EffectComposer(renderer);
+  const renderPass = new THREE.RenderPass(scene, camera);
+  composer.addPass(renderPass);
+  (window as any).__vibexe_composer__ = composer;
+
+  let _bloomPass: any = null;
+
+  function addBloomLegacy(opts?: { strength?: number; radius?: number; threshold?: number }) {
+    if (!THREE.UnrealBloomPass) { console.warn("[PostFX] UnrealBloomPass not loaded — bloom unavailable"); return; }
+    if (_bloomPass) composer.removePass(_bloomPass);
+    // Quarter-resolution bloom: 16x fewer fragments, visually acceptable at typical bloom radius
+    const res = new THREE.Vector2(Math.floor(renderer.domElement.width / 4), Math.floor(renderer.domElement.height / 4));
+    _bloomPass = new THREE.UnrealBloomPass(res, opts?.strength ?? 0.5, opts?.radius ?? 0.4, opts?.threshold ?? 0.85);
+    composer.addPass(_bloomPass);
+  }
+
+  function setPresetLegacy(name: string) {
     const p = POST_PROCESSING_PRESETS[name];
     if (!p) { console.warn("[PostFX] Unknown preset:", name); return; }
-    if (p.bloom) addBloom(p.bloom);
+    if (p.bloom) addBloomLegacy(p.bloom);
     if (p.fog) addFog(p.fog); else scene.fog = null;
     if (p.toneMapping) setToneMappingInternal(p.toneMapping, p.exposure ?? 1);
   }
 
-  // Apply preset if given
-  if (preset) setPreset(preset);
+  if (preset) setPresetLegacy(preset);
+  console.log("[PostFX] Legacy EffectComposer pipeline created (WebGL)");
 
   return {
     composer,
-    addBloom,
+    addBloom: addBloomLegacy,
     addFog,
-    setPreset,
+    setPreset: setPresetLegacy,
     destroy() {
       (window as any).__vibexe_composer__ = null;
       composer.dispose?.();
@@ -3551,36 +3598,65 @@ export function createParticleEmitter(
   geometry.setAttribute("aAlpha", new THREE.BufferAttribute(alphas, 1));
   geometry.setAttribute("color", new THREE.BufferAttribute(colorArr, 3));
 
-  // Custom ShaderMaterial for per-vertex size + alpha (PointsMaterial has uniform size only)
-  const material = new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    vertexShader: [
-      "attribute float aSize;",
-      "attribute float aAlpha;",
-      "varying vec3 vColor;",
-      "varying float vAlpha;",
-      "void main() {",
-      "  vColor = color;",
-      "  vAlpha = aAlpha;",
-      "  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);",
-      "  gl_PointSize = aSize * (300.0 / length(mvPosition.xyz));",
-      "  gl_PointSize = max(gl_PointSize, 1.0);",
-      "  gl_Position = projectionMatrix * mvPosition;",
-      "}",
-    ].join("\\n"),
-    fragmentShader: [
-      "varying vec3 vColor;",
-      "varying float vAlpha;",
-      "void main() {",
-      "  float d = length(gl_PointCoord - vec2(0.5));",
-      "  if (d > 0.5) discard;",
-      "  float edgeFade = 1.0 - smoothstep(0.3, 0.5, d);",
-      "  gl_FragColor = vec4(vColor, vAlpha * edgeFade);",
-      "}",
-    ].join("\\n"),
-    vertexColors: true,
-  });
+  // TSL node material (WebGPU + WebGL compatible) with GLSL ShaderMaterial fallback
+  let material: any;
+  if (THREE.PointsNodeMaterial && THREE.attribute) {
+    material = new THREE.PointsNodeMaterial({
+      transparent: true,
+      depthWrite: false,
+      vertexColors: true,
+      sizeAttenuation: true,
+    });
+    try {
+      const _aSize = THREE.attribute("aSize");
+      const _aAlpha = THREE.attribute("aAlpha");
+      // Per-vertex point size (sizeAttenuation handles camera distance scaling)
+      material.sizeNode = THREE.max(_aSize, THREE.float(0.01));
+      // Circular soft-edge opacity — shapeCircle() = smooth disc mask on point sprite
+      if (THREE.shapeCircle) {
+        material.opacityNode = _aAlpha.mul(THREE.shapeCircle());
+      } else {
+        // Manual circle fallback: UV center at (0.5,0.5), smoothstep edge fade
+        const _uvC = THREE.uv().sub(THREE.vec2(0.5, 0.5));
+        const _dist = _uvC.length();
+        const _edge = THREE.float(1).sub(THREE.smoothstep(THREE.float(0.3), THREE.float(0.5), _dist));
+        material.opacityNode = _aAlpha.mul(_edge);
+      }
+    } catch (_tslErr) {
+      console.warn("[Particles] TSL node setup failed, using basic PointsNodeMaterial:", _tslErr);
+    }
+  } else {
+    // Legacy GLSL ShaderMaterial fallback (WebGL only — ShaderMaterial is incompatible with WebGPU)
+    material = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      vertexShader: [
+        "attribute float aSize;",
+        "attribute float aAlpha;",
+        "varying vec3 vColor;",
+        "varying float vAlpha;",
+        "void main() {",
+        "  vColor = color;",
+        "  vAlpha = aAlpha;",
+        "  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);",
+        "  gl_PointSize = aSize * (300.0 / length(mvPosition.xyz));",
+        "  gl_PointSize = max(gl_PointSize, 1.0);",
+        "  gl_Position = projectionMatrix * mvPosition;",
+        "}",
+      ].join("\\n"),
+      fragmentShader: [
+        "varying vec3 vColor;",
+        "varying float vAlpha;",
+        "void main() {",
+        "  float d = length(gl_PointCoord - vec2(0.5));",
+        "  if (d > 0.5) discard;",
+        "  float edgeFade = 1.0 - smoothstep(0.3, 0.5, d);",
+        "  gl_FragColor = vec4(vColor, vAlpha * edgeFade);",
+        "}",
+      ].join("\\n"),
+      vertexColors: true,
+    });
+  }
 
   const points = new THREE.Points(geometry, material);
   points.name = "__particle_emitter";
@@ -3719,27 +3795,50 @@ export function createTrailRenderer(
   geometry.setAttribute("aAlpha", new THREE.BufferAttribute(alphas, 1));
   geometry.setIndex(indices);
 
-  const material = new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    uniforms: { uColor: { value: color } },
-    vertexShader: [
-      "attribute float aAlpha;",
-      "varying float vAlpha;",
-      "void main() {",
-      "  vAlpha = aAlpha;",
-      "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
-      "}",
-    ].join("\\n"),
-    fragmentShader: [
-      "uniform vec3 uColor;",
-      "varying float vAlpha;",
-      "void main() {",
-      "  gl_FragColor = vec4(uColor, vAlpha * 0.6);",
-      "}",
-    ].join("\\n"),
-  });
+  // TSL node material (WebGPU + WebGL compatible) with GLSL fallback
+  let material: any;
+  let _tslColorUniform: any = null;
+  if (THREE.MeshBasicNodeMaterial && THREE.attribute) {
+    material = new THREE.MeshBasicNodeMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    try {
+      _tslColorUniform = THREE.uniform(color);
+      const _tAlpha = THREE.attribute("aAlpha");
+      material.colorNode = _tslColorUniform;
+      material.opacityNode = _tAlpha.mul(THREE.float(0.6));
+    } catch (_tslErr) {
+      console.warn("[Trail] TSL node setup failed:", _tslErr);
+      _tslColorUniform = null;
+      material.color = color;
+      material.opacity = 0.6;
+    }
+  } else {
+    // Legacy GLSL ShaderMaterial fallback (WebGL only)
+    material = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      uniforms: { uColor: { value: color } },
+      vertexShader: [
+        "attribute float aAlpha;",
+        "varying float vAlpha;",
+        "void main() {",
+        "  vAlpha = aAlpha;",
+        "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
+        "}",
+      ].join("\\n"),
+      fragmentShader: [
+        "uniform vec3 uColor;",
+        "varying float vAlpha;",
+        "void main() {",
+        "  gl_FragColor = vec4(uColor, vAlpha * 0.6);",
+        "}",
+      ].join("\\n"),
+    });
+  }
   const ribbonMesh = new THREE.Mesh(geometry, material);
   ribbonMesh.frustumCulled = false;
   ribbonMesh.name = "__trail_renderer";
@@ -3807,7 +3906,7 @@ export function createTrailRenderer(
     },
     isAlive() { return !_destroyed; },
     destroy() { _destroyed = true; trailObj._destroyed = true; scene.remove(ribbonMesh); geometry.dispose(); material.dispose(); },
-    setColor(c: number) { material.uniforms.uColor.value.set(c); },
+    setColor(c: number) { if (_tslColorUniform) { _tslColorUniform.value.set(c); } else if (material.uniforms?.uColor) { material.uniforms.uColor.value.set(c); } else if (material.color) { material.color.set(c); } },
     setWidth(w: number) { width = w; },
   };
 
@@ -4181,8 +4280,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
       // Resize post-processing composer so bloom/effects stay sharp
+      // (PostProcessing has no setSize — renderer handles it; EffectComposer needs explicit setSize)
       const __comp = (window as any).__vibexe_composer__;
-      if (__comp) __comp.setSize(w, h);
+      if (__comp?.setSize) __comp.setSize(w, h);
     };
     window.addEventListener("resize", onResize);
 
@@ -5873,7 +5973,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                   // Recreate with new settings (or clear if preset is "none")
                   if (_pp.preset && _pp.preset !== "none") {
                     const _createPP = (window as any).createPostProcessing;
-                    console.log("[PostFX] createPostProcessing available:", !!_createPP, "THREE.EffectComposer:", !!(window as any).THREE?.EffectComposer);
+                    console.log("[PostFX] createPostProcessing available:", !!_createPP, "PostProcessing:", !!(window as any).THREE?.PostProcessing, "EffectComposer:", !!(window as any).THREE?.EffectComposer);
                     if (_createPP) {
                       const _newPP = _createPP(renderer, scene, camera, _pp.preset);
                       console.log("[PostFX] Created composer:", !!_newPP, "stored on window:", !!(window as any).__vibexe_composer__);

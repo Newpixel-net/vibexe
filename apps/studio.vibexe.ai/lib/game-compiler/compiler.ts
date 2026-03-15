@@ -645,7 +645,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
     const comp = W.__vibexe_composer__;
-    if (comp) comp.setSize(w, h);
+    if (comp?.setSize) comp.setSize(w, h);
   };
   window.addEventListener('resize', _resizeHandler);
 

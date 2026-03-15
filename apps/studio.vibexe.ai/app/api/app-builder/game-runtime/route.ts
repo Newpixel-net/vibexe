@@ -85,6 +85,15 @@ try {
   console.warn('[Runtime] Rapier.js failed to load (CANNON.js only):', _rapierErr);
 }
 
+// Load bloom node for WebGPU post-processing (optional — EffectComposer fallback if unavailable)
+try {
+  var _bloomMod = await import('three/addons/tsl/display/BloomNode.js');
+  window.THREE.bloom = _bloomMod.bloom || _bloomMod.default;
+  console.log('[Runtime] Bloom TSL node loaded (WebGPU post-processing ready)');
+} catch (_bloomErr) {
+  console.log('[Runtime] Bloom TSL node unavailable (EffectComposer fallback)');
+}
+
 // Signal that libraries are ready (bridge and game code wait for this)
 window.__vibexe_libs_ready__ = true;
 window.dispatchEvent(new Event('vibexe-libs-ready'));
