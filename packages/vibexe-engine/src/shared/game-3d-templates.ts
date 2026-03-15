@@ -5461,9 +5461,12 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         _defSun.shadow.bias = -0.001;
         scene.add(_defSun);
 
-        // Procedural environment map for PBR reflections / indirect lighting
-        try {
-          if (THREE.PMREMGenerator) {
+        // Deferred procedural environment map — runs after first render to avoid blocking init.
+        // PMREMGenerator.fromScene() is extremely expensive on WebGPU (compiles 6+ cube face shaders).
+        // Without env map, PBR materials still look decent with the boosted lighting above.
+        setTimeout(() => {
+          try {
+            if (disposed || !scene || !THREE.PMREMGenerator) return;
             const __pmrem = new THREE.PMREMGenerator(renderer);
             __pmrem.compileEquirectangularShader?.();
             const __envScene = new THREE.Scene();
@@ -5486,8 +5489,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             __addP(35, 20, -15, 2, 2, 2.5, 2, 2);
             scene.environment = __pmrem.fromScene(__envScene, 0, 0.1, 100).texture;
             __pmrem.dispose(); __skyGeo.dispose(); __gndGeo.dispose(); __pGeo.dispose();
-          }
-        } catch (__e) { console.warn("[Game3D] env map error:", __e); }
+            console.log("[Game3D] Deferred env map applied");
+          } catch (__e) { console.warn("[Game3D] env map error:", __e); }
+        }, 2000);
 
         const loading = createLoadingOverlay(container);
 
