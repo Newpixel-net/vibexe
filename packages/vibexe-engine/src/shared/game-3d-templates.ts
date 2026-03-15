@@ -275,7 +275,7 @@ export function initRenderer(container: HTMLDivElement): any {
   renderer.shadowMap.autoUpdate = false;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.5;
+  renderer.toneMappingExposure = 0.9;
   container.appendChild(renderer.domElement);
 
   const onResize = () => {
@@ -302,16 +302,16 @@ export function initScene(): typeof THREE.Scene {
   const scene = new THREE.Scene();
 
   // PBR-tuned lighting for r183 physically-based MeshStandardMaterial.
-  // r183 divides light by PI for energy conservation — need 2-3x old values.
-  const hemi = new THREE.HemisphereLight(0xEEF4FF, 0x886644, 0.8);
+  // Keep moderate — sky-weather, env map, and game code add more light.
+  const hemi = new THREE.HemisphereLight(0xEEF4FF, 0x886644, 0.4);
   hemi.name = "HemisphereLight";
   scene.add(hemi);
 
-  const ambient = new THREE.AmbientLight(0xFFFFFF, 0.4);
+  const ambient = new THREE.AmbientLight(0xFFFFFF, 0.15);
   ambient.name = "AmbientLight";
   scene.add(ambient);
 
-  const sun = new THREE.DirectionalLight(0xFFF8EE, 1.5);
+  const sun = new THREE.DirectionalLight(0xFFF8EE, 1.2);
   sun.name = "DirectionalLight";
   sun.position.set(8, 20, 10);
   sun.castShadow = true;
@@ -596,9 +596,13 @@ export function createSkyGradient(
   bottomColor: number = 0xE0F0FF,
 ): void {
   scene.background = new THREE.Color(topColor);
-  // Hemisphere light for ambient sky color
-  const hemi = new THREE.HemisphereLight(topColor, bottomColor, 0.4);
-  scene.add(hemi);
+  // Only add hemisphere light if none exists (Game3D IIFE already provides one)
+  let hasHemi = false;
+  scene.traverse((obj: any) => { if (obj.isHemisphereLight) hasHemi = true; });
+  if (!hasHemi) {
+    const hemi = new THREE.HemisphereLight(topColor, bottomColor, 0.4);
+    scene.add(hemi);
+  }
 }
 
 // ===== Ground plane =====
@@ -5336,7 +5340,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       // so without tone mapping, scenes are dark/flat. Exposure 1.2 is neutral enough
       // for both PBR and cartoon (Phong/Lambert) materials.
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.2;
+      renderer.toneMappingExposure = 0.9;
       container.appendChild(renderer.domElement);
       (window as any).__vibexe_renderer__ = renderer;
 
@@ -5393,24 +5397,24 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         }
 
         // PBR-tuned lighting for r183 physically-based MeshStandardMaterial.
-        // r183 divides light by PI for energy conservation — need 2-3x old values.
-        // Games can remove/replace these in their init() if needed.
+        // r183 divides light by PI for energy conservation.
+        // Keep defaults moderate — sky-weather, env map, and game code add more light.
         const _defHemi = new THREE.HemisphereLight(
           __gs.environment?.hemisphereSkyColor || '#eef4ff',
           __gs.environment?.hemisphereGroundColor || '#886644',
-          __gs.environment?.hemisphereIntensity ?? 0.8
+          __gs.environment?.hemisphereIntensity ?? 0.4
         );
         _defHemi.name = '__default_hemi__';
         scene.add(_defHemi);
         const _defAmbient = new THREE.AmbientLight(
           __gs.environment?.ambientLightColor || '#ffffff',
-          __gs.environment?.ambientLightIntensity ?? 0.4
+          __gs.environment?.ambientLightIntensity ?? 0.15
         );
         _defAmbient.name = '__default_ambient__';
         scene.add(_defAmbient);
         const _defSun = new THREE.DirectionalLight(
           __gs.environment?.sunLightColor || '#fff8ee',
-          __gs.environment?.sunLightIntensity ?? 1.5
+          __gs.environment?.sunLightIntensity ?? 1.2
         );
         _defSun.name = '__default_sun__';
         _defSun.position.set(8, 20, 10);

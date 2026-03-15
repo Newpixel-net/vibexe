@@ -745,13 +745,14 @@ export function getVisualEditBridgeScript(): string {
     var T = window.THREE;
     if (!T || !editor || !editor.scene || !editor.renderer) return;
     _pbrEnvReady = true;
-    // PBR light boost for r183 physically-based rendering (/PI factor)
+    // PBR light floor for r183 physically-based rendering (/PI factor)
+    // Keep moderate — sky-weather and env map add more light on top.
     var _al = editor.scene.getObjectByName('__default_ambient__') || editor.scene.getObjectByName('AmbientLight');
-    if (_al) _al.intensity = Math.max(_al.intensity, 0.4);
+    if (_al) _al.intensity = Math.max(_al.intensity, 0.15);
     var _hl = editor.scene.getObjectByName('__default_hemi__') || editor.scene.getObjectByName('HemisphereLight');
-    if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.8);
+    if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.4);
     var _sl = editor.scene.getObjectByName('__default_sun__') || editor.scene.getObjectByName('DirectionalLight');
-    if (_sl) _sl.intensity = Math.max(_sl.intensity, 1.5);
+    if (_sl) _sl.intensity = Math.max(_sl.intensity, 1.2);
     // Deferred env map — PMREMGenerator.fromScene() is extremely expensive on WebGPU
     // (compiles 6+ cube face shaders, blocks main thread). Defer to avoid FPS=1 on init.
     setTimeout(function() {
