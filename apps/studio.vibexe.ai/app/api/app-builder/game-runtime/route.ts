@@ -53,23 +53,18 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { CopyShader } from 'three/addons/shaders/CopyShader.js';
-import { LuminosityHighPassShader } from 'three/addons/shaders/LuminosityHighPassShader.js';
+// NOTE: Legacy postprocessing addons (EffectComposer, ShaderPass, UnrealBloomPass) import
+// WebGL-specific internals (UniformsUtils, WebGLRenderTarget) that don't exist in three.webgpu.js.
+// They MUST be loaded via dynamic import() so failures don't crash the entire module script.
 import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js';
 
 // ES module namespace is frozen — create a mutable copy with addons attached
-var T = Object.assign({}, THREE, { GLTFLoader, OrbitControls, TransformControls, EffectComposer, RenderPass, UnrealBloomPass, ShaderPass, CopyShader, LuminosityHighPassShader });
+var T = Object.assign({}, THREE, { GLTFLoader, OrbitControls, TransformControls });
 window.THREE = T;
 window.CANNON = Object.assign({}, CANNON);
 
-var loaded = ['GLTFLoader','OrbitControls','TransformControls','EffectComposer']
-  .filter(function(n) { return !!T[n]; }).length;
 var hasWebGPU = !!navigator.gpu;
-console.log('[Runtime] Three.js r' + T.REVISION + ' loaded with ' + loaded + '/4 core addons' + (hasWebGPU ? ' [WebGPU]' : ' [WebGL fallback]'));
+console.log('[Runtime] Three.js r' + T.REVISION + ' loaded' + (hasWebGPU ? ' [WebGPU]' : ' [WebGL fallback]'));
 console.log('[Runtime] CANNON.js loaded');
 window.__vibexe_hasWebGPU__ = hasWebGPU;
 
@@ -85,14 +80,43 @@ try {
   console.warn('[Runtime] Rapier.js failed to load (CANNON.js only):', _rapierErr);
 }
 
-// Load bloom node for WebGPU post-processing (optional — EffectComposer fallback if unavailable)
+// Load WebGPU post-processing: bloom TSL node (works on both WebGPU and WebGL backends)
 try {
   var _bloomMod = await import('three/addons/tsl/display/BloomNode.js');
   window.THREE.bloom = _bloomMod.bloom || _bloomMod.default;
-  console.log('[Runtime] Bloom TSL node loaded (WebGPU post-processing ready)');
+  console.log('[Runtime] Bloom TSL node loaded');
 } catch (_bloomErr) {
-  console.log('[Runtime] Bloom TSL node unavailable (EffectComposer fallback)');
+  console.log('[Runtime] Bloom TSL node unavailable');
 }
+
+// Load legacy postprocessing addons (WebGL-only — may fail with WebGPU build, that's OK)
+// createPostProcessing() will use THREE.PostProcessing + TSL nodes as primary path
+try {
+  var [_ec, _rp, _ubp, _sp, _cs, _lhps] = await Promise.all([
+    import('three/addons/postprocessing/EffectComposer.js'),
+    import('three/addons/postprocessing/RenderPass.js'),
+    import('three/addons/postprocessing/UnrealBloomPass.js'),
+    import('three/addons/postprocessing/ShaderPass.js'),
+    import('three/addons/shaders/CopyShader.js'),
+    import('three/addons/shaders/LuminosityHighPassShader.js'),
+  ]);
+  Object.assign(window.THREE, {
+    EffectComposer: _ec.EffectComposer,
+    RenderPass: _rp.RenderPass,
+    UnrealBloomPass: _ubp.UnrealBloomPass,
+    ShaderPass: _sp.ShaderPass,
+    CopyShader: _cs.CopyShader,
+    LuminosityHighPassShader: _lhps.LuminosityHighPassShader,
+  });
+  console.log('[Runtime] Legacy postprocessing loaded (EffectComposer available)');
+} catch (_ppErr) {
+  console.log('[Runtime] Legacy postprocessing unavailable (WebGPU PostProcessing will be used)');
+}
+
+// Log final addon count
+var _addonCount = ['GLTFLoader','OrbitControls','TransformControls','PostProcessing','bloom']
+  .filter(function(n) { return !!window.THREE[n]; }).length;
+console.log('[Runtime] ' + _addonCount + '/5 core addons loaded');
 
 // Signal that libraries are ready (bridge and game code wait for this)
 window.__vibexe_libs_ready__ = true;
