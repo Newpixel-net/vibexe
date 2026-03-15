@@ -448,7 +448,8 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(Math.min(__perf.pixelRatio || window.devicePixelRatio, 1.0));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap;
+  // WebGPU: BasicShadowMap is cheaper than PCF (saves ~20% GPU time on shadows)
+  renderer.shadowMap.type = W.__vibexe_webgpu__ ? THREE.BasicShadowMap : THREE.PCFShadowMap;
   renderer.shadowMap.autoUpdate = false;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -849,8 +850,10 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       const __audioFwd = new THREE.Vector3();
       const __audioUp = new THREE.Vector3();
       // FPS cap from settings
-      const __initFI = __perf.maxFPS && __perf.maxFPS > 0 ? 1000 / __perf.maxFPS : 0;
-      if (__initFI > 0) { W.__vibexe_frameInterval__ = __initFI; W.__vibexe_targetFPS__ = __perf.maxFPS; }
+      // Default 60fps cap to prevent unnecessary GPU work (user can override via settings)
+      const __defaultFPS = __perf.maxFPS && __perf.maxFPS > 0 ? __perf.maxFPS : 60;
+      const __initFI = 1000 / __defaultFPS;
+      W.__vibexe_frameInterval__ = __initFI; W.__vibexe_targetFPS__ = __defaultFPS;
 
       // Signal PerfGuard is active (bridge AdaptiveQuality should back off)
       W.__vibexe_perfguard__ = true;
@@ -892,17 +895,21 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         if (__perfNow - __perfLastCheck >= 2000 && !__editorMode) {
           const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
           const __perfAge = __perfNow - __perfStartTime;
-          if (__avgFps < 25 && !__perfDowngraded && __perfAge > 15000) {
+          if (__avgFps < 25 && !__perfDowngraded && __perfAge > 20000) {
             __perfDowngraded = true;
             __perfDowngradeTime = __perfNow;
             W.__vibexe_perfguard_degraded__ = true;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
-            renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 1.0));
+            // Actually reduce pixelRatio below 1.0 (0.75 = 56% fewer pixels)
+            renderer.setPixelRatio(0.75);
             renderer.shadowMap.enabled = false;
-            W.__vibexe_cullDistance__ = 80;
+            W.__vibexe_cullDistance__ = 60;
+            // Reduce FPS target to 30 to give GPU breathing room
+            W.__vibexe_frameInterval__ = 1000 / 30;
+            W.__vibexe_targetFPS__ = 30;
             const comp = W.__vibexe_composer__;
             if (comp?.passes) { for (let pi = 0; pi < comp.passes.length; pi++) { if (comp.passes[pi].constructor?.name === 'UnrealBloomPass') comp.passes[pi].enabled = false; } }
-          } else if (__avgFps > 55 && __perfDowngraded && (__perfNow - __perfDowngradeTime > 30000)) {
+          } else if (__avgFps > 45 && __perfDowngraded && (__perfNow - __perfDowngradeTime > 30000)) {
             // Only restore after 30s cooldown to prevent oscillation (reduce→restore→reduce flicker)
             __perfDowngraded = false;
             W.__vibexe_perfguard_degraded__ = false;
@@ -911,6 +918,8 @@ if (!gameScene || typeof gameScene.init !== 'function') {
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.needsUpdate = true;
             W.__vibexe_cullDistance__ = 150;
+            W.__vibexe_frameInterval__ = __initFI;
+            W.__vibexe_targetFPS__ = __defaultFPS;
             const comp = W.__vibexe_composer__;
             if (comp?.passes) { for (let pi = 0; pi < comp.passes.length; pi++) { if (comp.passes[pi].constructor?.name === 'UnrealBloomPass') comp.passes[pi].enabled = true; } }
           }
