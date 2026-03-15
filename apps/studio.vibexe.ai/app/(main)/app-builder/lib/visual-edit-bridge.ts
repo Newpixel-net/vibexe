@@ -749,14 +749,16 @@ export function getVisualEditBridgeScript(): string {
     _toneMapReady = true;
     // Ensure ACES tone mapping + correct exposure for r183 PBR
     editor.renderer.toneMapping = T.ACESFilmicToneMapping;
-    editor.renderer.toneMappingExposure = 0.9;
-    // PBR light floor for r183 physically-based rendering (/PI factor)
+    editor.renderer.toneMappingExposure = 1.0;
+    // PBR light floor for r183 physically-based rendering (/PI energy conservation)
+    // MeshStandardMaterial divides light by PI (~3.14), so we need ~3x r172 values.
+    // ACES tonemapping compresses the range, so total ~3.0 is a good target.
     var _al = editor.scene.getObjectByName('__default_ambient__') || editor.scene.getObjectByName('AmbientLight');
-    if (_al) _al.intensity = Math.max(_al.intensity, 0.15);
+    if (_al) _al.intensity = Math.max(_al.intensity, 0.3);
     var _hl = editor.scene.getObjectByName('__default_hemi__') || editor.scene.getObjectByName('HemisphereLight');
-    if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.4);
+    if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.8);
     var _sl = editor.scene.getObjectByName('__default_sun__') || editor.scene.getObjectByName('DirectionalLight');
-    if (_sl) _sl.intensity = Math.max(_sl.intensity, 1.2);
+    if (_sl) _sl.intensity = Math.max(_sl.intensity, 2.5);
     // Remove duplicate lights — keep only one of each type
     var _seenHemi = false, _seenAmb = false, _seenSun = false;
     var _dupes = [];
@@ -2176,15 +2178,19 @@ export function getVisualEditBridgeScript(): string {
   }
 
   // ---- Editor Loop ----
+  // Hoisted reusable objects — avoid per-frame allocations
+  var _hoistedWP = null; // Vector3 for pivot mode
+  var _hoistedPipSize = null; // Vector2 for PIP
+  var _hoistedClearColor = null; // Color for PIP
   function editorLoop() {
     if (!active || !editor) return;
     editorAnimId = requestAnimationFrame(editorLoop);
     updateFlyMovement();
     // Pivot mode: lock orbit target to selected object
     if (pivotMode === "pivot" && selectedObj && editor.orbitControls && !flyMode) {
-      var _wp = new (window.THREE.Vector3)();
-      selectedObj.getWorldPosition(_wp);
-      editor.orbitControls.target.copy(_wp);
+      if (!_hoistedWP) _hoistedWP = new (window.THREE.Vector3)();
+      selectedObj.getWorldPosition(_hoistedWP);
+      editor.orbitControls.target.copy(_hoistedWP);
     }
     if (editor.orbitControls && !flyMode) editor.orbitControls.update();
     // Guard: if selectedObj was swapped out of scene by character module, re-find by name
@@ -2241,6 +2247,8 @@ export function getVisualEditBridgeScript(): string {
       for (var di = 0; di < dupes.length; di++) { if (dupes[di].detach) dupes[di].detach(); editor.scene.remove(dupes[di]); if (dupes[di].dispose) dupes[di].dispose(); }
     }
     try {
+      // Signal to game loop that bridge is rendering — prevents redundant __safeRender calls
+      window.__vibexe_bridge_rendering__ = true;
       // Temporarily restore real render methods for our frame (JS is single-threaded — safe)
       var _noop = function() {};
       var _realRender = editor.renderer.__origRender || editor.renderer.render;
@@ -2265,14 +2273,15 @@ export function getVisualEditBridgeScript(): string {
       // Camera Preview PIP — only render when camera is selected
       if (previewCamera && editor.renderer && editor.scene && cameraSelected) {
         var _dpr = editor.renderer.getPixelRatio();
-        var _fullSize = editor.renderer.getSize(new (window.THREE.Vector2)());
+        if (!_hoistedPipSize) _hoistedPipSize = new (window.THREE.Vector2)();
+        var _fullSize = editor.renderer.getSize(_hoistedPipSize);
         var _pipW = Math.floor(200 * _dpr);
         var _pipH = Math.floor(120 * _dpr);
         var _pipX = Math.floor(4 * _dpr);
         var _pipY = Math.floor(4 * _dpr);
-        var _prevClearColor = new (window.THREE.Color)();
+        if (!_hoistedClearColor) _hoistedClearColor = new (window.THREE.Color)();
         var _prevClearAlpha = editor.renderer.getClearAlpha();
-        editor.renderer.getClearColor(_prevClearColor);
+        editor.renderer.getClearColor(_hoistedClearColor);
         try {
           var _border = Math.floor(2 * _dpr);
           editor.renderer.setViewport(_pipX - _border, _pipY - _border, _pipW + _border * 2, _pipH + _border * 2);
@@ -2288,7 +2297,7 @@ export function getVisualEditBridgeScript(): string {
         } finally {
           editor.renderer.setScissorTest(false);
           editor.renderer.setViewport(0, 0, _fullSize.x, _fullSize.y);
-          editor.renderer.setClearColor(_prevClearColor, _prevClearAlpha);
+          editor.renderer.setClearColor(_hoistedClearColor, _prevClearAlpha);
         }
       }
       // Re-noop for game loop (blocks until next editorLoop frame)

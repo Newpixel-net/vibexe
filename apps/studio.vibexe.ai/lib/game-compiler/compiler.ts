@@ -452,7 +452,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   renderer.shadowMap.autoUpdate = false;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.2;
+  renderer.toneMappingExposure = 1.0;
   container.appendChild(renderer.domElement);
   W.__vibexe_renderer__ = renderer;
   W.__vibexe_webgpu__ = !!THREE.WebGPURenderer && renderer.constructor === THREE.WebGPURenderer;
@@ -490,25 +490,25 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   scene.background = new THREE.Color(__envBg || '#87CEEB');
   W.__vibexe_scene__ = scene;
 
-  // ===== Lighting =====
+  // ===== Lighting (r183 PBR: MeshStandardMaterial divides by PI, need ~3x r172 values) =====
   const hemi = new THREE.HemisphereLight(
     __gs.environment?.hemisphereSkyColor || '#eef4ff',
     __gs.environment?.hemisphereGroundColor || '#886644',
-    __gs.environment?.hemisphereIntensity ?? 0.5
+    __gs.environment?.hemisphereIntensity ?? 0.8
   );
   hemi.name = '__default_hemi__';
   scene.add(hemi);
 
   const ambient = new THREE.AmbientLight(
     __gs.environment?.ambientLightColor || '#ffffff',
-    __gs.environment?.ambientLightIntensity ?? 0.25
+    __gs.environment?.ambientLightIntensity ?? 0.3
   );
   ambient.name = '__default_ambient__';
   scene.add(ambient);
 
   const sun = new THREE.DirectionalLight(
     __gs.environment?.sunLightColor || '#fff8ee',
-    __gs.environment?.sunLightIntensity ?? 0.7
+    __gs.environment?.sunLightIntensity ?? 2.5
   );
   sun.name = '__default_sun__';
   sun.position.set(8, 20, 10);
@@ -733,7 +733,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         renderer.shadowMap.type = THREE.PCFShadowMap;
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.2;
+        renderer.toneMappingExposure = 1.0;
         container.innerHTML = '';
         container.appendChild(renderer.domElement);
         W.__vibexe_renderer__ = renderer;

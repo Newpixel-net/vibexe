@@ -986,7 +986,7 @@ SkyLighting.prototype._findLights = function() {
 
   if (!this.sunLight) {
     console.log("[SkyLighting] No DirectionalLight found in scene, creating own");
-    this.sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    this.sunLight = new THREE.DirectionalLight(0xffffff, 2.5);
     this.sunLight.name = "__skyWeatherSun__";
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.set(2048, 2048);
@@ -1003,7 +1003,7 @@ SkyLighting.prototype._findLights = function() {
   }
 
   if (!this.ambientLight) {
-    this.ambientLight = new THREE.HemisphereLight(0x87ceeb, 0x556b2f, 0.4);
+    this.ambientLight = new THREE.HemisphereLight(0x87ceeb, 0x556b2f, 0.8);
     this.ambientLight.name = "__skyWeatherAmbient__";
     this.scene.add(this.ambientLight);
     this._ownAmbient = true;
@@ -1030,10 +1030,10 @@ SkyLighting.prototype.update = function(solarTime, sunDir, cfg) {
   }
 
   // ---- Sun intensity curve ----
-  // r183 PBR energy conservation: MeshStandardMaterial divides light by PI.
-  // Saved sunIntensity values from r172 era (pre-PBR) appear ~50% brighter.
-  // Cap at 1.2 to prevent washed-out terrain on older configs.
-  var baseInt = Math.min(cfg.sunIntensity || 1.0, 1.2);
+  // r183 PBR energy conservation: MeshStandardMaterial divides light by PI (~3.14).
+  // Need higher intensity values for r183. Cap at 3.5 to prevent overexposure.
+  // Old r172-era saved values (0.5-1.2) scale up via the default 2.5.
+  var baseInt = Math.min(cfg.sunIntensity || 2.5, 3.5);
   if (alt <= -0.05) {
     this.sunLight.intensity = 0;
   } else if (alt <= 0.12) {
@@ -1054,7 +1054,7 @@ SkyLighting.prototype.update = function(solarTime, sunDir, cfg) {
 
   // ---- Ambient ----
   if (!cfg.autoAmbient || !this.ambientLight) return;
-  var ambBase = cfg.ambientIntensity || 0.4;
+  var ambBase = cfg.ambientIntensity || 0.8;
 
   if (alt <= -0.12) {
     // Full night

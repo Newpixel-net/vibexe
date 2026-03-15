@@ -275,7 +275,7 @@ export function initRenderer(container: HTMLDivElement): any {
   renderer.shadowMap.autoUpdate = false;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.9;
+  renderer.toneMappingExposure = 1.0;
   container.appendChild(renderer.domElement);
 
   const onResize = () => {
@@ -302,17 +302,17 @@ export function initScene(): typeof THREE.Scene {
   const scene = new THREE.Scene();
 
   // PBR-tuned lighting for r183 physically-based MeshStandardMaterial.
-  // Keep moderate — sky-weather, env map, and game code add more light.
+  // r183 PBR: MeshStandardMaterial divides light by PI, so we need ~3x r172 values.
   // Use __default_ names to match Game3D IIFE lights and avoid duplicates.
-  const hemi = new THREE.HemisphereLight(0xEEF4FF, 0x886644, 0.4);
+  const hemi = new THREE.HemisphereLight(0xEEF4FF, 0x886644, 0.8);
   hemi.name = "__default_hemi__";
   scene.add(hemi);
 
-  const ambient = new THREE.AmbientLight(0xFFFFFF, 0.15);
+  const ambient = new THREE.AmbientLight(0xFFFFFF, 0.3);
   ambient.name = "__default_ambient__";
   scene.add(ambient);
 
-  const sun = new THREE.DirectionalLight(0xFFF8EE, 1.2);
+  const sun = new THREE.DirectionalLight(0xFFF8EE, 2.5);
   sun.name = "__default_sun__";
   sun.position.set(8, 20, 10);
   sun.castShadow = true;
@@ -3560,7 +3560,7 @@ export function addFogEffect(scene: any, opts?: { color?: number; near?: number;
 export function setToneMapping(renderer: any, type?: string, exposure?: number) {
   const map: Record<string, number> = { Linear: 1, Reinhard: 2, Cineon: 3, ACESFilmic: 4 };
   renderer.toneMapping = map[type || "ACESFilmic"] ?? 4;
-  renderer.toneMappingExposure = exposure ?? 0.9;
+  renderer.toneMappingExposure = exposure ?? 1.0;
 }
 
 // ===== PARTICLE & VFX SYSTEM =====
@@ -5291,6 +5291,12 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           if (renderer.backend) {
             if (renderer.backend.textureUtils) renderer.backend.textureUtils.dispose?.();
           }
+          // Force a dummy render with an empty scene to flush stale pipeline state.
+          // This forces the backend to rebuild its internal pipeline maps from scratch
+          // before the new scene renders, preventing "usedTimes" errors from stale bind groups.
+          const __flushScene = new (window as any).THREE.Scene();
+          __flushScene.background = new (window as any).THREE.Color(0x000000);
+          try { renderer.render(__flushScene, camera); } catch {}
         } catch {}
       }
       // Clear scene + world from window so restart creates fresh ones
@@ -5351,10 +5357,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       renderer.shadowMap.autoUpdate = false; // Manual shadow updates for perf
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       // ACES filmic tone mapping for r183 PBR — MeshStandardMaterial divides by PI,
-      // so without tone mapping, scenes are dark/flat. Exposure 0.9 balances PBR and
-      // cartoon (Phong/Lambert) materials without blowing out highlights.
+      // so without tone mapping, scenes are dark/flat. Exposure 1.0 for full dynamic range
+      // with PBR light values (~3x higher than r172 to compensate for /PI).
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.9;
+      renderer.toneMappingExposure = 1.0;
       container.appendChild(renderer.domElement);
       (window as any).__vibexe_renderer__ = renderer;
 
@@ -5416,19 +5422,19 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         const _defHemi = new THREE.HemisphereLight(
           __gs.environment?.hemisphereSkyColor || '#eef4ff',
           __gs.environment?.hemisphereGroundColor || '#886644',
-          __gs.environment?.hemisphereIntensity ?? 0.4
+          __gs.environment?.hemisphereIntensity ?? 0.8
         );
         _defHemi.name = '__default_hemi__';
         scene.add(_defHemi);
         const _defAmbient = new THREE.AmbientLight(
           __gs.environment?.ambientLightColor || '#ffffff',
-          __gs.environment?.ambientLightIntensity ?? 0.15
+          __gs.environment?.ambientLightIntensity ?? 0.3
         );
         _defAmbient.name = '__default_ambient__';
         scene.add(_defAmbient);
         const _defSun = new THREE.DirectionalLight(
           __gs.environment?.sunLightColor || '#fff8ee',
-          __gs.environment?.sunLightIntensity ?? 1.2
+          __gs.environment?.sunLightIntensity ?? 2.5
         );
         _defSun.name = '__default_sun__';
         _defSun.position.set(8, 20, 10);
@@ -7088,14 +7094,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           } catch (__renderErr: any) {
             if (__isWebGPURenderErr(__renderErr)) {
               __renderErrCount++;
-              // After 10 consecutive WebGPU errors, disable composer (may have stale refs)
-              if (__renderErrCount === 10 && (window as any).__vibexe_composer__) {
-                console.warn('[Game3D] 10 consecutive WebGPU render errors — disabling composer');
-                (window as any).__vibexe_skipComposer__ = true;
-              }
-              // After 30 consecutive errors, try clearing WebGPU caches
-              if (__renderErrCount === 30) {
-                console.warn('[Game3D] 30 consecutive WebGPU render errors — clearing caches');
+              // First usedTimes error: immediately clear caches + force material recompilation.
+              // Don't wait for N errors — the pipeline is already broken.
+              if (__renderErrCount === 1) {
+                console.warn('[Game3D] WebGPU render error — clearing caches immediately');
                 try {
                   if (renderer._nodes) renderer._nodes.dispose?.();
                   if (renderer._textures) renderer._textures.dispose?.();
@@ -7109,6 +7111,11 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
                     else obj.material.needsUpdate = true;
                   }
                 });
+              }
+              // After 5 consecutive errors with composer, disable it (stale refs in passes)
+              if (__renderErrCount === 5 && (window as any).__vibexe_composer__) {
+                console.warn('[Game3D] 5 consecutive WebGPU render errors — disabling composer');
+                (window as any).__vibexe_skipComposer__ = true;
               }
               return;
             }
