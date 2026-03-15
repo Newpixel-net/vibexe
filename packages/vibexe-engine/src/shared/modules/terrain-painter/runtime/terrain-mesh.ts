@@ -60,6 +60,26 @@ export class TerrainMesh {
 		this.geometry.rotateX(-Math.PI / 2);
 
 		// Create PBR splatmap terrain material
+		// WebGPU renderer does NOT support raw GLSL ShaderMaterial — use MeshStandardMaterial fallback
+		const isWebGPU = !!(typeof window !== "undefined" && (window as any).__vibexe_webgpu__);
+		if (isWebGPU) {
+			this.material = new T.MeshStandardMaterial({
+				color: 0x557733,
+				roughness: 0.85,
+				metalness: 0.0,
+				side: T.DoubleSide,
+				flatShading: false,
+			});
+			// Store uniforms-compatible object so texture/heightmap setters still work
+			(this.material as any).uniforms = {
+				u_heightmap: { value: null },
+				u_heightScale: { value: this.config.heightScale },
+				u_terrainWidth: { value: this.config.width },
+				u_terrainDepth: { value: this.config.depth },
+				u_layerCount: { value: 0 },
+			};
+			(this.material as any).__isWebGPUFallback = true;
+		} else {
 		this.material = new T.ShaderMaterial({
 			vertexShader: TERRAIN_MATERIAL_VERTEX,
 			fragmentShader: TERRAIN_MATERIAL_FRAGMENT,
@@ -142,6 +162,7 @@ export class TerrainMesh {
 			},
 			side: T.DoubleSide,
 		});
+		} // end else (WebGL path)
 
 		this.mesh = new T.Mesh(this.geometry, this.material);
 		this.mesh.name = "__terrain__";
@@ -163,7 +184,9 @@ export class TerrainMesh {
 		this.heightmapTexture.magFilter = T.LinearFilter;
 		this.heightmapTexture.needsUpdate = true;
 
-		this.material.uniforms.u_heightmap.value = this.heightmapTexture;
+		if (this.material.uniforms?.u_heightmap) {
+			this.material.uniforms.u_heightmap.value = this.heightmapTexture;
+		}
 	}
 
 	private createNormalMapTexture(): void {
@@ -354,6 +377,7 @@ export class TerrainMesh {
 
 	/** Set splatmap textures from modifier stack output */
 	setSplatmaps(splatmaps: unknown[]): void {
+		if ((this.material as any).__isWebGPUFallback) return; // no splatmaps on standard material
 		if (splatmaps[0])
 			this.material.uniforms.u_splatmap0.value = splatmaps[0];
 		if (splatmaps[1])
@@ -362,6 +386,17 @@ export class TerrainMesh {
 
 	/** Set layer diffuse textures */
 	setLayerTextures(textures: unknown[]): void {
+		// WebGPU fallback: apply first texture as standard material map
+		if ((this.material as any).__isWebGPUFallback) {
+			if (textures[0]) {
+				this.material.map = textures[0];
+				(textures[0] as any).wrapS = this.THREE.RepeatWrapping;
+				(textures[0] as any).wrapT = this.THREE.RepeatWrapping;
+				(textures[0] as any).repeat?.set?.(10, 10);
+				this.material.needsUpdate = true;
+			}
+			return;
+		}
 		const keys = [
 			"u_layer0", "u_layer1", "u_layer2", "u_layer3",
 			"u_layer4", "u_layer5", "u_layer6", "u_layer7",
@@ -374,6 +409,10 @@ export class TerrainMesh {
 
 	/** Set layer normal map textures (layers 0-3) */
 	setLayerNormalMaps(normals: (unknown | null)[]): void {
+		if ((this.material as any).__isWebGPUFallback) {
+			if (normals[0]) { this.material.normalMap = normals[0]; this.material.needsUpdate = true; }
+			return;
+		}
 		for (let i = 0; i < Math.min(normals.length, 4); i++) {
 			this.material.uniforms[`u_normal${i}`].value = normals[i];
 			this.material.uniforms[`u_hasNormal${i}`].value = normals[i] ? 1.0 : 0.0;
@@ -382,6 +421,7 @@ export class TerrainMesh {
 
 	/** Set per-layer texture tiling scales */
 	setLayerTexScales(scales: number[]): void {
+		if ((this.material as any).__isWebGPUFallback) return; // no per-layer scales for standard material
 		for (let i = 0; i < Math.min(scales.length, 8); i++) {
 			this.material.uniforms[`u_texScale${i}`].value = scales[i];
 		}
@@ -389,6 +429,10 @@ export class TerrainMesh {
 
 	/** Set per-layer roughness values */
 	setLayerRoughness(values: number[]): void {
+		if ((this.material as any).__isWebGPUFallback) {
+			if (values[0] != null) { this.material.roughness = values[0]; }
+			return;
+		}
 		for (let i = 0; i < Math.min(values.length, 8); i++) {
 			this.material.uniforms[`u_roughness${i}`].value = values[i];
 		}

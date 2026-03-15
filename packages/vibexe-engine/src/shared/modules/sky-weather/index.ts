@@ -582,15 +582,39 @@ function ProceduralSkyDome(scene) {
     var tmp = idx[fi]; idx[fi] = idx[fi + 2]; idx[fi + 2] = tmp;
   }
   geo.index.needsUpdate = true;
-  var mat = new THREE.ShaderMaterial({
-    vertexShader: SKY_VERTEX,
-    fragmentShader: SKY_FRAGMENT,
-    uniforms: this._u,
-    side: THREE.FrontSide,
-    depthWrite: false,
-    depthTest: false,
-    toneMapped: false
-  });
+  // WebGPU renderer doesn't support raw GLSL ShaderMaterial — use gradient MeshBasicMaterial
+  var __isWebGPU = !!(typeof window !== "undefined" && (window as any).__vibexe_webgpu__);
+  var mat;
+  if (__isWebGPU) {
+    mat = new THREE.MeshBasicMaterial({
+      color: 0x4488cc,
+      side: THREE.FrontSide,
+      depthWrite: false,
+      depthTest: false,
+      toneMapped: false,
+      vertexColors: true
+    });
+    // Apply vertex colors from gradient data for a basic sky look
+    var colors = new Float32Array(geo.attributes.position.count * 3);
+    for (var ci = 0; ci < geo.attributes.position.count; ci++) {
+      var ny = (geo.attributes.position.getY(ci) / 500 + 1) * 0.5; // normalize Y to 0..1
+      colors[ci * 3] = 0.3 + ny * 0.2;     // R
+      colors[ci * 3 + 1] = 0.4 + ny * 0.3; // G
+      colors[ci * 3 + 2] = 0.6 + ny * 0.3; // B
+    }
+    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    (mat as any).__isWebGPUFallback = true;
+  } else {
+    mat = new THREE.ShaderMaterial({
+      vertexShader: SKY_VERTEX,
+      fragmentShader: SKY_FRAGMENT,
+      uniforms: this._u,
+      side: THREE.FrontSide,
+      depthWrite: false,
+      depthTest: false,
+      toneMapped: false
+    });
+  }
 
   this.mesh = new THREE.Mesh(geo, mat);
   this.mesh.name = "__skyDome__";

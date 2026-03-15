@@ -61,11 +61,19 @@ export class ModifierStack {
 	private passMaterials: any[] = []; // ShaderMaterial[]
 	private compositeMaterial: any = null;
 	private splatmaps: any[] = []; // WebGLRenderTarget[] (RGBA, 4 layers each)
+	private isWebGPU = false;
 
 	constructor(THREE: any, renderer: any, resolution = 256) {
 		this.THREE = THREE;
 		this.renderer = renderer;
 		this.resolution = resolution;
+
+		// ShaderMaterial (raw GLSL) is incompatible with WebGPU renderer.
+		// ModifierStack is a GPU splatmap pipeline used only by the world-builder editor.
+		// On WebGPU, terrain uses MeshStandardMaterial fallback (terrain-mesh.ts), so
+		// splatmap generation is not needed — skip the entire GLSL pipeline.
+		this.isWebGPU = !!(typeof window !== "undefined" && (window as any).__vibexe_webgpu__);
+		if (this.isWebGPU) return;
 
 		this.initPipeline();
 	}
@@ -125,6 +133,7 @@ export class ModifierStack {
 
 	/** Ensure splatmap render targets exist (1 per 4 layers) */
 	ensureSplatmaps(layerCount: number): void {
+		if (this.isWebGPU) return;
 		const T = this.THREE;
 		const splatmapCount = Math.ceil(layerCount / 4);
 
@@ -142,6 +151,7 @@ export class ModifierStack {
 
 	/** Set up common uniforms from terrain data */
 	configure(terrain: TerrainData, bounds: TerrainBounds): void {
+		if (this.isWebGPU) return;
 		const heightScale = bounds.max.y - bounds.min.y;
 		const invWidth = 1.0 / bounds.size.x;
 		const invHeight = 1.0 / bounds.size.z;
@@ -176,6 +186,7 @@ export class ModifierStack {
 
 	/** Process all layers and generate splatmaps */
 	processLayers(layers: LayerSettings[]): void {
+		if (this.isWebGPU) return;
 		this.ensureSplatmaps(layers.length);
 
 		// Clear all splatmaps to black
