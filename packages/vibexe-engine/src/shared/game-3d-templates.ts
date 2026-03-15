@@ -185,7 +185,7 @@ Object.assign(window, {
   createAnimatedCharacter3D, createCharacterController3D, createText3D,
   createPhysicsWorld, createPhysicsBody, createPhysicsGround, syncBodiesToMeshes, createContactMaterial,
   createGround3D, createSkyGradient, checkCollision, checkBoxCollision, createHUD,
-  createKeyboardState, createTouchJoystick, createTapDetector, createSwipeDetector,
+  createKeyboardState, createGamepadState, createTouchJoystick, createTapDetector, createSwipeDetector,
   hapticFeedback, tryLockLandscape,
   createAnimationPlayer, createOrbitControls, onClickObject,
   loadGLTF, modelUrl, initRenderer, initScene, initCamera,
@@ -193,6 +193,8 @@ Object.assign(window, {
   createAnimationMap,
   // Audio System
   soundUrl, createAudioManager, playSound, playMusic, playSpatial3D, preloadSounds, muteMusic, unmuteMusic,
+  // Animation Events
+  onAnimationEvent, onAnimationEvents,
   // Post-Processing
   createPostProcessing, addFogEffect, setToneMapping,
   // Particles & VFX
@@ -708,6 +710,130 @@ export function createKeyboardState(): {
     },
   };
 }
+
+// ===== Gamepad Support =====
+// Polls the Gamepad API and merges into a keyboard-compatible keys Record.
+// Standard mapping: https://w3c.github.io/gamepad/#remapping
+
+// Standard gamepad button indices → key codes
+const _GAMEPAD_BUTTON_MAP: Record<number, string> = {
+  0: "Space",         // A / Cross → Jump
+  1: "KeyE",          // B / Circle → Interact
+  2: "KeyQ",          // X / Square → Action
+  3: "KeyR",          // Y / Triangle → Reload
+  4: "ShiftLeft",     // LB → Sprint
+  5: "KeyF",          // RB → Attack/Fire
+  6: "ShiftLeft",     // LT → Sprint (alt)
+  7: "KeyF",          // RT → Attack/Fire (alt)
+  8: "Escape",        // Back/Select
+  9: "Enter",         // Start
+  12: "ArrowUp",      // D-pad Up
+  13: "ArrowDown",    // D-pad Down
+  14: "ArrowLeft",    // D-pad Left
+  15: "ArrowRight",   // D-pad Right
+};
+
+const _AXIS_THRESHOLD = 0.25;
+
+export function createGamepadState(keys?: Record<string, boolean>): {
+  keys: Record<string, boolean>;
+  axes: { leftX: number; leftY: number; rightX: number; rightY: number };
+  gamepadIndex: number;
+  connected: boolean;
+  destroy: () => void;
+} {
+  const state = {
+    keys: keys || {},
+    axes: { leftX: 0, leftY: 0, rightX: 0, rightY: 0 },
+    gamepadIndex: -1,
+    connected: false,
+    destroy: () => {},
+  };
+
+  let rafId = 0;
+  let destroyed = false;
+
+  const onConnect = (e: GamepadEvent) => {
+    state.gamepadIndex = e.gamepad.index;
+    state.connected = true;
+  };
+  const onDisconnect = (e: GamepadEvent) => {
+    if (e.gamepad.index === state.gamepadIndex) {
+      state.connected = false;
+      state.gamepadIndex = -1;
+      state.axes.leftX = state.axes.leftY = state.axes.rightX = state.axes.rightY = 0;
+    }
+  };
+  window.addEventListener("gamepadconnected", onConnect);
+  window.addEventListener("gamepaddisconnected", onDisconnect);
+
+  // Auto-detect first connected gamepad
+  try {
+    const pads = navigator.getGamepads();
+    for (let i = 0; i < pads.length; i++) {
+      if (pads[i]) { state.gamepadIndex = i; state.connected = true; break; }
+    }
+  } catch {}
+
+  function poll() {
+    if (destroyed) return;
+    rafId = requestAnimationFrame(poll);
+    if (state.gamepadIndex < 0) {
+      // Try to find a newly connected gamepad
+      try {
+        const pads = navigator.getGamepads();
+        for (let i = 0; i < pads.length; i++) {
+          if (pads[i]) { state.gamepadIndex = i; state.connected = true; break; }
+        }
+      } catch {}
+      return;
+    }
+    let gp: Gamepad | null = null;
+    try { gp = navigator.getGamepads()[state.gamepadIndex]; } catch {}
+    if (!gp) return;
+
+    // Buttons → keys
+    for (let i = 0; i < gp.buttons.length; i++) {
+      const keyCode = _GAMEPAD_BUTTON_MAP[i];
+      if (keyCode) state.keys[keyCode] = gp.buttons[i].pressed;
+    }
+
+    // Left stick → movement keys + raw axes
+    const lx = gp.axes[0] || 0;
+    const ly = gp.axes[1] || 0;
+    state.axes.leftX = lx;
+    state.axes.leftY = ly;
+    state.keys.KeyA = lx < -_AXIS_THRESHOLD;
+    state.keys.KeyD = lx > _AXIS_THRESHOLD;
+    state.keys.KeyW = ly < -_AXIS_THRESHOLD;
+    state.keys.KeyS = ly > _AXIS_THRESHOLD;
+    // Also set arrow keys from stick for templates that use arrows
+    if (Math.abs(lx) > _AXIS_THRESHOLD) {
+      state.keys.ArrowLeft = lx < -_AXIS_THRESHOLD;
+      state.keys.ArrowRight = lx > _AXIS_THRESHOLD;
+    }
+    if (Math.abs(ly) > _AXIS_THRESHOLD) {
+      state.keys.ArrowUp = ly < -_AXIS_THRESHOLD;
+      state.keys.ArrowDown = ly > _AXIS_THRESHOLD;
+    }
+
+    // Right stick → raw axes (for aiming in shooters)
+    state.axes.rightX = gp.axes[2] || 0;
+    state.axes.rightY = gp.axes[3] || 0;
+  }
+  rafId = requestAnimationFrame(poll);
+
+  state.destroy = () => {
+    destroyed = true;
+    cancelAnimationFrame(rafId);
+    window.removeEventListener("gamepadconnected", onConnect);
+    window.removeEventListener("gamepaddisconnected", onDisconnect);
+  };
+
+  return state;
+}
+
+(window as any).createGamepadState = createGamepadState;
 
 // ===== CANNON.js Physics Helpers =====
 // cannon-es loaded via sync XHR shim triggered by the import statement above.
@@ -1287,6 +1413,117 @@ function _updateAllMixers3D(delta: number) {
 }
 (window as any)._updateAllMixers3D = _updateAllMixers3D;
 (window as any)._activeMixers3D = _activeMixers3D;
+
+// ===== ANIMATION EVENTS / NOTIFIES =====
+// Register callbacks at specific timestamps in animation clips.
+// Auto-checked in _updateAllAnimEvents3D(delta) called by the game loop.
+interface _AnimEvent {
+  mixer: any;           // THREE.AnimationMixer
+  clipName: string;     // Clip name to track (fuzzy-matched)
+  time: number;         // Time in seconds (0 to clip.duration)
+  callback: () => void;
+  once: boolean;        // Fire once then auto-remove
+  _fired: boolean;
+  _lastTime: number;
+  _action: any | null;
+  _destroyed: boolean;
+}
+const _activeAnimEvents3D: _AnimEvent[] = [];
+
+/**
+ * Register a callback at a specific time in an animation clip.
+ *
+ * Usage:
+ *   // Footstep sound at 0.3s and 0.7s into the "walk" clip
+ *   const e1 = onAnimationEvent(character.mixer, "walk", 0.3, () => playSound(soundUrl("footstep")));
+ *   const e2 = onAnimationEvent(character.mixer, "walk", 0.7, () => playSound(soundUrl("footstep")));
+ *
+ *   // One-shot: particle burst at 0.5s into "attack" (fires once per play)
+ *   onAnimationEvent(character.mixer, "attack", 0.5, () => createParticleEmitter(scene, pos, "explosion"), true);
+ *
+ * Returns: { destroy() } to remove the event.
+ */
+function onAnimationEvent(
+  mixer: any,
+  clipName: string,
+  time: number,
+  callback: () => void,
+  once = false,
+): { destroy: () => void } {
+  const ev: _AnimEvent = {
+    mixer, clipName, time, callback, once,
+    _fired: false, _lastTime: -1, _action: null, _destroyed: false,
+  };
+  _activeAnimEvents3D.push(ev);
+  return {
+    destroy() {
+      ev._destroyed = true;
+      const idx = _activeAnimEvents3D.indexOf(ev);
+      if (idx >= 0) _activeAnimEvents3D.splice(idx, 1);
+    },
+  };
+}
+
+/**
+ * Register multiple events on one clip at once.
+ *
+ * Usage:
+ *   onAnimationEvents(character.mixer, "walk", [
+ *     { time: 0.3, callback: () => playSound(soundUrl("footstep")) },
+ *     { time: 0.7, callback: () => playSound(soundUrl("footstep")) },
+ *   ]);
+ */
+function onAnimationEvents(
+  mixer: any,
+  clipName: string,
+  events: Array<{ time: number; callback: () => void; once?: boolean }>,
+): { destroy: () => void } {
+  const handles = events.map(e => onAnimationEvent(mixer, clipName, e.time, e.callback, e.once ?? false));
+  return { destroy() { handles.forEach(h => h.destroy()); } };
+}
+
+function _updateAllAnimEvents3D() {
+  for (let i = _activeAnimEvents3D.length - 1; i >= 0; i--) {
+    const ev = _activeAnimEvents3D[i];
+    if (ev._destroyed) { _activeAnimEvents3D.splice(i, 1); continue; }
+
+    // Find the action for this clip (lazy lookup + cache)
+    if (!ev._action) {
+      const actions = ev.mixer?._actions;
+      if (actions) {
+        for (const a of actions) {
+          const cn = a.getClip?.()?.name || "";
+          if (cn.toLowerCase().includes(ev.clipName.toLowerCase())) { ev._action = a; break; }
+        }
+      }
+      if (!ev._action) continue; // Clip not yet active
+    }
+
+    const action = ev._action;
+    if (!action.isRunning?.()) { ev._lastTime = -1; ev._fired = false; continue; }
+
+    const t = action.time;
+    const prevT = ev._lastTime;
+    ev._lastTime = t;
+
+    if (prevT < 0) continue; // First frame — just record time
+
+    // Check if we crossed the event time (forward or looped)
+    const crossed = (prevT < ev.time && t >= ev.time) ||
+                    (t < prevT && ev.time >= 0 && (prevT < ev.time || t >= ev.time)); // Loop wrap
+
+    if (crossed) {
+      if (ev.once && ev._fired) continue;
+      ev._fired = true;
+      try { ev.callback(); } catch (e) { console.warn("[AnimEvent] callback error:", e); }
+      if (ev.once) { _activeAnimEvents3D.splice(i, 1); }
+    }
+  }
+}
+(window as any)._activeAnimEvents3D = _activeAnimEvents3D;
+(window as any)._updateAllAnimEvents3D = _updateAllAnimEvents3D;
+(window as any).onAnimationEvent = onAnimationEvent;
+(window as any).onAnimationEvents = onAnimationEvents;
 
 // Auto-update character controllers — Game3D.tsx calls this every frame.
 // Even if the AI forgets to call controller.update(delta) in its update loop,
@@ -3687,6 +3924,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       _activeTriggers3D.length = 0;
       _activeSprings3D.length = 0;
       _physInterpMeshes.length = 0;
+      _activeAnimEvents3D.length = 0;
       if ((window as any)._activeSpatial3D) (window as any)._activeSpatial3D.length = 0;
       if (scene) {
         scene.traverse((obj: any) => {
@@ -5504,8 +5742,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             const __now = performance.now();
             const __ed = __editorLastTime ? (__now - __editorLastTime) / 1000 : 0;
             __editorLastTime = __now;
-            // Tick animation mixers so animations preview in editor
+            // Tick animation mixers + events so animations preview in editor
             (window as any)._updateAllMixers3D?.(__ed);
+            (window as any)._updateAllAnimEvents3D?.();
             // Shadow update in editor: every 30 frames (camera orbits slowly)
             __shadowFrame++;
             if (__shadowFrame >= 30) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
@@ -5524,6 +5763,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           while (__physAccum >= __physDt) {
             (window as any)._storePhysicsPrev?.();
             (window as any)._updateAllMixers3D?.(__physDt);
+            (window as any)._updateAllAnimEvents3D?.();
             try { gameScene.update(__physDt); } catch (_e) { /* AI code error — keep rendering */ }
             (window as any)._updateAllControllers3D?.(__physDt);
             (window as any)._updateAllTriggers3D?.();
