@@ -2,7 +2,7 @@
  * GET /api/app-builder/game-runtime
  *
  * Serves a lightweight HTML page that:
- * 1. Loads Three.js r172 as UMD (sets window.THREE)
+ * 1. Loads Three.js r172 WebGPU build (sets window.THREE) — auto-falls back to WebGL 2
  * 2. Loads Three.js addons (GLTFLoader, OrbitControls, TransformControls, post-processing)
  * 3. Loads CANNON.js (sets window.CANNON) + Rapier.js WASM (sets window.RAPIER)
  * 4. Loads the visual-edit-bridge for scene editing
@@ -35,17 +35,19 @@ canvas{display:block;width:100%;height:100%}
 <!-- Runtime bootstrap globals (injected dynamically) -->
 <script id="vibexe-bootstrap"></script>
 
-<!-- Import map for ESM modules -->
+<!-- Import map for ESM modules (WebGPU build — auto-falls back to WebGL 2) -->
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.module.js",
+    "three": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.webgpu.js",
+    "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.webgpu.js",
+    "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.tsl.js",
     "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/"
   }
 }
 </script>
 
-<!-- Three.js r172 + addons + CANNON.js — loaded as ES modules, assigned to window globals -->
+<!-- Three.js r172 WebGPU + addons + CANNON.js — loaded as ES modules, assigned to window globals -->
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -66,8 +68,10 @@ window.CANNON = Object.assign({}, CANNON);
 
 var loaded = ['GLTFLoader','OrbitControls','TransformControls','EffectComposer']
   .filter(function(n) { return !!T[n]; }).length;
-console.log('[Runtime] Three.js r' + T.REVISION + ' loaded with ' + loaded + '/4 core addons');
+var hasWebGPU = !!navigator.gpu;
+console.log('[Runtime] Three.js r' + T.REVISION + ' loaded with ' + loaded + '/4 core addons' + (hasWebGPU ? ' [WebGPU]' : ' [WebGL fallback]'));
 console.log('[Runtime] CANNON.js loaded');
+window.__vibexe_hasWebGPU__ = hasWebGPU;
 
 // Load Rapier.js physics (WASM — async init required)
 // Using dynamic import so CANNON still works if Rapier fails to load

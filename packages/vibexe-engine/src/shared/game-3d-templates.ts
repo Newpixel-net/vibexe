@@ -213,24 +213,40 @@ Object.assign(window, {
 // ===== Renderer =====
 
 /**
- * Creates a WebGLRenderer sized to fill the container.
+ * Creates a renderer sized to fill the container.
+ * Uses WebGPURenderer when available (auto-falls back to WebGL 2), otherwise WebGLRenderer.
  * IDEMPOTENT: If Game3D.tsx already created a renderer (stored on window.__vibexe_renderer__),
  * returns that instead of creating a duplicate. This prevents AI code from creating
  * a second canvas when it calls initRenderer() in its init() method.
  */
-export function initRenderer(container: HTMLDivElement): typeof THREE.WebGLRenderer {
+export function initRenderer(container: HTMLDivElement): any {
   // Return existing renderer if Game3D.tsx already created one
   if ((window as any).__vibexe_renderer__) return (window as any).__vibexe_renderer__;
 
   const __gsPerf = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).performance || {};
   // Disable native MSAA when post-processing will handle AA (saves ~30% fill rate)
   const __hasFX = !!(((window as any).__VIBEXE_GAME_SETTINGS__ || {}).fxPreset);
-  const renderer = new THREE.WebGLRenderer({
-    antialias: __hasFX ? false : (__gsPerf.antialias !== false),
-    alpha: false,
-    stencil: false,                    // Not used — saves bandwidth
-    powerPreference: "high-performance" // Prefer discrete GPU on multi-GPU systems
-  });
+  const __antialias = __hasFX ? false : (__gsPerf.antialias !== false);
+
+  let renderer: any;
+  // Prefer WebGPURenderer (auto-falls back to WebGL 2 on unsupported browsers)
+  if (THREE.WebGPURenderer) {
+    renderer = new THREE.WebGPURenderer({
+      antialias: __antialias,
+      powerPreference: "high-performance"
+    });
+    // Note: renderer.init() must be awaited before first render.
+    // Game3D.tsx handles this in its async boot sequence.
+    (window as any).__vibexe_webgpu__ = true;
+  } else {
+    renderer = new THREE.WebGLRenderer({
+      antialias: __antialias,
+      alpha: false,
+      stencil: false,
+      powerPreference: "high-performance"
+    });
+    (window as any).__vibexe_webgpu__ = false;
+  }
   renderer.setSize(container.clientWidth, container.clientHeight);
   // Cap pixelRatio at 1.5 — rendering at 2x costs 78% more pixels for minimal visual gain
   renderer.setPixelRatio(Math.min(__gsPerf.pixelRatio || window.devicePixelRatio, 1.5));
@@ -4230,14 +4246,27 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       const THREE = (window as any).THREE;
 
       // Create renderer + store on window so idempotent helpers return it
+      // Prefer WebGPURenderer (auto-falls back to WebGL 2 on unsupported browsers)
       const __perfSettings = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).performance || {};
       const __iifeFX = !!((window as any).__VIBEXE_GAME_SETTINGS__ || {}).fxPreset;
-      renderer = new THREE.WebGLRenderer({
-        antialias: __iifeFX ? false : (__perfSettings.antialias !== false),
-        alpha: false,
-        stencil: false,
-        powerPreference: "high-performance"
-      });
+      const __antialias = __iifeFX ? false : (__perfSettings.antialias !== false);
+      if (THREE.WebGPURenderer) {
+        renderer = new THREE.WebGPURenderer({
+          antialias: __antialias,
+          powerPreference: "high-performance"
+        });
+        await renderer.init();
+        (window as any).__vibexe_webgpu__ = true;
+        console.log('[Game3D] WebGPURenderer initialized (backend: ' + (renderer.backend?.constructor?.name || 'auto') + ')');
+      } else {
+        renderer = new THREE.WebGLRenderer({
+          antialias: __antialias,
+          alpha: false,
+          stencil: false,
+          powerPreference: "high-performance"
+        });
+        (window as any).__vibexe_webgpu__ = false;
+      }
       renderer.setSize(container.clientWidth, container.clientHeight);
       renderer.setPixelRatio(Math.min(__perfSettings.pixelRatio || window.devicePixelRatio, 1.5));
       renderer.shadowMap.enabled = true;

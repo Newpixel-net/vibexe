@@ -276,7 +276,7 @@ export function GameRuntimeIframe({
 				src="/api/app-builder/game-runtime?bv=151"
 				className="w-full h-full border-0"
 				title="Game Preview"
-				allow="autoplay; fullscreen"
+				allow="autoplay; fullscreen; webgpu"
 			/>
 
 			{/* Compile status overlay */}

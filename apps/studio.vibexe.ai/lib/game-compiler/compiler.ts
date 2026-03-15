@@ -251,7 +251,7 @@ export async function compileGameBundle(input: CompileInput): Promise<CompileOut
 			},
 			bundle: true,
 			format: "iife",
-			target: ["es2020"],
+			target: ["es2022"],
 			jsx: "transform",
 			jsxFactory: "React.createElement",
 			jsxFragment: "React.Fragment",
@@ -427,11 +427,22 @@ if (!gameScene || typeof gameScene.init !== 'function') {
     sfxVolume: __gsAudio.sfxVolume ?? 0.7,
   };
 
-  // ===== Renderer =====
-  const renderer = new THREE.WebGLRenderer({
-    antialias: __perf.antialias === true,
-    alpha: false, stencil: false, powerPreference: 'high-performance'
-  });
+  // ===== Renderer (WebGPU with auto-fallback to WebGL 2) =====
+  let renderer: any;
+  if (THREE.WebGPURenderer) {
+    renderer = new THREE.WebGPURenderer({
+      antialias: __perf.antialias === true,
+      powerPreference: 'high-performance'
+    });
+    await renderer.init();
+    console.log('[Runtime] WebGPURenderer initialized (backend: ' + (renderer.backend?.constructor?.name || 'unknown') + ')');
+  } else {
+    renderer = new THREE.WebGLRenderer({
+      antialias: __perf.antialias === true,
+      alpha: false, stencil: false, powerPreference: 'high-performance'
+    });
+    console.log('[Runtime] WebGLRenderer fallback');
+  }
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(Math.min(__perf.pixelRatio || window.devicePixelRatio, 1.0));
   renderer.shadowMap.enabled = true;
@@ -442,6 +453,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   renderer.toneMappingExposure = 1.2;
   container.appendChild(renderer.domElement);
   W.__vibexe_renderer__ = renderer;
+  W.__vibexe_webgpu__ = !!THREE.WebGPURenderer && renderer.constructor === THREE.WebGPURenderer;
 
   // ===== Camera =====
   const aspect = container.clientWidth / container.clientHeight;
