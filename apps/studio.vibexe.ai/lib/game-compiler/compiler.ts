@@ -765,7 +765,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
     setTimeout(() => _autoPhysics(), 15000);
 
     // Initial render
-    try { renderer.render(scene, camera); } catch(__re) { if (!__re?.message?.includes("already initialized")) throw __re; }
+    try { renderer.render(scene, camera); } catch(__re) { var __rm=__re?.message||""; if (!__rm.includes("already initialized")&&!__rm.includes("usedTimes")&&!__rm.includes("is not a function")) throw __re; }
 
     // Show TAP TO START overlay then start game loop
     const _startLoop = () => {
@@ -868,7 +868,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
             try {
               const comp = W.__vibexe_composer__;
               if (comp && !W.__vibexe_skipComposer__) comp.render(); else renderer.render(scene, camera);
-            } catch(__re) { if (!__re?.message?.includes("already initialized")) throw __re; }
+            } catch(__re) { var __rm=__re?.message||""; if (!__rm.includes("already initialized")&&!__rm.includes("usedTimes")&&!__rm.includes("is not a function")) throw __re; }
           }
           return;
         }
@@ -982,7 +982,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         const comp = W.__vibexe_composer__;
         try {
           if (comp && !W.__vibexe_skipComposer__) comp.render(delta); else renderer.render(scene, camera);
-        } catch(__re) { if (!__re?.message?.includes("already initialized")) throw __re; }
+        } catch(__re) { var __rm=__re?.message||""; if (!__rm.includes("already initialized")&&!__rm.includes("usedTimes")&&!__rm.includes("is not a function")) throw __re; }
         } catch (__frameErr) { console.error('[GameLoop] Frame error:', __frameErr); }
       }
       // Force initial shadow render

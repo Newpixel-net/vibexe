@@ -2249,7 +2249,7 @@ export function getVisualEditBridgeScript(): string {
         } else {
           editor.renderer.render(editor.scene, editor.camera);
         }
-      } catch (__re) { if (__re && __re.message && !__re.message.includes("already initialized")) throw __re; }
+      } catch (__re) { if (__re && __re.message && !__re.message.includes("already initialized") && !__re.message.includes("usedTimes") && !__re.message.includes("is not a function")) throw __re; }
       // Camera Preview PIP — only render when camera is selected
       if (previewCamera && editor.renderer && editor.scene && cameraSelected) {
         var _dpr = editor.renderer.getPixelRatio();

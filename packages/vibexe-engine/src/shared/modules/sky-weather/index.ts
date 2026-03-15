@@ -624,6 +624,8 @@ function ProceduralSkyDome(scene) {
 }
 
 ProceduralSkyDome.prototype.update = function(st, sunDir, moonDir, moonPhase, cfg) {
+  // WebGPU fallback uses MeshBasicMaterial with vertex colors — no shader uniforms to update
+  if (this.mesh && this.mesh.material && this.mesh.material.__isWebGPUFallback) return;
   // Rebuild gradient when solarTime changes visibly
   if (Math.abs(st - this._lastST) > 0.003) {
     this._buildGradient(st);

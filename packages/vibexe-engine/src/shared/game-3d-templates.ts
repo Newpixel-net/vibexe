@@ -5223,10 +5223,12 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       delete (window as any).__vibexe_customSaveData__;
       if (scene) {
         scene.traverse((obj: any) => {
-          if (obj.geometry) obj.geometry.dispose();
+          if (obj.geometry) try { obj.geometry.dispose(); } catch {}
           if (obj.material) {
-            if (Array.isArray(obj.material)) obj.material.forEach((m: any) => m.dispose());
-            else obj.material.dispose();
+            try {
+              if (Array.isArray(obj.material)) obj.material.forEach((m: any) => { m.dispose(); });
+              else obj.material.dispose();
+            } catch {}
           }
         });
         while (scene.children.length > 0) scene.remove(scene.children[0]);
@@ -5239,6 +5241,16 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       // Clean up post-processing composer
       try { (window as any).__vibexe_composer__?.dispose?.(); } catch {}
       delete (window as any).__vibexe_composer__;
+      // WebGPU renderer: clear internal texture/material caches to prevent stale "usedTimes" refs
+      if (renderer) {
+        try {
+          // Clear render lists (Three.js r172 WebGPU internal state)
+          if (renderer.renderLists) renderer.renderLists.dispose?.();
+          if (renderer.properties) renderer.properties.dispose?.();
+          // Force info reset
+          if (renderer.info) { renderer.info.reset?.(); }
+        } catch {}
+      }
       // Clear scene + world from window so restart creates fresh ones
       // (renderer/camera persist across restarts)
       delete (window as any).__vibexe_scene__;
@@ -6269,7 +6281,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             try {
               const __ec = (window as any).__vibexe_composer__;
               if (__ec) { __ec.render(); } else { renderer.render(scene, camera); }
-            } catch (__e: any) { if (!__e?.message?.includes("already initialized")) throw __e; }
+            } catch (__e: any) { const __m = __e?.message || ""; if (!__m.includes("already initialized") && !__m.includes("usedTimes") && !__m.includes("is not a function")) throw __e; }
           }
 
           // ---- Activate / Deactivate ----
@@ -6994,14 +7006,20 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         // Physics interpolation accumulator
         let __physAccum = 0;
         const __physDt = 1 / 60;
-        // Safe render: suppress WebGPU "Texture already initialized" error (Three.js r172 bug)
+        // Safe render: suppress known WebGPU errors (Three.js r172 bugs)
+        // - "Texture already initialized": render target re-init during updateRenderTarget
+        // - "usedTimes": stale texture/material reference after scene disposal
+        const __isWebGPURenderErr = (e: any) => {
+          const m = e?.message || "";
+          return m.includes("already initialized") || m.includes("usedTimes") || m.includes("is not a function");
+        };
         const __safeRender = (delta?: number) => {
           try {
             const __c = (window as any).__vibexe_composer__;
             if (__c && !(window as any).__vibexe_skipComposer__) { __c.render(delta); }
             else { renderer.render(scene, camera); }
           } catch (__renderErr: any) {
-            if (__renderErr?.message?.includes("already initialized")) return; // suppress known r172 bug
+            if (__isWebGPURenderErr(__renderErr)) return;
             throw __renderErr;
           }
         };
