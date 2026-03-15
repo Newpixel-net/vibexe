@@ -583,7 +583,7 @@ function ProceduralSkyDome(scene) {
   }
   geo.index.needsUpdate = true;
   // WebGPU renderer doesn't support raw GLSL ShaderMaterial — use gradient MeshBasicMaterial
-  var __isWebGPU = !!(typeof window !== "undefined" && (window as any).__vibexe_webgpu__);
+  var __isWebGPU = !!(typeof window !== "undefined" && window.__vibexe_webgpu__);
   var mat;
   if (__isWebGPU) {
     mat = new THREE.MeshBasicMaterial({
@@ -603,7 +603,7 @@ function ProceduralSkyDome(scene) {
       colors[ci * 3 + 2] = 0.6 + ny * 0.3; // B
     }
     geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-    (mat as any).__isWebGPUFallback = true;
+    mat.__isWebGPUFallback = true;
   } else {
     mat = new THREE.ShaderMaterial({
       vertexShader: SKY_VERTEX,
