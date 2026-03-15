@@ -5458,13 +5458,16 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         scene.add(_defSun);
 
         // Deferred procedural environment map — runs after first render to avoid blocking init.
-        // PMREMGenerator.fromScene() is extremely expensive on WebGPU (compiles 6+ cube face shaders).
+        // PMREMGenerator.fromScene() is expensive on WebGPU (compiles 6+ cube face shaders).
         // Skip if visual-edit-bridge will handle env map (Scene mode).
-        setTimeout(() => {
+        // Use 5s delay to survive iframe recompile cycles.
+        function __applyEnvMap() {
           try {
-            if (disposed || !scene || !THREE.PMREMGenerator) return;
-            // Skip only if bridge is actively rendering (Scene mode), not just loaded
-            if ((window as any).__vibexe_editor_active__) return; // bridge handles env map in Scene mode
+            if (disposed) { console.log("[Game3D] env map skipped: disposed"); return; }
+            if (!scene) { console.log("[Game3D] env map skipped: no scene"); return; }
+            if (!THREE.PMREMGenerator) { console.log("[Game3D] env map skipped: no PMREMGenerator"); return; }
+            if ((window as any).__vibexe_editor_active__) { console.log("[Game3D] env map skipped: editor active"); return; }
+            if (scene.environment) { console.log("[Game3D] env map skipped: already set"); return; }
             const __pmrem = new THREE.PMREMGenerator(renderer);
             __pmrem.compileEquirectangularShader?.();
             const __envScene = new THREE.Scene();
@@ -5490,7 +5493,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             __pmrem.dispose(); __skyGeo.dispose(); __gndGeo.dispose(); __pGeo.dispose();
             console.log("[Game3D] Deferred env map applied");
           } catch (__e) { console.warn("[Game3D] env map error:", __e); }
-        }, 2000);
+        }
+        setTimeout(__applyEnvMap, 5000);
 
         const loading = createLoadingOverlay(container);
 
