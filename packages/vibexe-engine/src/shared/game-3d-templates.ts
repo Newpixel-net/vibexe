@@ -329,6 +329,7 @@ export function initScene(): typeof THREE.Scene {
   // Env map is handled by visual-edit-bridge (Scene mode) or Game3D IIFE (Game mode).
   // Synchronous PMREMGenerator.fromScene() blocks WebGPU for seconds — never do it here.
 
+  (window as any).__vibexe_scene__ = scene;
   return scene;
 }
 
