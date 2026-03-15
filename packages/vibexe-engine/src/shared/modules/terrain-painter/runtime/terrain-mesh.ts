@@ -9,10 +9,6 @@
  * - Custom ShaderMaterial that blends textures using splatmaps
  */
 
-import {
-	TERRAIN_MATERIAL_VERTEX,
-	TERRAIN_MATERIAL_FRAGMENT,
-} from "../shaders/modifier-passes.glsl";
 import type { TerrainData, TerrainBounds } from "./modifier-stack";
 
 export interface TerrainConfig {
@@ -59,110 +55,56 @@ export class TerrainMesh {
 		// Rotate to XZ plane (Three.js PlaneGeometry is XY by default)
 		this.geometry.rotateX(-Math.PI / 2);
 
-		// Create PBR splatmap terrain material
-		// WebGPU renderer does NOT support raw GLSL ShaderMaterial — use MeshStandardMaterial fallback
-		const isWebGPU = !!(typeof window !== "undefined" && (window as any).__vibexe_webgpu__);
-		if (isWebGPU) {
-			this.material = new T.MeshStandardMaterial({
-				color: 0x557733,
-				roughness: 0.85,
-				metalness: 0.0,
-				side: T.DoubleSide,
-				flatShading: false,
-			});
-			// Store uniforms-compatible object so texture/heightmap setters still work
-			(this.material as any).uniforms = {
-				u_heightmap: { value: null },
-				u_heightScale: { value: this.config.heightScale },
-				u_terrainWidth: { value: this.config.width },
-				u_terrainDepth: { value: this.config.depth },
-				u_layerCount: { value: 0 },
-			};
-			(this.material as any).__isWebGPUFallback = true;
-		} else {
-		this.material = new T.ShaderMaterial({
-			vertexShader: TERRAIN_MATERIAL_VERTEX,
-			fragmentShader: TERRAIN_MATERIAL_FRAGMENT,
-			uniforms: {
-				u_heightmap: { value: null },
-				u_heightScale: { value: this.config.heightScale },
-				u_terrainWidth: { value: width },
-				u_terrainDepth: { value: depth },
-				u_splatmap0: { value: null },
-				u_splatmap1: { value: null },
-				// Layer diffuse textures
-				u_layer0: { value: null },
-				u_layer1: { value: null },
-				u_layer2: { value: null },
-				u_layer3: { value: null },
-				u_layer4: { value: null },
-				u_layer5: { value: null },
-				u_layer6: { value: null },
-				u_layer7: { value: null },
-				// Normal maps (layers 0-3)
-				u_normal0: { value: null },
-				u_normal1: { value: null },
-				u_normal2: { value: null },
-				u_normal3: { value: null },
-				u_hasNormal0: { value: 0.0 },
-				u_hasNormal1: { value: 0.0 },
-				u_hasNormal2: { value: 0.0 },
-				u_hasNormal3: { value: 0.0 },
-				// Roughness maps (layers 0-3)
-				u_roughMap0: { value: null },
-				u_roughMap1: { value: null },
-				u_roughMap2: { value: null },
-				u_roughMap3: { value: null },
-				u_hasRoughMap0: { value: 0.0 },
-				u_hasRoughMap1: { value: 0.0 },
-				u_hasRoughMap2: { value: 0.0 },
-				u_hasRoughMap3: { value: 0.0 },
-				// AO maps (layers 0-3)
-				u_aoMap0: { value: null },
-				u_aoMap1: { value: null },
-				u_aoMap2: { value: null },
-				u_aoMap3: { value: null },
-				u_hasAOMap0: { value: 0.0 },
-				u_hasAOMap1: { value: 0.0 },
-				u_hasAOMap2: { value: 0.0 },
-				u_hasAOMap3: { value: 0.0 },
-				// Emission flags (reuse AO slot as emission sampler)
-				u_isEmissive0: { value: 0.0 },
-				u_isEmissive1: { value: 0.0 },
-				u_isEmissive2: { value: 0.0 },
-				u_isEmissive3: { value: 0.0 },
-				u_emissionIntensity0: { value: 0.0 },
-				u_emissionIntensity1: { value: 0.0 },
-				u_emissionIntensity2: { value: 0.0 },
-				u_emissionIntensity3: { value: 0.0 },
-				// Per-layer texture scale
-				u_texScale0: { value: 10.0 },
-				u_texScale1: { value: 10.0 },
-				u_texScale2: { value: 10.0 },
-				u_texScale3: { value: 10.0 },
-				u_texScale4: { value: 10.0 },
-				u_texScale5: { value: 10.0 },
-				u_texScale6: { value: 10.0 },
-				u_texScale7: { value: 10.0 },
-				// Per-layer roughness
-				u_roughness0: { value: 0.85 },
-				u_roughness1: { value: 0.75 },
-				u_roughness2: { value: 0.92 },
-				u_roughness3: { value: 0.3 },
-				u_roughness4: { value: 0.8 },
-				u_roughness5: { value: 0.8 },
-				u_roughness6: { value: 0.8 },
-				u_roughness7: { value: 0.8 },
-				u_layerCount: { value: 0 },
-				// Fog uniforms (configurable from game settings)
-				uFogColor: { value: [0.55, 0.60, 0.72] },
-				uFogNear: { value: 50.0 },
-				uFogFar: { value: 400.0 },
-				uFogEnabled: { value: 1.0 },
-			},
+		// Initial terrain material — MeshStandardMaterial with vertex colors
+		// The visual-edit-bridge replaces this with a TSL multi-layer material
+		// when the user paints layers. This is just the base unpainted terrain.
+		this.material = new T.MeshStandardMaterial({
+			color: 0x557733,
+			roughness: 0.85,
+			metalness: 0.0,
 			side: T.DoubleSide,
+			flatShading: false,
 		});
-		} // end else (WebGL path)
+		// Store uniforms-compatible tracking object for setter methods
+		// (bridge reads layer data from a different source, but module code
+		// may call setters before bridge takes over)
+		(this.material as any).uniforms = {
+			u_heightmap: { value: null },
+			u_heightScale: { value: this.config.heightScale },
+			u_terrainWidth: { value: width },
+			u_terrainDepth: { value: depth },
+			u_splatmap0: { value: null },
+			u_splatmap1: { value: null },
+			u_layer0: { value: null }, u_layer1: { value: null },
+			u_layer2: { value: null }, u_layer3: { value: null },
+			u_layer4: { value: null }, u_layer5: { value: null },
+			u_layer6: { value: null }, u_layer7: { value: null },
+			u_normal0: { value: null }, u_normal1: { value: null },
+			u_normal2: { value: null }, u_normal3: { value: null },
+			u_hasNormal0: { value: 0.0 }, u_hasNormal1: { value: 0.0 },
+			u_hasNormal2: { value: 0.0 }, u_hasNormal3: { value: 0.0 },
+			u_roughMap0: { value: null }, u_roughMap1: { value: null },
+			u_roughMap2: { value: null }, u_roughMap3: { value: null },
+			u_hasRoughMap0: { value: 0.0 }, u_hasRoughMap1: { value: 0.0 },
+			u_hasRoughMap2: { value: 0.0 }, u_hasRoughMap3: { value: 0.0 },
+			u_aoMap0: { value: null }, u_aoMap1: { value: null },
+			u_aoMap2: { value: null }, u_aoMap3: { value: null },
+			u_hasAOMap0: { value: 0.0 }, u_hasAOMap1: { value: 0.0 },
+			u_hasAOMap2: { value: 0.0 }, u_hasAOMap3: { value: 0.0 },
+			u_isEmissive0: { value: 0.0 }, u_isEmissive1: { value: 0.0 },
+			u_isEmissive2: { value: 0.0 }, u_isEmissive3: { value: 0.0 },
+			u_emissionIntensity0: { value: 0.0 }, u_emissionIntensity1: { value: 0.0 },
+			u_emissionIntensity2: { value: 0.0 }, u_emissionIntensity3: { value: 0.0 },
+			u_texScale0: { value: 10.0 }, u_texScale1: { value: 10.0 },
+			u_texScale2: { value: 10.0 }, u_texScale3: { value: 10.0 },
+			u_texScale4: { value: 10.0 }, u_texScale5: { value: 10.0 },
+			u_texScale6: { value: 10.0 }, u_texScale7: { value: 10.0 },
+			u_roughness0: { value: 0.85 }, u_roughness1: { value: 0.75 },
+			u_roughness2: { value: 0.92 }, u_roughness3: { value: 0.3 },
+			u_roughness4: { value: 0.8 }, u_roughness5: { value: 0.8 },
+			u_roughness6: { value: 0.8 }, u_roughness7: { value: 0.8 },
+			u_layerCount: { value: 0 },
+		};
 
 		this.mesh = new T.Mesh(this.geometry, this.material);
 		this.mesh.name = "__terrain__";
@@ -377,7 +319,7 @@ export class TerrainMesh {
 
 	/** Set splatmap textures from modifier stack output */
 	setSplatmaps(splatmaps: unknown[]): void {
-		if ((this.material as any).__isWebGPUFallback) return; // no splatmaps on standard material
+		if (!this.material?.uniforms) return;
 		if (splatmaps[0])
 			this.material.uniforms.u_splatmap0.value = splatmaps[0];
 		if (splatmaps[1])
@@ -386,56 +328,57 @@ export class TerrainMesh {
 
 	/** Set layer diffuse textures */
 	setLayerTextures(textures: unknown[]): void {
-		// WebGPU fallback: apply first texture as standard material map
-		if ((this.material as any).__isWebGPUFallback) {
-			if (textures[0]) {
-				this.material.map = textures[0];
-				(textures[0] as any).wrapS = this.THREE.RepeatWrapping;
-				(textures[0] as any).wrapT = this.THREE.RepeatWrapping;
-				(textures[0] as any).repeat?.set?.(10, 10);
-				this.material.needsUpdate = true;
-			}
-			return;
-		}
+		if (!this.material?.uniforms) return;
 		const keys = [
 			"u_layer0", "u_layer1", "u_layer2", "u_layer3",
 			"u_layer4", "u_layer5", "u_layer6", "u_layer7",
 		];
 		for (let i = 0; i < Math.min(textures.length, 8); i++) {
-			this.material.uniforms[keys[i]].value = textures[i];
+			if (this.material.uniforms[keys[i]])
+				this.material.uniforms[keys[i]].value = textures[i];
 		}
-		this.material.uniforms.u_layerCount.value = textures.length;
+		if (this.material.uniforms.u_layerCount)
+			this.material.uniforms.u_layerCount.value = textures.length;
+		// Also set first texture as material map for basic preview
+		if (textures[0]) {
+			this.material.map = textures[0];
+			(textures[0] as any).wrapS = this.THREE.RepeatWrapping;
+			(textures[0] as any).wrapT = this.THREE.RepeatWrapping;
+			(textures[0] as any).repeat?.set?.(10, 10);
+			this.material.needsUpdate = true;
+		}
 	}
 
 	/** Set layer normal map textures (layers 0-3) */
 	setLayerNormalMaps(normals: (unknown | null)[]): void {
-		if ((this.material as any).__isWebGPUFallback) {
-			if (normals[0]) { this.material.normalMap = normals[0]; this.material.needsUpdate = true; }
-			return;
-		}
+		if (!this.material?.uniforms) return;
 		for (let i = 0; i < Math.min(normals.length, 4); i++) {
-			this.material.uniforms[`u_normal${i}`].value = normals[i];
-			this.material.uniforms[`u_hasNormal${i}`].value = normals[i] ? 1.0 : 0.0;
+			if (this.material.uniforms[`u_normal${i}`])
+				this.material.uniforms[`u_normal${i}`].value = normals[i];
+			if (this.material.uniforms[`u_hasNormal${i}`])
+				this.material.uniforms[`u_hasNormal${i}`].value = normals[i] ? 1.0 : 0.0;
 		}
+		// Also set first normal as material normalMap for basic preview
+		if (normals[0]) { this.material.normalMap = normals[0]; this.material.needsUpdate = true; }
 	}
 
 	/** Set per-layer texture tiling scales */
 	setLayerTexScales(scales: number[]): void {
-		if ((this.material as any).__isWebGPUFallback) return; // no per-layer scales for standard material
+		if (!this.material?.uniforms) return;
 		for (let i = 0; i < Math.min(scales.length, 8); i++) {
-			this.material.uniforms[`u_texScale${i}`].value = scales[i];
+			if (this.material.uniforms[`u_texScale${i}`])
+				this.material.uniforms[`u_texScale${i}`].value = scales[i];
 		}
 	}
 
 	/** Set per-layer roughness values */
 	setLayerRoughness(values: number[]): void {
-		if ((this.material as any).__isWebGPUFallback) {
-			if (values[0] != null) { this.material.roughness = values[0]; }
-			return;
-		}
+		if (!this.material?.uniforms) return;
 		for (let i = 0; i < Math.min(values.length, 8); i++) {
-			this.material.uniforms[`u_roughness${i}`].value = values[i];
+			if (this.material.uniforms[`u_roughness${i}`])
+				this.material.uniforms[`u_roughness${i}`].value = values[i];
 		}
+		if (values[0] != null) { this.material.roughness = values[0]; }
 	}
 
 	dispose(): void {

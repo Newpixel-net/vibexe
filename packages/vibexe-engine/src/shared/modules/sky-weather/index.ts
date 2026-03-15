@@ -268,7 +268,251 @@ SkyColorPalette.prototype._sampleStrip = function(strip, h) {
 
 
 // ============================================================
-// GLSL Shaders — Procedural sky dome
+// TSL Sky Shader — compiles to WGSL (WebGPU) + GLSL (WebGL)
+// ============================================================
+
+var _Fn = THREE.Fn || THREE.tslFn;
+
+// TSL helper: Mie phase function
+var _skyMiePhase = _Fn ? _Fn(function(_a) {
+  var c = _a[0], g = _a[1];
+  var g2 = g.mul(g);
+  return THREE.float(1.0).sub(g2).div(
+    THREE.float(12.5664).mul(THREE.float(1.0).add(g2).sub(g.mul(2.0).mul(c)).pow(1.5))
+  );
+}) : null;
+
+// TSL helper: Hash for star/noise procedurals
+var _skyHash = _Fn ? _Fn(function(_a) {
+  var p = _a[0];
+  return THREE.dot(p, THREE.vec2(127.1, 311.7)).sin().mul(43758.5453).fract();
+}) : null;
+
+// TSL helper: Value noise (2D)
+var _skyCNoise = _Fn ? _Fn(function(_a) {
+  var p = _a[0];
+  var i = THREE.floor(p);
+  var f = THREE.fract(p);
+  f = f.mul(f).mul(THREE.float(3.0).sub(f.mul(2.0)));
+  var a = THREE.dot(i, THREE.vec2(127.1, 311.7)).sin().mul(43758.5453).fract();
+  var b = THREE.dot(i.add(THREE.vec2(1.0, 0.0)), THREE.vec2(127.1, 311.7)).sin().mul(43758.5453).fract();
+  var c2 = THREE.dot(i.add(THREE.vec2(0.0, 1.0)), THREE.vec2(127.1, 311.7)).sin().mul(43758.5453).fract();
+  var d = THREE.dot(i.add(THREE.vec2(1.0, 1.0)), THREE.vec2(127.1, 311.7)).sin().mul(43758.5453).fract();
+  return THREE.mix(THREE.mix(a, b, f.x), THREE.mix(c2, d, f.x), f.y);
+}) : null;
+
+// TSL helper: fBm (5 octaves)
+var _skyCFbm = _Fn ? _Fn(function(_a) {
+  var p = _a[0].toVar();
+  var v = THREE.float(0.0).toVar();
+  v.addAssign(_skyCNoise(p).mul(0.5)); p.mulAssign(2.02);
+  v.addAssign(_skyCNoise(p).mul(0.25)); p.mulAssign(2.03);
+  v.addAssign(_skyCNoise(p).mul(0.125)); p.mulAssign(2.01);
+  v.addAssign(_skyCNoise(p).mul(0.0625)); p.mulAssign(2.04);
+  v.addAssign(_skyCNoise(p).mul(0.0312));
+  return v;
+}) : null;
+
+// Build TSL sky material — creates MeshBasicMaterial with procedural colorNode
+// Captures uniform nodes + gradient texture by closure
+function _buildSkyMaterial(u, gradTex) {
+  if (!_Fn) {
+    // Fallback: TSL not available — basic sky gradient
+    console.warn("[SkyWeather] TSL not available, using basic sky material");
+    return new THREE.MeshBasicMaterial({
+      color: 0x4488cc, side: THREE.FrontSide,
+      depthWrite: false, depthTest: false, toneMapped: false
+    });
+  }
+
+  var mat = new THREE.MeshBasicMaterial({
+    side: THREE.FrontSide,
+    depthWrite: false,
+    depthTest: false,
+    toneMapped: false
+  });
+
+  mat.colorNode = _Fn(function(_a) {
+    var rawPos = _a[0];
+    var dir = THREE.normalize(rawPos).toVar();
+
+    // Height: 0 at horizon, 1 at zenith (sqrt for more horizon detail)
+    var h = THREE.sqrt(THREE.max(THREE.float(0.0), dir.y));
+
+    // Sun-facing factor in horizontal plane
+    var sunHoriz = THREE.normalize(THREE.vec3(u.uSunDir.x, THREE.float(0.0001), u.uSunDir.z));
+    var viewHoriz = THREE.normalize(THREE.vec3(dir.x, THREE.float(0.0001), dir.z));
+    var facing = THREE.dot(viewHoriz, sunHoriz).mul(0.5).add(0.5);
+
+    // Sample gradient texture (front row=0.25, back row=0.75), decode sRGB → linear
+    var fc = THREE.texture(gradTex, THREE.vec2(h, THREE.float(0.25))).rgb.pow(2.2);
+    var bc = THREE.texture(gradTex, THREE.vec2(h, THREE.float(0.75))).rgb.pow(2.2);
+    var sky = THREE.mix(bc, fc, facing).toVar();
+
+    // Below horizon: darken toward ground
+    var below = THREE.min(THREE.float(1.0), THREE.abs(dir.y).mul(4.0));
+    var hzF = THREE.texture(gradTex, THREE.vec2(THREE.float(0.0), THREE.float(0.25))).rgb.pow(2.2);
+    var hzB = THREE.texture(gradTex, THREE.vec2(THREE.float(0.0), THREE.float(0.75))).rgb.pow(2.2);
+    var hz = THREE.mix(hzB, hzF, facing);
+    var belowSky = THREE.mix(hz, hz.mul(0.12), below);
+    var aboveH = THREE.step(THREE.float(0.0), dir.y);
+    sky.assign(THREE.mix(belowSky, sky, aboveH));
+
+    // Mie scattering (sun glow)
+    var cosT = THREE.dot(dir, u.uSunDir);
+    var sunVis = THREE.smoothstep(THREE.float(-0.08), THREE.float(0.05), u.uSunDir.y);
+    sky.addAssign(u.uSunColor.mul(_skyMiePhase(cosT, u.uMieG)).mul(u.uMieCoeff).mul(sunVis));
+
+    // Sun disk + corona
+    var sunA = THREE.acos(THREE.clamp(cosT, THREE.float(-1.0), THREE.float(1.0)));
+    var sdisk = THREE.float(1.0).sub(THREE.smoothstep(u.uSunSize.mul(0.85), u.uSunSize, sunA));
+    var scorona = THREE.float(1.0).sub(THREE.smoothstep(u.uSunSize, u.uSunSize.mul(4.0), sunA));
+    sky.addAssign(u.uSunColor.mul(sdisk.mul(4.0).add(scorona.mul(0.15))).mul(sunVis));
+
+    // Moon disk with phase shadow
+    var moonCos = THREE.dot(dir, u.uMoonDir);
+    var moonA = THREE.acos(THREE.clamp(moonCos, THREE.float(-1.0), THREE.float(1.0)));
+    var mDisk = THREE.float(1.0).sub(THREE.smoothstep(u.uMoonSize.mul(0.92), u.uMoonSize, moonA));
+    var mRight = THREE.normalize(THREE.cross(u.uMoonDir, THREE.vec3(0.0, 1.0, 0.0)));
+    var toPx = THREE.normalize(dir.sub(u.uMoonDir.mul(moonCos)));
+    var phX = THREE.dot(toPx, mRight);
+    var pMask = THREE.smoothstep(THREE.float(-0.15), THREE.float(0.15), phX.sub(u.uMoonPhase.mul(2.0).sub(1.0)));
+    var moonVis = THREE.smoothstep(THREE.float(-0.05), THREE.float(0.05), u.uMoonDir.y);
+    sky.addAssign(u.uMoonColor.mul(mDisk).mul(pMask).mul(moonVis).mul(0.5));
+
+    // Procedural stars with glow + diffraction spikes
+    var nightF = THREE.float(1.0).sub(THREE.smoothstep(THREE.float(-0.12), THREE.float(0.08), u.uSunDir.y));
+    var starV = u.uStarBright.mul(nightF);
+    var starFade = THREE.smoothstep(THREE.float(0.02), THREE.float(0.12), dir.y);
+    var sUV = THREE.vec2(THREE.atan2(dir.z, dir.x), THREE.asin(dir.y)).mul(180.0);
+    var cell = THREE.floor(sUV);
+    var cellUV = THREE.fract(sUV).sub(0.5);
+    var sh = _skyHash(cell);
+    var sDist = THREE.length(cellUV);
+    var tier1 = THREE.smoothstep(THREE.float(0.985), THREE.float(0.992), sh).mul(0.4);
+    var tier2 = THREE.smoothstep(THREE.float(0.992), THREE.float(0.997), sh).mul(0.7);
+    var tier3 = THREE.smoothstep(THREE.float(0.997), THREE.float(1.0), sh);
+    var bright = THREE.max(THREE.max(tier1, tier2), tier3);
+    var sRadius = THREE.float(0.25).add(bright.mul(0.2));
+    var sglow = THREE.exp(sDist.mul(sDist).negate().div(sRadius.mul(sRadius)));
+    var sLen = THREE.float(0.15).add(sh.sub(0.993).mul(20.0));
+    var spkMask = THREE.smoothstep(THREE.float(0.993), THREE.float(1.0), sh);
+    var sx = THREE.exp(THREE.abs(cellUV.x).div(sLen).mul(-3.0)).mul(THREE.exp(THREE.abs(cellUV.y).mul(-8.0)));
+    var sy = THREE.exp(THREE.abs(cellUV.y).div(sLen).mul(-3.0)).mul(THREE.exp(THREE.abs(cellUV.x).mul(-8.0)));
+    var spikes = sx.add(sy).mul(0.4).mul(spkMask);
+    var starCol = THREE.mix(THREE.vec3(0.75, 0.85, 1.0), THREE.vec3(1.0, 0.92, 0.8), THREE.fract(sh.mul(17.3)));
+    var twinkle = sh.mul(6283.0).add(u.uTime.mul(1.5)).sin().mul(0.2).add(0.8);
+    sky.addAssign(starCol.mul(bright.mul(sglow).add(spikes)).mul(twinkle).mul(starV).mul(starFade).mul(1.2));
+
+    // Shooting stars (3 meteor tracks)
+    if (THREE.Loop) {
+      var ssNight = THREE.float(1.0).sub(THREE.smoothstep(THREE.float(-0.05), THREE.float(0.1), u.uSunDir.y));
+      var ssDirVis = THREE.smoothstep(THREE.float(0.05), THREE.float(0.15), dir.y);
+      THREE.Loop(3, function(ctx) {
+        var mi = THREE.float(ctx.i);
+        var rate = THREE.float(0.18).add(mi.mul(0.11));
+        var cyc = THREE.floor(u.uTime.mul(rate));
+        var ph = THREE.fract(u.uTime.mul(rate));
+        var s1 = cyc.mul(127.1).add(mi.mul(311.7)).sin().mul(43758.5).fract();
+        var s2 = cyc.mul(269.5).add(mi.mul(113.3)).sin().mul(43758.5).fract();
+        var s3 = cyc.mul(419.2).add(mi.mul(227.1)).sin().mul(43758.5).fract();
+        var mShow = THREE.step(s3, THREE.float(0.35));
+        var mVis2 = THREE.smoothstep(THREE.float(0.0), THREE.float(0.04), ph)
+          .mul(THREE.smoothstep(THREE.float(0.28), THREE.float(0.12), ph)).mul(mShow);
+        var az2 = s1.mul(6.283);
+        var el = THREE.float(0.25).add(s2.mul(0.45));
+        var mStart = THREE.normalize(THREE.vec3(THREE.sin(az2), el, THREE.cos(az2)));
+        var mVel = THREE.normalize(THREE.vec3(s2.sub(0.5), THREE.float(-0.45), s1.sub(0.3)));
+        var prog = ph.div(0.28);
+        var mHead = THREE.normalize(mStart.add(mVel.mul(prog.mul(0.25))));
+        var mDist2 = THREE.acos(THREE.clamp(THREE.dot(dir, mHead), THREE.float(-1.0), THREE.float(1.0)));
+        var mGlow = THREE.exp(mDist2.mul(mDist2).mul(-40000.0));
+        var mTail = THREE.normalize(mStart.add(mVel.mul(THREE.max(THREE.float(0.0), prog.sub(0.35)).mul(0.25))));
+        var tDist = THREE.acos(THREE.clamp(THREE.dot(dir, mTail), THREE.float(-1.0), THREE.float(1.0)));
+        var tGlow = THREE.exp(tDist.mul(tDist).mul(-60000.0)).mul(0.4);
+        sky.addAssign(THREE.vec3(1.0, 0.95, 0.85).mul(mGlow.add(tGlow)).mul(mVis2).mul(u.uShootStarInt).mul(ssNight).mul(ssDirVis));
+      });
+    }
+
+    // Aurora borealis
+    var aNight = THREE.float(1.0).sub(THREE.smoothstep(THREE.float(-0.12), THREE.float(0.08), u.uSunDir.y));
+    var aVis = u.uAuroraInt.mul(aNight).mul(THREE.smoothstep(THREE.float(0.08), THREE.float(0.2), dir.y));
+    var aX = dir.x.mul(3.0).add(u.uTime.mul(0.03));
+    var curtain = _skyCFbm(THREE.vec2(aX, dir.y.mul(2.5))).mul(0.6)
+      .add(_skyCFbm(THREE.vec2(aX.mul(2.0).add(1.7), dir.y.mul(4.0))).mul(0.4));
+    var aBand = THREE.smoothstep(THREE.float(0.15), THREE.float(0.4), dir.y)
+      .mul(THREE.smoothstep(THREE.float(0.85), THREE.float(0.55), dir.y));
+    var aWave = dir.x.mul(8.0).add(u.uTime.mul(0.5)).sin().mul(0.15).add(0.85);
+    var aMask = THREE.smoothstep(THREE.float(0.3), THREE.float(0.5), curtain).mul(aBand).mul(aWave);
+    var aCol = THREE.mix(THREE.vec3(0.1, 0.9, 0.3), THREE.vec3(0.15, 0.3, 0.9),
+      THREE.smoothstep(THREE.float(0.3), THREE.float(0.7), dir.y)).toVar();
+    aCol.assign(THREE.mix(aCol, THREE.vec3(0.7, 0.1, 0.5),
+      THREE.smoothstep(THREE.float(0.6), THREE.float(0.85), dir.y).mul(0.5)));
+    sky.addAssign(aCol.mul(aMask).mul(aVis).mul(0.5));
+
+    // Procedural clouds (multi-scale fBm)
+    var cUV = THREE.vec2(dir.x, dir.z).div(dir.y.add(0.08)).mul(u.uCloudScale).add(u.uCloudOff);
+    var cnBase = _skyCFbm(cUV.mul(0.4));
+    var cnDetail = _skyCFbm(cUV.mul(1.2).add(THREE.vec2(3.7, 1.3)));
+    var cn = cnBase.mul(0.7).add(cnDetail.mul(0.3));
+    var cThresh = THREE.float(1.0).sub(u.uCloudCover);
+    var cMask = THREE.smoothstep(cThresh, cThresh.add(0.08), cn).mul(u.uCloudDens);
+    var cDepth = THREE.smoothstep(cThresh, cThresh.add(0.25), cn);
+    var cFade = THREE.smoothstep(THREE.float(0.01), THREE.float(0.18), dir.y);
+    var dxzSafe = THREE.normalize(THREE.vec2(dir.x, dir.z).add(THREE.vec2(0.001, 0.001)));
+    var sxzSafe = THREE.normalize(THREE.vec2(u.uSunDir.x, u.uSunDir.z).add(THREE.vec2(0.001, 0.001)));
+    var sunFace = THREE.dot(dxzSafe, sxzSafe).mul(0.5).add(0.5);
+    var daylight = THREE.smoothstep(THREE.float(-0.1), THREE.float(0.2), u.uSunDir.y);
+    var cLight = THREE.mix(THREE.float(0.15), THREE.float(1.0), daylight)
+      .mul(THREE.mix(THREE.float(0.65), THREE.float(1.35), sunFace));
+    var cLightVal = cLight.mul(u.uCloudBright).mul(THREE.mix(THREE.float(0.7), THREE.float(1.0), cDepth));
+    var cCol = THREE.vec3(cLightVal, cLightVal, cLightVal).toVar();
+    var cNightTint = THREE.float(1.0).sub(daylight);
+    cCol.assign(THREE.mix(cCol, cCol.mul(THREE.vec3(0.35, 0.40, 0.60)), cNightTint));
+    var cEdgeGlow = THREE.smoothstep(cThresh.add(0.06), cThresh.add(0.01), cn).mul(0.45).mul(daylight).mul(sunFace);
+    cCol.addAssign(THREE.vec3(1.0, 0.95, 0.80).mul(cEdgeGlow));
+    var cVisTotal = cMask.mul(cFade).mul(THREE.smoothstep(THREE.float(0.01), THREE.float(0.05), dir.y));
+    sky.assign(THREE.mix(sky, cCol, cVisTotal));
+
+    // God rays (crepuscular)
+    var grDot = THREE.max(THREE.float(0.0), THREE.dot(dir, u.uSunDir));
+    var grAngle = THREE.atan2(dir.x.sub(u.uSunDir.x), dir.z.sub(u.uSunDir.z));
+    var grNoise = _skyCNoise(THREE.vec2(grAngle.mul(6.0), grDot.mul(3.0))).mul(0.5).add(0.5);
+    var grRays = grDot.pow(4.0).mul(grNoise).mul(grDot.pow(6.0));
+    var grCloud = THREE.float(1.0).sub(u.uCloudCover.mul(0.6));
+    var grSunUp = THREE.smoothstep(THREE.float(-0.02), THREE.float(0.1), u.uSunDir.y);
+    sky.addAssign(u.uSunColor.mul(grRays).mul(u.uGodRayInt).mul(grCloud).mul(grSunUp).mul(1.5));
+
+    // Rainbow arc
+    var antiSun = THREE.normalize(THREE.vec3(u.uSunDir.x.negate(), THREE.abs(u.uSunDir.y).mul(-0.3), u.uSunDir.z.negate()));
+    var rbAng = THREE.acos(THREE.clamp(THREE.dot(dir, antiSun), THREE.float(-1.0), THREE.float(1.0)));
+    var rbW = THREE.float(0.025);
+    var rbCtr = THREE.float(0.72);
+    var rbMask = THREE.smoothstep(rbW, rbW.mul(0.3), THREE.abs(rbAng.sub(rbCtr)));
+    var rbT = THREE.clamp(rbAng.sub(rbCtr.sub(rbW)).div(rbW.mul(2.0)), THREE.float(0.0), THREE.float(1.0));
+    var rbHue = THREE.float(1.0).sub(rbT).mul(0.8);
+    var rbR = THREE.abs(THREE.mod(rbHue.mul(6.0), THREE.float(6.0)).sub(3.0)).sub(1.0).clamp(0.0, 1.0);
+    var rbG = THREE.abs(THREE.mod(rbHue.mul(6.0).add(4.0), THREE.float(6.0)).sub(3.0)).sub(1.0).clamp(0.0, 1.0);
+    var rbB = THREE.abs(THREE.mod(rbHue.mul(6.0).add(2.0), THREE.float(6.0)).sub(3.0)).sub(1.0).clamp(0.0, 1.0);
+    var rbCol = THREE.vec3(rbR, rbG, rbB);
+    var rbSunVis = THREE.smoothstep(THREE.float(0.05), THREE.float(0.15), u.uSunDir.y);
+    sky.addAssign(rbCol.mul(rbMask).mul(u.uRainbowInt)
+      .mul(THREE.smoothstep(THREE.float(0.0), THREE.float(0.12), dir.y)).mul(0.35).mul(rbSunVis));
+
+    // Reinhard tonemap + exposure
+    sky.assign(sky.div(sky.add(THREE.vec3(1.0, 1.0, 1.0))));
+    sky.assign(sky.mul(u.uExposure));
+    sky.assign(THREE.clamp(sky, THREE.vec3(0.0, 0.0, 0.0), THREE.vec3(1.0, 1.0, 1.0)));
+
+    return sky;
+  })(THREE.positionLocal);
+
+  return mat;
+}
+
+
+// ============================================================
+// GLSL Shaders — Procedural sky dome (LEGACY — kept for reference)
 // ============================================================
 
 var SKY_VERTEX = [
@@ -550,28 +794,27 @@ function ProceduralSkyDome(scene) {
   this._gradTex.wrapT = THREE.ClampToEdgeWrapping;
 
   this._u = {
-    uGrad:      { value: this._gradTex },
-    uSunDir:    { value: new THREE.Vector3(0, 1, 0) },
-    uMoonDir:   { value: new THREE.Vector3(0, -1, 0) },
-    uSunSize:   { value: 0.028 },
-    uMoonSize:  { value: 0.022 },
-    uMoonPhase: { value: 0.5 },
-    uMieCoeff:  { value: 0.005 },
-    uMieG:      { value: 0.80 },
-    uSunColor:  { value: new THREE.Vector3(1.0, 0.95, 0.85) },
-    uMoonColor: { value: new THREE.Vector3(0.7, 0.75, 0.85) },
-    uStarBright:{ value: 1.0 },
-    uExposure:  { value: 1.2 },
-    uTime:      { value: 0 },
-    uCloudCover: { value: 0 },
-    uCloudDens:  { value: 0.85 },
-    uCloudScale: { value: 3.0 },
-    uCloudOff:   { value: new THREE.Vector2(0, 0) },
-    uCloudBright:{ value: 1.0 },
-    uGodRayInt:  { value: 0 },
-    uAuroraInt:  { value: 0 },
-    uRainbowInt: { value: 0 },
-    uShootStarInt: { value: 0 }
+    uSunDir:    THREE.uniform(new THREE.Vector3(0, 1, 0)),
+    uMoonDir:   THREE.uniform(new THREE.Vector3(0, -1, 0)),
+    uSunSize:   THREE.uniform(0.028),
+    uMoonSize:  THREE.uniform(0.022),
+    uMoonPhase: THREE.uniform(0.5),
+    uMieCoeff:  THREE.uniform(0.005),
+    uMieG:      THREE.uniform(0.80),
+    uSunColor:  THREE.uniform(new THREE.Vector3(1.0, 0.95, 0.85)),
+    uMoonColor: THREE.uniform(new THREE.Vector3(0.7, 0.75, 0.85)),
+    uStarBright:THREE.uniform(1.0),
+    uExposure:  THREE.uniform(1.2),
+    uTime:      THREE.uniform(0),
+    uCloudCover: THREE.uniform(0),
+    uCloudDens:  THREE.uniform(0.85),
+    uCloudScale: THREE.uniform(3.0),
+    uCloudOff:   THREE.uniform(new THREE.Vector2(0, 0)),
+    uCloudBright:THREE.uniform(1.0),
+    uGodRayInt:  THREE.uniform(0),
+    uAuroraInt:  THREE.uniform(0),
+    uRainbowInt: THREE.uniform(0),
+    uShootStarInt: THREE.uniform(0)
   };
 
   var geo = new THREE.SphereGeometry(1, 32, 16);
@@ -582,60 +825,24 @@ function ProceduralSkyDome(scene) {
     var tmp = idx[fi]; idx[fi] = idx[fi + 2]; idx[fi + 2] = tmp;
   }
   geo.index.needsUpdate = true;
-  // WebGPU renderer doesn't support raw GLSL ShaderMaterial — use gradient MeshBasicMaterial
-  var __isWebGPU = !!(typeof window !== "undefined" && window.__vibexe_webgpu__);
-  var mat;
-  if (__isWebGPU) {
-    mat = new THREE.MeshBasicMaterial({
-      color: 0x4488cc,
-      side: THREE.FrontSide,
-      depthWrite: false,
-      depthTest: false,
-      toneMapped: false,
-      vertexColors: true
-    });
-    // Apply vertex colors — sphere radius is 1, so Y ranges [-1, 1]
-    var colors = new Float32Array(geo.attributes.position.count * 3);
-    for (var ci = 0; ci < geo.attributes.position.count; ci++) {
-      var ny = (geo.attributes.position.getY(ci) + 1) * 0.5; // normalize Y to 0..1
-      colors[ci * 3] = 0.3 + ny * 0.4;     // R: warm horizon → pale zenith
-      colors[ci * 3 + 1] = 0.5 + ny * 0.35; // G: green-blue gradient
-      colors[ci * 3 + 2] = 0.7 + ny * 0.2; // B: strong blue
-    }
-    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-    mat.__isWebGPUFallback = true;
-  } else {
-    mat = new THREE.ShaderMaterial({
-      vertexShader: SKY_VERTEX,
-      fragmentShader: SKY_FRAGMENT,
-      uniforms: this._u,
-      side: THREE.FrontSide,
-      depthWrite: false,
-      depthTest: false,
-      toneMapped: false
-    });
-  }
+
+  // TSL material — compiles to both WGSL (WebGPU) and GLSL (WebGL) automatically
+  var mat = _buildSkyMaterial(this._u, this._gradTex);
 
   this.mesh = new THREE.Mesh(geo, mat);
   this.mesh.name = "__skyDome__";
   this.mesh.renderOrder = -1000;
   this.mesh.frustumCulled = false;
-  this._isWebGPU = __isWebGPU;
-  // WebGPU fallback: MeshBasicMaterial uses standard vertex shader (no viewMatrix trick),
-  // so we must physically scale the sphere to surround the scene and follow the camera.
-  if (__isWebGPU) {
-    this.mesh.scale.setScalar(500);
-  }
+  // Camera-follow approach: scale sphere to surround scene, position on camera each frame
+  this.mesh.scale.setScalar(500);
   this.scene.add(this.mesh);
 }
 
 ProceduralSkyDome.prototype.update = function(st, sunDir, moonDir, moonPhase, cfg) {
-  // WebGPU fallback: no shader uniforms but must follow camera so sphere always surrounds it
-  if (this._isWebGPU) {
-    var cam = window.__vibexe_camera__;
-    if (cam && this.mesh) { this.mesh.position.copy(cam.position); }
-    return;
-  }
+  // Camera follow — sphere always surrounds camera
+  var cam = window.__vibexe_camera__;
+  if (cam && this.mesh) { this.mesh.position.copy(cam.position); }
+
   // Rebuild gradient when solarTime changes visibly
   if (Math.abs(st - this._lastST) > 0.003) {
     this._buildGradient(st);

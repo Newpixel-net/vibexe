@@ -109,7 +109,7 @@
 		"shiki": "catalog:",
 		"stripe": "20.2.0-alpha.1",
 		"tailwind-merge": "2.6.0",
-		"three": "0.170.0",
+		"three": "0.183.0",
 		"tiny-invariant": "1.3.3",
 		"valibot": "1.2.0",
 		"zod": "catalog:",

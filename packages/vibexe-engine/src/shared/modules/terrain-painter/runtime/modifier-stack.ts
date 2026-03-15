@@ -68,11 +68,11 @@ export class ModifierStack {
 		this.renderer = renderer;
 		this.resolution = resolution;
 
-		// ShaderMaterial (raw GLSL) is incompatible with WebGPU renderer.
-		// ModifierStack is a GPU splatmap pipeline used only by the world-builder editor.
-		// On WebGPU, terrain uses MeshStandardMaterial fallback (terrain-mesh.ts), so
-		// splatmap generation is not needed — skip the entire GLSL pipeline.
-		this.isWebGPU = !!(typeof window !== "undefined" && (window as any).__vibexe_webgpu__);
+		// Raw GLSL ShaderMaterial is incompatible with three.webgpu.js
+		// (even on WebGL2 fallback, the node material pipeline is used).
+		// ModifierStack uses GLSL passes — skip until converted to TSL.
+		// Primary terrain painting works via bridge vertex attribute weights (CPU path).
+		this.isWebGPU = true; // TODO: Convert modifier passes to TSL, then remove this
 		if (this.isWebGPU) return;
 
 		this.initPipeline();

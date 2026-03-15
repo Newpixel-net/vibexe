@@ -3800,25 +3800,20 @@ export function getVisualEditBridgeScript(): string {
           console.log("[GameEditorBridge] Performance settings applied:", _perfS.qualityPreset, "px:", _perfS.pixelRatio);
         }
 
-        // === Sync terrain fog uniforms when environment settings change ===
+        // === Sync scene.fog when environment settings change ===
+        // MeshStandardMaterial uses scene.fog automatically (no custom uniforms needed)
         var _envS = _gsSettings.environment;
         if (_envS) {
-          var _terrainMesh = (window.__vibexe_scene__ || (editor && editor.scene));
-          if (_terrainMesh) {
-            var _tObj = _terrainMesh.getObjectByName && _terrainMesh.getObjectByName("__terrain__");
-            if (_tObj && _tObj.userData && _tObj.userData.__fogUniforms) {
-              var _fu = _tObj.userData.__fogUniforms;
-              if (_envS.fogEnabled === false) {
-                _fu.uFogMaxAmt.value = 0.0;
-              } else if (_envS.fogEnabled) {
-                _fu.uFogMaxAmt.value = 0.5;
-                if (_envS.fogColor) {
-                  var _fc = new (window.THREE || THREE).Color(_envS.fogColor);
-                  _fu.uFogColor.value.set(_fc.r, _fc.g, _fc.b);
-                }
-                if (_envS.fogFar) _fu.uFogFar.value = _envS.fogFar;
-                else if (_envS.fogDensity) _fu.uFogFar.value = 3.0 / _envS.fogDensity;
-              }
+          var _fogScene = window.__vibexe_scene__ || (editor && editor.scene);
+          if (_fogScene) {
+            var _T = window.THREE || THREE;
+            if (_envS.fogEnabled === false) {
+              _fogScene.fog = null;
+            } else if (_envS.fogEnabled) {
+              var _fogColor = _envS.fogColor ? new _T.Color(_envS.fogColor) : new _T.Color(0x9EADCC);
+              var _fogFar = _envS.fogFar || 300;
+              if (_envS.fogDensity) _fogFar = 3.0 / _envS.fogDensity;
+              _fogScene.fog = new _T.Fog(_fogColor.getHex(), 1, _fogFar);
             }
           }
         }
@@ -5664,61 +5659,148 @@ export function getVisualEditBridgeScript(): string {
             // Dispose old material
             if (_rpTerrain.material) { try { _rpTerrain.material.dispose(); } catch(e) {} }
 
-            // WebGPU renderer does NOT support raw GLSL ShaderMaterial — use MeshStandardMaterial fallback
-            var _rpIsWebGPU = !!(window.__vibexe_webgpu__);
-            if (_rpIsWebGPU) {
-              // WebGPU fallback: original ShaderMaterial has lights:false (self-lit).
-              // MeshStandardMaterial responds to scene lights (~2+ intensity) + ACES exposure 1.2,
-              // so use gray base color to compensate and avoid washed-out white terrain.
-              var _rpStdMat = new _rpTHREE.MeshStandardMaterial({
-                color: 0x999999,
-                side: _rpTHREE.DoubleSide,
-                roughness: 0.75,
-                metalness: 0.0,
-                vertexColors: false
-              });
-              // Apply dominant diffuse texture as material map
-              var _rpDomTex = _rpTextures[0] || _rpTextures[1] || _rpTextures[2] || _rpTextures[3];
-              if (_rpDomTex) {
-                _rpStdMat.map = _rpDomTex;
-              }
-              // Apply dominant normal map
-              var _rpDomNorm = _rpNormalTextures[0] || _rpNormalTextures[1] || _rpNormalTextures[2] || _rpNormalTextures[3];
-              if (_rpDomNorm) {
-                _rpStdMat.normalMap = _rpDomNorm;
-              }
-              // Apply dominant roughness map
-              var _rpDomRough = _rpRoughnessTextures[0] || _rpRoughnessTextures[1] || _rpRoughnessTextures[2] || _rpRoughnessTextures[3];
-              if (_rpDomRough) {
-                _rpStdMat.roughnessMap = _rpDomRough;
-              }
-              _rpStdMat.__isWebGPUFallback = true;
-              _rpTerrain.material = _rpStdMat;
-              console.log("[TerrainPainter] WebGPU fallback: MeshStandardMaterial applied with dominant texture from", _rpNumLayers, "layers");
-            } else {
-              var _rpShaderMat = new _rpTHREE.ShaderMaterial({
-                uniforms: _rpUniforms,
-                vertexShader: _rpVertShader,
-                fragmentShader: _rpFragShader,
-                lights: false,
-                side: _rpTHREE.DoubleSide
-              });
+            // TSL terrain material — compiles to both WGSL (WebGPU) and GLSL (WebGL) automatically
+            // MeshStandardMaterial handles PBR lighting, fog, and shadows internally
+            var _rpFn = _rpTHREE.Fn || _rpTHREE.tslFn;
+            var _rpMat = new _rpTHREE.MeshStandardMaterial({
+              side: _rpTHREE.DoubleSide,
+              roughness: 0.8,
+              metalness: 0.0
+            });
 
-              _rpTerrain.material = _rpShaderMat;
-              // Sync fog uniforms from scene.fog if present; disable if no fog
-              var _sc2 = window.__vibexe_scene__;
-              if (_sc2 && _sc2.fog) {
-                var _f = _sc2.fog;
-                if (_f.color) _rpUniforms.uFogColor.value.set(_f.color.r, _f.color.g, _f.color.b);
-                if (_f.far) _rpUniforms.uFogFar.value = _f.far;
-                else if (_f.density) _rpUniforms.uFogFar.value = 3.0 / _f.density;
-              } else {
-                // No fog — push fog far enough that it never affects rendering
-                _rpUniforms.uFogMaxAmt.value = 0.0;
+            if (_rpFn) {
+              // Read splatmap weights from vertex attributes
+              var _a_w0 = _rpTHREE.attribute("w0");
+              var _a_w1 = _rpTHREE.attribute("w1");
+              var _a_w2 = _rpTHREE.attribute("w2");
+              var _a_w3 = _rpTHREE.attribute("w3");
+              var _a_uv = _rpTHREE.uv();
+              var _tWeights = [_a_w0, _a_w1, _a_w2, _a_w3];
+
+              // Read per-layer parameters from computed uniforms
+              var _tScale = [];
+              var _tRough = [];
+              var _tMetal = [];
+              for (var _pli = 0; _pli < 4; _pli++) {
+                _tScale[_pli] = _rpUniforms["uTexScale" + _pli].value;
+                _tRough[_pli] = _rpUniforms["uRoughness" + _pli].value;
+                _tMetal[_pli] = _rpUniforms["uMetallic" + _pli].value;
               }
-              // Store uniforms ref on terrain for dynamic fog updates
-              _rpTerrain.userData.__fogUniforms = _rpUniforms;
-              console.log("[TerrainPainter] PBR ShaderMaterial applied with", _rpNumLayers, "layers, normals:", !!_rpNormalTextures[0], "roughness:", !!_rpRoughnessTextures[0], "ao:", !!_rpAOTextures[0]);
+
+              // Sample diffuse textures (or fallback colors) for each layer
+              var _tDiffuse = [];
+              for (var _pli = 0; _pli < 4; _pli++) {
+                if (_pli < _rpNumLayers && _rpTextures[_pli]) {
+                  _tDiffuse[_pli] = _rpTHREE.texture(_rpTextures[_pli], _a_uv.mul(_tScale[_pli])).rgb;
+                } else {
+                  var _fc = _rpUniforms["uColor" + _pli].value;
+                  _tDiffuse[_pli] = _rpTHREE.vec3(_fc.x, _fc.y, _fc.z);
+                }
+              }
+
+              // Height-depth blending (same algorithm as original GLSL shader)
+              // Uses roughness as height proxy — roughness correlates with surface depth
+              var _hDepth = _rpTHREE.float(0.15);
+              var _hScale = _rpTHREE.float(0.08);
+
+              // hb[i] = roughness[i] * 0.08 + weight[i]
+              var _hb = [];
+              for (var _pli = 0; _pli < 4; _pli++) {
+                if (_pli < _rpNumLayers) {
+                  _hb[_pli] = _rpTHREE.float(_tRough[_pli]).mul(_hScale).add(_tWeights[_pli]);
+                } else {
+                  _hb[_pli] = _rpTHREE.float(0);
+                }
+              }
+
+              // hbMax = max(all 4)
+              var _hbMax = _rpTHREE.max(_rpTHREE.max(_hb[0], _hb[1]), _rpTHREE.max(_hb[2], _hb[3]));
+
+              // Normalize: hb = max(hb - hbMax + depth, 0) / sum
+              var _hn = [];
+              for (var _pli = 0; _pli < 4; _pli++) {
+                _hn[_pli] = _rpTHREE.max(_hb[_pli].sub(_hbMax).add(_hDepth), _rpTHREE.float(0));
+              }
+              var _hSum = _hn[0].add(_hn[1]).add(_hn[2]).add(_hn[3]).add(_rpTHREE.float(0.001));
+              var _hFinal = [];
+              for (var _pli = 0; _pli < 4; _pli++) {
+                _hFinal[_pli] = _hn[_pli].div(_hSum);
+              }
+
+              // Blend diffuse colors with height-depth weights
+              var _blendColor = _tDiffuse[0].mul(_hFinal[0]);
+              for (var _pli = 1; _pli < _rpNumLayers; _pli++) {
+                _blendColor = _blendColor.add(_tDiffuse[_pli].mul(_hFinal[_pli]));
+              }
+              _rpMat.colorNode = _blendColor;
+
+              // Blend roughness
+              var _blendRough = _rpTHREE.float(_tRough[0]).mul(_hFinal[0]);
+              for (var _pli = 1; _pli < _rpNumLayers; _pli++) {
+                _blendRough = _blendRough.add(_rpTHREE.float(_tRough[_pli]).mul(_hFinal[_pli]));
+              }
+              _rpMat.roughnessNode = _rpTHREE.clamp(_blendRough, 0.05, 1.0);
+
+              // Blend metalness
+              var _blendMetal = _rpTHREE.float(_tMetal[0]).mul(_hFinal[0]);
+              for (var _pli = 1; _pli < _rpNumLayers; _pli++) {
+                _blendMetal = _blendMetal.add(_rpTHREE.float(_tMetal[_pli]).mul(_hFinal[_pli]));
+              }
+              _rpMat.metalnessNode = _blendMetal;
+
+              // Normal map blending (if any normals loaded)
+              var _hasAnyNormal = false;
+              for (var _pli = 0; _pli < _rpNumLayers; _pli++) {
+                if (_rpNormalTextures[_pli]) { _hasAnyNormal = true; break; }
+              }
+              if (_hasAnyNormal) {
+                var _blendNorm = null;
+                for (var _pli = 0; _pli < _rpNumLayers; _pli++) {
+                  if (_rpNormalTextures[_pli]) {
+                    var _nSamp = _rpTHREE.texture(_rpNormalTextures[_pli], _a_uv.mul(_tScale[_pli]));
+                    // Decode tangent-space normal: rgb * 2 - 1, scale xy by intensity
+                    var _nInt = _rpUniforms["uNormalIntensity" + _pli].value;
+                    var _nDecoded = _nSamp.rgb.mul(2.0).sub(1.0);
+                    var _nScaled = _rpTHREE.vec3(_nDecoded.x.mul(_nInt), _nDecoded.y.mul(_nInt), _nDecoded.z);
+                    var _nWeighted = _nScaled.mul(_hFinal[_pli]);
+                    _blendNorm = _blendNorm ? _blendNorm.add(_nWeighted) : _nWeighted;
+                  }
+                }
+                if (_blendNorm) {
+                  _rpMat.normalNode = _rpTHREE.normalize(_blendNorm);
+                }
+              }
+
+              // Emission (uses AO texture slot for emissive layers like Lava/Burnt)
+              var _emNode = null;
+              for (var _pli = 0; _pli < _rpNumLayers; _pli++) {
+                if (_rpUniforms["uIsEmissive" + _pli].value > 0.5 && _rpAOTextures[_pli]) {
+                  var _eTex = _rpTHREE.texture(_rpAOTextures[_pli], _a_uv.mul(_tScale[_pli])).rgb;
+                  var _eInt = _rpTHREE.float(_rpUniforms["uEmissionIntensity" + _pli].value);
+                  var _eContrib = _eTex.mul(_eInt).mul(_hFinal[_pli]);
+                  _emNode = _emNode ? _emNode.add(_eContrib) : _eContrib;
+                }
+              }
+              if (_emNode) {
+                _rpMat.emissiveNode = _emNode;
+              }
+
+              console.log("[TerrainPainter] TSL material applied with", _rpNumLayers, "layers, height-depth blending, normals:", _hasAnyNormal);
+            } else {
+              // Fallback: TSL not available — apply dominant texture only
+              var _rpDomTex = _rpTextures[0] || _rpTextures[1] || _rpTextures[2] || _rpTextures[3];
+              if (_rpDomTex) _rpMat.map = _rpDomTex;
+              var _rpDomNorm = _rpNormalTextures[0] || _rpNormalTextures[1] || _rpNormalTextures[2] || _rpNormalTextures[3];
+              if (_rpDomNorm) _rpMat.normalMap = _rpDomNorm;
+              console.log("[TerrainPainter] Fallback material (no TSL) with dominant texture");
+            }
+
+            _rpTerrain.material = _rpMat;
+
+            // Set scene.fog if not present (MeshStandardMaterial uses it automatically)
+            var _sc2 = window.__vibexe_scene__;
+            if (_sc2 && !_sc2.fog) {
+              _sc2.fog = new _rpTHREE.Fog(0x9EADCC, 1, 300);
             }
 
             // === MODULE INTEROP: Update terrain surface offset from active layers ===

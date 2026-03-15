@@ -2,7 +2,7 @@
  * GET /api/app-builder/game-runtime
  *
  * Serves a lightweight HTML page that:
- * 1. Loads Three.js r172 WebGPU build (sets window.THREE) — auto-falls back to WebGL 2
+ * 1. Loads Three.js r183 WebGPU build (sets window.THREE) — auto-falls back to WebGL 2
  * 2. Loads Three.js addons (GLTFLoader, OrbitControls, TransformControls, post-processing)
  * 3. Loads CANNON.js (sets window.CANNON) + Rapier.js WASM (sets window.RAPIER)
  * 4. Loads the visual-edit-bridge for scene editing
@@ -39,15 +39,15 @@ canvas{display:block;width:100%;height:100%}
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.webgpu.js",
-    "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.webgpu.js",
-    "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.tsl.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm/"
+    "three": "https://cdn.jsdelivr.net/npm/three@0.183.0/build/three.webgpu.js",
+    "three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.183.0/build/three.webgpu.js",
+    "three/tsl": "https://cdn.jsdelivr.net/npm/three@0.183.0/build/three.tsl.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.183.0/examples/jsm/"
   }
 }
 </script>
 
-<!-- Three.js r172 WebGPU + addons + CANNON.js — loaded as ES modules, assigned to window globals -->
+<!-- Three.js r183 WebGPU + addons + CANNON.js — loaded as ES modules, assigned to window globals -->
 <script type="module">
 import * as THREE from 'three';
 import * as TSL from 'three/tsl';

@@ -1437,7 +1437,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 	);
 	if (usesThree) {
 		sandpackFiles["/node_modules/three/package.json"] = {
-			code: JSON.stringify({ name: "three", version: "0.172.0", main: "index.js" }),
+			code: JSON.stringify({ name: "three", version: "0.183.0", main: "index.js" }),
 			hidden: true,
 		};
 		sandpackFiles["/node_modules/three/index.js"] = {
@@ -1447,7 +1447,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				"if (typeof window.THREE === 'undefined') {",
 				"  var _m = { exports: {} }, _e = _m.exports;",
 				"  var xhr = new XMLHttpRequest();",
-				"  xhr.open('GET', 'https://cdn.jsdelivr.net/npm/three@0.172.0/build/three.cjs', false);",
+				"  xhr.open('GET', 'https://cdn.jsdelivr.net/npm/three@0.183.0/build/three.cjs', false);",
 				"  xhr.send();",
 				"  if (xhr.status === 200) {",
 				"    var _fakeReq = function(mod) { return {}; };",
@@ -1486,7 +1486,7 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 				"}",
 				"",
 				"// Step 3: Load addons in dependency order",
-				"var _cdnBase = 'https://cdn.jsdelivr.net/npm/three@0.172.0/examples/jsm';",
+				"var _cdnBase = 'https://cdn.jsdelivr.net/npm/three@0.183.0/examples/jsm';",
 				"// Core addons",
 				"__loadThreeAddon(_cdnBase + '/loaders/GLTFLoader.js', ['GLTFLoader']);",
 				"__loadThreeAddon(_cdnBase + '/controls/OrbitControls.js', ['OrbitControls']);",
