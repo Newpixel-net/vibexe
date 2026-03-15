@@ -50,6 +50,7 @@ canvas{display:block;width:100%;height:100%}
 <!-- Three.js r172 WebGPU + addons + CANNON.js — loaded as ES modules, assigned to window globals -->
 <script type="module">
 import * as THREE from 'three';
+import * as TSL from 'three/tsl';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
@@ -58,8 +59,9 @@ import { TransformControls } from 'three/addons/controls/TransformControls.js';
 // They MUST be loaded via dynamic import() so failures don't crash the entire module script.
 import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js';
 
-// ES module namespace is frozen — create a mutable copy with addons attached
-var T = Object.assign({}, THREE, { GLTFLoader, OrbitControls, TransformControls });
+// ES module namespace is frozen — create a mutable copy with core + TSL + addons
+// TSL provides: pass, attribute, uniform, float, vec2, vec3, shapeCircle, instancedBufferAttribute, etc.
+var T = Object.assign({}, THREE, TSL, { GLTFLoader, OrbitControls, TransformControls });
 window.THREE = T;
 window.CANNON = Object.assign({}, CANNON);
 
