@@ -539,6 +539,41 @@ if (!gameScene || typeof gameScene.init !== 'function') {
     }
   }
 
+  // ===== Deferred Procedural Environment Map =====
+  // PMREMGenerator.fromScene() creates a procedural env map for PBR reflections.
+  // Skip if bridge (Scene mode) will handle it. 5s delay to survive recompile cycles.
+  setTimeout(() => {
+    try {
+      if (!scene || !THREE.PMREMGenerator) return;
+      if (W.__vibexe_editor_active__) return; // bridge handles env map in Scene mode
+      if (scene.environment) return; // already set
+      const __pmrem = new THREE.PMREMGenerator(renderer);
+      __pmrem.compileEquirectangularShader?.();
+      const __envScene = new THREE.Scene();
+      const __skyGeo = new THREE.SphereGeometry(50, 32, 16);
+      __envScene.add(new THREE.Mesh(__skyGeo, new THREE.MeshBasicMaterial({
+        color: new THREE.Color(0.35, 0.4, 0.55), side: THREE.BackSide
+      })));
+      const __gndGeo = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+      __envScene.add(new THREE.Mesh(__gndGeo, new THREE.MeshBasicMaterial({
+        color: new THREE.Color(0.15, 0.13, 0.1), side: THREE.BackSide
+      })));
+      const __pGeo = new THREE.PlaneGeometry(8, 8);
+      const __addP = (x: number, y: number, z: number, r: number, g: number, b: number, sx: number, sy: number) => {
+        const p = new THREE.Mesh(__pGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide }));
+        p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
+        __envScene.add(p);
+      };
+      __addP(0, 45, -10, 4, 3.5, 3, 2, 2);
+      __addP(-15, 40, 25, 2, 2, 2.5, 1.5, 1.5);
+      __addP(35, 20, -15, 1.5, 1.5, 2, 2, 2);
+      scene.environment = __pmrem.fromScene(__envScene, 0, 0.1, 100).texture;
+      if ((scene as any).environmentIntensity !== undefined) (scene as any).environmentIntensity = 0.6;
+      __pmrem.dispose(); __skyGeo.dispose(); __gndGeo.dispose(); __pGeo.dispose();
+      console.log("[Game3D] Deferred env map applied");
+    } catch (__e) { console.warn("[Game3D] env map error:", __e); }
+  }, 5000);
+
   // ===== Physics World =====
   const _createPhysicsWorld = W.createPhysicsWorld;
   const _createPhysicsGround = W.createPhysicsGround;
