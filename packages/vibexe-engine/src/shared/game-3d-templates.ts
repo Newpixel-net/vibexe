@@ -3417,7 +3417,7 @@ export async function playSpatial3D(
 
 const POST_PROCESSING_PRESETS: Record<string, any> = {
   cinematic: { bloom: { strength: 0.4, radius: 0.4, threshold: 0.85 }, fog: { color: 0x88aacc, near: 20, far: 80 }, toneMapping: "ACESFilmic", exposure: 1.0 },
-  vibrant: { bloom: { strength: 0.6, radius: 0.4, threshold: 0.8 }, toneMapping: "ACESFilmic", exposure: 1.2 },
+  vibrant: { bloom: { strength: 0.6, radius: 0.4, threshold: 0.8 }, toneMapping: "ACESFilmic", exposure: 1.0 },
   dark: { bloom: { strength: 0.3, radius: 0.3, threshold: 0.9 }, fog: { color: 0x111122, near: 5, far: 40 }, toneMapping: "Cineon", exposure: 0.7 },
   neon: { bloom: { strength: 1.5, radius: 0.6, threshold: 0.4 }, fog: { color: 0x050510, near: 10, far: 60 }, toneMapping: "ACESFilmic", exposure: 0.9 },
   natural: { bloom: { strength: 0.2, radius: 0.3, threshold: 0.9 }, fog: { color: 0xccddee, near: 30, far: 100 }, toneMapping: "Linear", exposure: 1.0 },
@@ -3558,7 +3558,7 @@ export function addFogEffect(scene: any, opts?: { color?: number; near?: number;
 export function setToneMapping(renderer: any, type?: string, exposure?: number) {
   const map: Record<string, number> = { Linear: 1, Reinhard: 2, Cineon: 3, ACESFilmic: 4 };
   renderer.toneMapping = map[type || "ACESFilmic"] ?? 4;
-  renderer.toneMappingExposure = exposure ?? 1.0;
+  renderer.toneMappingExposure = exposure ?? 0.9;
 }
 
 // ===== PARTICLE & VFX SYSTEM =====

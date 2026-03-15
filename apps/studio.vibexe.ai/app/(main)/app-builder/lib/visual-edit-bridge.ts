@@ -740,23 +740,24 @@ export function getVisualEditBridgeScript(): string {
 
   // PBR environment state
   var _pbrEnvReady = false;
-  function _ensurePBREnv() {
-    if (_pbrEnvReady) return;
+  var _toneMapReady = false;
+  // Cheap: tone mapping + exposure + light floor + duplicate cleanup — safe to call always
+  function _ensureToneMapping() {
+    if (_toneMapReady) return;
     var T = window.THREE;
     if (!T || !editor || !editor.scene || !editor.renderer) return;
-    _pbrEnvReady = true;
-    // Ensure ACES tone mapping + correct exposure for PBR (r183)
+    _toneMapReady = true;
+    // Ensure ACES tone mapping + correct exposure for r183 PBR
     editor.renderer.toneMapping = T.ACESFilmicToneMapping;
     editor.renderer.toneMappingExposure = 0.9;
     // PBR light floor for r183 physically-based rendering (/PI factor)
-    // Keep moderate — sky-weather and env map add more light on top.
     var _al = editor.scene.getObjectByName('__default_ambient__') || editor.scene.getObjectByName('AmbientLight');
     if (_al) _al.intensity = Math.max(_al.intensity, 0.15);
     var _hl = editor.scene.getObjectByName('__default_hemi__') || editor.scene.getObjectByName('HemisphereLight');
     if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.4);
     var _sl = editor.scene.getObjectByName('__default_sun__') || editor.scene.getObjectByName('DirectionalLight');
     if (_sl) _sl.intensity = Math.max(_sl.intensity, 1.2);
-    // Remove duplicate unnamed HemisphereLight (created by old createSkyGradient before dedup guard)
+    // Remove duplicate unnamed HemisphereLight
     var _dupeHemis = [];
     editor.scene.traverse(function(obj) {
       if (obj.isHemisphereLight && !obj.name) _dupeHemis.push(obj);
@@ -765,6 +766,15 @@ export function getVisualEditBridgeScript(): string {
       editor.scene.remove(_dupeHemis[_dhi]);
       console.log("[Bridge] Removed duplicate unnamed HemisphereLight");
     }
+    console.log("[GameEditorBridge] Tone mapping + light floor applied");
+  }
+
+  function _ensurePBREnv() {
+    _ensureToneMapping(); // Always apply tone mapping first
+    if (_pbrEnvReady) return;
+    var T = window.THREE;
+    if (!T || !editor || !editor.scene || !editor.renderer) return;
+    _pbrEnvReady = true;
     // Deferred env map — PMREMGenerator.fromScene() is extremely expensive on WebGPU
     // (compiles 6+ cube face shaders, blocks main thread). Defer to avoid FPS=1 on init.
     setTimeout(function() {
@@ -2455,6 +2465,8 @@ export function getVisualEditBridgeScript(): string {
             _m.needsUpdate = true;
           }
         });
+        // Always ensure tone mapping + exposure for r183 PBR (even terrain-only scenes)
+        _ensureToneMapping();
         if (_hasPBR) _ensurePBREnv();
         showDebug("PBR textures colorSpace verified, env applied");
         // Suspend character system controllers so they don't overwrite positions during editor mode
