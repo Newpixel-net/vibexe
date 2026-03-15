@@ -355,7 +355,7 @@ function TerrainGenerator(scene, options) {
   this.width = (options && options.width) || 100;
   this.depth = (options && options.depth) || 100;
   this.heightScale = (options && options.heightScale != null) ? options.heightScale : 30;
-  this.segments = (options && options.segments) || 128;
+  this.segments = Math.min((options && options.segments) || 128, 128);
   this.mesh = null;
   this.heightData = null;
   this.minY = 0;
