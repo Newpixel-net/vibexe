@@ -2772,14 +2772,20 @@ export function getVisualEditBridgeScript(): string {
   function deactivateBridge() {
     if (!active) return;
     // Send camera state to parent BEFORE cleanup (so it can be persisted and restored later)
+    // Validate: skip if position is extreme (corruption guard)
     if (editor && editor.camera && editor.orbitControls) {
       var cp = editor.camera.position;
       var ct = editor.orbitControls.target;
-      window.parent.postMessage({
-        type: "game-editor-camera-state",
-        position: [cp.x, cp.y, cp.z],
-        target: [ct.x, ct.y, ct.z]
-      }, "*");
+      var _cpSaveMax = Math.max(Math.abs(cp.x), Math.abs(cp.y), Math.abs(cp.z));
+      if (_cpSaveMax <= 2000) {
+        window.parent.postMessage({
+          type: "game-editor-camera-state",
+          position: [cp.x, cp.y, cp.z],
+          target: [ct.x, ct.y, ct.z]
+        }, "*");
+      } else {
+        console.warn("[GameEditorBridge] Skipping camera save — extreme position (max=" + _cpSaveMax.toFixed(0) + ")");
+      }
     }
     active = false;
     window.__vibexe_editor_active__ = false;
@@ -2998,7 +3004,18 @@ export function getVisualEditBridgeScript(): string {
     switch (d.type) {
       case "game-editor-enable":
         _enableRequested = true;
-        if (d.cameraPosition) { _restoreCameraPos = d.cameraPosition; _restoreCameraTarget = d.cameraTarget || null; }
+        if (d.cameraPosition) {
+          // Validate camera position — reject extreme values from corrupted terrain eras
+          var _cpMax = Math.max(Math.abs(d.cameraPosition[0]), Math.abs(d.cameraPosition[1]), Math.abs(d.cameraPosition[2]));
+          if (_cpMax > 2000) {
+            console.warn("[GameEditorBridge] Rejected extreme persisted camera pos (max=" + _cpMax.toFixed(0) + ") — using default");
+            _restoreCameraPos = [0, 30, 150];
+            _restoreCameraTarget = [0, 10, 0];
+          } else {
+            _restoreCameraPos = d.cameraPosition;
+            _restoreCameraTarget = d.cameraTarget || null;
+          }
+        }
         activateBridge();
         break;
       case "game-editor-disable": _enableRequested = false; deactivateBridge(); break;
@@ -5987,43 +6004,57 @@ export function getVisualEditBridgeScript(): string {
             })(ai2);
           }
         } else {
-          // No textures — just apply vertex colors from layer preview colors
-          var _rpVCols = new Float32Array(_rpCount * 3);
-          // Base terrain color for unpainted vertices (where all weights are near zero)
-          var _rpBaseColor = _rpColors[0] || [0.33, 0.47, 0.2]; // first layer or natural green
-          for (var vi4 = 0; vi4 < _rpCount; vi4++) {
-            var r = 0, g = 0, b = 0;
-            var wTotal = 0;
-            for (var li7 = 0; li7 < _rpNumLayers; li7++) {
-              var w = _rpWeights[li7][vi4];
-              var c = _rpColors[li7] || [0.5, 0.5, 0.5];
-              r += c[0] * w;
-              g += c[1] * w;
-              b += c[2] * w;
-              wTotal += w;
+          // No textures — check if all layer colors are default gray (#808080)
+          // If so, preserve the original height-gradient vertex colors from terrain generation
+          var _rpAllDefaultGray = true;
+          for (var _dgi = 0; _dgi < _rpColors.length; _dgi++) {
+            var _dgc = _rpColors[_dgi];
+            if (Math.abs(_dgc[0] - 0.502) > 0.01 || Math.abs(_dgc[1] - 0.502) > 0.01 || Math.abs(_dgc[2] - 0.502) > 0.01) {
+              _rpAllDefaultGray = false;
+              break;
             }
-            // Unpainted vertices (weight sum ≈ 0) → use base terrain color instead of black
-            if (wTotal < 0.001) {
-              r = _rpBaseColor[0];
-              g = _rpBaseColor[1];
-              b = _rpBaseColor[2];
-            }
-            _rpVCols[vi4*3] = r;
-            _rpVCols[vi4*3+1] = g;
-            _rpVCols[vi4*3+2] = b;
           }
-          _rpGeo.setAttribute("color", new _rpTHREE.BufferAttribute(_rpVCols, 3));
-          _rpGeo.attributes.color.needsUpdate = true;
+          if (_rpAllDefaultGray && _rpGeo.attributes.color) {
+            console.log("[TerrainPainter] No textures + all default gray — preserving original vertex colors");
+          } else {
+            // Apply vertex colors from layer preview colors
+            var _rpVCols = new Float32Array(_rpCount * 3);
+            var _rpBaseColor = _rpColors[0] || [0.33, 0.47, 0.2];
+            for (var vi4 = 0; vi4 < _rpCount; vi4++) {
+              var r = 0, g = 0, b = 0;
+              var wTotal = 0;
+              for (var li7 = 0; li7 < _rpNumLayers; li7++) {
+                var w = _rpWeights[li7][vi4];
+                var c = _rpColors[li7] || [0.5, 0.5, 0.5];
+                r += c[0] * w;
+                g += c[1] * w;
+                b += c[2] * w;
+                wTotal += w;
+              }
+              if (wTotal < 0.001) {
+                r = _rpBaseColor[0];
+                g = _rpBaseColor[1];
+                b = _rpBaseColor[2];
+              }
+              _rpVCols[vi4*3] = r;
+              _rpVCols[vi4*3+1] = g;
+              _rpVCols[vi4*3+2] = b;
+            }
+            _rpGeo.setAttribute("color", new _rpTHREE.BufferAttribute(_rpVCols, 3));
+            _rpGeo.attributes.color.needsUpdate = true;
+          }
 
-          // Use vertex color material
-          if (_rpTerrain.material) { try { _rpTerrain.material.dispose(); } catch(e) {} }
-          _rpTerrain.material = new _rpTHREE.MeshStandardMaterial({
-            vertexColors: true,
-            roughness: 0.85,
-            metalness: 0.05,
-            flatShading: false
-          });
-          console.log("[TerrainPainter] Vertex colors applied with", _rpNumLayers, "layers");
+          // Use vertex color material (keep existing if already vertex-colored)
+          if (!_rpTerrain.material || !_rpTerrain.material.vertexColors) {
+            if (_rpTerrain.material) { try { _rpTerrain.material.dispose(); } catch(e) {} }
+            _rpTerrain.material = new _rpTHREE.MeshStandardMaterial({
+              vertexColors: true,
+              roughness: 0.85,
+              metalness: 0.05,
+              flatShading: false
+            });
+          }
+          console.log("[TerrainPainter] Vertex colors applied with", _rpNumLayers, "layers (preserved:", _rpAllDefaultGray, ")");
           window.parent.postMessage({ type: "terrain-painter-repainted" }, "*");
         }
         break;
