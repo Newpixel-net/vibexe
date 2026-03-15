@@ -4225,7 +4225,7 @@ export function getVisualEditBridgeScript(): string {
         var _tpW = _tpS.terrainWidth || 200;
         var _tpD = _tpS.terrainDepth || 200;
         var _tpH = _tpS.terrainHeightScale || 40;
-        var _tpSeg = _tpS.terrainSegments || 256;
+        var _tpSeg = Math.min(_tpS.terrainSegments || 128, 128);
 
         // Biome support — use resolved params from panel (preferred), or module fallback
         var _tpBP = d.resolvedBiomeParams || null;
@@ -4582,6 +4582,10 @@ export function getVisualEditBridgeScript(): string {
             if (_ry > _tpMaxY) _tpMaxY = _ry;
           }
           _tpMesh = _tpMesh2;
+          // Fix: recalculate segX/segZ from actual geometry vertex count
+          // Module may cap segments differently than bridge's initial _tpSeg
+          _tpSegX = Math.round(Math.sqrt(_tpPos.count));
+          _tpSegZ = _tpSegX;
         }
 
         // Store heightmap data for CPU-side getHeightAt() queries

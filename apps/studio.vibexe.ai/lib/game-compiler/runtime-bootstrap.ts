@@ -347,7 +347,7 @@ if(!gameFps&&aq&&aq.fps)gameFps=Math.round(aq.fps);
 var perfStatus=gameFps>=40?'ok':(gameFps>=25?'inactive':(gameFps>0?'inactive':'missing'));
 var _memInfo=null;if(W.performance&&W.performance.memory){try{_memInfo={usedMB:Math.round(W.performance.memory.usedJSHeapSize/1048576),totalMB:Math.round(W.performance.memory.totalJSHeapSize/1048576)};}catch(e){}}
 var _drawCalls=null;var _rendTris=null;var _rendGeoms=null;var _rendTexs=null;
-if(ren&&ren.info){if(ren.info.render){_drawCalls=ren.info.render.calls;_rendTris=ren.info.render.triangles;}if(ren.info.memory){_rendGeoms=ren.info.memory.geometries;_rendTexs=ren.info.memory.textures;}}
+if(ren&&ren.info){if(ren.info.render){_drawCalls=ren.info.render.drawCalls!=null?ren.info.render.drawCalls:ren.info.render.calls;_rendTris=ren.info.render.triangles;}if(ren.info.memory){_rendGeoms=ren.info.memory.geometries;_rendTexs=ren.info.memory.textures;}}
 r.push({system:'Performance',status:perfStatus,details:{gameFps:gameFps,cullDistance:cullDist,skipComposer:!!W.__vibexe_skipComposer__,editorActive:!!W.__vibexe_editor_active__,drawCalls:_drawCalls!=null?_drawCalls:'?',renderedTris:_rendTris!=null?(_rendTris>1000?Math.round(_rendTris/1000)+'k':_rendTris):'?',gpuGeometries:_rendGeoms!=null?_rendGeoms:'?',gpuTextures:_rendTexs!=null?_rendTexs:'?',memory:_memInfo,maxFPS:W.__vibexe_maxFPS__||'none',infoResetActive:!!(ren&&ren.info&&ren.info.reset)}});
 if(gameFps>0&&gameFps<25)problems.push({id:'low-fps',severity:'error',msg:'Game FPS critically low: '+gameFps});
 else if(gameFps>=25&&gameFps<40)problems.push({id:'low-fps-warn',severity:'warn',msg:'Game FPS below target: '+gameFps});

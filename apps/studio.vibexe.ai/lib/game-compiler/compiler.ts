@@ -848,7 +848,7 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         if (__perfNow - __perfLastCheck >= 2000 && !__editorMode) {
           const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
           const __perfAge = __perfNow - __perfStartTime;
-          if (__avgFps < 30 && !__perfDowngraded && __perfAge > 15000) {
+          if (__avgFps < 25 && !__perfDowngraded && __perfAge > 15000) {
             __perfDowngraded = true;
             __perfDowngradeTime = __perfNow;
             W.__vibexe_perfguard_degraded__ = true;
