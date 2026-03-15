@@ -1427,6 +1427,11 @@ export function convertToSandpackFiles(files: AppFile[], langConfig?: SandpackLa
 	// Inject Three.js r172 shim if any file imports it.
 	// Core: CJS wrapper (same proven pattern as cannon-es).
 	// Addons: ESM source → transform imports/exports → eval in function scope → attach to THREE.
+	// NOTE (WebGPU Phase 6): Sandpack path stays on WebGL CJS build (`three.cjs`).
+	// The WebGPU build (`three.webgpu.js`) is ESM-only — no CJS variant exists.
+	// Sandpack's bundler doesn't support import maps, so `three/webgpu` and `three/tsl` won't resolve.
+	// All 3D games use the game-runtime-iframe path which has full WebGPU support via ESM import maps.
+	// This Sandpack shim is only used for non-game apps or legacy fallback scenarios.
 	const usesThree = files.some(
 		(f) => f.content && (f.content.includes("from 'three'") || f.content.includes('from "three"') || f.content.includes("(window as any).THREE")),
 	);
