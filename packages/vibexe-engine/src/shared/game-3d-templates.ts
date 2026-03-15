@@ -624,6 +624,7 @@ export function createGround3D(
     metalness: 0,
   });
   const ground = new THREE.Mesh(geometry, material);
+  ground.name = "__default_ground__";
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = 0;
   ground.receiveShadow = true;
@@ -631,6 +632,7 @@ export function createGround3D(
 
   // Grid helper for visual reference
   const grid = new THREE.GridHelper(size, size / 2, 0x000000, 0x333333);
+  grid.name = "__default_grid__";
   grid.position.y = 0.01;
   (grid.material as any).opacity = 0.15;
   (grid.material as any).transparent = true;
@@ -5488,9 +5490,18 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             __addP(0, 45, -10, 4, 3.5, 3, 2, 2);
             __addP(-15, 40, 25, 2, 2, 2.5, 1.5, 1.5);
             __addP(35, 20, -15, 1.5, 1.5, 2, 2, 2);
-            scene.environment = __pmrem.fromScene(__envScene, 0, 0.1, 100).texture;
+            const __envRT = __pmrem.fromScene(__envScene, 0, 0.1, 100);
+            scene.environment = __envRT.texture;
             if ((scene as any).environmentIntensity !== undefined) (scene as any).environmentIntensity = 0.6;
-            __pmrem.dispose(); __skyGeo.dispose(); __gndGeo.dispose(); __pGeo.dispose();
+            // Defer disposal — WebGPU backend needs one render pass to process textures
+            requestAnimationFrame(() => {
+              try { __pmrem.dispose(); } catch (_) {}
+              __skyGeo.dispose(); __gndGeo.dispose(); __pGeo.dispose();
+              for (const c of __envScene.children) {
+                if ((c as any).geometry) (c as any).geometry.dispose();
+                if ((c as any).material) (c as any).material.dispose();
+              }
+            });
             console.log("[Game3D] Deferred env map applied");
           } catch (__e) { console.warn("[Game3D] env map error:", __e); }
         }

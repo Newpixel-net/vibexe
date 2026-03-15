@@ -4289,6 +4289,14 @@ export function getVisualEditBridgeScript(): string {
         var _tpOld = _tpScene.getObjectByName("__terrain__");
         if (_tpOld) { _tpScene.remove(_tpOld); if (_tpOld.geometry) _tpOld.geometry.dispose(); if (_tpOld.material) _tpOld.material.dispose(); }
 
+        // Remove default ground plane + grid (terrain replaces them — fixes double-terrain issue)
+        var _removeByName2 = function(sc, n) {
+          var obj = sc.getObjectByName(n);
+          if (obj) { sc.remove(obj); if (obj.geometry) obj.geometry.dispose(); if (obj.material) obj.material.dispose(); }
+        };
+        _removeByName2(_tpScene, "__default_ground__");
+        _removeByName2(_tpScene, "__default_grid__");
+
         // Delegate to module's TerrainGenerator when biome is set (has 4-stage erosion pipeline)
         var _tpBiomeGenerated = false;
         if (d.biome || _tpBP) {
@@ -4307,24 +4315,29 @@ export function getVisualEditBridgeScript(): string {
               });
             _genInst.generate();
 
-            // Module's generate() also hides ground plane + grid, but ensure it
+            // Module's generate() removes default ground — also clean up any remaining ground planes
+            var _tpCleanup = [];
             _tpScene.traverse(function(child) {
-              if (child.name === "__terrain__") return;
+              if (child.name === "__terrain__" || child.name === "__terrain_boundary_grid__") return;
+              if (child.name === "__default_ground__" || child.name === "__default_grid__") { _tpCleanup.push(child); return; }
               if (child.isMesh && !child.name) {
                 var cGeo = child.geometry;
                 if (cGeo && cGeo.type === "PlaneGeometry") {
                   var cParams = cGeo.parameters;
                   if (cParams && (cParams.width >= 50 || cParams.height >= 50)) {
-                    child.visible = false;
-                    child.userData.__hiddenByTerrain = true;
+                    _tpCleanup.push(child);
                   }
                 }
               }
               if (child.isGridHelper || child.type === "GridHelper") {
-                child.visible = false;
-                child.userData.__hiddenByTerrain = true;
+                _tpCleanup.push(child);
               }
             });
+            for (var _tpci = 0; _tpci < _tpCleanup.length; _tpci++) {
+              _tpScene.remove(_tpCleanup[_tpci]);
+              if (_tpCleanup[_tpci].geometry) _tpCleanup[_tpci].geometry.dispose();
+              if (_tpCleanup[_tpci].material) _tpCleanup[_tpci].material.dispose();
+            }
 
             _tpBiomeGenerated = true;
             }

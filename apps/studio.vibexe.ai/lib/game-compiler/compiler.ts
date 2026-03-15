@@ -567,9 +567,18 @@ if (!gameScene || typeof gameScene.init !== 'function') {
       __addP(0, 45, -10, 4, 3.5, 3, 2, 2);
       __addP(-15, 40, 25, 2, 2, 2.5, 1.5, 1.5);
       __addP(35, 20, -15, 1.5, 1.5, 2, 2, 2);
-      scene.environment = __pmrem.fromScene(__envScene, 0, 0.1, 100).texture;
+      const __envRT = __pmrem.fromScene(__envScene, 0, 0.1, 100);
+      scene.environment = __envRT.texture;
       if ((scene as any).environmentIntensity !== undefined) (scene as any).environmentIntensity = 0.6;
-      __pmrem.dispose(); __skyGeo.dispose(); __gndGeo.dispose(); __pGeo.dispose();
+      // Defer disposal to next frame — WebGPU backend needs one render pass to process textures
+      requestAnimationFrame(() => {
+        try { __pmrem.dispose(); } catch (_) {}
+        __skyGeo.dispose(); __gndGeo.dispose(); __pGeo.dispose();
+        for (const c of __envScene.children) {
+          if ((c as any).geometry) (c as any).geometry.dispose();
+          if ((c as any).material) (c as any).material.dispose();
+        }
+      });
       console.log("[Game3D] Deferred env map applied");
     } catch (__e) { console.warn("[Game3D] env map error:", __e); }
   }, 5000);

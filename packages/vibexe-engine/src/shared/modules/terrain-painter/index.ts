@@ -379,6 +379,45 @@ TerrainGenerator.prototype.generate = function() {
     }
   }
 
+  // Remove default ground plane and grid (terrain replaces them)
+  var _removeByName = function(sc, n) {
+    var obj = sc.getObjectByName(n);
+    if (obj) { sc.remove(obj); if (obj.geometry) obj.geometry.dispose(); if (obj.material) obj.material.dispose(); }
+  };
+  _removeByName(this.scene, "__default_ground__");
+  _removeByName(this.scene, "__default_grid__");
+  // Also remove any unnamed flat ground planes (legacy templates without named ground)
+  var _toRemove = [];
+  this.scene.traverse(function(child) {
+    if (!child.isMesh) return;
+    if (child.name && child.name.indexOf("__") === 0) return; // skip our named objects
+    if (child.name === "Character_Warrior" || child.name === "Character_Lily") return;
+    // Detect flat PlaneGeometry ground: rotation.x ≈ -PI/2, y ≈ 0
+    if (child.geometry && child.geometry.type === "PlaneGeometry" &&
+        Math.abs(child.rotation.x + Math.PI / 2) < 0.1 &&
+        Math.abs(child.position.y) < 0.5) {
+      _toRemove.push(child);
+    }
+  });
+  for (var _ri = 0; _ri < _toRemove.length; _ri++) {
+    this.scene.remove(_toRemove[_ri]);
+    if (_toRemove[_ri].geometry) _toRemove[_ri].geometry.dispose();
+    if (_toRemove[_ri].material) _toRemove[_ri].material.dispose();
+  }
+  // Also remove GridHelper objects
+  this.scene.traverse(function(child) {
+    if (child.isGridHelper || (child.type === "GridHelper")) {
+      _toRemove.push(child);
+    }
+  });
+  for (var _gi = _toRemove.length - 1; _gi >= 0; _gi--) {
+    if (_toRemove[_gi].isGridHelper || (_toRemove[_gi].type === "GridHelper")) {
+      this.scene.remove(_toRemove[_gi]);
+      if (_toRemove[_gi].geometry) _toRemove[_gi].geometry.dispose();
+      if (_toRemove[_gi].material) _toRemove[_gi].material.dispose();
+    }
+  }
+
   var W = this.width, D = this.depth, H = this.heightScale, seg = this.segments;
   var segX = this._segX, segZ = this._segZ;
 
