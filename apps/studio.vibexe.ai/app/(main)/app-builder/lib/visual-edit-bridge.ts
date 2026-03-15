@@ -757,14 +757,17 @@ export function getVisualEditBridgeScript(): string {
     if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.4);
     var _sl = editor.scene.getObjectByName('__default_sun__') || editor.scene.getObjectByName('DirectionalLight');
     if (_sl) _sl.intensity = Math.max(_sl.intensity, 1.2);
-    // Remove duplicate HemisphereLights — keep only __default_hemi__ (from Game3D IIFE)
-    var _dupeHemis = [];
+    // Remove duplicate lights — keep only one of each type
+    var _seenHemi = false, _seenAmb = false, _seenSun = false;
+    var _dupes = [];
     editor.scene.traverse(function(obj) {
-      if (obj.isHemisphereLight && obj.name !== '__default_hemi__') _dupeHemis.push(obj);
+      if (obj.isHemisphereLight) { if (_seenHemi) _dupes.push(obj); else _seenHemi = true; }
+      if (obj.isAmbientLight && !obj.isHemisphereLight) { if (_seenAmb) _dupes.push(obj); else _seenAmb = true; }
+      if (obj.isDirectionalLight) { if (_seenSun) _dupes.push(obj); else _seenSun = true; }
     });
-    for (var _dhi = 0; _dhi < _dupeHemis.length; _dhi++) {
-      editor.scene.remove(_dupeHemis[_dhi]);
-      console.log("[Bridge] Removed duplicate unnamed HemisphereLight");
+    for (var _dhi = 0; _dhi < _dupes.length; _dhi++) {
+      editor.scene.remove(_dupes[_dhi]);
+      console.log("[Bridge] Removed duplicate light:", _dupes[_dhi].type, _dupes[_dhi].name);
     }
     console.log("[GameEditorBridge] Tone mapping + light floor applied");
   }

@@ -303,16 +303,17 @@ export function initScene(): typeof THREE.Scene {
 
   // PBR-tuned lighting for r183 physically-based MeshStandardMaterial.
   // Keep moderate — sky-weather, env map, and game code add more light.
+  // Use __default_ names to match Game3D IIFE lights and avoid duplicates.
   const hemi = new THREE.HemisphereLight(0xEEF4FF, 0x886644, 0.4);
-  hemi.name = "HemisphereLight";
+  hemi.name = "__default_hemi__";
   scene.add(hemi);
 
   const ambient = new THREE.AmbientLight(0xFFFFFF, 0.15);
-  ambient.name = "AmbientLight";
+  ambient.name = "__default_ambient__";
   scene.add(ambient);
 
   const sun = new THREE.DirectionalLight(0xFFF8EE, 1.2);
-  sun.name = "DirectionalLight";
+  sun.name = "__default_sun__";
   sun.position.set(8, 20, 10);
   sun.castShadow = true;
   sun.shadow.mapSize.width = 1024;
@@ -5308,6 +5309,18 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       }
       if (disposed) return;
       const THREE = (window as any).THREE;
+
+      // Suppress harmless WebGPU "uv not found" warnings from Three.js internal geometries
+      // (TransformControls, GridHelper, BoxHelper, EdgesGeometry etc. use LineSegments
+      // without UV attributes — r183 WebGPU shader compiler warns but renders fine)
+      if (!(window as any).__vibexe_warnFilter__) {
+        (window as any).__vibexe_warnFilter__ = true;
+        const __origWarn = console.warn.bind(console);
+        console.warn = function(...args: any[]) {
+          if (typeof args[0] === 'string' && args[0].indexOf('Vertex attribute "uv" not found') !== -1) return;
+          __origWarn(...args);
+        };
+      }
 
       // Create renderer + store on window so idempotent helpers return it
       // Prefer WebGPURenderer (auto-falls back to WebGL 2 on unsupported browsers)
