@@ -1030,7 +1030,10 @@ SkyLighting.prototype.update = function(solarTime, sunDir, cfg) {
   }
 
   // ---- Sun intensity curve ----
-  var baseInt = cfg.sunIntensity || 1.0;
+  // r183 PBR energy conservation: MeshStandardMaterial divides light by PI.
+  // Saved sunIntensity values from r172 era (pre-PBR) appear ~50% brighter.
+  // Cap at 1.2 to prevent washed-out terrain on older configs.
+  var baseInt = Math.min(cfg.sunIntensity || 1.0, 1.2);
   if (alt <= -0.05) {
     this.sunLight.intensity = 0;
   } else if (alt <= 0.12) {

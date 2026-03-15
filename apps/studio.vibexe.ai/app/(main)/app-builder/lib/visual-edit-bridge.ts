@@ -5176,11 +5176,17 @@ export function getVisualEditBridgeScript(): string {
         }
 
         // Normalize weights per vertex so they sum to 1
+        // When ALL weights are zero (unpainted vertex), default to layer 0 (base layer).
+        // Without this, the height-depth blending degrades to an equal mix of all
+        // textures — creating a washed-out averaged appearance on 60%+ of the terrain.
         for (var vi3 = 0; vi3 < _rpCount; vi3++) {
           var wSum = 0;
           for (var li3 = 0; li3 < _rpNumLayers; li3++) wSum += _rpWeights[li3][vi3];
           if (wSum > 0.001) {
             for (var li4 = 0; li4 < _rpNumLayers; li4++) _rpWeights[li4][vi3] /= wSum;
+          } else if (_rpNumLayers > 0) {
+            // Unpainted vertex — assign 100% to base layer (layer 0)
+            _rpWeights[0][vi3] = 1.0;
           }
         }
 
