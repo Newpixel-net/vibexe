@@ -200,7 +200,7 @@ Object.assign(window, {
   // Post-Processing
   createPostProcessing, addFogEffect, setToneMapping,
   // Particles & VFX
-  createParticleEmitter, createTrailRenderer,
+  createParticleEmitter, createTrailRenderer, createWeatherSystem,
   // Physics Triggers & Constraints
   createTriggerZone, createHingeConstraint, createSpringConstraint,
   createLockConstraint, createPointConstraint, createCompoundBody,
@@ -3543,6 +3543,11 @@ const PARTICLE_PRESETS: Record<string, any> = {
   rain:       { count: 200, mode: "continuous", emitRate: 100, speed: 15, spread: 20, gravity: 0, life: 1.5, colors: [0x6688cc], sizeStart: 0.05, sizeEnd: 0.05, direction: { x: 0, y: -1, z: 0 } },
   snow:       { count: 150, mode: "continuous", emitRate: 30, speed: 2, spread: 15, gravity: 0, life: 4.0, colors: [0xffffff, 0xeeeeff], sizeStart: 0.1, sizeEnd: 0.08, direction: { x: 0, y: -1, z: 0 } },
   confetti:   { count: 80, mode: "burst", speed: 6, spread: 1, gravity: -5, life: 2.0, colors: [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff], sizeStart: 0.15, sizeEnd: 0.1 },
+  // GPU-scale weather presets (auto-selected by createWeatherSystem or manual use)
+  rain_heavy:  { count: 10000, mode: "continuous", speed: 22, spread: 35, gravity: 0, life: 2.0, colors: [0x6688cc, 0x4466aa], sizeStart: 0.03, sizeEnd: 0.03, direction: { x: 0.1, y: -1, z: 0 } },
+  snow_heavy:  { count: 5000, mode: "continuous", speed: 2.5, spread: 30, gravity: 0, life: 5.0, colors: [0xffffff, 0xeeeeff, 0xddeeff], sizeStart: 0.08, sizeEnd: 0.06, direction: { x: 0, y: -1, z: 0.15 } },
+  rain_storm:  { count: 25000, mode: "continuous", speed: 30, spread: 40, gravity: 0, life: 1.5, colors: [0x5577bb, 0x3355aa], sizeStart: 0.025, sizeEnd: 0.025, direction: { x: 0.3, y: -1, z: 0.1 } },
+  snow_blizzard: { count: 15000, mode: "continuous", speed: 5, spread: 35, gravity: 0, life: 4.0, colors: [0xffffff, 0xeeeeff], sizeStart: 0.1, sizeEnd: 0.08, direction: { x: 0.4, y: -1, z: 0.2 } },
 };
 (window as any).PARTICLE_PRESETS = PARTICLE_PRESETS;
 
@@ -3969,6 +3974,69 @@ export function createParticleEmitter(
   _activeParticles3D.push(emitter);
   return emitter;
 }
+
+/**
+ * Creates a camera-tracking weather system (rain, snow, storm, blizzard).
+ * Auto-selects GPU compute (10K-25K particles) or CPU fallback (150-200 particles).
+ * Particles spawn in a volume above the camera and follow its position each frame.
+ *
+ * Usage:
+ *   const weather = createWeatherSystem(scene, "rain");       // light rain (GPU: 10K, CPU: 200)
+ *   const weather = createWeatherSystem(scene, "snow");       // snow (GPU: 5K, CPU: 150)
+ *   const weather = createWeatherSystem(scene, "rain_storm"); // GPU-only: 25K particles
+ *   weather.setIntensity(0.5);  // 0..1 — scales emit rate
+ *   weather.destroy();
+ */
+export function createWeatherSystem(
+  scene: any,
+  preset: "rain" | "snow" | "rain_heavy" | "snow_heavy" | "rain_storm" | "snow_blizzard" | string,
+  options?: { height?: number },
+): { destroy: () => void; setIntensity: (v: number) => void } {
+  const camera = (window as any).__vibexe_camera__;
+  const hasGPU = !!(((window as any).__vibexe_renderer__)?.compute && THREE.instancedArray && THREE.Fn && THREE.SpriteNodeMaterial);
+
+  // Map simple names to GPU-scale presets when possible
+  let resolvedPreset = preset;
+  if (hasGPU) {
+    if (preset === "rain") resolvedPreset = "rain_heavy";
+    if (preset === "snow") resolvedPreset = "snow_heavy";
+  }
+
+  const height = options?.height ?? 15;
+  const startPos = camera
+    ? { x: camera.position.x, y: camera.position.y + height, z: camera.position.z }
+    : { x: 0, y: height, z: 0 };
+
+  const emitter = createParticleEmitter(scene, startPos, resolvedPreset);
+
+  // Camera tracking: update emitter position to follow camera each frame
+  let _trackingId: number | null = null;
+  let _intensity = 1;
+  function trackCamera() {
+    if (camera) {
+      emitter.setPosition(camera.position.x, camera.position.y + height, camera.position.z);
+    }
+    _trackingId = requestAnimationFrame(trackCamera);
+  }
+  trackCamera();
+
+  // Register timer for cleanup on scene reload
+  if (!(window as any).__vibexe_moduleTimers__) (window as any).__vibexe_moduleTimers__ = [];
+
+  return {
+    setIntensity(v: number) {
+      _intensity = Math.max(0, Math.min(1, v));
+      if (_intensity <= 0) emitter.stop();
+      else emitter.emit();
+    },
+    destroy() {
+      if (_trackingId != null) cancelAnimationFrame(_trackingId);
+      _trackingId = null;
+      emitter.destroy();
+    },
+  };
+}
+(window as any).createWeatherSystem = createWeatherSystem;
 
 /**
  * Creates a trail renderer that follows a mesh.

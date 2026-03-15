@@ -527,9 +527,12 @@ src/App.tsx                        — Imports GameScene3D and renders Game3D
 - \`addFogEffect(scene, { color?, near?, far? })\` — shortcut for scene fog
 - \`setToneMapping(renderer, type?, exposure?)\` — types: "Linear", "Reinhard", "Cineon", "ACESFilmic"
 **Particles & VFX:**
-- \`createParticleEmitter(scene, position, presetOrConfig)\` — spawns particles. Presets: "explosion", "sparkle", "dust", "fire", "smoke", "rain", "snow", "confetti". Returns \`{ emit, stop, destroy, setPosition, isAlive }\`. Auto-updated each frame.
+- \`createParticleEmitter(scene, position, presetOrConfig)\` — spawns particles. Presets: "explosion", "sparkle", "dust", "fire", "smoke", "rain", "snow", "confetti", "rain_heavy" (10K GPU), "snow_heavy" (5K GPU), "rain_storm" (25K GPU), "snow_blizzard" (15K GPU). Returns \`{ emit, stop, destroy, setPosition, isAlive }\`. Auto-updated each frame. Auto-uses GPU compute shaders when WebGPU available.
   Example: \`createParticleEmitter(scene, { x: 3, y: 1, z: -5 }, "sparkle")\` (one-shot burst on collect)
   Example: \`createParticleEmitter(scene, { x: 0, y: 0, z: 0 }, "fire")\` (continuous fire on torch)
+- \`createWeatherSystem(scene, preset, opts?)\` — camera-tracking weather. Auto-selects GPU (10K-25K particles) or CPU fallback. Presets: "rain", "snow", "rain_heavy", "snow_heavy", "rain_storm", "snow_blizzard". Returns \`{ destroy, setIntensity }\`. opts: \`{ height? }\`.
+  Example: \`const weather = createWeatherSystem(scene, "rain")\` — light rain following camera
+  Example: \`const weather = createWeatherSystem(scene, "snow_blizzard")\` — heavy GPU snow
 - \`createTrailRenderer(mesh, scene, opts?)\` — quad-based ribbon trail behind a moving mesh with real adjustable width. opts: \`{ color?, width?, length?, fade? }\`. Returns \`{ destroy, setColor, setWidth }\`.
   Example: \`const trail = createTrailRenderer(projectile.mesh, scene, { color: 0xff4400, width: 0.3, length: 20 })\`
 **Physics Triggers & Constraints:**
@@ -545,7 +548,7 @@ src/App.tsx                        — Imports GameScene3D and renders Game3D
 **Other Functions:** \`initRenderer\`, \`initScene\`, \`initCamera\`, \`loadGLTF\`, \`createGround3D\`, \`createSkyGradient\`, \`checkCollision\`, \`checkBoxCollision\`, \`createHUD\`, \`createKeyboardState\`, \`createPhysicsWorld\`, \`createPhysicsBody\`, \`createPhysicsGround\`, \`syncBodiesToMeshes\`, \`onClickObject\`, \`createAnimationPlayer\`, \`createOrbitControls\`, \`createTouchJoystick\`, \`createTapDetector\`, \`createSwipeDetector\`.
 **Constants:** \`SCALES_3D\`, \`TOUCH_DEADZONE\` (0.15), \`GRAVITY_3D\` (-20), \`JUMP_FORCE\` (8), \`MOVE_SPEED\` (5), \`COLLISION_GROUPS\`, \`PARTICLE_PRESETS\`, \`POST_PROCESSING_PRESETS\`.
 Do NOT call \`getLoadedModel\`, \`cacheModel\`, \`getModel\`, or ANY function not in this list — they do not exist and will crash.
-ALWAYS import constants/helpers you use: \`import { createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, createAnimatedCharacter3D, createText3D, playSound, soundUrl, preloadSounds, createParticleEmitter, createTriggerZone, createPostProcessing, SCALES_3D, COLLISION_GROUPS } from "../config/assets-3d";\`
+ALWAYS import constants/helpers you use: \`import { createPlatform3D, createCollectible3D, createPlayer3D, createBarrier3D, createDecoration3D, createAnimatedCharacter3D, createText3D, playSound, soundUrl, preloadSounds, createParticleEmitter, createWeatherSystem, createTriggerZone, createPostProcessing, SCALES_3D, COLLISION_GROUPS } from "../config/assets-3d";\`
 
 ## COMMON PATTERNS — Multi-System Integration
 
