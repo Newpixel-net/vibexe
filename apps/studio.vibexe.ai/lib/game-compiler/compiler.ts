@@ -979,8 +979,8 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         }
 
         // ===== Render =====
+        const comp = W.__vibexe_composer__;
         try {
-          const comp = W.__vibexe_composer__;
           if (comp && !W.__vibexe_skipComposer__) comp.render(delta); else renderer.render(scene, camera);
         } catch(__re) { if (!__re?.message?.includes("already initialized")) throw __re; }
         } catch (__frameErr) { console.error('[GameLoop] Frame error:', __frameErr); }
