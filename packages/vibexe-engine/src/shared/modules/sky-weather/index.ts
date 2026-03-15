@@ -313,6 +313,13 @@ var _skyCFbm = _Fn ? _Fn(function(_a) {
   return v;
 }) : null;
 
+// TSL-safe atan2: THREE.atan2 may not exist in r183 — use 2*atan(y/(sqrt(x²+y²)+x))
+function _tslAtan2(y, x) {
+  if (THREE.atan2) return THREE.atan2(y, x);
+  var r = x.mul(x).add(y.mul(y)).sqrt();
+  return y.div(r.add(x).add(THREE.float(0.00001))).atan().mul(2.0);
+}
+
 // Build TSL sky material — creates MeshBasicMaterial with procedural colorNode
 // Captures uniform nodes + gradient texture by closure
 function _buildSkyMaterial(u, gradTex) {
@@ -384,7 +391,7 @@ function _buildSkyMaterial(u, gradTex) {
     var nightF = THREE.float(1.0).sub(THREE.smoothstep(THREE.float(-0.12), THREE.float(0.08), u.uSunDir.y));
     var starV = u.uStarBright.mul(nightF);
     var starFade = THREE.smoothstep(THREE.float(0.02), THREE.float(0.12), dir.y);
-    var sUV = THREE.vec2(THREE.atan2(dir.z, dir.x), THREE.asin(dir.y)).mul(180.0);
+    var sUV = THREE.vec2(_tslAtan2(dir.z, dir.x), THREE.asin(dir.y)).mul(180.0);
     var cell = THREE.floor(sUV);
     var cellUV = THREE.fract(sUV).sub(0.5);
     var sh = _skyHash(cell);
@@ -476,7 +483,7 @@ function _buildSkyMaterial(u, gradTex) {
 
     // God rays (crepuscular)
     var grDot = THREE.max(THREE.float(0.0), THREE.dot(dir, u.uSunDir));
-    var grAngle = THREE.atan2(dir.x.sub(u.uSunDir.x), dir.z.sub(u.uSunDir.z));
+    var grAngle = _tslAtan2(dir.x.sub(u.uSunDir.x), dir.z.sub(u.uSunDir.z));
     var grNoise = _skyCNoise(THREE.vec2(grAngle.mul(6.0), grDot.mul(3.0))).mul(0.5).add(0.5);
     var grRays = grDot.pow(4.0).mul(grNoise).mul(grDot.pow(6.0));
     var grCloud = THREE.float(1.0).sub(u.uCloudCover.mul(0.6));
