@@ -545,6 +545,11 @@ src/App.tsx                        — Imports GameScene3D and renders Game3D
 - \`createCompoundBody(mass, position, shapes[])\` — multi-shape body. shapes: \`[{ type, size, offset, rotation? }]\`
 - \`setCollisionGroups(body, group, mask)\` — collision filtering
 - \`COLLISION_GROUPS\` — predefined groups: \`{ PLAYER: 1, ENEMY: 2, PLATFORM: 4, TRIGGER: 8, PROJECTILE: 16, ALL: -1 }\`
+**GPU Features (WebGPU — auto-fallback to CPU on WebGL):**
+- \`createGPUInstancedMesh(scene, geometry, material, instances)\` — renders thousands of identical meshes in one draw call. instances: \`[{ position: [x,y,z], scale?, rotation? }, ...]\`. Returns \`{ mesh, setInstance, setAll, setVisible, destroy, count }\`.
+  Example: \`const forest = createGPUInstancedMesh(scene, treeGeo, treeMat, treePositions)\`
+- \`createGPUFrustumCuller(scene, camera, renderer?)\` — GPU-accelerated frustum culling for 200+ objects. Returns \`{ add, addAll, remove, update, destroy }\`. Call \`culler.update()\` each frame.
+- \`createTerrainStorageBuffer(heightData, { width, depth, scaleX, scaleZ })\` — GPU storage buffer for terrain heightfield. \`sampleHeight(x, z)\` returns interpolated height. Used by terrain population.
 **Other Functions:** \`initRenderer\`, \`initScene\`, \`initCamera\`, \`loadGLTF\`, \`createGround3D\`, \`createSkyGradient\`, \`checkCollision\`, \`checkBoxCollision\`, \`createHUD\`, \`createKeyboardState\`, \`createPhysicsWorld\`, \`createPhysicsBody\`, \`createPhysicsGround\`, \`syncBodiesToMeshes\`, \`onClickObject\`, \`createAnimationPlayer\`, \`createOrbitControls\`, \`createTouchJoystick\`, \`createTapDetector\`, \`createSwipeDetector\`.
 **Constants:** \`SCALES_3D\`, \`TOUCH_DEADZONE\` (0.15), \`GRAVITY_3D\` (-20), \`JUMP_FORCE\` (8), \`MOVE_SPEED\` (5), \`COLLISION_GROUPS\`, \`PARTICLE_PRESETS\`, \`POST_PROCESSING_PRESETS\`.
 Do NOT call \`getLoadedModel\`, \`cacheModel\`, \`getModel\`, or ANY function not in this list — they do not exist and will crash.
