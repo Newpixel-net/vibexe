@@ -26,7 +26,7 @@ export const DEFAULT_TERRAIN_CONFIG: TerrainConfig = {
 	width: 200,
 	depth: 200,
 	heightScale: 40,
-	segments: 256,
+	segments: 128,
 };
 
 export class TerrainMesh {

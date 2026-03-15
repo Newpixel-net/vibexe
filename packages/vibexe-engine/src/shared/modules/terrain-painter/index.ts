@@ -156,7 +156,7 @@ SimplexNoise.plateauCurve = function(h, steepness) {
 var BIOME_PRESETS = {
   alpine: {
     name: "Alpine Mountains",
-    heightScale: [50, 80], segments: 256,
+    heightScale: [50, 80], segments: 128,
     continental: { gamma: [1.2, 1.6], freq: 0.8 },
     ridgeNetwork: { freq: [2.5, 3.5], power: [1.5, 2.2] },
     ridgeFractal: { sharpness: [1.0, 1.5], plateau: [2.5, 3.5] },
@@ -166,7 +166,7 @@ var BIOME_PRESETS = {
   },
   rolling_hills: {
     name: "Rolling Hills",
-    heightScale: [12, 22], segments: 256,
+    heightScale: [12, 22], segments: 128,
     continental: { gamma: [1.0, 1.3], freq: 0.6 },
     ridgeNetwork: { freq: [1.5, 2.5], power: [0.8, 1.2] },
     ridgeFractal: { sharpness: [0.6, 1.0], plateau: [1.5, 2.5] },
@@ -176,7 +176,7 @@ var BIOME_PRESETS = {
   },
   desert_mesa: {
     name: "Desert Mesa",
-    heightScale: [25, 45], segments: 256,
+    heightScale: [25, 45], segments: 128,
     continental: { gamma: [2.0, 2.8], freq: 0.7 },
     ridgeNetwork: { freq: [2.0, 3.0], power: [0.5, 1.0] },
     ridgeFractal: { sharpness: [0.3, 0.8], plateau: [5.0, 8.0] },
@@ -186,7 +186,7 @@ var BIOME_PRESETS = {
   },
   volcanic: {
     name: "Volcanic",
-    heightScale: [55, 90], segments: 256,
+    heightScale: [55, 90], segments: 128,
     continental: { gamma: [1.8, 2.5], freq: 0.5 },
     ridgeNetwork: { freq: [1.8, 2.8], power: [2.0, 3.0] },
     ridgeFractal: { sharpness: [1.5, 2.5], plateau: [2.0, 3.0] },
@@ -196,7 +196,7 @@ var BIOME_PRESETS = {
   },
   coastal: {
     name: "Coastal Islands",
-    heightScale: [8, 16], segments: 256,
+    heightScale: [8, 16], segments: 128,
     continental: { gamma: [0.8, 1.2], freq: 1.0 },
     ridgeNetwork: { freq: [3.0, 4.5], power: [1.0, 1.5] },
     ridgeFractal: { sharpness: [0.8, 1.3], plateau: [2.0, 3.0] },
@@ -206,7 +206,7 @@ var BIOME_PRESETS = {
   },
   canyon: {
     name: "Canyon Lands",
-    heightScale: [30, 55], segments: 256,
+    heightScale: [30, 55], segments: 128,
     continental: { gamma: [1.5, 2.0], freq: 0.9 },
     ridgeNetwork: { freq: [2.5, 4.0], power: [2.0, 3.5] },
     ridgeFractal: { sharpness: [2.0, 3.0], plateau: [2.0, 3.0] },
@@ -216,7 +216,7 @@ var BIOME_PRESETS = {
   },
   tundra: {
     name: "Tundra Flatlands",
-    heightScale: [5, 12], segments: 256,
+    heightScale: [5, 12], segments: 128,
     continental: { gamma: [0.8, 1.1], freq: 0.5 },
     ridgeNetwork: { freq: [1.0, 2.0], power: [0.3, 0.8] },
     ridgeFractal: { sharpness: [0.4, 0.8], plateau: [1.0, 2.0] },
@@ -226,7 +226,7 @@ var BIOME_PRESETS = {
   },
   badlands: {
     name: "Badlands",
-    heightScale: [20, 40], segments: 256,
+    heightScale: [20, 40], segments: 128,
     continental: { gamma: [1.5, 2.2], freq: 0.8 },
     ridgeNetwork: { freq: [3.0, 5.0], power: [1.5, 2.5] },
     ridgeFractal: { sharpness: [2.0, 3.5], plateau: [3.0, 5.0] },
@@ -237,7 +237,7 @@ var BIOME_PRESETS = {
   // ── Genre-specific terrain shapes ──
   runner_flat: {
     name: "Runner (Flat Track)",
-    heightScale: [3, 8], segments: 256,
+    heightScale: [3, 8], segments: 128,
     continental: { gamma: [0.6, 0.9], freq: 0.3 },
     ridgeNetwork: { freq: [1.0, 1.5], power: [0.2, 0.5] },
     ridgeFractal: { sharpness: [0.3, 0.6], plateau: [1.0, 1.5] },
@@ -247,7 +247,7 @@ var BIOME_PRESETS = {
   },
   racing_smooth: {
     name: "Racing (Smooth Curves)",
-    heightScale: [8, 18], segments: 256,
+    heightScale: [8, 18], segments: 128,
     continental: { gamma: [0.9, 1.2], freq: 0.4 },
     ridgeNetwork: { freq: [1.2, 2.0], power: [0.3, 0.7] },
     ridgeFractal: { sharpness: [0.4, 0.7], plateau: [1.5, 2.5] },
@@ -257,7 +257,7 @@ var BIOME_PRESETS = {
   },
   platformer_varied: {
     name: "Platformer (Gentle Hills & Plateaus)",
-    heightScale: [4, 10], segments: 256,
+    heightScale: [4, 10], segments: 128,
     continental: { gamma: [0.8, 1.2], freq: 0.6 },
     ridgeNetwork: { freq: [0.5, 1.2], power: [0.2, 0.5] },
     ridgeFractal: { sharpness: [0.3, 0.7], plateau: [3.0, 5.0] },
@@ -267,7 +267,7 @@ var BIOME_PRESETS = {
   },
   strategy_overview: {
     name: "Strategy (Overview Plains)",
-    heightScale: [6, 14], segments: 256,
+    heightScale: [6, 14], segments: 128,
     continental: { gamma: [0.7, 1.0], freq: 0.5 },
     ridgeNetwork: { freq: [1.5, 2.5], power: [0.4, 0.8] },
     ridgeFractal: { sharpness: [0.5, 0.9], plateau: [1.5, 2.5] },
@@ -277,7 +277,7 @@ var BIOME_PRESETS = {
   },
   fps_tactical: {
     name: "FPS (Tactical Terrain)",
-    heightScale: [15, 30], segments: 256,
+    heightScale: [15, 30], segments: 128,
     continental: { gamma: [1.2, 1.6], freq: 0.7 },
     ridgeNetwork: { freq: [2.0, 3.0], power: [1.0, 1.8] },
     ridgeFractal: { sharpness: [0.8, 1.3], plateau: [2.0, 3.5] },
@@ -287,7 +287,7 @@ var BIOME_PRESETS = {
   },
   survival_wilderness: {
     name: "Survival (Dense Wilderness)",
-    heightScale: [18, 35], segments: 256,
+    heightScale: [18, 35], segments: 128,
     continental: { gamma: [1.1, 1.5], freq: 0.6 },
     ridgeNetwork: { freq: [2.0, 3.0], power: [1.0, 1.6] },
     ridgeFractal: { sharpness: [0.7, 1.2], plateau: [2.0, 3.0] },
@@ -297,7 +297,7 @@ var BIOME_PRESETS = {
   },
   arena_flat: {
     name: "Arena (Flat)",
-    heightScale: [2, 5], segments: 256,
+    heightScale: [2, 5], segments: 128,
     continental: { gamma: [0.4, 0.7], freq: 0.3 },
     ridgeNetwork: { freq: [0.3, 0.6], power: [0.1, 0.2] },
     ridgeFractal: { sharpness: [0.2, 0.4], plateau: [0.5, 1.0] },

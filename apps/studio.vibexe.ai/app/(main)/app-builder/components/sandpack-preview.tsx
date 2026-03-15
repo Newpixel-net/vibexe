@@ -729,7 +729,7 @@ if (typeof window !== 'undefined') {
           terrainWidth: tc.width || 200,
           terrainDepth: tc.depth || 200,
           terrainHeightScale: tc.heightScale || 40,
-          terrainSegments: tc.segments || 256,
+          terrainSegments: tc.segments || 128,
           sculptHeightData: tc.sculptHeightData || null,
         },
         biome: tc.biome || null,
@@ -1507,7 +1507,7 @@ export function SandpackPreview({
 									terrainWidth: terrainCfg.width || 200,
 									terrainDepth: terrainCfg.depth || 200,
 									terrainHeightScale: terrainCfg.heightScale || 40,
-									terrainSegments: terrainCfg.segments || 256,
+									terrainSegments: terrainCfg.segments || 128,
 									sculptHeightData: terrainCfg.sculptHeightData || null,
 								},
 								biome: terrainCfg.biome || null,
@@ -1978,7 +1978,7 @@ export function SandpackPreview({
 							terrainWidth: terrainCfg.width || 200,
 							terrainDepth: terrainCfg.depth || 200,
 							terrainHeightScale: terrainCfg.heightScale || 40,
-							terrainSegments: terrainCfg.segments || 256,
+							terrainSegments: terrainCfg.segments || 128,
 							sculptHeightData: terrainCfg.sculptHeightData || null,
 						},
 						biome: terrainCfg.biome || null,
@@ -2215,7 +2215,7 @@ export function SandpackPreview({
 		// No externalResources needed for Three.js — the shim handles core + all addons
 		// Bridge MUST load AFTER Three.js CDN — game editor bridge checks window.THREE on init
 		if (typeof window !== "undefined") {
-			resources.push(`${window.location.origin}/api/app-builder/bridge?v=89`);
+			resources.push(`${window.location.origin}/api/app-builder/bridge?v=90`);
 			// World Builder bridge — loaded after visual-edit bridge
 			resources.push(`${window.location.origin}/api/app-builder/world-builder-bridge?v=3`);
 		}

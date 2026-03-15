@@ -317,7 +317,7 @@ export function TerrainPainterPanel({
 		terrainWidth: initialConfig?.width ?? 200,
 		terrainDepth: initialConfig?.depth ?? 200,
 		terrainHeightScale: initialConfig?.heightScale ?? 40,
-		terrainSegments: initialConfig?.segments ?? 256,
+		terrainSegments: initialConfig?.segments ?? 128,
 	}));
 
 	// Sculpt state
@@ -1878,10 +1878,10 @@ function SettingsTab({
 	onGenerateTerrain: () => void;
 }) {
 	const SIZE_PRESETS = [
-		{ label: "Small", width: 100, depth: 100, segments: 128, height: 30 },
-		{ label: "Medium", width: 200, depth: 200, segments: 256, height: 40 },
-		{ label: "Large", width: 400, depth: 400, segments: 384, height: 60 },
-		{ label: "Huge", width: 500, depth: 500, segments: 512, height: 80 },
+		{ label: "Small", width: 100, depth: 100, segments: 64, height: 30 },
+		{ label: "Medium", width: 200, depth: 200, segments: 128, height: 40 },
+		{ label: "Large", width: 400, depth: 400, segments: 192, height: 60 },
+		{ label: "Huge", width: 500, depth: 500, segments: 256, height: 80 },
 	];
 
 	const vertexCount = (settings.terrainSegments + 1) * (settings.terrainSegments + 1);

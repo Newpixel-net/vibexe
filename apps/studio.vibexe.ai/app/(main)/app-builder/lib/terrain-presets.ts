@@ -104,7 +104,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 400,
 			depth: 100,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [5, 10],
 				continentalGamma: [0.6, 1.0],
@@ -175,7 +175,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 400,
 			depth: 100,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [4, 8],
 				continentalGamma: [0.7, 1.0],
@@ -317,7 +317,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 300,
 			depth: 300,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [15, 30],
 				continentalGamma: [1.5, 2.5],
@@ -388,7 +388,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 500,
 			depth: 200,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [3, 7],
 				continentalGamma: [0.6, 0.9],
@@ -458,7 +458,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 300,
 			depth: 300,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [8, 16],
 				continentalGamma: [1.2, 2.0],
@@ -529,7 +529,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 300,
 			depth: 300,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [20, 40],
 				continentalGamma: [1.8, 2.8],
@@ -600,7 +600,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 150,
 			depth: 150,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [2, 5],
 				continentalGamma: [0.4, 0.7],
@@ -741,7 +741,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 300,
 			depth: 300,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [10, 25],
 				continentalGamma: [1.5, 2.5],
@@ -812,7 +812,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 300,
 			depth: 300,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [5, 12],
 				continentalGamma: [0.8, 1.3],
@@ -883,7 +883,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 300,
 			depth: 300,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [40, 70],
 				continentalGamma: [2.0, 3.5],
@@ -953,7 +953,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 350,
 			depth: 350,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [8, 18],
 				continentalGamma: [1.2, 2.0],
@@ -1024,7 +1024,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 300,
 			depth: 300,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [25, 50],
 				continentalGamma: [2.0, 3.5],
@@ -1095,7 +1095,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 200,
 			depth: 200,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [4, 10],
 				continentalGamma: [0.8, 1.2],
@@ -1166,7 +1166,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 300,
 			depth: 300,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [3, 8],
 				continentalGamma: [0.6, 1.0],
@@ -1237,7 +1237,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 300,
 			depth: 300,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [2, 5],
 				continentalGamma: [0.5, 0.8],
@@ -1308,7 +1308,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 200,
 			depth: 150,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [1, 3],
 				continentalGamma: [0.4, 0.7],
@@ -1378,7 +1378,7 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
 		terrain: {
 			width: 300,
 			depth: 300,
-			segments: 256,
+			segments: 128,
 			biome: {
 				heightScale: [4, 10],
 				continentalGamma: [0.7, 1.0],

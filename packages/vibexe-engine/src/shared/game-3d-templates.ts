@@ -250,6 +250,24 @@ export function initRenderer(container: HTMLDivElement): any {
     (window as any).__vibexe_webgpu__ = false;
   }
   renderer.setSize(container.clientWidth, container.clientHeight);
+  // Global error suppression for known WebGPU renderer bugs (usedTimes, already initialized)
+  // These leak from internal Three.js r172 code during scene disposal/hot-reload
+  if (!((window as any).__vibexe_webgpu_error_handler__)) {
+    (window as any).__vibexe_webgpu_error_handler__ = true;
+    window.addEventListener('error', (evt: ErrorEvent) => {
+      const m = evt?.message || "";
+      if (m.includes("usedTimes") || m.includes("already initialized") || m.includes("is not a function")) {
+        evt.preventDefault();
+        return true;
+      }
+    });
+    window.addEventListener('unhandledrejection', (evt: PromiseRejectionEvent) => {
+      const m = String(evt?.reason?.message || evt?.reason || "");
+      if (m.includes("usedTimes") || m.includes("already initialized")) {
+        evt.preventDefault();
+      }
+    });
+  }
   // Cap pixelRatio at 1.5 — rendering at 2x costs 78% more pixels for minimal visual gain
   renderer.setPixelRatio(Math.min(__gsPerf.pixelRatio || window.devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true;
@@ -6279,6 +6297,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             if (editor.orbitControls) editor.orbitControls.update();
             if (_boxHelper && _selectedObj) _boxHelper.update();
             try {
+              if (renderer.info) renderer.info.reset?.();
               const __ec = (window as any).__vibexe_composer__;
               if (__ec) { __ec.render(); } else { renderer.render(scene, camera); }
             } catch (__e: any) { const __m = __e?.message || ""; if (!__m.includes("already initialized") && !__m.includes("usedTimes") && !__m.includes("is not a function")) throw __e; }
@@ -7040,10 +7059,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           const __perfNow = performance.now();
           if (__perfNow - __perfLastCheck >= 2000) {
             const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
-            if (__avgFps < 45 && !__perfDowngraded) {
+            if (__avgFps < 30 && !__perfDowngraded) {
               __perfDowngraded = true;
               console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
-              renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 0.9));
+              renderer.setPixelRatio(Math.min(renderer.getPixelRatio(), 1.0));
               renderer.shadowMap.enabled = false;
               (window as any).__vibexe_cullDistance__ = 60;
               // Disable bloom pass if exists
@@ -7089,6 +7108,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             if (__shadowFrame >= 30) { __shadowFrame = 0; renderer.shadowMap.needsUpdate = true; }
             // Only render here if the bridge is NOT actively rendering (avoids double-render flicker)
             if (!(window as any).__vibexe_bridge_rendering__) {
+              if (renderer.info) renderer.info.reset?.();
               __safeRender(__ed);
             }
             return;
@@ -7199,6 +7219,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             }
           }
           } // end LOD frame gate
+          // Reset renderer.info per frame so diagnostics reads per-frame draw calls (not cumulative)
+          if (renderer.info) renderer.info.reset?.();
           // Render via post-processing composer if available and has active effects, else direct render
           __safeRender(__frameDelta);
         };
