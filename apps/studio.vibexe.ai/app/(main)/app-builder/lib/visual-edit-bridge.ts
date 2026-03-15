@@ -5667,9 +5667,13 @@ export function getVisualEditBridgeScript(): string {
             // WebGPU renderer does NOT support raw GLSL ShaderMaterial — use MeshStandardMaterial fallback
             var _rpIsWebGPU = !!(window.__vibexe_webgpu__);
             if (_rpIsWebGPU) {
+              // WebGPU fallback: original ShaderMaterial has lights:false (self-lit).
+              // MeshStandardMaterial responds to scene lights (~2+ intensity) + ACES exposure 1.2,
+              // so use gray base color to compensate and avoid washed-out white terrain.
               var _rpStdMat = new _rpTHREE.MeshStandardMaterial({
+                color: 0x999999,
                 side: _rpTHREE.DoubleSide,
-                roughness: 0.85,
+                roughness: 0.75,
                 metalness: 0.0,
                 vertexColors: false
               });

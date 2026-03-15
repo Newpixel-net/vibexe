@@ -594,13 +594,13 @@ function ProceduralSkyDome(scene) {
       toneMapped: false,
       vertexColors: true
     });
-    // Apply vertex colors from gradient data for a basic sky look
+    // Apply vertex colors — sphere radius is 1, so Y ranges [-1, 1]
     var colors = new Float32Array(geo.attributes.position.count * 3);
     for (var ci = 0; ci < geo.attributes.position.count; ci++) {
-      var ny = (geo.attributes.position.getY(ci) / 500 + 1) * 0.5; // normalize Y to 0..1
-      colors[ci * 3] = 0.3 + ny * 0.2;     // R
-      colors[ci * 3 + 1] = 0.4 + ny * 0.3; // G
-      colors[ci * 3 + 2] = 0.6 + ny * 0.3; // B
+      var ny = (geo.attributes.position.getY(ci) + 1) * 0.5; // normalize Y to 0..1
+      colors[ci * 3] = 0.3 + ny * 0.4;     // R: warm horizon → pale zenith
+      colors[ci * 3 + 1] = 0.5 + ny * 0.35; // G: green-blue gradient
+      colors[ci * 3 + 2] = 0.7 + ny * 0.2; // B: strong blue
     }
     geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     mat.__isWebGPUFallback = true;
@@ -620,12 +620,22 @@ function ProceduralSkyDome(scene) {
   this.mesh.name = "__skyDome__";
   this.mesh.renderOrder = -1000;
   this.mesh.frustumCulled = false;
+  this._isWebGPU = __isWebGPU;
+  // WebGPU fallback: MeshBasicMaterial uses standard vertex shader (no viewMatrix trick),
+  // so we must physically scale the sphere to surround the scene and follow the camera.
+  if (__isWebGPU) {
+    this.mesh.scale.setScalar(500);
+  }
   this.scene.add(this.mesh);
 }
 
 ProceduralSkyDome.prototype.update = function(st, sunDir, moonDir, moonPhase, cfg) {
-  // WebGPU fallback uses MeshBasicMaterial with vertex colors — no shader uniforms to update
-  if (this.mesh && this.mesh.material && this.mesh.material.__isWebGPUFallback) return;
+  // WebGPU fallback: no shader uniforms but must follow camera so sphere always surrounds it
+  if (this._isWebGPU) {
+    var cam = window.__vibexe_camera__;
+    if (cam && this.mesh) { this.mesh.position.copy(cam.position); }
+    return;
+  }
   // Rebuild gradient when solarTime changes visibly
   if (Math.abs(st - this._lastST) > 0.003) {
     this._buildGradient(st);
