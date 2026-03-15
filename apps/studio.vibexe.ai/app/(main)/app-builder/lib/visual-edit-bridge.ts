@@ -4541,13 +4541,33 @@ export function getVisualEditBridgeScript(): string {
         _tpGeo.setAttribute("terrainHeight", new _tpTHREE.BufferAttribute(_tpHeightArr, 1));
         _tpGeo.setAttribute("terrainSlope", new _tpTHREE.BufferAttribute(_tpSlopeArr, 1));
 
-        // Initial vertex-color material (height gradient: green low → brown mid → white high)
+        // Initial vertex-color material — adaptive gradient based on height distribution
+        // Detect plateaus with carved canyons (badlands): >60% of vertices in top 30%
+        var _tpHighCount = 0;
+        for (var _hci = 0; _hci < _tpPos.count; _hci++) {
+          if (_tpHeightArr[_hci] > 0.7) _tpHighCount++;
+        }
+        var _tpIsSkewed = (_tpHighCount / _tpPos.count) > 0.6;
+
         var _tpColors = new Float32Array(_tpPos.count * 3);
         for (var vi3 = 0; vi3 < _tpPos.count; vi3++) {
           var nh = _tpHeightArr[vi3];
           var slope = _tpSlopeArr[vi3];
           var r, g, b;
-          if (nh > 0.7) { // snow
+          if (_tpIsSkewed) {
+            // Slope-dominant coloring for plateau/canyon terrain
+            var _nv = _tpNoise2D(_tpPos.getX(vi3) * 0.08, _tpPos.getZ(vi3) * 0.08) * 0.06;
+            if (slope > 45) {
+              r = 0.38 + _nv; g = 0.32 + _nv; b = 0.26 + _nv;
+            } else if (slope > 25) {
+              var _sb = _tpSmoothstep(25, 45, slope);
+              r = 0.52 + _nv - _sb * 0.14; g = 0.38 + _nv - _sb * 0.06; b = 0.28 + _nv - _sb * 0.02;
+            } else if (nh < 0.15) {
+              r = 0.35 + _nv; g = 0.30 + _nv; b = 0.22 + _nv;
+            } else {
+              r = 0.58 + _nv; g = 0.45 + _nv; b = 0.32 + _nv;
+            }
+          } else if (nh > 0.7) { // snow
             var sf = _tpSmoothstep(0.65, 0.8, nh);
             r = 0.35 + sf * 0.6; g = 0.45 + sf * 0.5; b = 0.35 + sf * 0.6;
           } else if (slope > 35) { // rock on steep slopes

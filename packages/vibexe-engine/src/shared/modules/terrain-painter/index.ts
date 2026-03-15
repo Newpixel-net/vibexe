@@ -715,32 +715,58 @@ TerrainGenerator.prototype.generate = function() {
   geo.setAttribute("terrainHeight", new THREE.BufferAttribute(heightArr, 1));
   geo.setAttribute("terrainSlope", new THREE.BufferAttribute(slopeArr, 1));
 
-  // Vertex colors: mountain gradient (dirt/grass/rock/snow)
+  // Vertex colors: adaptive gradient based on height distribution
+  // Detect skewed distributions (plateaus with canyons): if >60% of vertices
+  // are in the top 30% of height range, use slope-dominant coloring (desert/canyon).
+  var _highCount = 0;
+  for (var _hci = 0; _hci < pos.count; _hci++) {
+    if (heightArr[_hci] > 0.7) _highCount++;
+  }
+  var _isSkewedPlateau = (_highCount / pos.count) > 0.6;
+
   var colors = new Float32Array(pos.count * 3);
   for (var vi3 = 0; vi3 < pos.count; vi3++) {
     var nh = heightArr[vi3];
     var slope = slopeArr[vi3];
     var r, g, b;
-    // Snow on high peaks (soft transition)
-    if (nh > 0.65 && slope < 40) {
-      var sf = SimplexNoise.smoothstep(0.6, 0.75, nh);
-      r = 0.75 + sf * 0.2; g = 0.78 + sf * 0.18; b = 0.82 + sf * 0.15;
-    }
-    // Rock on steep slopes (at any height)
-    else if (slope > 35) {
-      var rockVar = SimplexNoise.noise2D(pos.getX(vi3) * 0.1, pos.getZ(vi3) * 0.1) * 0.08;
-      r = 0.42 + rockVar; g = 0.40 + rockVar; b = 0.38 + rockVar;
-    }
-    // Grass on mid-heights
-    else if (nh > 0.15 && nh <= 0.65) {
-      var grassVar = SimplexNoise.noise2D(pos.getX(vi3) * 0.15, pos.getZ(vi3) * 0.15) * 0.06;
-      var heightBlend = SimplexNoise.smoothstep(0.15, 0.3, nh);
-      r = 0.28 + grassVar; g = 0.42 + grassVar + heightBlend * 0.05; b = 0.18 + grassVar;
-    }
-    // Dirt/sand at low elevations
-    else {
-      var dirtVar = SimplexNoise.noise2D(pos.getX(vi3) * 0.12, pos.getZ(vi3) * 0.12) * 0.05;
-      r = 0.48 + dirtVar; g = 0.38 + dirtVar; b = 0.25 + dirtVar;
+
+    if (_isSkewedPlateau) {
+      // Slope-dominant coloring for plateaus with carved canyons (badlands, mesa, etc.)
+      var nVar = SimplexNoise.noise2D(pos.getX(vi3) * 0.08, pos.getZ(vi3) * 0.08) * 0.06;
+      if (slope > 45) {
+        // Exposed rock on steep canyon walls
+        r = 0.38 + nVar; g = 0.32 + nVar; b = 0.26 + nVar;
+      } else if (slope > 25) {
+        // Weathered rock/clay on moderate slopes
+        var sBlend = SimplexNoise.smoothstep(25, 45, slope);
+        r = 0.52 + nVar - sBlend * 0.14; g = 0.38 + nVar - sBlend * 0.06; b = 0.28 + nVar - sBlend * 0.02;
+      } else if (nh < 0.15) {
+        // Valley floor — dark sediment
+        r = 0.35 + nVar; g = 0.30 + nVar; b = 0.22 + nVar;
+      } else {
+        // Plateau surface — sandy/desert color
+        r = 0.58 + nVar; g = 0.45 + nVar; b = 0.32 + nVar;
+      }
+    } else {
+      // Standard mountain gradient (dirt/grass/rock/snow)
+      if (nh > 0.65 && slope < 40) {
+        // Snow on high peaks
+        var sf = SimplexNoise.smoothstep(0.6, 0.75, nh);
+        r = 0.75 + sf * 0.2; g = 0.78 + sf * 0.18; b = 0.82 + sf * 0.15;
+      } else if (slope > 35) {
+        // Rock on steep slopes
+        var rockVar = SimplexNoise.noise2D(pos.getX(vi3) * 0.1, pos.getZ(vi3) * 0.1) * 0.08;
+        r = 0.42 + rockVar; g = 0.40 + rockVar; b = 0.38 + rockVar;
+      } else if (nh > 0.15 && nh <= 0.65) {
+        // Grass
+        var grassVar = SimplexNoise.noise2D(pos.getX(vi3) * 0.15, pos.getZ(vi3) * 0.15) * 0.06;
+        var heightBlend = SimplexNoise.smoothstep(0.15, 0.3, nh);
+        r = 0.28 + grassVar; g = 0.42 + grassVar + heightBlend * 0.05; b = 0.18 + grassVar;
+      } else {
+        // Dirt/sand
+        var dirtVar = SimplexNoise.noise2D(pos.getX(vi3) * 0.12, pos.getZ(vi3) * 0.12) * 0.05;
+        r = 0.48 + dirtVar; g = 0.38 + dirtVar; b = 0.25 + dirtVar;
+      }
     }
     colors[vi3 * 3] = r;
     colors[vi3 * 3 + 1] = g;
