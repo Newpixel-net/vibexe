@@ -201,6 +201,8 @@ Object.assign(window, {
   createTriggerZone, createHingeConstraint, createSpringConstraint,
   createLockConstraint, createPointConstraint, createCompoundBody,
   setCollisionGroups,
+  // Save/Load Game State
+  saveGame, loadGame, restoreGame, hasSaveGame, deleteSaveGame, listSaveSlots, createCheckpoint,
   THREE, CANNON,
 });
 
@@ -794,10 +796,20 @@ export function createContactMaterial(
 /**
  * Syncs a Three.js mesh position/rotation to its Cannon.js body.
  * Call this in update() after world.step().
+ * Meshes synced via this function are automatically registered for
+ * physics interpolation (smooth rendering between fixed timesteps).
  */
+// Physics interpolation: tracked meshes for smooth rendering
+const _physInterpMeshes: any[] = [];
+
 export function syncMeshToBody(mesh: any, body: any): void {
   if (!mesh || !body) return;
   mesh.userData.__physicsBody = body;
+  // Register for interpolation tracking (once per mesh)
+  if (!mesh.userData.__physInterp) {
+    mesh.userData.__physInterp = true;
+    _physInterpMeshes.push(mesh);
+  }
   mesh.position.copy(body.position);
   mesh.quaternion.copy(body.quaternion);
 }
@@ -815,6 +827,38 @@ export function syncBodiesToMeshes(pairs: Array<{ mesh: any; body: any }>): void
   }
 }
 
+/** Store current mesh positions as "previous" before each physics step. */
+function _storePhysicsPrev(): void {
+  for (let i = _physInterpMeshes.length - 1; i >= 0; i--) {
+    const m = _physInterpMeshes[i];
+    if (!m.parent) { _physInterpMeshes.splice(i, 1); m.userData.__physInterp = false; continue; }
+    if (!m.userData.__physPrev) m.userData.__physPrev = { x: 0, y: 0, z: 0, qx: 0, qy: 0, qz: 0, qw: 1 };
+    const p = m.userData.__physPrev;
+    p.x = m.position.x; p.y = m.position.y; p.z = m.position.z;
+    p.qx = m.quaternion.x; p.qy = m.quaternion.y; p.qz = m.quaternion.z; p.qw = m.quaternion.w;
+  }
+}
+
+/** Interpolate physics meshes between previous and current state for smooth rendering. */
+function _interpolatePhysics(alpha: number): void {
+  for (const m of _physInterpMeshes) {
+    const p = m.userData.__physPrev;
+    if (!p || !m.parent) continue;
+    m.position.x = p.x + (m.position.x - p.x) * alpha;
+    m.position.y = p.y + (m.position.y - p.y) * alpha;
+    m.position.z = p.z + (m.position.z - p.z) * alpha;
+    m.quaternion.x = p.qx + (m.quaternion.x - p.qx) * alpha;
+    m.quaternion.y = p.qy + (m.quaternion.y - p.qy) * alpha;
+    m.quaternion.z = p.qz + (m.quaternion.z - p.qz) * alpha;
+    m.quaternion.w = p.qw + (m.quaternion.w - p.qw) * alpha;
+    m.quaternion.normalize();
+  }
+}
+
+(window as any)._storePhysicsPrev = _storePhysicsPrev;
+(window as any)._interpolatePhysics = _interpolatePhysics;
+(window as any)._physInterpMeshes = _physInterpMeshes;
+
 /**
  * Creates an infinite static ground plane body at y=0.
  */
@@ -824,6 +868,110 @@ export function createPhysicsGround(world: any): any {
   world.addBody(body);
   return body;
 }
+
+// ===== Save/Load Game State =====
+
+/**
+ * Saves the current game state to localStorage.
+ * Templates register a __vibexe_collectState__ function that returns the current state.
+ * AI code can store custom data via window.__vibexe_customSaveData__.
+ */
+function _saveKey(slot: number): string {
+  const appId = (window as any).__VIBEXE_APP_ID__ || "default";
+  return "vibexe-save-" + appId + "-" + slot;
+}
+
+function saveGame(slot = 0): boolean {
+  const collector = (window as any).__vibexe_collectState__;
+  if (!collector) { console.warn("[SaveGame] No state collector registered"); return false; }
+  try {
+    const state = collector();
+    state.timestamp = Date.now();
+    state.slot = slot;
+    localStorage.setItem(_saveKey(slot), JSON.stringify(state));
+    return true;
+  } catch (e) { console.warn("[SaveGame] Failed:", e); return false; }
+}
+
+/**
+ * Loads a saved game state from localStorage. Returns null if no save exists.
+ */
+function loadGame(slot = 0): any | null {
+  try {
+    const raw = localStorage.getItem(_saveKey(slot));
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+/**
+ * Restores a saved state into the running game.
+ * Templates register a __vibexe_restoreState__ function.
+ */
+function restoreGame(slot = 0): boolean {
+  const state = loadGame(slot);
+  if (!state) return false;
+  const restorer = (window as any).__vibexe_restoreState__;
+  if (!restorer) { console.warn("[RestoreGame] No state restorer registered"); return false; }
+  try { restorer(state); return true; } catch (e) { console.warn("[RestoreGame] Failed:", e); return false; }
+}
+
+/** Returns true if a save exists for the given slot. */
+function hasSaveGame(slot = 0): boolean {
+  try {
+    return localStorage.getItem(_saveKey(slot)) !== null;
+  } catch { return false; }
+}
+
+/** Deletes a saved game state. */
+function deleteSaveGame(slot = 0): void {
+  try {
+    localStorage.removeItem(_saveKey(slot));
+  } catch {}
+}
+
+/** Lists all save slots with metadata. */
+function listSaveSlots(): Array<{ slot: number; timestamp: number; score: number }> {
+  const appId = (window as any).__VIBEXE_APP_ID__ || "default";
+  const prefix = "vibexe-save-" + appId + "-";
+  const result: Array<{ slot: number; timestamp: number; score: number }> = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) {
+        const slotNum = parseInt(k.slice(prefix.length), 10);
+        const data = JSON.parse(localStorage.getItem(k) || "{}");
+        result.push({ slot: slotNum, timestamp: data.timestamp || 0, score: data.score || 0 });
+      }
+    }
+  } catch {}
+  return result.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+/**
+ * Creates a checkpoint trigger zone. When the player enters, auto-saves to slot 99.
+ * Usage: createCheckpoint(world, {x: 10, y: 1, z: 0}, 2);
+ */
+function createCheckpoint(world: any, position: { x: number; y: number; z: number }, radius = 2): any {
+  if (!world || typeof createTriggerZone !== "function") return null;
+  let triggered = false;
+  return createTriggerZone(world, position, { x: radius, y: radius, z: radius }, {
+    onEnter: () => {
+      if (triggered) return;
+      triggered = true;
+      saveGame(99); // Slot 99 = checkpoint auto-save
+      try { playSound(soundUrl("levelup"), { volume: 0.5 }); } catch {}
+      console.log("[Checkpoint] Saved at", position);
+    },
+  });
+}
+
+(window as any).saveGame = saveGame;
+(window as any).loadGame = loadGame;
+(window as any).restoreGame = restoreGame;
+(window as any).hasSaveGame = hasSaveGame;
+(window as any).deleteSaveGame = deleteSaveGame;
+(window as any).listSaveSlots = listSaveSlots;
+(window as any).createCheckpoint = createCheckpoint;
 
 // ===== Raycasting Helpers =====
 
@@ -3447,6 +3595,26 @@ function createMenuOverlay(container: HTMLDivElement, onStart: () => void) {
   overlay.appendChild(btn);
   container.appendChild(overlay);
 
+  // "Continue" button — shown when a save game exists
+  let continueBtn: HTMLDivElement | null = null;
+  if ((window as any).hasSaveGame?.(0) || (window as any).hasSaveGame?.(99)) {
+    continueBtn = document.createElement("div");
+    continueBtn.style.cssText = "font-size:18px;font-weight:bold;color:#88ccff;cursor:pointer;margin-bottom:24px;padding:8px 24px;border:1px solid #88ccff;border-radius:8px;";
+    continueBtn.textContent = "CONTINUE";
+    continueBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      overlay.style.opacity = "0";
+      overlay.style.transition = "opacity 0.3s";
+      setTimeout(() => {
+        overlay.remove();
+        onStart();
+        // Restore from checkpoint (slot 99) first, then regular save (slot 0)
+        setTimeout(() => { (window as any).restoreGame?.(99) || (window as any).restoreGame?.(0); }, 100);
+      }, 300);
+    });
+    overlay.insertBefore(continueBtn, btn);
+  }
+
   // Enable click after 400ms delay
   setTimeout(() => {
     btn.style.pointerEvents = "auto";
@@ -3518,6 +3686,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       _activeParticles3D.length = 0;
       _activeTriggers3D.length = 0;
       _activeSprings3D.length = 0;
+      _physInterpMeshes.length = 0;
       if ((window as any)._activeSpatial3D) (window as any)._activeSpatial3D.length = 0;
       if (scene) {
         scene.traverse((obj: any) => {
@@ -5274,6 +5443,9 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         // Shadow update: every 15 frames or when player moves >5 units
         let __shadowFrame = 0;
         let __shadowLastPX = 0, __shadowLastPZ = 0;
+        // Physics interpolation accumulator
+        let __physAccum = 0;
+        const __physDt = 1 / 60;
         const animate = (time?: number) => {
           if (disposed) return;
           animFrameId = requestAnimationFrame(animate);
@@ -5345,20 +5517,24 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             return;
           }
 
-          let delta = clock.getDelta();
-          // Cap delta to prevent physics teleporting after long tab-hidden periods
-          if (delta > 0.1) delta = 0.1;
-          // Auto-update all animation mixers (from createAnimatedCharacter3D)
-          (window as any)._updateAllMixers3D?.(delta);
-          try { gameScene.update(delta); } catch (_e) { /* AI code error — keep rendering */ }
-          // Auto-update character controllers AFTER gameScene.update() — this reads
-          // the velocity/position set by AI code and auto-switches idle/walk/run/jump.
-          // Works as safety net even if AI doesn't call controller.update() itself.
-          (window as any)._updateAllControllers3D?.(delta);
-          // Auto-update particles, triggers, springs
-          (window as any)._updateAllParticles3D?.(delta);
-          (window as any)._updateAllTriggers3D?.();
-          (window as any)._updateAllSprings3D?.();
+          const __frameDelta = Math.min(clock.getDelta(), 0.1);
+          // Fixed-timestep accumulator for physics interpolation
+          __physAccum += __frameDelta;
+          // Step physics + game logic at fixed 60Hz rate; interpolate for smooth rendering
+          while (__physAccum >= __physDt) {
+            (window as any)._storePhysicsPrev?.();
+            (window as any)._updateAllMixers3D?.(__physDt);
+            try { gameScene.update(__physDt); } catch (_e) { /* AI code error — keep rendering */ }
+            (window as any)._updateAllControllers3D?.(__physDt);
+            (window as any)._updateAllTriggers3D?.();
+            (window as any)._updateAllSprings3D?.();
+            __physAccum -= __physDt;
+          }
+          // Interpolate physics meshes between previous and current state
+          const __physAlpha = __physAccum / __physDt;
+          (window as any)._interpolatePhysics?.(__physAlpha);
+          // Particles are visual-only — update with real frame delta
+          (window as any)._updateAllParticles3D?.(__frameDelta);
           // Update spatial audio: attached sounds follow meshes
           (window as any)._updateAllSpatial3D?.();
           // Update spatial audio listener position + orientation from camera
@@ -5440,7 +5616,7 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           } // end LOD frame gate
           // Render via post-processing composer if available and has active effects, else direct render
           const __composer = (window as any).__vibexe_composer__;
-          if (__composer && !(window as any).__vibexe_skipComposer__) { __composer.render(delta); }
+          if (__composer && !(window as any).__vibexe_skipComposer__) { __composer.render(__frameDelta); }
           else { renderer.render(scene, camera); }
         };
         // Force initial shadow map render (autoUpdate is off)
@@ -5740,6 +5916,29 @@ export const GameScene = {
       }
     });
     onProgress?.(1);
+
+    // Save/Load hooks
+    (window as any).__vibexe_collectState__ = () => ({
+      score,
+      playerPos: playerBody ? { x: playerBody.position.x, y: playerBody.position.y, z: playerBody.position.z } : null,
+      collectedItems: items.map(c => c.collected),
+      custom: (window as any).__vibexe_customSaveData__ || null,
+    });
+    (window as any).__vibexe_restoreState__ = (state: any) => {
+      if (state.score != null) { score = state.score; hud?.update({ score }); }
+      if (state.playerPos && playerBody) {
+        playerBody.position.set(state.playerPos.x, state.playerPos.y, state.playerPos.z);
+        playerBody.velocity.set(0, 0, 0);
+      }
+      if (state.collectedItems && Array.isArray(state.collectedItems)) {
+        for (let i = 0; i < items.length && i < state.collectedItems.length; i++) {
+          if (state.collectedItems[i] && !items[i].collected) {
+            items[i].collected = true;
+            items[i].mesh.visible = false;
+          }
+        }
+      }
+    };
   },
 
   update(delta: number) {
@@ -6110,6 +6309,26 @@ export const GameScene = {
 
     // Force run animation
     characterResult.play("running");
+
+    // Save/Load hooks
+    (window as any).__vibexe_collectState__ = () => ({
+      score, lives, distance, speed, currentLane,
+      playerPos: playerBody ? { x: playerBody.position.x, y: playerBody.position.y, z: playerBody.position.z } : null,
+      custom: (window as any).__vibexe_customSaveData__ || null,
+    });
+    (window as any).__vibexe_restoreState__ = (state: any) => {
+      if (state.score != null) score = state.score;
+      if (state.lives != null) lives = state.lives;
+      if (state.distance != null) distance = state.distance;
+      if (state.speed != null) speed = state.speed;
+      if (state.currentLane != null) { currentLane = state.currentLane; targetX = LANE_X[currentLane]; }
+      if (state.playerPos && playerBody) {
+        playerBody.position.set(state.playerPos.x, state.playerPos.y, state.playerPos.z);
+        playerBody.velocity.set(0, 0, 0);
+      }
+      hud?.update({ score, lives, custom: \`Distance: \${Math.floor(distance)}m\` });
+      gameStarted = true;
+    };
   },
 
   update(delta: number) {
@@ -7251,6 +7470,34 @@ export const GameScene = {
     // First wave
     spawnWave();
     onProgress?.(1);
+
+    // Save/Load hooks
+    (window as any).__vibexe_collectState__ = () => ({
+      score, wave, lives, gameTime, difficulty,
+      playerPos: playerBody ? { x: playerBody.position.x, y: playerBody.position.y, z: playerBody.position.z } : null,
+      collectiblesCollected: collectibles.map(c => c.collected),
+      custom: (window as any).__vibexe_customSaveData__ || null,
+    });
+    (window as any).__vibexe_restoreState__ = (state: any) => {
+      if (state.score != null) score = state.score;
+      if (state.wave != null) wave = state.wave;
+      if (state.lives != null) lives = state.lives;
+      if (state.gameTime != null) gameTime = state.gameTime;
+      if (state.difficulty != null) difficulty = state.difficulty;
+      if (state.playerPos && playerBody) {
+        playerBody.position.set(state.playerPos.x, state.playerPos.y, state.playerPos.z);
+        playerBody.velocity.set(0, 0, 0);
+      }
+      if (state.collectiblesCollected && Array.isArray(state.collectiblesCollected)) {
+        for (let i = 0; i < collectibles.length && i < state.collectiblesCollected.length; i++) {
+          if (state.collectiblesCollected[i] && !collectibles[i].collected) {
+            collectibles[i].collected = true;
+            collectibles[i].mesh.visible = false;
+          }
+        }
+      }
+      hud?.update({ score, lives, custom: \`Wave: \${wave}\` });
+    };
   },
 
   update(delta: number) {
