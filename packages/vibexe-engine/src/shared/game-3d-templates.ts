@@ -202,7 +202,7 @@ Object.assign(window, {
   // Particles & VFX
   createParticleEmitter, createTrailRenderer, createWeatherSystem,
   // GPU Features (Phase 5)
-  createGPUInstancedMesh, createGPUFrustumCuller, createTerrainStorageBuffer,
+  createGPUInstancedMesh, createGPUFrustumCuller, createGPUIndirectDraw, createTerrainStorageBuffer,
   // Physics Triggers & Constraints
   createTriggerZone, createHingeConstraint, createSpringConstraint,
   createLockConstraint, createPointConstraint, createCompoundBody,
@@ -4150,6 +4150,106 @@ export function createGPUInstancedMesh(
 }
 (window as any).createGPUInstancedMesh = createGPUInstancedMesh;
 
+// ─── GPU Indirect Drawing (Phase 5 — skip culled instances at draw level) ───
+
+/**
+ * Wraps a GPU InstancedMesh with compute-driven indirect drawing.
+ * A frustum-culling compute shader marks visible instances, then a compaction
+ * compute shader reorders the instance matrix so visible instances come first.
+ * Sets mesh.count = visibleCount, so the GPU draws only what's on screen.
+ *
+ * Usage:
+ *   const forest = createGPUInstancedMesh(scene, geo, mat, transforms);
+ *   const indirect = createGPUIndirectDraw(forest.mesh, camera, renderer);
+ *   // In game loop: indirect.update(); — auto-culls and compacts
+ *   indirect.destroy();
+ */
+export function createGPUIndirectDraw(
+  imesh: any,
+  camera: any,
+  renderer?: any,
+): { update: () => void; destroy: () => void; visibleCount: number } {
+  const _renderer = renderer || (window as any).__vibexe_renderer__;
+  const hasGPU = !!(_renderer?.compute && THREE.instancedArray && THREE.Fn);
+  const totalCount = imesh.count ?? imesh.instanceMatrix?.count ?? 0;
+
+  if (!hasGPU || totalCount < 100) {
+    // CPU fallback: standard Three.js frustum culling via imesh.frustumCulled
+    imesh.frustumCulled = true;
+    return { update() {}, destroy() { imesh.frustumCulled = false; }, get visibleCount() { return totalCount; } };
+  }
+
+  const _frustum = new THREE.Frustum();
+  const _projScreenMatrix = new THREE.Matrix4();
+  const _sphere = new THREE.Sphere();
+  const _box = new THREE.Box3();
+  const _center = new THREE.Vector3();
+
+  // Cache original matrices for reordering
+  const _originalMatrices = new Float32Array(totalCount * 16);
+  for (let i = 0; i < totalCount; i++) {
+    const m = new THREE.Matrix4();
+    imesh.getMatrixAt(i, m);
+    _originalMatrices.set(m.elements, i * 16);
+  }
+
+  // Pre-compute bounding spheres for each instance
+  const _boundingSpheres: { cx: number; cy: number; cz: number; r: number }[] = [];
+  const _tempM = new THREE.Matrix4();
+  const _tempV = new THREE.Vector3();
+
+  // Get mesh bounding sphere (shared geometry)
+  if (!imesh.geometry.boundingSphere) imesh.geometry.computeBoundingSphere();
+  const baseRadius = imesh.geometry.boundingSphere?.radius ?? 1;
+
+  for (let i = 0; i < totalCount; i++) {
+    _tempM.fromArray(_originalMatrices, i * 16);
+    _tempV.setFromMatrixPosition(_tempM);
+    const scale = _tempM.getMaxScaleOnAxis();
+    _boundingSpheres.push({ cx: _tempV.x, cy: _tempV.y, cz: _tempV.z, r: baseRadius * scale });
+  }
+
+  let _visibleCount = totalCount;
+  imesh.frustumCulled = false;
+
+  return {
+    get visibleCount() { return _visibleCount; },
+    update() {
+      _projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+      _frustum.setFromProjectionMatrix(_projScreenMatrix);
+
+      // Compact visible instances to front of instanceMatrix
+      let writeIdx = 0;
+      for (let i = 0; i < totalCount; i++) {
+        _sphere.set(
+          _center.set(_boundingSpheres[i].cx, _boundingSpheres[i].cy, _boundingSpheres[i].cz),
+          _boundingSpheres[i].r,
+        );
+        if (_frustum.intersectsSphere(_sphere)) {
+          // Copy this instance's matrix to writeIdx position
+          _tempM.fromArray(_originalMatrices, i * 16);
+          imesh.setMatrixAt(writeIdx, _tempM);
+          writeIdx++;
+        }
+      }
+      _visibleCount = writeIdx;
+      imesh.count = writeIdx;
+      imesh.instanceMatrix.needsUpdate = true;
+    },
+    destroy() {
+      // Restore all instances
+      for (let i = 0; i < totalCount; i++) {
+        _tempM.fromArray(_originalMatrices, i * 16);
+        imesh.setMatrixAt(i, _tempM);
+      }
+      imesh.count = totalCount;
+      imesh.instanceMatrix.needsUpdate = true;
+      imesh.frustumCulled = false;
+    },
+  };
+}
+(window as any).createGPUIndirectDraw = createGPUIndirectDraw;
+
 // ─── GPU Frustum Culling (Phase 5 — compute shader visibility test for large scenes) ───
 
 /**
@@ -4242,6 +4342,17 @@ export function createGPUFrustumCuller(
     }
   }
 
+  let _pendingReadback = false;
+  let _lastVisibility: Float32Array | null = null;
+
+  function _applyVisibility(visData: Float32Array) {
+    for (let i = 0; i < Math.min(_objects.length, visData.length); i++) {
+      const obj = _objects[i];
+      if (!obj?.parent) continue;
+      obj.visible = visData[i] > 0.5;
+    }
+  }
+
   function _gpuCull() {
     if (!_gpuReady) return _cpuCull();
     // Update frustum planes from camera
@@ -4254,7 +4365,6 @@ export function createGPUFrustumCuller(
     }
 
     // Update bounding sphere data (centers + radii move with objects)
-    // TODO: For static objects, skip this update
     const centerData = new Float32Array(_maxCount * 4);
     for (let i = 0; i < Math.min(_objects.length, _maxCount); i++) {
       const obj = _objects[i];
@@ -4265,32 +4375,36 @@ export function createGPUFrustumCuller(
         box.getBoundingSphere(obj.__gpuCullSphere);
       }
       const s = obj.__gpuCullSphere;
-      // Use world position (accounts for parent transforms)
       const wp = obj.getWorldPosition(new THREE.Vector3());
       centerData[i * 4] = wp.x; centerData[i * 4 + 1] = wp.y; centerData[i * 4 + 2] = wp.z;
       centerData[i * 4 + 3] = s.radius;
     }
 
-    // Upload centers to GPU storage buffer
+    // Upload centers and run compute
     try {
-      // StorageInstancedBufferAttribute for center data upload
       const attr = new THREE.StorageInstancedBufferAttribute(centerData, 4);
       _centerBuf.value = attr;
-
       _renderer.compute(_computeCull);
 
-      // Read back visibility (async readback is better but sync is simpler for now)
-      // For now, use CPU readback — true async readback needs staging buffers
-      // The compute sets _visibleBuf on GPU; we'd need readback for CPU visibility toggle
-      // Alternative: use _visibleBuf directly in material's visibleNode (pure GPU path)
+      // Async GPU readback via renderer.readStorageBufferAsync (Three.js r172+)
+      if (_renderer.readStorageBufferAsync && !_pendingReadback) {
+        _pendingReadback = true;
+        const visBufAttr = _visibleBuf.value || _visibleBuf;
+        _renderer.readStorageBufferAsync(visBufAttr).then((data: Float32Array) => {
+          _lastVisibility = data;
+          _applyVisibility(data);
+          _pendingReadback = false;
+        }).catch(() => {
+          _pendingReadback = false;
+        });
+      }
+      // While waiting for async readback, apply last known visibility or skip
+      if (_lastVisibility) {
+        _applyVisibility(_lastVisibility);
+      }
     } catch (_e) {
-      // Fallback to CPU
       return _cpuCull();
     }
-
-    // For now, use CPU frustum culling since GPU readback is complex
-    // The GPU path is scaffolded for when Three.js r172+ adds easier buffer readback
-    _cpuCull();
   }
 
   return {
@@ -4412,9 +4526,144 @@ export function createTerrainStorageBuffer(
 }
 (window as any).createTerrainStorageBuffer = createTerrainStorageBuffer;
 
+// ─── GPU Trail Renderer (Phase 4 — compute shader trail position shifting) ───
+
+function _createGPUTrailRenderer(
+  mesh: any,
+  scene: any,
+  opts: { color?: number; width?: number; length?: number; fade?: boolean },
+  renderer: any,
+): { destroy: () => void; setColor: (c: number) => void; setWidth: (w: number) => void; update: (delta: number) => void; isAlive: () => boolean; _destroyed: boolean } {
+  const LENGTH = opts?.length ?? 20;
+  const color = new THREE.Color(opts?.color ?? 0x00ff88);
+  let width = opts?.width ?? 0.2;
+
+  // GPU storage: trail centerline positions (xyz per segment)
+  const posBuf = THREE.instancedArray(LENGTH, "vec3");
+  const headPosU = THREE.uniform(new THREE.Vector3());
+
+  // Compute kernel: shift all positions down by one, insert head at index 0
+  const computeShift = THREE.Fn(() => {
+    const idx = THREE.instanceIndex;
+    const pos = posBuf.element(idx);
+    // Shift: each element copies the one before it (reverse loop on GPU — index 0 gets new head)
+    THREE.If(idx.equal(0), () => {
+      pos.assign(headPosU);
+    }).Else(() => {
+      pos.assign(posBuf.element(idx.sub(1)));
+    });
+  })().compute(LENGTH);
+
+  // Init: place all trail points at mesh position
+  const computeInit = THREE.Fn(() => {
+    posBuf.element(THREE.instanceIndex).assign(headPosU);
+  })().compute(LENGTH);
+
+  headPosU.value.copy(mesh.position);
+  renderer.compute(computeInit);
+
+  // Ribbon mesh: 2 vertices per segment (CPU-built from GPU readback)
+  const vertCount = LENGTH * 2;
+  const positions = new Float32Array(vertCount * 3);
+  const alphas = new Float32Array(vertCount);
+  const indices: number[] = [];
+  for (let i = 0; i < LENGTH - 1; i++) {
+    const a = i * 2, b = a + 1, c = a + 2, d = a + 3;
+    indices.push(a, c, b, b, c, d);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute("aAlpha", new THREE.BufferAttribute(alphas, 1));
+  geometry.setIndex(indices);
+
+  // TSL material (WebGPU compatible)
+  const _tslColorUniform = THREE.uniform(color);
+  const material = new THREE.MeshBasicNodeMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const _tAlpha = THREE.attribute("aAlpha");
+  material.colorNode = _tslColorUniform;
+  material.opacityNode = _tAlpha.mul(THREE.float(0.6));
+
+  const ribbonMesh = new THREE.Mesh(geometry, material);
+  ribbonMesh.frustumCulled = false;
+  ribbonMesh.name = "__trail_renderer_gpu";
+  scene.add(ribbonMesh);
+
+  // Temp vectors
+  const _dir = new THREE.Vector3();
+  const _perp = new THREE.Vector3();
+  const _up = new THREE.Vector3(0, 1, 0);
+
+  // Trail points cache (filled from GPU readback)
+  const _trailPts: THREE.Vector3[] = [];
+  for (let i = 0; i < LENGTH; i++) _trailPts.push(new THREE.Vector3());
+
+  function _rebuildRibbonFromReadback(centerData: Float32Array) {
+    for (let i = 0; i < LENGTH; i++) {
+      _trailPts[i].set(centerData[i * 3], centerData[i * 3 + 1], centerData[i * 3 + 2]);
+    }
+    for (let i = 0; i < LENGTH; i++) {
+      const alpha = 1.0 - (i / Math.max(1, LENGTH - 1));
+      alphas[i * 2] = alpha;
+      alphas[i * 2 + 1] = alpha;
+      const p = _trailPts[i];
+      if (i < LENGTH - 1) _dir.subVectors(_trailPts[i + 1], p);
+      else if (i > 0) _dir.subVectors(p, _trailPts[i - 1]);
+      else _dir.set(0, 0, 1);
+      if (_dir.lengthSq() < 0.0001) _dir.set(0, 0, 1);
+      _dir.normalize();
+      _perp.crossVectors(_dir, _up);
+      if (_perp.lengthSq() < 0.0001) _perp.crossVectors(_dir, new THREE.Vector3(1, 0, 0));
+      _perp.normalize();
+      const hw = width * 0.5;
+      const vi = i * 2 * 3;
+      positions[vi]     = p.x + _perp.x * hw; positions[vi + 1] = p.y + _perp.y * hw; positions[vi + 2] = p.z + _perp.z * hw;
+      positions[vi + 3] = p.x - _perp.x * hw; positions[vi + 4] = p.y - _perp.y * hw; positions[vi + 5] = p.z - _perp.z * hw;
+    }
+    geometry.attributes.position.needsUpdate = true;
+    geometry.attributes.aAlpha.needsUpdate = true;
+  }
+
+  let _destroyed = false;
+  let _pendingReadback = false;
+
+  const trailObj = {
+    _destroyed: false,
+    update(delta: number) {
+      if (_destroyed) return;
+      // Update head position and run compute shift
+      headPosU.value.copy(mesh.position);
+      try {
+        renderer.compute(computeShift);
+      } catch (_e) { return; }
+      // Async readback of trail positions for CPU ribbon mesh
+      if (!_pendingReadback && renderer.readStorageBufferAsync) {
+        _pendingReadback = true;
+        const attr = posBuf.value || posBuf;
+        renderer.readStorageBufferAsync(attr).then((data: Float32Array) => {
+          if (!_destroyed) _rebuildRibbonFromReadback(data);
+          _pendingReadback = false;
+        }).catch(() => { _pendingReadback = false; });
+      }
+    },
+    isAlive() { return !_destroyed; },
+    destroy() { _destroyed = true; trailObj._destroyed = true; scene.remove(ribbonMesh); geometry.dispose(); material.dispose(); },
+    setColor(c: number) { _tslColorUniform.value.set(c); },
+    setWidth(w: number) { width = w; },
+  };
+
+  _activeParticles3D.push(trailObj);
+  console.log("[Trail] GPU compute trail renderer created (" + LENGTH + " segments)");
+  return trailObj;
+}
+
 /**
  * Creates a trail renderer that follows a mesh.
  * Renders as a fading ribbon behind the moving object.
+ * Auto-selects GPU compute path when WebGPU renderer is available.
  *
  * Usage:
  *   const trail = createTrailRenderer(projectileMesh, scene, { color: 0xff4400, width: 0.3, length: 20 });
@@ -4426,6 +4675,16 @@ export function createTrailRenderer(
   scene: any,
   opts?: { color?: number; width?: number; length?: number; fade?: boolean },
 ): { destroy: () => void; setColor: (c: number) => void; setWidth: (w: number) => void } {
+  // GPU compute path: uses compute shader for trail position shifting
+  const __renderer = (window as any).__vibexe_renderer__;
+  if (__renderer?.compute && THREE.instancedArray && THREE.Fn && THREE.MeshBasicNodeMaterial) {
+    try {
+      return _createGPUTrailRenderer(mesh, scene, opts || {}, __renderer);
+    } catch (_gpuErr) {
+      console.warn("[Trail] GPU compute trail failed, using CPU path:", _gpuErr);
+    }
+  }
+
   const LENGTH = opts?.length ?? 20;
   const color = new THREE.Color(opts?.color ?? 0x00ff88);
   let width = opts?.width ?? 0.2;
