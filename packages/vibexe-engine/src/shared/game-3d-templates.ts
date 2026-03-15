@@ -805,19 +805,19 @@ export function createGamepadState(keys?: Record<string, boolean>): {
     const ly = gp.axes[1] || 0;
     state.axes.leftX = lx;
     state.axes.leftY = ly;
-    state.keys.KeyA = lx < -_AXIS_THRESHOLD;
-    state.keys.KeyD = lx > _AXIS_THRESHOLD;
-    state.keys.KeyW = ly < -_AXIS_THRESHOLD;
-    state.keys.KeyS = ly > _AXIS_THRESHOLD;
-    // Also set arrow keys from stick for templates that use arrows
-    if (Math.abs(lx) > _AXIS_THRESHOLD) {
-      state.keys.ArrowLeft = lx < -_AXIS_THRESHOLD;
-      state.keys.ArrowRight = lx > _AXIS_THRESHOLD;
+    // Only write WASD when stick is outside deadzone — prevents overwriting keyboard input
+    const _stickActive = Math.abs(lx) > _AXIS_THRESHOLD || Math.abs(ly) > _AXIS_THRESHOLD;
+    if (_stickActive) {
+      state.keys.KeyA = lx < -_AXIS_THRESHOLD;
+      state.keys.KeyD = lx > _AXIS_THRESHOLD;
+      state.keys.KeyW = ly < -_AXIS_THRESHOLD;
+      state.keys.KeyS = ly > _AXIS_THRESHOLD;
     }
-    if (Math.abs(ly) > _AXIS_THRESHOLD) {
-      state.keys.ArrowUp = ly < -_AXIS_THRESHOLD;
-      state.keys.ArrowDown = ly > _AXIS_THRESHOLD;
-    }
+    // Always set arrow keys unconditionally (cleared when stick returns to center)
+    state.keys.ArrowLeft = lx < -_AXIS_THRESHOLD;
+    state.keys.ArrowRight = lx > _AXIS_THRESHOLD;
+    state.keys.ArrowUp = ly < -_AXIS_THRESHOLD;
+    state.keys.ArrowDown = ly > _AXIS_THRESHOLD;
 
     // Right stick → raw axes (for aiming in shooters)
     state.axes.rightX = gp.axes[2] || 0;
@@ -936,6 +936,11 @@ export function syncMeshToBody(mesh: any, body: any): void {
   // Register for interpolation tracking (once per mesh)
   if (!mesh.userData.__physInterp) {
     mesh.userData.__physInterp = true;
+    // Initialize __physPrev immediately so first interpolation frame has valid data
+    mesh.userData.__physPrev = {
+      x: body.position.x, y: body.position.y, z: body.position.z,
+      qx: body.quaternion.x, qy: body.quaternion.y, qz: body.quaternion.z, qw: body.quaternion.w,
+    };
     _physInterpMeshes.push(mesh);
   }
   mesh.position.copy(body.position);
@@ -969,9 +974,11 @@ function _storePhysicsPrev(): void {
 
 /** Interpolate physics meshes between previous and current state for smooth rendering. */
 function _interpolatePhysics(alpha: number): void {
-  for (const m of _physInterpMeshes) {
+  for (let _ii = _physInterpMeshes.length - 1; _ii >= 0; _ii--) {
+    const m = _physInterpMeshes[_ii];
+    if (!m.parent) { _physInterpMeshes.splice(_ii, 1); m.userData.__physInterp = false; continue; }
     const p = m.userData.__physPrev;
-    if (!p || !m.parent) continue;
+    if (!p) continue;
     m.position.x = p.x + (m.position.x - p.x) * alpha;
     m.position.y = p.y + (m.position.y - p.y) * alpha;
     m.position.z = p.z + (m.position.z - p.z) * alpha;
@@ -1502,7 +1509,11 @@ function _updateAllAnimEvents3D() {
     }
 
     const action = ev._action;
-    if (!action.isRunning?.()) { ev._lastTime = -1; ev._fired = false; continue; }
+    if (!action.isRunning?.()) {
+      ev._lastTime = -1; ev._fired = false;
+      ev._action = null; // Invalidate cache so action is re-looked-up when clip plays again
+      continue;
+    }
 
     const t = action.time;
     const prevT = ev._lastTime;
@@ -1511,14 +1522,17 @@ function _updateAllAnimEvents3D() {
     if (prevT < 0) continue; // First frame — just record time
 
     // Check if we crossed the event time (forward or looped)
+    // For LoopOnce animations, only check forward crossing (no wrap)
+    const _isLooping = action.loop !== undefined ? action.loop !== 2200 : true; // THREE.LoopOnce = 2200
     const crossed = (prevT < ev.time && t >= ev.time) ||
-                    (t < prevT && ev.time >= 0 && (prevT < ev.time || t >= ev.time)); // Loop wrap
+                    (_isLooping && t < prevT && (prevT < ev.time || t >= ev.time)); // Loop wrap only for looping anims
 
     if (crossed) {
       if (ev.once && ev._fired) continue;
       ev._fired = true;
-      try { ev.callback(); } catch (e) { console.warn("[AnimEvent] callback error:", e); }
+      // Remove one-shot BEFORE callback to prevent leak if callback throws
       if (ev.once) { _activeAnimEvents3D.splice(i, 1); }
+      try { ev.callback(); } catch (e) { console.warn("[AnimEvent] callback error:", e); }
     }
   }
 }
@@ -1704,6 +1718,13 @@ function createLOD3D(
   const far = opts?.far ?? 60;
   const useBillboard = opts?.billboard !== false;
 
+  // Skip LOD for physics-enabled meshes — syncMeshToBody writes world-space body
+  // position to mesh.position, which would be interpreted as local-space inside LOD
+  if (mesh.userData?.__physicsBody || mesh.userData?.__physInterp) {
+    console.warn("[LOD] Skipping LOD for physics-enabled mesh:", mesh.name || "(unnamed)");
+    return mesh;
+  }
+
   const lod = new THREE.LOD();
 
   if (opts?.levels) {
@@ -1716,8 +1737,12 @@ function createLOD3D(
     // Level 0: original mesh (re-parent into LOD)
     const origParent = mesh.parent;
     const origPos = mesh.position.clone();
+    const origQuat = mesh.quaternion.clone();
+    const origScale = mesh.scale.clone();
     if (origParent) origParent.remove(mesh);
     mesh.position.set(0, 0, 0); // LOD group holds position
+    mesh.quaternion.set(0, 0, 0, 1); // LOD group holds rotation
+    mesh.scale.set(1, 1, 1); // LOD group holds scale
     lod.addLevel(mesh, 0);
 
     // Level 1: simplified colored box
@@ -1742,8 +1767,10 @@ function createLOD3D(
     const empty = new THREE.Object3D();
     lod.addLevel(empty, far * 2);
 
-    // Place LOD at original mesh position
+    // Place LOD at original mesh transform
     lod.position.copy(origPos);
+    lod.quaternion.copy(origQuat);
+    lod.scale.copy(origScale);
     if (origParent) origParent.add(lod);
   }
 
@@ -1786,6 +1813,7 @@ function autoLOD(
   scene.traverse((child: any) => {
     if (!child.userData?.vibexeType) return;
     if (child.isLOD) return; // Already LOD'd
+    if (child.userData.__physicsBody || child.userData.__physInterp) return; // Skip physics meshes
     if (opts?.type && child.userData.vibexeType !== opts.type) return;
     if (opts?.exclude && opts.exclude.includes(child.userData.vibexeType)) return;
     targets.push(child);
@@ -4071,7 +4099,17 @@ function createMenuOverlay(container: HTMLDivElement, onStart: () => void) {
         overlay.remove();
         onStart();
         // Restore from checkpoint (slot 99) first, then regular save (slot 0)
-        setTimeout(() => { (window as any).restoreGame?.(99) || (window as any).restoreGame?.(0); }, 100);
+        // Wait for scene init with rAF polling (100ms was too short for heavy scenes)
+        let _restoreAttempts = 0;
+        const _tryRestore = () => {
+          _restoreAttempts++;
+          if ((window as any).__vibexe_restoreState__) {
+            (window as any).restoreGame?.(99) || (window as any).restoreGame?.(0);
+          } else if (_restoreAttempts < 60) { // ~1 second at 60fps
+            requestAnimationFrame(_tryRestore);
+          }
+        };
+        requestAnimationFrame(_tryRestore);
       }, 300);
     });
     overlay.insertBefore(continueBtn, btn);
@@ -4152,6 +4190,10 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
       _activeAnimEvents3D.length = 0;
       _activeLODs3D.length = 0;
       if ((window as any)._activeSpatial3D) (window as any)._activeSpatial3D.length = 0;
+      // Clear save/load hooks so stale closures from old scene don't persist
+      delete (window as any).__vibexe_collectState__;
+      delete (window as any).__vibexe_restoreState__;
+      delete (window as any).__vibexe_customSaveData__;
       if (scene) {
         scene.traverse((obj: any) => {
           if (obj.geometry) obj.geometry.dispose();
@@ -5985,8 +6027,11 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           const __frameDelta = Math.min(clock.getDelta(), 0.1);
           // Fixed-timestep accumulator for physics interpolation
           __physAccum += __frameDelta;
+          // Max 5 physics steps per frame to prevent spiral-of-death
+          let __physSteps = 0;
           // Step physics + game logic at fixed 60Hz rate; interpolate for smooth rendering
-          while (__physAccum >= __physDt) {
+          while (__physAccum >= __physDt && __physSteps < 5) {
+            __physSteps++;
             (window as any)._storePhysicsPrev?.();
             (window as any)._updateAllMixers3D?.(__physDt);
             (window as any)._updateAllAnimEvents3D?.();
@@ -5996,6 +6041,8 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
             (window as any)._updateAllSprings3D?.();
             __physAccum -= __physDt;
           }
+          // Drain any excess accumulation if we hit the 5-step cap
+          if (__physAccum > __physDt) __physAccum = __physDt;
           // Interpolate physics meshes between previous and current state
           const __physAlpha = __physAccum / __physDt;
           (window as any)._interpolatePhysics?.(__physAlpha);
