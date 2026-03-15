@@ -379,8 +379,9 @@ export function getGameEditorBridgeScript(): string {
           child.type !== "TransformControlsPlane") {
         // Skip non-light editor helpers
         if (child.name.indexOf("__editor_") === 0 && !child.userData.__isLightHelper) return;
-        // Skip terrain/weather/sky — non-selectable infrastructure meshes
+        // Skip infrastructure meshes (any __name__ pattern = non-selectable)
         if (child.name === "__terrain__" || child.name === "__weather__" || child.name === "__sky__") return;
+        if (child.name === "__skyDome__" || child.name === "__default_ground__" || child.name === "__terrain_boundary_grid__") return;
         // Skip population preview overlays and spawned population objects
         if (child.name.indexOf("__pop_") === 0 || child.name.indexOf("pop_") === 0) return;
         meshes.push(child);
