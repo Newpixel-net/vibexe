@@ -463,14 +463,14 @@ if (!gameScene || typeof gameScene.init !== 'function') {
     W.__vibexe_webgpu_error_handler__ = true;
     window.addEventListener('error', (evt: ErrorEvent) => {
       const m = evt?.message || '';
-      if (m.includes('usedTimes') || m.includes('already initialized') || m.includes('is not a function')) {
+      if (m.includes('usedTimes') || m.includes('already initialized') || m.includes('is not a function') || m.includes('Cannot read properties')) {
         evt.preventDefault();
         return true;
       }
     });
     window.addEventListener('unhandledrejection', (evt: PromiseRejectionEvent) => {
       const m = String(evt?.reason?.message || evt?.reason || '');
-      if (m.includes('usedTimes') || m.includes('already initialized')) {
+      if (m.includes('usedTimes') || m.includes('already initialized') || m.includes('Cannot read properties')) {
         evt.preventDefault();
       }
     });
@@ -895,7 +895,8 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         if (__perfNow - __perfLastCheck >= 2000 && !__editorMode) {
           const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
           const __perfAge = __perfNow - __perfStartTime;
-          if (__avgFps < 25 && !__perfDowngraded && __perfAge > 20000) {
+          // Two-tier PerfGuard: emergency at FPS<12 after 8s, normal at FPS<25 after 15s
+          if (__avgFps < 25 && !__perfDowngraded && (__perfAge > 15000 || (__avgFps < 12 && __perfAge > 8000))) {
             __perfDowngraded = true;
             __perfDowngradeTime = __perfNow;
             W.__vibexe_perfguard_degraded__ = true;

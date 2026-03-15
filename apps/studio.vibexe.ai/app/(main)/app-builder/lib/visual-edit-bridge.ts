@@ -5317,16 +5317,20 @@ export function getVisualEditBridgeScript(): string {
           var _rpRoughnessTextures = new Array(_rpNumLayers);
           var _rpAOTextures = new Array(_rpNumLayers);
           var _rpLoaded = 0;
-          var _rpTotal = 0;
-
-          for (var ti = 0; ti < _rpNumLayers; ti++) {
-            if (_rpTexUrls[ti] && _rpTexUrls[ti].length > 5) _rpTotal++;
-            if (_rpNormalUrls[ti] && _rpNormalUrls[ti].length > 5) _rpTotal++;
-            if (_rpRoughnessUrls[ti] && _rpRoughnessUrls[ti].length > 5) _rpTotal++;
-            if (_rpAOUrls[ti] && _rpAOUrls[ti].length > 5) _rpTotal++;
-          }
-
+          // Count ALL entries (4 types × N layers) so empty URLs don't cause early trigger
+          var _rpTotal = _rpNumLayers * 4; // diffuse + normal + roughness + AO per layer
           if (_rpTotal === 0) _rpTotal = 1; // avoid /0
+          // Debounce: batch multiple texture completions into single TSL material rebuild
+          // (each rebuild triggers WGSL shader compilation on WebGPU — VERY expensive)
+          var _rpApplyScheduled = false;
+          function _rpScheduleApply() {
+            if (_rpApplyScheduled) return;
+            _rpApplyScheduled = true;
+            requestAnimationFrame(function() {
+              _rpApplyScheduled = false;
+              _rpApplyShaderMaterial();
+            });
+          }
 
           function _rpApplyShaderMaterial() {
             // Pack weights into vertex attributes
@@ -5928,7 +5932,7 @@ export function getVisualEditBridgeScript(): string {
               if (!url || url.length < 5) {
                 _rpTextures[idx] = null;
                 _rpLoaded++;
-                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                if (_rpLoaded >= _rpTotal) _rpScheduleApply();
                 return;
               }
               console.log("[TerrainPainter] Loading diffuse[" + idx + "]:", url);
@@ -5936,17 +5940,17 @@ export function getVisualEditBridgeScript(): string {
                 tex.wrapS = _rpTHREE.RepeatWrapping;
                 tex.wrapT = _rpTHREE.RepeatWrapping;
                 tex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
-                tex.anisotropy = 8;
+                tex.anisotropy = 4;
                 tex.colorSpace = _rpTHREE.SRGBColorSpace;
                 _rpTextures[idx] = tex;
                 _rpLoaded++;
                 console.log("[TerrainPainter] Diffuse[" + idx + "] loaded OK (" + _rpLoaded + "/" + _rpTotal + ")");
-                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                if (_rpLoaded >= _rpTotal) _rpScheduleApply();
               }, undefined, function() {
                 console.warn("[TerrainPainter] Failed to load diffuse[" + idx + "]:", url);
                 _rpTextures[idx] = null;
                 _rpLoaded++;
-                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                if (_rpLoaded >= _rpTotal) _rpScheduleApply();
               });
             })(ti2);
           }
@@ -5961,7 +5965,7 @@ export function getVisualEditBridgeScript(): string {
               if (!nurl || nurl.length < 5) {
                 _rpNormalTextures[idx] = null;
                 _rpLoaded++;
-                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                if (_rpLoaded >= _rpTotal) _rpScheduleApply();
                 return;
               }
               console.log("[TerrainPainter] Loading normal[" + idx + "]:", nurl);
@@ -5969,17 +5973,17 @@ export function getVisualEditBridgeScript(): string {
                 ntex.wrapS = _rpTHREE.RepeatWrapping;
                 ntex.wrapT = _rpTHREE.RepeatWrapping;
                 ntex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
-                ntex.anisotropy = 8;
+                ntex.anisotropy = 4;
                 ntex.colorSpace = _rpTHREE.NoColorSpace;
                 _rpNormalTextures[idx] = ntex;
                 _rpLoaded++;
                 console.log("[TerrainPainter] Normal[" + idx + "] loaded OK (" + _rpLoaded + "/" + _rpTotal + ")");
-                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                if (_rpLoaded >= _rpTotal) _rpScheduleApply();
               }, undefined, function() {
                 console.warn("[TerrainPainter] Failed to load normal[" + idx + "]:", nurl);
                 _rpNormalTextures[idx] = null;
                 _rpLoaded++;
-                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                if (_rpLoaded >= _rpTotal) _rpScheduleApply();
               });
             })(ni2);
           }
@@ -5994,23 +5998,23 @@ export function getVisualEditBridgeScript(): string {
               if (!rurl || rurl.length < 5) {
                 _rpRoughnessTextures[idx] = null;
                 _rpLoaded++;
-                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                if (_rpLoaded >= _rpTotal) _rpScheduleApply();
                 return;
               }
               _rpLoader.load(rurl, function(rtex) {
                 rtex.wrapS = _rpTHREE.RepeatWrapping;
                 rtex.wrapT = _rpTHREE.RepeatWrapping;
                 rtex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
-                rtex.anisotropy = 8;
+                rtex.anisotropy = 4;
                 rtex.colorSpace = _rpTHREE.NoColorSpace;
                 _rpRoughnessTextures[idx] = rtex;
                 _rpLoaded++;
                 console.log("[TerrainPainter] Roughness[" + idx + "] loaded OK (" + _rpLoaded + "/" + _rpTotal + ")");
-                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                if (_rpLoaded >= _rpTotal) _rpScheduleApply();
               }, undefined, function() {
                 _rpRoughnessTextures[idx] = null;
                 _rpLoaded++;
-                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                if (_rpLoaded >= _rpTotal) _rpScheduleApply();
               });
             })(ri2);
           }
@@ -6025,23 +6029,23 @@ export function getVisualEditBridgeScript(): string {
               if (!aurl || aurl.length < 5) {
                 _rpAOTextures[idx] = null;
                 _rpLoaded++;
-                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                if (_rpLoaded >= _rpTotal) _rpScheduleApply();
                 return;
               }
               _rpLoader.load(aurl, function(atex) {
                 atex.wrapS = _rpTHREE.RepeatWrapping;
                 atex.wrapT = _rpTHREE.RepeatWrapping;
                 atex.minFilter = _rpTHREE.LinearMipmapLinearFilter;
-                atex.anisotropy = 8;
+                atex.anisotropy = 4;
                 atex.colorSpace = _rpTHREE.NoColorSpace;
                 _rpAOTextures[idx] = atex;
                 _rpLoaded++;
                 console.log("[TerrainPainter] AO[" + idx + "] loaded OK (" + _rpLoaded + "/" + _rpTotal + ")");
-                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                if (_rpLoaded >= _rpTotal) _rpScheduleApply();
               }, undefined, function() {
                 _rpAOTextures[idx] = null;
                 _rpLoaded++;
-                if (_rpLoaded >= _rpTotal) _rpApplyShaderMaterial();
+                if (_rpLoaded >= _rpTotal) _rpScheduleApply();
               });
             })(ai2);
           }
