@@ -745,28 +745,6 @@ export function getVisualEditBridgeScript(): string {
     var T = window.THREE;
     if (!T || !editor || !editor.scene || !editor.renderer) return;
     _pbrEnvReady = true;
-    var pmrem = new T.PMREMGenerator(editor.renderer);
-    pmrem.compileEquirectangularShader();
-    // Studio env — high contrast for realistic metal reflections
-    // Dark sky/ground + concentrated bright lights = metals show dark body + bright highlights
-    var envScene = new T.Scene();
-    var skyGeo = new T.SphereGeometry(50, 32, 16);
-    envScene.add(new T.Mesh(skyGeo, new T.MeshBasicMaterial({ color: new T.Color(0.35, 0.4, 0.55), side: T.BackSide })));
-    var gndGeo = new T.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-    envScene.add(new T.Mesh(gndGeo, new T.MeshBasicMaterial({ color: new T.Color(0.15, 0.13, 0.1), side: T.BackSide })));
-    var pGeo = new T.PlaneGeometry(8, 8);
-    var _addP = function(x, y, z, r, g, b, sx, sy) {
-      var p = new T.Mesh(pGeo, new T.MeshBasicMaterial({ color: new T.Color(r, g, b), side: T.DoubleSide }));
-      p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
-      envScene.add(p);
-    };
-    _addP(0, 45, -10, 10, 9, 8, 2, 2);       // Key light (bright, small)
-    _addP(-15, 40, 25, 4, 4, 5, 1.5, 1.5);   // Rim light
-    _addP(35, 20, -15, 2, 2, 2.5, 2, 2);      // Fill (subtle)
-    _addP(-35, 12, 8, 1, 1, 1.2, 2, 2);       // Fill (subtle)
-    _addP(0, -30, 0, 0.5, 0.5, 0.6, 4, 4);   // Bottom fill (dim)
-    editor.scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
-    pmrem.dispose(); skyGeo.dispose(); gndGeo.dispose(); pGeo.dispose();
     // PBR light boost for r183 physically-based rendering (/PI factor)
     var _al = editor.scene.getObjectByName('__default_ambient__') || editor.scene.getObjectByName('AmbientLight');
     if (_al) _al.intensity = Math.max(_al.intensity, 0.4);
@@ -774,26 +752,34 @@ export function getVisualEditBridgeScript(): string {
     if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.8);
     var _sl = editor.scene.getObjectByName('__default_sun__') || editor.scene.getObjectByName('DirectionalLight');
     if (_sl) _sl.intensity = Math.max(_sl.intensity, 1.5);
-    // PBR key light for specular highlights
-    if (!editor.scene.getObjectByName('__pbr_key__')) {
-      var pbrKey = new T.DirectionalLight(0xFFFBF0, 1.5);
-      pbrKey.name = '__pbr_key__';
-      pbrKey.position.set(15, 30, -10);
-      pbrKey.castShadow = false;
-      editor.scene.add(pbrKey);
-    }
-    // Async HDRI upgrade — real studio reflections for metals
-    var _hdriUrl = (window.__VIBEXE_API_ORIGIN__ || "") + "/api/app-builder/media-stock-3d/textures/env_studio.jpg";
-    new T.TextureLoader().load(_hdriUrl, function(hdriTex) {
-      hdriTex.mapping = T.EquirectangularReflectionMapping;
-      if (T.SRGBColorSpace) hdriTex.colorSpace = T.SRGBColorSpace;
-      var pmrem2 = new T.PMREMGenerator(editor.renderer);
-      pmrem2.compileEquirectangularShader();
-      editor.scene.environment = pmrem2.fromEquirectangular(hdriTex).texture;
-      pmrem2.dispose(); hdriTex.dispose();
-      console.log("[GameEditorBridge] HDRI env upgraded");
-    }, undefined, function() { console.log("[GameEditorBridge] HDRI not found, using procedural env"); });
-    console.log("[GameEditorBridge] PBR env v46 (HDRI+AO)");
+    // Deferred env map — PMREMGenerator.fromScene() is extremely expensive on WebGPU
+    // (compiles 6+ cube face shaders, blocks main thread). Defer to avoid FPS=1 on init.
+    setTimeout(function() {
+      if (!editor || !editor.scene || !editor.renderer) return;
+      try {
+        var pmrem = new T.PMREMGenerator(editor.renderer);
+        pmrem.compileEquirectangularShader();
+        var envScene = new T.Scene();
+        var skyGeo = new T.SphereGeometry(50, 32, 16);
+        envScene.add(new T.Mesh(skyGeo, new T.MeshBasicMaterial({ color: new T.Color(0.35, 0.4, 0.55), side: T.BackSide })));
+        var gndGeo = new T.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+        envScene.add(new T.Mesh(gndGeo, new T.MeshBasicMaterial({ color: new T.Color(0.15, 0.13, 0.1), side: T.BackSide })));
+        var pGeo = new T.PlaneGeometry(8, 8);
+        var _addP = function(x, y, z, r, g, b, sx, sy) {
+          var p = new T.Mesh(pGeo, new T.MeshBasicMaterial({ color: new T.Color(r, g, b), side: T.DoubleSide }));
+          p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
+          envScene.add(p);
+        };
+        _addP(0, 45, -10, 4, 3.5, 3, 2, 2);      // Key light (moderate)
+        _addP(-15, 40, 25, 2, 2, 2.5, 1.5, 1.5);  // Rim light
+        _addP(35, 20, -15, 1.5, 1.5, 2, 2, 2);    // Fill (subtle)
+        editor.scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
+        if (editor.scene.environmentIntensity !== undefined) editor.scene.environmentIntensity = 0.6;
+        pmrem.dispose(); skyGeo.dispose(); gndGeo.dispose(); pGeo.dispose();
+        console.log("[GameEditorBridge] Deferred env map applied");
+      } catch (e) { console.warn("[GameEditorBridge] env map error:", e); }
+    }, 1500);
+    console.log("[GameEditorBridge] PBR env v47 (deferred)");
   }
   var flyMouseMoveHandler = null;
   var flyRMBDownHandler = null;

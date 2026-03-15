@@ -326,36 +326,8 @@ export function initScene(): typeof THREE.Scene {
   sun.shadow.bias = -0.0005;
   scene.add(sun);
 
-  // Procedural environment map for PBR reflections / indirect lighting
-  // Without this, MeshStandardMaterial looks flat and clay-like.
-  try {
-    const __renderer = (window as any).__vibexe_renderer__;
-    if (__renderer && THREE.PMREMGenerator) {
-      const pmrem = new THREE.PMREMGenerator(__renderer);
-      pmrem.compileEquirectangularShader?.();
-      const envScene = new THREE.Scene();
-      const skyGeo = new THREE.SphereGeometry(50, 32, 16);
-      envScene.add(new THREE.Mesh(skyGeo, new THREE.MeshBasicMaterial({
-        color: new THREE.Color(0.35, 0.4, 0.55), side: THREE.BackSide
-      })));
-      const gndGeo = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-      envScene.add(new THREE.Mesh(gndGeo, new THREE.MeshBasicMaterial({
-        color: new THREE.Color(0.15, 0.13, 0.1), side: THREE.BackSide
-      })));
-      // Key light panel
-      const pGeo = new THREE.PlaneGeometry(8, 8);
-      const addPanel = (x: number, y: number, z: number, r: number, g: number, b: number, sx: number, sy: number) => {
-        const p = new THREE.Mesh(pGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide }));
-        p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
-        envScene.add(p);
-      };
-      addPanel(0, 45, -10, 10, 9, 8, 2, 2);
-      addPanel(-15, 40, 25, 4, 4, 5, 1.5, 1.5);
-      addPanel(35, 20, -15, 2, 2, 2.5, 2, 2);
-      scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
-      pmrem.dispose(); skyGeo.dispose(); gndGeo.dispose(); pGeo.dispose();
-    }
-  } catch (e) { console.warn("[initScene] env map setup error:", e); }
+  // Env map is handled by visual-edit-bridge (Scene mode) or Game3D IIFE (Game mode).
+  // Synchronous PMREMGenerator.fromScene() blocks WebGPU for seconds — never do it here.
 
   return scene;
 }
@@ -5463,10 +5435,11 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
 
         // Deferred procedural environment map — runs after first render to avoid blocking init.
         // PMREMGenerator.fromScene() is extremely expensive on WebGPU (compiles 6+ cube face shaders).
-        // Without env map, PBR materials still look decent with the boosted lighting above.
+        // Skip if visual-edit-bridge will handle env map (Scene mode).
         setTimeout(() => {
           try {
             if (disposed || !scene || !THREE.PMREMGenerator) return;
+            if ((window as any).__vibexeExternalBridge) return; // bridge handles env map
             const __pmrem = new THREE.PMREMGenerator(renderer);
             __pmrem.compileEquirectangularShader?.();
             const __envScene = new THREE.Scene();
@@ -5484,10 +5457,11 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
               p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
               __envScene.add(p);
             };
-            __addP(0, 45, -10, 10, 9, 8, 2, 2);
-            __addP(-15, 40, 25, 4, 4, 5, 1.5, 1.5);
-            __addP(35, 20, -15, 2, 2, 2.5, 2, 2);
+            __addP(0, 45, -10, 4, 3.5, 3, 2, 2);
+            __addP(-15, 40, 25, 2, 2, 2.5, 1.5, 1.5);
+            __addP(35, 20, -15, 1.5, 1.5, 2, 2, 2);
             scene.environment = __pmrem.fromScene(__envScene, 0, 0.1, 100).texture;
+            if ((scene as any).environmentIntensity !== undefined) (scene as any).environmentIntensity = 0.6;
             __pmrem.dispose(); __skyGeo.dispose(); __gndGeo.dispose(); __pGeo.dispose();
             console.log("[Game3D] Deferred env map applied");
           } catch (__e) { console.warn("[Game3D] env map error:", __e); }
@@ -5818,62 +5792,37 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
           }
 
           // ---- Environment map for PBR ----
+          // Deferred to avoid blocking WebGPU shader compilation on init.
+          // External bridge (visual-edit-bridge) handles env map in Scene mode.
           let _envMapGenerated = false;
           function _ensureEnvironmentMap() {
             if (_envMapGenerated) return;
-            const pmrem = new THREE.PMREMGenerator(renderer);
-            pmrem.compileEquirectangularShader();
             _envMapGenerated = true;
-            // Studio env — high contrast for realistic metal reflections
-            // Dark sky/ground + concentrated bright lights = metals show dark body + bright highlights
-            const envScene = new THREE.Scene();
-            const _skyGeo = new THREE.SphereGeometry(50, 32, 16);
-            envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.35, 0.4, 0.55), side: THREE.BackSide })));
-            const _gndGeo = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
-            envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.15, 0.13, 0.1), side: THREE.BackSide })));
-            const _pGeo = new THREE.PlaneGeometry(8, 8);
-            const _addPanel = (x: number, y: number, z: number, r: number, g: number, b: number, sx: number, sy: number) => {
-              const p = new THREE.Mesh(_pGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide }));
-              p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
-              envScene.add(p);
-            };
-            _addPanel(0, 45, -10, 10, 9, 8, 2, 2);       // Key light (bright, small)
-            _addPanel(-15, 40, 25, 4, 4, 5, 1.5, 1.5);   // Rim light
-            _addPanel(35, 20, -15, 2, 2, 2.5, 2, 2);      // Fill (subtle)
-            _addPanel(-35, 12, 8, 1, 1, 1.2, 2, 2);       // Fill (subtle)
-            _addPanel(0, -30, 0, 0.5, 0.5, 0.6, 4, 4);   // Bottom fill (dim)
-            scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
-            renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 2.5;
-            _skyGeo.dispose(); _gndGeo.dispose(); _pGeo.dispose();
-
-            // Async HDRI upgrade — real studio reflections for metals
-            const _hdriUrl = ((window as any).__VIBEXE_API_ORIGIN__ || "") + "/api/app-builder/media-stock-3d/textures/env_studio.jpg";
-            new THREE.TextureLoader().load(_hdriUrl, (hdriTex: any) => {
-              hdriTex.mapping = THREE.EquirectangularReflectionMapping;
-              hdriTex.colorSpace = THREE.SRGBColorSpace || "srgb";
-              const pmrem2 = new THREE.PMREMGenerator(renderer);
-              pmrem2.compileEquirectangularShader();
-              scene.environment = pmrem2.fromEquirectangular(hdriTex).texture;
-              pmrem2.dispose(); hdriTex.dispose();
-              console.log("[PBR] HDRI env upgraded");
-            }, undefined, () => { console.log("[PBR] HDRI not found, using procedural env"); });
-            pmrem.dispose();
-
-            // Moderate light boost for PBR (Standard material /PI factor)
-            const _al = scene.getObjectByName("__default_ambient__") as any;
-            if (_al) _al.intensity = Math.max(_al.intensity, 0.3);
-            const _hl = scene.getObjectByName("__default_hemi__") as any;
-            if (_hl) _hl.intensity = Math.max(_hl.intensity, 0.5);
-
-            // PBR key light for specular highlights
-            if (!scene.getObjectByName("__pbr_key__")) {
-              const pbrKey = new THREE.DirectionalLight(0xFFFBF0, 1.5);
-              pbrKey.name = "__pbr_key__";
-              pbrKey.position.set(15, 30, -10);
-              pbrKey.castShadow = false;
-              scene.add(pbrKey);
-            }
+            setTimeout(() => {
+              try {
+                if (!scene || !renderer) return;
+                const pmrem = new THREE.PMREMGenerator(renderer);
+                pmrem.compileEquirectangularShader();
+                const envScene = new THREE.Scene();
+                const _skyGeo = new THREE.SphereGeometry(50, 32, 16);
+                envScene.add(new THREE.Mesh(_skyGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.35, 0.4, 0.55), side: THREE.BackSide })));
+                const _gndGeo = new THREE.SphereGeometry(49, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+                envScene.add(new THREE.Mesh(_gndGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.15, 0.13, 0.1), side: THREE.BackSide })));
+                const _pGeo = new THREE.PlaneGeometry(8, 8);
+                const _addPanel = (x: number, y: number, z: number, r: number, g: number, b: number, sx: number, sy: number) => {
+                  const p = new THREE.Mesh(_pGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide }));
+                  p.position.set(x, y, z); p.lookAt(0, 0, 0); p.scale.set(sx, sy, 1);
+                  envScene.add(p);
+                };
+                _addPanel(0, 45, -10, 4, 3.5, 3, 2, 2);      // Key light (moderate)
+                _addPanel(-15, 40, 25, 2, 2, 2.5, 1.5, 1.5);  // Rim light
+                _addPanel(35, 20, -15, 1.5, 1.5, 2, 2, 2);    // Fill (subtle)
+                scene.environment = pmrem.fromScene(envScene, 0, 0.1, 100).texture;
+                if ((scene as any).environmentIntensity !== undefined) (scene as any).environmentIntensity = 0.6;
+                pmrem.dispose(); _skyGeo.dispose(); _gndGeo.dispose(); _pGeo.dispose();
+                console.log("[PBR] Deferred env map applied");
+              } catch (e) { console.warn("[PBR] env map error:", e); }
+            }, 1500);
           }
 
           // ---- Texture helpers ----
