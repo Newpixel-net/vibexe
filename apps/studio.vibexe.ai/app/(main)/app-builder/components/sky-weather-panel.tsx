@@ -1,28 +1,31 @@
 "use client";
 
 /**
- * SkyWeatherPanel — UI for the Sky & Weather module
+ * SkyWeatherPanel — UI for Sky & Weather / Sky & Weather Advanced modules
  *
- * Controls: Time of day, day/night cycle, sky appearance, lighting, fog.
- * Communicates with the sandpack iframe via postMessage bridge.
+ * Advanced mode (Tenkoku conversion) exposes all 39 config properties:
+ * Time & Position, Celestial Settings, Atmospherics, Weather, Fog, Effects.
+ * Basic mode shows simplified controls.
  */
 
 import {
+	Calendar,
 	Clock,
 	Cloud,
 	CloudSun,
 	Droplets,
-	Eye,
+	Globe,
 	Lightbulb,
 	Moon,
 	CloudFog,
 	RotateCcw,
 	Sparkles,
+	Star,
 	Sun,
 	X,
 	Zap,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { GameSettings } from "../lib/game-editor-context";
 
 interface SkyWeatherConfig {
@@ -31,6 +34,11 @@ interface SkyWeatherConfig {
 		cycleLengthMinutes?: number;
 		autoAdvance?: boolean;
 		latitude?: number;
+		longitude?: number;
+		timezone?: number;
+		year?: number;
+		month?: number;
+		day?: number;
 	};
 	sky?: {
 		sunDiskSize?: number;
@@ -39,6 +47,11 @@ interface SkyWeatherConfig {
 		mieDirectionalG?: number;
 		starIntensity?: number;
 		exposure?: number;
+		rayleighScale?: number;
+		sunIntensity?: number;
+		galaxyIntensity?: number;
+		planetIntensity?: number;
+		moonBrightness?: number;
 	};
 	lighting?: {
 		autoSunLight?: boolean;
@@ -70,6 +83,10 @@ interface SkyWeatherConfig {
 		enabled?: boolean;
 		frequency?: number;
 	};
+	weather?: {
+		autoForecast?: boolean;
+		forecastInterval?: number;
+	};
 	effects?: {
 		godRays?: number;
 		aurora?: number;
@@ -84,15 +101,12 @@ interface SkyWeatherPanelProps {
 	sendToIframe: (msg: Record<string, unknown>) => void;
 	onClose: () => void;
 	settings: GameSettings;
-	/** Live preview — updates React state + sends postMessage (no file write, no refresh) */
 	onChange: (config: SkyWeatherConfig) => void;
-	/** Persist to DB — only called on explicit save or panel close */
 	onSave: (config: SkyWeatherConfig) => void;
-	/** Which module is active — determines config key and message prefix */
 	moduleId?: string;
 }
 
-type SkyTab = "time" | "sky" | "clouds" | "lighting" | "fog" | "fx";
+type SkyTab = "time" | "celestial" | "atmos" | "weather" | "fog" | "fx";
 
 const WEATHER_PRESETS = [
 	{ label: "Clear", icon: "☀️", clouds: { coverage: 0 }, fog: { enabled: false }, precipitation: { type: "none", intensity: 0 }, lightning: { enabled: false } },
@@ -115,6 +129,29 @@ const TIME_PRESETS = [
 	{ label: "Night", time: 0.0, icon: "🌙" },
 ];
 
+const ADVANCED_DEFAULTS: SkyWeatherConfig = {
+	time: { solarTime: 0.45, cycleLengthMinutes: 10, autoAdvance: false, latitude: 35, longitude: 136, timezone: 9, year: 2024, month: 6, day: 21 },
+	sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.76, starIntensity: 1.0, exposure: 1.2, rayleighScale: 1.0, sunIntensity: 22.0, galaxyIntensity: 1.0, planetIntensity: 1.0, moonBrightness: 1.0 },
+	lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true },
+	fog: { enabled: false, autoColor: true, density: 0.003, heightFalloff: 0 },
+	clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
+	precipitation: { type: "none", intensity: 0, windDirection: 0, windStrength: 0.3 },
+	lightning: { enabled: false, frequency: 0.1 },
+	weather: { autoForecast: false, forecastInterval: 60 },
+	effects: { godRays: 0, aurora: 0, rainbow: 0, shootingStars: 0, ambientAudio: false, audioVolume: 0.5 },
+};
+
+const BASIC_DEFAULTS: SkyWeatherConfig = {
+	time: { solarTime: 0.45, cycleLengthMinutes: 10, autoAdvance: false, latitude: 45 },
+	sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 1.2 },
+	lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true },
+	fog: { enabled: false, autoColor: true, density: 0.003 },
+	clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
+	precipitation: { type: "none", intensity: 0, windDirection: 0, windStrength: 0.3 },
+	lightning: { enabled: false, frequency: 0.1 },
+	effects: { godRays: 0, aurora: 0, rainbow: 0, shootingStars: 0, ambientAudio: false, audioVolume: 0.5 },
+};
+
 function getTimeLabel(t: number): string {
 	const hours = Math.floor(t * 24);
 	const mins = Math.floor((t * 24 - hours) * 60);
@@ -124,31 +161,36 @@ function getTimeLabel(t: number): string {
 }
 
 export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onSave, moduleId }: SkyWeatherPanelProps) {
+	const isAdvanced = moduleId === "sky-weather-advanced";
 	const [activeTab, setActiveTab] = useState<SkyTab>("time");
 
-	// Extract existing sky config from game settings
-	// Read from the correct key based on active module
-	const isAdvanced = moduleId === "sky-weather-advanced";
 	const skyWeather = isAdvanced
 		? (settings as Record<string, unknown>).skyWeatherAdvanced as SkyWeatherConfig | undefined ?? settings.skyWeather
 		: settings.skyWeather;
-	const [config, setConfig] = useState<SkyWeatherConfig>(() => ({
-		time: { solarTime: 0.45, cycleLengthMinutes: 10, autoAdvance: false, latitude: 45, ...skyWeather?.time },
-		sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 1.2, ...skyWeather?.sky },
-		lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true, ...skyWeather?.lighting },
-		fog: { enabled: false, autoColor: true, density: 0.003, ...skyWeather?.fog },
-		clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0, ...skyWeather?.clouds },
-		precipitation: { type: "none", intensity: 0, windDirection: 0, windStrength: 0.3, ...skyWeather?.precipitation },
-		lightning: { enabled: false, frequency: 0.1, ...skyWeather?.lightning },
-		effects: { godRays: 0, aurora: 0, rainbow: 0, shootingStars: 0, ambientAudio: false, audioVolume: 0.5, ...skyWeather?.effects },
-	}));
+	const defaults = isAdvanced ? ADVANCED_DEFAULTS : BASIC_DEFAULTS;
 
-	// Track whether user made changes (for auto-save on close)
+	const [config, setConfig] = useState<SkyWeatherConfig>(() => {
+		const d = defaults;
+		return {
+			time: { ...d.time, ...skyWeather?.time },
+			sky: { ...d.sky, ...skyWeather?.sky },
+			lighting: { ...d.lighting, ...skyWeather?.lighting },
+			fog: { ...d.fog, ...skyWeather?.fog },
+			clouds: { ...d.clouds, ...skyWeather?.clouds },
+			precipitation: { ...d.precipitation, ...skyWeather?.precipitation },
+			lightning: { ...d.lightning, ...skyWeather?.lightning },
+			weather: { ...d.weather, ...skyWeather?.weather },
+			effects: { ...d.effects, ...skyWeather?.effects },
+		};
+	});
+
 	const dirtyRef = useRef(false);
 	const latestConfigRef = useRef(config);
-	// Keep config in a ref so sendConfig has stable identity (no re-create on every slider drag)
 	const configRef = useRef(config);
 	configRef.current = config;
+
+	// Debounce sendToIframe to prevent message spam
+	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const sendConfig = useCallback((patch: Partial<SkyWeatherConfig>) => {
 		const cur = configRef.current;
@@ -160,15 +202,20 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 			clouds: { ...cur.clouds, ...patch.clouds },
 			precipitation: { ...cur.precipitation, ...patch.precipitation },
 			lightning: { ...cur.lightning, ...patch.lightning },
+			weather: { ...cur.weather, ...patch.weather },
 			effects: { ...cur.effects, ...patch.effects },
 		};
 		setConfig(merged);
 		latestConfigRef.current = merged;
 		configRef.current = merged;
 		dirtyRef.current = true;
-		// Live preview — postMessage only, no file write, no refresh
-		sendToIframe({ type: "sky-weather-update-config", config: merged });
-		onChange(merged);
+
+		// Debounce iframe messages (100ms) to prevent flooding
+		if (debounceRef.current) clearTimeout(debounceRef.current);
+		debounceRef.current = setTimeout(() => {
+			sendToIframe({ type: "sky-weather-update-config", config: merged });
+			onChange(merged);
+		}, 100);
 	}, [sendToIframe, onChange]);
 
 	const setTime = useCallback((t: number) => {
@@ -176,14 +223,23 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 		sendConfig({ time: { solarTime: t } });
 	}, [sendToIframe, sendConfig]);
 
-	const tabs: { id: SkyTab; label: string; icon: typeof Sun }[] = [
-		{ id: "time", label: "Time", icon: Clock },
-		{ id: "sky", label: "Sky", icon: CloudSun },
-		{ id: "clouds", label: "Clouds", icon: Cloud },
-		{ id: "lighting", label: "Light", icon: Lightbulb },
-		{ id: "fog", label: "Fog", icon: CloudFog },
-		{ id: "fx", label: "FX", icon: Sparkles },
-	];
+	const tabs: { id: SkyTab; label: string; icon: typeof Sun }[] = isAdvanced
+		? [
+			{ id: "time", label: "Time", icon: Clock },
+			{ id: "celestial", label: "Celestial", icon: Star },
+			{ id: "atmos", label: "Atmos", icon: CloudSun },
+			{ id: "weather", label: "Weather", icon: Cloud },
+			{ id: "fog", label: "Fog", icon: CloudFog },
+			{ id: "fx", label: "FX", icon: Sparkles },
+		]
+		: [
+			{ id: "time", label: "Time", icon: Clock },
+			{ id: "celestial", label: "Sky", icon: CloudSun },
+			{ id: "weather", label: "Clouds", icon: Cloud },
+			{ id: "atmos", label: "Light", icon: Lightbulb },
+			{ id: "fog", label: "Fog", icon: CloudFog },
+			{ id: "fx", label: "FX", icon: Sparkles },
+		];
 
 	return (
 		<div className="absolute top-0 right-0 bottom-0 w-[260px] bg-[#0d0d0f]/95 backdrop-blur-xl border-l border-white/[0.08] flex flex-col z-30 select-none">
@@ -191,7 +247,9 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 			<div className="flex items-center justify-between px-3 py-2.5 border-b border-white/[0.08]">
 				<div className="flex items-center gap-2">
 					<CloudSun className="w-4 h-4 text-amber-400" />
-					<span className="text-xs font-semibold text-white/90">Sky & Weather</span>
+					<span className="text-xs font-semibold text-white/90">
+						{isAdvanced ? "Tenkoku Dynamic Sky" : "Sky & Weather"}
+					</span>
 				</div>
 				<button type="button" onClick={() => { if (dirtyRef.current) onSave(latestConfigRef.current); onClose(); }} className="p-1 rounded-md hover:bg-white/[0.08] text-white/40 hover:text-white/70 transition-colors">
 					<X className="w-3.5 h-3.5" />
@@ -222,6 +280,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 
 			{/* Content */}
 			<div className="flex-1 overflow-y-auto px-3 py-3 space-y-3" style={{ scrollbarWidth: "thin", scrollbarColor: "#333 transparent" }}>
+				{/* ══════════════════════ TIME & POSITION ══════════════════════ */}
 				{activeTab === "time" && (
 					<>
 						{/* Solar Time Slider */}
@@ -237,10 +296,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 									}} />
 								</div>
 								<input
-									type="range"
-									min="0"
-									max="1"
-									step="0.005"
+									type="range" min="0" max="1" step="0.005"
 									value={config.time?.solarTime ?? 0.45}
 									onChange={(e) => setTime(Number.parseFloat(e.target.value))}
 									className="w-full relative z-10 appearance-none bg-transparent cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-amber-400 [&::-webkit-slider-thumb]:shadow-lg"
@@ -254,8 +310,7 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 							<div className="grid grid-cols-3 gap-1">
 								{TIME_PRESETS.map((preset) => (
 									<button
-										key={preset.label}
-										type="button"
+										key={preset.label} type="button"
 										onClick={() => setTime(preset.time)}
 										className={`px-2 py-1.5 text-[10px] rounded-lg transition-all ${
 											Math.abs((config.time?.solarTime ?? 0) - preset.time) < 0.02
@@ -272,123 +327,202 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 
 						{/* Day/Night Cycle */}
 						<div className="border-t border-white/[0.06] pt-3">
-							<div className="flex items-center justify-between mb-2">
-								<label className="text-[10px] text-white/40 uppercase tracking-wider">Day/Night Cycle</label>
-								<button
-									type="button"
-									onClick={() => sendConfig({ time: { ...config.time, autoAdvance: !config.time?.autoAdvance } })}
-									className={`w-8 h-4 rounded-full transition-colors relative ${
-										config.time?.autoAdvance ? "bg-amber-600" : "bg-zinc-700"
-									}`}
-								>
-									<div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
-										config.time?.autoAdvance ? "translate-x-4" : "translate-x-0.5"
-									}`} />
-								</button>
-							</div>
+							<ToggleRow label="Day/Night Cycle" value={config.time?.autoAdvance ?? false}
+								onChange={(v) => sendConfig({ time: { ...config.time, autoAdvance: v } })} />
 							{config.time?.autoAdvance && (
-								<div>
-									<div className="flex items-center justify-between mb-1">
-										<span className="text-[10px] text-white/40">Cycle Length</span>
-										<span className="text-[10px] text-white/60 font-mono">{config.time?.cycleLengthMinutes ?? 10} min</span>
-									</div>
-									<input
-										type="range"
-										min="1"
-										max="60"
-										step="1"
-										value={config.time?.cycleLengthMinutes ?? 10}
-										onChange={(e) => sendConfig({ time: { ...config.time, cycleLengthMinutes: Number.parseInt(e.target.value) } })}
-										className="w-full accent-amber-500"
-									/>
-								</div>
+								<SliderRow label="Cycle Length (min)" value={config.time?.cycleLengthMinutes ?? 10}
+									min={1} max={60} step={1} format={(v) => `${v}`}
+									onChange={(v) => sendConfig({ time: { ...config.time, cycleLengthMinutes: v } })} />
 							)}
 						</div>
 
-						{/* Latitude */}
-						<div>
-							<div className="flex items-center justify-between mb-1">
-								<span className="text-[10px] text-white/40">Latitude</span>
-								<span className="text-[10px] text-white/60 font-mono">{config.time?.latitude ?? 45}°</span>
+						{/* Date (Advanced only) */}
+						{isAdvanced && (
+							<div className="border-t border-white/[0.06] pt-3">
+								<SectionLabel icon={Calendar} label="Date (Orbital Calc)" />
+								<div className="grid grid-cols-3 gap-1.5 mt-1.5">
+									<NumberInput label="Year" value={config.time?.year ?? 2024} min={1900} max={2100}
+										onChange={(v) => sendConfig({ time: { ...config.time, year: v } })} />
+									<NumberInput label="Month" value={config.time?.month ?? 6} min={1} max={12}
+										onChange={(v) => sendConfig({ time: { ...config.time, month: v } })} />
+									<NumberInput label="Day" value={config.time?.day ?? 21} min={1} max={31}
+										onChange={(v) => sendConfig({ time: { ...config.time, day: v } })} />
+								</div>
 							</div>
-							<input
-								type="range"
-								min="-90"
-								max="90"
-								step="1"
-								value={config.time?.latitude ?? 45}
-								onChange={(e) => sendConfig({ time: { ...config.time, latitude: Number.parseInt(e.target.value) } })}
-								className="w-full accent-amber-500"
-							/>
+						)}
+
+						{/* Geographic Position */}
+						<div className="border-t border-white/[0.06] pt-3">
+							<SectionLabel icon={Globe} label="Position" />
+							<SliderRow label="Latitude" value={config.time?.latitude ?? 45}
+								min={-90} max={90} step={1} format={(v) => `${v}°`}
+								onChange={(v) => sendConfig({ time: { ...config.time, latitude: v } })} />
+							{isAdvanced && (
+								<>
+									<SliderRow label="Longitude" value={config.time?.longitude ?? 0}
+										min={-180} max={180} step={1} format={(v) => `${v}°`}
+										onChange={(v) => sendConfig({ time: { ...config.time, longitude: v } })} />
+									<SliderRow label="Timezone (UTC)" value={config.time?.timezone ?? 0}
+										min={-12} max={14} step={1} format={(v) => v >= 0 ? `+${v}` : `${v}`}
+										onChange={(v) => sendConfig({ time: { ...config.time, timezone: v } })} />
+								</>
+							)}
 						</div>
 					</>
 				)}
 
-				{activeTab === "sky" && (
+				{/* ══════════════════════ CELESTIAL SETTINGS ══════════════════════ */}
+				{activeTab === "celestial" && (
 					<>
-						<SliderRow
-							label="Sun Size"
-							value={config.sky?.sunDiskSize ?? 0.028}
-							min={0.005} max={0.1} step={0.001}
-							format={(v) => v.toFixed(3)}
-							onChange={(v) => sendConfig({ sky: { ...config.sky, sunDiskSize: v } })}
-						/>
-						<SliderRow
-							label="Moon Size"
-							value={config.sky?.moonDiskSize ?? 0.022}
-							min={0.005} max={0.08} step={0.001}
-							format={(v) => v.toFixed(3)}
-							onChange={(v) => sendConfig({ sky: { ...config.sky, moonDiskSize: v } })}
-						/>
-						<SliderRow
-							label="Mie Scattering"
-							value={config.sky?.mieCoefficient ?? 0.005}
-							min={0} max={0.05} step={0.001}
-							format={(v) => v.toFixed(3)}
-							onChange={(v) => sendConfig({ sky: { ...config.sky, mieCoefficient: v } })}
-						/>
-						<SliderRow
-							label="Mie G (Directionality)"
-							value={config.sky?.mieDirectionalG ?? 0.80}
-							min={0} max={0.99} step={0.01}
-							format={(v) => v.toFixed(2)}
-							onChange={(v) => sendConfig({ sky: { ...config.sky, mieDirectionalG: v } })}
-						/>
-						<SliderRow
-							label="Star Intensity"
-							value={config.sky?.starIntensity ?? 1.0}
-							min={0} max={3.0} step={0.1}
-							format={(v) => v.toFixed(1)}
-							onChange={(v) => sendConfig({ sky: { ...config.sky, starIntensity: v } })}
-						/>
-						<SliderRow
-							label="Exposure"
-							value={config.sky?.exposure ?? 1.2}
-							min={0.5} max={5.0} step={0.1}
-							format={(v) => v.toFixed(1)}
-							onChange={(v) => sendConfig({ sky: { ...config.sky, exposure: v } })}
-						/>
+						{isAdvanced ? (
+							<>
+								{/* Sun Rendering */}
+								<SectionLabel icon={Sun} label="Sun Rendering" />
+								<SliderRow label="Disk Size" value={config.sky?.sunDiskSize ?? 0.028}
+									min={0.005} max={0.1} step={0.001} format={(v) => v.toFixed(3)}
+									onChange={(v) => sendConfig({ sky: { ...config.sky, sunDiskSize: v } })} />
+								<SliderRow label="Atmospheric Intensity" value={config.sky?.sunIntensity ?? 22}
+									min={5} max={50} step={1} format={(v) => v.toFixed(0)}
+									onChange={(v) => sendConfig({ sky: { ...config.sky, sunIntensity: v } })} />
+
+								{/* Moon Rendering */}
+								<div className="border-t border-white/[0.06] pt-3">
+									<SectionLabel icon={Moon} label="Moon Rendering" />
+									<SliderRow label="Disk Size" value={config.sky?.moonDiskSize ?? 0.022}
+										min={0.005} max={0.08} step={0.001} format={(v) => v.toFixed(3)}
+										onChange={(v) => sendConfig({ sky: { ...config.sky, moonDiskSize: v } })} />
+									<SliderRow label="Brightness" value={config.sky?.moonBrightness ?? 1.0}
+										min={0} max={3} step={0.1} format={(v) => v.toFixed(1)}
+										onChange={(v) => sendConfig({ sky: { ...config.sky, moonBrightness: v } })} />
+								</div>
+
+								{/* Star Rendering */}
+								<div className="border-t border-white/[0.06] pt-3">
+									<SectionLabel icon={Star} label="Star Rendering" />
+									<SliderRow label="Star Brightness" value={config.sky?.starIntensity ?? 1.0}
+										min={0} max={3} step={0.1} format={(v) => v.toFixed(1)}
+										onChange={(v) => sendConfig({ sky: { ...config.sky, starIntensity: v } })} />
+									<SliderRow label="Planet Brightness" value={config.sky?.planetIntensity ?? 1.0}
+										min={0} max={3} step={0.1} format={(v) => v.toFixed(1)}
+										onChange={(v) => sendConfig({ sky: { ...config.sky, planetIntensity: v } })} />
+								</div>
+
+								{/* Galaxy / Milky Way */}
+								<div className="border-t border-white/[0.06] pt-3">
+									<SectionLabel icon={Sparkles} label="Galaxy / Milky Way" />
+									<SliderRow label="Brightness" value={config.sky?.galaxyIntensity ?? 1.0}
+										min={0} max={3} step={0.1} format={(v) => v.toFixed(1)}
+										onChange={(v) => sendConfig({ sky: { ...config.sky, galaxyIntensity: v } })} />
+								</div>
+
+								{/* Aurora Rendering */}
+								<div className="border-t border-white/[0.06] pt-3">
+									<SectionLabel icon={Sparkles} label="Aurora Rendering" />
+									<SliderRow label="Intensity" value={config.effects?.aurora ?? 0}
+										min={0} max={2} step={0.1} format={(v) => v.toFixed(1)}
+										onChange={(v) => sendConfig({ effects: { ...config.effects, aurora: v } })} />
+								</div>
+							</>
+						) : (
+							<>
+								{/* Basic sky controls */}
+								<SliderRow label="Sun Size" value={config.sky?.sunDiskSize ?? 0.028}
+									min={0.005} max={0.1} step={0.001} format={(v) => v.toFixed(3)}
+									onChange={(v) => sendConfig({ sky: { ...config.sky, sunDiskSize: v } })} />
+								<SliderRow label="Moon Size" value={config.sky?.moonDiskSize ?? 0.022}
+									min={0.005} max={0.08} step={0.001} format={(v) => v.toFixed(3)}
+									onChange={(v) => sendConfig({ sky: { ...config.sky, moonDiskSize: v } })} />
+								<SliderRow label="Mie Scattering" value={config.sky?.mieCoefficient ?? 0.005}
+									min={0} max={0.05} step={0.001} format={(v) => v.toFixed(3)}
+									onChange={(v) => sendConfig({ sky: { ...config.sky, mieCoefficient: v } })} />
+								<SliderRow label="Mie G" value={config.sky?.mieDirectionalG ?? 0.80}
+									min={0} max={0.99} step={0.01} format={(v) => v.toFixed(2)}
+									onChange={(v) => sendConfig({ sky: { ...config.sky, mieDirectionalG: v } })} />
+								<SliderRow label="Star Intensity" value={config.sky?.starIntensity ?? 1.0}
+									min={0} max={3} step={0.1} format={(v) => v.toFixed(1)}
+									onChange={(v) => sendConfig({ sky: { ...config.sky, starIntensity: v } })} />
+								<SliderRow label="Exposure" value={config.sky?.exposure ?? 1.2}
+									min={0.5} max={5} step={0.1} format={(v) => v.toFixed(1)}
+									onChange={(v) => sendConfig({ sky: { ...config.sky, exposure: v } })} />
+							</>
+						)}
 					</>
 				)}
 
-				{activeTab === "clouds" && (
+				{/* ══════════════════════ ATMOSPHERICS / LIGHTING ══════════════════════ */}
+				{activeTab === "atmos" && (
+					<>
+						{isAdvanced ? (
+							<>
+								<SectionLabel icon={CloudSun} label="Atmospherics" />
+								<SliderRow label="Rayleigh Scale" value={config.sky?.rayleighScale ?? 1.0}
+									min={0.1} max={3} step={0.05} format={(v) => v.toFixed(2)}
+									onChange={(v) => sendConfig({ sky: { ...config.sky, rayleighScale: v } })} />
+								<SliderRow label="Mie Coefficient" value={config.sky?.mieCoefficient ?? 0.005}
+									min={0} max={0.05} step={0.001} format={(v) => v.toFixed(3)}
+									onChange={(v) => sendConfig({ sky: { ...config.sky, mieCoefficient: v } })} />
+								<SliderRow label="Mie G (Directionality)" value={config.sky?.mieDirectionalG ?? 0.76}
+									min={0} max={0.99} step={0.01} format={(v) => v.toFixed(2)}
+									onChange={(v) => sendConfig({ sky: { ...config.sky, mieDirectionalG: v } })} />
+								<SliderRow label="Exposure" value={config.sky?.exposure ?? 1.2}
+									min={0.5} max={5} step={0.1} format={(v) => v.toFixed(1)}
+									onChange={(v) => sendConfig({ sky: { ...config.sky, exposure: v } })} />
+								<SliderRow label="Sun Scatter Intensity" value={config.sky?.sunIntensity ?? 22}
+									min={5} max={50} step={1} format={(v) => v.toFixed(0)}
+									onChange={(v) => sendConfig({ sky: { ...config.sky, sunIntensity: v } })} />
+
+								{/* Lighting */}
+								<div className="border-t border-white/[0.06] pt-3">
+									<SectionLabel icon={Lightbulb} label="Scene Lighting" />
+									<ToggleRow label="Auto Sun Light" value={config.lighting?.autoSunLight ?? true}
+										onChange={(v) => sendConfig({ lighting: { ...config.lighting, autoSunLight: v } })} />
+									<ToggleRow label="Auto Ambient" value={config.lighting?.autoAmbient ?? true}
+										onChange={(v) => sendConfig({ lighting: { ...config.lighting, autoAmbient: v } })} />
+									<ToggleRow label="Shadows" value={config.lighting?.shadowsEnabled ?? true}
+										onChange={(v) => sendConfig({ lighting: { ...config.lighting, shadowsEnabled: v } })} />
+									<SliderRow label="Sun Light Intensity" value={config.lighting?.sunIntensity ?? 1.5}
+										min={0} max={5} step={0.1} format={(v) => v.toFixed(1)}
+										onChange={(v) => sendConfig({ lighting: { ...config.lighting, sunIntensity: v } })} />
+									<SliderRow label="Ambient Intensity" value={config.lighting?.ambientIntensity ?? 0.4}
+										min={0} max={2} step={0.05} format={(v) => v.toFixed(2)}
+										onChange={(v) => sendConfig({ lighting: { ...config.lighting, ambientIntensity: v } })} />
+								</div>
+							</>
+						) : (
+							<>
+								{/* Basic lighting controls */}
+								<ToggleRow label="Auto Sun Light" value={config.lighting?.autoSunLight ?? true}
+									onChange={(v) => sendConfig({ lighting: { ...config.lighting, autoSunLight: v } })} />
+								<ToggleRow label="Auto Ambient" value={config.lighting?.autoAmbient ?? true}
+									onChange={(v) => sendConfig({ lighting: { ...config.lighting, autoAmbient: v } })} />
+								<ToggleRow label="Shadows" value={config.lighting?.shadowsEnabled ?? true}
+									onChange={(v) => sendConfig({ lighting: { ...config.lighting, shadowsEnabled: v } })} />
+								<SliderRow label="Sun Intensity" value={config.lighting?.sunIntensity ?? 1.5}
+									min={0} max={5} step={0.1} format={(v) => v.toFixed(1)}
+									onChange={(v) => sendConfig({ lighting: { ...config.lighting, sunIntensity: v } })} />
+								<SliderRow label="Ambient Intensity" value={config.lighting?.ambientIntensity ?? 0.4}
+									min={0} max={2} step={0.05} format={(v) => v.toFixed(2)}
+									onChange={(v) => sendConfig({ lighting: { ...config.lighting, ambientIntensity: v } })} />
+							</>
+						)}
+					</>
+				)}
+
+				{/* ══════════════════════ WEATHER / CLOUDS ══════════════════════ */}
+				{activeTab === "weather" && (
 					<>
 						{/* Weather Presets */}
 						<div>
 							<label className="text-[10px] text-white/40 uppercase tracking-wider mb-1.5 block">Weather Presets</label>
 							<div className="grid grid-cols-2 gap-1">
 								{WEATHER_PRESETS.map((preset) => (
-									<button
-										key={preset.label}
-										type="button"
-										onClick={() => {
-											sendConfig({
-												clouds: { ...config.clouds, ...preset.clouds },
-												fog: { ...config.fog, ...preset.fog },
-												precipitation: { ...config.precipitation, ...preset.precipitation },
-												lightning: { ...config.lightning, ...preset.lightning },
-											});
-										}}
+									<button key={preset.label} type="button"
+										onClick={() => sendConfig({
+											clouds: { ...config.clouds, ...preset.clouds },
+											fog: { ...config.fog, ...preset.fog },
+											precipitation: { ...config.precipitation, ...preset.precipitation },
+											lightning: { ...config.lightning, ...preset.lightning },
+										})}
 										className="px-2 py-1.5 text-[10px] rounded-lg bg-white/[0.04] text-white/50 hover:bg-white/[0.08] hover:text-white/70 transition-all text-left"
 									>
 										<span className="text-sm mr-1">{preset.icon}</span>
@@ -398,57 +532,45 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 							</div>
 						</div>
 
+						{/* Auto Forecast (Advanced) */}
+						{isAdvanced && (
+							<div className="border-t border-white/[0.06] pt-3">
+								<ToggleRow label="Auto Weather Forecast" value={config.weather?.autoForecast ?? false}
+									onChange={(v) => sendConfig({ weather: { ...config.weather, autoForecast: v } })} />
+								{config.weather?.autoForecast && (
+									<SliderRow label="Forecast Interval (s)" value={config.weather?.forecastInterval ?? 60}
+										min={10} max={300} step={10} format={(v) => `${v}s`}
+										onChange={(v) => sendConfig({ weather: { ...config.weather, forecastInterval: v } })} />
+								)}
+							</div>
+						)}
+
+						{/* Cloud Settings */}
 						<div className="border-t border-white/[0.06] pt-3">
-							<SliderRow
-								label="Cloud Coverage"
-								value={config.clouds?.coverage ?? 0}
-								min={0} max={1} step={0.05}
-								format={(v) => `${Math.round(v * 100)}%`}
-								onChange={(v) => sendConfig({ clouds: { ...config.clouds, coverage: v } })}
-							/>
-							<SliderRow
-								label="Cloud Density"
-								value={config.clouds?.density ?? 0.85}
-								min={0.1} max={1} step={0.05}
-								format={(v) => v.toFixed(2)}
-								onChange={(v) => sendConfig({ clouds: { ...config.clouds, density: v } })}
-							/>
-							<SliderRow
-								label="Wind Speed"
-								value={config.clouds?.speed ?? 1.0}
-								min={0} max={5} step={0.1}
-								format={(v) => v.toFixed(1)}
-								onChange={(v) => sendConfig({ clouds: { ...config.clouds, speed: v } })}
-							/>
-							<SliderRow
-								label="Cloud Scale"
-								value={config.clouds?.scale ?? 3.0}
-								min={1} max={8} step={0.5}
-								format={(v) => v.toFixed(1)}
-								onChange={(v) => sendConfig({ clouds: { ...config.clouds, scale: v } })}
-							/>
-							<SliderRow
-								label="Brightness"
-								value={config.clouds?.brightness ?? 1.0}
-								min={0.1} max={2} step={0.05}
-								format={(v) => v.toFixed(2)}
-								onChange={(v) => sendConfig({ clouds: { ...config.clouds, brightness: v } })}
-							/>
+							<SectionLabel icon={Cloud} label="Cloud Settings" />
+							<SliderRow label="Coverage" value={config.clouds?.coverage ?? 0}
+								min={0} max={1} step={0.05} format={(v) => `${Math.round(v * 100)}%`}
+								onChange={(v) => sendConfig({ clouds: { ...config.clouds, coverage: v } })} />
+							<SliderRow label="Density" value={config.clouds?.density ?? 0.85}
+								min={0.1} max={1} step={0.05} format={(v) => v.toFixed(2)}
+								onChange={(v) => sendConfig({ clouds: { ...config.clouds, density: v } })} />
+							<SliderRow label="Wind Speed" value={config.clouds?.speed ?? 1.0}
+								min={0} max={5} step={0.1} format={(v) => v.toFixed(1)}
+								onChange={(v) => sendConfig({ clouds: { ...config.clouds, speed: v } })} />
+							<SliderRow label="Cloud Scale" value={config.clouds?.scale ?? 3.0}
+								min={1} max={8} step={0.5} format={(v) => v.toFixed(1)}
+								onChange={(v) => sendConfig({ clouds: { ...config.clouds, scale: v } })} />
+							<SliderRow label="Brightness" value={config.clouds?.brightness ?? 1.0}
+								min={0.1} max={2} step={0.05} format={(v) => v.toFixed(2)}
+								onChange={(v) => sendConfig({ clouds: { ...config.clouds, brightness: v } })} />
 						</div>
 
 						{/* Precipitation */}
 						<div className="border-t border-white/[0.06] pt-3">
-							<div className="flex items-center gap-1.5 mb-2">
-								<Droplets className="w-3 h-3 text-blue-400" />
-								<span className="text-[10px] text-white/50 uppercase tracking-wider">Precipitation</span>
-							</div>
-
-							{/* Type selector */}
+							<SectionLabel icon={Droplets} label="Precipitation" />
 							<div className="grid grid-cols-3 gap-1 mb-2">
 								{(["none", "rain", "snow"] as const).map((pType) => (
-									<button
-										key={pType}
-										type="button"
+									<button key={pType} type="button"
 										onClick={() => sendConfig({ precipitation: { ...config.precipitation, type: pType, intensity: pType === "none" ? 0 : (config.precipitation?.intensity || 0.5) } })}
 										className={`px-2 py-1.5 text-[10px] rounded-lg transition-all capitalize ${
 											(config.precipitation?.type ?? "none") === pType
@@ -460,183 +582,90 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 									</button>
 								))}
 							</div>
-
 							{config.precipitation?.type && config.precipitation.type !== "none" && (
 								<>
-									<SliderRow
-										label="Intensity"
-										value={config.precipitation?.intensity ?? 0.5}
-										min={0.1} max={1} step={0.05}
-										format={(v) => `${Math.round(v * 100)}%`}
-										onChange={(v) => sendConfig({ precipitation: { ...config.precipitation, intensity: v } })}
-									/>
-									<SliderRow
-										label="Wind Direction"
-										value={config.precipitation?.windDirection ?? 0}
-										min={0} max={360} step={5}
-										format={(v) => `${Math.round(v)}°`}
-										onChange={(v) => sendConfig({ precipitation: { ...config.precipitation, windDirection: v } })}
-									/>
-									<SliderRow
-										label="Wind Strength"
-										value={config.precipitation?.windStrength ?? 0.3}
-										min={0} max={1} step={0.05}
-										format={(v) => v.toFixed(2)}
-										onChange={(v) => sendConfig({ precipitation: { ...config.precipitation, windStrength: v } })}
-									/>
+									<SliderRow label="Intensity" value={config.precipitation?.intensity ?? 0.5}
+										min={0.1} max={1} step={0.05} format={(v) => `${Math.round(v * 100)}%`}
+										onChange={(v) => sendConfig({ precipitation: { ...config.precipitation, intensity: v } })} />
+									<SliderRow label="Wind Direction" value={config.precipitation?.windDirection ?? 0}
+										min={0} max={360} step={5} format={(v) => `${Math.round(v)}°`}
+										onChange={(v) => sendConfig({ precipitation: { ...config.precipitation, windDirection: v } })} />
+									<SliderRow label="Wind Strength" value={config.precipitation?.windStrength ?? 0.3}
+										min={0} max={1} step={0.05} format={(v) => v.toFixed(2)}
+										onChange={(v) => sendConfig({ precipitation: { ...config.precipitation, windStrength: v } })} />
 								</>
 							)}
 						</div>
 
 						{/* Lightning */}
 						<div className="border-t border-white/[0.06] pt-3">
-							<div className="flex items-center gap-1.5 mb-2">
-								<Zap className="w-3 h-3 text-yellow-400" />
-								<span className="text-[10px] text-white/50 uppercase tracking-wider">Lightning</span>
-							</div>
-							<ToggleRow
-								label="Enable Lightning"
-								value={config.lightning?.enabled ?? false}
-								onChange={(v) => sendConfig({ lightning: { ...config.lightning, enabled: v } })}
-							/>
+							<SectionLabel icon={Zap} label="Lightning" />
+							<ToggleRow label="Enable Lightning" value={config.lightning?.enabled ?? false}
+								onChange={(v) => sendConfig({ lightning: { ...config.lightning, enabled: v } })} />
 							{config.lightning?.enabled && (
-								<SliderRow
-									label="Frequency"
-									value={config.lightning?.frequency ?? 0.1}
-									min={0.02} max={0.5} step={0.01}
-									format={(v) => `${v.toFixed(2)}/s`}
-									onChange={(v) => sendConfig({ lightning: { ...config.lightning, frequency: v } })}
-								/>
+								<SliderRow label="Frequency" value={config.lightning?.frequency ?? 0.1}
+									min={0.02} max={0.5} step={0.01} format={(v) => `${v.toFixed(2)}/s`}
+									onChange={(v) => sendConfig({ lightning: { ...config.lightning, frequency: v } })} />
 							)}
 						</div>
 					</>
 				)}
 
-				{activeTab === "lighting" && (
-					<>
-						<ToggleRow
-							label="Auto Sun Light"
-							value={config.lighting?.autoSunLight ?? true}
-							onChange={(v) => sendConfig({ lighting: { ...config.lighting, autoSunLight: v } })}
-						/>
-						<ToggleRow
-							label="Auto Ambient"
-							value={config.lighting?.autoAmbient ?? true}
-							onChange={(v) => sendConfig({ lighting: { ...config.lighting, autoAmbient: v } })}
-						/>
-						<ToggleRow
-							label="Shadows"
-							value={config.lighting?.shadowsEnabled ?? true}
-							onChange={(v) => sendConfig({ lighting: { ...config.lighting, shadowsEnabled: v } })}
-						/>
-						<SliderRow
-							label="Sun Intensity"
-							value={config.lighting?.sunIntensity ?? 1.5}
-							min={0} max={5.0} step={0.1}
-							format={(v) => v.toFixed(1)}
-							onChange={(v) => sendConfig({ lighting: { ...config.lighting, sunIntensity: v } })}
-						/>
-						<SliderRow
-							label="Ambient Intensity"
-							value={config.lighting?.ambientIntensity ?? 0.4}
-							min={0} max={2.0} step={0.05}
-							format={(v) => v.toFixed(2)}
-							onChange={(v) => sendConfig({ lighting: { ...config.lighting, ambientIntensity: v } })}
-						/>
-					</>
-				)}
-
+				{/* ══════════════════════ FOG ══════════════════════ */}
 				{activeTab === "fog" && (
 					<>
-						<ToggleRow
-							label="Enable Fog"
-							value={config.fog?.enabled ?? false}
-							onChange={(v) => sendConfig({ fog: { ...config.fog, enabled: v } })}
-						/>
+						<ToggleRow label="Enable Fog" value={config.fog?.enabled ?? false}
+							onChange={(v) => sendConfig({ fog: { ...config.fog, enabled: v } })} />
 						{config.fog?.enabled && (
 							<>
-								<ToggleRow
-									label="Auto Color (match sky)"
-									value={config.fog?.autoColor ?? true}
-									onChange={(v) => sendConfig({ fog: { ...config.fog, autoColor: v } })}
-								/>
-								<SliderRow
-									label="Density"
-									value={config.fog?.density ?? 0.003}
-									min={0.0005} max={0.05} step={0.0005}
-									format={(v) => v.toFixed(4)}
-									onChange={(v) => sendConfig({ fog: { ...config.fog, density: v } })}
-								/>
-								<SliderRow
-									label="Height Falloff"
-									value={config.fog?.heightFalloff ?? 0}
-									min={0} max={1} step={0.05}
-									format={(v) => v.toFixed(2)}
-									onChange={(v) => sendConfig({ fog: { ...config.fog, heightFalloff: v } })}
-								/>
+								<ToggleRow label="Auto Color (match sky)" value={config.fog?.autoColor ?? true}
+									onChange={(v) => sendConfig({ fog: { ...config.fog, autoColor: v } })} />
+								<SliderRow label="Density" value={config.fog?.density ?? 0.003}
+									min={0.0005} max={0.05} step={0.0005} format={(v) => v.toFixed(4)}
+									onChange={(v) => sendConfig({ fog: { ...config.fog, density: v } })} />
+								<SliderRow label="Height Falloff" value={config.fog?.heightFalloff ?? 0}
+									min={0} max={1} step={0.05} format={(v) => v.toFixed(2)}
+									onChange={(v) => sendConfig({ fog: { ...config.fog, heightFalloff: v } })} />
 							</>
 						)}
 					</>
 				)}
 
+				{/* ══════════════════════ EFFECTS ══════════════════════ */}
 				{activeTab === "fx" && (
 					<>
-						<SliderRow
-							label="God Rays"
-							value={config.effects?.godRays ?? 0}
-							min={0} max={2} step={0.1}
-							format={(v) => v.toFixed(1)}
-							onChange={(v) => sendConfig({ effects: { ...config.effects, godRays: v } })}
-						/>
-						<SliderRow
-							label="Aurora Borealis"
-							value={config.effects?.aurora ?? 0}
-							min={0} max={2} step={0.1}
-							format={(v) => v.toFixed(1)}
-							onChange={(v) => sendConfig({ effects: { ...config.effects, aurora: v } })}
-						/>
-						<SliderRow
-							label="Rainbow"
-							value={config.effects?.rainbow ?? 0}
-							min={0} max={2} step={0.1}
-							format={(v) => v.toFixed(1)}
-							onChange={(v) => sendConfig({ effects: { ...config.effects, rainbow: v } })}
-						/>
-						<SliderRow
-							label="Shooting Stars"
-							value={config.effects?.shootingStars ?? 0}
-							min={0} max={2} step={0.1}
-							format={(v) => v.toFixed(1)}
-							onChange={(v) => sendConfig({ effects: { ...config.effects, shootingStars: v } })}
-						/>
+						<SliderRow label="God Rays / Sun Shafts" value={config.effects?.godRays ?? 0}
+							min={0} max={2} step={0.1} format={(v) => v.toFixed(1)}
+							onChange={(v) => sendConfig({ effects: { ...config.effects, godRays: v } })} />
+						{!isAdvanced && (
+							<SliderRow label="Aurora Borealis" value={config.effects?.aurora ?? 0}
+								min={0} max={2} step={0.1} format={(v) => v.toFixed(1)}
+								onChange={(v) => sendConfig({ effects: { ...config.effects, aurora: v } })} />
+						)}
+						<SliderRow label="Rainbow" value={config.effects?.rainbow ?? 0}
+							min={0} max={2} step={0.1} format={(v) => v.toFixed(1)}
+							onChange={(v) => sendConfig({ effects: { ...config.effects, rainbow: v } })} />
+						<SliderRow label="Shooting Stars" value={config.effects?.shootingStars ?? 0}
+							min={0} max={2} step={0.1} format={(v) => v.toFixed(1)}
+							onChange={(v) => sendConfig({ effects: { ...config.effects, shootingStars: v } })} />
 						<div className="border-t border-white/[0.06] pt-3">
-							<ToggleRow
-								label="Ambient Audio"
-								value={config.effects?.ambientAudio ?? false}
-								onChange={(v) => sendConfig({ effects: { ...config.effects, ambientAudio: v } })}
-							/>
+							<SectionLabel icon={Sparkles} label="Ambient Audio" />
+							<ToggleRow label="Enable Audio" value={config.effects?.ambientAudio ?? false}
+								onChange={(v) => sendConfig({ effects: { ...config.effects, ambientAudio: v } })} />
 							{config.effects?.ambientAudio && (
-								<SliderRow
-									label="Volume"
-									value={config.effects?.audioVolume ?? 0.5}
-									min={0} max={1} step={0.05}
-									format={(v) => `${Math.round(v * 100)}%`}
-									onChange={(v) => sendConfig({ effects: { ...config.effects, audioVolume: v } })}
-								/>
+								<SliderRow label="Volume" value={config.effects?.audioVolume ?? 0.5}
+									min={0} max={1} step={0.05} format={(v) => `${Math.round(v * 100)}%`}
+									onChange={(v) => sendConfig({ effects: { ...config.effects, audioVolume: v } })} />
 							)}
 						</div>
 					</>
 				)}
 			</div>
 
-			{/* Footer — Save & Reset */}
+			{/* Footer */}
 			<div className="p-3 border-t border-white/[0.08] space-y-1.5">
-				<button
-					type="button"
-					onClick={() => {
-						onSave(latestConfigRef.current);
-						dirtyRef.current = false;
-					}}
+				<button type="button"
+					onClick={() => { onSave(latestConfigRef.current); dirtyRef.current = false; }}
 					className={`w-full py-2 rounded-lg text-[11px] font-medium transition-colors flex items-center justify-center gap-1.5 ${
 						dirtyRef.current
 							? "bg-amber-600 hover:bg-amber-500 text-white"
@@ -645,24 +674,13 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 				>
 					Save & Apply
 				</button>
-				<button
-					type="button"
+				<button type="button"
 					onClick={() => {
-						const defaults: SkyWeatherConfig = {
-							time: { solarTime: 0.45, cycleLengthMinutes: 10, autoAdvance: false, latitude: 45 },
-							sky: { sunDiskSize: 0.028, moonDiskSize: 0.022, mieCoefficient: 0.005, mieDirectionalG: 0.80, starIntensity: 1.0, exposure: 1.2 },
-							lighting: { autoSunLight: true, autoAmbient: true, sunIntensity: 1.5, ambientIntensity: 0.4, shadowsEnabled: true },
-							fog: { enabled: false, autoColor: true, density: 0.003 },
-							clouds: { coverage: 0, density: 0.85, speed: 1.0, scale: 3.0, brightness: 1.0 },
-							precipitation: { type: "none", intensity: 0, windDirection: 0, windStrength: 0.3 },
-							lightning: { enabled: false, frequency: 0.1 },
-							effects: { godRays: 0, aurora: 0, rainbow: 0, shootingStars: 0, ambientAudio: false, audioVolume: 0.5 },
-						};
 						setConfig(defaults);
 						latestConfigRef.current = defaults;
 						dirtyRef.current = true;
 						sendToIframe({ type: "sky-weather-update-config", config: defaults });
-						sendToIframe({ type: "sky-weather-set-time", solarTime: 0.45 });
+						sendToIframe({ type: "sky-weather-set-time", solarTime: defaults.time?.solarTime ?? 0.45 });
 						onChange(defaults);
 					}}
 					className="w-full py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-white/40 hover:text-white/60 text-[10px] transition-colors flex items-center justify-center gap-1.5"
@@ -677,14 +695,18 @@ export function SkyWeatherPanel({ sendToIframe, onClose, settings, onChange, onS
 
 // ===== Reusable Components =====
 
+function SectionLabel({ icon: Icon, label }: { icon: typeof Sun; label: string }) {
+	return (
+		<div className="flex items-center gap-1.5 mb-2">
+			<Icon className="w-3 h-3 text-amber-400/70" />
+			<span className="text-[10px] text-white/50 uppercase tracking-wider font-medium">{label}</span>
+		</div>
+	);
+}
+
 function SliderRow({ label, value, min, max, step, format, onChange }: {
-	label: string;
-	value: number;
-	min: number;
-	max: number;
-	step: number;
-	format: (v: number) => string;
-	onChange: (v: number) => void;
+	label: string; value: number; min: number; max: number; step: number;
+	format: (v: number) => string; onChange: (v: number) => void;
 }) {
 	return (
 		<div>
@@ -692,38 +714,37 @@ function SliderRow({ label, value, min, max, step, format, onChange }: {
 				<span className="text-[10px] text-white/40">{label}</span>
 				<span className="text-[10px] text-white/60 font-mono">{format(value)}</span>
 			</div>
-			<input
-				type="range"
-				min={min}
-				max={max}
-				step={step}
-				value={value}
+			<input type="range" min={min} max={max} step={step} value={value}
 				onChange={(e) => onChange(Number.parseFloat(e.target.value))}
-				className="w-full accent-amber-500"
-			/>
+				className="w-full accent-amber-500" />
 		</div>
 	);
 }
 
 function ToggleRow({ label, value, onChange }: {
-	label: string;
-	value: boolean;
-	onChange: (v: boolean) => void;
+	label: string; value: boolean; onChange: (v: boolean) => void;
 }) {
 	return (
 		<div className="flex items-center justify-between py-1">
 			<span className="text-[10px] text-white/50">{label}</span>
-			<button
-				type="button"
-				onClick={() => onChange(!value)}
-				className={`w-8 h-4 rounded-full transition-colors relative ${
-					value ? "bg-amber-600" : "bg-zinc-700"
-				}`}
-			>
-				<div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
-					value ? "translate-x-4" : "translate-x-0.5"
-				}`} />
+			<button type="button" onClick={() => onChange(!value)}
+				className={`w-8 h-4 rounded-full transition-colors relative ${value ? "bg-amber-600" : "bg-zinc-700"}`}>
+				<div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${value ? "translate-x-4" : "translate-x-0.5"}`} />
 			</button>
+		</div>
+	);
+}
+
+function NumberInput({ label, value, min, max, onChange }: {
+	label: string; value: number; min: number; max: number; onChange: (v: number) => void;
+}) {
+	return (
+		<div>
+			<label className="text-[9px] text-white/30 block mb-0.5">{label}</label>
+			<input type="number" min={min} max={max} value={value}
+				onChange={(e) => { const v = Number.parseInt(e.target.value); if (!Number.isNaN(v)) onChange(Math.max(min, Math.min(max, v))); }}
+				className="w-full bg-white/[0.06] border border-white/[0.08] rounded px-1.5 py-1 text-[10px] text-white/70 font-mono outline-none focus:border-amber-500/50"
+			/>
 		</div>
 	);
 }
