@@ -6404,12 +6404,12 @@ export function getVisualEditBridgeScript(): string {
 (function() {
   var AQ_SAMPLE_SIZE = 60;
   var AQ_CHECK_INTERVAL = 3000;
-  var AQ_LOW_FPS = 18;
-  var AQ_HIGH_FPS = 30;
+  var AQ_LOW_FPS = 12;
+  var AQ_HIGH_FPS = 25;
   var AQ_RECOVER_HOLD = 5000;
-  var AQ_PR_STEP = 0.15;
-  var AQ_PR_MIN = 0.75;
-  var AQ_GRACE_MS = 20000; // Skip quality checks for first 20s (WebGPU TSL shader compilation)
+  var AQ_PR_STEP = 0.1;
+  var AQ_PR_MIN = 0.9;
+  var AQ_GRACE_MS = 35000; // Skip quality checks for first 35s (WebGPU TSL shader compilation)
 
   var frameTimes = [];
   var lastCheckTime = 0;

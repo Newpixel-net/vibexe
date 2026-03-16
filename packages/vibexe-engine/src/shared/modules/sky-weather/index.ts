@@ -1232,14 +1232,14 @@ WeatherParticles.prototype._rebuild = function(type, count) {
       map: _getRainTexture(),
       color: 0xaaccee, size: 0.25, transparent: true,
       opacity: 0.5, sizeAttenuation: true, depthWrite: false,
-      alphaTest: 0.01, blending: THREE.NormalBlending
+      alphaTest: 0.1, blending: THREE.AdditiveBlending, fog: false
     });
   } else {
     mat = new THREE.PointsMaterial({
       map: _getSnowTexture(),
       color: 0xffffff, size: 0.5, transparent: true,
       opacity: 0.8, sizeAttenuation: true, depthWrite: false,
-      alphaTest: 0.01, blending: THREE.NormalBlending
+      alphaTest: 0.1, blending: THREE.AdditiveBlending, fog: false
     });
   }
 

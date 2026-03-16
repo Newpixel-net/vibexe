@@ -446,14 +446,13 @@ if (!gameScene || typeof gameScene.init !== 'function') {
     console.log('[Runtime] WebGLRenderer fallback');
   }
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(Math.min(__perf.pixelRatio || window.devicePixelRatio, 1.0));
+  renderer.setPixelRatio(Math.min(__perf.pixelRatio || window.devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true;
-  // WebGPU: BasicShadowMap is cheaper than PCF (saves ~20% GPU time on shadows)
-  renderer.shadowMap.type = W.__vibexe_webgpu__ ? THREE.BasicShadowMap : THREE.PCFShadowMap;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.shadowMap.autoUpdate = false;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = 1.1;
   container.appendChild(renderer.domElement);
   W.__vibexe_renderer__ = renderer;
   W.__vibexe_webgpu__ = !!THREE.WebGPURenderer && renderer.constructor === THREE.WebGPURenderer;
@@ -515,8 +514,8 @@ if (!gameScene || typeof gameScene.init !== 'function') {
   sun.name = '__default_sun__';
   sun.position.set(8, 20, 10);
   sun.castShadow = true;
-  const __shSizes: Record<string, number> = { low: 256, medium: 512, high: 1024 };
-  const __shSize = __shSizes[__gs.environment?.shadowQuality || 'medium'] || 512;
+  const __shSizes: Record<string, number> = { low: 512, medium: 1024, high: 2048 };
+  const __shSize = __shSizes[__gs.environment?.shadowQuality || 'medium'] || 1024;
   sun.shadow.mapSize.set(__shSize, __shSize);
   const __hasTerrain = !!__gs.terrain?.enabled;
   // Shadow frustum follows player — only need ~40 unit radius (not full terrain)
@@ -907,27 +906,26 @@ if (!gameScene || typeof gameScene.init !== 'function') {
         if (__perfNow - __perfLastCheck >= 2000 && !__editorMode) {
           const __avgFps = __perfFrames / ((__perfNow - __perfLastCheck) / 1000);
           const __perfAge = __perfNow - __perfStartTime;
-          // Two-tier PerfGuard: emergency at FPS<12 after 8s, normal at FPS<25 after 15s
-          if (__avgFps < 25 && !__perfDowngraded && (__perfAge > 15000 || (__avgFps < 12 && __perfAge > 8000))) {
+          // Two-tier PerfGuard: emergency at FPS<8 after 10s, normal at FPS<15 after 20s
+          if (__avgFps < 15 && !__perfDowngraded && (__perfAge > 20000 || (__avgFps < 8 && __perfAge > 10000))) {
             __perfDowngraded = true;
             __perfDowngradeTime = __perfNow;
             W.__vibexe_perfguard_degraded__ = true;
             console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — reducing quality');
-            // Actually reduce pixelRatio below 1.0 (0.75 = 56% fewer pixels)
-            renderer.setPixelRatio(0.75);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
             renderer.shadowMap.enabled = false;
-            W.__vibexe_cullDistance__ = 60;
+            W.__vibexe_cullDistance__ = 80;
             // Reduce FPS target to 30 to give GPU breathing room
             W.__vibexe_frameInterval__ = 1000 / 30;
             W.__vibexe_targetFPS__ = 30;
             const comp = W.__vibexe_composer__;
             if (comp?.passes) { for (let pi = 0; pi < comp.passes.length; pi++) { if (comp.passes[pi].constructor?.name === 'UnrealBloomPass') comp.passes[pi].enabled = false; } }
-          } else if (__avgFps > 45 && __perfDowngraded && (__perfNow - __perfDowngradeTime > 30000)) {
-            // Only restore after 30s cooldown to prevent oscillation (reduce→restore→reduce flicker)
+          } else if (__avgFps > 35 && __perfDowngraded && (__perfNow - __perfDowngradeTime > 20000)) {
+            // Restore after 20s cooldown
             __perfDowngraded = false;
             W.__vibexe_perfguard_degraded__ = false;
-            console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality (after 30s cooldown)');
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
+            console.log('[PerfGuard] FPS=' + Math.round(__avgFps) + ' — restoring quality');
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.needsUpdate = true;
             W.__vibexe_cullDistance__ = 150;

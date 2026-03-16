@@ -459,8 +459,8 @@ window.addEventListener('unhandledrejection', function(e) {
           }
           // Restore pixel ratio if it was reduced
           var r = window.__vibexe_renderer__;
-          if (r && typeof r.getPixelRatio === 'function' && r.getPixelRatio() < 0.9) {
-            r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1));
+          if (r && typeof r.getPixelRatio === 'function' && r.getPixelRatio() < 1.0) {
+            r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
             didReset = true;
           }
           if (didReset) {
