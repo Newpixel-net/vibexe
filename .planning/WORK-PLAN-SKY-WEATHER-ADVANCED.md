@@ -1,6 +1,6 @@
 # Sky-Weather-Advanced Module — Tenkoku Dynamic Sky Conversion
 
-## Status: 88% — Phase 1-3,5-12 Code Complete, Phase 4 (star catalog) Pending
+## Status: 92% — ALL 12 PHASES CODE COMPLETE, Visual Testing Pending
 
 ## Overview
 Convert **Tenkoku Dynamic Sky v2.0** (Unity C#/HLSL) → **sky-weather-advanced** Vibexe module (JS/TSL).
@@ -395,7 +395,7 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 | 1 | Module Scaffold + Atmosphere | 20 | Code done, 3 tests pending | 85% |
 | 2 | Solar Calculator + Day/Night | 20 | Code done, 3 tests pending | 85% |
 | 3 | Procedural Clouds (3-layer fBm) | 20 | Code done, tests pending | 85% |
-| 4 | Real Star Catalog | 13 | Partial (procedural placeholder) | 20% |
+| 4 | Real Star Catalog | 13 | Code done (2,887 Tycho2 stars, mag≤5.5) | 85% |
 | 5 | Moon Rendering | 12 | Code done, tests pending | 85% |
 | 6 | Weather + Precipitation | 12 | Code done (state machine + particles) | 85% |
 | 7 | Lightning + Thunder | 12 | Code done, tests pending | 85% |
@@ -416,6 +416,7 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 | 2026-03-16 | Phase 9 | Aurora borealis curtain (cylinder mesh, animated vertex displacement, latitude/night gating) | 46% |
 | 2026-03-16 | Phase 6+10+11 | Weather state machine (6 states, auto-forecast), Milky Way (3K stars) + 5 planets, procedural weather audio (wind+rain) | 72% |
 | 2026-03-16 | Phase 8+12 | Height-based fog falloff, 6 environment presets (tropical→alien), 4 bridge handlers, message listener | 88% |
+| 2026-03-16 | Phase 4 | Real 2,887-star Tycho2 catalog (mag≤5.5), RA/Dec→3D, spectral colors, magnitude→size | 92% |
 
 ## Key Technical Decisions
 1. **New module `sky-weather-advanced`** — does NOT modify existing `sky-weather`
