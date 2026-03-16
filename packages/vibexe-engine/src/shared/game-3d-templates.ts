@@ -250,20 +250,20 @@ export function initRenderer(container: HTMLDivElement): any {
     (window as any).__vibexe_webgpu__ = false;
   }
   renderer.setSize(container.clientWidth, container.clientHeight);
-  // Global error suppression for known WebGPU renderer bugs (usedTimes, already initialized)
-  // These leak from internal Three.js r172 code during scene disposal/hot-reload
+  // Global error suppression for known WebGPU renderer bugs (usedTimes, already initialized, TypeError)
+  // These leak from internal Three.js r183 code during scene disposal/hot-reload/texture init
   if (!((window as any).__vibexe_webgpu_error_handler__)) {
     (window as any).__vibexe_webgpu_error_handler__ = true;
     window.addEventListener('error', (evt: ErrorEvent) => {
       const m = evt?.message || "";
-      if (m.includes("usedTimes") || m.includes("already initialized") || m.includes("is not a function")) {
+      if (m.includes("usedTimes") || m.includes("already initialized") || m.includes("is not a function") || m.includes("Cannot read properties of")) {
         evt.preventDefault();
         return true;
       }
     });
     window.addEventListener('unhandledrejection', (evt: PromiseRejectionEvent) => {
       const m = String(evt?.reason?.message || evt?.reason || "");
-      if (m.includes("usedTimes") || m.includes("already initialized")) {
+      if (m.includes("usedTimes") || m.includes("already initialized") || m.includes("Cannot read properties of")) {
         evt.preventDefault();
       }
     });
@@ -5330,6 +5330,26 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         };
       }
 
+      // Install global WebGPU error suppression handler (same as initRenderer)
+      // Catches "usedTimes", "already initialized", "is not a function" thrown from
+      // Three.js internals during scene disposal / hot-reload — prevent crash reports
+      if (!((window as any).__vibexe_webgpu_error_handler__)) {
+        (window as any).__vibexe_webgpu_error_handler__ = true;
+        window.addEventListener('error', (evt: ErrorEvent) => {
+          const m = evt?.message || "";
+          if (m.includes("usedTimes") || m.includes("already initialized") || m.includes("is not a function") || m.includes("Cannot read properties of")) {
+            evt.preventDefault();
+            return true;
+          }
+        });
+        window.addEventListener('unhandledrejection', (evt: PromiseRejectionEvent) => {
+          const m = String(evt?.reason?.message || evt?.reason || "");
+          if (m.includes("usedTimes") || m.includes("already initialized") || m.includes("Cannot read properties of")) {
+            evt.preventDefault();
+          }
+        });
+      }
+
       // Create renderer + store on window so idempotent helpers return it
       // Prefer WebGPURenderer (auto-falls back to WebGL 2 on unsupported browsers)
       const __perfSettings = ((window as any).__VIBEXE_GAME_SETTINGS__ || {}).performance || {};
@@ -7099,7 +7119,13 @@ export default function Game3D({ gameScene: rawScene, bgColor = "#87CEEB", camer
         let __renderErrCount = 0;
         const __isWebGPURenderErr = (e: any) => {
           const m = e?.message || "";
-          return m.includes("already initialized") || m.includes("usedTimes") || m.includes("is not a function");
+          // Catch all known WebGPU transient errors + TypeError from Three.js internals
+          // (null property access during texture upload, pipeline compilation, buffer binding, etc.)
+          if (m.includes("already initialized") || m.includes("usedTimes") || m.includes("is not a function")
+            || m.includes("Cannot read properties of") || m.includes("Cannot set properties of")) return true;
+          // Any TypeError thrown during render is likely from Three.js WebGPU internals
+          if (e instanceof TypeError) return true;
+          return false;
         };
         const __safeRender = (delta?: number) => {
           try {

@@ -799,6 +799,15 @@ function ProceduralSkyDome(scene) {
   this._gradTex.minFilter = THREE.LinearFilter;
   this._gradTex.wrapS = THREE.ClampToEdgeWrapping;
   this._gradTex.wrapT = THREE.ClampToEdgeWrapping;
+  // Prevent Three.js from applying color space conversion — shader handles sRGB decode manually
+  if (THREE.NoColorSpace) this._gradTex.colorSpace = THREE.NoColorSpace;
+  else if (THREE.LinearSRGBColorSpace) this._gradTex.colorSpace = THREE.LinearSRGBColorSpace;
+  this._gradTex.generateMipmaps = false;
+
+  // Pre-build gradient BEFORE creating TSL material — WebGPU "initializes" texture on first use
+  // and subsequent needsUpdate may fail with "Texture already initialized"
+  this._buildGradient(0.45); // default solarTime — will be overridden by first update()
+  this._lastST = 0.45;
 
   this._u = {
     uSunDir:    THREE.uniform(new THREE.Vector3(0, 1, 0)),
@@ -910,6 +919,8 @@ ProceduralSkyDome.prototype._buildGradient = function(solarTime) {
     }
   }
   this._gradTex.needsUpdate = true;
+  // WebGPU fix: force texture version bump so WebGPUTextureUtils re-uploads data
+  if (this._gradTex.version !== undefined) this._gradTex.version++;
 };
 
 ProceduralSkyDome.prototype.getHorizonColor = function() {
@@ -1169,6 +1180,9 @@ WeatherParticles.prototype.update = function(dt, config) {
   }
 
   this._points.geometry.attributes.position.needsUpdate = true;
+  // WebGPU fix: force version bump so WebGPUTextureUtils re-uploads buffer data
+  var posAttr = this._points.geometry.attributes.position;
+  if (posAttr.version !== undefined) posAttr.version++;
 };
 
 WeatherParticles.prototype._rebuild = function(type, count) {

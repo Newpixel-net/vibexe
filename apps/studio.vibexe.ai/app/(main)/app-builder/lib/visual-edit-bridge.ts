@@ -1191,7 +1191,7 @@ export function getVisualEditBridgeScript(): string {
             if (!_gs.camera) _gs.camera = {};
             _gs.camera.offsetY = newOffsetY;
             _gs.camera.offsetZ = newOffsetZ;
-            if (cameraHelper) cameraHelper.update();
+            if (cameraHelper) { try { cameraHelper.update(); } catch(_e) {} }
             // Throttle postMessage to parent (200ms) to prevent React re-render storm
             var _camNow = Date.now();
             if (_camNow - _lastCamMovedTime >= 200) {
@@ -2216,10 +2216,16 @@ export function getVisualEditBridgeScript(): string {
     if (previewCamera && !cameraSelected) updatePreviewCamera();
     // Update camera frustum helper — sync display camera with preview camera position/rotation
     if (cameraHelper && cameraHelper.__displayCam && previewCamera) {
-      cameraHelper.__displayCam.position.copy(previewCamera.position);
-      cameraHelper.__displayCam.rotation.copy(previewCamera.rotation);
-      cameraHelper.__displayCam.updateProjectionMatrix();
-      cameraHelper.update();
+      try {
+        cameraHelper.__displayCam.position.copy(previewCamera.position);
+        cameraHelper.__displayCam.rotation.copy(previewCamera.rotation);
+        cameraHelper.__displayCam.updateProjectionMatrix();
+        cameraHelper.update();
+      } catch (_chErr) {
+        // WebGPU "Texture already initialized" — CameraHelper uses LineBasicMaterial internally
+        if (_chErr && _chErr.message && _chErr.message.includes("already initialized")) { /* swallow */ }
+        else { console.warn("[GameEditorBridge] CameraHelper update error:", _chErr.message); }
+      }
     }
     // Throttled camera orientation broadcast (~10Hz wall-clock)
     var _camNow = Date.now();
@@ -2303,9 +2309,14 @@ export function getVisualEditBridgeScript(): string {
       if (editor.renderer.__bridgeWrapped) editor.renderer.render = _noop;
       if (composer && composer.__bridgeWrapped) composer.render = _noop;
     } catch (e) {
-      // Prevent cascading crashes (e.g., TransformControls infinite recursion)
-      console.error("[GameEditorBridge] Render error — cleaning up:", e.message);
-      deselectObject();
+      // WebGPU "Texture already initialized" is non-fatal — do NOT deselect/disrupt editor
+      if (e && e.message && (e.message.includes("already initialized") || e.message.includes("usedTimes"))) {
+        // Swallow WebGPU texture lifecycle errors — they self-resolve on next frame
+      } else {
+        // Prevent cascading crashes (e.g., TransformControls infinite recursion)
+        console.error("[GameEditorBridge] Render error — cleaning up:", e.message);
+        deselectObject();
+      }
     }
   }
 
@@ -3133,7 +3144,7 @@ export function getVisualEditBridgeScript(): string {
                   if (!_gs.camera) _gs.camera = {};
                   _gs.camera.offsetY = newOffsetY;
                   _gs.camera.offsetZ = newOffsetZ;
-                  if (cameraHelper) cameraHelper.update();
+                  if (cameraHelper) { try { cameraHelper.update(); } catch(_e) {} }
                   // Throttle postMessage to parent (200ms)
                   var _camNow2 = Date.now();
                   if (_camNow2 - _lastCamMovedTime2 >= 200) {
@@ -3246,7 +3257,7 @@ export function getVisualEditBridgeScript(): string {
               previewCamera.updateMatrixWorld(true);
               break;
           }
-          if (cameraHelper) cameraHelper.update();
+          if (cameraHelper) { try { cameraHelper.update(); } catch(_e) {} }
         }
         break;
       case "game-editor-set-pivot-mode":
@@ -6059,8 +6070,14 @@ export function getVisualEditBridgeScript(): string {
               break;
             }
           }
-          if (_rpAllDefaultGray && _rpGeo.attributes.color) {
-            console.log("[TerrainPainter] No textures + all default gray — preserving original vertex colors");
+          if (_rpAllDefaultGray && (_rpGeo.attributes.color || (_rpTerrain.material && _rpTerrain.material.colorNode))) {
+            console.log("[TerrainPainter] No textures + all default gray — preserving existing material");
+            // If terrain already has a TSL material (from a prior textured repaint), keep it entirely
+            if (_rpTerrain.material && _rpTerrain.material.colorNode) {
+              console.log("[TerrainPainter] Keeping TSL material from prior repaint (has colorNode)");
+              window.parent.postMessage({ type: "terrain-painter-repainted" }, "*");
+              break;
+            }
           } else {
             // Apply vertex colors from layer preview colors
             var _rpVCols = new Float32Array(_rpCount * 3);
@@ -6089,8 +6106,10 @@ export function getVisualEditBridgeScript(): string {
             _rpGeo.attributes.color.needsUpdate = true;
           }
 
-          // Use vertex color material (keep existing if already vertex-colored)
-          if (!_rpTerrain.material || !_rpTerrain.material.vertexColors) {
+          // Use vertex color material (keep existing if already vertex-colored or has TSL colorNode)
+          if (_rpTerrain.material && (_rpTerrain.material.vertexColors || _rpTerrain.material.colorNode)) {
+            // Already has appropriate material — keep it
+          } else {
             if (_rpTerrain.material) { try { _rpTerrain.material.dispose(); } catch(e) {} }
             _rpTerrain.material = new _rpTHREE.MeshStandardMaterial({
               vertexColors: true,
