@@ -3878,9 +3878,12 @@ export function getVisualEditBridgeScript(): string {
         if (_perfS) {
           var _perfRenderer = window.__vibexe_renderer__ || (editor && editor.renderer);
           if (_perfRenderer) {
-            // Pixel ratio — cap at 1.0 for game mode (rendering at 2x costs 4x pixels for minimal gain)
+            // Pixel ratio — use devicePixelRatio for sharp HiDPI rendering (cap at 2.0)
             if (_perfS.pixelRatio != null) {
-              _perfRenderer.setPixelRatio(Math.max(0.5, Math.min(1.0, _perfS.pixelRatio)));
+              var _dpr = (typeof devicePixelRatio !== "undefined") ? devicePixelRatio : 1;
+              // If saved value is 1 but device has higher DPR, use DPR (legacy migration)
+              var _targetPR = (_perfS.pixelRatio <= 1 && _dpr > 1) ? _dpr : _perfS.pixelRatio;
+              _perfRenderer.setPixelRatio(Math.max(0.5, Math.min(2.0, _targetPR)));
             }
             // Shadow quality based on preset
             if (_perfS.qualityPreset === "low") {
@@ -6437,7 +6440,7 @@ export function getVisualEditBridgeScript(): string {
 
   function getMaxPixelRatio() {
     var dpr = (typeof devicePixelRatio !== "undefined") ? devicePixelRatio : 1;
-    return Math.min(dpr, 1.0);
+    return Math.min(dpr, 2.0);
   }
 
   function init() {
