@@ -1,6 +1,6 @@
 # Sky-Weather-Advanced Module — Tenkoku Dynamic Sky Conversion
 
-## Status: 92% — ALL 12 PHASES CODE COMPLETE, Visual Testing Pending
+## Status: 75% — ALL 12 PHASES CODE COMPLETE + GAP-FILLING DONE, Visual Testing Pending
 
 ## Overview
 Convert **Tenkoku Dynamic Sky v2.0** (Unity C#/HLSL) → **sky-weather-advanced** Vibexe module (JS/TSL).
@@ -417,7 +417,8 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 | 2026-03-16 | Phase 6+10+11 | Weather state machine (6 states, auto-forecast), Milky Way (3K stars) + 5 planets, procedural weather audio (wind+rain) | 72% |
 | 2026-03-16 | Phase 8+12 | Height-based fog falloff, 6 environment presets (tropical→alien), 4 bridge handlers, message listener | 88% |
 | 2026-03-16 | Phase 4 | Real 2,887-star Tycho2 catalog (mag≤5.5), RA/Dec→3D, spectral colors, magnitude→size | 92% |
-| 2026-03-16 | Gap-fill | Sidereal rotation, wind gusts, thunder pitch, audio crossfade, overcast dimming, sun shafts | 70% |
+| 2026-03-16 | Gap-fill 1 | Sidereal rotation, wind gusts, thunder pitch, audio crossfade, overcast dimming, sun shafts | 70% |
+| 2026-03-16 | Gap-fill 2 | Bridge compat (both prefixes), config migration, constellation sizes, cricket audio, deployed | 75% |
 
 ## Key Technical Decisions
 1. **New module `sky-weather-advanced`** — does NOT modify existing `sky-weather`
