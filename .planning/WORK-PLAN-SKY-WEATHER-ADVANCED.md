@@ -399,7 +399,7 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 | 5 | Moon Rendering | 12 | Code done, tests pending | 85% |
 | 6 | Weather + Precipitation | 12 | Code done (state machine + particles) | 85% |
 | 7 | Lightning + Thunder | 12 | Code done, tests pending | 85% |
-| 8 | Fog (height-based) | 12 | Code done (height falloff + auto color) | 75% |
+| 8 | Fog + Sun Shafts | 12 | Code done (height fog + billboard god rays) | 80% |
 | 9 | Aurora Borealis | 11 | Code done, tests pending | 85% |
 | 10 | Milky Way + Planets | 10 | Code done, tests pending | 85% |
 | 11 | Weather Audio | 10 | Code done, tests pending | 85% |
@@ -417,6 +417,7 @@ Vertex colors match the existing `sky-weather` module approach and keep GPU budg
 | 2026-03-16 | Phase 6+10+11 | Weather state machine (6 states, auto-forecast), Milky Way (3K stars) + 5 planets, procedural weather audio (wind+rain) | 72% |
 | 2026-03-16 | Phase 8+12 | Height-based fog falloff, 6 environment presets (tropical→alien), 4 bridge handlers, message listener | 88% |
 | 2026-03-16 | Phase 4 | Real 2,887-star Tycho2 catalog (mag≤5.5), RA/Dec→3D, spectral colors, magnitude→size | 92% |
+| 2026-03-16 | Gap-fill | Sidereal rotation, wind gusts, thunder pitch, audio crossfade, overcast dimming, sun shafts | 70% |
 
 ## Key Technical Decisions
 1. **New module `sky-weather-advanced`** — does NOT modify existing `sky-weather`

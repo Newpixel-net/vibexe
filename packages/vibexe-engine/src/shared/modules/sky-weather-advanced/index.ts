@@ -2187,6 +2187,131 @@ WeatherAudio.prototype.dispose = function() {
 
 
 // ============================================================
+// Sun Shafts (God Rays) — Screen-space light shaft billboard
+// ============================================================
+// Simplified from TenkokuSunShafts.cs (156 lines)
+// Full post-process radial blur requires depth buffer access;
+// this uses additive billboard sprites radiating from sun position.
+
+function SunShafts() {
+  this._group = null;
+  this._rays = [];
+  this._sunDir = new THREE.Vector3(0, 1, 0);
+  this._intensity = 0;
+}
+
+SunShafts.prototype.build = function(scene) {
+  if (this._group) return;
+  this._group = new THREE.Group();
+  this._group.name = "__swa_sun_shafts__";
+  this._group.renderOrder = -997;
+
+  // Create ray billboards — elongated planes radiating from sun
+  var rayCount = 8;
+  var rayTex = this._createRayTexture();
+
+  for (var i = 0; i < rayCount; i++) {
+    var angle = (i / rayCount) * TWO_PI + Math.random() * 0.3;
+    var length = 600 + Math.random() * 400;
+    var width = 80 + Math.random() * 60;
+
+    var geo = new THREE.PlaneGeometry(width, length);
+    var mat = new THREE.MeshBasicMaterial({
+      map: rayTex,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      fog: false,
+    });
+
+    var mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.z = angle;
+    mesh.frustumCulled = false;
+    this._group.add(mesh);
+    this._rays.push({ mesh: mesh, mat: mat, angle: angle, baseLength: length });
+  }
+
+  scene.add(this._group);
+};
+
+SunShafts.prototype._createRayTexture = function() {
+  var s = 64;
+  var canvas = document.createElement("canvas");
+  canvas.width = s; canvas.height = s * 4;
+  var ctx = canvas.getContext("2d");
+
+  // Elongated gradient fade (bright center, transparent edges)
+  var grad = ctx.createLinearGradient(0, 0, 0, s * 4);
+  grad.addColorStop(0, "rgba(255,240,200,0)");
+  grad.addColorStop(0.3, "rgba(255,240,200,0.15)");
+  grad.addColorStop(0.5, "rgba(255,245,220,0.25)");
+  grad.addColorStop(0.7, "rgba(255,240,200,0.15)");
+  grad.addColorStop(1, "rgba(255,240,200,0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, s, s * 4);
+
+  // Horizontal fade (narrower at edges)
+  var grad2 = ctx.createLinearGradient(0, 0, s, 0);
+  grad2.addColorStop(0, "rgba(0,0,0,0)");
+  grad2.addColorStop(0.3, "rgba(255,255,255,0.5)");
+  grad2.addColorStop(0.5, "rgba(255,255,255,1)");
+  grad2.addColorStop(0.7, "rgba(255,255,255,0.5)");
+  grad2.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.globalCompositeOperation = "multiply";
+  ctx.fillStyle = grad2;
+  ctx.fillRect(0, 0, s, s * 4);
+
+  var tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+};
+
+SunShafts.prototype.update = function(camera, sunDir, sunAltDeg, settings) {
+  if (!this._group) return;
+
+  this._intensity = settings.godRays || 0;
+
+  // Only visible when sun is above horizon and intensity > 0
+  var visible = this._intensity > 0.01 && sunAltDeg > -2;
+  this._group.visible = visible;
+  if (!visible) return;
+
+  // Position at sun location
+  var dist = 4500;
+  if (camera) {
+    this._group.position.set(
+      camera.position.x + sunDir.x * dist,
+      camera.position.y + sunDir.y * dist,
+      camera.position.z + sunDir.z * dist
+    );
+    this._group.lookAt(camera.position);
+  }
+
+  // Fade based on sun altitude (strongest near horizon)
+  var horizonFade = _smoothstep(40, 5, sunAltDeg); // strongest at low sun
+  var opacity = this._intensity * horizonFade * 0.3;
+
+  for (var i = 0; i < this._rays.length; i++) {
+    this._rays[i].mat.opacity = opacity * (0.5 + Math.random() * 0.5);
+  }
+};
+
+SunShafts.prototype.dispose = function(scene) {
+  if (this._group) {
+    for (var i = 0; i < this._rays.length; i++) {
+      this._rays[i].mesh.geometry.dispose();
+      this._rays[i].mat.dispose();
+    }
+    scene.remove(this._group);
+  }
+  this._group = null;
+  this._rays = [];
+};
+
+
+// ============================================================
 // Fog Controller
 // ============================================================
 
@@ -2281,6 +2406,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.aurora = new AuroraRenderer();
   this.weather = new WeatherStateMachine();
   this.milkyWay = new MilkyWayAndPlanets();
+  this.sunShafts = new SunShafts();
   this.audio = new WeatherAudio();
   this.particles = new WeatherParticles();
   this.stars = new StarField();
@@ -2300,6 +2426,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.lightning.init(scene);
   this.aurora.build(scene);
   this.milkyWay.init(scene);
+  this.sunShafts.build(scene);
   this.lighting.init(scene);
   this.particles.init(scene);
   this.stars.init(scene);
@@ -2548,6 +2675,9 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
 
   // Fog
   this.fog.update(this.scene, sunAltDeg, this.settings.fog || {});
+
+  // Sun Shafts (god rays)
+  this.sunShafts.update(camera, this.orbital.sunDirection, sunAltDeg, this.settings.effects || {});
 };
 
 // Update settings from external source (bridge message)
@@ -2568,6 +2698,7 @@ SkyWeatherAdvancedSystem.prototype.destroy = function() {
   this.lightning.dispose(this.scene);
   this.aurora.dispose(this.scene);
   this.milkyWay.dispose(this.scene);
+  this.sunShafts.dispose(this.scene);
   this.audio.dispose();
   this.lighting.dispose(this.scene);
   this.particles.dispose(this.scene);
@@ -2689,6 +2820,7 @@ if (typeof window !== "undefined") {
     WeatherStateMachine: WeatherStateMachine,
     MilkyWayAndPlanets: MilkyWayAndPlanets,
     WeatherAudio: WeatherAudio,
+    SunShafts: SunShafts,
     SkyLightingController: SkyLightingController,
     WeatherParticles: WeatherParticles,
     StarField: StarField,
