@@ -1073,172 +1073,83 @@ StarField.prototype.dispose = function(scene) {
 
 
 // ============================================================
-// Cloud System — Multi-layer procedural clouds
+// Cloud System — Canvas2D procedural noise on a textured dome
 // ============================================================
-// Ported from Tenkoku_cloud_sphere.shader (712 lines)
-// Uses procedural fBm noise on a cloud dome mesh with vertex colors+alpha.
-// 3 layers: cumulus (1500-3500m), altocumulus (5500-6000m), cirrostratus (high wispy)
+// Renders 3 cloud layers (cumulus/altocumulus/cirrostratus) as
+// white-on-transparent noise onto an offscreen canvas, applied
+// as a CanvasTexture on a hemisphere MeshBasicMaterial.
 
 function CloudSystem() {
   this._dome = null;
   this._geo = null;
   this._mat = null;
+  this._tex = null;
+  this._canvas = null;
+  this._ctx = null;
   this._sunDir = [0, 1, 0];
   this._coverage = 0.5;
   this._speed = 1.0;
   this._brightness = 1.0;
   this._density = 0.85;
-  this._windDir = 0;
+  this._scale = 3.0;
   this._time = 0;
+  this._CW = 512;
+  this._CH = 256;
 }
 
-// Simple hash for procedural noise
-CloudSystem.prototype._hash = function(x, y, z) {
-  var n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+// 2D hash — returns 0..1
+CloudSystem.prototype._hash2 = function(x, y) {
+  var n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
   return n - Math.floor(n);
 };
 
-// 3D value noise
-CloudSystem.prototype._noise3D = function(x, y, z) {
-  var ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
-  var fx = x - ix, fy = y - iy, fz = z - iz;
-  // Smoothstep
+// 2D value noise with smoothstep interpolation
+CloudSystem.prototype._noise2 = function(x, y) {
+  var ix = Math.floor(x), iy = Math.floor(y);
+  var fx = x - ix, fy = y - iy;
   var ux = fx * fx * (3 - 2 * fx);
   var uy = fy * fy * (3 - 2 * fy);
-  var uz = fz * fz * (3 - 2 * fz);
-
-  var h = this._hash;
-  var n000 = h(ix, iy, iz), n100 = h(ix+1, iy, iz);
-  var n010 = h(ix, iy+1, iz), n110 = h(ix+1, iy+1, iz);
-  var n001 = h(ix, iy, iz+1), n101 = h(ix+1, iy, iz+1);
-  var n011 = h(ix, iy+1, iz+1), n111 = h(ix+1, iy+1, iz+1);
-
-  var nx00 = n000 + (n100 - n000) * ux;
-  var nx10 = n010 + (n110 - n010) * ux;
-  var nx01 = n001 + (n101 - n001) * ux;
-  var nx11 = n011 + (n111 - n011) * ux;
-
-  var nxy0 = nx00 + (nx10 - nx00) * uy;
-  var nxy1 = nx01 + (nx11 - nx01) * uy;
-
-  return nxy0 + (nxy1 - nxy0) * uz;
+  var h = this._hash2;
+  var n00 = h(ix, iy), n10 = h(ix + 1, iy);
+  var n01 = h(ix, iy + 1), n11 = h(ix + 1, iy + 1);
+  var nx0 = n00 + (n10 - n00) * ux;
+  var nx1 = n01 + (n11 - n01) * ux;
+  return nx0 + (nx1 - nx0) * uy;
 };
 
-// fBm (fractal Brownian motion) — 4 octaves
-CloudSystem.prototype._fbm = function(x, y, z) {
+// 2D fBm — 5 octaves for detailed cloud shapes
+CloudSystem.prototype._fbm2 = function(x, y) {
   var val = 0, amp = 0.5, freq = 1.0;
-  for (var i = 0; i < 4; i++) {
-    val += amp * this._noise3D(x * freq, y * freq, z * freq);
+  for (var i = 0; i < 5; i++) {
+    val += amp * this._noise2(x * freq, y * freq);
     freq *= 2.0;
     amp *= 0.5;
   }
   return val;
 };
 
-// Compute cloud density for a given view direction
-CloudSystem.prototype._sampleCloud = function(dirX, dirY, dirZ) {
-  if (dirY < 0.02) return [0, 0, 0, 0]; // below horizon
-
-  var t = this._time * this._speed;
-  var coverage = this._coverage;
-  if (coverage <= 0.01) return [0, 0, 0, 0];
-
-  // Scale from view direction to world-space sample point on cloud layer
-  var scale = 3.0 / (dirY + 0.001); // perspective projection to cloud altitude
-  var sx = dirX * scale + t * 0.02;
-  var sz = dirZ * scale + t * 0.015;
-  var windOffset = this._windDir * DEG2RAD;
-  sx += Math.sin(windOffset) * t * 0.01;
-  sz += Math.cos(windOffset) * t * 0.01;
-
-  // Layer 1: Cumulus (dense, puffy)
-  var n1 = this._fbm(sx * 0.8, 0.5, sz * 0.8);
-  n1 = _clamp(n1 + coverage - 0.5, 0, 1);
-  // Altitude-based falloff
-  var altFade = _smoothstep(0.02, 0.15, dirY) * _smoothstep(0.6, 0.35, dirY);
-  n1 *= altFade;
-
-  // Layer 2: Altocumulus (lighter, higher)
-  var n2 = this._fbm(sx * 1.5 + 100, 1.0, sz * 1.5 + 100);
-  n2 = _clamp(n2 + coverage * 0.7 - 0.45, 0, 1) * 0.4;
-  var altFade2 = _smoothstep(0.05, 0.25, dirY) * _smoothstep(0.8, 0.5, dirY);
-  n2 *= altFade2;
-
-  // Layer 3: Cirrostratus (thin, wispy, highest)
-  var n3 = this._fbm(sx * 2.5 + 200, 2.0, sz * 2.5 + 200);
-  n3 = _clamp(n3 + coverage * 0.5 - 0.4, 0, 1) * 0.25;
-  var altFade3 = _smoothstep(0.1, 0.35, dirY) * _smoothstep(0.95, 0.6, dirY);
-  n3 *= altFade3;
-
-  // Combined density
-  var totalDensity = _clamp((n1 + n2 + n3) * this._density, 0, 1);
-  if (totalDensity < 0.01) return [0, 0, 0, 0];
-
-  // Beer-Powder lighting (Tenkoku method)
-  var sunDot = dirX * this._sunDir[0] + dirY * this._sunDir[1] + dirZ * this._sunDir[2];
-  var lightFac = _clamp(sunDot * 0.5 + 0.5, 0, 1);
-
-  // Henyey-Greenstein phase for silver lining
-  var g = 0.5;
-  var g2 = g * g;
-  var hg = 0.5 * (1 - g2) / Math.pow(1 + g2 - 2 * g * sunDot, 1.5);
-  hg = _clamp(hg, 0, 2);
-
-  // Beer-Powder scattering
-  var extinction = 0.01;
-  var beerPowder = Math.exp(-extinction * totalDensity * 50) *
-    (1 - Math.exp(-extinction * 0.75 * totalDensity * 50));
-
-  // Cloud color: bright on sun-facing side, darker underneath
-  var brightness = this._brightness;
-  var scatter = beerPowder * hg * 2.0;
-  var baseLight = _lerp(0.4, 1.0, lightFac) * brightness;
-
-  // Sun altitude affects cloud color temperature
-  var sunAlt = this._sunDir[1]; // Y component = sin(altitude)
-  var r, gn, b;
-  if (sunAlt > 0.1) {
-    // Day: white-ish clouds
-    r = baseLight * (0.95 + scatter * 0.3);
-    gn = baseLight * (0.95 + scatter * 0.2);
-    b = baseLight * (0.98 + scatter * 0.1);
-  } else if (sunAlt > -0.05) {
-    // Sunset/sunrise: orange/pink clouds
-    var sunsetT = _smoothstep(-0.05, 0.1, sunAlt);
-    r = baseLight * _lerp(1.2, 0.95, sunsetT) + scatter * 0.4;
-    gn = baseLight * _lerp(0.6, 0.95, sunsetT) + scatter * 0.2;
-    b = baseLight * _lerp(0.4, 0.98, sunsetT) + scatter * 0.1;
-  } else {
-    // Night: dark grey-blue
-    r = baseLight * 0.15;
-    gn = baseLight * 0.15;
-    b = baseLight * 0.2;
-  }
-
-  // Alpha: based on density (boosted for visibility with additive blend)
-  var alpha = _clamp(totalDensity * 4.0, 0, 1.0);
-
-  return [_clamp(r, 0, 1.5), _clamp(gn, 0, 1.5), _clamp(b, 0, 1.5), alpha];
-};
-
 CloudSystem.prototype.build = function(scene) {
   if (this._dome) return;
 
-  var segW = 48, segH = 16;
-  this._geo = new THREE.SphereGeometry(4900, segW, segH, 0, TWO_PI, 0, PI * 0.5);
+  // Offscreen canvas for cloud texture
+  this._canvas = document.createElement("canvas");
+  this._canvas.width = this._CW;
+  this._canvas.height = this._CH;
+  this._ctx = this._canvas.getContext("2d");
+
+  this._tex = new THREE.CanvasTexture(this._canvas);
+  this._tex.wrapS = THREE.RepeatWrapping;
+  this._tex.wrapT = THREE.ClampToEdgeWrapping;
+  this._tex.colorSpace = "srgb";
+
+  // Upper hemisphere dome — BackSide so texture faces inward
+  this._geo = new THREE.SphereGeometry(4900, 64, 32, 0, TWO_PI, 0, PI * 0.5);
   this._geo.name = "__swa_cloud_geo__";
 
-  var posAttr = this._geo.getAttribute("position");
-  var colors = new Float32Array(posAttr.count * 3);
-  this._geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-
-  // Cloud rendering: NormalBlending with sky-matched non-cloud vertices
-  // Non-cloud vertices = sky color (invisible blend), cloud vertices = bright white
   this._mat = new THREE.MeshBasicMaterial({
-    vertexColors: true,
+    map: this._tex,
     side: THREE.BackSide,
     transparent: true,
-    opacity: 0.95,
     depthWrite: false,
     fog: false,
   });
@@ -1251,53 +1162,136 @@ CloudSystem.prototype.build = function(scene) {
   scene.add(this._dome);
 };
 
-CloudSystem.prototype.updateColors = function(atmosphere) {
-  if (!this._geo) return;
+CloudSystem.prototype.updateTexture = function(atmosphere) {
+  if (!this._ctx) return;
+  var ctx = this._ctx;
+  var W = this._CW, H = this._CH;
+  var coverage = this._coverage;
+  var density = this._density;
+  var brightness = this._brightness;
+  var scale = this._scale;
+  var t = this._time * this._speed;
+  var sunY = this._sunDir[1];
+  var sunX = this._sunDir[0];
 
-  var posAttr = this._geo.getAttribute("position");
-  var colorAttr = this._geo.getAttribute("color");
-  var colors = colorAttr.array;
-  var dir = [0, 0, 0];
-  var hasAnyClouds = false;
+  // Clear to fully transparent
+  ctx.clearRect(0, 0, W, H);
 
-  for (var i = 0; i < posAttr.count; i++) {
-    var x = posAttr.getX(i);
-    var y = posAttr.getY(i);
-    var z = posAttr.getZ(i);
-    var len = Math.sqrt(x*x + y*y + z*z);
-    if (len > 0) { dir[0] = x/len; dir[1] = y/len; dir[2] = z/len; }
-    else { dir[0] = 0; dir[1] = 1; dir[2] = 0; }
-
-    var cloud = this._sampleCloud(dir[0], dir[1], dir[2]);
-    var a = cloud[3];
-
-    // Sample sky color for this direction (to blend non-cloud areas seamlessly)
-    var sky = atmosphere ? atmosphere._computeSkyColor(dir) : [0.53, 0.72, 0.9];
-
-    // Lerp: sky color → cloud color based on alpha
-    colors[i*3]   = sky[0] * (1 - a) + cloud[0] * a;
-    colors[i*3+1] = sky[1] * (1 - a) + cloud[1] * a;
-    colors[i*3+2] = sky[2] * (1 - a) + cloud[2] * a;
-    if (a > 0.05) hasAnyClouds = true;
+  if (coverage <= 0.01) {
+    if (this._tex) this._tex.needsUpdate = true;
+    if (this._dome) this._dome.visible = false;
+    return;
   }
-  colorAttr.needsUpdate = true;
-  // Only show dome if there are actual clouds (otherwise seamless sky-color dome is pointless)
-  if (this._dome) this._dome.visible = hasAnyClouds;
+
+  var imgData = ctx.createImageData(W, H);
+  var pix = imgData.data;
+  var hasCloud = false;
+
+  // Cloud base color from sun altitude
+  var baseR, baseG, baseB;
+  if (sunY > 0.1) {
+    // Daytime: white clouds
+    baseR = 245; baseG = 245; baseB = 250;
+  } else if (sunY > -0.05) {
+    // Sunset/sunrise: orange-pink
+    var st = _smoothstep(-0.05, 0.1, sunY);
+    baseR = Math.round(_lerp(255, 245, st));
+    baseG = Math.round(_lerp(160, 245, st));
+    baseB = Math.round(_lerp(120, 250, st));
+  } else {
+    // Night: dark blue-grey
+    baseR = 40; baseG = 42; baseB = 55;
+  }
+
+  // Sun-side lighting direction (horizontal angle for gradient overlay)
+  // sunX > 0 means sun is to the right of the dome texture
+  var sunAngle = Math.atan2(this._sunDir[2], sunX);
+
+  for (var py = 0; py < H; py++) {
+    // v = 0 at top (zenith), 1 at bottom (horizon)
+    var v = py / H;
+
+    // Altitude-based fade: clouds thin out near zenith and near horizon edge
+    var altFade = _smoothstep(0.0, 0.15, v) * _smoothstep(1.0, 0.75, v);
+
+    for (var px = 0; px < W; px++) {
+      var u = px / W;
+      var idx = (py * W + px) * 4;
+
+      // Map canvas coords to noise space (u wraps horizontally like longitude)
+      var nx = u * scale * 4.0;
+      var ny = v * scale * 2.0;
+
+      // Wind scroll offset
+      var windX = t * 0.03;
+      var windY = t * 0.008;
+
+      // Layer 1: Cumulus — large puffy formations
+      var n1 = this._fbm2(nx * 0.8 + windX, ny * 0.8 + windY);
+      var c1 = _clamp(n1 + coverage - 0.5, 0, 1);
+      // Cumulus lives in the mid-altitude band
+      var fade1 = _smoothstep(0.05, 0.25, v) * _smoothstep(0.85, 0.5, v);
+      c1 *= fade1;
+
+      // Layer 2: Altocumulus — smaller, lighter patches (offset sampling)
+      var n2 = this._fbm2(nx * 1.6 + windX * 1.3 + 50, ny * 1.6 + windY * 0.7 + 50);
+      var c2 = _clamp(n2 + coverage * 0.7 - 0.45, 0, 1) * 0.45;
+      var fade2 = _smoothstep(0.1, 0.3, v) * _smoothstep(0.9, 0.55, v);
+      c2 *= fade2;
+
+      // Layer 3: Cirrostratus — thin wispy high-altitude streaks
+      var n3 = this._fbm2(nx * 2.8 + windX * 0.6 + 120, ny * 1.2 + windY * 0.4 + 120);
+      var c3 = _clamp(n3 + coverage * 0.5 - 0.4, 0, 1) * 0.3;
+      var fade3 = _smoothstep(0.0, 0.12, v) * _smoothstep(0.55, 0.3, v);
+      c3 *= fade3;
+
+      // Combined density
+      var d = _clamp((c1 + c2 + c3) * density, 0, 1);
+      if (d < 0.02) continue;
+
+      hasCloud = true;
+
+      // Sun-facing brightness gradient (simple dot product approximation)
+      // Pixels on the sun-facing side of the dome get extra light
+      var pixAngle = u * TWO_PI;
+      var sunDot = Math.cos(pixAngle - sunAngle) * 0.5 + 0.5;
+      // Boost brightness on sun side, darken opposite side
+      var lightMul = _lerp(0.55, 1.3, sunDot) * brightness;
+      // Altitude shading: cloud bottoms darker
+      lightMul *= _lerp(0.65, 1.0, 1.0 - v);
+
+      var r = _clamp(baseR * lightMul / 255, 0, 1);
+      var g = _clamp(baseG * lightMul / 255, 0, 1);
+      var b = _clamp(baseB * lightMul / 255, 0, 1);
+
+      // Alpha: ramp up from threshold for soft edges
+      var alpha = _clamp(d * 3.5, 0, 1) * altFade;
+
+      pix[idx]     = Math.round(r * 255);
+      pix[idx + 1] = Math.round(g * 255);
+      pix[idx + 2] = Math.round(b * 255);
+      pix[idx + 3] = Math.round(alpha * 255);
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  if (this._tex) this._tex.needsUpdate = true;
+  if (this._dome) this._dome.visible = hasCloud;
 };
 
 CloudSystem.prototype.update = function(dt, camera, sunDir, settings) {
   this._time += dt;
   this._sunDir = [sunDir.x, sunDir.y, sunDir.z];
-  this._coverage = settings.coverage || 0;
+  this._coverage = settings.coverage != null ? settings.coverage : 0.35;
   this._speed = settings.speed || 1.0;
   this._brightness = settings.brightness || 1.0;
   this._density = settings.density || 0.85;
+  this._scale = settings.scale || 3.0;
 
   if (this._dome && camera) {
     this._dome.position.copy(camera.position);
   }
 
-  // Visibility: skip if no coverage
   if (this._dome) {
     this._dome.visible = this._coverage > 0.01;
   }
@@ -1307,7 +1301,10 @@ CloudSystem.prototype.dispose = function(scene) {
   if (this._dome && this._dome.parent) this._dome.parent.remove(this._dome);
   if (this._geo) this._geo.dispose();
   if (this._mat) this._mat.dispose();
+  if (this._tex) this._tex.dispose();
   this._dome = null;
+  this._canvas = null;
+  this._ctx = null;
 };
 
 
@@ -2420,7 +2417,7 @@ function SkyWeatherAdvancedSystem(scene, settings) {
   this.clouds._coverage = cs.coverage != null ? cs.coverage : 0.35;
   this.clouds._sunDir = [this.orbital.sunDirection.x, this.orbital.sunDirection.y, this.orbital.sunDirection.z];
   if (this.clouds._dome) this.clouds._dome.visible = this.clouds._coverage > 0.01;
-  this.clouds.updateColors(this.atmosphere);
+  this.clouds.updateTexture(this.atmosphere);
 
   // Hook into game loop
   this._animFrameId = null;
@@ -2588,7 +2585,7 @@ SkyWeatherAdvancedSystem.prototype._tick = function(dt) {
   this._cloudUpdateTimer += dt;
   if (this._cloudUpdateTimer >= this._cloudUpdateInterval) {
     this._cloudUpdateTimer = 0;
-    this.clouds.updateColors(this.atmosphere);
+    this.clouds.updateTexture(this.atmosphere);
   }
 
   // Moon
