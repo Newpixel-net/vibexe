@@ -566,40 +566,56 @@ function SkyLightingController() {
 }
 
 SkyLightingController.prototype.init = function(scene) {
-  // Find or create directional light for sun
+  // ADOPT existing scene lights (same approach as sky-weather module)
+  // This avoids the bridge removing our lights as "duplicates"
+  var self = this;
   this.sunLight = null;
+  this.ambientLight = null;
+  this._ownsLights = false;
+
   scene.traverse(function(obj) {
-    if (obj.isDirectionalLight && !obj.name.startsWith("__swa_")) {
-      // Use existing directional light
+    // Prefer __default_sun__, fall back to any DirectionalLight
+    if (obj.isDirectionalLight) {
+      if (!self.sunLight || obj.name === "__default_sun__") {
+        self.sunLight = obj;
+      }
+    }
+    // Adopt first HemisphereLight or AmbientLight
+    if (!self.ambientLight && (obj.isAmbientLight || obj.isHemisphereLight)) {
+      self.ambientLight = obj;
     }
   });
-  if (!this.sunLight) {
-    this.sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
-    this.sunLight.name = "__swa_sun_light__";
+
+  if (this.sunLight) {
+    console.log("[SkyWeatherAdvanced] Adopted sun light:", this.sunLight.name);
+  } else {
+    // No existing sun light — create our own (shouldn't happen in normal game)
+    this.sunLight = new THREE.DirectionalLight(0xffffff, 2.5);
+    this.sunLight.name = "__default_sun__"; // Use standard name to avoid bridge removal
     this.sunLight.castShadow = true;
     this.sunLight.shadow.mapSize.set(2048, 2048);
     this.sunLight.shadow.camera.near = 0.5;
     this.sunLight.shadow.camera.far = 200;
-    this.sunLight.shadow.camera.left = -40;
-    this.sunLight.shadow.camera.right = 40;
-    this.sunLight.shadow.camera.top = 40;
-    this.sunLight.shadow.camera.bottom = -40;
+    var s = 40;
+    this.sunLight.shadow.camera.left = -s;
+    this.sunLight.shadow.camera.right = s;
+    this.sunLight.shadow.camera.top = s;
+    this.sunLight.shadow.camera.bottom = -s;
     this.sunLight.shadow.bias = -0.001;
     scene.add(this.sunLight);
     scene.add(this.sunLight.target);
+    this._ownsLights = true;
+    console.log("[SkyWeatherAdvanced] Created sun light (no existing found)");
   }
 
-  // Find or create ambient light
-  this.ambientLight = null;
-  scene.traverse(function(obj) {
-    if (obj.isHemisphereLight && obj.name === "__swa_ambient__") {
-      this.ambientLight = obj;
-    }
-  }.bind(this));
-  if (!this.ambientLight) {
-    this.ambientLight = new THREE.HemisphereLight(0x87CEEB, 0x362d15, 0.4);
-    this.ambientLight.name = "__swa_ambient__";
+  if (this.ambientLight) {
+    console.log("[SkyWeatherAdvanced] Adopted ambient light:", this.ambientLight.name);
+  } else {
+    this.ambientLight = new THREE.HemisphereLight(0x87CEEB, 0x362d15, 0.8);
+    this.ambientLight.name = "__default_hemi__";
     scene.add(this.ambientLight);
+    this._ownsLights = true;
+    console.log("[SkyWeatherAdvanced] Created ambient light (no existing found)");
   }
 };
 
@@ -684,18 +700,21 @@ SkyLightingController.prototype.update = function(sunDir, sunAltDeg, settings) {
 };
 
 SkyLightingController.prototype.dispose = function(scene) {
-  if (this.sunLight && this.sunLight.name === "__swa_sun_light__") {
-    scene.remove(this.sunLight.target);
-    scene.remove(this.sunLight);
-    if (this.sunLight.shadow && this.sunLight.shadow.map) {
-      this.sunLight.shadow.map.dispose();
+  // Only remove lights we created (not adopted ones)
+  if (this._ownsLights) {
+    if (this.sunLight) {
+      if (this.sunLight.target) scene.remove(this.sunLight.target);
+      scene.remove(this.sunLight);
+      if (this.sunLight.shadow && this.sunLight.shadow.map) {
+        this.sunLight.shadow.map.dispose();
+      }
     }
-    this.sunLight = null;
+    if (this.ambientLight) {
+      scene.remove(this.ambientLight);
+    }
   }
-  if (this.ambientLight && this.ambientLight.name === "__swa_ambient__") {
-    scene.remove(this.ambientLight);
-    this.ambientLight = null;
-  }
+  this.sunLight = null;
+  this.ambientLight = null;
 };
 
 
